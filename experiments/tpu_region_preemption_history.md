@@ -13,6 +13,10 @@ selected trainer produces FIRST_STEP, then release it. Apply on new launches and
 
 ## Active-zone assignments
 
+2026-09-26 scoped RMT MHABudget/boundary family: UE5a only, no backup zones.
+Keep the original-zone queue through preemption; the user explicitly prefers
+patient same-zone recovery over moving to EW4b or UC1a.
+
 2026-09-15 scoped XL lease A/B: `BamXLSharedBasisQKColOnlyMLP` moves UE5a→EW4b
 from committed checkpoint121; `BamXLSharedBasisQKDirectC8MLP` stays UE5a.
 Both are v5p-32, scan/AOT, near-identical throughput. Their first UE5a preemptions
@@ -331,7 +335,22 @@ active leases are censored, and manual migration releases are not preemptions.
 | `BamXLSharedBasisQKConcatStaticLocalVOSharedC8IndependentGatesK96QK96SharedRank4MLPPerLayerQKJointGelu256` | v5p-32 | `us-east5-a` | 2026-09-21 14:15:32 | 2026-09-22 09:20:29 | review stop; checkpoint34170 committed; 1 preemption | UC1a/EW4b backups, never active |
 
 | `BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerV48` | v5p-16 | `us-east5-a` | 2026-09-23 01:59:36 | 2026-09-23 03:28:11 | review stop; checkpoint2891 committed; 0 preemptions | UC1a/EW4b backups, never active |
+
+| `BamMediumAllLocalRawReadWriteGate` | v5p-16 | `us-east5-a` | 2026-09-23 03:14:35 | 2026-09-23 04:53:11 | hot-switch pause; checkpoint3304 committed; 0 preemptions; TPU retained for tanh | UC1a/EW4b backups, never active |
+
+| `BamMediumAllLocalRawReadWriteSharedGelu3N` | v5p-16 | `us-east5-a` | 2026-09-23 03:53:47 | 2026-09-23 05:20:50 | review stop; checkpoint2903 committed; 0 preemptions | UC1a/EW4b backups, never active |
+
+| `BamMediumAllLocalDualWriteSharedGelu3N` | v5p-16 | `us-east5-a` | 2026-09-23 03:46:46 | 2026-09-23 05:22:56 | review stop; checkpoint2900 committed; 1 preemption, same-zone recovery | UC1a/EW4b backups, never active |
+
+| `BamMediumAllLocalDualWriteTanhFeedback` | v5p-16 | `us-east5-a` | 2026-09-23 04:54:16 | 2026-09-23 06:46:09 | hot-switch pause; checkpoint3941 committed; 0 preemptions; TPU retained for independent edges | UC1a/EW4b backups, never active |
 | `BamXLSharedBasisQKConcatStaticLocalVOSharedC8IndependentGatesK96QK96SharedRank4MLPPerLayerAllLocal` | `xd-v5p-32-xl-k96-rank4-all-local-maxtext` (v5p-32) | `us-east5-a` | 2026-09-22 14:19:51 | 2026-09-23 08:00:44 | user stop; checkpoint31583 committed; 2 preemptions; TPU/queue verified absent | UC1a/EW4b configured, never active |
+
+| BamMediumAllLocalDualWriteGates | v5p-16 | `us-east5-a` | 2026-09-23 01:59:07 | 2026-09-23 08:42:29 | completed13500; 0 preemptions; TPU/queue verified absent | none |
+
+| BamMediumAllLocalIndependentEdgesAddressMix | v5p-16 | `us-east5-a` | 2026-09-23 08:11:43 | 2026-09-23 09:33:28 | user stop; committed2519; TPU/queue absent | none |
+| BamMediumAllLocalIndependentErase | v5p-16 | `us-east5-a` | 2026-09-23 08:11:45 | 2026-09-23 09:33:31 | user stop; committed2474; TPU/queue absent | none |
+
+| BamMediumAllLocalIndependentEdges | v5p-16 | `us-east5-a` | 2026-09-23 06:47:03 | 2026-09-23 10:08:04 | user-directed stop; committed7174; TPU/queue absent | none |
 
 | `BamMHAMediumPropC256` | v5p-16 | `us-east5-a` | 2026-09-23 13:01:04 | 2026-09-23 18:27:46 | completed13500; TPU/queue absent | none activated |
 | `BamLlama2MediumPropK57SharedRank4MLPPerLayer` | v5p-16 | `us-east5-a` | 2026-09-23 13:01:04 | 2026-09-23 14:13:52 | same-RUN resource replacement at checkpoint942 | none activated |
@@ -352,6 +371,32 @@ active leases are censored, and manual migration releases are not preemptions.
 
 | `BamMediumPropK75EmbedVOnlyQK57MLP3200` | v5p-16 | `us-east5-a` | 2026-09-24 13:10:21 | 2026-09-24 20:43:33 | completed13,500; TPU/queue absent | none |
 | `BamMediumPropK75EmbedVOnlyQK57AllLocal` | v5p-16 | `us-east5-a` | 2026-09-24 13:13:01 | 2026-09-24 21:05:41 | completed13,500; TPU/queue absent | none |
+
+| `BamMHAMediumPropAlibiC256` | v5p-16 | `us-east5-a` | 2026-09-25 03:06:16 | 2026-09-25 09:01:19 | completed13,500; 1 preemption; TPU/queue absent | none |
+| `RMTMediumPropAlibiK48` | v5p-16 | `us-east5-a` | 2026-09-25 02:58:39 | 2026-09-25 09:24:27 | completed13,500; 1 preemption; TPU/queue absent | none |
+| `RMTMediumPropAlibiK64` | v5p-16 | `us-east5-a` | 2026-09-25 03:08:58 | 2026-09-25 09:54:52 | completed13,500; 1 preemption; TPU/queue absent | none |
+| `BamMediumPropK75AllLocalMOnlyAlibiRMTBudget` | v5p-16 | `us-east5-a` | 2026-09-25 03:08:35 | 2026-09-25 10:23:04 | completed13,500; 1 preemption; TPU/queue absent | none |
+| `BamMediumPropK75AllLocalStaticAlibiRMTBudget` | v5p-16 | `us-east5-a` | 2026-09-25 03:11:35 | 2026-09-25 09:36:36 | completed13,500; 1 preemption; TPU/queue absent | none |
+| `BamMediumPropK75AllLocalQK57RoPE18RMTBudget` | v5p-16 | `us-east5-a` | 2026-09-25 03:22:28 | 2026-09-25 09:49:15 | completed13,500; 0 preemptions; TPU/queue absent | none |
+| `RMTMediumPropAlibiK48DynamicTail32` | v5p-16 | `us-east5-a` | 2026-09-25 07:49:48 | 2026-09-25 14:48:31 | completed at checkpoint9129 via hot switch to RoPE18; same TPU retained | none |
+| `RMTMediumPropAlibiK48DynamicFull48` | v5p-16 | `us-east5-a` | 2026-09-25 07:55:06 | 2026-09-25 18:13:42 | completed13,500; 0 preemptions; TPU/queue absent | none |
+| `RMTMediumPropAlibiK48DynamicFull48NoO` | v5p-16 | `us-east5-a` | 2026-09-25 08:56:26 | 2026-09-25 20:25:27 | completed13,500; 4 preemptions; TPU/queue absent | none |
+| `RMTMediumPropAlibiK48DynamicReadWriteFull48` | v5p-16 | `us-east5-a` | 2026-09-25 10:51:56 | 2026-09-25 21:43:13 | completed13,500; 4 preemptions; TPU/queue absent | none |
+| `RMTMediumPropK48DynamicFull48RoPE18` | v5p-16 | `us-east5-a` | 2026-09-25 14:49:17 | 2026-09-26 00:23:29 | completed13,500; 0 preemptions; reused Tail32 TPU, then TPU/queue absent | none |
+| `RMTMediumPropK48DynamicFull48RoPE18VectorNormStaticMLP` | v5p-16 | `us-east5-a` | 2026-09-26 00:49:23 | 2026-09-26 01:15:32 | stopped147 after persistent NaN from step61; 1 preemption; TPU/queue absent | none |
+| `RMTMediumPropK48DynamicFull48RoPE18VectorNormStaticMLPPreNorm` | `xd-v5p-16-17-maxtext` | `us-east5-a` | 2026-09-26 01:24:03 | 2026-09-26 02:13:00 | stopped1260 after finite-loss collapse; 0 preemptions; TPU/queue absent | none |
+| `RMTMediumPropK48DynamicFull48RoPE18VectorNormStaticMLPDynamicRead` | `xd-v5p-16-18-maxtext` | `us-east5-a` | 2026-09-26 02:12:14 | 2026-09-26 02:26:24 | stopped296 after continuous NaN110; 0 preemptions; TPU/queue absent | none |
+| `RMTMediumPropK48DynamicFull48RoPE18VectorNormSingleOuterWrite` | v5p-16 | `us-east5-a` | 2026-09-26 03:14:53 | 2026-09-26 05:43:17 | stopped3046; TPU/queue absent | none |
+| `RMTMediumPropK48DynamicFull48RoPE18VectorNorm` | v5p-16 | `us-east5-a` | 2026-09-25 16:07:35 | 2026-09-26 01:45:23 | completed13500; TPU/queue absent | none |
+| `RMTMediumPropK48DynamicFull48RoPE18VectorNormDynamicOnlyWrite` | v5p-16 | `us-east5-a` | 2026-09-26 04:11:37 | 2026-09-26 06:14:48 | stopped2869; TPU/queue absent | none |
+| `RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudget` | v5p-16 (`xd-v5p-16-2609261-maxtext`) | `us-east5-a` | 2026-09-26 11:38:33 | 2026-09-26 21:50:47 | completed13500; TPU/queue absent, TB synced | none |
+| `RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetLLFSharedVO` | v5p-16 (`xd-v5p-16-2609262-maxtext`) | `us-east5-a` | 2026-09-26 11:38:30 | 2026-09-26 22:39:08 | completed13500; TPU/queue absent, TB synced | none |
+| `RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetLLFIndependentVO` | v5p-16 (`xd-v5p-16-2609263-maxtext`) | `us-east5-a` | 2026-09-26 11:41:46 | 2026-09-26 14:03:54 | stopped3013; resources absent | none |
+| `RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicEmbedding` | v5p-16 (`xd-v5p-16-2609264-maxtext`) | `us-east5-a` | 2026-09-26 13:35:17 | 2026-09-27 00:33:13 | completed13500; 5 preemptions; TPU/queue absent, TB synced | none |
+| `RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicUnembedding` | v5p-16 (`xd-v5p-16-2609265-maxtext`) | `us-east5-a` | 2026-09-26 13:35:05 | 2026-09-26 17:25:20 | stopped5088; TPU/queue absent, TB synced | none |
+| `RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicUnembeddingDirect32` | v5p-16 (`xd-v5p-16-2609266-maxtext`) | `us-east5-a` | 2026-09-26 15:01:08 | 2026-09-27 01:31:10 | completed13500; 2 preemptions; TPU/queue absent, TB synced | none |
+| `RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicEmbeddingUnembeddingDirect32` | v5p-16 (`xd-v5p-16-2609267-maxtext`) | `us-east5-a` | 2026-09-26 17:30:51 | — | active; 1 preemption, same-zone recovery; through13000 | none |
+| `RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicEmbeddingUnembeddingDirect32L22` | v5p-16 (`xd-v5p-16-2609268-maxtext`) | `us-east5-a` | 2026-09-27 00:30:03 | — | active; no preemptions; through3400 | none |
 
 ## READY leases
 
@@ -1044,7 +1089,16 @@ active leases are censored, and manual migration releases are not preemptions.
 | BamXLSharedBasisQKConcatStaticLocalVOSharedC8IndependentGatesK96QK96SharedRank4MLPPerLayerAllLocal | 1 | `us-east5-a` | 2026-09-22 14:24:57 | 2026-09-22 14:40:02 | 15m05s | service preemption; same-zone recovery |
 | BamXLSharedBasisQKConcatStaticLocalVOSharedC8IndependentGatesK96QK96SharedRank4MLPPerLayerAllLocal | 2 | `us-east5-a` | 2026-09-22 14:45:55 | 2026-09-22 16:33:15 | 1h47m20s | service preemption; same-zone recovery |
 | BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerV48 | 1 | `us-east5-a` | 2026-09-23 02:04:46 | 2026-09-23 03:28:11 | 1h23m25s | review stop; checkpoint2891 committed; TPU/queue absent |
+| BamMediumAllLocalRawReadWriteGate | 1 | `us-east5-a` | 2026-09-23 03:20:11 | 2026-09-23 04:53:11 | 1h33m00s | hot-switch pause; checkpoint3304 committed; TPU retained for tanh |
+| BamMediumAllLocalDualWriteSharedGelu3N | 1 | `us-east5-a` | 2026-09-23 03:50:58 | 2026-09-23 04:55:44 | 1h04m46s | service preemption; checkpoint2334 committed; same-zone recovery |
+| BamMediumAllLocalRawReadWriteSharedGelu3N | 1 | `us-east5-a` | 2026-09-23 03:59:16 | 2026-09-23 05:20:50 | 1h21m34s | review stop; checkpoint2903 committed; TPU/queue absent |
+| BamMediumAllLocalDualWriteSharedGelu3N | 2 | `us-east5-a` | 2026-09-23 05:04:59 | 2026-09-23 05:22:56 | 17m57s | review stop; checkpoint2900 committed; TPU/queue absent |
+| BamMediumAllLocalDualWriteTanhFeedback | 1 | `us-east5-a` | 2026-09-23 04:54:23 | 2026-09-23 06:46:09 | 1h51m46s | hot-switch pause; checkpoint3941 committed; TPU retained for independent edges |
 | BamXLSharedBasisQKConcatStaticLocalVOSharedC8IndependentGatesK96QK96SharedRank4MLPPerLayerAllLocal | 3 | `us-east5-a` | 2026-09-22 16:41:42 | 2026-09-23 08:00:44 | 15h19m02s | user stop; checkpoint31583 committed; TPU/queue absent |
+| BamMediumAllLocalDualWriteGates | 1 | `us-east5-a` | 2026-09-23 02:04:41 | 2026-09-23 08:42:29 | 6h37m48s | completed13500; 0 preemptions; TPU/queue verified absent |
+| BamMediumAllLocalIndependentEdgesAddressMix | 1 | `us-east5-a` | 2026-09-23 08:16:13 | 2026-09-23 09:33:28 | 1h17m15s | user stop; committed2519; 0 preemptions; TPU/queue absent |
+| BamMediumAllLocalIndependentErase | 1 | `us-east5-a` | 2026-09-23 08:15:53 | 2026-09-23 09:33:31 | 1h17m38s | user stop; committed2474; 0 preemptions; TPU/queue absent |
+| BamMediumAllLocalIndependentEdges | 1 | `us-east5-a` | 2026-09-23 06:47:06 | 2026-09-23 10:08:04 | 3h20m58s | user-directed stop; committed7174; 0 preemptions; TPU/queue absent |
 | `Llama2XLPropTrain` | 1 | `us-east5-a` | 2026-09-23 11:02:49 | 2026-09-23 12:10:06 | 1h07m17s | preempted |
 | `Llama2XLPropTrain` | 2 | `us-east5-a` | 2026-09-23 12:17:23 | 2026-09-23 12:27:08 | 9m45s | preempted |
 | `BamLlama2XLPropK72SharedRank4MLPPerLayerTrain` | 1 | `us-east5-a` | 2026-09-23 11:02:54 | 2026-09-23 13:03:40 | 2h00m46s | preempted |
@@ -1110,3 +1164,54 @@ active leases are censored, and manual migration releases are not preemptions.
 | `BamMediumPropK75EmbedVOnlyQK57AllLocal` | 3 | `us-east5-a` | 2026-09-24 15:49:21 | 2026-09-24 17:43:00 | 1h53m39s | preempted |
 | `BamMediumPropK75EmbedVOnlyQK57MLP3200` | 3 | `us-east5-a` | 2026-09-24 15:49:17 | 2026-09-24 20:43:33 | 4h54m16s | completed13500 |
 | `BamMediumPropK75EmbedVOnlyQK57AllLocal` | 4 | `us-east5-a` | 2026-09-24 17:48:52 | 2026-09-24 21:05:41 | 3h16m49s | completed13500 |
+| `RMTMediumPropAlibiK48` | 1 | `us-east5-a` | 2026-09-25 02:58:39 | 2026-09-25 03:20:41 | 22m02s | preempted |
+| `BamMediumPropK75AllLocalMOnlyAlibiRMTBudget` | 1 | `us-east5-a` | 2026-09-25 03:08:35 | 2026-09-25 07:27:27 | 4h18m52s | preempted |
+| `BamMHAMediumPropAlibiC256` | 1 | `us-east5-a` | 2026-09-25 03:06:16 | 2026-09-25 07:27:35 | 4h21m19s | preempted |
+| `RMTMediumPropAlibiK64` | 1 | `us-east5-a` | 2026-09-25 03:08:58 | 2026-09-25 07:27:35 | 4h18m37s | preempted |
+| `BamMediumPropK75AllLocalStaticAlibiRMTBudget` | 1 | `us-east5-a` | 2026-09-25 03:11:35 | 2026-09-25 07:53:12 | 4h41m37s | preempted |
+| `BamMHAMediumPropAlibiC256` | 2 | `us-east5-a` | 2026-09-25 07:34:21 | 2026-09-25 09:01:19 | 1h26m58s | clean exit |
+| `RMTMediumPropAlibiK48` | 2 | `us-east5-a` | 2026-09-25 03:30:17 | 2026-09-25 09:24:27 | 5h54m10s | clean exit |
+| `BamMediumPropK75AllLocalStaticAlibiRMTBudget` | 2 | `us-east5-a` | 2026-09-25 08:02:06 | 2026-09-25 09:36:36 | 1h34m30s | clean exit |
+| `BamMediumPropK75AllLocalQK57RoPE18RMTBudget` | 1 | `us-east5-a` | 2026-09-25 03:22:28 | 2026-09-25 09:49:15 | 6h26m47s | clean exit |
+| `RMTMediumPropAlibiK64` | 2 | `us-east5-a` | 2026-09-25 07:34:28 | 2026-09-25 09:54:52 | 2h20m24s | clean exit |
+| `BamMediumPropK75AllLocalMOnlyAlibiRMTBudget` | 2 | `us-east5-a` | 2026-09-25 07:34:18 | 2026-09-25 10:23:04 | 2h48m46s | clean exit |
+| `RMTMediumPropAlibiK48DynamicFull48NoO` | 1 | `us-east5-a` | 2026-09-25 09:01:42 | 2026-09-25 13:28:20 | 4h26m38s | preempted |
+| `RMTMediumPropAlibiK48DynamicReadWriteFull48` | 1 | `us-east5-a` | 2026-09-25 10:56:23 | 2026-09-25 13:29:33 | 2h33m10s | preempted |
+| `RMTMediumPropAlibiK48DynamicFull48NoO` | 2 | `us-east5-a` | 2026-09-25 13:38:01 | 2026-09-25 14:31:01 | 53m00s | preempted |
+| `RMTMediumPropAlibiK48DynamicTail32` | 1 | `us-east5-a` | 2026-09-25 07:54:32 | 2026-09-25 14:48:31 | 6h53m59s | hot switch; TPU retained by RoPE18 |
+| `RMTMediumPropAlibiK48DynamicReadWriteFull48` | 2 | `us-east5-a` | 2026-09-25 13:37:47 | 2026-09-25 15:04:20 | 1h26m33s | preempted |
+| `RMTMediumPropAlibiK48DynamicFull48NoO` | 3 | `us-east5-a` | 2026-09-25 14:43:17 | 2026-09-25 15:04:56 | 21m39s | preempted |
+| `RMTMediumPropAlibiK48DynamicFull48NoO` | 4 | `us-east5-a` | 2026-09-25 15:41:07 | 2026-09-25 17:51:11 | 2h10m04s | preempted |
+| `RMTMediumPropAlibiK48DynamicFull48` | 1 | `us-east5-a` | 2026-09-25 07:59:52 | 2026-09-25 18:13:42 | 10h13m50s | completed13,500 |
+| `RMTMediumPropAlibiK48DynamicReadWriteFull48` | 3 | `us-east5-a` | 2026-09-25 15:11:03 | 2026-09-25 18:23:09 | 3h12m06s | preempted |
+| `RMTMediumPropAlibiK48DynamicReadWriteFull48` | 4 | `us-east5-a` | 2026-09-25 18:32:55 | 2026-09-25 19:51:07 | 1h18m12s | preempted |
+| `RMTMediumPropAlibiK48DynamicFull48NoO` | 5 | `us-east5-a` | 2026-09-25 18:06:37 | 2026-09-25 20:25:27 | 2h18m50s | completed13,500 |
+| `RMTMediumPropAlibiK48DynamicReadWriteFull48` | 5 | `us-east5-a` | 2026-09-25 20:00:28 | 2026-09-25 21:43:13 | 1h42m45s | completed13,500 |
+| `RMTMediumPropK48DynamicFull48RoPE18` | 1 | `us-east5-a` | 2026-09-25 14:49:20 | 2026-09-26 00:23:29 | 9h34m09s | completed13,500; TPU/queue absent |
+| `RMTMediumPropK48DynamicFull48RoPE18VectorNormStaticMLP` | 1 | `us-east5-a` | 2026-09-26 00:57:08 | 2026-09-26 01:00:16 | 3m08s | preempted during installation |
+| `RMTMediumPropK48DynamicFull48RoPE18VectorNormStaticMLP` | 2 | `us-east5-a` | 2026-09-26 01:07:38 | 2026-09-26 01:15:32 | 7m54s | stopped147; TPU/queue absent |
+| `RMTMediumPropK48DynamicFull48RoPE18VectorNorm` | 1 | `us-east5-a` | 2026-09-25 16:13:51 | 2026-09-26 01:45:23 | 9h31m32s | completed13500; TPU/queue absent |
+| `RMTMediumPropK48DynamicFull48RoPE18VectorNormStaticMLPPreNorm` | 1 | `us-east5-a` | 2026-09-26 01:24:06 | 2026-09-26 02:13:00 | 48m54s | stopped1260; TPU/queue absent |
+| `RMTMediumPropK48DynamicFull48RoPE18VectorNormStaticMLPDynamicRead` | 1 | `us-east5-a` | 2026-09-26 02:12:17 | 2026-09-26 02:26:24 | 14m07s | stopped296; TPU/queue absent |
+| `RMTMediumPropK48DynamicFull48RoPE18VectorNormSingleOuterWrite` | 1 | `us-east5-a` | 2026-09-26 03:14:56 | 2026-09-26 03:31:35 | 16m39s | preempted |
+| `RMTMediumPropK48DynamicFull48RoPE18VectorNormSingleOuterWrite` | 2 | `us-east5-a` | 2026-09-26 03:40:58 | 2026-09-26 05:43:17 | 2h02m19s | stopped3046; TPU/queue absent |
+| `RMTMediumPropK48DynamicFull48RoPE18VectorNormDynamicOnlyWrite` | 1 | `us-east5-a` | 2026-09-26 04:11:40 | 2026-09-26 06:14:48 | 2h03m08s | stopped2869; TPU/queue absent |
+| `RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicEmbedding` | 1 | `us-east5-a` | 2026-09-26 13:35:23 | 2026-09-26 13:53:46 | 18m23s | preempted |
+| `RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetLLFIndependentVO` | 1 | `us-east5-a` | 2026-09-26 11:41:48 | 2026-09-26 14:03:54 | 2h22m06s | stopped3013; resources absent |
+| `RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicEmbedding` | 2 | `us-east5-a` | 2026-09-26 14:02:44 | 2026-09-26 15:13:43 | 1h10m59s | preempted |
+| `RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicUnembeddingDirect32` | 1 | `us-east5-a` | 2026-09-26 14:55:59 | 2026-09-26 16:38:27 | 1h42m28s | preempted; known READY earlier than registry15:01:12 |
+| `RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicEmbedding` | 3 | `us-east5-a` | 2026-09-26 15:17:35 | 2026-09-26 16:38:28 | 1h20m53s | preempted; known READY earlier than registry15:21:32 |
+| `RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetLLFSharedVO` | 1 | `us-east5-a` | 2026-09-26 11:38:34 | 2026-09-26 16:38:29 | 4h59m55s | preempted |
+| `RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicUnembedding` | 1 | `us-east5-a` | 2026-09-26 13:35:08 | 2026-09-26 17:25:20 | 3h50m12s | stopped5088; TPU/queue absent, no preemption |
+| `RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetLLFSharedVO` | 2 | `us-east5-a` | 2026-09-26 16:45:53 | 2026-09-26 19:03:44 | 2h17m51s | preempted |
+| `RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicUnembeddingDirect32` | 2 | `us-east5-a` | 2026-09-26 16:46:11 | 2026-09-26 19:05:51 | 2h19m40s | preempted |
+| `RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicEmbedding` | 4 | `us-east5-a` | 2026-09-26 16:45:23 | 2026-09-26 19:56:18 | 3h10m55s | preempted |
+| `RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetLLFSharedVO` | 3 | `us-east5-a` | 2026-09-26 19:10:52 | 2026-09-26 20:34:56 | 1h24m04s | preempted |
+| `RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicEmbedding` | 5 | `us-east5-a` | 2026-09-26 20:02:58 | 2026-09-26 20:37:29 | 34m31s | preempted |
+| `RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicEmbeddingUnembeddingDirect32` | 1 | `us-east5-a` | 2026-09-26 17:30:46 | 2026-09-26 20:37:39 | 3h6m53s | preempted; known READY earlier than registry17:30:53 |
+| `RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudget` | 1 | `us-east5-a` | 2026-09-26 11:38:36 | 2026-09-26 21:50:47 | 10h12m11s | completed13500; TPU/queue absent |
+| `RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetLLFSharedVO` | 4 | `us-east5-a` | 2026-09-26 20:43:55 | 2026-09-26 22:39:08 | 1h55m13s | completed13500; TPU/queue absent |
+| `RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicEmbedding` | 6 | `us-east5-a` | 2026-09-26 20:43:57 | 2026-09-27 00:33:13 | 3h49m16s | completed13500; TPU/queue absent, TB synced |
+| `RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicUnembeddingDirect32` | 3 | `us-east5-a` | 2026-09-26 19:10:38 | 2026-09-27 01:31:10 | 6h20m32s | completed13500; TPU/queue absent, TB synced |
+| `RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicEmbeddingUnembeddingDirect32` | 2 | `us-east5-a` | 2026-09-26 20:43:59 | — | censored | active |
+| `RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicEmbeddingUnembeddingDirect32L22` | 1 | `us-east5-a` | 2026-09-27 00:29:56 | — | censored | active; prequeue READY precedes registry00:30:07 |

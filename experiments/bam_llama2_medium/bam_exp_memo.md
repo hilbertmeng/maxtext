@@ -720,3 +720,96 @@ although temporal fetch dominates the added theoretical arithmetic. Prioritize l
 and small read/write contractions; do not infer the bottleneck from FLOPs alone.
 Source scopes and copy classification overlap and must not be summed.
 [Reproduction, precise configuration differences and artifacts](xl_prop_matched_health_profile.md).
+
+
+## RMT static-write removal: arithmetic is not a speed ceiling
+
+Deleting attention/MLP static writes halves their outer-write count (four to
+two per layer). The saved forward arithmetic is only0.08 W_Q for the tested
+D1200/K48/V75/H16 geometry. That fraction does not bound speed benefit:
+full-M materialization/traffic, backward/remat, small contractions and fusion
+can dominate. All-RMT-health-OFF measured contraction-category−41.35ms,
+offset by formatting+17.14ms, loop fusion+13.56ms and elementwise+10.29ms.
+With all41 health statistics retained, row moments, a transposed internal
+scan carry and reused input-M RMSs recover pure speed from.401 to.407
+step/s, versus original.405. XPlane speed gains+1.52% versus old pure,
++0.40% versus original.
+An independent rematerialized full-M add (10.28ms) disappears after changing
+carry layout; full-M copy count does not decrease. Compare global kernels
+by shape/layout, since compiler source labels can move without new copies.
+[Paired repair measurements and reproduction](rmt_dynamic_write_speed_repair.md).
+
+
+### RMT MHABudget full-layer main profile (2026-09-26)
+
+`RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudget`, runtime`d1b1f89`,
+same EW4b v5p-16, full18xD1200/head16x75,T4096,batch16/device, M48x75,
+C8/tail32 dynamic reads, full48 writes, independent RoPE18 and matrix QK57,
+MLP4118. Six LLL blocks, layer remat inside block scan. Static and dynamic
+attention/MLP writes remain separate. `rmt_record_dynamic_health=True` (41);
+`record_internal_nn_metrics=False`; base training metrics unchanged.
+
+Paired stable20-99 speed: original.379875; carry-only.378050 (-.480%);
+headwise W1/Wg/W2.379950 (+.020%, negligible); combined.378025 (-.487%).
+Retain the original. Device steps2599.46/2611.94/2598.58/2611.17ms agree.
+This is the MHA-budget model, not the older narrower-MLP VectorNorm.
+
+Parameter units: `W_Q=D²=1,440,000`. Forward theory units: `2BTD²`,
+per-layer average; C256 pair count is`T(T+256)/2`. Complete-step parameter
+and theory columns describe Transformer blocks, excluding embeddings, final
+seed/read/norm, LM head and optimizer. Norm/GELU/gating/softmax elementwise
+work is omitted; QK Gram contractions are counted. Static/dynamic matrix
+QK reads nominally produce75 coordinates before retaining57. LM head adds
+2.33481 forward W_Q per-layer average; seed/final matrix contractions add.00444.
+Full parameters432112752; Transformer block17,281,712/layer.
+
+XPlane columns include backward/remat/LM head/optimizer and compiler-model
+FLOPs/bytes. They average the primary host's eight cores over the first fully
+kernel-covered step; subsequent incompletely covered step markers and nested
+while containers are excluded. Top rows partition attributed kernels; `↳`
+rows overlap and are not extra work. Fused source/scope attribution is not an
+isolated causal timing.
+
+| Part | Parameters W_Q/layer | Forward theory W_Q | ms | Step share | XPlane TF | GB |
+|---|---:|---:|---:|---:|---:|---:|
+| Scan / residual / LM head / optimizer / other | — | — | 415.93 | 16.00% | 12.0881 | 454.77 |
+| SwiGLU MLP | 10.295000 | 10.295000 | 440.32 | 16.94% | 70.0393 | 279.91 |
+| Independent QK18 projection + RoPE | 0.480000 | 0.480000 | 95.61 | 3.68% | 3.2734 | 74.26 |
+| C256 QK logits | 0.000000 | 1.813333 | 206.07 | 7.93% | 12.4033 | 244.74 |
+| C256 softmax | 0.000000 | ≈0 | 77.39 | 2.98% | 0.0822 | 82.29 |
+| C256 AV | 0.000000 | 1.813333 | 260.82 | 10.03% | 12.5265 | 245.12 |
+| Static QKV M read | 0.001600 | 0.120000 | 48.92 | 1.88% | 0.8302 | 59.45 |
+| Static MLP M read | 0.000533 | 0.040000 | 40.36 | 1.55% | 0.2810 | 35.41 |
+| Static attention + MLP M writes | 0.001067 | 0.080000 | 80.30 | 3.09% | 0.4983 | 85.05 |
+| Dynamic QK | 0.240111 | 0.254133 | 262.99 | 10.12% | 1.7692 | 196.33 |
+| ↳ QK basis / mix / gate projections (subset) | 0.240000 | 0.240000 | 119.39 | 4.59% | 1.6421 | 108.81 |
+| ↳ QK basis M contraction (subset) | 0.000000 | 0.006667 | 28.00 | 1.08% | 0.0453 | 19.31 |
+| ↳ QK rank-to-head expansion (subset) | 0.000000 | 0.006667 | 40.06 | 1.54% | 0.0455 | 26.36 |
+| ↳ QK Gram / RMS / gating / other (subset) | 0.000111 | 0.000800 | 75.53 | 2.91% | 0.0364 | 41.85 |
+| Dynamic VO C8 | 0.133533 | 0.153333 | 151.42 | 5.83% | 1.0694 | 115.59 |
+| Dynamic MLP C8 read | 0.120189 | 0.140000 | 127.58 | 4.91% | 0.9642 | 100.44 |
+| Dynamic attention + MLP M writes | 0.727489 | 0.806400 | 277.03 | 10.66% | 5.5018 | 242.75 |
+| ↳ write address down (subset) | 0.426667 | 0.426667 | 25.52 | 0.98% | 2.9076 | 43.29 |
+| ↳ write address up (subset) | 0.273067 | 0.273067 | 28.06 | 1.08% | 1.8699 | 35.24 |
+| ↳ write gate projection (subset) | 0.026667 | 0.026667 | 12.72 | 0.49% | 0.1842 | 28.85 |
+| ↳ dynamic outer write (subset) | 0.000000 | 0.080000 | 108.80 | 4.19% | 0.4867 | 74.53 |
+| ↳ write transforms / other (subset) | 0.001089 | ≈0 | 101.92 | 3.92% | 0.0533 | 60.84 |
+| Vector pre-RMSNorm | 0.001667 | ≈0 | 79.24 | 3.05% | 0.0446 | 96.80 |
+| RMT health statistics | 0.000000 | ≈0 | 34.19 | 1.32% | 0.0707 | 41.34 |
+| Complete step | 12.001189 | 15.995533 | 2599.46 | 100.00% | 121.4421 | 2354.26 |
+| ↳ all copy kernels (subset) | — | — | 288.48 | 11.10% | 0.0000 | 225.69 |
+
+Matrix flow (static/dynamic reads and writes, vector norms and RMT health)
+occupies1102.03ms (42.39%), versus MLP440.32ms (16.94%). Dynamic QK262.99ms
+and dynamic writes277.03ms are major targets. Copies288.48ms (11.10%) cut
+across these scopes; do not add them again. Forward theory15.99553 W_Q is
+only2.36% above matched MHA15.62667; small theoretical arithmetic does not
+imply small layout or read/write cost.
+
+Headwise MLP saves13.6ms formatting but adds20.2ms convolution-fusion work,
+including13.2ms in W2 backward scopes; other savings leave no whole-step gain.
+Transposed carry makes the scan-buffer update2.37->17.20ms, offsetting its
+copy savings. Prior carry gains on the pure-dynamic model do not transfer
+to this block-scanned MHA-budget model.
+[Configurations, paired results and reproduction](rmt_headwise_carry_profile.md).
+Raw artifacts: `/data0/xd/bam_diagnostics/rmt-headwise-carry/`.

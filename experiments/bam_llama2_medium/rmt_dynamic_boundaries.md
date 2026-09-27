@@ -1,0 +1,246 @@
+# Dynamic embedding and unembedding on RMT MHABudget
+
+Implementation: `/data0/xd/rmt-k48-dynamic`, branch `codex/rmt-k48-dynamic`.
+Parent: `RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudget` (140dd4b).
+New RUNs use fresh initialization, 13500 steps, UE5a v5p-16, checkpoint/loss
+interval200. Existing three MHABudget/LLF RUNs are not changed.
+
+Both arms retain the parent's static seed, static final read, final full-M RMSNorm,
+RoPE18, full48 dynamic intermediate writes, tail32 dynamic intermediate reads,
+LLL block scan, optimizer, data, and per-layer dynamic health.
+Only one boundary is made dynamic in each arm; neither adds fetched O.
+
+## Boundary definitions
+
+Embedding: add an independent full48 write from raw token embedding e to the
+native static seed. Content is D->16x75 without bias, per-head RMS-normalized.
+Address is D->R256->16x48, GELU between projections, with zero pre-RMS bias,
+per-head RMSNorm. Each head's sigmoid gate has learned D->16 kernel and0.1
+bias opening. No sqrt(heads) scaling, matching the historical no-MHA-V BAM
+embedding write. Sum gated address/content outer products in native48x75
+orientation. Both matrix write contractions use the inherited setting.
+
+Unembedding: keep final full-M RMSNorm, read the first16 rows as a D1200 proxy,
+then learned vector RMSNorm. Independently compress only the remaining32 rows
+to C8, yielding75x8. Generate zero-initialized D->16x8 keys without bias,
+RMS-normalize, read16x75, gate with independent D->16 gates initialized0.05
+and multiply the inherited0.2 read scale. Add to the native static48->16 read;
+flatten and use the same LM head. Static read is not gated. New compression
+is independent of the middle layers.
+
+## Exact parameter repayment
+
+`W_Q=D^2=1440000`; SwiGLU width1 costs3600 parameters/layer. A repeated
+three-layer block permits total-width repayment in increments21600. Select
+nearest total budgets while spreading widths by at most1; no hardware rounding.
+
+| RUN suffix after `RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudget` | Extra boundary parameters | W_Q | MLP widths/block | Full parameters | vs MHA |
+|---|---:|---:|---|---:|---:|
+| `DynamicEmbedding` | 1963792 | 1.363744 | 4088/4088/4087 | 432110944 | -10256 |
+| `DynamicUnembedding` | 174272 | .121022 | 4115/4115/4116 | 432114224 | -6976 |
+
+MHA control:432121200. Parent:432112752, widths4118/4118/4118.
+Embedding extra:1440000 content +307200 address-down +196608 address-up
++768 pre-RMS bias +19200 gate kernel +16 gate bias.
+Unembedding extra:1200 proxy norm +256 compression +153600 key
++19200 gate kernel +16 gate bias.
+
+All inherited health settings stay on. Each new boundary adds compact static/
+dynamic RMS, ratio, cosine, gate mean/std and fractions below0.05, above0.5,
+above0.95. No extra Gram diagnostics.
+
+## Validation and bets
+
+`run_rmt_boundary_cpu_tests.sh` includes full-size abstract parameter audits,
+embedding equivalence and gradients against the original `EmbeddingBamWrite`
+after swapping matrix axes, finite full-model gradients, exact zero-initialized
+unembedding equivalence to the parent at equal test MLP widths, and existing
+block-scan health checks. Launcher also runs the pinned BAM suite locally.
+
+CPU tests, AOT on the two retained EW4a compilers, and UE5a trainer prequeues
+run concurrently. Retained compilers are borrowed only and never cleaned up.
+
+Standalone boundary runs are closed; finished-run bets removed.
+Direct comparisons: each arm vs MHABudget only. No peer or MHA loss reports.
+First800 steps: report every200 steps; thereafter about1000 steps per batch.
+
+## Startup
+
+Runtime `d7cb6c12b91337f10fc5fcc3721fe6dd5f672f7c`, pushed. Both isolated
+launches passed3 RMT checks and47 pinned BAM checks, verified AOT loaded and
+FIRST_STEP. CPU tests ran on the local workstation; AOT and trainer prequeues
+ran concurrently.
+
+| RUN suffix | UE5a training TPU | EW4a borrowed compiler | Launcher UTC |
+|---|---|---|---|
+| DynamicEmbedding | xd-v5p-16-2609264-maxtext | llm-jax-v6e-1-0 (STANDARD guaranteed) | 2026-09-26T13:35:17Z |
+| DynamicUnembedding | xd-v5p-16-2609265-maxtext | llm-jax-v6e-1-1 (FLEX_START) | 2026-09-26T13:35:05Z |
+
+Neither retained compiler is owned by training cleanup. Launcher evidence:
+`/data0/xd/rmt-dynamic-embedding-launch.log` and
+`/data0/xd/rmt-dynamic-unembedding-launch.log`; startup logs and health cache
+in `/data0/xd/rmt-vectornorm-mha-budget-startup/`.
+
+Boundary health atsteps0/10/20/40: embedding dynamic/static ratio
+3.087/3.556/5.920/12.962, gate mean~.0995 throughout. The native seed RMS is
+~.00594, while normalized dynamic write RMS grows. This boundary is quickly
+dominated by the dynamic route, rather than remaining a small perturbation.
+Unembedding dynamic/static ratio0/.00369/.01241/.07805; gate mean
+.05029/.05029/.05055/.10296. No gates exceed.5 at these early points.
+
+Steady20-99 throughput (inverse mean duration from rounded step/s logs):
+DynamicEmbedding .3792954 (+.4978% vs parent .3774168);
+DynamicUnembedding .3765610 (-.2268%). Same UE5a v5p-16, same inherited
+layer and basic health, plus9 boundary metrics in each new arm. No separate
+health-disabled timing control. The embedding speed bet (-1%) had the wrong
+sign; both measured costs are small. Startup speed evidence:
+`/data0/xd/rmt-vectornorm-mha-budget-startup/boundary-speeds.json`.
+
+
+## Uncompressed dynamic unembedding arm
+
+`RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicUnembeddingDirect32`
+keeps the same static full48 final read and dynamic proxy/gates as the C8 arm.
+It removes only the boundary32x8 compression and replaces the zero-initialized
+D->16x8 key with D->16x32; RMSNorm now spans32 key coordinates. Direct dynamic
+read consumes the entire tail32x75 state. Middle-layer C8 reads stay unchanged.
+
+Boundary parameters634816 =1200 proxy RMSNorm +614400 key +19200 gate +16 bias,
+.440844 W_Q; vs C8 +460544 (.319822 W_Q). MLP widths4108/4108/4109 give
+432121168 total parameters,32 below MHA budget. Compare to MHABudget and
+C8 DynamicUnembedding.
+A larger output-address space can remove the C8 read bottleneck, at the cost of MLP width.
+
+CPU checks extend full-tree parameter audit and full-model zero-read/finite-gradient
+checks to this arm, plus nonzero-key direct32 read/value/gradient equivalence.
+Launch uses the verified idle FLEX_START llm-jax-v6e-1-1 in EW4a only for AOT;
+new UE5a training TPU xd-v5p-16-2609266-maxtext is separately owned.
+
+Runtime `a5364424af6e2e03f16a83754d5263016c681551`, pushed. Launched
+2026-09-26T15:01:08Z on UE5a xd-v5p-16-2609266-maxtext after4 RMT and47 BAM
+checks passed. Verified compiled artifact loaded, actual step20 and onward.
+Steady20-99 .3757134 step/s (-.4513% vs MHABudget .3774168), same inherited
+health plus9 boundary fields. Prequeue first observed READY14:55:59Z; registry
+controller observation15:01:12Z. Evidence: /data0/xd/rmt-dynamic-unembedding-direct32-launch.log,
+/data0/xd/rmt-unembedding-direct32-step14.log, /data0/xd/rmt-unembedding-direct32-speed.json.
+Current baselines: MHABudget and C8 DynamicUnembedding. First800 report every200, then~1000-step
+batches; review2800.
+
+Future local boundary changes use `run_rmt_unembedding_direct32_cpu_tests.sh`
+with `--cpu-test-scope targeted`, retaining full-size parameter audit, target
+full-model initialization/gradients/health, nonzero direct-read equivalence,
+and existing C8 V/O/fetch key regression. These checks passed in~1 minute
+with3 bounded CPU groups. Full BAM regression also passed in141s with4 groups
+(vs359s serial). Training runtime remains a536442; these workflow/tests-only
+updates do not hot-switch running models.
+
+Monitoring scope update2026-09-26: user removed recurring loss reports for
+MHABudget and LLFSharedVO (both continue training). Agent reports only
+DynamicEmbedding, DynamicUnembedding and DynamicUnembeddingDirect32, all vs
+MHABudget; Direct32 also vs C8 DynamicUnembedding. No embedding-vs-output or MHA comparison. Old RUNs remain owned until completion
+for cleanup/ledger bookkeeping.
+
+Direct32 baseline correction2026-09-26: also compare to DynamicUnembedding
+(C8). This directly evaluates removing output compression and repaying the
+larger key from MLP; MHABudget remains the overall-gain baseline. Runtime is
+unchanged; live registry comparisons were updated. The earlier no-peer rule
+continues to exclude embedding-vs-unembedding comparisons.
+
+Review update2026-09-26: Direct32 now uses normal ~1000-step agent reports
+(next1800, then2800; raw loss windows remain200). At Direct32 ~2800,
+prioritize whether it dominates C8 in loss and matched-health speed; stop
+and close out C8 if supported. Keep C8 running until that paired decision,
+rather than stopping it independently at its own2800. After this decision
+and any required closeout, end active monitoring as requested.
+
+Conditional combined arm2026-09-26:
+`RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicEmbeddingUnembeddingDirect32`.
+Prepared on the same worktree; launch only after Direct32 ~2800 if both
+embedding and dynamic unembedding show credible gains vs MHABudget.
+Full48 embedding write and direct tail32 final read retain their individual
+initializations/health, plus all parent static paths. Extra2598608 params
+(1.804589 W_Q); widths4078/4078/4078, full432119360,1840 below MHA.
+Compare MHABudget, DynamicEmbedding, DynamicUnembeddingDirect32.
+Pre-run13500 bet vs MHABudget -.020; speed0% (within~1%).
+Focused CPU gates: exact full-size budget, combined forward/finite gradients,
+zero output-read equivalence to embedding-only at equal widths, both boundary
+health and nonzero key/content/address gradients; original embedding and
+nonzero direct32 read/gradient equivalence. Checks passed. Initial combined
+test helper needed two assertion fixes (branch name and nonzero gate-kernel
+mean vs bias opening); runtime layers needed no changes.
+User endpoint: after the paired review, launch this arm if supported; verify
+compiled-load/first step and initial speed, then finish without monitoring it.
+
+Direct32 paired review: latest5 through2800 vs MHABudget -.015066
+(range -.015746..-.014211); vs C8 -.013763 (range -.014838..-.011868).
+Lead vs C8 persists from400, near-flat ~-.015 vs MHABudget from1400;
+matched-health steady speed only-.225% vs C8. C8 stopped5088, latest5
+through5000 vs MHABudget -.001512; after1400 remained nearzero.
+Resources verified absent, local closeout TB SYNC_OK, no lost steps.
+C8 had one UE5a v5p-16 READY lease13:35:08->17:25:20UTC,3h50m12s,
+zero preemptions. Evidence: /data0/xd/rmt-c8-unembedding-closeout.log.
+Embedding through4200 still gains -.013829 latest5 vs MHABudget.
+Both individual gains justify the combined arm's launch. Dynamic outlet
+benefit is real here, but C8 captured little of it; do not generalize this
+to intermediate C8 reads or pure dynamic-address causality at embedding.
+
+Combined arm startup2026-09-26: runtimebe5491f2e19dbc33d2b9407b8afbf7329f13df56;
+UE5a xd-v5p-16-2609267-maxtext. Parallel preparation began17:25:25UTC;
+CPU checks passed72.05s (plus parameter audit), AOT verified on borrowed
+EW4a FLEX_START llm-jax-v6e-1-1, prequeueREADY17:30:46UTC, controller
+launch17:30:51UTC. Loaded compiled function verified, actual FIRST_STEP2,
+REACHED_STEP16, initial~.379 steps/s. Artifacts:
+/data0/xd/rmt-combined-boundaries-launch.log,
+/data0/xd/rmt-combined-boundaries-step14.log,
+/data0/xd/rmt-combined-boundaries-compiled-loaded.log.
+No training-loss monitoring of this combined arm is requested. Retained
+compiler ownership was never adopted, and it was not deleted.
+
+Startup speed verified over80 samples, steps20-99: inverse mean step time
+.3777115 steps/s; +.0781% vs MHABudget .3774168, -.42% vs DynamicEmbedding
+~.3793, +.5318% vs DynamicUnembeddingDirect32 .3757134. Parent layer-health
+settings retained, both9-field boundary-health sets enabled. No unexplained
+startup-speed penalty. Actual step104 observed. Speed evidence:
+/data0/xd/rmt-combined-boundaries-startup-speed.log,
+/data0/xd/rmt-combined-boundaries-speed.json.
+Requested task endpoint reached: C8 closeout complete; dynamic embedding and
+Direct32 continue training; combined arm successfully launched. Agent ends
+active monitoring; auto-train retains mechanical recovery/clean-exit ownership.
+MHABudget and LLFSharedVO also continue, without recurring agent reports.
+
+Snapshot2026-09-26~23:09UTC: Embedding through11600 latest5 vs MHABudget
+-.011664, range-.012108..-.011435; early gain has settled near-.012 since
+~6k. Direct32 through10200 latest5-.011459, range-.012000..-.011078;
+its earlier~-.015 gain eased to~-.0115. vs stopped C8 common through5000
+latest5-.011951. Combined through7200 latest5 vs MHABudget-.022163,
+range-.023441..-.021314; vs Embedding-.010130; vs Direct32-.010079.
+On the same6400–7200 points, Embedding-.012033 and Direct32-.012084,
+combined retains91.9% of their summed gain. Boundary improvements mostly
+add; near-equal speed and equal total budgets favor the combined model.
+Continue individual arms to planned13500 to preserve full-length direct
+baselines for the combined arm. CPU/source/runtime are unchanged.
+Full cumulative step/gap/r200 report:
+/data0/xd/rmt-reports/20260926-2309-full.md.
+Health evidence: /data0/xd/rmt-all-current-boundary-health.json.
+
+## Standalone boundary final closeout (2026-09-27)
+
+DynamicEmbedding and Direct32 both completed13500, final checkpoints verified.
+Local closeout is idempotent (already_closed); registry remains complete.
+GCP independently confirms all five closed family trainer nodes/queues absent.
+Both local TensorBoard copies report SYNC_OK. Final five loss windows12600-13400:
+Embedding vs MHABudget-.010912 (-.011625..-.010539); early gain declined,
+held near-.012 over6k-12k, then eased slightly. Direct32 vs MHABudget-.010220
+(-.011164..-.009671); peak~-.015 in early training declined toward~-.010,
+remaining clearly useful. vs stopped C8, common through5000-.011951.
+Near-equal speed at matched budget makes each boundary modification worthwhile.
+
+Combined arm is still running, through13000 latest5: vs MHABudget-.019107
+(-.019726..-.018523), vs Embedding-.007601, vs Direct32-.008560. Its early
+~-.03 benefit declined; over10k-13k it holds near-.019. At matched12200-13000
+steps, it retains86.6% of the sum of the two standalone gains (91.9% at6400-7200).
+Benefits mostly add, with modest overlap; do not compare unequal-step means.
+
+Full READY leases and resource evidence are recorded in the main regional history.
+Closeout summary: tpu-ag logs/closeout-20260927T032837Z.json; local sync:
+/home/xd/.local/state/maxtext-tensorboard-sync/closeout-20260927T032828170952Z.log.

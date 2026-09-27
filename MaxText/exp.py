@@ -8927,6 +8927,133 @@ class BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK4
     jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/k48-qk48-all-local'
 
 
+class BamMediumAllLocalDualWriteGates(BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerAllLocal):
+    """Ledger only: Independent non-LocalO/LocalO write gates; shared original RMS and address."""
+    # Implementation: codex/medium-alllocal-dual-write, /data0/xd/medium-alllocal-dual-write.
+    # +16400 params/layer = .0156403 W_Q; +393600 total; M-cache unchanged.
+    # Both gate kernels/biases start equal, then train independently; no checkpoint warm start.
+    # code_commit: 521213b; UE5a .6406 steps/s; completed 13500; 0 preemptions.
+    # Raw speed -.84% vs AllLocal .6460; unmatched BAM3768 vs1056, generic ON.
+    # All3768 health tags verified finite; step20 feedback gradients nonzero on L1-L22.
+    # vs AllLocal: early-.089551 at200 shrank to final5 mean-.001124; 13400-.000918.
+    model_name = 'BamMediumAllLocalDualWriteGates'
+    bam_layer_modes = ['local_qk+local_v+local_o'] * 24
+    bam_local_o_separate_write_gate = True
+    bam_record_dual_write_health = True
+    bam_record_concat_health = False
+    record_training_health_metrics = True
+    checkpoint_period = 200
+    compare_runs = ['BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerAllLocal']
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/medium-alllocal-dual-write'
+
+
+class BamMediumAllLocalDualWriteTanhFeedback(BamMediumAllLocalDualWriteGates):
+    """Ledger only: Signed tanh feedback of gated LocalO; sigmoid main write and original shared RMS."""
+    # Same branch/worktree as dual-write parent. No parameter or M-cache delta.
+    # Closed tanh init: kernel0 and bias0; learn signed feedback from zero.
+    # code_commit: c3850c0; UE5a .6258 steps/s (-2.31% raw vs dual, health5736/3768 unmatched).
+    # AOT load/FIRST_STEP verified; all5736 health finite; L1-22 feedback gradients nonzero at20.
+    # Paused at 3941; checkpoint committed, TPU retained for independent edges; 0 preemptions.
+    # Vs sigmoid dual: -.232775@200 reversed to+.034 at600-1000; last5@3800 +.010834, no gain.
+    model_name = 'BamMediumAllLocalDualWriteTanhFeedback'
+    bam_feedback_write_activation = 'tanh'
+    compare_runs = ['BamMediumAllLocalDualWriteGates']
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/medium-dual-write-tanh-feedback'
+
+
+
+class BamMediumAllLocalIndependentEdges(BamMediumAllLocalDualWriteGates):
+    """Ledger only: Independent read/main-write/raw-feedback gates with separate pre-gate RMS."""
+    # Same implementation worktree/branch as dual-write parent; no parameter/cache delta.
+    # User choice: sigmoid; same kernel initializer as main with independent RNG, same constant bias.
+    # Separate RMS(u), RMS(raw LocalO), original address.
+    # Pass u directly before LocalO addition, avoiding bf16 subtraction-induced coupling.
+    # code_commit: 177fd10; UE5a .6342 steps/s; stopped 7174; committed checkpoint, TPU/queue absent, 0 preemptions.
+    # Vs originalDual: early gain reversed800, peaked+.007234@1200, plateau ~+.002; final5+.001858.
+    # Speed -.56% vs raw-linear .6378 with matched3816 health; original dual3768 unmatched.
+    model_name = 'BamMediumAllLocalIndependentEdges'
+    bam_local_o_write_from_raw = True
+    bam_local_o_split_write_norm = True
+    bam_feedback_write_init = 'like_main'
+    compare_runs = ['BamMediumAllLocalDualWriteGates']
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/medium-independent-edges'
+
+
+class BamMediumAllLocalIndependentEdgesAddressMix(BamMediumAllLocalIndependentEdges):
+    # User stopped at 2519; UE5a, 0 preemptions; checkpoint committed, TPU/queue absent.
+    # vs IndependentEdges final5 +.029210; vs originalDual +.033473; early gain reversed then plateaued.
+    # code_commit: c5be705
+    # UE5a ~0.58 steps/s; !? timing vs IndependentEdges ~0.63 has unmatched BAM health.
+    """Ledger only: LocalO feedback address interpolates negative lifted read and normal write addresses."""
+    # Only feedback changes address; main write and residual retain the independent-edge paths.
+    # Sigmoid mix starts at .5 (zero kernel/bias); normalize endpoints, not their mixture.
+    # Additional gate: (1024*16+16)/1024**2 = .0156403 W_Q/layer; unchanged M cache.
+    model_name = 'BamMediumAllLocalIndependentEdgesAddressMix'
+    bam_feedback_address_mix = True
+    compare_runs = ['BamMediumAllLocalIndependentEdges', 'BamMediumAllLocalDualWriteGates']
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/medium-independent-edges-address-mix'
+
+
+
+class BamMediumAllLocalIndependentErase(BamMediumAllLocalIndependentEdges):
+    # User stopped at 2474; UE5a, 0 preemptions; checkpoint committed, TPU/queue absent.
+    # vs IndependentEdges final5 +.023901; vs originalDual +.028164; vs AddressMix -.005309; early gain reversed then plateaued.
+    # code_commit: 6c9bfd5
+    # UE5a ~0.58 steps/s; !? timing vs IndependentEdges ~0.63 has unmatched BAM health.
+    """Ledger only: Independent positive feedback and negative-read erasure, no shared write budget."""
+    # Same parameter/M-cache cost as AddressMix: one extra .0156403 W_Q/layer gate vs IndependentEdges.
+    # Erase sigmoid kernel uses main initializer with independent RNG; same constant bias.
+    # Positive main/feedback share normal address; erasure uses lifted normalized read address.
+    model_name = 'BamMediumAllLocalIndependentErase'
+    bam_local_o_independent_erase = True
+    compare_runs = ['BamMediumAllLocalIndependentEdgesAddressMix', 'BamMediumAllLocalIndependentEdges', 'BamMediumAllLocalDualWriteGates']
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/medium-independent-erase'
+
+
+
+class BamMediumAllLocalRawReadWriteGate(BamMediumAllLocalDualWriteGates):
+    """Ledger only: Write raw LocalO read with an independent sigmoid; retain original shared RMS/address."""
+    # Same implementation worktree/branch as the dual-gate parent; separate from-scratch RUN.
+    # Same parameter count as dual gates. Init matches effective opening and first derivative
+    # at zero input projection: q0=.05*.1=.005, kernel multiplier .9/.995.
+    # Removes the live read gate from feedback numerator; denominator still depends on gated LocalO.
+    # code_commit: e52e166; UE5a .6378 steps/s; running13500/review2800.
+    # Raw -.44% vs dual .6406, -1.27% vs AllLocal .6460; health3816/3768/1056, generic ON.
+    # FIRST_STEP/load verified; all3816 health tags finite at0/20, raw feedback init median .00504.
+    # Paused at 3304 for tanh; last5@3200 vs dual+.005442 (shrinking), vs AllLocal+.000057; checkpoint retained.
+    model_name = 'BamMediumAllLocalRawReadWriteGate'
+    bam_local_o_write_from_raw = True
+    compare_runs = ['BamMediumAllLocalDualWriteGates',
+        'BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerAllLocal']
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/medium-alllocal-raw-read-write'
+
+
+
+class BamMediumAllLocalDualWriteSharedGelu3N(BamMediumAllLocalDualWriteGates):
+    """Ledger only: Shared GELU hidden width3N jointly produces LocalO read/main/feedback gates."""
+    # Implementation: codex/medium-alllocal-dual-write, /data0/xd/medium-alllocal-dual-write.
+    # Replaces three D->N kernels by D->3N->3N; biases retained. +2304/layer=.00219727 W_Q.
+    # code_commit: e160481; UE5a .6462 steps/s (+.87% vs dual .6406), matched health3768.
+    # FIRST_STEP/load verified, health finite; stopped at review, 1 UE5a preemption; TPU/queue absent.
+    # Stopped at 2900; vs dual early+.392 shrank to+.027725@2800, last5+.032548; init-amplitude confound.
+    model_name = 'BamMediumAllLocalDualWriteSharedGelu3N'
+    bam_local_o_shared_gelu_gates = True
+    compare_runs = ['BamMediumAllLocalDualWriteGates']
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/medium-dual-write-gelu3n'
+
+
+class BamMediumAllLocalRawReadWriteSharedGelu3N(BamMediumAllLocalRawReadWriteGate):
+    """Ledger only: Shared GELU width3N gates with feedback applied directly to the ungated read."""
+    # Same worktree/branch; same parameter delta as DualWriteSharedGelu3N, M-cache unchanged.
+    # code_commit: e160481; UE5a .6380 steps/s (+.03% vs raw .6378), matched health3816.
+    # Stopped at 2903; health finite; no preemptions; TPU/queue absent, TB synced.
+    # At2800 vs raw linear+.012940 (last5+.015509); vs gated GELU-.008760, persistent ~-.01 advantage.
+    model_name = 'BamMediumAllLocalRawReadWriteSharedGelu3N'
+    bam_local_o_shared_gelu_gates = True
+    compare_runs = ['BamMediumAllLocalRawReadWriteGate', 'BamMediumAllLocalDualWriteSharedGelu3N']
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/medium-raw-write-gelu3n'
+
+
 class BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerMRelayM3(BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayer):
     """Ledger only: Read-only first-block M anchor; one dynamic coefficient per destination layer."""
     # Implementation: codex/llf-parameter-matched, /data0/xd/llf-parameter-matched.
@@ -9579,6 +9706,8 @@ class RMTMediumPropAlibiK48(BamMHAMediumPropAlibiC256):
     # Same runtime/worktree; prefix-source fix a520e4a from step916;
     # UE5a .644 step/s (~-5.0% vs MHA .678); pre-fix .425 was confounded.
     # 328,614,480 parameters; source audit: experiments/bam_llama2_medium/rmt_mediumprop_port_audit.md.
+    # Completed 13,500; vs ALiBi MHA -.105491@2000 -> -.008450@10000,
+    # final5 -.001736: early lead nearly vanished. Vs dynamic BAM final5 +.034722.
     model_name = 'RMTMediumPropAlibiK48'
     compare_runs = ['BamMHAMediumPropAlibiC256']
 
@@ -9589,6 +9718,8 @@ class RMTMediumPropAlibiK64(RMTMediumPropAlibiK48):
     # UE5a .627 step/s (~-7.5% vs MHA .678); pre-fix .419 was confounded.
     # Paper's T512/A100 K64 pair was -43.4% step/s; source of difference unresolved.
     # 328,687,040 parameters (+72,560 vs K48).
+    # Completed 13,500; vs K48 final5 -.019136 (roughly stable since2000),
+    # vs ALiBi MHA final5 -.020872. Speed -2.64% vs K48, +0.022% parameters.
     model_name = 'RMTMediumPropAlibiK64'
     compare_runs = ['RMTMediumPropAlibiK48', 'BamMHAMediumPropAlibiC256']
 
@@ -9598,6 +9729,9 @@ class RMTMediumPropAlibiK48DynamicTail32(RMTMediumPropAlibiK48):
     # Runtime: codex/rmt-k48-dynamic, /data0/xd/rmt-k48-dynamic; code_commit 70422c0.
     # 328,613,040 params (-1,440 vs RMT K48); health records reads, writes and gates.
     # !? UE5a initial ~.390 step/s vs static K48 .644; extra health ON, unmatched speed.
+    # Completed at checkpoint9129 via RoPE18 hot switch: Full48 − Tail32 = -.013975@8800;
+    # Full48's loss lead stayed near .013-.015 from 7000-8800, while Tail32 was 1.8% faster.
+    # vs dynamic BAM D -.053827@2000 -> -.034223@9000; (M−Tail)/(M−D) 1.389x -> 1.695x.
     model_name = 'RMTMediumPropAlibiK48DynamicTail32'
     rmt_dynamic_enabled = True
     rmt_dynamic_write_rows = 32
@@ -9613,6 +9747,9 @@ class RMTMediumPropAlibiK48DynamicFull48(RMTMediumPropAlibiK48):
     # Runtime: codex/rmt-k48-dynamic, /data0/xd/rmt-k48-dynamic; code_commit 70422c0.
     # 328,583,952 params (-30,528 vs RMT K48); same health configuration as Tail32.
     # !? UE5a initial ~.383 step/s vs Tail32 .390, static K48 .644; health unmatched to K48.
+    # Completed 13,500; vs K48/D/M -.082660/-.048436/-.084450 at 13,400.
+    # vs Tail32 -.012466 at 9000; vs D held near -.05 late; (M−Full)/(M−D)
+    # 1.608x@2000 -> 2.345x@13400, mainly as D−M advantage decayed.
     model_name = 'RMTMediumPropAlibiK48DynamicFull48'
     rmt_dynamic_enabled = True
     rmt_dynamic_o_enabled = True
@@ -9630,6 +9767,9 @@ class RMTMediumPropAlibiK48DynamicFull48NoO(RMTMediumPropAlibiK48DynamicFull48):
     # Runtime: codex/rmt-k48-dynamic, /data0/xd/rmt-k48-dynamic; code_commit c2dcd60.
     # 328,238,064 params (-345,888 vs Full48); MLP width2711 unchanged.
     # UE5a .384 step/s vs Full48 .383, matched 738 dynamic health tags; AOT/first step verified.
+    # Completed 13,500; vs Full48 -.000519 at 13,400, final5 mean -.000325.
+    # Near-equal loss with 345,888 fewer parameters and slightly higher speed;
+    # vs D -.048954 and (M−NoO)/(M−D) 2.359x at 13,400.
     model_name = 'RMTMediumPropAlibiK48DynamicFull48NoO'
     rmt_dynamic_o_enabled = False
     compare_runs = ['RMTMediumPropAlibiK48DynamicFull48',
@@ -9644,6 +9784,9 @@ class RMTMediumPropAlibiK48DynamicReadWriteFull48(RMTMediumPropAlibiK48DynamicFu
     # Implementation: codex/rmt-k48-dynamic, /data0/xd/rmt-k48-dynamic.
     # Independent VO/MLP compression 48->8; MLP2690; 328,611,312 params.
     # code_commit: 4bf86b2; UE5a ~.381 step/s vs Full48 .383, matched 738 health metrics.
+    # Completed 13,500; vs Full48 +.001149 at 13,400, final5 mean +.001473;
+    # full-row reads did not pay for their extra compute. vs D -.047287 and
+    # (M−ReadWrite)/(M−D) 2.313x at 13,400.
     model_name = 'RMTMediumPropAlibiK48DynamicReadWriteFull48'
     rmt_dynamic_read_full_matrix = True
     base_mlp_dim = 2690
@@ -9655,11 +9798,460 @@ class RMTMediumPropAlibiK48DynamicReadWriteFull48(RMTMediumPropAlibiK48DynamicFu
     jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/rmt-mediumprop-k48-dynamic-read-write-full48'
 
 
+class RMTMediumPropK48DynamicFull48RoPE18(RMTMediumPropAlibiK48DynamicFull48):
+    """Ledger only: Full48 matrix QK57 plus separate RoPE18 Q/K projection."""
+    # Runtime: codex/rmt-k48-dynamic, /data0/xd/rmt-k48-dynamic; code_commit a0736c9.
+    # No ALiBi; bf16 logits. MLP2519 exactly offsets Q/K18 projections, matching Full48 parameters.
+    # Hot-switched from Tail32 at checkpoint9129; UE5a .402 step/s vs Full48 .383
+    # (+5.0%, steps40-170), matched generic and 738 dynamic-health metrics.
+    # Completed 13,500; vs Full48 +.007315@13400, after +.024447@2000;
+    # never crossed zero late. vs BAM RoPE bridge -.029022; vs D -.041120,
+    # (M−RoPE18)/(M−D) 1.431x@2000 -> 2.142x@13400. ~5% faster than Full48.
+    model_name = 'RMTMediumPropK48DynamicFull48RoPE18'
+    rmt_rope_qk_dim = 18
+    base_mlp_dim = 2519
+    compare_runs = ['RMTMediumPropAlibiK48DynamicFull48',
+                    'BamMediumPropK75AllLocalQK57RoPE18RMTBudget',
+                    'RMTMediumPropAlibiK48DynamicTail32',
+                    'BamMHAMediumPropAlibiC256']
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/rmt-mediumprop-k48-dynamic-full48-rope18'
+
+
+class RMTMediumPropK48DynamicFull48RoPE18VectorNorm(
+    RMTMediumPropK48DynamicFull48RoPE18):
+    """Ledger only: normalize the proxy vector instead of each layer's full M."""
+    # Runtime: codex/rmt-k48-dynamic, /data0/xd/rmt-k48-dynamic; code_commit 78422fc.
+    # Attention and MLP proxy x each use their own RMSNorm; final M norm stays.
+    # Completed13,500; UE5a .406 step/s vs matched-health RoPE18 .402 (+1.0%).
+    # vs RoPE18: late gap holds ~-.015; final5 -.015019. vs Full48: early +.015@2000
+    # crossed zero by6000; final5 -.008158. vs BAM RoPE18 bridge final5 -.045409;
+    # vs ALiBi MHA: early lead shrank, slower after8000; final5 -.093216.
+    model_name = 'RMTMediumPropK48DynamicFull48RoPE18VectorNorm'
+    rmt_vector_pre_norm = True
+    compare_runs = ['RMTMediumPropK48DynamicFull48RoPE18',
+                    'RMTMediumPropAlibiK48DynamicFull48',
+                    'BamMediumPropK75AllLocalQK57RoPE18RMTBudget',
+                    'BamMHAMediumPropAlibiC256']
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/rmt-mediumprop-k48-dynamic-full48-rope18-vector-norm'
+
+
+class RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudget(
+    RMTMediumPropK48DynamicFull48RoPE18VectorNorm):
+    """Repay the attention savings to MLP; match MediumProp MHA total budget."""
+    # Ledger only; implementation: codex/rmt-k48-dynamic, /data0/xd/rmt-k48-dynamic.
+    # code_commit: 140dd4b; MHA-budget/LLF runtime; detailed plan: rmt_vectornorm_mha_budget_llf.md.
+    # UE5a v5p-16: .3774 step/s; -7.04% vs original VectorNorm (.406).
+    # Completed13500: vs original VectorNorm gain grew through ~10k, then
+    # held near -.033; final5 -.033295. vs MHA early lead shrank, final5 -.139960.
+    model_name = 'RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudget'
+    base_mlp_dim = 4118
+    rmt_block_scan = True
+    rmt_llf_enabled = False
+    rmt_fetch_independent_o_key = False
+    rmt_mlp_dim_by_block = [4118, 4118, 4118]
+    compare_runs = ['RMTMediumPropK48DynamicFull48RoPE18VectorNorm',
+                    'BamMHAMediumPropC256']
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/rmt-vectornorm-mha-budget'
+
+
+class RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetLLFSharedVO(
+    RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudget):
+    """Six LLF blocks: shared C8 V/O keys, independent gates, fetched O in F."""
+    # Ledger only; implementation: codex/rmt-k48-dynamic, /data0/xd/rmt-k48-dynamic.
+    # code_commit: 140dd4b; MHA-budget/LLF runtime; detailed plan: rmt_vectornorm_mha_budget_llf.md.
+    # UE5a v5p-16: .3647 step/s; -3.36% vs MHABudget, matched steps20-99.
+    # Completed13500: vs MHABudget early gain shrank, late ~-.004; final5 -.004153.
+    # vs MHA early lead shrank, final5 -.144114.
+    model_name = 'RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetLLFSharedVO'
+    rmt_llf_enabled = True
+    rmt_mlp_dim_by_block = [4118, 4118, 4113]
+    compare_runs = ['RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudget',
+                    'BamMHAMediumPropC256']
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/rmt-vectornorm-mha-budget-llf-shared-vo'
+
+
+class RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetLLFIndependentVO(
+    RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetLLFSharedVO):
+    """Separate F-layer V/O dynamic keys; repay the added O kernel from F MLP."""
+    # Ledger only; implementation: codex/rmt-k48-dynamic, /data0/xd/rmt-k48-dynamic.
+    # code_commit: 140dd4b; MHA-budget/LLF runtime; detailed plan: rmt_vectornorm_mha_budget_llf.md.
+    # UE5a v5p-16: .3632 step/s; -0.43% vs LLFSharedVO, matched steps20-99.
+    # Stopped3013: vs SharedVO every200-step point through2800 is positive;
+    # latest5 +.002511, no sustained closing. vs MHABudget early gain shrank to -.004374;
+    # vs MHA lead shrank to -.269553 (latest5 through2800). Dominated by SharedVO.
+    model_name = 'RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetLLFIndependentVO'
+    rmt_fetch_independent_o_key = True
+    rmt_mlp_dim_by_block = [4118, 4118, 4070]
+    compare_runs = ['RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetLLFSharedVO',
+                    'RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudget',
+                    'BamMHAMediumPropC256']
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/rmt-vectornorm-mha-budget-llf-independent-vo'
+
+
+class RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicEmbedding(
+    RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudget):
+    """Static seed plus token-conditioned full48 embedding write; repay MLP."""
+    # Ledger only: codex/rmt-k48-dynamic, /data0/xd/rmt-k48-dynamic.
+    # code_commit: d7cb6c1; rmt_dynamic_boundaries.md.
+    # UE5a v5p-16 .3793 step/s; +.50% vs MHABudget (.3774), steps20-99.
+    # Same layer health; extra boundary RMS/gate health ON.
+    # Completed13500: early gain shrank; held near -.012 over6k-12k,
+    # then eased slightly; final5 -.010912 vs MHABudget.
+    model_name = 'RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicEmbedding'
+    rmt_dynamic_embedding_write = True
+    rmt_dynamic_unembedding_read = False
+    base_mlp_dim = 4088
+    rmt_mlp_dim_by_block = [4088, 4088, 4087]
+    compare_runs = ['RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudget']
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/rmt-mha-budget-dynamic-embedding'
+
+
+class RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicUnembedding(
+    RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudget):
+    """Static final read plus independent tail32 C8 dynamic read; repay MLP."""
+    # Ledger only: codex/rmt-k48-dynamic, /data0/xd/rmt-k48-dynamic.
+    # code_commit: d7cb6c1; rmt_dynamic_boundaries.md.
+    # UE5a v5p-16 .3766 step/s; -.23% vs MHABudget (.3774), steps20-99.
+    # Same layer health; extra boundary RMS/gate health ON.
+    # Stopped5088: early gap reversed, then stayed near zero from1400.
+    # vs MHABudget latest5 through5000 -.001512; Direct32 dominates loss
+    # (Direct32-C8 latest5 through2800 -.013763), speed nearly equal (-.23%).
+    model_name = 'RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicUnembedding'
+    rmt_dynamic_embedding_write = False
+    rmt_dynamic_unembedding_read = True
+    base_mlp_dim = 4115
+    rmt_mlp_dim_by_block = [4115, 4115, 4116]
+    compare_runs = ['RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudget']
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/rmt-mha-budget-dynamic-unembedding'
+
+
+
+class RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicUnembeddingDirect32(
+    RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicUnembedding):
+    """Uncompressed tail32 dynamic final read; repay its larger key from MLP."""
+    # Ledger only: codex/rmt-k48-dynamic, /data0/xd/rmt-k48-dynamic.
+    # code_commit: a536442; rmt_dynamic_boundaries.md.
+    # UE5a v5p-16 .3757 step/s; -.45% vs MHABudget (.3774), steps20-99.
+    # Same layer health; extra boundary RMS/gate health ON.
+    # Completed13500: vs MHABudget early gain peaked near -.015,
+    # eased toward -.010; final5 -.010220. vs C8 through5000 -.011951.
+    model_name = 'RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicUnembeddingDirect32'
+    rmt_dynamic_unembedding_direct_read = True
+    base_mlp_dim = 4108
+    rmt_mlp_dim_by_block = [4108, 4108, 4109]
+    compare_runs = ['RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudget',
+                    'RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicUnembedding']
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/rmt-mha-budget-dynamic-unembedding-direct32'
+
+
+class RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicEmbeddingUnembeddingDirect32(
+    RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicUnembeddingDirect32):
+    """Combine dynamic full48 seed writing and direct tail32 final reading."""
+    # Ledger only: codex/rmt-k48-dynamic, /data0/xd/rmt-k48-dynamic.
+    # code_commit: be5491f; rmt_dynamic_boundaries.md.
+    # UE5a v5p-16 .3777 step/s; +.08% vs MHABudget, steps20-99.
+    # Same layer health; both boundary RMS/gate health ON.
+    # Interim through13000: early lead shrank; near -.019 over10k-13k.
+    # Latest5 vs MHABudget -.019107, vs Embedding -.007601, vs Direct32 -.008560.
+    model_name = 'RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicEmbeddingUnembeddingDirect32'
+    rmt_dynamic_embedding_write = True
+    base_mlp_dim = 4078
+    rmt_mlp_dim_by_block = [4078, 4078, 4078]
+    compare_runs = ['RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudget',
+                    'RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicEmbedding',
+                    'RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicUnembeddingDirect32']
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/rmt-mha-budget-dynamic-embedding-unembedding-direct32'
+
+
+class RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicEmbeddingUnembeddingDirect32L22(
+    RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicEmbeddingUnembeddingDirect32):
+    """22 dynamic matrix layers, uniform MLP3212, at the MHA parameter budget."""
+    # Implementation: codex/rmt-k48-dynamic, /data0/xd/rmt-k48-dynamic.
+    # code_commit: a8d5bcd; UE5a v5p-16 .3190 step/s; -15.53% vs18-layer parent.
+    # Matched steps20-99, same inherited layer/basic and both boundary health flags.
+    # Layer scan; same dynamic embedding/Direct32 output.
+    # Interim through3400: vs18-layer parent deficit shrank from +.0303@1000
+    # to ~+.0045; latest5 +.005434. Continue beyond2800: still closing.
+    # MLP3212; 432083008 params, 38192 below MHA. Parent: 18 layers/MLP4078.
+    # Pre-run13500 bet vs parent: loss -.008; steady speed -15%.
+    model_name = 'RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicEmbeddingUnembeddingDirect32L22'
+    base_num_decoder_layers = 22
+    base_mlp_dim = 3212
+    rmt_mlp_dim_by_block = [3212, 3212, 3212]
+    rmt_block_scan = False
+    compare_runs = ['RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicEmbeddingUnembeddingDirect32']
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/rmt-combined-boundaries-l22'
+
+
+class RMTVectorNormMHABudgetHeadwiseMLPProfile(
+    RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudget):
+    # Ledger only; implementation codex/rmt-k48-dynamic, runtime d1b1f89.
+    # EW4b v5p-16 .379950 step/s (+.020% vs MHABudget); no practical gain.
+    """Diagnostic: rank3 MLP kernels preserve the head/value activation axes."""
+    model_name = 'RMTVectorNormMHABudgetHeadwiseMLPProfile'
+    rmt_headwise_mlp = True
+
+
+class RMTVectorNormMHABudgetLLFSharedVOHeadwiseMLPProfile(
+    RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetLLFSharedVO):
+    # Ledger only; implementation codex/rmt-k48-dynamic, runtime d1b1f89.
+    """Diagnostic: rank3 MLP kernels in the matched-budget LLF model."""
+    model_name = 'RMTVectorNormMHABudgetLLFSharedVOHeadwiseMLPProfile'
+    rmt_headwise_mlp = True
+
+
+class RMTVectorNormMHABudgetTransposedCarryProfile(
+    RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudget):
+    # Ledger only; implementation codex/rmt-k48-dynamic, runtime d1b1f89.
+    # EW4b v5p-16 .378050 step/s (-.480% vs MHABudget); retain original carry.
+    """Diagnostic: transpose the block-scan carry, preserve vector MLP kernels."""
+    model_name = 'RMTVectorNormMHABudgetTransposedCarryProfile'
+    rmt_transposed_matrix_carry = True
+
+
+class RMTVectorNormMHABudgetHeadwiseMLPTransposedCarryProfile(
+    RMTVectorNormMHABudgetHeadwiseMLPProfile):
+    # Ledger only; implementation codex/rmt-k48-dynamic, runtime d1b1f89.
+    # EW4b v5p-16 .378025 step/s (-.487% vs MHABudget); no combined gain.
+    """Diagnostic: combine headwise MLP kernels with transposed matrix carry."""
+    model_name = 'RMTVectorNormMHABudgetHeadwiseMLPTransposedCarryProfile'
+    rmt_transposed_matrix_carry = True
+
+
+class RMTMediumPropK48DynamicFull48RoPE18VectorNormSingleOuterWrite(
+    RMTMediumPropK48DynamicFull48RoPE18VectorNorm):
+    """Ledger only: combine static/dynamic addresses before one matrix write."""
+    # Runtime: codex/rmt-k48-dynamic, /data0/xd/rmt-k48-dynamic.
+    # code_commit: b352efc (from1054; prior23a0793).
+    # Attention and MLP: fold content inverse RMS into dynamic address, preserving formula.
+    # Parameters/MLP/health settings unchanged; write health from Gram contractions.
+    # UE5a ~.390 step/s vs matched-health VectorNorm .406 (-3.9%); prior .387.
+    # Same-VM profile confirms slowdown: Gram write-health and layout costs exceed saved contractions.
+    # Stopped3046 after2800 review: vs VectorNorm, early200 transient vanished;
+    # last5 through2800 +.002073 (+.000912..+.003390), late gap widening.
+    # Same-VM write-stat-OFF .405 vs .409 (-1.0%): no speed gain after removing Gram cost.
+    model_name = 'RMTMediumPropK48DynamicFull48RoPE18VectorNormSingleOuterWrite'
+    rmt_single_outer_write = True
+    compare_runs = ['RMTMediumPropK48DynamicFull48RoPE18VectorNorm']
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/rmt-mediumprop-k48-dynamic-full48-rope18-vector-norm-single-outer-write'
+
+
+class RMTMediumPropK48DynamicFull48RoPE18VectorNormDynamicOnlyWrite(
+    RMTMediumPropK48DynamicFull48RoPE18VectorNorm):
+    """Ledger only: remove static attention/MLP writes; retain normalized dynamic writes."""
+    # Runtime: codex/rmt-k48-dynamic, /data0/xd/rmt-k48-dynamic.
+    # code_commit: a82d5fd.
+    # UE5a .401 step/s vs matched-health VectorNorm .406 (-1.2%).
+    # Same-VM profile: saved contractions offset by layout/elementwise costs.
+    # Stopped2869 after2800 review: early200 transient vanished; 600-2800 gap
+    # holds ~+.013 with no sustained narrowing; last5 +.013017 (+.012046..+.014146).
+    # Only -.00842% params; matched RMT-health-OFF dot ties original .413 step/s.
+    model_name = 'RMTMediumPropK48DynamicFull48RoPE18VectorNormDynamicOnlyWrite'
+    rmt_static_write_enabled = False
+    compare_runs = ['RMTMediumPropK48DynamicFull48RoPE18VectorNorm']
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/rmt-mediumprop-k48-vector-norm-dynamic-only-write'
+
+
+class RMTVectorNormDynamicOnlyWriteMulReduceProfile(
+    RMTMediumPropK48DynamicFull48RoPE18VectorNormDynamicOnlyWrite):
+    """Diagnostic only: FP32 multiply/reduce write, all formal health retained."""
+    # Ledger only: codex/rmt-k48-dynamic; /data0/xd/rmt-k48-dynamic; diagnostic5e627eb.
+    model_name = 'RMTVectorNormDynamicOnlyWriteMulReduceProfile'
+    rmt_write_contraction = 'mul_reduce'
+
+
+class RMTVectorNormDynamicOnlyWriteTransposedDotProfile(
+    RMTMediumPropK48DynamicFull48RoPE18VectorNormDynamicOnlyWrite):
+    """Diagnostic only: swap write dot operands/output axes, retain formal health."""
+    # Ledger only: codex/rmt-k48-dynamic; /data0/xd/rmt-k48-dynamic; diagnostic5e627eb.
+    model_name = 'RMTVectorNormDynamicOnlyWriteTransposedDotProfile'
+    rmt_write_contraction = 'dot_transposed'
+
+
+class RMTVectorNormDynamicOnlyWriteNoExtraHealthProfile(
+    RMTMediumPropK48DynamicFull48RoPE18VectorNormDynamicOnlyWrite):
+    """Diagnostic only: remove RMT health, retain generic training health."""
+    # Ledger only: codex/rmt-k48-dynamic; /data0/xd/rmt-k48-dynamic; diagnostic5e627eb.
+    model_name = 'RMTVectorNormDynamicOnlyWriteNoExtraHealthProfile'
+    rmt_record_dynamic_health = False
+
+
+class RMTVectorNormNoExtraHealthProfile(
+    RMTMediumPropK48DynamicFull48RoPE18VectorNorm):
+    """Diagnostic only: original double write, generic training health only."""
+    # Ledger only: codex/rmt-k48-dynamic; /data0/xd/rmt-k48-dynamic; diagnostic5e627eb.
+    model_name = 'RMTVectorNormNoExtraHealthProfile'
+    rmt_record_dynamic_health = False
+
+
+class RMTVectorNormDynamicOnlyMulReduceNoExtraHealthProfile(
+    RMTVectorNormDynamicOnlyWriteNoExtraHealthProfile):
+    """Diagnostic only: multiply/reduce writes with generic training health only."""
+    # Ledger only: codex/rmt-k48-dynamic; diagnostic4854be8.
+    model_name = 'RMTVectorNormDynamicOnlyMulReduceNoExtraHealthProfile'
+    rmt_write_contraction = 'mul_reduce'
+    # EW4b .395 vs matched dot/original .413 (-4.4%); all RMT health OFF, generic ON.
+
+
+class RMTVectorNormSingleOuterNoExtraHealthProfile(
+    RMTMediumPropK48DynamicFull48RoPE18VectorNormSingleOuterWrite):
+    """Diagnostic only: combined outer write with generic training health only."""
+    # Ledger only: codex/rmt-k48-dynamic; diagnostic651d942.
+    model_name = 'RMTVectorNormSingleOuterNoExtraHealthProfile'
+    rmt_record_dynamic_health = False
+    # EW4b .410 vs matched original .413 (-0.7%); generic health ON.
+
+
+class RMTVectorNormSingleOuterMulReduceNoExtraHealthProfile(
+    RMTVectorNormSingleOuterNoExtraHealthProfile):
+    """Diagnostic only: combined multiply/reduce write without RMT health."""
+    # Ledger only: codex/rmt-k48-dynamic; diagnostic651d942.
+    model_name = 'RMTVectorNormSingleOuterMulReduceNoExtraHealthProfile'
+    rmt_write_contraction = 'mul_reduce'
+    # EW4b .398 vs matched single dot .410 (-2.9%); all RMT health OFF, generic ON.
+
+
+class RMTVectorNormRowReducedWriteHealthProfile(
+    RMTMediumPropK48DynamicFull48RoPE18VectorNorm):
+    """Diagnostic only: retain all health, reduce write moments by row first."""
+    # Ledger only: codex/rmt-k48-dynamic; diagnosticfdf4f52.
+    model_name = 'RMTVectorNormRowReducedWriteHealthProfile'
+    rmt_write_health_row_reduce = True
+
+
+class RMTVectorNormDynamicOnlyRowReducedWriteHealthProfile(
+    RMTMediumPropK48DynamicFull48RoPE18VectorNormDynamicOnlyWrite):
+    """Diagnostic only: preserve all pure-write health without full-M slices."""
+    # Ledger only: codex/rmt-k48-dynamic; diagnosticfdf4f52.
+    # EW4b v5p-16 all41 stats .402 vs pure .401; XPlane−10.06ms.
+    model_name = 'RMTVectorNormDynamicOnlyRowReducedWriteHealthProfile'
+    rmt_write_health_row_reduce = True
+
+
+class RMTVectorNormRowHealthTransposedCarryProfile(
+    RMTVectorNormRowReducedWriteHealthProfile):
+    """Diagnostic only: transpose matrix axes at scan carry boundaries."""
+    # Ledger only: codex/rmt-k48-dynamic; diagnostic2759d0b.
+    model_name = 'RMTVectorNormRowHealthTransposedCarryProfile'
+    rmt_transposed_matrix_carry = True
+
+
+class RMTVectorNormDynamicOnlyRowHealthTransposedCarryProfile(
+    RMTVectorNormDynamicOnlyRowReducedWriteHealthProfile):
+    """Diagnostic only: same pure model/health, transpose scan carry axes."""
+    # Ledger only: codex/rmt-k48-dynamic; diagnostic2759d0b.
+    # EW4b v5p-16 all41 stats .406 vs row parent .402; XPlane−21.75ms.
+    model_name = 'RMTVectorNormDynamicOnlyRowHealthTransposedCarryProfile'
+    rmt_transposed_matrix_carry = True
+
+
+class RMTVectorNormDynamicOnlyReusedInputHealthProfile(
+    RMTVectorNormDynamicOnlyRowReducedWriteHealthProfile):
+    """Ledger only; runtime9b13ff6, codex/rmt-k48-dynamic; reuse input-M RMSs."""
+    # EW4b v5p-16 all41 stats .403 vs row parent .402.
+    model_name = 'RMTVectorNormDynamicOnlyReusedInputHealthProfile'
+    rmt_write_health_reuse_input_rms = True
+
+
+class RMTVectorNormDynamicOnlyReusedInputHealthTransposedCarryProfile(
+    RMTVectorNormDynamicOnlyReusedInputHealthProfile):
+    """Ledger only; runtime9b13ff6, codex/rmt-k48-dynamic; RMS reuse plus carry transpose."""
+    # EW4b v5p-16 all41 stats .407 vs original .405 / old pure .401; XPlane +0.40% / +1.52% speed.
+    model_name = 'RMTVectorNormDynamicOnlyReusedInputHealthTransposedCarryProfile'
+    rmt_transposed_matrix_carry = True
+
+
+class RMTVectorNormNoWriteHealthProfile(
+    RMTMediumPropK48DynamicFull48RoPE18VectorNorm):
+    """Diagnostic only: remove eight write statistics, retain reads/gates/M health."""
+    # Ledger only: codex/rmt-k48-dynamic; diagnosticfbba660.
+    model_name = 'RMTVectorNormNoWriteHealthProfile'
+    rmt_record_write_health = False
+
+
+class RMTVectorNormSingleOuterNoWriteHealthProfile(
+    RMTMediumPropK48DynamicFull48RoPE18VectorNormSingleOuterWrite):
+    """Diagnostic only: remove write-health Gram, keep all other requested health."""
+    # Ledger only: codex/rmt-k48-dynamic; diagnosticfbba660.
+    model_name = 'RMTVectorNormSingleOuterNoWriteHealthProfile'
+    rmt_record_write_health = False
+
+
+class RMTVectorNormDynamicOnlyNoWriteHealthProfile(
+    RMTMediumPropK48DynamicFull48RoPE18VectorNormDynamicOnlyWrite):
+    """Diagnostic only: drop eight write/residual statistics, retain reads/gates/M."""
+    # Ledger only: codex/rmt-k48-dynamic; diagnostic9ceb2f3.
+    model_name = 'RMTVectorNormDynamicOnlyNoWriteHealthProfile'
+    rmt_record_write_health = False
+
+
+class RMTMediumPropK48DynamicFull48RoPE18VectorNormStaticMLP(
+    RMTMediumPropK48DynamicFull48RoPE18VectorNorm):
+    """Ledger only: dynamic attention with native static RMT MLP reads and writes."""
+    # Runtime: codex/rmt-k48-dynamic, /data0/xd/rmt-k48-dynamic; code_commit 7afae3c.
+    # Remove dynamic MLP C8 read/write and its vector norm; MLP 2519->2713.
+    # 698064 fewer MLP-route params/layer, 698400 refunded: +6048 total over 18 layers.
+    # UE5a stopped147, final ckpt147; NaN from step61 (step60 loss9.65).
+    # Stable pre-NaN .464 step/s vs matched-health VectorNorm .406 (+14.3%).
+    model_name = 'RMTMediumPropK48DynamicFull48RoPE18VectorNormStaticMLP'
+    rmt_dynamic_mlp_enabled = False
+    base_mlp_dim = 2713
+    compare_runs = ['RMTMediumPropK48DynamicFull48RoPE18VectorNorm',
+                    'RMTMediumPropK48DynamicFull48RoPE18',
+                    'BamMediumPropK75AllLocalMOnlyAlibiRMTBudget',
+                    'BamMHAMediumPropAlibiC256']
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/rmt-mediumprop-k48-dynamic-full48-rope18-vector-norm-static-mlp'
+
+
+class RMTMediumPropK48DynamicFull48RoPE18VectorNormStaticMLPPreNorm(
+    RMTMediumPropK48DynamicFull48RoPE18VectorNormStaticMLP):
+    """Ledger only: RMSNorm the flattened static M read before MLP."""
+    # Runtime: codex/rmt-k48-dynamic, /data0/xd/rmt-k48-dynamic; code_commit 06e502b.
+    # Relative to StaticMLP: +1200 norm-scale params/layer; MLP width unchanged.
+    # UE5a xd-v5p-16-17-maxtext: .458 step/s, -1.3% vs StaticMLP, +12.8% vs VectorNorm.
+    # Stopped1260, final ckpt1260; avoids NaN61 but loss7.36@137 -> >10@582, no recovery.
+    # Post-read vector RMSNorm alone does not stabilize static MLP on raw M.
+    model_name = 'RMTMediumPropK48DynamicFull48RoPE18VectorNormStaticMLPPreNorm'
+    rmt_static_mlp_read_pre_norm = True
+    compare_runs = ['RMTMediumPropK48DynamicFull48RoPE18VectorNormStaticMLP',
+                    'RMTMediumPropK48DynamicFull48RoPE18VectorNorm',
+                    'RMTMediumPropK48DynamicFull48RoPE18',
+                    'BamMediumPropK75AllLocalMOnlyAlibiRMTBudget',
+                    'BamMHAMediumPropAlibiC256']
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/rmt-mediumprop-k48-dynamic-full48-rope18-vector-norm-static-mlp-pre-norm'
+
+
+class RMTMediumPropK48DynamicFull48RoPE18VectorNormStaticMLPDynamicRead(
+    RMTMediumPropK48DynamicFull48RoPE18VectorNormStaticMLP):
+    """Ledger only: restore dynamic MLP read, retain static MLP write."""
+    # Runtime: codex/rmt-k48-dynamic, /data0/xd/rmt-k48-dynamic; code_commit 4c80f5a.
+    # Unnormalized static read + dynamic C8 read; only dynamic-write savings refund MLP.
+    # UE5a .432 step/s, +6.4% vs VectorNorm .406, -5.7% vs StaticMLPPreNorm .458.
+    # MLP2664; generic and RMT dynamic health matched to VectorNorm.
+    # Stopped296, final ckpt296; loss7.856@107 -> 9.854@109 -> continuous NaN110.
+    # Dynamic read alone delays failure versus StaticMLP but does not stabilize static write.
+    model_name = 'RMTMediumPropK48DynamicFull48RoPE18VectorNormStaticMLPDynamicRead'
+    rmt_dynamic_mlp_read_enabled = True
+    rmt_dynamic_mlp_write_enabled = False
+    rmt_static_mlp_read_pre_norm = False
+    base_mlp_dim = 2664
+    compare_runs = ['RMTMediumPropK48DynamicFull48RoPE18VectorNormStaticMLPPreNorm',
+                    'RMTMediumPropK48DynamicFull48RoPE18VectorNorm',
+                    'RMTMediumPropK48DynamicFull48RoPE18VectorNormStaticMLP',
+                    'RMTMediumPropK48DynamicFull48RoPE18',
+                    'BamMediumPropK75AllLocalMOnlyAlibiRMTBudget',
+                    'BamMHAMediumPropAlibiC256']
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/rmt-mediumprop-k48-dynamic-full48-rope18-vector-norm-static-mlp-dynamic-read'
+
+
 class BamMediumPropK75AllLocalMOnlyAlibiRMTBudget(BamMediumPropK75EmbedQKVOnlyRoPE18):
     """Ledger only: all-local dynamic BAM, ALiBi, matrix-only QKV."""
     # Same runtime/worktree; code_commit 25265bb; UE5a .5464 step/s (-19.4% vs MHA).
     # MLP2496, 328,605,728 parameters; no fetchedO or standard Q/K/V projection.
     # Full-M static reads augment dynamic Q/K/V/O; generic health ON, BAM extra OFF.
+    # Completed 13,500; final5 vs RMT K48/K64 -.034722/-.015586,
+    # vs ALiBi MHA -.036459. Advantage vs K48 held near -.035 late;
+    # vs MHA shrank as K48's initial lead faded. Slower than K48/K64 .644/.627.
     model_name = 'BamMediumPropK75AllLocalMOnlyAlibiRMTBudget'
     compare_runs = ['RMTMediumPropAlibiK48', 'RMTMediumPropAlibiK64',
                     'BamMHAMediumPropAlibiC256']
@@ -9672,6 +10264,9 @@ class BamMediumPropK75AllLocalStaticAlibiRMTBudget(
     # UE5a .645 step/s (~-4.9% vs MHA .678; +18.0% vs dynamic .5464).
     # Pre-fix .417 was confounded by full-source attention per query chunk.
     # MLP2773, 328,635,680 parameters; static Q/K/V/O and write address.
+    # Completed 13,500; final5 vs dynamic BAM +.209926, RMT K48 +.175204,
+    # ALiBi MHA +.173468. MHA deficit grew from +.075183@2000 to +.173742@13400;
+    # speed +18.0% vs dynamic BAM, yet static BAM lost badly even to static RMT.
     model_name = 'BamMediumPropK75AllLocalStaticAlibiRMTBudget'
     compare_runs = ['BamMediumPropK75AllLocalMOnlyAlibiRMTBudget',
                     'RMTMediumPropAlibiK48', 'RMTMediumPropAlibiK64',
@@ -9684,6 +10279,11 @@ class BamMediumPropK75AllLocalQK57RoPE18RMTBudget(
     # Same runtime/worktree; code_commit eba495e; UE5a .603 step/s (-11.1% vs MHA).
     # ALiBi OFF, MLP2304, 328,605,728 parameters: exactly dynamic ALiBi BAM's budget.
     # RoPE/bf16 logits vs ALiBi/fp32 logits; 192-unit MLP cut exactly pays for Q/K18.
+    # Completed 13,500; UE5a .603 step/s (+10.4% vs dynamic ALiBi BAM .5464).
+    # Final5 vs dynamic ALiBi BAM -.011348, RMT K48 -.046070;
+    # vs historical QK57 AllLocal +.035460 (narrower MLP). Bridge changes
+    # RoPE/QK projection/read width/logit dtype together; not a pure RoPE ablation.
+    # Its RoPE18-vs-ALiBi direction reverses MHA's: old RoPE MHA vs ALiBi +.013450.
     model_name = 'BamMediumPropK75AllLocalQK57RoPE18RMTBudget'
     compare_runs = ['BamMediumPropK75AllLocalMOnlyAlibiRMTBudget',
                     'BamMediumPropK75EmbedVOnlyQK57AllLocal',

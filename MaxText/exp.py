@@ -10390,3 +10390,13 @@ class RMTCombinedLayerScanPackedProjectionProfile(RMTCombinedLayerScanNoHealthPr
 class RMTCombinedLayerScanPackedProjectionL6Profile(RMTCombinedLayerScanPackedProjectionProfile):
     model_name = 'RMTCombinedLayerScanPackedProjectionL6Profile'
     base_num_decoder_layers = 6
+
+
+class RMTCombinedLayerScanPallasWriteBackwardProfile(RMTCombinedLayerScanPallasWriteProfile):
+    model_name = 'RMTCombinedLayerScanPallasWriteBackwardProfile'
+    rmt_pallas_write_forward_jax = True
+
+
+class RMTCombinedLayerScanPallasWriteBackwardL6Profile(RMTCombinedLayerScanPallasWriteBackwardProfile):
+    model_name = 'RMTCombinedLayerScanPallasWriteBackwardL6Profile'
+    base_num_decoder_layers = 6

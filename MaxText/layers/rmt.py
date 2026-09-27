@@ -239,7 +239,8 @@ class RMTDynamicWrite(nn.Module):
       from layers.rmt_pallas import write_residual
       return write_residual(matrix, address, data, gate, static_key,
                             cfg.normalization_layer_epsilon,
-                            tile=cfg.get_keys().get('rmt_pallas_tile',16)), gate
+                            tile=cfg.get_keys().get('rmt_pallas_tile',16),
+                            forward_jax=cfg.get_keys().get('rmt_pallas_write_forward_jax',False)), gate
     raw_data = data
     address = normalizations.rms_norm(
         address, dtype=address.dtype, epsilon=cfg.normalization_layer_epsilon,

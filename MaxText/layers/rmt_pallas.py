@@ -108,16 +108,19 @@ def _write_call(matrix, address, data, gate, static_key, epsilon, interpret, til
       name='rmt_write_residual')(matrix,address,data,gate,static_key)
 
 
-@partial(jax.custom_vjp, nondiff_argnums=(5,6,7))
-def _write(matrix, address, data, gate, static_key, epsilon, interpret, tile):
+@partial(jax.custom_vjp, nondiff_argnums=(5,6,7,8))
+def _write(matrix, address, data, gate, static_key, epsilon, interpret, tile,forward_jax):
+  if forward_jax:
+    return jax.vmap(partial(write_reference,epsilon=epsilon),in_axes=(0,0,0,0,None))(
+        matrix,address,data,gate[...,None],static_key)
   return _write_call(matrix,address,data,gate,static_key,epsilon,interpret,tile)
 
 
-def _write_fwd(matrix,address,data,gate,static_key,epsilon,interpret,tile):
-  return _write_call(matrix,address,data,gate,static_key,epsilon,interpret,tile), (matrix,address,data,gate,static_key)
+def _write_fwd(matrix,address,data,gate,static_key,epsilon,interpret,tile,forward_jax):
+  return _write(matrix,address,data,gate,static_key,epsilon,interpret,tile,forward_jax), (matrix,address,data,gate,static_key)
 
 
-def _write_bwd(epsilon,interpret,tile,res,cotangent):
+def _write_bwd(epsilon,interpret,tile,forward_jax,res,cotangent):
   matrix,address,data,gate,static_key=res
   n,k,v=matrix.shape
   h=data.shape[-2]
@@ -163,13 +166,13 @@ def _map_batch(fn,args,batch_args,*,output_tuple=False):
                    out_specs=outputs,check_rep=False)(*args)
 
 
-def write_residual(matrix,address,data,gate,static_key,epsilon=1e-6,*,interpret=False,tile=None):
+def write_residual(matrix,address,data,gate,static_key,epsilon=1e-6,*,interpret=False,tile=None,forward_jax=False):
   """Batched [..., K, V] update; batch sharding and shared-key VJP are explicit."""
   def local(m,a,d,g,s):
     n=math.prod(m.shape[:-2])
     return _write(m.reshape((n,)+m.shape[-2:]),a.reshape((n,)+a.shape[-2:]),
                   d.reshape((n,)+d.shape[-2:]),g.reshape(n,d.shape[-2]),s,
-                  epsilon,interpret,_tile_size(n,tile)).reshape(m.shape)
+                  epsilon,interpret,_tile_size(n,tile),forward_jax).reshape(m.shape)
   return _map_batch(local,(matrix,address,data,gate,static_key),(True,True,True,True,False))
 
 

@@ -30,6 +30,9 @@ class RmtPallasTest(absltest.TestCase):
   def test_packed_projection_initialization_and_gradients(self):
     self._check_layer('rmt_pack_dynamic_projections')
 
+  def test_hybrid_write_layer_forward_and_gradients(self):
+    self._check_layer('rmt_pallas_write_forward_jax')
+
   def _check_layer(self, flag):
     cfg=self._config('RMTCombinedLayerScanNoHealthProfile')
     cfg.get_keys().update(dtype=jnp.float32,rmt_mlp_dim_by_block=[128]*3)
@@ -57,6 +60,7 @@ class RmtPallasTest(absltest.TestCase):
       return jnp.mean(out**2),out
     baseline=jax.jit(jax.value_and_grad(run,argnums=(0,1),has_aux=True))(params,matrix)
     cfg.get_keys()[flag]=True
+    if flag=='rmt_pallas_write_forward_jax':cfg.get_keys()['rmt_pallas_write']=True
     if flag=='rmt_pallas_joined_read':cfg.get_keys()['rmt_join_static_compression']=True
     with mock.patch.object(rmt_pallas,'write_residual',
                            wraps=partial(rmt_pallas.write_residual,interpret=True)) as fused, \
@@ -66,7 +70,7 @@ class RmtPallasTest(absltest.TestCase):
                            wraps=partial(rmt_pallas_qk.qk_read,interpret=True)) as qk:
       actual=jax.jit(jax.value_and_grad(run,argnums=(0,1),has_aux=True))(params,matrix)
       if flag=='rmt_pallas_qk':self.assertGreater(qk.call_count,0)
-      if flag=='rmt_pallas_write':self.assertGreater(fused.call_count,0)
+      if flag in ('rmt_pallas_write','rmt_pallas_write_forward_jax'):self.assertGreater(fused.call_count,0)
       if flag=='rmt_pallas_joined_read':self.assertGreater(read.call_count,0)
     for a,b in zip(jax.tree.leaves(actual),jax.tree.leaves(baseline)):
       a,b=np.asarray(a),np.asarray(b)

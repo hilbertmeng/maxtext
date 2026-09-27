@@ -235,6 +235,67 @@ Initial bet: v5p optimized throughput remains roughly60–65% of MHA; v6e may sh
 larger relative RMT gains. Outcome: v5p63.10% of MHA agrees; the predicted larger v6e relative gain did
 not occur (18.21% versus19.00%).
 
+## Remaining bottlenecks: forward versus reverse (2026-09-27)
+
+Post-optimization `39c7e0f` raw-XPlane primary-core leaf attribution, first
+complete device step. Use compiler AD scopes: `jvp(Transformer)` forward,
+`transpose(jvp(Transformer))` reverse, with `rematted_computation` removed
+from reverse and counted separately. Kernels are assigned to their dominant
+compiler scope; this is not an isolated timing experiment. Optimizer work can
+be fused into reverse kernels. Unscoped work remains other, and missing leaf
+time remains unassigned; no denominator is renormalized to hide it.
+
+| Phase | v5p-16 ms / step share | v6e-1 ms / step share |
+|---|---:|---:|
+| Forward |631.98 /29.26%|185.31 /26.76%|
+| Reverse excluding explicit recomputation |1158.99 /53.65%|378.75 /54.70%|
+| Forward recomputation during reverse |365.50 /16.92%|111.74 /16.14%|
+| Other / unassigned |3.64 /0.17%|16.61 /2.40%|
+| Complete primary-core step |2160.11|692.41|
+
+Reverse plus recomputation accounts for70.58%/70.84% of the optimized step.
+More discriminating than the ordinary fact that training reverse is expensive:
+73.36%/64.67% of the **remaining RMT-minus-MHA device-time gap** is attributed
+to reverse plus recomputation. The current optimization already saved most
+of its time there; forward-only kernel tuning would miss the dominant cost.
+
+Dominant non-overlapping source scopes in the optimized model (all phases):
+
+| Scope | v5p ms / share | v6e ms / share |
+|---|---:|---:|
+| Attention QK/softmax/AV, including mask gradient |564.14 /26.12%|215.62 /31.14%|
+| MLP |429.49 /19.88%|84.42 /12.19%|
+| Layer writes, including projections and fused static/dynamic update |324.07 /15.00%|88.57 /12.79%|
+| Dynamic QK and C8 reads |260.88 /12.08%|97.64 /14.10%|
+| Proxy vector normalization |82.06 /3.80%|28.18 /4.07%|
+
+Remaining work includes static M reads, separate RoPE projections, residual
+adds, scan buffer manipulation, output head, optimizer and other scopes.
+Do not add compiler kernel-category totals (copy/fusion/etc.) to this table.
+MLP4078 is intentionally wider than the MHA baseline's3200 for equal total
+parameter budget; that architectural allocation is not an implementation bug.
+
+Respecting the user's separate Splash work, prioritize **matrix-write reverse**:
+the two write Pallas backward calls alone total185.52ms on v5p versus46.04ms
+for their first forward calls; v6e51.52ms versus18.09ms. Write scope reverse
+including surrounding projections/layout is232.31ms/63.27ms. Current
+`rmt_pallas_minor.py::_bwd` uses `jax.vjp(_tile)` inside Pallas. A dedicated
+analytic reverse can jointly schedule content/address/gate contractions,
+normalization derivatives and reductions instead of inheriting the transpose
+of the unrolled forward. This is a concrete candidate, not a measured gain.
+
+Second, jointly accumulate multi-route read gradients into M, reducing separate
+full-M gradient intermediates, layout conversions and additions. Do not expect
+forward-only read projection packing to remove that reverse traffic.
+Third, tune recomputation at carefully chosen boundaries: the365.50ms/111.74ms
+is real work, but saving everything already lost speed or exceeded HBM. The
+prior save-MLP/save-dynamic failures rule out a blanket retain-more policy.
+
+Reproduce from verified leaf aggregates with
+`experiments/bam_llama2_medium/analyze_rmt_pallas_phases.py` and the v5p/v6e
+`comparison.json` files. Output:
+`/data0/xd/bam_diagnostics/rmt-pallas-phase-breakdown.json`.
+
 ## Reproduction and artifacts
 
 Retained user-owned diagnostic hosts, **do not delete**:

@@ -141,7 +141,8 @@ class RMTDynamicQK(nn.Module):
       from layers.rmt_pallas_minor_qk import qk_post
       basis_read=jnp.einsum('btvc,btrc->btrv',M,basis)
       output=qk_post(basis_read,basis,jnp.concatenate(mixes,axis=-2),
-                     jnp.concatenate(gates,axis=-1),_read_epsilon(cfg))
+                     jnp.concatenate(gates,axis=-1),_read_epsilon(cfg),
+                     tile=cfg.get_keys().get('rmt_pallas_qk_post_tile',128))
       results=(output[...,:heads,:],output[...,heads:,:])
     else:
       basis_read=jnp.einsum('btvc,btrc->btrv',M,basis)
@@ -204,7 +205,8 @@ class RMTDynamicC8Read(nn.Module):
     gates = jax.nn.sigmoid(logits + gate_bias.astype(x.dtype))
     if pallas_c8:
       from layers.rmt_pallas_minor_read import c8_read
-      values=c8_read(jnp.swapaxes(compressed,-2,-1),raw_key,gates,_read_epsilon(cfg))
+      values=c8_read(jnp.swapaxes(compressed,-2,-1),raw_key,gates,_read_epsilon(cfg),
+                     tile=cfg.get_keys().get('rmt_pallas_c8_tile',128))
       reads=tuple(values[...,i,:] for i in range(self.destinations))
     elif pallas_joined:
       if cfg.get_keys().get('rmt_pallas_joined_layout')=='token_minor':

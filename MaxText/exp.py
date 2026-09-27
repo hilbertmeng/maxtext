@@ -10568,3 +10568,15 @@ class RMTCombinedLayerScanTokenAllProfile(RMTCombinedLayerScanTokenReadWriteProf
 class RMTCombinedLayerScanTokenAllSaveStateProfile(RMTCombinedLayerScanTokenAllProfile):
     model_name = 'RMTCombinedLayerScanTokenAllSaveStateProfile'
     rmt_remat_policy = 'save_state'
+
+
+class RMTCombinedLayerScanTokenAllSaveStateTile256Profile(RMTCombinedLayerScanTokenAllSaveStateProfile):
+    model_name = 'RMTCombinedLayerScanTokenAllSaveStateTile256Profile'
+    rmt_pallas_qk_post_tile = 256
+    rmt_pallas_c8_tile = 256
+
+
+class RMTCombinedLayerScanTokenAllSaveStateTile512Profile(RMTCombinedLayerScanTokenAllSaveStateProfile):
+    model_name = 'RMTCombinedLayerScanTokenAllSaveStateTile512Profile'
+    rmt_pallas_qk_post_tile = 512
+    rmt_pallas_c8_tile = 512

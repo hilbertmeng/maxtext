@@ -10359,3 +10359,12 @@ class RMTCombinedLayerScanJoinedPallasReadProfile(RMTCombinedLayerScanJoinedRead
 class RMTCombinedLayerScanJoinedPallasReadL6Profile(RMTCombinedLayerScanJoinedPallasReadProfile):
     model_name = 'RMTCombinedLayerScanJoinedPallasReadL6Profile'
     base_num_decoder_layers = 6
+
+
+class RMTCombinedLayerScanPallasQKProfile(RMTCombinedLayerScanNoHealthProfile):
+  rmt_pallas_qk = True
+  rmt_pallas_qk_tile = 32
+
+
+class RMTCombinedLayerScanPallasQKL6Profile(RMTCombinedLayerScanPallasQKProfile):
+  base_num_decoder_layers = 6

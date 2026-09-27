@@ -110,7 +110,8 @@ class RMTDynamicQK(nn.Module):
     basis_read = jnp.einsum('btvc,btrc->btrv', M, basis)
     basis_fp32 = basis.astype(jnp.float32)
     gram = jnp.einsum('btrc,btsc->btrs', basis_fp32, basis_fp32)
-    results, gates = [], []
+    fused_qk = cfg.get_keys().get('rmt_pallas_qk', False) and not self.is_initializing()
+    results, gates, mixes = [], [], []
     for arm in ('q', 'k'):
       mix_kernel = self.param(f'{arm}_mix_kernel', nn.with_logical_partitioning(init, ('embed', None)),
                               (cfg.emb_dim, heads * rank), cfg.weight_dtype)
@@ -123,6 +124,10 @@ class RMTDynamicQK(nn.Module):
       gate = jax.nn.sigmoid(
           jnp.einsum('btd,dn->btn', x, gate_kernel.astype(x.dtype))
           + gate_bias.astype(x.dtype))
+      if fused_qk:
+        mixes.append(mix)
+        gates.append(gate)
+        continue
       # Same effective-key RMS as BAM's rank-4 Gram route, after pre-RMS bias.
       mix_fp32 = mix.astype(jnp.float32)
       norm2 = jnp.einsum('btnr,btrs,btns->btn', mix_fp32, gram, mix_fp32)
@@ -130,6 +135,12 @@ class RMTDynamicQK(nn.Module):
       read = jnp.einsum('btrv,btnr->btnv', basis_read, mix)
       results.append(read * (inverse_rms.astype(read.dtype) * (.2 * gate))[..., None])
       gates.append(gate)
+    if fused_qk:
+      from layers.rmt_pallas_qk import qk_read
+      output = qk_read(jnp.swapaxes(M,-2,-1), basis,
+                       jnp.concatenate(mixes,axis=-2),jnp.concatenate(gates,axis=-1),
+                       _read_epsilon(cfg),tile=cfg.get_keys().get('rmt_pallas_qk_tile',32))
+      results = (output[..., :heads, :],output[..., heads:, :])
     return results[0], results[1], gates[0], gates[1]
 
 

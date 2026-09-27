@@ -8,7 +8,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 
-from layers import rmt, rmt_pallas, rmt_pallas_joined
+from layers import rmt, rmt_pallas, rmt_pallas_joined, rmt_pallas_qk
 import rmt_mediumprop_test
 
 
@@ -23,6 +23,9 @@ class RmtPallasTest(absltest.TestCase):
 
   def test_joined_pallas_initialization_forward_and_gradients(self):
     self._check_layer('rmt_pallas_joined_read')
+
+  def test_qk_layer_forward_and_gradients(self):
+    self._check_layer('rmt_pallas_qk')
 
   def _check_layer(self, flag):
     cfg=self._config('RMTCombinedLayerScanNoHealthProfile')
@@ -55,8 +58,11 @@ class RmtPallasTest(absltest.TestCase):
     with mock.patch.object(rmt_pallas,'write_residual',
                            wraps=partial(rmt_pallas.write_residual,interpret=True)) as fused, \
          mock.patch.object(rmt_pallas_joined,'joined_read',
-                           wraps=partial(rmt_pallas_joined.joined_read,interpret=True)) as read:
+                           wraps=partial(rmt_pallas_joined.joined_read,interpret=True)) as read, \
+         mock.patch.object(rmt_pallas_qk,'qk_read',
+                           wraps=partial(rmt_pallas_qk.qk_read,interpret=True)) as qk:
       actual=jax.jit(jax.value_and_grad(run,argnums=(0,1),has_aux=True))(params,matrix)
+      if flag=='rmt_pallas_qk':self.assertGreater(qk.call_count,0)
       if flag=='rmt_pallas_write':self.assertGreater(fused.call_count,0)
       if flag=='rmt_pallas_joined_read':self.assertGreater(read.call_count,0)
     for a,b in zip(jax.tree.leaves(actual),jax.tree.leaves(baseline)):

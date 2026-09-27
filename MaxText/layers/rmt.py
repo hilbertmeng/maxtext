@@ -582,7 +582,10 @@ class RMTDecoder(nn.Module):
     block_scan = cfg.get_keys().get('rmt_block_scan', False)
     if block_scan and cfg.num_decoder_layers % 3:
       raise ValueError('RMT block scan requires a multiple of three layers')
-    Layer = RMTBlock if block_scan else nn.remat(RMTLayer, prevent_cse=True, static_argnums=(4,))
+    policy_name=cfg.get_keys().get('rmt_remat_policy','full')
+    if policy_name not in ('full','save_dense'):raise ValueError(f'Unknown RMT remat policy: {policy_name}')
+    policy=(jax.checkpoint_policies.dots_with_no_batch_dims_saveable if policy_name=='save_dense' else None)
+    Layer = RMTBlock if block_scan else nn.remat(RMTLayer, prevent_cse=True, static_argnums=(4,),policy=policy)
     scan_length = cfg.num_decoder_layers // 3 if block_scan else cfg.num_decoder_layers
     ScanLayer = nn.scan(
         Layer,

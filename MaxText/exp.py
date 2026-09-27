@@ -10400,3 +10400,13 @@ class RMTCombinedLayerScanPallasWriteBackwardProfile(RMTCombinedLayerScanPallasW
 class RMTCombinedLayerScanPallasWriteBackwardL6Profile(RMTCombinedLayerScanPallasWriteBackwardProfile):
     model_name = 'RMTCombinedLayerScanPallasWriteBackwardL6Profile'
     base_num_decoder_layers = 6
+
+
+class RMTCombinedLayerScanSaveDenseProfile(RMTCombinedLayerScanNoHealthProfile):
+    model_name = 'RMTCombinedLayerScanSaveDenseProfile'
+    rmt_remat_policy = 'save_dense'
+
+
+class RMTCombinedLayerScanSaveDenseL6Profile(RMTCombinedLayerScanSaveDenseProfile):
+    model_name = 'RMTCombinedLayerScanSaveDenseL6Profile'
+    base_num_decoder_layers = 6

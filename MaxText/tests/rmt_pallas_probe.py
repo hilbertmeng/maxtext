@@ -72,7 +72,7 @@ def main():
   if args.arm in ('pallas','both'):
     for dtype in ((jnp.float32,) if args.interpret else (jnp.float32,jnp.bfloat16)):
       jax.config.update('jax_default_matmul_precision','highest' if dtype==jnp.float32 else 'default')
-      x=inputs(max(16,int(os.environ.get('RMT_PALLAS_TILE','8'))),dtype)
+      x=inputs(2*max(16,int(os.environ.get('RMT_PALLAS_TILE','8'))),dtype)
       actual=forward_backward(fused)(*x)
       expected=forward_backward(reference)(*x)
       for label,a,b in zip(labels,jax.tree.leaves(actual),jax.tree.leaves(expected)):

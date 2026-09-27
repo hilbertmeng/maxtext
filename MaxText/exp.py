@@ -10522,3 +10522,8 @@ class RMTCombinedLayerScanLeadingParamsL6Profile(RMTCombinedLayerScanLeadingPara
 class RMTCombinedLayerScanTokenReadWriteLeadingParamsProfile(RMTCombinedLayerScanTokenReadWriteProfile):
     model_name = 'RMTCombinedLayerScanTokenReadWriteLeadingParamsProfile'
     param_scan_axis = 0
+
+
+class RMTCombinedLayerScanTokenReadWriteSaveStateMLPProfile(RMTCombinedLayerScanTokenReadWriteSaveStateProfile):
+    model_name = 'RMTCombinedLayerScanTokenReadWriteSaveStateMLPProfile'
+    rmt_remat_policy = 'save_state_mlp'

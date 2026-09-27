@@ -429,7 +429,7 @@ class RMTLayer(nn.Module):
       static_head_output = head_output
       if dynamic_o_enabled:
         head_output = head_output + dynamic_o
-    if cfg.get_keys().get('rmt_remat_policy','full') in ('save_dense_state','save_state'):
+    if cfg.get_keys().get('rmt_remat_policy','full') in ('save_dense_state','save_state','save_state_mlp'):
       head_output=ad_checkpoint.checkpoint_name(head_output,'rmt_attention_head')
     attn_write = self.param('attn_write_key', write_init,
                             (heads, key_dim), cfg.weight_dtype)
@@ -450,7 +450,7 @@ class RMTLayer(nn.Module):
     elif not dynamic:
       matrix = matrix + static_attn_write
 
-    if cfg.get_keys().get('rmt_remat_policy','full') in ('save_dense_state','save_state'):
+    if cfg.get_keys().get('rmt_remat_policy','full') in ('save_dense_state','save_state','save_state_mlp'):
       matrix=ad_checkpoint.checkpoint_name(matrix,'rmt_mlp_matrix')
     mlp_in = (matrix if vector_pre_norm else
               MatrixRMSNorm(cfg, name='mlp_norm')(matrix))
@@ -614,10 +614,12 @@ class RMTDecoder(nn.Module):
     if block_scan and cfg.num_decoder_layers % 3:
       raise ValueError('RMT block scan requires a multiple of three layers')
     policy_name=cfg.get_keys().get('rmt_remat_policy','full')
-    if policy_name not in ('full','save_dense','save_dense_state','save_state','attention_only'):raise ValueError(f'Unknown RMT remat policy: {policy_name}')
+    if policy_name not in ('full','save_dense','save_dense_state','save_state','save_state_mlp','attention_only'):raise ValueError(f'Unknown RMT remat policy: {policy_name}')
     policy=(jax.checkpoint_policies.dots_with_no_batch_dims_saveable if policy_name in ('save_dense','save_dense_state') else None)
-    if policy_name in ('save_dense_state','save_state'):
-      named=jax.checkpoint_policies.save_only_these_names('rmt_attention_head','rmt_mlp_matrix')
+    if policy_name in ('save_dense_state','save_state','save_state_mlp'):
+      names=('rmt_attention_head','rmt_mlp_matrix')
+      if policy_name=='save_state_mlp':names+=('mlpwi_0','mlpwi_1','mlpwo')
+      named=jax.checkpoint_policies.save_only_these_names(*names)
       policy=(jax.checkpoint_policies.save_from_both_policies(policy,named)
               if policy_name=='save_dense_state' else named)
     if block_scan and policy_name!='full':raise ValueError('Selective remat requires direct layer scan')

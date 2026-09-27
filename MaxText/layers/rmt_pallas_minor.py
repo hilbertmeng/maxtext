@@ -172,12 +172,12 @@ def _bwd(epsilon,interpret,tile,key_contiguous,backward,args,dy):
   a,d,g,s=args
   b,_,_,t=dy.shape;h=a.shape[1]
   k,v=(dy.shape[2],dy.shape[1]) if key_contiguous else dy.shape[1:3]
-  if backward in ('joint_major','joint_major32','joint_major128','joint_major256','joint_major_direct'):
+  if backward in ('joint_major','joint_major32','joint_major128','joint_major256','joint_major_direct','joint_major_direct128'):
     if key_contiguous:raise ValueError('Joint reverse expects token-minor forward')
     from layers.rmt_pallas_write_reverse import backward as reverse
     da,dd,dg,ds=reverse(a.transpose(0,3,1,2),d.transpose(0,3,1,2),g.transpose(0,2,1),s,
-                       dy.transpose(0,3,1,2),epsilon,interpret,tile=(64 if backward=="joint_major_direct" else int(backward[len("joint_major"):] or 64)),
-                       gate_layout="major" if backward=="joint_major_direct" else "minor")
+                       dy.transpose(0,3,1,2),epsilon,interpret,tile=(int(backward[len("joint_major_direct"):] or 64) if backward.startswith("joint_major_direct") else int(backward[len("joint_major"):] or 64)),
+                       gate_layout="major" if backward.startswith("joint_major_direct") else "minor")
     return dy,da.transpose(0,2,3,1),dd.transpose(0,2,3,1),dg.transpose(0,2,1),ds
   if backward in ('hybrid','hybrid_batched','split4','split8'):
     if key_contiguous:raise ValueError('Hybrid backward requires token-minor layout')
@@ -230,7 +230,7 @@ _write.defvjp(_fwd,_bwd)
 
 
 def write_residual(matrix,address,data,gate,static_key,epsilon=1e-6,*,interpret=False,tile=128,key_contiguous=False,backward="autodiff"):
-  if backward not in ("autodiff","analytic","hybrid","hybrid_batched","batched","batched32","batched_loop","symmetric","joint","joint32","joint_major","joint_major32","joint_major128","joint_major256","joint_major_direct","split4","split8"):raise ValueError(f"Unknown write backward: {backward}")
+  if backward not in ("autodiff","analytic","hybrid","hybrid_batched","batched","batched32","batched_loop","symmetric","joint","joint32","joint_major","joint_major32","joint_major128","joint_major256","joint_major_direct","joint_major_direct128","split4","split8"):raise ValueError(f"Unknown write backward: {backward}")
   unbatched=matrix.ndim==3
   if unbatched:
     matrix,address,data,gate=(x[None] for x in (matrix,address,data,gate))

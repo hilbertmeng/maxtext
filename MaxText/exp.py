@@ -10752,3 +10752,24 @@ class RMTCombinedLayerScanMajorReverse128WriteProfile(RMTCombinedLayerScanMajorR
 class RMTCombinedLayerScanMajorReverse128WriteV6eB4Profile(RMTCombinedLayerScanMajorReverse128WriteProfile):
     model_name = 'RMTCombinedLayerScanMajorReverse128WriteV6eB4Profile'
     per_device_batch_size = 4.0
+
+
+class RMTCombinedLayerScanMajorDirectWriteProfile(RMTCombinedLayerScanMajorReverseWriteProfile):
+    """64-token reverse with native reduction; closer to the unfused BF16 reference."""
+    model_name = 'RMTCombinedLayerScanMajorDirectWriteProfile'
+    rmt_pallas_write_backward = 'joint_major_direct'
+
+
+class RMTCombinedLayerScanMajorDirectWriteV6eB4Profile(RMTCombinedLayerScanMajorDirectWriteProfile):
+    model_name = 'RMTCombinedLayerScanMajorDirectWriteV6eB4Profile'
+    per_device_batch_size = 4.0
+
+
+class RMTCombinedLayerScanMajorDirect128WriteProfile(RMTCombinedLayerScanMajorDirectWriteProfile):
+    model_name = 'RMTCombinedLayerScanMajorDirect128WriteProfile'
+    rmt_pallas_write_backward = 'joint_major_direct128'
+
+
+class RMTCombinedLayerScanMajorDirect128WriteV6eB4Profile(RMTCombinedLayerScanMajorDirect128WriteProfile):
+    model_name = 'RMTCombinedLayerScanMajorDirect128WriteV6eB4Profile'
+    per_device_batch_size = 4.0

@@ -157,14 +157,14 @@ def _bwd(epsilon,interpret,tile,key_contiguous,backward,args,dy):
   a,d,g,s=args
   b,_,_,t=dy.shape;h=a.shape[1]
   k,v=(dy.shape[2],dy.shape[1]) if key_contiguous else dy.shape[1:3]
-  if backward in ('hybrid','split4','split8'):
+  if backward in ('hybrid','hybrid_batched','split4','split8'):
     if key_contiguous:raise ValueError('Hybrid backward requires token-minor layout')
     # Shared static contractions use full-token GEMMs, avoiding one poorly
     # utilized H-by-K parameter-gradient dot (and V padding) per token tile.
     static_dd=jnp.einsum('hk,bkvt->bhvt',s,dy).astype(d.dtype)
     ds=jnp.einsum('bhvt,bkvt->hk',d,dy,preferred_element_type=jnp.float32).astype(s.dtype)
     def dynamic_kernel(a,d,g,dy,sd,da,dd,dg):
-      ga,gd,gg=_dynamic_backward(a[...],d[...],g[...],dy[...],epsilon)
+      ga,gd,gg=_dynamic_backward(a[...],d[...],g[...],dy[...],epsilon,"batched" if backward=="hybrid_batched" else "analytic")
       da[...],dd[...],dg[...]=ga,(gd+sd[...]).astype(d.dtype),gg
     if backward.startswith('split'):
       hg=int(backward[5:])
@@ -208,7 +208,7 @@ _write.defvjp(_fwd,_bwd)
 
 
 def write_residual(matrix,address,data,gate,static_key,epsilon=1e-6,*,interpret=False,tile=128,key_contiguous=False,backward="autodiff"):
-  if backward not in ("autodiff","analytic","hybrid","batched","batched32","symmetric","joint","joint32","split4","split8"):raise ValueError(f"Unknown write backward: {backward}")
+  if backward not in ("autodiff","analytic","hybrid","hybrid_batched","batched","batched32","symmetric","joint","joint32","split4","split8"):raise ValueError(f"Unknown write backward: {backward}")
   unbatched=matrix.ndim==3
   if unbatched:
     matrix,address,data,gate=(x[None] for x in (matrix,address,data,gate))

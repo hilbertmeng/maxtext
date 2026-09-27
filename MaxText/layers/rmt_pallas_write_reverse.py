@@ -16,7 +16,7 @@ def norm_backward(x,u,inv):
   return ((u-f*jnp.mean(u*f,axis=-1,keepdims=True)*inv*inv)*inv).astype(x.dtype)
 
 
-def joint(address,data,gate,static_key,dy,epsilon):
+def joint(address,data,gate,static_key,dy,epsilon,gate_layout="minor"):
   t,h,k=address.shape;v=data.shape[-1]
   an,ai=norm(address,epsilon);dn,di=norm(data,epsilon)
   gated=(an.astype(jnp.float32)*gate.astype(jnp.float32)[:,:,None]).astype(address.dtype)
@@ -34,20 +34,23 @@ def joint(address,data,gate,static_key,dy,epsilon):
   ds=jnp.sum(product[:,2*h:,:k],axis=0)
   # Match the token-minor BF16 gate-reduction tree; only this small tensor
   # changes layout, while all matrix contractions remain token-major.
-  gate_terms=(ua*an).astype(gate.dtype).transpose(1,2,0)
-  gg=jax.lax.reduce_sum(gate_terms,axes=(1,)).T.astype(gate.dtype)
+  gate_terms=(ua*an).astype(gate.dtype)
+  if gate_layout=="minor":
+    gg=jax.lax.reduce_sum(gate_terms.transpose(1,2,0),axes=(1,)).T.astype(gate.dtype)
+  else:
+    gg=jax.lax.reduce_sum(gate_terms,axes=(2,)).astype(gate.dtype)
   ga=norm_backward(address,(ua.astype(jnp.float32)*gate.astype(jnp.float32)[:,:,None]).astype(address.dtype),ai)
   gd=(norm_backward(data,ud,di)+sd).astype(data.dtype)
   return ga,gd,gg,ds
 
 
-def backward(a,d,g,s,dy,epsilon,interpret=False,tile=64):
+def backward(a,d,g,s,dy,epsilon,interpret=False,tile=64,gate_layout="minor"):
   b,t,h,k=a.shape;v=d.shape[-1]
   tile=min(tile,t)
   if t%tile:raise ValueError('Reverse tile must divide token count')
   spec=lambda shape:pl.BlockSpec((None,tile)+shape,lambda b,i:(b,i)+(0,)*len(shape))
   def kernel(a,d,g,s,dy,da,dd,dg,ds):
-    da[...],dd[...],dg[...],ds[...]=joint(a[...],d[...],g[...],s[...],dy[...],epsilon)
+    da[...],dd[...],dg[...],ds[...]=joint(a[...],d[...],g[...],s[...],dy[...],epsilon,gate_layout)
   specs=[spec((h,k)),spec((h,v)),spec((h,)),pl.BlockSpec(s.shape,lambda b,i:(0,0)),spec((k,v))]
   outputs=[jax.ShapeDtypeStruct(x.shape,x.dtype) for x in (a,d,g)]
   outputs.append(jax.ShapeDtypeStruct((b,t//tile)+s.shape,jnp.float32))

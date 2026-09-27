@@ -7,6 +7,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 from layers.rmt_pallas_minor import write_residual
+from layers.rmt_pallas import write_reference
 from layers.rmt_pallas_minor_read import c8_read
 
 
@@ -30,7 +31,8 @@ def main():
   expected=None
   for mode in args.modes.split(','):
     def backward(*z):
-      _,pb=jax.vjp(lambda *p:fn(*p,backward=mode,tile=args.tile),*z[:-1])
+      impl=(lambda m,a,d,g,s:jax.vmap(write_reference,in_axes=(0,0,0,0,None))(m,a,d,g[...,None],s)) if mode=="reference" else (lambda *p:fn(*p,backward=mode,tile=args.tile))
+      _,pb=jax.vjp(impl,*z[:-1])
       return pb(z[-1])
     start=time.monotonic()
     compiled=jax.jit(backward).lower(*x).compile()

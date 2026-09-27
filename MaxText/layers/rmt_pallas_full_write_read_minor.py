@@ -1,4 +1,5 @@
 """Complete middle pullback: native read layout, local write-layout conversion."""
+from dataclasses import replace
 import jax
 import jax.numpy as jnp
 from jax.experimental import pallas as pl
@@ -9,7 +10,7 @@ from layers.rmt_pallas_projected_write import project_minor_state, project_rever
 from layers.rmt_pallas_write_reverse import joint, dynamic_joint, chunked_joint
 
 
-def backward(args,cotangents,epsilon,read_epsilon,interpret,tile,dynamic_only=False,compute_chunk=0,recompute_write=False,tiled_grads=False):
+def backward(args,cotangents,epsilon,read_epsilon,interpret,tile,dynamic_only=False,compute_chunk=0,recompute_write=False,tiled_grads=False,single_buffer=False):
   b,k,v,t=args[0].shape
   inp=[_spec(z.shape[1:-1],tile) if i<3 else
        pl.BlockSpec(z.shape,lambda b,j,n=z.ndim:(0,)*n) for i,z in enumerate(args)]
@@ -18,6 +19,9 @@ def backward(args,cotangents,epsilon,read_epsilon,interpret,tile,dynamic_only=Fa
   shared_shapes=[(1,)+z.shape if z.ndim==1 else z.shape[::-1] if tr else z.shape
                  for z,tr in zip(args[3:],transpose)]
   outs=inp[:3]+[pl.BlockSpec((None,)+sh,lambda b,j,n=len(sh):(b,)+(0,)*n) for sh in shared_shapes]
+  if single_buffer:
+    inp=[replace(spec,pipeline_mode=pl.Buffered(1)) for spec in inp]
+    outs=[replace(spec,pipeline_mode=pl.Buffered(1)) for spec in outs]
   shapes=[jax.ShapeDtypeStruct(z.shape,z.dtype) if i<3 else
           jax.ShapeDtypeStruct((b,)+shared_shapes[i-3],jnp.float32) for i,z in enumerate(args)]
   def kernel(*refs):

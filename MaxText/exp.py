@@ -11032,11 +11032,13 @@ class RMTThreeStageMiddleDynamicSavedV6eB4Profile(RMTThreeStageMiddleMinorSavedV
 
 
 class RMTThreeStageMiddleMinor56Profile(RMTThreeStageMiddleMinorProfile):
+    # Runtime e9b001c; v5p-16 AOT READY, UC1a full-step profile running; 56MiB scoped budget.
     model_name = 'RMTThreeStageMiddleMinor56Profile'
     rmt_scoped_vmem_limit_kib = 57344
 
 
 class RMTThreeStageMiddleMinorSaved56Profile(RMTThreeStageMiddleMinorSavedProfile):
+    # Runtime e9b001c; v5p-16 full-model AOT failed:56.26MiB needed >56MiB budget.
     model_name = 'RMTThreeStageMiddleMinorSaved56Profile'
     rmt_scoped_vmem_limit_kib = 57344
 
@@ -11052,11 +11054,13 @@ class RMTThreeStageMiddleChunk64V6eB4Profile(RMTThreeStageMiddleMinorSavedV6eB4P
 
 
 class RMTThreeStageMiddleChunk6456Profile(RMTThreeStageMiddleChunk64Profile):
+    # Runtime 2343e97; v5p-16 full-model AOT failed:56.77MiB needed >56MiB budget.
     model_name = 'RMTThreeStageMiddleChunk6456Profile'
     rmt_scoped_vmem_limit_kib = 57344
 
 
 class RMTThreeStageMiddleRecomputeSavedProfile(RMTThreeStageMiddleMinorSaved56Profile):
+    # Runtime e30ec00; v5p-16 AOT READY at60MiB; UC1a full-step profile queued.
     model_name = 'RMTThreeStageMiddleRecomputeSavedProfile'
     rmt_full_middle_reverse_mode = 'minor_recompute'
     rmt_scoped_vmem_limit_kib = 61440
@@ -11071,11 +11075,13 @@ class RMTThreeStageMiddleRecomputeSavedV6eB4Profile(RMTThreeStageMiddleMinorSave
 
 
 class RMTThreeStageMiddleChunk6458Profile(RMTThreeStageMiddleChunk6456Profile):
+    # Runtime 4dd7038; v5p-16 AOT READY at58MiB; UC1a full-step profile queued.
     model_name = 'RMTThreeStageMiddleChunk6458Profile'
     rmt_scoped_vmem_limit_kib = 59392
 
 
 class RMTThreeStageMiddleNativeSavedV6eB4Profile(RMTThreeStageMiddleRecomputeSavedV6eB4Profile):
+    # Runtime 17b5e20; EW4a host0:1.762132step/s, F127.135ms/B413.968ms. +0.03% vs e30ec00; no material gain.
     """Save middle vectors before the native-layout output transposes."""
     model_name = 'RMTThreeStageMiddleNativeSavedV6eB4Profile'
     rmt_save_middle_native_outputs = True
@@ -11090,3 +11096,14 @@ class RMTThreeStageMiddleTiledGradsProfile(RMTThreeStageMiddleMinorProfile):
 class RMTThreeStageMiddleTiledGradsV6eB4Profile(RMTThreeStageMiddleMinorV6eB4Profile):
     model_name = 'RMTThreeStageMiddleTiledGradsV6eB4Profile'
     rmt_full_middle_reverse_mode = 'minor_tiled_grads'
+
+
+class RMTThreeStageMiddleSingleBufferProfile(RMTThreeStageMiddleMinorProfile):
+    """Bound DMA windows explicitly while retaining the whole middle kernel."""
+    model_name = 'RMTThreeStageMiddleSingleBufferProfile'
+    rmt_full_middle_reverse_mode = 'minor_single_buffer'
+
+
+class RMTThreeStageMiddleSingleBufferV6eB4Profile(RMTThreeStageMiddleMinorV6eB4Profile):
+    model_name = 'RMTThreeStageMiddleSingleBufferV6eB4Profile'
+    rmt_full_middle_reverse_mode = 'minor_single_buffer'

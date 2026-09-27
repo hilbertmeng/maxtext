@@ -35,6 +35,41 @@ def _spec(shape,tile):
   return pl.BlockSpec((None,)+shape+(tile,),lambda b,i:(b,)+(0,)*len(shape)+(i,))
 
 
+def _norm_backward(x, cotangent, epsilon):
+  """Derivative of FP32 RMS normalization, retaining the BF16 cast boundary."""
+  f=x.astype(jnp.float32)
+  u=cotangent.astype(jnp.float32)
+  inv=jax.lax.rsqrt(jnp.mean(f*f,axis=-2,keepdims=True)+epsilon)
+  correction=jnp.mean(u*f,axis=-2,keepdims=True)*inv*inv
+  return ((u-f*correction)*inv).astype(x.dtype)
+
+
+def _analytic_backward(address,data,gate,static_key,dy,epsilon):
+  """Shared contractions plus explicit RMS/gate derivatives; no AD of _tile."""
+  h,k,t=address.shape
+  v=data.shape[1]
+  an=_norm(address,epsilon)
+  dn=_norm(data,epsilon)
+  gated=(an*gate[:,None,:]).astype(address.dtype)
+  vp=((v+127)//128)*128
+  yp=jnp.concatenate((dy,jnp.zeros((k,vp-v,t),dy.dtype)),axis=1)
+  dp=jnp.concatenate((data,jnp.zeros((h,vp-v,t),data.dtype)),axis=1)
+  static_dd=jnp.dot(static_key,yp.reshape(k,vp*t),
+                   preferred_element_type=jnp.float32).reshape(h,vp,t)[:,:v,:].astype(data.dtype)
+  ds=jnp.dot(dp.reshape(h,vp*t),yp.reshape(k,vp*t).T,
+             preferred_element_type=jnp.float32).astype(static_key.dtype)
+  yf=dy.astype(jnp.float32)
+  ga=[];gd=[];gg=[]
+  for head in range(h):
+    a=an[head];d=dn[head];ag=gated[head]
+    ua=jnp.sum(yf*d.astype(jnp.float32)[None,:,:],axis=1).astype(address.dtype)
+    ud=jnp.sum(yf*ag.astype(jnp.float32)[:,None,:],axis=0).astype(data.dtype)
+    gg.append(jnp.sum((ua*a).astype(gate.dtype),axis=0).astype(gate.dtype))
+    ga.append(_norm_backward(address[head],(ua*gate[head][None,:]).astype(address.dtype),epsilon))
+    gd.append((_norm_backward(data[head],ud,epsilon)+static_dd[head]).astype(data.dtype))
+  return jnp.stack(ga),jnp.stack(gd),jnp.stack(gg),ds
+
+
 def _call(m,a,d,g,s,epsilon,interpret,tile,key_contiguous):
   b,_,_,t=m.shape
   k,v=(m.shape[2],m.shape[1]) if key_contiguous else m.shape[1:3]
@@ -68,9 +103,13 @@ def _bwd(epsilon,interpret,tile,key_contiguous,args,dy):
   b,_,_,t=dy.shape;h=a.shape[1]
   k,v=(dy.shape[2],dy.shape[1]) if key_contiguous else dy.shape[1:3]
   def kernel(a,d,g,s,dy,da,dd,dg,ds):
-    _,pb=jax.vjp(lambda aa,dd,gg,ss:_tile(jnp.zeros((k,v,tile),dy.dtype),aa,dd,gg,ss,epsilon),
-                 a[...],d[...].swapaxes(0,1) if key_contiguous else d[...],g[...],s[...])
-    ga,gd,gg,gs=pb(dy[...].swapaxes(0,1) if key_contiguous else dy[...])
+    if os.environ.get('RMT_PALLAS_WRITE_BACKWARD')=='analytic':
+      ga,gd,gg,gs=_analytic_backward(a[...],d[...].swapaxes(0,1) if key_contiguous else d[...],
+                                   g[...],s[...],dy[...].swapaxes(0,1) if key_contiguous else dy[...],epsilon)
+    else:
+      _,pb=jax.vjp(lambda aa,dd,gg,ss:_tile(jnp.zeros((k,v,tile),dy.dtype),aa,dd,gg,ss,epsilon),
+                   a[...],d[...].swapaxes(0,1) if key_contiguous else d[...],g[...],s[...])
+      ga,gd,gg,gs=pb(dy[...].swapaxes(0,1) if key_contiguous else dy[...])
     da[...],dd[...],dg[...],ds[...]=ga,gd.swapaxes(0,1) if key_contiguous else gd,gg,gs
   shapes=[a.shape,d.shape,g.shape,(b,t//tile)+s.shape]
   specs=[_spec((h,k),tile),_spec((v,h) if key_contiguous else (h,v),tile),_spec((h,),tile),pl.BlockSpec(s.shape,lambda b,i:(0,0)),_spec((v,k) if key_contiguous else (k,v),tile)]

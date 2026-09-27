@@ -10814,3 +10814,4 @@ class RMTCombinedLayerScanFusedWriteReadV6eB4Profile(RMTCombinedLayerScanTokenAl
     model_name = 'RMTCombinedLayerScanFusedWriteReadV6eB4Profile'
     rmt_fused_write_mlp_read = True
     rmt_fused_write_read_tile = 128
+    rmt_fused_write_read_buffers = 2

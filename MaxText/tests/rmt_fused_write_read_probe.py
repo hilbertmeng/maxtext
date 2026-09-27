@@ -52,6 +52,7 @@ def main():
   p.add_argument('--tokens',type=int,default=8192)
   p.add_argument('--batch',type=int,default=1)
   p.add_argument('--tile',type=int,default=128)
+  p.add_argument('--buffers',type=int,default=1)
   p.add_argument('--dtype',choices=['float32','bfloat16'],default='bfloat16')
   p.add_argument('--output',required=True)
   p.add_argument('--modes',default='reference,separate,fused')
@@ -62,7 +63,7 @@ def main():
   expected_grad=jax.vjp(reference,*x)[1](dy)
   results={}
   for mode in args.modes.split(','):
-    if mode=='fused':fn=lambda *z:write_mlp_read(*z,interpret=args.interpret,tile=args.tile)
+    if mode=='fused':fn=lambda *z:write_mlp_read(*z,interpret=args.interpret,tile=args.tile,buffers=args.buffers)
     else:fn=lambda *z,mode=mode:reference(*z,separate=mode=='separate',interpret=args.interpret,tile=args.tile)
     # Extract residuals as explicit runtime inputs: do not include forward
     # recomputation in a measurement labelled backward, or embed constants.

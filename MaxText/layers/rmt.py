@@ -498,7 +498,8 @@ class RMTLayer(nn.Module):
           mlp_read.astype(cfg.dtype),compression.astype(cfg.dtype),scale,
           wk.astype(cfg.dtype),wg.astype(cfg.dtype),bias[...,0].astype(cfg.dtype),
           cfg.normalization_layer_epsilon,_read_epsilon(cfg),
-          tile=cfg.get_keys().get('rmt_fused_write_read_tile',128))
+          tile=cfg.get_keys().get('rmt_fused_write_read_tile',128),
+          buffers=cfg.get_keys().get('rmt_fused_write_read_buffers',1))
       if cfg.get_keys().get('rmt_remat_policy','full') in ('save_dense_state','save_state','save_state_mlp','save_state_dynamic'):
         matrix=ad_checkpoint.checkpoint_name(matrix,'rmt_mlp_matrix')
     else:

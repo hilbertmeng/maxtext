@@ -201,7 +201,10 @@ class RMTDynamicC8Read(nn.Module):
       values=c8_read(jnp.swapaxes(compressed,-2,-1),raw_key,gates,_read_epsilon(cfg))
       reads=tuple(values[...,i,:] for i in range(self.destinations))
     elif pallas_joined:
-      from layers.rmt_pallas_joined import joined_read
+      if cfg.get_keys().get('rmt_pallas_joined_layout')=='token_minor':
+        from layers.rmt_pallas_minor_joined import joined_read
+      else:
+        from layers.rmt_pallas_joined import joined_read
       static_read, dynamic_reads = joined_read(
           static_matrix, raw_key, projection, gates, _read_epsilon(cfg),
           tile=cfg.get_keys().get('rmt_pallas_read_tile',64))

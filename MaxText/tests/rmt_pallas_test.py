@@ -8,7 +8,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 
-from layers import rmt, rmt_pallas, rmt_pallas_joined, rmt_pallas_qk, rmt_pallas_minor, rmt_pallas_minor_read
+from layers import rmt, rmt_pallas, rmt_pallas_joined, rmt_pallas_qk, rmt_pallas_minor, rmt_pallas_minor_read, rmt_pallas_minor_joined
 import rmt_mediumprop_test
 
 
@@ -45,6 +45,9 @@ class RmtPallasTest(absltest.TestCase):
   def test_token_read_write_packed_forward_and_gradients(self):
     self._check_layer('rmt_pallas_read_write')
 
+  def test_token_joined_read_forward_and_gradients(self):
+    self._check_layer('rmt_pallas_joined_layout')
+
   def _check_layer(self, flag):
     cfg=self._config('RMTCombinedLayerScanNoHealthProfile')
     cfg.get_keys().update(dtype=jnp.float32,rmt_mlp_dim_by_block=[128]*3)
@@ -76,6 +79,7 @@ class RmtPallasTest(absltest.TestCase):
     if flag=='rmt_pallas_write_layout':cfg.get_keys()[flag]='token_minor'
     if flag=='rmt_pallas_read_write':cfg.get_keys().update(rmt_pallas_c8=True,rmt_pallas_write=True,rmt_pallas_write_layout='token_minor',rmt_pack_dynamic_projections=True)
     if flag=='rmt_pallas_key_contiguous':cfg.get_keys().update(rmt_pallas_write=True,rmt_pallas_write_layout='token_minor')
+    if flag=='rmt_pallas_joined_layout':cfg.get_keys().update(rmt_join_static_compression=True,rmt_pallas_joined_read=True,rmt_pallas_joined_layout='token_minor')
     if flag=='rmt_pallas_joined_read':cfg.get_keys()['rmt_join_static_compression']=True
     with mock.patch.object(rmt_pallas,'write_residual',
                            wraps=partial(rmt_pallas.write_residual,interpret=True)) as fused, \
@@ -86,11 +90,14 @@ class RmtPallasTest(absltest.TestCase):
          mock.patch.object(rmt_pallas_minor,'write_residual',
                            wraps=partial(rmt_pallas_minor.write_residual,interpret=True)) as minor, \
          mock.patch.object(rmt_pallas_minor_read,'c8_read',
-                           wraps=partial(rmt_pallas_minor_read.c8_read,interpret=True)) as minor_read:
+                           wraps=partial(rmt_pallas_minor_read.c8_read,interpret=True)) as minor_read, \
+         mock.patch.object(rmt_pallas_minor_joined,'joined_read',
+                           wraps=partial(rmt_pallas_minor_joined.joined_read,interpret=True)) as minor_joined:
       actual=jax.jit(jax.value_and_grad(run,argnums=(0,1),has_aux=True))(params,matrix)
       if flag in ('rmt_pallas_write_layout','rmt_pallas_key_contiguous'):self.assertGreater(minor.call_count,0)
       if flag in ('rmt_pallas_c8','rmt_pallas_read_write'):self.assertGreater(minor_read.call_count,0)
       if flag=='rmt_pallas_read_write':self.assertGreater(minor.call_count,0)
+      if flag=='rmt_pallas_joined_layout':self.assertGreater(minor_joined.call_count,0)
       if flag=='rmt_pallas_qk':self.assertGreater(qk.call_count,0)
       if flag in ('rmt_pallas_write','rmt_pallas_write_forward_jax'):self.assertGreater(fused.call_count,0)
       if flag=='rmt_pallas_joined_read':self.assertGreater(read.call_count,0)

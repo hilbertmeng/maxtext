@@ -10527,3 +10527,14 @@ class RMTCombinedLayerScanTokenReadWriteLeadingParamsProfile(RMTCombinedLayerSca
 class RMTCombinedLayerScanTokenReadWriteSaveStateMLPProfile(RMTCombinedLayerScanTokenReadWriteSaveStateProfile):
     model_name = 'RMTCombinedLayerScanTokenReadWriteSaveStateMLPProfile'
     rmt_remat_policy = 'save_state_mlp'
+
+
+class RMTCombinedLayerScanTokenJoinedReadProfile(RMTCombinedLayerScanJoinedPallasReadProfile):
+    model_name = 'RMTCombinedLayerScanTokenJoinedReadProfile'
+    rmt_pallas_joined_layout = 'token_minor'
+    rmt_pallas_read_tile = 128
+
+
+class RMTCombinedLayerScanTokenJoinedReadL6Profile(RMTCombinedLayerScanTokenJoinedReadProfile):
+    model_name = 'RMTCombinedLayerScanTokenJoinedReadL6Profile'
+    base_num_decoder_layers = 6

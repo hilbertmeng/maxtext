@@ -10,6 +10,7 @@ import jax.numpy as jnp
 import numpy as np
 from layers.rmt_pallas import write_reference, write_residual, c8_read, c8_reference
 from layers.rmt_pallas_stage import stage_reference, write_mlp_stage
+from layers.rmt_pallas_minor_joined import joined_read as minor_joined
 from layers.rmt_pallas_minor_read import c8_read as minor_read, reference as minor_read_reference
 from layers.rmt_pallas_minor import write_residual as minor_write
 from layers.rmt_pallas_qk import qk_reference, qk_read
@@ -22,7 +23,7 @@ def main():
   jax.config.update('jax_default_matmul_precision','highest')
   parser=argparse.ArgumentParser()
   parser.add_argument('--arm',choices=['reference','pallas','both'],default='both')
-  parser.add_argument('--kernel',choices=['write','c8','stage','joined','qk','minor_write','minor_read'],default='write')
+  parser.add_argument('--kernel',choices=['write','c8','stage','joined','qk','minor_write','minor_read','minor_joined'],default='write')
   parser.add_argument('--tokens',type=int,default=8192)
   parser.add_argument('--interpret',action='store_true')
   parser.add_argument('--output',required=True)
@@ -33,7 +34,7 @@ def main():
     if args.kernel=='c8':shapes=[(n,75,32),(n,16,8),(32,8),(n,16,2)]
     if args.kernel=='stage':shapes.extend([(48,16),(1200,)])
     if args.kernel=='qk':shapes=[(n,32,75),(n,4,32),(n,32,4),(n,32)]
-    if args.kernel=='joined':shapes=[(n,48,75),(n,16,8),(48,56),(n,16,2)]
+    if args.kernel in ('joined','minor_joined'):shapes=[(n,48,75),(n,16,8),(48,56),(n,16,2)]
     if args.kernel=='minor_read':shapes=[(n,8,75),(n,16,8),(n,16,2)]
     values=[jax.random.normal(jax.random.key(410+i),s,dtype=dtype) for i,s in enumerate(shapes)]
     gate_index=2 if args.kernel=='minor_read' else 3
@@ -55,9 +56,10 @@ def main():
     reference=lambda m,a,d,g,s,r,n:jax.vmap(stage_reference,in_axes=(0,0,0,0,None,None,None))(m,a,d,g[...,None],s,r,n)
     fused=lambda *x:write_mlp_stage(*x,interpret=args.interpret)
     labels=('matrix','read','proxy','d_matrix','d_address','d_data','d_gate','d_static','d_read_key','d_gain')
-  if args.kernel=='joined':
+  if args.kernel in ('joined','minor_joined'):
     reference=lambda m,k,p,g:jax.vmap(joined_reference,in_axes=(0,0,None,0))(m,k,p,g)
-    fused=lambda *x:joined_read(*x,interpret=args.interpret,tile=int(os.environ.get('RMT_PALLAS_TILE','64')))
+    joined_fn=minor_joined if args.kernel=='minor_joined' else joined_read
+    fused=lambda *x:joined_fn(*x,interpret=args.interpret,tile=int(os.environ.get('RMT_PALLAS_TILE','64')))
     labels=('static','dynamic','d_matrix','d_key','d_projection','d_gates')
   if args.kernel=='qk':
     reference=jax.vmap(qk_reference)

@@ -255,13 +255,17 @@ def _attention_write_mlp_read(matrix, y, address, static_address, read_projectio
   return outputs
 
 
-def _map_token_chunks(fn, arrays, chunk_size):
+def _map_token_chunks(fn, arrays, chunk_size, unroll=False):
   """Fixed-size sequential chunks keep the complete write/read unit together."""
   length = arrays[0].shape[1]
   if not chunk_size:
     return fn(*arrays)
   if chunk_size <= 0 or length % chunk_size:
     raise ValueError(f'Write/read chunk {chunk_size} must divide sequence length {length}')
+  if unroll:
+    outputs = [fn(*(x[:, start:start+chunk_size] for x in arrays))
+               for start in range(0, length, chunk_size)]
+    return tuple(jnp.concatenate(parts, axis=1) for parts in zip(*outputs))
   def split(x):
     return jnp.swapaxes(x.reshape((x.shape[0], length // chunk_size, chunk_size) + x.shape[2:]), 0, 1)
   chunks = tuple(split(x) for x in arrays)
@@ -416,7 +420,8 @@ class RMTLayer(nn.Module):
       def unit(m, y, a):
         return _attention_write_mlp_read(
             m, y, a, attn_write, mlp_read, read_params, norm_scale, cfg, merge_reads)
-      results = _map_token_chunks(unit, (matrix, head_output, address), wr_chunk)
+      results = _map_token_chunks(unit, (matrix, head_output, address), wr_chunk,
+          unroll=bool(cfg.get_keys().get('rmt_write_read_chunk_unroll', False)))
       matrix, vector, mlp_x = results[:3]
       mlp_in = matrix
       if cfg.get_keys().get('rmt_record_dynamic_health', False):

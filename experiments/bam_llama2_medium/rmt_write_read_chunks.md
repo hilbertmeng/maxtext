@@ -37,3 +37,19 @@ nonzero dynamic keys; FP32/BF16 values, all input/parameter gradients and health
 full-size shape/count through actual remat/block scan; sealed config audit.
 Full-layer AOTs use the existing orchestration/compiler, not an ad hoc training
 entrypoint. Artifacts will live under `/data0/xd/bam_diagnostics/rmt-write-read-chunks`.
+
+Follow-up: the mapped C256/512/1024/2048 arms regress full-step throughput by
+11–13%. Raw XPlane attributes the regression mostly to data formatting,
+elementwise fusions and chunk-output updates, rather than matrix multiplication.
+Test static-unrolled C512/C1024, matching attention's Python query-chunk style,
+with a fresh same-commit control. `rmt_write_read_chunk_unroll=True` only changes
+scheduling; it retains the same write/read arithmetic and parameters. The initial
++5% bet is currently too optimistic; this follow-up isolates loop organization.
+
+Use raw `.xplane.pb` for kernel attribution: small chunks exceed the trace JSON's
+~1,000,000-event cap. `analyze_rmt_write_profiles.py` loads the pinned protobuf
+module (override `XPLANE_PROTO` if needed), validates non-overlapping leaf coverage,
+and preserves any unattributed time instead of assigning it to a kernel category.
+Both small-size and actual D1200/head75/MLP4078 FP32/BF16 CPU checks pass. Optimized
+BF16 training trajectories are not bit-identical; early-step loss differences are
+recorded separately and must not be interpreted as final loss improvements.

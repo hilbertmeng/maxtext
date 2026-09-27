@@ -10387,3 +10387,13 @@ class RMTWriteReadMergedC2048Profile(RMTWriteReadControlProfile):
     model_name = 'RMTWriteReadMergedC2048Profile'
     rmt_write_read_chunk_size = 2048
     rmt_mlp_merge_reads = True
+
+
+class RMTWriteReadUnrolledC512Profile(RMTWriteReadSplitC512Profile):
+    model_name = 'RMTWriteReadUnrolledC512Profile'
+    rmt_write_read_chunk_unroll = True
+
+
+class RMTWriteReadUnrolledC1024Profile(RMTWriteReadSplitC1024Profile):
+    model_name = 'RMTWriteReadUnrolledC1024Profile'
+    rmt_write_read_chunk_unroll = True

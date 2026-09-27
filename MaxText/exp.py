@@ -10306,6 +10306,7 @@ class RMTCombinedLayerScanNoHealthProfile(
     # codex/rmt-pallas, /data0/xd/rmt-pallas; rmt_pallas.md.
     # Diagnostic only. Retain both authorized EW4a v6e-1 hosts.
     # Final acceptance requires same-VM v5p-16 complete train-step throughput.
+    # code_commit: c031d76; UC1a v5p-16 .384366 step/s, 20-49; all health OFF. Profile only.
     model_name = 'RMTCombinedLayerScanNoHealthProfile'
     rmt_block_scan = False
     rmt_record_dynamic_health = False
@@ -10362,6 +10363,7 @@ class RMTCombinedLayerScanJoinedPallasReadL6Profile(RMTCombinedLayerScanJoinedPa
 
 
 class RMTCombinedLayerScanPallasQKProfile(RMTCombinedLayerScanNoHealthProfile):
+    # code_commit: f4fadcd; UC1a v5p-16 .375033 step/s, -2.46%; rejected.
   model_name = 'RMTCombinedLayerScanPallasQKProfile'
   rmt_pallas_qk = True
   rmt_pallas_qk_tile = 32
@@ -10403,6 +10405,7 @@ class RMTCombinedLayerScanPallasWriteBackwardL6Profile(RMTCombinedLayerScanPalla
 
 
 class RMTCombinedLayerScanSaveDenseProfile(RMTCombinedLayerScanNoHealthProfile):
+    # code_commit: f4fadcd; UC1a v5p-16 .350933 step/s, -8.73%; rejected.
     model_name = 'RMTCombinedLayerScanSaveDenseProfile'
     rmt_remat_policy = 'save_dense'
 
@@ -10423,16 +10426,19 @@ class RMTCombinedLayerScanAttentionRematL6Profile(RMTCombinedLayerScanAttentionR
 
 
 class RMTCombinedLayerScanSaveDenseStateProfile(RMTCombinedLayerScanNoHealthProfile):
+    # code_commit: f4fadcd; UC1a v5p-16 .366933 step/s, -4.57%; rejected.
     model_name = 'RMTCombinedLayerScanSaveDenseStateProfile'
     rmt_remat_policy = 'save_dense_state'
 
 
 class RMTCombinedLayerScanSaveDenseStatePackedProfile(RMTCombinedLayerScanSaveDenseStateProfile):
+    # code_commit: f4fadcd; UC1a v5p-16 .400399 step/s, +4.14%; superseded.
     model_name = 'RMTCombinedLayerScanSaveDenseStatePackedProfile'
     rmt_pack_dynamic_projections = True
 
 
 class RMTCombinedLayerScanTokenMinorWriteProfile(RMTCombinedLayerScanPallasWriteProfile):
+    # code_commit: 30d4c70; UC1a v5p-16 .397866 step/s, +3.49%; profile through49.
     model_name = 'RMTCombinedLayerScanTokenMinorWriteProfile'
     rmt_pallas_write_layout = 'token_minor'
     rmt_pallas_tile = 128
@@ -10444,6 +10450,7 @@ class RMTCombinedLayerScanTokenMinorWriteL6Profile(RMTCombinedLayerScanTokenMino
 
 
 class RMTCombinedLayerScanSaveStateProfile(RMTCombinedLayerScanNoHealthProfile):
+    # code_commit: 30d4c70; UC1a v5p-16 .427000 step/s, +11.07%; profile through49.
     model_name = 'RMTCombinedLayerScanSaveStateProfile'
     rmt_remat_policy = 'save_state'
     rmt_pack_dynamic_projections = True
@@ -10475,11 +10482,13 @@ class RMTCombinedLayerScanKeyTokenWriteL6Profile(RMTCombinedLayerScanKeyTokenWri
 
 
 class RMTCombinedLayerScanTokenWritePackedProfile(RMTCombinedLayerScanTokenMinorWriteProfile):
+    # code_commit: 396339d; UC1a v5p-16 .436132 step/s, +13.46%; profile through49.
     model_name = 'RMTCombinedLayerScanTokenWritePackedProfile'
     rmt_pack_dynamic_projections = True
 
 
 class RMTCombinedLayerScanTokenWriteSaveStateProfile(RMTCombinedLayerScanTokenWritePackedProfile):
+    # code_commit: 396339d; UC1a v5p-16 .439433 step/s, +14.32%; profile through49.
     model_name = 'RMTCombinedLayerScanTokenWriteSaveStateProfile'
     rmt_remat_policy = 'save_state'
 
@@ -10490,6 +10499,7 @@ class RMTCombinedLayerScanTokenWriteSaveDenseStateProfile(RMTCombinedLayerScanTo
 
 
 class RMTCombinedLayerScanTokenReadWriteProfile(RMTCombinedLayerScanTokenWritePackedProfile):
+    # code_commit: c031d76; UC1a v5p-16 .444233 step/s, +15.58%; profile through49.
     model_name = 'RMTCombinedLayerScanTokenReadWriteProfile'
     rmt_pallas_c8 = True
 
@@ -10500,6 +10510,7 @@ class RMTCombinedLayerScanTokenReadWriteL6Profile(RMTCombinedLayerScanTokenReadW
 
 
 class RMTCombinedLayerScanTokenReadWriteSaveStateProfile(RMTCombinedLayerScanTokenReadWriteProfile):
+    # code_commit: c031d76; UC1a v5p-16 .454517 step/s, +18.25%; profile through49.
     model_name = 'RMTCombinedLayerScanTokenReadWriteSaveStateProfile'
     rmt_remat_policy = 'save_state'
 
@@ -10525,6 +10536,7 @@ class RMTCombinedLayerScanTokenReadWriteLeadingParamsProfile(RMTCombinedLayerSca
 
 
 class RMTCombinedLayerScanTokenReadWriteSaveStateMLPProfile(RMTCombinedLayerScanTokenReadWriteSaveStateProfile):
+    # code_commit: c031d76; UC1a v5p-16 .444766 step/s; slower than save_state; rejected.
     model_name = 'RMTCombinedLayerScanTokenReadWriteSaveStateMLPProfile'
     rmt_remat_policy = 'save_state_mlp'
 
@@ -10566,6 +10578,7 @@ class RMTCombinedLayerScanTokenAllProfile(RMTCombinedLayerScanTokenReadWriteProf
 
 
 class RMTCombinedLayerScanTokenAllSaveStateProfile(RMTCombinedLayerScanTokenAllProfile):
+    # code_commit: 71f46b3; UC1a v5p-16 device2160.035ms vs2580.020ms; +19.44%; repeat5d5a2c0 pending.
     model_name = 'RMTCombinedLayerScanTokenAllSaveStateProfile'
     rmt_remat_policy = 'save_state'
 

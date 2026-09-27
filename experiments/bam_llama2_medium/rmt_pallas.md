@@ -1,301 +1,193 @@
-# Dynamic RMT Pallas fusion
+# Dynamic RMT Pallas training optimization
 
-Worktree `/data0/xd/rmt-pallas`, branch `codex/rmt-pallas`, parent `ffb40f2d`.
-Target: `RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicEmbeddingUnembeddingDirect32`.
-Keep 18 layers, MLP4078, all model equations and parameter shapes; direct layer
-scan following L22. Disable extra health in both control and optimized runs.
-Attention remains unchanged (Splash optimization is separate).
+2026-09-27. Implementation: `/data0/xd/rmt-pallas`, branch `codex/rmt-pallas`,
+parent `ffb40f2d`. Current sealed candidate runtime
+`5d5a2c0c47b2094b3ff7a2230f8bf716a38bf966`.
+Main `MaxText/exp.py` contains ledger classes; implementation is not merged.
+[Earlier chronological notes](rmt_pallas_history.md) retain unsuccessful prototypes.
 
-User-authorized retained diagnostic hosts in europe-west4-a:
-`llm-jax-v6e-1-0` and `llm-jax-v6e-1-1`. Both verified READY/HEALTHY and idle
-on 2026-09-27, JAX0.8.1 verified on -1. Never adopt their lifecycle or delete them.
-No formal training RUN yet. Microprobe label: rmt-pallas-write-v1.
+## Result and scope
 
-Pre-run bet: final full training throughput +25–40%; target at least +20%.
-**Acceptance requires matched full training-step measurements on v5p-16**,
-including backward and optimizer. v6e kernel timings only screen implementations.
-Same VM, batch/sequence, 18-layer configuration, health settings and dtype required.
+The completed full18 v5p-16 measurement at `71f46b3` reduces raw device step
+2580.020ms to2160.035ms.
+Stable late logs are .458–.459step/s versus .384–.385. The complete30-step
+log was lost during a later spot eviction, so this row uses the verified raw
+XPlane and is being repeated with full-log archival at `5d5a2c0`.
+The prior fully archived `c031d76` result is .454517step/s (+18.25% against its
+same-runtime .384366 control). Original formal configuration on the same VM
+is .378066step/s; its health/block-scan difference is reported separately.
+The original +25–40% throughput bet has not yet been achieved.
 
-First prototype fuses address/data RMS, gated dynamic outer write, static write
-and residual addition. Its custom VJP computes local gradients in a Pallas
-kernel; shared static-key gradients are reduced across tokens outside it.
-This initial one-token tile is a correctness baseline, not assumed optimal.
-No speedup is claimed yet; full read/write fusion and full-step validation remain.
+Final four-arm repeat: `5d5a2c0`, pending replacement UC1a v5p-16 acquisition.
+Do not use six-layer or isolated-kernel timings as final training gains.
 
-Reproduce the isolated operator probe:
-`PYTHONPATH=MaxText python MaxText/tests/rmt_pallas_probe.py --arm both --tokens 8192 --output result.json`.
-Use `--interpret` for CPU checks. Random nonzero inputs exercise dynamic branches;
-checks cover forward and all five input gradients in FP32 and BF16.
+Target architecture:
+`RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicEmbeddingUnembeddingDirect32`.
+18 layers, MLP4078, 432,112,752 parameters. All mathematical model equations
+and parameter shapes preserved; extra parameter cost **0 W_Q**. Direct layer
+scan replaces block scan. Attention operator is unchanged; Splash is separate.
+Kernel and rematerialization flags are opt-in. BF16 operation/reduction order
+changes, so numerical equivalence is tolerance-based, not bit identity.
+These are short train-step benchmarks, not long convergence experiments.
 
+## Measurement protocol
 
-## Measured screening results (2026-09-27)
+- Same v5p-16 VM, UC1a, BF16, per-device batch16, global batch128, sequence4096,
+  eight-device FSDP; all timings include forward, backward and optimizer.
+- Optimizer `adam_pax`, LR .0003, `learning_rate_schedule_steps=13500`, warmup
+  fraction .01. `steps=100` is the run/AOT limit, **not** a100-step LR schedule.
+- Same seed9876 and Pile configuration. Trace steps10–14; stop after49 and
+  verified GCS trace; stable speed is inverse mean latency over steps20–49.
+- Every optimized/matched control disables generic, internal and RMT health.
+  The separately measured original formal configuration keeps original settings.
+- Every full18 arm loads its exact-commit, exact-topology AOT executable.
+  Raw XPlane attribution excludes nested containers and checks leaf coverage;
+  latest coverage≥99.968%. Trace JSON can truncate at roughly1M events.
+- Initial target `xd-v5p-16-rmtpallas-0927-uc1a` was preempted during the second
+  follow-up arm after07:16UTC. Completed XPlanes were saved; incomplete arms
+  are excluded. Replacement `xd-v5p-16-rmtpallas-final-0927-uc1a` uses the same
+  zone and will rerun its own control. Profiles have no checkpoints.
 
-`RMTCombinedLayerScanNoHealthL6Profile`, runtime `a02877e`, host -0:
-50 complete training steps; late steady log speed about 0.749 step/s.
-RUN `RmtPallasBaselineL6a02877e`. This is six layers on v6e, not acceptance.
-Full-layer tests still must use v5p-16.
+## Full18 target results
 
-8192-token BF16 isolated write, forward plus all input gradients, ms:
+Within each runtime block, all arms use one VM, same config and health.
+`RMTCombinedLayerScanNoHealthProfile` is the matched control.
 
-| Runtime | Tile | Host | JAX reference | Pallas | Interpretation |
-|---|---:|---|---:|---:|---|
-| fc14c15 | 1 | -1 | 2.980 | 10.055 | Reject per-token dispatch |
-| 6659150 | 8 | -1 | 2.992 | 3.611 | Still slower |
-| 6659150 | 16 | -0 | 2.993 | 3.012 | Essentially tied, no win |
+| Configuration | Runtime | Stable step/s | vs paired control | Raw device ms |
+|---|---|---:|---:|---:|
+| RMTCombinedLayerScanNoHealthProfile | f4fadcd | .384497 | — |2579.896|
+| RMTCombinedLayerScanSaveDenseProfile | f4fadcd | .350933 |−8.73%|2829.794|
+| RMTCombinedLayerScanSaveDenseStateProfile | f4fadcd | .366933 |−4.57%|2703.936|
+| RMTCombinedLayerScanSaveDenseStatePackedProfile | f4fadcd | .400399 |+4.14%|2476.135|
+| RMTCombinedLayerScanPallasQKProfile | f4fadcd | .375033 |−2.46%|2646.323|
+| RMTCombinedLayerScanNoHealthProfile |30d4c70| .384433 |—|2579.869|
+| RMTCombinedLayerScanTokenMinorWriteProfile |30d4c70| .397866 |+3.49%|2492.769|
+| RMTCombinedLayerScanSaveStateProfile |30d4c70| .427000 |+11.07%|2318.716|
+| RMTCombinedLayerScanNoHealthProfile |396339d| .384399 |—|2579.924|
+| RMTCombinedLayerScanTokenWritePackedProfile |396339d| .436132 |+13.46%|2271.116|
+| RMTCombinedLayerScanTokenWriteSaveStateProfile |396339d| .439433 |+14.32%|2254.270|
+| RMTCombinedLayerScanNoHealthProfile |c031d76| .384366 |—|2580.076|
+| RMTCombinedLayerScanTokenReadWriteProfile |c031d76| .444233 |+15.58%|2230.244|
+| RMTCombinedLayerScanTokenReadWriteSaveStateMLPProfile |c031d76| .444766 |+15.71%|2226.088|
+| RMTCombinedLayerScanTokenReadWriteSaveStateProfile |c031d76| .454517 |+18.25%|2179.629|
+| RMTCombinedLayerScanNoHealthProfile |71f46b3| .384–.385 late logs |—|2580.020|
+| RMTCombinedLayerScanTokenAllSaveStateProfile |71f46b3| .458–.459 late logs |+19.44% device throughput|2160.035|
 
-Forward alone at tile16: 0.988 vs0.542ms, still slower. The backward improvement
-must not conceal this regression or be advertised as full-step acceleration.
-The tiled block-diagonal implementation increases arithmetic to improve MXU
-utilization; its cost and layout overhead must be measured, not assumed free.
+Original formal configuration (full name above), `f4fadcd`, same original target:
+.378066step/s. Direct layer scan plus disabling health is +1.70%; do not
+attribute this difference to Pallas. The three independently repeated clean
+controls after the first agree within .034% in stable log speed.
 
-TPU FP32 output/gradient relative L2 errors <=8e-8 in the write probe;
-BF16 <=0.0035. Shared parameter gradients use a different reduction tree.
-CPU complete RMT layer forward/all gradients pass (nonzero perturbation of all
-parameters), as does the inherited layer-scan test. CPU C8 FP32 probe passes;
-TPU C8 currently under development, not wired into the model.
+## Selected implementation
 
-Pinned local validation artifacts: `/data0/xd/bam_diagnostics/rmt-pallas-*`.
-Remote isolated checkouts/logs: `/home/lishengping/xd/rmt-pallas/` on both hosts.
-Pallas JAX0.8.1 lessons: explicitly use FP32 matmul accumulators; avoid negative
-pad transpose in custom VJP; use 2D concatenations instead of unsupported rank4
-mask reshapes; align merged token/value rows before C8 compression.
+1. Pack projections that share an input into a single GEMM, retaining separate
+   parameter leaves and initializers. QK's five projections, C8 key/gate and
+   write address-down/gate each share a projection call.
+2. `rmt_pallas_minor.py`: token-minor ABI `M[B,K,V,T]`, tile128. Static write
+   uses an MXU contraction; dynamic normalized/gated outer writes and residual
+   addition run in one fused kernel. Custom VJP handles local gradients;
+   shared static-key gradients reduce FP32 token partials outside the kernel.
+3. `rmt_pallas_minor_read.py`: keep C8 compression GEMM in XLA; fuse compressed
+   read, key normalization and destination gates in Pallas with custom VJP.
+4. `rmt_pallas_minor_qk.py`: keep `M @ basis` in XLA; fuse rank4 mixing,
+   effective-key normalization and Q/K gates. All four input gradients covered.
+5. Direct `layer scan` plus `save_state`: retain named attention-head output
+   and post-attention M through backward. Recompute other intermediates.
+   Retaining all dense/MLP activations was slower. The final `save_state_dynamic`
+   candidate additionally retains packed projections, basis/compressed reads
+   and dynamic write addresses; its speed is pending full18 target measurement.
 
-## Expanded screening, 2026-09-27
+The chosen fusion boundary is intentional: large contractions remain with XLA;
+Pallas handles repeated small reductions, routing, normalization and writes.
+Writing one larger kernel was not automatically faster. Token-contiguous ABI
+was critical; merely tiling the original value-contiguous kernel did not win.
 
-All measurements below are on retained v6e-1 diagnostics, not v5p acceptance.
-Matched six-layer control/Joined-XLA at7a9374a on host-0 completed50 steps:
-control ~0.749 step/s; joined-XLA ~0.680 (about9.2% slower).
-Joined-XLA temp buffers29,792,535,904 bytes versus25,504,533,152 control.
-The five detailed device steps average about1327ms(control) versus1466ms(joined).
-Copy kernels in the middle detailed step total213.89ms versus258.09ms.
-Primary artifacts verified in GCS and downloaded to
-`/data0/xd/bam_diagnostics/rmt-pallas-paired-l6-7a9374a`.
-GCS root `gs://newproject-1-llm_base_models_us-central1/log/diagnostics/rmt-pallas/`.
-RUNs `RmtPallasNoHealthL6_7a9374a`, `RmtPallasJoinedReadL6_7a9374a`.
+Raw first-core attribution of the `71f46b3` best versus control:
+convolution fusion−303.80ms, data formatting−180.14ms,
+dynamic-update-slice−122.92ms, slice−69.17ms, loop fusion−66.08ms;
+new Pallas custom calls+342.79ms. These categories partition leaf work;
+large GEMM scopes are not additive to them. Device wall time falls419.98ms.
+Saving dense results without packing previously added201.85ms of scan-buffer
+updates and135.65ms loop fusion despite135.09ms less convolution-fusion work.
+The optimization must reduce recomputation **and** buffer/layout traffic.
 
-Further complete50-step arms on the same host-0:
-- `RMTCombinedLayerScanJoinedPallasReadL6Profile`,116a337,
-  RUN`RmtPallasJoinedPallasL6_116a337`: ~0.659 step/s, slower.
-  Temp25,249,178,752 bytes: memory improves versus joined-XLA, speed does not.
-- `RMTCombinedLayerScanPallasQKL6Profile`,2bb8959,
-  RUN`RmtPallasQKL6_2bb8959`: ~0.740 step/s, ~1.2% slower.
-  QK-only fusion preserves model parameters; FP32 full-layer/all-grad checks pass.
+## Rejected or unselected paths
 
-Isolated8192-token BF16 reference/Pallas milliseconds, forward / forward+backward:
+| Candidate | Evidence | Decision |
+|---|---|---|
+| Original per-token/value-minor fused write | tile1 VJP10.055ms vs2.980; tile16≈tie, forward slower | Replaced with token-minor layout |
+| Merge48→16 static read with zero-padded32→8 compression | six-layer .679566 vs .749399 (−9.32%); later token-minor version only≈.769 vs .765 | Not selected |
+| Whole QK read Pallas fusion | full18 .375033 vs .384497 | Replace with post-contraction fusion |
+| Carry pad128 / pad80 | six-layer≈−11.4% /−3% | Not selected |
+| XLA forward + custom write backward | six-layer≈−3.2% | Not selected |
+| Leading parameter scan axis | six-layer≈.764 vs .765 | No measurable gain |
+| Save all non-batched dense dots | full18−8.73%; six-layer HBM OOM | Not selected |
+| Remove outer layer remat, remat attention only | full18 AOT needs265.35GiB vs95.74GiB | Cannot fit |
+| Retain MLP intermediates on best read/write route | .444766 vs .454517 | Not selected |
+| Key-contiguous write ABI | checkpointed isolated VJP3.150ms vs2.171 reference | Rejected |
+| Disable write value padding | TPU layout compilation failure | Rejected |
+| Read tiles256/512 | tiny isolated gain; tile256 target pending | No claim yet |
 
-| Kernel / runtime / tile | Reference | Pallas | Notes |
-|---|---|---|---|
-| C8,4348c49,64 | .335 /2.992 | .738 /2.463 | Fix output order to token,destination,head,value |
-| Joined static+C8,f39c34f,64 | .503 /3.676 |1.045 /3.297 | Full-step regression above |
-| Joined native batch-dot,116a337,64 | .515 /3.699 | .893 /3.259 | Removes block-diagonal zeros |
-| Joined saved C8,596fd3b,64 | .498 /3.694 | .885 /3.121 | Small compression retained for backward |
-| QK,51c3b37,32 | .387 /2.402 | .603 /1.989 | Full-step regression above |
-| QK,2bb8959,128 | .392 /2.405 | .528 /1.851 | Tile256 FP32 backward exceeds32MB VMEM |
+Six-layer paired token-minor write: `0a3d12f`, same host/hash,
+.765331→.844099step/s (+10.29%). The target write-only gain is3.49%; screening
+is useful for selection but overestimates this operator's target impact.
+QK post-only six-layer screening≈.820 versus .765; the final combination gets
+only≈1% extra over the no-QK fused combination, not the earlier3–6% bet.
 
-**Caution:** isolated checkpointed forward+backward changes XLA optimization;
-for joined saved-C8 it is1.827ms(reference) versus3.539ms(Pallas), and for QK128
-1.607 versus2.010. Do not use ordinary isolated VJP speedups as training claims.
-The full layer scan's real training step remains the deciding measurement.
+## Correctness and limits
 
-Native batched dot is supported by the installed Pallas TPU lowering; the
-initial block-diagonal packing is no longer the only contraction option.
-The cross-write/static-read/vector-norm stage prototype still fails TPU
-layout compilation; it is not integrated or promoted.
+- Pinned CPU full-layer forward/input/all-parameter gradients on nonzero
+  perturbed parameters; exact initialization checks for projection packing.
+- Full three-layer scan and all fused routes match original loss/gradients
+  under `full`, `save_state`, `save_state_mlp`, `save_state_dynamic` policies.
+  Focused runner `RMTDepthTest.test_fused_scan_remat_matches_original`.
+- Two-device CPU check covers sharded shared-parameter gradient reduction.
+- TPU BF16 multi-tile checks cover every input gradient at production shapes:
+  write max relative L2 .00421, C8 .00441; QK post wide-tile checks≤.0063.
+- FP32 multi-tile write passes CPU Pallas interpreter (maxrelative L2 3.585e-7)
+  and earlier single-tile TPU. Multi-tile FP32 TPU backward exceeds32MiB VMEM;
+  tile64 fails DMA alignment. These are resource/layout limits, not a numerical
+  disagreement. Production BF16 multi-tile runs pass.
+- Small BF16 loss-trajectory differences exist; short runs do not establish
+  convergence equivalence. No parameters were removed and attention unchanged.
 
-Next independent branches, all opt-in and preserving parameter trees:
-- `RMTCombinedLayerScanPaddedCarryL6Profile`,758028e: zero-pad only scan carry's
-  value axis to128, retain75-coordinate RMS/attention, crop before final norm.
-  Exact initialized params and FP32 values/all gradients checked; test in progress.
-- `RMTCombinedLayerScanPackedProjectionL6Profile`,b57b787: group same-input
-  dynamic projections, retaining separate parameter leaves and initialization.
-  Paired host-1 control/arm50-step jobs launched; not yet a speed claim.
-- `RMTCombinedLayerScanPallasWriteBackwardL6Profile`,428c62b: ordinary XLA
-  forward plus Pallas backward; full-layer CPU gradient check passes.
-  Intended to avoid known forward regressions from forcing both passes into Pallas.
+## Reproduction and artifacts
 
-Two-device CPU sharding test verifies batch partitioning and shared parameter
-all-reduction. No topology or full-step v5p-16 result exists yet. Retain both
-user-authorized diagnostic TPUs regardless of individual probe outcome.
+Retained user-owned diagnostic hosts, **do not delete**:
+`llm-jax-v6e-1-0` (STANDARD guaranteed) and `llm-jax-v6e-1-1` (FLEX_START),
+both `europe-west4-a`. Isolated code `/home/lishengping/xd/rmt-pallas/code`.
+No formal training RUN created. Temporary v5p target ownership belongs to this
+profile task, independent of the write/read-chunk experiment's resources.
 
+Runners:
+- `MaxText/tests/rmt_pallas_probe.py` for TPU/CPU operator forward/all gradients,
+  ordinary VJP and rematerialized VJP timing; `--interpret` for CPU.
+- `experiments/bam_llama2_medium/summarize_rmt_pallas_runs.py`:30-step means and
+  resolved protocol/AOT checks from complete archived logs.
+- `experiments/bam_llama2_medium/analyze_rmt_pallas_profiles.py`:raw protobuf
+  step/category attribution and coverage validation.
+- Authoritative orchestration `/home/xd/projects/xd_tpu_scripts/run_profile_matrix.sh`.
+  Fixes `a372277` (propagate isolated repo), `1013f09` (JIT trace count),
+  `bc87728` (archive full train log after every arm). Failed wrapper/collector
+  attempts are excluded from results.
 
-## Complete screening windows and rematerialization pivot
-
-Inverse mean latency from the same30 logged steps20–49:
-
-| Host | Configuration | Runtime | step/s | vs same-host control |
-|---|---|---|---:|---:|
-| -0 | RMTCombinedLayerScanNoHealthL6Profile |7a9374a| .749399 |0|
-| -0 | RMTCombinedLayerScanJoinedReadL6Profile |7a9374a| .679566 |−9.32%|
-| -0 | RMTCombinedLayerScanJoinedPallasReadL6Profile |116a337| .658633 |−12.11%|
-| -0 | RMTCombinedLayerScanPallasQKL6Profile |2bb8959| .739899 |−1.27%|
-| -0 | RMTCombinedLayerScanPaddedCarryL6Profile |758028e| .663833 |−11.42%|
-| -0 | RMTCombinedLayerScanPallasWriteBackwardL6Profile |428c62b| .725633 |−3.17%|
-| -1 | RMTCombinedLayerScanNoHealthL6Profile |b57b787| .764965 |0|
-| -1 | RMTCombinedLayerScanPackedProjectionL6Profile |b57b787| .779497 |+1.90%|
-
-Only packing is a same-commit positive complete-step result. Its device trace
-means1298.206→1274.773ms corroborate the gain. QK scopes103.06→89.80ms and
-attention-write scopes90.53→82.45ms explain most of it. It is still small.
-Different revisions in host-0 negative rows are screening comparisons, not a
-sealed final performance claim. All traces/logs now verified/downloaded under
-`/data0/xd/bam_diagnostics/rmt-pallas-screening`; GCS root as above.
-
-Grouped write839605c separates DMA tile64 from block-diagonal group8.
-8192-token BF16 forward/VJP reference .528/3.002ms versus Pallas .870/2.753;
-checkpointed VJP reference2.165 versus2.900. Retain as an experimental kernel,
-not a training winner.
-
-RMTCombinedLayerScanSaveDenseL6Profile839605c cannot fit v6e:33.79GiB needed
-versus31.25GiB available. It saves only non-batched dense dots and recomputes
-attention. CPU complete3-layer scan values/parameter gradients pass.
-
-Full18-layer v5p-16 AOTs prepared via retained hosts,100-step schedule:
-- Control839605c andfbcffdf READY; no target resource acquired yet.
-- RMTCombinedLayerScanAttentionRematProfilefbcffdf failed target HBM allocation:
-  265.35GiB >95.74GiB. Disabling outer layer remat retains many redundant
-  scan-wide BF16 MLP and FP32 norm residual arrays. The +15–25% throughput
-  pre-run bet was conditional on fitting; that prerequisite failed.
-- SaveDensefbcffdf and PackedProjectionfbcffdf target AOTs in progress.
-
-The next policy saves dense dots plus explicitly named attention-head and
-post-attention matrix results, recomputing cheap normalization intermediates.
-No successful v5p-16 measurement or significant overall speedup is claimed.
-
-Target profiling acquisition: `xd-v5p-16-rmtpallas-0927-uc1a`, us-central1-a,
-requested after all threefbcffdf full18 AOTs were READY (control, packed,
-save-dense),100-step schedule. This is a disposable task-owned target profile
-TPU, separate from both retained diagnostics and the other session's
-`xd-v5p-16-rmt-wr-chunks-ew4b`. Prefer UC1a; add EW4b only if acquisition stalls.
 AOT root:
-`gs://newproject-1-llm_base_models_us-central1/log/compiled_trainsteps/fbcffdf/jax081-i0ae3f58-c17f538a/v5p-16/s100`.
-Named-state policyf4fadcd is being compiled separately, not yet in that matrix.
+`gs://newproject-1-llm_base_models_us-central1/log/compiled_trainsteps/<hash7>/jax081-i0ae3f58-c17f538a/v5p-16/s100`.
+Profile root:
+`gs://newproject-1-llm_base_models_us-central1/log/diagnostics/profile_matrix/<hash7>/<label>/`.
+Each RUN is `Profile<hash7>_<label>_<matrix-id>_<index>_<full-config-name>`.
 
-Raw-XPlane audit: use `experiments/bam_llama2_medium/analyze_rmt_pallas_profiles.py`
-with the downloaded `.xplane.pb` files. First-step leaf-time coverage is
-99.9838%(joined),99.9816%(control7a9374a),99.9800%(controlb57b787),
-99.9774%(packedb57b787). Full raw protobufs corroborate the trace-JSON timings.
+| Runtime | Label | Matrix ID | Local artifact root under /data0/xd/bam_diagnostics |
+|---|---|---|---|
+|f4fadcd|rmt_pallas_v5p|rmtpallas-0927-0558|rmt-pallas-v5p|
+|f4fadcd|rmt_pallas_original|original-0927|rmt-pallas-v5p-original|
+|30d4c70|rmt_minor_v5p|minor-v5p-0927 / state-v5p-0927|rmt-pallas-v5p-minor|
+|396339d|rmt_write_combo_v5p|write-combo-0927|rmt-pallas-v5p-write-combo|
+|c031d76|rmt_rw_state_v5p|rw-state-0927|rmt-pallas-v5p-rw-state|
+|71f46b3|rmt_all_v5p|all-best-0927 / all-controls-0927 (partial)|rmt-pallas-v5p-all|
 
-Named-statef4fadcd and its same-commit full18 control both have READY v5p-16
-AOTs; state+packed compilation remains in progress. UC1a target queue progressed
-WAITING05:50:49→PROVISIONING05:51:58→CREATING05:52:20UTC.
-
-Final target matrix launched on the installed UC1a resource, at the newer
-sealed runtimef4fadcd after all five100-step v5p-16 AOTs were READY:
-`RMTCombinedLayerScanNoHealthProfile`, `RMTCombinedLayerScanSaveDenseProfile`,
-`RMTCombinedLayerScanSaveDenseStateProfile`,
-`RMTCombinedLayerScanSaveDenseStatePackedProfile`,
-`RMTCombinedLayerScanPallasQKProfile`.
-Matrix ID`rmtpallas-0927-0558`, label`rmt_pallas_v5p`; run50 completed steps/arm
-(stop at49), trace10–14, stable window20–49. Authoritative runner
-`/home/lishengping/xd/projects/run_profile_matrix.sh` (SHAe66422df), AOT root
-`gs://newproject-1-llm_base_models_us-central1/log/compiled_trainsteps/f4fadcd/jax081-i0ae3f58-c17f538a/v5p-16/s100`.
-Main log`/home/lishengping/xd/projects/logs/rmt-pallas-v5p-f4fadcd-matrix.log`.
-The full formal configuration at the same runtime is being precompiled for
-an additional original block-scan/health comparison; do not attribute that
-broader difference solely to fused kernels or rematerialization policy.
-
-
-## Token-contiguous write ABI and target results (ongoing)
-
-`rmt_pallas_minor.py` keeps batch separate from token tiles, with kernel inputs
-`M[B,K,V,T]`, address[B,H,K,T], data[B,H,V,T]. Shared static write uses MXU;
-dynamic writes vectorize across tokens. Runtime0a3d12f passes TPU FP32/BF16
-forward and every input-gradient comparison. For8192 tokens, tile128:
-reference/Pallas forward .53359/.62943ms, ordinary VJP2.99091/2.35137ms,
-checkpointed VJP2.14016/2.02052ms (5.6% faster). Tile256 backward exceeds
-VMEM54.23MB>32MB. Complete-training comparison is still pending; this is
-not yet a throughput claim. Full layer CPU gradients also checked.
-
-Full18 v5p-16 f4fadcd matrix completed all5 arms with verified XPlanes.
-Preliminary stable speeds: control~.385, save-dense~.351, save-dense-state~.367,
-QK~.375step/s; exact30-step summaries pending artifact analysis. Raw XPlane
-control2579.896ms versus save-dense2829.794ms: dense compute saves135.09ms,
-but dynamic-update-slice adds201.85ms, loop fusion135.65ms, formatting34.11ms.
-Saving more intermediates changes memory/layout costs; compute savings alone
-do not predict speed. New `save_state` saves only named attention output and
-post-attention M, plus packed dynamic projections, to distinguish the costs.
-
-The first canonical v6e token-minor matrix failed before training because
-`run_profile_matrix.sh` did not propagate overridden MAXTEXT_REPO into the
-worker smoke wrapper. The wrapper used a different checkout/config. Fixed
-the authoritative orchestration script to pass it explicitly; rerun matrix
-`minor-0927b` at exact0a3d12f. No failed-run timing is used.
-
-
-### Verified full18 target matrix, same f4fadcd/UC1a/v5p-16
-
-All timings use steps20–49, inverse mean logged latency. Every arm loaded AOT
-and has raw XPlane leaf coverage99.970% or better. Model equations/parameter
-trees are unchanged; BF16 contraction order causes small trajectory differences.
-
-| Configuration | step/s | vs control | raw device ms |
-|---|---:|---:|---:|
-| RMTCombinedLayerScanNoHealthProfile | .384497 |0|2579.896|
-| RMTCombinedLayerScanSaveDenseProfile | .350933 |−8.73%|2829.794|
-| RMTCombinedLayerScanSaveDenseStateProfile | .366933 |−4.57%|2703.936|
-| RMTCombinedLayerScanSaveDenseStatePackedProfile | .400399 |+4.14%|2476.135|
-| RMTCombinedLayerScanPallasQKProfile | .375033 |−2.46%|2646.323|
-
-Packing matters more under selective saving: versus unpacked save-dense-state,
-it removes164.78ms of dynamic-update-slice and25.38ms of convolution fusion.
-This explains why isolated6-layer projection packing (+1.9%) underestimated
-the combined effect. No significant25–40% gain has been achieved.
-
-Token-minor write full6-layer0a3d12f reached~.84step/s; exact same-host/hash
-control is being rerun. The first arm's single complete trace is already in GCS;
-its collector mistakenly expected2. Fixed orchestration default for the
-nonperiodic JIT profile and explicitly selected1 for follow-up.
-
-Token-minor write30d4c70 full18 v5p-16 AOT is READY; matrix
-`minor-v5p-0927`, label`rmt_minor_v5p`, same target host,50 steps.
-Pre-run bet +7–12% versus matched no-health control. Input-fusion microprobe
-does not show an additional remat benefit, so it remains OFF in target runs.
-Token-minor C8 read6cdf790 has passed complete-layer CPU values/all-gradients;
-TPU screening remains pending. Retain the two user-owned v6e diagnostics.
-
-
-Confirmed matched0a3d12f v6e-1 host-1 full6-layer write speed:
-.765331→.844099step/s (+10.29%). Raw device1299.494→1177.431ms;
-formatting−64.71ms, convolution−64.12ms, loop fusion−63.89ms, slice−29.90ms,
-new Pallas custom calls+103.09ms. C8-read6cdf790 alone .815830step/s
-(+6.60% screening versus the0a3d12f control, not same-runtime final comparison).
-
-Key-contiguous external ABI396339d is rejected at micro screening:
-checkpointed reference2.171ms versus Pallas3.150ms; local transposes outweigh
-the hoped-for global-layout benefit. Removing value paddingda0f95a also fails
-TPU compilation. These variants are not promoted into combined training.
-
-Formal original configurationf4fadcd, same target VM: .378066step/s,
-versus direct-layer-scan/no-health control .384497 (+1.70%). This includes
-health/scan changes; separate it from fused-kernel gains.
-
-
-### Precision and composition gates
-
-Multi-tile BF16 TPU checks at production tile128 pass for write and C8 read;
-maximum relative L2 over output/all input gradients .00421/.00441. Write's
-FP32 multi-tile TPU backward exceeds32MiB scoped VMEM by656KiB; tile64 is
-not legal for token-contiguous DMA when the whole sequence is longer than64.
-Do not classify either resource/layout error as a numerical disagreement.
-FP32 multi-tile write in CPU Pallas interpreter passes, maximum relative
-L2 3.585e-7. Earlier single-tile FP32 TPU checks also passed.
-Full3-layer scan, packed projections, both fused kernels and policies
-full/save_state/save_state_mlp match original parameter gradients and loss
-on nonzero perturbed parameters; focused test `rmt-fused-scan-tests` passes.
-
-Minimal save-state30d4c70 target: control .384433, write-only .397866,
-save-state+packed .427000step/s (+11.07%). Matched raw device
-2579.869→2318.716ms; dynamic-update-slice−122.995ms, convolution−119.234ms.
-The formal original configuration .378066 includes extra health/block scan.
-
-Token-joined-read91902dd improves ordinary isolated VJP3.672→1.821ms, but
-checkpointed VJP1.821→2.149ms regresses; full6-layer screening in progress.
-Leading-parameter-axisce9dabe full6-layer is~.764step/s, indistinguishable
-from control; no initialization/gradient mismatch, no promotion.
-
-396339d target write+packed+save-state completed~.440step/s; write+packed
-~.436. Full stable means and raw traces pending download. c031d76 target
-matrix `rw-state-0927`, label`rmt_rw_state_v5p`, is running four matched arms:
-TokenReadWriteSaveState, TokenReadWriteSaveStateMLP, TokenReadWrite, NoHealth
-(all full class names have prefix RMTCombinedLayerScan and suffix Profile).
-All four AOTs READY, same100-step schedule; stop49, window20–49.
+Aggregate log summary `/data0/xd/bam_diagnostics/rmt-pallas-target-results.json`.
+Original configuration log is in `rmt-pallas-v5p`; separate original XPlane
+is in `rmt-pallas-v5p-original`. All bytes flow worker→GCS→local, never through
+tpu-ag. The71f46b3 partial matrix has only the two complete saved XPlanes;
+interrupted TokenAll and unstarted TokenQKPost arms have no accepted timing.

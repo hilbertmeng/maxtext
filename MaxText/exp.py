@@ -10297,3 +10297,93 @@ class BamMediumPropK75AllLocalQK57RoPE18RMTBudget(
                     'BamMediumPropK75EmbedVOnlyQK57AllLocal',
                     'BamMediumPropK75EmbedVOnlyQK57MLP3200',
                     'RMTMediumPropAlibiK48']
+
+
+class RMTWriteReadControlProfile(TrainStepProfile, RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicEmbeddingUnembeddingDirect32):
+    """Paired write/read tuning: exact18-layer model, basic health only."""
+    model_name = 'RMTWriteReadControlProfile'
+    rmt_record_dynamic_health = False
+    record_training_health_metrics = True
+    rmt_mlp_merge_reads = False
+    rmt_write_read_chunk_size = 0
+    force_final_checkpoint = False
+    steps = 13500
+    jax_cache_dir = ''
+    compare_runs = []
+
+
+class RMTWriteReadMergedProfile(RMTWriteReadControlProfile):
+    model_name = 'RMTWriteReadMergedProfile'
+    rmt_mlp_merge_reads = True
+
+
+class RMTWriteReadSplitC64Profile(RMTWriteReadControlProfile):
+    model_name = 'RMTWriteReadSplitC64Profile'
+    rmt_write_read_chunk_size = 64
+    rmt_mlp_merge_reads = False
+
+
+class RMTWriteReadMergedC64Profile(RMTWriteReadControlProfile):
+    model_name = 'RMTWriteReadMergedC64Profile'
+    rmt_write_read_chunk_size = 64
+    rmt_mlp_merge_reads = True
+
+
+class RMTWriteReadSplitC128Profile(RMTWriteReadControlProfile):
+    model_name = 'RMTWriteReadSplitC128Profile'
+    rmt_write_read_chunk_size = 128
+    rmt_mlp_merge_reads = False
+
+
+class RMTWriteReadMergedC128Profile(RMTWriteReadControlProfile):
+    model_name = 'RMTWriteReadMergedC128Profile'
+    rmt_write_read_chunk_size = 128
+    rmt_mlp_merge_reads = True
+
+
+class RMTWriteReadSplitC256Profile(RMTWriteReadControlProfile):
+    model_name = 'RMTWriteReadSplitC256Profile'
+    rmt_write_read_chunk_size = 256
+    rmt_mlp_merge_reads = False
+
+
+class RMTWriteReadMergedC256Profile(RMTWriteReadControlProfile):
+    model_name = 'RMTWriteReadMergedC256Profile'
+    rmt_write_read_chunk_size = 256
+    rmt_mlp_merge_reads = True
+
+
+class RMTWriteReadSplitC512Profile(RMTWriteReadControlProfile):
+    model_name = 'RMTWriteReadSplitC512Profile'
+    rmt_write_read_chunk_size = 512
+    rmt_mlp_merge_reads = False
+
+
+class RMTWriteReadMergedC512Profile(RMTWriteReadControlProfile):
+    model_name = 'RMTWriteReadMergedC512Profile'
+    rmt_write_read_chunk_size = 512
+    rmt_mlp_merge_reads = True
+
+
+class RMTWriteReadSplitC1024Profile(RMTWriteReadControlProfile):
+    model_name = 'RMTWriteReadSplitC1024Profile'
+    rmt_write_read_chunk_size = 1024
+    rmt_mlp_merge_reads = False
+
+
+class RMTWriteReadMergedC1024Profile(RMTWriteReadControlProfile):
+    model_name = 'RMTWriteReadMergedC1024Profile'
+    rmt_write_read_chunk_size = 1024
+    rmt_mlp_merge_reads = True
+
+
+class RMTWriteReadSplitC2048Profile(RMTWriteReadControlProfile):
+    model_name = 'RMTWriteReadSplitC2048Profile'
+    rmt_write_read_chunk_size = 2048
+    rmt_mlp_merge_reads = False
+
+
+class RMTWriteReadMergedC2048Profile(RMTWriteReadControlProfile):
+    model_name = 'RMTWriteReadMergedC2048Profile'
+    rmt_write_read_chunk_size = 2048
+    rmt_mlp_merge_reads = True

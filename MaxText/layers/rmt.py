@@ -141,28 +141,33 @@ class RMTDynamicC8Read(nn.Module):
   compress_state: bool = True
 
   @nn.compact
-  def __call__(self, x, M):
+  def __call__(self, x, M, *, prepare_only=False):
     cfg = self.config
     heads = int(cfg.num_query_heads)
     key_dim = 8 if self.compress_state else M.shape[-1]
     if self.compress_state:
       compression = self.param('compression', nn.with_logical_partitioning(nn.initializers.orthogonal(), ('v_factor', 'kv')),
                                (M.shape[-1], key_dim), cfg.weight_dtype)
-      compressed = jnp.einsum('btvc,cr->btvr', M, compression.astype(M.dtype))
+      if not prepare_only:
+        compressed = jnp.einsum('btvc,cr->btvr', M, compression.astype(M.dtype))
     else:
       compressed = M
     key_kernel = self.param('key_kernel', nn.with_logical_partitioning(nn.initializers.zeros, ('embed', None)),
                             (cfg.emb_dim, heads * key_dim), cfg.weight_dtype)
+    gate_kernel = self.param('gate_kernel', nn.with_logical_partitioning(nn.initializers.zeros, ('embed', None)),
+                             (cfg.emb_dim, heads * self.destinations), cfg.weight_dtype)
+    gate_bias = self.param('gate_bias', nn.with_logical_partitioning(_init_gate_bias(.05), ('q_heads', None)),
+                           (heads, self.destinations), cfg.weight_dtype)
+    if prepare_only:
+      if not self.compress_state or self.destinations != 1:
+        raise ValueError('MLP read preparation requires one C8 destination')
+      return tuple(nn.unbox(p) for p in (compression, key_kernel, gate_kernel, gate_bias))
     raw_key = jnp.einsum('btd,dr->btr', x, key_kernel.astype(x.dtype))
     raw_key = raw_key.reshape(x.shape[:2] + (heads, key_dim))
     key = normalizations.rms_norm(
         raw_key, dtype=x.dtype, epsilon=_read_epsilon(cfg),
         statistics_dtype=jnp.float32)
     read = jnp.einsum('btvc,btnc->btnv', compressed, key)
-    gate_kernel = self.param('gate_kernel', nn.with_logical_partitioning(nn.initializers.zeros, ('embed', None)),
-                             (cfg.emb_dim, heads * self.destinations), cfg.weight_dtype)
-    gate_bias = self.param('gate_bias', nn.with_logical_partitioning(_init_gate_bias(.05), ('q_heads', None)),
-                           (heads, self.destinations), cfg.weight_dtype)
     logits = jnp.einsum('btd,dr->btr', x, gate_kernel.astype(x.dtype))
     logits = logits.reshape(x.shape[:2] + (heads, self.destinations))
     gates = jax.nn.sigmoid(logits + gate_bias.astype(x.dtype))
@@ -176,7 +181,7 @@ class RMTDynamicWrite(nn.Module):
   address_dim: int
 
   @nn.compact
-  def __call__(self, x, data):
+  def __call__(self, x, data, *, prepare_only=False):
     cfg = self.config
     heads = int(cfg.num_query_heads)
     bottleneck = 256
@@ -201,11 +206,68 @@ class RMTDynamicWrite(nn.Module):
     address = normalizations.rms_norm(
         address, dtype=address.dtype, epsilon=cfg.normalization_layer_epsilon,
         statistics_dtype=jnp.float32)
+    if prepare_only:
+      return gate[..., None] * address, gate
     data = normalizations.rms_norm(
         data, dtype=data.dtype, epsilon=cfg.normalization_layer_epsilon,
         statistics_dtype=jnp.float32)
     write = jnp.einsum('btnk,btnv->btkv', gate[..., None] * address, data)
     return write, gate
+
+
+def _attention_write_mlp_read(matrix, y, address, static_address, read_projection,
+                              read_params, norm_scale, cfg, merge_reads):
+  """Token-local write -> static/C8 read -> dynamic read; no MLP dense layers."""
+  heads = cfg.num_query_heads
+  compression, key_kernel, gate_kernel, gate_bias = read_params
+  static_write = jnp.einsum('btnv,nk->btkv', y, static_address.astype(y.dtype))
+  normalized_y = normalizations.rms_norm(
+      y, dtype=y.dtype, epsilon=cfg.normalization_layer_epsilon,
+      statistics_dtype=jnp.float32)
+  dynamic_write = jnp.einsum('btnk,btnv->btkv', address, normalized_y)
+  updated = matrix + static_write + dynamic_write
+  if merge_reads:
+    projection = jnp.concatenate((read_projection.astype(updated.dtype),
+        jnp.pad(compression.astype(updated.dtype), ((heads, 0), (0, 0)))), axis=1)
+    linear_reads = jnp.einsum('btkv,kr->btrv', updated, projection)
+    static_read = linear_reads[..., :heads, :]
+    compressed = jnp.swapaxes(linear_reads[..., heads:, :], -2, -1)
+  else:
+    static_read = jnp.einsum('btkv,kn->btnv', updated, read_projection.astype(updated.dtype))
+    state = jnp.swapaxes(updated[..., heads:, :], -2, -1)
+    compressed = jnp.einsum('btvc,cr->btvr', state, compression.astype(updated.dtype))
+  x = updated[..., :heads, :].reshape(updated.shape[:2] + (cfg.emb_dim,))
+  x = normalizations.rms_norm(x, dtype=cfg.dtype, epsilon=cfg.normalization_layer_epsilon)
+  scale = jnp.asarray(norm_scale, cfg.dtype)
+  x = x * (scale if cfg.direct_scale else scale + 1.0)
+  raw_key = jnp.einsum('btd,dr->btr', x, key_kernel.astype(x.dtype))
+  key = normalizations.rms_norm(
+      raw_key.reshape(x.shape[:2] + (heads, 8)), dtype=x.dtype,
+      epsilon=_read_epsilon(cfg), statistics_dtype=jnp.float32)
+  read = jnp.einsum('btvc,btnc->btnv', compressed, key)
+  logits = jnp.einsum('btd,dr->btr', x, gate_kernel.astype(x.dtype))
+  logits = logits.reshape(x.shape[:2] + (heads, 1))
+  gates = jax.nn.sigmoid(logits + gate_bias.astype(x.dtype))
+  dynamic_read = .2 * gates[..., 0, None] * read
+  outputs = (updated, static_read + dynamic_read, x)
+  if cfg.get_keys().get('rmt_record_dynamic_health', False):
+    outputs += (static_write, dynamic_write, static_read, dynamic_read, gates)
+  return outputs
+
+
+def _map_token_chunks(fn, arrays, chunk_size):
+  """Fixed-size sequential chunks keep the complete write/read unit together."""
+  length = arrays[0].shape[1]
+  if not chunk_size:
+    return fn(*arrays)
+  if chunk_size <= 0 or length % chunk_size:
+    raise ValueError(f'Write/read chunk {chunk_size} must divide sequence length {length}')
+  def split(x):
+    return jnp.swapaxes(x.reshape((x.shape[0], length // chunk_size, chunk_size) + x.shape[2:]), 0, 1)
+  chunks = tuple(split(x) for x in arrays)
+  results = jax.lax.map(lambda xs: fn(*xs), chunks)
+  return tuple(jnp.swapaxes(x, 0, 1).reshape((arrays[0].shape[0], length) + x.shape[3:])
+               for x in results)
 
 
 class MatrixRMSNorm(nn.Module):
@@ -336,33 +398,58 @@ class RMTLayer(nn.Module):
         head_output = head_output + dynamic_o
     attn_write = self.param('attn_write_key', write_init,
                             (heads, key_dim), cfg.weight_dtype)
-    static_attn_write = jnp.einsum(
-        'btnv,nk->btkv', head_output, attn_write.astype(cfg.dtype))
-    if dynamic:
-      dynamic_attn_write, attn_write_gate = RMTDynamicWrite(
-          cfg, write_rows, name='dynamic_attn_write')(attn_x, head_output)
-      if write_rows == 32:
-        dynamic_attn_write = jnp.pad(dynamic_attn_write,
-                                     ((0, 0), (0, 0), (16, 0), (0, 0)))
-      matrix = matrix + static_attn_write + dynamic_attn_write
-    elif not dynamic:
-      matrix = matrix + static_attn_write
+    wr_chunk = int(cfg.get_keys().get('rmt_write_read_chunk_size', 0))
+    merge_reads = bool(cfg.get_keys().get('rmt_mlp_merge_reads', False))
+    if wr_chunk or merge_reads:
+      if not (dynamic and vector_pre_norm and write_rows == key_dim == 48):
+        raise ValueError('Write/read optimization requires Full48 VectorNorm')
+      address, attn_write_gate = RMTDynamicWrite(
+          cfg, write_rows, name='dynamic_attn_write')(attn_x, head_output, prepare_only=True)
+      mlp_read = self.param('mlp_read_key', key_init,
+                            (key_dim, heads), cfg.weight_dtype)
+      proxy = matrix[..., :heads, :].reshape(matrix.shape[:2] + (cfg.emb_dim,))
+      norm = normalizations.get_rmsnorm('mlp_vector_norm', cfg)
+      norm(proxy)  # Create the unchanged gain; values are normalized inside each chunk.
+      norm_scale = nn.unbox(norm.get_variable('params', 'scale'))
+      read_params = RMTDynamicC8Read(cfg, destinations=1, name='dynamic_mlp_read')(
+          proxy, jnp.swapaxes(matrix[..., heads:, :], -2, -1), prepare_only=True)
+      def unit(m, y, a):
+        return _attention_write_mlp_read(
+            m, y, a, attn_write, mlp_read, read_params, norm_scale, cfg, merge_reads)
+      results = _map_token_chunks(unit, (matrix, head_output, address), wr_chunk)
+      matrix, vector, mlp_x = results[:3]
+      mlp_in = matrix
+      if cfg.get_keys().get('rmt_record_dynamic_health', False):
+        (static_attn_write, dynamic_attn_write, static_mlp_read,
+         dynamic_mlp_read, mlp_read_gate) = results[3:]
+    else:
+      static_attn_write = jnp.einsum(
+          'btnv,nk->btkv', head_output, attn_write.astype(cfg.dtype))
+      if dynamic:
+        dynamic_attn_write, attn_write_gate = RMTDynamicWrite(
+            cfg, write_rows, name='dynamic_attn_write')(attn_x, head_output)
+        if write_rows == 32:
+          dynamic_attn_write = jnp.pad(dynamic_attn_write,
+                                       ((0, 0), (0, 0), (16, 0), (0, 0)))
+        matrix = matrix + static_attn_write + dynamic_attn_write
+      elif not dynamic:
+        matrix = matrix + static_attn_write
 
-    mlp_in = (matrix if vector_pre_norm else
-              MatrixRMSNorm(cfg, name='mlp_norm')(matrix))
-    mlp_read = self.param('mlp_read_key', key_init,
-                          (key_dim, heads), cfg.weight_dtype)
-    vector = jnp.einsum('btkv,kn->btnv', mlp_in, mlp_read.astype(cfg.dtype))
-    static_mlp_read = vector
-    if dynamic_mlp_read_enabled or dynamic_mlp_write_enabled:
-      mlp_x = mlp_in[..., :heads, :].reshape(mlp_in.shape[:2] + (cfg.emb_dim,))
-      if vector_pre_norm:
-        mlp_x = normalizations.get_rmsnorm('mlp_vector_norm', cfg)(mlp_x)
-    if dynamic_mlp_read_enabled:
-      mlp_M = jnp.swapaxes(mlp_in[..., read_start:, :], -2, -1)
-      (dynamic_mlp_read,), mlp_read_gate = RMTDynamicC8Read(
-          cfg, destinations=1, name='dynamic_mlp_read')(mlp_x, mlp_M)
-      vector = vector + dynamic_mlp_read
+      mlp_in = (matrix if vector_pre_norm else
+                MatrixRMSNorm(cfg, name='mlp_norm')(matrix))
+      mlp_read = self.param('mlp_read_key', key_init,
+                            (key_dim, heads), cfg.weight_dtype)
+      vector = jnp.einsum('btkv,kn->btnv', mlp_in, mlp_read.astype(cfg.dtype))
+      static_mlp_read = vector
+      if dynamic_mlp_read_enabled or dynamic_mlp_write_enabled:
+        mlp_x = mlp_in[..., :heads, :].reshape(mlp_in.shape[:2] + (cfg.emb_dim,))
+        if vector_pre_norm:
+          mlp_x = normalizations.get_rmsnorm('mlp_vector_norm', cfg)(mlp_x)
+      if dynamic_mlp_read_enabled:
+        mlp_M = jnp.swapaxes(mlp_in[..., read_start:, :], -2, -1)
+        (dynamic_mlp_read,), mlp_read_gate = RMTDynamicC8Read(
+            cfg, destinations=1, name='dynamic_mlp_read')(mlp_x, mlp_M)
+        vector = vector + dynamic_mlp_read
     vector = vector.reshape(vector.shape[:2] + (cfg.emb_dim,))
     vector = linears.MlpBlock(
         config=cfg, intermediate_dim=cfg.mlp_dim if self.mlp_dim is None else self.mlp_dim,

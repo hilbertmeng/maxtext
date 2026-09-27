@@ -3,13 +3,13 @@ import jax
 import jax.numpy as jnp
 from jax.experimental import pallas as pl
 from jax.experimental.pallas import tpu as pltpu
-from layers.rmt_pallas_minor import _spec
+from layers.rmt_pallas_minor import _spec, _tile
 from layers.rmt_pallas_write_read import read_pullback, contract, weight_grad
 from layers.rmt_pallas_projected_write import project_minor_state, project_reverse_minor
 from layers.rmt_pallas_write_reverse import joint, dynamic_joint, chunked_joint
 
 
-def backward(args,cotangents,epsilon,read_epsilon,interpret,tile,dynamic_only=False,compute_chunk=0):
+def backward(args,cotangents,epsilon,read_epsilon,interpret,tile,dynamic_only=False,compute_chunk=0,recompute_write=False):
   b,k,v,t=args[0].shape
   inp=[_spec(z.shape[1:-1],tile) if i<3 else
        pl.BlockSpec(z.shape,lambda b,j,n=z.ndim:(0,)*n) for i,z in enumerate(args)]
@@ -29,10 +29,13 @@ def backward(args,cotangents,epsilon,read_epsilon,interpret,tile,dynamic_only=Fa
       elif transpose[index-3]:value=value.T
       ref=refs[18+index];ref[...]=ref[...]+value
     m,x,d,s,down,up,ub,wg,gb,r,c,scale,wk,rg,rb,dm,dy,dx=(z[...] for z in refs[:18])
+    if recompute_write:
+      pre,hidden,a,g=project_minor_state(x,down,up,ub,wg,gb)
+      m=_tile(m,a,d,g,s,epsilon)
     gm=read_pullback(m,r,c,scale,wk,rg,rb,dm,dy,dx,epsilon,read_epsilon,
                      lambda index,value:store(index+4,value),merge_linear=True)
     refs[18][...]=gm
-    pre,hidden,a,g=project_minor_state(x,down,up,ub,wg,gb)
+    if not recompute_write:pre,hidden,a,g=project_minor_state(x,down,up,ub,wg,gb)
     # Only the ephemeral write contraction changes layout, not HBM M streams.
     if dynamic_only:
       store(3,weight_grad(d,gm))

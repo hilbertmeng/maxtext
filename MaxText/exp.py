@@ -9781,6 +9781,22 @@ class RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicEmbeddingUnem
     jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/rmt-mha-budget-dynamic-embedding-unembedding-direct32'
 
 
+class RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicEmbeddingUnembeddingDirect32L22(
+    RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicEmbeddingUnembeddingDirect32):
+    """22 dynamic matrix layers, uniform MLP3212, at the MHA parameter budget."""
+    # Implementation: codex/rmt-k48-dynamic, /data0/xd/rmt-k48-dynamic.
+    # Layer scan; same dynamic embedding/Direct32 output.
+    # MLP3212; 432083008 params, 38192 below MHA. Parent: 18 layers/MLP4078.
+    # Pre-run13500 bet vs parent: loss -.008; steady speed -15%.
+    model_name = 'RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicEmbeddingUnembeddingDirect32L22'
+    base_num_decoder_layers = 22
+    base_mlp_dim = 3212
+    rmt_mlp_dim_by_block = [3212, 3212, 3212]
+    rmt_block_scan = False
+    compare_runs = ['RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicEmbeddingUnembeddingDirect32']
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/rmt-combined-boundaries-l22'
+
+
 class RMTVectorNormMHABudgetHeadwiseMLPProfile(
     RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudget):
     """Diagnostic: rank3 MLP kernels preserve the head/value activation axes."""

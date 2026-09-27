@@ -31,8 +31,8 @@ def joint(address,data,gate,static_key,dy,epsilon):
   ua=product[:,:h,:k].astype(address.dtype)
   ud=product[:,:h,k:].astype(data.dtype)
   sd=product[:,h:2*h,k:].astype(data.dtype)
-  ds=jnp.sum(product[:,2*h:,:k],axis=0).astype(static_key.dtype)
-  gg=jnp.sum((ua*an).astype(gate.dtype),axis=2).astype(gate.dtype)
+  ds=jnp.sum(product[:,2*h:,:k],axis=0)
+  gg=jax.lax.reduce_sum((ua*an).astype(gate.dtype),axes=(2,)).astype(gate.dtype)
   ga=norm_backward(address,(ua.astype(jnp.float32)*gate.astype(jnp.float32)[:,:,None]).astype(address.dtype),ai)
   gd=(norm_backward(data,ud,di)+sd).astype(data.dtype)
   return ga,gd,gg,ds
@@ -47,10 +47,15 @@ def backward(a,d,g,s,dy,epsilon,interpret=False,tile=64):
     da[...],dd[...],dg[...],ds[...]=joint(a[...],d[...],g[...],s[...],dy[...],epsilon)
   specs=[spec((h,k)),spec((h,v)),spec((h,)),pl.BlockSpec(s.shape,lambda b,i:(0,0)),spec((k,v))]
   outputs=[jax.ShapeDtypeStruct(x.shape,x.dtype) for x in (a,d,g)]
-  outputs.append(jax.ShapeDtypeStruct((b,t//tile)+s.shape,s.dtype))
+  outputs.append(jax.ShapeDtypeStruct((b,t//tile)+s.shape,jnp.float32))
   da,dd,dg,ds=pl.pallas_call(kernel,grid=(b,t//tile),in_specs=specs,
       out_specs=specs[:3]+[pl.BlockSpec((None,None)+s.shape,lambda b,i:(b,i,0,0))],
       out_shape=outputs,interpret=interpret,
       compiler_params=pltpu.CompilerParams(dimension_semantics=('parallel','parallel')),
       name='rmt_write_reverse_major')(a,d,g,s,dy)
+  # Retain the original forward/AD kernel's 128-token BF16 partial-gradient
+  # boundary even when backward uses smaller independently scheduled tiles.
+  group=min(128,t)//tile if tile<128 else 1
+  if group>1:ds=jnp.sum(ds.reshape((b,t//(tile*group),group)+s.shape),axis=2)
+  ds=ds.astype(s.dtype)
   return da,dd,dg,jnp.sum(ds.astype(jnp.float32),axis=(0,1)).astype(s.dtype)

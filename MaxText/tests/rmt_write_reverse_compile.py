@@ -14,6 +14,7 @@ from layers.rmt_pallas_minor import write_residual
 def main():
   p=argparse.ArgumentParser()
   p.add_argument('--topology',default='v5p-16')
+  p.add_argument('--batch',type=int,default=16)
   p.add_argument('--modes',default='autodiff,joint_major')
   p.add_argument('--output',required=True)
   args=p.parse_args()
@@ -22,7 +23,8 @@ def main():
       chip_config_name=hw.chip_config_name,chips_per_host_bounds=hw.chips_per_host_bounds,
       num_slices=1,wrap=hw.wrap)
   sharding=SingleDeviceSharding(topo.devices[0])
-  shapes=[(1,4096,48,75),(1,4096,16,48),(1,4096,16,75),(1,4096,16),(16,48),(1,4096,48,75)]
+  b=args.batch
+  shapes=[(b,4096,48,75),(b,4096,16,48),(b,4096,16,75),(b,4096,16),(16,48),(b,4096,48,75)]
   x=[jax.ShapeDtypeStruct(s,jnp.bfloat16) for s in shapes]
   results={}
   for mode in args.modes.split(','):

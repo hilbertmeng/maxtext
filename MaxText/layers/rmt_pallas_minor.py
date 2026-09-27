@@ -97,7 +97,7 @@ def _joint_backward(address,data,gate,static_key,dy,epsilon,chunk=128):
   ud=product[:h,k:,:].astype(data.dtype)
   sd=product[h:2*h,k:,:].astype(data.dtype)
   ds=jnp.sum(product[2*h:,:k,:],axis=2).astype(static_key.dtype)
-  gg=jnp.sum((ua*an).astype(gate.dtype),axis=1).astype(gate.dtype)
+  gg=jax.lax.reduce_sum((ua*an).astype(gate.dtype),axes=(1,)).astype(gate.dtype)
   ga=_norm_backward(address,(ua*gate[:,None,:]).astype(address.dtype),epsilon)
   gd=(_norm_backward(data,ud,epsilon)+sd).astype(data.dtype)
   return ga,gd,gg,ds
@@ -134,7 +134,7 @@ def _dynamic_backward(address,data,gate,dy,epsilon,method="analytic"):
       ua.append(jnp.sum(yf*d.astype(jnp.float32)[None,:,:],axis=1).astype(address.dtype))
       ud.append(jnp.sum(yf*ag.astype(jnp.float32)[:,None,:],axis=0).astype(data.dtype))
     ua,ud=jnp.stack(ua),jnp.stack(ud)
-  gg=jnp.sum((ua*an).astype(gate.dtype),axis=1).astype(gate.dtype)
+  gg=jax.lax.reduce_sum((ua*an).astype(gate.dtype),axes=(1,)).astype(gate.dtype)
   ga=_norm_backward(address,(ua*gate[:,None,:]).astype(address.dtype),epsilon)
   gd=_norm_backward(data,ud,epsilon)
   return ga,gd,gg

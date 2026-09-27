@@ -136,15 +136,16 @@ def _c8_tile(matrix,key,compression,gates,epsilon):
   t,v,c=matrix.shape
   h,r=key.shape[-2:]
   vp=((v+127)//128)*128
-  compressed=jnp.dot(matrix.reshape(t*v,c),compression,
+  padded=jnp.concatenate((matrix,jnp.zeros((t,vp-v,c),matrix.dtype)),axis=1)
+  compressed=jnp.dot(padded.reshape(t*vp,c),compression,
                      preferred_element_type=jnp.float32).astype(matrix.dtype)
-  compressed=compressed.reshape(t,v,r).transpose(0,2,1)
-  compressed=jnp.concatenate((compressed,jnp.zeros(compressed.shape[:-1]+(vp-v,),compressed.dtype)),axis=-1)
+  compressed=compressed.reshape(t,vp,r).transpose(0,2,1)
   blocked=_block_diagonal(_rms(key,epsilon))
   read=jnp.dot(blocked,compressed.reshape(t*r,vp),
                preferred_element_type=jnp.float32).astype(matrix.dtype)
   read=read.reshape(t,h,vp)[...,:v]
-  return (.2*gates)[...,None]*read[:,:,None,:]
+  return ((.2*gates).astype(jnp.float32)[...,None]*
+          read.astype(jnp.float32)[:,:,None,:]).astype(matrix.dtype)
 
 
 def _c8_call(matrix,key,compression,gates,epsilon,interpret):

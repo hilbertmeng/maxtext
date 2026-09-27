@@ -20,7 +20,7 @@ class RMTDepthTest(absltest.TestCase):
   _config = rmt_mediumprop_test.RMTMediumPropTest._config
 
   def test_fused_scan_remat_matches_original(self):
-    from layers import rmt_pallas_minor, rmt_pallas_minor_read
+    from layers import rmt_pallas_minor, rmt_pallas_minor_read, rmt_pallas_minor_qk
     cfg=self._config('RMTCombinedLayerScanNoHealthProfile')
     cfg.get_keys().update(num_decoder_layers=3,base_num_decoder_layers=3,
                           dtype=jnp.float32,rmt_mlp_dim_by_block=[128]*3,query_chunk_size=2)
@@ -37,11 +37,13 @@ class RMTDepthTest(absltest.TestCase):
       def loss(p):return jnp.mean(model.apply({'params':p},**args)[0])
       baseline=jax.jit(jax.value_and_grad(loss))(params)
       cfg.get_keys().update(rmt_pallas_write=True,rmt_pallas_write_layout='token_minor',
-                            rmt_pallas_c8=True,rmt_pack_dynamic_projections=True)
+                            rmt_pallas_c8=True,rmt_pallas_qk_post=True,rmt_pack_dynamic_projections=True)
       with mock.patch.object(rmt_pallas_minor,'write_residual',
                              wraps=partial(rmt_pallas_minor.write_residual,interpret=True)), \
            mock.patch.object(rmt_pallas_minor_read,'c8_read',
-                             wraps=partial(rmt_pallas_minor_read.c8_read,interpret=True)):
+                             wraps=partial(rmt_pallas_minor_read.c8_read,interpret=True)), \
+           mock.patch.object(rmt_pallas_minor_qk,'qk_post',
+                             wraps=partial(rmt_pallas_minor_qk.qk_post,interpret=True)):
         for policy in ('full','save_state','save_state_mlp'):
           cfg.get_keys()['rmt_remat_policy']=policy
           actual=jax.jit(jax.value_and_grad(loss))(params)

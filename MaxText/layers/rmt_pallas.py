@@ -21,8 +21,10 @@ def _rms(x, epsilon):
 def write_reference(matrix, address, data, gate, static_key, epsilon=1e-6):
   """One token: preserve the two rounded writes and left-associated residual."""
   a, d = _rms(address, epsilon), _rms(data, epsilon)
-  static = jnp.einsum('hv,hk->kv', data, static_key)
-  dynamic = jnp.einsum('hk,hv->kv', gate * a, d)
+  static = jnp.einsum('hv,hk->kv', data, static_key,
+                      preferred_element_type=jnp.float32).astype(data.dtype)
+  dynamic = jnp.einsum('hk,hv->kv', gate * a, d,
+                       preferred_element_type=jnp.float32).astype(data.dtype)
   return matrix + static + dynamic
 
 

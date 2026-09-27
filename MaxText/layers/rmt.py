@@ -176,7 +176,7 @@ class RMTDynamicWrite(nn.Module):
   address_dim: int
 
   @nn.compact
-  def __call__(self, x, data):
+  def __call__(self, x, data, matrix=None, static_key=None):
     cfg = self.config
     heads = int(cfg.num_query_heads)
     bottleneck = 256
@@ -198,6 +198,10 @@ class RMTDynamicWrite(nn.Module):
     gate = jax.nn.sigmoid(
         jnp.einsum('btd,dn->btn', x, gate_kernel.astype(x.dtype))
         + gate_bias.astype(x.dtype))
+    if matrix is not None:
+      from layers.rmt_pallas import write_residual
+      return write_residual(matrix, address, data, gate, static_key,
+                            cfg.normalization_layer_epsilon), gate
     address = normalizations.rms_norm(
         address, dtype=address.dtype, epsilon=cfg.normalization_layer_epsilon,
         statistics_dtype=jnp.float32)
@@ -253,6 +257,10 @@ class RMTLayer(nn.Module):
     key_dim = int(cfg.rmt_reskey_dim)
     assert cfg.emb_dim == heads * value_dim
     dynamic = bool(getattr(cfg, 'rmt_dynamic_enabled', False))
+    pallas_write = bool(cfg.get_keys().get('rmt_pallas_write', False))
+    if pallas_write and (not dynamic or cfg.rmt_dynamic_write_rows != 48
+                         or cfg.rmt_record_dynamic_health):
+      raise ValueError('Pallas write prototype requires dynamic Full48 and health OFF')
     dynamic_mlp_read_enabled = dynamic
     dynamic_mlp_write_enabled = dynamic
     dynamic_o_enabled = bool(cfg.get_keys().get('rmt_dynamic_o_enabled', True))
@@ -340,11 +348,13 @@ class RMTLayer(nn.Module):
         'btnv,nk->btkv', head_output, attn_write.astype(cfg.dtype))
     if dynamic:
       dynamic_attn_write, attn_write_gate = RMTDynamicWrite(
-          cfg, write_rows, name='dynamic_attn_write')(attn_x, head_output)
+          cfg, write_rows, name='dynamic_attn_write')(
+              attn_x, head_output, matrix if pallas_write else None,
+              attn_write.astype(cfg.dtype) if pallas_write else None)
       if write_rows == 32:
         dynamic_attn_write = jnp.pad(dynamic_attn_write,
                                      ((0, 0), (0, 0), (16, 0), (0, 0)))
-      matrix = matrix + static_attn_write + dynamic_attn_write
+      matrix = dynamic_attn_write if pallas_write else matrix + static_attn_write + dynamic_attn_write
     elif not dynamic:
       matrix = matrix + static_attn_write
 
@@ -378,11 +388,13 @@ class RMTLayer(nn.Module):
         'btnv,nk->btkv', vector, mlp_write.astype(cfg.dtype))
     if dynamic_mlp_write_enabled:
       dynamic_mlp_write, mlp_write_gate = RMTDynamicWrite(
-          cfg, write_rows, name='dynamic_mlp_write')(mlp_x, vector)
+          cfg, write_rows, name='dynamic_mlp_write')(
+              mlp_x, vector, matrix if pallas_write else None,
+              mlp_write.astype(cfg.dtype) if pallas_write else None)
       if write_rows == 32:
         dynamic_mlp_write = jnp.pad(dynamic_mlp_write,
                                     ((0, 0), (0, 0), (16, 0), (0, 0)))
-      matrix = matrix + static_mlp_write + dynamic_mlp_write
+      matrix = dynamic_mlp_write if pallas_write else matrix + static_mlp_write + dynamic_mlp_write
     elif not dynamic_mlp_write_enabled:
       matrix = matrix + static_mlp_write
     health = None

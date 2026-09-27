@@ -10297,3 +10297,26 @@ class BamMediumPropK75AllLocalQK57RoPE18RMTBudget(
                     'BamMediumPropK75EmbedVOnlyQK57AllLocal',
                     'BamMediumPropK75EmbedVOnlyQK57MLP3200',
                     'RMTMediumPropAlibiK48']
+
+
+class RMTCombinedLayerScanNoHealthProfile(
+    TrainStepProfile,
+    RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicEmbeddingUnembeddingDirect32):
+    """18-layer/MLP4078 matched control for the Pallas speed experiment."""
+    # codex/rmt-pallas, /data0/xd/rmt-pallas; rmt_pallas.md.
+    # Diagnostic only. Retain both authorized EW4a v6e-1 hosts.
+    # Final acceptance requires same-VM v5p-16 complete train-step throughput.
+    model_name = 'RMTCombinedLayerScanNoHealthProfile'
+    rmt_block_scan = False
+    rmt_record_dynamic_health = False
+    record_training_health_metrics = False
+    record_internal_nn_metrics = False
+    rmt_pallas_write = False
+
+
+class RMTCombinedLayerScanPallasWriteProfile(RMTCombinedLayerScanNoHealthProfile):
+    """Fused static/dynamic matrix writes and residuals, including backward."""
+    # Ledger only: implementation codex/rmt-pallas, /data0/xd/rmt-pallas.
+    # Prototype, no speed conclusion yet. Attention unchanged.
+    model_name = 'RMTCombinedLayerScanPallasWriteProfile'
+    rmt_pallas_write = True

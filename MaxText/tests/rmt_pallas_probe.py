@@ -26,6 +26,7 @@ def main():
   parser.add_argument('--kernel',choices=['write','c8','stage','joined','qk','minor_write','minor_read','minor_joined'],default='write')
   parser.add_argument('--tokens',type=int,default=8192)
   parser.add_argument('--interpret',action='store_true')
+  parser.add_argument('--check-dtype',choices=['both','float32','bfloat16'],default='both')
   parser.add_argument('--output',required=True)
   args=parser.parse_args()
   result={'jax':jax.__version__,'devices':str(jax.devices()),'tokens':args.tokens,'arm':args.arm,'write_impl':os.environ.get('RMT_PALLAS_WRITE_IMPL','mxu'),'tile':os.environ.get('RMT_PALLAS_TILE','8'),'minor_pad_v':os.environ.get('RMT_PALLAS_MINOR_PAD_V','128'),'key_contiguous':os.environ.get('RMT_PALLAS_KEY_CONTIGUOUS','0'),'input_fusion':os.environ.get('RMT_PALLAS_INPUT_FUSION','0'),'qk_norm':os.environ.get('RMT_PALLAS_QK_NORM','gram'),'grouped_dot':os.environ.get('RMT_PALLAS_GROUPED_DOT','0'),'batched_dot':os.environ.get('RMT_PALLAS_BATCHED_DOT','0'),'kernel':args.kernel,'checks':[],'timings':{}}
@@ -72,7 +73,9 @@ def main():
       return y,pb(dy)
     return jax.jit(f)
   if args.arm in ('pallas','both'):
-    for dtype in ((jnp.float32,) if args.interpret else (jnp.float32,jnp.bfloat16)):
+    check_types=((jnp.float32,) if args.interpret or args.check_dtype=='float32' else
+                 (jnp.bfloat16,) if args.check_dtype=='bfloat16' else (jnp.float32,jnp.bfloat16))
+    for dtype in check_types:
       jax.config.update('jax_default_matmul_precision','highest' if dtype==jnp.float32 else 'default')
       x=inputs(2*max(16,int(os.environ.get('RMT_PALLAS_TILE','8'))),dtype)
       actual=forward_backward(fused)(*x)

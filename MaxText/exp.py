@@ -11107,3 +11107,9 @@ class RMTThreeStageMiddleSingleBufferProfile(RMTThreeStageMiddleMinorProfile):
 class RMTThreeStageMiddleSingleBufferV6eB4Profile(RMTThreeStageMiddleMinorV6eB4Profile):
     model_name = 'RMTThreeStageMiddleSingleBufferV6eB4Profile'
     rmt_full_middle_reverse_mode = 'minor_single_buffer'
+
+
+class RMTThreeStageMiddleSingleBuffer50Profile(RMTThreeStageMiddleSingleBufferProfile):
+    """Measured48.53MiB allocation plus bounded headroom, below physical64MiB."""
+    model_name = 'RMTThreeStageMiddleSingleBuffer50Profile'
+    rmt_scoped_vmem_limit_kib = 51200

@@ -19,7 +19,7 @@ def norm_backward(x,u,inv):
 def joint(address,data,gate,static_key,dy,epsilon):
   t,h,k=address.shape;v=data.shape[-1]
   an,ai=norm(address,epsilon);dn,di=norm(data,epsilon)
-  gated=(an*gate[:,:,None]).astype(address.dtype)
+  gated=(an.astype(jnp.float32)*gate.astype(jnp.float32)[:,:,None]).astype(address.dtype)
   top=jnp.concatenate((jnp.zeros((t,k,k),dy.dtype),dy),axis=2)
   bottom=jnp.concatenate((dy.swapaxes(1,2),jnp.zeros((t,v,v),dy.dtype)),axis=2)
   square=jnp.concatenate((top,bottom),axis=1)
@@ -33,7 +33,7 @@ def joint(address,data,gate,static_key,dy,epsilon):
   sd=product[:,h:2*h,k:].astype(data.dtype)
   ds=jnp.sum(product[:,2*h:,:k],axis=0).astype(static_key.dtype)
   gg=jnp.sum((ua*an).astype(gate.dtype),axis=2).astype(gate.dtype)
-  ga=norm_backward(address,(ua*gate[:,:,None]).astype(address.dtype),ai)
+  ga=norm_backward(address,(ua.astype(jnp.float32)*gate.astype(jnp.float32)[:,:,None]).astype(address.dtype),ai)
   gd=(norm_backward(data,ud,di)+sd).astype(data.dtype)
   return ga,gd,gg,ds
 

@@ -66,7 +66,19 @@ def _dynamic_backward(address,data,gate,dy,epsilon,method="analytic"):
   gated=(an*gate[:,None,:]).astype(address.dtype)
   yf=dy.astype(jnp.float32)
   ua=[];ud=[]
-  if method=='batched':
+  if method=='symmetric':
+    # Both pullbacks in one padded MXU product: [A_gate,D_norm] @ [[0,Y],[Y.T,0]].
+    # K+V=123 fits one 128-wide hardware tile; two separate products each need one.
+    h,k,t=address.shape;v=data.shape[1]
+    y=dy.transpose(2,0,1)
+    top=jnp.concatenate((jnp.zeros((t,k,k),dy.dtype),y),axis=2)
+    bottom=jnp.concatenate((y.swapaxes(1,2),jnp.zeros((t,v,v),dy.dtype)),axis=2)
+    square=jnp.concatenate((top,bottom),axis=1)
+    left=jnp.concatenate((gated,dn),axis=1).transpose(2,0,1)
+    both=jnp.einsum('thd,tdc->thc',left,square,preferred_element_type=jnp.float32).transpose(1,2,0)
+    ua=both[:,:k,:].astype(address.dtype)
+    ud=both[:,k:,:].astype(data.dtype)
+  elif method=='batched':
     # Use independent token contractions on MXU; normalize/gate in token lanes.
     ua=jnp.einsum('tkv,thv->thk',dy.transpose(2,0,1),dn.transpose(2,0,1),preferred_element_type=jnp.float32).transpose(1,2,0).astype(address.dtype)
     ud=jnp.einsum('tkv,thk->thv',dy.transpose(2,0,1),gated.transpose(2,0,1),preferred_element_type=jnp.float32).transpose(1,2,0).astype(data.dtype)
@@ -140,7 +152,7 @@ def _bwd(epsilon,interpret,tile,key_contiguous,backward,args,dy):
         name='rmt_token_minor_dynamic_write_backward')(a,d,g,dy,static_dd)
     return dy,da,dd,dg,ds
   def kernel(a,d,g,s,dy,da,dd,dg,ds):
-    if backward in ('analytic','batched'):
+    if backward in ('analytic','batched','symmetric'):
       ga,gd,gg,gs=_analytic_backward(a[...],d[...].swapaxes(0,1) if key_contiguous else d[...],
                                    g[...],s[...],dy[...].swapaxes(0,1) if key_contiguous else dy[...],epsilon,backward)
     else:
@@ -163,7 +175,7 @@ _write.defvjp(_fwd,_bwd)
 
 
 def write_residual(matrix,address,data,gate,static_key,epsilon=1e-6,*,interpret=False,tile=128,key_contiguous=False,backward="autodiff"):
-  if backward not in ("autodiff","analytic","hybrid","batched","split4","split8"):raise ValueError(f"Unknown write backward: {backward}")
+  if backward not in ("autodiff","analytic","hybrid","batched","symmetric","split4","split8"):raise ValueError(f"Unknown write backward: {backward}")
   unbatched=matrix.ndim==3
   if unbatched:
     matrix,address,data,gate=(x[None] for x in (matrix,address,data,gate))

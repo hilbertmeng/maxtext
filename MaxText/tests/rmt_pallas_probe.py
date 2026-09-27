@@ -24,7 +24,7 @@ def main():
   parser.add_argument('--interpret',action='store_true')
   parser.add_argument('--output',required=True)
   args=parser.parse_args()
-  result={'jax':jax.__version__,'devices':str(jax.devices()),'tokens':args.tokens,'arm':args.arm,'write_impl':os.environ.get('RMT_PALLAS_WRITE_IMPL','mxu'),'tile':os.environ.get('RMT_PALLAS_TILE','8'),'kernel':args.kernel,'checks':[],'timings':{}}
+  result={'jax':jax.__version__,'devices':str(jax.devices()),'tokens':args.tokens,'arm':args.arm,'write_impl':os.environ.get('RMT_PALLAS_WRITE_IMPL','mxu'),'tile':os.environ.get('RMT_PALLAS_TILE','8'),'batched_dot':os.environ.get('RMT_PALLAS_BATCHED_DOT','0'),'kernel':args.kernel,'checks':[],'timings':{}}
   def inputs(n,dtype):
     shapes=[(n,48,75),(n,16,48),(n,16,75),(n,16),(16,48)]
     if args.kernel=='c8':shapes=[(n,75,32),(n,16,8),(32,8),(n,16,2)]
@@ -72,7 +72,7 @@ def main():
     for name,fn in [('reference',reference),('pallas',fused)]:
       if args.arm not in ('both',name):
         continue
-      for mode,run in [('forward',jax.jit(fn)),('forward_backward',forward_backward(fn))]:
+      for mode,run in [('forward',jax.jit(fn)),('forward_backward',forward_backward(fn)),('remat_forward_backward',forward_backward(jax.checkpoint(fn,prevent_cse=True)))]:
         start=time.monotonic()
         compiled=run.lower(*x).compile()
         compilation=time.monotonic()-start

@@ -54,10 +54,14 @@ def _write_tile(matrix, address, data, gate, static_key, epsilon):
   static=jnp.dot(static_key.T,dp.transpose(1,0,2).reshape(h,t*vp),
                  preferred_element_type=jnp.float32).astype(data.dtype)
   static=static.reshape(k,t,vp).transpose(1,0,2)[...,:v]
-  blocked=_block_diagonal((gate*a).transpose(0,2,1))
-  dynamic=jnp.dot(blocked,dn.reshape(t*h,vp),
-                  preferred_element_type=jnp.float32).astype(data.dtype)
-  dynamic=dynamic.reshape(t,k,vp)[...,:v]
+  if os.environ.get('RMT_PALLAS_BATCHED_DOT')=='1':
+    dynamic=jnp.einsum('thk,thv->tkv',gate*a,dn,
+                       preferred_element_type=jnp.float32).astype(data.dtype)[...,:v]
+  else:
+    blocked=_block_diagonal((gate*a).transpose(0,2,1))
+    dynamic=jnp.dot(blocked,dn.reshape(t*h,vp),
+                    preferred_element_type=jnp.float32).astype(data.dtype)
+    dynamic=dynamic.reshape(t,k,vp)[...,:v]
   return matrix+static+dynamic
 
 
@@ -183,7 +187,10 @@ def _c8_tile(matrix,key,compression,gates,epsilon):
   compressed=jnp.dot(padded.reshape(t*vp,c),compression,
                      preferred_element_type=jnp.float32).astype(matrix.dtype)
   compressed=compressed.reshape(t,vp,r).transpose(0,2,1)
-  if os.environ.get('RMT_PALLAS_C8_IMPL','mxu')=='vpu':
+  if os.environ.get('RMT_PALLAS_BATCHED_DOT')=='1':
+    read=jnp.einsum('thr,trv->thv',_rms(key,epsilon),compressed,
+                    preferred_element_type=jnp.float32).astype(matrix.dtype)[...,:v]
+  elif os.environ.get('RMT_PALLAS_C8_IMPL','mxu')=='vpu':
     normkey=_rms(key,epsilon).astype(jnp.float32)
     compressed=compressed.astype(jnp.float32)
     accum=jnp.zeros((h,vp,t),jnp.float32)

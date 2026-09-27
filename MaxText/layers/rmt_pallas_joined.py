@@ -1,6 +1,7 @@
 """One full-M projection feeds both static reads and dynamic C8 reads."""
 from functools import partial
 import math
+import os
 
 import jax
 import jax.numpy as jnp
@@ -27,10 +28,14 @@ def _joined_tile(matrix,key,projection,gates,epsilon):
                     preferred_element_type=jnp.float32).astype(matrix.dtype)
   projected=projected.reshape(t,vp,width).transpose(0,2,1)
   compressed=projected[:,split:,:]
-  blocked=_block_diagonal(_rms(key,epsilon))
-  read=jnp.dot(blocked,compressed.reshape(t*r,vp),
-               preferred_element_type=jnp.float32).astype(matrix.dtype)
-  read=read.reshape(t,h,vp)[...,:v]
+  if os.environ.get('RMT_PALLAS_BATCHED_DOT')=='1':
+    read=jnp.einsum('thr,trv->thv',_rms(key,epsilon),compressed,
+                    preferred_element_type=jnp.float32).astype(matrix.dtype)[...,:v]
+  else:
+    blocked=_block_diagonal(_rms(key,epsilon))
+    read=jnp.dot(blocked,compressed.reshape(t*r,vp),
+                 preferred_element_type=jnp.float32).astype(matrix.dtype)
+    read=read.reshape(t,h,vp)[...,:v]
   dynamic=((.2*gates).astype(jnp.float32).transpose(0,2,1)[...,None]*
            read.astype(jnp.float32)[:,None,:,:]).astype(matrix.dtype)
   return projected[:,:split,:v],dynamic

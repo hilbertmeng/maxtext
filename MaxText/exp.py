@@ -10301,6 +10301,7 @@ class BamMediumPropK75AllLocalQK57RoPE18RMTBudget(
 
 class RMTWriteReadControlProfile(TrainStepProfile, RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicEmbeddingUnembeddingDirect32):
     """Paired write/read tuning: exact18-layer model, basic health only."""
+    # EW4b v5p-16 0.3848 step/s; paired device throughput +0.00%.
     model_name = 'RMTWriteReadControlProfile'
     rmt_record_dynamic_health = False
     record_training_health_metrics = True
@@ -10313,87 +10314,103 @@ class RMTWriteReadControlProfile(TrainStepProfile, RMTMediumPropK48DynamicFull48
 
 
 class RMTWriteReadMergedProfile(RMTWriteReadControlProfile):
+    # EW4b v5p-16 0.3833 step/s; paired device throughput -0.18%.
     model_name = 'RMTWriteReadMergedProfile'
     rmt_mlp_merge_reads = True
 
 
 class RMTWriteReadSplitC64Profile(RMTWriteReadControlProfile):
+    # EW4b v5p-16 0.2800 step/s; paired device throughput -27.23%.
     model_name = 'RMTWriteReadSplitC64Profile'
     rmt_write_read_chunk_size = 64
     rmt_mlp_merge_reads = False
 
 
 class RMTWriteReadMergedC64Profile(RMTWriteReadControlProfile):
+    # EW4b v5p-16 0.2820 step/s; paired device throughput -26.89%.
     model_name = 'RMTWriteReadMergedC64Profile'
     rmt_write_read_chunk_size = 64
     rmt_mlp_merge_reads = True
 
 
 class RMTWriteReadSplitC128Profile(RMTWriteReadControlProfile):
+    # EW4b v5p-16 0.3220 step/s; paired device throughput -16.32%.
     model_name = 'RMTWriteReadSplitC128Profile'
     rmt_write_read_chunk_size = 128
     rmt_mlp_merge_reads = False
 
 
 class RMTWriteReadMergedC128Profile(RMTWriteReadControlProfile):
+    # EW4b v5p-16 0.3220 step/s; paired device throughput -16.36%.
     model_name = 'RMTWriteReadMergedC128Profile'
     rmt_write_read_chunk_size = 128
     rmt_mlp_merge_reads = True
 
 
 class RMTWriteReadSplitC256Profile(RMTWriteReadControlProfile):
+    # EW4b v5p-16 0.3343 step/s; paired device throughput -13.14%.
     model_name = 'RMTWriteReadSplitC256Profile'
     rmt_write_read_chunk_size = 256
     rmt_mlp_merge_reads = False
 
 
 class RMTWriteReadMergedC256Profile(RMTWriteReadControlProfile):
+    # EW4b v5p-16 0.3338 step/s; paired device throughput -13.24%.
     model_name = 'RMTWriteReadMergedC256Profile'
     rmt_write_read_chunk_size = 256
     rmt_mlp_merge_reads = True
 
 
 class RMTWriteReadSplitC512Profile(RMTWriteReadControlProfile):
+    # EW4b v5p-16 0.3398 step/s; paired device throughput -11.72%.
     model_name = 'RMTWriteReadSplitC512Profile'
     rmt_write_read_chunk_size = 512
     rmt_mlp_merge_reads = False
 
 
 class RMTWriteReadMergedC512Profile(RMTWriteReadControlProfile):
+    # EW4b v5p-16 0.3400 step/s; paired device throughput -11.74%.
     model_name = 'RMTWriteReadMergedC512Profile'
     rmt_write_read_chunk_size = 512
     rmt_mlp_merge_reads = True
 
 
 class RMTWriteReadSplitC1024Profile(RMTWriteReadControlProfile):
+    # EW4b v5p-16 0.3425 step/s; paired device throughput -11.06%.
     model_name = 'RMTWriteReadSplitC1024Profile'
     rmt_write_read_chunk_size = 1024
     rmt_mlp_merge_reads = False
 
 
 class RMTWriteReadMergedC1024Profile(RMTWriteReadControlProfile):
+    # EW4b v5p-16 0.3420 step/s; paired device throughput -11.01%.
     model_name = 'RMTWriteReadMergedC1024Profile'
     rmt_write_read_chunk_size = 1024
     rmt_mlp_merge_reads = True
 
 
 class RMTWriteReadSplitC2048Profile(RMTWriteReadControlProfile):
+    # EW4b v5p-16 0.3420 step/s; paired device throughput -11.23%.
     model_name = 'RMTWriteReadSplitC2048Profile'
     rmt_write_read_chunk_size = 2048
     rmt_mlp_merge_reads = False
 
 
 class RMTWriteReadMergedC2048Profile(RMTWriteReadControlProfile):
+    # EW4b v5p-16 0.3410 step/s; paired device throughput -11.33%.
     model_name = 'RMTWriteReadMergedC2048Profile'
     rmt_write_read_chunk_size = 2048
     rmt_mlp_merge_reads = True
 
 
 class RMTWriteReadUnrolledC512Profile(RMTWriteReadSplitC512Profile):
+    # EW4b v5p-16 0.3690 step/s; paired device throughput -4.04%.
     model_name = 'RMTWriteReadUnrolledC512Profile'
     rmt_write_read_chunk_unroll = True
 
 
 class RMTWriteReadUnrolledC1024Profile(RMTWriteReadSplitC1024Profile):
+    # EW4b v5p-16 0.3370 step/s; paired device throughput -12.30%.
+    # !! Initial learning stalls vs control; numerical equivalence unresolved. Rejected.
     model_name = 'RMTWriteReadUnrolledC1024Profile'
     rmt_write_read_chunk_unroll = True

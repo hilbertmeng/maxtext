@@ -55,7 +55,7 @@ class RMTWriteReadChunkTest(absltest.TestCase):
       y=np.concatenate([np.asarray(x,dtype=np.float32).ravel() for x in jax.tree.leaves(grad)])
       error=np.linalg.norm(x-y)/max(np.linalg.norm(x),1e-7)
       self.assertLess(error,2e-5 if dtype==jnp.float32 else .02,(chunk,merge,error))
-      print('NUMERICS',str(dtype),chunk,merge,'gradient_relative_l2',float(error),flush=True)
+      print('NUMERICS',str(dtype),chunk,merge,'unroll',unroll,'gradient_relative_l2',float(error),flush=True)
       cfg.get_keys().update(rmt_write_read_chunk_size=0,rmt_mlp_merge_reads=False,
                             rmt_write_read_chunk_unroll=False)
 

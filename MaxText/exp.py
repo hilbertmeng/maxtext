@@ -10462,3 +10462,28 @@ class RMTCombinedLayerScanTokenMinorReadProfile(RMTCombinedLayerScanNoHealthProf
 class RMTCombinedLayerScanTokenMinorReadL6Profile(RMTCombinedLayerScanTokenMinorReadProfile):
     model_name = 'RMTCombinedLayerScanTokenMinorReadL6Profile'
     base_num_decoder_layers = 6
+
+
+class RMTCombinedLayerScanKeyTokenWriteProfile(RMTCombinedLayerScanTokenMinorWriteProfile):
+    model_name = 'RMTCombinedLayerScanKeyTokenWriteProfile'
+    rmt_pallas_key_contiguous = True
+
+
+class RMTCombinedLayerScanKeyTokenWriteL6Profile(RMTCombinedLayerScanKeyTokenWriteProfile):
+    model_name = 'RMTCombinedLayerScanKeyTokenWriteL6Profile'
+    base_num_decoder_layers = 6
+
+
+class RMTCombinedLayerScanTokenWritePackedProfile(RMTCombinedLayerScanTokenMinorWriteProfile):
+    model_name = 'RMTCombinedLayerScanTokenWritePackedProfile'
+    rmt_pack_dynamic_projections = True
+
+
+class RMTCombinedLayerScanTokenWriteSaveStateProfile(RMTCombinedLayerScanTokenWritePackedProfile):
+    model_name = 'RMTCombinedLayerScanTokenWriteSaveStateProfile'
+    rmt_remat_policy = 'save_state'
+
+
+class RMTCombinedLayerScanTokenWriteSaveDenseStateProfile(RMTCombinedLayerScanTokenWritePackedProfile):
+    model_name = 'RMTCombinedLayerScanTokenWriteSaveDenseStateProfile'
+    rmt_remat_policy = 'save_dense_state'

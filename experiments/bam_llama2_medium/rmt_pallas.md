@@ -220,3 +220,35 @@ The first canonical v6e token-minor matrix failed before training because
 worker smoke wrapper. The wrapper used a different checkout/config. Fixed
 the authoritative orchestration script to pass it explicitly; rerun matrix
 `minor-0927b` at exact0a3d12f. No failed-run timing is used.
+
+
+### Verified full18 target matrix, same f4fadcd/UC1a/v5p-16
+
+All timings use steps20–49, inverse mean logged latency. Every arm loaded AOT
+and has raw XPlane leaf coverage99.970% or better. Model equations/parameter
+trees are unchanged; BF16 contraction order causes small trajectory differences.
+
+| Configuration | step/s | vs control | raw device ms |
+|---|---:|---:|---:|
+| RMTCombinedLayerScanNoHealthProfile | .384497 |0|2579.896|
+| RMTCombinedLayerScanSaveDenseProfile | .350933 |−8.73%|2829.794|
+| RMTCombinedLayerScanSaveDenseStateProfile | .366933 |−4.57%|2703.936|
+| RMTCombinedLayerScanSaveDenseStatePackedProfile | .400399 |+4.14%|2476.135|
+| RMTCombinedLayerScanPallasQKProfile | .375033 |−2.46%|2646.323|
+
+Packing matters more under selective saving: versus unpacked save-dense-state,
+it removes164.78ms of dynamic-update-slice and25.38ms of convolution fusion.
+This explains why isolated6-layer projection packing (+1.9%) underestimated
+the combined effect. No significant25–40% gain has been achieved.
+
+Token-minor write full6-layer0a3d12f reached~.84step/s; exact same-host/hash
+control is being rerun. The first arm's single complete trace is already in GCS;
+its collector mistakenly expected2. Fixed orchestration default for the
+nonperiodic JIT profile and explicitly selected1 for follow-up.
+
+Token-minor write30d4c70 full18 v5p-16 AOT is READY; matrix
+`minor-v5p-0927`, label`rmt_minor_v5p`, same target host,50 steps.
+Pre-run bet +7–12% versus matched no-health control. Input-fusion microprobe
+does not show an additional remat benefit, so it remains OFF in target runs.
+Token-minor C8 read6cdf790 has passed complete-layer CPU values/all-gradients;
+TPU screening remains pending. Retain the two user-owned v6e diagnostics.

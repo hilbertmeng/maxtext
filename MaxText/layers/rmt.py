@@ -245,7 +245,8 @@ class RMTDynamicWrite(nn.Module):
       if cfg.get_keys().get('rmt_pallas_write_layout','value_minor')=='token_minor':
         from layers.rmt_pallas_minor import write_residual
         return write_residual(matrix,address,data,gate,static_key,cfg.normalization_layer_epsilon,
-                              tile=cfg.get_keys().get('rmt_pallas_tile',128)),gate
+                              tile=cfg.get_keys().get('rmt_pallas_tile',128),
+                              key_contiguous=cfg.get_keys().get('rmt_pallas_key_contiguous',False)),gate
       from layers.rmt_pallas import write_residual
       return write_residual(matrix, address, data, gate, static_key,
                             cfg.normalization_layer_epsilon,

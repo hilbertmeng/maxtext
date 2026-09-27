@@ -152,26 +152,26 @@ def call(args,epsilon,read_epsilon,interpret,tile):
       name='rmt_fused_write_mlp_read')(*args)
 
 
-@partial(jax.custom_vjp,nondiff_argnums=(11,12,13,14,15,16))
-def fused(m,a,d,g,s,r,c,scale,wk,wg,bias,epsilon,read_epsilon,interpret,tile,buffers,backward_tile):
+@partial(jax.custom_vjp,nondiff_argnums=(11,12,13,14,15,16,17))
+def fused(m,a,d,g,s,r,c,scale,wk,wg,bias,epsilon,read_epsilon,interpret,tile,buffers,backward_tile,backward_compute_tile):
   return call((m,a,d,g,s,r,c,scale,wk,wg,bias),epsilon,read_epsilon,interpret,tile)
 
 
-def fwd(m,a,d,g,s,r,c,scale,wk,wg,bias,epsilon,read_epsilon,interpret,tile,buffers,backward_tile):
+def fwd(m,a,d,g,s,r,c,scale,wk,wg,bias,epsilon,read_epsilon,interpret,tile,buffers,backward_tile,backward_compute_tile):
   out=call((m,a,d,g,s,r,c,scale,wk,wg,bias),epsilon,read_epsilon,interpret,tile)
   return out,(out[0],a,d,g,s,r,c,scale,wk,wg,bias)
 
 
-def bwd(epsilon,read_epsilon,interpret,tile,buffers,backward_tile,args,cotangents):
+def bwd(epsilon,read_epsilon,interpret,tile,buffers,backward_tile,backward_compute_tile,args,cotangents):
   if backward_tile:
     from layers.rmt_pallas_write_read_major import backward
-    return backward(args,cotangents,epsilon,read_epsilon,interpret,backward_tile)
+    return backward(args,cotangents,epsilon,read_epsilon,interpret,backward_tile,backward_compute_tile)
   b,_,_,t=args[0].shape
   def kernel(*refs):
     reverse(*(x[...] for x in refs[:14]),epsilon,read_epsilon,refs[1:4],refs[14:])
   inp=specs(args,tile)+[_spec(x.shape[1:-1],tile) for x in cotangents]
   # Keep DMA overlap for the small streams; the two full matrix streams alone
-  # would consume almost 4 MiB with double buffering on a 16 MiB v5p core.
+  # would consume almost 4 MiB with double buffering under the default 16 MiB scoped budget (v5p physical VMEM is 64 MiB).
   for i in (0,1,2,11):inp[i]=replace(inp[i],pipeline_mode=pl.Buffered(buffers))
   transposed=[x.ndim==2 and x.shape[0]>128 and x.shape[1]<128 for x in args[4:]]
   partial_shapes=[(1,)+x.shape if x.ndim==1 else x.shape[::-1] if tr else x.shape
@@ -194,13 +194,13 @@ def bwd(epsilon,read_epsilon,interpret,tile,buffers,backward_tile,args,cotangent
 fused.defvjp(fwd,bwd)
 
 
-def write_mlp_read(m,a,d,g,s,r,c,scale,wk,wg,bias,epsilon=1e-6,read_epsilon=1e-6,*,interpret=False,tile=128,buffers=1,backward_tile=0):
+def write_mlp_read(m,a,d,g,s,r,c,scale,wk,wg,bias,epsilon=1e-6,read_epsilon=1e-6,*,interpret=False,tile=128,buffers=1,backward_tile=0,backward_compute_tile=0):
   """Public M[B,T,K,V], head[B,T,H,V], vector[B,T,H*V] interface."""
   def local(m,a,d,g,*weights):
     block=min(tile,m.shape[1])
     if m.shape[1]%block:raise ValueError('Sequence length must divide the fused token tile')
     weights=(*weights[:5],weights[5].T,weights[6])
     out=fused(m.transpose(0,2,3,1),a.transpose(0,2,3,1),d.transpose(0,2,3,1),g.transpose(0,2,1),
-              *weights,epsilon,read_epsilon,interpret,block,buffers,backward_tile)
+              *weights,epsilon,read_epsilon,interpret,block,buffers,backward_tile,backward_compute_tile)
     return out[0].transpose(0,3,1,2),out[1].transpose(0,3,1,2),out[2].transpose(0,2,1)
   return _map_batch(local,(m,a,d,g,s,r,c,scale,wk,wg,bias),(True,)*4+(False,)*7,output_tuple=3)

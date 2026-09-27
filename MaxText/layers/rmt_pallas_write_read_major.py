@@ -65,7 +65,14 @@ def unpack_proxy(x,h,v):
   return jnp.stack(heads,axis=1)[...,:v].astype(x.dtype)
 
 
-def reverse(m,a,d,g,s,r,c,scale,wk,wg,bias,dm,dy,dx,epsilon,read_epsilon):
+def reverse(m,a,d,g,s,r,c,scale,wk,wg,bias,dm,dy,dx,epsilon,read_epsilon,shared_sink=None):
+  # Flush completed shared gradients before entering the much larger write
+  # pullback. Returning every partial together unnecessarily extends their
+  # live ranges across the joint MXU contraction.
+  def finish(index,value):
+    if shared_sink is None:return value
+    shared_sink(index,value)
+    return None
   q,k,v=m.shape;h=d.shape[1];rank=c.shape[1]
   vp=((v+127)//128)*128
   raw=pack_proxy(m[:,:h,:])
@@ -87,7 +94,7 @@ def reverse(m,a,d,g,s,r,c,scale,wk,wg,bias,dm,dy,dx,epsilon,read_epsilon):
     ci=jax.lax.slice_in_dim(compressed,i,i+1,axis=1).reshape(q,v).astype(jnp.float32)
     read=read+ki[:,:,None]*ci[:,None,:]
   read=read.astype(m.dtype)
-  dr=weight_grad(m,dy)
+  dr=finish(5,weight_grad(m,dy))
   dm=(dm+contract(r,dy)).astype(m.dtype)
   dgate=(.2*jax.lax.reduce_sum((dy*read).astype(m.dtype),axes=(2,))).astype(m.dtype)
   dread=(dy*(.2*gate).astype(jnp.float32)[:,:,None].astype(m.dtype)).astype(m.dtype)
@@ -99,31 +106,34 @@ def reverse(m,a,d,g,s,r,c,scale,wk,wg,bias,dm,dy,dx,epsilon,read_epsilon):
     dkn.append(jnp.sum(dread.astype(jnp.float32)*ci[:,None,:],axis=2).T.astype(m.dtype))
   dc=jnp.stack([x.astype(jnp.float32) for x in dc],axis=1).astype(m.dtype)
   dkn=jnp.stack([x.astype(jnp.float32) for x in dkn],axis=1).astype(m.dtype)
-  dcompression=weight_grad(m[:,h:,:],dc)
+  dcompression=finish(6,weight_grad(m[:,h:,:],dc))
   dmtail=contract(c,dc)
   dk=_norm_backward(key,dkn,read_epsilon).reshape(h*rank,q).T
   dg=(dgate*(gate*(1-gate))).astype(m.dtype)
   dp=jnp.concatenate((dk,dg),axis=1)
   dw=jnp.dot(x.T,dp,preferred_element_type=jnp.float32)
-  dwk=dw[:,:h*rank];dwg=dw[:,h*rank:].T
-  db=jnp.sum(dg.astype(jnp.float32).T,axis=1)[None,:]
+  dwk=finish(8,dw[:,:h*rank]);dwg=finish(9,dw[:,h*rank:].T)
+  db=finish(10,jnp.sum(dg.astype(jnp.float32).T,axis=1)[None,:])
   dx=(dx+matmul(dp,jnp.concatenate((wk.T,wg),axis=0))).astype(m.dtype)
-  dscale=jnp.sum((dx*normalized).astype(m.dtype).astype(jnp.float32).T,axis=1)[None,:]
+  dscale=finish(7,jnp.sum((dx*normalized).astype(m.dtype).astype(jnp.float32).T,axis=1)[None,:])
   u=(dx*scale[None,:]).astype(m.dtype).astype(jnp.float32)
   draw=((u-f*jnp.sum(u*f,axis=-1,keepdims=True)/(h*v)*inv*inv)*inv).astype(m.dtype)
   draw=unpack_proxy(draw,h,v)
   dm=(dm+jnp.concatenate((draw,dmtail),axis=1)).astype(m.dtype)
   da,dd,dg_write,ds=joint(a,d,g,s,dm,epsilon,gate_layout='major')
+  ds=finish(4,ds)
   return dm,da,dd,dg_write,ds,dr,dcompression,dscale,dwk,dwg,db
 
 
-def backward(args,cotangents,epsilon,read_epsilon,interpret,tile):
+def backward(args,cotangents,epsilon,read_epsilon,interpret,tile,compute_tile=0):
   args=tuple(x.transpose(0,3,1,2) if i<3 else x.transpose(0,2,1) if i==3 else x
              for i,x in enumerate(args))
   cotangents=tuple(x.transpose(0,3,1,2) if i<2 else x.transpose(0,2,1)
                    for i,x in enumerate(cotangents))
   b,t=args[0].shape[:2];tile=min(tile,t)
+  compute_tile=min(compute_tile or tile,tile)
   if t%tile:raise ValueError('Reverse token chunk must divide sequence length')
+  if tile%compute_tile:raise ValueError('Compute chunk must divide DMA tile')
   def spec(x):return pl.BlockSpec((None,tile)+x.shape[2:],lambda b,i:(b,i)+(0,)*(x.ndim-2))
   inp=[spec(x) if i<4 else pl.BlockSpec(x.shape,lambda b,i,ndim=x.ndim:(0,)*ndim)
        for i,x in enumerate(args)]+[spec(x) for x in cotangents]
@@ -133,15 +143,20 @@ def backward(args,cotangents,epsilon,read_epsilon,interpret,tile):
   outshape=[jax.ShapeDtypeStruct(x.shape,x.dtype) if i<4 else
             jax.ShapeDtypeStruct((b,)+shapes[i-4],jnp.float32) for i,x in enumerate(args)]
   def kernel(*refs):
-    grads=reverse(*(r[...] for r in refs[:14]),epsilon,read_epsilon)
-    for i,(ref,value) in enumerate(zip(refs[14:],grads)):
-      if i<4:ref[...]=value
-      else:
-        @pl.when(pl.program_id(1)==0)
-        def init():ref[...]=jnp.zeros(ref.shape,ref.dtype)
-        ref[...]=ref[...]+(value[None,:] if value.ndim==1 else value)
+    @pl.when(pl.program_id(1)==0)
+    def init():
+      for ref in refs[18:]:ref[...]=jnp.zeros(ref.shape,ref.dtype)
+    def store(index,value):
+      ref=refs[14+index]
+      ref[...]=ref[...]+(value[None,:] if value.ndim==1 else value)
+    def chunk(i,_):
+      sl=pl.ds(i*compute_tile,compute_tile)
+      values=[ref[sl,...] if j<4 or j>=11 else ref[...] for j,ref in enumerate(refs[:14])]
+      grads=reverse(*values,epsilon,read_epsilon,shared_sink=store)
+      for ref,value in zip(refs[14:18],grads[:4]):ref[sl,...]=value
+    jax.lax.fori_loop(0,tile//compute_tile,chunk,None)
   gradients=pl.pallas_call(kernel,grid=(b,t//tile),in_specs=inp,out_specs=outspec,
-      out_shape=tuple(outshape),interpret=interpret,
+      out_shape=tuple(outshape),interpret=interpret,input_output_aliases={11:0},
       compiler_params=pltpu.CompilerParams(dimension_semantics=('parallel','arbitrary')),
       name='rmt_fused_write_read_reverse_major')(*args,*cotangents)
   gradients=[x.transpose(0,2,3,1) if i<3 else x.transpose(0,2,1) if i==3 else

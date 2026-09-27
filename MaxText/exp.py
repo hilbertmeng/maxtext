@@ -10732,3 +10732,13 @@ class RMTCombinedLayerScanHybridBatchedWriteProfile(RMTCombinedLayerScanBatchedW
 class RMTCombinedLayerScanLoopWriteProfile(RMTCombinedLayerScanBatchedWriteProfile):
     model_name = 'RMTCombinedLayerScanLoopWriteProfile'
     rmt_pallas_write_backward = 'batched_loop'
+
+
+class RMTCombinedLayerScanMajorReverseWriteProfile(RMTCombinedLayerScanJointWriteProfile):
+    model_name = 'RMTCombinedLayerScanMajorReverseWriteProfile'
+    rmt_pallas_write_backward = 'joint_major'
+
+
+class RMTCombinedLayerScanMajorReverseWriteV6eB4Profile(RMTCombinedLayerScanMajorReverseWriteProfile):
+    model_name = 'RMTCombinedLayerScanMajorReverseWriteV6eB4Profile'
+    per_device_batch_size = 4.0

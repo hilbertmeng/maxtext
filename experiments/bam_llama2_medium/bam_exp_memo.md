@@ -813,3 +813,39 @@ copy savings. Prior carry gains on the pure-dynamic model do not transfer
 to this block-scanned MHA-budget model.
 [Configurations, paired results and reproduction](rmt_headwise_carry_profile.md).
 Raw artifacts: `/data0/xd/bam_diagnostics/rmt-headwise-carry/`.
+
+
+### Full18 dynamic RMT Pallas optimization (2026-09-27)
+
+Runtime39c7e0f, `codex/rmt-pallas`, `/data0/xd/rmt-pallas`; implementation stays
+in the worktree, main exp.py is the ledger. Direct32 combined-boundary model,
+18 layers/MLP4078, unchanged equations/per-layer dimensions and parameter count.
+Attention C256 unchanged. All health OFF, exact AOT, same-VM steps20–49.
+
+| Target / global batch | Original RMT step/s | Optimized RMT step/s | RoPE MHA step/s | Gain | Optimized/MHA |
+|---|---:|---:|---:|---:|---:|
+| UC1a v5p-16 /128 |.385433|.458666|.726933|+19.00%|63.10%|
+| EW4a v6e-1 /4 |1.205498|1.425064|2.516287|+18.21%|56.63%|
+
+Selected `RMTCombinedLayerScanTokenAllSaveStateProfile` (v6e suffixV6eB4):
+pack same-input dynamic projections; token-minor tile128 Pallas writes;
+keep C8/QK matrix contractions in XLA and fuse subsequent reductions/mixing/gates;
+save only attention output and post-attention matrix across layer remat.
+Original controls `RMTOriginalBlockScanNoHealthProfile`/V6eB4;
+MHA `RMTMatchedMHARoPENoHealthProfile`/V6eB4 derives from `BamMHAMediumPropC256`.
+
+V5p raw device2574.44→2160.20ms; MHA1368.54ms. Formatting−176.82ms,
+scan-buffer updates−122.63ms, convolution fusion−305.58ms and small-op fusion
+savings offset341.70ms of new Pallas calls. Bigger kernels alone failed;
+layout, fusion boundary and remat policy must be optimized together.
+Retaining dense/MLP activations loses; even small dynamic-state saves add
+99.18ms scan-buffer updates on v5p. Tile256 is slower on v5p, tied on v6e.
+
+Optimized RMT still takes58.49%/76.57% longer per step than MHA; this removes
+33.99%/29.58% of its former excess latency, not all of the architecture's tax.
+Do not compare absolute step/s across these different batch sizes/topologies.
+Full layer and mapped block/direct scan gradients checked; BF16 multi-tile
+TPU output/all-input gradients checked. No long-run convergence or production
+checkpoint conversion claimed. Both retained diagnostic v6es stay allocated.
+[Full configuration tables, failed paths, validation and reproduction](rmt_pallas.md).
+Artifacts: `/data0/xd/bam_diagnostics/rmt-pallas-*`.

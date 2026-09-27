@@ -10306,7 +10306,7 @@ class RMTCombinedLayerScanNoHealthProfile(
     # codex/rmt-pallas, /data0/xd/rmt-pallas; rmt_pallas.md.
     # Diagnostic only. Retain both authorized EW4a v6e-1 hosts.
     # Final acceptance requires same-VM v5p-16 complete train-step throughput.
-    # code_commit: c031d76; UC1a v5p-16 .384366 step/s, 20-49; all health OFF. Profile only.
+    # code_commit: 5d5a2c0; UC1a v5p-16 .384599 step/s, 20-49; all health OFF. Profile only.
     model_name = 'RMTCombinedLayerScanNoHealthProfile'
     rmt_block_scan = False
     rmt_record_dynamic_health = False
@@ -10325,6 +10325,7 @@ class RMTCombinedLayerScanPallasWriteProfile(RMTCombinedLayerScanNoHealthProfile
 
 class RMTCombinedLayerScanNoHealthL6Profile(RMTCombinedLayerScanNoHealthProfile):
     """Six-layer screening control; final acceptance uses full 18 layers."""
+    # code_commit: 0a3d12f; paired v6e host-1 .765331 step/s; screening only.
     model_name = 'RMTCombinedLayerScanNoHealthL6Profile'
     base_num_decoder_layers = 6
 
@@ -10345,6 +10346,7 @@ class RMTCombinedLayerScanJoinedReadProfile(RMTCombinedLayerScanNoHealthProfile)
 
 class RMTCombinedLayerScanJoinedReadL6Profile(RMTCombinedLayerScanJoinedReadProfile):
     """Six-layer screening; v5p-16/full18 remains the acceptance target."""
+    # code_commit: 7a9374a; v6e .679566 vs .749399 (-9.32%); rejected.
     model_name = 'RMTCombinedLayerScanJoinedReadL6Profile'
     base_num_decoder_layers = 6
 
@@ -10358,6 +10360,7 @@ class RMTCombinedLayerScanJoinedPallasReadProfile(RMTCombinedLayerScanJoinedRead
 
 
 class RMTCombinedLayerScanJoinedPallasReadL6Profile(RMTCombinedLayerScanJoinedPallasReadProfile):
+    # code_commit: 116a337; v6e .658633; rejected.
     model_name = 'RMTCombinedLayerScanJoinedPallasReadL6Profile'
     base_num_decoder_layers = 6
 
@@ -10370,6 +10373,7 @@ class RMTCombinedLayerScanPallasQKProfile(RMTCombinedLayerScanNoHealthProfile):
 
 
 class RMTCombinedLayerScanPallasQKL6Profile(RMTCombinedLayerScanPallasQKProfile):
+    # code_commit: 2bb8959; v6e .739899; rejected; target f4fadcd also slower.
   model_name = 'RMTCombinedLayerScanPallasQKL6Profile'
   base_num_decoder_layers = 6
 
@@ -10380,6 +10384,7 @@ class RMTCombinedLayerScanPaddedCarryProfile(RMTCombinedLayerScanNoHealthProfile
 
 
 class RMTCombinedLayerScanPaddedCarryL6Profile(RMTCombinedLayerScanPaddedCarryProfile):
+    # code_commit: 758028e; v6e .663833 (-11.42% screening); rejected.
     model_name = 'RMTCombinedLayerScanPaddedCarryL6Profile'
     base_num_decoder_layers = 6
 
@@ -10390,6 +10395,7 @@ class RMTCombinedLayerScanPackedProjectionProfile(RMTCombinedLayerScanNoHealthPr
 
 
 class RMTCombinedLayerScanPackedProjectionL6Profile(RMTCombinedLayerScanPackedProjectionProfile):
+    # code_commit: b57b787; v6e .779497 vs .764965 (+1.90%); selected as component.
     model_name = 'RMTCombinedLayerScanPackedProjectionL6Profile'
     base_num_decoder_layers = 6
 
@@ -10400,6 +10406,7 @@ class RMTCombinedLayerScanPallasWriteBackwardProfile(RMTCombinedLayerScanPallasW
 
 
 class RMTCombinedLayerScanPallasWriteBackwardL6Profile(RMTCombinedLayerScanPallasWriteBackwardProfile):
+    # code_commit: 428c62b; v6e .725633 (-3.17% screening); rejected.
     model_name = 'RMTCombinedLayerScanPallasWriteBackwardL6Profile'
     base_num_decoder_layers = 6
 
@@ -10411,6 +10418,7 @@ class RMTCombinedLayerScanSaveDenseProfile(RMTCombinedLayerScanNoHealthProfile):
 
 
 class RMTCombinedLayerScanSaveDenseL6Profile(RMTCombinedLayerScanSaveDenseProfile):
+    # code_commit: 839605c; v6e HBM OOM33.79GiB >31.25GiB; no timing.
     model_name = 'RMTCombinedLayerScanSaveDenseL6Profile'
     base_num_decoder_layers = 6
 
@@ -10445,6 +10453,7 @@ class RMTCombinedLayerScanTokenMinorWriteProfile(RMTCombinedLayerScanPallasWrite
 
 
 class RMTCombinedLayerScanTokenMinorWriteL6Profile(RMTCombinedLayerScanTokenMinorWriteProfile):
+    # code_commit: 0a3d12f; v6e .844099 vs .765331 (+10.29%); selected component.
     model_name = 'RMTCombinedLayerScanTokenMinorWriteL6Profile'
     base_num_decoder_layers = 6
 
@@ -10467,6 +10476,7 @@ class RMTCombinedLayerScanTokenMinorReadProfile(RMTCombinedLayerScanNoHealthProf
 
 
 class RMTCombinedLayerScanTokenMinorReadL6Profile(RMTCombinedLayerScanTokenMinorReadProfile):
+    # code_commit: 6cdf790; v6e .815830 (+6.60% screening); selected component.
     model_name = 'RMTCombinedLayerScanTokenMinorReadL6Profile'
     base_num_decoder_layers = 6
 
@@ -10505,6 +10515,7 @@ class RMTCombinedLayerScanTokenReadWriteProfile(RMTCombinedLayerScanTokenWritePa
 
 
 class RMTCombinedLayerScanTokenReadWriteL6Profile(RMTCombinedLayerScanTokenReadWriteProfile):
+    # code_commit: da0f95a; v6e .885399; screening only.
     model_name = 'RMTCombinedLayerScanTokenReadWriteL6Profile'
     base_num_decoder_layers = 6
 
@@ -10526,6 +10537,7 @@ class RMTCombinedLayerScanLeadingParamsProfile(RMTCombinedLayerScanNoHealthProfi
 
 
 class RMTCombinedLayerScanLeadingParamsL6Profile(RMTCombinedLayerScanLeadingParamsProfile):
+    # code_commit: ce9dabe; v6e ~.764, no gain; not selected.
     model_name = 'RMTCombinedLayerScanLeadingParamsL6Profile'
     base_num_decoder_layers = 6
 
@@ -10548,6 +10560,7 @@ class RMTCombinedLayerScanTokenJoinedReadProfile(RMTCombinedLayerScanJoinedPalla
 
 
 class RMTCombinedLayerScanTokenJoinedReadL6Profile(RMTCombinedLayerScanTokenJoinedReadProfile):
+    # code_commit: 91902dd; v6e ~.769-.770, marginal; not selected.
     model_name = 'RMTCombinedLayerScanTokenJoinedReadL6Profile'
     base_num_decoder_layers = 6
 
@@ -10558,6 +10571,7 @@ class RMTCombinedLayerScanPaddedCarry80Profile(RMTCombinedLayerScanPaddedCarryPr
 
 
 class RMTCombinedLayerScanPaddedCarry80L6Profile(RMTCombinedLayerScanPaddedCarry80Profile):
+    # code_commit: a628e80; v6e ~.726 vs ~.749; rejected.
     model_name = 'RMTCombinedLayerScanPaddedCarry80L6Profile'
     base_num_decoder_layers = 6
 
@@ -10568,22 +10582,25 @@ class RMTCombinedLayerScanTokenQKPostProfile(RMTCombinedLayerScanNoHealthProfile
 
 
 class RMTCombinedLayerScanTokenQKPostL6Profile(RMTCombinedLayerScanTokenQKPostProfile):
+    # code_commit: 71f46b3; v6e .821865; selected component; full-target gain smaller.
     model_name = 'RMTCombinedLayerScanTokenQKPostL6Profile'
     base_num_decoder_layers = 6
 
 
 class RMTCombinedLayerScanTokenAllProfile(RMTCombinedLayerScanTokenReadWriteProfile):
+    # code_commit: 71f46b3; v5p follow-up preempted before accepted window; no timing.
     model_name = 'RMTCombinedLayerScanTokenAllProfile'
     rmt_pallas_qk_post = True
 
 
 class RMTCombinedLayerScanTokenAllSaveStateProfile(RMTCombinedLayerScanTokenAllProfile):
-    # code_commit: 71f46b3; UC1a v5p-16 device2160.035ms vs2580.020ms; +19.44%; repeat5d5a2c0 pending.
+    # code_commit: 39c7e0f; UC1a v5p-16 .458666 step/s; +19.00% vs original, 63.10% of MHA; measured20-49.
     model_name = 'RMTCombinedLayerScanTokenAllSaveStateProfile'
     rmt_remat_policy = 'save_state'
 
 
 class RMTCombinedLayerScanTokenAllSaveStateTile256Profile(RMTCombinedLayerScanTokenAllSaveStateProfile):
+    # code_commit: 5d5a2c0; UC1a v5p-16 .456833; .44% slower than128; not selected.
     model_name = 'RMTCombinedLayerScanTokenAllSaveStateTile256Profile'
     rmt_pallas_qk_post_tile = 256
     rmt_pallas_c8_tile = 256
@@ -10596,6 +10613,7 @@ class RMTCombinedLayerScanTokenAllSaveStateTile512Profile(RMTCombinedLayerScanTo
 
 
 class RMTCombinedLayerScanTokenAllSaveDynamicProfile(RMTCombinedLayerScanTokenAllSaveStateProfile):
+    # code_commit: 5d5a2c0; UC1a v5p-16 .427166; 6.91% slower than save_state; not selected.
     model_name = 'RMTCombinedLayerScanTokenAllSaveDynamicProfile'
     rmt_remat_policy = 'save_state_dynamic'
 
@@ -10603,6 +10621,7 @@ class RMTCombinedLayerScanTokenAllSaveDynamicProfile(RMTCombinedLayerScanTokenAl
 class RMTCombinedLayerScanNoHealthV6eB4Profile(RMTCombinedLayerScanNoHealthProfile):
     """Full18 v6e-1 paired profile; B4 for single-chip HBM capacity."""
     # Ledger only: codex/rmt-pallas, /data0/xd/rmt-pallas; all health OFF.
+    # code_commit: b91b850; EW4a v6e-1 host-0, full18/B4 1.200132 step/s; measured20-49.
     model_name = 'RMTCombinedLayerScanNoHealthV6eB4Profile'
     per_device_batch_size = 4.0
 
@@ -10610,6 +10629,7 @@ class RMTCombinedLayerScanNoHealthV6eB4Profile(RMTCombinedLayerScanNoHealthProfi
 class RMTCombinedLayerScanTokenAllSaveStateV6eB4Profile(RMTCombinedLayerScanTokenAllSaveStateProfile):
     """Full18 v6e-1 paired profile; B4 for single-chip HBM capacity."""
     # Ledger only: codex/rmt-pallas, /data0/xd/rmt-pallas; all health OFF.
+    # code_commit: 39c7e0f; EW4a v6e-1 host-1 full18/B4 1.425064; +18.21% vs original, 56.63% of MHA.
     model_name = 'RMTCombinedLayerScanTokenAllSaveStateV6eB4Profile'
     per_device_batch_size = 4.0
 
@@ -10617,6 +10637,7 @@ class RMTCombinedLayerScanTokenAllSaveStateV6eB4Profile(RMTCombinedLayerScanToke
 class RMTCombinedLayerScanTokenAllSaveStateTile256V6eB4Profile(RMTCombinedLayerScanTokenAllSaveStateTile256Profile):
     """Full18 v6e-1 paired profile; B4 for single-chip HBM capacity."""
     # Ledger only: codex/rmt-pallas, /data0/xd/rmt-pallas; all health OFF.
+    # code_commit: b91b850; EW4a v6e-1 host-0 full18/B4 1.412764; tied with128, not selected.
     model_name = 'RMTCombinedLayerScanTokenAllSaveStateTile256V6eB4Profile'
     per_device_batch_size = 4.0
 
@@ -10624,6 +10645,7 @@ class RMTCombinedLayerScanTokenAllSaveStateTile256V6eB4Profile(RMTCombinedLayerS
 class RMTCombinedLayerScanTokenAllSaveDynamicV6eB4Profile(RMTCombinedLayerScanTokenAllSaveDynamicProfile):
     """Full18 v6e-1 paired profile; B4 for single-chip HBM capacity."""
     # Ledger only: codex/rmt-pallas, /data0/xd/rmt-pallas; all health OFF.
+    # code_commit: b91b850; EW4a v6e-1 host-0 full18/B4 1.397731; slower, not selected.
     model_name = 'RMTCombinedLayerScanTokenAllSaveDynamicV6eB4Profile'
     per_device_batch_size = 4.0
 
@@ -10632,6 +10654,7 @@ class RMTOriginalBlockScanNoHealthProfile(
     TrainStepProfile,
     RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicEmbeddingUnembeddingDirect32):
     """Original RMT implementation with health disabled for fair speed comparison."""
+    # code_commit: 39c7e0f; UC1a v5p-16 .385433 step/s; all health OFF, measured20-49.
     model_name = 'RMTOriginalBlockScanNoHealthProfile'
     record_training_health_metrics = False
     record_internal_nn_metrics = False
@@ -10639,12 +10662,14 @@ class RMTOriginalBlockScanNoHealthProfile(
 
 
 class RMTOriginalBlockScanNoHealthV6eB4Profile(RMTOriginalBlockScanNoHealthProfile):
+    # code_commit: 39c7e0f; EW4a v6e-1 host-1 full18/B4 1.205498; all health OFF.
     model_name = 'RMTOriginalBlockScanNoHealthV6eB4Profile'
     per_device_batch_size = 4.0
 
 
 class RMTMatchedMHARoPENoHealthProfile(TrainStepProfile, BamMHAMediumPropC256):
     """Original MediumProp RoPE MHA, same budget, batch and all-health-off timing."""
+    # code_commit: 39c7e0f; UC1a v5p-16 .726933 step/s; same-budget RoPE MHA, all health OFF.
     model_name = 'RMTMatchedMHARoPENoHealthProfile'
     record_training_health_metrics = False
     record_internal_nn_metrics = False
@@ -10652,5 +10677,6 @@ class RMTMatchedMHARoPENoHealthProfile(TrainStepProfile, BamMHAMediumPropC256):
 
 
 class RMTMatchedMHARoPENoHealthV6eB4Profile(RMTMatchedMHARoPENoHealthProfile):
+    # code_commit: 39c7e0f; EW4a v6e-1 host-1 full18/B4 2.516287; all health OFF.
     model_name = 'RMTMatchedMHARoPENoHealthV6eB4Profile'
     per_device_batch_size = 4.0

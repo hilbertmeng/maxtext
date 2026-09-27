@@ -397,6 +397,8 @@ active leases are censored, and manual migration releases are not preemptions.
 | `RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicUnembeddingDirect32` | v5p-16 (`xd-v5p-16-2609266-maxtext`) | `us-east5-a` | 2026-09-26 15:01:08 | 2026-09-27 01:31:10 | completed13500; 2 preemptions; TPU/queue absent, TB synced | none |
 | `RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicEmbeddingUnembeddingDirect32` | v5p-16 (`xd-v5p-16-2609267-maxtext`) | `us-east5-a` | 2026-09-26 17:30:51 | 2026-09-27 03:51:11 | completed13500; 1 preemption, same-zone recovery; TPU/queue absent, TB synced | none |
 | `RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicEmbeddingUnembeddingDirect32L22` | v5p-16 (`xd-v5p-16-2609268-maxtext`) | `us-east5-a` | 2026-09-27 00:30:03 | — | active; no preemptions; through3400 | none |
+| `RMT Pallas profile sweep` | v5p-16 (`xd-v5p-16-rmtpallas-0927-uc1a`) | `us-central1-a` | 2026-09-27 05:50:49 | 2026-09-27 07:16:51–07:24:58 | preempted in this interval; completed traces retained; node/queue absent | none |
+| `RMT Pallas final + MHA profile` | v5p-16 (`xd-v5p-16-rmtpallas-final-0927-uc1a`) | `us-central1-a` | 2026-09-27 07:26:00 | 2026-09-27 08:00:31 (verified absent) | completed matrices; manual release; no preemption | none |
 
 ## READY leases
 
@@ -1215,3 +1217,5 @@ active leases are censored, and manual migration releases are not preemptions.
 | `RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicUnembeddingDirect32` | 3 | `us-east5-a` | 2026-09-26 19:10:38 | 2026-09-27 01:31:10 | 6h20m32s | completed13500; TPU/queue absent, TB synced |
 | `RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicEmbeddingUnembeddingDirect32` | 2 | `us-east5-a` | 2026-09-26 20:43:59 | 2026-09-27 03:51:11 | 7h7m12s | completed13500; TPU/queue absent, TB synced |
 | `RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicEmbeddingUnembeddingDirect32L22` | 1 | `us-east5-a` | 2026-09-27 00:29:56 | — | censored | active; prequeue READY precedes registry00:30:07 |
+| `RMT Pallas profile sweep` | 1 | `us-central1-a` | 2026-09-27 05:54:13 | 2026-09-27 07:16:51–07:24:58 | 1h22m38s–1h30m45s | preempted; end bounded by last observed step/terminal-state check |
+| `RMT Pallas final + MHA profile` | 1 | `us-central1-a` | 2026-09-27 07:30:30 | 2026-09-27 08:00:31 (verified absent) | ≤30m01s | completed profiles, manual release; upper bound uses absence verification |

@@ -10538,3 +10538,13 @@ class RMTCombinedLayerScanTokenJoinedReadProfile(RMTCombinedLayerScanJoinedPalla
 class RMTCombinedLayerScanTokenJoinedReadL6Profile(RMTCombinedLayerScanTokenJoinedReadProfile):
     model_name = 'RMTCombinedLayerScanTokenJoinedReadL6Profile'
     base_num_decoder_layers = 6
+
+
+class RMTCombinedLayerScanPaddedCarry80Profile(RMTCombinedLayerScanPaddedCarryProfile):
+    model_name = 'RMTCombinedLayerScanPaddedCarry80Profile'
+    rmt_pad_value_dim = 80
+
+
+class RMTCombinedLayerScanPaddedCarry80L6Profile(RMTCombinedLayerScanPaddedCarry80Profile):
+    model_name = 'RMTCombinedLayerScanPaddedCarry80L6Profile'
+    base_num_decoder_layers = 6

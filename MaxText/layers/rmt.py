@@ -143,6 +143,8 @@ class RMTDynamicC8Read(nn.Module):
   @nn.compact
   def __call__(self, x, M, static_matrix=None, static_key=None):
     cfg = self.config
+    pallas_joined = (static_matrix is not None and not self.is_initializing()
+                     and cfg.get_keys().get('rmt_pallas_joined_read', False))
     heads = int(cfg.num_query_heads)
     key_dim = 8 if self.compress_state else M.shape[-1]
     if self.compress_state:
@@ -152,9 +154,10 @@ class RMTDynamicC8Read(nn.Module):
         leading = static_matrix.shape[-2] - M.shape[-1]
         padded = jnp.pad(compression.astype(M.dtype), ((leading, 0), (0, 0)))
         projection = jnp.concatenate((static_key, padded), axis=-1)
-        joined = jnp.einsum('btkv,kn->btnv', static_matrix, projection)
-        static_read = joined[..., :static_key.shape[-1], :]
-        compressed = jnp.swapaxes(joined[..., static_key.shape[-1]:, :], -2, -1)
+        if not pallas_joined:
+          joined = jnp.einsum('btkv,kn->btnv', static_matrix, projection)
+          static_read = joined[..., :static_key.shape[-1], :]
+          compressed = jnp.swapaxes(joined[..., static_key.shape[-1]:, :], -2, -1)
       else:
         compressed = jnp.einsum('btvc,cr->btvr', M, compression.astype(M.dtype))
     else:
@@ -163,10 +166,11 @@ class RMTDynamicC8Read(nn.Module):
                             (cfg.emb_dim, heads * key_dim), cfg.weight_dtype)
     raw_key = jnp.einsum('btd,dr->btr', x, key_kernel.astype(x.dtype))
     raw_key = raw_key.reshape(x.shape[:2] + (heads, key_dim))
-    key = normalizations.rms_norm(
-        raw_key, dtype=x.dtype, epsilon=_read_epsilon(cfg),
-        statistics_dtype=jnp.float32)
-    read = jnp.einsum('btvc,btnc->btnv', compressed, key)
+    if not pallas_joined:
+      key = normalizations.rms_norm(
+          raw_key, dtype=x.dtype, epsilon=_read_epsilon(cfg),
+          statistics_dtype=jnp.float32)
+      read = jnp.einsum('btvc,btnc->btnv', compressed, key)
     gate_kernel = self.param('gate_kernel', nn.with_logical_partitioning(nn.initializers.zeros, ('embed', None)),
                              (cfg.emb_dim, heads * self.destinations), cfg.weight_dtype)
     gate_bias = self.param('gate_bias', nn.with_logical_partitioning(_init_gate_bias(.05), ('q_heads', None)),
@@ -174,7 +178,14 @@ class RMTDynamicC8Read(nn.Module):
     logits = jnp.einsum('btd,dr->btr', x, gate_kernel.astype(x.dtype))
     logits = logits.reshape(x.shape[:2] + (heads, self.destinations))
     gates = jax.nn.sigmoid(logits + gate_bias.astype(x.dtype))
-    reads = tuple(.2 * gates[..., i, None] * read for i in range(self.destinations))
+    if pallas_joined:
+      from layers.rmt_pallas_joined import joined_read
+      static_read, dynamic_reads = joined_read(
+          static_matrix, raw_key, projection, gates, _read_epsilon(cfg),
+          tile=cfg.get_keys().get('rmt_pallas_read_tile',64))
+      reads = tuple(dynamic_reads[..., i, :] for i in range(self.destinations))
+    else:
+      reads = tuple(.2 * gates[..., i, None] * read for i in range(self.destinations))
     if static_matrix is not None:
       return reads, gates, static_read
     return reads, gates
@@ -209,10 +220,12 @@ class RMTDynamicWrite(nn.Module):
     gate = jax.nn.sigmoid(
         jnp.einsum('btd,dn->btn', x, gate_kernel.astype(x.dtype))
         + gate_bias.astype(x.dtype))
-    if matrix is not None:
+    if matrix is not None and not self.is_initializing():
       from layers.rmt_pallas import write_residual
       return write_residual(matrix, address, data, gate, static_key,
-                            cfg.normalization_layer_epsilon), gate
+                            cfg.normalization_layer_epsilon,
+                            tile=cfg.get_keys().get('rmt_pallas_tile',16)), gate
+    raw_data = data
     address = normalizations.rms_norm(
         address, dtype=address.dtype, epsilon=cfg.normalization_layer_epsilon,
         statistics_dtype=jnp.float32)
@@ -220,6 +233,9 @@ class RMTDynamicWrite(nn.Module):
         data, dtype=data.dtype, epsilon=cfg.normalization_layer_epsilon,
         statistics_dtype=jnp.float32)
     write = jnp.einsum('btnk,btnv->btkv', gate[..., None] * address, data)
+    if matrix is not None:
+      # Initialization must also run on the CPU without a TPU-only custom call.
+      return matrix + jnp.einsum('btnv,nk->btkv', raw_data, static_key) + write, gate
     return write, gate
 
 

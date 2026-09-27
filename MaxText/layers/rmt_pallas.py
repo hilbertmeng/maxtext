@@ -83,17 +83,16 @@ def _write_tile_vpu(matrix,address,data,gate,static_key,epsilon):
   return matrix+static+dynamic
 
 
-def _tile_size(n):
-  tile=min(int(os.environ.get('RMT_PALLAS_TILE','8')),n)
+def _tile_size(n,requested=None):
+  tile=min(int(os.environ.get('RMT_PALLAS_TILE','8') if requested is None else requested),n)
   if tile < 1:
     raise ValueError('RMT_PALLAS_TILE must be positive')
   return tile if n%tile==0 else 1
 
 
-def _write_call(matrix, address, data, gate, static_key, epsilon, interpret):
+def _write_call(matrix, address, data, gate, static_key, epsilon, interpret, tile):
   n,k,v=matrix.shape
   h=data.shape[-2]
-  tile=_tile_size(n)
   def kernel(m,a,d,g,s,out):
     out[...]=_write_tile(m[...],a[...],d[...],g[...],s[...],epsilon)
   token=lambda shape:pl.BlockSpec((tile,)+shape,lambda i:(i,)+(0,)*len(shape))
@@ -105,20 +104,19 @@ def _write_call(matrix, address, data, gate, static_key, epsilon, interpret):
       name='rmt_write_residual')(matrix,address,data,gate,static_key)
 
 
-@partial(jax.custom_vjp, nondiff_argnums=(5,6))
-def _write(matrix, address, data, gate, static_key, epsilon, interpret):
-  return _write_call(matrix,address,data,gate,static_key,epsilon,interpret)
+@partial(jax.custom_vjp, nondiff_argnums=(5,6,7))
+def _write(matrix, address, data, gate, static_key, epsilon, interpret, tile):
+  return _write_call(matrix,address,data,gate,static_key,epsilon,interpret,tile)
 
 
-def _write_fwd(matrix,address,data,gate,static_key,epsilon,interpret):
-  return _write_call(matrix,address,data,gate,static_key,epsilon,interpret), (matrix,address,data,gate,static_key)
+def _write_fwd(matrix,address,data,gate,static_key,epsilon,interpret,tile):
+  return _write_call(matrix,address,data,gate,static_key,epsilon,interpret,tile), (matrix,address,data,gate,static_key)
 
 
-def _write_bwd(epsilon,interpret,res,cotangent):
+def _write_bwd(epsilon,interpret,tile,res,cotangent):
   matrix,address,data,gate,static_key=res
   n,k,v=matrix.shape
   h=data.shape[-2]
-  tile=_tile_size(n)
   # The residual derivative is identity; its primal is not read by the kernel.
   def kernel(a,d,g,s,dy,da,dd,dg,ds):
     _,pullback=jax.vjp(lambda aa,dd,gg,ss:_write_tile(
@@ -141,14 +139,34 @@ def _write_bwd(epsilon,interpret,res,cotangent):
 _write.defvjp(_write_fwd,_write_bwd)
 
 
-def write_residual(matrix,address,data,gate,static_key,epsilon=1e-6,*,interpret=False):
-  """Batched [..., K, V] update; gate has shape [..., H]."""
-  leading=matrix.shape[:-2]
-  n=math.prod(leading)
-  return _write(matrix.reshape((n,)+matrix.shape[-2:]),
-                address.reshape((n,)+address.shape[-2:]),
-                data.reshape((n,)+data.shape[-2:]),
-                gate.reshape((n,data.shape[-2])),static_key,epsilon,interpret).reshape(matrix.shape)
+def _map_batch(fn,args,batch_args,*,output_tuple=False):
+  # MaxText0.8.1 uses the legacy `with mesh` context. An unwrapped opaque TPU
+  # call would otherwise replicate global batches on the target v5p pod.
+  from jax._src import mesh as mesh_lib
+  mesh=mesh_lib.thread_resources.env.physical_mesh
+  if not mesh.axis_names or mesh.size==1:
+    return fn(*args)
+  from flax import linen as nn
+  from jax.experimental.shard_map import shard_map
+  from jax.sharding import PartitionSpec as P
+  axes=nn.logical_to_mesh_axes(('activation_batch',))[0]
+  names=(axes,) if isinstance(axes,str) else (axes or ())
+  if not names or any(size>1 and name not in names for name,size in mesh.shape.items()):
+    raise ValueError('RMT Pallas currently supports batch/FSDP mesh axes only')
+  spec=P(axes)
+  outputs=(spec,spec) if output_tuple else spec
+  return shard_map(fn,mesh=mesh,in_specs=tuple(spec if b else P() for b in batch_args),
+                   out_specs=outputs,check_rep=False)(*args)
+
+
+def write_residual(matrix,address,data,gate,static_key,epsilon=1e-6,*,interpret=False,tile=None):
+  """Batched [..., K, V] update; batch sharding and shared-key VJP are explicit."""
+  def local(m,a,d,g,s):
+    n=math.prod(m.shape[:-2])
+    return _write(m.reshape((n,)+m.shape[-2:]),a.reshape((n,)+a.shape[-2:]),
+                  d.reshape((n,)+d.shape[-2:]),g.reshape(n,d.shape[-2]),s,
+                  epsilon,interpret,_tile_size(n,tile)).reshape(m.shape)
+  return _map_batch(local,(matrix,address,data,gate,static_key),(True,True,True,True,False))
 
 
 def c8_reference(matrix,key,compression,gates,epsilon=1e-6):

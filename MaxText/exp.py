@@ -10346,3 +10346,16 @@ class RMTCombinedLayerScanJoinedReadL6Profile(RMTCombinedLayerScanJoinedReadProf
     """Six-layer screening; v5p-16/full18 remains the acceptance target."""
     model_name = 'RMTCombinedLayerScanJoinedReadL6Profile'
     base_num_decoder_layers = 6
+
+
+class RMTCombinedLayerScanJoinedPallasReadProfile(RMTCombinedLayerScanJoinedReadProfile):
+    """Fuse the joined projection, C8 key norm/read and gates, with custom VJP."""
+    # Ledger only: codex/rmt-pallas, /data0/xd/rmt-pallas.
+    model_name = 'RMTCombinedLayerScanJoinedPallasReadProfile'
+    rmt_pallas_joined_read = True
+    rmt_pallas_read_tile = 64
+
+
+class RMTCombinedLayerScanJoinedPallasReadL6Profile(RMTCombinedLayerScanJoinedPallasReadProfile):
+    model_name = 'RMTCombinedLayerScanJoinedPallasReadL6Profile'
+    base_num_decoder_layers = 6

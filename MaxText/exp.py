@@ -10022,7 +10022,8 @@ class RMTMediumT2048AllLocalK48EmbedUnembedDirect32(
     rmt_block_scan = False  # Uniform all-local layers use direct layer scan.
     rmt_mlp_dim_by_block = None
     dataset_path = 'gs://newproject-1-llm_base_models_us-central1/data/pythia_pile_idxmaps_tfrecord'
-    compare_runs = ['Llama2Medium']
+    compare_runs = ['Llama2Medium',
+                    'BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayer']
     jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/rmt-medium-t2048-all-local-k48-direct32'
 
 

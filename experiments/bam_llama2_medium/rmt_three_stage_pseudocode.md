@@ -375,3 +375,56 @@ for each batch in parallel:
 - 整层接线：`MaxText/layers/rmt.py`。
 
 原始实测、数值检查和未选中变体见 [rmt_pallas.md](rmt_pallas.md)。本文是数学与调度伪代码，不替代 BF16 实现中的 cast／归约顺序，也不表示已经完成长期训练收敛验证。
+
+
+## Rank-H 写更新与寄存器分块后续（独立 worktree）
+
+2026-09-28 后续实现见 `/data0/xd/rmt-pallas-rankh`，分支
+`codex/rmt-pallas-rankh`；完整测速与选型见 [rmt_rankh_write.md](rmt_rankh_write.md)。
+上面的三段边界不变，K2/K3 中的 `WriteForward/Backward` 可替换为以下形式。
+仅适用于静态、动态项共用 D 的层写入，不套用到 embedding seed write。
+
+```text
+Algorithm: RankHWriteForward(M, A, D, g, S)
+  An = RMSNorm(A); rD = rsqrt(mean(D²) + ε)
+  C = S + (g · rD) · An
+  for key row k:
+    acc[v, token] = 0
+    for head j:
+      acc += C[j,k,token] · D[j,v,token]
+    Mout[k,v,token] = M[k,v,token] + acc
+  return Mout
+
+Algorithm: RankHWriteBackward(A, D, g, S, G)
+  recompute An, rA, rD, C
+  δC = G D                       # sum over v
+  δDdir = Gᵀ C                   # sum over k
+  b = sum_k(δC · An)
+  δA = RMSBackward(A, (g · rD) · δC)
+  δD = δDdir − (g · rD³ / V) · b · D
+  δg = rD · b
+  δS = sum_tokens(δC)
+  return δA, δD, δg, δS
+
+Algorithm: RegisterBlockedContractions(C, D, G)
+  # token occupies128 SIMD lanes; k/v outputs occupy sublanes.
+  # V=75 padded to80; two heads share each loaded G row.
+  stage G[k,v,token] and Gt[v,k,token] in VMEM
+  for two-head group J:
+    δC[J,k,token] = 0
+    for v:                       # selected candidate fully unrolls75 terms
+      row = Gt[v,k,token]
+      for j in J: δC[j] += D[j,v,token] · row
+    store δC[J]
+  for two-head group J:
+    δDdir[J,v,token] = 0
+    for k:                       # fully unroll48 terms
+      row = G[k,v,token]
+      for j in J: δDdir[j] += C[j,k,token] · row
+    store δDdir[J]
+```
+
+实际 v6e 指令是独立 FP32 乘、加，不假设 fused FMA。MXU 备选用 NN+NT
+两次收缩，不构造包含零象限的对称矩阵。VPU 版保持写投影、归一化、门控、
+两组收缩及其 epilogue 的 token-minor 布局；以上子程序都内联在完整 K2/K3
+kernel 内，不各自发起 kernel。BF16 重排并非逐位等价，数值检查见测速报告。

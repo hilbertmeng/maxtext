@@ -250,3 +250,23 @@ No new default is selected until the complete fused stage and full step improve.
 A separate bounded MXU token-loop experiment is not selected: one token3.940ms,
 compute blocks8/16/32/64=2.217/2.089/2.022/2.010ms versus paired1.63ms. The smaller
 live set does not compensate for loop/staging/scheduling costs in that implementation.
+
+
+### Native VPU layout result (c1805fb, before full-step validation)
+
+The token-minor integration recovers the local VPU gain: v6e K2 reverse128
+**3.653ms** and K3 reverse128 **1.943ms**, versus paired MXU4.556/2.120ms
+(K3 paired uses256). Thus the old major ABI, not the VPU math alone, was a
+material regression. BF16 projected-write probe passes; full FP32 gradients
+and nonzero-parameter three-layer scan/remat checks pass.
+
+Pure VPU fully unrolling75/48 contraction steps further reaches1.359ms on
+v6e versus unroll8=1.481ms. Candidate row1_native75 uses that choice. Both
+native scan/remat checks pass (qchunk64 and recompute, all four remat policies).
+
+v5p B16 K3 native8 reverse128=4.252ms versus paired5.039ms. K2's old major
+qchunk64 bridge fails physical VMEM:75.84MiB required versus63.94MiB available;
+**51.82MiB are register spills**, not declared scratch. The native contraction's
+six explicit FP32 buffers total about5.71MiB at128 tokens (padding V to80).
+This gap motivates the direct native-minor K2 path, not reducing fusion scope.
+Full-model AOT for RMTRankHVPUUnchunkedV5Profile at58MiB scoped budget is running.

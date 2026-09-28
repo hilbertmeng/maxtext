@@ -25,7 +25,7 @@ def mxu(c, d, g, paired=False):
   return dc.transpose(1,2,0),dd.transpose(1,2,0)
 
 
-def blocked_product(matrix_ref,coeff_ref,out_ref,heads,contract_dim,width,tokens,head_block):
+def blocked_product(matrix_ref,coeff_ref,out_ref,heads,contract_dim,width,tokens,head_block,unroll=1):
   """J=4 heads x full output width: 24/40 accumulator vregs at T=128.
 
   Coefficients have explicit [1,T] trailing shape. This requests a sublane
@@ -38,12 +38,12 @@ def blocked_product(matrix_ref,coeff_ref,out_ref,heads,contract_dim,width,tokens
       return tuple(acc[j]+row*coeff_ref[i,jb*head_block+j,:,:]
                    for j in range(head_block))
     acc=jax.lax.fori_loop(0,contract_dim,mac,
-        tuple(jnp.zeros((width,tokens),jnp.float32) for _ in range(head_block)))
+        tuple(jnp.zeros((width,tokens),jnp.float32) for _ in range(head_block)),unroll=unroll)
     for j in range(head_block):out_ref[jb*head_block+j,:,:]=acc[j]
   jax.lax.fori_loop(0,heads//head_block,head_group,None)
 
 
-def products(c,d,g,backend='symmetric',head_block=4):
+def products(c,d,g,backend='symmetric',head_block=4,unroll=1):
   if backend in ('symmetric','paired'):
     return mxu(c.astype(g.dtype),d.astype(g.dtype),g,backend=='paired')
   h,k,t=c.shape;v=d.shape[1];vp=(v+7)//8*8
@@ -57,13 +57,13 @@ def products(c,d,g,backend='symmetric',head_block=4):
       d_ref,gt_ref=extra
       d_ref[...]=d.astype(jnp.float32).transpose(1,0,2)[:,:,None,:]
       gt_ref[...]=g_ref[...].transpose(1,0,2)
-      blocked_product(gt_ref,d_ref,dc_ref,h,v,k,t,head_block)
+      blocked_product(gt_ref,d_ref,dc_ref,h,v,k,t,head_block,unroll)
     else:
       # Independent of the VPU contraction below: no dC-dependent epilogue here.
       dc=jnp.einsum('thv,tkv->thk',d.astype(g.dtype).transpose(2,0,1),g.transpose(2,0,1),
                     preferred_element_type=jnp.float32)
       dc_ref[...]=dc.transpose(1,2,0)
-    blocked_product(g_ref,c_ref,dd_ref,h,k,vp,t,head_block)
+    blocked_product(g_ref,c_ref,dd_ref,h,k,vp,t,head_block,unroll)
     return dc_ref[...],dd_ref[...][:,:v,:]
   shapes=[(h,k,t),(h,vp,t),(k,h,1,t),(k,vp,t)]
   if backend=='blocked':shapes += [(v,h,1,t),(vp,k,t)]

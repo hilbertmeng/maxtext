@@ -9730,6 +9730,25 @@ class RMTMediumPropAlibiK64(RMTMediumPropAlibiK48):
     compare_runs = ['RMTMediumPropAlibiK48', 'BamMHAMediumPropAlibiC256']
 
 
+class BamMHAMediumPropAlibiC256TruePile(BamMHAMediumPropAlibiC256):
+    """ALiBi MHA control on true 4097-token Pile records."""
+    # Ledger only: codex/rmt-static-k64-truepile, /data0/xd/rmt-static-k64-truepile.
+    model_name = 'BamMHAMediumPropAlibiC256TruePile'
+    dataset_path = Llama2MediumC256T4096TruePile.dataset_path
+    compare_runs = []
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/rmt-mediumprop-mha-alibi-truepile'
+
+
+class RMTMediumPropAlibiK64TruePile(RMTMediumPropAlibiK64):
+    """Original static ALiBi K64 RMT on true 4097-token Pile records."""
+    # Ledger only: runtime 37fe1aa, codex/rmt-static-k64-truepile.
+    # Old padded pair final5 K64-ALiBi MHA -.020872; true-length bet -.030.
+    model_name = 'RMTMediumPropAlibiK64TruePile'
+    dataset_path = Llama2MediumC256T4096TruePile.dataset_path
+    compare_runs = ['BamMHAMediumPropAlibiC256TruePile']
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/rmt-mediumprop-k64-truepile'
+
+
 class RMTMediumPropAlibiK48DynamicTail32(RMTMediumPropAlibiK48):
     """Ledger only: static RMT plus dynamic attention/MLP reads and tail-32 writes."""
     # Runtime: codex/rmt-k48-dynamic, /data0/xd/rmt-k48-dynamic; code_commit 70422c0.

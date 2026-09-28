@@ -61,7 +61,12 @@ def backward(args,cotangents,epsilon,read_epsilon,interpret,tile,dynamic_only=Fa
     refs[18][...]=gm
     if not recompute_write:pre,hidden,a,g=project_minor_state(x,down,up,ub,wg,gb)
     # Only the ephemeral write contraction changes layout, not HBM M streams.
-    if dynamic_only:
+    native_vpu=write_mode.endswith('_native8') and not compute_chunk
+    if native_vpu:
+      from layers.rmt_pallas_rankh_write import reverse_minor_blocked
+      ga,gd,gg,gs=reverse_minor_blocked(a,d,g,s,gm,epsilon)
+      store(3,gs)
+    elif dynamic_only:
       store(3,weight_grad(d,gm))
       static_dd=contract(s,gm)
       ga,gd,gg=dynamic_joint(a.transpose(2,0,1),d.transpose(2,0,1),g.T,
@@ -73,7 +78,7 @@ def backward(args,cotangents,epsilon,read_epsilon,interpret,tile,dynamic_only=Fa
                             gm.transpose(2,0,1),epsilon,gate_layout='minor',write_mode=write_mode)
       gd=gd.transpose(1,2,0)
       store(3,gs)
-    ga=ga.transpose(1,2,0);gg=gg.T
+    if not native_vpu:ga=ga.transpose(1,2,0);gg=gg.T
     refs[20][...]=gd
     refs[19][...]=project_reverse_minor(x,down,up,wg,pre,hidden,g,ga,gg,
                                        lambda index,value:store(index+3,value),

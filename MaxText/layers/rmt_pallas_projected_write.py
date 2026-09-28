@@ -116,7 +116,47 @@ def fwd(m,x,d,s,down,up,ub,wg,gb,epsilon,interpret,forward_tile,reverse_tile,wri
   return forward_call(args,epsilon,interpret,forward_tile,write_mode),(x,d,s,down,up,ub,wg,gb)
 
 
+def bwd_minor(epsilon,interpret,reverse_tile,args,dm):
+  """Native token-minor projection, VPU contraction and projection adjoints.
+
+  This stays one fused K3 reverse program. The MXU path keeps its separate
+  native-major implementation; switching compute units also switches its ABI.
+  """
+  from layers.rmt_pallas_rankh_write import reverse_minor_blocked
+  b,_,t=args[0].shape;tile=min(reverse_tile,t)
+  if tile>128:raise ValueError('Native VPU reverse currently uses <=128 compute tokens')
+  inp=[_spec(z.shape[1:-1],tile) if i<2 else
+       pl.BlockSpec(z.shape,lambda b,j,n=z.ndim:(0,)*n) for i,z in enumerate(args)]
+  inp.append(_spec(dm.shape[1:-1],tile))
+  shared_shapes=[(1,)+z.shape if z.ndim==1 else z.shape for z in args[2:]]
+  outs=inp[:2]+[pl.BlockSpec((None,)+sh,lambda b,j,n=len(sh):(b,)+(0,)*n) for sh in shared_shapes]
+  shapes=[jax.ShapeDtypeStruct(z.shape,z.dtype) if i<2 else
+          jax.ShapeDtypeStruct((b,)+shared_shapes[i-2],jnp.float32) for i,z in enumerate(args)]
+  def kernel(*refs):
+    @pl.when(pl.program_id(1)==0)
+    def init():
+      for ref in refs[11:]:ref[...]=jnp.zeros(ref.shape,ref.dtype)
+    def store(index,value):
+      out=refs[9+index]
+      out[...]=out[...]+(value[None,:] if value.ndim==1 else value)
+    x,d,s,down,up,ub,wg,gb,gm=(r[...] for r in refs[:9])
+    pre,hidden,a,g=project_minor_state(x,down,up,ub,wg,gb)
+    da,dd,dg,ds=reverse_minor_blocked(a,d,g,s,gm,epsilon)
+    store(2,ds)
+    refs[10][...]=dd
+    refs[9][...]=project_reverse_minor(x,down,up,wg,pre,hidden,g,da,dg,
+                                      lambda index,value:store(index+2,value))
+  grads=pl.pallas_call(kernel,grid=(b,t//tile),in_specs=inp,out_specs=outs,
+      out_shape=tuple(shapes),interpret=interpret,
+      compiler_params=pltpu.CompilerParams(dimension_semantics=('parallel','arbitrary')),
+      name='rmt_projected_mlp_write_backward_native_vpu')(*args,dm)
+  shared=tuple(jnp.sum(z,axis=0).reshape(a.shape).astype(a.dtype) for z,a in zip(grads[2:],args[2:]))
+  return (dm,*grads[:2],*shared)
+
+
 def bwd(epsilon,interpret,forward_tile,reverse_tile,write_mode,args,dm):
+  if write_mode.endswith('_native8'):
+    return bwd_minor(epsilon,interpret,reverse_tile,args,dm)
   x,d,s,down,up,ub,wg,gb=args
   x=x.transpose(0,2,1);d=d.transpose(0,3,1,2);dm=dm.transpose(0,3,1,2)
   args=(x,d,s,down,up,ub,wg,gb);b,t=x.shape[:2];tile=min(reverse_tile,t)

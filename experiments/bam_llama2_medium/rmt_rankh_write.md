@@ -4,7 +4,7 @@
 `codex/rmt-pallas-rankh`, parent `42030b90` (current main, including the original
 three-stage integration). Ownership: retained `llm-jax-v6e-1-0` STANDARD and
 `llm-jax-v6e-1-1` FLEX_START, EW4a, verified idle before use. Do not release them.
-No v5p resource has been requested yet. Artifacts: `/data0/xd/bam_diagnostics/rmt-rankh`.
+Temporary profile TPU `xd-rankh-v5-0928`, UC1a v5p-16, is also owned by this task. Retained v6e machines are excluded from cleanup. Artifacts: `/data0/xd/bam_diagnostics/rmt-rankh`.
 
 ## Hypotheses, before TPU measurement
 
@@ -51,7 +51,7 @@ Pinned CPU Pallas interpreter: full-dimensional FP32 forward/all-gradient checks
 pass for middle head_mxu, row1_mxu, row4_vpu (including qchunk64) and MLP write
 row4_mxu. Logs: `cpu-first/`. TPU numerical and speed measurements pending.
 
-## 2026-09-28 first hardware round (in progress)
+## 2026-09-28 first hardware round (historical notes)
 
 `fc84678`: TPU lowering required explicit constant slices and VMEM Ref indexing;
 array gather/dynamic_slice passed CPU interpretation but was unsupported on TPU.
@@ -117,3 +117,136 @@ checked against full optimized HLO for the combined arm.
 AOT correction: process-level58MiB budget conflicted with the original/MHA controls'
 48MiB config. Compile now leaves the budget to each sealed config, preserving the
 previously verified controls instead of changing them to suit the candidates.
+
+The 96MiB-budget original v6e control is ~1.10step/s, below the earlier default-budget
+1.202 result. The original default-budget9ef9053 executables (original RMT and MHA)
+are therefore queued on the same host, not replaced by the slower controls.
+AOT root: `compiled_trainsteps/9ef9053/jax081-i0ae3f58-c17f538a/v6e-1/s100`.
+Task-owned UC1a v5p `xd-rankh-v5-0928` queued04:46:40UTC, provisioning04:48:14.
+
+## Current full-step results
+
+Full18 layers, T4096, health OFF, same VM per hardware. v5p global B128;
+v6e B4. Stable speed is the harmonic mean of log steps20–49 (30 samples);
+F/B are primary-core raw-XPlane scope attributions, B includes remat.
+Default-budget original/MHA controls are retained alongside budget-matched
+controls; use the faster verified original/MHA in headline comparisons.
+
+| Hardware | Full configuration | step/s | Forward ms | Backward incl remat ms |
+|---|---|---:|---:|---:|
+| v5p-16 | `RMTThreeStageMiddleChunk6458Profile` | 0.564399 | 463.922 | 1284.794 |
+| v5p-16 | `RMTK1SmallV5Profile` | 0.565198 | 463.736 | 1278.676 |
+| v5p-16 | `RMTThreeStageOriginalControlProfile` | 0.390033 | 653.317 | 1858.779 |
+| v5p-16 | `RMTThreeStageMHAControlProfile` | 0.754566 | 401.127 | 912.480 |
+| v5p-16 | `RMTRankHRow1MajorV5Profile` | 0.580033 | 451.423 | 1247.150 |
+| v5p-16 | `RMTRankHRow1MajorK1V5Profile` | 0.582300 | 451.638 | 1240.824 |
+| v5p-16 | `RMTMinorCarryV5Profile` | 0.565332 | 459.854 | 1284.083 |
+| v5p-16 | `RMTRankHRow1MajorTunedV5Profile` | 0.582499 | 443.664 | 1247.248 |
+| v6e-1 | `RMTThreeStageMiddleRecomputeSavedV6eB4Profile` | 1.758432 | 127.119 | 414.211 |
+| v6e-1 | `RMTK1SmallV6Profile` | 1.760491 | 127.127 | 413.514 |
+| v6e-1 | `RMTThreeStageOriginalControlV6eB4Profile` | 1.103088 | 214.959 | 660.563 |
+| v6e-1 | `RMTThreeStageMHAControlV6eB4Profile` | 2.293762 | 93.181 | 320.795 |
+| v6e-1 | `RMTRankHRow1MajorV6Profile` | 1.790427 | 125.979 | 405.414 |
+| v6e-1 | `RMTRankHRow1MajorK1V6Profile` | 1.791597 | 125.984 | 404.105 |
+| v6e-1 | `RMTMinorCarryV6Profile` | 1.763398 | 126.166 | 414.325 |
+| v6e-1 | `RMTRankHRow1MajorTunedV6Profile` | 1.794793 | 124.775 | 405.228 |
+| v6e-1 | `RMTOriginalBlockScanNoHealthV6eB4Profile` | 1.202532 | 204.441 | 598.297 |
+| v6e-1 | `RMTMatchedMHARoPENoHealthV6eB4Profile` | 2.474428 | 80.320 | 302.270 |
+| v5p-16 | `RMTRankHPairedV5Profile` | 0.588899 | 443.804 | 1230.098 |
+| v5p-16 | `RMTRankHPairedK1V5Profile` | 0.591299 | 443.906 | 1223.662 |
+| v6e-1 | `RMTRankHPairedV6Profile` | 1.817231 | 124.742 | 398.117 |
+| v6e-1 | `RMTRankHPairedK1V6Profile` | 1.819631 | 124.787 | 397.409 |
+
+Native rank-H plus tuned forward tiles currently improves throughput about3.2%
+on v5p and2.1% on v6e over the previous selected three-stage path: below the
+initial4–8% bet. K1 small residual is a modest additional gain, not a large one.
+Full HLO confirms its incremental buffer is14,172,160 bytes (~13.5MiB, one layer),
+not18 copies. Logical token-minor scan carry does **not** remove the18 reverse
+memory layout copies (v6e5.555ms); do not promote it as a layout-copy solution.
+
+## Reviewer four-way contraction test
+
+Runtime `e27b044` (same math as0378e2a), v6e host1, B4/T4096/tile128,
+head block4,96MiB budget. Same minor input/output ABI including conversions.
+Every pure contraction agrees with the independent reference at relative L2<5e-8.
+
+| Contractions | ms | versus symmetric |
+|---|---:|---:|
+| Symmetric MXU |1.868140|reference|
+| NN + NT MXU |1.635005|-12.5% time|
+| Register-blocked VPU |2.186670|+17.1% time|
+| NT MXU + VPU |2.003855|+7.3% time|
+
+Complete fused K2/K3 reverse at128 tokens on v6e host0: paired MXU4.556/2.187ms;
+blocked VPU7.613/5.457ms; hybrid8.027/5.265ms. The VPU paths additionally pay
+FP32 normalization/layout roundtrips in the current integration; pure contraction
+and complete-stage results must not be conflated. Paired K3 reverse256 is2.120ms.
+Paired full-step profiles at0378e2a are complete, with/without K1 small residual.
+Pre-run bet: another~1–2% v6e full-step gain beyond native rank-H tuned; v5p to verify.
+
+Numerical gates: paired FP32 all-input/parameter gradients<6e-7; paired+K1
+three-layer nonzero-parameter scan under all four remat policies passes for both
+minor_chunk64 and minor_recompute. BF16 probes pass at normal and -10 write-gate
+bias (near-closed gates); small-gate maximum relative L2 is0.010110.
+
+### Actual lowering, not an assumed roofline
+
+Unfiltered B1/T128 JF bundles are archived under `8c716ca-unfiltered/jf.tgz`.
+The matching-HLO filter did not emit the custom-call bundles; the runner now
+uses a small separate dump run without that filter. Do not time dump compilation.
+
+- VPU inner loops contain separate `vmul.f32` and `vadd.f32`, **no fused FMA**.
+  Actual useful arithmetic per128tokens is14,880 vector multiplies plus14,880 adds.
+- Four-head blocks still spill in the inner loops. Singleton coefficient Ref loads
+  lower to masked `vld sm:0x1` plus `vrot.slane`, not a free broadcast load.
+- Hybrid MXU issue bundles4291–6814 precede VPU arithmetic9079–9106; no bundle
+  coissues these contractions. The hoped-for max(MXU,VPU) overlap is not present.
+- Two dots use native transpose weight push (`vmatpush3.bf16.xpose`); no need to
+  build the symmetric zero quadrants. Static body loads/stores drop from
+  13,105/12,158 (symmetric) to11,488/10,752 (paired). These are **static** bundle
+  instruction counts, not loop-weighted counts or HBM transactions.
+- Smaller head blocks alone do not fix pure VPU performance: head2/1=2.257/2.836ms;
+  hybrid head2=1.964ms. Test loop unrolling against the observed loop-copy/spill
+  overhead next, without changing the selected paired implementation.
+
+Artifacts include `full_summary.json`, full raw profile subdirectories, FP32
+probe JSONs, `e27b044-full/`, and both Mosaic/JF dumps under the task artifact root.
+
+
+## Selected full-step combination at0378e2a
+
+Row1 rank-H forward256 + paired native-major MXU reverse + K1 small residual.
+K2 reverse stays128 DMA /64 compute on v5p and128 recompute on v6e; K3 reverse
+stays128 on v5p /256 on v6e. All three fusion boundaries are preserved.
+
+| Hardware | Best config | step/s | vs previous selected | vs original RMT | throughput/MHA |
+|---|---|---:|---:|---:|---:|
+| v5p-16 UC1a | `RMTRankHPairedK1V5Profile` |0.591299|+4.77%|+51.60%|78.36%|
+| v6e-1 EW4a | `RMTRankHPairedK1V6Profile` |1.819631|+3.48%|+51.31%|73.54%|
+
+This verifies the initial4–8% bet on v5p at its lower end, but falls short on v6e.
+The reviewer's **second reply** specifically contributes the two-dot replacement:
+without the K1 change, another+1.10% v5p /+1.25% v6e beyond tuned symmetric rank-H.
+Do not attribute all rank-H gains to that later reply.
+
+## Register-loop improvement and remaining integration work
+
+JAX0.8.1 Mosaic rejected partial `fori_loop(unroll=2/4/8)`, despite CPU interpreter
+success. Explicit outer loop plus an unrolled Python inner body resolves that
+lowering restriction; short remainders are outside the loop. No new kernel boundary.
+
+With two-head blocks and unroll8, pure VPU contractions improve to1.481ms on
+v6e (paired MXU1.635ms) and3.040ms on v5p (paired MXU5.396ms, B16).
+The plain four-head VPU was4.476ms on v5p versus6.905ms symmetric MXU;
+hardware choice matters. Small pure-contraction speedups are not training claims.
+
+The existing major-ABI integration of the optimized VPU still regresses on v6e:
+K2 reverse6.941ms, K3 reverse4.771ms. `row1_native8` atc1805fb keeps K3 projection,
+contractions, norm/gate and projection adjoints token-minor throughout one kernel;
+K2 directly uses the minor ABI where qchunk permits. Full-dimensional FP32
+all-gradient gates pass for both stages (<6e-7); TPU measurements are in progress.
+No new default is selected until the complete fused stage and full step improve.
+
+A separate bounded MXU token-loop experiment is not selected: one token3.940ms,
+compute blocks8/16/32/64=2.217/2.089/2.022/2.010ms versus paired1.63ms. The smaller
+live set does not compensate for loop/staging/scheduling costs in that implementation.

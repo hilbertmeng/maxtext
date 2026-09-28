@@ -107,6 +107,16 @@ class RMTDepthTest(absltest.TestCase):
         stage_chunk=128, three_stage=True, middle_mode='minor_recompute',
         save_middle=True, write_mode='row4_vpu')
 
+  def test_rankh_paired_chunk_k1_scan_remat_matches_reference(self):
+    self._check_fused_scan_remat('autodiff', no_o=True, whole_stage=True,
+        stage_chunk=128, three_stage=True, middle_mode='minor_chunk64',
+        save_middle=True, write_mode='row1_pair', save_attention=True)
+
+  def test_rankh_paired_recompute_k1_scan_remat_matches_reference(self):
+    self._check_fused_scan_remat('autodiff', no_o=True, whole_stage=True,
+        stage_chunk=128, three_stage=True, middle_mode='minor_recompute',
+        save_middle=True, write_mode='row1_pair', save_attention=True)
+
   def test_k1_small_residual_scan_remat_matches_reference(self):
     self._check_fused_scan_remat('autodiff', no_o=True, whole_stage=True,
         stage_chunk=128, three_stage=True, middle_mode='minor_recompute',

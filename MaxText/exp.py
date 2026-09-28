@@ -11310,3 +11310,25 @@ class RMTRankHRow1MajorTunedV6Profile(RMTRankHRow1MajorV6Profile):
     model_name = 'RMTRankHRow1MajorTunedV6Profile'
     rmt_fused_write_read_tile = 256
     rmt_projected_write_forward_tile = 256
+
+
+class RMTRankHPairedV5Profile(RMTRankHRow1MajorTunedV5Profile):
+    # Two MXU dots remove symmetric zero quadrants; ledger only, codex/rmt-pallas-rankh.
+    model_name = 'RMTRankHPairedV5Profile'
+    rmt_rankh_write_mode = 'row1_pair'
+
+
+class RMTRankHPairedK1V5Profile(RMTRankHPairedV5Profile):
+    model_name = 'RMTRankHPairedK1V5Profile'
+    rmt_attention_save_small = True
+
+
+class RMTRankHPairedV6Profile(RMTRankHRow1MajorTunedV6Profile):
+    # Independent reverse tile retained at 128 for K2, 256 for K3.
+    model_name = 'RMTRankHPairedV6Profile'
+    rmt_rankh_write_mode = 'row1_pair'
+
+
+class RMTRankHPairedK1V6Profile(RMTRankHPairedV6Profile):
+    model_name = 'RMTRankHPairedK1V6Profile'
+    rmt_attention_save_small = True

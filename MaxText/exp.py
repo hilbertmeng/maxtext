@@ -2742,6 +2742,7 @@ class Llama2MediumC256T4096TruePile(Llama2MediumC256T4096):
     """T4096 C256 MHA retrain on true 4097-token Pile records."""
     # code_commit: c1ec69d; ~0.678 steps/s; completed 13,500. mean dloss -0.0236 vs MHA T2048 @12,400–13,400.
     model_name = 'Llama2MediumC256T4096TruePile'
+    DATASET_VARIANT = 'truepile4096'
     dataset_path = (
         'gs://newproject-1-llm_base_models_us-central1/data/'
         'pythia_pile_idxmaps_tfrecord_4096'
@@ -2752,6 +2753,7 @@ class BamLlama2MediumV2C256T4096TruePile(BamV2C256FetchScheduleBase):
     """T4096 C256 BAM V2 retrain on true 4097-token Pile records."""
     # code_commit: c1ec69d; ~0.509 steps/s; completed 13,500. dloss -0.0968 vs matched MHA; T4096 adds 0.0184 (19.0%) BAM gain vs T2048 @13,400.
     model_name = 'BamLlama2MediumV2C256T4096TruePile'
+    DATASET_VARIANT = 'truepile4096'
     scan_layers = True
     max_target_length = 4096
     per_device_batch_size = 16.0
@@ -9638,6 +9640,7 @@ class BamMediumPropK75EmbedVOnlyQK57TruePile(BamMediumPropK75EmbedVOnlyQK57):
     # +.03764 final-five loss. Revised before first step for longer active context:
     # TruePile bet vs MHA -.150, vs NoO +.015, vs LLF +.025.
     model_name = 'BamMediumPropK75EmbedVOnlyQK57TruePile'
+    DATASET_VARIANT = 'truepile4096'
     dataset_path = Llama2MediumC256T4096TruePile.dataset_path
     compare_runs = ['BamMHAMediumPropC256TruePile',
                     'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoO',
@@ -9764,6 +9767,7 @@ class BamMHAMediumPropAlibiC256TruePile(BamMHAMediumPropAlibiC256):
     # /data0/xd/rmt-static-k64-truepile.
     # UE5a v5p-16 running, .669 step/s near step500.
     model_name = 'BamMHAMediumPropAlibiC256TruePile'
+    DATASET_VARIANT = 'truepile4096'
     dataset_path = Llama2MediumC256T4096TruePile.dataset_path
     compare_runs = ['BamMHAMediumPropC256TruePile']
     jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/rmt-mediumprop-mha-alibi-truepile'
@@ -9775,6 +9779,7 @@ class RMTMediumPropAlibiK64TruePile(RMTMediumPropAlibiK64):
     # UE5a v5p-16 running, .621 step/s near step500 (-7.2% vs paired ALiBi MHA).
     # Old padded pair final5 K64-ALiBi MHA -.020872; true-length bet -.030.
     model_name = 'RMTMediumPropAlibiK64TruePile'
+    DATASET_VARIANT = 'truepile4096'
     dataset_path = Llama2MediumC256T4096TruePile.dataset_path
     compare_runs = ['BamMHAMediumPropAlibiC256TruePile']
     jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/rmt-mediumprop-k64-truepile'
@@ -10084,9 +10089,8 @@ class BamMHAMediumPropC256TruePile(BamMHAMediumPropC256):
     # (10-14), vs old Prop MHA .7271 (-.84%); active weights ~524k/step.
     # Completed 13,500, UE5a steady .714 step/s, no preemptions; TB synced.
     # vs TruePile RoPE MHA control: early -.2266@600 shrank to final5 -.002970.
-    # Launch must pass this dataset_path explicitly because
-    # run_exp_xd.sh supplies a command-line dataset_path override.
     model_name = 'BamMHAMediumPropC256TruePile'
+    DATASET_VARIANT = 'truepile4096'
     dataset_path = Llama2MediumC256T4096TruePile.dataset_path
     compare_runs = ['Llama2MediumC256T4096TruePile']
     jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/bam-mha-mediumprop-true-pile'
@@ -10103,6 +10107,7 @@ class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32(
     # NoO matched or beat FullO at every 2200-3000 point (mean -.000765),
     # with 345888 fewer params and +1.70% matched speed; retain NoO as baseline.
     model_name = 'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32'
+    DATASET_VARIANT = 'truepile4096'
     rmt_dynamic_o_enabled = True
     rmt_llf_enabled = False
     rmt_pallas_write = False

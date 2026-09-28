@@ -9489,6 +9489,8 @@ class BamMediumPropK75EmbedVOnlyQK57(BamLlama2MediumPropK57SharedRank4MLPPerLaye
 
 class BamMediumT2048K64EmbedVOnlyQK48(BamMediumPropK75EmbedVOnlyQK57):
     """QK57 recipe scaled to the original Medium backbone and true T2048 data."""
+    # code_commit: 8a626c2; UE5a v5p-16 .609 steps/s (10-14), -4.5% vs K48 .6378.
+    # 411623824 parameters (+7568 vs Llama2Medium), equal L/F layer budgets.
     model_name = 'BamMediumT2048K64EmbedVOnlyQK48'
     base_num_decoder_layers = 24
     base_emb_dim = 1024

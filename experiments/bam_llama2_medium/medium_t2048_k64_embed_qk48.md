@@ -24,3 +24,14 @@ Direct loss comparisons use original T2048 Pile records and
 Pre-run bets: versus K48 BAM, final loss gap -0.010 to -0.020; versus
 all-local dynamic RMT, near parity to a modest win for BAM. Expected steady
 speed ~0.60 step/s versus K48 0.638 and RMT 0.392; recheck on the retained TPU.
+
+Launched from sealed runtime `8a626c27baf51477c86055ca661bfe2d6f179082`.
+The focused CPU regression and full parameter/train-step shape audit passed.
+AOT compiled on the retained FLEX_START `llm-jax-v6e-1-1` in EW4a; the
+compiler was borrowed without lifecycle ownership. The hot-switch script
+paused source LLF at committed checkpoint10176, retained its UE5a v5p-16,
+and launched this RUN on that TPU. The UE5a-local T2048 dataset path was
+verified in the new registry. AOT loaded and FIRST_STEP6 verified; step14
+reported .609 steps/s versus the historical K48 .6378 and RMT .3924. Both
+direct baseline speeds differ in runtime and health settings; the comparison
+is preliminary.

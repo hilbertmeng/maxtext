@@ -9991,6 +9991,74 @@ class RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicEmbeddingUnem
     jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/rmt-combined-boundaries-l22'
 
 
+class RMTMediumT2048AllLocalK48EmbedUnembedDirect32(
+    RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicEmbeddingUnembeddingDirect32):
+    """Legacy Medium backbone and true T2048 data with the all-local dynamic RMT recipe."""
+    # Configuration only. Keep K48/full48 writes, tail32/C8 intermediate reads,
+    # dynamic embedding and direct32 unembedding; local O stays on, with no fetch.
+    # Full-size parameter-tree audit: 411639712, +23456 vs Llama2Medium
+    # (411616256). Uniform MLP3474 is the closest integer width.
+    model_name = 'RMTMediumT2048AllLocalK48EmbedUnembedDirect32'
+    base_num_decoder_layers = 24
+    base_emb_dim = 1024
+    base_num_query_heads = 16
+    base_num_kv_heads = 16
+    head_dim = 64
+    base_mlp_dim = 3474
+    max_target_length = 2048
+    per_device_batch_size = 32.0
+    rmt_rope_qk_dim = 16  # M-derived QK48 plus a separately projected RoPE16.
+    rmt_dynamic_o_enabled = True
+    rmt_llf_enabled = False
+    rmt_pallas_write = False
+    rmt_pallas_qk = False
+    rmt_pallas_qk_post = False
+    rmt_pallas_c8 = False
+    rmt_pallas_joined_read = False
+    rmt_fused_attention_read = False
+    rmt_fused_write_mlp_read = False
+    rmt_fused_projected_mlp_write = False
+    rmt_block_scan = False  # Uniform all-local layers use direct layer scan.
+    rmt_mlp_dim_by_block = None
+    dataset_path = 'gs://newproject-1-llm_base_models_us-central1/data/pythia_pile_idxmaps_tfrecord'
+    compare_runs = ['Llama2Medium']
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/rmt-medium-t2048-all-local-k48-direct32'
+
+
+class BamMHAMediumPropC256TruePile(BamMHAMediumPropC256):
+    """MediumProp RoPE MHA on true 4097-token Pile records."""
+    # Configuration only. Launch must pass this dataset_path explicitly because
+    # run_exp_xd.sh supplies a command-line dataset_path override.
+    model_name = 'BamMHAMediumPropC256TruePile'
+    dataset_path = Llama2MediumC256T4096TruePile.dataset_path
+    compare_runs = ['BamMHAMediumPropC256', 'Llama2MediumC256T4096TruePile']
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/bam-mha-mediumprop-true-pile'
+
+
+class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32(
+    RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicEmbeddingUnembeddingDirect32):
+    """Existing all-local MediumProp dynamic RMT recipe on true 4097-token Pile."""
+    # Configuration only. No fetched O; retain the parent's dynamic local O,
+    # 18-layer M48x75, RoPE18, MLP4078 and matched MHA parameter budget.
+    model_name = 'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32'
+    rmt_dynamic_o_enabled = True
+    rmt_llf_enabled = False
+    rmt_pallas_write = False
+    rmt_pallas_qk = False
+    rmt_pallas_qk_post = False
+    rmt_pallas_c8 = False
+    rmt_pallas_joined_read = False
+    rmt_fused_attention_read = False
+    rmt_fused_write_mlp_read = False
+    rmt_fused_projected_mlp_write = False
+    rmt_block_scan = False
+    rmt_mlp_dim_by_block = None
+    dataset_path = BamMHAMediumPropC256TruePile.dataset_path
+    compare_runs = ['BamMHAMediumPropC256TruePile',
+                    'RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicEmbeddingUnembeddingDirect32']
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/rmt-mediumprop-true-pile-all-local-direct32'
+
+
 class RMTVectorNormMHABudgetHeadwiseMLPProfile(
     RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudget):
     # Ledger only; implementation codex/rmt-k48-dynamic, runtime d1b1f89.

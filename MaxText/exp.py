@@ -9623,7 +9623,7 @@ class BamMediumPropK75EmbedVOnlyQK75(BamMediumPropK75EmbedVOnlyQK57):
     # code_commit: 1db092a; UE5a v5p-16 .5151 steps/s (20-99), -8.62% vs K57 .5637; -2.41% vs QK57 .5278.
     # Basic+concat health ON, including extra18 QK score metric; timing not strictly matched.
     # Completed 13,500: last5 mean -.00370 vs QK57, -.02754 vs original K57, -.12498 vs Prop MHA.
-    # Early gains shrank; small QK57 advantage persisted late. MHA advantage 1.238x historical Medium.
+    # Early gains shrank; small QK75 advantage persisted late. MHA advantage 1.238x historical Medium.
     model_name = 'BamMediumPropK75EmbedVOnlyQK75'
     bam_local_qk_col_output_dim = 75
     bam_partial_rope_nope_dim = 75

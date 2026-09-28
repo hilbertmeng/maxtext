@@ -9994,7 +9994,8 @@ class RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicEmbeddingUnem
 class RMTMediumT2048AllLocalK48EmbedUnembedDirect32(
     RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicEmbeddingUnembeddingDirect32):
     """Legacy Medium backbone and true T2048 data with the all-local dynamic RMT recipe."""
-    # Configuration only. Keep K48/full48 writes, tail32/C8 intermediate reads,
+    # code_commit: 0d31a3d; UE5a xd-v5p-16-2709273-maxtext, .3924 steps/s
+    # (10-14), vs old Llama2Medium .804 raw/unmatched. Keep K48/full48 writes, tail32/C8 reads,
     # dynamic embedding and direct32 unembedding; local O stays on, with no fetch.
     # Full-size parameter-tree audit: 411639712, +23456 vs Llama2Medium
     # (411616256). Uniform MLP3474 is the closest integer width.
@@ -10027,7 +10028,9 @@ class RMTMediumT2048AllLocalK48EmbedUnembedDirect32(
 
 class BamMHAMediumPropC256TruePile(BamMHAMediumPropC256):
     """MediumProp RoPE MHA on true 4097-token Pile records."""
-    # Configuration only. Launch must pass this dataset_path explicitly because
+    # code_commit: 0d31a3d; UE5a xd-v5p-16-2709271-maxtext, .7210 steps/s
+    # (10-14), vs old Prop MHA .7271 (-.84%); active weights ~524k/step.
+    # Launch must pass this dataset_path explicitly because
     # run_exp_xd.sh supplies a command-line dataset_path override.
     model_name = 'BamMHAMediumPropC256TruePile'
     dataset_path = Llama2MediumC256T4096TruePile.dataset_path
@@ -10038,7 +10041,9 @@ class BamMHAMediumPropC256TruePile(BamMHAMediumPropC256):
 class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32(
     RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicEmbeddingUnembeddingDirect32):
     """Existing all-local MediumProp dynamic RMT recipe on true 4097-token Pile."""
-    # Configuration only. No fetched O; retain the parent's dynamic local O,
+    # code_commit: 0d31a3d; UE5a xd-v5p-16-2709272-maxtext, .3764 steps/s
+    # (10-14), vs padded-data parent .3777 (-.34%); active weights ~524k/step.
+    # No fetched O; retain the parent's dynamic local O,
     # 18-layer M48x75, RoPE18, MLP4078 and matched MHA parameter budget.
     model_name = 'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32'
     rmt_dynamic_o_enabled = True

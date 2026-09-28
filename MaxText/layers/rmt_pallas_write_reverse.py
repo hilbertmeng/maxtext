@@ -1,0 +1,103 @@
+"""Write pullback with a token-major ABI independent of the forward kernel."""
+import jax
+import jax.numpy as jnp
+from jax.experimental import pallas as pl
+from jax.experimental.pallas import tpu as pltpu
+
+
+def norm(x,epsilon):
+  f=x.astype(jnp.float32)
+  inv=jax.lax.rsqrt(jnp.mean(f*f,axis=-1,keepdims=True)+epsilon)
+  return (f*inv).astype(x.dtype),inv
+
+
+def norm_backward(x,u,inv):
+  f=x.astype(jnp.float32);u=u.astype(jnp.float32)
+  return ((u-f*jnp.mean(u*f,axis=-1,keepdims=True)*inv*inv)*inv).astype(x.dtype)
+
+
+def joint(address,data,gate,static_key,dy,epsilon,gate_layout="minor"):
+  t,h,k=address.shape;v=data.shape[-1]
+  an,ai=norm(address,epsilon);dn,di=norm(data,epsilon)
+  gated=(an.astype(jnp.float32)*gate.astype(jnp.float32)[:,:,None]).astype(address.dtype)
+  top=jnp.concatenate((jnp.zeros((t,k,k),dy.dtype),dy),axis=2)
+  bottom=jnp.concatenate((dy.swapaxes(1,2),jnp.zeros((t,v,v),dy.dtype)),axis=2)
+  square=jnp.concatenate((top,bottom),axis=1)
+  dynamic=jnp.concatenate((gated,dn),axis=2)
+  static_data=jnp.concatenate((jnp.broadcast_to(static_key[None,:,:],(t,h,k)),jnp.zeros((t,h,v),data.dtype)),axis=2)
+  static_input=jnp.concatenate((jnp.zeros((t,h,k),data.dtype),data),axis=2)
+  left=jnp.concatenate((dynamic,static_data,static_input),axis=1)
+  product=jnp.einsum('thd,tdc->thc',left,square,preferred_element_type=jnp.float32)
+  ua=product[:,:h,:k].astype(address.dtype)
+  ud=product[:,:h,k:].astype(data.dtype)
+  sd=product[:,h:2*h,k:].astype(data.dtype)
+  ds=jnp.sum(product[:,2*h:,:k],axis=0)
+  # Match the token-minor BF16 gate-reduction tree; only this small tensor
+  # changes layout, while all matrix contractions remain token-major.
+  gate_terms=(ua*an).astype(gate.dtype)
+  if gate_layout=="minor":
+    gg=jax.lax.reduce_sum(gate_terms.transpose(1,2,0),axes=(1,)).T.astype(gate.dtype)
+  else:
+    gg=jax.lax.reduce_sum(gate_terms,axes=(2,)).astype(gate.dtype)
+  ga=norm_backward(address,(ua.astype(jnp.float32)*gate.astype(jnp.float32)[:,:,None]).astype(address.dtype),ai)
+  gd=(norm_backward(data,ud,di)+sd).astype(data.dtype)
+  return ga,gd,gg,ds
+
+
+def dynamic_joint(address,data,gate,dy,epsilon):
+  """Only token-dependent contractions; shared-key adjoints use large MXU dots."""
+  t,h,k=address.shape;v=data.shape[-1]
+  an,ai=norm(address,epsilon);dn,di=norm(data,epsilon)
+  gated=(an.astype(jnp.float32)*gate.astype(jnp.float32)[:,:,None]).astype(address.dtype)
+  top=jnp.concatenate((jnp.zeros((t,k,k),dy.dtype),dy),axis=2)
+  bottom=jnp.concatenate((dy.swapaxes(1,2),jnp.zeros((t,v,v),dy.dtype)),axis=2)
+  square=jnp.concatenate((top,bottom),axis=1)
+  product=jnp.einsum('thd,tdc->thc',jnp.concatenate((gated,dn),axis=2),square,
+                     preferred_element_type=jnp.float32)
+  ua=product[:,:,:k].astype(address.dtype);ud=product[:,:,k:].astype(data.dtype)
+  terms=(ua*an).astype(gate.dtype)
+  gg=jax.lax.reduce_sum(terms.transpose(1,2,0),axes=(1,)).T.astype(gate.dtype)
+  ga=norm_backward(address,(ua.astype(jnp.float32)*gate.astype(jnp.float32)[:,:,None]).astype(address.dtype),ai)
+  return ga,norm_backward(data,ud,di),gg
+
+
+def chunked_joint(a,d,g,s,dm,epsilon,chunk=64):
+  """Stage native token-major scratch and bound the live contraction to qchunk."""
+  t,h,k=a.shape
+  chunk=min(chunk,t)
+  if t%chunk:raise ValueError('Write compute chunk must divide DMA tile')
+  def scoped(ar,dr,gr,mr,gar,gdr,ggr,sr):
+    ar[...]=a;dr[...]=d;gr[...]=g;mr[...]=dm
+    sr[...]=jnp.zeros(s.shape,jnp.float32)
+    def step(i,_):
+      sl=pl.ds(i*chunk,chunk)
+      ga,gd,gg,gs=joint(ar[sl,...],dr[sl,...],gr[sl,...],s,mr[sl,...],epsilon)
+      gar[sl,...]=ga;gdr[sl,...]=gd;ggr[sl,...]=gg
+      sr[...]=sr[...]+gs
+    jax.lax.fori_loop(0,t//chunk,step,None)
+    return gar[...],gdr[...],ggr[...],sr[...]
+  return pl.run_scoped(scoped,*[pltpu.VMEM(z.shape,z.dtype) for z in (a,d,g,dm,a,d,g)],
+                       pltpu.VMEM(s.shape,jnp.float32))
+
+
+def backward(a,d,g,s,dy,epsilon,interpret=False,tile=64,gate_layout="minor"):
+  b,t,h,k=a.shape;v=d.shape[-1]
+  tile=min(tile,t)
+  if t%tile:raise ValueError('Reverse tile must divide token count')
+  spec=lambda shape:pl.BlockSpec((None,tile)+shape,lambda b,i:(b,i)+(0,)*len(shape))
+  def kernel(a,d,g,s,dy,da,dd,dg,ds):
+    da[...],dd[...],dg[...],ds[...]=joint(a[...],d[...],g[...],s[...],dy[...],epsilon,gate_layout)
+  specs=[spec((h,k)),spec((h,v)),spec((h,)),pl.BlockSpec(s.shape,lambda b,i:(0,0)),spec((k,v))]
+  outputs=[jax.ShapeDtypeStruct(x.shape,x.dtype) for x in (a,d,g)]
+  outputs.append(jax.ShapeDtypeStruct((b,t//tile)+s.shape,jnp.float32))
+  da,dd,dg,ds=pl.pallas_call(kernel,grid=(b,t//tile),in_specs=specs,
+      out_specs=specs[:3]+[pl.BlockSpec((None,None)+s.shape,lambda b,i:(b,i,0,0))],
+      out_shape=outputs,interpret=interpret,
+      compiler_params=pltpu.CompilerParams(dimension_semantics=('parallel','parallel')),
+      name='rmt_write_reverse_major')(a,d,g,s,dy)
+  # Retain the original forward/AD kernel's 128-token BF16 partial-gradient
+  # boundary even when backward uses smaller independently scheduled tiles.
+  group=min(128,t)//tile if tile<128 else 1
+  if group>1:ds=jnp.sum(ds.reshape((b,t//(tile*group),group)+s.shape),axis=2)
+  ds=ds.astype(s.dtype)
+  return da,dd,dg,jnp.sum(ds.astype(jnp.float32),axis=(0,1)).astype(s.dtype)

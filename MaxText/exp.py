@@ -10297,3 +10297,828 @@ class BamMediumPropK75AllLocalQK57RoPE18RMTBudget(
                     'BamMediumPropK75EmbedVOnlyQK57AllLocal',
                     'BamMediumPropK75EmbedVOnlyQK57MLP3200',
                     'RMTMediumPropAlibiK48']
+
+
+class RMTCombinedLayerScanNoHealthProfile(
+    TrainStepProfile,
+    RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicEmbeddingUnembeddingDirect32):
+    """18-layer/MLP4078 matched control for the Pallas speed experiment."""
+    # codex/rmt-pallas, /data0/xd/rmt-pallas; rmt_pallas.md.
+    # Diagnostic only. Retain both authorized EW4a v6e-1 hosts.
+    # Final acceptance requires same-VM v5p-16 complete train-step throughput.
+    # code_commit: 5d5a2c0; UC1a v5p-16 .384599 step/s, 20-49; all health OFF. Profile only.
+    model_name = 'RMTCombinedLayerScanNoHealthProfile'
+    rmt_block_scan = False
+    rmt_record_dynamic_health = False
+    record_training_health_metrics = False
+    record_internal_nn_metrics = False
+    rmt_pallas_write = False
+
+
+class RMTCombinedLayerScanPallasWriteProfile(RMTCombinedLayerScanNoHealthProfile):
+    """Fused static/dynamic matrix writes and residuals, including backward."""
+    # Implementation merged into refactor-bam from codex/rmt-pallas, /data0/xd/rmt-pallas.
+    # Prototype, no speed conclusion yet. Attention unchanged.
+    model_name = 'RMTCombinedLayerScanPallasWriteProfile'
+    rmt_pallas_write = True
+
+
+class RMTCombinedLayerScanNoHealthL6Profile(RMTCombinedLayerScanNoHealthProfile):
+    """Six-layer screening control; final acceptance uses full 18 layers."""
+    # code_commit: 0a3d12f; paired v6e host-1 .765331 step/s; screening only.
+    model_name = 'RMTCombinedLayerScanNoHealthL6Profile'
+    base_num_decoder_layers = 6
+
+
+class RMTCombinedLayerScanPallasWriteL6Profile(RMTCombinedLayerScanPallasWriteProfile):
+    """Six-layer screening for fused matrix writes."""
+    # Implementation merged into refactor-bam from codex/rmt-pallas.
+    model_name = 'RMTCombinedLayerScanPallasWriteL6Profile'
+    base_num_decoder_layers = 6
+
+
+class RMTCombinedLayerScanJoinedReadProfile(RMTCombinedLayerScanNoHealthProfile):
+    """Join static read with zero-extended C8 compression: MLP24, QKV/VO56."""
+    # Implementation merged into refactor-bam from codex/rmt-pallas, /data0/xd/rmt-pallas. Same parameters.
+    model_name = 'RMTCombinedLayerScanJoinedReadProfile'
+    rmt_join_static_compression = True
+
+
+class RMTCombinedLayerScanJoinedReadL6Profile(RMTCombinedLayerScanJoinedReadProfile):
+    """Six-layer screening; v5p-16/full18 remains the acceptance target."""
+    # code_commit: 7a9374a; v6e .679566 vs .749399 (-9.32%); rejected.
+    model_name = 'RMTCombinedLayerScanJoinedReadL6Profile'
+    base_num_decoder_layers = 6
+
+
+class RMTCombinedLayerScanJoinedPallasReadProfile(RMTCombinedLayerScanJoinedReadProfile):
+    """Fuse the joined projection, C8 key norm/read and gates, with custom VJP."""
+    # Implementation merged into refactor-bam from codex/rmt-pallas, /data0/xd/rmt-pallas.
+    model_name = 'RMTCombinedLayerScanJoinedPallasReadProfile'
+    rmt_pallas_joined_read = True
+    rmt_pallas_read_tile = 64
+
+
+class RMTCombinedLayerScanJoinedPallasReadL6Profile(RMTCombinedLayerScanJoinedPallasReadProfile):
+    # code_commit: 116a337; v6e .658633; rejected.
+    model_name = 'RMTCombinedLayerScanJoinedPallasReadL6Profile'
+    base_num_decoder_layers = 6
+
+
+class RMTCombinedLayerScanPallasQKProfile(RMTCombinedLayerScanNoHealthProfile):
+    # code_commit: f4fadcd; UC1a v5p-16 .375033 step/s, -2.46%; rejected.
+  model_name = 'RMTCombinedLayerScanPallasQKProfile'
+  rmt_pallas_qk = True
+  rmt_pallas_qk_tile = 32
+
+
+class RMTCombinedLayerScanPallasQKL6Profile(RMTCombinedLayerScanPallasQKProfile):
+    # code_commit: 2bb8959; v6e .739899; rejected; target f4fadcd also slower.
+  model_name = 'RMTCombinedLayerScanPallasQKL6Profile'
+  base_num_decoder_layers = 6
+
+
+class RMTCombinedLayerScanPaddedCarryProfile(RMTCombinedLayerScanNoHealthProfile):
+    model_name = 'RMTCombinedLayerScanPaddedCarryProfile'
+    rmt_pad_value_dim = 128
+
+
+class RMTCombinedLayerScanPaddedCarryL6Profile(RMTCombinedLayerScanPaddedCarryProfile):
+    # code_commit: 758028e; v6e .663833 (-11.42% screening); rejected.
+    model_name = 'RMTCombinedLayerScanPaddedCarryL6Profile'
+    base_num_decoder_layers = 6
+
+
+class RMTCombinedLayerScanPackedProjectionProfile(RMTCombinedLayerScanNoHealthProfile):
+    model_name = 'RMTCombinedLayerScanPackedProjectionProfile'
+    rmt_pack_dynamic_projections = True
+
+
+class RMTCombinedLayerScanPackedProjectionL6Profile(RMTCombinedLayerScanPackedProjectionProfile):
+    # code_commit: b57b787; v6e .779497 vs .764965 (+1.90%); selected as component.
+    model_name = 'RMTCombinedLayerScanPackedProjectionL6Profile'
+    base_num_decoder_layers = 6
+
+
+class RMTCombinedLayerScanPallasWriteBackwardProfile(RMTCombinedLayerScanPallasWriteProfile):
+    model_name = 'RMTCombinedLayerScanPallasWriteBackwardProfile'
+    rmt_pallas_write_forward_jax = True
+
+
+class RMTCombinedLayerScanPallasWriteBackwardL6Profile(RMTCombinedLayerScanPallasWriteBackwardProfile):
+    # code_commit: 428c62b; v6e .725633 (-3.17% screening); rejected.
+    model_name = 'RMTCombinedLayerScanPallasWriteBackwardL6Profile'
+    base_num_decoder_layers = 6
+
+
+class RMTCombinedLayerScanSaveDenseProfile(RMTCombinedLayerScanNoHealthProfile):
+    # code_commit: f4fadcd; UC1a v5p-16 .350933 step/s, -8.73%; rejected.
+    model_name = 'RMTCombinedLayerScanSaveDenseProfile'
+    rmt_remat_policy = 'save_dense'
+
+
+class RMTCombinedLayerScanSaveDenseL6Profile(RMTCombinedLayerScanSaveDenseProfile):
+    # code_commit: 839605c; v6e HBM OOM33.79GiB >31.25GiB; no timing.
+    model_name = 'RMTCombinedLayerScanSaveDenseL6Profile'
+    base_num_decoder_layers = 6
+
+
+class RMTCombinedLayerScanAttentionRematProfile(RMTCombinedLayerScanNoHealthProfile):
+    model_name = 'RMTCombinedLayerScanAttentionRematProfile'
+    rmt_remat_policy = 'attention_only'
+
+
+class RMTCombinedLayerScanAttentionRematL6Profile(RMTCombinedLayerScanAttentionRematProfile):
+    model_name = 'RMTCombinedLayerScanAttentionRematL6Profile'
+    base_num_decoder_layers = 6
+
+
+class RMTCombinedLayerScanSaveDenseStateProfile(RMTCombinedLayerScanNoHealthProfile):
+    # code_commit: f4fadcd; UC1a v5p-16 .366933 step/s, -4.57%; rejected.
+    model_name = 'RMTCombinedLayerScanSaveDenseStateProfile'
+    rmt_remat_policy = 'save_dense_state'
+
+
+class RMTCombinedLayerScanSaveDenseStatePackedProfile(RMTCombinedLayerScanSaveDenseStateProfile):
+    # code_commit: f4fadcd; UC1a v5p-16 .400399 step/s, +4.14%; superseded.
+    model_name = 'RMTCombinedLayerScanSaveDenseStatePackedProfile'
+    rmt_pack_dynamic_projections = True
+
+
+class RMTCombinedLayerScanTokenMinorWriteProfile(RMTCombinedLayerScanPallasWriteProfile):
+    # code_commit: 30d4c70; UC1a v5p-16 .397866 step/s, +3.49%; profile through49.
+    model_name = 'RMTCombinedLayerScanTokenMinorWriteProfile'
+    rmt_pallas_write_layout = 'token_minor'
+    rmt_pallas_tile = 128
+
+
+class RMTCombinedLayerScanTokenMinorWriteL6Profile(RMTCombinedLayerScanTokenMinorWriteProfile):
+    # code_commit: 0a3d12f; v6e .844099 vs .765331 (+10.29%); selected component.
+    model_name = 'RMTCombinedLayerScanTokenMinorWriteL6Profile'
+    base_num_decoder_layers = 6
+
+
+class RMTCombinedLayerScanSaveStateProfile(RMTCombinedLayerScanNoHealthProfile):
+    # code_commit: 30d4c70; UC1a v5p-16 .427000 step/s, +11.07%; profile through49.
+    model_name = 'RMTCombinedLayerScanSaveStateProfile'
+    rmt_remat_policy = 'save_state'
+    rmt_pack_dynamic_projections = True
+
+
+class RMTCombinedLayerScanSaveStateL6Profile(RMTCombinedLayerScanSaveStateProfile):
+    model_name = 'RMTCombinedLayerScanSaveStateL6Profile'
+    base_num_decoder_layers = 6
+
+
+class RMTCombinedLayerScanTokenMinorReadProfile(RMTCombinedLayerScanNoHealthProfile):
+    model_name = 'RMTCombinedLayerScanTokenMinorReadProfile'
+    rmt_pallas_c8 = True
+
+
+class RMTCombinedLayerScanTokenMinorReadL6Profile(RMTCombinedLayerScanTokenMinorReadProfile):
+    # code_commit: 6cdf790; v6e .815830 (+6.60% screening); selected component.
+    model_name = 'RMTCombinedLayerScanTokenMinorReadL6Profile'
+    base_num_decoder_layers = 6
+
+
+class RMTCombinedLayerScanKeyTokenWriteProfile(RMTCombinedLayerScanTokenMinorWriteProfile):
+    model_name = 'RMTCombinedLayerScanKeyTokenWriteProfile'
+    rmt_pallas_key_contiguous = True
+
+
+class RMTCombinedLayerScanKeyTokenWriteL6Profile(RMTCombinedLayerScanKeyTokenWriteProfile):
+    model_name = 'RMTCombinedLayerScanKeyTokenWriteL6Profile'
+    base_num_decoder_layers = 6
+
+
+class RMTCombinedLayerScanTokenWritePackedProfile(RMTCombinedLayerScanTokenMinorWriteProfile):
+    # code_commit: 396339d; UC1a v5p-16 .436132 step/s, +13.46%; profile through49.
+    model_name = 'RMTCombinedLayerScanTokenWritePackedProfile'
+    rmt_pack_dynamic_projections = True
+
+
+class RMTCombinedLayerScanTokenWriteSaveStateProfile(RMTCombinedLayerScanTokenWritePackedProfile):
+    # code_commit: 396339d; UC1a v5p-16 .439433 step/s, +14.32%; profile through49.
+    model_name = 'RMTCombinedLayerScanTokenWriteSaveStateProfile'
+    rmt_remat_policy = 'save_state'
+
+
+class RMTCombinedLayerScanTokenWriteSaveDenseStateProfile(RMTCombinedLayerScanTokenWritePackedProfile):
+    model_name = 'RMTCombinedLayerScanTokenWriteSaveDenseStateProfile'
+    rmt_remat_policy = 'save_dense_state'
+
+
+class RMTCombinedLayerScanTokenReadWriteProfile(RMTCombinedLayerScanTokenWritePackedProfile):
+    # code_commit: c031d76; UC1a v5p-16 .444233 step/s, +15.58%; profile through49.
+    model_name = 'RMTCombinedLayerScanTokenReadWriteProfile'
+    rmt_pallas_c8 = True
+
+
+class RMTCombinedLayerScanTokenReadWriteL6Profile(RMTCombinedLayerScanTokenReadWriteProfile):
+    # code_commit: da0f95a; v6e .885399; screening only.
+    model_name = 'RMTCombinedLayerScanTokenReadWriteL6Profile'
+    base_num_decoder_layers = 6
+
+
+class RMTCombinedLayerScanTokenReadWriteSaveStateProfile(RMTCombinedLayerScanTokenReadWriteProfile):
+    # code_commit: c031d76; UC1a v5p-16 .454517 step/s, +18.25%; profile through49.
+    model_name = 'RMTCombinedLayerScanTokenReadWriteSaveStateProfile'
+    rmt_remat_policy = 'save_state'
+
+
+class RMTCombinedLayerScanTokenReadWriteSaveDenseStateProfile(RMTCombinedLayerScanTokenReadWriteProfile):
+    model_name = 'RMTCombinedLayerScanTokenReadWriteSaveDenseStateProfile'
+    rmt_remat_policy = 'save_dense_state'
+
+
+class RMTCombinedLayerScanLeadingParamsProfile(RMTCombinedLayerScanNoHealthProfile):
+    model_name = 'RMTCombinedLayerScanLeadingParamsProfile'
+    param_scan_axis = 0
+
+
+class RMTCombinedLayerScanLeadingParamsL6Profile(RMTCombinedLayerScanLeadingParamsProfile):
+    # code_commit: ce9dabe; v6e ~.764, no gain; not selected.
+    model_name = 'RMTCombinedLayerScanLeadingParamsL6Profile'
+    base_num_decoder_layers = 6
+
+
+class RMTCombinedLayerScanTokenReadWriteLeadingParamsProfile(RMTCombinedLayerScanTokenReadWriteProfile):
+    model_name = 'RMTCombinedLayerScanTokenReadWriteLeadingParamsProfile'
+    param_scan_axis = 0
+
+
+class RMTCombinedLayerScanTokenReadWriteSaveStateMLPProfile(RMTCombinedLayerScanTokenReadWriteSaveStateProfile):
+    # code_commit: c031d76; UC1a v5p-16 .444766 step/s; slower than save_state; rejected.
+    model_name = 'RMTCombinedLayerScanTokenReadWriteSaveStateMLPProfile'
+    rmt_remat_policy = 'save_state_mlp'
+
+
+class RMTCombinedLayerScanTokenJoinedReadProfile(RMTCombinedLayerScanJoinedPallasReadProfile):
+    model_name = 'RMTCombinedLayerScanTokenJoinedReadProfile'
+    rmt_pallas_joined_layout = 'token_minor'
+    rmt_pallas_read_tile = 128
+
+
+class RMTCombinedLayerScanTokenJoinedReadL6Profile(RMTCombinedLayerScanTokenJoinedReadProfile):
+    # code_commit: 91902dd; v6e ~.769-.770, marginal; not selected.
+    model_name = 'RMTCombinedLayerScanTokenJoinedReadL6Profile'
+    base_num_decoder_layers = 6
+
+
+class RMTCombinedLayerScanPaddedCarry80Profile(RMTCombinedLayerScanPaddedCarryProfile):
+    model_name = 'RMTCombinedLayerScanPaddedCarry80Profile'
+    rmt_pad_value_dim = 80
+
+
+class RMTCombinedLayerScanPaddedCarry80L6Profile(RMTCombinedLayerScanPaddedCarry80Profile):
+    # code_commit: a628e80; v6e ~.726 vs ~.749; rejected.
+    model_name = 'RMTCombinedLayerScanPaddedCarry80L6Profile'
+    base_num_decoder_layers = 6
+
+
+class RMTCombinedLayerScanTokenQKPostProfile(RMTCombinedLayerScanNoHealthProfile):
+    model_name = 'RMTCombinedLayerScanTokenQKPostProfile'
+    rmt_pallas_qk_post = True
+
+
+class RMTCombinedLayerScanTokenQKPostL6Profile(RMTCombinedLayerScanTokenQKPostProfile):
+    # code_commit: 71f46b3; v6e .821865; selected component; full-target gain smaller.
+    model_name = 'RMTCombinedLayerScanTokenQKPostL6Profile'
+    base_num_decoder_layers = 6
+
+
+class RMTCombinedLayerScanTokenAllProfile(RMTCombinedLayerScanTokenReadWriteProfile):
+    # code_commit: 71f46b3; v5p follow-up preempted before accepted window; no timing.
+    model_name = 'RMTCombinedLayerScanTokenAllProfile'
+    rmt_pallas_qk_post = True
+
+
+class RMTCombinedLayerScanTokenAllSaveStateProfile(RMTCombinedLayerScanTokenAllProfile):
+    # code_commit: 39c7e0f; UC1a v5p-16 .458666 step/s; +19.00% vs original, 63.10% of MHA; measured20-49.
+    model_name = 'RMTCombinedLayerScanTokenAllSaveStateProfile'
+    rmt_remat_policy = 'save_state'
+
+
+class RMTCombinedLayerScanTokenAllSaveStateTile256Profile(RMTCombinedLayerScanTokenAllSaveStateProfile):
+    # code_commit: 5d5a2c0; UC1a v5p-16 .456833; .44% slower than128; not selected.
+    model_name = 'RMTCombinedLayerScanTokenAllSaveStateTile256Profile'
+    rmt_pallas_qk_post_tile = 256
+    rmt_pallas_c8_tile = 256
+
+
+class RMTCombinedLayerScanTokenAllSaveStateTile512Profile(RMTCombinedLayerScanTokenAllSaveStateProfile):
+    model_name = 'RMTCombinedLayerScanTokenAllSaveStateTile512Profile'
+    rmt_pallas_qk_post_tile = 512
+    rmt_pallas_c8_tile = 512
+
+
+class RMTCombinedLayerScanTokenAllSaveDynamicProfile(RMTCombinedLayerScanTokenAllSaveStateProfile):
+    # code_commit: 5d5a2c0; UC1a v5p-16 .427166; 6.91% slower than save_state; not selected.
+    model_name = 'RMTCombinedLayerScanTokenAllSaveDynamicProfile'
+    rmt_remat_policy = 'save_state_dynamic'
+
+
+class RMTCombinedLayerScanNoHealthV6eB4Profile(RMTCombinedLayerScanNoHealthProfile):
+    """Full18 v6e-1 paired profile; B4 for single-chip HBM capacity."""
+    # Implementation merged into refactor-bam from codex/rmt-pallas, /data0/xd/rmt-pallas; all health OFF.
+    # code_commit: b91b850; EW4a v6e-1 host-0, full18/B4 1.200132 step/s; measured20-49.
+    model_name = 'RMTCombinedLayerScanNoHealthV6eB4Profile'
+    per_device_batch_size = 4.0
+
+
+class RMTCombinedLayerScanTokenAllSaveStateV6eB4Profile(RMTCombinedLayerScanTokenAllSaveStateProfile):
+    """Full18 v6e-1 paired profile; B4 for single-chip HBM capacity."""
+    # Implementation merged into refactor-bam from codex/rmt-pallas, /data0/xd/rmt-pallas; all health OFF.
+    # code_commit: 39c7e0f; EW4a v6e-1 host-1 full18/B4 1.425064; +18.21% vs original, 56.63% of MHA.
+    model_name = 'RMTCombinedLayerScanTokenAllSaveStateV6eB4Profile'
+    per_device_batch_size = 4.0
+
+
+class RMTCombinedLayerScanTokenAllSaveStateTile256V6eB4Profile(RMTCombinedLayerScanTokenAllSaveStateTile256Profile):
+    """Full18 v6e-1 paired profile; B4 for single-chip HBM capacity."""
+    # Implementation merged into refactor-bam from codex/rmt-pallas, /data0/xd/rmt-pallas; all health OFF.
+    # code_commit: b91b850; EW4a v6e-1 host-0 full18/B4 1.412764; tied with128, not selected.
+    model_name = 'RMTCombinedLayerScanTokenAllSaveStateTile256V6eB4Profile'
+    per_device_batch_size = 4.0
+
+
+class RMTCombinedLayerScanTokenAllSaveDynamicV6eB4Profile(RMTCombinedLayerScanTokenAllSaveDynamicProfile):
+    """Full18 v6e-1 paired profile; B4 for single-chip HBM capacity."""
+    # Implementation merged into refactor-bam from codex/rmt-pallas, /data0/xd/rmt-pallas; all health OFF.
+    # code_commit: b91b850; EW4a v6e-1 host-0 full18/B4 1.397731; slower, not selected.
+    model_name = 'RMTCombinedLayerScanTokenAllSaveDynamicV6eB4Profile'
+    per_device_batch_size = 4.0
+
+
+class RMTOriginalBlockScanNoHealthProfile(
+    TrainStepProfile,
+    RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicEmbeddingUnembeddingDirect32):
+    """Original RMT implementation with health disabled for fair speed comparison."""
+    # code_commit: 39c7e0f; UC1a v5p-16 .385433 step/s; all health OFF, measured20-49.
+    model_name = 'RMTOriginalBlockScanNoHealthProfile'
+    record_training_health_metrics = False
+    record_internal_nn_metrics = False
+    rmt_record_dynamic_health = False
+
+
+class RMTOriginalBlockScanNoHealthV6eB4Profile(RMTOriginalBlockScanNoHealthProfile):
+    # code_commit: 39c7e0f; EW4a v6e-1 host-1 full18/B4 1.205498; all health OFF.
+    # Three-stage profile: runtime 9ef9053, europe-west4-a v6e-1; 1.206433 step/s (20-49), all health OFF.
+    # Forward 204.422 ms; reverse incl. remat 596.668 ms. Diagnostic complete; rmt_pallas.md.
+    model_name = 'RMTOriginalBlockScanNoHealthV6eB4Profile'
+    per_device_batch_size = 4.0
+
+
+class RMTMatchedMHARoPENoHealthProfile(TrainStepProfile, BamMHAMediumPropC256):
+    """Original MediumProp RoPE MHA, same budget, batch and all-health-off timing."""
+    # code_commit: 39c7e0f; UC1a v5p-16 .726933 step/s; same-budget RoPE MHA, all health OFF.
+    model_name = 'RMTMatchedMHARoPENoHealthProfile'
+    record_training_health_metrics = False
+    record_internal_nn_metrics = False
+    rmt_record_dynamic_health = False
+
+
+class RMTMatchedMHARoPENoHealthV6eB4Profile(RMTMatchedMHARoPENoHealthProfile):
+    # code_commit: 39c7e0f; EW4a v6e-1 host-1 full18/B4 2.516287; all health OFF.
+    # Three-stage profile: runtime 9ef9053, europe-west4-a v6e-1; 2.521000 step/s (20-49), all health OFF.
+    # Forward 80.055 ms; reverse incl. remat 297.910 ms. Diagnostic complete; rmt_pallas.md.
+    model_name = 'RMTMatchedMHARoPENoHealthV6eB4Profile'
+    per_device_batch_size = 4.0
+
+
+class RMTCombinedLayerScanAnalyticWriteProfile(RMTCombinedLayerScanTokenAllSaveStateProfile):
+    """Explicit write VJP: contraction, RMS and gate derivatives in one Pallas call."""
+    # Implementation merged into refactor-bam from codex/rmt-pallas, /data0/xd/rmt-pallas; profile, not training.
+    model_name = 'RMTCombinedLayerScanAnalyticWriteProfile'
+    rmt_pallas_write_backward = 'analytic'
+
+
+class RMTCombinedLayerScanAnalyticWriteV6eB4Profile(RMTCombinedLayerScanAnalyticWriteProfile):
+    model_name = 'RMTCombinedLayerScanAnalyticWriteV6eB4Profile'
+    per_device_batch_size = 4.0
+
+
+class RMTCombinedLayerScanBatchedWriteProfile(RMTCombinedLayerScanAnalyticWriteProfile):
+    model_name = 'RMTCombinedLayerScanBatchedWriteProfile'
+    rmt_pallas_write_backward = 'batched'
+
+
+class RMTCombinedLayerScanBatchedWriteV6eB4Profile(RMTCombinedLayerScanBatchedWriteProfile):
+    model_name = 'RMTCombinedLayerScanBatchedWriteV6eB4Profile'
+    per_device_batch_size = 4.0
+
+
+class RMTCombinedLayerScanJointWriteProfile(RMTCombinedLayerScanAnalyticWriteProfile):
+    model_name = 'RMTCombinedLayerScanJointWriteProfile'
+    rmt_pallas_write_backward = 'joint'
+
+
+class RMTCombinedLayerScanJointWriteV6eB4Profile(RMTCombinedLayerScanJointWriteProfile):
+    model_name = 'RMTCombinedLayerScanJointWriteV6eB4Profile'
+    per_device_batch_size = 4.0
+
+
+class RMTCombinedLayerScanBatched32WriteProfile(RMTCombinedLayerScanBatchedWriteProfile):
+    model_name = 'RMTCombinedLayerScanBatched32WriteProfile'
+    rmt_pallas_write_backward = 'batched32'
+
+
+class RMTCombinedLayerScanJoint32WriteProfile(RMTCombinedLayerScanJointWriteProfile):
+    model_name = 'RMTCombinedLayerScanJoint32WriteProfile'
+    rmt_pallas_write_backward = 'joint32'
+
+
+class RMTCombinedLayerScanHybridBatchedWriteProfile(RMTCombinedLayerScanBatchedWriteProfile):
+    model_name = 'RMTCombinedLayerScanHybridBatchedWriteProfile'
+    rmt_pallas_write_backward = 'hybrid_batched'
+
+
+class RMTCombinedLayerScanLoopWriteProfile(RMTCombinedLayerScanBatchedWriteProfile):
+    model_name = 'RMTCombinedLayerScanLoopWriteProfile'
+    rmt_pallas_write_backward = 'batched_loop'
+
+
+class RMTCombinedLayerScanMajorReverseWriteProfile(RMTCombinedLayerScanJointWriteProfile):
+    model_name = 'RMTCombinedLayerScanMajorReverseWriteProfile'
+    rmt_pallas_write_backward = 'joint_major'
+
+
+class RMTCombinedLayerScanMajorReverseWriteV6eB4Profile(RMTCombinedLayerScanMajorReverseWriteProfile):
+    model_name = 'RMTCombinedLayerScanMajorReverseWriteV6eB4Profile'
+    per_device_batch_size = 4.0
+
+
+class RMTCombinedLayerScanMajorReverse128WriteProfile(RMTCombinedLayerScanMajorReverseWriteProfile):
+    model_name = 'RMTCombinedLayerScanMajorReverse128WriteProfile'
+    rmt_pallas_write_backward = 'joint_major128'
+
+
+class RMTCombinedLayerScanMajorReverse128WriteV6eB4Profile(RMTCombinedLayerScanMajorReverse128WriteProfile):
+    model_name = 'RMTCombinedLayerScanMajorReverse128WriteV6eB4Profile'
+    per_device_batch_size = 4.0
+
+
+class RMTCombinedLayerScanMajorDirectWriteProfile(RMTCombinedLayerScanMajorReverseWriteProfile):
+    """64-token reverse with native reduction; closer to the unfused BF16 reference."""
+    # Runtime9ef9053: UC1a v5p-16 .468967 vs paired old-best .457066 (+2.60%).
+    # Write reverse185.522->76.553ms; whole device2165.413->2110.980ms.
+    model_name = 'RMTCombinedLayerScanMajorDirectWriteProfile'
+    rmt_pallas_write_backward = 'joint_major_direct'
+
+
+class RMTCombinedLayerScanMajorDirectWriteV6eB4Profile(RMTCombinedLayerScanMajorDirectWriteProfile):
+    # Runtime9ef9053: EW4a v6e1.385299 vs old-best1.413598; reject (layout overhead).
+    model_name = 'RMTCombinedLayerScanMajorDirectWriteV6eB4Profile'
+    per_device_batch_size = 4.0
+
+
+class RMTCombinedLayerScanMajorDirect128WriteProfile(RMTCombinedLayerScanMajorDirectWriteProfile):
+    model_name = 'RMTCombinedLayerScanMajorDirect128WriteProfile'
+    rmt_pallas_write_backward = 'joint_major_direct128'
+
+
+class RMTCombinedLayerScanMajorDirect128WriteV6eB4Profile(RMTCombinedLayerScanMajorDirect128WriteProfile):
+    # Runtime9ef9053:1.390132 vs old-best1.413598; reject; write reverse31.336ms.
+    model_name = 'RMTCombinedLayerScanMajorDirect128WriteV6eB4Profile'
+    per_device_batch_size = 4.0
+
+
+class RMTCombinedLayerScanTokenAllSaveStateNoOProfile(RMTCombinedLayerScanTokenAllSaveStateProfile):
+    """Speed ablation: remove only dynamic O, retain width and all other routes."""
+    model_name = 'RMTCombinedLayerScanTokenAllSaveStateNoOProfile'
+    rmt_dynamic_o_enabled = False
+
+
+class RMTCombinedLayerScanTokenAllSaveStateNoOV6eB4Profile(RMTCombinedLayerScanTokenAllSaveStateNoOProfile):
+    # 8ebb3e9:1.445265 vs paired O-enabled1.424598 (+1.45%); params431773472.
+    # Three-stage profile: runtime 8ebb3e9, europe-west4-a v6e-1; 1.445767 step/s (20-49), all health OFF.
+    # Forward 182.312 ms; reverse incl. remat 484.257 ms. Diagnostic complete; rmt_pallas.md.
+    model_name = 'RMTCombinedLayerScanTokenAllSaveStateNoOV6eB4Profile'
+    per_device_batch_size = 4.0
+
+
+class RMTCombinedLayerScanTokenAllSaveStateNoOFoldVProfile(RMTCombinedLayerScanTokenAllSaveStateNoOProfile):
+    """Only dynamic V uses a gate-on-key kernel; MLP's C8 read is unchanged."""
+    model_name = 'RMTCombinedLayerScanTokenAllSaveStateNoOFoldVProfile'
+    rmt_pallas_v_only = True
+
+
+class RMTCombinedLayerScanTokenAllSaveStateNoOFoldVV6eB4Profile(RMTCombinedLayerScanTokenAllSaveStateNoOFoldVProfile):
+    # 8ebb3e9:1.444064 vs plain NoO1.445265; no extra full-step gain, do not select.
+    model_name = 'RMTCombinedLayerScanTokenAllSaveStateNoOFoldVV6eB4Profile'
+    per_device_batch_size = 4.0
+
+
+class RMTCombinedLayerScanFusedWriteReadProfile(RMTCombinedLayerScanMajorDirectWriteProfile):
+    """Full attention write through dynamic MLP input, fused forward and analytic reverse."""
+    model_name = 'RMTCombinedLayerScanFusedWriteReadProfile'
+    rmt_fused_write_mlp_read = True
+    rmt_fused_write_read_tile = 128
+
+
+class RMTCombinedLayerScanFusedWriteReadV6eB4Profile(RMTCombinedLayerScanTokenAllSaveStateV6eB4Profile):
+    model_name = 'RMTCombinedLayerScanFusedWriteReadV6eB4Profile'
+    rmt_fused_write_mlp_read = True
+    rmt_fused_write_read_tile = 128
+    rmt_fused_write_read_buffers = 2
+
+
+class RMTCombinedLayerScanFusedWriteReadChunk32Profile(RMTCombinedLayerScanFusedWriteReadProfile):
+    """Whole fused reverse with native 32-token storage and joint MXU write pullback."""
+    model_name = 'RMTCombinedLayerScanFusedWriteReadChunk32Profile'
+    rmt_fused_write_read_backward_tile = 32
+
+
+class RMTCombinedLayerScanFusedWriteReadChunk32V6eB4Profile(RMTCombinedLayerScanFusedWriteReadV6eB4Profile):
+    model_name = 'RMTCombinedLayerScanFusedWriteReadChunk32V6eB4Profile'
+    rmt_fused_write_read_backward_tile = 32
+
+
+class RMTCombinedLayerScanFusedWriteReadChunk64V6eB4Profile(RMTCombinedLayerScanFusedWriteReadV6eB4Profile):
+    model_name = 'RMTCombinedLayerScanFusedWriteReadChunk64V6eB4Profile'
+    rmt_fused_write_read_backward_tile = 64
+
+
+class RMTCombinedLayerScanFusedWriteReadChunk128V6eB4Profile(RMTCombinedLayerScanFusedWriteReadV6eB4Profile):
+    model_name = 'RMTCombinedLayerScanFusedWriteReadChunk128V6eB4Profile'
+    rmt_fused_write_read_backward_tile = 128
+
+
+class RMTCombinedLayerScanFusedWriteReadNoOProfile(RMTCombinedLayerScanFusedWriteReadChunk32Profile):
+    """Default architecture for the three-stage fusion work: no dynamic LocalO."""
+    model_name = 'RMTCombinedLayerScanFusedWriteReadNoOProfile'
+    rmt_dynamic_o_enabled = False
+    rmt_pallas_v_only = True
+
+
+class RMTCombinedLayerScanFusedWriteReadNoOV6eB4Profile(RMTCombinedLayerScanFusedWriteReadChunk32V6eB4Profile):
+    model_name = 'RMTCombinedLayerScanFusedWriteReadNoOV6eB4Profile'
+    rmt_dynamic_o_enabled = False
+    rmt_pallas_v_only = True
+
+
+class RMTCombinedLayerScanMajorDirectWriteNoOProfile(RMTCombinedLayerScanMajorDirectWriteProfile):
+    """Matched NoO control with the prior selected v5p local kernels."""
+    model_name = 'RMTCombinedLayerScanMajorDirectWriteNoOProfile'
+    rmt_dynamic_o_enabled = False
+
+
+class RMTThreeStageNoOProfile(RMTCombinedLayerScanFusedWriteReadNoOProfile):
+    """Complete three-stage Pallas trunk; NoO, analytic reverse, health OFF."""
+    # Three-stage profile: runtime ebd5ba0, us-central1-a v5p-16; 0.517833 step/s (20-49), all health OFF.
+    # Forward 448.091 ms; reverse incl. remat 1457.992 ms. Diagnostic complete; rmt_pallas.md.
+    model_name = 'RMTThreeStageNoOProfile'
+    rmt_fused_attention_read = True
+    rmt_fused_write_read_projection = True
+    rmt_fused_projected_mlp_write = True
+    rmt_attention_read_forward_tile = 128
+    rmt_attention_read_reverse_tile = 128
+    rmt_projected_write_forward_tile = 128
+    rmt_projected_write_reverse_tile = 32
+    rmt_scoped_vmem_limit_kib = 49152
+
+
+class RMTThreeStageNoOV6eB4Profile(RMTThreeStageNoOProfile):
+    # Three-stage profile: runtime ebd5ba0, europe-west4-a v6e-1; 1.580000 step/s (20-49), all health OFF.
+    # Forward 122.894 ms; reverse incl. remat 483.445 ms. Diagnostic complete; rmt_pallas.md.
+    model_name = 'RMTThreeStageNoOV6eB4Profile'
+    per_device_batch_size = 4.0
+    rmt_scoped_vmem_limit_kib = 98304
+
+
+class RMTThreeStageNoOControlProfile(RMTCombinedLayerScanMajorDirectWriteNoOProfile):
+    """Prior optimized NoO, matching the new v5p compiler budget."""
+    # Three-stage profile: runtime ebd5ba0, us-central1-a v5p-16; 0.482733 step/s (20-49), all health OFF.
+    # Forward 605.036 ms; reverse incl. remat 1438.095 ms. Diagnostic complete; rmt_pallas.md.
+    model_name = 'RMTThreeStageNoOControlProfile'
+    rmt_scoped_vmem_limit_kib = 49152
+
+
+class RMTThreeStageNoOControlV6eB4Profile(RMTCombinedLayerScanTokenAllSaveStateNoOFoldVV6eB4Profile):
+    # Three-stage profile: runtime ebd5ba0, europe-west4-a v6e-1; 1.399433 step/s (20-49), all health OFF.
+    # Forward 192.049 ms; reverse incl. remat 497.181 ms. Diagnostic complete; rmt_pallas.md.
+    model_name = 'RMTThreeStageNoOControlV6eB4Profile'
+    rmt_scoped_vmem_limit_kib = 98304
+
+
+class RMTThreeStageOriginalControlProfile(RMTOriginalBlockScanNoHealthProfile):
+    # Three-stage profile: runtime ebd5ba0, us-central1-a v5p-16; 0.389900 step/s (20-49), all health OFF.
+    # Forward 652.852 ms; reverse incl. remat 1860.928 ms. Diagnostic complete; rmt_pallas.md.
+    model_name = 'RMTThreeStageOriginalControlProfile'
+    rmt_scoped_vmem_limit_kib = 49152
+
+
+class RMTThreeStageOriginalControlV6eB4Profile(RMTThreeStageOriginalControlProfile):
+    # Three-stage profile: runtime ebd5ba0, europe-west4-a v6e-1; 1.126367 step/s (20-49), all health OFF.
+    # Forward 210.608 ms; reverse incl. remat 646.578 ms. Diagnostic complete; rmt_pallas.md.
+    model_name = 'RMTThreeStageOriginalControlV6eB4Profile'
+    per_device_batch_size = 4.0
+    rmt_scoped_vmem_limit_kib = 98304
+
+
+class RMTThreeStageMHAControlProfile(RMTMatchedMHARoPENoHealthProfile):
+    # Three-stage profile: runtime ebd5ba0, us-central1-a v5p-16; 0.754033 step/s (20-49), all health OFF.
+    # Forward 401.680 ms; reverse incl. remat 913.100 ms. Diagnostic complete; rmt_pallas.md.
+    model_name = 'RMTThreeStageMHAControlProfile'
+    rmt_scoped_vmem_limit_kib = 49152
+
+
+class RMTThreeStageMHAControlV6eB4Profile(RMTThreeStageMHAControlProfile):
+    # Three-stage profile: runtime ebd5ba0, europe-west4-a v6e-1; 2.343467 step/s (20-49), all health OFF.
+    # Forward 91.467 ms; reverse incl. remat 315.265 ms. Diagnostic complete; rmt_pallas.md.
+    model_name = 'RMTThreeStageMHAControlV6eB4Profile'
+    per_device_batch_size = 4.0
+    rmt_scoped_vmem_limit_kib = 98304
+
+
+class RMTThreeStageNoOReverse128Profile(RMTThreeStageNoOProfile):
+    """Independent reverse tiles; full fusion and forward128 preserved."""
+    # Three-stage profile: runtime be0d8d3, us-central1-a v5p-16; 0.534267 step/s (20-49), all health OFF.
+    # Forward 447.905 ms; reverse incl. remat 1399.914 ms. Diagnostic complete; rmt_pallas.md.
+    # Best tested three-stage tiles; implementation codex/rmt-pallas. BF16 convergence unvalidated.
+    model_name = 'RMTThreeStageNoOReverse128Profile'
+    rmt_fused_write_read_backward_tile = 128
+    rmt_projected_write_reverse_tile = 128
+
+
+class RMTThreeStageNoOTunedV6eB4Profile(RMTThreeStageNoOV6eB4Profile):
+    """v6e micro-selected reverse256/128/256; verify in full training."""
+    # Three-stage profile: runtime be0d8d3, europe-west4-a v6e-1; 1.672400 step/s (20-49), all health OFF.
+    # Forward 122.151 ms; reverse incl. remat 451.255 ms. Diagnostic complete; rmt_pallas.md.
+    # Best tested three-stage tiles; implementation codex/rmt-pallas. BF16 convergence unvalidated.
+    model_name = 'RMTThreeStageNoOTunedV6eB4Profile'
+    rmt_projected_write_forward_tile = 256
+    rmt_attention_read_reverse_tile = 256
+    rmt_fused_write_read_backward_tile = 128
+    rmt_projected_write_reverse_tile = 256
+
+
+class RMTThreeStageMiddleStreamProfile(RMTThreeStageNoOReverse128Profile):
+    # Microbenchmark only; not selected; native token-minor outperformed this major-layout schedule.
+    model_name = 'RMTThreeStageMiddleStreamProfile'
+    rmt_full_middle_reverse_mode = 'stream'
+
+
+class RMTThreeStageMiddleStreamV6eB4Profile(RMTThreeStageNoOTunedV6eB4Profile):
+    # Micro db7ce26: v6e B4 reverse128=6.11548ms, slower than baseline5.96372ms; not selected.
+    model_name = 'RMTThreeStageMiddleStreamV6eB4Profile'
+    rmt_full_middle_reverse_mode = 'stream'
+
+
+class RMTThreeStageMiddleJoinedProfile(RMTThreeStageNoOReverse128Profile):
+    # Microbenchmark only; not selected; v6e joined linear adjoints did not improve the major-layout schedule.
+    model_name = 'RMTThreeStageMiddleJoinedProfile'
+    rmt_full_middle_reverse_mode = 'joined'
+
+
+class RMTThreeStageMiddleJoinedV6eB4Profile(RMTThreeStageNoOTunedV6eB4Profile):
+    # Micro db7ce26: v6e B4 reverse128=6.06347ms, slower than baseline5.96372ms; not selected.
+    model_name = 'RMTThreeStageMiddleJoinedV6eB4Profile'
+    rmt_full_middle_reverse_mode = 'joined'
+
+
+class RMTThreeStageMiddleMinorProfile(RMTThreeStageNoOReverse128Profile):
+    # Native minor reverse; v5p standalone needs54.39MiB, above inherited48MiB; measured via Minor56 child.
+    model_name = 'RMTThreeStageMiddleMinorProfile'
+    rmt_full_middle_reverse_mode = 'minor'
+
+
+class RMTThreeStageMiddleMinorV6eB4Profile(RMTThreeStageNoOTunedV6eB4Profile):
+    # Runtime b9194ea; EW4a v6e-1 host0; profile complete, health OFF: 1.750065 step/s (20-49).
+    # Forward 122.128ms; backward incl. remat 423.066ms; codex/rmt-pallas, rmt_pallas.md.
+    model_name = 'RMTThreeStageMiddleMinorV6eB4Profile'
+    rmt_full_middle_reverse_mode = 'minor'
+
+
+class RMTThreeStageMiddleSavedProfile(RMTThreeStageNoOReverse128Profile):
+    # Saved middle-output ablation; full v6e result in its V6eB4 child; not selected.
+    model_name = 'RMTThreeStageMiddleSavedProfile'
+    rmt_save_middle_outputs = True
+
+
+class RMTThreeStageMiddleSavedV6eB4Profile(RMTThreeStageNoOTunedV6eB4Profile):
+    # Runtime b9194ea; EW4a v6e-1 host0; profile complete, health OFF: 1.670016 step/s (20-49).
+    # Forward 132.777ms; backward incl. remat 439.807ms; codex/rmt-pallas, rmt_pallas.md.
+    model_name = 'RMTThreeStageMiddleSavedV6eB4Profile'
+    rmt_save_middle_outputs = True
+
+
+class RMTThreeStageMiddleMinorSavedProfile(RMTThreeStageMiddleMinorProfile):
+    # Native minor plus saved output family; v5p56MiB child fails56.26MiB allocation, qchunk58 child selected.
+    model_name = 'RMTThreeStageMiddleMinorSavedProfile'
+    rmt_save_middle_outputs = True
+
+
+class RMTThreeStageMiddleMinorSavedV6eB4Profile(RMTThreeStageMiddleMinorV6eB4Profile):
+    # Runtime b9194ea; EW4a v6e-1 host0; profile complete, health OFF: 1.742664 step/s (20-49).
+    # Forward 132.582ms; backward incl. remat 415.520ms; codex/rmt-pallas, rmt_pallas.md.
+    model_name = 'RMTThreeStageMiddleMinorSavedV6eB4Profile'
+    rmt_save_middle_outputs = True
+
+
+class RMTThreeStageMiddleDynamicSavedProfile(RMTThreeStageMiddleMinorSavedProfile):
+    # Static write gradients split from dynamic MXU contraction; micro only, not selected.
+    model_name = 'RMTThreeStageMiddleDynamicSavedProfile'
+    rmt_full_middle_reverse_mode = 'minor_dynamic'
+
+
+class RMTThreeStageMiddleDynamicSavedV6eB4Profile(RMTThreeStageMiddleMinorSavedV6eB4Profile):
+    # Micro b9194ea: v6e reverse128=4.67578ms vs minor4.66343ms; not selected.
+    model_name = 'RMTThreeStageMiddleDynamicSavedV6eB4Profile'
+    rmt_full_middle_reverse_mode = 'minor_dynamic'
+
+
+class RMTThreeStageMiddleMinor56Profile(RMTThreeStageMiddleMinorProfile):
+    # Runtime e9b001c; UC1a v5p-16; profile complete, health OFF: 0.529999 step/s (20-49).
+    # Forward 443.909ms; backward incl. remat 1418.574ms; codex/rmt-pallas, rmt_pallas.md.
+    model_name = 'RMTThreeStageMiddleMinor56Profile'
+    rmt_scoped_vmem_limit_kib = 57344
+
+
+class RMTThreeStageMiddleMinorSaved56Profile(RMTThreeStageMiddleMinorSavedProfile):
+    # Runtime e9b001c; v5p-16 full-model AOT failed:56.26MiB needed >56MiB budget.
+    model_name = 'RMTThreeStageMiddleMinorSaved56Profile'
+    rmt_scoped_vmem_limit_kib = 57344
+
+
+class RMTThreeStageMiddleChunk64Profile(RMTThreeStageMiddleMinorSavedProfile):
+    model_name = 'RMTThreeStageMiddleChunk64Profile'
+    rmt_full_middle_reverse_mode = 'minor_chunk64'
+
+
+class RMTThreeStageMiddleChunk64V6eB4Profile(RMTThreeStageMiddleMinorSavedV6eB4Profile):
+    # Micro e9b001c: v6e reverse128=4.83615ms; reverse256 needs99.55MiB >96MiB, not selected.
+    model_name = 'RMTThreeStageMiddleChunk64V6eB4Profile'
+    rmt_full_middle_reverse_mode = 'minor_chunk64'
+
+
+class RMTThreeStageMiddleChunk6456Profile(RMTThreeStageMiddleChunk64Profile):
+    # Runtime 2343e97; v5p-16 full-model AOT failed:56.77MiB needed >56MiB budget.
+    model_name = 'RMTThreeStageMiddleChunk6456Profile'
+    rmt_scoped_vmem_limit_kib = 57344
+
+
+class RMTThreeStageMiddleRecomputeSavedProfile(RMTThreeStageMiddleMinorSaved56Profile):
+    # Runtime e30ec00; UC1a v5p-16; profile complete, health OFF: 0.536499 step/s (20-49).
+    # Forward 451.903ms; backward incl. remat 1385.958ms; codex/rmt-pallas, rmt_pallas.md.
+    model_name = 'RMTThreeStageMiddleRecomputeSavedProfile'
+    rmt_full_middle_reverse_mode = 'minor_recompute'
+    rmt_scoped_vmem_limit_kib = 61440
+
+
+class RMTThreeStageMiddleRecomputeSavedV6eB4Profile(RMTThreeStageMiddleMinorSavedV6eB4Profile):
+    # Selected three-stage NoO implementation is available on refactor-bam.
+    # Runtime e30ec00; EW4a v6e-1 host0; profile complete, health OFF: 1.761599 step/s (20-49).
+    # Forward 127.144ms; backward incl. remat 414.174ms; codex/rmt-pallas, rmt_pallas.md.
+    model_name = 'RMTThreeStageMiddleRecomputeSavedV6eB4Profile'
+    rmt_full_middle_reverse_mode = 'minor_recompute'
+
+
+class RMTThreeStageMiddleChunk6458Profile(RMTThreeStageMiddleChunk6456Profile):
+    # Selected three-stage NoO implementation is available on refactor-bam.
+    # Runtime 4dd7038; UC1a v5p-16; profile complete, health OFF: 0.565299 step/s (20-49).
+    # Forward 460.818ms; backward incl. remat 1281.913ms; codex/rmt-pallas, rmt_pallas.md.
+    model_name = 'RMTThreeStageMiddleChunk6458Profile'
+    rmt_scoped_vmem_limit_kib = 59392
+
+
+class RMTThreeStageMiddleNativeSavedV6eB4Profile(RMTThreeStageMiddleRecomputeSavedV6eB4Profile):
+    # Runtime 17b5e20; EW4a v6e-1 host0; profile complete, health OFF: 1.762132 step/s (20-49).
+    # Forward 127.135ms; backward incl. remat 413.968ms; codex/rmt-pallas, rmt_pallas.md.
+    """Save middle vectors before the native-layout output transposes."""
+    model_name = 'RMTThreeStageMiddleNativeSavedV6eB4Profile'
+    rmt_save_middle_native_outputs = True
+
+
+class RMTThreeStageMiddleTiledGradsProfile(RMTThreeStageMiddleMinorProfile):
+    # Runtime276f639: full v5p AOT fails54.18MiB >48MiB; peak savings0.21MiB, not selected.
+    """Accumulate parameter-gradient tiles inside the complete middle kernel."""
+    model_name = 'RMTThreeStageMiddleTiledGradsProfile'
+    rmt_full_middle_reverse_mode = 'minor_tiled_grads'
+
+
+class RMTThreeStageMiddleTiledGradsV6eB4Profile(RMTThreeStageMiddleMinorV6eB4Profile):
+    # Runtime276f639: v6e reverse128/256=6.0473/5.6418ms; slower than minor, not selected.
+    model_name = 'RMTThreeStageMiddleTiledGradsV6eB4Profile'
+    rmt_full_middle_reverse_mode = 'minor_tiled_grads'
+
+
+class RMTThreeStageMiddleSingleBufferProfile(RMTThreeStageMiddleMinorProfile):
+    # Runtimeb4c9191: standalone/full v5p AOT fails48.53MiB >48MiB; measured via50MiB child.
+    """Bound DMA windows explicitly while retaining the whole middle kernel."""
+    model_name = 'RMTThreeStageMiddleSingleBufferProfile'
+    rmt_full_middle_reverse_mode = 'minor_single_buffer'
+
+
+class RMTThreeStageMiddleSingleBufferV6eB4Profile(RMTThreeStageMiddleMinorV6eB4Profile):
+    # Runtimeb4c9191: v6e reverse128/256=5.2585/5.2946ms; correct but slower, not selected.
+    model_name = 'RMTThreeStageMiddleSingleBufferV6eB4Profile'
+    rmt_full_middle_reverse_mode = 'minor_single_buffer'
+
+
+class RMTThreeStageMiddleSingleBuffer50Profile(RMTThreeStageMiddleSingleBufferProfile):
+    # Runtime 0a2420c; UC1a v5p-16, profile complete:0.528133step/s; F443.883ms/B1426.873ms.
+    # Needs48.53MiB;50MiB budget. Slower than qchunk64; capacity ablation, not selected.
+    """Measured48.53MiB allocation plus bounded headroom, below physical64MiB."""
+    model_name = 'RMTThreeStageMiddleSingleBuffer50Profile'
+    rmt_scoped_vmem_limit_kib = 51200

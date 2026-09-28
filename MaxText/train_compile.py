@@ -25,6 +25,9 @@ as you would on the target hardware.
 
 import os
 
+import compiler_flags
+compiler_flags.configure_from_argv()
+
 import jax
 from jax.experimental.topologies import get_topology_desc
 from jax.sharding import Mesh

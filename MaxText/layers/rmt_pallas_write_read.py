@@ -1,0 +1,228 @@
+"""Attention write through dynamic MLP read in one TPU program per token tile.
+
+The updated matrix is consumed on chip by both reads and the proxy projection.
+The reverse program joins every matrix cotangent before the analytic write
+pullback. Only final outputs and shared-parameter gradient partials reach HBM.
+"""
+from functools import partial
+from dataclasses import replace
+import jax
+import jax.numpy as jnp
+from jax.experimental import pallas as pl
+from jax.experimental.pallas import tpu as pltpu
+from layers.rmt_pallas import _map_batch
+from layers.rmt_pallas_minor import _tile, _norm, _norm_backward, _spec
+
+
+def contract(w,x):
+  """Shared [out,in] weight times [in,value,token], with native MXU lanes."""
+  n,v,t=x.shape;vp=((v+7)//8)*8
+  padded=jnp.pad(x,((0,0),(0,vp-v),(0,0)))
+  return jnp.dot(w,padded.reshape(n,vp*t),preferred_element_type=jnp.float32).reshape(w.shape[0],vp,t)[:,:v,:].astype(x.dtype)
+
+
+def weight_grad(left,right):
+  """Sum matching value/token axes; FP32 partials stay FP32 until global sum."""
+  v,t=left.shape[-2:];vp=((v+7)//8)*8
+  l=jnp.pad(left,((0,0),(0,vp-v),(0,0))).reshape(left.shape[0],vp*t)
+  r=jnp.pad(right,((0,0),(0,vp-v),(0,0))).reshape(right.shape[0],vp*t)
+  return jnp.dot(l,r.T,preferred_element_type=jnp.float32)
+
+
+def write_reverse(a,d,g,s,dy,epsilon,write_refs,out_refs):
+  """Keep one head's VPU contraction live, rather than unrolling all heads."""
+  h,k,t=a.shape;v=d.shape[1]
+  static_dd=contract(s,dy)
+  ds=weight_grad(d,dy).astype(s.dtype)
+  yf=dy.astype(jnp.float32)
+  def scoped(gg_ref,static_ref,gate_ref):
+    static_ref[...]=static_dd
+    gate_ref[...]=jnp.broadcast_to(g.astype(jnp.float32)[:,None,:],(h,8,t)).astype(g.dtype)
+    def head(i,_):
+      aa=write_refs[0][i,:,:];dd=write_refs[1][i,:,:];gg=gate_ref[i,0,:]
+      an=_norm(aa,epsilon);dn=_norm(dd,epsilon)
+      gated=(an*gg[None,:]).astype(a.dtype)
+      ua=jnp.sum(yf*dn.astype(jnp.float32)[None,:,:],axis=1).astype(a.dtype)
+      ud=jnp.sum(yf*gated.astype(jnp.float32)[:,None,:],axis=0).astype(d.dtype)
+      out_refs[1][i,:,:]=_norm_backward(aa,(ua*gg[None,:]).astype(a.dtype),epsilon)
+      out_refs[2][i,:,:]=(_norm_backward(dd,ud,epsilon)+static_ref[i,:,:]).astype(d.dtype)
+      gate=jax.lax.reduce_sum((ua*an).astype(g.dtype),axes=(0,))
+      gg_ref[i,:,:]=jnp.broadcast_to(gate[None,:],(8,t))
+    jax.lax.fori_loop(0,h,head,None)
+    return gg_ref[:,0,:]
+  gg=pl.run_scoped(scoped,pltpu.VMEM((h,8,t),g.dtype),pltpu.VMEM(d.shape,d.dtype),
+                    pltpu.VMEM((h,8,t),g.dtype))
+  out_refs[3][...]=gg
+  store_partial(out_refs[4],ds.astype(jnp.float32))
+
+
+def read_state(m,c,scale,wk,wg,bias,epsilon,read_epsilon):
+  h=wg.shape[0];v=m.shape[1];t=m.shape[-1];rank=c.shape[1]
+  raw=m[:h].reshape(h*v,t)
+  normalized=_norm(raw,epsilon)
+  x=(normalized.astype(jnp.float32)*scale.astype(jnp.float32)[:,None]).astype(m.dtype)
+  projection=jnp.dot(jnp.concatenate((wk.T,wg),axis=0),x,preferred_element_type=jnp.float32).astype(m.dtype)
+  key=projection[:h*rank].reshape(h,rank,t)
+  logits=projection[h*rank:]
+  # Mosaic's BF16 logistic lowering broadcasts an F32 constant as BF16.
+  # Keep the original BF16 addition, evaluate sigmoid in F32, then round once.
+  logits=(logits.astype(jnp.float32)+bias.astype(jnp.float32)[:,None]).astype(m.dtype)
+  gate=jax.nn.sigmoid(logits.astype(jnp.float32)).astype(m.dtype)
+  compressed=contract(c.T,m[h:])
+  kn=_norm(key,read_epsilon)
+  read=jnp.zeros((h,v,t),jnp.float32)
+  for i in range(rank):
+    ki=jax.lax.slice_in_dim(kn,i,i+1,axis=1).reshape(h,t)
+    ci=jax.lax.slice_in_dim(compressed,i,i+1,axis=0).reshape(v,t)
+    read=read+ki.astype(jnp.float32)[:,None,:]*ci.astype(jnp.float32)[None,:,:]
+  return raw,normalized,x,key,gate,compressed,kn,read.astype(m.dtype)
+
+
+def forward(m,a,d,g,s,r,c,scale,wk,wg,bias,epsilon,read_epsilon):
+  updated=_tile(m,a,d,g,s,epsilon)
+  _,_,x,_,gate,_,_,read=read_state(updated,c,scale,wk,wg,bias,epsilon,read_epsilon)
+  static=contract(r.T,updated)
+  out=(static+((.2*gate)[:,None,:]*read).astype(m.dtype)).astype(m.dtype)
+  return updated,out,x
+
+
+def store_partial(ref,value):
+  if value.ndim==1:value=value[None,:]
+  elif value.shape[0]>128 and value.shape[1]<128:value=value.T
+  @pl.when(pl.program_id(1)==0)
+  def init():ref[...]=jnp.zeros(ref.shape,ref.dtype)
+  ref[...]=ref[...]+value
+
+
+def read_pullback(m,r,c,scale,wk,wg,bias,dm,dy,dx,epsilon,read_epsilon,store,merge_linear=False,dot_store=None):
+  # m is the forward's updated matrix, so backward does not repeat the write.
+  raw,normalized,x,key,gate,compressed,kn,read=read_state(m,c,scale,wk,wg,bias,epsilon,read_epsilon)
+  h,v,t=read.shape;rank=c.shape[1]
+  if not merge_linear:
+    store(5,weight_grad(m,dy))
+    dm=(dm+contract(r,dy)).astype(m.dtype)
+  dgate=(.2*jax.lax.reduce_sum((dy*read).astype(dy.dtype),axes=(1,))).astype(dy.dtype)
+  dread=(dy*(.2*gate)[:,None,:]).astype(dy.dtype)
+  def read_reverse(kr,cr,dcr,dkr):
+    kr[...]=kn.transpose(1,0,2);cr[...]=compressed
+    def rank_step(i,_):
+      ki=kr[i,:,:].astype(jnp.float32);ci=cr[i,:,:].astype(jnp.float32)
+      dcr[i,:,:]=jnp.sum(dread.astype(jnp.float32)*ki[:,None,:],axis=0).astype(m.dtype)
+      dkr[i,:,:]=jnp.sum(dread.astype(jnp.float32)*ci[None,:,:],axis=1).astype(m.dtype)
+    jax.lax.fori_loop(0,rank,rank_step,None)
+    return dcr[...],dkr[...].transpose(1,0,2)
+  dc,dkn=pl.run_scoped(read_reverse,pltpu.VMEM((rank,h,t),m.dtype),
+                       pltpu.VMEM((rank,v,t),m.dtype),pltpu.VMEM((rank,v,t),m.dtype),
+                       pltpu.VMEM((rank,h,t),m.dtype))
+  if merge_linear:
+    packed=jnp.concatenate((dy,dc),axis=0)
+    dw_linear=weight_grad(m,packed)
+    store(5,dw_linear[:,:h])
+    store(6,dw_linear[h:,h:])
+    linear=jnp.concatenate((r,jnp.pad(c,((h,0),(0,0)))),axis=1)
+    dm=(dm+contract(linear,packed)).astype(m.dtype)
+  else:
+    store(6,weight_grad(m[h:],dc))
+    dmtail=contract(c,dc)
+  dk=_norm_backward(key,dkn,read_epsilon).reshape(h*rank,t)
+  dg=(dgate*(gate*(1-gate))).astype(m.dtype)
+  dp=jnp.concatenate((dk,dg),axis=0)
+  if dot_store is None:
+    dw=jnp.dot(x,dp.T,preferred_element_type=jnp.float32)
+    store(8,dw[:,:h*rank])
+    store(9,dw[:,h*rank:].T)
+  else:
+    dot_store(8,x,dk)
+    dot_store(9,dg,x)
+  store(10,jnp.sum(dg.astype(jnp.float32),axis=1))
+  dx=(dx+jnp.dot(jnp.concatenate((wk,wg.T),axis=1),dp,preferred_element_type=jnp.float32).astype(m.dtype)).astype(m.dtype)
+  store(7,jnp.sum((dx*normalized).astype(m.dtype).astype(jnp.float32),axis=1))
+  draw=_norm_backward(raw,(dx.astype(jnp.float32)*scale.astype(jnp.float32)[:,None]).astype(m.dtype),epsilon).reshape(h,v,t)
+  if merge_linear:
+    dm=(dm+jnp.pad(draw,((0,m.shape[0]-h),(0,0),(0,0)))).astype(m.dtype)
+  else:
+    dm=(dm+jnp.concatenate((draw,dmtail),axis=0)).astype(m.dtype)
+  return dm
+
+
+def reverse(m,a,d,g,s,r,c,scale,wk,wg,bias,dm,dy,dx,epsilon,read_epsilon,write_refs,out_refs):
+  dm=read_pullback(m,r,c,scale,wk,wg,bias,dm,dy,dx,epsilon,read_epsilon,
+                  lambda index,value:store_partial(out_refs[index],value))
+  write_reverse(a,d,g,s,dm,epsilon,write_refs,out_refs)
+  out_refs[0][...]=dm
+
+
+def shared_spec(x):
+  return pl.BlockSpec(x.shape,lambda b,i:(0,)*x.ndim,pipeline_mode=pl.Buffered(1))
+
+
+def specs(args,tile):
+  return [_spec(x.shape[1:-1],tile) if i<4 else shared_spec(x) for i,x in enumerate(args)]
+
+
+def call(args,epsilon,read_epsilon,interpret,tile):
+  b,k,v,t=args[0].shape;h=args[2].shape[1]
+  def kernel(*refs):
+    outputs=forward(*(x[...] for x in refs[:11]),epsilon,read_epsilon)
+    for ref,value in zip(refs[11:],outputs):ref[...]=value
+  shapes=[args[0].shape,(b,h,v,t),(b,h*v,t)]
+  return pl.pallas_call(kernel,grid=(b,t//tile),in_specs=specs(args,tile),
+      out_specs=[_spec(x[1:-1],tile) for x in shapes],
+      out_shape=tuple(jax.ShapeDtypeStruct(x,args[0].dtype) for x in shapes),
+      input_output_aliases={0:0},
+      interpret=interpret,compiler_params=pltpu.CompilerParams(dimension_semantics=('parallel','parallel')),
+      name='rmt_fused_write_mlp_read')(*args)
+
+
+@partial(jax.custom_vjp,nondiff_argnums=(11,12,13,14,15,16,17))
+def fused(m,a,d,g,s,r,c,scale,wk,wg,bias,epsilon,read_epsilon,interpret,tile,buffers,backward_tile,backward_compute_tile):
+  return call((m,a,d,g,s,r,c,scale,wk,wg,bias),epsilon,read_epsilon,interpret,tile)
+
+
+def fwd(m,a,d,g,s,r,c,scale,wk,wg,bias,epsilon,read_epsilon,interpret,tile,buffers,backward_tile,backward_compute_tile):
+  out=call((m,a,d,g,s,r,c,scale,wk,wg,bias),epsilon,read_epsilon,interpret,tile)
+  return out,(out[0],a,d,g,s,r,c,scale,wk,wg,bias)
+
+
+def bwd(epsilon,read_epsilon,interpret,tile,buffers,backward_tile,backward_compute_tile,args,cotangents):
+  if backward_tile:
+    from layers.rmt_pallas_write_read_major import backward
+    return backward(args,cotangents,epsilon,read_epsilon,interpret,backward_tile,backward_compute_tile)
+  b,_,_,t=args[0].shape
+  def kernel(*refs):
+    reverse(*(x[...] for x in refs[:14]),epsilon,read_epsilon,refs[1:4],refs[14:])
+  inp=specs(args,tile)+[_spec(x.shape[1:-1],tile) for x in cotangents]
+  # Keep DMA overlap for the small streams; the two full matrix streams alone
+  # would consume almost 4 MiB with double buffering under the default 16 MiB scoped budget (v5p physical VMEM is 64 MiB).
+  for i in (0,1,2,11):inp[i]=replace(inp[i],pipeline_mode=pl.Buffered(buffers))
+  transposed=[x.ndim==2 and x.shape[0]>128 and x.shape[1]<128 for x in args[4:]]
+  partial_shapes=[(1,)+x.shape if x.ndim==1 else x.shape[::-1] if tr else x.shape
+                  for x,tr in zip(args[4:],transposed)]
+  outspec=inp[:4]+[pl.BlockSpec((None,)+shape,
+      lambda b,i,ndim=len(shape):(b,)+(0,)*ndim,pipeline_mode=pl.Buffered(1)) for shape in partial_shapes]
+  outshape=[jax.ShapeDtypeStruct(x.shape,x.dtype) if i<4 else
+            jax.ShapeDtypeStruct((b,)+partial_shapes[i-4],jnp.float32) for i,x in enumerate(args)]
+  grads=pl.pallas_call(kernel,grid=(b,t//tile),in_specs=inp,out_specs=outspec,
+      out_shape=tuple(outshape),interpret=interpret,
+      input_output_aliases={11:0},
+      compiler_params=pltpu.CompilerParams(dimension_semantics=('parallel','arbitrary')),
+      name='rmt_fused_write_mlp_read_backward')(*args,*cotangents)
+  shared=[jnp.sum(x,axis=0) for x in grads[4:]]
+  shared=[(x.T if tr else x).reshape(arg.shape).astype(arg.dtype)
+          for x,tr,arg in zip(shared,transposed,args[4:])]
+  return tuple(grads[:4])+tuple(shared)
+
+
+fused.defvjp(fwd,bwd)
+
+
+def write_mlp_read(m,a,d,g,s,r,c,scale,wk,wg,bias,epsilon=1e-6,read_epsilon=1e-6,*,interpret=False,tile=128,buffers=1,backward_tile=0,backward_compute_tile=0):
+  """Public M[B,T,K,V], head[B,T,H,V], vector[B,T,H*V] interface."""
+  def local(m,a,d,g,*weights):
+    block=min(tile,m.shape[1])
+    if m.shape[1]%block:raise ValueError('Sequence length must divide the fused token tile')
+    weights=(*weights[:5],weights[5].T,weights[6])
+    out=fused(m.transpose(0,2,3,1),a.transpose(0,2,3,1),d.transpose(0,2,3,1),g.transpose(0,2,1),
+              *weights,epsilon,read_epsilon,interpret,block,buffers,backward_tile,backward_compute_tile)
+    return out[0].transpose(0,3,1,2),out[1].transpose(0,3,1,2),out[2].transpose(0,2,1)
+  return _map_batch(local,(m,a,d,g,s,r,c,scale,wk,wg,bias),(True,)*4+(False,)*7,output_tuple=3)

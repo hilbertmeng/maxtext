@@ -1,6 +1,7 @@
 """Four-way pure-contraction probe; reports error and independent compile/timing."""
 import argparse
 import json
+import itertools
 import os
 import statistics
 import time
@@ -33,6 +34,9 @@ def main():
   p.add_argument('--tile',type=int,default=128);p.add_argument('--head-block',type=int,default=4)
   p.add_argument('--unroll',type=int,default=1)
   p.add_argument('--mxu-chunk',type=int,default=1)
+  p.add_argument('--head-blocks',help='Comma-separated sweep; reuse one TPU initialization.')
+  p.add_argument('--unrolls',help='Comma-separated sweep; reuse one TPU initialization.')
+  p.add_argument('--mxu-chunks',help='Comma-separated sweep; reuse one TPU initialization.')
   p.add_argument('--distributed',action='store_true',help='Run the same probe on every TPU pod worker.')
   p.add_argument('--interpret',action='store_true');p.add_argument('--dtype',default='bfloat16')
   p.add_argument('--dump-root',type=Path);p.add_argument('--output',required=True,type=Path);a=p.parse_args();dt=getattr(jnp,a.dtype)
@@ -50,10 +54,12 @@ def main():
               device_kind=jax.local_devices()[0].device_kind,process_index=jax.process_index(),
               process_count=jax.process_count(),local_device_count=jax.local_device_count(),
               batch=a.batch,tokens=a.tokens,dtype=a.dtype,measurements=[])
-  for backend in a.backends.split(','):
-    row=dict(backend=backend,tile=a.tile,head_block=a.head_block,unroll=a.unroll,mxu_chunk=a.mxu_chunk)
+  integers=lambda values,default:[int(x) for x in values.split(',')] if values else [default]
+  for backend,head_block,unroll,mxu_chunk in itertools.product(a.backends.split(','),
+      integers(a.head_blocks,a.head_block),integers(a.unrolls,a.unroll),integers(a.mxu_chunks,a.mxu_chunk)):
+    row=dict(backend=backend,tile=a.tile,head_block=head_block,unroll=unroll,mxu_chunk=mxu_chunk)
     try:
-      fn=lambda *z:call(*z,backend,a.tile,a.head_block,a.interpret,a.unroll,a.mxu_chunk)
+      fn=lambda *z:call(*z,backend,a.tile,head_block,a.interpret,unroll,mxu_chunk)
       fn.__name__='rankh_contract_'+backend
       start=time.monotonic()
       executable=jax.jit(fn).lower(*x).compile()

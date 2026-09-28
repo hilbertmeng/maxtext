@@ -9546,6 +9546,8 @@ class Llama2XLPropTrain(Llama2XLProp):
 
 class Llama2XLPropTruePileMHA(Llama2XLPropTrain):
     """XLProp MHA control on true 4097-token Pile records."""
+    # code_commit: e30c1b8; UE5a v5p-32 ~.546 step/s (20-39), generic health ON.
+    # First step verified; regional TruePile copy avoids cross-region training reads.
     # Same architecture, schedule and health metrics as Llama2XLPropTrain.
     # The padded-data predecessor is not a same-step loss baseline.
     model_name = 'Llama2XLPropTruePileMHA'

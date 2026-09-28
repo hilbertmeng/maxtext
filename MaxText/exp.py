@@ -9549,7 +9549,7 @@ class Llama2XLPropTruePileMHA(Llama2XLPropTrain):
     # Same architecture, schedule and health metrics as Llama2XLPropTrain.
     # The padded-data predecessor is not a same-step loss baseline.
     model_name = 'Llama2XLPropTruePileMHA'
-    dataset_path = Llama2MediumC256T4096TruePile.dataset_path
+    dataset_path = 'gs://newproject-1-common_datasets_us-east5/pythia_pile_idxmaps_tfrecord_4096'
     compare_runs = []
     jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/xlprop-truepile-mha'
 

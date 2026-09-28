@@ -35,19 +35,22 @@ def forward(m, a, d, g, s, epsilon, mode):
   rows = int(schedule.removeprefix('row'))
   if k % rows:
     raise ValueError('Output row block must divide the memory key dimension')
-  def scoped(out):
+  def scoped(out, c_ref, m_ref):
+    c_ref[...] = c.transpose(1,0,2)
+    m_ref[...] = m
     def step(i, _):
-      ci = jax.lax.dynamic_slice_in_dim(c, i*rows, rows, axis=1)
-      mi = jax.lax.dynamic_slice_in_dim(m, i*rows, rows, axis=0)
+      ci = c_ref[pl.ds(i*rows,rows), :, :]
+      mi = m_ref[pl.ds(i*rows,rows), :, :]
       acc = jnp.zeros((rows, v, t), jnp.float32)
       for j in range(h):
-        cj = jax.lax.slice_in_dim(ci, j, j+1, axis=0).reshape(rows,t)
+        cj = jax.lax.slice_in_dim(ci, j, j+1, axis=1).reshape(rows,t)
         dj = jax.lax.slice_in_dim(df, j, j+1, axis=0).reshape(v,t)
         acc = acc+cj[:,None,:]*dj[None,:,:]
       out[pl.ds(i*rows, rows), :, :] = (mi.astype(jnp.float32)+acc).astype(m.dtype)
     jax.lax.fori_loop(0, k//rows, step, None)
     return out[...]
-  return pl.run_scoped(scoped, pltpu.VMEM(m.shape, m.dtype))
+  return pl.run_scoped(scoped, pltpu.VMEM(m.shape, m.dtype),
+                       pltpu.VMEM((k,h,t),jnp.float32), pltpu.VMEM(m.shape,m.dtype))
 
 
 def reverse(a, d, g, s, matrix_grad, epsilon, mode, **unused):
@@ -68,17 +71,20 @@ def reverse(a, d, g, s, matrix_grad, epsilon, mode, **unused):
     dc, dd = product[:, :k], product[:, k:]
   elif backend == 'vpu':
     G = matrix_grad.transpose(1, 2, 0).astype(jnp.float32)
-    def scoped(dc_ref, dd_ref):
+    def scoped(dc_ref, dd_ref, d_ref, c_ref, g_ref):
+      d_ref[...] = df; c_ref[...] = c; g_ref[...] = G
       def head(j, _):
-        dj = jax.lax.dynamic_index_in_dim(df, j, axis=0, keepdims=False)
-        cj = jax.lax.dynamic_index_in_dim(c, j, axis=0, keepdims=False)
+        dj = d_ref[j,:,:]
+        cj = c_ref[j,:,:]
+        gg = g_ref[...]
         # Output rows occupy registers; reduce only over their contracted axis.
-        dc_ref[j, :, :] = jnp.sum(G*dj[None, :, :], axis=1)
-        dd_ref[j, :, :] = jnp.sum(G*cj[:, None, :], axis=0)
+        dc_ref[j, :, :] = jnp.sum(gg*dj[None, :, :], axis=1)
+        dd_ref[j, :, :] = jnp.sum(gg*cj[:, None, :], axis=0)
       jax.lax.fori_loop(0, h, head, None)
       return dc_ref[...], dd_ref[...]
     dc, dd = pl.run_scoped(scoped, pltpu.VMEM(a.shape, jnp.float32),
-                          pltpu.VMEM(d.shape, jnp.float32))
+                          pltpu.VMEM(d.shape, jnp.float32),pltpu.VMEM(d.shape,jnp.float32),
+                          pltpu.VMEM(c.shape,jnp.float32),pltpu.VMEM(G.shape,jnp.float32))
   else:
     raise ValueError(mode)
   dot = jnp.sum(dc*an, axis=1, keepdims=True)

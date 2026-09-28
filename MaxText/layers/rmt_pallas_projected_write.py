@@ -116,7 +116,7 @@ def fwd(m,x,d,s,down,up,ub,wg,gb,epsilon,interpret,forward_tile,reverse_tile,wri
   return forward_call(args,epsilon,interpret,forward_tile,write_mode),(x,d,s,down,up,ub,wg,gb)
 
 
-def bwd_minor(epsilon,interpret,reverse_tile,args,dm):
+def bwd_minor(epsilon,interpret,reverse_tile,args,dm,unroll=8):
   """Native token-minor projection, VPU contraction and projection adjoints.
 
   This stays one fused K3 reverse program. The MXU path keeps its separate
@@ -141,7 +141,7 @@ def bwd_minor(epsilon,interpret,reverse_tile,args,dm):
       out[...]=out[...]+(value[None,:] if value.ndim==1 else value)
     x,d,s,down,up,ub,wg,gb,gm=(r[...] for r in refs[:9])
     pre,hidden,a,g=project_minor_state(x,down,up,ub,wg,gb)
-    da,dd,dg,ds=reverse_minor_blocked(a,d,g,s,gm,epsilon)
+    da,dd,dg,ds=reverse_minor_blocked(a,d,g,s,gm,epsilon,unroll)
     store(2,ds)
     refs[10][...]=dd
     refs[9][...]=project_reverse_minor(x,down,up,wg,pre,hidden,g,da,dg,
@@ -155,8 +155,8 @@ def bwd_minor(epsilon,interpret,reverse_tile,args,dm):
 
 
 def bwd(epsilon,interpret,forward_tile,reverse_tile,write_mode,args,dm):
-  if write_mode.endswith('_native8'):
-    return bwd_minor(epsilon,interpret,reverse_tile,args,dm)
+  if '_native' in write_mode:
+    return bwd_minor(epsilon,interpret,reverse_tile,args,dm,int(write_mode.split('_native')[1]))
   x,d,s,down,up,ub,wg,gb=args
   x=x.transpose(0,2,1);d=d.transpose(0,3,1,2);dm=dm.transpose(0,3,1,2)
   args=(x,d,s,down,up,ub,wg,gb);b,t=x.shape[:2];tile=min(reverse_tile,t)

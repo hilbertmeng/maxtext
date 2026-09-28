@@ -117,11 +117,11 @@ def reverse_vloop_product(c, df, G):
       ((h,k,t),(h,vp,t),(vp,h,t),(k,h,t),(k,vp,t),(vp,k,t))])
 
 
-def reverse_minor_blocked(a,d,g,s,matrix_grad,epsilon):
+def reverse_minor_blocked(a,d,g,s,matrix_grad,epsilon,unroll=8):
   """Native token-lane write adjoints, including norm/gate epilogue."""
   from layers.rmt_pallas_rankh_contract import products
   af,df,ai,di,an,c=parts(a,d,g,s,epsilon)
-  dc,dd=products(c,df,matrix_grad,'blocked',head_block=2,unroll=8)
+  dc,dd=products(c,df,matrix_grad,'blocked',head_block=2,unroll=unroll)
   dot=jnp.sum(dc*an,axis=1,keepdims=True)
   da=dc*(g.astype(jnp.float32)[:,None,:]*di)
   da=ai*(da-af*jnp.mean(da*af,axis=1,keepdims=True)*ai*ai)
@@ -132,9 +132,9 @@ def reverse_minor_blocked(a,d,g,s,matrix_grad,epsilon):
 
 
 def reverse(a, d, g, s, matrix_grad, epsilon, mode, **unused):
-  if mode.endswith('_native8'):
+  if '_native' in mode:
     da,dd,dg,ds=reverse_minor_blocked(a.transpose(1,2,0),d.transpose(1,2,0),
-                                    g.T,s,matrix_grad.transpose(1,2,0),epsilon)
+                                    g.T,s,matrix_grad.transpose(1,2,0),epsilon,int(mode.split('_native')[1]))
     return da.transpose(2,0,1),dd.transpose(2,0,1),dg.T,ds
   if mode.split("_")[1] in ("major","pair"):
     return reverse_major(a,d,g,s,matrix_grad,epsilon,paired=mode.endswith('_pair'))

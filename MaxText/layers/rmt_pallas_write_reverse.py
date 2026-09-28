@@ -83,13 +83,13 @@ def chunked_joint(a,d,g,s,dm,epsilon,chunk=64,write_mode="original"):
                        pltpu.VMEM(s.shape,jnp.float32))
 
 
-def backward(a,d,g,s,dy,epsilon,interpret=False,tile=64,gate_layout="minor"):
+def backward(a,d,g,s,dy,epsilon,interpret=False,tile=64,gate_layout="minor",write_mode="original"):
   b,t,h,k=a.shape;v=d.shape[-1]
   tile=min(tile,t)
   if t%tile:raise ValueError('Reverse tile must divide token count')
   spec=lambda shape:pl.BlockSpec((None,tile)+shape,lambda b,i:(b,i)+(0,)*len(shape))
   def kernel(a,d,g,s,dy,da,dd,dg,ds):
-    da[...],dd[...],dg[...],ds[...]=joint(a[...],d[...],g[...],s[...],dy[...],epsilon,gate_layout)
+    da[...],dd[...],dg[...],ds[...]=joint(a[...],d[...],g[...],s[...],dy[...],epsilon,gate_layout,write_mode)
   specs=[spec((h,k)),spec((h,v)),spec((h,)),pl.BlockSpec(s.shape,lambda b,i:(0,0)),spec((k,v))]
   outputs=[jax.ShapeDtypeStruct(x.shape,x.dtype) for x in (a,d,g)]
   outputs.append(jax.ShapeDtypeStruct((b,t//tile)+s.shape,jnp.float32))

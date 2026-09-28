@@ -96,17 +96,27 @@ def reverse(a, d, g, s, matrix_grad, epsilon, mode, **unused):
     product = jnp.einsum('thd,tdc->thc', left, square,
                         preferred_element_type=jnp.float32).transpose(1, 2, 0)
     dc, dd = product[:, :k], product[:, k:]
-  elif backend == 'vpu':
+  elif backend in ('vpu','vrow'):
     G = matrix_grad.transpose(1, 2, 0).astype(jnp.float32)
     def scoped(dc_ref, dd_ref, d_ref, c_ref, g_ref):
       d_ref[...] = df; c_ref[...] = c; g_ref[...] = G
       def head(j, _):
         dj = d_ref[j,:,:]
         cj = c_ref[j,:,:]
-        gg = g_ref[...]
-        # Output rows occupy registers; reduce only over their contracted axis.
-        dc_ref[j, :, :] = jnp.sum(gg*dj[None, :, :], axis=1)
-        dd_ref[j, :, :] = jnp.sum(gg*cj[:, None, :], axis=0)
+        if backend == 'vpu':
+          gg = g_ref[...]
+          dc_ref[j, :, :] = jnp.sum(gg*dj[None, :, :], axis=1)
+          dd_ref[j, :, :] = jnp.sum(gg*cj[:, None, :], axis=0)
+        else:
+          # Bound the live product instead of materializing K*V*T for each head.
+          def address_rows(i, _):
+            sl = pl.ds(i*4,4)
+            dc_ref[j,sl,:] = jnp.sum(g_ref[sl,:,:]*dj[None,:,:],axis=1)
+          def data_rows(i, _):
+            sl = pl.ds(i*3,3)
+            dd_ref[j,sl,:] = jnp.sum(g_ref[:,sl,:]*cj[:,None,:],axis=0)
+          jax.lax.fori_loop(0,k//4,address_rows,None)
+          jax.lax.fori_loop(0,v//3,data_rows,None)
       jax.lax.fori_loop(0, h, head, None)
       return dc_ref[...], dd_ref[...]
     dc, dd = pl.run_scoped(scoped, pltpu.VMEM(a.shape, jnp.float32),

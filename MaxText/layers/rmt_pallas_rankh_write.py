@@ -78,6 +78,41 @@ def reverse_major(a, d, g, s, matrix_grad, epsilon):
   return da.astype(a.dtype),dd.astype(d.dtype),dg.astype(g.dtype),ds
 
 
+def reverse_vloop_product(c, df, G):
+  """Two output-stationary contractions. SIMD over tokens, 8 output rows at once.
+
+  Only H*8*T accumulators are live; never form an H*K*V*T product. The contracted
+  axis is the leading Ref axis, so scalar dynamic indexing avoids TPU sublane
+  slice restrictions. Padding is confined to the 75-value axis (80, not 128).
+  """
+  h, k, t = c.shape
+  v = df.shape[1]
+  vp = ((v+7)//8)*8
+  if k % 8:
+    raise ValueError('VPU output-stationary write requires key width divisible by 8')
+  def scoped(dc_ref, dd_ref, d_ref, c_ref, gk_ref, gv_ref):
+    d_ref[...] = jnp.pad(df,((0,0),(0,vp-v),(0,0))).transpose(1,0,2)
+    c_ref[...] = c.transpose(1,0,2)
+    padded = jnp.pad(G,((0,0),(0,vp-v),(0,0)))
+    gk_ref[...] = padded
+    gv_ref[...] = padded.transpose(1,0,2)
+    def address_block(i, _):
+      sl = pl.ds(i*8,8)
+      def mac(j,acc):
+        return acc+d_ref[j,:,:][:,None,:]*gv_ref[j,sl,:][None,:,:]
+      dc_ref[:,sl,:] = jax.lax.fori_loop(0,v,mac,jnp.zeros((h,8,t),jnp.float32))
+    def data_block(i, _):
+      sl = pl.ds(i*8,8)
+      def mac(j,acc):
+        return acc+c_ref[j,:,:][:,None,:]*gk_ref[j,sl,:][None,:,:]
+      dd_ref[:,sl,:] = jax.lax.fori_loop(0,k,mac,jnp.zeros((h,8,t),jnp.float32))
+    jax.lax.fori_loop(0,k//8,address_block,None)
+    jax.lax.fori_loop(0,vp//8,data_block,None)
+    return dc_ref[...],dd_ref[...][:,:v,:]
+  return pl.run_scoped(scoped,*[pltpu.VMEM(shape,jnp.float32) for shape in
+      ((h,k,t),(h,vp,t),(vp,h,t),(k,h,t),(k,vp,t),(vp,k,t))])
+
+
 def reverse(a, d, g, s, matrix_grad, epsilon, mode, **unused):
   if mode.split("_")[1] == "major":
     return reverse_major(a,d,g,s,matrix_grad,epsilon)
@@ -96,6 +131,8 @@ def reverse(a, d, g, s, matrix_grad, epsilon, mode, **unused):
     product = jnp.einsum('thd,tdc->thc', left, square,
                         preferred_element_type=jnp.float32).transpose(1, 2, 0)
     dc, dd = product[:, :k], product[:, k:]
+  elif backend == 'vloop':
+    dc,dd = reverse_vloop_product(c,df,matrix_grad.transpose(1,2,0).astype(jnp.float32))
   elif backend in ('vpu','vrow'):
     G = matrix_grad.transpose(1, 2, 0).astype(jnp.float32)
     def scoped(dc_ref, dd_ref, d_ref, c_ref, g_ref):

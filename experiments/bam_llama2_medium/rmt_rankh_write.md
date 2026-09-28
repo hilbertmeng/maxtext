@@ -50,3 +50,45 @@ small-gate BF16 effects. The VPU candidate retains FP32 C in the contraction.
 Pinned CPU Pallas interpreter: full-dimensional FP32 forward/all-gradient checks
 pass for middle head_mxu, row1_mxu, row4_vpu (including qchunk64) and MLP write
 row4_mxu. Logs: `cpu-first/`. TPU numerical and speed measurements pending.
+
+## 2026-09-28 first hardware round (in progress)
+
+`fc84678`: TPU lowering required explicit constant slices and VMEM Ref indexing;
+array gather/dynamic_slice passed CPU interpretation but was unsupported on TPU.
+Fixed within the same fused K2/K3 boundaries.
+
+All nine BF16 middle probes (head/row4 MXU/row4 VPU, gate bias -2/-7/-10)
+pass, worst relative L2 0.012736. K1-small BF16 max 0.008400. FP32 all-gradient
+probes <6e-7, plus three-layer nonzero-parameter scan under four remat policies.
+
+B4/T4096, v6e-1 EW4a, 96MiB scoped budget; milliseconds, 20-sample medians:
+
+| Mode | K2 forward128 | K2 reverse128 | K3 forward256 | K3 reverse256 |
+|---|---:|---:|---:|---:|
+| Original, host0 |1.433|5.133|1.118|2.472|
+| head_mxu, host0 |1.431|6.013|1.358|4.420|
+| row1_mxu, host0 |1.448|6.027|1.031|4.395|
+| row4_mxu, host0 |1.545|6.141|1.272|4.434|
+| row4_major, host1 (`768912c`) |1.513|4.744|not measured|2.361|
+
+The first reverse implementation needlessly converted FP32 normalization state
+through token-minor and back. Keeping normalization and the contraction native
+MXU-major recovered performance. Same-host original/row1_major repeats and full
+steps are queued; cross-host micro rows are provisional. Row1 forward has useful
+local gains even though its first MXU reverse regressed. Preserve this combination.
+VPU whole-product and output-row-product candidates are slower; not selected.
+
+K1-small: forward128 1.096 ->1.110 ms; reverse256 2.392 ->2.320 ms.
+Full-step benefit and residual lifetime remain unverified.
+
+Existing raw-XPlane layout audit: complete-M minor->major copies cost 12.306 ms
+(v5p) /6.159 ms (v6e), 20 calls, 18 inside reverse remat. This is real but much
+smaller than counting every wrapper transpose. `rmt_scan_token_minor` is a separate
+experiment, not a claim that the HBM copies have been removed. Its FP32 three-layer
+scan/remat gate passes. Reports: `v5-chunk-layout.json`, `v6-recompute-layout.json`.
+
+Full-profile queue: host0 `rankh-v6-k1` (768912c: selected control, K1-small,
+original RMT, MHA), then `rankh-v6-native` (212102b: native rank-H, +K1,
+minor carry). Host1 compiles v5p-16 controls then native candidates. Task-owned
+`xd-rankh-v5-0928` UC1a will be queued after control AOT completion; retained
+hosts remain excluded from cleanup. No headline speed claim yet.

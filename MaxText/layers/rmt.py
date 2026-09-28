@@ -3,6 +3,14 @@
 The residual stream is [batch, time, ResKey, ResVal].  This follows the
 published RMT contractions and the open-source module layout, while the MLP,
 optimizer, data and loss remain the matched MaxText backbone.
+
+Selected Pallas path index (other modes are historical ablations):
+  rmt_fused_attention_read -> rmt_pallas_attention_read (K1)
+  rmt_fused_write_read_projection -> rmt_pallas_full_write_read (K2)
+  minor_chunk64/minor_recompute -> rmt_pallas_full_write_read_minor (K2 backward)
+  rmt_fused_projected_mlp_write -> rmt_pallas_projected_write (K3)
+  rmt_rankh_write_mode != original -> rmt_pallas_rankh_write (new write ablations)
+Full switch/helper index: experiments/bam_llama2_medium/rmt_rankh_write.md.
 """
 
 import math

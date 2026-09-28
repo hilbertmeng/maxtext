@@ -11251,4 +11251,3 @@ class RMTRankHRow4MXUV6Profile(RMTThreeStageMiddleRecomputeSavedV6eB4Profile):
 class RMTRankHRow4VPUV6Profile(RMTThreeStageMiddleRecomputeSavedV6eB4Profile):
     model_name = 'RMTRankHRow4VPUV6Profile'
     rmt_rankh_write_mode = 'row4_vpu'
-

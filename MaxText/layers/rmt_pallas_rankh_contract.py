@@ -58,8 +58,14 @@ def blocked_product(matrix_ref,coeff_ref,out_ref,heads,contract_dim,width,tokens
       row=matrix_ref[i,:,:]
       return tuple(acc[j]+row*coeff_ref[i,jb*head_block+j,:,:]
                    for j in range(head_block))
-    acc=jax.lax.fori_loop(0,contract_dim,mac,
-        tuple(jnp.zeros((width,tokens),jnp.float32) for _ in range(head_block)),unroll=unroll)
+    # Mosaic 0.8.1 supports only rolled or fully unrolled fori_loop. Express
+    # partial unrolling explicitly; leave the short remainder outside the loop.
+    def group(i,acc):
+      for offset in range(unroll):acc=mac(i*unroll+offset,acc)
+      return acc
+    acc=jax.lax.fori_loop(0,contract_dim//unroll,group,
+        tuple(jnp.zeros((width,tokens),jnp.float32) for _ in range(head_block)))
+    for i in range(contract_dim//unroll*unroll,contract_dim):acc=mac(i,acc)
     for j in range(head_block):out_ref[jb*head_block+j,:,:]=acc[j]
   jax.lax.fori_loop(0,heads//head_block,head_group,None)
 

@@ -9487,6 +9487,33 @@ class BamMediumPropK75EmbedVOnlyQK57(BamLlama2MediumPropK57SharedRank4MLPPerLaye
     jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/mediumprop-k75-embed-qk57'
 
 
+class BamMediumT2048K64EmbedVOnlyQK48(BamMediumPropK75EmbedVOnlyQK57):
+    """QK57 recipe scaled to the original Medium backbone and true T2048 data."""
+    model_name = 'BamMediumT2048K64EmbedVOnlyQK48'
+    base_num_decoder_layers = 24
+    base_emb_dim = 1024
+    base_num_query_heads = 16
+    base_num_kv_heads = 16
+    head_dim = 64
+    base_mlp_dim = 2816
+    max_target_length = 2048
+    per_device_batch_size = 32.0
+    bam_k = 64
+    bam_local_qk_col_output_dim = 48
+    bam_partial_rope_nope_dim = 48
+    bam_standard_qk_dim = 16
+    bam_layer_modes = ['local_qk+local_v+local_o', 'local_qk+local_v+local_o',
+                       'local_qk+full'] * 8
+    # L/F have equal per-layer parameter counts; 411623824 total vs MHA 411616256.
+    mlp_dim_by_block = [3366, 3366, 3025]
+    compare_runs = [
+        'BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayer',
+        'RMTMediumT2048AllLocalK48EmbedUnembedDirect32',
+        'Llama2Medium',
+    ]
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/medium-t2048-k64-embed-qk48'
+
+
 class BamMediumPropK75EmbedVOnlyQK75(BamMediumPropK75EmbedVOnlyQK57):
     """Same parameters; full75 BAM QK plus18 standard RoPE coordinates."""
     model_name = 'BamMediumPropK75EmbedVOnlyQK75'

@@ -253,6 +253,51 @@ class BamReadKeyTransformTest(absltest.TestCase):
         self.assertNotIn('static_v_key',fp)
     self.assertEqual(counts[0],counts[1])
 
+  def test_embedding_seeded_value_only_medium_t2048_qk48(self):
+    import max_utils
+    import pyconfig
+    from layers.models import EmbeddingBamWrite
+    with tempfile.TemporaryDirectory() as out:
+      Path(out, 'seed').mkdir()
+      cfg = pyconfig.initialize(
+          [None, str(Path(__file__).parents[1] / 'configs/base.yml')],
+          exp_class='BamMediumT2048K64EmbedVOnlyQK48', run_name='seed',
+          enable_checkpointing=False, base_output_directory=out+'/', jax_cache_dir='',
+          log_config=False, dataset_type='synthetic', base_emb_dim=128,
+          base_num_query_heads=2, base_num_kv_heads=2, max_target_length=4,
+          max_prefill_predict_length=4, query_chunk_size=2, per_device_batch_size=1.)
+      self.assertEqual((cfg.bam_k, cfg.bam_local_qk_col_output_dim,
+                        cfg.bam_standard_qk_dim, cfg.head_dim), (64, 48, 16, 64))
+      self.assertEqual(cfg.bam_layer_modes.count('local_qk+full'), 8)
+      cfg.get_keys()['bam_write_v_bottleneck_dim'] = 32
+      mesh = jax.sharding.Mesh(max_utils.create_device_mesh(cfg), cfg.mesh_axes)
+      x = jax.random.normal(jax.random.key(94), (1, 4, 128), dtype=cfg.dtype)
+      seed = EmbeddingBamWrite(cfg, 2, cfg.dtype, cfg.weight_dtype, None,
+                               initializers.get_init_method(cfg.init_method))
+      seed_params = seed.init(jax.random.key(95), x)
+      m = seed.apply(seed_params, x)
+      self.assertEqual(m.shape, (1, 4, 64, 32))
+      args = (x, x, jnp.arange(4)[None], jnp.ones((1, 4), jnp.int32))
+      kw = dict(M_in=m, deterministic=True, layer_index=0)
+      local = BamAttention(config=cfg, num_query_heads=2, num_kv_heads=2,
+          head_dim=64, bam_k=64, bam_v=32, max_target_length=4,
+          max_prefill_predict_length=4, mesh=mesh,
+          attention_kernel='dot_product_chunk', dtype=cfg.dtype,
+          layer_mode='local_qk+local_v+local_o', read_side='col',
+          attention_type=cfg.attention_type)
+      params = local.init(jax.random.key(96), *args, **kw)['params']
+      self.assertNotIn('value', params)
+      (y, _), captured = local.apply({'params': params}, *args, **kw,
+          capture_intermediates=lambda obj, method: method == '_add_local_qk',
+          mutable=['intermediates'])
+      q, k = captured['intermediates']['_add_local_qk'][0]
+      self.assertEqual((q.shape[-1], k.shape[-1]), (64, 64))
+      self.assertTrue(bool(jnp.all(jnp.isfinite(y))))
+      fetched = local.clone(layer_mode='local_qk+full')
+      fetched_params = fetched.init(jax.random.key(97), *args, **kw)['params']
+      self.assertIn('value', fetched_params)
+      self.assertNotIn('static_v_key', fetched_params)
+
   def test_direct_c8_qk_independent_keys_static_and_gradients(self):
     self._check_direct_c8_qk(64)
 

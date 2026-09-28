@@ -11251,3 +11251,15 @@ class RMTRankHRow4MXUV6Profile(RMTThreeStageMiddleRecomputeSavedV6eB4Profile):
 class RMTRankHRow4VPUV6Profile(RMTThreeStageMiddleRecomputeSavedV6eB4Profile):
     model_name = 'RMTRankHRow4VPUV6Profile'
     rmt_rankh_write_mode = 'row4_vpu'
+
+
+class RMTK1SmallV5Profile(RMTThreeStageMiddleChunk6458Profile):
+    # Small custom-VJP residual, independent of the rank-H write ablations.
+    model_name = 'RMTK1SmallV5Profile'
+    rmt_attention_save_small = True
+
+
+class RMTK1SmallV6Profile(RMTThreeStageMiddleRecomputeSavedV6eB4Profile):
+    # Small custom-VJP residual, independent of the rank-H write ablations.
+    model_name = 'RMTK1SmallV6Profile'
+    rmt_attention_save_small = True

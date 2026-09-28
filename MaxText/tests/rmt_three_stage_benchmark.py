@@ -57,6 +57,7 @@ def main():
   p.add_argument('--repeats',type=int,default=20)
   p.add_argument('--reverse-mode',default='baseline')
   p.add_argument('--write-mode',default='original')
+  p.add_argument('--attention-save-small',action='store_true')
   p.add_argument('--output',required=True,type=Path)
   a=p.parse_args()
   result=dict(device=str(jax.devices()[0]),batch=a.batch,tokens=a.tokens,
@@ -70,7 +71,7 @@ def main():
         rt=tile if phase=='backward' else 128
         def fn(*z):
           kw=dict(forward_tile=ft,reverse_tile=rt)
-          if stage=='attention':return attention_read(*z,positions,**kw)
+          if stage=='attention':return attention_read(*z,positions,save_small=a.attention_save_small,**kw)
           if stage=='middle':return full_write_read(*z,reverse_mode=a.reverse_mode,write_mode=a.write_mode,**kw)
           return projected_write(*z,write_mode=a.write_mode,**kw)
         row=dict(stage=stage,phase=phase,tile=tile,reverse_mode=a.reverse_mode,write_mode=a.write_mode)

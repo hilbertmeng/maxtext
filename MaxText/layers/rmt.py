@@ -440,7 +440,8 @@ class RMTLayer(nn.Module):
           cfg.normalization_layer_epsilon,_read_epsilon(cfg),rope_qk_dim,
           cfg.rope_min_timescale,cfg.rope_max_timescale,
           forward_tile=cfg.get_keys().get('rmt_attention_read_forward_tile',128),
-          reverse_tile=cfg.get_keys().get('rmt_attention_read_reverse_tile',128))
+          reverse_tile=cfg.get_keys().get('rmt_attention_read_reverse_tile',128),
+          save_small=cfg.get_keys().get('rmt_attention_save_small',False))
       query,key,value=qkv[...,:heads,:],qkv[...,heads:2*heads,:],qkv[...,2*heads:,:]
     if not joined_read and not fused_attention:
       qkv = jnp.einsum('btkv,ank->abtnv', attn_in, qkv_key.astype(cfg.dtype))

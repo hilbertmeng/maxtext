@@ -92,3 +92,28 @@ original RMT, MHA), then `rankh-v6-native` (212102b: native rank-H, +K1,
 minor carry). Host1 compiles v5p-16 controls then native candidates. Task-owned
 `xd-rankh-v5-0928` UC1a will be queued after control AOT completion; retained
 hosts remain excluded from cleanup. No headline speed claim yet.
+
+### VPU output-stationary follow-up (`afb3c3a`)
+
+The first VPU alternatives form `[K,V,T]` products per head, or smaller products
+followed by reductions. A third version (`row1_vloop`) instead keeps `[H,8,T]`
+output accumulators and loops over V for dC / K for dD. Contracted axes are leading
+VMEM Ref axes; output blocks align to 8 sublanes. V=75 is padded only to 80.
+No additional launch or HBM boundary. At T=128, its explicit FP32 scratch is
+5.75 MiB (two G orientations, C/D, dC/dD); accumulator is 64 KiB. For qchunk64,
+this halves logically, though TPU physical padding and spills still require measurement.
+FP32 full middle/qchunk64 all-gradient check max 5.86e-7. TPU results pending.
+
+### First full v6e result
+
+Same host0, commit768912c, full18 layers, B4/T4096, health OFF:
+selected control forward127.119 ms /reverse incl remat414.211 ms;
+K1-small forward127.127 /reverse413.514. K1 kernel reverse29.332 ->27.923 ms,
+but step gain is only ~0.13%; stable logs are about1.759 step/s for both.
+Do not advertise this small difference as a robust throughput improvement.
+Raw profile has complete leaf coverage. Output residual scope/lifetime will also be
+checked against full optimized HLO for the combined arm.
+
+AOT correction: process-level58MiB budget conflicted with the original/MHA controls'
+48MiB config. Compile now leaves the budget to each sealed config, preserving the
+previously verified controls instead of changing them to suit the candidates.

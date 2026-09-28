@@ -10023,7 +10023,8 @@ class RMTMediumT2048AllLocalK48EmbedUnembedDirect32(
     rmt_mlp_dim_by_block = None
     dataset_path = 'gs://newproject-1-llm_base_models_us-central1/data/pythia_pile_idxmaps_tfrecord'
     compare_runs = ['Llama2Medium',
-                    'BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayer']
+                    'BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayer',
+                    'BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerAllLocal']
     jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/rmt-medium-t2048-all-local-k48-direct32'
 
 
@@ -10035,7 +10036,7 @@ class BamMHAMediumPropC256TruePile(BamMHAMediumPropC256):
     # run_exp_xd.sh supplies a command-line dataset_path override.
     model_name = 'BamMHAMediumPropC256TruePile'
     dataset_path = Llama2MediumC256T4096TruePile.dataset_path
-    compare_runs = ['BamMHAMediumPropC256', 'Llama2MediumC256T4096TruePile']
+    compare_runs = ['Llama2MediumC256T4096TruePile']
     jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/bam-mha-mediumprop-true-pile'
 
 
@@ -10060,8 +10061,7 @@ class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32(
     rmt_block_scan = False
     rmt_mlp_dim_by_block = None
     dataset_path = BamMHAMediumPropC256TruePile.dataset_path
-    compare_runs = ['BamMHAMediumPropC256TruePile',
-                    'RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicEmbeddingUnembeddingDirect32']
+    compare_runs = ['BamMHAMediumPropC256TruePile']
     jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/rmt-mediumprop-true-pile-all-local-direct32'
 
 
@@ -10073,8 +10073,7 @@ class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoO(
     # same MLP width, 431773472 params (-345888 vs FullO).
     model_name = 'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoO'
     rmt_dynamic_o_enabled = False
-    compare_runs = ['RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32',
-                    'BamMHAMediumPropC256TruePile']
+    compare_runs = ['BamMHAMediumPropC256TruePile']
     jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/rmt-mediumprop-true-pile-direct32-no-o'
 
 

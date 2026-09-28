@@ -11296,3 +11296,17 @@ class RMTRankHRow1MajorV6Profile(RMTThreeStageMiddleRecomputeSavedV6eB4Profile):
 class RMTRankHRow1MajorK1V6Profile(RMTRankHRow1MajorV6Profile):
     model_name = 'RMTRankHRow1MajorK1V6Profile'
     rmt_attention_save_small = True
+
+
+class RMTRankHRow1MajorTunedV5Profile(RMTRankHRow1MajorV5Profile):
+    # Forward tiles retuned after rank-H combination; reverse tiles stay independent.
+    model_name = 'RMTRankHRow1MajorTunedV5Profile'
+    rmt_fused_write_read_tile = 256
+    rmt_projected_write_forward_tile = 256
+
+
+class RMTRankHRow1MajorTunedV6Profile(RMTRankHRow1MajorV6Profile):
+    # Forward tiles retuned after rank-H combination; reverse tiles stay independent.
+    model_name = 'RMTRankHRow1MajorTunedV6Profile'
+    rmt_fused_write_read_tile = 256
+    rmt_projected_write_forward_tile = 256

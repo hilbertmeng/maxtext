@@ -78,8 +78,8 @@ def read_state(m,c,scale,wk,wg,bias,epsilon,read_epsilon):
   return raw,normalized,x,key,gate,compressed,kn,read.astype(m.dtype)
 
 
-def forward(m,a,d,g,s,r,c,scale,wk,wg,bias,epsilon,read_epsilon):
-  updated=_tile(m,a,d,g,s,epsilon)
+def forward(m,a,d,g,s,r,c,scale,wk,wg,bias,epsilon,read_epsilon,write_mode="original"):
+  updated=_tile(m,a,d,g,s,epsilon,write_mode)
   _,_,x,_,gate,_,_,read=read_state(updated,c,scale,wk,wg,bias,epsilon,read_epsilon)
   static=contract(r.T,updated)
   out=(static+((.2*gate)[:,None,:]*read).astype(m.dtype)).astype(m.dtype)

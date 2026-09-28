@@ -10,7 +10,7 @@ from layers.rmt_pallas_projected_write import project_minor_state, project_rever
 from layers.rmt_pallas_write_reverse import joint, dynamic_joint, chunked_joint
 
 
-def backward(args,cotangents,epsilon,read_epsilon,interpret,tile,dynamic_only=False,compute_chunk=0,recompute_write=False,tiled_grads=False,single_buffer=False):
+def backward(args,cotangents,epsilon,read_epsilon,interpret,tile,dynamic_only=False,compute_chunk=0,recompute_write=False,tiled_grads=False,single_buffer=False,write_mode="original"):
   b,k,v,t=args[0].shape
   inp=[_spec(z.shape[1:-1],tile) if i<3 else
        pl.BlockSpec(z.shape,lambda b,j,n=z.ndim:(0,)*n) for i,z in enumerate(args)]
@@ -54,7 +54,7 @@ def backward(args,cotangents,epsilon,read_epsilon,interpret,tile,dynamic_only=Fa
     m,x,d,s,down,up,ub,wg,gb,r,c,scale,wk,rg,rb,dm,dy,dx=(z[...] for z in refs[:18])
     if recompute_write:
       pre,hidden,a,g=project_minor_state(x,down,up,ub,wg,gb)
-      m=_tile(m,a,d,g,s,epsilon)
+      m=_tile(m,a,d,g,s,epsilon,write_mode)
     gm=read_pullback(m,r,c,scale,wk,rg,rb,dm,dy,dx,epsilon,read_epsilon,
                      lambda index,value:store(index+4,value),merge_linear=True,
                      dot_store=(lambda index,left,right:dot_store(index+4,left,right)) if tiled_grads else None)
@@ -68,9 +68,9 @@ def backward(args,cotangents,epsilon,read_epsilon,interpret,tile,dynamic_only=Fa
                             gm.transpose(2,0,1),epsilon)
       gd=(gd.transpose(1,2,0)+static_dd).astype(d.dtype)
     else:
-      write_fn=joint if not compute_chunk else lambda *args,**kw:chunked_joint(*args,chunk=compute_chunk)
+      write_fn=joint if not compute_chunk else lambda *args,**kw:chunked_joint(*args,chunk=compute_chunk,write_mode=write_mode)
       ga,gd,gg,gs=write_fn(a.transpose(2,0,1),d.transpose(2,0,1),g.T,s,
-                            gm.transpose(2,0,1),epsilon,gate_layout='minor')
+                            gm.transpose(2,0,1),epsilon,gate_layout='minor',write_mode=write_mode)
       gd=gd.transpose(1,2,0)
       store(3,gs)
     ga=ga.transpose(1,2,0);gg=gg.T

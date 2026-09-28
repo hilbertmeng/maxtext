@@ -50,7 +50,7 @@ Backward:
 
 前传按 `(batch, token_tile)` 并行。反传对每个 batch 顺序遍历 token tiles，使共享参数梯度 partial 留在 VMEM 中累加；最后写回该 batch 的 partial，再在 kernel 外沿 batch／分片做所需归约。各算法中的 `ACC` 均遵循此约定，不是逐 token 写 HBM 或做全局原子加。
 
-主体 M 采用 token-minor 布局 `[batch,k,v,token]`。写反传的联合收缩暂用 token-major 布局；Kernel2 内的转换只发生在片上临时量。
+scan carry 的逻辑形状是 `[batch,token,k,v]`；wrapper 转置后，Pallas memory 主干内部主要采用 token-minor 布局 `[batch,k,v,token]`。逻辑转置不代表必然发生 HBM copy，需检查编译结果。写反传的联合收缩暂用 token-major 布局；Kernel2 内的转换只发生在片上临时量。
 
 ## 片上共用解析子程序
 

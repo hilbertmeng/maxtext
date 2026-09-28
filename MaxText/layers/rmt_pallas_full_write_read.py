@@ -13,7 +13,7 @@ from layers.rmt_pallas_write_read_major import reverse as read_reverse, read_pul
 from layers.rmt_pallas_write_reverse import joint
 
 
-def forward_call(args,epsilon,read_epsilon,interpret,tile):
+def forward_call(args,epsilon,read_epsilon,interpret,tile,write_mode):
   b,k,v,t=args[0].shape;h=args[2].shape[1]
   inp=[_spec(z.shape[1:-1],tile) if i<3 else
        pl.BlockSpec(z.shape,lambda b,j,n=z.ndim:(0,)*n) for i,z in enumerate(args)]
@@ -21,7 +21,7 @@ def forward_call(args,epsilon,read_epsilon,interpret,tile):
   def kernel(*refs):
     m,x,d,s,down,up,ub,wg,gb,r,c,scale,wk,rg,rb=(z[...] for z in refs[:15])
     a,g=project_minor(x,down,up,ub,wg,gb)
-    values=read_forward(m,a,d,g,s,r,c,scale,wk,rg,rb,epsilon,read_epsilon)
+    values=read_forward(m,a,d,g,s,r,c,scale,wk,rg,rb,epsilon,read_epsilon,write_mode)
     for ref,value in zip(refs[15:],values):ref[...]=value
   return pl.pallas_call(kernel,grid=(b,t//tile),in_specs=inp,
       out_specs=[_spec(sh[1:-1],tile) for sh in shapes],
@@ -31,24 +31,24 @@ def forward_call(args,epsilon,read_epsilon,interpret,tile):
       name='rmt_full_attention_write_mlp_read')(*args)
 
 
-@partial(jax.custom_vjp,nondiff_argnums=(15,16,17,18,19,20))
-def fused(m,x,d,s,down,up,ub,wg,gb,r,c,scale,wk,rg,rb,epsilon,read_epsilon,interpret,ft,rt,mode):
-  return forward_call((m,x,d,s,down,up,ub,wg,gb,r,c,scale,wk,rg,rb),epsilon,read_epsilon,interpret,ft)
+@partial(jax.custom_vjp,nondiff_argnums=(15,16,17,18,19,20,21))
+def fused(m,x,d,s,down,up,ub,wg,gb,r,c,scale,wk,rg,rb,epsilon,read_epsilon,interpret,ft,rt,mode,write_mode):
+  return forward_call((m,x,d,s,down,up,ub,wg,gb,r,c,scale,wk,rg,rb),epsilon,read_epsilon,interpret,ft,write_mode)
 
 
-def fwd(m,x,d,s,down,up,ub,wg,gb,r,c,scale,wk,rg,rb,epsilon,read_epsilon,interpret,ft,rt,mode):
+def fwd(m,x,d,s,down,up,ub,wg,gb,r,c,scale,wk,rg,rb,epsilon,read_epsilon,interpret,ft,rt,mode,write_mode):
   args=(m,x,d,s,down,up,ub,wg,gb,r,c,scale,wk,rg,rb)
-  out=forward_call(args,epsilon,read_epsilon,interpret,ft)
+  out=forward_call(args,epsilon,read_epsilon,interpret,ft,write_mode)
   if mode=='minor_recompute':return out,args
   matrix=checkpoint_name(out[0],'rmt_middle_residual_matrix')
   return (matrix,*out[1:]),(matrix,*args[1:])
 
 
-def bwd(epsilon,read_epsilon,interpret,ft,rt,mode,args,cotangents):
+def bwd(epsilon,read_epsilon,interpret,ft,rt,mode,write_mode,args,cotangents):
   if mode in ('minor','minor_dynamic','minor_chunk64','minor_chunk32','minor_recompute','minor_tiled_grads','minor_single_buffer'):
     from layers.rmt_pallas_full_write_read_minor import backward
     chunk=int(mode.removeprefix('minor_chunk')) if mode.startswith('minor_chunk') else 0
-    return backward(args,cotangents,epsilon,read_epsilon,interpret,min(rt,args[0].shape[-1]),mode=='minor_dynamic',chunk,mode=='minor_recompute',mode=='minor_tiled_grads',mode=='minor_single_buffer')
+    return backward(args,cotangents,epsilon,read_epsilon,interpret,min(rt,args[0].shape[-1]),mode=='minor_dynamic',chunk,mode=='minor_recompute',mode=='minor_tiled_grads',mode=='minor_single_buffer',write_mode)
   args=tuple(z.transpose(0,3,1,2) if i in (0,2) else z.transpose(0,2,1) if i==1 else z
              for i,z in enumerate(args))
   cotangents=tuple(z.transpose(0,3,1,2) if i<2 else z.transpose(0,2,1)
@@ -120,14 +120,16 @@ fused.defvjp(fwd,bwd)
 
 def full_write_read(m,x,d,s,down,up,ub,wg,gb,r,c,scale,wk,rg,rb,
                     epsilon=1e-6,read_epsilon=1e-6,*,interpret=False,forward_tile=128,reverse_tile=32,
-                    reverse_mode='baseline',save_native_outputs=False):
+                    reverse_mode='baseline',save_native_outputs=False,write_mode='original'):
+  if write_mode != 'original' and reverse_mode not in ('minor','minor_chunk64','minor_chunk32','minor_recompute'):
+    raise ValueError('Rank-H write requires a supported token-minor middle reverse')
   if reverse_mode not in ('baseline','stream','joined','minor','minor_dynamic','minor_chunk64','minor_chunk32','minor_recompute','minor_tiled_grads','minor_single_buffer'):raise ValueError(reverse_mode)
   def local(m,x,d,*weights):
     ft=min(forward_tile,m.shape[1]);rt=min(reverse_tile,m.shape[1])
     if m.shape[1]%ft or m.shape[1]%rt:raise ValueError('Stage chunks must divide sequence length')
     weights=(*weights[:10],weights[10].T,weights[11])
     out=fused(m.transpose(0,2,3,1),x.transpose(0,2,1),d.transpose(0,2,3,1),*weights,
-              epsilon,read_epsilon,interpret,ft,rt,reverse_mode)
+              epsilon,read_epsilon,interpret,ft,rt,reverse_mode,write_mode)
     if save_native_outputs:
       out=(out[0],checkpoint_name(out[1],'rmt_middle_vector'),
            checkpoint_name(out[2],'rmt_middle_proxy'))

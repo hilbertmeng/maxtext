@@ -11208,3 +11208,47 @@ class RMTThreeStageMiddleSingleBuffer50Profile(RMTThreeStageMiddleSingleBufferPr
     """Measured48.53MiB allocation plus bounded headroom, below physical64MiB."""
     model_name = 'RMTThreeStageMiddleSingleBuffer50Profile'
     rmt_scoped_vmem_limit_kib = 51200
+
+
+# Rank-H layer-write optimization; codex/rmt-pallas-rankh, /data0/xd/rmt-pallas-rankh.
+# Bet: +4-8% full-step throughput; exact-arithmetic equivalent, BF16 reassociated.
+
+class RMTRankHHeadMXUV5Profile(RMTThreeStageMiddleChunk6458Profile):
+    model_name = 'RMTRankHHeadMXUV5Profile'
+    rmt_rankh_write_mode = 'head_mxu'
+
+
+class RMTRankHRow1MXUV5Profile(RMTThreeStageMiddleChunk6458Profile):
+    model_name = 'RMTRankHRow1MXUV5Profile'
+    rmt_rankh_write_mode = 'row1_mxu'
+
+
+class RMTRankHRow4MXUV5Profile(RMTThreeStageMiddleChunk6458Profile):
+    model_name = 'RMTRankHRow4MXUV5Profile'
+    rmt_rankh_write_mode = 'row4_mxu'
+
+
+class RMTRankHRow4VPUV5Profile(RMTThreeStageMiddleChunk6458Profile):
+    model_name = 'RMTRankHRow4VPUV5Profile'
+    rmt_rankh_write_mode = 'row4_vpu'
+
+
+class RMTRankHHeadMXUV6Profile(RMTThreeStageMiddleRecomputeSavedV6eB4Profile):
+    model_name = 'RMTRankHHeadMXUV6Profile'
+    rmt_rankh_write_mode = 'head_mxu'
+
+
+class RMTRankHRow1MXUV6Profile(RMTThreeStageMiddleRecomputeSavedV6eB4Profile):
+    model_name = 'RMTRankHRow1MXUV6Profile'
+    rmt_rankh_write_mode = 'row1_mxu'
+
+
+class RMTRankHRow4MXUV6Profile(RMTThreeStageMiddleRecomputeSavedV6eB4Profile):
+    model_name = 'RMTRankHRow4MXUV6Profile'
+    rmt_rankh_write_mode = 'row4_mxu'
+
+
+class RMTRankHRow4VPUV6Profile(RMTThreeStageMiddleRecomputeSavedV6eB4Profile):
+    model_name = 'RMTRankHRow4VPUV6Profile'
+    rmt_rankh_write_mode = 'row4_vpu'
+

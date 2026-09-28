@@ -13,7 +13,10 @@ def _norm(x,epsilon):
   return (f*jax.lax.rsqrt(jnp.mean(f*f,axis=-2,keepdims=True)+epsilon)).astype(x.dtype)
 
 
-def _tile(matrix,address,data,gate,static_key,epsilon):
+def _tile(matrix,address,data,gate,static_key,epsilon,write_mode="original"):
+  if write_mode != "original":
+    from layers.rmt_pallas_rankh_write import forward
+    return forward(matrix,address,data,gate,static_key,epsilon,write_mode)
   # Shapes K,V,T; H,K,T; H,V,T; H,T. T stays in SIMD lanes.
   h,k,t=address.shape
   v=data.shape[1]

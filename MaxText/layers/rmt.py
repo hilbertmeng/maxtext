@@ -279,7 +279,8 @@ class RMTDynamicWrite(nn.Module):
           up_bias.astype(x.dtype),gate_kernel.astype(x.dtype),gate_bias.astype(x.dtype),
           cfg.normalization_layer_epsilon,
           forward_tile=cfg.get_keys().get('rmt_projected_write_forward_tile',128),
-          reverse_tile=cfg.get_keys().get('rmt_projected_write_reverse_tile',32))
+          reverse_tile=cfg.get_keys().get('rmt_projected_write_reverse_tile',32),
+          write_mode=cfg.get_keys().get('rmt_rankh_write_mode','original'))
       return output,None
     hidden,gate_logits = _project_many(x,(down,gate_kernel),cfg.get_keys().get('rmt_pack_dynamic_projections',False))
     hidden = nn.gelu(hidden)
@@ -548,7 +549,8 @@ class RMTLayer(nn.Module):
             forward_tile=cfg.get_keys().get('rmt_fused_write_read_tile',128),
             reverse_tile=cfg.get_keys().get('rmt_fused_write_read_backward_tile',32),
             reverse_mode=cfg.get_keys().get('rmt_full_middle_reverse_mode','baseline'),
-            save_native_outputs=cfg.get_keys().get('rmt_save_middle_native_outputs',False))
+            save_native_outputs=cfg.get_keys().get('rmt_save_middle_native_outputs',False),
+            write_mode=cfg.get_keys().get('rmt_rankh_write_mode','original'))
       else:
         from layers.rmt_pallas_write_read import write_mlp_read
         address,attn_write_gate=write_parameters

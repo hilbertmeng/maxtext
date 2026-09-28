@@ -28,7 +28,9 @@ def forward(m, a, d, g, s, epsilon, mode):
   if schedule == 'head':
     acc = jnp.zeros(m.shape, jnp.float32)
     for j in range(h):
-      acc = acc+c[j, :, None, :]*df[j, None, :, :]
+      cj = jax.lax.slice_in_dim(c, j, j+1, axis=0).reshape(k,t)
+      dj = jax.lax.slice_in_dim(df, j, j+1, axis=0).reshape(v,t)
+      acc = acc+cj[:,None,:]*dj[None,:,:]
     return (m.astype(jnp.float32)+acc).astype(m.dtype)
   rows = int(schedule.removeprefix('row'))
   if k % rows:
@@ -39,7 +41,9 @@ def forward(m, a, d, g, s, epsilon, mode):
       mi = jax.lax.dynamic_slice_in_dim(m, i*rows, rows, axis=0)
       acc = jnp.zeros((rows, v, t), jnp.float32)
       for j in range(h):
-        acc = acc+ci[j, :, None, :]*df[j, None, :, :]
+        cj = jax.lax.slice_in_dim(ci, j, j+1, axis=0).reshape(rows,t)
+        dj = jax.lax.slice_in_dim(df, j, j+1, axis=0).reshape(v,t)
+        acc = acc+cj[:,None,:]*dj[None,:,:]
       out[pl.ds(i*rows, rows), :, :] = (mi.astype(jnp.float32)+acc).astype(m.dtype)
     jax.lax.fori_loop(0, k//rows, step, None)
     return out[...]
@@ -81,6 +85,6 @@ def reverse(a, d, g, s, matrix_grad, epsilon, mode, **unused):
   da = dc*(g.astype(jnp.float32)[:, None, :]*di)
   da = ai*(da-af*jnp.mean(da*af, axis=1, keepdims=True)*ai*ai)
   dd = dd-df*(g.astype(jnp.float32)[:, None, :]*di**3*dot/v)
-  dg = (di*dot)[:, 0, :]
+  dg = jax.lax.slice_in_dim(di*dot, 0, 1, axis=1).reshape(h,t)
   ds = jnp.sum(dc, axis=2)
   return da.astype(a.dtype).transpose(2, 0, 1), dd.astype(d.dtype).transpose(2, 0, 1), dg.astype(g.dtype).T, ds

@@ -280,8 +280,10 @@ The direct minor path removes the failed major qchunk bridge; no fusion split is
 
 Full18-layer profiles completed on the same machines as all controls. Selected
 configuration names and exact timings are in the canonical table above.
-Implementation remains in worktree `/data0/xd/rmt-pallas-rankh`, branch
-`codex/rmt-pallas-rankh`; main `MaxText/exp.py` records the experiments as ledger only.
+Implementation is integrated into `refactor-bam` from worktree
+`/data0/xd/rmt-pallas-rankh`, branch `codex/rmt-pallas-rankh`. The original
+measured runtime remains `dd871623`; main `MaxText/exp.py` includes the runnable
+configurations and historical ablations. The experiment branch is retained.
 
 | Hardware | Selected configuration | step/s | vs pre-review best | vs paired+K1 | vs original RMT | throughput/MHA |
 |---|---|---:|---:|---:|---:|---:|

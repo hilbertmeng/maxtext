@@ -11210,7 +11210,8 @@ class RMTThreeStageMiddleSingleBuffer50Profile(RMTThreeStageMiddleSingleBufferPr
     rmt_scoped_vmem_limit_kib = 51200
 
 
-# Rank-H layer-write optimization; codex/rmt-pallas-rankh, /data0/xd/rmt-pallas-rankh.
+# Rank-H layer-write optimization integrated into refactor-bam from codex/rmt-pallas-rankh.
+# Source worktree: /data0/xd/rmt-pallas-rankh; measured runtime dd871623.
 # Bet: +4-8% full-step throughput; exact-arithmetic equivalent, BF16 reassociated.
 
 class RMTRankHHeadMXUV5Profile(RMTThreeStageMiddleChunk6458Profile):
@@ -11324,7 +11325,7 @@ class RMTRankHRow1MajorTunedV6Profile(RMTRankHRow1MajorV6Profile):
 
 class RMTRankHPairedV5Profile(RMTRankHRow1MajorTunedV5Profile):
     # Runtime0378e2a; v5p-16: 0.588899 step/s; F443.804/B1230.098ms.
-    # Two MXU dots remove symmetric zero quadrants; ledger only, codex/rmt-pallas-rankh.
+    # Two MXU dots remove symmetric zero quadrants; retained alternative to native VPU.
     model_name = 'RMTRankHPairedV5Profile'
     rmt_rankh_write_mode = 'row1_pair'
 
@@ -11349,7 +11350,7 @@ class RMTRankHPairedK1V6Profile(RMTRankHPairedV6Profile):
 
 
 class RMTRankHVPUV5Profile(RMTRankHPairedK1V5Profile):
-    # Prepared qchunk64 variant, not profiled; choose Unchunked child. Ledger only.
+    # Prepared qchunk64 variant, not profiled; choose validated Unchunked child.
     # Older native8 bridge failed75.84MiB VMEM; direct minor path solves the lifetime issue.
     model_name = 'RMTRankHVPUV5Profile'
     rmt_rankh_write_mode = 'row1_native75'
@@ -11359,7 +11360,7 @@ class RMTRankHVPUV5Profile(RMTRankHPairedK1V5Profile):
 class RMTRankHVPUUnchunkedV5Profile(RMTRankHVPUV5Profile):
     # Runtime dd87162; profile complete: 0.637335 step/s; F434.115/B1109.957ms.
     # UC1a v5p-16; +12.92% vs prior three-stage best, 84.46% of matched MHA speed.
-    # Test whether native VPU removes the MXU qchunk64 capacity constraint at58MiB.
+    # Selected: native VPU removes the MXU qchunk64 capacity constraint at58MiB.
     model_name = 'RMTRankHVPUUnchunkedV5Profile'
     rmt_full_middle_reverse_mode = 'minor_recompute'
 

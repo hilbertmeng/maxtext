@@ -909,3 +909,27 @@ Artifacts: `/data0/xd/bam_diagnostics/rmt-middle-v2/comparison.json`,
 Resource closeout: temporary UC1a v5p node/queue verified absent2026-09-27
 16:31:40UTC after all7 profiles; no preemption. Both retained EW4a v6e hosts
 remain READY and are not enrolled in cleanup.
+
+## 2026-09-28：Rank-H 写更新与 native VPU 后续
+
+完整证据、配置和代码索引见 [rmt_rankh_write.md](rmt_rankh_write.md)。实现位于
+`/data0/xd/rmt-pallas-rankh` / `codex/rmt-pallas-rankh`，测量 runtime `dd87162`；
+实现已合入主分支 `refactor-bam`，主 `exp.py` 包含可运行配置与历史变体。NoO、18层、T4096、health OFF，
+同机复测原始RMT、既有三段融合最优和MHA，分别统计前传及反传（含remat）。
+
+- 最终 v5p-16 UC1a `RMTRankHVPUUnchunkedV5Profile`：0.637335 step/s，
+  较既有最优+12.92%，较原始RMT+63.41%，达到MHA速度84.46%。F434.115/B1109.957ms。
+- 最终 v6e-1 EW4a B4 `RMTRankHVPUV6Profile`：1.897464 step/s，
+  较既有最优+7.91%，较原始RMT+57.79%，达到MHA速度76.68%。F124.835/B375.718ms。
+- 静态、动态层写共用D，先合并C=S+g*rD*An，反传只需两组收缩。
+  NN+NT两个MXU dot先胜过带零象限的对称矩阵；两头寄存器分块、显式完整展开
+  75/48项的VPU再胜出。独立乘/加而非硬件fused FMA，按实际指令计成本。
+- 局部kernel胜出不等于融合段胜出：VPU沿用major ABI时明显回退；投影、归一化、
+  收缩与epilogue全部保持token-minor之后才兑现整步收益。保留全部三段融合边界。
+- 小qchunk不必然省VMEM。旧major qchunk64桥接需求75.84MiB，其中51.82MiB是
+  寄存器溢出；直接native-minor K2反而可在原58MiB编译预算通过完整v5p模型。
+  必须区分声明scratch、padding、存活期与spill，不能只缩小逻辑tile。
+- K1小residual只占约一层13.5MiB，收益小但正向。改逻辑scan carry并未自动消除
+  真实HBM复制；MXU/VPU混合没有实现预期收缩重叠，未选用。
+- FP32全梯度、三层scan四种remat及两硬件BF16检查通过；未宣称逐位或长期收敛等价。
+  原始v6e/MHA曾因统一预算而退速，最终比较使用更快的原已验证AOT控制。

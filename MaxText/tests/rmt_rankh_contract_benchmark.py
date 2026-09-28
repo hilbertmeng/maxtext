@@ -2,6 +2,8 @@
 import argparse
 import json
 import os
+import statistics
+import time
 from pathlib import Path
 import jax
 import jax.numpy as jnp
@@ -30,7 +32,7 @@ def main():
   p.add_argument('--batch',type=int,default=4);p.add_argument('--tokens',type=int,default=4096)
   p.add_argument('--tile',type=int,default=128);p.add_argument('--head-block',type=int,default=4)
   p.add_argument('--interpret',action='store_true');p.add_argument('--dtype',default='bfloat16')
-  p.add_argument('--output',required=True,type=Path);a=p.parse_args();dt=getattr(jnp,a.dtype)
+  p.add_argument('--dump-root',type=Path);p.add_argument('--output',required=True,type=Path);a=p.parse_args();dt=getattr(jnp,a.dtype)
   shapes=[(a.batch,16,48,a.tokens),(a.batch,16,75,a.tokens),(a.batch,48,75,a.tokens)]
   x=tuple(jax.random.normal(jax.random.key(5310+i),s,dtype=dt)*.03 for i,s in enumerate(shapes))
   c,d,g=x
@@ -41,11 +43,25 @@ def main():
     row=dict(backend=backend,tile=a.tile,head_block=a.head_block)
     try:
       fn=lambda *z:call(*z,backend,a.tile,a.head_block,a.interpret)
-      actual=jax.jit(fn)(*x)
+      options={}
+      if a.dump_root:
+        options={'xla_jf_dump_to':str(a.dump_root/backend/'jf'),
+                 'xla_mosaic_dump_to':str(a.dump_root/backend/'mosaic')}
+      start=time.monotonic()
+      executable=jax.jit(fn).lower(*x).compile(compiler_options=options)
+      row['compile_s']=time.monotonic()-start
+      actual=executable(*x)
       errors=[float(jnp.linalg.norm(u-v)/jnp.linalg.norm(v)) for u,v in zip(actual,expected)]
       assert max(errors)<5e-5,errors
       row.update(relative_l2=errors,ok=True)
-      if not a.interpret:row.update(timed(fn,x,20))
+      if not a.interpret:
+        for _ in range(4):jax.block_until_ready(executable(*x))
+        samples=[]
+        for _ in range(20):
+          start=time.perf_counter();jax.block_until_ready(executable(*x))
+          samples.append(1000*(time.perf_counter()-start))
+        row.update(median_ms=statistics.median(samples),samples_ms=samples,
+                   hbm_memory=str(executable.memory_analysis()))
     except Exception as e:row.update(ok=False,error=str(e))
     result['measurements'].append(row);print(json.dumps(row),flush=True)
     a.output.write_text(json.dumps(result,indent=2));jax.clear_caches()

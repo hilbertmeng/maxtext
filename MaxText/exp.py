@@ -10067,7 +10067,9 @@ class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32(
 class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoO(
     RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32):
     """Ablate only the dynamic local O read on the TruePile all-local RMT."""
-    # Same MLP width and pure-JAX layer scan as the TruePile RMT parent.
+    # code_commit: 36fe0f8; UE5a xd-v5p-16-2709274-maxtext, .3828 steps/s
+    # (10-14), +1.7% vs matched FullO .3764. Pure JAX and direct layer scan;
+    # same MLP width, 431773472 params (-345888 vs FullO).
     model_name = 'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoO'
     rmt_dynamic_o_enabled = False
     compare_runs = ['RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32',

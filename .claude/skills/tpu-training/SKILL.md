@@ -21,6 +21,9 @@ in the sealed runtime commit. `run_exp_xd.sh` reads that declaration, then selec
 data. `dataset_paths.py` is the routing authority; do not hardcode a region in a new `exp.py`
 class. `migrate_zone.py` re-resolves the registered dataset path and checks the target replica
 **before** stopping the source run. Check the registered path after launch.
+For an in-flight data-replica switch, collect the old worker's loss before its log is replaced;
+stop at a committed checkpoint, then verify the new worker's path, resumed step, adjacent loss
+windows, and the path written in the next checkpoint's `cur_files`.
 Authoritative orchestration sources are `/home/xd/projects/xd_tpu_scripts`; deploy only those
 exact files to tpu-ag and verify matching hashes.
 Compiler and training workers obtain source from Git over HTTPS at the registered commit;

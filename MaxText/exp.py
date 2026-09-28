@@ -9766,6 +9766,7 @@ class BamMHAMediumPropAlibiC256TruePile(BamMHAMediumPropAlibiC256):
     # Ledger only: runtime 692216b, codex/rmt-static-k64-truepile,
     # /data0/xd/rmt-static-k64-truepile.
     # UE5a v5p-16 running, .669 step/s near step500.
+    # UE5a local-data switch ckpt7299; resumed7300; pre/post75 loss 2.514631/2.516021; ckpt7400 local.
     model_name = 'BamMHAMediumPropAlibiC256TruePile'
     DATASET_VARIANT = 'truepile4096'
     dataset_path = Llama2MediumC256T4096TruePile.dataset_path
@@ -9777,6 +9778,7 @@ class RMTMediumPropAlibiK64TruePile(RMTMediumPropAlibiK64):
     """Original static ALiBi K64 RMT on true 4097-token Pile records."""
     # Ledger only: runtime 692216b, codex/rmt-static-k64-truepile.
     # UE5a v5p-16 running, .621 step/s near step500 (-7.2% vs paired ALiBi MHA).
+    # UE5a local-data switch ckpt6572; resumed6573; pre/post25 2.518069/2.502365; ckpt6600 local.
     # Old padded pair final5 K64-ALiBi MHA -.020872; true-length bet -.030.
     model_name = 'RMTMediumPropAlibiK64TruePile'
     DATASET_VARIANT = 'truepile4096'
@@ -10128,6 +10130,7 @@ class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32(
 class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoO(
     RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32):
     """Ablate only the dynamic local O read on the TruePile all-local RMT."""
+    # UE5a local-data switch ckpt9481; resumed9482; pre/post25 2.318775/2.324558; ckpt9600 local.
     # code_commit: 36fe0f8; UE5a xd-v5p-16-2709274-maxtext, .3828 steps/s
     # (10-14), +1.7% vs matched FullO .3764. Pure JAX and direct layer scan;
     # same MLP width, 431773472 params (-345888 vs FullO).

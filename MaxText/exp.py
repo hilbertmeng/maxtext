@@ -10064,6 +10064,17 @@ class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32(
     jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/rmt-mediumprop-true-pile-all-local-direct32'
 
 
+class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoO(
+    RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32):
+    """Ablate only the dynamic local O read on the TruePile all-local RMT."""
+    # Same MLP width and pure-JAX layer scan as the TruePile RMT parent.
+    model_name = 'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoO'
+    rmt_dynamic_o_enabled = False
+    compare_runs = ['RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32',
+                    'BamMHAMediumPropC256TruePile']
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/rmt-mediumprop-true-pile-direct32-no-o'
+
+
 class RMTVectorNormMHABudgetHeadwiseMLPProfile(
     RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudget):
     # Ledger only; implementation codex/rmt-k48-dynamic, runtime d1b1f89.

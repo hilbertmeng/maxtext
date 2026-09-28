@@ -9550,6 +9550,7 @@ class Llama2XLPropTruePileMHA(Llama2XLPropTrain):
     # The padded-data predecessor is not a same-step loss baseline.
     model_name = 'Llama2XLPropTruePileMHA'
     dataset_path = 'gs://newproject-1-common_datasets_us-east5/pythia_pile_idxmaps_tfrecord_4096'
+    epoch = 4  # One TruePile pass supplies ~13.5k batches; 50k steps require four passes.
     compare_runs = []
     jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/xlprop-truepile-mha'
 

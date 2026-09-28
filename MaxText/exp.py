@@ -11349,19 +11349,24 @@ class RMTRankHPairedK1V6Profile(RMTRankHPairedV6Profile):
 
 
 class RMTRankHVPUV5Profile(RMTRankHPairedK1V5Profile):
-    # Native VPU full unroll; ledger only, codex/rmt-pallas-rankh. Full profile pending.
+    # Prepared qchunk64 variant, not profiled; choose Unchunked child. Ledger only.
+    # Older native8 bridge failed75.84MiB VMEM; direct minor path solves the lifetime issue.
     model_name = 'RMTRankHVPUV5Profile'
     rmt_rankh_write_mode = 'row1_native75'
     rmt_projected_write_reverse_tile = 128
 
 
 class RMTRankHVPUUnchunkedV5Profile(RMTRankHVPUV5Profile):
+    # Runtime dd87162; profile complete: 0.637335 step/s; F434.115/B1109.957ms.
+    # UC1a v5p-16; +12.92% vs prior three-stage best, 84.46% of matched MHA speed.
     # Test whether native VPU removes the MXU qchunk64 capacity constraint at58MiB.
     model_name = 'RMTRankHVPUUnchunkedV5Profile'
     rmt_full_middle_reverse_mode = 'minor_recompute'
 
 
 class RMTRankHVPUV6Profile(RMTRankHPairedK1V6Profile):
+    # Runtime dd87162; profile complete: 1.897464 step/s; F124.835/B375.718ms.
+    # EW4a v6e-1 B4; +7.91% vs prior three-stage best, 76.68% of matched MHA speed.
     # Native VPU full unroll; K3 reverse uses128 SIMD lanes independently of forward256.
     model_name = 'RMTRankHVPUV6Profile'
     rmt_rankh_write_mode = 'row1_native75'

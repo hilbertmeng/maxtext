@@ -156,6 +156,8 @@ controls; use the faster verified original/MHA in headline comparisons.
 | v5p-16 | `RMTRankHPairedK1V5Profile` | 0.591299 | 443.906 | 1223.662 |
 | v6e-1 | `RMTRankHPairedV6Profile` | 1.817231 | 124.742 | 398.117 |
 | v6e-1 | `RMTRankHPairedK1V6Profile` | 1.819631 | 124.787 | 397.409 |
+| v5p-16 | `RMTRankHVPUUnchunkedV5Profile` | 0.637335 | 434.115 | 1109.957 |
+| v6e-1 | `RMTRankHVPUV6Profile` | 1.897464 | 124.835 | 375.718 |
 
 Native rank-H plus tuned forward tiles currently improves throughput about3.2%
 on v5p and2.1% on v6e over the previous selected three-stage path: below the
@@ -213,7 +215,7 @@ Artifacts include `full_summary.json`, full raw profile subdirectories, FP32
 probe JSONs, `e27b044-full/`, and both Mosaic/JF dumps under the task artifact root.
 
 
-## Selected full-step combination at0378e2a
+## Intermediate full-step combination at0378e2a (superseded below)
 
 Row1 rank-H forward256 + paired native-major MXU reverse + K1 small residual.
 K2 reverse stays128 DMA /64 compute on v5p and128 recompute on v6e; K3 reverse
@@ -267,6 +269,80 @@ native scan/remat checks pass (qchunk64 and recompute, all four remat policies).
 v5p B16 K3 native8 reverse128=4.252ms versus paired5.039ms. K2's old major
 qchunk64 bridge fails physical VMEM:75.84MiB required versus63.94MiB available;
 **51.82MiB are register spills**, not declared scratch. The native contraction's
-six explicit FP32 buffers total about5.71MiB at128 tokens (padding V to80).
+six logical FP32 scratch buffers total about5.71MiB at128 tokens (padding V to80),
+before any further compiler padding or register spills.
 This gap motivates the direct native-minor K2 path, not reducing fusion scope.
-Full-model AOT for RMTRankHVPUUnchunkedV5Profile at58MiB scoped budget is running.
+Full-model AOT for RMTRankHVPUUnchunkedV5Profile passed at58MiB scoped budget.
+The direct minor path removes the failed major qchunk bridge; no fusion split is needed.
+
+
+## Final selected result: native VPU, runtime dd87162
+
+Full18-layer profiles completed on the same machines as all controls. Selected
+configuration names and exact timings are in the canonical table above.
+Implementation remains in worktree `/data0/xd/rmt-pallas-rankh`, branch
+`codex/rmt-pallas-rankh`; main `MaxText/exp.py` records the experiments as ledger only.
+
+| Hardware | Selected configuration | step/s | vs pre-review best | vs paired+K1 | vs original RMT | throughput/MHA |
+|---|---|---:|---:|---:|---:|---:|
+| v5p-16 UC1a | `RMTRankHVPUUnchunkedV5Profile` |0.637335|+12.92%|+7.79%|+63.41%|84.46%|
+| v6e-1 EW4a | `RMTRankHVPUV6Profile` |1.897464|+7.91%|+4.28%|+57.79%|76.68%|
+
+The final native-VPU bet (+3–6% v5p, +2–4% v6e over paired+K1) was conservative.
+The initial rank-H4–8% bet is exceeded on v5p and met near its upper end on v6e.
+Both bets are judged against their stated baselines, not interchanged.
+
+| Hardware | Phase | Pre-review best ms | Final native VPU ms |
+|---|---|---:|---:|
+| v5p | Forward |463.922|434.115|
+| v5p | Backward including remat |1284.794|1109.957|
+| v6e | Forward |127.119|124.835|
+| v6e | Backward including remat |414.211|375.718|
+
+Final K2 reverse:119.653ms v5p /44.370ms v6e; K3 reverse:50.514/19.675ms;
+K1 reverse:89.197/28.132ms. The backward path remains the main optimization target.
+Raw leaf coverage is99.89% v5p /99.95% v6e. Throughput uses all30 log samples
+at20–49, independently of the short profiling window.
+
+Selected scheduling on both devices: K2 forward256 /backward128; K3
+forward256 /backward128; native write contraction two-head blocks with75/48
+fully unrolled scalar contraction terms, token in128 SIMD lanes. K1 retains its
+prior hardware-specific tiles and saves the small residual. K2 stores the input M
+and recomputes its write locally before the MLP read pullback; this replaces v5p's
+previous major qchunk64 bridge. Scoped budgets stay58MiB v5p /96MiB v6e.
+
+Validation: full-dimensional FP32 all-gradient errors below6e-7; nonzero-parameter
+three-layer scan under four remat policies passes; TPU BF16 normal-gate probes
+pass. Final v5p gate-bias -10 tests max relative L2: K2 0.00970531, K3 0.00642427.
+This validates the numerical probes, not bitwise equality or long-run convergence.
+
+The reviewer's second reply materially changed the result: two-dot MXU first
+improved full steps, then register blocking plus explicit loop unrolling won the
+pure contraction benchmark. Keeping the complete reverse path native-minor was
+necessary to turn that local win into a training win. The proposed MXU/VPU hybrid
+never achieved contraction overlap in the observed compiler schedule and is not
+selected. Smaller logical scan carry alone did not remove the memory copies;
+K1 caching helped modestly. Attention and MLP width were deliberately unchanged.
+
+Artifacts: all raw profiles, logs, compiler dumps and numerical probes are under
+`/data0/xd/bam_diagnostics/rmt-rankh`; `full_summary.json` is the machine-readable
+full-step table. GCS roots and runtime hashes are recorded above. Retained EW4a
+v6e hosts0/1 remain reserved; temporary UC1a v5p cleanup is tracked below.
+
+
+### Closeout
+
+Both final profile matrices and the final v5p small-gate probes completed. Raw
+XPlane and log objects are verified in GCS and copied locally. Temporary
+`xd-rankh-v5-0928` (created2026-09-28T04:48:18.831847Z, UC1a spot v5p-16) and its
+queue were deleted after artifact verification; deletion script reports both
+absent. Both retained EW4a `llm-jax-v6e-1-0/-1` machines remain READY and reserved.
+
+Infrastructure follow-up: a profile helper override inside the worker Git
+checkout had dirtied a tracked file and blocked later commit switches. The
+profile runner now rejects that destination before upload; helpers live outside
+the checkout. Multi-host standalone probes now explicitly initialize distributed
+JAX and launch on all pod workers. CPU Pallas interpretation alone did not detect
+the partial-unroll lowering restriction; the explicit-unroll implementation was
+validated on both TPU types. None of these failures were hidden by changing the
+model or abandoning a fused stage.

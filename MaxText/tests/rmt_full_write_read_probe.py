@@ -23,16 +23,16 @@ def main():
   p.add_argument('--tokens',type=int,default=256);p.add_argument('--output',required=True)
   p.add_argument('--reverse-tile',type=int,default=32)
   p.add_argument('--reverse-mode',default='baseline')
-  args=p.parse_args();t=args.tokens;dt=getattr(jnp,args.dtype)
+  p.add_argument("--gate-bias",type=float,default=-2);p.add_argument("--write-mode",default="original");args=p.parse_args();t=args.tokens;dt=getattr(jnp,args.dtype)
   shapes=[(1,t,48,75),(1,t,1200),(1,t,16,75),(16,48),(1200,256),(256,768),
           (16,48),(1200,16),(16,),(48,16),(32,8),(1200,),(1200,128),(1200,16),(16,)]
   x=[jax.random.normal(jax.random.key(1700+i),s,dtype=dt) for i,s in enumerate(shapes)]
   for i in (3,4,5,7,9,10,12,13):x[i]*=.03
-  x[6]*=.1;x[8]=x[8]*.1-2;x[11]=1+x[11]*.02;x[14]=x[14]*.1-3
+  x[6]*=.1;x[8]=x[8]*.1+args.gate_bias;x[11]=1+x[11]*.02;x[14]=x[14]*.1-3
   expected=reference(*x)
   dy=tuple(jax.random.normal(jax.random.key(1800+i),v.shape,dtype=dt) for i,v in enumerate(expected))
   bg=jax.vjp(reference,*x)[1](dy)
-  fn=lambda *z:full_write_read(*z,interpret=args.interpret,reverse_tile=args.reverse_tile,reverse_mode=args.reverse_mode)
+  fn=lambda *z:full_write_read(*z,interpret=args.interpret,reverse_tile=args.reverse_tile,reverse_mode=args.reverse_mode,write_mode=args.write_mode)
   actual=jax.jit(fn)(*x);ag=jax.jit(lambda *z:jax.vjp(fn,*z)[1](dy))(*x)
   errors=[float(jnp.linalg.norm(a.astype(jnp.float32)-b.astype(jnp.float32))/jnp.linalg.norm(b.astype(jnp.float32)))
           for a,b in zip((*actual,*ag),(*expected,*bg))]

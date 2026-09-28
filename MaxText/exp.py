@@ -11229,3 +11229,167 @@ class RMTThreeStageMiddleSingleBuffer50Profile(RMTThreeStageMiddleSingleBufferPr
     """Measured48.53MiB allocation plus bounded headroom, below physical64MiB."""
     model_name = 'RMTThreeStageMiddleSingleBuffer50Profile'
     rmt_scoped_vmem_limit_kib = 51200
+
+
+# Rank-H layer-write optimization integrated into refactor-bam from codex/rmt-pallas-rankh.
+# Source worktree: /data0/xd/rmt-pallas-rankh; measured runtime dd871623.
+# Bet: +4-8% full-step throughput; exact-arithmetic equivalent, BF16 reassociated.
+
+class RMTRankHHeadMXUV5Profile(RMTThreeStageMiddleChunk6458Profile):
+    model_name = 'RMTRankHHeadMXUV5Profile'
+    rmt_rankh_write_mode = 'head_mxu'
+
+
+class RMTRankHRow1MXUV5Profile(RMTThreeStageMiddleChunk6458Profile):
+    model_name = 'RMTRankHRow1MXUV5Profile'
+    rmt_rankh_write_mode = 'row1_mxu'
+
+
+class RMTRankHRow4MXUV5Profile(RMTThreeStageMiddleChunk6458Profile):
+    model_name = 'RMTRankHRow4MXUV5Profile'
+    rmt_rankh_write_mode = 'row4_mxu'
+
+
+class RMTRankHRow4VPUV5Profile(RMTThreeStageMiddleChunk6458Profile):
+    model_name = 'RMTRankHRow4VPUV5Profile'
+    rmt_rankh_write_mode = 'row4_vpu'
+
+
+class RMTRankHHeadMXUV6Profile(RMTThreeStageMiddleRecomputeSavedV6eB4Profile):
+    model_name = 'RMTRankHHeadMXUV6Profile'
+    rmt_rankh_write_mode = 'head_mxu'
+
+
+class RMTRankHRow1MXUV6Profile(RMTThreeStageMiddleRecomputeSavedV6eB4Profile):
+    model_name = 'RMTRankHRow1MXUV6Profile'
+    rmt_rankh_write_mode = 'row1_mxu'
+
+
+class RMTRankHRow4MXUV6Profile(RMTThreeStageMiddleRecomputeSavedV6eB4Profile):
+    model_name = 'RMTRankHRow4MXUV6Profile'
+    rmt_rankh_write_mode = 'row4_mxu'
+
+
+class RMTRankHRow4VPUV6Profile(RMTThreeStageMiddleRecomputeSavedV6eB4Profile):
+    model_name = 'RMTRankHRow4VPUV6Profile'
+    rmt_rankh_write_mode = 'row4_vpu'
+
+
+class RMTK1SmallV5Profile(RMTThreeStageMiddleChunk6458Profile):
+    # Profile v5p-16: 0.565198 step/s; F463.736/B1278.676ms (remat included).
+    # Small custom-VJP residual, independent of the rank-H write ablations.
+    model_name = 'RMTK1SmallV5Profile'
+    rmt_attention_save_small = True
+
+
+class RMTK1SmallV6Profile(RMTThreeStageMiddleRecomputeSavedV6eB4Profile):
+    # Profile v6e-1: 1.760491 step/s; F127.127/B413.514ms (remat included).
+    # Small custom-VJP residual, independent of the rank-H write ablations.
+    model_name = 'RMTK1SmallV6Profile'
+    rmt_attention_save_small = True
+
+
+class RMTMinorCarryV5Profile(RMTThreeStageMiddleChunk6458Profile):
+    # Profile v5p-16: 0.565332 step/s; F459.854/B1284.083ms (remat included).
+    # Experimental scan carry layout; codex/rmt-pallas-rankh, not promoted.
+    model_name = 'RMTMinorCarryV5Profile'
+    rmt_scan_token_minor = True
+
+
+class RMTMinorCarryV6Profile(RMTThreeStageMiddleRecomputeSavedV6eB4Profile):
+    # Profile v6e-1: 1.763398 step/s; F126.166/B414.325ms (remat included).
+    model_name = 'RMTMinorCarryV6Profile'
+    rmt_scan_token_minor = True
+
+
+class RMTRankHRow1MajorV5Profile(RMTThreeStageMiddleChunk6458Profile):
+    # Profile v5p-16: 0.580033 step/s; F451.423/B1247.150ms (remat included).
+    # Rank-H native-MXU reverse with row1 forward; not promoted.
+    model_name = 'RMTRankHRow1MajorV5Profile'
+    rmt_rankh_write_mode = 'row1_major'
+
+
+class RMTRankHRow1MajorK1V5Profile(RMTRankHRow1MajorV5Profile):
+    # Profile v5p-16: 0.582300 step/s; F451.638/B1240.824ms (remat included).
+    model_name = 'RMTRankHRow1MajorK1V5Profile'
+    rmt_attention_save_small = True
+
+
+class RMTRankHRow1MajorV6Profile(RMTThreeStageMiddleRecomputeSavedV6eB4Profile):
+    # Profile v6e-1: 1.790427 step/s; F125.979/B405.414ms (remat included).
+    # Rank-H native-MXU reverse with row1 forward; not promoted.
+    model_name = 'RMTRankHRow1MajorV6Profile'
+    rmt_rankh_write_mode = 'row1_major'
+
+
+class RMTRankHRow1MajorK1V6Profile(RMTRankHRow1MajorV6Profile):
+    # Profile v6e-1: 1.791597 step/s; F125.984/B404.105ms (remat included).
+    model_name = 'RMTRankHRow1MajorK1V6Profile'
+    rmt_attention_save_small = True
+
+
+class RMTRankHRow1MajorTunedV5Profile(RMTRankHRow1MajorV5Profile):
+    # Profile v5p-16: 0.582499 step/s; F443.664/B1247.248ms (remat included).
+    # Forward tiles retuned after rank-H combination; reverse tiles stay independent.
+    model_name = 'RMTRankHRow1MajorTunedV5Profile'
+    rmt_fused_write_read_tile = 256
+    rmt_projected_write_forward_tile = 256
+
+
+class RMTRankHRow1MajorTunedV6Profile(RMTRankHRow1MajorV6Profile):
+    # Profile v6e-1: 1.794793 step/s; F124.775/B405.228ms (remat included).
+    # Forward tiles retuned after rank-H combination; reverse tiles stay independent.
+    model_name = 'RMTRankHRow1MajorTunedV6Profile'
+    rmt_fused_write_read_tile = 256
+    rmt_projected_write_forward_tile = 256
+
+
+class RMTRankHPairedV5Profile(RMTRankHRow1MajorTunedV5Profile):
+    # Runtime0378e2a; v5p-16: 0.588899 step/s; F443.804/B1230.098ms.
+    # Two MXU dots remove symmetric zero quadrants; retained alternative to native VPU.
+    model_name = 'RMTRankHPairedV5Profile'
+    rmt_rankh_write_mode = 'row1_pair'
+
+
+class RMTRankHPairedK1V5Profile(RMTRankHPairedV5Profile):
+    # Runtime0378e2a; v5p-16: 0.591299 step/s; F443.906/B1223.662ms.
+    model_name = 'RMTRankHPairedK1V5Profile'
+    rmt_attention_save_small = True
+
+
+class RMTRankHPairedV6Profile(RMTRankHRow1MajorTunedV6Profile):
+    # Runtime0378e2a; v6e-1: 1.817231 step/s; F124.742/B398.117ms.
+    # Independent reverse tile retained at 128 for K2, 256 for K3.
+    model_name = 'RMTRankHPairedV6Profile'
+    rmt_rankh_write_mode = 'row1_pair'
+
+
+class RMTRankHPairedK1V6Profile(RMTRankHPairedV6Profile):
+    # Runtime0378e2a; v6e-1: 1.819631 step/s; F124.787/B397.409ms.
+    model_name = 'RMTRankHPairedK1V6Profile'
+    rmt_attention_save_small = True
+
+
+class RMTRankHVPUV5Profile(RMTRankHPairedK1V5Profile):
+    # Prepared qchunk64 variant, not profiled; choose validated Unchunked child.
+    # Older native8 bridge failed75.84MiB VMEM; direct minor path solves the lifetime issue.
+    model_name = 'RMTRankHVPUV5Profile'
+    rmt_rankh_write_mode = 'row1_native75'
+    rmt_projected_write_reverse_tile = 128
+
+
+class RMTRankHVPUUnchunkedV5Profile(RMTRankHVPUV5Profile):
+    # Runtime dd87162; profile complete: 0.637335 step/s; F434.115/B1109.957ms.
+    # UC1a v5p-16; +12.92% vs prior three-stage best, 84.46% of matched MHA speed.
+    # Selected: native VPU removes the MXU qchunk64 capacity constraint at58MiB.
+    model_name = 'RMTRankHVPUUnchunkedV5Profile'
+    rmt_full_middle_reverse_mode = 'minor_recompute'
+
+
+class RMTRankHVPUV6Profile(RMTRankHPairedK1V6Profile):
+    # Runtime dd87162; profile complete: 1.897464 step/s; F124.835/B375.718ms.
+    # EW4a v6e-1 B4; +7.91% vs prior three-stage best, 76.68% of matched MHA speed.
+    # Native VPU full unroll; K3 reverse uses128 SIMD lanes independently of forward256.
+    model_name = 'RMTRankHVPUV6Profile'
+    rmt_rankh_write_mode = 'row1_native75'
+    rmt_projected_write_reverse_tile = 128

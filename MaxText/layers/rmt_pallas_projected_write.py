@@ -93,30 +93,70 @@ def project_reverse(x,down,up,ub,wg,gb,raw_hidden,hidden,gate,da,dg,shared_sink=
   return dx,ddown,du,dub,dgate,db
 
 
-def forward_call(args,epsilon,interpret,tile):
+def forward_call(args,epsilon,interpret,tile,write_mode):
   m,x,d,s,down,up,ub,wg,gb=args;b,_,_,t=m.shape
   inp=[_spec(z.shape[1:-1],tile) if i<3 else
        pl.BlockSpec(z.shape,lambda b,j,n=z.ndim:(0,)*n) for i,z in enumerate(args)]
   def kernel(m,x,d,s,down,up,ub,wg,gb,out):
     a,g=project_minor(x[...],down[...],up[...],ub[...],wg[...],gb[...])
-    out[...]=_tile(m[...],a,d[...],g,s[...],epsilon)
+    out[...]=_tile(m[...],a,d[...],g,s[...],epsilon,write_mode)
   return pl.pallas_call(kernel,grid=(b,t//tile),in_specs=inp,out_specs=inp[0],
       out_shape=jax.ShapeDtypeStruct(m.shape,m.dtype),input_output_aliases={0:0},
       interpret=interpret,compiler_params=pltpu.CompilerParams(dimension_semantics=('parallel','parallel')),
       name='rmt_projected_mlp_write')(*args)
 
 
-@partial(jax.custom_vjp,nondiff_argnums=(9,10,11,12))
-def fused(m,x,d,s,down,up,ub,wg,gb,epsilon,interpret,forward_tile,reverse_tile):
-  return forward_call((m,x,d,s,down,up,ub,wg,gb),epsilon,interpret,forward_tile)
+@partial(jax.custom_vjp,nondiff_argnums=(9,10,11,12,13))
+def fused(m,x,d,s,down,up,ub,wg,gb,epsilon,interpret,forward_tile,reverse_tile,write_mode):
+  return forward_call((m,x,d,s,down,up,ub,wg,gb),epsilon,interpret,forward_tile,write_mode)
 
 
-def fwd(m,x,d,s,down,up,ub,wg,gb,epsilon,interpret,forward_tile,reverse_tile):
+def fwd(m,x,d,s,down,up,ub,wg,gb,epsilon,interpret,forward_tile,reverse_tile,write_mode):
   args=(m,x,d,s,down,up,ub,wg,gb)
-  return forward_call(args,epsilon,interpret,forward_tile),(x,d,s,down,up,ub,wg,gb)
+  return forward_call(args,epsilon,interpret,forward_tile,write_mode),(x,d,s,down,up,ub,wg,gb)
 
 
-def bwd(epsilon,interpret,forward_tile,reverse_tile,args,dm):
+def bwd_minor(epsilon,interpret,reverse_tile,args,dm,unroll=8):
+  """Native token-minor projection, VPU contraction and projection adjoints.
+
+  This stays one fused K3 reverse program. The MXU path keeps its separate
+  native-major implementation; switching compute units also switches its ABI.
+  """
+  from layers.rmt_pallas_rankh_write import reverse_minor_blocked
+  b,_,t=args[0].shape;tile=min(reverse_tile,t)
+  if tile>128:raise ValueError('Native VPU reverse currently uses <=128 compute tokens')
+  inp=[_spec(z.shape[1:-1],tile) if i<2 else
+       pl.BlockSpec(z.shape,lambda b,j,n=z.ndim:(0,)*n) for i,z in enumerate(args)]
+  inp.append(_spec(dm.shape[1:-1],tile))
+  shared_shapes=[(1,)+z.shape if z.ndim==1 else z.shape for z in args[2:]]
+  outs=inp[:2]+[pl.BlockSpec((None,)+sh,lambda b,j,n=len(sh):(b,)+(0,)*n) for sh in shared_shapes]
+  shapes=[jax.ShapeDtypeStruct(z.shape,z.dtype) if i<2 else
+          jax.ShapeDtypeStruct((b,)+shared_shapes[i-2],jnp.float32) for i,z in enumerate(args)]
+  def kernel(*refs):
+    @pl.when(pl.program_id(1)==0)
+    def init():
+      for ref in refs[11:]:ref[...]=jnp.zeros(ref.shape,ref.dtype)
+    def store(index,value):
+      out=refs[9+index]
+      out[...]=out[...]+(value[None,:] if value.ndim==1 else value)
+    x,d,s,down,up,ub,wg,gb,gm=(r[...] for r in refs[:9])
+    pre,hidden,a,g=project_minor_state(x,down,up,ub,wg,gb)
+    da,dd,dg,ds=reverse_minor_blocked(a,d,g,s,gm,epsilon,unroll)
+    store(2,ds)
+    refs[10][...]=dd
+    refs[9][...]=project_reverse_minor(x,down,up,wg,pre,hidden,g,da,dg,
+                                      lambda index,value:store(index+2,value))
+  grads=pl.pallas_call(kernel,grid=(b,t//tile),in_specs=inp,out_specs=outs,
+      out_shape=tuple(shapes),interpret=interpret,
+      compiler_params=pltpu.CompilerParams(dimension_semantics=('parallel','arbitrary')),
+      name='rmt_projected_mlp_write_backward_native_vpu')(*args,dm)
+  shared=tuple(jnp.sum(z,axis=0).reshape(a.shape).astype(a.dtype) for z,a in zip(grads[2:],args[2:]))
+  return (dm,*grads[:2],*shared)
+
+
+def bwd(epsilon,interpret,forward_tile,reverse_tile,write_mode,args,dm):
+  if '_native' in write_mode:
+    return bwd_minor(epsilon,interpret,reverse_tile,args,dm,int(write_mode.split('_native')[1]))
   x,d,s,down,up,ub,wg,gb=args
   x=x.transpose(0,2,1);d=d.transpose(0,3,1,2);dm=dm.transpose(0,3,1,2)
   args=(x,d,s,down,up,ub,wg,gb);b,t=x.shape[:2];tile=min(reverse_tile,t)
@@ -129,7 +169,7 @@ def bwd(epsilon,interpret,forward_tile,reverse_tile,args,dm):
   def kernel(*refs):
     xx,dd,ss,wd,wu,bu,wg,bg,dy=(r[...] for r in refs[:9])
     pre,hidden,address,gate=project_major(xx,wd,wu,bu,wg,bg)
-    da,dd,dg,ds=joint(address,dd,gate,ss,dy,epsilon,gate_layout='major')
+    da,dd,dg,ds=joint(address,dd,gate,ss,dy,epsilon,gate_layout='major',write_mode=write_mode)
     dx,dwd,dwu,dbu,dwg,dbg=project_reverse(xx,wd,wu,bu,wg,bg,pre,hidden,gate,da,dg)
     values=(dx,dd,ds,dwd,dwu,dbu,dwg,dbg)
     for i,(ref,value) in enumerate(zip(refs[9:],values)):
@@ -150,11 +190,11 @@ def bwd(epsilon,interpret,forward_tile,reverse_tile,args,dm):
 fused.defvjp(fwd,bwd)
 
 
-def projected_write(m,x,d,s,down,up,ub,wg,gb,epsilon=1e-6,*,interpret=False,forward_tile=128,reverse_tile=32):
+def projected_write(m,x,d,s,down,up,ub,wg,gb,epsilon=1e-6,*,interpret=False,forward_tile=128,reverse_tile=32,write_mode="original"):
   def local(m,x,d,*weights):
     ft=min(forward_tile,m.shape[1]);rt=min(reverse_tile,m.shape[1])
     if m.shape[1]%ft or m.shape[1]%rt:raise ValueError('Write chunk must divide sequence length')
     out=fused(m.transpose(0,2,3,1),x.transpose(0,2,1),d.transpose(0,2,3,1),*weights,
-              epsilon,interpret,ft,rt)
+              epsilon,interpret,ft,rt,write_mode)
     return out.transpose(0,3,1,2)
   return _map_batch(local,(m,x,d,s,down,up,ub,wg,gb),(True,)*3+(False,)*6)

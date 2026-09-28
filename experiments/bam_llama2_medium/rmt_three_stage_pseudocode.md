@@ -1,10 +1,13 @@
 # NoO RMT：三个融合 kernel 的前传与解析反传
 
-2026-09-27。对应当前实测选中版本，而非尚未实现的设计：
+2026-09-28。本文正文对应本轮最终实测选中版本：
 
-- v5p：`4dd7038fd2fd0a2c68c13c99a2da6fa43ba92f4f`，`RMTThreeStageMiddleChunk6458Profile`。
-- v6e：`e30ec00197b2730764acea71f3bc56f642cf9274`，`RMTThreeStageMiddleRecomputeSavedV6eB4Profile`。
-- 实现 worktree：`/data0/xd/rmt-pallas`；分支：`codex/rmt-pallas`。实现已合入主分支 `refactor-bam`；以上 hash 保留为原始实测版本。
+- 共同 runtime：`dd8716239354a7aa9441bbf22b60669c4b641559`。
+- v5p-16：`RMTRankHVPUUnchunkedV5Profile`。
+- v6e-1：`RMTRankHVPUV6Profile`。
+- 实现 worktree：`/data0/xd/rmt-pallas-rankh`；分支：`codex/rmt-pallas-rankh`。本轮实现随本文合入主分支 `refactor-bam`；上述 hash 保留为原始实测 runtime，实验分支继续保留。
+
+此前已合入主干的版本是 v5p `4dd7038f`／v6e `e30ec001`，其测速保留在 [rmt_pallas.md](rmt_pallas.md)。本轮选型、完整测速及数值检查见 [rmt_rankh_write.md](rmt_rankh_write.md)。
 
 以下省略 BF16 的逐条 cast、物理 padding 和分布式分片，只保留数学运算、融合边界、分块和保存／重算策略。数学等价不表示逐位 BF16 等价。所有反传均为显式解析式；没有用 `jax.vjp` 代替热路径。共用子程序均在所在 Pallas kernel 内展开，不是额外 kernel launch。
 
@@ -50,7 +53,7 @@ Backward:
 
 前传按 `(batch, token_tile)` 并行。反传对每个 batch 顺序遍历 token tiles，使共享参数梯度 partial 留在 VMEM 中累加；最后写回该 batch 的 partial，再在 kernel 外沿 batch／分片做所需归约。各算法中的 `ACC` 均遵循此约定，不是逐 token 写 HBM 或做全局原子加。
 
-主体 M 采用 token-minor 布局 `[batch,k,v,token]`。写反传的联合收缩暂用 token-major 布局；Kernel2 内的转换只发生在片上临时量。
+scan carry 的逻辑形状是 `[batch,token,k,v]`；wrapper 转置后，Pallas memory 主干内部主要采用 token-minor 布局 `[batch,k,v,token]`。逻辑转置不代表必然发生 HBM copy，需检查编译结果。最终 K2/K3 写反传的投影、归一化、两组 VPU 收缩及梯度后处理均保持 token-minor；收缩内部在 VMEM 中构造 `G[k,v,token]` 与 `Gt[v,k,token]`，不经过旧的 token-major MXU 桥接。
 
 ## 片上共用解析子程序
 
@@ -124,43 +127,57 @@ WriteProjectBackward(x, z, u, g, δA, δg):
 GELU 为实际使用的 tanh 近似：令 `t=tanh(√(2/π)*(z+0.044715*z³))`，则
 `GELU′(z)=0.5*(1+t)+0.5*z*(1-t²)*√(2/π)*(1+3*0.044715*z²)`。
 
-### 静态＋动态写及联合反传
+### 静态＋动态写合并及解析反传
+
+两项共用原始输出 D，故合并写系数 `Cw = S + g*rD*An`；`Cw` 与压缩参数 C 无关。仅适用于 attention／MLP 层写入，不套用到 embedding seed write。
 
 ```text
 Write(M, A, D, g, S):
-  An = Nε(A); Dn = Nε(D)
-  Mout = M + Sᵀ @ D                      # 原始 D，静态写不乘动态门
-  for head j = 0 ... h-1:
-    Mout += g[j] * outer(An[j], Dn[j])
+  An = Nε(A)
+  rD = rsqrt(mean_value(D²) + ε)           # 每 token、每 head 一个标量
+  Cw = S + (g*rD)[:,None]⊙An
+  for key row i = 0 ... k-1:              # row1：逐输出行累加
+    acc[value, token] = FP32(0)
+    for head j = 0 ... h-1:
+      acc += Cw[j,i,token] * D[j,value,token]
+    Mout[i,value,token] = M[i,value,token] + acc
   return Mout
 
-WriteBackward(A, D, g, S, G):            # G = δMout
-  An = Nε(A); Dn = Nε(D)
-  UA = Dn @ Gᵀ                           # [h,k]
-  UD = (g[:,None]⊙An) @ G                 # [h,v]
-  SD = S @ G                              # 静态写给 D 的梯度
-  δS = D @ Gᵀ
-  δg = sum_key(UA⊙An)
-  δA = NBε(A, g[:,None]⊙UA)
-  δD = NBε(D, UD) + SD
-  ACC(S, δS)
+WriteBackward(A, D, g, S, G):             # G = δMout
+  An = Nε(A); rD = rsqrt(mean_value(D²) + ε)
+  Cw = S + (g*rD)[:,None]⊙An
+  δCw, δDdir = RegisterBlockedContractions(Cw, D, G)
+                                         # δCw[j,k]=Σv G[k,v]*D[j,v]
+                                         # δDdir[j,v]=Σk G[k,v]*Cw[j,k]
+  b = sum_key(δCw⊙An)
+  δA = NBε(A, (g*rD)[:,None]⊙δCw)
+  δD = δDdir - (g*rD³*b/v)[:,None]⊙D
+  δg = rD*b
+  ACC(S, δCw)
   return δA, δD, δg                       # δMin=G，另走恒等路径
+
+RegisterBlockedContractions(Cw, D, G):
+  # token 占 128 SIMD lanes；输出 k/v 维占 sublanes。
+  # FP32；value 维从 75 pad 到 80。以下 store 仅到片上 VMEM。
+  stage G[k,80,token] and Gt[80,k,token] in VMEM
+  for two-head group J:
+    acc[J,k,token] = 0                    # 每头完整输出宽度，复用加载行
+    for value = 0 ... 74:                # 编译时完全展开 75 项
+      row = Gt[value,k,token]
+      for j in J: acc[j] += D[j,value,token] * row
+    store δCw[J] = acc
+  for two-head group J:
+    acc[J,80,token] = 0
+    for key = 0 ... 47:                  # 编译时完全展开 48 项
+      row = G[key,80,token]
+      for j in J: acc[j] += Cw[j,key,token] * row
+    store δDdir[J] = acc[:,0:75,:]
+  return δCw, δDdir
 ```
 
-实际 `WriteBackward` 将上面四组收缩合到一次 batched MXU dot，而不是四次独立 kernel：
+最终模式 `row1_native75`：前传输出行分块为 1，反传 head 分块为 2。先完成两组收缩，再做归一化／门控梯度后处理；没有把归一化修正预先折入 δD 累加器。实测 v6e 为独立 FP32 乘、加，不假设 fused FMA；广播也不能当成零成本。寄存器驻留是调度目标，实际 spill 以编译产物为准。
 
-```text
-Z = [[0[k,k], G],                        # [k+v,k+v]
-     [Gᵀ,     0[v,v]]]
-L = [[g⊙An, Dn],                         # h 行
-     [S,     0 ],                        # h 行
-     [0,     D ]]                        # h 行
-P = L @ Z                                # 对 token 子块做 batched dot
-UA = P[:h,:k];   UD = P[:h,k:]
-SD = P[h:2h,k:]; δS = P[2h:,:k]
-```
-
-这里的 `k+v=123` 由 MXU 按物理布局处理 padding；大零块、P 都是片上临时量，不落 HBM。v5p Kernel2 将这一步按 64 token 子块执行。
+以上子程序全部内联在 K2/K3 内，不单独发起 kernel。两次 MXU dot、对称零块矩阵和 MXU/VPU 混合均为保留备选，非最终选中路径。BF16 下合并写改变舍入顺序，不宣称逐位等价。
 
 ## Algorithm 1 — Attention read 前传
 
@@ -193,7 +210,7 @@ for each (batch, tile of B1f tokens) in parallel:
   STORE Q, K, V, xA to HBM
 ```
 
-反传 residual 保留输入 M、position 和参数引用；上述内部动态量在反传中片上重算。
+反传 residual 保留输入 M、position、参数引用，以及 `pack(B,T,gQK,ZV,gV)` 共 432 个 BF16／token 的小缓存。它不包含归一化倒数，也不保存完整 QKV 或投影 P。外层 remat 仍重跑 K1；小缓存使随后的 K1 反传不再重复 `W_A @ xA`。
 
 ## Algorithm 2 — Attention read 反传
 
@@ -204,7 +221,12 @@ for each batch in parallel:
   INIT on-chip FP32 shared-parameter gradient accumulators
   for each tile of B1b tokens:
     LOAD M, position, δQ, δK, δV, δxA_external and parameters
-    RECOMPUTE Algorithm 1 intermediate state on chip
+    LOAD saved B, T, gQK, ZV, gV           # 432 BF16/token
+    xA, z, n = Proxy(M, s_A)              # 仍重算 proxy
+    CM = C_Aᵀ @ M[h:,:]
+    U = B @ M[h:,:]; J = T @ B; F = T @ U
+    a = rsqrt(mean_key(J²) + ε_read)      # 仍重算读出与归一化
+                                         # 不重算 W_A@xA 或 RoPE 前传
 
     H = concat_rows(δQ/sqrt(v), δK)
     δP = RoPEᵀ(H[:,v-18:], position)
@@ -257,11 +279,10 @@ for each (batch, tile of B2f tokens) in parallel:
   Y = StaticF + Read8(CM, ZF, gF)
   STORE MA, Y, xF to HBM                  # 没有写、读之间的 HBM 往返
 
-  v5p backward residual: retain MA, xA, DA and parameter references
-  v6e backward residual: retain M,  xA, DA and parameter references
+  Backward residual on both devices: retain M, xA, DA and parameter references
 ```
 
-两种配置均保留 Y、xF 的 checkpoint，避免外层为获得这两个输出重跑整个中段。v6e 仍需输出 MA 给 K3；“不保留 MA 作为中段 residual”不表示前传不输出 MA。
+两种配置均保留 Y、xF 的 checkpoint，避免外层为获得这两个输出重跑整个中段。两者仍需输出 MA 给 K3；“不保留 MA 作为中段 residual”不表示前传不输出 MA。
 
 ## Algorithm 4 — Attention write + MLP read 反传
 
@@ -273,12 +294,10 @@ for each batch in parallel:
   for each tile of B2b tokens:
     LOAD saved matrix, xA, DA, G_external, δY, δxF_external and parameters
 
-    if v6e:
-      A, g, (zw,uw) = WriteProject_A(xA)
-      MA = Write(saved_M, A, DA, g, S_writeA)
-                                           # 只在片上重做写；网络状态供后面复用
-    else:                                  # v5p
-      MA = saved_MA
+    A, g, (zw,uw) = WriteProject_A(xA)
+    MA = Write(saved_M, A, DA, g, S_writeA)
+                                           # 两种 TPU 均在片上重建 MA
+                                           # 写投影状态供后面复用
 
     RECOMPUTE MLP read state xF,zF,nF,ZF,gF,CM from MA
     δCM, δZF, δgF = Read8Backward(CM, ZF, gF, δY)
@@ -299,13 +318,9 @@ for each batch in parallel:
                                            # 三个输出的梯度到此汇齐
     RELEASE read temporaries after their last use
 
-    if v5p:
-      A, g, (zw,uw) = WriteProject_A(xA)    # 推迟网络计算，缩短 live range
-      for token subchunk of 64 within this 128-token tile:
-        δA[sub], δDA[sub], δg[sub] =
-          WriteBackward(A[sub], DA[sub], g[sub], S_writeA, G[sub])
-    else:
-      δA, δDA, δg = WriteBackward(A, DA, g, S_writeA, G)
+    δA, δDA, δg = WriteBackward(A, DA, g, S_writeA, G)
+                                           # 原生 token-minor，直接处理 128 token
+                                           # 无旧 major 桥接／qchunk64
 
     δxA = WriteProjectBackward_A(xA, zw, uw, g, δA, δg)
     STORE δM_write=G, δxA, δDA
@@ -351,27 +366,32 @@ for each batch in parallel:
 |项目|v5p|v6e|
 |---|---:|---:|
 |K1 前传／反传 token tile|128 / 128|128 / 256|
-|K2 前传／反传外层 token tile|128 / 128|128 / 128|
-|K2 写反传内部 token subchunk|64|128（整个外层 tile）|
-|K3 前传／反传 token tile|128 / 128|256 / 256|
-|K2 backward matrix residual|保存 MA|保留 M，片上重建 MA|
+|K2 前传／反传 token tile|256 / 128|256 / 128|
+|K3 前传／反传 token tile|256 / 128|256 / 128|
+|写反传计算块／head 分块|128 token / 2 heads|128 token / 2 heads|
+|写反传收缩展开|75 / 48 项完全展开|75 / 48 项完全展开|
+|K1 小缓存|432 BF16/token|432 BF16/token|
+|K2 backward matrix residual|保留 M，片上重建 MA|保留 M，片上重建 MA|
 |K2 输出 Y、xF checkpoint|保存|保存|
 |scoped VMEM 预算|58 MiB|96 MiB|
 |物理 VMEM／TensorCore|64 MiB|128 MiB|
 
-三个 kernel 的前反传 tile 可独立选择。这里的 token subchunk 是 token-local memory 写反传的分块，不是 attention 的 Q/K/V 序列分块。
+三个 kernel 的前反传 tile 独立选择；这里的 token 计算块不是 attention 的 Q/K/V 序列分块。
+
+v5p 旧 qchunk64 major 桥接与 native8 VPU 组合曾请求 75.84 MiB（其中 spill slots 51.82 MiB），超过实际可用约 63.94 MiB。最终去掉桥接、直接使用原生 minor 的 128-token 写反传，在原 58 MiB scoped 预算下通过。逻辑子块更小不保证物理峰值更低；布局转换、活跃区间和 spill 必须共同核对。
 
 三段前传只在最终输出处写 HBM；内部临时量留片上。反传保存／重算如上所示，但外围 layer scan 的 checkpoint 策略仍可能重跑其他前传段；这里没有宣称整层完全取消 remat。静态权重、DMA 缓冲、FP32 参数梯度 partial、MXU padding 与临时结果均占 VMEM，不能只按一个 M tile 的字节数估算峰值。
 
 ## 实现对应
 
-以下路径相对 `/data0/xd/rmt-pallas`；精确版本见本文开头的 commit。
+以下路径相对 `/data0/xd/rmt-pallas-rankh`；精确版本见本文开头的 commit。
 
 - K1：`MaxText/layers/rmt_pallas_attention_read.py`，V 分支：`rmt_pallas_v_read.py`。
 - K2 前传／residual：`MaxText/layers/rmt_pallas_full_write_read.py`。
 - K2 反传调度：`MaxText/layers/rmt_pallas_full_write_read_minor.py`；读解析反传：`rmt_pallas_write_read.py`。
 - K3、写投影解析梯度：`MaxText/layers/rmt_pallas_projected_write.py`。
-- 写前传：`MaxText/layers/rmt_pallas_minor.py`；联合写反传及 qchunk：`rmt_pallas_write_reverse.py`。
+- 合并写及解析梯度：`MaxText/layers/rmt_pallas_rankh_write.py` 的 `forward`、`reverse_minor_blocked`。
+- 两组寄存器分块收缩：`MaxText/layers/rmt_pallas_rankh_contract.py` 的 `products`、`blocked_product`。
 - 整层接线：`MaxText/layers/rmt.py`。
 
-原始实测、数值检查和未选中变体见 [rmt_pallas.md](rmt_pallas.md)。本文是数学与调度伪代码，不替代 BF16 实现中的 cast／归约顺序，也不表示已经完成长期训练收敛验证。
+本轮实测、数值检查和未选中变体见 [rmt_rankh_write.md](rmt_rankh_write.md)。本文是数学与调度伪代码，不替代 BF16 实现中的 cast／归约顺序，也不表示已经完成长期训练收敛验证。

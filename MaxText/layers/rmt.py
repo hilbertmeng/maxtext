@@ -3,6 +3,14 @@
 The residual stream is [batch, time, ResKey, ResVal].  This follows the
 published RMT contractions and the open-source module layout, while the MLP,
 optimizer, data and loss remain the matched MaxText backbone.
+
+Selected Pallas path index (other modes are historical ablations):
+  rmt_fused_attention_read -> rmt_pallas_attention_read (K1)
+  rmt_fused_write_read_projection -> rmt_pallas_full_write_read (K2)
+  minor_chunk64/minor_recompute -> rmt_pallas_full_write_read_minor (K2 backward)
+  rmt_fused_projected_mlp_write -> rmt_pallas_projected_write (K3)
+  rmt_rankh_write_mode != original -> rmt_pallas_rankh_write (new write ablations)
+Full switch/helper index: experiments/bam_llama2_medium/rmt_rankh_write.md.
 """
 
 import math
@@ -279,7 +287,8 @@ class RMTDynamicWrite(nn.Module):
           up_bias.astype(x.dtype),gate_kernel.astype(x.dtype),gate_bias.astype(x.dtype),
           cfg.normalization_layer_epsilon,
           forward_tile=cfg.get_keys().get('rmt_projected_write_forward_tile',128),
-          reverse_tile=cfg.get_keys().get('rmt_projected_write_reverse_tile',32))
+          reverse_tile=cfg.get_keys().get('rmt_projected_write_reverse_tile',32),
+          write_mode=cfg.get_keys().get('rmt_rankh_write_mode','original'))
       return output,None
     hidden,gate_logits = _project_many(x,(down,gate_kernel),cfg.get_keys().get('rmt_pack_dynamic_projections',False))
     hidden = nn.gelu(hidden)
@@ -357,7 +366,10 @@ class RMTLayer(nn.Module):
   @nn.compact
   def __call__(self, matrix, segment_ids, positions, deterministic, layer_index):
     cfg = self.config
-    unsupported = ('rmt_llf_enabled', 'rmt_fetch_independent_o_key',
+    scan_minor = cfg.get_keys().get('rmt_scan_token_minor', False)
+    if scan_minor:
+      matrix = matrix.transpose(0,3,1,2)
+    unsupported = ('rmt_llf_enabled' , 'rmt_fetch_independent_o_key',
                    'rmt_single_outer_write', 'rmt_headwise_mlp',
                    'rmt_transposed_matrix_carry', 'rmt_static_mlp_read_pre_norm',
                    'rmt_dynamic_read_full_matrix',
@@ -431,7 +443,8 @@ class RMTLayer(nn.Module):
           cfg.normalization_layer_epsilon,_read_epsilon(cfg),rope_qk_dim,
           cfg.rope_min_timescale,cfg.rope_max_timescale,
           forward_tile=cfg.get_keys().get('rmt_attention_read_forward_tile',128),
-          reverse_tile=cfg.get_keys().get('rmt_attention_read_reverse_tile',128))
+          reverse_tile=cfg.get_keys().get('rmt_attention_read_reverse_tile',128),
+          save_small=cfg.get_keys().get('rmt_attention_save_small',False))
       query,key,value=qkv[...,:heads,:],qkv[...,heads:2*heads,:],qkv[...,2*heads:,:]
     if not joined_read and not fused_attention:
       qkv = jnp.einsum('btkv,ank->abtnv', attn_in, qkv_key.astype(cfg.dtype))
@@ -548,7 +561,8 @@ class RMTLayer(nn.Module):
             forward_tile=cfg.get_keys().get('rmt_fused_write_read_tile',128),
             reverse_tile=cfg.get_keys().get('rmt_fused_write_read_backward_tile',32),
             reverse_mode=cfg.get_keys().get('rmt_full_middle_reverse_mode','baseline'),
-            save_native_outputs=cfg.get_keys().get('rmt_save_middle_native_outputs',False))
+            save_native_outputs=cfg.get_keys().get('rmt_save_middle_native_outputs',False),
+            write_mode=cfg.get_keys().get('rmt_rankh_write_mode','original'))
       else:
         from layers.rmt_pallas_write_read import write_mlp_read
         address,attn_write_gate=write_parameters
@@ -663,6 +677,8 @@ class RMTLayer(nn.Module):
       health = jnp.stack(values)
       if not cfg.get_keys().get('rmt_block_scan', False):
         self.sow('intermediates', 'rmt_dynamic_health', health)
+    if scan_minor:
+      matrix = matrix.transpose(0,2,3,1)
     return matrix, (
         health if cfg.get_keys().get('rmt_block_scan', False) else None)
 
@@ -741,6 +757,9 @@ class RMTDecoder(nn.Module):
       if padded_value_dim < value_dim:raise ValueError('Padded value dimension must cover all values')
       matrix = jnp.pad(matrix, ((0,0),(0,0),(0,0),(0,padded_value_dim-value_dim)))
     block_scan = cfg.get_keys().get('rmt_block_scan', False)
+    scan_minor = cfg.get_keys().get('rmt_scan_token_minor', False)
+    if block_scan and scan_minor:
+      raise ValueError('Token-minor carry requires direct layer scan')
     if block_scan and cfg.num_decoder_layers % 3:
       raise ValueError('RMT block scan requires a multiple of three layers')
     policy_name=cfg.get_keys().get('rmt_remat_policy','full')
@@ -767,9 +786,13 @@ class RMTDecoder(nn.Module):
         length=scan_length,
         unroll=int(cfg.scan_layers_unroll),
         metadata_params={nn.PARTITION_NAME: 'layers'})
+    if scan_minor:
+      matrix = matrix.transpose(0,2,3,1)
     matrix, _ = ScanLayer(cfg, quant=self.quant, name='layers')(
         matrix, decoder_segment_ids, decoder_positions, deterministic,
         jnp.arange(scan_length))
+    if scan_minor:
+      matrix = matrix.transpose(0,3,1,2)
     if padded_value_dim:matrix = matrix[..., :value_dim]
     matrix = MatrixRMSNorm(cfg, name='final_matrix_norm')(matrix)
     final_read = self.param('final_read_key', nn.initializers.normal(key_dim ** -0.5),

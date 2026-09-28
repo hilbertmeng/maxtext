@@ -104,9 +104,21 @@ def state(m,s,c,scale,w,bb,gb,positions,epsilon,re,rd,rmin,rmax):
   return out,x,(raw,normalized,x,basis,mix,qkg,vk,vg,compressed,br)
 
 
-def reverse(m,s,c,scale,w,bb,gb,positions,dy,dx,epsilon,re,rd,rmin,rmax,sink):
-  _,_,st=state(m,s,c,scale,w,bb,gb,positions,epsilon,re,rd,rmin,rmax)
-  raw,normalized,x,basis,mix,qkg,vk,vg,compressed,br=st
+def reverse(m,s,c,scale,w,bb,gb,positions,dy,dx,epsilon,re,rd,rmin,rmax,sink,saved_projection=None):
+  if saved_projection is None:
+    _,_,st=state(m,s,c,scale,w,bb,gb,positions,epsilon,re,rd,rmin,rmax)
+    raw,normalized,x,basis,mix,qkg,vk,vg,compressed,br=st
+  else:
+    k,v,t=m.shape;h=k//3
+    raw=m[:h].reshape(h*v,t);normalized=_norm(raw,epsilon)
+    x=(normalized.astype(jnp.float32)*scale.astype(jnp.float32)[:,None]).astype(m.dtype)
+    basis=saved_projection[:128].reshape(4,32,t)
+    mix=saved_projection[128:256].reshape(32,4,t)
+    qkg=saved_projection[256:288]
+    vk=saved_projection[288:416].reshape(16,8,t)
+    vg=saved_projection[416:432]
+    compressed=contract(c.T,m[h:])
+    br=dynamic_basis_read(m[h:],basis)
   k,v,t=m.shape;h=k//3;dt=m.dtype
   dqk=jnp.concatenate(((dy[:h]/math.sqrt(v)).astype(dt),dy[h:2*h]),axis=0)
   drp=rope(dqk[:,v-rd:,:],positions,rmin,rmax,transpose=True).reshape(2*h*rd,t)
@@ -131,30 +143,36 @@ def reverse(m,s,c,scale,w,bb,gb,positions,dy,dx,epsilon,re,rd,rmin,rmax,sink):
   return (dm+jnp.concatenate((draw,dmtail),axis=0)).astype(dt)
 
 
-def forward_call(args,epsilon,re,rd,rmin,rmax,interpret,tile):
+def forward_call(args,epsilon,re,rd,rmin,rmax,interpret,tile,save_small):
   m=args[0];b,k,v,t=m.shape;h=k//3
   def kernel(*refs):
-    out,x,_=state(*(r[...] for r in refs[:8]),epsilon,re,rd,rmin,rmax)
+    out,x,st=state(*(r[...] for r in refs[:8]),epsilon,re,rd,rmin,rmax)
     refs[8][...]=out;refs[9][...]=x
+    if save_small:
+      _,_,_,basis,mix,qkg,vk,vg,_,_=st
+      refs[10][...]=jnp.concatenate((basis.reshape(128,tile),mix.reshape(128,tile),qkg,vk.reshape(128,tile),vg),axis=0)
   inp=[_spec(m.shape[1:-1],tile)]+[pl.BlockSpec(x.shape,lambda b,i,n=x.ndim:(0,)*n) for x in args[1:7]]+[_spec((1,),tile)]
   return pl.pallas_call(kernel,grid=(b,t//tile),in_specs=inp,
-      out_specs=[_spec((3*h,v),tile),_spec((h*v,),tile)],
-      out_shape=(jax.ShapeDtypeStruct((b,3*h,v,t),m.dtype),jax.ShapeDtypeStruct((b,h*v,t),m.dtype)),
+      out_specs=[_spec((3*h,v),tile),_spec((h*v,),tile)]+([_spec((432,),tile)] if save_small else []),
+      out_shape=(jax.ShapeDtypeStruct((b,3*h,v,t),m.dtype),jax.ShapeDtypeStruct((b,h*v,t),m.dtype))+((jax.ShapeDtypeStruct((b,432,t),m.dtype),) if save_small else ()),
       interpret=interpret,compiler_params=pltpu.CompilerParams(dimension_semantics=('parallel','parallel')),
       name='rmt_full_noo_attention_read')(*args)
 
 
-@partial(jax.custom_vjp,nondiff_argnums=tuple(range(8,16)))
-def fused(m,s,c,scale,w,bb,gb,pos,epsilon,re,rd,rmin,rmax,interpret,ft,rt):
-  return forward_call((m,s,c,scale,w,bb,gb,pos),epsilon,re,rd,rmin,rmax,interpret,ft)
+@partial(jax.custom_vjp,nondiff_argnums=tuple(range(8,17)))
+def fused(m,s,c,scale,w,bb,gb,pos,epsilon,re,rd,rmin,rmax,interpret,ft,rt,save_small):
+  return forward_call((m,s,c,scale,w,bb,gb,pos),epsilon,re,rd,rmin,rmax,interpret,ft,save_small)[:2]
 
 
-def fwd(m,s,c,scale,w,bb,gb,pos,epsilon,re,rd,rmin,rmax,interpret,ft,rt):
+def fwd(m,s,c,scale,w,bb,gb,pos,epsilon,re,rd,rmin,rmax,interpret,ft,rt,save_small):
   args=(m,s,c,scale,w,bb,gb,pos)
-  return forward_call(args,epsilon,re,rd,rmin,rmax,interpret,ft),args
+  out=forward_call(args,epsilon,re,rd,rmin,rmax,interpret,ft,save_small)
+  return out[:2],(args,out[2] if save_small else None)
 
 
-def bwd(epsilon,re,rd,rmin,rmax,interpret,ft,rt,args,cts):
+def bwd(epsilon,re,rd,rmin,rmax,interpret,ft,rt,save_small,residual,cts):
+  args,saved_projection=residual
+  nin=10+int(save_small)
   m=args[0];b,k,v,t=m.shape;h=k//3;tile=min(rt,t)
   inp=[_spec(m.shape[1:-1],tile)]+[pl.BlockSpec(z.shape,lambda b,i,n=z.ndim:(0,)*n) for z in args[1:7]]+[_spec((1,),tile)]
   shapes=[(1,)+z.shape if z.ndim==1 else z.shape for z in args[1:7]]
@@ -162,14 +180,15 @@ def bwd(epsilon,re,rd,rmin,rmax,interpret,ft,rt,args,cts):
   def kernel(*refs):
     @pl.when(pl.program_id(1)==0)
     def init():
-      for ref in refs[11:]:ref[...]=jnp.zeros(ref.shape,ref.dtype)
+      for ref in refs[nin+1:]:ref[...]=jnp.zeros(ref.shape,ref.dtype)
     def sink(index,value):
-      ref=refs[10+index];ref[...]=ref[...]+value
-    refs[10][...]=reverse(*(ref[...] for ref in refs[:10]),epsilon,re,rd,rmin,rmax,sink)
-  grads=pl.pallas_call(kernel,grid=(b,t//tile),in_specs=inp+[_spec((3*h,v),tile),_spec((h*v,),tile)],out_specs=outs,
+      ref=refs[nin+index];ref[...]=ref[...]+value
+    refs[nin][...]=reverse(*(ref[...] for ref in refs[:10]),epsilon,re,rd,rmin,rmax,sink,
+                           refs[10][...] if save_small else None)
+  grads=pl.pallas_call(kernel,grid=(b,t//tile),in_specs=inp+[_spec((3*h,v),tile),_spec((h*v,),tile)]+([_spec((432,),tile)] if save_small else []),out_specs=outs,
       out_shape=(jax.ShapeDtypeStruct(m.shape,m.dtype),)+tuple(jax.ShapeDtypeStruct((b,)+sh,jnp.float32) for sh in shapes),
       interpret=interpret,compiler_params=pltpu.CompilerParams(dimension_semantics=('parallel','arbitrary')),
-      name='rmt_full_noo_attention_read_backward')(*args,*cts)
+      name='rmt_full_noo_attention_read_backward')(*args,*cts,*((saved_projection,) if save_small else ()))
   return (grads[0],)+tuple(jnp.sum(g,axis=0).reshape(z.shape).astype(z.dtype) for g,z in zip(grads[1:],args[1:7]))+(None,)
 
 
@@ -177,11 +196,11 @@ fused.defvjp(fwd,bwd)
 
 
 def attention_read(m,s,c,scale,w,bb,gb,positions,epsilon=1e-6,read_epsilon=1e-6,rope_dim=18,
-                   rope_min=1.,rope_max=10000.,*,interpret=False,forward_tile=128,reverse_tile=128):
+                   rope_min=1.,rope_max=10000.,*,interpret=False,forward_tile=128,reverse_tile=128,save_small=False):
   def local(m,s,c,scale,w,bb,gb,pos):
     ft=min(forward_tile,m.shape[1]);rt=min(reverse_tile,m.shape[1])
     if m.shape[1]%ft or m.shape[1]%rt:raise ValueError('Attention chunks must divide tokens')
     out,x=fused(m.transpose(0,2,3,1),s,c,scale,w,bb,gb,pos[:,None,:],
-                epsilon,read_epsilon,rope_dim,rope_min,rope_max,interpret,ft,rt)
+                epsilon,read_epsilon,rope_dim,rope_min,rope_max,interpret,ft,rt,save_small)
     return out.transpose(0,3,1,2),x.transpose(0,2,1)
   return _map_batch(local,(m,s,c,scale,w,bb,gb,positions),(True,False,False,False,False,False,False,True),output_tuple=True)

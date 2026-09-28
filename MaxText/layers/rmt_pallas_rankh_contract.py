@@ -9,20 +9,22 @@ from jax.experimental import pallas as pl
 from jax.experimental.pallas import tpu as pltpu
 
 
-def mxu_major_loop(c, d, g):
+def mxu_major_loop(c, d, g, chunk=1):
   """Load/contract/store one token at a time to bound batched-dot SSA liveness.
 
   All staging is VMEM inside the enclosing fused stage; no extra HBM boundary.
   Compare against batched MXU: less spilling can lose to loop/weight-push latency.
   """
   t,h,k=c.shape;v=d.shape[-1]
+  if t%chunk:raise ValueError('MXU compute chunk must divide the DMA tile')
   def scoped(cr,dr,gr,dcr,ddr):
     cr[...]=c;dr[...]=d;gr[...]=g
     def token(i,_):
-      ci,di,gi=cr[i,:,:],dr[i,:,:],gr[i,:,:]
-      dcr[i,:,:]=jnp.dot(di,gi.T,preferred_element_type=jnp.float32)
-      ddr[i,:,:]=jnp.dot(ci,gi,preferred_element_type=jnp.float32)
-    jax.lax.fori_loop(0,t,token,None)
+      sl=pl.ds(i*chunk,chunk)
+      ci,di,gi=cr[sl,:,:],dr[sl,:,:],gr[sl,:,:]
+      dcr[sl,:,:]=jnp.einsum('thv,tkv->thk',di,gi,preferred_element_type=jnp.float32)
+      ddr[sl,:,:]=jnp.einsum('thk,tkv->thv',ci,gi,preferred_element_type=jnp.float32)
+    jax.lax.fori_loop(0,t//chunk,token,None)
     return dcr[...],ddr[...]
   return pl.run_scoped(scoped,pltpu.VMEM(c.shape,c.dtype),pltpu.VMEM(d.shape,d.dtype),
       pltpu.VMEM(g.shape,g.dtype),pltpu.VMEM((t,h,k),jnp.float32),pltpu.VMEM((t,h,v),jnp.float32))
@@ -62,10 +64,10 @@ def blocked_product(matrix_ref,coeff_ref,out_ref,heads,contract_dim,width,tokens
   jax.lax.fori_loop(0,heads//head_block,head_group,None)
 
 
-def products(c,d,g,backend='symmetric',head_block=4,unroll=1):
+def products(c,d,g,backend='symmetric',head_block=4,unroll=1,mxu_chunk=1):
   if backend=='loop':
     dc,dd=mxu_major_loop(c.astype(g.dtype).transpose(2,0,1),
-                        d.astype(g.dtype).transpose(2,0,1),g.transpose(2,0,1))
+                        d.astype(g.dtype).transpose(2,0,1),g.transpose(2,0,1),mxu_chunk)
     return dc.transpose(1,2,0),dd.transpose(1,2,0)
   if backend in ('symmetric','paired'):
     return mxu(c.astype(g.dtype),d.astype(g.dtype),g,backend=='paired')

@@ -14,10 +14,10 @@ from layers.rmt_pallas_minor import _spec
 from tests.rmt_three_stage_benchmark import timed
 
 
-def call(c,d,g,backend,tile=128,head_block=4,interpret=False,unroll=1):
+def call(c,d,g,backend,tile=128,head_block=4,interpret=False,unroll=1,mxu_chunk=1):
   b,h,k,t=c.shape;v=d.shape[2]
   def kernel(cr,dr,gr,dcr,ddr):
-    dcr[...],ddr[...]=products(cr[...],dr[...],gr[...],backend,head_block,unroll)
+    dcr[...],ddr[...]=products(cr[...],dr[...],gr[...],backend,head_block,unroll,mxu_chunk)
   return pl.pallas_call(kernel,grid=(b,t//tile),
       in_specs=[_spec(z.shape[1:-1],tile) for z in (c,d,g)],
       out_specs=[_spec((h,k),tile),_spec((h,v),tile)],
@@ -32,6 +32,7 @@ def main():
   p.add_argument('--batch',type=int,default=4);p.add_argument('--tokens',type=int,default=4096)
   p.add_argument('--tile',type=int,default=128);p.add_argument('--head-block',type=int,default=4)
   p.add_argument('--unroll',type=int,default=1)
+  p.add_argument('--mxu-chunk',type=int,default=1)
   p.add_argument('--distributed',action='store_true',help='Run the same probe on every TPU pod worker.')
   p.add_argument('--interpret',action='store_true');p.add_argument('--dtype',default='bfloat16')
   p.add_argument('--dump-root',type=Path);p.add_argument('--output',required=True,type=Path);a=p.parse_args();dt=getattr(jnp,a.dtype)
@@ -50,9 +51,9 @@ def main():
               process_count=jax.process_count(),local_device_count=jax.local_device_count(),
               batch=a.batch,tokens=a.tokens,dtype=a.dtype,measurements=[])
   for backend in a.backends.split(','):
-    row=dict(backend=backend,tile=a.tile,head_block=a.head_block,unroll=a.unroll)
+    row=dict(backend=backend,tile=a.tile,head_block=a.head_block,unroll=a.unroll,mxu_chunk=a.mxu_chunk)
     try:
-      fn=lambda *z:call(*z,backend,a.tile,a.head_block,a.interpret,a.unroll)
+      fn=lambda *z:call(*z,backend,a.tile,a.head_block,a.interpret,a.unroll,a.mxu_chunk)
       fn.__name__='rankh_contract_'+backend
       start=time.monotonic()
       executable=jax.jit(fn).lower(*x).compile()

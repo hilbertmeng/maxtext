@@ -168,6 +168,7 @@ class RMTDynamicC8Read(nn.Module):
   config: common_types.Config
   destinations: int
   compress_state: bool = True
+  fetch_output: bool = False
 
   @nn.compact
   def __call__(self, x, M, static_matrix=None, static_key=None, *, parameters_only=False):
@@ -241,6 +242,11 @@ class RMTDynamicC8Read(nn.Module):
       reads = tuple(dynamic_reads[..., i, :] for i in range(self.destinations))
     else:
       reads = tuple(.2 * gates[..., i, None] * read for i in range(self.destinations))
+    if self.fetch_output:
+      if self.destinations != 2 or static_matrix is not None or pallas_c8:
+        raise ValueError('Fetched O requires two direct C8 destinations')
+      # The second gate/read key acts on the temporally fetched state, not local M.
+      return reads[0], gates, compressed, key
     if static_matrix is not None:
       return reads, gates, static_read
     return reads, gates
@@ -353,12 +359,12 @@ class RMTLayer(nn.Module):
   config: common_types.Config
   quant: object = None
   mlp_dim: int | None = None
+  is_fetch: bool = False
 
   @nn.compact
   def __call__(self, matrix, segment_ids, positions, deterministic, layer_index):
     cfg = self.config
-    unsupported = ('rmt_llf_enabled', 'rmt_fetch_independent_o_key',
-                   'rmt_single_outer_write', 'rmt_headwise_mlp',
+    unsupported = ('rmt_fetch_independent_o_key', 'rmt_single_outer_write', 'rmt_headwise_mlp',
                    'rmt_transposed_matrix_carry', 'rmt_static_mlp_read_pre_norm',
                    'rmt_dynamic_read_full_matrix',
                    'rmt_write_health_row_reduce', 'rmt_write_health_reuse_input_rms')
@@ -389,6 +395,9 @@ class RMTLayer(nn.Module):
     dynamic_mlp_read_enabled = dynamic
     dynamic_mlp_write_enabled = dynamic
     dynamic_o_enabled = bool(cfg.get_keys().get('rmt_dynamic_o_enabled', True))
+    fetch = self.is_fetch
+    if fetch and not (dynamic and cfg.get_keys().get('rmt_llf_enabled', False)):
+      raise ValueError('Fetched O requires dynamic LLF')
     rope_qk_dim = int(cfg.get_keys().get('rmt_rope_qk_dim', 0))
     vector_pre_norm = bool(cfg.get_keys().get('rmt_vector_pre_norm', False))
     if vector_pre_norm and not dynamic:
@@ -444,18 +453,35 @@ class RMTLayer(nn.Module):
       attn_M = jnp.swapaxes(attn_in[..., read_start:, :], -2, -1)
       dynamic_q, dynamic_k, q_gate, k_gate = RMTDynamicQK(
           cfg, name='dynamic_qk')(attn_x, attn_M)
-      vo_module = RMTDynamicC8Read(cfg, destinations=2 if dynamic_o_enabled else 1,
-                                  name='dynamic_vo')
+      vo_module = RMTDynamicC8Read(
+          cfg, destinations=2 if (dynamic_o_enabled or fetch) else 1,
+          fetch_output=fetch, name='dynamic_vo')
+      if fetch and joined_read:
+        raise ValueError('Fetched O does not support joined static/C8 reads')
       if joined_read:
         vo_reads, vo_gates, qkv = vo_module(
             attn_x, attn_M, attn_in, qkv_key.astype(cfg.dtype).reshape(3 * heads, key_dim).T)
         qkv = qkv.reshape(attn_in.shape[:2] + (3, heads, value_dim))
         query, key, value = (qkv[:, :, i] for i in range(3))
+      elif fetch:
+        dynamic_v, vo_gates, fetch_state, output_key = vo_module(attn_x, attn_M)
+        mix_kernel = self.param(
+            'fetch_head_mix_kernel', nn.with_logical_partitioning(
+                initializers.get_init_method(cfg.init_method), ('embed', 'q_heads')),
+            (cfg.emb_dim, heads), cfg.weight_dtype)
+        mix_bias = self.param(
+            'fetch_head_mix_bias', nn.with_logical_partitioning(
+                nn.initializers.zeros, ('q_heads',)), (heads,), cfg.weight_dtype)
+        mix_logits = jnp.einsum('btd,dn->btn', attn_x, mix_kernel.astype(attn_x.dtype))
+        mix_logits = mix_logits + mix_bias.astype(attn_x.dtype)
+        mix_weights = attentions._dynamic_bam_fetch_mix_weights(
+            mix_logits, cfg.dtype, rms_epsilon=_read_epsilon(cfg))
+        vo_reads = (dynamic_v,)
       else:
         vo_reads, vo_gates = vo_module(attn_x, attn_M)
       dynamic_q, dynamic_k = dynamic_q[..., :value_dim], dynamic_k[..., :value_dim]
       dynamic_v = vo_reads[0][..., :value_dim]
-      if dynamic_o_enabled:
+      if dynamic_o_enabled and not fetch:
         dynamic_o = vo_reads[1][..., :value_dim]
       static_q, static_k, static_v = query, key, value
       query = query + dynamic_q
@@ -485,6 +511,8 @@ class RMTLayer(nn.Module):
     chunk = int(cfg.query_chunk_size)
     assert t % chunk == 0
     outputs = []
+    fetched_outputs = []
+    fetch_route_sums = []
     record_health = dynamic and bool(getattr(cfg, 'rmt_record_dynamic_health', False))
     for q0 in range(0, t, chunk):
       q1 = q0 + chunk
@@ -515,10 +543,28 @@ class RMTLayer(nn.Module):
             additive_bias=(None if rope_qk_dim else
                            _alibi_bias(heads, q0, q1, 0, q1)))
       outputs.append(y)
+      if fetch:
+        fetched = attentions._bam_fetch_op(
+            alpha, fetch_state[:, :q1], mix_weights[:, q0:q1], source == target,
+            diagonal_one=True, return_route=record_health)
+        if record_health:
+          fetched, raw_route, route = fetched
+          health_valid = jnp.broadcast_to(valid, route.shape)
+          if segment_ids is not None:
+            health_valid &= segment_ids[:, q0:q1, None] != 0
+          fetch_route_sums.append(attentions._bam_fetch_route_sums(
+              raw_route, route, health_valid, source == target))
+        fetched_read = jnp.einsum('btvc,btnc->btnv', fetched, output_key[:, q0:q1])
+        fetched_outputs.append(.2 * vo_gates[:, q0:q1, :, 1, None] * fetched_read)
+    if fetch:
+      dynamic_o = jnp.concatenate(fetched_outputs, axis=1).astype(cfg.dtype)
+      if record_health:
+        self.sow('intermediates', 'rmt_fetch_route_sums',
+                 jnp.sum(jnp.stack(fetch_route_sums), axis=0))
     head_output = jnp.concatenate(outputs, axis=1).astype(cfg.dtype)
     if dynamic:
       static_head_output = head_output
-      if dynamic_o_enabled:
+      if dynamic_o_enabled or fetch:
         head_output = head_output + dynamic_o
     if cfg.get_keys().get('rmt_remat_policy','full') in ('save_dense_state','save_state','save_state_mlp','save_state_dynamic'):
       head_output=ad_checkpoint.checkpoint_name(head_output,'rmt_attention_head')
@@ -634,8 +680,8 @@ class RMTLayer(nn.Module):
     health = None
     if dynamic and getattr(cfg, 'rmt_record_dynamic_health', False):
       # Keep the health schema identical for matched Full48/NoO comparisons.
-      measured_o = dynamic_o if dynamic_o_enabled else jnp.zeros_like(static_head_output)
-      measured_o_gate = (vo_gates[..., 1] if dynamic_o_enabled
+      measured_o = dynamic_o if (dynamic_o_enabled or fetch) else jnp.zeros_like(static_head_output)
+      measured_o_gate = (vo_gates[..., 1] if (dynamic_o_enabled or fetch)
                          else jnp.zeros_like(vo_gates[..., 0]))
       if not dynamic_mlp_read_enabled:
         dynamic_mlp_read = jnp.zeros_like(static_mlp_read)
@@ -668,7 +714,7 @@ class RMTLayer(nn.Module):
 
 
 class RMTBlock(nn.Module):
-  """Three all-local matrix layers, preserving the trained 18-layer scan tree."""
+  """Three matrix layers; optionally fetch O in the final F layer."""
 
   config: common_types.Config
   quant: object = None
@@ -682,6 +728,7 @@ class RMTBlock(nn.Module):
     for offset in range(3):
       matrix, stats = Layer(
           cfg, quant=self.quant, mlp_dim=int(widths[offset]),
+          is_fetch=bool(offset == 2 and cfg.get_keys().get('rmt_llf_enabled', False)),
           name=f'layer_{offset}')(
               matrix, segment_ids, positions, deterministic, 3 * block_index + offset)
       if stats is not None:
@@ -741,6 +788,8 @@ class RMTDecoder(nn.Module):
       if padded_value_dim < value_dim:raise ValueError('Padded value dimension must cover all values')
       matrix = jnp.pad(matrix, ((0,0),(0,0),(0,0),(0,padded_value_dim-value_dim)))
     block_scan = cfg.get_keys().get('rmt_block_scan', False)
+    if cfg.get_keys().get('rmt_llf_enabled', False) and not block_scan:
+      raise ValueError('RMT LLF requires block scan to select F layers')
     if block_scan and cfg.num_decoder_layers % 3:
       raise ValueError('RMT block scan requires a multiple of three layers')
     policy_name=cfg.get_keys().get('rmt_remat_policy','full')

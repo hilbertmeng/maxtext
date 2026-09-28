@@ -10075,6 +10075,19 @@ class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoO(
     jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/rmt-mediumprop-true-pile-direct32-no-o'
 
 
+class RMTMediumPropT4096TruePileK48EmbedUnembedDirect32NoOLLF(
+    RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoO):
+    """Six LLF blocks: no local O, F fetched O shares the V C8 key."""
+    model_name = 'RMTMediumPropT4096TruePileK48EmbedUnembedDirect32NoOLLF'
+    rmt_llf_enabled = True
+    rmt_fetch_independent_o_key = False
+    rmt_block_scan = True
+    rmt_mlp_dim_by_block = [4078, 4078, 4067]
+    compare_runs = ['RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoO',
+                    'BamMHAMediumPropC256TruePile']
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/rmt-mediumprop-truepile-noo-llf'
+
+
 class RMTVectorNormMHABudgetHeadwiseMLPProfile(
     RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudget):
     # Ledger only; implementation codex/rmt-k48-dynamic, runtime d1b1f89.

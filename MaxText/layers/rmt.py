@@ -366,7 +366,10 @@ class RMTLayer(nn.Module):
   @nn.compact
   def __call__(self, matrix, segment_ids, positions, deterministic, layer_index):
     cfg = self.config
-    unsupported = ('rmt_llf_enabled', 'rmt_fetch_independent_o_key',
+    scan_minor = cfg.get_keys().get('rmt_scan_token_minor', False)
+    if scan_minor:
+      matrix = matrix.transpose(0,3,1,2)
+    unsupported = ('rmt_llf_enabled' , 'rmt_fetch_independent_o_key',
                    'rmt_single_outer_write', 'rmt_headwise_mlp',
                    'rmt_transposed_matrix_carry', 'rmt_static_mlp_read_pre_norm',
                    'rmt_dynamic_read_full_matrix',
@@ -674,6 +677,8 @@ class RMTLayer(nn.Module):
       health = jnp.stack(values)
       if not cfg.get_keys().get('rmt_block_scan', False):
         self.sow('intermediates', 'rmt_dynamic_health', health)
+    if scan_minor:
+      matrix = matrix.transpose(0,2,3,1)
     return matrix, (
         health if cfg.get_keys().get('rmt_block_scan', False) else None)
 
@@ -752,6 +757,9 @@ class RMTDecoder(nn.Module):
       if padded_value_dim < value_dim:raise ValueError('Padded value dimension must cover all values')
       matrix = jnp.pad(matrix, ((0,0),(0,0),(0,0),(0,padded_value_dim-value_dim)))
     block_scan = cfg.get_keys().get('rmt_block_scan', False)
+    scan_minor = cfg.get_keys().get('rmt_scan_token_minor', False)
+    if block_scan and scan_minor:
+      raise ValueError('Token-minor carry requires direct layer scan')
     if block_scan and cfg.num_decoder_layers % 3:
       raise ValueError('RMT block scan requires a multiple of three layers')
     policy_name=cfg.get_keys().get('rmt_remat_policy','full')
@@ -778,9 +786,13 @@ class RMTDecoder(nn.Module):
         length=scan_length,
         unroll=int(cfg.scan_layers_unroll),
         metadata_params={nn.PARTITION_NAME: 'layers'})
+    if scan_minor:
+      matrix = matrix.transpose(0,2,3,1)
     matrix, _ = ScanLayer(cfg, quant=self.quant, name='layers')(
         matrix, decoder_segment_ids, decoder_positions, deterministic,
         jnp.arange(scan_length))
+    if scan_minor:
+      matrix = matrix.transpose(0,3,1,2)
     if padded_value_dim:matrix = matrix[..., :value_dim]
     matrix = MatrixRMSNorm(cfg, name='final_matrix_norm')(matrix)
     final_read = self.param('final_read_key', nn.initializers.normal(key_dim ** -0.5),

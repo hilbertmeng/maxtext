@@ -11263,3 +11263,36 @@ class RMTK1SmallV6Profile(RMTThreeStageMiddleRecomputeSavedV6eB4Profile):
     # Small custom-VJP residual, independent of the rank-H write ablations.
     model_name = 'RMTK1SmallV6Profile'
     rmt_attention_save_small = True
+
+
+class RMTMinorCarryV5Profile(RMTThreeStageMiddleChunk6458Profile):
+    # Experimental scan carry layout; codex/rmt-pallas-rankh, not promoted.
+    model_name = 'RMTMinorCarryV5Profile'
+    rmt_scan_token_minor = True
+
+
+class RMTMinorCarryV6Profile(RMTThreeStageMiddleRecomputeSavedV6eB4Profile):
+    model_name = 'RMTMinorCarryV6Profile'
+    rmt_scan_token_minor = True
+
+
+class RMTRankHRow1MajorV5Profile(RMTThreeStageMiddleChunk6458Profile):
+    # Rank-H native-MXU reverse with row1 forward; not promoted.
+    model_name = 'RMTRankHRow1MajorV5Profile'
+    rmt_rankh_write_mode = 'row1_major'
+
+
+class RMTRankHRow1MajorK1V5Profile(RMTRankHRow1MajorV5Profile):
+    model_name = 'RMTRankHRow1MajorK1V5Profile'
+    rmt_attention_save_small = True
+
+
+class RMTRankHRow1MajorV6Profile(RMTThreeStageMiddleRecomputeSavedV6eB4Profile):
+    # Rank-H native-MXU reverse with row1 forward; not promoted.
+    model_name = 'RMTRankHRow1MajorV6Profile'
+    rmt_rankh_write_mode = 'row1_major'
+
+
+class RMTRankHRow1MajorK1V6Profile(RMTRankHRow1MajorV6Profile):
+    model_name = 'RMTRankHRow1MajorK1V6Profile'
+    rmt_attention_save_small = True

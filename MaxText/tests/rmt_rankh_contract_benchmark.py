@@ -32,18 +32,23 @@ def main():
   p.add_argument('--batch',type=int,default=4);p.add_argument('--tokens',type=int,default=4096)
   p.add_argument('--tile',type=int,default=128);p.add_argument('--head-block',type=int,default=4)
   p.add_argument('--unroll',type=int,default=1)
+  p.add_argument('--distributed',action='store_true',help='Run the same probe on every TPU pod worker.')
   p.add_argument('--interpret',action='store_true');p.add_argument('--dtype',default='bfloat16')
   p.add_argument('--dump-root',type=Path);p.add_argument('--output',required=True,type=Path);a=p.parse_args();dt=getattr(jnp,a.dtype)
   if a.dump_root:
     # libtpu's matching-HLO filter does not select these custom-call bodies.
     # Use a small B1/T128 dump run, separate from the full-size timing run.
     os.environ['LIBTPU_INIT_ARGS']=os.environ.get('LIBTPU_INIT_ARGS','')+f' --xla_jf_dump_to={a.dump_root}/jf --xla_mosaic_dump_to={a.dump_root}/mosaic'
+  if a.distributed:jax.distributed.initialize()
   shapes=[(a.batch,16,48,a.tokens),(a.batch,16,75,a.tokens),(a.batch,48,75,a.tokens)]
   x=tuple(jax.random.normal(jax.random.key(5310+i),s,dtype=dt)*.03 for i,s in enumerate(shapes))
   c,d,g=x
   expected=(jnp.einsum('bhvt,bkvt->bhkt',d,g,preferred_element_type=jnp.float32),
             jnp.einsum('bhkt,bkvt->bhvt',c,g,preferred_element_type=jnp.float32))
-  result=dict(lib_flags=os.environ.get('LIBTPU_INIT_ARGS'),measurements=[])
+  result=dict(lib_flags=os.environ.get('LIBTPU_INIT_ARGS'),jax_version=jax.__version__,
+              device_kind=jax.local_devices()[0].device_kind,process_index=jax.process_index(),
+              process_count=jax.process_count(),local_device_count=jax.local_device_count(),
+              batch=a.batch,tokens=a.tokens,dtype=a.dtype,measurements=[])
   for backend in a.backends.split(','):
     row=dict(backend=backend,tile=a.tile,head_block=a.head_block,unroll=a.unroll)
     try:

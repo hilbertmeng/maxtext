@@ -107,7 +107,12 @@ class RMTDepthTest(absltest.TestCase):
         stage_chunk=128, three_stage=True, middle_mode='minor_recompute',
         save_middle=True, write_mode='row4_vpu')
 
-  def _check_fused_scan_remat(self, backward, no_o=False, whole_stage=False, stage_chunk=0,three_stage=False,middle_mode='baseline',save_middle=False,save_native=False,write_mode='original'):
+  def test_k1_small_residual_scan_remat_matches_reference(self):
+    self._check_fused_scan_remat('autodiff', no_o=True, whole_stage=True,
+        stage_chunk=128, three_stage=True, middle_mode='minor_recompute',
+        save_middle=True, save_attention=True)
+
+  def _check_fused_scan_remat(self, backward, no_o=False, whole_stage=False, stage_chunk=0,three_stage=False,middle_mode='baseline',save_middle=False,save_native=False,write_mode='original',save_attention=False):
     from layers import rmt_pallas_minor, rmt_pallas_minor_read, rmt_pallas_minor_qk, rmt_pallas_v_read, rmt_pallas_write_read
     from layers import rmt_pallas_attention_read, rmt_pallas_full_write_read, rmt_pallas_projected_write
     cfg=self._config('RMTCombinedLayerScanNoHealthProfile')
@@ -135,7 +140,7 @@ class RMTDepthTest(absltest.TestCase):
                             rmt_fused_projected_mlp_write=three_stage,
                             rmt_fused_write_read_backward_tile=stage_chunk,rmt_full_middle_reverse_mode=middle_mode,
                             rmt_save_middle_outputs=save_middle,rmt_save_middle_native_outputs=save_native,
-                            rmt_rankh_write_mode=write_mode)
+                            rmt_rankh_write_mode=write_mode,rmt_attention_save_small=save_attention)
       with mock.patch.object(rmt_pallas_minor,'write_residual',
                              wraps=partial(rmt_pallas_minor.write_residual,interpret=True)), \
            mock.patch.object(rmt_pallas_minor_read,'c8_read',

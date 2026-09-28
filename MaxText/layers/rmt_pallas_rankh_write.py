@@ -135,9 +135,12 @@ def reverse(a, d, g, s, matrix_grad, epsilon, mode, **unused):
     product = jnp.einsum('thd,tdc->thc', left, square,
                         preferred_element_type=jnp.float32).transpose(1, 2, 0)
     dc, dd = product[:, :k], product[:, k:]
-  elif backend in ('blocked','hybrid'):
+  elif backend in ('blocked','hybrid','blocked8'):
     from layers.rmt_pallas_rankh_contract import products
-    dc,dd = products(c,df,matrix_grad.transpose(1,2,0),backend)
+    dc,dd = products(c,df,matrix_grad.transpose(1,2,0),
+                     'blocked' if backend=='blocked8' else backend,
+                     head_block=2 if backend=='blocked8' else 4,
+                     unroll=8 if backend=='blocked8' else 1)
   elif backend == 'vloop':
     dc,dd = reverse_vloop_product(c,df,matrix_grad.transpose(1,2,0).astype(jnp.float32))
   elif backend in ('vpu','vrow'):

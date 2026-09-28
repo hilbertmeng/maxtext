@@ -401,6 +401,7 @@ active leases are censored, and manual migration releases are not preemptions.
 | `RMT Pallas final + MHA profile` | v5p-16 (`xd-v5p-16-rmtpallas-final-0927-uc1a`) | `us-central1-a` | 2026-09-27 07:26:00 | 2026-09-27 08:00:31 (verified absent) | completed matrices; manual release; no preemption | none |
 | `RMT middle-reverse follow-up profiles` | v5p-16 (`xd-v5p-16-rmt-midv2-0927-uc1a`) | `us-central1-a` | 2026-09-27 15:51:34 (submitted) | 2026-09-27 16:31:40 (verified absent) | all7 profiles complete; manual release; no preemption | none |
 | `RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32` | v5p-16 (`xd-v5p-16-2709272-maxtext`) | `us-east5-a` | 2026-09-28 03:05:29 | 2026-09-28 05:42:16 | stopped3442 after NoO matched loss with fewer params and higher speed; 0 preemptions; TPU/queue absent, TB synced | none |
+| `BamMHAMediumPropC256TruePile` | v5p-16 (`xd-v5p-16-2709271-maxtext`) | `us-east5-a` | 2026-09-28 03:05:44 | 2026-09-28 08:30:36 | completed13500; 0 preemptions; TPU/queue absent, TB synced | none |
 
 ## READY leases
 
@@ -1223,3 +1224,4 @@ active leases are censored, and manual migration releases are not preemptions.
 | `RMT Pallas final + MHA profile` | 1 | `us-central1-a` | 2026-09-27 07:30:30 | 2026-09-27 08:00:31 (verified absent) | ≤30m01s | completed profiles, manual release; upper bound uses absence verification |
 | `RMT middle-reverse follow-up profiles` | 1 | `us-central1-a` | 2026-09-27 15:55:42 (first observed READY) | 2026-09-27 16:31:40 (verified absent) | ≤35m58s observed window | all7 profiles complete; no preemption; exact xd-v5p-16-rmt-midv2-0927-uc1a node/queue absent; both retained v6e hosts remain READY |
 | `RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32` | 1 | `us-east5-a` | 2026-09-28 03:05:32 | 2026-09-28 05:42:16 | 2h36m44s | manual stop; checkpoint3442; TPU/queue absent |
+| `BamMHAMediumPropC256TruePile` | 1 | `us-east5-a` | 2026-09-28 03:05:47 | 2026-09-28 08:30:36 | 5h24m49s | clean exit at checkpoint13500; TPU/queue absent |

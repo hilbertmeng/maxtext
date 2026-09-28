@@ -10070,6 +10070,8 @@ class BamMHAMediumPropC256TruePile(BamMHAMediumPropC256):
     """MediumProp RoPE MHA on true 4097-token Pile records."""
     # code_commit: 0d31a3d; UE5a xd-v5p-16-2709271-maxtext, .7210 steps/s
     # (10-14), vs old Prop MHA .7271 (-.84%); active weights ~524k/step.
+    # Completed13500, UE5a steady .714 step/s, no preemptions; TB synced.
+    # vs TruePile RoPE MHA control: early -.2266@600 shrank to final5 -.002970.
     # Launch must pass this dataset_path explicitly because
     # run_exp_xd.sh supplies a command-line dataset_path override.
     model_name = 'BamMHAMediumPropC256TruePile'

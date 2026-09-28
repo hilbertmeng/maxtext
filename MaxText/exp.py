@@ -10047,6 +10047,9 @@ class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32(
     # (10-14), vs padded-data parent .3777 (-.34%); active weights ~524k/step.
     # No fetched O; retain the parent's dynamic local O,
     # 18-layer M48x75, RoPE18, MLP4078 and matched MHA parameter budget.
+    # Stopped3442: vs TruePile Prop MHA gap shrank from -1.917@200 to -.227@3200.
+    # NoO matched or beat FullO at every 2200-3000 point (mean -.000765),
+    # with 345888 fewer params and +1.70% matched speed; retain NoO as baseline.
     model_name = 'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32'
     rmt_dynamic_o_enabled = True
     rmt_llf_enabled = False
@@ -10075,6 +10078,22 @@ class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoO(
     rmt_dynamic_o_enabled = False
     compare_runs = ['BamMHAMediumPropC256TruePile']
     jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/rmt-mediumprop-true-pile-direct32-no-o'
+
+
+class RMTMediumPropT4096TruePileK48EmbedUnembedDirect32NoOLLF(
+    RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoO):
+    """Ledger only: NoO L layers, shared-V-key fetched O in F, six LLF blocks."""
+    # Implementation: codex/rmt-truepile-noo-llf, /data0/xd/rmt-truepile-noo-llf.
+    # F MLP4067 repays its O gate and head-mix; L MLP4078 unchanged.
+    # 431766464 params, -7008 vs NoO; both use true 4097-token Pile records.
+    model_name = 'RMTMediumPropT4096TruePileK48EmbedUnembedDirect32NoOLLF'
+    rmt_llf_enabled = True
+    rmt_fetch_independent_o_key = False
+    rmt_block_scan = True
+    rmt_mlp_dim_by_block = [4078, 4078, 4067]
+    compare_runs = ['RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoO',
+                    'BamMHAMediumPropC256TruePile']
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/rmt-mediumprop-truepile-noo-llf'
 
 
 class RMTVectorNormMHABudgetHeadwiseMLPProfile(

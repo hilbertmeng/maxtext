@@ -13,15 +13,14 @@ Defaults: repo `/home/xd/projects/maxtext` (`refactor-bam`); tpu-ag scripts
 project `newproject-1-451205`; TPU `v5p-16`. Before each formal launch, choose
 `PRIMARY_ZONE` from the user's current direction and the latest comparable leases in
 `experiments/tpu_region_preemption_history.md`; record the chosen zone in the RUN. `run_exp_xd.sh`
-selects its zone-local output and Pile-data buckets. Set `DATASET_PATH` explicitly only for another
-dataset variant.
-For the repaired 4097-token TruePile records, `run_exp_xd.sh` uses the zone-local `_4096`
-replica in UC1a, UE5a, or EW4b when the RUN name contains `TruePile`, when
-`DATASET_VARIANT=truepile4096`, or when `DATASET_PATH` names a recognized `_4096`
-prefix. `dataset_paths.py` is the routing authority; do not hardcode a region in a new
-`exp.py` class. `migrate_zone.py` re-resolves the dataset and checks the target replica
-**before** stopping the source run. A custom dataset path for a TruePile RUN is rejected
-unless first added to the verified regional mapping. Check the registered path after launch.
+selects its zone-local output and Pile-data buckets. For repaired 4097-token TruePile records,
+set `DATASET_VARIANT = 'truepile4096'` directly or through inheritance on the `exp.py` class
+in the sealed runtime commit. `run_exp_xd.sh` reads that declaration, then selects the zone-local
+`_4096` replica in UC1a, UE5a, or EW4b. An explicit launcher `DATASET_VARIANT` or a recognized
+`DATASET_PATH` also selects the replica; conflicting selections fail. The RUN name never selects
+data. `dataset_paths.py` is the routing authority; do not hardcode a region in a new `exp.py`
+class. `migrate_zone.py` re-resolves the registered dataset path and checks the target replica
+**before** stopping the source run. Check the registered path after launch.
 Authoritative orchestration sources are `/home/xd/projects/xd_tpu_scripts`; deploy only those
 exact files to tpu-ag and verify matching hashes.
 Compiler and training workers obtain source from Git over HTTPS at the registered commit;

@@ -9551,6 +9551,7 @@ class Llama2XLPropTruePileMHA(Llama2XLPropTrain):
     # Same architecture, schedule and health metrics as Llama2XLPropTrain.
     # The padded-data predecessor is not a same-step loss baseline.
     model_name = 'Llama2XLPropTruePileMHA'
+    DATASET_VARIANT = 'truepile4096'  # launcher resolves the sealed class in each TPU zone
     compare_runs = []
     jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/xlprop-truepile-mha'
 

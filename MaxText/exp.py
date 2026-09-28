@@ -9622,7 +9622,8 @@ class BamMediumPropK75EmbedVOnlyQK57TruePile(BamMediumPropK75EmbedVOnlyQK57):
     # Ledger only: codex/mediumprop-k75-qk57-truepile, /data0/xd/mediumprop-k75-qk57-truepile.
     # code_commit: ee0ab9b; same 432106784 parameters as padded-data parent.
     # Before launch, matched padded-data QK57 lost to dynamic RMT Direct32 by
-    # +.03764 final-five loss; TruePile bet: vs MHA -.145, vs NoO +.030, vs LLF +.035.
+    # +.03764 final-five loss. Revised before first step for longer active context:
+    # TruePile bet vs MHA -.150, vs NoO +.015, vs LLF +.025.
     model_name = 'BamMediumPropK75EmbedVOnlyQK57TruePile'
     dataset_path = Llama2MediumC256T4096TruePile.dataset_path
     compare_runs = ['BamMHAMediumPropC256TruePile',

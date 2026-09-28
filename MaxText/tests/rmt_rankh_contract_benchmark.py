@@ -33,6 +33,8 @@ def main():
   p.add_argument('--tile',type=int,default=128);p.add_argument('--head-block',type=int,default=4)
   p.add_argument('--interpret',action='store_true');p.add_argument('--dtype',default='bfloat16')
   p.add_argument('--dump-root',type=Path);p.add_argument('--output',required=True,type=Path);a=p.parse_args();dt=getattr(jnp,a.dtype)
+  if a.dump_root:
+    os.environ['LIBTPU_INIT_ARGS']=os.environ.get('LIBTPU_INIT_ARGS','')+f' --xla_jf_dump_to={a.dump_root}/jf --xla_mosaic_dump_to={a.dump_root}/mosaic --xla_jf_dump_only_matching_hlo=rankh_contract.*'
   shapes=[(a.batch,16,48,a.tokens),(a.batch,16,75,a.tokens),(a.batch,48,75,a.tokens)]
   x=tuple(jax.random.normal(jax.random.key(5310+i),s,dtype=dt)*.03 for i,s in enumerate(shapes))
   c,d,g=x
@@ -43,12 +45,8 @@ def main():
     row=dict(backend=backend,tile=a.tile,head_block=a.head_block)
     try:
       fn=lambda *z:call(*z,backend,a.tile,a.head_block,a.interpret)
-      options={}
-      if a.dump_root:
-        options={'xla_jf_dump_to':str(a.dump_root/backend/'jf'),
-                 'xla_mosaic_dump_to':str(a.dump_root/backend/'mosaic')}
       start=time.monotonic()
-      executable=jax.jit(fn).lower(*x).compile(compiler_options=options)
+      executable=jax.jit(fn).lower(*x).compile()
       row['compile_s']=time.monotonic()-start
       actual=executable(*x)
       errors=[float(jnp.linalg.norm(u-v)/jnp.linalg.norm(v)) for u,v in zip(actual,expected)]

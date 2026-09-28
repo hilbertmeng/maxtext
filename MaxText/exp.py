@@ -10083,7 +10083,9 @@ class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoO(
 class RMTMediumPropT4096TruePileK48EmbedUnembedDirect32NoOLLF(
     RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoO):
     """Ledger only: NoO L layers, shared-V-key fetched O in F, six LLF blocks."""
-    # Implementation: codex/rmt-truepile-noo-llf, /data0/xd/rmt-truepile-noo-llf.
+    # code_commit: f0c1ebc; UE5a xd-v5p-16-2709285-maxtext, .371 steps/s
+    # vs matched NoO .3828 (-3.1%) at step34; implementation: codex/rmt-truepile-noo-llf,
+    # /data0/xd/rmt-truepile-noo-llf. No preemptions at launch.
     # F MLP4067 repays its O gate and head-mix; L MLP4078 unchanged.
     # 431766464 params, -7008 vs NoO; both use true 4097-token Pile records.
     model_name = 'RMTMediumPropT4096TruePileK48EmbedUnembedDirect32NoOLLF'

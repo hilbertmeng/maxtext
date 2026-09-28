@@ -9621,6 +9621,7 @@ class BamMediumPropK75EmbedVOnlyQK57TruePile(BamMediumPropK75EmbedVOnlyQK57):
     """Original K75/QK57 BAM architecture on true 4097-token Pile records."""
     # Ledger only: codex/mediumprop-k75-qk57-truepile, /data0/xd/mediumprop-k75-qk57-truepile.
     # code_commit: ee0ab9b; same 432106784 parameters as padded-data parent.
+    # UE5a v5p-16 started: step4 .525 step/s; steady speed pending.
     # Before launch, matched padded-data QK57 lost to dynamic RMT Direct32 by
     # +.03764 final-five loss. Revised before first step for longer active context:
     # TruePile bet vs MHA -.150, vs NoO +.015, vs LLF +.025.
@@ -9749,6 +9750,7 @@ class BamMHAMediumPropAlibiC256TruePile(BamMHAMediumPropAlibiC256):
     """ALiBi MHA control on true 4097-token Pile records."""
     # Ledger only: runtime 692216b, codex/rmt-static-k64-truepile,
     # /data0/xd/rmt-static-k64-truepile.
+    # UE5a v5p-16 running, .669 step/s near step500.
     model_name = 'BamMHAMediumPropAlibiC256TruePile'
     dataset_path = Llama2MediumC256T4096TruePile.dataset_path
     compare_runs = ['BamMHAMediumPropC256TruePile']
@@ -9758,6 +9760,7 @@ class BamMHAMediumPropAlibiC256TruePile(BamMHAMediumPropAlibiC256):
 class RMTMediumPropAlibiK64TruePile(RMTMediumPropAlibiK64):
     """Original static ALiBi K64 RMT on true 4097-token Pile records."""
     # Ledger only: runtime 692216b, codex/rmt-static-k64-truepile.
+    # UE5a v5p-16 running, .621 step/s near step500 (-7.2% vs paired ALiBi MHA).
     # Old padded pair final5 K64-ALiBi MHA -.020872; true-length bet -.030.
     model_name = 'RMTMediumPropAlibiK64TruePile'
     dataset_path = Llama2MediumC256T4096TruePile.dataset_path

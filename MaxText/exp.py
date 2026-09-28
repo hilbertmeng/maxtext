@@ -11346,3 +11346,23 @@ class RMTRankHPairedK1V6Profile(RMTRankHPairedV6Profile):
     # Runtime0378e2a; v6e-1: 1.819631 step/s; F124.787/B397.409ms.
     model_name = 'RMTRankHPairedK1V6Profile'
     rmt_attention_save_small = True
+
+
+class RMTRankHVPUV5Profile(RMTRankHPairedK1V5Profile):
+    # Native VPU full unroll; ledger only, codex/rmt-pallas-rankh. Full profile pending.
+    model_name = 'RMTRankHVPUV5Profile'
+    rmt_rankh_write_mode = 'row1_native75'
+    rmt_projected_write_reverse_tile = 128
+
+
+class RMTRankHVPUUnchunkedV5Profile(RMTRankHVPUV5Profile):
+    # Test whether native VPU removes the MXU qchunk64 capacity constraint at58MiB.
+    model_name = 'RMTRankHVPUUnchunkedV5Profile'
+    rmt_full_middle_reverse_mode = 'minor_recompute'
+
+
+class RMTRankHVPUV6Profile(RMTRankHPairedK1V6Profile):
+    # Native VPU full unroll; K3 reverse uses128 SIMD lanes independently of forward256.
+    model_name = 'RMTRankHVPUV6Profile'
+    rmt_rankh_write_mode = 'row1_native75'
+    rmt_projected_write_reverse_tile = 128

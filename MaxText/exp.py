@@ -9544,6 +9544,16 @@ class Llama2XLPropTrain(Llama2XLProp):
     compare_runs = []
 
 
+class Llama2XLPropTruePileMHA(Llama2XLPropTrain):
+    """XLProp MHA control on true 4097-token Pile records."""
+    # Same architecture, schedule and health metrics as Llama2XLPropTrain.
+    # The padded-data predecessor is not a same-step loss baseline.
+    model_name = 'Llama2XLPropTruePileMHA'
+    dataset_path = Llama2MediumC256T4096TruePile.dataset_path
+    compare_runs = []
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/xlprop-truepile-mha'
+
+
 class BamLlama2XLPropK72SharedRank4MLPPerLayerTrain(BamLlama2XLPropK72SharedRank4MLPPerLayer):
     """Formal batch8 RUN; independent data/checkpoint prefix, starts from zero."""
     # code_commit: 859bd7e

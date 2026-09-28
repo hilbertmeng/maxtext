@@ -9592,7 +9592,7 @@ class BamMHAMediumPropAlibiC256TruePile(BamMHAMediumPropAlibiC256):
     """ALiBi MHA control on actual 4097-token Pile records."""
     model_name = 'BamMHAMediumPropAlibiC256TruePile'
     dataset_path = Llama2MediumC256T4096TruePile.dataset_path
-    compare_runs = []
+    compare_runs = ['BamMHAMediumPropC256TruePile']
     jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/rmt-mediumprop-mha-alibi-truepile'
 
 

@@ -9617,6 +9617,20 @@ class BamMediumPropK75EmbedVOnlyQK57(BamLlama2MediumPropK57SharedRank4MLPPerLaye
     jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/mediumprop-k75-embed-qk57'
 
 
+class BamMediumPropK75EmbedVOnlyQK57TruePile(BamMediumPropK75EmbedVOnlyQK57):
+    """Original K75/QK57 BAM architecture on true 4097-token Pile records."""
+    # Ledger only: codex/mediumprop-k75-qk57-truepile, /data0/xd/mediumprop-k75-qk57-truepile.
+    # code_commit: ee0ab9b; same 432106784 parameters as padded-data parent.
+    # Before launch, matched padded-data QK57 lost to dynamic RMT Direct32 by
+    # +.03764 final-five loss; TruePile bet: vs MHA -.145, vs NoO +.030, vs LLF +.035.
+    model_name = 'BamMediumPropK75EmbedVOnlyQK57TruePile'
+    dataset_path = Llama2MediumC256T4096TruePile.dataset_path
+    compare_runs = ['BamMHAMediumPropC256TruePile',
+                    'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoO',
+                    'RMTMediumPropT4096TruePileK48EmbedUnembedDirect32NoOLLF']
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/mediumprop-k75-embed-qk57-truepile'
+
+
 class BamMediumPropK75EmbedVOnlyQK75(BamMediumPropK75EmbedVOnlyQK57):
     """Same parameters; full75 BAM QK plus18 standard RoPE coordinates."""
     # Ledger only: codex/mediumprop-k75-embed; /data0/xd/mediumprop-k75-embed.

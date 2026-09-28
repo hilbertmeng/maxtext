@@ -15,6 +15,13 @@ project `newproject-1-451205`; TPU `v5p-16`. Before each formal launch, choose
 `experiments/tpu_region_preemption_history.md`; record the chosen zone in the RUN. `run_exp_xd.sh`
 selects its zone-local output and Pile-data buckets. Set `DATASET_PATH` explicitly only for another
 dataset variant.
+For the repaired 4097-token TruePile records, `run_exp_xd.sh` uses the zone-local `_4096`
+replica in UC1a, UE5a, or EW4b when the RUN name contains `TruePile`, when
+`DATASET_VARIANT=truepile4096`, or when `DATASET_PATH` names a recognized `_4096`
+prefix. `dataset_paths.py` is the routing authority; do not hardcode a region in a new
+`exp.py` class. `migrate_zone.py` re-resolves the dataset and checks the target replica
+**before** stopping the source run. A custom dataset path for a TruePile RUN is rejected
+unless first added to the verified regional mapping. Check the registered path after launch.
 Authoritative orchestration sources are `/home/xd/projects/xd_tpu_scripts`; deploy only those
 exact files to tpu-ag and verify matching hashes.
 Compiler and training workers obtain source from Git over HTTPS at the registered commit;

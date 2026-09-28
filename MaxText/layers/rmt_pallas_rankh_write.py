@@ -53,7 +53,34 @@ def forward(m, a, d, g, s, epsilon, mode):
                        pltpu.VMEM((k,h,t),jnp.float32), pltpu.VMEM(m.shape,m.dtype))
 
 
+def reverse_major(a, d, g, s, matrix_grad, epsilon):
+  """Keep MXU inputs and normalization native token-major; no FP32 layout roundtrip."""
+  t, h, k = a.shape
+  v = d.shape[-1]
+  af, df, gf = a.astype(jnp.float32), d.astype(jnp.float32), g.astype(jnp.float32)
+  ai = jax.lax.rsqrt(jnp.mean(af*af, axis=-1, keepdims=True)+epsilon)
+  di = jax.lax.rsqrt(jnp.mean(df*df, axis=-1, keepdims=True)+epsilon)
+  an = af*ai
+  c = s.astype(jnp.float32)[None,:,:] + an*(gf[:,:,None]*di)
+  G = matrix_grad
+  square = jnp.concatenate((
+      jnp.concatenate((jnp.zeros((t,k,k),G.dtype),G),axis=2),
+      jnp.concatenate((G.swapaxes(1,2),jnp.zeros((t,v,v),G.dtype)),axis=2)),axis=1)
+  left = jnp.concatenate((c.astype(d.dtype),d),axis=2)
+  product = jnp.einsum('thd,tdc->thc',left,square,preferred_element_type=jnp.float32)
+  dc, dd = product[:,:,:k], product[:,:,k:]
+  dot = jnp.sum(dc*an,axis=-1,keepdims=True)
+  da = dc*(gf[:,:,None]*di)
+  da = ai*(da-af*jnp.mean(da*af,axis=-1,keepdims=True)*ai*ai)
+  dd = dd-df*(gf[:,:,None]*di**3*dot/v)
+  dg = (di*dot).reshape(t,h)
+  ds = jnp.sum(dc,axis=0)
+  return da.astype(a.dtype),dd.astype(d.dtype),dg.astype(g.dtype),ds
+
+
 def reverse(a, d, g, s, matrix_grad, epsilon, mode, **unused):
+  if mode.split("_")[1] == "major":
+    return reverse_major(a,d,g,s,matrix_grad,epsilon)
   # Match joint's token-major ABI. The VPU branch restores token SIMD lanes.
   a, d, g = a.transpose(1, 2, 0), d.transpose(1, 2, 0), g.T
   af, df, ai, di, an, c = parts(a, d, g, s, epsilon)

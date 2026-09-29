@@ -10140,6 +10140,34 @@ class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoO(
     jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/rmt-mediumprop-true-pile-direct32-no-o'
 
 
+class RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoO(
+    Llama2XLProp, RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoO):
+    """Proportional XL NoO: M60x96, proxy20/tail40, C10, R384 and RoPE24."""
+    # Runtime: codex/rmt-xlprop-noo; pure JAX, direct layer scan.
+    # Bet vs XLProp TruePile MHA at50k: loss -.10; .30 step/s (~-44%).
+    # Plan/abstract parameter audit: experiments/bam_llama2_medium/rmt_xlprop_noo.md.
+    # Uniform MLP6622: 1,432,430,680 params, +31,960 (+.00223%) vs XLProp MHA.
+    model_name = 'RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoO'
+    DATASET_VARIANT = 'truepile4096'
+    rmt_reskey_dim = 60
+    rmt_dynamic_write_rows = 60
+    rmt_dynamic_compression_dim = 10  # Medium default remains8.
+    rmt_dynamic_write_bottleneck_dim = 384  # Nearest multiple of128 to proportional R400.
+    rmt_rope_qk_dim = 24
+    rmt_dynamic_o_enabled = False
+    rmt_dynamic_read_full_matrix = False
+    rmt_dynamic_embedding_write = True
+    rmt_dynamic_unembedding_read = True
+    rmt_dynamic_unembedding_direct_read = True
+    rmt_llf_enabled = False
+    rmt_block_scan = False
+    rmt_mlp_dim_by_block = None
+    base_mlp_dim = 6622
+    compare_runs = ['Llama2XLPropTruePileMHA']
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/rmt-xlprop-truepile-direct40-no-o'
+
+
+
 class RMTMediumPropT4096TruePileK48EmbedUnembedDirect32NoOLLF(
     RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoO):
     """Ledger only: NoO L layers, shared-V-key fetched O in F, six LLF blocks."""

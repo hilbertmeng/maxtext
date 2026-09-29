@@ -52,9 +52,10 @@ def _boundary_health(dynamic, static, gate):
                     jnp.mean(gate > .5), jnp.mean(gate > .95)))
 
 
-def dynamic_health_names(record_write_health=True):
+def dynamic_health_names(record_write_health=True, heads=16, key_dim=48):
   """Keep read/gate/state metrics when diagnostic write statistics are disabled."""
-  return tuple(name for name in RMT_DYNAMIC_HEALTH_NAMES
+  return tuple(name.replace('first16', f'first{heads}').replace('tail32', f'tail{key_dim-heads}')
+               for name in RMT_DYNAMIC_HEALTH_NAMES
                if record_write_health or not
                ('_write_' in name and name.endswith(('_ratio', '_cosine'))))
 
@@ -183,7 +184,7 @@ class RMTDynamicC8Read(nn.Module):
     pallas_joined = (static_matrix is not None and not self.is_initializing()
                      and cfg.get_keys().get('rmt_pallas_joined_read', False))
     heads = int(cfg.num_query_heads)
-    key_dim = 8 if self.compress_state else M.shape[-1]
+    key_dim = int(cfg.get_keys().get('rmt_dynamic_compression_dim', 8)) if self.compress_state else M.shape[-1]
     if parameters_only:
       if not self.compress_state or self.destinations != 1:
         raise ValueError('Fused MLP stage requires one compressed read destination')
@@ -264,7 +265,7 @@ class RMTDynamicWrite(nn.Module):
   def __call__(self, x, data, matrix=None, static_key=None, padded_value_dim=None, *, address_only=False, parameters_only=False):
     cfg = self.config
     heads = int(cfg.num_query_heads)
-    bottleneck = 256
+    bottleneck = int(cfg.get_keys().get('rmt_dynamic_write_bottleneck_dim', 256))
     init = initializers.get_init_method(cfg.init_method)
     down = self.param('address_down', nn.with_logical_partitioning(init, ('embed', None)),
                       (cfg.emb_dim, bottleneck), cfg.weight_dtype)
@@ -408,8 +409,8 @@ class RMTLayer(nn.Module):
     if rope_qk_dim and (not dynamic or rope_qk_dim % 2 or rope_qk_dim >= value_dim):
       raise ValueError('RMT RoPE Q/K requires a dynamic arm and an even proper subspace')
     write_rows = int(getattr(cfg, 'rmt_dynamic_write_rows', 32)) if dynamic else 0
-    if dynamic and (key_dim != 48 or write_rows not in (32, 48)):
-      raise ValueError('RMT K48 dynamic branch requires 32 or 48 write rows')
+    if dynamic and (key_dim <= heads or write_rows not in (key_dim - heads, key_dim)):
+      raise ValueError('Dynamic RMT requires tail-row or full-row writes and nonempty tail')
     key_init = nn.initializers.normal(key_dim ** -0.5)
     write_init = nn.initializers.normal(heads ** -0.5 / math.sqrt(2 * cfg.num_decoder_layers))
 
@@ -584,9 +585,9 @@ class RMTLayer(nn.Module):
                 attn_x, head_output, matrix if pallas_write else None,
                 attn_write.astype(cfg.dtype) if pallas_write else None,
                 padded_value_dim or None)
-        if write_rows == 32:
+        if write_rows != key_dim:
           dynamic_attn_write = jnp.pad(dynamic_attn_write,
-                                       ((0, 0), (0, 0), (16, 0), (0, 0)))
+                                       ((0, 0), (0, 0), (heads, 0), (0, 0)))
         matrix = dynamic_attn_write if pallas_write else matrix + static_attn_write + dynamic_attn_write
       elif not dynamic:
         matrix = matrix + static_attn_write
@@ -639,9 +640,9 @@ class RMTLayer(nn.Module):
               mlp_x, vector, matrix if pallas_write else None,
               mlp_write.astype(cfg.dtype) if pallas_write else None,
               padded_value_dim or None)
-      if write_rows == 32:
+      if write_rows != key_dim:
         dynamic_mlp_write = jnp.pad(dynamic_mlp_write,
-                                    ((0, 0), (0, 0), (16, 0), (0, 0)))
+                                    ((0, 0), (0, 0), (heads, 0), (0, 0)))
       matrix = dynamic_mlp_write if pallas_write else matrix + static_mlp_write + dynamic_mlp_write
     elif not dynamic_mlp_write_enabled:
       matrix = matrix + static_mlp_write
@@ -669,10 +670,10 @@ class RMTLayer(nn.Module):
         writes = ((dynamic_attn_write, static_attn_write),
                   (dynamic_mlp_write, static_mlp_write))
         values.extend(v for dyn, stat in writes for part in
-                      (slice(None, 16), slice(16, None))
+                      (slice(None, heads), slice(heads, None))
                       for v in _write_health(dyn[..., part, :], stat[..., part, :]))
-      values.extend((_rms(attn_in[..., :16, :]), _rms(attn_in[..., 16:, :]),
-                     _rms(mlp_in[..., :16, :]), _rms(mlp_in[..., 16:, :])))
+      values.extend((_rms(attn_in[..., :heads, :]), _rms(attn_in[..., heads:, :]),
+                     _rms(mlp_in[..., :heads, :]), _rms(mlp_in[..., heads:, :])))
       assert len(values) == len(dynamic_health_names(record_write_health))
       health = jnp.stack(values)
       if not cfg.get_keys().get('rmt_block_scan', False):

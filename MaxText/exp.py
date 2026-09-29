@@ -10168,6 +10168,43 @@ class RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoO(
 
 
 
+
+class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOQKPreNorm(RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoO):
+    """Parameter-free qk matrix-read pre-norm; original VectorNorm controls retained."""
+    # Implementation: codex/rmt-xlprop-noo, /data0/xd/rmt-xlprop-noo; pure JAX.
+    model_name = 'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOQKPreNorm'
+    rmt_matrix_read_norm = 'qk'
+    compare_runs = ['RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoO', 'BamMHAMediumPropC256TruePile']
+    jax_cache_dir = ''
+
+
+class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNorm(RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoO):
+    """Parameter-free all matrix-read pre-norm; original VectorNorm controls retained."""
+    # Implementation: codex/rmt-xlprop-noo, /data0/xd/rmt-xlprop-noo; pure JAX.
+    model_name = 'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNorm'
+    rmt_matrix_read_norm = 'all'
+    compare_runs = ['RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoO', 'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOQKPreNorm', 'BamMHAMediumPropC256TruePile']
+    jax_cache_dir = ''
+
+
+class RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOQKPreNorm(RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoO):
+    """Parameter-free qk matrix-read pre-norm; original VectorNorm controls retained."""
+    # Implementation: codex/rmt-xlprop-noo, /data0/xd/rmt-xlprop-noo; pure JAX.
+    model_name = 'RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOQKPreNorm'
+    rmt_matrix_read_norm = 'qk'
+    compare_runs = ['RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoO', 'Llama2XLPropTruePileMHA']
+    jax_cache_dir = ''
+
+
+class RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOMPreNorm(RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoO):
+    """Parameter-free all matrix-read pre-norm; original VectorNorm controls retained."""
+    # Implementation: codex/rmt-xlprop-noo, /data0/xd/rmt-xlprop-noo; pure JAX.
+    model_name = 'RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOMPreNorm'
+    rmt_matrix_read_norm = 'all'
+    compare_runs = ['RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoO', 'RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOQKPreNorm', 'Llama2XLPropTruePileMHA']
+    jax_cache_dir = ''
+
+
 class RMTMediumPropT4096TruePileK48EmbedUnembedDirect32NoOLLF(
     RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoO):
     """Ledger only: NoO L layers, shared-V-key fetched O in F, six LLF blocks."""

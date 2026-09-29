@@ -356,6 +356,13 @@ class RMTVectorNormParameters(nn.Module):
     return scale if cfg.direct_scale else scale+1
 
 
+def matrix_read_rms_norm(matrix, epsilon):
+  """Parameter-free per-token normalization over both matrix axes."""
+  x = matrix.astype(jnp.float32)
+  return (x * jax.lax.rsqrt(jnp.mean(jnp.square(x), axis=(-2, -1), keepdims=True)
+                           + epsilon)).astype(matrix.dtype)
+
+
 class MatrixRMSNorm(nn.Module):
   """RMT source RMSNorm over both residual-matrix axes, with full-size gain."""
 
@@ -420,6 +427,13 @@ class RMTLayer(nn.Module):
     dynamic_o_enabled = bool(cfg.get_keys().get('rmt_dynamic_o_enabled', True))
     rope_qk_dim = int(cfg.get_keys().get('rmt_rope_qk_dim', 0))
     vector_pre_norm = bool(cfg.get_keys().get('rmt_vector_pre_norm', False))
+    read_norm = cfg.get_keys().get('rmt_matrix_read_norm', 'none')
+    if read_norm not in ('none', 'qk', 'all'):
+      raise ValueError('rmt_matrix_read_norm must be none, qk or all')
+    if read_norm != 'none' and (not vector_pre_norm or joined_read or padded_value_dim or
+        any(cfg.get_keys().get(k, False) for k in ('rmt_pallas_write',
+            'rmt_fused_attention_read', 'rmt_fused_write_mlp_read'))):
+      raise ValueError('Matrix read normalization requires the plain JAX VectorNorm path')
     if vector_pre_norm and not dynamic:
       raise ValueError('RMT vector pre-norm requires the dynamic arm')
     if rope_qk_dim and (not dynamic or rope_qk_dim % 2 or rope_qk_dim >= value_dim):
@@ -436,6 +450,10 @@ class RMTLayer(nn.Module):
       matrix = tap(matrix, layer_index, 'M_input')
     matrix_pre_norm = (not vector_pre_norm) or cfg.get_keys().get('rmt_probe_matrix_pre_norm', False)
     attn_in = (MatrixRMSNorm(cfg, name='attn_norm')(matrix) if matrix_pre_norm else matrix)
+    if read_norm == 'all':
+      attn_in = matrix_read_rms_norm(matrix, cfg.normalization_layer_epsilon)
+    qk_in = (matrix_read_rms_norm(matrix, cfg.normalization_layer_epsilon)
+             if read_norm == 'qk' else attn_in)
     if probe:
       attn_in = tap(attn_in, layer_index, 'M_attention_read')
     qkv_key = self.param('qkv_key', key_init, (3, heads, key_dim), cfg.weight_dtype)
@@ -470,16 +488,22 @@ class RMTLayer(nn.Module):
           save_small=cfg.get_keys().get('rmt_attention_save_small',False))
       query,key,value=qkv[...,:heads,:],qkv[...,heads:2*heads,:],qkv[...,2*heads:,:]
     if not joined_read and not fused_attention:
-      qkv = jnp.einsum('btkv,ank->abtnv', attn_in, qkv_key.astype(cfg.dtype))
-      query, key, value = (qkv[i][..., :value_dim] for i in range(3))
+      if read_norm == 'qk':
+        qk = jnp.einsum('btkv,ank->abtnv', qk_in, qkv_key[:2].astype(cfg.dtype))
+        query, key = (qk[i][..., :value_dim] for i in range(2))
+        value = jnp.einsum('btkv,nk->btnv', attn_in, qkv_key[2].astype(cfg.dtype))[..., :value_dim]
+      else:
+        qkv = jnp.einsum('btkv,ank->abtnv', attn_in, qkv_key.astype(cfg.dtype))
+        query, key, value = (qkv[i][..., :value_dim] for i in range(3))
     if dynamic and not fused_attention:
-      attn_x = attn_in[..., :heads, :value_dim].reshape(attn_in.shape[:2] + (cfg.emb_dim,))
+      proxy_M = matrix if read_norm != 'none' else attn_in
+      attn_x = proxy_M[..., :heads, :value_dim].reshape(attn_in.shape[:2] + (cfg.emb_dim,))
       if vector_pre_norm:
         attn_x = normalizations.get_rmsnorm('attn_vector_norm', cfg)(attn_x)
       read_start = heads
       attn_M = jnp.swapaxes(attn_in[..., read_start:, :], -2, -1)
       dynamic_q, dynamic_k, q_gate, k_gate = RMTDynamicQK(
-          cfg, name='dynamic_qk')(attn_x, attn_M)
+          cfg, name='dynamic_qk')(attn_x, jnp.swapaxes(qk_in[..., read_start:, :], -2, -1))
       vo_module = RMTDynamicC8Read(cfg, destinations=2 if dynamic_o_enabled else 1,
                                   name='dynamic_vo')
       if joined_read:
@@ -634,6 +658,8 @@ class RMTLayer(nn.Module):
       if probe:
         matrix = tap(matrix, layer_index, 'M_after_attention')
       mlp_in = (MatrixRMSNorm(cfg, name='mlp_norm')(matrix) if matrix_pre_norm else matrix)
+      if read_norm == 'all':
+        mlp_in = matrix_read_rms_norm(matrix, cfg.normalization_layer_epsilon)
       if probe:
         mlp_in = tap(mlp_in, layer_index, 'M_mlp_read')
       mlp_read = self.param('mlp_read_key', key_init,
@@ -643,7 +669,8 @@ class RMTLayer(nn.Module):
         vector = vector[..., :value_dim]
         static_mlp_read = vector
       if dynamic_mlp_read_enabled or dynamic_mlp_write_enabled:
-        mlp_x = mlp_in[..., :heads, :value_dim].reshape(mlp_in.shape[:2] + (cfg.emb_dim,))
+        proxy_M = matrix if read_norm != 'none' else mlp_in
+        mlp_x = proxy_M[..., :heads, :value_dim].reshape(mlp_in.shape[:2] + (cfg.emb_dim,))
         if vector_pre_norm:
           mlp_x = normalizations.get_rmsnorm('mlp_vector_norm', cfg)(mlp_x)
       if dynamic_mlp_read_enabled:

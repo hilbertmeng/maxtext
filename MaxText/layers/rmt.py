@@ -521,6 +521,8 @@ class RMTLayer(nn.Module):
       # coordinates, V, proxies, MLP and residual carry are unchanged.
       matrix_rms = jnp.sqrt(jnp.mean(jnp.square(attn_in.astype(jnp.float32)),
                                     axis=(-2, -1), keepdims=True) + cfg.normalization_layer_epsilon)
+      if cfg.get_keys().get('rmt_probe_qk_detach_scale', False):
+        matrix_rms = jax.lax.stop_gradient(matrix_rms)
       cutoff = value_dim - rope_qk_dim if rope_qk_dim else value_dim
       query = jnp.concatenate(((query[..., :cutoff] / matrix_rms).astype(query.dtype), query[..., cutoff:]), -1)
       key = jnp.concatenate(((key[..., :cutoff] / matrix_rms).astype(key.dtype), key[..., cutoff:]), -1)

@@ -34,6 +34,7 @@ CASES = {
     'stop_qk': (True, False, 'all'),
     'stop_v': (True, False, 'all'),
     'qk_norm': (True, False, 'all'),
+    'qk_norm_detached': (True, False, 'all'),
 }
 
 
@@ -76,7 +77,8 @@ def main(argv):
     cfg.get_keys().update(rmt_norm_probe=True, rmt_vector_pre_norm=vector,
                           rmt_probe_matrix_pre_norm=matrix, rmt_probe_write_grad=write_grad,
                           rmt_probe_attention_grad=case if case in ('stop_qk', 'stop_v') else 'all',
-                          rmt_probe_qk_matrix_rms=case == 'qk_norm')
+                          rmt_probe_qk_matrix_rms=case in ('qk_norm', 'qk_norm_detached'),
+                          rmt_probe_qk_detach_scale=case == 'qk_norm_detached')
     def objective(p, b, batch):
       f = flatten_dict(p)
       f[BIAS] = b

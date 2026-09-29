@@ -320,9 +320,10 @@ class RMTDynamicWrite(nn.Module):
     address = normalizations.rms_norm(
         address, dtype=address.dtype, epsilon=cfg.normalization_layer_epsilon,
         statistics_dtype=jnp.float32)
-    # Embedding keeps its original content normalization; this switch covers
-    # only transformer attention/MLP writes and has no trainable parameters.
-    content_norm = (self.name == 'dynamic_embedding_write' or
+    # Keep embedding and transformer-layer content ablations independent;
+    # neither normalization switch introduces trainable parameters.
+    content_norm = (not cfg.get_keys().get('rmt_embedding_shared_content', False)
+                    if self.name == 'dynamic_embedding_write' else
                     cfg.get_keys().get('rmt_layer_write_content_norm', True))
     if content_norm:
       data = normalizations.rms_norm(
@@ -816,15 +817,18 @@ class RMTDecoder(nn.Module):
                           (heads, key_dim), cfg.weight_dtype)
     matrix = jnp.einsum('btnv,nk->btkv', embedded_heads, seed_key.astype(cfg.dtype))
     if cfg.get_keys().get('rmt_dynamic_embedding_write', False):
-      # Same learned content and R256 GELU address as EmbeddingBamWrite,
-      # with the native RMT address/content axes (48, 75).
-      data = linears.DenseGeneral(
-          features=(heads, value_dim), axis=-1,
-          kernel_init=initializers.get_init_method(cfg.init_method),
-          kernel_axes=('embed', 'q_heads', 'v_factor'), dtype=cfg.dtype,
-          weight_dtype=cfg.weight_dtype, name='embedding_write_content',
-          quant=self.quant, matmul_precision=cfg.matmul_precision,
-          use_bias=False)(embedding)
+      # Shared-content variant writes the same raw embedding heads through
+      # both static and dynamic addresses, without an extra content projection.
+      if cfg.get_keys().get('rmt_embedding_shared_content', False):
+        data = embedded_heads
+      else:
+        data = linears.DenseGeneral(
+            features=(heads, value_dim), axis=-1,
+            kernel_init=initializers.get_init_method(cfg.init_method),
+            kernel_axes=('embed', 'q_heads', 'v_factor'), dtype=cfg.dtype,
+            weight_dtype=cfg.weight_dtype, name='embedding_write_content',
+            quant=self.quant, matmul_precision=cfg.matmul_precision,
+            use_bias=False)(embedding)
       dynamic_seed, seed_gate = RMTDynamicWrite(
           cfg, address_dim=key_dim, name='dynamic_embedding_write')(embedding, data)
       if cfg.get_keys().get('rmt_record_dynamic_health', False):

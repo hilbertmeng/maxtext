@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
+export TF_NUM_INTRAOP_THREADS=1
+export TF_NUM_INTEROP_THREADS=1
+export OMP_NUM_THREADS=1
 
 root=/home/xd/pile_source
 stem="$root/pile_20B_tokenizer_text_document"

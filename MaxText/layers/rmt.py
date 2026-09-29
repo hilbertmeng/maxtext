@@ -330,7 +330,9 @@ class RMTDynamicWrite(nn.Module):
     if self.name != 'dynamic_embedding_write':
       if write_grad in ('stop_address', 'stop_both'):
         address = jax.lax.stop_gradient(address)
-      if write_grad in ('stop_content', 'stop_both'):
+      if (write_grad in ('stop_content', 'stop_both') or
+          (write_grad == 'stop_attn_content' and self.name == 'dynamic_attn_write') or
+          (write_grad == 'stop_mlp_content' and self.name == 'dynamic_mlp_write')):
         data = jax.lax.stop_gradient(data)
     if padded_value_dim is not None:
       data = jnp.pad(data, ((0,0),(0,0),(0,0),(0,padded_value_dim-data.shape[-1])))
@@ -514,6 +516,19 @@ class RMTLayer(nn.Module):
               name=f'{arm}_rope')(projected, positions))
         query = jnp.concatenate((query[..., :-rope_qk_dim], rope_qk[0]), axis=-1)
         key = jnp.concatenate((key[..., :-rope_qk_dim], rope_qk[1]), axis=-1)
+    if cfg.get_keys().get('rmt_probe_qk_matrix_rms', False):
+      # Diagnostic only: stabilize matrix-derived coordinates; independent RoPE
+      # coordinates, V, proxies, MLP and residual carry are unchanged.
+      matrix_rms = jnp.sqrt(jnp.mean(jnp.square(attn_in.astype(jnp.float32)),
+                                    axis=(-2, -1), keepdims=True) + cfg.normalization_layer_epsilon)
+      cutoff = value_dim - rope_qk_dim if rope_qk_dim else value_dim
+      query = jnp.concatenate(((query[..., :cutoff] / matrix_rms).astype(query.dtype), query[..., cutoff:]), -1)
+      key = jnp.concatenate(((key[..., :cutoff] / matrix_rms).astype(key.dtype), key[..., cutoff:]), -1)
+    attention_grad = cfg.get_keys().get('rmt_probe_attention_grad', 'all')
+    if attention_grad == 'stop_qk':
+      query, key = jax.lax.stop_gradient(query), jax.lax.stop_gradient(key)
+    elif attention_grad == 'stop_v':
+      value = jax.lax.stop_gradient(value)
     if not fused_attention:query = query / math.sqrt(value_dim)
     t = matrix.shape[1]
     chunk = int(cfg.query_chunk_size)

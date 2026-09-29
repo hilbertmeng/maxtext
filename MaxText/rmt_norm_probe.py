@@ -29,6 +29,11 @@ CASES = {
     'stop_address': (True, False, 'stop_address'),
     'stop_content': (True, False, 'stop_content'),
     'stop_both': (True, False, 'stop_both'),
+    'stop_attn_content': (True, False, 'stop_attn_content'),
+    'stop_mlp_content': (True, False, 'stop_mlp_content'),
+    'stop_qk': (True, False, 'all'),
+    'stop_v': (True, False, 'all'),
+    'qk_norm': (True, False, 'all'),
 }
 
 
@@ -69,7 +74,9 @@ def main(argv):
   for case in os.environ.get('RMT_NORM_CASES', ','.join(CASES)).split(','):
     vector, matrix, write_grad = CASES[case]
     cfg.get_keys().update(rmt_norm_probe=True, rmt_vector_pre_norm=vector,
-                          rmt_probe_matrix_pre_norm=matrix, rmt_probe_write_grad=write_grad)
+                          rmt_probe_matrix_pre_norm=matrix, rmt_probe_write_grad=write_grad,
+                          rmt_probe_attention_grad=case if case in ('stop_qk', 'stop_v') else 'all',
+                          rmt_probe_qk_matrix_rms=case == 'qk_norm')
     def objective(p, b, batch):
       f = flatten_dict(p)
       f[BIAS] = b

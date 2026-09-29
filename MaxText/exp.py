@@ -9342,6 +9342,14 @@ class BamLlama2MediumPropK57SharedRank4MLPPerLayer(BamLlama2MediumProp):
     jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/medium-prop-k57-shared-rank4'
 
 
+class BamLlama2MediumPropK57SharedRank4MLPPerLayerTruePile(BamLlama2MediumPropK57SharedRank4MLPPerLayer):
+    """K57 control for the K75 EmbedVOnly suite on true 4097-token Pile records."""
+    model_name = 'BamLlama2MediumPropK57SharedRank4MLPPerLayerTruePile'
+    DATASET_VARIANT = 'truepile4096'
+    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57TruePile', 'BamMHAMediumPropC256TruePile']
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/medium-prop-k57-shared-rank4-truepile'
+
+
 class BamLlama2MediumPropK57SharedRank4H18MLPPerLayer(BamLlama2MediumPropK57SharedRank4MLPPerLayer):
     """18 heads at fixed D1200/head75/M57x32; redistribute the attention budget."""
     # code_commit: 9580fa0; UE5a v5p-16 .5083 steps/s (20-99), -9.8% vs H16 .5637.

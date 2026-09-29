@@ -10229,16 +10229,16 @@ class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormRawWri
     jax_cache_dir = ''
 
 
-class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormSharedEmbedNorm(
-    RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNorm):
+class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedEmbedNorm(
+    RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScale):
     """Share embedding contents, keep every dynamic content normalization."""
-    model_name = 'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormSharedEmbedNorm'
+    model_name = 'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedEmbedNorm'
     rmt_embedding_shared_content = True
     rmt_embedding_content_norm = True
     rmt_layer_write_content_norm = True
     base_mlp_dim = 4100
-    compare_runs = ['RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNorm',
-                    'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormRawWriteSharedEmbedNorm']
+    compare_runs = ['RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScale',
+                    'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNorm']
     jax_cache_dir = ''
 
 

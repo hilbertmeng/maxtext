@@ -12,14 +12,14 @@ from layers import rmt
 
 BASE='RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormRawWrite'
 NEW=BASE+'SharedEmbed'
-CLEAN=BASE.removesuffix('RawWrite')+'SharedEmbedNorm'
+CLEAN=BASE.removesuffix('RawWrite')+'LearnedScaleSharedEmbedNorm'
 
 class SharedEmbeddingTest(unittest.TestCase):
   config=XLPropTest.config
   model_args=XLPropTest.model_args
 
   def test_parameter_budget(self):
-    for name,expected in [(BASE,431773472),(NEW,431759072),(NEW+'Norm',431759072),(CLEAN,431759072)]:
+    for name,expected in [(BASE,431773472),(NEW,431759072),(NEW+'Norm',431759072),(CLEAN,431888672)]:
       cfg=self.config(name)
       self.assertEqual(cfg.rmt_layer_write_content_norm,name==CLEAN)
       self.assertEqual(cfg.rmt_matrix_read_norm,'all')

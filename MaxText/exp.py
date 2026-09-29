@@ -11518,3 +11518,26 @@ class RMTRankHVPUV6Profile(RMTRankHPairedK1V6Profile):
     model_name = 'RMTRankHVPUV6Profile'
     rmt_rankh_write_mode = 'row1_native75'
     rmt_projected_write_reverse_tile = 128
+
+
+class RMTXLPropNorm6LControlProfile(TrainStepProfile, RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoO):
+    """Matched-health six-layer localization profile, B1 on retained v6e-1."""
+    model_name = 'RMTXLPropNorm6LControlProfile'
+    base_num_decoder_layers = 6
+    per_device_batch_size = 1.0
+    rmt_matrix_read_norm = 'none'
+    record_training_health_metrics = True
+    rmt_record_dynamic_health = True
+    force_final_checkpoint = False
+    compare_runs = []
+    jax_cache_dir = ''
+
+
+class RMTXLPropNorm6LQKInputProfile(RMTXLPropNorm6LControlProfile):
+    model_name = 'RMTXLPropNorm6LQKInputProfile'
+    rmt_matrix_read_norm = 'qk'
+
+
+class RMTXLPropNorm6LQKOutputProfile(RMTXLPropNorm6LControlProfile):
+    model_name = 'RMTXLPropNorm6LQKOutputProfile'
+    rmt_probe_qk_matrix_rms = True

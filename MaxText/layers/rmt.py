@@ -394,6 +394,15 @@ class MatrixRMSNorm(nn.Module):
     return (normalized * gain.astype(jnp.float32)).astype(cfg.dtype)
 
 
+def static_layer_write(data, key, cfg):
+  """Optionally share the dynamic branch's per-head normalized content."""
+  if cfg.get_keys().get('rmt_static_write_content_norm', False):
+    data = normalizations.rms_norm(
+        data, dtype=data.dtype, epsilon=cfg.normalization_layer_epsilon,
+        statistics_dtype=jnp.float32)
+  return jnp.einsum('btnv,nk->btkv', data, key.astype(cfg.dtype))
+
+
 class RMTLayer(nn.Module):
   """RMT layer with optional BAM-style dynamic reads and writes."""
 
@@ -408,6 +417,13 @@ class RMTLayer(nn.Module):
       if any(cfg.get_keys().get(k, False) for k in (
           'rmt_pallas_write', 'rmt_fused_write_mlp_read', 'rmt_fused_projected_mlp_write')):
         raise ValueError('Unnormalized layer write contents require the plain JAX write path')
+    if cfg.get_keys().get('rmt_static_write_content_norm', False):
+      if (not cfg.get_keys().get('rmt_layer_write_content_norm', True)
+          or cfg.get_keys().get('rmt_pad_value_dim', 0)
+          or any(cfg.get_keys().get(k, False) for k in (
+              'rmt_pallas_write', 'rmt_fused_write_mlp_read',
+              'rmt_fused_projected_mlp_write'))):
+        raise ValueError('Shared normalized contents require normalized plain-JAX layer writes')
     scan_minor = cfg.get_keys().get('rmt_scan_token_minor', False)
     if scan_minor:
       matrix = matrix.transpose(0,3,1,2)
@@ -658,8 +674,7 @@ class RMTLayer(nn.Module):
       if cfg.get_keys().get('rmt_remat_policy','full') in ('save_dense_state','save_state','save_state_mlp','save_state_dynamic'):
         matrix=ad_checkpoint.checkpoint_name(matrix,'rmt_mlp_matrix')
     else:
-      static_attn_write = jnp.einsum(
-          'btnv,nk->btkv', write_data, attn_write.astype(cfg.dtype))
+      static_attn_write = static_layer_write(write_data, attn_write, cfg)
       if dynamic:
         dynamic_attn_write, attn_write_gate = RMTDynamicWrite(
             cfg, write_rows, name='dynamic_attn_write')(
@@ -721,8 +736,7 @@ class RMTLayer(nn.Module):
                            (heads, key_dim), cfg.weight_dtype)
     write_data = (jnp.pad(vector, ((0,0),(0,0),(0,0),(0,padded_value_dim-value_dim)))
                   if padded_value_dim else vector)
-    static_mlp_write = jnp.einsum(
-        'btnv,nk->btkv', write_data, mlp_write.astype(cfg.dtype))
+    static_mlp_write = static_layer_write(write_data, mlp_write, cfg)
     if dynamic_mlp_write_enabled:
       dynamic_mlp_write, mlp_write_gate = RMTDynamicWrite(
           cfg, write_rows, name='dynamic_mlp_write')(

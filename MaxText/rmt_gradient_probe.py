@@ -50,7 +50,7 @@ def main(argv):
       model, iterator, tx, cfg, rng, mesh, manager)
   count = int(os.environ.get('RMT_PROBE_STEPS', '200'))
   arms = os.environ.get('RMT_PROBE_ARMS', 'baseline,no_embedding_bias').split(',')
-  output = Path('/tmp/rmt-gradient-probe')
+  output = Path(os.environ.get('RMT_PROBE_OUTPUT', '/tmp/rmt-gradient-probe'))
   output.mkdir(exist_ok=True)
   hashes = []
   # Keep batches on their original device shards; all arms consume identical batches.

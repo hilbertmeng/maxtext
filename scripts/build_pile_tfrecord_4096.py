@@ -11,6 +11,7 @@ from __future__ import annotations
 import argparse
 import concurrent.futures
 import hashlib
+import io
 import json
 import mmap
 import os
@@ -267,6 +268,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--seed", type=int, default=9876)
     parser.add_argument("--workers", type=int, default=8)
     parser.add_argument("--validate-only", action="store_true")
+    parser.add_argument(
+        "--extend-existing", action="store_true",
+        help="Append shards after the published manifest, preserving its sample prefix.",
+    )
     return parser.parse_args()
 
 
@@ -283,6 +288,27 @@ def main() -> None:
         return
 
     selected_path, selection_sha = build_selected_ids(args, total_samples)
+    previous = None
+    if args.extend_existing:
+        manifest_uri = f"{args.output_uri.rstrip('/')}/manifest.json"
+        previous = json.loads(subprocess.check_output(
+            ["gcloud", "storage", "cat", manifest_uri], text=True
+        ))
+        for key in ("seq_length", "base_seq_length", "global_batch_size",
+                    "steps_per_shard", "seed", "boundary_stride"):
+            if previous[key] != getattr(args, key):
+                raise ValueError(f"existing manifest {key}={previous[key]} differs from requested {getattr(args, key)}")
+        old_steps = previous["steps"]
+        if old_steps >= args.steps or old_steps % args.steps_per_shard:
+            raise ValueError("extension must start on a shard boundary and add steps")
+        selected = np.load(selected_path, mmap_mode="r")
+        prefix = io.BytesIO()
+        np.save(prefix, selected[:old_steps * args.global_batch_size], allow_pickle=False)
+        prefix_sha = hashlib.sha256(prefix.getvalue()).hexdigest()
+        if prefix_sha != previous["selection_sha256"]:
+            raise ValueError(f"sample prefix mismatch: {prefix_sha} != {previous['selection_sha256']}")
+        print(f"PRESERVED_PREFIX steps={old_steps} samples={old_steps * args.global_batch_size} sha256={prefix_sha}", flush=True)
+
     manifest = {
         "schema_version": 1,
         "source_data_prefix": args.data_prefix,
@@ -298,26 +324,29 @@ def main() -> None:
         "seed": args.seed,
         "selection_sha256": selection_sha,
     }
+    if previous is not None:
+        # Preserve the original GCS source provenance even when this builder
+        # reads a byte-identical regional copy from a local disk.
+        for key in ("source_data_prefix", "source_doc_idx", "source_sample_idx"):
+            manifest[key] = previous[key]
+        manifest["extension_from_steps"] = previous["steps"]
+        manifest["prefix_selection_sha256"] = previous["selection_sha256"]
     local_manifest = Path(args.work_dir) / "manifest.json"
     local_manifest.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n")
-    run(
-        [
-            "gcloud",
-            "storage",
-            "cp",
-            str(local_manifest),
-            f"{args.output_uri.rstrip('/')}/manifest.json",
-        ]
-    )
 
     shard_count = (args.steps + args.steps_per_shard - 1) // args.steps_per_shard
+    first_shard = previous["steps"] // args.steps_per_shard if previous is not None else 0
     args_dict = vars(args).copy()
-    tasks = [(index, args_dict, str(selected_path)) for index in range(shard_count)]
+    tasks = [(index, args_dict, str(selected_path)) for index in range(first_shard, shard_count)]
     with concurrent.futures.ProcessPoolExecutor(max_workers=args.workers) as executor:
         futures = {executor.submit(write_shard, task): task[0] for task in tasks}
         for future in concurrent.futures.as_completed(futures):
             result = future.result()
             print(json.dumps(result, sort_keys=True), flush=True)
+    # Publish the new manifest only after every appended shard is available.
+    run(["gcloud", "storage", "cp", str(local_manifest),
+         f"{args.output_uri.rstrip('/')}/manifest.json"])
+    print(f"MANIFEST_COMMITTED steps={args.steps} sha256={selection_sha}", flush=True)
 
 
 if __name__ == "__main__":

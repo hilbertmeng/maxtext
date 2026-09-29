@@ -10187,6 +10187,16 @@ class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNorm(RMTMe
     jax_cache_dir = ''
 
 
+class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormRawWrite(
+    RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNorm):
+    """Full M read pre-norm; raw attention/MLP write contents, normalized addresses."""
+    model_name = 'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormRawWrite'
+    rmt_layer_write_content_norm = False
+    compare_runs = ['RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNorm',
+                    'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoO']
+    jax_cache_dir = ''
+
+
 class RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOQKPreNorm(RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoO):
     """Parameter-free qk matrix-read pre-norm; original VectorNorm controls retained."""
     # Implementation: codex/rmt-xlprop-noo, /data0/xd/rmt-xlprop-noo; pure JAX.

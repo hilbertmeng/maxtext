@@ -320,9 +320,14 @@ class RMTDynamicWrite(nn.Module):
     address = normalizations.rms_norm(
         address, dtype=address.dtype, epsilon=cfg.normalization_layer_epsilon,
         statistics_dtype=jnp.float32)
-    data = normalizations.rms_norm(
-        data, dtype=data.dtype, epsilon=cfg.normalization_layer_epsilon,
-        statistics_dtype=jnp.float32)
+    # Embedding keeps its original content normalization; this switch covers
+    # only transformer attention/MLP writes and has no trainable parameters.
+    content_norm = (self.name == 'dynamic_embedding_write' or
+                    cfg.get_keys().get('rmt_layer_write_content_norm', True))
+    if content_norm:
+      data = normalizations.rms_norm(
+          data, dtype=data.dtype, epsilon=cfg.normalization_layer_epsilon,
+          statistics_dtype=jnp.float32)
     if probe:
       address = tap(address, probe_layer, self.name + '/address_normalized')
       data = tap(data, probe_layer, self.name + '/content_normalized')
@@ -390,6 +395,10 @@ class RMTLayer(nn.Module):
   @nn.compact
   def __call__(self, matrix, segment_ids, positions, deterministic, layer_index):
     cfg = self.config
+    if not cfg.get_keys().get('rmt_layer_write_content_norm', True):
+      if any(cfg.get_keys().get(k, False) for k in (
+          'rmt_pallas_write', 'rmt_fused_write_mlp_read', 'rmt_fused_projected_mlp_write')):
+        raise ValueError('Unnormalized layer write contents require the plain JAX write path')
     scan_minor = cfg.get_keys().get('rmt_scan_token_minor', False)
     if scan_minor:
       matrix = matrix.transpose(0,3,1,2)

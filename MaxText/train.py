@@ -383,6 +383,13 @@ def record_rmt_dynamic_health_metrics(output_metrics, intermediate_outputs, conf
         heads=config.num_query_heads, key_dim=config.rmt_reskey_dim)):
       output_metrics['scalar'][f'rmt/dynamic/layer_{layer:03d}/{name}'] = health[layer, index]
 
+  if config.get_keys().get('rmt_matrix_read_learned_scale', False):
+    for arm in ('attn', 'mlp'):
+      stats = decoder['layers'][arm + '_norm']['scale_health'][0]
+      for layer in range(config.num_decoder_layers):
+        for i, name in enumerate(('mean', 'std', 'min', 'max', 'rms_delta_one', 'frac_negative')):
+          output_metrics['scalar'][f'rmt/matrix_scale/layer_{layer:03d}/{arm}_{name}'] = stats[layer, i]
+
 
 def record_bam_concat_health_metrics(output_metrics, intermediate_outputs, config):
   """Decode compact read metrics from LLF block scan and an optional final L."""

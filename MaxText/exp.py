@@ -10208,6 +10208,16 @@ class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormRawWri
     jax_cache_dir = ''
 
 
+class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScale(
+    RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNorm):
+    """Original B plus independent all-ones full matrix read gains per sublayer."""
+    model_name = 'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScale'
+    rmt_matrix_read_learned_scale = True
+    compare_runs = ['RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNorm',
+                    'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoO']
+    jax_cache_dir = ''
+
+
 class RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOQKPreNorm(RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoO):
     """Parameter-free qk matrix-read pre-norm; original VectorNorm controls retained."""
     # Implementation: codex/rmt-xlprop-noo, /data0/xd/rmt-xlprop-noo; pure JAX.

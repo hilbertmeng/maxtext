@@ -379,6 +379,12 @@ class MatrixRMSNorm(nn.Module):
     cfg = self.config
     gain = self.param('scale', nn.initializers.ones,
                       matrix.shape[-2:], cfg.weight_dtype)
+    if (cfg.get_keys().get('rmt_matrix_read_learned_scale', False)
+        and cfg.get_keys().get('rmt_record_dynamic_health', False)):
+      g = gain.astype(jnp.float32)
+      self.sow('intermediates', 'scale_health', jnp.stack((
+          jnp.mean(g), jnp.std(g), jnp.min(g), jnp.max(g),
+          jnp.sqrt(jnp.mean(jnp.square(g - 1.))), jnp.mean(g < 0.))))
     mean_square = jnp.mean(jnp.square(matrix.astype(jnp.float32)),
                            axis=(-2, -1), keepdims=True)
     normalized = matrix.astype(jnp.float32) * jax.lax.rsqrt(
@@ -459,9 +465,11 @@ class RMTLayer(nn.Module):
       from rmt_norm_instrumentation import tap
       matrix = tap(matrix, layer_index, 'M_input')
     matrix_pre_norm = (not vector_pre_norm) or cfg.get_keys().get('rmt_probe_matrix_pre_norm', False)
-    attn_in = (MatrixRMSNorm(cfg, name='attn_norm')(matrix) if matrix_pre_norm else matrix)
+    attn_in = (MatrixRMSNorm(cfg, name='attn_norm')(matrix) if matrix_pre_norm and read_norm != 'all' else matrix)
     if read_norm == 'all':
-      attn_in = matrix_read_rms_norm(matrix, cfg.normalization_layer_epsilon)
+      attn_in = (MatrixRMSNorm(cfg, name='attn_norm')(matrix)
+                 if cfg.get_keys().get('rmt_matrix_read_learned_scale', False)
+                 else matrix_read_rms_norm(matrix, cfg.normalization_layer_epsilon))
     qk_in = (matrix_read_rms_norm(matrix, cfg.normalization_layer_epsilon)
              if read_norm == 'qk' else attn_in)
     if probe:
@@ -667,9 +675,11 @@ class RMTLayer(nn.Module):
         matrix=ad_checkpoint.checkpoint_name(matrix,'rmt_mlp_matrix')
       if probe:
         matrix = tap(matrix, layer_index, 'M_after_attention')
-      mlp_in = (MatrixRMSNorm(cfg, name='mlp_norm')(matrix) if matrix_pre_norm else matrix)
+      mlp_in = (MatrixRMSNorm(cfg, name='mlp_norm')(matrix) if matrix_pre_norm and read_norm != 'all' else matrix)
       if read_norm == 'all':
-        mlp_in = matrix_read_rms_norm(matrix, cfg.normalization_layer_epsilon)
+        mlp_in = (MatrixRMSNorm(cfg, name='mlp_norm')(matrix)
+                  if cfg.get_keys().get('rmt_matrix_read_learned_scale', False)
+                  else matrix_read_rms_norm(matrix, cfg.normalization_layer_epsilon))
       if probe:
         mlp_in = tap(mlp_in, layer_index, 'M_mlp_read')
       mlp_read = self.param('mlp_read_key', key_init,

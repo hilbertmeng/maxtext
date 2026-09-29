@@ -1,0 +1,194 @@
+{
+  "shards": [
+    {
+      "step": 0,
+      "uri": "gs://newproject-1-common_datasets_us-east5/pythia_pile_idxmaps_tfrecord_4096/pile.tfrecord.b0",
+      "size_bytes": 509690055,
+      "generation": 1790588814500663,
+      "crc32c": "X3DxEg=="
+    },
+    {
+      "step": 500,
+      "uri": "gs://newproject-1-common_datasets_us-east5/pythia_pile_idxmaps_tfrecord_4096/pile.tfrecord.b500",
+      "size_bytes": 509762664,
+      "generation": 1790588816979849,
+      "crc32c": "LkwqFQ=="
+    },
+    {
+      "step": 1000,
+      "uri": "gs://newproject-1-common_datasets_us-east5/pythia_pile_idxmaps_tfrecord_4096/pile.tfrecord.b1000",
+      "size_bytes": 509743473,
+      "generation": 1790588813439650,
+      "crc32c": "3EkdUQ=="
+    },
+    {
+      "step": 1500,
+      "uri": "gs://newproject-1-common_datasets_us-east5/pythia_pile_idxmaps_tfrecord_4096/pile.tfrecord.b1500",
+      "size_bytes": 509586003,
+      "generation": 1790588815734909,
+      "crc32c": "me+ZsQ=="
+    },
+    {
+      "step": 2000,
+      "uri": "gs://newproject-1-common_datasets_us-east5/pythia_pile_idxmaps_tfrecord_4096/pile.tfrecord.b2000",
+      "size_bytes": 509741330,
+      "generation": 1790588816076904,
+      "crc32c": "R44cDA=="
+    },
+    {
+      "step": 2500,
+      "uri": "gs://newproject-1-common_datasets_us-east5/pythia_pile_idxmaps_tfrecord_4096/pile.tfrecord.b2500",
+      "size_bytes": 509772400,
+      "generation": 1790588813795398,
+      "crc32c": "B/D9Sw=="
+    },
+    {
+      "step": 3000,
+      "uri": "gs://newproject-1-common_datasets_us-east5/pythia_pile_idxmaps_tfrecord_4096/pile.tfrecord.b3000",
+      "size_bytes": 509540770,
+      "generation": 1790588813680914,
+      "crc32c": "M0VHKA=="
+    },
+    {
+      "step": 3500,
+      "uri": "gs://newproject-1-common_datasets_us-east5/pythia_pile_idxmaps_tfrecord_4096/pile.tfrecord.b3500",
+      "size_bytes": 509771556,
+      "generation": 1790588815139354,
+      "crc32c": "1dULjQ=="
+    },
+    {
+      "step": 4000,
+      "uri": "gs://newproject-1-common_datasets_us-east5/pythia_pile_idxmaps_tfrecord_4096/pile.tfrecord.b4000",
+      "size_bytes": 509662637,
+      "generation": 1790588816384407,
+      "crc32c": "0NB3MA=="
+    },
+    {
+      "step": 4500,
+      "uri": "gs://newproject-1-common_datasets_us-east5/pythia_pile_idxmaps_tfrecord_4096/pile.tfrecord.b4500",
+      "size_bytes": 509970937,
+      "generation": 1790588814881156,
+      "crc32c": "V4zo0g=="
+    },
+    {
+      "step": 5000,
+      "uri": "gs://newproject-1-common_datasets_us-east5/pythia_pile_idxmaps_tfrecord_4096/pile.tfrecord.b5000",
+      "size_bytes": 509695283,
+      "generation": 1790588813280953,
+      "crc32c": "cvRBCg=="
+    },
+    {
+      "step": 5500,
+      "uri": "gs://newproject-1-common_datasets_us-east5/pythia_pile_idxmaps_tfrecord_4096/pile.tfrecord.b5500",
+      "size_bytes": 509742343,
+      "generation": 1790588814209722,
+      "crc32c": "uY6v5w=="
+    },
+    {
+      "step": 6000,
+      "uri": "gs://newproject-1-common_datasets_us-east5/pythia_pile_idxmaps_tfrecord_4096/pile.tfrecord.b6000",
+      "size_bytes": 509744134,
+      "generation": 1790588820533118,
+      "crc32c": "MfpvVQ=="
+    },
+    {
+      "step": 6500,
+      "uri": "gs://newproject-1-common_datasets_us-east5/pythia_pile_idxmaps_tfrecord_4096/pile.tfrecord.b6500",
+      "size_bytes": 509663335,
+      "generation": 1790588815893788,
+      "crc32c": "tagl3g=="
+    },
+    {
+      "step": 7000,
+      "uri": "gs://newproject-1-common_datasets_us-east5/pythia_pile_idxmaps_tfrecord_4096/pile.tfrecord.b7000",
+      "size_bytes": 509612468,
+      "generation": 1790588814667758,
+      "crc32c": "6gYMwA=="
+    },
+    {
+      "step": 7500,
+      "uri": "gs://newproject-1-common_datasets_us-east5/pythia_pile_idxmaps_tfrecord_4096/pile.tfrecord.b7500",
+      "size_bytes": 509699469,
+      "generation": 1790588815172445,
+      "crc32c": "BkvPoA=="
+    },
+    {
+      "step": 8000,
+      "uri": "gs://newproject-1-common_datasets_us-east5/pythia_pile_idxmaps_tfrecord_4096/pile.tfrecord.b8000",
+      "size_bytes": 509827130,
+      "generation": 1790588816564481,
+      "crc32c": "JZwrPw=="
+    },
+    {
+      "step": 8500,
+      "uri": "gs://newproject-1-common_datasets_us-east5/pythia_pile_idxmaps_tfrecord_4096/pile.tfrecord.b8500",
+      "size_bytes": 509788161,
+      "generation": 1790588815771452,
+      "crc32c": "D6/6MQ=="
+    },
+    {
+      "step": 9000,
+      "uri": "gs://newproject-1-common_datasets_us-east5/pythia_pile_idxmaps_tfrecord_4096/pile.tfrecord.b9000",
+      "size_bytes": 509569639,
+      "generation": 1790588815296907,
+      "crc32c": "A8oVgg=="
+    },
+    {
+      "step": 9500,
+      "uri": "gs://newproject-1-common_datasets_us-east5/pythia_pile_idxmaps_tfrecord_4096/pile.tfrecord.b9500",
+      "size_bytes": 509717564,
+      "generation": 1790588814048321,
+      "crc32c": "llD+Ig=="
+    },
+    {
+      "step": 10000,
+      "uri": "gs://newproject-1-common_datasets_us-east5/pythia_pile_idxmaps_tfrecord_4096/pile.tfrecord.b10000",
+      "size_bytes": 509573124,
+      "generation": 1790588816294346,
+      "crc32c": "jAQRXw=="
+    },
+    {
+      "step": 10500,
+      "uri": "gs://newproject-1-common_datasets_us-east5/pythia_pile_idxmaps_tfrecord_4096/pile.tfrecord.b10500",
+      "size_bytes": 509576005,
+      "generation": 1790588816732363,
+      "crc32c": "g3MSDg=="
+    },
+    {
+      "step": 11000,
+      "uri": "gs://newproject-1-common_datasets_us-east5/pythia_pile_idxmaps_tfrecord_4096/pile.tfrecord.b11000",
+      "size_bytes": 509609405,
+      "generation": 1790588815328737,
+      "crc32c": "Cv7Qyw=="
+    },
+    {
+      "step": 11500,
+      "uri": "gs://newproject-1-common_datasets_us-east5/pythia_pile_idxmaps_tfrecord_4096/pile.tfrecord.b11500",
+      "size_bytes": 509659638,
+      "generation": 1790588815417510,
+      "crc32c": "2rTYRA=="
+    },
+    {
+      "step": 12000,
+      "uri": "gs://newproject-1-common_datasets_us-east5/pythia_pile_idxmaps_tfrecord_4096/pile.tfrecord.b12000",
+      "size_bytes": 509632844,
+      "generation": 1790588815311782,
+      "crc32c": "MCtnjw=="
+    },
+    {
+      "step": 12500,
+      "uri": "gs://newproject-1-common_datasets_us-east5/pythia_pile_idxmaps_tfrecord_4096/pile.tfrecord.b12500",
+      "size_bytes": 509714663,
+      "generation": 1790588815173255,
+      "crc32c": "YD2dHQ=="
+    },
+    {
+      "step": 13000,
+      "uri": "gs://newproject-1-common_datasets_us-east5/pythia_pile_idxmaps_tfrecord_4096/pile.tfrecord.b13000",
+      "size_bytes": 509805339,
+      "generation": 1790588815582707,
+      "crc32c": "ky9+Cw=="
+    }
+  ],
+  "total_bytes": 13761872369
+}

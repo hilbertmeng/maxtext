@@ -10218,6 +10218,17 @@ class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearne
     jax_cache_dir = ''
 
 
+class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormRawWriteSharedEmbedNorm(
+    RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormRawWriteSharedEmbed):
+    """Isolate embedding content RMSNorm with no independent content projection."""
+    model_name = 'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormRawWriteSharedEmbedNorm'
+    rmt_embedding_content_norm = True
+    compare_runs = ['RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormRawWriteSharedEmbed',
+                    'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormRawWrite',
+                    'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoO']
+    jax_cache_dir = ''
+
+
 class RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOQKPreNorm(RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoO):
     """Parameter-free qk matrix-read pre-norm; original VectorNorm controls retained."""
     # Implementation: codex/rmt-xlprop-noo, /data0/xd/rmt-xlprop-noo; pure JAX.

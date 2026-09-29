@@ -322,7 +322,9 @@ class RMTDynamicWrite(nn.Module):
         statistics_dtype=jnp.float32)
     # Keep embedding and transformer-layer content ablations independent;
     # neither normalization switch introduces trainable parameters.
-    content_norm = (not cfg.get_keys().get('rmt_embedding_shared_content', False)
+    content_norm = (cfg.get_keys().get(
+                        'rmt_embedding_content_norm',
+                        not cfg.get_keys().get('rmt_embedding_shared_content', False))
                     if self.name == 'dynamic_embedding_write' else
                     cfg.get_keys().get('rmt_layer_write_content_norm', True))
     if content_norm:

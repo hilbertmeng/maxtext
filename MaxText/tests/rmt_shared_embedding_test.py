@@ -18,7 +18,7 @@ class SharedEmbeddingTest(unittest.TestCase):
   model_args=XLPropTest.model_args
 
   def test_parameter_budget(self):
-    for name,expected in [(BASE,431773472),(NEW,431759072)]:
+    for name,expected in [(BASE,431773472),(NEW,431759072),(NEW+'Norm',431759072)]:
       cfg=self.config(name)
       self.assertFalse(cfg.rmt_layer_write_content_norm)
       self.assertEqual(cfg.rmt_matrix_read_norm,'all')
@@ -48,8 +48,24 @@ class SharedEmbeddingTest(unittest.TestCase):
     expected=jnp.einsum('btnk,btnv->btkv',static+g[...,None]*address,y)
     np.testing.assert_allclose(expected,jnp.einsum('btnv,nk->btkv',y,static)+actual,rtol=2e-5,atol=2e-5)
 
+  def test_restored_embedding_norm_equation(self):
+    cfg=self.config(NEW+'Norm')
+    cfg.get_keys()['dtype']=jnp.float32
+    x=jax.random.normal(jax.random.key(8),(1,2,cfg.emb_dim))*.2
+    y=x.reshape(1,2,cfg.num_query_heads,cfg.head_dim)
+    module=rmt.RMTDynamicWrite(cfg,48,name='dynamic_embedding_write')
+    p=module.init(jax.random.key(9),x,y)
+    address,gate=module.apply(p,x,y,address_only=True)
+    norm=lambda a:rmt.normalizations.rms_norm(a,dtype=a.dtype,
+        epsilon=cfg.normalization_layer_epsilon,statistics_dtype=jnp.float32)
+    got,_=module.apply(p,x,y)
+    expected=jnp.einsum('btnk,btnv->btkv',gate[...,None]*norm(address),norm(y))
+    np.testing.assert_allclose(got,expected,rtol=2e-6,atol=2e-6)
+    self.assertTrue(all(np.isfinite(v).all() for v in jax.tree.leaves(jax.grad(
+        lambda p:jnp.sum(module.apply(p,x,y)[0]))(p))))
+
   def test_scanned_forward_gradient_and_health(self):
-    cfg=self.config(NEW,base_num_decoder_layers=2,base_emb_dim=512,
+    cfg=self.config(NEW+'Norm',base_num_decoder_layers=2,base_emb_dim=512,
                     head_dim=32,base_mlp_dim=128,vocab_size=128)
     cfg.get_keys()['dtype']=jnp.float32
     model,args=self.model_args(cfg)

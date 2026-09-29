@@ -29,7 +29,7 @@ class MatrixScaleTest(unittest.TestCase):
       tree=jax.eval_shape(lambda k:model.init(k,**args)['params'],jax.random.key(1))
     self.assertEqual(sum(math.prod(x.shape) for x in jax.tree.leaves(tree)),431903072)
     for arm in ['attn','mlp']:
-      self.assertEqual(nn.unbox(tree)['decoder']['layers'][arm+'_norm']['scale'].shape,(18,48,75))
+      self.assertEqual(nn.unbox(tree)['decoder']['layers'][arm+'_norm']['scale'].shape,(48,18,75))
       name='params/decoder/layers/'+arm+'_norm/scale'
       wd=cfg.adam_weight_decay
       for pat,value in cfg.wd_mults:

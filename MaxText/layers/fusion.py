@@ -420,7 +420,10 @@ class FusionDecoderLayer(nn.Module):
       )
 
     if cfg.dense_conn:
-      if self.layer_inx == 0:
+      if self.layer_inx == 0 and cfg.get_keys().get('mudd_full_history', False):
+        # Decoder already seeded the history with the embedding once.
+        pass
+      elif self.layer_inx == 0:
         y_normed = normalizations.get_rmsnorm("mudd_prenorm", cfg)(inputs) \
           if cfg.mudd_prenorm else inputs
         # inputs = [inputs] * len(cfg.dynamic_dense_type) # 0层要不要分4路？
@@ -454,7 +457,12 @@ class FusionDecoderLayer(nn.Module):
         layer_index=layer_index,
     )
     max_logging.log(f'layer_inx: {self.layer_inx} break_layers: {self.break_layers}', debug=cfg.debug)
-    if cfg.dense_conn and self.layer_inx in self.break_layers:
+    full_history = cfg.dense_conn and cfg.get_keys().get('mudd_full_history', False)
+    if full_history:
+      # Return a fresh list across remat; never mutate the caller's history.
+      stored = normalizations.get_rmsnorm("mudd_history_norm", cfg)(inputs) if cfg.mudd_prenorm else inputs
+      hids = hids + [stored]
+    if cfg.dense_conn and self.layer_inx in self.break_layers and not full_history:
       C = self.get_C(cfg)
       inputs, hids = mudd.Compose(
         cfg, self.mesh, self.quant,

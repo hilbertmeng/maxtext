@@ -5644,6 +5644,20 @@ class Llama2XLSG(Llama2Medium):
 class MuddLlama2XL(Mudd, Llama2XL):
     pass
 
+
+class MuddLlama2XLProp(Mudd, Llama2XLProp):
+    """Original Mudd recipe on XLProp with complete layer history and TruePile4096."""
+    # Runtime: codex/mudd-xlprop-truepile, /data0/xd/mudd-xlprop-truepile.
+    # 1,438,369,841 params: +5,971,121 (+.417%) vs XLProp MHA; original MLP schedule.
+    # Bet at50k vs MHA: -.05 loss, .45 step/s (~-17%); NoO expected another -.05.
+    model_name = 'MuddLlama2XLProp'
+    DATASET_VARIANT = 'truepile4096'
+    mudd_full_history = True
+    scan_layers = False  # Mudd history and per-layer MLP shapes grow with depth.
+    compare_runs = ['Llama2XLPropTruePileMHA']
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/mudd-xlprop-truepile'
+
+
 class DcLlama2XLSG(LGLLWindow, DC, Llama2XLSG):
     pass
 

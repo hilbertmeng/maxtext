@@ -12,15 +12,16 @@ from layers import rmt
 
 BASE='RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormRawWrite'
 NEW=BASE+'SharedEmbed'
+CLEAN=BASE.removesuffix('RawWrite')+'SharedEmbedNorm'
 
 class SharedEmbeddingTest(unittest.TestCase):
   config=XLPropTest.config
   model_args=XLPropTest.model_args
 
   def test_parameter_budget(self):
-    for name,expected in [(BASE,431773472),(NEW,431759072),(NEW+'Norm',431759072)]:
+    for name,expected in [(BASE,431773472),(NEW,431759072),(NEW+'Norm',431759072),(CLEAN,431759072)]:
       cfg=self.config(name)
-      self.assertFalse(cfg.rmt_layer_write_content_norm)
+      self.assertEqual(cfg.rmt_layer_write_content_norm,name==CLEAN)
       self.assertEqual(cfg.rmt_matrix_read_norm,'all')
       self.assertEqual(cfg.DATASET_VARIANT,'truepile4096')
       self.assertFalse(cfg.rmt_block_scan)
@@ -65,7 +66,7 @@ class SharedEmbeddingTest(unittest.TestCase):
         lambda p:jnp.sum(module.apply(p,x,y)[0]))(p))))
 
   def test_scanned_forward_gradient_and_health(self):
-    cfg=self.config(NEW+'Norm',base_num_decoder_layers=2,base_emb_dim=512,
+    cfg=self.config(CLEAN,base_num_decoder_layers=2,base_emb_dim=512,
                     head_dim=32,base_mlp_dim=128,vocab_size=128)
     cfg.get_keys()['dtype']=jnp.float32
     model,args=self.model_args(cfg)

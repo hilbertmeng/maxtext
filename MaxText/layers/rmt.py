@@ -262,7 +262,7 @@ class RMTDynamicWrite(nn.Module):
   address_dim: int
 
   @nn.compact
-  def __call__(self, x, data, matrix=None, static_key=None, padded_value_dim=None, *, address_only=False, parameters_only=False):
+  def __call__(self, x, data, matrix=None, static_key=None, padded_value_dim=None, *, address_only=False, parameters_only=False, probe_layer=-1):
     cfg = self.config
     heads = int(cfg.num_query_heads)
     bottleneck = int(cfg.get_keys().get('rmt_dynamic_write_bottleneck_dim', 256))
@@ -311,6 +311,11 @@ class RMTDynamicWrite(nn.Module):
                             cfg.normalization_layer_epsilon,
                             tile=cfg.get_keys().get('rmt_pallas_tile',16),
                             forward_jax=cfg.get_keys().get('rmt_pallas_write_forward_jax',False)), gate
+    probe = bool(cfg.get_keys().get('rmt_norm_probe', False)) and not self.is_initializing()
+    if probe:
+      from rmt_norm_instrumentation import tap
+      address = tap(address, probe_layer, self.name + '/address_raw')
+      data = tap(data, probe_layer, self.name + '/content_raw')
     raw_data = data
     address = normalizations.rms_norm(
         address, dtype=address.dtype, epsilon=cfg.normalization_layer_epsilon,
@@ -318,6 +323,15 @@ class RMTDynamicWrite(nn.Module):
     data = normalizations.rms_norm(
         data, dtype=data.dtype, epsilon=cfg.normalization_layer_epsilon,
         statistics_dtype=jnp.float32)
+    if probe:
+      address = tap(address, probe_layer, self.name + '/address_normalized')
+      data = tap(data, probe_layer, self.name + '/content_normalized')
+    write_grad = cfg.get_keys().get('rmt_probe_write_grad', 'all')
+    if self.name != 'dynamic_embedding_write':
+      if write_grad in ('stop_address', 'stop_both'):
+        address = jax.lax.stop_gradient(address)
+      if write_grad in ('stop_content', 'stop_both'):
+        data = jax.lax.stop_gradient(data)
     if padded_value_dim is not None:
       data = jnp.pad(data, ((0,0),(0,0),(0,0),(0,padded_value_dim-data.shape[-1])))
     write = jnp.einsum('btnk,btnv->btkv', gate[..., None] * address, data)
@@ -414,8 +428,14 @@ class RMTLayer(nn.Module):
     key_init = nn.initializers.normal(key_dim ** -0.5)
     write_init = nn.initializers.normal(heads ** -0.5 / math.sqrt(2 * cfg.num_decoder_layers))
 
-    attn_in = (matrix if vector_pre_norm else
-               MatrixRMSNorm(cfg, name='attn_norm')(matrix))
+    probe = bool(cfg.get_keys().get('rmt_norm_probe', False)) and not self.is_initializing()
+    if probe:
+      from rmt_norm_instrumentation import tap
+      matrix = tap(matrix, layer_index, 'M_input')
+    matrix_pre_norm = (not vector_pre_norm) or cfg.get_keys().get('rmt_probe_matrix_pre_norm', False)
+    attn_in = (MatrixRMSNorm(cfg, name='attn_norm')(matrix) if matrix_pre_norm else matrix)
+    if probe:
+      attn_in = tap(attn_in, layer_index, 'M_attention_read')
     qkv_key = self.param('qkv_key', key_init, (3, heads, key_dim), cfg.weight_dtype)
     fused_attention=bool(cfg.get_keys().get('rmt_fused_attention_read',False))
     if fused_attention and (not dynamic or not vector_pre_norm or dynamic_o_enabled
@@ -584,7 +604,7 @@ class RMTLayer(nn.Module):
             cfg, write_rows, name='dynamic_attn_write')(
                 attn_x, head_output, matrix if pallas_write else None,
                 attn_write.astype(cfg.dtype) if pallas_write else None,
-                padded_value_dim or None)
+                padded_value_dim or None, probe_layer=layer_index)
         if write_rows != key_dim:
           dynamic_attn_write = jnp.pad(dynamic_attn_write,
                                        ((0, 0), (0, 0), (heads, 0), (0, 0)))
@@ -594,8 +614,11 @@ class RMTLayer(nn.Module):
 
       if cfg.get_keys().get('rmt_remat_policy','full') in ('save_dense_state','save_state','save_state_mlp','save_state_dynamic'):
         matrix=ad_checkpoint.checkpoint_name(matrix,'rmt_mlp_matrix')
-      mlp_in = (matrix if vector_pre_norm else
-                MatrixRMSNorm(cfg, name='mlp_norm')(matrix))
+      if probe:
+        matrix = tap(matrix, layer_index, 'M_after_attention')
+      mlp_in = (MatrixRMSNorm(cfg, name='mlp_norm')(matrix) if matrix_pre_norm else matrix)
+      if probe:
+        mlp_in = tap(mlp_in, layer_index, 'M_mlp_read')
       mlp_read = self.param('mlp_read_key', key_init,
                             (key_dim, heads), cfg.weight_dtype)
       if not joined_read:
@@ -639,13 +662,15 @@ class RMTLayer(nn.Module):
           cfg, write_rows, name='dynamic_mlp_write')(
               mlp_x, vector, matrix if pallas_write else None,
               mlp_write.astype(cfg.dtype) if pallas_write else None,
-              padded_value_dim or None)
+              padded_value_dim or None, probe_layer=layer_index)
       if write_rows != key_dim:
         dynamic_mlp_write = jnp.pad(dynamic_mlp_write,
                                     ((0, 0), (0, 0), (heads, 0), (0, 0)))
       matrix = dynamic_mlp_write if pallas_write else matrix + static_mlp_write + dynamic_mlp_write
     elif not dynamic_mlp_write_enabled:
       matrix = matrix + static_mlp_write
+    if probe:
+      matrix = tap(matrix, layer_index, 'M_output')
     health = None
     if dynamic and getattr(cfg, 'rmt_record_dynamic_health', False):
       # Keep the health schema identical for matched Full48/NoO comparisons.

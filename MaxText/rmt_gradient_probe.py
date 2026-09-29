@@ -93,11 +93,14 @@ def main(argv):
   for arm in arms:
     if arm not in ('baseline', 'no_embedding_bias'):
       raise ValueError(arm)
-    state = initial
-    started = time.monotonic()
-    for i, batch in enumerate(batches):
+  states = {arm: initial for arm in arms}
+  started = time.monotonic()
+  # Interleave arms so paired evidence is available at every observation point.
+  for i, batch in enumerate(batches):
+    for arm in arms:
       with mesh, nn_partitioning.axis_rules(cfg.logical_axis_rules):
-        state, metrics = compiled(state, batch, jax.random.fold_in(rng, i), no_bias=arm != 'baseline')
+        states[arm], metrics = compiled(states[arm], batch, jax.random.fold_in(rng, i),
+                                       no_bias=arm != 'baseline')
       metrics = {k: float(v) for k, v in jax.device_get(metrics).items()}
       record = {'arm': arm, 'step': i, 'elapsed': time.monotonic()-started, **metrics}
       if jax.process_index() == 0:
@@ -106,7 +109,6 @@ def main(argv):
         if i % 10 == 0 or i == count-1:
           print('PROBE ' + json.dumps({k: record[k] for k in
                 ('arm', 'step', 'loss', 'grad_norm', 'bias_grad_norm', 'elapsed')}), flush=True)
-    del state
   if writer:
     writer.close()
   print('PROBE_COMPLETE', flush=True)

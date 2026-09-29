@@ -325,6 +325,10 @@ def main() -> None:
         "selection_sha256": selection_sha,
     }
     if previous is not None:
+        # Retain extra provenance fields in the published original manifest.
+        manifest = {**previous, **manifest}
+        manifest["prefix_generator_sha256"] = previous.get("generator_sha256")
+        manifest["generator_sha256"] = hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
         # Preserve the original GCS source provenance even when this builder
         # reads a byte-identical regional copy from a local disk.
         for key in ("source_data_prefix", "source_doc_idx", "source_sample_idx"):

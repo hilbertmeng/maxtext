@@ -133,3 +133,12 @@ Borrowed FLEX compiler llm-jax-v6e-1-1 EW4a, never lifecycle-owned.
 Focused CPU full-parameter/train trace caught block-specific health exporter indexing;
 added layer-scan exporter path without changing model math. Full small model gradient
 check preserves K75/address32/odd head75/QK57+18.
+
+Sealed runtime0649e72ccbe63f9b9175597be6ea908f6961acb1; CPU parameter/train trace and
+actual scanned forward/gradient checks passed. Retained compiler AOT verified; UE5a
+training FIRST_STEP4 and Loaded compiled function verified, progressed27. Correct
+zone-local TruePile data path and ~524k valid tokens per batch confirmed.
+Steps10-14 .5306/s, +38.6% vs NoO .3828, +1.1% vs LLF .525; health unmatched.
+Preparation evidence `/home/xd/.local/state/maxtext-parallel-launch/BamMediumPropK75EmbedVOnlyQK57AllLocalTruePile-20260930T035133Z/`;
+startup `/data0/xd/bam_diagnostics/rmt-readnorm-launch/bam-alllocal-first-step.txt`.
+Full13500 architecture comparison, no loss-based2800 early stop.

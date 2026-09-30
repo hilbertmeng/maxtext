@@ -9558,3 +9558,17 @@ class BamMediumPropK75EmbedVOnlyQK57AllLocal(BamMediumPropK75EmbedVOnlyQK57):
     mlp_dim_by_block = [3901, 3901, 3901]
     compare_runs = ['BamMediumPropK75EmbedVOnlyQK57', 'BamMHAMediumPropC256']
     jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/mediumprop-k75-qk57-all-local'
+
+
+class BamMediumPropK75EmbedVOnlyQK57AllLocalTruePile(BamMediumPropK75EmbedVOnlyQK57AllLocal):
+    """All-local matrix-value BAM, repaired TruePile, ordinary layer scan."""
+    model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalTruePile'
+    DATASET_VARIANT = 'truepile4096'
+    bam_pair_scan = False
+    scan_layers = True
+    base_mlp_dim = 3901
+    mlp_dim_by_block = None
+    compare_runs = ['RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoO',
+                    'BamMediumPropK75EmbedVOnlyQK57TruePile',
+                    'BamMHAMediumPropC256TruePile']
+    jax_cache_dir = ''

@@ -11610,6 +11610,7 @@ class RMTXLPropNorm6LQKOutputProfile(RMTXLPropNorm6LControlProfile):
 class RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOMPreNormLearnedScaleSharedWriteEmbedNorm(
     RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOMPreNorm):
     """Full-M learned gains; shared normalized layer and embedding write contents."""
+    # code_commit: db4f60c; UE5a v5p-32 ~.308 step/s, flat vs B .307; extra scale health added.
     model_name = 'RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOMPreNormLearnedScaleSharedWriteEmbedNorm'
     rmt_matrix_read_learned_scale = True
     rmt_static_write_content_norm = True

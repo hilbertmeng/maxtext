@@ -44,3 +44,18 @@ CPU scope: focused full-target parameter/train tracing and small scanned
 forward/backward, shared embedding write equation, regression of legacy
 embedding normalization. No unrelated BAM suite. CPU/AOT/new trainer queue
 run concurrently; formal training blocked unless all gates succeed.
+
+
+Startup verified2026-09-30: RMT runtime db4f60c97f9666730557c2bc83c66fb57e9858c6,
+BAM6446a1f170bdf5a63b232d1a78a92afea526430a. CPU focused gates pass, AOTs loaded,
+FIRST_STEP1/3 respectively. Actual logs confirm UE5a TruePile dataset and finite
+falling losses through54/72. RMT~.308step/s flat versus B.307 (extra scale health);
+BAM~.355, +15% versus RMT and~23%/34% slower than Mudd/MHA; extra health differs.
+Initial READY observations from prequeue: RMT08:19:47UTC, BAM08:19:29UTC;
+workers launched08:22:26/08:22:00. No compiler deleted or reinstalled.
+
+Total residual-state elements per token also match: BAM M96x40 + vector1920 =5760,
+RMT fullM60x96 =5760. RMT's last40 rows transposed have shape96x40, matching
+BAM's matrix; its first20 rows flattened are1920, matching BAM's vector width.
+Both compressed dynamic states are96x10. The architectures differ in the
+updates/normalization and coupling of these components, not total state width.

@@ -9613,3 +9613,18 @@ class BamXLPropK96EmbedVOnlyQK72AllLocalTruePile(
                     'RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOMPreNormLearnedScaleSharedWriteEmbedNorm',
                     'Llama2XLPropTruePileMHA', 'MuddLlama2XLProp']
     jax_cache_dir = ''
+
+
+class BamXLPropK96EmbedVOnlyQK72LLFTruePile(BamXLPropK96EmbedVOnlyQK72AllLocalTruePile):
+    """Nine LLF blocks plus a terminal L, same proportional matrix-value recipe."""
+    # Bet terminal vs AllLocal -.025; .350 step/s (~-1.4% vs .355).
+    # Per-layer nearest MHA budget: L6294/F5654, terminal L6294; total1,432,418,340 (+19,620 vs MHA).
+    model_name = 'BamXLPropK96EmbedVOnlyQK72LLFTruePile'
+    bam_layer_modes = ['local_qk+local_v+local_o', 'local_qk+local_v+local_o', 'local_qk+full'] * 9 + ['local_qk+local_v+local_o']
+    bam_pair_scan = True
+    bam_local_fetch_block_size = 3
+    bam_extra_final_local_layer = True
+    bam_final_local_mlp_dim = 6294
+    mlp_dim_by_block = [6294, 6294, 5654]
+    compare_runs = ['BamXLPropK96EmbedVOnlyQK72AllLocalTruePile', 'Llama2XLPropTruePileMHA', 'MuddLlama2XLProp']
+    jax_cache_dir = ''

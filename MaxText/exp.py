@@ -9575,3 +9575,35 @@ class BamMediumPropK75EmbedVOnlyQK57AllLocalTruePile(BamMediumPropK75EmbedVOnlyQ
                     'BamMediumPropK75EmbedVOnlyQK57TruePile',
                     'BamMHAMediumPropC256TruePile', 'MuddLlama2MediumPropTruePile']
     jax_cache_dir = ''
+
+
+class BamXLPropK96EmbedVOnlyQK72AllLocalTruePile(
+    Llama2XLProp, BamMediumPropK75EmbedVOnlyQK57AllLocalTruePile):
+    """Proportional all-local matrix-value BAM on repaired XLProp TruePile."""
+    model_name = 'BamXLPropK96EmbedVOnlyQK72AllLocalTruePile'
+    DATASET_VARIANT = 'truepile4096'
+    bam_k = 96
+    bam_v = 40
+    bam_abs_v_compression_dim = 10
+    bam_write_v_bottleneck_dim = 400
+    emb_bam_num_head = 20
+    emb_bam_v_bottleneck_dim = 400
+    bam_standard_qk_dim = 24
+    bam_local_qk_col_output_dim = 72
+    bam_partial_rope_nope_dim = 72
+    bam_layer_modes = ['local_qk+local_v+local_o'] * 28
+    bam_pair_scan = False
+    bam_extra_final_local_layer = False
+    bam_write_outer_implementation = 'dot'
+    bam_read_implementation = 'dot_btn'
+    base_mlp_dim = 6294
+    mlp_dim_by_block = None
+    wd_mults = Llama2XLProp.wd_mults
+    steps = 50000
+    checkpoint_period = 250
+    scan_layers = True
+    force_final_checkpoint = True
+    compare_runs = ['RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOMPreNorm',
+                    'RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOMPreNormLearnedScaleSharedWriteEmbedNorm',
+                    'Llama2XLPropTruePileMHA', 'MuddLlama2XLProp']
+    jax_cache_dir = ''

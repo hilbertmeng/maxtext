@@ -145,3 +145,9 @@ Full13500 architecture comparison, no loss-based2800 early stop.
 
 Steady20-99 harmonic .527096step/s, +37.7% vs NoO and +.4% vs LLF QK57;
 periodic25-step metric overhead included. Main ledger updated from startup timing.
+
+TruePile AllLocal5000 update: versus NoO last5+.049577 (range+.048592..+.051020),
+versus LLF QK57+.025217; F->L penalty already near padded-data terminal+.024564.
+Mudd-normalized MHA gains at5000: BAM1.2135, NoO1.6478; NoO/BAM1.3578,
+slightly above4000's1.333. Absolute gap narrowing does not imply relative convergence.
+Full cumulative report `/data0/xd/bam_diagnostics/rmt-readnorm-launch/medium-5000-report.md`.

@@ -848,7 +848,15 @@ class RMTDecoder(nn.Module):
         if shared_seed_norm else embedded_heads)
     seed_key = self.param('seed_key', nn.initializers.normal(heads ** -0.5),
                           (heads, key_dim), cfg.weight_dtype)
-    matrix = jnp.einsum('btnv,nk->btkv', seed_content, seed_key.astype(cfg.dtype))
+    seed_key_value = seed_key.astype(cfg.dtype)
+    static_seed_scale = float(cfg.get_keys().get('rmt_embedding_static_write_scale', 1.0))
+    if not math.isfinite(static_seed_scale) or static_seed_scale < 0:
+      raise ValueError('Static embedding write scale must be finite and nonnegative')
+    if static_seed_scale != 1.0:
+      if not shared_seed_norm:
+        raise ValueError('Static embedding write scale control requires shared normalized contents')
+      seed_key_value = seed_key_value * jnp.asarray(static_seed_scale, cfg.dtype)
+    matrix = jnp.einsum('btnv,nk->btkv', seed_content, seed_key_value)
     if cfg.get_keys().get('rmt_dynamic_embedding_write', False):
       # Shared-content variant writes the same raw embedding heads through
       # both static and dynamic addresses, without an extra content projection.

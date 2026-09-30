@@ -16,7 +16,7 @@ class BamFinalLocalHealthTest(unittest.TestCase):
     intermediates = {'intermediates': {'decoder': decoder}}
     for tail in (False, True):
       with self.subTest(tail=tail):
-        config = SimpleNamespace(bam_local_fetch_block_size=3,
+        config = SimpleNamespace(bam_pair_scan=True, bam_local_fetch_block_size=3,
                                  num_decoder_layers=27 + int(tail),
                                  bam_extra_final_local_layer=tail)
         output = {'scalar': {}}

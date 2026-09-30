@@ -9573,5 +9573,5 @@ class BamMediumPropK75EmbedVOnlyQK57AllLocalTruePile(BamMediumPropK75EmbedVOnlyQ
     mlp_dim_by_block = None
     compare_runs = ['RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoO',
                     'BamMediumPropK75EmbedVOnlyQK57TruePile',
-                    'BamMHAMediumPropC256TruePile']
+                    'BamMHAMediumPropC256TruePile', 'MuddLlama2MediumPropTruePile']
     jax_cache_dir = ''

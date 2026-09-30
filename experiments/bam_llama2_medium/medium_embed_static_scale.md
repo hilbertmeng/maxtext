@@ -54,3 +54,25 @@ Matched speed flat (~.371). At2800/4000/5000 embedding cosine+.180/+.188/+.189
 and gate.0889/.0837/.0796; no unscaled-arm compensatory negative cosine.
 Initial +.003 terminal-loss bet was too pessimistic; a sustained small gain
 is now the leading expectation. Continue to measure whether it survives late training.
+
+Closeout2026-09-30: user-requested hot replacement at12431, checkpoint12431
+committed. New LayerStaticZero owns the retained TPU; no delete/requeue.
+After confirming new FIRST_STEP and14-step speed, registry markedstopped and
+closeout_runs_local.py found alreadyclosed (no resource mutations), final TB
+synchronized. VsSharedEmbedNorm,1400-step crossover followed by sustained
+~-.003 benefit through12400; last5 mean-.0028358,range-.003215..-.002333.
+Vs unscaled WriteNorm, common last5(2200-3000) mean-.0588186. Steady speed
+~.371, matched baseline flat. The original terminal+.003 prediction was wrong
+in direction; normalization with restrained static amplitude is modestly
+beneficial. Stronger conclusions about zero scale/zero initializer await their
+paired final comparisons. Full cumulative report and all leases:
+/data0/xd/bam_diagnostics/rmt-readnorm-launch/scale006-hot-replaced-final-report.txt.
+
+UE5a v5p-16,3preemptions,4chronologicalREADYleases UTC:
+
+| Start | End | Duration | Reason |
+|---|---|---|---|
+| Sep30 13:09:25 | Sep30 21:44:36 | 8h35m11s | preempted |
+| Sep30 21:49:46 | Sep30 22:19:53 | 30m07s | preempted |
+| Sep30 22:33:16 | Sep30 22:37:05 | 3m49s | preempted |
+| Sep30 22:43:24 | Sep30 23:15:12 | 31m48s | hot replacement; TPUretained |

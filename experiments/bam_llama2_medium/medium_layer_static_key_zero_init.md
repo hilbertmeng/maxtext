@@ -36,3 +36,16 @@ forward/CE gradient; independent attention/MLP static keys receive nonzero
 gradients in every layer and grow after one update; dynamic address gradients
 remain active. Reuse the parent's shared-write equation/gradient regression.
 CPU and retained-compiler AOT run concurrently; both must pass before handoff.
+
+Startup2026-09-30: runtime8caa48d113c708077c343d850aab393311efc039.
+Five focused checks passed40.8s. The initial CPU run caught a test shape assertion:
+layer-scan keys use [head,layer,address]=[16,18,48], not [18,16,48];
+corrected the assertion only, model/runtime unchanged. Sealed runtime config
+rechecked successfully, retained STANDARD AOT ready, never reclaimed compiler.
+Hot switch boundary23:15:12UTC, old Scale006 checkpoint12431 committed;
+new controller23:15:58, actual FIRST_STEP0 at23:17:33. Loaded compiled function
+verified; steps10-14 .375/.375/.374/.374/.375, mean.3746 (~-.05% vsparent.3748).
+Worker config confirms ordinary layer scan, both keys zero-initialized, static
+write content normalized, generic/RMT health ON, all Pallas flags OFF, local
+UE5a TruePile4096 dataset. Embedding unchanged. Old RUN registry closed without
+deleting its TPU; closeout_runs_local.py synchronized its final TB.

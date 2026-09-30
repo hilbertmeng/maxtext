@@ -41,7 +41,7 @@ class LayerStaticKeyZeroInitTest(unittest.TestCase):
       tree = nn.unbox(jax.eval_shape(lambda k: model.init(k, **args)['params'], jax.random.key(1)))
     self.assertEqual(sum(math.prod(v.shape) for v in jax.tree.leaves(tree)), 431903072)
     for key in KEYS:
-      self.assertEqual(tree['decoder']['layers'][key].shape, (18, 16, 48))
+      self.assertEqual(tree['decoder']['layers'][key].shape, (16, 18, 48))
     self.assertIn('embedding_write_content', tree['decoder'])
 
   def test_initial_equivalence_gradients_and_addresses_can_learn(self):

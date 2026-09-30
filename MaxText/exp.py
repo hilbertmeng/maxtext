@@ -10267,8 +10267,8 @@ class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearne
     RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedEmbedWriteNorm):
     """Keep normalized embedding contents, restore the initial static/dynamic amplitude balance."""
     # code_commit: 7cba5c2; UE5a v5p-16 ~.371 step/s, flat vs SharedEmbedNorm .371.
-    # Through5000: vs SharedEmbedNorm crossed at1400, then held ~-.003; last5 -.003226.
-    # vs unscaled WriteNorm last5(common2200-3000) -.058819; continue, matched speed flat.
+    # Hot-replaced12431; vs SharedEmbedNorm crossed at1400, then held ~-.003; last5 -.002836.
+    # vs unscaled WriteNorm last5(common2200-3000) -.058819; matched speed flat.
     model_name = 'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedEmbedWriteNormScale006'
     rmt_embedding_static_write_scale = .006
     compare_runs = ['RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedEmbedNorm',
@@ -11684,6 +11684,7 @@ class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearne
     """Zero-initialize learnable attention/MLP static write addresses."""
     # Implementation: codex/rmt-xlprop-noo, /data0/xd/rmt-xlprop-noo; pure JAX, layer scan.
     # Bet: terminal vs SharedWriteNorm -.002; .375 step/s, flat. Review2800/5000.
+    # code_commit: 8caa48d; UE5a v5p-16 ~.375 step/s, flat vs matched SharedWriteNorm .3748.
     model_name = 'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedWriteNormStaticKeyZeroInit'
     rmt_attn_write_key_zero_init = True
     rmt_mlp_write_key_zero_init = True

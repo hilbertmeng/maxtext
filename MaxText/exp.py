@@ -10112,6 +10112,16 @@ class BamMHAMediumPropC256TruePile(BamMHAMediumPropC256):
     jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/bam-mha-mediumprop-true-pile'
 
 
+class MuddLlama2MediumPropTruePile(Mudd, BamMHAMediumPropC256TruePile):
+    """MediumProp TruePile4096 Mudd, matched RoPE74/C256 MHA backbone."""
+    model_name = 'MuddLlama2MediumPropTruePile'
+    DATASET_VARIANT = 'truepile4096'
+    mudd_full_history = True
+    scan_layers = False
+    compare_runs = ['BamMHAMediumPropC256TruePile']
+    jax_cache_dir = ''
+
+
 class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32(
     RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicEmbeddingUnembeddingDirect32):
     """Existing all-local MediumProp dynamic RMT recipe on true 4097-token Pile."""

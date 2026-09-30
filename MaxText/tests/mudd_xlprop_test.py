@@ -13,7 +13,7 @@ class MuddXLPropTest(unittest.TestCase):
     tmp=tempfile.TemporaryDirectory(); self.addCleanup(tmp.cleanup)
     Path(tmp.name,'test').mkdir()
     with contextlib.redirect_stdout(io.StringIO()):
-      return pyconfig.initialize([None,'MaxText/configs/base.yml'],exp_class='MuddLlama2XLProp',
+      return pyconfig.initialize([None,'MaxText/configs/base.yml'],exp_class=kwargs.pop('exp_class','MuddLlama2XLProp'),
         run_name='test',enable_checkpointing=False,base_output_directory=tmp.name+'/',jax_cache_dir='',
         log_config=False,dataset_type='synthetic',max_target_length=4,max_prefill_predict_length=4,
         query_chunk_size=2,per_device_batch_size=1.,attention='dot_product_chunk',**kwargs)

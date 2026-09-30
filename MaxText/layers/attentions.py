@@ -3408,6 +3408,13 @@ class BamAttention(Attention):
     # ---- QKV projection + QKNorm + RoPE ----
     if cfg.fused_qkv:
       query, key, value = self.qkv_projection(inputs_q, proj_name="qkv_proj")
+    elif cfg.bam_mha_control and cfg.dense_conn and cfg.dynamic_dense_type == 'qkvm':
+      # Mudd independently mixes the query, key and value histories.
+      assert isinstance(inputs_kv, (tuple, list)) and len(inputs_kv) == 2
+      inputs_k, inputs_v = inputs_kv
+      query = self.query_projection(inputs_q)
+      key = self.kv_projection(inputs_k, proj_name='key')
+      value = self.kv_projection(inputs_v, proj_name='value')
     else:
       query = self.query_projection(inputs_q, self.head_dim - self._qk_col_width if concat_qk else None)
       key = self.kv_projection(inputs_kv, proj_name="key",

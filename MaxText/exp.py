@@ -10293,6 +10293,8 @@ class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearne
     RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedEmbedWriteNorm):
     """Initially zero, fully learnable static embedding address; static scale remains one."""
     # code_commit: 9dfa158; UE5a v5p-16 ~.373 step/s, flat vs Scale0 .372 / Scale006 .371.
+    # Through3000: lead narrows; last5 vs Scale0 -.002834 / Scale006 -.004780 / SharedEmbedNorm -.007638.
+    # Review2800: continue5000.
     model_name = 'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedEmbedWriteNormSeedKeyZeroInit'
     rmt_embedding_seed_key_zero_init = True
     rmt_embedding_static_write_scale = 1.

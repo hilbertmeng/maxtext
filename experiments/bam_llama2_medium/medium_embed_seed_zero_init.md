@@ -31,3 +31,14 @@ initTrue, static scale1.0, Loaded compiled function, and local dataset
 Loss finite and falling through44; .373step/s flat versus Scale0.372 and
 Scale006/SharedEmbedNorm.371 with matched health. Queue READY observed15:28:07UTC,
 controller15:28:15, train process launched15:30:38. Retained compiler preserved.
+
+2800 review (latest mature3000 window): continue5000. Last5(2200-3000)
+versus Scale0 mean-.002834,range-.003393..-.002153; Scale006 mean-.004780,
+range-.005666..-.003945; SharedEmbedNorm mean-.007638,range-.008231..-.006959.
+Advantages narrow, so terminal magnitude is unresolved; still best of these arms.
+Matched throughput flat. At1000/1800/2800 static RMS.0381/.0619/.0763,
+dynamic RMS.421/.446/.452, cosine+.803/+.850/+.858, gate.0977/.0942/.0891.
+Unlike the failed large random static initialization, the learned static route
+grows constructively: the evidence favors starting it at zero rather than
+keeping it permanently zero or permanently weak. No universal claim about
+static-address optimal amplitude follows from this single training comparison.

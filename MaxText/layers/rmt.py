@@ -846,7 +846,10 @@ class RMTDecoder(nn.Module):
         embedded_heads, dtype=embedded_heads.dtype,
         epsilon=cfg.normalization_layer_epsilon, statistics_dtype=jnp.float32)
         if shared_seed_norm else embedded_heads)
-    seed_key = self.param('seed_key', nn.initializers.normal(heads ** -0.5),
+    seed_key_init = (nn.initializers.zeros
+                     if cfg.get_keys().get('rmt_embedding_seed_key_zero_init', False)
+                     else nn.initializers.normal(heads ** -0.5))
+    seed_key = self.param('seed_key', seed_key_init,
                           (heads, key_dim), cfg.weight_dtype)
     seed_key_value = seed_key.astype(cfg.dtype)
     static_seed_scale = float(cfg.get_keys().get('rmt_embedding_static_write_scale', 1.0))

@@ -9565,6 +9565,9 @@ class BamMediumPropK75EmbedVOnlyQK57AllLocalTruePile(BamMediumPropK75EmbedVOnlyQ
     # code_commit: 0649e72; UE5a v5p-16 .5271 step/s (20-99).
     # +37.7% vs RMT NoO .3828; +0.4% vs LLF QK57 .525; extra health differs.
     # 432091328 params, MLP3901, 18-layer scan; full13500 comparison control.
+    # Completed13500; vs NoO deficit held ~+.050 after4000 (last5 +.051476).
+    # vs LLF QK57: crossed above by1000, held ~+.027 late (last5 +.027753).
+    # vs MHA last5 -.091272; vs Mudd early lead shrank to -.004361; gain ratio1.050x.
     model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalTruePile'
     DATASET_VARIANT = 'truepile4096'
     bam_pair_scan = False

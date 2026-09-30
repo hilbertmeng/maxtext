@@ -142,3 +142,6 @@ Steps10-14 .5306/s, +38.6% vs NoO .3828, +1.1% vs LLF .525; health unmatched.
 Preparation evidence `/home/xd/.local/state/maxtext-parallel-launch/BamMediumPropK75EmbedVOnlyQK57AllLocalTruePile-20260930T035133Z/`;
 startup `/data0/xd/bam_diagnostics/rmt-readnorm-launch/bam-alllocal-first-step.txt`.
 Full13500 architecture comparison, no loss-based2800 early stop.
+
+Steady20-99 harmonic .527096step/s, +37.7% vs NoO and +.4% vs LLF QK57;
+periodic25-step metric overhead included. Main ledger updated from startup timing.

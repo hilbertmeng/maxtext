@@ -9562,8 +9562,8 @@ class BamMediumPropK75EmbedVOnlyQK57AllLocal(BamMediumPropK75EmbedVOnlyQK57):
 
 class BamMediumPropK75EmbedVOnlyQK57AllLocalTruePile(BamMediumPropK75EmbedVOnlyQK57AllLocal):
     """All-local matrix-value BAM, repaired TruePile, ordinary layer scan."""
-    # code_commit: 0649e72; UE5a v5p-16 .5306 step/s (10-14).
-    # +38.6% vs RMT NoO .3828; +1.1% vs LLF QK57 .525; extra health differs.
+    # code_commit: 0649e72; UE5a v5p-16 .5271 step/s (20-99).
+    # +37.7% vs RMT NoO .3828; +0.4% vs LLF QK57 .525; extra health differs.
     # 432091328 params, MLP3901, 18-layer scan; full13500 comparison control.
     model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalTruePile'
     DATASET_VARIANT = 'truepile4096'

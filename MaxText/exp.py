@@ -10266,6 +10266,7 @@ class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearne
 class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedEmbedWriteNormScale006(
     RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedEmbedWriteNorm):
     """Keep normalized embedding contents, restore the initial static/dynamic amplitude balance."""
+    # code_commit: 7cba5c2; UE5a v5p-16 ~.371 step/s, flat vs SharedEmbedNorm .371.
     model_name = 'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedEmbedWriteNormScale006'
     rmt_embedding_static_write_scale = .006
     compare_runs = ['RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedEmbedNorm',
@@ -11632,7 +11633,9 @@ class RMTXLPropNorm6LQKOutputProfile(RMTXLPropNorm6LControlProfile):
 class RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOMPreNormLearnedScaleSharedWriteEmbedNorm(
     RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOMPreNorm):
     """Full-M learned gains; shared normalized layer and embedding write contents."""
-    # code_commit: db4f60c; UE5a v5p-32 ~.308 step/s, flat vs B .307; extra scale health added.
+    # code_commit: db4f60c; UE5a v5p-32 ~.307 step/s, flat vs B .307; extra scale health added.
+    # Stopped5271; vs B: crossed behind at1200, deficit kept widening; last5 +.030349.
+    # vs MHA/Mudd: early gains shrank; last5 -.125322/-.012418 (4400-5200).
     model_name = 'RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOMPreNormLearnedScaleSharedWriteEmbedNorm'
     rmt_matrix_read_learned_scale = True
     rmt_static_write_content_norm = True

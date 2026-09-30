@@ -29,4 +29,10 @@ not solely a competition for the lowest loss. One autonomous Medium slot remains
 CPU scope: full target budget; forward/gradient and actual embedding health prove
 static amplitude scales .006, dynamic amplitude and gates unchanged; legacy
 normalized embedding equation/scope regression. CPU/AOT/prequeue parallel, all
-gates required. Runtime pending sealed commit.
+gates required. Runtime7cba5c220f8541d99391a1b1f4622fadee4e6040.
+
+Startup verified2026-09-30: focused CPU checks and retained FLEX AOT passed;
+FIRST_STEP2 and step14 at.371step/s, flat versus E.371 with matched health.
+Actual dataset gs://newproject-1-common_datasets_us-east5/pythia_pile_idxmaps_tfrecord_4096.
+Finite falling losses through171; compiler retained. Training queue READY observed
+13:09:14UTC, controller13:09:23; worker source ready13:11:23.

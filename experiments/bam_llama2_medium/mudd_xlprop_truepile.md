@@ -35,3 +35,24 @@ extra5,971,121 (+0.41687%,1.61977 W_Q with W_Q=1920^2). No MLP repayment was add
 
 Bet at50k: Mudd-minus-MHA -.05, NoO-minus-Mudd -.05;
 ordering NoO < Mudd < MHA. Speed .45 step/s (~17% below .54 MHA).
+
+## MediumProp closeout (2026-09-30)
+
+`MuddLlama2MediumPropTruePile` completed13500 with checkpoint13500 committed,
+last training step13499. Resource absence verified07:12:54UTC. Idempotent
+`closeout_runs_local.py` verified completion and triggered final TB sync.
+Vs TruePile Prop MHA, early gain shrank then stabilized around12k; terminal
+five windows12600/12800/13000/13200/13400 gaps
+-.086079/-.086618/-.087368/-.087901/-.086591, mean-.0869112.
+The initial-.10 bet was optimistic; final speed~.630 (-11.8% vs matched MHA.714)
+was faster than the .61 bet. NoO's MHA gain / Mudd's MHA gain =1.642459,
+NoO-Mudd terminal mean-.0558369; NoO has slightly fewer parameters than MHA,
+whereas Mudd adds1.358W_Q. NoO's advantage persists across late training.
+Full cumulative report `/data0/xd/bam_diagnostics/rmt-readnorm-launch/mudd-medium-final-report.txt`.
+
+UE5a v5p-16 only, one preemption, all READY leases UTC:
+
+| Start | End | Duration | End reason |
+|---|---|---|---|
+| Sep30 00:48:29 | Sep30 03:21:27 | 2h32m58s | preempted |
+| Sep30 03:28:42 | Sep30 07:12:54 | 3h44m12s | completed13500 |

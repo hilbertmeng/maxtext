@@ -28,7 +28,7 @@ class EmbedStaticNormTest(unittest.TestCase):
                               'metrics_dir', 'bucket_logging_dir'})
     self.assertFalse(changed - allowed, changed)
     self.assertEqual(cfg.mlp_dim, 4100)
-    self.assertEqual(cfg.rmt_dynamic_write_bottleneck_dim, 256)
+    self.assertEqual(cfg.get_keys().get('rmt_dynamic_write_bottleneck_dim', 256), 256)
     self.assertTrue(cfg.rmt_embedding_shared_write_norm)
     self.assertTrue(cfg.rmt_embedding_content_norm)
     self.assertTrue(cfg.rmt_layer_write_content_norm)

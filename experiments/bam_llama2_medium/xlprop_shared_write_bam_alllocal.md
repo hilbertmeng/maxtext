@@ -63,3 +63,13 @@ Medium isolated normalized STATIC embedding also failed badly; its step0 static
 write RMS grew164x, and dynamic writes later opposed static writes (cosine-.59).
 This is a concrete mechanism clue, not proof that embedding normalization itself
 is harmful: a separate fixed.006 static-amplitude control is now running.
+
+BAM17500 review: continue to observe late outcome versus Mudd/MHA rather than
+stop at the B endpoint. BAM-B crossed from+.003624@17000 to-.000279@17500;
+last5+.005969 (range-.000279..+.011877). The+.018 prelaunch17500 bet missed
+the sustained late closing trend. BAM-Mudd last5+.000721,range-.000718..+.002800;
+17500+.001475, MHA-gain/Mudd-gain .981620. The previous small lead has vanished
+near13k, with signed gaps fluctuating close to0 since. BAM-MHA last5-.080499,
+range-.083409..-.077845. Historical B-Mudd worsened to+.001754@17500, so
+catching B does not establish BAM gains over Mudd. Speed~.355 unchanged.
+Full cumulative report /data0/xd/bam_diagnostics/rmt-readnorm-launch/xl-alllocal-17500-review.txt.

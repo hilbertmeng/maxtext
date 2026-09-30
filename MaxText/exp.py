@@ -10255,7 +10255,8 @@ class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearne
     RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedEmbedNorm):
     """Normalize static embedding contents; share that norm with dynamic embedding write."""
     # code_commit: 0264fb6; UE5a v5p-16 ~.371 step/s, flat vs SharedEmbedNorm .371.
-    # Bet vs SharedEmbedNorm: terminal +.003; speed .371 step/s, flat.
+    # Stopped3052; vs SharedEmbedNorm: early200-step gain reversed by400,
+    # deficit widened through2800; last5(2200-3000) +.055960, no speed gain.
     model_name = 'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedEmbedWriteNorm'
     rmt_embedding_shared_write_norm = True
     compare_runs = ['RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedEmbedNorm']

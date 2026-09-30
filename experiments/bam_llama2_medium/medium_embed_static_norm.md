@@ -20,10 +20,7 @@ to baseline; no parameter compensation change. TruePile4096 zone-local dataset;
 13500 planned steps, checkpoint200, loss windows200. Embedding static/dynamic
 RMS, ratio, cosine, gate distribution and layer read/write health retained.
 
-Pre-run bet: terminal RUN minus baseline +.003; probability of lower loss40%;
-steady speed .371step/s (flat within1%). Review at2800 and5000, using baseline
-gap trend and speed; allow full training when trend remains informative. This
-is user-directed, not one of the two autonomous Medium experiment slots.
+Review points2800/5000; user-directed, not an autonomous experiment slot.
 
 CPU scope: exact target parameters and changed-config scope, equation proving
 dynamic embedding write unchanged, tiny scanned gradient and actual embedding
@@ -37,3 +34,12 @@ FIRST_STEP3, finite descent through21. Step19 ~.371step/s, flat versus baseline
 observed10:25:25UTC, controller registered10:25:33, worker launched10:27:54.
 Retained compiler not deleted/reinstalled; initial test-harness failures blocked
 training and released only the owned training queues.
+
+Stopped3052 after2800 review; checkpoint committed, node/queue absent, TB SYNC_OK.
+RUN minus SharedEmbedNorm changed -.084991@200 to+.017063@400 and widened
+to+.057259@2800; final3000+.056174, last5(2200-3000)+.055960
+(range+.054845..+.057259). Same431888672 parameters; .371step/s flat.
+Normalizing static embedding contents alone has clear negative benefit here;
+the positive layer-write result does not transfer automatically to embedding.
+No preemption; READY lease10:25:38..12:46:46UTC (2h21m08s), UE5a only.
+Closeout artifact `/data0/xd/bam_diagnostics/rmt-readnorm-launch/closeout-embed-bam-current.txt`.

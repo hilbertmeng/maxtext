@@ -27,4 +27,12 @@ seed-key data gradient; unchanged dynamic amplitude/gates on common parameters;
 finite scanned forward/backward with active embedding/address gradients.
 Also rerun the existing nonzero scale test to protect its parent path. CPU/AOT
 and trainer prequeue run concurrently with all gates required before training.
-Runtime and startup evidence pending.
+Runtime49623a760a94fdc27023688635f259986fa9f46d.
+
+Startup verified2026-09-30: four focused CPU checks pass in31.8s, retained FLEX
+AOT verified; FIRST_STEP5 and step20 reached. Actual worker confirms static
+scale0.0, Loaded compiled function, and dataset
+gs://newproject-1-common_datasets_us-east5/pythia_pile_idxmaps_tfrecord_4096.
+Loss finite and falling through47; steady.372step/s, flat versus Scale006 and
+SharedEmbedNorm.371 with matching health. Queue READY observed15:03:48UTC,
+controller15:03:56, exact worker source ready15:05:56. Retained compiler preserved.

@@ -36,3 +36,14 @@ gs://newproject-1-common_datasets_us-east5/pythia_pile_idxmaps_tfrecord_4096.
 Loss finite and falling through47; steady.372step/s, flat versus Scale006 and
 SharedEmbedNorm.371 with matching health. Queue READY observed15:03:48UTC,
 controller15:03:56, exact worker source ready15:05:56. Retained compiler preserved.
+
+2800 review (latest mature3000 window): continue5000. Last5(2200-3000) versus
+Scale006 mean-.001946,range-.002478..-.001630; versus SharedEmbedNorm
+mean-.004804,range-.005074..-.004447. Scale006 gap narrows from earlier
+~-.003 to~-.002; no stable terminal verdict yet. Matched speed flat.
+At1400 the window briefly reverses (+.004778 vs Scale006): raw step1400
+loss excess+.023179 and gradient norm4.281 versus1.298 for Scale006;
+1400/1410 account for the reversal. Subsequent windows negative again.
+Embedding gate.0967/.0940/.0900 and dynamic RMS.426/.457/.468 at
+1000/1800/2800; static RMS exactly0 as configured. Check future gradient
+spikes against Scale006 rather than dismissing the reversal as measurement noise.

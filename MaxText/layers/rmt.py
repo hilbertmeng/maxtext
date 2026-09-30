@@ -633,7 +633,10 @@ class RMTLayer(nn.Module):
         head_output = head_output + dynamic_o
     if cfg.get_keys().get('rmt_remat_policy','full') in ('save_dense_state','save_state','save_state_mlp','save_state_dynamic'):
       head_output=ad_checkpoint.checkpoint_name(head_output,'rmt_attention_head')
-    attn_write = self.param('attn_write_key', write_init,
+    attn_write_init = (nn.initializers.zeros
+                       if cfg.get_keys().get('rmt_attn_write_key_zero_init', False)
+                       else write_init)
+    attn_write = self.param('attn_write_key', attn_write_init,
                             (heads, key_dim), cfg.weight_dtype)
     write_data = (jnp.pad(head_output, ((0,0),(0,0),(0,0),(0,padded_value_dim-value_dim)))
                   if padded_value_dim else head_output)
@@ -732,7 +735,10 @@ class RMTLayer(nn.Module):
         kernel_init=initializers.get_init_method(cfg.init_method),
         quant=self.quant, name='mlp')(vector, deterministic=deterministic)
     vector = vector.reshape(vector.shape[:2] + (heads, value_dim))
-    mlp_write = self.param('mlp_write_key', write_init,
+    mlp_write_init = (nn.initializers.zeros
+                      if cfg.get_keys().get('rmt_mlp_write_key_zero_init', False)
+                      else write_init)
+    mlp_write = self.param('mlp_write_key', mlp_write_init,
                            (heads, key_dim), cfg.weight_dtype)
     write_data = (jnp.pad(vector, ((0,0),(0,0),(0,0),(0,padded_value_dim-value_dim)))
                   if padded_value_dim else vector)

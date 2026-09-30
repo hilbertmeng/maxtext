@@ -11677,3 +11677,15 @@ class RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOMPreNormLearnedSca
     compare_runs = ['RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOMPreNorm',
                     'Llama2XLPropTruePileMHA', 'MuddLlama2XLProp']
     jax_cache_dir = ''
+
+
+class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedWriteNormStaticKeyZeroInit(
+    RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedWriteNorm):
+    """Zero-initialize learnable attention/MLP static write addresses."""
+    # Implementation: codex/rmt-xlprop-noo, /data0/xd/rmt-xlprop-noo; pure JAX, layer scan.
+    # Bet: terminal vs SharedWriteNorm -.002; .375 step/s, flat. Review2800/5000.
+    model_name = 'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedWriteNormStaticKeyZeroInit'
+    rmt_attn_write_key_zero_init = True
+    rmt_mlp_write_key_zero_init = True
+    compare_runs = ['RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedWriteNorm']
+    jax_cache_dir = ''

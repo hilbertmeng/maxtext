@@ -28,4 +28,12 @@ is user-directed, not one of the two autonomous Medium experiment slots.
 CPU scope: exact target parameters and changed-config scope, equation proving
 dynamic embedding write unchanged, tiny scanned gradient and actual embedding
 health confirming static normalized contents. CPU/AOT/trainer prequeue parallel;
-all gates required before training. Runtime pending sealed commit.
+all gates required before training. Runtime `0264fb6b889b73041093a211f2fc25a279de110e`; baseline runtime
+`7df81447b4dee0c14cedfddd9ff038342dfdfe0a`.
+
+Startup verified2026-09-30: three targeted CPU tests pass (23.6s); AOT loaded,
+FIRST_STEP3, finite descent through21. Step19 ~.371step/s, flat versus baseline
+.371 with the same health set. Actual UE5a dataset path verified. READY first
+observed10:25:25UTC, controller registered10:25:33, worker launched10:27:54.
+Retained compiler not deleted/reinstalled; initial test-harness failures blocked
+training and released only the owned training queues.

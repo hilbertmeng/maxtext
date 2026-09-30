@@ -24,7 +24,8 @@ class EmbedStaticNormTest(unittest.TestCase):
     allowed = {'model_name', 'exp_class', 'compare_runs', 'rmt_embedding_shared_write_norm'}
     changed = {k for k in cfg.get_keys() if cfg.get_keys()[k] != old.get_keys().get(k)}
     # Temporary output directories are harness-only overrides.
-    changed.discard('base_output_directory')
+    changed.difference_update({'base_output_directory', 'checkpoint_dir',
+                              'metrics_dir', 'bucket_logging_dir'})
     self.assertFalse(changed - allowed, changed)
     self.assertEqual(cfg.mlp_dim, 4100)
     self.assertEqual(cfg.rmt_dynamic_write_bottleneck_dim, 256)

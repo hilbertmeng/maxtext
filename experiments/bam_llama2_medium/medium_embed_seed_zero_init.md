@@ -42,3 +42,5 @@ Unlike the failed large random static initialization, the learned static route
 grows constructively: the evidence favors starting it at zero rather than
 keeping it permanently zero or permanently weak. No universal claim about
 static-address optimal amplitude follows from this single training comparison.
+
+5000 review (through5200): continue. Last5 vs Scale0 -.001622,range-.002286..-.000385; Scale006 -.003225,range-.003596..-.002665; SharedEmbedNorm -.006418,range-.007297..-.005256. Initial large lead narrowed, but the recent ~-.002 advantage over Scale0 has not vanished. A near-tie at5000 followed by -.002286 at5200 is not a direction reversal. Matched speed flat. Static RMS.0763/.0798/.0777 and cosine+.858/+.847/+.828 at2800/4000/5000; learned static route remains constructive. Static writes need not stay extremely weak; zero initialization avoids the bad random static start while retaining subsequent learning.

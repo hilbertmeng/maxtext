@@ -47,3 +47,5 @@ loss excess+.023179 and gradient norm4.281 versus1.298 for Scale006;
 Embedding gate.0967/.0940/.0900 and dynamic RMS.426/.457/.468 at
 1000/1800/2800; static RMS exactly0 as configured. Check future gradient
 spikes against Scale006 rather than dismissing the reversal as measurement noise.
+
+5000 review (through5200): continue. Last5 vs Scale006 -.001603,range-.002279..-.001018; SharedEmbedNorm -.004796,range-.005288..-.004332. Recent lead vs Scale006 holds around-.0015 rather than collapsing. Matched speed flat. Window4200 lacks one raw point after preemption; do not interpolate. Window5000 recovered from all five exact TB losses (4980-5020), imported into loss cache. Preserve Scale0 as the terminal causal comparison against the learnable zero-initialized static route.

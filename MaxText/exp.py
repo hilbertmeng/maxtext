@@ -10280,8 +10280,8 @@ class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearne
     RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedEmbedWriteNormScale006):
     """Zero static embedding write; retain the parent parameter tree and normalized dynamic content."""
     # code_commit: 49623a7; UE5a v5p-16 ~.372 step/s, flat vs Scale006/SharedEmbedNorm .371.
-    # Through3000: vs Scale006 lead narrows (last5 -.001946); vs SharedEmbedNorm -.004804.
-    # Review2800: continue5000; transient1400 reversal recovered by1600.
+    # Through5200: vs Scale006 small lead holds (last5 -.001603); vs SharedEmbedNorm -.004796.
+    # Review5000: continue; transient1400 reversal recovered by1600.
     model_name = 'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedEmbedWriteNormScale0'
     rmt_embedding_static_write_scale = 0.
     compare_runs = ['RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedEmbedWriteNormScale006',
@@ -10293,8 +10293,8 @@ class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearne
     RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedEmbedWriteNorm):
     """Initially zero, fully learnable static embedding address; static scale remains one."""
     # code_commit: 9dfa158; UE5a v5p-16 ~.373 step/s, flat vs Scale0 .372 / Scale006 .371.
-    # Through3000: lead narrows; last5 vs Scale0 -.002834 / Scale006 -.004780 / SharedEmbedNorm -.007638.
-    # Review2800: continue5000.
+    # Through5200: early lead narrows, then holds; last5 vs Scale0 -.001622 / Scale006 -.003225 / SharedEmbedNorm -.006418.
+    # Review5000: continue; still best embedding arm, matched speed flat.
     model_name = 'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedEmbedWriteNormSeedKeyZeroInit'
     rmt_embedding_seed_key_zero_init = True
     rmt_embedding_static_write_scale = 1.

@@ -62,8 +62,9 @@ with tempfile.TemporaryDirectory() as out:
   params=model.init({'params':jax.random.key(3),'dropout':jax.random.key(4),'aqt':jax.random.key(5)},*call,enable_dropout=False)['params']
   def loss(p):
    result=model.apply({'params':p},*call,enable_dropout=False,rngs={'aqt':jax.random.key(5)})
-   lp=jax.nn.log_softmax(result.astype(jnp.float32),axis=-1)
-   return -jnp.mean(jnp.take_along_axis(lp,tokens[...,None],axis=-1))
+   # MaxText OutputHead returns per-token CE, correctness count, and predictions.
+   assert result[0].shape==tokens.shape
+   return jnp.mean(result[0])
   value,grad=jax.jit(jax.value_and_grad(loss))(params)
  assert np.isfinite(float(value))
  assert all(np.all(np.isfinite(np.asarray(g))) for g in jax.tree.leaves(grad))

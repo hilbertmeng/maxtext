@@ -118,3 +118,18 @@ Full model parameter/train-step trace `/data0/xd/k75-mlp-alllocal-audit.json`:17
 Follow-up runtime `1c628da2ff551cd499f7975cb71a75e9bf507228`; sealed configs matched,47 tests passed345.620s. Both AOT artifacts verified, loaded, FIRST_STEP from0 (MLP3200 step6; AllLocal step4). Steady20-99 n80: MLP3200 .545600 (+3.366% vs QK57, -.249594 relative to MHA), matched776 BAM health; AllLocal .5364625 (+1.635% vs QK57, -.262161 relative to MHA),866 vs776 BAM health. MHA basic-only timing is unmatched. Logs `/data0/xd/k75-{mlp3200,alllocal}-startup.log`; speed `/data0/xd/k75-mlp-alllocal-speed.json`. Training requests13:10:21/13:13:01UTC September24, UE5a only.
 
 Both clean exits verified at13,500, final `commit_success.txt` verified in GCS, TPU/queue absent and local TB completion synced. MLP3200: 2 preemptions, 3 UE5a READY leases, end20:43:33UTC. AllLocal: 3 preemptions, 4 UE5a READY leases, end21:05:41UTC. Lease timestamps are in `experiments/tpu_region_preemption_history.md`. Complete 5000–13400 gap series against QK57 and MediumProp MHA: `/data0/xd/mediumprop-final-gaps-5000-13400.md` (raw JSON alongside). QK57 lacks a 7200-step loss window, so both parent comparisons leave that point absent; MLP3200 also lacks 3800 after preemption. Neither point was interpolated.
+
+## TruePile AllLocal replay (2026-09-30)
+
+RUN `BamMediumPropK75EmbedVOnlyQK57AllLocalTruePile`, same family worktree/branch.
+UE5a only, v5p-16 `xd-v5p-16-2909302-maxtext`, 13500 steps/checkpoint200.
+Repaired true4097-token Pile records selected by `DATASET_VARIANT=truepile4096`;
+18 identical L layers now use layer scan, MLP3901, M75x32/C8, QK57+RoPE18.
+Full parameter trace:432091328, unchanged from padded parent, -29872 vs MHA.
+Direct baselines: TruePile dynamic RMT NoO, TruePile LLF QK57, TruePile Prop MHA.
+Bet final BAM-RMT +.050 and BAM-LLF +.026; speed .54 step/s (~+41% vs NoO .3828,
++3% vs LLF .525; inherited health is not matched across architectures).
+Borrowed FLEX compiler llm-jax-v6e-1-1 EW4a, never lifecycle-owned.
+Focused CPU full-parameter/train trace caught block-specific health exporter indexing;
+added layer-scan exporter path without changing model math. Full small model gradient
+check preserves K75/address32/odd head75/QK57+18.

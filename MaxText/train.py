@@ -387,6 +387,12 @@ def record_bam_concat_health_metrics(output_metrics, intermediate_outputs, confi
         names = ('bam_rms', 'standard_rms', 'bam_over_standard')
       for i, name in enumerate(names):
         output_metrics['scalar'][f'bam/concat/{key[7:]}/layer_{layer:03d}/{name}'] = value[i]
+  if not getattr(config, 'bam_pair_scan', False):
+    layers = decoder['layers']
+    attention = layers.get('sub_0', layers)['block']['self_attention']
+    for layer in range(config.num_decoder_layers):
+      emit(attention, layer, layer)
+    return
   blocks = config.num_decoder_layers // size
   for offset in range(size):
     name = f'local_{offset}' if offset < size - 1 else f'fetch_{offset}'

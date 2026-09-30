@@ -5649,7 +5649,7 @@ class MuddLlama2XLProp(Mudd, Llama2XLProp):
     """Original Mudd recipe on XLProp with complete layer history and TruePile4096."""
     # Runtime: codex/mudd-xlprop-truepile, /data0/xd/mudd-xlprop-truepile.
     # 1,438,369,841 params: +5,971,121 (+.417%) vs XLProp MHA; original MLP schedule.
-    # Bet at50k vs MHA: -.05 loss, .45 step/s (~-17%); NoO expected another -.05.
+    # Completed50000. vs MHA: early lead shrank, then slowly declined; terminal r500 last5 -.068592 (-.069275..-.067654).
     model_name = 'MuddLlama2XLProp'
     DATASET_VARIANT = 'truepile4096'
     mudd_full_history = True

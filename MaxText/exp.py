@@ -11605,3 +11605,19 @@ class RMTXLPropNorm6LQKInputProfile(RMTXLPropNorm6LControlProfile):
 class RMTXLPropNorm6LQKOutputProfile(RMTXLPropNorm6LControlProfile):
     model_name = 'RMTXLPropNorm6LQKOutputProfile'
     rmt_probe_qk_matrix_rms = True
+
+
+class RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOMPreNormLearnedScaleSharedWriteEmbedNorm(
+    RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOMPreNorm):
+    """Full-M learned gains; shared normalized layer and embedding write contents."""
+    model_name = 'RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOMPreNormLearnedScaleSharedWriteEmbedNorm'
+    rmt_matrix_read_learned_scale = True
+    rmt_static_write_content_norm = True
+    rmt_layer_write_content_norm = True
+    rmt_embedding_shared_content = True
+    rmt_embedding_content_norm = True
+    rmt_embedding_shared_write_norm = True
+    base_mlp_dim = 6643
+    compare_runs = ['RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOMPreNorm',
+                    'Llama2XLPropTruePileMHA', 'MuddLlama2XLProp']
+    jax_cache_dir = ''

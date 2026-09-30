@@ -262,7 +262,7 @@ class RMTDynamicWrite(nn.Module):
   address_dim: int
 
   @nn.compact
-  def __call__(self, x, data, matrix=None, static_key=None, padded_value_dim=None, *, address_only=False, parameters_only=False, probe_layer=-1):
+  def __call__(self, x, data, matrix=None, static_key=None, padded_value_dim=None, *, address_only=False, parameters_only=False, probe_layer=-1, content_is_normalized=False):
     cfg = self.config
     heads = int(cfg.num_query_heads)
     bottleneck = int(cfg.get_keys().get('rmt_dynamic_write_bottleneck_dim', 256))
@@ -327,7 +327,7 @@ class RMTDynamicWrite(nn.Module):
                         not cfg.get_keys().get('rmt_embedding_shared_content', False))
                     if self.name == 'dynamic_embedding_write' else
                     cfg.get_keys().get('rmt_layer_write_content_norm', True))
-    if content_norm:
+    if content_norm and not content_is_normalized:
       data = normalizations.rms_norm(
           data, dtype=data.dtype, epsilon=cfg.normalization_layer_epsilon,
           statistics_dtype=jnp.float32)
@@ -839,14 +839,21 @@ class RMTDecoder(nn.Module):
     embedding = nn.Dropout(rate=cfg.dropout_rate, broadcast_dims=(-2,))(
         embedding, deterministic=deterministic).astype(cfg.dtype)
     embedded_heads = embedding.reshape(embedding.shape[:2] + (heads, value_dim))
+    shared_seed_norm = cfg.get_keys().get('rmt_embedding_shared_write_norm', False)
+    if shared_seed_norm and not cfg.get_keys().get('rmt_embedding_shared_content', False):
+      raise ValueError('Shared embedding write norm requires shared embedding content')
+    seed_content = (normalizations.rms_norm(
+        embedded_heads, dtype=embedded_heads.dtype,
+        epsilon=cfg.normalization_layer_epsilon, statistics_dtype=jnp.float32)
+        if shared_seed_norm else embedded_heads)
     seed_key = self.param('seed_key', nn.initializers.normal(heads ** -0.5),
                           (heads, key_dim), cfg.weight_dtype)
-    matrix = jnp.einsum('btnv,nk->btkv', embedded_heads, seed_key.astype(cfg.dtype))
+    matrix = jnp.einsum('btnv,nk->btkv', seed_content, seed_key.astype(cfg.dtype))
     if cfg.get_keys().get('rmt_dynamic_embedding_write', False):
       # Shared-content variant writes the same raw embedding heads through
       # both static and dynamic addresses, without an extra content projection.
       if cfg.get_keys().get('rmt_embedding_shared_content', False):
-        data = embedded_heads
+        data = seed_content
       else:
         data = linears.DenseGeneral(
             features=(heads, value_dim), axis=-1,
@@ -856,7 +863,8 @@ class RMTDecoder(nn.Module):
             quant=self.quant, matmul_precision=cfg.matmul_precision,
             use_bias=False)(embedding)
       dynamic_seed, seed_gate = RMTDynamicWrite(
-          cfg, address_dim=key_dim, name='dynamic_embedding_write')(embedding, data)
+          cfg, address_dim=key_dim, name='dynamic_embedding_write')(
+              embedding, data, content_is_normalized=shared_seed_norm)
       if cfg.get_keys().get('rmt_record_dynamic_health', False):
         self.sow('intermediates', 'rmt_embedding_health',
                  _boundary_health(dynamic_seed, matrix, seed_gate))

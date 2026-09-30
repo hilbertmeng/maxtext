@@ -45,3 +45,12 @@ ratio70.33/73.68/76.31, cosine+.152/+.166/+.180; no compensatory negative
 cosine (unscaled arm-.448/-.538/-.590). Gate.0969/.0932/.0889 versus baseline
 .0959/.0915/.0857. Supports amplitude-balance explanation; no proof that only
 initialization, rather than the full trajectory's fixed scaling, is responsible.
+
+5000 review: continue. Since1400 every gap versus SharedEmbedNorm remains negative,
+mostly ~-.003; last5(4200-5000) mean-.003226, range-.004270..-.002592.
+Previous5(3200-4000) mean-.003499: small .000273 narrowing, not evidence of a
+rapid collapse. Unscaled WriteNorm comparison ends at3000; last5 mean-.058819.
+Matched speed flat (~.371). At2800/4000/5000 embedding cosine+.180/+.188/+.189
+and gate.0889/.0837/.0796; no unscaled-arm compensatory negative cosine.
+Initial +.003 terminal-loss bet was too pessimistic; a sustained small gain
+is now the leading expectation. Continue to measure whether it survives late training.

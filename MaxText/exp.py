@@ -10267,8 +10267,8 @@ class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearne
     RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedEmbedWriteNorm):
     """Keep normalized embedding contents, restore the initial static/dynamic amplitude balance."""
     # code_commit: 7cba5c2; UE5a v5p-16 ~.371 step/s, flat vs SharedEmbedNorm .371.
-    # Through2800: vs SharedEmbedNorm crossed at1400, then held a small lead; last5 -.002851.
-    # vs unscaled WriteNorm lead widened to last5 -.058145; continue5000.
+    # Through5000: vs SharedEmbedNorm crossed at1400, then held ~-.003; last5 -.003226.
+    # vs unscaled WriteNorm last5(common2200-3000) -.058819; continue, matched speed flat.
     model_name = 'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedEmbedWriteNormScale006'
     rmt_embedding_static_write_scale = .006
     compare_runs = ['RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedEmbedNorm',

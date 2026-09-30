@@ -36,3 +36,12 @@ FIRST_STEP2 and step14 at.371step/s, flat versus E.371 with matched health.
 Actual dataset gs://newproject-1-common_datasets_us-east5/pythia_pile_idxmaps_tfrecord_4096.
 Finite falling losses through171; compiler retained. Training queue READY observed
 13:09:14UTC, controller13:09:23; worker source ready13:11:23.
+
+2800 review: continue5000. Versus SharedEmbedNorm crossed at1400, all subsequent
+windows negative; last5(2000-2800) mean-.002851,range-.003226..-.001969.
+Versus unscaled WriteNorm mean-.058145,range-.060486..-.056030. No speed cost.
+Embedding static RMS .00573/.00562/.00550 at1000/1800/2800; dynamic/static
+ratio70.33/73.68/76.31, cosine+.152/+.166/+.180; no compensatory negative
+cosine (unscaled arm-.448/-.538/-.590). Gate.0969/.0932/.0889 versus baseline
+.0959/.0915/.0857. Supports amplitude-balance explanation; no proof that only
+initialization, rather than the full trajectory's fixed scaling, is responsible.

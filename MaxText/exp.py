@@ -10267,6 +10267,8 @@ class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearne
     RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedEmbedWriteNorm):
     """Keep normalized embedding contents, restore the initial static/dynamic amplitude balance."""
     # code_commit: 7cba5c2; UE5a v5p-16 ~.371 step/s, flat vs SharedEmbedNorm .371.
+    # Through2800: vs SharedEmbedNorm crossed at1400, then held a small lead; last5 -.002851.
+    # vs unscaled WriteNorm lead widened to last5 -.058145; continue5000.
     model_name = 'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedEmbedWriteNormScale006'
     rmt_embedding_static_write_scale = .006
     compare_runs = ['RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedEmbedNorm',
@@ -10288,6 +10290,7 @@ class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearne
 class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedEmbedWriteNormSeedKeyZeroInit(
     RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedEmbedWriteNorm):
     """Initially zero, fully learnable static embedding address; static scale remains one."""
+    # code_commit: 9dfa158; UE5a v5p-16 ~.373 step/s, flat vs Scale0 .372 / Scale006 .371.
     model_name = 'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedEmbedWriteNormSeedKeyZeroInit'
     rmt_embedding_seed_key_zero_init = True
     rmt_embedding_static_write_scale = 1.

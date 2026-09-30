@@ -22,4 +22,12 @@ Focused CPU gates: full effective scope/budget; all common initialized parameter
 exactly match Scale0 excluding seed_key; initial forward/dynamic health match;
 finite scanned gradients, nonzero seed gradient, one update opens static route.
 Rerun Scale0 focused tests for the default normal-initialization regression.
-CPU/AOT/trainer prequeue parallel; runtime and startup pending.
+CPU/AOT/trainer prequeue parallel; runtime9dfa158a266a105fb3154579dfa5e196aa5cf960.
+
+Startup verified2026-09-30: four focused CPU gates pass35.1s; retained FLEX AOT
+verified, FIRST_STEP2 and step19 reached. Actual worker confirms seed-key zero
+initTrue, static scale1.0, Loaded compiled function, and local dataset
+ gs://newproject-1-common_datasets_us-east5/pythia_pile_idxmaps_tfrecord_4096.
+Loss finite and falling through44; .373step/s flat versus Scale0.372 and
+Scale006/SharedEmbedNorm.371 with matched health. Queue READY observed15:28:07UTC,
+controller15:28:15, train process launched15:30:38. Retained compiler preserved.

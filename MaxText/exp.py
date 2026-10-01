@@ -9584,7 +9584,7 @@ class BamXLPropK96EmbedVOnlyQK72AllLocalTruePile(
     Llama2XLProp, BamMediumPropK75EmbedVOnlyQK57AllLocalTruePile):
     """Proportional all-local matrix-value BAM on repaired XLProp TruePile."""
     # code_commit: 6446a1f; UE5a v5p-32 ~.355 step/s, +15.6% vs B .307; extra health differs.
-    # Through34000: last5 vs MHA -.065803 / Mudd +.006962 (0.901x gain); Mudd deficit slightly up from~+.0062.
+    # Through36000: last5 vs MHA -.064989 / Mudd +.006831 (0.899x gain); Mudd deficit holds ~+.007.
     # vs B common17500 -.000279 (B stopped).
     model_name = 'BamXLPropK96EmbedVOnlyQK72AllLocalTruePile'
     DATASET_VARIANT = 'truepile4096'

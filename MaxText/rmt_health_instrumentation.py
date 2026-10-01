@@ -160,3 +160,33 @@ def activation_geometry(x, layer, tag):
                     mean_power/jnp.maximum(power,1e-30),jnp.max(jnp.abs(v))))
   record(tag,layer,('rms','token_common_rms','token_variable_rms',
                     'token_common_energy_fraction','absmax'),values)
+
+
+def emit_activation_tail(tag, layer, token_rms, ids, fractions):
+  row={'tag':tag+'_tail','layer':int(layer),'token_rms':np.asarray(token_rms).tolist(),
+       'top_neuron_ids':np.asarray(ids).tolist(),'top_neuron_energy_fractions':np.asarray(fractions).tolist()}
+  with _LOCK,open(os.environ['RMT_HEALTH_FILE'],'a') as f:f.write(json.dumps(row)+'\n')
+
+
+def activation_tail(x,layer,tag,num_layers):
+  def measure(_):
+    v=x.astype(jnp.float32)
+    power=jnp.mean(v*v,(0,1))
+    top,ids=jax.lax.top_k(power,4)
+    token_rms=jnp.sqrt(jnp.mean(v*v,-1)).reshape(-1)
+    jax.debug.callback(partial(emit_activation_tail,tag),layer,token_rms,ids,
+                       top/jnp.maximum(power.sum(),1e-30))
+    return jnp.asarray(0)
+  jax.lax.cond(layer>=num_layers-2,measure,lambda _:jnp.asarray(0),None)
+
+
+def emit_token_losses(q0, ce, mask):
+  row={'tag':'token_losses','layer':-1,'q0':int(q0),'ce':np.asarray(ce).reshape(-1).tolist(),
+       'mask':np.asarray(mask).reshape(-1).tolist()}
+  with _LOCK,open(os.environ['RMT_HEALTH_FILE'],'a') as f:f.write(json.dumps(row)+'\n')
+
+
+def token_losses(logits,targets,mask,q0):
+  z=logits.astype(jnp.float32)
+  ce=jax.nn.logsumexp(z,-1)-jnp.take_along_axis(z,targets[...,None],-1)[...,0]
+  jax.debug.callback(emit_token_losses,q0,ce,mask)

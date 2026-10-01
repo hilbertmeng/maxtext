@@ -409,6 +409,8 @@ class OutputHead(nn.Module):
           precise = jnp.einsum('bte,ev->btv', inputs[:, chunk_slice], self.logits_dense,
                                preferred_element_type=jnp.float32)
           numeric_readout(logits_chunk, precise, target_tokens[:, chunk_slice], target_mask[:, chunk_slice])
+          from rmt_health_instrumentation import token_losses
+          token_losses(logits_chunk, target_tokens[:, chunk_slice], target_mask[:, chunk_slice], start_idx)
       preds_chunk = jnp.argmax(logits_chunk, axis=-1)
       mask_chunk = target_mask[:, chunk_slice]
       targets_chunk = target_tokens[:, chunk_slice]

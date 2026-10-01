@@ -96,6 +96,9 @@ def main(argv):
           'cohort_role': 'unseen TruePile tail-four shards', 'order': order, 'cohort_hashes': hashes,
           'jax': jax.__version__, 'source_commit': os.environ.get('RMT_HEALTH_COMMIT')}
   (output/'metadata.json').write_text(json.dumps(meta, indent=2))
+  for i,batch in enumerate(batches):
+    (output/f'cohort-{i:03d}.json').write_text(json.dumps({
+        k:np.asarray(batch[k]).reshape(-1).tolist() for k in ('inputs','targets','targets_segmentation')}))
   print('PARAMS_AND_COHORT_READY '+json.dumps(meta), flush=True)
   stats = jax.jit(parameter_stats, static_argnames=('scan_axis',))(params, scan_axis=cfg.param_scan_axis)
   (output/'parameters.json').write_text(json.dumps(serializable(stats), indent=2))

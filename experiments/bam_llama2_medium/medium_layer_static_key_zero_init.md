@@ -49,3 +49,15 @@ Worker config confirms ordinary layer scan, both keys zero-initialized, static
 write content normalized, generic/RMT health ON, all Pallas flags OFF, local
 UE5a TruePile4096 dataset. Embedding unchanged. Old RUN registry closed without
 deleting its TPU; closeout_runs_local.py synchronized its final TB.
+
+
+2800review: versus SharedWriteNorm, early small lead flips to deficit at2000;
+last5 mean+.001102, range+.000488..+.002168, drift grows. Bet2800-.003
+missed. Keep to5000 to decide the small late effect; do not extrapolate the
+successful embedding seed-zero result to transformer-layer static addresses.
+At2800, zero-init middle/tail static writes remain smaller (dynamic/static
+attention44/44 versus parent9.5/12; MLP22/43 versus7.4/11.8), but become
+more aligned with dynamic writes (attentioncos~.70/.75, MLP~.76/.81).
+Raw-gradient norm.297 vs parent.293; no gradient health anomaly. Speed.3746
+vs parent.3748, same health switches. Cumulative report and health JSON:
+/data0/xd/bam_diagnostics/rmt-readnorm-launch/layer-static-zero-2800-*.txt/json.

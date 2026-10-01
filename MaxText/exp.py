@@ -11685,6 +11685,7 @@ class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearne
     # Implementation: codex/rmt-xlprop-noo, /data0/xd/rmt-xlprop-noo; pure JAX, layer scan.
     # Bet: terminal vs SharedWriteNorm -.002; .375 step/s, flat. Review2800/5000.
     # code_commit: 8caa48d; UE5a v5p-16 ~.375 step/s, flat vs matched SharedWriteNorm .3748.
+    # Through2800 vs SharedWriteNorm: crossed behind2000, last5+.001102 and widening; continue5000.
     model_name = 'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedWriteNormStaticKeyZeroInit'
     rmt_attn_write_key_zero_init = True
     rmt_mlp_write_key_zero_init = True

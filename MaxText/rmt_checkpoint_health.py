@@ -45,6 +45,13 @@ def serializable(tree):
 
 def main(argv):
   cfg = pyconfig.initialize(argv)
+  # Generic config validation couples restore to checkpoint-manager creation.
+  # This standalone decoder restore owns neither a manager nor a save path.
+  checkpoint = os.environ.get('RMT_HEALTH_CHECKPOINT')
+  if checkpoint:
+    if cfg.load_parameters_path or cfg.load_full_state_path:
+      raise ValueError('Pass the diagnostic checkpoint only through RMT_HEALTH_CHECKPOINT')
+    cfg.get_keys()['load_parameters_path'] = checkpoint
   if not cfg.only_eval or cfg.enable_checkpointing or not cfg.load_parameters_path or cfg.load_full_state_path:
     raise ValueError('Require read-only parameter restore, no optimizer/checkpoint writes')
   if not cfg.base_output_directory.startswith('/tmp/'):

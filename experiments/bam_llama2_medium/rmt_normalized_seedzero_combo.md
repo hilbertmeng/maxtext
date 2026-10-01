@@ -333,3 +333,16 @@ Previous ledger retained measuredspeed/bet but omitted requiredunresolved
 anomaly marker. No established causal attribution; narrowerF MLP and
 actual projection/fetch/health work and lowering require matched comparison.
 Do not infer a training acceleration from blockscan alone.
+
+User2026-10-01: all ongoing/newXL runs directly compare against current
+SOTA BamXLPropK96EmbedVOnlyQK72LLFTruePile (22c2c5c). Added to live
+AllLocal, SeedZerocombo, Scale0combo registries and corresponding main/
+family exp.py compare_runs; LLF retainsAllLocal/MHA/Mudd and excludes self.
+No restarts or training/runtime changes. Mainmemo records futurebaseline
+policy. Existing controls retained; use exact commonsteps, labelfrozen
+boundary if a RUN outruns LLF. Reportcadence remainsXL2000/Medium1000.
+
+Userclarification: AllLocal does not add reciprocalLLF baseline; existing
+LLF-AllLocal exact-step series suffices, inverse adds no evidence. Reverted
+AllLocal's registry/main/familycompare_runs to originalB/MHA/Mudd. Keep
+LLF added to bothRMTcombinations and all futureXL arm preparations.

@@ -11722,7 +11722,9 @@ class RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOMPreNormLearnedSca
     keep_period = 4000
     max_to_keep = 2
     compare_runs = ['RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOMPreNorm',
-                    'Llama2XLPropTruePileMHA', 'MuddLlama2XLProp']
+                    'Llama2XLPropTruePileMHA',
+                    'MuddLlama2XLProp',
+                    'BamXLPropK96EmbedVOnlyQK72LLFTruePile']
     jax_cache_dir = ''
 
 
@@ -11753,5 +11755,7 @@ class RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOMPreNormLearnedSca
     rmt_embedding_static_write_scale = 0.
     compare_runs = ['RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOMPreNormLearnedScaleSharedWriteEmbedNormSeedKeyZeroInit',
                     'RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOMPreNorm',
-                    'Llama2XLPropTruePileMHA', 'MuddLlama2XLProp']
+                    'Llama2XLPropTruePileMHA',
+                    'MuddLlama2XLProp',
+                    'BamXLPropK96EmbedVOnlyQK72LLFTruePile']
     jax_cache_dir = ''

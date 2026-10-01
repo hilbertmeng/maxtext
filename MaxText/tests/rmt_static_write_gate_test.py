@@ -102,7 +102,8 @@ class StaticWriteGateTest(unittest.TestCase):
     from train import record_rmt_dynamic_health_metrics
     metrics = {'scalar': {}}
     record_rmt_dynamic_health_metrics(metrics, aux, cfg)
-    self.assertAlmostEqual(float(metrics['scalar']['rmt/dynamic/layer_001/mlp_static_write_gate_mean']), .9, places=6)
+    np.testing.assert_allclose(
+        metrics['scalar']['rmt/dynamic/layer_001/mlp_static_write_gate_mean'], .9, rtol=1e-6)
     self.assertEqual(float(metrics['scalar']['rmt/dynamic/layer_001/mlp_static_write_gate_effective_mean']), 1.)
     self.assertIn('rmt/dynamic/layer_001/mlp_write_static_rms', metrics['scalar'])
 

@@ -146,6 +146,13 @@ def main(argv):
         idx = [slice(None)] * value.ndim
         idx[axis] = cfg.num_decoder_layers - 1
         flat[path] = value.at[tuple(idx)].multiply(factor)
+      elif variant.startswith('last_mlp_neurons_'):
+        ids = [int(v) for v in variant[len('last_mlp_neurons_'):].split('-')]
+        path = prefix + ('layers', 'mlp', 'wo', 'kernel')
+        value = jnp.moveaxis(flat[path],axis,0)
+        if any(i>=value.shape[1] for i in ids):raise ValueError(ids)
+        value = value.at[-1,jnp.asarray(ids),:].set(0)
+        flat[path] = jnp.moveaxis(value,0,axis)
       elif variant == 'embedding_no_address_bias':
         path = prefix + ('dynamic_embedding_write', 'address_up_bias')
         flat[path] = jnp.zeros_like(flat[path])

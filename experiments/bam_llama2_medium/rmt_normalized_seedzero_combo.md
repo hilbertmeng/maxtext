@@ -59,3 +59,10 @@ not a late-effectiveness conclusion. Keep200-step windows temporarily until
 the new B advantage has a clear direction; batch next formal report near2000.
 At200, embedding static route has learned nonzero contents on both scales;
 full-M gains remain nearone and no nonfinite health is observed.
+
+Medium1000: Combo-SeedZero +.004802; Combo-SharedWriteNorm -.003024,
+advantage narrowing; Combo-B -.004074; Combo-originalNoO -.011866.
+Standalone SharedWriteNorm-LearnedScale at1000 +.000213, versus the
+conditional write-normalization effect on SeedZero +.004802: extra early
+cost+.004589. This is more discriminating than simply citing the original
+4400-step crossing; late additivity is unproved. Keep2800/5000 reviews.

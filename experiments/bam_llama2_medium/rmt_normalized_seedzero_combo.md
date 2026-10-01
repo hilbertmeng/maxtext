@@ -301,3 +301,13 @@ penult15.79->17.23. Embeddingstatic0 and dynamicRMS.454->.445,
 gate.088->.085. No static takeover. Continue per user with next7000 report.
 Full cumulative artifact medium-scale0-combo-6000-cumulative.md under
 /data0/xd/bam_diagnostics/rmt-readnorm-launch/; exact health6000 JSON beside it.
+
+User-requested MediumScale0 combo versus standaloneSharedWriteNorm6000:
+5200..6000 gaps-.000819/-.000521/-.001044/-.001088/+.000383;
+last5-.000618, range-.001088..+.000383; speed.372/.375 (-.8%).
+Early~-.001..-.002 lead faded and6000 crossed slightlybehind; no clear
+additive improvement. Exact five-point cumulative source has no missing
+windows. Complete configs differ in embeddingW_content (absent/retained)
+and compensatedMLP4100/4078, withLearnedScale and layerSharedWriteNorm
+common. Artifact scale0-combo-vs-sharedwrite-6000.{json,md}, helper
+compare_scale0_combo_standalone_sharedwrite.py, under taskdiagnosticroot.

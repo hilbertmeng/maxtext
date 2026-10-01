@@ -40,3 +40,14 @@ Targeted CPU gates: both full parameter trees and effective flag scope,
 zero seed/nonzero layer addresses, learned scales initializedone, finite
 scanned gradients including seed/layer scale/address, dynamic-health presence,
 shared layer content normalization equation and amplitude invariance.
+
+Startup runtime4cd403fe56f6fbff151e1a943dc1d6dae8478322. Five focused CPU
+checks pass55.3s; both sealed effective configurations verified. Both retained
+STANDARD AOTs verified and actual FIRST_STEP confirmed. Medium step21 throughput
+.371step/s (-.5% vs SeedZero .373), finite loss falling. Worker confirms
+checkpoint_period200/keep_period1000/max_to_keep2 and normalized layer writes,
+learned matrix gains and zero seed. XL step14 .308step/s (+.3% vs B/old combo .307); finite falling loss.
+XL worker confirms checkpoint_period250/keep_period4000/max_to_keep2, all
+three combined flags and loaded AOT.
+Both datasets resolve to UE5a truepile4096, not padded records. Earlier preparing
+commit was superseded before training by user-directed retention settings.

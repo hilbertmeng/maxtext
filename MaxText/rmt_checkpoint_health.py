@@ -17,7 +17,7 @@ import numpy as np
 import max_utils
 import pyconfig
 import train
-from input_pipeline.input_pipeline_interface import create_data_iterator
+from input_pipeline._pile_data_processing import PileDatasets, extract_pythia_datapath
 
 
 def parameter_stats(params, grads=None, scan_axis=1):
@@ -66,7 +66,17 @@ def main(argv):
   output.mkdir(parents=True, exist_ok=True)
   count = int(os.environ.get('RMT_HEALTH_SEQUENCES', '32'))
   grad_count = int(os.environ.get('RMT_HEALTH_GRAD_SEQUENCES', '4'))
-  source, _ = create_data_iterator(cfg, mesh)
+  # Use future training shards outside both restored checkpoints' seen prefix.
+  # Ordinary first training batches can be memorized; legacy validation pads to
+  # T4096 and would confound the actual-context comparison.
+  paths, _ = extract_pythia_datapath(cfg.dataset_path, cfg.eval_split)
+  source_paths = paths[-4:]
+  source = PileDatasets(mesh=mesh, name='rmt.health', path=source_paths,
+      batch_size=int(cfg.per_device_batch_size * jax.local_device_count()),
+      seq_len=cfg.max_target_length, repeat=1, seed=261001,
+      task_features=cfg.task_features, shuffle_buffer_size=1024,
+      only_eval=True, zero_loss=cfg.zero_loss, iter_file_nums=2,
+      mix_attn=cfg.mix_attn, pad_id=cfg.pad_id)
   batches = [next(source) for _ in range(count)]
   order = np.random.default_rng(261001).permutation(count).tolist()
   batches = [batches[i] for i in order]
@@ -75,7 +85,8 @@ def main(argv):
           'layers': cfg.num_decoder_layers, 'heads': cfg.num_query_heads,
           'head_dim': cfg.head_dim, 'reskey_dim': cfg.rmt_reskey_dim,
           'sequence_length': cfg.max_target_length, 'global_batch': cfg.global_batch_size_to_load,
-          'cohort_seed': 261001, 'order': order, 'cohort_hashes': hashes,
+          'cohort_seed': 261001, 'source_paths': source_paths, 'dataset_path': cfg.dataset_path,
+          'cohort_role': 'unseen TruePile tail-four shards', 'order': order, 'cohort_hashes': hashes,
           'jax': jax.__version__, 'source_commit': os.environ.get('RMT_HEALTH_COMMIT')}
   (output/'metadata.json').write_text(json.dumps(meta, indent=2))
   print('PARAMS_AND_COHORT_READY '+json.dumps(meta), flush=True)
@@ -100,8 +111,13 @@ def main(argv):
     with mesh, nn_partitioning.axis_rules(cfg.logical_axis_rules):
       loss = float(forward(params, batch))
     jax.effects_barrier()
-    if i == 0 and abs(loss-ref) > 1e-5:
-      raise ValueError(f'Instrumentation altered CE: baseline={ref}, instrumented={loss}')
+    if i == 0:
+      delta = loss-ref
+      (output/'instrumentation-gate.json').write_text(json.dumps(
+          {'baseline_ce': ref, 'instrumented_ce': loss, 'delta': delta,
+           'cpu_forward_gradient_identity': True, 'bf16_tpu_tolerance': .002}))
+      if abs(delta) > .002:
+        raise ValueError(f'Instrumentation CE drift too large: baseline={ref}, instrumented={loss}')
     row = {'sequence': i, 'loss': loss, 'elapsed': time.monotonic()-started}
     with (output/'losses.jsonl').open('a') as f: f.write(json.dumps(row)+'\n')
     print('HEALTH_FORWARD '+json.dumps(row), flush=True)

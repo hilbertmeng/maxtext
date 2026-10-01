@@ -9606,6 +9606,7 @@ class BamMediumPropK75EmbedVOnlyQK57LLFMatrixVTruePile(BamMediumPropK75EmbedVOnl
     # Per-layer budget: L3901/F3896; no standard W_V in any layer.
     # code_commit: ea76369; UE5a v5p-16 .513 step/s (20-99); -2.3% vs LLF .525 / -2.7% vs AllLocal .5271.
     # !? Below speed bet .523; basic+concat health ON, 54 extra F-V scalars vs LLF; cause unresolved.
+    # Through2800: vs originalLLF deficit widened (last5+.015979); vs AllLocal gain shrank to~-.007 (last5-.007025). Continue5000.
     # Bet terminal vs AllLocal -.015 / original LLF +.013; .523 step/s (~-.4% vs .525).
     model_name = 'BamMediumPropK75EmbedVOnlyQK57LLFMatrixVTruePile'
     bam_layer_modes = ['local_qk+local_v+local_o', 'local_qk+local_v+local_o',

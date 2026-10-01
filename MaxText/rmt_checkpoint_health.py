@@ -180,6 +180,19 @@ def main(argv):
         idx = [slice(None)] * value.ndim
         idx[axis] = cfg.num_decoder_layers-1
         flat[path] = value.at[tuple(idx)].set(-100.)
+      elif variant.startswith('all_dynamic_'):
+        modules = {
+            'all_dynamic_qk_off': [('dynamic_qk','q_gate'),('dynamic_qk','k_gate')],
+            'all_dynamic_v_off': [('dynamic_vo','gate')],
+            'all_dynamic_mlp_read_off': [('dynamic_mlp_read','gate')],
+            'all_dynamic_mlp_write_off': [('dynamic_mlp_write','gate')],
+        }
+        if variant not in modules:raise ValueError(variant)
+        for module,gate_name in modules[variant]:
+          bias_path = prefix + ('layers',module,gate_name+'_bias')
+          kernel_path = prefix + ('layers',module,gate_name+'_kernel')
+          flat[bias_path] = jnp.full_like(flat[bias_path],-100.)
+          flat[kernel_path] = jnp.zeros_like(flat[kernel_path])
       elif variant != 'baseline':
         raise ValueError(variant)
       tree = unflatten_dict(flat)

@@ -375,3 +375,27 @@ writeaddress g_s*a_static+g_dynamic*a_dynamic sharesnormalizedcontent;
 one outerproduct possible. Staticaddresses can already globallyshrink
 tozero; gate specifically adds input-conditioned suppression. Embedding
 unchanged in proposed firstcontrast. No runtime/codechangeauthorized.
+
+## Independent static write gates (2026-10-01)
+
+User-requested RUN:
+RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedWriteNormStaticGate.
+Parent is standalone LearnedScaleSharedWriteNorm, not the Scale0 embedding
+combination. Retain parent embedding W_content and initialization, MLP4078,
+RoPE18, NoO, parameterized M pre-norm and raw-M VectorNorm. Independent
+attention/MLP token-head gates:2sigmoid(xW+b), W=b=0; initialfactor1.
+Use the respective existing vectornormalized write proxies. Apply gates
+to normalized staticwrite contents before unchanged staticdot contraction.
+Dynamicwrite gates/addresses unchanged; plainJAX, layerScan, all18layers.
+Addedparameters691776=38432/layer=.026689W_Q/layer; noMLP deduction.
+Health: per-layer effectivegate mean/std/min/max, fractions<.05/>1.95,
+plus rawoutput/staticwrite/dynamicwrite/carry/update-to-carry RMS metrics.
+CPU: fullbudget/backbone shapes, unit-initialization/selectedhead shutoff,
+scannedparent equivalence at equalweights, finite/trainable gradients and
+trainhealth scalar export. No unrelated fullBAM rerun.
+Bet vs parent:-.001@2800 / -.003@terminal; speed.371 vs parent.375 (-1.1%).
+Plan13500, 200-step windows,1000-step report batches, reviews2800/5000;
+checkpoints200/keep1000/latest2. Hotreplace MediumScale0combo on its
+UE5a xd-v5p-16-2910014-maxtext only after CPU/AOT gates. NewRUN starts0.
+Borrow llm-jax-v6e-1-0 (EW4a retainedFLEX_START), noinstallation/lifecycle
+mutation, compilein isolatedtempcheckout and neverauto-recycle.

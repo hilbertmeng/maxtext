@@ -381,7 +381,8 @@ def record_rmt_dynamic_health_metrics(output_metrics, intermediate_outputs, conf
     for index, name in enumerate(rmt.dynamic_health_names(
         config.get_keys().get('rmt_record_write_health', True),
         heads=config.num_query_heads, key_dim=config.rmt_reskey_dim,
-        record_write_scale_health=config.get_keys().get('rmt_record_write_scale_health', False))):
+        record_write_scale_health=config.get_keys().get('rmt_record_write_scale_health', False),
+        record_static_write_gates=config.get_keys().get('rmt_static_write_gates', False))):
       output_metrics['scalar'][f'rmt/dynamic/layer_{layer:03d}/{name}'] = health[layer, index]
 
   if config.get_keys().get('rmt_matrix_read_learned_scale', False):

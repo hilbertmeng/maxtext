@@ -47,6 +47,10 @@ RMT_WRITE_SCALE_HEALTH_NAMES = tuple(
     for stat in ('output_raw_rms', 'write_static_rms', 'write_dynamic_rms',
                  'write_carry_rms', 'write_delta_over_carry'))
 
+RMT_STATIC_WRITE_GATE_HEALTH_NAMES = tuple(
+    f'{arm}_static_write_gate_{stat}' for arm in ('attn', 'mlp')
+    for stat in ('mean', 'std', 'min', 'max', 'frac_lt_005', 'frac_gt_195'))
+
 
 def _boundary_health(dynamic, static, gate):
   dynamic, static, gate = (x.astype(jnp.float32) for x in (dynamic, static, gate))
@@ -58,13 +62,14 @@ def _boundary_health(dynamic, static, gate):
 
 
 def dynamic_health_names(record_write_health=True, heads=16, key_dim=48,
-                         record_write_scale_health=False):
+                         record_write_scale_health=False, record_static_write_gates=False):
   """Keep read/gate/state metrics when diagnostic write statistics are disabled."""
   names = tuple(name.replace('first16', f'first{heads}').replace('tail32', f'tail{key_dim-heads}')
                for name in RMT_DYNAMIC_HEALTH_NAMES
                if record_write_health or not
                ('_write_' in name and name.endswith(('_ratio', '_cosine'))))
-  return names + (RMT_WRITE_SCALE_HEALTH_NAMES if record_write_scale_health else ())
+  return (names + (RMT_WRITE_SCALE_HEALTH_NAMES if record_write_scale_health else ())
+          + (RMT_STATIC_WRITE_GATE_HEALTH_NAMES if record_static_write_gates else ()))
 
 
 def _alibi_bias(num_heads, q0, q1, s0, s1, dtype=jnp.float32):
@@ -412,12 +417,40 @@ class MatrixRMSNorm(nn.Module):
     return (normalized * gain.astype(jnp.float32)).astype(cfg.dtype)
 
 
-def static_layer_write(data, key, cfg):
+class RMTStaticWriteGate(nn.Module):
+  """Independent token/head static-write coefficients, initially exactly one."""
+
+  config: common_types.Config
+
+  @nn.compact
+  def __call__(self, x):
+    cfg = self.config
+    kernel = self.param('kernel', nn.with_logical_partitioning(
+        nn.initializers.zeros, ('embed', 'q_heads')),
+        (cfg.emb_dim, cfg.num_query_heads), cfg.weight_dtype)
+    bias = self.param('bias', nn.with_logical_partitioning(
+        nn.initializers.zeros, ('q_heads',)),
+        (cfg.num_query_heads,), cfg.weight_dtype)
+    logits = jnp.einsum('btd,dn->btn', x, kernel.astype(x.dtype)) + bias.astype(x.dtype)
+    return 2 * jax.nn.sigmoid(logits)
+
+
+def _static_write_gate_health(gate):
+  gate = gate.astype(jnp.float32)
+  return (jnp.mean(gate), jnp.std(gate), jnp.min(gate), jnp.max(gate),
+          jnp.mean(gate < .05), jnp.mean(gate > 1.95))
+
+
+def static_layer_write(data, key, cfg, gate=None):
   """Optionally share the dynamic branch's per-head normalized content."""
   if cfg.get_keys().get('rmt_static_write_content_norm', False):
     data = normalizations.rms_norm(
         data, dtype=data.dtype, epsilon=cfg.normalization_layer_epsilon,
         statistics_dtype=jnp.float32)
+  if gate is not None:
+    # Scale the head contents before the unchanged static dot contraction;
+    # algebraically this gates the static address, without materializing M twice.
+    data = data * gate[..., None]
   return jnp.einsum('btnv,nk->btkv', data, key.astype(cfg.dtype))
 
 
@@ -431,6 +464,14 @@ class RMTLayer(nn.Module):
   @nn.compact
   def __call__(self, matrix, segment_ids, positions, deterministic, layer_index):
     cfg = self.config
+    static_write_gates = cfg.get_keys().get('rmt_static_write_gates', False)
+    if static_write_gates and (
+        not cfg.get_keys().get('rmt_dynamic_enabled', False)
+        or not cfg.get_keys().get('rmt_static_write_content_norm', False)
+        or any(cfg.get_keys().get(k, False) for k in (
+            'rmt_pallas_write', 'rmt_fused_write_mlp_read',
+            'rmt_fused_projected_mlp_write'))):
+      raise ValueError('Static write gates require dynamic shared-normalized plain-JAX writes')
     if not cfg.get_keys().get('rmt_layer_write_content_norm', True):
       if any(cfg.get_keys().get(k, False) for k in (
           'rmt_pallas_write', 'rmt_fused_write_mlp_read', 'rmt_fused_projected_mlp_write')):
@@ -699,7 +740,9 @@ class RMTLayer(nn.Module):
     else:
       if record_write_scale_health:
         attn_write_carry = matrix
-      static_attn_write = static_layer_write(write_data, attn_write, cfg)
+      static_attn_gate = (RMTStaticWriteGate(cfg, name='static_attn_write_gate')(attn_x)
+                          if static_write_gates else None)
+      static_attn_write = static_layer_write(write_data, attn_write, cfg, static_attn_gate)
       if dynamic:
         dynamic_attn_write, attn_write_gate = RMTDynamicWrite(
             cfg, write_rows, name='dynamic_attn_write')(
@@ -764,7 +807,9 @@ class RMTLayer(nn.Module):
                            (heads, key_dim), cfg.weight_dtype)
     write_data = (jnp.pad(vector, ((0,0),(0,0),(0,0),(0,padded_value_dim-value_dim)))
                   if padded_value_dim else vector)
-    static_mlp_write = static_layer_write(write_data, mlp_write, cfg)
+    static_mlp_gate = (RMTStaticWriteGate(cfg, name='static_mlp_write_gate')(mlp_x)
+                       if static_write_gates else None)
+    static_mlp_write = static_layer_write(write_data, mlp_write, cfg, static_mlp_gate)
     if record_write_scale_health:
       mlp_write_carry = matrix
     if dynamic_mlp_write_enabled:
@@ -814,8 +859,12 @@ class RMTLayer(nn.Module):
             head_output, dynamic_attn_write, static_attn_write, attn_write_carry))
         values.extend(_write_scale_health(
             vector, dynamic_mlp_write, static_mlp_write, mlp_write_carry))
+      if static_write_gates:
+        values.extend(_static_write_gate_health(static_attn_gate))
+        values.extend(_static_write_gate_health(static_mlp_gate))
       assert len(values) == len(dynamic_health_names(
-          record_write_health, record_write_scale_health=record_write_scale_health))
+          record_write_health, record_write_scale_health=record_write_scale_health,
+          record_static_write_gates=static_write_gates))
       health = jnp.stack(values)
       if not cfg.get_keys().get('rmt_block_scan', False):
         self.sow('intermediates', 'rmt_dynamic_health', health)

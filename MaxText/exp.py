@@ -10251,6 +10251,22 @@ class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearne
     jax_cache_dir = ''
 
 
+class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedWriteNormStaticGate(
+    RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedWriteNorm):
+    """Independent token/head gates on normalized static attention and MLP writes."""
+    # Implementation: codex/rmt-xlprop-noo, /data0/xd/rmt-xlprop-noo; pure JAX, layer scan.
+    # Bet vs SharedWriteNorm -.001@2800 / -.003 terminal; ~.371 step/s (-1.1% vs .375).
+    model_name = 'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedWriteNormStaticGate'
+    rmt_static_write_gates = True
+    rmt_record_write_scale_health = True
+    checkpoint_period = 200
+    keep_period = 1000
+    max_to_keep = 2
+    compare_runs = ['RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedWriteNorm',
+                    'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScale']
+    jax_cache_dir = ''
+
+
 class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedEmbedWriteNorm(
     RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedEmbedNorm):
     """Normalize static embedding contents; share that norm with dynamic embedding write."""

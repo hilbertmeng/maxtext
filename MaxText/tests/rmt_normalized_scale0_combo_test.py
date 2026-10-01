@@ -24,7 +24,7 @@ class NormalizedScale0ComboTest(unittest.TestCase):
                    if repr(cfg.get_keys()[k]) != repr(parent.get_keys().get(k))}
     self.assertEqual(differences - {'model_name', 'exp_class', 'compare_runs',
                                    'base_output_directory', 'tensorboard_dir',
-                                   'checkpoint_dir', 'metrics_dir'},
+                                   'checkpoint_dir', 'metrics_dir', 'bucket_logging_dir'},
                      {'rmt_embedding_seed_key_zero_init', 'rmt_embedding_static_write_scale'})
     self.assertFalse(cfg.rmt_embedding_seed_key_zero_init)
     self.assertEqual(cfg.rmt_embedding_static_write_scale, 0.)

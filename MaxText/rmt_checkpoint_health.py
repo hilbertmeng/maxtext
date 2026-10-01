@@ -38,6 +38,16 @@ def parameter_stats(params, grads=None, scan_axis=1):
                  gradient_l2=jnp.sqrt(jnp.sum(gf**2, axis=axes)),
                  parameter_gradient_dot=jnp.sum(xf * gf, axis=axes),
                  gradient_mean=jnp.mean(gf, axis=axes))
+    if 'layers' in path and 'mlp' in path and path[-1] == 'kernel' and x.ndim == 3:
+      xm = jnp.moveaxis(xf,scan_axis,0)
+      unit_axis = 2 if path[-2] in ('wi_0','wi_1') else 1
+      if path[-2] in ('wi_0','wi_1','wo'):
+        ids = [i for i in (5363,3073,4107,5817) if i<xm.shape[unit_axis]]
+        row['inspected_unit_ids'] = jnp.asarray(ids)
+        if unit_axis==2:
+          row['inspected_unit_weight_l2'] = jnp.sqrt(jnp.sum(xm[:,:,jnp.asarray(ids)]**2,axis=1))
+        else:
+          row['inspected_unit_weight_l2'] = jnp.sqrt(jnp.sum(xm[:,jnp.asarray(ids),:]**2,axis=2))
     if path[-1] == 'logits_dense':
       row['vocab_common_weight_rms'] = jnp.sqrt(jnp.mean(jnp.mean(xf,-1)**2))
       if g is not None:

@@ -316,6 +316,11 @@ class MlpBlock(nn.Module):
     if self.use_pre_norm:
       inputs = normalizations.get_rmsnorm("mlp_layer_norm", cfg)(inputs)
 
+    if probe_layer_index is not None and not self.is_initializing():
+      from rmt_health_instrumentation import activation_geometry, activation_tail
+      activation_geometry(inputs, probe_layer_index, 'mlp_input')
+      activation_tail(inputs, probe_layer_index, 'mlp_input', cfg.num_decoder_layers)
+
     # Iterate over specified MLP input activation functions.
     # e.g. ('relu',) or ('gelu', 'linear') for gated-gelu.
     activations = []

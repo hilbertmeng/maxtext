@@ -71,3 +71,16 @@ User-directed baseline removal2026-10-01: old XL combination is dominated
 by B; remove it from all other experiments' compare_runs, retaining its
 ledger/data and prior historical analysis. AllLocal and new XL registry
 comparisons now use B, MHA and Mudd; LLF retains AllLocal/MHA/Mudd.
+
+Medium Scale0 combination2026-10-01 (user-directed):
+`RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedWriteNormEmbedScale0`
+derives from combined SeedZero and changes only static embedding scale1->0
+and seed zero-init True->False (the disabled seed retains Gaussian init).
+All normalized layer-write/learned-scale flags and MLP4100/budget unchanged.
+Trainer `xd-v5p-16-2910014-maxtext`, UE5a only, plan13500, reviews2800/5000,
+normal1000-step reports. Checkpoints save200, keep1000, latest2. Direct
+baselines: combined SeedZero, standalone Scale0, B. Bet terminal versus
+combined SeedZero-.001; .371step/s flat. Retained STANDARD compiler0 is
+borrowed without lifecycle ownership. Targeted CPU checks cover exact scope,
+full parameter budget, zero static-write health, seed invariance and zero
+seed gradient alongside finite scanned gradients and live dynamic address.

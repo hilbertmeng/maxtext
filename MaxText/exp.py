@@ -10280,7 +10280,7 @@ class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearne
     RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedEmbedWriteNormScale006):
     """Zero static embedding write; retain the parent parameter tree and normalized dynamic content."""
     # code_commit: 49623a7; UE5a v5p-16 ~.372 step/s, flat vs Scale006/SharedEmbedNorm .371.
-    # Completed13500: last5 vs SharedEmbedNorm -.005587, late advantage stable.
+    # Completed13500: last5 vs SharedEmbedNorm -.005587 / standalone SharedWriteNorm -.002884; late advantage stable.
     # Vs Scale006 last5(common through12400) -.002454; final SeedZero-Scale0 +.000012, effectively tied.
     model_name = 'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedEmbedWriteNormScale0'
     rmt_embedding_static_write_scale = 0.

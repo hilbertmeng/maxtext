@@ -204,3 +204,11 @@ longer holds; remaining controlled difference mostly SeedZero penalty.
 Continue5000 only to evaluate originalSharedWriteNorm~4400 late onset.
 Normal nextreport4000, then5000 review. Full cumulative artifact:
 /data0/xd/bam_diagnostics/rmt-readnorm-launch/medium-scale0-combo-2800-cumulative.md.
+
+Standalone alternatives terminal12600-13400: Scale0-SharedWriteNorm
+-.002884 mean (range-.003820..-.002387); versus sharedLearnedScale
+-.005437 vs-.002553. Scale0 .372 vs SharedWriteNorm .375 step/s (-.8%).
+PreferScale0 for loss; SeedZero-Scale0+.000012 remains a terminal tie.
+Use each pair's exact available windows: B stops5575 and must not truncate
+the completed Scale0/SharedWriteNorm terminal comparison. Artifact:
+/data0/xd/bam_diagnostics/rmt-readnorm-launch/standalone-scale0-sharedwrite-final-compare.json.

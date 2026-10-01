@@ -11683,9 +11683,9 @@ class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearne
     RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedWriteNorm):
     """Zero-initialize learnable attention/MLP static write addresses."""
     # Implementation: codex/rmt-xlprop-noo, /data0/xd/rmt-xlprop-noo; pure JAX, layer scan.
-    # Bet: terminal vs SharedWriteNorm -.002; .375 step/s, flat. Review2800/5000.
     # code_commit: 8caa48d; UE5a v5p-16 ~.375 step/s, flat vs matched SharedWriteNorm .3748.
-    # Through2800 vs SharedWriteNorm: crossed behind2000, last5+.001102 and widening; continue5000.
+    # Stopped5144 at5000 review: vs SharedWriteNorm behind since2000; last5 +.002355, widening.
+    # No speed benefit; embedding zero-init gain did not transfer to layer static write addresses.
     model_name = 'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedWriteNormStaticKeyZeroInit'
     rmt_attn_write_key_zero_init = True
     rmt_mlp_write_key_zero_init = True

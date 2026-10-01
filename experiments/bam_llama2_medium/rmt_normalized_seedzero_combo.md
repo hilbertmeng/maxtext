@@ -311,3 +311,18 @@ windows. Complete configs differ in embeddingW_content (absent/retained)
 and compensatedMLP4100/4078, withLearnedScale and layerSharedWriteNorm
 common. Artifact scale0-combo-vs-sharedwrite-6000.{json,md}, helper
 compare_scale0_combo_standalone_sharedwrite.py, under taskdiagnosticroot.
+
+XL BAM batch34000/16000: AllLocal last5 vsMHA-.065803 / Mudd+.006962,
+Mudd gain.901x; deficit modestly higher than prior+.006203, not rapid
+late divergence. B common17500 unchanged-.000279. LLF last5 vsAllLocal
+-.027244 / MHA-.109724 / Mudd-.026602, Mudd gain1.327x; pairedAllLocal
+advantage stable. Speeds.355/.359 (+1.1%LLF); unmatchedcross-family
+health comparisons remain reference-only. Health stable: AllLocalfinal
+localVgate.104/localOgate.361; finalF fetchedOgate.401, amplitude3.878.
+Artifact xl-34000-16000-cumulative.md undertaskdiagnosticroot. LLF16000
+event was delayed despite fresh liveprogress>16160; explicitly materialized
+with emit-report --observed-step16160 and pulled pending-report. Live
+status16281/.356 and checkpoint advancement exclude actualtrainingstall.
+Task watcher now uses status--json live step for review readiness, rather
+than treating the periodically updated registry's old progress as live.
+No training/runtime or globalorchestration source changed.

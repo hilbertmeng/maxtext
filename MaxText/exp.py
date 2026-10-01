@@ -10293,8 +10293,9 @@ class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearne
     RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedEmbedWriteNorm):
     """Initially zero, fully learnable static embedding address; static scale remains one."""
     # code_commit: 9dfa158; UE5a v5p-16 ~.373 step/s, flat vs Scale0 .372 / Scale006 .371.
-    # Through5200: early lead narrows, then holds; last5 vs Scale0 -.001622 / Scale006 -.003225 / SharedEmbedNorm -.006418.
-    # Review5000: continue; still best embedding arm, matched speed flat.
+    # Completed13500; last5 vs SharedEmbedNorm -.005575 (12600-13400), nearly flat late.
+    # Vs Scale0 last5 -.000382 through12400; small early advantage largely vanished.
+    # Vs Scale006 last5 -.002895 through12400; static address may learn back after zero init.
     model_name = 'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedEmbedWriteNormSeedKeyZeroInit'
     rmt_embedding_seed_key_zero_init = True
     rmt_embedding_static_write_scale = 1.
@@ -10302,7 +10303,6 @@ class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearne
                     'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedEmbedWriteNormScale006',
                     'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedEmbedNorm']
     jax_cache_dir = ''
-
 
 class RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOQKPreNorm(RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoO):
     """Parameter-free qk matrix-read pre-norm; original VectorNorm controls retained."""

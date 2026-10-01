@@ -11740,3 +11740,17 @@ class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearne
                     'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedEmbedWriteNormScale0',
                     'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNorm']
     jax_cache_dir = ''
+
+
+class RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOMPreNormLearnedScaleSharedWriteNormEmbedScale0(
+    RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOMPreNormLearnedScaleSharedWriteEmbedNormSeedKeyZeroInit):
+    """Disable static embedding writes while retaining normalized layer writes."""
+    # Implementation: codex/rmt-xlprop-noo, /data0/xd/rmt-xlprop-noo; pure JAX, layer scan.
+    # Bet vs combined SeedZero -.005@17500; ~.307 step/s (flat); reviews10000/17500.
+    model_name = 'RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOMPreNormLearnedScaleSharedWriteNormEmbedScale0'
+    rmt_embedding_seed_key_zero_init = False
+    rmt_embedding_static_write_scale = 0.
+    compare_runs = ['RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOMPreNormLearnedScaleSharedWriteEmbedNormSeedKeyZeroInit',
+                    'RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOMPreNorm',
+                    'Llama2XLPropTruePileMHA', 'MuddLlama2XLProp']
+    jax_cache_dir = ''

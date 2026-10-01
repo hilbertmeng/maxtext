@@ -231,3 +231,28 @@ Keep5000 review and1000-step cadence. SeedZero combo stopped4879, so
 its last mature comparison window is4800; do not let this truncate
 Scale0's other comparisons or mislabel4800 as5000. Full cumulative:
 /data0/xd/bam_diagnostics/rmt-readnorm-launch/medium-scale0-combo-4000-cumulative.md.
+
+XL BAM batch32000/14000: AllLocal last5 vs MHA-.066349, Mudd+.006203;
+Mudd-relative gain.910x. Recent two report batches deficit~+.0062 is flat,
+not continuing clear deterioration. LLF-AllLocal-.027440, Mudd-.027633,
+MHA-.113541; Mudd gain1.322x. AllLocal B comparison frozen17500-.000279.
+Full artifact xl-32000-14000-cumulative.md in common launch artifact root.
+New RMT retains6000 report target; no intermediate supplement.
+
+User-directed2026-10-01: retain Medium Scale0 combination beyond5000 even
+if behind standaloneScale0. SharedWriteNorm is an XL-stability candidate;
+Medium relative loss alone is not the stop criterion for the combination.
+
+XL Scale0 combination: RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOMPreNormLearnedScaleSharedWriteNormEmbedScale0,
+trainer xd-v5p-32-2910015-maxtext, UE5a only,50000 steps.
+Derive from the active SeedZero combination, change only embedding static
+scale1->0 and seed zero-initTrue->False. Dynamic embedding content projection
+remains absent, dynamic address remains active; MLP6643/budget1432453720,
+LearnedScale, SharedWriteNorm, raw-M VectorNorm, all forward health metrics,
+checkpoint250/keep4000/latest2 unchanged. Pure JAX, ordinary layer scan.
+Baselines activeSeedZero,B,MHA,Mudd;2000-step batches,500-step loss windows.
+Reviews10000/17500. Bet vsSeedZero-.005@17500; speed~.307 flat.
+Track final/penultimate rawMLP RMS, static/dynamic write RMS, carry RMS,
+dM/M, ratios/gates and Mudd-relative gain. No early elimination based only
+on Medium additivity failure. Compiler0 was recreated as FLEX_START and
+WAITING_FOR_RESOURCES atpreparation; never adopt its lifecycle ownership.

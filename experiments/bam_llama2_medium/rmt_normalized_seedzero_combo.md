@@ -101,3 +101,11 @@ combined SeedZero .371, effectively flat). Worker confirms pure layer scan,
 static embedding scale0/seed zero-initFalse, layer shared write norm and
 learned scales/health on; checkpoint200/keep1000/latest2 and zone-local
 UE5a TruePile4096. Compiler is retained and excluded from lifecycle cleanup.
+
+User restored normal report frequency: Medium~1000 steps, XL~2000 steps;
+XL windows restored500. New XL combination through2000 remains ahead of B:
+500/1000/1500/2000 gaps -.008595/-.008975/-.007765/-.006965. Lead narrows,
+so no claim that late XL benefit decay is solved. Mudd-relative MHA gain
+1.392x at2000 is early only. Old failed XL combination removed as a baseline.
+Embedding static RMS .0113->.0318 and mean dynamic/static cosine .359->-.001
+from1000->2000; do not infer causality from amplitude/cosine alone.

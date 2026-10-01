@@ -19,7 +19,7 @@ MLP6643;1432453720 params. M60x96,C10,R384,tail40 proxy,RoPE24; pure JAX and
 ordinary layer scan on both scales. No new matrix/vector gain or clipping.
 
 Checkpoint **save** intervals remain200/250. Explicit **retention** overrides
-inherited keep_period0/max_to_keep2: Medium retains every400, XL every1000,
+inherited keep_period0/max_to_keep2: Medium retains every1000, XL every4000,
 and each retains eight recent checkpoints. Full state includes params,
 optimizer and step; Pile progress cur_files is written alongside each save.
 No special checkpoint steps. Exact terminal checkpoint retained on clean exit.

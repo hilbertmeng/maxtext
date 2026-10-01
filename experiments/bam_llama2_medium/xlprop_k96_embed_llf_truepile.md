@@ -35,3 +35,22 @@ presence, exact27+1 scan train-step trace and absolute final-layer health tags;
 smallLLF+finalL finite CE forward/backward preserving K/V/C/QK/RoPE dimensions,
 nonzero F standardV and all four layers' gradients, existing finalL metric regression.
 CPU/AOT/training prequeue parallel; all must pass before formal launch.
+
+Runtime22c2c5c sealed and pushed. CPU gates passed: full target parameter/train
+trace, reduced LLF+finalL finite CE and gradients, and terminal-layer health
+regression. Two preparation failures were test-fixture errors, repaired without
+changing the model: model output is CE/correct/predictions rather than logits;
+the terminal-layer health fixture needed block-scan dispatch enabled.
+Preparation journal: /home/xd/.local/state/maxtext-parallel-launch/
+BamXLPropK96EmbedVOnlyQK72LLFTruePile-20260930T235543Z/.
+
+Startup verified2026-10-01 00:27UTC on UE5a xd-v5p-32-2910011-maxtext:
+AOT loaded, finite descending loss through33, actual zone-local TruePile4096
+path, inherited health/WD and9LLF+finalL configuration confirmed.
+Steps10-14 speed .359/.359/.359/.358/.359, mean.3588step/s versus
+AllLocal.355 (+1.07%). Both generic+concat health ON; L/F and all-L metric
+composition differs. Against Mudd.461 and MHA.543, speed deltas are-22.17%
+and-33.92%, with extra BAM health absent on those baselines. The speed bet
+was slight slowdown; observed startup is broadly flat/slightly faster.
+No unexplained large timing deviation. Continue paired loss reports about
+2000steps apart, using500-step windows.

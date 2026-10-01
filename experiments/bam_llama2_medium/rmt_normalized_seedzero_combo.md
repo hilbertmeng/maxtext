@@ -109,3 +109,10 @@ so no claim that late XL benefit decay is solved. Mudd-relative MHA gain
 1.392x at2000 is early only. Old failed XL combination removed as a baseline.
 Embedding static RMS .0113->.0318 and mean dynamic/static cosine .359->-.001
 from1000->2000; do not infer causality from amplitude/cosine alone.
+
+Medium combined SeedZero2800 review: last5 vs SeedZero+.009353,
+SharedWriteNorm+.002013, B+.000461, originalNoO+.005221. SeedZero
+deficit shrank2000-2600 before2800 bounce; no positive additive evidence.
+Continue5000 to observe the historical~4400 normalized-write benefit onset
+and retain same-stage direct control for Scale0. Initial-.002 bet is
+unsupported; this is an unresolved late outcome, not an observed gain.

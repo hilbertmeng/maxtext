@@ -11696,7 +11696,7 @@ class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearne
     # Implementation: codex/rmt-xlprop-noo, /data0/xd/rmt-xlprop-noo; pure JAX, layer scan.
     # code_commit: 4cd403f; UE5a v5p-16 ~.371 step/s (-.5% vs SeedZero .373); dynamic health ON.
     # Bet terminal vs SeedZero -.002; ~.373 step/s (flat); reviews2800/5000.
-    # Through2000: vs SeedZero deficit widens; last5 +.008874; early B/NoO gains reverse at1800/1400.
+    # Through2800: last5 vs SeedZero +.009353 / SharedWriteNorm +.002013; B flat, NoO +.005221; continue5000.
     model_name = 'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedWriteNormEmbedSeedZero'
     rmt_static_write_content_norm = True
     checkpoint_period = 200

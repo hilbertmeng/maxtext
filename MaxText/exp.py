@@ -10280,22 +10280,20 @@ class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearne
     RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedEmbedWriteNormScale006):
     """Zero static embedding write; retain the parent parameter tree and normalized dynamic content."""
     # code_commit: 49623a7; UE5a v5p-16 ~.372 step/s, flat vs Scale006/SharedEmbedNorm .371.
-    # Through5200: vs Scale006 small lead holds (last5 -.001603); vs SharedEmbedNorm -.004796.
-    # Review5000: continue; transient1400 reversal recovered by1600.
+    # Completed13500: last5 vs SharedEmbedNorm -.005587, late advantage stable.
+    # Vs Scale006 last5(common through12400) -.002454; final SeedZero-Scale0 +.000012, effectively tied.
     model_name = 'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedEmbedWriteNormScale0'
     rmt_embedding_static_write_scale = 0.
     compare_runs = ['RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedEmbedWriteNormScale006',
                     'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedEmbedNorm']
     jax_cache_dir = ''
 
-
 class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedEmbedWriteNormSeedKeyZeroInit(
     RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedEmbedWriteNorm):
     """Initially zero, fully learnable static embedding address; static scale remains one."""
     # code_commit: 9dfa158; UE5a v5p-16 ~.373 step/s, flat vs Scale0 .372 / Scale006 .371.
-    # Completed13500; last5 vs SharedEmbedNorm -.005575 (12600-13400), nearly flat late.
-    # Vs Scale0 last5 -.000382 through12400; small early advantage largely vanished.
-    # Vs Scale006 last5 -.002895 through12400; static address may learn back after zero init.
+    # Completed13500: last5 vs SharedEmbedNorm -.005575, nearly flat late.
+    # Final SeedZero-Scale0 +.000012; early lead vanished. Vs Scale006 common through12400 -.002895.
     model_name = 'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedEmbedWriteNormSeedKeyZeroInit'
     rmt_embedding_seed_key_zero_init = True
     rmt_embedding_static_write_scale = 1.

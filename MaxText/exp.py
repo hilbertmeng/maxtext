@@ -9583,9 +9583,9 @@ class BamMediumPropK75EmbedVOnlyQK57AllLocalTruePile(BamMediumPropK75EmbedVOnlyQ
 class BamXLPropK96EmbedVOnlyQK72AllLocalTruePile(
     Llama2XLProp, BamMediumPropK75EmbedVOnlyQK57AllLocalTruePile):
     """Proportional all-local matrix-value BAM on repaired XLProp TruePile."""
-    # code_commit: 6446a1f; UE5a v5p-32 ~.355 step/s, +15% vs combo .308; extra health differs.
+    # code_commit: 6446a1f; UE5a v5p-32 ~.355 step/s, +15.6% vs B .307; extra health differs.
     # Through26000: last5 vs MHA -.071144 / Mudd +.004746 (0.937x gain); Mudd deficit slowly widens.
-    # vs B common17500 -.000279; combo common5000 +.003461 (both stopped).
+    # vs B common17500 -.000279 (B stopped).
     model_name = 'BamXLPropK96EmbedVOnlyQK72AllLocalTruePile'
     DATASET_VARIANT = 'truepile4096'
     bam_k = 96
@@ -9610,7 +9610,6 @@ class BamXLPropK96EmbedVOnlyQK72AllLocalTruePile(
     scan_layers = True
     force_final_checkpoint = True
     compare_runs = ['RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOMPreNorm',
-                    'RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOMPreNormLearnedScaleSharedWriteEmbedNorm',
                     'Llama2XLPropTruePileMHA', 'MuddLlama2XLProp']
     jax_cache_dir = ''
 

@@ -23,6 +23,15 @@ def _record(x, layer, tag, direction):
   ss = jnp.sum(jnp.square(y))
   stats = jnp.stack((jnp.sqrt(ss / y.size), jnp.sqrt(ss), jnp.max(jnp.abs(y))))
   jax.debug.callback(partial(_emit, tag, direction), layer, stats)
+  if direction == 'backward' and tag.endswith('mlp_write/content_raw'):
+    token_rms = jnp.sqrt(jnp.mean(y*y,axis=tuple(range(2,y.ndim)))).reshape(-1)
+    def emit_token_grad(l, values):
+      filename = os.environ.get('RMT_NORM_TAP_FILE')
+      if filename:
+        with _lock,open(filename,'a') as f:
+          f.write(json.dumps(dict(tag=tag+'_token_gradient',direction=direction,
+                                  layer=int(l),token_rms=__import__('numpy').asarray(values).tolist()))+'\n')
+    jax.lax.cond(layer>=16,lambda _:jax.debug.callback(emit_token_grad,layer,token_rms),lambda _:None,None)
 
 
 def _forward(x, layer, tag):

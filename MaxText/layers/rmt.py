@@ -658,8 +658,9 @@ class RMTLayer(nn.Module):
       if cfg.get_keys().get('rmt_remat_policy','full') in ('save_dense_state','save_state','save_state_mlp','save_state_dynamic'):
         matrix=ad_checkpoint.checkpoint_name(matrix,'rmt_mlp_matrix')
     else:
+      static_attn_data = tap(write_data, layer_index, 'static_attn_write/content_raw') if probe else write_data
       static_attn_write = jnp.einsum(
-          'btnv,nk->btkv', write_data, attn_write.astype(cfg.dtype))
+          'btnv,nk->btkv', static_attn_data, attn_write.astype(cfg.dtype))
       if dynamic:
         dynamic_attn_write, attn_write_gate = RMTDynamicWrite(
             cfg, write_rows, name='dynamic_attn_write')(
@@ -725,8 +726,9 @@ class RMTLayer(nn.Module):
                            (heads, key_dim), cfg.weight_dtype)
     write_data = (jnp.pad(vector, ((0,0),(0,0),(0,0),(0,padded_value_dim-value_dim)))
                   if padded_value_dim else vector)
+    static_mlp_data = tap(write_data, layer_index, 'static_mlp_write/content_raw') if probe else write_data
     static_mlp_write = jnp.einsum(
-        'btnv,nk->btkv', write_data, mlp_write.astype(cfg.dtype))
+        'btnv,nk->btkv', static_mlp_data, mlp_write.astype(cfg.dtype))
     if dynamic_mlp_write_enabled:
       dynamic_mlp_write, mlp_write_gate = RMTDynamicWrite(
           cfg, write_rows, name='dynamic_mlp_write')(

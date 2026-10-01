@@ -76,7 +76,7 @@ class LayerStaticKeyZeroInitTest(unittest.TestCase):
     np.testing.assert_allclose(out, expected, rtol=2e-5, atol=2e-5)
     self.assertTrue(all(np.isfinite(v).all() for v in jax.tree.leaves((value, aux, grads))))
     for key in KEYS:
-      for layer_grad in grads['decoder']['layers'][key]:
+      for layer_grad in jnp.moveaxis(grads['decoder']['layers'][key], 1, 0):
         self.assertGreater(float(jnp.linalg.norm(layer_grad)), 0.)
       params['decoder']['layers'][key] -= 1e-4 * grads['decoder']['layers'][key]
       self.assertGreater(float(jnp.linalg.norm(params['decoder']['layers'][key])), 0.)

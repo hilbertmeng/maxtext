@@ -11689,3 +11689,36 @@ class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearne
     rmt_mlp_write_key_zero_init = True
     compare_runs = ['RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedWriteNorm']
     jax_cache_dir = ''
+
+class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedWriteNormEmbedSeedZero(
+    RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedEmbedWriteNormSeedKeyZeroInit):
+    """Combine learned full-M scales, zero seed and shared normalized layer writes."""
+    # Implementation: codex/rmt-xlprop-noo, /data0/xd/rmt-xlprop-noo; pure JAX, layer scan.
+    # Bet terminal vs SeedZero -.002; ~.373 step/s (flat); reviews2800/5000.
+    model_name = 'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedWriteNormEmbedSeedZero'
+    rmt_static_write_content_norm = True
+    checkpoint_period = 200
+    keep_period = 400
+    max_to_keep = 8
+    compare_runs = ['RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedEmbedWriteNormSeedKeyZeroInit',
+                    'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedWriteNorm',
+                    'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNorm',
+                    'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoO']
+    jax_cache_dir = ''
+
+
+class RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOMPreNormLearnedScaleSharedWriteEmbedNormSeedKeyZeroInit(
+    RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOMPreNormLearnedScaleSharedWriteEmbedNorm):
+    """Zero static embedding seed in the learned-scale/shared-write XL combination."""
+    # Implementation: codex/rmt-xlprop-noo, /data0/xd/rmt-xlprop-noo; pure JAX, layer scan.
+    # Bet vs B -.008@17500; ~.307 step/s (flat); early windows200/400 then500.
+    model_name = 'RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOMPreNormLearnedScaleSharedWriteEmbedNormSeedKeyZeroInit'
+    rmt_embedding_seed_key_zero_init = True
+    rmt_embedding_static_write_scale = 1.
+    checkpoint_period = 250
+    keep_period = 1000
+    max_to_keep = 8
+    compare_runs = ['RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOMPreNorm',
+                    'RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOMPreNormLearnedScaleSharedWriteEmbedNorm',
+                    'Llama2XLPropTruePileMHA', 'MuddLlama2XLProp']
+    jax_cache_dir = ''

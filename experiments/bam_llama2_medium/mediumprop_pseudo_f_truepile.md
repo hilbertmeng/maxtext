@@ -9,3 +9,5 @@ Per pseudo F, W_V adds1440000, static V removes512 and V gate removes19216: net1
 Four architecture cells: AllLocal(matrix V/local O), MatrixV LLF(matrix V/fetched O), pseudo F(vector V/local O), originalLLF(vector V/fetched O). This tests the MLP->x->V->attention->M content route from both opening and closing directions, including its MLP parameter opportunity cost.
 
 Bet terminal pseudoF-AllLocal -.020, pseudoF-originalLLF +.008; speed .525step/s (~-.4% vs AllLocal.5271, flat versus originalLLF.525). Direct baselines also include the new MatrixVLLF arm. Plan13500, checkpoint200/persistent1000/latest2, pureJAX. Review2800/5000; preserve mechanistic ablation value even if it loses to originalLLF.
+
+Runtime `9d6d77de57d093dcf9d07e9c94bf87c11ba0b42e`; CPU/AOT/sealed config passed. FIRST_STEP0, reached108; compiled function loaded and UE5a-local TruePile path verified. Actual pseudo F local O/static O metrics appear in layers2/5/17, with no local V/fetched O gates. Speed20-99 median0.541, +2.6% vs AllLocal.5271, +3.0% vs originalLLF.525, +5.5% vs MatrixVLLF.513; extra concat-health differs. Startup proofs `/data0/xd/bam_diagnostics/rmt-readnorm-launch/pseudo-f-*`.

@@ -9583,6 +9583,8 @@ class BamMediumPropK75EmbedVOnlyQK57PseudoFTruePile(BamMediumPropK75EmbedVOnlyQK
     # Implementation: codex/mediumprop-k75-embed; /data0/xd/mediumprop-k75-embed.
     # Opens MLP->x->V->attention->M without fetchedO; local O keeps static+dynamic reads.
     # Common MHA budget: L3901/pseudoF3507; V matrix reads/gates removed only in pseudoF.
+    # code_commit: 9d6d77d; UE5a v5p-16 0.541 step/s (20-99); +2.6% vs AllLocal / +3.0% vs originalLLF.
+    # Basic+concat health ON; pseudoF omits V health, so timing is not strictly matched.
     # Bet terminal vs AllLocal -.020 / original LLF +.008; speed .525 (~-.4% vs AllLocal .5271).
     model_name = 'BamMediumPropK75EmbedVOnlyQK57PseudoFTruePile'
     bam_layer_modes = ['local_qk+local_v+local_o', 'local_qk+local_v+local_o',
@@ -9643,6 +9645,7 @@ class BamXLPropK96EmbedVOnlyQK72AllLocalTruePile(
     # code_commit: 6446a1f; UE5a v5p-32 ~.355 step/s, +15.6% vs B .307; extra health differs.
     # Through36000: last5 vs MHA -.064989 / Mudd +.006831 (0.899x gain); Mudd deficit holds ~+.007.
     # vs B common17500 -.000279 (B stopped).
+    # Paused37463 by user; checkpoint committed; conclusions above remain provisional.
     model_name = 'BamXLPropK96EmbedVOnlyQK72AllLocalTruePile'
     DATASET_VARIANT = 'truepile4096'
     bam_k = 96

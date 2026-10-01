@@ -58,13 +58,13 @@ class CheckpointHealthTest(unittest.TestCase):
       path=('params','decoder','layers','mlp','wo','kernel');axis=cfg.param_scan_axis
       leaf=jnp.take(flat[path],cfg.num_decoder_layers-1,axis=axis)
       cfg.get_keys()['rmt_health_gradient_split']=True
-      def loss(w,masks):
-        f=dict(flat);idx=[slice(None)]*f[path].ndim;idx[axis]=cfg.num_decoder_layers-1
+      def loss(source,w,masks):
+        f=flatten_dict(source);idx=[slice(None)]*f[path].ndim;idx[axis]=cfg.num_decoder_layers-1
         f[path]=f[path].at[tuple(idx)].set(w)
         f[('params','decoder','layers','health_write_gradient_masks')]=jnp.moveaxis(masks,1,axis)
         return jnp.mean(model.apply(unflatten_dict(f),**args)[0])
-      run=jax.jit(jax.value_and_grad(loss,argnums=0));m=jnp.ones((2,cfg.num_decoder_layers))
-      a,g=run(leaf,m);b,gs=run(leaf,m.at[1,-1].set(0));c,gd=run(leaf,m.at[0,-1].set(0))
+      run=jax.jit(jax.value_and_grad(loss,argnums=1));m=jnp.ones((2,cfg.num_decoder_layers))
+      a,g=run(params,leaf,m);b,gs=run(params,leaf,m.at[1,-1].set(0));c,gd=run(params,leaf,m.at[0,-1].set(0))
     np.testing.assert_allclose([a,a],[b,c],rtol=1e-6,atol=1e-6)
     np.testing.assert_allclose(g,gs+gd,rtol=2e-5,atol=2e-6)
 

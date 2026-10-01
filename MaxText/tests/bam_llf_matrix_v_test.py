@@ -23,9 +23,9 @@ with tempfile.TemporaryDirectory() as out:
    assert len(values)==1 and '/fetch_2/' in values[0],values
    continue
   assert c.DATASET_VARIANT=='truepile4096' and c.bam_pair_scan and c.scan_layers
-  assert c.mlp_dim_by_block==[3901,3901,3897]
+  assert c.mlp_dim_by_block==[3901,3901,3896]
   assert not values,values
-  assert counts[exp]==432117152,counts
+  assert counts[exp]==432095552,counts
   for arm in ('static_v_key','W_lv_gate'):
    assert any('/fetch_2/' in '/'.join(p) and arm in p for p in leaves),arm
   assert not any('/fetch_2/' in '/'.join(p) and 'static_o_key' in p for p in leaves)
@@ -34,6 +34,8 @@ with tempfile.TemporaryDirectory() as out:
   for p,v in leaves.items():
    for stage in ('local_0','local_1','fetch_2'):
     if stage in p:per[stage]=per.get(stage,0)+int(np.prod(v.shape))//6
+  assert per['fetch_2']-per['local_0']==704,per
+  assert 18704-5*3600==704
   print('FULL_BUDGET_OK',counts,per,flush=True)
   with mesh,nn.partitioning.axis_rules(c.logical_axis_rules):
    metrics=jax.eval_shape(functools.partial(train.train_step,model,c,sharding),*args,**kw)[1]

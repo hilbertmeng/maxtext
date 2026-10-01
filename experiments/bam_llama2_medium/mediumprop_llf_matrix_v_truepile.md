@@ -7,7 +7,7 @@ Direct controls: `BamMediumPropK75EmbedVOnlyQK57TruePile` and `BamMediumPropK75E
 
 Only F-layer V changes: remove the full W_V; use a full-M static32->16 read plus dynamically gated C8 local-M read. V shares the existing fetched-O W_R projection and compression, with its own gate; fetched O remains a dynamic read of the unchanged fetched state, without a static projection. F has no local O. Compression is evaluated once for local V and fetch. All L layers are unchanged.
 
-Each F removes 1,440,000 parameters and adds 19,728 (static512 + gate19,200 + gate bias16), net saving1,420,272 (.9863 W_Q). F MLP3502->3897; L3901. New total432,117,152 versus original LLF432,106,784; difference10,368 (.0024%). New gates/static V use the L recipe's initialization and normalization. PureJAX only. Checkpoints every200; persistent1000; latest2; plan13500.
+Each F removes 1,440,000 parameters and adds 19,728 (static512 + gate19,200 + gate bias16), net saving1,420,272 (.9863 W_Q). F MLP3502->3896; L3901. New total432,095,552 versus original LLF432,106,784; difference-11,232 (-.0026%). Relative to AllLocal, each F adds fetch_head_mix19,216 and removes static_o_key512, net18,704 (.01299 W_Q). F3896 is the nearest integer width against the common MHA budget, rather than preserving the previous F rounding error. New gates/static V use the L recipe's initialization and normalization. PureJAX only. Checkpoints every200; persistent1000; latest2; plan13500.
 
 Bet terminal: new minus AllLocal -.015, new minus original LLF +.013. Speed .523step/s versus original LLF .525 (-.4%) and AllLocal .5271 (-.8%). The hypothesis is that restoring free W_V accounts for an important portion of the original LLF benefit; retained fetched O should still help.
 

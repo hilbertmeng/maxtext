@@ -9582,12 +9582,12 @@ class BamMediumPropK75EmbedVOnlyQK57LLFMatrixVTruePile(BamMediumPropK75EmbedVOnl
     """LLF with matrix-only V in every layer; F retains the original fetched O."""
     # Implementation: codex/mediumprop-k75-embed; /data0/xd/mediumprop-k75-embed.
     # F V: full-M static32->16 plus C8 dynamic, W_R shared with fetched O; independent V/O gates.
-    # Per-layer budget: L3901/F3897; no standard W_V in any layer.
+    # Per-layer budget: L3901/F3896; no standard W_V in any layer.
     # Bet terminal vs AllLocal -.015 / original LLF +.013; .523 step/s (~-.4% vs .525).
     model_name = 'BamMediumPropK75EmbedVOnlyQK57LLFMatrixVTruePile'
     bam_layer_modes = ['local_qk+local_v+local_o', 'local_qk+local_v+local_o',
                        'local_qk+local_v+full'] * 6
-    mlp_dim_by_block = [3901, 3901, 3897]
+    mlp_dim_by_block = [3901, 3901, 3896]
     checkpoint_period = 200
     keep_period = 1000
     max_to_keep = 2

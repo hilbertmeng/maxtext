@@ -9618,7 +9618,7 @@ class BamXLPropK96EmbedVOnlyQK72LLFTruePile(BamXLPropK96EmbedVOnlyQK72AllLocalTr
     """Nine LLF blocks plus a terminal L, same proportional matrix-value recipe."""
     # code_commit: 22c2c5c
     # !? UE5a ~.359 step/s (+1.1% vs AllLocal .355), opposite bet -1.4%; speed anomaly unresolved; generic+concat health ON.
-    # Through16000: last5 vs AllLocal -.027244 / Mudd -.026602 / MHA -.109724; Mudd gain1.327x; AllLocal lead stable.
+    # Through18000: last5 vs AllLocal -.027016 / Mudd -.025641 / MHA -.106873; Mudd gain1.296x; AllLocal lead stable.
     # Bet terminal vs AllLocal -.025; .350 step/s (~-1.4% vs .355).
     # Per-layer nearest MHA budget: L6294/F5654, terminal L6294; total1,432,418,340 (+19,620 vs MHA).
     model_name = 'BamXLPropK96EmbedVOnlyQK72LLFTruePile'

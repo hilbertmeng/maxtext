@@ -48,6 +48,11 @@ def parameter_stats(params, grads=None, scan_axis=1):
           row['inspected_unit_weight_l2'] = jnp.sqrt(jnp.sum(xm[:,:,jnp.asarray(ids,dtype=jnp.int32)]**2,axis=1))
         else:
           row['inspected_unit_weight_l2'] = jnp.sqrt(jnp.sum(xm[:,jnp.asarray(ids,dtype=jnp.int32),:]**2,axis=2))
+        if g is not None:
+          gm = jnp.moveaxis(g[path].astype(jnp.float32),scan_axis,0)
+          selected = gm[:,:,jnp.asarray(ids,dtype=jnp.int32)] if unit_axis==2 else gm[:,jnp.asarray(ids,dtype=jnp.int32),:]
+          row['inspected_unit_gradient_l2'] = jnp.sqrt(jnp.sum(selected**2,axis=1 if unit_axis==2 else 2))
+          row['inspected_unit_gradient_energy_fraction'] = jnp.sum(selected**2,axis=(1,2))/jnp.maximum(jnp.sum(gm**2,axis=(1,2)),1e-30)
     if path[-1] == 'logits_dense':
       row['vocab_common_weight_rms'] = jnp.sqrt(jnp.mean(jnp.mean(xf,-1)**2))
       if g is not None:

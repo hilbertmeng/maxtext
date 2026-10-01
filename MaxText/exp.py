@@ -10256,8 +10256,8 @@ class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearne
     """Independent token/head gates on normalized static attention and MLP writes."""
     # Implementation: codex/rmt-xlprop-noo, /data0/xd/rmt-xlprop-noo; pure JAX, layer scan.
     # code_commit: d5c607f; UE5a v5p-16 ~.367 step/s (-2.1% vs SharedWriteNorm .375); extra write/gate health ON.
-    # Through2000: last5 vs SharedWriteNorm +.002301 (2000 -.000281); vs LearnedScale +.003570; sustained gain not established.
-    # Bet vs SharedWriteNorm -.001@2800 / -.003 terminal; ~.371 step/s (-1.1% vs .375).
+    # Stopped2906 at2800 review; vs SharedWriteNorm persistent~+.003-.005 (last5+.003186), vs LearnedScale last5+.004435.
+    # Static gates suppress early writes but retain terminal MLP (~.992); no loss/speed benefit. TB synced.
     model_name = 'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedWriteNormStaticGate'
     rmt_static_write_gates = True
     rmt_static_write_gate_init = .9

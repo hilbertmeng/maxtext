@@ -11699,7 +11699,7 @@ class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearne
     rmt_static_write_content_norm = True
     checkpoint_period = 200
     keep_period = 1000
-    max_to_keep = 8
+    max_to_keep = 2
     compare_runs = ['RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedEmbedWriteNormSeedKeyZeroInit',
                     'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedWriteNorm',
                     'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNorm',
@@ -11717,7 +11717,7 @@ class RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOMPreNormLearnedSca
     rmt_embedding_static_write_scale = 1.
     checkpoint_period = 250
     keep_period = 4000
-    max_to_keep = 8
+    max_to_keep = 2
     compare_runs = ['RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOMPreNorm',
                     'RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOMPreNormLearnedScaleSharedWriteEmbedNorm',
                     'Llama2XLPropTruePileMHA', 'MuddLlama2XLProp']

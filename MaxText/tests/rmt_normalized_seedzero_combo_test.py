@@ -16,8 +16,8 @@ class NormalizedSeedZeroComboTest(unittest.TestCase):
 
   def test_target_budgets_and_scope(self):
     for name, count, heads, rows, width, keep, recent in (
-        (MEDIUM,431888672,16,48,4100,1000,8),
-        (XL,1432453720,20,60,6643,4000,8)):
+        (MEDIUM,431888672,16,48,4100,1000,2),
+        (XL,1432453720,20,60,6643,4000,2)):
       cfg = self.config(name)
       for flag in ("rmt_matrix_read_learned_scale", "rmt_static_write_content_norm",
                    "rmt_layer_write_content_norm", "rmt_embedding_shared_content",

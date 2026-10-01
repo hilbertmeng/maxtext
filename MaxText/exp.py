@@ -9585,9 +9585,9 @@ class BamMediumPropK75EmbedVOnlyQK57PseudoFTruePile(BamMediumPropK75EmbedVOnlyQK
     # Common MHA budget: L3901/pseudoF3507; V matrix reads/gates removed only in pseudoF.
     # code_commit: 9d6d77d; UE5a v5p-16 0.541 step/s (20-99); +2.6% vs AllLocal / +3.0% vs originalLLF.
     # Basic+concat health ON; pseudoF omits V health, so timing is not strictly matched.
-    # Through2800: AllLocal advantage grows (last5-.015391); originalLLF+.007613 stable; MatrixVLLF-.008366 growing.
-    # Route and fetchedO effects nearly additive (last5 interaction-.000588); continue5000.
-    # Bet terminal vs AllLocal -.020 / original LLF +.008; speed .525 (~-.4% vs AllLocal .5271).
+    # Through5000: AllLocal advantage grows (last5-.020183); originalLLF gap narrows(last5+.005034); MatrixVLLF-.014754.
+    # Route and fetchedO effects nearly additive (last5 interaction+.000395); continue13500.
+    # Updated terminal bet vs AllLocal -.024 / originalLLF +.004; speed measured above.
     model_name = 'BamMediumPropK75EmbedVOnlyQK57PseudoFTruePile'
     bam_layer_modes = ['local_qk+local_v+local_o', 'local_qk+local_v+local_o',
                        'local_qk+local_o'] * 6

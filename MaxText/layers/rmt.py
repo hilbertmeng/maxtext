@@ -448,6 +448,11 @@ class RMTLayer(nn.Module):
     if probe:
       from rmt_norm_instrumentation import tap
       matrix = tap(matrix, layer_index, 'M_input')
+      if cfg.get_keys().get('rmt_crossscale_health_probe', False):
+        from rmt_health_instrumentation import matrix_structure
+        matrix_structure(matrix, layer_index, 'matrix_structure',
+                         [0, cfg.num_decoder_layers//3, 2*cfg.num_decoder_layers//3,
+                          cfg.num_decoder_layers-1])
     matrix_pre_norm = (not vector_pre_norm) or cfg.get_keys().get('rmt_probe_matrix_pre_norm', False)
     attn_in = (MatrixRMSNorm(cfg, name='attn_norm')(matrix) if matrix_pre_norm else matrix)
     if read_norm == 'all':
@@ -555,6 +560,10 @@ class RMTLayer(nn.Module):
       query, key = jax.lax.stop_gradient(query), jax.lax.stop_gradient(key)
     elif attention_grad == 'stop_v':
       value = jax.lax.stop_gradient(value)
+    if probe:
+      query = tap(query, layer_index, 'Q_total')
+      key = tap(key, layer_index, 'K_total')
+      value = tap(value, layer_index, 'V_total')
     if not fused_attention:query = query / math.sqrt(value_dim)
     t = matrix.shape[1]
     chunk = int(cfg.query_chunk_size)
@@ -589,6 +598,11 @@ class RMTLayer(nn.Module):
             float32_logits=cfg.float32_logits if rope_qk_dim else True,
             additive_bias=(None if rope_qk_dim else
                            _alibi_bias(heads, q0, q1, 0, q1)))
+      if (cfg.get_keys().get('rmt_crossscale_health_probe', False) and not self.is_initializing()
+          and q0 in (0, 1024, 2048, t-chunk)):
+        from rmt_health_instrumentation import attention
+        attention(alpha, query[:, q0:q1], key[:, :q1], layer_index, q0, valid,
+                  [0, cfg.num_decoder_layers//3, 2*cfg.num_decoder_layers//3, cfg.num_decoder_layers-1])
       outputs.append(y)
     head_output = jnp.concatenate(outputs, axis=1).astype(cfg.dtype)
     if dynamic:
@@ -864,7 +878,16 @@ class RMTDecoder(nn.Module):
     if scan_minor:
       matrix = matrix.transpose(0,3,1,2)
     if padded_value_dim:matrix = matrix[..., :value_dim]
+    if cfg.get_keys().get('rmt_norm_probe', False) and not self.is_initializing():
+      from rmt_norm_instrumentation import tap
+      matrix = tap(matrix, -1, 'M_before_final_norm')
     matrix = MatrixRMSNorm(cfg, name='final_matrix_norm')(matrix)
+    if cfg.get_keys().get('rmt_norm_probe', False) and not self.is_initializing():
+      matrix = tap(matrix, -1, 'M_after_final_norm')
+      if cfg.get_keys().get('rmt_crossscale_health_probe', False):
+        from rmt_health_instrumentation import matrix_structure
+        matrix_structure(matrix, jnp.asarray(-1), 'final_matrix_structure', [-1])
+
     final_read = self.param('final_read_key', nn.initializers.normal(key_dim ** -0.5),
                             (key_dim, heads), cfg.weight_dtype)
     hidden = jnp.einsum('btkv,kn->btnv', matrix, final_read.astype(cfg.dtype))
@@ -882,6 +905,8 @@ class RMTDecoder(nn.Module):
         self.sow('intermediates', 'rmt_unembedding_health',
                  _boundary_health(dynamic_read, hidden, read_gates[..., 0]))
       hidden = hidden + dynamic_read
+    if cfg.get_keys().get('rmt_norm_probe', False) and not self.is_initializing():
+      hidden = tap(hidden, -1, 'unembedding_total')
     hidden = hidden.reshape(hidden.shape[:2] + (cfg.emb_dim,))
     head = models.OutputHead(config=cfg, shared_embedding=self.shared_embedding,
                              mesh=self.mesh, quant=self.quant, name='lm_head')

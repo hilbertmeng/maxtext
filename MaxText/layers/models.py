@@ -400,6 +400,10 @@ class OutputHead(nn.Module):
       print(f'lm head chunk start_idx: {start_idx} end_idx: {end_idx}')
       chunk_slice = slice(start_idx, end_idx)
       logits_chunk = self.project_logits(inputs[:, chunk_slice])
+      if cfg.get_keys().get('rmt_crossscale_health_probe', False) and not self.is_initializing():
+        from rmt_health_instrumentation import readout
+        readout(inputs[:, chunk_slice], logits_chunk,
+                target_tokens[:, chunk_slice], target_mask[:, chunk_slice])
       preds_chunk = jnp.argmax(logits_chunk, axis=-1)
       mask_chunk = target_mask[:, chunk_slice]
       targets_chunk = target_tokens[:, chunk_slice]

@@ -53,10 +53,12 @@ class StaticWriteGateTest(unittest.TestCase):
     x = jax.random.normal(jax.random.key(1), (1, 2, 512))
     module = rmt.RMTStaticWriteGate(cfg)
     params = nn.unbox(module.init(jax.random.key(2), x)['params'])
-    gate = module.apply({'params': params}, x)
+    gate, opening = module.apply({'params': params}, x)
     np.testing.assert_array_equal(gate, 1.)
-    altered = dict(params, bias=jnp.concatenate((jnp.full((8,), -20.), jnp.zeros((8,)))))
-    closed = module.apply({'params': altered}, x)
+    np.testing.assert_allclose(opening, .9, rtol=1e-6)
+    np.testing.assert_array_equal(module.apply({'params': params}, x.astype(jnp.bfloat16))[0], 1.)
+    altered = dict(params, bias=jnp.concatenate((jnp.full((8,), -20.), params['bias'][8:])))
+    closed, _ = module.apply({'params': altered}, x)
     self.assertLess(float(jnp.max(closed[..., :8])), 1e-7)
     np.testing.assert_array_equal(closed[..., 8:], 1.)
     y = jax.random.normal(jax.random.key(3), (1, 2, 16, 32))
@@ -94,12 +96,14 @@ class StaticWriteGateTest(unittest.TestCase):
     health = aux['intermediates']['decoder']['layers']['rmt_dynamic_health'][0]
     self.assertEqual(health.shape, (2, len(names)))
     for arm in ('attn', 'mlp'):
-      np.testing.assert_array_equal(health[:, names.index(f'{arm}_static_write_gate_mean')], 1.)
+      np.testing.assert_allclose(health[:, names.index(f'{arm}_static_write_gate_mean')], .9, rtol=1e-6)
+      np.testing.assert_array_equal(health[:, names.index(f'{arm}_static_write_gate_effective_mean')], 1.)
       np.testing.assert_array_equal(health[:, names.index(f'{arm}_static_write_gate_frac_lt_005')], 0.)
     from train import record_rmt_dynamic_health_metrics
     metrics = {'scalar': {}}
     record_rmt_dynamic_health_metrics(metrics, aux, cfg)
-    self.assertEqual(float(metrics['scalar']['rmt/dynamic/layer_001/mlp_static_write_gate_mean']), 1.)
+    self.assertAlmostEqual(float(metrics['scalar']['rmt/dynamic/layer_001/mlp_static_write_gate_mean']), .9, places=6)
+    self.assertEqual(float(metrics['scalar']['rmt/dynamic/layer_001/mlp_static_write_gate_effective_mean']), 1.)
     self.assertIn('rmt/dynamic/layer_001/mlp_write_static_rms', metrics['scalar'])
 
 

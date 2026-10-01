@@ -399,3 +399,12 @@ checkpoints200/keep1000/latest2. Hotreplace MediumScale0combo on its
 UE5a xd-v5p-16-2910014-maxtext only after CPU/AOT gates. NewRUN starts0.
 Borrow llm-jax-v6e-1-0 (EW4a retainedFLEX_START), noinstallation/lifecycle
 mutation, compilein isolatedtempcheckout and neverauto-recycle.
+
+User revised staticgate initialization: sigmoid opening.9, kernelzero,
+biaslog9 and scale1/.9 (1.11111 ceiling), rather than2sigmoid opening.5.
+1.1*.9=.99 would slightlychangeinitialwrite; exact compensation chosen.
+Evaluate logits/sigmoidcompensation in fp32, then castcoefficient to
+activationdtype, preserving initialunitwrite also in bf16. Health reports
+actualsigmoid opening mean/std/min/max/fractions<.05/>.95 separately
+from effectivecoefficientmean. Attention/MLP dynamic gates unaffected.
+First prepared196810c AOT is superseded and will not be used forhandoff.

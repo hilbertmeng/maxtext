@@ -49,7 +49,7 @@ RMT_WRITE_SCALE_HEALTH_NAMES = tuple(
 
 RMT_STATIC_WRITE_GATE_HEALTH_NAMES = tuple(
     f'{arm}_static_write_gate_{stat}' for arm in ('attn', 'mlp')
-    for stat in ('mean', 'std', 'min', 'max', 'frac_lt_005', 'frac_gt_195'))
+    for stat in ('mean', 'std', 'min', 'max', 'frac_lt_005', 'frac_gt_095', 'effective_mean'))
 
 
 def _boundary_health(dynamic, static, gate):
@@ -425,20 +425,28 @@ class RMTStaticWriteGate(nn.Module):
   @nn.compact
   def __call__(self, x):
     cfg = self.config
+    opening = float(cfg.get_keys().get('rmt_static_write_gate_init', .9))
+    if not 0 < opening < 1:
+      raise ValueError('Static write gate initialization must lie strictly between zero and one')
     kernel = self.param('kernel', nn.with_logical_partitioning(
         nn.initializers.zeros, ('embed', 'q_heads')),
         (cfg.emb_dim, cfg.num_query_heads), cfg.weight_dtype)
     bias = self.param('bias', nn.with_logical_partitioning(
-        nn.initializers.zeros, ('q_heads',)),
+        _init_gate_bias(opening), ('q_heads',)),
         (cfg.num_query_heads,), cfg.weight_dtype)
-    logits = jnp.einsum('btd,dn->btn', x, kernel.astype(x.dtype)) + bias.astype(x.dtype)
-    return 2 * jax.nn.sigmoid(logits)
+    # Preserve the unit initial coefficient in bf16 too: do not round logit(.9)
+    # before evaluating the sigmoid and amplitude compensation.
+    logits = (jnp.einsum('btd,dn->btn', x, kernel.astype(x.dtype)).astype(jnp.float32)
+              + bias.astype(jnp.float32))
+    gate = jax.nn.sigmoid(logits)
+    return (gate / opening).astype(x.dtype), gate
 
 
-def _static_write_gate_health(gate):
+def _static_write_gate_health(gate, coefficient):
   gate = gate.astype(jnp.float32)
   return (jnp.mean(gate), jnp.std(gate), jnp.min(gate), jnp.max(gate),
-          jnp.mean(gate < .05), jnp.mean(gate > 1.95))
+          jnp.mean(gate < .05), jnp.mean(gate > .95),
+          jnp.mean(coefficient.astype(jnp.float32)))
 
 
 def static_layer_write(data, key, cfg, gate=None):
@@ -740,9 +748,10 @@ class RMTLayer(nn.Module):
     else:
       if record_write_scale_health:
         attn_write_carry = matrix
-      static_attn_gate = (RMTStaticWriteGate(cfg, name='static_attn_write_gate')(attn_x)
-                          if static_write_gates else None)
-      static_attn_write = static_layer_write(write_data, attn_write, cfg, static_attn_gate)
+      static_attn_coefficient, static_attn_gate = (
+          RMTStaticWriteGate(cfg, name='static_attn_write_gate')(attn_x)
+          if static_write_gates else (None, None))
+      static_attn_write = static_layer_write(write_data, attn_write, cfg, static_attn_coefficient)
       if dynamic:
         dynamic_attn_write, attn_write_gate = RMTDynamicWrite(
             cfg, write_rows, name='dynamic_attn_write')(
@@ -807,9 +816,10 @@ class RMTLayer(nn.Module):
                            (heads, key_dim), cfg.weight_dtype)
     write_data = (jnp.pad(vector, ((0,0),(0,0),(0,0),(0,padded_value_dim-value_dim)))
                   if padded_value_dim else vector)
-    static_mlp_gate = (RMTStaticWriteGate(cfg, name='static_mlp_write_gate')(mlp_x)
-                       if static_write_gates else None)
-    static_mlp_write = static_layer_write(write_data, mlp_write, cfg, static_mlp_gate)
+    static_mlp_coefficient, static_mlp_gate = (
+        RMTStaticWriteGate(cfg, name='static_mlp_write_gate')(mlp_x)
+        if static_write_gates else (None, None))
+    static_mlp_write = static_layer_write(write_data, mlp_write, cfg, static_mlp_coefficient)
     if record_write_scale_health:
       mlp_write_carry = matrix
     if dynamic_mlp_write_enabled:
@@ -860,8 +870,8 @@ class RMTLayer(nn.Module):
         values.extend(_write_scale_health(
             vector, dynamic_mlp_write, static_mlp_write, mlp_write_carry))
       if static_write_gates:
-        values.extend(_static_write_gate_health(static_attn_gate))
-        values.extend(_static_write_gate_health(static_mlp_gate))
+        values.extend(_static_write_gate_health(static_attn_gate, static_attn_coefficient))
+        values.extend(_static_write_gate_health(static_mlp_gate, static_mlp_coefficient))
       assert len(values) == len(dynamic_health_names(
           record_write_health, record_write_scale_health=record_write_scale_health,
           record_static_write_gates=static_write_gates))

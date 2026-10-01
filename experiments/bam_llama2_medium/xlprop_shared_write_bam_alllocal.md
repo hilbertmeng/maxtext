@@ -73,3 +73,29 @@ near13k, with signed gaps fluctuating close to0 since. BAM-MHA last5-.080499,
 range-.083409..-.077845. Historical B-Mudd worsened to+.001754@17500, so
 catching B does not establish BAM gains over Mudd. Speed~.355 unchanged.
 Full cumulative report /data0/xd/bam_diagnostics/rmt-readnorm-launch/xl-alllocal-17500-review.txt.
+
+
+Cross-scale comparison2026-10-01, exact five raw points in +/-20 windows,
+relative progress aligned (Medium13500 / XL50000 total). At approximately
+10/20/30/35%, BAM-B is Medium+.082452/+.051077/+.043989/+.042659 versus
+XL+.034795/+.029041/+.012454/-.000279. Medium B only covers5575, so this
+is a shared-stage comparison, not a pair of terminal outcomes.
+Mudd-relative MHA-gain ratios: Medium B1.567/1.557/1.545/1.557;
+XL B1.384/1.344/1.138/.978. BAM ratios shrink on both scales,
+Medium1.279/1.235/1.200/1.196 and XL1.069/1.027/.988/.982.
+Thus XL catch-up versus B mainly reflects loss of B's extra benefit, not a
+new growing BAM advantage. Separate common loss of competitiveness versus
+Mudd from RMT-specific late deterioration. Full-M pre-norm cured numerical
+failure but has not established healthy cross-scale learning. A proposed
+next discriminator is late address/content gradient and clipping/update-scale
+comparison against Medium B at matched progress; this is a hypothesis,
+not an established causal diagnosis. Raw comparison artifact:
+/data0/xd/bam_diagnostics/rmt-readnorm-launch/crossscale-alllocal-b-current.txt.
+
+Immediate existing-TB check rejects renewed global clipping as the late culprit:
+XL B raw-gradient medians at5000/10000/15000/17500 are.245/.232/.395/.469;
+clipped recorded samples within +/-200 are0/1of41/0/0. Medium B medians
+at1350/2700/4050/4720 are.390/.285/.268/.257. Thus XL late gradient growth
+accompanies the loss of benefit, but global clipping is not active in those
+late windows. Per-parameter update balance/conditioning remains unknown.
+Artifact crossscale-b-grad-check.json beside the comparison report.

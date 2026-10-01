@@ -26,7 +26,7 @@ No special checkpoint steps. Exact terminal checkpoint retained on clean exit.
 
 Medium baselines: SeedZero, SharedWriteNorm, B, originalNoO. Bet terminal
 versus SeedZero-.002; speed.373step/s flat. Review2800/5000; routine1000-step
-batches. XL baselines: B, old combination, TruePileMHA, Mudd. Bet versus B
+batches. XL baselines: B, TruePileMHA, Mudd. Bet versus B
 -.008@17500; speed.307step/s flat. Initial200/400 windows then500-step windows;
 reports about2000 steps. Critical outcome: whether Mudd-relative MHA gain
 keeps decaying late, not just early absolute loss gain or finite training.
@@ -46,7 +46,7 @@ checks pass55.3s; both sealed effective configurations verified. Both retained
 STANDARD AOTs verified and actual FIRST_STEP confirmed. Medium step21 throughput
 .371step/s (-.5% vs SeedZero .373), finite loss falling. Worker confirms
 checkpoint_period200/keep_period1000/max_to_keep2 and normalized layer writes,
-learned matrix gains and zero seed. XL step14 .308step/s (+.3% vs B/old combo .307); finite falling loss.
+learned matrix gains and zero seed. XL step14 .308step/s (+.3% vs B .307); finite falling loss.
 XL worker confirms checkpoint_period250/keep_period4000/max_to_keep2, all
 three combined flags and loaded AOT.
 Both datasets resolve to UE5a truepile4096, not padded records. Earlier preparing
@@ -66,3 +66,8 @@ Standalone SharedWriteNorm-LearnedScale at1000 +.000213, versus the
 conditional write-normalization effect on SeedZero +.004802: extra early
 cost+.004589. This is more discriminating than simply citing the original
 4400-step crossing; late additivity is unproved. Keep2800/5000 reviews.
+
+User-directed baseline removal2026-10-01: old XL combination is dominated
+by B; remove it from all other experiments' compare_runs, retaining its
+ledger/data and prior historical analysis. AllLocal and new XL registry
+comparisons now use B, MHA and Mudd; LLF retains AllLocal/MHA/Mudd.

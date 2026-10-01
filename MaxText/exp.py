@@ -11712,7 +11712,7 @@ class RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOMPreNormLearnedSca
     RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOMPreNormLearnedScaleSharedWriteEmbedNorm):
     """Zero static embedding seed in the learned-scale/shared-write XL combination."""
     # Implementation: codex/rmt-xlprop-noo, /data0/xd/rmt-xlprop-noo; pure JAX, layer scan.
-    # code_commit: 4cd403f; UE5a v5p-32 ~.308 step/s (+.3% vs B/old combo .307); dynamic health ON.
+    # code_commit: 4cd403f; UE5a v5p-32 ~.308 step/s (+.3% vs B .307); dynamic health ON.
     # Bet vs B -.008@17500; ~.307 step/s (flat); early windows200/400 then500.
     model_name = 'RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOMPreNormLearnedScaleSharedWriteEmbedNormSeedKeyZeroInit'
     rmt_embedding_seed_key_zero_init = True
@@ -11721,6 +11721,5 @@ class RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOMPreNormLearnedSca
     keep_period = 4000
     max_to_keep = 2
     compare_runs = ['RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOMPreNorm',
-                    'RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOMPreNormLearnedScaleSharedWriteEmbedNorm',
                     'Llama2XLPropTruePileMHA', 'MuddLlama2XLProp']
     jax_cache_dir = ''

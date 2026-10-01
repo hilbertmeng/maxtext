@@ -29,11 +29,13 @@ class CheckpointHealthTest(unittest.TestCase):
       with tempfile.TemporaryDirectory() as directory:
         os.environ['RMT_HEALTH_FILE'] = directory+'/health.jsonl'
         os.environ['RMT_NORM_TAP_FILE'] = directory+'/taps.jsonl'
-        cfg.get_keys().update(rmt_crossscale_health_probe=True, rmt_norm_probe=True)
+        cfg.get_keys().update(rmt_crossscale_health_probe=True, rmt_norm_probe=True, rmt_crossscale_numeric_probe=True)
         result, dg = jax.jit(jax.value_and_grad(loss))(params)
         jax.effects_barrier()
         rows=[json.loads(line) for line in Path(directory,'health.jsonl').read_text().splitlines()]
         self.assertTrue(any(row['tag']=='attention' for row in rows))
+        self.assertTrue(any(row['tag']=='numeric_readout' for row in rows))
+        self.assertTrue(any(row['tag']=='attention_write_update' for row in rows))
         readouts=[row for row in rows if row['tag']=='readout']
         self.assertTrue(readouts)
         for row in readouts:

@@ -404,6 +404,11 @@ class OutputHead(nn.Module):
         from rmt_health_instrumentation import readout
         readout(inputs[:, chunk_slice], logits_chunk,
                 target_tokens[:, chunk_slice], target_mask[:, chunk_slice])
+        if cfg.get_keys().get('rmt_crossscale_numeric_probe', False):
+          from rmt_health_instrumentation import numeric_readout
+          precise = jnp.einsum('bte,ev->btv', inputs[:, chunk_slice], self.logits_dense,
+                               preferred_element_type=jnp.float32)
+          numeric_readout(logits_chunk, precise, target_tokens[:, chunk_slice], target_mask[:, chunk_slice])
       preds_chunk = jnp.argmax(logits_chunk, axis=-1)
       mask_chunk = target_mask[:, chunk_slice]
       targets_chunk = target_tokens[:, chunk_slice]

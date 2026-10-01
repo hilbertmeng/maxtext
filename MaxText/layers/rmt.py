@@ -663,6 +663,9 @@ class RMTLayer(nn.Module):
         if write_rows != key_dim:
           dynamic_attn_write = jnp.pad(dynamic_attn_write,
                                        ((0, 0), (0, 0), (heads, 0), (0, 0)))
+        if cfg.get_keys().get('rmt_crossscale_numeric_probe', False) and not self.is_initializing():
+          from rmt_health_instrumentation import write_update
+          write_update(matrix, static_attn_write, dynamic_attn_write, layer_index, 'attention_write_update')
         matrix = dynamic_attn_write if pallas_write else matrix + static_attn_write + dynamic_attn_write
       elif not dynamic:
         matrix = matrix + static_attn_write
@@ -724,6 +727,9 @@ class RMTLayer(nn.Module):
       if write_rows != key_dim:
         dynamic_mlp_write = jnp.pad(dynamic_mlp_write,
                                     ((0, 0), (0, 0), (heads, 0), (0, 0)))
+      if cfg.get_keys().get('rmt_crossscale_numeric_probe', False) and not self.is_initializing():
+        from rmt_health_instrumentation import write_update
+        write_update(matrix, static_mlp_write, dynamic_mlp_write, layer_index, 'mlp_write_update')
       matrix = dynamic_mlp_write if pallas_write else matrix + static_mlp_write + dynamic_mlp_write
     elif not dynamic_mlp_write_enabled:
       matrix = matrix + static_mlp_write

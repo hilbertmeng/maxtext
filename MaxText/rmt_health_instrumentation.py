@@ -78,3 +78,61 @@ def matrix_structure(matrix, layer, tag, selected_layers):
                       'top_energy_power_estimate','rms'),values)
     return jnp.asarray(0)
   jax.lax.cond(pred,measure,lambda _:jnp.asarray(0),operand=None)
+
+
+def numeric_readout(original, precise, targets, mask):
+  """Paired output-quantization controls on exactly the same hidden and bf16 weights."""
+  z = precise.astype(jnp.float32)
+  old = original.astype(jnp.float32)
+  centered = z-z.mean(-1,keepdims=True)
+  centered_bf16 = centered.astype(jnp.bfloat16).astype(jnp.float32)
+  rounded = z.astype(jnp.bfloat16).astype(jnp.float32)
+  m = (mask>0).astype(jnp.float32)
+  count = jnp.maximum(m.sum(),1.)
+  avg = lambda v: (v*m).sum()/count
+  def ce(v):
+    target = jnp.take_along_axis(v,targets[...,None],axis=-1)[...,0]
+    return avg(jax.nn.logsumexp(v,axis=-1)-target)
+  def error(v):
+    d=v-z
+    d=d-d.mean(-1,keepdims=True)
+    return jnp.sqrt(avg(jnp.mean(d*d,-1)))
+  base=ce(old)
+  # softmax-gradient error is normalized relative to the original CE logits gradient.
+  onehot=jax.nn.one_hot(targets,z.shape[-1])
+  gp=jax.nn.softmax(z,-1)-onehot
+  go=jax.nn.softmax(old,-1)-onehot
+  gc=jax.nn.softmax(centered_bf16,-1)-onehot
+  norm=lambda a: avg(jnp.sum(a*a,-1))
+  # Match the actual custom-CE backward, including bf16 output rounding.
+  import max_utils
+  actual_grad = jax.grad(lambda v: jnp.sum(max_utils.cross_entropy_with_logits(v,onehot,0.)[0]))(original).astype(jnp.float32)
+  grad_mass=actual_grad.sum(-1)
+  values=jnp.stack((base,ce(z),ce(centered),ce(centered_bf16),ce(rounded),
+                   error(old),error(rounded),
+                   jnp.sqrt(avg(jnp.mean((centered_bf16-centered)**2,-1))),
+                   jnp.sqrt(norm(go-gp)/jnp.maximum(norm(gp),1e-30)),
+                   jnp.sqrt(norm(gc-gp)/jnp.maximum(norm(gp),1e-30)),
+                   avg(grad_mass),jnp.sqrt(avg(grad_mass**2)),
+                   avg((grad_mass>0).astype(jnp.float32)),
+                   jnp.sqrt(norm(actual_grad-gp)/jnp.maximum(norm(gp),1e-30)),count))
+  record('numeric_readout',-1,
+         ('ce_original','ce_fp32','ce_fp32_centered','ce_centered_bf16','ce_rounded_fp32',
+          'original_centered_error_rms','rounded_centered_error_rms','centered_bf16_error_rms',
+          'relative_logit_gradient_error','centered_relative_logit_gradient_error',
+          'actual_ce_gradient_mass_mean','actual_ce_gradient_mass_rms',
+          'actual_ce_gradient_mass_positive_fraction','actual_ce_relative_gradient_error','tokens'),values)
+
+
+def write_update(before, static, dynamic, layer, tag):
+  x=before.astype(jnp.float32)
+  st=static.astype(jnp.float32)
+  dy=dynamic.astype(jnp.float32)
+  update=st+dy
+  rms=lambda a:jnp.sqrt(jnp.mean(a*a))
+  mr=jnp.maximum(rms(x),1e-30)
+  cosine=lambda a,b:jnp.mean(a*b)/jnp.maximum(rms(a)*rms(b),1e-30)
+  vals=jnp.stack((mr,rms(st),rms(dy),rms(update),rms(update)/mr,
+                 cosine(update,x),cosine(st,dy)))
+  record(tag,layer,('carry_rms','static_rms','dynamic_rms','update_rms',
+                   'update_to_carry','update_carry_cosine','static_dynamic_cosine'),vals)

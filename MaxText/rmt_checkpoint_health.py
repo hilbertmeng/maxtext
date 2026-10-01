@@ -29,12 +29,18 @@ def parameter_stats(params, grads=None, scan_axis=1):
     axes = tuple(i for i in range(x.ndim) if not ('layers' in path and i == scan_axis))
     xf = x.astype(jnp.float32)
     row = {'parameter_rms': jnp.sqrt(jnp.mean(xf**2, axis=axes)),
-           'parameter_l2': jnp.sqrt(jnp.sum(xf**2, axis=axes))}
+           'parameter_l2': jnp.sqrt(jnp.sum(xf**2, axis=axes)),
+           'parameter_mean': jnp.mean(xf, axis=axes)}
     if g is not None:
       gf = g[path].astype(jnp.float32)
       row.update(gradient_rms=jnp.sqrt(jnp.mean(gf**2, axis=axes)),
                  gradient_l2=jnp.sqrt(jnp.sum(gf**2, axis=axes)),
-                 parameter_gradient_dot=jnp.sum(xf * gf, axis=axes))
+                 parameter_gradient_dot=jnp.sum(xf * gf, axis=axes),
+                 gradient_mean=jnp.mean(gf, axis=axes))
+    if path[-1] == 'logits_dense':
+      row['vocab_common_weight_rms'] = jnp.sqrt(jnp.mean(jnp.mean(xf,-1)**2))
+      if g is not None:
+        row['vocab_common_gradient_rms'] = jnp.sqrt(jnp.mean(jnp.mean(gf,-1)**2))
     result[name] = row
   return result
 
@@ -102,7 +108,8 @@ def main(argv):
     ref = float(baseline(params, batches[0]))
   del baseline
   jax.clear_caches()
-  cfg.get_keys().update(rmt_crossscale_health_probe=True, rmt_norm_probe=True)
+  cfg.get_keys().update(rmt_crossscale_health_probe=True, rmt_norm_probe=True,
+                       rmt_crossscale_numeric_probe=bool(int(os.environ.get('RMT_HEALTH_NUMERIC','0'))))
   forward = jax.jit(objective)
   started = time.monotonic()
   for i, batch in enumerate(batches):

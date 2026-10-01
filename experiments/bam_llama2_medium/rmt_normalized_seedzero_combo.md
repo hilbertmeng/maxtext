@@ -408,3 +408,39 @@ activationdtype, preserving initialunitwrite also in bf16. Health reports
 actualsigmoid opening mean/std/min/max/fractions<.05/>.95 separately
 from effectivecoefficientmean. Attention/MLP dynamic gates unaffected.
 First prepared196810c AOT is superseded and will not be used forhandoff.
+
+XLScale0 first2000 report: gaps500/1000/1500/2000 vsSeedZero
+-.004839/-.002286/-.000899/-.000756; earlyadvantagefadesnear tie.
+B-.007721 / MHA-.255501 / Mudd-.072522 / BAM LLF-.041170 at2000;
+Mudd gain1.396x. Speed.307 flatvsSeedZero/B, -14.5%vsLLF.359
+(unmatchedhealth reference). TerminalMLP500->2000 rawoutput.059->.200,
+staticwrite.138->.143, dynamicwrite.939->2.538, carry9.061->18.007,
+update/carry.109->.144, dynamic/staticratio6.64->17.50; no early
+static takeover, stillbefore historical5k+ onsetwindow. Continue
+reviews10000/17500; nextformal4000. All five directbaselines in artifact
+xl-scale0-2000-cumulative.md at taskdiagnosticroot.
+
+StaticGate startup verified: runtime d5c607f, retained UE5a
+xd-v5p-16-2910014-maxtext; FIRST_STEP5 then advanced60+, AOT loaded,
+zone-local TruePile4096 path, MLP4078, opening.9/compensation1/.9.
+Initialthroughputmedian20..60 ~.367 step/s vs parent.375 (-2.1%),
+slower than bet.371; additional gate and absolute-write health included.
+CPU3focused checks28.5s pass, same sealedclassattributes. ActualTB
+all18layers gate metrics present; inspected0/16/17 at0/10/20: initial
+opening~.9/effective1, then input/head variation learns. Keep report
+1000-step batches, reviews2800/5000.
+
+OldScale0combo hot-replaced8025, checkpoint8025 committed, no loststeps,
+TB SYNC_OK. Hot-switch owns handoff; after newFIRST_STEP oldregistry
+markedstopped, then closeout_runs_local.py idempotently closes already
+registeredoldRUN without deleting newowner's retainedTPU. Last5 through
+7800 standaloneScale0+.003239 / standaloneSW-.000313 (tie), frozen
+SeedZerocombo through4800-.004411 / B through5400-.004361. EarlySW
+benefit onScale0 reversed2600 and retained~+.003 latercost; no additive
+lossbenefit bystop. Closedbet removedfrom exp.py. TwoUE5a preemptions,
+READY leases08:08:29-09:36:40 (1h28m11s),09:42:36-13:31:26 (3h48m50s),
+13:43:33-14:40:51 (57m18s, retainedhotboundary), all2026-10-01UTC.
+StandaloneScale0 missing7800/8000 rawwindows recoveredfrom actualTB
+and imported, not interpolated. Maturecache frontier keeps finalreport
+through7800; SWcomparison uses samebound. Artifacts static-write-gate-*
+and medium-scale0-combo-final-* under taskdiagnosticroot.

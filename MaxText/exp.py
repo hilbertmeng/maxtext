@@ -10255,6 +10255,7 @@ class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearne
     RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedWriteNorm):
     """Independent token/head gates on normalized static attention and MLP writes."""
     # Implementation: codex/rmt-xlprop-noo, /data0/xd/rmt-xlprop-noo; pure JAX, layer scan.
+    # code_commit: d5c607f; UE5a v5p-16 ~.367 step/s (-2.1% vs SharedWriteNorm .375); extra write/gate health ON.
     # Bet vs SharedWriteNorm -.001@2800 / -.003 terminal; ~.371 step/s (-1.1% vs .375).
     model_name = 'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedWriteNormStaticGate'
     rmt_static_write_gates = True
@@ -11750,8 +11751,7 @@ class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearne
     """Disable static embedding writes in the normalized-write/learned-scale combination."""
     # Implementation: codex/rmt-xlprop-noo, /data0/xd/rmt-xlprop-noo; pure JAX, layer scan.
     # code_commit: 8694956; UE5a v5p-16 ~.372 step/s (+.3% vs combined SeedZero .371); dynamic health ON.
-    # Through7000: last5 vs standalone Scale0 +.003088 / standalone SharedWriteNorm -.000481 (near tie); B -.004361 through5400 / combined SeedZero -.004411 through4800. Continue XL-relevant write control.
-    # Bet terminal vs combined SeedZero -.001; ~.371 step/s (flat); reviews2800/5000.
+    # Hot-replaced8025: Scale0 early gain reversed at2600, then ~+.003 cost; last5 +.003239 through7800 / standalone SharedWriteNorm -.000313 (tie). B -.004361 through5400 / combined SeedZero -.004411 through4800.
     model_name = 'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedWriteNormEmbedScale0'
     rmt_embedding_seed_key_zero_init = False
     rmt_embedding_static_write_scale = 0.
@@ -11766,6 +11766,7 @@ class RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOMPreNormLearnedSca
     """Disable static embedding writes while retaining normalized layer writes."""
     # Implementation: codex/rmt-xlprop-noo, /data0/xd/rmt-xlprop-noo; pure JAX, layer scan.
     # code_commit: 4b5779c; UE5a v5p-32 ~.307 step/s, flat vs combined SeedZero .307; write-scale health ON.
+    # Through2000: gap vs combined SeedZero -.000756 (early lead fading) / B -.007721 / MHA -.255501 / Mudd -.072522 / BAM LLF -.041170; Mudd gain1.396x.
     # Bet vs combined SeedZero -.005@17500; ~.307 step/s (flat); reviews10000/17500.
     model_name = 'RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOMPreNormLearnedScaleSharedWriteNormEmbedScale0'
     rmt_embedding_seed_key_zero_init = False

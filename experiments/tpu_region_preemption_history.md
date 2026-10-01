@@ -27,6 +27,7 @@ active leases are censored, and manual migration releases are not preemptions.
 
 | RUN | TPU | Zone | Start UTC | End UTC | End reason | Passive candidates |
 |---|---|---|---|---|---|---|
+| `RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedWriteNormEmbedScale0` | v5p-16 (`xd-v5p-16-2910014-maxtext`) | `us-east5-a` | 2026-10-01 08:08:26 | 2026-10-01 14:40:51 | hot-replaced8025;2preemptions;checkpoint committed, TPU retained for StaticGate, TB synced | none |
 | `RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedEmbedWriteNormScale0` | v5p-16 | `us-east5-a` | 2026-09-30 15:03:56 | 2026-10-01 03:49:58 | completed13500; eleven preemptions; resources absent, TB synced | none |
 | `BamLlama2XLHead16x128V2C256FetchRank2` | v5p-32 | `europe-west4-b` | 2026-08-25 07:34:52 | 2026-08-26 00:07:55 | manual stop | `us-central1-a` (never active) |
 | `BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2GroupedWriteRMSNormNoBias` | v5p-32 | `europe-west4-b` | 2026-08-25 13:46:30 | 2026-08-26 00:08:00 | manual stop | `us-central1-a` (never active) |
@@ -950,7 +951,6 @@ active leases are censored, and manual migration releases are not preemptions.
 | BamMediumIndependentLLFMLPPerLayerColOnlyK32NoPE48PartialRoPE | 1 | `us-east5-a` | 2026-09-17 16:37:06 | 2026-09-17 17:04:01 | 26m55s | service preemption; same-zone recovery |
 | BamMediumIndependentLLFMLPPerLayerColOnlyK64QK48TruncateFullRoPE | 2 | `us-east5-a` | 2026-09-17 16:45:17 | 2026-09-17 17:04:07 | 18m50s | service preemption; same-zone recovery |
 | BamMediumIndependentLLFMLPPerLayerColOnlyK32NoPE48PartialRoPE | 2 | `us-east5-a` | 2026-09-17 17:10:56 | 2026-09-17 17:18:11 | 7m15s | service preemption; same-zone recovery |
-| BamMediumIndependentLLFMLPPerLayerColOnlyK48PartialRoPE | 2 | `us-east5-a` | 2026-09-17 16:08:33 | 2026-09-17 17:55 | 1h47m | run stop; resumed from 9,000 after checkpoint repair; completed 13,500; checkpoint 13,500 committed; TPU/queue verified absent |
 | BamMediumIndependentLLFMLPPerLayerColOnlyK64QK48TruncateFullRoPE | 3 | `us-east5-a` | 2026-09-17 17:11:35 | 2026-09-17 18:17:20 | 1h05m45s | service preemption; same-zone recovery |
 | BamMediumIndependentLLFMLPPerLayerColOnlyK64QK48TruncateFullRoPE | 4 | `us-east5-a` | 2026-09-17 18:24:44 | 2026-09-17 19:07:39 | 42m55s | service preemption; same-zone recovery |
 | BamMediumIndependentLLFMLPPerLayerColOnlyK32NoPE48PartialRoPE | 3 | `us-east5-a` | 2026-09-17 17:26:01 | 2026-09-17 19:07:47 | 1h41m46s | service preemption; same-zone recovery |
@@ -1237,4 +1237,8 @@ active leases are censored, and manual migration releases are not preemptions.
 | `RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedEmbedWriteNormScale0` | 10 | `us-east5-a` | 2026-10-01 00:22:10 | 2026-10-01 02:11:56 | 1h49m46s | preempted |
 | `RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedEmbedWriteNormScale0` | 11 | `us-east5-a` | 2026-10-01 02:19:01 | 2026-10-01 02:28:58 | 9m57s | preempted |
 | `RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedEmbedWriteNormScale0` | 12 | `us-east5-a` | 2026-10-01 02:37:52 | 2026-10-01 03:49:58 | 1h12m06s | completed13500; resources absent, TB synced |
+| `RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedWriteNormEmbedScale0` | 1 | `us-east5-a` | 2026-10-01 08:08:29 | 2026-10-01 09:36:40 | 1h28m11s | preempted |
+| `RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedWriteNormEmbedScale0` | 2 | `us-east5-a` | 2026-10-01 09:42:36 | 2026-10-01 13:31:26 | 3h48m50s | preempted |
+| `RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedWriteNormEmbedScale0` | 3 | `us-east5-a` | 2026-10-01 13:43:33 | 2026-10-01 14:40:51 | 57m18s | hot replacement8025; TPU retained by StaticGate; TB synced |
+| BamMediumIndependentLLFMLPPerLayerColOnlyK48PartialRoPE | 2 | `us-east5-a` | 2026-09-17 16:08:33 | 2026-09-17 17:55 | 1h47m | run stop; resumed from 9,000 after checkpoint repair; completed 13,500; checkpoint 13,500 committed; TPU/queue verified absent |
 | `RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicEmbeddingUnembeddingDirect32L22` | 1 | `us-east5-a` | 2026-09-27 00:29:56 | — | censored | active; prequeue READY precedes registry00:30:07 |

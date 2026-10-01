@@ -256,3 +256,25 @@ Track final/penultimate rawMLP RMS, static/dynamic write RMS, carry RMS,
 dM/M, ratios/gates and Mudd-relative gain. No early elimination based only
 on Medium additivity failure. Compiler0 was recreated as FLEX_START and
 WAITING_FOR_RESOURCES atpreparation; never adopt its lifecycle ownership.
+
+Medium5000 / XL6000 batch: cumulative artifact
+/data0/xd/bam_diagnostics/rmt-readnorm-launch/medium5000-xl6000-cumulative.md.
+MediumScale0 last5 vs standaloneScale0+.002451 / B-.004327;
+vs stoppedcombinedSeedZero-.004411 through4800. Cost vs standaloneScale0
++.003612@5000; no sustained narrowing. Continue per user: XL-stability
+relevance of normalized layer writes, not a Medium additive-win claim.
+SeedZero SharedWriteNorm effect+.008411@4800 versus Scale0+.002747;
+early opposite signs have not persisted. Scale0 raw4210 is unavailable;
+4200 five-point window omitted, no interpolation. LearnedScale4800 raw
+points restored from actual localTB to remote cache.
+XLSeedZero last5 vs B-.004600/MHA-.159310/Mudd-.047601; Mudd gain1.439x.
+B lead shrinks4000-.005813 to6000-.003142, weakening17500-.008 bet.
+Final dynamic/static MLP ratio26.36->34.65 at5000->6000 versus B54.79->39.03.
+RawMLP RMS final.520->.736 versus penult.217->.229; staticwrite.157->.165,
+dynamic4.12->5.29, carry21.87->24.03, update/carry.192->.224.
+No static takeover yet; final raw-content growth remains a concern.
+Scale0 XL CPU2checks22.533s pass; full budget1432453720, seed contributes
+no forward/gradient effect and dynamic address remains trainable.
+No retained compiler READY: compiler0 waitingFLEX_START, compiler1expired.
+Fallback managedcompiler xd-v6e-aot-4b5779c-74385-ewa4a only; protected
+llm-jax names are untouched. Sealedruntime4b5779c1d3ede17b559a47aeda4f23788c2030e0.

@@ -266,6 +266,16 @@ def main(argv):
       row={'sequence':i,'losses':losses,'static_l2':float(norm(st)),'dynamic_l2':float(norm(dy)),
            'both_l2':float(norm(total)),'static_over_dynamic':float(norm(st)/jnp.maximum(norm(dy),1e-30)),
            'cosine':float(cosine),'decomposition_relative_error':float(norm(total-st-dy)/jnp.maximum(norm(total),1e-30))}
+      selected=[u for u in (5363,3073,4107,5817) if u<st.shape[0]]
+      unit_mask=jnp.zeros((st.shape[0],),jnp.bool_).at[jnp.asarray(selected,dtype=jnp.int32)].set(True)
+      row['inspected_unit_ids']=selected
+      row['kernel_shape']=list(st.shape)
+      for label,mask in [('inspected',unit_mask),('remaining',~unit_mask)]:
+        ss=jnp.where(mask[:,None],st,0);dd=jnp.where(mask[:,None],dy,0)
+        row[label]={'static_l2':float(norm(ss)),'dynamic_l2':float(norm(dd)),
+                    'static_over_dynamic':float(norm(ss)/jnp.maximum(norm(dd),1e-30)),
+                    'static_energy_fraction':float(norm(ss)**2/jnp.maximum(norm(st)**2,1e-30)),
+                    'dynamic_energy_fraction':float(norm(dd)**2/jnp.maximum(norm(dy)**2,1e-30))}
       with (output/'wo-gradient-components.jsonl').open('a') as f:f.write(json.dumps(row)+'\n')
       print('HEALTH_WO_GRADIENT '+json.dumps(row),flush=True)
   print('HEALTH_COMPLETE', flush=True)

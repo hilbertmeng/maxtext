@@ -51,3 +51,11 @@ XL worker confirms checkpoint_period250/keep_period4000/max_to_keep2, all
 three combined flags and loaded AOT.
 Both datasets resolve to UE5a truepile4096, not padded records. Earlier preparing
 commit was superseded before training by user-directed retention settings.
+
+XL initial review200/400: RUN-B +.055285 -> -.009022 (sign crossing);
+RUN-old combo +.456755 -> +.106774; RUN-MHA -1.517656 -> -1.697035;
+RUN-Mudd -1.266300 -> -1.182215. Mudd gain6.038x ->3.296x in warmup,
+not a late-effectiveness conclusion. Keep200-step windows temporarily until
+the new B advantage has a clear direction; batch next formal report near2000.
+At200, embedding static route has learned nonzero contents on both scales;
+full-M gains remain nearone and no nonfinite health is observed.

@@ -326,3 +326,10 @@ status16281/.356 and checkpoint advancement exclude actualtrainingstall.
 Task watcher now uses status--json live step for review readiness, rather
 than treating the periodically updated registry's old progress as live.
 No training/runtime or globalorchestration source changed.
+
+XL LLF speed anomaly explicitly marked!? in both main and familyexp.py:
+bet.350step/s (-1.4%vsAllLocal.355), observed.359 (+1.1%); reversal~2.5pp.
+Previous ledger retained measuredspeed/bet but omitted requiredunresolved
+anomaly marker. No established causal attribution; narrowerF MLP and
+actual projection/fetch/health work and lowering require matched comparison.
+Do not infer a training acceleration from blockscan alone.

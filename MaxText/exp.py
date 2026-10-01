@@ -9560,6 +9560,42 @@ class BamMediumPropK75EmbedVOnlyQK57AllLocal(BamMediumPropK75EmbedVOnlyQK57):
     jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/mediumprop-k75-qk57-all-local'
 
 
+class BamMediumPropK75EmbedVOnlyQK57TruePile(BamMediumPropK75EmbedVOnlyQK57):
+    """Original K75/QK57 BAM architecture on true 4097-token Pile records."""
+    # Ledger only: codex/mediumprop-k75-qk57-truepile, /data0/xd/mediumprop-k75-qk57-truepile.
+    # code_commit: ee0ab9b; same 432106784 parameters as padded-data parent.
+    # UE5a v5p-16 ~.525 step/s; completed 13,500, no preemptions.
+    # vs TruePile Prop MHA: gap narrowed to final5 -.119025; vs NoO +.023723.
+    # NoO's MHA advantage is 1.199x QK57's at the matched endpoint.
+    # vs paused LLF +.023542 over its last five common points (9200-10000).
+    model_name = 'BamMediumPropK75EmbedVOnlyQK57TruePile'
+    DATASET_VARIANT = 'truepile4096'
+    dataset_path = Llama2MediumC256T4096TruePile.dataset_path
+    compare_runs = ['BamMHAMediumPropC256TruePile',
+                    'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoO',
+                    'RMTMediumPropT4096TruePileK48EmbedUnembedDirect32NoOLLF']
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/mediumprop-k75-embed-qk57-truepile'
+
+
+
+class BamMediumPropK75EmbedVOnlyQK57LLFMatrixVTruePile(BamMediumPropK75EmbedVOnlyQK57TruePile):
+    """LLF with matrix-only V in every layer; F retains the original fetched O."""
+    # Implementation: codex/mediumprop-k75-embed; /data0/xd/mediumprop-k75-embed.
+    # F V: full-M static32->16 plus C8 dynamic, W_R shared with fetched O; independent V/O gates.
+    # Per-layer budget: L3901/F3897; no standard W_V in any layer.
+    # Bet terminal vs AllLocal -.015 / original LLF +.013; .523 step/s (~-.4% vs .525).
+    model_name = 'BamMediumPropK75EmbedVOnlyQK57LLFMatrixVTruePile'
+    bam_layer_modes = ['local_qk+local_v+local_o', 'local_qk+local_v+local_o',
+                       'local_qk+local_v+full'] * 6
+    mlp_dim_by_block = [3901, 3901, 3897]
+    checkpoint_period = 200
+    keep_period = 1000
+    max_to_keep = 2
+    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57TruePile',
+                    'BamMediumPropK75EmbedVOnlyQK57AllLocalTruePile']
+    jax_cache_dir = ''
+
+
 class BamMediumPropK75EmbedVOnlyQK57AllLocalTruePile(BamMediumPropK75EmbedVOnlyQK57AllLocal):
     """All-local matrix-value BAM, repaired TruePile, ordinary layer scan."""
     # code_commit: 0649e72; UE5a v5p-16 .5271 step/s (20-99).

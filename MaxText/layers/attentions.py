@@ -2476,8 +2476,19 @@ class BamAttention(Attention):
     shared_v = 'local_v' in self._mode and local_v_rank is None
     self._output_read = bool(self._mode & {'full', 'local_o'}) or shared_v
 
+    # A fetched layer may retain the same matrix-only V recipe as a local layer.
+    # Its V and fetched O share W_R, but read local/fetched M respectively.
+    self._fetched_matrix_v = (
+        {'full', 'local_v'} <= self._mode
+        and bool(getattr(cfg, 'bam_local_v_replace', False)))
+    if self._fetched_matrix_v:
+      assert cfg.bam_prune_all_row_reads and cfg.bam_local_vo_static
+      assert cfg.bam_local_vo_independent_gates and self.bam_k == self.head_dim
+
     self._local_o = 'local_o' in self._mode
     self._local_v_mode = ('shared' if shared_v else 'rank2') if 'local_v' in self._mode else 'none'
+    if self._fetched_matrix_v:
+      self._local_v_mode = 'none'  # W_R supplies the dynamic V key, not a rank4 arm.
     self._vo_shared_read = getattr(cfg, 'bam_local_vo_shared_read', 'none') if self._local_o else 'none'
     assert self._vo_shared_read in ('none', 'local_o')
     self._vo_independent_gates = self._local_o and bool(getattr(cfg, 'bam_local_vo_independent_gates', False))
@@ -2554,6 +2565,8 @@ class BamAttention(Attention):
         else int(fetched_read_num_heads))
     assert self._fetched_read_num_heads >= self.num_query_heads
     assert self._fetched_read_num_heads % self.num_query_heads == 0
+    if self._fetched_matrix_v:
+      assert self._fetched_read_num_heads == self.num_query_heads
     self._fetched_heads_per_query = (
         self._fetched_read_num_heads // self.num_query_heads)
     self._fetch_mix_implementation = cfg.bam_fetch_mix_implementation
@@ -2791,10 +2804,10 @@ class BamAttention(Attention):
                 ('v_factor', 'q_heads')),
             (self.bam_v, self.num_query_heads), self.weight_dtype))
 
-    self._local_v_replace = self._local_o and bool(getattr(cfg, 'bam_local_v_replace', False))
+    self._local_v_replace = (self._local_o or self._fetched_matrix_v) and bool(getattr(cfg, 'bam_local_v_replace', False))
     self._static_vo = self._local_o and bool(getattr(cfg, 'bam_local_vo_static', False))
     if self._local_v_replace:
-      assert self._vo_independent_gates and self.bam_k == self.head_dim
+      assert (self._vo_independent_gates or self._fetched_matrix_v) and self.bam_k == self.head_dim
     if self._static_vo:
       for arm in ('v', 'o'):
         setattr(self, 'static_' + arm + '_key', self.param(
@@ -2802,6 +2815,12 @@ class BamAttention(Attention):
                 nn.initializers.normal(self.bam_v ** -0.5) if arm == 'v' else zeros_init,
                 ('v_factor', 'q_heads')),
             (self.bam_v, self.num_query_heads), self.weight_dtype))
+
+    if self._fetched_matrix_v:
+      self.static_v_key = self.param(
+          'static_v_key', nn.with_logical_partitioning(
+              nn.initializers.normal(self.bam_v ** -0.5), ('v_factor', 'q_heads')),
+          (self.bam_v, self.num_query_heads), self.weight_dtype)
 
     if self._qk_static_rope_only:
       assert self._share_qk_basis and not self._direct_qk_c8
@@ -2900,7 +2919,7 @@ class BamAttention(Attention):
           scale_init=nn.initializers.zeros if learned_write_scale else None,
           use_bias=address_bias, name='write_address_norm')
 
-    if self._vo_independent_gates:
+    if self._vo_independent_gates or self._fetched_matrix_v:
       add_read_gate('W_lv_gate', (self.num_query_heads, 1),
                     ('embed', 'q_heads', None), ('q_heads', None), fetched_gate_init)
 
@@ -3514,7 +3533,26 @@ class BamAttention(Attention):
     value = nn.with_logical_constraint(value, self.value_axis_names)
 
     local_output = None
-    if self._local_o and self._vo_shared_read != 'none':
+    if self._fetched_matrix_v:
+      if Mh is None:
+        Mh = self._matrix_for_read(M_in)
+      if local_compressed_M is None:
+        local_compressed_M = self._compress_m(Mh)
+      with jax.named_scope('bam/read_local_m_for_v'):
+        # Do not use _read_fetched_m here: its health tags describe fetched O.
+        key_v = jnp.squeeze(self.W_R(inputs_q), axis=-2)
+        read_v = bam_read(local_compressed_M, key_v, self._fetched_arm_ungated)
+        v_logits = self._project_read_gate_logits('W_lv_gate', inputs_q)
+        self._record_concat_gate('local_v', v_logits)
+        v_local = self._gate_local_output(read_v, v_logits)
+        static_v = self._static_column(Mh, 'v')
+        self._record_concat_amplitude('static_v', static_v, v_local)
+        v_local = v_local + static_v
+        if self._concat_health:
+          self.sow('intermediates', 'concat_local_v_content', jnp.stack((
+              jnp.sqrt(jnp.mean(v_local.astype(jnp.float32) ** 2)),)))
+        value = value + v_local
+    elif self._local_o and self._vo_shared_read != 'none':
       if Mh is None:
         Mh = self._matrix_for_read(M_in)
       if self._vo_independent_gates:
@@ -3576,7 +3614,7 @@ class BamAttention(Attention):
           self.sow('intermediates', 'fetch_mix_weight_stats', jnp.stack((
               jnp.mean(weights), jnp.sqrt(jnp.mean(weights * weights)),
               jnp.mean((weights < 0).astype(jnp.float32)))))
-      fetch_state = self._compress_m(Mh)
+      fetch_state = local_compressed_M if self._fetched_matrix_v else self._compress_m(Mh)
 
     _, t, _, _ = query.shape
 

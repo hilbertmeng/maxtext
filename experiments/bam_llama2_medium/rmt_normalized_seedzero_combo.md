@@ -84,3 +84,20 @@ combined SeedZero-.001; .371step/s flat. Retained STANDARD compiler0 is
 borrowed without lifecycle ownership. Targeted CPU checks cover exact scope,
 full parameter budget, zero static-write health, seed invariance and zero
 seed gradient alongside finite scanned gradients and live dynamic address.
+
+Medium2000: combined SeedZero last5 versus SeedZero+.008874, versus
+SharedWriteNorm+.000042, B-.000336, originalNoO+.000323. B/NoO gaps
+crossed behind at1800/1400; SeedZero deficit is widening. Initial bet
+not supported so far; retain2800 review. Paired forward health at2000:
+last MLP gate .430 versus SeedZero .384/SharedWriteNorm .407; embedding
+static RMS .0782 versus SeedZero .0660, dynamic RMS .446/.450.
+No nonfinite values; static amplitude is a Scale0 follow-up clue, not
+a demonstrated causal mechanism.
+
+Scale0 combination startup verified: runtime86949565b7a813e1f9f625a2ebb516e917eaffe8;
+two focused CPU checks pass22.4s; retained STANDARD compiler AOT loaded.
+Actual FIRST_STEP0 then step18, finite falling loss; .372step/s (+.3% versus
+combined SeedZero .371, effectively flat). Worker confirms pure layer scan,
+static embedding scale0/seed zero-initFalse, layer shared write norm and
+learned scales/health on; checkpoint200/keep1000/latest2 and zone-local
+UE5a TruePile4096. Compiler is retained and excluded from lifecycle cleanup.

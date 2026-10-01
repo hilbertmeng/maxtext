@@ -195,3 +195,12 @@ Artifacts write-scale-health-{cpu.log,worker-proof.txt,continuity.json,live.json
 resume journal copied under write-scale-health-resume-journal.json.
 Missing training write-scale metrics resolved from4152, no retroactive TB
 values for earlier steps. Normal reporting cadence remains unchanged.
+
+Medium combinedScale02800: last5 vs combinedSeedZero-.006456,
+standaloneScale0-.000072 (range-.000748..+.000761), B-.005996.
+SharedWriteNorm effect onScale0 crosses positive+.000761@2600 and
++.000123@2800, while SeedZero effect+.010280. Early sign reversal no
+longer holds; remaining controlled difference mostly SeedZero penalty.
+Continue5000 only to evaluate originalSharedWriteNorm~4400 late onset.
+Normal nextreport4000, then5000 review. Full cumulative artifact:
+/data0/xd/bam_diagnostics/rmt-readnorm-launch/medium-scale0-combo-2800-cumulative.md.

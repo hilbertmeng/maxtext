@@ -346,3 +346,32 @@ Userclarification: AllLocal does not add reciprocalLLF baseline; existing
 LLF-AllLocal exact-step series suffices, inverse adds no evidence. Reverted
 AllLocal's registry/main/familycompare_runs to originalB/MHA/Mudd. Keep
 LLF added to bothRMTcombinations and all futureXL arm preparations.
+
+Medium7000 / XLSeedZero8000 batch2026-10-01: exact five-point windows,
+all direct comparison series in medium7000-xl8000-cumulative.md under
+/data0/xd/bam_diagnostics/rmt-readnorm-launch/. Medium standaloneScale0
+last5+.003088 (range+.002400..+.003395); lasttwo narrow but not yet
+a sustained reversal. StandaloneSharedWriteNorm last5-.000481
+(range-.001430..+.000395): oscillating near tie rather than stablegain.
+B common5400 and stoppedSeedZero common4800 remain unchanged.
+Speed.372 flatvsScale0 / -.8%vsSharedWriteNorm. Continue per user.
+
+XLSeedZero8000: last5 B-.003631 / MHA-.143222 / Mudd-.042490 /
+BAM LLF-.010401; currentMudd gain1.413x. B advantage ceased monotonic
+narrowing this batch, LLF advantage stillnarrows. Speed.307/B.307flat;
+LLF.359 -14.5%, unmatchedhealth referenceonly. TerminalMLP dynamic/
+static ratio5000/6000/7000/8000: combo26.36/34.65/36.86/36.40 versus
+B54.79/39.03/16.80/3.83. Combo rawMLP RMS.520/.736/1.015/1.335,
+staticwrite.157/.165/.175/.187, dynamicwrite4.117/5.295/5.848/6.107,
+update/carry.192/.224/.238/.246. Shared normalized contents remove
+the direct raw-output-amplitude multiplier from staticwrites; original
+B takeover absent through8000. Health benefit clearer than lossbenefit;
+keep observing onsetwindow rather than proclaim late stability.
+
+Static-write gate proposal (not launched): separate per-token/head
+attention andMLP gates from their existingdynamicwrite proxies,
+g_s=2sigmoid(xW+b), W=b=0 for initialcoefficient1. WithSharedWriteNorm,
+writeaddress g_s*a_static+g_dynamic*a_dynamic sharesnormalizedcontent;
+one outerproduct possible. Staticaddresses can already globallyshrink
+tozero; gate specifically adds input-conditioned suppression. Embedding
+unchanged in proposed firstcontrast. No runtime/codechangeauthorized.

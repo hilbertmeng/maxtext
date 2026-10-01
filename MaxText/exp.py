@@ -11712,7 +11712,7 @@ class RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOMPreNormLearnedSca
     """Zero static embedding seed in the learned-scale/shared-write XL combination."""
     # Implementation: codex/rmt-xlprop-noo, /data0/xd/rmt-xlprop-noo; pure JAX, layer scan.
     # code_commit: 9f78e30 (write-scale health from4152; prior4cd403f); UE5a v5p-32 ~.307 step/s, flat vs B .307.
-    # Through6000: last5 vs B -.004600 (lead narrowing) / MHA -.159310 / Mudd -.047601; Mudd gain1.439x; final MLP ratio rising34.65.
+    # Through8000: last5 vs B -.003631 / MHA -.143222 / Mudd -.042490 / BAM LLF -.010401; Mudd gain1.413x; no terminal static takeover (dynamic/static36.40).
     # Bet vs B -.008@17500; ~.307 step/s (flat); early windows200/400 then500.
     model_name = 'RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOMPreNormLearnedScaleSharedWriteEmbedNormSeedKeyZeroInit'
     rmt_embedding_seed_key_zero_init = True
@@ -11733,7 +11733,7 @@ class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearne
     """Disable static embedding writes in the normalized-write/learned-scale combination."""
     # Implementation: codex/rmt-xlprop-noo, /data0/xd/rmt-xlprop-noo; pure JAX, layer scan.
     # code_commit: 8694956; UE5a v5p-16 ~.372 step/s (+.3% vs combined SeedZero .371); dynamic health ON.
-    # Through6000: last5 vs standalone Scale0 +.002807, no narrowing; B -.004361 through5400 / combined SeedZero -.004411 through4800. Continue XL-relevant write control.
+    # Through7000: last5 vs standalone Scale0 +.003088 / standalone SharedWriteNorm -.000481 (near tie); B -.004361 through5400 / combined SeedZero -.004411 through4800. Continue XL-relevant write control.
     # Bet terminal vs combined SeedZero -.001; ~.371 step/s (flat); reviews2800/5000.
     model_name = 'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedWriteNormEmbedScale0'
     rmt_embedding_seed_key_zero_init = False

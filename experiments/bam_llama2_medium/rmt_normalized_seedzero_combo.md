@@ -150,3 +150,16 @@ Common raw1800 window recovered from actual syncedTB, no interpolation.
 Full cumulative artifact: /data0/xd/bam_diagnostics/rmt-readnorm-launch/
 medium-combos-4000-2000-cumulative.md; matched conditional helper and
 shared-write-conditional-effects-2000.json preserve all six exact controls.
+
+User-directed2026-10-01 write-scale health instrumentation for live XL
+combination: append ten optional per-layer forward metrics, attention/MLP
+raw head-output RMS, static-write RMS, dynamic-write RMS, pre-add carry RMS
+and RMS(static+dynamic write)/RMS(pre-add carry). Read-normalized M is not
+the denominator; use actual raw residual carry separately at each write.
+The update norm includes cancellation; use the scalar second-moment identity
+to avoid another full update allocation. No parameter/model/loss changes.
+Focused CPU checks prove exact scanned outputs, gradients, parameters and old
+health-prefix equality with statistics off/on, zero/canceling-update semantics
+and TB tag export including independent old write-health switch.
+Resume same RUN from committed checkpoint after new AOT; retain total50000
+schedule, data path, report cadence and checkpoint-retention settings.

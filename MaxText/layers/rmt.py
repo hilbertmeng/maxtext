@@ -42,6 +42,11 @@ RMT_BOUNDARY_HEALTH_NAMES = (
     'gate_frac_gt_050', 'gate_frac_gt_095',
 )
 
+RMT_WRITE_SCALE_HEALTH_NAMES = tuple(
+    f'{arm}_{stat}' for arm in ('attn', 'mlp')
+    for stat in ('output_raw_rms', 'write_static_rms', 'write_dynamic_rms',
+                 'write_carry_rms', 'write_delta_over_carry'))
+
 
 def _boundary_health(dynamic, static, gate):
   dynamic, static, gate = (x.astype(jnp.float32) for x in (dynamic, static, gate))
@@ -52,12 +57,14 @@ def _boundary_health(dynamic, static, gate):
                     jnp.mean(gate > .5), jnp.mean(gate > .95)))
 
 
-def dynamic_health_names(record_write_health=True, heads=16, key_dim=48):
+def dynamic_health_names(record_write_health=True, heads=16, key_dim=48,
+                         record_write_scale_health=False):
   """Keep read/gate/state metrics when diagnostic write statistics are disabled."""
-  return tuple(name.replace('first16', f'first{heads}').replace('tail32', f'tail{key_dim-heads}')
+  names = tuple(name.replace('first16', f'first{heads}').replace('tail32', f'tail{key_dim-heads}')
                for name in RMT_DYNAMIC_HEALTH_NAMES
                if record_write_health or not
                ('_write_' in name and name.endswith(('_ratio', '_cosine'))))
+  return names + (RMT_WRITE_SCALE_HEALTH_NAMES if record_write_scale_health else ())
 
 
 def _alibi_bias(num_heads, q0, q1, s0, s1, dtype=jnp.float32):
@@ -81,6 +88,17 @@ def _write_health(dynamic, static):
   ratio = _rms(dynamic) / jnp.maximum(_rms(static), 1e-12)
   cosine = jnp.mean(dynamic * static) / jnp.maximum(_rms(dynamic) * _rms(static), 1e-12)
   return ratio, cosine
+
+
+def _write_scale_health(raw_output, dynamic, static, carry):
+  """Actual update magnitudes, measured before addition to the residual M."""
+  dynamic_rms, static_rms, carry_rms = _rms(dynamic), _rms(static), _rms(carry)
+  # Scalar identity avoids creating another full-size update solely for health.
+  cross = jnp.mean(dynamic.astype(jnp.float32) * static.astype(jnp.float32))
+  delta_rms = jnp.sqrt(jnp.maximum(
+      dynamic_rms ** 2 + static_rms ** 2 + 2 * cross, 0.))
+  return (_rms(raw_output), static_rms, dynamic_rms, carry_rms,
+          delta_rms / jnp.maximum(carry_rms, 1e-12))
 
 
 def _gate_health(gate):
@@ -597,6 +615,8 @@ class RMTLayer(nn.Module):
     assert t % chunk == 0
     outputs = []
     record_health = dynamic and bool(getattr(cfg, 'rmt_record_dynamic_health', False))
+    record_write_scale_health = record_health and cfg.get_keys().get(
+        'rmt_record_write_scale_health', False)
     for q0 in range(0, t, chunk):
       q1 = q0 + chunk
       source = jnp.arange(q1)[None, :]
@@ -677,6 +697,8 @@ class RMTLayer(nn.Module):
       if cfg.get_keys().get('rmt_remat_policy','full') in ('save_dense_state','save_state','save_state_mlp','save_state_dynamic'):
         matrix=ad_checkpoint.checkpoint_name(matrix,'rmt_mlp_matrix')
     else:
+      if record_write_scale_health:
+        attn_write_carry = matrix
       static_attn_write = static_layer_write(write_data, attn_write, cfg)
       if dynamic:
         dynamic_attn_write, attn_write_gate = RMTDynamicWrite(
@@ -743,6 +765,8 @@ class RMTLayer(nn.Module):
     write_data = (jnp.pad(vector, ((0,0),(0,0),(0,0),(0,padded_value_dim-value_dim)))
                   if padded_value_dim else vector)
     static_mlp_write = static_layer_write(write_data, mlp_write, cfg)
+    if record_write_scale_health:
+      mlp_write_carry = matrix
     if dynamic_mlp_write_enabled:
       dynamic_mlp_write, mlp_write_gate = RMTDynamicWrite(
           cfg, write_rows, name='dynamic_mlp_write')(
@@ -785,7 +809,13 @@ class RMTLayer(nn.Module):
                       for v in _write_health(dyn[..., part, :], stat[..., part, :]))
       values.extend((_rms(attn_in[..., :heads, :]), _rms(attn_in[..., heads:, :]),
                      _rms(mlp_in[..., :heads, :]), _rms(mlp_in[..., heads:, :])))
-      assert len(values) == len(dynamic_health_names(record_write_health))
+      if record_write_scale_health:
+        values.extend(_write_scale_health(
+            head_output, dynamic_attn_write, static_attn_write, attn_write_carry))
+        values.extend(_write_scale_health(
+            vector, dynamic_mlp_write, static_mlp_write, mlp_write_carry))
+      assert len(values) == len(dynamic_health_names(
+          record_write_health, record_write_scale_health=record_write_scale_health))
       health = jnp.stack(values)
       if not cfg.get_keys().get('rmt_block_scan', False):
         self.sow('intermediates', 'rmt_dynamic_health', health)

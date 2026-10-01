@@ -11696,7 +11696,7 @@ class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearne
     # Implementation: codex/rmt-xlprop-noo, /data0/xd/rmt-xlprop-noo; pure JAX, layer scan.
     # code_commit: 4cd403f; UE5a v5p-16 ~.371 step/s (-.5% vs SeedZero .373); dynamic health ON.
     # Bet terminal vs SeedZero -.002; ~.373 step/s (flat); reviews2800/5000.
-    # Through2800: last5 vs SeedZero +.009353 / SharedWriteNorm +.002013; B flat, NoO +.005221; continue5000.
+    # Through4000: last5 vs SeedZero +.009195 / SharedWriteNorm +.003205 / B +.000972 / NoO +.008028; continue5000.
     model_name = 'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedWriteNormEmbedSeedZero'
     rmt_static_write_content_norm = True
     checkpoint_period = 200
@@ -11732,7 +11732,7 @@ class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearne
     """Disable static embedding writes in the normalized-write/learned-scale combination."""
     # Implementation: codex/rmt-xlprop-noo, /data0/xd/rmt-xlprop-noo; pure JAX, layer scan.
     # code_commit: 8694956; UE5a v5p-16 ~.372 step/s (+.3% vs combined SeedZero .371); dynamic health ON.
-    # Through1000: vs combined SeedZero -.006764 / standalone Scale0 -.006935 / B -.010837.
+    # Through2000: last5 vs combined SeedZero -.006733 / standalone Scale0 -.002082 / B -.007068; Scale0 gain fades to-.000291.
     # Bet terminal vs combined SeedZero -.001; ~.371 step/s (flat); reviews2800/5000.
     model_name = 'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedWriteNormEmbedScale0'
     rmt_embedding_seed_key_zero_init = False

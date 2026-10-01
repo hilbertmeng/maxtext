@@ -124,3 +124,29 @@ SharedWriteNorm effect at1000 changes sign: +.004802 on SeedZero versus
 -.006935 on Scale0 (difference-.011737). This is an early controlled
 interaction, not a final additivity claim. Static embedding write RMS is
 exactlyzero0-1000; dynamic gate .0997 at1000. Continue2800/5000 reviews.
+
+Historical XL B terminal imbalance onset refined from exact five-point TB
+windows: final tail dynamic/static MLP-write ratio54.79@5000,39.03@6000,
+16.80@7000,3.83@8000,1.98@8500,1.28@9000,.948@9500,.706@10000.
+Penultimate remains126.38@5000,93.10@8000,75.93@10000; final gate opens
+.738->.875 rather than closing. Main acceleration starts5000-6000,
+static takeover~9500 (10-19% of plan), so normal3000 is not stage clearance.
+New combined XL final ratio11.11@1000->17.92@2000->20.98@3000, currently
+rising. Every XL report will show layers26/27 head/tail write ratios,
+cosines/gates and boundary read amplitudes with Mudd-relative outcome.
+Raw y RMS, absolute static-write RMS and dM/M remain absent from training TB;
+record that gap rather than infer static amplitude from ratio alone.
+Onset artifact/runner: /data0/xd/bam_diagnostics/rmt-readnorm-launch/
+xl-final-write-imbalance-onset.{py,json}.
+
+Medium combined SeedZero4000: last5 versus standaloneSeedZero+.009195,
+standaloneSharedWriteNorm+.003205, B+.000972, originalNoO+.008028;
+no recovery, keep5000 review. CombinedScale0 through2000: last5 versus
+combinedSeedZero-.006733, standaloneScale0-.002082, B-.007068.
+Conditional SharedWriteNorm effect on SeedZero expands+.004802@1000
+to+.010201@2000; on Scale0 fades-.006935 to-.000291. Reversal persists
+but mostly reflects harm on SeedZero, not a durable Scale0 benefit.
+Common raw1800 window recovered from actual syncedTB, no interpolation.
+Full cumulative artifact: /data0/xd/bam_diagnostics/rmt-readnorm-launch/
+medium-combos-4000-2000-cumulative.md; matched conditional helper and
+shared-write-conditional-effects-2000.json preserve all six exact controls.

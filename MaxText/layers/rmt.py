@@ -741,6 +741,12 @@ class RMTLayer(nn.Module):
       if cfg.get_keys().get('rmt_crossscale_numeric_probe', False) and not self.is_initializing():
         from rmt_health_instrumentation import write_update
         write_update(matrix, static_mlp_write, dynamic_mlp_write, layer_index, 'mlp_write_update')
+      if cfg.get_keys().get('rmt_health_gradient_split', False):
+        if pallas_write:raise ValueError('Gradient-split diagnosis requires pure JAX writes')
+        from rmt_norm_instrumentation import scale_gradient_only
+        gradient_masks = self.get_variable('params','health_write_gradient_masks')
+        static_mlp_write = scale_gradient_only(static_mlp_write,gradient_masks[0])
+        dynamic_mlp_write = scale_gradient_only(dynamic_mlp_write,gradient_masks[1])
       matrix = dynamic_mlp_write if pallas_write else matrix + static_mlp_write + dynamic_mlp_write
     elif not dynamic_mlp_write_enabled:
       matrix = matrix + static_mlp_write

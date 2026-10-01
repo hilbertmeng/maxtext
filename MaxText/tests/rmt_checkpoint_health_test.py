@@ -47,4 +47,25 @@ class CheckpointHealthTest(unittest.TestCase):
     for x,y in zip(jax.tree.leaves(grad),jax.tree.leaves(dg)):
       np.testing.assert_allclose(x,y,rtol=2e-5,atol=2e-6)
 
+  def test_last_wo_gradient_split(self):
+    from flax.traverse_util import flatten_dict,unflatten_dict
+    cfg=self.config('RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOMPreNorm',
+                    base_num_decoder_layers=2,base_emb_dim=640,head_dim=32,base_mlp_dim=64,vocab_size=128)
+    cfg.get_keys()['dtype']=jnp.float32
+    model,args=self.model_args(cfg)
+    with contextlib.redirect_stdout(io.StringIO()):
+      params=nn.unbox(model.init(jax.random.key(3),**args));flat=flatten_dict(params)
+      path=('params','decoder','layers','mlp','wo','kernel');axis=cfg.param_scan_axis
+      leaf=jnp.take(flat[path],cfg.num_decoder_layers-1,axis=axis)
+      cfg.get_keys()['rmt_health_gradient_split']=True
+      def loss(w,masks):
+        f=dict(flat);idx=[slice(None)]*f[path].ndim;idx[axis]=cfg.num_decoder_layers-1
+        f[path]=f[path].at[tuple(idx)].set(w)
+        f[('params','decoder','layers','health_write_gradient_masks')]=jnp.moveaxis(masks,1,axis)
+        return jnp.mean(model.apply(unflatten_dict(f),**args)[0])
+      run=jax.jit(jax.value_and_grad(loss,argnums=0));m=jnp.ones((2,cfg.num_decoder_layers))
+      a,g=run(leaf,m);b,gs=run(leaf,m.at[1,-1].set(0));c,gd=run(leaf,m.at[0,-1].set(0))
+    np.testing.assert_allclose([a,a],[b,c],rtol=1e-6,atol=1e-6)
+    np.testing.assert_allclose(g,gs+gd,rtol=2e-5,atol=2e-6)
+
 if __name__=='__main__': unittest.main(defaultTest='CheckpointHealthTest')

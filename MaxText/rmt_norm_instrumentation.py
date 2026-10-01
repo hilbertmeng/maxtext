@@ -54,3 +54,19 @@ def _tap_bwd(tag, layer, grad):
 
 
 tap.defvjp(_tap_fwd, _tap_bwd)
+
+
+@jax.custom_vjp
+def scale_gradient_only(x, factor):
+  return x
+
+
+def _scale_gradient_fwd(x, factor):
+  return x, factor
+
+
+def _scale_gradient_bwd(factor, grad):
+  return grad * factor.astype(grad.dtype), None
+
+
+scale_gradient_only.defvjp(_scale_gradient_fwd, _scale_gradient_bwd)

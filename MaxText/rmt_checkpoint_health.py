@@ -229,6 +229,45 @@ def main(argv):
     (output/f'gradient-{i:03d}.json').write_text(json.dumps(row, indent=2))
     print('HEALTH_GRADIENT '+json.dumps({'sequence': i, 'loss':row['loss'], 'gradient_norm':row['gradient_norm']}), flush=True)
   if writer: writer.close()
+  wo_grad_count = int(os.environ.get('RMT_HEALTH_WO_GRAD_SEQUENCES','0'))
+  if wo_grad_count:
+    del backward
+    jax.clear_caches()
+    cfg.get_keys()['rmt_health_gradient_split'] = True
+    source_flat = flatten_dict(params)
+    wo_path = ('params','decoder','layers','mlp','wo','kernel')
+    mask_path = ('params','decoder','layers','health_write_gradient_masks')
+    axis=cfg.param_scan_axis
+    last_wo=jnp.take(source_flat[wo_path],cfg.num_decoder_layers-1,axis=axis)
+    def wo_objective(leaf,masks,batch):
+      flat=dict(source_flat)
+      idx=[slice(None)]*flat[wo_path].ndim;idx[axis]=cfg.num_decoder_layers-1
+      flat[wo_path]=flat[wo_path].at[tuple(idx)].set(leaf)
+      flat[mask_path]=jnp.moveaxis(masks,1,axis)
+      modified=unflatten_dict(flat)
+      modified=core.freeze(modified) if isinstance(params,core.FrozenDict) else modified
+      return objective(modified,batch)
+    component=jax.jit(jax.value_and_grad(wo_objective,argnums=0))
+    for i,batch in enumerate(batches[:wo_grad_count]):
+      gradients={};losses={}
+      for mode in ['both','static','dynamic']:
+        masks=jnp.ones((2,cfg.num_decoder_layers),jnp.float32)
+        if mode=='static':masks=masks.at[1,-1].set(0)
+        if mode=='dynamic':masks=masks.at[0,-1].set(0)
+        os.environ['RMT_HEALTH_FILE']=str(output/f'wo-{mode}-{i:03d}-health.jsonl')
+        os.environ['RMT_NORM_TAP_FILE']=str(output/f'wo-{mode}-{i:03d}-taps.jsonl')
+        with mesh,nn_partitioning.axis_rules(cfg.logical_axis_rules):
+          loss,grad=component(last_wo,masks,batch)
+        gradients[mode]=grad.astype(jnp.float32);losses[mode]=float(loss)
+        jax.effects_barrier()
+      total,st,dy=[gradients[k] for k in ['both','static','dynamic']]
+      norm=lambda x:jnp.sqrt(jnp.sum(x*x))
+      cosine=jnp.sum(st*dy)/jnp.maximum(norm(st)*norm(dy),1e-30)
+      row={'sequence':i,'losses':losses,'static_l2':float(norm(st)),'dynamic_l2':float(norm(dy)),
+           'both_l2':float(norm(total)),'static_over_dynamic':float(norm(st)/jnp.maximum(norm(dy),1e-30)),
+           'cosine':float(cosine),'decomposition_relative_error':float(norm(total-st-dy)/jnp.maximum(norm(total),1e-30))}
+      with (output/'wo-gradient-components.jsonl').open('a') as f:f.write(json.dumps(row)+'\n')
+      print('HEALTH_WO_GRADIENT '+json.dumps(row),flush=True)
   print('HEALTH_COMPLETE', flush=True)
 
 

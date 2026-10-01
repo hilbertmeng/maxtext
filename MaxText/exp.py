@@ -11746,6 +11746,7 @@ class RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOMPreNormLearnedSca
     RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOMPreNormLearnedScaleSharedWriteEmbedNormSeedKeyZeroInit):
     """Disable static embedding writes while retaining normalized layer writes."""
     # Implementation: codex/rmt-xlprop-noo, /data0/xd/rmt-xlprop-noo; pure JAX, layer scan.
+    # code_commit: 4b5779c; UE5a v5p-32 ~.307 step/s, flat vs combined SeedZero .307; write-scale health ON.
     # Bet vs combined SeedZero -.005@17500; ~.307 step/s (flat); reviews10000/17500.
     model_name = 'RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOMPreNormLearnedScaleSharedWriteNormEmbedScale0'
     rmt_embedding_seed_key_zero_init = False

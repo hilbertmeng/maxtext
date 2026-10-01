@@ -278,3 +278,15 @@ no forward/gradient effect and dynamic address remains trainable.
 No retained compiler READY: compiler0 waitingFLEX_START, compiler1expired.
 Fallback managedcompiler xd-v6e-aot-4b5779c-74385-ewa4a only; protected
 llm-jax names are untouched. Sealedruntime4b5779c1d3ede17b559a47aeda4f23788c2030e0.
+
+XL Scale0 startup verified2026-10-01: runtime4b5779c1, LoadedAOT and
+actualFIRST_STEP0 followed by17; finite falling loss10.863417->10.639362.
+UE5a v5p-32 .307step/s, flat against matched combinedSeedZero.307;
+worker confirms MLP6643, static seedscale0/Gaussianseed, shared normalized
+embedding content/noW_content, LearnedScale, SharedWriteNorm, raw-M
+VectorNorm, write-scale healthON, layerScan, checkpoint250/keep4000/latest2.
+Registered zone-local TruePile4096 path verified. AOT_CLEANUP_DONE confirms
+managedcompiler released; retained llm-jax compilers untouched.
+Artifacts xl-normalized-scale0-{launch.json,first-step.log,steady.log,
+worker-proof.txt,cpu.log,runtime-check.log,aot.log}. Formal reports every2000
+steps with500-step windows; all four direct baselines retained.

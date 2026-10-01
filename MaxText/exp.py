@@ -10256,7 +10256,7 @@ class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearne
     """Independent token/head gates on normalized static attention and MLP writes."""
     # Implementation: codex/rmt-xlprop-noo, /data0/xd/rmt-xlprop-noo; pure JAX, layer scan.
     # code_commit: d5c607f; UE5a v5p-16 ~.367 step/s (-2.1% vs SharedWriteNorm .375); extra write/gate health ON.
-    # Through1000: vs SharedWriteNorm crossed from -.000548@600 to +.002761; no demonstrated gain yet.
+    # Through2000: last5 vs SharedWriteNorm +.002301 (2000 -.000281); vs LearnedScale +.003570; sustained gain not established.
     # Bet vs SharedWriteNorm -.001@2800 / -.003 terminal; ~.371 step/s (-1.1% vs .375).
     model_name = 'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedWriteNormStaticGate'
     rmt_static_write_gates = True
@@ -11732,6 +11732,7 @@ class RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOMPreNormLearnedSca
     # Implementation: codex/rmt-xlprop-noo, /data0/xd/rmt-xlprop-noo; pure JAX, layer scan.
     # code_commit: 9f78e30 (write-scale health from4152; prior4cd403f); UE5a v5p-32 ~.307 step/s, flat vs B .307.
     # Through10000: last5 vs B -.003576 / MHA -.131530 / Mudd -.037762 / BAM LLF -.006932; Mudd gain1.374x; no terminal static takeover (dynamic/static35.66).
+    # User pause17500 to match B endpoint; original LR schedule retained.
     # Bet vs B -.008@17500; ~.307 step/s (flat); early windows200/400 then500.
     model_name = 'RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOMPreNormLearnedScaleSharedWriteEmbedNormSeedKeyZeroInit'
     rmt_embedding_seed_key_zero_init = True
@@ -11767,8 +11768,8 @@ class RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOMPreNormLearnedSca
     """Disable static embedding writes while retaining normalized layer writes."""
     # Implementation: codex/rmt-xlprop-noo, /data0/xd/rmt-xlprop-noo; pure JAX, layer scan.
     # code_commit: 4b5779c; UE5a v5p-32 ~.307 step/s, flat vs combined SeedZero .307; write-scale health ON.
-    # Through2000: gap vs combined SeedZero -.000756 (early lead fading) / B -.007721 / MHA -.255501 / Mudd -.072522 / BAM LLF -.041170; Mudd gain1.396x.
-    # Bet vs combined SeedZero -.005@17500; ~.307 step/s (flat); reviews10000/17500.
+    # Through4000: last5 vs combined SeedZero -.000092 (tie) / B -.006256 / MHA -.205066 / Mudd -.058172 / BAM LLF -.026409; Mudd gain1.416x.
+    # Bet vs combined SeedZero -.005@17500; ~.307 step/s (flat). User pause8000; original LR schedule retained.
     model_name = 'RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOMPreNormLearnedScaleSharedWriteNormEmbedScale0'
     rmt_embedding_seed_key_zero_init = False
     rmt_embedding_static_write_scale = 0.

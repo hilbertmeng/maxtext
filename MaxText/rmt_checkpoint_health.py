@@ -239,6 +239,35 @@ def main(argv):
     mask_path = ('params','decoder','layers','health_write_gradient_masks')
     axis=cfg.param_scan_axis
     last_wo=jnp.take(source_flat[wo_path],cfg.num_decoder_layers-1,axis=axis)
+    denominator=None
+    if os.environ.get('RMT_HEALTH_WO_OPTIMIZER','0')=='1':
+      import tensorstore as ts
+      from orbax.checkpoint._src.serialization import tensorstore_utils
+      def read_leaf(name,layer=False):
+        kv=tensorstore_utils.build_kvstore_tspec(cfg.load_parameters_path,name)
+        kv.pop('cache_pool',None)
+        store=ts.open({'driver':'zarr3','kvstore':kv},open=True).result()
+        if layer:
+          idx=[slice(None)]*len(store.shape);idx[axis]=cfg.num_decoder_layers-1
+          store=store[tuple(idx)]
+        return np.asarray(store.read().result())
+      moment=read_leaf('opt_state.mu.params.decoder.layers.mlp.wo.kernel',True)
+      variance=read_leaf('opt_state.nu.params.decoder.layers.mlp.wo.kernel',True)
+      count=int(read_leaf('opt_state.count'))
+      assert moment.shape==variance.shape==last_wo.shape
+      # adam_pax stores already bias-corrected moments, not ordinary Adam EMA slots.
+      denominator=jnp.asarray(np.sqrt(variance+cfg.adam_eps_root)+cfg.adam_eps)
+      lr=float(max_utils.create_learning_rate_schedule(cfg)(count-1))
+      w=np.asarray(last_wo);direction=moment/np.asarray(denominator)
+      old_weight=(w+lr*direction)/(1-lr*cfg.adam_weight_decay)
+      reconstructed_update=-lr*(direction+cfg.adam_weight_decay*old_weight)
+      opt={'count':count,'lr_last_update':lr,'epsilon':cfg.adam_eps,
+           'sqrt_variance_percentiles':np.percentile(np.sqrt(variance),[0,1,50,99,100]).tolist(),
+           'epsilon_dominated_fraction':float(np.mean(np.sqrt(variance)<cfg.adam_eps)),
+           'reconstructed_last_update_over_weight':float(np.linalg.norm(reconstructed_update)/np.linalg.norm(w)),
+           'note':'adam_pax checkpoint moments; reconstruct previous W2 update neglecting fp32 rounding; no optimizer step applied'}
+      (output/'wo-optimizer.json').write_text(json.dumps(opt,indent=2))
+      print('HEALTH_WO_OPTIMIZER '+json.dumps(opt),flush=True)
     def wo_objective(source,leaf,masks,batch):
       flat=flatten_dict(source)
       idx=[slice(None)]*flat[wo_path].ndim;idx[axis]=cfg.num_decoder_layers-1
@@ -276,6 +305,11 @@ def main(argv):
                     'static_over_dynamic':float(norm(ss)/jnp.maximum(norm(dd),1e-30)),
                     'static_energy_fraction':float(norm(ss)**2/jnp.maximum(norm(st)**2,1e-30)),
                     'dynamic_energy_fraction':float(norm(dd)**2/jnp.maximum(norm(dy)**2,1e-30))}
+      if denominator is not None:
+        ws=st/denominator;wd=dy/denominator
+        row['checkpoint_denominator_scaled']={'static_over_dynamic':float(norm(ws)/jnp.maximum(norm(wd),1e-30)),
+          'cosine':float(jnp.sum(ws*wd)/jnp.maximum(norm(ws)*norm(wd),1e-30)),
+          'note':'current diagnostic gradients divided by stored Adam denominator, not new-step updates'}
       with (output/'wo-gradient-components.jsonl').open('a') as f:f.write(json.dumps(row)+'\n')
       print('HEALTH_WO_GRADIENT '+json.dumps(row),flush=True)
   print('HEALTH_COMPLETE', flush=True)

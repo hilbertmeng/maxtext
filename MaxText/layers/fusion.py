@@ -223,7 +223,8 @@ class SubDecoderLayer(nn.Module):
           config=cfg,
           quant=self.quant,
           kernel_init=initializers.get_init_method(cfg.init_method), # lsp
-      )(hidden_states, deep_embedding=deep_embedding, decoder_input_tokens=decoder_input_tokens, deterministic=deterministic)
+      )(hidden_states, deep_embedding=deep_embedding, decoder_input_tokens=decoder_input_tokens, deterministic=deterministic,
+        probe_layer_index=layer_index if cfg.get_keys().get('rmt_crossscale_numeric_probe', False) else None)
       mlp_lnx = nn.with_logical_constraint(mlp_lnx, ("activation_batch", "activation_norm_length", "activation_embed"))
 
       if cfg.record_internal_nn_metrics:

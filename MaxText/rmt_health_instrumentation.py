@@ -85,8 +85,13 @@ def numeric_readout(original, precise, targets, mask):
   z = precise.astype(jnp.float32)
   old = original.astype(jnp.float32)
   centered = z-z.mean(-1,keepdims=True)
-  centered_bf16 = centered.astype(jnp.bfloat16).astype(jnp.float32)
-  rounded = z.astype(jnp.bfloat16).astype(jnp.float32)
+  # Explicit IEEE round-to-nearest avoids XLA eliding a bf16 round-trip cast.
+  def round_bf16(v):
+    bits=jax.lax.bitcast_convert_type(v,jnp.uint32)
+    bits=(bits+jnp.uint32(0x7fff)+((bits>>16)&jnp.uint32(1))) & jnp.uint32(0xffff0000)
+    return jax.lax.bitcast_convert_type(bits,jnp.float32)
+  centered_bf16 = round_bf16(centered)
+  rounded = round_bf16(z)
   m = (mask>0).astype(jnp.float32)
   count = jnp.maximum(m.sum(),1.)
   avg = lambda v: (v*m).sum()/count
@@ -108,6 +113,11 @@ def numeric_readout(original, precise, targets, mask):
   import max_utils
   actual_grad = jax.grad(lambda v: jnp.sum(max_utils.cross_entropy_with_logits(v,onehot,0.)[0]))(original).astype(jnp.float32)
   grad_mass=actual_grad.sum(-1)
+  pe=jax.nn.softmax(z,-1)
+  diff=old-z
+  diff=diff-jnp.sum(pe*diff,-1,keepdims=True)
+  active_error=jnp.sqrt(avg(jnp.sum(pe*diff*diff,-1)))
+  target_z=jnp.take_along_axis(z,targets[...,None],axis=-1)[...,0]
   values=jnp.stack((base,ce(z),ce(centered),ce(centered_bf16),ce(rounded),
                    error(old),error(rounded),
                    jnp.sqrt(avg(jnp.mean((centered_bf16-centered)**2,-1))),
@@ -115,13 +125,15 @@ def numeric_readout(original, precise, targets, mask):
                    jnp.sqrt(norm(gc-gp)/jnp.maximum(norm(gp),1e-30)),
                    avg(grad_mass),jnp.sqrt(avg(grad_mass**2)),
                    avg((grad_mass>0).astype(jnp.float32)),
-                   jnp.sqrt(norm(actual_grad-gp)/jnp.maximum(norm(gp),1e-30)),count))
+                   jnp.sqrt(norm(actual_grad-gp)/jnp.maximum(norm(gp),1e-30)),
+                   avg(jnp.max(z,-1)),avg(target_z),active_error,count))
   record('numeric_readout',-1,
          ('ce_original','ce_fp32','ce_fp32_centered','ce_centered_bf16','ce_rounded_fp32',
           'original_centered_error_rms','rounded_centered_error_rms','centered_bf16_error_rms',
           'relative_logit_gradient_error','centered_relative_logit_gradient_error',
           'actual_ce_gradient_mass_mean','actual_ce_gradient_mass_rms',
-          'actual_ce_gradient_mass_positive_fraction','actual_ce_relative_gradient_error','tokens'),values)
+          'actual_ce_gradient_mass_positive_fraction','actual_ce_relative_gradient_error',
+          'max_logit_mean','target_logit_mean','probability_weighted_centered_error_rms','tokens'),values)
 
 
 def write_update(before, static, dynamic, layer, tag):
@@ -136,3 +148,15 @@ def write_update(before, static, dynamic, layer, tag):
                  cosine(update,x),cosine(st,dy)))
   record(tag,layer,('carry_rms','static_rms','dynamic_rms','update_rms',
                    'update_to_carry','update_carry_cosine','static_dynamic_cosine'),vals)
+
+
+def activation_geometry(x, layer, tag):
+  v=x.astype(jnp.float32)
+  mean=v.mean((0,1))
+  power=jnp.mean(v*v)
+  mean_power=jnp.mean(mean*mean)
+  values=jnp.stack((jnp.sqrt(power),jnp.sqrt(mean_power),
+                    jnp.sqrt(jnp.maximum(power-mean_power,0)),
+                    mean_power/jnp.maximum(power,1e-30),jnp.max(jnp.abs(v))))
+  record(tag,layer,('rms','token_common_rms','token_variable_rms',
+                    'token_common_energy_fraction','absmax'),values)

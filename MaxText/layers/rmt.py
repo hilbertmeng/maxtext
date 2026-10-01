@@ -250,6 +250,12 @@ class RMTDynamicC8Read(nn.Module):
       reads = tuple(dynamic_reads[..., i, :] for i in range(self.destinations))
     else:
       reads = tuple(.2 * gates[..., i, None] * read for i in range(self.destinations))
+    if (self.name == 'dynamic_unembedding_read' and
+        cfg.get_keys().get('rmt_crossscale_numeric_probe', False) and not self.is_initializing()):
+      from rmt_health_instrumentation import activation_geometry
+      activation_geometry(raw_key.reshape(x.shape[:2]+(-1,)), jnp.asarray(-1), 'unembedding_key_raw')
+      activation_geometry(key.reshape(x.shape[:2]+(-1,)), jnp.asarray(-1), 'unembedding_key_normalized')
+      activation_geometry(reads[0].reshape(x.shape[:2]+(-1,)), jnp.asarray(-1), 'unembedding_dynamic_read')
     if static_matrix is not None:
       return reads, gates, static_read
     return reads, gates
@@ -712,7 +718,8 @@ class RMTLayer(nn.Module):
         intermediate_dropout_rate=cfg.dropout_rate,
         dtype=cfg.dtype, weight_dtype=cfg.weight_dtype,
         kernel_init=initializers.get_init_method(cfg.init_method),
-        quant=self.quant, name='mlp')(vector, deterministic=deterministic)
+        quant=self.quant, name='mlp')(vector, deterministic=deterministic,
+            probe_layer_index=layer_index if (probe and cfg.get_keys().get('rmt_crossscale_numeric_probe', False)) else None)
     vector = vector.reshape(vector.shape[:2] + (heads, value_dim))
     mlp_write = self.param('mlp_write_key', write_init,
                            (heads, key_dim), cfg.weight_dtype)
@@ -904,6 +911,9 @@ class RMTDecoder(nn.Module):
       # same learned vector pre-norm as the middle-layer dynamic routes.
       x = matrix[..., :heads, :].reshape(matrix.shape[:2] + (cfg.emb_dim,))
       x = normalizations.get_rmsnorm('unembedding_vector_norm', cfg)(x)
+      if cfg.get_keys().get('rmt_crossscale_numeric_probe', False) and not self.is_initializing():
+        from rmt_health_instrumentation import activation_geometry
+        activation_geometry(x, jnp.asarray(-1), 'unembedding_proxy')
       dynamic_state = jnp.swapaxes(matrix[..., heads:, :], -2, -1)
       (dynamic_read,), read_gates = RMTDynamicC8Read(
           cfg, destinations=1,

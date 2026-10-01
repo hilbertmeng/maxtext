@@ -309,7 +309,7 @@ class MlpBlock(nn.Module):
         )
 
   @nn.compact
-  def __call__(self, inputs, deep_embedding=None, decoder_input_tokens=None, decode: bool = False, deterministic: bool = False):
+  def __call__(self, inputs, deep_embedding=None, decoder_input_tokens=None, decode: bool = False, deterministic: bool = False, probe_layer_index=None):
     """Applies Transformer MlpBlock module."""
     cfg = self.config
 
@@ -350,6 +350,9 @@ class MlpBlock(nn.Module):
             matmul_precision=self.config.matmul_precision,
         )(inputs)
         x = checkpoint_name(x, "mlp" + dense_name)
+        if probe_layer_index is not None and not self.is_initializing():
+          from rmt_health_instrumentation import activation_geometry
+          activation_geometry(x, probe_layer_index, 'mlp_' + dense_name)
         if cfg.activations_in_float32:
           x = x.astype(jnp.float32)
         x = _convert_to_activation_function(act_fn)(x)
@@ -357,6 +360,9 @@ class MlpBlock(nn.Module):
 
     # Take elementwise product of above intermediate activations.
     x = functools.reduce(operator.mul, activations).astype(self.dtype)
+    if probe_layer_index is not None and not self.is_initializing():
+      from rmt_health_instrumentation import activation_geometry
+      activation_geometry(x, probe_layer_index, 'mlp_gated_product')
     # Apply dropout and final dense output projection.
     x = nn.Dropout(rate=self.intermediate_dropout_rate, broadcast_dims=(-2,))(
         x, deterministic=deterministic
@@ -393,6 +399,9 @@ class MlpBlock(nn.Module):
       output = self.deep_embed_block(inputs, output, decoder_input_tokens, deep_embedding)
 
     output = checkpoint_name(output, "mlpwo")
+    if probe_layer_index is not None and not self.is_initializing():
+      from rmt_health_instrumentation import activation_geometry
+      activation_geometry(output, probe_layer_index, 'mlp_output')
     return output
 
 

@@ -479,3 +479,27 @@ historical initialization failure is not a current bias-update stall. Full scala
 artifacts optimizer-groups/{medium,xl}.json. No training optimizer/model changed.
 Future checks should log continuous epsilon attenuation as well as the fraction
 with sqrt(v)<epsilon; a binary threshold alone misses modest attenuation.
+
+## Penultimate versus final MLP forward comparison
+
+Same32-cohort means; Medium layers16/17 (zero-based), XL26/27:
+
+| metric | Medium penultimate/final | XL penultimate/final |
+| --- | ---: | ---: |
+| SwiGLU product RMS | .23377/.27534 | .12899/30.77678 |
+| product top4-unit energy fraction | .05910/.07072 | .04249/.96224 |
+| MLP output RMS | .37379/.47358 | .31786/78.03516 |
+| static MLP-write RMS | .11408/.11212 | .10424/31.43141 |
+| dynamic MLP-write RMS | 2.87515/3.06357 | 4.58880/7.16005 |
+| total MLP dM/M RMS ratio | .29747/.27920 | .21184/1.43666 |
+
+Penultimate XL is less concentrated than Medium; the abrupt feature/static-write
+amplification is localized to the final MLP, not uniform amplification throughout
+the terminal layers. Final attention writes do not show the same extreme jump:
+XL static .11962->.15143, dynamic3.70207->4.87300. Existing detailed attention and
+matrix-rank taps omit the penultimate layer; add it to future boundary-layer sparse
+captures rather than assume those statistics also jump at the final layer.
+Reproduction penultimate-final-forward-summary.json, original*-tails artifacts.
+All diagnostic artifacts verified locally and in GCS. Owned final EW4a spot
+v6e-1 xd-v6e-1-rmt-health-xl-261001 node and queue verified absent at closeout;
+retained user compilers and ongoing training TPUs untouched.

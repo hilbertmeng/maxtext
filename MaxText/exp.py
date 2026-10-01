@@ -11695,8 +11695,7 @@ class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearne
     """Combine learned full-M scales, zero seed and shared normalized layer writes."""
     # Implementation: codex/rmt-xlprop-noo, /data0/xd/rmt-xlprop-noo; pure JAX, layer scan.
     # code_commit: 4cd403f; UE5a v5p-16 ~.371 step/s (-.5% vs SeedZero .373); dynamic health ON.
-    # Bet terminal vs SeedZero -.002; ~.373 step/s (flat); reviews2800/5000.
-    # Through4000: last5 vs SeedZero +.009195 / SharedWriteNorm +.003205 / B +.000972 / NoO +.008028; continue5000.
+    # Stopped4879: vs SeedZero deficit held~+.009 (last5+.008673); SharedWriteNorm +.002781 / B flat / NoO +.008257; no additive gain.
     model_name = 'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedWriteNormEmbedSeedZero'
     rmt_static_write_content_norm = True
     checkpoint_period = 200
@@ -11708,13 +11707,12 @@ class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearne
                     'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoO']
     jax_cache_dir = ''
 
-
 class RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOMPreNormLearnedScaleSharedWriteEmbedNormSeedKeyZeroInit(
     RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOMPreNormLearnedScaleSharedWriteEmbedNorm):
     """Zero static embedding seed in the learned-scale/shared-write XL combination."""
     # Implementation: codex/rmt-xlprop-noo, /data0/xd/rmt-xlprop-noo; pure JAX, layer scan.
-    # code_commit: 4cd403f; UE5a v5p-32 ~.308 step/s (+.3% vs B .307); dynamic health ON.
-    # Through2000: vs B -.006965, lead narrows1000-2000; Mudd gain1.392x (early).
+    # code_commit: 9f78e30 (write-scale health from4152; prior4cd403f); UE5a v5p-32 ~.307 step/s, flat vs B .307.
+    # Through4000: last5 vs B -.006164 / MHA -.204974 / Mudd -.058080; Mudd gain1.419x; final MLP ratio rising23.21.
     # Bet vs B -.008@17500; ~.307 step/s (flat); early windows200/400 then500.
     model_name = 'RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOMPreNormLearnedScaleSharedWriteEmbedNormSeedKeyZeroInit'
     rmt_embedding_seed_key_zero_init = True

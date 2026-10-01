@@ -163,3 +163,35 @@ health-prefix equality with statistics off/on, zero/canceling-update semantics
 and TB tag export including independent old write-health switch.
 Resume same RUN from committed checkpoint after new AOT; retain total50000
 schedule, data path, report cadence and checkpoint-retention settings.
+
+Combined MediumSeedZero stopped4879 after user-directed review. Last5
+4000-4800 vs SeedZero+.008673 (range+.008154..+.010007), standalone
+SharedWriteNorm+.002781, B-.000090, originalNoO+.008257. Deficit against
+SeedZero stays near+.009; flat B and no speed benefit do not justify
+continuing. Positive individual modifications do not combine additively.
+Initial terminal-.002 bet failed and is removed from closed class ledger.
+Localcloseout script completed; checkpoint4879 committed, node/queue absent,
+TB SYNC_OK; no lost steps. One UE5a READY lease06:27:26-10:11:45 UTC,
+3h44m19s, zero preemptions; user stop.
+
+XL batch4000/12000/30000: newRMT last5 vsB-.006164, MHA-.204974,
+Mudd-.058080; Mudd gain1.419x at4000. FinalMLP tail ratio23.21, penult23.36,
+first20ratio24.39; finalgate.669, tailcosine.515; no terminal-only collapse
+yet, prior5000-10000 danger interval still ahead. BAMLLF-AllLocal-.027278
+last5 stable, vsMudd-.028526; Mudd gain1.325x@12000. AllLocal-Mudd+.006138,
+Mudd gain.912x@30000; advantage decay continues. Full cumulative artifact:
+/data0/xd/bam_diagnostics/rmt-readnorm-launch/xl-30000-12000-4000-cumulative.md.
+
+XL write-scale runtime9f78e300 resumes exact committed4152 after
+4cd403fe. Borrowed guaranteed STANDARD compiler0, never lifecycle-owned.
+CPU2checks33.753s pass; sealed config passes; AOT loaded and actual
+post-resumeFIRST_STEP4158 (worker restore log4152). Same50000schedule,
+UE5a dataset, params and optimizer; speed.307 vs prior.308 effectively flat.
+Actual TB new stats present and finite. B gap five-common-point windows
+-.005178@4130 ->-.005766@4180 ->-.005520@4200, no boundary discontinuity.
+FinalMLP rawy~.426/staticwrite~.152/dynamicwrite~3.67/update-to-carry~.180
+near4180; current stage still precedes historical5000-6000 failure onset.
+Artifacts write-scale-health-{cpu.log,worker-proof.txt,continuity.json,live.json};
+resume journal copied under write-scale-health-resume-journal.json.
+Missing training write-scale metrics resolved from4152, no retroactive TB
+values for earlier steps. Normal reporting cadence remains unchanged.

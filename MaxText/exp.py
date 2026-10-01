@@ -9584,7 +9584,7 @@ class BamXLPropK96EmbedVOnlyQK72AllLocalTruePile(
     Llama2XLProp, BamMediumPropK75EmbedVOnlyQK57AllLocalTruePile):
     """Proportional all-local matrix-value BAM on repaired XLProp TruePile."""
     # code_commit: 6446a1f; UE5a v5p-32 ~.355 step/s, +15.6% vs B .307; extra health differs.
-    # Through26000: last5 vs MHA -.071144 / Mudd +.004746 (0.937x gain); Mudd deficit slowly widens.
+    # Through28000: last5 vs MHA -.069344 / Mudd +.005176 (0.931x gain); Mudd deficit slowly widens.
     # vs B common17500 -.000279 (B stopped).
     model_name = 'BamXLPropK96EmbedVOnlyQK72AllLocalTruePile'
     DATASET_VARIANT = 'truepile4096'
@@ -9618,7 +9618,7 @@ class BamXLPropK96EmbedVOnlyQK72LLFTruePile(BamXLPropK96EmbedVOnlyQK72AllLocalTr
     """Nine LLF blocks plus a terminal L, same proportional matrix-value recipe."""
     # code_commit: 22c2c5c
     # UE5a ~.359 step/s (+1.1% vs AllLocal .355); generic+concat health ON.
-    # Through8000: last5 vs AllLocal -.026906 / Mudd -.032089 / MHA -.132821; Mudd gain1.319x, advantage stable.
+    # Through10000: last5 vs AllLocal -.027266 / Mudd -.030830 / MHA -.124598; Mudd gain1.329x; AllLocal lead stable.
     # Bet terminal vs AllLocal -.025; .350 step/s (~-1.4% vs .355).
     # Per-layer nearest MHA budget: L6294/F5654, terminal L6294; total1,432,418,340 (+19,620 vs MHA).
     model_name = 'BamXLPropK96EmbedVOnlyQK72LLFTruePile'

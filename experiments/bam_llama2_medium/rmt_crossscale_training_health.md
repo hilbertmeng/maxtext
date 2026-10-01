@@ -1,5 +1,13 @@
 # MediumProp versus XLProp dynamic RMT B training health
 
+Current conclusion (2026-10-01): no causal root has been established. The strongest
+localized forward difference is the terminal MLP write/feature concentration.
+But its large raw static/dynamic W2-gradient contrast largely disappears after
+checkpoint Adam-denominator scaling (median ratio .0513 Medium/.0622 XL).
+Do not attribute the loss-gain decay to static-gradient domination, late global
+clipping, dead dynamic routes, or output calibration: these explanations are not
+supported by the paired probes. Sparse actual optimizer/update evidence is essential.
+
 Question: why does the XLProp all-M-read-pre-norm dynamic RMT lose its advantage
 while MediumProp retains it? Diagnose training health and distinguish an optimizer
 problem, saturated/collapsed representations, and output calibration. Do not equate
@@ -280,3 +288,194 @@ Permanent health additions should prioritize cheap, causally interpretable signa
 Existing gate distributions and head/tail write ratios must be read by actual
 layer and with correct Medium/XL metric names. Their previous omission was an
 analysis/reporting failure, not a lack of instrumented training health.
+
+
+Targeted backward inspectiona68512cb (same32 cohort, first4 gradients):
+terminal four units account for31–81% of W2 gradient energy, but only~.07–1.0%
+of W1/Wg energy. Their necessity is demonstrated; gradient concentration alone
+is not evidence of harmful competition, especially with coordinatewise Adam.
+LM-head vocabulary-common gradient energy is only~1.4e-8–2.3e-7 of LM-head
+gradient energy in these four batches. The common logit offset has no demonstrated
+large gradient-energy sink. These are batch1 diagnostic gradients, not training
+batch128 clipping statistics. All114 artifacts and HEALTH_COMPLETE verified.
+
+A correction to the initial dynamic-unembedding interpretation: turning it off
+changes calibration/amplitude. Existing paired temperature sweeps give best-grid
+CE gaps~+.281 Medium and~+.269 XL, versus uncalibrated~+.682/~+.314. Thus lower
+raw deletion loss on XL is insufficient evidence of lower information value.
+A denser paired temperature scan is running before drawing a functional-collapse
+conclusion. Dynamic/static cosine and gate openness also cannot settle this.
+
+
+All-layer necessity controls34bee18ef983899fc730476cb53af5f95426410e,32 matched
+cohorts, same compiled forward per scale. Mean CE increases; calibrated columns
+use one global temperature chosen on this diagnostic cohort, not retraining:
+
+| dynamic route disabled | Medium raw / calibrated | XL raw / calibrated |
+| --- | ---: | ---: |
+| QK, all layers | .671948 / .669965 | .594049 / .594004 |
+| V, all layers | .219793 / .218840 | .343646 / .338792 |
+| MLP read, all layers | .466075 / .453937 | .826793 / .822827 |
+| MLP write, all layers | 5.045749 / 5.011151 | 7.554103 / 7.552063 |
+| unembedding | .682995 / .274811 | .307007 / .263928 |
+
+The calibrated unembedding difference XL-Medium is-.010883 (paired SE.016316).
+The information-necessity difference is not established; most raw difference
+was calibration. XL dynamic V/MLP routes remain highly necessary. This rejects
+an across-the-board dead-dynamic-route account, not a training-benefit claim.
+Forward whole-route removals move states far off the learned distribution;
+large loss changes are necessity diagnostics, never additive component benefits.
+All cohort hashes and all192 variant health files per scale are verified by
+analyze_routes.py; full results route-necessity-calibration-summary.json.
+
+Attention is not globally saturated on XL: at last-layer querychunk3840,
+mean entropy4.343/max-probability.295 versus Medium3.386/.368; first-layer
+6.680/.075 versus4.862/.250. Greater diffuseness is an observation, not proof of
+bad attention. It can reflect token/task/model changes and requires a targeted
+control. AllLocal BAM terminal Q/K gates are lower on XL than Medium, but stable
+from17500 to21500 (Q~.025,K~.0125); no abrupt late closing explains the trend.
+
+The sharper conditioning probe dd0b34258fae8b6e8029fce69cdbccf8fc252aed adds
+identity taps on static write contents, paired with existing dynamic-content
+cotangents. CPU unchanged CE/all-parameter gradients passed32.738s. Static writes
+use raw y; dynamic writes RMSNorm(y), whose content Jacobian scales~1/RMS(y)
+and projects away radial direction. Large output can redirect content gradients
+even if features are useful. Measure actual branch derivatives and token strata,
+not merely infer it from forward RMS. Four first-cohort gradients preserve
+batch1 context; never compare their norms with training batch128 clipping.
+
+
+## Actual terminal W2 write-path gradients
+
+71a2dc79 (Medium) and 2c742530 (XL) use gradient-only identity masks on
+terminal static/dynamic writes. Identical forward losses for both/static/dynamic
+modes; the W2 gradient sum reconstructs the unmasked gradient with relative error
+.0014-.0021 (bf16). No optimizer update. Four matched unseen sequences, batch1;
+these are not training-batch128 aggregate gradients or Adam updates.
+
+| sequence | Medium static/dynamic W2 gradient L2 | XL |
+| --- | ---: | ---: |
+| 0 | .064194 | 1.470224 |
+| 1 | .041151 | .537343 |
+| 2 | .056853 | .777632 |
+| 3 | .048046 | .387540 |
+
+Median ratio .05245 versus .65749 (12.54x). Static/dynamic gradient cosine is
+.54-.58 Medium versus .24-.33 XL. The content-tensor gradient ratios themselves
+are similar (.041-.061 versus .049-.064), so RMSNorm's local derivative scale
+alone does not explain the parameter-gradient difference.
+
+For y=H W2, dL/dW2=H^T dL/dy. SwiGLU features H weight the token/content gradients;
+large feature concentration can change the W2 path balance even when global
+content-gradient norms match. The dynamic path's per-head RMSNorm also removes
+the radial gradient component, unlike the static raw-y write. Actual measured
+W2 gradients, not an inference from forward amplitude, establish this difference.
+The selected-four-unit split is a follow-up to locate this weighting. W2 ratios
+alone neither establish harmful gradients nor explain the full training gap:
+Adam is coordinatewise, the four units improve CE, and the earlier temporal
+checkpoints/actual optimizer updates are unavailable in this probe.
+
+## Health metric gaps and priorities
+
+1. **Sparse path/group parameter gradients and actual Adam updates.** Record W1/Wg/W2,
+   embedding address/content, QK keys and unembedding update/weight ratios;
+   include the fraction dominated by Adam epsilon. At diagnostic checkpoints split
+   terminal static/dynamic W2 gradients and their cosine. Global grad norm and
+   content RMS/gradient ratios would miss the newly observed difference.
+2. **Raw activation scale and concentration at explicit boundary layers.** Record
+   raw carry M and summed MLP input, SwiGLU product and output RMS/tails, write dM/M;
+   terminal top-unit energy and CE on the same high-activation token mask. Keep
+   first/last layers separate from middle-layer summaries. High amplitude on easy
+   tokens is not itself bad health.
+3. **Centered output/calibration.** Separate vocabulary-common logit offset from
+   centered scale; include output dtype and sparse temperature CE. Raw logits RMS
+   and raw route-deletion loss alone misdiagnosed unembedding information value.
+4. **Retention for temporal diagnosis.** Keep a small set of checkpoints around
+   gain-ratio turning points, with optimizer state. Terminal parameters plus TB
+   cannot identify when feature/gradient balance changed or establish its cause.
+
+Already available but previously missed: per-layer gate distributions and terminal
+head/tail dynamic/static write ratios. XL's final-layer tail ratio fell from54.8
+at5000 to.706 at10000 and.197 at17500; grouping depth bands hid the last-layer switch.
+Correct the analysis/report before adding duplicate instrumentation. Exact ranks,
+Gram/SVD, backward route splits and Adam diagnostics should be sparse/offline;
+do not add all of them to every training step or contaminate speed comparisons.
+
+Selected-unit follow-up b1717ab5295bcb9608ae62145b1d47990ed85840, same four XL
+sequences/forward and branch gradients, reports only host/device reductions; no
+training computation changes. Units5363/3073/4107/5817 own94.5-96.0% of the
+static-path W2 gradient energy, versus6.8-36.3% of the dynamic-path energy.
+On all other W2 rows, static/dynamic gradient ratios are .3683/.1254/.1774/.1006;
+on the four rows, 2.3902/2.0088/1.7818/.8928. Thus most static-gradient energy
+is localized to the same four concentrated features. The remaining rows still
+have higher ratios than Medium's full W2 (.041-.064); the effect is not solely
+those four units. Parameter-group/coordinate Adam updates are the missing link
+between this gradient redistribution and a claim of impaired optimization.
+
+Practical next discriminator: XL B + **layer SharedWriteNorm only**, preserving
+B's original embedding, matrix/vector normalization, unembedding and MLP widths.
+The previous failed XL combination changed embedding too, so it cannot reject
+this isolated remedy. Watch both the loss-gain trajectory and the terminal
+write/parameter-update balance; reducing an amplitude metric without improving
+loss would falsify the proposed remedy. This diagnosis does not silently start
+that formal experiment or modify ongoing training runtimes.
+
+Optimizer follow-up ffc9254510bff146ad35d01639612cb98c3ff8e0 reads only the
+terminal W2 first/second moments and count from the existing read-only OCDBT/Zarr3
+checkpoint. Do not restore an entire optimizer or write any checkpoint. The actual
+runtime uses adam_pax: moment slots are already bias-corrected. Inspect epsilon
+attenuation and gradients divided by the stored denominator, clearly separated
+from next-step Adam updates (which would also change moment slots).
+The previous W2 update can be reconstructed from checkpoint moments, schedule
+at count-1 and decoupled WD, neglecting fp32 rounding; a CPU test against the
+actual adam_pax update passes. This is a sparse diagnostic, not an ongoing
+training instrumentation change. A large raw path-gradient ratio may be canceled
+by per-coordinate Adam scaling; check this before calling it optimization failure.
+
+## Stored optimizer correction: raw gradient difference is mostly compensated
+
+ffc92545, four same-cohort W2 gradients per scale and their checkpoint Adam slots:
+
+| metric | Medium5400 | XL17500 |
+| --- | ---: | ---: |
+| checkpoint Adam count | 5401 | 17501 |
+| raw static/dynamic gradient median | .05245 | .65749 |
+| stored-denominator-scaled gradient median | .05133 | .06221 |
+| scaled ratios, sequences0..3 | .06202/.04008/.05564/.04701 | .09654/.05342/.06749/.05693 |
+| sqrt(variance) below epsilon fraction | 0 | 0 |
+| reconstructed previous W2 update/weight L2 | .002642 | .001667 |
+
+The raw cross-scale median-ratio contrast12.54x falls to1.21x under the stored
+Adam denominator. The raw static-gradient concentration is real, but is not
+established static-update domination. Neither content-gradient scale nor raw
+parameter-gradient scale alone diagnoses learning health. Scaled current gradients
+are not literal next-step updates: the next moment slots would also change, and
+these probes use batch1. The reconstructed previous checkpoint update includes
+actual moments, schedule and WD, neglecting fp32 rounding; its lower XL ratio is
+not itself evidence of impairment (different LR/parameter scale). No epsilon
+suppression of terminal W2 is observed. This does not clear other parameter groups.
+
+This correction downgrades the gradient-competition explanation. Useful four-unit
+features, beneficial static-write necessity, and near-compensated W2 gradients
+mean we have not found a demonstrably harmful terminal component. The existing
+normalization intervention is still a discriminating training control because
+Medium showed a benefit and XL's previous combination was confounded; it is not
+a fix for a root cause proven here. Baseline catch-up/architecture allocation also
+remain possible, but cannot be asserted from the present endpoint snapshots.
+To resolve causality rather than extend correlation probes indefinitely, retain
+matched model/baseline checkpoints around the turning point and their optimizer
+states, then test the isolated layer-write normalization control.
+
+Bounded optimizer-group inspection6fefc9137a8502e0538e49fa49585e5fdbdff207:
+52 slot groups per scale, first/middle/last layers;115 slices each, all finite.
+Five oversized groups skipped (three MLP matrices, logits kernel, token embedding);
+terminal W2 is covered independently above. All other inspected groups use
+already-corrected adam_pax moments. Medium has0 epsilon-dominated coordinates in
+these slices; XL has1.62% in terminal VO gate_kernel and.0039% in first K-mix.
+First-layer QK average epsilon attenuation factors are .903-.922 Medium versus
+.832-.845 XL; this is a real moderate difference, not demonstrated broad update
+collapse. Dynamic embedding address-bias attenuation is .999993/.999981: the
+historical initialization failure is not a current bias-update stall. Full scalar
+artifacts optimizer-groups/{medium,xl}.json. No training optimizer/model changed.
+Future checks should log continuous epsilon attenuation as well as the fraction
+with sqrt(v)<epsilon; a binary threshold alone misses modest attenuation.

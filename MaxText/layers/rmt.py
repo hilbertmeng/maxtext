@@ -704,6 +704,8 @@ class RMTLayer(nn.Module):
       vector=ad_checkpoint.checkpoint_name(vector,'rmt_middle_vector')
       mlp_x=ad_checkpoint.checkpoint_name(mlp_x,'rmt_middle_proxy')
     vector = vector.reshape(vector.shape[:2] + (cfg.emb_dim,))
+    if probe and cfg.get_keys().get('rmt_crossscale_numeric_probe', False):
+      vector = tap(vector, layer_index, 'MLP_input_total')
     vector = linears.MlpBlock(
         config=cfg, intermediate_dim=cfg.mlp_dim if self.mlp_dim is None else self.mlp_dim,
         activations=cfg.mlp_activations,

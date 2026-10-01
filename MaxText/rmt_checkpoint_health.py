@@ -9,7 +9,8 @@ import os
 from pathlib import Path
 import time
 from absl import app
-from flax.traverse_util import flatten_dict
+from flax import core
+from flax.traverse_util import unflatten_dict, flatten_dict
 from flax.linen import partitioning as nn_partitioning
 import jax
 import jax.numpy as jnp
@@ -128,6 +129,49 @@ def main(argv):
     row = {'sequence': i, 'loss': loss, 'elapsed': time.monotonic()-started}
     with (output/'losses.jsonl').open('a') as f: f.write(json.dumps(row)+'\n')
     print('HEALTH_FORWARD '+json.dumps(row), flush=True)
+  # Same compiled computation and cohort for parameter interventions.
+  if os.environ.get('RMT_HEALTH_ABLATIONS', '0') == '1':
+    original_flat = flatten_dict(params)
+    axis = cfg.param_scan_axis
+    def changed(variant):
+      flat = dict(original_flat)
+      prefix = ('params', 'decoder')
+      if variant.startswith('last_mlp_static_'):
+        factor = float(variant[len('last_mlp_static_'):])
+        path = prefix + ('layers', 'mlp_write_key')
+        value = flat[path]
+        idx = [slice(None)] * value.ndim
+        idx[axis] = cfg.num_decoder_layers - 1
+        flat[path] = value.at[tuple(idx)].multiply(factor)
+      elif variant == 'embedding_no_address_bias':
+        path = prefix + ('dynamic_embedding_write', 'address_up_bias')
+        flat[path] = jnp.zeros_like(flat[path])
+      elif variant == 'unembedding_dynamic_off':
+        path = prefix + ('dynamic_unembedding_read', 'key_kernel')
+        flat[path] = jnp.zeros_like(flat[path])
+      elif variant == 'last_mlp_dynamic_off':
+        path = prefix + ('layers', 'dynamic_mlp_write', 'gate_bias')
+        value = flat[path]
+        idx = [slice(None)] * value.ndim
+        idx[axis] = cfg.num_decoder_layers-1
+        flat[path] = value.at[tuple(idx)].set(-100.)
+      elif variant != 'baseline':
+        raise ValueError(variant)
+      tree = unflatten_dict(flat)
+      return core.freeze(tree) if isinstance(params, core.FrozenDict) else tree
+    variants = os.environ.get('RMT_HEALTH_VARIANTS',
+        'baseline,last_mlp_static_0,last_mlp_static_0.5,last_mlp_static_0.9,last_mlp_static_1.1,last_mlp_dynamic_off,embedding_no_address_bias,unembedding_dynamic_off').split(',')
+    for variant in variants:
+      replacement = changed(variant)
+      for i, batch in enumerate(batches):
+        os.environ['RMT_HEALTH_FILE'] = str(output/f'ablation-{variant}-{i:03d}-health.jsonl')
+        os.environ['RMT_NORM_TAP_FILE'] = str(output/f'ablation-{variant}-{i:03d}-taps.jsonl')
+        with mesh, nn_partitioning.axis_rules(cfg.logical_axis_rules):
+          loss = float(forward(replacement, batch))
+        jax.effects_barrier()
+        with (output/'ablations.jsonl').open('a') as f:
+          f.write(json.dumps({'variant':variant,'sequence':i,'loss':loss})+'\n')
+      print('HEALTH_ABLATION '+variant,flush=True)
   del forward
   jax.clear_caches()
 

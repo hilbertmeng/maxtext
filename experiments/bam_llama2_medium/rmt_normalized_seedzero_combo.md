@@ -290,3 +290,14 @@ managedcompiler released; retained llm-jax compilers untouched.
 Artifacts xl-normalized-scale0-{launch.json,first-step.log,steady.log,
 worker-proof.txt,cpu.log,runtime-check.log,aot.log}. Formal reports every2000
 steps with500-step windows; all four direct baselines retained.
+
+MediumScale0 combo6000: standaloneScale0 gaps5200..6000
++.002258/+.002591/+.002323/+.002656/+.004210;last5+.002807,
+range+.002258..+.004210. Deficit not narrowing, no additive benefit.
+B common5400 last5-.004361; stoppedSeedZero common4800 unchanged-.004411.
+Speed.372 flatvsstandaloneScale0.372 / +.3%vsSeedZero.371 / -.8%vsB.375.
+FinalMLP dynamic/static ratio14.87->16.31 from5000->6000, gate.699->.749;
+penult15.79->17.23. Embeddingstatic0 and dynamicRMS.454->.445,
+gate.088->.085. No static takeover. Continue per user with next7000 report.
+Full cumulative artifact medium-scale0-combo-6000-cumulative.md under
+/data0/xd/bam_diagnostics/rmt-readnorm-launch/; exact health6000 JSON beside it.

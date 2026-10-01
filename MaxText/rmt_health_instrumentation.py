@@ -8,7 +8,7 @@ import jax.numpy as jnp
 import numpy as np
 
 _LOCK = threading.Lock()
-TEMPERATURE_FACTORS = (.5, .75, .9, 1., 1.1, 1.25, 1.5)
+TEMPERATURE_FACTORS = (.75, .9, 1., 1.05, 1.1, 1.15, 1.2, 1.25, 1.3, 1.4, 1.45, 1.5, 1.6, 1.75, 2.)
 
 def emit(tag, names, layer, values):
   record = {'tag': tag, 'layer': int(layer), **dict(zip(names, np.asarray(values).tolist()))}

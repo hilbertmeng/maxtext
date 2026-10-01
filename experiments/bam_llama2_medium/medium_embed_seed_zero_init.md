@@ -44,3 +44,5 @@ keeping it permanently zero or permanently weak. No universal claim about
 static-address optimal amplitude follows from this single training comparison.
 
 5000 review (through5200): continue. Last5 vs Scale0 -.001622,range-.002286..-.000385; Scale006 -.003225,range-.003596..-.002665; SharedEmbedNorm -.006418,range-.007297..-.005256. Initial large lead narrowed, but the recent ~-.002 advantage over Scale0 has not vanished. A near-tie at5000 followed by -.002286 at5200 is not a direction reversal. Matched speed flat. Static RMS.0763/.0798/.0777 and cosine+.858/+.847/+.828 at2800/4000/5000; learned static route remains constructive. Static writes need not stay extremely weak; zero initialization avoids the bad random static start while retaining subsequent learning.
+
+Paired terminal closeout now complete for both arms: SeedZero-Scale0 last5(12600-13400) +.000012,range-.000663..+.000399, effectively tied. Scale0 vs SharedEmbedNorm -.005587 and vs Scale006 common through12400 -.002454. Both committed13500, resources absent, local closeout helpers invoked, TB SYNC_OK. Early SeedZero advantage over Scale0 did not persist.

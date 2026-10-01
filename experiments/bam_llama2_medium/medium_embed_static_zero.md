@@ -49,3 +49,5 @@ Embedding gate.0967/.0940/.0900 and dynamic RMS.426/.457/.468 at
 spikes against Scale006 rather than dismissing the reversal as measurement noise.
 
 5000 review (through5200): continue. Last5 vs Scale006 -.001603,range-.002279..-.001018; SharedEmbedNorm -.004796,range-.005288..-.004332. Recent lead vs Scale006 holds around-.0015 rather than collapsing. Matched speed flat. Window4200 lacks one raw point after preemption; do not interpolate. Window5000 recovered from all five exact TB losses (4980-5020), imported into loss cache. Preserve Scale0 as the terminal causal comparison against the learnable zero-initialized static route.
+
+Paired terminal closeout now complete for both arms: SeedZero-Scale0 last5(12600-13400) +.000012,range-.000663..+.000399, effectively tied. Scale0 vs SharedEmbedNorm -.005587 and vs Scale006 common through12400 -.002454. Both committed13500, resources absent, local closeout helpers invoked, TB SYNC_OK. Early SeedZero advantage over Scale0 did not persist.

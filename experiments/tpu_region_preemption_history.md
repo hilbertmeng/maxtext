@@ -27,6 +27,7 @@ active leases are censored, and manual migration releases are not preemptions.
 
 | RUN | TPU | Zone | Start UTC | End UTC | End reason | Passive candidates |
 |---|---|---|---|---|---|---|
+| `RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedEmbedWriteNormScale0` | v5p-16 | `us-east5-a` | 2026-09-30 15:03:56 | 2026-10-01 03:49:58 | completed13500; eleven preemptions; resources absent, TB synced | none |
 | `BamLlama2XLHead16x128V2C256FetchRank2` | v5p-32 | `europe-west4-b` | 2026-08-25 07:34:52 | 2026-08-26 00:07:55 | manual stop | `us-central1-a` (never active) |
 | `BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2GroupedWriteRMSNormNoBias` | v5p-32 | `europe-west4-b` | 2026-08-25 13:46:30 | 2026-08-26 00:08:00 | manual stop | `us-central1-a` (never active) |
 | `BamLlama2MediumV2C256Paired40LocalQKRank2GroupedWriteRMSNormKeepBias` | v5p-16 | `europe-west4-b` | 2026-08-26 02:53:12 | 2026-08-26 08:27:42 | manual stop | `us-central1-a` (never active) |
@@ -1219,9 +1220,21 @@ active leases are censored, and manual migration releases are not preemptions.
 | `RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicEmbedding` | 6 | `us-east5-a` | 2026-09-26 20:43:57 | 2026-09-27 00:33:13 | 3h49m16s | completed13500; TPU/queue absent, TB synced |
 | `RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicUnembeddingDirect32` | 3 | `us-east5-a` | 2026-09-26 19:10:38 | 2026-09-27 01:31:10 | 6h20m32s | completed13500; TPU/queue absent, TB synced |
 | `RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicEmbeddingUnembeddingDirect32` | 2 | `us-east5-a` | 2026-09-26 20:43:59 | 2026-09-27 03:51:11 | 7h7m12s | completed13500; TPU/queue absent, TB synced |
-| `RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicEmbeddingUnembeddingDirect32L22` | 1 | `us-east5-a` | 2026-09-27 00:29:56 | — | censored | active; prequeue READY precedes registry00:30:07 |
 | `RMT Pallas profile sweep` | 1 | `us-central1-a` | 2026-09-27 05:54:13 | 2026-09-27 07:16:51–07:24:58 | 1h22m38s–1h30m45s | preempted; end bounded by last observed step/terminal-state check |
 | `RMT Pallas final + MHA profile` | 1 | `us-central1-a` | 2026-09-27 07:30:30 | 2026-09-27 08:00:31 (verified absent) | ≤30m01s | completed profiles, manual release; upper bound uses absence verification |
 | `RMT middle-reverse follow-up profiles` | 1 | `us-central1-a` | 2026-09-27 15:55:42 (first observed READY) | 2026-09-27 16:31:40 (verified absent) | ≤35m58s observed window | all7 profiles complete; no preemption; exact xd-v5p-16-rmt-midv2-0927-uc1a node/queue absent; both retained v6e hosts remain READY |
 | `RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32` | 1 | `us-east5-a` | 2026-09-28 03:05:32 | 2026-09-28 05:42:16 | 2h36m44s | manual stop; checkpoint3442; TPU/queue absent |
 | `BamMHAMediumPropC256TruePile` | 1 | `us-east5-a` | 2026-09-28 03:05:47 | 2026-09-28 08:30:36 | 5h24m49s | clean exit at checkpoint13500; TPU/queue absent |
+| `RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedEmbedWriteNormScale0` | 1 | `us-east5-a` | 2026-09-30 15:03:59 | 2026-09-30 15:38:00 | 34m01s | preempted |
+| `RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedEmbedWriteNormScale0` | 2 | `us-east5-a` | 2026-09-30 15:48:37 | 2026-09-30 18:31:44 | 2h43m07s | preempted |
+| `RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedEmbedWriteNormScale0` | 3 | `us-east5-a` | 2026-09-30 18:39:16 | 2026-09-30 19:19:04 | 39m48s | preempted |
+| `RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedEmbedWriteNormScale0` | 4 | `us-east5-a` | 2026-09-30 19:26:02 | 2026-09-30 21:19:20 | 1h53m18s | preempted |
+| `RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedEmbedWriteNormScale0` | 5 | `us-east5-a` | 2026-09-30 21:27:40 | 2026-09-30 21:45:08 | 17m28s | preempted |
+| `RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedEmbedWriteNormScale0` | 6 | `us-east5-a` | 2026-09-30 21:52:51 | 2026-09-30 21:59:19 | 6m28s | preempted |
+| `RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedEmbedWriteNormScale0` | 7 | `us-east5-a` | 2026-09-30 22:33:13 | 2026-09-30 22:37:00 | 3m47s | preempted |
+| `RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedEmbedWriteNormScale0` | 8 | `us-east5-a` | 2026-09-30 22:43:20 | 2026-09-30 23:40:06 | 56m46s | preempted |
+| `RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedEmbedWriteNormScale0` | 9 | `us-east5-a` | 2026-09-30 23:47:13 | 2026-10-01 00:16:08 | 28m55s | preempted |
+| `RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedEmbedWriteNormScale0` | 10 | `us-east5-a` | 2026-10-01 00:22:10 | 2026-10-01 02:11:56 | 1h49m46s | preempted |
+| `RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedEmbedWriteNormScale0` | 11 | `us-east5-a` | 2026-10-01 02:19:01 | 2026-10-01 02:28:58 | 9m57s | preempted |
+| `RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedEmbedWriteNormScale0` | 12 | `us-east5-a` | 2026-10-01 02:37:52 | 2026-10-01 03:49:58 | 1h12m06s | completed13500; resources absent, TB synced |
+| `RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicEmbeddingUnembeddingDirect32L22` | 1 | `us-east5-a` | 2026-09-27 00:29:56 | — | censored | active; prequeue READY precedes registry00:30:07 |

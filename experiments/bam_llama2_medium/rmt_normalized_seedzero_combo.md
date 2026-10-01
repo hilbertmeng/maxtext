@@ -212,3 +212,22 @@ PreferScale0 for loss; SeedZero-Scale0+.000012 remains a terminal tie.
 Use each pair's exact available windows: B stops5575 and must not truncate
 the completed Scale0/SharedWriteNorm terminal comparison. Artifact:
 /data0/xd/bam_diagnostics/rmt-readnorm-launch/standalone-scale0-sharedwrite-final-compare.json.
+
+Clarification of standalone comparison: Scale0/SeedZero both remove the
+independent embedding content projection (W_content) and use normalized
+embedding contents, MLP4100. StandaloneSharedWriteNorm retains W_content,
+MLP4078, static embedding raw contents and dynamic projected normalized
+contents. All retain dynamic address projection. Thus terminal-.002884
+compares complete budget-matched alternatives, not an embedding-matched
+single-factor contrast. The four-cell conditional SharedWriteNorm effects
+on Scale0/SeedZero remain matched: their embedding-content handling is
+identical and only the static-address control differs between backgrounds.
+
+Medium combinedScale04000: last5 vs standaloneScale0+.001792
+(range+.000674..+.002661), combinedSeedZero-.005421, B-.004449.
+Both conditional SharedWriteNorm effects now cost: SeedZero+.009195,
+Scale0+.001792 at3200-4000. No sustained narrowing in Scale0 cost yet.
+Keep5000 review and1000-step cadence. SeedZero combo stopped4879, so
+its last mature comparison window is4800; do not let this truncate
+Scale0's other comparisons or mislabel4800 as5000. Full cumulative:
+/data0/xd/bam_diagnostics/rmt-readnorm-launch/medium-scale0-combo-4000-cumulative.md.

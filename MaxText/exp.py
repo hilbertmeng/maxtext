@@ -11731,7 +11731,7 @@ class RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOMPreNormLearnedSca
     """Zero static embedding seed in the learned-scale/shared-write XL combination."""
     # Implementation: codex/rmt-xlprop-noo, /data0/xd/rmt-xlprop-noo; pure JAX, layer scan.
     # code_commit: 9f78e30 (write-scale health from4152; prior4cd403f); UE5a v5p-32 ~.307 step/s, flat vs B .307.
-    # Through8000: last5 vs B -.003631 / MHA -.143222 / Mudd -.042490 / BAM LLF -.010401; Mudd gain1.413x; no terminal static takeover (dynamic/static36.40).
+    # Through10000: last5 vs B -.003576 / MHA -.131530 / Mudd -.037762 / BAM LLF -.006932; Mudd gain1.374x; no terminal static takeover (dynamic/static35.66).
     # Bet vs B -.008@17500; ~.307 step/s (flat); early windows200/400 then500.
     model_name = 'RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOMPreNormLearnedScaleSharedWriteEmbedNormSeedKeyZeroInit'
     rmt_embedding_seed_key_zero_init = True

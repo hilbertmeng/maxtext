@@ -116,3 +116,11 @@ deficit shrank2000-2600 before2800 bounce; no positive additive evidence.
 Continue5000 to observe the historical~4400 normalized-write benefit onset
 and retain same-stage direct control for Scale0. Initial-.002 bet is
 unsupported; this is an unresolved late outcome, not an observed gain.
+
+Medium combined Scale0 through1000: vs combined SeedZero -.006764,
+standalone Scale0 -.006935, B -.010837. Since600 it leads combined SeedZero
+by~-.006; standalone Scale0 advantage narrowed800->1000. Conditional
+SharedWriteNorm effect at1000 changes sign: +.004802 on SeedZero versus
+-.006935 on Scale0 (difference-.011737). This is an early controlled
+interaction, not a final additivity claim. Static embedding write RMS is
+exactlyzero0-1000; dynamic gate .0997 at1000. Continue2800/5000 reviews.

@@ -11732,6 +11732,7 @@ class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearne
     """Disable static embedding writes in the normalized-write/learned-scale combination."""
     # Implementation: codex/rmt-xlprop-noo, /data0/xd/rmt-xlprop-noo; pure JAX, layer scan.
     # code_commit: 8694956; UE5a v5p-16 ~.372 step/s (+.3% vs combined SeedZero .371); dynamic health ON.
+    # Through1000: vs combined SeedZero -.006764 / standalone Scale0 -.006935 / B -.010837.
     # Bet terminal vs combined SeedZero -.001; ~.371 step/s (flat); reviews2800/5000.
     model_name = 'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedWriteNormEmbedScale0'
     rmt_embedding_seed_key_zero_init = False

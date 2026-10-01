@@ -9578,6 +9578,25 @@ class BamMediumPropK75EmbedVOnlyQK57TruePile(BamMediumPropK75EmbedVOnlyQK57):
 
 
 
+class BamMediumPropK75EmbedVOnlyQK57PseudoFTruePile(BamMediumPropK75EmbedVOnlyQK57TruePile):
+    """Every third layer uses standard vector V and local matrix O, without fetch."""
+    # Implementation: codex/mediumprop-k75-embed; /data0/xd/mediumprop-k75-embed.
+    # Opens MLP->x->V->attention->M without fetchedO; local O keeps static+dynamic reads.
+    # Common MHA budget: L3901/pseudoF3507; V matrix reads/gates removed only in pseudoF.
+    # Bet terminal vs AllLocal -.020 / original LLF +.008; speed .525 (~-.4% vs AllLocal .5271).
+    model_name = 'BamMediumPropK75EmbedVOnlyQK57PseudoFTruePile'
+    bam_layer_modes = ['local_qk+local_v+local_o', 'local_qk+local_v+local_o',
+                       'local_qk+local_o'] * 6
+    mlp_dim_by_block = [3901, 3901, 3507]
+    checkpoint_period = 200
+    keep_period = 1000
+    max_to_keep = 2
+    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalTruePile',
+                    'BamMediumPropK75EmbedVOnlyQK57TruePile',
+                    'BamMediumPropK75EmbedVOnlyQK57LLFMatrixVTruePile']
+    jax_cache_dir = ''
+
+
 class BamMediumPropK75EmbedVOnlyQK57LLFMatrixVTruePile(BamMediumPropK75EmbedVOnlyQK57TruePile):
     """LLF with matrix-only V in every layer; F retains the original fetched O."""
     # Implementation: codex/mediumprop-k75-embed; /data0/xd/mediumprop-k75-embed.

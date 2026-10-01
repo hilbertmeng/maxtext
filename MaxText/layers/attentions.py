@@ -2489,9 +2489,9 @@ class BamAttention(Attention):
     self._local_v_mode = ('shared' if shared_v else 'rank2') if 'local_v' in self._mode else 'none'
     if self._fetched_matrix_v:
       self._local_v_mode = 'none'  # W_R supplies the dynamic V key, not a rank4 arm.
-    self._vo_shared_read = getattr(cfg, 'bam_local_vo_shared_read', 'none') if self._local_o else 'none'
+    self._vo_shared_read = getattr(cfg, 'bam_local_vo_shared_read', 'none') if self._local_o and 'local_v' in self._mode else 'none'
     assert self._vo_shared_read in ('none', 'local_o')
-    self._vo_independent_gates = self._local_o and bool(getattr(cfg, 'bam_local_vo_independent_gates', False))
+    self._vo_independent_gates = self._local_o and 'local_v' in self._mode and bool(getattr(cfg, 'bam_local_vo_independent_gates', False))
     if self._vo_independent_gates:
       assert self._vo_shared_read == 'local_o'
     if self._vo_shared_read != 'none':
@@ -2804,12 +2804,12 @@ class BamAttention(Attention):
                 ('v_factor', 'q_heads')),
             (self.bam_v, self.num_query_heads), self.weight_dtype))
 
-    self._local_v_replace = (self._local_o or self._fetched_matrix_v) and bool(getattr(cfg, 'bam_local_v_replace', False))
+    self._local_v_replace = 'local_v' in self._mode and (self._local_o or self._fetched_matrix_v) and bool(getattr(cfg, 'bam_local_v_replace', False))
     self._static_vo = self._local_o and bool(getattr(cfg, 'bam_local_vo_static', False))
     if self._local_v_replace:
       assert (self._vo_independent_gates or self._fetched_matrix_v) and self.bam_k == self.head_dim
     if self._static_vo:
-      for arm in ('v', 'o'):
+      for arm in (('v', 'o') if 'local_v' in self._mode else ('o',)):
         setattr(self, 'static_' + arm + '_key', self.param(
             'static_' + arm + '_key', nn.with_logical_partitioning(
                 nn.initializers.normal(self.bam_v ** -0.5) if arm == 'v' else zeros_init,
@@ -3585,6 +3585,10 @@ class BamAttention(Attention):
       if 'local_o' in self._mode:
         local_output = (self._gate_local_output(local_read, output_logits)
                         if shared_v else local_read)
+        if self._static_vo:
+          static_o = self._static_column(Mh, 'o')
+          self._record_concat_amplitude('static_o', static_o, local_output)
+          local_output = local_output + static_o
     if 'v' in self._local_arms:
       if Mh is None:
         Mh = self._matrix_for_read(M_in)

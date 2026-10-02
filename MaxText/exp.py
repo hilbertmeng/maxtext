@@ -9712,8 +9712,8 @@ class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteStaticEveryThirdTruePile(Bam
     # code_commit: f79776c; UE5a v5p-16 .531 step/s(20-99), +.9% vs dynamic sparse .5265; basic+concat+write health ON.
     # Same [3901,3896,3901] MLP; 432101696 params, +3072 vs dynamic everyThird (-19504 vs MHA).
     # Bet terminal vs everyThird dynamic -.003; .524 step/s (~-.5% vs .5265).
-    # Through2000: sparse dynamic crossed at1200(last5-.002958); dense static first crossed2000(-.000462).
-    # Last5: AllLocal-.030800 / pseudoF-.022029 / originalLLF-.012452 / SeedZero+.052113; continue2800.
+    # Through2800: sparse dynamic lead since1200(last5-.003462); dense static lead grows since2400(last5-.001907/latest-.004897).
+    # Last5: AllLocal-.030808 / pseudoF-.015417 / originalLLF-.007804 / SeedZero+.034994; continue5000.
     model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteStaticEveryThirdTruePile'
     bam_mlp_write_static_address = True
     compare_runs = BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteEveryThirdTruePile.compare_runs + [

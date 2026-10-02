@@ -23,6 +23,7 @@ active leases are censored, and manual migration releases are not preemptions.
 
 | RUN | TPU | Zone | Start UTC | End UTC | End reason | Passive candidates |
 |---|---|---|---|---|---|---|
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteStaticEveryLayerTruePile` | v5p-16 (`xd-v5p-16-2910022-maxtext`) | `us-east5-a` | 2026-10-02 01:52:46 | 2026-10-02 05:18:42 | review stop5836; 1preemption; checkpoint committed, node/queue absent, TB synced | none |
 | `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteEveryLayerTruePile` | v5p-16 (`xd-v5p-16-2910021-maxtext`) | `us-east5-a` | 2026-10-02 01:41:02 | 2026-10-02 03:37:02 | review stop3153; 1preemption before training; checkpoint committed, node/queue absent, TB synced | none |
 | `BamLlama2XLHead16x128V2C256FetchRank2` | v5p-32 | `europe-west4-b` | 2026-08-25 07:34:52 | 2026-08-26 00:07:55 | manual stop | `us-central1-a` (never active) |
 | `BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2GroupedWriteRMSNormNoBias` | v5p-32 | `europe-west4-b` | 2026-08-25 13:46:30 | 2026-08-26 00:08:00 | manual stop | `us-central1-a` (never active) |
@@ -1077,3 +1078,5 @@ active leases are censored, and manual migration releases are not preemptions.
 | `BamMediumPropK75EmbedVOnlyQK57LLFMatrixVTruePile` | 6 | `us-east5-a` | 2026-10-01 21:35:45 | 2026-10-02 00:59:40 | 3h23m55s | completed13500; checkpoint committed, TPU/queue absent, TB synced |
 | `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteEveryLayerTruePile` | 1 | `us-east5-a` | 2026-10-02 01:41:05 | 2026-10-02 01:44:21 | 3m16s | preempted |
 | `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteEveryLayerTruePile` | 2 | `us-east5-a` | 2026-10-02 01:50:35 | 2026-10-02 03:37:02 | 1h46m27s | run_stop |
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteStaticEveryLayerTruePile` | 1 | `us-east5-a` | 2026-10-02 01:52:49 | 2026-10-02 04:07:41 | 2h14m52s | preempted |
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteStaticEveryLayerTruePile` | 2 | `us-east5-a` | 2026-10-02 04:16:10 | 2026-10-02 05:18:42 | 1h02m32s | run_stop |

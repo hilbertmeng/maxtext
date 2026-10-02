@@ -9651,7 +9651,7 @@ class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteEveryThirdTruePile(BamMedium
     # Same AllLocal reads; MLP output1200->16x75, independent write gate, one fused outer.
     # Budget: [3901,3896,3901], 432098624 params (-22576 vs MHA); layer2/5/.../17 write.
     # Bet@1000 terminal vs AllLocal -.030 / pseudoF -.007; speed bet .523 step/s (~-.8%).
-    # Through4000: AllLocal gain holds~-.027 (last5-.027285); pseudoF-.009047 / originalLLF-.002893 / SeedZero+.026794.
+    # Through5000: AllLocal gain holds~-.028 (last5-.028077); pseudoF-.007894 / originalLLF-.002860 / SeedZero+.021491.
     model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteEveryThirdTruePile'
     bam_mlp_write_every = 3
     bam_mlp_write_offset = 2
@@ -9694,9 +9694,9 @@ class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteStaticEveryLayerTruePile(Bam
     # code_commit: 6248e46; UE5a v5p-16 .512 step/s (-2.9% vs AllLocal .5271); basic+concat+write health ON.
     # Static16x32 address per layer, RMS-normalized; same independent MLP sigmoid gate and content norm.
     # MLP3896, 432122432 params (+1232 vs MHA); attention and MLP require separate contractions.
-    # Bet terminal vs AllLocal -.030 / dynamicEveryLayer -.005; .505 step/s (~-4.2% vs AllLocal .5271).
-    # Through4000: AllLocal gain shrinks(last5-.023352); pseudoF-.005114 / originalLLF+.001040 / SeedZero+.030728.
-    # Behind sparse dynamic+.005377@4000; vs stopped dense dynamic last5-.006790 through3000. Continue5000.
+    # Stopped5836 at5000 review: sparse dynamic deficit grew after2600(last5+.006417), 2.8% slower.
+    # AllLocal gain shrank(last5-.021660); pseudoF-.001477 / originalLLF+.003557 / SeedZero+.027907.
+    # vs stopped dense dynamic last5-.006790 through3000; originalLLF crossing alone was not a stop reason.
     model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteStaticEveryLayerTruePile'
     bam_mlp_write_static_address = True
     compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalTruePile',

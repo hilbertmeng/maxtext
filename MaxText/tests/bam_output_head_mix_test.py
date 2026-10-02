@@ -11,11 +11,11 @@ from layers import attentions
 from bam_mlp_write_test import MLPWriteTest, PREFIX
 
 BASE=PREFIX+'IndependentEveryThird'
-EXPS=[BASE+'HeadMixNoWOTruePile',BASE+'HeadMixNoWOSeparateVOKeysTruePile']
+EXPS=[BASE+'HeadMixNoWOTruePile',BASE+'HeadMixNoWOSeparateVOKeysTruePile',BASE+'HeadMixNoWOSeparateVOKeysNoGateTruePile']
 
 class HeadMixTest(MLPWriteTest):
   def test_budgets_and_health(self):
-    for exp,count in zip(EXPS,[432122624,432101024]):
+    for exp,count in zip(EXPS,[432122624,432101024,432143936]):
       c=self.config(exp)
       mesh=jax.sharding.Mesh(max_utils.create_device_mesh(c),c.mesh_axes)
       args,kw,sharding,model=train_compile.get_shaped_inputs(mesh,c)
@@ -50,9 +50,13 @@ class HeadMixTest(MLPWriteTest):
       with mesh,nn.partitioning.axis_rules(c.logical_axis_rules):
         params=a.init(jax.random.key(12),*call,M_in=M,deterministic=True)['params']
         plain=nn.unbox(params)
-        H=plain['output_head_mix'];gate=plain['output_head_gate']['kernel']
-        np.testing.assert_array_equal(gate,jnp.zeros_like(gate))
-        np.testing.assert_allclose(1.1*jax.nn.sigmoid(plain['output_head_gate_bias']),1,atol=1e-6)
+        H=plain['output_head_mix']
+        if c.bam_output_head_gate:
+          np.testing.assert_array_equal(plain['output_head_gate']['kernel'],jnp.zeros_like(plain['output_head_gate']['kernel']))
+          np.testing.assert_allclose(1.1*jax.nn.sigmoid(plain['output_head_gate_bias']),1,atol=1e-6)
+        else:
+          self.assertNotIn('output_head_gate',plain)
+          self.assertNotIn('output_head_gate_bias',plain)
         self.assertFalse(np.array_equal(H,np.eye(2)))
         raw=jax.random.normal(jax.random.key(13),(1,4,2,75));local=jax.random.normal(jax.random.key(14),raw.shape)
         output=a.apply({'params':params},raw,local,x,method=a._mix_attention_output)
@@ -78,7 +82,8 @@ class HeadMixTest(MLPWriteTest):
         self.assertTrue(np.isfinite(float(value)))
         self.assertTrue(all(np.all(np.isfinite(v)) for v in jax.tree.leaves(grad)))
         self.assertGreater(float(jnp.sum(grad['output_head_mix']**2)),0)
-        self.assertGreater(float(jnp.sum(grad['output_head_gate']['kernel']**2)),0)
+        if c.bam_output_head_gate:
+          self.assertGreater(float(jnp.sum(grad['output_head_gate']['kernel']**2)),0)
       print('HEAD_MIX_ROUTES_GRAD_OK',exp,flush=True)
 
 if __name__=='__main__':unittest.main()

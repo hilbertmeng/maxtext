@@ -2532,16 +2532,18 @@ class BamAttention(Attention):
           'output_head_mix', nn.with_logical_partitioning(
               nn.initializers.normal(self.num_query_heads ** -0.5), (None, None)),
           (self.num_query_heads, self.num_query_heads), self.weight_dtype)
-      self.output_head_gate = DenseGeneral(
-          features=(self.num_query_heads,), axis=-1, kernel_init=zeros_init,
-          kernel_axes=('embed', 'q_heads'), dtype=self.dtype,
-          weight_dtype=self.weight_dtype, name='output_head_gate', quant=self.quant,
-          matmul_precision=cfg.matmul_precision, use_bias=False)
-      # 1.1*sigmoid(log(10)) = 1: start with no gate attenuation.
-      self.output_head_gate_bias = self.param(
-          'output_head_gate_bias', nn.with_logical_partitioning(
-              nn.initializers.constant(math.log(10.0)), ('q_heads',)),
-          (self.num_query_heads,), self.weight_dtype)
+      self._output_head_gate_enabled = bool(getattr(cfg, 'bam_output_head_gate', True))
+      if self._output_head_gate_enabled:
+        self.output_head_gate = DenseGeneral(
+            features=(self.num_query_heads,), axis=-1, kernel_init=zeros_init,
+            kernel_axes=('embed', 'q_heads'), dtype=self.dtype,
+            weight_dtype=self.weight_dtype, name='output_head_gate', quant=self.quant,
+            matmul_precision=cfg.matmul_precision, use_bias=False)
+        # 1.1*sigmoid(log(10)) = 1: start with no gate attenuation.
+        self.output_head_gate_bias = self.param(
+            'output_head_gate_bias', nn.with_logical_partitioning(
+                nn.initializers.constant(math.log(10.0)), ('q_heads',)),
+            (self.num_query_heads,), self.weight_dtype)
 
     self._read_key_scale = float(cfg.bam_read_key_scale)
     self._rms_epsilon = float(cfg.normalization_layer_epsilon)
@@ -3251,9 +3253,12 @@ class BamAttention(Attention):
     """Mix/gate raw attention heads; LocalO bypasses both into the vector stream."""
     weight = self.output_head_mix.astype(attention_head.dtype)
     mixed = jnp.einsum('btnk,nm->btmk', attention_head, weight)
-    logits = self.output_head_gate(x).astype(jnp.float32) + self.output_head_gate_bias.astype(jnp.float32)
-    gate = (1.1 * jax.nn.sigmoid(logits)).astype(attention_head.dtype)
-    mixed = mixed * gate[..., None]
+    if self._output_head_gate_enabled:
+      logits = self.output_head_gate(x).astype(jnp.float32) + self.output_head_gate_bias.astype(jnp.float32)
+      gate = (1.1 * jax.nn.sigmoid(logits)).astype(attention_head.dtype)
+      mixed = mixed * gate[..., None]
+    else:
+      gate = jnp.ones(mixed.shape[:-1], mixed.dtype)
     if self._concat_health:
       g = gate.astype(jnp.float32)
       self.sow('intermediates', 'concat_output_head_gate', jnp.stack((

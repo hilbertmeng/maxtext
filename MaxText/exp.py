@@ -273,6 +273,7 @@ class BamLlama2Medium(Llama2Medium):
     bam_mlp_write_address_rank = 256
     bam_no_output_projection = False
     bam_local_o_post_write = False
+    bam_output_head_gate = True
     bam_output_head_mix = False
     bam_local_vo_separate_c8_keys = False
     bam_dynamic_unembedding_read = False
@@ -9897,7 +9898,7 @@ class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdHeadMix
     """Separate V/O dynamic C8 keys, retaining shared compression."""
     # code_commit: bf057ff; UE5a ~0.503step/s (-3.3% vs parent .520); extra H/gate health differs.
     # AOT loaded, regional TruePile4096 path and exact parameter count verified.
-    # Through1600 parent+.002347, failed NoWO-.025175, sharedH-.007968; behind parent since1000, stable sharedH advantage~-.0085.
+    # Through2800 parent+.009050 (last5+.007470), failed NoWO-.024618; parent deficit grows since1000. Continue to5000.
     model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdHeadMixNoWOSeparateVOKeysTruePile'
     bam_local_vo_separate_c8_keys = True
     mlp_dim_by_block = [4253, 4126, 4253]
@@ -9909,4 +9910,12 @@ class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdPostWri
     bam_output_head_mix = False
     bam_local_o_post_write = True
     mlp_dim_by_block = [4259, 4132, 4259]
-    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile', 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdHeadMixNoWOSeparateVOKeysTruePile']
+    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile', 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdHeadMixNoWOSeparateVOKeysNoGateTruePile']
+
+
+class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdHeadMixNoWOSeparateVOKeysNoGateTruePile(BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdHeadMixNoWOSeparateVOKeysTruePile):
+    """Independent V/O keys; Gaussian H without its output gate."""
+    model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdHeadMixNoWOSeparateVOKeysNoGateTruePile'
+    bam_output_head_gate = False
+    mlp_dim_by_block = [4259, 4132, 4259]
+    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile', 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdPostWriteLocalONoWOTruePile']

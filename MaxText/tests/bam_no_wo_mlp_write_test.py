@@ -46,8 +46,11 @@ class NoWOTest(MLPWriteTest):
         flat=flatten_dict(nn.unbox(params));out_paths=[]
         for p,x in flat.items():
           if 'self_attention' in p and p[-2:]==('out','kernel'):
-            self.assertEqual(x.shape[-3:],(2,75,150))
-            flat[p]=jnp.broadcast_to(jnp.eye(150,dtype=x.dtype).reshape(2,75,150),x.shape)
+            self.assertEqual(x.shape[0],2)
+            self.assertEqual(x.shape[-2:],(75,150))
+            # nn.scan inserts its parameter axis after the head axis.
+            identity_shape=(2,)+(1,)*(x.ndim-3)+(75,150)
+            flat[p]=jnp.broadcast_to(jnp.eye(150,dtype=x.dtype).reshape(identity_shape),x.shape)
             out_paths.append(p)
         self.assertEqual(len(out_paths),3)
         identity_params=unflatten_dict(flat)

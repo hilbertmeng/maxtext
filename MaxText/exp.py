@@ -9651,7 +9651,7 @@ class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteEveryThirdTruePile(BamMedium
     # Same AllLocal reads; MLP output1200->16x75, independent write gate, one fused outer.
     # Budget: [3901,3896,3901], 432098624 params (-22576 vs MHA); layer2/5/.../17 write.
     # Bet@1000 terminal vs AllLocal -.030 / pseudoF -.007; speed bet .523 step/s (~-.8%).
-    # Through6000: AllLocal gain holds~-.029 (last5-.028706); pseudoF-.007714 / originalLLF-.002305 / SeedZero+.020044.
+    # Through7000: AllLocal gain holds~-.029 (last5-.028971); pseudoF-.007720 / originalLLF-.002569 / SeedZero+.018272.
     model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteEveryThirdTruePile'
     bam_mlp_write_every = 3
     bam_mlp_write_offset = 2

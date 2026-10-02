@@ -269,6 +269,8 @@ class BamLlama2Medium(Llama2Medium):
     bam_mlp_write_every = 0          # 0 off; 1 each layer; 3 every third
     bam_mlp_write_offset = 0         # one-based layer number modulo period
     bam_mlp_write_static_address = False
+    bam_mlp_write_dynamic_address = False
+    bam_mlp_write_address_rank = 256
     bam_dynamic_unembedding_read = False
     bam_unembedding_gate_init = .05
 
@@ -9721,6 +9723,25 @@ class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteStaticEveryThirdTruePile(Bam
     compare_runs = BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteEveryThirdTruePile.compare_runs + [
                     'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteEveryThirdTruePile',
                     'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteStaticEveryLayerTruePile']
+
+class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile(
+    BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteEveryThirdTruePile):
+    """Sparse MLP writes with their own token-conditioned GELU-LoRA addresses."""
+    # Implementation: codex/mediumprop-k75-embed; /data0/xd/mediumprop-k75-embed.
+    # MLP normalized input->R256 GELU->16x32 +pre-RMS bias; separate from attention P_loc.
+    # +2632704=1.82827W_Q; repay122 MLP units at six write layers, others unchanged.
+    # [3901,3774,3901]; 432096128 params (-25072 vs MHA); original output head.
+    # Bet terminal vs shared dynamic-.004 / static sparse-.001; speed-.2%..-2%.
+    model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile'
+    bam_mlp_write_dynamic_address = True
+    bam_mlp_write_address_rank = 256
+    mlp_dim_by_block = [3901, 3774, 3901]
+    compare_runs = [
+        'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteEveryThirdTruePile',
+        'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteStaticEveryThirdTruePile',
+        'BamMediumPropK75EmbedVOnlyQK57TruePile',
+        'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedEmbedWriteNormSeedKeyZeroInit']
+
 
 class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteEveryThirdUnembedDirect32TruePile(
     BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteEveryThirdTruePile):

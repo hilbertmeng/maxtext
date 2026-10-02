@@ -305,6 +305,24 @@ class SubDecoderLayer(nn.Module):
               ('q_heads',)), (num_query_heads,), cfg.weight_dtype)
       mlp_logits = mlp_logits + jnp.asarray(mlp_bias, cfg.dtype)
       static_address = None
+      independent_address = None
+      if getattr(cfg, 'bam_mlp_write_dynamic_address', False):
+        if getattr(cfg, 'bam_mlp_write_static_address', False):
+          raise ValueError('Choose static or independent dynamic MLP address')
+        rank = int(cfg.bam_mlp_write_address_rank)
+        address_hidden = linears.DenseGeneral(
+            features=rank, axis=-1, use_bias=False,
+            kernel_init=initializers.get_init_method(cfg.init_method),
+            kernel_axes=('embed', None), dtype=cfg.dtype, weight_dtype=cfg.weight_dtype,
+            quant=self.quant, matmul_precision=cfg.matmul_precision,
+            name='mlp_address_down')(hidden_states)
+        independent_address = linears.DenseGeneral(
+            features=(num_query_heads, cfg.bam_v), axis=-1, use_bias=True,
+            kernel_init=initializers.get_init_method(cfg.init_method),
+            kernel_axes=('embed', 'q_heads', 'v_factor'),
+            dtype=cfg.dtype, weight_dtype=cfg.weight_dtype,
+            quant=self.quant, matmul_precision=cfg.matmul_precision,
+            name='mlp_address_up')(nn.gelu(address_hidden))
       if getattr(cfg, 'bam_mlp_write_static_address', False):
         static_address = self.param(
             'mlp_write_address', nn.with_logical_partitioning(
@@ -312,7 +330,8 @@ class SubDecoderLayer(nn.Module):
             (num_query_heads, cfg.bam_v), cfg.weight_dtype).astype(cfg.dtype)
       M_out = attention_layer.merge_mlp_write(
           mlp_lnx.reshape(mlp_lnx.shape[:-1] + (num_query_heads, cfg.bam_k)),
-          jax.nn.sigmoid(mlp_logits), write_factors, M_out, static_address)
+          jax.nn.sigmoid(mlp_logits), write_factors, M_out, static_address,
+          independent_address)
 
     if mlp_lnx is not None and moe_lnx is not None:
       layer_output = mlp_lnx + intermediate_inputs + moe_lnx

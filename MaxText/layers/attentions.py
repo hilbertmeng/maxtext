@@ -3305,13 +3305,14 @@ class BamAttention(Attention):
     content = self.write_data_norm(u1) if self._write_data_rms else u1
     return scale * gate[..., None] * content, self.write_address_norm(u2), gate
 
-  def merge_mlp_write(self, mlp_head, mlp_gate, factors, M_in, static_address=None):
-    """Add MLP content; shared address needs one outer, independent static two."""
+  def merge_mlp_write(self, mlp_head, mlp_gate, factors, M_in, static_address=None,
+                      independent_address=None):
+    """Shared-address sum needs one outer; independent address needs two."""
     attention_content, address, attention_gate = factors
     content = self.write_data_norm(mlp_head) if self._write_data_rms else mlp_head
     scale = 1.0 / jnp.sqrt(self.num_query_heads) if self.config.bam_sqrt_n_scale else 1.0
     mlp_content = scale * mlp_gate[..., None] * content
-    if static_address is None:
+    if static_address is None and independent_address is None:
       combined_content = attention_content + mlp_content
       with jax.named_scope('bam/write_outer'):
         if self._write_outer_implementation == 'dot':
@@ -3319,15 +3320,27 @@ class BamAttention(Attention):
         else:
           dM = jnp.sum(combined_content[..., None] * address[..., None, :], axis=-3)
     else:
-      static_address = self.write_address_norm(static_address)
+      mlp_address = self.write_address_norm(
+          static_address if independent_address is None else independent_address)
       with jax.named_scope('bam/write_outer'):
         if self._write_outer_implementation == 'dot':
           dM = jnp.einsum('btnk,btnv->btkv', attention_content, address)
         else:
           dM = jnp.sum(attention_content[..., None] * address[..., None, :], axis=-3)
-      with jax.named_scope('bam/mlp_static_write_outer'):
-        # A static address is an ordinary linear contraction, no token broadcast.
-        dM = dM + jnp.einsum('btnk,nv->btkv', mlp_content, static_address)
+      with jax.named_scope('bam/mlp_independent_write_outer'):
+        if independent_address is None:
+          dM = dM + jnp.einsum('btnk,nv->btkv', mlp_content, mlp_address)
+        elif self._write_outer_implementation == 'dot':
+          dM = dM + jnp.einsum('btnk,btnv->btkv', mlp_content, mlp_address)
+        else:
+          dM = dM + jnp.sum(
+              mlp_content[..., None] * mlp_address[..., None, :], axis=-3)
+      if self._concat_health and independent_address is not None:
+        a, b = address.astype(jnp.float32), mlp_address.astype(jnp.float32)
+        cosine = jnp.sum(a*b, axis=-1) / jnp.maximum(
+            jnp.sqrt(jnp.sum(a*a, axis=-1)*jnp.sum(b*b, axis=-1)), 1e-12)
+        self.sow('intermediates', 'concat_mlp_address_alignment', jnp.stack((
+            jnp.mean(cosine), jnp.mean(jnp.abs(cosine)), jnp.mean(cosine**2))))
     if self._concat_health:
       for name, gate in [('attention_write', attention_gate), ('mlp_write', mlp_gate)]:
         g = gate.astype(jnp.float32)

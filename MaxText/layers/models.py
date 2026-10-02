@@ -967,6 +967,8 @@ class Decoder(nn.Module):
                   decoder_input_tokens, None, deterministic, model_mode,
                   eos_sum, None, None, None, jnp.asarray(index, jnp.int32))
         y = scan_carry[0] if full_bam else scan_carry
+        if full_bam:
+          M = scan_carry[1]
 
       elif cfg.partial_scan_layers:
         assert not cfg.bam_enabled, "BAM v0.1 does not support partial_scan_layers"
@@ -1145,6 +1147,13 @@ class Decoder(nn.Module):
       mtp_head_inputs, main_head_inputs = y if cfg.mtp_num_layers > 0 else [None, y[0]]
     else:
       main_head_inputs, mtp_head_inputs = [y, y] if cfg.mtp_num_layers > 0 else [y, None]
+
+    if getattr(cfg, 'bam_dynamic_unembedding_read', False):
+      if not cfg.bam_enabled or cfg.bam_mha_control or cfg.dense_conn or cfg.mtp_num_layers:
+        raise ValueError('Dynamic BAM unembedding requires plain BAM vector/matrix carries')
+      from layers.bam_unembedding import BamDynamicUnembedding
+      main_head_inputs = BamDynamicUnembedding(
+          cfg, quant=self.quant, name='dynamic_unembedding_read')(main_head_inputs, M)
 
     # mtp share llm head params
     OutputHeadLayer = OutputHead(config=cfg, 

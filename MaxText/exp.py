@@ -269,6 +269,8 @@ class BamLlama2Medium(Llama2Medium):
     bam_mlp_write_every = 0          # 0 off; 1 each layer; 3 every third
     bam_mlp_write_offset = 0         # one-based layer number modulo period
     bam_mlp_write_static_address = False
+    bam_dynamic_unembedding_read = False
+    bam_unembedding_gate_init = .05
 
     bam_lambda_decay = 1.0           # M <- lambda*M + dM; 1.0 = bare accumulation
     bam_sqrt_n_scale = False         # scale write gate by 1/sqrt(n)
@@ -9719,6 +9721,42 @@ class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteStaticEveryThirdTruePile(Bam
     compare_runs = BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteEveryThirdTruePile.compare_runs + [
                     'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteEveryThirdTruePile',
                     'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteStaticEveryLayerTruePile']
+
+class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteEveryThirdUnembedDirect32TruePile(
+    BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteEveryThirdTruePile):
+    """Direct32 gated final M read on sparse dynamic-address MLP writes."""
+    # Implementation: codex/mediumprop-k75-embed; /data0/xd/mediumprop-k75-embed.
+    # Full75x32 matrix norm+scale; final vector query norm; zero key, gate.05; no fixed read scale.
+    # Global read637216=.44251W_Q; nearest per-layer MLP widths [3891,3886,3891].
+    # Bet terminal vs dynamic sparse -.003; speed within1% of .5265step/s.
+    model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteEveryThirdUnembedDirect32TruePile'
+    bam_dynamic_unembedding_read = True
+    bam_unembedding_gate_init = .05
+    mlp_dim_by_block = [3891, 3886, 3891]
+    compare_runs = [
+        'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteEveryThirdTruePile',
+        'BamMediumPropK75EmbedVOnlyQK57TruePile',
+        'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedEmbedWriteNormSeedKeyZeroInit']
+
+
+class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteStaticEveryThirdUnembedDirect32TruePile(
+    BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteStaticEveryThirdTruePile):
+    """Full-M gated final column read, with no fixed read amplitude coefficient."""
+    # Implementation: codex/mediumprop-k75-embed; /data0/xd/mediumprop-k75-embed.
+    # Direct32: final75x32 matrix RMSNorm+learned scale, normalized final vector queries.
+    # Zero read-key/gate kernels; sigmoid gate opens.05; add16x75 read before original head norm.
+    # Global read637216=.44251W_Q; pay10 MLP units/layer (nearest per-layer integer).
+    # Bet terminal vs static sparse -.005; speed within1% of .531step/s.
+    model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteStaticEveryThirdUnembedDirect32TruePile'
+    bam_dynamic_unembedding_read = True
+    bam_unembedding_gate_init = .05
+    mlp_dim_by_block = [3891, 3886, 3891]
+    compare_runs = [
+        'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteStaticEveryThirdTruePile',
+        'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteEveryThirdUnembedDirect32TruePile',
+        'BamMediumPropK75EmbedVOnlyQK57TruePile',
+        'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedEmbedWriteNormSeedKeyZeroInit']
+
 
 class BamXLPropK96EmbedVOnlyQK72AllLocalTruePile(
     Llama2XLProp, BamMediumPropK75EmbedVOnlyQK57AllLocalTruePile):

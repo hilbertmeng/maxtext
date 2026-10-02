@@ -365,6 +365,11 @@ def save_checkpoint(
 def record_bam_concat_health_metrics(output_metrics, intermediate_outputs, config):
   """Decode compact read metrics from LLF block scan and an optional final L."""
   decoder = intermediate_outputs['intermediates']['decoder']
+  if getattr(config, 'bam_dynamic_unembedding_read', False):
+    from layers.bam_unembedding import HEALTH_NAMES
+    values = decoder['dynamic_unembedding_read']['health'][0]
+    for i, name in enumerate(HEALTH_NAMES):
+      output_metrics['scalar'][f'bam/unembedding/{name}'] = values[i]
   if getattr(config, 'bam_embedding_write', False):
     gate = decoder['embedding_bam_write']['seed_gate'][0]
     for i, name in enumerate(('mean', 'std')):

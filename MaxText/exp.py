@@ -9655,7 +9655,7 @@ class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteEveryThirdTruePile(BamMedium
     # Same AllLocal reads; MLP output1200->16x75, independent write gate, one fused outer.
     # Budget: [3901,3896,3901], 432098624 params (-22576 vs MHA); layer2/5/.../17 write.
     # Bet@1000 terminal vs AllLocal -.030 / pseudoF -.007; speed bet .523 step/s (~-.8%).
-    # Through8000: AllLocal gain holds~-.029 (last5-.029382); pseudoF-.007458 / originalLLF-.002602 / SeedZero+.017115.
+    # Through9000: AllLocal gain holds~-.029 (last5-.029035); pseudoF-.007419 / originalLLF-.002560 / SeedZero+.016408.
     model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteEveryThirdTruePile'
     bam_mlp_write_every = 3
     bam_mlp_write_offset = 2
@@ -9668,7 +9668,6 @@ class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteEveryThirdTruePile(BamMedium
     keep_period = 1000
     max_to_keep = 2
     compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalTruePile',
-                    'BamMediumPropK75EmbedVOnlyQK57PseudoFTruePile',
                     'BamMediumPropK75EmbedVOnlyQK57TruePile',
                     'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedEmbedWriteNormSeedKeyZeroInit']
     jax_cache_dir = ''
@@ -9705,7 +9704,6 @@ class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteStaticEveryLayerTruePile(Bam
     bam_mlp_write_static_address = True
     compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalTruePile',
                     'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteEveryLayerTruePile',
-                    'BamMediumPropK75EmbedVOnlyQK57PseudoFTruePile',
                     'BamMediumPropK75EmbedVOnlyQK57TruePile',
                     'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedEmbedWriteNormSeedKeyZeroInit']
 
@@ -9716,18 +9714,17 @@ class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteStaticEveryThirdTruePile(Bam
     # code_commit: f79776c; UE5a v5p-16 .531 step/s(20-99), +.9% vs dynamic sparse .5265; basic+concat+write health ON.
     # Same [3901,3896,3901] MLP; 432101696 params, +3072 vs dynamic everyThird (-19504 vs MHA).
     # Bet terminal vs everyThird dynamic -.003; .524 step/s (~-.5% vs .5265).
-    # Through4000: sparse dynamic lead holds(last5-.003244); dense static deficit widens(last5-.007178).
-    # Last5: AllLocal-.030530 / pseudoF-.012291 / originalLLF-.006137 / SeedZero+.023550; continue5000.
+    # Through5000: sparse dynamic lead narrows(last5-.001977 vs -.003244@4000); dense static lead(last5-.008394).
+    # Last5: AllLocal-.030054 / pseudoF-.009871 / originalLLF-.004837 / SeedZero+.019513; continue full13500.
     model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteStaticEveryThirdTruePile'
     bam_mlp_write_static_address = True
-    compare_runs = BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteEveryThirdTruePile.compare_runs + [
-                    'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteEveryThirdTruePile',
-                    'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteStaticEveryLayerTruePile']
+    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteEveryThirdTruePile']
 
 class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile(
     BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteEveryThirdTruePile):
     """Sparse MLP writes with their own token-conditioned GELU-LoRA addresses."""
     # Implementation: codex/mediumprop-k75-embed; /data0/xd/mediumprop-k75-embed.
+    # code_commit: 23c692b; UE5a v5p-16 .520step/s(20-99), -1.2% vs shared dynamic .5265; write+address health ON.
     # MLP normalized input->R256 GELU->16x32 +pre-RMS bias; separate from attention P_loc.
     # +2632704=1.82827W_Q; repay122 MLP units at six write layers, others unchanged.
     # [3901,3774,3901]; 432096128 params (-25072 vs MHA); original output head.

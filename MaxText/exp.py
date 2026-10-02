@@ -9586,7 +9586,7 @@ class BamMediumPropK75EmbedVOnlyQK57PseudoFTruePile(BamMediumPropK75EmbedVOnlyQK
     # code_commit: 9d6d77d; UE5a v5p-16 0.541 step/s (20-99); +2.6% vs AllLocal / +3.0% vs originalLLF.
     # Basic+concat health ON; pseudoF omits V health, so timing is not strictly matched.
     # Completed13500: AllLocal gain grew then held~-.023(final5-.022883); originalLLF deficit held~+.005(final5+.004870).
-    # MatrixVLLF final common12400 last5-.018042 (baseline still training); parameter-matched pathway ablation.
+    # vs MatrixVLLF final5-.018058; four-cell interaction-.000045, route/fetch effects nearly additive.
     model_name = 'BamMediumPropK75EmbedVOnlyQK57PseudoFTruePile'
     bam_layer_modes = ['local_qk+local_v+local_o', 'local_qk+local_v+local_o',
                        'local_qk+local_o'] * 6
@@ -9607,8 +9607,7 @@ class BamMediumPropK75EmbedVOnlyQK57LLFMatrixVTruePile(BamMediumPropK75EmbedVOnl
     # Per-layer budget: L3901/F3896; no standard W_V in any layer.
     # code_commit: ea76369; UE5a v5p-16 .513 step/s (20-99); -2.3% vs LLF .525 / -2.7% vs AllLocal .5271.
     # !? Below speed bet .523; basic+concat health ON, 54 extra F-V scalars vs LLF; cause unresolved.
-    # Through12200: originalLLF deficit held~+.022(last5+.022363); AllLocal gain shrank then held~-.0045(last5-.004508). Continue13500 ablation.
-    # Bet terminal vs AllLocal -.015 / original LLF +.013; .523 step/s (~-.4% vs .525).
+    # Completed13500: originalLLF deficit grew then held~+.023(final5+.022928); AllLocal gain shrank then held~-.005(final5-.004825).
     model_name = 'BamMediumPropK75EmbedVOnlyQK57LLFMatrixVTruePile'
     bam_layer_modes = ['local_qk+local_v+local_o', 'local_qk+local_v+local_o',
                        'local_qk+local_v+full'] * 6

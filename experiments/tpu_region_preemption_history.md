@@ -342,6 +342,7 @@ active leases are censored, and manual migration releases are not preemptions.
 | `RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOMPreNormLearnedScaleSharedWriteNormEmbedScale0` | `xd-v5p-32-2910015-maxtext` (v5p-32) | `us-east5-a` | 2026-10-01 12:18:44 | 2026-10-01 22:22:02 | user pause; 7 preemptions; checkpoint committed, TPU/queue absent, TB synced | none |
 | `BamXLPropK96EmbedVOnlyQK72AllLocalTruePile` | `xd-v5p-32-2909304-maxtext` (v5p-32) | `us-east5-a` | 2026-09-30 08:19:36 | 2026-10-01 16:30:59 | user pause; 8 preemptions; checkpoint committed, TPU/queue absent, TB synced | none |
 | `BamMediumPropK75EmbedVOnlyQK57PseudoFTruePile` | `xd-v5p-16-2910018-maxtext` (v5p-16) | `us-east5-a` | 2026-10-01 16:42:04 | 2026-10-02 00:28:28 | completed13500; checkpoint committed, TPU/queue absent, TB synced; 3 preemptions | none |
+| `BamMediumPropK75EmbedVOnlyQK57LLFMatrixVTruePile` | `xd-v5p-16-2910017-maxtext` (v5p-16) | `us-east5-a` | 2026-10-01 16:00:30 | 2026-10-02 00:59:40 | completed13500; checkpoint committed, TPU/queue absent, TB synced; 5 preemptions | none |
 
 ## READY leases
 
@@ -1057,13 +1058,19 @@ active leases are censored, and manual migration releases are not preemptions.
 | `BamMediumPropK75EmbedVOnlyQK57PseudoFTruePile` | 1 | `us-east5-a` | 2026-10-01 16:42:07 | 2026-10-01 16:54:40 | 12m33s | preempted |
 | `RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOMPreNormLearnedScaleSharedWriteNormEmbedScale0` | 3 | `us-east5-a` | 2026-10-01 16:49:57 | 2026-10-01 17:06:10 | 16m13s | preempted |
 | `BamMediumPropK75EmbedVOnlyQK57PseudoFTruePile` | 2 | `us-east5-a` | 2026-10-01 17:01:54 | 2026-10-01 17:06:19 | 04m25s | preempted |
+| `BamMediumPropK75EmbedVOnlyQK57LLFMatrixVTruePile` | 1 | `us-east5-a` | 2026-10-01 16:00:32 | 2026-10-01 17:47:19 | 1h46m47s | preempted |
 | `RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOMPreNormLearnedScaleSharedWriteNormEmbedScale0` | 4 | `us-east5-a` | 2026-10-01 17:46:32 | 2026-10-01 18:43:22 | 56m50s | preempted |
 | `BamMediumPropK75EmbedVOnlyQK57PseudoFTruePile` | 3 | `us-east5-a` | 2026-10-01 17:14:29 | 2026-10-01 18:43:32 | 1h29m03s | preempted |
+| `BamMediumPropK75EmbedVOnlyQK57LLFMatrixVTruePile` | 2 | `us-east5-a` | 2026-10-01 17:54:50 | 2026-10-01 18:43:32 | 48m42s | preempted |
 | `RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOMPreNormLearnedScaleSharedWriteEmbedNormSeedKeyZeroInit` | 1 | `us-east5-a` | 2026-10-01 06:30:18 | 2026-10-01 18:45:44 | 12h15m26s | preempted |
+| `BamMediumPropK75EmbedVOnlyQK57LLFMatrixVTruePile` | 3 | `us-east5-a` | 2026-10-01 18:57:25 | 2026-10-01 19:15:07 | 17m42s | preempted |
 | `RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOMPreNormLearnedScaleSharedWriteNormEmbedScale0` | 5 | `us-east5-a` | 2026-10-01 18:57:35 | 2026-10-01 19:15:18 | 17m43s | preempted |
+| `BamMediumPropK75EmbedVOnlyQK57LLFMatrixVTruePile` | 4 | `us-east5-a` | 2026-10-01 19:25:50 | 2026-10-01 19:54:01 | 28m11s | preempted |
 | `RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOMPreNormLearnedScaleSharedWriteNormEmbedScale0` | 6 | `us-east5-a` | 2026-10-01 19:37:30 | 2026-10-01 20:31:30 | 54m00s | preempted |
 | `RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOMPreNormLearnedScaleSharedWriteNormEmbedScale0` | 7 | `us-east5-a` | 2026-10-01 20:40:20 | 2026-10-01 21:01:09 | 20m49s | preempted |
+| `BamMediumPropK75EmbedVOnlyQK57LLFMatrixVTruePile` | 5 | `us-east5-a` | 2026-10-01 20:00:09 | 2026-10-01 21:02:21 | 1h02m12s | preempted |
 | `RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOMPreNormLearnedScaleSharedWriteEmbedNormSeedKeyZeroInit` | 2 | `us-east5-a` | 2026-10-01 18:57:33 | 2026-10-01 21:12:47 | 2h15m14s | preempted |
 | `RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOMPreNormLearnedScaleSharedWriteNormEmbedScale0` | 8 | `us-east5-a` | 2026-10-01 21:35:39 | 2026-10-01 22:22:02 | 46m23s | user pause; checkpoint committed, TPU/queue absent, TB synced |
 | `RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOMPreNormLearnedScaleSharedWriteEmbedNormSeedKeyZeroInit` | 3 | `us-east5-a` | 2026-10-01 21:35:42 | 2026-10-01 23:23:22 | 1h47m40s | user pause; checkpoint committed, TPU/queue absent, TB synced |
 | `BamMediumPropK75EmbedVOnlyQK57PseudoFTruePile` | 4 | `us-east5-a` | 2026-10-01 18:57:24 | 2026-10-02 00:28:28 | 5h31m04s | completed13500; checkpoint committed, TPU/queue absent, TB synced |
+| `BamMediumPropK75EmbedVOnlyQK57LLFMatrixVTruePile` | 6 | `us-east5-a` | 2026-10-01 21:35:45 | 2026-10-02 00:59:40 | 3h23m55s | completed13500; checkpoint committed, TPU/queue absent, TB synced |

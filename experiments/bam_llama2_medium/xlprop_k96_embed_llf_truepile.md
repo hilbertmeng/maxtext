@@ -54,3 +54,5 @@ and-33.92%, with extra BAM health absent on those baselines. The speed bet
 was slight slowdown; observed startup is broadly flat/slightly faster.
 No unexplained large timing deviation. Continue paired loss reports about
 2000steps apart, using500-step windows.
+
+2026-10-02 through27500: Mudd-relative benefit ratio stabilizes~1.32x at6k–16k then gentlydrops~1.29x; AllLocal ratio rises1.119@2k→1.335@17500→~1.39late as absoluteLLF-AllLocalgap stays~-.027 whileAllLocalMHAbenefitshrinks. B ratio.865@2k→.983@10k→1.026@12k→1.339@17500; lateincrease is mainlyBbenefitcollapse, noBextrapolationbeyond17500. Full ratio trajectory: /data0/xd/bam_diagnostics/rmt-readnorm-launch/xl-llf-benefit-ratio-trend.md.

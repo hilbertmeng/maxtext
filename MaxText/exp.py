@@ -9585,9 +9585,8 @@ class BamMediumPropK75EmbedVOnlyQK57PseudoFTruePile(BamMediumPropK75EmbedVOnlyQK
     # Common MHA budget: L3901/pseudoF3507; V matrix reads/gates removed only in pseudoF.
     # code_commit: 9d6d77d; UE5a v5p-16 0.541 step/s (20-99); +2.6% vs AllLocal / +3.0% vs originalLLF.
     # Basic+concat health ON; pseudoF omits V health, so timing is not strictly matched.
-    # Through13000: AllLocal gain grew then held~-.022 (last5-.022459); originalLLF deficit held~+.0045(last5+.004527).
-    # MatrixVLLF last5-.017768 through12000; continue13500 pathway ablation.
-    # Updated terminal bet vs AllLocal -.024 / originalLLF +.004; speed measured above.
+    # Completed13500: AllLocal gain grew then held~-.023(final5-.022883); originalLLF deficit held~+.005(final5+.004870).
+    # MatrixVLLF final common12400 last5-.018042 (baseline still training); parameter-matched pathway ablation.
     model_name = 'BamMediumPropK75EmbedVOnlyQK57PseudoFTruePile'
     bam_layer_modes = ['local_qk+local_v+local_o', 'local_qk+local_v+local_o',
                        'local_qk+local_o'] * 6

@@ -2381,6 +2381,13 @@ class BamAttention(Attention):
   bam_k: int = 32
   bam_v: int = 32
 
+  def out_projection(self, output_dim: int, out: Array) -> Array:
+    if not getattr(self.config, 'bam_no_output_projection', False):
+      return super().out_projection(output_dim, out)
+    if out.shape[-2] * out.shape[-1] != output_dim:
+      raise ValueError('Identity BAM output requires heads * value_dim == embed_dim')
+    return out.reshape(out.shape[:-2] + (output_dim,))
+
   def _local_read_setting(self, name, key):
     """Resolve a read setting for this layer; V rank=None means shared O read."""
     def select(arm):

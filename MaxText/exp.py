@@ -9762,9 +9762,8 @@ class BamXLPropK96EmbedVOnlyQK72LLFTruePile(BamXLPropK96EmbedVOnlyQK72AllLocalTr
     # Ledger only: codex/mediumprop-k75-embed, /data0/xd/mediumprop-k75-embed; pure JAX.
     # code_commit: 22c2c5c
     # !? UE5a ~.359 step/s (+1.1% vs AllLocal .355), opposite bet -1.4%; speed anomaly unresolved; generic+concat health ON.
-    # Through33500: AllLocal gain holds(last5-.027514); Mudd early gain shrank, then ~-.021 since30k(last5-.020741), MHA-.093306.
+    # Paused33874, provisional: AllLocal gain holds(last5-.027514); Mudd early gain shrank, then ~-.021 since30k(last5-.020741), MHA-.093306.
     # Mudd-relative gain~1.28-1.29x since30k (last5 1.286x); projected terminal Mudd gap~-.020.
-    # Bet terminal vs AllLocal -.025; .350 step/s (~-1.4% vs .355).
     # Per-layer nearest MHA budget: L6294/F5654, terminal L6294; total1,432,418,340 (+19,620 vs MHA).
     model_name = 'BamXLPropK96EmbedVOnlyQK72LLFTruePile'
     bam_layer_modes = ['local_qk+local_v+local_o', 'local_qk+local_v+local_o', 'local_qk+full'] * 9 + ['local_qk+local_v+local_o']

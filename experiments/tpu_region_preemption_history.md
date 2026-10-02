@@ -23,6 +23,7 @@ active leases are censored, and manual migration releases are not preemptions.
 
 | RUN | TPU | Zone | Start UTC | End UTC | End reason | Passive candidates |
 |---|---|---|---|---|---|---|
+| `BamXLPropK96EmbedVOnlyQK72LLFTruePile` | v5p-32 (`xd-v5p-32-2910011-maxtext`) | `us-east5-a` | 2026-09-30 23:59:16 | 2026-10-02 05:39:36 | user pause33874; 11preemptions, no zone switches; checkpoint committed, node/queue absent, TB synced | none |
 | `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteStaticEveryLayerTruePile` | v5p-16 (`xd-v5p-16-2910022-maxtext`) | `us-east5-a` | 2026-10-02 01:52:46 | 2026-10-02 05:18:42 | review stop5836; 1preemption; checkpoint committed, node/queue absent, TB synced | none |
 | `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteEveryLayerTruePile` | v5p-16 (`xd-v5p-16-2910021-maxtext`) | `us-east5-a` | 2026-10-02 01:41:02 | 2026-10-02 03:37:02 | review stop3153; 1preemption before training; checkpoint committed, node/queue absent, TB synced | none |
 | `BamLlama2XLHead16x128V2C256FetchRank2` | v5p-32 | `europe-west4-b` | 2026-08-25 07:34:52 | 2026-08-26 00:07:55 | manual stop | `us-central1-a` (never active) |
@@ -1051,7 +1052,9 @@ active leases are censored, and manual migration releases are not preemptions.
 | `BamXLPropK96EmbedVOnlyQK72AllLocalTruePile` | 3 | `us-east5-a` | 2026-09-30 15:57:08 | 2026-09-30 16:10:30 | 13m22s | preempted |
 | `BamXLPropK96EmbedVOnlyQK72AllLocalTruePile` | 4 | `us-east5-a` | 2026-09-30 16:20:10 | 2026-09-30 22:16:01 | 5h55m51s | preempted |
 | `BamXLPropK96EmbedVOnlyQK72AllLocalTruePile` | 5 | `us-east5-a` | 2026-09-30 22:32:56 | 2026-09-30 23:37:27 | 1h04m31s | preempted |
+| `BamXLPropK96EmbedVOnlyQK72LLFTruePile` | 1 | `us-east5-a` | 2026-09-30 23:59:19 | 2026-10-01 00:02:58 | 3m39s | preempted |
 | `BamXLPropK96EmbedVOnlyQK72AllLocalTruePile` | 6 | `us-east5-a` | 2026-09-30 23:47:51 | 2026-10-01 00:13:09 | 25m18s | preempted |
+| `BamXLPropK96EmbedVOnlyQK72LLFTruePile` | 2 | `us-east5-a` | 2026-10-01 00:12:32 | 2026-10-01 00:16:33 | 4m01s | preempted |
 | `BamXLPropK96EmbedVOnlyQK72AllLocalTruePile` | 7 | `us-east5-a` | 2026-10-01 00:22:40 | 2026-10-01 13:35:36 | 13h12m56s | preempted |
 | `RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOMPreNormLearnedScaleSharedWriteNormEmbedScale0` | 1 | `us-east5-a` | 2026-10-01 12:23:08 | 2026-10-01 13:38:54 | 1h15m46s | preempted |
 | `BamXLPropK96EmbedVOnlyQK72AllLocalTruePile` | 8 | `us-east5-a` | 2026-10-01 13:46:10 | 2026-10-01 14:35:31 | 49m21s | preempted |
@@ -1064,13 +1067,18 @@ active leases are censored, and manual migration releases are not preemptions.
 | `RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOMPreNormLearnedScaleSharedWriteNormEmbedScale0` | 4 | `us-east5-a` | 2026-10-01 17:46:32 | 2026-10-01 18:43:22 | 56m50s | preempted |
 | `BamMediumPropK75EmbedVOnlyQK57PseudoFTruePile` | 3 | `us-east5-a` | 2026-10-01 17:14:29 | 2026-10-01 18:43:32 | 1h29m03s | preempted |
 | `BamMediumPropK75EmbedVOnlyQK57LLFMatrixVTruePile` | 2 | `us-east5-a` | 2026-10-01 17:54:50 | 2026-10-01 18:43:32 | 48m42s | preempted |
+| `BamXLPropK96EmbedVOnlyQK72LLFTruePile` | 3 | `us-east5-a` | 2026-10-01 00:22:38 | 2026-10-01 18:45:36 | 18h22m58s | preempted |
 | `RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOMPreNormLearnedScaleSharedWriteEmbedNormSeedKeyZeroInit` | 1 | `us-east5-a` | 2026-10-01 06:30:18 | 2026-10-01 18:45:44 | 12h15m26s | preempted |
 | `BamMediumPropK75EmbedVOnlyQK57LLFMatrixVTruePile` | 3 | `us-east5-a` | 2026-10-01 18:57:25 | 2026-10-01 19:15:07 | 17m42s | preempted |
 | `RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOMPreNormLearnedScaleSharedWriteNormEmbedScale0` | 5 | `us-east5-a` | 2026-10-01 18:57:35 | 2026-10-01 19:15:18 | 17m43s | preempted |
+| `BamXLPropK96EmbedVOnlyQK72LLFTruePile` | 4 | `us-east5-a` | 2026-10-01 19:00:03 | 2026-10-01 19:53:38 | 53m35s | preempted |
 | `BamMediumPropK75EmbedVOnlyQK57LLFMatrixVTruePile` | 4 | `us-east5-a` | 2026-10-01 19:25:50 | 2026-10-01 19:54:01 | 28m11s | preempted |
+| `BamXLPropK96EmbedVOnlyQK72LLFTruePile` | 5 | `us-east5-a` | 2026-10-01 20:00:30 | 2026-10-01 20:20:06 | 19m36s | preempted |
 | `RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOMPreNormLearnedScaleSharedWriteNormEmbedScale0` | 6 | `us-east5-a` | 2026-10-01 19:37:30 | 2026-10-01 20:31:30 | 54m00s | preempted |
+| `BamXLPropK96EmbedVOnlyQK72LLFTruePile` | 6 | `us-east5-a` | 2026-10-01 20:26:44 | 2026-10-01 20:34:04 | 7m20s | preempted |
 | `RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOMPreNormLearnedScaleSharedWriteNormEmbedScale0` | 7 | `us-east5-a` | 2026-10-01 20:40:20 | 2026-10-01 21:01:09 | 20m49s | preempted |
 | `BamMediumPropK75EmbedVOnlyQK57LLFMatrixVTruePile` | 5 | `us-east5-a` | 2026-10-01 20:00:09 | 2026-10-01 21:02:21 | 1h02m12s | preempted |
+| `BamXLPropK96EmbedVOnlyQK72LLFTruePile` | 7 | `us-east5-a` | 2026-10-01 20:40:28 | 2026-10-01 21:03:25 | 22m57s | preempted |
 | `RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOMPreNormLearnedScaleSharedWriteEmbedNormSeedKeyZeroInit` | 2 | `us-east5-a` | 2026-10-01 18:57:33 | 2026-10-01 21:12:47 | 2h15m14s | preempted |
 | `RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOMPreNormLearnedScaleSharedWriteNormEmbedScale0` | 8 | `us-east5-a` | 2026-10-01 21:35:39 | 2026-10-01 22:22:02 | 46m23s | user pause; checkpoint committed, TPU/queue absent, TB synced |
 | `RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOMPreNormLearnedScaleSharedWriteEmbedNormSeedKeyZeroInit` | 3 | `us-east5-a` | 2026-10-01 21:35:42 | 2026-10-01 23:23:22 | 1h47m40s | user pause; checkpoint committed, TPU/queue absent, TB synced |
@@ -1079,4 +1087,9 @@ active leases are censored, and manual migration releases are not preemptions.
 | `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteEveryLayerTruePile` | 1 | `us-east5-a` | 2026-10-02 01:41:05 | 2026-10-02 01:44:21 | 3m16s | preempted |
 | `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteEveryLayerTruePile` | 2 | `us-east5-a` | 2026-10-02 01:50:35 | 2026-10-02 03:37:02 | 1h46m27s | run_stop |
 | `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteStaticEveryLayerTruePile` | 1 | `us-east5-a` | 2026-10-02 01:52:49 | 2026-10-02 04:07:41 | 2h14m52s | preempted |
+| `BamXLPropK96EmbedVOnlyQK72LLFTruePile` | 8 | `us-east5-a` | 2026-10-01 21:35:40 | 2026-10-02 04:07:44 | 6h32m04s | preempted |
+| `BamXLPropK96EmbedVOnlyQK72LLFTruePile` | 9 | `us-east5-a` | 2026-10-02 04:18:23 | 2026-10-02 04:25:08 | 6m45s | preempted |
+| `BamXLPropK96EmbedVOnlyQK72LLFTruePile` | 10 | `us-east5-a` | 2026-10-02 04:31:33 | 2026-10-02 04:49:31 | 17m58s | preempted |
+| `BamXLPropK96EmbedVOnlyQK72LLFTruePile` | 11 | `us-east5-a` | 2026-10-02 04:58:54 | 2026-10-02 05:01:57 | 3m03s | preempted |
 | `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteStaticEveryLayerTruePile` | 2 | `us-east5-a` | 2026-10-02 04:16:10 | 2026-10-02 05:18:42 | 1h02m32s | run_stop |
+| `BamXLPropK96EmbedVOnlyQK72LLFTruePile` | 12 | `us-east5-a` | 2026-10-02 05:10:33 | 2026-10-02 05:39:36 | 29m03s | user pause; checkpoint committed, resources absent, TB synced |

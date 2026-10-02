@@ -9651,6 +9651,7 @@ class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteEveryThirdTruePile(BamMedium
     # Same AllLocal reads; MLP output1200->16x75, independent write gate, one fused outer.
     # Budget: [3901,3896,3901], 432098624 params (-22576 vs MHA); layer2/5/.../17 write.
     # Bet@1000 terminal vs AllLocal -.030 / pseudoF -.007; speed bet .523 step/s (~-.8%).
+    # Through2000: AllLocal -.027153 / originalLLF -.006101 / RMT SeedZero +.045238; AllLocal gain holds~-.028 since1400.
     model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteEveryThirdTruePile'
     bam_mlp_write_every = 3
     bam_mlp_write_offset = 2
@@ -9664,7 +9665,8 @@ class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteEveryThirdTruePile(BamMedium
     max_to_keep = 2
     compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalTruePile',
                     'BamMediumPropK75EmbedVOnlyQK57PseudoFTruePile',
-                    'BamMediumPropK75EmbedVOnlyQK57TruePile']
+                    'BamMediumPropK75EmbedVOnlyQK57TruePile',
+                    'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedEmbedWriteNormSeedKeyZeroInit']
     jax_cache_dir = ''
 
 
@@ -9674,6 +9676,7 @@ class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteEveryLayerTruePile(BamMedium
     # code_commit: 6248e46; UE5a v5p-16 .515 step/s (-2.3% vs AllLocal .5271); basic+concat+write health ON.
     # MLP3896, 432113216 params (-7984 vs MHA); attention address values reused exactly.
     # Bet@1000 terminal vs AllLocal -.025 / everyThird +.005; speed bet .515 step/s (~-2.3%).
+    # Through2000: AllLocal -.023400; crossed behind everyThird (+.003753); RMT SeedZero +.048991.
     model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteEveryLayerTruePile'
     bam_mlp_write_every = 1
     bam_mlp_write_offset = 0
@@ -9691,12 +9694,14 @@ class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteStaticEveryLayerTruePile(Bam
     # Static16x32 address per layer, RMS-normalized; same independent MLP sigmoid gate and content norm.
     # MLP3896, 432122432 params (+1232 vs MHA); attention and MLP require separate contractions.
     # Bet terminal vs AllLocal -.030 / dynamicEveryLayer -.005; .505 step/s (~-4.2% vs AllLocal .5271).
+    # Through2000: AllLocal -.031407 / everyLayerDynamic -.008008 / RMT SeedZero +.040984; all-layer gains still shrink.
     model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteStaticEveryLayerTruePile'
     bam_mlp_write_static_address = True
     compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalTruePile',
                     'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteEveryLayerTruePile',
                     'BamMediumPropK75EmbedVOnlyQK57PseudoFTruePile',
-                    'BamMediumPropK75EmbedVOnlyQK57TruePile']
+                    'BamMediumPropK75EmbedVOnlyQK57TruePile',
+                    'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedEmbedWriteNormSeedKeyZeroInit']
 
 class BamXLPropK96EmbedVOnlyQK72AllLocalTruePile(
     Llama2XLProp, BamMediumPropK75EmbedVOnlyQK57AllLocalTruePile):

@@ -9733,6 +9733,7 @@ class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePil
     # [3901,3774,3901]; 432096128 params (-25072 vs MHA); original output head.
     # Bet terminal vs shared dynamic-.004 / static sparse-.001; speed-.2%..-2%.
     # Continue13500: through11000 last5 shared-.006035/static-.004760/LLF-.008287/SeedZero+.010425; leads mostly hold.
+    # Through12000 last5: shared dynamic -.006007, static -.004318, originalLLF -.008280, RMTSeedZero +.010281; gains hold since8k.
     model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile'
     bam_mlp_write_dynamic_address = True
     bam_mlp_write_address_rank = 256
@@ -9742,7 +9743,6 @@ class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePil
         'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteStaticEveryThirdTruePile',
         'BamMediumPropK75EmbedVOnlyQK57TruePile',
         'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedEmbedWriteNormSeedKeyZeroInit']
-
 
 
 
@@ -9884,6 +9884,8 @@ class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdNoWOTru
 class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdHeadMixNoWOTruePile(BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile):
     """Replace W_O with gated head mixing; LocalO directly enters residual."""
     # Implementation: codex/mediumprop-k75-embed, /data0/xd/mediumprop-k75-embed.
+    # code_commit: bf057ff; UE5a ~0.515step/s (-1.0% vs parent .520); extra H/gate health differs.
+    # AOT loaded, regional TruePile4096 path and exact parameter count verified.
     model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdHeadMixNoWOTruePile'
     bam_no_output_projection = True
     bam_output_head_mix = True
@@ -9894,6 +9896,8 @@ class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdHeadMix
 
 class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdHeadMixNoWOSeparateVOKeysTruePile(BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdHeadMixNoWOTruePile):
     """Separate V/O dynamic C8 keys, retaining shared compression."""
+    # code_commit: bf057ff; UE5a ~0.503step/s (-3.3% vs parent .520); extra H/gate health differs.
+    # AOT loaded, regional TruePile4096 path and exact parameter count verified.
     model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdHeadMixNoWOSeparateVOKeysTruePile'
     bam_local_vo_separate_c8_keys = True
     mlp_dim_by_block = [4253, 4126, 4253]

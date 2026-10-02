@@ -9741,6 +9741,22 @@ class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePil
         'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedEmbedWriteNormSeedKeyZeroInit']
 
 
+
+
+class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryLayerTruePile(BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteEveryLayerTruePile):
+    """Independent token-conditioned MLP write addresses in every layer."""
+    # Implementation: codex/mediumprop-k75-embed; /data0/xd/mediumprop-k75-embed.
+    # Own R256 GELU->16x32 +pre-RMS bias at every layer; ordinary layer scan, no new unembedding.
+    # Private addresses7898112=5.48480W_Q; repay122 MLP units per layer, uniform3774.
+    # 432105728 params (-15472 vs MHA; +9600 vs independent everyThird).
+    # Bet terminal vs independent everyThird+.003; .503step/s (~-3.3% vs .520).
+    model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryLayerTruePile'
+    bam_mlp_write_dynamic_address = True
+    bam_mlp_write_address_rank = 256
+    base_mlp_dim = 3774
+    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile']
+
+
 class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteEveryThirdUnembedDirect32TruePile(
     BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteEveryThirdTruePile):
     """Direct32 gated final M read on sparse dynamic-address MLP writes."""
@@ -9754,10 +9770,7 @@ class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteEveryThirdUnembedDirect32Tru
     bam_dynamic_unembedding_read = True
     bam_unembedding_gate_init = .05
     mlp_dim_by_block = [3891, 3886, 3891]
-    compare_runs = [
-        'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteEveryThirdTruePile',
-        'BamMediumPropK75EmbedVOnlyQK57TruePile',
-        'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedEmbedWriteNormSeedKeyZeroInit']
+    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteEveryThirdTruePile']
 
 
 class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteStaticEveryThirdUnembedDirect32TruePile(
@@ -9774,11 +9787,7 @@ class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteStaticEveryThirdUnembedDirec
     bam_dynamic_unembedding_read = True
     bam_unembedding_gate_init = .05
     mlp_dim_by_block = [3891, 3886, 3891]
-    compare_runs = [
-        'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteStaticEveryThirdTruePile',
-        'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteEveryThirdUnembedDirect32TruePile',
-        'BamMediumPropK75EmbedVOnlyQK57TruePile',
-        'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedEmbedWriteNormSeedKeyZeroInit']
+    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteStaticEveryThirdTruePile']
 
 
 class BamXLPropK96EmbedVOnlyQK72AllLocalTruePile(

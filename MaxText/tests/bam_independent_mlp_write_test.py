@@ -11,25 +11,28 @@ from bam_mlp_write_test import MLPWriteTest
 EXP='BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile'
 
 class IndependentAddressTest(MLPWriteTest):
+  EXP=EXP
+  EXPECTED_TOTAL=432096128
+  EXPECTED_ADDRESS=2632704
   def test_independent_parameters_health(self):
-    c=self.config(EXP);mesh=jax.sharding.Mesh(max_utils.create_device_mesh(c),c.mesh_axes)
+    c=self.config(self.EXP);mesh=jax.sharding.Mesh(max_utils.create_device_mesh(c),c.mesh_axes)
     args,kw,sharding,model=train_compile.get_shaped_inputs(mesh,c)
     flat=flatten_dict(args[0].params)
     total=sum(int(np.prod(v.shape)) for v in flat.values())
     address=sum(int(np.prod(v.shape)) for p,v in flat.items() if any(n in p for n in ('mlp_address_down','mlp_address_up')))
-    self.assertEqual(total,432096128);self.assertEqual(address,2632704)
+    self.assertEqual(total,self.EXPECTED_TOTAL);self.assertEqual(address,self.EXPECTED_ADDRESS)
     self.assertFalse(c.bam_dynamic_unembedding_read)
     with mesh,nn.partitioning.axis_rules(c.logical_axis_rules):
       metrics=jax.eval_shape(functools.partial(train.train_step,model,c,sharding),*args,**kw)[1]
     for l in range(18):
       tag=f'bam/concat/mlp_address_alignment/layer_{l:03d}/mean_cosine'
-      self.assertEqual(tag in metrics['scalar'],(l+1)%3==2)
+      self.assertEqual(tag in metrics['scalar'],(l+1)%c.bam_mlp_write_every==c.bam_mlp_write_offset%c.bam_mlp_write_every)
     print('INDEPENDENT_PARAMS_HEALTH_OK',total,address,flush=True)
   def test_independent_forward_gradient_and_outer(self):
-    c=self.config(EXP,dtype='float32',weight_dtype='float32')
+    c=self.config(self.EXP,dtype='float32',weight_dtype='float32')
     c.get_keys().update(emb_dim=150,num_query_heads=2,num_kv_heads=2,
         base_num_decoder_layers=3,num_decoder_layers=3,mlp_dim=64,
-        mlp_dim_by_block=[64]*3,vocab_size=32,bam_layer_modes=['local_qk+local_v+local_o']*3,
+        mlp_dim_by_block=[64]*3 if c.bam_pair_scan else None,vocab_size=32,bam_layer_modes=['local_qk+local_v+local_o']*3,
         bam_write_v_bottleneck_dim=16,emb_bam_num_head=2,emb_bam_v_bottleneck_dim=16,
         bam_mlp_write_address_rank=16)
     mesh=jax.sharding.Mesh(max_utils.create_device_mesh(c),c.mesh_axes)
@@ -57,6 +60,11 @@ class IndependentAddressTest(MLPWriteTest):
         result=a.apply(v,y,g,f,m,independent_address=addr,method=a.merge_mlp_write)
         np.testing.assert_allclose(result,ref,rtol=2e-5,atol=2e-5)
     print('INDEPENDENT_FORWARD_GRAD_OUTER_OK',float(val),flush=True)
+
+class DenseIndependentAddressTest(IndependentAddressTest):
+  EXP='BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryLayerTruePile'
+  EXPECTED_TOTAL=432105728
+  EXPECTED_ADDRESS=7898112
 
 if __name__=='__main__':
   import unittest

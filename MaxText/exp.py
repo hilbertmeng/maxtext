@@ -9731,9 +9731,8 @@ class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePil
     # MLP normalized input->R256 GELU->16x32 +pre-RMS bias; separate from attention P_loc.
     # +2632704=1.82827W_Q; repay122 MLP units at six write layers, others unchanged.
     # [3901,3774,3901]; 432096128 params (-25072 vs MHA); original output head.
-    # Bet terminal vs shared dynamic-.004 / static sparse-.001; speed-.2%..-2%.
-    # Continue13500: through11000 last5 shared-.006035/static-.004760/LLF-.008287/SeedZero+.010425; leads mostly hold.
-    # Through12000 last5: shared dynamic -.006007, static -.004318, originalLLF -.008280, RMTSeedZero +.010281; gains hold since8k.
+    # Completed 13500; final5 shared dynamic -.005687/static -.004299/originalLLF -.007970/RMTSeedZero +.011065.
+    # Shared lead narrows from~-.01 at3k to~-.006 after8k; static lead holds~-.004 to-.005, LLF~-.008 after8k.
     model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile'
     bam_mlp_write_dynamic_address = True
     bam_mlp_write_address_rank = 256
@@ -9743,7 +9742,6 @@ class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePil
         'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteStaticEveryThirdTruePile',
         'BamMediumPropK75EmbedVOnlyQK57TruePile',
         'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedEmbedWriteNormSeedKeyZeroInit']
-
 
 
 class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryLayerTruePile(BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteEveryLayerTruePile):
@@ -9886,19 +9884,20 @@ class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdHeadMix
     # Implementation: codex/mediumprop-k75-embed, /data0/xd/mediumprop-k75-embed.
     # code_commit: bf057ff; UE5a ~0.515step/s (-1.0% vs parent .520); extra H/gate health differs.
     # AOT loaded, regional TruePile4096 path and exact parameter count verified.
+    # Through1200 parent+.010354, failed NoWO-.013463; parent deficit grows after600.
     model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdHeadMixNoWOTruePile'
     bam_no_output_projection = True
     bam_output_head_mix = True
     bam_local_vo_separate_c8_keys = False
     mlp_dim_by_block = [4296, 4169, 4296]
-    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile']
-
+    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile', 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdNoWOTruePile']
 
 class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdHeadMixNoWOSeparateVOKeysTruePile(BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdHeadMixNoWOTruePile):
     """Separate V/O dynamic C8 keys, retaining shared compression."""
     # code_commit: bf057ff; UE5a ~0.503step/s (-3.3% vs parent .520); extra H/gate health differs.
     # AOT loaded, regional TruePile4096 path and exact parameter count verified.
+    # Through1200 parent+.001846, failed NoWO-.021970, sharedH-.008508; parent lead at600-800 crosses behind at1000.
     model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdHeadMixNoWOSeparateVOKeysTruePile'
     bam_local_vo_separate_c8_keys = True
     mlp_dim_by_block = [4253, 4126, 4253]
-    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile', 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdHeadMixNoWOTruePile']
+    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile', 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdHeadMixNoWOTruePile', 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdNoWOTruePile']

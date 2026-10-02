@@ -55,7 +55,9 @@ class UnembeddingTest(unittest.TestCase):
       np.testing.assert_allclose(y,y2,rtol=1e-4,atol=1e-4)
       # Gate is the only amplitude coefficient: compare explicitly with the outer read.
       norm=lambda z:z*jax.lax.rsqrt(jnp.mean(z*z,axis=-1,keepdims=True)+c.normalization_layer_epsilon)
-      key=norm((norm(x)@p['read_key']['kernel'].reshape(150,-1)).reshape(1,4,2,32))
+      raw_key=(norm(x)@p['read_key']['kernel'].reshape(150,-1)).reshape(1,4,2,32)
+      key_eps=c.normalization_layer_epsilon if c.bam_read_key_epsilon is None else c.bam_read_key_epsilon
+      key=raw_key*jax.lax.rsqrt(jnp.mean(raw_key*raw_key,axis=-1,keepdims=True)+key_eps)
       mn=m*jax.lax.rsqrt(jnp.mean(m*m,axis=(-2,-1),keepdims=True)+c.normalization_layer_epsilon)
       expected=x+.05*jnp.einsum('btkv,btnv->btnk',mn,key).reshape(x.shape)
       np.testing.assert_allclose(y,expected,rtol=1e-4,atol=1e-4)

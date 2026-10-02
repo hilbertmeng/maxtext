@@ -9655,7 +9655,7 @@ class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteEveryThirdTruePile(BamMedium
     # Same AllLocal reads; MLP output1200->16x75, independent write gate, one fused outer.
     # Budget: [3901,3896,3901], 432098624 params (-22576 vs MHA); layer2/5/.../17 write.
     # Bet@1000 terminal vs AllLocal -.030 / pseudoF -.007; speed bet .523 step/s (~-.8%).
-    # Through9000: AllLocal gain holds~-.029 (last5-.029035); pseudoF-.007419 / originalLLF-.002560 / SeedZero+.016408.
+    # Through10000: AllLocal gain holds(last5-.029628); originalLLF-.002271; SeedZero deficit plateaus~+.017(last5+.017112).
     model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteEveryThirdTruePile'
     bam_mlp_write_every = 3
     bam_mlp_write_offset = 2
@@ -9714,8 +9714,8 @@ class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteStaticEveryThirdTruePile(Bam
     # code_commit: f79776c; UE5a v5p-16 .531 step/s(20-99), +.9% vs dynamic sparse .5265; basic+concat+write health ON.
     # Same [3901,3896,3901] MLP; 432101696 params, +3072 vs dynamic everyThird (-19504 vs MHA).
     # Bet terminal vs everyThird dynamic -.003; .524 step/s (~-.5% vs .5265).
-    # Through5000: sparse dynamic lead narrows(last5-.001977 vs -.003244@4000); dense static lead(last5-.008394).
-    # Last5: AllLocal-.030054 / pseudoF-.009871 / originalLLF-.004837 / SeedZero+.019513; continue full13500.
+    # Through6000: sparse dynamic lead last5-.002332/latest-.000871; last3 shrinks -.003127->-.001652->-.000871.
+    # Continue13500; only sparse dynamic comparison retained from6000.
     model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteStaticEveryThirdTruePile'
     bam_mlp_write_static_address = True
     compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteEveryThirdTruePile']
@@ -9729,6 +9729,7 @@ class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePil
     # +2632704=1.82827W_Q; repay122 MLP units at six write layers, others unchanged.
     # [3901,3774,3901]; 432096128 params (-25072 vs MHA); original output head.
     # Bet terminal vs shared dynamic-.004 / static sparse-.001; speed-.2%..-2%.
+    # Through1000: shared dynamic crossed ahead600, -.014807@1000; static-.015666 / originalLLF-.038418 / SeedZero+.074063.
     model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile'
     bam_mlp_write_dynamic_address = True
     bam_mlp_write_address_rank = 256

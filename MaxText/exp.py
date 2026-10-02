@@ -9650,7 +9650,7 @@ class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteEveryThirdTruePile(BamMedium
     # code_commit: 6248e46; UE5a v5p-16 .527 step/s (flat vs AllLocal .5271); basic+concat+write health ON.
     # Same AllLocal reads; MLP output1200->16x75, independent write gate, one fused outer.
     # Budget: [3901,3896,3901], 432098624 params (-22576 vs MHA); layer2/5/.../17 write.
-    # Bet terminal vs AllLocal -.015 / pseudoF +.008; .523 step/s (~-.8% vs AllLocal .5271).
+    # Bet@1000 terminal vs AllLocal -.030 / pseudoF -.007; speed bet .523 step/s (~-.8%).
     model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteEveryThirdTruePile'
     bam_mlp_write_every = 3
     bam_mlp_write_offset = 2
@@ -9673,7 +9673,7 @@ class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteEveryLayerTruePile(BamMedium
     # Implementation: codex/mediumprop-k75-embed; /data0/xd/mediumprop-k75-embed.
     # code_commit: 6248e46; UE5a v5p-16 .515 step/s (-2.3% vs AllLocal .5271); basic+concat+write health ON.
     # MLP3896, 432113216 params (-7984 vs MHA); attention address values reused exactly.
-    # Bet terminal vs AllLocal -.025 / everyThird -.010; .515 step/s (~-2.3% vs AllLocal .5271).
+    # Bet@1000 terminal vs AllLocal -.025 / everyThird +.005; speed bet .515 step/s (~-2.3%).
     model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteEveryLayerTruePile'
     bam_mlp_write_every = 1
     bam_mlp_write_offset = 0

@@ -9655,7 +9655,7 @@ class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteEveryThirdTruePile(BamMedium
     # Same AllLocal reads; MLP output1200->16x75, independent write gate, one fused outer.
     # Budget: [3901,3896,3901], 432098624 params (-22576 vs MHA); layer2/5/.../17 write.
     # Bet@1000 terminal vs AllLocal -.030 / pseudoF -.007; speed bet .523 step/s (~-.8%).
-    # Through7000: AllLocal gain holds~-.029 (last5-.028971); pseudoF-.007720 / originalLLF-.002569 / SeedZero+.018272.
+    # Through8000: AllLocal gain holds~-.029 (last5-.029382); pseudoF-.007458 / originalLLF-.002602 / SeedZero+.017115.
     model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteEveryThirdTruePile'
     bam_mlp_write_every = 3
     bam_mlp_write_offset = 2
@@ -9716,8 +9716,8 @@ class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteStaticEveryThirdTruePile(Bam
     # code_commit: f79776c; UE5a v5p-16 .531 step/s(20-99), +.9% vs dynamic sparse .5265; basic+concat+write health ON.
     # Same [3901,3896,3901] MLP; 432101696 params, +3072 vs dynamic everyThird (-19504 vs MHA).
     # Bet terminal vs everyThird dynamic -.003; .524 step/s (~-.5% vs .5265).
-    # Through2800: sparse dynamic lead since1200(last5-.003462); dense static lead grows since2400(last5-.001907/latest-.004897).
-    # Last5: AllLocal-.030808 / pseudoF-.015417 / originalLLF-.007804 / SeedZero+.034994; continue5000.
+    # Through4000: sparse dynamic lead holds(last5-.003244); dense static deficit widens(last5-.007178).
+    # Last5: AllLocal-.030530 / pseudoF-.012291 / originalLLF-.006137 / SeedZero+.023550; continue5000.
     model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteStaticEveryThirdTruePile'
     bam_mlp_write_static_address = True
     compare_runs = BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteEveryThirdTruePile.compare_runs + [
@@ -9747,6 +9747,7 @@ class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteEveryThirdUnembedDirect32Tru
     BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteEveryThirdTruePile):
     """Direct32 gated final M read on sparse dynamic-address MLP writes."""
     # Implementation: codex/mediumprop-k75-embed; /data0/xd/mediumprop-k75-embed.
+    # code_commit: cb65817; UE5a v5p-16 startup~.528step/s, near parent; extra boundary health ON.
     # Full75x32 matrix norm+scale; final vector query norm; zero key, gate.05; no fixed read scale.
     # Global read637216=.44251W_Q; nearest per-layer MLP widths [3891,3886,3891].
     # Bet terminal vs dynamic sparse -.003; speed within1% of .5265step/s.
@@ -9764,6 +9765,7 @@ class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteStaticEveryThirdUnembedDirec
     BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteStaticEveryThirdTruePile):
     """Full-M gated final column read, with no fixed read amplitude coefficient."""
     # Implementation: codex/mediumprop-k75-embed; /data0/xd/mediumprop-k75-embed.
+    # code_commit: cb65817; UE5a v5p-16 startup~.528step/s, near parent; extra boundary health ON.
     # Direct32: final75x32 matrix RMSNorm+learned scale, normalized final vector queries.
     # Zero read-key/gate kernels; sigmoid gate opens.05; add16x75 read before original head norm.
     # Global read637216=.44251W_Q; pay10 MLP units/layer (nearest per-layer integer).

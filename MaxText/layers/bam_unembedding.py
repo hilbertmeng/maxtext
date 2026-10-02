@@ -3,7 +3,7 @@ import math
 from flax import linen as nn
 import jax
 import jax.numpy as jnp
-from layers import linears, normalizations
+from layers import initializers, linears, normalizations
 
 HEALTH_NAMES = ('matrix_raw_rms', 'matrix_norm_rms', 'read_pre_gate_rms',
                 'read_rms', 'residual_rms', 'read_over_residual',
@@ -32,7 +32,7 @@ class BamDynamicUnembedding(nn.Module):
     query = normalizations.get_rmsnorm('query_norm', cfg)(residual)
     key = linears.DenseGeneral(
         features=(heads, matrix.shape[-1]), axis=-1, use_bias=False,
-        kernel_init=nn.initializers.zeros,
+        kernel_init=initializers.contant_dense_init(0.0),
         kernel_axes=('embed', 'q_heads', 'v_factor'), dtype=cfg.dtype,
         weight_dtype=cfg.weight_dtype, quant=self.quant,
         matmul_precision=cfg.matmul_precision, name='read_key')(query)
@@ -41,7 +41,7 @@ class BamDynamicUnembedding(nn.Module):
                  else cfg.bam_read_key_epsilon), statistics_dtype=jnp.float32)
     logits = linears.DenseGeneral(
         features=(heads,), axis=-1, use_bias=False,
-        kernel_init=nn.initializers.zeros, kernel_axes=('embed', 'q_heads'),
+        kernel_init=initializers.contant_dense_init(0.0), kernel_axes=('embed', 'q_heads'),
         dtype=cfg.dtype, weight_dtype=cfg.weight_dtype, quant=self.quant,
         matmul_precision=cfg.matmul_precision, name='read_gate')(query)
     opening = float(cfg.bam_unembedding_gate_init)

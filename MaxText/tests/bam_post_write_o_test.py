@@ -41,7 +41,14 @@ class PostWriteTest(MLPWriteTest):
    self.assertEqual(params['static_o_key'].shape,(32,2))
    out,m=a.apply({'params':params},*call,M_in=M,deterministic=True)
    reference=a.apply({'params':params},m,x,method=read_o)
-   np.testing.assert_allclose(out,reference,rtol=1e-5,atol=1e-5)
+   if 'output_head_mix' in params:
+    zero_h=dict(params,output_head_mix=jnp.zeros_like(params['output_head_mix']))
+    out_zero,m_zero=a.apply({'params':zero_h},*call,M_in=M,deterministic=True)
+    np.testing.assert_allclose(out_zero,reference,rtol=1e-5,atol=1e-5)
+    np.testing.assert_array_equal(m,m_zero)
+    self.assertGreater(float(jnp.max(jnp.abs(out-out_zero))),1e-5)
+   else:
+    np.testing.assert_allclose(out,reference,rtol=1e-5,atol=1e-5)
    old=a.apply({'params':params},M,x,method=read_o)
    self.assertGreater(float(jnp.max(jnp.abs(out-old))),1e-5)
    deferred=a.apply({'params':params},*call,M_in=M,deterministic=True,defer_write=True)
@@ -65,4 +72,21 @@ class PostWriteTest(MLPWriteTest):
    self.assertTrue(all(np.all(np.isfinite(g)) for g in jax.tree.leaves(grad)))
    self.assertGreater(float(jnp.sum(grad['static_o_key']**2)),0)
   print('POST_WRITE_ROUTES_DECAY_GRAD_OK',flush=True)
+class PostWriteHTest(PostWriteTest):
+ def config(self, exp, **kwargs):
+  return super().config(PREFIX+'IndependentEveryThirdPostWriteLocalOHeadMixNoWOTruePile',**kwargs)
+ def test_budget_health(self):
+  c=self.config(EXP)
+  mesh=jax.sharding.Mesh(max_utils.create_device_mesh(c),c.mesh_axes)
+  args,kw,sharding,model=train_compile.get_shaped_inputs(mesh,c)
+  flat=flatten_dict(args[0].params)
+  self.assertEqual(sum(int(np.prod(v.shape)) for v in flat.values()),432143936)
+  self.assertTrue(any('output_head_mix' in p for p in flat))
+  self.assertFalse(any('output_head_gate' in p or ('self_attention' in p and 'out' in p) for p in flat))
+  with mesh,nn.partitioning.axis_rules(c.logical_axis_rules):
+   metrics=jax.eval_shape(functools.partial(train.train_step,model,c,sharding),*args,**kw)[1]['scalar']
+  for l in range(18):
+   self.assertIn(f'bam/concat/post_write_delta_amplitude/layer_{l:03d}/bam_over_standard',metrics)
+   self.assertIn(f'bam/concat/output_head_mix_weights/layer_{l:03d}/negative_fraction',metrics)
+  print('POST_WRITE_H_BUDGET_HEALTH_OK',flush=True)
 if __name__=='__main__':unittest.main()

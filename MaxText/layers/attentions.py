@@ -2524,7 +2524,8 @@ class BamAttention(Attention):
       assert self._vo_shared_read == 'local_o' and self._vo_independent_gates
     if self._post_write_o:
       assert self._vo_separate_c8_keys and cfg.bam_no_output_projection
-      assert not self._output_head_mix_enabled and self._has_write
+      assert self._has_write
+      assert not self._output_head_mix_enabled or not cfg.bam_output_head_gate
     if self._output_head_mix_enabled:
       assert getattr(cfg, 'bam_no_output_projection', False)
       assert self._local_o and 'full' not in self._mode
@@ -3806,7 +3807,7 @@ class BamAttention(Attention):
       o_head = o_head + y_bam
 
     output_head = o_head
-    if self._output_head_mix_enabled:
+    if self._output_head_mix_enabled and not self._post_write_o:
       output_head = self._mix_attention_output(y_std, local_output, inputs_q)
       # Memory receives raw attention, not LocalO or vector-output head mixing.
       o_head = y_std
@@ -3830,6 +3831,8 @@ class BamAttention(Attention):
       self._record_concat_amplitude('local_o', output_head, y_std)
       self._record_concat_amplitude('post_write_delta', delta, M_in)
       self._record_concat_gate('attention_write', self.W_gw(inputs_q) + self.gw_b0)
+      if self._output_head_mix_enabled:
+        output_head = self._mix_attention_output(y_std, output_head, inputs_q)
       out = nn.with_logical_constraint(output_head, self.out_axis_names)
       output = self.out_projection(inputs_q.shape[-1], out)
       return (output, M_in, factors) if defer_write else (output, M_out)

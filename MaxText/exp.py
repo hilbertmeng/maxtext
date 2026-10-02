@@ -272,6 +272,8 @@ class BamLlama2Medium(Llama2Medium):
     bam_mlp_write_dynamic_address = False
     bam_mlp_write_address_rank = 256
     bam_no_output_projection = False
+    bam_output_head_mix = False
+    bam_local_vo_separate_c8_keys = False
     bam_dynamic_unembedding_read = False
     bam_unembedding_gate_init = .05
 
@@ -9714,7 +9716,7 @@ class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteStaticEveryThirdTruePile(Bam
     # Ledger only. Implementation: codex/mediumprop-k75-embed; /data0/xd/mediumprop-k75-embed.
     # code_commit: f79776c; UE5a v5p-16 .531 step/s(20-99), +.9% vs dynamic sparse .5265; basic+concat+write health ON.
     # Same [3901,3896,3901] MLP; 432101696 params, +3072 vs dynamic everyThird (-19504 vs MHA).
-    # Completed13500: vs shared dynamic crosses ahead1200, peaks~-.0032@4000, holds~-.0014 over10000-13400.
+    # Completed 13500: vs shared dynamic crosses ahead1200, peaks~-.0032@4000, holds~-.0014 over10000-13400.
     # Final5-.001388(range-.001774..-.000933); .9% faster, +3072params; small net gain.
     model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteStaticEveryThirdTruePile'
     bam_mlp_write_static_address = True
@@ -9730,7 +9732,7 @@ class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePil
     # +2632704=1.82827W_Q; repay122 MLP units at six write layers, others unchanged.
     # [3901,3774,3901]; 432096128 params (-25072 vs MHA); original output head.
     # Bet terminal vs shared dynamic-.004 / static sparse-.001; speed-.2%..-2%.
-    # Continue13500: through9000 last5 shared-.006395/static-.004851/LLF-.008955/SeedZero+.010014; leads stabilize.
+    # Continue13500: through11000 last5 shared-.006035/static-.004760/LLF-.008287/SeedZero+.010425; leads mostly hold.
     model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile'
     bam_mlp_write_dynamic_address = True
     bam_mlp_write_address_rank = 256
@@ -9751,7 +9753,7 @@ class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryLayerTruePil
     # Own R256 GELU->16x32 +pre-RMS bias at every layer; ordinary layer scan, no new unembedding.
     # Private addresses7898112=5.48480W_Q; repay122 MLP units per layer, uniform3774.
     # 432105728 params (-15472 vs MHA; +9600 vs independent everyThird).
-    # Stopped5247: sparse-private early lead vanishes near2400; deficit grows through4000, holds~+.0074 over4400-5200.
+    # Stopped 5247: sparse-private early lead vanishes near2400; deficit grows through4000, holds~+.0074 over4400-5200.
     # Final5+.007366(range+.006481..+.008039); 4.8% slower, no loss/parameter benefit.
     model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryLayerTruePile'
     bam_mlp_write_dynamic_address = True
@@ -9853,7 +9855,7 @@ class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteStaticEveryThirdNoWOTruePile
     """Identity attention output; repay W_O into each layer's MLP."""
     # Ledger only. Implementation: codex/mediumprop-k75-embed; /data0/xd/mediumprop-k75-embed.
     # code_commit: bc9a9a0
-    # UE5a .533step/s vs parent .531 (+.4%); matched health; stopped2947.
+    # UE5a .533step/s vs parent .531 (+.4%); matched health; stopped 2947.
     # Remove18 W_O kernels; +400 SwiGLU units/layer, identical432101696 total parameters.
     # Keep static MLP addresses at L1/4/7/10/13/16 and all existing read/write rules.
     # Parent gap crosses behind800, grows through2000, holds~+.029 over2000-2800; final5+.029136.
@@ -9869,7 +9871,7 @@ class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdNoWOTru
     """Identity attention output on sparse private dynamic MLP addresses."""
     # Ledger only. Implementation: codex/mediumprop-k75-embed; /data0/xd/mediumprop-k75-embed.
     # code_commit: bc9a9a0
-    # UE5a .521step/s vs parent .520 (+.2%); matched health; stopped3026.
+    # UE5a .521step/s vs parent .520 (+.2%); matched health; stopped 3026.
     # Remove18 W_O kernels; +400 SwiGLU units/layer, identical432096128 total parameters.
     # Parent gap crosses behind800, grows to~+.03 after1400; no recovery through2800.
     # Final5+.031440(range+.029615..+.033669); only.2% faster.
@@ -9877,3 +9879,22 @@ class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdNoWOTru
     bam_no_output_projection = True
     mlp_dim_by_block = [4301, 4174, 4301]
     compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile']
+
+
+class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdHeadMixNoWOTruePile(BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile):
+    """Replace W_O with gated head mixing; LocalO directly enters residual."""
+    # Implementation: codex/mediumprop-k75-embed, /data0/xd/mediumprop-k75-embed.
+    model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdHeadMixNoWOTruePile'
+    bam_no_output_projection = True
+    bam_output_head_mix = True
+    bam_local_vo_separate_c8_keys = False
+    mlp_dim_by_block = [4296, 4169, 4296]
+    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile']
+
+
+class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdHeadMixNoWOSeparateVOKeysTruePile(BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdHeadMixNoWOTruePile):
+    """Separate V/O dynamic C8 keys, retaining shared compression."""
+    model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdHeadMixNoWOSeparateVOKeysTruePile'
+    bam_local_vo_separate_c8_keys = True
+    mlp_dim_by_block = [4253, 4126, 4253]
+    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile', 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdHeadMixNoWOTruePile']

@@ -382,6 +382,8 @@ def record_bam_concat_health_metrics(output_metrics, intermediate_outputs, confi
       value = values[0] if index is None else values[0][index]
       if key == 'concat_vo_gate_pair':
         names = ('mean_abs_diff', 'rms_diff', 'correlation')
+      elif key == 'concat_output_head_mix_weights':
+        names = ('rms', 'mean', 'negative_fraction', 'diagonal_rms', 'offdiagonal_rms')
       elif key == 'concat_mlp_address_alignment':
         names = ('mean_cosine', 'mean_abs_cosine', 'mean_square_cosine')
       elif key == 'concat_matrix_qk_scores':

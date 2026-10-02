@@ -2517,6 +2517,27 @@ class BamAttention(Attention):
     zeros_init = initializers.contant_dense_init(0.0)
     orth_init = nn.initializers.orthogonal()
     reg_init = self.kernel_init
+    self._output_head_mix_enabled = bool(getattr(cfg, 'bam_output_head_mix', False))
+    self._vo_separate_c8_keys = bool(getattr(cfg, 'bam_local_vo_separate_c8_keys', False))
+    if self._vo_separate_c8_keys:
+      assert self._vo_shared_read == 'local_o' and self._vo_independent_gates
+    if self._output_head_mix_enabled:
+      assert getattr(cfg, 'bam_no_output_projection', False)
+      assert self._local_o and 'full' not in self._mode
+      self.output_head_mix = self.param(
+          'output_head_mix', nn.with_logical_partitioning(
+              nn.initializers.normal(self.num_query_heads ** -0.5), (None, None)),
+          (self.num_query_heads, self.num_query_heads), self.weight_dtype)
+      self.output_head_gate = DenseGeneral(
+          features=(self.num_query_heads,), axis=-1, kernel_init=zeros_init,
+          kernel_axes=('embed', 'q_heads'), dtype=self.dtype,
+          weight_dtype=self.weight_dtype, name='output_head_gate', quant=self.quant,
+          matmul_precision=cfg.matmul_precision, use_bias=False)
+      # 1.1*sigmoid(log(10)) = 1: start with no gate attenuation.
+      self.output_head_gate_bias = self.param(
+          'output_head_gate_bias', nn.with_logical_partitioning(
+              nn.initializers.constant(math.log(10.0)), ('q_heads',)),
+          (self.num_query_heads,), self.weight_dtype)
 
     self._read_key_scale = float(cfg.bam_read_key_scale)
     self._rms_epsilon = float(cfg.normalization_layer_epsilon)
@@ -2780,6 +2801,14 @@ class BamAttention(Attention):
           quant=self.quant, matmul_precision=cfg.matmul_precision,
           use_bias=False,
           kernel_gradient_scale=self._fetched_read_kernel_gradient_scale)
+      if self._vo_separate_c8_keys:
+        self.W_R_v = DenseGeneral(
+            features=read_features, axis=-1,
+            kernel_init=zeros_init if self._fetched_read_kernel_init == 'zero' else reg_init,
+            kernel_axes=('embed', 'q_heads', 'fetch', 'kv'),
+            dtype=self.dtype, weight_dtype=self.weight_dtype, name='W_R_v',
+            quant=self.quant, matmul_precision=cfg.matmul_precision, use_bias=False,
+            kernel_gradient_scale=self._fetched_read_kernel_gradient_scale)
       fetched_gate_init = (
           zero_key_gate_init if self._fetched_read_gate_init is None
           else self._fetched_read_gate_init)
@@ -3208,7 +3237,33 @@ class BamAttention(Attention):
       correlation = jnp.mean(vc * oc) / jnp.maximum(jnp.sqrt(jnp.mean(vc * vc) * jnp.mean(oc * oc)), 1e-12)
       self.sow('intermediates', 'concat_vo_gate_pair', jnp.stack((
           jnp.mean(jnp.abs(v-o)), jnp.sqrt(jnp.mean((v-o)**2)), correlation)))
-    return self._gate_local_output(read, v_logits), self._gate_local_output(read, o_logits)
+    v_read = read
+    if self._vo_separate_c8_keys:
+      v_key = jnp.squeeze(self.W_R_v(x), axis=-2)
+      v_read = bam_read(compressed_M, v_key, self._fetched_arm_ungated)
+    return self._gate_local_output(v_read, v_logits), self._gate_local_output(read, o_logits)
+
+  def _mix_attention_output(self, attention_head, local_output, x):
+    """Mix/gate raw attention heads; LocalO bypasses both into the vector stream."""
+    weight = self.output_head_mix.astype(attention_head.dtype)
+    mixed = jnp.einsum('btnk,nm->btmk', attention_head, weight)
+    logits = self.output_head_gate(x).astype(jnp.float32) + self.output_head_gate_bias.astype(jnp.float32)
+    gate = (1.1 * jax.nn.sigmoid(logits)).astype(attention_head.dtype)
+    mixed = mixed * gate[..., None]
+    if self._concat_health:
+      g = gate.astype(jnp.float32)
+      self.sow('intermediates', 'concat_output_head_gate', jnp.stack((
+          jnp.mean(g), jnp.std(g), jnp.mean(g < .05),
+          jnp.mean(g > .5), jnp.mean(g > .95))))
+      self._record_concat_amplitude('output_head_mix', mixed, attention_head)
+      h = self.output_head_mix.astype(jnp.float32)
+      diagonal = jnp.eye(self.num_query_heads, dtype=jnp.float32)
+      self.sow('intermediates', 'concat_output_head_mix_weights', jnp.stack((
+          jnp.sqrt(jnp.mean(h*h)), jnp.mean(h), jnp.mean(h < 0),
+          jnp.sqrt(jnp.sum((h*diagonal)**2) / self.num_query_heads),
+          jnp.sqrt(jnp.sum((h*(1-diagonal))**2) /
+                   max(self.num_query_heads*(self.num_query_heads-1), 1)))))
+    return mixed if local_output is None else mixed + local_output
 
   def _matrix_for_read(self, M_in):
     """Select the configured read-side view without changing the raw matrix stream."""
@@ -3733,10 +3788,16 @@ class BamAttention(Attention):
                   self.num_query_heads, self.head_dim))
       o_head = o_head + y_bam
 
+    output_head = o_head
+    if self._output_head_mix_enabled:
+      output_head = self._mix_attention_output(y_std, local_output, inputs_q)
+      # Memory receives raw attention, not LocalO or vector-output head mixing.
+      o_head = y_std
+
     if defer_write:
       assert self._has_write and not self._mha_control and M_in is not None
       factors = self._deferred_write_factors(o_head, inputs_q)
-      out = nn.with_logical_constraint(o_head, self.out_axis_names)
+      out = nn.with_logical_constraint(output_head, self.out_axis_names)
       return self.out_projection(inputs_q.shape[-1], out), M_in, factors
     if self._mha_control:
       M_out = M_in
@@ -3747,5 +3808,5 @@ class BamAttention(Attention):
     else:
       M_out = M_in
 
-    out = nn.with_logical_constraint(o_head, self.out_axis_names)
+    out = nn.with_logical_constraint(output_head, self.out_axis_names)
     return self.out_projection(inputs_q.shape[-1], out), M_out

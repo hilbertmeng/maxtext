@@ -9886,7 +9886,7 @@ class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdHeadMix
     # Implementation: codex/mediumprop-k75-embed, /data0/xd/mediumprop-k75-embed.
     # code_commit: bf057ff; UE5a ~0.515step/s (-1.0% vs parent .520); extra H/gate health differs.
     # AOT loaded, regional TruePile4096 path and exact parameter count verified.
-    # Through1600 parent+.010316, failed NoWO-.017206; parent deficit~+.01 after1000.
+    # Stopped at checkpoint2800; parent last5 +.012111; shared H remains worse than independent keys; hot-replaced.
     model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdHeadMixNoWOTruePile'
     bam_no_output_projection = True
     bam_output_head_mix = True
@@ -9898,7 +9898,7 @@ class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdHeadMix
     """Separate V/O dynamic C8 keys, retaining shared compression."""
     # code_commit: bf057ff; UE5a ~0.503step/s (-3.3% vs parent .520); extra H/gate health differs.
     # AOT loaded, regional TruePile4096 path and exact parameter count verified.
-    # Through2800 parent+.009050 (last5+.007470), failed NoWO-.024618; parent deficit grows since1000. Continue to5000.
+    # Stopped3178; through3000 parent last5+.008436 [.006200,.010512], deficit grows since1000; hot-replaced.
     model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdHeadMixNoWOSeparateVOKeysTruePile'
     bam_local_vo_separate_c8_keys = True
     mlp_dim_by_block = [4253, 4126, 4253]
@@ -9906,6 +9906,7 @@ class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdHeadMix
 
 class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdPostWriteLocalONoWOTruePile(BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdHeadMixNoWOSeparateVOKeysTruePile):
     """Raw attention writes M, then independent static/dynamic LocalO reads it."""
+    # code_commit: 89f2943; UE5a ~.499step/s (-4.0% vs W_O .520; health differs).
     model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdPostWriteLocalONoWOTruePile'
     bam_output_head_mix = False
     bam_local_o_post_write = True
@@ -9915,6 +9916,7 @@ class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdPostWri
 
 class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdHeadMixNoWOSeparateVOKeysNoGateTruePile(BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdHeadMixNoWOSeparateVOKeysTruePile):
     """Independent V/O keys; Gaussian H without its output gate."""
+    # code_commit: 9c6013b; UE5a ~.506step/s (-2.7% vs W_O .520; health differs).
     model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdHeadMixNoWOSeparateVOKeysNoGateTruePile'
     bam_output_head_gate = False
     mlp_dim_by_block = [4259, 4132, 4259]
@@ -9923,6 +9925,7 @@ class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdHeadMix
 
 class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdPostWriteLocalOHeadMixNoWOTruePile(BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdPostWriteLocalONoWOTruePile):
     """Post-write LocalO plus ungated Gaussian H bypass of raw attention."""
+    # code_commit: 3228ced; UE5a ~.488step/s (-6.2% vs W_O .520; health differs).
     model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdPostWriteLocalOHeadMixNoWOTruePile'
     bam_output_head_mix = True
     bam_output_head_gate = False

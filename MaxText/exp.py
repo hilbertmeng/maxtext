@@ -272,6 +272,7 @@ class BamLlama2Medium(Llama2Medium):
     bam_mlp_write_dynamic_address = False
     bam_mlp_write_address_rank = 256
     bam_no_output_projection = False
+    bam_local_o_post_write = False
     bam_output_head_mix = False
     bam_local_vo_separate_c8_keys = False
     bam_dynamic_unembedding_read = False
@@ -9884,7 +9885,7 @@ class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdHeadMix
     # Implementation: codex/mediumprop-k75-embed, /data0/xd/mediumprop-k75-embed.
     # code_commit: bf057ff; UE5a ~0.515step/s (-1.0% vs parent .520); extra H/gate health differs.
     # AOT loaded, regional TruePile4096 path and exact parameter count verified.
-    # Through1200 parent+.010354, failed NoWO-.013463; parent deficit grows after600.
+    # Through1600 parent+.010316, failed NoWO-.017206; parent deficit~+.01 after1000.
     model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdHeadMixNoWOTruePile'
     bam_no_output_projection = True
     bam_output_head_mix = True
@@ -9896,8 +9897,16 @@ class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdHeadMix
     """Separate V/O dynamic C8 keys, retaining shared compression."""
     # code_commit: bf057ff; UE5a ~0.503step/s (-3.3% vs parent .520); extra H/gate health differs.
     # AOT loaded, regional TruePile4096 path and exact parameter count verified.
-    # Through1200 parent+.001846, failed NoWO-.021970, sharedH-.008508; parent lead at600-800 crosses behind at1000.
+    # Through1600 parent+.002347, failed NoWO-.025175, sharedH-.007968; behind parent since1000, stable sharedH advantage~-.0085.
     model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdHeadMixNoWOSeparateVOKeysTruePile'
     bam_local_vo_separate_c8_keys = True
     mlp_dim_by_block = [4253, 4126, 4253]
     compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile', 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdHeadMixNoWOTruePile', 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdNoWOTruePile']
+
+class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdPostWriteLocalONoWOTruePile(BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdHeadMixNoWOSeparateVOKeysTruePile):
+    """Raw attention writes M, then independent static/dynamic LocalO reads it."""
+    model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdPostWriteLocalONoWOTruePile'
+    bam_output_head_mix = False
+    bam_local_o_post_write = True
+    mlp_dim_by_block = [4259, 4132, 4259]
+    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile', 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdHeadMixNoWOSeparateVOKeysTruePile']

@@ -2517,10 +2517,14 @@ class BamAttention(Attention):
     zeros_init = initializers.contant_dense_init(0.0)
     orth_init = nn.initializers.orthogonal()
     reg_init = self.kernel_init
+    self._post_write_o = bool(getattr(cfg, 'bam_local_o_post_write', False))
     self._output_head_mix_enabled = bool(getattr(cfg, 'bam_output_head_mix', False))
     self._vo_separate_c8_keys = bool(getattr(cfg, 'bam_local_vo_separate_c8_keys', False))
     if self._vo_separate_c8_keys:
       assert self._vo_shared_read == 'local_o' and self._vo_independent_gates
+    if self._post_write_o:
+      assert self._vo_separate_c8_keys and cfg.bam_no_output_projection
+      assert not self._output_head_mix_enabled and self._has_write
     if self._output_head_mix_enabled:
       assert getattr(cfg, 'bam_no_output_projection', False)
       assert self._local_o and 'full' not in self._mode
@@ -2848,7 +2852,7 @@ class BamAttention(Attention):
       for arm in (('v', 'o') if 'local_v' in self._mode else ('o',)):
         setattr(self, 'static_' + arm + '_key', self.param(
             'static_' + arm + '_key', nn.with_logical_partitioning(
-                nn.initializers.normal(self.bam_v ** -0.5) if arm == 'v' else zeros_init,
+                nn.initializers.normal(self.bam_v ** -0.5) if arm == 'v' or self._post_write_o else zeros_init,
                 ('v_factor', 'q_heads')),
             (self.bam_v, self.num_query_heads), self.weight_dtype))
 
@@ -3682,18 +3686,26 @@ class BamAttention(Attention):
     elif self._local_o and self._vo_shared_read != 'none':
       if Mh is None:
         Mh = self._matrix_for_read(M_in)
-      if self._vo_independent_gates:
+      if self._post_write_o:
+        compressed = self._compress_m(Mh) if local_compressed_M is None else local_compressed_M
+        v_key = jnp.squeeze(self.W_R_v(inputs_q), axis=-2)
+        v_read = bam_read(compressed, v_key, self._fetched_arm_ungated)
+        v_logits = self._project_read_gate_logits('W_lv_gate', inputs_q)
+        self._record_concat_gate('local_v', v_logits)
+        v_local = self._gate_local_output(v_read, v_logits)
+      elif self._vo_independent_gates:
         v_local, local_output = self._independent_local_vo(Mh, inputs_q, local_compressed_M)
       else:
         local_output = self._shared_local_vo(Mh, inputs_q, local_inputs)
         v_local = local_output
       if self._static_vo:
         static_v = self._static_column(Mh, 'v')
-        static_o = self._static_column(Mh, 'o')
         self._record_concat_amplitude('static_v', static_v, v_local)
-        self._record_concat_amplitude('static_o', static_o, local_output)
         v_local = v_local + static_v
-        local_output = local_output + static_o
+        if not self._post_write_o:
+          static_o = self._static_column(Mh, 'o')
+          self._record_concat_amplitude('static_o', static_o, local_output)
+          local_output = local_output + static_o
       if not self._local_v_replace:
         self._record_concat_amplitude('local_v', v_local[..., :self.bam_k], value)
       elif self._concat_health:
@@ -3793,6 +3805,29 @@ class BamAttention(Attention):
       output_head = self._mix_attention_output(y_std, local_output, inputs_q)
       # Memory receives raw attention, not LocalO or vector-output head mixing.
       o_head = y_std
+
+    if self._post_write_o:
+      # Read only after raw attention has written; Q/K/V still read incoming M.
+      # Deferred MLP merge receives the ORIGINAL M and these factors, so it
+      # neither repeats the attention update nor decays the carried state twice.
+      factors = self._deferred_write_factors(y_std, inputs_q)
+      if self._write_outer_implementation == 'dot':
+        delta = jnp.einsum('btnk,btnv->btkv', factors[0], factors[1])
+      else:
+        delta = jnp.sum(factors[0][..., None] * factors[1][..., None, :], axis=-3)
+      M_out = _update_bam_matrix(M_in, delta, self.config.bam_lambda_decay)
+      read_matrix = self._matrix_for_read(M_out)
+      dynamic, logits = self._read_fetched_m(self._compress_m(read_matrix), inputs_q, ungated=True)
+      dynamic = self._gate_local_output(dynamic, logits)
+      static = self._static_column(read_matrix, 'o')
+      output_head = dynamic + static
+      self._record_concat_amplitude('static_o', static, dynamic)
+      self._record_concat_amplitude('local_o', output_head, y_std)
+      self._record_concat_amplitude('post_write_delta', delta, M_in)
+      self._record_concat_gate('attention_write', self.W_gw(inputs_q) + self.gw_b0)
+      out = nn.with_logical_constraint(output_head, self.out_axis_names)
+      output = self.out_projection(inputs_q.shape[-1], out)
+      return (output, M_in, factors) if defer_write else (output, M_out)
 
     if defer_write:
       assert self._has_write and not self._mha_control and M_in is not None

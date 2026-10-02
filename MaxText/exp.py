@@ -9749,6 +9749,7 @@ class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteEveryThirdUnembedDirect32Tru
     # Full75x32 matrix norm+scale; final vector query norm; zero key, gate.05; no fixed read scale.
     # Global read637216=.44251W_Q; nearest per-layer MLP widths [3891,3886,3891].
     # Bet terminal vs dynamic sparse -.003; speed within1% of .5265step/s.
+    # Through600: parent deficit+.012-.018(latest+.018164); originalLLF-.029546 / SeedZero+.194369; continue2800.
     model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteEveryThirdUnembedDirect32TruePile'
     bam_dynamic_unembedding_read = True
     bam_unembedding_gate_init = .05
@@ -9768,6 +9769,7 @@ class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteStaticEveryThirdUnembedDirec
     # Zero read-key/gate kernels; sigmoid gate opens.05; add16x75 read before original head norm.
     # Global read637216=.44251W_Q; pay10 MLP units/layer (nearest per-layer integer).
     # Bet terminal vs static sparse -.005; speed within1% of .531step/s.
+    # Through1600: parent deficit last5+.004771/latest+.003756; originalLLF-.013354 / SeedZero+.082068.
     model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteStaticEveryThirdUnembedDirect32TruePile'
     bam_dynamic_unembedding_read = True
     bam_unembedding_gate_init = .05

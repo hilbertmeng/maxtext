@@ -16,6 +16,7 @@ limitations under the License.
 
 """Transformer model definition."""
 import jax
+import math
 from flax import linen as nn
 from jax.sharding import Mesh
 import jax.numpy as jnp
@@ -187,10 +188,20 @@ class SubDecoderLayer(nn.Module):
         eos_sum=eos_sum,
         deep_embedding=deep_embedding,
     )
+    mlp_write_every = int(getattr(cfg, 'bam_mlp_write_every', 0))
+    mlp_write = cfg.bam_enabled and mlp_write_every > 0 and (self.layer_inx + 1) % mlp_write_every == int(getattr(cfg, 'bam_mlp_write_offset', 0)) % mlp_write_every
     if cfg.bam_enabled:
-        attention_lnx, M_out = attention_layer(
-            **call_kwargs, M_in=M_in, is_global=is_global,
-            layer_index=layer_index)
+        if mlp_write:
+          assert cfg.shared_experts == 1 and cfg.num_experts == 1
+          assert cfg.emb_dim == num_query_heads * cfg.bam_k == num_query_heads * head_dim
+          assert 'full' not in layer_mode and not cfg.bam_mha_control
+          attention_lnx, M_out, write_factors = attention_layer(
+              **call_kwargs, M_in=M_in, is_global=is_global,
+              layer_index=layer_index, defer_write=True)
+        else:
+          attention_lnx, M_out = attention_layer(
+              **call_kwargs, M_in=M_in, is_global=is_global,
+              layer_index=layer_index)
     else:
         attention_lnx = attention_layer(**call_kwargs)
         M_out = M_in
@@ -280,6 +291,28 @@ class SubDecoderLayer(nn.Module):
       if load_balance_loss is not None:
         self.sow("intermediates", "moe_lb_loss", load_balance_loss)
       moe_lnx = nn.with_logical_constraint(moe_lnx, ("activation_batch", "activation_norm_length", "activation_embed"))
+
+    if mlp_write:
+      mlp_logits = linears.DenseGeneral(
+          features=(num_query_heads,), axis=-1, use_bias=False,
+          kernel_init=initializers.get_init_method(cfg.init_method),
+          kernel_axes=('embed', 'q_heads'), dtype=cfg.dtype, weight_dtype=cfg.weight_dtype,
+          quant=self.quant, matmul_precision=cfg.matmul_precision,
+          name='mlp_write_gate')(hidden_states)
+      mlp_bias = self.param(
+          'mlp_write_gate_bias', nn.with_logical_partitioning(
+              nn.initializers.constant(math.log(cfg.bam_write_eps / (1.0 - cfg.bam_write_eps))),
+              ('q_heads',)), (num_query_heads,), cfg.weight_dtype)
+      mlp_logits = mlp_logits + jnp.asarray(mlp_bias, cfg.dtype)
+      static_address = None
+      if getattr(cfg, 'bam_mlp_write_static_address', False):
+        static_address = self.param(
+            'mlp_write_address', nn.with_logical_partitioning(
+                nn.initializers.normal(1.0 / math.sqrt(cfg.bam_v)), ('q_heads', 'v_factor')),
+            (num_query_heads, cfg.bam_v), cfg.weight_dtype).astype(cfg.dtype)
+      M_out = attention_layer.merge_mlp_write(
+          mlp_lnx.reshape(mlp_lnx.shape[:-1] + (num_query_heads, cfg.bam_k)),
+          jax.nn.sigmoid(mlp_logits), write_factors, M_out, static_address)
 
     if mlp_lnx is not None and moe_lnx is not None:
       layer_output = mlp_lnx + intermediate_inputs + moe_lnx

@@ -266,6 +266,9 @@ class BamLlama2Medium(Llama2Medium):
     bam_n_f = 2
 
     bam_write_eps = 0.1              # write-gate bias b0 = logit(eps), slightly open
+    bam_mlp_write_every = 0          # 0 off; 1 each layer; 3 every third
+    bam_mlp_write_offset = 0         # one-based layer number modulo period
+    bam_mlp_write_static_address = False
 
     bam_lambda_decay = 1.0           # M <- lambda*M + dM; 1.0 = bare accumulation
     bam_sqrt_n_scale = False         # scale write gate by 1/sqrt(n)
@@ -9639,6 +9642,58 @@ class BamMediumPropK75EmbedVOnlyQK57AllLocalTruePile(BamMediumPropK75EmbedVOnlyQ
                     'BamMHAMediumPropC256TruePile', 'MuddLlama2MediumPropTruePile']
     jax_cache_dir = ''
 
+
+
+class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteEveryThirdTruePile(BamMediumPropK75EmbedVOnlyQK57AllLocalTruePile):
+    """Direct MLP content writes every third layer, sharing cached attention addresses."""
+    # Implementation: codex/mediumprop-k75-embed; /data0/xd/mediumprop-k75-embed.
+    # Same AllLocal reads; MLP output1200->16x75, independent write gate, one fused outer.
+    # Budget: [3901,3896,3901], 432098624 params (-22576 vs MHA); layer2/5/.../17 write.
+    # Bet terminal vs AllLocal -.015 / pseudoF +.008; .523 step/s (~-.8% vs AllLocal .5271).
+    model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteEveryThirdTruePile'
+    bam_mlp_write_every = 3
+    bam_mlp_write_offset = 2
+    bam_mlp_write_static_address = False
+    bam_pair_scan = True
+    bam_local_fetch_block_size = 3
+    bam_layer_modes = ['local_qk+local_v+local_o'] * 18
+    mlp_dim_by_block = [3901, 3896, 3901]
+    checkpoint_period = 200
+    keep_period = 1000
+    max_to_keep = 2
+    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalTruePile',
+                    'BamMediumPropK75EmbedVOnlyQK57PseudoFTruePile',
+                    'BamMediumPropK75EmbedVOnlyQK57TruePile']
+    jax_cache_dir = ''
+
+
+class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteEveryLayerTruePile(BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteEveryThirdTruePile):
+    """Direct MLP content writes in all layers, ordinary layer scan."""
+    # Implementation: codex/mediumprop-k75-embed; /data0/xd/mediumprop-k75-embed.
+    # MLP3896, 432113216 params (-7984 vs MHA); attention address values reused exactly.
+    # Bet terminal vs AllLocal -.025 / everyThird -.010; .515 step/s (~-2.3% vs AllLocal .5271).
+    model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteEveryLayerTruePile'
+    bam_mlp_write_every = 1
+    bam_mlp_write_offset = 0
+    bam_pair_scan = False
+    mlp_dim_by_block = None
+    base_mlp_dim = 3896
+    compare_runs = BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteEveryThirdTruePile.compare_runs + [
+                    'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteEveryThirdTruePile']
+
+
+class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteStaticEveryLayerTruePile(BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteEveryLayerTruePile):
+    """Independent learned static MLP write addresses in every layer."""
+    # Implementation: codex/mediumprop-k75-embed; /data0/xd/mediumprop-k75-embed.
+    # Static16x32 address per layer, RMS-normalized; same independent MLP sigmoid gate and content norm.
+    # MLP3896, 432122432 params (+1232 vs MHA); attention and MLP require separate contractions.
+    # Bet terminal vs AllLocal -.030 / dynamicEveryLayer -.005; .505 step/s (~-4.2% vs AllLocal .5271).
+    model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteStaticEveryLayerTruePile'
+    bam_mlp_write_static_address = True
+    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalTruePile',
+                    'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteEveryLayerTruePile',
+                    'BamMediumPropK75EmbedVOnlyQK57PseudoFTruePile',
+                    'BamMediumPropK75EmbedVOnlyQK57TruePile']
 
 class BamXLPropK96EmbedVOnlyQK72AllLocalTruePile(
     Llama2XLProp, BamMediumPropK75EmbedVOnlyQK57AllLocalTruePile):

@@ -3289,6 +3289,57 @@ class BamAttention(Attention):
       assert M_out.dtype == self.dtype, (M_out.dtype, self.dtype)
     return M_out, gate
 
+  def _deferred_write_factors(self, o_head, x):
+    """Same factors as _write, without forming its outer product yet."""
+    u1 = o_head[..., :self.bam_k]
+    if self._write_v_bottleneck_dim is None:
+      u2 = self.P_loc(x)
+    else:
+      u2 = self.P_loc_down(x)
+      if self._write_v_bottleneck_activation == 'gelu':
+        u2 = nn.gelu(u2)
+      u2 = self.P_loc_up(u2)
+    bias = jnp.asarray(self.gw_b0, self.dtype) if self._force_activation_dtype else self.gw_b0
+    gate = jax.nn.sigmoid(self.W_gw(x) + bias)
+    scale = 1.0 / jnp.sqrt(self.num_query_heads) if self.config.bam_sqrt_n_scale else 1.0
+    content = self.write_data_norm(u1) if self._write_data_rms else u1
+    return scale * gate[..., None] * content, self.write_address_norm(u2), gate
+
+  def merge_mlp_write(self, mlp_head, mlp_gate, factors, M_in, static_address=None):
+    """Add MLP content; shared address needs one outer, independent static two."""
+    attention_content, address, attention_gate = factors
+    content = self.write_data_norm(mlp_head) if self._write_data_rms else mlp_head
+    scale = 1.0 / jnp.sqrt(self.num_query_heads) if self.config.bam_sqrt_n_scale else 1.0
+    mlp_content = scale * mlp_gate[..., None] * content
+    if static_address is None:
+      combined_content = attention_content + mlp_content
+      with jax.named_scope('bam/write_outer'):
+        if self._write_outer_implementation == 'dot':
+          dM = jnp.einsum('btnk,btnv->btkv', combined_content, address)
+        else:
+          dM = jnp.sum(combined_content[..., None] * address[..., None, :], axis=-3)
+    else:
+      static_address = self.write_address_norm(static_address)
+      with jax.named_scope('bam/write_outer'):
+        if self._write_outer_implementation == 'dot':
+          dM = jnp.einsum('btnk,btnv->btkv', attention_content, address)
+        else:
+          dM = jnp.sum(attention_content[..., None] * address[..., None, :], axis=-3)
+      with jax.named_scope('bam/mlp_static_write_outer'):
+        # A static address is an ordinary linear contraction, no token broadcast.
+        dM = dM + jnp.einsum('btnk,nv->btkv', mlp_content, static_address)
+    if self._concat_health:
+      for name, gate in [('attention_write', attention_gate), ('mlp_write', mlp_gate)]:
+        g = gate.astype(jnp.float32)
+        self.sow('intermediates', 'concat_' + name + '_gate', jnp.stack((
+            jnp.mean(g), jnp.std(g), jnp.mean(g < .05),
+            jnp.mean(g > .5), jnp.mean(g > .95))))
+      # Factor health never reconstructs separate dynamic outer products.
+      self._record_concat_amplitude('mlp_write_content', mlp_content, attention_content)
+      self._record_concat_amplitude('mlp_write_raw_output', mlp_head, content)
+      self._record_concat_amplitude('combined_write', dM, M_in)
+    return _update_bam_matrix(M_in, dM, self.config.bam_lambda_decay)
+
   def _compress_m(self, state):
     """Project one read-only M view on V while keeping cross-layer M full."""
     if self._abs_v_dim is not None:
@@ -3455,6 +3506,7 @@ class BamAttention(Attention):
       M_in: Array | None = None,
       is_global: Array | bool | None = None,
       layer_index: Array | int | None = None,
+      defer_write: bool = False,
   ):
     """BAM forward. Returns (out, M_out): out [b,t,emb_dim], M_out [b,t,k,v].
 
@@ -3661,6 +3713,11 @@ class BamAttention(Attention):
                   self.num_query_heads, self.head_dim))
       o_head = o_head + y_bam
 
+    if defer_write:
+      assert self._has_write and not self._mha_control and M_in is not None
+      factors = self._deferred_write_factors(o_head, inputs_q)
+      out = nn.with_logical_constraint(o_head, self.out_axis_names)
+      return self.out_projection(inputs_q.shape[-1], out), M_in, factors
     if self._mha_control:
       M_out = M_in
     elif self._has_write:

@@ -9580,13 +9580,13 @@ class BamMediumPropK75EmbedVOnlyQK57TruePile(BamMediumPropK75EmbedVOnlyQK57):
 
 class BamMediumPropK75EmbedVOnlyQK57PseudoFTruePile(BamMediumPropK75EmbedVOnlyQK57TruePile):
     """Every third layer uses standard vector V and local matrix O, without fetch."""
-    # Implementation: codex/mediumprop-k75-embed; /data0/xd/mediumprop-k75-embed.
+    # Ledger only. Implementation: codex/mediumprop-k75-embed; /data0/xd/mediumprop-k75-embed.
     # Opens MLP->x->V->attention->M without fetchedO; local O keeps static+dynamic reads.
     # Common MHA budget: L3901/pseudoF3507; V matrix reads/gates removed only in pseudoF.
     # code_commit: 9d6d77d; UE5a v5p-16 0.541 step/s (20-99); +2.6% vs AllLocal / +3.0% vs originalLLF.
     # Basic+concat health ON; pseudoF omits V health, so timing is not strictly matched.
-    # Through5000: AllLocal advantage grows (last5-.020183); originalLLF gap narrows(last5+.005034); MatrixVLLF-.014754.
-    # Route and fetchedO effects nearly additive (last5 interaction+.000395); continue13500.
+    # Through13000: AllLocal gain grew then held~-.022 (last5-.022459); originalLLF deficit held~+.0045(last5+.004527).
+    # MatrixVLLF last5-.017768 through12000; continue13500 pathway ablation.
     # Updated terminal bet vs AllLocal -.024 / originalLLF +.004; speed measured above.
     model_name = 'BamMediumPropK75EmbedVOnlyQK57PseudoFTruePile'
     bam_layer_modes = ['local_qk+local_v+local_o', 'local_qk+local_v+local_o',
@@ -9603,12 +9603,12 @@ class BamMediumPropK75EmbedVOnlyQK57PseudoFTruePile(BamMediumPropK75EmbedVOnlyQK
 
 class BamMediumPropK75EmbedVOnlyQK57LLFMatrixVTruePile(BamMediumPropK75EmbedVOnlyQK57TruePile):
     """LLF with matrix-only V in every layer; F retains the original fetched O."""
-    # Implementation: codex/mediumprop-k75-embed; /data0/xd/mediumprop-k75-embed.
+    # Ledger only. Implementation: codex/mediumprop-k75-embed; /data0/xd/mediumprop-k75-embed.
     # F V: full-M static32->16 plus C8 dynamic, W_R shared with fetched O; independent V/O gates.
     # Per-layer budget: L3901/F3896; no standard W_V in any layer.
     # code_commit: ea76369; UE5a v5p-16 .513 step/s (20-99); -2.3% vs LLF .525 / -2.7% vs AllLocal .5271.
     # !? Below speed bet .523; basic+concat health ON, 54 extra F-V scalars vs LLF; cause unresolved.
-    # Through5000: originalLLF deficit widened to~+.020 (last5+.019788); AllLocal gain shrank to~-.005 (last5-.005429). Continue13500 ablation.
+    # Through12200: originalLLF deficit held~+.022(last5+.022363); AllLocal gain shrank then held~-.0045(last5-.004508). Continue13500 ablation.
     # Bet terminal vs AllLocal -.015 / original LLF +.013; .523 step/s (~-.4% vs .525).
     model_name = 'BamMediumPropK75EmbedVOnlyQK57LLFMatrixVTruePile'
     bam_layer_modes = ['local_qk+local_v+local_o', 'local_qk+local_v+local_o',
@@ -9645,10 +9645,13 @@ class BamMediumPropK75EmbedVOnlyQK57AllLocalTruePile(BamMediumPropK75EmbedVOnlyQ
 class BamXLPropK96EmbedVOnlyQK72AllLocalTruePile(
     Llama2XLProp, BamMediumPropK75EmbedVOnlyQK57AllLocalTruePile):
     """Proportional all-local matrix-value BAM on repaired XLProp TruePile."""
+    # Ledger only: codex/mediumprop-k75-embed, /data0/xd/mediumprop-k75-embed; pure JAX.
     # code_commit: 6446a1f; UE5a v5p-32 ~.355 step/s, +15.6% vs B .307; extra health differs.
-    # Through36000: last5 vs MHA -.064989 / Mudd +.006831 (0.899x gain); Mudd deficit holds ~+.007.
+    # Ordinary layer scan, TruePile4096; total50000, checkpoint250.
+    # Through37000: last5 vs MHA -.064836 / Mudd +.006841; Mudd deficit holds~+.007, gain0.893x at37000.
     # vs B common17500 -.000279 (B stopped).
     # Paused37463 by user; checkpoint committed; conclusions above remain provisional.
+
     model_name = 'BamXLPropK96EmbedVOnlyQK72AllLocalTruePile'
     DATASET_VARIANT = 'truepile4096'
     bam_k = 96
@@ -9679,9 +9682,10 @@ class BamXLPropK96EmbedVOnlyQK72AllLocalTruePile(
 
 class BamXLPropK96EmbedVOnlyQK72LLFTruePile(BamXLPropK96EmbedVOnlyQK72AllLocalTruePile):
     """Nine LLF blocks plus a terminal L, same proportional matrix-value recipe."""
+    # Ledger only: codex/mediumprop-k75-embed, /data0/xd/mediumprop-k75-embed; pure JAX.
     # code_commit: 22c2c5c
     # !? UE5a ~.359 step/s (+1.1% vs AllLocal .355), opposite bet -1.4%; speed anomaly unresolved; generic+concat health ON.
-    # Through18000: last5 vs AllLocal -.027016 / Mudd -.025641 / MHA -.106873; Mudd gain1.296x; AllLocal lead stable.
+    # Through27500: AllLocal lead stable~-.027 (last5-.027165); Mudd lead narrows(last5-.021997), MHA-.096815; Mudd gain1.287x.
     # Bet terminal vs AllLocal -.025; .350 step/s (~-1.4% vs .355).
     # Per-layer nearest MHA budget: L6294/F5654, terminal L6294; total1,432,418,340 (+19,620 vs MHA).
     model_name = 'BamXLPropK96EmbedVOnlyQK72LLFTruePile'

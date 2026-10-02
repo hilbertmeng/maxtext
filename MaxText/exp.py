@@ -9715,7 +9715,7 @@ class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteStaticEveryThirdTruePile(Bam
     # code_commit: f79776c; UE5a v5p-16 .531 step/s(20-99), +.9% vs dynamic sparse .5265; basic+concat+write health ON.
     # Same [3901,3896,3901] MLP; 432101696 params, +3072 vs dynamic everyThird (-19504 vs MHA).
     # Bet terminal vs everyThird dynamic -.003; .524 step/s (~-.5% vs .5265).
-    # Through10000: sparse dynamic lead narrows from-.003244@4000 to-.001480@8000, holds~-.0015-.0019 over8000-10000.
+    # Through11000: sparse dynamic lead narrows from-.003244@4000; last5 -.001276, small lead persists over8000-11000.
     # Continue13500; only sparse dynamic comparison retained from6000.
     model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteStaticEveryThirdTruePile'
     bam_mlp_write_static_address = True
@@ -9730,7 +9730,7 @@ class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePil
     # +2632704=1.82827W_Q; repay122 MLP units at six write layers, others unchanged.
     # [3901,3774,3901]; 432096128 params (-25072 vs MHA); original output head.
     # Bet terminal vs shared dynamic-.004 / static sparse-.001; speed-.2%..-2%.
-    # Continue13500 after5000: last5 shared-.007505/static-.005528/LLF-.010365/SeedZero+.013985; static lead holds.
+    # Continue13500: through6000 last5 shared-.007095/static-.004763/LLF-.009400/SeedZero+.012949; leads slowly narrow.
     model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile'
     bam_mlp_write_dynamic_address = True
     bam_mlp_write_address_rank = 256
@@ -9746,13 +9746,13 @@ class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePil
 
 class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryLayerTruePile(BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteEveryLayerTruePile):
     """Independent token-conditioned MLP write addresses in every layer."""
-    # Implementation: codex/mediumprop-k75-embed; /data0/xd/mediumprop-k75-embed.
+    # Ledger only. Implementation: codex/mediumprop-k75-embed; /data0/xd/mediumprop-k75-embed.
     # code_commit: 8222ceb; UE5a v5p-16 .495step/s(20-99), -4.8% vs private sparse .520; write+address health ON.
     # Own R256 GELU->16x32 +pre-RMS bias at every layer; ordinary layer scan, no new unembedding.
     # Private addresses7898112=5.48480W_Q; repay122 MLP units per layer, uniform3774.
     # 432105728 params (-15472 vs MHA; +9600 vs independent everyThird).
     # Bet terminal vs independent everyThird+.003; .503step/s (~-3.3% vs .520).
-    # Through2000: private sparse lead shrinks -.023286@1000 ->-.001134@2000; last5-.006359, keep2800.
+    # Through2800: private sparse lead vanishes(last5-.000039/latest+.002225); continue at least5000 per user.
     model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryLayerTruePile'
     bam_mlp_write_dynamic_address = True
     bam_mlp_write_address_rank = 256
@@ -9852,6 +9852,8 @@ class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteStaticEveryThirdNoWOTruePile
     BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteStaticEveryThirdTruePile):
     """Identity attention output; repay W_O into each layer's MLP."""
     # Ledger only. Implementation: codex/mediumprop-k75-embed; /data0/xd/mediumprop-k75-embed.
+    # code_commit: bc9a9a0
+    # UE5a .533step/s vs parent .531 (+.4%); matched health; training.
     # Remove18 W_O kernels; +400 SwiGLU units/layer, identical432101696 total parameters.
     # Keep static MLP addresses at L1/4/7/10/13/16 and all existing read/write rules.
     # Bet terminal vs parent-.006; .536step/s (~+1% vs .531).
@@ -9865,6 +9867,8 @@ class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdNoWOTru
     BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile):
     """Identity attention output on sparse private dynamic MLP addresses."""
     # Ledger only. Implementation: codex/mediumprop-k75-embed; /data0/xd/mediumprop-k75-embed.
+    # code_commit: bc9a9a0
+    # UE5a 0.521step/s vs parent .520 (+.2%); matched health; training.
     # Remove18 W_O kernels; +400 SwiGLU units/layer, identical432096128 total parameters.
     # Bet terminal vs parent-.004; .525step/s (~+1% vs .520).
     model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdNoWOTruePile'

@@ -23,6 +23,7 @@ active leases are censored, and manual migration releases are not preemptions.
 
 | RUN | TPU | Zone | Start UTC | End UTC | End reason | Passive candidates |
 |---|---|---|---|---|---|---|
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteEveryLayerTruePile` | v5p-16 (`xd-v5p-16-2910021-maxtext`) | `us-east5-a` | 2026-10-02 01:41:02 | 2026-10-02 03:37:02 | review stop3153; 1preemption before training; checkpoint committed, node/queue absent, TB synced | none |
 | `BamLlama2XLHead16x128V2C256FetchRank2` | v5p-32 | `europe-west4-b` | 2026-08-25 07:34:52 | 2026-08-26 00:07:55 | manual stop | `us-central1-a` (never active) |
 | `BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2GroupedWriteRMSNormNoBias` | v5p-32 | `europe-west4-b` | 2026-08-25 13:46:30 | 2026-08-26 00:08:00 | manual stop | `us-central1-a` (never active) |
 | `BamLlama2MediumV2C256Paired40LocalQKRank2GroupedWriteRMSNormKeepBias` | v5p-16 | `europe-west4-b` | 2026-08-26 02:53:12 | 2026-08-26 08:27:42 | manual stop | `us-central1-a` (never active) |
@@ -1074,3 +1075,5 @@ active leases are censored, and manual migration releases are not preemptions.
 | `RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOMPreNormLearnedScaleSharedWriteEmbedNormSeedKeyZeroInit` | 3 | `us-east5-a` | 2026-10-01 21:35:42 | 2026-10-01 23:23:22 | 1h47m40s | user pause; checkpoint committed, TPU/queue absent, TB synced |
 | `BamMediumPropK75EmbedVOnlyQK57PseudoFTruePile` | 4 | `us-east5-a` | 2026-10-01 18:57:24 | 2026-10-02 00:28:28 | 5h31m04s | completed13500; checkpoint committed, TPU/queue absent, TB synced |
 | `BamMediumPropK75EmbedVOnlyQK57LLFMatrixVTruePile` | 6 | `us-east5-a` | 2026-10-01 21:35:45 | 2026-10-02 00:59:40 | 3h23m55s | completed13500; checkpoint committed, TPU/queue absent, TB synced |
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteEveryLayerTruePile` | 1 | `us-east5-a` | 2026-10-02 01:41:05 | 2026-10-02 01:44:21 | 3m16s | preempted |
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteEveryLayerTruePile` | 2 | `us-east5-a` | 2026-10-02 01:50:35 | 2026-10-02 03:37:02 | 1h46m27s | run_stop |

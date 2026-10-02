@@ -9675,8 +9675,9 @@ class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteEveryLayerTruePile(BamMedium
     # Implementation: codex/mediumprop-k75-embed; /data0/xd/mediumprop-k75-embed.
     # code_commit: 6248e46; UE5a v5p-16 .515 step/s (-2.3% vs AllLocal .5271); basic+concat+write health ON.
     # MLP3896, 432113216 params (-7984 vs MHA); attention address values reused exactly.
-    # Bet@1000 terminal vs AllLocal -.025 / everyThird +.005; speed bet .515 step/s (~-2.3%).
-    # Through2000: AllLocal -.023400; crossed behind everyThird (+.003753); RMT SeedZero +.048991.
+    # Stopped3153 at2800 review: everyThird deficit grew after2000 (last5+.005538, latest+.008923), slower2.2%.
+    # AllLocal gain shrank(last5-.021808); originalLLF crossed behind2400(latest+.006224); pseudoF-.001071 / SeedZero+.040794.
+    # StaticEveryLayer also better~-.007; no dense-write advantage.
     model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteEveryLayerTruePile'
     bam_mlp_write_every = 1
     bam_mlp_write_offset = 0
@@ -9702,6 +9703,18 @@ class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteStaticEveryLayerTruePile(Bam
                     'BamMediumPropK75EmbedVOnlyQK57PseudoFTruePile',
                     'BamMediumPropK75EmbedVOnlyQK57TruePile',
                     'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedEmbedWriteNormSeedKeyZeroInit']
+
+
+class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteStaticEveryThirdTruePile(BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteEveryThirdTruePile):
+    """Independent static MLP write addresses at layers2/5/8/11/14/17."""
+    # Ledger only. Implementation: codex/mediumprop-k75-embed; /data0/xd/mediumprop-k75-embed.
+    # Same [3901,3896,3901] MLP; 432101696 params, +3072 vs dynamic everyThird (-19504 vs MHA).
+    # Bet terminal vs everyThird dynamic -.003; .524 step/s (~-.5% vs .5265).
+    model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteStaticEveryThirdTruePile'
+    bam_mlp_write_static_address = True
+    compare_runs = BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteEveryThirdTruePile.compare_runs + [
+                    'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteEveryThirdTruePile',
+                    'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteStaticEveryLayerTruePile']
 
 class BamXLPropK96EmbedVOnlyQK72AllLocalTruePile(
     Llama2XLProp, BamMediumPropK75EmbedVOnlyQK57AllLocalTruePile):

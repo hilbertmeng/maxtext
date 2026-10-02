@@ -11731,9 +11731,9 @@ class RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOMPreNormLearnedSca
     """Zero static embedding seed in the learned-scale/shared-write XL combination."""
     # Implementation: codex/rmt-xlprop-noo, /data0/xd/rmt-xlprop-noo; pure JAX, layer scan.
     # code_commit: 9f78e30 (write-scale health from4152; prior4cd403f); UE5a v5p-32 ~.307 step/s, flat vs B .307.
-    # Through10000: last5 vs B -.003576 / MHA -.131530 / Mudd -.037762 / BAM LLF -.006932; Mudd gain1.374x; no terminal static takeover (dynamic/static35.66).
-    # User pause17500 to match B endpoint; original LR schedule retained.
-    # Bet vs B -.008@17500; ~.307 step/s (flat); early windows200/400 then500.
+    # Paused17547 (provisional, original LR schedule retained): B early gain shrank to last5-.000674 through17500.
+    # Mudd lead collapsed and crossed at17500 (+.001357, gain0.983x); BAM LLF deficit grew(last5+.020350); MHA last5-.087142.
+    # Final-layer dynamic/static remains25.50 vs B .197: normalized writes prevent static takeover but do not recover late loss.
     model_name = 'RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOMPreNormLearnedScaleSharedWriteEmbedNormSeedKeyZeroInit'
     rmt_embedding_seed_key_zero_init = True
     rmt_record_write_scale_health = True
@@ -11768,8 +11768,9 @@ class RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOMPreNormLearnedSca
     """Disable static embedding writes while retaining normalized layer writes."""
     # Implementation: codex/rmt-xlprop-noo, /data0/xd/rmt-xlprop-noo; pure JAX, layer scan.
     # code_commit: 4b5779c; UE5a v5p-32 ~.307 step/s, flat vs combined SeedZero .307; write-scale health ON.
-    # Through4000: last5 vs combined SeedZero -.000092 (tie) / B -.006256 / MHA -.205066 / Mudd -.058172 / BAM LLF -.026409; Mudd gain1.416x.
-    # Bet vs combined SeedZero -.005@17500; ~.307 step/s (flat). User pause8000; original LR schedule retained.
+    # Paused8049 (provisional, original LR schedule retained): SeedZero gap stays near zero (8000+.000075); B8000-.003551.
+    # Early lead over BAM LLF shrank to8000-.008323; Mudd-.040291 (gain1.412x), MHA-.138004.
+    # Final-layer dynamic/static34.40 at8000; this pause precedes the historical late B regression.
     model_name = 'RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOMPreNormLearnedScaleSharedWriteNormEmbedScale0'
     rmt_embedding_seed_key_zero_init = False
     rmt_embedding_static_write_scale = 0.

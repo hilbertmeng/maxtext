@@ -9647,6 +9647,7 @@ class BamMediumPropK75EmbedVOnlyQK57AllLocalTruePile(BamMediumPropK75EmbedVOnlyQ
 class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteEveryThirdTruePile(BamMediumPropK75EmbedVOnlyQK57AllLocalTruePile):
     """Direct MLP content writes every third layer, sharing cached attention addresses."""
     # Implementation: codex/mediumprop-k75-embed; /data0/xd/mediumprop-k75-embed.
+    # code_commit: 6248e46; UE5a v5p-16 .527 step/s (flat vs AllLocal .5271); basic+concat+write health ON.
     # Same AllLocal reads; MLP output1200->16x75, independent write gate, one fused outer.
     # Budget: [3901,3896,3901], 432098624 params (-22576 vs MHA); layer2/5/.../17 write.
     # Bet terminal vs AllLocal -.015 / pseudoF +.008; .523 step/s (~-.8% vs AllLocal .5271).
@@ -9670,6 +9671,7 @@ class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteEveryThirdTruePile(BamMedium
 class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteEveryLayerTruePile(BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteEveryThirdTruePile):
     """Direct MLP content writes in all layers, ordinary layer scan."""
     # Implementation: codex/mediumprop-k75-embed; /data0/xd/mediumprop-k75-embed.
+    # code_commit: 6248e46; UE5a v5p-16 .515 step/s (-2.3% vs AllLocal .5271); basic+concat+write health ON.
     # MLP3896, 432113216 params (-7984 vs MHA); attention address values reused exactly.
     # Bet terminal vs AllLocal -.025 / everyThird -.010; .515 step/s (~-2.3% vs AllLocal .5271).
     model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteEveryLayerTruePile'
@@ -9685,6 +9687,7 @@ class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteEveryLayerTruePile(BamMedium
 class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteStaticEveryLayerTruePile(BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteEveryLayerTruePile):
     """Independent learned static MLP write addresses in every layer."""
     # Implementation: codex/mediumprop-k75-embed; /data0/xd/mediumprop-k75-embed.
+    # code_commit: 6248e46; UE5a v5p-16 .512 step/s (-2.9% vs AllLocal .5271); basic+concat+write health ON.
     # Static16x32 address per layer, RMS-normalized; same independent MLP sigmoid gate and content norm.
     # MLP3896, 432122432 params (+1232 vs MHA); attention and MLP require separate contractions.
     # Bet terminal vs AllLocal -.030 / dynamicEveryLayer -.005; .505 step/s (~-4.2% vs AllLocal .5271).

@@ -9944,7 +9944,8 @@ class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdPostWri
     """Only move LocalO after raw attention write; retain gated H and zero static O."""
     # Ledger only; implementation: codex/mediumprop-k75-embed, /data0/xd/mediumprop-k75-embed.
     # code_commit: 5ad52ba; UE5a v5p16 ~.488step/s (-3.0% vs gated-H parent .503; -6.2% vs original W_O .520, health differs).
-    # Bet13500 vs best gated-H parent -.004 (if continued), vs original W_O +.004; UE5a .485step/s vs original .520.
+    # Stopped2945; through2800 old-M gated-H parent last5+.013716 [.011882,.015376]; original W_O+.021186 [.019677,.022046].
+    # Original-W_O gap flat~+.022 since1600; apparent catch-up to gated-H parent comes from that parent's deterioration.
     model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdPostWriteLocalOGatedHeadMixNoWOTruePile'
     bam_local_o_post_write = True
     bam_local_o_static_zero_init = True

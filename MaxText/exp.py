@@ -11886,9 +11886,7 @@ class RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOSharedWriteNormQKV
     rmt_record_stability_health = True
     rmt_carry_health_layers = [1, 7, 14, 21, 25, 27]
     checkpoint_period = 250
-    keep_period = 4000
-    keep_early_period = 2000
-    keep_early_until = 20000
+    keep_period = 2000
     max_to_keep = 2
     compare_runs = ['RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOMPreNormLearnedScaleSharedWriteEmbedNormSeedKeyZeroInit',
                     'RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOMPreNorm',

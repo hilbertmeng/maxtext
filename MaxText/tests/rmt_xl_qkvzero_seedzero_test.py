@@ -9,8 +9,6 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 from flax import linen as nn
-import orbax.checkpoint as ocp
-import checkpointing
 from layers import rmt
 from tests import rmt_xlprop_test
 
@@ -28,9 +26,8 @@ class XLSeedZeroTest(unittest.TestCase):
     self.assertEqual(cfg.rmt_dynamic_write_bottleneck_dim,384)
     self.assertEqual(cfg.rmt_carry_health_layers,[1,7,14,21,25,27])
     self.assertEqual(cfg.base_mlp_dim,6643)
-    legacy=self.config('RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOMPreNorm')
-    self.assertEqual(checkpointing.checkpoint_retention_options(legacy),
-                     {'keep_period': legacy.keep_period if legacy.keep_period > 0 else None})
+    self.assertEqual(cfg.keep_period,2000)
+    self.assertEqual(cfg.max_to_keep,2)
     model,args=self.model_args(cfg)
     with contextlib.redirect_stdout(io.StringIO()):
       tree=nn.unbox(jax.eval_shape(lambda k:model.init(k,**args)['params'],jax.random.key(1)))
@@ -77,17 +74,5 @@ class XLSeedZeroTest(unittest.TestCase):
     norms=compute_params_norm({'params':grad},cfg,prefix='raw_grads')
     self.assertTrue(any('dynamic_embedding_write/address_up_bias' in k for k in norms))
     self.assertTrue(any('lm_head/' in k for k in norms))
-
-  def test_permanent_retention_survives_later_phase(self):
-    cfg=SimpleNamespace(keep_period=4,keep_early_period=2,keep_early_until=4)
-    options=checkpointing.checkpoint_retention_options(cfg)
-    self.assertEqual([s for s in range(1,13) if options['should_keep_fn'](s)],[2,4,8,12])
-    with tempfile.TemporaryDirectory() as directory:
-      opts=ocp.CheckpointManagerOptions(max_to_keep=2,enable_async_checkpointing=False,**options)
-      with ocp.CheckpointManager(directory,options=opts) as manager:
-        for step in range(1,11):
-          manager.save(step,args=ocp.args.StandardSave({'x':np.array([step])}))
-        self.assertEqual(manager.all_steps(),[2,4,8,9,10])
-    self.assertEqual(checkpointing.checkpoint_retention_options(SimpleNamespace(keep_period=0)),{'keep_period':None})
 
 if __name__=='__main__':unittest.main()

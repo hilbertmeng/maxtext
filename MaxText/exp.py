@@ -11842,7 +11842,8 @@ class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNor
     """Only zero-initialize the full-matrix static unembedding read key."""
     # Implementation: codex/rmt-xlprop-noo, /data0/xd/rmt-xlprop-noo; pure JAX, layer scan.
     # code_commit: a08a7b1; UE5a startup ~.382step/s, matches SeedZero .382; matched health.
-    # Bet13500 vs SeedZero -.003; speed unchanged (~.382step/s); inherited health.
+    # Hot-replaced2427: SeedZero deficit shrank +.710305@200 -> +.056261@2400; last5 +.069377, still declining.
+    # Zero final static read stayed weak; dynamic read carried output. No loss/speed gain established.
     model_name = 'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZeroFinalReadZero'
     rmt_final_read_key_zero_init = True
     compare_runs = ['RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZero']
@@ -11851,6 +11852,7 @@ class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNor
 class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZeroStaticQVMLPReadBias(RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZero):
     """Affine static Q/V/MLP reads; zero bias per layer/head, no K or RoPE bias."""
     # Implementation: codex/rmt-xlprop-noo, /data0/xd/rmt-xlprop-noo; pure JAX, layer scan.
+    # code_commit: ef37971; UE5a startup .3808step/s vs SeedZero .3826 (-.5%); matched health.
     # Bet13500 vs SeedZero -.003; speed unchanged (~.382step/s), inherited health.
     model_name = 'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZeroStaticQVMLPReadBias'
     rmt_static_qv_mlp_read_bias = True

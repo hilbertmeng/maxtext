@@ -11786,7 +11786,8 @@ class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNor
     """Shared normalized writes, zero static QK and no matrix read pre-norm."""
     # Implementation: codex/rmt-xlprop-noo, /data0/xd/rmt-xlprop-noo; pure JAX, layer scan.
     # code_commit: 8d93940; UE5a ~.383step/s (+2.1% vs parent .375; extra write-scale health ON).
-    # Bet13500 vs SharedWriteNorm -.006; speed .380 vs .375 (+1.3%); extra write-scale health ON.
+    # Stopped5162: vs SharedWriteNorm gain shrank to last5 -.005088 at4200-5000; vs original NoO +.000311 (near zero).
+    # QKV-zero (same parameters/speed) led by ~.010 over the recent ~2k steps.
     model_name = 'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKZeroInit'
     rmt_static_qk_zero_init = True
     rmt_matrix_read_norm = 'none'

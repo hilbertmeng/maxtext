@@ -173,6 +173,53 @@ def direction2_attribution(cfg, store, layer_tokens, flat, F, R, H, W, pflat, ga
   return out
 
 
+def group_analysis(cfg, store, flat, F, H, W, Mo, positions, xents, batches, stride, out):
+  """Separate near-certain tokens from the rest; per-group final-state and carry dilution statistics."""
+  Lnum = Mo.shape[0]
+  logits = H.astype(np.float64) @ W.astype(np.float64)
+  mx = logits.max(1)
+  lse = np.log(np.sum(np.exp(logits - mx[:, None]), 1)) + mx
+  maxprob = np.exp(mx - lse)
+  p = np.exp(logits - lse[:, None])
+  entropy = -np.sum(p * np.log(np.maximum(p, 1e-30)), 1)
+  del p, logits
+  xe = np.concatenate(xents).astype(np.float64)
+  inputs = np.concatenate([b['inputs'][0, stride - 1::stride] for b in batches])
+  targets = np.concatenate([b['targets'][0, stride - 1::stride] for b in batches])
+  Ff = flat(F).astype(np.float64)
+  # Per-layer carry: energy along the all-token shared-mean direction of that layer.
+  shared_e = np.zeros((Lnum, Ff.shape[0])); total_e = np.zeros((Lnum, Ff.shape[0]))
+  for l in range(Lnum):
+    m = flat(Mo[l]).astype(np.float64)
+    mu = m.mean(0); mu /= max(np.linalg.norm(mu), 1e-30)
+    shared_e[l] = (m @ mu) ** 2; total_e[l] = np.sum(m * m, 1)
+  np.savez_compressed(out / 'per_token.npz', xent=xe, maxprob=maxprob, entropy=entropy, positions=positions,
+                      inputs=inputs, targets=targets, shared_energy=shared_e.astype(np.float32),
+                      total_energy=total_e.astype(np.float32))
+  groups = {'all': np.ones_like(xe, bool), 'own_easy': maxprob > .9, 'own_mid': (maxprob >= .5) & (maxprob <= .9),
+            'own_hard': maxprob < .5, 'target_newline': targets == 187}
+  mask_file = os.environ.get('DIAG_GROUP_MASK', '')
+  if mask_file and os.path.exists(mask_file):
+    fixed = np.load(mask_file)
+    for k in fixed.files:
+      if fixed[k].shape == xe.shape:
+        groups['fixed_' + k] = fixed[k].astype(bool)
+  res = {}
+  probe_layers = sorted(set([1, Lnum // 4, Lnum // 2, 3 * Lnum // 4, Lnum - 3, Lnum - 2, Lnum - 1]))
+  for name, g in groups.items():
+    if g.sum() < 20:
+      continue
+    st, _, _, _ = energy_stats(Ff[g])
+    res[name] = {'count': int(g.sum()), 'xent': float(xe[g].mean()), 'maxprob': float(maxprob[g].mean()),
+                 'entropy': float(entropy[g].mean()),
+                 'final_uncentered_top1': st['uncentered_top'][0], 'final_participation': st['uncentered_participation'],
+                 'final_centered_top1': st['centered_top'][0], 'final_centered_participation': st['centered_participation'],
+                 'final_shared_mean_fraction': st['shared_mean_fraction'],
+                 'carry_shared_dir_fraction': {int(l): float(shared_e[l][g].mean() / total_e[l][g].mean()) for l in probe_layers},
+                 'carry_shared_dir_fraction_depth_mean': float(np.mean([shared_e[l][g].mean() / total_e[l][g].mean() for l in range(1, Lnum)]))}
+  return res
+
+
 def main(argv):
   cfg = pyconfig.initialize(argv)
   cfg.get_keys()['load_parameters_path'] = os.environ['DIAG_CHECKPOINT']
@@ -333,6 +380,10 @@ def main(argv):
       prev = mo
   results['layers'] = layers
   Mo = layer_tokens('diag_M_out') if 'diag_M_out' in store else None
+  if os.environ.get('DIAG_GROUPS', '0') == '1':
+    results['groups'] = group_analysis(cfg, store, flat, F, H, W, Mo, positions, xents, batches, stride, out)
+    (out / 'results.json').write_text(json.dumps(results, indent=2))
+    print('DIAG_GROUPS_DONE', flush=True)
   if os.environ.get('DIAG_DIR2', '0') == '1':
     results['direction2'] = direction2_attribution(cfg, store, layer_tokens, flat, F, R, H, W, pflat, gain,
                                                    positions, xents, batches, stride)

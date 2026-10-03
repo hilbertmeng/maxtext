@@ -49,12 +49,21 @@ class QKVZeroTest(unittest.TestCase):
       def loss(params):
         out,aux=model.apply({'params':params},**args,mutable=['intermediates'])
         return -jnp.mean(jax.nn.log_softmax(out[0].astype(jnp.float32),axis=-1)[...,1]),(out[0],aux)
-      (value,(out,aux)),g=jax.jit(jax.value_and_grad(loss,has_aux=True))(p)
+      value_grad=jax.jit(jax.value_and_grad(loss,has_aux=True))
+      (value,(out,aux)),g=value_grad(p)
     np.testing.assert_allclose(out,expected,rtol=2e-5,atol=2e-5)
     self.assertTrue(all(np.isfinite(v).all() for v in jax.tree.leaves((value,aux,g))))
+    # Both static and dynamic V start at zero: attention Q/K gradients must
+    # initially vanish, but V must learn and unlock Q/K on the next update.
+    np.testing.assert_array_equal(g['decoder']['layers']['qkv_key'][:2],0.)
+    for layer in range(2):
+      self.assertGreater(float(jnp.linalg.norm(g['decoder']['layers']['qkv_key'][2,layer])),0.)
+    self.assertGreater(float(jnp.linalg.norm(g['decoder']['layers']['dynamic_vo']['key_kernel'])),0.)
+    updated=jax.tree.map(lambda v,d:v-1e-6*d,p,g)
+    (value2,aux2),g2=value_grad(updated)
+    self.assertTrue(all(np.isfinite(v).all() for v in jax.tree.leaves((value2,aux2,g2))))
     for arm in range(3):
       for layer in range(2):
-        self.assertGreater(float(jnp.linalg.norm(g['decoder']['layers']['qkv_key'][arm,layer])),0.)
-    self.assertGreater(float(jnp.linalg.norm(g['decoder']['layers']['dynamic_vo']['key_kernel'])),0.)
+        self.assertGreater(float(jnp.linalg.norm(g2['decoder']['layers']['qkv_key'][arm,layer])),0.,(arm,layer))
 
 if __name__=='__main__':unittest.main(defaultTest='QKVZeroTest')

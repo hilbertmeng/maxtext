@@ -2519,10 +2519,13 @@ class BamAttention(Attention):
     reg_init = self.kernel_init
     self._post_write_o = bool(getattr(cfg, 'bam_local_o_post_write', False))
     self._raw_output_projection = bool(getattr(cfg, 'bam_output_raw_wo', False))
+    self._late_o_query = bool(getattr(cfg, 'bam_local_o_updated_query', False))
     self._output_head_mix_enabled = bool(getattr(cfg, 'bam_output_head_mix', False))
     self._vo_separate_c8_keys = bool(getattr(cfg, 'bam_local_vo_separate_c8_keys', False))
     if self._vo_separate_c8_keys:
       assert self._vo_shared_read == 'local_o' and self._vo_independent_gates
+    if self._late_o_query:
+      assert self._raw_output_projection
     if self._raw_output_projection:
       assert not cfg.bam_no_output_projection and not self._output_head_mix_enabled
       assert self._vo_separate_c8_keys and self._local_o and 'full' not in self._mode
@@ -3596,6 +3599,8 @@ class BamAttention(Attention):
       is_global: Array | bool | None = None,
       layer_index: Array | int | None = None,
       defer_write: bool = False,
+      residual_inputs: Array | None = None,
+      output_query_norm = None,
   ):
     """BAM forward. Returns (out, M_out): out [b,t,emb_dim], M_out [b,t,k,v].
 
@@ -3696,7 +3701,7 @@ class BamAttention(Attention):
     elif self._local_o and self._vo_shared_read != 'none':
       if Mh is None:
         Mh = self._matrix_for_read(M_in)
-      if self._post_write_o:
+      if self._post_write_o or self._late_o_query:
         compressed = self._compress_m(Mh) if local_compressed_M is None else local_compressed_M
         v_key = jnp.squeeze(self.W_R_v(inputs_q), axis=-2)
         v_read = bam_read(compressed, v_key, self._fetched_arm_ungated)
@@ -3712,7 +3717,7 @@ class BamAttention(Attention):
         static_v = self._static_column(Mh, 'v')
         self._record_concat_amplitude('static_v', static_v, v_local)
         v_local = v_local + static_v
-        if not self._post_write_o:
+        if not (self._post_write_o or self._late_o_query):
           static_o = self._static_column(Mh, 'o')
           self._record_concat_amplitude('static_o', static_o, local_output)
           local_output = local_output + static_o
@@ -3816,8 +3821,8 @@ class BamAttention(Attention):
       # Memory receives raw attention, not LocalO or vector-output head mixing.
       o_head = y_std
 
-    if self._post_write_o:
-      # Read only after raw attention has written; Q/K/V still read incoming M.
+    if self._post_write_o or self._late_o_query:
+      # Defer O until raw attention is available; Q/K/V still read incoming M.
       # Deferred MLP merge receives the ORIGINAL M and these factors, so it
       # neither repeats the attention update nor decays the carried state twice.
       factors = self._deferred_write_factors(y_std, inputs_q)
@@ -3826,8 +3831,18 @@ class BamAttention(Attention):
       else:
         delta = jnp.sum(factors[0][..., None] * factors[1][..., None, :], axis=-3)
       M_out = _update_bam_matrix(M_in, delta, self.config.bam_lambda_decay)
-      read_matrix = self._matrix_for_read(M_out)
-      dynamic, logits = self._read_fetched_m(self._compress_m(read_matrix), inputs_q, ungated=True)
+      raw_projection = None
+      o_query_inputs = inputs_q
+      if self._late_o_query:
+        assert residual_inputs is not None and output_query_norm is not None
+        raw_projection = self.out_projection(
+            inputs_q.shape[-1], nn.with_logical_constraint(y_std, self.out_axis_names))
+        # Reuse the parent's MLP pre-norm; never add the update to normalized x.
+        o_query_inputs = output_query_norm(residual_inputs + raw_projection)
+        self._record_concat_amplitude(
+            'local_o_query_change', o_query_inputs - inputs_q, inputs_q)
+      read_matrix = self._matrix_for_read(M_out if self._post_write_o else M_in)
+      dynamic, logits = self._read_fetched_m(self._compress_m(read_matrix), o_query_inputs, ungated=True)
       dynamic = self._gate_local_output(dynamic, logits)
       static = self._static_column(read_matrix, 'o')
       output_head = dynamic + static
@@ -3843,7 +3858,8 @@ class BamAttention(Attention):
       else:
         # W_O transforms raw attention only; LocalO bypasses it into the residual.
         out = nn.with_logical_constraint(y_std, self.out_axis_names)
-        output = self.out_projection(inputs_q.shape[-1], out)
+        output = (self.out_projection(inputs_q.shape[-1], out)
+                  if raw_projection is None else raw_projection)
         output = output + output_head.reshape(output.shape)
       return (output, M_in, factors) if defer_write else (output, M_out)
 

@@ -276,6 +276,7 @@ class BamLlama2Medium(Llama2Medium):
     bam_local_o_static_zero_init = False
     bam_output_head_gate = True
     bam_output_raw_wo = False
+    bam_local_o_updated_query = False
     bam_output_head_mix = False
     bam_local_vo_separate_c8_keys = False
     bam_dynamic_unembedding_read = False
@@ -9973,3 +9974,23 @@ class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdPreWrit
     bam_local_o_post_write = False
     bam_output_raw_wo = True
     compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdPostWriteLocalORawWOTruePile', 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdHeadMixNoWOSeparateVOKeysTruePile', 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile']
+
+
+class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdPostWriteLocalORawWOUpdatedQueryTruePile(BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdPostWriteLocalORawWOTruePile):
+    """O keys/gates from shared MLP pre-norm of x+W_O(Y); post-write M."""
+    # Ledger only; implementation: codex/mediumprop-k75-embed, /data0/xd/mediumprop-k75-embed.
+    # Bet13500 vs unchanged-query parent -.006; UE5a .480 vs .490 (-2.0%) step/s.
+    model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdPostWriteLocalORawWOUpdatedQueryTruePile'
+    bam_output_raw_wo = True
+    bam_local_o_updated_query = True
+    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdPostWriteLocalORawWOTruePile']
+
+
+class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdPreWriteLocalORawWOUpdatedQueryTruePile(BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdPreWriteLocalORawWOTruePile):
+    """O keys/gates from shared MLP pre-norm of x+W_O(Y); pre-write M."""
+    # Ledger only; implementation: codex/mediumprop-k75-embed, /data0/xd/mediumprop-k75-embed.
+    # Bet13500 vs unchanged-query parent -.003; UE5a .490 vs .500 (-2.0%) step/s.
+    model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdPreWriteLocalORawWOUpdatedQueryTruePile'
+    bam_output_raw_wo = True
+    bam_local_o_updated_query = True
+    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdPreWriteLocalORawWOTruePile', 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdPostWriteLocalORawWOUpdatedQueryTruePile']

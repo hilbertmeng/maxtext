@@ -188,6 +188,11 @@ class SubDecoderLayer(nn.Module):
         eos_sum=eos_sum,
         deep_embedding=deep_embedding,
     )
+    updated_o_query = cfg.bam_enabled and bool(getattr(cfg, 'bam_local_o_updated_query', False))
+    if updated_o_query:
+      # One module/parameter tree, called before O read and again after O addition.
+      mlp_input_norm = normalizations.get_rmsnorm("post_self_attention_layer_norm", cfg)
+      call_kwargs.update(residual_inputs=inputs, output_query_norm=mlp_input_norm)
     mlp_write_every = int(getattr(cfg, 'bam_mlp_write_every', 0))
     mlp_write = cfg.bam_enabled and mlp_write_every > 0 and (self.layer_inx + 1) % mlp_write_every == int(getattr(cfg, 'bam_mlp_write_offset', 0)) % mlp_write_every
     if cfg.bam_enabled:
@@ -216,7 +221,8 @@ class SubDecoderLayer(nn.Module):
     intermediate_inputs = inputs + attention_lnx
 
     # Fully Connected
-    hidden_states = normalizations.get_rmsnorm("post_self_attention_layer_norm", cfg)(intermediate_inputs)
+    hidden_states = (mlp_input_norm(intermediate_inputs) if updated_o_query else
+                     normalizations.get_rmsnorm("post_self_attention_layer_norm", cfg)(intermediate_inputs))
     hidden_states = nn.with_logical_constraint(
         hidden_states, ("activation_batch", "activation_norm_length", "activation_embed")
     )

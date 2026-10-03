@@ -11802,6 +11802,7 @@ class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNor
 class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInit(RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKZeroInit):
     """Zero static V too; otherwise identical to QK-zero/no-M-pre-norm."""
     # Implementation: codex/rmt-xlprop-noo, /data0/xd/rmt-xlprop-noo; pure JAX, layer scan.
+    # code_commit: 1ecbd16; UE5a .382step/s vs QKZero .383 (-.3%); matched health.
     # Bet13500 vs QKZero +.002; speed unchanged (~.383step/s).
     model_name = 'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInit'
     rmt_static_v_zero_init = True

@@ -52,6 +52,127 @@ def energy_stats(x):
   }, mu_hat, vt[0], vtc[0]
 
 
+def _silu(x):
+  return x / (1 + np.exp(-x))
+
+
+def direction2_attribution(cfg, store, layer_tokens, flat, F, R, H, W, pflat, gain, positions, xents, batches, stride):
+  """Attribute the final dominant direction (uncentered top singular vector) to writers."""
+  heads, key_dim, value_dim, L = cfg.num_query_heads, cfg.rmt_reskey_dim, cfg.head_dim, cfg.num_decoder_layers
+  axis = cfg.param_scan_axis
+  Ff = flat(F).astype(np.float64)
+  _, _, vt = np.linalg.svd(Ff, full_matrices=False)
+  u = vt[0]
+  if np.mean(Ff @ u) < 0:
+    u = -u
+  u_raw = u / np.where(np.abs(gain) > 1e-6, gain, 1e-6); u_raw /= np.linalg.norm(u_raw)
+  U = u_raw.reshape(key_dim, value_dim)
+  c_final = flat(R).astype(np.float64) @ u_raw                  # raw final coefficient per token
+  c_norm = Ff @ u
+  def layer_param(name_tail, l):
+    v = [val for k, val in pflat.items() if k[-len(name_tail):] == name_tail][0]
+    return np.take(np.asarray(v, np.float32), l, axis=axis)
+  static_norm = bool(cfg.get_keys().get('rmt_static_write_content_norm', False))
+  def rms_norm(x):
+    return x / np.maximum(np.sqrt(np.mean(x * x, -1, keepdims=True)), 1e-6)
+  def share(comp):
+    # Additive variance attribution: cov(component, final coefficient) / var(final coefficient).
+    cc = c_final - c_final.mean()
+    return float(np.mean((comp - comp.mean()) * cc) / max(np.var(c_final), 1e-30))
+  Mo = layer_tokens('diag_M_out'); Ma = layer_tokens('diag_M_attn')
+  out = {'final_coef_mean': float(c_final.mean()), 'final_coef_std': float(c_final.std()),
+         'final_coef_percentiles': np.percentile(c_final, [1, 10, 50, 90, 99]).tolist(),
+         'norm_coef_mean': float(c_norm.mean()), 'norm_coef_std': float(c_norm.std()), 'layers': []}
+  first = max(0, L - 6)
+  carry_prev = flat(Mo[first - 1]).astype(np.float64) @ u_raw if first > 0 else np.zeros_like(c_final)
+  out['carry_before_share'] = share(carry_prev)
+  Y = layer_tokens('diag_head_out'); A = layer_tokens('diag_attn_address')
+  Ga = np.concatenate([a.reshape(a.shape[0], -1, a.shape[-1]) for a in store['diag_attn_gate']], 1)
+  Xm = np.concatenate([a.reshape(a.shape[0], -1, a.shape[-1]) for a in store['diag_mlp_in']], 1)
+  Ym = layer_tokens('diag_mlp_out'); Am = layer_tokens('diag_mlp_address')
+  Gm = np.concatenate([a.reshape(a.shape[0], -1, a.shape[-1]) for a in store['diag_mlp_gate']], 1)
+  for l in range(first, L):
+    row = {'layer': l}
+    # attention
+    y = Y[l].astype(np.float64); yn = rms_norm(y)
+    a = rms_norm(A[l].astype(np.float64))
+    dyn_h = Ga[l] * np.einsum('nhk,kv,nhv->nh', a, U, yn)
+    sk = layer_param(('attn_write_key',), l).astype(np.float64)
+    sta_h = np.einsum('hk,kv,nhv->nh', sk, U, yn if static_norm else y)
+    # mlp
+    ym = Ym[l].astype(np.float64); ymn = rms_norm(ym)
+    am = rms_norm(Am[l].astype(np.float64))
+    mdyn_h = Gm[l] * np.einsum('nhk,kv,nhv->nh', am, U, ymn)
+    mk = layer_param(('mlp_write_key',), l).astype(np.float64)
+    msta_h = np.einsum('hk,kv,nhv->nh', mk, U, ymn if static_norm else ym)
+    measured_attn = (flat(Ma[l]).astype(np.float64) - (flat(Mo[l - 1]).astype(np.float64) if l else 0)) @ u_raw
+    measured_mlp = (flat(Mo[l]).astype(np.float64) - flat(Ma[l]).astype(np.float64)) @ u_raw
+    for name, comp in (('attn_dynamic', dyn_h), ('attn_static', sta_h), ('mlp_dynamic', mdyn_h), ('mlp_static', msta_h)):
+      tot = comp.sum(1)
+      row[name] = {'mean': float(tot.mean()), 'std': float(tot.std()), 'variance_share': share(tot),
+                   'top_heads_by_share': sorted(([int(h), share(comp[:, h]), float(comp[:, h].mean())]
+                                                 for h in range(comp.shape[1])), key=lambda r: -abs(r[1]))[:5]}
+    row['measured_attn'] = {'mean': float(measured_attn.mean()), 'variance_share': share(measured_attn),
+                            'reconstruction_error': float(np.sqrt(np.mean((measured_attn - dyn_h.sum(1) - sta_h.sum(1)) ** 2)) / max(measured_attn.std(), 1e-30))}
+    row['measured_mlp'] = {'mean': float(measured_mlp.mean()), 'variance_share': share(measured_mlp),
+                           'reconstruction_error': float(np.sqrt(np.mean((measured_mlp - mdyn_h.sum(1) - msta_h.sum(1)) ** 2)) / max(measured_mlp.std(), 1e-30))}
+    # Neuron attribution for the MLP write (exact given per-token gates, addresses and content RMS).
+    if l >= L - 3:
+      x = Xm[l].astype(np.float64)
+      w0 = layer_param(('mlp', 'wi_0', 'kernel'), l).astype(np.float64)
+      w1 = layer_param(('mlp', 'wi_1', 'kernel'), l).astype(np.float64)
+      w2 = layer_param(('mlp', 'wo', 'kernel'), l).astype(np.float64)
+      hid = _silu(x @ w0) * (x @ w1)
+      recon = (hid @ w2).reshape(ym.shape)
+      row['mlp_reconstruction_rel_error'] = float(np.sqrt(np.mean((recon - ym) ** 2) / np.mean(ym ** 2)))
+      ymrms = np.maximum(np.sqrt(np.mean(ym * ym, -1)), 1e-6)            # (N, heads)
+      q_dyn = (Gm[l] / ymrms)[..., None] * np.einsum('nhk,kv->nhv', am, U)  # (N, heads, value)
+      q_sta = (np.einsum('hk,kv->hv', mk, U)[None] / (ymrms[..., None] if static_norm else 1.))
+      q = (q_dyn + q_sta).reshape(q_dyn.shape[0], -1)                     # (N, emb)
+      contrib = hid * (q @ w2.T)                                          # (N, mlp_dim)
+      shares = np.array([share(contrib[:, j]) for j in range(contrib.shape[1])])
+      order = np.argsort(-np.abs(shares))
+      cum = np.cumsum(np.abs(shares[order])) / max(np.sum(np.abs(shares)), 1e-30)
+      act = np.abs(hid)
+      row['mlp_neurons'] = {'total_share': float(shares.sum()), 'n_for_50pct_abs': int(np.searchsorted(cum, .5) + 1),
+                            'n_for_90pct_abs': int(np.searchsorted(cum, .9) + 1),
+                            'top': [[int(j), float(shares[j]), float(contrib[:, j].mean()), float(act[:, j].mean()),
+                                     float(np.percentile(act[:, j], 99)), float(np.mean(act[:, j] > 10 * np.median(act)))]
+                                    for j in order[:12]]}
+    out['layers'].append(row)
+  # Token correlates of the final coefficient.
+  logits = H.astype(np.float64) @ W.astype(np.float64)
+  lse = np.log(np.sum(np.exp(logits - logits.max(1, keepdims=True)), 1)) + logits.max(1)
+  probs_max = np.exp(logits.max(1) - lse)
+  p = np.exp(logits - lse[:, None])
+  entropy = -np.sum(p * np.log(np.maximum(p, 1e-30)), 1)
+  common = logits.mean(1)
+  inputs = np.concatenate([b['inputs'][0, stride - 1::stride] for b in batches])
+  targets = np.concatenate([b['targets'][0, stride - 1::stride] for b in batches])
+  allin = np.concatenate([b['inputs'][0] for b in batches])
+  freq = np.bincount(allin, minlength=int(allin.max()) + 1)
+  fr = np.log1p(freq[np.minimum(inputs, len(freq) - 1)])
+  xe = np.concatenate(xents).astype(np.float64)
+  def corr(a, b):
+    return float(np.corrcoef(a, b)[0, 1])
+  out['token_correlates'] = {
+      'corr_coef_xent': corr(c_norm, xe), 'corr_coef_entropy': corr(c_norm, entropy),
+      'corr_coef_maxprob': corr(c_norm, probs_max), 'corr_coef_logit_common': corr(c_norm, common),
+      'corr_coef_log_input_freq': corr(c_norm, fr), 'corr_coef_position': corr(c_norm, positions.astype(np.float64)),
+  }
+  hi = np.argsort(-c_norm)[:40]; lo = np.argsort(c_norm)[:40]
+  out['token_correlates']['highest_coef_inputs'] = [[int(inputs[i]), int(targets[i]), float(c_norm[i]), float(xe[i])] for i in hi]
+  out['token_correlates']['lowest_coef_inputs'] = [[int(inputs[i]), int(targets[i]), float(c_norm[i]), float(xe[i])] for i in lo]
+  out['token_correlates']['quintiles'] = []
+  qs = np.quantile(c_norm, [0, .2, .4, .6, .8, 1])
+  for i in range(5):
+    m = (c_norm >= qs[i]) & (c_norm <= qs[i + 1])
+    out['token_correlates']['quintiles'].append({'coef_mean': float(c_norm[m].mean()), 'xent': float(xe[m].mean()),
+        'entropy': float(entropy[m].mean()), 'maxprob': float(probs_max[m].mean()), 'logit_common': float(common[m].mean()),
+        'log_input_freq': float(fr[m].mean())})
+  return out
+
+
 def main(argv):
   cfg = pyconfig.initialize(argv)
   cfg.get_keys()['load_parameters_path'] = os.environ['DIAG_CHECKPOINT']
@@ -212,6 +333,11 @@ def main(argv):
       prev = mo
   results['layers'] = layers
   Mo = layer_tokens('diag_M_out') if 'diag_M_out' in store else None
+  if os.environ.get('DIAG_DIR2', '0') == '1':
+    results['direction2'] = direction2_attribution(cfg, store, layer_tokens, flat, F, R, H, W, pflat, gain,
+                                                   positions, xents, batches, stride)
+    (out / 'results.json').write_text(json.dumps(results, indent=2))
+    print('DIAG_DIR2_DONE', flush=True)
   # Per-head attention write contributions along the final direction (raw coordinates).
   if 'diag_head_out' in store and 'diag_attn_address' in store:
     Y = layer_tokens('diag_head_out')          # (L, N, heads, value)

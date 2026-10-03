@@ -363,9 +363,10 @@ class RMTDynamicWrite(nn.Module):
     if padded_value_dim is not None:
       data = jnp.pad(data, ((0,0),(0,0),(0,0),(0,padded_value_dim-data.shape[-1])))
     diag_stride = int(cfg.get_keys().get('rmt_diag_capture', 0))
-    if diag_stride and self.name == 'dynamic_attn_write':
-      self.sow('intermediates', 'diag_attn_address', address[:, diag_stride-1::diag_stride].astype(jnp.float32))
-      self.sow('intermediates', 'diag_attn_gate', gate[:, diag_stride-1::diag_stride].astype(jnp.float32))
+    if diag_stride and self.name in ('dynamic_attn_write', 'dynamic_mlp_write'):
+      arm = 'attn' if self.name == 'dynamic_attn_write' else 'mlp'
+      self.sow('intermediates', f'diag_{arm}_address', address[:, diag_stride-1::diag_stride].astype(jnp.float32))
+      self.sow('intermediates', f'diag_{arm}_gate', gate[:, diag_stride-1::diag_stride].astype(jnp.float32))
     write = jnp.einsum('btnk,btnv->btkv', gate[..., None] * address, data)
     if matrix is not None:
       # Initialization must also run on the CPU without a TPU-only custom call.
@@ -767,6 +768,9 @@ class RMTLayer(nn.Module):
       vector=ad_checkpoint.checkpoint_name(vector,'rmt_middle_vector')
       mlp_x=ad_checkpoint.checkpoint_name(mlp_x,'rmt_middle_proxy')
     vector = vector.reshape(vector.shape[:2] + (cfg.emb_dim,))
+    diag_stride = int(cfg.get_keys().get('rmt_diag_capture', 0))
+    if diag_stride:
+      self.sow('intermediates', 'diag_mlp_in', vector[:, diag_stride-1::diag_stride].astype(jnp.float32))
     vector = linears.MlpBlock(
         config=cfg, intermediate_dim=cfg.mlp_dim if self.mlp_dim is None else self.mlp_dim,
         activations=cfg.mlp_activations,
@@ -775,6 +779,8 @@ class RMTLayer(nn.Module):
         kernel_init=initializers.get_init_method(cfg.init_method),
         quant=self.quant, name='mlp')(vector, deterministic=deterministic)
     vector = vector.reshape(vector.shape[:2] + (heads, value_dim))
+    if diag_stride:
+      self.sow('intermediates', 'diag_mlp_out', vector[:, diag_stride-1::diag_stride].astype(jnp.float32))
     mlp_write_init = (nn.initializers.zeros
                       if cfg.get_keys().get('rmt_mlp_write_key_zero_init', False)
                       else write_init)

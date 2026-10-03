@@ -11853,7 +11853,7 @@ class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNor
     """Affine static Q/V/MLP reads; zero bias per layer/head, no K or RoPE bias."""
     # Implementation: codex/rmt-xlprop-noo, /data0/xd/rmt-xlprop-noo; pure JAX, layer scan.
     # code_commit: ef37971; UE5a startup .3808step/s vs SeedZero .3826 (-.5%); matched health.
-    # Bet13500 vs SeedZero -.003; speed unchanged (~.382step/s), inherited health.
+    # Stopped2693: vs SeedZero last5 +.017270 through2600; early recovery stalled near+.018 from1400. No speed gain.
     model_name = 'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZeroStaticQVMLPReadBias'
     rmt_static_qv_mlp_read_bias = True
     compare_runs = ['RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZero']

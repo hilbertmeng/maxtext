@@ -211,6 +211,7 @@ def main(argv):
       layers.append(row)
       prev = mo
   results['layers'] = layers
+  Mo = layer_tokens('diag_M_out') if 'diag_M_out' in store else None
   # Per-head attention write contributions along the final direction (raw coordinates).
   if 'diag_head_out' in store and 'diag_attn_address' in store:
     Y = layer_tokens('diag_head_out')          # (L, N, heads, value)
@@ -264,6 +265,40 @@ def main(argv):
           'delta_mean': float(np.mean(np.asarray(losses) - np.asarray(results['baseline_ce'])))}
   cfg.get_keys().update(rmt_diag_project_file='', rmt_diag_project_mode='')
   results['ablations'] = ablations
+  # Stage 2: keep only the cohort-mean coefficient along the concentrated direction.
+  if os.environ.get('DIAG_FIX', '0') == '1':
+    u = directions['top1'].reshape(-1)
+    u_raw = u / np.where(np.abs(gain) > 1e-6, gain, 1e-6); u_raw /= np.linalg.norm(u_raw)
+    sign = np.sign(np.mean(flat(F) @ u)) or 1.
+    u, u_raw = u * sign, u_raw * sign
+    np.save(out / 'fix_u.npy', u.reshape(1, key_dim, value_dim).astype(np.float32))
+    np.save(out / 'fix_u_raw.npy', u_raw.reshape(1, key_dim, value_dim).astype(np.float32))
+    c_post, c_pre = float(np.mean(flat(F) @ u)), float(np.mean(flat(R) @ u_raw))
+    # Layer-input means: input of layer l is the output of layer l-1 (layer 0 untouched).
+    layer_means = np.zeros(cfg.num_decoder_layers, np.float32)
+    layer_stats = []
+    for l in range(1, cfg.num_decoder_layers):
+      c = flat(Mo[l - 1]).astype(np.float64) @ u_raw
+      e = np.mean(np.sum(flat(Mo[l - 1]).astype(np.float64) ** 2, 1))
+      layer_means[l] = c.mean()
+      layer_stats.append({'layer': l, 'coef_mean': float(c.mean()), 'coef_std': float(c.std()),
+                          'energy_fraction': float(np.mean(c ** 2) / e),
+                          'variation_energy_fraction': float(np.var(c) / e)})
+    np.save(out / 'fix_layer_means.npy', layer_means)
+    fixes = {'coef_post': c_post, 'coef_pre': c_pre, 'layer_inputs': layer_stats}
+    variants = [('final-fixpost', dict(rmt_diag_project_file=str(out / 'fix_u.npy'), rmt_diag_project_mode='fixpost', rmt_diag_project_target=c_post)),
+                ('final-fixpre', dict(rmt_diag_project_file=str(out / 'fix_u_raw.npy'), rmt_diag_project_mode='fixpre', rmt_diag_project_target=c_pre)),
+                ('layers-fix', dict(rmt_diag_layer_mode='fix', rmt_diag_layer_direction=str(out / 'fix_u_raw.npy'), rmt_diag_layer_means=str(out / 'fix_layer_means.npy'))),
+                ('layers-remove', dict(rmt_diag_layer_mode='remove', rmt_diag_layer_direction=str(out / 'fix_u_raw.npy'), rmt_diag_layer_means=str(out / 'fix_layer_means.npy'))),
+                ('layers-fix+final-fixpre', dict(rmt_diag_layer_mode='fix', rmt_diag_layer_direction=str(out / 'fix_u_raw.npy'), rmt_diag_layer_means=str(out / 'fix_layer_means.npy'),
+                                                 rmt_diag_project_file=str(out / 'fix_u_raw.npy'), rmt_diag_project_mode='fixpre', rmt_diag_project_target=c_pre))]
+    for name, upd in variants:
+      cfg.get_keys().update(upd)
+      losses = run_ce(name)
+      fixes[name] = {'losses': losses, 'delta_mean': float(np.mean(np.asarray(losses) - np.asarray(results['baseline_ce'])))}
+      cfg.get_keys().update(rmt_diag_project_file='', rmt_diag_project_mode='', rmt_diag_layer_mode='')
+    results['mean_fix'] = fixes
+    print('DIAG_FIX ' + json.dumps({k: v['delta_mean'] for k, v in fixes.items() if isinstance(v, dict)}), flush=True)
   (out / 'results.json').write_text(json.dumps(results, indent=2))
   print('DIAG_COMPLETE ' + json.dumps({k: v['delta_mean'] for k, v in ablations.items()}), flush=True)
 

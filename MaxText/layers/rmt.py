@@ -504,6 +504,16 @@ class RMTLayer(nn.Module):
     if probe:
       from rmt_norm_instrumentation import tap
       matrix = tap(matrix, layer_index, 'M_input')
+    layer_mode = cfg.get_keys().get('rmt_diag_layer_mode', '')
+    if layer_mode:
+      import numpy as _np
+      u = jnp.asarray(_np.load(cfg.get_keys()['rmt_diag_layer_direction']), jnp.float32)[0]
+      means = jnp.asarray(_np.load(cfg.get_keys()['rmt_diag_layer_means']), jnp.float32)
+      mf = matrix.astype(jnp.float32)
+      coeff = jnp.einsum('btkv,kv->bt', mf, u)
+      target = means[layer_index] if layer_mode == 'fix' else jnp.zeros((), jnp.float32)
+      apply = (layer_index > 0).astype(jnp.float32)
+      matrix = (mf + apply * (target - coeff)[..., None, None] * u).astype(matrix.dtype)
     matrix_pre_norm = (not vector_pre_norm) or cfg.get_keys().get('rmt_probe_matrix_pre_norm', False)
     attn_in = (MatrixRMSNorm(cfg, name='attn_norm')(matrix) if matrix_pre_norm and read_norm != 'all' else matrix)
     if read_norm == 'all':
@@ -977,17 +987,24 @@ class RMTDecoder(nn.Module):
       import numpy as _np
       # Unit directions (r, key_dim, value_dim) removed token-wise from the final state.
       directions = jnp.asarray(_np.load(project_file), dtype=jnp.float32)
-      def remove(a):
+      target = float(cfg.get_keys().get('rmt_diag_project_target', 0.))
+      def remove(a, fixed=False):
         af = a.astype(jnp.float32)
         coeff = jnp.einsum('btkv,rkv->btr', af, directions)
+        if fixed:
+          coeff = coeff - target  # keep the cohort-mean coefficient, drop per-token variation
         return (af - jnp.einsum('btr,rkv->btkv', coeff, directions)).astype(a.dtype)
     if project_file and project_mode == 'pre':
       matrix = remove(matrix)
+    if project_file and project_mode == 'fixpre':
+      matrix = remove(matrix, fixed=True)
     if diag_stride:
       self.sow('intermediates', 'diag_final_raw', diag_take(matrix))
     matrix = MatrixRMSNorm(cfg, name='final_matrix_norm')(matrix)
     if project_file and project_mode == 'post':
       matrix = remove(matrix)
+    if project_file and project_mode == 'fixpost':
+      matrix = remove(matrix, fixed=True)
     if diag_stride:
       self.sow('intermediates', 'diag_final_normed', diag_take(matrix))
     final_read = self.param('final_read_key', nn.initializers.normal(key_dim ** -0.5),

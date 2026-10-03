@@ -74,7 +74,7 @@ class ControlledPostWriteTest(MLPWriteTest):
      c.get_keys()['bam_local_o_post_write']=True
      changed=dict(p,output_head_mix=jnp.zeros_like(p['output_head_mix']))
     else:
-     projected=a.apply({'params':p},150,raw,method=a.out_projection)
+     projected=jnp.einsum('btnk,nkd->btd',raw,p['out']['kernel'])
      expected=projected+local.reshape(x.shape)
      changed=dict(p,out=jax.tree.map(jnp.zeros_like,p['out']))
     np.testing.assert_allclose(out,expected,rtol=1e-5,atol=1e-5)

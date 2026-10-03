@@ -9970,7 +9970,8 @@ class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdPreWrit
     """Old-M LocalO bypasses W_O; raw attention alone writes M and passes W_O."""
     # Ledger only; implementation: codex/mediumprop-k75-embed, /data0/xd/mediumprop-k75-embed.
     # code_commit: b3689b7; UE5a ~.500step/s (+2.0% vs post-write W_O .490; health differs).
-    # Bet13500 vs post-write raw-W_O -.006; UE5a .505step/s vs .490 (+3.1%).
+    # User stop2515. Deficits still narrowing: vs post-write W_O +.080515@1000 -> +.026262@2400 (last5+.032069).
+    # vs gated-H parent last5+.048768; vs original W_O last5+.054525; no plateau established before stop.
     model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdPreWriteLocalORawWOTruePile'
     bam_local_o_post_write = False
     bam_output_raw_wo = True

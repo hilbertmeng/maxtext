@@ -9981,8 +9981,9 @@ class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdPreWrit
 class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdPostWriteLocalORawWOUpdatedQueryTruePile(BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdPostWriteLocalORawWOTruePile):
     """O keys/gates from shared MLP pre-norm of x+W_O(Y); post-write M."""
     # Ledger only; implementation: codex/mediumprop-k75-embed, /data0/xd/mediumprop-k75-embed.
-    # code_commit: 1ef8c23; UE5a v5p16 ~.482step/s (-1.6% vs unchanged-query parent .490; query health added).
-    # Bet13500 vs unchanged-query parent -.006; UE5a .480 vs .490 (-2.0%) step/s.
+    # code_commit: 1ef8c23; UE5a ~.481step/s (-1.8% vs parent .490; query health added); stopped5657.
+    # vs old-query parent: early deficit shrank to +.000966@4400; final common5 +.001491.
+    # vs original W_O: ~+.019-.020 after3200; final5 through5600 +.018992 [.018599,.019586].
     model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdPostWriteLocalORawWOUpdatedQueryTruePile'
     bam_output_raw_wo = True
     bam_local_o_updated_query = True

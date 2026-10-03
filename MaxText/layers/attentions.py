@@ -2525,7 +2525,7 @@ class BamAttention(Attention):
     if self._vo_separate_c8_keys:
       assert self._vo_shared_read == 'local_o' and self._vo_independent_gates
     if self._late_o_query:
-      assert self._raw_output_projection
+      assert self._raw_output_projection or self._output_head_mix_enabled
     if self._raw_output_projection:
       assert not cfg.bam_no_output_projection and not self._output_head_mix_enabled
       assert self._vo_separate_c8_keys and self._local_o and 'full' not in self._mode
@@ -3835,8 +3835,11 @@ class BamAttention(Attention):
       o_query_inputs = inputs_q
       if self._late_o_query:
         assert residual_inputs is not None and output_query_norm is not None
-        raw_projection = self.out_projection(
-            inputs_q.shape[-1], nn.with_logical_constraint(y_std, self.out_axis_names))
+        if self._output_head_mix_enabled:
+          raw_projection = self._mix_attention_output(y_std, None, inputs_q).reshape(residual_inputs.shape)
+        else:
+          raw_projection = self.out_projection(
+              inputs_q.shape[-1], nn.with_logical_constraint(y_std, self.out_axis_names))
         # Reuse the parent's MLP pre-norm; never add the update to normalized x.
         o_query_inputs = output_query_norm(residual_inputs + raw_projection)
         self._record_concat_amplitude(
@@ -3850,9 +3853,13 @@ class BamAttention(Attention):
       self._record_concat_amplitude('local_o', output_head, y_std)
       self._record_concat_amplitude('post_write_delta', delta, M_in)
       self._record_concat_gate('attention_write', self.W_gw(inputs_q) + self.gw_b0)
-      if self._output_head_mix_enabled:
+      if self._output_head_mix_enabled and not self._late_o_query:
         output_head = self._mix_attention_output(y_std, output_head, inputs_q)
-      if self.config.bam_no_output_projection:
+      if self._late_o_query:
+        # The raw branch already passed H+gate or W_O to construct x_mid.
+        # LocalO bypasses both and must not trigger a second gate/mix application.
+        output = raw_projection + output_head.reshape(raw_projection.shape)
+      elif self.config.bam_no_output_projection:
         out = nn.with_logical_constraint(output_head, self.out_axis_names)
         output = self.out_projection(inputs_q.shape[-1], out)
       else:

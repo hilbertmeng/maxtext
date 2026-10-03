@@ -1,5 +1,5 @@
 """Updated LocalO query: shared MLP norm, read timing, and untouched raw writes."""
-import functools
+import functools, os
 from unittest import mock
 import unittest
 import jax
@@ -13,7 +13,9 @@ from bam_mlp_write_test import MLPWriteTest, PREFIX
 
 POST=PREFIX+'IndependentEveryThirdPostWriteLocalORawWOTruePile'
 PRE=PREFIX+'IndependentEveryThirdPreWriteLocalORawWOTruePile'
-ARMS=[POST.replace('TruePile','UpdatedQueryTruePile'),PRE.replace('TruePile','UpdatedQueryTruePile')]
+WO_ARMS=[POST.replace('TruePile','UpdatedQueryTruePile'),PRE.replace('TruePile','UpdatedQueryTruePile')]
+H_ARM=PREFIX+'IndependentEveryThirdPostWriteLocalOGatedHeadMixUpdatedQueryTruePile'
+ARMS=[os.environ['BAM_UPDATED_QUERY_TEST_EXP']] if 'BAM_UPDATED_QUERY_TEST_EXP' in os.environ else [*WO_ARMS,H_ARM]
 
 class Capture(attentions.BamAttention):
  def _query_chunk_op(self,*args,**kw):
@@ -41,15 +43,19 @@ class UpdatedQueryTest(MLPWriteTest):
    mesh=jax.sharding.Mesh(max_utils.create_device_mesh(c),c.mesh_axes)
    args,kw,sharding,model=train_compile.get_shaped_inputs(mesh,c)
    flat=flatten_dict(args[0].params)
-   self.assertEqual(sum(int(np.prod(v.shape)) for v in flat.values()),432139328)
+   self.assertEqual(sum(int(np.prod(v.shape)) for v in flat.values()),432101024 if exp==H_ARM else 432139328)
    norms=[v for p,v in flat.items() if 'post_self_attention_layer_norm' in p and p[-1]=='scale']
    self.assertEqual(sum(int(np.prod(v.shape)) for v in norms),18*1200)
-   self.assertEqual(c.mlp_dim_by_block,[3859,3732,3859])
+   self.assertEqual(c.mlp_dim_by_block,[4253,4126,4253] if exp==H_ARM else [3859,3732,3859])
+   self.assertEqual(any('self_attention' in p and 'out' in p for p in flat),exp!=H_ARM)
    with mesh,nn.partitioning.axis_rules(c.logical_axis_rules):
     metrics=jax.eval_shape(functools.partial(train.train_step,model,c,sharding),*args,**kw)[1]['scalar']
    for i in range(18):
     self.assertIn(f'bam/concat/local_o_query_change_amplitude/layer_{i:03d}/bam_over_standard',metrics)
     self.assertIn(f'bam/concat/local_o_gate/layer_{i:03d}/mean',metrics)
+    if exp==H_ARM:
+     self.assertIn(f'bam/concat/output_head_gate/layer_{i:03d}/mean',metrics)
+     self.assertIn(f'bam/concat/output_head_mix_amplitude/layer_{i:03d}/bam_over_standard',metrics)
    print('UPDATED_QUERY_FULL_BUDGET_HEALTH_OK',exp,flush=True)
 
  def test_fusion_norm_routing_and_gradient(self):
@@ -71,10 +77,15 @@ class UpdatedQueryTest(MLPWriteTest):
      p['pre_self_attention_layer_norm']['scale']=jnp.linspace(.1,.3,150)
      (out,mout),probes=a.apply({'params':p},*call,M_in=m0,mutable=['probe','intermediates'],capture_intermediates=lambda mod,name:isinstance(mod,normalizations.RMSNorm) and name=='__call__')
      pr=probes['probe']['self_attention'];raw=pr['raw'][0]
-     projected=jnp.einsum('btnk,nkd->btd',raw,p['self_attention']['out']['kernel'])
      def norm(z,name):
       scale=p[name]['scale']+(0 if c.direct_scale else 1)
       return normalizations.rms_norm(z,dtype=c.dtype,epsilon=c.normalization_layer_epsilon)*scale
+     if exp==H_ARM:
+      ap=p['self_attention'];old_x=norm(x,'pre_self_attention_layer_norm')
+      gate=1.1*jax.nn.sigmoid(jnp.einsum('btd,dn->btn',old_x,ap['output_head_gate']['kernel'])+ap['output_head_gate_bias'])
+      projected=(jnp.einsum('btnk,nm->btmk',raw,ap['output_head_mix'])*gate[...,None]).reshape(x.shape)
+     else:
+      projected=jnp.einsum('btnk,nkd->btd',raw,p['self_attention']['out']['kernel'])
      xmid=x+projected
      np.testing.assert_allclose(pr['o_query'][0],norm(xmid,'post_self_attention_layer_norm'),rtol=2e-5,atol=2e-5)
      np.testing.assert_allclose(pr['write_query'][0],norm(x,'pre_self_attention_layer_norm'),rtol=2e-5,atol=2e-5)
@@ -106,7 +117,7 @@ class UpdatedQueryTest(MLPWriteTest):
 
  def test_parent_initialization_equality(self):
   trees=[]
-  for exp in [POST,PRE,*ARMS]:
+  for exp in [POST,PRE,*WO_ARMS]:
    c=self.config(exp,dtype='float32',weight_dtype='float32')
    c.get_keys().update(emb_dim=150,num_query_heads=2,num_kv_heads=2,bam_write_v_bottleneck_dim=16,mlp_dim_by_block=[128]*3,bam_record_concat_health=False,bam_record_write_health=False,bam_record_address_health=False)
    mesh=jax.sharding.Mesh(max_utils.create_device_mesh(c),c.mesh_axes)

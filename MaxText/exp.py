@@ -9992,8 +9992,9 @@ class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdPostWri
 class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdPreWriteLocalORawWOUpdatedQueryTruePile(BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdPreWriteLocalORawWOTruePile):
     """O keys/gates from shared MLP pre-norm of x+W_O(Y); pre-write M."""
     # Ledger only; implementation: codex/mediumprop-k75-embed, /data0/xd/mediumprop-k75-embed.
-    # code_commit: 1ef8c23; UE5a v5p16 ~.494step/s (-1.2% vs unchanged-query parent .500; query health added).
-    # Bet13500 vs unchanged-query parent -.003; UE5a .490 vs .500 (-2.0%) step/s.
+    # code_commit: 1ef8c23; UE5a ~.492step/s (-1.6% vs parent .500; query health added); stopped3285.
+    # vs old-query parent: tied after600, final common2400 last5 +.000236.
+    # vs new-M A: deficit shrank to +.017118@3200; final5 +.019394. No own-parent gain.
     model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdPreWriteLocalORawWOUpdatedQueryTruePile'
     bam_output_raw_wo = True
     bam_local_o_updated_query = True
@@ -10003,6 +10004,7 @@ class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdPreWrit
 class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdPostWriteLocalOGatedHeadMixUpdatedQueryTruePile(BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdPostWriteLocalORawWOUpdatedQueryTruePile):
     """Updated O query from x+gH(Y); new-M LocalO bypasses H and its gate."""
     # Ledger only; implementation: codex/mediumprop-k75-embed, /data0/xd/mediumprop-k75-embed.
+    # code_commit: b441980; UE5a ~.481step/s (-.4% vs A .483; matched health).
     # Bet13500 vs updated-query W_O A -.003; UE5a .480step/s vs A .483 (-.6%).
     model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdPostWriteLocalOGatedHeadMixUpdatedQueryTruePile'
     bam_output_raw_wo = False

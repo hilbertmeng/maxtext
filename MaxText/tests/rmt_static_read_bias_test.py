@@ -24,9 +24,9 @@ class StaticReadBiasTest(unittest.TestCase):
       params = nn.unbox(jax.eval_shape(lambda k: model.init(k, **args)['params'], jax.random.key(1)))
     self.assertEqual(sum(math.prod(v.shape) for v in jax.tree.leaves(params)), 431759072 + 59616)
     layers = params['decoder']['layers']
-    self.assertEqual(layers[NAMES[0]]['bias'].shape, (18, 16, 57))
+    self.assertEqual(layers[NAMES[0]]['bias'].shape, (16, 18, 57))
     for name in NAMES[1:]:
-      self.assertEqual(layers[name]['bias'].shape, (18, 16, 75))
+      self.assertEqual(layers[name]['bias'].shape, (16, 18, 75))
     self.assertEqual(cfg.mlp_dim, 4100)
     self.assertFalse(cfg.get_keys().get('rmt_final_read_key_zero_init', False))
 

@@ -10021,7 +10021,8 @@ class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteStaticEveryThirdHeadMixPrese
     """Strict W_O replacement: H+gate on raw+LocalO; original M writes; saved parameters repaid to MLP."""
     # Ledger only; implementation codex/mediumprop-k75-embed, /data0/xd/mediumprop-k75-embed.
     # code_commit: 905ac07; UE5a ~.527step/s (-.8% vs parent .531; added H/gate health).
-    # Bet13500 vs parent +.004; speed .530 vs .531 (-.2%); added H/gate health.
+    # Hot-replaced2926: vs static-every-third W_O parent crossed to deficit at1200, then widened; last5@2800 +.015033 (latest+.017594).
+    # Strict route-preserving replacement still loses despite MLP refund; no demonstrated speed gain.
     model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteStaticEveryThirdHeadMixPreserveRoutesTruePile'
     bam_no_output_projection = True
     bam_output_head_mix = True

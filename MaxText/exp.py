@@ -10015,3 +10015,16 @@ class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdPostWri
     bam_output_head_gate = True
     mlp_dim_by_block = [4253, 4126, 4253]
     compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdPostWriteLocalORawWOUpdatedQueryTruePile', 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdPostWriteLocalOGatedHeadMixNoWOTruePile', 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile']
+
+
+class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteStaticEveryThirdHeadMixPreserveRoutesTruePile(BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteStaticEveryThirdTruePile):
+    """Strict W_O replacement: H+gate on raw+LocalO; original M writes; saved parameters repaid to MLP."""
+    # Ledger only; implementation codex/mediumprop-k75-embed, /data0/xd/mediumprop-k75-embed.
+    # Bet13500 vs parent +.004; speed .530 vs .531 (-.2%); added H/gate health.
+    model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteStaticEveryThirdHeadMixPreserveRoutesTruePile'
+    bam_no_output_projection = True
+    bam_output_head_mix = True
+    bam_output_head_gate = True
+    bam_output_head_mix_preserve_routes = True
+    mlp_dim_by_block = [4296, 4291, 4296]
+    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteStaticEveryThirdTruePile']

@@ -2521,6 +2521,10 @@ class BamAttention(Attention):
     self._raw_output_projection = bool(getattr(cfg, 'bam_output_raw_wo', False))
     self._late_o_query = bool(getattr(cfg, 'bam_local_o_updated_query', False))
     self._output_head_mix_enabled = bool(getattr(cfg, 'bam_output_head_mix', False))
+    self._output_head_mix_preserve_routes = bool(getattr(cfg, 'bam_output_head_mix_preserve_routes', False))
+    if self._output_head_mix_preserve_routes:
+      assert self._output_head_mix_enabled and not self._post_write_o and not self._late_o_query
+      assert not self._raw_output_projection
     self._vo_separate_c8_keys = bool(getattr(cfg, 'bam_local_vo_separate_c8_keys', False))
     if self._vo_separate_c8_keys:
       assert self._vo_shared_read == 'local_o' and self._vo_independent_gates
@@ -2532,7 +2536,7 @@ class BamAttention(Attention):
     if self._post_write_o:
       assert self._vo_separate_c8_keys and self._local_o and 'full' not in self._mode
       assert self._has_write
-    if self._output_head_mix_enabled:
+    def init_output_head_mix():
       assert getattr(cfg, 'bam_no_output_projection', False)
       assert self._local_o and 'full' not in self._mode
       self.output_head_mix = self.param(
@@ -2551,6 +2555,9 @@ class BamAttention(Attention):
             'output_head_gate_bias', nn.with_logical_partitioning(
                 nn.initializers.constant(math.log(10.0)), ('q_heads',)),
             (self.num_query_heads,), self.weight_dtype)
+
+    if self._output_head_mix_enabled and not self._output_head_mix_preserve_routes:
+      init_output_head_mix()
 
     self._read_key_scale = float(cfg.bam_read_key_scale)
     self._rms_epsilon = float(cfg.normalization_layer_epsilon)
@@ -3016,6 +3023,10 @@ class BamAttention(Attention):
         self.local_k_post_read_v_projection = self.param(
             'local_k_post_read_v_projection', projection_init,
             projection_shape, self.weight_dtype)
+
+    # Preserve the parent's direct-parameter RNG stream in the strict replacement.
+    if self._output_head_mix_preserve_routes:
+      init_output_head_mix()
 
 
   def _local_qk_post_read_v_projections(self):
@@ -3817,9 +3828,14 @@ class BamAttention(Attention):
 
     output_head = o_head
     if self._output_head_mix_enabled and not self._post_write_o:
-      output_head = self._mix_attention_output(y_std, local_output, inputs_q)
-      # Memory receives raw attention, not LocalO or vector-output head mixing.
-      o_head = y_std
+      if self._output_head_mix_preserve_routes:
+        # Strict W_O replacement: transform the original summed output, while
+        # both immediate and deferred memory writes keep that original sum.
+        output_head = self._mix_attention_output(o_head, None, inputs_q)
+      else:
+        output_head = self._mix_attention_output(y_std, local_output, inputs_q)
+        # Memory receives raw attention, not LocalO or vector-output head mixing.
+        o_head = y_std
 
     if self._post_write_o or self._late_o_query:
       # Defer O until raw attention is available; Q/K/V still read incoming M.

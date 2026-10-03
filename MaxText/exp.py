@@ -11780,3 +11780,19 @@ class RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOMPreNormLearnedSca
                     'MuddLlama2XLProp',
                     'BamXLPropK96EmbedVOnlyQK72LLFTruePile']
     jax_cache_dir = ''
+
+
+class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKZeroInit(RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedWriteNorm):
+    """Shared normalized writes, zero static QK and no matrix read pre-norm."""
+    # Implementation: codex/rmt-xlprop-noo, /data0/xd/rmt-xlprop-noo; pure JAX, layer scan.
+    # Bet13500 vs SharedWriteNorm -.006; speed .380 vs .375 (+1.3%); extra write-scale health ON.
+    model_name = 'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKZeroInit'
+    rmt_static_qk_zero_init = True
+    rmt_matrix_read_norm = 'none'
+    rmt_matrix_read_learned_scale = False
+    rmt_record_write_scale_health = True
+    checkpoint_period = 200
+    keep_period = 1000
+    max_to_keep = 2
+    compare_runs = ['RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedWriteNorm', 'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoO']
+    jax_cache_dir = ''

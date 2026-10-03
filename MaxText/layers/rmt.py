@@ -559,7 +559,13 @@ class RMTLayer(nn.Module):
              if read_norm == 'qk' else attn_in)
     if probe:
       attn_in = tap(attn_in, layer_index, 'M_attention_read')
-    qkv_key = self.param('qkv_key', key_init, (3, heads, key_dim), cfg.weight_dtype)
+    def qkv_key_init(key, shape, dtype):
+      keys = key_init(key, shape, dtype)
+      if cfg.get_keys().get('rmt_static_qk_zero_init', False):
+        keys = keys.at[:2].set(0)
+      return keys
+
+    qkv_key = self.param('qkv_key', qkv_key_init, (3, heads, key_dim), cfg.weight_dtype)
     fused_attention=bool(cfg.get_keys().get('rmt_fused_attention_read',False))
     if fused_attention and (not dynamic or not vector_pre_norm or dynamic_o_enabled
                             or joined_read or padded_value_dim or rope_qk_dim!=18

@@ -10035,6 +10035,7 @@ class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteStaticEveryThirdHeadMixPrese
 class BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdTruePile(BamXLPropK96EmbedVOnlyQK72AllLocalTruePile):
     """XL transfer of sparse MLP-private dynamic addresses, at zero-based layers1/4/.../25."""
     # Implementation: codex/mediumprop-k75-embed, /data0/xd/mediumprop-k75-embed; pure JAX.
+    # code_commit: 860370a; UE5a startup .347step/s (-2.3% vs AllLocal .355, -3.4% vs LLF .359); extra MLP-write/address health.
     # Bet33000: vs LLF +.005; vs AllLocal approximately -.0225. Speed .350 vs .355/LLF .359.
     # Nine R384 addresses + gates cost9753300=2.646W_Q; refund188 MLP units at those layers.
     # [6294,6106,6294] x9 + terminal6294; 1432440120 params (MHA+41400).

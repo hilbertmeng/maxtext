@@ -11841,6 +11841,7 @@ class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNor
 class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZeroFinalReadZero(RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZero):
     """Only zero-initialize the full-matrix static unembedding read key."""
     # Implementation: codex/rmt-xlprop-noo, /data0/xd/rmt-xlprop-noo; pure JAX, layer scan.
+    # code_commit: a08a7b1; UE5a startup ~.382step/s, matches SeedZero .382; matched health.
     # Bet13500 vs SeedZero -.003; speed unchanged (~.382step/s); inherited health.
     model_name = 'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZeroFinalReadZero'
     rmt_final_read_key_zero_init = True

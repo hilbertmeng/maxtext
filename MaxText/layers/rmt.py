@@ -72,6 +72,15 @@ def dynamic_health_names(record_write_health=True, heads=16, key_dim=48,
           + (RMT_STATIC_WRITE_GATE_HEALTH_NAMES if record_static_write_gates else ()))
 
 
+def carry_shared_health(matrix):
+  """Global batch/token mean energy and RMS of raw post-MLP carry."""
+  value = jax.lax.stop_gradient(matrix).astype(jnp.float32)
+  energy = jnp.mean(jnp.square(value))
+  mean = jnp.mean(value, axis=(0, 1))
+  shared = jnp.mean(jnp.square(mean)) / jnp.maximum(energy, 1e-30)
+  return jnp.stack((shared, jnp.sqrt(energy)))
+
+
 def _alibi_bias(num_heads, q0, q1, s0, s1, dtype=jnp.float32):
   """Published RMT slopes, in attention-head order."""
   slopes = jnp.geomspace(2.0 ** (-8.0 / num_heads), 2.0 ** -8, num_heads)
@@ -873,6 +882,14 @@ class RMTLayer(nn.Module):
       matrix = matrix + static_mlp_write
     if probe:
       matrix = tap(matrix, layer_index, 'M_output')
+    carry_layers = cfg.get_keys().get('rmt_carry_health_layers', ())
+    if carry_layers:
+      if cfg.get_keys().get('rmt_block_scan', False):
+        raise ValueError('Selected carry health requires direct layer scan')
+      selected = jnp.any(layer_index == jnp.asarray(carry_layers))
+      carry_stats = jax.lax.cond(selected, carry_shared_health,
+                                  lambda _: jnp.zeros((2,), jnp.float32), matrix)
+      self.sow('intermediates', 'rmt_carry_health', carry_stats)
     health = None
     if dynamic and getattr(cfg, 'rmt_record_dynamic_health', False):
       # Keep the health schema identical for matched Full48/NoO comparisons.

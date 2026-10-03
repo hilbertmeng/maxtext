@@ -385,6 +385,13 @@ def record_rmt_dynamic_health_metrics(output_metrics, intermediate_outputs, conf
         record_static_write_gates=config.get_keys().get('rmt_static_write_gates', False))):
       output_metrics['scalar'][f'rmt/dynamic/layer_{layer:03d}/{name}'] = health[layer, index]
 
+  carry_layers = config.get_keys().get('rmt_carry_health_layers', ())
+  if carry_layers:
+    stats = decoder['layers']['rmt_carry_health'][0]
+    for layer in carry_layers:
+      for index, name in enumerate(('token_mean_energy_fraction', 'output_raw_rms')):
+        output_metrics['scalar'][f'rmt/carry/layer_{layer:03d}/{name}'] = stats[layer, index]
+
   if config.get_keys().get('rmt_matrix_read_learned_scale', False):
     for arm in ('attn', 'mlp'):
       stats = decoder['layers'][arm + '_norm']['scale_health'][0]
@@ -936,6 +943,18 @@ def train_step(model, config, state_mesh_shardings, state, data, dropout_rng):
     scalar_metrics["learning/param_norm"] = max_utils.l2norm_pytree(new_state.params)
     raw_grads_norms = compute_params_norm(raw_grads, config, prefix='raw_grads')
     scalar_metrics.update(raw_grads_norms)
+    if config.get_keys().get('rmt_record_stability_health', False):
+      total = scalar_metrics['learning/raw_grad_norm'].astype(jnp.float32)
+      scalar_metrics['rmt/stability/gradient_clip_coefficient'] = (
+          scalar_metrics['learning/grad_norm'] / jnp.maximum(total, 1e-30))
+      for group, pattern in (('embedding_address_bias', 'dynamic_embedding_write/address_up_bias'),
+                             ('lm_head', 'lm_head/')):
+        entries = [v.astype(jnp.float32) for k,v in raw_grads_norms.items() if pattern in k]
+        if not entries:
+          raise ValueError(f'Missing raw-gradient group: {pattern}')
+        norm = jnp.sqrt(sum(jnp.square(v) for v in entries))
+        scalar_metrics[f'rmt/stability/{group}_raw_grad_norm_fraction'] = norm / jnp.maximum(total,1e-30)
+        scalar_metrics[f'rmt/stability/{group}_raw_grad_energy_fraction'] = norm**2 / jnp.maximum(total**2,1e-30)
   if config.use_dpo:
     scalar_metrics["learning/dpo_reward_accuracy"] = aux["reward_accuracy"]
   metrics = {

@@ -38,6 +38,19 @@ LocalCheckpointOptions = emergency_checkpoint_manager.LocalCheckpointOptions
 PersistentCheckpointOptions = emergency_checkpoint_manager.PersistentCheckpointOptions
 
 
+def checkpoint_retention_options(config):
+  """Optional early dense permanent retention, independent of recent saves."""
+  period = config.keep_period if config.keep_period > 0 else None
+  early_until = int(getattr(config, 'keep_early_until', 0) or 0)
+  early_period = int(getattr(config, 'keep_early_period', 0) or 0)
+  if early_until > 0:
+    if early_period <= 0 or period is None:
+      raise ValueError('Early retention requires positive early and regular periods')
+    return dict(keep_period=None, should_keep_fn=lambda step:
+                step % (early_period if step <= early_until else period) == 0)
+  return dict(keep_period=period)
+
+
 def create_orbax_checkpoint_manager(
     checkpoint_dir: str,
     enable_checkpointing: bool,
@@ -70,7 +83,7 @@ def create_orbax_checkpoint_manager(
   # Some MaxText experiment configs use 0 to mean "do not permanently retain
   # periodic checkpoints"; passing that value through raises when the first
   # checkpoint is saved on newer Orbax releases.
-  keep_period = config.keep_period if config.keep_period > 0 else None
+  retention = checkpoint_retention_options(config)
   mngr = CheckpointManager(
       p,
       item_names=item_names,
@@ -80,7 +93,7 @@ def create_orbax_checkpoint_manager(
           save_interval_steps=save_interval_steps,
           enable_async_checkpointing=use_async,
           max_to_keep=config.max_to_keep, # lsp: max save checkpoint nums nearby
-          keep_period=keep_period, # lsp: step / keep_period would not be deleted
+          **retention,
       ),
       logger=orbax_logger,
   )

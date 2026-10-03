@@ -11868,3 +11868,29 @@ class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNor
     rmt_unembedding_vector_skip = True
     compare_runs = ['RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZero']
     jax_cache_dir = ''
+
+
+class RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOSharedWriteNormQKVZeroInitEmbedSeedZero(RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOMPreNormLearnedScaleSharedWriteEmbedNormSeedKeyZeroInit):
+    """Medium QKV-zero/SeedZero transfer: normalized writes without layer M pre-norm."""
+    # Implementation: codex/rmt-xlprop-noo, /data0/xd/rmt-xlprop-noo; pure JAX, direct layer scan.
+    # Bet: 70% stable; conditional gain/Mudd >=1.40 at10k, >=1.25 at17.5k; speed ~.31 step/s.
+    model_name = 'RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOSharedWriteNormQKVZeroInitEmbedSeedZero'
+    rmt_static_qk_zero_init = True
+    rmt_static_v_zero_init = True
+    rmt_matrix_read_norm = 'none'
+    rmt_matrix_read_learned_scale = False
+    rmt_unembedding_vector_skip = False
+    rmt_record_dynamic_health = True
+    rmt_record_write_scale_health = True
+    rmt_record_stability_health = True
+    rmt_carry_health_layers = [1, 7, 14, 21, 25, 27]
+    checkpoint_period = 250
+    keep_period = 4000
+    keep_early_period = 2000
+    keep_early_until = 20000
+    max_to_keep = 2
+    compare_runs = ['RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOMPreNormLearnedScaleSharedWriteEmbedNormSeedKeyZeroInit',
+                    'RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOMPreNorm',
+                    'Llama2XLPropTruePileMHA', 'MuddLlama2XLProp',
+                    'BamXLPropK96EmbedVOnlyQK72LLFTruePile']
+    jax_cache_dir = ''

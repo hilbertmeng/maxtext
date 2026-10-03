@@ -2518,10 +2518,14 @@ class BamAttention(Attention):
     orth_init = nn.initializers.orthogonal()
     reg_init = self.kernel_init
     self._post_write_o = bool(getattr(cfg, 'bam_local_o_post_write', False))
+    self._raw_output_projection = bool(getattr(cfg, 'bam_output_raw_wo', False))
     self._output_head_mix_enabled = bool(getattr(cfg, 'bam_output_head_mix', False))
     self._vo_separate_c8_keys = bool(getattr(cfg, 'bam_local_vo_separate_c8_keys', False))
     if self._vo_separate_c8_keys:
       assert self._vo_shared_read == 'local_o' and self._vo_independent_gates
+    if self._raw_output_projection:
+      assert not cfg.bam_no_output_projection and not self._output_head_mix_enabled
+      assert self._vo_separate_c8_keys and self._local_o and 'full' not in self._mode
     if self._post_write_o:
       assert self._vo_separate_c8_keys and self._local_o and 'full' not in self._mode
       assert self._has_write
@@ -3842,6 +3846,16 @@ class BamAttention(Attention):
         output = self.out_projection(inputs_q.shape[-1], out)
         output = output + output_head.reshape(output.shape)
       return (output, M_in, factors) if defer_write else (output, M_out)
+
+    if self._raw_output_projection:
+      # Old-M LocalO bypasses W_O, and never enters the attention memory write.
+      out = nn.with_logical_constraint(y_std, self.out_axis_names)
+      output = self.out_projection(inputs_q.shape[-1], out)
+      output = output + local_output.reshape(output.shape)
+      if defer_write:
+        return output, M_in, self._deferred_write_factors(y_std, inputs_q)
+      M_out, _ = self._write(y_std, inputs_q, M_in)
+      return output, M_out
 
     if defer_write:
       assert self._has_write and not self._mha_control and M_in is not None

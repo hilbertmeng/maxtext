@@ -275,6 +275,7 @@ class BamLlama2Medium(Llama2Medium):
     bam_local_o_post_write = False
     bam_local_o_static_zero_init = False
     bam_output_head_gate = True
+    bam_output_raw_wo = False
     bam_output_head_mix = False
     bam_local_vo_separate_c8_keys = False
     bam_dynamic_unembedding_read = False
@@ -9960,3 +9961,13 @@ class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdPostWri
     bam_output_head_mix = False
     mlp_dim_by_block = [3859, 3732, 3859]
     compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdPostWriteLocalOGatedHeadMixNoWOTruePile', 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile']
+
+
+class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdPreWriteLocalORawWOTruePile(BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdPostWriteLocalORawWOTruePile):
+    """Old-M LocalO bypasses W_O; raw attention alone writes M and passes W_O."""
+    # Ledger only; implementation: codex/mediumprop-k75-embed, /data0/xd/mediumprop-k75-embed.
+    # Bet13500 vs post-write raw-W_O -.006; UE5a .505step/s vs .490 (+3.1%).
+    model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdPreWriteLocalORawWOTruePile'
+    bam_local_o_post_write = False
+    bam_output_raw_wo = True
+    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdPostWriteLocalORawWOTruePile', 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdHeadMixNoWOSeparateVOKeysTruePile', 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile']

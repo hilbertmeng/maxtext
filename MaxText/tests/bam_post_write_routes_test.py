@@ -1,5 +1,5 @@
 """Controlled post-write variants: zero static O, gated H or raw-only W_O."""
-import functools
+import functools, os
 import jax
 import jax.numpy as jnp
 import numpy as np
@@ -12,6 +12,8 @@ import unittest
 
 ONE=PREFIX+'IndependentEveryThirdPostWriteLocalOGatedHeadMixNoWOTruePile'
 TWO=PREFIX+'IndependentEveryThirdPostWriteLocalORawWOTruePile'
+THREE=PREFIX+'IndependentEveryThirdPreWriteLocalORawWOTruePile'
+ACTIVE=[os.environ['BAM_CONTROLLED_TEST_EXP']] if 'BAM_CONTROLLED_TEST_EXP' in os.environ else [ONE,TWO]
 PARENT=PREFIX+'IndependentEveryThirdHeadMixNoWOSeparateVOKeysTruePile'
 
 class Capture(attentions.BamAttention):
@@ -22,7 +24,8 @@ class Capture(attentions.BamAttention):
 
 class ControlledPostWriteTest(MLPWriteTest):
  def test_exact_budget_health(self):
-  for exp,count,widths in [(ONE,432101024,[4253,4126,4253]),(TWO,432139328,[3859,3732,3859])]:
+  for exp,count,widths in [(ONE,432101024,[4253,4126,4253]),(TWO,432139328,[3859,3732,3859]),(THREE,432139328,[3859,3732,3859])]:
+   if exp not in ACTIVE:continue
    c=self.config(exp)
    self.assertEqual(c.mlp_dim_by_block,widths)
    self.assertEqual(c.DATASET_VARIANT,'truepile4096')
@@ -33,16 +36,16 @@ class ControlledPostWriteTest(MLPWriteTest):
    self.assertEqual(sum(int(np.prod(v.shape)) for v in flat.values()),count)
    for name in ['output_head_mix','output_head_gate','output_head_gate_bias']:
     self.assertEqual(any(name in p for p in flat),exp==ONE,name)
-   self.assertEqual(any('self_attention' in p and 'out' in p for p in flat),exp==TWO)
+   self.assertEqual(any('self_attention' in p and 'out' in p for p in flat),exp!=ONE)
    with mesh,nn.partitioning.axis_rules(c.logical_axis_rules):
     metrics=jax.eval_shape(functools.partial(train.train_step,model,c,sharding),*args,**kw)[1]['scalar']
    for l in range(18):
-    self.assertIn(f'bam/concat/post_write_delta_amplitude/layer_{l:03d}/bam_over_standard',metrics)
+    if c.bam_local_o_post_write:self.assertIn(f'bam/concat/post_write_delta_amplitude/layer_{l:03d}/bam_over_standard',metrics)
     self.assertIn(f'bam/concat/local_o_gate/layer_{l:03d}/mean',metrics)
    print('CONTROLLED_BUDGET_HEALTH_OK',exp,count,widths,flush=True)
 
  def test_paths_decay_and_gradients(self):
-  for exp in [ONE,TWO]:
+  for exp in ACTIVE:
    c=self.config(exp,dtype='float32',weight_dtype='float32')
    c.get_keys().update(emb_dim=150,num_query_heads=2,num_kv_heads=2,bam_write_v_bottleneck_dim=16,bam_record_concat_health=False,bam_record_write_health=False,bam_record_address_health=False,bam_lambda_decay=.73)
    mesh=jax.sharding.Mesh(max_utils.create_device_mesh(c),c.mesh_axes)
@@ -61,7 +64,8 @@ class ControlledPostWriteTest(MLPWriteTest):
     raw=probe['probe']['raw_attention'][0]
     factors=a.apply({'params':p},raw,x,method=a._deferred_write_factors)
     np.testing.assert_allclose(m1,.73*m0+jnp.einsum('btnk,btnv->btkv',factors[0],factors[1]),rtol=1e-5,atol=1e-5)
-    local=a.apply({'params':p},m1,method=read_o)
+    read_matrix=m1 if c.bam_local_o_post_write else m0
+    local=a.apply({'params':p},read_matrix,method=read_o)
     if exp==ONE:
      expected=a.apply({'params':p},raw,local,x,method=a._mix_attention_output).reshape(x.shape)
      # Exact best-parent trajectory except that O reads the updated M.
@@ -77,6 +81,13 @@ class ControlledPostWriteTest(MLPWriteTest):
      projected=jnp.einsum('btnk,nkd->btd',raw,p['out']['kernel'])
      expected=projected+local.reshape(x.shape)
      changed=dict(p,out=jax.tree.map(jnp.zeros_like,p['out']))
+    if exp==THREE:
+     c.get_keys()['bam_local_o_post_write']=True
+     post_out,post_m=a.apply({'params':p},*call,M_in=m0,deterministic=True)
+     post_local=a.apply({'params':p},m1,method=read_o)
+     np.testing.assert_allclose(post_out-out,(post_local-local).reshape(x.shape),rtol=2e-5,atol=2e-5)
+     np.testing.assert_allclose(m1,post_m,rtol=1e-5,atol=1e-5)
+     c.get_keys()['bam_local_o_post_write']=False
     np.testing.assert_allclose(out,expected,rtol=1e-5,atol=1e-5)
     o2,m2=a.apply({'params':changed},*call,M_in=m0,deterministic=True)
     np.testing.assert_array_equal(m1,m2)
@@ -84,7 +95,7 @@ class ControlledPostWriteTest(MLPWriteTest):
     # Static O must bypass H/W_O and cannot contaminate the memory write.
     p_static=dict(p,static_o_key=jax.random.normal(jax.random.key(13),(32,2))*.1)
     o3,m3=a.apply({'params':p_static},*call,M_in=m0,deterministic=True)
-    l3=a.apply({'params':p_static},m1,method=read_o)
+    l3=a.apply({'params':p_static},read_matrix,method=read_o)
     np.testing.assert_allclose(o3-out,(l3-local).reshape(x.shape),rtol=2e-5,atol=2e-5)
     np.testing.assert_array_equal(m1,m3)
     od,md,fd=a.apply({'params':p},*call,M_in=m0,deterministic=True,defer_write=True)

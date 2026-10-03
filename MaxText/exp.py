@@ -9941,8 +9941,9 @@ class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdPostWri
 
 class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdPostWriteLocalOGatedHeadMixNoWOTruePile(BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdHeadMixNoWOSeparateVOKeysTruePile):
     """Only move LocalO after raw attention write; retain gated H and zero static O."""
-    # Ledger/runtime family: codex/mediumprop-k75-embed, /data0/xd/mediumprop-k75-embed.
-    # Bet13500 vs original W_O +.004; UE5a .485step/s vs original .520.
+    # Ledger only; implementation: codex/mediumprop-k75-embed, /data0/xd/mediumprop-k75-embed.
+    # code_commit: 5ad52ba; UE5a v5p16 ~.488step/s (-3.0% vs gated-H parent .503; -6.2% vs original W_O .520, health differs).
+    # Bet13500 vs best gated-H parent -.004 (if continued), vs original W_O +.004; UE5a .485step/s vs original .520.
     model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdPostWriteLocalOGatedHeadMixNoWOTruePile'
     bam_local_o_post_write = True
     bam_local_o_static_zero_init = True
@@ -9951,7 +9952,8 @@ class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdPostWri
 
 class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdPostWriteLocalORawWOTruePile(BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdPostWriteLocalOGatedHeadMixNoWOTruePile):
     """Raw attention through W_O; updated-M LocalO directly enters residual."""
-    # Ledger/runtime family: codex/mediumprop-k75-embed, /data0/xd/mediumprop-k75-embed.
+    # Ledger only; implementation: codex/mediumprop-k75-embed, /data0/xd/mediumprop-k75-embed.
+    # code_commit: 5ad52ba; UE5a v5p16 ~.490step/s (+.4% vs post-write gated H .488; -5.8% vs original W_O .520, health differs).
     # Bet13500 vs original W_O -.004, vs post-write gated H -.008; UE5a .500step/s vs original .520.
     model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdPostWriteLocalORawWOTruePile'
     bam_no_output_projection = False

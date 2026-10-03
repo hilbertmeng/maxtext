@@ -11891,7 +11891,7 @@ class RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOSharedWriteNormQKV
     checkpoint_period = 250
     keep_period = 2000
     max_to_keep = 2
-    compare_runs = ['RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOMPreNormLearnedScaleSharedWriteEmbedNormSeedKeyZeroInit',
+    compare_runs = ['BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdTruePile',
                     'RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOMPreNorm',
                     'Llama2XLPropTruePileMHA', 'MuddLlama2XLProp',
                     'BamXLPropK96EmbedVOnlyQK72LLFTruePile']

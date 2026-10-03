@@ -462,6 +462,20 @@ def static_layer_write(data, key, cfg, gate=None):
   return jnp.einsum('btnv,nk->btkv', data, key.astype(cfg.dtype))
 
 
+class RMTStaticReadBias(nn.Module):
+  """Per-layer/head affine read offset; separate scope preserves parent RNGs."""
+  config: common_types.Config
+  width: int
+
+  @nn.compact
+  def __call__(self, read):
+    bias = self.param('bias', nn.with_logical_partitioning(
+        nn.initializers.zeros, ('q_heads', None)),
+        (self.config.num_query_heads, self.width), self.config.weight_dtype)
+    return read + jnp.pad(bias.astype(read.dtype),
+                         ((0, 0), (0, read.shape[-1] - self.width)))
+
+
 class RMTLayer(nn.Module):
   """RMT layer with optional BAM-style dynamic reads and writes."""
 
@@ -472,6 +486,12 @@ class RMTLayer(nn.Module):
   @nn.compact
   def __call__(self, matrix, segment_ids, positions, deterministic, layer_index):
     cfg = self.config
+    static_read_bias = cfg.get_keys().get('rmt_static_qv_mlp_read_bias', False)
+    if static_read_bias and (not cfg.get_keys().get('rmt_dynamic_enabled', False)
+        or any(cfg.get_keys().get(k, False) for k in (
+            'rmt_fused_attention_read', 'rmt_fused_write_mlp_read',
+            'rmt_fused_projected_mlp_write', 'rmt_pallas_write'))):
+      raise ValueError('Static Q/V/MLP read biases require the plain-JAX dynamic path')
     static_write_gates = cfg.get_keys().get('rmt_static_write_gates', False)
     if static_write_gates and (
         not cfg.get_keys().get('rmt_dynamic_enabled', False)
@@ -628,6 +648,11 @@ class RMTLayer(nn.Module):
       dynamic_v = vo_reads[0][..., :value_dim]
       if dynamic_o_enabled:
         dynamic_o = vo_reads[1][..., :value_dim]
+      if static_read_bias:
+        query = RMTStaticReadBias(cfg, value_dim - rope_qk_dim,
+                                 name='static_q_read_bias')(query)
+        value = RMTStaticReadBias(cfg, value_dim,
+                                 name='static_v_read_bias')(value)
       static_q, static_k, static_v = query, key, value
       query = query + dynamic_q
       key = key + dynamic_k
@@ -808,6 +833,10 @@ class RMTLayer(nn.Module):
     if cfg.get_keys().get('rmt_save_middle_outputs',False) and not cfg.get_keys().get('rmt_save_middle_native_outputs',False):
       vector=ad_checkpoint.checkpoint_name(vector,'rmt_middle_vector')
       mlp_x=ad_checkpoint.checkpoint_name(mlp_x,'rmt_middle_proxy')
+    if static_read_bias:
+      mlp_bias = RMTStaticReadBias(cfg, value_dim, name='static_mlp_read_bias')
+      vector = mlp_bias(vector)
+      static_mlp_read = mlp_bias(static_mlp_read)
     vector = vector.reshape(vector.shape[:2] + (cfg.emb_dim,))
     vector = linears.MlpBlock(
         config=cfg, intermediate_dim=cfg.mlp_dim if self.mlp_dim is None else self.mlp_dim,

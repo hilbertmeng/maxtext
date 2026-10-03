@@ -11830,7 +11830,8 @@ class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNor
     """Shared normalized embedding contents, permanently disabled static write."""
     # Implementation: codex/rmt-xlprop-noo, /data0/xd/rmt-xlprop-noo; pure JAX, layer scan.
     # code_commit: 5e0812f; UE5a startup .380step/s (-.6% vs QKVZero .382, -.7% vs SeedZero .383); matched health.
-    # Bet13500 vs QKVZero -.002; vs SeedZero +.002; speed approximately flat.
+    # Stopped3307: QKV-zero gap crossed at1000 then improved (last5 -.006491); SeedZero deficit narrowed slowly (last5 +.010289 at2400-3200).
+    # Same parameters as SeedZero, slightly slower; trainable zero seed preferred to permanently disabled static embedding write.
     model_name = 'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedScale0'
     rmt_embedding_seed_key_zero_init = False
     rmt_embedding_static_write_scale = 0.

@@ -1075,6 +1075,12 @@ class RMTDecoder(nn.Module):
                  _boundary_health(dynamic_read, hidden, read_gates[..., 0]))
       hidden = hidden + dynamic_read
     hidden = hidden.reshape(hidden.shape[:2] + (cfg.emb_dim,))
+    if cfg.get_keys().get('rmt_unembedding_vector_skip', False):
+      if not cfg.get_keys().get('rmt_dynamic_unembedding_read', False):
+        raise ValueError('Final vector skip requires dynamic unembedding VectorNorm')
+      # x is computed AFTER all scanned layers and final_matrix_norm, not a
+      # layer-input proxy. Reuse the existing final learned VectorNorm exactly.
+      hidden = hidden + x
     head = models.OutputHead(config=cfg, shared_embedding=self.shared_embedding,
                              mesh=self.mesh, quant=self.quant, name='lm_head')
     return head(hidden, decoder_target_tokens, decoder_target_mask,

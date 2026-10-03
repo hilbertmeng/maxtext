@@ -11815,7 +11815,8 @@ class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNor
     """Shared normalized embedding contents with a learnable zero static address."""
     # Implementation: codex/rmt-xlprop-noo, /data0/xd/rmt-xlprop-noo; pure JAX, layer scan.
     # code_commit: 5e0812f; UE5a .383step/s vs QKVZero .382, matched health, approximately flat.
-    # Bet13500 vs QKVZero -.004; speed .383 vs .382, approximately flat; matched health.
+    # Completed13500; vs QKVZero gain held ~-.015 through late training (last5 -.015130).
+    # vs SharedWriteNorm / original NoO: early gains shrank; final5 -.023797 / -.016237, slowly narrowing late.
     model_name = 'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZero'
     rmt_embedding_shared_content = True
     rmt_embedding_content_norm = True

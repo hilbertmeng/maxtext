@@ -11862,6 +11862,7 @@ class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNor
 class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZeroFinalVectorSkip(RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZero):
     """Add the final normalized first16-row proxy directly to unembedding reads."""
     # Implementation: codex/rmt-xlprop-noo, /data0/xd/rmt-xlprop-noo; pure JAX, layer scan.
+    # code_commit: 4975460; UE5a v5p-16 .3804 step/s (-.6% vs SeedZero .3826; matched health).
     # Bet: terminal loss -.003 vs SeedZero; speed flat; no added parameters.
     model_name = 'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZeroFinalVectorSkip'
     rmt_unembedding_vector_skip = True

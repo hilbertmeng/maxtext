@@ -10030,3 +10030,27 @@ class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteStaticEveryThirdHeadMixPrese
     bam_output_head_mix_preserve_routes = True
     mlp_dim_by_block = [4296, 4291, 4296]
     compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteStaticEveryThirdTruePile']
+
+
+class BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdTruePile(BamXLPropK96EmbedVOnlyQK72AllLocalTruePile):
+    """XL transfer of sparse MLP-private dynamic addresses, at zero-based layers1/4/.../25."""
+    # Implementation: codex/mediumprop-k75-embed, /data0/xd/mediumprop-k75-embed; pure JAX.
+    # Bet33000: vs LLF +.005; vs AllLocal approximately -.0225. Speed .350 vs .355/LLF .359.
+    # Nine R400 addresses + gates cost10144980=2.752W_Q; refund196 MLP units at those layers.
+    # [6294,6098,6294] x9 + terminal6294; 1432417080 params (MHA+18360).
+    model_name = 'BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdTruePile'
+    bam_mlp_write_every = 3
+    bam_mlp_write_offset = 2
+    bam_mlp_write_static_address = False
+    bam_mlp_write_dynamic_address = True
+    bam_mlp_write_address_rank = 400
+    bam_pair_scan = True
+    bam_local_fetch_block_size = 3
+    bam_extra_final_local_layer = True
+    bam_final_local_mlp_dim = 6294
+    mlp_dim_by_block = [6294, 6098, 6294]
+    checkpoint_period = 250
+    keep_period = 4000
+    max_to_keep = 2
+    compare_runs = ['BamXLPropK96EmbedVOnlyQK72AllLocalTruePile', 'BamXLPropK96EmbedVOnlyQK72LLFTruePile']
+    jax_cache_dir = ''

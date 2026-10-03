@@ -717,6 +717,9 @@ class RMTLayer(nn.Module):
         matrix=ad_checkpoint.checkpoint_name(matrix,'rmt_mlp_matrix')
       if probe:
         matrix = tap(matrix, layer_index, 'M_after_attention')
+      diag_stride = int(cfg.get_keys().get('rmt_diag_capture', 0))
+      if diag_stride:
+        self.sow('intermediates', 'diag_M_attn', matrix[:, diag_stride-1::diag_stride].astype(jnp.float32))
       mlp_in = (MatrixRMSNorm(cfg, name='mlp_norm')(matrix) if matrix_pre_norm and read_norm != 'all' else matrix)
       if read_norm == 'all':
         mlp_in = (MatrixRMSNorm(cfg, name='mlp_norm')(matrix)
@@ -781,6 +784,9 @@ class RMTLayer(nn.Module):
       matrix = matrix + static_mlp_write
     if probe:
       matrix = tap(matrix, layer_index, 'M_output')
+    diag_stride = int(cfg.get_keys().get('rmt_diag_capture', 0))
+    if diag_stride:
+      self.sow('intermediates', 'diag_M_out', matrix[:, diag_stride-1::diag_stride].astype(jnp.float32))
     health = None
     if dynamic and getattr(cfg, 'rmt_record_dynamic_health', False):
       # Keep the health schema identical for matched Full48/NoO comparisons.
@@ -958,10 +964,32 @@ class RMTDecoder(nn.Module):
     if scan_minor:
       matrix = matrix.transpose(0,3,1,2)
     if padded_value_dim:matrix = matrix[..., :value_dim]
+    diag_stride = int(cfg.get_keys().get('rmt_diag_capture', 0))
+    diag_take = (lambda a: a[:, diag_stride-1::diag_stride].astype(jnp.float32)) if diag_stride else None
+    project_file = cfg.get_keys().get('rmt_diag_project_file', '')
+    project_mode = cfg.get_keys().get('rmt_diag_project_mode', '')
+    if project_file:
+      import numpy as _np
+      # Unit directions (r, key_dim, value_dim) removed token-wise from the final state.
+      directions = jnp.asarray(_np.load(project_file), dtype=jnp.float32)
+      def remove(a):
+        af = a.astype(jnp.float32)
+        coeff = jnp.einsum('btkv,rkv->btr', af, directions)
+        return (af - jnp.einsum('btr,rkv->btkv', coeff, directions)).astype(a.dtype)
+    if project_file and project_mode == 'pre':
+      matrix = remove(matrix)
+    if diag_stride:
+      self.sow('intermediates', 'diag_final_raw', diag_take(matrix))
     matrix = MatrixRMSNorm(cfg, name='final_matrix_norm')(matrix)
+    if project_file and project_mode == 'post':
+      matrix = remove(matrix)
+    if diag_stride:
+      self.sow('intermediates', 'diag_final_normed', diag_take(matrix))
     final_read = self.param('final_read_key', nn.initializers.normal(key_dim ** -0.5),
                             (key_dim, heads), cfg.weight_dtype)
     hidden = jnp.einsum('btkv,kn->btnv', matrix, final_read.astype(cfg.dtype))
+    if diag_stride:
+      self.sow('intermediates', 'diag_hidden_static', diag_take(hidden))
     if cfg.get_keys().get('rmt_dynamic_unembedding_read', False):
       # Final full-matrix norm stays; the first16 proxy additionally has the
       # same learned vector pre-norm as the middle-layer dynamic routes.
@@ -975,6 +1003,9 @@ class RMTDecoder(nn.Module):
       if cfg.get_keys().get('rmt_record_dynamic_health', False):
         self.sow('intermediates', 'rmt_unembedding_health',
                  _boundary_health(dynamic_read, hidden, read_gates[..., 0]))
+      if diag_stride:
+        self.sow('intermediates', 'diag_hidden_dynamic', diag_take(dynamic_read))
+        self.sow('intermediates', 'diag_unembed_gate', diag_take(read_gates))
       hidden = hidden + dynamic_read
     hidden = hidden.reshape(hidden.shape[:2] + (cfg.emb_dim,))
     head = models.OutputHead(config=cfg, shared_embedding=self.shared_embedding,

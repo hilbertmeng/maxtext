@@ -11864,7 +11864,8 @@ class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNor
     """Add the final normalized first16-row proxy directly to unembedding reads."""
     # Implementation: codex/rmt-xlprop-noo, /data0/xd/rmt-xlprop-noo; pure JAX, layer scan.
     # code_commit: 4975460; UE5a v5p-16 .3804 step/s (-.6% vs SeedZero .3826; matched health).
-    # Bet: terminal loss -.003 vs SeedZero; speed flat; no added parameters.
+    # Stopped2092: vs SeedZero initial gain reversed by600, then +.004-.006 at1000-2000; last5mean +.004829.
+    # No parameter or speed benefit; final CP2092 and TB synced.
     model_name = 'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZeroFinalVectorSkip'
     rmt_unembedding_vector_skip = True
     compare_runs = ['RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZero']
@@ -11875,6 +11876,8 @@ class RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOSharedWriteNormQKV
     """Medium QKV-zero/SeedZero transfer: normalized writes without layer M pre-norm."""
     # Implementation: codex/rmt-xlprop-noo, /data0/xd/rmt-xlprop-noo; pure JAX, direct layer scan.
     # Bet: 70% stable; conditional gain/Mudd >=1.40 at10k, >=1.25 at17.5k; speed ~.31 step/s.
+    # code_commit: 671a0f2
+    # UE5a startup ~.318 step/s vs parent ~.307 (+3.6%; extra health differs).
     model_name = 'RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOSharedWriteNormQKVZeroInitEmbedSeedZero'
     rmt_static_qk_zero_init = True
     rmt_static_v_zero_init = True

@@ -11821,7 +11821,7 @@ class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNor
     rmt_embedding_seed_key_zero_init = True
     rmt_embedding_static_write_scale = 1.
     base_mlp_dim = 4100
-    compare_runs = ['RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInit']
+    compare_runs = ['RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInit', 'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedWriteNorm', 'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoO']
     jax_cache_dir = ''
 
 

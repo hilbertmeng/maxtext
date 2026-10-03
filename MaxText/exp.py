@@ -11812,6 +11812,7 @@ class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNor
 class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZero(RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInit):
     """Shared normalized embedding contents with a learnable zero static address."""
     # Implementation: codex/rmt-xlprop-noo, /data0/xd/rmt-xlprop-noo; pure JAX, layer scan.
+    # code_commit: 5e0812f; UE5a .383step/s vs QKVZero .382, matched health, approximately flat.
     # Bet13500 vs QKVZero -.004; speed .383 vs .382, approximately flat; matched health.
     model_name = 'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZero'
     rmt_embedding_shared_content = True
@@ -11827,6 +11828,7 @@ class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNor
 class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedScale0(RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZero):
     """Shared normalized embedding contents, permanently disabled static write."""
     # Implementation: codex/rmt-xlprop-noo, /data0/xd/rmt-xlprop-noo; pure JAX, layer scan.
+    # code_commit: 5e0812f; UE5a startup .380step/s (-.6% vs QKVZero .382, -.7% vs SeedZero .383); matched health.
     # Bet13500 vs QKVZero -.002; vs SeedZero +.002; speed approximately flat.
     model_name = 'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedScale0'
     rmt_embedding_seed_key_zero_init = False

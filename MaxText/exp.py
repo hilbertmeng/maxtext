@@ -273,6 +273,7 @@ class BamLlama2Medium(Llama2Medium):
     bam_mlp_write_address_rank = 256
     bam_no_output_projection = False
     bam_local_o_post_write = False
+    bam_local_o_static_zero_init = False
     bam_output_head_gate = True
     bam_output_head_mix = False
     bam_local_vo_separate_c8_keys = False
@@ -9936,3 +9937,24 @@ class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdPostWri
     bam_output_head_mix = True
     bam_output_head_gate = False
     compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile', 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdPostWriteLocalONoWOTruePile', 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdHeadMixNoWOSeparateVOKeysNoGateTruePile']
+
+
+class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdPostWriteLocalOGatedHeadMixNoWOTruePile(BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdHeadMixNoWOSeparateVOKeysTruePile):
+    """Only move LocalO after raw attention write; retain gated H and zero static O."""
+    # Ledger/runtime family: codex/mediumprop-k75-embed, /data0/xd/mediumprop-k75-embed.
+    # Bet13500 vs original W_O +.004; UE5a .485step/s vs original .520.
+    model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdPostWriteLocalOGatedHeadMixNoWOTruePile'
+    bam_local_o_post_write = True
+    bam_local_o_static_zero_init = True
+    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdHeadMixNoWOSeparateVOKeysTruePile', 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile']
+
+
+class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdPostWriteLocalORawWOTruePile(BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdPostWriteLocalOGatedHeadMixNoWOTruePile):
+    """Raw attention through W_O; updated-M LocalO directly enters residual."""
+    # Ledger/runtime family: codex/mediumprop-k75-embed, /data0/xd/mediumprop-k75-embed.
+    # Bet13500 vs original W_O -.004, vs post-write gated H -.008; UE5a .500step/s vs original .520.
+    model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdPostWriteLocalORawWOTruePile'
+    bam_no_output_projection = False
+    bam_output_head_mix = False
+    mlp_dim_by_block = [3859, 3732, 3859]
+    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdPostWriteLocalOGatedHeadMixNoWOTruePile', 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile']

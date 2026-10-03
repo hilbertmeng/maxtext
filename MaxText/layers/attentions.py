@@ -2523,9 +2523,8 @@ class BamAttention(Attention):
     if self._vo_separate_c8_keys:
       assert self._vo_shared_read == 'local_o' and self._vo_independent_gates
     if self._post_write_o:
-      assert self._vo_separate_c8_keys and cfg.bam_no_output_projection
+      assert self._vo_separate_c8_keys and self._local_o and 'full' not in self._mode
       assert self._has_write
-      assert not self._output_head_mix_enabled or not cfg.bam_output_head_gate
     if self._output_head_mix_enabled:
       assert getattr(cfg, 'bam_no_output_projection', False)
       assert self._local_o and 'full' not in self._mode
@@ -2855,7 +2854,8 @@ class BamAttention(Attention):
       for arm in (('v', 'o') if 'local_v' in self._mode else ('o',)):
         setattr(self, 'static_' + arm + '_key', self.param(
             'static_' + arm + '_key', nn.with_logical_partitioning(
-                nn.initializers.normal(self.bam_v ** -0.5) if arm == 'v' or self._post_write_o else zeros_init,
+                nn.initializers.normal(self.bam_v ** -0.5)
+                if arm == 'v' or (self._post_write_o and not cfg.bam_local_o_static_zero_init) else zeros_init,
                 ('v_factor', 'q_heads')),
             (self.bam_v, self.num_query_heads), self.weight_dtype))
 
@@ -3833,8 +3833,14 @@ class BamAttention(Attention):
       self._record_concat_gate('attention_write', self.W_gw(inputs_q) + self.gw_b0)
       if self._output_head_mix_enabled:
         output_head = self._mix_attention_output(y_std, output_head, inputs_q)
-      out = nn.with_logical_constraint(output_head, self.out_axis_names)
-      output = self.out_projection(inputs_q.shape[-1], out)
+      if self.config.bam_no_output_projection:
+        out = nn.with_logical_constraint(output_head, self.out_axis_names)
+        output = self.out_projection(inputs_q.shape[-1], out)
+      else:
+        # W_O transforms raw attention only; LocalO bypasses it into the residual.
+        out = nn.with_logical_constraint(y_std, self.out_axis_names)
+        output = self.out_projection(inputs_q.shape[-1], out)
+        output = output + output_head.reshape(output.shape)
       return (output, M_in, factors) if defer_write else (output, M_out)
 
     if defer_write:

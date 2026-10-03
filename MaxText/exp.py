@@ -11836,3 +11836,12 @@ class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNor
     rmt_embedding_seed_key_zero_init = False
     rmt_embedding_static_write_scale = 0.
     compare_runs = ['RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInit', 'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZero']
+
+
+class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZeroFinalReadZero(RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZero):
+    """Only zero-initialize the full-matrix static unembedding read key."""
+    # Implementation: codex/rmt-xlprop-noo, /data0/xd/rmt-xlprop-noo; pure JAX, layer scan.
+    # Bet13500 vs SeedZero -.003; speed unchanged (~.382step/s); inherited health.
+    model_name = 'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZeroFinalReadZero'
+    rmt_final_read_key_zero_init = True
+    compare_runs = ['RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZero']

@@ -1026,7 +1026,9 @@ class RMTDecoder(nn.Module):
       matrix = matrix.transpose(0,3,1,2)
     if padded_value_dim:matrix = matrix[..., :value_dim]
     matrix = MatrixRMSNorm(cfg, name='final_matrix_norm')(matrix)
-    final_read = self.param('final_read_key', nn.initializers.normal(key_dim ** -0.5),
+    final_read_init = (nn.initializers.zeros if cfg.get_keys().get('rmt_final_read_key_zero_init', False)
+                       else nn.initializers.normal(key_dim ** -0.5))
+    final_read = self.param('final_read_key', final_read_init,
                             (key_dim, heads), cfg.weight_dtype)
     hidden = jnp.einsum('btkv,kn->btnv', matrix, final_read.astype(cfg.dtype))
     if cfg.get_keys().get('rmt_dynamic_unembedding_read', False):

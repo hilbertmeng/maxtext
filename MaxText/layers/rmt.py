@@ -563,6 +563,8 @@ class RMTLayer(nn.Module):
       keys = key_init(key, shape, dtype)
       if cfg.get_keys().get('rmt_static_qk_zero_init', False):
         keys = keys.at[:2].set(0)
+      if cfg.get_keys().get('rmt_static_v_zero_init', False):
+        keys = keys.at[2].set(0)
       return keys
 
     qkv_key = self.param('qkv_key', qkv_key_init, (3, heads, key_dim), cfg.weight_dtype)

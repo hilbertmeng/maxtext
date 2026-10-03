@@ -376,6 +376,10 @@ class RMTDynamicWrite(nn.Module):
         data = jax.lax.stop_gradient(data)
     if padded_value_dim is not None:
       data = jnp.pad(data, ((0,0),(0,0),(0,0),(0,padded_value_dim-data.shape[-1])))
+    diag_stride = int(cfg.get_keys().get('rmt_diag_capture', 0))
+    if diag_stride and self.name == 'dynamic_attn_write':
+      self.sow('intermediates', 'diag_attn_address', address[:, diag_stride-1::diag_stride].astype(jnp.float32))
+      self.sow('intermediates', 'diag_attn_gate', gate[:, diag_stride-1::diag_stride].astype(jnp.float32))
     write = jnp.einsum('btnk,btnv->btkv', gate[..., None] * address, data)
     if matrix is not None:
       # Initialization must also run on the CPU without a TPU-only custom call.
@@ -813,6 +817,7 @@ class RMTLayer(nn.Module):
         matrix = tap(matrix, layer_index, 'M_after_attention')
       diag_stride = int(cfg.get_keys().get('rmt_diag_capture', 0))
       if diag_stride:
+        self.sow('intermediates', 'diag_head_out', head_output[:, diag_stride-1::diag_stride].astype(jnp.float32))
         self.sow('intermediates', 'diag_M_attn', matrix[:, diag_stride-1::diag_stride].astype(jnp.float32))
       mlp_in = (MatrixRMSNorm(cfg, name='mlp_norm')(matrix) if matrix_pre_norm and read_norm != 'all' else matrix)
       if read_norm == 'all':

@@ -211,6 +211,33 @@ def main(argv):
       layers.append(row)
       prev = mo
   results['layers'] = layers
+  # Per-head attention write contributions along the final direction (raw coordinates).
+  if 'diag_head_out' in store and 'diag_attn_address' in store:
+    Y = layer_tokens('diag_head_out')          # (L, N, heads, value)
+    A = layer_tokens('diag_attn_address')      # (L, N, heads, key)
+    G = np.concatenate([a.reshape(a.shape[0], -1, a.shape[-1]) for a in store['diag_attn_gate']], 1)  # (L, N, heads)
+    U = d_raw.reshape(key_dim, value_dim)
+    static_keys = np.asarray([v for k, v in pflat.items() if k[-1] == 'attn_write_key'][0], np.float32)  # (heads, L, key) scanned
+    static_keys = np.moveaxis(static_keys, cfg.param_scan_axis, 0) if static_keys.ndim == 3 else static_keys
+    content_norm = bool(cfg.get_keys().get('rmt_static_write_content_norm', False))
+    heads_out = []
+    for l in range(Y.shape[0]):
+      y = Y[l].astype(np.float64)
+      yrms = np.sqrt(np.mean(y ** 2, -1))                     # (N, heads)
+      yn = y / np.maximum(yrms[..., None], 1e-6)
+      a = A[l].astype(np.float64)
+      a = a / np.maximum(np.sqrt(np.mean(a ** 2, -1, keepdims=True)), 1e-6)
+      dyn = G[l] * np.einsum('nhk,kv,nhv->nh', a, U, yn)      # per-token per-head projection on U
+      sk = static_keys[l].astype(np.float64)                 # (heads, key)
+      ys = yn if content_norm else y
+      sta = np.einsum('hk,kv,nhv->nh', sk, U, ys)
+      ymean = y.mean(0)
+      for h in range(y.shape[1]):
+        heads_out.append({'layer': l, 'head': h, 'y_rms': float(yrms[:, h].mean()),
+          'y_shared_fraction': float(np.sum(ymean[h] ** 2) / np.mean(np.sum(y[:, h] ** 2, -1))),
+          'gate_mean': float(G[l][:, h].mean()), 'dyn_dir_mean': float(dyn[:, h].mean()),
+          'static_dir_mean': float(sta[:, h].mean()), 'dyn_dir_std': float(dyn[:, h].std())})
+    results['attention_heads'] = heads_out
   del store
   directions = {'shared_mean': mu_hat, 'top1': u1, 'centered_top1': uc1}
   for name, v in directions.items():

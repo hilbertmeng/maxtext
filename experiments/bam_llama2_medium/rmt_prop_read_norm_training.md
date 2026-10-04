@@ -513,3 +513,20 @@ RUN `RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNorm
 Read raw final M: static48->16 and dynamic tail32 direct read retain their own learned query-vector normalization; add, flatten1200, apply standard learned RMSNorm, then unchanged vocabulary projection. Remove fullM final norm/gain3600 and add vectorgain1200:431778272 parameters (-2400=.001667W_Q), MLP4100 unchanged. No double vocabulary input norm. New final matrix raw/read RMS, raw/post-norm sum RMS and actual logits RMS (from existing chunk logits, weighted by element count) accompany existing dynamic/static read ratios/gates.
 
 CPU gates: full budget/health/retention, tiny scanned finite gradient, nonzero final-vector-gain and dynamic-read-key gradients, actual vocabulary input exactly equals normalized readout, real chunk-logit RMS correct, and disabled-policy exact parent parameter/forward parity. Passed34.3s; parent norm/raw scanned-gradient/health regression passed28.0s. Total13500; reports1000, reviews2800/5000. Bet incremental terminal-.002 loss, speed flat~.382 versus parent. Reserved FLEX_START compiler llm-jax-v6e-1-0 EW4a borrowed without lifecycle ownership.
+
+
+## Attention-only bias pair (2026-10-04)
+
+Parent `RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZeroMLPInputPreNormSharedRawWrite`; runtime family `/data0/xd/rmt-xlprop-noo`, branch `codex/rmt-xlprop-noo`.
+Two new RUNs append `AttnStaticQVReadWriteBias` and `AttnWriteContentBias`.
+Both add attention content bias `[16,75]`, zero before shared per-head RMSNorm.
+First also adds static Q matrix-coordinate bias `[16,57]` and V bias `[16,75]`; K and independent RoPE18 unchanged.
+No MLP read/write bias, no embedding changes; MLP retains input pre-norm and shared raw output writes.
+New attention flags preserve the prior global Q/V/MLP-read and attention/MLP-content flags unchanged.
+Total params431840288/431802272, +59616/+21600 (.0414/.015 W_Q) vs parent431780672.
+MLP4100 unchanged; pure JAX direct layer scan, inherited RMTHealthDefaults.
+TPU IDs2910060/2910061, UE5a only; full13500, reports~1000, windows200, review2800/5000.
+Checkpoint200/latest2, no permanent periodic checkpoints. Borrow idle FLEX_START `llm-jax-v6e-1-0` EW4a, lifecycle unowned.
+CPU targeted full-tree budget, zero-init parent parity, finite scanned gradients/health and affected prior bias/raw-write regressions; CPU/AOT/prequeue concurrent.
+Bet13500 parent gap−.002/−.004, throughput flat near.381-.382; prefer write-only because prior read bias lacked independent benefit.
+Artifacts `/data0/xd/bam_diagnostics/rmt-readnorm-launch`.

@@ -11994,3 +11994,37 @@ class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNor
     max_to_keep = 2
     compare_runs = ['RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZeroMLPInputPreNormSharedRawWrite']
     jax_cache_dir = ''
+
+
+class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZeroMLPInputPreNormSharedRawWriteAttnStaticQVReadWriteBias(RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZeroMLPInputPreNormSharedRawWrite):
+    """Attention-only static Q/V read and pre-RMS write-content biases; MLP stays raw."""
+    # Implementation: codex/rmt-xlprop-noo, /data0/xd/rmt-xlprop-noo; pure JAX layer scan.
+    # Bet13500 vs MLPInputPreNormSharedRawWrite -.002; speed flat; review2800/5000.
+    # Only attention biases; MLP/embedding unchanged, MLP4100, RMTHealthDefaults inherited.
+    model_name = 'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZeroMLPInputPreNormSharedRawWriteAttnStaticQVReadWriteBias'
+    rmt_attn_static_qv_read_bias = True
+    rmt_attn_write_content_pre_norm_bias = True
+    rmt_static_qv_mlp_read_bias = False
+    rmt_write_content_pre_norm_bias = False
+    checkpoint_period = 200
+    keep_period = 0
+    max_to_keep = 2
+    compare_runs = ['RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZeroMLPInputPreNormSharedRawWrite']
+    jax_cache_dir = ''
+
+
+class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZeroMLPInputPreNormSharedRawWriteAttnWriteContentBias(RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZeroMLPInputPreNormSharedRawWrite):
+    """Attention-only pre-RMS write-content biases; MLP stays raw."""
+    # Implementation: codex/rmt-xlprop-noo, /data0/xd/rmt-xlprop-noo; pure JAX layer scan.
+    # Bet13500 vs MLPInputPreNormSharedRawWrite -.004; speed flat; review2800/5000.
+    # Only attention biases; MLP/embedding unchanged, MLP4100, RMTHealthDefaults inherited.
+    model_name = 'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZeroMLPInputPreNormSharedRawWriteAttnWriteContentBias'
+    rmt_attn_static_qv_read_bias = False
+    rmt_attn_write_content_pre_norm_bias = True
+    rmt_static_qv_mlp_read_bias = False
+    rmt_write_content_pre_norm_bias = False
+    checkpoint_period = 200
+    keep_period = 0
+    max_to_keep = 2
+    compare_runs = ['RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZeroMLPInputPreNormSharedRawWrite']
+    jax_cache_dir = ''

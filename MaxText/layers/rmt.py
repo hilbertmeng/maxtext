@@ -523,16 +523,20 @@ class RMTLayer(nn.Module):
         'rmt_fused_projected_mlp_write')):
       raise ValueError('MLP input pre-norm requires plain-JAX direct layer scan')
     static_read_bias = cfg.get_keys().get('rmt_static_qv_mlp_read_bias', False)
-    if static_read_bias and (not cfg.get_keys().get('rmt_dynamic_enabled', False)
+    attn_static_read_bias = (static_read_bias
+                            or cfg.get_keys().get('rmt_attn_static_qv_read_bias', False))
+    if (static_read_bias or attn_static_read_bias) and (not cfg.get_keys().get('rmt_dynamic_enabled', False)
         or any(cfg.get_keys().get(k, False) for k in (
             'rmt_fused_attention_read', 'rmt_fused_write_mlp_read',
             'rmt_fused_projected_mlp_write', 'rmt_pallas_write'))):
       raise ValueError('Static Q/V/MLP read biases require the plain-JAX dynamic path')
     write_content_bias = cfg.get_keys().get('rmt_write_content_pre_norm_bias', False)
-    if write_content_bias and (
+    attn_write_content_bias = (write_content_bias
+                              or cfg.get_keys().get('rmt_attn_write_content_pre_norm_bias', False))
+    if (write_content_bias or attn_write_content_bias) and (
         not cfg.get_keys().get('rmt_static_write_content_norm', False)
         or not cfg.get_keys().get('rmt_layer_write_content_norm', True)
-        or cfg.get_keys().get('rmt_mlp_shared_raw_write', False)
+        or (write_content_bias and mlp_shared_raw_write)
         or any(cfg.get_keys().get(k, False) for k in (
             'rmt_pallas_write', 'rmt_fused_write_mlp_read',
             'rmt_fused_projected_mlp_write', 'rmt_single_outer_write'))):
@@ -701,7 +705,7 @@ class RMTLayer(nn.Module):
       dynamic_v = vo_reads[0][..., :value_dim]
       if dynamic_o_enabled:
         dynamic_o = vo_reads[1][..., :value_dim]
-      if static_read_bias:
+      if attn_static_read_bias:
         query = RMTStaticReadBias(cfg, value_dim - rope_qk_dim,
                                  name='static_q_read_bias')(query)
         value = RMTStaticReadBias(cfg, value_dim,
@@ -794,7 +798,7 @@ class RMTLayer(nn.Module):
     attn_write = self.param('attn_write_key', attn_write_init,
                             (heads, key_dim), cfg.weight_dtype)
     attn_write_content = head_output
-    if write_content_bias:
+    if attn_write_content_bias:
       bias = self.param('attn_write_content_bias', nn.initializers.zeros,
                         (heads, value_dim), cfg.weight_dtype)
       attn_write_content = head_output + bias.astype(head_output.dtype)

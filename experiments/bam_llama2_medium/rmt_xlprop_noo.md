@@ -67,3 +67,41 @@ XL health layout, and the existing Medium NoO path. No Pallas paths are enabled.
 Bet: terminal RUN-minus-MHA loss -.10; speed .30 step/s (~44% slower than .54 MHA).
 Normal generic health and inherited RMT health remain enabled; timing against MHA
 must disclose the extra RMT health overhead. XL review at10k, then based on full trend.
+
+
+## Medium pre-norm/raw-MLP/attention-content-bias transfer (2026-10-05 JST)
+
+Runtime worktree `/data0/xd/rmt-xlprop-noo`, branch `codex/rmt-xlprop-noo`;
+RUN `RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOSharedWriteNormQKVZeroInitEmbedSeedZeroMLPInputPreNormSharedRawWriteAttnWriteContentBias`.
+UE5a v5p-32 owned TPU `xd-v5p-32-2910064-maxtext`; 50k automatic endpoint,
+10k first regular decision, agent reports about every2k with500-step gap windows.
+First200/400 windows also check early scale/clipping/carry health.
+
+Transfer the complete promising Medium recipe: QKV static-read zero initialization;
+shared normalized embedding content with learnable zero seed; no layer M pre-norm;
+MLP summed static/dynamic read vector has learned pre-RMSNorm, static/dynamic MLP
+writes share raw output; attention static/dynamic writes share per-head RMS-normalized
+content after a new zero-initialized content bias. Embedding, final matrix norm and
+Direct40 unembedding remain the verified XL counterparts. No static read biases,
+MLP content bias, fetchedO, block scan, Pallas or fused write/read paths.
+M60x96,20 heads,C10,proxy20/tail40,write-address R384,RoPE24 stay XL-proportional.
+
+Relative to XL QKV-zero/SeedZero: input norm adds28*1920=53,760 parameters and
+attention content bias adds28*20*96=53,760, together107,520=.029167 W_Q (D1920).
+Its existing MLP6643 budget was267,560 below MHA. New MLP6644 adds161,280:
+final1,432,399,960 versus MHA1,432,398,720 (+1240), nearest integer uniform width.
+Focused CPU checks validate this full tree, XL row/head/C ratios, all-layer health,
+zero-bias initial-logit/common-parameter parity and finite nonzero bias/norm gradients.
+
+Borrow verified idle retained FLEX_START `llm-jax-v6e-1-0` EW4a for AOT only;
+CPU/AOT/new training prequeue run through official local parallel launcher.
+TruePile4096 is declared on the class; launcher resolves UE5a-local data.
+Inherits `RMTHealthDefaults` first: all carry/dynamic/write/stability statistics,
+checkpoint250, latest2 only, no permanent checkpoints.
+
+Direct baselines: BAM independent third-layer MLP writes, BAM LLF, Mudd, TruePile MHA.
+Track gain/Mudd, gain/LLF and gain/independent as well as direct signed gaps.
+Bets at17500: versus BAM independent-.005, LLF-.012421 using its observed-.007421
+independent-to-LLF gap; MHA gain .117562 / Mudd gain .080251 =1.465x.
+Speed .320step/s; historical independent.347 and LLF.359 are unmatched-health references.
+Key failure criterion: renewed late gain decay despite controlled MLP input/output scale.

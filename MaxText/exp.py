@@ -12031,3 +12031,25 @@ class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNor
     max_to_keep = 2
     compare_runs = ['RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZeroMLPInputPreNormSharedRawWrite']
     jax_cache_dir = ''
+
+
+class RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOSharedWriteNormQKVZeroInitEmbedSeedZeroMLPInputPreNormSharedRawWriteAttnWriteContentBias(RMTHealthDefaults, RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOSharedWriteNormQKVZeroInitEmbedSeedZero):
+    """Transfer Medium MLP-input norm/raw writes and attention content bias to XL."""
+    # Implementation: codex/rmt-xlprop-noo, /data0/xd/rmt-xlprop-noo; pure JAX layer scan.
+    # Bet17500 vs BAM independent -.005 / LLF -.0124; gain/Mudd~1.47x; speed .320step/s.
+    # Uniform MLP6644 is nearest XLProp MHA budget (+1240 total); all RMT health ON.
+    model_name = 'RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOSharedWriteNormQKVZeroInitEmbedSeedZeroMLPInputPreNormSharedRawWriteAttnWriteContentBias'
+    rmt_mlp_input_pre_norm = True
+    rmt_mlp_shared_raw_write = True
+    rmt_attn_static_qv_read_bias = False
+    rmt_attn_write_content_pre_norm_bias = True
+    rmt_static_qv_mlp_read_bias = False
+    rmt_write_content_pre_norm_bias = False
+    base_mlp_dim = 6644
+    checkpoint_period = 250
+    keep_period = 0
+    max_to_keep = 2
+    compare_runs = ['BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdTruePile',
+                    'BamXLPropK96EmbedVOnlyQK72LLFTruePile',
+                    'MuddLlama2XLProp', 'Llama2XLPropTruePileMHA']
+    jax_cache_dir = ''

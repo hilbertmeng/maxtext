@@ -93,3 +93,5 @@ Artifacts `/data0/xd/bam_diagnostics/rmt-readnorm-launch`.
 EveryFourth stopped1489: parent gap crossed behind1000 and widened+.018409@1400; .524step/s (+.8%) insufficient. Official closeout verified TPU/queue absent and local TB SYNC_OK. EverySecond crossed behind1400, +.006063@2000, .5125step/s (-1.4%); keep2800 review.
 
 RawContent runtime `77b81a0`, FIRST_STEP/AOT/UE5a-local data verified; all6 writer health tags finite and raw/actual content RMS ratio1, confirming bypass. Pinned3 focused+47 shared checks passed. Initial median throughput.523step/s versus parent.520 (+.6%, matched health).
+
+EverySecond closed2884: 1400 sign-cross, deficit grows+.010786@2800 (last5+.008620); 1.4% slower. Official closeout retained CP2884, node/queue verified absent, TB SYNC_OK. Single UE5a READY lease08:10:05–09:47:43 UTC (1h37m38s), 0preemptions.

@@ -9771,9 +9771,9 @@ class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEverySecondBlockF
     BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile):
     """Private R256 MLP writes at two-layer block starts: zero-based0/2/.../16."""
     # Ledger only: codex/mediumprop-k75-embed, /data0/xd/mediumprop-k75-embed; pure JAX.
-    # Bet13500 vs independentEveryThird +.003; speed~.515(-1%). Review2800/5000.
     # Nine writes; 432098528 params (MHA-22672), MLP3774 at write layers /3901 otherwise.
     # code_commit: dba1dea; UE5a v5p-16 0.5125step/s vs parent .520 -1.4%; same write/address health.
+    # Stopped2884: vs everyThird crosses behind1400, deficit grows+.010786@2800; last5+.008620, slower1.4%.
     model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEverySecondBlockFirstTruePile'
     bam_mlp_write_every = 2
     bam_mlp_write_offset = 1
@@ -9783,7 +9783,6 @@ class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEverySecondBlockF
     mlp_dim_by_block = [3774, 3901]
     keep_period = 2000
     compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile']
-
 
 class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryFourthBlockFirstTruePile(
     BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile):

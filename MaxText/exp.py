@@ -11954,10 +11954,9 @@ class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNor
 class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZeroStaticQVMLPReadBiasWriteContentBias(RMTHealthDefaults, RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZeroStaticQVMLPReadBias):
     """Zero-initialized per-head biases before shared attention/MLP write content RMSNorm."""
     # Implementation: codex/rmt-xlprop-noo, /data0/xd/rmt-xlprop-noo; pure JAX layer scan.
-    # code_commit: 274268a; UE5a v5p-16; FIRST_STEP, AOT, regional data and full health verified.
-    # Bet13500 vs read-bias parent -.008, vs SeedZero +.009; speed flat; review2800/5000.
-    # +43200 parameters = .03W_Q total; MLP unchanged; embedding unchanged.
-    # 5000 review: vs SeedZero last5+.004205, deficit narrows~.001/1000; continue to resolve crossing.
+    # code_commit: 274268a; UE5a v5p-16 ~.381-.382step/s, near-flat vs SeedZero .382 (extra carry/stability health).
+    # Completed13500; vs SeedZero early deficit narrowed to~+.001 over10k-13.4k; final5+.000530.
+    # Brief crossings at9200/13200 did not persist. No stable net loss gain; vs read-bias parent improved~.011 through2600.
     model_name = 'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZeroStaticQVMLPReadBiasWriteContentBias'
     rmt_write_content_pre_norm_bias = True
     checkpoint_period = 200
@@ -12037,7 +12036,7 @@ class RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOSharedWriteNormQKV
     """Transfer Medium MLP-input norm/raw writes and attention content bias to XL."""
     # Implementation: codex/rmt-xlprop-noo, /data0/xd/rmt-xlprop-noo; pure JAX layer scan.
     # Bet17500 vs BAM independent -.005 / LLF -.0124; gain/Mudd~1.47x; speed .320step/s.
-    # Uniform MLP6644 is nearest XLProp MHA budget (+1240 total); all RMT health ON.
+    # code_commit: 874fd51; UE5a v5p-32 startup~.316step/s; vs BAM independent .347 -8.9%, extra RMT health.
     model_name = 'RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOSharedWriteNormQKVZeroInitEmbedSeedZeroMLPInputPreNormSharedRawWriteAttnWriteContentBias'
     rmt_mlp_input_pre_norm = True
     rmt_mlp_shared_raw_write = True

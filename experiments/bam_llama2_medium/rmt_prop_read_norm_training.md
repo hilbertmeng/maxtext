@@ -542,3 +542,23 @@ NoO attention bias symmetry: `Attn(Q,K,V+b_V)+b_write = Attn(Q,K,V)+b_V+b_write`
 FinalReadoutNorm stopped5548; committed checkpoint5548, TB SYNC_OK, node and queue verified absent. Deficit narrowed~+.786@200 to~+.001 by2800, then stalled/reversed; last5 complete windows through5000+.001548(range+.000666..+.002337). Window4600 missing after one preemption, not imputed. Speed~.384 versus parent.381-.382 with five extra health metrics. Removing the matrix learned gain as well as relocating RMS prevents attributing failure to RMS location alone. Artifacts `/data0/xd/bam_diagnostics/rmt-readnorm-launch/final-readout5000-closeout-summary.json`.
 
 MLPInputPreNormSharedRawWrite completed13500, runtime6eb004b, UE5a v5p-16. SeedZero cost at startup crossed to gain1800, then holds~-.003 through13400; final5-.003013(range-.004795..-.002137). Versus stopped input-norm-only parent final common5-.048060 through3600. Speed~.381-.382 versus SeedZero.382 with additional health. Final CP13500 committed, node/queue absent, TB SYNC_OK, single READY lease04:00:06–14:09:10 UTC (10h09m04s), no preemption. Report `/data0/xd/bam_diagnostics/rmt-readnorm-launch/raw-rmt-completion-report.txt`.
+
+
+### Global static-read/write-content-bias closeout (2026-10-05 JST)
+
+`RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZeroStaticQVMLPReadBiasWriteContentBias`
+completed13500, checkpoint13500 committed; official local closeout wrapper verified
+already-closed registry and synchronized TB. Independent node/queue absence audit passed.
+Runtime274268a; UE5a .381-.382step/s, approximately SeedZero .382 with extra health.
+Vs SeedZero: early deficit narrowed towards+.001 across10k-13.4k; final five mean+.000530,
+range[-.001079,+.001516]. Isolated crossings9200 and13200 did not persist.
+Vs static-read-bias parent, common1800-2600 last five-.011396; the legacy initializer
+confound documented above still prevents attributing that entire gap solely to write bias.
+No stable net loss or speed gain. A missing log scalar13410 was repaired from the synced
+TensorBoard, without changing the other cached records; full final13400 window is exact.
+
+Local artifacts `/data0/xd/bam_diagnostics/rmt-readnorm-launch/global-bias-completion-*`;
+full cumulative table `global-bias-completion-final-table.md`, raw losses and wrapper/GCP/TB
+verification retained. Two preemptions, no region switch; READY leases UTC:
+04:35:45-14:25:56 (9h50m11s),14:32:32-14:49:35 (17m03s),15:07:04-15:16:38 (9m34s).
+Main exp.py and regional history updated; active bets removed from the completed ledger.

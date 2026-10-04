@@ -105,3 +105,15 @@ Bets at17500: versus BAM independent-.005, LLF-.012421 using its observed-.00742
 independent-to-LLF gap; MHA gain .117562 / Mudd gain .080251 =1.465x.
 Speed .320step/s; historical independent.347 and LLF.359 are unmatched-health references.
 Key failure criterion: renewed late gain decay despite controlled MLP input/output scale.
+
+
+Startup verified at sealed runtime874fd5112324788673b4b889b476fa61e3aa3577.
+Focused CPU two checks passed27.748s; AOT loaded on actual v5p-32 and FIRST_STEP observed.
+Worker config and CheckpointManagerOptions independently confirm keep_period2000,
+max_to_keep2, checkpoint250, all-layer RMTHealthDefaults and preNorm/raw-write flags.
+UE5a-local TruePile path and exact source/AOT commit checked. Initial speed median20-50
+.316step/s (single53-step .290 is not the median), versus .320bet and historical independent
+.347 (-8.9%, unmatched extra RMT health). All28 carry/input/stability metrics exist and are finite.
+Initial raw gradient norm0/20/50 is506.7/7529.3/260.2; clipping coefficient50 is.00384.
+Embedding address-bias energy fraction50 .432 versus Medium donor.902. This is successful
+startup, not evidence that training health improved; explicitly review200/400 recovery.

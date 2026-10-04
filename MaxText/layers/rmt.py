@@ -491,6 +491,7 @@ class RMTLayer(nn.Module):
   config: common_types.Config
   quant: object = None
   mlp_dim: int | None = None
+  mlp_write_rows: int | None = None
 
   @nn.compact
   def __call__(self, matrix, segment_ids, positions, deterministic, layer_index):
@@ -571,6 +572,14 @@ class RMTLayer(nn.Module):
     write_rows = int(getattr(cfg, 'rmt_dynamic_write_rows', 32)) if dynamic else 0
     if dynamic and (key_dim <= heads or write_rows not in (key_dim - heads, key_dim)):
       raise ValueError('Dynamic RMT requires tail-row or full-row writes and nonempty tail')
+    mlp_prefix_write = self.mlp_write_rows is not None
+    mlp_rows = int(self.mlp_write_rows) if mlp_prefix_write else key_dim
+    if mlp_prefix_write and (mlp_rows not in (heads, key_dim) or not dynamic
+        or write_rows != key_dim or padded_value_dim or pallas_write
+        or any(cfg.get_keys().get(k, False) for k in (
+            'rmt_fused_attention_read', 'rmt_fused_write_mlp_read',
+            'rmt_fused_projected_mlp_write'))):
+      raise ValueError('Prefix MLP writes require full-row dynamic plain-JAX RMT')
     key_init = nn.initializers.normal(key_dim ** -0.5)
     write_init = nn.initializers.normal(heads ** -0.5 / math.sqrt(2 * cfg.num_decoder_layers))
 
@@ -859,22 +868,27 @@ class RMTLayer(nn.Module):
                       if cfg.get_keys().get('rmt_mlp_write_key_zero_init', False)
                       else write_init)
     mlp_write = self.param('mlp_write_key', mlp_write_init,
-                           (heads, key_dim), cfg.weight_dtype)
+                           (heads, mlp_rows), cfg.weight_dtype)
     write_data = (jnp.pad(vector, ((0,0),(0,0),(0,0),(0,padded_value_dim-value_dim)))
                   if padded_value_dim else vector)
     static_mlp_coefficient, static_mlp_gate = (
         RMTStaticWriteGate(cfg, name='static_mlp_write_gate')(mlp_x)
         if static_write_gates else (None, None))
     static_mlp_write = static_layer_write(write_data, mlp_write, cfg, static_mlp_coefficient)
+    if mlp_rows != key_dim:
+      static_mlp_write = jnp.pad(static_mlp_write, ((0,0),(0,0),(0,key_dim-mlp_rows),(0,0)))
     if record_write_scale_health:
       mlp_write_carry = matrix
     if dynamic_mlp_write_enabled:
       dynamic_mlp_write, mlp_write_gate = RMTDynamicWrite(
-          cfg, write_rows, name='dynamic_mlp_write')(
+          cfg, mlp_rows if mlp_prefix_write else write_rows, name='dynamic_mlp_write')(
               mlp_x, vector, matrix if pallas_write else None,
               mlp_write.astype(cfg.dtype) if pallas_write else None,
               padded_value_dim or None, probe_layer=layer_index)
-      if write_rows != key_dim:
+      if mlp_prefix_write and mlp_rows != key_dim:
+        dynamic_mlp_write = jnp.pad(dynamic_mlp_write,
+                                    ((0,0),(0,0),(0,key_dim-mlp_rows),(0,0)))
+      elif not mlp_prefix_write and write_rows != key_dim:
         dynamic_mlp_write = jnp.pad(dynamic_mlp_write,
                                     ((0, 0), (0, 0), (heads, 0), (0, 0)))
       matrix = dynamic_mlp_write if pallas_write else matrix + static_mlp_write + dynamic_mlp_write
@@ -948,11 +962,15 @@ class RMTBlock(nn.Module):
   def __call__(self, matrix, segment_ids, positions, deterministic, block_index):
     cfg = self.config
     widths = cfg.rmt_mlp_dim_by_block
+    write_rows = cfg.get_keys().get('rmt_mlp_write_rows_by_block', ())
+    if len(widths) != 3 or (write_rows and len(write_rows) != 3):
+      raise ValueError('RMT block widths/write rows must have three entries')
     health = []
     Layer = nn.remat(RMTLayer, prevent_cse=True, static_argnums=(4,))
     for offset in range(3):
       matrix, stats = Layer(
           cfg, quant=self.quant, mlp_dim=int(widths[offset]),
+          mlp_write_rows=int(write_rows[offset]) if write_rows else None,
           name=f'layer_{offset}')(
               matrix, segment_ids, positions, deterministic, 3 * block_index + offset)
       if stats is not None:
@@ -1037,6 +1055,8 @@ class RMTDecoder(nn.Module):
     scan_minor = cfg.get_keys().get('rmt_scan_token_minor', False)
     if block_scan and scan_minor:
       raise ValueError('Token-minor carry requires direct layer scan')
+    if cfg.get_keys().get('rmt_mlp_write_rows_by_block', ()) and not block_scan:
+      raise ValueError('Per-block MLP write rows require block scan')
     if block_scan and cfg.num_decoder_layers % 3:
       raise ValueError('RMT block scan requires a multiple of three layers')
     policy_name=cfg.get_keys().get('rmt_remat_policy','full')

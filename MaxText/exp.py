@@ -11897,3 +11897,15 @@ class RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOSharedWriteNormQKV
                     'Llama2XLPropTruePileMHA', 'MuddLlama2XLProp',
                     'BamXLPropK96EmbedVOnlyQK72LLFTruePile']
     jax_cache_dir = ''
+
+
+class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZeroMLPFront16FullEveryThird(RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZero):
+    """MLP writes front16 rows except every third layer, which writes full48."""
+    # Implementation: codex/rmt-xlprop-noo, /data0/xd/rmt-xlprop-noo; pure JAX.
+    # Bet13500 vs SeedZero -.004; speed +.5%; review2800/5000.
+    model_name = 'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZeroMLPFront16FullEveryThird'
+    rmt_block_scan = True
+    rmt_mlp_write_rows_by_block = [16, 48, 16]
+    rmt_mlp_dim_by_block = [4137, 4100, 4137]
+    compare_runs = ['RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZero']
+    jax_cache_dir = ''

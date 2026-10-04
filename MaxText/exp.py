@@ -11986,7 +11986,7 @@ class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNor
     # Implementation: codex/rmt-xlprop-noo, /data0/xd/rmt-xlprop-noo; pure JAX layer scan.
     # code_commit: aebd29f; UE5a v5p-16 .384step/s (~parent .381); extra final-readout health.
     # Inherits RMTHealthDefaults; add final matrix/readout/logits RMS; recent two checkpoints only.
-    # Bet13500 vs input-pre-norm/raw-write parent -.002; speed flat~.382; review2800/5000.
+    # Stopped5548; deficit shrank to~+.001 by2800, then stalled; last5+.001548 through5000.
     # Remove3600 matrix gains, add1200 vector gains; MLP4100 unchanged (-2400=.001667W_Q).
     model_name = 'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZeroMLPInputPreNormSharedRawWriteFinalReadoutNorm'
     rmt_final_readout_norm = True

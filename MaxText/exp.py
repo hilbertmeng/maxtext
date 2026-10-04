@@ -11902,7 +11902,9 @@ class RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOSharedWriteNormQKV
 class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZeroMLPFront16FullEveryThird(RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZero):
     """MLP writes front16 rows except every third layer, which writes full48."""
     # Implementation: codex/rmt-xlprop-noo, /data0/xd/rmt-xlprop-noo; pure JAX.
-    # Bet13500 vs SeedZero -.004; speed +.5%; review2800/5000.
+    # code_commit: 2e89bd2
+    # UE5a ~.383 step/s, vs SeedZero ~+.3%; stopped3583.
+    # vs SeedZero: +.109@200 shrank to ~+.02 by1800, then ~+.018 over3000-3400; last5 +.018974.
     model_name = 'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZeroMLPFront16FullEveryThird'
     rmt_block_scan = True
     rmt_mlp_write_rows_by_block = [16, 48, 16]

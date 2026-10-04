@@ -73,3 +73,19 @@ Runtime worktree/branch unchanged. Training TPU IDs2910056/2910057, UE5a only; e
 MLP write/nonwrite widths3774/3901, exact per-layer repayment without hardware rounding. Parameter totals432098528/432095328 versus parent432096128 and MHA432121200. Writer private address438784 plus gate19216, repaid by127 MLP units457200; residual800 per write layer. Four-layer blocks scanfirst16, with explicit L16/L17 tail carrying the same vector/M. Tail health maps to absolute layer numbers. Legacy single-L tail names remain compatible.
 
 Bet: Second terminal+.003 vsparent, speed.515 (~-1% vs.520); Fourth-.002, speed.520 (flat). Focused CPU full-tree budget/health and tiny scanned forward/gradients/unrolled parity passed89.3s, including nonzero last-write-address gradients. Legacy single-tail regressions passed47.3s. Full regression exposed pre-existing MHA-control missing `_fetched_matrix_v=False`; fixed control default, then rerun full regression before training.
+
+## MLP-only raw-content write
+
+Worktree `/data0/xd/mediumprop-k75-embed`, branch `codex/mediumprop-k75-embed`.
+RUN `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdRawContentTruePile`.
+Parent `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile`.
+Only MLP matrix-write content skips per-head RMSNorm; its existing input prenorm,
+private R256 GELU address/pre-RMS bias/address norm and sigmoid gate stay unchanged.
+Attention/embedding/vector-residual update remain unchanged. No parameter change;
+MLP widths `[3901,3774,3901]`, total432096128. Reuse raw-content/gate/combined-write
+health. Bet13500 loss−.003 vs parent, speed flat/slightly faster versus.520step/s.
+UE5a only; TPU `xd-v5p-16-2910059-maxtext`, checkpoint200/latest2/permanent2000.
+Compiler borrowed idle FLEX_START `llm-jax-v6e-1-0` EW4a, never lifecycle-owned.
+Focused budget/boundary/gradient checks plus pinned shared BAM regression; CPU,
+AOT and trainer prequeue run concurrently. Review2800/5000, full endpoint13500.
+Artifacts `/data0/xd/bam_diagnostics/rmt-readnorm-launch`.

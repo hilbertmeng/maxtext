@@ -353,6 +353,7 @@ class BamLlama2Medium(Llama2Medium):
     bam_abs_v_row_decoder_output = 'full'  # full | compressed
     bam_abs_v_row_decoder_share_heads = False
     bam_write_data_rms = True       # normalize write data/value factor u1
+    bam_mlp_write_content_rms = True  # independently normalize direct MLP->M content
     bam_write_factor_norm = 'rms'   # rms | grouped_rms (per-head learned scale)
     bam_write_address_norm_bias = False  # learned post-norm shift on the address factor
     bam_write_rms_statistics_dtype = 'float32'  # float32 | activation
@@ -9750,12 +9751,28 @@ class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePil
         'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedEmbedWriteNormSeedKeyZeroInit']
 
 
+class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdRawContentTruePile(
+    BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile):
+    """Keep raw MLP output magnitude in sparse private-address matrix writes."""
+    # Implementation: codex/mediumprop-k75-embed; /data0/xd/mediumprop-k75-embed.
+    # Bet13500 vs independentEveryThird -.003; speed flat/slightly faster; review2800/5000.
+    # Only MLP content norm off; input/address/attention/embedding norms, gates and MLP widths unchanged.
+    model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdRawContentTruePile'
+    bam_mlp_write_content_rms = False
+    checkpoint_period = 200
+    keep_period = 2000
+    max_to_keep = 2
+    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile']
+    jax_cache_dir = ''
+
+
 class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEverySecondBlockFirstTruePile(
     BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile):
     """Private R256 MLP writes at two-layer block starts: zero-based0/2/.../16."""
     # Ledger only: codex/mediumprop-k75-embed, /data0/xd/mediumprop-k75-embed; pure JAX.
     # Bet13500 vs independentEveryThird +.003; speed~.515(-1%). Review2800/5000.
     # Nine writes; 432098528 params (MHA-22672), MLP3774 at write layers /3901 otherwise.
+    # code_commit: dba1dea; UE5a v5p-16 0.5125step/s vs parent .520 -1.4%; same write/address health.
     model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEverySecondBlockFirstTruePile'
     bam_mlp_write_every = 2
     bam_mlp_write_offset = 1
@@ -9774,6 +9791,7 @@ class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryFourthBlockF
     # Bet13500 vs independentEveryThird -.002; speed~.520(flat). Review2800/5000.
     # Five writes; 432095328 params (MHA-25872), MLP3774 at write layers /3901 otherwise.
     # Four complete scanned blocks followed by two local layers; layer16 writes,17 consumes.
+    # code_commit: dba1dea; UE5a v5p-16 0.5240step/s vs parent .520 +0.8%; same write/address health.
     model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryFourthBlockFirstTruePile'
     bam_mlp_write_every = 4
     bam_mlp_write_offset = 1

@@ -3404,7 +3404,9 @@ class BamAttention(Attention):
                       independent_address=None):
     """Shared-address sum needs one outer; independent address needs two."""
     attention_content, address, attention_gate = factors
-    content = self.write_data_norm(mlp_head) if self._write_data_rms else mlp_head
+    normalize_content = self._write_data_rms and bool(
+        getattr(self.config, 'bam_mlp_write_content_rms', True))
+    content = self.write_data_norm(mlp_head) if normalize_content else mlp_head
     scale = 1.0 / jnp.sqrt(self.num_query_heads) if self.config.bam_sqrt_n_scale else 1.0
     mlp_content = scale * mlp_gate[..., None] * content
     if static_address is None and independent_address is None:

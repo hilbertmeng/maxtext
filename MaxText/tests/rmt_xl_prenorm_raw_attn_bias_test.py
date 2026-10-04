@@ -25,7 +25,7 @@ class XLPreNormRawAttentionBiasTest(unittest.TestCase):
     self.assertEqual(cfg.rmt_dynamic_write_bottleneck_dim, 384)
     self.assertEqual(cfg.rmt_matrix_read_norm, 'none')
     self.assertEqual(cfg.rmt_carry_health_layers, 'all')
-    self.assertEqual(cfg.keep_period, 0)
+    self.assertEqual(cfg.keep_period, 2000)
     self.assertEqual(cfg.max_to_keep, 2)
     self.assertEqual(cfg.mlp_dim, 6644)
     for key in ('rmt_static_qk_zero_init', 'rmt_static_v_zero_init',

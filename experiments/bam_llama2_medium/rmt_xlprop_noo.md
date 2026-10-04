@@ -97,7 +97,7 @@ Borrow verified idle retained FLEX_START `llm-jax-v6e-1-0` EW4a for AOT only;
 CPU/AOT/new training prequeue run through official local parallel launcher.
 TruePile4096 is declared on the class; launcher resolves UE5a-local data.
 Inherits `RMTHealthDefaults` first: all carry/dynamic/write/stability statistics,
-checkpoint250, latest2 only, no permanent checkpoints.
+checkpoint250, permanent checkpoints every2000, latest2 otherwise.
 
 Direct baselines: BAM independent third-layer MLP writes, BAM LLF, Mudd, TruePile MHA.
 Track gain/Mudd, gain/LLF and gain/independent as well as direct signed gaps.

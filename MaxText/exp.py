@@ -12047,7 +12047,7 @@ class RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOSharedWriteNormQKV
     rmt_write_content_pre_norm_bias = False
     base_mlp_dim = 6644
     checkpoint_period = 250
-    keep_period = 0
+    keep_period = 2000
     max_to_keep = 2
     compare_runs = ['BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdTruePile',
                     'BamXLPropK96EmbedVOnlyQK72LLFTruePile',

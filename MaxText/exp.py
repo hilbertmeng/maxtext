@@ -11919,6 +11919,13 @@ class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNor
     # Bet13500 vs SeedZero +.003; speed -1%; review2800/5000.
     model_name = 'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZeroMLPInputPreNorm'
     rmt_mlp_input_pre_norm = True
+    rmt_record_dynamic_health = True
+    rmt_record_write_scale_health = True
+    rmt_record_stability_health = True
+    rmt_carry_health_layers = list(range(18))
+    checkpoint_period = 200
+    keep_period = 2000
+    max_to_keep = 2
     compare_runs = ['RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZero']
     jax_cache_dir = ''
 

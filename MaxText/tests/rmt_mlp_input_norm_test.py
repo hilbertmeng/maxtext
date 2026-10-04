@@ -32,7 +32,7 @@ class MLPInputNormTest(unittest.TestCase):
    np.testing.assert_allclose(b,a*(3 if linear else 1),rtol=2e-4,atol=2e-4)
  def test_scan_gradient_and_input(self):
   for name in [A,B]:
-   cfg=self.config(name,base_emb_dim=512,head_dim=32,base_mlp_dim=96,base_num_decoder_layers=2,vocab_size=128);cfg.get_keys()['dtype']=jnp.float32
+   cfg=self.config(name,base_emb_dim=512,head_dim=32,base_mlp_dim=96,base_num_decoder_layers=2,vocab_size=128);cfg.get_keys().update(dtype=jnp.float32,rmt_carry_health_layers=[0,1])
    model,args=self.model_args(cfg)
    with contextlib.redirect_stdout(io.StringIO()):
     p=nn.unbox(model.init(jax.random.key(4),**args)['params'])
@@ -43,5 +43,7 @@ class MLPInputNormTest(unittest.TestCase):
    from train import record_rmt_dynamic_health_metrics
    metrics={'scalar':{}};record_rmt_dynamic_health_metrics(metrics,aux,cfg)
    for l in range(2):self.assertAlmostEqual(float(metrics['scalar'][f'rmt/mlp_input/layer_{l:03d}/actual_input_rms']),1.,delta=.01)
+   self.assertIn('rmt/carry/layer_001/output_raw_rms',metrics['scalar'])
+   self.assertIn('rmt/carry/layer_001/token_mean_energy_fraction',metrics['scalar'])
    self.assertGreater(float(jnp.linalg.norm(g['decoder']['layers']['mlp_input_norm']['scale'])),0.)
 if __name__=='__main__':unittest.main()

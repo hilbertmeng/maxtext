@@ -392,6 +392,8 @@ def record_rmt_dynamic_health_metrics(output_metrics, intermediate_outputs, conf
         output_metrics['scalar'][f'rmt/mlp_input/layer_{layer:03d}/{name}'] = stats[layer, i]
 
   carry_layers = config.get_keys().get('rmt_carry_health_layers', ())
+  if carry_layers == 'all':
+    carry_layers = range(config.num_decoder_layers)
   if carry_layers:
     stats = decoder['layers']['rmt_carry_health'][0]
     for layer in carry_layers:

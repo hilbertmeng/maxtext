@@ -917,7 +917,8 @@ class RMTLayer(nn.Module):
     if carry_layers:
       if cfg.get_keys().get('rmt_block_scan', False):
         raise ValueError('Selected carry health requires direct layer scan')
-      selected = jnp.any(layer_index == jnp.asarray(carry_layers))
+      selected = (jnp.asarray(True) if carry_layers == 'all'
+                  else jnp.any(layer_index == jnp.asarray(carry_layers)))
       carry_stats = jax.lax.cond(selected, carry_shared_health,
                                   lambda _: jnp.zeros((2,), jnp.float32), matrix)
       self.sow('intermediates', 'rmt_carry_health', carry_stats)

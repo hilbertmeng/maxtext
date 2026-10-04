@@ -11913,16 +11913,22 @@ class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNor
     jax_cache_dir = ''
 
 
-class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZeroMLPInputPreNorm(RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZero):
+class RMTHealthDefaults:
+    """Health defaults for new RMT runs; place first when mixing with historical parents."""
+    record_training_health_metrics = True
+    rmt_record_dynamic_health = True
+    rmt_record_write_health = True
+    rmt_record_write_scale_health = True
+    rmt_record_stability_health = True
+    rmt_carry_health_layers = 'all'
+
+
+class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZeroMLPInputPreNorm(RMTHealthDefaults, RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZero):
     """Normalize summed static/dynamic MLP read; retain shared normalized writes."""
     # Implementation: codex/rmt-xlprop-noo, /data0/xd/rmt-xlprop-noo; pure JAX layer scan.
     # Bet13500 vs SeedZero +.003; speed -1%; review2800/5000.
     model_name = 'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZeroMLPInputPreNorm'
     rmt_mlp_input_pre_norm = True
-    rmt_record_dynamic_health = True
-    rmt_record_write_scale_health = True
-    rmt_record_stability_health = True
-    rmt_carry_health_layers = list(range(18))
     checkpoint_period = 200
     keep_period = 2000
     max_to_keep = 2

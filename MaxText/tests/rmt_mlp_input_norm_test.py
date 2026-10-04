@@ -32,7 +32,7 @@ class MLPInputNormTest(unittest.TestCase):
    np.testing.assert_allclose(b,a*(3 if linear else 1),rtol=2e-4,atol=2e-4)
  def test_scan_gradient_and_input(self):
   for name in [A,B]:
-   cfg=self.config(name,base_emb_dim=512,head_dim=32,base_mlp_dim=96,base_num_decoder_layers=2,vocab_size=128);cfg.get_keys().update(dtype=jnp.float32,rmt_carry_health_layers=[0,1])
+   cfg=self.config(name,base_emb_dim=512,head_dim=32,base_mlp_dim=96,base_num_decoder_layers=2,vocab_size=128);cfg.get_keys().update(dtype=jnp.float32)
    model,args=self.model_args(cfg)
    with contextlib.redirect_stdout(io.StringIO()):
     p=nn.unbox(model.init(jax.random.key(4),**args)['params'])

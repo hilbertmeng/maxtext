@@ -53,8 +53,11 @@ class XLPreNormRawAttentionBiasTest(unittest.TestCase):
                       base_mlp_dim=96, vocab_size=128)
     cfg.get_keys().update(dtype=jnp.float32, rmt_rope_qk_dim=12,
                           rmt_dynamic_write_bottleneck_dim=64)
-    parent_cfg = copy.deepcopy(cfg)
-    parent_cfg.get_keys()['rmt_attn_write_content_pre_norm_bias'] = False
+    parent_cfg = self.config(EXP, base_num_decoder_layers=2, base_emb_dim=960, head_dim=48,
+                             base_mlp_dim=96, vocab_size=128)
+    parent_cfg.get_keys().update(dtype=jnp.float32, rmt_rope_qk_dim=12,
+                                rmt_dynamic_write_bottleneck_dim=64,
+                                rmt_attn_write_content_pre_norm_bias=False)
     model, args = self.model_args(cfg)
     parent, parent_args = self.model_args(parent_cfg)
     with contextlib.redirect_stdout(io.StringIO()):

@@ -11944,8 +11944,8 @@ class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNor
 class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZeroMLPInputPreNormSharedRawWrite(RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZeroMLPInputPreNorm):
     """Only MLP static/dynamic writes share raw y; attention/embedding unchanged."""
     # code_commit: 6eb004b; UE5a v5p-16 .381step/s; vs input-norm .378 +.8%(matched health).
-    # Bet13500 vs SeedZero -.002; speed +0%; review2800/5000.
-    # 5000 review: vs SeedZero last5-.002888; gain holds~-.003 since1800; continue.
+    # Completed13500; vs SeedZero crossed ahead1800, held~-.003; final5-.003013 (12600-13400).
+    # vs input-norm-only -.048060 through3600; near-flat speed vs SeedZero .382, extra health.
     model_name = 'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZeroMLPInputPreNormSharedRawWrite'
     rmt_mlp_shared_raw_write = True
     compare_runs = ['RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZero', 'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZeroMLPInputPreNorm']

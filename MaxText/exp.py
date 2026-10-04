@@ -9820,6 +9820,36 @@ class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryLayerTruePil
     compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile']
 
 
+class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEverySecondBlockFirstRawContentTruePile(BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEverySecondBlockFirstTruePile):
+    """Raw MLP write contents with inherited private-address frequency and exact MLP budget."""
+    # Implementation: codex/mediumprop-k75-embed; /data0/xd/mediumprop-k75-embed.
+    # Only MLP content RMSNorm off vs same-frequency control; input/address/attention norms retained.
+    # 432098528 params; no hardware rounding. Review2800/5000, full13500.
+    # Bet13500 vs independentEveryThird +0.004; speed~0.513step/s vs .520.
+    model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEverySecondBlockFirstRawContentTruePile'
+    bam_mlp_write_content_rms = False
+    checkpoint_period = 200
+    keep_period = 2000
+    max_to_keep = 2
+    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdRawContentTruePile', 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEverySecondBlockFirstTruePile', 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile']
+    jax_cache_dir = ''
+
+
+class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryLayerRawContentTruePile(BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryLayerTruePile):
+    """Raw MLP write contents with inherited private-address frequency and exact MLP budget."""
+    # Implementation: codex/mediumprop-k75-embed; /data0/xd/mediumprop-k75-embed.
+    # Only MLP content RMSNorm off vs same-frequency control; input/address/attention norms retained.
+    # 432105728 params; no hardware rounding. Review2800/5000, full13500.
+    # Bet13500 vs independentEveryThird +0.006; speed~0.496step/s vs .520.
+    model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryLayerRawContentTruePile'
+    bam_mlp_write_content_rms = False
+    checkpoint_period = 200
+    keep_period = 2000
+    max_to_keep = 2
+    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdRawContentTruePile', 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryLayerTruePile', 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile']
+    jax_cache_dir = ''
+
+
 class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteEveryThirdUnembedDirect32TruePile(
     BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteEveryThirdTruePile):
     """Direct32 gated final M read on sparse dynamic-address MLP writes."""

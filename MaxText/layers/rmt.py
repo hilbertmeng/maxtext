@@ -359,6 +359,8 @@ class RMTDynamicWrite(nn.Module):
                         not cfg.get_keys().get('rmt_embedding_shared_content', False))
                     if self.name == 'dynamic_embedding_write' else
                     cfg.get_keys().get('rmt_layer_write_content_norm', True))
+    if self.name == 'dynamic_mlp_write' and cfg.get_keys().get('rmt_mlp_shared_raw_write', False):
+      content_norm = False
     if content_norm and not content_is_normalized:
       data = normalizations.rms_norm(
           data, dtype=data.dtype, epsilon=cfg.normalization_layer_epsilon,
@@ -458,9 +460,9 @@ def _static_write_gate_health(gate, coefficient):
           jnp.mean(coefficient.astype(jnp.float32)))
 
 
-def static_layer_write(data, key, cfg, gate=None):
+def static_layer_write(data, key, cfg, gate=None, *, raw_content=False):
   """Optionally share the dynamic branch's per-head normalized content."""
-  if cfg.get_keys().get('rmt_static_write_content_norm', False):
+  if cfg.get_keys().get('rmt_static_write_content_norm', False) and not raw_content:
     data = normalizations.rms_norm(
         data, dtype=data.dtype, epsilon=cfg.normalization_layer_epsilon,
         statistics_dtype=jnp.float32)
@@ -496,6 +498,14 @@ class RMTLayer(nn.Module):
   @nn.compact
   def __call__(self, matrix, segment_ids, positions, deterministic, layer_index):
     cfg = self.config
+    mlp_input_pre_norm = cfg.get_keys().get('rmt_mlp_input_pre_norm', False)
+    mlp_shared_raw_write = cfg.get_keys().get('rmt_mlp_shared_raw_write', False)
+    if mlp_shared_raw_write and not mlp_input_pre_norm:
+      raise ValueError('MLP shared raw write requires input pre-norm in this experiment')
+    if mlp_input_pre_norm and any(cfg.get_keys().get(k, False) for k in (
+        'rmt_block_scan', 'rmt_pallas_write', 'rmt_fused_write_mlp_read',
+        'rmt_fused_projected_mlp_write')):
+      raise ValueError('MLP input pre-norm requires plain-JAX direct layer scan')
     static_read_bias = cfg.get_keys().get('rmt_static_qv_mlp_read_bias', False)
     if static_read_bias and (not cfg.get_keys().get('rmt_dynamic_enabled', False)
         or any(cfg.get_keys().get(k, False) for k in (
@@ -856,6 +866,12 @@ class RMTLayer(nn.Module):
       vector = mlp_bias(vector)
       static_mlp_read = mlp_bias(static_mlp_read)
     vector = vector.reshape(vector.shape[:2] + (cfg.emb_dim,))
+    if mlp_input_pre_norm:
+      input_raw_rms = _rms(vector)
+      vector = normalizations.get_rmsnorm('mlp_input_norm', cfg)(vector)
+      if cfg.rmt_record_dynamic_health and not self.is_initializing():
+        self.sow('intermediates', 'rmt_mlp_input_health',
+                 jnp.stack((input_raw_rms, _rms(vector))))
     vector = linears.MlpBlock(
         config=cfg, intermediate_dim=cfg.mlp_dim if self.mlp_dim is None else self.mlp_dim,
         activations=cfg.mlp_activations,
@@ -874,7 +890,8 @@ class RMTLayer(nn.Module):
     static_mlp_coefficient, static_mlp_gate = (
         RMTStaticWriteGate(cfg, name='static_mlp_write_gate')(mlp_x)
         if static_write_gates else (None, None))
-    static_mlp_write = static_layer_write(write_data, mlp_write, cfg, static_mlp_coefficient)
+    static_mlp_write = static_layer_write(write_data, mlp_write, cfg, static_mlp_coefficient,
+                                          raw_content=mlp_shared_raw_write)
     if mlp_rows != key_dim:
       static_mlp_write = jnp.pad(static_mlp_write, ((0,0),(0,0),(0,key_dim-mlp_rows),(0,0)))
     if record_write_scale_health:

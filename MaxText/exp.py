@@ -11911,3 +11911,21 @@ class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNor
     rmt_mlp_dim_by_block = [4137, 4100, 4137]
     compare_runs = ['RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZero']
     jax_cache_dir = ''
+
+
+class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZeroMLPInputPreNorm(RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZero):
+    """Normalize summed static/dynamic MLP read; retain shared normalized writes."""
+    # Implementation: codex/rmt-xlprop-noo, /data0/xd/rmt-xlprop-noo; pure JAX layer scan.
+    # Bet13500 vs SeedZero +.003; speed -1%; review2800/5000.
+    model_name = 'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZeroMLPInputPreNorm'
+    rmt_mlp_input_pre_norm = True
+    compare_runs = ['RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZero']
+    jax_cache_dir = ''
+
+
+class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZeroMLPInputPreNormSharedRawWrite(RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZeroMLPInputPreNorm):
+    """Only MLP static/dynamic writes share raw y; attention/embedding unchanged."""
+    # Bet13500 vs SeedZero -.002; speed +0%; review2800/5000.
+    model_name = 'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZeroMLPInputPreNormSharedRawWrite'
+    rmt_mlp_shared_raw_write = True
+    compare_runs = ['RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZero', 'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZeroMLPInputPreNorm']

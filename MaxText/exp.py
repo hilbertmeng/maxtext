@@ -9756,6 +9756,7 @@ class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdRawCont
     """Keep raw MLP output magnitude in sparse private-address matrix writes."""
     # Implementation: codex/mediumprop-k75-embed; /data0/xd/mediumprop-k75-embed.
     # Bet13500 vs independentEveryThird -.003; speed flat/slightly faster; review2800/5000.
+    # code_commit: 77b81a0; UE5a v5p-16 ~.523step/s (+.6% vs parent .520; matched health).
     # Only MLP content norm off; input/address/attention/embedding norms, gates and MLP widths unchanged.
     model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdRawContentTruePile'
     bam_mlp_write_content_rms = False
@@ -9788,10 +9789,10 @@ class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryFourthBlockF
     BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile):
     """Private R256 MLP writes at four-layer block starts:0/4/8/12/16."""
     # Ledger only: codex/mediumprop-k75-embed, /data0/xd/mediumprop-k75-embed; pure JAX.
-    # Bet13500 vs independentEveryThird -.002; speed~.520(flat). Review2800/5000.
     # Five writes; 432095328 params (MHA-25872), MLP3774 at write layers /3901 otherwise.
     # Four complete scanned blocks followed by two local layers; layer16 writes,17 consumes.
     # code_commit: dba1dea; UE5a v5p-16 0.5240step/s vs parent .520 +0.8%; same write/address health.
+    # Stopped1489: vs everyThird crosses behind1000, deficit grows to+.018409@1400; +.8% speed insufficient.
     model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryFourthBlockFirstTruePile'
     bam_mlp_write_every = 4
     bam_mlp_write_offset = 1

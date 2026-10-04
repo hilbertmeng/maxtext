@@ -68,7 +68,7 @@ Strict H replacement launch verified: AOT loaded, FIRST_STEP and step26,10–14 
 
 Parent: `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile`. Its zero-based write layers are1/4/7/10/13/16. New arms use independent R256 GELU-LoRA addresses and block-first writes: EverySecond at0/2/.../16 (nine); EveryFourth at0/4/8/12/16 (five). Both last writes have layer17 as consumer. Frequency and position both change against parent; the two new arms share position policy.
 
-Runtime worktree/branch unchanged. Training TPU IDs2910056/2910057, UE5a only; each managed v6e AOT compiler is independent because retained FLEX_START hosts are occupied. Total13500, reports~1000, loss windows200, reviews2800/5000, checkpoint200/permanent2000/latest2. Direct baseline only independentEveryThird.
+Runtime worktree/branch unchanged. Training TPU IDs2910056/2910057, UE5a only; both exact AOTs prepared serially on verified idle FLEX_START `llm-jax-v6e-1-0` in EW4a after user released it for compilation; compiler borrowed without lifecycle ownership. Total13500, reports~1000, loss windows200, reviews2800/5000, checkpoint200/permanent2000/latest2. Direct baseline only independentEveryThird.
 
 MLP write/nonwrite widths3774/3901, exact per-layer repayment without hardware rounding. Parameter totals432098528/432095328 versus parent432096128 and MHA432121200. Writer private address438784 plus gate19216, repaid by127 MLP units457200; residual800 per write layer. Four-layer blocks scanfirst16, with explicit L16/L17 tail carrying the same vector/M. Tail health maps to absolute layer numbers. Legacy single-L tail names remain compatible.
 
@@ -89,3 +89,7 @@ Compiler borrowed idle FLEX_START `llm-jax-v6e-1-0` EW4a, never lifecycle-owned.
 Focused budget/boundary/gradient checks plus pinned shared BAM regression; CPU,
 AOT and trainer prequeue run concurrently. Review2800/5000, full endpoint13500.
 Artifacts `/data0/xd/bam_diagnostics/rmt-readnorm-launch`.
+
+EveryFourth stopped1489: parent gap crossed behind1000 and widened+.018409@1400; .524step/s (+.8%) insufficient. Official closeout verified TPU/queue absent and local TB SYNC_OK. EverySecond crossed behind1400, +.006063@2000, .5125step/s (-1.4%); keep2800 review.
+
+RawContent runtime `77b81a0`, FIRST_STEP/AOT/UE5a-local data verified; all6 writer health tags finite and raw/actual content RMS ratio1, confirming bypass. Pinned3 focused+47 shared checks passed. Initial median throughput.523step/s versus parent.520 (+.6%, matched health).

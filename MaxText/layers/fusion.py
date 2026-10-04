@@ -511,6 +511,10 @@ class FusionDecoderLayer(nn.Module):
         is_global=is_global,
         layer_index=layer_index,
     )
+    diag_stride = int(cfg.get_keys().get('bam_diag_capture', 0))
+    if diag_stride and M_out is not None:
+      self.sow('intermediates', 'diag_M_out', M_out[:, diag_stride-1::diag_stride].astype(jnp.float32))
+      self.sow('intermediates', 'diag_x_out', inputs[:, diag_stride-1::diag_stride].astype(jnp.float32))
     max_logging.log(f'layer_inx: {self.layer_inx} break_layers: {self.break_layers}', debug=cfg.debug)
     if cfg.dense_conn and self.layer_inx in self.break_layers:
       C = self.get_C(cfg)

@@ -9823,11 +9823,10 @@ class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryLayerTruePil
 class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEverySecondBlockFirstRawContentTruePile(BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEverySecondBlockFirstTruePile):
     """Raw MLP write contents with inherited private-address frequency and exact MLP budget."""
     # Implementation: codex/mediumprop-k75-embed; /data0/xd/mediumprop-k75-embed.
-    # code_commit: de9ea9c; UE5a v5p-16 ~.514step/s(1000-2000) vs third .520 -1.2% / norm-second .5125 +.3%; matched health.
+    # code_commit: de9ea9c; UE5a v5p-16 ~.514step/s vs third .520 -1.2% / norm-second .5125 +.3%; matched health.
     # Only MLP content RMSNorm off vs same-frequency control; input/address/attention norms retained.
-    # 432098528 params; no hardware rounding. Review2800/5000, full13500.
-    # Bet13500 vs independentEveryThird +0.004; speed~0.513step/s vs .520.
-    # Bet revised@2800: -.002 vs independentEveryThird; original +.004 retained.
+    # Stopped5211. vs original third: ~-.0037 at2-3k narrowed to last5-.001830 at4200-5000; latest-.001343.
+    # vs raw-third last5-.001901; vs same-frequency norm-second -.014473 at2800 (base stopped).
     model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEverySecondBlockFirstRawContentTruePile'
     bam_mlp_write_content_rms = False
     checkpoint_period = 200

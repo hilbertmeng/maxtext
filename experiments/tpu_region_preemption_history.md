@@ -347,6 +347,7 @@ active leases are censored, and manual migration releases are not preemptions.
 | `BamMediumPropK75EmbedVOnlyQK57PseudoFTruePile` | `xd-v5p-16-2910018-maxtext` (v5p-16) | `us-east5-a` | 2026-10-01 16:42:04 | 2026-10-02 00:28:28 | completed13500; checkpoint committed, TPU/queue absent, TB synced; 3 preemptions | none |
 | `BamMediumPropK75EmbedVOnlyQK57LLFMatrixVTruePile` | `xd-v5p-16-2910017-maxtext` (v5p-16) | `us-east5-a` | 2026-10-01 16:00:30 | 2026-10-02 00:59:40 | completed13500; checkpoint committed, TPU/queue absent, TB synced; 5 preemptions | none |
 | `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryLayerRawContentTruePile` | `xd-v5p-16-2910063-maxtext` (v5p-16) | `us-east5-a` | 2026-10-04 14:47:32 | 2026-10-04 18:41:18 | review stop3086; checkpoint committed; node/queue absent; TB synced; 5 preemptions | none |
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEverySecondBlockFirstRawContentTruePile` | `xd-v5p-16-2910062-maxtext` (v5p-16) | `us-east5-a` | 2026-10-04 14:47:30 | 2026-10-04 19:48:25 | manual stop at5000 review; 4 preemptions | none |
 
 ## READY leases
 
@@ -1094,9 +1095,14 @@ active leases are censored, and manual migration releases are not preemptions.
 | `BamXLPropK96EmbedVOnlyQK72LLFTruePile` | 11 | `us-east5-a` | 2026-10-02 04:58:54 | 2026-10-02 05:01:57 | 3m03s | preempted |
 | `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteStaticEveryLayerTruePile` | 2 | `us-east5-a` | 2026-10-02 04:16:10 | 2026-10-02 05:18:42 | 1h02m32s | run_stop |
 | `BamXLPropK96EmbedVOnlyQK72LLFTruePile` | 12 | `us-east5-a` | 2026-10-02 05:10:33 | 2026-10-02 05:39:36 | 29m03s | user pause; checkpoint committed, resources absent, TB synced |
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEverySecondBlockFirstRawContentTruePile` | 1 | `us-east5-a` | 2026-10-04 14:47:33 | 2026-10-04 14:50:55 | 03m22s | preempted |
 | `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryLayerRawContentTruePile` | 1 | `us-east5-a` | 2026-10-04 14:47:37 | 2026-10-04 14:51:55 | 04m18s | preempted |
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEverySecondBlockFirstRawContentTruePile` | 2 | `us-east5-a` | 2026-10-04 15:07:18 | 2026-10-04 15:17:58 | 10m40s | preempted |
 | `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryLayerRawContentTruePile` | 2 | `us-east5-a` | 2026-10-04 15:06:49 | 2026-10-04 15:20:28 | 13m39s | preempted |
 | `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryLayerRawContentTruePile` | 3 | `us-east5-a` | 2026-10-04 15:38:46 | 2026-10-04 15:40:22 | 01m36s | preempted |
 | `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryLayerRawContentTruePile` | 4 | `us-east5-a` | 2026-10-04 16:05:23 | 2026-10-04 16:31:36 | 26m13s | preempted |
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEverySecondBlockFirstRawContentTruePile` | 3 | `us-east5-a` | 2026-10-04 16:05:34 | 2026-10-04 16:32:34 | 27m00s | preempted |
 | `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryLayerRawContentTruePile` | 5 | `us-east5-a` | 2026-10-04 17:14:42 | 2026-10-04 17:20:26 | 05m44s | preempted |
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEverySecondBlockFirstRawContentTruePile` | 4 | `us-east5-a` | 2026-10-04 17:14:46 | 2026-10-04 17:20:36 | 05m50s | preempted |
 | `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryLayerRawContentTruePile` | 6 | `us-east5-a` | 2026-10-04 17:29:34 | 2026-10-04 18:41:18 | 1h11m44s | review stop3086; checkpoint committed; node/queue absent; TB synced |
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEverySecondBlockFirstRawContentTruePile` | 5 | `us-east5-a` | 2026-10-04 17:29:41 | 2026-10-04 19:48:25 | 2h18m44s | manual stop at5000 review |

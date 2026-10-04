@@ -9756,7 +9756,7 @@ class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdRawCont
     """Keep raw MLP output magnitude in sparse private-address matrix writes."""
     # Implementation: codex/mediumprop-k75-embed; /data0/xd/mediumprop-k75-embed.
     # Bet13500 vs independentEveryThird -.003; speed flat/slightly faster; review2800/5000.
-    # code_commit: 77b81a0; UE5a v5p-16 ~.523step/s (+.6% vs parent .520; matched health).
+    # code_commit: 77b81a0; UE5a v5p-16 ~.520step/s (flat vs parent .520; matched health).
     # Only MLP content norm off; input/address/attention/embedding norms, gates and MLP widths unchanged.
     model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdRawContentTruePile'
     bam_mlp_write_content_rms = False

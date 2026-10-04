@@ -512,6 +512,15 @@ class RMTLayer(nn.Module):
             'rmt_fused_attention_read', 'rmt_fused_write_mlp_read',
             'rmt_fused_projected_mlp_write', 'rmt_pallas_write'))):
       raise ValueError('Static Q/V/MLP read biases require the plain-JAX dynamic path')
+    write_content_bias = cfg.get_keys().get('rmt_write_content_pre_norm_bias', False)
+    if write_content_bias and (
+        not cfg.get_keys().get('rmt_static_write_content_norm', False)
+        or not cfg.get_keys().get('rmt_layer_write_content_norm', True)
+        or cfg.get_keys().get('rmt_mlp_shared_raw_write', False)
+        or any(cfg.get_keys().get(k, False) for k in (
+            'rmt_pallas_write', 'rmt_fused_write_mlp_read',
+            'rmt_fused_projected_mlp_write', 'rmt_single_outer_write'))):
+      raise ValueError('Content pre-norm bias requires shared-normalized plain-JAX writes')
     static_write_gates = cfg.get_keys().get('rmt_static_write_gates', False)
     if static_write_gates and (
         not cfg.get_keys().get('rmt_dynamic_enabled', False)
@@ -768,8 +777,13 @@ class RMTLayer(nn.Module):
                        else write_init)
     attn_write = self.param('attn_write_key', attn_write_init,
                             (heads, key_dim), cfg.weight_dtype)
-    write_data = (jnp.pad(head_output, ((0,0),(0,0),(0,0),(0,padded_value_dim-value_dim)))
-                  if padded_value_dim else head_output)
+    attn_write_content = head_output
+    if write_content_bias:
+      bias = self.param('attn_write_content_bias', nn.initializers.zeros,
+                        (heads, value_dim), cfg.weight_dtype)
+      attn_write_content = head_output + bias.astype(head_output.dtype)
+    write_data = (jnp.pad(attn_write_content, ((0,0),(0,0),(0,0),(0,padded_value_dim-value_dim)))
+                  if padded_value_dim else attn_write_content)
     fused_stage = bool(cfg.get_keys().get('rmt_fused_write_mlp_read', False))
     if fused_stage and (not dynamic or not vector_pre_norm or write_rows != 48
                         or joined_read or padded_value_dim or cfg.rmt_record_dynamic_health):
@@ -816,7 +830,7 @@ class RMTLayer(nn.Module):
       if dynamic:
         dynamic_attn_write, attn_write_gate = RMTDynamicWrite(
             cfg, write_rows, name='dynamic_attn_write')(
-                attn_x, head_output, matrix if pallas_write else None,
+                attn_x, attn_write_content, matrix if pallas_write else None,
                 attn_write.astype(cfg.dtype) if pallas_write else None,
                 padded_value_dim or None, probe_layer=layer_index)
         if write_rows != key_dim:
@@ -885,8 +899,13 @@ class RMTLayer(nn.Module):
                       else write_init)
     mlp_write = self.param('mlp_write_key', mlp_write_init,
                            (heads, mlp_rows), cfg.weight_dtype)
-    write_data = (jnp.pad(vector, ((0,0),(0,0),(0,0),(0,padded_value_dim-value_dim)))
-                  if padded_value_dim else vector)
+    mlp_write_content = vector
+    if write_content_bias:
+      bias = self.param('mlp_write_content_bias', nn.initializers.zeros,
+                        (heads, value_dim), cfg.weight_dtype)
+      mlp_write_content = vector + bias.astype(vector.dtype)
+    write_data = (jnp.pad(mlp_write_content, ((0,0),(0,0),(0,0),(0,padded_value_dim-value_dim)))
+                  if padded_value_dim else mlp_write_content)
     static_mlp_coefficient, static_mlp_gate = (
         RMTStaticWriteGate(cfg, name='static_mlp_write_gate')(mlp_x)
         if static_write_gates else (None, None))
@@ -899,7 +918,7 @@ class RMTLayer(nn.Module):
     if dynamic_mlp_write_enabled:
       dynamic_mlp_write, mlp_write_gate = RMTDynamicWrite(
           cfg, mlp_rows if mlp_prefix_write else write_rows, name='dynamic_mlp_write')(
-              mlp_x, vector, matrix if pallas_write else None,
+              mlp_x, mlp_write_content, matrix if pallas_write else None,
               mlp_write.astype(cfg.dtype) if pallas_write else None,
               padded_value_dim or None, probe_layer=layer_index)
       if mlp_prefix_write and mlp_rows != key_dim:

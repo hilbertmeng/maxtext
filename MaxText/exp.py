@@ -11926,6 +11926,7 @@ class RMTHealthDefaults:
 class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZeroMLPInputPreNorm(RMTHealthDefaults, RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZero):
     """Normalize summed static/dynamic MLP read; retain shared normalized writes."""
     # Implementation: codex/rmt-xlprop-noo, /data0/xd/rmt-xlprop-noo; pure JAX layer scan.
+    # code_commit: 6eb004b; UE5a v5p-16; AOT/FIRST_STEP verified; steady timing pending.
     # Bet13500 vs SeedZero +.003; speed -1%; review2800/5000.
     model_name = 'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZeroMLPInputPreNorm'
     rmt_mlp_input_pre_norm = True
@@ -11938,7 +11939,22 @@ class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNor
 
 class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZeroMLPInputPreNormSharedRawWrite(RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZeroMLPInputPreNorm):
     """Only MLP static/dynamic writes share raw y; attention/embedding unchanged."""
+    # code_commit: 6eb004b; UE5a v5p-16; AOT/FIRST_STEP verified; steady timing pending.
     # Bet13500 vs SeedZero -.002; speed +0%; review2800/5000.
     model_name = 'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZeroMLPInputPreNormSharedRawWrite'
     rmt_mlp_shared_raw_write = True
     compare_runs = ['RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZero', 'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZeroMLPInputPreNorm']
+
+
+class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZeroStaticQVMLPReadBiasWriteContentBias(RMTHealthDefaults, RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZeroStaticQVMLPReadBias):
+    """Zero-initialized per-head biases before shared attention/MLP write content RMSNorm."""
+    # Implementation: codex/rmt-xlprop-noo, /data0/xd/rmt-xlprop-noo; pure JAX layer scan.
+    # Bet13500 vs read-bias parent -.008, vs SeedZero +.009; speed flat; review2800/5000.
+    # +43200 parameters = .03W_Q total; MLP unchanged; embedding unchanged.
+    model_name = 'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZeroStaticQVMLPReadBiasWriteContentBias'
+    rmt_write_content_pre_norm_bias = True
+    checkpoint_period = 200
+    keep_period = 2000
+    max_to_keep = 2
+    compare_runs = ['RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZeroStaticQVMLPReadBias', 'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZero']
+    jax_cache_dir = ''

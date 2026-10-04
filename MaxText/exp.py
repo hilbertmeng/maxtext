@@ -11817,6 +11817,7 @@ class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNor
     # code_commit: 5e0812f; UE5a .383step/s vs QKVZero .382, matched health, approximately flat.
     # Completed13500; vs QKVZero gain held ~-.015 through late training (last5 -.015130).
     # vs SharedWriteNorm / original NoO: early gains shrank; final5 -.023797 / -.016237, slowly narrowing late.
+    # Gain/Mudd holds~1.83x after3k; originalLLF multiplier rises late; final5 1.829x / 1.336x.
     model_name = 'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZero'
     rmt_embedding_shared_content = True
     rmt_embedding_content_norm = True
@@ -11876,9 +11877,10 @@ class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNor
 class RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOSharedWriteNormQKVZeroInitEmbedSeedZero(RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOMPreNormLearnedScaleSharedWriteEmbedNormSeedKeyZeroInit):
     """Medium QKV-zero/SeedZero transfer: normalized writes without layer M pre-norm."""
     # Implementation: codex/rmt-xlprop-noo, /data0/xd/rmt-xlprop-noo; pure JAX, direct layer scan.
-    # Bet: 70% stable; conditional gain/Mudd >=1.40 at10k, >=1.25 at17.5k; speed ~.31 step/s.
-    # code_commit: 671a0f2
-    # UE5a startup ~.318 step/s vs parent ~.307 (+3.6%; extra health differs).
+    # code_commit: 671a0f2; UE5a ~.317 step/s, -8.6% vs BAM independent .347 / -11.7% vs LLF .359; health differs.
+    # Stopped12293. Gain/Mudd peaked1.509@6k then fell1.356@12k; /LLF1.023, /BAM independent.959 at12k.
+    # vs independent crossed11k-11.5k; +.005062@12k. Last5 means: independent+.000324, LLF-.006917.
+    # Last5 vs MHA-.125080, Mudd-.035443, original B-.006638. Early divergence fixed; late gain decay persists without M pre-norm.
     model_name = 'RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOSharedWriteNormQKVZeroInitEmbedSeedZero'
     rmt_static_qk_zero_init = True
     rmt_static_v_zero_init = True
@@ -11922,12 +11924,14 @@ class RMTHealthDefaults:
     rmt_record_stability_health = True
     rmt_carry_health_layers = 'all'
 
+    keep_period = 0  # normalize to None: no permanent periodic retention
+    max_to_keep = 2
 
 class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZeroMLPInputPreNorm(RMTHealthDefaults, RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZero):
     """Normalize summed static/dynamic MLP read; retain shared normalized writes."""
     # Implementation: codex/rmt-xlprop-noo, /data0/xd/rmt-xlprop-noo; pure JAX layer scan.
     # code_commit: 6eb004b; UE5a v5p-16 .378step/s; vs SeedZero .382 -1%(extra carry/stability health).
-    # Bet13500 vs SeedZero +.003; speed -1%; review2800/5000.
+    # Stopped3661: vs SeedZero deficit held~+.044..+.046 after600; last5+.045177, no recovery or speed gain.
     model_name = 'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZeroMLPInputPreNorm'
     rmt_mlp_input_pre_norm = True
     checkpoint_period = 200
@@ -11941,6 +11945,7 @@ class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNor
     """Only MLP static/dynamic writes share raw y; attention/embedding unchanged."""
     # code_commit: 6eb004b; UE5a v5p-16 .381step/s; vs input-norm .378 +.8%(matched health).
     # Bet13500 vs SeedZero -.002; speed +0%; review2800/5000.
+    # 5000 review: vs SeedZero last5-.002888; gain holds~-.003 since1800; continue.
     model_name = 'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZeroMLPInputPreNormSharedRawWrite'
     rmt_mlp_shared_raw_write = True
     compare_runs = ['RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZero', 'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZeroMLPInputPreNorm']
@@ -11972,4 +11977,18 @@ class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNor
     rmt_static_qv_mlp_read_bias = False
     rmt_initial_matrix_bias = True
     compare_runs = ['RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZeroStaticQVMLPReadBiasWriteContentBias', 'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZero']
+    jax_cache_dir = ''
+
+
+class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZeroMLPInputPreNormSharedRawWriteFinalReadoutNorm(RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZeroMLPInputPreNormSharedRawWrite):
+    """Read raw final M, then normalize summed static/dynamic vector before vocabulary projection."""
+    # Implementation: codex/rmt-xlprop-noo, /data0/xd/rmt-xlprop-noo; pure JAX layer scan.
+    # Inherits RMTHealthDefaults; add final matrix/readout/logits RMS; recent two checkpoints only.
+    # Bet13500 vs input-pre-norm/raw-write parent -.002; speed flat~.382; review2800/5000.
+    # Remove3600 matrix gains, add1200 vector gains; MLP4100 unchanged (-2400=.001667W_Q).
+    model_name = 'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZeroMLPInputPreNormSharedRawWriteFinalReadoutNorm'
+    rmt_final_readout_norm = True
+    keep_period = 0
+    max_to_keep = 2
+    compare_runs = ['RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZeroMLPInputPreNormSharedRawWrite']
     jax_cache_dir = ''

@@ -21,7 +21,7 @@ from jax import ad_checkpoint
 import jax.numpy as jnp
 
 import common_types
-from layers import attentions, embeddings, initializers, linears, normalizations
+from layers import attentions, embeddings, initializers, linears, models, normalizations
 
 
 RMT_DYNAMIC_HEALTH_NAMES = (
@@ -41,6 +41,22 @@ RMT_BOUNDARY_HEALTH_NAMES = (
     'gate_mean', 'gate_std', 'gate_frac_lt_005',
     'gate_frac_gt_050', 'gate_frac_gt_095',
 )
+
+RMT_FINAL_READOUT_HEALTH_NAMES = (
+    'matrix_raw_rms', 'matrix_read_rms', 'read_sum_raw_rms', 'actual_input_rms',
+)
+
+
+class RMTFinalReadoutHead(models.OutputHead):
+  """Reuse actual vocabulary logits for terminal-normalization health checks."""
+
+  def project_logits(self, inputs):
+    logits = super().project_logits(inputs)
+    if self.config.get_keys().get('rmt_record_dynamic_health', False):
+      value = jax.lax.stop_gradient(logits).astype(jnp.float32)
+      self.sow('intermediates', 'rmt_final_logits_health', jnp.stack((
+          jnp.sum(jnp.square(value)), jnp.asarray(value.size, jnp.float32))))
+    return logits
 
 RMT_WRITE_SCALE_HEALTH_NAMES = tuple(
     f'{arm}_{stat}' for arm in ('attn', 'mlp')
@@ -1137,15 +1153,17 @@ class RMTDecoder(nn.Module):
     if scan_minor:
       matrix = matrix.transpose(0,3,1,2)
     if padded_value_dim:matrix = matrix[..., :value_dim]
-    matrix = MatrixRMSNorm(cfg, name='final_matrix_norm')(matrix)
+    final_readout_norm = cfg.get_keys().get('rmt_final_readout_norm', False)
+    raw_final_matrix = matrix
+    if not final_readout_norm:
+      matrix = MatrixRMSNorm(cfg, name='final_matrix_norm')(matrix)
     final_read_init = (nn.initializers.zeros if cfg.get_keys().get('rmt_final_read_key_zero_init', False)
                        else nn.initializers.normal(key_dim ** -0.5))
     final_read = self.param('final_read_key', final_read_init,
                             (key_dim, heads), cfg.weight_dtype)
     hidden = jnp.einsum('btkv,kn->btnv', matrix, final_read.astype(cfg.dtype))
     if cfg.get_keys().get('rmt_dynamic_unembedding_read', False):
-      # Final full-matrix norm stays; the first16 proxy additionally has the
-      # same learned vector pre-norm as the middle-layer dynamic routes.
+      # The proxy has its own learned vector pre-norm in either terminal policy.
       x = matrix[..., :heads, :].reshape(matrix.shape[:2] + (cfg.emb_dim,))
       x = normalizations.get_rmsnorm('unembedding_vector_norm', cfg)(x)
       dynamic_state = jnp.swapaxes(matrix[..., heads:, :], -2, -1)
@@ -1164,7 +1182,14 @@ class RMTDecoder(nn.Module):
       # x is computed AFTER all scanned layers and final_matrix_norm, not a
       # layer-input proxy. Reuse the existing final learned VectorNorm exactly.
       hidden = hidden + x
-    head = models.OutputHead(config=cfg, shared_embedding=self.shared_embedding,
+    if final_readout_norm:
+      raw_hidden = hidden
+      hidden = normalizations.get_rmsnorm('final_readout_norm', cfg)(hidden)
+      if cfg.get_keys().get('rmt_record_dynamic_health', False):
+        self.sow('intermediates', 'rmt_final_readout_health', jnp.stack((
+            _rms(raw_final_matrix), _rms(matrix), _rms(raw_hidden), _rms(hidden))))
+    Head = RMTFinalReadoutHead if final_readout_norm else models.OutputHead
+    head = Head(config=cfg, shared_embedding=self.shared_embedding,
                              mesh=self.mesh, quant=self.quant, name='lm_head')
     return head(hidden, decoder_target_tokens, decoder_target_mask,
                 cfg.loss_chunk_size, deterministic)

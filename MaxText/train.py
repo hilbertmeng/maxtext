@@ -374,6 +374,12 @@ def record_rmt_dynamic_health_metrics(output_metrics, intermediate_outputs, conf
     if key in decoder:
       for index, name in enumerate(rmt.RMT_BOUNDARY_HEALTH_NAMES):
         output_metrics['scalar'][f'rmt/{arm}/{name}'] = decoder[key][0][index]
+  if 'rmt_final_readout_health' in decoder:
+    for index, name in enumerate(rmt.RMT_FINAL_READOUT_HEALTH_NAMES):
+      output_metrics['scalar'][f'rmt/final_readout/{name}'] = decoder['rmt_final_readout_health'][0][index]
+    logits = jnp.stack(decoder['lm_head']['rmt_final_logits_health'])
+    output_metrics['scalar']['rmt/final_readout/logits_rms'] = jnp.sqrt(
+        jnp.sum(logits[:, 0]) / jnp.maximum(jnp.sum(logits[:, 1]), 1.))
   if 'rmt_initial_matrix_bias_health' in decoder:
     for i, name in enumerate(('bias_rms', 'embedding_write_rms', 'bias_over_embedding')):
       output_metrics['scalar'][f'rmt/initial_matrix/{name}'] = decoder['rmt_initial_matrix_bias_health'][0][i]

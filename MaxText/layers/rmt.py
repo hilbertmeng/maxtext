@@ -798,10 +798,15 @@ class RMTLayer(nn.Module):
     attn_write = self.param('attn_write_key', attn_write_init,
                             (heads, key_dim), cfg.weight_dtype)
     attn_write_content = head_output
-    if attn_write_content_bias:
+    if write_content_bias:
       bias = self.param('attn_write_content_bias', nn.initializers.zeros,
                         (heads, value_dim), cfg.weight_dtype)
       attn_write_content = head_output + bias.astype(head_output.dtype)
+    elif attn_write_content_bias:
+      # A separate affine scope leaves all existing parent RNG streams intact.
+      # Retain the flat parameter above for prior all-layer-bias checkpoints.
+      attn_write_content = RMTStaticReadBias(
+          cfg, value_dim, name='attn_write_content_bias')(head_output)
     write_data = (jnp.pad(attn_write_content, ((0,0),(0,0),(0,0),(0,padded_value_dim-value_dim)))
                   if padded_value_dim else attn_write_content)
     fused_stage = bool(cfg.get_keys().get('rmt_fused_write_mlp_read', False))

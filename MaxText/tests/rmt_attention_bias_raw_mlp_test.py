@@ -68,7 +68,7 @@ class AttentionBiasRawMLPTest(unittest.TestCase):
         fn = jax.jit(jax.value_and_grad(loss, has_aux=True))
         (value, aux), grad = fn(p)
       np.testing.assert_allclose(value, old_value, rtol=1e-6, atol=1e-6)
-      self.assertGreater(float(jnp.linalg.norm(grad['decoder']['layers']['attn_write_content_bias'])), 0)
+      self.assertGreater(float(jnp.linalg.norm(grad['decoder']['layers']['attn_write_content_bias']['bias'])), 0)
       if read_bias:
         self.assertGreater(float(jnp.linalg.norm(grad['decoder']['layers']['static_v_read_bias']['bias'])), 0)
         for _ in range(2):

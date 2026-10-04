@@ -2456,6 +2456,10 @@ class BamAttention(Attention):
       self._vo_shared_read = 'none'
       self._vo_independent_gates = False
       self._fetched_matrix_v = False
+      self._output_head_mix_enabled = False
+      self._post_write_o = False
+      self._late_o_query = False
+      self._raw_output_projection = False
       self._concat_static_qk = False
       self._local_o = False
       self._local_v_mode = 'none'

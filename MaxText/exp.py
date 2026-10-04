@@ -12017,8 +12017,9 @@ class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNor
 class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZeroMLPInputPreNormSharedRawWriteAttnWriteContentBias(RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZeroMLPInputPreNormSharedRawWrite):
     """Attention-only pre-RMS write-content biases; MLP stays raw."""
     # Implementation: codex/rmt-xlprop-noo, /data0/xd/rmt-xlprop-noo; pure JAX layer scan.
-    # code_commit: 2a73456; UE5a v5p-16 startup~.383step/s vs parent .381-.382, matched health.
-    # Bet13500 vs MLPInputPreNormSharedRawWrite -.004; speed flat; review2800/5000.
+    # code_commit: 2a73456; UE5a v5p-16 ~.383step/s vs parent .382, matched health.
+    # Completed13500. vs MLPInputPreNormSharedRawWrite: early gain shrank, then held ~-.009 from5k-13.4k.
+    # Final5(12600-13400) mean-.009463, range[-.009923,-.009103]; speed flat.
     # Only attention biases; MLP/embedding unchanged, MLP4100, RMTHealthDefaults inherited.
     model_name = 'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZeroMLPInputPreNormSharedRawWriteAttnWriteContentBias'
     rmt_attn_static_qv_read_bias = False

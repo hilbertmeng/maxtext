@@ -11957,6 +11957,7 @@ class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNor
     # code_commit: 274268a; UE5a v5p-16; FIRST_STEP, AOT, regional data and full health verified.
     # Bet13500 vs read-bias parent -.008, vs SeedZero +.009; speed flat; review2800/5000.
     # +43200 parameters = .03W_Q total; MLP unchanged; embedding unchanged.
+    # 5000 review: vs SeedZero last5+.004205, deficit narrows~.001/1000; continue to resolve crossing.
     model_name = 'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZeroStaticQVMLPReadBiasWriteContentBias'
     rmt_write_content_pre_norm_bias = True
     checkpoint_period = 200
@@ -11969,8 +11970,8 @@ class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNor
 class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZeroWriteContentBiasInitialMatrixBias(RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZeroStaticQVMLPReadBiasWriteContentBias):
     """Replace static read biases with one zero-initialized shared initial M bias."""
     # Implementation: codex/rmt-xlprop-noo, /data0/xd/rmt-xlprop-noo; pure JAX layer scan.
-    # code_commit: 67f3002; UE5a v5p-16; FIRST_STEP/AOT/regional data/full health verified.
-    # Bet13500 vs read+write bias -.006, vs SeedZero +.003; speed flat; review2800/5000.
+    # code_commit: 67f3002; UE5a v5p-16 .381step/s (~SeedZero .382); stopped4670, hot-replaced.
+    # vs SeedZero deficit plateaued~+.0117 after2k; vs read+write-bias deficit widened~+.007.
     # Keep layer write content biases; embedding write unchanged; add shared B[48,75] after seed.
     # Remove 59616 static read-bias params; add3600; MLP unchanged.
     model_name = 'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZeroWriteContentBiasInitialMatrixBias'
@@ -11983,6 +11984,7 @@ class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNor
 class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZeroMLPInputPreNormSharedRawWriteFinalReadoutNorm(RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZeroMLPInputPreNormSharedRawWrite):
     """Read raw final M, then normalize summed static/dynamic vector before vocabulary projection."""
     # Implementation: codex/rmt-xlprop-noo, /data0/xd/rmt-xlprop-noo; pure JAX layer scan.
+    # code_commit: aebd29f; UE5a v5p-16 .384step/s (~parent .381); extra final-readout health.
     # Inherits RMTHealthDefaults; add final matrix/readout/logits RMS; recent two checkpoints only.
     # Bet13500 vs input-pre-norm/raw-write parent -.002; speed flat~.382; review2800/5000.
     # Remove3600 matrix gains, add1200 vector gains; MLP4100 unchanged (-2400=.001667W_Q).

@@ -9823,6 +9823,7 @@ class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryLayerTruePil
 class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEverySecondBlockFirstRawContentTruePile(BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEverySecondBlockFirstTruePile):
     """Raw MLP write contents with inherited private-address frequency and exact MLP budget."""
     # Implementation: codex/mediumprop-k75-embed; /data0/xd/mediumprop-k75-embed.
+    # code_commit: de9ea9c; UE5a v5p-16 ~.513step/s vs third .520 -1.3% / norm-second .5125 ~flat; matched health.
     # Only MLP content RMSNorm off vs same-frequency control; input/address/attention norms retained.
     # 432098528 params; no hardware rounding. Review2800/5000, full13500.
     # Bet13500 vs independentEveryThird +0.004; speed~0.513step/s vs .520.
@@ -9838,6 +9839,7 @@ class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEverySecondBlockF
 class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryLayerRawContentTruePile(BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryLayerTruePile):
     """Raw MLP write contents with inherited private-address frequency and exact MLP budget."""
     # Implementation: codex/mediumprop-k75-embed; /data0/xd/mediumprop-k75-embed.
+    # code_commit: de9ea9c; UE5a v5p-16 ~.500step/s vs third .520 -3.8% / norm-dense .495 +1%; matched health.
     # Only MLP content RMSNorm off vs same-frequency control; input/address/attention norms retained.
     # 432105728 params; no hardware rounding. Review2800/5000, full13500.
     # Bet13500 vs independentEveryThird +0.006; speed~0.496step/s vs .520.

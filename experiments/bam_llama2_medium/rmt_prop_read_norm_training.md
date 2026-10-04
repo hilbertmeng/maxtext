@@ -530,3 +530,5 @@ Checkpoint200/latest2, no permanent periodic checkpoints. Borrow idle FLEX_START
 CPU targeted full-tree budget, zero-init parent parity, finite scanned gradients/health and affected prior bias/raw-write regressions; CPU/AOT/prequeue concurrent.
 Bet13500 parent gap−.002/−.004, throughput flat near.381-.382; prefer write-only because prior read bias lacked independent benefit.
 Artifacts `/data0/xd/bam_diagnostics/rmt-readnorm-launch`.
+
+Attention-only pair startup verified: runtime2a73456, both exact AOTs loaded, actual worker source and UE5a TruePile paths verified. CPU passed two new focused tests plus seven affected legacy checks. All18 carry/stability/MLP-input health finite through80, speed~.383step/s vs direct parent.381-.382. New attention bias has separate affine scope: all common initial parameters and zero-bias forward match parent; prior global-bias flat scopes retained for checkpoint compatibility.

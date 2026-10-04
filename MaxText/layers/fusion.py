@@ -115,7 +115,18 @@ class SubDecoderLayer(nn.Module):
     else:
       inputs = nn.with_logical_constraint(inputs, ("activation_batch", "activation_norm_length", "activation_embed"))
       inputs = checkpoint_name(inputs, "decoder_layer_input")
-      lnx = normalizations.get_rmsnorm("pre_self_attention_layer_norm", cfg)(inputs)
+      bias_targets = set(t for t in str(cfg.get_keys().get('bam_diag_bias_remove', '')).split(',') if t)
+      diag_stride = int(cfg.get_keys().get('bam_diag_capture', 0))
+      if diag_stride:
+        self.sow('intermediates', 'diag_x_in', inputs[:, diag_stride-1::diag_stride].astype(jnp.float32))
+      if 'attn' in bias_targets:
+        import numpy as _np
+        c_in = jnp.asarray(_np.load(cfg.get_keys()['bam_diag_means_in']), jnp.float32)[layer_index]
+        xf = inputs.astype(jnp.float32); xc = xf - c_in
+        ratio = jnp.sqrt(jnp.mean(xc * xc, -1, keepdims=True) + 1e-12) / jnp.sqrt(jnp.mean(xf * xf, -1, keepdims=True) + 1e-12)
+        lnx = normalizations.get_rmsnorm("pre_self_attention_layer_norm", cfg)(xc.astype(inputs.dtype)) * ratio.astype(inputs.dtype)
+      else:
+        lnx = normalizations.get_rmsnorm("pre_self_attention_layer_norm", cfg)(inputs)
       lnx = nn.with_logical_constraint(lnx, ("activation_batch", "activation_norm_length", "activation_embed"))
       lnx_kv = [lnx, lnx]
 
@@ -221,8 +232,20 @@ class SubDecoderLayer(nn.Module):
     intermediate_inputs = inputs + attention_lnx
 
     # Fully Connected
-    hidden_states = (mlp_input_norm(intermediate_inputs) if updated_o_query else
-                     normalizations.get_rmsnorm("post_self_attention_layer_norm", cfg)(intermediate_inputs))
+    bias_targets = set(t for t in str(cfg.get_keys().get('bam_diag_bias_remove', '')).split(',') if t)
+    diag_stride = int(cfg.get_keys().get('bam_diag_capture', 0))
+    if diag_stride:
+      self.sow('intermediates', 'diag_x_mid', intermediate_inputs[:, diag_stride-1::diag_stride].astype(jnp.float32))
+    if 'mlp' in bias_targets:
+      assert not updated_o_query
+      import numpy as _np
+      c_mid = jnp.asarray(_np.load(cfg.get_keys()['bam_diag_means_mid']), jnp.float32)[layer_index]
+      xf = intermediate_inputs.astype(jnp.float32); xc = xf - c_mid
+      ratio = jnp.sqrt(jnp.mean(xc * xc, -1, keepdims=True) + 1e-12) / jnp.sqrt(jnp.mean(xf * xf, -1, keepdims=True) + 1e-12)
+      hidden_states = normalizations.get_rmsnorm("post_self_attention_layer_norm", cfg)(xc.astype(intermediate_inputs.dtype)) * ratio.astype(intermediate_inputs.dtype)
+    else:
+      hidden_states = (mlp_input_norm(intermediate_inputs) if updated_o_query else
+                       normalizations.get_rmsnorm("post_self_attention_layer_norm", cfg)(intermediate_inputs))
     hidden_states = nn.with_logical_constraint(
         hidden_states, ("activation_batch", "activation_norm_length", "activation_embed")
     )

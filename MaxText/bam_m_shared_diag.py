@@ -43,7 +43,7 @@ def main(argv):
         enable_dropout=False, rngs={'dropout': rng, 'params': rng}, mutable=['intermediates'])
     flat = flatten_dict(inter['intermediates'])
     return jax.numpy.mean(xent), {'/'.join(k): (v[0] if isinstance(v, tuple) else v)
-                                  for k, v in flat.items() if k[-1] in ('diag_M_out', 'diag_x_out')}
+                                  for k, v in flat.items() if k[-1] in ('diag_M_out', 'diag_x_out', 'diag_x_in', 'diag_x_mid')}
   cap = jax.jit(capture)
   per_layer = {}
   losses = []
@@ -78,6 +78,56 @@ def main(argv):
       if label == 'M':
         row['M_shape'] = list(per_layer[(l, kind)][0].shape[1:])
     res['layers'].append(row)
+  # Token-mean vectors of the residual at attention input, MLP input and final output.
+  L = cfg.num_decoder_layers
+  def mean_of(l, kind):
+    a = np.concatenate(per_layer[(l, kind)], 0).reshape(-1, per_layer[(l, kind)][0].shape[-1])
+    return a.mean(0), a
+  c_in = np.stack([mean_of(l, 'diag_x_in')[0] for l in range(L)]).astype(np.float32)
+  c_mid = np.stack([mean_of(l, 'diag_x_mid')[0] for l in range(L)]).astype(np.float32)
+  c_final, x_final = mean_of(L - 1, 'diag_x_out')
+  np.save(out / 'means_in.npy', c_in); np.save(out / 'means_mid.npy', c_mid)
+  np.save(out / 'means_final.npy', c_final.astype(np.float32))
+  for l, row in enumerate(res['layers']):
+    for kind, label in (('diag_x_in', 'x_in'), ('diag_x_mid', 'x_mid')):
+      mu, a = mean_of(l, kind); a = a.astype(np.float64)
+      row[f'{label}_shared_mean_fraction'] = float(np.sum(mu.astype(np.float64) ** 2) / np.mean(np.sum(a * a, 1)))
+  pflat = flatten_dict(jax.device_get(params))
+  g = np.asarray([v for k, v in pflat.items() if 'decoder_norm' in k and k[-1] == 'scale'][0], np.float64)
+  W = np.asarray([v for k, v in pflat.items() if k[-1] == 'logits_dense'][0], np.float64)
+  xf = x_final.astype(np.float64)
+  h = g * xf / np.sqrt(np.mean(xf * xf, -1, keepdims=True) + 1e-6)
+  hm = h.mean(0)
+  res['final_hidden_shared_fraction'] = float(np.sum(hm ** 2) / np.mean(np.sum(h * h, 1)))
+  counts = np.zeros(cfg.vocab_size)
+  for f in sorted(cohort.glob('cohort-*.json')):
+    ids = np.asarray(json.loads(f.read_text())['inputs'], np.int64)
+    counts += np.bincount(ids, minlength=cfg.vocab_size)[:cfg.vocab_size]
+  ml = hm @ W; ml -= ml.mean(); keep = counts >= 3
+  rank = lambda a: np.argsort(np.argsort(a)).astype(np.float64)
+  res['output_prior'] = {'tokens': int(keep.sum()), 'pearson_logfreq': float(np.corrcoef(ml[keep], np.log(counts[keep]))[0, 1]),
+                         'spearman_logfreq': float(np.corrcoef(rank(ml[keep]), rank(np.log(counts[keep])))[0, 1]),
+                         'mean_logit_centered_rms': float(np.sqrt(np.mean(ml ** 2)))}
+  del per_layer, cap
+  jax.clear_caches()
+  cfg.get_keys()['bam_diag_capture'] = 0
+  def objective(p, batch):
+    return train.loss_fn(model, cfg, dict(batch), rng, p, is_train=False)[0]
+  def run_ce():
+    f = jax.jit(objective); vals = []
+    for b in batches:
+      with mesh, nn_partitioning.axis_rules(cfg.logical_axis_rules):
+        vals.append(float(f(params, b)))
+    del f; jax.clear_caches(); return vals
+  base = run_ce(); res['baseline_ce_full'] = base
+  res['bias_ablations'] = {}
+  for target in [t for t in os.environ.get('DIAG_BIAS_TARGETS', 'attn;mlp;final;attn,mlp,final').split(';') if t]:
+    cfg.get_keys().update(bam_diag_bias_remove=target, bam_diag_means_in=str(out / 'means_in.npy'),
+                          bam_diag_means_mid=str(out / 'means_mid.npy'), bam_diag_means_final=str(out / 'means_final.npy'))
+    vals = run_ce()
+    res['bias_ablations'][target] = {'losses': vals, 'delta_mean': float(np.mean(np.asarray(vals) - np.asarray(base)))}
+    print('BAM_BIAS ' + target + ' ' + str(res['bias_ablations'][target]['delta_mean']), flush=True)
+  cfg.get_keys().update(bam_diag_bias_remove='')
   (out / 'results.json').write_text(json.dumps(res, indent=2))
   print('BAM_DIAG_DONE ' + json.dumps({r['layer']: round(r.get('M_shared_mean_fraction', -1), 3) for r in res['layers']}), flush=True)
 

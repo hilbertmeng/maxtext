@@ -390,7 +390,16 @@ class OutputHead(nn.Module):
     preds = []
     # chunk_size = cfg.loss_chunk_size  # manual shard to speed up, about 1%
     if not mtp_layer:
-      inputs = self.norm(inputs)
+      bias_targets = set(t for t in str(cfg.get_keys().get('bam_diag_bias_remove', '')).split(',') if t)
+      if 'final' in bias_targets:
+        import numpy as _np
+        c_final = jnp.asarray(_np.load(cfg.get_keys()['bam_diag_means_final']), jnp.float32)
+        xf = inputs.astype(jnp.float32)
+        xc = xf - c_final
+        ratio = jnp.sqrt(jnp.mean(xc * xc, -1, keepdims=True) + 1e-12) / jnp.sqrt(jnp.mean(xf * xf, -1, keepdims=True) + 1e-12)
+        inputs = self.norm(xc.astype(inputs.dtype)) * ratio.astype(inputs.dtype)
+      else:
+        inputs = self.norm(inputs)
       inputs = self.dropout(inputs, deterministic=deterministic)
 
     for start_idx in range(0, seq_len, chunk_size):

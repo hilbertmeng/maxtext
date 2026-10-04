@@ -223,6 +223,9 @@ def group_analysis(cfg, store, flat, F, H, W, Mo, positions, xents, batches, str
 def main(argv):
   cfg = pyconfig.initialize(argv)
   cfg.get_keys()['load_parameters_path'] = os.environ['DIAG_CHECKPOINT']
+  if os.environ.get('DIAG_V_SHARED_MODE'):
+    cfg.get_keys().update(rmt_diag_v_shared_mode=os.environ['DIAG_V_SHARED_MODE'],
+                          rmt_diag_v_means=os.environ['DIAG_V_MEANS'])
   if not cfg.only_eval or cfg.enable_checkpointing or not cfg.base_output_directory.startswith('/tmp/'):
     raise ValueError('Require read-only restore and local /tmp output')
   rng, _, manager, mesh, model, _, _ = train.setup_mesh_and_model(cfg)
@@ -380,6 +383,11 @@ def main(argv):
       prev = mo
   results['layers'] = layers
   Mo = layer_tokens('diag_M_out') if 'diag_M_out' in store else None
+  if Mo is not None and os.environ.get('DIAG_SAVE_MEANS', '0') == '1':
+    means = np.zeros((Mo.shape[0],) + Mo.shape[2:], np.float32)
+    for l in range(1, Mo.shape[0]):
+      means[l] = Mo[l - 1].mean(0)
+    np.save(out / 'layer_input_means.npy', means)
   if os.environ.get('DIAG_GROUPS', '0') == '1':
     results['groups'] = group_analysis(cfg, store, flat, F, H, W, Mo, positions, xents, batches, stride, out)
     (out / 'results.json').write_text(json.dumps(results, indent=2))

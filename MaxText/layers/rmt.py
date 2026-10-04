@@ -650,6 +650,15 @@ class RMTLayer(nn.Module):
       else:
         qkv = jnp.einsum('btkv,ank->abtnv', attn_in, qkv_key.astype(cfg.dtype))
         query, key, value = (qkv[i][..., :value_dim] for i in range(3))
+    v_shared_mode = cfg.get_keys().get('rmt_diag_v_shared_mode', '')
+    attn_in_v = attn_in
+    if v_shared_mode:
+      import numpy as _np
+      # Diagnostic only: remove the cohort token-mean of this layer's input from V reads.
+      v_means = jnp.asarray(_np.load(cfg.get_keys()['rmt_diag_v_means']), jnp.float32)
+      apply_v = (layer_index > 0).astype(jnp.float32)
+      attn_in_v = (attn_in.astype(jnp.float32) - apply_v * v_means[layer_index]).astype(attn_in.dtype)
+      value = jnp.einsum('btkv,nk->btnv', attn_in_v, qkv_key[2].astype(cfg.dtype))[..., :value_dim]
     if dynamic and not fused_attention:
       proxy_M = matrix if read_norm != 'none' else attn_in
       attn_x = proxy_M[..., :heads, :value_dim].reshape(attn_in.shape[:2] + (cfg.emb_dim,))
@@ -667,7 +676,8 @@ class RMTLayer(nn.Module):
         qkv = qkv.reshape(attn_in.shape[:2] + (3, heads, value_dim))
         query, key, value = (qkv[:, :, i] for i in range(3))
       else:
-        vo_reads, vo_gates = vo_module(attn_x, attn_M)
+        vo_reads, vo_gates = vo_module(
+            attn_x, jnp.swapaxes(attn_in_v[..., read_start:, :], -2, -1) if v_shared_mode == 'both' else attn_M)
       dynamic_q, dynamic_k = dynamic_q[..., :value_dim], dynamic_k[..., :value_dim]
       dynamic_v = vo_reads[0][..., :value_dim]
       if dynamic_o_enabled:

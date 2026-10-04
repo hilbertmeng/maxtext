@@ -125,6 +125,25 @@ def _init_gate_bias(opening):
   return nn.initializers.constant(logit)
 
 
+def _diag_bias_targets(cfg):
+  return set(t for t in str(cfg.get_keys().get('rmt_diag_bias_remove', '')).split(',') if t)
+
+
+def _diag_load(cfg, key):
+  import numpy as _np
+  return jnp.asarray(_np.load(cfg.get_keys()[key]), jnp.float32)
+
+
+def _rms_last2(x):
+  xf = x.astype(jnp.float32)
+  return jnp.sqrt(jnp.mean(xf * xf, axis=(-2, -1), keepdims=True) + 1e-12)
+
+
+def _rms_last(x):
+  xf = x.astype(jnp.float32)
+  return jnp.sqrt(jnp.mean(xf * xf, axis=-1, keepdims=True) + 1e-12)
+
+
 def _read_epsilon(cfg):
   return (cfg.normalization_layer_epsilon if cfg.bam_read_key_epsilon is None
           else cfg.bam_read_key_epsilon)
@@ -650,6 +669,17 @@ class RMTLayer(nn.Module):
       else:
         qkv = jnp.einsum('btkv,ank->abtnv', attn_in, qkv_key.astype(cfg.dtype))
         query, key, value = (qkv[i][..., :value_dim] for i in range(3))
+    bias_targets = _diag_bias_targets(cfg)
+    centered_in = attn_in
+    if bias_targets:
+      # Diagnostic: subtract the cohort token-mean of this layer's input from selected reads.
+      mu_in = _diag_load(cfg, 'rmt_diag_bias_means_in')[layer_index] * (layer_index > 0).astype(jnp.float32)
+      centered_in = (attn_in.astype(jnp.float32) - mu_in).astype(attn_in.dtype)
+      if 'qk' in bias_targets:
+        qk_c = jnp.einsum('btkv,ank->abtnv', centered_in, qkv_key[:2].astype(cfg.dtype))
+        query, key = (qk_c[i][..., :value_dim] for i in range(2))
+      if 'v' in bias_targets:
+        value = jnp.einsum('btkv,nk->btnv', centered_in, qkv_key[2].astype(cfg.dtype))[..., :value_dim]
     v_shared_mode = cfg.get_keys().get('rmt_diag_v_shared_mode', '')
     attn_in_v = attn_in
     if v_shared_mode:
@@ -662,12 +692,16 @@ class RMTLayer(nn.Module):
     if dynamic and not fused_attention:
       proxy_M = matrix if read_norm != 'none' else attn_in
       attn_x = proxy_M[..., :heads, :value_dim].reshape(attn_in.shape[:2] + (cfg.emb_dim,))
-      if vector_pre_norm:
+      if 'proxy' in bias_targets:
+        attn_xc = centered_in[..., :heads, :value_dim].reshape(attn_x.shape)
+        ratio = _rms_last(attn_xc) / _rms_last(attn_x)
+        attn_x = normalizations.get_rmsnorm('attn_vector_norm', cfg)(attn_xc) * ratio.astype(attn_x.dtype)
+      elif vector_pre_norm:
         attn_x = normalizations.get_rmsnorm('attn_vector_norm', cfg)(attn_x)
       read_start = heads
-      attn_M = jnp.swapaxes(attn_in[..., read_start:, :], -2, -1)
+      attn_M = jnp.swapaxes((centered_in if 'v' in bias_targets else attn_in)[..., read_start:, :], -2, -1)
       dynamic_q, dynamic_k, q_gate, k_gate = RMTDynamicQK(
-          cfg, name='dynamic_qk')(attn_x, jnp.swapaxes(qk_in[..., read_start:, :], -2, -1))
+          cfg, name='dynamic_qk')(attn_x, jnp.swapaxes((centered_in if 'qk' in bias_targets else qk_in)[..., read_start:, :], -2, -1))
       vo_module = RMTDynamicC8Read(cfg, destinations=2 if dynamic_o_enabled else 1,
                                   name='dynamic_vo')
       if joined_read:
@@ -849,17 +883,26 @@ class RMTLayer(nn.Module):
         mlp_in = tap(mlp_in, layer_index, 'M_mlp_read')
       mlp_read = self.param('mlp_read_key', key_init,
                             (key_dim, heads), cfg.weight_dtype)
+      centered_mid = mlp_in
+      if bias_targets:
+        mu_mid = _diag_load(cfg, 'rmt_diag_bias_means_mid')[layer_index]
+        centered_mid = (mlp_in.astype(jnp.float32) - mu_mid).astype(mlp_in.dtype)
+      mlp_read_in = centered_mid if 'mlp' in bias_targets else mlp_in
       if not joined_read:
-        vector = jnp.einsum('btkv,kn->btnv', mlp_in, mlp_read.astype(cfg.dtype))
+        vector = jnp.einsum('btkv,kn->btnv', mlp_read_in, mlp_read.astype(cfg.dtype))
         vector = vector[..., :value_dim]
         static_mlp_read = vector
       if dynamic_mlp_read_enabled or dynamic_mlp_write_enabled:
         proxy_M = matrix if read_norm != 'none' else mlp_in
         mlp_x = proxy_M[..., :heads, :value_dim].reshape(mlp_in.shape[:2] + (cfg.emb_dim,))
-        if vector_pre_norm:
+        if 'proxy' in bias_targets:
+          mlp_xc = centered_mid[..., :heads, :value_dim].reshape(mlp_x.shape)
+          ratio = _rms_last(mlp_xc) / _rms_last(mlp_x)
+          mlp_x = normalizations.get_rmsnorm('mlp_vector_norm', cfg)(mlp_xc) * ratio.astype(mlp_x.dtype)
+        elif vector_pre_norm:
           mlp_x = normalizations.get_rmsnorm('mlp_vector_norm', cfg)(mlp_x)
       if dynamic_mlp_read_enabled:
-        mlp_M = jnp.swapaxes(mlp_in[..., read_start:, :], -2, -1)
+        mlp_M = jnp.swapaxes(mlp_read_in[..., read_start:, :], -2, -1)
         mlp_read_module = RMTDynamicC8Read(cfg, destinations=1, name='dynamic_mlp_read')
         if joined_read:
           (dynamic_mlp_read,), mlp_read_gate, vector = mlp_read_module(
@@ -1129,7 +1172,13 @@ class RMTDecoder(nn.Module):
       matrix = remove(matrix, fixed=True)
     if diag_stride:
       self.sow('intermediates', 'diag_final_raw', diag_take(matrix))
-    matrix = MatrixRMSNorm(cfg, name='final_matrix_norm')(matrix)
+    if 'final' in _diag_bias_targets(cfg):
+      mu_final = _diag_load(cfg, 'rmt_diag_bias_means_final')
+      centered_final = (matrix.astype(jnp.float32) - mu_final).astype(matrix.dtype)
+      ratio = _rms_last2(centered_final) / _rms_last2(matrix)
+      matrix = MatrixRMSNorm(cfg, name='final_matrix_norm')(centered_final) * ratio.astype(matrix.dtype)
+    else:
+      matrix = MatrixRMSNorm(cfg, name='final_matrix_norm')(matrix)
     if project_file and project_mode == 'post':
       matrix = remove(matrix)
     if project_file and project_mode == 'fixpost':

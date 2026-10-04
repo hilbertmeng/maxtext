@@ -223,6 +223,12 @@ def group_analysis(cfg, store, flat, F, H, W, Mo, positions, xents, batches, str
 def main(argv):
   cfg = pyconfig.initialize(argv)
   cfg.get_keys()['load_parameters_path'] = os.environ['DIAG_CHECKPOINT']
+  if os.environ.get('DIAG_BIAS_REMOVE'):
+    d = os.environ['DIAG_BIAS_MEANS_DIR']
+    cfg.get_keys().update(rmt_diag_bias_remove=os.environ['DIAG_BIAS_REMOVE'],
+                          rmt_diag_bias_means_in=f'{d}/layer_input_means.npy',
+                          rmt_diag_bias_means_mid=f'{d}/layer_mid_means.npy',
+                          rmt_diag_bias_means_final=f'{d}/final_mean.npy')
   if os.environ.get('DIAG_V_SHARED_MODE'):
     cfg.get_keys().update(rmt_diag_v_shared_mode=os.environ['DIAG_V_SHARED_MODE'],
                           rmt_diag_v_means=os.environ['DIAG_V_MEANS'])
@@ -256,6 +262,10 @@ def main(argv):
     return losses
 
   results = {'baseline_ce': run_ce('baseline')}
+  if os.environ.get('DIAG_CE_ONLY', '0') == '1':
+    (out / 'results.json').write_text(json.dumps(results, indent=2))
+    print('DIAG_CE_ONLY_DONE', flush=True)
+    return
 
   # Capture pass.
   cfg.get_keys()['rmt_diag_capture'] = stride
@@ -388,6 +398,24 @@ def main(argv):
     for l in range(1, Mo.shape[0]):
       means[l] = Mo[l - 1].mean(0)
     np.save(out / 'layer_input_means.npy', means)
+    Ma_all = layer_tokens('diag_M_attn')
+    np.save(out / 'layer_mid_means.npy', np.stack([Ma_all[l].mean(0) for l in range(Ma_all.shape[0])]).astype(np.float32))
+    np.save(out / 'final_mean.npy', Mo[-1].mean(0).astype(np.float32))
+    del Ma_all
+    # Output prior: logits of the token-mean final hidden versus cohort unigram frequency.
+    counts = np.zeros(cfg.vocab_size, np.float64)
+    for f in sorted(Path(os.environ['DIAG_COHORT']).glob('cohort-*.json')):
+      ids = np.asarray(json.loads(f.read_text())['inputs'], np.int64)
+      counts += np.bincount(ids, minlength=cfg.vocab_size)[:cfg.vocab_size]
+    mean_logits = H.mean(0).astype(np.float64) @ W.astype(np.float64)
+    mean_logits -= mean_logits.mean()
+    keep = counts >= 3
+    lf = np.log(counts[keep])
+    ml = mean_logits[keep]
+    rank = lambda a: np.argsort(np.argsort(a)).astype(np.float64)
+    results['output_prior'] = {'tokens': int(keep.sum()), 'pearson_logfreq': float(np.corrcoef(ml, lf)[0, 1]),
+                               'spearman_logfreq': float(np.corrcoef(rank(ml), rank(lf))[0, 1]),
+                               'mean_logit_centered_rms': float(np.sqrt(np.mean(mean_logits ** 2)))}
   if os.environ.get('DIAG_GROUPS', '0') == '1':
     results['groups'] = group_analysis(cfg, store, flat, F, H, W, Mo, positions, xents, batches, stride, out)
     (out / 'results.json').write_text(json.dumps(results, indent=2))

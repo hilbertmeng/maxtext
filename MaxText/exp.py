@@ -271,6 +271,7 @@ class BamLlama2Medium(Llama2Medium):
     bam_mlp_write_static_address = False
     bam_mlp_write_dynamic_address = False
     bam_mlp_write_address_rank = 256
+    bam_final_local_layer_count = 0  # partial final block; legacy single-L flag remains supported
     bam_no_output_projection = False
     bam_local_o_post_write = False
     bam_local_o_static_zero_init = False
@@ -9747,6 +9748,41 @@ class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePil
         'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteStaticEveryThirdTruePile',
         'BamMediumPropK75EmbedVOnlyQK57TruePile',
         'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedEmbedWriteNormSeedKeyZeroInit']
+
+
+class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEverySecondBlockFirstTruePile(
+    BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile):
+    """Private R256 MLP writes at two-layer block starts: zero-based0/2/.../16."""
+    # Ledger only: codex/mediumprop-k75-embed, /data0/xd/mediumprop-k75-embed; pure JAX.
+    # Bet13500 vs independentEveryThird +.003; speed~.515(-1%). Review2800/5000.
+    # Nine writes; 432098528 params (MHA-22672), MLP3774 at write layers /3901 otherwise.
+    model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEverySecondBlockFirstTruePile'
+    bam_mlp_write_every = 2
+    bam_mlp_write_offset = 1
+    bam_local_fetch_block_size = 2
+    bam_extra_final_local_layer = False
+    bam_final_local_layer_count = 0
+    mlp_dim_by_block = [3774, 3901]
+    keep_period = 2000
+    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile']
+
+
+class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryFourthBlockFirstTruePile(
+    BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile):
+    """Private R256 MLP writes at four-layer block starts:0/4/8/12/16."""
+    # Ledger only: codex/mediumprop-k75-embed, /data0/xd/mediumprop-k75-embed; pure JAX.
+    # Bet13500 vs independentEveryThird -.002; speed~.520(flat). Review2800/5000.
+    # Five writes; 432095328 params (MHA-25872), MLP3774 at write layers /3901 otherwise.
+    # Four complete scanned blocks followed by two local layers; layer16 writes,17 consumes.
+    model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryFourthBlockFirstTruePile'
+    bam_mlp_write_every = 4
+    bam_mlp_write_offset = 1
+    bam_local_fetch_block_size = 4
+    bam_extra_final_local_layer = False
+    bam_final_local_layer_count = 2
+    mlp_dim_by_block = [3774, 3901, 3901, 3901]
+    keep_period = 2000
+    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile']
 
 
 class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryLayerTruePile(BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteEveryLayerTruePile):

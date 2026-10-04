@@ -2455,6 +2455,7 @@ class BamAttention(Attention):
     if self._mha_control:
       self._vo_shared_read = 'none'
       self._vo_independent_gates = False
+      self._fetched_matrix_v = False
       self._concat_static_qk = False
       self._local_o = False
       self._local_v_mode = 'none'

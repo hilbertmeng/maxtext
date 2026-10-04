@@ -102,6 +102,15 @@ def get_deep_embedding(cfg, deep_embedding):
   return deep_embeddings
 
 
+def get_bam_final_local_layer_count(cfg):
+  """Explicit partial-block tail, retaining the legacy single-L parameter tree."""
+  count = int(getattr(cfg, 'bam_final_local_layer_count', 0))
+  legacy = bool(getattr(cfg, 'bam_extra_final_local_layer', False))
+  if count < 0 or (count and legacy):
+    raise ValueError('Choose a nonnegative final-local count or the legacy single-L flag')
+  return count or int(legacy)
+
+
 def get_remat_policy(cfg):
   if cfg.remat_policy != "none":
     if cfg.remat_policy == "minimal":
@@ -882,18 +891,20 @@ class Decoder(nn.Module):
       if cfg.scan_layers:
         RemattedBlockLayer = RemattedBlockLayers[1]
         pair_scan = getattr(cfg, 'bam_pair_scan', False)
-        final_local = bool(getattr(cfg, 'bam_extra_final_local_layer', False))
-        if final_local:
+        final_local_count = get_bam_final_local_layer_count(cfg)
+        if final_local_count:
           assert pair_scan and cfg.bam_enabled and not cfg.bam_mha_control
           assert deep_embeddings is None and not cfg.dense_conn and cfg.mtp_num_layers == 0
           assert len(cfg.bam_layer_modes) == cfg.num_decoder_layers
-          assert set(cfg.bam_layer_modes[-1].split('+')) in (
+          assert all(set(mode.split('+')) in (
               {'local_qk', 'local_o'}, {'local_qk', 'local_v', 'local_o'})
-        scan_length = cfg.num_decoder_layers - int(final_local)
+              for mode in cfg.bam_layer_modes[-final_local_count:])
+        scan_length = cfg.num_decoder_layers - final_local_count
         if pair_scan:
           from layers import fusion
 
           block_size = getattr(cfg, 'bam_local_fetch_block_size', None) or 2
+          assert final_local_count < block_size
           assert block_size >= 2 and scan_length > 0 and scan_length % block_size == 0
           assert cfg.decoder_block == 'fusion' and cfg.bam_enabled
           assert len(cfg.bam_layer_modes) == cfg.num_decoder_layers
@@ -917,7 +928,7 @@ class Decoder(nn.Module):
             [s >= cfg.max_target_length for s in swss], dtype=jnp.bool_)
         if pair_scan:
           assert all(s >= cfg.max_target_length for s in swss)
-          is_global = is_global[:cfg.num_decoder_layers - int(final_local):block_size]
+          is_global = is_global[:cfg.num_decoder_layers - final_local_count:block_size]
         full_bam = cfg.bam_enabled and not getattr(cfg, 'bam_mha_control', False)
         if full_bam:
           M = self.initial_bam_matrix(y)
@@ -952,20 +963,22 @@ class Decoder(nn.Module):
               jnp.arange(scan_length, dtype=jnp.int32),
           )
         scan_carry, _ = scan_module(*scan_inputs)
-        if final_local:
-          # Continue from the last F's hidden state and M; neither carry is reset.
+        if final_local_count:
+          # Continue from the scanned blocks; neither carry is reset.
           Layer = nn.remat(
               fusion.FusionDecoderLayer, prevent_cse=True,
               policy=get_remat_policy(cfg), static_argnums=(6, 7),
               rngs={'params': True, 'aqt': True, 'dropout': True})
-          index = cfg.num_decoder_layers - 1
-          scan_carry, _ = Layer(
-              cfg, mesh, local_sws, self.quant,
-              all_global_attention=True, static_layer_index=index,
-              name='final_local_layer')(
-                  scan_carry, decoder_segment_ids, decoder_positions,
-                  decoder_input_tokens, None, deterministic, model_mode,
-                  eos_sum, None, None, None, jnp.asarray(index, jnp.int32))
+          for offset in range(final_local_count):
+            index = cfg.num_decoder_layers - final_local_count + offset
+            name = 'final_local_layer' if final_local_count == 1 else f'final_local_layer_{offset}'
+            scan_carry, _ = Layer(
+                cfg, mesh, local_sws, self.quant,
+                all_global_attention=True, static_layer_index=index,
+                name=name)(
+                    scan_carry, decoder_segment_ids, decoder_positions,
+                    decoder_input_tokens, None, deterministic, model_mode,
+                    eos_sum, None, None, None, jnp.asarray(index, jnp.int32))
         y = scan_carry[0] if full_bam else scan_carry
         if full_bam:
           M = scan_carry[1]

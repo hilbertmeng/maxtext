@@ -363,7 +363,7 @@ def save_checkpoint(
 
 
 def record_bam_concat_health_metrics(output_metrics, intermediate_outputs, config):
-  """Decode compact read metrics from LLF block scan and an optional final L."""
+  """Decode compact read metrics from block scan and a partial final local block."""
   decoder = intermediate_outputs['intermediates']['decoder']
   if getattr(config, 'bam_dynamic_unembedding_read', False):
     from layers.bam_unembedding import HEALTH_NAMES
@@ -402,14 +402,16 @@ def record_bam_concat_health_metrics(output_metrics, intermediate_outputs, confi
     for layer in range(config.num_decoder_layers):
       emit(attention, layer, layer)
     return
-  blocks = config.num_decoder_layers // size
+  tail = models.get_bam_final_local_layer_count(config)
+  blocks = (config.num_decoder_layers - tail) // size
   for offset in range(size):
     name = f'local_{offset}' if offset < size - 1 else f'fetch_{offset}'
     attention = decoder['layers'][name]['block']['self_attention']
     for block in range(blocks):
       emit(attention, block*size + offset, block)
-  if getattr(config, 'bam_extra_final_local_layer', False):
-    emit(decoder['final_local_layer']['block']['self_attention'], config.num_decoder_layers - 1)
+  for offset in range(tail):
+    name = 'final_local_layer' if tail == 1 else f'final_local_layer_{offset}'
+    emit(decoder[name]['block']['self_attention'], config.num_decoder_layers - tail + offset)
 
 
 def record_bam_fetched_read_health_metrics(

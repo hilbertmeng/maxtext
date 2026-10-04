@@ -1084,6 +1084,15 @@ class RMTDecoder(nn.Module):
         self.sow('intermediates', 'rmt_embedding_health',
                  _boundary_health(dynamic_seed, matrix, seed_gate))
       matrix = matrix + dynamic_seed
+    if cfg.get_keys().get('rmt_initial_matrix_bias', False):
+      initial_bias = self.param('initial_matrix_bias', nn.initializers.zeros,
+                                (key_dim, value_dim), cfg.weight_dtype)
+      if cfg.get_keys().get('rmt_record_dynamic_health', False) and not self.is_initializing():
+        bias_rms = jnp.sqrt(jnp.mean(jnp.square(initial_bias.astype(jnp.float32))))
+        embed_rms = jnp.sqrt(jnp.mean(jnp.square(matrix.astype(jnp.float32))))
+        self.sow('intermediates', 'rmt_initial_matrix_bias_health',
+                 jnp.stack((bias_rms, embed_rms, bias_rms / jnp.maximum(embed_rms, 1e-12))))
+      matrix = matrix + initial_bias.astype(matrix.dtype)
     padded_value_dim = cfg.get_keys().get('rmt_pad_value_dim', 0)
     if padded_value_dim:
       if padded_value_dim < value_dim:raise ValueError('Padded value dimension must cover all values')

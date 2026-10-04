@@ -374,6 +374,9 @@ def record_rmt_dynamic_health_metrics(output_metrics, intermediate_outputs, conf
     if key in decoder:
       for index, name in enumerate(rmt.RMT_BOUNDARY_HEALTH_NAMES):
         output_metrics['scalar'][f'rmt/{arm}/{name}'] = decoder[key][0][index]
+  if 'rmt_initial_matrix_bias_health' in decoder:
+    for i, name in enumerate(('bias_rms', 'embedding_write_rms', 'bias_over_embedding')):
+      output_metrics['scalar'][f'rmt/initial_matrix/{name}'] = decoder['rmt_initial_matrix_bias_health'][0][i]
   health = intermediate_outputs['intermediates']['decoder']['layers']['rmt_dynamic_health'][0]
   if config.get_keys().get('rmt_block_scan', False):
     health = health.reshape((config.num_decoder_layers, health.shape[-1]))

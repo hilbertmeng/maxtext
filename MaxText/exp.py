@@ -10251,6 +10251,7 @@ class BamMediumPropK75V48C12EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdC
     # Implementation: codex/mediumprop-k75-embed; /data0/xd/mediumprop-k75-embed.
     # Six independent16x75x75 maps: +.375W_Q; repay25 MLP units at each write layer.
     # Bet terminal vs V48 parent -.004; .500step/s vs .503 (-.6%), same health.
+    # code_commit: 524c9ad; UE5a v5p-16; steady speed pending.
     model_name = 'BamMediumPropK75V48C12EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdContentTransformTruePile'
     bam_mlp_write_content_transform = True
     mlp_dim_by_block = [3765, 3525, 3765]

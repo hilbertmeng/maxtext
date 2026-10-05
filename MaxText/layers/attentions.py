@@ -3364,6 +3364,10 @@ class BamAttention(Attention):
       g = g * (1.0 / jnp.sqrt(self.num_query_heads))
     u1_norm = self.write_data_norm(u1) if self._write_data_rms else u1
     u2_norm = self.write_address_norm(u2)
+    _ds = int(self.config.get_keys().get('bam_diag_capture', 0))
+    if _ds:
+      self.sow('intermediates', 'diag_attn_addr', u2_norm[:, _ds-1::_ds].astype(jnp.float32))
+      self.sow('intermediates', 'diag_attn_gate', g[:, _ds-1::_ds].astype(jnp.float32))
     gated_u1 = g[..., None] * u1_norm
     with jax.named_scope("bam/write_outer"):
       if self._write_outer_implementation == 'dot':
@@ -3393,7 +3397,12 @@ class BamAttention(Attention):
     gate = jax.nn.sigmoid(self.W_gw(x) + bias)
     scale = 1.0 / jnp.sqrt(self.num_query_heads) if self.config.bam_sqrt_n_scale else 1.0
     content = self.write_data_norm(u1) if self._write_data_rms else u1
-    return scale * gate[..., None] * content, self.write_address_norm(u2), gate
+    address_norm = self.write_address_norm(u2)
+    _ds = int(self.config.get_keys().get('bam_diag_capture', 0))
+    if _ds:
+      self.sow('intermediates', 'diag_attn_addr', address_norm[:, _ds-1::_ds].astype(jnp.float32))
+      self.sow('intermediates', 'diag_attn_gate', (scale * gate)[:, _ds-1::_ds].astype(jnp.float32))
+    return scale * gate[..., None] * content, address_norm, gate
 
   def merge_mlp_write(self, mlp_head, mlp_gate, factors, M_in, static_address=None,
                       independent_address=None):
@@ -3412,6 +3421,11 @@ class BamAttention(Attention):
     else:
       mlp_address = self.write_address_norm(
           static_address if independent_address is None else independent_address)
+      _ds = int(self.config.get_keys().get('bam_diag_capture', 0))
+      if _ds:
+        _ma = jnp.broadcast_to(mlp_address, mlp_content.shape[:-1] + mlp_address.shape[-1:])
+        self.sow('intermediates', 'diag_mlp_addr', _ma[:, _ds-1::_ds].astype(jnp.float32))
+        self.sow('intermediates', 'diag_mlp_gate', (scale * mlp_gate)[:, _ds-1::_ds].astype(jnp.float32))
       with jax.named_scope('bam/write_outer'):
         if self._write_outer_implementation == 'dot':
           dM = jnp.einsum('btnk,btnv->btkv', attention_content, address)

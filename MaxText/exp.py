@@ -5625,6 +5625,22 @@ class Llama2XLProp(Llama2XL):
     compare_runs = []
 
 
+class Llama2XLPropHD64(Llama2XLProp):
+    """Width-only XLProp control: 28 layers, 20x64 heads, D1280, TruePile4096."""
+    model_name = 'Llama2XLPropHD64'
+    bam_final_local_layer_count = 0  # no partial-block tail in the MHA control
+    DATASET_VARIANT = 'truepile4096'
+    base_emb_dim = 1280
+    head_dim = 64
+    base_mlp_dim = 3413  # nearest integer to 5120 * 2/3; no hardware rounding
+    learning_rate = 2.5e-4
+    learning_rate_schedule_steps = 24000
+    steps = 24000
+    eval_interval = 24000
+    compare_runs = []
+    jax_cache_dir = ''
+
+
 class Llama2XLHead16x128(Llama2XL):
     base_num_query_heads = 16
     base_num_kv_heads = 16
@@ -11477,3 +11493,16 @@ class RMTRankHVPUV6Profile(RMTRankHPairedK1V6Profile):
     model_name = 'RMTRankHVPUV6Profile'
     rmt_rankh_write_mode = 'row1_native75'
     rmt_projected_write_reverse_tile = 128
+
+
+class MuddLlama2XLPropHD64(Mudd, Llama2XLPropHD64):
+    """Original full-history Mudd on the width-scaled XLProp backbone."""
+    # Ledger only. Implementation: codex/mudd-xlprop-truepile, /data0/xd/mudd-xlprop-truepile.
+    model_name = 'MuddLlama2XLPropHD64'
+    mudd_full_history = True
+    mlp_dim_by_layer = [round(round(5120 * (i / 27 + .5) / 128) * 128 * 2 / 3) for i in range(28)]
+    scan_layers = False
+    compare_runs = ['Llama2XLPropHD64']
+    jax_cache_dir = ''
+
+

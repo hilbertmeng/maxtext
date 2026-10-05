@@ -68,7 +68,12 @@ class SubDecoderLayer(nn.Module):
     self.mudd_qkvnorm = mudd.Norm(cfg, self.mesh, self.quant)
 
     mlp_pattern = getattr(cfg, 'mlp_dim_by_block', None)
-    if mlp_pattern is not None:
+    layer_widths = getattr(cfg, 'mlp_dim_by_layer', None)
+    if layer_widths is not None:
+      assert not cfg.scan_layers and len(layer_widths) == cfg.num_decoder_layers
+      assert all(isinstance(width, int) and width > 0 for width in layer_widths)
+      self.updated_mlp_dim = layer_widths[min(self.layer_inx, cfg.num_decoder_layers - 1)]
+    elif mlp_pattern is not None:
       assert not cfg.dynamic_mlp_dim and cfg.bam_pair_scan
       assert len(mlp_pattern) == cfg.bam_local_fetch_block_size
       assert all(isinstance(width, int) and width > 0 for width in mlp_pattern)

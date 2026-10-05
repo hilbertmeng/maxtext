@@ -10144,3 +10144,44 @@ class BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdTruePile(Ba
     max_to_keep = 2
     compare_runs = ['BamXLPropK96EmbedVOnlyQK72AllLocalTruePile', 'BamXLPropK96EmbedVOnlyQK72LLFTruePile']
     jax_cache_dir = ''
+
+
+class BamXLT2048K128EmbedVOnlyQK96AllLocalMLPWriteIndependentEveryThird(BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdTruePile):
+    """Legacy XL T2048 transfer of the best XLProp sparse independent MLP-write BAM."""
+    # Implementation: codex/mediumprop-k75-embed, /data0/xd/mediumprop-k75-embed; pure JAX.
+    # code_commit: pending; EW4b/UE5a prequeue. Match old XL16x128 data/batch and actual all-decay WD.
+    # 24 all-local layers, no standard V; zero-based MLP writers1/4/.../22. Rebudget each layer against MHA.
+    # 1,420,908,048 params (MHA-12,784); MLP6916/6808/6915.
+    # Bet vs old DirectC8: -.010@20000, terminal-.008; speed~.55 vs .5378, extra writer health.
+    model_name = 'BamXLT2048K128EmbedVOnlyQK96AllLocalMLPWriteIndependentEveryThird'
+    DATASET_VARIANT = 'legacy2048'
+    base_num_decoder_layers = 24
+    base_emb_dim = 2048
+    base_num_query_heads = 16
+    base_num_kv_heads = 16
+    head_dim = 128
+    base_mlp_dim = 5504
+    max_target_length = 2048
+    per_device_batch_size = 16.0
+    bam_k = 128
+    bam_v = 32
+    bam_abs_v_compression_dim = 8
+    bam_local_qk_col_output_dim = 96
+    bam_partial_rope_nope_dim = 96
+    bam_standard_qk_dim = 32
+    bam_write_v_bottleneck_dim = 256
+    emb_bam_num_head = 16
+    emb_bam_v_bottleneck_dim = 256
+    bam_mlp_write_address_rank = 246
+    bam_layer_modes = ['local_qk+local_v+local_o'] * 24
+    bam_extra_final_local_layer = False
+    bam_final_local_mlp_dim = None
+    mlp_dim_by_block = [6916, 6808, 6915]
+    wd_mults = []  # Reproduce the historical XL MHA/DirectC8 AOT optimizer effect explicitly.
+    checkpoint_period = 250
+    keep_period = 2000
+    max_to_keep = 2
+    compare_runs = ['BamXLSharedBasisQKConcatStaticLocalVOSharedC8IndependentGatesK96QK96DirectC8MLPPerLayer',
+                    'BamXLSharedBasisQKConcatStaticLocalVOSharedC8IndependentGatesK96QK96SharedRank4MLPPerLayer',
+                    'BamMHALlama2XLHead16x128C256']
+    jax_cache_dir = ''

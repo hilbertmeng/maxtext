@@ -16,3 +16,5 @@
 抵扣后主要线性MAC保持一致：新增16×75²=90000，MLP每写层减少3×1200×25=90000；只忽略少量激活/归一化点运算。不能把未抵扣时的1/16 W_Q计算开销当作新run的净计算增加。UE5a原prequeue保留，16:21 UTC加排EW4b被动候选，先到READY的正式启动后需等待FIRST_STEP再释放未选候选。
 
 UE5a主训练启动后释放未选EW4b候选；记录/data0/xd/bam_diagnostics/rmt-readnorm-launch/content-transform-ew4b-release.log。
+
+20:03 UTC迁入已通过实际SSH检查的UC1a候选；源码/AOT/13500步计划不变，恢复checkpoint98。已达226步并提交200 checkpoint；200步六层变换RMS比1.006–1.027、内容余弦.99899–.99969，写门均有限，raw梯度2.547。UC1a约.502step/s，对父版.503约−.2%；原UE5a资源已核验释放。

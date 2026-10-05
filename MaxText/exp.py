@@ -10242,3 +10242,24 @@ class BamMediumPropK75V48C12EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdT
     mlp_dim_by_block = [3765, 3550, 3765]  # exact per-layer refund; 432115072 params, -6128 vs MHA
     compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile']
     jax_cache_dir = ''
+
+
+class BamXLPropK96V60C15EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdTruePile(
+    BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdTruePile):
+    """XLProp transfer of the 1.5x address-space expansion with 4:1 compression."""
+    # Implementation: codex/mediumprop-k75-embed; /data0/xd/mediumprop-k75-embed.
+    # Parent M96x40/C10 -> M96x60/C15; unchanged QK72+RoPE24 and sparse write layers.
+    # Added BAM 39,262,800 = 10.65072 W_Q before MLP refund; exact nearest total: MHA-2,040.
+    # Bet terminal vs parent -.010; .330step/s vs parent .347 (-4.9%), same health.
+    model_name = 'BamXLPropK96V60C15EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdTruePile'
+    bam_v = 60
+    bam_abs_v_compression_dim = 15
+    bam_write_v_bottleneck_dim = 600
+    emb_bam_v_bottleneck_dim = 600
+    bam_mlp_write_address_rank = 576
+    mlp_dim_by_block = [6092, 5773, 6093]
+    bam_final_local_mlp_dim = 6094
+    compare_runs = ['BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdTruePile',
+                    'BamXLPropK96EmbedVOnlyQK72LLFTruePile',
+                    'MuddLlama2XLProp', 'Llama2XLPropTruePileMHA']
+    jax_cache_dir = ''

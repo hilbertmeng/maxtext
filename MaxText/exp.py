@@ -11513,7 +11513,7 @@ class MuddLlama2XLPropHD64(Mudd, Llama2XLPropHD64):
 class MuddLlama2XLT2048Head16x128(Mudd, Llama2XLHead16x128):
     """Full-history Mudd control on the historical XL16x128 T2048 backbone."""
     # Ledger only. Implementation: codex/mudd-xlprop-truepile, /data0/xd/mudd-xlprop-truepile.
-    # code_commit: 367ee52; UC1a v5p-32 ~.590 steps/s (-16.7% vs old MHA .708); generic health ON.
+    # code_commit: 367ee52; UC1a v5p-32 ~.590 steps/s (+9.7% vs old DirectC8 .5378; unmatched health); generic health ON.
     # 1,426,013,701 params (MHA+5,092,869, +.358%); original Mudd MLP schedule.
     model_name = 'MuddLlama2XLT2048Head16x128'
     DATASET_VARIANT = 'legacy2048'
@@ -11531,5 +11531,5 @@ class MuddLlama2XLT2048Head16x128(Mudd, Llama2XLHead16x128):
     checkpoint_period = 250
     keep_period = 2000
     max_to_keep = 2
-    compare_runs = ['BamMHALlama2XLHead16x128C256']
+    compare_runs = ['BamXLSharedBasisQKConcatStaticLocalVOSharedC8IndependentGatesK96QK96DirectC8MLPPerLayer']
     jax_cache_dir = ''

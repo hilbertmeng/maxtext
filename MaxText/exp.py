@@ -12036,8 +12036,10 @@ class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNor
 class RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOSharedWriteNormQKVZeroInitEmbedSeedZeroMLPInputPreNormSharedRawWriteAttnWriteContentBias(RMTHealthDefaults, RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOSharedWriteNormQKVZeroInitEmbedSeedZero):
     """Transfer Medium MLP-input norm/raw writes and attention content bias to XL."""
     # Implementation: codex/rmt-xlprop-noo, /data0/xd/rmt-xlprop-noo; pure JAX layer scan.
-    # Bet17500 vs BAM independent -.005 / LLF -.0124; gain/Mudd~1.47x; speed .320step/s.
     # code_commit: 874fd51; UE5a v5p-32 startup~.316step/s; vs BAM independent .347 -8.9%, extra RMT health.
+    # Stopped5553. vs previous XL RMT: +.002560@1500 widened to+.011729@5000; last5+.008810.
+    # vs BAM independent crossed5000(+.000486); vs LLF-.009878, gain/Mudd1.397 at5000.
+    # Smaller raw MLP output did not fix dynamic/static write imbalance or shared-energy growth.
     model_name = 'RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOSharedWriteNormQKVZeroInitEmbedSeedZeroMLPInputPreNormSharedRawWriteAttnWriteContentBias'
     rmt_mlp_input_pre_norm = True
     rmt_mlp_shared_raw_write = True
@@ -12050,4 +12052,15 @@ class RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOSharedWriteNormQKV
     keep_period = 2000
     max_to_keep = 2
     compare_runs = ['RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOSharedWriteNormQKVZeroInitEmbedSeedZero', 'BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdTruePile', 'BamXLPropK96EmbedVOnlyQK72LLFTruePile', 'MuddLlama2XLProp', 'Llama2XLPropTruePileMHA']
+    jax_cache_dir = ''
+
+class RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOSharedWriteNormQKVZeroInitEmbedSeedZeroMLPInputPreNormSharedWriteNormAttnWriteContentBias(RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOSharedWriteNormQKVZeroInitEmbedSeedZeroMLPInputPreNormSharedRawWriteAttnWriteContentBias):
+    """Restore shared per-head normalized MLP write contents; keep input norm and attention bias."""
+    # Implementation: codex/rmt-xlprop-noo, /data0/xd/rmt-xlprop-noo; pure JAX layer scan.
+    # code_commit: pending; UE5a v5p-32. MLP6644 unchanged; parameter tree/budget identical to raw-write parent.
+    # RMTHealthDefaults inherited; checkpoint250, permanent2000, latest2. Review10000; full50000.
+    # Bet vs raw-write parent@5000 -.010; vs previous XL RMT@10000 -.003; speed~.315 vs .316.
+    model_name = 'RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOSharedWriteNormQKVZeroInitEmbedSeedZeroMLPInputPreNormSharedWriteNormAttnWriteContentBias'
+    rmt_mlp_shared_raw_write = False
+    compare_runs = ['RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOSharedWriteNormQKVZeroInitEmbedSeedZeroMLPInputPreNormSharedRawWriteAttnWriteContentBias', 'RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOSharedWriteNormQKVZeroInitEmbedSeedZero', 'BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdTruePile', 'BamXLPropK96EmbedVOnlyQK72LLFTruePile', 'MuddLlama2XLProp', 'Llama2XLPropTruePileMHA']
     jax_cache_dir = ''

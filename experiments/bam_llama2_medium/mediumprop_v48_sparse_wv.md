@@ -17,3 +17,9 @@ TPU拟定xd-v5p-16-2910075-maxtext、xd-v5p-16-2910076-maxtext；主区UE5a，�
 
 验证：参数树和各层开关、六个MLP写入位置、bool旧父版等价、拒绝非周期scan开关、两block有限前向/梯度并确认标准V和独立写地址获梯度。sealed runtime及实际AOT加载/FIRST_STEP为上线关口。
 产物：/data0/xd/bam_diagnostics/rmt-readnorm-launch/wv-*。
+
+运行源码09da7cd491633d2ceba241509a8284f318d149e7。CPU针对性3项均过（约51s），共享路径通用47项均过（4组并行136.7s）；KeepVO v5p16 AOT已通过，NoVO随后在同一保护编译机串行编译。CPU与正式训练排队仍并行。
+
+KeepVO确认FIRST_STEP7、AOT loaded、worker commit09da7cd、W_V层开关/MLP宽度、区内TruePile路径与父版WD/健康设置。步骤60–71速度中位.501step/s（父版.503，−.4%），近持平。NoVO AOT已通过，UE5a节点尚在创建。
+
+UE5a首租：KeepVO 14:59:18–15:11:34 UTC（736s），曾正常训练；NoVO 15:10:46–15:13:26 UTC（160s），安装时抢占，尚无FIRST_STEP。两路原区恢复队列保留；NoVO另加EW4b被动候选xd-v5p-16-2910076-maxtext（独立creator PID），待实际READY再选择。抢占信息不进入台账结论。

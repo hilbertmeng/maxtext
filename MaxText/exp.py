@@ -12087,6 +12087,7 @@ class Llama2XLPropHD64(Llama2XLProp):
 
 class RMTXLPropHD64T4096TruePileAllLocalK60EmbedUnembedDirect40NoOSharedWriteNormQKVZeroInitEmbedSeedZero(RMTHealthDefaults, RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOSharedWriteNormQKVZeroInitEmbedSeedZero):
     """Width-only HD64 transfer of the XLProp QKV-zero/SeedZero RMT."""
+    # code_commit: 93a139a; UC1a v5p-32~.408step/s, vs HD64 BAM .446 -8.6% (extra RMT health).
     # Implementation: codex/rmt-xlprop-noo, /data0/xd/rmt-xlprop-noo; pure JAX layer scan.
     # M60x64, proxy20/tail40, C10; address-output dimensions unchanged, keep R384.
     # Bet vs HD64 BAM: -.010@12000, -.005@24000; speed .42 vs BAM .446 (~-6%, extra RMT health).

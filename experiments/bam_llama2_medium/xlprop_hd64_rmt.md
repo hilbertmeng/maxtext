@@ -11,3 +11,5 @@
 - Focused CPU checks: full parameter tree/nearest budget/init/norm scope, consumed2-layer scan forward+gradient and health export. CPU/AOT/queue preparation in parallel; retained FLEX_START compiler owns no lifecycle.
 
 Artifacts: `/data0/xd/bam_diagnostics/rmt-readnorm-launch/hd64-rmt-*`, `test_hd64_rmt.sh`.
+
+Runtime `93a139a0122fba18c3846b8806edd2e133a74aa6`; CPU2 checks22.9s, AOT ready and FIRST_STEP4 verified. Worker45 reached; actual UC data/global batch128,24000 schedule,R384,all-health,pure-JAX and retention verified. Steps10-14 mean .4078 step/s: MHA .711 -42.6%, Mudd .620 -34.2%, BAM .446 -8.6%; RMT health broader than baseline health.

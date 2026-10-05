@@ -3408,9 +3408,22 @@ class BamAttention(Attention):
     return scale * gate[..., None] * content, self.write_address_norm(u2), gate
 
   def merge_mlp_write(self, mlp_head, mlp_gate, factors, M_in, static_address=None,
-                      independent_address=None):
+                      independent_address=None, content_transform=None):
     """Shared-address sum needs one outer; independent address needs two."""
     attention_content, address, attention_gate = factors
+    if content_transform is not None:
+      original_head = mlp_head
+      with jax.named_scope('bam/mlp_write_content_transform'):
+        mlp_head = jnp.einsum(
+            'btnk,nkj->btnj', mlp_head, content_transform.astype(mlp_head.dtype),
+            precision=self.config.matmul_precision)
+      if self._concat_health:
+        self._record_concat_amplitude('mlp_write_transform', mlp_head, original_head)
+        a, b = mlp_head.astype(jnp.float32), original_head.astype(jnp.float32)
+        cosine = jnp.sum(a*b, axis=-1) / jnp.maximum(
+            jnp.sqrt(jnp.sum(a*a, axis=-1)*jnp.sum(b*b, axis=-1)), 1e-12)
+        self.sow('intermediates', 'concat_mlp_content_alignment', jnp.stack((
+            jnp.mean(cosine), jnp.mean(jnp.abs(cosine)), jnp.mean(cosine**2))))
     normalize_content = self._write_data_rms and bool(
         getattr(self.config, 'bam_mlp_write_content_rms', True))
     content = self.write_data_norm(mlp_head) if normalize_content else mlp_head

@@ -55,6 +55,12 @@ Attention = attentions.Attention
 Quant = quantizations.AqtQuantization
 
 
+def _head_identity_init(key, shape, dtype=jnp.float32):
+  del key
+  assert len(shape) == 3 and shape[-2] == shape[-1]
+  return jnp.broadcast_to(jnp.eye(shape[-1], dtype=dtype), shape)
+
+
 class SubDecoderLayer(nn.Module):
   """Transformer decoder layer that attends to the encoder."""
 
@@ -337,10 +343,16 @@ class SubDecoderLayer(nn.Module):
             'mlp_write_address', nn.with_logical_partitioning(
                 nn.initializers.normal(1.0 / math.sqrt(cfg.bam_v)), ('q_heads', 'v_factor')),
             (num_query_heads, cfg.bam_v), cfg.weight_dtype).astype(cfg.dtype)
+      content_transform = None
+      if getattr(cfg, 'bam_mlp_write_content_transform', False):
+        content_transform = self.param(
+            'mlp_write_content_transform', nn.with_logical_partitioning(
+                _head_identity_init, ('q_heads', None, None)),
+            (num_query_heads, cfg.bam_k, cfg.bam_k), cfg.weight_dtype)
       M_out = attention_layer.merge_mlp_write(
           mlp_lnx.reshape(mlp_lnx.shape[:-1] + (num_query_heads, cfg.bam_k)),
           jax.nn.sigmoid(mlp_logits), write_factors, M_out, static_address,
-          independent_address)
+          independent_address, content_transform)
 
     if mlp_lnx is not None and moe_lnx is not None:
       layer_output = mlp_lnx + intermediate_inputs + moe_lnx

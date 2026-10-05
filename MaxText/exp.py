@@ -354,6 +354,7 @@ class BamLlama2Medium(Llama2Medium):
     bam_abs_v_row_decoder_share_heads = False
     bam_write_data_rms = True       # normalize write data/value factor u1
     bam_mlp_write_content_rms = True  # independently normalize direct MLP->M content
+    bam_mlp_write_content_transform = False  # independent per-head KxK map before content RMSNorm
     bam_write_factor_norm = 'rms'   # rms | grouped_rms (per-head learned scale)
     bam_write_address_norm_bias = False  # learned post-norm shift on the address factor
     bam_write_rms_statistics_dtype = 'float32'  # float32 | activation
@@ -10241,6 +10242,19 @@ class BamMediumPropK75V48C12EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdT
     bam_mlp_write_address_rank = 384
     mlp_dim_by_block = [3765, 3550, 3765]  # exact per-layer refund; 432115072 params, -6128 vs MHA
     compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile']
+    jax_cache_dir = ''
+
+
+class BamMediumPropK75V48C12EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdContentTransformTruePile(
+    BamMediumPropK75V48C12EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile):
+    """Untie MLP residual and matrix-write content coordinates with identity-initialized maps."""
+    # Implementation: codex/mediumprop-k75-embed; /data0/xd/mediumprop-k75-embed.
+    # Six independent16x75x75 maps: +.375W_Q; repay25 MLP units at each write layer.
+    # Bet terminal vs V48 parent -.004; .500step/s vs .503 (-.6%), same health.
+    model_name = 'BamMediumPropK75V48C12EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdContentTransformTruePile'
+    bam_mlp_write_content_transform = True
+    mlp_dim_by_block = [3765, 3525, 3765]
+    compare_runs = ['BamMediumPropK75V48C12EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile']
     jax_cache_dir = ''
 
 

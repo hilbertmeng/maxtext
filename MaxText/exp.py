@@ -10210,7 +10210,7 @@ class BamXLPropHD64K64EmbedVOnlyQK48AllLocalMLPWriteIndependentEveryThirdTruePil
     """Width-scaled XLProp sparse MLP-write BAM; keep address40/C10 and address ranks."""
     # Ledger only. Implementation: codex/mediumprop-k75-embed, /data0/xd/mediumprop-k75-embed.
     # code_commit: 21e5ef7
-    # UC1a ~.449 steps/s; HD64 MHA/Mudd matched timing pending.
+    # UC1a v5p-32 ~.446 steps/s; -37.3% vs HD64 MHA / -28.1% vs Mudd; extra concat/write health ON.
     model_name = 'BamXLPropHD64K64EmbedVOnlyQK48AllLocalMLPWriteIndependentEveryThirdTruePile'
     bam_k = 64
     bam_v = 40
@@ -10232,6 +10232,7 @@ class BamMediumPropK75V48C12EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdT
     BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile):
     """Expand the address space to48 with unchanged4:1 compression and proportional write-address ranks."""
     # Implementation: codex/mediumprop-k75-embed; /data0/xd/mediumprop-k75-embed.
+    # code_commit: c1a68fe; UC1a v5p-16 ~.503 step/s, -3.3% vs parent .520; same basic+concat/write health.
     model_name = 'BamMediumPropK75V48C12EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile'
     bam_v = 48
     bam_abs_v_compression_dim = 12

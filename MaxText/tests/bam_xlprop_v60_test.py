@@ -63,11 +63,16 @@ class XLV60TransferTest(unittest.TestCase):
             self.assertEqual(flat[prefix + ('W_R', 'kernel')].shape, (1920, 9, 20, 1, 15))
         self.assertEqual(flat[('params', 'decoder', 'embedding_bam_write', 'W_emb_v_up', 'kernel')].shape, (600, 20, 60))
         self.assertTrue(c.bam_replicate_ploc_up)
+        self.assertEqual(c.sharding_tolerance, .23)
         flat_shardings = flatten_dict(sharding.params)
         self.assertIsNone(flat_shardings[('params', 'decoder', 'embedding_bam_write', 'W_emb_v_up', 'kernel')].spec[0])
         for block in ('local_0', 'local_1', 'fetch_2'):
             up = ('params', 'decoder', 'layers', block, 'block', 'self_attention', 'P_loc_up', 'kernel')
             self.assertIsNone(flat_shardings[up].spec[0])
+        if mesh.size == 16:
+            per_chip = sum(int(np.prod(flat_shardings[p].shard_shape(v.shape))) for p, v in flat.items())
+            self.assertEqual(per_chip, 109403880)
+            self.assertLess(per_chip / (total / 16) - 1, c.sharding_tolerance)
         self.assertEqual(c.bam_write_outer_implementation, 'dot')
         self.assertEqual(c.bam_read_implementation, 'dot_btn')
         for block in ('local_0', 'local_1', 'fetch_2'):

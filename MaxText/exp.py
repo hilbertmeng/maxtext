@@ -10258,6 +10258,7 @@ class BamXLPropK96V60C15EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdTrueP
     emb_bam_v_bottleneck_dim = 600
     bam_mlp_write_address_rank = 576
     bam_replicate_ploc_up = True  # preserve exact R600 on 16-way FSDP, including embedding up
+    sharding_tolerance = .23  # measured per-chip overhead .222051; 20.88M up weights intentionally replicated
     mlp_dim_by_block = [6092, 5773, 6093]
     bam_final_local_mlp_dim = 6094
     compare_runs = ['BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdTruePile',

@@ -10149,7 +10149,8 @@ class BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdTruePile(Ba
 class BamXLT2048K128EmbedVOnlyQK96AllLocalMLPWriteIndependentEveryThird(BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdTruePile):
     """Legacy XL T2048 transfer of the best XLProp sparse independent MLP-write BAM."""
     # Implementation: codex/mediumprop-k75-embed, /data0/xd/mediumprop-k75-embed; pure JAX.
-    # code_commit: pending; EW4b/UE5a prequeue. Match old XL16x128 data/batch and actual all-decay WD.
+    # code_commit: eddf2b0; EW4b v5p-32 startup~.500step/s (-7.0% vs old DirectC8 .5378; extra writer health, !? unmatched).
+    # Match old XL16x128 data/batch and actual all-decay WD.
     # 24 all-local layers, no standard V; zero-based MLP writers1/4/.../22. Rebudget each layer against MHA.
     # 1,420,908,048 params (MHA-12,784); MLP6916/6808/6915.
     # Bet vs old DirectC8: -.010@20000, terminal-.008; speed~.55 vs .5378, extra writer health.

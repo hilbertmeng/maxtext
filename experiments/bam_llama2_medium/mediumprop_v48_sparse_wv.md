@@ -23,3 +23,5 @@ TPU拟定xd-v5p-16-2910075-maxtext、xd-v5p-16-2910076-maxtext；主区UE5a，�
 KeepVO确认FIRST_STEP7、AOT loaded、worker commit09da7cd、W_V层开关/MLP宽度、区内TruePile路径与父版WD/健康设置。步骤60–71速度中位.501step/s（父版.503，−.4%），近持平。NoVO AOT已通过，UE5a节点尚在创建。
 
 UE5a首租：KeepVO 14:59:18–15:11:34 UTC（736s），曾正常训练；NoVO 15:10:46–15:13:26 UTC（160s），安装时抢占，尚无FIRST_STEP。两路原区恢复队列保留；NoVO另加EW4b被动候选xd-v5p-16-2910076-maxtext（独立creator PID），待实际READY再选择。抢占信息不进入台账结论。
+
+NoVO也确认实际FIRST_STEP5；抢占后恢复35步，worker09da7cd、AOT loaded、稀疏LocalVO开关/MLP宽度、区内TruePile与健康指标已核对。恢复后95–112步常态.520step/s（父版.503，+3.4%）；不用一次I/O停顿估稳态速度。两路正式训练均留在UE5a，未用的EW4b候选已确认节点和queue均释放。

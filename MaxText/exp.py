@@ -10262,6 +10262,7 @@ class BamMediumPropK75V48C12EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdW
     """Restore W_V before each MLP write, dropping LocalVO only on W_V layers."""
     # Implementation: codex/mediumprop-k75-embed; /data0/xd/mediumprop-k75-embed.
     # Bet terminal vs V48 parent -.012 / KeepVO -.006; .520step/s vs .503 (+3.4%).
+    # code_commit: 09da7cd; UE5a v5p-16 ~.520step/s, +3.4% vs V48 parent .503; same basic+concat/write health.
     model_name = 'BamMediumPropK75V48C12EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdWVBlockFirstNoVOTruePile'
     bam_layer_modes = ['local_qk', 'local_qk+local_v+local_o', 'local_qk+local_v+local_o'] * 6
     mlp_dim_by_block = [3440, 3550, 3765]  # exact net refund: 432109408, MHA-11792

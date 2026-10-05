@@ -29,7 +29,7 @@ class ContentTransformTest(unittest.TestCase):
         with mesh,nn.partitioning.axis_rules(c.logical_axis_rules):
             scalar=jax.eval_shape(functools.partial(train.train_step,model,c,sharding),*args,**kw)[1]['scalar']
         for l in range(18):
-            for suffix in ('mlp_write_transform/bam_over_standard','mlp_content_alignment/mean_cosine'):
+            for suffix in ('mlp_write_transform_amplitude/bam_over_standard','mlp_content_alignment/mean_cosine'):
                 metric,stat=suffix.split('/')
                 self.assertEqual(f'bam/concat/{metric}/layer_{l:03d}/{stat}' in scalar,l%3==1)
 

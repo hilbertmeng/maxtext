@@ -12057,7 +12057,7 @@ class RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOSharedWriteNormQKV
 class RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOSharedWriteNormQKVZeroInitEmbedSeedZeroMLPInputPreNormSharedWriteNormAttnWriteContentBias(RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOSharedWriteNormQKVZeroInitEmbedSeedZeroMLPInputPreNormSharedRawWriteAttnWriteContentBias):
     """Restore shared per-head normalized MLP write contents; keep input norm and attention bias."""
     # Implementation: codex/rmt-xlprop-noo, /data0/xd/rmt-xlprop-noo; pure JAX layer scan.
-    # code_commit: bda7516; EW4b v5p-32 startup~.316step/s, flat vs raw-write parent; matched RMT health.
+    # code_commit: bda7516; UC1a v5p-32~.315step/s, flat vs raw-write parent .316; matched RMT health.
     # MLP6644 unchanged; parameter tree/budget identical to raw-write parent.
     # RMTHealthDefaults inherited; checkpoint250, permanent2000, latest2. Review10000; full50000.
     # Bet vs raw-write parent@5000 -.010; vs previous XL RMT@10000 -.003; speed~.315 vs .316.

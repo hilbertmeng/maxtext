@@ -10199,9 +10199,7 @@ class BamXLT2048K128EmbedVOnlyQK96AllLocalMLPWriteIndependentEveryThird(BamXLPro
     checkpoint_period = 250
     keep_period = 2000
     max_to_keep = 2
-    compare_runs = ['BamXLSharedBasisQKConcatStaticLocalVOSharedC8IndependentGatesK96QK96DirectC8MLPPerLayer',
-                    'BamXLSharedBasisQKConcatStaticLocalVOSharedC8IndependentGatesK96QK96SharedRank4MLPPerLayer',
-                    'BamMHALlama2XLHead16x128C256']
+    compare_runs = ['BamXLSharedBasisQKConcatStaticLocalVOSharedC8IndependentGatesK96QK96DirectC8MLPPerLayer', 'BamMHALlama2XLHead16x128C256', 'MuddLlama2XLT2048Head16x128']
     jax_cache_dir = ''
 
 
@@ -10233,6 +10231,8 @@ class BamMediumPropK75V48C12EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdT
     """Expand the address space to48 with unchanged4:1 compression and proportional write-address ranks."""
     # Implementation: codex/mediumprop-k75-embed; /data0/xd/mediumprop-k75-embed.
     # code_commit: c1a68fe; UC1a v5p-16 ~.503 step/s, -3.3% vs parent .520; same basic+concat/write health.
+    # Completed13500; vs V32 parent final5(12600-13400) -.007290 [-.008262,-.006433].
+    # Advantage settled near -.007 after8000; no clear late collapse.
     model_name = 'BamMediumPropK75V48C12EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile'
     bam_v = 48
     bam_abs_v_compression_dim = 12
@@ -10248,6 +10248,7 @@ class BamXLPropK96V60C15EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdTrueP
     BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdTruePile):
     """XLProp transfer of the 1.5x address-space expansion with 4:1 compression."""
     # Implementation: codex/mediumprop-k75-embed; /data0/xd/mediumprop-k75-embed.
+    # code_commit: e0125ba; UC1a v5p-32 ~.336step/s, -3.2% vs parent .347; same basic+concat/write health.
     # Parent M96x40/C10 -> M96x60/C15; unchanged QK72+RoPE24 and sparse write layers.
     # Added BAM 39,262,800 = 10.65072 W_Q before MLP refund; exact nearest total: MHA-2,040.
     # Bet terminal vs parent -.010; .330step/s vs parent .347 (-4.9%), same health.

@@ -19,3 +19,5 @@ RUN：BamXLPropK96V60C15EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdTrueP
 R600不能整分16路FSDP；打开bam_replicate_ploc_up，同时让embedding地址up沿用该选项。仅这些up权重不分片其R轴，保留精确R600，参数与数值公式不变。此共享分片选项改动额外运行完整BAM回归。
 
 首步参数分片保护记录：模型1,432,396,680，每芯片109,403,880，理想89,524,792.5，额外22.2051%。28层加embedding共20.88M地址up复制，解释其中19.575M/chip的额外量；其余约.304M/chip为原有小参数复制。新类sharding_tolerance设.23，不改模型或数值。初次失败预队2910073已删除，正式2910074保留重启。
+
+实际runtime e0125ba，FIRST_STEP1及九个MLP写入层health已确认，20–99步TB稳态中位数.336step/s（父版.347，−3.2%，同健康设置）。首次训练180步左右遇maintenance、未达首个250步checkpoint，auto-train同区重建；重启后仍需核对AOT loaded和首步。

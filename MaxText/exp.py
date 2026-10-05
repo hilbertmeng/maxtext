@@ -10209,6 +10209,8 @@ class BamXLPropHD64K64EmbedVOnlyQK48AllLocalMLPWriteIndependentEveryThirdTruePil
     Llama2XLPropHD64, BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdTruePile):
     """Width-scaled XLProp sparse MLP-write BAM; keep address40/C10 and address ranks."""
     # Ledger only. Implementation: codex/mediumprop-k75-embed, /data0/xd/mediumprop-k75-embed.
+    # code_commit: 21e5ef7
+    # UC1a ~.449 steps/s; HD64 MHA/Mudd matched timing pending.
     model_name = 'BamXLPropHD64K64EmbedVOnlyQK48AllLocalMLPWriteIndependentEveryThirdTruePile'
     bam_k = 64
     bam_v = 40
@@ -10223,4 +10225,19 @@ class BamXLPropHD64K64EmbedVOnlyQK48AllLocalMLPWriteIndependentEveryThirdTruePil
     mlp_dim_by_block = [4030, 3818, 4033]
     bam_final_local_mlp_dim = 4030
     compare_runs = ['Llama2XLPropHD64', 'MuddLlama2XLPropHD64']
+    jax_cache_dir = ''
+
+
+class BamMediumPropK75V48C12EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile(
+    BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile):
+    """Expand the address space to48 with unchanged4:1 compression and proportional write-address ranks."""
+    # Implementation: codex/mediumprop-k75-embed; /data0/xd/mediumprop-k75-embed.
+    model_name = 'BamMediumPropK75V48C12EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile'
+    bam_v = 48
+    bam_abs_v_compression_dim = 12
+    bam_write_v_bottleneck_dim = 384
+    emb_bam_v_bottleneck_dim = 384
+    bam_mlp_write_address_rank = 384
+    mlp_dim_by_block = [3765, 3550, 3765]  # exact per-layer refund; 432115072 params, -6128 vs MHA
+    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile']
     jax_cache_dir = ''

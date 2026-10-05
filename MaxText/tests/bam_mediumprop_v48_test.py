@@ -22,7 +22,7 @@ class MediumV48Test(unittest.TestCase):
   self.assertTrue(c.bam_mlp_write_content_rms)
   self.assertTrue(c.bam_write_data_rms)
   self.assertEqual(c.DATASET_VARIANT,'truepile4096')
-  self.assertEqual(c.wd_mults,[('.*scale$',0.0),('.*bias$',0.0)])
+  self.assertEqual(c.wd_mults,self.config('BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile').wd_mults)
   mesh=jax.sharding.Mesh(max_utils.create_device_mesh(c),c.mesh_axes)
   args,kw,sharding,model=train_compile.get_shaped_inputs(mesh,c);flat=flatten_dict(args[0].params)
   self.assertEqual(sum(int(np.prod(v.shape)) for v in flat.values()),432115072)
@@ -43,7 +43,7 @@ class MediumV48Test(unittest.TestCase):
 
  def test_two_blocks_finite_consumed_write_gradients(self):
      c = self.config(EXP, dtype='float32', weight_dtype='float32')
-     c.get_keys().update(emb_dim=128, base_emb_dim=128, num_query_heads=2,
+     c.get_keys().update(emb_dim=150, base_emb_dim=150, num_query_heads=2,
                         num_kv_heads=2, base_num_query_heads=2, base_num_kv_heads=2,
                         num_decoder_layers=6, base_num_decoder_layers=6,
                         mlp_dim=128, base_mlp_dim=128, mlp_dim_by_block=[128, 112, 128],

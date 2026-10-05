@@ -15,3 +15,5 @@ RUN：BamXLPropK96V60C15EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdTrueP
 
 验证：定向CPU全参数树/形状/MLP写入health，含末尾L的7层有限梯度；sealed-runtime，v5p-32 AOT及实际FIRST_STEP。CPU/AOT/训练排队由并行launcher编排。
 产物：/data0/xd/bam_diagnostics/rmt-readnorm-launch/xl-v60-*。
+
+R600不能整分16路FSDP；打开bam_replicate_ploc_up，同时让embedding地址up沿用该选项。仅这些up权重不分片其R轴，保留精确R600，参数与数值公式不变。此共享分片选项改动额外运行完整BAM回归。

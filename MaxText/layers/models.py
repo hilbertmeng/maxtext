@@ -456,7 +456,7 @@ class EmbeddingBamWrite(nn.Module):
     address = nn.gelu(address)
     address = linears.DenseGeneral(
         features=(heads, bam_v), axis=-1, kernel_init=self.kernel_init,
-        kernel_axes=("embed", "q_heads", "v_factor"), dtype=self.dtype,
+        kernel_axes=(None if cfg.bam_replicate_ploc_up else "embed", "q_heads", "v_factor"), dtype=self.dtype,
         weight_dtype=self.weight_dtype, name="W_emb_v_up", quant=self.quant,
         matmul_precision=cfg.matmul_precision, use_bias=True)(address)
 

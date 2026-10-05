@@ -3453,11 +3453,26 @@ class BamAttention(Attention):
           dM = dM + jnp.sum(
               mlp_content[..., None] * mlp_address[..., None, :], axis=-3)
       if self._concat_health and independent_address is not None:
-        a, b = address.astype(jnp.float32), mlp_address.astype(jnp.float32)
-        cosine = jnp.sum(a*b, axis=-1) / jnp.maximum(
-            jnp.sqrt(jnp.sum(a*a, axis=-1)*jnp.sum(b*b, axis=-1)), 1e-12)
-        self.sow('intermediates', 'concat_mlp_address_alignment', jnp.stack((
-            jnp.mean(cosine), jnp.mean(jnp.abs(cosine)), jnp.mean(cosine**2))))
+        # Same-token, same-layer overlap of the gate-weighted address second moments.
+        # MLP "heads" are reshaped residual chunks with no correspondence to attention
+        # heads, so all head pairs are compared. rho = V * tr(C_a C_m) / (tr C_a tr C_m),
+        # where C = sum_h g_h^2 a_h a_h^T over unit addresses; an isotropic pair gives 1,
+        # rho < 1 means the MLP writes avoid the attention write directions.
+        def _unit(x):
+          x = x.astype(jnp.float32)
+          return x / jnp.maximum(jnp.sqrt(jnp.sum(x * x, axis=-1, keepdims=True)), 1e-12)
+        a_unit, m_unit = _unit(address), _unit(mlp_address)
+        w_a = jnp.square(attention_gate.astype(jnp.float32))
+        w_m = jnp.square(mlp_gate.astype(jnp.float32))
+        w_a = w_a / jnp.maximum(jnp.sum(w_a, axis=-1, keepdims=True), 1e-12)
+        w_m = w_m / jnp.maximum(jnp.sum(w_m, axis=-1, keepdims=True), 1e-12)
+        def _rho(u, wu, v, wv):
+          gram = jnp.einsum('btnv,btmv->btnm', u, v)
+          return u.shape[-1] * jnp.einsum('btn,btnm,btm->bt', wu, gram * gram, wv)
+        self.sow('intermediates', 'concat_mlp_address_overlap', jnp.stack((
+            jnp.mean(_rho(a_unit, w_a, m_unit, w_m)),
+            jnp.mean(_rho(a_unit, w_a, a_unit, w_a)),
+            jnp.mean(_rho(m_unit, w_m, m_unit, w_m)))))
     if self._concat_health:
       for name, gate in [('attention_write', attention_gate), ('mlp_write', mlp_gate)]:
         g = gate.astype(jnp.float32)

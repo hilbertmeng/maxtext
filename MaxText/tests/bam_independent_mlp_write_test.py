@@ -25,7 +25,7 @@ class IndependentAddressTest(MLPWriteTest):
     with mesh,nn.partitioning.axis_rules(c.logical_axis_rules):
       metrics=jax.eval_shape(functools.partial(train.train_step,model,c,sharding),*args,**kw)[1]
     for l in range(18):
-      tag=f'bam/concat/mlp_address_alignment/layer_{l:03d}/mean_cosine'
+      tag=f'bam/concat/mlp_address_overlap/layer_{l:03d}/rho_cross'
       self.assertEqual(tag in metrics['scalar'],(l+1)%c.bam_mlp_write_every==c.bam_mlp_write_offset%c.bam_mlp_write_every)
     print('INDEPENDENT_PARAMS_HEALTH_OK',total,address,flush=True)
   def test_independent_forward_gradient_and_outer(self):

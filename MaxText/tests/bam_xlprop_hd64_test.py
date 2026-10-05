@@ -66,7 +66,7 @@ class HD64SotaTransferTest(unittest.TestCase):
         for l in range(28):
             self.assertEqual(f'bam/concat/mlp_write_gate/layer_{l:03d}/mean'
                              in metrics['scalar'], l in range(1, 28, 3))
-            self.assertEqual(f'bam/concat/mlp_address_alignment/layer_{l:03d}/mean_cosine'
+            self.assertEqual(f'bam/concat/mlp_address_overlap/layer_{l:03d}/rho_cross'
                              in metrics['scalar'], l in range(1, 28, 3))
         print('HD64_XLPROP_EXACT_BUDGET_HEALTH', total, total - 679645440, flush=True)
 

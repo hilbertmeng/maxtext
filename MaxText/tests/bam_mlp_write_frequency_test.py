@@ -30,7 +30,7 @@ class FrequencyTest(unittest.TestCase):
     metrics=jax.eval_shape(functools.partial(train.train_step,model,c,sharding),*args,**kw)[1]
    for l in range(18):
     self.assertIn(f'bam/concat/local_q_gate/layer_{l:03d}/mean',metrics['scalar'])
-    for key,end in [('mlp_write_gate','mean'),('mlp_address_alignment','mean_cosine')]:
+    for key,end in [('mlp_write_gate','mean'),('mlp_address_overlap','rho_cross')]:
      self.assertEqual(f'bam/concat/{key}/layer_{l:03d}/{end}' in metrics['scalar'],l%period==0)
    print('FREQUENCY_FULL_BUDGET_HEALTH_OK',name,total,address,flush=True)
  def test_scan_parity_and_consumed_tail_gradient(self):

@@ -28,7 +28,7 @@ class XLIndependentWriteTest(MLPWriteTest):
   with mesh,nn.partitioning.axis_rules(c.logical_axis_rules):
    metrics=jax.eval_shape(functools.partial(train.train_step,model,c,sharding),*args,**kw)[1]
   for l in range(28):
-   for name,end in [('mlp_write_gate','mean'),('mlp_address_alignment','mean_cosine')]:
+   for name,end in [('mlp_write_gate','mean'),('mlp_address_overlap','rho_cross')]:
     self.assertEqual(f'bam/concat/{name}/layer_{l:03d}/{end}' in metrics['scalar'],l in range(1,28,3))
   print('XL_FULL_BUDGET_LAYERS_OK',count,address,gates,flush=True)
  def test_seven_layers_scan_tail_gradient(self):

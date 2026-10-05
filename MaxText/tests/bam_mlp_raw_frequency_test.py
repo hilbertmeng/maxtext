@@ -70,7 +70,7 @@ class RawFrequencyTest(unittest.TestCase):
           for group, stat in [('mlp_write_gate', 'mean'),
                               ('mlp_write_raw_output_amplitude', 'bam_rms'),
                               ('mlp_write_content_amplitude', 'bam_rms'),
-                              ('mlp_address_alignment', 'mean_cosine')]:
+                              ('mlp_address_overlap', 'rho_cross')]:
             self.assertEqual(f'bam/concat/{group}/layer_{layer:03d}/{stat}' in metrics['scalar'],
                              layer % period == 0)
       self.assertEqual(*signatures)

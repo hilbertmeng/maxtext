@@ -384,8 +384,10 @@ def record_bam_concat_health_metrics(output_metrics, intermediate_outputs, confi
         names = ('mean_abs_diff', 'rms_diff', 'correlation')
       elif key == 'concat_output_head_mix_weights':
         names = ('rms', 'mean', 'negative_fraction', 'diagonal_rms', 'offdiagonal_rms')
-      elif key in ('concat_mlp_address_alignment', 'concat_mlp_content_alignment'):
+      elif key == 'concat_mlp_content_alignment':
         names = ('mean_cosine', 'mean_abs_cosine', 'mean_square_cosine')
+      elif key == 'concat_mlp_address_overlap':
+        names = ('rho_cross', 'rho_attention_self', 'rho_mlp_self')
       elif key == 'concat_matrix_qk_scores':
         names = ('nope_rms', 'rope_rms', 'nope_over_rope')
       elif key == 'concat_local_v_content':

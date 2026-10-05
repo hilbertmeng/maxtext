@@ -65,7 +65,7 @@ class OldXLSotaTransferTest(unittest.TestCase):
         for l in range(24):
             self.assertEqual(f'bam/concat/mlp_write_gate/layer_{l:03d}/mean'
                              in metrics['scalar'], l in range(1, 24, 3))
-            self.assertEqual(f'bam/concat/mlp_address_alignment/layer_{l:03d}/mean_cosine'
+            self.assertEqual(f'bam/concat/mlp_address_overlap/layer_{l:03d}/rho_cross'
                              in metrics['scalar'], l in range(1, 24, 3))
         print('OLD_XL_EXACT_BUDGET_HEALTH', total, total - 1420920832, flush=True)
 

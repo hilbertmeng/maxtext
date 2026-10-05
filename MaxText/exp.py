@@ -5627,6 +5627,7 @@ class Llama2XLProp(Llama2XL):
 
 class Llama2XLPropHD64(Llama2XLProp):
     """Width-only XLProp control: 28 layers, 20x64 heads, D1280, TruePile4096."""
+    # code_commit: 5a330c5; UC1a v5p-32 ~.711 steps/s; generic health ON.
     model_name = 'Llama2XLPropHD64'
     bam_final_local_layer_count = 0  # no partial-block tail in the MHA control
     DATASET_VARIANT = 'truepile4096'
@@ -11498,6 +11499,7 @@ class RMTRankHVPUV6Profile(RMTRankHPairedK1V6Profile):
 class MuddLlama2XLPropHD64(Mudd, Llama2XLPropHD64):
     """Original full-history Mudd on the width-scaled XLProp backbone."""
     # Ledger only. Implementation: codex/mudd-xlprop-truepile, /data0/xd/mudd-xlprop-truepile.
+    # code_commit: 1bdd511; UC1a v5p-32 ~.620 steps/s, -12.8% vs HD64 MHA; generic health ON.
     model_name = 'MuddLlama2XLPropHD64'
     mudd_full_history = True
     mlp_dim_by_layer = [round(round(5120 * (i / 27 + .5) / 128) * 128 * 2 / 3) for i in range(28)]

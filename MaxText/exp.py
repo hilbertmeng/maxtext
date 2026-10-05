@@ -12065,3 +12065,45 @@ class RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOSharedWriteNormQKV
     rmt_mlp_shared_raw_write = False
     compare_runs = ['RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOSharedWriteNormQKVZeroInitEmbedSeedZeroMLPInputPreNormSharedRawWriteAttnWriteContentBias', 'RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOSharedWriteNormQKVZeroInitEmbedSeedZero', 'BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdTruePile', 'BamXLPropK96EmbedVOnlyQK72LLFTruePile', 'MuddLlama2XLProp', 'Llama2XLPropTruePileMHA']
     jax_cache_dir = ''
+
+
+class Llama2XLPropHD64(Llama2XLProp):
+    """Width-only XLProp control: 28 layers, 20x64 heads, D1280, TruePile4096."""
+    # code_commit: 5a330c5; UC1a v5p-32 ~.711 steps/s; generic health ON.
+    model_name = 'Llama2XLPropHD64'
+    bam_final_local_layer_count = 0  # no partial-block tail in the MHA control
+    DATASET_VARIANT = 'truepile4096'
+    base_emb_dim = 1280
+    head_dim = 64
+    base_mlp_dim = 3413  # nearest integer to 5120 * 2/3; no hardware rounding
+    learning_rate = 2.5e-4
+    learning_rate_schedule_steps = 24000
+    steps = 24000
+    eval_interval = 24000
+    compare_runs = []
+    jax_cache_dir = ''
+
+
+
+class RMTXLPropHD64T4096TruePileAllLocalK60EmbedUnembedDirect40NoOSharedWriteNormQKVZeroInitEmbedSeedZero(RMTHealthDefaults, RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOSharedWriteNormQKVZeroInitEmbedSeedZero):
+    """Width-only HD64 transfer of the XLProp QKV-zero/SeedZero RMT."""
+    # Implementation: codex/rmt-xlprop-noo, /data0/xd/rmt-xlprop-noo; pure JAX layer scan.
+    # M60x64, proxy20/tail40, C10; address-output dimensions unchanged, keep R384.
+    # Bet vs HD64 BAM: -.010@12000, -.005@24000; speed .42 vs BAM .446 (~-6%, extra RMT health).
+    model_name = 'RMTXLPropHD64T4096TruePileAllLocalK60EmbedUnembedDirect40NoOSharedWriteNormQKVZeroInitEmbedSeedZero'
+    DATASET_VARIANT = 'truepile4096'
+    base_emb_dim = 1280
+    head_dim = 64
+    rmt_rope_qk_dim = 16
+    base_mlp_dim = 4109  # nearest equal-budget width: 679,685,720 params, MHA+40,280
+    learning_rate = 2.5e-4
+    learning_rate_schedule_steps = 24000
+    steps = 24000
+    eval_interval = 24000
+    force_final_checkpoint = True
+    checkpoint_period = 250
+    keep_period = 2000
+    max_to_keep = 2
+    compare_runs = ['Llama2XLPropHD64', 'MuddLlama2XLPropHD64',
+                    'BamXLPropHD64K64EmbedVOnlyQK48AllLocalMLPWriteIndependentEveryThirdTruePile']
+    jax_cache_dir = ''

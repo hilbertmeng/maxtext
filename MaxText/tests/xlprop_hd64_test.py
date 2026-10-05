@@ -36,8 +36,9 @@ class XLPropHD64Test(unittest.TestCase):
 
     def _gradient(self,exp):
         kw=dict(base_num_decoder_layers=3,base_emb_dim=128,base_num_query_heads=2,base_num_kv_heads=2,head_dim=64,base_mlp_dim=128,vocab_size=64)
-        if exp.startswith('Mudd'):kw['mlp_dim_by_layer']=[96,128,160]
-        c=self.cfg(exp_class=exp,**kw);model,args=self.model(c)
+        c=self.cfg(exp_class=exp,**kw)
+        if exp.startswith('Mudd'):c.get_keys()['mlp_dim_by_layer']=[96,128,160]
+        model,args=self.model(c)
         with contextlib.redirect_stdout(io.StringIO()):
             params=nn.unbox(model.init(jax.random.key(2),**args)['params'])
             loss,grads=jax.jit(jax.value_and_grad(lambda p:jnp.mean(model.apply({'params':p},**args)[0]**2)))(params)

@@ -10173,6 +10173,7 @@ class BamXLT2048K128EmbedVOnlyQK96AllLocalMLPWriteIndependentEveryThird(BamXLPro
     emb_bam_num_head = 16
     emb_bam_v_bottleneck_dim = 256
     bam_mlp_write_address_rank = 246
+    bam_mlp_write_address_hidden_replicated = True
     bam_layer_modes = ['local_qk+local_v+local_o'] * 24
     bam_extra_final_local_layer = False
     bam_final_local_mlp_dim = None

@@ -45,6 +45,10 @@ class OldXLSotaTransferTest(unittest.TestCase):
         mesh = jax.sharding.Mesh(max_utils.create_device_mesh(c), c.mesh_axes)
         args, kw, sharding, model = train_compile.get_shaped_inputs(mesh, c)
         flat = flatten_dict(args[0].params)
+        up_key = ('params', 'decoder', 'layers', 'local_1', 'block', 'mlp_address_up', 'kernel')
+        up_sharding = flatten_dict(sharding.params)[up_key]
+        self.assertIsNone(up_sharding.spec[0])
+        self.assertEqual(flat[up_key].shape[0], 246)
         total = sum(int(np.prod(v.shape)) for v in flat.values())
         self.assertEqual(total, 1420908048)
         self.assertLess(abs(total - 1420920832), 49152 / 2)

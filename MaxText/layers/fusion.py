@@ -325,7 +325,10 @@ class SubDecoderLayer(nn.Module):
         independent_address = linears.DenseGeneral(
             features=(num_query_heads, cfg.bam_v), axis=-1, use_bias=True,
             kernel_init=initializers.get_init_method(cfg.init_method),
-            kernel_axes=('embed', 'q_heads', 'v_factor'),
+            # The LoRA hidden dimension need not divide the embedding FSDP mesh.
+            # Opt in for exact non-divisible ranks; preserve legacy partitioning otherwise.
+            kernel_axes=(None if getattr(cfg, 'bam_mlp_write_address_hidden_replicated', False)
+                         else 'embed', 'q_heads', 'v_factor'),
             dtype=cfg.dtype, weight_dtype=cfg.weight_dtype,
             quant=self.quant, matmul_precision=cfg.matmul_precision,
             name='mlp_address_up')(nn.gelu(address_hidden))

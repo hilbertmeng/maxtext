@@ -12049,7 +12049,5 @@ class RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOSharedWriteNormQKV
     checkpoint_period = 250
     keep_period = 2000
     max_to_keep = 2
-    compare_runs = ['BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdTruePile',
-                    'BamXLPropK96EmbedVOnlyQK72LLFTruePile',
-                    'MuddLlama2XLProp', 'Llama2XLPropTruePileMHA']
+    compare_runs = ['RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOSharedWriteNormQKVZeroInitEmbedSeedZero', 'BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdTruePile', 'BamXLPropK96EmbedVOnlyQK72LLFTruePile', 'MuddLlama2XLProp', 'Llama2XLPropTruePileMHA']
     jax_cache_dir = ''

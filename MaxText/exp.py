@@ -5649,6 +5649,22 @@ class Llama2XLProp(Llama2XL):
     compare_runs = []
 
 
+class Llama2XLPropHD64(Llama2XLProp):
+    """Width-only XLProp control: 28 layers, 20x64 heads, D1280, TruePile4096."""
+    model_name = 'Llama2XLPropHD64'
+    bam_final_local_layer_count = 0  # no partial-block tail in the MHA control
+    DATASET_VARIANT = 'truepile4096'
+    base_emb_dim = 1280
+    head_dim = 64
+    base_mlp_dim = 3413  # nearest integer to 5120 * 2/3; no hardware rounding
+    learning_rate = 2.5e-4
+    learning_rate_schedule_steps = 24000
+    steps = 24000
+    eval_interval = 24000
+    compare_runs = []
+    jax_cache_dir = ''
+
+
 class Llama2XLHead16x128(Llama2XL):
     base_num_query_heads = 16
     base_num_kv_heads = 16
@@ -10186,4 +10202,25 @@ class BamXLT2048K128EmbedVOnlyQK96AllLocalMLPWriteIndependentEveryThird(BamXLPro
     compare_runs = ['BamXLSharedBasisQKConcatStaticLocalVOSharedC8IndependentGatesK96QK96DirectC8MLPPerLayer',
                     'BamXLSharedBasisQKConcatStaticLocalVOSharedC8IndependentGatesK96QK96SharedRank4MLPPerLayer',
                     'BamMHALlama2XLHead16x128C256']
+    jax_cache_dir = ''
+
+
+class BamXLPropHD64K64EmbedVOnlyQK48AllLocalMLPWriteIndependentEveryThirdTruePile(
+    Llama2XLPropHD64, BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdTruePile):
+    """Width-scaled XLProp sparse MLP-write BAM; keep address40/C10 and address ranks."""
+    # Ledger only. Implementation: codex/mediumprop-k75-embed, /data0/xd/mediumprop-k75-embed.
+    model_name = 'BamXLPropHD64K64EmbedVOnlyQK48AllLocalMLPWriteIndependentEveryThirdTruePile'
+    bam_k = 64
+    bam_v = 40
+    bam_abs_v_compression_dim = 10
+    bam_standard_qk_dim = 16
+    bam_local_qk_col_output_dim = 48
+    bam_partial_rope_nope_dim = 48
+    bam_write_v_bottleneck_dim = 400
+    emb_bam_num_head = 20
+    emb_bam_v_bottleneck_dim = 400
+    bam_mlp_write_address_rank = 384
+    mlp_dim_by_block = [4030, 3818, 4033]
+    bam_final_local_mlp_dim = 4030
+    compare_runs = ['Llama2XLPropHD64', 'MuddLlama2XLPropHD64']
     jax_cache_dir = ''

@@ -21,3 +21,5 @@ R600不能整分16路FSDP；打开bam_replicate_ploc_up，同时让embedding地�
 首步参数分片保护记录：模型1,432,396,680，每芯片109,403,880，理想89,524,792.5，额外22.2051%。28层加embedding共20.88M地址up复制，解释其中19.575M/chip的额外量；其余约.304M/chip为原有小参数复制。新类sharding_tolerance设.23，不改模型或数值。初次失败预队2910073已删除，正式2910074保留重启。
 
 实际runtime e0125ba，FIRST_STEP1及九个MLP写入层health已确认，20–99步TB稳态中位数.336step/s（父版.347，−3.2%，同健康设置）。首次训练180步左右遇maintenance、未达首个250步checkpoint，auto-train同区重建；重启后仍需核对AOT loaded和首步。
+
+同区恢复核验：实际终止前强制提交checkpoint185，恢复185后首步186，LR7.44e−5与原500步warmup一致；再次Loaded compiled function、runtime e0125ba、UC区内TruePile路径及地址R600/keep4000/latest2均已核对，250步checkpoint已提交。恢复后稳态.335–.336，未丢掉前185步。

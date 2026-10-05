@@ -913,7 +913,12 @@ class Decoder(nn.Module):
           without_v = [mode.replace('+local_v', '').replace('local_v+', '') for mode in modes]
           llf_modes = (
               ['local_qk+local_o'] * (block_size - 1) + ['local_qk+full']) * (scan_length // block_size)
-          assert without_v == llf_modes or without_v == ['local_qk+local_o'] * scan_length
+          assert without_v == llf_modes or all(
+              mode in ('local_qk', 'local_qk+local_o') for mode in without_v)
+          matrix_v_setting = getattr(cfg, 'bam_local_v_replace', False)
+          if isinstance(matrix_v_setting, list):
+            assert len(matrix_v_setting) == cfg.num_decoder_layers
+            assert matrix_v_setting[:scan_length] == matrix_v_setting[:block_size] * (scan_length // block_size)
           # The block is compiled once; every per-layer read setting must repeat.
           for arm in ('q', 'k', 'v'):
             for key in ('rank', 'rank_routing', 'pre_rms_bias'):

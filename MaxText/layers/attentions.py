@@ -2484,6 +2484,13 @@ class BamAttention(Attention):
     assert 'write' not in self._mode or self._mode == {'write'}
     assert not {'local_o', 'full'} <= self._mode, (
         'local_o and full remain alternative O read destinations')
+    matrix_only_v = getattr(cfg, 'bam_local_v_replace', False)
+    if isinstance(matrix_only_v, list):
+      assert len(matrix_only_v) == cfg.num_decoder_layers, (
+          'bam_local_v_replace must have one bool per decoder layer')
+      assert all(isinstance(value, bool) for value in matrix_only_v), (
+          'bam_local_v_replace entries must be bools')
+      matrix_only_v = matrix_only_v[self.layer_inx]
     local_v_rank = self._local_read_setting('v', 'rank')
     shared_v = 'local_v' in self._mode and local_v_rank is None
     self._output_read = bool(self._mode & {'full', 'local_o'}) or shared_v
@@ -2492,7 +2499,7 @@ class BamAttention(Attention):
     # Its V and fetched O share W_R, but read local/fetched M respectively.
     self._fetched_matrix_v = (
         {'full', 'local_v'} <= self._mode
-        and bool(getattr(cfg, 'bam_local_v_replace', False)))
+        and bool(matrix_only_v))
     if self._fetched_matrix_v:
       assert cfg.bam_prune_all_row_reads and cfg.bam_local_vo_static
       assert cfg.bam_local_vo_independent_gates and self.bam_k == self.head_dim
@@ -2865,7 +2872,7 @@ class BamAttention(Attention):
                 ('v_factor', 'q_heads')),
             (self.bam_v, self.num_query_heads), self.weight_dtype))
 
-    self._local_v_replace = 'local_v' in self._mode and (self._local_o or self._fetched_matrix_v) and bool(getattr(cfg, 'bam_local_v_replace', False))
+    self._local_v_replace = 'local_v' in self._mode and (self._local_o or self._fetched_matrix_v) and bool(matrix_only_v)
     self._static_vo = self._local_o and bool(getattr(cfg, 'bam_local_vo_static', False))
     if self._local_v_replace:
       assert (self._vo_independent_gates or self._fetched_matrix_v) and self.bam_k == self.head_dim

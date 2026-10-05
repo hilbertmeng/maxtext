@@ -10244,6 +10244,30 @@ class BamMediumPropK75V48C12EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdT
     jax_cache_dir = ''
 
 
+class BamMediumPropK75V48C12EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdWVBlockFirstKeepVOTruePile(
+    BamMediumPropK75V48C12EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile):
+    """Restore W_V immediately before each independent MLP write, retaining LocalVO."""
+    # Implementation: codex/mediumprop-k75-embed; /data0/xd/mediumprop-k75-embed.
+    # Bet terminal vs V48 parent -.006; .508step/s vs .503 (+1.0%).
+    model_name = 'BamMediumPropK75V48C12EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdWVBlockFirstKeepVOTruePile'
+    bam_local_v_replace = [False, True, True] * 6
+    mlp_dim_by_block = [3365, 3550, 3765]
+    compare_runs = ['BamMediumPropK75V48C12EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile']
+    jax_cache_dir = ''
+
+
+class BamMediumPropK75V48C12EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdWVBlockFirstNoVOTruePile(
+    BamMediumPropK75V48C12EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdWVBlockFirstKeepVOTruePile):
+    """Restore W_V before each MLP write, dropping LocalVO only on W_V layers."""
+    # Implementation: codex/mediumprop-k75-embed; /data0/xd/mediumprop-k75-embed.
+    # Bet terminal vs V48 parent -.012 / KeepVO -.006; .520step/s vs .503 (+3.4%).
+    model_name = 'BamMediumPropK75V48C12EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdWVBlockFirstNoVOTruePile'
+    bam_layer_modes = ['local_qk', 'local_qk+local_v+local_o', 'local_qk+local_v+local_o'] * 6
+    mlp_dim_by_block = [3440, 3550, 3765]  # exact net refund: 432109408, MHA-11792
+    compare_runs = ['BamMediumPropK75V48C12EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile', 'BamMediumPropK75V48C12EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdWVBlockFirstKeepVOTruePile']
+    jax_cache_dir = ''
+
+
 class BamXLPropK96V60C15EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdTruePile(
     BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdTruePile):
     """XLProp transfer of the 1.5x address-space expansion with 4:1 compression."""

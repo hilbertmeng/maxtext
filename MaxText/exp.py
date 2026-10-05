@@ -11508,3 +11508,26 @@ class MuddLlama2XLPropHD64(Mudd, Llama2XLPropHD64):
     jax_cache_dir = ''
 
 
+
+
+class MuddLlama2XLT2048Head16x128(Mudd, Llama2XLHead16x128):
+    """Full-history Mudd control on the historical XL16x128 T2048 backbone."""
+    # Ledger only. Implementation: codex/mudd-xlprop-truepile, /data0/xd/mudd-xlprop-truepile.
+    model_name = 'MuddLlama2XLT2048Head16x128'
+    DATASET_VARIANT = 'legacy2048'
+    mudd_full_history = True
+    scan_layers = False  # Growing full history and the original per-layer MLP widths.
+    attention = 'dot_product_chunk'
+    query_chunk_size = 256
+    float32_logits = False
+    record_training_health_metrics = True
+    per_device_batch_size = 16.0
+    steps = 50000
+    eval_interval = 50000
+    force_final_checkpoint = True
+    wd_mults = []  # Match the actual historical XL MHA/BAM AOT all-decay optimizer.
+    checkpoint_period = 250
+    keep_period = 2000
+    max_to_keep = 2
+    compare_runs = ['BamMHALlama2XLHead16x128C256']
+    jax_cache_dir = ''

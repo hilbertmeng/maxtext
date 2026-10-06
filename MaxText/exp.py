@@ -12116,6 +12116,7 @@ class RMTXLT2048AllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbe
     RMTXLPropHD64T4096TruePileAllLocalK60EmbedUnembedDirect40NoOSharedWriteNormQKVZeroInitEmbedSeedZero):
     """Transfer HD64 QKV-zero/SeedZero RMT to the historical XL16x128 T2048 backbone."""
     # Ledger only. Implementation: codex/rmt-xlprop-noo, /data0/xd/rmt-xlprop-noo; pure JAX layer scan.
+    # code_commit: 408e2c9; UC1a v5p-32 .4258step/s; BAM .494 -13.8%, Mudd .590 -27.8%, MHA .708 -39.9%; broader RMT health.
     model_name = 'RMTXLT2048AllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZero'
     DATASET_VARIANT = 'legacy2048'
     base_num_decoder_layers = 24

@@ -355,6 +355,7 @@ class BamLlama2Medium(Llama2Medium):
     bam_write_data_rms = True       # normalize write data/value factor u1
     bam_mlp_write_content_rms = True  # independently normalize direct MLP->M content
     bam_mlp_write_content_transform = False  # independent per-head KxK map before content RMSNorm
+    bam_mlp_write_vector_residual_mode = 'add'  # add / complement (1-g) / off at MLP->M layers
     bam_write_factor_norm = 'rms'   # rms | grouped_rms (per-head learned scale)
     bam_write_address_norm_bias = False  # learned post-norm shift on the address factor
     bam_write_rms_statistics_dtype = 'float32'  # float32 | activation
@@ -10245,6 +10246,28 @@ class BamMediumPropK75V48C12EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdT
     jax_cache_dir = ''
 
 
+class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdResidualComplementTruePile(
+    BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile):
+    """Route MLP output between vector and matrix streams at layers1/4/7/10/13/16."""
+    # Implementation: codex/mediumprop-k75-embed; /data0/xd/mediumprop-k75-embed.
+    # Bet terminal vs V32 parent -.003; .518 (-.4%) step/s vs .520, same health.
+    model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdResidualComplementTruePile'
+    bam_mlp_write_vector_residual_mode = 'complement'
+    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile']
+    jax_cache_dir = ''
+
+
+class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdResidualOffTruePile(
+    BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile):
+    """Route MLP output between vector and matrix streams at layers1/4/7/10/13/16."""
+    # Implementation: codex/mediumprop-k75-embed; /data0/xd/mediumprop-k75-embed.
+    # Bet terminal vs V32 parent +.012; .522 (+.4%) step/s vs .520, same health.
+    model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdResidualOffTruePile'
+    bam_mlp_write_vector_residual_mode = 'off'
+    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile']
+    jax_cache_dir = ''
+
+
 class BamMediumPropK75V48C12EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdContentTransformTruePile(
     BamMediumPropK75V48C12EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile):
     """Untie MLP residual and matrix-write content coordinates with identity-initialized maps."""
@@ -10263,8 +10286,9 @@ class BamMediumPropK75V48C12EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdW
     BamMediumPropK75V48C12EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile):
     """Restore W_V immediately before each independent MLP write, retaining LocalVO."""
     # Implementation: codex/mediumprop-k75-embed; /data0/xd/mediumprop-k75-embed.
-    # Bet terminal vs V48 parent -.006; .508step/s vs .503 (+1.0%).
-    # code_commit: 09da7cd; UE5a v5p-16 ~.506step/s, +.6% vs V48 parent .503; same basic+concat/write health.
+    # code_commit: 09da7cd; UE5a/UC1a v5p-16 ~.506step/s, +.6% vs V48 parent .503; same health.
+    # Stopped2635: vs V48 parent crossed to worse at800; +.018772@2000, +.015999@2600.
+    # Late gap narrowed slightly but remained worse; last5 +.016827 (range +.015999..+.018772).
     model_name = 'BamMediumPropK75V48C12EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdWVBlockFirstKeepVOTruePile'
     bam_local_v_replace = [False, True, True] * 6
     mlp_dim_by_block = [3365, 3550, 3765]

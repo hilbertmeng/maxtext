@@ -349,10 +349,25 @@ class SubDecoderLayer(nn.Module):
             'mlp_write_content_transform', nn.with_logical_partitioning(
                 _head_identity_init, ('q_heads', None, None)),
             (num_query_heads, cfg.bam_k, cfg.bam_k), cfg.weight_dtype)
+      mlp_gate = jax.nn.sigmoid(mlp_logits)
+      mlp_heads = mlp_lnx.reshape(mlp_lnx.shape[:-1] + (num_query_heads, cfg.bam_k))
       M_out = attention_layer.merge_mlp_write(
-          mlp_lnx.reshape(mlp_lnx.shape[:-1] + (num_query_heads, cfg.bam_k)),
-          jax.nn.sigmoid(mlp_logits), write_factors, M_out, static_address,
+          mlp_heads, mlp_gate, write_factors, M_out, static_address,
           independent_address, content_transform)
+      # Route only the vector branch after writing the original MLP output to M.
+      # The same per-head sigmoid controls M insertion and its vector complement.
+      residual_mode = getattr(cfg, 'bam_mlp_write_vector_residual_mode', 'add')
+      if residual_mode == 'complement':
+        routed_mlp = ((1.0 - mlp_gate[..., None]) * mlp_heads).reshape(mlp_lnx.shape)
+      elif residual_mode == 'off':
+        routed_mlp = jnp.zeros_like(mlp_lnx)
+      elif residual_mode == 'add':
+        routed_mlp = mlp_lnx
+      else:
+        raise ValueError(f'Unknown MLP write vector residual mode: {residual_mode}')
+      if residual_mode != 'add':
+        attention_layer._record_concat_amplitude('mlp_vector_residual', routed_mlp, mlp_lnx)
+      mlp_lnx = routed_mlp
 
     if mlp_lnx is not None and moe_lnx is not None:
       layer_output = mlp_lnx + intermediate_inputs + moe_lnx

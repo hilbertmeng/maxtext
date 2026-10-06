@@ -7,7 +7,7 @@ import json
 import os
 from pathlib import Path
 from absl import app
-from flax.traverse_util import flatten_dict
+from flax.traverse_util import flatten_dict, unflatten_dict
 from flax.linen import partitioning as nn_partitioning
 import jax
 import numpy as np
@@ -107,6 +107,123 @@ def address_analysis(cfg, per_layer, params):
   return out
 
 
+def route_diagnostics(cfg, model, params, rng, mesh, batches, out):
+  """Per-(token, head-chunk) importance of the write-layer MLP output for residual vs M."""
+  from layers import bam_route_probe as rp
+  from flax import core
+  every = int(cfg.bam_mlp_write_every); offset = int(cfg.bam_mlp_write_offset)
+  write_layers = [l for l in range(cfg.num_decoder_layers) if (l + 1) % every == offset % every]
+  def loss_of(p, b):
+    return train.loss_fn(model, cfg, dict(b), rng, p, is_train=False)[0]
+  def set_mode(mode):
+    cfg.get_keys()['bam_diag_route'] = mode
+    jax.clear_caches()
+  # 1. Gradient split: first-order effects for both consumer paths.
+  set_mode('grad')
+  flat = flatten_dict(params)
+  emb_key = [k for k in flat if 'token_embedder' in k][0]
+  def emb_loss(emb, p, b):
+    f = dict(flat); f[emb_key] = emb
+    tree = unflatten_dict(f)
+    tree = core.freeze(tree) if isinstance(p, core.FrozenDict) else tree
+    return loss_of(tree, b)
+  grad_fn = jax.jit(jax.grad(emb_loss))
+  effects = {}
+  for i, b in enumerate(batches):
+    rp.STORE.clear()
+    with mesh, nn_partitioning.axis_rules(cfg.logical_axis_rules):
+      g = grad_fn(flat[emb_key], params, b)
+    jax.block_until_ready(g); jax.effects_barrier()
+    for (l, path), arrs in rp.STORE.items():
+      effects.setdefault((l, path), []).append(arrs[0].reshape(arrs[0].shape[-2], arrs[0].shape[-1]))
+    print(f'ROUTE_GRAD {i} keys={len(rp.STORE)}', flush=True)
+  del grad_fn
+  layers = sorted(set(l for l, _ in effects))
+  E = {(l, p): np.stack(effects[(l, p)]) for (l, p) in effects}   # (S, T, H) signed effects
+  # 2. Gates at full resolution.
+  set_mode('gate')
+  def gates_of(p, b):
+    _, inter = model.apply(p, b['inputs'], b['inputs_position'], decoder_segment_ids=b['inputs_segmentation'],
+                           decoder_target_mask=b['targets_segmentation'], decoder_target_tokens=b['targets'],
+                           enable_dropout=False, rngs={'dropout': rng, 'params': rng}, mutable=['intermediates'])
+    f = flatten_dict(inter['intermediates'])
+    return {'/'.join(k): (v[0] if isinstance(v, tuple) else v) for k, v in f.items() if k[-1] == 'diag_route_gate'}
+  gfn = jax.jit(gates_of)
+  block = getattr(cfg, 'bam_local_fetch_block_size', None) or 2
+  G = {}
+  for b in batches:
+    with mesh, nn_partitioning.axis_rules(cfg.logical_axis_rules):
+      d = gfn(params, b)
+    for key, v in d.items():
+      v = np.asarray(v, np.float32)
+      sub = [x for x in key.split('/') if x.startswith('local_') or x.startswith('fetch_')]
+      off = int(sub[0].split('_')[1])
+      for blk in range(v.shape[0]):
+        G.setdefault(block * blk + off, []).append(v[blk].reshape(v.shape[-2], v.shape[-1]))
+  del gfn
+  G = {l: np.stack(v) for l, v in G.items()}
+  # Statistics.
+  rank = lambda a: np.argsort(np.argsort(a.ravel())).astype(np.float64)
+  def spear(a, b):
+    return float(np.corrcoef(rank(a), rank(b))[0, 1])
+  res = {'write_layers': write_layers, 'layers': []}
+  masks_oracle, masks_random = {}, {}
+  rng_np = np.random.default_rng(0)
+  for l in layers:
+    er, em = E[(l, 'res')], E[(l, 'm')]
+    ir, im = np.abs(er), np.abs(em)
+    tot = ir + im
+    share_m = im / np.maximum(tot, 1e-30)
+    hi_r, hi_m = ir > np.quantile(ir, .75), im > np.quantile(im, .75)
+    oracle_m = (im > ir).astype(np.float32)
+    frac_m = float(oracle_m.mean())
+    random_m = (rng_np.random(oracle_m.shape) < frac_m).astype(np.float32)
+    masks_oracle[l], masks_random[l] = oracle_m, random_m
+    # First-order predicted loss change of removing a path: -effect.
+    pred_oracle = float(np.mean(np.sum(-np.where(oracle_m > 0, er, em), -1)))
+    pred_random = float(np.mean(np.sum(-np.where(random_m > 0, er, em), -1)))
+    pred_res_off = float(np.mean(np.sum(-er, -1))); pred_m_off = float(np.mean(np.sum(-em, -1)))
+    row = {'layer': l, 'importance_res_mean': float(ir.mean()), 'importance_m_mean': float(im.mean()),
+           'spearman_res_m': spear(ir, im), 'pearson_log': float(np.corrcoef(np.log(ir.ravel() + 1e-12), np.log(im.ravel() + 1e-12))[0, 1]),
+           'share_m_percentiles': np.percentile(share_m, [10, 25, 50, 75, 90]).tolist(),
+           'quadrant_m_only': float(np.mean(hi_m & ~hi_r)), 'quadrant_res_only': float(np.mean(hi_r & ~hi_m)),
+           'quadrant_both': float(np.mean(hi_r & hi_m)), 'oracle_frac_to_m': frac_m,
+           'pred_dce_res_off': pred_res_off, 'pred_dce_m_off': pred_m_off,
+           'pred_dce_oracle': pred_oracle, 'pred_dce_random': pred_random,
+           'share_m_by_head': np.median(share_m, axis=(0, 1)).tolist()}
+    if l in G:
+      g = G[l]
+      row.update(gate_mean=float(g.mean()), spearman_gate_im=spear(g, im), spearman_gate_ir=spear(g, ir),
+                 spearman_gate_share_m=spear(g, share_m))
+    res['layers'].append(row)
+  res['pred_total'] = {k: float(sum(r[k] for r in res['layers'])) for k in
+                       ('pred_dce_res_off', 'pred_dce_m_off', 'pred_dce_oracle', 'pred_dce_random')}
+  (out / 'route_results.json').write_text(json.dumps(res, indent=2))
+  print('ROUTE_STATS ' + json.dumps(res['pred_total']), flush=True)
+  # 3. Forward ablations.
+  def run_ce(mode, masks=None):
+    set_mode(mode)
+    f = jax.jit(loss_of); vals = []
+    for i, b in enumerate(batches):
+      if masks is not None:
+        rp.MASK.clear()
+        for l, m in masks.items():
+          rp.MASK[l] = m[i][None]
+      with mesh, nn_partitioning.axis_rules(cfg.logical_axis_rules):
+        vals.append(float(f(params, b)))
+    del f; return vals
+  ce = {'baseline': run_ce('')}
+  for mode in ('res_off', 'm_off', 'both_off', 'couple'):
+    ce[mode] = run_ce(mode)
+  ce['oracle'] = run_ce('mask', masks_oracle)
+  ce['random'] = run_ce('mask', masks_random)
+  base = np.asarray(ce['baseline'])
+  res['ablations'] = {k: {'losses': v, 'delta_mean': float(np.mean(np.asarray(v) - base))} for k, v in ce.items()}
+  set_mode('')
+  (out / 'route_results.json').write_text(json.dumps(res, indent=2))
+  print('ROUTE_ABLATIONS ' + json.dumps({k: round(v['delta_mean'], 4) for k, v in res['ablations'].items()}), flush=True)
+
+
 def main(argv):
   cfg = pyconfig.initialize(argv)
   cfg.get_keys()['load_parameters_path'] = os.environ['DIAG_CHECKPOINT']
@@ -126,6 +243,9 @@ def main(argv):
     b['inputs_segmentation'] = np.ones((1, t), np.int32)
     b['inputs_position'] = np.arange(t, dtype=np.int32)[None]
     batches.append(b)
+  if os.environ.get('DIAG_ROUTE', '0') == '1':
+    route_diagnostics(cfg, model, params, rng, mesh, batches, out)
+    return
   cfg.get_keys()['bam_diag_capture'] = stride
   def capture(p, b):
     (xent, _, _), inter = model.apply(

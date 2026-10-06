@@ -357,10 +357,32 @@ class SubDecoderLayer(nn.Module):
             'mlp_write_address', nn.with_logical_partitioning(
                 nn.initializers.normal(1.0 / math.sqrt(cfg.bam_v)), ('q_heads', 'v_factor')),
             (num_query_heads, cfg.bam_v), cfg.weight_dtype).astype(cfg.dtype)
+      route_mode = str(cfg.get_keys().get('bam_diag_route', ''))
+      y_heads = mlp_lnx.reshape(mlp_lnx.shape[:-1] + (num_query_heads, cfg.bam_k))
+      mlp_gate_value = jax.nn.sigmoid(mlp_logits)
+      y_res_heads, y_m_heads = y_heads, y_heads
+      if route_mode:
+        # Diagnostic routing of this layer's MLP output between residual and matrix write.
+        from layers import bam_route_probe as rp
+        if route_mode == 'grad':
+          y_res_heads = rp.tap(y_heads, layer_index, 'res')
+          y_m_heads = rp.tap(y_heads, layer_index, 'm')
+        elif route_mode == 'gate':
+          self.sow('intermediates', 'diag_route_gate', mlp_gate_value.astype(jnp.float32))
+        elif route_mode in ('res_off', 'both_off'):
+          y_res_heads = jnp.zeros_like(y_heads)
+        elif route_mode == 'couple':
+          y_res_heads = y_heads * (1.0 - mlp_gate_value)[..., None].astype(y_heads.dtype)
+        elif route_mode == 'mask':
+          m = rp.route_mask(layer_index, mlp_gate_value.shape)
+          y_res_heads = y_heads * (1.0 - m)[..., None].astype(y_heads.dtype)
+          mlp_gate_value = mlp_gate_value * m.astype(mlp_gate_value.dtype)
+        if route_mode in ('m_off', 'both_off'):
+          mlp_gate_value = jnp.zeros_like(mlp_gate_value)
       M_out = attention_layer.merge_mlp_write(
-          mlp_lnx.reshape(mlp_lnx.shape[:-1] + (num_query_heads, cfg.bam_k)),
-          jax.nn.sigmoid(mlp_logits), write_factors, M_out, static_address,
+          y_m_heads, mlp_gate_value, write_factors, M_out, static_address,
           independent_address)
+      mlp_lnx = y_res_heads.reshape(mlp_lnx.shape)
 
     if mlp_lnx is not None and moe_lnx is not None:
       layer_output = mlp_lnx + intermediate_inputs + moe_lnx

@@ -410,6 +410,10 @@ active leases are censored, and manual migration releases are not preemptions.
 | `BamXLPropK96EmbedVOnlyQK72AllLocalTruePile` | `xd-v5p-32-2909304-maxtext` (v5p-32) | `us-east5-a` | 2026-09-30 08:19:36 | 2026-10-01 16:30:59 | user pause; 8 preemptions; checkpoint committed, TPU/queue absent, TB synced | none |
 | `RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZeroMLPInputPreNormSharedRawWriteAttnWriteContentBias` | `xd-v5p-16-2910061-maxtext` (v5p-16) | `us-east5-a` | 2026-10-04 09:45:54 | 2026-10-04 22:32:40 | completed13500; 10 preemptions | none |
 | `RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOSharedWriteNormQKVZeroInitEmbedSeedZeroMLPInputPreNormSharedRawWriteAttnWriteContentBias` | `xd-v5p-32-2910064-maxtext` (v5p-32) | `us-east5-a` | 2026-10-04 16:10:13 | 2026-10-05 00:49:39 | user stopped5553; 5 preemptions | none |
+| `RMTXLPropHD64T4096TruePileAllLocalK60EmbedUnembedDirect40NoOSharedWriteNormQKVZeroInitEmbedSeedZero` | `xd-v5p-32-2910072-maxtext` (v5p-32) | `us-central1-a` | 2026-10-05 10:07:58 | 2026-10-05 15:45:12 | review stop13179; checkpoint committed, TPU/queue absent, TB synced; 17 preemptions | none |
+| `RMTXLPropHD64T4096TruePileAllLocalK60EmbedUnembedDirect40NoOSharedWriteNormQKVZeroInitEmbedSeedZero` | `xd-v5p-32-2910072-maxtext` (v5p-32) | `europe-west4-b` | 2026-10-05 15:45:12 | 2026-10-05 19:13:03 | review stop13179; checkpoint committed, TPU/queue absent, TB synced; 17 preemptions | none |
+| `RMTXLPropHD64T4096TruePileAllLocalK60EmbedUnembedDirect40NoOSharedWriteNormQKVZeroInitEmbedSeedZero` | `xd-v5p-32-2910072-maxtext` (v5p-32) | `us-east5-a` | 2026-10-05 19:13:03 | 2026-10-05 19:40:29 | review stop13179; checkpoint committed, TPU/queue absent, TB synced; 17 preemptions | none |
+| `RMTXLPropHD64T4096TruePileAllLocalK60EmbedUnembedDirect40NoOSharedWriteNormQKVZeroInitEmbedSeedZero` | `xd-v5p-32-2910072-maxtext` (v5p-32) | `us-central1-a` | 2026-10-05 19:40:29 | 2026-10-06 11:49:20 | review stop13179; checkpoint committed, TPU/queue absent, TB synced; 17 preemptions | none |
 
 ## READY leases
 
@@ -1284,4 +1288,22 @@ active leases are censored, and manual migration releases are not preemptions.
 | `RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZeroMLPInputPreNormSharedRawWriteAttnWriteContentBias` | 11 | `us-east5-a` | 2026-10-04 22:11:57 | 2026-10-04 22:32:40 | 20m43s | completed13500 |
 | `RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOSharedWriteNormQKVZeroInitEmbedSeedZeroMLPInputPreNormSharedRawWriteAttnWriteContentBias` | 4 | `us-east5-a` | 2026-10-05 00:11:31 | 2026-10-05 00:16:12 | 04m41s | preempted |
 | `RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOSharedWriteNormQKVZeroInitEmbedSeedZeroMLPInputPreNormSharedRawWriteAttnWriteContentBias` | 5 | `us-east5-a` | 2026-10-05 00:25:00 | 2026-10-05 00:29:19 | 04m19s | preempted |
+| `RMTXLPropHD64T4096TruePileAllLocalK60EmbedUnembedDirect40NoOSharedWriteNormQKVZeroInitEmbedSeedZero` | 1 | `us-central1-a` | 2026-10-05 10:08:03 | 2026-10-05 12:42:28 | 2h34m25s | preempted |
+| `RMTXLPropHD64T4096TruePileAllLocalK60EmbedUnembedDirect40NoOSharedWriteNormQKVZeroInitEmbedSeedZero` | 2 | `us-central1-a` | 2026-10-05 12:51:01 | 2026-10-05 14:08:44 | 1h17m43s | preempted |
+| `RMTXLPropHD64T4096TruePileAllLocalK60EmbedUnembedDirect40NoOSharedWriteNormQKVZeroInitEmbedSeedZero` | 3 | `us-central1-a` | 2026-10-05 14:19:40 | 2026-10-05 14:32:58 | 13m18s | preempted |
+| `RMTXLPropHD64T4096TruePileAllLocalK60EmbedUnembedDirect40NoOSharedWriteNormQKVZeroInitEmbedSeedZero` | 4 | `us-central1-a` | 2026-10-05 14:46:00 | 2026-10-05 14:55:02 | 09m02s | preempted |
+| `RMTXLPropHD64T4096TruePileAllLocalK60EmbedUnembedDirect40NoOSharedWriteNormQKVZeroInitEmbedSeedZero` | 5 | `us-central1-a` | 2026-10-05 15:00:41 | 2026-10-05 15:03:59 | 03m18s | preempted |
+| `RMTXLPropHD64T4096TruePileAllLocalK60EmbedUnembedDirect40NoOSharedWriteNormQKVZeroInitEmbedSeedZero` | 6 | `europe-west4-b` | unknown | 2026-10-05 15:45:16 | unknown | preempted |
+| `RMTXLPropHD64T4096TruePileAllLocalK60EmbedUnembedDirect40NoOSharedWriteNormQKVZeroInitEmbedSeedZero` | 7 | `europe-west4-b` | 2026-10-05 16:21:12 | 2026-10-05 16:23:44 | 02m32s | preempted |
+| `RMTXLPropHD64T4096TruePileAllLocalK60EmbedUnembedDirect40NoOSharedWriteNormQKVZeroInitEmbedSeedZero` | 8 | `europe-west4-b` | 2026-10-05 17:40:16 | 2026-10-05 17:42:26 | 02m10s | preempted |
+| `RMTXLPropHD64T4096TruePileAllLocalK60EmbedUnembedDirect40NoOSharedWriteNormQKVZeroInitEmbedSeedZero` | 9 | `europe-west4-b` | 2026-10-05 18:22:56 | 2026-10-05 18:25:56 | 03m00s | preempted |
+| `RMTXLPropHD64T4096TruePileAllLocalK60EmbedUnembedDirect40NoOSharedWriteNormQKVZeroInitEmbedSeedZero` | 10 | `europe-west4-b` | 2026-10-05 18:59:26 | 2026-10-05 19:01:08 | 01m42s | preempted |
+| `RMTXLPropHD64T4096TruePileAllLocalK60EmbedUnembedDirect40NoOSharedWriteNormQKVZeroInitEmbedSeedZero` | 11 | `europe-west4-b` | 2026-10-05 19:06:24 | 2026-10-05 19:10:22 | 03m58s | preempted |
+| `RMTXLPropHD64T4096TruePileAllLocalK60EmbedUnembedDirect40NoOSharedWriteNormQKVZeroInitEmbedSeedZero` | 12 | `us-east5-a` | 2026-10-05 19:13:06 | 2026-10-05 19:14:43 | 01m37s | preempted |
+| `RMTXLPropHD64T4096TruePileAllLocalK60EmbedUnembedDirect40NoOSharedWriteNormQKVZeroInitEmbedSeedZero` | 13 | `us-east5-a` | 2026-10-05 19:22:34 | 2026-10-05 19:26:41 | 04m07s | preempted |
+| `RMTXLPropHD64T4096TruePileAllLocalK60EmbedUnembedDirect40NoOSharedWriteNormQKVZeroInitEmbedSeedZero` | 14 | `us-central1-a` | 2026-10-05 19:40:34 | 2026-10-05 19:46:53 | 06m19s | preempted |
+| `RMTXLPropHD64T4096TruePileAllLocalK60EmbedUnembedDirect40NoOSharedWriteNormQKVZeroInitEmbedSeedZero` | 15 | `us-central1-a` | 2026-10-05 19:53:08 | 2026-10-05 20:39:33 | 46m25s | preempted |
+| `RMTXLPropHD64T4096TruePileAllLocalK60EmbedUnembedDirect40NoOSharedWriteNormQKVZeroInitEmbedSeedZero` | 16 | `us-central1-a` | 2026-10-06 02:17:06 | 2026-10-06 03:44:15 | 1h27m09s | preempted |
+| `RMTXLPropHD64T4096TruePileAllLocalK60EmbedUnembedDirect40NoOSharedWriteNormQKVZeroInitEmbedSeedZero` | 17 | `us-central1-a` | 2026-10-06 08:43:42 | 2026-10-06 10:30:37 | 1h46m55s | preempted |
+| `RMTXLPropHD64T4096TruePileAllLocalK60EmbedUnembedDirect40NoOSharedWriteNormQKVZeroInitEmbedSeedZero` | 18 | `us-central1-a` | 2026-10-06 10:36:39 | 2026-10-06 11:49:20 | 1h12m41s | review stop13179; checkpoint committed, TPU/queue absent, TB synced |
 | `RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicEmbeddingUnembeddingDirect32L22` | 1 | `us-east5-a` | 2026-09-27 00:29:56 | — | censored | active; prequeue READY precedes registry00:30:07 |

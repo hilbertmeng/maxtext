@@ -12090,7 +12090,9 @@ class RMTXLPropHD64T4096TruePileAllLocalK60EmbedUnembedDirect40NoOSharedWriteNor
     # code_commit: 93a139a; UC1a v5p-32~.408step/s, vs HD64 BAM .446 -8.6% (extra RMT health).
     # Implementation: codex/rmt-xlprop-noo, /data0/xd/rmt-xlprop-noo; pure JAX layer scan.
     # M60x64, proxy20/tail40, C10; address-output dimensions unchanged, keep R384.
-    # Bet vs HD64 BAM: -.010@12000, -.005@24000; speed .42 vs BAM .446 (~-6%, extra RMT health).
+    # Stopped13179: early BAM lead shrank, crossed12k; +.000680/+.002197/+.003085 at12k/12.5k/13k.
+    # At13k vs MHA-.125035, Mudd-.033262 (/Mudd1.362x); last5 vsBAM+.000770, /BAM.976x.
+    # At8k->13k terminal MLPraw367->941, Mraw13.84->19.52; middle shared-energy fraction .216 at13k.
     model_name = 'RMTXLPropHD64T4096TruePileAllLocalK60EmbedUnembedDirect40NoOSharedWriteNormQKVZeroInitEmbedSeedZero'
     DATASET_VARIANT = 'truepile4096'
     base_emb_dim = 1280
@@ -12107,4 +12109,38 @@ class RMTXLPropHD64T4096TruePileAllLocalK60EmbedUnembedDirect40NoOSharedWriteNor
     max_to_keep = 2
     compare_runs = ['Llama2XLPropHD64', 'MuddLlama2XLPropHD64',
                     'BamXLPropHD64K64EmbedVOnlyQK48AllLocalMLPWriteIndependentEveryThirdTruePile']
+    jax_cache_dir = ''
+
+
+class RMTXLT2048AllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZero(
+    RMTXLPropHD64T4096TruePileAllLocalK60EmbedUnembedDirect40NoOSharedWriteNormQKVZeroInitEmbedSeedZero):
+    """Transfer HD64 QKV-zero/SeedZero RMT to the historical XL16x128 T2048 backbone."""
+    # Ledger only. Implementation: codex/rmt-xlprop-noo, /data0/xd/rmt-xlprop-noo; pure JAX layer scan.
+    model_name = 'RMTXLT2048AllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZero'
+    DATASET_VARIANT = 'legacy2048'
+    base_num_decoder_layers = 24
+    base_emb_dim = 2048
+    base_num_query_heads = 16
+    base_num_kv_heads = 16
+    head_dim = 128
+    max_target_length = 2048
+    per_device_batch_size = 16.0
+    rmt_reskey_dim = 48
+    rmt_dynamic_write_rows = 48
+    rmt_dynamic_compression_dim = 8
+    rmt_dynamic_write_bottleneck_dim = 256
+    rmt_rope_qk_dim = 32
+    base_mlp_dim = 7442  # 1,420,865,056 params, MHA-55,776; nearest uniform integer width.
+    learning_rate = 2e-4
+    learning_rate_schedule_steps = 50000
+    warmup_steps_fraction = .01
+    steps = 50000
+    eval_interval = 50000
+    force_final_checkpoint = True
+    wd_mults = []  # Match the historical XL MHA/BAM/Mudd all-decay AOT optimizer.
+    checkpoint_period = 250
+    keep_period = 2000
+    max_to_keep = 2
+    compare_runs = ['BamXLT2048K128EmbedVOnlyQK96AllLocalMLPWriteIndependentEveryThird',
+                    'MuddLlama2XLT2048Head16x128', 'BamMHALlama2XLHead16x128C256']
     jax_cache_dir = ''

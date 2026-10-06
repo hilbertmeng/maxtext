@@ -265,6 +265,16 @@ class SubDecoderLayer(nn.Module):
           kernel_init=initializers.get_init_method(cfg.init_method), # lsp
       )(hidden_states, deep_embedding=deep_embedding, decoder_input_tokens=decoder_input_tokens, deterministic=deterministic)
       mlp_lnx = nn.with_logical_constraint(mlp_lnx, ("activation_batch", "activation_norm_length", "activation_embed"))
+      _route = str(cfg.get_keys().get('bam_diag_route', ''))
+      if _route and not mlp_write:
+        from layers import bam_route_probe as rp
+        _shape = mlp_lnx.shape[:-1] + (num_query_heads, mlp_lnx.shape[-1] // num_query_heads)
+        if _route == 'grad':
+          mlp_lnx = rp.tap(mlp_lnx.reshape(_shape), layer_index, 'res').reshape(mlp_lnx.shape)
+      _off_layers = tuple(cfg.get_keys().get('bam_diag_res_off_layers', ()) or ())
+      if _off_layers:
+        _off = jnp.any(jnp.asarray(layer_index) == jnp.asarray(_off_layers, jnp.int32))
+        mlp_lnx = jnp.where(_off, jnp.zeros_like(mlp_lnx), mlp_lnx)
 
       if cfg.record_internal_nn_metrics:
         mlp_l2norm = jnp.sqrt(jnp.sum(jnp.square(mlp_lnx)))

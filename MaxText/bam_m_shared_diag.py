@@ -138,7 +138,9 @@ def route_diagnostics(cfg, model, params, rng, mesh, batches, out):
       effects.setdefault((l, path), []).append(arrs[0].reshape(arrs[0].shape[-2], arrs[0].shape[-1]))
     print(f'ROUTE_GRAD {i} keys={len(rp.STORE)}', flush=True)
   del grad_fn
-  layers = sorted(set(l for l, _ in effects))
+  res_all = {l: float(np.mean(np.abs(np.stack(effects[(l, 'res')])))) for (l, p) in effects if p == 'res'}
+  res_all_token = {l: float(np.mean(np.abs(np.sum(np.stack(effects[(l, 'res')]), -1)))) for (l, p) in effects if p == 'res'}
+  layers = sorted(set(l for l, p in effects if p == 'm'))
   E = {(l, p): np.stack(effects[(l, p)]) for (l, p) in effects}   # (S, T, H) signed effects
   # 2. Gates at full resolution.
   set_mode('gate')
@@ -166,7 +168,9 @@ def route_diagnostics(cfg, model, params, rng, mesh, batches, out):
   rank = lambda a: np.argsort(np.argsort(a.ravel())).astype(np.float64)
   def spear(a, b):
     return float(np.corrcoef(rank(a), rank(b))[0, 1])
-  res = {'write_layers': write_layers, 'layers': []}
+  res = {'write_layers': write_layers, 'layers': [],
+         'residual_importance_all_layers': {str(l): res_all[l] for l in sorted(res_all)},
+         'residual_token_effect_all_layers': {str(l): res_all_token[l] for l in sorted(res_all_token)}}
   masks_oracle, masks_random = {}, {}
   rng_np = np.random.default_rng(0)
   for l in layers:
@@ -215,6 +219,19 @@ def route_diagnostics(cfg, model, params, rng, mesh, batches, out):
   ce = {'baseline': run_ce('')}
   for mode in ('res_off', 'm_off', 'both_off', 'couple'):
     ce[mode] = run_ce(mode)
+  def run_off(layers_off):
+    cfg.get_keys()['bam_diag_res_off_layers'] = list(layers_off)
+    try:
+      return run_ce('')
+    finally:
+      cfg.get_keys()['bam_diag_res_off_layers'] = []
+  L = cfg.num_decoder_layers
+  sets = {'res_off_write_layers': write_layers,
+          'res_off_nonwrite_a': [l for l in range(0, L - 1, every)][:len(write_layers)],
+          'res_off_nonwrite_b': [l for l in range(2, L, every)][:len(write_layers)]}
+  res['res_off_sets'] = sets
+  for name, ls in sets.items():
+    ce[name] = run_off(ls)
   ce['oracle'] = run_ce('mask', masks_oracle)
   ce['random'] = run_ce('mask', masks_random)
   base = np.asarray(ce['baseline'])

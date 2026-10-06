@@ -366,7 +366,9 @@ class SubDecoderLayer(nn.Module):
         from layers import bam_route_probe as rp
         if route_mode == 'grad':
           y_res_heads = rp.tap(y_heads, layer_index, 'res')
-          y_m_heads = rp.tap(y_heads, layer_index, 'm')
+          # Matrix content is RMS-normalized per head, so dL/dy . y vanishes there;
+          # the write is linear in its gate, so the removal effect is dL/dg . g.
+          mlp_gate_value = rp.tap(mlp_gate_value[..., None], layer_index, 'm')[..., 0]
         elif route_mode == 'gate':
           self.sow('intermediates', 'diag_route_gate', mlp_gate_value.astype(jnp.float32))
         elif route_mode in ('res_off', 'both_off'):

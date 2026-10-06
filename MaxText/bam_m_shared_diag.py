@@ -180,9 +180,9 @@ def route_diagnostics(cfg, model, params, rng, mesh, batches, out):
     random_m = (rng_np.random(oracle_m.shape) < frac_m).astype(np.float32)
     masks_oracle[l], masks_random[l] = oracle_m, random_m
     # First-order predicted loss change of removing a path: -effect.
-    pred_oracle = float(np.mean(np.sum(-np.where(oracle_m > 0, er, em), -1)))
-    pred_random = float(np.mean(np.sum(-np.where(random_m > 0, er, em), -1)))
-    pred_res_off = float(np.mean(np.sum(-er, -1))); pred_m_off = float(np.mean(np.sum(-em, -1)))
+    pred_oracle = float(np.mean(np.sum(-np.where(oracle_m > 0, er, em), axis=(1, 2))))
+    pred_random = float(np.mean(np.sum(-np.where(random_m > 0, er, em), axis=(1, 2))))
+    pred_res_off = float(np.mean(np.sum(-er, axis=(1, 2)))); pred_m_off = float(np.mean(np.sum(-em, axis=(1, 2))))
     row = {'layer': l, 'importance_res_mean': float(ir.mean()), 'importance_m_mean': float(im.mean()),
            'spearman_res_m': spear(ir, im), 'pearson_log': float(np.corrcoef(np.log(ir.ravel() + 1e-12), np.log(im.ravel() + 1e-12))[0, 1]),
            'share_m_percentiles': np.percentile(share_m, [10, 25, 50, 75, 90]).tolist(),

@@ -9875,10 +9875,24 @@ class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdDirectC
 class BamMediumPropK75EmbedVOnlyQK75AddBeforeRoPEAllLocalMLPWriteIndependentEveryThirdTruePile(
     BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile):
     """Add vector QK18 to the full M75 tail, then rotate that shared tail once."""
+    # code_commit: 237f3e5
     # Bet vs QK57: terminal loss -.003; speed unchanged.
     model_name = 'BamMediumPropK75EmbedVOnlyQK75AddBeforeRoPEAllLocalMLPWriteIndependentEveryThirdTruePile'
     bam_local_qk_add_before_rope = True
     bam_local_qk_col_output_dim = 75
     bam_partial_rope_nope_dim = 57
+    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile']
+    jax_cache_dir = ''
+
+
+class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdL21TruePile(
+    BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile):
+    """Reallocate the parent's MLP surplus to three layers, retaining QK57+RoPE18."""
+    # Bet vs18-layer parent: terminal loss -.005; speed .48 vs .520.
+    model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdL21TruePile'
+    base_num_decoder_layers = 21
+    bam_layer_modes = ['local_qk+local_v+local_o'] * 21
+    base_mlp_dim = 3177
+    mlp_dim_by_block = [3177, 3177, 3177]
     compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile']
     jax_cache_dir = ''

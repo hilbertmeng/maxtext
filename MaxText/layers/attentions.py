@@ -2397,6 +2397,9 @@ class BamAttention(Attention):
     cfg = self.config
     validate_bam_config(cfg, layer_mode=self.layer_mode)
     self._qk_from_m_only = bool(getattr(cfg, 'bam_qk_from_m_only', False))
+    self._qk_add_before_rope = bool(getattr(cfg, 'bam_local_qk_add_before_rope', False))
+    if self._qk_add_before_rope:
+      assert cfg.bam_concat_qk and not self._qk_from_m_only
     self._qk_static_rope_only = bool(getattr(cfg, 'bam_qk_static_rope_only', False))
     if self._qk_static_rope_only:
       assert self._qk_from_m_only and cfg.bam_concat_static_qk
@@ -3232,10 +3235,26 @@ class BamAttention(Attention):
     return M_in * jax.lax.rsqrt(
         jnp.mean(M_in ** 2, axis=(-2, -1), keepdims=True) + self._rms_epsilon)
 
-  def _add_local_qk(self, query, key, q_local, k_local, segment_ids=None):
+  def _add_local_qk(self, query, key, q_local, k_local, segment_ids=None, positions=None):
     """Inject LocalQK into the standard Q/K arm."""
     self._record_concat_amplitude('local_q', q_local[..., :self._qk_col_width], query)
     self._record_concat_amplitude('local_k', k_local[..., :self._qk_col_width], key)
+    if self._qk_add_before_rope:
+      assert positions is not None
+      assert self._qk_col_width == self.head_dim
+      assert self._partial_rope_nope_dim + query.shape[-1] == self._qk_col_width
+      split = self._partial_rope_nope_dim
+      # Keep all M coordinates; superpose the unrotated vector arm on its tail.
+      query = jnp.concatenate((q_local[..., :split], q_local[..., split:self._qk_col_width] + query), axis=-1)
+      key = jnp.concatenate((k_local[..., :split], k_local[..., split:self._qk_col_width] + key), axis=-1)
+      query = self._apply_partial_rope(query, positions, name='query_rotary')
+      key = self._apply_partial_rope(key, positions, name='key_rotary')
+      # Score health now compares the full mixed RoPE tail with the NoPE prefix.
+      # Cross terms are included in the tail, rather than mislabeled as separate arms.
+      self._record_concat_qk_scores(query[..., split:], key[..., split:],
+                                   query[..., :split], key[..., :split], segment_ids,
+                                   metric_name='concat_matrix_qk_scores')
+      return query, key
     self._record_concat_qk_scores(query, key, q_local[..., :self._qk_col_width], k_local[..., :self._qk_col_width], segment_ids)
     if self._record_local_routing_metrics:
       self._record_local_qk_read_health(query, key, q_local, k_local)
@@ -3560,7 +3579,11 @@ class BamAttention(Attention):
     if concat_qk:
       assert 0 < self._qk_col_width <= self.head_dim
       assert self._partial_rope
-      assert self._qk_from_m_only or self._partial_rope_nope_dim == self._qk_col_width
+      if self._qk_add_before_rope:
+        assert self._qk_col_width == self.head_dim
+        assert self._partial_rope_nope_dim + self._standard_qk_width == self.head_dim
+      else:
+        assert self._qk_from_m_only or self._partial_rope_nope_dim == self._qk_col_width
       assert self._share_qk_basis or self._direct_qk_c8
     standard_qk_width = self._standard_qk_width or (self.head_dim - self._qk_col_width)
     # ---- QKV projection + QKNorm + RoPE ----
@@ -3580,7 +3603,9 @@ class BamAttention(Attention):
     local_inputs = self._local_inputs(inputs_q) if self._local_arms else None
     if not self._qk_from_m_only:
       query, key = dc.QKNorm(cfg, name='qk_norm')(query, key)
-      if concat_qk:
+      if self._qk_add_before_rope:
+        pass  # Rotate the mixed tail once, after adding the matrix read below.
+      elif concat_qk:
         # Only the standard arm rotates; the retained BAM column is concatenated afterwards.
         query = self.apply_rotary_embedding(query, inputs_positions, name='query_rotary',
                                             embedding_dims=standard_qk_width)
@@ -3613,7 +3638,7 @@ class BamAttention(Attention):
         if self._qk_from_m_only:
           query, key = self._matrix_only_qk(q_local, k_local, inputs_positions, decoder_segment_ids)
         else:
-          query, key = self._add_local_qk(query, key, q_local, k_local, decoder_segment_ids)
+          query, key = self._add_local_qk(query, key, q_local, k_local, decoder_segment_ids, inputs_positions)
 
     query = nn.with_logical_constraint(query, self.query_axis_names)
     key = nn.with_logical_constraint(key, self.key_axis_names)

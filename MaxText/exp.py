@@ -292,6 +292,7 @@ class BamLlama2Medium(Llama2Medium):
     bam_local_q_rank = 1  # number of dynamic basis keys per Q/K and read side
     bam_prune_all_row_reads = False
     bam_record_concat_health = False
+    bam_local_qk_add_before_rope = False
     bam_concat_qk = False
     bam_concat_static_qk = False
     bam_qk_from_m_only = False
@@ -9867,5 +9868,17 @@ class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdDirectC
     bam_local_qk_share_basis = False
     bam_local_qk_separate_c8_projection = False
     mlp_dim_by_block = [3901, 3774, 3901]
+    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile']
+    jax_cache_dir = ''
+
+
+class BamMediumPropK75EmbedVOnlyQK75AddBeforeRoPEAllLocalMLPWriteIndependentEveryThirdTruePile(
+    BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile):
+    """Add vector QK18 to the full M75 tail, then rotate that shared tail once."""
+    # Bet vs QK57: terminal loss -.003; speed unchanged.
+    model_name = 'BamMediumPropK75EmbedVOnlyQK75AddBeforeRoPEAllLocalMLPWriteIndependentEveryThirdTruePile'
+    bam_local_qk_add_before_rope = True
+    bam_local_qk_col_output_dim = 75
+    bam_partial_rope_nope_dim = 57
     compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile']
     jax_cache_dir = ''

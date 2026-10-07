@@ -24,3 +24,5 @@ Loss windows200/500, normal reports1000/2000. Medium reviews2800/5000; XL review
 CPU gates: full exact budgets/key shapes, scanned forward/consumed gradients,
 legacy C8 regression. All passed, about50s per model on pinned CPU environment.
 Runtime/launch verification will be recorded after FIRST_STEP.
+
+Startup verified: Loaded compiled function, FIRST_STEP9; runtime3f72aac; UE5a 0.508step/s (20-99), -2.31% vs parent0.520. Same requested TruePile zone-local path and sole parent baseline verified.

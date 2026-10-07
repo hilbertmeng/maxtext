@@ -10054,3 +10054,16 @@ class BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdTruePile(Ba
     max_to_keep = 2
     compare_runs = ['BamXLPropK96EmbedVOnlyQK72AllLocalTruePile', 'BamXLPropK96EmbedVOnlyQK72LLFTruePile']
     jax_cache_dir = ''
+
+
+class BamXLPropK96EmbedVOnlyQK96AllLocalMLPWriteIndependentEveryThirdTruePile(
+    BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdTruePile):
+    """Full96 matrix NoPE QK concatenated with24 standard RoPE coordinates."""
+    # Equal parameter tree/MLP, V96; Q/K120. Preserve the parent's sqrt96 logit divisor.
+    model_name = 'BamXLPropK96EmbedVOnlyQK96AllLocalMLPWriteIndependentEveryThirdTruePile'
+    bam_local_qk_col_output_dim = 96
+    bam_partial_rope_nope_dim = 96
+    compare_runs = ['BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdTruePile',
+                    'BamXLPropK96EmbedVOnlyQK72LLFTruePile', 'MuddLlama2XLProp',
+                    'Llama2XLPropTruePileMHA']
+    jax_cache_dir = ''

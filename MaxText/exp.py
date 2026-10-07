@@ -10063,7 +10063,19 @@ class BamXLPropK96EmbedVOnlyQK96AllLocalMLPWriteIndependentEveryThirdTruePile(
     model_name = 'BamXLPropK96EmbedVOnlyQK96AllLocalMLPWriteIndependentEveryThirdTruePile'
     bam_local_qk_col_output_dim = 96
     bam_partial_rope_nope_dim = 96
-    compare_runs = ['BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdTruePile',
-                    'BamXLPropK96EmbedVOnlyQK72LLFTruePile', 'MuddLlama2XLProp',
-                    'Llama2XLPropTruePileMHA']
+    compare_runs = ['BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdTruePile']
+    jax_cache_dir = ''
+
+
+class BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdDirectC10TruePile(BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdTruePile):
+    """LocalQK compressed per-head dynamic reads; original static reads and QK width."""
+    # Bet vs parent: final-common-window loss -.001; speed -.01.
+    model_name = 'BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdDirectC10TruePile'
+    bam_local_qk_direct_c8 = True
+    bam_local_qk_col_direct_compressed = False
+    bam_local_qk_share_basis = False
+    bam_local_qk_separate_c8_projection = False
+    mlp_dim_by_block = [6267, 6079, 6267]
+    bam_final_local_mlp_dim = 6267
+    compare_runs = ['BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdTruePile']
     jax_cache_dir = ''

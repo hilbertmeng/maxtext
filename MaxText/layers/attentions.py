@@ -2636,7 +2636,7 @@ class BamAttention(Attention):
     self._direct_qk_c8 = bool(getattr(cfg, 'bam_local_qk_direct_c8', False))
     if self._direct_qk_c8:
       assert 'local_qk' in self._mode and cfg.bam_concat_qk and cfg.bam_prune_all_row_reads
-      assert self._abs_v_dim == 8 and not cfg.bam_local_qk_share_basis
+      assert self._abs_v_dim is not None and not cfg.bam_local_qk_share_basis
       assert not self._record_local_routing_metrics
     self._abs_v_row_output = getattr(cfg, 'bam_abs_v_row_output', 'direct')
     self._abs_v_row_decoder_output = getattr(
@@ -2680,7 +2680,7 @@ class BamAttention(Attention):
     self._fetched_arm_ungated = dataclasses.replace(self._fetched_arm, key_mode='rms')
     if self._direct_qk_c8:
       self._direct_qk_c8_arm = _BamReadArm(
-          name='q', k_dim=self.bam_k, v_dim=8, num_heads=self.num_query_heads,
+          name='q', k_dim=self.bam_k, v_dim=self._abs_v_dim, num_heads=self.num_query_heads,
           read_side='col', **read_settings)
     if read_settings['prune_row']:
       assert self.read_side == self._fetched_read_side == 'col'
@@ -2985,7 +2985,7 @@ class BamAttention(Attention):
         # Nonzero keys are essential for concatenated QK: two zero arms have
         # no attention-score cross term to awaken their dynamic read keys.
         setattr(self, f'W_l{name}_c8', DenseGeneral(
-            features=(self.num_query_heads, 8), axis=-1, kernel_init=reg_init,
+            features=(self.num_query_heads, self._abs_v_dim), axis=-1, kernel_init=reg_init,
             kernel_axes=('embed', 'q_heads', 'kv'), dtype=self.dtype,
             weight_dtype=self.weight_dtype, name=f'W_l{name}_c8', quant=self.quant,
             matmul_precision=cfg.matmul_precision, use_bias=False))
@@ -3232,7 +3232,7 @@ class BamAttention(Attention):
     return jnp.einsum('btkv,vn->btnk', M, getattr(self, 'static_' + arm + '_key').astype(M.dtype))
 
   def _read_direct_qk_c8(self, name, M, compressed_M, x):
-    """Independent per-head dynamic C8 read plus the original full-M static read."""
+    """Independent per-head compressed read plus the original full-M static read."""
     key = getattr(self, f'W_l{name}_c8')(x)
     logits = self._project_read_gate_logits(f'W_l{name}_gate', x)
     self._record_concat_gate('local_' + name, logits)

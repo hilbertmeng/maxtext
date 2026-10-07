@@ -2492,6 +2492,11 @@ class BamAttention(Attention):
     self._vo_shared_read = getattr(cfg, 'bam_local_vo_shared_read', 'none') if self._local_o and 'local_v' in self._mode else 'none'
     assert self._vo_shared_read in ('none', 'local_o')
     self._vo_independent_gates = self._local_o and 'local_v' in self._mode and bool(getattr(cfg, 'bam_local_vo_independent_gates', False))
+    self._vo_separate_c8_keys = (
+        bool(getattr(cfg, 'bam_local_vo_separate_last_block', False))
+        and self.layer_inx >= cfg.num_decoder_layers - cfg.bam_local_fetch_block_size)
+    if self._vo_separate_c8_keys:
+      assert self._vo_shared_read == 'local_o' and self._vo_independent_gates
     if self._vo_independent_gates:
       assert self._vo_shared_read == 'local_o'
     if self._vo_shared_read != 'none':
@@ -2773,6 +2778,14 @@ class BamAttention(Attention):
           quant=self.quant, matmul_precision=cfg.matmul_precision,
           use_bias=False,
           kernel_gradient_scale=self._fetched_read_kernel_gradient_scale)
+      if self._vo_separate_c8_keys:
+        self.W_R_v = DenseGeneral(
+            features=read_features, axis=-1,
+            kernel_init=zeros_init if self._fetched_read_kernel_init == 'zero' else reg_init,
+            kernel_axes=('embed', 'q_heads', 'fetch', 'kv'),
+            dtype=self.dtype, weight_dtype=self.weight_dtype, name='W_R_v',
+            quant=self.quant, matmul_precision=cfg.matmul_precision, use_bias=False,
+            kernel_gradient_scale=self._fetched_read_kernel_gradient_scale)
       fetched_gate_init = (
           zero_key_gate_init if self._fetched_read_gate_init is None
           else self._fetched_read_gate_init)
@@ -3201,7 +3214,16 @@ class BamAttention(Attention):
       correlation = jnp.mean(vc * oc) / jnp.maximum(jnp.sqrt(jnp.mean(vc * vc) * jnp.mean(oc * oc)), 1e-12)
       self.sow('intermediates', 'concat_vo_gate_pair', jnp.stack((
           jnp.mean(jnp.abs(v-o)), jnp.sqrt(jnp.mean((v-o)**2)), correlation)))
-    return self._gate_local_output(read, v_logits), self._gate_local_output(read, o_logits)
+    v_read = read
+    if self._vo_separate_c8_keys:
+      v_key = jnp.squeeze(self.W_R_v(x), axis=-2)
+      v_read = bam_read(compressed_M, v_key, self._fetched_arm_ungated)
+      if self._concat_health:
+        v32, o32 = v_read.astype(jnp.float32), read.astype(jnp.float32)
+        vrms, orms = jnp.sqrt(jnp.mean(v32 ** 2)), jnp.sqrt(jnp.mean(o32 ** 2))
+        cosine = jnp.mean(v32 * o32) / jnp.maximum(vrms * orms, 1e-12)
+        self.sow('intermediates', 'concat_vo_read_pair', jnp.stack((vrms, orms, cosine)))
+    return self._gate_local_output(v_read, v_logits), self._gate_local_output(read, o_logits)
 
   def _matrix_for_read(self, M_in):
     """Select the configured read-side view without changing the raw matrix stream."""

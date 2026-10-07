@@ -74,6 +74,12 @@ class SubDecoderLayer(nn.Module):
       assert len(mlp_pattern) == cfg.bam_local_fetch_block_size
       assert all(isinstance(width, int) and width > 0 for width in mlp_pattern)
       self.updated_mlp_dim = mlp_pattern[self.layer_inx % len(mlp_pattern)]
+      if (getattr(cfg, 'bam_local_vo_separate_last_block', False)
+          and self.layer_inx >= cfg.num_decoder_layers - cfg.bam_local_fetch_block_size):
+        final_pattern = cfg.bam_final_block_mlp_dim_by_block
+        assert len(final_pattern) == len(mlp_pattern)
+        assert all(isinstance(width, int) and width > 0 for width in final_pattern)
+        self.updated_mlp_dim = final_pattern[self.layer_inx % len(final_pattern)]
     elif cfg.dynamic_mlp_dim:
       # consider mtp layer, mtp layer's mlp_dim is the same as the last layer
       layer_inx = self.layer_inx if self.layer_inx <= cfg.num_decoder_layers else self.layer_inx - 1
@@ -360,6 +366,7 @@ class BamLayerPair(nn.Module):
   quant: Optional[Quant] = None
   scan_length: int = 1
   all_global_attention: bool = True
+  static_layer_offset: int = 0
 
   @nn.compact
   def __call__(self, carry, segment_ids, positions, tokens, deep_embedding,
@@ -378,7 +385,7 @@ class BamLayerPair(nn.Module):
       name = f'local_{offset}' if offset < block_size - 1 else f'fetch_{offset}'
       carry, _ = Layer(
           cfg, self.mesh, self.sliding_window_size, self.quant,
-          all_global_attention=True, static_layer_index=offset, name=name)(
+          all_global_attention=True, static_layer_index=self.static_layer_offset + offset, name=name)(
               carry, segment_ids, positions, tokens, None,
               deterministic, model_mode, eos_sum, None, None, None,
               block_size * block_index + offset)

@@ -382,6 +382,8 @@ def record_bam_concat_health_metrics(output_metrics, intermediate_outputs, confi
       value = values[0] if index is None else values[0][index]
       if key == 'concat_vo_gate_pair':
         names = ('mean_abs_diff', 'rms_diff', 'correlation')
+      elif key == 'concat_vo_read_pair':
+        names = ('v_rms', 'o_rms', 'cosine')
       elif key == 'concat_mlp_address_alignment':
         names = ('mean_cosine', 'mean_abs_cosine', 'mean_square_cosine')
       elif key == 'concat_matrix_qk_scores':
@@ -401,11 +403,18 @@ def record_bam_concat_health_metrics(output_metrics, intermediate_outputs, confi
       emit(attention, layer, layer)
     return
   blocks = config.num_decoder_layers // size
+  separate_final_block = bool(getattr(config, 'bam_local_vo_separate_last_block', False))
+  if separate_final_block:
+    blocks -= 1
   for offset in range(size):
     name = f'local_{offset}' if offset < size - 1 else f'fetch_{offset}'
     attention = decoder['layers'][name]['block']['self_attention']
     for block in range(blocks):
       emit(attention, block*size + offset, block)
+  if separate_final_block:
+    for offset in range(size):
+      name = f'local_{offset}' if offset < size - 1 else f'fetch_{offset}'
+      emit(decoder['final_block'][name]['block']['self_attention'], blocks*size + offset)
   if getattr(config, 'bam_extra_final_local_layer', False):
     emit(decoder['final_local_layer']['block']['self_attention'], config.num_decoder_layers - 1)
 

@@ -9846,3 +9846,13 @@ class BamXLPropK96EmbedVOnlyQK72LLFTruePile(BamXLPropK96EmbedVOnlyQK72AllLocalTr
     mlp_dim_by_block = [6294, 6294, 5654]
     compare_runs = ['BamXLPropK96EmbedVOnlyQK72AllLocalTruePile', 'Llama2XLPropTruePileMHA', 'MuddLlama2XLProp']
     jax_cache_dir = ''
+
+
+class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdLastBlockSeparateVOTruePile(
+    BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile):
+    """Separate dynamic C8 V/O reads only in the final three-layer block."""
+    model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdLastBlockSeparateVOTruePile'
+    bam_local_vo_separate_last_block = True
+    bam_final_block_mlp_dim_by_block = [3858, 3731, 3858]
+    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile']
+    jax_cache_dir = ''

@@ -883,13 +883,24 @@ class Decoder(nn.Module):
         RemattedBlockLayer = RemattedBlockLayers[1]
         pair_scan = getattr(cfg, 'bam_pair_scan', False)
         final_local = bool(getattr(cfg, 'bam_extra_final_local_layer', False))
+        separate_final_block = bool(getattr(cfg, 'bam_local_vo_separate_last_block', False))
+        final_block_size = (cfg.bam_local_fetch_block_size if separate_final_block else 0)
+        if separate_final_block:
+          assert pair_scan and cfg.bam_enabled and not cfg.bam_mha_control and not final_local
+          assert cfg.num_decoder_layers >= 2 * final_block_size
+          assert cfg.num_decoder_layers % final_block_size == 0
+          assert deep_embeddings is None and not cfg.dense_conn and cfg.mtp_num_layers == 0
+          assert len(cfg.bam_layer_modes) == cfg.num_decoder_layers
+          assert all(set(mode.split('+')) == {'local_qk', 'local_v', 'local_o'}
+                     for mode in cfg.bam_layer_modes)
         if final_local:
           assert pair_scan and cfg.bam_enabled and not cfg.bam_mha_control
           assert deep_embeddings is None and not cfg.dense_conn and cfg.mtp_num_layers == 0
           assert len(cfg.bam_layer_modes) == cfg.num_decoder_layers
           assert set(cfg.bam_layer_modes[-1].split('+')) in (
               {'local_qk', 'local_o'}, {'local_qk', 'local_v', 'local_o'})
-        scan_length = cfg.num_decoder_layers - int(final_local)
+        scan_layer_count = cfg.num_decoder_layers - int(final_local) - final_block_size
+        scan_length = scan_layer_count
         if pair_scan:
           from layers import fusion
 
@@ -917,7 +928,7 @@ class Decoder(nn.Module):
             [s >= cfg.max_target_length for s in swss], dtype=jnp.bool_)
         if pair_scan:
           assert all(s >= cfg.max_target_length for s in swss)
-          is_global = is_global[:cfg.num_decoder_layers - int(final_local):block_size]
+          is_global = is_global[:scan_layer_count:block_size]
         full_bam = cfg.bam_enabled and not getattr(cfg, 'bam_mha_control', False)
         if full_bam:
           M = self.initial_bam_matrix(y)
@@ -952,6 +963,14 @@ class Decoder(nn.Module):
               jnp.arange(scan_length, dtype=jnp.int32),
           )
         scan_carry, _ = scan_module(*scan_inputs)
+        if separate_final_block:
+          scan_carry, _ = fusion.BamLayerPair(
+              cfg, mesh, local_sws, self.quant,
+              all_global_attention=True, static_layer_offset=scan_layer_count,
+              name='final_block')(
+                  scan_carry, decoder_segment_ids, decoder_positions,
+                  decoder_input_tokens, None, deterministic, model_mode,
+                  eos_sum, None, None, None, jnp.asarray(scan_length, jnp.int32))
         if final_local:
           # Continue from the last F's hidden state and M; neither carry is reset.
           Layer = nn.remat(

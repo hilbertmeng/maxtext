@@ -9817,6 +9817,18 @@ class BamXLPropK96EmbedVOnlyQK72AllLocalTruePile(
     jax_cache_dir = ''
 
 
+class BamMediumPropK75EmbedVOnlyQK75AllLocalMLPWriteIndependentEveryThirdTruePile(
+    BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile):
+    """Retain all75 matrix QK coordinates and append18 vector RoPE coordinates."""
+    # Same parameter tree and MLP widths as QK57; V/output remain75, Q/K become93.
+    # Preserve parent's 1/sqrt75 logit scale, initialization, health and write schedule.
+    model_name = 'BamMediumPropK75EmbedVOnlyQK75AllLocalMLPWriteIndependentEveryThirdTruePile'
+    bam_local_qk_col_output_dim = 75
+    bam_partial_rope_nope_dim = 75
+    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile']
+    jax_cache_dir = ''
+
+
 class BamXLPropK96EmbedVOnlyQK72LLFTruePile(BamXLPropK96EmbedVOnlyQK72AllLocalTruePile):
     """Nine LLF blocks plus a terminal L, same proportional matrix-value recipe."""
     # Ledger only: codex/mediumprop-k75-embed, /data0/xd/mediumprop-k75-embed; pure JAX.

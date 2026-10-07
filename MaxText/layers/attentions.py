@@ -2449,6 +2449,7 @@ class BamAttention(Attention):
     assert not cfg.bam_diagnostics, (
         'BAM diagnostics and historical read modes must use their recorded commit')
     if self._mha_control:
+      self._fetched_matrix_v = False
       self._vo_shared_read = 'none'
       self._vo_independent_gates = False
       self._concat_static_qk = False

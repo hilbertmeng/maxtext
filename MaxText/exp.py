@@ -225,6 +225,13 @@ class Llama2MediumProp(Llama2Medium):
     scan_layers = True
 
 
+class Llama2MediumPropL27(Llama2MediumProp):
+    """27-layer MediumProp at the18-layer parameter budget; MLP width1600."""
+    model_name = 'Llama2MediumPropL27'
+    base_num_decoder_layers = 27
+    base_mlp_dim = 1600
+
+
 class Llama2MediumQKNorm(Llama2Medium):
     """Standard MHA control with learned Q/K RMSNorm before RoPE."""
     # code_commit: 4408ccb
@@ -9888,6 +9895,7 @@ class BamMediumPropK75EmbedVOnlyQK75AddBeforeRoPEAllLocalMLPWriteIndependentEver
 class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdL21TruePile(
     BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile):
     """Reallocate the parent's MLP surplus to three layers, retaining QK57+RoPE18."""
+    # code_commit: e10dfc6
     # Bet vs18-layer parent: terminal loss -.005; speed .48 vs .520.
     model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdL21TruePile'
     base_num_decoder_layers = 21
@@ -9895,4 +9903,42 @@ class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdL21True
     base_mlp_dim = 3177
     mlp_dim_by_block = [3177, 3177, 3177]
     compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile']
+    jax_cache_dir = ''
+
+
+class BamMHAMediumPropC256TruePile(BamMHAMediumPropC256):
+    """MediumProp RoPE MHA control on repaired4097-token Pile records."""
+    model_name = 'BamMHAMediumPropC256TruePile'
+    DATASET_VARIANT = 'truepile4096'
+    dataset_path = Llama2MediumC256T4096TruePile.dataset_path
+    compare_runs = ['Llama2MediumC256T4096TruePile']
+    jax_cache_dir = ''
+
+
+class BamMHAMediumPropL27C256TruePile(Llama2MediumPropL27, BamMHAMediumPropC256TruePile):
+    """27-layer standard MHA through the matched BAM-MHA C256 control."""
+    # Bet vs MHA18: terminal loss -.005; speed .640 vs .714.
+    model_name = 'BamMHAMediumPropL27C256TruePile'
+    bam_layer_modes = ['none'] * 27
+    DATASET_VARIANT = 'truepile4096'
+    dataset_path = Llama2MediumC256T4096TruePile.dataset_path
+    scan_layers = True
+    bam_pair_scan = False
+    mlp_dim_by_block = None
+    bam_partial_rope = True
+    bam_partial_rope_nope_dim = 1
+    compare_runs = ['BamMHAMediumPropC256TruePile']
+    jax_cache_dir = ''
+
+
+class BamMediumPropL27K75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile(
+    Llama2MediumPropL27, BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile):
+    """27-layer QK57 BAM with private sparse MLP writes and matched MHA budget."""
+    # Bet: terminal vs MHA27 -.130, vs BAM21 -.004; speed .425 vs .466.
+    model_name = 'BamMediumPropL27K75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile'
+    bam_layer_modes = ['local_qk+local_v+local_o'] * 27
+    base_mlp_dim = 2311
+    mlp_dim_by_block = [2311, 2184, 2311]
+    compare_runs = ['BamMHAMediumPropL27C256TruePile',
+                    'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdL21TruePile']
     jax_cache_dir = ''

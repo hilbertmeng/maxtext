@@ -26,3 +26,5 @@ legacy C8 regression. All passed, about50s per model on pinned CPU environment.
 Runtime/launch verification will be recorded after FIRST_STEP.
 
 Startup verified: Loaded compiled function, FIRST_STEP9; runtime3f72aac; UE5a 0.508step/s (20-99), -2.31% vs parent0.520. Same requested TruePile zone-local path and sole parent baseline verified.
+
+User update2026-10-07: Medium DirectC8 must train at least5000 steps.2800 is observation only, not a stop point; normal1000-step reports continue.

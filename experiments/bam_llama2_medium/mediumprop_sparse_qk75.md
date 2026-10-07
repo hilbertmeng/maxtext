@@ -16,7 +16,6 @@ Pair retains existing generic+concat+write/address health. The existing extra18 
 For `qk_extra_scores`, `bam_rms` means tail57:75 and `standard_rms` means retained prefix0:57, both matrix-NoPE scores; the latter is not the independent RoPE branch. `qk_scores` compares the complete matrix-NoPE branch with the independent RoPE branch.
 
 Theory: QK score contraction FLOPs93/75=1.24x; AV and projection costs unchanged. Ordinary KV-cache K width rises75->93, V remains75: combined K/V storage +12%; no fetched-M cache.
-Bet: final13500-step five-window mean loss gap −.004 vs parent; steady .504step/s vs parent .520, about−3%.
 Historical padded-data QK75−QK57 final5−.00370 informs the sign; it is not a synchronous comparison with TruePile or a guarantee of transfer to sparse MLP writes.
 
 Focused pinned CPU checks only: complete parent/new parameter-tree equivalence and budget, writer-health coverage, actual93-coordinate QK/V75 forward, finite gradients and consumed static-QK/private-MLP-address gradients. No shared layer code modified.
@@ -25,4 +24,6 @@ Total13500, checkpoint200, loss windows200, progress reports~1000, reviews2800/5
 
 Runtime5371cbd successfully loaded exact v5p-16 AOT, FIRST_STEP8 and step105 verified. Worker data is UE5a-local TruePile4096. Startup20–99 median.507step/s vs parent.520, −2.5%; extra18 QK score health is newly active, other health settings inherited. Two CPU checks passed in31s, full parameter tree unchanged432096128.
 
-Completed13500: final five windows12600–13400 average new−QK57 = −0.004453, range−0.005360…−0.003722. After4k the gain held near−0.004 to−0.005 through finish. Original loss bet−0.004 matched; measured20–99 speed.507 vs.520 (−2.5%, bet−3%). Official closeout wrapper verified already_closed, checkpoint13500, and SYNC_OK. Full lease history is in the main regional history ledger.
+Completed13500: final five windows12600–13400 average new−QK57 = −0.004453, range−0.005360…−0.003722. After4k the gain held near−0.004 to−0.005 through finish. Measured20–99 speed.507 vs.520 (−2.5%). Official closeout wrapper verified already_closed, checkpoint13500, and SYNC_OK. Full lease history is in the main regional history ledger.
+
+Normalization correction: resolved qk_norm=False (base.yml default, no EXP override). The standard18 projection passes through the QKNorm module unchanged before RoPE; dynamic matrix-read key RMSNorm is separate. Both parent/new share this setting.

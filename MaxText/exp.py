@@ -9856,3 +9856,16 @@ class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdLastBlo
     bam_final_block_mlp_dim_by_block = [3858, 3731, 3858]
     compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile']
     jax_cache_dir = ''
+
+
+class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdDirectC8TruePile(BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile):
+    """LocalQK compressed per-head dynamic reads; original static reads and QK width."""
+    # Bet vs parent: final-common-window loss +.003; speed -.01.
+    model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdDirectC8TruePile'
+    bam_local_qk_direct_c8 = True
+    bam_local_qk_col_direct_compressed = False
+    bam_local_qk_share_basis = False
+    bam_local_qk_separate_c8_projection = False
+    mlp_dim_by_block = [3901, 3774, 3901]
+    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile']
+    jax_cache_dir = ''

@@ -27,3 +27,5 @@ and cosine to distinguish whether the learned reads diverge.
 
 Pre-run bet: final13500 latest5 gap−.002 vs direct QK57 parent; speed.516 vs.520
 step/s (−.8%) on UE5a v5p-16. Normal reports~1000 steps; review2800/5000.
+
+Launch verified: runtime2867d2f833d6f7e94205df0ee13d2ce44d4cfc92, TPU xd-v5p-16-2910110-maxtext in us-east5-a. CPU2 gates passed in60.64s. Loaded compiled function and FIRST_STEP9 verified;20–99 median.515step/s (80 samples),−1.0% vs parent.520. Both use inherited health; new arm adds final-block VO-read RMS/cosine. Registered zone-local TruePile dataset and sole direct QK57 baseline verified. qk_norm=False, unchanged.

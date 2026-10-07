@@ -3217,7 +3217,7 @@ class BamAttention(Attention):
     v_read = read
     if self._vo_separate_c8_keys:
       v_key = jnp.squeeze(self.W_R_v(x), axis=-2)
-      v_read = bam_read(compressed_M, v_key, self._fetched_arm_ungated)
+      v_read = self._expand_full_read(bam_read(compressed_M, v_key, self._fetched_arm_ungated))
       if self._concat_health:
         v32, o32 = v_read.astype(jnp.float32), read.astype(jnp.float32)
         vrms, orms = jnp.sqrt(jnp.mean(v32 ** 2)), jnp.sqrt(jnp.mean(o32 ** 2))

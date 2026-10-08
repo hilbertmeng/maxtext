@@ -63,8 +63,9 @@ class ResidualProjectionTest(unittest.TestCase):
         max_prefill_predict_length=4, mesh=mesh, attention_kernel='dot_product_chunk',
         dtype=c.dtype, layer_mode='local_qk+local_v+local_o', read_side='col',
         attention_type=c.attention_type)
-    x = jax.random.normal(jax.random.key(10), (1, 4, 150))
-    w = jax.random.normal(jax.random.key(11), (2, 75, 150))
+    # Small integers make both equivalent reduction orders exact in float32.
+    x = jax.random.randint(jax.random.key(10), (1, 4, 150), -3, 4).astype(jnp.float32)
+    w = jax.random.randint(jax.random.key(11), (2, 75, 150), -2, 3).astype(jnp.float32)
     with mesh, nn.partitioning.axis_rules(c.logical_axis_rules):
       variables = a.init(jax.random.key(12), jnp.zeros((1, 4, 2, 75)), x,
           jnp.zeros((1, 4, 75, 32)), method=a._write)

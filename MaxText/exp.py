@@ -10123,6 +10123,14 @@ class BamDirectC10PallasV6CoreProfile(BamDirectC10PallasCoreProfile):
     bam_pallas_body = 'v6'
 
 
+class BamDirectC10PallasTunedCoreProfile(BamDirectC10PallasCoreProfile):
+    """Paired fused-core arm tuned by v5p single-layer sweep: blocked2 read reverse (block 4), write block 2."""
+    # v5p-8 B8 per layer: readFB 2.036->1.973 ms, write FB -12% (1.685->1.488, 3.073->2.737).
+    model_name = 'BamDirectC10PallasTunedCoreProfile'
+    bam_pallas_body = 'blocked2'
+    bam_pallas_write_block = 2
+
+
 class BamPallasCoreTinyXlaTest(
     BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdDirectC10NoHealthTruePile):
     """CPU equivalence fixture: tiny DirectC10 geometry, FP32, original XLA core."""

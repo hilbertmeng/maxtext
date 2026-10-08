@@ -354,7 +354,9 @@ class SubDecoderLayer(nn.Module):
             reverse_tile=int(getattr(cfg, 'bam_pallas_write_reverse_tile', None) or 128),
             vmem_mib=getattr(cfg, 'bam_pallas_vmem_mib', None),
             interpret=bool(getattr(cfg, 'bam_pallas_interpret', False)),
-            body=getattr(cfg, 'bam_pallas_body', None) or 'blocked')
+            body=getattr(cfg, 'bam_pallas_body', None) or 'blocked',
+            **({'row_block': int(cfg.bam_pallas_write_block), 'head_block': int(cfg.bam_pallas_write_block)}
+               if getattr(cfg, 'bam_pallas_write_block', None) else {}))
     elif mlp_write:
       M_out = attention_layer.merge_mlp_write(
           mlp_lnx.reshape(mlp_lnx.shape[:-1] + (num_query_heads, cfg.bam_k)),

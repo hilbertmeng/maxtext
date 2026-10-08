@@ -41,7 +41,9 @@ def rel(a, b):
 
 
 m_tm, params, tokens = ref.inputs(dt)
-m_minor = jnp.transpose(m_tm, (0, 3, 2, 1))
+kmajor = body in ('v4', 'v5')
+m_minor = jnp.transpose(m_tm, (0, 2, 3, 1) if kmajor else (0, 3, 2, 1))
+m_back = (0, 3, 1, 2) if kmajor else (0, 3, 2, 1)
 sw = bp.static_weight(*params)
 kw = dict(qk_cols=ref.QKC, read_epsilon=ref.READ_EPS, key_scale=ref.SCALE,
           forward_tile=rtile, reverse_tile=rtile, vmem_mib=vmem, body=body, head_block=block)
@@ -57,11 +59,12 @@ want = x_read(m_tm, *params, *tokens)
 res['read_fwd_rel_err'] = [rel(a, b) for a, b in zip(got, want)]
 res['read_fwd_ms'] = {'pallas': timeit(k_read, m_minor, sw, *tokens), 'xla': timeit(x_read, m_tm, *params, *tokens)}
 minor_tokens = tuple(jnp.moveaxis(x, 1, -1) for x in tokens)
-opts = bp._freeze(dict(heads=20, qk_cols=ref.QKC, read_epsilon=ref.READ_EPS, key_scale=ref.SCALE,
-                       forward_tile=rtile, reverse_tile=rtile, vmem_mib=vmem, interpret=False,
-                       body=body, head_block=block))
-k_only = jax.jit(lambda m, sw, *t: bp._read(m, sw, *t, opts))
-res['read_fwd_kernel_only_ms'] = timeit(k_only, m_minor, sw, *minor_tokens)
+if not kmajor:
+  opts = bp._freeze(dict(heads=20, qk_cols=ref.QKC, read_epsilon=ref.READ_EPS, key_scale=ref.SCALE,
+                         forward_tile=rtile, reverse_tile=rtile, vmem_mib=vmem, interpret=False,
+                         body=body, head_block=block))
+  k_only = jax.jit(lambda m, sw, *t: bp._read(m, sw, *t, opts))
+  res['read_fwd_kernel_only_ms'] = timeit(k_only, m_minor, sw, *minor_tokens)
 
 
 def vjp_time(fn, args):
@@ -75,7 +78,7 @@ k_rb, _ = vjp_time(lambda m, sw, *t: bp.read(m, sw, *t, **kw), None)
 x_rb, _ = vjp_time(lambda m, *a: ref.original_read(m, *a), None)
 gk = k_rb(m_minor, sw, *tokens)
 gx = x_rb(m_tm, *params, *tokens)
-res['read_grad_rel_err_m'] = rel(jnp.transpose(gk[0], (0, 3, 2, 1)), gx[0])
+res['read_grad_rel_err_m'] = rel(jnp.transpose(gk[0], m_back), gx[0])
 res['read_fwdbwd_ms'] = {'pallas': timeit(k_rb, m_minor, sw, *tokens), 'xla': timeit(x_rb, m_tm, *params, *tokens)}
 
 # ---- write ----
@@ -85,10 +88,10 @@ for n_groups in (1, 2):
   wkw = dict(epsilon=ref.WRITE_EPS, forward_tile=wtile, reverse_tile=wtile, vmem_mib=vmem, body=body, row_block=block, head_block=block)
   k_w = jax.jit(lambda m, *f: bp.write(m, [f[i:i + 3] for i in range(0, len(f), 3)], **wkw))
   x_w = jax.jit(lambda m, *f: ref.original_write(m, *f))
-  res[f'write{n_groups}_fwd_rel_err'] = rel(jnp.transpose(k_w(m_minor, *flat), (0, 3, 2, 1)), x_w(m_tm, *flat))
+  res[f'write{n_groups}_fwd_rel_err'] = rel(jnp.transpose(k_w(m_minor, *flat), m_back), x_w(m_tm, *flat))
   res[f'write{n_groups}_fwd_ms'] = {'pallas': timeit(k_w, m_minor, *flat), 'xla': timeit(x_w, m_tm, *flat)}
   ctm = jax.random.normal(jax.random.PRNGKey(9), m_tm.shape).astype(dt)
-  ctn = jnp.transpose(ctm, (0, 3, 2, 1))
+  ctn = jnp.transpose(ctm, (0, 2, 3, 1) if kmajor else (0, 3, 2, 1))
 
   def kgrad(m, *f):
     out, pull = jax.vjp(lambda m, *f: bp.write(m, [f[i:i + 3] for i in range(0, len(f), 3)], **wkw), m, *f)

@@ -10096,6 +10096,27 @@ class BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdDirectC10Pa
     bam_pallas_core = True
 
 
+class Llama2XLPropMHAPallasCoreProfile(TrainStepProfile, Llama2XLPropTrain):
+    """Paired MHA timing arm (formal architecture/batch/generic health) at the fused-core commit."""
+    model_name = 'Llama2XLPropMHAPallasCoreProfile'
+    steps = 60
+
+
+class BamDirectC10NoHealthPallasCoreProfile(
+    TrainStepProfile, BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdDirectC10NoHealthTruePile):
+    """Paired pure-JAX DirectC10 timing arm, BAM health OFF."""
+    model_name = 'BamDirectC10NoHealthPallasCoreProfile'
+    steps = 60
+
+
+class BamDirectC10PallasCoreProfile(
+    TrainStepProfile, BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdDirectC10PallasTruePile):
+    """Paired fused-core DirectC10 timing arm; per-kernel scoped VMEM raised for v5p."""
+    model_name = 'BamDirectC10PallasCoreProfile'
+    steps = 60
+    bam_pallas_vmem_mib = 48
+
+
 class BamPallasCoreTinyXlaTest(
     BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdDirectC10NoHealthTruePile):
     """CPU equivalence fixture: tiny DirectC10 geometry, FP32, original XLA core."""

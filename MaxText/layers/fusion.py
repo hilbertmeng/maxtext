@@ -193,7 +193,7 @@ class SubDecoderLayer(nn.Module):
       # One module/parameter tree, called before O read and again after O addition.
       mlp_input_norm = normalizations.get_rmsnorm("post_self_attention_layer_norm", cfg)
       call_kwargs.update(residual_inputs=inputs, output_query_norm=mlp_input_norm)
-    mlp_write_every = int(getattr(cfg, 'bam_mlp_write_every', 0))
+    mlp_write_every = int(getattr(cfg, 'bam_mlp_write_every', 0) or 0)
     mlp_write = cfg.bam_enabled and mlp_write_every > 0 and (self.layer_inx + 1) % mlp_write_every == int(getattr(cfg, 'bam_mlp_write_offset', 0)) % mlp_write_every
     pallas_core = cfg.bam_enabled and bool(getattr(cfg, 'bam_pallas_core', False))
     if pallas_core:

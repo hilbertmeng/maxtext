@@ -3648,8 +3648,10 @@ class BamAttention(Attention):
     weight = bam_pallas.static_weight(
         self.static_q_key, self.static_k_key, self.static_v_key, self.static_o_key,
         self.abs_v_cache_projection)
+    body = getattr(cfg, 'bam_pallas_body', None) or 'blocked'
+    pass_m = body in ('v7', 'v7u')   # M passthrough: dM sum fused into the read reverse
     with jax.named_scope('bam/pallas_read'):
-      query, key, value, local_output = bam_pallas.read(
+      outs = bam_pallas.read(
           M_in, weight, q_key, logits('W_lq_gate', False), k_key, logits('W_lk_gate', False),
           vo_key, logits('W_R_gate', True), logits('W_lv_gate', False), query, key,
           qk_cols=self._qk_col_width, read_epsilon=self._read_key_epsilon,
@@ -3658,8 +3660,10 @@ class BamAttention(Attention):
           reverse_tile=int(getattr(cfg, 'bam_pallas_read_reverse_tile', None) or 128),
           vmem_mib=getattr(cfg, 'bam_pallas_vmem_mib', None),
           interpret=bool(getattr(cfg, 'bam_pallas_interpret', False)),
-          body=getattr(cfg, 'bam_pallas_body', None) or 'blocked',
-          head_block=int(getattr(cfg, 'bam_pallas_read_block', None) or 4))
+          body=body, head_block=int(getattr(cfg, 'bam_pallas_read_block', None) or 4), pass_m=pass_m)
+    query, key, value, local_output = outs[:4]
+    if pass_m:
+      M_in = outs[4]
     query = nn.with_logical_constraint(query, self.query_axis_names)
     key = nn.with_logical_constraint(key, self.key_axis_names)
     value = nn.with_logical_constraint(value, self.value_axis_names)

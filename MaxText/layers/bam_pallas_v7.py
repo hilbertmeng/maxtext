@@ -120,10 +120,12 @@ def _blocks(lo, hi, body, rolled):
     jax.lax.fori_loop(lo, hi, lambda j, c: (body(j), c)[1], 0)
 
 
-def _read_backward_kernel(heads, qk_cols, eps, scale, db, rolled):
-  def kernel(m_ref, sw_ref, rq, lq, rk, lk, rr, lo, lv, qs, ks, dq, dk, dv, do,
-             dm_ref, dsw_ref, drq, dlq, drk, dlk, drr, dlo, dlv, dqs, dks,
-             key_scr, mc_scr, dyvo, dkey_scr, gacc, d2):
+def _read_backward_kernel(heads, qk_cols, eps, scale, db, rolled, pass_m):
+  def kernel(m_ref, sw_ref, rq, lq, rk, lk, rr, lo, lv, qs, ks, dq, dk, dv, do, *refs):
+    if pass_m:     # cotangent of the M passthrough, aliased to dm: added here instead of by XLA
+      gp_ref, refs = refs[0], refs[1:]
+    (dm_ref, dsw_ref, drq, dlq, drk, dlk, drr, dlo, dlv, dqs, dks,
+     key_scr, mc_scr, dyvo, dkey_scr, gacc, d2) = refs
     dt = m_ref.dtype
     n = heads
     np_ = _pad_rows(n)
@@ -222,7 +224,10 @@ def _read_backward_kernel(heads, qk_cols, eps, scale, db, rolled):
       blk = d2[:, pl.ds(d0 * t, (d1 - d0) * t)].astype(dt)
       dmk = jax.lax.dot_general(sw, blk, (((0,), (0,)), ((), ())), preferred_element_type=F32)
       for k in range(d0, d1):
-        dm_ref[k] = dmk[:, (k - d0) * t:(k - d0 + 1) * t].astype(dm_ref.dtype)
+        dmk_k = dmk[:, (k - d0) * t:(k - d0 + 1) * t]
+        if pass_m:
+          dmk_k = dmk_k + gp_ref[k].astype(F32)
+        dm_ref[k] = dmk_k.astype(dm_ref.dtype)
       dsw = _acc(dsw, jax.lax.dot_general(blk, _concat_k(m_ref, d0, d1), (((1,), (1,)), ((), ())),
                                           preferred_element_type=F32))
     dsw_ref[...] = dsw.astype(dsw_ref.dtype)
@@ -235,7 +240,8 @@ def _read_backward_call(args, cts, opts):
   c, n = args[2].shape[1:3]
   tile = _tile(t, opts['reverse_tile'])
   j = sw.shape[0]
-  in_specs = _read_specs(args, tile) + [_spec((kdim, n), tile)] * 4
+  pass_m = len(cts) == 5
+  in_specs = _read_specs(args, tile) + [_spec((kdim, n), tile)] * 4 + [_spec((kdim, v), tile)] * pass_m
   out_specs = ([_spec((kdim, v), tile), pl.BlockSpec((None, None, j, v), lambda bb, i: (bb, i, 0, 0))]
                + [_spec(x.shape[1:-1], tile) for x in args[2:]])
   out_shape = ([jax.ShapeDtypeStruct(m.shape, m.dtype), jax.ShapeDtypeStruct((b, t // tile, j, v), F32)]
@@ -245,9 +251,10 @@ def _read_backward_call(args, cts, opts):
              pltpu.VMEM((2, n, tile), F32), pltpu.VMEM((j, kdim * tile), F32)]
   outs = pl.pallas_call(
       _read_backward_kernel(n, opts['qk_cols'], opts['read_epsilon'], opts['key_scale'], opts['dot_block'],
-                            opts['rolled']),
+                            opts['rolled'], pass_m),
       grid=(b, t // tile), in_specs=in_specs, out_specs=out_specs, out_shape=tuple(out_shape),
       scratch_shapes=scratch, interpret=opts['interpret'],
+      input_output_aliases={len(args) + 4: 0} if pass_m else {},
       compiler_params=_params(('parallel', 'parallel'), opts['vmem_mib']),
       name='bam_core_read_backward')(*args, *cts)
   return (outs[0], jnp.sum(outs[1], axis=(0, 1)).astype(sw.dtype)) + tuple(outs[2:])
@@ -255,12 +262,14 @@ def _read_backward_call(args, cts, opts):
 
 @partial(jax.custom_vjp, nondiff_argnums=(11,))
 def _read(m, sw, rq, lq, rk, lk, rr, lo, lv, qs, ks, opts):
-  return _read_forward_call((m, sw, rq, lq, rk, lk, rr, lo, lv, qs, ks), dict(opts))
+  outs = _read_forward_call((m, sw, rq, lq, rk, lk, rr, lo, lv, qs, ks), dict(opts))
+  return outs + (m,) if dict(opts)['pass_m'] else outs
 
 
 def _read_fwd(m, sw, rq, lq, rk, lk, rr, lo, lv, qs, ks, opts):
   args = (m, sw, rq, lq, rk, lk, rr, lo, lv, qs, ks)
-  return _read_forward_call(args, dict(opts)), args
+  outs = _read_forward_call(args, dict(opts))
+  return (outs + (m,) if dict(opts)['pass_m'] else outs), args
 
 
 def _read_bwd(opts, args, cts):
@@ -273,24 +282,26 @@ _read.defvjp(_read_fwd, _read_bwd)
 def read(m, static_weight, q_key, q_logits, k_key, k_logits, vo_key, o_logits, v_logits,
          q_standard, k_standard, *, qk_cols, read_epsilon, key_scale,
          forward_tile=128, reverse_tile=128, vmem_mib=None, interpret=False,
-         k_block=4, dot_block=16, rolled=True, **_):
+         k_block=4, dot_block=16, rolled=True, pass_m=False, **_):
   """m is k-major [B,K,V,T]; other arguments token-major as in layers.bam_pallas.read.
 
-  Returns token-major (query, key, value, local_o), each [B,T,N,K]."""
+  Returns token-major (query, key, value, local_o), each [B,T,N,K]; with pass_m also m itself,
+  whose cotangent the read reverse adds into dM (the caller must write from that output)."""
   heads = q_key.shape[2]
   opts = _freeze(dict(heads=heads, qk_cols=qk_cols, read_epsilon=read_epsilon, key_scale=key_scale,
                       forward_tile=forward_tile, reverse_tile=reverse_tile, vmem_mib=vmem_mib,
-                      interpret=interpret, k_block=k_block, dot_block=dot_block, rolled=rolled))
+                      interpret=interpret, k_block=k_block, dot_block=dot_block, rolled=rolled,
+                      pass_m=pass_m))
   cmajor = lambda x: jnp.transpose(x, (0, 3, 2, 1))       # [B,T,N,X] -> [B,X,N,T]
 
   def local(m, sw, qk, ql, kk, kl, vo, ol, vl, qs, ks):
     outs = _read(m, _padded_static_weight(sw, heads), cmajor(qk), _minor(ql), cmajor(kk), _minor(kl),
                  cmajor(vo), _minor(ol), _minor(vl), cmajor(qs), cmajor(ks), opts)
-    return tuple(cmajor(o) for o in outs)                  # [B,K,N,T] -> [B,T,N,K]
+    return tuple(cmajor(o) for o in outs[:4]) + tuple(outs[4:])   # [B,K,N,T] -> [B,T,N,K]
 
   args = (m, static_weight, q_key, q_logits, k_key, k_logits, vo_key, o_logits, v_logits,
           q_standard, k_standard)
-  return _map_batch(local, args, (True, False) + (True,) * 9, 4)
+  return _map_batch(local, args, (True, False) + (True,) * 9, 5 if pass_m else 4)
 
 
 # ---------------------------------------------------------------------------

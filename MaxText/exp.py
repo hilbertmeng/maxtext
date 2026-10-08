@@ -312,6 +312,7 @@ class BamLlama2Medium(Llama2Medium):
     bam_local_v_replace = False
     bam_local_vo_static = False
     bam_local_v_static_zero_init = False
+    bam_local_v_static_init_scale = 1.0  # Gaussian std multiplier; zero flag takes precedence.
     bam_attn_write_content_pre_rms_bias = False
     bam_embedding_write = False
     bam_embedding_write_eps = .1
@@ -10034,4 +10035,17 @@ class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdLocalVS
     bam_local_vo_read_key_scale = 1.0
     bam_local_v_read_gate_init = .1
     compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdLocalVStaticZeroTruePile',
+                    'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile']
+
+
+class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdLocalVStaticZeroVOReadNormalStaticVSmallTruePile(
+    BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdLocalVStaticZeroVOReadNormalTruePile):
+    """B treatment with static V Gaussian std .1/sqrt32 instead of zero."""
+    # codex/mediumprop-qk75-sparse; /data0/xd/mediumprop-qk75-sparse.
+    # Same parameter budget/MLP, nonzero dynamic VO key and .1/.05 gates.
+    # Bet final vs B -.005; speed unchanged within1%.
+    model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdLocalVStaticZeroVOReadNormalStaticVSmallTruePile'
+    bam_local_v_static_zero_init = False
+    bam_local_v_static_init_scale = .1
+    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdLocalVStaticZeroVOReadNormalTruePile',
                     'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile']

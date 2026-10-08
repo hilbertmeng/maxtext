@@ -2844,7 +2844,7 @@ class BamAttention(Attention):
       for arm in (('v', 'o') if 'local_v' in self._mode else ('o',)):
         setattr(self, 'static_' + arm + '_key', self.param(
             'static_' + arm + '_key', nn.with_logical_partitioning(
-                nn.initializers.normal(self.bam_v ** -0.5)
+                nn.initializers.normal(self.bam_v ** -0.5 * float(getattr(cfg, 'bam_local_v_static_init_scale', 1.0)))
                 if arm == 'v' and not cfg.bam_local_v_static_zero_init else zeros_init,
                 ('v_factor', 'q_heads')),
             (self.bam_v, self.num_query_heads), self.weight_dtype))

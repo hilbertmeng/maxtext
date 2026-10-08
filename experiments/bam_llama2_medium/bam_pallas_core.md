@@ -51,6 +51,62 @@ tile ≈4.5 ops/cycle: near VALU-bound; register-accumulated dMc (`blocked2`) on
 VMEM: v5p physical 64 MiB/TensorCore, v6e 128 MiB (jax `tpu_info.py`); 16/32 MiB are default scoped
 compiler budgets. The v5p arm sets per-kernel `vmem_limit_bytes` to 48 MiB (`bam_pallas_vmem_mib`).
 
-## v5p-16 paired profile
+## v5p-16 paired profile (runtime `49d3784`, AOT, UE5a spot, B8/device, health generic ON / BAM OFF)
 
-PENDING.
+Classes `Llama2XLPropMHAPallasCoreProfile`, `BamDirectC10NoHealthPallasCoreProfile`,
+`BamDirectC10PallasCoreProfile` (`bam_pallas_vmem_mib=48`). Same VM `xd-v5p-16-pallascore-1008-ue5a`,
+`run_profile_matrix.sh`, steps to 45 (trace 10–14). Node/queue deleted after artifact pull.
+
+| Arm | step/s | vs MHA | device step ms |
+|---|---:|---:|---:|
+| MHA (Splash) | 0.593 | — | 1676.1 |
+| pure-JAX DirectC10 | 0.371 | 62.6% | 2669.8 |
+| **Pallas core** | **0.509** | **85.8%** | **1940.6** |
+
+Losses at steps 46–49 agree with pure JAX to ~4e-4. Remaining +264 ms vs MHA: kernels +223
+(read F 32.8 / read B incl. remat 117.5 / write F 21.3 / write B 51.8), MLP +141 (wider after the
+parameter refund; FLOPs predict ~+114), attention C256 vs Splash +31, scan/other +37; projections
+−113 and QKNorm/RoPE −55 versus MHA. Artifacts `/data0/xd/bam_diagnostics/bam-pallas-core/v5p-pallascore/`.
+
+## v5p kernel analysis without a v5p: target compiles and bundle counts
+
+Kernels are cross-compiled for `v5p-16` with the local libtpu (`MaxText/tests/bam_pallas_compile.py`,
+`LIBTPU_INIT_ARGS=--xla_jf_dump_to`); `bundle_stats.py` reads per-bundle slot utilization (v5p
+capacities MXU4 XLU3 VALU4 VLOAD3 VSTORE1), `loop_bundles.py` loop body lengths (dynamic cost =
+static + (trips−1)·body). Local libtpu 0.0.23 reproduces worker counts within ~5–9%.
+
+Original (`blocked2`) bundles per 128-token tile: read F 9.3k, read B 20.6k, write F 7.4k,
+write B 19.5k (attn) / 37.0k (attn+MLP). Arithmetic floor (no FMA on v5p, 2 VALU ops/MAC) ≈ 1/2–1/3
+of that. Findings:
+
+- Read F: ~60% of VALU ops are relayout (`[V,K,T]→[V,K·T]` reshape for the static MXU dot):
+  7.8k selects, 4.5k unpacks, 3.9k packs per tile. Read B and write B are bound by spill stores
+  (single store slot): 9.6k / 8.3k spill stores per tile.
+- Mosaic constraints found: sublane-strided loads/stores need 32-bit data; strided stores cost one
+  store op per row (one store slot), strided loads one load op per row (three slots); `fori_loop`
+  unroll must be 1 or full; loop carries with non-multiple-of-8 sublanes (`[20,T]`) crashed libtpu
+  (pad to 24). Long Python-unrolled bodies let the scheduler hoist loads and spill.
+- Loop-structured, VALU-dense bodies reach the VALU floor (write F inner loop 49 bundles/k vs
+  floor 50; write B dC/dA loops at floor). Short loop bodies with load→use chains are latency-bound
+  (~2× floor) unless manually unrolled.
+
+| Variant (bundles/tile, v5p) | read F | read B | write F | write B (attn / attn+MLP) |
+|---|---:|---:|---:|---:|
+| `blocked2` (measured 85.8%) | 9.3k | 20.6k | 7.4k | 19.5k / 37.0k |
+| v3 (FP32 staging, strided stores, emulated BF16 rounding) | 12.6k | 28.6k | 15.4k | 18.0k / 34.4k |
+| v4 (k-major M, unrolled) | 7.7k | 20.8k | 13.7k | 18.3k / 35.9k |
+| v5 (k-major, loops) | ~11.4k dyn | ~20.1k dyn | ~8.0k dyn | — |
+| **v6 write B (loops, v-major M)** | — | — | — | **~13.2k / ~26k dyn** |
+| loop-structured read B (blocked2 math) | — | ~24.7k dyn | — | — |
+
+Selected combination `bam_pallas_body='v6'`: blocked read, blocked2 read reverse, blocked2 write
+forward, v6 write reverse; expected kernel time ≈ −11% (223 → ~200 ms on v5p). Read-side layout
+changes did not beat `blocked2`: each layout conversion costs about as much as the arithmetic.
+
+MXU block-diagonal prototype (`MaxText/tests/bam_mxu_write_proto.py`, token-major M,
+`blockdiag(A_tᵀ)@stack(C_t)`): g=4 → 42 bundles/token vs ~57 for the VPU write forward; g=6 worse.
+Construction (mask/select, conversions) and serial group dependence dominate; not adopted.
+Contractions over K (dkey, dA) cannot be token-batched this way.
+
+FLEX_START retained hosts `llm-jax-v6e-1-0/1-1` were suspended by the service on 2026-10-08
+(created 2026-10-01; FLEX_START duration). Diagnostics now use spot `xd-v6e-1-bamdiag-*`.

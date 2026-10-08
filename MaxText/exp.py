@@ -10133,6 +10133,18 @@ class BamDirectC10PallasTunedCoreProfile(BamDirectC10PallasCoreProfile):
     bam_pallas_write_block = 2
 
 
+class BamDirectC10PallasV7CoreProfile(BamDirectC10PallasCoreProfile):
+    """Paired fused-core arm: v7 k-major end-to-end kernels (M [B,K,V,T]), rolled read reverse."""
+    model_name = 'BamDirectC10PallasV7CoreProfile'
+    bam_pallas_body = 'v7'
+
+
+class BamDirectC10PallasV7UCoreProfile(BamDirectC10PallasCoreProfile):
+    """Paired fused-core arm: v7 with Python-unrolled read reverse passes."""
+    model_name = 'BamDirectC10PallasV7UCoreProfile'
+    bam_pallas_body = 'v7u'
+
+
 class BamPallasCoreTinyXlaTest(
     BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdDirectC10NoHealthTruePile):
     """CPU equivalence fixture: tiny DirectC10 geometry, FP32, original XLA core."""
@@ -10186,3 +10198,9 @@ class BamPallasCoreTinyPallasV6Test(BamPallasCoreTinyPallasTest):
     """CPU equivalence fixture for the combined v6 bodies."""
     model_name = 'BamPallasCoreTinyPallasV6Test'
     bam_pallas_body = 'v6'
+
+
+class BamPallasCoreTinyPallasV7Test(BamPallasCoreTinyPallasTest):
+    """CPU equivalence fixture: v7 k-major end-to-end fused core (interpret mode)."""
+    model_name = 'BamPallasCoreTinyPallasV7Test'
+    bam_pallas_body = 'v7'

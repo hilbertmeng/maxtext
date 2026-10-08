@@ -195,7 +195,13 @@ class SubDecoderLayer(nn.Module):
       call_kwargs.update(residual_inputs=inputs, output_query_norm=mlp_input_norm)
     mlp_write_every = int(getattr(cfg, 'bam_mlp_write_every', 0))
     mlp_write = cfg.bam_enabled and mlp_write_every > 0 and (self.layer_inx + 1) % mlp_write_every == int(getattr(cfg, 'bam_mlp_write_offset', 0)) % mlp_write_every
-    if cfg.bam_enabled:
+    pallas_core = cfg.bam_enabled and bool(getattr(cfg, 'bam_pallas_core', False))
+    if pallas_core:
+        # Fused core: the attention returns its raw write factors; one kernel
+        # applies the attention (and MLP) writes after the MLP.
+        attention_lnx, M_out, write_factors = attention_layer(
+            **call_kwargs, M_in=M_in, is_global=is_global, layer_index=layer_index)
+    elif cfg.bam_enabled:
         if mlp_write:
           assert cfg.shared_experts == 1 and cfg.num_experts == 1
           assert cfg.emb_dim == num_query_heads * cfg.bam_k == num_query_heads * head_dim
@@ -334,6 +340,21 @@ class SubDecoderLayer(nn.Module):
             'mlp_write_address', nn.with_logical_partitioning(
                 nn.initializers.normal(1.0 / math.sqrt(cfg.bam_v)), ('q_heads', 'v_factor')),
             (num_query_heads, cfg.bam_v), cfg.weight_dtype).astype(cfg.dtype)
+    if pallas_core:
+      from layers import bam_pallas
+      groups = [write_factors]
+      if mlp_write:
+        assert independent_address is not None, 'fused core supports independent MLP addresses only'
+        groups.append((mlp_lnx.reshape(mlp_lnx.shape[:-1] + (num_query_heads, cfg.bam_k)),
+                       mlp_logits, independent_address))
+      with jax.named_scope('bam/pallas_write'):
+        M_out = bam_pallas.write(
+            M_out, groups, epsilon=float(cfg.normalization_layer_epsilon),
+            forward_tile=int(getattr(cfg, 'bam_pallas_write_tile', None) or 128),
+            reverse_tile=int(getattr(cfg, 'bam_pallas_write_reverse_tile', None) or 128),
+            vmem_mib=getattr(cfg, 'bam_pallas_vmem_mib', None),
+            interpret=bool(getattr(cfg, 'bam_pallas_interpret', False)))
+    elif mlp_write:
       M_out = attention_layer.merge_mlp_write(
           mlp_lnx.reshape(mlp_lnx.shape[:-1] + (num_query_heads, cfg.bam_k)),
           jax.nn.sigmoid(mlp_logits), write_factors, M_out, static_address,

@@ -10079,3 +10079,55 @@ class BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdDirectC10Tr
     bam_final_local_mlp_dim = 6267
     compare_runs = ['BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdTruePile']
     jax_cache_dir = ''
+
+
+class BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdDirectC10NoHealthTruePile(
+    BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdDirectC10TruePile):
+    """Pure-JAX speed control for the fused core: BAM concat health OFF, generic health unchanged."""
+    model_name = 'BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdDirectC10NoHealthTruePile'
+    bam_record_concat_health = False
+
+
+class BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdDirectC10PallasTruePile(
+    BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdDirectC10NoHealthTruePile):
+    """Same equations/parameters; fused Pallas read/write core, M carried token-minor [B,V,K,T]."""
+    # Implementation: claude/bam-pallas-directc10, layers/bam_pallas.py.
+    model_name = 'BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdDirectC10PallasTruePile'
+    bam_pallas_core = True
+
+
+class BamPallasCoreTinyXlaTest(
+    BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdDirectC10NoHealthTruePile):
+    """CPU equivalence fixture: tiny DirectC10 geometry, FP32, original XLA core."""
+    model_name = 'BamPallasCoreTinyXlaTest'
+    base_num_decoder_layers = 4
+    bam_layer_modes = ['local_qk+local_v+local_o'] * 4
+    base_emb_dim = 64
+    base_num_query_heads = 2
+    base_num_kv_heads = 2
+    head_dim = 32
+    bam_k = 32
+    bam_v = 16
+    bam_abs_v_compression_dim = 4
+    bam_standard_qk_dim = 8
+    bam_local_qk_col_output_dim = 24
+    bam_partial_rope_nope_dim = 24
+    bam_write_v_bottleneck_dim = 32
+    emb_bam_num_head = 2
+    emb_bam_v_bottleneck_dim = 32
+    bam_mlp_write_address_rank = 16
+    base_mlp_dim = 96
+    mlp_dim_by_block = [96, 80, 96]
+    bam_final_local_mlp_dim = 96
+    max_target_length = 256
+    query_chunk_size = 128
+    per_device_batch_size = 1.0
+    dtype = 'float32'
+    record_training_health_metrics = False
+
+
+class BamPallasCoreTinyPallasTest(BamPallasCoreTinyXlaTest):
+    """CPU equivalence fixture: the same tiny model through the interpreted fused core."""
+    model_name = 'BamPallasCoreTinyPallasTest'
+    bam_pallas_core = True
+    bam_pallas_interpret = True

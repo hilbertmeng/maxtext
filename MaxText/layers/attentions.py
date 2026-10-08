@@ -2533,6 +2533,9 @@ class BamAttention(Attention):
     reg_init = self.kernel_init
 
     self._read_key_scale = float(cfg.bam_read_key_scale)
+    vo_scale = getattr(cfg, "bam_local_vo_read_key_scale", None)
+    self._local_vo_read_key_scale = self._read_key_scale if vo_scale is None else float(vo_scale)
+    assert self._local_vo_read_key_scale > 0.0
     self._rms_epsilon = float(cfg.normalization_layer_epsilon)
     self._read_key_epsilon = float(
         cfg.bam_read_key_epsilon
@@ -2956,8 +2959,10 @@ class BamAttention(Attention):
           use_bias=address_bias, name='write_address_norm')
 
     if self._vo_independent_gates or self._fetched_matrix_v:
+      v_gate_init = getattr(cfg, 'bam_local_v_read_gate_init', None)
+      v_gate_init = fetched_gate_init if v_gate_init is None else float(v_gate_init)
       add_read_gate('W_lv_gate', (self.num_query_heads, 1),
-                    ('embed', 'q_heads', None), ('q_heads', None), fetched_gate_init)
+                    ('embed', 'q_heads', None), ('q_heads', None), v_gate_init)
 
     if self._direct_qk_c8:
       for name in ('q', 'k'):
@@ -3246,7 +3251,8 @@ class BamAttention(Attention):
         vrms, orms = jnp.sqrt(jnp.mean(v32 ** 2)), jnp.sqrt(jnp.mean(o32 ** 2))
         cosine = jnp.mean(v32 * o32) / jnp.maximum(vrms * orms, 1e-12)
         self.sow('intermediates', 'concat_vo_read_pair', jnp.stack((vrms, orms, cosine)))
-    return self._gate_local_output(v_read, v_logits), self._gate_local_output(read, o_logits)
+    return (self._gate_local_output(v_read, v_logits, key_scale=self._local_vo_read_key_scale),
+            self._gate_local_output(read, o_logits, key_scale=self._local_vo_read_key_scale))
 
   def _matrix_for_read(self, M_in):
     """Select the configured read-side view without changing the raw matrix stream."""
@@ -3547,10 +3553,11 @@ class BamAttention(Attention):
         return full_read, gate_logits
       return self._expand_full_read(full_read), gate_logits
 
-  def _gate_local_output(self, read, logits):
+  def _gate_local_output(self, read, logits, *, key_scale=None):
     """Gate compact (col/data, row/address) sides before packing the head."""
     col, row = read
-    gates = self._read_key_scale * self._read_gate_activation(logits)
+    scale = self._read_key_scale if key_scale is None else key_scale
+    gates = scale * self._read_gate_activation(logits)
     if self._fetched_arm.prune_row:
       return self._expand_full_read((col * gates, row))
     return self._expand_full_read((col * gates[..., 1:2], row * gates[..., :1]))

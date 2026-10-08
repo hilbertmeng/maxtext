@@ -294,6 +294,8 @@ class BamLlama2Medium(Llama2Medium):
     bam_read_gate_init = None        # opening; None derives sqrt(read_key_epsilon)/scale
     bam_read_gate_activation = 'sigmoid'
     bam_fetched_read_gate_init = None  # None follows bam_read_gate_init
+    bam_local_v_read_gate_init = None  # None follows fetched/local-O gate initialization.
+    bam_local_vo_read_key_scale = None  # Override shared-C8 VO only; QK scale stays independent.
     bam_fetched_read_kernel_init = 'zero'  # zero | normal (the model's regular kernel initializer)
     bam_fetched_read_kernel_gradient_scale = 1.0
     bam_record_fetched_read_health_metrics = False
@@ -10019,3 +10021,17 @@ class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdLocalVS
     model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdLocalVStaticZeroAttnWriteContentBiasTruePile'
     bam_attn_write_content_pre_rms_bias = True
     compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdLocalVStaticZeroTruePile']
+
+
+class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdLocalVStaticZeroVOReadNormalTruePile(
+    BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdLocalVStaticZeroTruePile):
+    """Nonzero shared dynamic VO key, unit VO scales, V/O gates .1/.05."""
+    # codex/mediumprop-qk75-sparse; /data0/xd/mediumprop-qk75-sparse.
+    # Static V remains zero; QK scale .2 and all writes/MLP unchanged.
+    # Bet final vs static-V-zero -.080 / standard +.010; speed within1%.
+    model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdLocalVStaticZeroVOReadNormalTruePile'
+    bam_fetched_read_kernel_init = 'normal'
+    bam_local_vo_read_key_scale = 1.0
+    bam_local_v_read_gate_init = .1
+    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdLocalVStaticZeroTruePile',
+                    'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile']

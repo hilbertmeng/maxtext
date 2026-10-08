@@ -18,7 +18,9 @@ import bam_pallas_test as ref  # pylint: disable=wrong-import-position
 batch = int(sys.argv[1]) if len(sys.argv) > 1 else 2
 rtile = int(sys.argv[2]) if len(sys.argv) > 2 else 128
 wtile = int(sys.argv[3]) if len(sys.argv) > 3 else 128
-vmem = int(sys.argv[4]) if len(sys.argv) > 4 else None
+vmem = int(sys.argv[4]) if len(sys.argv) > 4 and sys.argv[4] != '0' else None
+body = sys.argv[5] if len(sys.argv) > 5 else 'blocked'
+block = int(sys.argv[6]) if len(sys.argv) > 6 else 4
 ref.B, ref.T, ref.N = batch, 4096, 20
 dt = jnp.bfloat16
 
@@ -42,10 +44,10 @@ m_tm, params, tokens = ref.inputs(dt)
 m_minor = jnp.transpose(m_tm, (0, 3, 2, 1))
 sw = bp.static_weight(*params)
 kw = dict(qk_cols=ref.QKC, read_epsilon=ref.READ_EPS, key_scale=ref.SCALE,
-          forward_tile=rtile, reverse_tile=rtile, vmem_mib=vmem)
+          forward_tile=rtile, reverse_tile=rtile, vmem_mib=vmem, body=body, head_block=block)
 cts = tuple(jax.random.normal(jax.random.PRNGKey(i), (batch, 4096, 20, 96)).astype(dt) for i in range(4))
 
-res = {'batch': batch, 'read_tile': rtile, 'write_tile': wtile, 'vmem_mib': vmem}
+res = {'batch': batch, 'read_tile': rtile, 'write_tile': wtile, 'vmem_mib': vmem, 'body': body, 'block': block}
 
 # ---- read ----
 k_read = jax.jit(lambda m, sw, *t: bp.read(m, sw, *t, **kw))
@@ -54,6 +56,12 @@ got = k_read(m_minor, sw, *tokens)
 want = x_read(m_tm, *params, *tokens)
 res['read_fwd_rel_err'] = [rel(a, b) for a, b in zip(got, want)]
 res['read_fwd_ms'] = {'pallas': timeit(k_read, m_minor, sw, *tokens), 'xla': timeit(x_read, m_tm, *params, *tokens)}
+minor_tokens = tuple(jnp.moveaxis(x, 1, -1) for x in tokens)
+opts = bp._freeze(dict(heads=20, qk_cols=ref.QKC, read_epsilon=ref.READ_EPS, key_scale=ref.SCALE,
+                       forward_tile=rtile, reverse_tile=rtile, vmem_mib=vmem, interpret=False,
+                       body=body, head_block=block))
+k_only = jax.jit(lambda m, sw, *t: bp._read(m, sw, *t, opts))
+res['read_fwd_kernel_only_ms'] = timeit(k_only, m_minor, sw, *minor_tokens)
 
 
 def vjp_time(fn, args):
@@ -74,7 +82,7 @@ res['read_fwdbwd_ms'] = {'pallas': timeit(k_rb, m_minor, sw, *tokens), 'xla': ti
 for n_groups in (1, 2):
   groups = ref.write_groups(dt, n_groups)
   flat = [x for g in groups for x in g]
-  wkw = dict(epsilon=ref.WRITE_EPS, forward_tile=wtile, reverse_tile=wtile, vmem_mib=vmem)
+  wkw = dict(epsilon=ref.WRITE_EPS, forward_tile=wtile, reverse_tile=wtile, vmem_mib=vmem, body=body, row_block=block, head_block=block)
   k_w = jax.jit(lambda m, *f: bp.write(m, [f[i:i + 3] for i in range(0, len(f), 3)], **wkw))
   x_w = jax.jit(lambda m, *f: ref.original_write(m, *f))
   res[f'write{n_groups}_fwd_rel_err'] = rel(jnp.transpose(k_w(m_minor, *flat), (0, 3, 2, 1)), x_w(m_tm, *flat))

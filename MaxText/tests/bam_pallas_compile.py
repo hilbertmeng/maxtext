@@ -53,6 +53,14 @@ def main():
     opts = dict(heads=N, qk_cols=QKC, read_epsilon=1e-4, key_scale=.2, forward_tile=a.tile, reverse_tile=a.tile,
                 vmem_mib=a.vmem, interpret=False, k_block=a.block, ablate=a.ablate)
     fn = lambda *z: v4._read_forward_call(z, opts)
+  elif a.body == 'v4' and a.kernel == 'read_bwd':
+    from layers import bam_pallas_v4 as v4
+    args = [s(1, K, V, t), jax.ShapeDtypeStruct((4 * N + C, V), jnp.float32), s(1, t, N, C), s(1, t, N),
+            s(1, t, N, C), s(1, t, N), s(1, t, N, C), s(1, t, N), s(1, t, N), s(1, t, N, R), s(1, t, N, R)]
+    read = lambda *z: v4.read(*z, qk_cols=QKC, read_epsilon=1e-4, key_scale=.2, forward_tile=a.tile,
+                              reverse_tile=a.tile, vmem_mib=a.vmem, rev_k_block=a.block)
+    args += [s(1, t, N, K)] * 4
+    fn = lambda *z: jax.vjp(read, *z[:11])[1](tuple(z[11:]))
   elif a.kernel.startswith('read'):
     args = [s(1, V, K, t), jax.ShapeDtypeStruct((4 * N + C, V), jnp.float32), s(1, t, N, C), s(1, t, N),
             s(1, t, N, C), s(1, t, N), s(1, t, N, C), s(1, t, N), s(1, t, N), s(1, t, N, R), s(1, t, N, R)]

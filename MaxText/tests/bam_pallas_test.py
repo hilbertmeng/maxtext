@@ -63,6 +63,10 @@ def inputs(dtype, seed=0):
 
 def kernel_read(m_tm, params, tokens, body='blocked'):
   sw = bp.static_weight(*params)
+  if body == 'v4':
+    from layers import bam_pallas_v4
+    return bam_pallas_v4.read(jnp.transpose(m_tm, (0, 2, 3, 1)), sw, *tokens, qk_cols=QKC,
+                              read_epsilon=READ_EPS, key_scale=SCALE, interpret=True)
   return bp.read(to_minor_m(m_tm), sw, *tokens, qk_cols=QKC, read_epsilon=READ_EPS,
                  key_scale=SCALE, interpret=True, body=body)
 
@@ -88,7 +92,7 @@ class BamPallasTest(unittest.TestCase):
     for dtype, tol in ((jnp.float32, 1e-5), (jnp.bfloat16, 2e-2)):
       m_tm, params, tokens = inputs(dtype)
       want = original_read(m_tm, *params, *tokens)
-      for body in ('tile', 'blocked2', 'kmajor', 'v3'):
+      for body in ('tile', 'blocked2', 'kmajor', 'v3', 'v4'):
         got = kernel_read(m_tm, params, tokens, body)
         for name, a, b in zip('qkvo', got, want):
           self.assert_close(a, b, tol, f'{body} {dtype.__name__} {name}')
@@ -101,7 +105,7 @@ class BamPallasTest(unittest.TestCase):
       return sum(jnp.sum(o * c) for o, c in zip(fn(m_tm, params, tokens), cts))
 
     want = jax.grad(lambda *a: loss(lambda m, p, t: original_read(m, *p, *t), *a), argnums=(0, 1, 2))(m_tm, params, tokens)
-    for body in ('tile', 'blocked2', 'kmajor', 'v3'):
+    for body in ('tile', 'blocked2', 'kmajor', 'v3', 'v4'):
       got = jax.grad(lambda *a: loss(lambda m, p, t: kernel_read(m, p, t, body), *a), argnums=(0, 1, 2))(m_tm, params, tokens)
       self._compare_grads(got, want, body)
 

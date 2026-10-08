@@ -40,26 +40,28 @@ def main():
   t = a.tokens
   bf = jnp.bfloat16
   s = lambda *shape: jax.ShapeDtypeStruct(shape, bf)
+  rkw = dict(qk_cols=QKC, read_epsilon=1e-4, key_scale=.2, forward_tile=a.tile, reverse_tile=a.tile,
+             vmem_mib=a.vmem, body=a.body, head_block=a.block)
+  wkw = dict(epsilon=1e-6, forward_tile=a.tile, reverse_tile=a.tile, vmem_mib=a.vmem, body=a.body,
+             row_block=a.block, head_block=a.block)
   if a.kernel.startswith('read'):
-    opts = bp._freeze(dict(heads=N, qk_cols=QKC, read_epsilon=1e-4, key_scale=.2, forward_tile=a.tile,
-                           reverse_tile=a.tile, vmem_mib=a.vmem, interpret=False, body=a.body,
-                           head_block=a.block))
-    args = [s(1, V, K, t), jax.ShapeDtypeStruct((4 * N + C, V), jnp.float32), s(1, N, C, t), s(1, N, t),
-            s(1, N, C, t), s(1, N, t), s(1, N, C, t), s(1, N, t), s(1, N, t), s(1, N, R, t), s(1, N, R, t)]
+    args = [s(1, V, K, t), jax.ShapeDtypeStruct((4 * N + C, V), jnp.float32), s(1, t, N, C), s(1, t, N),
+            s(1, t, N, C), s(1, t, N), s(1, t, N, C), s(1, t, N), s(1, t, N), s(1, t, N, R), s(1, t, N, R)]
+    read = lambda *z: bp.read(*z, **rkw)
     if a.kernel == 'read_fwd':
-      fn = lambda *z: bp._read_forward_call(z, dict(opts))
+      fn = read
     else:
-      args += [s(1, N, K, t)] * 4
-      fn = lambda *z: bp._read_backward_call(z[:11], z[11:], dict(opts))
+      args += [s(1, t, N, K)] * 4
+      fn = lambda *z: jax.vjp(read, *z[:11])[1](tuple(z[11:]))
   else:
-    opts = bp._freeze(dict(epsilon=1e-6, forward_tile=a.tile, reverse_tile=a.tile, vmem_mib=a.vmem,
-                           interpret=False, body=a.body, row_block=a.block, head_block=a.block))
-    groups = [s(1, N, K, t), s(1, N, t), s(1, N, V, t)] * (2 if a.kernel.startswith('write2') else 1)
-    args = [s(1, V, K, t)] + groups
+    n_groups = 2 if a.kernel.startswith('write2') else 1
+    args = [s(1, V, K, t)] + [s(1, t, N, K), s(1, t, N), s(1, t, N, V)] * n_groups
+    write = lambda m, *g: bp.write(m, [g[i:i + 3] for i in range(0, len(g), 3)], **wkw)
     if a.kernel.endswith('fwd'):
-      fn = lambda m, *g: bp._write_forward_call(m, g, dict(opts))
+      fn = write
     else:
-      fn = lambda g0, *g: bp._write_backward_call(g0, g, dict(opts))
+      args += [s(1, V, K, t)]
+      fn = lambda *z: jax.vjp(write, *z[:-1])[1](z[-1])
   start = time.monotonic()
   compiled = jax.jit(fn, in_shardings=sharding, out_shardings=sharding).lower(*args).compile()
   print('COMPILE_JSON ' + json.dumps({'kernel': a.kernel, 'body': a.body, 'tile': a.tile, 'block': a.block,

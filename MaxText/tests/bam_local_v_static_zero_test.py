@@ -66,8 +66,19 @@ class LocalVStaticZeroTest(unittest.TestCase):
     self.assertTrue(np.isfinite(float(value)))
     self.assertTrue(all(np.isfinite(np.asarray(g)).all() for g in jax.tree.leaves(grad)))
     flat=flatten_dict(nn.unbox(grad))
+    self.assertGreater(sum(float(jnp.sum(g*g)) for p,g in flat.items() if 'static_v_key' in p),0.)
+    # Both static V and the dynamic C8 key start at zero. Downstream matrix-address
+    # gradients must be checked after a nonzero optimizer update, not at step0.
+    updated=jax.tree.map(lambda p,g:p-.001*g,params,grad)
+    with mesh,nn.partitioning.axis_rules(c.logical_axis_rules):
+      next_value,next_grad=jax.jit(jax.value_and_grad(loss))(updated)
+    self.assertTrue(np.isfinite(float(next_value)))
+    self.assertTrue(all(np.isfinite(np.asarray(g)).all() for g in jax.tree.leaves(next_grad)))
+    next_flat=flatten_dict(nn.unbox(next_grad))
     for needle in ('static_v_key','mlp_address_up','static_q_key','static_k_key'):
-      self.assertGreater(sum(float(jnp.sum(g*g)) for p,g in flat.items() if needle in p),0.,needle)
-    print('LOCAL_V_ZERO_ONLY_LEAF_CHANGED_SCANNED_LIVE_GRADIENT_OK',float(value),flush=True)
+      energy=sum(float(jnp.sum(g*g)) for p,g in next_flat.items() if needle in p)
+      self.assertGreater(energy,0.,needle)
+      print('AFTER_EFFECTIVE_UPDATE_GRAD_ENERGY',needle,energy,flush=True)
+    print('LOCAL_V_ZERO_ONLY_LEAF_CHANGED_SCANNED_LIVE_GRADIENT_OK',float(value),float(next_value),flush=True)
 
 if __name__=='__main__': unittest.main()

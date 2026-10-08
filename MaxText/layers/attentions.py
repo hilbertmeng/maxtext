@@ -2502,6 +2502,8 @@ class BamAttention(Attention):
       assert cfg.bam_local_vo_independent_gates and self.bam_k == self.head_dim
 
     self._local_o = 'local_o' in self._mode
+    # Retain the shared-C8 V recipe while ablating only its O destination.
+    self._disable_local_o = bool(getattr(cfg, 'bam_disable_local_o', False))
     self._local_v_mode = ('shared' if shared_v else 'rank2') if 'local_v' in self._mode else 'none'
     if self._fetched_matrix_v:
       self._local_v_mode = 'none'  # W_R supplies the dynamic V key, not a rank4 arm.
@@ -2515,6 +2517,8 @@ class BamAttention(Attention):
       assert self._vo_shared_read == 'local_o' and self._vo_independent_gates
     if self._vo_independent_gates:
       assert self._vo_shared_read == 'local_o'
+    if self._disable_local_o:
+      assert self._vo_independent_gates and not self._vo_separate_c8_keys
     if self._vo_shared_read != 'none':
       assert cfg.bam_prune_all_row_reads
       assert self._local_v_mode == 'rank2'
@@ -2813,9 +2817,13 @@ class BamAttention(Attention):
       fetched_gate_init = (
           zero_key_gate_init if self._fetched_read_gate_init is None
           else self._fetched_read_gate_init)
-      add_read_gate('W_R_gate', (self._fetched_read_num_heads, cfg.bam_n_f, 1 if self._fetched_arm.prune_row else 2),
-                    ('embed', 'q_heads', 'fetch', None),
-                    ('q_heads', 'fetch', None), fetched_gate_init)
+      if not self._disable_local_o:
+        add_read_gate('W_R_gate', (self._fetched_read_num_heads, cfg.bam_n_f, 1 if self._fetched_arm.prune_row else 2),
+                      ('embed', 'q_heads', 'fetch', None),
+                      ('q_heads', 'fetch', None), fetched_gate_init)
+      elif self.is_initializing():
+        # Preserve the parent's RNG position after its now-absent gate bias.
+        self.make_rng('params')
       # Signed RMS mixing needs a regular-initialized direction because RMSNorm
       # at an all-zero vector is singular. W_R remains zero-initialized, so the
       # complete BAM read still starts at zero.
@@ -2855,6 +2863,10 @@ class BamAttention(Attention):
       else:
         static_v_initializer = nn.initializers.normal(self.bam_v ** -0.5 * static_v_scale)
       for arm in (('v', 'o') if 'local_v' in self._mode else ('o',)):
+        if arm == 'o' and self._disable_local_o:
+          if self.is_initializing():
+            self.make_rng('params')
+          continue
         setattr(self, 'static_' + arm + '_key', self.param(
             'static_' + arm + '_key', nn.with_logical_partitioning(
                 static_v_initializer if arm == 'v' and not cfg.bam_local_v_static_zero_init else zeros_init,
@@ -3248,7 +3260,7 @@ class BamAttention(Attention):
     read, o_logits = self._read_fetched_m(compressed_M, x, ungated=True)
     v_logits = self._project_read_gate_logits('W_lv_gate', x)
     self._record_concat_gate('local_v', v_logits)
-    if self._concat_health:
+    if self._concat_health and not self._disable_local_o:
       v, o = (self._read_gate_activation(z.astype(jnp.float32)) for z in (v_logits, o_logits))
       vc, oc = v - jnp.mean(v), o - jnp.mean(o)
       correlation = jnp.mean(vc * oc) / jnp.maximum(jnp.sqrt(jnp.mean(vc * vc) * jnp.mean(oc * oc)), 1e-12)
@@ -3264,6 +3276,7 @@ class BamAttention(Attention):
         cosine = jnp.mean(v32 * o32) / jnp.maximum(vrms * orms, 1e-12)
         self.sow('intermediates', 'concat_vo_read_pair', jnp.stack((vrms, orms, cosine)))
     return (self._gate_local_output(v_read, v_logits, key_scale=self._local_vo_read_key_scale),
+            None if self._disable_local_o else
             self._gate_local_output(read, o_logits, key_scale=self._local_vo_read_key_scale))
 
   def _matrix_for_read(self, M_in):
@@ -3537,9 +3550,13 @@ class BamAttention(Attention):
       if self._record_fetched_read_health_metrics:
         m_rms = jnp.sqrt(jnp.mean(jnp.square(Mbar.astype(jnp.float32))))
         self.sow('intermediates', 'fetched_read_m_rms', m_rms)
-      gate_logits = self._project_read_gate_logits(
-          'W_R_gate', inputs_q, squeeze_fetch_axis=True)
-      self._record_concat_gate('local_o' if self._local_o else 'fetched_o', gate_logits)
+      if self._disable_local_o:
+        assert ungated  # Only the retained LocalV consumes this shared read.
+        gate_logits = None
+      else:
+        gate_logits = self._project_read_gate_logits(
+            'W_R_gate', inputs_q, squeeze_fetch_axis=True)
+        self._record_concat_gate('local_o' if self._local_o else 'fetched_o', gate_logits)
       if self._vo_shared_read == 'local_o' and not self._vo_independent_gates:
         self._record_concat_gate('local_v', gate_logits)
       if self._record_fetched_read_health_metrics:
@@ -3781,11 +3798,12 @@ class BamAttention(Attention):
         v_local = local_output
       if self._static_vo:
         static_v = self._static_column(Mh, 'v')
-        static_o = self._static_column(Mh, 'o')
         self._record_concat_amplitude('static_v', static_v, v_local)
-        self._record_concat_amplitude('static_o', static_o, local_output)
         v_local = v_local + static_v
-        local_output = local_output + static_o
+        if not self._disable_local_o:
+          static_o = self._static_column(Mh, 'o')
+          self._record_concat_amplitude('static_o', static_o, local_output)
+          local_output = local_output + static_o
       if not self._local_v_replace:
         self._record_concat_amplitude('local_v', v_local[..., :self.bam_k], value)
       elif self._concat_health:

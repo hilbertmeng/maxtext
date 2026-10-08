@@ -311,6 +311,7 @@ class BamLlama2Medium(Llama2Medium):
     bam_standard_qk_dim = None
     bam_local_v_replace = False
     bam_local_vo_static = False
+    bam_disable_local_o = False  # Keep shared-C8 LocalV; remove O gate/static read/injection.
     bam_local_v_static_zero_init = False
     bam_local_vo_read_kernel_init_std = None  # Optional Gaussian std for shared LocalVO W_R only.
     bam_local_v_static_init = 'normal'  # normal | orthogonal, zero flag takes precedence.
@@ -10068,4 +10069,15 @@ class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdStaticV
     # Bet final vs standard -.003; speed unchanged within1%.
     model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdStaticVOrthogonalInitTruePile'
     bam_local_v_static_init = 'orthogonal'
+    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile']
+
+
+class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdNoLocalOTruePile(BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile):
+    """LocalO ablation with original LocalV and nearest equal-budget MLP repayment."""
+    # codex/mediumprop-qk75-sparse; /data0/xd/mediumprop-qk75-sparse.
+    # Ablation: train >=5000; a positive loss gap is not an early-stop criterion.
+    # Bet final vs standard +.010; speed +.5% versus matched-health .520step/s.
+    model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdNoLocalOTruePile'
+    bam_disable_local_o = True
+    mlp_dim_by_block = [3907, 3780, 3907]
     compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile']

@@ -28,7 +28,7 @@ class ModelEquivalenceTest(unittest.TestCase):
   def test_logits_and_gradients(self):
     out = tempfile.mkdtemp()
     cfg, xla = build('BamPallasCoreTinyXlaTest', out)
-    _, fused = build('BamPallasCoreTinyPallasTest', out)
+    fused_models = [build(e, out)[1] for e in ('BamPallasCoreTinyPallasTest', 'BamPallasCoreTinyPallasV3Test')]
     b, t = int(cfg.global_batch_size_to_train_on), cfg.max_target_length
     tokens = jax.random.randint(jax.random.PRNGKey(0), (b, t), 0, 1000)
     positions = jnp.broadcast_to(jnp.arange(t), (b, t))
@@ -53,6 +53,10 @@ class ModelEquivalenceTest(unittest.TestCase):
       return jnp.sum(out * ct) / out.size, out
 
     (lx, ox), gx = jax.value_and_grad(lambda p: loss(xla, p), has_aux=True)(params)
+    for fused in fused_models:
+      self._compare(loss, xla, fused, params, lx, ox, gx)
+
+  def _compare(self, loss, xla, fused, params, lx, ox, gx):
     (lf, of), gf = jax.value_and_grad(lambda p: loss(fused, p), has_aux=True)(params)
     scale = float(jnp.max(jnp.abs(ox)))
     self.assertLess(float(jnp.max(jnp.abs(ox - of))) / scale, 1e-4)

@@ -35,13 +35,15 @@ def _tmajor_spec(width, tile):
 def _load_transposed(src_ref, dst, row0, width):
   """Token-major BF16 block [t, width] -> FP32 rows dst[row0:row0+width] as [width, t]."""
   for j in range(0, width, 128):
-    dst[pl.ds(row0 + j, 128), :] = src_ref[:, pl.ds(j, 128)].astype(F32).T
+    w = min(128, width - j)
+    dst[pl.ds(row0 + j, w), :] = src_ref[:, pl.ds(j, w)].astype(F32).T
 
 
 def _store_transposed(src, row0, dst_ref, width):
   """FP32 rows src[row0:row0+width] ([width, t]) -> token-major dst_ref [t, width]."""
   for j in range(0, width, 128):
-    dst_ref[:, pl.ds(j, 128)] = src[pl.ds(row0 + j, 128), :].T.astype(dst_ref.dtype)
+    w = min(128, width - j)
+    dst_ref[:, pl.ds(j, w)] = src[pl.ds(row0 + j, w), :].T.astype(dst_ref.dtype)
 
 
 def _acc(a, b):

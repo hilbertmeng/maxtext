@@ -10152,3 +10152,9 @@ class BamPallasCoreTinyPallasTest(BamPallasCoreTinyXlaTest):
     model_name = 'BamPallasCoreTinyPallasTest'
     bam_pallas_core = True
     bam_pallas_interpret = True
+
+
+class BamPallasCoreTinyPallasV3Test(BamPallasCoreTinyPallasTest):
+    """CPU equivalence fixture for the v3 kernel bodies (tiny heads padded to 8 rows)."""
+    model_name = 'BamPallasCoreTinyPallasV3Test'
+    bam_pallas_body = 'v3'

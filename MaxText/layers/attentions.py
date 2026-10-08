@@ -3657,7 +3657,8 @@ class BamAttention(Attention):
           forward_tile=int(getattr(cfg, 'bam_pallas_read_tile', None) or 128),
           reverse_tile=int(getattr(cfg, 'bam_pallas_read_reverse_tile', None) or 128),
           vmem_mib=getattr(cfg, 'bam_pallas_vmem_mib', None),
-          interpret=bool(getattr(cfg, 'bam_pallas_interpret', False)))
+          interpret=bool(getattr(cfg, 'bam_pallas_interpret', False)),
+          body=getattr(cfg, 'bam_pallas_body', None) or 'blocked')
     query = nn.with_logical_constraint(query, self.query_axis_names)
     key = nn.with_logical_constraint(key, self.key_axis_names)
     value = nn.with_logical_constraint(value, self.value_axis_names)

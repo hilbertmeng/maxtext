@@ -1018,6 +1018,8 @@ def read(m, static_weight, q_key, q_logits, k_key, k_logits, vo_key, o_logits, v
                               v_logits, q_standard, k_standard, qk_cols=qk_cols,
                               read_epsilon=read_epsilon, key_scale=key_scale, forward_tile=forward_tile,
                               reverse_tile=reverse_tile, vmem_mib=vmem_mib, interpret=interpret)
+  if body == 'v6':        # best measured read bodies: blocked forward, blocked2 reverse
+    body = 'blocked2'
   heads = q_key.shape[2]
   opts = _freeze(dict(heads=heads, qk_cols=qk_cols, read_epsilon=read_epsilon,
                       key_scale=key_scale, forward_tile=forward_tile,

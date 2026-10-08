@@ -59,7 +59,7 @@ def utilization(path):
 
 def utilization_report(root):
   for d in sorted(Path(root).iterdir()):
-    for f in sorted((d / 'llo').glob('*bam_core*final_hlo-static-per-bundle-utilization.txt')):
+    for f in sorted((d / 'llo').glob('*bam_*final_hlo-static-per-bundle-utilization.txt')):
       units, cap, n, tot, sat = utilization(f)
       prog = f.name.split('-')[1]
       bound = {u: round(t / c) for u, t, c in zip(units, tot, cap) if c}

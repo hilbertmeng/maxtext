@@ -10117,6 +10117,12 @@ class BamDirectC10PallasCoreProfile(
     bam_pallas_vmem_mib = 48
 
 
+class BamDirectC10PallasV6CoreProfile(BamDirectC10PallasCoreProfile):
+    """Paired fused-core arm: blocked read, blocked2 read reverse, loop-structured v6 write reverse."""
+    model_name = 'BamDirectC10PallasV6CoreProfile'
+    bam_pallas_body = 'v6'
+
+
 class BamPallasCoreTinyXlaTest(
     BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdDirectC10NoHealthTruePile):
     """CPU equivalence fixture: tiny DirectC10 geometry, FP32, original XLA core."""
@@ -10164,3 +10170,9 @@ class BamPallasCoreTinyPallasV4Test(BamPallasCoreTinyPallasTest):
     """CPU equivalence fixture for the v4 kernel bodies (k-major carried M)."""
     model_name = 'BamPallasCoreTinyPallasV4Test'
     bam_pallas_body = 'v4'
+
+
+class BamPallasCoreTinyPallasV6Test(BamPallasCoreTinyPallasTest):
+    """CPU equivalence fixture for the combined v6 bodies."""
+    model_name = 'BamPallasCoreTinyPallasV6Test'
+    bam_pallas_body = 'v6'

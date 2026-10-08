@@ -312,6 +312,8 @@ class BamLlama2Medium(Llama2Medium):
     bam_local_v_replace = False
     bam_local_vo_static = False
     bam_local_v_static_zero_init = False
+    bam_local_vo_read_kernel_init_std = None  # Optional Gaussian std for shared LocalVO W_R only.
+    bam_local_v_static_init = 'normal'  # normal | orthogonal, zero flag takes precedence.
     bam_local_v_static_init_scale = 1.0  # Gaussian std multiplier; zero flag takes precedence.
     bam_attn_write_content_pre_rms_bias = False
     bam_embedding_write = False
@@ -10049,3 +10051,21 @@ class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdVOReadN
     bam_local_v_static_init_scale = .1
     compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdLocalVStaticZeroVOReadNormalTruePile',
                     'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile']
+
+
+class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdVOReadKeySmallInitTruePile(BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile):
+    """Small nonzero shared VO key; original static V, gates and scales."""
+    # codex/mediumprop-qk75-sparse; /data0/xd/mediumprop-qk75-sparse.
+    # Bet final vs standard -.006; speed unchanged within1%.
+    model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdVOReadKeySmallInitTruePile'
+    bam_local_vo_read_kernel_init_std = .001 / math.sqrt(1200)
+    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile']
+
+
+class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdStaticVOrthogonalInitTruePile(BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile):
+    """Unit orthonormal static V columns; original zero dynamic VO key."""
+    # codex/mediumprop-qk75-sparse; /data0/xd/mediumprop-qk75-sparse.
+    # Bet final vs standard -.003; speed unchanged within1%.
+    model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdStaticVOrthogonalInitTruePile'
+    bam_local_v_static_init = 'orthogonal'
+    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile']

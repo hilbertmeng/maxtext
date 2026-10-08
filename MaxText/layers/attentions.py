@@ -2787,11 +2787,16 @@ class BamAttention(Attention):
       read_features = (
           self._fetched_read_num_heads, cfg.bam_n_f,
           self._fetched_arm.key_width)
+      read_kernel_init = zeros_init if self._fetched_read_kernel_init == 'zero' else reg_init
+      local_vo_std = getattr(cfg, 'bam_local_vo_read_kernel_init_std', None)
+      if local_vo_std is not None and self._vo_shared_read == 'local_o':
+        assert not self._vo_separate_c8_keys and float(local_vo_std) > 0
+        # DenseGeneral passes logical input/output axes to its initializer.
+        def read_kernel_init(key, shape, dtype, in_axis=None, out_axis=None):
+          return nn.initializers.normal(float(local_vo_std))(key, shape, dtype)
       self.W_R = DenseGeneral(
           features=read_features, axis=-1,
-          kernel_init=(
-              zeros_init
-              if self._fetched_read_kernel_init == 'zero' else reg_init),
+          kernel_init=read_kernel_init,
           kernel_axes=("embed", "q_heads", "fetch", "kv"),
           dtype=self.dtype, weight_dtype=self.weight_dtype, name="W_R",
           quant=self.quant, matmul_precision=cfg.matmul_precision,
@@ -2841,11 +2846,18 @@ class BamAttention(Attention):
     if self._local_v_replace:
       assert (self._vo_independent_gates or self._fetched_matrix_v) and self.bam_k == self.head_dim
     if self._static_vo:
+      static_v_init = getattr(cfg, 'bam_local_v_static_init', 'normal')
+      assert static_v_init in ('normal', 'orthogonal')
+      static_v_scale = float(getattr(cfg, 'bam_local_v_static_init_scale', 1.0))
+      if static_v_init == 'orthogonal':
+        assert self.bam_v >= self.num_query_heads
+        static_v_initializer = nn.initializers.orthogonal(scale=static_v_scale)
+      else:
+        static_v_initializer = nn.initializers.normal(self.bam_v ** -0.5 * static_v_scale)
       for arm in (('v', 'o') if 'local_v' in self._mode else ('o',)):
         setattr(self, 'static_' + arm + '_key', self.param(
             'static_' + arm + '_key', nn.with_logical_partitioning(
-                nn.initializers.normal(self.bam_v ** -0.5 * float(getattr(cfg, 'bam_local_v_static_init_scale', 1.0)))
-                if arm == 'v' and not cfg.bam_local_v_static_zero_init else zeros_init,
+                static_v_initializer if arm == 'v' and not cfg.bam_local_v_static_zero_init else zeros_init,
                 ('v_factor', 'q_heads')),
             (self.bam_v, self.num_query_heads), self.weight_dtype))
 

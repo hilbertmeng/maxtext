@@ -47,9 +47,9 @@ def _kmajor_to_tokens(kscr, np_, n, kdim, out_ref):
     out_ref[:, pl.ds(j0, w)] = blk.T.astype(out_ref.dtype)
 
 
-def _read_kernel(heads, qk_cols, eps, scale, kb, ablate=''):
+def _read_kernel(heads, qk_cols, eps, scale, kb, ablate='', dot_block=16):
   def kernel(m_ref, sw_ref, rq, lq, rk, lk, rr, lo, lv, qs, ks, q_ref, k_ref, v_ref, o_ref,
-             key_scr, kscr):
+             key_scr, kscr, st_scr):
     dt = m_ref.dtype
     n = heads
     np_ = _pad_rows(n)
@@ -63,26 +63,32 @@ def _read_kernel(heads, qk_cols, eps, scale, kb, ablate=''):
     gv = scale * _sigmoid(lv[...])
     go = scale * _sigmoid(lo[...])
     sw = sw_ref[...].astype(dt)
+    t = m_ref.shape[2]
+    # Static reads + compression: k-major slabs concatenated along lanes are free, so a few
+    # large dots replace 96 tiny ones; each k's results are a lane-aligned [J', T] chunk.
+    for d0 in range(0, kdim, dot_block):
+      kk_ = list(range(d0, min(d0 + dot_block, kdim)))
+      mcat = jnp.concatenate([m_ref[k] for k in kk_], axis=1)
+      st_scr[:, pl.ds(d0 * t, len(kk_) * t)] = jnp.dot(sw, mcat, preferred_element_type=F32)
     for k0 in range(0, kdim, kb):
       ks_ = list(range(k0, min(k0 + kb, kdim)))
-      sts = {k: jnp.dot(sw, m_ref[k], preferred_element_type=F32) for k in ks_}
+      lanes = {k: pl.ds(k * t, t) for k in ks_}
       acc = {(r, k): None for r in range(3) for k in ks_}
       for c in (range(cdim) if 'dyn' not in ablate else range(1)):
         keys = [key_scr[r, c] for r in range(3)]
         for k in ks_:
-          row = sts[k][mc0 + c:mc0 + c + 1]
+          row = st_scr[pl.ds(mc0 + c, 1), lanes[k]]
           for r in range(3):
             if r < 2 and k >= qk_cols:
               continue
             acc[r, k] = _acc(acc[r, k], keys[r] * row)
       for k in ks_:
-        st = sts[k]
         rows = pl.ds(k * np_, n)
-        kscr[2, rows, :] = acc[2, k] * gv + st[2 * np_:2 * np_ + n]
-        kscr[3, rows, :] = acc[2, k] * go + st[3 * np_:3 * np_ + n]
+        kscr[2, rows, :] = acc[2, k] * gv + st_scr[pl.ds(2 * np_, n), lanes[k]]
+        kscr[3, rows, :] = acc[2, k] * go + st_scr[pl.ds(3 * np_, n), lanes[k]]
         if k < qk_cols:
-          kscr[0, rows, :] = acc[0, k] + st[0:n]
-          kscr[1, rows, :] = acc[1, k] + st[np_:np_ + n]
+          kscr[0, rows, :] = acc[0, k] + st_scr[pl.ds(0, n), lanes[k]]
+          kscr[1, rows, :] = acc[1, k] + st_scr[pl.ds(np_, n), lanes[k]]
         else:
           kscr[0, rows, :] = qs[k - qk_cols].astype(F32)
           kscr[1, rows, :] = ks[k - qk_cols].astype(F32)
@@ -105,9 +111,10 @@ def _read_forward_call(args, opts):
   specs = [_spec((kdim, v), tile), _whole(args[1].shape)] + [_spec(x.shape[1:-1], tile) for x in args[2:]]
   return pl.pallas_call(
       _read_kernel(n, opts['qk_cols'], opts['read_epsilon'], opts['key_scale'], opts['k_block'],
-                   opts.get('ablate', '')),
+                   opts.get('ablate', ''), opts.get('dot_block', 16)),
       grid=(b, t // tile), in_specs=specs, out_specs=[_tmajor_spec(nk, tile)] * 4,
       out_shape=tuple(jax.ShapeDtypeStruct((b, t, nk), m.dtype) for _ in range(4)),
-      scratch_shapes=[pltpu.VMEM((3, c, n, tile), F32), pltpu.VMEM((4, kdim * np_, tile), F32)],
+      scratch_shapes=[pltpu.VMEM((3, c, n, tile), F32), pltpu.VMEM((4, kdim * np_, tile), F32),
+                      pltpu.VMEM((args[1].shape[0], kdim * tile), F32)],
       interpret=opts['interpret'], compiler_params=_params(('parallel', 'parallel'), opts['vmem_mib']),
       name='bam_core_read')(*args)

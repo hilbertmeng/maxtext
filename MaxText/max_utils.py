@@ -113,7 +113,12 @@ def summarize_size_from_pytree(params):
 
 def initialize_summary_writer(config):
   summary_writer_path = os.path.join(config.tensorboard_dir) # lsp
-  return writer.SummaryWriter(summary_writer_path) if jax.process_index() == 0 else None
+  if jax.process_index() != 0:
+    return None
+  if summary_writer_path.startswith('gs://'):
+    import tensorboard_gcs_writer
+    tensorboard_gcs_writer.install()
+  return writer.SummaryWriter(summary_writer_path)
 
 
 def close_summary_writer(summary_writer):

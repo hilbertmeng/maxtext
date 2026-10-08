@@ -449,13 +449,15 @@ def _read_backward_kernel(heads, qk_cols, read_epsilon, key_scale):
       dl[...] = (key_scale * sg * (1 - sg) * jnp.sum(dkey * nrm, axis=1)).astype(dl.dtype)
       dr[...] = _norm_backward(r[...], (key_scale * sg)[:, None, :] * dkey, read_epsilon, 1).astype(dr.dtype)
     drr[...] = _norm_backward(rr[...], dkey_scr[2], read_epsilon, 1).astype(drr.dtype)
-    d = d_scr[...]
-    dm_ref[...] = _static_dot_t(sw_ref[...].astype(F32), d).astype(dm_ref.dtype)
+    # Static-read reverse in the activation dtype with FP32 accumulation (XLA's original
+    # backward einsums take BF16 operands too); FP32 operands would need multi-pass MXU.
+    d = d_scr[...].astype(dt)
+    dm_ref[...] = _static_dot_t(sw_ref[...].astype(dt), d).astype(dm_ref.dtype)
 
     @pl.when(pl.program_id(1) == 0)
     def _():
       dsw_ref[...] = jnp.zeros(dsw_ref.shape, dsw_ref.dtype)
-    dsw_ref[...] += _weight_grad(d, m_ref[...].astype(F32))
+    dsw_ref[...] += _weight_grad(d, m_ref[...])
   return kernel
 
 
@@ -531,14 +533,119 @@ def _read_backward_kernel2(heads, qk_cols, read_epsilon, key_scale, cb):
       dl[...] = (key_scale * sg * (1 - sg) * jnp.sum(dkey * nrm, axis=1)).astype(dl.dtype)
       dr[...] = _norm_backward(r[...], (key_scale * sg)[:, None, :] * dkey, read_epsilon, 1).astype(dr.dtype)
     drr[...] = _norm_backward(rr[...], dkey_scr[2], read_epsilon, 1).astype(drr.dtype)
-    d = d_scr[...]
-    dm_ref[...] = _static_dot_t(sw_ref[...].astype(F32), d).astype(dm_ref.dtype)
+    # Static-read reverse in the activation dtype with FP32 accumulation (XLA's original
+    # backward einsums take BF16 operands too); FP32 operands would need multi-pass MXU.
+    d = d_scr[...].astype(dt)
+    dm_ref[...] = _static_dot_t(sw_ref[...].astype(dt), d).astype(dm_ref.dtype)
 
     @pl.when(pl.program_id(1) == 0)
     def _():
       dsw_ref[...] = jnp.zeros(dsw_ref.shape, dsw_ref.dtype)
-    dsw_ref[...] += _weight_grad(d, m_ref[...].astype(F32))
+    dsw_ref[...] += _weight_grad(d, m_ref[...])
   return kernel
+
+
+def _read_backward_kernel3(heads, qk_cols, read_epsilon, key_scale, cb):
+  """Loop-structured blocked2 reverse (same math/rounding): head loops with register carries.
+
+  Dynamic head indices touch only leading scratch dims ([N,K,T], [J,K,T], [N,C,T]); per-head
+  gates and dlv/dlo rows go through [N,1,T] scratch to avoid dynamic single-sublane access.
+  """
+  def kernel(m_ref, sw_ref, rq, lq, rk, lk, rr, lo, lv, qs, ks, dq, dk, dv, do,
+             dm_ref, dsw_ref, drq, dlq, drk, dlk, drr, dlo, dlv, dqs, dks,
+             st_scr, key_scr, d_scr, dkey_scr, dyvo_scr, mcf, gate_s, dl_s):
+    dt = m_ref.dtype
+    n = heads
+    mc0 = 4 * n
+    kdim, t = m_ref.shape[1], m_ref.shape[2]
+    cdim = key_scr.shape[2]
+    rest = kdim - qk_cols
+    _fill_read_state(m_ref, sw_ref, rq, lq, rk, lk, rr, st_scr, key_scr, read_epsilon, key_scale)
+    for c in range(cdim):
+      mcf[c] = st_scr[mc0 + c].astype(F32)
+    sgv, sgo = _sigmoid(lv[...]), _sigmoid(lo[...])
+    for h in range(n):
+      gate_s[0, h] = key_scale * sgv[h:h + 1]
+      gate_s[1, h] = key_scale * sgo[h:h + 1]
+    zrest = jnp.zeros((rest, t), F32)
+
+    # Phase 1 (per head): stage cotangents, VO forward, VO cotangent, gate sums, key gradients.
+    def phase1(h, carry):
+      for which, d_ref, ds_ref in ((0, dq, dqs), (1, dk, dks)):
+        d_scr[which * n + h, pl.ds(0, qk_cols), :] = d_ref[h, pl.ds(0, qk_cols), :].astype(F32)
+        d_scr[which * n + h, pl.ds(qk_cols, rest), :] = zrest
+        ds_ref[h] = d_ref[h, pl.ds(qk_cols, rest), :].astype(ds_ref.dtype)
+      dvh = dv[h].astype(F32)
+      doh = do[h].astype(F32)
+      d_scr[2 * n + h] = dvh
+      d_scr[3 * n + h] = doh
+      kr = key_scr[2, h].astype(F32)
+      y = None
+      for c in range(cdim):
+        y = _acc(y, kr[c:c + 1] * mcf[c])
+      y = y.astype(dt).astype(F32)
+      dy = dvh * gate_s[0, h] + doh * gate_s[1, h]
+      dyvo_scr[h] = dy
+      dl_s[0, h] = jnp.sum(dvh * y, axis=0, keepdims=True)
+      dl_s[1, h] = jnp.sum(doh * y, axis=0, keepdims=True)
+      dyq = d_scr[h, pl.ds(0, qk_cols), :]
+      dyk = d_scr[n + h, pl.ds(0, qk_cols), :]
+      rows = [[], [], []]
+      for c in range(cdim):
+        mcc = mcf[c]
+        mcq = mcc[:qk_cols]
+        rows[0].append(jnp.sum(dyq * mcq, axis=0, keepdims=True))
+        rows[1].append(jnp.sum(dyk * mcq, axis=0, keepdims=True))
+        rows[2].append(jnp.sum(dy * mcc, axis=0, keepdims=True))
+      for r in range(3):
+        dkey_scr[r, h] = jnp.concatenate(rows[r], axis=0)
+      return carry
+    jax.lax.fori_loop(0, n, phase1, 0)
+    dl_v = jnp.concatenate([dl_s[0, h] for h in range(n)], axis=0)
+    dl_o = jnp.concatenate([dl_s[1, h] for h in range(n)], axis=0)
+    dlv[...] = (key_scale * sgv * (1 - sgv) * dl_v).astype(dlv.dtype)
+    dlo[...] = (key_scale * sgo * (1 - sgo) * dl_o).astype(dlo.dtype)
+
+    # Phase 2: dMc[c] = sum_h (kq dyq + kk dyk + nr dyvo); register-carried per c block.
+    for c0 in range(0, cdim, cb):
+      cs = list(range(c0, min(c0 + cb, cdim)))
+
+      def phase2(h, carry, cs=cs):
+        part, full = carry
+        dyq = d_scr[h, pl.ds(0, qk_cols), :]
+        dyk = d_scr[n + h, pl.ds(0, qk_cols), :]
+        dyv = dyvo_scr[h]
+        k0, k1, k2 = (key_scr[r, h].astype(F32) for r in range(3))
+        part = tuple(part[j] + k0[c:c + 1] * dyq + k1[c:c + 1] * dyk for j, c in enumerate(cs))
+        full = tuple(full[j] + k2[c:c + 1] * dyv for j, c in enumerate(cs))
+        return part, full
+      part, full = jax.lax.fori_loop(
+          0, n, phase2, (tuple(jnp.zeros((qk_cols, t), F32) for _ in cs),
+                         tuple(jnp.zeros((kdim, t), F32) for _ in cs)))
+      for j, c in enumerate(cs):
+        d_scr[mc0 + c, pl.ds(0, qk_cols), :] = full[j][:qk_cols] + part[j]
+        d_scr[mc0 + c, pl.ds(qk_cols, rest), :] = full[j][qk_cols:]
+    for idx, (r, l, dr, dl) in enumerate(((rq, lq, drq, dlq), (rk, lk, drk, dlk))):
+      sg = _sigmoid(l[...])
+      nrm = _norm(r[...], read_epsilon, 1).astype(dt).astype(F32)
+      dkey = dkey_scr[idx]
+      dl[...] = (key_scale * sg * (1 - sg) * jnp.sum(dkey * nrm, axis=1)).astype(dl.dtype)
+      dr[...] = _norm_backward(r[...], (key_scale * sg)[:, None, :] * dkey, read_epsilon, 1).astype(dr.dtype)
+    drr[...] = _norm_backward(rr[...], dkey_scr[2], read_epsilon, 1).astype(drr.dtype)
+    # Static-read reverse in the activation dtype with FP32 accumulation (XLA's original
+    # backward einsums take BF16 operands too); FP32 operands would need multi-pass MXU.
+    d = d_scr[...].astype(dt)
+    dm_ref[...] = _static_dot_t(sw_ref[...].astype(dt), d).astype(dm_ref.dtype)
+
+    @pl.when(pl.program_id(1) == 0)
+    def _():
+      dsw_ref[...] = jnp.zeros(dsw_ref.shape, dsw_ref.dtype)
+    dsw_ref[...] += _weight_grad(d, m_ref[...])
+  return kernel
+
+
+def _acc(a, b):
+  return b if a is None else a + b
 
 
 # ---------------------------------------------------------------------------
@@ -864,6 +971,10 @@ def _read_backward_call(args, cts, opts):
     if opts['body'] == 'blocked2':
       kernel = _read_backward_kernel2(n, qk_cols, opts['read_epsilon'], opts['key_scale'], 2)
       scratch.append(pltpu.VMEM((n, k, tile), F32))
+    elif opts['body'] == 'loop':
+      kernel = _read_backward_kernel3(n, qk_cols, opts['read_epsilon'], opts['key_scale'], 2)
+      scratch += [pltpu.VMEM((n, k, tile), F32), pltpu.VMEM((c, k, tile), F32),
+                  pltpu.VMEM((2, n, 1, tile), F32), pltpu.VMEM((2, n, 1, tile), F32)]
     else:
       kernel = _read_backward_kernel(n, qk_cols, opts['read_epsilon'], opts['key_scale'])
 
@@ -1018,7 +1129,7 @@ def read(m, static_weight, q_key, q_logits, k_key, k_logits, vo_key, o_logits, v
                               v_logits, q_standard, k_standard, qk_cols=qk_cols,
                               read_epsilon=read_epsilon, key_scale=key_scale, forward_tile=forward_tile,
                               reverse_tile=reverse_tile, vmem_mib=vmem_mib, interpret=interpret)
-  if body == 'v6':        # best measured read bodies: blocked forward, blocked2 reverse
+  if body == 'v6':        # blocked forward, blocked2 reverse (loop variant measured slower)
     body = 'blocked2'
   heads = q_key.shape[2]
   opts = _freeze(dict(heads=heads, qk_cols=qk_cols, read_epsilon=read_epsilon,

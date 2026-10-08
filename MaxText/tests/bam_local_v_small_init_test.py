@@ -8,7 +8,7 @@ from layers.models import Transformer
 from layers import quantizations
 import bam_mlp_write_test as helper
 PARENT='BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdLocalVStaticZeroVOReadNormalTruePile'
-EXP=PARENT.replace('TruePile','StaticVSmallTruePile')
+EXP=PARENT.replace('LocalVStaticZeroVOReadNormalTruePile','VOReadNormalStaticVSmallTruePile')
 class LocalVSmallTest(unittest.TestCase):
   setUp=helper.MLPWriteTest.setUp
   tearDown=helper.MLPWriteTest.tearDown

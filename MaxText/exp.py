@@ -10038,13 +10038,13 @@ class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdLocalVS
                     'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile']
 
 
-class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdLocalVStaticZeroVOReadNormalStaticVSmallTruePile(
+class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdVOReadNormalStaticVSmallTruePile(
     BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdLocalVStaticZeroVOReadNormalTruePile):
     """B treatment with static V Gaussian std .1/sqrt32 instead of zero."""
     # codex/mediumprop-qk75-sparse; /data0/xd/mediumprop-qk75-sparse.
     # Same parameter budget/MLP, nonzero dynamic VO key and .1/.05 gates.
     # Bet final vs B -.005; speed unchanged within1%.
-    model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdLocalVStaticZeroVOReadNormalStaticVSmallTruePile'
+    model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdVOReadNormalStaticVSmallTruePile'
     bam_local_v_static_zero_init = False
     bam_local_v_static_init_scale = .1
     compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdLocalVStaticZeroVOReadNormalTruePile',

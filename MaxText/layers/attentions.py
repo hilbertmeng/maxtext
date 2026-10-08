@@ -3379,6 +3379,35 @@ class BamAttention(Attention):
       return jnp.einsum('btd,nkd->btnk', jnp.asarray(residual_content, self.dtype),
                         kernel, precision=self.config.matmul_precision)
 
+  @nn.compact
+  def project_mlp_residual(self, head_content):
+    """Project the MLP's original head coordinates forward into the vector stream.
+
+    This is W_O's forward direction, unlike project_mlp_write_content's adjoint.
+    Sharing keeps a live gradient to the actual attention output kernel.
+    """
+    mode = getattr(self.config, 'bam_mlp_residual_projection', 'none')
+    if mode not in ('wo', 'independent'):
+      raise ValueError(f'Unsupported MLP residual projection: {mode}')
+    if self.quant is not None:
+      raise ValueError('MLP residual projection currently requires unquantized W_O')
+    shape = (self.num_query_heads, self.head_dim, head_content.shape[-1])
+    heads = head_content.reshape(head_content.shape[:-1] + shape[:2])
+    if mode == 'independent':
+      kernel = self.param(
+          'mlp_residual_kernel',
+          nn.with_logical_partitioning(self.kernel_init, ('heads', 'kv', 'embed')),
+          shape, self.weight_dtype, (0, 1), (2,))
+    else:
+      out = self.get_variable('params', 'out')
+      if out is None:
+        raise ValueError('W_O must be initialized by attention before MLP residuals')
+      kernel = out if self.config.opt_type == 'muon' else out['kernel']
+      kernel = nn.unbox(kernel).reshape(shape)
+    with jax.named_scope('bam/mlp_residual_projection'):
+      return jnp.einsum('btnk,nkd->btd', jnp.asarray(heads, self.dtype),
+                        jnp.asarray(kernel, self.dtype), precision=self.config.matmul_precision)
+
   def merge_mlp_write(self, mlp_head, mlp_gate, factors, M_in, static_address=None,
                       independent_address=None):
     """Shared-address sum needs one outer; independent address needs two."""

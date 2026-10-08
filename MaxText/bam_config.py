@@ -19,6 +19,14 @@ def validate_bam_config(config, *, layer_mode=None):
       raise ValueError('MLP content projection requires active BAM MLP writes')
     if get('bam_k') != get('head_dim'):
       raise ValueError('MLP content projection requires bam_k == head_dim')
+  residual_projection = get('bam_mlp_residual_projection', 'none')
+  if residual_projection not in ('none', 'wo', 'independent'):
+    raise ValueError(f'Unsupported MLP residual projection: {residual_projection}')
+  if residual_projection != 'none':
+    if get('bam_mlp_write_every', 0) <= 0 or get('bam_mha_control', False):
+      raise ValueError('MLP residual projection requires active BAM MLP writes')
+    if get('bam_k') != get('head_dim'):
+      raise ValueError('MLP residual projection requires bam_k == head_dim')
   for name in ('bam_local_o_v_mode', 'bam_local_v_mode'):
     if get(name) is not None:
       raise ValueError(

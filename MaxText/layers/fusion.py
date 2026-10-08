@@ -298,6 +298,7 @@ class SubDecoderLayer(nn.Module):
         self.sow("intermediates", "moe_lb_loss", load_balance_loss)
       moe_lnx = nn.with_logical_constraint(moe_lnx, ("activation_batch", "activation_norm_length", "activation_embed"))
 
+    mlp_residual = mlp_lnx
     if mlp_write:
       mlp_logits = linears.DenseGeneral(
           features=(num_query_heads,), axis=-1, use_bias=False,
@@ -343,11 +344,14 @@ class SubDecoderLayer(nn.Module):
           mlp_write_content,
           jax.nn.sigmoid(mlp_logits), write_factors, M_out, static_address,
           independent_address)
+      if getattr(cfg, 'bam_mlp_residual_projection', 'none') != 'none':
+        # M consumes the unprojected MLP output above; only the vector branch changes.
+        mlp_residual = attention_layer.project_mlp_residual(mlp_lnx)
 
     if mlp_lnx is not None and moe_lnx is not None:
-      layer_output = mlp_lnx + intermediate_inputs + moe_lnx
+      layer_output = mlp_residual + intermediate_inputs + moe_lnx
     elif mlp_lnx is not None and moe_lnx is None:
-      layer_output = mlp_lnx + intermediate_inputs
+      layer_output = mlp_residual + intermediate_inputs
     elif mlp_lnx is None and moe_lnx is not None:
       layer_output = intermediate_inputs + moe_lnx
     else:

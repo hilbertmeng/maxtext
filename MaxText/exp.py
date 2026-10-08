@@ -279,6 +279,7 @@ class BamLlama2Medium(Llama2Medium):
     bam_mlp_write_dynamic_address = False
     bam_mlp_write_address_rank = 256
     bam_mlp_write_content_projection = "none"  # none / wo_transpose / independent
+    bam_mlp_residual_projection = "none"  # none / wo / independent; at MLP write layers
     bam_dynamic_unembedding_read = False
     bam_unembedding_gate_init = .05
 
@@ -9969,3 +9970,29 @@ class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdSeparat
     mlp_dim_by_block = [3901,3374,3901]
     compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile',
                     'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdWOTransposeTruePile']
+
+
+class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdResidualWOTruePile(
+    BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile):
+    """Write original MLP head content to M, reuse W_O on its residual branch."""
+    # L18, writers1/4/7/10/13/16; original M write and normalization unchanged.
+    # No new parameters; MLP[3901,3774,3901], 432096128 parameters.
+    # Bet final vs parent -.003; speed .512 vs .520 (-1.5%).
+    model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdResidualWOTruePile'
+    bam_mlp_residual_projection = 'wo'
+    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile',
+                    'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdWOTransposeTruePile']
+
+
+class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdResidualProjectionTruePile(
+    BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdResidualWOTruePile):
+    """Independent residual projection, exact repayment at the six write layers."""
+    # Six independent D x D kernels=6W_Q; reduce each writer's MLP by400.
+    # MLP[3901,3374,3901]; 432096128 parameters, equal to parent/shared version.
+    # Bet final vs parent -.002 / shared residual +.001; speed .520 (flat).
+    model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdResidualProjectionTruePile'
+    bam_mlp_residual_projection = 'independent'
+    mlp_dim_by_block = [3901,3374,3901]
+    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile',
+                    'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdResidualWOTruePile',
+                    'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdSeparateProjectionTruePile']

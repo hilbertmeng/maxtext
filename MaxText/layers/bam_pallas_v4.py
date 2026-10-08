@@ -47,7 +47,7 @@ def _kmajor_to_tokens(kscr, np_, n, kdim, out_ref):
     out_ref[:, pl.ds(j0, w)] = blk.T.astype(out_ref.dtype)
 
 
-def _read_kernel(heads, qk_cols, eps, scale, kb):
+def _read_kernel(heads, qk_cols, eps, scale, kb, ablate=''):
   def kernel(m_ref, sw_ref, rq, lq, rk, lk, rr, lo, lv, qs, ks, q_ref, k_ref, v_ref, o_ref,
              key_scr, kscr):
     dt = m_ref.dtype
@@ -67,7 +67,7 @@ def _read_kernel(heads, qk_cols, eps, scale, kb):
       ks_ = list(range(k0, min(k0 + kb, kdim)))
       sts = {k: jnp.dot(sw, m_ref[k], preferred_element_type=F32) for k in ks_}
       acc = {(r, k): None for r in range(3) for k in ks_}
-      for c in range(cdim):
+      for c in (range(cdim) if 'dyn' not in ablate else range(1)):
         keys = [key_scr[r, c] for r in range(3)]
         for k in ks_:
           row = sts[k][mc0 + c:mc0 + c + 1]
@@ -87,7 +87,10 @@ def _read_kernel(heads, qk_cols, eps, scale, kb):
           kscr[0, rows, :] = qs[k - qk_cols].astype(F32)
           kscr[1, rows, :] = ks[k - qk_cols].astype(F32)
     for i, ref in enumerate((q_ref, k_ref, v_ref, o_ref)):
-      _kmajor_to_tokens(kscr.at[i], np_, n, kdim, ref)
+      if 'transpose' in ablate:
+        ref[...] = jnp.zeros(ref.shape, ref.dtype)
+      else:
+        _kmajor_to_tokens(kscr.at[i], np_, n, kdim, ref)
   return kernel
 
 
@@ -101,7 +104,8 @@ def _read_forward_call(args, opts):
   nk = n * kdim
   specs = [_spec((kdim, v), tile), _whole(args[1].shape)] + [_spec(x.shape[1:-1], tile) for x in args[2:]]
   return pl.pallas_call(
-      _read_kernel(n, opts['qk_cols'], opts['read_epsilon'], opts['key_scale'], opts['k_block']),
+      _read_kernel(n, opts['qk_cols'], opts['read_epsilon'], opts['key_scale'], opts['k_block'],
+                   opts.get('ablate', '')),
       grid=(b, t // tile), in_specs=specs, out_specs=[_tmajor_spec(nk, tile)] * 4,
       out_shape=tuple(jax.ShapeDtypeStruct((b, t, nk), m.dtype) for _ in range(4)),
       scratch_shapes=[pltpu.VMEM((3, c, n, tile), F32), pltpu.VMEM((4, kdim * np_, tile), F32)],

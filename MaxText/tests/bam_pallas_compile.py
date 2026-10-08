@@ -31,6 +31,7 @@ def main():
   p.add_argument('--tokens', type=int, default=128)
   p.add_argument('--block', type=int, default=4)
   p.add_argument('--vmem', type=int, default=48)
+  p.add_argument('--ablate', default='')
   a = p.parse_args()
   hw = accelerator_to_spec_map.get_system_characteristics(a.topology)
   topo = get_topology_desc(platform=hw.platform, topology_name=hw.topology_name,
@@ -50,7 +51,7 @@ def main():
     args = [s(1, K, V, t), jax.ShapeDtypeStruct((4 * np_ + C, V), jnp.float32), s(1, C, N, t), s(1, N, t),
             s(1, C, N, t), s(1, N, t), s(1, C, N, t), s(1, N, t), s(1, N, t), s(1, R, N, t), s(1, R, N, t)]
     opts = dict(heads=N, qk_cols=QKC, read_epsilon=1e-4, key_scale=.2, forward_tile=a.tile, reverse_tile=a.tile,
-                vmem_mib=a.vmem, interpret=False, k_block=a.block)
+                vmem_mib=a.vmem, interpret=False, k_block=a.block, ablate=a.ablate)
     fn = lambda *z: v4._read_forward_call(z, opts)
   elif a.kernel.startswith('read'):
     args = [s(1, V, K, t), jax.ShapeDtypeStruct((4 * N + C, V), jnp.float32), s(1, t, N, C), s(1, t, N),

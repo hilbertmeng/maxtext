@@ -45,7 +45,10 @@ def main():
              vmem_mib=a.vmem, body=a.body, head_block=a.block)
   wkw = dict(epsilon=1e-6, forward_tile=a.tile, reverse_tile=a.tile, vmem_mib=a.vmem, body=a.body,
              row_block=a.block, head_block=a.block)
-  if a.body == 'v4' and a.kernel == 'read_fwd':
+  if a.body == 'v6':
+    wkw = dict(epsilon=1e-6, forward_tile=a.tile, reverse_tile=a.tile, vmem_mib=a.vmem, body='v6',
+               row_block=a.block, unroll=int(a.ablate or 1))
+  if a.body == 'v4old' and a.kernel == 'read_fwd':
     from layers import bam_pallas_v4 as v4
     np_ = -(-N // 8) * 8
     args = [s(1, K, V, t), jax.ShapeDtypeStruct((4 * np_ + C, V), jnp.float32), s(1, C, N, t), s(1, N, t),
@@ -53,14 +56,25 @@ def main():
     opts = dict(heads=N, qk_cols=QKC, read_epsilon=1e-4, key_scale=.2, forward_tile=a.tile, reverse_tile=a.tile,
                 vmem_mib=a.vmem, interpret=False, k_block=a.block, ablate=a.ablate)
     fn = lambda *z: v4._read_forward_call(z, opts)
-  elif a.body == 'v4' and a.kernel == 'read_bwd':
-    from layers import bam_pallas_v4 as v4
+  elif a.body == 'v5' and a.kernel.startswith('write') and a.kernel.endswith('fwd'):
+    from layers import bam_pallas_v5 as v5
+    n_groups = 2 if a.kernel.startswith('write2') else 1
+    args = [s(1, K, V, t)] + [s(1, t, N * K), s(1, N, t), s(1, N, V, t)] * n_groups
+    opts = dict(epsilon=1e-6, forward_tile=a.tile, reverse_tile=a.tile, vmem_mib=a.vmem, interpret=False,
+                k_block=a.block)
+    fn = lambda m, *g: v5._write_forward_call(m, g, opts)
+  elif a.body in ('v4', 'v5') and a.kernel.startswith('read'):
+    import importlib
+    v4 = importlib.import_module('layers.bam_pallas_' + a.body)
     args = [s(1, K, V, t), jax.ShapeDtypeStruct((4 * N + C, V), jnp.float32), s(1, t, N, C), s(1, t, N),
             s(1, t, N, C), s(1, t, N), s(1, t, N, C), s(1, t, N), s(1, t, N), s(1, t, N, R), s(1, t, N, R)]
     read = lambda *z: v4.read(*z, qk_cols=QKC, read_epsilon=1e-4, key_scale=.2, forward_tile=a.tile,
-                              reverse_tile=a.tile, vmem_mib=a.vmem, rev_k_block=a.block)
-    args += [s(1, t, N, K)] * 4
-    fn = lambda *z: jax.vjp(read, *z[:11])[1](tuple(z[11:]))
+                              reverse_tile=a.tile, vmem_mib=a.vmem, rev_k_block=a.block, ablate=a.ablate)
+    if a.kernel == 'read_fwd':
+      fn = read
+    else:
+      args += [s(1, t, N, K)] * 4
+      fn = lambda *z: jax.vjp(read, *z[:11])[1](tuple(z[11:]))
   elif a.kernel.startswith('read'):
     args = [s(1, V, K, t), jax.ShapeDtypeStruct((4 * N + C, V), jnp.float32), s(1, t, N, C), s(1, t, N),
             s(1, t, N, C), s(1, t, N), s(1, t, N, C), s(1, t, N), s(1, t, N), s(1, t, N, R), s(1, t, N, R)]

@@ -1045,8 +1045,13 @@ def read(m, static_weight, q_key, q_logits, k_key, k_logits, vo_key, o_logits, v
 
 
 def write(m, groups, *, epsilon, forward_tile=128, reverse_tile=128, vmem_mib=None,
-          interpret=False, body='blocked', row_block=4, head_block=4):
+          interpret=False, body='blocked', row_block=4, head_block=4, **kw):
   """m [B,V,K,T]; groups: sequence of (content [B,T,N,K], logits [B,T,N], address [B,T,N,V])."""
+  if body == 'v6':
+    from layers import bam_pallas_v6
+    return bam_pallas_v6.write(m, groups, epsilon=epsilon, forward_tile=forward_tile,
+                               reverse_tile=reverse_tile, vmem_mib=vmem_mib, interpret=interpret,
+                               row_block=row_block, unroll=kw.get('unroll', 1))
   if body == 'v4':
     from layers import bam_pallas_v4
     return bam_pallas_v4.write(m, groups, epsilon=epsilon, forward_tile=forward_tile,

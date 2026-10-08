@@ -49,7 +49,9 @@ class AttentionWriteContentBiasTest(unittest.TestCase):
       bias=jax.random.normal(jax.random.key(5),(2,75))*.1
       changed=dict(p,attn_write_content_bias={'bias':bias})
       actual,gate=a.apply({'params':changed},y,x,m,method=a._write)
+      c.get_keys()['bam_attn_write_content_pre_rms_bias']=False
       base_shift,_=a.apply({'params':original},y+bias,x,m,method=a._write)
+      c.get_keys()['bam_attn_write_content_pre_rms_bias']=True
       np.testing.assert_allclose(actual,base_shift,rtol=1e-6,atol=1e-6)
       content,address,pending_gate=a.apply({'params':changed},y,x,method=a._deferred_write_factors)
       ref=attentions._update_bam_matrix(m,jnp.einsum('btnk,btnv->btkv',content,address),c.bam_lambda_decay)

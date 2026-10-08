@@ -99,9 +99,21 @@ of that. Findings:
 | **v6 write B (loops, v-major M)** | — | — | — | **~13.2k / ~26k dyn** |
 | loop-structured read B (blocked2 math) | — | ~24.7k dyn | — | — |
 
-Selected combination `bam_pallas_body='v6'`: blocked read, blocked2 read reverse, blocked2 write
-forward, v6 write reverse; expected kernel time ≈ −11% (223 → ~200 ms on v5p). Read-side layout
-changes did not beat `blocked2`: each layout conversion costs about as much as the arithmetic.
+Combination `bam_pallas_body='v6'` (blocked read, blocked2 read reverse, blocked2 write forward,
+v6 write reverse) was predicted ≈ −11% kernel time. **v5p paired measurement refuted it** (runtime
+`e2e82a8`, `xd-v5p-16-pallasv6-1008-ue5a`, target JIT, same VM):
+
+| Arm | step/s | device ms | read F | read B | write F | write B |
+|---|---:|---:|---:|---:|---:|---:|
+| MHA | 0.592 | 1677.9 | — | — | — | — |
+| Pallas blocked2 (+BF16 read-reverse dots) | 0.508 | 1943.3 | 33.3 | 114.8 | 21.3 | 51.8 |
+| Pallas v6 | 0.505 | 1954.4 | 33.6 | 113.2 | 20.5 | **65.4** |
+
+The loop-structured write reverse is 26% *slower*, although static bundles × trip counts predicted
+−32%. Static schedules omit memory stalls and loop-boundary bubbles; for loop kernels they are not a
+valid speed proxy (straight-line kernels matched better). Decisions now require measured kernel
+time (v6e microbench, then v5p). Activation-dtype static dots in the read reverse: −1.6 ms.
+Default remains blocked2. Artifacts `/data0/xd/bam_diagnostics/bam-pallas-core/v5p-pallasv6/`.
 
 MXU block-diagonal prototype (`MaxText/tests/bam_mxu_write_proto.py`, token-major M,
 `blockdiag(A_tᵀ)@stack(C_t)`): g=4 → 42 bundles/token vs ~57 for the VPU write forward; g=6 worse.

@@ -334,8 +334,13 @@ class SubDecoderLayer(nn.Module):
             'mlp_write_address', nn.with_logical_partitioning(
                 nn.initializers.normal(1.0 / math.sqrt(cfg.bam_v)), ('q_heads', 'v_factor')),
             (num_query_heads, cfg.bam_v), cfg.weight_dtype).astype(cfg.dtype)
+      content_projection = getattr(cfg, 'bam_mlp_write_content_projection', 'none')
+      if content_projection == 'none':
+        mlp_write_content = mlp_lnx.reshape(mlp_lnx.shape[:-1] + (num_query_heads, cfg.bam_k))
+      else:
+        mlp_write_content = attention_layer.project_mlp_write_content(mlp_lnx)
       M_out = attention_layer.merge_mlp_write(
-          mlp_lnx.reshape(mlp_lnx.shape[:-1] + (num_query_heads, cfg.bam_k)),
+          mlp_write_content,
           jax.nn.sigmoid(mlp_logits), write_factors, M_out, static_address,
           independent_address)
 

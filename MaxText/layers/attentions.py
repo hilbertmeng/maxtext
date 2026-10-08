@@ -3347,6 +3347,38 @@ class BamAttention(Attention):
     content = self.write_data_norm(u1) if self._write_data_rms else u1
     return scale * gate[..., None] * content, self.write_address_norm(u2), gate
 
+  @nn.compact
+  def project_mlp_write_content(self, residual_content):
+    """Map residual coordinates to head-content coordinates, leaving residuals untouched.
+
+    W_O is [head, content, embed]; using it in reverse is its adjoint, not
+    an inverse. Read the actual parameter so both uses contribute gradients.
+    The independent control uses precisely the same shape/init convention.
+    """
+    mode = getattr(self.config, 'bam_mlp_write_content_projection', 'none')
+    if mode not in ('wo_transpose', 'independent'):
+      raise ValueError(f'Unsupported MLP content projection: {mode}')
+    if self.quant is not None:
+      raise ValueError('MLP write content projection currently requires unquantized W_O')
+    if self.bam_k != self.head_dim:
+      raise ValueError('MLP content projection requires bam_k == head_dim')
+    shape = (self.num_query_heads, self.head_dim, residual_content.shape[-1])
+    if mode == 'independent':
+      kernel = self.param(
+          'mlp_write_content_kernel',
+          nn.with_logical_partitioning(self.kernel_init, ('heads', 'kv', 'embed')),
+          shape, self.weight_dtype, (0, 1), (2,))
+    else:
+      out = self.get_variable('params', 'out')
+      if out is None:
+        raise ValueError('W_O must be initialized by attention before MLP writes')
+      kernel = out if self.config.opt_type == 'muon' else out['kernel']
+      kernel = nn.unbox(kernel).reshape(shape)
+    kernel = jnp.asarray(kernel, self.dtype)
+    with jax.named_scope('bam/mlp_write_content_projection'):
+      return jnp.einsum('btd,nkd->btnk', jnp.asarray(residual_content, self.dtype),
+                        kernel, precision=self.config.matmul_precision)
+
   def merge_mlp_write(self, mlp_head, mlp_gate, factors, M_in, static_address=None,
                       independent_address=None):
     """Shared-address sum needs one outer; independent address needs two."""

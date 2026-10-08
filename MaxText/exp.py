@@ -278,6 +278,7 @@ class BamLlama2Medium(Llama2Medium):
     bam_mlp_write_static_address = False
     bam_mlp_write_dynamic_address = False
     bam_mlp_write_address_rank = 256
+    bam_mlp_write_content_projection = "none"  # none / wo_transpose / independent
     bam_dynamic_unembedding_read = False
     bam_unembedding_gate_init = .05
 
@@ -9942,3 +9943,29 @@ class BamMediumPropL27K75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTrue
     compare_runs = ['BamMHAMediumPropL27C256TruePile',
                     'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdL21TruePile']
     jax_cache_dir = ''
+
+
+class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdWOTransposeTruePile(
+    BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile):
+    """Reuse this layer's W_O adjoint only on the MLP-to-M content branch."""
+    # Implementation: codex/mediumprop-qk75-sparse; /data0/xd/mediumprop-qk75-sparse.
+    # L18 M75x32/C8; same content norm/address/gate/residual; no added parameters.
+    # MLP[3901,3774,3901]; 432096128 parameters.
+    # Bet final vs parent -.004; speed .512 vs .520 (-1.5%).
+    model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdWOTransposeTruePile'
+    bam_mlp_write_content_projection = 'wo_transpose'
+    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile']
+
+
+class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdSeparateProjectionTruePile(
+    BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdWOTransposeTruePile):
+    """Independent learned head-content map, paid back at the six write layers."""
+    # Implementation: codex/mediumprop-qk75-sparse; /data0/xd/mediumprop-qk75-sparse.
+    # Six independent D x D matrices = 6W_Q; subtract400 MLP units per write layer.
+    # MLP[3901,3374,3901]; 432096128 parameters, equal to parent/shared version.
+    # Bet final vs parent -.002 / shared transpose +.002; speed .520 (flat vs parent).
+    model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdSeparateProjectionTruePile'
+    bam_mlp_write_content_projection = 'independent'
+    mlp_dim_by_block = [3901,3374,3901]
+    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile',
+                    'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdWOTransposeTruePile']

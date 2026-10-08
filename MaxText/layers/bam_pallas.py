@@ -454,10 +454,7 @@ def _read_backward_kernel(heads, qk_cols, read_epsilon, key_scale):
     d = d_scr[...].astype(dt)
     dm_ref[...] = _static_dot_t(sw_ref[...].astype(dt), d).astype(dm_ref.dtype)
 
-    @pl.when(pl.program_id(1) == 0)
-    def _():
-      dsw_ref[...] = jnp.zeros(dsw_ref.shape, dsw_ref.dtype)
-    dsw_ref[...] += _weight_grad(d, m_ref[...])
+    dsw_ref[...] = (_weight_grad(d, m_ref[...])).astype(dsw_ref.dtype)
   return kernel
 
 
@@ -538,10 +535,7 @@ def _read_backward_kernel2(heads, qk_cols, read_epsilon, key_scale, cb):
     d = d_scr[...].astype(dt)
     dm_ref[...] = _static_dot_t(sw_ref[...].astype(dt), d).astype(dm_ref.dtype)
 
-    @pl.when(pl.program_id(1) == 0)
-    def _():
-      dsw_ref[...] = jnp.zeros(dsw_ref.shape, dsw_ref.dtype)
-    dsw_ref[...] += _weight_grad(d, m_ref[...])
+    dsw_ref[...] = (_weight_grad(d, m_ref[...])).astype(dsw_ref.dtype)
   return kernel
 
 
@@ -637,10 +631,7 @@ def _read_backward_kernel3(heads, qk_cols, read_epsilon, key_scale, cb):
     d = d_scr[...].astype(dt)
     dm_ref[...] = _static_dot_t(sw_ref[...].astype(dt), d).astype(dm_ref.dtype)
 
-    @pl.when(pl.program_id(1) == 0)
-    def _():
-      dsw_ref[...] = jnp.zeros(dsw_ref.shape, dsw_ref.dtype)
-    dsw_ref[...] += _weight_grad(d, m_ref[...])
+    dsw_ref[...] = (_weight_grad(d, m_ref[...])).astype(dsw_ref.dtype)
   return kernel
 
 
@@ -835,10 +826,7 @@ def _read_backward_kernel_k(heads, qk_cols, read_epsilon, key_scale, cb):
       g = jax.lax.dot_general(d, mk, (((1,), (1,)), ((), ())), preferred_element_type=F32)
       dsw = g if dsw is None else dsw + g
 
-    @pl.when(pl.program_id(1) == 0)
-    def _():
-      dsw_ref[...] = jnp.zeros(dsw_ref.shape, dsw_ref.dtype)
-    dsw_ref[...] += dsw
+    dsw_ref[...] = (dsw).astype(dsw_ref.dtype)
   return kernel
 
 
@@ -871,9 +859,9 @@ def _read_k_backward_call(args, cts, opts):
   tile = _tile(t, opts['reverse_tile'])
   in_specs = ([_spec((vk,), tile), _whole(sw.shape)] + [_spec(x.shape[1:-1], tile) for x in args[2:]]
               + [_spec((n * k,), tile)] * 4)
-  out_specs = ([_spec((vk,), tile), pl.BlockSpec((None,) + sw.shape, lambda bb, i: (bb, 0, 0))]
+  out_specs = ([_spec((vk,), tile), pl.BlockSpec((None, None) + sw.shape, lambda bb, i: (bb, i, 0, 0))]
                + [_spec(x.shape[1:-1], tile) for x in args[2:]])
-  out_shape = ([jax.ShapeDtypeStruct(m.shape, m.dtype), jax.ShapeDtypeStruct((b,) + sw.shape, F32)]
+  out_shape = ([jax.ShapeDtypeStruct(m.shape, m.dtype), jax.ShapeDtypeStruct((b, t // tile) + sw.shape, F32)]
                + [jax.ShapeDtypeStruct(x.shape, x.dtype) for x in args[2:]])
   scratch = [pltpu.VMEM((3, c, n, tile), F32), pltpu.VMEM((k, c, tile), F32),
              pltpu.VMEM((n * k, tile), F32), pltpu.VMEM((c * k, tile), F32),
@@ -882,9 +870,9 @@ def _read_k_backward_call(args, cts, opts):
       _read_backward_kernel_k(n, opts['qk_cols'], opts['read_epsilon'], opts['key_scale'], 2),
       grid=(b, t // tile), in_specs=in_specs, out_specs=out_specs, out_shape=tuple(out_shape),
       scratch_shapes=scratch, interpret=opts['interpret'],
-      compiler_params=_params(('parallel', 'arbitrary'), opts['vmem_mib']),
+      compiler_params=_params(('parallel', 'parallel'), opts['vmem_mib']),
       name='bam_core_read_backward')(*args, *cts)
-  return (outs[0], jnp.sum(outs[1], axis=0).astype(sw.dtype)) + tuple(outs[2:])
+  return (outs[0], jnp.sum(outs[1], axis=(0, 1)).astype(sw.dtype)) + tuple(outs[2:])
 
 
 @partial(jax.custom_vjp, nondiff_argnums=(11,))
@@ -959,10 +947,7 @@ def _read_backward_call(args, cts, opts):
       for ref, val in zip(grads[2:], rest):
         ref[...] = val.astype(ref.dtype)
 
-      @pl.when(pl.program_id(1) == 0)
-      def _():
-        grads[1][...] = jnp.zeros(grads[1].shape, grads[1].dtype)
-      grads[1][...] += dsw
+      grads[1][...] = (dsw).astype(grads[1].dtype)
   else:
     c = args[2].shape[2]
     j = sw.shape[0]
@@ -979,17 +964,18 @@ def _read_backward_call(args, cts, opts):
       kernel = _read_backward_kernel(n, qk_cols, opts['read_epsilon'], opts['key_scale'])
 
   ct_specs = [_spec((n, k), tile)] * 4
+  # Per-tile dsw partials keep both grid axes parallel (megacore splits tiles when B=1).
   out_specs = ([_spec(token_outs[0][0], tile),
-                pl.BlockSpec((None,) + sw.shape, lambda bb, i: (bb, 0, 0))]
+                pl.BlockSpec((None, None) + sw.shape, lambda bb, i: (bb, i, 0, 0))]
                + [_spec(s, tile) for s, _ in token_outs[1:]])
-  out_shape = ([jax.ShapeDtypeStruct(m.shape, m.dtype), jax.ShapeDtypeStruct((b,) + sw.shape, F32)]
+  out_shape = ([jax.ShapeDtypeStruct(m.shape, m.dtype), jax.ShapeDtypeStruct((b, t // tile) + sw.shape, F32)]
                + [jax.ShapeDtypeStruct((b,) + s + (t,), d) for s, d in token_outs[1:]])
   outs = pl.pallas_call(
       kernel, grid=(b, t // tile), in_specs=_read_specs(args, tile) + ct_specs,
       out_specs=out_specs, out_shape=tuple(out_shape), scratch_shapes=scratch,
-      interpret=opts['interpret'], compiler_params=_params(('parallel', 'arbitrary'), opts['vmem_mib']),
+      interpret=opts['interpret'], compiler_params=_params(('parallel', 'parallel'), opts['vmem_mib']),
       name='bam_core_read_backward')(*args, *cts)
-  dm, dsw = outs[0], jnp.sum(outs[1], axis=0).astype(sw.dtype)
+  dm, dsw = outs[0], jnp.sum(outs[1], axis=(0, 1)).astype(sw.dtype)
   return (dm, dsw) + tuple(outs[2:])
 
 

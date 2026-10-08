@@ -10158,3 +10158,9 @@ class BamPallasCoreTinyPallasV3Test(BamPallasCoreTinyPallasTest):
     """CPU equivalence fixture for the v3 kernel bodies (tiny heads padded to 8 rows)."""
     model_name = 'BamPallasCoreTinyPallasV3Test'
     bam_pallas_body = 'v3'
+
+
+class BamPallasCoreTinyPallasV4Test(BamPallasCoreTinyPallasTest):
+    """CPU equivalence fixture for the v4 kernel bodies (k-major carried M)."""
+    model_name = 'BamPallasCoreTinyPallasV4Test'
+    bam_pallas_body = 'v4'

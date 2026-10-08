@@ -21,7 +21,7 @@ from jax.experimental.pallas import tpu as pltpu
 
 from layers.bam_pallas import (F32, _freeze, _map_batch, _minor, _norm, _norm_backward, _pad_rows,
                                _padded_static_weight, _params, _sigmoid, _spec, _tile, _whole)
-from layers.bam_pallas_v3 import _acc, _load_transposed, _tmajor_spec
+from layers.bam_pallas_v3 import _acc, _load_transposed, _store_transposed, _tmajor_spec
 
 
 def _keys(rq, lq, rk, lk, rr, eps, scale):
@@ -296,3 +296,160 @@ def read(m, static_weight, q_key, q_logits, k_key, k_logits, vo_key, o_logits, v
   args = (m, static_weight, q_key, q_logits, k_key, k_logits, vo_key, o_logits, v_logits,
           q_standard, k_standard)
   return _map_batch(local, args, (True, False) + (True,) * 9, 4)
+
+
+# ---------------------------------------------------------------------------
+# Write (k-major M). Content enters/leaves token-major [T, N*K]; address [N, V, T].
+
+def _fill_factors(groups, c_raw, c_scr, a_scr, eps):
+  """FP32 factors: c_raw transposed raw content (head-major rows h*K+k), c_scr gated
+  normalized content, a_scr normalized address [Ntot, V, T]."""
+  off = 0
+  for g in range(0, len(groups), 3):
+    content, logits, address = groups[g:g + 3]
+    nh = address.shape[0]
+    kdim = content.shape[1] // nh
+    _load_transposed(content, c_raw, off * kdim, nh * kdim)
+    for h in range(nh):
+      r = pl.ds((off + h) * kdim, kdim)
+      c_scr[r, :] = _sigmoid(logits[pl.ds(h, 1), :]) * _norm(c_raw[r, :], eps, 0)
+      a_scr[off + h] = _norm(address[h], eps, 0)
+    off += nh
+  return off
+
+
+def _write_kernel(eps, n_groups, kb):
+  def kernel(m_ref, *refs):
+    groups = refs[:3 * n_groups]
+    out_ref, c_raw, c_scr, a_scr = refs[3 * n_groups:]
+    kdim = m_ref.shape[0]
+    ntot = _fill_factors(groups, c_raw, c_scr, a_scr, eps)
+    for k0 in range(0, kdim, kb):
+      ks_ = list(range(k0, min(k0 + kb, kdim)))
+      acc = {k: None for k in ks_}
+      for i in range(ntot):
+        a = a_scr[i]
+        for k in ks_:
+          acc[k] = _acc(acc[k], c_scr[pl.ds(i * kdim + k, 1), :] * a)
+      for k in ks_:
+        out_ref[k] = (m_ref[k].astype(F32) + acc[k]).astype(out_ref.dtype)
+  return kernel
+
+
+def _write_backward_kernel(eps, n_groups, ab, rb):
+  def kernel(g_ref, *refs):
+    groups = refs[:3 * n_groups]
+    outs = refs[3 * n_groups:6 * n_groups]
+    c_raw, c_scr, a_scr, dc_scr, da_scr = refs[6 * n_groups:]
+    kdim = g_ref.shape[0]
+    ntot = _fill_factors(groups, c_raw, c_scr, a_scr, eps)
+    # dA[i] = sum_k C[i, k] G_k   (contiguous k-major cotangent slabs).
+    for i0 in range(0, ntot, ab):
+      hb = list(range(i0, min(i0 + ab, ntot)))
+      acc = {i: None for i in hb}
+      for k in range(kdim):
+        gk = g_ref[k].astype(F32)
+        for i in hb:
+          acc[i] = _acc(acc[i], c_scr[pl.ds(i * kdim + k, 1), :] * gk)
+      for i in hb:
+        da_scr[i] = acc[i]
+    # dC[i, k] = sum_v A[i, v] G_k[v]; rows are assembled per 8-row group before storing.
+    for i in range(ntot):
+      a = a_scr[i]
+      for k0 in range(0, kdim, rb):
+        rows = [jnp.sum(a * g_ref[k].astype(F32), axis=0, keepdims=True)
+                for k in range(k0, min(k0 + rb, kdim))]
+        dc_scr[pl.ds(i * kdim + k0, len(rows)), :] = jnp.concatenate(rows, axis=0)
+    off = 0
+    for g in range(n_groups):
+      content, logits, address = groups[3 * g:3 * g + 3]
+      dcontent, dlogits, daddress = outs[3 * g:3 * g + 3]
+      nh = address.shape[0]
+      for h in range(nh):
+        r = pl.ds((off + h) * kdim, kdim)
+        sg = _sigmoid(logits[pl.ds(h, 1), :])
+        x = c_raw[r, :]
+        dci = dc_scr[r, :]
+        dlogits[pl.ds(h, 1), :] = (sg * (1 - sg) * jnp.sum(dci * _norm(x, eps, 0), axis=0, keepdims=True)
+                                   ).astype(dlogits.dtype)
+        dc_scr[r, :] = _norm_backward(x, sg * dci, eps, 0)
+        daddress[h] = _norm_backward(address[h], da_scr[off + h], eps, 0).astype(daddress.dtype)
+      _store_transposed(dc_scr, off * kdim, dcontent, nh * kdim)
+      off += nh
+  return kernel
+
+
+def _write_group_specs(groups, tile):
+  specs = []
+  for content, logits, address in (groups[i:i + 3] for i in range(0, len(groups), 3)):
+    specs += [_tmajor_spec(content.shape[2], tile), _spec(logits.shape[1:-1], tile),
+              _spec(address.shape[1:-1], tile)]
+  return specs
+
+
+def _factor_scratch(groups, tile, kdim, vdim):
+  ntot = sum(a.shape[1] for a in groups[2::3])
+  return ntot, [pltpu.VMEM((ntot * kdim, tile), F32), pltpu.VMEM((ntot * kdim, tile), F32),
+                pltpu.VMEM((ntot, vdim, tile), F32)]
+
+
+def _write_forward_call(m, groups, opts):
+  b, kdim, vdim, t = m.shape
+  tile = _tile(t, opts['forward_tile'])
+  _, scratch = _factor_scratch(groups, tile, kdim, vdim)
+  return pl.pallas_call(
+      _write_kernel(opts['epsilon'], len(groups) // 3, opts['k_block']),
+      grid=(b, t // tile), in_specs=[_spec((kdim, vdim), tile)] + _write_group_specs(groups, tile),
+      out_specs=_spec((kdim, vdim), tile), out_shape=jax.ShapeDtypeStruct(m.shape, m.dtype),
+      scratch_shapes=scratch, input_output_aliases={0: 0},
+      interpret=opts['interpret'], compiler_params=_params(('parallel', 'parallel'), opts['vmem_mib']),
+      name='bam_core_write')(m, *groups)
+
+
+def _write_backward_call(g, groups, opts):
+  b, kdim, vdim, t = g.shape
+  tile = _tile(t, opts['reverse_tile'])
+  ntot, scratch = _factor_scratch(groups, tile, kdim, vdim)
+  scratch = scratch + [pltpu.VMEM((ntot * kdim, tile), F32), pltpu.VMEM((ntot, vdim, tile), F32)]
+  specs = _write_group_specs(groups, tile)
+  return pl.pallas_call(
+      _write_backward_kernel(opts['epsilon'], len(groups) // 3, opts['address_block'], 8),
+      grid=(b, t // tile), in_specs=[_spec((kdim, vdim), tile)] + specs, out_specs=specs,
+      out_shape=tuple(jax.ShapeDtypeStruct(x.shape, x.dtype) for x in groups),
+      scratch_shapes=scratch, interpret=opts['interpret'],
+      compiler_params=_params(('parallel', 'parallel'), opts['vmem_mib']),
+      name='bam_core_write_backward')(g, *groups)
+
+
+@partial(jax.custom_vjp, nondiff_argnums=(1,))
+def _write(m, opts, *groups):
+  return _write_forward_call(m, groups, dict(opts))
+
+
+def _write_fwd(m, opts, *groups):
+  return _write_forward_call(m, groups, dict(opts)), groups
+
+
+def _write_bwd(opts, groups, g):
+  return (g,) + tuple(_write_backward_call(g, groups, dict(opts)))
+
+
+_write.defvjp(_write_fwd, _write_bwd)
+
+
+def write(m, groups, *, epsilon, forward_tile=128, reverse_tile=128, vmem_mib=None, interpret=False,
+          k_block=4, address_block=8, **_):
+  """m is k-major [B,K,V,T]; groups of (content [B,T,N,K], logits [B,T,N], address [B,T,N,V])."""
+  flat = tuple(x for grp in groups for x in grp)
+
+  def local(m, *xs):
+    b, kdim, v, t = m.shape
+    opts = _freeze(dict(epsilon=epsilon, forward_tile=forward_tile, reverse_tile=reverse_tile,
+                        vmem_mib=vmem_mib, interpret=interpret, k_block=k_block,
+                        address_block=address_block))
+    gs = []
+    for content, logits, address in (xs[i:i + 3] for i in range(0, len(xs), 3)):
+      gs += [content.reshape(b, t, -1), _minor(logits), jnp.transpose(address, (0, 2, 3, 1))]
+    return _write(m, opts, *gs)
+
+  return _map_batch(local, (m,) + flat, (True,) * (1 + len(flat)), 1)

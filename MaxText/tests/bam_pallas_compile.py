@@ -72,12 +72,13 @@ def main():
       fn = lambda *z: jax.vjp(read, *z[:11])[1](tuple(z[11:]))
   else:
     n_groups = 2 if a.kernel.startswith('write2') else 1
-    args = [s(1, V, K, t)] + [s(1, t, N, K), s(1, t, N), s(1, t, N, V)] * n_groups
+    mshape = (1, K, V, t) if a.body == 'v4' else (1, V, K, t)
+    args = [s(*mshape)] + [s(1, t, N, K), s(1, t, N), s(1, t, N, V)] * n_groups
     write = lambda m, *g: bp.write(m, [g[i:i + 3] for i in range(0, len(g), 3)], **wkw)
     if a.kernel.endswith('fwd'):
       fn = write
     else:
-      args += [s(1, V, K, t)]
+      args += [s(*mshape)]
       fn = lambda *z: jax.vjp(write, *z[:-1])[1](z[-1])
   start = time.monotonic()
   compiled = jax.jit(fn, in_shardings=sharding, out_shardings=sharding).lower(*args).compile()

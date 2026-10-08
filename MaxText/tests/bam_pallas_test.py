@@ -81,6 +81,16 @@ def write_groups(dtype, n_groups, seed=1):
   return out
 
 
+def write_out(m_tm, groups, body):
+  """Kernel write in the body's carried layout, returned token-major [B,T,K,V]."""
+  if body == 'v4':
+    from layers import bam_pallas_v4
+    out = bam_pallas_v4.write(jnp.transpose(m_tm, (0, 2, 3, 1)), groups, epsilon=WRITE_EPS, interpret=True)
+    return jnp.transpose(out, (0, 3, 1, 2))
+  out = bp.write(to_minor_m(m_tm), groups, epsilon=WRITE_EPS, interpret=True, body=body)
+  return jnp.transpose(out, (0, 3, 2, 1))
+
+
 class BamPallasTest(unittest.TestCase):
 
   def assert_close(self, a, b, tol, name):
@@ -121,8 +131,8 @@ class BamPallasTest(unittest.TestCase):
         groups = write_groups(dtype, n_groups)
         flat = [x for g in groups for x in g]
         want = original_write(m_tm, *flat)
-        for body in ('tile', 'blocked2', 'kmajor', 'v3'):
-          got = jnp.transpose(bp.write(to_minor_m(m_tm), groups, epsilon=WRITE_EPS, interpret=True, body=body), (0, 3, 2, 1))
+        for body in ('tile', 'blocked2', 'kmajor', 'v3', 'v4'):
+          got = write_out(m_tm, groups, body)
           self.assert_close(got, want, tol, f'{body} write {n_groups} {dtype.__name__}')
       m_tm, _, _ = inputs(jnp.float32, seed=5)
       groups = write_groups(jnp.float32, n_groups, seed=6)
@@ -130,11 +140,9 @@ class BamPallasTest(unittest.TestCase):
       ct = jax.random.normal(jax.random.PRNGKey(7), (B, T, K, V))
       want = jax.grad(lambda m, *f: jnp.sum(original_write(m, *f) * ct), argnums=tuple(range(1 + len(flat))))(m_tm, *flat)
 
-      for body in ('tile', 'blocked2', 'kmajor', 'v3'):
+      for body in ('tile', 'blocked2', 'kmajor', 'v3', 'v4'):
         def kernel_loss(m, *f):
-          out = bp.write(to_minor_m(m), [f[i:i + 3] for i in range(0, len(f), 3)], epsilon=WRITE_EPS,
-                         interpret=True, body=body)
-          return jnp.sum(jnp.transpose(out, (0, 3, 2, 1)) * ct)
+          return jnp.sum(write_out(m, [f[i:i + 3] for i in range(0, len(f), 3)], body) * ct)
 
         got = jax.grad(kernel_loss, argnums=tuple(range(1 + len(flat))))(m_tm, *flat)
         for i, (a, b) in enumerate(zip(got, want)):

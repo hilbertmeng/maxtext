@@ -1006,6 +1006,12 @@ def read(m, static_weight, q_key, q_logits, k_key, k_logits, vo_key, o_logits, v
   """m [B,V,K,T]; keys [B,T,N,C]; logits [B,T,N]; standard QK [B,T,N,R].
 
   Returns token-major (query, key, value, local_o), each [B,T,N,K]."""
+  if body == 'v4':
+    from layers import bam_pallas_v4
+    return bam_pallas_v4.read(m, static_weight, q_key, q_logits, k_key, k_logits, vo_key, o_logits,
+                              v_logits, q_standard, k_standard, qk_cols=qk_cols,
+                              read_epsilon=read_epsilon, key_scale=key_scale, forward_tile=forward_tile,
+                              reverse_tile=reverse_tile, vmem_mib=vmem_mib, interpret=interpret)
   if body == 'v3':
     from layers import bam_pallas_v3
     return bam_pallas_v3.read(m, static_weight, q_key, q_logits, k_key, k_logits, vo_key, o_logits,
@@ -1041,6 +1047,10 @@ def read(m, static_weight, q_key, q_logits, k_key, k_logits, vo_key, o_logits, v
 def write(m, groups, *, epsilon, forward_tile=128, reverse_tile=128, vmem_mib=None,
           interpret=False, body='blocked', row_block=4, head_block=4):
   """m [B,V,K,T]; groups: sequence of (content [B,T,N,K], logits [B,T,N], address [B,T,N,V])."""
+  if body == 'v4':
+    from layers import bam_pallas_v4
+    return bam_pallas_v4.write(m, groups, epsilon=epsilon, forward_tile=forward_tile,
+                               reverse_tile=reverse_tile, vmem_mib=vmem_mib, interpret=interpret)
   if body == 'v3':
     from layers import bam_pallas_v3
     return bam_pallas_v3.write(m, groups, epsilon=epsilon, forward_tile=forward_tile,

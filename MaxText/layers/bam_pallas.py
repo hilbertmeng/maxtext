@@ -283,8 +283,10 @@ def _fill_write_factors(group_refs, c_scr, a_scr, epsilon, dt):
     content, logits, address = group_refs[g:g + 3]
     for i in range(content.shape[0]):
       gate = _sigmoid(_row(logits, i)).astype(dt)
-      c_scr[off + i] = (gate * _norm(content[i], epsilon, 0).astype(dt)).astype(dt)
-      a_scr[off + i] = _norm(address[i], epsilon, 0).astype(dt)
+      # Rounded through the activation dtype for parity; stored in the scratch dtype
+      # (FP32 scratch avoids repeated BF16 unpacking in the contraction loops).
+      c_scr[off + i] = (gate * _norm(content[i], epsilon, 0).astype(dt)).astype(dt).astype(c_scr.dtype)
+      a_scr[off + i] = _norm(address[i], epsilon, 0).astype(dt).astype(a_scr.dtype)
     off += content.shape[0]
   return off
 
@@ -539,6 +541,262 @@ def _read_backward_kernel2(heads, qk_cols, read_epsilon, key_scale, cb):
   return kernel
 
 
+# ---------------------------------------------------------------------------
+# K-major read ('kmajor' body).
+#
+# The [V,K,T] -> [V,K*T] reshape needed by a single static MXU dot moves sublanes
+# into lanes (thousands of selects/rotates per tile on v5p). Instead, for each
+# key row k a sublane-strided load gives M[:,k,:] as a [V,T] slab and one small
+# dot gives that row's static/compressed reads as a [J',T] slab. Dynamic reads
+# then accumulate [N,T] head slabs per k with C10 keys held c-major, and outputs
+# leave through sublane-strided stores into the unchanged [N*K, T] layout.
+# HBM layouts: M [B, V*K, T]; keys [B, C, N, T]; logits [B, N, T];
+# standard QK [B, N*R, T]; outputs and cotangents [B, N*K, T]. The static weight
+# is padded so each of the four head groups starts on an 8-sublane boundary.
+
+def _pad_rows(n):
+  return -(-n // 8) * 8
+
+
+def _padded_static_weight(sw, heads):
+  """[4N+C, V] -> [4*NP+C, V], every head group zero-padded to NP=ceil8(N) rows."""
+  npad = _pad_rows(heads)
+  zeros = jnp.zeros((npad - heads, sw.shape[1]), sw.dtype)
+  parts = []
+  for g in range(4):
+    parts += [sw[g * heads:(g + 1) * heads], zeros]
+  return jnp.concatenate(parts + [sw[4 * heads:]], axis=0)
+
+
+def _cmajor_keys(rq, lq, rk, lk, rr, read_epsilon, key_scale, dt):
+  """Keys [C,N,T]: normalized over C (axis 0), gated per head; matches _read_keys."""
+  def nrm(r):
+    return _norm(r, read_epsilon, 0).astype(dt)
+  nq, nk, nr = nrm(rq), nrm(rk), nrm(rr)
+  gq = key_scale * _sigmoid(lq)
+  gk = key_scale * _sigmoid(lk)
+  kq = (gq.astype(dt)[None] * nq).astype(dt)
+  kk = (gk.astype(dt)[None] * nk).astype(dt)
+  return kq, kk, nr, gq, gk, nq, nk
+
+
+def _read_kernel_k(heads, qk_cols, read_epsilon, key_scale):
+  def kernel(m_ref, sw_ref, rq, lq, rk, lk, rr, lo, lv, qs, ks, q_ref, k_ref, v_ref, o_ref, key_scr):
+    dt = m_ref.dtype
+    n = heads
+    np_ = _pad_rows(n)
+    kdim = q_ref.shape[0] // n
+    vdim = m_ref.shape[0] // kdim
+    cdim = rq.shape[0]
+    rdim = qs.shape[0] // n
+    mc0 = 4 * np_
+    kq, kk, nr, *_ = _cmajor_keys(rq[...], lq[...], rk[...], lk[...], rr[...], read_epsilon, key_scale, dt)
+    key_scr[0] = kq.astype(F32)
+    key_scr[1] = kk.astype(F32)
+    key_scr[2] = nr.astype(F32)
+    gv = (key_scale * _sigmoid(lv[...])).astype(dt).astype(F32)
+    go = (key_scale * _sigmoid(lo[...])).astype(dt).astype(F32)
+    sw = sw_ref[...].astype(dt)
+    for k in range(kdim):
+      mk = m_ref[pl.ds(k, vdim, stride=kdim), :]
+      st = jnp.dot(sw, mk, preferred_element_type=F32).astype(dt).astype(F32)
+      dyn = k < qk_cols
+      acc_v = acc_q = acc_k = None
+      for c in range(cdim):
+        row = st[mc0 + c:mc0 + c + 1]
+        tv = key_scr[2, c] * row
+        acc_v = tv if acc_v is None else acc_v + tv
+        if dyn:
+          tq = key_scr[0, c] * row
+          tk = key_scr[1, c] * row
+          acc_q = tq if acc_q is None else acc_q + tq
+          acc_k = tk if acc_k is None else acc_k + tk
+      rows = pl.ds(k, n, stride=kdim)
+      y = acc_v.astype(dt).astype(F32)
+      v_ref[rows, :] = ((y * gv).astype(dt).astype(F32) + st[2 * np_:2 * np_ + n]).astype(v_ref.dtype)
+      o_ref[rows, :] = ((y * go).astype(dt).astype(F32) + st[3 * np_:3 * np_ + n]).astype(o_ref.dtype)
+      if dyn:
+        q_ref[rows, :] = (acc_q.astype(dt).astype(F32) + st[0:n]).astype(q_ref.dtype)
+        k_ref[rows, :] = (acc_k.astype(dt).astype(F32) + st[np_:np_ + n]).astype(k_ref.dtype)
+      else:
+        std = pl.ds(k - qk_cols, n, stride=rdim)
+        q_ref[rows, :] = qs[std, :].astype(q_ref.dtype)
+        k_ref[rows, :] = ks[std, :].astype(k_ref.dtype)
+  return kernel
+
+
+def _read_backward_kernel_k(heads, qk_cols, read_epsilon, key_scale, cb):
+  def kernel(m_ref, sw_ref, rq, lq, rk, lk, rr, lo, lv, qs, ks, dq, dk, dv, do,
+             dm_ref, dsw_ref, drq, dlq, drk, dlk, drr, dlo, dlv, dqs, dks,
+             key_scr, mc_scr, dyvo_scr, dmc_scr, d_scr):
+    dt = m_ref.dtype
+    n = heads
+    np_ = _pad_rows(n)
+    kdim = dq.shape[0] // n
+    vdim = m_ref.shape[0] // kdim
+    cdim = rq.shape[0]
+    rdim = qs.shape[0] // n
+    rest = kdim - qk_cols
+    mc0 = 4 * np_
+    kq, kk, nr, gq, gk, nq, nk = _cmajor_keys(rq[...], lq[...], rk[...], lk[...], rr[...],
+                                              read_epsilon, key_scale, dt)
+    key_scr[0] = kq.astype(F32)
+    key_scr[1] = kk.astype(F32)
+    key_scr[2] = nr.astype(F32)
+    sgv, sgo = _sigmoid(lv[...]), _sigmoid(lo[...])
+    gvf, gof = key_scale * sgv, key_scale * sgo
+    sw = sw_ref[...].astype(dt)
+    # Pass 1: static/compressed rows, VO forward state, VO cotangent and its key gradient.
+    dlv_acc = dlo_acc = None
+    dkv = [None] * cdim
+    for k in range(kdim):
+      mk = m_ref[pl.ds(k, vdim, stride=kdim), :]
+      st = jnp.dot(sw, mk, preferred_element_type=F32).astype(dt).astype(F32)
+      mc = st[mc0:mc0 + cdim]
+      mc_scr[k] = mc
+      y = None
+      for c in range(cdim):
+        t = key_scr[2, c] * mc[c:c + 1]
+        y = t if y is None else y + t
+      y = y.astype(dt).astype(F32)
+      rows = pl.ds(k, n, stride=kdim)
+      dvk = dv[rows, :].astype(F32)
+      dok = do[rows, :].astype(F32)
+      dlv_acc = dvk * y if dlv_acc is None else dlv_acc + dvk * y
+      dlo_acc = dok * y if dlo_acc is None else dlo_acc + dok * y
+      dy = dvk * gvf + dok * gof
+      dyvo_scr[rows, :] = dy
+      for c in range(cdim):
+        t = dy * mc[c:c + 1]
+        dkv[c] = t if dkv[c] is None else dkv[c] + t
+    dlv[...] = (key_scale * sgv * (1 - sgv) * dlv_acc).astype(dlv.dtype)
+    dlo[...] = (key_scale * sgo * (1 - sgo) * dlo_acc).astype(dlo.dtype)
+    # Pass 2: Q/K key gradients over the dynamic columns; RoPE passthrough.
+    dkeys = []
+    for d_ref, ds_ref in ((dq, dqs), (dk, dks)):
+      acc = [None] * cdim
+      for k in range(qk_cols):
+        dyk = d_ref[pl.ds(k, n, stride=kdim), :].astype(F32)
+        mc = mc_scr[k]
+        for c in range(cdim):
+          t = dyk * mc[c:c + 1]
+          acc[c] = t if acc[c] is None else acc[c] + t
+      dkeys.append(jnp.stack(acc))
+      for j in range(rdim):
+        ds_ref[pl.ds(j, n, stride=rdim), :] = d_ref[pl.ds(qk_cols + j, n, stride=kdim), :].astype(ds_ref.dtype)
+    # Pass 3: dMc[c, k] = sum_n key[n, c] dy[n, k], register-accumulated per c block.
+    for c0 in range(0, cdim, cb):
+      cs = list(range(c0, min(c0 + cb, cdim)))
+      full = {c: None for c in cs}
+      part = {c: None for c in cs}
+      for h in range(n):
+        dyq = dq[pl.ds(h * kdim, qk_cols), :].astype(F32)
+        dyk = dk[pl.ds(h * kdim, qk_cols), :].astype(F32)
+        dyv = dyvo_scr[pl.ds(h * kdim, kdim), :]
+        for c in cs:
+          tq = _row(key_scr, 0, c, h) * dyq + _row(key_scr, 1, c, h) * dyk
+          tv = _row(key_scr, 2, c, h) * dyv
+          part[c] = tq if part[c] is None else part[c] + tq
+          full[c] = tv if full[c] is None else full[c] + tv
+      for c in cs:
+        dmc_scr[pl.ds(c * kdim, qk_cols), :] = full[c][:qk_cols] + part[c]
+        dmc_scr[pl.ds(c * kdim + qk_cols, rest), :] = full[c][qk_cols:]
+    # Key gate / normalization reverses, elementwise over [C, N, T].
+    for (r, l, dr, dl, g, nrm, dkey) in ((rq, lq, drq, dlq, gq, nq, dkeys[0]), (rk, lk, drk, dlk, gk, nk, dkeys[1])):
+      sg = _sigmoid(l[...])
+      dl[...] = (key_scale * sg * (1 - sg) * jnp.sum(dkey * nrm.astype(F32), axis=0)).astype(dl.dtype)
+      dr[...] = _norm_backward(r[...], g[None] * dkey, read_epsilon, 0).astype(dr.dtype)
+    drr[...] = _norm_backward(rr[...], jnp.stack(dkv), read_epsilon, 0).astype(drr.dtype)
+    # Pass 4: static-read reverse, one small dot per key row.
+    d_scr[...] = jnp.zeros(d_scr.shape, F32)
+    dsw = None
+    for k in range(kdim):
+      rows = pl.ds(k, n, stride=kdim)
+      if k < qk_cols:
+        d_scr[pl.ds(0, n), :] = dq[rows, :].astype(F32)
+        d_scr[pl.ds(np_, n), :] = dk[rows, :].astype(F32)
+      elif k == qk_cols:
+        d_scr[pl.ds(0, n), :] = jnp.zeros((n, d_scr.shape[1]), F32)
+        d_scr[pl.ds(np_, n), :] = jnp.zeros((n, d_scr.shape[1]), F32)
+      d_scr[pl.ds(2 * np_, n), :] = dv[rows, :].astype(F32)
+      d_scr[pl.ds(3 * np_, n), :] = do[rows, :].astype(F32)
+      d_scr[pl.ds(mc0, cdim), :] = dmc_scr[pl.ds(k, cdim, stride=kdim), :]
+      d = d_scr[...].astype(dt)
+      dmk = jax.lax.dot_general(sw, d, (((0,), (0,)), ((), ())), preferred_element_type=F32)
+      dm_ref[pl.ds(k, vdim, stride=kdim), :] = dmk.astype(dm_ref.dtype)
+      mk = m_ref[pl.ds(k, vdim, stride=kdim), :]
+      g = jax.lax.dot_general(d, mk, (((1,), (1,)), ((), ())), preferred_element_type=F32)
+      dsw = g if dsw is None else dsw + g
+
+    @pl.when(pl.program_id(1) == 0)
+    def _():
+      dsw_ref[...] = jnp.zeros(dsw_ref.shape, dsw_ref.dtype)
+    dsw_ref[...] += dsw
+  return kernel
+
+
+def _kspec(shape, tile):
+  return _spec(shape, tile)
+
+
+def _read_k_forward_call(args, opts):
+  m = args[0]
+  b, vk, t = m.shape
+  n = opts['heads']
+  k = opts['k_dim']
+  tile = _tile(t, opts['forward_tile'])
+  specs = [_spec((vk,), tile), _whole(args[1].shape)] + [_spec(x.shape[1:-1], tile) for x in args[2:]]
+  return pl.pallas_call(
+      _read_kernel_k(n, opts['qk_cols'], opts['read_epsilon'], opts['key_scale']),
+      grid=(b, t // tile), in_specs=specs, out_specs=[_spec((n * k,), tile)] * 4,
+      out_shape=tuple(jax.ShapeDtypeStruct((b, n * k, t), m.dtype) for _ in range(4)),
+      scratch_shapes=[pltpu.VMEM((3,) + args[2].shape[1:-1] + (tile,), F32)],
+      interpret=opts['interpret'], compiler_params=_params(('parallel', 'parallel'), opts['vmem_mib']),
+      name='bam_core_read')(*args)
+
+
+def _read_k_backward_call(args, cts, opts):
+  m, sw = args[0], args[1]
+  b, vk, t = m.shape
+  n = opts['heads']
+  k = opts['k_dim']
+  c = args[2].shape[1]
+  tile = _tile(t, opts['reverse_tile'])
+  in_specs = ([_spec((vk,), tile), _whole(sw.shape)] + [_spec(x.shape[1:-1], tile) for x in args[2:]]
+              + [_spec((n * k,), tile)] * 4)
+  out_specs = ([_spec((vk,), tile), pl.BlockSpec((None,) + sw.shape, lambda bb, i: (bb, 0, 0))]
+               + [_spec(x.shape[1:-1], tile) for x in args[2:]])
+  out_shape = ([jax.ShapeDtypeStruct(m.shape, m.dtype), jax.ShapeDtypeStruct((b,) + sw.shape, F32)]
+               + [jax.ShapeDtypeStruct(x.shape, x.dtype) for x in args[2:]])
+  scratch = [pltpu.VMEM((3, c, n, tile), F32), pltpu.VMEM((k, c, tile), F32),
+             pltpu.VMEM((n * k, tile), F32), pltpu.VMEM((c * k, tile), F32),
+             pltpu.VMEM((sw.shape[0], tile), F32)]
+  outs = pl.pallas_call(
+      _read_backward_kernel_k(n, opts['qk_cols'], opts['read_epsilon'], opts['key_scale'], 2),
+      grid=(b, t // tile), in_specs=in_specs, out_specs=out_specs, out_shape=tuple(out_shape),
+      scratch_shapes=scratch, interpret=opts['interpret'],
+      compiler_params=_params(('parallel', 'arbitrary'), opts['vmem_mib']),
+      name='bam_core_read_backward')(*args, *cts)
+  return (outs[0], jnp.sum(outs[1], axis=0).astype(sw.dtype)) + tuple(outs[2:])
+
+
+@partial(jax.custom_vjp, nondiff_argnums=(11,))
+def _read_k(m, sw, rq, lq, rk, lk, rr, lo, lv, qs, ks, opts):
+  return _read_k_forward_call((m, sw, rq, lq, rk, lk, rr, lo, lv, qs, ks), dict(opts))
+
+
+def _read_k_fwd(m, sw, rq, lq, rk, lk, rr, lo, lv, qs, ks, opts):
+  args = (m, sw, rq, lq, rk, lk, rr, lo, lv, qs, ks)
+  return _read_k_forward_call(args, dict(opts)), args
+
+
+def _read_k_bwd(opts, args, cts):
+  return _read_k_backward_call(args, cts, dict(opts))
+
+
+_read_k.defvjp(_read_k_fwd, _read_k_bwd)
+
+
 _READ_TOKEN_ARGS = (0, 2, 3, 4, 5, 6, 7, 8, 9, 10)   # indices with a token axis
 
 
@@ -652,7 +910,8 @@ def _write_forward_call(m, groups, opts):
       refs[-1][...] = write_tile(*(r[...] for r in refs[:-1]), epsilon=eps)
   else:
     kernel = _write_kernel(eps, len(groups) // 3, opts['row_block'])
-    scratch = [pltpu.VMEM((ntot, k, tile), m.dtype), pltpu.VMEM((ntot, v, tile), m.dtype)]
+    sdt = m.dtype if opts['body'] == 'blocked' else F32
+    scratch = [pltpu.VMEM((ntot, k, tile), sdt), pltpu.VMEM((ntot, v, tile), sdt)]
 
   in_specs = [_spec((v, k), tile)] + [_spec(x.shape[1:-1], tile) for x in groups]
   return pl.pallas_call(
@@ -677,7 +936,8 @@ def _write_backward_call(g, groups, opts):
         ref[...] = val.astype(ref.dtype)
   else:
     kernel = _write_backward_kernel(eps, len(groups) // 3, opts['head_block'])
-    scratch = [pltpu.VMEM((ntot, k, tile), g.dtype), pltpu.VMEM((ntot, v, tile), g.dtype),
+    sdt = g.dtype if opts['body'] == 'blocked' else F32
+    scratch = [pltpu.VMEM((ntot, k, tile), sdt), pltpu.VMEM((ntot, v, tile), sdt),
                pltpu.VMEM((ntot, k, tile), F32), pltpu.VMEM((ntot, v, tile), F32)]
 
   in_specs = [_spec((v, k), tile)] + [_spec(x.shape[1:-1], tile) for x in groups]
@@ -757,9 +1017,19 @@ def read(m, static_weight, q_key, q_logits, k_key, k_logits, vo_key, o_logits, v
     outs = _read(m, sw, *xs, opts)
     return tuple(_major(o) for o in outs)
 
+  def local_k(m, sw, qk, ql, kk, kl, vo, ol, vl, qs, ks):
+    b, v, kd, t = m.shape
+    kopts = _freeze(dict(opts, k_dim=kd))
+    key = lambda x: jnp.transpose(x, (0, 3, 2, 1))           # [B,T,N,C] -> [B,C,N,T]
+    std = lambda x: _minor(x).reshape(b, heads * x.shape[3], t)   # [B,T,N,R] -> [B,N*R,T]
+    outs = _read_k(m.reshape(b, v * kd, t), _padded_static_weight(sw, heads),
+                   key(qk), _minor(ql), key(kk), _minor(kl), key(vo), _minor(ol), _minor(vl),
+                   std(qs), std(ks), kopts)
+    return tuple(_major(o.reshape(b, heads, kd, t)) for o in outs)
+
   args = (m, static_weight, q_key, q_logits, k_key, k_logits, vo_key, o_logits, v_logits,
           q_standard, k_standard)
-  return _map_batch(local, args, (True, False) + (True,) * 9, 4)
+  return _map_batch(local_k if body == 'kmajor' else local, args, (True, False) + (True,) * 9, 4)
 
 
 def write(m, groups, *, epsilon, forward_tile=128, reverse_tile=128, vmem_mib=None,

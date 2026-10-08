@@ -457,6 +457,88 @@ def _read_backward_kernel(heads, qk_cols, read_epsilon, key_scale):
   return kernel
 
 
+def _read_backward_kernel2(heads, qk_cols, read_epsilon, key_scale, cb):
+  """Same reverse as _read_backward_kernel; the C10 gradient accumulates in registers.
+
+  Phase 1 writes per-head cotangents (and the VO forward state) once; phase 2
+  reduces each head's cotangent against every compressed row; phase 3 builds
+  dMc[c] for a block of c from all heads and all three reads, storing it once.
+  """
+  def kernel(m_ref, sw_ref, rq, lq, rk, lk, rr, lo, lv, qs, ks, dq, dk, dv, do,
+             dm_ref, dsw_ref, drq, dlq, drk, dlk, drr, dlo, dlv, dqs, dks,
+             st_scr, key_scr, d_scr, dkey_scr, dyvo_scr):
+    dt = m_ref.dtype
+    n = heads
+    mc0 = 4 * n
+    kdim = m_ref.shape[1]
+    cdim = key_scr.shape[2]
+    rest = kdim - qk_cols
+    _fill_read_state(m_ref, sw_ref, rq, lq, rk, lk, rr, st_scr, key_scr, read_epsilon, key_scale)
+    # Phase 1: static-read cotangents and the shared VO cotangent.
+    for which, d_ref, ds_ref in ((0, dq, dqs), (1, dk, dks)):
+      for h in range(n):
+        d_scr[which * n + h, pl.ds(0, qk_cols), :] = d_ref[h, pl.ds(0, qk_cols), :].astype(F32)
+        d_scr[which * n + h, pl.ds(qk_cols, rest), :] = jnp.zeros((rest, d_scr.shape[2]), F32)
+        ds_ref[h] = d_ref[h, pl.ds(qk_cols, rest), :].astype(ds_ref.dtype)
+    for n0 in range(0, n, 4):
+      hb = min(4, n - n0)
+      ys = _dynamic_block(st_scr, key_scr, 2, mc0, n0, hb, kdim)
+      for j in range(hb):
+        h = n0 + j
+        dvh = dv[h].astype(F32)
+        doh = do[h].astype(F32)
+        d_scr[2 * n + h] = dvh
+        d_scr[3 * n + h] = doh
+        y = ys[j].astype(dt).astype(F32)
+        sgv, sgo = _sigmoid(_row(lv, h)), _sigmoid(_row(lo, h))
+        dyvo_scr[h] = dvh * (key_scale * sgv) + doh * (key_scale * sgo)
+        dlv[pl.ds(h, 1), :] = (key_scale * sgv * (1 - sgv) * jnp.sum(dvh * y, axis=0, keepdims=True)).astype(dlv.dtype)
+        dlo[pl.ds(h, 1), :] = (key_scale * sgo * (1 - sgo) * jnp.sum(doh * y, axis=0, keepdims=True)).astype(dlo.dtype)
+    # Phase 2: dkey[n, c] = sum_k dy[n, k] mc[c, k].
+    for h in range(n):
+      dyq = d_scr[h, pl.ds(0, qk_cols), :]
+      dyk = d_scr[n + h, pl.ds(0, qk_cols), :]
+      dyv = dyvo_scr[h]
+      for c in range(cdim):
+        mcc = st_scr[mc0 + c].astype(F32)
+        mcq = mcc[:qk_cols]
+        dkey_scr[0, h, pl.ds(c, 1), :] = jnp.sum(dyq * mcq, axis=0, keepdims=True)
+        dkey_scr[1, h, pl.ds(c, 1), :] = jnp.sum(dyk * mcq, axis=0, keepdims=True)
+        dkey_scr[2, h, pl.ds(c, 1), :] = jnp.sum(dyv * mcc, axis=0, keepdims=True)
+    # Phase 3: dMc[c] = sum_n (kq dyq + kk dyk + nr dyvo), FP32 accumulators in registers.
+    for c0 in range(0, cdim, cb):
+      cs = list(range(c0, min(c0 + cb, cdim)))
+      full = {c: None for c in cs}
+      part = {c: None for c in cs}
+      for h in range(n):
+        dyq = d_scr[h, pl.ds(0, qk_cols), :]
+        dyk = d_scr[n + h, pl.ds(0, qk_cols), :]
+        dyv = dyvo_scr[h]
+        for c in cs:
+          tq = _row(key_scr, 0, h, c).astype(F32) * dyq + _row(key_scr, 1, h, c).astype(F32) * dyk
+          tv = _row(key_scr, 2, h, c).astype(F32) * dyv
+          part[c] = tq if part[c] is None else part[c] + tq
+          full[c] = tv if full[c] is None else full[c] + tv
+      for c in cs:
+        d_scr[mc0 + c, pl.ds(0, qk_cols), :] = full[c][:qk_cols] + part[c]
+        d_scr[mc0 + c, pl.ds(qk_cols, rest), :] = full[c][qk_cols:]
+    for idx, (r, l, dr, dl) in enumerate(((rq, lq, drq, dlq), (rk, lk, drk, dlk))):
+      sg = _sigmoid(l[...])
+      nrm = _norm(r[...], read_epsilon, 1).astype(dt).astype(F32)
+      dkey = dkey_scr[idx]
+      dl[...] = (key_scale * sg * (1 - sg) * jnp.sum(dkey * nrm, axis=1)).astype(dl.dtype)
+      dr[...] = _norm_backward(r[...], (key_scale * sg)[:, None, :] * dkey, read_epsilon, 1).astype(dr.dtype)
+    drr[...] = _norm_backward(rr[...], dkey_scr[2], read_epsilon, 1).astype(drr.dtype)
+    d = d_scr[...]
+    dm_ref[...] = _static_dot_t(sw_ref[...].astype(F32), d).astype(dm_ref.dtype)
+
+    @pl.when(pl.program_id(1) == 0)
+    def _():
+      dsw_ref[...] = jnp.zeros(dsw_ref.shape, dsw_ref.dtype)
+    dsw_ref[...] += _weight_grad(d, m_ref[...].astype(F32))
+  return kernel
+
+
 _READ_TOKEN_ARGS = (0, 2, 3, 4, 5, 6, 7, 8, 9, 10)   # indices with a token axis
 
 
@@ -517,11 +599,15 @@ def _read_backward_call(args, cts, opts):
         grads[1][...] = jnp.zeros(grads[1].shape, grads[1].dtype)
       grads[1][...] += dsw
   else:
-    kernel = _read_backward_kernel(n, qk_cols, opts['read_epsilon'], opts['key_scale'])
     c = args[2].shape[2]
     j = sw.shape[0]
     scratch = [pltpu.VMEM((j, k, tile), m.dtype), pltpu.VMEM((3, n, c, tile), m.dtype),
                pltpu.VMEM((j, k, tile), F32), pltpu.VMEM((3, n, c, tile), F32)]
+    if opts['body'] == 'blocked2':
+      kernel = _read_backward_kernel2(n, qk_cols, opts['read_epsilon'], opts['key_scale'], 2)
+      scratch.append(pltpu.VMEM((n, k, tile), F32))
+    else:
+      kernel = _read_backward_kernel(n, qk_cols, opts['read_epsilon'], opts['key_scale'])
 
   ct_specs = [_spec((n, k), tile)] * 4
   out_specs = ([_spec(token_outs[0][0], tile),

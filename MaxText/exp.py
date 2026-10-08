@@ -10126,6 +10126,8 @@ class BamDirectC10PallasV6CoreProfile(BamDirectC10PallasCoreProfile):
 class BamDirectC10PallasTunedCoreProfile(BamDirectC10PallasCoreProfile):
     """Paired fused-core arm tuned by v5p single-layer sweep: blocked2 read reverse (block 4), write block 2."""
     # v5p-8 B8 per layer: readFB 2.036->1.973 ms, write FB -12% (1.685->1.488, 3.073->2.737).
+    # Paired v5p-8 JIT (xd-v5p-8-pallastune-1009-ue5a): 7cc41b1 MHA 0.615 / Pallas 0.538 / Tuned 0.541;
+    # 1fecf6a (parallel-tile read reverse) MHA 0.614 / Tuned 0.542 = 88.2% of MHA.
     model_name = 'BamDirectC10PallasTunedCoreProfile'
     bam_pallas_body = 'blocked2'
     bam_pallas_write_block = 2

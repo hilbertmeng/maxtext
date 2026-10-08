@@ -115,6 +115,36 @@ valid speed proxy (straight-line kernels matched better). Decisions now require 
 time (v6e microbench, then v5p). Activation-dtype static dots in the read reverse: −1.6 ms.
 Default remains blocked2. Artifacts `/data0/xd/bam_diagnostics/bam-pallas-core/v5p-pallasv6/`.
 
+## v5p measured tuning (single-layer sweep + paired full model, `xd-v5p-8-pallastune-1009-ue5a`)
+
+Single layer, v5p-8 one chip, B8 T4096, ms (`MaxText/tests/bam_pallas_benchmark.py`, read/write tile 128):
+
+| Body, block | read F | read F+B | write attn F+B | write attn+MLP F+B |
+|---|---:|---:|---:|---:|
+| `blocked`, 4 (production) | 0.858 | 2.036 | 1.685 | 3.073 |
+| `blocked`, 2 | 0.855 | 2.034 | 1.558 | 2.881 |
+| `blocked2`, 1 | 1.393 | 1.974 | 1.571 | 2.910 |
+| `blocked2`, 2 | 0.850 | 1.998 | **1.488** | **2.737** |
+| `blocked2`, 3 | 0.853 | 1.974 | 1.649 | 2.782 |
+| `blocked2`, 4 | 0.866 | 1.973 | 1.637 | 3.125 |
+| v6 write reverse, 4 | 0.856 | 1.981 | 2.104 | 3.743 |
+| `blocked2`, 4, parallel-tile reverse (`1fecf6a`) | 0.864 | **1.829** | — | — |
+
+Tile 256 (read) does not fit 60 MiB scoped VMEM; write tile 256 is slower (2.009 / 4.207).
+Parallel-tile reverse: per-tile `dsw` partials instead of an on-chip accumulator, grid
+(`parallel`,`parallel`).
+
+Paired full model, v5p-8 target JIT, same VM, step/s:
+
+| Runtime | MHA | Pallas `blocked`/4 | Tuned (`blocked2` read 4, write 2) |
+|---|---:|---:|---:|
+| `7cc41b1` | 0.615 | 0.538 (87.5%) | 0.541 (88.0%) |
+| `1fecf6a` (+ parallel-tile reverse) | 0.614 | — | 0.542 (88.2%) |
+
+The single-layer gain of the parallel-tile reverse (−7% read F+B) is ≈+0.2% in the full model.
+Block/body tuning is exhausted at ≈+0.8% total. Further kernel gains need removing the
+`[V,K,T]→[V,K·T]` relayout and spills (bundle analysis above), not schedule knobs.
+
 MXU block-diagonal prototype (`MaxText/tests/bam_mxu_write_proto.py`, token-major M,
 `blockdiag(A_tᵀ)@stack(C_t)`): g=4 → 42 bundles/token vs ~57 for the VPU write forward; g=6 worse.
 Construction (mask/select, conversions) and serial group dependence dominate; not adopted.

@@ -76,7 +76,7 @@ def main():
       args += [s(1, t, N, K)] * 4
       fn = lambda *z: jax.vjp(read, *z[:11])[1](tuple(z[11:]))
   elif a.kernel.startswith('read'):
-    args = [s(1, V, K, t), jax.ShapeDtypeStruct((4 * N + C, V), jnp.float32), s(1, t, N, C), s(1, t, N),
+    args = [s(1, K, V, t) if a.body.startswith('v7') else s(1, V, K, t), jax.ShapeDtypeStruct((4 * N + C, V), jnp.float32), s(1, t, N, C), s(1, t, N),
             s(1, t, N, C), s(1, t, N), s(1, t, N, C), s(1, t, N), s(1, t, N), s(1, t, N, R), s(1, t, N, R)]
     read = lambda *z: bp.read(*z, **rkw)
     if a.kernel == 'read_fwd':
@@ -86,7 +86,7 @@ def main():
       fn = lambda *z: jax.vjp(read, *z[:11])[1](tuple(z[11:]))
   else:
     n_groups = 2 if a.kernel.startswith('write2') else 1
-    mshape = (1, K, V, t) if a.body == 'v4' else (1, V, K, t)
+    mshape = (1, K, V, t) if a.body in ('v4', 'v7', 'v7u') else (1, V, K, t)
     args = [s(*mshape)] + [s(1, t, N, K), s(1, t, N), s(1, t, N, V)] * n_groups
     write = lambda m, *g: bp.write(m, [g[i:i + 3] for i in range(0, len(g), 3)], **wkw)
     if a.kernel.endswith('fwd'):

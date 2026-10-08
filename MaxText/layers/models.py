@@ -485,9 +485,9 @@ class EmbeddingBamWrite(nn.Module):
         statistics_dtype=statistics_dtype)
     with jax.named_scope("bam/embedding_write_outer"):
       if getattr(cfg, 'bam_pallas_core', False):
-        # Fused core carries M token-minor: [B, V, K, T], or k-major [B, K, V, T] for body v4.
+        # Fused core carries M token-minor: [B, V, K, T], or k-major [B, K, V, T] for bodies v4/v7.
         content = (gate[..., None] * data).astype(data.dtype)
-        layout = 'bkvt' if getattr(cfg, 'bam_pallas_body', None) == 'v4' else 'bvkt'
+        layout = 'bkvt' if getattr(cfg, 'bam_pallas_body', None) in ('v4', 'v7', 'v7u') else 'bvkt'
         return jnp.einsum(f'btnk,btnv->{layout}', content, address).astype(data.dtype)
       return jnp.sum(
           gate[..., None, None] * data[..., :, None]
@@ -536,7 +536,7 @@ class Decoder(nn.Module):
     b, t = inputs.shape[:2]
     if getattr(self.config, 'bam_pallas_core', False):
       kv = (self.config.bam_k, self.config.bam_v)
-      if getattr(self.config, 'bam_pallas_body', None) != 'v4':
+      if getattr(self.config, 'bam_pallas_body', None) not in ('v4', 'v7', 'v7u'):
         kv = kv[::-1]
       return jnp.zeros((b,) + kv + (t,), dtype=self.config.dtype)
     return jnp.zeros(

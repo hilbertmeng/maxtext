@@ -41,7 +41,7 @@ def rel(a, b):
 
 
 m_tm, params, tokens = ref.inputs(dt)
-kmajor = body in ('v4', 'v5')
+kmajor = body in ('v4', 'v5', 'v7', 'v7u')
 m_minor = jnp.transpose(m_tm, (0, 2, 3, 1) if kmajor else (0, 3, 2, 1))
 m_back = (0, 3, 1, 2) if kmajor else (0, 3, 2, 1)
 sw = bp.static_weight(*params)

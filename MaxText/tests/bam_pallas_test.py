@@ -63,7 +63,7 @@ def inputs(dtype, seed=0):
 
 def kernel_read(m_tm, params, tokens, body='blocked'):
   sw = bp.static_weight(*params)
-  if body in ('v4', 'v5'):
+  if body in ('v4', 'v5', 'v7'):
     import importlib
     mod = importlib.import_module('layers.bam_pallas_' + body)
     return mod.read(jnp.transpose(m_tm, (0, 2, 3, 1)), sw, *tokens, qk_cols=QKC,
@@ -88,9 +88,10 @@ def write_out(m_tm, groups, body):
     from layers import bam_pallas_v6
     out = bam_pallas_v6.write(to_minor_m(m_tm), groups, epsilon=WRITE_EPS, interpret=True)
     return jnp.transpose(out, (0, 3, 2, 1))
-  if body == 'v4':
-    from layers import bam_pallas_v4
-    out = bam_pallas_v4.write(jnp.transpose(m_tm, (0, 2, 3, 1)), groups, epsilon=WRITE_EPS, interpret=True)
+  if body in ('v4', 'v7'):
+    import importlib
+    mod = importlib.import_module('layers.bam_pallas_' + body)
+    out = mod.write(jnp.transpose(m_tm, (0, 2, 3, 1)), groups, epsilon=WRITE_EPS, interpret=True)
     return jnp.transpose(out, (0, 3, 1, 2))
   out = bp.write(to_minor_m(m_tm), groups, epsilon=WRITE_EPS, interpret=True, body=body)
   return jnp.transpose(out, (0, 3, 2, 1))
@@ -107,7 +108,7 @@ class BamPallasTest(unittest.TestCase):
     for dtype, tol in ((jnp.float32, 1e-5), (jnp.bfloat16, 2e-2)):
       m_tm, params, tokens = inputs(dtype)
       want = original_read(m_tm, *params, *tokens)
-      for body in ('blocked2', 'loop', 'v5'):
+      for body in ('blocked2', 'loop', 'v5', 'v7'):
         got = kernel_read(m_tm, params, tokens, body)
         for name, a, b in zip('qkvo', got, want):
           self.assert_close(a, b, tol, f'{body} {dtype.__name__} {name}')
@@ -120,7 +121,7 @@ class BamPallasTest(unittest.TestCase):
       return sum(jnp.sum(o * c) for o, c in zip(fn(m_tm, params, tokens), cts))
 
     want = jax.grad(lambda *a: loss(lambda m, p, t: original_read(m, *p, *t), *a), argnums=(0, 1, 2))(m_tm, params, tokens)
-    for body in ('blocked2', 'loop', 'v5'):
+    for body in ('blocked2', 'loop', 'v5', 'v7'):
       got = jax.grad(lambda *a: loss(lambda m, p, t: kernel_read(m, p, t, body), *a), argnums=(0, 1, 2))(m_tm, params, tokens)
       self._compare_grads(got, want, body)
 
@@ -136,7 +137,7 @@ class BamPallasTest(unittest.TestCase):
         groups = write_groups(dtype, n_groups)
         flat = [x for g in groups for x in g]
         want = original_write(m_tm, *flat)
-        for body in ('blocked2', 'v6'):
+        for body in ('blocked2', 'v6', 'v7'):
           got = write_out(m_tm, groups, body)
           self.assert_close(got, want, tol, f'{body} write {n_groups} {dtype.__name__}')
       m_tm, _, _ = inputs(jnp.float32, seed=5)
@@ -145,7 +146,7 @@ class BamPallasTest(unittest.TestCase):
       ct = jax.random.normal(jax.random.PRNGKey(7), (B, T, K, V))
       want = jax.grad(lambda m, *f: jnp.sum(original_write(m, *f) * ct), argnums=tuple(range(1 + len(flat))))(m_tm, *flat)
 
-      for body in ('blocked2', 'v6'):
+      for body in ('blocked2', 'v6', 'v7'):
         def kernel_loss(m, *f):
           return jnp.sum(write_out(m, [f[i:i + 3] for i in range(0, len(f), 3)], body) * ct)
 

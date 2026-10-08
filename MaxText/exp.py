@@ -309,6 +309,7 @@ class BamLlama2Medium(Llama2Medium):
     bam_standard_qk_dim = None
     bam_local_v_replace = False
     bam_local_vo_static = False
+    bam_local_v_static_zero_init = False
     bam_embedding_write = False
     bam_embedding_write_eps = .1
     emb_bam_num_head = 16
@@ -9996,3 +9997,13 @@ class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdResidua
     compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile',
                     'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdResidualWOTruePile',
                     'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdSeparateProjectionTruePile']
+
+
+class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdLocalVStaticZeroTruePile(
+    BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile):
+    """Zero only the static full-M LocalV read; preserve dynamic V and all writes."""
+    # codex/mediumprop-qk75-sparse; /data0/xd/mediumprop-qk75-sparse.
+    # Bet vs parent at13500: loss-.003; steady speed unchanged (within1%).
+    model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdLocalVStaticZeroTruePile'
+    bam_local_v_static_zero_init = True
+    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile']

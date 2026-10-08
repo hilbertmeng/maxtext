@@ -1676,6 +1676,18 @@ class MLA(Attention):
 # BAM train path: matrix write, factorized LocalQK, and dynamic full read; n == n_kv.
 # ============================================================================
 
+class BamWriteContentBias(nn.Module):
+  """Isolated affine scope preserves all existing parent initialization RNGs."""
+  shape: Tuple[int, int]
+  weight_dtype: DType
+
+  @nn.compact
+  def __call__(self, x):
+    bias = self.param('bias', nn.with_logical_partitioning(
+        nn.initializers.zeros, ('q_heads', 'kv')), self.shape, self.weight_dtype)
+    return x + bias.astype(x.dtype), bias
+
+
 class GroupedRMSNorm(nn.Module):
   """RMSNorm with independent learned scales over explicit leading groups.
 
@@ -2929,6 +2941,12 @@ class BamAttention(Attention):
           weight_dtype=self.weight_dtype, kernel_axes=('q_heads', 'kv'),
           scale_init=nn.initializers.zeros if learned_write_scale else None,
           name='write_data_norm')
+      if cfg.bam_attn_write_content_pre_rms_bias:
+        if not self._write_data_rms:
+          raise ValueError('Attention content pre-RMS bias requires normalized attention writes')
+        self.attn_write_content_bias = BamWriteContentBias(
+            shape=(self.num_query_heads, self.bam_k), weight_dtype=self.weight_dtype,
+            name='attn_write_content_bias')
       self.write_address_norm = GroupedRMSNorm(
           scale_shape=(self.num_query_heads, loc_v),
           epsilon=self._rms_epsilon, dtype=self.dtype,
@@ -3285,6 +3303,13 @@ class BamAttention(Attention):
         rope, positions, name=name, embedding_dims=rope.shape[-1])
     return jnp.concatenate((nope, rope), axis=-1)
 
+  def _attention_write_content(self, content):
+    if self.config.bam_attn_write_content_pre_rms_bias:
+      biased, bias = self.attn_write_content_bias(content)
+      self._record_concat_amplitude('attn_write_content_bias', bias, content)
+      content = biased
+    return self.write_data_norm(content) if self._write_data_rms else content
+
   def _write(self, o_head, x, M_in):
     """Write primitive (§4.2 safe write: aggregated U (outer) local V). o_head: [b,t,n,d] head output (pre W_O).
 
@@ -3315,7 +3340,7 @@ class BamAttention(Attention):
       # gate by 1/sqrt(n) damps each head's write so |M| ~ sqrt(n) — head-count-invariant
       # dynamics, analogous to attention's 1/sqrt(d). No-op at n==1.
       g = g * (1.0 / jnp.sqrt(self.num_query_heads))
-    u1_norm = self.write_data_norm(u1) if self._write_data_rms else u1
+    u1_norm = self._attention_write_content(u1)
     u2_norm = self.write_address_norm(u2)
     gated_u1 = g[..., None] * u1_norm
     with jax.named_scope("bam/write_outer"):
@@ -3345,7 +3370,7 @@ class BamAttention(Attention):
     bias = jnp.asarray(self.gw_b0, self.dtype) if self._force_activation_dtype else self.gw_b0
     gate = jax.nn.sigmoid(self.W_gw(x) + bias)
     scale = 1.0 / jnp.sqrt(self.num_query_heads) if self.config.bam_sqrt_n_scale else 1.0
-    content = self.write_data_norm(u1) if self._write_data_rms else u1
+    content = self._attention_write_content(u1)
     return scale * gate[..., None] * content, self.write_address_norm(u2), gate
 
   @nn.compact

@@ -310,6 +310,7 @@ class BamLlama2Medium(Llama2Medium):
     bam_local_v_replace = False
     bam_local_vo_static = False
     bam_local_v_static_zero_init = False
+    bam_attn_write_content_pre_rms_bias = False
     bam_embedding_write = False
     bam_embedding_write_eps = .1
     emb_bam_num_head = 16
@@ -10007,3 +10008,14 @@ class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdLocalVS
     model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdLocalVStaticZeroTruePile'
     bam_local_v_static_zero_init = True
     compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile']
+
+
+class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdLocalVStaticZeroAttnWriteContentBiasTruePile(
+    BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdLocalVStaticZeroTruePile):
+    """Attention-only zero pre-RMS content bias on zero-static-V BAM."""
+    # codex/mediumprop-qk75-sparse; /data0/xd/mediumprop-qk75-sparse.
+    # +21600=.015W_Q total; MLP unchanged, total432117728 (MHA-3472).
+    # Bet vs LocalVStaticZero at13500: loss-.005; speed unchanged within1%.
+    model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdLocalVStaticZeroAttnWriteContentBiasTruePile'
+    bam_attn_write_content_pre_rms_bias = True
+    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdLocalVStaticZeroTruePile']

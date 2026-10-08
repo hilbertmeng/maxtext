@@ -55,7 +55,6 @@ def _read_kernel(heads, qk_cols, eps, scale, kb):
     np_ = _pad_rows(n)
     kdim = m_ref.shape[0]
     cdim = rq.shape[0]
-    rdim = qs.shape[0] // n
     mc0 = 4 * np_
     kq, kk, nr, *_ = _keys(rq[...], lq[...], rk[...], lk[...], rr[...], eps, scale)
     key_scr[0] = kq
@@ -85,9 +84,8 @@ def _read_kernel(heads, qk_cols, eps, scale, kb):
           kscr[0, rows, :] = acc[0, k] + st[0:n]
           kscr[1, rows, :] = acc[1, k] + st[np_:np_ + n]
         else:
-          std = pl.ds(k - qk_cols, n, stride=rdim)
-          kscr[0, rows, :] = qs[std, :].astype(F32)
-          kscr[1, rows, :] = ks[std, :].astype(F32)
+          kscr[0, rows, :] = qs[k - qk_cols].astype(F32)
+          kscr[1, rows, :] = ks[k - qk_cols].astype(F32)
     for i, ref in enumerate((q_ref, k_ref, v_ref, o_ref)):
       _kmajor_to_tokens(kscr.at[i], np_, n, kdim, ref)
   return kernel

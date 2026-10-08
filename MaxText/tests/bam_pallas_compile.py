@@ -48,7 +48,7 @@ def main():
     from layers import bam_pallas_v4 as v4
     np_ = -(-N // 8) * 8
     args = [s(1, K, V, t), jax.ShapeDtypeStruct((4 * np_ + C, V), jnp.float32), s(1, C, N, t), s(1, N, t),
-            s(1, C, N, t), s(1, N, t), s(1, C, N, t), s(1, N, t), s(1, N, t), s(1, N * R, t), s(1, N * R, t)]
+            s(1, C, N, t), s(1, N, t), s(1, C, N, t), s(1, N, t), s(1, N, t), s(1, R, N, t), s(1, R, N, t)]
     opts = dict(heads=N, qk_cols=QKC, read_epsilon=1e-4, key_scale=.2, forward_tile=a.tile, reverse_tile=a.tile,
                 vmem_mib=a.vmem, interpret=False, k_block=a.block)
     fn = lambda *z: v4._read_forward_call(z, opts)

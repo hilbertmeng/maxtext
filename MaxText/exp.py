@@ -11917,12 +11917,13 @@ class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdDirectC
     # Ledger only: codex/mediumprop-qk75-sparse, /data0/xd/mediumprop-qk75-sparse.
     # code_commit: e6f1ef9
     # UE5a v5p-16 .499 step/s (-1.8% vs DirectC8 .508); generic+concat health ON.
-    # Bet vs DirectC8: terminal loss -.003; speed -1% to -3%.
+    # Stopped5108: vsDirectC8 early gain600-2200 vanished; small deficit after2400, last5@5000 +.000859 [+.000089,+.001368]; slower, no retained benefit.
     model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdDirectC8SeparateQKVProjectionTruePile'
     bam_local_qkv_separate_c_projection = True
     keep_period = 0
     compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdDirectC8TruePile']
     jax_cache_dir = ''
+
 
 class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdDirectC8SeparateQKVProjectionIndependentInitTruePile(BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdDirectC8SeparateQKVProjectionTruePile):
     """Independent orthogonal Q/K compression; original VO and other initialization retained."""

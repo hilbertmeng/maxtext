@@ -10101,6 +10101,8 @@ class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdVOReadS
 class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdDirectC8SeparateQKVProjectionTruePile(BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdDirectC8TruePile):
     """Independent Q/K/VO compressed views, cloned from the parent's initial view."""
     # Ledger only: codex/mediumprop-qk75-sparse, /data0/xd/mediumprop-qk75-sparse.
+    # code_commit: e6f1ef9
+    # UE5a v5p-16 .499 step/s (-1.8% vs DirectC8 .508); generic+concat health ON.
     # Bet vs DirectC8: terminal loss -.003; speed -1% to -3%.
     model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdDirectC8SeparateQKVProjectionTruePile'
     bam_local_qkv_separate_c_projection = True

@@ -13,3 +13,5 @@ Extra parameters: 18×2×32×8=9216=.0064 W_Q (W_Q=1200²). Total432103040; pare
 Bet: terminal loss −.003 vs DirectC8; speed −1% to −3% vs parent's UE5a .508 step/s with identical generic/concat health. Plan13500 steps, r200 windows, reporting every~1000 steps, first review2800.
 
 Focused CPU gate: full parameter count, old parameters and initial output bitwise equality, finite consumed gradients for both new projections, gradient sum conservation at original shared projection; small scanned model.
+
+Launch: runtime `e6f1ef91bc92b51a53fbd926413ca1ebcc111b17`, FIRST_STEP verified, AOT loaded, UE5a data path verified. Stable speed .499 step/s (median observed steps26–99), −1.8% vs parent .508. CPU gates passed, initialization RNG draws avoided using a cloned params variable. Local preparation logs: `/home/xd/.local/state/maxtext-parallel-launch/BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdDirectC8SeparateQKVProjectionTruePile-20261009T134021Z`.

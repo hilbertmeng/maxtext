@@ -322,6 +322,7 @@ class BamLlama2Medium(Llama2Medium):
     emb_bam_num_head = 16
     emb_bam_v_bottleneck_dim = 256
     bam_local_qk_direct_c8 = False
+    bam_local_qkv_separate_c_projection = False
     bam_local_vo_shared_read = 'none'  # none | local_o (C8 column donor)
     bam_local_vo_independent_gates = False
     bam_local_qk_share_basis = False  # effective_key Q/K share bases; gates and mixing remain independent.
@@ -10095,3 +10096,14 @@ class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdVOReadS
     model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdVOReadScale1TruePile'
     bam_local_vo_read_key_scale = 1.0
     compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile']
+
+
+class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdDirectC8SeparateQKVProjectionTruePile(BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdDirectC8TruePile):
+    """Independent Q/K/VO compressed views, cloned from the parent's initial view."""
+    # Ledger only: codex/mediumprop-qk75-sparse, /data0/xd/mediumprop-qk75-sparse.
+    # Bet vs DirectC8: terminal loss -.003; speed -1% to -3%.
+    model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdDirectC8SeparateQKVProjectionTruePile'
+    bam_local_qkv_separate_c_projection = True
+    keep_period = 0
+    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdDirectC8TruePile']
+    jax_cache_dir = ''

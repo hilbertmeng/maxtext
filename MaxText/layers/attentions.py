@@ -2614,6 +2614,10 @@ class BamAttention(Attention):
         if ('full' in self._mode or (self._local_o or shared_v)
             and getattr(cfg, 'bam_local_o_compress_v', True)) else None)
     self._direct_qk_c8 = bool(getattr(cfg, 'bam_local_qk_direct_c8', False))
+    self._separate_qkv_compression = bool(getattr(
+        cfg, 'bam_local_qkv_separate_c_projection', False))
+    assert not self._separate_qkv_compression or self._direct_qk_c8, (
+        'separate Q/K/VO compression requires direct compressed LocalQK reads')
     if self._direct_qk_c8:
       assert 'local_qk' in self._mode and cfg.bam_concat_qk and cfg.bam_prune_all_row_reads
       assert self._abs_v_dim is not None and not cfg.bam_local_qk_share_basis
@@ -3032,6 +3036,19 @@ class BamAttention(Attention):
             'local_k_post_read_v_projection', projection_init,
             projection_shape, self.weight_dtype)
 
+
+    if self._separate_qkv_compression:
+      # Append parameters without changing the parent's initialization stream.
+      # Clones preserve initial output; Q, K and VO then learn independently.
+      def clone_projection():
+        return nn.LogicallyPartitioned(
+            jnp.asarray(self.abs_v_cache_projection, self.weight_dtype),
+            ('v_factor', 'kv'))
+      for name in ('q', 'k'):
+        # No new RNG draw: even an ignored self.param initializer key advances
+        # the lifted scan's shared RNG stream and changes subsequent layers.
+        projection = self.variable('params', f'local_{name}_c_projection', clone_projection)
+        setattr(self, f'local_{name}_c_projection', nn.unbox(projection.value))
 
   def _local_qk_post_read_v_projections(self):
     paired = getattr(self, 'local_qk_post_read_v_paired_projection', None)
@@ -3752,9 +3769,15 @@ class BamAttention(Attention):
         assert Mh is not None, "local_qk read requires M_in"
         if self._direct_qk_c8:
           local_compressed_M = self._compress_m(Mh)
-          qk_compressed_M = local_compressed_M
-          q_local = self._read_direct_qk_c8('q', Mh, qk_compressed_M, inputs_q)
-          k_local = self._read_direct_qk_c8('k', Mh, qk_compressed_M, inputs_q)
+          if self._separate_qkv_compression:
+            with jax.named_scope('bam/compress_local_q'):
+              q_M = jnp.einsum('btkv,vc->btkc', Mh, self.local_q_c_projection.astype(Mh.dtype))
+            with jax.named_scope('bam/compress_local_k'):
+              k_M = jnp.einsum('btkv,vc->btkc', Mh, self.local_k_c_projection.astype(Mh.dtype))
+          else:
+            q_M = k_M = local_compressed_M
+          q_local = self._read_direct_qk_c8('q', Mh, q_M, inputs_q)
+          k_local = self._read_direct_qk_c8('k', Mh, k_M, inputs_q)
         else:
           basis_cache = self._shared_qk_basis(Mh, local_inputs) if self._share_qk_basis else None
           q_local = self._read_local('q', Mh, inputs_q, local_inputs, basis_cache)

@@ -10103,7 +10103,7 @@ class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdDirectC
     # Ledger only: codex/mediumprop-qk75-sparse, /data0/xd/mediumprop-qk75-sparse.
     # code_commit: e6f1ef9
     # UE5a v5p-16 .499 step/s (-1.8% vs DirectC8 .508); generic+concat health ON.
-    # Stopped5108: vsDirectC8 early gain600-2200 vanished; small deficit after2400, last5@5000 +.000859 [+.000089,+.001368]; slower, no retained benefit.
+    # Stopped 5108: vs DirectC8 early gain600-2200 vanished; small deficit after2400, last5@5000 +.000859 [+.000089,+.001368]; slower, no retained benefit.
     model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdDirectC8SeparateQKVProjectionTruePile'
     bam_local_qkv_separate_c_projection = True
     keep_period = 0
@@ -10116,7 +10116,8 @@ class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdDirectC
     # Ledger only: codex/mediumprop-qk75-sparse, /data0/xd/mediumprop-qk75-sparse.
     # code_commit: d29afc1
     # UE5a v5p-16 .503 step/s (-1.0% vs DirectC8 .508; +.8% vs copied-init .499); generic+concat health ON.
-    # Bet vs copied-init: terminal loss -.001; vs DirectC8 -.004; speed unchanged vs copied-init.
+    # Stopped 5066: vs DirectC8 early lead vanished by600, recovered to parity after3800; last5@5000 -.000015 [-.000635,+.000600].
+    # vscopied-init early lead reversed at600, crossed back at3600; last5@5000 -.000875 [-.002004,-.000454]; no gain over original shared view.
     model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdDirectC8SeparateQKVProjectionIndependentInitTruePile'
     bam_local_qkv_c_projection_init = 'orthogonal'
     compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdDirectC8SeparateQKVProjectionTruePile', 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdDirectC8TruePile']

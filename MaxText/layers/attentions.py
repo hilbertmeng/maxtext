@@ -1756,6 +1756,64 @@ def _attention_op(
   return y_std, alpha
 
 
+def _bam_splash_enabled(cfg, t):
+  """BAM attention through Splash (default on): TPU backend and lane-aligned sequences only;
+  otherwise (CPU tests, interpret mode, decode steps) the C256/dense einsum path is used."""
+  return (bool(getattr(cfg, 'bam_splash_attention', False)) and jax.default_backend() == 'tpu'
+          and t % 128 == 0)
+
+
+def _bam_splash_seq_minor(cfg, default):
+  """SEQ_MINOR q/k/v (+6.9% pure JAX, -0.7% behind the fused read kernel on v5p-8); None = per-path default."""
+  value = getattr(cfg, 'bam_splash_seq_minor', None)
+  return default if value is None else bool(value)
+
+
+def _bam_splash_attention(query, key, value, decoder_segment_ids, cfg, mesh, window=None, seq_minor=False):
+  """Full causal BAM attention through the Splash kernel (MHA's flash path block sizes).
+
+  query/key/value [B,T,N,D] (query pre-scaled); returns [B,T,N,Dv]. Logits/softmax accumulate in
+  FP32 inside the kernel (the C256 einsum path keeps BF16 logits when float32_logits=False)."""
+  # SEQ_MINOR: the Splash wrapper swaps q/k/v to [N,D,T] itself, which composes with the fused
+  # read kernel's [B,N,K,T] outputs to a no-op instead of a relayout.
+  q, k, v = (jnp.transpose(x, (0, 2, 1, 3)) for x in (query, key, value))
+  t = q.shape[2]
+  axis_names = out_names = nn.logical_to_mesh_axes((BATCH, HEAD, LENGTH, D_KV))
+  segment_names = nn.logical_to_mesh_axes((BATCH, "activation_length_no_heads"))
+  segments = (None if decoder_segment_ids is None
+              else splash_attention_kernel.SegmentIds(decoder_segment_ids, decoder_segment_ids))
+
+  def body(q, k, v, segments=None):
+    fused = cfg.sa_use_fused_bwd_kernel
+    block_sizes = splash_attention_kernel.BlockSizes(
+        block_q=min(cfg.sa_block_q, t), block_kv=min(cfg.sa_block_kv, t),
+        block_kv_compute=min(cfg.sa_block_kv_compute, t),
+        block_q_dkv=min(cfg.sa_block_q_dkv, t), block_kv_dkv=min(cfg.sa_block_kv_dkv, t),
+        block_kv_dkv_compute=min(cfg.sa_block_kv_dkv_compute, t),
+        block_q_dq=None if fused else min(cfg.sa_block_q_dq, t),
+        block_kv_dq=None if fused else min(cfg.sa_block_kv_dq, t),
+        use_fused_bwd_kernel=fused,
+        q_layout=splash_attention_kernel.QKVLayout['SEQ_MINOR' if seq_minor else cfg.sa_q_layout],
+        k_layout=splash_attention_kernel.QKVLayout['SEQ_MINOR' if seq_minor else cfg.sa_k_layout],
+        v_layout=splash_attention_kernel.QKVLayout['SEQ_MINOR' if seq_minor else cfg.sa_v_layout])
+    mask = splash_attention_mask.CausalMask(shape=(t, t))
+    if window is not None and window < t:     # C256: source > target - window
+      mask &= splash_attention_mask.LocalMask(shape=(t, t), window_size=(window - 1, 0), offset=0)
+    mask = splash_attention_mask.MultiHeadMask(masks=(mask,) * q.shape[1])
+    kernel = splash_attention_kernel.make_splash_mha(
+        mask=mask, head_shards=1, q_seq_shards=1, block_sizes=block_sizes,
+        attn_logits_soft_cap=cfg.attn_logits_soft_cap)
+    return jax.vmap(kernel)(q, k, v, segment_ids=segments)
+
+  if segments is None:
+    out = shard_map(body, mesh=mesh, in_specs=(axis_names,) * 3, out_specs=out_names,
+                    check_rep=False)(q, k, v)
+  else:
+    out = shard_map(body, mesh=mesh, in_specs=(axis_names, axis_names, axis_names, segment_names),
+                    out_specs=out_names, check_rep=False)(q, k, v, segments)
+  return jnp.transpose(out, (0, 2, 1, 3))
+
+
 def _bam_fetch_op(
     alpha, fetch_state, mix_weights, diagonal_mask, *, diagonal_one,
     mix_implementation='dot', gelu_alpha=False, return_route=False):
@@ -3455,6 +3513,150 @@ class BamAttention(Attention):
         jnp.concatenate(y_chunks, axis=1),
         jnp.concatenate(Mbar_chunks, axis=-3) if Mbar_chunks else None)
 
+  def _check_pallas_core(self):
+    """The fused core implements exactly the AllLocal DirectC10 read/write recipe."""
+    cfg = self.config
+    checks = {
+        'concat QK': bool(getattr(cfg, 'bam_concat_qk', False)) and self._concat_static_qk,
+        'direct C10 QK': self._direct_qk_c8,
+        'LocalV replace + independent VO gates + static VO': (
+            self._local_v_replace and self._vo_independent_gates and self._static_vo),
+        'local modes only': self._mode == {'local_qk', 'local_v', 'local_o'} and not self._local_arms,
+        'column-only pruned reads': self._fetched_arm.prune_row and self._direct_qk_c8_arm.prune_row,
+        'compressed V cache': self._abs_v_dim is not None and self.bam_k == self.head_dim,
+        'no M read norm / decay / sqrt-n': (
+            self._m_read_norm == 'none' and float(cfg.bam_lambda_decay) == 1.0
+            and not cfg.bam_sqrt_n_scale),
+        'plain RMS writes': (
+            self._write_data_rms and self._write_factor_norm == 'rms'
+            and not self._write_address_norm_bias and self._write_v_bottleneck_dim is not None
+            and self._write_v_bottleneck_activation == 'gelu'),
+        'raw W_O output': not getattr(cfg, 'bam_no_output_projection', False),
+        'sigmoid gates': self._read_gate_activation is jax.nn.sigmoid,
+        'health off': not self._concat_health and not self._record_fetched_read_health_metrics,
+        'no fused qkv / mha control': not cfg.fused_qkv and not self._mha_control,
+    }
+    failed = [name for name, ok in checks.items() if not ok]
+    if failed:
+      raise ValueError(f'bam_pallas_core does not support this configuration: {failed}')
+
+  def _fused_input_projections(self, x, names):
+    """All named DenseGeneral projections of x as ONE dot over concatenated kernels.
+
+    Same parameters, casts, precision, kernel-gradient scales and biases as calling each module;
+    the reverse then reads x once and writes one dx instead of one partial dx per projection.
+    Returns {name: [B,T,*features]}."""
+    params = self.variables['params']
+    kernels, shapes, biases = [], [], []
+    for name in names:
+      mod = getattr(self, name, None)
+      kernel = jnp.asarray(nn.meta.unbox(params[name]['kernel']), self.dtype)
+      scale = getattr(mod, 'kernel_gradient_scale', 1.0) if mod is not None else 1.0
+      if scale != 1.0:
+        kernel_sg = jax.lax.stop_gradient(kernel)
+        kernel = kernel_sg + scale * (kernel - kernel_sg)
+      shapes.append(kernel.shape[1:])
+      kernels.append(kernel.reshape(kernel.shape[0], -1))
+      bias = params[name].get('bias') if hasattr(params[name], 'get') else None
+      biases.append(None if bias is None else jnp.asarray(nn.meta.unbox(bias), self.dtype))
+    weight = jnp.concatenate(kernels, axis=1)
+    y = jax.lax.dot_general(jnp.asarray(x, self.dtype), weight, (((x.ndim - 1,), (0,)), ((), ())),
+                            precision=jax.lax.Precision(self.config.matmul_precision))
+    out, off = {}, 0
+    for name, shape, kernel, bias in zip(names, shapes, kernels, biases):
+      width = kernel.shape[1]
+      part = y[..., off:off + width].reshape(x.shape[:-1] + shape)
+      out[name] = part if bias is None else part + bias
+      off += width
+    return out
+
+  def _pallas_core_call(self, inputs_q, inputs_positions, decoder_segment_ids, M_in, is_global,
+                        standard_qk_width):
+    """Fused-kernel forward; M_in is token-minor [B,V,K,T]. Returns (out, M_in, write factors)."""
+    from layers import bam_pallas
+    cfg = self.config
+    self._check_pallas_core()
+    b_, t_ = inputs_q.shape[:2]
+    fused = bool(getattr(cfg, 'bam_pallas_fused_inputs', False)) and not self.is_initializing()
+    if fused:
+      gate_names = ('W_lq_gate', 'W_lk_gate', 'W_R_gate', 'W_lv_gate')
+      raw = self._fused_input_projections(
+          inputs_q, ('query', 'key', 'W_lq_c8', 'W_lk_c8', 'W_R') + gate_names + ('P_loc_down', 'W_gw'))
+      query = raw['query'].reshape(b_, t_, self.num_query_heads, standard_qk_width)
+      key = raw['key'].reshape(b_, t_, self.num_kv_heads, standard_qk_width)
+    else:
+      query = self.query_projection(inputs_q, standard_qk_width)
+      key = self.kv_projection(inputs_q, proj_name='key', projection_dim=standard_qk_width)
+    query, key = dc.QKNorm(cfg, name='qk_norm')(query, key)
+    query = self.apply_rotary_embedding(query, inputs_positions, name='query_rotary',
+                                        embedding_dims=standard_qk_width)
+    key = self.apply_rotary_embedding(key, inputs_positions, name='key_rotary',
+                                      embedding_dims=standard_qk_width)
+
+    def logits(name, squeeze):
+      if fused:     # same bias handling as _project_read_gate_logits
+        gate_bias = getattr(self, f'{name}_b0')
+        if self._force_activation_dtype:
+          gate_bias = jnp.asarray(gate_bias, self.dtype)
+        gate = raw[name] + gate_bias
+        gate = jnp.squeeze(gate, axis=-2) if squeeze else gate
+      else:
+        gate = self._project_read_gate_logits(name, inputs_q, squeeze_fetch_axis=squeeze)
+      return jnp.reshape(gate, inputs_q.shape[:2] + (self.num_query_heads,))
+
+    if fused:
+      q_key, k_key = raw['W_lq_c8'], raw['W_lk_c8']
+      vo_key = jnp.squeeze(raw['W_R'], axis=-2)
+    else:
+      q_key = self.W_lq_c8(inputs_q)
+      k_key = self.W_lk_c8(inputs_q)
+      vo_key = jnp.squeeze(self.W_R(inputs_q), axis=-2)
+    weight = bam_pallas.static_weight(
+        self.static_q_key, self.static_k_key, self.static_v_key, self.static_o_key,
+        self.abs_v_cache_projection)
+    body = getattr(cfg, 'bam_pallas_body', None) or 'blocked'
+    pass_m = body in ('v7', 'v7u')   # M passthrough: dM sum fused into the read reverse
+    q_scale = 1.0 / math.sqrt(self.head_dim) if pass_m else 1.0   # attention scale folded into the kernel
+    with jax.named_scope('bam/pallas_read'):
+      outs = bam_pallas.read(
+          M_in, weight, q_key, logits('W_lq_gate', False), k_key, logits('W_lk_gate', False),
+          vo_key, logits('W_R_gate', True), logits('W_lv_gate', False), query, key,
+          qk_cols=self._qk_col_width, read_epsilon=self._read_key_epsilon,
+          key_scale=self._read_key_scale,
+          forward_tile=int(getattr(cfg, 'bam_pallas_read_tile', None) or 128),
+          reverse_tile=int(getattr(cfg, 'bam_pallas_read_reverse_tile', None) or 128),
+          vmem_mib=getattr(cfg, 'bam_pallas_vmem_mib', None),
+          interpret=bool(getattr(cfg, 'bam_pallas_interpret', False)),
+          body=body, head_block=int(getattr(cfg, 'bam_pallas_read_block', None) or 4), pass_m=pass_m,
+          q_scale=q_scale)
+    query, key, value, local_output = outs[:4]
+    if pass_m:
+      M_in = outs[4]
+    query = nn.with_logical_constraint(query, self.query_axis_names)
+    key = nn.with_logical_constraint(key, self.key_axis_names)
+    value = nn.with_logical_constraint(value, self.value_axis_names)
+    if q_scale == 1.0:
+      query = query / jnp.sqrt(self.head_dim).astype(self.dtype)
+    t = query.shape[1]
+    local_window = t if (is_global or self.sliding_window_size is None) else min(t, int(self.sliding_window_size))
+    if _bam_splash_enabled(cfg, t):
+      y_std = _bam_splash_attention(query, key, value, decoder_segment_ids, cfg, self.mesh,
+                                    window=local_window, seq_minor=_bam_splash_seq_minor(cfg, False))
+    elif self._query_chunk_size is not None:
+      y_std, _ = self._query_chunk_op(query, key, value, decoder_segment_ids, local_window)
+    else:
+      y_std, _ = self._attention_block(query, key, value, decoder_segment_ids,
+                                       q0=0, s0=0, window_size=local_window)
+    o_head = y_std + local_output
+    if fused:
+      address = self.P_loc_up(nn.gelu(raw['P_loc_down']))
+      write_logits = raw['W_gw'] + jnp.asarray(self.gw_b0, self.dtype)
+    else:
+      address = self.P_loc_up(nn.gelu(self.P_loc_down(inputs_q)))
+      write_logits = self.W_gw(inputs_q) + jnp.asarray(self.gw_b0, self.dtype)
+    out = nn.with_logical_constraint(o_head, self.out_axis_names)
+    return self.out_projection(inputs_q.shape[-1], out), M_in, (o_head, write_logits, address)
+
   @nn.compact
   def __call__(
       self,
@@ -3492,6 +3694,9 @@ class BamAttention(Attention):
       assert self._partial_rope and self._partial_rope_nope_dim == self._qk_col_width
       assert self._share_qk_basis or self._direct_qk_c8
     standard_qk_width = self._standard_qk_width or (self.head_dim - self._qk_col_width)
+    if getattr(cfg, 'bam_pallas_core', False):
+      return self._pallas_core_call(
+          inputs_q, inputs_positions, decoder_segment_ids, M_in, is_global, standard_qk_width)
     # ---- QKV projection + QKNorm + RoPE ----
     if cfg.fused_qkv:
       query, key, value = self.qkv_projection(inputs_q, proj_name="qkv_proj")
@@ -3618,7 +3823,11 @@ class BamAttention(Attention):
         else min(t, int(self.sliding_window_size)))
     if is_global:
       local_window = t
-    if self._query_chunk_size is not None:
+    if _bam_splash_enabled(self.config, t) and fetch_state is None:
+      y_std, Mbar = _bam_splash_attention(
+          query, key, value, decoder_segment_ids, self.config, self.mesh, window=local_window,
+          seq_minor=_bam_splash_seq_minor(self.config, True)), None
+    elif self._query_chunk_size is not None:
       y_std, Mbar = self._query_chunk_op(
           query, key, value, decoder_segment_ids, local_window,
           fetch_state=fetch_state, mix_weights=mix_weights)

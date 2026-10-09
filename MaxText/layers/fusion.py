@@ -195,7 +195,13 @@ class SubDecoderLayer(nn.Module):
         == int(getattr(cfg, 'bam_mlp_write_offset', None) or 0) % mlp_write_every)
     if mlp_write and getattr(cfg, 'bam_mlp_write_static_address', False):
       raise ValueError('Static MLP write experiments require their recorded runtime')
-    if cfg.bam_enabled:
+    pallas_core = cfg.bam_enabled and bool(getattr(cfg, 'bam_pallas_core', False))
+    if pallas_core:
+        # Fused core: the attention returns its raw write factors; one kernel
+        # applies the attention (and MLP) writes after the MLP.
+        attention_lnx, M_out, write_factors = attention_layer(
+            **call_kwargs, M_in=M_in, is_global=is_global, layer_index=layer_index)
+    elif cfg.bam_enabled:
         if mlp_write:
           assert cfg.shared_experts == 1 and cfg.num_experts == 1
           assert cfg.emb_dim == num_query_heads * cfg.bam_k == num_query_heads * head_dim
@@ -325,9 +331,27 @@ class SubDecoderLayer(nn.Module):
             dtype=cfg.dtype, weight_dtype=cfg.weight_dtype,
             quant=self.quant, matmul_precision=cfg.matmul_precision,
             name='mlp_address_up')(nn.gelu(address_hidden))
-      M_out = attention_layer.merge_mlp_write(
-          mlp_lnx.reshape(mlp_lnx.shape[:-1] + (num_query_heads, cfg.bam_k)),
-          jax.nn.sigmoid(mlp_logits), write_factors, M_out, independent_address=independent_address)
+      if not pallas_core:
+        M_out = attention_layer.merge_mlp_write(
+            mlp_lnx.reshape(mlp_lnx.shape[:-1] + (num_query_heads, cfg.bam_k)),
+            jax.nn.sigmoid(mlp_logits), write_factors, M_out, independent_address=independent_address)
+    if pallas_core:
+      from layers import bam_pallas
+      groups = [write_factors]
+      if mlp_write:
+        assert independent_address is not None, 'fused core supports independent MLP addresses only'
+        groups.append((mlp_lnx.reshape(mlp_lnx.shape[:-1] + (num_query_heads, cfg.bam_k)),
+                       mlp_logits, independent_address))
+      with jax.named_scope('bam/pallas_write'):
+        M_out = bam_pallas.write(
+            M_out, groups, epsilon=float(cfg.normalization_layer_epsilon),
+            forward_tile=int(getattr(cfg, 'bam_pallas_write_tile', None) or 128),
+            reverse_tile=int(getattr(cfg, 'bam_pallas_write_reverse_tile', None) or 128),
+            vmem_mib=getattr(cfg, 'bam_pallas_vmem_mib', None),
+            interpret=bool(getattr(cfg, 'bam_pallas_interpret', False)),
+            body=getattr(cfg, 'bam_pallas_body', None) or 'blocked',
+            **({'row_block': int(cfg.bam_pallas_write_block), 'head_block': int(cfg.bam_pallas_write_block)}
+               if getattr(cfg, 'bam_pallas_write_block', None) else {}))
 
     if mlp_lnx is not None and moe_lnx is not None:
       layer_output = mlp_lnx + intermediate_inputs + moe_lnx

@@ -11702,6 +11702,216 @@ class BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdDirectC10Tr
     compare_runs = ['BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdTruePile']
     jax_cache_dir = ''
 
+
+# ---- Fused Pallas BAM core (v5p) and BAM Splash attention. Doc: experiments/bam_llama2_medium/bam_pallas_core.md.
+# Implementation history: claude/bam-pallas-directc10 (runtimes 49d3784 ... 748bc53, doc 2c1d30d); final version
+# merged into refactor-bam. v3/v4/v5/v6/'loop'/'kmajor' bodies, the XLA q/k/v layout constraint and the k-major
+# read-reverse cotangent option exist only on that branch (ledger-only classes below).
+
+class BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdDirectC10NoHealthTruePile(
+    BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdDirectC10TruePile):
+    """Pure-JAX speed control for the fused core: BAM concat health OFF, generic health unchanged."""
+    model_name = 'BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdDirectC10NoHealthTruePile'
+    bam_record_concat_health = False
+
+
+class BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdDirectC10PallasTruePile(
+    BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdDirectC10NoHealthTruePile):
+    """Same equations/parameters; fused Pallas read/write core (v-major 'blocked' body), C256 attention."""
+    model_name = 'BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdDirectC10PallasTruePile'
+    bam_pallas_core = True
+    bam_splash_attention = False
+
+
+class BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdDirectC10PallasV7TruePile(
+    BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdDirectC10PallasTruePile):
+    """Same equations/parameters; v7u kernels (M k-major [B,K,V,T]), fused input projections, folded query
+    scale, M passthrough; C256 attention. Formal numerical-equivalence run against DirectC10."""
+    # Runtime: claude/bam-pallas-directc10, code_commit: efc1977; UE5a v5p-32 xd-v5p-32-2910131-maxtext.
+    # 0.491step/s: +44% vs DirectC10 0.340 (BAM health ON there), 90.4% of MHA 0.543.
+    # vs DirectC10: +.0095@500 -> +.0035@1000 -> mean -.00017 [-.0009,+.0010] over 2500-17000 (rounding noise).
+    # vs MHA: -.112@17000, slowly narrowing.
+    model_name = 'BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdDirectC10PallasV7TruePile'
+    bam_pallas_body = 'v7u'
+    bam_pallas_fused_inputs = True
+    bam_pallas_vmem_mib = 48
+    compare_runs = ['BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdDirectC10TruePile',
+                    'Llama2XLPropTruePileMHA']
+
+
+class BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdDirectC10PallasV7SplashTruePile(
+    BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdDirectC10PallasV7TruePile):
+    """Best measured configuration: v7u fused core + fused inputs + Splash attention (HEAD_DIM_MINOR).
+    v5p-8 paired: 0.572 step/s = 93.2% of MHA 0.614 (C256 version 0.554). Not launched yet."""
+    model_name = 'BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdDirectC10PallasV7SplashTruePile'
+    bam_splash_attention = True
+    bam_splash_seq_minor = False
+
+
+# Paired v5p-8 timing arms (TrainStepProfile; target JIT; XLProp B8/device T4096; MHA = Splash, 20x96 heads).
+
+class Llama2XLPropMHAPallasCoreProfile(TrainStepProfile, Llama2XLPropTrain):
+    """Paired MHA timing arm (formal architecture/batch/generic health)."""
+    # v5p-16 49d3784 0.593; v5p-8 0.614 in every matrix 7cc41b1 ... 748bc53.
+    model_name = 'Llama2XLPropMHAPallasCoreProfile'
+    steps = 60
+
+
+class BamDirectC10NoHealthPallasCoreProfile(
+    TrainStepProfile, BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdDirectC10NoHealthTruePile):
+    """Paired pure-JAX DirectC10 timing arm (C256 attention), BAM health OFF."""
+    # v5p-16 49d3784 0.371 (62.6%); v5p-8 b0d540b 0.368 (59.9%).
+    model_name = 'BamDirectC10NoHealthPallasCoreProfile'
+    steps = 60
+    bam_splash_attention = False
+
+
+class BamDirectC10NoHealthLayoutBNKTProfile(BamDirectC10NoHealthPallasCoreProfile):
+    """Ledger only (claude/bam-pallas-directc10 b0d540b): XLA layout constraint on q/k/v (B,N,K,T)."""
+    # v5p-8 0.385 (+4.6%): attention 986->641 ms but the constraint lowered to async copies (+398 ms).
+    model_name = 'BamDirectC10NoHealthLayoutBNKTProfile'
+    bam_qkv_layout = 'bnkt'
+
+
+class BamDirectC10NoHealthLayoutBTNKProfile(BamDirectC10NoHealthPallasCoreProfile):
+    """Ledger only (claude/bam-pallas-directc10 b0d540b): XLA layout constraint on q/k/v (B,T,N,K)."""
+    # v5p-8 0.319 (-13%).
+    model_name = 'BamDirectC10NoHealthLayoutBTNKProfile'
+    bam_qkv_layout = 'btnk'
+
+
+class BamDirectC10NoHealthSplashProfile(BamDirectC10NoHealthPallasCoreProfile):
+    """Pure-JAX DirectC10 + Splash attention, HEAD_DIM_MINOR q/k/v."""
+    # v5p-8 a1f64f2 0.449 (+22% vs C256; 73.1% of MHA).
+    model_name = 'BamDirectC10NoHealthSplashProfile'
+    bam_splash_attention = True
+    bam_splash_seq_minor = False
+
+
+class BamDirectC10NoHealthSplashSeqMinorProfile(BamDirectC10NoHealthSplashProfile):
+    """Pure-JAX DirectC10 + Splash, SEQ_MINOR q/k/v (the pure-JAX default)."""
+    # v5p-8 748bc53 0.480 (+30% vs C256; 78.2% of MHA).
+    model_name = 'BamDirectC10NoHealthSplashSeqMinorProfile'
+    bam_splash_seq_minor = True
+
+
+class BamDirectC10PallasCoreProfile(
+    TrainStepProfile, BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdDirectC10PallasTruePile):
+    """Fused core, v-major 'blocked' body, C256 attention."""
+    # v5p-16 49d3784 AOT 0.509 (85.8%); v5p-8 7cc41b1 0.538 (87.5%).
+    model_name = 'BamDirectC10PallasCoreProfile'
+    steps = 60
+    bam_pallas_vmem_mib = 48
+
+
+class BamDirectC10PallasV6CoreProfile(BamDirectC10PallasCoreProfile):
+    """Ledger only (claude/bam-pallas-directc10 e2e82a8): loop-structured v6 write reverse."""
+    # v5p-16 0.505 vs 0.508 (write B 65.4 vs 51.8 ms; static bundle estimate -32% refuted).
+    model_name = 'BamDirectC10PallasV6CoreProfile'
+    bam_pallas_body = 'v6'
+
+
+class BamDirectC10PallasTunedCoreProfile(BamDirectC10PallasCoreProfile):
+    """Fused core, 'blocked2' read reverse (block 4), write block 2, C256 attention."""
+    # v5p-8 7cc41b1 0.541; 1fecf6a (parallel-tile read reverse) 0.542 (88.2%).
+    model_name = 'BamDirectC10PallasTunedCoreProfile'
+    bam_pallas_body = 'blocked2'
+    bam_pallas_write_block = 2
+
+
+class BamDirectC10PallasV7CoreProfile(BamDirectC10PallasCoreProfile):
+    """v7 k-major kernels with rolled (fori_loop) read-reverse passes."""
+    # v5p-8 single layer B8: read F+B 2.611 ms vs 1.672 unrolled; not used.
+    model_name = 'BamDirectC10PallasV7CoreProfile'
+    bam_pallas_body = 'v7'
+
+
+class BamDirectC10PallasV7UCoreProfile(BamDirectC10PallasCoreProfile):
+    """v7 k-major kernels, unrolled read reverse, C256 attention."""
+    # v5p-8 3faeae9 (k-major q/k/v outputs) 0.446; 896f2ad head-major I/O 0.549 (tuned 0.541).
+    model_name = 'BamDirectC10PallasV7UCoreProfile'
+    bam_pallas_body = 'v7u'
+
+
+class BamDirectC10PallasV7UFusedCoreProfile(BamDirectC10PallasV7UCoreProfile):
+    """v7u + one concatenated dot for all BAM input projections, C256 attention."""
+    # v5p-8 8731faa 0.555; 7149ff2 (+query scale fold) 0.556 (90.6%).
+    model_name = 'BamDirectC10PallasV7UFusedCoreProfile'
+    bam_pallas_fused_inputs = True
+
+
+class BamDirectC10PallasV7UFusedCtKCoreProfile(BamDirectC10PallasV7UFusedCoreProfile):
+    """Ledger only (claude/bam-pallas-directc10 93aa1e6): read-reverse cotangents transposed k-major by XLA."""
+    # v5p-8 0.533 vs 0.556 (XLA layout propagated into attention backward).
+    model_name = 'BamDirectC10PallasV7UFusedCtKCoreProfile'
+    bam_pallas_ct_kmajor = True
+
+
+class BamDirectC10PallasV7USplashCoreProfile(BamDirectC10PallasV7UFusedCoreProfile):
+    """Best: v7u fused core + fused inputs + Splash attention (HEAD_DIM_MINOR)."""
+    # v5p-8 a1f64f2 0.572, 748bc53 0.572 (93.2%); BAM Splash kernels 522 ms vs MHA 546 ms per step.
+    model_name = 'BamDirectC10PallasV7USplashCoreProfile'
+    bam_splash_attention = True
+    bam_splash_seq_minor = False
+
+
+class BamDirectC10PallasV7USplashSeqMinorCoreProfile(BamDirectC10PallasV7USplashCoreProfile):
+    """Fused core + Splash with SEQ_MINOR q/k/v."""
+    # v5p-8 748bc53 0.568 (copies 70->48 ms, Splash kernels 522->556 ms).
+    model_name = 'BamDirectC10PallasV7USplashSeqMinorCoreProfile'
+    bam_splash_seq_minor = True
+
+
+# CPU equivalence fixtures for MaxText/tests/bam_pallas_model_test.py (Splash falls back to C256 on CPU).
+
+class BamPallasCoreTinyXlaTest(
+    BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdDirectC10NoHealthTruePile):
+    """CPU equivalence fixture: tiny DirectC10 geometry, FP32, original XLA core."""
+    model_name = 'BamPallasCoreTinyXlaTest'
+    base_num_decoder_layers = 4
+    bam_layer_modes = ['local_qk+local_v+local_o'] * 4
+    base_emb_dim = 64
+    base_num_query_heads = 2
+    base_num_kv_heads = 2
+    head_dim = 32
+    bam_k = 32
+    bam_v = 16
+    bam_abs_v_compression_dim = 4
+    bam_standard_qk_dim = 8
+    bam_local_qk_col_output_dim = 24
+    bam_partial_rope_nope_dim = 24
+    bam_write_v_bottleneck_dim = 32
+    emb_bam_num_head = 2
+    emb_bam_v_bottleneck_dim = 32
+    bam_mlp_write_address_rank = 16
+    base_mlp_dim = 96
+    mlp_dim_by_block = [96, 80, 96]
+    bam_final_local_mlp_dim = 96
+    max_target_length = 256
+    query_chunk_size = 128
+    per_device_batch_size = 1.0
+    dtype = 'float32'
+    record_training_health_metrics = False
+
+
+class BamPallasCoreTinyPallasTest(BamPallasCoreTinyXlaTest):
+    """CPU equivalence fixture: the same tiny model through the interpreted fused core."""
+    model_name = 'BamPallasCoreTinyPallasTest'
+    bam_pallas_core = True
+    bam_pallas_interpret = True
+
+
+class BamPallasCoreTinyPallasV7Test(BamPallasCoreTinyPallasTest):
+    """CPU equivalence fixture: v7 k-major end-to-end fused core (interpret mode)."""
+    model_name = 'BamPallasCoreTinyPallasV7Test'
+    bam_pallas_body = 'v7'
+
+
+class BamPallasCoreTinyPallasV7FusedInputsTest(BamPallasCoreTinyPallasV7Test):
+    """CPU equivalence fixture: v7 + all BAM input projections as one concatenated dot."""
+    model_name = 'BamPallasCoreTinyPallasV7FusedInputsTest'
+    bam_pallas_fused_inputs = True
+
 class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdDirectC8SeparateQKVProjectionTruePile(BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdDirectC8TruePile):
     """Independent Q/K/VO compressed views, cloned from the parent's initial view."""
     # Ledger only: codex/mediumprop-qk75-sparse, /data0/xd/mediumprop-qk75-sparse.

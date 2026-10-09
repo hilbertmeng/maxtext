@@ -3700,6 +3700,7 @@ class BamAttention(Attention):
         self.abs_v_cache_projection)
     body = getattr(cfg, 'bam_pallas_body', None) or 'blocked'
     pass_m = body in ('v7', 'v7u')   # M passthrough: dM sum fused into the read reverse
+    q_scale = 1.0 / math.sqrt(self.head_dim) if pass_m else 1.0   # attention scale folded into the kernel
     with jax.named_scope('bam/pallas_read'):
       outs = bam_pallas.read(
           M_in, weight, q_key, logits('W_lq_gate', False), k_key, logits('W_lk_gate', False),
@@ -3710,14 +3711,16 @@ class BamAttention(Attention):
           reverse_tile=int(getattr(cfg, 'bam_pallas_read_reverse_tile', None) or 128),
           vmem_mib=getattr(cfg, 'bam_pallas_vmem_mib', None),
           interpret=bool(getattr(cfg, 'bam_pallas_interpret', False)),
-          body=body, head_block=int(getattr(cfg, 'bam_pallas_read_block', None) or 4), pass_m=pass_m)
+          body=body, head_block=int(getattr(cfg, 'bam_pallas_read_block', None) or 4), pass_m=pass_m,
+          q_scale=q_scale)
     query, key, value, local_output = outs[:4]
     if pass_m:
       M_in = outs[4]
     query = nn.with_logical_constraint(query, self.query_axis_names)
     key = nn.with_logical_constraint(key, self.key_axis_names)
     value = nn.with_logical_constraint(value, self.value_axis_names)
-    query = query / jnp.sqrt(self.head_dim).astype(self.dtype)
+    if q_scale == 1.0:
+      query = query / jnp.sqrt(self.head_dim).astype(self.dtype)
     t = query.shape[1]
     local_window = t if (is_global or self.sliding_window_size is None) else min(t, int(self.sliding_window_size))
     if self._query_chunk_size is not None:

@@ -47,7 +47,7 @@ def _concat_k(ref, k0, k1):
 # ---------------------------------------------------------------------------
 # Read.
 
-def _read_kernel(heads, qk_cols, eps, scale, kb, db):
+def _read_kernel(heads, qk_cols, eps, scale, kb, db, q_scale):
   def kernel(m_ref, sw_ref, rq, lq, rk, lk, rr, lo, lv, qs, ks, q_ref, k_ref, v_ref, o_ref,
              key_scr, st_scr, out_scr):
     n = heads
@@ -92,7 +92,8 @@ def _read_kernel(heads, qk_cols, eps, scale, kb, db):
     # sublane-strided FP32 row gather per head, rows (k, h) at k*NP + h.
     for i, ref in enumerate((q_ref, k_ref, v_ref, o_ref)):
       for h in range(n):
-        ref[h] = out_scr[i, pl.ds(h, kdim, stride=np_), :].astype(ref.dtype)
+        x = out_scr[i, pl.ds(h, kdim, stride=np_), :]
+        ref[h] = (x * q_scale if i == 0 and q_scale != 1.0 else x).astype(ref.dtype)
   return kernel
 
 
@@ -110,7 +111,7 @@ def _read_forward_call(args, opts):
   out = jax.ShapeDtypeStruct((b, n, kdim, t), m.dtype)
   return pl.pallas_call(
       _read_kernel(n, opts['qk_cols'], opts['read_epsilon'], opts['key_scale'], opts['k_block'],
-                   opts['dot_block']),
+                   opts['dot_block'], opts['q_scale']),
       grid=(b, t // tile), in_specs=_read_specs(args, tile), out_specs=[_spec((n, kdim), tile)] * 4,
       out_shape=(out,) * 4,
       scratch_shapes=[pltpu.VMEM((3, c, n, tile), F32), pltpu.VMEM((sw.shape[0], kdim * tile), F32),
@@ -128,7 +129,7 @@ def _blocks(lo, hi, body, rolled):
     jax.lax.fori_loop(lo, hi, lambda j, c: (body(j), c)[1], 0)
 
 
-def _read_backward_kernel(heads, qk_cols, eps, scale, db, rolled, pass_m):
+def _read_backward_kernel(heads, qk_cols, eps, scale, db, rolled, pass_m, q_scale):
   def kernel(m_ref, sw_ref, rq, lq, rk, lk, rr, lo, lv, qs, ks, dq, dk, dv, do, *refs):
     if pass_m:     # cotangent of the M passthrough, aliased to dm: added here instead of by XLA
       gp_ref, refs = refs[0], refs[1:]
@@ -149,7 +150,8 @@ def _read_backward_kernel(heads, qk_cols, eps, scale, db, rolled, pass_m):
     # one sublane-strided row gather (rows h*K + k).
     for i, ref in enumerate((dq, dk, dv, do)):
       for h in range(n):
-        hm[i, pl.ds(h * kdim, kdim), :] = ref[h].astype(F32)
+        x = ref[h].astype(F32)
+        hm[i, pl.ds(h * kdim, kdim), :] = x * q_scale if i == 0 and q_scale != 1.0 else x
     ct = lambda i, k: hm[i, pl.ds(k, n, stride=kdim), :]
     dkey_scr[...] = jnp.zeros(dkey_scr.shape, F32)
     gacc[...] = jnp.zeros(gacc.shape, F32)
@@ -266,7 +268,7 @@ def _read_backward_call(args, cts, opts):
              pltpu.VMEM((4, n * kdim, tile), F32)]
   outs = pl.pallas_call(
       _read_backward_kernel(n, opts['qk_cols'], opts['read_epsilon'], opts['key_scale'], opts['dot_block'],
-                            opts['rolled'], pass_m),
+                            opts['rolled'], pass_m, opts['q_scale']),
       grid=(b, t // tile), in_specs=in_specs, out_specs=out_specs, out_shape=tuple(out_shape),
       scratch_shapes=scratch, interpret=opts['interpret'],
       input_output_aliases={len(args) + 4: 0} if pass_m else {},
@@ -297,16 +299,17 @@ _read.defvjp(_read_fwd, _read_bwd)
 def read(m, static_weight, q_key, q_logits, k_key, k_logits, vo_key, o_logits, v_logits,
          q_standard, k_standard, *, qk_cols, read_epsilon, key_scale,
          forward_tile=128, reverse_tile=128, vmem_mib=None, interpret=False,
-         k_block=4, dot_block=16, rolled=True, pass_m=False, **_):
+         k_block=4, dot_block=16, rolled=True, pass_m=False, q_scale=1.0, **_):
   """m is k-major [B,K,V,T]; other arguments token-major as in layers.bam_pallas.read.
 
   Returns token-major (query, key, value, local_o), each [B,T,N,K]; with pass_m also m itself,
-  whose cotangent the read reverse adds into dM (the caller must write from that output)."""
+  whose cotangent the read reverse adds into dM (the caller must write from that output).
+  q_scale multiplies the query output (the attention 1/sqrt(d) folded into the kernel)."""
   heads = q_key.shape[2]
   opts = _freeze(dict(heads=heads, qk_cols=qk_cols, read_epsilon=read_epsilon, key_scale=key_scale,
                       forward_tile=forward_tile, reverse_tile=reverse_tile, vmem_mib=vmem_mib,
                       interpret=interpret, k_block=k_block, dot_block=dot_block, rolled=rolled,
-                      pass_m=pass_m))
+                      pass_m=pass_m, q_scale=float(q_scale)))
   cmajor = lambda x: jnp.transpose(x, (0, 3, 2, 1))       # [B,T,N,X] -> [B,X,N,T]
 
   def local(m, sw, qk, ql, kk, kl, vo, ol, vl, qs, ks):

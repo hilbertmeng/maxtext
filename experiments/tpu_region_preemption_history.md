@@ -27,6 +27,7 @@ active leases are censored, and manual migration releases are not preemptions.
 
 | RUN | TPU | Zone | Start UTC | End UTC | End reason | Passive candidates |
 |---|---|---|---|---|---|---|
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdDirectC8SeparateQKVProjectionIndependentInitTruePile` | v5p-16 (`xd-v5p-16-1010-maxtext`) | `us-east5-a` | 2026-10-09 14:18:48 | 2026-10-09 17:12:48 | review stop5066;0preemptions;checkpoint committed, resources absent, TB synced | none |
 | `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdDirectC8SeparateQKVProjectionTruePile` | v5p-16 (`xd-v5p-16-1009-maxtext`) | `us-east5-a` | 2026-10-09 13:44:32 | 2026-10-09 16:41:31 | review stop5108;0preemptions;checkpoint committed, resources absent, TB synced | none |
 | `BamLlama2XLHead16x128V2C256FetchRank2` | v5p-32 | `europe-west4-b` | 2026-08-25 07:34:52 | 2026-08-26 00:07:55 | manual stop | `us-central1-a` (never active) |
 | `BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2GroupedWriteRMSNormNoBias` | v5p-32 | `europe-west4-b` | 2026-08-25 13:46:30 | 2026-08-26 00:08:00 | manual stop | `us-central1-a` (never active) |
@@ -1227,3 +1228,4 @@ active leases are censored, and manual migration releases are not preemptions.
 | `RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32` | 1 | `us-east5-a` | 2026-09-28 03:05:32 | 2026-09-28 05:42:16 | 2h36m44s | manual stop; checkpoint3442; TPU/queue absent |
 | `BamMHAMediumPropC256TruePile` | 1 | `us-east5-a` | 2026-09-28 03:05:47 | 2026-09-28 08:30:36 | 5h24m49s | clean exit at checkpoint13500; TPU/queue absent |
 | `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdDirectC8SeparateQKVProjectionTruePile` | 1 | `us-east5-a` | 2026-10-09 13:44:32 | 2026-10-09 16:41:31 | 2h56m59s | review stop5108; checkpoint committed, resources absent, TB synced |
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdDirectC8SeparateQKVProjectionIndependentInitTruePile` | 1 | `us-east5-a` | 2026-10-09 14:18:48 | 2026-10-09 17:12:48 | 2h54m00s | review stop5066; checkpoint committed, resources absent, TB synced |

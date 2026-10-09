@@ -193,3 +193,12 @@ Remaining gap to MHA (`8731faa` trace, ms/step): SwiGLU MLP +142 (wider after th
 attention core +35 (XLA C256 QChunk vs Splash, with fewer BAM attention FLOPs: 20×96 vs 16×128),
 kernels ~139 + glue, scan carry of M +17. Kernels are near their practical floor; 92–93% needs the
 attention core (Splash-class kernel for d=96, ideal ≈ −71 ms) or the MLP width, not more core work.
+
+## Formal XL run (v5p-32)
+
+RUN `BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdDirectC10PallasV7TruePile`, runtime
+`efc1977` (this branch/worktree), TPU `xd-v5p-32-2910131-maxtext` UE5a, 50k plan, loss windows 500,
+compare_runs DirectC10TruePile (pure JAX, `ca4491a`, stopped 20,185) and Llama2XLPropTruePileMHA. Launched
+2026-10-09 via launch_train_parallel (targeted CPU checks, AOT on llm-jax-v6e-1-0). Step 101: 0.494 step/s
+(+45.3% vs DirectC10 0.340 with BAM health ON; 91.0% of MHA 0.543). Bet: 0.47–0.50 step/s; loss gap to
+DirectC10 within ±.005 early, |mean| < .002 after 2k, no trend (>.01 drift would indicate a numerical bug).

@@ -190,9 +190,9 @@ Lessons:
   the per-token contractions have no shared MXU operand.
 
 Remaining gap to MHA (`8731faa` trace, ms/step): SwiGLU MLP +142 (wider after the parameter refund),
-attention core +35 (XLA C256 QChunk vs Splash, with fewer BAM attention FLOPs: 20×96 vs 16×128),
+attention core +35 (XLA C256 QChunk vs Splash; both models use 20 heads × 96),
 kernels ~139 + glue, scan carry of M +17. Kernels are near their practical floor; 92–93% needs the
-attention core (Splash-class kernel for d=96, ideal ≈ −71 ms) or the MLP width, not more core work.
+attention core (Splash for d=96: measured −80 ms, see below) or the MLP width, not more core work.
 
 ## Formal XL run (v5p-32)
 
@@ -220,3 +220,6 @@ logits/softmax in FP32 (C256 keeps BF16 logits with float32_logits=False): same 
 Best overall: Pallas v7u + fused inputs + Splash (HEAD_DIM_MINOR), `BamDirectC10PallasV7USplashCoreProfile`.
 For pure-JAX research variants: Splash with `bam_splash_seq_minor=True` (needs full-causal or LocalMask windows and
 no fetch). Lesson: an XLA layout constraint is not a cheap relayout under SPMD; a fixed-layout custom call is.
+Splash per call (ms, same shapes 20×96, T4096): forward-in-backward MHA 22.37 vs BAM 22.39 (identical); first forward
+MHA 22.39, BAM 22.39 at one scan position and 19.27 at the other two; dq 22.32/21.88; dkv 30.45/28.6. The BAM total
+(522 vs 546 ms) is context (concurrent traffic hypothesis), not less work; untested.

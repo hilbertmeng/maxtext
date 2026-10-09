@@ -10151,6 +10151,12 @@ class BamDirectC10PallasV7UFusedCoreProfile(BamDirectC10PallasV7UCoreProfile):
     bam_pallas_fused_inputs = True
 
 
+class BamDirectC10PallasV7UFusedCtKCoreProfile(BamDirectC10PallasV7UFusedCoreProfile):
+    """Paired arm: v7u fused inputs + read-reverse cotangents transposed k-major by XLA."""
+    model_name = 'BamDirectC10PallasV7UFusedCtKCoreProfile'
+    bam_pallas_ct_kmajor = True
+
+
 class BamPallasCoreTinyXlaTest(
     BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdDirectC10NoHealthTruePile):
     """CPU equivalence fixture: tiny DirectC10 geometry, FP32, original XLA core."""
@@ -10216,3 +10222,9 @@ class BamPallasCoreTinyPallasV7FusedInputsTest(BamPallasCoreTinyPallasV7Test):
     """CPU equivalence fixture: v7 + all BAM input projections as one concatenated dot."""
     model_name = 'BamPallasCoreTinyPallasV7FusedInputsTest'
     bam_pallas_fused_inputs = True
+
+
+class BamPallasCoreTinyPallasV7CtKTest(BamPallasCoreTinyPallasV7FusedInputsTest):
+    """CPU equivalence fixture: v7 fused inputs + k-major read-reverse cotangents."""
+    model_name = 'BamPallasCoreTinyPallasV7CtKTest'
+    bam_pallas_ct_kmajor = True

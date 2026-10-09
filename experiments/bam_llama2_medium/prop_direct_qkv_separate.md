@@ -19,3 +19,6 @@ Launch: runtime `e6f1ef91bc92b51a53fbd926413ca1ebcc111b17`, FIRST_STEP verified,
 ## Independent initialization control
 
 RUN `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdDirectC8SeparateQKVProjectionIndependentInitTruePile`. Same parameter count/MLP/read/write settings as the copied-init arm. Q/K matrices are independently orthogonal, using per-layer, per-arm folded RNG keys without advancing the existing initialization stream; all other parameters retain identical initial values. Direct baselines: copied-init and DirectC8. Bet: terminal loss −.001 vs copied-init, −.004 vs DirectC8; speed unchanged vs copied-init. Owned trainer `xd-v5p-16-1010-maxtext`, UE5a preferred.
+
+Independent-init launched: runtime `d29afc1d5e7b3da4ee29753c289a125a95892222`, UE5a, AOT loaded/FIRST_STEP verified, zone-local TruePile path checked by launcher. Median steps20–99 .503 step/s (−.98% vs DirectC8, +.80% vs copied-init). All three focused CPU gates passed.
+Copied-init first report: gaps at200/400/600/800/1000 = +.033544,+.006720,−.000869,−.004675,−.001376. Early transient disadvantage crossed zero at600; gain remains small and not monotonic. Cursor1000. Health at1000: Q/K mean gates .184/.130 vs parent's .195/.142; all recorded scalars finite.

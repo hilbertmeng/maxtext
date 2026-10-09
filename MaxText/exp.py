@@ -10114,6 +10114,8 @@ class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdDirectC
 class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdDirectC8SeparateQKVProjectionIndependentInitTruePile(BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdDirectC8SeparateQKVProjectionTruePile):
     """Independent orthogonal Q/K compression; original VO and other initialization retained."""
     # Ledger only: codex/mediumprop-qk75-sparse, /data0/xd/mediumprop-qk75-sparse.
+    # code_commit: d29afc1
+    # UE5a v5p-16 .503 step/s (-1.0% vs DirectC8 .508; +.8% vs copied-init .499); generic+concat health ON.
     # Bet vs copied-init: terminal loss -.001; vs DirectC8 -.004; speed unchanged vs copied-init.
     model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdDirectC8SeparateQKVProjectionIndependentInitTruePile'
     bam_local_qkv_c_projection_init = 'orthogonal'

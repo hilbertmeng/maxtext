@@ -3933,6 +3933,14 @@ class BamAttention(Attention):
               jnp.mean((weights < 0).astype(jnp.float32)))))
       fetch_state = local_compressed_M if self._fetched_matrix_v else self._compress_m(Mh)
 
+    qkv_layout = getattr(self.config, 'bam_qkv_layout', None)
+    if qkv_layout:
+      # Pin the physical layout of the attention operands so XLA cannot propagate the static-read
+      # einsums' layouts into the attention dots/slices (+~350 ms/step on v5p-16 otherwise).
+      from jax.experimental.layout import Layout, with_layout_constraint
+      order = {'bnkt': (0, 2, 3, 1), 'btnk': (0, 1, 2, 3)}[qkv_layout]
+      query, key, value = (with_layout_constraint(x, Layout(order)) for x in (query, key, value))
+
     _, t, _, _ = query.shape
 
     local_window = (

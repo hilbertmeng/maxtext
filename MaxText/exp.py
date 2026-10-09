@@ -10109,6 +10109,18 @@ class BamDirectC10NoHealthPallasCoreProfile(
     steps = 60
 
 
+class BamDirectC10NoHealthLayoutBNKTProfile(BamDirectC10NoHealthPallasCoreProfile):
+    """Pure-JAX DirectC10 arm with q/k/v pinned to physical B,N,K,T before attention."""
+    model_name = 'BamDirectC10NoHealthLayoutBNKTProfile'
+    bam_qkv_layout = 'bnkt'
+
+
+class BamDirectC10NoHealthLayoutBTNKProfile(BamDirectC10NoHealthPallasCoreProfile):
+    """Pure-JAX DirectC10 arm with q/k/v pinned to row-major B,T,N,K before attention."""
+    model_name = 'BamDirectC10NoHealthLayoutBTNKProfile'
+    bam_qkv_layout = 'btnk'
+
+
 class BamDirectC10PallasCoreProfile(
     TrainStepProfile, BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdDirectC10PallasTruePile):
     """Paired fused-core DirectC10 timing arm; per-kernel scoped VMEM raised for v5p."""
@@ -10200,6 +10212,12 @@ class BamPallasCoreTinyXlaTest(
     per_device_batch_size = 1.0
     dtype = 'float32'
     record_training_health_metrics = False
+
+
+class BamPallasCoreTinyXlaLayoutTest(BamPallasCoreTinyXlaTest):
+    """CPU fixture: original XLA core with q/k/v layout-pinned to B,N,K,T before attention."""
+    model_name = 'BamPallasCoreTinyXlaLayoutTest'
+    bam_qkv_layout = 'bnkt'
 
 
 class BamPallasCoreTinyPallasTest(BamPallasCoreTinyXlaTest):

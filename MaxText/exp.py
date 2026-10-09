@@ -9612,7 +9612,8 @@ class BamXLPropK72SharedRank4BasicHealthProfile(
 
 class BamMediumPropK75EmbedVOnlyQK57(BamLlama2MediumPropK57SharedRank4MLPPerLayer):
     """All L values from M; embedding write seeds K75, QK retains57."""
-    # Ledger only: codex/mediumprop-k75-embed; /data0/xd/mediumprop-k75-embed.
+    # Implementation merged into refactor-bam; see prop_bam_main_merge.md.
+    # Source implementation: codex/mediumprop-k75-embed; /data0/xd/mediumprop-k75-embed.
     # code_commit: 1db092a; UE5a v5p-16 .5278 steps/s (20-99), -6.36% vs K57 .5637.
     # Basic+concat health ON; extra seed/static-VO metrics versus K57; speed not strictly matched.
     # Completed 13,500: early advantage shrank, then slowly narrowed; last5 mean -.02384 vs K57,
@@ -9633,12 +9634,13 @@ class BamMediumPropK75EmbedVOnlyQK57(BamLlama2MediumPropK57SharedRank4MLPPerLaye
 
 class BamMediumPropK75EmbedVOnlyQK57TruePile(BamMediumPropK75EmbedVOnlyQK57):
     """Original K75/QK57 BAM architecture on true 4097-token Pile records."""
-    # Ledger only: codex/mediumprop-k75-qk57-truepile, /data0/xd/mediumprop-k75-qk57-truepile.
+    # Implementation merged into refactor-bam; see prop_bam_main_merge.md.
+    # Source implementation: codex/mediumprop-k75-qk57-truepile, /data0/xd/mediumprop-k75-qk57-truepile.
     # code_commit: ee0ab9b; same 432106784 parameters as padded-data parent.
-    # UE5a v5p-16 started: step4 .525 step/s; steady speed pending.
-    # Before launch, matched padded-data QK57 lost to dynamic RMT Direct32 by
-    # +.03764 final-five loss. Revised before first step for longer active context:
-    # TruePile bet vs MHA -.150, vs NoO +.015, vs LLF +.025.
+    # UE5a v5p-16 ~.525 step/s; completed 13,500, no preemptions.
+    # vs TruePile Prop MHA: gap narrowed to final5 -.119025; vs NoO +.023723.
+    # NoO's MHA advantage is 1.199x QK57's at the matched endpoint.
+    # vs paused LLF +.023542 over its last five common points (9200-10000).
     model_name = 'BamMediumPropK75EmbedVOnlyQK57TruePile'
     DATASET_VARIANT = 'truepile4096'
     dataset_path = Llama2MediumC256T4096TruePile.dataset_path
@@ -9708,7 +9710,8 @@ class BamMediumPropK75EmbedVOnlyQK57MLP3200(BamMediumPropK75EmbedVOnlyQK57):
 
 class BamMediumPropK75EmbedVOnlyQK57AllLocal(BamMediumPropK75EmbedVOnlyQK57):
     """Replace all six F layers by L; refund their parameter savings to the MLP."""
-    # Ledger only: codex/mediumprop-k75-embed; /data0/xd/mediumprop-k75-embed.
+    # Implementation merged into refactor-bam; see prop_bam_main_merge.md.
+    # Source implementation: codex/mediumprop-k75-embed; /data0/xd/mediumprop-k75-embed.
     # All18 L, MLP3901; no standard W_V or fetchedO; near-parent parameter budget.
     # code_commit: 1c628da; UE5a .5365 step/s (20-99), +1.64% vs QK57; BAM health866 vs776.
     # Completed 13,500. Vs QK57 +.020@5000 rose slowly to last5 +.024564;
@@ -11453,3 +11456,248 @@ class RMTRankHVPUV6Profile(RMTRankHPairedK1V6Profile):
     model_name = 'RMTRankHVPUV6Profile'
     rmt_rankh_write_mode = 'row1_native75'
     rmt_projected_write_reverse_tile = 128
+
+
+class BamMediumPropK75EmbedVOnlyQK57AllLocalTruePile(BamMediumPropK75EmbedVOnlyQK57AllLocal):
+    """All-local matrix-value BAM, repaired TruePile, ordinary layer scan."""
+    # Implementation merged into refactor-bam; see prop_bam_main_merge.md.
+    # Runtime: codex/mediumprop-k75-embed; /data0/xd/mediumprop-k75-embed.
+    # code_commit: 0649e72; UE5a v5p-16 .5271 step/s (20-99).
+    # +37.7% vs RMT NoO .3828; +0.4% vs LLF QK57 .525; extra health differs.
+    # 432091328 params, MLP3901, 18-layer scan; full13500 comparison control.
+    # Completed13500; vs NoO deficit held ~+.050 after4000 (last5 +.051476).
+    # vs LLF QK57: crossed above by1000, held ~+.027 late (last5 +.027753).
+    # vs MHA last5 -.091272; vs Mudd early lead shrank to -.004361; gain ratio1.050x.
+    model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalTruePile'
+    DATASET_VARIANT = 'truepile4096'
+    bam_pair_scan = False
+    scan_layers = True
+    base_mlp_dim = 3901
+    mlp_dim_by_block = None
+    compare_runs = ['RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoO',
+                    'BamMediumPropK75EmbedVOnlyQK57TruePile',
+                    'BamMHAMediumPropC256TruePile', 'MuddLlama2MediumPropTruePile']
+    jax_cache_dir = ''
+
+
+class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteEveryThirdTruePile(BamMediumPropK75EmbedVOnlyQK57AllLocalTruePile):
+    """Direct MLP content writes every third layer, sharing cached attention addresses."""
+    # Implementation merged into refactor-bam; see prop_bam_main_merge.md.
+    # Source implementation: codex/mediumprop-k75-embed; /data0/xd/mediumprop-k75-embed.
+    # code_commit: 6248e46; UE5a v5p-16 .527 step/s (flat vs AllLocal .5271); basic+concat+write health ON.
+    # Same AllLocal reads; MLP output1200->16x75, independent write gate, one fused outer.
+    # Budget: [3901,3896,3901], 432098624 params (-22576 vs MHA); layer2/5/.../17 write.
+    # Completed13500: AllLocal gain held~-.030 from1000(final5-.030036); originalLLF~-.0023 from2800(final5-.002283).
+    # SeedZero deficit shrank then plateaued~+.016 after8000(final5+.016752).
+    model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteEveryThirdTruePile'
+    bam_mlp_write_every = 3
+    bam_mlp_write_offset = 2
+    bam_mlp_write_static_address = False
+    bam_pair_scan = True
+    bam_local_fetch_block_size = 3
+    bam_layer_modes = ['local_qk+local_v+local_o'] * 18
+    mlp_dim_by_block = [3901, 3896, 3901]
+    checkpoint_period = 200
+    keep_period = 1000
+    max_to_keep = 2
+    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalTruePile',
+                    'BamMediumPropK75EmbedVOnlyQK57TruePile',
+                    'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedEmbedWriteNormSeedKeyZeroInit']
+    jax_cache_dir = ''
+
+
+class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile(
+    BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteEveryThirdTruePile):
+    """Sparse MLP writes with their own token-conditioned GELU-LoRA addresses."""
+    # Implementation merged into refactor-bam; see prop_bam_main_merge.md.
+    # Source implementation: codex/mediumprop-k75-embed; /data0/xd/mediumprop-k75-embed.
+    # code_commit: 23c692b; UE5a v5p-16 .520step/s(20-99), -1.2% vs shared dynamic .5265; write+address health ON.
+    # MLP normalized input->R256 GELU->16x32 +pre-RMS bias; separate from attention P_loc.
+    # +2632704=1.82827W_Q; repay122 MLP units at six write layers, others unchanged.
+    # [3901,3774,3901]; 432096128 params (-25072 vs MHA); original output head.
+    # Completed 13500; final5 shared dynamic -.005687/static -.004299/originalLLF -.007970/RMTSeedZero +.011065.
+    # vs matched Mudd final5-.040084; MHA-advantage ratio1.461x.
+    # Shared lead narrows from~-.01 at3k to~-.006 after8k; static lead holds~-.004 to-.005, LLF~-.008 after8k.
+    model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile'
+    bam_mlp_write_dynamic_address = True
+    bam_mlp_write_address_rank = 256
+    bam_final_local_layer_count = 0  # partial final BAM block
+    mlp_dim_by_block = [3901, 3774, 3901]
+    compare_runs = [
+        'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteEveryThirdTruePile',
+        'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteStaticEveryThirdTruePile',
+        'BamMediumPropK75EmbedVOnlyQK57TruePile',
+        'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedEmbedWriteNormSeedKeyZeroInit']
+
+
+class BamXLPropK96EmbedVOnlyQK72AllLocalTruePile(
+    Llama2XLProp, BamMediumPropK75EmbedVOnlyQK57AllLocalTruePile):
+    """Proportional all-local matrix-value BAM on repaired XLProp TruePile."""
+    # Implementation merged into refactor-bam; see prop_bam_main_merge.md.
+    # Source implementation: codex/mediumprop-k75-embed, /data0/xd/mediumprop-k75-embed; pure JAX.
+    # code_commit: 6446a1f; UE5a v5p-32 ~.355 step/s, +15.6% vs B .307; extra health differs.
+    # Ordinary layer scan, TruePile4096; total50000, checkpoint250.
+    # Through37000: last5 vs MHA -.064836 / Mudd +.006841; Mudd deficit holds~+.007, gain0.893x at37000.
+    # vs B common17500 -.000279 (B stopped).
+    # Paused37463 by user; checkpoint committed; conclusions above remain provisional.
+
+    model_name = 'BamXLPropK96EmbedVOnlyQK72AllLocalTruePile'
+    DATASET_VARIANT = 'truepile4096'
+    bam_k = 96
+    bam_v = 40
+    bam_abs_v_compression_dim = 10
+    bam_write_v_bottleneck_dim = 400
+    emb_bam_num_head = 20
+    emb_bam_v_bottleneck_dim = 400
+    bam_standard_qk_dim = 24
+    bam_local_qk_col_output_dim = 72
+    bam_partial_rope_nope_dim = 72
+    bam_layer_modes = ['local_qk+local_v+local_o'] * 28
+    bam_pair_scan = False
+    bam_extra_final_local_layer = False
+    bam_write_outer_implementation = 'dot'
+    bam_read_implementation = 'dot_btn'
+    base_mlp_dim = 6294
+    mlp_dim_by_block = None
+    wd_mults = Llama2XLProp.wd_mults
+    steps = 50000
+    checkpoint_period = 250
+    scan_layers = True
+    force_final_checkpoint = True
+    compare_runs = ['RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOMPreNorm',
+                    'Llama2XLPropTruePileMHA', 'MuddLlama2XLProp']
+    jax_cache_dir = ''
+
+
+class BamXLPropK96EmbedVOnlyQK72LLFTruePile(BamXLPropK96EmbedVOnlyQK72AllLocalTruePile):
+    """Nine LLF blocks plus a terminal L, same proportional matrix-value recipe."""
+    # Implementation merged into refactor-bam; see prop_bam_main_merge.md.
+    # Source implementation: codex/mediumprop-k75-embed, /data0/xd/mediumprop-k75-embed; pure JAX.
+    # code_commit: 22c2c5c
+    # !? UE5a ~.359 step/s (+1.1% vs AllLocal .355), opposite bet -1.4%; speed anomaly unresolved; generic+concat health ON.
+    # Paused33874, provisional: AllLocal gain holds(last5-.027514); Mudd early gain shrank, then ~-.021 since30k(last5-.020741), MHA-.093306.
+    # Mudd-relative gain~1.28-1.29x since30k (last5 1.286x); projected terminal Mudd gap~-.020.
+    # Per-layer nearest MHA budget: L6294/F5654, terminal L6294; total1,432,418,340 (+19,620 vs MHA).
+    model_name = 'BamXLPropK96EmbedVOnlyQK72LLFTruePile'
+    bam_layer_modes = ['local_qk+local_v+local_o', 'local_qk+local_v+local_o', 'local_qk+full'] * 9 + ['local_qk+local_v+local_o']
+    bam_pair_scan = True
+    bam_local_fetch_block_size = 3
+    bam_extra_final_local_layer = True
+    bam_final_local_mlp_dim = 6294
+    mlp_dim_by_block = [6294, 6294, 5654]
+    compare_runs = ['BamXLPropK96EmbedVOnlyQK72AllLocalTruePile', 'Llama2XLPropTruePileMHA', 'MuddLlama2XLProp']
+    jax_cache_dir = ''
+
+
+class BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdTruePile(BamXLPropK96EmbedVOnlyQK72AllLocalTruePile):
+    """XL transfer of sparse MLP-private dynamic addresses, at zero-based layers1/4/.../25."""
+    # Implementation merged into refactor-bam; see prop_bam_main_merge.md.
+    # Implementation: codex/mediumprop-k75-embed, /data0/xd/mediumprop-k75-embed; pure JAX.
+    # code_commit: 860370a; UE5a startup .347step/s (-2.3% vs AllLocal .355, -3.4% vs LLF .359); extra MLP-write/address health.
+    # Stopped32054; after~8k, gains held~-.006 vs LLF and~-.033 vs AllLocal.
+    # Last5 through32000: LLF-.005721, AllLocal-.032777; /Mudd1.366 (1.362@32000), /LLF1.058, /AllLocal1.497.
+    # Nine R384 addresses + gates cost9753300=2.646W_Q; refund188 MLP units at those layers.
+    # [6294,6106,6294] x9 + terminal6294; 1432440120 params (MHA+41400).
+    model_name = 'BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdTruePile'
+    bam_mlp_write_every = 3
+    bam_mlp_write_offset = 2
+    bam_mlp_write_static_address = False
+    bam_mlp_write_dynamic_address = True
+    bam_mlp_write_address_rank = 384
+    bam_pair_scan = True
+    bam_local_fetch_block_size = 3
+    bam_extra_final_local_layer = True
+    bam_final_local_mlp_dim = 6294
+    mlp_dim_by_block = [6294, 6106, 6294]
+    checkpoint_period = 250
+    keep_period = 4000
+    max_to_keep = 2
+    compare_runs = ['BamXLPropK96EmbedVOnlyQK72AllLocalTruePile', 'BamXLPropK96EmbedVOnlyQK72LLFTruePile']
+    jax_cache_dir = ''
+
+
+class BamMediumPropK75V48C12EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile(
+    BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile):
+    """Expand the address space to48 with unchanged4:1 compression and proportional write-address ranks."""
+    # Implementation merged into refactor-bam; see prop_bam_main_merge.md.
+    # Source implementation: codex/mediumprop-k75-embed; /data0/xd/mediumprop-k75-embed.
+    # code_commit: c1a68fe; UC1a v5p-16 ~.503 step/s, -3.3% vs parent .520; same basic+concat/write health.
+    # Completed13500; vs V32 parent final5(12600-13400) -.007290 [-.008262,-.006433].
+    # Advantage settled near -.007 after8000; no clear late collapse.
+    model_name = 'BamMediumPropK75V48C12EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile'
+    bam_v = 48
+    bam_abs_v_compression_dim = 12
+    bam_write_v_bottleneck_dim = 384
+    emb_bam_v_bottleneck_dim = 384
+    bam_mlp_write_address_rank = 384
+    mlp_dim_by_block = [3765, 3550, 3765]  # exact per-layer refund; 432115072 params, -6128 vs MHA
+    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile']
+    jax_cache_dir = ''
+
+
+class BamMediumPropK75EmbedVOnlyQK75AllLocalMLPWriteIndependentEveryThirdTruePile(
+    BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile):
+    """Retain all75 matrix QK coordinates and append18 vector RoPE coordinates."""
+    # Implementation merged into refactor-bam; see prop_bam_main_merge.md.
+    # Source implementation: codex/mediumprop-qk75-sparse, /data0/xd/mediumprop-qk75-sparse.
+    # code_commit: 5371cbd; UE5a v5p-16 .507step/s(20-99), -2.5% vs parent .520; generic+concat/write health ON.
+    # Completed 13500; final5 vs QK57 -.004453 (12600-13400); ~-.004 to-.005 after4k, retained through finish.
+    # Same parameter tree and MLP widths as QK57; V/output remain75, Q/K become93.
+    # Preserve parent's 1/sqrt75 logit scale, initialization, health and write schedule.
+    model_name = 'BamMediumPropK75EmbedVOnlyQK75AllLocalMLPWriteIndependentEveryThirdTruePile'
+    bam_local_qk_col_output_dim = 75
+    bam_partial_rope_nope_dim = 75
+    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile']
+    jax_cache_dir = ''
+
+
+class BamXLPropK96EmbedVOnlyQK96AllLocalMLPWriteIndependentEveryThirdTruePile(
+    BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdTruePile):
+    """Full96 matrix NoPE QK concatenated with24 standard RoPE coordinates."""
+    # Implementation merged into refactor-bam; see prop_bam_main_merge.md.
+    # Source implementation: codex/xlprop-qk96-sparse, /data0/xd/xlprop-qk96-sparse.
+    # code_commit: 3be7134; UE5a v5p-32 0.351step/s(20-99), +1.2% vs parent .347; extra24 score health ON.
+    # !? Slightly faster despite QK FLOPs +25%; mechanism unverified.
+    # Stopped 21028; vs QK72 last5(19000-21000) -.00420936 [-.004566,-.003623].
+    # Early gain shrank, then held near-.004 from6000 onward; K/V cache +12.5%.
+    # Equal parameter tree/MLP, V96; Q/K120. Preserve the parent's sqrt96 logit divisor.
+    model_name = 'BamXLPropK96EmbedVOnlyQK96AllLocalMLPWriteIndependentEveryThirdTruePile'
+    bam_local_qk_col_output_dim = 96
+    bam_partial_rope_nope_dim = 96
+    compare_runs = ['BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdTruePile']
+    jax_cache_dir = ''
+
+
+class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdDirectC8TruePile(BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile):
+    """Source implementation: Prop compressed LocalQK direct-read comparison."""
+    # Implementation merged into refactor-bam; see prop_bam_main_merge.md.
+    # Runtime: codex/mediumprop-qk75-sparse, /data0/xd/mediumprop-qk75-sparse; code_commit: 3f72aac.
+    # UE5a v5p-16 0.508step/s (20-99), -2.31% vs parent0.520; inherited health.
+    # Completed 13500; vs QK57 last5(12600-13400) -.00101448 [-.001784,-.000413].
+    # Early +.007~.009 deficit vanished around2600-4400; late gain holds near-.001.
+    model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdDirectC8TruePile'
+    bam_local_qk_direct_c8 = True
+    bam_local_qk_col_direct_compressed = False
+    bam_local_qk_share_basis = False
+    bam_local_qk_separate_c8_projection = False
+    mlp_dim_by_block = [3901, 3774, 3901]
+    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile']
+    jax_cache_dir = ''
+
+
+class BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdDirectC10TruePile(BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdTruePile):
+    """Source implementation: Prop compressed LocalQK direct-read comparison."""
+    # Implementation merged into refactor-bam; see prop_bam_main_merge.md.
+    # Runtime: codex/xlprop-qk96-sparse, /data0/xd/xlprop-qk96-sparse; code_commit: ca4491a.
+    # UE5a v5p-32 0.340step/s (20-99), -2.02% vs parent0.347; inherited health.
+    # Stopped20185; vs rank4 last5(18000-20000) -.000441 [-.001029,+.000059].
+    # Early deficit reversed; weak lead slowly widened to ~.0004, with 2.02% speed cost.
+    model_name = 'BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdDirectC10TruePile'
+    bam_local_qk_direct_c8 = True
+    bam_local_qk_col_direct_compressed = False
+    bam_local_qk_share_basis = False
+    bam_local_qk_separate_c8_projection = False
+    mlp_dim_by_block = [6267, 6079, 6267]
+    bam_final_local_mlp_dim = 6267
+    compare_runs = ['BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdTruePile']
+    jax_cache_dir = ''

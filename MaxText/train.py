@@ -386,6 +386,10 @@ def record_rmt_dynamic_health_metrics(output_metrics, intermediate_outputs, conf
 def record_bam_concat_health_metrics(output_metrics, intermediate_outputs, config):
   """Decode compact read metrics from LLF block scan and an optional final L."""
   decoder = intermediate_outputs['intermediates']['decoder']
+  if getattr(config, 'bam_embedding_write', False):
+    gate = decoder['embedding_bam_write']['seed_gate'][0]
+    for i, name in enumerate(('mean', 'std')):
+      output_metrics['scalar'][f'bam/embedding_write/gate_{name}'] = gate[i]
   size = config.bam_local_fetch_block_size
   def emit(attention, layer, index=None):
     for key, values in attention.items():
@@ -394,12 +398,22 @@ def record_bam_concat_health_metrics(output_metrics, intermediate_outputs, confi
       value = values[0] if index is None else values[0][index]
       if key == 'concat_vo_gate_pair':
         names = ('mean_abs_diff', 'rms_diff', 'correlation')
+      elif key == 'concat_mlp_address_alignment':
+        names = ('mean_cosine', 'mean_abs_cosine', 'mean_square_cosine')
+      elif key == 'concat_local_v_content':
+        names = ('rms',)
       elif key.endswith('_gate'):
         names = ('mean', 'std', 'frac_lt_005', 'frac_gt_050', 'frac_gt_095')
       else:
         names = ('bam_rms', 'standard_rms', 'bam_over_standard')
       for i, name in enumerate(names):
         output_metrics['scalar'][f'bam/concat/{key[7:]}/layer_{layer:03d}/{name}'] = value[i]
+  if not getattr(config, 'bam_pair_scan', False):
+    layers = decoder['layers']
+    attention = layers.get('sub_0', layers)['block']['self_attention']
+    for layer in range(config.num_decoder_layers):
+      emit(attention, layer, layer)
+    return
   blocks = config.num_decoder_layers // size
   for offset in range(size):
     name = f'local_{offset}' if offset < size - 1 else f'fetch_{offset}'

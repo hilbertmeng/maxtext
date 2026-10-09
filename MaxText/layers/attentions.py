@@ -1754,7 +1754,7 @@ def _attention_op(
   return y_std, alpha
 
 
-def _bam_splash_attention(query, key, value, decoder_segment_ids, cfg, mesh):
+def _bam_splash_attention(query, key, value, decoder_segment_ids, cfg, mesh, window=None):
   """Full causal BAM attention through the Splash kernel (MHA's flash path block sizes).
 
   query/key/value [B,T,N,D] (query pre-scaled); returns [B,T,N,Dv]. Logits/softmax accumulate in
@@ -1763,9 +1763,10 @@ def _bam_splash_attention(query, key, value, decoder_segment_ids, cfg, mesh):
   t = q.shape[2]
   axis_names = nn.logical_to_mesh_axes((BATCH, HEAD, LENGTH, D_KV))
   segment_names = nn.logical_to_mesh_axes((BATCH, "activation_length_no_heads"))
-  segments = splash_attention_kernel.SegmentIds(decoder_segment_ids, decoder_segment_ids)
+  segments = (None if decoder_segment_ids is None
+              else splash_attention_kernel.SegmentIds(decoder_segment_ids, decoder_segment_ids))
 
-  def body(q, k, v, segments):
+  def body(q, k, v, segments=None):
     fused = cfg.sa_use_fused_bwd_kernel
     block_sizes = splash_attention_kernel.BlockSizes(
         block_q=min(cfg.sa_block_q, t), block_kv=min(cfg.sa_block_kv, t),
@@ -1778,15 +1779,21 @@ def _bam_splash_attention(query, key, value, decoder_segment_ids, cfg, mesh):
         q_layout=splash_attention_kernel.QKVLayout[cfg.sa_q_layout],
         k_layout=splash_attention_kernel.QKVLayout[cfg.sa_k_layout],
         v_layout=splash_attention_kernel.QKVLayout[cfg.sa_v_layout])
-    mask = splash_attention_mask.MultiHeadMask(
-        masks=(splash_attention_mask.CausalMask(shape=(t, t)),) * q.shape[1])
+    mask = splash_attention_mask.CausalMask(shape=(t, t))
+    if window is not None and window < t:     # C256: source > target - window
+      mask &= splash_attention_mask.LocalMask(shape=(t, t), window_size=(window - 1, 0), offset=0)
+    mask = splash_attention_mask.MultiHeadMask(masks=(mask,) * q.shape[1])
     kernel = splash_attention_kernel.make_splash_mha(
         mask=mask, head_shards=1, q_seq_shards=1, block_sizes=block_sizes,
         attn_logits_soft_cap=cfg.attn_logits_soft_cap)
     return jax.vmap(kernel)(q, k, v, segment_ids=segments)
 
-  out = shard_map(body, mesh=mesh, in_specs=(axis_names, axis_names, axis_names, segment_names),
-                  out_specs=axis_names, check_rep=False)(q, k, v, segments)
+  if segments is None:
+    out = shard_map(body, mesh=mesh, in_specs=(axis_names,) * 3, out_specs=axis_names,
+                    check_rep=False)(q, k, v)
+  else:
+    out = shard_map(body, mesh=mesh, in_specs=(axis_names, axis_names, axis_names, segment_names),
+                    out_specs=axis_names, check_rep=False)(q, k, v, segments)
   return jnp.transpose(out, (0, 2, 1, 3))
 
 
@@ -3760,8 +3767,8 @@ class BamAttention(Attention):
     t = query.shape[1]
     local_window = t if (is_global or self.sliding_window_size is None) else min(t, int(self.sliding_window_size))
     if getattr(cfg, 'bam_splash_attention', False):
-      assert local_window == t and decoder_segment_ids is not None
-      y_std = _bam_splash_attention(query, key, value, decoder_segment_ids, cfg, self.mesh)
+      y_std = _bam_splash_attention(query, key, value, decoder_segment_ids, cfg, self.mesh,
+                                    window=local_window)
     elif self._query_chunk_size is not None:
       y_std, _ = self._query_chunk_op(query, key, value, decoder_segment_ids, local_window)
     else:
@@ -3987,10 +3994,9 @@ class BamAttention(Attention):
         else min(t, int(self.sliding_window_size)))
     if is_global:
       local_window = t
-    if (getattr(self.config, 'bam_splash_attention', False) and fetch_state is None
-        and local_window == t and decoder_segment_ids is not None):
+    if getattr(self.config, 'bam_splash_attention', False) and fetch_state is None:
       y_std, Mbar = _bam_splash_attention(query, key, value, decoder_segment_ids, self.config,
-                                          self.mesh), None
+                                          self.mesh, window=local_window), None
     elif self._query_chunk_size is not None:
       y_std, Mbar = self._query_chunk_op(
           query, key, value, decoder_segment_ids, local_window,

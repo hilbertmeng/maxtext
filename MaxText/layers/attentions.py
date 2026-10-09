@@ -2616,6 +2616,8 @@ class BamAttention(Attention):
     self._direct_qk_c8 = bool(getattr(cfg, 'bam_local_qk_direct_c8', False))
     self._separate_qkv_compression = bool(getattr(
         cfg, 'bam_local_qkv_separate_c_projection', False))
+    self._separate_c_init = getattr(cfg, 'bam_local_qkv_c_projection_init', None) or 'copy'
+    assert self._separate_c_init in ('copy', 'orthogonal')
     assert not self._separate_qkv_compression or self._direct_qk_c8, (
         'separate Q/K/VO compression requires direct compressed LocalQK reads')
     if self._direct_qk_c8:
@@ -3039,15 +3041,23 @@ class BamAttention(Attention):
 
     if self._separate_qkv_compression:
       # Append parameters without changing the parent's initialization stream.
-      # Clones preserve initial output; Q, K and VO then learn independently.
-      def clone_projection():
+      # Copy preserves output; orthogonal tests independently initialized spaces.
+      def projection_init(name):
+        if self._separate_c_init == 'copy':
+          value = jnp.asarray(self.abs_v_cache_projection, self.weight_dtype)
+        else:
+          # Fork the lifted layer RNG without advancing its counter, keeping all
+          # old parameters identical across the two initialization controls.
+          key = jax.random.fold_in(self.scope.rngs['params'].as_jax_rng(),
+                                   0x514B0001 if name == 'q' else 0x514B0002)
+          value = orth_init(key, (self.bam_v, self._abs_v_dim), self.weight_dtype)
         return nn.LogicallyPartitioned(
-            jnp.asarray(self.abs_v_cache_projection, self.weight_dtype),
-            ('v_factor', 'kv'))
+            value, ('v_factor', 'kv'))
       for name in ('q', 'k'):
         # No new RNG draw: even an ignored self.param initializer key advances
         # the lifted scan's shared RNG stream and changes subsequent layers.
-        projection = self.variable('params', f'local_{name}_c_projection', clone_projection)
+        projection = self.variable('params', f'local_{name}_c_projection',
+                                   lambda name=name: projection_init(name))
         setattr(self, f'local_{name}_c_projection', nn.unbox(projection.value))
 
   def _local_qk_post_read_v_projections(self):

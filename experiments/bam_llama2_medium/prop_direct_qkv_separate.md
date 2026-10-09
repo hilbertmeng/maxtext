@@ -15,3 +15,7 @@ Bet: terminal loss −.003 vs DirectC8; speed −1% to −3% vs parent's UE5a .5
 Focused CPU gate: full parameter count, old parameters and initial output bitwise equality, finite consumed gradients for both new projections, gradient sum conservation at original shared projection; small scanned model.
 
 Launch: runtime `e6f1ef91bc92b51a53fbd926413ca1ebcc111b17`, FIRST_STEP verified, AOT loaded, UE5a data path verified. Stable speed .499 step/s (median observed steps26–99), −1.8% vs parent .508. CPU gates passed, initialization RNG draws avoided using a cloned params variable. Local preparation logs: `/home/xd/.local/state/maxtext-parallel-launch/BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdDirectC8SeparateQKVProjectionTruePile-20261009T134021Z`.
+
+## Independent initialization control
+
+RUN `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdDirectC8SeparateQKVProjectionIndependentInitTruePile`. Same parameter count/MLP/read/write settings as the copied-init arm. Q/K matrices are independently orthogonal, using per-layer, per-arm folded RNG keys without advancing the existing initialization stream; all other parameters retain identical initial values. Direct baselines: copied-init and DirectC8. Bet: terminal loss −.001 vs copied-init, −.004 vs DirectC8; speed unchanged vs copied-init. Owned trainer `xd-v5p-16-1010-maxtext`, UE5a preferred.

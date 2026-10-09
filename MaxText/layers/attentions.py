@@ -1759,9 +1759,12 @@ def _bam_splash_attention(query, key, value, decoder_segment_ids, cfg, mesh, win
 
   query/key/value [B,T,N,D] (query pre-scaled); returns [B,T,N,Dv]. Logits/softmax accumulate in
   FP32 inside the kernel (the C256 einsum path keeps BF16 logits when float32_logits=False)."""
+  # SEQ_MINOR: the Splash wrapper swaps q/k/v to [N,D,T] itself, which composes with the fused
+  # read kernel's [B,N,K,T] outputs to a no-op instead of a relayout.
+  seq_minor = bool(getattr(cfg, 'bam_splash_seq_minor', False))
   q, k, v = (jnp.transpose(x, (0, 2, 1, 3)) for x in (query, key, value))
   t = q.shape[2]
-  axis_names = nn.logical_to_mesh_axes((BATCH, HEAD, LENGTH, D_KV))
+  axis_names = out_names = nn.logical_to_mesh_axes((BATCH, HEAD, LENGTH, D_KV))
   segment_names = nn.logical_to_mesh_axes((BATCH, "activation_length_no_heads"))
   segments = (None if decoder_segment_ids is None
               else splash_attention_kernel.SegmentIds(decoder_segment_ids, decoder_segment_ids))
@@ -1776,9 +1779,9 @@ def _bam_splash_attention(query, key, value, decoder_segment_ids, cfg, mesh, win
         block_q_dq=None if fused else min(cfg.sa_block_q_dq, t),
         block_kv_dq=None if fused else min(cfg.sa_block_kv_dq, t),
         use_fused_bwd_kernel=fused,
-        q_layout=splash_attention_kernel.QKVLayout[cfg.sa_q_layout],
-        k_layout=splash_attention_kernel.QKVLayout[cfg.sa_k_layout],
-        v_layout=splash_attention_kernel.QKVLayout[cfg.sa_v_layout])
+        q_layout=splash_attention_kernel.QKVLayout['SEQ_MINOR' if seq_minor else cfg.sa_q_layout],
+        k_layout=splash_attention_kernel.QKVLayout['SEQ_MINOR' if seq_minor else cfg.sa_k_layout],
+        v_layout=splash_attention_kernel.QKVLayout['SEQ_MINOR' if seq_minor else cfg.sa_v_layout])
     mask = splash_attention_mask.CausalMask(shape=(t, t))
     if window is not None and window < t:     # C256: source > target - window
       mask &= splash_attention_mask.LocalMask(shape=(t, t), window_size=(window - 1, 0), offset=0)
@@ -1789,11 +1792,11 @@ def _bam_splash_attention(query, key, value, decoder_segment_ids, cfg, mesh, win
     return jax.vmap(kernel)(q, k, v, segment_ids=segments)
 
   if segments is None:
-    out = shard_map(body, mesh=mesh, in_specs=(axis_names,) * 3, out_specs=axis_names,
+    out = shard_map(body, mesh=mesh, in_specs=(axis_names,) * 3, out_specs=out_names,
                     check_rep=False)(q, k, v)
   else:
     out = shard_map(body, mesh=mesh, in_specs=(axis_names, axis_names, axis_names, segment_names),
-                    out_specs=axis_names, check_rep=False)(q, k, v, segments)
+                    out_specs=out_names, check_rep=False)(q, k, v, segments)
   return jnp.transpose(out, (0, 2, 1, 3))
 
 

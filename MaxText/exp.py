@@ -10196,6 +10196,18 @@ class BamDirectC10PallasV7USplashCoreProfile(BamDirectC10PallasV7UFusedCoreProfi
     bam_splash_attention = True
 
 
+class BamDirectC10PallasV7USplashSeqMinorCoreProfile(BamDirectC10PallasV7USplashCoreProfile):
+    """Paired arm: v7u fused + Splash with SEQ_MINOR q/k/v (bitcast of the read kernel's [B,N,K,T])."""
+    model_name = 'BamDirectC10PallasV7USplashSeqMinorCoreProfile'
+    bam_splash_seq_minor = True
+
+
+class BamDirectC10NoHealthSplashSeqMinorProfile(BamDirectC10NoHealthSplashProfile):
+    """Pure-JAX DirectC10 + Splash with SEQ_MINOR q/k/v."""
+    model_name = 'BamDirectC10NoHealthSplashSeqMinorProfile'
+    bam_splash_seq_minor = True
+
+
 class BamPallasCoreTinyXlaTest(
     BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdDirectC10NoHealthTruePile):
     """CPU equivalence fixture: tiny DirectC10 geometry, FP32, original XLA core."""

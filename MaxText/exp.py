@@ -10135,26 +10135,41 @@ class BamDirectC10PallasTunedCoreProfile(BamDirectC10PallasCoreProfile):
 
 class BamDirectC10PallasV7CoreProfile(BamDirectC10PallasCoreProfile):
     """Paired fused-core arm: v7 k-major end-to-end kernels (M [B,K,V,T]), rolled read reverse."""
+    # v5p-8 single layer B8: read F+B 2.611 ms (rolled) vs 1.672 (v7u); not used.
     model_name = 'BamDirectC10PallasV7CoreProfile'
     bam_pallas_body = 'v7'
 
 
 class BamDirectC10PallasV7UCoreProfile(BamDirectC10PallasCoreProfile):
     """Paired fused-core arm: v7 with Python-unrolled read reverse passes."""
+    # v5p-8 paired (MHA 0.614): 3faeae9 k-major outputs 0.446; 896f2ad head-major I/O 0.549 (tuned 0.541).
     model_name = 'BamDirectC10PallasV7UCoreProfile'
     bam_pallas_body = 'v7u'
 
 
 class BamDirectC10PallasV7UFusedCoreProfile(BamDirectC10PallasV7UCoreProfile):
     """Paired arm: v7u + BAM input projections (Q/K RoPE, C10 keys, W_R, gates, P_loc_down, W_gw) as one dot."""
+    # v5p-8 paired (MHA 0.614): 8731faa 0.555 (v7u 0.548); 7149ff2 (+query scale fold) 0.556 = 90.6%.
     model_name = 'BamDirectC10PallasV7UFusedCoreProfile'
     bam_pallas_fused_inputs = True
 
 
 class BamDirectC10PallasV7UFusedCtKCoreProfile(BamDirectC10PallasV7UFusedCoreProfile):
     """Paired arm: v7u fused inputs + read-reverse cotangents transposed k-major by XLA."""
+    # v5p-8 93aa1e6: 0.533 vs 0.556 without (XLA layout propagates into attention backward); off.
     model_name = 'BamDirectC10PallasV7UFusedCtKCoreProfile'
     bam_pallas_ct_kmajor = True
+
+
+class BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdDirectC10PallasV7TruePile(
+    BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdDirectC10PallasTruePile):
+    """Same equations/parameters; best fused core so far: v7u kernels (M k-major [B,K,V,T]),
+    fused input projections, folded query scale, M passthrough. v5p-8 paired: 0.556 vs MHA 0.614."""
+    # Implementation: claude/bam-pallas-directc10 @ 7149ff2, layers/bam_pallas_v7.py.
+    model_name = 'BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdDirectC10PallasV7TruePile'
+    bam_pallas_body = 'v7u'
+    bam_pallas_fused_inputs = True
+    bam_pallas_vmem_mib = 48
 
 
 class BamPallasCoreTinyXlaTest(

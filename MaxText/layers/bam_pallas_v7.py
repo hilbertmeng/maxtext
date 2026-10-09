@@ -378,7 +378,7 @@ def _write_backward_kernel(eps, n_groups, ab, cb):
     for k in range(kdim):
       gf[k] = g_ref[k].astype(F32)
     # dA[i] = sum_k C[i, k] G_k.
-    for i0 in range(0, ntot, ab):
+    for i0 in (range(0, ntot, ab) if 'w_da' not in _ABL else ()):
       hb = range(i0, min(i0 + ab, ntot))
       acc = {}
       for k in range(kdim):
@@ -391,9 +391,9 @@ def _write_backward_kernel(eps, n_groups, ab, cb):
       # dC[i] = sum_v A[i, v] G[v] on v-major [K,T] slabs (staged by strided FP32 row loads):
       # broadcast-accumulate like dA instead of one sublane reduction per (i, k).
       g2 = refs[6 * n_groups + 5]
-      for v in range(vdim):
+      for v in (range(vdim) if 'w_g2' not in _ABL else ()):
         g2[v] = gf[:, v, :]
-      for i0 in range(0, ntot, cb):
+      for i0 in (range(0, ntot, cb) if 'w_dc' not in _ABL else ()):
         hb = range(i0, min(i0 + cb, ntot))
         acc = {}
         for v in range(vdim):

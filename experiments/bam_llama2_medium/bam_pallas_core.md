@@ -152,3 +152,44 @@ Contractions over K (dkey, dA) cannot be token-batched this way.
 
 FLEX_START retained hosts `llm-jax-v6e-1-0/1-1` were suspended by the service on 2026-10-08
 (created 2026-10-01; FLEX_START duration). Diagnostics now use spot `xd-v6e-1-bamdiag-*`.
+
+## v7: k-major end-to-end kernels + glue fusions (v5p-8, `xd-v5p-8-pallasv7b-1009-ew4b`, target JIT)
+
+Read-reverse ablation on the v-major `blocked2` body (local v5p cross-compile, bundles/tile): the
+two reverse static dots cost 10.7k of 22.4k; Mosaic relayouts `d [90,96,128]→[90,12288]`
+((16,128)→(1,256)→(16,128)) and reads M by 96 strided row loads. Any per-head [K,T] layout needs a
+(j,k) sublane transpose for a j-contraction; dtype tricks (BF16 staging, FP32 dots) were worse.
+`layers/bam_pallas_v7.py` (body `v7` rolled / `v7u` unrolled) therefore keeps M k-major
+[B,K,V,T] and does all per-token math on k-major [N,T] head slabs, so `st = S·M_k`, `dM = Sᵀ·D`,
+`dS = D·Mᵀ` are relayout-free MXU dots on lane-concatenated k blocks.
+
+| Runtime | Arm | step/s | % MHA | Note |
+|---|---|---:|---:|---|
+| `3faeae9` | v7u, k-major q/k/v outputs | 0.446 | 72.6 | XLA attention on k-major operands +384 ms |
+| `896f2ad` | tuned `blocked2` / v7u head-major I/O | 0.541 / 0.549 | 88.1 / 89.4 | pure kernels 150.4 → 139.0 ms |
+| `8731faa` | v7u / + fused input projections | 0.548 / 0.555 | 89.3 / 90.4 | one dot for Q/K RoPE, C10 keys, W_R, gates, P_loc_down, W_gw |
+| `7149ff2` | + 1/√d query scale folded into the read kernel | 0.556 | 90.6 | |
+| `93aa1e6` | + read-reverse cotangents transposed k-major by XLA | 0.533 | 86.8 | layout propagates into attention backward |
+
+MHA 0.614 in every matrix. Best: `BamDirectC10PallasV7UFusedCoreProfile` (`7149ff2`), step 1777 ms vs
+MHA 1619 (`8731faa` trace, before the scale fold). Pure kernels (ms/step, tuned → v7u): read F 21.1 →
+17.8, remat 20.7 → 17.8, read B 45.7 → 50.0, write F 17.8 → 15.4, write B 45.2 → 38.1; XLA dM
+`add_any` 15.5 → 7.1 (M passthrough output of the read; the reverse adds the write-path dM).
+
+Lessons:
+- The consumer fixes the output layout. Kernel outputs feed XLA's attention; anything but the
+  head-major [B,N,K,T] it consumes copy-free gets propagated into the attention dots (forward
+  outputs: +380 ms; backward cotangents via an XLA transpose: −4%). Convert inside the kernel
+  (strided FP32 row gathers through VMEM), even at +11 ms read-reverse cost.
+- Rolled `fori_loop` passes again lost to unrolled code on hardware (read F+B 2.61 vs 1.67 ms per
+  layer) despite fewer static bundles. Packed BF16 pair gathers via `ref.bitcast(uint32)` need an
+  unsqueezed batch dim (`memref_bitcast` rank check) and spilled badly (32.9k bundles); dropped.
+- BAM's dozen small input projections cost more as separate XLA dots (each reverse writes a full
+  [B,T,D] dx) than as one concatenated dot (−19 ms/step at the same ~150 TFLOP/s as MHA's QKV).
+- Write kernels are VALU-bound at ~1.3× the VPU floor (dA 6.2k, dC 7.5k of 15.2k bundles/tile);
+  the per-token contractions have no shared MXU operand.
+
+Remaining gap to MHA (`8731faa` trace, ms/step): SwiGLU MLP +142 (wider after the parameter refund),
+attention core +35 (XLA C256 QChunk vs Splash, with fewer BAM attention FLOPs: 20×96 vs 16×128),
+kernels ~139 + glue, scan carry of M +17. Kernels are near their practical floor; 92–93% needs the
+attention core (Splash-class kernel for d=96, ideal ≈ −71 ms) or the MLP width, not more core work.

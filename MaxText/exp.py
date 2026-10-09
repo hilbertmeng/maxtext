@@ -10087,7 +10087,7 @@ class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdVOReadS
     """Only scale shared-C8 dynamic LocalV/O reads from .2 to1."""
     # codex/mediumprop-qk75-sparse; /data0/xd/mediumprop-qk75-sparse.
     # code_commit: 9e25856
-    # UE5a .5196step/s (-.08% vs matched-health standard .520); stopped5114.
+    # UE5a .5196step/s (-.08% vs matched-health standard .520); stopped 5114.
     # Parameters/MLP unchanged (0W_Q); only dynamic LocalVO read scale .2 ->1.
     # vs standard: -.502@200 -> -.029@1k -> -.0037@2800; early advantage shrank toward zero.
     # Last5 (4200-5000) -.000656 [-.000912,-.000335]; no clear persistent loss gain.

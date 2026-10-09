@@ -202,3 +202,21 @@ compare_runs DirectC10TruePile (pure JAX, `ca4491a`, stopped 20,185) and Llama2X
 2026-10-09 via launch_train_parallel (targeted CPU checks, AOT on llm-jax-v6e-1-0). Step 101: 0.494 step/s
 (+45.3% vs DirectC10 0.340 with BAM health ON; 91.0% of MHA 0.543). Bet: 0.47–0.50 step/s; loss gap to
 DirectC10 within ±.005 early, |mean| < .002 after 2k, no trend (>.01 drift would indicate a numerical bug).
+
+## Attention core: layout pin vs Splash (v5p-8 `xd-v5p-8-layout-1009-ew4b`, target JIT, MHA = Splash, 0.614)
+
+| Runtime | Arm | step/s | % MHA | Note |
+|---|---|---:|---:|---|
+| `b0d540b` | pure JAX (C256) | 0.368 | 59.9 | attention 986 ms vs 614 in Pallas arms: XLA layout propagation |
+| `b0d540b` | + `with_layout_constraint` q/k/v B,N,K,T | 0.385 | 62.7 | attention → 641, but the constraint lowers to async copies (+398 ms, 48+95 GB/step) |
+| `b0d540b` | + constraint B,T,N,K | 0.319 | 52.0 | |
+| `a1f64f2` | Pallas v7u fused (C256) / + Splash | 0.554 / **0.572** | 90.2 / **93.2** | BAM Splash kernels 522 ms (MHA 546); +18 ms transposes around them |
+| `a1f64f2` | pure JAX + Splash | 0.449 | 73.1 | |
+| `748bc53` | Pallas + Splash, SEQ_MINOR q/k/v | 0.568 | 92.5 | copies 70→48 ms, Splash kernels 522→556 ms |
+| `748bc53` | pure JAX + Splash, SEQ_MINOR | **0.480** | **78.2** | best pure-JAX path (+30% vs C256) |
+
+Both MHA and BAM have q/k/v head_dim 96; MHA resolves `attention='autoselected'` → Splash. Splash accumulates
+logits/softmax in FP32 (C256 keeps BF16 logits with float32_logits=False): same math, slightly different rounding.
+Best overall: Pallas v7u + fused inputs + Splash (HEAD_DIM_MINOR), `BamDirectC10PallasV7USplashCoreProfile`.
+For pure-JAX research variants: Splash with `bam_splash_seq_minor=True` (needs full-causal or LocalMask windows and
+no fetch). Lesson: an XLA layout constraint is not a cheap relayout under SPMD; a fixed-layout custom call is.

@@ -22,3 +22,7 @@ RUN `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdDirectC8
 
 Independent-init launched: runtime `d29afc1d5e7b3da4ee29753c289a125a95892222`, UE5a, AOT loaded/FIRST_STEP verified, zone-local TruePile path checked by launcher. Median steps20–99 .503 step/s (−.98% vs DirectC8, +.80% vs copied-init). All three focused CPU gates passed.
 Copied-init first report: gaps at200/400/600/800/1000 = +.033544,+.006720,−.000869,−.004675,−.001376. Early transient disadvantage crossed zero at600; gain remains small and not monotonic. Cursor1000. Health at1000: Q/K mean gates .184/.130 vs parent's .195/.142; all recorded scalars finite.
+
+Review2800 (copied-init): latest5 mean+.000020; gap2200−.001460 crossed at2400+.001117, then2600+.000870/2800+.000705. No persistent benefit yet, but current disadvantage is narrowing; continue to5000 before stopping. Independent-init at1800 is −.000217 vs DirectC8 and +.000283 vs copied-init: early −.054@200 advantage has disappeared.
+
+Copied-init closeout: stopped5108 at the5000 review; last5 vsDirectC8 +.000859 [+.000089,+.001368]. Early600–2200 gains vanished after2400; no useful loss/parameter gain and1.8% slower. Local closeout wrapper verified checkpoint5108, trainer/queue deletion and SYNC_OK. UE5a v5p-16 sole READY lease 2026-10-09T13:44:32Z–16:41:31Z (2h56m59s), zero preemptions. Independent-init continues to5000; at4000 last5 vsDirectC8 +.000365 and vscopied −.000156.

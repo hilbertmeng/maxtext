@@ -3624,14 +3624,53 @@ class BamAttention(Attention):
     if failed:
       raise ValueError(f'bam_pallas_core does not support this configuration: {failed}')
 
+  def _fused_input_projections(self, x, names):
+    """All named DenseGeneral projections of x as ONE dot over concatenated kernels.
+
+    Same parameters, casts, precision, kernel-gradient scales and biases as calling each module;
+    the reverse then reads x once and writes one dx instead of one partial dx per projection.
+    Returns {name: [B,T,*features]}."""
+    params = self.variables['params']
+    kernels, shapes, biases = [], [], []
+    for name in names:
+      mod = getattr(self, name, None)
+      kernel = jnp.asarray(nn.meta.unbox(params[name]['kernel']), self.dtype)
+      scale = getattr(mod, 'kernel_gradient_scale', 1.0) if mod is not None else 1.0
+      if scale != 1.0:
+        kernel_sg = jax.lax.stop_gradient(kernel)
+        kernel = kernel_sg + scale * (kernel - kernel_sg)
+      shapes.append(kernel.shape[1:])
+      kernels.append(kernel.reshape(kernel.shape[0], -1))
+      bias = params[name].get('bias') if hasattr(params[name], 'get') else None
+      biases.append(None if bias is None else jnp.asarray(nn.meta.unbox(bias), self.dtype))
+    weight = jnp.concatenate(kernels, axis=1)
+    y = jax.lax.dot_general(jnp.asarray(x, self.dtype), weight, (((x.ndim - 1,), (0,)), ((), ())),
+                            precision=jax.lax.Precision(self.config.matmul_precision))
+    out, off = {}, 0
+    for name, shape, kernel, bias in zip(names, shapes, kernels, biases):
+      width = kernel.shape[1]
+      part = y[..., off:off + width].reshape(x.shape[:-1] + shape)
+      out[name] = part if bias is None else part + bias
+      off += width
+    return out
+
   def _pallas_core_call(self, inputs_q, inputs_positions, decoder_segment_ids, M_in, is_global,
                         standard_qk_width):
     """Fused-kernel forward; M_in is token-minor [B,V,K,T]. Returns (out, M_in, write factors)."""
     from layers import bam_pallas
     cfg = self.config
     self._check_pallas_core()
-    query = self.query_projection(inputs_q, standard_qk_width)
-    key = self.kv_projection(inputs_q, proj_name='key', projection_dim=standard_qk_width)
+    b_, t_ = inputs_q.shape[:2]
+    fused = bool(getattr(cfg, 'bam_pallas_fused_inputs', False)) and not self.is_initializing()
+    if fused:
+      gate_names = ('W_lq_gate', 'W_lk_gate', 'W_R_gate', 'W_lv_gate')
+      raw = self._fused_input_projections(
+          inputs_q, ('query', 'key', 'W_lq_c8', 'W_lk_c8', 'W_R') + gate_names + ('P_loc_down', 'W_gw'))
+      query = raw['query'].reshape(b_, t_, self.num_query_heads, standard_qk_width)
+      key = raw['key'].reshape(b_, t_, self.num_kv_heads, standard_qk_width)
+    else:
+      query = self.query_projection(inputs_q, standard_qk_width)
+      key = self.kv_projection(inputs_q, proj_name='key', projection_dim=standard_qk_width)
     query, key = dc.QKNorm(cfg, name='qk_norm')(query, key)
     query = self.apply_rotary_embedding(query, inputs_positions, name='query_rotary',
                                         embedding_dims=standard_qk_width)
@@ -3639,12 +3678,23 @@ class BamAttention(Attention):
                                       embedding_dims=standard_qk_width)
 
     def logits(name, squeeze):
-      return jnp.reshape(self._project_read_gate_logits(name, inputs_q, squeeze_fetch_axis=squeeze),
-                         inputs_q.shape[:2] + (self.num_query_heads,))
+      if fused:     # same bias handling as _project_read_gate_logits
+        gate_bias = getattr(self, f'{name}_b0')
+        if self._force_activation_dtype:
+          gate_bias = jnp.asarray(gate_bias, self.dtype)
+        gate = raw[name] + gate_bias
+        gate = jnp.squeeze(gate, axis=-2) if squeeze else gate
+      else:
+        gate = self._project_read_gate_logits(name, inputs_q, squeeze_fetch_axis=squeeze)
+      return jnp.reshape(gate, inputs_q.shape[:2] + (self.num_query_heads,))
 
-    q_key = self.W_lq_c8(inputs_q)
-    k_key = self.W_lk_c8(inputs_q)
-    vo_key = jnp.squeeze(self.W_R(inputs_q), axis=-2)
+    if fused:
+      q_key, k_key = raw['W_lq_c8'], raw['W_lk_c8']
+      vo_key = jnp.squeeze(raw['W_R'], axis=-2)
+    else:
+      q_key = self.W_lq_c8(inputs_q)
+      k_key = self.W_lk_c8(inputs_q)
+      vo_key = jnp.squeeze(self.W_R(inputs_q), axis=-2)
     weight = bam_pallas.static_weight(
         self.static_q_key, self.static_k_key, self.static_v_key, self.static_o_key,
         self.abs_v_cache_projection)
@@ -3676,8 +3726,12 @@ class BamAttention(Attention):
       y_std, _ = self._attention_block(query, key, value, decoder_segment_ids,
                                        q0=0, s0=0, window_size=local_window)
     o_head = y_std + local_output
-    address = self.P_loc_up(nn.gelu(self.P_loc_down(inputs_q)))
-    write_logits = self.W_gw(inputs_q) + jnp.asarray(self.gw_b0, self.dtype)
+    if fused:
+      address = self.P_loc_up(nn.gelu(raw['P_loc_down']))
+      write_logits = raw['W_gw'] + jnp.asarray(self.gw_b0, self.dtype)
+    else:
+      address = self.P_loc_up(nn.gelu(self.P_loc_down(inputs_q)))
+      write_logits = self.W_gw(inputs_q) + jnp.asarray(self.gw_b0, self.dtype)
     out = nn.with_logical_constraint(o_head, self.out_axis_names)
     return self.out_projection(inputs_q.shape[-1], out), M_in, (o_head, write_logits, address)
 

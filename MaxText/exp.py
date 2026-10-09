@@ -10121,6 +10121,12 @@ class BamDirectC10NoHealthLayoutBTNKProfile(BamDirectC10NoHealthPallasCoreProfil
     bam_qkv_layout = 'btnk'
 
 
+class BamDirectC10NoHealthSplashProfile(BamDirectC10NoHealthPallasCoreProfile):
+    """Pure-JAX DirectC10 arm with BAM attention through the Splash kernel instead of C256."""
+    model_name = 'BamDirectC10NoHealthSplashProfile'
+    bam_splash_attention = True
+
+
 class BamDirectC10PallasCoreProfile(
     TrainStepProfile, BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdDirectC10PallasTruePile):
     """Paired fused-core DirectC10 timing arm; per-kernel scoped VMEM raised for v5p."""
@@ -10182,6 +10188,12 @@ class BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdDirectC10Pa
     bam_pallas_body = 'v7u'
     bam_pallas_fused_inputs = True
     bam_pallas_vmem_mib = 48
+
+
+class BamDirectC10PallasV7USplashCoreProfile(BamDirectC10PallasV7UFusedCoreProfile):
+    """Paired arm: best fused core (v7u + fused inputs) with BAM attention through Splash instead of C256."""
+    model_name = 'BamDirectC10PallasV7USplashCoreProfile'
+    bam_splash_attention = True
 
 
 class BamPallasCoreTinyXlaTest(

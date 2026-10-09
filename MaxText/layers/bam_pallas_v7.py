@@ -7,8 +7,9 @@ Here all per-token math runs on k-major [N,T] head slabs, so
 
 * M is carried k-major [B,K,V,T]; M_k is a [V,T] slab and lane-concatenating k slabs is free,
   so static reads, compression, dM = S^T D and dS = D M^T are plain MXU dots;
-* outputs and their cotangents are k-major [B,K,N,T] (XLA transposes them to token-major,
-  as it does for the v-major [B,N,K,T] outputs);
+* outputs and their cotangents are head-major [B,N,K,T], the layout XLA's attention consumes
+  without copies (k-major outputs cost +380 ms/step of attention relayouts on v5p-8); the
+  kernels convert with sublane-strided FP32 row gathers through VMEM;
 * write factors stay head-major [B,N,K,T] / [B,N,V,T] (transposed by XLA, not in-kernel).
 
 Arithmetic is FP32 inside a kernel; MXU operands and kernel outputs are BF16.
@@ -22,7 +23,7 @@ from jax.experimental.pallas import tpu as pltpu
 
 import os as _os
 
-from layers.bam_pallas import (F32, _acc, _freeze, _map_batch, _minor, _norm, _norm_backward,
+from layers.bam_pallas import (F32, _acc, _freeze, _major, _map_batch, _minor, _norm, _norm_backward,
                                _pad_rows, _padded_static_weight, _params, _sigmoid, _spec, _tile,
                                _whole)
 
@@ -48,7 +49,7 @@ def _concat_k(ref, k0, k1):
 
 def _read_kernel(heads, qk_cols, eps, scale, kb, db):
   def kernel(m_ref, sw_ref, rq, lq, rk, lk, rr, lo, lv, qs, ks, q_ref, k_ref, v_ref, o_ref,
-             key_scr, st_scr):
+             key_scr, st_scr, out_scr):
     n = heads
     np_ = _pad_rows(n)
     kdim, _, t = m_ref.shape
@@ -78,14 +79,20 @@ def _read_kernel(heads, qk_cols, eps, scale, kb, db):
             acc[r, k] = _acc(acc.get((r, k)), keys[r] * row)
       for k in ks_:
         lanes = pl.ds(k * t, t)
-        v_ref[k] = (acc[2, k] * gv + st_scr[pl.ds(2 * np_, n), lanes]).astype(v_ref.dtype)
-        o_ref[k] = (acc[2, k] * go + st_scr[pl.ds(3 * np_, n), lanes]).astype(o_ref.dtype)
+        rows = pl.ds(k * np_, n)
+        out_scr[2, rows, :] = acc[2, k] * gv + st_scr[pl.ds(2 * np_, n), lanes]
+        out_scr[3, rows, :] = acc[2, k] * go + st_scr[pl.ds(3 * np_, n), lanes]
         if k < qk_cols:
-          q_ref[k] = (acc[0, k] + st_scr[pl.ds(0, n), lanes]).astype(q_ref.dtype)
-          k_ref[k] = (acc[1, k] + st_scr[pl.ds(np_, n), lanes]).astype(k_ref.dtype)
+          out_scr[0, rows, :] = acc[0, k] + st_scr[pl.ds(0, n), lanes]
+          out_scr[1, rows, :] = acc[1, k] + st_scr[pl.ds(np_, n), lanes]
         else:
-          q_ref[k] = qs[k - qk_cols].astype(q_ref.dtype)
-          k_ref[k] = ks[k - qk_cols].astype(k_ref.dtype)
+          out_scr[0, rows, :] = qs[k - qk_cols].astype(F32)
+          out_scr[1, rows, :] = ks[k - qk_cols].astype(F32)
+    # Head-major outputs (the layout XLA's attention consumes without copies): one
+    # sublane-strided FP32 row gather per head, rows (k, h) at k*NP + h.
+    for i, ref in enumerate((q_ref, k_ref, v_ref, o_ref)):
+      for h in range(n):
+        ref[h] = out_scr[i, pl.ds(h, kdim, stride=np_), :].astype(ref.dtype)
   return kernel
 
 
@@ -100,13 +107,14 @@ def _read_forward_call(args, opts):
   b, kdim, _, t = m.shape
   c, n = args[2].shape[1:3]
   tile = _tile(t, opts['forward_tile'])
-  out = jax.ShapeDtypeStruct((b, kdim, n, t), m.dtype)
+  out = jax.ShapeDtypeStruct((b, n, kdim, t), m.dtype)
   return pl.pallas_call(
       _read_kernel(n, opts['qk_cols'], opts['read_epsilon'], opts['key_scale'], opts['k_block'],
                    opts['dot_block']),
-      grid=(b, t // tile), in_specs=_read_specs(args, tile), out_specs=[_spec((kdim, n), tile)] * 4,
+      grid=(b, t // tile), in_specs=_read_specs(args, tile), out_specs=[_spec((n, kdim), tile)] * 4,
       out_shape=(out,) * 4,
-      scratch_shapes=[pltpu.VMEM((3, c, n, tile), F32), pltpu.VMEM((sw.shape[0], kdim * tile), F32)],
+      scratch_shapes=[pltpu.VMEM((3, c, n, tile), F32), pltpu.VMEM((sw.shape[0], kdim * tile), F32),
+                      pltpu.VMEM((4, kdim * _pad_rows(n), tile), F32)],
       interpret=opts['interpret'], compiler_params=_params(('parallel', 'parallel'), opts['vmem_mib']),
       name='bam_core_read')(*args)
 
@@ -125,7 +133,7 @@ def _read_backward_kernel(heads, qk_cols, eps, scale, db, rolled, pass_m):
     if pass_m:     # cotangent of the M passthrough, aliased to dm: added here instead of by XLA
       gp_ref, refs = refs[0], refs[1:]
     (dm_ref, dsw_ref, drq, dlq, drk, dlk, drr, dlo, dlv, dqs, dks,
-     key_scr, mc_scr, dyvo, dkey_scr, gacc, d2) = refs
+     key_scr, mc_scr, dyvo, dkey_scr, gacc, d2, hm) = refs
     dt = m_ref.dtype
     n = heads
     np_ = _pad_rows(n)
@@ -137,6 +145,12 @@ def _read_backward_kernel(heads, qk_cols, eps, scale, db, rolled, pass_m):
     key_scr[0] = kq
     key_scr[1] = kk
     key_scr[2] = nr
+    # Head-major cotangents [N,K,T] staged FP32; the k-major [N,T] slab of key row k is then
+    # one sublane-strided row gather (rows h*K + k).
+    for i, ref in enumerate((dq, dk, dv, do)):
+      for h in range(n):
+        hm[i, pl.ds(h * kdim, kdim), :] = ref[h].astype(F32)
+    ct = lambda i, k: hm[i, pl.ds(k, n, stride=kdim), :]
     dkey_scr[...] = jnp.zeros(dkey_scr.shape, F32)
     gacc[...] = jnp.zeros(gacc.shape, F32)
     sgv, sgo = _sigmoid(lv[...]), _sigmoid(lo[...])
@@ -162,15 +176,15 @@ def _read_backward_kernel(heads, qk_cols, eps, scale, db, rolled, pass_m):
         y = None
         for c in range(cdim):
           y = _acc(y, key_scr[2, c] * mc_scr[pl.ds(c, 1), ln])
-        dvk = dv[k].astype(F32)
-        dok = do[k].astype(F32)
+        dvk = ct(2, k)
+        dok = ct(3, k)
         av = av + dvk * y
         ao = ao + dok * y
         dyvo[k] = dvk * gv + dok * go
         d2[pl.ds(2 * np_, np_), ln] = pad(dvk)
         d2[pl.ds(3 * np_, np_), ln] = pad(dok)
-        d2[pl.ds(0, np_), ln] = pad(dq[k].astype(F32)) if with_qk else zgrp
-        d2[pl.ds(np_, np_), ln] = pad(dk[k].astype(F32)) if with_qk else zgrp
+        d2[pl.ds(0, np_), ln] = pad(ct(0, k)) if with_qk else zgrp
+        d2[pl.ds(np_, np_), ln] = pad(ct(1, k)) if with_qk else zgrp
       gacc[0] = av
       gacc[1] = ao
 
@@ -179,8 +193,8 @@ def _read_backward_kernel(heads, qk_cols, eps, scale, db, rolled, pass_m):
     dlv[...] = (scale * sgv * (1 - sgv) * gacc[0]).astype(dlv.dtype)
     dlo[...] = (scale * sgo * (1 - sgo) * gacc[1]).astype(dlo.dtype)
     for r in range(kdim - qk_cols):
-      dqs[r] = dq[qk_cols + r].astype(dqs.dtype)
-      dks[r] = dk[qk_cols + r].astype(dks.dtype)
+      dqs[r] = ct(0, qk_cols + r).astype(dqs.dtype)
+      dks[r] = ct(1, qk_cols + r).astype(dks.dtype)
 
     # Pass B, per compressed row c: key gradients and dMc[c, k] = sum_n key[n, c] dy_k[n]
     # (sublane reductions written straight into D's compressed rows).
@@ -241,14 +255,15 @@ def _read_backward_call(args, cts, opts):
   tile = _tile(t, opts['reverse_tile'])
   j = sw.shape[0]
   pass_m = len(cts) == 5
-  in_specs = _read_specs(args, tile) + [_spec((kdim, n), tile)] * 4 + [_spec((kdim, v), tile)] * pass_m
+  in_specs = _read_specs(args, tile) + [_spec((n, kdim), tile)] * 4 + [_spec((kdim, v), tile)] * pass_m
   out_specs = ([_spec((kdim, v), tile), pl.BlockSpec((None, None, j, v), lambda bb, i: (bb, i, 0, 0))]
                + [_spec(x.shape[1:-1], tile) for x in args[2:]])
   out_shape = ([jax.ShapeDtypeStruct(m.shape, m.dtype), jax.ShapeDtypeStruct((b, t // tile, j, v), F32)]
                + [jax.ShapeDtypeStruct(x.shape, x.dtype) for x in args[2:]])
   scratch = [pltpu.VMEM((3, c, n, tile), F32), pltpu.VMEM((c, kdim * tile), F32),
              pltpu.VMEM((kdim, n, tile), F32), pltpu.VMEM((3, c, n, tile), F32),
-             pltpu.VMEM((2, n, tile), F32), pltpu.VMEM((j, kdim * tile), F32)]
+             pltpu.VMEM((2, n, tile), F32), pltpu.VMEM((j, kdim * tile), F32),
+             pltpu.VMEM((4, n * kdim, tile), F32)]
   outs = pl.pallas_call(
       _read_backward_kernel(n, opts['qk_cols'], opts['read_epsilon'], opts['key_scale'], opts['dot_block'],
                             opts['rolled'], pass_m),
@@ -297,7 +312,7 @@ def read(m, static_weight, q_key, q_logits, k_key, k_logits, vo_key, o_logits, v
   def local(m, sw, qk, ql, kk, kl, vo, ol, vl, qs, ks):
     outs = _read(m, _padded_static_weight(sw, heads), cmajor(qk), _minor(ql), cmajor(kk), _minor(kl),
                  cmajor(vo), _minor(ol), _minor(vl), cmajor(qs), cmajor(ks), opts)
-    return tuple(cmajor(o) for o in outs[:4]) + tuple(outs[4:])   # [B,K,N,T] -> [B,T,N,K]
+    return tuple(_major(o) for o in outs[:4]) + tuple(outs[4:])    # [B,N,K,T] -> [B,T,N,K]
 
   args = (m, static_weight, q_key, q_logits, k_key, k_logits, vo_key, o_logits, v_logits,
           q_standard, k_standard)

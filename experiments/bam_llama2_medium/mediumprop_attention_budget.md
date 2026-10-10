@@ -80,3 +80,16 @@ Each compares its paused original rank4 arm, the completed standard18 DirectC8, 
 Sealed runtime4981467; targeted gates passed both exact full budgets and both actual-K/V/C consumed-gradient checks.
 
 Both DirectC restarts loaded the exact4981467 AOT and reachedFIRST_STEP on UE5a, zone-local TruePile4096 path verified.20-99 mean speeds .3996375/.3276125: +.88%/-4.09% vs their same-health, Splash+SEQ_MINOR rank4 parents .39615/.3415875. H24 small speed gain reverses its -2% speed bet; cause not established. H32 slightly slower than -3% bet. Artifacts: `/data0/xd/bam_diagnostics/mediumprop-attention-budget-direct-registries.json`, `mediumprop-attention-budget-direct-speeds.json`; launch logs in `mediumprop-attention-budget-direct-launch/`. Compiler retained.
+
+Monitoring now also reports advantage ratios versus standard DirectC8 and BAM27: `(MHA18 loss - RUN loss) / (MHA18 loss - BASE loss)`, with the same `BamMHAMediumPropC256TruePile` reference and exact common +/-25-step windows sampled every10 steps. Values greater than1 favor RUN; a nonpositive denominator is not interpreted as an advantage multiple. Keep MHA18 for both comparisons; substituting MHA27 would mix in the deeper MHA control's own degradation. Helper: `/data0/xd/bam_diagnostics/mediumprop-attention-budget-gain-report.py`, deployed read-only cache reader at `tpu-ag:logs/mediumprop-attention-budget-gain-report.py`.
+
+## Standard16-head DirectC address expansion
+
+Fixed D1200,16x75,QK57+RoPE18,18 AllLocal layers, private MLP writes1/4/7/10/13/16. Parent standard DirectC8; existing full-M static Q/K/V/O reads retained. Extend M75x32/C8 to M75x48/C12 and M75x64/C16, proportional attention/embedding/private-MLP address R384/R512, exact MLP repayment. Same worktree and branch as above; pure JAX, Splash SEQ_MINOR, inherited generic+concat/write health. Runtime e332529; paired full budgets and actual K75/C12/C16 forward/consumed gradients passed before launch, sealed runtime configuration verified.
+
+| RUN | TPU ID | M / C | Address R | MLP widths | Parameters / MHA delta | Terminal bet vs DirectC8 | Matched-runtime speed bet |
+|---|---|---|---|---|---|---|---|
+| `BamMediumPropK75V48C12EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdDirectCTruePile` | 310107 | 75x48 / C12 | 384 | [3744, 3528, 3744] | 432111616 / -9584 | -0.008 | -3% |
+| `BamMediumPropK75V64C16EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdDirectCTruePile` | 310108 | 75x64 / C16 | 512 | [3567, 3246, 3567] | 432128512 / +7312 | -0.010 | -6% |
+
+C12 also compares completed M75x48/C12 rank4 (~-.007290 vs rank4 V32 parent); bet ~-.002 versus that matched-shape baseline. C16 also compares the new C12 arm; both retain standard DirectC8 and BAM27. Report about1000steps with200-step windows, advantage ratios use common MHA18; review2800/5000. Training spot UE5a primary, add EW4b/UC1a passive candidates if primary waits5min. Borrowed user-owned FLEX_START llm-jax-v6e-1-0 EW4a is compiler-only, never auto-cleaned. Launch artifacts `/data0/xd/bam_diagnostics/mediumprop-direct-address-runs.json`, `mediumprop-direct-address-launch/`.

@@ -12083,3 +12083,36 @@ class BamMediumPropD1152H32K72V64C16AllLocalMLPWriteIndependentEveryThirdDirectC
     bam_local_qk_separate_c8_projection = False
     mlp_dim_by_block = [2313, 1984, 2314]
     compare_runs = ['BamMediumPropD1152H32K72V64C16AllLocalMLPWriteIndependentEveryThirdTruePile', 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdDirectC8TruePile', 'BamMediumPropL27K75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile']
+
+class BamMediumPropK75V48C12EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdDirectCTruePile(BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdDirectC8TruePile):
+    """Expand address space and compressed DirectC read dimension at fixed standard heads."""
+    # Runtime: codex/mediumprop-attention-budget, /data0/xd/mediumprop-attention-budget; code_commit: e332529.
+    # Preparing UE5a v5p-16; terminal bet vs standard DirectC8 -0.008; matched-runtime speed bet -3%.
+    model_name = 'BamMediumPropK75V48C12EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdDirectCTruePile'
+    bam_v = 48
+    bam_abs_v_compression_dim = 12
+    bam_write_v_bottleneck_dim = 384
+    emb_bam_v_bottleneck_dim = 384
+    bam_mlp_write_address_rank = 384
+    mlp_dim_by_block = [3744, 3528, 3744]  # 432111616 params; MHA delta -9584
+    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdDirectC8TruePile', 'BamMediumPropK75V48C12EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile', 'BamMediumPropL27K75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile']
+    bam_pallas_core = False
+    bam_splash_attention = True
+    jax_cache_dir = ''
+
+
+class BamMediumPropK75V64C16EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdDirectCTruePile(BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdDirectC8TruePile):
+    """Expand address space and compressed DirectC read dimension at fixed standard heads."""
+    # Runtime: codex/mediumprop-attention-budget, /data0/xd/mediumprop-attention-budget; code_commit: e332529.
+    # Preparing UE5a v5p-16; terminal bet vs standard DirectC8 -0.010; matched-runtime speed bet -6%.
+    model_name = 'BamMediumPropK75V64C16EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdDirectCTruePile'
+    bam_v = 64
+    bam_abs_v_compression_dim = 16
+    bam_write_v_bottleneck_dim = 512
+    emb_bam_v_bottleneck_dim = 512
+    bam_mlp_write_address_rank = 512
+    mlp_dim_by_block = [3567, 3246, 3567]  # 432128512 params; MHA delta +7312
+    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdDirectC8TruePile', 'BamMediumPropK75V48C12EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdDirectCTruePile', 'BamMediumPropL27K75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile']
+    bam_pallas_core = False
+    bam_splash_attention = True
+    jax_cache_dir = ''

@@ -90,7 +90,7 @@ Fixed D1200,16x75,QK57+RoPE18,18 AllLocal layers, private MLP writes1/4/7/10/13/
 | RUN | TPU ID | M / C | Address R | MLP widths | Parameters / MHA delta | Terminal bet vs DirectC8 | Matched-runtime speed bet |
 |---|---|---|---|---|---|---|---|
 | `BamMediumPropK75V48C12EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdDirectCTruePile` | 310107 | 75x48 / C12 | 384 | [3744, 3528, 3744] | 432111616 / -9584 | — | — |
-| `BamMediumPropK75V64C16EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdDirectCTruePile` | 310108 | 75x64 / C16 | 512 | [3567, 3246, 3567] | 432128512 / +7312 | -0.010 | -6% |
+| `BamMediumPropK75V64C16EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdDirectCTruePile` | 310108 | 75x64 / C16 | 512 | [3567, 3246, 3567] | 432128512 / +7312 | — | — |
 
 C12 also compares completed M75x48/C12 rank4 (~-.007290 vs rank4 V32 parent). C16 also compares the new C12 arm; both retain standard DirectC8 and BAM27. Report about1000steps with200-step windows, advantage ratios use common MHA18; review2800/5000. Training spot UE5a primary, add EW4b/UC1a passive candidates if primary waits5min. Borrowed user-owned FLEX_START llm-jax-v6e-1-0 EW4a is compiler-only, never auto-cleaned. Launch artifacts `/data0/xd/bam_diagnostics/mediumprop-direct-address-runs.json`, `mediumprop-direct-address-launch/`.
 
@@ -115,3 +115,9 @@ Both checkpoint commits verified, training TPU nodes and queues absent, TB sync 
 Completed13500. Its large early gain over standard DirectC8 shrank, then held: last5(12600-13400)-.007560, about1.059x the MHA18 advantage. Against historical same-M75x48/C12 rank4, last5-.001285; the expanded address/read system remains useful, but changing rank4 to DirectC contributes much less than the full expansion. Against BAM27, last common5(9800-10600)+.012176. Throughput.5111 vs historic DirectC8.508 is+.61%, runtime unmatched.
 
 Checkpoint13500 committed; TPU/queued resource verified absent by auto-train and local closeout wrapper already_closed=true; TB sync OK. UE5a v5p-16,0preemptions, READY2026-10-10 07:57:44→15:38:05UTC,7h40m21s. Exact cumulative paired windows and ratios: `/data0/xd/bam_diagnostics/mediumprop-attention-budget-gain-c12final.json`. C16 and both full-M GELU read runs continue.
+
+## 18-layer DirectC16 completion
+
+Completed13500. Early gains shrank then held: last5(12600-13400) vs standard DirectC8-.011259 (~1.088x MHA18 advantage); vs matched new18 DirectC12-.003699; vs BAM27 last common5(9800-10600)+.008621. C16 throughput.4704 vs C12.5111 is-7.96% at matched runtime and health. Extra address/read capacity retains a real incremental loss benefit, but it does not beat BAM27 and costs throughput compared with C12. Expansion also scales address LoRA R384→512; this experiment does not isolate compression width.
+
+Checkpoint13500 committed, resources verified absent, local closeout already_closed=true, TB sync OK. UE5a v5p-16,0preemptions; READY2026-10-10 07:57:54→16:16:37UTC,8h18m43s. Complete paired windows/ratios: `/data0/xd/bam_diagnostics/mediumprop-direct-c16-final.json` and `.md`. Both standard-head C12/C16 expansions are now complete; full-M GELU read experiments continue.

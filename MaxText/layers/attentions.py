@@ -1759,8 +1759,11 @@ def _attention_op(
 def _bam_splash_enabled(cfg, t):
   """BAM attention through Splash (default on): TPU backend and lane-aligned sequences only;
   otherwise (CPU tests, interpret mode, decode steps) the C256/dense einsum path is used."""
-  return (bool(getattr(cfg, 'bam_splash_attention', False)) and jax.default_backend() == 'tpu'
-          and t % 128 == 0)
+  # Offline AOT traces on CPU against a TPU topology. Match the target platform,
+  # otherwise a Splash-enabled TPU RUN silently receives the C256 executable.
+  compile_topology = str(getattr(cfg, 'compile_topology', '') or '')
+  tpu_target = jax.default_backend() == 'tpu' or compile_topology.startswith('v')
+  return bool(getattr(cfg, 'bam_splash_attention', False)) and tpu_target and t % 128 == 0
 
 
 def _bam_splash_seq_minor(cfg, default):
@@ -2949,6 +2952,12 @@ class BamAttention(Attention):
           weight_dtype=self.weight_dtype, kernel_axes=('q_heads', 'kv'),
           scale_init=nn.initializers.zeros if learned_write_scale else None,
           use_bias=address_bias, name='write_address_norm')
+      mlp_heads = int(getattr(cfg, 'bam_mlp_write_num_heads', 0) or self.num_query_heads)
+      if mlp_heads != self.num_query_heads:
+        self.mlp_write_data_norm = self.write_data_norm.clone(
+            scale_shape=(mlp_heads, self.bam_k), name='mlp_write_data_norm')
+        self.mlp_write_address_norm = self.write_address_norm.clone(
+            scale_shape=(mlp_heads, loc_v), name='mlp_write_address_norm')
 
     if self._vo_independent_gates:
       add_read_gate('W_lv_gate', (self.num_query_heads, 1),
@@ -3322,8 +3331,9 @@ class BamAttention(Attention):
   def merge_mlp_write(self, mlp_head, mlp_gate, factors, M_in, independent_address=None):
     """Merge attention/MLP writes, then decay the carried matrix exactly once."""
     attention_content, address, attention_gate = factors
-    content = self.write_data_norm(mlp_head) if self._write_data_rms else mlp_head
-    scale = 1.0 / jnp.sqrt(self.num_query_heads) if self.config.bam_sqrt_n_scale else 1.0
+    data_norm = getattr(self, 'mlp_write_data_norm', self.write_data_norm)
+    content = data_norm(mlp_head) if self._write_data_rms else mlp_head
+    scale = 1.0 / jnp.sqrt(mlp_head.shape[-2]) if self.config.bam_sqrt_n_scale else 1.0
     mlp_content = scale * mlp_gate[..., None] * content
     if independent_address is None:
       combined_content = attention_content + mlp_content
@@ -3333,7 +3343,8 @@ class BamAttention(Attention):
         else:
           dM = jnp.sum(combined_content[..., None] * address[..., None, :], axis=-3)
     else:
-      mlp_address = self.write_address_norm(independent_address)
+      address_norm = getattr(self, 'mlp_write_address_norm', self.write_address_norm)
+      mlp_address = address_norm(independent_address)
       with jax.named_scope('bam/write_outer'):
         if self._write_outer_implementation == 'dot':
           dM = jnp.einsum('btnk,btnv->btkv', attention_content, address)
@@ -3345,7 +3356,8 @@ class BamAttention(Attention):
         else:
           dM = dM + jnp.sum(
               mlp_content[..., None] * mlp_address[..., None, :], axis=-3)
-      if self._concat_health and independent_address is not None:
+      # Paired-head alignment is only defined when the two writes have matching heads.
+      if self._concat_health and address.shape[-2] == mlp_address.shape[-2]:
         a, b = address.astype(jnp.float32), mlp_address.astype(jnp.float32)
         cosine = jnp.sum(a*b, axis=-1) / jnp.maximum(
             jnp.sqrt(jnp.sum(a*a, axis=-1)*jnp.sum(b*b, axis=-1)), 1e-12)

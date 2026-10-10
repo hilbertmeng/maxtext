@@ -494,6 +494,7 @@ sa_v_layout: "HEAD_DIM_MINOR"
 # lane-aligned sequences without a BAM fetch; CPU/interpret runs and decode steps keep the einsum path.
 # Splash accumulates logits/softmax in FP32 (einsum path: BF16 logits unless float32_logits).
 bam_splash_attention: True
+bam_mlp_write_num_heads: 0 # 0 uses attention heads; independent-address writes may use D / bam_k.
 # SEQ_MINOR BAM Splash q/k/v; null = per path (pure JAX: True, fused Pallas core: False).
 bam_splash_seq_minor: null
 

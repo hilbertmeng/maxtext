@@ -11935,3 +11935,111 @@ class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdDirectC
     model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdDirectC8SeparateQKVProjectionIndependentInitTruePile'
     bam_local_qkv_c_projection_init = 'orthogonal'
     compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdDirectC8SeparateQKVProjectionTruePile', 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdDirectC8TruePile']
+
+
+class BamMediumPropD1152AttentionBudget(BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile):
+    """Redistribute the MediumProp MHA budget into attention at D1152."""
+    # Ledger only. Implementation: codex/mediumprop-attention-budget, /data0/xd/mediumprop-attention-budget.
+    base_emb_dim = 1152
+    base_mlp_dim = 3200
+    bam_pallas_core = False
+    bam_splash_attention = True
+    bam_splash_seq_minor = True
+    DATASET_VARIANT = 'truepile4096'
+    jax_cache_dir = ''
+
+
+class BamMediumPropD1152H24K96V32C8AllLocalMLPWriteIndependentEveryThirdTruePile(BamMediumPropD1152AttentionBudget):
+    """24x96 heads, M96x32/C8, independent 12-head MLP writes."""
+    # Ledger only; implementation/worktree recorded on BamMediumPropD1152AttentionBudget.
+    # 432112464 params; MHA delta -8736; pure JAX + Splash SEQ_MINOR, same parent health.
+    # Bet terminal vs standard -0.002; old-runtime speed estimate 0.43 vs .520 (optimization unmatched).
+    model_name = 'BamMediumPropD1152H24K96V32C8AllLocalMLPWriteIndependentEveryThirdTruePile'
+    base_num_query_heads = 24
+    base_num_kv_heads = 24
+    head_dim = 96
+    bam_k = 96
+    bam_v = 32
+    bam_abs_v_compression_dim = 8
+    bam_standard_qk_dim = 24
+    bam_local_qk_col_output_dim = 72
+    bam_partial_rope_nope_dim = 72
+    bam_write_v_bottleneck_dim = 384
+    emb_bam_num_head = 24
+    emb_bam_v_bottleneck_dim = 384
+    bam_mlp_write_num_heads = 12
+    bam_mlp_write_address_rank = 192
+    mlp_dim_by_block = [3445, 3356, 3446]
+    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile']
+
+
+class BamMediumPropD1152H24K96V48C12AllLocalMLPWriteIndependentEveryThirdTruePile(BamMediumPropD1152AttentionBudget):
+    """24x96 heads, M96x48/C12, independent 12-head MLP writes."""
+    # Ledger only; implementation/worktree recorded on BamMediumPropD1152AttentionBudget.
+    # 432114000 params; MHA delta -7200; pure JAX + Splash SEQ_MINOR, same parent health.
+    # Bet terminal vs standard -0.010; old-runtime speed estimate 0.40 vs .520 (optimization unmatched).
+    model_name = 'BamMediumPropD1152H24K96V48C12AllLocalMLPWriteIndependentEveryThirdTruePile'
+    base_num_query_heads = 24
+    base_num_kv_heads = 24
+    head_dim = 96
+    bam_k = 96
+    bam_v = 48
+    bam_abs_v_compression_dim = 12
+    bam_standard_qk_dim = 24
+    bam_local_qk_col_output_dim = 72
+    bam_partial_rope_nope_dim = 72
+    bam_write_v_bottleneck_dim = 512
+    emb_bam_num_head = 24
+    emb_bam_v_bottleneck_dim = 512
+    bam_mlp_write_num_heads = 12
+    bam_mlp_write_address_rank = 256
+    mlp_dim_by_block = [3256, 3124, 3257]
+    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile']
+
+
+class BamMediumPropD1152H32K72V48C12AllLocalMLPWriteIndependentEveryThirdTruePile(BamMediumPropD1152AttentionBudget):
+    """32x72 heads, M72x48/C12, independent 16-head MLP writes."""
+    # Ledger only; implementation/worktree recorded on BamMediumPropD1152AttentionBudget.
+    # 432125504 params; MHA delta +4304; pure JAX + Splash SEQ_MINOR, same parent health.
+    # Bet terminal vs standard +0.006; old-runtime speed estimate 0.39 vs .520 (optimization unmatched).
+    model_name = 'BamMediumPropD1152H32K72V48C12AllLocalMLPWriteIndependentEveryThirdTruePile'
+    base_num_query_heads = 32
+    base_num_kv_heads = 32
+    head_dim = 72
+    bam_k = 72
+    bam_v = 48
+    bam_abs_v_compression_dim = 12
+    bam_standard_qk_dim = 18
+    bam_local_qk_col_output_dim = 54
+    bam_partial_rope_nope_dim = 54
+    bam_write_v_bottleneck_dim = 768
+    emb_bam_num_head = 32
+    emb_bam_v_bottleneck_dim = 768
+    bam_mlp_write_num_heads = 16
+    bam_mlp_write_address_rank = 384
+    mlp_dim_by_block = [2919, 2700, 2919]
+    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile']
+
+
+class BamMediumPropD1152H32K72V64C16AllLocalMLPWriteIndependentEveryThirdTruePile(BamMediumPropD1152AttentionBudget):
+    """32x72 heads, M72x64/C16, independent 16-head MLP writes."""
+    # Ledger only; implementation/worktree recorded on BamMediumPropD1152AttentionBudget.
+    # 432119616 params; MHA delta -1584; pure JAX + Splash SEQ_MINOR, same parent health.
+    # Bet terminal vs standard +0.015; old-runtime speed estimate 0.36 vs .520 (optimization unmatched).
+    model_name = 'BamMediumPropD1152H32K72V64C16AllLocalMLPWriteIndependentEveryThirdTruePile'
+    base_num_query_heads = 32
+    base_num_kv_heads = 32
+    head_dim = 72
+    bam_k = 72
+    bam_v = 64
+    bam_abs_v_compression_dim = 16
+    bam_standard_qk_dim = 18
+    bam_local_qk_col_output_dim = 54
+    bam_partial_rope_nope_dim = 54
+    bam_write_v_bottleneck_dim = 1024
+    emb_bam_num_head = 32
+    emb_bam_v_bottleneck_dim = 1024
+    bam_mlp_write_num_heads = 16
+    bam_mlp_write_address_rank = 512
+    mlp_dim_by_block = [2484, 2155, 2484]
+    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile']

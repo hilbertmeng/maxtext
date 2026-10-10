@@ -193,6 +193,7 @@ class SubDecoderLayer(nn.Module):
         cfg.bam_enabled and mlp_write_every > 0
         and (self.layer_inx + 1) % mlp_write_every
         == int(getattr(cfg, 'bam_mlp_write_offset', None) or 0) % mlp_write_every)
+    mlp_write_heads = int(getattr(cfg, 'bam_mlp_write_num_heads', 0) or num_query_heads)
     if mlp_write and getattr(cfg, 'bam_mlp_write_static_address', False):
       raise ValueError('Static MLP write experiments require their recorded runtime')
     pallas_core = cfg.bam_enabled and bool(getattr(cfg, 'bam_pallas_core', False))
@@ -204,7 +205,10 @@ class SubDecoderLayer(nn.Module):
     elif cfg.bam_enabled:
         if mlp_write:
           assert cfg.shared_experts == 1 and cfg.num_experts == 1
-          assert cfg.emb_dim == num_query_heads * cfg.bam_k == num_query_heads * head_dim
+          assert cfg.emb_dim == mlp_write_heads * cfg.bam_k
+          assert cfg.bam_k == head_dim
+          assert (mlp_write_heads == num_query_heads
+                  or getattr(cfg, 'bam_mlp_write_dynamic_address', False))
           assert 'full' not in layer_mode and not cfg.bam_mha_control
           attention_lnx, M_out, write_factors = attention_layer(
               **call_kwargs, M_in=M_in, is_global=is_global,
@@ -305,7 +309,7 @@ class SubDecoderLayer(nn.Module):
 
     if mlp_write:
       mlp_logits = linears.DenseGeneral(
-          features=(num_query_heads,), axis=-1, use_bias=False,
+          features=(mlp_write_heads,), axis=-1, use_bias=False,
           kernel_init=initializers.get_init_method(cfg.init_method),
           kernel_axes=('embed', 'q_heads'), dtype=cfg.dtype, weight_dtype=cfg.weight_dtype,
           quant=self.quant, matmul_precision=cfg.matmul_precision,
@@ -313,7 +317,7 @@ class SubDecoderLayer(nn.Module):
       mlp_bias = self.param(
           'mlp_write_gate_bias', nn.with_logical_partitioning(
               nn.initializers.constant(math.log(cfg.bam_write_eps / (1.0 - cfg.bam_write_eps))),
-              ('q_heads',)), (num_query_heads,), cfg.weight_dtype)
+              ('q_heads',)), (mlp_write_heads,), cfg.weight_dtype)
       mlp_logits = mlp_logits + jnp.asarray(mlp_bias, cfg.dtype)
       independent_address = None
       if getattr(cfg, 'bam_mlp_write_dynamic_address', False):
@@ -325,7 +329,7 @@ class SubDecoderLayer(nn.Module):
             quant=self.quant, matmul_precision=cfg.matmul_precision,
             name='mlp_address_down')(hidden_states)
         independent_address = linears.DenseGeneral(
-            features=(num_query_heads, cfg.bam_v), axis=-1, use_bias=True,
+            features=(mlp_write_heads, cfg.bam_v), axis=-1, use_bias=True,
             kernel_init=initializers.get_init_method(cfg.init_method),
             kernel_axes=('embed', 'q_heads', 'v_factor'),
             dtype=cfg.dtype, weight_dtype=cfg.weight_dtype,
@@ -333,13 +337,14 @@ class SubDecoderLayer(nn.Module):
             name='mlp_address_up')(nn.gelu(address_hidden))
       if not pallas_core:
         M_out = attention_layer.merge_mlp_write(
-            mlp_lnx.reshape(mlp_lnx.shape[:-1] + (num_query_heads, cfg.bam_k)),
+            mlp_lnx.reshape(mlp_lnx.shape[:-1] + (mlp_write_heads, cfg.bam_k)),
             jax.nn.sigmoid(mlp_logits), write_factors, M_out, independent_address=independent_address)
     if pallas_core:
       from layers import bam_pallas
       groups = [write_factors]
       if mlp_write:
         assert independent_address is not None, 'fused core supports independent MLP addresses only'
+        assert mlp_write_heads == num_query_heads, 'different MLP heads require the pure-JAX core'
         groups.append((mlp_lnx.reshape(mlp_lnx.shape[:-1] + (num_query_heads, cfg.bam_k)),
                        mlp_logits, independent_address))
       with jax.named_scope('bam/pallas_write'):

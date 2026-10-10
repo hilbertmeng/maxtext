@@ -2631,6 +2631,11 @@ class BamAttention(Attention):
     self._direct_qk_c8 = bool(getattr(cfg, 'bam_local_qk_direct_c8', False))
     self._full_m_read_rank = getattr(cfg, 'bam_local_full_m_read_bottleneck_dim', None)
     self._full_m_read_share_down = bool(getattr(cfg, 'bam_local_full_m_read_share_down', False))
+    self._general_read = bool(getattr(cfg, 'bam_general_column_read', False))
+    self._general_write = bool(getattr(cfg, 'bam_general_matrix_write', False))
+    if self._general_read or self._general_write:
+      assert self._full_m_read_rank is not None and not cfg.bam_pallas_core
+      assert cfg.bam_mlp_write_dynamic_address
     assert not self._full_m_read_share_down or self._full_m_read_rank is not None
     if self._full_m_read_rank is not None:
       assert 0 < self._full_m_read_rank < cfg.emb_dim
@@ -3014,6 +3019,74 @@ class BamAttention(Attention):
             projection_shape, self.weight_dtype)
 
 
+    # Append experimental parameters after all parent setup parameters.
+    if self._general_read:
+      for arm, shape, axes in (
+          ('q', (self.num_query_heads, self.bam_v), ('q_heads', 'kv')),
+          ('k', (self.num_query_heads, self.bam_v), ('q_heads', 'kv')),
+          ('vo', (self.num_query_heads, cfg.bam_n_f, self.bam_v), ('q_heads', 'fetch', 'kv'))):
+        setattr(self, 'general_' + arm + '_pre_bias', self._constant_general_parameter(
+            'general_' + arm + '_pre_bias', shape, axes))
+      for arm in ('q', 'k', 'v', 'o'):
+        self._add_static_gate('general_' + arm + '_static_gate', cfg.bam_static_read_gate_init)
+    if self._general_write:
+      self.general_attention_static_address = self._constant_general_parameter(
+          'general_attention_static_address',
+          (self.num_query_heads, self.bam_v), ('q_heads', 'v_factor'))
+      self._add_static_gate('general_attention_static_gate', cfg.bam_static_write_gate_init)
+
+
+  def _constant_general_parameter(self, name, shape, axes, value=0.):
+    # Constants need no random key; keep the parent's init RNG counters intact.
+    return nn.unbox(self.variable('params', name, nn.with_logical_partitioning(
+        lambda: jnp.full(shape, value, self.weight_dtype), axes)).value)
+
+  def _add_static_gate(self, name, opening):
+    cfg = self.config
+    assert 0 < opening < 1.1
+    setattr(self, name, DenseGeneral(
+        features=(self.num_query_heads,), axis=-1, use_bias=False,
+        kernel_init=initializers.contant_dense_init(0.0),
+        kernel_axes=('embed', 'q_heads'), dtype=self.dtype, weight_dtype=self.weight_dtype,
+        quant=self.quant, matmul_precision=cfg.matmul_precision, name=name))
+    setattr(self, name + '_bias', self._constant_general_parameter(
+        name + '_bias', (self.num_query_heads,), ('q_heads',),
+        math.log(opening / (1.1 - opening))))
+
+  def _static_gate(self, name, x):
+    return 1.1 * jax.nn.sigmoid(
+        getattr(self, name)(x) + jnp.asarray(getattr(self, name + '_bias'), self.dtype))
+
+  def _record_general_gate(self, name, gate):
+    if self._concat_health:
+      g = gate.astype(jnp.float32)
+      self.sow('intermediates', 'concat_general_' + name + '_gate', jnp.stack((
+          jnp.mean(g), jnp.std(g), jnp.mean(g < .05),
+          jnp.mean(g > .5), jnp.mean(g > .95))))
+
+  def _record_general_key_norm(self, name, key):
+    if self._concat_health:
+      rms = jnp.sqrt(jnp.mean(key.astype(jnp.float32)**2, axis=-1))
+      self.sow('intermediates', 'concat_general_' + name + '_key_norm', jnp.stack((
+          jnp.mean(rms), jnp.min(rms), jnp.mean(rms < .01))))
+
+  def _record_general_alignment(self, name, a, b):
+    if self._concat_health:
+      a, b = a.astype(jnp.float32), b.astype(jnp.float32)
+      cosine = jnp.sum(a*b, axis=-1) / jnp.maximum(
+          jnp.sqrt(jnp.sum(a*a, axis=-1)*jnp.sum(b*b, axis=-1)), 1e-12)
+      self.sow('intermediates', 'concat_general_' + name + '_alignment', jnp.stack((
+          jnp.mean(cosine), jnp.mean(jnp.abs(cosine)), jnp.mean(cosine**2))))
+
+  def _general_write_address(self, name, address, gate, static_address, static_gate):
+    dynamic = gate[..., None] * address
+    static = static_gate[..., None] * jnp.asarray(static_address, address.dtype)
+    self._record_general_gate(name + '_static', static_gate)
+    self._record_concat_amplitude('general_' + name + '_post_key', static_address, address)
+    self._record_concat_amplitude('general_' + name + '_effective_address', static, dynamic)
+    self._record_general_alignment(name + '_address', static_address, address)
+    return dynamic + static
+
   def _local_qk_post_read_v_projections(self):
     paired = getattr(self, 'local_qk_post_read_v_paired_projection', None)
     if paired is not None:
@@ -3047,7 +3120,25 @@ class BamAttention(Attention):
       hidden = nn.gelu(self.full_m_read_down(x)) if shared_hidden is None else shared_hidden
     else:
       hidden = nn.gelu(getattr(self, f'{name}_down')(x))
-    return getattr(self, f'{name}_up')(hidden)
+    key = getattr(self, f'{name}_up')(hidden)
+    if self._general_read:
+      arm = {'W_lq_c8': 'q', 'W_lk_c8': 'k', 'W_R': 'vo'}[name]
+      bias = jnp.asarray(getattr(self, 'general_' + arm + '_pre_bias'), key.dtype)
+      self._record_concat_amplitude('general_' + arm + '_pre_bias', bias, key)
+      self._record_general_key_norm(arm + '_before_bias', key)
+      key = key + bias
+      self._record_general_key_norm(arm + '_after_bias', key)
+      if self._concat_health:
+        normalized = key * jax.lax.rsqrt(jnp.mean(
+            key.astype(self._read_rms_statistics_dtype)**2, axis=-1, keepdims=True)
+            + self._read_key_epsilon).astype(key.dtype)
+        for target in (('v', 'o') if arm == 'vo' else (arm,)):
+          post = getattr(self, 'static_' + target + '_key').T.astype(key.dtype)
+          if arm == 'vo':
+            post = post[:, None, :]
+          self._record_concat_amplitude('general_' + target + '_post_key', post, normalized)
+          self._record_general_alignment(target + '_key', post, normalized)
+    return key
 
 
   def _record_concat_gate(self, name, logits):
@@ -3225,14 +3316,19 @@ class BamAttention(Attention):
           result, self.bam_k, self.head_dim,
           getattr(self, f'local_{name}_v_adapter', None))
     if self._concat_static_qk and name in ('q', 'k'):
-      static = self._static_column(M[..., :self._qk_col_width, :], name)
+      static = self._static_column(M[..., :self._qk_col_width, :], name, x)
       self._record_concat_amplitude('static_' + name, static, result[..., :self._qk_col_width])
       result = result + _pack_fetched_bam_heads(static, self.num_query_heads, self.head_dim)
     return result
 
-  def _static_column(self, M, arm):
-    # Full-M linear read: no key RMS, no scale, no gate; arm-specific initialization.
-    return jnp.einsum('btkv,vn->btnk', M, getattr(self, 'static_' + arm + '_key').astype(M.dtype))
+  def _static_column(self, M, arm, x=None):
+    read = jnp.einsum('btkv,vn->btnk', M, getattr(self, 'static_' + arm + '_key').astype(M.dtype))
+    if self._general_read:
+      assert x is not None
+      gate = self._static_gate('general_' + arm + '_static_gate', x)
+      self._record_general_gate(arm + '_static', gate)
+      read = read * (gate / self.config.bam_static_read_gate_init)[..., None]
+    return read
 
   def _read_direct_qk_c8(self, name, M, compressed_M, x, shared_hidden=None):
     """Independent per-head compressed read plus the original full-M static read."""
@@ -3242,7 +3338,7 @@ class BamAttention(Attention):
     col, _ = bam_read(compressed_M, key, self._direct_qk_c8_arm, gate_logits=logits)
     col = col[..., :self._qk_col_width]
     if self._concat_static_qk:
-      static = self._static_column(M[..., :self._qk_col_width, :], name)
+      static = self._static_column(M[..., :self._qk_col_width, :], name, x)
       self._record_concat_amplitude('static_' + name, static, col)
       col = col + static
     return _pack_fetched_bam_heads(col, self.num_query_heads, self.head_dim)
@@ -3328,7 +3424,17 @@ class BamAttention(Attention):
       g = g * (1.0 / jnp.sqrt(self.num_query_heads))
     u1_norm = self.write_data_norm(u1) if self._write_data_rms else u1
     u2_norm = self.write_address_norm(u2)
+    if self._general_write:
+      bias = nn.unbox(self.variables['params']['P_loc_up' if self._write_v_bottleneck_dim is not None else 'P_loc']['bias'])
+      self._record_concat_amplitude('general_attention_pre_bias', bias, u2)
+      self._record_general_key_norm('attention_write_pre_rms', u2)
     gated_u1 = g[..., None] * u1_norm
+    if self._general_write:
+      static_gate = self._static_gate('general_attention_static_gate', x)
+      u2_norm = self._general_write_address(
+          'attention_write', u2_norm, gate, self.general_attention_static_address, static_gate)
+      scale = 1.0 / jnp.sqrt(self.num_query_heads) if cfg.bam_sqrt_n_scale else 1.0
+      gated_u1 = scale * u1_norm
     with jax.named_scope("bam/write_outer"):
       if self._write_outer_implementation == 'dot':
         dM = jnp.einsum('btnk,btnv->btkv', gated_u1, u2_norm)
@@ -3357,9 +3463,19 @@ class BamAttention(Attention):
     gate = jax.nn.sigmoid(self.W_gw(x) + bias)
     scale = 1.0 / jnp.sqrt(self.num_query_heads) if self.config.bam_sqrt_n_scale else 1.0
     content = self.write_data_norm(u1) if self._write_data_rms else u1
-    return scale * gate[..., None] * content, self.write_address_norm(u2), gate
+    address = self.write_address_norm(u2)
+    if self._general_write:
+      bias = nn.unbox(self.variables['params']['P_loc_up' if self._write_v_bottleneck_dim is not None else 'P_loc']['bias'])
+      self._record_concat_amplitude('general_attention_pre_bias', bias, u2)
+      self._record_general_key_norm('attention_write_pre_rms', u2)
+      static_gate = self._static_gate('general_attention_static_gate', x)
+      address = self._general_write_address(
+          'attention_write', address, gate, self.general_attention_static_address, static_gate)
+      return scale * content, address, gate
+    return scale * gate[..., None] * content, address, gate
 
-  def merge_mlp_write(self, mlp_head, mlp_gate, factors, M_in, independent_address=None):
+  def merge_mlp_write(self, mlp_head, mlp_gate, factors, M_in, independent_address=None,
+                      mlp_static_address=None, mlp_static_gate=None, mlp_pre_bias=None):
     """Merge attention/MLP writes, then decay the carried matrix exactly once."""
     attention_content, address, attention_gate = factors
     content = self.write_data_norm(mlp_head) if self._write_data_rms else mlp_head
@@ -3374,6 +3490,13 @@ class BamAttention(Attention):
           dM = jnp.sum(combined_content[..., None] * address[..., None, :], axis=-3)
     else:
       mlp_address = self.write_address_norm(independent_address)
+      if self._general_write:
+        assert mlp_static_address is not None and mlp_static_gate is not None and mlp_pre_bias is not None
+        self._record_concat_amplitude('general_mlp_pre_bias', mlp_pre_bias, independent_address)
+        self._record_general_key_norm('mlp_write_pre_rms', independent_address)
+        mlp_address = self._general_write_address(
+            'mlp_write', mlp_address, mlp_gate, mlp_static_address, mlp_static_gate)
+        mlp_content = scale * content
       with jax.named_scope('bam/write_outer'):
         if self._write_outer_implementation == 'dot':
           dM = jnp.einsum('btnk,btnv->btkv', attention_content, address)
@@ -3398,7 +3521,9 @@ class BamAttention(Attention):
             jnp.mean(g), jnp.std(g), jnp.mean(g < .05),
             jnp.mean(g > .5), jnp.mean(g > .95))))
       # Factor health never reconstructs separate dynamic outer products.
-      self._record_concat_amplitude('mlp_write_content', mlp_content, attention_content)
+      self._record_concat_amplitude(
+          'mlp_write_content', mlp_content * mlp_gate[..., None] if self._general_write else mlp_content,
+          attention_content * attention_gate[..., None] if self._general_write else attention_content)
       self._record_concat_amplitude('mlp_write_raw_output', mlp_head, content)
       self._record_concat_amplitude('combined_write', dM, M_in)
     return _update_bam_matrix(M_in, dM, self.config.bam_lambda_decay)
@@ -3798,10 +3923,10 @@ class BamAttention(Attention):
         local_output = self._shared_local_vo(Mh, inputs_q, local_inputs)
         v_local = local_output
       if self._static_vo:
-        static_v = self._static_column(Mh, 'v')
+        static_v = self._static_column(Mh, 'v', inputs_q)
         self._record_concat_amplitude('static_v', static_v, v_local)
         v_local = v_local + static_v
-        static_o = self._static_column(Mh, 'o')
+        static_o = self._static_column(Mh, 'o', inputs_q)
         self._record_concat_amplitude('static_o', static_o, local_output)
         local_output = local_output + static_o
       if not self._local_v_replace:
@@ -3824,7 +3949,7 @@ class BamAttention(Attention):
         local_output = (self._gate_local_output(local_read, output_logits)
                         if shared_v else local_read)
         if self._static_vo:
-          static_o = self._static_column(Mh, 'o')
+          static_o = self._static_column(Mh, 'o', inputs_q)
           self._record_concat_amplitude('static_o', static_o, local_output)
           local_output = local_output + static_o
     if 'v' in self._local_arms:

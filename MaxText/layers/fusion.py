@@ -331,10 +331,32 @@ class SubDecoderLayer(nn.Module):
             dtype=cfg.dtype, weight_dtype=cfg.weight_dtype,
             quant=self.quant, matmul_precision=cfg.matmul_precision,
             name='mlp_address_up')(nn.gelu(address_hidden))
+      mlp_static_address = mlp_static_gate = mlp_pre_bias = None
+      if getattr(cfg, 'bam_general_matrix_write', False):
+        assert independent_address is not None and not pallas_core
+        mlp_static_address = nn.unbox(self.variable(
+            'params', 'general_mlp_static_address', nn.with_logical_partitioning(
+                lambda: jnp.zeros((num_query_heads, cfg.bam_v), cfg.weight_dtype),
+                ('q_heads', 'v_factor'))).value)
+        mlp_pre_bias = nn.unbox(self.variables['params']['mlp_address_up']['bias'])
+        opening = float(cfg.bam_static_write_gate_init)
+        static_logits = linears.DenseGeneral(
+            features=(num_query_heads,), axis=-1, use_bias=False,
+            kernel_init=initializers.contant_dense_init(0.0),
+            kernel_axes=('embed', 'q_heads'), dtype=cfg.dtype, weight_dtype=cfg.weight_dtype,
+            quant=self.quant, matmul_precision=cfg.matmul_precision,
+            name='general_mlp_static_gate')(hidden_states)
+        static_bias = nn.unbox(self.variable(
+            'params', 'general_mlp_static_gate_bias', nn.with_logical_partitioning(
+                lambda: jnp.full((num_query_heads,), math.log(opening / (1.1 - opening)), cfg.weight_dtype),
+                ('q_heads',))).value)
+        mlp_static_gate = 1.1 * jax.nn.sigmoid(static_logits + jnp.asarray(static_bias, cfg.dtype))
       if not pallas_core:
         M_out = attention_layer.merge_mlp_write(
             mlp_lnx.reshape(mlp_lnx.shape[:-1] + (num_query_heads, cfg.bam_k)),
-            jax.nn.sigmoid(mlp_logits), write_factors, M_out, independent_address=independent_address)
+            jax.nn.sigmoid(mlp_logits), write_factors, M_out, independent_address=independent_address,
+            mlp_static_address=mlp_static_address, mlp_static_gate=mlp_static_gate,
+            mlp_pre_bias=mlp_pre_bias)
     if pallas_core:
       from layers import bam_pallas
       groups = [write_factors]

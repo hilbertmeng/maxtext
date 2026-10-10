@@ -298,6 +298,10 @@ class BamLlama2Medium(Llama2Medium):
     bam_local_qk_direct_c8 = False
     bam_local_full_m_read_bottleneck_dim = None  # Q/K/shared-VO GELU keys on full M
     bam_local_full_m_read_share_down = False
+    bam_general_column_read = False
+    bam_general_matrix_write = False
+    bam_static_read_gate_init = .99
+    bam_static_write_gate_init = .01
     bam_local_vo_shared_read = 'none'  # none | local_o (C8 column donor)
     bam_local_vo_independent_gates = False
     bam_local_qk_share_basis = False  # effective_key Q/K share bases; gates and mixing remain independent.
@@ -12171,3 +12175,36 @@ class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMRe
     bam_local_full_m_read_share_down = True
     mlp_dim_by_block = [3835, 3708, 3835]
     compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdDirectC8TruePile', 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGelu128TruePile']
+
+
+class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile(BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadSharedGelu256TruePile):
+    """Generalized read on the shared R256 full-M parent."""
+    # Ledger only: codex/mediumprop-full-m-read-gelu128, /data0/xd/mediumprop-full-m-read-gelu128.
+    # Bet at13500 vs shared R256: loss-.004, same-health speed-2%.
+    model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile'
+    bam_general_column_read = True
+    bam_general_matrix_write = False
+    mlp_dim_by_block = [3813, 3686, 3813]
+    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadSharedGelu256TruePile']
+
+
+class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralWriteTruePile(BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadSharedGelu256TruePile):
+    """Generalized write on the shared R256 full-M parent."""
+    # Ledger only: codex/mediumprop-full-m-read-gelu128, /data0/xd/mediumprop-full-m-read-gelu128.
+    # Bet at13500 vs shared R256: loss-.006, same-health speed-1%.
+    model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralWriteTruePile'
+    bam_general_column_read = False
+    bam_general_matrix_write = True
+    mlp_dim_by_block = [3830, 3697, 3829]
+    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadSharedGelu256TruePile']
+
+
+class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadWriteTruePile(BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadSharedGelu256TruePile):
+    """Generalized readwrite on the shared R256 full-M parent."""
+    # Ledger only: codex/mediumprop-full-m-read-gelu128, /data0/xd/mediumprop-full-m-read-gelu128.
+    # Bet at13500 vs shared R256: loss-.010, same-health speed-3%.
+    model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadWriteTruePile'
+    bam_general_column_read = True
+    bam_general_matrix_write = True
+    mlp_dim_by_block = [3808, 3675, 3808]
+    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadSharedGelu256TruePile']

@@ -45,7 +45,8 @@ def check(name, expected):
         assert not any('W_local_packed' in path or 'W_lq_bias' in path for path in flat)
         for arm in ('q', 'k'):
             keys = [v for path, v in flat.items() if f'W_l{arm}_c8' in path]
-            assert keys and all(v.shape[-3:] == (1152, cfg.num_query_heads, cfg.bam_abs_v_compression_dim) for v in keys)
+            # The layer scan axis is axis1: kernel is [D, layers, heads, C].
+            assert keys and all(v.shape[0] == 1152 and v.shape[-2:] == (cfg.num_query_heads, cfg.bam_abs_v_compression_dim) for v in keys), [(v.shape) for v in keys]
         print('DIRECT_LARGE_M_PARAMETER_TREE_OK', name, count, flush=True)
 
         # Keep each actual K/V/C shape and quarter-RoPE split; reduce only width,

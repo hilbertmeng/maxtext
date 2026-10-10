@@ -12060,7 +12060,7 @@ class BamMediumPropD1152H24K96V48C12AllLocalMLPWriteIndependentEveryThirdDirectC
     # Ledger only: codex/mediumprop-attention-budget; /data0/xd/mediumprop-attention-budget.
     # code_commit: 4981467; UE5a v5p-16 AOT/FIRST_STEP verified.
     # 20-99 0.3996step/s (+0.88% vs matched-health/runtime large-M rank4 0.3962).
-    # Bet terminal vs standard DirectC8 -.015; speed vs original large-M rank4 -2%.
+    # Bet terminal vs DirectC8 -.018 (original-.015); revised@5800 from~1.14x MHA advantage.
     model_name = 'BamMediumPropD1152H24K96V48C12AllLocalMLPWriteIndependentEveryThirdDirectCTruePile'
     bam_local_qk_direct_c8 = True
     bam_local_qk_col_direct_compressed = False

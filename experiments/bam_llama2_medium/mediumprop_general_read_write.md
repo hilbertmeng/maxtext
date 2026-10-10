@@ -139,3 +139,13 @@ Write-static gates/addresses do learn, while attention static/dynamic effective-
 Local `scripts/closeout_runs_local.py` completed both with no failures. GeneralWrite checkpoint5327; GeneralReadWrite5180; both node/queue verified absent and localTB `SYNC_OK`. Artifacts `mediumprop-general-write-closeout.json`, `mediumprop-general-final-gaps.json`, report `mediumprop-attention-budget-direct-report-fullm8000.{json,md}`, generalized health `mediumprop-general-read-write-health-5000.json`. Mainexp stopped conclusions updated and completed bets removed.
 
 UE5a spotv5p-16,0preemptions each, no zone switches or passive queues. Chronological READY leases UTC: GeneralWrite310113 2026-10-10 16:56:13→20:02:58,3h06m45s; GeneralReadWrite310114 16:53:04→20:03:02,3h09m58s. Assignment/lease rows also recorded in the regional history. Four remaining training runs: independentR128, sharedR256, generalized read-only, V48sharedR256.
+
+
+V48 full-M sharedR256 continues after5000 review: lastfive versusV48DirectC12 -.009002 (range-.009984..-.008590), versusV32shared -.004056 (range-.004443..-.003635). Four-way interaction+.004680 (range+.004208..+.005251): both improvements help, with subadditive loss gains. Parent independent/shared through8400 versusC8 -.007214/-.012196; read-only through5400 versus shared -.005587. Cumulative artifacts `mediumprop-attention-budget-direct-report-fullm8400.{json,md}`. Raw gradients show no sustained growth.
+
+
+## Original full-M readers completed13500
+
+IndependentR128 versusDirectC8 lastfive12600..13400 -.006550 (range-.007119..-.006218); sharedR256 -.011516 (range-.011862..-.011152); shared minus independent -.004965 (range-.005433..-.004478). Shared full-M reading held~1.09x C8 MHA-relative advantage in late training; revised~-.010 forecast was close, original-.006 and incremental-.001 bets underestimated gain. Same-runtime shared throughput+2.03%, contradicting the original-2% bet. Joint wider hidden features are beneficial here; this does not establish that arbitrary parameter sharing helps.
+
+Local closeout wrapper verified already-complete13500 checkpoints, both node/queue independently NOT_FOUND.0preemptions, allUE5a spotv5p-16. Shared READY15:04:02→23:09:50UTC,8h05m48s; independent15:05:25→23:16:25UTC,8h11m00s. Artifacts `mediumprop-fullm-parent-closeout.log`, `mediumprop-fullm-parent-final-gains.json`, `mediumprop-fullm-parent-lease-{5,6}.json`. Mainexp final conclusions updated, completed bets removed. Generic read-only andV48 shared remain active; read-only preempted22:59:15UTC after6h05m18s, restored same64e3fc3 from9800, progressed beyond10000 with committed10000 checkpoint.

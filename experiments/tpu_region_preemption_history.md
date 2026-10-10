@@ -27,6 +27,8 @@ active leases are censored, and manual migration releases are not preemptions.
 
 | RUN | TPU | Zone | Start UTC | End UTC | End reason | Passive candidates |
 |---|---|---|---|---|---|---|
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadSharedGelu256TruePile` | v5p-16 (`xd-v5p-16-310111-maxtext`) | `us-east5-a` | 2026-10-10 15:04:00 | 2026-10-10 23:09:50 | complete13500;0preemptions; checkpoint committed, node/queue absent, TB synced | none |
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGelu128TruePile` | v5p-16 (`xd-v5p-16-310110-maxtext`) | `us-east5-a` | 2026-10-10 15:05:22 | 2026-10-10 23:16:25 | complete13500;0preemptions; checkpoint committed, node/queue absent, TB synced | none |
 | `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralWriteTruePile` | v5p-16 (`xd-v5p-16-310113-maxtext`) | `us-east5-a` | 2026-10-10 16:56:10 | 2026-10-10 20:02:58 | review stop5327;0preemptions; checkpoint committed, node/queue absent, TB synced | none |
 | `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadWriteTruePile` | v5p-16 (`xd-v5p-16-310114-maxtext`) | `us-east5-a` | 2026-10-10 16:53:01 | 2026-10-10 20:03:02 | review stop5180;0preemptions; checkpoint committed, node/queue absent, TB synced | none |
 | `BamMediumPropK75V64C16EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdDirectCTruePile` | v5p-16 (`xd-v5p-16-310108-maxtext`) | `us-east5-a` | 2026-10-10 07:57:51 | 2026-10-10 16:16:37 | complete13500;0preemptions; checkpoint committed, node/queue absent, TB synced | none |
@@ -1251,3 +1253,5 @@ active leases are censored, and manual migration releases are not preemptions.
 | `BamMediumPropK75V64C16EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdDirectCTruePile` | 1 | `us-east5-a` | 2026-10-10 07:57:54 | 2026-10-10 16:16:37 | 8h18m43s | complete13500; resources released |
 | `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralWriteTruePile` | 1 | `us-east5-a` | 2026-10-10 16:56:13 | 2026-10-10 20:02:58 | 3h06m45s | review stop5327; resources released |
 | `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadWriteTruePile` | 1 | `us-east5-a` | 2026-10-10 16:53:04 | 2026-10-10 20:03:02 | 3h09m58s | review stop5180; resources released |
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadSharedGelu256TruePile` | 1 | `us-east5-a` | 2026-10-10 15:04:02 | 2026-10-10 23:09:50 | 8h05m48s | complete13500; resources released |
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGelu128TruePile` | 1 | `us-east5-a` | 2026-10-10 15:05:25 | 2026-10-10 23:16:25 | 8h11m00s | complete13500; resources released |

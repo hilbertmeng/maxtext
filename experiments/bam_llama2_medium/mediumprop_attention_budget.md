@@ -22,3 +22,19 @@ Startup verified: all four use runtime444cb5f, loaded the exact AOT and executed
 Main follow-up3745492e removes backend detection entirely: bam_splash_attention (defaultTrue) controls the core; CPU fixtures explicitly disable it. All47 main regressions passed. The sealed444cb5f runtime retains explicit TPU-target detection and already traced Splash successfully, so these four executables need no replacement.
 
 All8 passive spot candidates (`310101`–`310104`, suffixes `-ew4b`/`-uc1a`) released; both TPU nodes and queued resources verified absent. Cleanup journal: `/data0/xd/bam_diagnostics/mediumprop-attention-budget-cleanup.json`. User-owned FLEX_START compiler retained.
+
+## Forward theoretical FLOPs
+
+Common ideal causal pair count T(T+1)/2, T4096,18layers; multiply and add each count as one FLOP. Fixed reference1W_Q=2BT(1200²), reported per-layer average even when D1152. Includes embedding-write projections/outer and LM head; excludes input embedding lookup, elementwise activation/normalization/gating/softmax, health, optimizer, backward/remat and hardware padding. All18 nominal attention writes counted. Full-K shared-rank4 basis read/expansion follows the source before QK truncation.
+
+| Configuration | Dense W_Q | QK+AV W_Q | M contractions/Gram W_Q | Total W_Q | vs standard | Transformer-only delta |
+|---|---:|---:|---:|---:|---:|---:|
+| standard16x75 M75x32/C8 | 14.33160 | 3.41417 | 0.16504 | 17.91081 | +0.00% | +0.00% |
+| 24x96 M96x32/C8 | 14.42480 | 6.55520 | 0.29400 | 21.27400 | +18.78% | +21.91% |
+| 24x96 M96x48/C12 | 14.42320 | 6.55520 | 0.44707 | 21.42547 | +19.62% | +22.77% |
+| 32x72 M72x48/C12 | 14.42222 | 6.55520 | 0.43449 | 21.41191 | +19.55% | +22.46% |
+| 32x72 M72x64/C16 | 14.41978 | 6.55520 | 0.58756 | 21.56254 | +20.39% | +23.12% |
+
+QK+AV doubles nearly: H×K1200→2304 (+92%); parameter matching keeps Dense arithmetic almost flat (+.62–.65%). Input embedding lookup has no Dense FLOPs, so moving its saved parameters to active projections slightly increases Dense FLOPs; LM head shrinks with D. Learned full-M static reads, compression, shared-rank4 reads/Gram and outer products are counted separately. Applying the same old C256 rounded pair count T(T+256)/2 to every arm gives +19.64/+20.47/+20.40/+21.23%; the main table isolates architecture from that implementation overhead.
+
+24x96 V48 and32x72 V48 have almost identical nominal FLOPs, while32heads measured9.4% lower throughput; total FLOPs cannot explain this difference. Source accounting and category MACs: `/data0/xd/bam_diagnostics/mediumprop-attention-budget-flops.py` and `.json`.

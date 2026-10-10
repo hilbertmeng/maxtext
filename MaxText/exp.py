@@ -12146,6 +12146,8 @@ class BamMediumPropL27K75V48C12EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThi
 class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGelu128TruePile(BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdDirectC8TruePile):
     """Three independent R128 GELU full-M keys; V/O share keys, not gates."""
     # Ledger only: codex/mediumprop-full-m-read-gelu128, /data0/xd/mediumprop-full-m-read-gelu128.
+    # code_commit: b4f144a; UE5a v5p-16 .4902step/s(20-99); matched-health/runtime sharedR256 .5001.
+    # Historic DirectC8 .508: -3.51%, C256 vs new Splash SEQ_MINOR; runtime unmatched.
     # No C8 compression; full-M static Q/K/V/O and QK57+RoPE18 unchanged.
     # Bet at13500 vs DirectC8: loss-.005, matched-runtime speed-2%.
     model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGelu128TruePile'
@@ -12163,6 +12165,8 @@ class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMRe
 class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadSharedGelu256TruePile(BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGelu128TruePile):
     """One shared R256 GELU down; separate Q/K/VO up projections."""
     # Ledger only: codex/mediumprop-full-m-read-gelu128, /data0/xd/mediumprop-full-m-read-gelu128.
+    # code_commit: b4f144a; UE5a v5p-16 .5001step/s(20-99), +2.03% vs matched independentR128 .4902.
+    # Historic DirectC8 .508: -1.55%, runtime unmatched.
     # Bet at13500 vs DirectC8: loss-.006; vs independent R128-.001; matched speed-2% vs R128.
     model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadSharedGelu256TruePile'
     bam_local_full_m_read_bottleneck_dim = 256

@@ -35,3 +35,12 @@ Normal grouped reports about1000steps; review2800/5000, endpoint13500.
 CPU gate: actual parameter tree, consumed finite gradients of each down/up and independent gates,
 plus numerical/gradient equivalence of full-M reads and shared ungated read with separate gates.
 CPU/AOT/training queue concurrently through launch_train_parallel.py; retained compiler serializes AOTs.
+
+Successful runtime `b4f144a6c98ca1790fb4028b28506edaa1b3097d`; both AOT loaded and FIRST_STEP verified.
+Parameter-up inputs are sharded on logical embed; abstract8-device overhead~.155%, below2%.
+Verified20-99 means: independentR128 .4901875, sharedR256 .500125 steps/s, same UE5a/v5p-16/health/runtime.
+SharedR256 is2.0273% faster, opposite the initial-2% speed bet. After MLP repayment, leading GEMM
+work is nearly equal; shared down removes two projection calls and reduces read GELU width384->256.
+The graph provides a plausible reason for the gain, not a measured kernel attribution.
+Historical standardDirectC8 .508 is C256; -3.5064%/-1.5502% comparisons are runtime-unmatched.
+Model changes remain isolated; main exp.py holds ledger only.

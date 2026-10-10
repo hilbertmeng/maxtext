@@ -31,3 +31,19 @@ New3 loaded their64e3fc3 AOT and reachedFIRST_STEP on UE5a. Mean20-99 speeds: re
 V48 sharedR256 loaded18263e0 AOT and reachedFIRST_STEP on UE5a, correct zone-local TruePile. Speed.462075: -9.59% vs historical V48 DirectC12.5111125, -7.61% vs V32 sharedR256.500125. This is a material speed regression versus the -3% bet, not explained by matched parameter counts. All use pure JAX/Splash SEQ_MINOR; M read `mul_reduce_btn`, write `mul_reduce`. No runtime-path difference established.
 
 Read-only AOT/HLO comparison: runtime7c6c8d8, source runner `scripts/export_full_m_read_aot_hlo.py`; controls V32/V48 sharedR256, V48 DirectC12, generalized read-only V32, original full18layers/topologyv5p-16/schedule13500. Retained FLEX_START compiler CPU only, shared worker lock; training untouched. Worker uploads HLO/executable/optional analysis directly to `gs://newproject-1-llm_base_models_us-central1/bam_diagnostics/mediumprop-fullm-hlo-20261010/`, local `/data0/xd/bam_diagnostics/mediumprop-fullm-hlo/`. Coordinator and shell artifact sources `run_full_m_hlo_export.py`, `compile_full_m_hlo.sh` under local diagnostics; small orchestration copies on tpu-aglogs. HLO exposes shapes/layout/copies and available allocations; it cannot prove wall-clock attribution without a hardware trace.
+
+
+## Optimized-HLO evidence (2026-10-10)
+
+All four exact v5p-16/18-layer executables exported successfully at common source7c6c8d8, with identical CPU-host target compilation workflow. Summary `/data0/xd/bam_diagnostics/mediumprop-fullm-hlo/summary.json`; compiler returned both memory and cost analysis. These are compiled estimates, not measured XPlane timings.
+
+| Configuration | Compiler FLOPs / V32 shared | Estimated bytes accessed / V32 shared | Temporary allocation GiB | Estimated optimal time / V32 shared | Observed step time / V32 shared |
+|---|---:|---:|---:|---:|---:|
+| V32 sharedR256 |1.00000|1.00000|24.005|1.00000|1.00000|
+| V48 sharedR256 |1.00906|1.09129|28.227|1.08435|1.08235|
+| V48 DirectC12 |1.00504|1.04694|26.819|1.04324|0.97850|
+| Generalized read-only V32 |1.00044|1.05550|25.484|1.05167|1.04470|
+
+V48 versus V32 full-M slowdown follows estimated memory traffic (+9.13%) and temporary allocation (+17.59%), rather than FLOPs (+0.91%); actual step time +8.23%. This supports a bandwidth/intermediate-buffer explanation, but does not attribute individual kernels. Copy instruction count actually falls1876→1854, so "more layout copies" is not established. HLO outer-product intermediates change `[16,4096,16,75,32]`→`[16,4096,16,75,48]`; fusion-local broadcasts alone do not establish HBM materialization.
+
+V48 full-M versus same-shape DirectC12 remains partly unexplained: estimated FLOPs +0.40%, bytes +4.24%, optimal time +3.94%, versus observed step time +10.61%. Do not call the full historical-control regression resolved by the V32/V48 pair. Generalized read-only is likewise mostly memory-work growth (+5.55% estimated traffic, +4.47% observed step time), with incremental health work unseparated.

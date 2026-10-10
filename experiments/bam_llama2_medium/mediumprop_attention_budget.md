@@ -42,3 +42,16 @@ QK+AV doubles nearly: H×K1200→2304 (+92%); parameter matching keeps Dense ari
 24x96 V48 and32x72 V48 have almost identical nominal FLOPs, while32heads measured9.4% lower throughput; total FLOPs cannot explain this difference. Source accounting and category MACs: `/data0/xd/bam_diagnostics/mediumprop-attention-budget-flops.py` and `.json`.
 
 BAM27 depth reference (`BamMediumPropL27K75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile`):27 layers, unchangedD1200/head16x75/M75x32/C8, nine privateMLP writes, widths[2311,2184,2311]. Same ideal-causal whole-model forward accounting versus18-layer standard gives +9.98366%; Transformer-only+11.53550%. Dense-0.00494%,QK+AV+50%,M contractions/Gram+49.55117%. Matched-C256 pair accounting gives+10.45286%. Historical.385 versus.520step/s (-25.96%) remains larger than this arithmetic increase; no implementation cause established. Category MACs: `/data0/xd/bam_diagnostics/mediumprop-bam27-flops.json`.
+
+## User pause after2000 window
+
+All four paused with committed checkpoints, training TPU nodes/queues released; resumes retain the original13500-step LR plan. Pause checkpoints2054/2043/2052/2038. All use full-M shared-rank4 LocalQK plus static reads; no DirectC8 LocalQK. Loss and lease artifacts: `/data0/xd/bam_diagnostics/mediumprop-attention-budget-report-2000.json`, `mediumprop-attention-budget-pause-state.json`, `mediumprop-attention-budget-leases.json`. Local TB tails synced.
+
+| RUN shorthand | vs standard@2000 | vs BAM27@2000 | Last5 vs standard / BAM27 |
+|---|---:|---:|---:|
+| H24K96V32C8 | -0.016376 | +0.004201 | -0.019071 / -0.001981 |
+| H24K96V48C12 | -0.025139 | -0.004562 | -0.028836 / -0.011746 |
+| H32K72V48C12 | -0.018681 | +0.001896 | -0.020900 / -0.003810 |
+| H32K72V64C16 | -0.025681 | -0.005104 | -0.026059 / -0.008969 |
+
+Early gains shrink throughout. H24V32 and H32V48 crossed behind BAM27 at2000; H24V48 and H32V64 remain ahead by~.005, but the advantage versus BAM27 is not stable. H32V64 is substantially better than H32V48; H24V48 is better than H32V48. This supports testing address capacity alongside attention allocation, but does not isolate heads, width, D or MLP effects. Results are provisional, not terminal bet judgments.

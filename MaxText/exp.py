@@ -11955,6 +11955,7 @@ class BamMediumPropD1152H24K96V32C8AllLocalMLPWriteIndependentEveryThirdTruePile
     # UE5a v5p-16 0.4217step/s (20-99); -18.9% vs historic standard .520, runtime unmatched.
     # 432112464 params; MHA delta -8736; pure JAX + Splash SEQ_MINOR, same parent health.
     # Bet terminal vs standard -0.002; old-runtime speed estimate 0.43 vs .520 (optimization unmatched).
+    # Paused2054 after2000 window; provisional vs standard -0.016376, vs BAM27 +0.004201; BAM27 crossed zero at2000.
     model_name = 'BamMediumPropD1152H24K96V32C8AllLocalMLPWriteIndependentEveryThirdTruePile'
     base_num_query_heads = 24
     base_num_kv_heads = 24
@@ -11981,6 +11982,7 @@ class BamMediumPropD1152H24K96V48C12AllLocalMLPWriteIndependentEveryThirdTruePil
     # UE5a v5p-16 0.3962step/s (20-99); -23.8% vs historic standard .520, runtime unmatched.
     # 432114000 params; MHA delta -7200; pure JAX + Splash SEQ_MINOR, same parent health.
     # Bet terminal vs standard -0.010; old-runtime speed estimate 0.40 vs .520 (optimization unmatched).
+    # Paused2043 after2000 window; provisional vs standard -0.025139, vs BAM27 -0.004562; BAM27 lead still shrinking.
     model_name = 'BamMediumPropD1152H24K96V48C12AllLocalMLPWriteIndependentEveryThirdTruePile'
     base_num_query_heads = 24
     base_num_kv_heads = 24
@@ -12007,6 +12009,7 @@ class BamMediumPropD1152H32K72V48C12AllLocalMLPWriteIndependentEveryThirdTruePil
     # UE5a v5p-16 0.3589step/s (20-99); -31.0% vs historic standard .520, runtime unmatched.
     # 432125504 params; MHA delta +4304; pure JAX + Splash SEQ_MINOR, same parent health.
     # Bet terminal vs standard +0.006; old-runtime speed estimate 0.39 vs .520 (optimization unmatched).
+    # Paused2052 after2000 window; provisional vs standard -0.018681, vs BAM27 +0.001896; BAM27 crossed zero at2000.
     model_name = 'BamMediumPropD1152H32K72V48C12AllLocalMLPWriteIndependentEveryThirdTruePile'
     base_num_query_heads = 32
     base_num_kv_heads = 32
@@ -12033,6 +12036,7 @@ class BamMediumPropD1152H32K72V64C16AllLocalMLPWriteIndependentEveryThirdTruePil
     # UE5a v5p-16 0.3416step/s (20-99); -34.3% vs historic standard .520, runtime unmatched.
     # 432119616 params; MHA delta -1584; pure JAX + Splash SEQ_MINOR, same parent health.
     # Bet terminal vs standard +0.015; old-runtime speed estimate 0.36 vs .520 (optimization unmatched).
+    # Paused2038 after2000 window; provisional vs standard -0.025681, vs BAM27 -0.005104; BAM27 lead still shrinking.
     model_name = 'BamMediumPropD1152H32K72V64C16AllLocalMLPWriteIndependentEveryThirdTruePile'
     base_num_query_heads = 32
     base_num_kv_heads = 32

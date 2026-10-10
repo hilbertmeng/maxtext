@@ -96,3 +96,30 @@ V48 sharedR256 continues to5000: latestfive versus V48 DirectC12 -.009560 (range
 V32 independent/shared through6000: latestfive versus DirectC8 -.007697/-.012949; shared minus independent -.005252 (range-.005982..-.004380), same-runtime throughput+2.03%. Both remain full13500 runs. Raw-grad5000..6000 stays .22-.30; V48 raw-grad after the2000 spike returns .383/.416/.338/.326 at2200/2400/2600/2800. No persistent escalation established.
 
 Matched profile TPU installation finished; matrix launched2026-10-10T18:52:34Z, tmux `fullm-read-profile-1010`, coordinator `tpu-ag:logs/fullm-read-profile-1010-matrix.log`. Existing four AOTs staged, first arm V48 DirectC12 launched18:53:50Z. No formal run modified.
+
+## Same-VM measured profile
+
+Four-arm matrix completed2026-10-10T19:12:45Z, same spotUE5a v5p-16/commit7c6c8d8, AOT loaded and actual steps0..100 for every arm. Raw XPlanes plus logs copied directly from GCS to `/data0/xd/bam_diagnostics/mediumprop-fullm-read-profile/artifacts/`. Local analyzer `analyze_matrix.py` reuses repository `analyze_rmt_pallas_profiles.py`; `matrix-summary.json`, `arm0..3-analysis.json` retain exact scope/layout data. Raw leaf coverage .9987-.9993; JSON traces are not used for attribution.
+
+| Full configuration class | Mean20-99 step/s (80 samples) | Mean30-99 step/s (70 samples; excludes trace20-24) | Mean all-device XPlane step ms |
+|---|---:|---:|---:|
+| `BamMediumPropK75V48C12EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdDirectCTruePile` |.5053125|.5120857|1918.579|
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadSharedGelu256TruePile` |.4944000|.5007429|1959.810|
+| `BamMediumPropK75V48EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadSharedGelu256TruePile` |.4565250|.4623429|2128.505|
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile` |.4741625|.4803143|2026.699|
+
+V48 full versus same-shapeDirectC12 reproduces -9.71% throughput (-9.59% formal historical comparison); device step+209.925ms. Read scopes account for+117.057ms LocalQK and+76.366ms LocalVO; within them the contractions alone grow+133.542/+67.217ms (~201ms,95.6% of device-step increase), partly offset by removing C12 compression. Copies decrease~1.30ms, MLP -3.448ms, attention/privateMLP write scopes +.178/-.040ms. Thus the main cause is full-M contractions, not largerMLP, writing, or increased copy time. Legacy scope `fetch_2`/`_read_fetched_m` here is AllLocal VO, not actual fetchedO.
+
+First complete core-step scope deltas (ms), separately preserving forward/remat/backward:
+
+| V48 full minus DirectC12 | Forward | Remat forward | Backward | Total |
+|---|---:|---:|---:|---:|
+| LocalQK read, including compression/key/health fused work |+47.345|+39.830|+29.848|+117.057|
+| LocalVO read |+27.238|+23.623|+25.505|+76.366|
+| Attention M write |+.303|-.057|-.069|+.178|
+| Merged attention + privateMLP write |+.005|+.004|-.049|-.040|
+| MLP |-2.668|-.452|-.328|-3.448|
+
+V48 versus V32 full: throughput-7.67%, device step+168.695ms; read scopes+96.889ms, attention/privateMLP write+31.753ms, MLP-.418ms. This is consistent with the earlier memory-work hypothesis, now with hardware attribution.
+
+Generalized read versus V32 shared: throughput-4.08%, device step+66.889ms. QK/VO read contractions themselves are unchanged (-.003/-.054ms); extra read scopes+28.622ms and other-attention scopes+24.566ms include key/gate/normalization/health fused work. MLP also changes+11.095ms despite slightly narrower widths. Do not attribute the entire slowdown to larger contractions or assign fused work exclusively to health without an OFF control. Both generic/concat-health switches are retained; generalized metrics are extra. No formal executable changed.

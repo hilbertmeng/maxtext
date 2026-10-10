@@ -16,3 +16,15 @@ Independent projected QK uses one quarter of head width for RoPE; LocalQK reads 
 AOT correction: the compiler host traces with JAX_PLATFORMS=cpu but targets v5p-16. Splash selection must recognize the explicit TPU compile_topology rather than silently compiling C256. Ordinary CPU fixtures still use C256. Compile target selection, exact four full parameter trees, unequal-head outer products and their gradients, tiny full-model gradients, and full BAM regression gate training. Shared CPU gate cached per sealed runtime commit avoids repeating the suite four times; four training prequeues run concurrently while one borrowed compiler serializes AOTs.
 
 Speed bets were made before selecting the newly optimized runtime; historical .520 was C256. Do not attribute any Splash/runtime speedup to the head/M allocation. Loss bet order: H24K96V48 < H24K96V32 < standard < H32K72V48 < H32K72V64.
+
+
+## DirectC restarts of the two large-M arms
+
+New independent runs, from step0: H24K96V48/C12 and H32K72V64/C16. Same worktree/branch and attention-budget recipe; only LocalQK dynamic read switches from full-M shared-rank4 to independent per-head keys on the existing shared C projection. Full-M static Q/K reads retained, no key bias; no separate QK compression. Main Splash config-only selection3745492e incorporated. Repaid additional parameters to nearest MHA-budget widths.
+
+| Class | TPU | MLP widths | Expected params | Terminal gap bet vs standard DirectC8 | Speed bet vs original large-M rank4 |
+|---|---|---|---:|---:|---:|
+| BamMediumPropD1152H24K96V48C12AllLocalMLPWriteIndependentEveryThirdDirectCTruePile | xd-v5p-16-310105-maxtext | [3192,3060,3194] | 432131280 | -.015 | -2% (~.388step/s) |
+| BamMediumPropD1152H32K72V64C16AllLocalMLPWriteIndependentEveryThirdDirectCTruePile | xd-v5p-16-310106-maxtext | [2313,1984,2314] | 432115008 | -.010 | -3% (~.331step/s) |
+
+Each compares its paused original rank4 arm, the completed standard18 DirectC8, and BAM27. Original rank4 arms provide paired loss only through2000. Health, TruePile4096, original13500-step schedule retained; report about1000steps, review2800/5000. Formal spotv5p-16 UE5a primary; retain EW4b/UC1a spot alternatives only if primary waits5min. Retained FLEX_START llm-jax-v6e-1-0 EW4a used only as compiler, never auto-cleaned. Targeted CPU gate checks both full parameter trees and actual-K/V/C tiny consumed gradients; existing broad runtime paths were already verified.

@@ -68,3 +68,14 @@ At source7c6c8d8, additionally compiled V32/V48 sharedR256 with only `bam_read_i
 | V48 sharedR256 |-.040%|+14.853%|+10.577%|+13.946%|62|
 
 HLO does not support dot as a way to reduce this full-M read's memory work. In V48, large new copies carry `[16,4096,75,48]` with LocalQ/K and VO `bam/contract_1a_col/.../dot_general` metadata, consistent with M layout conversion. This is compiler evidence, not measured throughput; actual wall-clock superiority/inferiority remains untested. Formal training retains its sealed mul-reduce executables.
+
+
+## Second report and mechanism checks
+
+Cumulative artifact `/data0/xd/bam_diagnostics/mediumprop-attention-budget-direct-report-fullm5200.{json,md}`: parents through5200, generalized arms through2400, V48 shared through2000. SharedR256 minus DirectC8 lastfive -.013708 (range-.014450..-.013051), MHA-relative gain1.076..1.084; independentR128 -.007497 (range-.008460..-.005900). Shared minus independent -.006212.
+
+Generalized read/write/both latestfive versus shared parent -.007235/-.001801/-.007383. Write crossed briefly at1400 (+.000540), then regained a small lead, now-.000869 at2400; near-zero r200 is numerically large and is not an effect-size measure. Both nearly matches read-only rather than adding standalone benefits. Original write-.006 / both-.010 terminal bets now appear overoptimistic; updated provisional forecast near0 / about-.004 respectively, with original bets retained for eventual review.
+
+Read-only static V gates in three layer bands at1000→2400: .509/.590/.517→.477/.513/.425. Static write gates do learn, but effective static/dynamic address-RMS ratios remain only~.5–4.2%; this is not evidence of strong use of the post-RMS write term yet. Most discriminating proposed follow-up: only static-V gating, without new read pre-bias or the other three static gates; not launched.
+
+V48 shared through2000: lastfive versus DirectC12 -.010413, versus V32 shared -.002658; four-way interaction +.012655 (range+.009728..+.017889). Full-M reading still gains less atV48 thanV32, though the initial discrepancy shrank markedly. V48 raw-grad2000=5.340, embedding address-up bias5.173 (~93.9% energy),2010=.346; same-stage sharedV32/DirectC8 spikes were previously attributed to the same bias. Generalized read2000=1.453 (bias1.164),2010=.445. Raw-event artifact `mediumprop-fullm-v48-general-raw-event-grad-2000.json`; no persistent gradient escalation established.

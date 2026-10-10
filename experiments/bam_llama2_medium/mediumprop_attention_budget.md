@@ -121,3 +121,8 @@ Checkpoint13500 committed; TPU/queued resource verified absent by auto-train and
 Completed13500. Early gains shrank then held: last5(12600-13400) vs standard DirectC8-.011259 (~1.088x MHA18 advantage); vs matched new18 DirectC12-.003699; vs BAM27 last common5(9800-10600)+.008621. C16 throughput.4704 vs C12.5111 is-7.96% at matched runtime and health. Extra address/read capacity retains a real incremental loss benefit, but it does not beat BAM27 and costs throughput compared with C12. Expansion also scales address LoRA R384→512; this experiment does not isolate compression width.
 
 Checkpoint13500 committed, resources verified absent, local closeout already_closed=true, TB sync OK. UE5a v5p-16,0preemptions; READY2026-10-10 07:57:54→16:16:37UTC,8h18m43s. Complete paired windows/ratios: `/data0/xd/bam_diagnostics/mediumprop-direct-c16-final.json` and `.md`. Both standard-head C12/C16 expansions are now complete; full-M GELU read experiments continue.
+
+
+## Full-M generalized read/write follow-up
+
+Use sharedR256 as common parent immediately by user direction. Original independentR128 and sharedR256 both train to13500, without2800/5000 stop reviews. Three generalized read-only/write-only/both runs and health/initialization controls are documented in [mediumprop_general_read_write.md](mediumprop_general_read_write.md).

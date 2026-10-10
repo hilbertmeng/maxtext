@@ -12098,7 +12098,8 @@ class BamMediumPropK75V48C12EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdD
     """Expand address space and compressed DirectC read dimension at fixed standard heads."""
     # Runtime: codex/mediumprop-attention-budget, /data0/xd/mediumprop-attention-budget; code_commit: e332529.
     # UE5a v5p-16 .5111step/s (20-99), +.6% vs historic standard DirectC8 .508; runtime unmatched.
-    # Bet terminal vs standard DirectC8 -.008; matched-runtime speed -3%.
+    # Completed13500: vs DirectC8 early gain shrank then held; last5(12600-13400) -.007560 (~1.059x MHA gain).
+    # vs same-M rank4 last5 -.001285; vs BAM27 last common5(9800-10600) +.012176.
     model_name = 'BamMediumPropK75V48C12EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdDirectCTruePile'
     bam_v = 48
     bam_abs_v_compression_dim = 12

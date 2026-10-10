@@ -27,6 +27,7 @@ active leases are censored, and manual migration releases are not preemptions.
 
 | RUN | TPU | Zone | Start UTC | End UTC | End reason | Passive candidates |
 |---|---|---|---|---|---|---|
+| `BamMediumPropK75V48C12EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdDirectCTruePile` | v5p-16 (`xd-v5p-16-310107-maxtext`) | `us-east5-a` | 2026-10-10 07:57:40 | 2026-10-10 15:38:05 | complete13500;0preemptions; checkpoint committed, node/queue absent, TB synced | none |
 | `BamMediumPropD1152H24K96V48C12AllLocalMLPWriteIndependentEveryThirdDirectCTruePile` | v5p-16 (`xd-v5p-16-310105-maxtext`) | `us-east5-a` | 2026-10-10 06:24:52 | 2026-10-10 14:10:20 | user stop10893;0preemptions; checkpoint committed, node/queue absent, TB synced | none |
 | `BamMediumPropL27K75V48C12EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdDirectCTruePile` | v5p-16 (`xd-v5p-16-310109-maxtext`) | `us-east5-a` | 2026-10-10 08:04:38 | 2026-10-10 14:10:25 | user stop7926;0preemptions; checkpoint committed, node/queue absent, TB synced | none |
 | `BamMediumPropD1152H32K72V64C16AllLocalMLPWriteIndependentEveryThirdDirectCTruePile` | v5p-16 (`xd-v5p-16-310106-maxtext`) | `us-east5-a` | 2026-10-10 06:24:48 | 2026-10-10 09:43:57 | review stop3828;0preemptions; checkpoint committed, node/queue absent, TB synced | none |
@@ -1243,3 +1244,4 @@ active leases are censored, and manual migration releases are not preemptions.
 | `BamMediumPropD1152H32K72V64C16AllLocalMLPWriteIndependentEveryThirdDirectCTruePile` | 1 | `us-east5-a` | 2026-10-10 06:24:51 | 2026-10-10 09:43:57 | 3h19m06s | review stop3828; resources released |
 | `BamMediumPropD1152H24K96V48C12AllLocalMLPWriteIndependentEveryThirdDirectCTruePile` | 1 | `us-east5-a` | 2026-10-10 06:24:55 | 2026-10-10 14:10:20 | 7h45m25s | user stop10893; resources released |
 | `BamMediumPropL27K75V48C12EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdDirectCTruePile` | 1 | `us-east5-a` | 2026-10-10 08:04:40 | 2026-10-10 14:10:25 | 6h05m45s | user stop7926; resources released |
+| `BamMediumPropK75V48C12EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdDirectCTruePile` | 1 | `us-east5-a` | 2026-10-10 07:57:44 | 2026-10-10 15:38:05 | 7h40m21s | complete13500; resources released |

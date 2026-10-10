@@ -47,3 +47,12 @@ All four exact v5p-16/18-layer executables exported successfully at common sourc
 V48 versus V32 full-M slowdown follows estimated memory traffic (+9.13%) and temporary allocation (+17.59%), rather than FLOPs (+0.91%); actual step time +8.23%. This supports a bandwidth/intermediate-buffer explanation, but does not attribute individual kernels. Copy instruction count actually falls1876→1854, so "more layout copies" is not established. HLO outer-product intermediates change `[16,4096,16,75,32]`→`[16,4096,16,75,48]`; fusion-local broadcasts alone do not establish HBM materialization.
 
 V48 full-M versus same-shape DirectC12 remains partly unexplained: estimated FLOPs +0.40%, bytes +4.24%, optimal time +3.94%, versus observed step time +10.61%. Do not call the full historical-control regression resolved by the V32/V48 pair. Generalized read-only is likewise mostly memory-work growth (+5.55% estimated traffic, +4.47% observed step time), with incremental health work unseparated.
+
+
+## First generalized-read/write report
+
+At exact common200..1200 windows, generalized read minus sharedR256: -.014512/-.009624/-.013387/-.010723/-.011561/-.008639; write: -.034693/-.006687/-.007393/-.004033/-.005120/-.000057; both: -.013665/-.013186/-.014366/-.011921/-.012122/-.009734. Write-only's initial advantage rapidly contracts; both have not added the two standalone gains. Too early for terminal conclusions or stop review.
+
+Generalized-read static V gate means in L0-5/L6-11/L12-17 change .829/.866/.878 at200 to .509/.590/.517 at1000, while Q/K/O stay near1. Generalized-both shows the same V suppression. This suggests static-V amplitude control is a promising component of the combined read change; pre-RMS bias and static gating have not been separately ablated. Write-static gates initially.01 remain small but learn (attention .026/.030/.017, privateMLP .011/.035/.019 at1000). Original raw-gradient milestone values remain finite and return to typical scales after the early transient.
+
+Parent trajectories through4000: sharedR256 minus DirectC8 latestfive -.014304 (range-.015782..-.012452), MHA-relative advantage ratio1.062..1.078; independentR128 minus DirectC8 -.008802 (range-.009827..-.007984), ratio1.038..1.047. Shared minus independent -.005502 and +2.03% throughput at matched runtime/health. Both remain user-directed full13500 runs. Cumulative reports/health artifacts `/data0/xd/bam_diagnostics/mediumprop-attention-budget-direct-report-fullm4000.{json,md}`, generalized health `mediumprop-general-read-write-health-1000.json`.

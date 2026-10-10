@@ -27,6 +27,10 @@ active leases are censored, and manual migration releases are not preemptions.
 
 | RUN | TPU | Zone | Start UTC | End UTC | End reason | Passive candidates |
 |---|---|---|---|---|---|---|
+| `BamMediumPropD1152H24K96V32C8AllLocalMLPWriteIndependentEveryThirdTruePile` | v5p-16 (`xd-v5p-16-310101-maxtext`) | `us-east5-a` | 2026-10-10 04:14:54 | 2026-10-10 05:40:37 | user pause2054;0preemptions; committed checkpoint, node/queue absent | EW4b/UC1a spot candidates, never active; released |
+| `BamMediumPropD1152H24K96V48C12AllLocalMLPWriteIndependentEveryThirdTruePile` | v5p-16 (`xd-v5p-16-310102-maxtext`) | `us-east5-a` | 2026-10-10 04:14:48 | 2026-10-10 05:45:03 | user pause2043;0preemptions; committed checkpoint, node/queue absent | EW4b/UC1a spot candidates, never active; released |
+| `BamMediumPropD1152H32K72V48C12AllLocalMLPWriteIndependentEveryThirdTruePile` | v5p-16 (`xd-v5p-16-310103-maxtext`) | `us-east5-a` | 2026-10-10 04:14:21 | 2026-10-10 05:54:21 | user pause2052;0preemptions; committed checkpoint, node/queue absent | EW4b/UC1a spot candidates, never active; released |
+| `BamMediumPropD1152H32K72V64C16AllLocalMLPWriteIndependentEveryThirdTruePile` | v5p-16 (`xd-v5p-16-310104-maxtext`) | `us-east5-a` | 2026-10-10 04:14:29 | 2026-10-10 05:58:36 | user pause2038;0preemptions; committed checkpoint, node/queue absent | EW4b/UC1a spot candidates, never active; released |
 | `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdDirectC8SeparateQKVProjectionIndependentInitTruePile` | v5p-16 (`xd-v5p-16-1010-maxtext`) | `us-east5-a` | 2026-10-09 14:18:48 | 2026-10-09 17:12:48 | review stop5066;0preemptions;checkpoint committed, resources absent, TB synced | none |
 | `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdDirectC8SeparateQKVProjectionTruePile` | v5p-16 (`xd-v5p-16-1009-maxtext`) | `us-east5-a` | 2026-10-09 13:44:32 | 2026-10-09 16:41:31 | review stop5108;0preemptions;checkpoint committed, resources absent, TB synced | none |
 | `BamLlama2XLHead16x128V2C256FetchRank2` | v5p-32 | `europe-west4-b` | 2026-08-25 07:34:52 | 2026-08-26 00:07:55 | manual stop | `us-central1-a` (never active) |
@@ -1229,3 +1233,7 @@ active leases are censored, and manual migration releases are not preemptions.
 | `BamMHAMediumPropC256TruePile` | 1 | `us-east5-a` | 2026-09-28 03:05:47 | 2026-09-28 08:30:36 | 5h24m49s | clean exit at checkpoint13500; TPU/queue absent |
 | `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdDirectC8SeparateQKVProjectionTruePile` | 1 | `us-east5-a` | 2026-10-09 13:44:32 | 2026-10-09 16:41:31 | 2h56m59s | review stop5108; checkpoint committed, resources absent, TB synced |
 | `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdDirectC8SeparateQKVProjectionIndependentInitTruePile` | 1 | `us-east5-a` | 2026-10-09 14:18:48 | 2026-10-09 17:12:48 | 2h54m00s | review stop5066; checkpoint committed, resources absent, TB synced |
+| `BamMediumPropD1152H24K96V32C8AllLocalMLPWriteIndependentEveryThirdTruePile` | 1 | `us-east5-a` | 2026-10-10 04:14:58 | 2026-10-10 05:40:37 | 1h25m39s | user pause2054; resources released |
+| `BamMediumPropD1152H24K96V48C12AllLocalMLPWriteIndependentEveryThirdTruePile` | 1 | `us-east5-a` | 2026-10-10 04:14:52 | 2026-10-10 05:45:03 | 1h30m11s | user pause2043; resources released |
+| `BamMediumPropD1152H32K72V48C12AllLocalMLPWriteIndependentEveryThirdTruePile` | 1 | `us-east5-a` | 2026-10-10 04:14:25 | 2026-10-10 05:54:21 | 1h39m56s | user pause2052; resources released |
+| `BamMediumPropD1152H32K72V64C16AllLocalMLPWriteIndependentEveryThirdTruePile` | 1 | `us-east5-a` | 2026-10-10 04:14:32 | 2026-10-10 05:58:36 | 1h44m04s | user pause2038; resources released |

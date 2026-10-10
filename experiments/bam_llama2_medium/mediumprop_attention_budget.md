@@ -55,3 +55,12 @@ All four paused with committed checkpoints, training TPU nodes/queues released; 
 | H32K72V64C16 | -0.025681 | -0.005104 | -0.026059 / -0.008969 |
 
 Early gains shrink throughout. H24V32 and H32V48 crossed behind BAM27 at2000; H24V48 and H32V64 remain ahead by~.005, but the advantage versus BAM27 is not stable. H32V64 is substantially better than H32V48; H24V48 is better than H32V48. This supports testing address capacity alongside attention allocation, but does not isolate heads, width, D or MLP effects. Results are provisional, not terminal bet judgments.
+
+All four had0preemptions, one UE5a v5p-16 READY lease each (UTC):
+
+| TPU ID | READY start | Pause boundary | READY duration |
+|---|---|---|---|
+| xd-v5p-16-310101-maxtext | 2026-10-10T04:14:58Z | 2026-10-10T05:40:37Z | 1h25m39s |
+| xd-v5p-16-310102-maxtext | 2026-10-10T04:14:52Z | 2026-10-10T05:45:03Z | 1h30m11s |
+| xd-v5p-16-310103-maxtext | 2026-10-10T04:14:25Z | 2026-10-10T05:54:21Z | 1h39m56s |
+| xd-v5p-16-310104-maxtext | 2026-10-10T04:14:32Z | 2026-10-10T05:58:36Z | 1h44m04s |

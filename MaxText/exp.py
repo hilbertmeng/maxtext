@@ -12058,7 +12058,8 @@ class BamMediumPropD1152H32K72V64C16AllLocalMLPWriteIndependentEveryThirdTruePil
 class BamMediumPropD1152H24K96V48C12AllLocalMLPWriteIndependentEveryThirdDirectCTruePile(BamMediumPropD1152H24K96V48C12AllLocalMLPWriteIndependentEveryThirdTruePile):
     """Independent per-head LocalQK keys on the existing compressed M view."""
     # Ledger only: codex/mediumprop-attention-budget; /data0/xd/mediumprop-attention-budget.
-    # Runtime4981467 prepared; UE5a spotv5p-16, pure JAX + Splash SEQ_MINOR; inherited health.
+    # code_commit: 4981467; UE5a v5p-16 AOT/FIRST_STEP verified.
+    # 20-99 0.3996step/s (+0.88% vs matched-health/runtime large-M rank4 0.3962).
     # Bet terminal vs standard DirectC8 -.015; speed vs original large-M rank4 -2%.
     model_name = 'BamMediumPropD1152H24K96V48C12AllLocalMLPWriteIndependentEveryThirdDirectCTruePile'
     bam_local_qk_direct_c8 = True
@@ -12072,7 +12073,8 @@ class BamMediumPropD1152H24K96V48C12AllLocalMLPWriteIndependentEveryThirdDirectC
 class BamMediumPropD1152H32K72V64C16AllLocalMLPWriteIndependentEveryThirdDirectCTruePile(BamMediumPropD1152H32K72V64C16AllLocalMLPWriteIndependentEveryThirdTruePile):
     """Independent per-head LocalQK keys on the existing compressed M view."""
     # Ledger only: codex/mediumprop-attention-budget; /data0/xd/mediumprop-attention-budget.
-    # Runtime4981467 prepared; UE5a spotv5p-16, pure JAX + Splash SEQ_MINOR; inherited health.
+    # code_commit: 4981467; UE5a v5p-16 AOT/FIRST_STEP verified.
+    # 20-99 0.3276step/s (-4.09% vs matched-health/runtime large-M rank4 0.3416).
     # Bet terminal vs standard DirectC8 -.010; speed vs original large-M rank4 -3%.
     model_name = 'BamMediumPropD1152H32K72V64C16AllLocalMLPWriteIndependentEveryThirdDirectCTruePile'
     bam_local_qk_direct_c8 = True

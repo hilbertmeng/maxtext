@@ -12127,4 +12127,5 @@ class BamMediumPropL27K75V48C12EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThi
     model_name = 'BamMediumPropL27K75V48C12EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdDirectCTruePile'
     bam_layer_modes = ['local_qk+local_v+local_o'] * 27
     mlp_dim_by_block = [2155, 1940, 2156]  # 432154576 params; MHA27 delta +11776
-    compare_runs = ['BamMediumPropL27K75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile', 'BamMediumPropK75V48C12EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdDirectCTruePile', 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdDirectC8TruePile']
+    # Also report (C12_27-rank4_27)-(C12_18-rank4_18), exact common windows.
+    compare_runs = ['BamMediumPropL27K75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile']

@@ -12087,7 +12087,8 @@ class BamMediumPropD1152H32K72V64C16AllLocalMLPWriteIndependentEveryThirdDirectC
 class BamMediumPropK75V48C12EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdDirectCTruePile(BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdDirectC8TruePile):
     """Expand address space and compressed DirectC read dimension at fixed standard heads."""
     # Runtime: codex/mediumprop-attention-budget, /data0/xd/mediumprop-attention-budget; code_commit: e332529.
-    # Preparing UE5a v5p-16; terminal bet vs standard DirectC8 -0.008; matched-runtime speed bet -3%.
+    # UE5a v5p-16 .5111step/s (20-99), +.6% vs historic standard DirectC8 .508; runtime unmatched.
+    # Bet terminal vs standard DirectC8 -.008; matched-runtime speed -3%.
     model_name = 'BamMediumPropK75V48C12EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdDirectCTruePile'
     bam_v = 48
     bam_abs_v_compression_dim = 12
@@ -12104,7 +12105,8 @@ class BamMediumPropK75V48C12EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdD
 class BamMediumPropK75V64C16EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdDirectCTruePile(BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdDirectC8TruePile):
     """Expand address space and compressed DirectC read dimension at fixed standard heads."""
     # Runtime: codex/mediumprop-attention-budget, /data0/xd/mediumprop-attention-budget; code_commit: e332529.
-    # Preparing UE5a v5p-16; terminal bet vs standard DirectC8 -0.010; matched-runtime speed bet -6%.
+    # UE5a v5p-16 .4704step/s (20-99), -7.96% vs matched new18 C12 .5111.
+    # Bet terminal vs standard DirectC8 -.010; matched-runtime speed -6%.
     model_name = 'BamMediumPropK75V64C16EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdDirectCTruePile'
     bam_v = 64
     bam_abs_v_compression_dim = 16
@@ -12120,7 +12122,8 @@ class BamMediumPropK75V64C16EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdD
 class BamMediumPropL27K75V48C12EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdDirectCTruePile(Llama2MediumPropL27, BamMediumPropK75V48C12EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdDirectCTruePile):
     """Combine27-layer depth with expanded DirectC12 address reads at the fixed budget."""
     # Runtime: codex/mediumprop-attention-budget, /data0/xd/mediumprop-attention-budget; code_commit: d5e1fc6.
-    # Preparing UE5a v5p-16; bets vs BAM27 -.006 / new18 C12 -.018; matched-runtime speed vs BAM27 -3%.
+    # UE5a v5p-16 .3718step/s (20-99), -27.26% vs matched new18 C12 .5111.
+    # Historic BAM27 .385: -3.43%, runtime unmatched; bets vs BAM27 -.006 / new18 C12 -.018.
     model_name = 'BamMediumPropL27K75V48C12EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdDirectCTruePile'
     bam_layer_modes = ['local_qk+local_v+local_o'] * 27
     mlp_dim_by_block = [2155, 1940, 2156]  # 432154576 params; MHA27 delta +11776

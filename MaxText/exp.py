@@ -225,6 +225,14 @@ class Llama2MediumProp(Llama2Medium):
     scan_layers = True
 
 
+class Llama2MediumPropL27(Llama2MediumProp):
+    """27-layer MediumProp at the18-layer parameter budget; MLP width1600."""
+    model_name = 'Llama2MediumPropL27'
+    base_num_decoder_layers = 27
+    base_mlp_dim = 1600
+
+
+
 class Llama2MediumQKNorm(Llama2Medium):
     """Standard MHA control with learned Q/K RMSNorm before RoPE."""
     # code_commit: 4408ccb

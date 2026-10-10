@@ -11,6 +11,7 @@ import sys
 import argparse
 import shlex
 import time
+import tempfile
 from concurrent.futures import ThreadPoolExecutor
 
 
@@ -59,9 +60,19 @@ def sync_run(run_name):
     fcntl.flock(lock, fcntl.LOCK_EX)
     for attempt in range(3):
       try:
-        for source in sources(run_name):
-          print(f"sync {run_name}: {source} -> {destination}", flush=True)
-          run(GSUTIL, "-m", "rsync", "-c", "-r", source + "/", str(destination) + "/")
+        # gsutil creates *tfevents*_.gstmp while downloading. TensorBoard
+        # recognizes those names as event files and can retain a partial series.
+        # Download outside its watched tree; publish only completed files.
+        with tempfile.TemporaryDirectory(prefix="tb-closeout-", dir=LOCAL_ROOT.parent) as directory:
+          staging = Path(directory)
+          for source in sources(run_name):
+            print(f"sync {run_name}: {source} -> {destination}", flush=True)
+            run(GSUTIL, "-m", "rsync", "-c", "-r", source + "/", str(staging) + "/")
+          for path in sorted(staging.rglob("*")):
+            if path.is_file():
+              target = destination / path.relative_to(staging)
+              target.parent.mkdir(parents=True, exist_ok=True)
+              os.replace(path, target)
         print(f"SYNC_OK {run_name}", flush=True)
         return True
       except (subprocess.SubprocessError, RuntimeError, ValueError) as exc:
@@ -76,13 +87,24 @@ def run(*args: str, check: bool = True) -> subprocess.CompletedProcess[str]:
   return subprocess.run(args, text=True, capture_output=True, check=check)
 
 
+def refresh_tensorboard():
+  # A full sync may replace an inode already open in the data server. Restart
+  # once per batch so it reopens all published files; leave stopped services off.
+  result = run("systemctl", "--user", "try-restart", "maxtext-tensorboard.service", check=False)
+  if result.returncode:
+    print(f"TB_REFRESH_FAILED: {result.stderr}", file=sys.stderr)
+
+
 def main() -> int:
   parser = argparse.ArgumentParser(description=__doc__)
   parser.add_argument("runs", nargs="*")
   args = parser.parse_args()
   if args.runs:
     with ThreadPoolExecutor(max_workers=min(4, len(args.runs))) as pool:
-      return 0 if all(list(pool.map(sync_run, args.runs))) else 1
+      results = list(pool.map(sync_run, args.runs))
+    if any(results):
+      refresh_tensorboard()
+    return 0 if all(results) else 1
   STATE_DIR.mkdir(parents=True, exist_ok=True)
   with (STATE_DIR / "lock").open("w") as lock:
     fcntl.flock(lock, fcntl.LOCK_EX)
@@ -112,6 +134,7 @@ def main() -> int:
       temporary = state_path.with_suffix(".tmp")
       temporary.write_text(json.dumps(state, indent=2, sort_keys=True) + "\n")
       os.replace(temporary, state_path)
+      refresh_tensorboard()
   return 0
 
 

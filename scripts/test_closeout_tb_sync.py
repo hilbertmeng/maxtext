@@ -9,6 +9,36 @@ import sync_completed_tensorboards as sync
 
 
 class CloseoutSyncTest(unittest.TestCase):
+  def test_download_is_hidden_until_complete(self):
+    with tempfile.TemporaryDirectory() as directory:
+      root = Path(directory) / "watched"
+      root.mkdir()
+      def download(*args, **kwargs):
+        staging = Path(args[-1])
+        self.assertFalse(staging.is_relative_to(root))
+        self.assertFalse((root / "Run" / "events.out.tfevents.1").exists())
+        (staging / "events.out.tfevents.1").write_bytes(b"complete events")
+      with patch.object(sync, "LOCAL_ROOT", root), \
+           patch.object(sync, "sources", return_value=["gs://bucket/events/Run"]), \
+           patch.object(sync, "run", side_effect=download):
+        self.assertTrue(sync.sync_run("Run"))
+      self.assertEqual((root / "Run" / "events.out.tfevents.1").read_bytes(), b"complete events")
+      self.assertFalse(list(root.rglob("*.gstmp")))
+
+  def test_explicit_batch_refreshes_once_after_success(self):
+    with patch("sys.argv", ["sync", "Run1", "Run2"]), \
+         patch.object(sync, "sync_run", side_effect=[True, True]), \
+         patch.object(sync, "refresh_tensorboard") as refresh:
+      self.assertEqual(sync.main(), 0)
+      refresh.assert_called_once_with()
+
+  def test_failed_batch_does_not_refresh(self):
+    with patch("sys.argv", ["sync", "Run1"]), \
+         patch.object(sync, "sync_run", return_value=False), \
+         patch.object(sync, "refresh_tensorboard") as refresh:
+      self.assertEqual(sync.main(), 1)
+      refresh.assert_not_called()
+
   def test_retry_while_event_changes(self):
     with tempfile.TemporaryDirectory() as directory, patch.object(sync, "LOCAL_ROOT", Path(directory)), \
          patch.object(sync, "sources", return_value=["gs://bucket/events/Run"]), \

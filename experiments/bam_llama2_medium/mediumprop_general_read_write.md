@@ -9,8 +9,8 @@ All extra parameters deducted from MLP, nearest integer per-layer total budget; 
 | RUN suffix (after common FullMRead stem) | TPU ID | MLP widths | Parameters | Bet terminal loss / speed vs shared parent |
 |---|---:|---|---:|---|
 | GeneralReadTruePile |310112|[3813,3686,3813]|432111104|-.004 / -2%|
-| GeneralWriteTruePile |310113|[3830,3697,3829]|432123776|-.006 / -1%|
-| GeneralReadWriteTruePile |310114|[3808,3675,3808]|432130976|-.010 / -3%|
+| GeneralWriteTruePile |310113|[3830,3697,3829]|432123776|stopped5327|
+| GeneralReadWriteTruePile |310114|[3808,3675,3808]|432130976|stopped5180|
 
 Common full class stem `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMRead`. New3 compare only the shared parent, at exact common200-step ±25-step windows sampled every10; public reports about1000steps. Report MHA-relative advantage multiples with common `BamMHAMediumPropC256TruePile`. New3 review2800/5000, possible full bound13500. TruePile4096, D1200/head16×75/M75×32, QK57+RoPE18, sharedR256 GELU full-M read,18AllLocal, Splash SEQ_MINOR, pure JAX, inherited health remain fixed except indicated read/write and MLP budgets.
 
@@ -127,3 +127,15 @@ Generalized read versus V32 shared: throughput-4.08%, device step+66.889ms. QK/V
 Diagnostic TPU/node and queue verified absent via `delete_tpu_xd.sh`; task manifest records `release_verified=true`. Retained FLEX_START compiler untouched.
 
 Generalized arms through3800: latestfive versus shared parent read/write/both -.006876/-.001218/-.007229; ranges read[-.007612,-.006073], write[-.001962,-.000663], both[-.008321,-.006407]. Continue planned5000 review. Static/dynamic effective attention-address RMS ratios (write-only, three layer bands) grow2800→3800 from5.3%/1.9%/.6% to7.7%/2.8%/1.0%, without a growing loss benefit. Read-only staticV gates .475/.504/.424→.463/.491/.411. No persistent raw-gradient escalation. Artifacts `mediumprop-attention-budget-direct-report-gen3800.{json,md}`, `mediumprop-general-read-write-health-3800.json`.
+
+Parents through7200: independent/shared versus DirectC8 latestfive -.007224/-.012277, shared minus independent -.005053. Shared MHA-relative advantage ratio remains~1.08; provisional terminal forecast versus C8~-.010, original-.006 bet retained. V48 shared through3800: latestfive versus DirectC12-.009088, versus V32shared-.004381; interaction+.005460 (range+.002966..+.006553), smaller than2800 but no longer monotonic over the latest1000steps. Artifact `mediumprop-attention-budget-direct-report-fullm7200.{json,md}`. Raw gradients remain bounded at typical scales, no persistent escalation.
+
+## 5000 review and write-arm closeout
+
+Generalized read continues: latestfive versus shared parent-.005616 (range-.006093..-.005084), MHA-relative gain~1.03. Stop generalized write and both: write's early gain contracts to near0 after1200; final complete window5200, lastfive-.000538 (range-.001037..+.000152), throughput-1.62% versus parent. Both's parent-relative gain settles~-.006 after1400; final complete window5000, lastfive-.005908. Versus read-only, -.000292 (range-.000790..+.000704) for-1.07% throughput; no material incremental benefit.
+
+Write-static gates/addresses do learn, while attention static/dynamic effective-address RMS ratios at5000 reach9.7%/3.6%/1.4% in the three bands. This does not establish a corresponding matrix-write energy ratio. Strongest proposed follow-up remains staticV gating alone on the shared parent, without new pre-bias or Q/K/O static gates; not launched.
+
+Local `scripts/closeout_runs_local.py` completed both with no failures. GeneralWrite checkpoint5327; GeneralReadWrite5180; both node/queue verified absent and localTB `SYNC_OK`. Artifacts `mediumprop-general-write-closeout.json`, `mediumprop-general-final-gaps.json`, report `mediumprop-attention-budget-direct-report-fullm8000.{json,md}`, generalized health `mediumprop-general-read-write-health-5000.json`. Mainexp stopped conclusions updated and completed bets removed.
+
+UE5a spotv5p-16,0preemptions each, no zone switches or passive queues. Chronological READY leases UTC: GeneralWrite310113 2026-10-10 16:56:13→20:02:58,3h06m45s; GeneralReadWrite310114 16:53:04→20:03:02,3h09m58s. Assignment/lease rows also recorded in the regional history. Four remaining training runs: independentR128, sharedR256, generalized read-only, V48sharedR256.

@@ -12180,6 +12180,8 @@ class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMRe
 class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile(BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadSharedGelu256TruePile):
     """Generalized read on the shared R256 full-M parent."""
     # Ledger only: codex/mediumprop-full-m-read-gelu128, /data0/xd/mediumprop-full-m-read-gelu128; code_commit: 64e3fc3.
+    # UE5a v5p-16 .4787step/s (20-99), -4.28% vs sharedR256; extra health included.
+    # !? Read-gate variants slower than speed bet; incremental health cost not separated.
     # Bet at13500 vs shared R256: loss-.004, same-health speed-2%.
     model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile'
     bam_general_column_read = True
@@ -12191,6 +12193,7 @@ class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMRe
 class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralWriteTruePile(BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadSharedGelu256TruePile):
     """Generalized write on the shared R256 full-M parent."""
     # Ledger only: codex/mediumprop-full-m-read-gelu128, /data0/xd/mediumprop-full-m-read-gelu128; code_commit: 64e3fc3.
+    # UE5a v5p-16 .4920step/s (20-99), -1.62% vs sharedR256; extra health included.
     # Bet at13500 vs shared R256: loss-.006, same-health speed-1%.
     model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralWriteTruePile'
     bam_general_column_read = False
@@ -12202,6 +12205,8 @@ class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMRe
 class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadWriteTruePile(BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadSharedGelu256TruePile):
     """Generalized readwrite on the shared R256 full-M parent."""
     # Ledger only: codex/mediumprop-full-m-read-gelu128, /data0/xd/mediumprop-full-m-read-gelu128; code_commit: 64e3fc3.
+    # UE5a v5p-16 .4736step/s (20-99), -5.30% vs sharedR256; extra health included.
+    # !? Read-gate variants slower than speed bet; incremental health cost not separated.
     # Bet at13500 vs shared R256: loss-.010, same-health speed-3%.
     model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadWriteTruePile'
     bam_general_column_read = True

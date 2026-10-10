@@ -27,6 +27,7 @@ active leases are censored, and manual migration releases are not preemptions.
 
 | RUN | TPU | Zone | Start UTC | End UTC | End reason | Passive candidates |
 |---|---|---|---|---|---|---|
+| `BamMediumPropD1152H32K72V64C16AllLocalMLPWriteIndependentEveryThirdDirectCTruePile` | v5p-16 (`xd-v5p-16-310106-maxtext`) | `us-east5-a` | 2026-10-10 06:24:48 | 2026-10-10 09:43:57 | review stop3828;0preemptions; checkpoint committed, node/queue absent, TB synced | none |
 | `BamMediumPropD1152H24K96V32C8AllLocalMLPWriteIndependentEveryThirdTruePile` | v5p-16 (`xd-v5p-16-310101-maxtext`) | `us-east5-a` | 2026-10-10 04:14:54 | 2026-10-10 05:40:37 | user pause2054;0preemptions; committed checkpoint, node/queue absent | EW4b/UC1a spot candidates, never active; released |
 | `BamMediumPropD1152H24K96V48C12AllLocalMLPWriteIndependentEveryThirdTruePile` | v5p-16 (`xd-v5p-16-310102-maxtext`) | `us-east5-a` | 2026-10-10 04:14:48 | 2026-10-10 05:45:03 | user pause2043;0preemptions; committed checkpoint, node/queue absent | EW4b/UC1a spot candidates, never active; released |
 | `BamMediumPropD1152H32K72V48C12AllLocalMLPWriteIndependentEveryThirdTruePile` | v5p-16 (`xd-v5p-16-310103-maxtext`) | `us-east5-a` | 2026-10-10 04:14:21 | 2026-10-10 05:54:21 | user pause2052;0preemptions; committed checkpoint, node/queue absent | EW4b/UC1a spot candidates, never active; released |
@@ -1237,3 +1238,4 @@ active leases are censored, and manual migration releases are not preemptions.
 | `BamMediumPropD1152H24K96V48C12AllLocalMLPWriteIndependentEveryThirdTruePile` | 1 | `us-east5-a` | 2026-10-10 04:14:52 | 2026-10-10 05:45:03 | 1h30m11s | user pause2043; resources released |
 | `BamMediumPropD1152H32K72V48C12AllLocalMLPWriteIndependentEveryThirdTruePile` | 1 | `us-east5-a` | 2026-10-10 04:14:25 | 2026-10-10 05:54:21 | 1h39m56s | user pause2052; resources released |
 | `BamMediumPropD1152H32K72V64C16AllLocalMLPWriteIndependentEveryThirdTruePile` | 1 | `us-east5-a` | 2026-10-10 04:14:32 | 2026-10-10 05:58:36 | 1h44m04s | user pause2038; resources released |
+| `BamMediumPropD1152H32K72V64C16AllLocalMLPWriteIndependentEveryThirdDirectCTruePile` | 1 | `us-east5-a` | 2026-10-10 06:24:51 | 2026-10-10 09:43:57 | 3h19m06s | review stop3828; resources released |

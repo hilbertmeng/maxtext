@@ -12074,8 +12074,9 @@ class BamMediumPropD1152H32K72V64C16AllLocalMLPWriteIndependentEveryThirdDirectC
     """Independent per-head LocalQK keys on the existing compressed M view."""
     # Ledger only: codex/mediumprop-attention-budget; /data0/xd/mediumprop-attention-budget.
     # code_commit: 4981467; UE5a v5p-16 AOT/FIRST_STEP verified.
-    # 20-99 0.3276step/s (-4.09% vs matched-health/runtime large-M rank4 0.3416).
-    # Bet terminal vs standard DirectC8 -.010; speed vs original large-M rank4 -3%.
+    # UE5a .3276step/s; -18.02% vs matched H24 large-M .3996, -4.09% vs matched rank4 parent.
+    # Stopped3828: early gains shrink; last5(3000-3800) vs DirectC8 -.022941, BAM27 -.003443.
+    # H24 overtakes around2800; last5 vs H24 +.003661 and widening. vs rank4 parent -.006494@2000.
     model_name = 'BamMediumPropD1152H32K72V64C16AllLocalMLPWriteIndependentEveryThirdDirectCTruePile'
     bam_local_qk_direct_c8 = True
     bam_local_qk_col_direct_compressed = False

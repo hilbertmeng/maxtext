@@ -12054,3 +12054,30 @@ class BamMediumPropD1152H32K72V64C16AllLocalMLPWriteIndependentEveryThirdTruePil
     bam_mlp_write_address_rank = 512
     mlp_dim_by_block = [2484, 2155, 2484]
     compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile', 'BamMediumPropL27K75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile']
+
+class BamMediumPropD1152H24K96V48C12AllLocalMLPWriteIndependentEveryThirdDirectCTruePile(BamMediumPropD1152H24K96V48C12AllLocalMLPWriteIndependentEveryThirdTruePile):
+    """Independent per-head LocalQK keys on the existing compressed M view."""
+    # Ledger only: codex/mediumprop-attention-budget; /data0/xd/mediumprop-attention-budget.
+    # Runtime4981467 prepared; UE5a spotv5p-16, pure JAX + Splash SEQ_MINOR; inherited health.
+    # Bet terminal vs standard DirectC8 -.015; speed vs original large-M rank4 -2%.
+    model_name = 'BamMediumPropD1152H24K96V48C12AllLocalMLPWriteIndependentEveryThirdDirectCTruePile'
+    bam_local_qk_direct_c8 = True
+    bam_local_qk_col_direct_compressed = False
+    bam_local_qk_share_basis = False
+    bam_local_qk_separate_c8_projection = False
+    mlp_dim_by_block = [3192, 3060, 3194]
+    compare_runs = ['BamMediumPropD1152H24K96V48C12AllLocalMLPWriteIndependentEveryThirdTruePile', 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdDirectC8TruePile', 'BamMediumPropL27K75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile']
+
+
+class BamMediumPropD1152H32K72V64C16AllLocalMLPWriteIndependentEveryThirdDirectCTruePile(BamMediumPropD1152H32K72V64C16AllLocalMLPWriteIndependentEveryThirdTruePile):
+    """Independent per-head LocalQK keys on the existing compressed M view."""
+    # Ledger only: codex/mediumprop-attention-budget; /data0/xd/mediumprop-attention-budget.
+    # Runtime4981467 prepared; UE5a spotv5p-16, pure JAX + Splash SEQ_MINOR; inherited health.
+    # Bet terminal vs standard DirectC8 -.010; speed vs original large-M rank4 -3%.
+    model_name = 'BamMediumPropD1152H32K72V64C16AllLocalMLPWriteIndependentEveryThirdDirectCTruePile'
+    bam_local_qk_direct_c8 = True
+    bam_local_qk_col_direct_compressed = False
+    bam_local_qk_share_basis = False
+    bam_local_qk_separate_c8_projection = False
+    mlp_dim_by_block = [2313, 1984, 2314]
+    compare_runs = ['BamMediumPropD1152H32K72V64C16AllLocalMLPWriteIndependentEveryThirdTruePile', 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdDirectC8TruePile', 'BamMediumPropL27K75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile']

@@ -20,3 +20,5 @@ Speed bets were made before selecting the newly optimized runtime; historical .5
 Startup verified: all four use runtime444cb5f, loaded the exact AOT and executed real steps on UE5a, reading the UE5a TruePile4096 replica. CPU checks passed46 BAM regressions plus unequal-head/model checks. Early throughput (steps20-99) respectively .4217/.3962/.3589/.3416, versus historical standard .520: -18.9%/-23.8%/-31.0%/-34.3%; generic+concat health matches, attention runtime does not.
 
 Main follow-up3745492e removes backend detection entirely: bam_splash_attention (defaultTrue) controls the core; CPU fixtures explicitly disable it. All47 main regressions passed. The sealed444cb5f runtime retains explicit TPU-target detection and already traced Splash successfully, so these four executables need no replacement.
+
+All8 passive spot candidates (`310101`–`310104`, suffixes `-ew4b`/`-uc1a`) released; both TPU nodes and queued resources verified absent. Cleanup journal: `/data0/xd/bam_diagnostics/mediumprop-attention-budget-cleanup.json`. User-owned FLEX_START compiler retained.

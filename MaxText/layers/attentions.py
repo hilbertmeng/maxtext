@@ -3029,7 +3029,7 @@ class BamAttention(Attention):
     cfg = self.config
     for suffix, output, kernel_axes in (
         ('down', self._full_m_read_rank, ('embed', None)),
-        ('up', features, (None,) + axes[1:])):
+        ('up', features, ('embed',) + axes[1:])):
       parameter_name = ('full_m_read_down' if suffix == 'down' and self._full_m_read_share_down
                         else f'{name}_{suffix}')
       if suffix == 'down' and self._full_m_read_share_down and hasattr(self, parameter_name):

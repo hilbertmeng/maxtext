@@ -35,3 +35,6 @@ Normal grouped reports about1000steps; review2800/5000, endpoint13500.
 CPU gate: actual parameter tree, consumed finite gradients of each down/up and independent gates,
 plus numerical/gradient equivalence of full-M reads and shared ungated read with separate gates.
 CPU/AOT/training queue concurrently through launch_train_parallel.py; retained compiler serializes AOTs.
+
+Startup correction: read-up input axis uses logical `embed` (like P_loc_up), not unpartitioned.
+Added an abstract8-device parameter-sharding gate; no trained steps existed before this fix.

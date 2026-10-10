@@ -13,6 +13,7 @@ if [[ -f "$TASK_STATE/ok" ]]; then
 fi
 export JAX_PLATFORMS=cpu CUDA_VISIBLE_DEVICES= TF_CPP_MIN_LOG_LEVEL=3 PYTHONPATH="$ROOT/MaxText"
 export OMP_NUM_THREADS=8 OPENBLAS_NUM_THREADS=8
+env XLA_FLAGS=--xla_force_host_platform_device_count=8 /data0/xd/conda/envs/maxtext-cpu/bin/python scripts/check_mediumprop_full_m_sharding.py
 /data0/xd/conda/envs/maxtext-cpu/bin/python scripts/check_mediumprop_full_m_read.py
 python3 /home/xd/projects/xd_tpu_scripts/run_cpu_tests_parallel.py "$ROOT" --jobs 2 --test BamReadKeyTransformTest.test_bam_read_implementations_match_values_and_gradients --test BamReadKeyTransformTest.test_combined_shared_read_matches_separate_value_and_gradients
 touch "$TASK_STATE/ok"

@@ -12208,3 +12208,16 @@ class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMRe
     bam_general_matrix_write = True
     mlp_dim_by_block = [3808, 3675, 3808]
     compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadSharedGelu256TruePile']
+
+
+class BamMediumPropK75V48EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadSharedGelu256TruePile(BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadSharedGelu256TruePile):
+    """Shared R256 full-M reads on the V48 DirectC12 parent, without compression."""
+    # Bet at13500: vs V48 DirectC12-.008, vs V32 sharedR256-.003; speed-3% vs V48 DirectC12.
+    # Ledger only: codex/mediumprop-full-m-read-gelu128, /data0/xd/mediumprop-full-m-read-gelu128; code_commit: 18263e0.
+    model_name = 'BamMediumPropK75V48EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadSharedGelu256TruePile'
+    bam_v = 48
+    bam_write_v_bottleneck_dim = 384
+    emb_bam_v_bottleneck_dim = 384
+    bam_mlp_write_address_rank = 384
+    mlp_dim_by_block = [3687, 3471, 3687]  # 432112480 parameters, MHA delta -8720
+    compare_runs = ['BamMediumPropK75V48C12EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdDirectCTruePile', 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadSharedGelu256TruePile']

@@ -12060,7 +12060,8 @@ class BamMediumPropD1152H24K96V48C12AllLocalMLPWriteIndependentEveryThirdDirectC
     # Ledger only: codex/mediumprop-attention-budget; /data0/xd/mediumprop-attention-budget.
     # code_commit: 4981467; UE5a v5p-16 AOT/FIRST_STEP verified.
     # 20-99 0.3996step/s (+0.88% vs matched-health/runtime large-M rank4 0.3962).
-    # Bet terminal vs DirectC8 -.018 (original-.015); revised@5800 from~1.14x MHA advantage.
+    # Stopped10893: vs DirectC8 early lead shrank then held; last5(10000-10800) -.020043 (~1.15x MHA gain).
+    # vs BAM27 lead faded to parity; last5(9800-10600) -.000144. Rank4 parent last common2000 -.004462.
     model_name = 'BamMediumPropD1152H24K96V48C12AllLocalMLPWriteIndependentEveryThirdDirectCTruePile'
     bam_local_qk_direct_c8 = True
     bam_local_qk_col_direct_compressed = False
@@ -12124,7 +12125,9 @@ class BamMediumPropL27K75V48C12EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThi
     """Combine27-layer depth with expanded DirectC12 address reads at the fixed budget."""
     # Runtime: codex/mediumprop-attention-budget, /data0/xd/mediumprop-attention-budget; code_commit: d5e1fc6.
     # UE5a v5p-16 .3718step/s (20-99), -27.26% vs matched new18 C12 .5111.
-    # Historic BAM27 .385: -3.43%, runtime unmatched; bets vs BAM27 -.006 / new18 C12 -.018.
+    # Historic BAM27 .385: -3.43%, runtime unmatched. Stopped7926.
+    # vs BAM27 gain shrank from-.008953@2800; last5(7000-7800) -.003179, still ahead.
+    # (C12_27-BAM27rank4)-(C12_18-BAM18rank4): positive since2000; last5 +.005578.
     model_name = 'BamMediumPropL27K75V48C12EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdDirectCTruePile'
     bam_layer_modes = ['local_qk+local_v+local_o'] * 27
     mlp_dim_by_block = [2155, 1940, 2156]  # 432154576 params; MHA27 delta +11776

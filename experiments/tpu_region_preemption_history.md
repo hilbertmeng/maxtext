@@ -27,6 +27,8 @@ active leases are censored, and manual migration releases are not preemptions.
 
 | RUN | TPU | Zone | Start UTC | End UTC | End reason | Passive candidates |
 |---|---|---|---|---|---|---|
+| `BamMediumPropD1152H24K96V48C12AllLocalMLPWriteIndependentEveryThirdDirectCTruePile` | v5p-16 (`xd-v5p-16-310105-maxtext`) | `us-east5-a` | 2026-10-10 06:24:52 | 2026-10-10 14:10:20 | user stop10893;0preemptions; checkpoint committed, node/queue absent, TB synced | none |
+| `BamMediumPropL27K75V48C12EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdDirectCTruePile` | v5p-16 (`xd-v5p-16-310109-maxtext`) | `us-east5-a` | 2026-10-10 08:04:38 | 2026-10-10 14:10:25 | user stop7926;0preemptions; checkpoint committed, node/queue absent, TB synced | none |
 | `BamMediumPropD1152H32K72V64C16AllLocalMLPWriteIndependentEveryThirdDirectCTruePile` | v5p-16 (`xd-v5p-16-310106-maxtext`) | `us-east5-a` | 2026-10-10 06:24:48 | 2026-10-10 09:43:57 | review stop3828;0preemptions; checkpoint committed, node/queue absent, TB synced | none |
 | `BamMediumPropD1152H24K96V32C8AllLocalMLPWriteIndependentEveryThirdTruePile` | v5p-16 (`xd-v5p-16-310101-maxtext`) | `us-east5-a` | 2026-10-10 04:14:54 | 2026-10-10 05:40:37 | user pause2054;0preemptions; committed checkpoint, node/queue absent | EW4b/UC1a spot candidates, never active; released |
 | `BamMediumPropD1152H24K96V48C12AllLocalMLPWriteIndependentEveryThirdTruePile` | v5p-16 (`xd-v5p-16-310102-maxtext`) | `us-east5-a` | 2026-10-10 04:14:48 | 2026-10-10 05:45:03 | user pause2043;0preemptions; committed checkpoint, node/queue absent | EW4b/UC1a spot candidates, never active; released |
@@ -1239,3 +1241,5 @@ active leases are censored, and manual migration releases are not preemptions.
 | `BamMediumPropD1152H32K72V48C12AllLocalMLPWriteIndependentEveryThirdTruePile` | 1 | `us-east5-a` | 2026-10-10 04:14:25 | 2026-10-10 05:54:21 | 1h39m56s | user pause2052; resources released |
 | `BamMediumPropD1152H32K72V64C16AllLocalMLPWriteIndependentEveryThirdTruePile` | 1 | `us-east5-a` | 2026-10-10 04:14:32 | 2026-10-10 05:58:36 | 1h44m04s | user pause2038; resources released |
 | `BamMediumPropD1152H32K72V64C16AllLocalMLPWriteIndependentEveryThirdDirectCTruePile` | 1 | `us-east5-a` | 2026-10-10 06:24:51 | 2026-10-10 09:43:57 | 3h19m06s | review stop3828; resources released |
+| `BamMediumPropD1152H24K96V48C12AllLocalMLPWriteIndependentEveryThirdDirectCTruePile` | 1 | `us-east5-a` | 2026-10-10 06:24:55 | 2026-10-10 14:10:20 | 7h45m25s | user stop10893; resources released |
+| `BamMediumPropL27K75V48C12EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdDirectCTruePile` | 1 | `us-east5-a` | 2026-10-10 08:04:40 | 2026-10-10 14:10:25 | 6h05m45s | user stop7926; resources released |

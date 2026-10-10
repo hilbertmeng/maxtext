@@ -11971,7 +11971,7 @@ class BamMediumPropD1152H24K96V32C8AllLocalMLPWriteIndependentEveryThirdTruePile
     bam_mlp_write_num_heads = 12
     bam_mlp_write_address_rank = 192
     mlp_dim_by_block = [3445, 3356, 3446]
-    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile']
+    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile', 'BamMediumPropL27K75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile']
 
 
 class BamMediumPropD1152H24K96V48C12AllLocalMLPWriteIndependentEveryThirdTruePile(BamMediumPropD1152AttentionBudget):
@@ -11997,7 +11997,7 @@ class BamMediumPropD1152H24K96V48C12AllLocalMLPWriteIndependentEveryThirdTruePil
     bam_mlp_write_num_heads = 12
     bam_mlp_write_address_rank = 256
     mlp_dim_by_block = [3256, 3124, 3257]
-    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile']
+    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile', 'BamMediumPropL27K75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile']
 
 
 class BamMediumPropD1152H32K72V48C12AllLocalMLPWriteIndependentEveryThirdTruePile(BamMediumPropD1152AttentionBudget):
@@ -12023,7 +12023,7 @@ class BamMediumPropD1152H32K72V48C12AllLocalMLPWriteIndependentEveryThirdTruePil
     bam_mlp_write_num_heads = 16
     bam_mlp_write_address_rank = 384
     mlp_dim_by_block = [2919, 2700, 2919]
-    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile']
+    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile', 'BamMediumPropL27K75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile']
 
 
 class BamMediumPropD1152H32K72V64C16AllLocalMLPWriteIndependentEveryThirdTruePile(BamMediumPropD1152AttentionBudget):
@@ -12049,4 +12049,4 @@ class BamMediumPropD1152H32K72V64C16AllLocalMLPWriteIndependentEveryThirdTruePil
     bam_mlp_write_num_heads = 16
     bam_mlp_write_address_rank = 512
     mlp_dim_by_block = [2484, 2155, 2484]
-    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile']
+    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile', 'BamMediumPropL27K75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile']

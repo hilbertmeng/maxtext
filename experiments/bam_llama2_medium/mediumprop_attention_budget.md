@@ -2,6 +2,8 @@
 
 Worktree `/data0/xd/mediumprop-attention-budget`; branch `codex/mediumprop-attention-budget`; forked latest refactor-bam c7dab980. All four are18-layer AllLocal TruePile4096, independent GELU-LoRA MLP writes at layers1/4/7/10/13/16. Pure-JAX BAM core; Splash attention and SEQ_MINOR enabled. Parent: BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile. Budget432121200 (original MediumProp MHA).
 
+Common loss baselines:18-layer standard parent above, and `BamMediumPropL27K75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile` (BAM27). The live registries and main ledger retain both, comparing wider attention with greater depth under the same parameter budget. BAM27 historical speed is .385step/s, C256; speed comparisons with these Splash runs are runtime-unmatched. Adding this baseline does not change runtime444cb5f or restart training.
+
 Training: spot v5p-16, primary UE5a based on recent longer leases; UC1a/EW4b passive alternatives if primary remains queued. 13500steps; 200-step loss windows; report about1000steps, review2800/5000. Compiler: idle user-owned FLEX_START llm-jax-v6e-1-0, EW4a worker0; borrowed without lifecycle ownership.
 
 | RUN | TPU | Heads / M / C | Attention + embedding address R / MLP R | MLP widths repeated6 | Parameters | Terminal loss bet vs standard | Historical-speed bet |

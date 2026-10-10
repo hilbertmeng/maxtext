@@ -3,6 +3,8 @@
 from absl.testing import absltest
 from pathlib import Path
 import tempfile
+from types import SimpleNamespace
+from unittest import mock
 from flax import linen as nn
 import jax
 import jax.numpy as jnp
@@ -14,6 +16,7 @@ from layers.attentions import (
     BamAttention,
     GroupedRMSNorm,
     _attention_op,
+    _bam_splash_enabled,
     _bam_fetch_op,
     _bam_fetch_route_sums,
     _dynamic_bam_fetch_mix_weights,
@@ -100,6 +103,18 @@ def _factorized_read_joined(*args, **kwargs):
 
 
 class BamReadKeyTransformTest(absltest.TestCase):
+  def test_splash_selection_uses_config_not_host_backend(self):
+    # Offline TPU AOT traces on CPU. No backend query should affect this choice.
+    with mock.patch('jax.default_backend', side_effect=AssertionError('host backend queried')):
+      for topology in ('', 'v5p-16'):
+        cfg = SimpleNamespace(bam_splash_attention=True, compile_topology=topology)
+        self.assertTrue(_bam_splash_enabled(cfg, 4096))
+        self.assertFalse(_bam_splash_enabled(cfg, 127))
+        self.assertFalse(_bam_splash_enabled(cfg, 1))
+        cfg.bam_splash_attention = False
+        self.assertFalse(_bam_splash_enabled(cfg, 4096))
+      self.assertTrue(_bam_splash_enabled(SimpleNamespace(), 4096))
+
   def test_shared_c8_independent_gates_initialization_and_separate_gradients(self):
     self._check_shared_c8_independent_gates(32, 32)
 
@@ -123,7 +138,7 @@ class BamReadKeyTransformTest(absltest.TestCase):
           run_name='gates', enable_checkpointing=False, base_output_directory=out+'/',
           jax_cache_dir='', log_config=False, dataset_type='synthetic', base_emb_dim=128,
           base_num_query_heads=2, base_num_kv_heads=2, head_dim=64,
-          max_target_length=8, max_prefill_predict_length=8, query_chunk_size=4,
+          max_target_length=8, max_prefill_predict_length=8, bam_splash_attention=False, query_chunk_size=4,
           per_device_batch_size=1.)
       cfg.get_keys()['bam_write_v_bottleneck_dim'] = 32
       cfg.get_keys()['bam_k'] = k_dim
@@ -205,7 +220,7 @@ class BamReadKeyTransformTest(absltest.TestCase):
           jax_cache_dir='', log_config=False, dataset_type='synthetic',
           base_emb_dim=head_dim*2, base_num_query_heads=2, base_num_kv_heads=2,
           head_dim=head_dim, max_target_length=8, max_prefill_predict_length=8,
-          query_chunk_size=4, per_device_batch_size=1.)
+          bam_splash_attention=False, query_chunk_size=4, per_device_batch_size=1.)
       cfg.get_keys()['bam_write_v_bottleneck_dim'] = 32
       mesh = jax.sharding.Mesh(max_utils.create_device_mesh(cfg), cfg.mesh_axes)
       module = BamAttention(config=cfg, num_query_heads=2, num_kv_heads=2,
@@ -323,7 +338,7 @@ class BamReadKeyTransformTest(absltest.TestCase):
         base_emb_dim=128, base_num_query_heads=2, base_num_kv_heads=2,
         base_num_decoder_layers=2, base_mlp_dim=256, head_dim=64,
         max_target_length=8, max_prefill_predict_length=8,
-        query_chunk_size=4, per_device_batch_size=1.0)
+        bam_splash_attention=False, query_chunk_size=4, per_device_batch_size=1.0)
     cfg.get_keys()['bam_write_v_bottleneck_dim'] = 32
     mesh = jax.sharding.Mesh(max_utils.create_device_mesh(cfg), cfg.mesh_axes)
     attention = BamAttention(
@@ -401,7 +416,7 @@ class BamReadKeyTransformTest(absltest.TestCase):
         base_emb_dim=64, base_num_query_heads=2, base_num_kv_heads=2,
         base_num_decoder_layers=2, base_mlp_dim=128, head_dim=32,
         max_target_length=8, max_prefill_predict_length=8,
-        query_chunk_size=4, per_device_batch_size=1.0)
+        bam_splash_attention=False, query_chunk_size=4, per_device_batch_size=1.0)
     cfg.get_keys()['bam_record_fetched_read_amplitude_metrics'] = True
     mesh = jax.sharding.Mesh(max_utils.create_device_mesh(cfg), cfg.mesh_axes)
     x = jax.random.normal(jax.random.key(1), (1, 8, 64), dtype=cfg.dtype)

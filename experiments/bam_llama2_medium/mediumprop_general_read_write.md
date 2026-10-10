@@ -56,3 +56,15 @@ At exact common200..1200 windows, generalized read minus sharedR256: -.014512/-.
 Generalized-read static V gate means in L0-5/L6-11/L12-17 change .829/.866/.878 at200 to .509/.590/.517 at1000, while Q/K/O stay near1. Generalized-both shows the same V suppression. This suggests static-V amplitude control is a promising component of the combined read change; pre-RMS bias and static gating have not been separately ablated. Write-static gates initially.01 remain small but learn (attention .026/.030/.017, privateMLP .011/.035/.019 at1000). Original raw-gradient milestone values remain finite and return to typical scales after the early transient.
 
 Parent trajectories through4000: sharedR256 minus DirectC8 latestfive -.014304 (range-.015782..-.012452), MHA-relative advantage ratio1.062..1.078; independentR128 minus DirectC8 -.008802 (range-.009827..-.007984), ratio1.038..1.047. Shared minus independent -.005502 and +2.03% throughput at matched runtime/health. Both remain user-directed full13500 runs. Cumulative reports/health artifacts `/data0/xd/bam_diagnostics/mediumprop-attention-budget-direct-report-fullm4000.{json,md}`, generalized health `mediumprop-general-read-write-health-1000.json`.
+
+
+## Read-contraction AOT control
+
+At source7c6c8d8, additionally compiled V32/V48 sharedR256 with only `bam_read_implementation=dot_btn` changed; writes, model/budget/schedule/health/target v5p-16 unchanged. Full parameter argument/output sizes match each mul-reduce control. The override uses a temporary YAML extending the sealed base and declaring the otherwise EXP-only key, then CLI overrides that key; no model implementation or running executable changes. Coordinator `/data0/xd/bam_diagnostics/run_full_m_hlo_dot_export.py`, shell `compile_full_m_hlo_dot.sh`; GCS `bam_diagnostics/mediumprop-fullm-hlo-dotread-20261010/` under the same us-central1 artifacts bucket, local `/data0/xd/bam_diagnostics/mediumprop-fullm-hlo-dotread/`. Both exports complete; retained compiler released from worker lock, never enrolled in TPU cleanup.
+
+| dot_btn relative to mul_reduce_btn | Compiler FLOPs | Estimated bytes accessed | Temporary allocation | Estimated optimal time | Additional copy instructions |
+|---|---:|---:|---:|---:|---:|
+| V32 sharedR256 |-.026%|+13.223%|+8.536%|+12.336%|56|
+| V48 sharedR256 |-.040%|+14.853%|+10.577%|+13.946%|62|
+
+HLO does not support dot as a way to reduce this full-M read's memory work. In V48, large new copies carry `[16,4096,75,48]` with LocalQ/K and VO `bam/contract_1a_col/.../dot_general` metadata, consistent with M layout conversion. This is compiler evidence, not measured throughput; actual wall-clock superiority/inferiority remains untested. Formal training retains its sealed mul-reduce executables.

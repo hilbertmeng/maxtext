@@ -225,6 +225,14 @@ class Llama2MediumProp(Llama2Medium):
     scan_layers = True
 
 
+class Llama2MediumPropL27(Llama2MediumProp):
+    """27-layer MediumProp at the18-layer parameter budget; MLP width1600."""
+    model_name = 'Llama2MediumPropL27'
+    base_num_decoder_layers = 27
+    base_mlp_dim = 1600
+
+
+
 class Llama2MediumQKNorm(Llama2Medium):
     """Standard MHA control with learned Q/K RMSNorm before RoPE."""
     # code_commit: 4408ccb
@@ -288,6 +296,8 @@ class BamLlama2Medium(Llama2Medium):
     bam_concat_qk = False
     bam_concat_static_qk = False
     bam_local_qk_direct_c8 = False
+    bam_local_full_m_read_bottleneck_dim = None  # Q/K/shared-VO GELU keys on full M
+    bam_local_full_m_read_share_down = False
     bam_local_vo_shared_read = 'none'  # none | local_o (C8 column donor)
     bam_local_vo_independent_gates = False
     bam_local_qk_share_basis = False  # effective_key Q/K share bases; gates and mixing remain independent.
@@ -12133,3 +12143,31 @@ class BamMediumPropL27K75V48C12EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThi
     mlp_dim_by_block = [2155, 1940, 2156]  # 432154576 params; MHA27 delta +11776
     # Also report (C12_27-rank4_27)-(C12_18-rank4_18), exact common windows.
     compare_runs = ['BamMediumPropL27K75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile']
+
+
+class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGelu128TruePile(BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdDirectC8TruePile):
+    """Three independent R128 GELU full-M keys; V/O share keys, not gates."""
+    # Ledger only: codex/mediumprop-full-m-read-gelu128, /data0/xd/mediumprop-full-m-read-gelu128.
+    # No C8 compression; full-M static Q/K/V/O and QK57+RoPE18 unchanged.
+    # Bet at13500 vs DirectC8: loss-.005, matched-runtime speed-2%.
+    model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGelu128TruePile'
+    bam_local_full_m_read_bottleneck_dim = 128
+    bam_abs_v_compression_dim = None
+    bam_local_o_compress_v = False
+    bam_read_key_scale = .1  # sqrt(8/32) compensation; read gates remain.05
+    mlp_dim_by_block = [3847, 3720, 3847]
+    bam_splash_attention = True
+    bam_pallas_core = False
+    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdDirectC8TruePile']
+    jax_cache_dir = ''
+
+
+class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadSharedGelu256TruePile(BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGelu128TruePile):
+    """One shared R256 GELU down; separate Q/K/VO up projections."""
+    # Ledger only: codex/mediumprop-full-m-read-gelu128, /data0/xd/mediumprop-full-m-read-gelu128.
+    # Bet at13500 vs DirectC8: loss-.006; vs independent R128-.001; matched speed-2% vs R128.
+    model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadSharedGelu256TruePile'
+    bam_local_full_m_read_bottleneck_dim = 256
+    bam_local_full_m_read_share_down = True
+    mlp_dim_by_block = [3835, 3708, 3835]
+    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdDirectC8TruePile', 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGelu128TruePile']

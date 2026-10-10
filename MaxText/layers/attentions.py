@@ -2629,9 +2629,17 @@ class BamAttention(Attention):
         if ('full' in self._mode or (self._local_o or shared_v)
             and getattr(cfg, 'bam_local_o_compress_v', True)) else None)
     self._direct_qk_c8 = bool(getattr(cfg, 'bam_local_qk_direct_c8', False))
+    self._full_m_read_rank = getattr(cfg, 'bam_local_full_m_read_bottleneck_dim', None)
+    self._full_m_read_share_down = bool(getattr(cfg, 'bam_local_full_m_read_share_down', False))
+    assert not self._full_m_read_share_down or self._full_m_read_rank is not None
+    if self._full_m_read_rank is not None:
+      assert 0 < self._full_m_read_rank < cfg.emb_dim
+      assert self._direct_qk_c8 and self._abs_v_dim is None
+      assert self._vo_shared_read == 'local_o' and self._vo_independent_gates
+      assert 'full' not in self._mode and not getattr(cfg, 'bam_pallas_core', False)
     if self._direct_qk_c8:
       assert 'local_qk' in self._mode and cfg.bam_concat_qk and cfg.bam_prune_all_row_reads
-      assert self._abs_v_dim is not None and not cfg.bam_local_qk_share_basis
+      assert (self._abs_v_dim is not None or self._full_m_read_rank is not None) and not cfg.bam_local_qk_share_basis
       assert not self._record_local_routing_metrics
     self._abs_v_row_output = getattr(cfg, 'bam_abs_v_row_output', 'direct')
     self._abs_v_row_decoder_output = getattr(
@@ -2675,7 +2683,7 @@ class BamAttention(Attention):
     self._fetched_arm_ungated = dataclasses.replace(self._fetched_arm, key_mode='rms')
     if self._direct_qk_c8:
       self._direct_qk_c8_arm = _BamReadArm(
-          name='q', k_dim=self.bam_k, v_dim=self._abs_v_dim, num_heads=self.num_query_heads,
+          name='q', k_dim=self.bam_k, v_dim=self._abs_v_dim or self.bam_v, num_heads=self.num_query_heads,
           read_side='col', **read_settings)
     if read_settings['prune_row']:
       assert self.read_side == self._fetched_read_side == 'col'
@@ -2806,16 +2814,19 @@ class BamAttention(Attention):
       read_features = (
           self._fetched_read_num_heads, cfg.bam_n_f,
           self._fetched_arm.key_width)
-      self.W_R = DenseGeneral(
-          features=read_features, axis=-1,
-          kernel_init=(
-              zeros_init
-              if self._fetched_read_kernel_init == 'zero' else reg_init),
-          kernel_axes=("embed", "q_heads", "fetch", "kv"),
-          dtype=self.dtype, weight_dtype=self.weight_dtype, name="W_R",
-          quant=self.quant, matmul_precision=cfg.matmul_precision,
-          use_bias=False,
-          kernel_gradient_scale=self._fetched_read_kernel_gradient_scale)
+      if self._full_m_read_rank is not None:
+        self._add_full_m_key_projection('W_R', read_features, ('embed', 'q_heads', 'fetch', 'kv'), reg_init)
+      else:
+        self.W_R = DenseGeneral(
+            features=read_features, axis=-1,
+            kernel_init=(
+                zeros_init
+                if self._fetched_read_kernel_init == 'zero' else reg_init),
+            kernel_axes=("embed", "q_heads", "fetch", "kv"),
+            dtype=self.dtype, weight_dtype=self.weight_dtype, name="W_R",
+            quant=self.quant, matmul_precision=cfg.matmul_precision,
+            use_bias=False,
+            kernel_gradient_scale=self._fetched_read_kernel_gradient_scale)
       fetched_gate_init = (
           zero_key_gate_init if self._fetched_read_gate_init is None
           else self._fetched_read_gate_init)
@@ -2958,11 +2969,15 @@ class BamAttention(Attention):
       for name in ('q', 'k'):
         # Nonzero keys are essential for concatenated QK: two zero arms have
         # no attention-score cross term to awaken their dynamic read keys.
-        setattr(self, f'W_l{name}_c8', DenseGeneral(
-            features=(self.num_query_heads, self._abs_v_dim), axis=-1, kernel_init=reg_init,
-            kernel_axes=('embed', 'q_heads', 'kv'), dtype=self.dtype,
-            weight_dtype=self.weight_dtype, name=f'W_l{name}_c8', quant=self.quant,
-            matmul_precision=cfg.matmul_precision, use_bias=False))
+        if self._full_m_read_rank is not None:
+          self._add_full_m_key_projection(
+              f'W_l{name}_c8', (self.num_query_heads, self.bam_v), ('embed', 'q_heads', 'kv'), reg_init)
+        else:
+          setattr(self, f'W_l{name}_c8', DenseGeneral(
+              features=(self.num_query_heads, self._abs_v_dim), axis=-1, kernel_init=reg_init,
+              kernel_axes=('embed', 'q_heads', 'kv'), dtype=self.dtype,
+              weight_dtype=self.weight_dtype, name=f'W_l{name}_c8', quant=self.quant,
+              matmul_precision=cfg.matmul_precision, use_bias=False))
         add_read_gate(f'W_l{name}_gate', (self.num_query_heads, 1),
                       ('embed', 'q_heads', None), ('q_heads', None), zero_key_gate_init)
 
@@ -3008,6 +3023,31 @@ class BamAttention(Attention):
         getattr(self, 'local_q_post_read_v_projection', shared),
         getattr(self, 'local_k_post_read_v_projection', shared),
     )
+
+  def _add_full_m_key_projection(self, name, features, axes, initializer):
+    """Independent GELU bottleneck per Q/K/VO arm; VO shares one up output."""
+    cfg = self.config
+    for suffix, output, kernel_axes in (
+        ('down', self._full_m_read_rank, ('embed', None)),
+        ('up', features, (None,) + axes[1:])):
+      parameter_name = ('full_m_read_down' if suffix == 'down' and self._full_m_read_share_down
+                        else f'{name}_{suffix}')
+      if suffix == 'down' and self._full_m_read_share_down and hasattr(self, parameter_name):
+        continue
+      setattr(self, parameter_name, DenseGeneral(
+          features=output, axis=-1, kernel_init=initializer,
+          kernel_axes=kernel_axes, dtype=self.dtype, weight_dtype=self.weight_dtype,
+          name=parameter_name, quant=self.quant,
+          matmul_precision=cfg.matmul_precision, use_bias=False))
+
+  def _project_column_read_key(self, name, x, shared_hidden=None):
+    if self._full_m_read_rank is None:
+      return getattr(self, name)(x)
+    if self._full_m_read_share_down:
+      hidden = nn.gelu(self.full_m_read_down(x)) if shared_hidden is None else shared_hidden
+    else:
+      hidden = nn.gelu(getattr(self, f'{name}_down')(x))
+    return getattr(self, f'{name}_up')(hidden)
 
 
   def _record_concat_gate(self, name, logits):
@@ -3194,9 +3234,9 @@ class BamAttention(Attention):
     # Full-M linear read: no key RMS, no scale, no gate; arm-specific initialization.
     return jnp.einsum('btkv,vn->btnk', M, getattr(self, 'static_' + arm + '_key').astype(M.dtype))
 
-  def _read_direct_qk_c8(self, name, M, compressed_M, x):
+  def _read_direct_qk_c8(self, name, M, compressed_M, x, shared_hidden=None):
     """Independent per-head compressed read plus the original full-M static read."""
-    key = getattr(self, f'W_l{name}_c8')(x)
+    key = self._project_column_read_key(f'W_l{name}_c8', x, shared_hidden)
     logits = self._project_read_gate_logits(f'W_l{name}_gate', x)
     self._record_concat_gate('local_' + name, logits)
     col, _ = bam_read(compressed_M, key, self._direct_qk_c8_arm, gate_logits=logits)
@@ -3212,11 +3252,11 @@ class BamAttention(Attention):
     assert self._vo_shared_read == 'local_o'
     return self._read_fetched_m(self._compress_m(M), x)[0]
 
-  def _independent_local_vo(self, M, x, compressed_M=None):
+  def _independent_local_vo(self, M, x, compressed_M=None, shared_hidden=None):
     """Contract one ungated C8 read, then apply destination-specific gates."""
     if compressed_M is None:
       compressed_M = self._compress_m(M)
-    read, o_logits = self._read_fetched_m(compressed_M, x, ungated=True)
+    read, o_logits = self._read_fetched_m(compressed_M, x, ungated=True, shared_hidden=shared_hidden)
     v_logits = self._project_read_gate_logits('W_lv_gate', x)
     self._record_concat_gate('local_v', v_logits)
     if self._concat_health:
@@ -3393,7 +3433,7 @@ class BamAttention(Attention):
         jnp.concatenate((y_k, y_v), axis=-1),
         self.num_query_heads, self.head_dim)
 
-  def _read_fetched_m(self, Mbar, inputs_q, *, ungated=False):
+  def _read_fetched_m(self, Mbar, inputs_q, *, ungated=False, shared_hidden=None):
     """Read fetched M; ungated sharing returns compact (col/u, row/v) sides."""
     with jax.named_scope("bam/read_fetched_m"):
       m_rms = None
@@ -3411,7 +3451,7 @@ class BamAttention(Attention):
             'intermediates', 'fetched_read_pre_gate_effective_rms',
             jnp.full((2,), m_rms * scale))
       with jax.named_scope("bam/read_key_projection"):
-        key = jnp.squeeze(self.W_R(inputs_q), axis=-2)
+        key = jnp.squeeze(self._project_column_read_key('W_R', inputs_q, shared_hidden), axis=-2)
       # Ungated sharing contracts the normalized key, not one destination's gate.
       full_read = (
           bam_read(Mbar, key, self._fetched_arm_ungated) if ungated
@@ -3685,6 +3725,8 @@ class BamAttention(Attention):
 
     inputs_q = nn.with_logical_constraint(inputs_q, self.input_axis_names)
     inputs_kv = nn.with_logical_constraint(inputs_kv, self.input_axis_names)
+    full_m_shared_hidden = (nn.gelu(self.full_m_read_down(inputs_q))
+                            if self._full_m_read_share_down else None)
 
     concat_qk = bool(getattr(cfg, 'bam_concat_qk', False))
     if concat_qk:
@@ -3734,8 +3776,8 @@ class BamAttention(Attention):
         if self._direct_qk_c8:
           local_compressed_M = self._compress_m(Mh)
           qk_compressed_M = local_compressed_M
-          q_local = self._read_direct_qk_c8('q', Mh, qk_compressed_M, inputs_q)
-          k_local = self._read_direct_qk_c8('k', Mh, qk_compressed_M, inputs_q)
+          q_local = self._read_direct_qk_c8('q', Mh, qk_compressed_M, inputs_q, full_m_shared_hidden)
+          k_local = self._read_direct_qk_c8('k', Mh, qk_compressed_M, inputs_q, full_m_shared_hidden)
         else:
           basis_cache = self._shared_qk_basis(Mh, local_inputs) if self._share_qk_basis else None
           q_local = self._read_local('q', Mh, inputs_q, local_inputs, basis_cache)
@@ -3751,7 +3793,7 @@ class BamAttention(Attention):
       if Mh is None:
         Mh = self._matrix_for_read(M_in)
       if self._vo_independent_gates:
-        v_local, local_output = self._independent_local_vo(Mh, inputs_q, local_compressed_M)
+        v_local, local_output = self._independent_local_vo(Mh, inputs_q, local_compressed_M, full_m_shared_hidden)
       else:
         local_output = self._shared_local_vo(Mh, inputs_q, local_inputs)
         v_local = local_output

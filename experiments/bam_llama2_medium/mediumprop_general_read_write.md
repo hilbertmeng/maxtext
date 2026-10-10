@@ -79,3 +79,20 @@ Generalized read/write/both latestfive versus shared parent -.007235/-.001801/-.
 Read-only static V gates in three layer bands at1000→2400: .509/.590/.517→.477/.513/.425. Static write gates do learn, but effective static/dynamic address-RMS ratios remain only~.5–4.2%; this is not evidence of strong use of the post-RMS write term yet. Most discriminating proposed follow-up: only static-V gating, without new read pre-bias or the other three static gates; not launched.
 
 V48 shared through2000: lastfive versus DirectC12 -.010413, versus V32 shared -.002658; four-way interaction +.012655 (range+.009728..+.017889). Full-M reading still gains less atV48 thanV32, though the initial discrepancy shrank markedly. V48 raw-grad2000=5.340, embedding address-up bias5.173 (~93.9% energy),2010=.346; same-stage sharedV32/DirectC8 spikes were previously attributed to the same bias. Generalized read2000=1.453 (bias1.164),2010=.445. Raw-event artifact `mediumprop-fullm-v48-general-raw-event-grad-2000.json`; no persistent gradient escalation established.
+
+
+## 2800 review and matched profile plan
+
+Generalized read/write/both at2800: latestfive -.006947/-.001399/-.006910 versus shared parent. Continue all to5000: read/both retain~1.026-1.029x MHA-relative advantage, write is weak but its static-address usage is still evolving. Parent full13500 instruction unchanged. Review artifact `mediumprop-attention-budget-direct-report-gen2800.{json,md}`, health `mediumprop-general-read-write-health-2800.json`.
+
+Task-owned standalone spot profile TPU `xd-v5p-16-fullm-read-profile-1010-ue5a`, primaryUE5a (current six training leases stable); add EW4b/UC1a candidates if needed. User retained FLEX_START compiler is not used for profiling or resource cleanup. Worktree/branch unchanged; profile source7c6c8d8 and existing four exact-v5p-16 AOTs, sealed class config checks passed. Run four arms serially on one VM: V48 DirectC12, V32 sharedR256, V48 sharedR256, generalized read-only. Full schedule13500 retained, checkpoints disabled outside train_step; trace20-24, continue past100 for collector verification then terminate exact profile worker. Compare mean20-99 log throughput and raw XPlane forward/backward/copy/health scopes. Pair generic/concat switches; generalized extra metric work is intentional and must remain visible in attribution.
+
+Authority `/home/xd/projects/xd_tpu_scripts/run_profile_matrix.sh` and `run_train_smoke_compiled.sh` hashes match tpu-ag deployment; no production script/model changes required. Task manifest `/data0/xd/bam_diagnostics/mediumprop-fullm-read-profile/task.json`; GCS artifacts `gs://newproject-1-llm_base_models_us-central1/bam_diagnostics/fullm-read-profile-20261010/`, pull directly to that local profile directory. Release every exact diagnostic resource through `delete_tpu_xd.sh` after trace verification; formal training runs remain under their controllers.
+
+## V48 review at2800; V32 parents through6000
+
+V48 sharedR256 continues to5000: latestfive versus V48 DirectC12 -.009560 (range-.010379..-.007719), versus V32 sharedR256 -.003958 (range-.004939..-.002183). Four-way read/address interaction remains positive but contracts, +.017889 at1200 to+.005994 at2800; latestfive+.008054 (range+.005602..+.012254). Full-M read still gives less additional benefit atV48 thanV32. Artifact `mediumprop-attention-budget-direct-report-fullm6000.{json,md}` includes exact-common four-way windows.
+
+V32 independent/shared through6000: latestfive versus DirectC8 -.007697/-.012949; shared minus independent -.005252 (range-.005982..-.004380), same-runtime throughput+2.03%. Both remain full13500 runs. Raw-grad5000..6000 stays .22-.30; V48 raw-grad after the2000 spike returns .383/.416/.338/.326 at2200/2400/2600/2800. No persistent escalation established.
+
+Matched profile TPU installation finished; matrix launched2026-10-10T18:52:34Z, tmux `fullm-read-profile-1010`, coordinator `tpu-ag:logs/fullm-read-profile-1010-matrix.log`. Existing four AOTs staged, first arm V48 DirectC12 launched18:53:50Z. No formal run modified.

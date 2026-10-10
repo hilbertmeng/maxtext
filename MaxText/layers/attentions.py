@@ -1757,13 +1757,10 @@ def _attention_op(
 
 
 def _bam_splash_enabled(cfg, t):
-  """BAM attention through Splash (default on): TPU backend and lane-aligned sequences only;
-  otherwise (CPU tests, interpret mode, decode steps) the C256/dense einsum path is used."""
-  # Offline AOT traces on CPU against a TPU topology. Match the target platform,
-  # otherwise a Splash-enabled TPU RUN silently receives the C256 executable.
-  compile_topology = str(getattr(cfg, 'compile_topology', '') or '')
-  tpu_target = jax.default_backend() == 'tpu' or compile_topology.startswith('v')
-  return bool(getattr(cfg, 'bam_splash_attention', False)) and tpu_target and t % 128 == 0
+  """Select Splash by configuration; short/non-aligned sequences use einsums."""
+  # TPU AOT is traced on CPU: the host backend must not select the attention core.
+  # CPU tests of the einsum path explicitly set bam_splash_attention=False.
+  return bool(getattr(cfg, 'bam_splash_attention', True)) and t % 128 == 0
 
 
 def _bam_splash_seq_minor(cfg, default):

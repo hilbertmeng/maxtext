@@ -490,8 +490,8 @@ sa_use_fused_bwd_kernel: False
 sa_q_layout: "HEAD_DIM_MINOR"
 sa_k_layout: "HEAD_DIM_MINOR"
 sa_v_layout: "HEAD_DIM_MINOR"
-# BAM attention core through Splash (same sa_* blocks) instead of query-chunk einsums. Used on TPU for
-# lane-aligned sequences without a BAM fetch; CPU/interpret runs and decode steps keep the einsum path.
+# BAM attention core through Splash (same sa_* blocks) instead of query-chunk einsums, for
+# lane-aligned sequences without a BAM fetch. CPU einsum tests must explicitly disable this.
 # Splash accumulates logits/softmax in FP32 (einsum path: BF16 logits unless float32_logits).
 bam_splash_attention: True
 bam_mlp_write_num_heads: 0 # 0 uses attention heads; independent-address writes may use D / bam_k.

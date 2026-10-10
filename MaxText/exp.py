@@ -12095,3 +12095,18 @@ class BamMediumPropK75V64C16EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdD
     bam_pallas_core = False
     bam_splash_attention = True
     jax_cache_dir = ''
+
+
+class Llama2MediumPropL27(Llama2MediumProp):
+    """27-layer MediumProp at the18-layer parameter budget; MLP width1600."""
+    model_name = 'Llama2MediumPropL27'
+    base_num_decoder_layers = 27
+    base_mlp_dim = 1600
+
+
+class BamMediumPropL27K75V48C12EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdDirectCTruePile(Llama2MediumPropL27, BamMediumPropK75V48C12EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdDirectCTruePile):
+    """Combine27-layer depth with expanded DirectC12 address reads at the fixed budget."""
+    model_name = 'BamMediumPropL27K75V48C12EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdDirectCTruePile'
+    bam_layer_modes = ['local_qk+local_v+local_o'] * 27
+    mlp_dim_by_block = [2155, 1940, 2156]  # 432154576 params; MHA27 delta +11776
+    compare_runs = ['BamMediumPropL27K75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile', 'BamMediumPropK75V48C12EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdDirectCTruePile', 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdDirectC8TruePile']

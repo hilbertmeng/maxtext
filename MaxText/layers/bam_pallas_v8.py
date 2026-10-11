@@ -238,17 +238,29 @@ from layers.bam_pallas import _norm, _norm_backward, _pad_rows, _sigmoid, _spec,
 from layers.bam_pallas_v7 import _from_tokens, _to_tokens   # noqa: E402
 
 
+def _tm_rows(rq, rk, rr, c):
+  """Raw key rows c of the four arms (q, k, v, o; v and o share the VO key): [R, T] FP32."""
+  return jnp.concatenate([x[c].astype(F32) for x in (rq, rk, rr, rr)], axis=0)
+
+
 def _tm_slabs(eps, scale, rq, lq, rk, lk, rr, lo, lv):
-  """Normalized keys [C, NP, T] (q, k, vo) and the stacked gate slab g [R, T] (q, k, v, o)."""
-  nq, nk, nr = (_norm(r[...], eps, 0) for r in (rq, rk, rr))
-  g = jnp.concatenate([scale * _sigmoid(l[...]) for l in (lq, lk, lv, lo)], axis=0)
-  return nq, nk, nr, g
-
-
-def _tm_fill_keys(nq, nk, nr, g, st, sg, xt_scr, cdim):
-  """xt_scr rows t*C + c = X_t^T[c] (token-major); X^T[c] = g * n[c] + S[:, c] * sg."""
+  """Per-row inverse RMS norms over C and gates, stacked [R, T]; keys stay in their refs."""
+  cdim = rq.shape[0]
+  ss = None
   for c in range(cdim):
-    slab = g * jnp.concatenate((nq[c], nk[c], nr[c], nr[c]), axis=0)
+    x = _tm_rows(rq, rk, rr, c)
+    ss = x * x if ss is None else ss + x * x
+  inv = jax.lax.rsqrt(ss / cdim + eps)
+  g = jnp.concatenate([scale * _sigmoid(l[...]) for l in (lq, lk, lv, lo)], axis=0)
+  return inv, g
+
+
+def _tm_fill_keys(rq, rk, rr, inv, g, st, sg, xt_scr):
+  """xt_scr rows t*C + c = X_t^T[c] (token-major); X^T[c] = g * inv * r[c] + S[:, c] * sg."""
+  gi = g * inv
+  cdim = rq.shape[0]
+  for c in range(cdim):
+    slab = gi * _tm_rows(rq, rk, rr, c)
     s_col = st[:, c:c + 1]
     slab = slab + (s_col * sg if sg is not None else s_col)
     xt_scr[pl.ds(c, slab.shape[1], stride=cdim), :] = _to_tokens(slab)
@@ -289,9 +301,9 @@ def _tm_read_kernel(n, qk_cols, eps, scale, q_scale, gated, ch):
     np_ = rq.shape[1]                 # heads, optionally padded to a multiple of 8 by the wrapper
     r = 4 * np_
     dt = m_ref.dtype
-    nq, nk, nr, g = _tm_slabs(eps, scale, rq, lq, rk, lk, rr, lo, lv)
+    inv, g = _tm_slabs(eps, scale, rq, lq, rk, lk, rr, lo, lv)
     sg = sg_ref[...].astype(F32).reshape(r, t) if gated else None
-    _tm_fill_keys(nq, nk, nr, g, st_ref[...].astype(F32), sg, xt_scr, cdim)
+    _tm_fill_keys(rq, rk, rr, inv, g, st_ref[...].astype(F32), sg, xt_scr)
     for t0 in range(0, t, ch):
       xt = _chunk(xt_scr, t0, ch, cdim).astype(dt)
       _scatter(y_scr, t0, _bdot(xt, m_ref[pl.ds(t0, ch)], 1, 1), t)     # Y_t [R, K] -> rows r*T + t
@@ -325,10 +337,10 @@ def _tm_read_backward_kernel(n, qk_cols, eps, scale, q_scale, gated, ch, pass_m)
     np_ = rq.shape[1]                 # heads, optionally padded to a multiple of 8 by the wrapper
     r = 4 * np_
     dt = m_ref.dtype
-    nq, nk, nr, g = _tm_slabs(eps, scale, rq, lq, rk, lk, rr, lo, lv)
+    inv, g = _tm_slabs(eps, scale, rq, lq, rk, lk, rr, lo, lv)
     st = st_ref[...].astype(F32)
     sg = sg_ref[...].astype(F32).reshape(r, t) if gated else None
-    _tm_fill_keys(nq, nk, nr, g, st, sg, xt_scr, cdim)
+    _tm_fill_keys(rq, rk, rr, inv, g, st, sg, xt_scr)
     # Token-major cotangent rows dY_t [R, K]; the standard Q/K columns leave the matmuls.
     lane = jax.lax.broadcasted_iota(jnp.int32, (t, kdim), 1)
     zrow = jnp.zeros((t, kdim), F32)
@@ -359,23 +371,31 @@ def _tm_read_backward_kernel(n, qk_cols, eps, scale, q_scale, gated, ch, pass_m)
         dmv = dmv + gp_ref[pl.ds(t0, ch)].astype(F32)
       dm_ref[pl.ds(t0, ch)] = dmv.astype(dm_ref.dtype)
     dst_ref[...] = dst
-    # T-minor key reverse: X^T[c] = g * n[c] + S[:, c] * sg.
-    gacc = jnp.zeros((r, t), F32)
+    # T-minor key reverse: X^T[c] = g * inv * r[c] + S[:, c] * sg; u = d(normalized key) per arm.
+    gacc = jnp.zeros((r, t), F32)      # sum_c dX * r   (gate gradient before * inv)
     sacc = jnp.zeros((r, t), F32)
+    uacc = jnp.zeros((3 * np_, t), F32)  # sum_c u * r  (RMS-norm reverse)
     gq, gk, gv, go = (g[i * np_:(i + 1) * np_] for i in range(4))
     for c in range(cdim):
       dx = _from_tokens(dxt_scr[pl.ds(c, t, stride=cdim), :])            # [R, T]
-      gacc = gacc + dx * jnp.concatenate((nq[c], nk[c], nr[c], nr[c]), axis=0)
+      rows = _tm_rows(rq, rk, rr, c)
+      gacc = gacc + dx * rows
       if gated:
         sacc = sacc + dx * st[:, c:c + 1]
-      dkey_scr[0, c] = gq * dx[0:np_]
-      dkey_scr[1, c] = gk * dx[np_:2 * np_]
-      dkey_scr[2, c] = gv * dx[2 * np_:3 * np_] + go * dx[3 * np_:4 * np_]
+      u = jnp.concatenate((gq * dx[0:np_], gk * dx[np_:2 * np_],
+                           gv * dx[2 * np_:3 * np_] + go * dx[3 * np_:4 * np_]), axis=0)
+      dkey_scr[c] = u
+      uacc = uacc + u * rows[:3 * np_]
+    gacc = gacc * inv
     sig = lambda l: _sigmoid(l[...]) * (1 - _sigmoid(l[...]))
     for i, (l, dl) in enumerate(((lq, dlq), (lk, dlk), (lv, dlv), (lo, dlo))):
       dl[...] = (scale * sig(l) * gacc[i * np_:(i + 1) * np_]).astype(dl.dtype)
-    for i, (x, dx) in enumerate(((rq, drq), (rk, drk), (rr, drr))):
-      dx[...] = _norm_backward(x[...], dkey_scr[i], eps, 0).astype(dx.dtype)
+    inv3 = inv[:3 * np_]
+    coef = uacc / cdim * inv3 * inv3
+    for c in range(cdim):     # d r[c] = (u[c] - r[c] * mean_c(u r) inv^2) inv
+      dr = (dkey_scr[c] - _tm_rows(rq, rk, rr, c)[:3 * np_] * coef) * inv3
+      for i, ref in enumerate((drq, drk, drr)):
+        ref[c] = dr[i * np_:(i + 1) * np_].astype(ref.dtype)
     if gated:
       dsg_ref[...] = sacc.reshape(4, np_, t).astype(dsg_ref.dtype)
   return kernel
@@ -428,7 +448,7 @@ def _tm_read_backward_call(args, cts, opts):
                                gated, opts['chunk'], pass_m),
       grid=(b, t // tile), in_specs=in_specs, out_specs=out_specs, out_shape=tuple(out_shape),
       scratch_shapes=[pltpu.VMEM((cdim * tile, r), F32), pltpu.VMEM((r * tile, kdim), F32),
-                      pltpu.VMEM((tile * cdim, r), F32), pltpu.VMEM((3, cdim, np_, tile), F32)],
+                      pltpu.VMEM((tile * cdim, r), F32), pltpu.VMEM((cdim, 3 * np_, tile), F32)],
       input_output_aliases={len(args) + 4: 0} if pass_m else {},
       interpret=opts['interpret'], compiler_params=_params(('parallel', 'parallel'), opts['vmem_mib']),
       name='bam_core_read_backward')(*args, *cts)

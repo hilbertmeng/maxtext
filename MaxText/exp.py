@@ -12264,3 +12264,19 @@ class BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdFullMReadGe
     bam_pallas_core = False
     compare_runs = ['BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdTruePile']
     jax_cache_dir = ''
+
+
+# Paired v5p-8 timing arms for the XLProp full-M generalized column read (pure JAX, Splash SEQ_MINOR);
+# MHA arm: Llama2XLPropMHAPallasCoreProfile. Doc: experiments/bam_llama2_medium/fullm_general_read_profile.md.
+
+class BamFullMGeneralReadProfile(
+    TrainStepProfile, BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile):
+    """Timing arm with the formal training settings (BAM concat/general health ON)."""
+    model_name = 'BamFullMGeneralReadProfile'
+    steps = 60
+
+
+class BamFullMGeneralReadNoHealthProfile(BamFullMGeneralReadProfile):
+    """Same arm with BAM concat/general health statistics OFF (generic health unchanged)."""
+    model_name = 'BamFullMGeneralReadNoHealthProfile'
+    bam_record_concat_health = False

@@ -246,12 +246,12 @@ def _tm_slabs(eps, scale, rq, lq, rk, lk, rr, lo, lv):
 
 
 def _tm_fill_keys(nq, nk, nr, g, st, sg, xt_scr, cdim):
-  """xt_scr rows t*C + c = X_t^T[c]; X^T[c] = g * n[c] + S[:, c] * sg."""
+  """xt_scr rows t*C + c = X_t^T[c] (token-major); X^T[c] = g * n[c] + S[:, c] * sg."""
   for c in range(cdim):
     slab = g * jnp.concatenate((nq[c], nk[c], nr[c], nr[c]), axis=0)
     s_col = st[:, c:c + 1]
     slab = slab + (s_col * sg if sg is not None else s_col)
-    xt_scr[pl.ds(c, slab.shape[1], stride=cdim), :] = _to_tokens(slab)     # rows t*C + c
+    xt_scr[pl.ds(c, slab.shape[1], stride=cdim), :] = _to_tokens(slab)
 
 
 def _put(scr, p, x):
@@ -260,10 +260,23 @@ def _put(scr, p, x):
   scr[pl.ds(p * t, t), :] = x
 
 
+def _chunk(scr, t0, ch, p):
+  """Token-major [T*P, L] scratch -> [ch, P, L] matrices of tokens t0..t0+ch (contiguous)."""
+  return scr[pl.ds(t0 * p, ch * p), :].reshape(ch, p, scr.shape[1])
+
+
 def _gather(scr, t0, ch, t):
-  """[P*T, L] scratch (row p*T + token) -> [ch, P, L] matrices of tokens t0.. (sublane-strided loads)."""
-  p = scr.shape[0] // t
-  return jnp.stack([scr[pl.ds(t0 + i, p, stride=t), :] for i in range(ch)], axis=0)
+  """[P*T, L] scratch (row p*T + token) -> [ch, P, L] matrices of tokens t0..t0+ch: aligned [ch, L]
+  block loads and one sublane<->major swap in registers (strided per-token loads cost ~1 op per row)."""
+  blk = jnp.stack([scr[pl.ds(q * t + t0, ch), :] for q in range(scr.shape[0] // t)], axis=0)
+  return jnp.swapaxes(blk, 0, 1)
+
+
+def _scatter(scr, t0, x, t):
+  """Inverse of _gather: x [ch, P, L] -> rows p*T + t0.. of a [P*T, L] scratch."""
+  blk = jnp.swapaxes(x, 0, 1)
+  for q in range(blk.shape[0]):
+    scr[pl.ds(q * t + t0, x.shape[0]), :] = blk[q]
 
 
 def _tm_read_kernel(n, qk_cols, eps, scale, q_scale, gated, ch):
@@ -273,21 +286,20 @@ def _tm_read_kernel(n, qk_cols, eps, scale, q_scale, gated, ch):
     q_ref, k_ref, v_ref, o_ref, xt_scr, y_scr = refs
     t, _, kdim = m_ref.shape
     cdim = rq.shape[0]
-    np_ = _pad_rows(n)
+    np_ = rq.shape[1]                 # heads, optionally padded to a multiple of 8 by the wrapper
     r = 4 * np_
     dt = m_ref.dtype
     nq, nk, nr, g = _tm_slabs(eps, scale, rq, lq, rk, lk, rr, lo, lv)
     sg = sg_ref[...].astype(F32).reshape(r, t) if gated else None
     _tm_fill_keys(nq, nk, nr, g, st_ref[...].astype(F32), sg, xt_scr, cdim)
     for t0 in range(0, t, ch):
-      xt = xt_scr[pl.ds(t0 * cdim, ch * cdim), :].reshape(ch, cdim, r).astype(dt)
-      y = _bdot(xt, m_ref[pl.ds(t0, ch)], 1, 1)                        # [ch, R, K]
-      y_scr[pl.ds(t0 * r, ch * r), :] = y.reshape(ch * r, kdim)
+      xt = _chunk(xt_scr, t0, ch, cdim).astype(dt)
+      _scatter(y_scr, t0, _bdot(xt, m_ref[pl.ds(t0, ch)], 1, 1), t)     # Y_t [R, K] -> rows r*T + t
     lane = jax.lax.broadcasted_iota(jnp.int32, (t, kdim), 1)
     zstd = jnp.zeros((qk_cols, t), F32)
     for a, ref in enumerate((q_ref, k_ref, v_ref, o_ref)):
       for h in range(n):
-        y = y_scr[pl.ds(a * np_ + h, t, stride=r), :]                   # [T, K] token rows
+        y = y_scr[pl.ds((a * np_ + h) * t, t), :]                        # [T, K] token rows
         if a < 2:     # columns >= qk_cols are the standard (rotated) Q/K coordinates
           std = jnp.concatenate((zstd, (qs if a == 0 else ks)[h].astype(F32)), axis=0)
           y = jnp.where(lane < qk_cols, y, _to_tokens(std))
@@ -310,7 +322,7 @@ def _tm_read_backward_kernel(n, qk_cols, eps, scale, q_scale, gated, ch, pass_m)
     xt_scr, dy_scr, dxt_scr, dkey_scr = refs
     t, _, kdim = m_ref.shape
     cdim = rq.shape[0]
-    np_ = _pad_rows(n)
+    np_ = rq.shape[1]                 # heads, optionally padded to a multiple of 8 by the wrapper
     r = 4 * np_
     dt = m_ref.dtype
     nq, nk, nr, g = _tm_slabs(eps, scale, rq, lq, rk, lk, rr, lo, lv)
@@ -338,7 +350,7 @@ def _tm_read_backward_kernel(n, qk_cols, eps, scale, q_scale, gated, ch, pass_m)
     dst = jnp.zeros((cdim, r), F32)
     for t0 in range(0, t, ch):
       dy = _gather(dy_scr, t0, ch, t).astype(dt)
-      xt = xt_scr[pl.ds(t0 * cdim, ch * cdim), :].reshape(ch, cdim, r).astype(dt)
+      xt = _chunk(xt_scr, t0, ch, cdim).astype(dt)
       dxt = _bdot(m_ref[pl.ds(t0, ch)], dy, 2, 2)                         # [ch, C, R]
       dxt_scr[pl.ds(t0 * cdim, ch * cdim), :] = dxt.reshape(ch * cdim, r)
       dst = dst + jnp.sum(dxt * sgt[t0:t0 + ch][:, None, :] if gated else dxt, axis=0)
@@ -383,7 +395,7 @@ def _tm_read_forward_call(args, opts):
   b, t, vdim, kdim = m.shape
   cdim = args[2].shape[1]
   n = opts['heads']
-  r = 4 * _pad_rows(n)
+  r = 4 * args[2].shape[2]
   tile = min(opts['tile'], t)
   out = jax.ShapeDtypeStruct((b, n, t, kdim), m.dtype)
   return pl.pallas_call(
@@ -448,12 +460,12 @@ _tm_read.defvjp(_tm_read_fwd, _tm_read_bwd)
 
 def read_tm(m, static_weight, q_key, q_logits, k_key, k_logits, vo_key, o_logits, v_logits, q_standard,
             k_standard, *, qk_cols, read_epsilon, key_scale, forward_tile=128, reverse_tile=128,
-            vmem_mib=None, interpret=False, q_scale=1.0, static_gates=None, chunk=8, **_):
+            vmem_mib=None, interpret=False, q_scale=1.0, static_gates=None, chunk=8, pad_heads=False, **_):
   """v7.read's interface (keys [B,T,N,C], logits [B,T,N], standard QK [B,T,N,Rs]) for M [B,T,V,K] and
   full-M reads (C == V, identity compression). Returns (query, key, value, local_o) [B,T,N,K] and M."""
   b, t, n, cdim = q_key.shape
   assert cdim == m.shape[2], 'v8t supports full-M reads (identity compression) only'
-  np_ = _pad_rows(n)
+  np_ = _pad_rows(n) if pad_heads else n
   opts = _freeze(dict(heads=n, qk_cols=qk_cols, read_epsilon=read_epsilon, key_scale=key_scale,
                       tile=forward_tile, reverse_tile=reverse_tile, vmem_mib=vmem_mib, interpret=interpret,
                       q_scale=float(q_scale), chunk=chunk))
@@ -487,7 +499,7 @@ def _tm_fill_factors(groups, a_scr, c_scr, eps, t, npt):
   for g in range(0, len(groups), 3):
     content, logits, address = groups[g:g + 3]
     for h in range(content.shape[0]):
-      rows = pl.ds(off + h, t, stride=npt)
+      rows = pl.ds(off + h, t, stride=npt)        # token-major rows t*NPT + i
       c_scr[rows, :] = _to_tokens(_sigmoid(logits[pl.ds(h, 1), :]) * _norm(content[h], eps, 0))
       a_scr[rows, :] = _to_tokens(_norm(address[h], eps, 0))
     off += content.shape[0]
@@ -506,8 +518,8 @@ def _tm_write_kernel(eps, n_groups, ch):
     dt = m_ref.dtype
     _tm_fill_factors(groups, a_scr, c_scr, eps, t, npt)
     for t0 in range(0, t, ch):
-      a = a_scr[pl.ds(t0 * npt, ch * npt), :].reshape(ch, npt, vdim).astype(dt)
-      c = c_scr[pl.ds(t0 * npt, ch * npt), :].reshape(ch, npt, kdim).astype(dt)
+      a = _chunk(a_scr, t0, ch, npt).astype(dt)
+      c = _chunk(c_scr, t0, ch, npt).astype(dt)
       out_ref[pl.ds(t0, ch)] = (m_ref[pl.ds(t0, ch)].astype(F32) + _bdot(a, c, 1, 1)).astype(out_ref.dtype)
   return kernel
 
@@ -524,8 +536,8 @@ def _tm_write_backward_kernel(eps, n_groups, ch):
     for t0 in range(0, t, ch):
       rows = pl.ds(t0 * npt, ch * npt)
       gm = g_ref[pl.ds(t0, ch)]
-      a = a_scr[pl.ds(t0 * npt, ch * npt), :].reshape(ch, npt, vdim).astype(dt)
-      c = c_scr[pl.ds(t0 * npt, ch * npt), :].reshape(ch, npt, kdim).astype(dt)
+      a = _chunk(a_scr, t0, ch, npt).astype(dt)
+      c = _chunk(c_scr, t0, ch, npt).astype(dt)
       da_scr[rows, :] = _bdot(c, gm, 2, 2).reshape(ch * npt, vdim)       # C_t G_t^T
       dc_scr[rows, :] = _bdot(a, gm, 2, 1).reshape(ch * npt, kdim)       # A_t G_t
     off = 0
@@ -546,7 +558,7 @@ def _tm_write_backward_kernel(eps, n_groups, ch):
 
 
 def _tm_write_scratch(groups, tile, vdim, kdim, flat=False):
-  npt = _pad_rows(sum(a.shape[1] for a in groups[2::3]))
+  npt = _pad_rows(sum(a.shape[1] for a in groups[2::3]))   # padded rows measured faster here
   del flat        # row-major [rows*T] factors and per-chunk token-major results share the shape
   return [pltpu.VMEM((tile * npt, vdim), F32), pltpu.VMEM((tile * npt, kdim), F32)]
 

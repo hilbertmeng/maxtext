@@ -12487,5 +12487,6 @@ class BamPallasFullMTinyPallasV8TTest(BamPallasFullMTinyPallasV7FusedInputsTest)
 
 class BamFullMGeneralReadPallasV8TProfile(BamFullMGeneralReadPallasFusedProfile):
     """v8t: v7's T-minor kernel I/O + token-major M [B,T,V,K] + per-token MXU matmuls in the kernels."""
+    # v5p-8 5286504: 0.582 vs v7 SaveRead 0.546 (+6.6%, 94.8% of MHA); kernels 114 vs 202 ms.
     model_name = 'BamFullMGeneralReadPallasV8TProfile'
     bam_pallas_body = 'v8t'

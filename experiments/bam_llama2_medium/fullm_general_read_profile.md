@@ -181,4 +181,7 @@ remat）、read B 32.4、write F 10.4、write B 16.4，合计 102 ms（v7u 255�
 
 - 核内：read F 8.1k bundle（HBM 下限约 12 ms vs 实测 21 ms）与 write B 仍有余量；其余（read B、write F）已接近 HBM 下限。
 - XLA：key cmajor 转置约 13 ms、写 content/读输出的 relayout copy 约 10 ms、`y_std + local_o` 8 ms、融合投影 split/concat 12 ms。
-- 正式使用前建议做长程 loss 对拍（v8t vs 纯 JAX，≥1000 步）；35 步内与 v7u 差 ≤0.002。
+- loss 对拍（cd06c76，v5p-8 同机 600 步，v8t vs 纯 JAX health OFF，同数据同 seed）：v8t − 纯 JAX 的平均差
+  0–100 步 +0.0002、100–200 +0.002、200–300 −0.045、300–400 −0.029、400–500 −0.009、500–606 −0.0025
+  （每步噪声 |d| 约 0.008）；最后 40 步窗口 4.2065 vs 4.2054、4.1365 vs 4.1433。快速下降段的暂时领先已收敛，
+  无系统偏差。v8t 0.593 vs 纯 JAX 0.453 step/s（+31%）。

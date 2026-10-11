@@ -18,6 +18,7 @@ from functools import partial
 
 import jax
 import jax.numpy as jnp
+from jax.ad_checkpoint import checkpoint_name
 from jax.experimental import pallas as pl
 from jax.experimental.pallas import tpu as pltpu
 
@@ -166,7 +167,8 @@ def _blocks(lo, hi, body, rolled):
 
 
 def _read_backward_kernel(heads, qk_cols, eps, scale, db, rolled, pass_m, q_scale, gated=False,
-                          hm_reverse=False, rolled_passes=frozenset(), token_io=False, saved_y=False):
+                          hm_reverse=False, rolled_passes=frozenset(), token_io=False, saved_y=False,
+                          b1_block=4):
   """rolled_passes: subset of {'a', 'b1', 'b2'} run as fori_loops over k blocks (loop boundaries stop
   Mosaic hoisting loads across the whole unrolled k range, which spilled heavily for C=40)."""
   def kernel(*refs):
@@ -299,30 +301,31 @@ def _read_backward_kernel(heads, qk_cols, eps, scale, db, rolled, pass_m, q_scal
       for a in range(3):
         for h in range(n):
           keyhm[a, h] = key_scr[a, :, h, :]
-      assert qk_cols % 4 == 0 and kdim % 4 == 0
+      bk = b1_block   # k rows per B1 block: keys (3 arms x C rows) + bk accumulators stay in vregs
+      assert qk_cols % bk == 0 and kdim % bk == 0
 
-      def b1(j, with_qk):           # dMc for key rows 4j .. 4j+3
-        acc = [None] * 4
+      def b1(j, with_qk):           # dMc for key rows bk*j .. bk*j+bk-1
+        acc = [None] * bk
         for h in range(n):
           kv = keyhm[2, h]
           if with_qk:
             kq_, kk_ = keyhm[0, h], keyhm[1, h]
-          for kk4 in range(4):
-            k = j * 4 + kk4
+          for kk4 in range(bk):
+            k = j * bk + kk4
             ln = lanes(k)
             term = dyvo[k, pl.ds(h, 1), :] * kv
             if with_qk:
               term = term + d2[pl.ds(h, 1), ln] * kq_ + d2[pl.ds(np_ + h, 1), ln] * kk_
             acc[kk4] = _acc(acc[kk4], term)
-        for kk4 in range(4):
-          d2[pl.ds(mc0, cdim), lanes(j * 4 + kk4)] = acc[kk4]
+        for kk4 in range(bk):
+          d2[pl.ds(mc0, cdim), lanes(j * bk + kk4)] = acc[kk4]
 
       if 'b1' in rolled_passes:
-        jax.lax.fori_loop(0, qk_cols // 4, lambda j, c: (b1(j, True), c)[1], 0)
-        jax.lax.fori_loop(qk_cols // 4, kdim // 4, lambda j, c: (b1(j, False), c)[1], 0)
+        jax.lax.fori_loop(0, qk_cols // bk, lambda j, c: (b1(j, True), c)[1], 0)
+        jax.lax.fori_loop(qk_cols // bk, kdim // bk, lambda j, c: (b1(j, False), c)[1], 0)
       else:
-        for j in range(kdim // 4):
-          b1(j, j * 4 < qk_cols)
+        for j in range(kdim // bk):
+          b1(j, j * bk < qk_cols)
 
       def b2(h, j, carry, with_qk):  # key gradients of head h over key rows 8j .. 8j+7
         a0, a1, a2 = carry
@@ -414,7 +417,7 @@ def _read_backward_call(args, cts, opts):
   outs = pl.pallas_call(
       _read_backward_kernel(n, opts['qk_cols'], opts['read_epsilon'], opts['key_scale'], opts['dot_block'],
                             opts['rolled'], pass_m, opts['q_scale'], gated, hm_reverse, rolled_passes,
-                            token_io, y_res is not None),
+                            token_io, y_res is not None, int(opts.get('b1_block', 4))),
       grid=(b, t // tile), in_specs=in_specs, out_specs=out_specs, out_shape=tuple(out_shape),
       scratch_shapes=scratch, interpret=opts['interpret'],
       input_output_aliases={len(args) + (y_res is not None) + 4: 0} if pass_m else {},
@@ -437,7 +440,7 @@ def _read_fwd(m, sw, rq, lq, rk, lk, rr, lo, lv, qs, ks, sg, opts):
   args = _args(m, sw, rq, lq, rk, lk, rr, lo, lv, qs, ks, sg)
   save_y = bool(dict(opts).get('save_y', False))
   outs = _read_forward_call(args, dict(opts), save_y=save_y)
-  y = outs[4] if save_y else None
+  y = checkpoint_name(outs[4], 'bam_read_y') if save_y else None
   outs = outs[:4]
   return (outs + (m,) if dict(opts)['pass_m'] else outs), (args, y)
 
@@ -455,7 +458,7 @@ def read(m, static_weight, q_key, q_logits, k_key, k_logits, vo_key, o_logits, v
          q_standard, k_standard, *, qk_cols, read_epsilon, key_scale,
          forward_tile=128, reverse_tile=128, vmem_mib=None, interpret=False,
          k_block=4, dot_block=16, rolled=True, pass_m=False, q_scale=1.0, static_gates=None,
-         hm_reverse=False, rolled_passes=(), token_io=False, save_y=False, **_):
+         hm_reverse=False, rolled_passes=(), token_io=False, save_y=False, b1_block=4, **_):
   """m is k-major [B,K,V,T]; other arguments token-major as in layers.bam_pallas.read.
 
   Returns token-major (query, key, value, local_o), each [B,T,N,K]; with pass_m also m itself,
@@ -468,7 +471,7 @@ def read(m, static_weight, q_key, q_logits, k_key, k_logits, vo_key, o_logits, v
                       interpret=interpret, k_block=k_block, dot_block=dot_block, rolled=rolled,
                       pass_m=pass_m, q_scale=float(q_scale), hm_reverse=bool(hm_reverse),
                       rolled_passes=tuple(sorted(rolled_passes)), token_io=bool(token_io),
-                      save_y=bool(save_y)))
+                      save_y=bool(save_y), b1_block=int(b1_block)))
   cmajor = lambda x: jnp.transpose(x, (0, 3, 2, 1))       # [B,T,N,X] -> [B,X,N,T]
 
   # Layout changes stay outside the shard_map so XLA can fold them into producers/consumers.
@@ -481,6 +484,8 @@ def read(m, static_weight, q_key, q_logits, k_key, k_logits, vo_key, o_logits, v
   if static_gates:
     args += (jnp.stack([_minor(g) for g in static_gates], axis=1),)              # [B,4,N,T]
   outs = _map_batch(local, args, (True, False) + (True,) * (len(args) - 2), 5 if pass_m else 4)
+  # remat_policy 'full_save_bam_read' keeps these (and the y residual) instead of re-running the kernel.
+  outs = tuple(checkpoint_name(o, 'bam_read_out') for o in outs[:4]) + tuple(outs[4:])
   if token_io:    # [B,N,T,K] -> [B,T,N,K]; cancels against Splash's [B,N,T,D] input transpose
     return tuple(jnp.transpose(o, (0, 2, 1, 3)) for o in outs[:4]) + tuple(outs[4:])
   return tuple(_major(o) for o in outs[:4]) + tuple(outs[4:])                     # [B,N,K,T] -> [B,T,N,K]

@@ -12409,6 +12409,7 @@ class BamPallasFullMTinyPallasV7TIOTest(BamPallasFullMTinyPallasV7HMTest):
 
 class BamFullMGeneralReadPallasTIOProfile(BamFullMGeneralReadPallasHMProfile):
     """+ token-major q/k/v/o and cotangents (Splash-native [B,N,T,K]; in-kernel XLU transposes)."""
+    # v5p-8 515f5cb: 0.539 vs HM 0.532 (+1.3%); 7707cee rerun 0.541. Glue 47 -> 28 ms, fused projections 137 -> 115 ms.
     model_name = 'BamFullMGeneralReadPallasTIOProfile'
     bam_pallas_token_io = True
 
@@ -12421,5 +12422,18 @@ class BamPallasFullMTinyPallasV7SaveYTest(BamPallasFullMTinyPallasV7TIOTest):
 
 class BamFullMGeneralReadPallasSaveYProfile(BamFullMGeneralReadPallasTIOProfile):
     """+ VO dynamic read y saved as a residual by the forward rule."""
+    # v5p-8 7707cee: 0.543 vs TIO 0.541.
     model_name = 'BamFullMGeneralReadPallasSaveYProfile'
     bam_pallas_save_y = True
+
+
+class BamPallasFullMTinyPallasV7SaveReadTest(BamPallasFullMTinyPallasV7SaveYTest):
+    """CPU fixture: + remat policy keeping the fused read kernel's outputs and y residual."""
+    model_name = 'BamPallasFullMTinyPallasV7SaveReadTest'
+    remat_policy = 'full_save_bam_read'
+
+
+class BamFullMGeneralReadPallasSaveReadProfile(BamFullMGeneralReadPallasSaveYProfile):
+    """+ remat keeps the fused read outputs and y (read forward kernel runs once per step)."""
+    model_name = 'BamFullMGeneralReadPallasSaveReadProfile'
+    remat_policy = 'full_save_bam_read'

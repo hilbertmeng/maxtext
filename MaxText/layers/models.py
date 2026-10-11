@@ -144,6 +144,8 @@ def get_remat_policy(cfg):
           "qkv_proj",
           "out_proj",
       )
+    elif cfg.remat_policy == "full_save_bam_read":   # full remat except the fused BAM read kernel's results
+      policy = jax.checkpoint_policies.save_only_these_names("bam_read_out", "bam_read_y")
     elif cfg.remat_policy == "save_qkv_proj":
       policy = jax.checkpoint_policies.save_only_these_names(
           "query_proj",

@@ -12462,3 +12462,15 @@ class BamFullMGeneralReadPallasV8SaveReadProfile(BamFullMGeneralReadPallasV8Prof
     """+ remat keeps the read output Y (read forward kernel once per step)."""
     model_name = 'BamFullMGeneralReadPallasV8SaveReadProfile'
     remat_policy = 'full_save_bam_read'
+
+
+class BamPallasFullMTinyPallasV8XTTest(BamPallasFullMTinyPallasV8Test):
+    """CPU fixture: v8 with per-token transposed read keys [B,T,V,4N]."""
+    model_name = 'BamPallasFullMTinyPallasV8XTTest'
+    bam_pallas_v8_xt = True
+
+
+class BamFullMGeneralReadPallasV8XTProfile(BamFullMGeneralReadPallasV8Profile):
+    """+ per-token transposed read keys X^T [B,T,V,4N] (12 vs 20 KB/token; dM a plain matmul)."""
+    model_name = 'BamFullMGeneralReadPallasV8XTProfile'
+    bam_pallas_v8_xt = True

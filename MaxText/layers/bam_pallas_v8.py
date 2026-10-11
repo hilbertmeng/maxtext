@@ -40,37 +40,47 @@ def _chunks(tile, chunk):
 # Read: Y = X @ M per token, with the M passthrough (its cotangent added in the reverse).
 
 def _read_forward_call(x, m, opts):
-  b, t, r, v = x.shape
+  xt = opts.get('xt', False)        # x stored transposed per token: [B,T,V,R] (R on lanes)
+  b, t = x.shape[:2]
+  r, v = x.shape[2:][::-1] if xt else x.shape[2:]
   kdim = m.shape[-1]
   tile = min(opts['tile'], t)
 
   def kernel(x_ref, m_ref, y_ref):
     for s in _chunks(tile, opts['chunk']):
-      y_ref[s] = _bdot(x_ref[s], m_ref[s], 2, 1).astype(y_ref.dtype)
+      y_ref[s] = _bdot(x_ref[s], m_ref[s], 1 if xt else 2, 1).astype(y_ref.dtype)
 
   return pl.pallas_call(
-      kernel, grid=(b, t // tile), in_specs=[_token_spec((r, v), tile), _token_spec((v, kdim), tile)],
+      kernel, grid=(b, t // tile), in_specs=[_token_spec(x.shape[2:], tile), _token_spec((v, kdim), tile)],
       out_specs=_token_spec((r, kdim), tile), out_shape=jax.ShapeDtypeStruct((b, t, r, kdim), x.dtype),
       interpret=opts['interpret'], compiler_params=_params(('parallel', 'parallel'), opts['vmem_mib']),
       name='bam_core_read')(x, m)
 
 
 def _read_backward_call(x, m, dy, gm, opts):
-  b, t, r, v = x.shape
+  xt = opts.get('xt', False)
+  b, t = x.shape[:2]
+  r, v = x.shape[2:][::-1] if xt else x.shape[2:]
   kdim = m.shape[-1]
   tile = min(opts['reverse_tile'], t)
 
   def kernel(x_ref, m_ref, dy_ref, gm_ref, dx_ref, dm_ref):
     for s in _chunks(tile, opts['chunk']):
       dy_s = dy_ref[s]
-      dx_ref[s] = _bdot(dy_s, m_ref[s], 2, 2).astype(dx_ref.dtype)             # [R,K] x [V,K]^T
-      dm_ref[s] = (_bdot(x_ref[s], dy_s, 1, 1) + gm_ref[s].astype(F32)).astype(dm_ref.dtype)
+      if xt:
+        dx_ref[s] = _bdot(m_ref[s], dy_s, 2, 2).astype(dx_ref.dtype)           # [V,K] x [R,K]^T
+        dm = _bdot(x_ref[s], dy_s, 2, 1)                                       # [V,R] x [R,K]
+      else:
+        dx_ref[s] = _bdot(dy_s, m_ref[s], 2, 2).astype(dx_ref.dtype)           # [R,K] x [V,K]^T
+        dm = _bdot(x_ref[s], dy_s, 1, 1)                                       # [R,V]^T x [R,K]
+      dm_ref[s] = (dm + gm_ref[s].astype(F32)).astype(dm_ref.dtype)
 
   mspec = _token_spec((v, kdim), tile)
+  xspec = _token_spec(x.shape[2:], tile)
   return pl.pallas_call(
       kernel, grid=(b, t // tile),
-      in_specs=[_token_spec((r, v), tile), mspec, _token_spec((r, kdim), tile), mspec],
-      out_specs=[_token_spec((r, v), tile), mspec],
+      in_specs=[xspec, mspec, _token_spec((r, kdim), tile), mspec],
+      out_specs=[xspec, mspec],
       out_shape=(jax.ShapeDtypeStruct(x.shape, x.dtype), jax.ShapeDtypeStruct(m.shape, m.dtype)),
       input_output_aliases={3: 1}, interpret=opts['interpret'],
       compiler_params=_params(('parallel', 'parallel'), opts['vmem_mib']),
@@ -95,10 +105,11 @@ def _read_bwd(opts, res, cts):
 _read.defvjp(_read_fwd, _read_bwd)
 
 
-def read(m, x, *, tile=128, reverse_tile=128, chunk=8, vmem_mib=None, interpret=False):
-  """m [B,T,V,K], x [B,T,R,V] -> (y [B,T,R,K], m passthrough). y is named 'bam_read_out'."""
+def read(m, x, *, tile=128, reverse_tile=128, chunk=8, vmem_mib=None, interpret=False, xt=False):
+  """m [B,T,V,K], x [B,T,R,V] (or [B,T,V,R] with xt) -> (y [B,T,R,K], m passthrough).
+  y is named 'bam_read_out'."""
   opts = _freeze(dict(tile=tile, reverse_tile=reverse_tile, chunk=chunk, vmem_mib=vmem_mib,
-                      interpret=interpret))
+                      interpret=interpret, xt=bool(xt)))
   y, m = _map_batch(lambda x, m: _read(x, m, opts), (x, m), (True, True), 2)
   return checkpoint_name(y, 'bam_read_out'), m
 

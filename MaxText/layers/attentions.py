@@ -3825,8 +3825,11 @@ class BamAttention(Attention):
             logits('W_R_gate', True), logits('W_lv_gate', False), weight, heads=self.num_query_heads,
             read_epsilon=self._read_key_epsilon, key_scale=self._read_key_scale,
             static_gates=static_gates, dtype=self.dtype)
+        xt = bool(getattr(cfg, 'bam_pallas_v8_xt', False))
+        if xt:      # keys transposed per token [B,T,V,4N]: lane-dense rows, plain-matmul dM
+          x = jnp.swapaxes(x, 2, 3)
         y, M_in = bam_pallas_v8.read(
-            M_in, x, tile=int(getattr(cfg, 'bam_pallas_read_tile', None) or 128),
+            M_in, x, xt=xt, tile=int(getattr(cfg, 'bam_pallas_read_tile', None) or 128),
             reverse_tile=int(getattr(cfg, 'bam_pallas_read_reverse_tile', None) or 128),
             chunk=int(getattr(cfg, 'bam_pallas_v8_chunk', None) or 8),
             vmem_mib=getattr(cfg, 'bam_pallas_vmem_mib', None),

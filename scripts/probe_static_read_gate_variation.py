@@ -83,6 +83,41 @@ def gate_moments(gates):
               per_head_p95=np.quantile(g, .95, axis=(1, 2)))
 
 
+
+def paired_vo_moments(v, o):
+  """Pair exactly the same layer/sequence/token/head; avoid unpaired band means."""
+  v, o = np.asarray(v, np.float64), np.asarray(o, np.float64)
+  assert v.shape == o.shape and v.ndim == 4
+  delta = v - o
+  total_variance = delta.var(axis=(1, 2, 3))
+  within_head = delta.var(axis=(1, 2)).mean(axis=-1)
+  between_head = delta.mean(axis=(1, 2)).var(axis=-1)
+  np.testing.assert_allclose(total_variance, within_head + between_head, rtol=1e-9, atol=1e-12)
+  ratio = v / np.maximum(o, 1e-8)
+  balance = v / np.maximum(v + o, 1e-8)
+  rows = []
+  for layer in range(len(v)):
+    flat_v, flat_o = v[layer].ravel(), o[layer].ravel()
+    vv = v[layer] - v[layer].mean(axis=(0, 1), keepdims=True)
+    oo = o[layer] - o[layer].mean(axis=(0, 1), keepdims=True)
+    denominator = np.sqrt(np.mean(vv**2) * np.mean(oo**2))
+    row = dict(layer=layer, mean_delta=float(delta[layer].mean()),
+        delta_std=float(delta[layer].std()), delta_quantiles=np.quantile(delta[layer], [.05, .25, .5, .75, .95]).tolist(),
+        v_less_o_fraction=float(np.mean(delta[layer] < 0)),
+        v_lt_half_o_fraction=float(np.mean(v[layer] < .5 * o[layer])),
+        ratio_quantiles=np.quantile(ratio[layer], [.05, .25, .5, .75, .95]).tolist(),
+        v_share_quantiles=np.quantile(balance[layer], [.05, .25, .5, .75, .95]).tolist(),
+        overall_correlation=float(np.corrcoef(flat_v, flat_o)[0, 1]),
+        within_head_token_correlation=float(np.mean(vv * oo) / denominator) if denominator else None,
+        delta_within_head_token_variance=float(within_head[layer]),
+        delta_between_head_mean_variance=float(between_head[layer]),
+        delta_within_sequence_token_variance=float(delta[layer].var(axis=1).mean()),
+        delta_token_variance_fraction=float(within_head[layer] / total_variance[layer]) if total_variance[layer] else 0.,
+        per_head_mean_delta=delta[layer].mean(axis=(0, 1)).tolist(),
+        per_head_delta_token_std=delta[layer].std(axis=(0, 1)).tolist())
+    rows.append(row)
+  return rows
+
 def forward(model, params, tokens, targets, measured=True, controls=None):
   global gate_controls
   previous = gate_controls
@@ -112,6 +147,9 @@ def self_test():
   b = np.broadcast_to(np.array([.2, .8])[None, None, :, None], (1, 2, 2, 3))
   stats = gate_moments(b)
   np.testing.assert_allclose(stats['token_fraction'], 1)
+  vo = paired_vo_moments(a, a * 2)
+  np.testing.assert_allclose(vo[0]['mean_delta'], -.5)
+  np.testing.assert_allclose(vo[0]['delta_token_variance_fraction'], 0, atol=1e-12)
   with tempfile.TemporaryDirectory() as root:
     restore_cfg = make_config(root, length=4, checkpoint='gs://probe-only/items')
     assert restore_cfg.only_eval and restore_cfg.enable_checkpointing
@@ -132,14 +170,17 @@ def self_test():
     with mesh, nn.partitioning.axis_rules(cfg.logical_axis_rules):
       variables = model.init(rng, tokens, pos, jnp.ones_like(tokens), tokens)
       assert not any('diag_v_static_gate' in '/'.join(p) for p in flatten_dict(variables))
-      params = nn.unbox(variables['params'])
+      params = decode_parameter_tree({'params': nn.unbox(variables['params'])})
       observed, gates = jax.jit(lambda p: forward(model, p, tokens, tokens))(params)
       native = jax.jit(lambda p: forward(model, p, tokens, tokens, False))(params)
       fixed = jax.jit(lambda p: forward(model, p, tokens, tokens, False, jnp.ones(4, bool)))(params)
       biased = zero_biases(params, ('q', 'k', 'vo'))
       assert len(biased[1]) == 9, biased[1]
+      folded, _ = absorb_mean_qk_gates(params, {a: np.full((3, 4), .99) for a in ('q', 'k')}, ('q', 'k'))
+      folded_loss = jax.jit(lambda p: forward(model, p, tokens, tokens, False))(folded)
     np.testing.assert_allclose(observed, native, rtol=1e-6, atol=1e-7)
     np.testing.assert_allclose(fixed, native, rtol=1e-6, atol=1e-7)
+    np.testing.assert_allclose(folded_loss, native, rtol=1e-6, atol=1e-7)
     assert gates.shape == (4, 3, 1, 4, 4), gates.shape
     np.testing.assert_allclose(gates, .99, rtol=1e-6)
   print('GATE_PROBE_SELF_TEST_OK', flush=True)
@@ -157,6 +198,12 @@ def make_config(root, length, checkpoint):
       bam_splash_attention=os.environ.get('JAX_PLATFORMS') != 'cpu')
 
 
+def decode_parameter_tree(state_params):
+  # MaxText decode TrainState stores the complete variable dict, unlike model.init['params'].
+  assert set(state_params) == {'params'}, tuple(state_params)
+  return state_params['params']
+
+
 def zero_biases(params, arms):
   flat = flatten_dict(params)
   names = {'general_' + arm + '_pre_bias' for arm in arms}
@@ -168,6 +215,33 @@ def zero_biases(params, arms):
   assert all(any(p.endswith('/' + name) for p in selected) for name in names), selected
   return unflatten_dict(flat), selected
 
+
+
+def absorb_mean_qk_gates(params, means, arms, opening=.99):
+  """Remove dynamic gate variation, absorbing calibrated per-head amplitude into static keys."""
+  flat = flatten_dict(params)
+  modified = []
+  for path, value in flat.items():
+    for arm in arms:
+      static = path[-1] == 'static_' + arm + '_key'
+      bias = path[-1] == 'general_' + arm + '_static_gate_bias'
+      kernel = path[-1] == 'kernel' and path[-2] == 'general_' + arm + '_static_gate'
+      if not (static or bias or kernel):
+        continue
+      offsets = [int(m.group(1)) for part in path
+                 if (m := re.fullmatch(r'(?:local|fetch)_(\d+)', part))]
+      assert len(offsets) == 1, path
+      band = np.asarray(means[arm])[offsets[0]::3]  # [scan_block, head]
+      if static:
+        assert value.shape[1:] == band.shape, (path, value.shape, band.shape)
+        flat[path] = value * jnp.asarray(band[None] / opening, value.dtype)
+      elif bias:
+        flat[path] = jnp.full_like(value, np.log(opening / (1.1 - opening)))
+      else:
+        flat[path] = jnp.zeros_like(value)
+      modified.append('/'.join(path))
+  assert len(modified) == 9 * len(arms), modified
+  return unflatten_dict(flat), modified
 
 def run(args):
   out = Path(args.output)
@@ -181,7 +255,8 @@ def run(args):
   mesh = jax.sharding.Mesh(max_utils.create_device_mesh(cfg), cfg.mesh_axes)
   model = Transformer(cfg, mesh, quantizations.configure_quantization(cfg))
   state, _ = max_utils.setup_decode_state(model, cfg, jax.random.PRNGKey(cfg.init_weights_seed), mesh, None)
-  count = sum(np.prod(x.shape) for x in jax.tree_util.tree_leaves(state.params))
+  params = decode_parameter_tree(state.params)
+  count = sum(np.prod(x.shape) for x in jax.tree_util.tree_leaves(params))
   assert count == 432111104, count
   print('PARAMS_RESTORED', args.checkpoint, int(count), time.time() - start, flush=True)
   variants = {
@@ -198,7 +273,7 @@ def run(args):
   }
   prepared = {}
   for name, (fixed, biases) in variants.items():
-    p, leaves = zero_biases(state.params, biases) if biases else (state.params, [])
+    p, leaves = zero_biases(params, biases) if biases else (params, [])
     prepared[name] = (p, jnp.array([arm in fixed for arm in ARMS]), leaves)
   # Same-shape parameter variants reuse one executable; flags are runtime arguments.
   sequence_loss = {name: [] for name in variants}
@@ -209,7 +284,7 @@ def run(args):
     for i, (t, y) in enumerate(zip(tokens, targets)):
       before = time.time()
       t, y = jnp.asarray(t[None]), jnp.asarray(y[None])
-      xent, gates = jax.device_get(compiled(state.params, t, y))
+      xent, gates = jax.device_get(compiled(params, t, y))
       assert gates.shape == (4, 18, 1, tokens.shape[1], 16), gates.shape
       all_gates.append(gates)
       sequence_loss['original'].append(float(np.mean(xent)))
@@ -247,6 +322,28 @@ def run(args):
         row['per_sequence'].append({key: value[0].tolist() for key, value in one.items()})
       rows.append(row)
     result['gate_statistics'][arm] = rows
+  # Calibrate on first8 sequences; evaluate on remaining24 to avoid evaluation self-calibration.
+  calibration = min(8, len(tokens) // 2)
+  means = {arm: np.concatenate([g[ARMS.index(arm)] for g in all_gates[:calibration]], axis=1).mean(axis=(1, 2))
+           for arm in ('q', 'k')}
+  result['gate_calibration'] = dict(sequence_count=calibration, hashes=hashes[:calibration],
+      evaluation_hashes=hashes[calibration:], per_layer_head_mean={a: m.tolist() for a, m in means.items()})
+  with mesh, nn.partitioning.axis_rules(cfg.logical_axis_rules):
+    for arms in (('q',), ('k',), ('q', 'k')):
+      name = ''.join(arms) + '_static_mean_absorbed'
+      p, modified = absorb_mean_qk_gates(params, means, arms)
+      losses = []
+      for t, y in zip(tokens[calibration:], targets[calibration:]):
+        losses.append(float(np.asarray(ablated(p, jnp.asarray(t[None]), jnp.asarray(y[None]), jnp.zeros(4, bool))).mean()))
+      delta = np.array(losses) - np.array(sequence_loss['original'][calibration:])
+      result['ablations'][name] = dict(sequence_loss=losses, paired_delta=delta.tolist(),
+          mean_delta=float(delta.mean()), standard_error=float(delta.std(ddof=1) / np.sqrt(len(delta))),
+          loss_increased_sequences=int(np.sum(delta > 0)), evaluated_sequence_indices=list(range(calibration, len(tokens))),
+          modified_parameter_paths=modified)
+      print('MEAN_GATE_ABLATION', name, result['ablations'][name]['mean_delta'], flush=True)
+  result['paired_vo_gate'] = paired_vo_moments(
+      np.concatenate([g[ARMS.index('v')] for g in all_gates], axis=1),
+      np.concatenate([g[ARMS.index('o')] for g in all_gates], axis=1))
   for name, losses in sequence_loss.items():
     delta = np.array(losses) - np.array(sequence_loss['original'])
     result['ablations'][name] = dict(sequence_loss=losses, paired_delta=delta.tolist(),

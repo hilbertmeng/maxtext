@@ -1274,3 +1274,4 @@ active leases are censored, and manual migration releases are not preemptions.
 | `BamMediumPropL27K75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile` | 2 | `us-east5-a` | 2026-10-11 18:05:09 | 2026-10-11 18:22:25 | 17m16s | preempted; same-zone resumed checkpoint262 |
 | `BamMediumPropL27K75V48EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadSharedGelu384GeneralReadTruePile` | 2 | `us-east5-a` | 2026-10-11 18:05:03 | 2026-10-11 18:45:01 | 39m58s | preempted; same-zone resumed checkpoint669 |
 | `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadSigmoidStaticGateTruePile` | 2 | `us-east5-a` | 2026-10-11 15:24:40 | 2026-10-11 19:09:16 | 3h44m36s | final closeout after completed13500 |
+| `BamMediumPropL27K75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile` | 3 | `us-east5-a` | 2026-10-11 18:30:24 | 2026-10-11 21:01:18 | 2h30m54s | preempted |

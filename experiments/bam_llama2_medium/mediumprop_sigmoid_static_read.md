@@ -32,3 +32,13 @@ Actual worker config selects `bam_static_read_gate_sigmoid=True`, opening .99, s
 and UE5a-local TruePile4096 data. Source diff against direct-parent runtime64e3fc3 changes only the gate implementation and new configuration classes.
 
 Steady20-99 throughput: .477675step/s (80samples), approximately -.21% vs direct old generalized read .4787; same UE5a/v5p-16 and generic/concat health.
+
+Completed13500. Relative to historical generalized read, gap changed from an early advantage
+to a deficit by600steps, contracted from roughly+.004 around1000-4000 to roughly+.001 after10000,
+and remained positive at the finish. Final five windows12600-13400: +.00116508, range[+.000755,+.0016832].
+Relative to nongeneral shared R256, final five mean-.00392676, range[-.004059,-.0037444].
+The simpler gate retained most generalized-read benefit but did not match the old gate.
+This does not establish that a saturated .99 gate is optimal; it changes learning dynamics as well as range.
+The run disproves double-lockout of zero static Q/K/O projections: keys learned and the generalized gain persisted.
+Bet+.001 was close to final+.001165; no clear late zero-crossing trend appeared.
+Full cumulative series: `/data0/xd/bam_diagnostics/mediumprop-sigmoid-static-read/report-final.md`.

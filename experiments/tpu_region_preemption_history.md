@@ -27,7 +27,7 @@ active leases are censored, and manual migration releases are not preemptions.
 
 | RUN | TPU | Zone | Start UTC | End UTC | End reason | Passive candidates |
 |---|---|---|---|---|---|---|
-| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadSigmoidStaticGateTruePile` | v5p-16 (`xd-v5p-16-310120-maxtext`) | `us-east5-a` | 2026-10-11 10:50:07 | — | active; source/AOT/FIRST_STEP verified | none |
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadSigmoidStaticGateTruePile` | v5p-16 (`xd-v5p-16-310120-maxtext`) | `us-east5-a` | 2026-10-11 10:50:07 | 2026-10-11 19:09:16 | complete13500;1preemption; checkpoint13500 committed, node/queue absent, TB synced | none |
 | `BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile` | v5p-32 (`xd-v5p-32-310118-maxtext`) | `us-east5-a` | 2026-10-11 05:13:34 | — | active; source/AOT/FIRST_STEP verified | none |
 | `BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdFullMReadSharedGelu400TruePile` | v5p-32 (`xd-v5p-32-310119-maxtext`) | `us-east5-a` | 2026-10-11 05:18:49 | — | active; source/AOT/FIRST_STEP verified | none |
 | `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadSharedGelu128GeneralReadTruePile` | v5p-16 (`xd-v5p-16-310116-maxtext`) | `us-east5-a` | 2026-10-11 01:59:56 | 2026-10-11 04:03:40 | user stop3407;0preemptions; checkpoint committed, node/queue absent, TB synced | none |
@@ -1267,8 +1267,10 @@ active leases are censored, and manual migration releases are not preemptions.
 | `BamMediumPropK75V48EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadSharedGelu256TruePile` | 1 | `us-east5-a` | 2026-10-10 17:05:42 | 2026-10-11 01:32:11 | 8h26m29s | complete13500; resources released |
 | `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadSharedGelu128GeneralReadTruePile` | 1 | `us-east5-a` | 2026-10-11 01:59:58 | 2026-10-11 04:03:40 | 2h03m42s | user stop3407; resources released |
 | `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadSharedGelu384GeneralReadTruePile` | 1 | `us-east5-a` | 2026-10-11 02:02:02 | 2026-10-11 04:03:42 | 2h01m40s | user stop3359; resources released |
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadSigmoidStaticGateTruePile` | 1 | `us-east5-a` | 2026-10-11 10:50:09 | 2026-10-11 15:17:35 | 4h27m26s | preempted |
 | `BamMediumPropK75V48EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadSharedGelu384GeneralReadTruePile` | 1 | `us-east5-a` | 2026-10-11 17:55:20 | 2026-10-11 17:58:09 | 2m49s | preempted before FIRST_STEP; same-zone recovery; READY from prequeue |
 | `BamMediumPropL27K75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile` | 1 | `us-east5-a` | 2026-10-11 17:55:38 | 2026-10-11 17:58:37 | 2m59s | preempted before FIRST_STEP; same-zone recovery |
 | `BamMediumPropL27K75V48EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadSharedGelu384GeneralReadTruePile` | 1 | `us-east5-a` | 2026-10-11 17:55:32 | 2026-10-11 17:58:55 | 3m23s | preempted before FIRST_STEP; same-zone recovery |
 | `BamMediumPropL27K75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile` | 2 | `us-east5-a` | 2026-10-11 18:05:09 | 2026-10-11 18:22:25 | 17m16s | preempted; same-zone resumed checkpoint262 |
 | `BamMediumPropL27K75V48EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadSharedGelu384GeneralReadTruePile` | 2 | `us-east5-a` | 2026-10-11 18:05:03 | 2026-10-11 18:45:01 | 39m58s | preempted; same-zone resumed checkpoint669 |
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadSigmoidStaticGateTruePile` | 2 | `us-east5-a` | 2026-10-11 15:24:40 | 2026-10-11 19:09:16 | 3h44m36s | final closeout after completed13500 |

@@ -2,6 +2,7 @@
 import argparse
 import hashlib
 import json
+import os
 import re
 import tempfile
 import time
@@ -11,7 +12,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 from flax import linen as nn
-from flax.traverse_util import flatten_dict
+from flax.traverse_util import flatten_dict, unflatten_dict
 
 import max_utils
 import pyconfig
@@ -21,22 +22,29 @@ from layers.models import Transformer
 EXP = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile'
 original_gate = attentions.BamAttention._static_gate
 capture = True
+gate_controls = None
+ARMS = ('q', 'k', 'v', 'o')
 
 
 def measured_gate(self, name, x):
   value = original_gate(self, name, x)
-  if capture and not self.is_initializing() and name == 'general_v_static_gate':
-    self.sow('intermediates', 'diag_v_static_gate', value.astype(jnp.float32))
+  arm = name.removeprefix('general_').removesuffix('_static_gate')
+  if capture and not self.is_initializing() and arm in ARMS:
+    self.sow('intermediates', 'diag_' + arm + '_static_gate', value.astype(jnp.float32))
+  if gate_controls is not None and arm in ARMS:
+    # Fixed effective read multiplier=1, i.e. parent behavior. Physical gate .99.
+    value = jnp.where(gate_controls[ARMS.index(arm)],
+        jnp.full_like(value, self.config.bam_static_read_gate_init), value)
   return value
 
 
 attentions.BamAttention._static_gate = measured_gate
 
 
-def select_gates(collection):
+def select_gates(collection, arm='v'):
   selected = {}
   for path, value in flatten_dict(collection).items():
-    if path[-1] != 'diag_v_static_gate':
+    if path[-1] != 'diag_' + arm + '_static_gate':
       continue
     while isinstance(value, (tuple, list)) and len(value) == 1:
       value = value[0]
@@ -75,17 +83,23 @@ def gate_moments(gates):
               per_head_p95=np.quantile(g, .95, axis=(1, 2)))
 
 
-def forward(model, params, tokens, targets, measured=True):
+def forward(model, params, tokens, targets, measured=True, controls=None):
+  global gate_controls
+  previous = gate_controls
+  gate_controls = controls
   positions = jnp.broadcast_to(jnp.arange(tokens.shape[1]), tokens.shape)
   segments = jnp.ones_like(tokens)
-  result = model.apply({'params': params}, tokens, positions,
+  try:
+    result = model.apply({'params': params}, tokens, positions,
       decoder_segment_ids=segments, decoder_target_mask=segments,
       decoder_target_tokens=targets, enable_dropout=False,
       rngs={'aqt': jax.random.PRNGKey(0)},
       mutable=['intermediates'] if measured else False)
+  finally:
+    gate_controls = previous
   if measured:
     (xent, _, _), collections = result
-    return xent, select_gates(collections['intermediates'])
+    return xent, jnp.stack([select_gates(collections['intermediates'], arm) for arm in ARMS])
   return result[0]
 
 
@@ -99,6 +113,8 @@ def self_test():
   stats = gate_moments(b)
   np.testing.assert_allclose(stats['token_fraction'], 1)
   with tempfile.TemporaryDirectory() as root:
+    restore_cfg = make_config(root, length=4, checkpoint='gs://probe-only/items')
+    assert restore_cfg.only_eval and restore_cfg.enable_checkpointing
     cfg = make_config(root, length=4, checkpoint='')
     cfg.get_keys().update(base_emb_dim=300, emb_dim=300, base_num_query_heads=4,
         base_num_kv_heads=4, num_query_heads=4, num_kv_heads=4, emb_bam_num_head=4,
@@ -119,8 +135,12 @@ def self_test():
       params = nn.unbox(variables['params'])
       observed, gates = jax.jit(lambda p: forward(model, p, tokens, tokens))(params)
       native = jax.jit(lambda p: forward(model, p, tokens, tokens, False))(params)
+      fixed = jax.jit(lambda p: forward(model, p, tokens, tokens, False, jnp.ones(4, bool)))(params)
+      biased = zero_biases(params, ('q', 'k', 'vo'))
+      assert len(biased[1]) == 9, biased[1]
     np.testing.assert_allclose(observed, native, rtol=1e-6, atol=1e-7)
-    assert gates.shape == (3, 1, 4, 4), gates.shape
+    np.testing.assert_allclose(fixed, native, rtol=1e-6, atol=1e-7)
+    assert gates.shape == (4, 3, 1, 4, 4), gates.shape
     np.testing.assert_allclose(gates, .99, rtol=1e-6)
   print('GATE_PROBE_SELF_TEST_OK', flush=True)
 
@@ -129,11 +149,24 @@ def make_config(root, length, checkpoint):
   Path(root, 'gateprobe').mkdir(parents=True, exist_ok=True)
   return pyconfig.initialize([None, 'MaxText/configs/base.yml'], exp_class=EXP,
       run_name='gateprobe', base_output_directory=root + '/', only_eval=True,
-      enable_checkpointing=False, dataset_type='synthetic', per_device_batch_size=1.,
+      enable_checkpointing=bool(checkpoint), dataset_type='synthetic', per_device_batch_size=1.,
       max_target_length=length, max_prefill_predict_length=length,
       query_chunk_size=min(256, length),
       load_parameters_path=checkpoint, jax_cache_dir='', log_config=False,
-      bam_splash_attention=False if jax.default_backend() == 'cpu' else True)
+      skip_jax_distributed_system=os.environ.get('JAX_PLATFORMS') == 'cpu',
+      bam_splash_attention=os.environ.get('JAX_PLATFORMS') != 'cpu')
+
+
+def zero_biases(params, arms):
+  flat = flatten_dict(params)
+  names = {'general_' + arm + '_pre_bias' for arm in arms}
+  selected = []
+  for path, value in flat.items():
+    if path[-1] in names:
+      selected.append('/'.join(path))
+      flat[path] = jnp.zeros_like(value)
+  assert all(any(p.endswith('/' + name) for p in selected) for name in names), selected
+  return unflatten_dict(flat), selected
 
 
 def run(args):
@@ -151,38 +184,76 @@ def run(args):
   count = sum(np.prod(x.shape) for x in jax.tree_util.tree_leaves(state.params))
   assert count == 432111104, count
   print('PARAMS_RESTORED', args.checkpoint, int(count), time.time() - start, flush=True)
+  variants = {
+      'original': ((), ()),
+      'q_static_fixed1': (('q',), ()),
+      'k_static_fixed1': (('k',), ()),
+      'qk_static_fixed1': (('q', 'k'), ()),
+      'v_static_fixed1': (('v',), ()),
+      'q_pre_bias_zero': ((), ('q',)),
+      'k_pre_bias_zero': ((), ('k',)),
+      'vo_pre_bias_zero': ((), ('vo',)),
+      'all_pre_bias_zero': ((), ('q', 'k', 'vo')),
+      'qk_fixed1_all_bias_zero': (('q', 'k'), ('q', 'k', 'vo')),
+  }
+  prepared = {}
+  for name, (fixed, biases) in variants.items():
+    p, leaves = zero_biases(state.params, biases) if biases else (state.params, [])
+    prepared[name] = (p, jnp.array([arm in fixed for arm in ARMS]), leaves)
+  # Same-shape parameter variants reuse one executable; flags are runtime arguments.
+  sequence_loss = {name: [] for name in variants}
   with mesh, nn.partitioning.axis_rules(cfg.logical_axis_rules):
     compiled = jax.jit(lambda p, t, y: forward(model, p, t, y))
-    native = jax.jit(lambda p, t, y: forward(model, p, t, y, False))
-    all_gates, sequence_loss = [], []
+    ablated = jax.jit(lambda p, t, y, c: forward(model, p, t, y, False, c))
+    all_gates = []
     for i, (t, y) in enumerate(zip(tokens, targets)):
       before = time.time()
-      xent, gates = compiled(state.params, jnp.asarray(t[None]), jnp.asarray(y[None]))
-      xent, gates = jax.device_get((xent, gates))
-      assert gates.shape == (18, 1, tokens.shape[1], 16), gates.shape
-      if i == 0:
-        reference = np.asarray(native(state.params, jnp.asarray(t[None]), jnp.asarray(y[None])))
-        np.testing.assert_allclose(xent, reference, rtol=1e-5, atol=1e-5)
-        print('CAPTURE_FORWARD_PARITY_OK', float(np.max(np.abs(xent - reference))), flush=True)
+      t, y = jnp.asarray(t[None]), jnp.asarray(y[None])
+      xent, gates = jax.device_get(compiled(state.params, t, y))
+      assert gates.shape == (4, 18, 1, tokens.shape[1], 16), gates.shape
       all_gates.append(gates)
-      sequence_loss.append(float(np.mean(xent)))
-      np.savez_compressed(out / f'gates-{i:03d}.npz', gate=gates[:, :, ::16],
-          token_positions=np.arange(0, tokens.shape[1], 16), sequence_hash=hashes[i])
-      print('GATE_PROBE_SEQUENCE', i, time.time() - before, sequence_loss[-1], flush=True)
-  gates = np.concatenate(all_gates, axis=1)
-  stats = gate_moments(gates)
+      sequence_loss['original'].append(float(np.mean(xent)))
+      np.savez_compressed(out / f'gates-{i:03d}.npz', gate=gates[:, :, :, ::16],
+          arms=np.array(ARMS), token_positions=np.arange(0, tokens.shape[1], 16), sequence_hash=hashes[i])
+      for name, (p, controls, _) in prepared.items():
+        if name == 'original' and i > 0:
+          continue
+        result = np.asarray(ablated(p, t, y, controls))
+        if name == 'original':
+          np.testing.assert_allclose(xent, result, rtol=1e-5, atol=1e-5)
+          print('CAPTURE_FORWARD_PARITY_OK', float(np.max(np.abs(xent - result))), flush=True)
+        else:
+          sequence_loss[name].append(float(np.mean(result)))
+      partial = {name: {'loss': loss, 'delta': (np.array(loss) - np.array(sequence_loss['original'])).tolist()}
+                 for name, loss in sequence_loss.items() if name != 'original'}
+      (out / 'ablation-progress.json').write_text(json.dumps(dict(sequences=i+1, variants=partial), indent=2) + '\n')
+      print('GATE_PROBE_SEQUENCE', i, time.time() - before, sequence_loss['original'][-1],
+            {name: round(row['delta'][-1], 6) for name, row in partial.items()}, flush=True)
   result = dict(exp=EXP, checkpoint=args.checkpoint, samples=len(tokens),
-      length=tokens.shape[1], hashes=hashes, sequence_loss=sequence_loss,
-      capture_parity=True, layers=[], elapsed_seconds=time.time() - start)
-  for layer in range(18):
-    row = {'layer': layer}
-    for key, value in stats.items():
-      row[key] = value[layer].tolist()
-    row['per_sequence'] = []
-    for i in range(len(tokens)):
-      one = gate_moments(gates[layer:layer+1, i:i+1])
-      row['per_sequence'].append({key: value[0].tolist() for key, value in one.items()})
-    result['layers'].append(row)
+      length=tokens.shape[1], hashes=hashes, sequence_loss=sequence_loss['original'],
+      capture_parity=True, fixed_gate_convention='effective read multiplier 1; physical gate .99',
+      gate_statistics={}, ablations={}, elapsed_seconds=time.time() - start)
+  for arm_index, arm in enumerate(ARMS):
+    gates = np.concatenate([g[arm_index] for g in all_gates], axis=1)
+    stats = gate_moments(gates)
+    rows = []
+    for layer in range(18):
+      row = {'layer': layer}
+      for key, value in stats.items():
+        row[key] = value[layer].tolist()
+      row['per_sequence'] = []
+      for i in range(len(tokens)):
+        one = gate_moments(gates[layer:layer+1, i:i+1])
+        row['per_sequence'].append({key: value[0].tolist() for key, value in one.items()})
+      rows.append(row)
+    result['gate_statistics'][arm] = rows
+  for name, losses in sequence_loss.items():
+    delta = np.array(losses) - np.array(sequence_loss['original'])
+    result['ablations'][name] = dict(sequence_loss=losses, paired_delta=delta.tolist(),
+        mean_delta=float(delta.mean()), standard_error=float(delta.std(ddof=1) / np.sqrt(len(delta))),
+        loss_increased_sequences=int(np.sum(delta > 0)), fixed_static_gate_arms=variants[name][0],
+        zeroed_bias_arms=variants[name][1], zeroed_parameter_paths=prepared[name][2])
+  result['elapsed_seconds'] = time.time() - start
   (out / 'summary.json').write_text(json.dumps(result, indent=2) + '\n')
   print('GATE_PROBE_DONE', str(out / 'summary.json'), result['elapsed_seconds'], flush=True)
 

@@ -3731,12 +3731,15 @@ class BamAttention(Attention):
     weight = jnp.concatenate(kernels, axis=1)
     y = jax.lax.dot_general(jnp.asarray(x, self.dtype), weight, (((x.ndim - 1,), (0,)), ((), ())),
                             precision=jax.lax.Precision(self.config.matmul_precision))
-    out, off = {}, 0
-    for name, shape, kernel, bias in zip(names, shapes, kernels, biases):
-      width = kernel.shape[1]
-      part = y[..., off:off + width].reshape(x.shape[:-1] + shape)
+    # One split (its transpose is one concatenate) instead of per-piece slices, whose reverses
+    # were zero-padded full-width adds (pad_add_fusion, ~28 ms/step on v5p-8).
+    widths = [kernel.shape[1] for kernel in kernels]
+    cuts = [sum(widths[:i + 1]) for i in range(len(widths) - 1)]
+    parts = jnp.split(y, cuts, axis=-1)
+    out = {}
+    for name, shape, part, bias in zip(names, shapes, parts, biases):
+      part = part.reshape(x.shape[:-1] + shape)
       out[name] = part if bias is None else part + bias
-      off += width
     return out
 
   def _pallas_core_call(self, inputs_q, inputs_positions, decoder_segment_ids, M_in, is_global,
@@ -3827,6 +3830,7 @@ class BamAttention(Attention):
           body=body, head_block=int(getattr(cfg, 'bam_pallas_read_block', None) or 4), pass_m=pass_m,
           q_scale=q_scale, static_gates=static_gates,
           hm_reverse=bool(getattr(cfg, 'bam_pallas_hm_reverse', False)),
+          **({'token_io': True} if getattr(cfg, 'bam_pallas_token_io', False) else {}),
           **({'rolled_passes': tuple(cfg.bam_pallas_rolled_passes)}
              if getattr(cfg, 'bam_pallas_rolled_passes', None) else {}))
     query, key, value, local_output = outs[:4]

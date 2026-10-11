@@ -12389,11 +12389,25 @@ class BamPallasFullMTinyPallasV7RolledTest(BamPallasFullMTinyPallasV7HMTest):
 
 class BamFullMGeneralReadPallasRollB12Profile(BamFullMGeneralReadPallasHMProfile):
     """+ rolled reverse passes b1, b2 (dynamic-read reverse loops with register carries)."""
+    # v5p-8 625c0f4: 0.532 vs HM 0.533; read reverse 115.5 vs 114.4 ms (static estimate -20% did not hold).
     model_name = 'BamFullMGeneralReadPallasRollB12Profile'
     bam_pallas_rolled_passes = ('b1', 'b2')
 
 
 class BamFullMGeneralReadPallasRollAllProfile(BamFullMGeneralReadPallasHMProfile):
     """+ rolled reverse passes a, b1, b2."""
+    # v5p-8 625c0f4: 0.527; read reverse 131.5 ms (worse).
     model_name = 'BamFullMGeneralReadPallasRollAllProfile'
     bam_pallas_rolled_passes = ('a', 'b1', 'b2')
+
+
+class BamPallasFullMTinyPallasV7TIOTest(BamPallasFullMTinyPallasV7HMTest):
+    """CPU fixture: + token-major q/k/v/o outputs and cotangents (Splash-native layout)."""
+    model_name = 'BamPallasFullMTinyPallasV7TIOTest'
+    bam_pallas_token_io = True
+
+
+class BamFullMGeneralReadPallasTIOProfile(BamFullMGeneralReadPallasHMProfile):
+    """+ token-major q/k/v/o and cotangents (Splash-native [B,N,T,K]; in-kernel XLU transposes)."""
+    model_name = 'BamFullMGeneralReadPallasTIOProfile'
+    bam_pallas_token_io = True

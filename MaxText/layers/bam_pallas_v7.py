@@ -128,7 +128,8 @@ def _blocks(lo, hi, body, rolled):
     jax.lax.fori_loop(lo, hi, lambda j, c: (body(j), c)[1], 0)
 
 
-def _read_backward_kernel(heads, qk_cols, eps, scale, db, rolled, pass_m, q_scale, gated=False):
+def _read_backward_kernel(heads, qk_cols, eps, scale, db, rolled, pass_m, q_scale, gated=False,
+                          hm_reverse=False):
   def kernel(*refs):
     (m_ref, sw_ref, rq, lq, rk, lk, rr, lo, lv, qs, ks), refs = refs[:11], refs[11:]
     if gated:
@@ -139,7 +140,9 @@ def _read_backward_kernel(heads, qk_cols, eps, scale, db, rolled, pass_m, q_scal
     (dm_ref, dsw_ref, drq, dlq, drk, dlk, drr, dlo, dlv, dqs, dks), refs = refs[:11], refs[11:]
     if gated:
       dsg_ref, refs = refs[0], refs[1:]
-    key_scr, mc_scr, dyvo, dkey_scr, gacc, d2, hm = refs
+    key_scr, mc_scr, dyvo, dkey_scr, gacc, d2, hm = refs[:7]
+    if hm_reverse:
+      keyhm, dkeyhm = refs[7:9]
     dt = m_ref.dtype
     n = heads
     np_ = _pad_rows(n)
@@ -240,9 +243,45 @@ def _read_backward_kernel(heads, qk_cols, eps, scale, db, rolled, pass_m, q_scal
         dkey_scr[0, c] = acc[0]
         dkey_scr[1, c] = acc[1]
 
-    for c in range(cdim):
-      _blocks(0, qk_cols // 8, lambda j, c=c: pass_b(c, j, True), rolled)
-      _blocks(qk_cols // 8, kdim // 8, lambda j, c=c: pass_b(c, j, False), rolled)
+    if not hm_reverse:
+      for c in range(cdim):
+        _blocks(0, qk_cols // 8, lambda j, c=c: pass_b(c, j, True), rolled)
+        _blocks(qk_cols // 8, kdim // 8, lambda j, c=c: pass_b(c, j, False), rolled)
+    else:
+      # Head-major reverse of the dynamic reads (no sublane reductions):
+      #   dMc_k[:, t]  = sum_{arm, n} dy_arm,k[n, t] * key_arm[n][:, t]      ([C,T] slab per k)
+      #   dkey_arm[n]  = sum_k        dy_arm,k[n, t] * Mc_k[:, t]            ([C,T] slab per n)
+      for a in range(3):
+        for h in range(n):
+          keyhm[a, h] = key_scr[a, :, h, :]
+      for k0 in range(0, kdim, 4):
+        ks4 = range(k0, min(k0 + 4, kdim))
+        acc = {}
+        for h in range(n):
+          kv = keyhm[2, h]
+          kq_, kk_ = (keyhm[0, h], keyhm[1, h]) if k0 < qk_cols else (None, None)
+          for k in ks4:
+            ln = lanes(k)
+            term = dyvo[k, pl.ds(h, 1), :] * kv
+            if k < qk_cols:
+              term = term + d2[pl.ds(h, 1), ln] * kq_ + d2[pl.ds(np_ + h, 1), ln] * kk_
+            acc[k] = _acc(acc.get(k), term)
+        for k in ks4:
+          d2[pl.ds(mc0, cdim), lanes(k)] = acc[k]
+      for h in range(n):
+        acc = [None] * 3
+        for k in range(kdim):
+          ln = lanes(k)
+          mslab = mc_scr[pl.ds(mco, cdim), ln]
+          acc[2] = _acc(acc[2], dyvo[k, pl.ds(h, 1), :] * mslab)
+          if k < qk_cols:
+            acc[0] = _acc(acc[0], d2[pl.ds(h, 1), ln] * mslab)
+            acc[1] = _acc(acc[1], d2[pl.ds(np_ + h, 1), ln] * mslab)
+        for a in range(3):
+          dkeyhm[a, h] = acc[a]
+      for a in range(3):
+        for c in range(cdim):
+          dkey_scr[a, c] = dkeyhm[a, :, c, :]
 
     for i, (r, l, dr, dl, g, nrm) in enumerate(((rq, lq, drq, dlq, gq, nq), (rk, lk, drk, dlk, gk, nkn))):
       dkey = dkey_scr[i]
@@ -296,9 +335,12 @@ def _read_backward_call(args, cts, opts):
              pltpu.VMEM((kdim, n, tile), F32), pltpu.VMEM((3, c, n, tile), F32),
              pltpu.VMEM((6 if gated else 2, n, tile), F32), pltpu.VMEM((j, kdim * tile), F32),
              pltpu.VMEM((4, n * kdim, tile), F32)]
+  hm_reverse = bool(opts.get('hm_reverse', False))
+  if hm_reverse:
+    scratch += [pltpu.VMEM((3, n, c, tile), F32), pltpu.VMEM((3, n, c, tile), F32)]
   outs = pl.pallas_call(
       _read_backward_kernel(n, opts['qk_cols'], opts['read_epsilon'], opts['key_scale'], opts['dot_block'],
-                            opts['rolled'], pass_m, opts['q_scale'], gated),
+                            opts['rolled'], pass_m, opts['q_scale'], gated, hm_reverse),
       grid=(b, t // tile), in_specs=in_specs, out_specs=out_specs, out_shape=tuple(out_shape),
       scratch_shapes=scratch, interpret=opts['interpret'],
       input_output_aliases={len(args) + 4: 0} if pass_m else {},
@@ -334,7 +376,8 @@ _read.defvjp(_read_fwd, _read_bwd)
 def read(m, static_weight, q_key, q_logits, k_key, k_logits, vo_key, o_logits, v_logits,
          q_standard, k_standard, *, qk_cols, read_epsilon, key_scale,
          forward_tile=128, reverse_tile=128, vmem_mib=None, interpret=False,
-         k_block=4, dot_block=16, rolled=True, pass_m=False, q_scale=1.0, static_gates=None, **_):
+         k_block=4, dot_block=16, rolled=True, pass_m=False, q_scale=1.0, static_gates=None,
+         hm_reverse=False, **_):
   """m is k-major [B,K,V,T]; other arguments token-major as in layers.bam_pallas.read.
 
   Returns token-major (query, key, value, local_o), each [B,T,N,K]; with pass_m also m itself,
@@ -345,7 +388,7 @@ def read(m, static_weight, q_key, q_logits, k_key, k_logits, vo_key, o_logits, v
   opts = _freeze(dict(heads=heads, qk_cols=qk_cols, read_epsilon=read_epsilon, key_scale=key_scale,
                       forward_tile=forward_tile, reverse_tile=reverse_tile, vmem_mib=vmem_mib,
                       interpret=interpret, k_block=k_block, dot_block=dot_block, rolled=rolled,
-                      pass_m=pass_m, q_scale=float(q_scale)))
+                      pass_m=pass_m, q_scale=float(q_scale), hm_reverse=bool(hm_reverse)))
   cmajor = lambda x: jnp.transpose(x, (0, 3, 2, 1))       # [B,T,N,X] -> [B,X,N,T]
 
   def local(m, sw, qk, ql, kk, kl, vo, ol, vl, qs, ks, *gates):

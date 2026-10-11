@@ -27,11 +27,11 @@ class ModelEquivalenceTest(unittest.TestCase):
 
   def test_logits_and_gradients(self):
     self._run('BamPallasCoreTinyXlaTest', ('BamPallasCoreTinyPallasTest', 'BamPallasCoreTinyPallasV7Test',
-                                           'BamPallasCoreTinyPallasV7FusedInputsTest'))
+                                           'BamPallasCoreTinyPallasV7FusedInputsTest', 'BamPallasCoreTinyPallasV7HMTest'))
 
   def test_full_m_general_read(self):
     self._run('BamPallasFullMTinyXlaTest', ('BamPallasFullMTinyPallasV7Test',
-                                            'BamPallasFullMTinyPallasV7FusedInputsTest'))
+                                            'BamPallasFullMTinyPallasV7FusedInputsTest', 'BamPallasFullMTinyPallasV7HMTest'))
 
   def _run(self, xla_exp, fused_exps):
     out = tempfile.mkdtemp()

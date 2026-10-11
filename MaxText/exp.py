@@ -12344,3 +12344,21 @@ class BamFullMGeneralReadPallasFusedProfile(BamFullMGeneralReadPallasProfile):
     """+ two-stage fused input projections (x-side dot incl. 8 gates, then the three ups)."""
     model_name = 'BamFullMGeneralReadPallasFusedProfile'
     bam_pallas_fused_inputs = True
+
+
+class BamPallasFullMTinyPallasV7HMTest(BamPallasFullMTinyPallasV7FusedInputsTest):
+    """CPU fixture: + head-major dynamic-read reverse."""
+    model_name = 'BamPallasFullMTinyPallasV7HMTest'
+    bam_pallas_hm_reverse = True
+
+
+class BamPallasCoreTinyPallasV7HMTest(BamPallasCoreTinyPallasV7FusedInputsTest):
+    """CPU fixture: DirectC10 (C=10) with the head-major dynamic-read reverse."""
+    model_name = 'BamPallasCoreTinyPallasV7HMTest'
+    bam_pallas_hm_reverse = True
+
+
+class BamFullMGeneralReadPallasHMProfile(BamFullMGeneralReadPallasFusedProfile):
+    """+ head-major dynamic-read reverse (no per-(v,k) sublane reductions)."""
+    model_name = 'BamFullMGeneralReadPallasHMProfile'
+    bam_pallas_hm_reverse = True

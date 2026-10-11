@@ -31,7 +31,8 @@ class ModelEquivalenceTest(unittest.TestCase):
 
   def test_full_m_general_read(self):
     self._run('BamPallasFullMTinyXlaTest', ('BamPallasFullMTinyPallasV7Test',
-                                            'BamPallasFullMTinyPallasV7FusedInputsTest', 'BamPallasFullMTinyPallasV7HMTest'))
+                                            'BamPallasFullMTinyPallasV7FusedInputsTest', 'BamPallasFullMTinyPallasV7HMTest',
+                                            'BamPallasFullMTinyPallasV7RolledTest'))
 
   def _run(self, xla_exp, fused_exps):
     out = tempfile.mkdtemp()

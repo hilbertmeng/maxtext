@@ -129,7 +129,9 @@ def _blocks(lo, hi, body, rolled):
 
 
 def _read_backward_kernel(heads, qk_cols, eps, scale, db, rolled, pass_m, q_scale, gated=False,
-                          hm_reverse=False):
+                          hm_reverse=False, rolled_passes=frozenset()):
+  """rolled_passes: subset of {'a', 'b1', 'b2'} run as fori_loops over k blocks (loop boundaries stop
+  Mosaic hoisting loads across the whole unrolled k range, which spilled heavily for C=40)."""
   def kernel(*refs):
     (m_ref, sw_ref, rq, lq, rk, lk, rr, lo, lv, qs, ks), refs = refs[:11], refs[11:]
     if gated:
@@ -211,8 +213,9 @@ def _read_backward_kernel(heads, qk_cols, eps, scale, db, rolled, pass_m, q_scal
         for i in range(4):
           gacc[2 + i] = gs[i]
 
-    _blocks(0, qk_cols // 8, lambda j: pass_a(j, True), rolled)
-    _blocks(qk_cols // 8, kdim // 8, lambda j: pass_a(j, False), rolled)
+    ra = rolled or 'a' in rolled_passes
+    _blocks(0, qk_cols // 8, lambda j: pass_a(j, True), ra)
+    _blocks(qk_cols // 8, kdim // 8, lambda j: pass_a(j, False), ra)
     dlv[...] = (scale * sgv * (1 - sgv) * gacc[0]).astype(dlv.dtype)
     dlo[...] = (scale * sgo * (1 - sgo) * gacc[1]).astype(dlo.dtype)
     for r in range(kdim - qk_cols):
@@ -254,31 +257,54 @@ def _read_backward_kernel(heads, qk_cols, eps, scale, db, rolled, pass_m, q_scal
       for a in range(3):
         for h in range(n):
           keyhm[a, h] = key_scr[a, :, h, :]
-      for k0 in range(0, kdim, 4):
-        ks4 = range(k0, min(k0 + 4, kdim))
-        acc = {}
+      assert qk_cols % 4 == 0 and kdim % 4 == 0
+
+      def b1(j, with_qk):           # dMc for key rows 4j .. 4j+3
+        acc = [None] * 4
         for h in range(n):
           kv = keyhm[2, h]
-          kq_, kk_ = (keyhm[0, h], keyhm[1, h]) if k0 < qk_cols else (None, None)
-          for k in ks4:
+          if with_qk:
+            kq_, kk_ = keyhm[0, h], keyhm[1, h]
+          for kk4 in range(4):
+            k = j * 4 + kk4
             ln = lanes(k)
             term = dyvo[k, pl.ds(h, 1), :] * kv
-            if k < qk_cols:
+            if with_qk:
               term = term + d2[pl.ds(h, 1), ln] * kq_ + d2[pl.ds(np_ + h, 1), ln] * kk_
-            acc[k] = _acc(acc.get(k), term)
-        for k in ks4:
-          d2[pl.ds(mc0, cdim), lanes(k)] = acc[k]
-      for h in range(n):
-        acc = [None] * 3
-        for k in range(kdim):
+            acc[kk4] = _acc(acc[kk4], term)
+        for kk4 in range(4):
+          d2[pl.ds(mc0, cdim), lanes(j * 4 + kk4)] = acc[kk4]
+
+      if 'b1' in rolled_passes:
+        jax.lax.fori_loop(0, qk_cols // 4, lambda j, c: (b1(j, True), c)[1], 0)
+        jax.lax.fori_loop(qk_cols // 4, kdim // 4, lambda j, c: (b1(j, False), c)[1], 0)
+      else:
+        for j in range(kdim // 4):
+          b1(j, j * 4 < qk_cols)
+
+      def b2(h, j, carry, with_qk):  # key gradients of head h over key rows 8j .. 8j+7
+        a0, a1, a2 = carry
+        for kk_ in range(8):
+          k = j * 8 + kk_
           ln = lanes(k)
           mslab = mc_scr[pl.ds(mco, cdim), ln]
-          acc[2] = _acc(acc[2], dyvo[k, pl.ds(h, 1), :] * mslab)
-          if k < qk_cols:
-            acc[0] = _acc(acc[0], d2[pl.ds(h, 1), ln] * mslab)
-            acc[1] = _acc(acc[1], d2[pl.ds(np_ + h, 1), ln] * mslab)
+          a2 = a2 + dyvo[k, pl.ds(h, 1), :] * mslab
+          if with_qk:
+            a0 = a0 + d2[pl.ds(h, 1), ln] * mslab
+            a1 = a1 + d2[pl.ds(np_ + h, 1), ln] * mslab
+        return a0, a1, a2
+
+      zc = jnp.zeros((cdim, t), F32)
+      for h in range(n):
+        if 'b2' in rolled_passes:   # accumulators are register loop carries
+          carry = jax.lax.fori_loop(0, qk_cols // 8, lambda j, c, h=h: b2(h, j, c, True), (zc, zc, zc))
+          carry = jax.lax.fori_loop(qk_cols // 8, kdim // 8, lambda j, c, h=h: b2(h, j, c, False), carry)
+        else:
+          carry = (zc, zc, zc)
+          for j in range(kdim // 8):
+            carry = b2(h, j, carry, j * 8 < qk_cols)
         for a in range(3):
-          dkeyhm[a, h] = acc[a]
+          dkeyhm[a, h] = carry[a]
       for a in range(3):
         for c in range(cdim):
           dkey_scr[a, c] = dkeyhm[a, :, c, :]
@@ -336,11 +362,12 @@ def _read_backward_call(args, cts, opts):
              pltpu.VMEM((6 if gated else 2, n, tile), F32), pltpu.VMEM((j, kdim * tile), F32),
              pltpu.VMEM((4, n * kdim, tile), F32)]
   hm_reverse = bool(opts.get('hm_reverse', False))
+  rolled_passes = frozenset(opts.get('rolled_passes', ()))
   if hm_reverse:
     scratch += [pltpu.VMEM((3, n, c, tile), F32), pltpu.VMEM((3, n, c, tile), F32)]
   outs = pl.pallas_call(
       _read_backward_kernel(n, opts['qk_cols'], opts['read_epsilon'], opts['key_scale'], opts['dot_block'],
-                            opts['rolled'], pass_m, opts['q_scale'], gated, hm_reverse),
+                            opts['rolled'], pass_m, opts['q_scale'], gated, hm_reverse, rolled_passes),
       grid=(b, t // tile), in_specs=in_specs, out_specs=out_specs, out_shape=tuple(out_shape),
       scratch_shapes=scratch, interpret=opts['interpret'],
       input_output_aliases={len(args) + 4: 0} if pass_m else {},
@@ -377,7 +404,7 @@ def read(m, static_weight, q_key, q_logits, k_key, k_logits, vo_key, o_logits, v
          q_standard, k_standard, *, qk_cols, read_epsilon, key_scale,
          forward_tile=128, reverse_tile=128, vmem_mib=None, interpret=False,
          k_block=4, dot_block=16, rolled=True, pass_m=False, q_scale=1.0, static_gates=None,
-         hm_reverse=False, **_):
+         hm_reverse=False, rolled_passes=(), **_):
   """m is k-major [B,K,V,T]; other arguments token-major as in layers.bam_pallas.read.
 
   Returns token-major (query, key, value, local_o), each [B,T,N,K]; with pass_m also m itself,
@@ -388,7 +415,8 @@ def read(m, static_weight, q_key, q_logits, k_key, k_logits, vo_key, o_logits, v
   opts = _freeze(dict(heads=heads, qk_cols=qk_cols, read_epsilon=read_epsilon, key_scale=key_scale,
                       forward_tile=forward_tile, reverse_tile=reverse_tile, vmem_mib=vmem_mib,
                       interpret=interpret, k_block=k_block, dot_block=dot_block, rolled=rolled,
-                      pass_m=pass_m, q_scale=float(q_scale), hm_reverse=bool(hm_reverse)))
+                      pass_m=pass_m, q_scale=float(q_scale), hm_reverse=bool(hm_reverse),
+                      rolled_passes=tuple(sorted(rolled_passes))))
   cmajor = lambda x: jnp.transpose(x, (0, 3, 2, 1))       # [B,T,N,X] -> [B,X,N,T]
 
   def local(m, sw, qk, ql, kk, kl, vo, ol, vl, qs, ks, *gates):

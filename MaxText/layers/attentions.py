@@ -3826,7 +3826,9 @@ class BamAttention(Attention):
           interpret=bool(getattr(cfg, 'bam_pallas_interpret', False)),
           body=body, head_block=int(getattr(cfg, 'bam_pallas_read_block', None) or 4), pass_m=pass_m,
           q_scale=q_scale, static_gates=static_gates,
-          hm_reverse=bool(getattr(cfg, 'bam_pallas_hm_reverse', False)))
+          hm_reverse=bool(getattr(cfg, 'bam_pallas_hm_reverse', False)),
+          **({'rolled_passes': tuple(cfg.bam_pallas_rolled_passes)}
+             if getattr(cfg, 'bam_pallas_rolled_passes', None) else {}))
     query, key, value, local_output = outs[:4]
     if pass_m:
       M_in = outs[4]

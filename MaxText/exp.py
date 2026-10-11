@@ -12379,3 +12379,21 @@ class BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdFullMReadGe
     bam_pallas_fused_inputs = True
     bam_pallas_hm_reverse = True
     bam_pallas_vmem_mib = 48
+
+
+class BamPallasFullMTinyPallasV7RolledTest(BamPallasFullMTinyPallasV7HMTest):
+    """CPU fixture: + rolled reverse passes (a, b1, b2)."""
+    model_name = 'BamPallasFullMTinyPallasV7RolledTest'
+    bam_pallas_rolled_passes = ('a', 'b1', 'b2')
+
+
+class BamFullMGeneralReadPallasRollB12Profile(BamFullMGeneralReadPallasHMProfile):
+    """+ rolled reverse passes b1, b2 (dynamic-read reverse loops with register carries)."""
+    model_name = 'BamFullMGeneralReadPallasRollB12Profile'
+    bam_pallas_rolled_passes = ('b1', 'b2')
+
+
+class BamFullMGeneralReadPallasRollAllProfile(BamFullMGeneralReadPallasHMProfile):
+    """+ rolled reverse passes a, b1, b2."""
+    model_name = 'BamFullMGeneralReadPallasRollAllProfile'
+    bam_pallas_rolled_passes = ('a', 'b1', 'b2')

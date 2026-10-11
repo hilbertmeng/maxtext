@@ -301,6 +301,7 @@ class BamLlama2Medium(Llama2Medium):
     bam_general_column_read = False
     bam_general_matrix_write = False
     bam_static_read_gate_init = .99
+    bam_static_read_gate_sigmoid = False  # Legacy reads use 1.1*sigmoid with initial-amplitude compensation.
     bam_static_write_gate_init = .01
     bam_local_vo_shared_read = 'none'  # none | local_o (C8 column donor)
     bam_local_vo_independent_gates = False
@@ -12272,3 +12273,13 @@ class BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdFullMReadSh
     bam_general_column_read = False
     mlp_dim_by_block = [6167, 5979, 6167]
     bam_final_local_mlp_dim = 6167
+
+
+class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadSigmoidStaticGateTruePile(BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile):
+    """Static reads multiply sigmoid(logit) directly, initialized to .99."""
+    # Runtime: codex/mediumprop-full-m-read-gelu128, /data0/xd/mediumprop-full-m-read-gelu128.
+    # Bet at13500 vs original generalized read: loss+.001, same-health speed unchanged.
+    model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadSigmoidStaticGateTruePile'
+    bam_static_read_gate_sigmoid = True
+    bam_static_read_gate_init = .99
+    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile']

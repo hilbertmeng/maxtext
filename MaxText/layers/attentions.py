@@ -3028,7 +3028,9 @@ class BamAttention(Attention):
         setattr(self, 'general_' + arm + '_pre_bias', self._constant_general_parameter(
             'general_' + arm + '_pre_bias', shape, axes))
       for arm in ('q', 'k', 'v', 'o'):
-        self._add_static_gate('general_' + arm + '_static_gate', cfg.bam_static_read_gate_init)
+        upper_bound = 1.0 if cfg.bam_static_read_gate_sigmoid else 1.1
+        self._add_static_gate('general_' + arm + '_static_gate', cfg.bam_static_read_gate_init,
+                              upper_bound=upper_bound)
     if self._general_write:
       self.general_attention_static_address = self._constant_general_parameter(
           'general_attention_static_address',
@@ -3041,9 +3043,9 @@ class BamAttention(Attention):
     return nn.unbox(self.variable('params', name, nn.with_logical_partitioning(
         lambda: jnp.full(shape, value, self.weight_dtype), axes)).value)
 
-  def _add_static_gate(self, name, opening):
+  def _add_static_gate(self, name, opening, upper_bound=1.1):
     cfg = self.config
-    assert 0 < opening < 1.1
+    assert 0 < opening < upper_bound
     setattr(self, name, DenseGeneral(
         features=(self.num_query_heads,), axis=-1, use_bias=False,
         kernel_init=initializers.contant_dense_init(0.0),
@@ -3051,7 +3053,7 @@ class BamAttention(Attention):
         quant=self.quant, matmul_precision=cfg.matmul_precision, name=name))
     setattr(self, name + '_bias', self._constant_general_parameter(
         name + '_bias', (self.num_query_heads,), ('q_heads',),
-        math.log(opening / (1.1 - opening))))
+        math.log(opening / (upper_bound - opening))))
 
   def _static_gate(self, name, x):
     return 1.1 * jax.nn.sigmoid(
@@ -3325,9 +3327,15 @@ class BamAttention(Attention):
     read = jnp.einsum('btkv,vn->btnk', M, getattr(self, 'static_' + arm + '_key').astype(M.dtype))
     if self._general_read:
       assert x is not None
-      gate = self._static_gate('general_' + arm + '_static_gate', x)
+      name = 'general_' + arm + '_static_gate'
+      if self.config.bam_static_read_gate_sigmoid:
+        gate = jax.nn.sigmoid(
+            getattr(self, name)(x) + jnp.asarray(getattr(self, name + '_bias'), self.dtype))
+        read = read * gate[..., None]
+      else:
+        gate = self._static_gate(name, x)
+        read = read * (gate / self.config.bam_static_read_gate_init)[..., None]
       self._record_general_gate(arm + '_static', gate)
-      read = read * (gate / self.config.bam_static_read_gate_init)[..., None]
     return read
 
   def _read_direct_qk_c8(self, name, M, compressed_M, x, shared_hidden=None):

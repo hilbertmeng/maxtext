@@ -743,7 +743,9 @@ def _map_batch(fn, args, batch_args, n_out):
     raise ValueError('BAM Pallas core supports batch/FSDP mesh axes only')
   spec = P(axes)
   out_specs = spec if n_out == 1 else (spec,) * n_out
-  return shard_map(fn, mesh=mesh, in_specs=tuple(spec if b else P() for b in batch_args),
+  # batch_args: True (batch is dim 0), False (replicated) or an int batch-dim position.
+  in_spec = lambda b: (spec if b is True else P() if b is False else P(*([None] * b), axes))
+  return shard_map(fn, mesh=mesh, in_specs=tuple(in_spec(b) for b in batch_args),
                    out_specs=out_specs, check_rep=False)(*args)
 
 

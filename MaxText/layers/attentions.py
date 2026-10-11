@@ -3742,6 +3742,29 @@ class BamAttention(Attention):
       out[name] = part if bias is None else part + bias
     return out
 
+  def _fused_up_projections_cnbt(self, hidden, names):
+    """Per-head key up-projections of hidden [B,T,H] as ONE dot emitting [C, N, B, T] per name.
+
+    Same parameters/casts/precision/gradient scales as _fused_input_projections; kernel columns are
+    permuted to (C, N) order so the dot output is already the fused core's T-minor key layout."""
+    params = self.variables['params']
+    n, c = self.num_query_heads, self.bam_v
+    kernels = []
+    for name in names:
+      mod = getattr(self, name, None)
+      kernel = jnp.asarray(nn.meta.unbox(params[name]['kernel']), self.dtype)
+      scale = getattr(mod, 'kernel_gradient_scale', 1.0) if mod is not None else 1.0
+      if scale != 1.0:
+        kernel_sg = jax.lax.stop_gradient(kernel)
+        kernel = kernel_sg + scale * (kernel - kernel_sg)
+      assert 'bias' not in params[name], 'fused [C,N,B,T] up projections assume no bias'
+      kernels.append(jnp.swapaxes(kernel.reshape(kernel.shape[0], n, c), 1, 2).reshape(kernel.shape[0], c * n))
+    weight = jnp.concatenate(kernels, axis=1)                                   # [H, names*C*N]
+    y = jax.lax.dot_general(weight, jnp.asarray(hidden, self.dtype), (((0,), (hidden.ndim - 1,)), ((), ())),
+                            precision=jax.lax.Precision(self.config.matmul_precision))   # [names*C*N, B, T]
+    parts = jnp.split(y, len(names), axis=0)
+    return {name: part.reshape((c, n) + hidden.shape[:-1]) for name, part in zip(names, parts)}
+
   def _pallas_core_call(self, inputs_q, inputs_positions, decoder_segment_ids, M_in, is_global,
                         standard_qk_width):
     """Fused-kernel forward; M_in is token-minor [B,V,K,T]. Returns (out, M_in, write factors)."""
@@ -3779,11 +3802,22 @@ class BamAttention(Attention):
         gate = self._project_read_gate_logits(name, inputs_q, squeeze_fetch_axis=squeeze)
       return jnp.reshape(gate, inputs_q.shape[:2] + (self.num_query_heads,))
 
+    keys_cnbt = False
     if full_m:
       # Shared GELU bottleneck -> per-arm up projections (+ generalized pre-biases); the full
       # [N,V] keys read M directly, i.e. an identity compression in the fused core.
       hidden = nn.gelu(raw['full_m_read_down'] if fused else self.full_m_read_down(inputs_q))
-      if fused:
+      keys_cnbt = (fused and getattr(cfg, 'bam_pallas_body', None) == 'v8t'
+                   and bool(getattr(cfg, 'bam_pallas_keys_cnbt', False)))
+      if keys_cnbt:    # the up-projection dot emits the kernel's T-minor key layout [C, N, B, T] directly
+        up = self._fused_up_projections_cnbt(hidden, ('W_lq_c8_up', 'W_lk_c8_up', 'W_R_up'))
+        pre = lambda arm: (jnp.asarray(getattr(self, 'general_' + arm + '_pre_bias'), hidden.dtype)
+                           .reshape(self.num_query_heads, self.bam_v).T[:, :, None, None]
+                           if self._general_read else 0)
+        q_key = up['W_lq_c8_up'] + pre('q')
+        k_key = up['W_lk_c8_up'] + pre('k')
+        vo_key = up['W_R_up'] + pre('vo')
+      elif fused:
         up = self._fused_input_projections(hidden, ('W_lq_c8_up', 'W_lk_c8_up', 'W_R_up'))
         pre = lambda arm: (jnp.asarray(getattr(self, 'general_' + arm + '_pre_bias'), hidden.dtype)
                            if self._general_read else 0)
@@ -3794,7 +3828,8 @@ class BamAttention(Attention):
         q_key = self._project_column_read_key('W_lq_c8', inputs_q, hidden)
         k_key = self._project_column_read_key('W_lk_c8', inputs_q, hidden)
         vo_key = self._project_column_read_key('W_R', inputs_q, hidden)
-      vo_key = jnp.squeeze(vo_key, axis=-2)
+      if not keys_cnbt:
+        vo_key = jnp.squeeze(vo_key, axis=-2)
       compression = jnp.eye(self.bam_v, dtype=self.static_q_key.dtype)
     else:
       if fused:
@@ -3853,7 +3888,8 @@ class BamAttention(Attention):
             **({'token_io': True} if getattr(cfg, 'bam_pallas_token_io', False) else {}),
             **({'save_y': True} if getattr(cfg, 'bam_pallas_save_y', False) else {}),
             **({'rolled_passes': tuple(cfg.bam_pallas_rolled_passes)}
-               if getattr(cfg, 'bam_pallas_rolled_passes', None) else {}))
+               if getattr(cfg, 'bam_pallas_rolled_passes', None) else {}),
+          **({'keys_cnbt': True} if full_m and keys_cnbt else {}))
     query, key, value, local_output = outs[:4]
     if pass_m:
       M_in = outs[4]

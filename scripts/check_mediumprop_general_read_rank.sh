@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+set -euo pipefail
+TASK_ROOT=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+cd "$TASK_ROOT"
+TASK_COMMIT=$(git rev-parse HEAD)
+TASK_STATE=/data0/xd/bam_diagnostics/mediumprop-general-read-rank/checks/$TASK_COMMIT
+mkdir -p "$TASK_STATE"
+exec 9>"$TASK_STATE/lock"
+flock 9
+if [[ -f "$TASK_STATE/ok" ]]; then echo "CPU_GATE_REUSED commit=$TASK_COMMIT"; exit 0; fi
+export JAX_PLATFORMS=cpu CUDA_VISIBLE_DEVICES= TF_CPP_MIN_LOG_LEVEL=3 PYTHONPATH="$TASK_ROOT/MaxText"
+export OMP_NUM_THREADS=8 OPENBLAS_NUM_THREADS=8
+env XLA_FLAGS=--xla_force_host_platform_device_count=8 /data0/xd/conda/envs/maxtext-cpu/bin/python scripts/check_mediumprop_general_read_rank.py
+touch "$TASK_STATE/ok"
+echo "CPU_GATE_OK commit=$TASK_COMMIT"

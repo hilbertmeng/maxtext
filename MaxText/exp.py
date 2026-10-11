@@ -12293,3 +12293,13 @@ class BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdFullMReadSh
     bam_general_column_read = False
     mlp_dim_by_block = [6167, 5979, 6167]
     bam_final_local_mlp_dim = 6167
+
+
+class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadSigmoidStaticGateTruePile(BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile):
+    """Static reads multiply sigmoid(logit) directly, initialized to .99."""
+    # Ledger only: codex/mediumprop-full-m-read-gelu128, /data0/xd/mediumprop-full-m-read-gelu128; code_commit: 25cd9df.
+    # Bet at13500 vs original generalized read: loss+.001, same-health speed unchanged.
+    model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadSigmoidStaticGateTruePile'
+    bam_static_read_gate_sigmoid = True
+    bam_static_read_gate_init = .99
+    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile']

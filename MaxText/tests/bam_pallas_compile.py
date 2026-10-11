@@ -34,6 +34,7 @@ def main():
   p.add_argument('--c', type=int, default=C, help='compressed rows (V for full-M reads)')
   p.add_argument('--gated', action='store_true', help='per-token static-read gates (generalized read)')
   p.add_argument('--hm-reverse', action='store_true', help='head-major dynamic-read reverse (v7)')
+  p.add_argument('--kblock', type=int, default=0, help='v7 forward k block (0 = default)')
   a = p.parse_args()
   hw = accelerator_to_spec_map.get_system_characteristics(a.topology)
   topo = get_topology_desc(platform=hw.platform, topology_name=hw.topology_name,
@@ -45,7 +46,7 @@ def main():
   s = lambda *shape: jax.ShapeDtypeStruct(shape, bf)
   rkw = dict(qk_cols=QKC, read_epsilon=1e-4, key_scale=.2, forward_tile=a.tile, reverse_tile=a.tile,
              vmem_mib=a.vmem, body=a.body, head_block=a.block,
-             **({'hm_reverse': True} if a.hm_reverse else {}))
+             **({'hm_reverse': True} if a.hm_reverse else {}), **({'k_block': a.kblock} if a.kblock else {}))
   wkw = dict(epsilon=1e-6, forward_tile=a.tile, reverse_tile=a.tile, vmem_mib=a.vmem, body=a.body,
              row_block=a.block, head_block=a.block)
   if a.kernel.startswith('read'):

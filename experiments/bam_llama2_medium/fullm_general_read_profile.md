@@ -95,3 +95,32 @@ HBM 流量是根本：BAM 每步 853 GB，MHA 293 GB（2.9×）；多出的 ~560
    替代 ~515 ms XLA M 运算和约 80 ms glue → BAM health OFF 从 2163 ms 降到约 1850 ms，
    约 **85–88% of MHA**（当前 74.1%）；叠加输入投影融合可再 +2~3 点。若 read 反传 VALU 实测超过前传 3×，
    应优先考虑把三臂动态读共享 M_k 行广播（一次加载 M_k[v]，同时累加 Q/K/VO 三个 key）。
+
+## Pallas fused kernel 实现与实测（分支 `claude/bam-pallas-fullm`，`9fa69e2` / `1ea3cbb`）
+
+实现：复用 v7 k-major 核心（`layers/bam_pallas_v7.py`），full-M 读即「压缩矩阵取单位阵」（C=V=40，压缩行就是
+M 行）；新增 per-token static-read gate（前传乘在静态读上；反传 D 的静态行改为 gate⊙cotangent，gate 梯度
+`Σ_k δ⊙st` 在 pass A 累加，需要在反传中用一次 MXU dot 重算全部静态读）；key 走共享 GELU 瓶颈 + 各臂 up +
+general pre-bias；融合输入投影分两段（x 侧一次 dot 含 8 个门、full-M down、标准 Q/K、P_loc_down、W_gw；
+hidden 侧一次 dot 含三个 up）。写 kernel 与 DirectC10 相同，直接复用。新增可选 `bam_pallas_hm_reverse`：动态读的
+反传改为 head-major 行广播累加（dMc_k = Σ_{arm,n} dy_k[n]·key_n，dkey_n = Σ_k dy_k[n]·M_k），去掉逐 (v,k) 的
+sublane 归约。CPU 等价（`bam_pallas_model_test.py::test_full_m_general_read`）：loss 一致到 1e-7，梯度相对误差
+≤1.5e-5；DirectC10 用例同样通过（含 hm_reverse）。
+
+v5p bundle（每 128-token tile）：read F 20.5k（VALU 下限 16.1k），read B 63.8k → hm 54.0k（VALU 189k → 158k，
+spill store 32k → 24k）。k_block=2 只把 read F 降 4%。
+
+| v5p-8 配对（同一台 ew4b） | step/s | MHA 的 % | device ms |
+|---|---:|---:|---:|
+| 纯 JAX，health OFF | 0.453 | 73.8 | 2165.9 |
+| 融合 v7u | 0.519 | 84.5 | 1895.0 |
+| + 融合输入投影 | 0.528 / 0.525 | 86.0 / 85.5 | 1866.7 |
+| **+ head-major read 反传** | **0.532** | **86.6** | **1846.5** |
+
+kernel 耗时（ms/step，最优版）：read F 43.6、remat 43.6、read B 114.4（hm 前 134.4）、write F 15.3、write B 38.1，
+合计 255。HBM 流量 853 → 386 GB/step；copy kernel 184 → 67 ms。下注（kernel 250–300 ms、85–88% of MHA）命中。
+
+剩余差距（1846.5 vs MHA 1617.9 = +229 ms）：kernel +255、MLP 更宽 +113、XLA glue（fused scope 48 + other 87−35）
+约 +100；BAM 投影 −201、Splash −57。下一步按收益排序：read B（114 ms，VALU 下限约 40k bundle 对 54k 实际，
+spill 仍 24k）> read F（43.6×2，spill 8k）> fused 输入投影（136 ms、126 TF/s，可查形状/拼接方式）> scope 内 glue。
+正式训练用 `...FullMReadGeneralReadPallasTruePile`（health OFF，未启动；当前正式 RUN 为 health ON 纯 JAX）。

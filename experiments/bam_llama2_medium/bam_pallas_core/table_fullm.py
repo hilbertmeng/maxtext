@@ -15,6 +15,13 @@ def is_bwd(o):
 
 
 RULES = [
+    ('Fused read kernel (fwd)', lambda o, h: h.startswith('bam_core_read') and 'backward' not in h and not is_bwd(o)),
+    ('Fused read kernel (remat fwd)', lambda o, h: h.startswith('bam_core_read') and 'backward' not in h),
+    ('Fused read kernel (bwd)', lambda o, h: h.startswith('bam_core_read')),
+    ('Fused write kernel (fwd)', lambda o, h: h.startswith('bam_core_write') and 'backward' not in h),
+    ('Fused write kernel (bwd)', lambda o, h: h.startswith('bam_core_write')),
+    ('XLA glue in fused scopes', lambda o, h: 'bam/pallas_read' in o or 'bam/pallas_write' in o),
+    ('Fused input projections', lambda o, h: '_fused_input_projections' in o),
     ('BAM health statistics (sow)', lambda o, h: '_record_' in o),
     ('Attention core (Splash)', lambda o, h: 'splash' in h.lower() or '_bam_splash' in o or 'attention_op' in o
                                              or '_query_chunk_op' in o),

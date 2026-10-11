@@ -12334,6 +12334,7 @@ class BamPallasFullMTinyPallasV7FusedInputsTest(BamPallasFullMTinyPallasV7Test):
 
 class BamFullMGeneralReadPallasProfile(BamFullMGeneralReadNoHealthProfile):
     """Full-M generalized read through the fused v7u core (identity compression + static gates)."""
+    # v5p-8 9fa69e2: 0.519 (+14.6% vs pure JAX 0.453; 84.5% of MHA); kernels 275 ms, HBM 483 GB/step.
     model_name = 'BamFullMGeneralReadPallasProfile'
     bam_pallas_core = True
     bam_pallas_body = 'v7u'
@@ -12342,6 +12343,7 @@ class BamFullMGeneralReadPallasProfile(BamFullMGeneralReadNoHealthProfile):
 
 class BamFullMGeneralReadPallasFusedProfile(BamFullMGeneralReadPallasProfile):
     """+ two-stage fused input projections (x-side dot incl. 8 gates, then the three ups)."""
+    # v5p-8 9fa69e2: 0.528; 1ea3cbb: 0.525 (86.0/85.5% of MHA); HBM 386 GB/step.
     model_name = 'BamFullMGeneralReadPallasFusedProfile'
     bam_pallas_fused_inputs = True
 
@@ -12360,5 +12362,20 @@ class BamPallasCoreTinyPallasV7HMTest(BamPallasCoreTinyPallasV7FusedInputsTest):
 
 class BamFullMGeneralReadPallasHMProfile(BamFullMGeneralReadPallasFusedProfile):
     """+ head-major dynamic-read reverse (no per-(v,k) sublane reductions)."""
+    # v5p-8 1ea3cbb: 0.532 (86.6% of MHA); read reverse 134.4 -> 114.4 ms; kernels 255 ms.
     model_name = 'BamFullMGeneralReadPallasHMProfile'
     bam_pallas_hm_reverse = True
+
+
+class BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadPallasTruePile(
+    BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile):
+    """Same equations/parameters through the fused v7u core (identity compression, static-gated reads,
+    head-major read reverse) + fused input projections + Splash; BAM health OFF (fused core requirement).
+    v5p-8 paired: 0.532 step/s = 86.6% of MHA 0.614 (pure JAX health OFF 0.453). Not launched."""
+    model_name = 'BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadPallasTruePile'
+    bam_record_concat_health = False
+    bam_pallas_core = True
+    bam_pallas_body = 'v7u'
+    bam_pallas_fused_inputs = True
+    bam_pallas_hm_reverse = True
+    bam_pallas_vmem_mib = 48

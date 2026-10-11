@@ -213,3 +213,19 @@ V48 lastfive12600..13400 versusDirectC12 -.006498/-.006464/-.007391/-.006100/-.0
 GeneralReadV32 beats V48shared by-.002607 finalfive and+3.887% matched throughput, so the stronger complete recipe is smallerM plus generalized reads. This comparison does not isolate matrix size because read gates/bias and repayment differ. Suggested next V48 candidate would transfer the established generalized-read change; no new training launched.
 
 Local wrapper complete13500; committed13500, node/queue independently NOT_FOUND, full localTB SYNC_OK. UE5a spotv5p-16,0preemptions/no zone switch; READY17:05:42 Oct10->01:32:11 Oct11 UTC,8h26m29s. Artifacts `mediumprop-fullm-v48-closeout.log`, `mediumprop-fullm-lease-10-final.json`, final cumulative report `mediumprop-attention-budget-direct-report-fullm-final.md` and final health JSON. Both remaining formal runs now completed/closed; mainexp terminal conclusions and regional histories updated, finished bets removed. Retained diagnostic machine remains untouched and idle.
+
+
+## Shared-rank sweep on the generalized-read parent
+
+Direct SOTA parent `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile` (R256). Both new children retain one shared down projection and three separate Q/K/VO up projections, completeM75x32, generalized pre-RMS bias/static gates, independentV/O gates, original read scales, pureJAX/Splash/SEQ_MINOR and original extra health. Only shared rank and per-layer MLP repayment change. Runtime c22ac5b in the existing worktree/branch; main classes are ledger-only.
+
+|Class suffix after FullMRead|TPU ID|Shared rank|MLP widths|Parameters / MHA delta|13500 loss/speed bet vs R256|
+|---|---:|---:|---|---|---|
+|SharedGelu128GeneralReadTruePile|310116|128|3911/3783/3911|432136160 / +14960|+.003 / +1%|
+|SharedGelu384GeneralReadTruePile|310117|384|3716/3589/3716|432129248 / +8048|-.002 / -1%|
+
+Per128-rank change moves350208=.2432W_Q per layer between shared readers andMLP. Widths minimize each layer's integer parameter mismatch after amortizing fixed global BAM costs, matching the parent's per-layer method; total residual below.004%. R128 here is shared, unlike previous independentR128. Parameter audit reproduces parent's3813/3686/3813 and432111104 before deriving both widths. Artifact `/data0/xd/bam_diagnostics/mediumprop-general-read-rank/budget.json`.
+
+CPU targeted budget/8-device sharding, complete-address forward/consumed gradients and generalized-health export run locally; AOT on verified idle non-preemptibleEW4a `llm-jax-v6e-1-0`, under its shared worker lock, never reclaimed. Spotv5p-16 training prequeues UE5a run concurrently. Dedicated test `scripts/check_mediumprop_general_read_rank.py`, sealed-config andFIRST_STEP gates mandatory. No unrelated fullBAM suite rerun for these config-only children. Plan13500, same200-step loss windows; direct comparator onlyR256generalized, plus MHA-relative advantage ratios as monitoring metric. Manifest/logs `/data0/xd/bam_diagnostics/mediumprop-general-read-rank/runs.json`.
+
+Prediction: further shared-feature width remains useful despite MLP repayment, makingR384 a candidate for~-.002 and R128~+.003; this is uncertain because generalized static gates may reduce demand on dynamic keys. Main GEMM work approximately transfers rather than grows; throughput changes expected small. No early-stop directive supplied.

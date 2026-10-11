@@ -12279,3 +12279,15 @@ class BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdFullMReadGe
     bam_pallas_core = False
     compare_runs = ['BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdTruePile']
     jax_cache_dir = ''
+
+
+class BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdFullMReadSharedGelu400TruePile(BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile):
+    """Shared full-M GELU reads alone; original un-gated static reads and no pre-bias."""
+    # Ledger only: codex/mediumprop-full-m-read-gelu128, /data0/xd/mediumprop-full-m-read-gelu128.
+    # Runtime 3425c55; R400 shared full-M reads without generalized gates/pre-bias.
+    # 1432370680 params; MLP[6167,5979,6167] + terminal6167, nearest per-layer MHA budget.
+    # Last-common-stage bet vs standard: loss-.006, matched-health speed-1%.
+    model_name = 'BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdFullMReadSharedGelu400TruePile'
+    bam_general_column_read = False
+    mlp_dim_by_block = [6167, 5979, 6167]
+    bam_final_local_mlp_dim = 6167

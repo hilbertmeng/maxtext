@@ -19,3 +19,10 @@ PureJAX/Splash/SEQ_MINOR; M contractions retain inherited dot/dot_btn. Formal pl
 Terminal bets vs directparent: loss-.010, matched-health speed-5%. Historical parent speed.347UE5av5p32, runtime/health differ because new generalized stats add work; label startup comparisons appropriately rather than claiming fully paired speed.
 
 Local targeted CPU tree/layout, 3+1 scan/tail forward/active gradients, parent-equivalent generalized initialization and health export checks run concurrently with AOT and spot prequeue through launch_train_parallel.py. Artifacts `/data0/xd/bam_diagnostics/xlprop-general-read/`; run manifest `run.json`.
+
+## Shared-read-only control
+
+User requests independent attribution of full-M shared readers and generalized reads. Added `BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdFullMReadSharedGelu400TruePile`, same worktree/branch, runtime3425c55, ownedspotv5p32`xd-v5p-32-310119-maxtext`UE5a. Only disable generalized column read, restoreMLP[6167,5979,6167]x9+terminal6167. No pre-bias/static gates are instantiated. Exact expected count1432370680 (MHA-28040). SameR400/fullM96x40/readscale.1/staticinitialization/writeconfig/Splash/SEQ_MINOR; generic andconcathealth remainON, only generalizedextra metrics are absent. No unrelated genericCPU suite; focused fulltree/sharding and active reader forward/gradients, with unchanged27+1tail already checked by generalized launch gate.
+Bets: shared-only minusstandard-.006loss/-1%speed; generalized minusshared-.004loss/-4%speed. Direct gaps use the available common horizon through32000; bothplans50000, laterMHA/Mudd comparisons remain available.
+
+Cross-scale ratios use each scale's repairedTruePileMHA M, standardrank4 S, sharedfull-M R and generalized G: shared=(M-R)/(M-S), generalized=(M-G)/(M-R), total=(M-G)/(M-S)=shared*generalized. Thus standardrank4 is used at both scales rather than mixing MediumDirectC8 and XLrank4. Alignrelativeprogress step/plannedtotal for cross-scale interpretation; absolute same-step acrossscales is a separate display. RetainXL Mudd-relativegain ratios to MHA-Mudd. Pair generalized G against newlylaunched R aswellas S inmonitoring.

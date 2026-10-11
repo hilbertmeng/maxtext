@@ -42,9 +42,13 @@ def _concat_k(ref, k0, k1):
 # ---------------------------------------------------------------------------
 # Read.
 
-def _read_kernel(heads, qk_cols, eps, scale, kb, db, q_scale):
-  def kernel(m_ref, sw_ref, rq, lq, rk, lk, rr, lo, lv, qs, ks, q_ref, k_ref, v_ref, o_ref,
-             key_scr, st_scr, out_scr):
+def _read_kernel(heads, qk_cols, eps, scale, kb, db, q_scale, gated=False):
+  def kernel(m_ref, sw_ref, rq, lq, rk, lk, rr, lo, lv, qs, ks, *refs):
+    if gated:      # per-token static-read gates [4, N, T] for (q, k, v, o)
+      sg_ref, refs = refs[0], refs[1:]
+    q_ref, k_ref, v_ref, o_ref, key_scr, st_scr, out_scr = refs
+    static = lambda i, lanes: (st_scr[pl.ds(i * np_, n), lanes] * sg_ref[i].astype(F32) if gated
+                               else st_scr[pl.ds(i * np_, n), lanes])
     n = heads
     np_ = _pad_rows(n)
     kdim, _, t = m_ref.shape
@@ -75,11 +79,11 @@ def _read_kernel(heads, qk_cols, eps, scale, kb, db, q_scale):
       for k in ks_:
         lanes = pl.ds(k * t, t)
         rows = pl.ds(k * np_, n)
-        out_scr[2, rows, :] = acc[2, k] * gv + st_scr[pl.ds(2 * np_, n), lanes]
-        out_scr[3, rows, :] = acc[2, k] * go + st_scr[pl.ds(3 * np_, n), lanes]
+        out_scr[2, rows, :] = acc[2, k] * gv + static(2, lanes)
+        out_scr[3, rows, :] = acc[2, k] * go + static(3, lanes)
         if k < qk_cols:
-          out_scr[0, rows, :] = acc[0, k] + st_scr[pl.ds(0, n), lanes]
-          out_scr[1, rows, :] = acc[1, k] + st_scr[pl.ds(np_, n), lanes]
+          out_scr[0, rows, :] = acc[0, k] + static(0, lanes)
+          out_scr[1, rows, :] = acc[1, k] + static(1, lanes)
         else:
           out_scr[0, rows, :] = qs[k - qk_cols].astype(F32)
           out_scr[1, rows, :] = ks[k - qk_cols].astype(F32)
@@ -106,7 +110,7 @@ def _read_forward_call(args, opts):
   out = jax.ShapeDtypeStruct((b, n, kdim, t), m.dtype)
   return pl.pallas_call(
       _read_kernel(n, opts['qk_cols'], opts['read_epsilon'], opts['key_scale'], opts['k_block'],
-                   opts['dot_block'], opts['q_scale']),
+                   opts['dot_block'], opts['q_scale'], gated=len(args) == 12),
       grid=(b, t // tile), in_specs=_read_specs(args, tile), out_specs=[_spec((n, kdim), tile)] * 4,
       out_shape=(out,) * 4,
       scratch_shapes=[pltpu.VMEM((3, c, n, tile), F32), pltpu.VMEM((sw.shape[0], kdim * tile), F32),
@@ -124,12 +128,18 @@ def _blocks(lo, hi, body, rolled):
     jax.lax.fori_loop(lo, hi, lambda j, c: (body(j), c)[1], 0)
 
 
-def _read_backward_kernel(heads, qk_cols, eps, scale, db, rolled, pass_m, q_scale):
-  def kernel(m_ref, sw_ref, rq, lq, rk, lk, rr, lo, lv, qs, ks, dq, dk, dv, do, *refs):
+def _read_backward_kernel(heads, qk_cols, eps, scale, db, rolled, pass_m, q_scale, gated=False):
+  def kernel(*refs):
+    (m_ref, sw_ref, rq, lq, rk, lk, rr, lo, lv, qs, ks), refs = refs[:11], refs[11:]
+    if gated:
+      sg_ref, refs = refs[0], refs[1:]
+    (dq, dk, dv, do), refs = refs[:4], refs[4:]
     if pass_m:     # cotangent of the M passthrough, aliased to dm: added here instead of by XLA
       gp_ref, refs = refs[0], refs[1:]
-    (dm_ref, dsw_ref, drq, dlq, drk, dlk, drr, dlo, dlv, dqs, dks,
-     key_scr, mc_scr, dyvo, dkey_scr, gacc, d2, hm) = refs
+    (dm_ref, dsw_ref, drq, dlq, drk, dlk, drr, dlo, dlv, dqs, dks), refs = refs[:11], refs[11:]
+    if gated:
+      dsg_ref, refs = refs[0], refs[1:]
+    key_scr, mc_scr, dyvo, dkey_scr, gacc, d2, hm = refs
     dt = m_ref.dtype
     n = heads
     np_ = _pad_rows(n)
@@ -152,9 +162,12 @@ def _read_backward_kernel(heads, qk_cols, eps, scale, db, rolled, pass_m, q_scal
     gacc[...] = jnp.zeros(gacc.shape, F32)
     sgv, sgo = _sigmoid(lv[...]), _sigmoid(lo[...])
     sw = sw_ref[...].astype(dt)
+    # Compressed rows (and, with static gates, the full static reads) recomputed on the MXU.
+    mco = mc0 if gated else 0
     for d0 in range(0, kdim, db):
       d1 = min(d0 + db, kdim)
-      mc_scr[:, pl.ds(d0 * t, (d1 - d0) * t)] = jnp.dot(sw[mc0:mc0 + cdim], _concat_k(m_ref, d0, d1),
+      mc_scr[:, pl.ds(d0 * t, (d1 - d0) * t)] = jnp.dot(sw if gated else sw[mc0:mc0 + cdim],
+                                                        _concat_k(m_ref, d0, d1),
                                                         preferred_element_type=F32)
     lanes = lambda k: pl.ds(k * t if isinstance(k, int) else pl.multiple_of(k * t, t), t)
     zpad = jnp.zeros((np_ - n, t), F32)
@@ -167,16 +180,23 @@ def _read_backward_kernel(heads, qk_cols, eps, scale, db, rolled, pass_m, q_scal
       gv = scale * _sigmoid(lv[...])
       go = scale * _sigmoid(lo[...])
       av, ao = gacc[0], gacc[1]
+      gs = [gacc[2 + i] for i in range(4)] if gated else None
       for kk_ in range(8):
         k = j * 8 + kk_
         ln = lanes(k)
         y = None
         for c in range(cdim):
-          y = _acc(y, key_scr[2, c] * mc_scr[pl.ds(c, 1), ln])
+          y = _acc(y, key_scr[2, c] * mc_scr[pl.ds(mco + c, 1), ln])
         dvk = ct(2, k)
         dok = ct(3, k)
         av = av + dvk * y
         ao = ao + dok * y
+        if gated:     # static-gate gradients: sum_k cotangent * static read
+          gs[2] = gs[2] + dvk * mc_scr[pl.ds(2 * np_, n), ln]
+          gs[3] = gs[3] + dok * mc_scr[pl.ds(3 * np_, n), ln]
+          if with_qk:
+            gs[0] = gs[0] + ct(0, k) * mc_scr[pl.ds(0, n), ln]
+            gs[1] = gs[1] + ct(1, k) * mc_scr[pl.ds(np_, n), ln]
         dyvo[k] = dvk * gv + dok * go
         d2[pl.ds(2 * np_, np_), ln] = pad(dvk)
         d2[pl.ds(3 * np_, np_), ln] = pad(dok)
@@ -184,6 +204,9 @@ def _read_backward_kernel(heads, qk_cols, eps, scale, db, rolled, pass_m, q_scal
         d2[pl.ds(np_, np_), ln] = pad(ct(1, k)) if with_qk else zgrp
       gacc[0] = av
       gacc[1] = ao
+      if gated:
+        for i in range(4):
+          gacc[2 + i] = gs[i]
 
     _blocks(0, qk_cols // 8, lambda j: pass_a(j, True), rolled)
     _blocks(qk_cols // 8, kdim // 8, lambda j: pass_a(j, False), rolled)
@@ -201,7 +224,7 @@ def _read_backward_kernel(heads, qk_cols, eps, scale, db, rolled, pass_m, q_scal
       for kk_ in range(8):
         k = j * 8 + kk_
         ln = lanes(k)
-        row = mc_scr[pl.ds(c, 1), ln]
+        row = mc_scr[pl.ds(mco + c, 1), ln]
         dyv = dyvo[k]
         acc[2] = acc[2] + dyv * row
         s_ = nrc * dyv
@@ -227,6 +250,16 @@ def _read_backward_kernel(heads, qk_cols, eps, scale, db, rolled, pass_m, q_scal
       dl[...] = (scale * sg * (1 - sg) * jnp.sum(dkey * nrm, axis=0)).astype(dl.dtype)
       dr[...] = _norm_backward(r[...], g[None] * dkey, eps, 0).astype(dr.dtype)
     drr[...] = _norm_backward(rr[...], dkey_scr[2], eps, 0).astype(drr.dtype)
+    if gated:
+      for i in range(4):
+        dsg_ref[i] = gacc[2 + i].astype(dsg_ref.dtype)
+      # Pass C: D's static rows become gate * cotangent (pass B needed the raw dq/dk rows).
+      for k in range(kdim):
+        ln = lanes(k)
+        for i in range(4):
+          if i < 2 and k >= qk_cols:
+            continue
+          d2[pl.ds(i * np_, n), ln] = d2[pl.ds(i * np_, n), ln] * sg_ref[i].astype(F32)
 
     # dM_k = S'^T D_k and dS' = sum_k D_k M_k^T: plain MXU dots on lane-concatenated k blocks.
     dsw = None
@@ -252,19 +285,20 @@ def _read_backward_call(args, cts, opts):
   tile = _tile(t, opts['reverse_tile'])
   j = sw.shape[0]
   pass_m = len(cts) == 5
+  gated = len(args) == 12
   ct_block = (n, kdim)
   in_specs = _read_specs(args, tile) + [_spec(ct_block, tile)] * 4 + [_spec((kdim, v), tile)] * pass_m
   out_specs = ([_spec((kdim, v), tile), pl.BlockSpec((None, None, j, v), lambda bb, i: (bb, i, 0, 0))]
                + [_spec(x.shape[1:-1], tile) for x in args[2:]])
   out_shape = ([jax.ShapeDtypeStruct(m.shape, m.dtype), jax.ShapeDtypeStruct((b, t // tile, j, v), F32)]
                + [jax.ShapeDtypeStruct(x.shape, x.dtype) for x in args[2:]])
-  scratch = [pltpu.VMEM((3, c, n, tile), F32), pltpu.VMEM((c, kdim * tile), F32),
+  scratch = [pltpu.VMEM((3, c, n, tile), F32), pltpu.VMEM((j if gated else c, kdim * tile), F32),
              pltpu.VMEM((kdim, n, tile), F32), pltpu.VMEM((3, c, n, tile), F32),
-             pltpu.VMEM((2, n, tile), F32), pltpu.VMEM((j, kdim * tile), F32),
+             pltpu.VMEM((6 if gated else 2, n, tile), F32), pltpu.VMEM((j, kdim * tile), F32),
              pltpu.VMEM((4, n * kdim, tile), F32)]
   outs = pl.pallas_call(
       _read_backward_kernel(n, opts['qk_cols'], opts['read_epsilon'], opts['key_scale'], opts['dot_block'],
-                            opts['rolled'], pass_m, opts['q_scale']),
+                            opts['rolled'], pass_m, opts['q_scale'], gated),
       grid=(b, t // tile), in_specs=in_specs, out_specs=out_specs, out_shape=tuple(out_shape),
       scratch_shapes=scratch, interpret=opts['interpret'],
       input_output_aliases={len(args) + 4: 0} if pass_m else {},
@@ -273,20 +307,25 @@ def _read_backward_call(args, cts, opts):
   return (outs[0], jnp.sum(outs[1], axis=(0, 1)).astype(sw.dtype)) + tuple(outs[2:])
 
 
-@partial(jax.custom_vjp, nondiff_argnums=(11,))
-def _read(m, sw, rq, lq, rk, lk, rr, lo, lv, qs, ks, opts):
-  outs = _read_forward_call((m, sw, rq, lq, rk, lk, rr, lo, lv, qs, ks), dict(opts))
+def _args(m, sw, rq, lq, rk, lk, rr, lo, lv, qs, ks, sg):
+  return (m, sw, rq, lq, rk, lk, rr, lo, lv, qs, ks) + (() if sg is None else (sg,))
+
+
+@partial(jax.custom_vjp, nondiff_argnums=(12,))
+def _read(m, sw, rq, lq, rk, lk, rr, lo, lv, qs, ks, sg, opts):
+  outs = _read_forward_call(_args(m, sw, rq, lq, rk, lk, rr, lo, lv, qs, ks, sg), dict(opts))
   return outs + (m,) if dict(opts)['pass_m'] else outs
 
 
-def _read_fwd(m, sw, rq, lq, rk, lk, rr, lo, lv, qs, ks, opts):
-  args = (m, sw, rq, lq, rk, lk, rr, lo, lv, qs, ks)
+def _read_fwd(m, sw, rq, lq, rk, lk, rr, lo, lv, qs, ks, sg, opts):
+  args = _args(m, sw, rq, lq, rk, lk, rr, lo, lv, qs, ks, sg)
   outs = _read_forward_call(args, dict(opts))
   return (outs + (m,) if dict(opts)['pass_m'] else outs), args
 
 
 def _read_bwd(opts, args, cts):
-  return _read_backward_call(args, cts, dict(opts))
+  grads = _read_backward_call(args, cts, dict(opts))
+  return grads if len(args) == 12 else grads + (None,)
 
 
 _read.defvjp(_read_fwd, _read_bwd)
@@ -295,12 +334,13 @@ _read.defvjp(_read_fwd, _read_bwd)
 def read(m, static_weight, q_key, q_logits, k_key, k_logits, vo_key, o_logits, v_logits,
          q_standard, k_standard, *, qk_cols, read_epsilon, key_scale,
          forward_tile=128, reverse_tile=128, vmem_mib=None, interpret=False,
-         k_block=4, dot_block=16, rolled=True, pass_m=False, q_scale=1.0, **_):
+         k_block=4, dot_block=16, rolled=True, pass_m=False, q_scale=1.0, static_gates=None, **_):
   """m is k-major [B,K,V,T]; other arguments token-major as in layers.bam_pallas.read.
 
   Returns token-major (query, key, value, local_o), each [B,T,N,K]; with pass_m also m itself,
   whose cotangent the read reverse adds into dM (the caller must write from that output).
-  q_scale multiplies the query output (the attention 1/sqrt(d) folded into the kernel)."""
+  q_scale multiplies the query output (the attention 1/sqrt(d) folded into the kernel).
+  static_gates: optional per-token gates (q, k, v, o), each [B,T,N], on the static reads."""
   heads = q_key.shape[2]
   opts = _freeze(dict(heads=heads, qk_cols=qk_cols, read_epsilon=read_epsilon, key_scale=key_scale,
                       forward_tile=forward_tile, reverse_tile=reverse_tile, vmem_mib=vmem_mib,
@@ -308,14 +348,15 @@ def read(m, static_weight, q_key, q_logits, k_key, k_logits, vo_key, o_logits, v
                       pass_m=pass_m, q_scale=float(q_scale)))
   cmajor = lambda x: jnp.transpose(x, (0, 3, 2, 1))       # [B,T,N,X] -> [B,X,N,T]
 
-  def local(m, sw, qk, ql, kk, kl, vo, ol, vl, qs, ks):
+  def local(m, sw, qk, ql, kk, kl, vo, ol, vl, qs, ks, *gates):
+    sg = jnp.stack([_minor(g) for g in gates], axis=1) if gates else None    # [B,4,N,T]
     outs = _read(m, _padded_static_weight(sw, heads), cmajor(qk), _minor(ql), cmajor(kk), _minor(kl),
-                 cmajor(vo), _minor(ol), _minor(vl), cmajor(qs), cmajor(ks), opts)
+                 cmajor(vo), _minor(ol), _minor(vl), cmajor(qs), cmajor(ks), sg, opts)
     return tuple(_major(o) for o in outs[:4]) + tuple(outs[4:])    # [B,N,K,T] -> [B,T,N,K]
 
   args = (m, static_weight, q_key, q_logits, k_key, k_logits, vo_key, o_logits, v_logits,
-          q_standard, k_standard)
-  return _map_batch(local, args, (True, False) + (True,) * 9, 5 if pass_m else 4)
+          q_standard, k_standard) + tuple(static_gates or ())
+  return _map_batch(local, args, (True, False) + (True,) * (len(args) - 2), 5 if pass_m else 4)
 
 
 # ---------------------------------------------------------------------------

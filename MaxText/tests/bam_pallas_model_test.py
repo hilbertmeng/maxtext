@@ -26,9 +26,17 @@ def build(exp, out):
 class ModelEquivalenceTest(unittest.TestCase):
 
   def test_logits_and_gradients(self):
+    self._run('BamPallasCoreTinyXlaTest', ('BamPallasCoreTinyPallasTest', 'BamPallasCoreTinyPallasV7Test',
+                                           'BamPallasCoreTinyPallasV7FusedInputsTest'))
+
+  def test_full_m_general_read(self):
+    self._run('BamPallasFullMTinyXlaTest', ('BamPallasFullMTinyPallasV7Test',
+                                            'BamPallasFullMTinyPallasV7FusedInputsTest'))
+
+  def _run(self, xla_exp, fused_exps):
     out = tempfile.mkdtemp()
-    cfg, xla = build('BamPallasCoreTinyXlaTest', out)
-    fused_models = [build(e, out)[1] for e in ('BamPallasCoreTinyPallasTest', 'BamPallasCoreTinyPallasV7Test', 'BamPallasCoreTinyPallasV7FusedInputsTest')]
+    cfg, xla = build(xla_exp, out)
+    fused_models = [build(e, out)[1] for e in fused_exps]
     b, t = int(cfg.global_batch_size_to_train_on), cfg.max_target_length
     tokens = jax.random.randint(jax.random.PRNGKey(0), (b, t), 0, 1000)
     positions = jnp.broadcast_to(jnp.arange(t), (b, t))

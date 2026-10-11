@@ -31,6 +31,8 @@ def main():
   p.add_argument('--tokens', type=int, default=128)
   p.add_argument('--block', type=int, default=4)
   p.add_argument('--vmem', type=int, default=48)
+  p.add_argument('--c', type=int, default=C, help='compressed rows (V for full-M reads)')
+  p.add_argument('--gated', action='store_true', help='per-token static-read gates (generalized read)')
   a = p.parse_args()
   hw = accelerator_to_spec_map.get_system_characteristics(a.topology)
   topo = get_topology_desc(platform=hw.platform, topology_name=hw.topology_name,
@@ -45,15 +47,18 @@ def main():
   wkw = dict(epsilon=1e-6, forward_tile=a.tile, reverse_tile=a.tile, vmem_mib=a.vmem, body=a.body,
              row_block=a.block, head_block=a.block)
   if a.kernel.startswith('read'):
+    c = a.c
     mshape = (1, K, V, t) if a.body.startswith('v7') else (1, V, K, t)
-    args = [s(*mshape), jax.ShapeDtypeStruct((4 * N + C, V), jnp.float32), s(1, t, N, C), s(1, t, N),
-            s(1, t, N, C), s(1, t, N), s(1, t, N, C), s(1, t, N), s(1, t, N), s(1, t, N, R), s(1, t, N, R)]
-    read = lambda *z: bp.read(*z, **rkw)
+    args = [s(*mshape), jax.ShapeDtypeStruct((4 * N + c, V), jnp.float32), s(1, t, N, c), s(1, t, N),
+            s(1, t, N, c), s(1, t, N), s(1, t, N, c), s(1, t, N), s(1, t, N), s(1, t, N, R), s(1, t, N, R)]
+    ng = 4 if a.gated else 0
+    args += [s(1, t, N)] * ng
+    read = lambda *z: bp.read(*z[:11], static_gates=tuple(z[11:]) or None, **rkw)
     if a.kernel == 'read_fwd':
       fn = read
     else:
       args += [s(1, t, N, K)] * 4
-      fn = lambda *z: jax.vjp(read, *z[:11])[1](tuple(z[11:]))
+      fn = lambda *z: jax.vjp(read, *z[:11 + ng])[1](tuple(z[11 + ng:]))
   else:
     n_groups = 2 if a.kernel.startswith('write2') else 1
     mshape = (1, K, V, t) if a.body.startswith('v7') else (1, V, K, t)

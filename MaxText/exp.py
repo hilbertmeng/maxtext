@@ -11906,6 +11906,7 @@ class BamPallasCoreTinyXlaTest(
     per_device_batch_size = 1.0
     dtype = 'float32'
     record_training_health_metrics = False
+    bam_splash_attention = False      # CPU: this lineage selects Splash by configuration only
 
 
 class BamPallasCoreTinyPallasTest(BamPallasCoreTinyXlaTest):
@@ -12282,3 +12283,64 @@ class BamFullMGeneralReadNoHealthProfile(BamFullMGeneralReadProfile):
     # v5p-8 a9a7a15: 0.455 (74.1%); device 2163.4 ms; XLA M ops 515 ms, all memory-bound.
     model_name = 'BamFullMGeneralReadNoHealthProfile'
     bam_record_concat_health = False
+
+
+# CPU equivalence fixtures: full-M generalized column read through the fused v7 core (bam_pallas_model_test).
+
+class BamPallasFullMTinyXlaTest(BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile):
+    """CPU fixture: tiny full-M generalized-read geometry, FP32, original XLA path, BAM health OFF."""
+    model_name = 'BamPallasFullMTinyXlaTest'
+    base_num_decoder_layers = 4
+    bam_layer_modes = ['local_qk+local_v+local_o'] * 4
+    base_emb_dim = 64
+    base_num_query_heads = 2
+    base_num_kv_heads = 2
+    head_dim = 32
+    bam_k = 32
+    bam_v = 16
+    bam_standard_qk_dim = 8
+    bam_local_qk_col_output_dim = 24
+    bam_partial_rope_nope_dim = 24
+    bam_local_full_m_read_bottleneck_dim = 24
+    bam_write_v_bottleneck_dim = 32
+    emb_bam_num_head = 2
+    emb_bam_v_bottleneck_dim = 32
+    bam_mlp_write_address_rank = 16
+    base_mlp_dim = 96
+    mlp_dim_by_block = [96, 80, 96]
+    bam_final_local_mlp_dim = 96
+    max_target_length = 256
+    query_chunk_size = 128
+    per_device_batch_size = 1.0
+    dtype = 'float32'
+    record_training_health_metrics = False
+    bam_record_concat_health = False
+    bam_splash_attention = False      # CPU: this lineage selects Splash by configuration only
+
+
+class BamPallasFullMTinyPallasV7Test(BamPallasFullMTinyXlaTest):
+    """CPU fixture: the same tiny model through the interpreted v7 fused core (static gates, identity C)."""
+    model_name = 'BamPallasFullMTinyPallasV7Test'
+    bam_pallas_core = True
+    bam_pallas_interpret = True
+    bam_pallas_body = 'v7'
+
+
+class BamPallasFullMTinyPallasV7FusedInputsTest(BamPallasFullMTinyPallasV7Test):
+    """CPU fixture: + fused two-stage input projections."""
+    model_name = 'BamPallasFullMTinyPallasV7FusedInputsTest'
+    bam_pallas_fused_inputs = True
+
+
+class BamFullMGeneralReadPallasProfile(BamFullMGeneralReadNoHealthProfile):
+    """Full-M generalized read through the fused v7u core (identity compression + static gates)."""
+    model_name = 'BamFullMGeneralReadPallasProfile'
+    bam_pallas_core = True
+    bam_pallas_body = 'v7u'
+    bam_pallas_vmem_mib = 48
+
+
+class BamFullMGeneralReadPallasFusedProfile(BamFullMGeneralReadPallasProfile):
+    """+ two-stage fused input projections (x-side dot incl. 8 gates, then the three ups)."""
+    model_name = 'BamFullMGeneralReadPallasFusedProfile'
+    bam_pallas_fused_inputs = True

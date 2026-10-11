@@ -759,7 +759,7 @@ def _major(x):
 def read(m, static_weight, q_key, q_logits, k_key, k_logits, vo_key, o_logits, v_logits,
          q_standard, k_standard, *, qk_cols, read_epsilon, key_scale,
          forward_tile=128, reverse_tile=128, vmem_mib=None, interpret=False,
-         body='blocked', head_block=4, pass_m=False, q_scale=1.0):
+         body='blocked', head_block=4, pass_m=False, q_scale=1.0, static_gates=None):
   """m [B,V,K,T]; keys [B,T,N,C]; logits [B,T,N]; standard QK [B,T,N,R].
 
   Returns token-major (query, key, value, local_o), each [B,T,N,K]."""
@@ -769,7 +769,10 @@ def read(m, static_weight, q_key, q_logits, k_key, k_logits, vo_key, o_logits, v
                               v_logits, q_standard, k_standard, qk_cols=qk_cols,
                               read_epsilon=read_epsilon, key_scale=key_scale, forward_tile=forward_tile,
                               reverse_tile=reverse_tile, vmem_mib=vmem_mib, interpret=interpret,
-                              rolled=body == 'v7', pass_m=pass_m, q_scale=q_scale)
+                              rolled=body == 'v7', pass_m=pass_m, q_scale=q_scale,
+                              static_gates=static_gates)
+  if static_gates is not None:
+    raise ValueError('static read gates need the v7 bodies')
   heads = q_key.shape[2]
   opts = _freeze(dict(heads=heads, qk_cols=qk_cols, read_epsilon=read_epsilon,
                       key_scale=key_scale, forward_tile=forward_tile,

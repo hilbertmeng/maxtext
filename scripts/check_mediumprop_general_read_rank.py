@@ -25,7 +25,8 @@ for rank,expected,widths in ((128,432136160,[3911,3783,3911]),(384,432129248,[37
   for path,value in f.items():
    if 'full_m_read_down' in path:assert value.shape==(1200,6,rank),(path,value.shape)
    if any(n in path for n in ('W_lq_c8_up','W_lk_c8_up','W_R_up')):
-    assert value.shape==(rank,6,16,32),(path,value.shape)
+    expected_shape=(rank,6,16,1,32) if 'W_R_up' in path else (rank,6,16,32)
+    assert value.shape==expected_shape,(path,value.shape)
     assert math.prod(sp[path].shard_shape(value.shape))==math.prod(value.shape)//8
   print('RANK_BUDGET_LAYOUT_OK',rank,count,overhead,flush=True)
   c.get_keys().update(base_emb_dim=300,emb_dim=300,base_num_query_heads=4,base_num_kv_heads=4,num_query_heads=4,num_kv_heads=4,emb_bam_num_head=4,bam_mlp_write_num_heads=0,bam_write_v_bottleneck_dim=16,emb_bam_v_bottleneck_dim=16,bam_mlp_write_address_rank=16,base_num_decoder_layers=3,num_decoder_layers=3,bam_layer_modes=['local_qk+local_v+local_o']*3,base_mlp_dim=32,mlp_dim=32,mlp_dim_by_block=[32,24,32],vocab_size=128,dtype='float32',weight_dtype='float32')

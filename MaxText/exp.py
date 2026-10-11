@@ -12272,11 +12272,13 @@ class BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdFullMReadGe
 class BamFullMGeneralReadProfile(
     TrainStepProfile, BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile):
     """Timing arm with the formal training settings (BAM concat/general health ON)."""
+    # v5p-8 a9a7a15 ew4b: 0.439 step/s = 71.5% of MHA 0.614; device 2204.5 ms, HBM 860 GB/step (MHA 293).
     model_name = 'BamFullMGeneralReadProfile'
     steps = 60
 
 
 class BamFullMGeneralReadNoHealthProfile(BamFullMGeneralReadProfile):
     """Same arm with BAM concat/general health statistics OFF (generic health unchanged)."""
+    # v5p-8 a9a7a15: 0.455 (74.1%); device 2163.4 ms; XLA M ops 515 ms, all memory-bound.
     model_name = 'BamFullMGeneralReadNoHealthProfile'
     bam_record_concat_health = False

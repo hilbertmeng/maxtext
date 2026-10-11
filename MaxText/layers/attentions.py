@@ -3815,25 +3815,42 @@ class BamAttention(Attention):
     weight = bam_pallas.static_weight(
         self.static_q_key, self.static_k_key, self.static_v_key, self.static_o_key, compression)
     body = getattr(cfg, 'bam_pallas_body', None) or 'blocked'
-    pass_m = body in ('v7', 'v7u')   # M passthrough: dM sum fused into the read reverse
+    pass_m = body in ('v7', 'v7u', 'v8')   # M passthrough: dM sum fused into the read reverse
     q_scale = 1.0 / math.sqrt(self.head_dim) if pass_m else 1.0   # attention scale folded into the kernel
-    with jax.named_scope('bam/pallas_read'):
-      outs = bam_pallas.read(
-          M_in, weight, q_key, logits('W_lq_gate', False), k_key, logits('W_lk_gate', False),
-          vo_key, logits('W_R_gate', True), logits('W_lv_gate', False), query, key,
-          qk_cols=self._qk_col_width, read_epsilon=self._read_key_epsilon,
-          key_scale=self._read_key_scale,
-          forward_tile=int(getattr(cfg, 'bam_pallas_read_tile', None) or 128),
-          reverse_tile=int(getattr(cfg, 'bam_pallas_read_reverse_tile', None) or 128),
-          vmem_mib=getattr(cfg, 'bam_pallas_vmem_mib', None),
-          interpret=bool(getattr(cfg, 'bam_pallas_interpret', False)),
-          body=body, head_block=int(getattr(cfg, 'bam_pallas_read_block', None) or 4), pass_m=pass_m,
-          q_scale=q_scale, static_gates=static_gates,
-          hm_reverse=bool(getattr(cfg, 'bam_pallas_hm_reverse', False)),
-          **({'token_io': True} if getattr(cfg, 'bam_pallas_token_io', False) else {}),
-          **({'save_y': True} if getattr(cfg, 'bam_pallas_save_y', False) else {}),
-          **({'rolled_passes': tuple(cfg.bam_pallas_rolled_passes)}
-             if getattr(cfg, 'bam_pallas_rolled_passes', None) else {}))
+    if body == 'v8':
+      from layers import bam_pallas_v8
+      with jax.named_scope('bam/pallas_read'):
+        x = bam_pallas_v8.read_keys(
+            q_key, logits('W_lq_gate', False), k_key, logits('W_lk_gate', False), vo_key,
+            logits('W_R_gate', True), logits('W_lv_gate', False), weight, heads=self.num_query_heads,
+            read_epsilon=self._read_key_epsilon, key_scale=self._read_key_scale,
+            static_gates=static_gates, dtype=self.dtype)
+        y, M_in = bam_pallas_v8.read(
+            M_in, x, tile=int(getattr(cfg, 'bam_pallas_read_tile', None) or 128),
+            reverse_tile=int(getattr(cfg, 'bam_pallas_read_reverse_tile', None) or 128),
+            chunk=int(getattr(cfg, 'bam_pallas_v8_chunk', None) or 8),
+            vmem_mib=getattr(cfg, 'bam_pallas_vmem_mib', None),
+            interpret=bool(getattr(cfg, 'bam_pallas_interpret', False)))
+        outs = bam_pallas_v8.split_reads(y, query, key, heads=self.num_query_heads,
+                                         qk_cols=self._qk_col_width, q_scale=q_scale) + (M_in,)
+    else:
+      with jax.named_scope('bam/pallas_read'):
+        outs = bam_pallas.read(
+            M_in, weight, q_key, logits('W_lq_gate', False), k_key, logits('W_lk_gate', False),
+            vo_key, logits('W_R_gate', True), logits('W_lv_gate', False), query, key,
+            qk_cols=self._qk_col_width, read_epsilon=self._read_key_epsilon,
+            key_scale=self._read_key_scale,
+            forward_tile=int(getattr(cfg, 'bam_pallas_read_tile', None) or 128),
+            reverse_tile=int(getattr(cfg, 'bam_pallas_read_reverse_tile', None) or 128),
+            vmem_mib=getattr(cfg, 'bam_pallas_vmem_mib', None),
+            interpret=bool(getattr(cfg, 'bam_pallas_interpret', False)),
+            body=body, head_block=int(getattr(cfg, 'bam_pallas_read_block', None) or 4), pass_m=pass_m,
+            q_scale=q_scale, static_gates=static_gates,
+            hm_reverse=bool(getattr(cfg, 'bam_pallas_hm_reverse', False)),
+            **({'token_io': True} if getattr(cfg, 'bam_pallas_token_io', False) else {}),
+            **({'save_y': True} if getattr(cfg, 'bam_pallas_save_y', False) else {}),
+            **({'rolled_passes': tuple(cfg.bam_pallas_rolled_passes)}
+               if getattr(cfg, 'bam_pallas_rolled_passes', None) else {}))
     query, key, value, local_output = outs[:4]
     if pass_m:
       M_in = outs[4]

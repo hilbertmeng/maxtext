@@ -12437,3 +12437,28 @@ class BamFullMGeneralReadPallasSaveReadProfile(BamFullMGeneralReadPallasSaveYPro
     """+ remat keeps the fused read outputs and y (read forward kernel runs once per step)."""
     model_name = 'BamFullMGeneralReadPallasSaveReadProfile'
     remat_policy = 'full_save_bam_read'
+
+
+# v8: token-major M [B,T,V,K]; all M contractions are per-token MXU matmuls (layers/bam_pallas_v8.py).
+class BamPallasFullMTinyPallasV8Test(BamPallasFullMTinyPallasV7FusedInputsTest):
+    """CPU fixture: full-M generalized read through the v8 token-major MXU core."""
+    model_name = 'BamPallasFullMTinyPallasV8Test'
+    bam_pallas_body = 'v8'
+
+
+class BamPallasCoreTinyPallasV8Test(BamPallasCoreTinyPallasV7FusedInputsTest):
+    """CPU fixture: DirectC10 (C=10 compression folded into the read keys) through the v8 core."""
+    model_name = 'BamPallasCoreTinyPallasV8Test'
+    bam_pallas_body = 'v8'
+
+
+class BamFullMGeneralReadPallasV8Profile(BamFullMGeneralReadPallasFusedProfile):
+    """v8 token-major MXU core (M [B,T,V,K]; read = X[4N,V] @ M_t, write = M_t + A^T C per token)."""
+    model_name = 'BamFullMGeneralReadPallasV8Profile'
+    bam_pallas_body = 'v8'
+
+
+class BamFullMGeneralReadPallasV8SaveReadProfile(BamFullMGeneralReadPallasV8Profile):
+    """+ remat keeps the read output Y (read forward kernel once per step)."""
+    model_name = 'BamFullMGeneralReadPallasV8SaveReadProfile'
+    remat_policy = 'full_save_bam_read'

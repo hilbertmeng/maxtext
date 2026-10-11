@@ -36,6 +36,10 @@ class ModelEquivalenceTest(unittest.TestCase):
                                             'BamPallasFullMTinyPallasV7SaveYTest',
                                             'BamPallasFullMTinyPallasV7SaveReadTest'))
 
+  def test_v8_token_major(self):
+    self._run('BamPallasFullMTinyXlaTest', ('BamPallasFullMTinyPallasV8Test',))
+    self._run('BamPallasCoreTinyXlaTest', ('BamPallasCoreTinyPallasV8Test',))
+
   def _run(self, xla_exp, fused_exps):
     out = tempfile.mkdtemp()
     cfg, xla = build(xla_exp, out)

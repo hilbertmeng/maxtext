@@ -364,16 +364,28 @@ class SubDecoderLayer(nn.Module):
         assert independent_address is not None, 'fused core supports independent MLP addresses only'
         groups.append((mlp_lnx.reshape(mlp_lnx.shape[:-1] + (num_query_heads, cfg.bam_k)),
                        mlp_logits, independent_address))
-      with jax.named_scope('bam/pallas_write'):
-        M_out = bam_pallas.write(
-            M_out, groups, epsilon=float(cfg.normalization_layer_epsilon),
-            forward_tile=int(getattr(cfg, 'bam_pallas_write_tile', None) or 128),
-            reverse_tile=int(getattr(cfg, 'bam_pallas_write_reverse_tile', None) or 128),
-            vmem_mib=getattr(cfg, 'bam_pallas_vmem_mib', None),
-            interpret=bool(getattr(cfg, 'bam_pallas_interpret', False)),
-            body=getattr(cfg, 'bam_pallas_body', None) or 'blocked',
-            **({'row_block': int(cfg.bam_pallas_write_block), 'head_block': int(cfg.bam_pallas_write_block)}
-               if getattr(cfg, 'bam_pallas_write_block', None) else {}))
+      if getattr(cfg, 'bam_pallas_body', None) == 'v8':
+        from layers import bam_pallas_v8
+        with jax.named_scope('bam/pallas_write'):
+          a_fac, c_fac = bam_pallas_v8.write_factors(
+              groups, epsilon=float(cfg.normalization_layer_epsilon), dtype=M_out.dtype)
+          M_out = bam_pallas_v8.write(
+              M_out, a_fac, c_fac, tile=int(getattr(cfg, 'bam_pallas_write_tile', None) or 128),
+              reverse_tile=int(getattr(cfg, 'bam_pallas_write_reverse_tile', None) or 128),
+              chunk=int(getattr(cfg, 'bam_pallas_v8_chunk', None) or 8),
+              vmem_mib=getattr(cfg, 'bam_pallas_vmem_mib', None),
+              interpret=bool(getattr(cfg, 'bam_pallas_interpret', False)))
+      else:
+        with jax.named_scope('bam/pallas_write'):
+          M_out = bam_pallas.write(
+              M_out, groups, epsilon=float(cfg.normalization_layer_epsilon),
+              forward_tile=int(getattr(cfg, 'bam_pallas_write_tile', None) or 128),
+              reverse_tile=int(getattr(cfg, 'bam_pallas_write_reverse_tile', None) or 128),
+              vmem_mib=getattr(cfg, 'bam_pallas_vmem_mib', None),
+              interpret=bool(getattr(cfg, 'bam_pallas_interpret', False)),
+              body=getattr(cfg, 'bam_pallas_body', None) or 'blocked',
+              **({'row_block': int(cfg.bam_pallas_write_block), 'head_block': int(cfg.bam_pallas_write_block)}
+                 if getattr(cfg, 'bam_pallas_write_block', None) else {}))
 
     if mlp_lnx is not None and moe_lnx is not None:
       layer_output = mlp_lnx + intermediate_inputs + moe_lnx

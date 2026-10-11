@@ -217,7 +217,7 @@ Local wrapper complete13500; committed13500, node/queue independently NOT_FOUND,
 
 ## Shared-rank sweep on the generalized-read parent
 
-Direct SOTA parent `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile` (R256). Both new children retain one shared down projection and three separate Q/K/VO up projections, completeM75x32, generalized pre-RMS bias/static gates, independentV/O gates, original read scales, pureJAX/Splash/SEQ_MINOR and original extra health. Only shared rank and per-layer MLP repayment change. Runtime c22ac5b in the existing worktree/branch; main classes are ledger-only.
+Direct SOTA parent `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile` (R256). Both new children retain one shared down projection and three separate Q/K/VO up projections, completeM75x32, generalized pre-RMS bias/static gates, independentV/O gates, original read scales, pureJAX/Splash/SEQ_MINOR and original extra health. Only shared rank and per-layer MLP repayment change. Runtime 8dc92ee in the existing worktree/branch; main classes are ledger-only.
 
 |Class suffix after FullMRead|TPU ID|Shared rank|MLP widths|Parameters / MHA delta|13500 loss/speed bet vs R256|
 |---|---:|---:|---|---|---|

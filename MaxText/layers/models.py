@@ -493,7 +493,7 @@ class EmbeddingBamWrite(nn.Module):
         # Fused core carries M token-minor: [B, V, K, T], k-major [B, K, V, T] for bodies v7/v7u,
         # or token-major [B, T, V, K] for v8.
         content = (gate[..., None] * data).astype(data.dtype)
-        layout = {'v7': 'bkvt', 'v7u': 'bkvt', 'v8': 'btvk'}.get(getattr(cfg, 'bam_pallas_body', None), 'bvkt')
+        layout = {'v7': 'bkvt', 'v7u': 'bkvt', 'v8': 'btvk', 'v8t': 'btvk'}.get(getattr(cfg, 'bam_pallas_body', None), 'bvkt')
         return jnp.einsum(f'btnk,btnv->{layout}', content, address).astype(data.dtype)
       return jnp.sum(
           gate[..., None, None] * data[..., :, None]
@@ -542,7 +542,7 @@ class Decoder(nn.Module):
     b, t = inputs.shape[:2]
     if getattr(self.config, 'bam_pallas_core', False):
       kv = (self.config.bam_k, self.config.bam_v)
-      if getattr(self.config, 'bam_pallas_body', None) == 'v8':
+      if getattr(self.config, 'bam_pallas_body', None) in ('v8', 'v8t'):
         return jnp.zeros((b, t) + kv[::-1], dtype=self.config.dtype)
       if getattr(self.config, 'bam_pallas_body', None) not in ('v7', 'v7u'):
         kv = kv[::-1]

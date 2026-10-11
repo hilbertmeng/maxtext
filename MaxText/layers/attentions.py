@@ -3815,7 +3815,7 @@ class BamAttention(Attention):
     weight = bam_pallas.static_weight(
         self.static_q_key, self.static_k_key, self.static_v_key, self.static_o_key, compression)
     body = getattr(cfg, 'bam_pallas_body', None) or 'blocked'
-    pass_m = body in ('v7', 'v7u', 'v8')   # M passthrough: dM sum fused into the read reverse
+    pass_m = body in ('v7', 'v7u', 'v8', 'v8t')   # M passthrough: dM sum fused into the read reverse
     q_scale = 1.0 / math.sqrt(self.head_dim) if pass_m else 1.0   # attention scale folded into the kernel
     if body == 'v8':
       from layers import bam_pallas_v8

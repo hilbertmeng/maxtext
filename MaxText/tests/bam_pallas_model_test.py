@@ -37,7 +37,8 @@ class ModelEquivalenceTest(unittest.TestCase):
                                             'BamPallasFullMTinyPallasV7SaveReadTest'))
 
   def test_v8_token_major(self):
-    self._run('BamPallasFullMTinyXlaTest', ('BamPallasFullMTinyPallasV8Test', 'BamPallasFullMTinyPallasV8XTTest'))
+    self._run('BamPallasFullMTinyXlaTest', ('BamPallasFullMTinyPallasV8TTest', 'BamPallasFullMTinyPallasV8Test',
+                                            'BamPallasFullMTinyPallasV8XTTest'))
     self._run('BamPallasCoreTinyXlaTest', ('BamPallasCoreTinyPallasV8Test',))
 
   def _run(self, xla_exp, fused_exps):

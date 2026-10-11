@@ -12435,6 +12435,7 @@ class BamPallasFullMTinyPallasV7SaveReadTest(BamPallasFullMTinyPallasV7SaveYTest
 
 class BamFullMGeneralReadPallasSaveReadProfile(BamFullMGeneralReadPallasSaveYProfile):
     """+ remat keeps the fused read outputs and y (read forward kernel runs once per step)."""
+    # v5p-8 a05a18e: 0.545 vs SaveY 0.544; d0f411e 0.547 (89.1% of MHA). Remat kernel -45 ms but saved-output scan stacking +43 ms.
     model_name = 'BamFullMGeneralReadPallasSaveReadProfile'
     remat_policy = 'full_save_bam_read'
 
@@ -12454,12 +12455,14 @@ class BamPallasCoreTinyPallasV8Test(BamPallasCoreTinyPallasV7FusedInputsTest):
 
 class BamFullMGeneralReadPallasV8Profile(BamFullMGeneralReadPallasFusedProfile):
     """v8 token-major MXU core (M [B,T,V,K]; read = X[4N,V] @ M_t, write = M_t + A^T C per token)."""
+    # v5p-8 d0f411e: 0.445 (!! kernels 100 ms but XLA glue on [B,T,N,40/96] tensors +330 ms); superseded by V8T.
     model_name = 'BamFullMGeneralReadPallasV8Profile'
     bam_pallas_body = 'v8'
 
 
 class BamFullMGeneralReadPallasV8SaveReadProfile(BamFullMGeneralReadPallasV8Profile):
     """+ remat keeps the read output Y (read forward kernel once per step)."""
+    # v5p-8 d0f411e: 0.439.
     model_name = 'BamFullMGeneralReadPallasV8SaveReadProfile'
     remat_policy = 'full_save_bam_read'
 
@@ -12474,3 +12477,15 @@ class BamFullMGeneralReadPallasV8XTProfile(BamFullMGeneralReadPallasV8Profile):
     """+ per-token transposed read keys X^T [B,T,V,4N] (12 vs 20 KB/token; dM a plain matmul)."""
     model_name = 'BamFullMGeneralReadPallasV8XTProfile'
     bam_pallas_v8_xt = True
+
+
+class BamPallasFullMTinyPallasV8TTest(BamPallasFullMTinyPallasV7FusedInputsTest):
+    """CPU fixture: v8t (v7 T-minor kernel I/O, token-major M, per-token MXU matmuls in the kernel)."""
+    model_name = 'BamPallasFullMTinyPallasV8TTest'
+    bam_pallas_body = 'v8t'
+
+
+class BamFullMGeneralReadPallasV8TProfile(BamFullMGeneralReadPallasFusedProfile):
+    """v8t: v7's T-minor kernel I/O + token-major M [B,T,V,K] + per-token MXU matmuls in the kernels."""
+    model_name = 'BamFullMGeneralReadPallasV8TProfile'
+    bam_pallas_body = 'v8t'

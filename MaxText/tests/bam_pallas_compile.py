@@ -58,7 +58,7 @@ def main():
              row_block=a.block, head_block=a.block)
   if a.kernel.startswith('read'):
     c = a.c
-    mshape = (1, K, V, t) if a.body.startswith('v7') else (1, V, K, t)
+    mshape = (1, t, V, K) if a.body.startswith('v8') else (1, K, V, t) if a.body.startswith('v7') else (1, V, K, t)
     args = [s(*mshape), jax.ShapeDtypeStruct((4 * N + c, V), jnp.float32), s(1, t, N, c), s(1, t, N),
             s(1, t, N, c), s(1, t, N), s(1, t, N, c), s(1, t, N), s(1, t, N), s(1, t, N, R), s(1, t, N, R)]
     ng = 4 if a.gated else 0
@@ -67,11 +67,11 @@ def main():
     if a.kernel == 'read_fwd':
       fn = read
     else:
-      args += [s(1, t, N, K)] * 4
+      args += [s(1, t, N, K)] * 4 + [s(*mshape)] * a.body.startswith('v8')   # (+ M passthrough cotangent)
       fn = lambda *z: jax.vjp(read, *z[:11 + ng])[1](tuple(z[11 + ng:]))
   else:
     n_groups = 2 if a.kernel.startswith('write2') else 1
-    mshape = (1, K, V, t) if a.body.startswith('v7') else (1, V, K, t)
+    mshape = (1, t, V, K) if a.body.startswith('v8') else (1, K, V, t) if a.body.startswith('v7') else (1, V, K, t)
     args = [s(*mshape)] + [s(1, t, N, K), s(1, t, N), s(1, t, N, V)] * n_groups
     write = lambda m, *g: bp.write(m, [g[i:i + 3] for i in range(0, len(g), 3)], **wkw)
     if a.kernel.endswith('fwd'):

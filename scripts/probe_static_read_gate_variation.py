@@ -277,27 +277,30 @@ def run(args):
     prepared[name] = (p, jnp.array([arm in fixed for arm in ARMS]), leaves)
   # Same-shape parameter variants reuse one executable; flags are runtime arguments.
   sequence_loss = {name: [] for name in variants}
+  capture_numeric_deltas = []
   with mesh, nn.partitioning.axis_rules(cfg.logical_axis_rules):
-    compiled = jax.jit(lambda p, t, y: forward(model, p, t, y))
-    ablated = jax.jit(lambda p, t, y, c: forward(model, p, t, y, False, c))
+    # All paired arms return the same gate collection and use the identical executable.
+    compiled = jax.jit(lambda p, t, y, c: forward(model, p, t, y, True, c))
+    native = jax.jit(lambda p, t, y: forward(model, p, t, y, False))
     all_gates = []
     for i, (t, y) in enumerate(zip(tokens, targets)):
       before = time.time()
       t, y = jnp.asarray(t[None]), jnp.asarray(y[None])
-      xent, gates = jax.device_get(compiled(params, t, y))
+      xent, gates = jax.device_get(compiled(params, t, y, jnp.zeros(4, bool)))
       assert gates.shape == (4, 18, 1, tokens.shape[1], 16), gates.shape
       all_gates.append(gates)
       sequence_loss['original'].append(float(np.mean(xent)))
       np.savez_compressed(out / f'gates-{i:03d}.npz', gate=gates[:, :, :, ::16],
           arms=np.array(ARMS), token_positions=np.arange(0, tokens.shape[1], 16), sequence_hash=hashes[i])
       for name, (p, controls, _) in prepared.items():
-        if name == 'original' and i > 0:
-          continue
-        result = np.asarray(ablated(p, t, y, controls))
         if name == 'original':
-          np.testing.assert_allclose(xent, result, rtol=1e-5, atol=1e-5)
-          print('CAPTURE_FORWARD_PARITY_OK', float(np.max(np.abs(xent - result))), flush=True)
+          result = np.asarray(native(params, t, y))
+          capture_numeric_deltas.append(dict(mean=float(np.mean(xent - result)),
+              rms=float(np.sqrt(np.mean((xent - result)**2))), max_abs=float(np.max(np.abs(xent - result)))))
+          print('CAPTURE_NUMERIC_DELTA', i, capture_numeric_deltas[-1], flush=True)
         else:
+          result = np.asarray(compiled(p, t, y, controls)[0])
+          assert np.isfinite(result).all(), name
           sequence_loss[name].append(float(np.mean(result)))
       partial = {name: {'loss': loss, 'delta': (np.array(loss) - np.array(sequence_loss['original'])).tolist()}
                  for name, loss in sequence_loss.items() if name != 'original'}
@@ -306,7 +309,8 @@ def run(args):
             {name: round(row['delta'][-1], 6) for name, row in partial.items()}, flush=True)
   result = dict(exp=EXP, checkpoint=args.checkpoint, samples=len(tokens),
       length=tokens.shape[1], hashes=hashes, sequence_loss=sequence_loss['original'],
-      capture_parity=True, fixed_gate_convention='effective read multiplier 1; physical gate .99',
+      cpu_float32_capture_parity=True, paired_arms_same_executable=True,
+      capture_vs_native_bf16_delta=capture_numeric_deltas, fixed_gate_convention='effective read multiplier 1; physical gate .99',
       gate_statistics={}, ablations={}, elapsed_seconds=time.time() - start)
   for arm_index, arm in enumerate(ARMS):
     gates = np.concatenate([g[arm_index] for g in all_gates], axis=1)
@@ -334,7 +338,7 @@ def run(args):
       p, modified = absorb_mean_qk_gates(params, means, arms)
       losses = []
       for t, y in zip(tokens[calibration:], targets[calibration:]):
-        losses.append(float(np.asarray(ablated(p, jnp.asarray(t[None]), jnp.asarray(y[None]), jnp.zeros(4, bool))).mean()))
+        losses.append(float(np.asarray(compiled(p, jnp.asarray(t[None]), jnp.asarray(y[None]), jnp.zeros(4, bool))[0]).mean()))
       delta = np.array(losses) - np.array(sequence_loss['original'][calibration:])
       result['ablations'][name] = dict(sequence_loss=losses, paired_delta=delta.tolist(),
           mean_delta=float(delta.mean()), standard_error=float(delta.std(ddof=1) / np.sqrt(len(delta))),

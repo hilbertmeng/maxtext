@@ -82,7 +82,7 @@ def forward(model, params, tokens, targets, mask):
     for metric in ('static_gate', 'dynamic_gate', 'address_energy'):
       value, layers = select(collection['intermediates'], 'diag_' + arm + '_' + metric)
       captured[arm + '_' + metric] = value
-      assert layers == (tuple(range(18)) if arm == 'attention' else tuple(range(0, 18, 3))) or len(layers) <= 3
+      assert layers == (tuple(range(18)) if arm == 'attention' else tuple(range(1, 18, 3))) or len(layers) <= 3, (arm, metric, layers)
   return xent, captured
 
 
@@ -204,9 +204,10 @@ def run(args):
     energy=np.concatenate([s[arm+'_address_energy'] for s in all_stats],1).mean(axis=(1,2,3))
     result['address_energy'][arm]=[dict(dynamic=float(e[0]),static=float(e[1]),cross=float(e[2]),total=float(e[3]),
        static_dynamic_rms_ratio=float(np.sqrt(e[1]/max(e[0],1e-20)))) for e in energy]
-  attn=np.concatenate([s['attention_static_gate'][::3] for s in all_stats],1)
+  attn=np.concatenate([s['attention_static_gate'][1::3] for s in all_stats],1)
   mlp=np.concatenate([s['mlp_static_gate'] for s in all_stats],1)
   result['paired_attention_mlp_static_gate']=shared.paired_vo_moments(attn,mlp)
+  result['mlp_write_layers']=list(range(1,18,3))
   result['elapsed_seconds']=time.time()-start
   (out/'summary.json').write_text(json.dumps(result,indent=2)+'\n');print('WRITE_PROBE_DONE',result['elapsed_seconds'],flush=True)
 

@@ -124,3 +124,61 @@ kernel 耗时（ms/step，最优版）：read F 43.6、remat 43.6、read B 114.4
 约 +100；BAM 投影 −201、Splash −57。下一步按收益排序：read B（114 ms，VALU 下限约 40k bundle 对 54k 实际，
 spill 仍 24k）> read F（43.6×2，spill 8k）> fused 输入投影（136 ms、126 TF/s，可查形状/拼接方式）> scope 内 glue。
 正式训练用 `...FullMReadGeneralReadPallasTruePile`（health OFF，未启动；当前正式 RUN 为 health ON 纯 JAX）。
+
+## 继续优化：v7 收尾 → v8 / v8t（per-token MXU）
+
+v5p-8 同一台 ew4b，全部配对（同 commit 内对照臂复测 0.544–0.547，漂移 <0.5%）。
+
+| 版本（commit） | 改动 | step/s | MHA 的 % | device ms |
+|---|---|---:|---:|---:|
+| v7 HM（1ea3cbb） | 上节最优 | 0.532 | 86.6 | 1846 |
+| rolled B1/B2 / rolled A（625c0f4） | 反传 fori_loop | 0.532 / 0.527 | — | 静态 bundle 估计 −20% 未兑现 |
+| + split 代替 slice、wrapper 外转置、token-major q/k/v/o（515f5cb） | glue 47→28 ms，融合投影 137→115 ms | 0.539–0.541 | 88.1 | 1812 |
+| + forward 存 VO 读 y（7707cee） | 反传不重算 y | 0.543–0.544 | 88.6 | 1806 |
+| + remat 保存读输出（a05a18e） | 去掉 remat 前传 45 ms，但 scan 堆叠 +43 ms | 0.545–0.547 | 89.1 | 1798 |
+| v8（d0f411e） | token-major M，XLA 构 key/拆 Y | **0.445** | 72.5 | 2212 |
+| **v8t**（5286504） | v7 的 T-minor I/O + 核内 per-token MXU | 0.582 | 94.8 | 1685 |
+| **v8t 调优**（1d53d70） | 4N 行不 pad、dY 对齐块+寄存器 swap | **0.593** | **96.6** | **1655** |
+
+**v8 的关键发现**：每个 token 的 M_t 是 MXU 的 stationary 操作数，per-token `[R,V]×[V,K]` 在 v5p 上约
+13 cycles/token（v7 VPU 约 160）；一层所有读都是 M_t 的线性函数，合成一次 `X_t[4N,V] @ M_t`（静态 key、
+门控都折进 X）；写为 `M_t += A_tᵀ C_t`；反传也都是 matmul。核时间 202→100 ms。但 v8 把 key 构造/Y 拆分交给
+XLA，`[B,T,N,40/96]` 小尾维张量在 XLA 中 pad/copy/reduce 极差（glue +330 ms），整体 0.445。
+**v8t**：保留 v7 的 T-minor 核 I/O（key/门/因子 [..,T] slab，输出 Splash 原生 [B,N,T,K]），核内用
+XLU 转置把 key slab 变成 per-token `X_tᵀ[V,4N]`，per-token MXU 后用 VMEM 重排回 head-major token 行；
+M 只在核内/carry 中 token-major `[B,T,V,K]`。
+
+v8t 每 128-token tile v5p bundle（v7u → v8t 调优）：read F 20.6k → 8.1k，read B 49.8k → 12.4k，
+write F 6.2k/12.1k（1/2 组）→ 3.7k/5.2k，write B 15.2k/28.2k → 6.0k/10.2k。实测核时间：read F 21.3 ×2（含
+remat）、read B 32.4、write F 10.4、write B 16.4，合计 102 ms（v7u 255）。
+
+| v8t 调优（v5p-8 profile，device ms） | MHA | v8t 调优 | 差 |
+|---|---:|---:|---:|
+| BAM 核 | 0 | 101.8 | +102 |
+| 融合输入投影 + O 投影 + QKNorm/RoPE + glue | 418.7（QKV+O+QKNorm） | 226.5 | −192 |
+| Splash | 579.1 | 530.1 | −49 |
+| SwiGLU MLP（参数退还变宽） | 504.6 | 618.3 | +114 |
+| attention/MLP/embedding 写的 XLA 投影 | 0 | 24.8 | +25 |
+| scan carry / 其他（M 堆叠 21、Splash 残差 copy 等） | 34.9 | 82.5 | +48 |
+| layer norm / LM head | 80.4 | 70.1 | −10 |
+| **device step** | **1617.9** | **1655.2** | **+37** |
+
+除去参数退还导致的 MLP 变宽（+114 ms，架构本身），BAM 其余部分已比 MHA 净快 77 ms。
+
+### 经验（可迁移）
+
+1. **per-token 矩阵运算优先上 MXU**：每 token 一个小矩阵乘，只要能把每 token 的状态作为 stationary 权重，
+   MXU 比 VPU 广播累加快一个数量级；所有对同一 M_t 的线性读应先在 key 侧合并成一次 matmul。
+2. **小尾维张量（40/96 宽）不要跨 XLA/核边界做 token-major**：XLA 对其 pad/copy/reduce 很差；边界保持 T-minor，
+   在核内用 XLU 转置换布局；归一化等逐元素运算也应在 T-minor（sublane 归约是 VPU 加法，lane 归约要 XLU）。
+3. **Mosaic 访存**：sublane-strided 访问（stride=T 行）约每行一条指令；对齐 [8,L] 块加载 + 寄存器内
+   major↔sublane swap 便宜得多；但 swap 本身是 VALU，只用于替换昂贵的 strided gather。3D ref 的 `scr[:, t, :]`
+   不是原生 strided load。
+4. **remat 保存核输出**只在重算核比 scan 堆叠（约 1 TB/s 写+读）贵时才划算；v7 下打平，v8t 下更不划算。
+5. **静态 bundle 估计 rolled loop 会误导**（B1/B2 rolled 估 −20%，实测 0）；以 unrolled 静态 bundle 为主、硬件配对为准。
+
+### 剩余与下一步
+
+- 核内：read F 8.1k bundle（HBM 下限约 12 ms vs 实测 21 ms）与 write B 仍有余量；其余（read B、write F）已接近 HBM 下限。
+- XLA：key cmajor 转置约 13 ms、写 content/读输出的 relayout copy 约 10 ms、`y_std + local_o` 8 ms、融合投影 split/concat 12 ms。
+- 正式使用前建议做长程 loss 对拍（v8t vs 纯 JAX，≥1000 步）；35 步内与 v7u 差 ≤0.002。

@@ -12369,15 +12369,16 @@ class BamFullMGeneralReadPallasHMProfile(BamFullMGeneralReadPallasFusedProfile):
 
 class BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadPallasTruePile(
     BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile):
-    """Same equations/parameters through the fused v7u core (identity compression, static-gated reads,
-    head-major read reverse) + fused input projections + Splash; BAM health OFF (fused core requirement).
-    v5p-8 paired: 0.532 step/s = 86.6% of MHA 0.614 (pure JAX health OFF 0.453). Not launched."""
+    """Same equations/parameters through the fused v8t core (token-major M [B,T,V,K]; every M
+    contraction a per-token MXU matmul; T-minor kernel I/O) + fused input projections + Splash;
+    BAM health OFF (fused core requirement). v5p-8 paired (16da15f4-equivalent 1d53d70):
+    0.593 step/s = 96.6% of MHA 0.614 (v7u 0.532, pure JAX health OFF 0.453); 35-step loss
+    trajectory within 0.002 of v7u. Not launched."""
     model_name = 'BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadPallasTruePile'
     bam_record_concat_health = False
     bam_pallas_core = True
-    bam_pallas_body = 'v7u'
+    bam_pallas_body = 'v8t'
     bam_pallas_fused_inputs = True
-    bam_pallas_hm_reverse = True
     bam_pallas_vmem_mib = 48
 
 

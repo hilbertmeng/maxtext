@@ -12492,15 +12492,3 @@ class BamFullMGeneralReadPallasV8TProfile(BamFullMGeneralReadPallasFusedProfile)
     # 1d53d70 (4N rows, swap-gathered dY): 0.593 (96.6% of MHA).
     model_name = 'BamFullMGeneralReadPallasV8TProfile'
     bam_pallas_body = 'v8t'
-
-
-class BamPallasFullMTinyPallasV8TCnbtTest(BamPallasFullMTinyPallasV8TTest):
-    """CPU fixture: v8t with keys emitted by the up-projection dot directly as [C, N, B, T]."""
-    model_name = 'BamPallasFullMTinyPallasV8TCnbtTest'
-    bam_pallas_keys_cnbt = True
-
-
-class BamFullMGeneralReadPallasV8TCnbtProfile(BamFullMGeneralReadPallasV8TProfile):
-    """+ keys straight from a T-minor up-projection dot ([C,N,B,T]; no XLA key transposes)."""
-    model_name = 'BamFullMGeneralReadPallasV8TCnbtProfile'
-    bam_pallas_keys_cnbt = True

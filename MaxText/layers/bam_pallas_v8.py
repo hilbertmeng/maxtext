@@ -401,26 +401,9 @@ def _tm_read_backward_kernel(n, qk_cols, eps, scale, q_scale, gated, ch, pass_m)
   return kernel
 
 
-_KEY_ARGS = (2, 4, 6)     # rq, rk, rr
-
-
-def _cnbt_spec(x, tile):
-  """Keys stored [C, N, B, T] (straight from the T-minor up-projection dot): batch indexed in the middle."""
-  return pl.BlockSpec((x.shape[0], x.shape[1], None, tile), lambda bb, i: (0, 0, bb, i))
-
-
-def _tm_arg_specs(args, tile, cnbt):
-  return [_cnbt_spec(x, tile) if cnbt and j + 2 in _KEY_ARGS else _spec(x.shape[1:-1], tile)
-          for j, x in enumerate(args[2:])]
-
-
-def _tm_key_dims(args, cnbt):
-  return args[2].shape[0:2] if cnbt else args[2].shape[1:3]
-
-
-def _tm_read_specs(args, tile, cnbt=False):
+def _tm_read_specs(args, tile):
   m, st = args[0], args[1]
-  return [_token_spec(m.shape[2:], tile), _whole(st.shape)] + _tm_arg_specs(args, tile, cnbt)
+  return [_token_spec(m.shape[2:], tile), _whole(st.shape)] + [_spec(x.shape[1:-1], tile) for x in args[2:]]
 
 
 def _tm_out_spec(n, tile, kdim):
@@ -430,16 +413,15 @@ def _tm_out_spec(n, tile, kdim):
 def _tm_read_forward_call(args, opts):
   m = args[0]
   b, t, vdim, kdim = m.shape
-  cnbt = opts.get('keys_cnbt', False)
-  cdim, np_ = _tm_key_dims(args, cnbt)
+  cdim = args[2].shape[1]
   n = opts['heads']
-  r = 4 * np_
+  r = 4 * args[2].shape[2]
   tile = min(opts['tile'], t)
   out = jax.ShapeDtypeStruct((b, n, t, kdim), m.dtype)
   return pl.pallas_call(
       _tm_read_kernel(n, opts['qk_cols'], opts['read_epsilon'], opts['key_scale'], opts['q_scale'],
                       len(args) == 12, opts['chunk']),
-      grid=(b, t // tile), in_specs=_tm_read_specs(args, tile, cnbt), out_specs=[_tm_out_spec(n, tile, kdim)] * 4,
+      grid=(b, t // tile), in_specs=_tm_read_specs(args, tile), out_specs=[_tm_out_spec(n, tile, kdim)] * 4,
       out_shape=(out,) * 4,
       scratch_shapes=[pltpu.VMEM((cdim * tile, r), F32), pltpu.VMEM((tile * r, kdim), F32)],
       interpret=opts['interpret'], compiler_params=_params(('parallel', 'parallel'), opts['vmem_mib']),
@@ -449,17 +431,16 @@ def _tm_read_forward_call(args, opts):
 def _tm_read_backward_call(args, cts, opts):
   m, st = args[0], args[1]
   b, t, vdim, kdim = m.shape
-  cnbt = opts.get('keys_cnbt', False)
-  cdim, np_ = _tm_key_dims(args, cnbt)
+  cdim, np_ = args[2].shape[1:3]
   n = opts['heads']
   r = 4 * np_
   tile = min(opts['reverse_tile'], t)
   pass_m = len(cts) == 5
   gated = len(args) == 12
-  in_specs = (_tm_read_specs(args, tile, cnbt) + [_tm_out_spec(n, tile, kdim)] * 4
+  in_specs = (_tm_read_specs(args, tile) + [_tm_out_spec(n, tile, kdim)] * 4
               + [_token_spec((vdim, kdim), tile)] * pass_m)
   out_specs = ([_token_spec((vdim, kdim), tile), pl.BlockSpec((None, None, cdim, r), lambda bb, i: (bb, i, 0, 0))]
-               + _tm_arg_specs(args, tile, cnbt))
+               + [_spec(x.shape[1:-1], tile) for x in args[2:]])
   out_shape = ([jax.ShapeDtypeStruct(m.shape, m.dtype), jax.ShapeDtypeStruct((b, t // tile, cdim, r), F32)]
                + [jax.ShapeDtypeStruct(x.shape, x.dtype) for x in args[2:]])
   outs = pl.pallas_call(
@@ -499,22 +480,17 @@ _tm_read.defvjp(_tm_read_fwd, _tm_read_bwd)
 
 def read_tm(m, static_weight, q_key, q_logits, k_key, k_logits, vo_key, o_logits, v_logits, q_standard,
             k_standard, *, qk_cols, read_epsilon, key_scale, forward_tile=128, reverse_tile=128,
-            vmem_mib=None, interpret=False, q_scale=1.0, static_gates=None, chunk=8, pad_heads=False,
-            keys_cnbt=False, **_):
+            vmem_mib=None, interpret=False, q_scale=1.0, static_gates=None, chunk=8, pad_heads=False, **_):
   """v7.read's interface (keys [B,T,N,C], logits [B,T,N], standard QK [B,T,N,Rs]) for M [B,T,V,K] and
   full-M reads (C == V, identity compression). Returns (query, key, value, local_o) [B,T,N,K] and M."""
-  n = q_logits.shape[2]
-  cdim = q_key.shape[0] if keys_cnbt else q_key.shape[3]     # keys [C,N,B,T] (keys_cnbt) or [B,T,N,C]
+  b, t, n, cdim = q_key.shape
   assert cdim == m.shape[2], 'v8t supports full-M reads (identity compression) only'
   np_ = _pad_rows(n) if pad_heads else n
   opts = _freeze(dict(heads=n, qk_cols=qk_cols, read_epsilon=read_epsilon, key_scale=key_scale,
                       tile=forward_tile, reverse_tile=reverse_tile, vmem_mib=vmem_mib, interpret=interpret,
-                      q_scale=float(q_scale), chunk=chunk, keys_cnbt=bool(keys_cnbt)))
+                      q_scale=float(q_scale), chunk=chunk))
   padn = lambda x: jnp.pad(x, [(0, 0)] * (x.ndim - 2) + [(0, np_ - n), (0, 0)]) if np_ > n else x
-  if keys_cnbt:
-    keys = lambda x: jnp.pad(x, [(0, 0), (0, np_ - n), (0, 0), (0, 0)]) if np_ > n else x
-  else:
-    keys = lambda x: padn(jnp.transpose(x, (0, 3, 2, 1)))                # [B,T,N,C] -> [B,C,NP,T]
+  keys = lambda x: padn(jnp.transpose(x, (0, 3, 2, 1)))                  # [B,T,N,C] -> [B,C,NP,T]
   gate = lambda x: padn(_minor_t(x))                                      # [B,T,N] -> [B,NP,T]
   sw = static_weight.astype(F32)
   st = jnp.concatenate([jnp.pad(sw[a * n:(a + 1) * n], ((0, np_ - n), (0, 0))) for a in range(4)], axis=0)
@@ -527,8 +503,7 @@ def read_tm(m, static_weight, q_key, q_logits, k_key, k_logits, vo_key, o_logits
     sg = xs[9] if len(xs) == 10 else None
     return _tm_read(m, st, *xs[:9], sg, opts)
 
-  batch = [True, False] + [2 if keys_cnbt and j in _KEY_ARGS else True for j in range(2, len(args))]
-  outs = _map_batch(local, args, tuple(batch), 5)
+  outs = _map_batch(local, args, (True, False) + (True,) * (len(args) - 2), 5)
   outs = tuple(checkpoint_name(o, 'bam_read_out') for o in outs[:4]) + (outs[4],)
   return tuple(jnp.transpose(o, (0, 2, 1, 3)) for o in outs[:4]) + (outs[4],)
 

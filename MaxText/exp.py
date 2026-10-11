@@ -12241,3 +12241,26 @@ class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMRe
     bam_local_full_m_read_bottleneck_dim = 384
     mlp_dim_by_block = [3716, 3589, 3716]
     compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile']
+
+
+class BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile(BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdTruePile):
+    """Proportional XL transfer of shared GELU full-M generalized column reads."""
+    model_name = 'BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile'
+    bam_local_qk_direct_c8 = True
+    bam_local_qk_col_direct_compressed = False
+    bam_local_qk_share_basis = False
+    bam_local_qk_separate_c8_projection = False
+    bam_abs_v_compression_dim = None
+    bam_local_o_compress_v = False
+    bam_local_full_m_read_bottleneck_dim = 400
+    bam_local_full_m_read_share_down = True
+    bam_general_column_read = True
+    bam_general_matrix_write = False
+    bam_static_read_gate_init = .99
+    bam_read_key_scale = .1
+    mlp_dim_by_block = [6140, 5952, 6140]
+    bam_final_local_mlp_dim = 6140
+    bam_splash_attention = True
+    bam_pallas_core = False
+    compare_runs = ['BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdTruePile']
+    jax_cache_dir = ''

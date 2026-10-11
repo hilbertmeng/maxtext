@@ -29,7 +29,7 @@ for rank,expected,widths in ((128,432136160,[3911,3783,3911]),(384,432129248,[37
     assert value.shape==expected_shape,(path,value.shape)
     assert math.prod(sp[path].shard_shape(value.shape))==math.prod(value.shape)//8
   print('RANK_BUDGET_LAYOUT_OK',rank,count,overhead,flush=True)
-  c.get_keys().update(base_emb_dim=300,emb_dim=300,base_num_query_heads=4,base_num_kv_heads=4,num_query_heads=4,num_kv_heads=4,emb_bam_num_head=4,bam_mlp_write_num_heads=0,bam_write_v_bottleneck_dim=16,emb_bam_v_bottleneck_dim=16,bam_mlp_write_address_rank=16,base_num_decoder_layers=3,num_decoder_layers=3,bam_layer_modes=['local_qk+local_v+local_o']*3,base_mlp_dim=32,mlp_dim=32,mlp_dim_by_block=[32,24,32],vocab_size=128,dtype='float32',weight_dtype='float32')
+  c.get_keys().update(base_emb_dim=600,emb_dim=600,base_num_query_heads=8,base_num_kv_heads=8,num_query_heads=8,num_kv_heads=8,emb_bam_num_head=8,bam_mlp_write_num_heads=0,bam_write_v_bottleneck_dim=16,emb_bam_v_bottleneck_dim=16,bam_mlp_write_address_rank=16,base_num_decoder_layers=3,num_decoder_layers=3,bam_layer_modes=['local_qk+local_v+local_o']*3,base_mlp_dim=32,mlp_dim=32,mlp_dim_by_block=[32,24,32],vocab_size=128,dtype='float32',weight_dtype='float32')
   mesh=jax.sharding.Mesh(np.array(jax.devices()[:1]).reshape((1,)*len(c.mesh_axes)),c.mesh_axes);model=Transformer(c,mesh,quant=None)
   t=jnp.array([[1,4,8,2]],jnp.int32);pos=jnp.arange(4)[None];seg=jnp.ones_like(t);rng={n:jax.random.key(i) for i,n in enumerate(('params','dropout','aqt'))}
   with mesh,nn.partitioning.axis_rules(c.logical_axis_rules):

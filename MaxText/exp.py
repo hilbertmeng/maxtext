@@ -12257,7 +12257,8 @@ class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMRe
 class BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile(BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdTruePile):
     """Proportional XL transfer of shared GELU full-M generalized column reads."""
     # Ledger only: codex/mediumprop-full-m-read-gelu128, /data0/xd/mediumprop-full-m-read-gelu128.
-    # Runtime b83223f; shared R400 follows20*40/(16*32); M96x40, no compressed reads.
+    # code_commit: b83223f; UE5a v5p-32 .3826step/s(20-99), -2.95% vs new sharedR400 .3942; generalized extra health ON.
+    # Historical standard .347: +10.25%, C256 vs new Splash/SEQ_MINOR; runtime unmatched.
     # 1432386360 params, nearest per-layer MHA budget; parent standard rank4.
     # Terminal bet vs parent: loss-.010, matched-health speed-5%.
     model_name = 'BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile'
@@ -12284,7 +12285,8 @@ class BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdFullMReadGe
 class BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdFullMReadSharedGelu400TruePile(BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile):
     """Shared full-M GELU reads alone; original un-gated static reads and no pre-bias."""
     # Ledger only: codex/mediumprop-full-m-read-gelu128, /data0/xd/mediumprop-full-m-read-gelu128.
-    # Runtime 3425c55; R400 shared full-M reads without generalized gates/pre-bias.
+    # code_commit: 3425c55; UE5a v5p-32 .3942step/s(20-99), +3.04% vs generalized .3826; common generic/concat health ON.
+    # Historical standard .347: +13.60%, C256 vs new Splash/SEQ_MINOR; runtime unmatched.
     # 1432370680 params; MLP[6167,5979,6167] + terminal6167, nearest per-layer MHA budget.
     # Last-common-stage bet vs standard: loss-.006, matched-health speed-1%.
     model_name = 'BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdFullMReadSharedGelu400TruePile'

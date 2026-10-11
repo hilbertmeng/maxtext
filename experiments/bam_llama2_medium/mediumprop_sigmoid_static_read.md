@@ -26,3 +26,9 @@ Focused CPU gate checks the exact full parameter/sharding layout, actual static-
 unchanged write gates, finite forward/backward, nonzero new gate gradients and exported health.
 CPU checks, retained AOT, and training-only queue run concurrently; FIRST_STEP remains the startup gate.
 Artifacts: `/data0/xd/bam_diagnostics/mediumprop-sigmoid-static-read/`.
+
+Startup verified: CPU gate passed; retained AOT loaded; FIRST_STEP2; launched2026-10-11T10:50:07Z.
+Actual worker config selects `bam_static_read_gate_sigmoid=True`, opening .99, sharedR256, all requested health enabled,
+and UE5a-local TruePile4096 data. Source diff against direct-parent runtime64e3fc3 changes only the gate implementation and new configuration classes.
+
+Steady20-99 throughput: .477675step/s (80samples), approximately -.21% vs direct old generalized read .4787; same UE5a/v5p-16 and generic/concat health.

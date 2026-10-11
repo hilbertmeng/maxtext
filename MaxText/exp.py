@@ -12298,6 +12298,7 @@ class BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdFullMReadSh
 class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadSigmoidStaticGateTruePile(BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile):
     """Static reads multiply sigmoid(logit) directly, initialized to .99."""
     # Ledger only: codex/mediumprop-full-m-read-gelu128, /data0/xd/mediumprop-full-m-read-gelu128; code_commit: 25cd9df.
+    # UE5a v5p-16 .4777step/s(20-99), -.21% vs old generalized .4787; identical generic/concat health.
     # Bet at13500 vs original generalized read: loss+.001, same-health speed unchanged.
     model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadSigmoidStaticGateTruePile'
     bam_static_read_gate_sigmoid = True

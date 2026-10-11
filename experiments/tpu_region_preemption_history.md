@@ -27,6 +27,7 @@ active leases are censored, and manual migration releases are not preemptions.
 
 | RUN | TPU | Zone | Start UTC | End UTC | End reason | Passive candidates |
 |---|---|---|---|---|---|---|
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadSigmoidStaticGateTruePile` | v5p-16 (`xd-v5p-16-310120-maxtext`) | `us-east5-a` | 2026-10-11 10:50:07 | — | active; source/AOT/FIRST_STEP verified | none |
 | `BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile` | v5p-32 (`xd-v5p-32-310118-maxtext`) | `us-east5-a` | 2026-10-11 05:13:34 | — | active; source/AOT/FIRST_STEP verified | none |
 | `BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdFullMReadSharedGelu400TruePile` | v5p-32 (`xd-v5p-32-310119-maxtext`) | `us-east5-a` | 2026-10-11 05:18:49 | — | active; source/AOT/FIRST_STEP verified | none |
 | `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadSharedGelu128GeneralReadTruePile` | v5p-16 (`xd-v5p-16-310116-maxtext`) | `us-east5-a` | 2026-10-11 01:59:56 | 2026-10-11 04:03:40 | user stop3407;0preemptions; checkpoint committed, node/queue absent, TB synced | none |

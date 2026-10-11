@@ -12304,3 +12304,41 @@ class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMRe
     bam_static_read_gate_sigmoid = True
     bam_static_read_gate_init = .99
     compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile']
+
+
+class BamMediumPropK75V48EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadSharedGelu384GeneralReadTruePile(BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile):
+    """V48 with proportional R384 shared full-M generalized reads and write addresses."""
+    # Runtime: codex/mediumprop-full-m-read-gelu128, /data0/xd/mediumprop-full-m-read-gelu128.
+    # Bet at13500 vs18-layer V32 R256 generalized: loss-0.003, speed-10%.
+    model_name = 'BamMediumPropK75V48EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadSharedGelu384GeneralReadTruePile'
+    bam_v = 48
+    bam_local_full_m_read_bottleneck_dim = 384
+    bam_write_v_bottleneck_dim = 384
+    emb_bam_v_bottleneck_dim = 384
+    bam_mlp_write_address_rank = 384
+    bam_static_read_gate_sigmoid = False
+    bam_static_read_gate_init = .99
+    mlp_dim_by_block = [3540, 3325, 3540]
+    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile', 'BamMediumPropK75V48EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadSharedGelu256TruePile']
+
+
+class BamMediumPropL27K75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile(Llama2MediumPropL27, BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile):
+    """27 layers of the V32 R256 generalized-read architecture at the MHA27 budget."""
+    # Runtime: codex/mediumprop-full-m-read-gelu128, /data0/xd/mediumprop-full-m-read-gelu128.
+    # Bet at13500 vs18-layer V32 R256 generalized: loss-0.014, speed-20%.
+    model_name = 'BamMediumPropL27K75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile'
+    bam_layer_modes = ['local_qk+local_v+local_o'] * 27
+    bam_static_read_gate_sigmoid = False
+    bam_static_read_gate_init = .99
+    mlp_dim_by_block = [2223, 2096, 2223]
+    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile', 'BamMediumPropL27K75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile']
+
+
+class BamMediumPropL27K75V48EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadSharedGelu384GeneralReadTruePile(Llama2MediumPropL27, BamMediumPropK75V48EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadSharedGelu384GeneralReadTruePile):
+    """27-layer V48 R384 generalized reads: depth by matrix-width interaction."""
+    # Runtime: codex/mediumprop-full-m-read-gelu128, /data0/xd/mediumprop-full-m-read-gelu128.
+    # Bet at13500 vs18-layer V32 R256 generalized: loss-0.015, speed-30%.
+    model_name = 'BamMediumPropL27K75V48EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadSharedGelu384GeneralReadTruePile'
+    bam_layer_modes = ['local_qk+local_v+local_o'] * 27
+    mlp_dim_by_block = [1952, 1736, 1952]
+    compare_runs = ['BamMediumPropK75V48EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadSharedGelu384GeneralReadTruePile', 'BamMediumPropL27K75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile']

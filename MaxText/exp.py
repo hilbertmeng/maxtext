@@ -12490,5 +12490,7 @@ class BamFullMGeneralReadPallasV8TProfile(BamFullMGeneralReadPallasFusedProfile)
     """v8t: v7's T-minor kernel I/O + token-major M [B,T,V,K] + per-token MXU matmuls in the kernels."""
     # v5p-8 5286504: 0.582 vs v7 SaveRead 0.546 (+6.6%, 94.8% of MHA); kernels 114 vs 202 ms.
     # 1d53d70 (4N rows, swap-gathered dY): 0.593 (96.6% of MHA).
+    # cd06c76 (streamed key rows): 0.593; 600-step loss vs pure JAX converges (mean diff -0.0025 at 500-606).
+    # 90d28c9 keys as [C,N,B,T] from the dot: TPU lowering rejects batch as a block's second-minor dim; reverted.
     model_name = 'BamFullMGeneralReadPallasV8TProfile'
     bam_pallas_body = 'v8t'

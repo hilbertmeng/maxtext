@@ -37,3 +37,9 @@ UE5a SPOT v5p-16，ID310121/310122/310123。借用EW4a用户非抢占式 `llm-ja
 - A：`BamMediumPropK75V48EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadSharedGelu384GeneralReadTruePile`
 - B：`BamMediumPropL27K75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile`
 - C：`BamMediumPropL27K75V48EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadSharedGelu384GeneralReadTruePile`
+
+三路FIRST_STEP已确认（A5/B3/C5），训练端加载compiled function；有效配置、各自写地址R、历史门公式、MLP宽度和同区TruePile路径符合sealed runtime。初期50步全层健康指标有限。启动安装阶段三台初始机器均被抢占，脚本同区重排后成功；没有已训练步数丢失。
+
+20–99步速度：A .448175（−6.38%），B .352950（−26.27%），C .321813（−32.77%），均对18层V32泛化父版 .4787。A低于预期代价；B超过−20%下注6.27个百分点，原因未做matched profile，不归因于扫描或FLOPs；C略超−30%预期。证据：`/data0/xd/bam_diagnostics/mediumprop-general-read-expansion/startup-verification.json`、`health-startup.json`。
+
+共同每1000步报告；`report_factors.py`在tpu-ag根据缓存精确计算二阶差值，`r200`仍为gap绝对值变化百分比。三路各自loss登记直接父对照，四格/历史交互由该辅助报告呈现；缺失或停止后的窗口不填补。

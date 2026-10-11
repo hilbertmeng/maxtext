@@ -12183,8 +12183,8 @@ class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMRe
     """Generalized read on the shared R256 full-M parent."""
     # Ledger only: codex/mediumprop-full-m-read-gelu128, /data0/xd/mediumprop-full-m-read-gelu128; code_commit: 64e3fc3.
     # UE5a v5p-16 .4787step/s (20-99), -4.28% vs sharedR256; extra health included.
-    # !? Read-gate variants slower than speed bet; incremental health cost not separated.
-    # Bet at13500 vs shared R256: loss-.004, same-health speed-2%.
+    # Completed13500; vs sharedR256 last5(12600-13400) -.005092; early gain contracts, holds~-.005 after5k.
+    # Matched profile speed -4.08%; generalized health extra, its incremental cost unseparated.
     model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile'
     bam_general_column_read = True
     bam_general_matrix_write = False

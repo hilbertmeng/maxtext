@@ -58,11 +58,15 @@ def _concat_k(ref, k0, k1):
 # ---------------------------------------------------------------------------
 # Read.
 
-def _read_kernel(heads, qk_cols, eps, scale, kb, db, q_scale, gated=False, rolled=False, token_io=False):
+def _read_kernel(heads, qk_cols, eps, scale, kb, db, q_scale, gated=False, rolled=False, token_io=False,
+                 save_y=False):
   def kernel(m_ref, sw_ref, rq, lq, rk, lk, rr, lo, lv, qs, ks, *refs):
     if gated:      # per-token static-read gates [4, N, T] for (q, k, v, o)
       sg_ref, refs = refs[0], refs[1:]
-    q_ref, k_ref, v_ref, o_ref, key_scr, st_scr, out_scr = refs
+    if save_y:     # VO dynamic read y [K, N, T] kept as a residual for the reverse
+      q_ref, k_ref, v_ref, o_ref, y_ref, key_scr, st_scr, out_scr = refs
+    else:
+      q_ref, k_ref, v_ref, o_ref, key_scr, st_scr, out_scr = refs
     static = lambda i, lanes: (st_scr[pl.ds(i * np_, n), lanes] * sg_ref[i].astype(F32) if gated
                                else st_scr[pl.ds(i * np_, n), lanes])
     n = heads
@@ -96,6 +100,8 @@ def _read_kernel(heads, qk_cols, eps, scale, kb, db, q_scale, gated=False, rolle
       for i, k in enumerate(ks_):
         lanes = lane(k)
         rows = pl.ds(k * np_ if isinstance(k, int) else pl.multiple_of(k * np_, 8), n)
+        if save_y:
+          y_ref[k] = acc[2, i].astype(y_ref.dtype)
         out_scr[2, rows, :] = acc[2, i] * gv + static(2, lanes)
         out_scr[3, rows, :] = acc[2, i] * go + static(3, lanes)
         if with_qk:
@@ -128,7 +134,7 @@ def _read_specs(args, tile):
           + [_spec(x.shape[1:-1], tile) for x in args[2:]])
 
 
-def _read_forward_call(args, opts):
+def _read_forward_call(args, opts, save_y=False):
   m, sw = args[0], args[1]
   b, kdim, _, t = m.shape
   c, n = args[2].shape[1:3]
@@ -140,9 +146,10 @@ def _read_forward_call(args, opts):
   return pl.pallas_call(
       _read_kernel(n, opts['qk_cols'], opts['read_epsilon'], opts['key_scale'], opts['k_block'],
                    opts['dot_block'], opts['q_scale'], gated=len(args) == 12,
-                   rolled='f' in opts.get('rolled_passes', ()), token_io=token_io),
-      grid=(b, t // tile), in_specs=_read_specs(args, tile), out_specs=[out_spec] * 4,
-      out_shape=(out,) * 4,
+                   rolled='f' in opts.get('rolled_passes', ()), token_io=token_io, save_y=save_y),
+      grid=(b, t // tile), in_specs=_read_specs(args, tile),
+      out_specs=[out_spec] * 4 + [_spec((kdim, n), tile)] * save_y,
+      out_shape=(out,) * 4 + (jax.ShapeDtypeStruct((b, kdim, n, t), m.dtype),) * save_y,
       scratch_shapes=[pltpu.VMEM((3, c, n, tile), F32), pltpu.VMEM((sw.shape[0], kdim * tile), F32),
                       pltpu.VMEM((4, kdim * _pad_rows(n), tile), F32)],
       interpret=opts['interpret'], compiler_params=_params(('parallel', 'parallel'), opts['vmem_mib']),
@@ -159,13 +166,15 @@ def _blocks(lo, hi, body, rolled):
 
 
 def _read_backward_kernel(heads, qk_cols, eps, scale, db, rolled, pass_m, q_scale, gated=False,
-                          hm_reverse=False, rolled_passes=frozenset(), token_io=False):
+                          hm_reverse=False, rolled_passes=frozenset(), token_io=False, saved_y=False):
   """rolled_passes: subset of {'a', 'b1', 'b2'} run as fori_loops over k blocks (loop boundaries stop
   Mosaic hoisting loads across the whole unrolled k range, which spilled heavily for C=40)."""
   def kernel(*refs):
     (m_ref, sw_ref, rq, lq, rk, lk, rr, lo, lv, qs, ks), refs = refs[:11], refs[11:]
     if gated:
       sg_ref, refs = refs[0], refs[1:]
+    if saved_y:
+      y_in, refs = refs[0], refs[1:]
     (dq, dk, dv, do), refs = refs[:4], refs[4:]
     if pass_m:     # cotangent of the M passthrough, aliased to dm: added here instead of by XLA
       gp_ref, refs = refs[0], refs[1:]
@@ -219,9 +228,12 @@ def _read_backward_kernel(heads, qk_cols, eps, scale, db, rolled, pass_m, q_scal
       for kk_ in range(8):
         k = j * 8 + kk_
         ln = lanes(k)
-        y = None
-        for c in range(cdim):
-          y = _acc(y, key_scr[2, c] * mc_scr[pl.ds(mco + c, 1), ln])
+        if saved_y:
+          y = y_in[k].astype(F32)
+        else:
+          y = None
+          for c in range(cdim):
+            y = _acc(y, key_scr[2, c] * mc_scr[pl.ds(mco + c, 1), ln])
         dvk = ct(2, k)
         dok = ct(3, k)
         av = av + dvk * y
@@ -384,7 +396,9 @@ def _read_backward_call(args, cts, opts):
   token_io = bool(opts.get('token_io', False))
   ct_spec = (pl.BlockSpec((None, n, tile, kdim), lambda bb, i: (bb, 0, i, 0)) if token_io
              else _spec((n, kdim), tile))
-  in_specs = _read_specs(args, tile) + [ct_spec] * 4 + [_spec((kdim, v), tile)] * pass_m
+  y_res = opts.get('_y_residual')
+  in_specs = (_read_specs(args, tile) + [_spec((kdim, n), tile)] * (y_res is not None)
+              + [ct_spec] * 4 + [_spec((kdim, v), tile)] * pass_m)
   out_specs = ([_spec((kdim, v), tile), pl.BlockSpec((None, None, j, v), lambda bb, i: (bb, i, 0, 0))]
                + [_spec(x.shape[1:-1], tile) for x in args[2:]])
   out_shape = ([jax.ShapeDtypeStruct(m.shape, m.dtype), jax.ShapeDtypeStruct((b, t // tile, j, v), F32)]
@@ -400,12 +414,12 @@ def _read_backward_call(args, cts, opts):
   outs = pl.pallas_call(
       _read_backward_kernel(n, opts['qk_cols'], opts['read_epsilon'], opts['key_scale'], opts['dot_block'],
                             opts['rolled'], pass_m, opts['q_scale'], gated, hm_reverse, rolled_passes,
-                            token_io),
+                            token_io, y_res is not None),
       grid=(b, t // tile), in_specs=in_specs, out_specs=out_specs, out_shape=tuple(out_shape),
       scratch_shapes=scratch, interpret=opts['interpret'],
-      input_output_aliases={len(args) + 4: 0} if pass_m else {},
+      input_output_aliases={len(args) + (y_res is not None) + 4: 0} if pass_m else {},
       compiler_params=_params(('parallel', 'parallel'), opts['vmem_mib']),
-      name='bam_core_read_backward')(*args, *cts)
+      name='bam_core_read_backward')(*args, *(() if y_res is None else (y_res,)), *cts)
   return (outs[0], jnp.sum(outs[1], axis=(0, 1)).astype(sw.dtype)) + tuple(outs[2:])
 
 
@@ -421,12 +435,16 @@ def _read(m, sw, rq, lq, rk, lk, rr, lo, lv, qs, ks, sg, opts):
 
 def _read_fwd(m, sw, rq, lq, rk, lk, rr, lo, lv, qs, ks, sg, opts):
   args = _args(m, sw, rq, lq, rk, lk, rr, lo, lv, qs, ks, sg)
-  outs = _read_forward_call(args, dict(opts))
-  return (outs + (m,) if dict(opts)['pass_m'] else outs), args
+  save_y = bool(dict(opts).get('save_y', False))
+  outs = _read_forward_call(args, dict(opts), save_y=save_y)
+  y = outs[4] if save_y else None
+  outs = outs[:4]
+  return (outs + (m,) if dict(opts)['pass_m'] else outs), (args, y)
 
 
-def _read_bwd(opts, args, cts):
-  grads = _read_backward_call(args, cts, dict(opts))
+def _read_bwd(opts, res, cts):
+  args, y = res
+  grads = _read_backward_call(args, cts, dict(dict(opts), _y_residual=y))
   return grads if len(args) == 12 else grads + (None,)
 
 
@@ -437,7 +455,7 @@ def read(m, static_weight, q_key, q_logits, k_key, k_logits, vo_key, o_logits, v
          q_standard, k_standard, *, qk_cols, read_epsilon, key_scale,
          forward_tile=128, reverse_tile=128, vmem_mib=None, interpret=False,
          k_block=4, dot_block=16, rolled=True, pass_m=False, q_scale=1.0, static_gates=None,
-         hm_reverse=False, rolled_passes=(), token_io=False, **_):
+         hm_reverse=False, rolled_passes=(), token_io=False, save_y=False, **_):
   """m is k-major [B,K,V,T]; other arguments token-major as in layers.bam_pallas.read.
 
   Returns token-major (query, key, value, local_o), each [B,T,N,K]; with pass_m also m itself,
@@ -449,7 +467,8 @@ def read(m, static_weight, q_key, q_logits, k_key, k_logits, vo_key, o_logits, v
                       forward_tile=forward_tile, reverse_tile=reverse_tile, vmem_mib=vmem_mib,
                       interpret=interpret, k_block=k_block, dot_block=dot_block, rolled=rolled,
                       pass_m=pass_m, q_scale=float(q_scale), hm_reverse=bool(hm_reverse),
-                      rolled_passes=tuple(sorted(rolled_passes)), token_io=bool(token_io)))
+                      rolled_passes=tuple(sorted(rolled_passes)), token_io=bool(token_io),
+                      save_y=bool(save_y)))
   cmajor = lambda x: jnp.transpose(x, (0, 3, 2, 1))       # [B,T,N,X] -> [B,X,N,T]
 
   # Layout changes stay outside the shard_map so XLA can fold them into producers/consumers.

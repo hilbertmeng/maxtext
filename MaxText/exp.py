@@ -12411,3 +12411,15 @@ class BamFullMGeneralReadPallasTIOProfile(BamFullMGeneralReadPallasHMProfile):
     """+ token-major q/k/v/o and cotangents (Splash-native [B,N,T,K]; in-kernel XLU transposes)."""
     model_name = 'BamFullMGeneralReadPallasTIOProfile'
     bam_pallas_token_io = True
+
+
+class BamPallasFullMTinyPallasV7SaveYTest(BamPallasFullMTinyPallasV7TIOTest):
+    """CPU fixture: + VO read residual saved by the forward rule (no recompute in the reverse)."""
+    model_name = 'BamPallasFullMTinyPallasV7SaveYTest'
+    bam_pallas_save_y = True
+
+
+class BamFullMGeneralReadPallasSaveYProfile(BamFullMGeneralReadPallasTIOProfile):
+    """+ VO dynamic read y saved as a residual by the forward rule."""
+    model_name = 'BamFullMGeneralReadPallasSaveYProfile'
+    bam_pallas_save_y = True

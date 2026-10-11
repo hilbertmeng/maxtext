@@ -3831,6 +3831,7 @@ class BamAttention(Attention):
           q_scale=q_scale, static_gates=static_gates,
           hm_reverse=bool(getattr(cfg, 'bam_pallas_hm_reverse', False)),
           **({'token_io': True} if getattr(cfg, 'bam_pallas_token_io', False) else {}),
+          **({'save_y': True} if getattr(cfg, 'bam_pallas_save_y', False) else {}),
           **({'rolled_passes': tuple(cfg.bam_pallas_rolled_passes)}
              if getattr(cfg, 'bam_pallas_rolled_passes', None) else {}))
     query, key, value, local_output = outs[:4]

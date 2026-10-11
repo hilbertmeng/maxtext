@@ -37,6 +37,7 @@ def main():
   p.add_argument('--kblock', type=int, default=0, help='v7 forward k block (0 = default)')
   p.add_argument('--rolled', default='', help='v7 rolled reverse passes, e.g. b1,b2')
   p.add_argument('--token-io', action='store_true', help='v7 token-major q/k/v/o and cotangents')
+  p.add_argument('--save-y', action='store_true', help='v7 VO read residual from the forward rule')
   a = p.parse_args()
   hw = accelerator_to_spec_map.get_system_characteristics(a.topology)
   topo = get_topology_desc(platform=hw.platform, topology_name=hw.topology_name,
@@ -50,7 +51,7 @@ def main():
              vmem_mib=a.vmem, body=a.body, head_block=a.block,
              **({'hm_reverse': True} if a.hm_reverse else {}), **({'k_block': a.kblock} if a.kblock else {}),
              **({'rolled_passes': tuple(a.rolled.split(','))} if a.rolled else {}),
-             **({'token_io': True} if a.token_io else {}))
+             **({'token_io': True} if a.token_io else {}), **({'save_y': True} if a.save_y else {}))
   wkw = dict(epsilon=1e-6, forward_tile=a.tile, reverse_tile=a.tile, vmem_mib=a.vmem, body=a.body,
              row_block=a.block, head_block=a.block)
   if a.kernel.startswith('read'):

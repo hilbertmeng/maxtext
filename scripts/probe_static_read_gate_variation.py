@@ -176,7 +176,7 @@ def self_test():
       fixed = jax.jit(lambda p: forward(model, p, tokens, tokens, False, jnp.ones(4, bool)))(params)
       biased = zero_biases(params, ('q', 'k', 'vo'))
       assert len(biased[1]) == 9, biased[1]
-      folded, _ = absorb_mean_qk_gates(params, {a: np.full((3, 4), .99) for a in ('q', 'k')}, ('q', 'k'))
+      folded, _ = absorb_mean_static_gates(params, {a: np.full((3, 4), .99) for a in ARMS}, ARMS)
       folded_loss = jax.jit(lambda p: forward(model, p, tokens, tokens, False))(folded)
     np.testing.assert_allclose(observed, native, rtol=1e-6, atol=1e-7)
     np.testing.assert_allclose(fixed, native, rtol=1e-6, atol=1e-7)
@@ -217,7 +217,7 @@ def zero_biases(params, arms):
 
 
 
-def absorb_mean_qk_gates(params, means, arms, opening=.99):
+def absorb_mean_static_gates(params, means, arms, opening=.99):
   """Remove dynamic gate variation, absorbing calibrated per-head amplitude into static keys."""
   flat = flatten_dict(params)
   modified = []
@@ -265,12 +265,17 @@ def run(args):
       'k_static_fixed1': (('k',), ()),
       'qk_static_fixed1': (('q', 'k'), ()),
       'v_static_fixed1': (('v',), ()),
+      'o_static_fixed1': (('o',), ()),
+      'vo_static_fixed1': (('v', 'o'), ()),
       'q_pre_bias_zero': ((), ('q',)),
       'k_pre_bias_zero': ((), ('k',)),
       'vo_pre_bias_zero': ((), ('vo',)),
       'all_pre_bias_zero': ((), ('q', 'k', 'vo')),
       'qk_fixed1_all_bias_zero': (('q', 'k'), ('q', 'k', 'vo')),
   }
+  if args.vo_followup:
+    variants = {name: arm for name, arm in variants.items()
+                if name in ('original', 'v_static_fixed1', 'o_static_fixed1', 'vo_static_fixed1')}
   prepared = {}
   for name, (fixed, biases) in variants.items():
     p, leaves = zero_biases(params, biases) if biases else (params, [])
@@ -329,13 +334,14 @@ def run(args):
   # Calibrate on first8 sequences; evaluate on remaining24 to avoid evaluation self-calibration.
   calibration = min(8, len(tokens) // 2)
   means = {arm: np.concatenate([g[ARMS.index(arm)] for g in all_gates[:calibration]], axis=1).mean(axis=(1, 2))
-           for arm in ('q', 'k')}
+           for arm in ARMS}
   result['gate_calibration'] = dict(sequence_count=calibration, hashes=hashes[:calibration],
       evaluation_hashes=hashes[calibration:], per_layer_head_mean={a: m.tolist() for a, m in means.items()})
   with mesh, nn.partitioning.axis_rules(cfg.logical_axis_rules):
-    for arms in (('q',), ('k',), ('q', 'k')):
+    for arms in ((('v',), ('o',), ('v', 'o')) if args.vo_followup
+                 else (('q',), ('k',), ('q', 'k'), ('v',), ('o',), ('v', 'o'))):
       name = ''.join(arms) + '_static_mean_absorbed'
-      p, modified = absorb_mean_qk_gates(params, means, arms)
+      p, modified = absorb_mean_static_gates(params, means, arms)
       losses = []
       for t, y in zip(tokens[calibration:], targets[calibration:]):
         losses.append(float(np.asarray(compiled(p, jnp.asarray(t[None]), jnp.asarray(y[None]), jnp.zeros(4, bool))[0]).mean()))
@@ -362,6 +368,7 @@ def run(args):
 if __name__ == '__main__':
   parser = argparse.ArgumentParser()
   parser.add_argument('--self-test', action='store_true')
+  parser.add_argument('--vo-followup', action='store_true')
   parser.add_argument('--checkpoint')
   parser.add_argument('--cohort')
   parser.add_argument('--output')

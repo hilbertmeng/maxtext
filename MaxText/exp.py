@@ -12235,8 +12235,8 @@ class BamMediumPropK75V48EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFull
 class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadSharedGelu128GeneralReadTruePile(BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile):
     """Shared R128 generalized full-M reads; per-layer MLP repayment."""
     # Ledger only: codex/mediumprop-full-m-read-gelu128, /data0/xd/mediumprop-full-m-read-gelu128; code_commit: 8dc92ee.
-    # UE5a v5p-16 .4786step/s (20-99), -.02% vs R256 generalized; same extra health. Running13500.
-    # Bet at13500 vs R256 generalized read: loss+.003, matched speed+1%.
+    # UE5a v5p-16 .4786step/s (20-99), -.02% vs R256 generalized; same extra health. Stopped3407.
+    # vs R256 generalized: Initial deficit contracts to~+.004 by2k, then holds through3200. Last5(2400-3200) +0.004181.
     model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadSharedGelu128GeneralReadTruePile'
     bam_local_full_m_read_bottleneck_dim = 128
     mlp_dim_by_block = [3911, 3783, 3911]
@@ -12246,8 +12246,8 @@ class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMRe
 class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadSharedGelu384GeneralReadTruePile(BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile):
     """Shared R384 generalized full-M reads; per-layer MLP repayment."""
     # Ledger only: codex/mediumprop-full-m-read-gelu128, /data0/xd/mediumprop-full-m-read-gelu128; code_commit: 8dc92ee.
-    # UE5a v5p-16 .4775step/s (20-99), -.26% vs R256 generalized; same extra health. Running13500.
-    # Bet at13500 vs R256 generalized read: loss-.002, matched speed-1%.
+    # UE5a v5p-16 .4775step/s (20-99), -.26% vs R256 generalized; same extra health. Stopped3359.
+    # vs R256 generalized: After1200 deficit fluctuates~+.003; no sustained catch-up. Last5(2400-3200) +0.003311.
     model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadSharedGelu384GeneralReadTruePile'
     bam_local_full_m_read_bottleneck_dim = 384
     mlp_dim_by_block = [3716, 3589, 3716]

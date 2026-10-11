@@ -219,15 +219,22 @@ Local wrapper complete13500; committed13500, node/queue independently NOT_FOUND,
 
 Direct SOTA parent `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile` (R256). Both new children retain one shared down projection and three separate Q/K/VO up projections, completeM75x32, generalized pre-RMS bias/static gates, independentV/O gates, original read scales, pureJAX/Splash/SEQ_MINOR and original extra health. Only shared rank and per-layer MLP repayment change. Runtime 8dc92ee in the existing worktree/branch; main classes are ledger-only.
 
-|Class suffix after FullMRead|TPU ID|Shared rank|MLP widths|Parameters / MHA delta|13500 loss/speed bet vs R256|
+|Class suffix after FullMRead|TPU ID|Shared rank|MLP widths|Parameters / MHA delta|Stopped step / last5 gap vs R256|
 |---|---:|---:|---|---|---|
-|SharedGelu128GeneralReadTruePile|310116|128|3911/3783/3911|432136160 / +14960|+.003 / +1%|
-|SharedGelu384GeneralReadTruePile|310117|384|3716/3589/3716|432129248 / +8048|-.002 / -1%|
+|SharedGelu128GeneralReadTruePile|310116|128|3911/3783/3911|432136160 / +14960|3407 / +.004181|
+|SharedGelu384GeneralReadTruePile|310117|384|3716/3589/3716|432129248 / +8048|3359 / +.003311|
 
 Per128-rank change moves350208=.2432W_Q per layer between shared readers andMLP. Widths minimize each layer's integer parameter mismatch after amortizing fixed global BAM costs, matching the parent's per-layer method; total residual below.004%. R128 here is shared, unlike previous independentR128. Parameter audit reproduces parent's3813/3686/3813 and432111104 before deriving both widths. Artifact `/data0/xd/bam_diagnostics/mediumprop-general-read-rank/budget.json`.
 
 CPU targeted budget/8-device sharding, complete-address forward/consumed gradients and generalized-health export run locally; AOT on verified idle non-preemptibleEW4a `llm-jax-v6e-1-0`, under its shared worker lock, never reclaimed. Spotv5p-16 training prequeues UE5a run concurrently. Dedicated test `scripts/check_mediumprop_general_read_rank.py`, sealed-config andFIRST_STEP gates mandatory. No unrelated fullBAM suite rerun for these config-only children. Plan13500, same200-step loss windows; direct comparator onlyR256generalized, plus MHA-relative advantage ratios as monitoring metric. Manifest/logs `/data0/xd/bam_diagnostics/mediumprop-general-read-rank/runs.json`.
 
-Prediction: further shared-feature width remains useful despite MLP repayment, makingR384 a candidate for~-.002 and R128~+.003; this is uncertain because generalized static gates may reduce demand on dynamic keys. Main GEMM work approximately transfers rather than grows; throughput changes expected small. No early-stop directive supplied.
 
 Both started on UE5a, AOT loaded and actualFIRST_STEP verified; registered TruePile4096 UE5a replica, hash8dc92ee, directR256generalized comparator and health checked. 20–99 mean: R128 .4786375 (-.0183% vs parent.478725), R384 .4775 (-.2559%). Unlike ±1% speed bets, both effectively flat; runtime model source unchanged from64e3fc3, identical health. Evidence `mediumprop-general-read-rank/startup-evidence.json`; manifest records launch gates. Continue shared normal Medium monitoring (~1000 steps/report), same-window loss and MHA-relative advantage multiples.
+
+## Shared-rank sweep stopped
+
+User stop: R128 committed3407, R384 committed3359. Exact common final five windows2400/2600/2800/3000/3200: R128 +.004250/+.004027/+.004346/+.004405/+.003877 (mean+.004181, range[+.003877,+.004405]); R384 +.003097/+.003204/+.002879/+.004926/+.002446 (mean+.003311, range[+.002446,+.004926]). Last3200 MHA-relative advantage ratios .9833/.9894 vs R256generalized. R128 initially caught up quickly then remained~+.004 after2k; R384 fluctuated~+.003 after1200 without sustained catch-up. Both speeds flat (-.0183%/-.2559%); no health instability found.
+
+Within this observed training stage, R256 remains the best budget among128/256/384. Increasing read width did not repay its MLP reduction, and moving parameters in the opposite direction also cost quality; this counters the prediction that further widening would improve generalized reads. The endpoint at13500 was not tested. No throughput benefit appeared, consistent with transferring approximately equal dense projection work.
+
+Both closed via closeout_runs_local.py: committed checkpoints, cached loss, independent final registry stopped/hash check, node+queued-resource NOT_FOUND and local TB SYNC_OK. Each had one UE5a spotv5p-16 assignment, no preemption/candidate/zone switch. R128 READY01:59:58→04:03:40 Oct11 UTC (2h03m42s); R38402:02:02→04:03:42 (2h01m40s). Full report `mediumprop-general-read-rank/report-3200.md`, closeout summary/final proof and logs under the same diagnostic directory; mainexp and regional history synchronized. Retained compiler untouched.

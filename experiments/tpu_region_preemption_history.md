@@ -27,6 +27,7 @@ active leases are censored, and manual migration releases are not preemptions.
 
 | RUN | TPU | Zone | Start UTC | End UTC | End reason | Passive candidates |
 |---|---|---|---|---|---|---|
+| `BamMediumPropK75V48EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadSharedGelu256TruePile` | v5p-16 (`xd-v5p-16-310115-maxtext`) | `us-east5-a` | 2026-10-10 17:05:39 | 2026-10-11 01:32:11 | complete13500;0preemptions; checkpoint committed, node/queue absent, TB synced | none |
 | `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile` | v5p-16 (`xd-v5p-16-310112-maxtext`) | `us-east5-a` | 2026-10-10 16:53:53 | 2026-10-11 01:17:38 | complete13500;1preemptions; checkpoint committed, node/queue absent, TB synced | none |
 | `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadSharedGelu256TruePile` | v5p-16 (`xd-v5p-16-310111-maxtext`) | `us-east5-a` | 2026-10-10 15:04:00 | 2026-10-10 23:09:50 | complete13500;0preemptions; checkpoint committed, node/queue absent, TB synced | none |
 | `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGelu128TruePile` | v5p-16 (`xd-v5p-16-310110-maxtext`) | `us-east5-a` | 2026-10-10 15:05:22 | 2026-10-10 23:16:25 | complete13500;0preemptions; checkpoint committed, node/queue absent, TB synced | none |
@@ -1258,3 +1259,4 @@ active leases are censored, and manual migration releases are not preemptions.
 | `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadSharedGelu256TruePile` | 1 | `us-east5-a` | 2026-10-10 15:04:02 | 2026-10-10 23:09:50 | 8h05m48s | complete13500; resources released |
 | `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGelu128TruePile` | 1 | `us-east5-a` | 2026-10-10 15:05:25 | 2026-10-10 23:16:25 | 8h11m00s | complete13500; resources released |
 | `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile` | 2 | `us-east5-a` | 2026-10-10 23:05:57 | 2026-10-11 01:17:38 | 2h11m41s | complete13500; resources released |
+| `BamMediumPropK75V48EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadSharedGelu256TruePile` | 1 | `us-east5-a` | 2026-10-10 17:05:42 | 2026-10-11 01:32:11 | 8h26m29s | complete13500; resources released |

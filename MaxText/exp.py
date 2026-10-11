@@ -12220,8 +12220,9 @@ class BamMediumPropK75V48EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFull
     """Shared R256 full-M reads on the V48 DirectC12 parent, without compression."""
     # UE5a .4621step/s (20-99), -9.59% vs V48 DirectC12, -7.61% vs V32 sharedR256; both historical runtimes.
     # Same-VM profile: -9.71% vs DirectC12; full-M read contractions explain ~201ms of ~210ms device-step increase.
-    # Bet at13500: vs V48 DirectC12-.008, vs V32 sharedR256-.003; speed-3% vs V48 DirectC12.
     # Ledger only: codex/mediumprop-full-m-read-gelu128, /data0/xd/mediumprop-full-m-read-gelu128; code_commit: 18263e0.
+    # Completed13500; last5 vs V48DirectC12 -0.006441, vs V32sharedR256 -0.002485.
+    # DirectC12 gain contracts early then holds~-.007; V32 gain~-.003 late; read/V expansion interaction +0.005075.
     model_name = 'BamMediumPropK75V48EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadSharedGelu256TruePile'
     bam_v = 48
     bam_write_v_bottleneck_dim = 384

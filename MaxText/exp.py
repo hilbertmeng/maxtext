@@ -12257,7 +12257,7 @@ class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMRe
 class BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile(BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdTruePile):
     """Proportional XL transfer of shared GELU full-M generalized column reads."""
     # Ledger only: codex/mediumprop-full-m-read-gelu128, /data0/xd/mediumprop-full-m-read-gelu128.
-    # code_commit: b83223f; UE5a v5p-32 .3826step/s(20-99); sustained .3126 vs shared .3749 (-16.64%). !? TB-flush periodic stalls; extra health ON.
+    # code_commit: b83223f; UE5a v5p-32 .3826step/s(20-99); sustained .3126 vs shared .3749 (-16.64%). !? TB whole-event reuploads, not architecture-only speed; extra health ON.
     # Historical standard .347: +10.25%, C256 vs new Splash/SEQ_MINOR; runtime unmatched.
     # 1432386360 params, nearest per-layer MHA budget; parent standard rank4.
     # Terminal bet vs parent: loss-.010, matched-health speed-5%.
@@ -12285,7 +12285,7 @@ class BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdFullMReadGe
 class BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdFullMReadSharedGelu400TruePile(BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile):
     """Shared full-M GELU reads alone; original un-gated static reads and no pre-bias."""
     # Ledger only: codex/mediumprop-full-m-read-gelu128, /data0/xd/mediumprop-full-m-read-gelu128.
-    # code_commit: 3425c55; UE5a v5p-32 .3942step/s(20-99); sustained .3749 vs generalized .3126 (+19.96%); generic/concat health ON.
+    # code_commit: 3425c55; UE5a v5p-32 .3942step/s(20-99); sustained .3749 vs generalized .3126 (+19.96%); smaller post-resume TB event; architecture speed unmatched.
     # Historical standard .347: +13.60%, C256 vs new Splash/SEQ_MINOR; runtime unmatched.
     # 1432370680 params; MLP[6167,5979,6167] + terminal6167, nearest per-layer MHA budget.
     # Last-common-stage bet vs standard: loss-.006, matched-health speed-1%.

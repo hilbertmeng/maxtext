@@ -66,3 +66,5 @@ READY租期全部UE5a SPOT v5p-16：A两期17:55:20→17:58:09（2m49，首步�
 B加深收益倍数 `(G18−B)/(BAM18−BAM27)` 在1000/2000/3000/4000/5000/6000/7000/7200为.879/.926/1.032/1.054/1.053/1.032/.996/.982。6400–7200最后五点均值.991，范围.969–1.033；二阶gap均值+.000201。目前基本叠加，中期弱超叠加回落到约1，没有持续折扣趋势。证据B-depth-gain-ratio-latest.json。
 
 XL 24k时，20–99步算术平均速度低估了周期慢步。最新750步的时间平均（对step/s取倒数累加）为泛化G .312572、共享R .374948 step/s，G慢16.64%；普通步中位数.379/.395。慢步每25步出现，位置对应双缓冲TB写出与log_period=25的flush，G慢步约14秒、R约5–6秒；三段250步checkpoint墙钟间隔给出相同差距。checkpoint后台提交约25–33秒、主线程发起不足1秒，不能解释全部差距。计时包括先前步骤的统计写出；问题在于只引用普通步速度/算术平均，而非日志漏计。具体耗时归属尚未做host profile，不直接认定某类指标为根因。双方健康flags相同也不等于实际统计负担相同。证据`/data0/xd/bam_diagnostics/xlprop-general-read/wall-speed-reconciliation.json`及worker-checkpoint-evidence-24000.json。
+
+后续直接核对worker安装的TensorBoardX `record_writer.py`：`GCSRecordWriter.flush()`复制完整BytesIO buffer，再调用`blob.upload_from_string(upload_buffer.getvalue())`，不清空或只传增量。`train.py`每25步flush，故全event重复上传是确定的实现问题。24k本地同步文件G约1167MB；R抢占重启后当前event约292MB（旧event126/234MB不会每次重传）。统计条数与当前worker寿命共同决定开销，两路完整吞吐不构成纯架构计算代价的公平比较。源码证据worker-tb-record-writer-source.txt。后续应在本地写event并后台同步，或定期轮转；尚未修改训练运行时。

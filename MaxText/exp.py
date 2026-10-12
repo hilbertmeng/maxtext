@@ -296,6 +296,12 @@ class BamLlama2Medium(Llama2Medium):
     bam_concat_qk = False
     bam_concat_static_qk = False
     bam_local_qk_direct_c8 = False
+    bam_local_full_m_read_bottleneck_dim = None  # Q/K/shared-VO GELU keys on full M
+    bam_local_full_m_read_share_down = False
+    bam_general_column_read = False
+    bam_general_matrix_write = False  # Historical write variants remain worktree-only.
+    bam_static_read_gate_init = .99
+    bam_static_write_gate_init = .01
     bam_local_vo_shared_read = 'none'  # none | local_o (C8 column donor)
     bam_local_vo_independent_gates = False
     bam_local_qk_share_basis = False  # effective_key Q/K share bases; gates and mixing remain independent.
@@ -10109,6 +10115,23 @@ class BamMHAMediumPropC256TruePile(BamMHAMediumPropC256):
     jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/bam-mha-mediumprop-true-pile'
 
 
+class MuddLlama2MediumPropTruePile(Mudd, BamMHAMediumPropC256TruePile):
+    """MediumProp TruePile4096 Mudd, matched RoPE74/C256 MHA backbone."""
+    # Ledger only: codex/mudd-xlprop-truepile, /data0/xd/mudd-xlprop-truepile.
+    # code_commit: 4fee490; full growing history, 18 layers, MLP budget unchanged.
+    # UE5a v5p-16 ~.630 step/s, -11.8% vs matched generic-health MHA .714.
+    # vs MHA: +1.358 W_Q (+.453%) params; no MLP repayment, as in XL Mudd.
+    # Completed13500: vs MHA early advantage shrank, then stabilized after~12k;
+    # final5 -.086911 (range-.087901..-.086079). NoO MHA gain is1.642x Mudd;
+    # NoO-Mudd final5 -.055837. Both use Prop/TruePile4096.
+    model_name = 'MuddLlama2MediumPropTruePile'
+    DATASET_VARIANT = 'truepile4096'
+    mudd_full_history = True
+    scan_layers = False
+    compare_runs = ['BamMHAMediumPropC256TruePile']
+    jax_cache_dir = ''
+
+
 class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32(
     RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicEmbeddingUnembeddingDirect32):
     """Existing all-local MediumProp dynamic RMT recipe on true 4097-token Pile."""
@@ -12147,7 +12170,7 @@ class BamMediumPropL27K75V48C12EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThi
 
 class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGelu128TruePile(BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdDirectC8TruePile):
     """Three independent R128 GELU full-M keys; V/O share keys, not gates."""
-    # Ledger only: codex/mediumprop-full-m-read-gelu128, /data0/xd/mediumprop-full-m-read-gelu128.
+    # Implementation in refactor-bam; historical runtime: codex/mediumprop-full-m-read-gelu128.
     # code_commit: b4f144a; UE5a v5p-16 .4902step/s(20-99); matched-health/runtime sharedR256 .5001.
     # Historic DirectC8 .508: -3.51%, C256 vs new Splash SEQ_MINOR; runtime unmatched.
     # No C8 compression; full-M static Q/K/V/O and QK57+RoPE18 unchanged.
@@ -12167,7 +12190,7 @@ class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMRe
 
 class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadSharedGelu256TruePile(BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGelu128TruePile):
     """One shared R256 GELU down; separate Q/K/VO up projections."""
-    # Ledger only: codex/mediumprop-full-m-read-gelu128, /data0/xd/mediumprop-full-m-read-gelu128.
+    # Implementation in refactor-bam; historical runtime: codex/mediumprop-full-m-read-gelu128.
     # code_commit: b4f144a; UE5a v5p-16 .5001step/s(20-99), +2.03% vs matched independentR128 .4902.
     # Historic DirectC8 .508: -1.55%, runtime unmatched.
     # Completed13500: vs DirectC8 held~-.012 after6000; last5-.011516.
@@ -12181,7 +12204,7 @@ class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMRe
 
 class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile(BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadSharedGelu256TruePile):
     """Generalized read on the shared R256 full-M parent."""
-    # Ledger only: codex/mediumprop-full-m-read-gelu128, /data0/xd/mediumprop-full-m-read-gelu128; code_commit: 64e3fc3.
+    # Implementation in refactor-bam; historical runtime code_commit: 64e3fc3.
     # UE5a v5p-16 .4787step/s (20-99), -4.28% vs sharedR256; extra health included.
     # Completed13500; vs sharedR256 last5(12600-13400) -.005092; early gain contracts, holds~-.005 after5k.
     # Matched profile speed -4.08%; generalized health extra, its incremental cost unseparated.
@@ -12256,7 +12279,7 @@ class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMRe
 
 class BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile(BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdTruePile):
     """Proportional XL transfer of shared GELU full-M generalized column reads."""
-    # Ledger only: codex/mediumprop-full-m-read-gelu128, /data0/xd/mediumprop-full-m-read-gelu128.
+    # Implementation in refactor-bam; historical runtime: codex/mediumprop-full-m-read-gelu128.
     # code_commit: b83223f; UE5a v5p-32 .3826step/s(20-99), -2.95% vs shared; extra health ON.
     # Late wall .2564 vs shared .3472; TB whole-event uploads impaired speed, architecture timing unmatched.
     # Historical standard .347: +10.25%, C256 vs new Splash/SEQ_MINOR; runtime unmatched.
@@ -12288,7 +12311,7 @@ class BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdFullMReadGe
 
 class BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdFullMReadSharedGelu400TruePile(BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile):
     """Shared full-M GELU reads alone; original un-gated static reads and no pre-bias."""
-    # Ledger only: codex/mediumprop-full-m-read-gelu128, /data0/xd/mediumprop-full-m-read-gelu128.
+    # Implementation in refactor-bam; historical runtime: codex/mediumprop-full-m-read-gelu128.
     # code_commit: 3425c55; UE5a v5p-32 .3942step/s(20-99), +3.04% vs generalized.
     # Late wall .3472 vs generalized .2564; TB whole-event uploads, architecture timing unmatched.
     # Historical standard .347: +13.60%, C256 vs new Splash/SEQ_MINOR; runtime unmatched.

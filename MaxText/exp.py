@@ -12321,3 +12321,54 @@ class BamMediumPropL27K75V48EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdF
     bam_layer_modes = ['local_qk+local_v+local_o'] * 27
     mlp_dim_by_block = [1952, 1736, 1952]
     compare_runs = ['BamMediumPropK75V48EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadSharedGelu384GeneralReadTruePile', 'BamMediumPropL27K75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile']
+
+
+class MuddLlama2MediumPropTruePile(Mudd, BamMHAMediumPropC256TruePile):
+    """MediumProp TruePile4096 Mudd, matched RoPE74/C256 MHA backbone."""
+    # Ledger only: codex/mudd-xlprop-truepile, /data0/xd/mudd-xlprop-truepile.
+    # code_commit: 4fee490; full growing history, 18 layers, MLP budget unchanged.
+    # UE5a v5p-16 ~.630 step/s, -11.8% vs matched generic-health MHA .714.
+    # vs MHA: +1.358 W_Q (+.453%) params; no MLP repayment, as in XL Mudd.
+    # Completed13500: vs MHA early advantage shrank, then stabilized after~12k;
+    # final5 -.086911 (range-.087901..-.086079). NoO MHA gain is1.642x Mudd;
+    # NoO-Mudd final5 -.055837. Both use Prop/TruePile4096.
+    model_name = 'MuddLlama2MediumPropTruePile'
+    DATASET_VARIANT = 'truepile4096'
+    mudd_full_history = True
+    scan_layers = False
+    compare_runs = ['BamMHAMediumPropC256TruePile']
+    jax_cache_dir = ''
+
+
+class BamMHAMediumPropC256T2048(BamMHAMediumPropC256TruePile):
+    """MediumProp T2048 context control; 256 sequences, 524288 targets/step."""
+    model_name = 'BamMHAMediumPropC256T2048'
+    DATASET_VARIANT = 'legacy2048'
+    dataset_path = 'gs://newproject-1-llm_base_models_us-central1/data/pythia_pile_idxmaps_tfrecord'
+    max_target_length = 2048
+    per_device_batch_size = 32.0
+    jax_cache_dir = ''
+    compare_runs = ['BamMHAMediumPropC256TruePile']
+
+
+class MuddLlama2MediumPropT2048(MuddLlama2MediumPropTruePile):
+    """Historical full-history MediumProp Mudd, with T2048 and doubled batch."""
+    model_name = 'MuddLlama2MediumPropT2048'
+    DATASET_VARIANT = 'legacy2048'
+    dataset_path = BamMHAMediumPropC256T2048.dataset_path
+    max_target_length = 2048
+    per_device_batch_size = 32.0
+    jax_cache_dir = ''
+    compare_runs = ['BamMHAMediumPropC256T2048', 'MuddLlama2MediumPropTruePile']
+
+
+class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadT2048(BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile):
+    """Shared R256/generalized-read MediumProp T2048 context arm, historical gates."""
+    model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadT2048'
+    DATASET_VARIANT = 'legacy2048'
+    dataset_path = BamMHAMediumPropC256T2048.dataset_path
+    max_target_length = 2048
+    per_device_batch_size = 32.0
+    jax_cache_dir = ''
+    compare_runs = ['BamMHAMediumPropC256T2048', 'MuddLlama2MediumPropT2048',
+                    'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile']

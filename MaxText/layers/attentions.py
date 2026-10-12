@@ -3859,7 +3859,7 @@ class BamAttention(Attention):
     inputs_q = nn.with_logical_constraint(inputs_q, self.input_axis_names)
     inputs_kv = nn.with_logical_constraint(inputs_kv, self.input_axis_names)
     full_m_shared_hidden = (nn.gelu(self.full_m_read_down(inputs_q))
-                            if self._full_m_read_share_down else None)
+                            if getattr(self, '_full_m_read_share_down', False) else None)
 
     concat_qk = bool(getattr(cfg, 'bam_concat_qk', False))
     if concat_qk:
@@ -3875,6 +3875,13 @@ class BamAttention(Attention):
     # ---- QKV projection + QKNorm + RoPE ----
     if cfg.fused_qkv:
       query, key, value = self.qkv_projection(inputs_q, proj_name="qkv_proj")
+    elif cfg.bam_mha_control and cfg.dense_conn and cfg.dynamic_dense_type == 'qkvm':
+      # Preserve the historical Mudd control's independent Q/K/V histories.
+      assert isinstance(inputs_kv, (tuple, list)) and len(inputs_kv) == 2
+      inputs_k, inputs_v = inputs_kv
+      query = self.query_projection(inputs_q)
+      key = self.kv_projection(inputs_k, proj_name='key')
+      value = self.kv_projection(inputs_v, proj_name='value')
     else:
       query = self.query_projection(inputs_q, standard_qk_width if concat_qk else None)
       key = self.kv_projection(inputs_kv, proj_name="key",

@@ -12406,6 +12406,7 @@ class BamMediumPropFullMGeneralReadFinalMatrixVGateTruePile(BamMediumPropFullMGe
     # @800/1000 parent+.001072/-.000108: tiny first sign crossing, parity only; SOTA+.014989/+.011667.
     # @1400/1600/1800/2000 parent gaps-.000680/-.001811/-.001488/-.002006; @2000 SOTA+.004434.
     # @3000 parent gap-.001943/SOTA+.004264;9 consecutive parent wins, recent5-.001681/+.004910; training active.
+    # @4000 parent gap-.001605/SOTA+.004170; recent5-.001630/+.003929; user authorizes5000 trend review.
     model_name = 'BamMediumPropFullMGeneralReadFinalMatrixVGateTruePile'
     bam_final_matrix_v_gate = True
     compare_runs = ['BamMediumPropFullMGeneralReadFinalMatrixResidualTruePile', 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile']

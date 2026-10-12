@@ -160,3 +160,12 @@ All five RUNs healthy, no preemptions, UE5a v5p-16. Committed checkpoints static
 Gated RUN actually launched on xd-v5p-16-310150-maxtext, sealed runtime1810a414e287b0f069e2e50a4aa8fb3b1ee74139. Targeted CPU, TB regressions, AOT and training-only queue passed; FIRST_STEP8 and actual step38 verified. Worker loaded compiled function and resolved TB rotation500. Registry/controller agree on runtime, direct compares (ungated parent+SOTA), UE5a TruePile4096 replica and AOT artifact. Mean20-99 speed pending; startup10-14 recorded separately. Retained FLEX compiler remains borrowed only. Artifacts vgate-registry.json, vgate-controller-env.txt, vgate-worker.log, launch-vgate.log.
 
 Gated startup proof: mean10-14.4814; mean20-99.479450step/s (+.1044% vs final-M parent, +.1514% vs SOTA). No material speed cost. Artifactvgate-startup-proof.json.
+
+
+## First-batch closeout and revised direct-B decision
+
+User explicitly stopped the first two arms, superseding the previous5000+ patience instruction. Static final committed checkpoint4531; lookup4427. closeout failures=[], zero estimated lost steps, both TPU/queued resources verified absent; local TB SYNC_OK for both. Final common4400 gaps static-SOTA+.014657 (r200+.009), lookup-SOTA+.008160 (+.058), lookup-static-.006497 (-.047). Last-five means+.015254/+.008487/-.006767. Neither loss bet achieved by this stop; no claim about unobserved full-training endpoint. Static improved early gradient behavior without loss improvement; lookup startup advantage narrowed despite extra parameters. Artifacts closeout-first-batch.json, loss-stopped-0.txt and loss-stopped-1.txt.
+
+All leases: UE5a v5p-16, zero preemptions, one READY lease each. Static2026-10-12T10:28:18Z..13:09:58Z (2h41m40s), lookup10:30:23Z..13:10:00Z (2h39m37s), manual stop. No zone switch or passive candidates.
+
+Direct-B now user-authorized to stop at2800 if no clear sustained catch-up. Latest2000/2200/2400 SOTA gaps+.014502/+.015022/+.016623, two widening windows; do not extrapolate startup-driven long-window mean into a recent convergence claim. Final-M and gated final-M continue. Gate200 parent+.0147588/SOTA+.1214154; actual initial equivalence verified, current training difference is an early result, not an implementation mismatch by itself. Gate cursor200; direct/final-M2200/2000 until next cumulative report.

@@ -411,6 +411,8 @@ active leases are censored, and manual migration releases are not preemptions.
 | `RMT middle-reverse follow-up profiles` | v5p-16 (`xd-v5p-16-rmt-midv2-0927-uc1a`) | `us-central1-a` | 2026-09-27 15:51:34 (submitted) | 2026-09-27 16:31:40 (verified absent) | all7 profiles complete; manual release; no preemption | none |
 | `RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32` | v5p-16 (`xd-v5p-16-2709272-maxtext`) | `us-east5-a` | 2026-09-28 03:05:29 | 2026-09-28 05:42:16 | stopped3442 after NoO matched loss with fewer params and higher speed; 0 preemptions; TPU/queue absent, TB synced | none |
 | `BamMHAMediumPropC256TruePile` | v5p-16 (`xd-v5p-16-2709271-maxtext`) | `us-east5-a` | 2026-09-28 03:05:44 | 2026-09-28 08:30:36 | completed13500; 0 preemptions; TPU/queue absent, TB synced | none |
+| `BamMediumPropFullMGeneralReadStaticEmbeddingTruePile` | v5p-16 (`xd-v5p-16-310127-maxtext`) | `us-east5-a` | 2026-10-12 10:28:15 | 2026-10-12 13:09:58 | user stop4531;0preemptions; checkpoint committed, node/queue absent, TB SYNC_OK | none |
+| `BamMediumPropFullMGeneralReadMatrixEmbeddingTruePile` | v5p-16 (`xd-v5p-16-310128-maxtext`) | `us-east5-a` | 2026-10-12 10:30:21 | 2026-10-12 13:10:00 | user stop4427;0preemptions; checkpoint committed, node/queue absent, TB SYNC_OK | none |
 
 ## READY leases
 
@@ -1228,7 +1230,6 @@ active leases are censored, and manual migration releases are not preemptions.
 | `RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicEmbedding` | 6 | `us-east5-a` | 2026-09-26 20:43:57 | 2026-09-27 00:33:13 | 3h49m16s | completed13500; TPU/queue absent, TB synced |
 | `RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicUnembeddingDirect32` | 3 | `us-east5-a` | 2026-09-26 19:10:38 | 2026-09-27 01:31:10 | 6h20m32s | completed13500; TPU/queue absent, TB synced |
 | `RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicEmbeddingUnembeddingDirect32` | 2 | `us-east5-a` | 2026-09-26 20:43:59 | 2026-09-27 03:51:11 | 7h7m12s | completed13500; TPU/queue absent, TB synced |
-| `RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicEmbeddingUnembeddingDirect32L22` | 1 | `us-east5-a` | 2026-09-27 00:29:56 | — | censored | active; prequeue READY precedes registry00:30:07 |
 | `RMT Pallas profile sweep` | 1 | `us-central1-a` | 2026-09-27 05:54:13 | 2026-09-27 07:16:51–07:24:58 | 1h22m38s–1h30m45s | preempted; end bounded by last observed step/terminal-state check |
 | `RMT Pallas final + MHA profile` | 1 | `us-central1-a` | 2026-09-27 07:30:30 | 2026-09-27 08:00:31 (verified absent) | ≤30m01s | completed profiles, manual release; upper bound uses absence verification |
 | `RMT middle-reverse follow-up profiles` | 1 | `us-central1-a` | 2026-09-27 15:55:42 (first observed READY) | 2026-09-27 16:31:40 (verified absent) | ≤35m58s observed window | all7 profiles complete; no preemption; exact xd-v5p-16-rmt-midv2-0927-uc1a node/queue absent; both retained v6e hosts remain READY |
@@ -1243,3 +1244,6 @@ active leases are censored, and manual migration releases are not preemptions.
 | `BamMediumPropD1152H32K72V64C16AllLocalMLPWriteIndependentEveryThirdDirectCTruePile` | 1 | `us-east5-a` | 2026-10-10 06:24:51 | 2026-10-10 09:43:57 | 3h19m06s | review stop3828; resources released |
 | `BamMediumPropD1152H24K96V48C12AllLocalMLPWriteIndependentEveryThirdDirectCTruePile` | 1 | `us-east5-a` | 2026-10-10 06:24:55 | 2026-10-10 14:10:20 | 7h45m25s | user stop10893; resources released |
 | `BamMediumPropL27K75V48C12EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdDirectCTruePile` | 1 | `us-east5-a` | 2026-10-10 08:04:40 | 2026-10-10 14:10:25 | 6h05m45s | user stop7926; resources released |
+| `BamMediumPropFullMGeneralReadStaticEmbeddingTruePile` | 1 | `us-east5-a` | 2026-10-12 10:28:18 | 2026-10-12 13:09:58 | 2h41m40s | user stop4531; resources released, TB SYNC_OK |
+| `BamMediumPropFullMGeneralReadMatrixEmbeddingTruePile` | 1 | `us-east5-a` | 2026-10-12 10:30:23 | 2026-10-12 13:10:00 | 2h39m37s | user stop4427; resources released, TB SYNC_OK |
+| `RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicEmbeddingUnembeddingDirect32L22` | 1 | `us-east5-a` | 2026-09-27 00:29:56 | — | censored | active; prequeue READY precedes registry00:30:07 |

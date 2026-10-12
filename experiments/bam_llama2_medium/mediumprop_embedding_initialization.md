@@ -125,3 +125,13 @@ Direct-SOTA200/400+.018091/+.029939 (r200+.655); direct-static-.298284/-.084685 
 All four healthy, no preemptions. First two committed2800; user-requested continuation honored. Static-SOTA2200/2400/2600/2800+.020473/+.019843/+.017759/+.017515; lookup-SOTA+.009379/+.010516/+.009449/+.009505; lookup-static-.011094/-.009328/-.008310/-.008010. Last-five mean/range: static+.018931/[+.017515,+.020473], lookup+.009357/[+.007936,+.010516], lookup-static-.009574/[-.011127,-.008010]. Static catch-up slows; lookup near+.009 recently. Neither continued rapid convergence nor permanent plateau established. Continue through5000 and extend if warranted, not a2800 stop.
 
 New arms common200/400/600: direct-SOTA+.018091/+.029939/+.026574 (r200+.655,-.112); direct-static-.298284/-.084685/-.044644 (-.716,-.473); final-M-SOTA+.106657/+.031168/+.017734 (-.708,-.431). Final-M now ahead of direct by.008840 at600, reversing initial ordering; observe800..1000 for persistence. Speed unchanged. New checkpoints >=600, report cursors600; old cursors2800. Artifacts loss-first2800-new600.txt and loss-lookup2800.txt.
+
+
+## Follow-up800 review
+
+New200/400/600/800: direct-SOTA+.018091/+.029939/+.026574/+.019046 (latest r200-.283); direct-static-.298284/-.084685/-.044644/-.030127 (-.325); final-M-SOTA+.106657/+.031168/+.017734/+.013917 (-.215). Both catching up after400, final-M still slightly better at800, neither beats SOTA. New report cursors800, checkpoints>=800. Old RUN status3115/3023, normal speed, no preemptions; patient observation continues. Artifactloss-new800.txt.
+
+
+## Follow-up1000 review
+
+Direct-SOTA200/400/600/800/1000+.018091/+.029939/+.026574/+.019046/+.020135 (latest r200+.057); direct-static-.298284/-.084685/-.044644/-.030127/-.022238 (-.262); final-M-SOTA+.106657/+.031168/+.017734/+.013917/+.011775 (-.154). Five-point means direct-SOTA+.022757, final-M+.036250 are skewed by startup; ranges+.018091..+.029939 and+.011775..+.106657. Final-M continues four successive catch-up windows, direct near+.020 in800/1000. Provisional prediction: final-M more likely to catch SOTA first; direct establishes faster early adaptation versus factors, not superior final capacity. New checkpoints1000 and report cursors1000. Old progress3284/3195 healthy, static3200+.015783 and lookup3000+.008508 continue slow convergence; old cursors2800. Artifactloss-four-new1000.txt.

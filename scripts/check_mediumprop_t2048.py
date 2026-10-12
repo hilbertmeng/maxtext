@@ -50,7 +50,8 @@ for name,_ in rows[1:]:
   if 'FullMRead' in name:
    cfg.get_keys().update(bam_write_v_bottleneck_dim=8,emb_bam_v_bottleneck_dim=8,
        bam_mlp_write_address_rank=8,bam_local_full_m_read_bottleneck_dim=8,
-       mlp_dim_by_block=[16,12,16])
+       emb_bam_num_head=2,bam_mlp_write_num_heads=0,mlp_dim_by_block=[16,12,16],
+       bam_layer_modes=cfg.bam_layer_modes[:3])
   mesh=jax.sharding.Mesh(np.array(jax.devices()[:1]).reshape((1,)*len(cfg.mesh_axes)),cfg.mesh_axes)
   model=Transformer(cfg,mesh,quant=None)
   tok=jnp.array([[1,2,3,4]],jnp.int32)

@@ -1233,6 +1233,26 @@ class Decoder(nn.Module):
       if getattr(cfg, 'bam_pallas_core', False):
         order = (0, 3, 1, 2) if getattr(cfg, 'bam_pallas_body', None) in ('v7', 'v7u') else (0, 3, 2, 1)
         final_matrix = jnp.transpose(final_matrix, order)
+      if getattr(cfg, 'bam_final_matrix_v_gate', False):
+        gate_logits = linears.DenseGeneral(
+            features=int(cfg.bam_v), axis=-1,
+            kernel_init=lambda key, shape, dtype, *unused_axes, **unused: jnp.zeros(shape, dtype),
+            kernel_axes=("embed", "v_factor"), dtype=cfg.dtype,
+            weight_dtype=cfg.weight_dtype, name="final_matrix_v_gate", quant=self.quant,
+            matmul_precision=cfg.matmul_precision, use_bias=False)(main_head_inputs)
+        opening = float(cfg.bam_static_read_gate_init)
+        upper_bound = 1.0 if cfg.bam_static_read_gate_sigmoid else 1.1
+        if not 0.0 < opening < upper_bound:
+          raise ValueError("Final M gate opening must lie within the inherited read-gate range")
+        bias = nn.unbox(self.variable(
+            'params', 'final_matrix_v_gate_bias', nn.with_logical_partitioning(
+                lambda: jnp.full((int(cfg.bam_v),),
+                                 math.log(opening / (upper_bound - opening)), cfg.weight_dtype),
+                ('v_factor',))).value)
+        gate = upper_bound * jax.nn.sigmoid(gate_logits + jnp.asarray(bias, cfg.dtype))
+        if not cfg.bam_static_read_gate_sigmoid:
+          gate = gate / opening
+        final_matrix = final_matrix * gate[..., None, :]
       main_head_inputs = main_head_inputs + linears.DenseGeneral(
           features=cfg.emb_dim, axis=(-2, -1),
           kernel_init=lambda key, shape, dtype, *unused_axes, **unused: jnp.zeros(shape, dtype),

@@ -12380,3 +12380,14 @@ class BamMediumPropFullMGeneralReadFinalMatrixResidualTruePile(BamMediumPropK75E
     bam_final_matrix_residual = True
     mlp_dim_by_block = [3769, 3641, 3769]
     compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile']
+
+
+class BamMediumPropFullMGeneralReadFinalMatrixVGateTruePile(BamMediumPropFullMGeneralReadFinalMatrixResidualTruePile):
+    """Final residual predicts32 column gates, matching generalized static-read gate math."""
+    # Runtime worktree: /data0/xd/mediumprop-full-m-read-gelu128.
+    # User explicitly keeps MLP[3769,3641,3769]; +38432=.026689W_Q vs final-M parent.
+    # Gate kernel0, biaslog9; 1.1*sigmoid/.99 => initial effective multiplier1, matching parent reads.
+    # Bet final loss-.003 and speed-.1% vs final-M parent; planned13500, review2800/5000.
+    model_name = 'BamMediumPropFullMGeneralReadFinalMatrixVGateTruePile'
+    bam_final_matrix_v_gate = True
+    compare_runs = ['BamMediumPropFullMGeneralReadFinalMatrixResidualTruePile', 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile']

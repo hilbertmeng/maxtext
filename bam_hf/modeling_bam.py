@@ -36,6 +36,15 @@ except ImportError:
   except Exception:  # pylint: disable=broad-except
     _decode_attention = None
 
+try:   # Triton per-token M read/write kernels (CUDA); without them the batched-GEMM path is used
+  from .bam_m_kernels import bam_read as _bam_read, bam_write as _bam_write
+except ImportError:
+  try:
+    _m = importlib.import_module('bam_m_kernels')
+    _bam_read, _bam_write = _m.bam_read, _m.bam_write
+  except Exception:  # pylint: disable=broad-except
+    _bam_read = _bam_write = None
+
 try:
   from .configuration_bam import BamConfig
 except ImportError:      # repo scripts import this file as a top-level module (not via trust_remote_code)
@@ -133,6 +142,16 @@ def batched_write(M, content, address):
   b, t = M.shape[:2]
   return torch.baddbmm(M.reshape(b * t, *M.shape[2:]), content.reshape(b * t, -1, content.shape[-1]).transpose(1, 2),
                        address.reshape(b * t, -1, address.shape[-1])).reshape(M.shape)
+
+
+def triton_write(M, *groups):
+  """groups of raw (content [B,T,N,K], gate logits [B,T,N], address [B,T,N,V]); one or two."""
+  b, t = M.shape[:2]
+  flat = lambda c, g, a: (c.reshape(b * t, *c.shape[2:]), g.reshape(b * t, -1), a.reshape(b * t, *a.shape[2:]))
+  g1 = flat(*groups[0])
+  g2 = flat(*groups[1]) if len(groups) > 1 else g1
+  out = _bam_write(M.reshape(b * t, *M.shape[2:]), *g1, *g2, len(groups) > 1, 1e-6)
+  return out.reshape(M.shape)
 
 
 def gate_part(g):
@@ -296,9 +315,13 @@ class BamAttention(nn.Module):
 
   GATES = ('q_read', 'k_read', 'v_read', 'o_read', 'q_static', 'k_static', 'v_static', 'o_static')
 
-  def fuse(self):
-    """Every projection of x as one GEMM, the three read-key ups as another (inference)."""
+  def fuse(self, triton_m=False):
+    """Every projection of x as one GEMM, the three read-key ups as another (inference).
+    triton_m: per-token M read/write in the fused Triton kernels (bam_m_kernels)."""
     n = self.num_heads
+    self.triton_m = triton_m and _bam_read is not None
+    self.register_buffer('static_keys', torch.stack(
+        [self.q_static_key, self.k_static_key, self.v_static_key, self.o_static_key]).contiguous(), persistent=False)
     gates = [gate_part(getattr(self, g + '_gate')) for g in self.GATES]
     self.fused_x = fused_linear((self.q_proj.weight, None), (self.k_proj.weight, None), (self.read_down.weight, None),
                                 *gates, (self.write_address_down.weight, None), gate_part(self.write_gate))
@@ -316,15 +339,17 @@ class BamAttention(nn.Module):
     n = self.num_heads
     if self.fused_x is not None:
       qs, ks, down, gates, wdown, wgate, _ = self.fused_x(x).split(self._x_sizes, -1)
-      keys = self.fused_up(gelu(down))[..., :3 * self.q_read_up.out_features].unflatten(-1, (3, n, -1)).unbind(-3)
+      keys = self.fused_up(gelu(down))[..., :3 * self.q_read_up.out_features]
+      raw = (keys, gates)                                      # views consumed by the Triton read
+      keys = keys.unflatten(-1, (3, n, -1)).unbind(-3)
       gates = dict(zip(self.GATES, gates.unflatten(-1, (8, n)).unbind(-2)))
-      return qs.unflatten(-1, (n, -1)), ks.unflatten(-1, (n, -1)), keys, gates, wdown, wgate
+      return qs.unflatten(-1, (n, -1)), ks.unflatten(-1, (n, -1)), keys, gates, wdown, wgate, raw
     hidden = gelu(self.read_down(x))
     keys = (self.q_read_up(hidden) + self.q_read_pre_bias.to(x.dtype),
             self.k_read_up(hidden) + self.k_read_pre_bias.to(x.dtype),
             self.vo_read_up(hidden) + self.vo_read_pre_bias.to(x.dtype))
     gates = {g: getattr(self, g + '_gate')(x) for g in self.GATES}
-    return self.q_proj(x), self.k_proj(x), keys, gates, self.write_address_down(x), self.write_gate(x)
+    return self.q_proj(x), self.k_proj(x), keys, gates, self.write_address_down(x), self.write_gate(x), None
 
   def _static_read(self, M, key, gate):
     """M [B,T,K',V] . s [V,N] -> [B,T,N,K'], times 1.1 sigmoid(gate) / init."""
@@ -353,7 +378,20 @@ class BamAttention(nn.Module):
   def forward(self, x, M, positions, attention_mask=None, past_key_value: Optional[Cache] = None,
               defer_write=False):
     """x [B,T,H] (pre-normed), M [B,T,K,V]. Returns (out, M_out or write factors)."""
-    qs, ks, (q_key, k_key, vo_key), g, wdown, wgate = self._projections(x)
+    qs, ks, (q_key, k_key, vo_key), g, wdown, wgate, raw = self._projections(x)
+    if self.fused_x is not None and self.triton_m and x.is_cuda:     # fused Triton M kernels
+      b, t = x.shape[:2]
+      y = _bam_read(M.reshape(b * t, *M.shape[2:]), raw[0].reshape(b * t, 3, self.num_heads, -1),
+                    raw[1].reshape(b * t, 8, self.num_heads), self.static_keys,
+                    self.read_eps, self.read_scale, self.static_gate_init)
+      yq, yk, v, local_o = y.reshape(b, t, 4, self.num_heads, -1).unbind(2)
+      q = torch.cat((yq[..., :self.qk_cols], self.rotary(qs, positions)), dim=-1)
+      k = torch.cat((yk[..., :self.qk_cols], self.rotary(ks, positions)), dim=-1)
+      q = q / torch.tensor(math.sqrt(self.head_dim), dtype=q.dtype)
+      o_head = causal_attention(q, k, v, self.layer_idx, attention_mask, past_key_value) + local_o
+      factors = (o_head, wgate, self.padded_write_address_up(gelu(wdown)))     # raw: normalized in-kernel
+      out = self.o_proj(o_head.flatten(-2))
+      return out, factors if defer_write else triton_write(M, factors)
     if self.fused_x is not None:      # inference path: stacked reads, one batched write
       yq, yk, v, local_o = self._stacked_reads(M, q_key, k_key, vo_key, g)
       q = torch.cat((yq[..., :self.qk_cols], self.rotary(qs, positions)), dim=-1)
@@ -435,8 +473,12 @@ class BamMLPWrite(nn.Module):
     return [gate_part(self.gate), (self.address_down.weight, None)]
 
   def forward(self, hidden, mlp_out, M, attention_factors, fused=()):
-    gated, address = attention_factors
     logits, down = fused if fused else (self.gate(hidden), self.address_down(hidden))
+    if fused and len(attention_factors) == 3:      # Triton write: raw factors, both groups in one kernel
+      mlp_address = self.padded_address_up(gelu(down))
+      return triton_write(M, attention_factors,
+                          (mlp_out.unflatten(-1, (self.num_heads, self.bam_k)), logits, mlp_address))
+    gated, address = attention_factors
     content = rms_norm(mlp_out.unflatten(-1, (self.num_heads, self.bam_k)), self.eps)
     mlp_content = torch.sigmoid(logits)[..., None] * content
     mlp_address = rms_norm((self.padded_address_up if fused else self.address_up)(gelu(down)), self.eps)
@@ -466,8 +508,11 @@ class BamDecoderLayer(nn.Module):
          else self.mlp_write(hidden, mlp_out, M, M_or_factors, extra))
     return mlp_out + x, M
 
-  def fuse(self):
-    self.self_attn.fuse()
+  def fuse(self, triton_m=False):
+    if isinstance(self.self_attn, BamAttention):
+      self.self_attn.fuse(triton_m)
+    else:
+      self.self_attn.fuse()
     self.mlp.fuse(self.mlp_write.projections() if self.mlp_write is not None else ())
 
 
@@ -566,10 +611,11 @@ class BamForCausalLM(BamPreTrainedModel):
     return self.lm_head
 
   @torch.no_grad()
-  def fuse_projections(self):
-    """Inference-time GEMM fusion: every projection sharing an input becomes one GEMM (both models)."""
+  def fuse_projections(self, triton_m=True):
+    """Inference-time GEMM fusion: every projection sharing an input becomes one GEMM (both models);
+    BAM's per-token M reads/writes use the fused Triton kernels when available (triton_m)."""
     for layer in self.model.layers:
-      layer.fuse()
+      layer.fuse(triton_m)
     return self
 
   def set_output_embeddings(self, new_embeddings):

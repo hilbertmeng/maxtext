@@ -17,6 +17,7 @@ M is per token (it never mixes positions), so incremental decoding caches only a
 runtime e30c1b8): the same decoder with standard Q/K/V projections, RoPE over the whole head and
 no M stream, as in MaxText where both models share the fusion decoder layer.
 """
+import importlib
 import math
 from typing import List, Optional, Tuple, Union
 
@@ -27,18 +28,18 @@ from transformers import PreTrainedModel
 from transformers.cache_utils import Cache, DynamicCache
 from transformers.modeling_outputs import BaseModelOutputWithPast, CausalLMOutputWithPast
 
-try:   # optional Triton decode kernel (CUDA); falls back to SDPA
+try:   # Triton split-KV decode kernel (CUDA); without it decoding falls back to SDPA
+  from .bam_decode_attention import decode_attention as _decode_attention
+except ImportError:
   try:
-    from .bam_decode_attention import decode_attention as _decode_attention
-  except ImportError:
-    from bam_decode_attention import decode_attention as _decode_attention
-except Exception:  # pylint: disable=broad-except
-  _decode_attention = None
+    _decode_attention = importlib.import_module('bam_decode_attention').decode_attention
+  except Exception:  # pylint: disable=broad-except
+    _decode_attention = None
 
 try:
   from .configuration_bam import BamConfig
-except ImportError:      # loaded as a top-level module
-  from configuration_bam import BamConfig
+except ImportError:      # repo scripts import this file as a top-level module (not via trust_remote_code)
+  BamConfig = importlib.import_module('configuration_bam').BamConfig
 
 
 def rms_norm(x, eps):

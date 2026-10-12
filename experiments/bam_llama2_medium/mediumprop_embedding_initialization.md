@@ -24,3 +24,12 @@ Independent E_M[50432,75,32], iid Normal(0,.01865), used directly as M0[token]. 
 At13500 versus parent: static loss0 (plausible-.003..+.005), speed+0.5%; lookup loss-.005, speed0% (both expected within~1%). Direct matrix capacity is interesting as value-embedding/Engram/deep-embedding-style capacity without extra dense compute. Monitor raw/global grad norm, clipping, embedding leaf gradient concentration and downstream read health; removing a parameter is not evidence that global spikes improve.
 
 Focused pinned CPU script `scripts/check_mediumprop_embedding_init.py`: actual full budgets/sharding/WD (including parent regression), actual-width initialization/linearity/W_U seed, scanned reduced-model forward/backward, nonzero consumed A/S/table gradients, lookup repeated-token identity and sparse support of table gradients, finite exported read health. No broad normalization/optimizer changes. Local gate and artifacts `/data0/xd/bam_diagnostics/mediumprop-embedding-init/`. Sealed runtime check, retained-worker AOT and real FIRST_STEP required for both.
+
+
+## Runtime infrastructure audit and launch
+
+Reviewed main `3006f7fe0ae1fd59a7c4d8ffff4666920025ed37` against the family branch for train/max_utils/summary_writer/checkpointing/train_compile/optimizer/base-default changes. Main-only operational fix5ae86564 was missing: GCS event rotation every500steps. Cherry-picked without changing model math; final runtime `f6ce0a497d48ada044471f62ccf7b9f63d145943`. Both original launch gates were stopped before training; owned prequeues retained, superseded waiting lookup AOT canceled, borrowed compiler preserved. New CPU and exact-commit AOT gates completed via the sequential retained-worker workflow before handing the same trainers to auto-train.
+
+Pinned checks passed for parent and both arms: full parameter budgets, FSDP8 layout, WD exclusions, scanned forward/backward and health export. Five TensorBoard tests passed, including real multi-file continuous scalar recovery. Both AOT manifests are keyed byf6ce0a4/v5p-16/s13500. Registry confirms sealed hash, UE5a TruePile4096 data and requested compare_runs. Actual training reached static17 and lookup21 via registry wait-step14; both worker logs confirm loaded AOT and TB period500. Startup throughput approximately .48step/s for both; exact20-99 comparison pending.
+
+Verified mean10-14: static.4808, lookup.4780step/s; snapshots at91/41. Proof: `startup-proof.json` plus `static-worker.log`/`lookup-worker.log` under the artifact directory. No matched20-99 speed conclusion yet.

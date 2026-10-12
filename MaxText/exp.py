@@ -12327,6 +12327,8 @@ class BamMediumPropFullMGeneralReadStaticEmbeddingTruePile(BamMediumPropK75Embed
     """Raw embedding content, static addresses and learned elementwise M scale."""
     # Runtime: codex/mediumprop-full-m-read-gelu128, /data0/xd/mediumprop-full-m-read-gelu128.
     # UE5a v5p-16; planned13500, review2800/5000. Bet loss0, speed+0.5% vs SOTA.
+    # code_commit: f6ce0a4; params432109616; UE5a v5p-16 startup10-14 .4808step/s.
+    # GCS TB event rotation500; actual compiled FIRST_STEP verified; training active.
     model_name = 'BamMediumPropFullMGeneralReadStaticEmbeddingTruePile'
     bam_embedding_init_mode = 'static'
     bam_embedding_matrix_scale_init = 3.74
@@ -12338,6 +12340,8 @@ class BamMediumPropFullMGeneralReadMatrixEmbeddingTruePile(BamMediumPropFullMGen
     """Independent V x75x32 matrix embedding; same MLP widths as static arm."""
     # Runtime: codex/mediumprop-full-m-read-gelu128, /data0/xd/mediumprop-full-m-read-gelu128.
     # UE5a v5p-16; planned13500, review2800/5000. Bet loss-.005, speed0% vs SOTA.
+    # code_commit: f6ce0a4; params551703504; UE5a v5p-16 startup10-14 .4780step/s.
+    # GCS TB event rotation500; actual compiled FIRST_STEP verified; training active.
     model_name = 'BamMediumPropFullMGeneralReadMatrixEmbeddingTruePile'
     bam_embedding_init_mode = 'lookup'
     bam_embedding_matrix_std = .01865

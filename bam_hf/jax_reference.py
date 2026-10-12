@@ -33,11 +33,14 @@ EXP = 'BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdFullMReadG
 def build(exp, t, b, dtype, layers=None):
   tmp = tempfile.mkdtemp()
   os.makedirs(os.path.join(tmp, 'hfref'), exist_ok=True)
+  extra = {}
+  if 'bam_splash_attention:' in open('MaxText/configs/base.yml').read():
+    extra['bam_splash_attention'] = False      # Splash is TPU-only; T % 128 == 0 would select it on CPU
   c = pyconfig.initialize(
       [None, 'MaxText/configs/base.yml'], exp_class=exp, run_name='hfref', enable_checkpointing=False,
       base_output_directory=tmp + '/', jax_cache_dir='', log_config=False, dataset_type='synthetic',
       max_target_length=t, max_prefill_predict_length=t, per_device_batch_size=float(b),
-      attention='dot_product', dtype=dtype)
+      attention='dot_product', dtype=dtype, **extra)
   if layers:   # shallow fixture for strict alignment (deep random networks are chaotic)
     update = dict(base_num_decoder_layers=layers, num_decoder_layers=layers)
     if getattr(c, 'bam_enabled', False):
@@ -70,7 +73,8 @@ def restore_params(path, abstract):
   target = jax.tree.map(lambda s: jax.ShapeDtypeStruct(s.shape, s.dtype, sharding=cpu), abstract)
   ckptr = ocp.PyTreeCheckpointer()
   meta = ckptr.metadata(path)
-  tree = meta.tree if hasattr(meta, 'tree') else meta
+  tree = getattr(meta, 'item_metadata', meta)        # orbax >= 0.11 returns StepMetadata
+  tree = getattr(tree, 'tree', tree)
   assert 'params' in tree, list(tree)
   item = {'params': {'params': target}} if 'params' in tree['params'] else {'params': target}
   restore_args = jax.tree.map(lambda s: ocp.ArrayRestoreArgs(sharding=cpu, global_shape=s.shape, dtype=s.dtype),

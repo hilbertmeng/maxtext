@@ -29,9 +29,9 @@ from transformers.modeling_outputs import BaseModelOutputWithPast, CausalLMOutpu
 
 try:   # optional Triton decode kernel (CUDA); falls back to SDPA
   try:
-    from .kernels.decode_attention import decode_attention as _decode_attention
+    from .bam_decode_attention import decode_attention as _decode_attention
   except ImportError:
-    from kernels.decode_attention import decode_attention as _decode_attention
+    from bam_decode_attention import decode_attention as _decode_attention
 except Exception:  # pylint: disable=broad-except
   _decode_attention = None
 
@@ -116,6 +116,13 @@ def fused_linear(*parts):
   if layer.bias is not None:
     layer.bias.data.copy_(bias)
   return layer
+
+
+def batched_write(M, content, address):
+  """M + sum_n content[n,k] address[n,v] per token, as one baddbmm. M [B,T,K,V]."""
+  b, t = M.shape[:2]
+  return torch.baddbmm(M.reshape(b * t, *M.shape[2:]), content.reshape(b * t, -1, content.shape[-1]).transpose(1, 2),
+                       address.reshape(b * t, -1, address.shape[-1])).reshape(M.shape)
 
 
 def gate_part(g):
@@ -305,10 +312,34 @@ class BamAttention(nn.Module):
     col = torch.einsum('btkv,btnv->btnk', M, r)[..., :self.qk_cols]
     return col + self._static_read(M[:, :, :self.qk_cols], static_key, static_gate)
 
+  def _stacked_reads(self, M, q_key, k_key, vo_key, g):
+    """All reads of the layer as one per-token GEMM Y_t = X_t M_t^T (every read is linear in M_t):
+    rows of X_t [4N, V] are q/k/v/o; static reads enter as gate * static key."""
+    sg = lambda name, key: (1.1 * torch.sigmoid(g[name]) / self.static_gate_init)[..., None] * key.T.to(M.dtype)
+    dyn = lambda name, key: (self.read_scale * torch.sigmoid(g[name]))[..., None] * key
+    vo = rms_norm(vo_key, self.read_eps)
+    x = torch.stack((dyn('q_read', rms_norm(q_key, self.read_eps)) + sg('q_static', self.q_static_key),
+                     dyn('k_read', rms_norm(k_key, self.read_eps)) + sg('k_static', self.k_static_key),
+                     dyn('v_read', vo) + sg('v_static', self.v_static_key),
+                     dyn('o_read', vo) + sg('o_static', self.o_static_key)), dim=-3)       # [B,T,4,N,V]
+    b, t = M.shape[:2]
+    y = torch.matmul(x.reshape(b * t, -1, x.shape[-1]), M.reshape(b * t, *M.shape[2:]).transpose(1, 2))
+    return y.reshape(b, t, 4, self.num_heads, -1).unbind(2)                                 # 4 x [B,T,N,K]
+
   def forward(self, x, M, positions, attention_mask=None, past_key_value: Optional[Cache] = None,
               defer_write=False):
     """x [B,T,H] (pre-normed), M [B,T,K,V]. Returns (out, M_out or write factors)."""
     qs, ks, (q_key, k_key, vo_key), g, wdown, wgate = self._projections(x)
+    if self.fused_x is not None:      # inference path: stacked reads, one batched write
+      yq, yk, v, local_o = self._stacked_reads(M, q_key, k_key, vo_key, g)
+      q = torch.cat((yq[..., :self.qk_cols], self.rotary(qs, positions)), dim=-1)
+      k = torch.cat((yk[..., :self.qk_cols], self.rotary(ks, positions)), dim=-1)
+      q = q / torch.tensor(math.sqrt(self.head_dim), dtype=q.dtype)
+      o_head = causal_attention(q, k, v, self.layer_idx, attention_mask, past_key_value) + local_o
+      factors = (torch.sigmoid(wgate)[..., None] * rms_norm(o_head[..., :self.bam_k], self.eps),
+                 rms_norm(self.write_address_up(gelu(wdown)), self.eps))
+      out = self.o_proj(o_head.flatten(-2))
+      return out, factors if defer_write else batched_write(M, *factors)
     q = torch.cat((self._qk_read(M, q_key, g['q_read'], self.q_static_key, g['q_static']),
                    self.rotary(qs, positions)), dim=-1)
     k = torch.cat((self._qk_read(M, k_key, g['k_read'], self.k_static_key, g['k_static']),
@@ -376,6 +407,8 @@ class BamMLPWrite(nn.Module):
     content = rms_norm(mlp_out.unflatten(-1, (self.num_heads, self.bam_k)), self.eps)
     mlp_content = torch.sigmoid(logits)[..., None] * content
     mlp_address = rms_norm(self.address_up(gelu(down)), self.eps)
+    if fused:     # one batched write for both groups
+      return batched_write(M, torch.cat((gated, mlp_content), -2), torch.cat((address, mlp_address), -2))
     return M + (torch.einsum('btnk,btnv->btkv', gated, address)
                 + torch.einsum('btnk,btnv->btkv', mlp_content, mlp_address))
 

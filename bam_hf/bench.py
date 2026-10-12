@@ -14,6 +14,7 @@ import os
 import sys
 import time
 
+os.environ.setdefault('PYTORCH_CUDA_ALLOC_CONF', 'expandable_segments:True')
 import torch
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -102,6 +103,8 @@ def main():
       r[f'decode_bs{b}'] = bench_decode(model, int(b), a.context, a.steps, a.compile)
       r[f'decode_bs{b}']['peak_gib'] = torch.cuda.max_memory_allocated() / 2**30
       print(name, f'decode_bs{b}', r[f'decode_bs{b}'], flush=True)
+      torch._dynamo.reset()        # release this batch size's CUDA-graph pool before the next
+      torch.cuda.empty_cache()
     del model
     torch._dynamo.reset()
     torch.cuda.empty_cache()

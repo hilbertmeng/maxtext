@@ -284,6 +284,8 @@ class BamAttention(nn.Module):
     self.q_proj = HeadLinear(h, (n, config.standard_qk_dim))
     self.k_proj = HeadLinear(h, (n, config.standard_qk_dim))
     self.rotary = BamRotary(config.standard_qk_dim, config.rope_min_timescale, config.rope_max_timescale)
+    assert config.rope_min_timescale == 1.0       # the Triton read applies max_ts ** (2i / R)
+    self.rotary_max_timescale = float(config.rope_max_timescale)
     # Read keys: shared GELU bottleneck, per-arm up projection + pre-bias.
     self.read_down = nn.Linear(h, r, bias=False)
     self.q_read_up = HeadLinear(r, (n, v))
@@ -338,9 +340,10 @@ class BamAttention(nn.Module):
     write address hidden [., Rw] (pre-GELU) and write-gate logits [.,N]."""
     n = self.num_heads
     if self.fused_x is not None:
-      qs, ks, down, gates, wdown, wgate, _ = self.fused_x(x).split(self._x_sizes, -1)
+      xs = self.fused_x(x)
+      qs, ks, down, gates, wdown, wgate, _ = xs.split(self._x_sizes, -1)
       keys = self.fused_up(gelu(down))[..., :3 * self.q_read_up.out_features]
-      raw = (keys, gates)                                      # views consumed by the Triton read
+      raw = (keys, gates, xs[..., :2 * self._x_sizes[0]])     # views for the Triton read (std Q|K adjacent)
       keys = keys.unflatten(-1, (3, n, -1)).unbind(-3)
       gates = dict(zip(self.GATES, gates.unflatten(-1, (8, n)).unbind(-2)))
       return qs.unflatten(-1, (n, -1)), ks.unflatten(-1, (n, -1)), keys, gates, wdown, wgate, raw
@@ -381,13 +384,18 @@ class BamAttention(nn.Module):
     qs, ks, (q_key, k_key, vo_key), g, wdown, wgate, raw = self._projections(x)
     if self.fused_x is not None and self.triton_m and x.is_cuda:     # fused Triton M kernels
       b, t = x.shape[:2]
-      y = _bam_read(M.reshape(b * t, *M.shape[2:]), raw[0].reshape(b * t, 3, self.num_heads, -1),
-                    raw[1].reshape(b * t, 8, self.num_heads), self.static_keys,
-                    self.read_eps, self.read_scale, self.static_gate_init)
-      yq, yk, v, local_o = y.reshape(b, t, 4, self.num_heads, -1).unbind(2)
-      q = torch.cat((yq[..., :self.qk_cols], self.rotary(qs, positions)), dim=-1)
-      k = torch.cat((yk[..., :self.qk_cols], self.rotary(ks, positions)), dim=-1)
-      q = q / torch.tensor(math.sqrt(self.head_dim), dtype=q.dtype)
+      n = self.num_heads
+      std = raw[2].reshape(b * t, 2, n, -1)                       # unrotated standard Q/K, one view
+      rope = b * t < 64     # decode: RoPE/q-scale inside the read kernel (fewer kernels); prefill: in torch
+      y = _bam_read(M.reshape(b * t, *M.shape[2:]), raw[0].reshape(b * t, 3, n, -1), raw[1].reshape(b * t, 8, n),
+                    self.static_keys, std, positions.reshape(-1).contiguous(), self.read_eps, self.read_scale,
+                    self.static_gate_init, self.qk_cols, 1.0 / math.sqrt(self.head_dim), self.rotary_max_timescale,
+                    rope)
+      q, k, v, local_o = y.reshape(b, t, 4, n, -1).unbind(2)
+      if not rope:
+        q = torch.cat((q[..., :self.qk_cols], self.rotary(qs, positions)), dim=-1)
+        k = torch.cat((k[..., :self.qk_cols], self.rotary(ks, positions)), dim=-1)
+        q = q / torch.tensor(math.sqrt(self.head_dim), dtype=q.dtype)
       o_head = causal_attention(q, k, v, self.layer_idx, attention_mask, past_key_value) + local_o
       factors = (o_head, wgate, self.padded_write_address_up(gelu(wdown)))     # raw: normalized in-kernel
       out = self.o_proj(o_head.flatten(-2))

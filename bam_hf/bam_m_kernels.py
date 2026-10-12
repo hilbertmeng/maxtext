@@ -8,6 +8,8 @@ write: M'_t = M_t + sum_g C_g^T A_g with C_g = sigmoid(gate_g) rms(content_g) [N
        for one or two groups (attention write, plus the MLP write on its layers).
 Inputs may be strided views (e.g. column slices of a fused projection output). Accumulation is FP32.
 """
+import math
+
 import torch
 import triton
 import triton.language as tl
@@ -18,12 +20,39 @@ def _prec(m):
 
 
 @triton.jit
-def _read_kernel(M, KEYS, GATES, S, Y, T,
-                 s_mt, s_kt, s_karm, s_kn, s_gt, s_y_t,
+def _store_rows(y, a, n, k, t, Y, s_y_t, STD, POS, s_st, s_sn, s_sarm, nm, km, N: tl.constexpr, K: tl.constexpr,
+                QCOLS: tl.constexpr, R: tl.constexpr, RB: tl.constexpr, QSCALE: tl.constexpr,
+                LOG_MAX_TS: tl.constexpr):
+  """Store rows (arm a, head n) of token t. Q/K arms (a < 2) keep the M-read columns < QCOLS and take the
+  rotated standard coordinates in columns >= QCOLS (half-split RoPE over R dims, timescale max_ts ** (2i/R));
+  Q is scaled by QSCALE. The tail is computed on a narrow [rows, RB] tile and stored separately."""
+  scale = tl.where(a == 0, QSCALE, 1.0)
+  qk = a < 2
+  row = Y + t * s_y_t + a * N * K + n * K
+  keep = nm[:, None] & km[None, :] & ~(qk[:, None] & (k >= QCOLS)[None, :])
+  tl.store(row[:, None] + k[None, :], (y * scale[:, None]).to(Y.dtype.element_ty), mask=keep)
+  j = tl.arange(0, RB)
+  half = R // 2
+  i = tl.where(j < half, j, j - half)
+  partner = tl.where(j < half, j + half, j - half)
+  tail = (qk & nm)[:, None] & (j < R)[None, :]
+  base = STD + t * s_st + tl.minimum(a, 1)[:, None] * s_sarm + n[:, None] * s_sn
+  s1 = tl.load(base + j[None, :], mask=tail, other=0.).to(tl.float32)
+  s2 = tl.load(base + partner[None, :], mask=tail, other=0.).to(tl.float32)
+  pos = tl.load(POS + t).to(tl.float32)
+  ang = pos / tl.exp(LOG_MAX_TS * 2.0 * i.to(tl.float32) / R)
+  rot = s1 * tl.cos(ang)[None, :] + tl.where(j < half, -1.0, 1.0)[None, :] * s2 * tl.sin(ang)[None, :]
+  tl.store(row[:, None] + QCOLS + j[None, :], (rot * scale[:, None]).to(Y.dtype.element_ty), mask=tail)
+
+
+@triton.jit
+def _read_kernel(M, KEYS, GATES, S, Y, T, STD, POS,
+                 s_mt, s_kt, s_karm, s_kn, s_gt, s_y_t, s_st, s_sn, s_sarm,
                  N: tl.constexpr, K: tl.constexpr, V: tl.constexpr,
                  BN: tl.constexpr, BK: tl.constexpr, BV: tl.constexpr,
                  EPS: tl.constexpr, SCALE: tl.constexpr, STATIC_DIV: tl.constexpr, PREC: tl.constexpr,
-                 TB: tl.constexpr, STAGES: tl.constexpr):
+                 QCOLS: tl.constexpr, R: tl.constexpr, RB: tl.constexpr, QSCALE: tl.constexpr,
+                 LOG_MAX_TS: tl.constexpr, ROPE: tl.constexpr, TB: tl.constexpr, STAGES: tl.constexpr):
   """Program (token block, arm): TB tokens, software-pipelined; one [BN,BV]x[BV,BK] tensor-core
   product per token. M_t is shared by the four arm programs through L2."""
   a = tl.program_id(0)                            # arm fastest: the 4 programs of a token block run together (L2)
@@ -43,17 +72,22 @@ def _read_kernel(M, KEYS, GATES, S, Y, T,
     inv = tl.rsqrt(tl.sum(key * key, axis=1) / V + EPS)
     x = (SCALE * tl.sigmoid(gd) * inv)[:, None] * key + (1.1 * tl.sigmoid(gs) / STATIC_DIV)[:, None] * st
     y = tl.dot(x.to(mkv.dtype), tl.trans(mkv), input_precision=PREC)     # [BN, BK] fp32
-    tl.store(Y + t * s_y_t + a * N * K + n[:, None] * K + k[None, :], y.to(Y.dtype.element_ty),
-             mask=nm[:, None] & km[None, :])
+    if ROPE:
+      _store_rows(y, tl.zeros_like(n) + a, n, k, t, Y, s_y_t, STD, POS, s_st, s_sn, s_sarm, nm, km, N, K,
+                  QCOLS, R, RB, QSCALE, LOG_MAX_TS)
+    else:
+      tl.store(Y + t * s_y_t + a * N * K + n[:, None] * K + k[None, :], y.to(Y.dtype.element_ty),
+               mask=nm[:, None] & km[None, :])
 
 
 @triton.jit
-def _read_kernel_stacked(M, KEYS, GATES, S, Y, T,
-                         s_mt, s_kt, s_karm, s_kn, s_gt, s_y_t,
+def _read_kernel_stacked(M, KEYS, GATES, S, Y, T, STD, POS,
+                         s_mt, s_kt, s_karm, s_kn, s_gt, s_y_t, s_st, s_sn, s_sarm,
                          N: tl.constexpr, K: tl.constexpr, V: tl.constexpr,
                          BN: tl.constexpr, BK: tl.constexpr, BV: tl.constexpr,
                          EPS: tl.constexpr, SCALE: tl.constexpr, STATIC_DIV: tl.constexpr, PREC: tl.constexpr,
-                         TB: tl.constexpr, STAGES: tl.constexpr):
+                         QCOLS: tl.constexpr, R: tl.constexpr, RB: tl.constexpr, QSCALE: tl.constexpr,
+                         LOG_MAX_TS: tl.constexpr, ROPE: tl.constexpr, TB: tl.constexpr, STAGES: tl.constexpr):
   """Program = TB tokens; per token one [4*BN, BV] x [BV, BK] product with the four arms stacked as rows
   (row r: arm r // BN, head r % BN), so M_t is read once and X is gathered in one 2-D load."""
   r = tl.arange(0, 4 * BN)
@@ -73,16 +107,24 @@ def _read_kernel_stacked(M, KEYS, GATES, S, Y, T,
     inv = tl.rsqrt(tl.sum(key * key, axis=1) / V + EPS)
     x = (SCALE * tl.sigmoid(gd) * inv)[:, None] * key + (1.1 * tl.sigmoid(gs) / STATIC_DIV)[:, None] * st
     y = tl.dot(x.to(mkv.dtype), tl.trans(mkv), input_precision=PREC)
-    tl.store(Y + t * s_y_t + a[:, None] * N * K + n[:, None] * K + k[None, :], y.to(Y.dtype.element_ty),
-             mask=nm[:, None] & km[None, :])
+    if ROPE:
+      _store_rows(y, a, n, k, t, Y, s_y_t, STD, POS, s_st, s_sn, s_sarm, nm, km, N, K, QCOLS, R, RB, QSCALE,
+                  LOG_MAX_TS)
+    else:
+      tl.store(Y + t * s_y_t + a[:, None] * N * K + n[:, None] * K + k[None, :], y.to(Y.dtype.element_ty),
+               mask=nm[:, None] & km[None, :])
 
 
 @torch.library.custom_op('bam::read', mutates_args=())
 def bam_read(m: torch.Tensor, keys: torch.Tensor, gates: torch.Tensor, static_keys: torch.Tensor,
-             eps: float, scale: float, static_div: float) -> torch.Tensor:
+             std: torch.Tensor, positions: torch.Tensor, eps: float, scale: float, static_div: float,
+             qk_cols: int, q_scale: float, max_timescale: float, rope: bool) -> torch.Tensor:
   """m [T,K,V] contiguous; keys [T,3,N,V] (q, k, vo; any token/arm/head strides, unit V stride);
   gates [T,8,N] logits (dyn q,k,v,o then static q,k,v,o; unit stride within the 8N block);
-  static_keys [4,V,N] contiguous. Returns Y [T,4,N,K]."""
+  static_keys [4,V,N] contiguous; std [T,2,N,R] unrotated standard Q/K coordinates (unit R stride);
+  positions [T] int. With `rope`, returns attention-ready Y [T,4,N,K]: q (scaled by q_scale), k, v, local_o
+  with q/k columns >= qk_cols holding the rotated standard coordinates (fewer kernels when decoding);
+  without, Y is the raw read (q/k columns >= qk_cols are unused) and the caller applies RoPE."""
   t, kdim, vdim = m.shape
   n = keys.shape[2]
   assert m.is_contiguous() and static_keys.is_contiguous() and keys.stride(-1) == 1
@@ -90,19 +132,27 @@ def bam_read(m: torch.Tensor, keys: torch.Tensor, gates: torch.Tensor, static_ke
   y = torch.empty((t, 4, n, kdim), device=m.device, dtype=m.dtype)
   if not t:
     return y
-  args = (m, keys, gates, static_keys, y, t, m.stride(0), keys.stride(0), keys.stride(1), keys.stride(2),
-          gates.stride(0), y.stride(0))
+  assert std.stride(-1) == 1 and positions.is_contiguous()
+  args = (m, keys, gates, static_keys, y, t, std, positions, m.stride(0), keys.stride(0), keys.stride(1),
+          keys.stride(2), gates.stride(0), y.stride(0), std.stride(0), std.stride(2), std.stride(1))
   meta = dict(N=n, K=kdim, V=vdim, BN=max(16, triton.next_power_of_2(n)), BK=triton.next_power_of_2(kdim),
-              BV=max(16, triton.next_power_of_2(vdim)), EPS=eps, SCALE=scale, STATIC_DIV=static_div, PREC=_prec(m))
+              BV=max(16, triton.next_power_of_2(vdim)), EPS=eps, SCALE=scale, STATIC_DIV=static_div, PREC=_prec(m),
+              QCOLS=qk_cols, R=kdim - qk_cols, RB=triton.next_power_of_2(kdim - qk_cols), QSCALE=q_scale, LOG_MAX_TS=math.log(max_timescale), ROPE=rope)
   if t < 64:     # decode: one program per (arm, token) for latency (A800: 3.7 us at T=1)
     _read_kernel[(4, t)](*args, **meta, TB=1, STAGES=1, num_warps=4)
   else:          # prefill: four arms stacked into one product per token, M_t read once (A800: 131 us at T=4096)
-    _read_kernel_stacked[(triton.cdiv(t, 4),)](*args, **meta, TB=4, STAGES=3, num_warps=4)
+    for stages in ((2, 1) if rope else (3, 2, 1)):   # shared-memory budget differs (A800 164 KB, RTX 6000D 99 KB)
+      try:
+        _read_kernel_stacked[(triton.cdiv(t, 4),)](*args, **meta, TB=4, STAGES=stages, num_warps=4)
+        break
+      except triton.runtime.errors.OutOfResources:
+        if stages == 1:
+          raise
   return y
 
 
 @bam_read.register_fake
-def _(m, keys, gates, static_keys, eps, scale, static_div):
+def _(m, keys, gates, static_keys, std, positions, eps, scale, static_div, qk_cols, q_scale, max_timescale, rope):
   return m.new_empty((m.shape[0], 4, keys.shape[2], m.shape[1]))
 
 

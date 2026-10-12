@@ -113,3 +113,15 @@ Preparation incident: model CPU assertions passed, but editing a still-executing
 Both checkpoint200 committed, no preemptions. Direct-SOTA+.018091, direct-static-.298284; final-M-SOTA+.106657. Both new report cursors200; old cursors remain2000 until their next full report. Direct20-99.4786375step/s (-.01828% vs SOTA, -.06264% vs static); final-M20-99.478950 (+.04700% vs SOTA), matching their repaid compute budgets. New-runtime AOT loaded and TB500 verified in both actual worker logs.
 
 Direct removes most of the factored static arm's early+.316 deficit despite retaining no entrance RMSNorm and using narrower MLP. This supports factor parameterization/optimization as an important startup bottleneck rather than normalization removal alone. Rank release versus optimizer geometry is not separated; initialization distributions match but RNG leaves differ. Final-M route initially regresses; no benefit established, observe400..1000 before deciding. Old arms at2435/2363 healthy; latest unacknowledged2400 static-SOTA+.019843 and2200 lookup-SOTA+.009379 slightly flatten after2000; do not infer plateau or stop from these few windows. Artifactloss-four-first200.txt.
+
+
+## Follow-up400 review
+
+Direct-SOTA200/400+.018091/+.029939 (r200+.655); direct-static-.298284/-.084685 (r200-.716); final-M-SOTA+.106657/+.031168 (r200-.708). Both new checkpoint400 committed and report cursors400. Direct remains substantially ahead of factored static at the same step, but its SOTA deficit widens; final-M catches up strongly and is almost level with direct at400. Therefore the200-step pattern does not establish final ordering. Continue200-step review while directions are unsettled. Old RUNs remain healthy; lookup-SOTA2000/2200/2400+.007936/+.009379/+.010516 mildly reverses its earlier catch-up, while static2600+.017759. Old report cursors remain2000, next cumulative report2800. Artifacts loss-four-second400.txt and loss-new400.txt.
+
+
+## First-batch2800 / second-batch600 review
+
+All four healthy, no preemptions. First two committed2800; user-requested continuation honored. Static-SOTA2200/2400/2600/2800+.020473/+.019843/+.017759/+.017515; lookup-SOTA+.009379/+.010516/+.009449/+.009505; lookup-static-.011094/-.009328/-.008310/-.008010. Last-five mean/range: static+.018931/[+.017515,+.020473], lookup+.009357/[+.007936,+.010516], lookup-static-.009574/[-.011127,-.008010]. Static catch-up slows; lookup near+.009 recently. Neither continued rapid convergence nor permanent plateau established. Continue through5000 and extend if warranted, not a2800 stop.
+
+New arms common200/400/600: direct-SOTA+.018091/+.029939/+.026574 (r200+.655,-.112); direct-static-.298284/-.084685/-.044644 (-.716,-.473); final-M-SOTA+.106657/+.031168/+.017734 (-.708,-.431). Final-M now ahead of direct by.008840 at600, reversing initial ordering; observe800..1000 for persistence. Speed unchanged. New checkpoints >=600, report cursors600; old cursors2800. Artifacts loss-first2800-new600.txt and loss-lookup2800.txt.

@@ -12331,7 +12331,7 @@ class BamMediumPropFullMGeneralReadStaticEmbeddingTruePile(BamMediumPropK75Embed
     # GCS TB event rotation500; actual compiled FIRST_STEP verified; training active.
     # 20-99 .47894step/s (+.04%); @200 loss+.316375 vs SOTA; early raw-grad median1.063 vs6.381.
     # Through600: SOTA gap+.3164/+.1146/+.0712 at200/400/600; catching up, health improved.
-    # @2000 SOTA+.019063; gaps still shrinking. User:2800 review only, patiently continue through5000+ if converging.
+    # @2800 SOTA+.017515; catch-up slows, last5+.018931. User requests patient continuation through5000+.
     model_name = 'BamMediumPropFullMGeneralReadStaticEmbeddingTruePile'
     bam_embedding_init_mode = 'static'
     bam_embedding_matrix_scale_init = 3.74
@@ -12347,7 +12347,7 @@ class BamMediumPropFullMGeneralReadMatrixEmbeddingTruePile(BamMediumPropFullMGen
     # GCS TB event rotation500; actual compiled FIRST_STEP verified; training active.
     # 20-99 .47624step/s (-.52%); @200 loss+.041272 vs SOTA/-.275103 vs static; raw-grad median1.140.
     # Through600: SOTA gap+.0413/+.0143/+.0215 at200/400/600; no sustained catch-up yet.
-    # @2000 SOTA+.007936/static-.011127; sustained catch-up1400..2000. User:2800 review only, patience through5000+.
+    # @2800 SOTA+.009505/static-.008010; last5 SOTA+.009357, recent flattening. User: continue through5000+.
     model_name = 'BamMediumPropFullMGeneralReadMatrixEmbeddingTruePile'
     bam_embedding_init_mode = 'lookup'
     bam_embedding_matrix_std = .01865
@@ -12361,7 +12361,7 @@ class BamMediumPropFullMGeneralReadDirectEmbeddingTruePile(BamMediumPropFullMGen
     # Bet final loss-.003 vs static / -.001 vs SOTA; matched-budget speed within1%.
     # code_commit: 0f5f6c4; params432121104 (+10000 vs SOTA); TPU310131, UE5a v5p-16.
     # Actual AOT FIRST_STEP and14 passed; mean20-99 .4786375step/s (-.06% vs static/-.02% vs SOTA).
-    # @200 SOTA+.018091/static-.298284: direct parameterization largely removes factored startup deficit.
+    # @600 SOTA+.026574/static-.044644; removes most factored startup deficit, no SOTA win yet.
     model_name = 'BamMediumPropFullMGeneralReadDirectEmbeddingTruePile'
     bam_embedding_init_mode = 'direct'
     mlp_dim_by_block = [3798, 3671, 3798]
@@ -12375,7 +12375,7 @@ class BamMediumPropFullMGeneralReadFinalMatrixResidualTruePile(BamMediumPropK75E
     # Bet final loss-.005 vs SOTA; matched-budget speed within1%; +2 W_Q repaid from MLP.
     # code_commit: 0f5f6c4; params432118304 (+7200 vs SOTA); TPU310130, UE5a v5p-16.
     # Actual AOT FIRST_STEP and14 passed; mean20-99 .478950step/s (+.05% vs SOTA).
-    # @200 SOTA+.106657: early regression; keep observing400..1000 for catch-up.
+    # @200/400/600 SOTA+.106657/+.031168/+.017734: sustained catch-up, ahead of direct by.008840 at600.
     model_name = 'BamMediumPropFullMGeneralReadFinalMatrixResidualTruePile'
     bam_final_matrix_residual = True
     mlp_dim_by_block = [3769, 3641, 3769]

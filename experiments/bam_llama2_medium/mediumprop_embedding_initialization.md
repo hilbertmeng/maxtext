@@ -181,3 +181,12 @@ Final-M2800 SOTA+.006140 (r200+.003), last-five+.006638 vs previous+.008992. Con
 ## Gate800/1000 sign crossing
 
 Gate-parent200/400/600/800/1000+.014759/+.010329/+.003595/+.001072/-.000108; r200-.300/-.652/-.702/-.899. First sign crossing at1000 is tiny: parity established provisionally, stable benefit not yet. Gate-SOTA+.121415/+.041497/+.021329/+.014989/+.011667. Gate1000 checkpoint committed; cursor1000. Parent3000 SOTA+.006207, with2600/2800/3000+.006122/+.006140/+.006207 nearly flat; parent cursor remains2800 until next cumulative review. Both healthy/unpreempted. Artifactloss-final-gate1000.txt. Continue200-step gate review after crossing.
+
+User restores normal1000-step report cadence after gate1200. Keep loss-window interval200 and silent ~10min liveness checks; next combined parent4000/gate2000. Gate1200 parent+.000612 (crosses back from1000-.000108), SOTA+.010205: parity, no established gain. Artifactloss-final-gate1200.txt.
+
+
+## Parent4000 / gate2000 normal-cadence review
+
+Both healthy/unpreempted, checkpoint4200/2000 committed. Parent SOTA3000/3200/3400/3600/3800/4000+.006207/+.006546/+.004865/+.005688/+.004922/+.005775; last-five+.005559 vs previous+.006592, slow catch-up. Gate-parent1200/1400/1600/1800/2000+.000612/-.000680/-.001811/-.001488/-.002006, four consecutive negative windows; last-four mean-.00149625. Gate-SOTA+.010205/+.007134/+.006332/+.006149/+.004434, last-five+.006851. Signed interpretation: the gate advantage has grown after parity, even though the report's generic 'toward0' label can be misleading across sign crossings. r200 near zero has large ratios and is secondary to signed gap.
+
+Research update: residual-conditioned column gating now shows a small persistent local benefit against the same-MLP, same-shared-initialization parent with only38432 extra parameters (+.008894%). The total final-M branch has not yet beaten original SOTA. Gated route more promising than ungated; continue both, preserving direct parent baseline. Report cursors parent4000/gate2000; normal1000-step cadence, next approximately5000/3000. Artifactloss-final4000-gate2000.txt.

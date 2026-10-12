@@ -50,6 +50,7 @@ from flax.linen import partitioning as nn_partitioning
 
 from tensorboardX import writer
 from google.cloud import storage
+from summary_writer import create_summary_writer
 
 HYBRID_RING_64X4 = "hybrid_ring_64x4"
 HYBRID_RING_32X8 = "hybrid_ring_32x8"
@@ -113,7 +114,11 @@ def summarize_size_from_pytree(params):
 
 def initialize_summary_writer(config):
   summary_writer_path = os.path.join(config.tensorboard_dir) # lsp
-  return writer.SummaryWriter(summary_writer_path) if jax.process_index() == 0 else None
+  if jax.process_index() != 0:
+    return None
+  return create_summary_writer(
+      summary_writer_path, getattr(config, "tensorboard_gcs_rotate_period", 500), writer.SummaryWriter
+  )
 
 
 def close_summary_writer(summary_writer):

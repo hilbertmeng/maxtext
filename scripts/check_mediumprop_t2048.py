@@ -7,17 +7,18 @@ import pyconfig, max_utils, train_compile
 from layers.models import Transformer
 
 defs=runpy.run_path('MaxText/exp.py')
-rows=[('BamMHAMediumPropC256T2048','BamMHAMediumPropC256TruePile'),
-      ('MuddLlama2MediumPropT2048','MuddLlama2MediumPropTruePile'),
+rows=[('BamMHAMediumPropC256T2048Matched','BamMHAMediumPropC256TruePile'),
+      ('MuddLlama2MediumPropC256T2048','MuddLlama2MediumPropTruePile'),
       ('BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadT2048',
        'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile')]
 allowed={'model_name','DATASET_VARIANT','dataset_path','max_target_length',
-         'per_device_batch_size','jax_cache_dir','compare_runs'}
+         'per_device_batch_size','jax_cache_dir','compare_runs','bam_splash_attention'}
 audit=[]
 for name,parent in rows:
  a,b=defs[name],defs[parent]
  changed={k for k in dir(a) if not k.startswith('__') and getattr(a,k)!=getattr(b,k,None)}
  assert changed<=allowed,(name,changed-allowed)
+ if 'FullMRead' not in name:assert a.bam_splash_attention is False
  assert a.max_target_length*a.per_device_batch_size == b.max_target_length*b.per_device_batch_size
  assert a.DATASET_VARIANT=='legacy2048' and a.steps==b.steps==13500
  counts=[]

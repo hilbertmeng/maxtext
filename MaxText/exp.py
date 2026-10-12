@@ -12372,3 +12372,16 @@ class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMRe
     jax_cache_dir = ''
     compare_runs = ['BamMHAMediumPropC256T2048', 'MuddLlama2MediumPropT2048',
                     'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile']
+
+
+class BamMHAMediumPropC256T2048Matched(BamMHAMediumPropC256T2048):
+    """T2048 length control preserving the historical T4096 C256 BF16-logits core."""
+    model_name = 'BamMHAMediumPropC256T2048Matched'
+    bam_splash_attention = False
+
+
+class MuddLlama2MediumPropC256T2048(MuddLlama2MediumPropT2048):
+    """Full-history Mudd T2048, preserving its historical C256 attention core."""
+    model_name = 'MuddLlama2MediumPropC256T2048'
+    bam_splash_attention = False
+    compare_runs = ['BamMHAMediumPropC256T2048Matched', 'MuddLlama2MediumPropTruePile']

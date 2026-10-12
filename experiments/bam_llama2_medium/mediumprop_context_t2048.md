@@ -31,6 +31,7 @@ Report exact five-sample200-step windows, r200 and1000-step monitoring milestone
 
 - BAM/Mudd benefit multiplier `b_T/u_T` at both lengths.
 - Context amplification of BAM `b_4096/b_2048` and of Mudd `u_4096/u_2048`.
+- Added context gains `Δb=b_4096-b_2048`, `Δu=u_4096-u_2048`; report `Δb/Δu` and `Δb-Δu` alongside normalized amplification. A near-one second-order multiplier does not imply equal absolute context gains.
 - Second-order multiplier `(b_4096/u_4096)/(b_2048/u_2048)`;
   equivalent to the ratio of the two context amplifications. Above1 means extending
   context favors BAM relative to Mudd. Same steps carry the same training-token budget.

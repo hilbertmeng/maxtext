@@ -184,7 +184,7 @@ def main():
             os.path.join(a.out_dir, 'model.safetensors'), metadata={'format': 'pt'})
   config.save_pretrained(a.out_dir)
   here = os.path.dirname(os.path.abspath(__file__))
-  for f in ('configuration_bam.py', 'modeling_bam.py', 'bam_decode_attention.py'):
+  for f in ('configuration_bam.py', 'modeling_bam.py', 'bam_decode_attention.py', 'bam_m_kernels.py'):
     shutil.copy(os.path.join(here, f), a.out_dir)
   with open(os.path.join(a.out_dir, 'generation_config.json'), 'w') as f:
     json.dump({'bos_token_id': config.bos_token_id, 'eos_token_id': config.eos_token_id,

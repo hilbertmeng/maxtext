@@ -13,10 +13,12 @@ Defaults: repo `/home/xd/projects/maxtext` (`refactor-bam`); tpu-ag scripts
 project `newproject-1-451205`; TPU `v5p-16`. Before each formal launch, choose
 `PRIMARY_ZONE` from the user's current direction and the latest comparable leases in
 `experiments/tpu_region_preemption_history.md`; record the chosen zone in the RUN. `run_exp_xd.sh`
-selects its zone-local output and Pile-data buckets. For repaired 4097-token TruePile records,
-set `DATASET_VARIANT = 'truepile4096'` directly or through inheritance on the `exp.py` class
-in the sealed runtime commit. `run_exp_xd.sh` reads that declaration, then selects the zone-local
-`_4096` replica in UC1a, UE5a, or EW4b. An explicit launcher `DATASET_VARIANT` or a recognized
+selects its zone-local output and Pile-data buckets. For repaired TruePile records, set
+`DATASET_VARIANT = 'truepile4096'` (4097 tokens) or 'truepile8192' (8193 tokens) directly
+or through inheritance on the `exp.py` class in the sealed runtime commit.
+`run_exp_xd.sh` reads that declaration, then selects the zone-local `_4096` or `_8192`
+replica in UC1a, UE5a, or EW4b. T8192 dataset generation and coverage are documented in
+`experiments/truepile8192_dataset.md`. An explicit launcher `DATASET_VARIANT` or a recognized
 `DATASET_PATH` also selects the replica; conflicting selections fail. The RUN name never selects
 data. `dataset_paths.py` is the routing authority; do not hardcode a region in a new `exp.py`
 class. `migrate_zone.py` re-resolves the registered dataset path and checks the target replica

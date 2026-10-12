@@ -59,9 +59,10 @@ def main():
     s = torch.randn(4, v, n, **dev) * 0.3
     std = xs[:, :2 * n * 24].unflatten(-1, (2, n, 24))
     pos = torch.randint(0, 4096, (t,), device='cuda')
-    y = bam_read(m, keys, gates, s, std, pos, 1e-4, 0.1, 0.99, 72, 96 ** -0.5, 10000., True).float()
+    nop = (m, m, m[:, :, 0], m, m, m[:, :, 0], m, 0, False, 1e-6)
+    y = bam_read(m, keys, gates, s, std, pos, 1e-4, 0.1, 0.99, 72, 96 ** -0.5, 10000., True, *nop)[0].float()
     r = ref_read(m, keys, gates, s, std, pos)
-    raw = bam_read(m, keys, gates, s, std, pos, 1e-4, 0.1, 0.99, 72, 96 ** -0.5, 10000., False).float()
+    raw = bam_read(m, keys, gates, s, std, pos, 1e-4, 0.1, 0.99, 72, 96 ** -0.5, 10000., False, *nop)[0].float()
     r_raw = ref_read(m, keys, gates, s, std, pos, qk_cols=96, q_scale=1.)
     e_raw = ((raw - r_raw).norm() / r_raw.norm()).item()
     e_read = ((y - r).norm() / r.norm()).item()
@@ -71,7 +72,8 @@ def main():
       b_up = torch.randn(3 * n * v + 32, **dev) * 0.1
       keys_d = (F.linear(F.gelu(hid.float(), approximate='tanh'), w_up.float(), b_up.float()))[:, :3 * n * v]
       pos2 = torch.randint(0, 4096, (1, t), device='cuda').expand(1, t)
-      yd = bam_decode_read(hid, w_up, b_up, m, gates, s, std, pos2, 1e-4, 0.1, 0.99, 72, 96 ** -0.5, 10000.).float()
+      yd = bam_decode_read(hid, w_up, b_up, m, gates, s, std, pos2, 1e-4, 0.1, 0.99, 72, 96 ** -0.5, 10000.,
+                           m, m, m[:, :, 0], m, m, m[:, :, 0], m, 0, False, 1e-6)[0].float()
       rd = ref_read(m, keys_d.unflatten(-1, (3, n, v)), gates, s, std, pos2[0])
       e_dec = ((yd - rd).norm() / rd.norm()).item()
       print(f'T={t} {dtype}: decode_read (fused up) rel {e_dec:.1e}')
@@ -85,6 +87,33 @@ def main():
     e1, e2 = ((w1 - r1).norm() / r1.norm()).item(), ((w2 - r2).norm() / r2.norm()).item()
     print(f'T={t} {dtype}: read(rope) rel {e_read:.1e}  read(raw) rel {e_raw:.1e}  write1 rel {e1:.1e}  write2 rel {e2:.1e}')
     assert max(e_read, e_raw, e1, e2) < tol, (e_read, e_raw, e1, e2)
+  # Deferred write applied inside the read: equals write-then-read, and returns the written M.
+  for t, dtype, tol in ((3, torch.float32, 1e-4), (3, torch.bfloat16, 3e-2), (37, torch.float32, 1e-4),
+                        (300, torch.float32, 1e-4), (300, torch.bfloat16, 3e-2)):
+    dev = dict(device='cuda', dtype=dtype)
+    m = torch.randn(t, k, v, **dev)
+    keys = torch.randn(t, 3, n, v, **dev); xs = torch.randn(t, 1984, **dev); gates = xs[:, 1360:1520].unflatten(-1, (8, n))
+    s = torch.randn(4, v, n, **dev) * 0.3; std = xs[:, :960].unflatten(-1, (2, n, 24)); pos = torch.arange(t, device='cuda')
+    attn, loc = torch.randn(t, n, k, **dev), torch.randn(t, n, k, **dev); g1 = torch.randn(t, n, **dev); a1 = torch.randn(t, n, v, **dev)
+    c2 = torch.randn(t, n, k, **dev); g2 = torch.randn(t, n, **dev); a2 = torch.randn(t, n, v, **dev)
+    for pend, has_local in ((1, True), (2, False), (2, True)):
+      groups = [((attn + loc) if has_local else attn, g1, a1)] + ([(c2, g2, a2)] if pend == 2 else [])
+      m_ref = ref_write(m, groups).to(dtype)
+      pargs = (attn, loc, g1, a1, c2, g2, a2, pend, has_local, 1e-6)
+      y, m_new = bam_read(m, keys, gates, s, std, pos, 1e-4, 0.1, 0.99, 72, 96 ** -0.5, 10000., t < 64, *pargs)
+      r = ref_read(m_ref, keys, gates, s, std, pos) if t < 64 else ref_read(m_ref, keys, gates, s, std, pos, qk_cols=96, q_scale=1.)
+      e_y = ((y.float() - r).norm() / r.norm()).item(); e_m = ((m_new.float() - m_ref.float()).norm() / m_ref.float().norm()).item()
+      msg = f'T={t} {dtype} pending={pend} local={has_local}: read rel {e_y:.1e} M rel {e_m:.1e}'
+      if t <= 4:
+        hid = xs[:, 960:1360]; w_up = torch.randn(3 * n * v, 400, **dev) * 400 ** -0.5; b_up = torch.randn(3 * n * v, **dev) * .1
+        kd = F.linear(F.gelu(hid.float(), approximate='tanh'), w_up.float(), b_up.float()).unflatten(-1, (3, n, v))
+        yd, md = bam_decode_read(hid, w_up, b_up, m, gates, s, std, pos[None], 1e-4, 0.1, 0.99, 72, 96 ** -0.5, 10000., *pargs)
+        rd = ref_read(m_ref, kd, gates, s, std, pos)
+        e_d = ((yd.float() - rd).norm() / rd.norm()).item(); e_dm = ((md.float() - m_ref.float()).norm() / m_ref.float().norm()).item()
+        msg += f' | decode_read rel {e_d:.1e} M rel {e_dm:.1e}'
+        assert max(e_d, e_dm) < tol, (e_d, e_dm)
+      print(msg)
+      assert max(e_y, e_m) < tol, (e_y, e_m)
   print('M_KERNELS_OK')
 
 

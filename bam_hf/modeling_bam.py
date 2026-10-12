@@ -148,6 +148,24 @@ def batched_write(M, content, address):
                        address.reshape(b * t, -1, address.shape[-1])).reshape(M.shape)
 
 
+def pending_args(flat_m, groups, b, t, eps):
+  """Kernel arguments of the previous layer's deferred write groups (content or (attention, local_o) pair,
+  gate logits, raw address); dummies when there is none."""
+  if not groups:
+    d = flat_m
+    return (d, d, d[..., 0], d, d, d[..., 0], d, 0, False, eps)
+  rows = lambda z: z.reshape(b * t, *z.shape[2:])
+  content, gate, address = groups[0]
+  has_local = isinstance(content, tuple)
+  c1, l1 = (rows(content[0]), rows(content[1])) if has_local else (rows(content), rows(content))
+  g1, a1 = gate.reshape(b * t, -1), rows(address)
+  if len(groups) > 1:
+    c2, g2, a2 = rows(groups[1][0]), groups[1][1].reshape(b * t, -1), rows(groups[1][2])
+  else:
+    c2, g2, a2 = c1, g1, a1
+  return (c1, l1, g1, a1, c2, g2, a2, len(groups), has_local, eps)
+
+
 def triton_write(M, *groups):
   """groups of raw (content [B,T,N,K] or (attention, local_o) pair, gate logits [B,T,N], address [B,T,N,V]);
   one or two groups (attention write, MLP write)."""
@@ -396,37 +414,40 @@ class BamAttention(nn.Module):
     """x [B,T,H] (pre-normed), M [B,T,K,V]. Returns (out, M_out or write factors)."""
     qs, ks, keys, g, wdown, wgate, raw = self._projections(x)
     if self.fused_x is not None and self.triton_m and x.is_cuda:     # fused Triton M kernels
+      # M arrives as (M, deferred write groups of the previous layer); the read applies them (one pass over
+      # M per layer) and this layer's write is deferred in turn. The last layer's write has no reader.
+      M, groups = M if isinstance(M, tuple) else (M, None)
       b, t = x.shape[:2]
       n = self.num_heads
       std = raw[2].reshape(b * t, 2, n, -1)                       # unrotated standard Q/K, one view
       flat_m = M.reshape(b * t, *M.shape[2:])
       gates = raw[1].reshape(b * t, 8, n)
-      if b * t < DECODE_TOKENS:   # decode: read + RoPE/q scale in one kernel (+ GELU and key up-projection)
-        if b * t <= FUSED_UP_TOKENS:
-          y = _bam_decode_read(raw[3].reshape(b * t, -1), self.fused_up.weight, self.fused_up.bias, flat_m, gates,
-                               self.static_keys, std, positions, self.read_eps, self.read_scale,
-                               self.static_gate_init, self.qk_cols, 1.0 / math.sqrt(self.head_dim),
-                               self.rotary_max_timescale)
-        else:
-          y = _bam_read(flat_m, raw[0].reshape(b * t, 3, n, -1), gates, self.static_keys, std,
-                        positions.reshape(-1).contiguous(), self.read_eps, self.read_scale, self.static_gate_init,
-                        self.qk_cols, 1.0 / math.sqrt(self.head_dim), self.rotary_max_timescale, True)
-        q, k, v, local_o = y.reshape(b, t, 4, n, -1).unbind(2)
-        attn = causal_attention(q, k, v, self.layer_idx, attention_mask, past_key_value)
-        factors = ((attn, local_o), wgate, self.padded_write_address_up(gelu(wdown)))
-        out = self.o_proj((attn + local_o).flatten(-2))
-        return out, factors if defer_write else triton_write(M, factors)
-      y = _bam_read(flat_m, raw[0].reshape(b * t, 3, n, -1), gates, self.static_keys, std,
-                    positions.reshape(-1).contiguous(), self.read_eps, self.read_scale, self.static_gate_init,
-                    self.qk_cols, 1.0 / math.sqrt(self.head_dim), self.rotary_max_timescale, False)
+      pend = pending_args(flat_m, groups, b, t, self.eps)
+      decode = b * t < DECODE_TOKENS
+      if decode and b * t <= FUSED_UP_TOKENS:   # + GELU and the key up-projection
+        y, m_new = _bam_decode_read(raw[3].reshape(b * t, -1), self.fused_up.weight, self.fused_up.bias, flat_m,
+                                    gates, self.static_keys, std, positions, self.read_eps, self.read_scale,
+                                    self.static_gate_init, self.qk_cols, 1.0 / math.sqrt(self.head_dim),
+                                    self.rotary_max_timescale, *pend)
+      else:                                     # decode: RoPE/q scale in the kernel; prefill: in torch
+        y, m_new = _bam_read(flat_m, raw[0].reshape(b * t, 3, n, -1), gates, self.static_keys, std,
+                             positions.reshape(-1).contiguous(), self.read_eps, self.read_scale,
+                             self.static_gate_init, self.qk_cols, 1.0 / math.sqrt(self.head_dim),
+                             self.rotary_max_timescale, decode, *pend)
+      if groups:
+        M = m_new.reshape(M.shape)
       q, k, v, local_o = y.reshape(b, t, 4, n, -1).unbind(2)
-      q = torch.cat((q[..., :self.qk_cols], self.rotary(qs, positions)), dim=-1)
-      k = torch.cat((k[..., :self.qk_cols], self.rotary(ks, positions)), dim=-1)
-      q = q / torch.tensor(math.sqrt(self.head_dim), dtype=q.dtype)
-      o_head = causal_attention(q, k, v, self.layer_idx, attention_mask, past_key_value) + local_o
-      factors = (o_head, wgate, self.padded_write_address_up(gelu(wdown)))     # raw: normalized in-kernel
-      out = self.o_proj(o_head.flatten(-2))
-      return out, factors if defer_write else triton_write(M, factors)
+      if not decode:
+        q = torch.cat((q[..., :self.qk_cols], self.rotary(qs, positions)), dim=-1)
+        k = torch.cat((k[..., :self.qk_cols], self.rotary(ks, positions)), dim=-1)
+        q = q / torch.tensor(math.sqrt(self.head_dim), dtype=q.dtype)
+      attn = causal_attention(q, k, v, self.layer_idx, attention_mask, past_key_value)
+      address = self.padded_write_address_up(gelu(wdown))
+      if decode:      # the local-O add happens inside the next read kernel
+        out = self.o_proj((attn + local_o).flatten(-2))
+        return out, (M, [((attn, local_o), wgate, address)])
+      o_head = attn + local_o
+      return self.o_proj(o_head.flatten(-2)), (M, [(o_head, wgate, address)])
     q_key, k_key, vo_key = keys
     if self.fused_x is not None:      # inference path: stacked reads, one batched write
       yq, yk, v, local_o = self._stacked_reads(M, q_key, k_key, vo_key, g)
@@ -510,10 +531,11 @@ class BamMLPWrite(nn.Module):
 
   def forward(self, hidden, mlp_out, M, attention_factors, fused=()):
     logits, down = fused if fused else (self.gate(hidden), self.address_down(hidden))
-    if fused and len(attention_factors) == 3:      # Triton write: raw factors, both groups in one kernel
+    if fused and isinstance(attention_factors, tuple) and isinstance(attention_factors[1], list):
+      # Triton path: (M, deferred groups); append the MLP write group, applied by the next layer's read
+      M_state, groups = attention_factors
       mlp_address = self.padded_address_up(gelu(down))
-      return triton_write(M, attention_factors,
-                          (mlp_out.unflatten(-1, (self.num_heads, self.bam_k)), logits, mlp_address))
+      return (M_state, groups + [(mlp_out.unflatten(-1, (self.num_heads, self.bam_k)), logits, mlp_address)])
     gated, address = attention_factors
     content = rms_norm(mlp_out.unflatten(-1, (self.num_heads, self.bam_k)), self.eps)
     mlp_content = torch.sigmoid(logits)[..., None] * content

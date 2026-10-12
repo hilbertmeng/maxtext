@@ -53,3 +53,10 @@ Raw norms at0/10/50/100/150/200: parent127.951/65.224/8.647/8.623/5.370/2.692; s
 The intended early optimization health benefit is established: the old shared pre-RMS embedding bias dominates global clipping, and both replacement schemes remove that dominance. Lower clipping does **not** imply proportional Adam update increases or better loss. At the exact matched200±25 window: static-parent+.316375, lookup-parent+.041272, lookup-static-.275103. Both healthier, lookup much closer to parent: normalization removal alone does not account for the static arm's loss deficit; representation/parameterization and adaptation speed remain candidates, not established causality. Keep both running; inspect400..1000 deficit evolution before judging startup transients versus persistent capacity constraints.
 
 Mean20-99 throughput: static.4789375 (+.0444% vs parent.478725), lookup.4762375 (-.5196%). Same region/topology and inherited health except removed seed-gate statistics; TB rotation affects neither first500 steps. Large table introduces no extra dense projection and under1% observed throughput cost. Table adds119592400 parameters versus parent; no M-cache expansion.
+
+
+##600 review and event rotation
+
+Both healthy in UE5a, committed600, no preemptions. Cumulative200/400/600 gap vsSOTA: static+.316375/+.114625/+.071218, r200-.638/-.379; lookup+.041272/+.014337/+.021542, r200-.653/+.503. Lookup-static-.275103/-.100288/-.049676. Static continues substantial catch-up; lookup deficit widened400->600, so no claim of convergence or stable plateau yet.
+
+Actual events verified: both part00000 raw-gradient steps0..490; part00001 begins500, covers static750/lookup670 at sync. Rotation is operational, with no missing10-step samples through600. Common210..600 (40samples): median raw norm parent1.201925/static.802208/lookup.705489; clipped28/14/10 samples. Static310 transient3.223256 arises chiefly from L9/L11 staticK read keys (33.17%/13.78% energy), embedding-entry.284%;320 recovers.662273. No A/S spike transfer or persistent escalation. Artifactgrad-600.json; continue toward1000 and review2800.

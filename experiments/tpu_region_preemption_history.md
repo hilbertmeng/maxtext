@@ -414,6 +414,7 @@ active leases are censored, and manual migration releases are not preemptions.
 | `BamMediumPropFullMGeneralReadStaticEmbeddingTruePile` | v5p-16 (`xd-v5p-16-310127-maxtext`) | `us-east5-a` | 2026-10-12 10:28:15 | 2026-10-12 13:09:58 | user stop4531;0preemptions; checkpoint committed, node/queue absent, TB SYNC_OK | none |
 | `BamMediumPropFullMGeneralReadMatrixEmbeddingTruePile` | v5p-16 (`xd-v5p-16-310128-maxtext`) | `us-east5-a` | 2026-10-12 10:30:21 | 2026-10-12 13:10:00 | user stop4427;0preemptions; checkpoint committed, node/queue absent, TB SYNC_OK | none |
 | `BamMediumPropFullMGeneralReadDirectEmbeddingTruePile` | v5p-16 (`xd-v5p-16-310131-maxtext`) | `us-east5-a` | 2026-10-12 11:41:52 | 2026-10-12 13:26:18 | review stop2894;0preemptions; checkpoint committed, node/queue absent, TB SYNC_OK | none |
+| `BamMediumPropFullMGeneralReadFinalMatrixResidualTruePile` | v5p-16 (`xd-v5p-16-310130-maxtext`) | `us-east5-a` | 2026-10-12 11:45:41 | 2026-10-12 14:48:38 | review stop5125;0preemptions; checkpoint committed, node/queue absent, TB SYNC_OK | none |
 
 ## READY leases
 
@@ -1248,4 +1249,5 @@ active leases are censored, and manual migration releases are not preemptions.
 | `BamMediumPropFullMGeneralReadStaticEmbeddingTruePile` | 1 | `us-east5-a` | 2026-10-12 10:28:18 | 2026-10-12 13:09:58 | 2h41m40s | user stop4531; resources released, TB SYNC_OK |
 | `BamMediumPropFullMGeneralReadMatrixEmbeddingTruePile` | 1 | `us-east5-a` | 2026-10-12 10:30:23 | 2026-10-12 13:10:00 | 2h39m37s | user stop4427; resources released, TB SYNC_OK |
 | `BamMediumPropFullMGeneralReadDirectEmbeddingTruePile` | 1 | `us-east5-a` | 2026-10-12 11:41:54 | 2026-10-12 13:26:18 | 1h44m24s | review stop2894; resources released, TB SYNC_OK |
+| `BamMediumPropFullMGeneralReadFinalMatrixResidualTruePile` | 1 | `us-east5-a` | 2026-10-12 11:45:43 | 2026-10-12 14:48:38 | 3h02m55s | review stop5125; resources released, TB SYNC_OK |
 | `RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicEmbeddingUnembeddingDirect32L22` | 1 | `us-east5-a` | 2026-09-27 00:29:56 | — | censored | active; prequeue READY precedes registry00:30:07 |

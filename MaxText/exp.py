@@ -12386,6 +12386,7 @@ class BamMediumPropFullMGeneralReadFinalMatrixResidualTruePile(BamMediumPropK75E
     # @2000 SOTA+.006440; last5+.007925, continuing catch-up; training active.
     # @2800 SOTA gap+.006140, last5+.006638 vs prev5+.008992; continue, also direct baseline for gated arm.
     # @4000 SOTA gap+.005775; last5+.005559 vs prev5+.006592, slow catch-up; gated parent kept active.
+    # Stopped at5125 after user-authorized5000 review: SOTA gap+.004474, recent5+.004535 plateau; gated dominates overlapping steps.
     model_name = 'BamMediumPropFullMGeneralReadFinalMatrixResidualTruePile'
     bam_final_matrix_residual = True
     mlp_dim_by_block = [3769, 3641, 3769]
@@ -12404,6 +12405,7 @@ class BamMediumPropFullMGeneralReadFinalMatrixVGateTruePile(BamMediumPropFullMGe
     # @200/400/600 parent gaps+.014759/+.010329/+.003595; SOTA+.121415/+.041497/+.021329, still no win.
     # @800/1000 parent+.001072/-.000108: tiny first sign crossing, parity only; SOTA+.014989/+.011667.
     # @1400/1600/1800/2000 parent gaps-.000680/-.001811/-.001488/-.002006; @2000 SOTA+.004434.
+    # @3000 parent gap-.001943/SOTA+.004264;9 consecutive parent wins, recent5-.001681/+.004910; training active.
     model_name = 'BamMediumPropFullMGeneralReadFinalMatrixVGateTruePile'
     bam_final_matrix_v_gate = True
     compare_runs = ['BamMediumPropFullMGeneralReadFinalMatrixResidualTruePile', 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile']

@@ -676,6 +676,7 @@ loss_chunk_size: 4096
 num_vocab_tiling: 1
 remat_prevent_cse: True # set to True can save some memory
 log_period: 25 # Flushes Tensorboard
+tensorboard_gcs_rotate_period: 500 # Bound whole-event GCS reuploads; 0 disables rotation. Local writers are unchanged.
 attention: 'autoselected' # ['autoselected', 'dot_product', 'flash', 'cudnn_flash_te']
 only_eval: False
 # sharding tolerance: float between 0.0 and 1.0 representing the allowed percentage of non-sharded parameters.

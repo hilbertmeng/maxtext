@@ -427,6 +427,12 @@ active leases are censored, and manual migration releases are not preemptions.
 
 | `BamMediumPropK75V48EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadSharedGelu384GeneralReadTruePile` | v5p-16 (`xd-v5p-16-310121-maxtext`) | `us-east5-a` | 2026-10-11 17:55:20 (prequeue READY) | 2026-10-12 00:21:39 | review stop9701; 1preemption; checkpoint committed, resources absent, TB synced | none |
 | `BamMediumPropL27K75V48EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadSharedGelu384GeneralReadTruePile` | v5p-16 (`xd-v5p-16-310123-maxtext`) | `us-east5-a` | 2026-10-11 17:55:32 (READY) | 2026-10-12 00:21:42 | review stop6826; 2preemptions; checkpoint committed, resources absent, TB synced | none |
+| `BamMediumPropL27K75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile` | v5p-16 (`xd-v5p-16-310122-maxtext`) | `us-east5-a` | 2026-10-11 17:55:35 | 2026-10-12 05:51:17 | complete13500;3preemptions; checkpoint committed, node/queue absent, TB synced | none |
+| `BamMHAMediumPropC256T2048` | v5p-16 (`xd-v5p-16-310130-maxtext`) | `us-east5-a` | 2026-10-12 05:25:30 | 2026-10-12 05:45:49 | replaced898 by matched C256 control; TB synced, resource transferred | none |
+| `MuddLlama2MediumPropT2048` | v5p-16 (`xd-v5p-16-310131-maxtext`) | `us-east5-a` | 2026-10-12 05:27:25 | 2026-10-12 05:48:41 | replaced809 by matched C256 control; TB synced, resource transferred | none |
+| `BamMHAMediumPropC256T2048Matched` | v5p-16 (`xd-v5p-16-310130-maxtext`) | `us-east5-a` | 2026-10-12 05:46:47 | — | active; fresh step0/AOT/FIRST_STEP verified | none |
+| `MuddLlama2MediumPropC256T2048` | v5p-16 (`xd-v5p-16-310131-maxtext`) | `us-east5-a` | 2026-10-12 05:49:36 | — | active; fresh step0/AOT/FIRST_STEP verified | none |
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadT2048` | v5p-16 (`xd-v5p-16-310132-maxtext`) | `us-east5-a` | 2026-10-12 05:25:26 | — | active; AOT/FIRST_STEP verified | none |
 
 ## READY leases
 
@@ -1280,3 +1286,6 @@ active leases are censored, and manual migration releases are not preemptions.
 | `BamMediumPropL27K75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile` | 3 | `us-east5-a` | 2026-10-11 18:30:24 | 2026-10-11 21:01:18 | 2h30m54s | preempted |
 | `BamMediumPropK75V48EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadSharedGelu384GeneralReadTruePile` | 2 | `us-east5-a` | 2026-10-11 18:04:43 | 2026-10-12 00:21:39 | 6h16m56s | review stop9701; checkpoint committed, resources released |
 | `BamMediumPropL27K75V48EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadSharedGelu384GeneralReadTruePile` | 3 | `us-east5-a` | 2026-10-11 18:52:15 | 2026-10-12 00:21:42 | 5h29m27s | review stop6826; checkpoint committed, resources released |
+| `BamMHAMediumPropC256T2048` | 1 | `us-east5-a` | 2026-10-12 05:25:33 | 2026-10-12 05:45:49 | 20m16s | hot-switch to matched control; no preemption |
+| `MuddLlama2MediumPropT2048` | 1 | `us-east5-a` | 2026-10-12 05:27:25 | 2026-10-12 05:48:41 | 21m16s | hot-switch to matched control; no preemption |
+| `BamMediumPropL27K75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile` | 4 | `us-east5-a` | 2026-10-11 21:06:32 | 2026-10-12 05:51:17 | 8h44m45s | complete13500; resources released |

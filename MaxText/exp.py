@@ -12328,9 +12328,10 @@ class BamMediumPropK75V48EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFull
 class BamMediumPropL27K75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile(Llama2MediumPropL27, BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile):
     """27 layers of the V32 R256 generalized-read architecture at the MHA27 budget."""
     # Ledger only: codex/mediumprop-full-m-read-gelu128, /data0/xd/mediumprop-full-m-read-gelu128.
-    # Bet at13500 vs18-layer V32 R256 generalized: loss-0.014, speed-20%.
     # code_commit: 7d9d9ed; UE5a v5p-16 0.3529step/s (20-99), -26.27% vs18-layer V32 R256 generalized .4787.
-    # !? Depth speed cost exceeds -20% bet by6.27pp; cause unprofiled.
+    # !? Depth speed cost remains unprofiled; event-inclusive wall timing unmatched.
+    # Completed13500: vs18-layer same read, gain settled near-.020 after~7k; final5-.020460.
+    # vs standard27 through10600: last5-.017816; depth second-order last5-.000370, gain ratio1.019x.
     model_name = 'BamMediumPropL27K75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile'
     bam_layer_modes = ['local_qk+local_v+local_o'] * 27
     bam_static_read_gate_sigmoid = False
@@ -12354,7 +12355,7 @@ class BamMediumPropL27K75V48EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdF
 class BamMHAMediumPropC256T2048(BamMHAMediumPropC256TruePile):
     """MediumProp T2048 context control; 256 sequences, 524288 targets/step."""
     # Ledger only: codex/mediumprop-context-t2048, /data0/xd/mediumprop-context-t2048; code_commit: 55deb7c.
-    # T2048, global batch256, 13500 steps; 432121200 params, unchanged from T4096 parent.
+    # Initial Splash prefix stopped898; replaced by matched C256 control, excluded from context comparison.
     model_name = 'BamMHAMediumPropC256T2048'
     DATASET_VARIANT = 'legacy2048'
     dataset_path = 'gs://newproject-1-llm_base_models_us-central1/data/pythia_pile_idxmaps_tfrecord'
@@ -12367,7 +12368,7 @@ class BamMHAMediumPropC256T2048(BamMHAMediumPropC256TruePile):
 class MuddLlama2MediumPropT2048(MuddLlama2MediumPropTruePile):
     """Historical full-history MediumProp Mudd, with T2048 and doubled batch."""
     # Ledger only: codex/mediumprop-context-t2048, /data0/xd/mediumprop-context-t2048; code_commit: 55deb7c.
-    # T2048, global batch256, 13500 steps; 434076747 params, unchanged from T4096 parent.
+    # Initial Splash prefix stopped809; replaced by matched C256 control, excluded from context comparison.
     model_name = 'MuddLlama2MediumPropT2048'
     DATASET_VARIANT = 'legacy2048'
     dataset_path = BamMHAMediumPropC256T2048.dataset_path
@@ -12380,12 +12381,29 @@ class MuddLlama2MediumPropT2048(MuddLlama2MediumPropTruePile):
 class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadT2048(BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile):
     """Shared R256/generalized-read MediumProp T2048 context arm, historical gates."""
     # Ledger only: codex/mediumprop-context-t2048, /data0/xd/mediumprop-context-t2048; code_commit: 55deb7c.
-    # T2048, global batch256, 13500 steps; 432111104 params, unchanged from T4096 parent.
+    # UE5a v5p-16 .5394step/s(20-99), +12.68% vs T4096 parent .4787; same model/health.
     model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadT2048'
     DATASET_VARIANT = 'legacy2048'
     dataset_path = BamMHAMediumPropC256T2048.dataset_path
     max_target_length = 2048
     per_device_batch_size = 32.0
     jax_cache_dir = ''
-    compare_runs = ['BamMHAMediumPropC256T2048', 'MuddLlama2MediumPropT2048',
+    compare_runs = ['BamMHAMediumPropC256T2048Matched', 'MuddLlama2MediumPropC256T2048',
                     'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile']
+
+
+class BamMHAMediumPropC256T2048Matched(BamMHAMediumPropC256T2048):
+    """T2048 length control preserving the historical T4096 C256 BF16-logits core."""
+    # Ledger only: codex/mediumprop-context-t2048; code_commit: e9f7728.
+    # UE5a v5p-16 .8951step/s(20-99), +25.36% vs T4096 parent .714; same model/health.
+    model_name = 'BamMHAMediumPropC256T2048Matched'
+    bam_splash_attention = False
+
+
+class MuddLlama2MediumPropC256T2048(MuddLlama2MediumPropT2048):
+    """Full-history Mudd T2048, preserving its historical C256 attention core."""
+    # Ledger only: codex/mediumprop-context-t2048; code_commit: e9f7728.
+    # UE5a v5p-16 .7755step/s(20-99), +23.10% vs T4096 parent .630; same model/health.
+    model_name = 'MuddLlama2MediumPropC256T2048'
+    bam_splash_attention = False
+    compare_runs = ['BamMHAMediumPropC256T2048Matched', 'MuddLlama2MediumPropTruePile']

@@ -250,6 +250,8 @@ def write_metrics_to_tensorboard(writer, metrics, step, config, is_training=True
   """Writes metrics to tensorboard"""
   # with jax.spmd_mode("allow_all"):
   if jax.process_index() == 0 and (step % config.upload_loss_tb_period == 0 or not is_training): # lsp
+    if hasattr(writer, "begin_step"):
+      writer.begin_step(step)
     for metric_name in metrics.get("scalar", []):
       if step % config.upload_param_act_tb_period != 0 and any(['total_params' in metric_name, ]): # lsp
         continue

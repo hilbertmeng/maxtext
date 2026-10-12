@@ -12401,6 +12401,7 @@ class BamMediumPropFullMGeneralReadFinalMatrixVGateTruePile(BamMediumPropFullMGe
     # Mean20-99 .479450step/s (+.1044% vs final-M parent/+.1514% vs SOTA); actual steady speed verified.
     # @200 parent+.014759/SOTA+.121415; no early benefit established; checkpoint200 committed.
     # @200/400/600 parent gaps+.014759/+.010329/+.003595; SOTA+.121415/+.041497/+.021329, still no win.
+    # @800/1000 parent+.001072/-.000108: tiny first sign crossing, parity only; SOTA+.014989/+.011667.
     model_name = 'BamMediumPropFullMGeneralReadFinalMatrixVGateTruePile'
     bam_final_matrix_v_gate = True
     compare_runs = ['BamMediumPropFullMGeneralReadFinalMatrixResidualTruePile', 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile']

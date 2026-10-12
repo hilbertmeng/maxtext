@@ -16,7 +16,7 @@ import triton
 import triton.language as tl
 
 
-WRITE_TB, WRITE_STAGES, WRITE_WARPS = 2, 1, 2     # A800 prefill sweep: 84 us at T=4096 (was 98.6)
+WRITE_TB, WRITE_STAGES, WRITE_WARPS = 1, 1, 4     # in the compiled model this beats the isolated-sweep best
 DECODE_BC, DECODE_WARPS = 256, 8      # A800 sweep at T=1: 5.1 us (no pending write), 7.8 us (one group)
 
 
@@ -365,29 +365,29 @@ def _(hidden, up_weight, up_bias, m, gates, static_keys, std, positions, eps, sc
 
 
 @triton.jit
-def _rope_tail_kernel(Y, STD, POS, T, s_yt, s_st, s_sn, s_sarm, N: tl.constexpr, K: tl.constexpr,
-                      QCOLS: tl.constexpr, R: tl.constexpr, BR: tl.constexpr, RB: tl.constexpr,
-                      LOG_MAX_TS: tl.constexpr, TB: tl.constexpr):
-  """Y[t, a, n, QCOLS:] = RoPE(std[t, a, n, :]) for the q, k arms (a < 2), in place; rows r = a * N + n."""
-  r = tl.arange(0, BR)
-  rm = r < 2 * N
-  a = r // N
+def _rope_tail_kernel(Y, STD, POS, ROWS, s_yt, s_st, s_sn, s_sarm, N: tl.constexpr, K: tl.constexpr,
+                      QCOLS: tl.constexpr, R: tl.constexpr, RB: tl.constexpr, LOG_MAX_TS: tl.constexpr,
+                      BROWS: tl.constexpr):
+  """Y[t, a, n, QCOLS:] = RoPE(std[t, a, n, :]) for the q, k arms, in place. Rows r = (t * 2 + a) * N + n are
+  flattened across tokens so a program handles a dense [BROWS, RB] tile (bandwidth-bound)."""
+  r = tl.program_id(0) * BROWS + tl.arange(0, BROWS)
+  rm = r < ROWS
+  t = r // (2 * N)
+  a = (r // N) % 2
   n = r % N
   j = tl.arange(0, RB)
-  jm = j < R
   half = R // 2
   i = tl.where(j < half, j, j - half)
   partner = tl.where(j < half, j + half, j - half)
-  inv_ts = tl.exp(-LOG_MAX_TS * 2.0 * i.to(tl.float32) / R)
-  sign = tl.where(j < half, -1.0, 1.0)
-  mask = rm[:, None] & jm[None, :]
-  for t in range(tl.program_id(0) * TB, tl.minimum(tl.program_id(0) * TB + TB, T)):
-    base = STD + t * s_st + a[:, None] * s_sarm + n[:, None] * s_sn
-    s1 = tl.load(base + j[None, :], mask=mask, other=0.).to(tl.float32)
-    s2 = tl.load(base + partner[None, :], mask=mask, other=0.).to(tl.float32)
-    ang = tl.load(POS + t).to(tl.float32) * inv_ts
-    rot = s1 * tl.cos(ang)[None, :] + sign[None, :] * s2 * tl.sin(ang)[None, :]
-    tl.store(Y + t * s_yt + r[:, None] * K + QCOLS + j[None, :], rot.to(Y.dtype.element_ty), mask=mask)
+  mask = rm[:, None] & (j < R)[None, :]
+  base = STD + t[:, None] * s_st + a[:, None] * s_sarm + n[:, None] * s_sn
+  s1 = tl.load(base + j[None, :], mask=mask, other=0.).to(tl.float32)
+  s2 = tl.load(base + partner[None, :], mask=mask, other=0.).to(tl.float32)
+  pos = tl.load(POS + t, mask=rm, other=0).to(tl.float32)
+  ang = pos[:, None] * tl.exp(-LOG_MAX_TS * 2.0 * i.to(tl.float32) / R)[None, :]
+  rot = s1 * tl.cos(ang) + tl.where(j < half, -1.0, 1.0)[None, :] * s2 * tl.sin(ang)
+  tl.store(Y + t[:, None] * s_yt + (a * N + n)[:, None] * K + QCOLS + j[None, :], rot.to(Y.dtype.element_ty),
+           mask=mask)
 
 
 @torch.library.custom_op('bam::rope_tail', mutates_args=('y',))
@@ -396,12 +396,13 @@ def bam_rope_tail(y: torch.Tensor, std: torch.Tensor, positions: torch.Tensor, q
   """In place: q/k columns >= qk_cols of y [T,4,N,K] (from bam_read without rope) = RoPE(std [T,2,N,R])."""
   t, _, n, kdim = y.shape
   assert y.is_contiguous() and std.stride(-1) == 1 and positions.is_contiguous()
-  if t:
-    tb = 4
-    _rope_tail_kernel[(triton.cdiv(t, tb),)](
-        y, std, positions, t, y.stride(0), std.stride(0), std.stride(2), std.stride(1), N=n, K=kdim, QCOLS=qk_cols,
-        R=kdim - qk_cols, BR=triton.next_power_of_2(2 * n), RB=triton.next_power_of_2(kdim - qk_cols),
-        LOG_MAX_TS=math.log(max_timescale), TB=tb, num_warps=4)
+  rows = t * 2 * n
+  if rows:
+    brows = 32      # A800: 32 us/layer at T=4096 (a plain copy of these strided tail bytes takes 22 us)
+    _rope_tail_kernel[(triton.cdiv(rows, brows),)](
+        y, std, positions, rows, y.stride(0), std.stride(0), std.stride(2), std.stride(1), N=n, K=kdim,
+        QCOLS=qk_cols, R=kdim - qk_cols, RB=triton.next_power_of_2(kdim - qk_cols),
+        LOG_MAX_TS=math.log(max_timescale), BROWS=brows, num_warps=8)
 
 
 @triton.jit

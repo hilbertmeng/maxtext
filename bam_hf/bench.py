@@ -83,8 +83,12 @@ def main():
   p.add_argument('--context', type=int, default=4096)
   p.add_argument('--steps', type=int, default=32)
   p.add_argument('--fuse', action='store_true', help='fuse_projections() (both models)')
+  p.add_argument('--coordinate-descent', action='store_true', help='inductor coordinate_descent_tuning')
   p.add_argument('--out')
   a = p.parse_args()
+  if a.coordinate_descent:
+    import torch._inductor.config as inductor_config
+    inductor_config.coordinate_descent_tuning = True
   print('device', torch.cuda.get_device_name(0), 'compile', a.compile, flush=True)
   results = {'device': torch.cuda.get_device_name(0), 'compile': a.compile, 'fuse': a.fuse}
   for name in a.models.split(','):

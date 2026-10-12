@@ -506,13 +506,18 @@ class BamMLP(nn.Module):
     self._sizes = None
 
   def fuse(self, extra=()):
-    """gate/up (+ extra (weight, bias) projections of the same input) as one GEMM; the intermediate
-    width is zero-padded to a multiple of ALIGN (silu(0) * 0 = 0, zero down columns: exact)."""
+    """gate/up as one GEMM with the intermediate width zero-padded to a multiple of ALIGN (silu(0) * 0 = 0,
+    zero down columns: exact). Extra (weight, bias) projections of the same input (the MLP write's gate and
+    address) form a second small GEMM: appended to the big one they leave a partial tile (A800: 874 us vs
+    784 + 64 us at 4096 tokens)."""
     gate, up = pad_rows(self.gate_proj.weight), pad_rows(self.up_proj.weight)
     width = gate.shape[0]
-    self.fused = fused_linear((gate, None), (up, None), *extra)
-    self._sizes = [width, width] + [w.shape[0] for w, _ in extra]
-    self._sizes.append(self.fused.out_features - sum(self._sizes))
+    self.fused = fused_linear((gate, None), (up, None))
+    self.fused_extra = fused_linear(*extra) if extra else None
+    self._extra_sizes = [w.shape[0] for w, _ in extra]
+    if extra:
+      self._extra_sizes.append(self.fused_extra.out_features - sum(self._extra_sizes))
+    self._sizes = [width, width]
     down = self.down_proj.weight
     self.fused_down = nn.Linear(width, down.shape[0], bias=False, device=down.device, dtype=down.dtype)
     self.fused_down.weight.data.zero_()
@@ -522,8 +527,9 @@ class BamMLP(nn.Module):
     """Returns (output, extra projections of x)."""
     if self.fused is None:
       return self.down_proj(F.silu(self.gate_proj(x)) * self.up_proj(x)), ()
-    gate, up, *extra, _ = self.fused(x).split(self._sizes, -1)
-    return self.fused_down(F.silu(gate) * up), extra
+    gate, up = self.fused(x).split(self._sizes, -1)
+    extra = self.fused_extra(x).split(self._extra_sizes, -1)[:-1] if self.fused_extra is not None else ()
+    return self.fused_down(F.silu(gate) * up), list(extra)
 
 
 class BamMLPWrite(nn.Module):

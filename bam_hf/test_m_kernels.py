@@ -8,7 +8,8 @@ import sys
 import torch
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from bam_m_kernels import bam_read, bam_write  # noqa: E402
+from bam_m_kernels import bam_decode_read, bam_read, bam_write  # noqa: E402
+import torch.nn.functional as F  # noqa: E402
 
 
 def rms(x, eps):
@@ -64,11 +65,23 @@ def main():
     r_raw = ref_read(m, keys, gates, s, std, pos, qk_cols=96, q_scale=1.)
     e_raw = ((raw - r_raw).norm() / r_raw.norm()).item()
     e_read = ((y - r).norm() / r.norm()).item()
+    if t < 64:     # decode read with the key up-projection fused
+      hid = xs[:, 960:1360]
+      w_up = torch.randn(3 * n * v + 32, 400, **dev) * 400 ** -0.5
+      b_up = torch.randn(3 * n * v + 32, **dev) * 0.1
+      keys_d = (F.linear(F.gelu(hid.float(), approximate='tanh'), w_up.float(), b_up.float()))[:, :3 * n * v]
+      pos2 = torch.randint(0, 4096, (1, t), device='cuda').expand(1, t)
+      yd = bam_decode_read(hid, w_up, b_up, m, gates, s, std, pos2, 1e-4, 0.1, 0.99, 72, 96 ** -0.5, 10000.).float()
+      rd = ref_read(m, keys_d.unflatten(-1, (3, n, v)), gates, s, std, pos2[0])
+      e_dec = ((yd - rd).norm() / rd.norm()).item()
+      print(f'T={t} {dtype}: decode_read (fused up) rel {e_dec:.1e}')
+      assert e_dec < tol, e_dec
     c1 = torch.randn(t, n, k, **dev); g1 = xs[:, 1760:1780]; a1 = torch.randn(t, n * v + 32, **dev)[:, :n * v].unflatten(-1, (n, v))
     c2 = torch.randn(t, 1920, **dev).unflatten(-1, (n, k)); g2 = torch.randn(t, 404, **dev)[:, :n]; a2 = torch.randn(t, n, v, **dev)
-    w1 = bam_write(m, c1, g1, a1, c1, g1, a1, False, 1e-6).float()
-    w2 = bam_write(m, c1, g1, a1, c2, g2, a2, True, 1e-6).float()
-    r1, r2 = ref_write(m, [(c1, g1, a1)]), ref_write(m, [(c1, g1, a1), (c2, g2, a2)])
+    loc = torch.randn(t, n, k, **dev)
+    w1 = bam_write(m, c1, c1, g1, a1, c1, g1, a1, False, False, 1e-6).float()
+    w2 = bam_write(m, c1, loc, g1, a1, c2, g2, a2, True, True, 1e-6).float()
+    r1, r2 = ref_write(m, [(c1, g1, a1)]), ref_write(m, [(c1 + loc, g1, a1), (c2, g2, a2)])
     e1, e2 = ((w1 - r1).norm() / r1.norm()).item(), ((w2 - r2).norm() / r2.norm()).item()
     print(f'T={t} {dtype}: read(rope) rel {e_read:.1e}  read(raw) rel {e_raw:.1e}  write1 rel {e1:.1e}  write2 rel {e2:.1e}')
     assert max(e_read, e_raw, e1, e2) < tol, (e_read, e_raw, e1, e2)

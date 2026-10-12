@@ -8,7 +8,7 @@ import sys
 import torch
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from bam_m_kernels import bam_decode_read, bam_read, bam_write  # noqa: E402
+from bam_m_kernels import bam_decode_read, bam_read, bam_rope_tail, bam_write  # noqa: E402
 import torch.nn.functional as F  # noqa: E402
 
 
@@ -64,6 +64,14 @@ def main():
     r = ref_read(m, keys, gates, s, std, pos)
     raw = bam_read(m, keys, gates, s, std, pos, 1e-4, 0.1, 0.99, 72, 96 ** -0.5, 10000., False, *nop)[0].float()
     r_raw = ref_read(m, keys, gates, s, std, pos, qk_cols=96, q_scale=1.)
+    if t >= 64:      # prefill: q/k tails are filled in place by bam_rope_tail; q stays unscaled
+      yr, _ = bam_read(m, keys, gates, s, std, pos, 1e-4, 0.1, 0.99, 72, 96 ** -0.5, 10000., False, *nop)
+      bam_rope_tail(yr, std, pos, 72, 10000.)
+      r_rope = ref_read(m, keys, gates, s, std, pos, q_scale=1.)
+      e_rt = ((yr.float() - r_rope).norm() / r_rope.norm()).item()
+      print(f'T={t} {dtype}: read + rope_tail rel {e_rt:.1e}')
+      assert e_rt < tol, e_rt
+      raw[:, :2, :, 72:] = r_raw[:, :2, :, 72:]     # the raw tail is not stored on this path
     e_raw = ((raw - r_raw).norm() / r_raw.norm()).item()
     e_read = ((y - r).norm() / r.norm()).item()
     if t < 64:     # decode read with the key up-projection fused
@@ -107,7 +115,9 @@ def main():
       m_ref = ref_write(m, groups).to(dtype)
       pargs = (attn, loc, g1, a1, c2, g2, a2, pend, has_local, 1e-6)
       y, m_new = bam_read(m, keys, gates, s, std, pos, 1e-4, 0.1, 0.99, 72, 96 ** -0.5, 10000., t < 64, *pargs)
-      r = ref_read(m_ref, keys, gates, s, std, pos) if t < 64 else ref_read(m_ref, keys, gates, s, std, pos, qk_cols=96, q_scale=1.)
+      if t >= 64:
+        bam_rope_tail(y, std, pos, 72, 10000.)
+      r = ref_read(m_ref, keys, gates, s, std, pos) if t < 64 else ref_read(m_ref, keys, gates, s, std, pos, q_scale=1.)
       e_y = ((y.float() - r).norm() / r.norm()).item(); e_m = ((m_new.float() - m_ref.float()).norm() / m_ref.float().norm()).item()
       msg = f'T={t} {dtype} pending={pend} local={has_local}: read rel {e_y:.1e} M rel {e_m:.1e}'
       if t <= 4:

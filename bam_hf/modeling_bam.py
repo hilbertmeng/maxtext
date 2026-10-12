@@ -37,13 +37,15 @@ except ImportError:
     _decode_attention = None
 
 try:   # Triton per-token M read/write kernels (CUDA); without them the batched-GEMM path is used
-  from .bam_m_kernels import bam_decode_read as _bam_decode_read, bam_read as _bam_read, bam_write as _bam_write
+  from .bam_m_kernels import (bam_decode_read as _bam_decode_read, bam_read as _bam_read,
+                              bam_rope_tail as _bam_rope_tail, bam_write as _bam_write)
 except ImportError:
   try:
     _m = importlib.import_module('bam_m_kernels')
-    _bam_read, _bam_write, _bam_decode_read = _m.bam_read, _m.bam_write, _m.bam_decode_read
+    _bam_read, _bam_write, _bam_decode_read, _bam_rope_tail = (_m.bam_read, _m.bam_write, _m.bam_decode_read,
+                                                               _m.bam_rope_tail)
   except Exception:  # pylint: disable=broad-except
-    _bam_read = _bam_write = _bam_decode_read = None
+    _bam_read = _bam_write = _bam_decode_read = _bam_rope_tail = None
 
 DECODE_TOKENS = 64    # below this many tokens per step: per-arm read programs with RoPE fused
 FUSED_UP_TOKENS = 4   # up to this many: the read kernel also applies GELU + the key up-projection (A800: one
@@ -238,7 +240,7 @@ class StaticKVCache(nn.Module):
   def reset(self, pos=0):
     self.pos.fill_(pos)
 
-  def attend(self, q, k, v, layer_idx):
+  def attend(self, q, k, v, layer_idx, scale=1.0):
     """q/k/v [B,N,T,D]; writes k/v at pos..pos+T and attends causally over the valid prefix."""
     t = q.shape[2]
     idx = self.pos + torch.arange(t, device=q.device)
@@ -247,22 +249,23 @@ class StaticKVCache(nn.Module):
     vb.index_copy_(2, idx, v)
     if t == 1 and q.is_cuda and _decode_attention is not None:     # split-KV Triton decode kernel
       lengths = (self.pos + 1).to(torch.int32).repeat(q.shape[0])
-      return _decode_attention(q, kb, vb, lengths)
+      return _decode_attention(q * scale if scale != 1.0 else q, kb, vb, lengths)
     mask = torch.arange(self.max_len, device=q.device)[None, :] <= idx[:, None]     # [T,S]
-    return F.scaled_dot_product_attention(q, kb, vb, attn_mask=mask[None, None], scale=1.0)
+    return F.scaled_dot_product_attention(q, kb, vb, attn_mask=mask[None, None], scale=scale)
 
 
-def causal_attention(q, k, v, layer_idx, attention_mask=None, past_key_value: Optional[Cache] = None):
-  """q/k/v [B,T,N,D] with q pre-scaled; returns [B,T,N,D]. Appends k/v to the cache."""
+def causal_attention(q, k, v, layer_idx, attention_mask=None, past_key_value: Optional[Cache] = None, scale=1.0):
+  """q/k/v [B,T,N,D]; logits are q.k * scale (1.0 when q is pre-scaled); returns [B,T,N,D].
+  Appends k/v to the cache."""
   q, k, v = (z.transpose(1, 2) for z in (q, k, v))           # [B,N,T,D]
   if isinstance(past_key_value, StaticKVCache):
-    return past_key_value.attend(q, k, v, layer_idx).transpose(1, 2)
+    return past_key_value.attend(q, k, v, layer_idx, scale).transpose(1, 2)
   if past_key_value is not None:
     k, v = past_key_value.update(k, v, layer_idx)
   if attention_mask is None:
-    y = F.scaled_dot_product_attention(q, k, v, is_causal=q.shape[2] > 1, scale=1.0)
+    y = F.scaled_dot_product_attention(q, k, v, is_causal=q.shape[2] > 1, scale=scale)
   else:
-    y = F.scaled_dot_product_attention(q, k, v, attn_mask=attention_mask, scale=1.0)
+    y = F.scaled_dot_product_attention(q, k, v, attn_mask=attention_mask, scale=scale)
   return y.transpose(1, 2)
 
 
@@ -292,6 +295,9 @@ class MhaAttention(nn.Module):
       q, k, v = self.q_proj(x), self.k_proj(x), self.v_proj(x)
     q = self.rotary(q, positions)
     k = self.rotary(k, positions)
+    if self.fused_qkv is not None:    # inference path: the softmax scale is applied by the attention kernel
+      y = causal_attention(q, k, v, self.layer_idx, attention_mask, past_key_value, scale=self.head_dim ** -0.5)
+      return self.o_proj(y.flatten(-2)), M
     q = q / torch.tensor(math.sqrt(self.head_dim), dtype=q.dtype)
     y = causal_attention(q, k, v, self.layer_idx, attention_mask, past_key_value)
     return self.o_proj(y.flatten(-2)), M
@@ -443,12 +449,11 @@ class BamAttention(nn.Module):
                              self.rotary_max_timescale, decode, *pend)
       if groups:
         M = m_new.reshape(M.shape)
+      if not decode:    # RoPE tail written in place (no q/k concatenation); the softmax scale goes to SDPA
+        _bam_rope_tail(y, std, positions.reshape(-1).contiguous(), self.qk_cols, self.rotary_max_timescale)
       q, k, v, local_o = y.reshape(b, t, 4, n, -1).unbind(2)
-      if not decode:
-        q = torch.cat((q[..., :self.qk_cols], self.rotary(qs, positions)), dim=-1)
-        k = torch.cat((k[..., :self.qk_cols], self.rotary(ks, positions)), dim=-1)
-        q = q / torch.tensor(math.sqrt(self.head_dim), dtype=q.dtype)
-      attn = causal_attention(q, k, v, self.layer_idx, attention_mask, past_key_value)
+      attn = causal_attention(q, k, v, self.layer_idx, attention_mask, past_key_value,
+                              scale=1.0 if decode else self.head_dim ** -0.5)
       if address is None:
         address = self.padded_write_address_up(gelu(wdown))
       if decode:      # the local-O add happens inside the next read kernel

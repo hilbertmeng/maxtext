@@ -16,6 +16,7 @@ import triton
 import triton.language as tl
 
 
+WRITE_TB, WRITE_STAGES, WRITE_WARPS = 2, 1, 2     # A800 prefill sweep: 84 us at T=4096 (was 98.6)
 DECODE_BC, DECODE_WARPS = 256, 8      # A800 sweep at T=1: 5.1 us (no pending write), 7.8 us (one group)
 
 
@@ -165,9 +166,9 @@ def _read_kernel_stacked(M, KEYS, GATES, S, Y, T, STD, POS, MOUT, C1, CL1, G1, A
     if ROPE:
       _store_rows(y, a, n, k, t, Y, s_y_t, STD, POS, s_st, s_sn, s_sarm, nm, km, N, K, QCOLS, R, RB, QSCALE,
                   LOG_MAX_TS)
-    else:
+    else:      # q/k columns >= QCOLS are left for bam_rope_tail
       tl.store(Y + t * s_y_t + a[:, None] * N * K + n[:, None] * K + k[None, :], y.to(Y.dtype.element_ty),
-               mask=nm[:, None] & km[None, :])
+               mask=nm[:, None] & km[None, :] & ~((a < 2)[:, None] & (k >= QCOLS)[None, :]))
 
 
 def _pending(m, c1, l1, g1, a1, c2, g2, a2, pending):
@@ -362,30 +363,72 @@ def _(hidden, up_weight, up_bias, m, gates, static_keys, std, positions, eps, sc
           m.new_empty((m.shape[0], gates.shape[2], m.shape[2])))
 
 
+
+@triton.jit
+def _rope_tail_kernel(Y, STD, POS, T, s_yt, s_st, s_sn, s_sarm, N: tl.constexpr, K: tl.constexpr,
+                      QCOLS: tl.constexpr, R: tl.constexpr, BR: tl.constexpr, RB: tl.constexpr,
+                      LOG_MAX_TS: tl.constexpr, TB: tl.constexpr):
+  """Y[t, a, n, QCOLS:] = RoPE(std[t, a, n, :]) for the q, k arms (a < 2), in place; rows r = a * N + n."""
+  r = tl.arange(0, BR)
+  rm = r < 2 * N
+  a = r // N
+  n = r % N
+  j = tl.arange(0, RB)
+  jm = j < R
+  half = R // 2
+  i = tl.where(j < half, j, j - half)
+  partner = tl.where(j < half, j + half, j - half)
+  inv_ts = tl.exp(-LOG_MAX_TS * 2.0 * i.to(tl.float32) / R)
+  sign = tl.where(j < half, -1.0, 1.0)
+  mask = rm[:, None] & jm[None, :]
+  for t in range(tl.program_id(0) * TB, tl.minimum(tl.program_id(0) * TB + TB, T)):
+    base = STD + t * s_st + a[:, None] * s_sarm + n[:, None] * s_sn
+    s1 = tl.load(base + j[None, :], mask=mask, other=0.).to(tl.float32)
+    s2 = tl.load(base + partner[None, :], mask=mask, other=0.).to(tl.float32)
+    ang = tl.load(POS + t).to(tl.float32) * inv_ts
+    rot = s1 * tl.cos(ang)[None, :] + sign[None, :] * s2 * tl.sin(ang)[None, :]
+    tl.store(Y + t * s_yt + r[:, None] * K + QCOLS + j[None, :], rot.to(Y.dtype.element_ty), mask=mask)
+
+
+@torch.library.custom_op('bam::rope_tail', mutates_args=('y',))
+def bam_rope_tail(y: torch.Tensor, std: torch.Tensor, positions: torch.Tensor, qk_cols: int,
+                  max_timescale: float) -> None:
+  """In place: q/k columns >= qk_cols of y [T,4,N,K] (from bam_read without rope) = RoPE(std [T,2,N,R])."""
+  t, _, n, kdim = y.shape
+  assert y.is_contiguous() and std.stride(-1) == 1 and positions.is_contiguous()
+  if t:
+    tb = 4
+    _rope_tail_kernel[(triton.cdiv(t, tb),)](
+        y, std, positions, t, y.stride(0), std.stride(0), std.stride(2), std.stride(1), N=n, K=kdim, QCOLS=qk_cols,
+        R=kdim - qk_cols, BR=triton.next_power_of_2(2 * n), RB=triton.next_power_of_2(kdim - qk_cols),
+        LOG_MAX_TS=math.log(max_timescale), TB=tb, num_warps=4)
+
+
 @triton.jit
 def _write_kernel(M, OUT, C1, CL1, G1, A1, C2, G2, A2,
                   s_mt, s_c1t, s_c1n, s_cl1t, s_cl1n, s_g1t, s_a1t, s_a1n, s_c2t, s_c2n, s_g2t, s_a2t, s_a2n,
                   N: tl.constexpr, K: tl.constexpr, V: tl.constexpr, BN: tl.constexpr, BK: tl.constexpr,
                   BV: tl.constexpr, KBLK: tl.constexpr, TWO: tl.constexpr, HAS_LOCAL: tl.constexpr,
-                  EPS: tl.constexpr, PREC: tl.constexpr):
-  """Program (token t, k block): M'[kb, :] = M[kb, :] + sum_g C_g[:, kb]^T A_g."""
-  t = tl.program_id(0)
+                  EPS: tl.constexpr, PREC: tl.constexpr, T, TB: tl.constexpr, STAGES: tl.constexpr):
+  """Program (token block, k block): M'[kb, :] = M[kb, :] + sum_g C_g[:, kb]^T A_g for TB tokens,
+  software-pipelined."""
   n = tl.arange(0, BN)
   k = tl.arange(0, BK)
   kb = tl.program_id(1) * KBLK + tl.arange(0, KBLK)
   v = tl.arange(0, BV)
   nm, km, kbm, vm = n < N, k < K, kb < K, v < V
   mask = kbm[:, None] & vm[None, :]
-  acc = tl.load(M + t * s_mt + kb[:, None] * V + v[None, :], mask=mask, other=0.).to(tl.float32)
   dt = OUT.dtype.element_ty
-  c, a = _group(C1, CL1, G1, A1, t, s_c1t, s_c1n, s_cl1t, s_cl1n, s_g1t, s_a1t, s_a1n, n, k, kb, v, nm, km, kbm, vm,
-                K, V, EPS, HAS_LOCAL)
-  acc = tl.dot(tl.trans(c.to(dt)), a.to(dt), acc, input_precision=PREC)
-  if TWO:
-    c, a = _group(C2, C2, G2, A2, t, s_c2t, s_c2n, s_c2t, s_c2n, s_g2t, s_a2t, s_a2n, n, k, kb, v, nm, km, kbm, vm,
-                  K, V, EPS, False)
+  for t in tl.range(tl.program_id(0) * TB, tl.minimum(tl.program_id(0) * TB + TB, T), num_stages=STAGES):
+    acc = tl.load(M + t * s_mt + kb[:, None] * V + v[None, :], mask=mask, other=0.).to(tl.float32)
+    c, a = _group(C1, CL1, G1, A1, t, s_c1t, s_c1n, s_cl1t, s_cl1n, s_g1t, s_a1t, s_a1n, n, k, kb, v, nm, km, kbm,
+                  vm, K, V, EPS, HAS_LOCAL)
     acc = tl.dot(tl.trans(c.to(dt)), a.to(dt), acc, input_precision=PREC)
-  tl.store(OUT + t * s_mt + kb[:, None] * V + v[None, :], acc.to(dt), mask=mask)
+    if TWO:
+      c, a = _group(C2, C2, G2, A2, t, s_c2t, s_c2n, s_c2t, s_c2n, s_g2t, s_a2t, s_a2n, n, k, kb, v, nm, km, kbm,
+                    vm, K, V, EPS, False)
+      acc = tl.dot(tl.trans(c.to(dt)), a.to(dt), acc, input_precision=PREC)
+    tl.store(OUT + t * s_mt + kb[:, None] * V + v[None, :], acc.to(dt), mask=mask)
 
 
 @torch.library.custom_op('bam::write', mutates_args=())
@@ -404,13 +447,15 @@ def bam_write(m: torch.Tensor, content: torch.Tensor, local: torch.Tensor, gate:
   if t:
     bk = triton.next_power_of_2(kdim)
     kblk = 32 if t < 64 else bk
-    _write_kernel[(t, triton.cdiv(kdim, kblk))](
+    tb = 1 if t < 64 else WRITE_TB
+    _write_kernel[(triton.cdiv(t, tb), triton.cdiv(kdim, kblk))](
         m, out, content, local, gate, address, content2, gate2, address2,
         m.stride(0), content.stride(0), content.stride(1), local.stride(0), local.stride(1), gate.stride(0),
         address.stride(0), address.stride(1), content2.stride(0), content2.stride(1), gate2.stride(0),
         address2.stride(0), address2.stride(1),
         N=n, K=kdim, V=vdim, BN=max(16, triton.next_power_of_2(n)), BK=bk, BV=max(16, triton.next_power_of_2(vdim)),
-        KBLK=kblk, TWO=two, HAS_LOCAL=has_local, EPS=eps, PREC=_prec(m), num_warps=4)
+        KBLK=kblk, TWO=two, HAS_LOCAL=has_local, EPS=eps, PREC=_prec(m), T=t, TB=tb,
+        STAGES=WRITE_STAGES if t >= 64 else 1, num_warps=WRITE_WARPS)
   return out
 
 

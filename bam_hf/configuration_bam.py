@@ -38,6 +38,7 @@ class BamConfig(PretrainedConfig):
       max_position_embeddings=4096,
       initializer_range=0.006,
       tie_word_embeddings=False,
+      use_cache=True,
       bos_token_id=0,
       eos_token_id=0,
       **kwargs):
@@ -72,6 +73,7 @@ class BamConfig(PretrainedConfig):
     self.rope_max_timescale = rope_max_timescale
     self.max_position_embeddings = max_position_embeddings
     self.initializer_range = initializer_range
+    self.use_cache = use_cache
     assert len(self.intermediate_sizes) == num_hidden_layers
     assert not bam_enabled or (qk_col_dim + standard_qk_dim == head_dim and bam_k == head_dim)
     super().__init__(bos_token_id=bos_token_id, eos_token_id=eos_token_id,

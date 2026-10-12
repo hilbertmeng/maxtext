@@ -422,8 +422,11 @@ class BamAttention(nn.Module):
       std = raw[2].reshape(b * t, 2, n, -1)                       # unrotated standard Q/K, one view
       flat_m = M.reshape(b * t, *M.shape[2:])
       gates = raw[1].reshape(b * t, 8, n)
-      pend = pending_args(flat_m, groups, b, t, self.eps)
       decode = b * t < DECODE_TOKENS
+      if groups and not decode:    # prefill: a separate write kernel keeps the 3-stage read pipeline (A800)
+        M = triton_write(M, *groups)
+        flat_m, groups = M.reshape(b * t, *M.shape[2:]), None
+      pend = pending_args(flat_m, groups, b, t, self.eps)
       address = None
       if decode and b * t <= FUSED_UP_TOKENS:   # + GELU, key up-projection, and this layer's write address
         wa = self.padded_write_address_up.linear

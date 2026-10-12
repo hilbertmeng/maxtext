@@ -12321,3 +12321,24 @@ class BamMediumPropL27K75V48EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdF
     bam_layer_modes = ['local_qk+local_v+local_o'] * 27
     mlp_dim_by_block = [1952, 1736, 1952]
     compare_runs = ['BamMediumPropK75V48EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadSharedGelu384GeneralReadTruePile', 'BamMediumPropL27K75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile']
+
+
+class BamMediumPropFullMGeneralReadStaticEmbeddingTruePile(BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile):
+    """Raw embedding content, static addresses and learned elementwise M scale."""
+    # Runtime: codex/mediumprop-full-m-read-gelu128, /data0/xd/mediumprop-full-m-read-gelu128.
+    # UE5a v5p-16; planned13500, review2800/5000. Bet loss0, speed+0.5% vs SOTA.
+    model_name = 'BamMediumPropFullMGeneralReadStaticEmbeddingTruePile'
+    bam_embedding_init_mode = 'static'
+    bam_embedding_matrix_scale_init = 3.74
+    mlp_dim_by_block = [3820, 3693, 3820]
+    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile']
+
+
+class BamMediumPropFullMGeneralReadMatrixEmbeddingTruePile(BamMediumPropFullMGeneralReadStaticEmbeddingTruePile):
+    """Independent V x75x32 matrix embedding; same MLP widths as static arm."""
+    # Runtime: codex/mediumprop-full-m-read-gelu128, /data0/xd/mediumprop-full-m-read-gelu128.
+    # UE5a v5p-16; planned13500, review2800/5000. Bet loss-.005, speed0% vs SOTA.
+    model_name = 'BamMediumPropFullMGeneralReadMatrixEmbeddingTruePile'
+    bam_embedding_init_mode = 'lookup'
+    bam_embedding_matrix_std = .01865
+    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile', 'BamMediumPropFullMGeneralReadStaticEmbeddingTruePile']

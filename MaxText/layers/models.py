@@ -419,6 +419,27 @@ class OutputHead(nn.Module):
     return xents, correct, preds
 
 
+class EmbeddingBamMatrix(nn.Module):
+  """Independent token lookup for the initial data-by-address BAM matrix."""
+
+  config: Config
+
+  @nn.compact
+  def __call__(self, token_ids):
+    cfg = self.config
+    table = self.param(
+        "embedding",
+        nn.with_logical_partitioning(
+            nn.initializers.normal(stddev=cfg.bam_embedding_matrix_std),
+            ("vocab", None, "embed")),
+        (cfg.vocab_size, int(cfg.bam_k), int(cfg.bam_v)), cfg.weight_dtype)
+    matrix = jnp.asarray(table, cfg.dtype)[token_ids.astype(jnp.int32)]
+    if getattr(cfg, 'bam_pallas_core', False):
+      order = (0, 2, 3, 1) if getattr(cfg, 'bam_pallas_body', None) in ('v7', 'v7u') else (0, 3, 2, 1)
+      matrix = jnp.transpose(matrix, order)
+    return matrix
+
+
 class EmbeddingBamWrite(nn.Module):
   """Initialize the BAM stream with one learned write from token embeddings."""
 
@@ -442,6 +463,24 @@ class EmbeddingBamWrite(nn.Module):
         kernel_axes=("embed", "q_heads", "v_factor"), dtype=self.dtype,
         weight_dtype=self.weight_dtype, name="W_emb_u", quant=self.quant,
         matmul_precision=cfg.matmul_precision, use_bias=False)(inputs)
+    if getattr(cfg, 'bam_embedding_init_mode', 'dynamic') == 'static':
+      def address_init(key, shape, dtype):
+        raw = jax.random.normal(key, shape, jnp.float32)
+        # Normalize only at initialization; there is no forward RMSNorm.
+        return (raw * jax.lax.rsqrt(jnp.mean(raw * raw, axis=-1, keepdims=True))).astype(dtype)
+      address = self.param(
+          "static_address", nn.with_logical_partitioning(address_init, ("q_heads", "v_factor")),
+          (heads, bam_v), self.weight_dtype)
+      scale = self.param(
+          "matrix_scale", nn.with_logical_partitioning(
+              nn.initializers.constant(cfg.bam_embedding_matrix_scale_init), (None, "v_factor")),
+          (bam_k, bam_v), self.weight_dtype)
+      matrix = jnp.einsum('btnk,nv->btkv', data, jnp.asarray(address, self.dtype))
+      matrix = (matrix * jnp.asarray(scale, self.dtype)).astype(self.dtype)
+      if getattr(cfg, 'bam_pallas_core', False):
+        order = (0, 2, 3, 1) if getattr(cfg, 'bam_pallas_body', None) in ('v7', 'v7u') else (0, 3, 2, 1)
+        matrix = jnp.transpose(matrix, order)
+      return matrix
     address = linears.DenseGeneral(
         features=bottleneck, axis=-1, kernel_init=self.kernel_init,
         kernel_axes=("embed", None), dtype=self.dtype,
@@ -512,7 +551,10 @@ class Decoder(nn.Module):
     cfg = self.config
     full_bam = cfg.bam_enabled and not getattr(cfg, 'bam_mha_control', False)
     self.embedding_bam_write = None
-    if full_bam and getattr(cfg, 'bam_embedding_write', False):
+    self.embedding_bam_matrix = None
+    if full_bam and getattr(cfg, 'bam_embedding_write', False) and getattr(cfg, 'bam_embedding_init_mode', 'dynamic') == 'lookup':
+      self.embedding_bam_matrix = EmbeddingBamMatrix(cfg, name="embedding_bam_matrix")
+    elif full_bam and getattr(cfg, 'bam_embedding_write', False):
       configured_heads = getattr(cfg, 'emb_bam_num_head', None)
       write_heads = (
           int(cfg.num_query_heads)
@@ -533,7 +575,11 @@ class Decoder(nn.Module):
           config=self.config, mesh=self.mesh, layers=pipeline_stage_module, remat_policy=remat_policy
       )
 
-  def initial_bam_matrix(self, inputs):
+  def initial_bam_matrix(self, inputs, token_ids=None):
+    if self.embedding_bam_matrix is not None:
+      if token_ids is None:
+        raise ValueError("Matrix embedding initialization requires token IDs")
+      return self.embedding_bam_matrix(token_ids)
     if self.embedding_bam_write is not None:
       return self.embedding_bam_write(inputs)
     b, t = inputs.shape[:2]
@@ -933,7 +979,7 @@ class Decoder(nn.Module):
           is_global = is_global[:cfg.num_decoder_layers - int(final_local):block_size]
         full_bam = cfg.bam_enabled and not getattr(cfg, 'bam_mha_control', False)
         if full_bam:
-          M = self.initial_bam_matrix(y)
+          M = self.initial_bam_matrix(y, decoder_input_tokens)
           scan_carry = (y, M)
         else:
           scan_carry = y
@@ -1112,7 +1158,7 @@ class Decoder(nn.Module):
         swss = format_swss(sws_list)
         max_logging.log(f'swss: {len(swss)}-{swss}, num_decoder_layers: {cfg.num_decoder_layers}', debug=cfg.debug)
         if cfg.bam_enabled and not getattr(cfg, 'bam_mha_control', False):
-          M = self.initial_bam_matrix(y)
+          M = self.initial_bam_matrix(y, decoder_input_tokens)
         else:
           M = None
         for lyr in range(cfg.num_decoder_layers):

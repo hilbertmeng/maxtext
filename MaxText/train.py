@@ -386,7 +386,8 @@ def record_rmt_dynamic_health_metrics(output_metrics, intermediate_outputs, conf
 def record_bam_concat_health_metrics(output_metrics, intermediate_outputs, config):
   """Decode compact read metrics from LLF block scan and an optional final L."""
   decoder = intermediate_outputs['intermediates']['decoder']
-  if getattr(config, 'bam_embedding_write', False):
+  if (getattr(config, 'bam_embedding_write', False)
+      and getattr(config, 'bam_embedding_init_mode', 'dynamic') == 'dynamic'):
     gate = decoder['embedding_bam_write']['seed_gate'][0]
     for i, name in enumerate(('mean', 'std')):
       output_metrics['scalar'][f'bam/embedding_write/gate_{name}'] = gate[i]

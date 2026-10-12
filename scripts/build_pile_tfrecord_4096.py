@@ -1,14 +1,15 @@
 #!/usr/bin/env python3
-"""Build true 4097-token Pile TFRecords from Pythia mmap/index mappings.
+"""Build true (T+1)-token Pile TFRecords from Pythia mmap/index mappings.
 
 The released 2048 sample map describes consecutive 2049-token windows over a
-shuffled-document stream.  Every second boundary therefore describes a true
-4097-token window without joining already-shuffled training examples.
+shuffled-document stream. Every T/2048 boundaries describe a true (T+1)-token
+window, including T4096 and T8192, without joining shuffled training examples.
 """
 
 from __future__ import annotations
 
 import argparse
+import base64
 import concurrent.futures
 import hashlib
 import json
@@ -128,6 +129,28 @@ def gcs_exists(uri: str) -> bool:
     ).returncode == 0
 
 
+def shard_integrity(path: Path) -> dict:
+    """Match Cloud Storage's CRC32C without loading an entire shard in RAM."""
+    import google_crc32c
+
+    checksum = google_crc32c.Checksum()
+    with path.open("rb") as stream:
+        for chunk in iter(lambda: stream.read(8 * 1024 * 1024), b""):
+            checksum.update(chunk)
+    return {"bytes": path.stat().st_size,
+            "crc32c": base64.b64encode(checksum.digest()).decode("ascii")}
+
+
+def verify_object(destination: str, expected: dict) -> None:
+    metadata = json.loads(subprocess.check_output(
+        ["gcloud", "storage", "objects", "describe", destination, "--format=json"],
+        text=True,
+    ))
+    actual = {"bytes": int(metadata["size"]), "crc32c": metadata["crc32c_hash"]}
+    if actual != expected:
+        raise ValueError(f"shard integrity mismatch: {destination}: {actual} != {expected}")
+
+
 def write_shard(task: tuple) -> dict:
     (
         shard_index,
@@ -144,8 +167,6 @@ def write_shard(task: tuple) -> dict:
     sample_offset = start_step * args.global_batch_size
     name = f"pile.tfrecord.b{start_step}"
     destination = f"{args.output_uri.rstrip('/')}/{name}"
-    if gcs_exists(destination):
-        return {"shard": name, "status": "exists", "samples": samples}
 
     dataset = MMapDocumentDataset(args.data_prefix)
     doc_idx = np.load(args.doc_idx, mmap_mode="r")
@@ -179,10 +200,15 @@ def write_shard(task: tuple) -> dict:
             )
             writer.write(example.SerializeToString())
     os.replace(temporary, final)
-    size = final.stat().st_size
-    run(["gcloud", "storage", "cp", str(final), destination])
+    integrity = shard_integrity(final)
+    exists = gcs_exists(destination)
+    if not exists:
+        run(["gcloud", "storage", "cp", str(final), destination])
+    # A resumed build must prove an existing object's contents, never blindly skip it.
+    verify_object(destination, integrity)
     final.unlink()
-    return {"shard": name, "status": "uploaded", "samples": samples, "bytes": size}
+    return {"shard": name, "status": "verified-existing" if exists else "uploaded",
+            "samples": samples, **integrity}
 
 
 def build_selected_ids(args: argparse.Namespace, total_4k_samples: int) -> tuple[Path, str]:
@@ -241,7 +267,7 @@ def validate_inputs(args: argparse.Namespace) -> tuple[int, np.dtype]:
 
     probes = np.linspace(0, total_samples - 1, num=17, dtype=np.int64)
     for sample_id in probes:
-        materialize_sample(
+        sample = materialize_sample(
             dataset,
             doc_idx,
             sample_idx,
@@ -249,6 +275,12 @@ def validate_inputs(args: argparse.Namespace) -> tuple[int, np.dtype]:
             boundary_stride,
             args.seq_length + 1,
         )
+        if sample_id + 1 < total_samples:
+            following = materialize_sample(dataset, doc_idx, sample_idx,
+                                           int(sample_id) + 1, boundary_stride,
+                                           args.seq_length + 1)
+            if sample[-1] != following[0]:
+                raise ValueError(f"boundary overlap mismatch at sample {sample_id}")
     return total_samples, dataset.dtype
 
 
@@ -266,6 +298,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--steps-per-shard", type=int, default=500)
     parser.add_argument("--seed", type=int, default=9876)
     parser.add_argument("--workers", type=int, default=8)
+    parser.add_argument("--source-uri-prefix", default="",
+                        help="GCS directory of byte-identical cached source files, for provenance.")
     parser.add_argument("--validate-only", action="store_true")
     return parser.parse_args()
 
@@ -275,7 +309,7 @@ def main() -> None:
     Path(args.work_dir).mkdir(parents=True, exist_ok=True)
     total_samples, token_dtype = validate_inputs(args)
     print(
-        f"validated source: dtype={token_dtype} available_4096_samples={total_samples} "
+        f"validated source: dtype={token_dtype} available_{args.seq_length}_samples={total_samples} "
         f"required={args.steps * args.global_batch_size}",
         flush=True,
     )
@@ -297,27 +331,33 @@ def main() -> None:
         "steps_per_shard": args.steps_per_shard,
         "seed": args.seed,
         "selection_sha256": selection_sha,
+        "generator": Path(__file__).name,
+        "generator_sha256": hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
     }
+    if args.source_uri_prefix:
+        for key in ("data_prefix", "doc_idx", "sample_idx"):
+            manifest[f"source_{key}"] = f"{args.source_uri_prefix.rstrip('/')}/{Path(getattr(args, key)).name}"
     local_manifest = Path(args.work_dir) / "manifest.json"
-    local_manifest.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n")
-    run(
-        [
-            "gcloud",
-            "storage",
-            "cp",
-            str(local_manifest),
-            f"{args.output_uri.rstrip('/')}/manifest.json",
-        ]
-    )
 
     shard_count = (args.steps + args.steps_per_shard - 1) // args.steps_per_shard
     args_dict = vars(args).copy()
     tasks = [(index, args_dict, str(selected_path)) for index in range(shard_count)]
+    shards = []
     with concurrent.futures.ProcessPoolExecutor(max_workers=args.workers) as executor:
         futures = {executor.submit(write_shard, task): task[0] for task in tasks}
         for future in concurrent.futures.as_completed(futures):
             result = future.result()
+            shards.append(result)
             print(json.dumps(result, sort_keys=True), flush=True)
+    manifest["shards"] = sorted(shards, key=lambda entry: int(entry["shard"].rsplit("b", 1)[1]))
+    manifest["samples"] = sum(entry["samples"] for entry in shards)
+    if manifest["samples"] != args.steps * args.global_batch_size:
+        raise ValueError("materialized sample count differs from requested coverage")
+    local_manifest.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n")
+    # A manifest is the readiness marker: publish only after all shards pass CRC/size checks.
+    run(["gcloud", "storage", "cp", str(local_manifest),
+         f"{args.output_uri.rstrip('/')}/manifest.json"])
+    print(f"MANIFEST_COMMITTED steps={args.steps} samples={manifest['samples']}", flush=True)
 
 
 if __name__ == "__main__":

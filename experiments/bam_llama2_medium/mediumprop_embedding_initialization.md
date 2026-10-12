@@ -208,3 +208,12 @@ User authorizes gated final-M trend-based stop at5000 as well. Review the mature
 ## Gate4000 review
 
 Gate4000 parent-.001605/SOTA+.004170. Recent3200/3400/3600/3800/4000 parent-.002167/-.001579/-.001684/-.001115/-.001605 (mean-.001630 vs previous-.001681), SOTA+.004380/+.003286/+.004004/+.003807/+.004170 (mean+.003929 vs previous+.004910). Gate local advantage is stable without expansion; SOTA deficit slowly narrows in block means but latest windows oscillate around+.004, no strong recent catch-up established. Checkpoint4000 committed, running normally with0preemptions. Cursor4000; user-authorized5000 trend review next. Artifactloss-gate4000.txt.
+
+
+## Gated5000 closeout: all five arms stopped
+
+Gate5000 SOTA+.003643, parent-.000831. Recent4200/4400/4600/4800/5000 SOTA+.003878/+.002976/+.004887/+.004086/+.003643 (mean+.003894 vs previous+.003929), essentially flat. Parent gaps-.000676/-.001334/+.000173/-.000540/-.000831 (mean-.000642 vs previous-.001630); local advantage shrinks, reverses briefly at4600 then returns at4800. Revised judgment: mid-training gate benefit was observed, but it did not keep expanding and has weakened; no basis to claim a stable final architectural gain. Neither the gate-parent-.003 bet nor a SOTA gain achieved at this observed endpoint; full-training behavior unobserved. User-authorized trend stop applied.
+
+Final checkpoint5121 committed, failures=[], zero estimated lost steps, TPU/queue absent, local TB SYNC_OK. UE5a v5p-16,0preemptions, one READY lease2026-10-12T13:00:36Z..16:03:38Z (3h03m02s), manual stop. All five owned formal RUNs now stopped at4531/4427/2894/5125/5121 with release and TB sync verified. Retained FLEX compiler was never adopted for cleanup. Artifacts loss-gate5000.txt and closeout-gate.json. Final cursors static4400/lookup4400/direct2800/parent5000/gate5000.
+
+Most discriminating next diagnostic (proposed, not run): on the same batches, replace token-dependent gates in2000 and5000 checkpoints with their per-column means, and separately with1. This distinguishes contextual selection from static column scaling/optimization effects and tests why the apparent advantage shrank. If contextual gating remains useful, test rank truncation of the final-M output map before a low-rank, budget-matched training arm that returns saved parameters to MLP. Current comparisons do not isolate the output branch's utility from the cost of reducing MLP width. No further RUN launched.

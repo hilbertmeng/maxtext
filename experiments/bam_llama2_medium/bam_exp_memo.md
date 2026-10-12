@@ -933,3 +933,22 @@ remain READY and are not enrolled in cleanup.
   真实HBM复制；MXU/VPU混合没有实现预期收缩重叠，未选用。
 - FP32全梯度、三层scan四种remat及两硬件BF16检查通过；未宣称逐位或长期收敛等价。
   原始v6e/MHA曾因统一预算而退速，最终比较使用更快的原已验证AOT控制。
+
+
+## 2026-10-13 JST：MediumProp 静态入口与最终 M 输出（均未胜 SOTA）
+
+直接基线为 `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile`，runtime64e3fc3；TruePile4096、UE5a v5p-16、20–99步吞吐对齐。实现 worktree `/data0/xd/mediumprop-full-m-read-gelu128`，分支 `codex/mediumprop-full-m-read-gelu128`；主exp是ledger only。完整配置、初始化、累计轨迹及资源证据见 [实验记录](mediumprop_embedding_initialization.md)。下表为各停止时最后完整共同窗口，gap=实验−SOTA，不代表未观察的13500步终点。
+
+| 方案 / runtime | 最终checkpoint / 比较窗口 | loss gap | 稳定速度差 | 净参数差（W_Q） |
+|---|---:|---:|---:|---:|
+| 因子化静态写U/A/S / f6ce0a4 | 4531 / 4400 | +.014657 | +.0444% | -.001033 |
+| 独立矩阵embedding / f6ce0a4 | 4427 / 4400 | +.008160 | -.5196% | +83.050278 |
+| 自由直接B写 / 0f5f6c4 | 2894 / 2800 | +.014938 | -.0183% | +.006944 |
+| 最终M输出 / 0f5f6c4 | 5125 / 5000 | +.004474 | +.0470% | +.005000 |
+| 最终M按列门控输出 / 1810a41 | 5121 / 5000 | +.003643 | +.1514% | +.031689 |
+
+- 新增实质参数从MLP抵扣；矩阵lookup和最终门控的MLP宽度按用户明确例外保留。额外lookup表为84.0533W_Q，净增加83.0503W_Q；没有新增前传dense投影，不等于没有lookup/优化器/带宽开销。
+- 静态入口去掉原写地址pre-RMS-bias梯度尖峰，仍未改善loss。直接B显著消除因子化静态写的启动劣势，但到2800只比静态写好.002577，仍距SOTA+.014938。梯度范数和参数化启动速度都不能替代后期loss证据。
+- 最终门控与父路保持相同MLP、共享参数初始化、初始logits和输出投影梯度幅度。1400..4000持续约-.0016局部优势，到4200..5000缩成均值-.000642，并在4600短暂反转；SOTA差距同期均值+.003894，前五窗+.003929，停止符合用户5000趋势审查。修正中期看法：局部收益未保持同样幅度，没有已兑现的SOTA收益。
+- 五路0抢占、均主动停止，checkpoint/资源删除/TB同步已核验；全程UE5a，未切区。吞吐差均不到1%，不能宣称实质加速；M-cache无新增优势。
+- 下一步先做同批次门控消融：将逐token门替换成逐列均值或1，比较2000/5000，区分条件选择与静态缩放/优化效应。若条件读出仍有价值，再做输出投影的rank截断诊断，判断能否低秩化并将省出的参数还给MLP。当前训练对照未分离新输出支路收益与MLP抵扣代价；未启动后续实验。

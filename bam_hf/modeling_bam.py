@@ -104,13 +104,22 @@ class GatedLinear(nn.Module):
     return self.proj(x) + self.bias.to(x.dtype)
 
 
+ALIGN = 64    # GEMM dims padded to a multiple of 64: misaligned (e.g. 6140, 1940) halve cuBLAS throughput
+
+
+def pad_rows(w, multiple=ALIGN):
+  extra = -w.shape[0] % multiple
+  return torch.cat((w, w.new_zeros((extra,) + w.shape[1:]))) if extra else w
+
+
 def fused_linear(*parts):
   """One nn.Linear computing [p(x) for p in parts] (same input); biases are added in its epilogue.
+  The output is zero-padded to a multiple of ALIGN; callers split off the real width.
 
   parts: (weight [out, in], bias [out] or None) pairs."""
-  weight = torch.cat([w for w, _ in parts], 0)
-  bias = torch.cat([b if b is not None else torch.zeros(w.shape[0], dtype=w.dtype, device=w.device)
-                    for w, b in parts])
+  weight = pad_rows(torch.cat([w for w, _ in parts], 0))
+  bias = pad_rows(torch.cat([b if b is not None else torch.zeros(w.shape[0], dtype=w.dtype, device=w.device)
+                             for w, b in parts]))
   layer = nn.Linear(weight.shape[1], weight.shape[0], bias=any(b is not None for _, b in parts),
                     device=weight.device, dtype=weight.dtype)
   layer.weight.data.copy_(weight)
@@ -129,6 +138,18 @@ def batched_write(M, content, address):
 def gate_part(g):
   """(weight, bias) of a GatedLinear."""
   return g.proj.weight, g.bias.reshape(-1)
+
+
+class PaddedHeadLinear(nn.Module):
+  """HeadLinear with its output zero-padded to ALIGN for the GEMM, sliced back (inference)."""
+
+  def __init__(self, layer: HeadLinear):
+    super().__init__()
+    self.linear = fused_linear((layer.weight, layer.bias))
+    self.out_features, self.out_shape = layer.out_features, layer.out_shape
+
+  def forward(self, x):
+    return self.linear(x)[..., :self.out_features].unflatten(-1, self.out_shape)
 
 
 class BamEmbeddingWrite(nn.Module):
@@ -218,7 +239,7 @@ class MhaAttention(nn.Module):
 
   def forward(self, x, M, positions, attention_mask=None, past_key_value=None, defer_write=False):
     if self.fused_qkv is not None:
-      q, k, v = self.fused_qkv(x).unflatten(-1, (3, -1, self.head_dim)).unbind(-3)
+      q, k, v = self.fused_qkv(x)[..., :3 * self.q_proj.out_features].unflatten(-1, (3, -1, self.head_dim)).unbind(-3)
     else:
       q, k, v = self.q_proj(x), self.k_proj(x), self.v_proj(x)
     q = self.rotary(q, positions)
@@ -283,17 +304,19 @@ class BamAttention(nn.Module):
                                 *gates, (self.write_address_down.weight, None), gate_part(self.write_gate))
     self._x_sizes = [self.q_proj.out_features, self.k_proj.out_features, self.read_down.out_features,
                      8 * n, self.write_address_down.out_features, n]
+    self._x_sizes.append(self.fused_x.out_features - sum(self._x_sizes))      # alignment padding
     self.fused_up = fused_linear(*[(up.weight, b.reshape(-1)) for up, b in (
         (self.q_read_up, self.q_read_pre_bias), (self.k_read_up, self.k_read_pre_bias),
         (self.vo_read_up, self.vo_read_pre_bias))])
+    self.padded_write_address_up = PaddedHeadLinear(self.write_address_up)
 
   def _projections(self, x):
     """Returns q_std, k_std [.,N,Ds]; read keys q/k/vo [.,N,V]; gate logits {name: [.,N]};
     write address hidden [., Rw] (pre-GELU) and write-gate logits [.,N]."""
     n = self.num_heads
     if self.fused_x is not None:
-      qs, ks, down, gates, wdown, wgate = self.fused_x(x).split(self._x_sizes, -1)
-      keys = self.fused_up(gelu(down)).unflatten(-1, (3, n, -1)).unbind(-3)
+      qs, ks, down, gates, wdown, wgate, _ = self.fused_x(x).split(self._x_sizes, -1)
+      keys = self.fused_up(gelu(down))[..., :3 * self.q_read_up.out_features].unflatten(-1, (3, n, -1)).unbind(-3)
       gates = dict(zip(self.GATES, gates.unflatten(-1, (8, n)).unbind(-2)))
       return qs.unflatten(-1, (n, -1)), ks.unflatten(-1, (n, -1)), keys, gates, wdown, wgate
     hidden = gelu(self.read_down(x))
@@ -338,7 +361,7 @@ class BamAttention(nn.Module):
       q = q / torch.tensor(math.sqrt(self.head_dim), dtype=q.dtype)
       o_head = causal_attention(q, k, v, self.layer_idx, attention_mask, past_key_value) + local_o
       factors = (torch.sigmoid(wgate)[..., None] * rms_norm(o_head[..., :self.bam_k], self.eps),
-                 rms_norm(self.write_address_up(gelu(wdown)), self.eps))
+                 rms_norm(self.padded_write_address_up(gelu(wdown)), self.eps))
       out = self.o_proj(o_head.flatten(-2))
       return out, factors if defer_write else batched_write(M, *factors)
     q = torch.cat((self._qk_read(M, q_key, g['q_read'], self.q_static_key, g['q_static']),
@@ -375,16 +398,24 @@ class BamMLP(nn.Module):
     self._sizes = None
 
   def fuse(self, extra=()):
-    """gate/up (+ extra (weight, bias) projections of the same input) as one GEMM."""
-    self.fused = fused_linear((self.gate_proj.weight, None), (self.up_proj.weight, None), *extra)
-    self._sizes = [self.gate_proj.out_features, self.up_proj.out_features] + [w.shape[0] for w, _ in extra]
+    """gate/up (+ extra (weight, bias) projections of the same input) as one GEMM; the intermediate
+    width is zero-padded to a multiple of ALIGN (silu(0) * 0 = 0, zero down columns: exact)."""
+    gate, up = pad_rows(self.gate_proj.weight), pad_rows(self.up_proj.weight)
+    width = gate.shape[0]
+    self.fused = fused_linear((gate, None), (up, None), *extra)
+    self._sizes = [width, width] + [w.shape[0] for w, _ in extra]
+    self._sizes.append(self.fused.out_features - sum(self._sizes))
+    down = self.down_proj.weight
+    self.fused_down = nn.Linear(width, down.shape[0], bias=False, device=down.device, dtype=down.dtype)
+    self.fused_down.weight.data.zero_()
+    self.fused_down.weight.data[:, :down.shape[1]] = down
 
   def forward(self, x):
     """Returns (output, extra projections of x)."""
     if self.fused is None:
       return self.down_proj(F.silu(self.gate_proj(x)) * self.up_proj(x)), ()
-    gate, up, *extra = self.fused(x).split(self._sizes, -1)
-    return self.down_proj(F.silu(gate) * up), extra
+    gate, up, *extra, _ = self.fused(x).split(self._sizes, -1)
+    return self.fused_down(F.silu(gate) * up), extra
 
 
 class BamMLPWrite(nn.Module):
@@ -400,6 +431,7 @@ class BamMLPWrite(nn.Module):
 
   def projections(self):
     """(weight, bias) pairs fused into the MLP input GEMM: gate logits, address_down."""
+    self.padded_address_up = PaddedHeadLinear(self.address_up)
     return [gate_part(self.gate), (self.address_down.weight, None)]
 
   def forward(self, hidden, mlp_out, M, attention_factors, fused=()):
@@ -407,7 +439,7 @@ class BamMLPWrite(nn.Module):
     logits, down = fused if fused else (self.gate(hidden), self.address_down(hidden))
     content = rms_norm(mlp_out.unflatten(-1, (self.num_heads, self.bam_k)), self.eps)
     mlp_content = torch.sigmoid(logits)[..., None] * content
-    mlp_address = rms_norm(self.address_up(gelu(down)), self.eps)
+    mlp_address = rms_norm((self.padded_address_up if fused else self.address_up)(gelu(down)), self.eps)
     if fused:     # one batched write for both groups
       return batched_write(M, torch.cat((gated, mlp_content), -2), torch.cat((address, mlp_address), -2))
     return M + (torch.einsum('btnk,btnv->btkv', gated, address)

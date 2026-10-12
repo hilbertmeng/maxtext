@@ -12332,6 +12332,7 @@ class BamMediumPropFullMGeneralReadStaticEmbeddingTruePile(BamMediumPropK75Embed
     # 20-99 .47894step/s (+.04%); @200 loss+.316375 vs SOTA; early raw-grad median1.063 vs6.381.
     # Through600: SOTA gap+.3164/+.1146/+.0712 at200/400/600; catching up, health improved.
     # @2800 SOTA+.017515; catch-up slows, last5+.018931. User requests patient continuation through5000+.
+    # @4200 SOTA+.014525; last5+.015408, slow catch-up; user requests patient5000+ observation.
     model_name = 'BamMediumPropFullMGeneralReadStaticEmbeddingTruePile'
     bam_embedding_init_mode = 'static'
     bam_embedding_matrix_scale_init = 3.74
@@ -12348,6 +12349,7 @@ class BamMediumPropFullMGeneralReadMatrixEmbeddingTruePile(BamMediumPropFullMGen
     # 20-99 .47624step/s (-.52%); @200 loss+.041272 vs SOTA/-.275103 vs static; raw-grad median1.140.
     # Through600: SOTA gap+.0413/+.0143/+.0215 at200/400/600; no sustained catch-up yet.
     # @2800 SOTA+.009505/static-.008010; last5 SOTA+.009357, recent flattening. User: continue through5000+.
+    # @4200 SOTA+.007710/static-.006815; last5 SOTA+.008619; patient5000+ observation.
     model_name = 'BamMediumPropFullMGeneralReadMatrixEmbeddingTruePile'
     bam_embedding_init_mode = 'lookup'
     bam_embedding_matrix_std = .01865
@@ -12362,6 +12364,7 @@ class BamMediumPropFullMGeneralReadDirectEmbeddingTruePile(BamMediumPropFullMGen
     # code_commit: 0f5f6c4; params432121104 (+10000 vs SOTA); TPU310131, UE5a v5p-16.
     # Actual AOT FIRST_STEP and14 passed; mean20-99 .4786375step/s (-.06% vs static/-.02% vs SOTA).
     # @1000 SOTA+.020135/static-.022238; faster early adaptation vs factored, no SOTA win yet.
+    # @2200 SOTA+.015022/static-.005451; startup advantage over factors narrows, training active.
     model_name = 'BamMediumPropFullMGeneralReadDirectEmbeddingTruePile'
     bam_embedding_init_mode = 'direct'
     mlp_dim_by_block = [3798, 3671, 3798]
@@ -12376,6 +12379,7 @@ class BamMediumPropFullMGeneralReadFinalMatrixResidualTruePile(BamMediumPropK75E
     # code_commit: 0f5f6c4; params432118304 (+7200 vs SOTA); TPU310130, UE5a v5p-16.
     # Actual AOT FIRST_STEP and14 passed; mean20-99 .478950step/s (+.05% vs SOTA).
     # @200/400/600/800/1000 SOTA+.106657/+.031168/+.017734/+.013917/+.011775; sustained catch-up.
+    # @2000 SOTA+.006440; last5+.007925, continuing catch-up; training active.
     model_name = 'BamMediumPropFullMGeneralReadFinalMatrixResidualTruePile'
     bam_final_matrix_residual = True
     mlp_dim_by_block = [3769, 3641, 3769]
@@ -12388,6 +12392,7 @@ class BamMediumPropFullMGeneralReadFinalMatrixVGateTruePile(BamMediumPropFullMGe
     # User explicitly keeps MLP[3769,3641,3769]; +38432=.026689W_Q vs final-M parent.
     # Gate kernel0, biaslog9; 1.1*sigmoid/.99 => initial effective multiplier1, matching parent reads.
     # Bet final loss-.003 and speed-.1% vs final-M parent; planned13500, review2800/5000.
+    # code_commit: 1810a41; params432156736; TPU310150, UE5a v5p-16; AOT FIRST_STEP+14 verified, TB500.
     model_name = 'BamMediumPropFullMGeneralReadFinalMatrixVGateTruePile'
     bam_final_matrix_v_gate = True
     compare_runs = ['BamMediumPropFullMGeneralReadFinalMatrixResidualTruePile', 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile']

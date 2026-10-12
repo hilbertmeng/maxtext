@@ -60,3 +60,15 @@ Mean20-99 throughput: static.4789375 (+.0444% vs parent.478725), lookup.4762375 
 Both healthy in UE5a, committed600, no preemptions. Cumulative200/400/600 gap vsSOTA: static+.316375/+.114625/+.071218, r200-.638/-.379; lookup+.041272/+.014337/+.021542, r200-.653/+.503. Lookup-static-.275103/-.100288/-.049676. Static continues substantial catch-up; lookup deficit widened400->600, so no claim of convergence or stable plateau yet.
 
 Actual events verified: both part00000 raw-gradient steps0..490; part00001 begins500, covers static750/lookup670 at sync. Rotation is operational, with no missing10-step samples through600. Common210..600 (40samples): median raw norm parent1.201925/static.802208/lookup.705489; clipped28/14/10 samples. Static310 transient3.223256 arises chiefly from L9/L11 staticK read keys (33.17%/13.78% energy), embedding-entry.284%;320 recovers.662273. No A/S spike transfer or persistent escalation. Artifactgrad-600.json; continue toward1000 and review2800.
+
+
+##800 review
+
+Cumulative200/400/600/800 static-SOTA+.316375/+.114625/+.071218/+.049173; lookup-SOTA+.041272/+.014337/+.021542/+.017199; lookup-static-.275103/-.100288/-.049676/-.031974. Static keeps catching up; lookup remains roughly+.014..+.022 after400, with600 widening not continued at800. Both continue. In common610..800 samples, median raw norm parent.693794/static.554137/lookup.483670; clipping2/1/1 of20. The demonstrated health gain is strongest early; later clipping advantages diminish in this observed window. Artifactsloss-800.txt,grad-800.json and read-health-*-800.json (generic reporter has no applicable fetched-head bands for these all-local models).
+
+
+##1000 review
+
+Cumulative200/400/600/800/1000: static-SOTA+.316375/+.114625/+.071218/+.049173/+.042373; lookup-SOTA+.041272/+.014337/+.021542/+.017199/+.017998; lookup-static-.275103/-.100288/-.049676/-.031974/-.024376. Static catch-up slows (gap-magnitude shrink63.8%,37.9%,31.0%,13.8%); lookup stays approximately+.018 after400 without sustained improvement. No stop before planned2800 review. Common810..1000: raw medians parent.530885/static.470596/lookup.396272; sampled clipping0/1/0 outof20. Current loss deficits persist after old-parent clipping mostly subsides, so early health improvement alone does not explain eventual competitiveness.
+
+User clarified an unlaunched alternative: replace W_U and A with freely trained B[1200,75,32], initialized from their contraction, retaining S. Algebraically identical at initialization, then removes per-k rank<=16 and shared-A constraints; adds1439488=.999644W_Q versus factored static arm. Dense entry MACs2.88M vs1.4784M; whole-model throughput change requires measurement. No third RUN authorized/launched yet.

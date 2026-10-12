@@ -12331,6 +12331,7 @@ class BamMediumPropFullMGeneralReadStaticEmbeddingTruePile(BamMediumPropK75Embed
     # GCS TB event rotation500; actual compiled FIRST_STEP verified; training active.
     # 20-99 .47894step/s (+.04%); @200 loss+.316375 vs SOTA; early raw-grad median1.063 vs6.381.
     # Through600: SOTA gap+.3164/+.1146/+.0712 at200/400/600; catching up, health improved.
+    # @1000 SOTA+.042373; catch-up continues but slows; sampled late clipping similar to baseline.
     model_name = 'BamMediumPropFullMGeneralReadStaticEmbeddingTruePile'
     bam_embedding_init_mode = 'static'
     bam_embedding_matrix_scale_init = 3.74
@@ -12346,6 +12347,7 @@ class BamMediumPropFullMGeneralReadMatrixEmbeddingTruePile(BamMediumPropFullMGen
     # GCS TB event rotation500; actual compiled FIRST_STEP verified; training active.
     # 20-99 .47624step/s (-.52%); @200 loss+.041272 vs SOTA/-.275103 vs static; raw-grad median1.140.
     # Through600: SOTA gap+.0413/+.0143/+.0215 at200/400/600; no sustained catch-up yet.
+    # @1000 SOTA+.017998/static-.024376; roughly+.018 deficit since400 despite healthier startup.
     model_name = 'BamMediumPropFullMGeneralReadMatrixEmbeddingTruePile'
     bam_embedding_init_mode = 'lookup'
     bam_embedding_matrix_std = .01865

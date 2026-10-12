@@ -135,3 +135,8 @@ New200/400/600/800: direct-SOTA+.018091/+.029939/+.026574/+.019046 (latest r200-
 ## Follow-up1000 review
 
 Direct-SOTA200/400/600/800/1000+.018091/+.029939/+.026574/+.019046/+.020135 (latest r200+.057); direct-static-.298284/-.084685/-.044644/-.030127/-.022238 (-.262); final-M-SOTA+.106657/+.031168/+.017734/+.013917/+.011775 (-.154). Five-point means direct-SOTA+.022757, final-M+.036250 are skewed by startup; ranges+.018091..+.029939 and+.011775..+.106657. Final-M continues four successive catch-up windows, direct near+.020 in800/1000. Provisional prediction: final-M more likely to catch SOTA first; direct establishes faster early adaptation versus factors, not superior final capacity. New checkpoints1000 and report cursors1000. Old progress3284/3195 healthy, static3200+.015783 and lookup3000+.008508 continue slow convergence; old cursors2800. Artifactloss-four-new1000.txt.
+
+
+## Follow-up1400 review
+
+Direct-SOTA1200/1400+.015828/+.015932 (r200-.214,+.007); direct-static-.016442/-.015684 (-.261,-.046); final-M-SOTA+.009593/+.007814 (-.185,-.185). Last-five600..1400 means/ranges: direct-SOTA+.019503/[+.015828,+.026574]; final-M+.012167/[+.007814,+.017734]. Final-M has continued six consecutive catch-up windows. Direct1400 is only+.000542 worse than lookup1400 while using119582400 fewer parameters; current lookup-level early performance is achievable with the budget-matched direct map, without proving equal final capacity. All four healthy, no preemptions. Old progress3635/3527 and checkpoints3600/3400; latest static3600+.016305 and lookup3400+.008820 show slow rather than rapid catch-up. New cursors1400, old2800; next combined review around first-batch4000. Artifactloss-four-new1200.txt actually includes new1400 windows.

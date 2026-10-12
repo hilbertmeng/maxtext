@@ -424,11 +424,15 @@ class BamAttention(nn.Module):
       gates = raw[1].reshape(b * t, 8, n)
       pend = pending_args(flat_m, groups, b, t, self.eps)
       decode = b * t < DECODE_TOKENS
-      if decode and b * t <= FUSED_UP_TOKENS:   # + GELU and the key up-projection
-        y, m_new = _bam_decode_read(raw[3].reshape(b * t, -1), self.fused_up.weight, self.fused_up.bias, flat_m,
-                                    gates, self.static_keys, std, positions, self.read_eps, self.read_scale,
-                                    self.static_gate_init, self.qk_cols, 1.0 / math.sqrt(self.head_dim),
-                                    self.rotary_max_timescale, *pend)
+      address = None
+      if decode and b * t <= FUSED_UP_TOKENS:   # + GELU, key up-projection, and this layer's write address
+        wa = self.padded_write_address_up.linear
+        y, m_new, address = _bam_decode_read(
+            raw[3].reshape(b * t, -1), self.fused_up.weight, self.fused_up.bias, flat_m, gates, self.static_keys,
+            std, positions, self.read_eps, self.read_scale, self.static_gate_init, self.qk_cols,
+            1.0 / math.sqrt(self.head_dim), self.rotary_max_timescale, *pend, wdown.reshape(b * t, -1),
+            wa.weight, wa.bias)
+        address = address.reshape(b, t, n, -1)
       else:                                     # decode: RoPE/q scale in the kernel; prefill: in torch
         y, m_new = _bam_read(flat_m, raw[0].reshape(b * t, 3, n, -1), gates, self.static_keys, std,
                              positions.reshape(-1).contiguous(), self.read_eps, self.read_scale,
@@ -442,7 +446,8 @@ class BamAttention(nn.Module):
         k = torch.cat((k[..., :self.qk_cols], self.rotary(ks, positions)), dim=-1)
         q = q / torch.tensor(math.sqrt(self.head_dim), dtype=q.dtype)
       attn = causal_attention(q, k, v, self.layer_idx, attention_mask, past_key_value)
-      address = self.padded_write_address_up(gelu(wdown))
+      if address is None:
+        address = self.padded_write_address_up(gelu(wdown))
       if decode:      # the local-O add happens inside the next read kernel
         out = self.o_proj((attn + local_o).flatten(-2))
         return out, (M, [((attn, local_o), wgate, address)])

@@ -72,8 +72,14 @@ def main():
       b_up = torch.randn(3 * n * v + 32, **dev) * 0.1
       keys_d = (F.linear(F.gelu(hid.float(), approximate='tanh'), w_up.float(), b_up.float()))[:, :3 * n * v]
       pos2 = torch.randint(0, 4096, (1, t), device='cuda').expand(1, t)
-      yd = bam_decode_read(hid, w_up, b_up, m, gates, s, std, pos2, 1e-4, 0.1, 0.99, 72, 96 ** -0.5, 10000.,
-                           m, m, m[:, :, 0], m, m, m[:, :, 0], m, 0, False, 1e-6)[0].float()
+      whid = xs[:, 1520:1920]; ww = torch.randn(n * v + 32, 400, **dev) * 400 ** -0.5; wb = torch.randn(n * v + 32, **dev) * .1
+      yd, _, ad = bam_decode_read(hid, w_up, b_up, m, gates, s, std, pos2, 1e-4, 0.1, 0.99, 72, 96 ** -0.5, 10000.,
+                                  m, m, m[:, :, 0], m, m, m[:, :, 0], m, 0, False, 1e-6, whid, ww, wb)
+      yd = yd.float()
+      ra = F.linear(F.gelu(whid.float(), approximate='tanh'), ww.float(), wb.float())[:, :n * v].unflatten(-1, (n, v))
+      e_ad = ((ad.float() - ra).norm() / ra.norm()).item()
+      print(f'T={t} {dtype}: decode_read write-address rel {e_ad:.1e}')
+      assert e_ad < tol, e_ad
       rd = ref_read(m, keys_d.unflatten(-1, (3, n, v)), gates, s, std, pos2[0])
       e_dec = ((yd - rd).norm() / rd.norm()).item()
       print(f'T={t} {dtype}: decode_read (fused up) rel {e_dec:.1e}')
@@ -107,7 +113,8 @@ def main():
       if t <= 4:
         hid = xs[:, 960:1360]; w_up = torch.randn(3 * n * v, 400, **dev) * 400 ** -0.5; b_up = torch.randn(3 * n * v, **dev) * .1
         kd = F.linear(F.gelu(hid.float(), approximate='tanh'), w_up.float(), b_up.float()).unflatten(-1, (3, n, v))
-        yd, md = bam_decode_read(hid, w_up, b_up, m, gates, s, std, pos[None], 1e-4, 0.1, 0.99, 72, 96 ** -0.5, 10000., *pargs)
+        yd, md, _ = bam_decode_read(hid, w_up, b_up, m, gates, s, std, pos[None], 1e-4, 0.1, 0.99, 72, 96 ** -0.5, 10000.,
+                                    *pargs, xs[:, 1520:1920], w_up[:n * v], b_up[:n * v])
         rd = ref_read(m_ref, kd, gates, s, std, pos)
         e_d = ((yd.float() - rd).norm() / rd.norm()).item(); e_dm = ((md.float() - m_ref.float()).norm() / m_ref.float().norm()).item()
         msg += f' | decode_read rel {e_d:.1e} M rel {e_dm:.1e}'

@@ -16,7 +16,7 @@ import triton
 import triton.language as tl
 
 
-DECODE_BC, DECODE_WARPS = 256, 4      # A800 sweep at T=1: 4.8 us
+DECODE_BC, DECODE_WARPS = 256, 8      # A800 sweep at T=1: 5.1 us (no pending write), 7.8 us (one group)
 
 
 def _prec(m):
@@ -240,63 +240,80 @@ def _gelu_tanh(h):
 
 @triton.jit
 def _decode_read_kernel(HID, W, B, M, GATES, S, STD, POS, Y, MOUT, C1, CL1, G1, A1, C2, G2, A2,
+                        WHID, WW, WB, ADDR,
                         s_ht, s_mt, s_gt, s_st, s_sn, s_sarm, s_pb, s_pt, s_y_t, TLEN,
+                        s_wht, s_adt,
                         s_c1t, s_c1n, s_cl1t, s_cl1n, s_g1t, s_a1t, s_a1n, s_c2t, s_c2n, s_g2t, s_a2t, s_a2n,
                         N: tl.constexpr, K: tl.constexpr, V: tl.constexpr, H: tl.constexpr,
                         BK: tl.constexpr, BV: tl.constexpr, BH: tl.constexpr, BC: tl.constexpr,
                         EPS: tl.constexpr, SCALE: tl.constexpr, STATIC_DIV: tl.constexpr,
                         QCOLS: tl.constexpr, R: tl.constexpr, RB: tl.constexpr, QSCALE: tl.constexpr,
                         LOG_MAX_TS: tl.constexpr, BN: tl.constexpr, PENDING: tl.constexpr,
-                        HAS_LOCAL: tl.constexpr, PEPS: tl.constexpr, PREC: tl.constexpr):
+                        HAS_LOCAL: tl.constexpr, PEPS: tl.constexpr, PREC: tl.constexpr,
+                        WH: tl.constexpr, BWH: tl.constexpr):
   """Decode read, program (head n, key arm ka, token t): gelu(hidden) -> this head's 40 key rows of the
   fused up projection (+ pre-bias) -> RMS, gates, static key -> rows of X_t M_t^T (VO key: v and o rows)
-  -> RoPE tail and q scale. Replaces the gelu, up-projection GEMV and read kernels of a decode step."""
+  -> RoPE tail and q scale; the previous layer's deferred write is applied to M first. Programs with
+  ka == 3 instead compute head n's raw write address W_addr gelu(write hidden) + b of this layer.
+  Replaces the GELU, key/address up-projection GEMV and read kernels of a decode step."""
   n = tl.program_id(0)
   ka = tl.program_id(1)
   t = tl.program_id(2)
   v = tl.arange(0, BV)
   vm = v < V
-  k = tl.arange(0, BK)
-  km = k < K
-  mkv = _load_m(M, MOUT, t, (n == 0) & (ka == 0), s_mt, C1, CL1, G1, A1, C2, G2, A2, s_c1t, s_c1n, s_cl1t, s_cl1n, s_g1t,
-              s_a1t, s_a1n, s_c2t, s_c2n, s_g2t, s_a2t, s_a2n, k, v, km, vm, N, K, V, BN, PEPS, PENDING,
-              HAS_LOCAL, PREC)
-  key = tl.zeros((BV,), tl.float32)
-  for c0 in tl.static_range(0, BH, BC):
-    c = c0 + tl.arange(0, BC)
-    cm = c < H
-    h = _gelu_tanh(tl.load(HID + t * s_ht + c, mask=cm, other=0.).to(tl.float32))
-    w = tl.load(W + ((ka * N + n) * V + v[:, None]) * H + c[None, :], mask=vm[:, None] & cm[None, :], other=0.)
-    key += tl.sum(w.to(tl.float32) * h[None, :], axis=1)
-  key += tl.load(B + (ka * N + n) * V + v, mask=vm, other=0.).to(tl.float32)
-  key = tl.where(vm, key, 0.)
-  key = key * tl.rsqrt(tl.sum(key * key, axis=0) / V + EPS)
-  for a2 in tl.static_range(2):
-    a = tl.minimum(ka + a2, 3)
-    if (a2 == 0) | (ka == 2):            # q, k: one row; VO key: v and o rows
-      gd = tl.load(GATES + t * s_gt + a * N + n).to(tl.float32)
-      gs = tl.load(GATES + t * s_gt + (4 + a) * N + n).to(tl.float32)
-      st = tl.load(S + a * V * N + v * N + n, mask=vm, other=0.).to(tl.float32)
-      x = SCALE * tl.sigmoid(gd) * key + (1.1 * tl.sigmoid(gs) / STATIC_DIV) * st
-      y = tl.sum(mkv.to(tl.float32) * x[None, :], axis=1)              # [BK]
-      row = Y + t * s_y_t + (a * N + n) * K
-      if ka < 2:
-        scale = tl.where(a == 0, QSCALE, 1.0)
-        tl.store(row + k, (y * scale).to(Y.dtype.element_ty), mask=k < QCOLS)
-        j = tl.arange(0, RB)
-        half = R // 2
-        i = tl.where(j < half, j, j - half)
-        partner = tl.where(j < half, j + half, j - half)
-        jm = j < R
-        base = STD + t * s_st + a * s_sarm + n * s_sn
-        s1 = tl.load(base + j, mask=jm, other=0.).to(tl.float32)
-        s2 = tl.load(base + partner, mask=jm, other=0.).to(tl.float32)
-        pos = tl.load(POS + (t // TLEN) * s_pb + (t % TLEN) * s_pt).to(tl.float32)
-        ang = pos / tl.exp(LOG_MAX_TS * 2.0 * i.to(tl.float32) / R)
-        rot = s1 * tl.cos(ang) + tl.where(j < half, -1.0, 1.0) * s2 * tl.sin(ang)
-        tl.store(row + QCOLS + j, (rot * scale).to(Y.dtype.element_ty), mask=jm)
-      else:
-        tl.store(row + k, y.to(Y.dtype.element_ty), mask=km)
+  if ka == 3:
+    wa = tl.zeros((BV,), tl.float32)
+    for c0 in tl.static_range(0, BWH, BC):
+      c = c0 + tl.arange(0, BC)
+      cm = c < WH
+      h = _gelu_tanh(tl.load(WHID + t * s_wht + c, mask=cm, other=0.).to(tl.float32))
+      w = tl.load(WW + (n * V + v[:, None]) * WH + c[None, :], mask=vm[:, None] & cm[None, :], other=0.)
+      wa += tl.sum(w.to(tl.float32) * h[None, :], axis=1)
+    wa += tl.load(WB + n * V + v, mask=vm, other=0.).to(tl.float32)
+    tl.store(ADDR + t * s_adt + n * V + v, wa.to(ADDR.dtype.element_ty), mask=vm)
+  else:
+    k = tl.arange(0, BK)
+    km = k < K
+    key = tl.zeros((BV,), tl.float32)
+    for c0 in tl.static_range(0, BH, BC):
+      c = c0 + tl.arange(0, BC)
+      cm = c < H
+      h = _gelu_tanh(tl.load(HID + t * s_ht + c, mask=cm, other=0.).to(tl.float32))
+      w = tl.load(W + ((ka * N + n) * V + v[:, None]) * H + c[None, :], mask=vm[:, None] & cm[None, :], other=0.)
+      key += tl.sum(w.to(tl.float32) * h[None, :], axis=1)
+    key += tl.load(B + (ka * N + n) * V + v, mask=vm, other=0.).to(tl.float32)
+    key = tl.where(vm, key, 0.)
+    key = key * tl.rsqrt(tl.sum(key * key, axis=0) / V + EPS)
+    # M (with the deferred write applied) after the key GEMV: its loads are independent and go out first
+    mkv = _load_m(M, MOUT, t, (n == 0) & (ka == 0), s_mt, C1, CL1, G1, A1, C2, G2, A2, s_c1t, s_c1n, s_cl1t,
+                  s_cl1n, s_g1t, s_a1t, s_a1n, s_c2t, s_c2n, s_g2t, s_a2t, s_a2n, k, v, km, vm, N, K, V, BN, PEPS,
+                  PENDING, HAS_LOCAL, PREC)
+    for a2 in tl.static_range(2):
+      a = tl.minimum(ka + a2, 3)
+      if (a2 == 0) | (ka == 2):            # q, k: one row; VO key: v and o rows
+        gd = tl.load(GATES + t * s_gt + a * N + n).to(tl.float32)
+        gs = tl.load(GATES + t * s_gt + (4 + a) * N + n).to(tl.float32)
+        st = tl.load(S + a * V * N + v * N + n, mask=vm, other=0.).to(tl.float32)
+        x = SCALE * tl.sigmoid(gd) * key + (1.1 * tl.sigmoid(gs) / STATIC_DIV) * st
+        y = tl.sum(mkv.to(tl.float32) * x[None, :], axis=1)              # [BK]
+        row = Y + t * s_y_t + (a * N + n) * K
+        if ka < 2:
+          scale = tl.where(a == 0, QSCALE, 1.0)
+          tl.store(row + k, (y * scale).to(Y.dtype.element_ty), mask=k < QCOLS)
+          j = tl.arange(0, RB)
+          half = R // 2
+          i = tl.where(j < half, j, j - half)
+          partner = tl.where(j < half, j + half, j - half)
+          jm = j < R
+          base = STD + t * s_st + a * s_sarm + n * s_sn
+          s1 = tl.load(base + j, mask=jm, other=0.).to(tl.float32)
+          s2 = tl.load(base + partner, mask=jm, other=0.).to(tl.float32)
+          pos = tl.load(POS + (t // TLEN) * s_pb + (t % TLEN) * s_pt).to(tl.float32)
+          ang = pos / tl.exp(LOG_MAX_TS * 2.0 * i.to(tl.float32) / R)
+          rot = s1 * tl.cos(ang) + tl.where(j < half, -1.0, 1.0) * s2 * tl.sin(ang)
+          tl.store(row + QCOLS + j, (rot * scale).to(Y.dtype.element_ty), mask=jm)
+        else:
+          tl.store(row + k, y.to(Y.dtype.element_ty), mask=km)
 
 
 @torch.library.custom_op('bam::decode_read', mutates_args=())
@@ -305,7 +322,8 @@ def bam_decode_read(hidden: torch.Tensor, up_weight: torch.Tensor, up_bias: torc
                     eps: float, scale: float, static_div: float, qk_cols: int, q_scale: float,
                     max_timescale: float, c1: torch.Tensor, l1: torch.Tensor, g1: torch.Tensor, a1: torch.Tensor,
                     c2: torch.Tensor, g2: torch.Tensor, a2: torch.Tensor, pending: int, has_local: bool,
-                    write_eps: float) -> Tuple[torch.Tensor, torch.Tensor]:
+                    write_eps: float, write_hidden: torch.Tensor, write_weight: torch.Tensor,
+                    write_bias: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
   """Decode-step read with the key up-projection fused in.
   hidden [T,H] pre-GELU read bottleneck (unit last stride); up_weight [3*N*V, H] / up_bias [3*N*V] (q, k, vo
   keys; pre-biases folded); m [T,K,V] contiguous; gates [T,8,N]; static_keys [4,V,N]; std [T,2,N,R];
@@ -316,25 +334,32 @@ def bam_decode_read(hidden: torch.Tensor, up_weight: torch.Tensor, up_bias: torc
   assert m.is_contiguous() and up_weight.is_contiguous() and static_keys.is_contiguous()
   assert hidden.stride(-1) == 1 and gates.stride(-1) == 1 and gates.stride(-2) == n and std.stride(-1) == 1
   y = torch.empty((t, 4, n, kdim), device=m.device, dtype=m.dtype)
+  addr = torch.empty((t, n, vdim), device=m.device, dtype=m.dtype)
   m_out, ptrs, strides = _pending(m, c1, l1, g1, a1, c2, g2, a2, pending)
+  assert write_hidden.stride(-1) == 1 and write_weight.is_contiguous()
   if t:
-    _decode_read_kernel[(n, 3, t)](
+    _decode_read_kernel[(n, 4, t)](
         hidden, up_weight, up_bias, m, gates, static_keys, std, positions, y, *ptrs,
+        write_hidden, write_weight, write_bias, addr,
         hidden.stride(0), m.stride(0), gates.stride(0), std.stride(0), std.stride(2), std.stride(1),
-        positions.stride(0), positions.stride(1), y.stride(0), positions.shape[1], *strides,
+        positions.stride(0), positions.stride(1), y.stride(0), positions.shape[1],
+        write_hidden.stride(0), addr.stride(0), *strides,
         N=n, K=kdim, V=vdim, H=h, BK=triton.next_power_of_2(kdim), BV=max(16, triton.next_power_of_2(vdim)),
         BH=triton.next_power_of_2(h), BC=DECODE_BC, EPS=eps, SCALE=scale, STATIC_DIV=static_div, QCOLS=qk_cols,
         R=kdim - qk_cols, RB=triton.next_power_of_2(kdim - qk_cols), QSCALE=q_scale,
         LOG_MAX_TS=math.log(max_timescale), BN=max(16, triton.next_power_of_2(n)), PENDING=pending,
-        HAS_LOCAL=has_local, PEPS=write_eps, PREC=_prec(m), num_warps=DECODE_WARPS)
-  return y, m_out
+        HAS_LOCAL=has_local, PEPS=write_eps, PREC=_prec(m), WH=write_hidden.shape[1],
+        BWH=triton.next_power_of_2(write_hidden.shape[1]), num_warps=DECODE_WARPS)
+  return y, m_out, addr
 
 
 @bam_decode_read.register_fake
 def _(hidden, up_weight, up_bias, m, gates, static_keys, std, positions, eps, scale, static_div, qk_cols, q_scale,
-      max_timescale, c1, l1, g1, a1, c2, g2, a2, pending, has_local, write_eps):
+      max_timescale, c1, l1, g1, a1, c2, g2, a2, pending, has_local, write_eps, write_hidden, write_weight,
+      write_bias):
   return (m.new_empty((m.shape[0], 4, gates.shape[2], m.shape[1])),
-          torch.empty_like(m) if pending else m.new_empty((0,)))
+          torch.empty_like(m) if pending else m.new_empty((0,)),
+          m.new_empty((m.shape[0], gates.shape[2], m.shape[2])))
 
 
 @triton.jit

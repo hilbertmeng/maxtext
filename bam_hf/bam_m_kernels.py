@@ -16,7 +16,6 @@ import triton
 import triton.language as tl
 
 
-WRITE_TB, WRITE_STAGES, WRITE_WARPS = 1, 1, 4     # in the compiled model this beats the isolated-sweep best
 DECODE_BC, DECODE_WARPS = 256, 8      # A800 sweep at T=1: 5.1 us (no pending write), 7.8 us (one group)
 
 
@@ -52,14 +51,19 @@ def _store_rows(y, a, n, k, t, Y, s_y_t, STD, POS, s_st, s_sn, s_sarm, nm, km, N
 
 @triton.jit
 def _group(C, CL, G, A, t, s_ct, s_cn, s_clt, s_cln, s_gt, s_at, s_an, n, k, kb, v, nm, km, kbm, vm,
-           K: tl.constexpr, V: tl.constexpr, EPS: tl.constexpr, HAS_LOCAL: tl.constexpr):
-  """Gated RMS content rows restricted to the k block kb (statistics over all K) and RMS address rows."""
+           K: tl.constexpr, V: tl.constexpr, EPS: tl.constexpr, HAS_LOCAL: tl.constexpr, SPLITK: tl.constexpr):
+  """Gated RMS content rows restricted to the k block kb (statistics over all K) and RMS address rows.
+  Without SPLITK the block is all of K and the content is loaded once."""
   c = tl.load(C + t * s_ct + n[:, None] * s_cn + k[None, :], mask=nm[:, None] & km[None, :], other=0.).to(tl.float32)
-  cb = tl.load(C + t * s_ct + n[:, None] * s_cn + kb[None, :], mask=nm[:, None] & kbm[None, :], other=0.).to(tl.float32)
   if HAS_LOCAL:      # content = attention output + local O (added here instead of in a separate kernel)
     c += tl.load(CL + t * s_clt + n[:, None] * s_cln + k[None, :], mask=nm[:, None] & km[None, :], other=0.).to(tl.float32)
-    cb += tl.load(CL + t * s_clt + n[:, None] * s_cln + kb[None, :], mask=nm[:, None] & kbm[None, :],
-                  other=0.).to(tl.float32)
+  if SPLITK:
+    cb = tl.load(C + t * s_ct + n[:, None] * s_cn + kb[None, :], mask=nm[:, None] & kbm[None, :], other=0.).to(tl.float32)
+    if HAS_LOCAL:
+      cb += tl.load(CL + t * s_clt + n[:, None] * s_cln + kb[None, :], mask=nm[:, None] & kbm[None, :],
+                    other=0.).to(tl.float32)
+  else:
+    cb = c
   g = tl.load(G + t * s_gt + n, mask=nm, other=0.).to(tl.float32)
   cb = cb * (tl.sigmoid(g) * tl.rsqrt(tl.sum(c * c, axis=1) / K + EPS))[:, None]
   a = tl.load(A + t * s_at + n[:, None] * s_an + v[None, :], mask=nm[:, None] & vm[None, :], other=0.).to(tl.float32)
@@ -81,11 +85,11 @@ def _load_m(M, MOUT, t, store, s_mt, C1, CL1, G1, A1, C2, G2, A2, s_c1t, s_c1n, 
     n = tl.arange(0, BN)
     nm = n < N
     c, a = _group(C1, CL1, G1, A1, t, s_c1t, s_c1n, s_cl1t, s_cl1n, s_g1t, s_a1t, s_a1n, n, k, k, v, nm, km, km, vm,
-                  K, V, EPS, HAS_LOCAL)
+                  K, V, EPS, HAS_LOCAL, False)
     acc = tl.dot(tl.trans(c.to(dt)), a.to(dt), m.to(tl.float32), input_precision=PREC)
     if PENDING > 1:
       c, a = _group(C2, C2, G2, A2, t, s_c2t, s_c2n, s_c2t, s_c2n, s_g2t, s_a2t, s_a2n, n, k, k, v, nm, km, km, vm,
-                    K, V, EPS, False)
+                    K, V, EPS, False, False)
       acc = tl.dot(tl.trans(c.to(dt)), a.to(dt), acc, input_precision=PREC)
     m = acc.to(dt)
     if store:
@@ -409,27 +413,26 @@ def bam_rope_tail(y: torch.Tensor, std: torch.Tensor, positions: torch.Tensor, q
 def _write_kernel(M, OUT, C1, CL1, G1, A1, C2, G2, A2,
                   s_mt, s_c1t, s_c1n, s_cl1t, s_cl1n, s_g1t, s_a1t, s_a1n, s_c2t, s_c2n, s_g2t, s_a2t, s_a2n,
                   N: tl.constexpr, K: tl.constexpr, V: tl.constexpr, BN: tl.constexpr, BK: tl.constexpr,
-                  BV: tl.constexpr, KBLK: tl.constexpr, TWO: tl.constexpr, HAS_LOCAL: tl.constexpr,
-                  EPS: tl.constexpr, PREC: tl.constexpr, T, TB: tl.constexpr, STAGES: tl.constexpr):
-  """Program (token block, k block): M'[kb, :] = M[kb, :] + sum_g C_g[:, kb]^T A_g for TB tokens,
-  software-pipelined."""
+                  BV: tl.constexpr, TWO: tl.constexpr, HAS_LOCAL: tl.constexpr, EPS: tl.constexpr,
+                  PREC: tl.constexpr):
+  """Program = token t: M'_t = M_t + sum_g C_g^T A_g (one or two groups). A token loop or K split measured
+  1.6x slower on A800 (prefill, T=4096); decode-step writes are fused into the next read instead."""
+  t = tl.program_id(0)
   n = tl.arange(0, BN)
   k = tl.arange(0, BK)
-  kb = tl.program_id(1) * KBLK + tl.arange(0, KBLK)
   v = tl.arange(0, BV)
-  nm, km, kbm, vm = n < N, k < K, kb < K, v < V
-  mask = kbm[:, None] & vm[None, :]
+  nm, km, vm = n < N, k < K, v < V
+  mask = km[:, None] & vm[None, :]
+  acc = tl.load(M + t * s_mt + k[:, None] * V + v[None, :], mask=mask, other=0.).to(tl.float32)
   dt = OUT.dtype.element_ty
-  for t in tl.range(tl.program_id(0) * TB, tl.minimum(tl.program_id(0) * TB + TB, T), num_stages=STAGES):
-    acc = tl.load(M + t * s_mt + kb[:, None] * V + v[None, :], mask=mask, other=0.).to(tl.float32)
-    c, a = _group(C1, CL1, G1, A1, t, s_c1t, s_c1n, s_cl1t, s_cl1n, s_g1t, s_a1t, s_a1n, n, k, kb, v, nm, km, kbm,
-                  vm, K, V, EPS, HAS_LOCAL)
+  c, a = _group(C1, CL1, G1, A1, t, s_c1t, s_c1n, s_cl1t, s_cl1n, s_g1t, s_a1t, s_a1n, n, k, k, v, nm, km, km, vm,
+                K, V, EPS, HAS_LOCAL, False)
+  acc = tl.dot(tl.trans(c.to(dt)), a.to(dt), acc, input_precision=PREC)
+  if TWO:
+    c, a = _group(C2, C2, G2, A2, t, s_c2t, s_c2n, s_c2t, s_c2n, s_g2t, s_a2t, s_a2n, n, k, k, v, nm, km, km, vm,
+                  K, V, EPS, False, False)
     acc = tl.dot(tl.trans(c.to(dt)), a.to(dt), acc, input_precision=PREC)
-    if TWO:
-      c, a = _group(C2, C2, G2, A2, t, s_c2t, s_c2n, s_c2t, s_c2n, s_g2t, s_a2t, s_a2n, n, k, kb, v, nm, km, kbm,
-                    vm, K, V, EPS, False)
-      acc = tl.dot(tl.trans(c.to(dt)), a.to(dt), acc, input_precision=PREC)
-    tl.store(OUT + t * s_mt + kb[:, None] * V + v[None, :], acc.to(dt), mask=mask)
+  tl.store(OUT + t * s_mt + k[:, None] * V + v[None, :], acc.to(dt), mask=mask)
 
 
 @torch.library.custom_op('bam::write', mutates_args=())
@@ -438,7 +441,7 @@ def bam_write(m: torch.Tensor, content: torch.Tensor, local: torch.Tensor, gate:
               eps: float) -> torch.Tensor:
   """m [T,K,V] contiguous; content (+ local if has_local) [T,N,K], gate [T,N] logits, address [T,N,V] raw
   (unit last strides); the second group is used iff `two`. Returns M + sum_g (sigmoid(gate) rms(content))^T
-  rms(address). Decode-sized T splits K across programs for latency."""
+  rms(address)."""
   t, kdim, vdim = m.shape
   n = content.shape[1]
   assert m.is_contiguous()
@@ -446,17 +449,13 @@ def bam_write(m: torch.Tensor, content: torch.Tensor, local: torch.Tensor, gate:
     assert x.stride(-1) == 1
   out = torch.empty_like(m)
   if t:
-    bk = triton.next_power_of_2(kdim)
-    kblk = 32 if t < 64 else bk
-    tb = 1 if t < 64 else WRITE_TB
-    _write_kernel[(triton.cdiv(t, tb), triton.cdiv(kdim, kblk))](
+    _write_kernel[(t,)](
         m, out, content, local, gate, address, content2, gate2, address2,
         m.stride(0), content.stride(0), content.stride(1), local.stride(0), local.stride(1), gate.stride(0),
         address.stride(0), address.stride(1), content2.stride(0), content2.stride(1), gate2.stride(0),
         address2.stride(0), address2.stride(1),
-        N=n, K=kdim, V=vdim, BN=max(16, triton.next_power_of_2(n)), BK=bk, BV=max(16, triton.next_power_of_2(vdim)),
-        KBLK=kblk, TWO=two, HAS_LOCAL=has_local, EPS=eps, PREC=_prec(m), T=t, TB=tb,
-        STAGES=WRITE_STAGES if t >= 64 else 1, num_warps=WRITE_WARPS)
+        N=n, K=kdim, V=vdim, BN=max(16, triton.next_power_of_2(n)), BK=triton.next_power_of_2(kdim),
+        BV=max(16, triton.next_power_of_2(vdim)), TWO=two, HAS_LOCAL=has_local, EPS=eps, PREC=_prec(m), num_warps=4)
   return out
 
 

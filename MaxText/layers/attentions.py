@@ -2635,14 +2635,15 @@ class BamAttention(Attention):
     if self._full_m_read_rank is not None:
       assert not getattr(cfg, 'bam_general_matrix_write', False), 'Generalized writes remain worktree-only'
     if self._general_read:
-      assert self._full_m_read_rank is not None and not cfg.bam_pallas_core
+      # The fused core implements the generalized column read (bam_pallas_body v7/v7u/v8t).
+      assert self._full_m_read_rank is not None
       assert cfg.bam_mlp_write_dynamic_address
     assert not self._full_m_read_share_down or self._full_m_read_rank is not None
     if self._full_m_read_rank is not None:
       assert 0 < self._full_m_read_rank < cfg.emb_dim
       assert self._direct_qk_c8 and self._abs_v_dim is None
       assert self._vo_shared_read == 'local_o' and self._vo_independent_gates
-      assert 'full' not in self._mode and not getattr(cfg, 'bam_pallas_core', False)
+      assert 'full' not in self._mode
     if self._direct_qk_c8:
       assert 'local_qk' in self._mode and cfg.bam_concat_qk and cfg.bam_prune_all_row_reads
       assert (self._abs_v_dim is not None or self._full_m_read_rank is not None) and not cfg.bam_local_qk_share_basis
@@ -3647,7 +3648,9 @@ class BamAttention(Attention):
             self._local_v_replace and self._vo_independent_gates and self._static_vo),
         'local modes only': self._mode == {'local_qk', 'local_v', 'local_o'} and not self._local_arms,
         'column-only pruned reads': self._fetched_arm.prune_row and self._direct_qk_c8_arm.prune_row,
-        'compressed V cache': self._abs_v_dim is not None and self.bam_k == self.head_dim,
+        'compressed V cache or full-M reads': (
+            (self._abs_v_dim is not None or self._full_m_read_rank is not None)
+            and self.bam_k == self.head_dim),
         'no M read norm / decay / sqrt-n': (
             self._m_read_norm == 'none' and float(cfg.bam_lambda_decay) == 1.0
             and not cfg.bam_sqrt_n_scale),
@@ -3686,12 +3689,15 @@ class BamAttention(Attention):
     weight = jnp.concatenate(kernels, axis=1)
     y = jax.lax.dot_general(jnp.asarray(x, self.dtype), weight, (((x.ndim - 1,), (0,)), ((), ())),
                             precision=jax.lax.Precision(self.config.matmul_precision))
-    out, off = {}, 0
-    for name, shape, kernel, bias in zip(names, shapes, kernels, biases):
-      width = kernel.shape[1]
-      part = y[..., off:off + width].reshape(x.shape[:-1] + shape)
+    # One split (its transpose is one concatenate) instead of per-piece slices, whose reverses
+    # were zero-padded full-width adds (pad_add_fusion, ~28 ms/step on v5p-8).
+    widths = [kernel.shape[1] for kernel in kernels]
+    cuts = [sum(widths[:i + 1]) for i in range(len(widths) - 1)]
+    parts = jnp.split(y, cuts, axis=-1)
+    out = {}
+    for name, shape, part, bias in zip(names, shapes, parts, biases):
+      part = part.reshape(x.shape[:-1] + shape)
       out[name] = part if bias is None else part + bias
-      off += width
     return out
 
   def _pallas_core_call(self, inputs_q, inputs_positions, decoder_segment_ids, M_in, is_global,
@@ -3702,10 +3708,13 @@ class BamAttention(Attention):
     self._check_pallas_core()
     b_, t_ = inputs_q.shape[:2]
     fused = bool(getattr(cfg, 'bam_pallas_fused_inputs', False)) and not self.is_initializing()
+    full_m = self._full_m_read_rank is not None
+    static_gate_names = tuple(f'general_{a}_static_gate' for a in 'qkvo') if self._general_read else ()
     if fused:
       gate_names = ('W_lq_gate', 'W_lk_gate', 'W_R_gate', 'W_lv_gate')
+      key_names = ('full_m_read_down',) if full_m else ('W_lq_c8', 'W_lk_c8', 'W_R')
       raw = self._fused_input_projections(
-          inputs_q, ('query', 'key', 'W_lq_c8', 'W_lk_c8', 'W_R') + gate_names + ('P_loc_down', 'W_gw'))
+          inputs_q, ('query', 'key') + key_names + gate_names + static_gate_names + ('P_loc_down', 'W_gw'))
       query = raw['query'].reshape(b_, t_, self.num_query_heads, standard_qk_width)
       key = raw['key'].reshape(b_, t_, self.num_kv_heads, standard_qk_width)
     else:
@@ -3728,18 +3737,43 @@ class BamAttention(Attention):
         gate = self._project_read_gate_logits(name, inputs_q, squeeze_fetch_axis=squeeze)
       return jnp.reshape(gate, inputs_q.shape[:2] + (self.num_query_heads,))
 
-    if fused:
-      q_key, k_key = raw['W_lq_c8'], raw['W_lk_c8']
-      vo_key = jnp.squeeze(raw['W_R'], axis=-2)
+    if full_m:
+      # Shared GELU bottleneck -> per-arm up projections (+ generalized pre-biases); the full
+      # [N,V] keys read M directly, i.e. an identity compression in the fused core.
+      hidden = nn.gelu(raw['full_m_read_down'] if fused else self.full_m_read_down(inputs_q))
+      if fused:
+        up = self._fused_input_projections(hidden, ('W_lq_c8_up', 'W_lk_c8_up', 'W_R_up'))
+        pre = lambda arm: (jnp.asarray(getattr(self, 'general_' + arm + '_pre_bias'), hidden.dtype)
+                           if self._general_read else 0)
+        q_key = up['W_lq_c8_up'] + pre('q')
+        k_key = up['W_lk_c8_up'] + pre('k')
+        vo_key = up['W_R_up'] + pre('vo')
+      else:
+        q_key = self._project_column_read_key('W_lq_c8', inputs_q, hidden)
+        k_key = self._project_column_read_key('W_lk_c8', inputs_q, hidden)
+        vo_key = self._project_column_read_key('W_R', inputs_q, hidden)
+      vo_key = jnp.squeeze(vo_key, axis=-2)
+      compression = jnp.eye(self.bam_v, dtype=self.static_q_key.dtype)
     else:
-      q_key = self.W_lq_c8(inputs_q)
-      k_key = self.W_lk_c8(inputs_q)
-      vo_key = jnp.squeeze(self.W_R(inputs_q), axis=-2)
+      if fused:
+        q_key, k_key = raw['W_lq_c8'], raw['W_lk_c8']
+        vo_key = jnp.squeeze(raw['W_R'], axis=-2)
+      else:
+        q_key = self.W_lq_c8(inputs_q)
+        k_key = self.W_lk_c8(inputs_q)
+        vo_key = jnp.squeeze(self.W_R(inputs_q), axis=-2)
+      compression = self.abs_v_cache_projection
+    static_gates = None
+    if self._general_read:      # 1.1 sigmoid(W x + b) / init, as _static_column applies it
+      init = float(cfg.bam_static_read_gate_init)
+      static_gates = tuple(
+          (1.1 * jax.nn.sigmoid(raw[name] + jnp.asarray(getattr(self, name + '_bias'), self.dtype))
+           if fused else self._static_gate(name, inputs_q)) / init
+          for name in static_gate_names)
     weight = bam_pallas.static_weight(
-        self.static_q_key, self.static_k_key, self.static_v_key, self.static_o_key,
-        self.abs_v_cache_projection)
+        self.static_q_key, self.static_k_key, self.static_v_key, self.static_o_key, compression)
     body = getattr(cfg, 'bam_pallas_body', None) or 'blocked'
-    pass_m = body in ('v7', 'v7u')   # M passthrough: dM sum fused into the read reverse
+    pass_m = body in ('v7', 'v7u', 'v8t')   # M passthrough: dM sum fused into the read reverse
     q_scale = 1.0 / math.sqrt(self.head_dim) if pass_m else 1.0   # attention scale folded into the kernel
     with jax.named_scope('bam/pallas_read'):
       outs = bam_pallas.read(
@@ -3752,7 +3786,12 @@ class BamAttention(Attention):
           vmem_mib=getattr(cfg, 'bam_pallas_vmem_mib', None),
           interpret=bool(getattr(cfg, 'bam_pallas_interpret', False)),
           body=body, head_block=int(getattr(cfg, 'bam_pallas_read_block', None) or 4), pass_m=pass_m,
-          q_scale=q_scale)
+          q_scale=q_scale, static_gates=static_gates,
+          hm_reverse=bool(getattr(cfg, 'bam_pallas_hm_reverse', False)),
+          **({'token_io': True} if getattr(cfg, 'bam_pallas_token_io', False) else {}),
+          **({'save_y': True} if getattr(cfg, 'bam_pallas_save_y', False) else {}),
+          **({'rolled_passes': tuple(cfg.bam_pallas_rolled_passes)}
+             if getattr(cfg, 'bam_pallas_rolled_passes', None) else {}))
     query, key, value, local_output = outs[:4]
     if pass_m:
       M_in = outs[4]

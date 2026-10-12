@@ -31,6 +31,16 @@ def main():
   p.add_argument('--tokens', type=int, default=128)
   p.add_argument('--block', type=int, default=4)
   p.add_argument('--vmem', type=int, default=48)
+  p.add_argument('--c', type=int, default=C, help='compressed rows (V for full-M reads)')
+  p.add_argument('--gated', action='store_true', help='per-token static-read gates (generalized read)')
+  p.add_argument('--hm-reverse', action='store_true', help='head-major dynamic-read reverse (v7)')
+  p.add_argument('--kblock', type=int, default=0, help='v7 forward k block (0 = default)')
+  p.add_argument('--rolled', default='', help='v7 rolled reverse passes, e.g. b1,b2')
+  p.add_argument('--token-io', action='store_true', help='v7 token-major q/k/v/o and cotangents')
+  p.add_argument('--save-y', action='store_true', help='v7 VO read residual from the forward rule')
+  p.add_argument('--b1-block', type=int, default=4, help='v7 hm reverse: k rows per B1 block')
+  p.add_argument('--no-pad-heads', action='store_true', help='v8t: rows 4N instead of 4*ceil8(N)')
+  p.add_argument('--chunk', type=int, default=0, help='v8t: tokens per batched per-token matmul')
   a = p.parse_args()
   hw = accelerator_to_spec_map.get_system_characteristics(a.topology)
   topo = get_topology_desc(platform=hw.platform, topology_name=hw.topology_name,
@@ -41,22 +51,30 @@ def main():
   bf = jnp.bfloat16
   s = lambda *shape: jax.ShapeDtypeStruct(shape, bf)
   rkw = dict(qk_cols=QKC, read_epsilon=1e-4, key_scale=.2, forward_tile=a.tile, reverse_tile=a.tile,
-             vmem_mib=a.vmem, body=a.body, head_block=a.block)
+             vmem_mib=a.vmem, body=a.body, head_block=a.block,
+             **({'hm_reverse': True} if a.hm_reverse else {}), **({'k_block': a.kblock} if a.kblock else {}),
+             **({'rolled_passes': tuple(a.rolled.split(','))} if a.rolled else {}),
+             **({'token_io': True} if a.token_io else {}), **({'save_y': True} if a.save_y else {}),
+             b1_block=a.b1_block, **({'pad_heads': False} if a.no_pad_heads else {}),
+             **({'chunk': a.chunk} if a.chunk else {}))
   wkw = dict(epsilon=1e-6, forward_tile=a.tile, reverse_tile=a.tile, vmem_mib=a.vmem, body=a.body,
-             row_block=a.block, head_block=a.block)
+             row_block=a.block, head_block=a.block, **({'chunk': a.chunk} if a.chunk else {}))
   if a.kernel.startswith('read'):
-    mshape = (1, K, V, t) if a.body.startswith('v7') else (1, V, K, t)
-    args = [s(*mshape), jax.ShapeDtypeStruct((4 * N + C, V), jnp.float32), s(1, t, N, C), s(1, t, N),
-            s(1, t, N, C), s(1, t, N), s(1, t, N, C), s(1, t, N), s(1, t, N), s(1, t, N, R), s(1, t, N, R)]
-    read = lambda *z: bp.read(*z, **rkw)
+    c = a.c
+    mshape = (1, t, V, K) if a.body.startswith('v8') else (1, K, V, t) if a.body.startswith('v7') else (1, V, K, t)
+    args = [s(*mshape), jax.ShapeDtypeStruct((4 * N + c, V), jnp.float32), s(1, t, N, c), s(1, t, N),
+            s(1, t, N, c), s(1, t, N), s(1, t, N, c), s(1, t, N), s(1, t, N), s(1, t, N, R), s(1, t, N, R)]
+    ng = 4 if a.gated else 0
+    args += [s(1, t, N)] * ng
+    read = lambda *z: bp.read(*z[:11], static_gates=tuple(z[11:]) or None, **rkw)
     if a.kernel == 'read_fwd':
       fn = read
     else:
-      args += [s(1, t, N, K)] * 4
-      fn = lambda *z: jax.vjp(read, *z[:11])[1](tuple(z[11:]))
+      args += [s(1, t, N, K)] * 4 + [s(*mshape)] * a.body.startswith('v8')   # (+ M passthrough cotangent)
+      fn = lambda *z: jax.vjp(read, *z[:11 + ng])[1](tuple(z[11 + ng:]))
   else:
     n_groups = 2 if a.kernel.startswith('write2') else 1
-    mshape = (1, K, V, t) if a.body.startswith('v7') else (1, V, K, t)
+    mshape = (1, t, V, K) if a.body.startswith('v8') else (1, K, V, t) if a.body.startswith('v7') else (1, V, K, t)
     args = [s(*mshape)] + [s(1, t, N, K), s(1, t, N), s(1, t, N, V)] * n_groups
     write = lambda m, *g: bp.write(m, [g[i:i + 3] for i in range(0, len(g), 3)], **wkw)
     if a.kernel.endswith('fwd'):

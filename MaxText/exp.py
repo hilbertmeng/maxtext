@@ -11923,6 +11923,7 @@ class BamPallasCoreTinyXlaTest(
     per_device_batch_size = 1.0
     dtype = 'float32'
     record_training_health_metrics = False
+    bam_splash_attention = False      # CPU: this lineage selects Splash by configuration only
 
 
 class BamPallasCoreTinyPallasTest(BamPallasCoreTinyXlaTest):
@@ -12437,3 +12438,236 @@ class MuddLlama2MediumPropC256T2048(MuddLlama2MediumPropT2048):
     model_name = 'MuddLlama2MediumPropC256T2048'
     bam_splash_attention = False
     compare_runs = ['BamMHAMediumPropC256T2048Matched', 'MuddLlama2MediumPropTruePile']
+
+# Paired v5p-8 timing arms for the XLProp full-M generalized column read (pure JAX, Splash SEQ_MINOR);
+# MHA arm: Llama2XLPropMHAPallasCoreProfile. Doc: experiments/bam_llama2_medium/fullm_general_read_profile.md.
+# Implementation in refactor-bam (fused v7/v8t cores, merged 2026-10-12); runtime hashes below are from
+# claude/bam-pallas-fullm (worktree .claude/worktrees/bam-pallas-directc10), which also keeps the v8 body.
+
+class BamFullMGeneralReadProfile(
+    TrainStepProfile, BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile):
+    """Timing arm with the formal training settings (BAM concat/general health ON)."""
+    # v5p-8 a9a7a15 ew4b: 0.439 step/s = 71.5% of MHA 0.614; device 2204.5 ms, HBM 860 GB/step (MHA 293).
+    # Theory: forward 3,144.5 vs 3,111.3 MFLOP/token (+1.1%).
+    model_name = 'BamFullMGeneralReadProfile'
+    steps = 60
+
+
+class BamFullMGeneralReadNoHealthProfile(BamFullMGeneralReadProfile):
+    """Same arm with BAM concat/general health statistics OFF (generic health unchanged)."""
+    # v5p-8 a9a7a15: 0.455 (74.1%); device 2163.4 ms; XLA M ops 515 ms, all memory-bound.
+    model_name = 'BamFullMGeneralReadNoHealthProfile'
+    bam_record_concat_health = False
+
+
+# CPU equivalence fixtures: full-M generalized column read through the fused v7 core (bam_pallas_model_test).
+
+class BamPallasFullMTinyXlaTest(BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile):
+    """CPU fixture: tiny full-M generalized-read geometry, FP32, original XLA path, BAM health OFF."""
+    model_name = 'BamPallasFullMTinyXlaTest'
+    base_num_decoder_layers = 4
+    bam_layer_modes = ['local_qk+local_v+local_o'] * 4
+    base_emb_dim = 64
+    base_num_query_heads = 2
+    base_num_kv_heads = 2
+    head_dim = 32
+    bam_k = 32
+    bam_v = 16
+    bam_standard_qk_dim = 8
+    bam_local_qk_col_output_dim = 24
+    bam_partial_rope_nope_dim = 24
+    bam_local_full_m_read_bottleneck_dim = 24
+    bam_write_v_bottleneck_dim = 32
+    emb_bam_num_head = 2
+    emb_bam_v_bottleneck_dim = 32
+    bam_mlp_write_address_rank = 16
+    base_mlp_dim = 96
+    mlp_dim_by_block = [96, 80, 96]
+    bam_final_local_mlp_dim = 96
+    max_target_length = 256
+    query_chunk_size = 128
+    per_device_batch_size = 1.0
+    dtype = 'float32'
+    record_training_health_metrics = False
+    bam_record_concat_health = False
+    bam_splash_attention = False      # CPU: this lineage selects Splash by configuration only
+
+
+class BamPallasFullMTinyPallasV7Test(BamPallasFullMTinyXlaTest):
+    """CPU fixture: the same tiny model through the interpreted v7 fused core (static gates, identity C)."""
+    model_name = 'BamPallasFullMTinyPallasV7Test'
+    bam_pallas_core = True
+    bam_pallas_interpret = True
+    bam_pallas_body = 'v7'
+
+
+class BamPallasFullMTinyPallasV7FusedInputsTest(BamPallasFullMTinyPallasV7Test):
+    """CPU fixture: + fused two-stage input projections."""
+    model_name = 'BamPallasFullMTinyPallasV7FusedInputsTest'
+    bam_pallas_fused_inputs = True
+
+
+class BamFullMGeneralReadPallasProfile(BamFullMGeneralReadNoHealthProfile):
+    """Full-M generalized read through the fused v7u core (identity compression + static gates)."""
+    # v5p-8 9fa69e2: 0.519 (+14.6% vs pure JAX 0.453; 84.5% of MHA); kernels 275 ms, HBM 483 GB/step.
+    model_name = 'BamFullMGeneralReadPallasProfile'
+    bam_pallas_core = True
+    bam_pallas_body = 'v7u'
+    bam_pallas_vmem_mib = 48
+
+
+class BamFullMGeneralReadPallasFusedProfile(BamFullMGeneralReadPallasProfile):
+    """+ two-stage fused input projections (x-side dot incl. 8 gates, then the three ups)."""
+    # v5p-8 9fa69e2: 0.528; 1ea3cbb: 0.525 (86.0/85.5% of MHA); HBM 386 GB/step.
+    model_name = 'BamFullMGeneralReadPallasFusedProfile'
+    bam_pallas_fused_inputs = True
+
+
+class BamPallasFullMTinyPallasV7HMTest(BamPallasFullMTinyPallasV7FusedInputsTest):
+    """CPU fixture: + head-major dynamic-read reverse."""
+    model_name = 'BamPallasFullMTinyPallasV7HMTest'
+    bam_pallas_hm_reverse = True
+
+
+class BamPallasCoreTinyPallasV7HMTest(BamPallasCoreTinyPallasV7FusedInputsTest):
+    """CPU fixture: DirectC10 (C=10) with the head-major dynamic-read reverse."""
+    model_name = 'BamPallasCoreTinyPallasV7HMTest'
+    bam_pallas_hm_reverse = True
+
+
+class BamFullMGeneralReadPallasHMProfile(BamFullMGeneralReadPallasFusedProfile):
+    """+ head-major dynamic-read reverse (no per-(v,k) sublane reductions)."""
+    # v5p-8 1ea3cbb: 0.532 (86.6% of MHA); read reverse 134.4 -> 114.4 ms; kernels 255 ms.
+    model_name = 'BamFullMGeneralReadPallasHMProfile'
+    bam_pallas_hm_reverse = True
+
+
+class BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadPallasTruePile(
+    BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile):
+    """Same equations/parameters through the fused v8t core (token-major M [B,T,V,K]; every M
+    contraction a per-token MXU matmul; T-minor kernel I/O) + fused input projections + Splash;
+    BAM health OFF (fused core requirement). v5p-8 paired (16da15f4-equivalent 1d53d70):
+    0.593 step/s = 96.6% of MHA 0.614 (v7u 0.532, pure JAX health OFF 0.453). 600-step paired loss
+    vs pure JAX health OFF (cd06c76) converges: mean diff -0.0025 at 500-606, no bias. Not launched."""
+    model_name = 'BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadPallasTruePile'
+    bam_record_concat_health = False
+    bam_pallas_core = True
+    bam_pallas_body = 'v8t'
+    bam_pallas_fused_inputs = True
+    bam_pallas_vmem_mib = 48
+
+
+class BamPallasFullMTinyPallasV7RolledTest(BamPallasFullMTinyPallasV7HMTest):
+    """CPU fixture: + rolled reverse passes (a, b1, b2)."""
+    model_name = 'BamPallasFullMTinyPallasV7RolledTest'
+    bam_pallas_rolled_passes = ('a', 'b1', 'b2')
+
+
+class BamFullMGeneralReadPallasRollB12Profile(BamFullMGeneralReadPallasHMProfile):
+    """+ rolled reverse passes b1, b2 (dynamic-read reverse loops with register carries)."""
+    # v5p-8 625c0f4: 0.532 vs HM 0.533; read reverse 115.5 vs 114.4 ms (static estimate -20% did not hold).
+    model_name = 'BamFullMGeneralReadPallasRollB12Profile'
+    bam_pallas_rolled_passes = ('b1', 'b2')
+
+
+class BamFullMGeneralReadPallasRollAllProfile(BamFullMGeneralReadPallasHMProfile):
+    """+ rolled reverse passes a, b1, b2."""
+    # v5p-8 625c0f4: 0.527; read reverse 131.5 ms (worse).
+    model_name = 'BamFullMGeneralReadPallasRollAllProfile'
+    bam_pallas_rolled_passes = ('a', 'b1', 'b2')
+
+
+class BamPallasFullMTinyPallasV7TIOTest(BamPallasFullMTinyPallasV7HMTest):
+    """CPU fixture: + token-major q/k/v/o outputs and cotangents (Splash-native layout)."""
+    model_name = 'BamPallasFullMTinyPallasV7TIOTest'
+    bam_pallas_token_io = True
+
+
+class BamFullMGeneralReadPallasTIOProfile(BamFullMGeneralReadPallasHMProfile):
+    """+ token-major q/k/v/o and cotangents (Splash-native [B,N,T,K]; in-kernel XLU transposes)."""
+    # v5p-8 515f5cb: 0.539 vs HM 0.532 (+1.3%); 7707cee rerun 0.541. Glue 47 -> 28 ms, fused projections 137 -> 115 ms.
+    model_name = 'BamFullMGeneralReadPallasTIOProfile'
+    bam_pallas_token_io = True
+
+
+class BamPallasFullMTinyPallasV7SaveYTest(BamPallasFullMTinyPallasV7TIOTest):
+    """CPU fixture: + VO read residual saved by the forward rule (no recompute in the reverse)."""
+    model_name = 'BamPallasFullMTinyPallasV7SaveYTest'
+    bam_pallas_save_y = True
+
+
+class BamFullMGeneralReadPallasSaveYProfile(BamFullMGeneralReadPallasTIOProfile):
+    """+ VO dynamic read y saved as a residual by the forward rule."""
+    # v5p-8 7707cee: 0.543 vs TIO 0.541.
+    model_name = 'BamFullMGeneralReadPallasSaveYProfile'
+    bam_pallas_save_y = True
+
+
+class BamPallasFullMTinyPallasV7SaveReadTest(BamPallasFullMTinyPallasV7SaveYTest):
+    """CPU fixture: + remat policy keeping the fused read kernel's outputs and y residual."""
+    model_name = 'BamPallasFullMTinyPallasV7SaveReadTest'
+    remat_policy = 'full_save_bam_read'
+
+
+class BamFullMGeneralReadPallasSaveReadProfile(BamFullMGeneralReadPallasSaveYProfile):
+    """+ remat keeps the fused read outputs and y (read forward kernel runs once per step)."""
+    # v5p-8 a05a18e: 0.545 vs SaveY 0.544; d0f411e 0.547 (89.1% of MHA). Remat kernel -45 ms but saved-output scan stacking +43 ms.
+    model_name = 'BamFullMGeneralReadPallasSaveReadProfile'
+    remat_policy = 'full_save_bam_read'
+
+
+# v8: token-major M [B,T,V,K] with XLA-built keys / split outputs. Ledger only: body removed from refactor-bam
+# (kept on claude/bam-pallas-fullm 5c88660, /home/xd/projects/maxtext/.claude/worktrees/bam-pallas-directc10);
+# superseded by v8t, which keeps the same per-token MXU kernels with T-minor kernel I/O.
+class BamPallasFullMTinyPallasV8Test(BamPallasFullMTinyPallasV7FusedInputsTest):
+    """CPU fixture: full-M generalized read through the v8 token-major MXU core."""
+    model_name = 'BamPallasFullMTinyPallasV8Test'
+    bam_pallas_body = 'v8'
+
+
+class BamPallasCoreTinyPallasV8Test(BamPallasCoreTinyPallasV7FusedInputsTest):
+    """CPU fixture: DirectC10 (C=10 compression folded into the read keys) through the v8 core."""
+    model_name = 'BamPallasCoreTinyPallasV8Test'
+    bam_pallas_body = 'v8'
+
+
+class BamFullMGeneralReadPallasV8Profile(BamFullMGeneralReadPallasFusedProfile):
+    """v8 token-major MXU core (M [B,T,V,K]; read = X[4N,V] @ M_t, write = M_t + A^T C per token)."""
+    # v5p-8 d0f411e: 0.445 (!! kernels 100 ms but XLA glue on [B,T,N,40/96] tensors +330 ms); superseded by V8T.
+    model_name = 'BamFullMGeneralReadPallasV8Profile'
+    bam_pallas_body = 'v8'
+
+
+class BamFullMGeneralReadPallasV8SaveReadProfile(BamFullMGeneralReadPallasV8Profile):
+    """+ remat keeps the read output Y (read forward kernel once per step)."""
+    # v5p-8 d0f411e: 0.439.
+    model_name = 'BamFullMGeneralReadPallasV8SaveReadProfile'
+    remat_policy = 'full_save_bam_read'
+
+
+class BamPallasFullMTinyPallasV8XTTest(BamPallasFullMTinyPallasV8Test):
+    """CPU fixture: v8 with per-token transposed read keys [B,T,V,4N]."""
+    model_name = 'BamPallasFullMTinyPallasV8XTTest'
+    bam_pallas_v8_xt = True
+
+
+class BamFullMGeneralReadPallasV8XTProfile(BamFullMGeneralReadPallasV8Profile):
+    """+ per-token transposed read keys X^T [B,T,V,4N] (12 vs 20 KB/token; dM a plain matmul)."""
+    model_name = 'BamFullMGeneralReadPallasV8XTProfile'
+    bam_pallas_v8_xt = True
+
+
+class BamPallasFullMTinyPallasV8TTest(BamPallasFullMTinyPallasV7FusedInputsTest):
+    """CPU fixture: v8t (v7 T-minor kernel I/O, token-major M, per-token MXU matmuls in the kernel)."""
+    model_name = 'BamPallasFullMTinyPallasV8TTest'
+    bam_pallas_body = 'v8t'
+
+
+class BamFullMGeneralReadPallasV8TProfile(BamFullMGeneralReadPallasFusedProfile):
+    """v8t: v7's T-minor kernel I/O + token-major M [B,T,V,K] + per-token MXU matmuls in the kernels."""
+    # v5p-8 5286504: 0.582 vs v7 SaveRead 0.546 (+6.6%, 94.8% of MHA); kernels 114 vs 202 ms.
+    # 1d53d70 (4N rows, swap-gathered dY): 0.593 (96.6% of MHA).
+    # cd06c76 (streamed key rows): 0.593; 600-step loss vs pure JAX converges (mean diff -0.0025 at 500-606).
+    # 90d28c9 keys as [C,N,B,T] from the dot: TPU lowering rejects batch as a block's second-minor dim; reverted.
+    model_name = 'BamFullMGeneralReadPallasV8TProfile'
+    bam_pallas_body = 'v8t'

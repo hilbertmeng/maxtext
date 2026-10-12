@@ -1,31 +1,45 @@
 # Fused Pallas core for AllLocal DirectC10 BAM（v5p）及 BAM Splash attention
 
-2026-10-10 合入主分支 `refactor-bam`。本文前半部分是最终设计、用法、测速汇总和核心 kernel 的前传／反传伪代码；
-后半部分「实验记录」按时间保留全部 profile、bundle 分析和被否决的路线（英文原始记录）。
+2026-10-10 合入主分支 `refactor-bam`（DirectC10，v7u）；2026-10-12 合入 full-M generalized read 的 v8t
+（token-major M、核内 per-token MXU）。本文前半部分是最终设计、用法、测速汇总和核心 kernel 的前传／反传伪代码；
+后半部分「实验记录」按时间保留全部 profile、bundle 分析和被否决的路线（英文原始记录）。full-M 的 FLOPs/profile、
+v7→v8t 全部配对与可迁移经验见 [fullm_general_read_profile.md](fullm_general_read_profile.md)。
 
 - 实现分支：`claude/bam-pallas-directc10`（worktree `.claude/worktrees/bam-pallas-directc10`，基于 DirectC10
   runtime `ca4491a`）。各 runtime hash 见下文和 `MaxText/exp.py` 台账。合入主干的是最终版：v-major
   `blocked`/`blocked2` 与 k-major `v7`/`v7u` kernel、融合输入投影、M passthrough、query scale 折叠、
   BAM Splash attention。v3–v6、`loop`、`kmajor` body、XLA layout constraint 和 k-major cotangent 选项只保留在实验分支。
+- full-M 实现分支：`claude/bam-pallas-fullm`（同一 worktree，基于纯 JAX runtime `b83223f`；最终 `5c88660`）。合入
+  v8t body（`layers/bam_pallas_v8.py`）、v7 的 full-M/static gate 支持及其可选项（hm_reverse、token_io、save_y、
+  rolled passes、`full_save_bam_read` remat）。XLA 构 key/拆 Y 的 `v8` body（0.445，被 v8t 取代）只保留在实验分支。
 - 目标模型：`BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdDirectC10TruePile`（28×D1920，
   20×96 heads，M 96×40/C10，QK72 + RoPE24 拼接，static + dynamic LocalVO，R400 写，第 1/4/…/25 层 R384
   独立 MLP 写）。方程与参数完全不变。
+- 第二个目标：`BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile`（无 C10 压缩，
+  Q/K/VO 动态读收缩整张 M，共享 GELU 瓶颈 key + general pre-bias，per-token static-read gate）；融合版配置类
+  `...FullMReadGeneralReadPallasTruePile`（v8t + fused inputs + Splash，vmem 48，BAM health OFF）。
 
 ## 用法
 
 | 配置项 | 默认 | 含义 |
 |---|---|---|
 | `bam_pallas_core` | off | 用融合 kernel 替代 XLA 的 M 读写（要求 AllLocal DirectC10 配方，`_check_pallas_core` 列出全部前提） |
-| `bam_pallas_body` | `'blocked'` | `'v7u'`：k-major 最终版（推荐）；`'v7'`：同上但反传 pass 用 `fori_loop`（实测更慢）；`'blocked'`/`'blocked2'`：v-major 旧版 |
+| `bam_pallas_body` | `'blocked'` | `'v8t'`：token-major M + 核内 per-token MXU，**full-M 读（C = V）推荐**；`'v7u'`：k-major，**DirectC10（C < V）推荐**；`'v7'`：同 v7u 但反传 pass 用 `fori_loop`（实测更慢）；`'blocked'`/`'blocked2'`：v-major 旧版 |
+| `bam_pallas_hm_reverse` | off | v7：动态读反传用 head-major 行广播累加（full-M 上 read B 134→114 ms） |
+| `bam_pallas_token_io` / `bam_pallas_save_y` | off | v7：q/k/v/o 及 cotangent 用 Splash 原生 token 布局；前传把 VO 读 y 存为残差（full-M 各 +1%） |
+| `bam_pallas_rolled_passes` | `()` | v7：反传 pass 用 `fori_loop`（`'a'`,`'b1'`,`'b2'`；实测无收益，保留作对照） |
+| `remat_policy='full_save_bam_read'` | — | full remat 但保存融合读的输出与 y（v7 打平，v8t 不推荐） |
 | `bam_pallas_fused_inputs` | off | BAM 全部输入投影（RoPE Q/K、C10 key、W_R、4 个读门、P_loc_down、W_gw）拼成一次 dot |
 | `bam_pallas_vmem_mib` | 编译器默认 | v5p 用 48（物理 64 MiB／TensorCore；16 MiB 只是默认 scoped 预算） |
 | `bam_pallas_write_block` / `bam_pallas_read_block` | 4 | v-major body 的寄存器分块（v5p 最优：写 2、读 4） |
 | `bam_splash_attention` | **on** | BAM attention core 用 Splash kernel 代替 C256 query-chunk einsum |
 | `bam_splash_seq_minor` | `null` | Splash q/k/v 用 `SEQ_MINOR`；`null` 时纯 JAX 路径为 True、融合 kernel 路径为 False |
 
-最优配置类：`...DirectC10PallasV7SplashTruePile`（v7u + fused inputs + Splash）。
-v7 body 下 M 以 k-major `[B,K,V,T]` 跨层携带（embedding write 直接产出），与 v-major `[B,V,K,T]`
-及 XLA 路径的 token-major `[B,T,K,V]` 不能互换 checkpoint 之外的中间状态；参数树完全相同，checkpoint 可互换。
+最优配置类：DirectC10 用 `...DirectC10PallasV7SplashTruePile`（v7u + fused inputs + Splash）；full-M generalized read 用
+`...FullMReadGeneralReadPallasTruePile`（v8t + fused inputs + Splash）。
+M 跨层携带布局随 body 而定（embedding write 直接产出）：v7 为 k-major `[B,K,V,T]`，v8t 为 token-major `[B,T,V,K]`，
+v-major body 为 `[B,V,K,T]`，XLA 路径为 `[B,T,K,V]`；只有 checkpoint 之外的中间状态不能互换，参数树完全相同，checkpoint 可互换。
+v8t 目前只支持 full-M 读（identity compression）；DirectC10 的 C10 压缩折进 key 在 v8 原型中可行（CPU 通过），未移植到 v8t。
 
 **Splash 的启用条件**（`attentions.py::_bam_splash_enabled`，两处调用：纯 JAX `__call__` 和融合路径
 `_pallas_core_call`）：`bam_splash_attention=True`、TPU 后端、序列长度为 128 的倍数、该层没有 BAM fetch
@@ -46,14 +60,22 @@ Splash 在 kernel 内以 FP32 累加 logits/softmax，而 C256 在 `float32_logi
 | v5p-8 `a1f64f2`/`748bc53` | **v7u + fused inputs + Splash** | **0.572** | **93.2** |
 | v5p-8 `748bc53` | 纯 JAX + Splash SEQ_MINOR（纯 JAX 默认） | 0.480 | 78.2（C256 为 59.9） |
 | v5p-32 正式 RUN `efc1977` | v7u + fused inputs (C256) | 0.491 | 90.4（MHA 0.543） |
+| full-M v5p-8 `b83223f`/`1ea3cbb` | 纯 JAX + Splash SEQ_MINOR，health OFF / v7u + fused inputs + hm reverse | 0.453 / 0.532 | 73.8 / 86.6 |
+| full-M v5p-8 `d0f411e` | v8：XLA 构 key/拆 Y（实验分支） | 0.445 | 72.5 |
+| full-M v5p-8 `1d53d70`/`cd06c76` | **v8t + fused inputs + Splash** | **0.593** | **96.6** |
 
 数值：kernel 对原 token-major 数学 FP32 值和全部梯度 < 1e-4、BF16 < 2e-2；tiny 全模型 FP32 loss 相同、梯度
 相对误差 ≤ 8.6e-6。v5p-32 正式 RUN 与纯 JAX DirectC10 的 loss：step 0–50 差 ±2e-4，早期轨迹分叉 +0.0095@500，
 2500–17000 共 30 个窗口均值 −0.00017（范围 [−0.0009, +0.0010]），即舍入噪声。
+full-M v8t：tiny FP32 全模型 loss 与 XLA 相同、梯度相对误差 ≤ 1.3e-5；v5p-8 同机 600 步与纯 JAX（health OFF，同数据
+同 seed）对拍，快速下降段的暂时差异收敛（500–606 步平均差 −0.0025，每步噪声约 0.008），无系统偏差。
 
 剩余差距（v5p-8，融合 + Splash 1719 ms vs MHA 1618 ms）：SwiGLU MLP +142 ms（参数退还后更宽，架构所致）、
 融合 kernel 约 139 ms + XLA glue、M 的 scan carry 约 +17 ms；BAM 的 Splash kernel 522 ms 略低于 MHA 的 546 ms
 （同形状；差异来自 scan 中 3 个位置里 2 个位置的前传快 14%，推测为并发 DMA/collective 争用较少，未验证）。
+
+full-M v8t 剩余差距（1655 ms vs MHA 1618 ms，+37 ms）：MLP 变宽 +114 ms（架构）；BAM 核 102 ms（v7u 255）、
+写的 XLA 投影 +25、scan carry/其他 +48，被投影 −192 和 Splash −49 抵消，即 MLP 之外 BAM 净快 77 ms。
 
 ## 伪代码
 
@@ -196,6 +218,77 @@ WriteBackward(G = δM_out[K,V], groups):
   return δMp = G（恒等）, (δX, δℓ, δA) per group
 ```
 
+### v8t：token-major M、核内 per-token MXU（full-M generalized read）
+
+v7 的动态读在 VPU 上做：每 token 有自己的 M_t，看起来没有跨 token 共享的 MXU 操作数。v8t 反过来把 M_t 作为
+**per-token matmul 的 stationary 操作数**（对 token 轴的 batched dot），v5p 上约 13 cycles/token（v7 VPU 约 160）。
+一层的所有读都是 M_t 的线性函数，静态 key、门控都折进 key 矩阵 X_t，于是每 token 只做一次读 matmul、一次写 matmul，
+反传也都是 matmul。M 在 HBM 中 token-major `[B,T,V,K]`；其余 kernel I/O 保持 v7 的 T-minor（key/门/因子为 `[..,T]`
+slab，q/k/v/o 为 Splash 原生 `[B,N,T,K]`），token-major 的 X_t、Y_t 只存在于 VMEM。
+
+|记号|含义／形状|
+|---|---|
+|`M_t`|`[V, K] = [40, 96]`，C = V（identity compression）|
+|`R`|`4N = 80` 行：arm（q, k, v, o）× head；不 pad（4N 行实测更快）|
+|`X_t`|读 key 矩阵 `[R, V]`；`Y_t = X_t M_t` 为 `[R, K]`|
+|`S`|静态 key `[R, V]`（按 arm 拼接 `S_q; S_k; S_v; S_o`）；`sg` 为 per-token static gate `[R]`|
+|`ch`|一次 batched matmul 的 token 数（8）|
+
+```text
+ReadForward_v8t(M[T,V,K], S, rq, lq, rk, lk, rr, lo, lv, qs, ks, sg):   # 每 128-token tile；T-minor 输入
+  # T-minor 计算 key（sublane 归约，无 lane 归约）
+  inv[r] = rsqrt(mean_c(raw[r,c]²) + ε)          # raw 行 = (rq, rk, rr, rr)，v/o 共享 VO key
+  g[r]   = σs(l_arm(r))                          # lq, lk, lv, lo
+  for c in 1..V:                                 # X_tᵀ[c] = g·inv·raw[c] + S[:,c]·sg
+    slab[R,T] = g·inv·raw[:,c] + S[:,c]·sg
+    xt_scr[t·V + c] = transpose(slab)            # 一次 XLU 转置 + stride=V 的 VMEM store → token-major X_tᵀ
+  for chunk of ch tokens:                        # MXU
+    Y = batched_dot(X_t, M_t)                    # [ch, R, K]
+    scatter → y_scr[r·T + t]                     # 对齐 [ch,K] 块 + 寄存器 major↔sublane swap
+  for arm, head:
+    y = y_scr[(arm·N + head)·T : +T]             # [T, K] token 行 = Splash 原生布局
+    q/k：列 ≥ Kq 换成 transpose(qs/ks)；q *= 1/√d
+  return Q, K, V, O [N,T,K]；Mp = M（passthrough）
+
+ReadBackward_v8t(..., δQ, δK, δV, δO, δMp):
+  重建 X_tᵀ（同前传）
+  δY 行 ← δ{Q,K,V,O}（q 乘 1/√d；q/k 列 ≥ Kq 拆出为 δqs/δks，矩阵乘里置 0）
+  for chunk of ch tokens:                        # MXU
+    δY_t = gather(dy_scr)                        # 对齐块 + swap
+    δX_tᵀ = batched_dot(M_t, δY_t)  [V, R] → dxt_scr
+    δM_t  = X_tᵀ δY_t + δMp_t                    # passthrough 在核内相加，与 δM 输出 aliased
+    δS   += Σ_t sg_t ⊙ δX_tᵀ                     # per-tile partial
+  # T-minor key 反传
+  for c:  δx = transpose(dxt_scr[c::V])  [R,T]
+          gacc += δx·raw[c] ;  sacc += δx·S[:,c] ;  u[c] = g·δx（v、o 两臂合并到 VO key）;  uacc += u[c]·raw[c]
+  δl_arm = σs'(l)·inv·gacc ;  δsg = sacc
+  δraw[c] = (u[c] - raw[c]·mean_c(u·raw)·inv²)·inv            # RMS-norm 反传
+  return δM, δS, δrq, δlq, δrk, δlk, δrr, δlo, δlv, δqs, δks, δsg
+
+WriteForward_v8t(Mp[T,V,K], groups (X[N,K], ℓ[N], A[N,V])):    # attention 组 + MLP 组，行数 pad 到 8 的倍数
+  c_scr[t·NPT + i] = transpose(sigmoid(ℓ_i)·Nε(X_i))  ;  a_scr[t·NPT + i] = transpose(Nε(A_i))
+  for chunk:  M_out_t = Mp_t + batched_dot(Â_tᵀ, C_t)        # [V,K]，input_output_aliases 原地写
+
+WriteBackward_v8t(G[T,V,K], groups):
+  重算 Â, C
+  for chunk:  δÂ_t = C_t G_tᵀ  [NPT, V] ;  δC_t = Â_t G_t  [NPT, K]     # MXU
+  for head i:  δC_i, δÂ_i ← transpose(stride-NPT 行)
+               δℓ_i = σ'(ℓ_i)·Σ_k δC_i·Nε(X_i) ;  δX_i = NBε(X_i, sigmoid(ℓ_i)·δC_i) ;  δA_i = NBε(A_i, δÂ_i)
+  return δMp = G, (δX, δℓ, δA) per group
+```
+
+每 128-token tile 的 v5p bundle（v7u → v8t）：read F 20.6k → 8.1k、read B 49.8k → 12.4k、write F（1/2 组）6.2k/12.1k →
+3.7k/5.2k、write B 15.2k/28.2k → 6.0k/10.2k；实测核时间合计 255 → 102 ms/step（v5p-8）。
+
+设计要点（均有配对反证）：
+- **核边界保持 T-minor**。v8 把 key 构造和 Y 拆分交给 XLA，`[B,T,N,40/96]` 小尾维张量的 pad/copy/reduce 多出 330 ms，
+  总体反而慢于 v7；归一化也应在 T-minor 做（sublane 归约是 VPU 加法，lane 归约需 XLU）。
+- **VMEM 重排**：stride-T 的 sublane 访问约每行一条指令；对齐 `[8, L]` 块加载 + 寄存器内 major↔sublane swap 便宜得多，
+  但 swap 占 VALU，按 scratch 分别选择（读的 dY 用 swap；写因子与 key 用 strided store）。3D ref 的 `scr[:, t, :]`
+  不是原生 strided load。
+- 读的 R 行不 pad（4N），写因子行 pad 到 8 的倍数，各自实测更快。
+- remat 保存读输出（`full_save_bam_read`）在 v8t 下不划算：scan 堆叠的成本约等于重算 read F（21 ms）。
+
 ### XLA glue
 
 ```text
@@ -209,6 +302,9 @@ BamSplash(Q, K, V, segments, window):   # bam_splash_attention
 ```
 
 ## 实验记录（按时间，英文原始记录）
+
+full-M generalized read（v7 移植、v7 收尾、v8、v8t、loss 对拍）的中文完整记录在
+[fullm_general_read_profile.md](fullm_general_read_profile.md)；以下为 DirectC10 阶段的记录。
 
 ### Initial design (v-major `blocked`, superseded by v7)
 

@@ -144,6 +144,8 @@ def get_remat_policy(cfg):
           "qkv_proj",
           "out_proj",
       )
+    elif cfg.remat_policy == "full_save_bam_read":   # full remat except the fused BAM read kernel's results
+      policy = jax.checkpoint_policies.save_only_these_names("bam_read_out", "bam_read_y")
     elif cfg.remat_policy == "save_qkv_proj":
       policy = jax.checkpoint_policies.save_only_these_names(
           "query_proj",
@@ -488,9 +490,10 @@ class EmbeddingBamWrite(nn.Module):
         statistics_dtype=statistics_dtype)
     with jax.named_scope("bam/embedding_write_outer"):
       if getattr(cfg, 'bam_pallas_core', False):
-        # Fused core carries M token-minor: [B, V, K, T], or k-major [B, K, V, T] for bodies v7/v7u.
+        # Fused core carries M token-minor: [B, V, K, T], k-major [B, K, V, T] for bodies v7/v7u,
+        # or token-major [B, T, V, K] for v8t.
         content = (gate[..., None] * data).astype(data.dtype)
-        layout = 'bkvt' if getattr(cfg, 'bam_pallas_body', None) in ('v7', 'v7u') else 'bvkt'
+        layout = {'v7': 'bkvt', 'v7u': 'bkvt', 'v8t': 'btvk'}.get(getattr(cfg, 'bam_pallas_body', None), 'bvkt')
         return jnp.einsum(f'btnk,btnv->{layout}', content, address).astype(data.dtype)
       return jnp.sum(
           gate[..., None, None] * data[..., :, None]
@@ -539,6 +542,8 @@ class Decoder(nn.Module):
     b, t = inputs.shape[:2]
     if getattr(self.config, 'bam_pallas_core', False):
       kv = (self.config.bam_k, self.config.bam_v)
+      if getattr(self.config, 'bam_pallas_body', None) == 'v8t':
+        return jnp.zeros((b, t) + kv[::-1], dtype=self.config.dtype)
       if getattr(self.config, 'bam_pallas_body', None) not in ('v7', 'v7u'):
         kv = kv[::-1]
       return jnp.zeros((b,) + kv + (t,), dtype=self.config.dtype)

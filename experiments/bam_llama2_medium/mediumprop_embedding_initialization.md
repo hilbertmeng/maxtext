@@ -71,6 +71,24 @@ Cumulative200/400/600/800 static-SOTA+.316375/+.114625/+.071218/+.049173; lookup
 
 Cumulative200/400/600/800/1000: static-SOTA+.316375/+.114625/+.071218/+.049173/+.042373; lookup-SOTA+.041272/+.014337/+.021542/+.017199/+.017998; lookup-static-.275103/-.100288/-.049676/-.031974/-.024376. Static catch-up slows (gap-magnitude shrink63.8%,37.9%,31.0%,13.8%); lookup stays approximately+.018 after400 without sustained improvement. No stop before planned2800 review. Common810..1000: raw medians parent.530885/static.470596/lookup.396272; sampled clipping0/1/0 outof20. Current loss deficits persist after old-parent clipping mostly subsides, so early health improvement alone does not explain eventual competitiveness.
 
-User clarified the unlaunched alternative: absorb W_U, A AND S into one freely trained B[1200,75,32], initialized as B[i,k,v]=S[k,v]*sum_h W_U[i,h,k]*A[h,v]. Forward M=reshape(xB), with no separate S. Algebraically identical at initialization, then direct B optimization releases the factor constraints; adds1437088=.997978W_Q versus factored static arm. Dense entry MACs2.88M vs1.4784M; whole-model throughput change requires measurement. No third RUN authorized/launched yet.
+User clarified the unlaunched alternative: absorb W_U, A AND S into one freely trained B[1200,75,32], initialized as B[i,k,v]=S[k,v]*sum_h W_U[i,h,k]*A[h,v]. Forward M=reshape(xB), with no separate S. Algebraically identical at initialization, then direct B optimization releases the factor constraints; adds1437088=.997978W_Q versus factored static arm. Dense entry MACs2.88M vs1.4784M; whole-model throughput change requires measurement. Subsequently authorized below, with MLP budget repayment.
 
 Monitoring preference: user explicitly ended gradient-clipping-health follow-up for these two active RUNs. Early clipping relief is already established, and baseline clipping mostly subsides later; focus subsequent monitoring on loss/gap trends, throughput, committed checkpoints and resource liveness. Do not keep syncing/analyzing gradient health at milestones merely by habit.
+
+
+## Direct B and final-M residual follow-up (authorized 2026-10-12)
+
+Two additional RUNs in the same isolated worktree/branch. Latest user default: repay material added parameters from MLP; previous matrix-lookup run remains an explicit exception. Target budget is SOTA432111104. Three-layer block widths must be integers, so one total pattern-width unit is21600 parameters.
+
+| RUN | MLP pattern | Total parameters | Delta vs SOTA | planned trainer |
+|---|---|---:|---:|---|
+| `BamMediumPropFullMGeneralReadDirectEmbeddingTruePile` |[3798,3671,3798]|432121104|+10000 (+.002314%)|`xd-v5p-16-310129-maxtext`|
+| `BamMediumPropFullMGeneralReadFinalMatrixResidualTruePile` |[3769,3641,3769]|432118304|+7200 (+.001666%)|`xd-v5p-16-310130-maxtext`|
+
+Direct B replaces U/A/S with one freely trainable[1200,75,32] kernel. At initialization only, sample U~N(0,.006), row-unit-RMS A, S=3.74, and fold their product. This matches the static factor initialization distribution and M RMS; RNG leaf paths differ, so it does not claim identical tensors to the already-running static seed. An explicit supplied-factor folding test verifies algebraic FP32 equivalence. No factor parameters, runtime normalization or separate S remain. B decays at inherited0.1. Entry MACs2.88M; budget repayment removes1.4256M MLP MACs, so net whole-model MAC difference vs static is about-24000/token.
+
+Final-M arm inherits original dynamic-writer SOTA, NOT direct/static embedding. After the last decoder layer, keep scan_carry M (the old code discarded it), apply independent zero-initialized C[75,32,1200], and add to final vector residual before existing OutputHead RMSNorm/unembedding. No extra gate/bias/norm, no weight tying. Zero C preserves the output of a same-width parent at initialization; the MLP budget change means this is not an exact initialization match to full-width SOTA. C gets gradient immediately; this new route sends gradient into M after C becomes nonzero. C adds2W_Q and MLP repays1.995W_Q. No inference M-cache expansion.
+
+Pre-run bets (provisional under matched budgets): direct final loss-.003 vs static /-.001 vs SOTA; final-M loss-.005 vs SOTA. Throughput expected within1% of parents after MLP repayment. Both13500 planned, review2800/5000, checkpoint200, TruePile4096, UE5a from recent lease evidence. Direct compares SOTA+static; final-M compares SOTA. Compiler retained FLEX_START llm-jax-v6e-1-0/EW4a; borrow worker0, never release. Old RUNs continue.
+
+Infrastructure audit: reviewed main80f691d6237d82ebbff91b36309761146f4f2009. No further committed main changes to train/max_utils/summary_writer/checkpointing/train_compile/optimizers/base defaults since prior3006f7fe audit; f6ce0a4 TB500 rotation remains inherited. Latest main AGENTS and skills read, parameter-budget rule added to both AGENTS. Targeted CPU tests extend the existing full-budget/sharding/WD, initialization and scanned consumed-gradient gates; final residual zero-output and nonzero perturbation checks added. Exact sealed/AOT/FIRST_STEP gates still required.

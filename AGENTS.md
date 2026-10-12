@@ -62,6 +62,7 @@ tpu-ag 主仓库不是运行时源码分发源：worker从Git取RUN指定commit�
 
 ## 项目约定与历史陷阱
 
+- 默认保持总参数量匹配：新引入的非微小参数开销从 MLP 宽度中抵扣；只有用户明确声明才例外。记录整数宽度造成的余差。
 - 实验文档登记该任务的worktree、分支、RUN和 `xd-` TPU归属；主 `exp.py`、memo及tpu-ag编排脚本由多个session共享。
 - 已启用仓库级、跨worktree的同名分支 [防误推hook](.githooks/README.md)；实验分支不能直接推到 `refactor-bam`。
 - auto-train负责机械健康检查、抢占恢复、生成报告和TB收尾；agent负责解释、决策及交付。

@@ -12352,3 +12352,25 @@ class BamMediumPropFullMGeneralReadMatrixEmbeddingTruePile(BamMediumPropFullMGen
     bam_embedding_init_mode = 'lookup'
     bam_embedding_matrix_std = .01865
     compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile', 'BamMediumPropFullMGeneralReadStaticEmbeddingTruePile']
+
+
+class BamMediumPropFullMGeneralReadDirectEmbeddingTruePile(BamMediumPropFullMGeneralReadStaticEmbeddingTruePile):
+    """Single free D x K x V embedding map, initialized from folded U/A/S."""
+    # Runtime worktree: /data0/xd/mediumprop-full-m-read-gelu128.
+    # UE5a v5p-16; planned13500, review2800/5000; matched budget via MLP [3798,3671,3798].
+    # Bet final loss-.003 vs static / -.001 vs SOTA; speed-.5% vs static.
+    model_name = 'BamMediumPropFullMGeneralReadDirectEmbeddingTruePile'
+    bam_embedding_init_mode = 'direct'
+    mlp_dim_by_block = [3798, 3671, 3798]
+    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile', 'BamMediumPropFullMGeneralReadStaticEmbeddingTruePile']
+
+
+class BamMediumPropFullMGeneralReadFinalMatrixResidualTruePile(BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile):
+    """Final M -> residual before final RMSNorm; independent zero-init K x V x D map."""
+    # Runtime worktree: /data0/xd/mediumprop-full-m-read-gelu128.
+    # UE5a v5p-16; planned13500, review2800/5000; matched budget via MLP [3769,3641,3769].
+    # Bet final loss-.005 and speed-1% vs SOTA; +2 W_Q parameters.
+    model_name = 'BamMediumPropFullMGeneralReadFinalMatrixResidualTruePile'
+    bam_final_matrix_residual = True
+    mlp_dim_by_block = [3769, 3641, 3769]
+    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile']

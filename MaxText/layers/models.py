@@ -458,6 +458,24 @@ class EmbeddingBamWrite(nn.Module):
     bam_v = int(cfg.bam_v)
     bottleneck = int(cfg.emb_bam_v_bottleneck_dim)
 
+    if getattr(cfg, 'bam_embedding_init_mode', None) == 'direct':
+      def folded_init(key, shape, dtype, *unused_axes, **unused):
+        u_key, a_key = jax.random.split(key)
+        u = self.kernel_init(u_key, (shape[0], heads, bam_k), jnp.float32)
+        a = jax.random.normal(a_key, (heads, bam_v), jnp.float32)
+        a = a * jax.lax.rsqrt(jnp.mean(a * a, axis=-1, keepdims=True))
+        return (jnp.einsum('ihk,hv->ikv', u, a)
+                * cfg.bam_embedding_matrix_scale_init).astype(dtype)
+      matrix = linears.DenseGeneral(
+          features=(bam_k, bam_v), axis=-1, kernel_init=folded_init,
+          kernel_axes=("embed", None, "v_factor"), dtype=self.dtype,
+          weight_dtype=self.weight_dtype, name="W_emb_direct", quant=self.quant,
+          matmul_precision=cfg.matmul_precision, use_bias=False)(inputs)
+      if getattr(cfg, 'bam_pallas_core', False):
+        order = (0, 2, 3, 1) if getattr(cfg, 'bam_pallas_body', None) in ('v7', 'v7u') else (0, 3, 2, 1)
+        matrix = jnp.transpose(matrix, order)
+      return matrix
+
     data = linears.DenseGeneral(
         features=(heads, bam_k), axis=-1, kernel_init=self.kernel_init,
         kernel_axes=("embed", "q_heads", "v_factor"), dtype=self.dtype,
@@ -1025,7 +1043,10 @@ class Decoder(nn.Module):
                   scan_carry, decoder_segment_ids, decoder_positions,
                   decoder_input_tokens, None, deterministic, model_mode,
                   eos_sum, None, None, None, jnp.asarray(index, jnp.int32))
-        y = scan_carry[0] if full_bam else scan_carry
+        if full_bam:
+          y, M = scan_carry
+        else:
+          y = scan_carry
 
       elif cfg.partial_scan_layers:
         assert not cfg.bam_enabled, "BAM v0.1 does not support partial_scan_layers"
@@ -1204,6 +1225,20 @@ class Decoder(nn.Module):
       mtp_head_inputs, main_head_inputs = y if cfg.mtp_num_layers > 0 else [None, y[0]]
     else:
       main_head_inputs, mtp_head_inputs = [y, y] if cfg.mtp_num_layers > 0 else [y, None]
+
+    if getattr(cfg, 'bam_final_matrix_residual', False):
+      if not cfg.bam_enabled or getattr(cfg, 'bam_mha_control', False):
+        raise ValueError("Final matrix residual requires the BAM matrix stream")
+      final_matrix = M
+      if getattr(cfg, 'bam_pallas_core', False):
+        order = (0, 3, 1, 2) if getattr(cfg, 'bam_pallas_body', None) in ('v7', 'v7u') else (0, 3, 2, 1)
+        final_matrix = jnp.transpose(final_matrix, order)
+      main_head_inputs = main_head_inputs + linears.DenseGeneral(
+          features=cfg.emb_dim, axis=(-2, -1),
+          kernel_init=lambda key, shape, dtype, *unused_axes, **unused: jnp.zeros(shape, dtype),
+          kernel_axes=(None, "v_factor", "embed"), dtype=cfg.dtype,
+          weight_dtype=cfg.weight_dtype, name="final_matrix_readout", quant=self.quant,
+          matmul_precision=cfg.matmul_precision, use_bias=False)(final_matrix)
 
     # mtp share llm head params
     OutputHeadLayer = OutputHead(config=cfg, 

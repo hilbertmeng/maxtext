@@ -35,8 +35,9 @@ def ref_write(m, groups, eps=1e-6):
 
 def main():
   torch.manual_seed(0)
-  t, n, k, v = 37, 20, 96, 40
-  for dtype, tol in ((torch.float32, 1e-4), (torch.bfloat16, 3e-2)):
+  n, k, v = 20, 96, 40
+  for t, dtype, tol in ((37, torch.float32, 1e-4), (37, torch.bfloat16, 3e-2),          # decode kernel (T < 64)
+                        (300, torch.float32, 1e-4), (300, torch.bfloat16, 3e-2)):       # stacked prefill kernel
     dev = dict(device='cuda', dtype=dtype)
     m = torch.randn(t, k, v, **dev)
     up = torch.randn(t, 3 * n * v + 32, **dev)                    # padded fused output, sliced
@@ -52,7 +53,7 @@ def main():
     w2 = bam_write(m, c1, g1, a1, c2, g2, a2, True, 1e-6).float()
     r1, r2 = ref_write(m, [(c1, g1, a1)]), ref_write(m, [(c1, g1, a1), (c2, g2, a2)])
     e1, e2 = ((w1 - r1).norm() / r1.norm()).item(), ((w2 - r2).norm() / r2.norm()).item()
-    print(f'{dtype}: read rel {e_read:.1e}  write1 rel {e1:.1e}  write2 rel {e2:.1e}')
+    print(f'T={t} {dtype}: read rel {e_read:.1e}  write1 rel {e1:.1e}  write2 rel {e2:.1e}')
     assert max(e_read, e1, e2) < tol, (e_read, e1, e2)
   print('M_KERNELS_OK')
 

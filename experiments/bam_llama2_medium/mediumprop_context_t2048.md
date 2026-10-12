@@ -46,3 +46,5 @@ T2048/T4096: BAM1.15x, Mudd1.20x, MHA1.25x. Historical parent runtimes lack even
 rotation; distinguish kernel step timing from event-upload-inclusive wall timing.
 
 Matched startup verified: fresh step0 and AOT loaded on both C256 controls. UE5a kernel throughput20–99: MHA .8951 (+25.36% vsT4096 .714), Mudd .7755 (+23.10% vs .630), BAM .5394 (+12.68% vs .4787). Exact real-model parameter counts are unchanged: MHA432121200, Mudd434076747, BAM432111104. TinyCPU probes are test fixtures only. Initial Splash prefixes closed at898/809; TB synced, TPU ownership retained by matched controls.
+
+MHA T2048 completed13500 at2026-10-12 10:05:58UTC; checkpoint committed, node/queue released, localTB SYNC_OK. Final five12600–13400 versus T4096: −.000648,+.060526,−.058589,+.062256,+.012699; mean+.015249. Raw cross-length loss differences remain noisy because records/batches differ; interpret context benefit through within-length architecture gaps. One UE5a SPOT v5p-16 READY lease05:46:50–10:05:58UTC (4h19m08), no preemptions.

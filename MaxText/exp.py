@@ -12257,10 +12257,13 @@ class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMRe
 class BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile(BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdTruePile):
     """Proportional XL transfer of shared GELU full-M generalized column reads."""
     # Ledger only: codex/mediumprop-full-m-read-gelu128, /data0/xd/mediumprop-full-m-read-gelu128.
-    # code_commit: b83223f; UE5a v5p-32 .3826step/s(20-99); sustained .3126 vs shared .3749 (-16.64%). !? TB whole-event reuploads, not architecture-only speed; extra health ON.
+    # code_commit: b83223f; UE5a v5p-32 .3826step/s(20-99), -2.95% vs shared; extra health ON.
+    # Late wall .2564 vs shared .3472; TB whole-event uploads impaired speed, architecture timing unmatched.
     # Historical standard .347: +10.25%, C256 vs new Splash/SEQ_MINOR; runtime unmatched.
     # 1432386360 params, nearest per-layer MHA budget; parent standard rank4.
-    # Terminal bet vs parent: loss-.010, matched-health speed-5%.
+    # Stopped33002: vs standard gain held near-.013 after~20k; last5 through32000 -.013130.
+    # vs shared: early~-.006 shrank to~-.0045; last5 through32500 -.004666.
+    # vs Mudd: last5 -.039778; gain ratio eased~1.59@20k to1.546@32500.
     model_name = 'BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile'
     bam_local_qk_direct_c8 = True
     bam_local_qk_col_direct_compressed = False
@@ -12282,13 +12285,16 @@ class BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdFullMReadGe
     jax_cache_dir = ''
 
 
+
 class BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdFullMReadSharedGelu400TruePile(BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile):
     """Shared full-M GELU reads alone; original un-gated static reads and no pre-bias."""
     # Ledger only: codex/mediumprop-full-m-read-gelu128, /data0/xd/mediumprop-full-m-read-gelu128.
-    # code_commit: 3425c55; UE5a v5p-32 .3942step/s(20-99); sustained .3749 vs generalized .3126 (+19.96%); smaller post-resume TB event; architecture speed unmatched.
+    # code_commit: 3425c55; UE5a v5p-32 .3942step/s(20-99), +3.04% vs generalized.
+    # Late wall .3472 vs generalized .2564; TB whole-event uploads, architecture timing unmatched.
     # Historical standard .347: +13.60%, C256 vs new Splash/SEQ_MINOR; runtime unmatched.
     # 1432370680 params; MLP[6167,5979,6167] + terminal6167, nearest per-layer MHA budget.
-    # Last-common-stage bet vs standard: loss-.006, matched-health speed-1%.
+    # Stopped37253: vs standard early gain grew then held~-.0085; last5 through32000 -.008669.
+    # vs Mudd: late lead eased; last5 through37000 -.033901, gain ratio1.452@37000.
     model_name = 'BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdFullMReadSharedGelu400TruePile'
     bam_general_column_read = False
     mlp_dim_by_block = [6167, 5979, 6167]
@@ -12396,6 +12402,7 @@ class BamMHAMediumPropC256T2048Matched(BamMHAMediumPropC256T2048):
     """T2048 length control preserving the historical T4096 C256 BF16-logits core."""
     # Ledger only: codex/mediumprop-context-t2048; code_commit: e9f7728.
     # UE5a v5p-16 .8951step/s(20-99), +25.36% vs T4096 parent .714; same model/health.
+    # Completed13500: vs T4096 early lower loss faded; late difference fluctuated around zero, final5 +.015249.
     model_name = 'BamMHAMediumPropC256T2048Matched'
     bam_splash_attention = False
 

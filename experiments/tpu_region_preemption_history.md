@@ -28,8 +28,8 @@ active leases are censored, and manual migration releases are not preemptions.
 | RUN | TPU | Zone | Start UTC | End UTC | End reason | Passive candidates |
 |---|---|---|---|---|---|---|
 | `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadSigmoidStaticGateTruePile` | v5p-16 (`xd-v5p-16-310120-maxtext`) | `us-east5-a` | 2026-10-11 10:50:07 | 2026-10-11 19:09:16 | complete13500;1preemption; checkpoint13500 committed, node/queue absent, TB synced | none |
-| `BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile` | v5p-32 (`xd-v5p-32-310118-maxtext`) | `us-east5-a` | 2026-10-11 05:13:34 | — | active; source/AOT/FIRST_STEP verified | none |
-| `BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdFullMReadSharedGelu400TruePile` | v5p-32 (`xd-v5p-32-310119-maxtext`) | `us-east5-a` | 2026-10-11 05:18:49 | — | active; source/AOT/FIRST_STEP verified | none |
+| `BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile` | v5p-32 (`xd-v5p-32-310118-maxtext`) | `us-east5-a` | 2026-10-11 05:13:34 | 2026-10-12 09:19:32 | user stop33002;0preemptions; checkpoint committed, resources absent, TB synced | none |
+| `BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdFullMReadSharedGelu400TruePile` | v5p-32 (`xd-v5p-32-310119-maxtext`) | `us-east5-a` | 2026-10-11 05:18:49 | 2026-10-12 09:19:36 | user stop37253;1preemption; checkpoint committed, resources absent, TB synced | none |
 | `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadSharedGelu128GeneralReadTruePile` | v5p-16 (`xd-v5p-16-310116-maxtext`) | `us-east5-a` | 2026-10-11 01:59:56 | 2026-10-11 04:03:40 | user stop3407;0preemptions; checkpoint committed, node/queue absent, TB synced | none |
 | `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadSharedGelu384GeneralReadTruePile` | v5p-16 (`xd-v5p-16-310117-maxtext`) | `us-east5-a` | 2026-10-11 02:02:00 | 2026-10-11 04:03:42 | user stop3359;0preemptions; checkpoint committed, node/queue absent, TB synced | none |
 | `BamMediumPropK75V48EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadSharedGelu256TruePile` | v5p-16 (`xd-v5p-16-310115-maxtext`) | `us-east5-a` | 2026-10-10 17:05:39 | 2026-10-11 01:32:11 | complete13500;0preemptions; checkpoint committed, node/queue absent, TB synced | none |
@@ -430,7 +430,7 @@ active leases are censored, and manual migration releases are not preemptions.
 | `BamMediumPropL27K75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile` | v5p-16 (`xd-v5p-16-310122-maxtext`) | `us-east5-a` | 2026-10-11 17:55:35 | 2026-10-12 05:51:17 | complete13500;3preemptions; checkpoint committed, node/queue absent, TB synced | none |
 | `BamMHAMediumPropC256T2048` | v5p-16 (`xd-v5p-16-310130-maxtext`) | `us-east5-a` | 2026-10-12 05:25:30 | 2026-10-12 05:45:49 | replaced898 by matched C256 control; TB synced, resource transferred | none |
 | `MuddLlama2MediumPropT2048` | v5p-16 (`xd-v5p-16-310131-maxtext`) | `us-east5-a` | 2026-10-12 05:27:25 | 2026-10-12 05:48:41 | replaced809 by matched C256 control; TB synced, resource transferred | none |
-| `BamMHAMediumPropC256T2048Matched` | v5p-16 (`xd-v5p-16-310130-maxtext`) | `us-east5-a` | 2026-10-12 05:46:47 | — | active; fresh step0/AOT/FIRST_STEP verified | none |
+| `BamMHAMediumPropC256T2048Matched` | v5p-16 (`xd-v5p-16-310130-maxtext`) | `us-east5-a` | 2026-10-12 05:46:47 | 2026-10-12 10:05:58 | complete13500;0preemptions; checkpoint committed, resources absent | none |
 | `MuddLlama2MediumPropC256T2048` | v5p-16 (`xd-v5p-16-310131-maxtext`) | `us-east5-a` | 2026-10-12 05:49:36 | — | active; fresh step0/AOT/FIRST_STEP verified | none |
 | `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadT2048` | v5p-16 (`xd-v5p-16-310132-maxtext`) | `us-east5-a` | 2026-10-12 05:25:26 | — | active; AOT/FIRST_STEP verified | none |
 
@@ -1250,6 +1250,10 @@ active leases are censored, and manual migration releases are not preemptions.
 | `RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicEmbedding` | 6 | `us-east5-a` | 2026-09-26 20:43:57 | 2026-09-27 00:33:13 | 3h49m16s | completed13500; TPU/queue absent, TB synced |
 | `RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicUnembeddingDirect32` | 3 | `us-east5-a` | 2026-09-26 19:10:38 | 2026-09-27 01:31:10 | 6h20m32s | completed13500; TPU/queue absent, TB synced |
 | `RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicEmbeddingUnembeddingDirect32` | 2 | `us-east5-a` | 2026-09-26 20:43:59 | 2026-09-27 03:51:11 | 7h7m12s | completed13500; TPU/queue absent, TB synced |
+| `BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdFullMReadSharedGelu400TruePile` | 1 | `us-east5-a` | 2026-10-11 05:18:52 | 2026-10-11 16:02:44 | 10h43m52s | preempted; same-zone recovery |
+| `BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile` | 1 | `us-east5-a` | 2026-10-11 05:13:37 | 2026-10-12 09:19:32 | 28h05m55s | user stop33002; resources released |
+| `BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdFullMReadSharedGelu400TruePile` | 2 | `us-east5-a` | 2026-10-11 16:09:24 | 2026-10-12 09:19:36 | 17h10m12s | user stop37253; resources released |
+| `BamMHAMediumPropC256T2048Matched` | 1 | `us-east5-a` | 2026-10-12 05:46:50 | 2026-10-12 10:05:58 | 4h19m08s | complete13500; resources released |
 | `RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicEmbeddingUnembeddingDirect32L22` | 1 | `us-east5-a` | 2026-09-27 00:29:56 | — | censored | active; prequeue READY precedes registry00:30:07 |
 | `RMT Pallas profile sweep` | 1 | `us-central1-a` | 2026-09-27 05:54:13 | 2026-09-27 07:16:51–07:24:58 | 1h22m38s–1h30m45s | preempted; end bounded by last observed step/terminal-state check |
 | `RMT Pallas final + MHA profile` | 1 | `us-central1-a` | 2026-09-27 07:30:30 | 2026-09-27 08:00:31 (verified absent) | ≤30m01s | completed profiles, manual release; upper bound uses absence verification |

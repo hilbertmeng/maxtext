@@ -425,6 +425,9 @@ active leases are censored, and manual migration releases are not preemptions.
 | `RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32` | v5p-16 (`xd-v5p-16-2709272-maxtext`) | `us-east5-a` | 2026-09-28 03:05:29 | 2026-09-28 05:42:16 | stopped3442 after NoO matched loss with fewer params and higher speed; 0 preemptions; TPU/queue absent, TB synced | none |
 | `BamMHAMediumPropC256TruePile` | v5p-16 (`xd-v5p-16-2709271-maxtext`) | `us-east5-a` | 2026-09-28 03:05:44 | 2026-09-28 08:30:36 | completed13500; 0 preemptions; TPU/queue absent, TB synced | none |
 
+| `BamMediumPropK75V48EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadSharedGelu384GeneralReadTruePile` | v5p-16 (`xd-v5p-16-310121-maxtext`) | `us-east5-a` | 2026-10-11 17:55:20 (prequeue READY) | 2026-10-12 00:21:39 | review stop9701; 1preemption; checkpoint committed, resources absent, TB synced | none |
+| `BamMediumPropL27K75V48EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadSharedGelu384GeneralReadTruePile` | v5p-16 (`xd-v5p-16-310123-maxtext`) | `us-east5-a` | 2026-10-11 17:55:32 (READY) | 2026-10-12 00:21:42 | review stop6826; 2preemptions; checkpoint committed, resources absent, TB synced | none |
+
 ## READY leases
 
 | RUN | # | Zone | Start UTC | End UTC | Duration | Exit |
@@ -1275,3 +1278,5 @@ active leases are censored, and manual migration releases are not preemptions.
 | `BamMediumPropL27K75V48EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadSharedGelu384GeneralReadTruePile` | 2 | `us-east5-a` | 2026-10-11 18:05:03 | 2026-10-11 18:45:01 | 39m58s | preempted; same-zone resumed checkpoint669 |
 | `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadSigmoidStaticGateTruePile` | 2 | `us-east5-a` | 2026-10-11 15:24:40 | 2026-10-11 19:09:16 | 3h44m36s | final closeout after completed13500 |
 | `BamMediumPropL27K75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile` | 3 | `us-east5-a` | 2026-10-11 18:30:24 | 2026-10-11 21:01:18 | 2h30m54s | preempted |
+| `BamMediumPropK75V48EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadSharedGelu384GeneralReadTruePile` | 2 | `us-east5-a` | 2026-10-11 18:04:43 | 2026-10-12 00:21:39 | 6h16m56s | review stop9701; checkpoint committed, resources released |
+| `BamMediumPropL27K75V48EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadSharedGelu384GeneralReadTruePile` | 3 | `us-east5-a` | 2026-10-11 18:52:15 | 2026-10-12 00:21:42 | 5h29m27s | review stop6826; checkpoint committed, resources released |

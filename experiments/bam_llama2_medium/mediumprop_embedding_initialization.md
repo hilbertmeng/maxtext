@@ -33,3 +33,23 @@ Reviewed main `3006f7fe0ae1fd59a7c4d8ffff4666920025ed37` against the family bran
 Pinned checks passed for parent and both arms: full parameter budgets, FSDP8 layout, WD exclusions, scanned forward/backward and health export. Five TensorBoard tests passed, including real multi-file continuous scalar recovery. Both AOT manifests are keyed byf6ce0a4/v5p-16/s13500. Registry confirms sealed hash, UE5a TruePile4096 data and requested compare_runs. Actual training reached static17 and lookup21 via registry wait-step14; both worker logs confirm loaded AOT and TB period500. Startup throughput approximately .48step/s for both; exact20-99 comparison pending.
 
 Verified mean10-14: static.4808, lookup.4780step/s; snapshots at91/41. Proof: `startup-proof.json` plus `static-worker.log`/`lookup-worker.log` under the artifact directory. No matched20-99 speed conclusion yet.
+
+
+## Paired early gradient health through200
+
+Same21 sampled steps0,10,...,200; update statistics exclude zero-LR step0 (20samples). Clip threshold1.0, coefficient=min(1,1/raw_norm). These are sampled clipping frequencies, not every-update counts. Raw leaf norms reconstruct squared global norm within7.1e-7 relative, ruling out missing leaves or aggregate double counting. Source runner `scripts/report_embedding_grad_health.py`; artifact `early-grad-200.json` under the experiment diagnostic directory. Baseline raw events already synced; active runs pulled via incremental TB sync.
+
+| metric, steps10..200 | SOTA parent | StaticEmbedding | MatrixEmbedding |
+|---|---:|---:|---:|
+| raw norm median |6.380698|1.062773|1.139867|
+| raw norm p90 |9.622991|2.494400|2.496482|
+| raw norm max (step10) |65.223976|5.047280|5.836152|
+| sampled clipping count |20/20|14/20|12/20|
+| mean clip coefficient |.190567|.794929|.776635|
+| median embedding-entry gradient energy fraction |96.4043%|4.2689%|2.0340%|
+
+Raw norms at0/10/50/100/150/200: parent127.951/65.224/8.647/8.623/5.370/2.692; static5.325/5.047/1.276/1.001/1.047/.967; lookup4.713/5.836/1.271/.882/.917/1.133. Parent embedding address-up bias alone accounts for99.7934% at0,99.4103% at10,92.2176% at200. New static A+S combined never exceed.006678% of total gradient energy (max190); static entry gradient is predominantlyW_U, not a transferred shared-address spike. Matrix table also does not dominate. Initial new-arm top gradient is the first attention writer's existingP_loc_up/bias, then distribution changes among LM head and layer writers.
+
+The intended early optimization health benefit is established: the old shared pre-RMS embedding bias dominates global clipping, and both replacement schemes remove that dominance. Lower clipping does **not** imply proportional Adam update increases or better loss. At the exact matched200±25 window: static-parent+.316375, lookup-parent+.041272, lookup-static-.275103. Both healthier, lookup much closer to parent: normalization removal alone does not account for the static arm's loss deficit; representation/parameterization and adaptation speed remain candidates, not established causality. Keep both running; inspect400..1000 deficit evolution before judging startup transients versus persistent capacity constraints.
+
+Mean20-99 throughput: static.4789375 (+.0444% vs parent.478725), lookup.4762375 (-.5196%). Same region/topology and inherited health except removed seed-gate statistics; TB rotation affects neither first500 steps. Large table introduces no extra dense projection and under1% observed throughput cost. Table adds119592400 parameters versus parent; no M-cache expansion.

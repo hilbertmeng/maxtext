@@ -42,15 +42,15 @@ for name,_ in rows[1:]:
   Path(tmp,'tiny').mkdir()
   changes=dict(base_num_decoder_layers=3,base_emb_dim=150,base_num_query_heads=2,
       base_num_kv_heads=2,base_mlp_dim=256,vocab_size=32)
-  if 'FullMRead' in name:
-   changes.update(bam_write_v_bottleneck_dim=8,emb_bam_v_bottleneck_dim=8,
-      bam_mlp_write_address_rank=8,bam_local_full_m_read_bottleneck_dim=8,
-      mlp_dim_by_block=[16,12,16])
   cfg=pyconfig.initialize([None,'MaxText/configs/base.yml'],exp_class=name,
       run_name='tiny',enable_checkpointing=False,base_output_directory=tmp+'/',
       dataset_type='synthetic',jax_cache_dir='',log_config=False,max_target_length=4,
       max_prefill_predict_length=4,query_chunk_size=2,per_device_batch_size=1.,
       bam_splash_attention=False,**changes)
+  if 'FullMRead' in name:
+   cfg.get_keys().update(bam_write_v_bottleneck_dim=8,emb_bam_v_bottleneck_dim=8,
+       bam_mlp_write_address_rank=8,bam_local_full_m_read_bottleneck_dim=8,
+       mlp_dim_by_block=[16,12,16])
   mesh=jax.sharding.Mesh(np.array(jax.devices()[:1]).reshape((1,)*len(cfg.mesh_axes)),cfg.mesh_axes)
   model=Transformer(cfg,mesh,quant=None)
   tok=jnp.array([[1,2,3,4]],jnp.int32)

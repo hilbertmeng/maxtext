@@ -82,7 +82,7 @@ Two additional RUNs in the same isolated worktree/branch. Latest user default: r
 
 | RUN | MLP pattern | Total parameters | Delta vs SOTA | planned trainer |
 |---|---|---:|---:|---|
-| `BamMediumPropFullMGeneralReadDirectEmbeddingTruePile` |[3798,3671,3798]|432121104|+10000 (+.002314%)|`xd-v5p-16-310129-maxtext`|
+| `BamMediumPropFullMGeneralReadDirectEmbeddingTruePile` |[3798,3671,3798]|432121104|+10000 (+.002314%)|`xd-v5p-16-310131-maxtext`|
 | `BamMediumPropFullMGeneralReadFinalMatrixResidualTruePile` |[3769,3641,3769]|432118304|+7200 (+.001666%)|`xd-v5p-16-310130-maxtext`|
 
 Direct B replaces U/A/S with one freely trainable[1200,75,32] kernel. At initialization only, sample U~N(0,.006), row-unit-RMS A, S=3.74, and fold their product. This matches the static factor initialization distribution and M RMS; RNG leaf paths differ, so it does not claim identical tensors to the already-running static seed. An explicit supplied-factor folding test verifies algebraic FP32 equivalence. No factor parameters, runtime normalization or separate S remain. B decays at inherited0.1. Entry MACs2.88M; budget repayment removes1.4256M MLP MACs, so net whole-model MAC difference vs static is about-24000/token.
@@ -92,3 +92,17 @@ Final-M arm inherits original dynamic-writer SOTA, NOT direct/static embedding. 
 Pre-run bets (provisional under matched budgets): direct final loss-.003 vs static /-.001 vs SOTA; final-M loss-.005 vs SOTA. Throughput expected within1% of parents after MLP repayment. Both13500 planned, review2800/5000, checkpoint200, TruePile4096, UE5a from recent lease evidence. Direct compares SOTA+static; final-M compares SOTA. Compiler retained FLEX_START llm-jax-v6e-1-0/EW4a; borrow worker0, never release. Old RUNs continue.
 
 Infrastructure audit: reviewed main80f691d6237d82ebbff91b36309761146f4f2009. No further committed main changes to train/max_utils/summary_writer/checkpointing/train_compile/optimizers/base defaults since prior3006f7fe audit; f6ce0a4 TB500 rotation remains inherited. Latest main AGENTS and skills read, parameter-budget rule added to both AGENTS. Targeted CPU tests extend the existing full-budget/sharding/WD, initialization and scanned consumed-gradient gates; final residual zero-output and nonzero perturbation checks added. Exact sealed/AOT/FIRST_STEP gates still required.
+
+
+##2000 review and patient observation
+
+Static and lookup both committed2000, no preemptions. Cumulative1200/1400/1600/1800/2000 gaps: static-SOTA+.032270/+.031615/+.023997/+.022330/+.019063; lookup-SOTA+.014016/+.015390/+.011957/+.011114/+.007936; lookup-static-.018254/-.016225/-.012040/-.011216/-.011127. Recent-five means static+.025855 (range+.019063..+.032270), lookup+.012083 (+.007936..+.015390). Update earlier inference: lookup now shows sustained1400->2000 catch-up, not a persistent+.018 plateau. Both still trail SOTA. Artifactloss-2000.txt; both registry cursors2000.
+
+User explicitly asks patience for the FIRST two RUNs:2800 is a trend review, not a default stopping decision. Continue through5000; extend beyond if gaps continue converging. Neither5000 nor2800 is a hard endpoint. No gradient-clipping-health follow-up; monitor loss, speed, committed checkpoints and resource liveness.
+
+
+## Follow-up launch verification
+
+Both RUNs actually training on sealed runtime0f5f6c4bf2f0a2e62ab6d45a7c53a90bae9c846d; direct TPU310131 and final-M TPU310130, UE5a v5p-16. Both loaded the compiled function, resolved TB500, passed FIRST_STEP and step14. Mean10-14 both.4814step/s. Direct mean20-99.4786375 (-.06264% vs static.4789375; -.01828% vs SOTA.478725), consistent with MLP repayment keeping total compute nearly constant. Final-M steady window pending. Artifactnew-startup-proof.json and new-registry-proof.jsonl record worker and controller/runtime/data/compare checks. Latest preparation paths: DirectEmbedding...20261012T113802Z, FinalMatrixResidual...20261012T114042Z under local maxtext-parallel-launch state.
+
+Preparation incident: model CPU assertions passed, but editing a still-executing Bash gate shifted its read offsets and failed the shell. The launcher canceled the first training-only prequeues310129/310130 before any training; both resource deletions verified. Retained FLEX compiler and old RUNs310127/310128 were untouched. Retry uses immutable cpu-0f5f6c4b.sh; full exact-commit CPU gate passed. Interrupted AOT left an artifact without a manifest; retained-worker wrapper lacked the shared Preparer force argument. Authoritative xd_tpu_scripts commit5fda49e adds explicit --force forwarding and passing regression coverage, deployed with equal SHA256. Both complete AOT artifact/manifest pairs then verified. An attempted310132 replacement was rejected as already existing before any mutation; it is not owned by this task. Final-M reuses the now-absent310130 name for a new allocation.

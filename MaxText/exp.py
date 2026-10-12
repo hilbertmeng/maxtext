@@ -12331,7 +12331,7 @@ class BamMediumPropFullMGeneralReadStaticEmbeddingTruePile(BamMediumPropK75Embed
     # GCS TB event rotation500; actual compiled FIRST_STEP verified; training active.
     # 20-99 .47894step/s (+.04%); @200 loss+.316375 vs SOTA; early raw-grad median1.063 vs6.381.
     # Through600: SOTA gap+.3164/+.1146/+.0712 at200/400/600; catching up, health improved.
-    # @1000 SOTA+.042373; catch-up continues but slows; sampled late clipping similar to baseline.
+    # @2000 SOTA+.019063; gaps still shrinking. User:2800 review only, patiently continue through5000+ if converging.
     model_name = 'BamMediumPropFullMGeneralReadStaticEmbeddingTruePile'
     bam_embedding_init_mode = 'static'
     bam_embedding_matrix_scale_init = 3.74
@@ -12347,7 +12347,7 @@ class BamMediumPropFullMGeneralReadMatrixEmbeddingTruePile(BamMediumPropFullMGen
     # GCS TB event rotation500; actual compiled FIRST_STEP verified; training active.
     # 20-99 .47624step/s (-.52%); @200 loss+.041272 vs SOTA/-.275103 vs static; raw-grad median1.140.
     # Through600: SOTA gap+.0413/+.0143/+.0215 at200/400/600; no sustained catch-up yet.
-    # @1000 SOTA+.017998/static-.024376; roughly+.018 deficit since400 despite healthier startup.
+    # @2000 SOTA+.007936/static-.011127; sustained catch-up1400..2000. User:2800 review only, patience through5000+.
     model_name = 'BamMediumPropFullMGeneralReadMatrixEmbeddingTruePile'
     bam_embedding_init_mode = 'lookup'
     bam_embedding_matrix_std = .01865
@@ -12358,7 +12358,9 @@ class BamMediumPropFullMGeneralReadDirectEmbeddingTruePile(BamMediumPropFullMGen
     """Single free D x K x V embedding map, initialized from folded U/A/S."""
     # Runtime worktree: /data0/xd/mediumprop-full-m-read-gelu128.
     # UE5a v5p-16; planned13500, review2800/5000; matched budget via MLP [3798,3671,3798].
-    # Bet final loss-.003 vs static / -.001 vs SOTA; speed-.5% vs static.
+    # Bet final loss-.003 vs static / -.001 vs SOTA; matched-budget speed within1%.
+    # code_commit: 0f5f6c4; params432121104 (+10000 vs SOTA); TPU310131, UE5a v5p-16.
+    # Actual AOT FIRST_STEP and14 passed; mean20-99 .4786375step/s (-.06% vs static/-.02% vs SOTA).
     model_name = 'BamMediumPropFullMGeneralReadDirectEmbeddingTruePile'
     bam_embedding_init_mode = 'direct'
     mlp_dim_by_block = [3798, 3671, 3798]
@@ -12369,7 +12371,9 @@ class BamMediumPropFullMGeneralReadFinalMatrixResidualTruePile(BamMediumPropK75E
     """Final M -> residual before final RMSNorm; independent zero-init K x V x D map."""
     # Runtime worktree: /data0/xd/mediumprop-full-m-read-gelu128.
     # UE5a v5p-16; planned13500, review2800/5000; matched budget via MLP [3769,3641,3769].
-    # Bet final loss-.005 and speed-1% vs SOTA; +2 W_Q parameters.
+    # Bet final loss-.005 vs SOTA; matched-budget speed within1%; +2 W_Q repaid from MLP.
+    # code_commit: 0f5f6c4; params432118304 (+7200 vs SOTA); TPU310130, UE5a v5p-16.
+    # Actual AOT FIRST_STEP and14 passed; mean10-14 .4814step/s; steady20-99 pending.
     model_name = 'BamMediumPropFullMGeneralReadFinalMatrixResidualTruePile'
     bam_final_matrix_residual = True
     mlp_dim_by_block = [3769, 3641, 3769]

@@ -12393,6 +12393,7 @@ class BamMediumPropFullMGeneralReadFinalMatrixVGateTruePile(BamMediumPropFullMGe
     # Gate kernel0, biaslog9; 1.1*sigmoid/.99 => initial effective multiplier1, matching parent reads.
     # Bet final loss-.003 and speed-.1% vs final-M parent; planned13500, review2800/5000.
     # code_commit: 1810a41; params432156736; TPU310150, UE5a v5p-16; AOT FIRST_STEP+14 verified, TB500.
+    # Mean20-99 .479450step/s (+.1044% vs final-M parent/+.1514% vs SOTA); actual steady speed verified.
     model_name = 'BamMediumPropFullMGeneralReadFinalMatrixVGateTruePile'
     bam_final_matrix_v_gate = True
     compare_runs = ['BamMediumPropFullMGeneralReadFinalMatrixResidualTruePile', 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile']

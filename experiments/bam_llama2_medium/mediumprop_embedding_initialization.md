@@ -169,3 +169,10 @@ User explicitly stopped the first two arms, superseding the previous5000+ patien
 All leases: UE5a v5p-16, zero preemptions, one READY lease each. Static2026-10-12T10:28:18Z..13:09:58Z (2h41m40s), lookup10:30:23Z..13:10:00Z (2h39m37s), manual stop. No zone switch or passive candidates.
 
 Direct-B now user-authorized to stop at2800 if no clear sustained catch-up. Latest2000/2200/2400 SOTA gaps+.014502/+.015022/+.016623, two widening windows; do not extrapolate startup-driven long-window mean into a recent convergence claim. Final-M and gated final-M continue. Gate200 parent+.0147588/SOTA+.1214154; actual initial equivalence verified, current training difference is an early result, not an implementation mismatch by itself. Gate cursor200; direct/final-M2200/2000 until next cumulative report.
+
+
+## Direct-B2800 stop / final-M2800 / gate600
+
+Direct-B user-authorized review:2800 SOTA+.014938, static-.002577. Recent SOTA2000/2200/2400/2600/2800+.014502/+.015022/+.016623/+.014421/+.014938 (last-five+.015101), versus1400+.015932. No clear sustained catch-up, no material speed/parameter/cache gain. Stopped with final checkpoint2894 committed,0 lost steps, failures=[], resources verified absent, TB SYNC_OK. The initial factorization bottleneck was real but its startup advantage over factors narrowed to-.002577 by2800; final SOTA loss bet not achieved by stop, later endpoint unobserved. UE5a v5p-16, zero preemptions, one READY lease2026-10-12T11:41:54Z..13:26:18Z (1h44m24s), manual stop. Artifacts closeout-direct.json and loss-direct2800-gate600.txt.
+
+Final-M2800 SOTA+.006140 (r200+.003), last-five+.006638 vs previous+.008992. Continue gradual-convergence observation and retain as the gate arm's direct same-direction baseline. Gate200/400/600 parent+.014759/+.010329/+.003595, SOTA+.121415/+.041497/+.021329. Gate narrows its early penalty, no benefit established. Both healthy and unpreempted; checkpoint2800/600 committed. Cursors direct2800/final-M2800/gate600. Full cumulative artifactloss-final2800-gate600.txt.

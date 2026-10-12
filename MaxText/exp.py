@@ -12333,7 +12333,7 @@ class BamMediumPropFullMGeneralReadStaticEmbeddingTruePile(BamMediumPropK75Embed
     # Through600: SOTA gap+.3164/+.1146/+.0712 at200/400/600; catching up, health improved.
     # @2800 SOTA+.017515; catch-up slows, last5+.018931. User requests patient continuation through5000+.
     # @4200 SOTA+.014525; last5+.015408, slow catch-up; user requests patient5000+ observation.
-    # User stopped4531; final common4400 SOTA+.014657, recent5+.015254; speed+.0444%, params-1488; no preemptions.
+    # User stopped at4531; final common4400 SOTA+.014657, recent5+.015254; speed+.0444%, params-1488; no preemptions.
     model_name = 'BamMediumPropFullMGeneralReadStaticEmbeddingTruePile'
     bam_embedding_init_mode = 'static'
     bam_embedding_matrix_scale_init = 3.74
@@ -12351,7 +12351,7 @@ class BamMediumPropFullMGeneralReadMatrixEmbeddingTruePile(BamMediumPropFullMGen
     # Through600: SOTA gap+.0413/+.0143/+.0215 at200/400/600; no sustained catch-up yet.
     # @2800 SOTA+.009505/static-.008010; last5 SOTA+.009357, recent flattening. User: continue through5000+.
     # @4200 SOTA+.007710/static-.006815; last5 SOTA+.008619; patient5000+ observation.
-    # User stopped4427; final common4400 SOTA+.008160/static-.006497; recent5 SOTA+.008487; speed-.5196% vs SOTA.
+    # User stopped at4427; final common4400 SOTA+.008160/static-.006497; recent5 SOTA+.008487; speed-.5196% vs SOTA.
     model_name = 'BamMediumPropFullMGeneralReadMatrixEmbeddingTruePile'
     bam_embedding_init_mode = 'lookup'
     bam_embedding_matrix_std = .01865
@@ -12368,6 +12368,7 @@ class BamMediumPropFullMGeneralReadDirectEmbeddingTruePile(BamMediumPropFullMGen
     # @1000 SOTA+.020135/static-.022238; faster early adaptation vs factored, no SOTA win yet.
     # @2200 SOTA+.015022/static-.005451; startup advantage over factors narrows, training active.
     # User authorizes stop at2800 if no clear sustained catch-up; @2000/2200/2400 SOTA+.014502/+.015022/+.016623.
+    # Stopped at2894 after user-authorized2800 review: SOTA gap+.014938/static-.002577, no clear recent catch-up.
     model_name = 'BamMediumPropFullMGeneralReadDirectEmbeddingTruePile'
     bam_embedding_init_mode = 'direct'
     mlp_dim_by_block = [3798, 3671, 3798]
@@ -12383,6 +12384,7 @@ class BamMediumPropFullMGeneralReadFinalMatrixResidualTruePile(BamMediumPropK75E
     # Actual AOT FIRST_STEP and14 passed; mean20-99 .478950step/s (+.05% vs SOTA).
     # @200/400/600/800/1000 SOTA+.106657/+.031168/+.017734/+.013917/+.011775; sustained catch-up.
     # @2000 SOTA+.006440; last5+.007925, continuing catch-up; training active.
+    # @2800 SOTA gap+.006140, last5+.006638 vs prev5+.008992; continue, also direct baseline for gated arm.
     model_name = 'BamMediumPropFullMGeneralReadFinalMatrixResidualTruePile'
     bam_final_matrix_residual = True
     mlp_dim_by_block = [3769, 3641, 3769]
@@ -12398,6 +12400,7 @@ class BamMediumPropFullMGeneralReadFinalMatrixVGateTruePile(BamMediumPropFullMGe
     # code_commit: 1810a41; params432156736; TPU310150, UE5a v5p-16; AOT FIRST_STEP+14 verified, TB500.
     # Mean20-99 .479450step/s (+.1044% vs final-M parent/+.1514% vs SOTA); actual steady speed verified.
     # @200 parent+.014759/SOTA+.121415; no early benefit established; checkpoint200 committed.
+    # @200/400/600 parent gaps+.014759/+.010329/+.003595; SOTA+.121415/+.041497/+.021329, still no win.
     model_name = 'BamMediumPropFullMGeneralReadFinalMatrixVGateTruePile'
     bam_final_matrix_v_gate = True
     compare_runs = ['BamMediumPropFullMGeneralReadFinalMatrixResidualTruePile', 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile']

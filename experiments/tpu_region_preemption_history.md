@@ -413,6 +413,7 @@ active leases are censored, and manual migration releases are not preemptions.
 | `BamMHAMediumPropC256TruePile` | v5p-16 (`xd-v5p-16-2709271-maxtext`) | `us-east5-a` | 2026-09-28 03:05:44 | 2026-09-28 08:30:36 | completed13500; 0 preemptions; TPU/queue absent, TB synced | none |
 | `BamMediumPropFullMGeneralReadStaticEmbeddingTruePile` | v5p-16 (`xd-v5p-16-310127-maxtext`) | `us-east5-a` | 2026-10-12 10:28:15 | 2026-10-12 13:09:58 | user stop4531;0preemptions; checkpoint committed, node/queue absent, TB SYNC_OK | none |
 | `BamMediumPropFullMGeneralReadMatrixEmbeddingTruePile` | v5p-16 (`xd-v5p-16-310128-maxtext`) | `us-east5-a` | 2026-10-12 10:30:21 | 2026-10-12 13:10:00 | user stop4427;0preemptions; checkpoint committed, node/queue absent, TB SYNC_OK | none |
+| `BamMediumPropFullMGeneralReadDirectEmbeddingTruePile` | v5p-16 (`xd-v5p-16-310131-maxtext`) | `us-east5-a` | 2026-10-12 11:41:52 | 2026-10-12 13:26:18 | review stop2894;0preemptions; checkpoint committed, node/queue absent, TB SYNC_OK | none |
 
 ## READY leases
 
@@ -1246,4 +1247,5 @@ active leases are censored, and manual migration releases are not preemptions.
 | `BamMediumPropL27K75V48C12EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdDirectCTruePile` | 1 | `us-east5-a` | 2026-10-10 08:04:40 | 2026-10-10 14:10:25 | 6h05m45s | user stop7926; resources released |
 | `BamMediumPropFullMGeneralReadStaticEmbeddingTruePile` | 1 | `us-east5-a` | 2026-10-12 10:28:18 | 2026-10-12 13:09:58 | 2h41m40s | user stop4531; resources released, TB SYNC_OK |
 | `BamMediumPropFullMGeneralReadMatrixEmbeddingTruePile` | 1 | `us-east5-a` | 2026-10-12 10:30:23 | 2026-10-12 13:10:00 | 2h39m37s | user stop4427; resources released, TB SYNC_OK |
+| `BamMediumPropFullMGeneralReadDirectEmbeddingTruePile` | 1 | `us-east5-a` | 2026-10-12 11:41:54 | 2026-10-12 13:26:18 | 1h44m24s | review stop2894; resources released, TB SYNC_OK |
 | `RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicEmbeddingUnembeddingDirect32L22` | 1 | `us-east5-a` | 2026-09-27 00:29:56 | — | censored | active; prequeue READY precedes registry00:30:07 |

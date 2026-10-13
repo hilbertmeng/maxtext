@@ -61,3 +61,30 @@ vsRead050 .458350: +1.3254/+1.3200/+1.6254%, vsoriginalSOTA .478725:
 -2.9871/-2.9923/-2.6999%. Speedbet .460 actualwithin1.0–1.26% faster.
 NativeMHA-referenced gains vsRead050 andoriginalSOTA configured incommonreport;
 loss200stride andagent1000 cadence. No effect claim fromstartup loss.
+
+
+##1000-step review
+
+Loss-parent sequences200/400/600/800/1000: R256 -.106711/-.046332/-.027766/
+-.021484/-.015709; pairR384 -.100772/-.012836/-.004243/+.001666/+.001904;
+tripleR384 -.153697/-.047373/-.029917/-.022979/-.018805.
+MHA-referencegain/read050: R2561.075779/1.031195/1.028684/1.029584/1.026874;
+pairR3841.071562/1.008642/1.004383/.997705/.996743;
+tripleR3841.109146/1.031896/1.030906/1.031644/1.032170.
+OriginalSOTAgainendpoint1.027508/.997359/1.032808.
+Triple maintains~3.1–3.2% parent-normalized gain from400 while absolutegapshrinks.
+Revise terminalbet parentgap R256-.004,pairR384no_positive,tripleR384-.005.
+InitialmostoptimisticpairR384 forecast currentlywrong; no finalceiling claimyet.
+Verifiedactualties, rank and6-layerMLP scope before interpretinginverseordering.
+TBactual252newsummarytags each/no columnstats, allfinite, .5 initialgate.
+At1000 meanpreviousshare.261946/.247136/.242091,parent.241360; nearclosed
+fractions.144239/.124538/.147902,parent.153473; mixed/currentM_RMS
+.925534/.920501/.925862,parent.921455. No obviousgatecollapse explainsloser.
+Widthsconfoundattribution: R256MLP[3887,3762,3887] iswiderthantriple
+[3794,3669,3794] yettriplebetter. Do notattributeallgainstoMLPrefund.
+Historyalsoimportant: originalreader-onlyR384 rank increase repaid97MLPunits,
+worktreefull-m-read-gelu128 runtime8dc92ee, stopped3359 withlast5SOTAgap+.003311.
+This arguescapacityallocation cannotbeignored; jointsharing benefits are not
+monotonicinrank. Continue all3; nextagentreport2000,do notrush1000stop.
+Artifacts: mediumprop-projection-sharing/report-1000-compact.json and
+shift-health-0-500-1000.json; nativeoriginal report-1000.json.

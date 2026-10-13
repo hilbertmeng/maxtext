@@ -12819,6 +12819,7 @@ class BamMediumPropSharedR256GeneralReadMShiftReadKVShiftG050TruePile(BamMediumP
     # code_commit: 77ea4bb; UE5a SPOT v5p-16 xd-v5p-16-310185-maxtext; AOT/FIRST_STEP+14 verified.
     # Actual params432111680, custom health270, init/finite TB verified;20-99 .4055250step/s (-11.53% vs single, -2.70% vs pureKV; !! slower than -1.6% preregistered).
     # @1000 single-.018721,pureKV-.000176,SOTA-.019081; gains1.032026/1.000291/1.032663; nearKVparity.
+    # @2000 single-.013124,KV-.006962,SOTA-.020214; gains1.041047/1.021363/1.064654;last5KV1.010783,SOTA1.047169.
     model_name = 'BamMediumPropSharedR256GeneralReadMShiftReadKVShiftG050TruePile'
     bam_kv_shift = True
     bam_m_shift_compact_health = True

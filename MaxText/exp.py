@@ -12690,7 +12690,7 @@ class BamMediumPropSharedR256GeneralReadMShiftReadG005TruePile(BamMediumPropK75E
     keep_period = 0
     max_to_keep = 2
     tensorboard_gcs_rotate_period = 500
-    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile', 'BamMHAMediumPropC256TruePile']
+    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile']
 
 
 class BamMediumPropSharedR256GeneralReadMShiftPersistG005TruePile(BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile):
@@ -12707,7 +12707,7 @@ class BamMediumPropSharedR256GeneralReadMShiftPersistG005TruePile(BamMediumPropK
     keep_period = 0
     max_to_keep = 2
     tensorboard_gcs_rotate_period = 500
-    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile', 'BamMHAMediumPropC256TruePile', 'BamMediumPropSharedR256GeneralReadMShiftReadG005TruePile']
+    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile', 'BamMediumPropSharedR256GeneralReadMShiftReadG005TruePile']
 
 
 class BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile(BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile):
@@ -12724,7 +12724,7 @@ class BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile(BamMediumPropK75E
     keep_period = 0
     max_to_keep = 2
     tensorboard_gcs_rotate_period = 500
-    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile', 'BamMHAMediumPropC256TruePile', 'BamMediumPropSharedR256GeneralReadMShiftReadG005TruePile']
+    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile', 'BamMediumPropSharedR256GeneralReadMShiftReadG005TruePile']
 
 
 class BamMediumPropSharedR256GeneralReadMShiftPersistG050TruePile(BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile):
@@ -12741,4 +12741,4 @@ class BamMediumPropSharedR256GeneralReadMShiftPersistG050TruePile(BamMediumPropK
     keep_period = 0
     max_to_keep = 2
     tensorboard_gcs_rotate_period = 500
-    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile', 'BamMHAMediumPropC256TruePile', 'BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile', 'BamMediumPropSharedR256GeneralReadMShiftPersistG005TruePile']
+    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile', 'BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile', 'BamMediumPropSharedR256GeneralReadMShiftPersistG005TruePile']

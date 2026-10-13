@@ -1,6 +1,6 @@
 # MediumProp SOTA dynamic M shift: four arms
 
-User requests latest-main fork. Worktree `/data0/xd/mediumprop-m-shift`, branch `codex/mediumprop-m-shift`, base0f7f6d10a2760c205699cf34f9834c892b4926d0. Main exp.py ledger only. Read main AGENTS.md/current training+diagnostics+tpu-ag skills; current main operational paths inherited directly. Four T4096 arms retain sharedR256/generalized-read SOTA model, historical .99 read-gate math, pureJAX(no new Pallas backend), scan, TruePile4096/global128,524288targets/step, LR.0003/schedule13500 and parent health. Direct reference historical SOTA64e3fc3 (432111104 params,.478725step/s); keep MHA and paired-arm references.
+User requests latest-main fork. Worktree `/data0/xd/mediumprop-m-shift`, branch `codex/mediumprop-m-shift`, base0f7f6d10a2760c205699cf34f9834c892b4926d0. Main exp.py ledger only. Read main AGENTS.md/current training+diagnostics+tpu-ag skills; current main operational paths inherited directly. Four T4096 arms retain sharedR256/generalized-read SOTA model, historical .99 read-gate math, pureJAX(no new Pallas backend), scan, TruePile4096/global128,524288targets/step, LR.0003/schedule13500 and parent health. Direct reference historical SOTA64e3fc3 (432111104 params,.478725step/s); keep SOTA and paired-arm references; MHA removed from live comparisons at user request on2026-10-13.
 
 | Arm | RUN | TPU |
 |---|---|---|
@@ -46,3 +46,7 @@ Aligned800health(layeraverages): previoussharemeanread005.129052,persist005.0391
 PreemptionsinUE5a: persist005READY05:32:56->06:08:47UTC35m51s; read05005:39:34->06:18:01UTC38m27s; read005one55m35sleaseexacttimespendinglatestleaseproof. EachP1; persist050andT8192threeP0. Persist005restoredcommitted802,actualfirst803LR29.834e-5,AOTloaded,speedreturns~.461,next1000(and1200)committed. Read050restored886,first887LR29.790e-5,AOTloaded,speed~.463,next1000committed. Read005retainscommitted1356,primaryrecoveryqueueongoing. Preservequeues,no userbackupzonesandnoFLEXtrainingrequests. Originalschedule13500unchanged.
 
 Persist005preemptlostworker-tailcachepoints780/790/800. RecoveredONLYthose3fromoriginalsyncedTB,latestwalltimes+finitechecks,importednativeRRcache. Preexisting1000eventstaleuntil1200generation; canonicalno-refreshloss-reporttemporaryfallbackverifiedfull800window,latest1200eventnowcontainsrepair. No fake/interpolatedloss andno skipwindow. Artifactsmissing-loss-persist005-proof.json/txt,missing-loss-recovery.log,report-persist005-1000-repaired.txt,worker-resume-persist-005.log,worker-resume-read-050.log. Fullfinalcumulative12comparisonsinreport-1000-final-cache.txt.
+
+## Reporting and baseline correction2026-10-13
+
+First1000report was delayed~18minutes by recovery/LR/checkpoint verification,gatehealth extraction,repairing3loss points,andwaitingforotherarms. This sequencing was wrong: report matureloss immediately,flagmissingwindows,andfollowwithhealth/recovery evidencewithoutwaitingforallarms. UserrequestsMHAremovedfromallfourM-shiftcomparisons. Live registry and current exp.py/configs/runs metadata nowretainonlySOTAandpairedarms. Originalsealedruntime52cf0b3 and immutablelaunchproof remainhistorical; trainingcontinueswithoutrestart.

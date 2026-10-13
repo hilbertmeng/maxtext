@@ -287,16 +287,16 @@ def _gelu_tanh(h):
 
 
 @triton.jit
-def _decode_read_kernel(HID, W, B, M, GATES, S, STD, POS, Y, MOUT, C1, CL1, G1, A1, C2, G2, A2,
+def _decode_read_kernel(HID, W, B, M, GATES, S, STD, COS, SIN, Y, MOUT, C1, CL1, G1, A1, C2, G2, A2,
                         WHID, WW, WB, ADDR,
-                        s_ht, s_mt, s_gt, s_st, s_sn, s_sarm, s_pb, s_pt, s_y_t, TLEN,
+                        s_ht, s_mt, s_gt, s_st, s_sn, s_sarm, s_ct, s_y_t,
                         s_wht, s_adt,
                         s_c1t, s_c1n, s_cl1t, s_cl1n, s_g1t, s_a1t, s_a1n, s_c2t, s_c2n, s_g2t, s_a2t, s_a2n,
                         N: tl.constexpr, K: tl.constexpr, V: tl.constexpr, H: tl.constexpr,
                         BK: tl.constexpr, BV: tl.constexpr, BH: tl.constexpr, BC: tl.constexpr,
                         EPS: tl.constexpr, SCALE: tl.constexpr, STATIC_DIV: tl.constexpr,
                         QCOLS: tl.constexpr, R: tl.constexpr, RB: tl.constexpr, QSCALE: tl.constexpr,
-                        LOG_MAX_TS: tl.constexpr, BN: tl.constexpr, PENDING: tl.constexpr,
+                        BN: tl.constexpr, PENDING: tl.constexpr,
                         HAS_LOCAL: tl.constexpr, PEPS: tl.constexpr, PREC: tl.constexpr,
                         WH: tl.constexpr, BWH: tl.constexpr):
   """Decode read, program (head n, key arm ka, token t): gelu(hidden) -> this head's 40 key rows of the
@@ -386,9 +386,9 @@ def _decode_read_kernel(HID, W, B, M, GATES, S, STD, POS, Y, MOUT, C1, CL1, G1, 
           base = STD + t * s_st + a * s_sarm + n * s_sn
           s1 = tl.load(base + j, mask=jm, other=0.).to(tl.float32)
           s2 = tl.load(base + partner, mask=jm, other=0.).to(tl.float32)
-          pos = tl.load(POS + (t // TLEN) * s_pb + (t % TLEN) * s_pt).to(tl.float32)
-          ang = pos / tl.exp(LOG_MAX_TS * 2.0 * i.to(tl.float32) / R)
-          rot = s1 * tl.cos(ang) + tl.where(j < half, -1.0, 1.0) * s2 * tl.sin(ang)
+          rc = tl.load(COS + t * s_ct + i, mask=jm, other=0.).to(tl.float32)
+          rs = tl.load(SIN + t * s_ct + i, mask=jm, other=0.).to(tl.float32)
+          rot = s1 * rc + tl.where(j < half, -1.0, 1.0) * s2 * rs
           tl.store(row + QCOLS + j, (rot * scale).to(Y.dtype.element_ty), mask=jm)
         else:
           tl.store(row + k, y.to(Y.dtype.element_ty), mask=km)
@@ -396,44 +396,45 @@ def _decode_read_kernel(HID, W, B, M, GATES, S, STD, POS, Y, MOUT, C1, CL1, G1, 
 
 @torch.library.custom_op('bam::decode_read', mutates_args=())
 def bam_decode_read(hidden: torch.Tensor, up_weight: torch.Tensor, up_bias: torch.Tensor, m: torch.Tensor,
-                    gates: torch.Tensor, static_keys: torch.Tensor, std: torch.Tensor, positions: torch.Tensor,
-                    eps: float, scale: float, static_div: float, qk_cols: int, q_scale: float,
-                    max_timescale: float, c1: torch.Tensor, l1: torch.Tensor, g1: torch.Tensor, a1: torch.Tensor,
+                    gates: torch.Tensor, static_keys: torch.Tensor, std: torch.Tensor, cos: torch.Tensor,
+                    sin: torch.Tensor, eps: float, scale: float, static_div: float, qk_cols: int, q_scale: float,
+                    c1: torch.Tensor, l1: torch.Tensor, g1: torch.Tensor, a1: torch.Tensor,
                     c2: torch.Tensor, g2: torch.Tensor, a2: torch.Tensor, pending: int, has_local: bool,
                     write_eps: float, write_hidden: torch.Tensor, write_weight: torch.Tensor,
                     write_bias: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
   """Decode-step read with the key up-projection fused in.
   hidden [T,H] pre-GELU read bottleneck (unit last stride); up_weight [3*N*V, H] / up_bias [3*N*V] (q, k, vo
   keys; pre-biases folded); m [T,K,V] contiguous; gates [T,8,N]; static_keys [4,V,N]; std [T,2,N,R];
-  positions [B,Tlen] (T = B*Tlen; any strides). Returns attention-ready Y [T,4,N,K] (RoPE, q scale applied)."""
+  cos/sin [T, R/2] (the model's shared RoPE table, unit last stride). Returns attention-ready Y [T,4,N,K] (RoPE, q scale applied)."""
   t, kdim, vdim = m.shape
   n = gates.shape[2]
   h = hidden.shape[1]
   assert m.is_contiguous() and up_weight.is_contiguous() and static_keys.is_contiguous()
   assert hidden.stride(-1) == 1 and gates.stride(-1) == 1 and gates.stride(-2) == n and std.stride(-1) == 1
+  assert cos.stride(-1) == 1 and sin.stride() == cos.stride()
   y = torch.empty((t, 4, n, kdim), device=m.device, dtype=m.dtype)
   addr = torch.empty((t, n, vdim), device=m.device, dtype=m.dtype)
   m_out, ptrs, strides = _pending(m, c1, l1, g1, a1, c2, g2, a2, pending)
   assert write_hidden.stride(-1) == 1 and write_weight.is_contiguous()
   if t:
     _decode_read_kernel[(n, 4, t)](
-        hidden, up_weight, up_bias, m, gates, static_keys, std, positions, y, *ptrs,
+        hidden, up_weight, up_bias, m, gates, static_keys, std, cos, sin, y, *ptrs,
         write_hidden, write_weight, write_bias, addr,
         hidden.stride(0), m.stride(0), gates.stride(0), std.stride(0), std.stride(2), std.stride(1),
-        positions.stride(0), positions.stride(1), y.stride(0), positions.shape[1],
+        cos.stride(0), y.stride(0),
         write_hidden.stride(0), addr.stride(0), *strides,
         N=n, K=kdim, V=vdim, H=h, BK=triton.next_power_of_2(kdim), BV=max(16, triton.next_power_of_2(vdim)),
         BH=triton.next_power_of_2(h), BC=DECODE_BC, EPS=eps, SCALE=scale, STATIC_DIV=static_div, QCOLS=qk_cols,
         R=kdim - qk_cols, RB=triton.next_power_of_2(kdim - qk_cols), QSCALE=q_scale,
-        LOG_MAX_TS=math.log(max_timescale), BN=max(16, triton.next_power_of_2(n)), PENDING=pending,
+        BN=max(16, triton.next_power_of_2(n)), PENDING=pending,
         HAS_LOCAL=has_local, PEPS=write_eps, PREC=_prec(m), WH=write_hidden.shape[1],
         BWH=triton.next_power_of_2(write_hidden.shape[1]), num_warps=DECODE_WARPS)
   return y, m_out, addr
 
 
 @bam_decode_read.register_fake
-def _(hidden, up_weight, up_bias, m, gates, static_keys, std, positions, eps, scale, static_div, qk_cols, q_scale,
-      max_timescale, c1, l1, g1, a1, c2, g2, a2, pending, has_local, write_eps, write_hidden, write_weight,
+def _(hidden, up_weight, up_bias, m, gates, static_keys, std, cos, sin, eps, scale, static_div, qk_cols, q_scale,
+      c1, l1, g1, a1, c2, g2, a2, pending, has_local, write_eps, write_hidden, write_weight,
       write_bias):
   return (m.new_empty((m.shape[0], 4, gates.shape[2], m.shape[1])),
           torch.empty_like(m) if pending else m.new_empty((0,)),
@@ -619,11 +620,13 @@ def bam_gemv(x: torch.Tensor, x2: Optional[torch.Tensor], g: Optional[torch.Tens
     assert a is None or a.is_contiguous()
   assert x.numel() == c
   y = torch.empty(rows, device=x.device, dtype=x.dtype)
-  br = 4      # A800 (C = 1920): 12288 rows 31.5 us (1.5 TB/s), 1984 rows 7.9 us, 1920 rows 7.3 us
+  # A800 (C = 1920): 12288/12352 rows 32-33 us (1.45 TB/s; (4, 1024, 2) drops to 43 us with a bias),
+  # 1984 rows 7.9 us, 1920 rows 7.3 us
+  br, bc, warps = (8, 256, 4) if rows >= 8192 else (4, 1024, 4)
   _gemv_kernel[(triton.cdiv(rows, br),)](
       x, x if x2 is None else x2, x if g is None else g, w, x if b is None else b, x if res is None else res,
-      y, rows, C=c, BCF=triton.next_power_of_2(c), BR=br, BC=1024, EPS=eps, HAS_X2=x2 is not None,
-      NORM=g is not None, HAS_B=b is not None, HAS_RES=res is not None, num_warps=2 if rows >= 8192 else 4)
+      y, rows, C=c, BCF=triton.next_power_of_2(c), BR=br, BC=bc, EPS=eps, HAS_X2=x2 is not None,
+      NORM=g is not None, HAS_B=b is not None, HAS_RES=res is not None, num_warps=warps)
   return y
 
 

@@ -88,7 +88,8 @@ def main():
       keys_d = (F.linear(F.gelu(hid.float(), approximate='tanh'), w_up.float(), b_up.float()))[:, :3 * n * v]
       pos2 = torch.randint(0, 4096, (1, t), device='cuda').expand(1, t)
       whid = xs[:, 1520:1920]; ww = torch.randn(n * v + 32, 400, **dev) * 400 ** -0.5; wb = torch.randn(n * v + 32, **dev) * .1
-      yd, _, ad = bam_decode_read(hid, w_up, b_up, m, gates, s, std, pos2, 1e-4, 0.1, 0.99, 72, 96 ** -0.5, 10000.,
+      yd, _, ad = bam_decode_read(hid, w_up, b_up, m, gates, s, std, *rope_table(pos2.reshape(-1), 24, m.dtype), 1e-4, 0.1,
+                                  0.99, 72, 96 ** -0.5,
                                   m, m, m[:, :, 0], m, m, m[:, :, 0], m, 0, False, 1e-6, whid, ww, wb)
       yd = yd.float()
       ra = F.linear(F.gelu(whid.float(), approximate='tanh'), ww.float(), wb.float())[:, :n * v].unflatten(-1, (n, v))
@@ -135,7 +136,8 @@ def main():
       if t <= 4:
         hid = xs[:, 960:1360]; w_up = torch.randn(3 * n * v, 400, **dev) * 400 ** -0.5; b_up = torch.randn(3 * n * v, **dev) * .1
         kd = F.linear(F.gelu(hid.float(), approximate='tanh'), w_up.float(), b_up.float()).unflatten(-1, (3, n, v))
-        yd, md, _ = bam_decode_read(hid, w_up, b_up, m, gates, s, std, pos[None], 1e-4, 0.1, 0.99, 72, 96 ** -0.5, 10000.,
+        yd, md, _ = bam_decode_read(hid, w_up, b_up, m, gates, s, std, *rope_table(pos, 24, m.dtype), 1e-4, 0.1, 0.99,
+                                    72, 96 ** -0.5,
                                     *pargs, xs[:, 1520:1920], w_up[:n * v], b_up[:n * v])
         rd = ref_read(m_ref, kd, gates, s, std, pos)
         e_d = ((yd.float() - rd).norm() / rd.norm()).item(); e_dm = ((md.float() - m_ref.float()).norm() / m_ref.float().norm()).item()

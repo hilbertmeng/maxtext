@@ -83,6 +83,8 @@ def main():
   p.add_argument('--context', type=int, default=4096)
   p.add_argument('--steps', type=int, default=32)
   p.add_argument('--fuse', action='store_true', help='fuse_projections() (both models)')
+  p.add_argument('--gemv', choices=('default', 'on', 'off'), default='default',
+                 help='one-token GEMV kernels at decode bs1 (default: BAM only)')
   p.add_argument('--coordinate-descent', action='store_true', help='inductor coordinate_descent_tuning')
   p.add_argument('--out')
   a = p.parse_args()
@@ -94,7 +96,7 @@ def main():
   for name in a.models.split(','):
     model = build(name, torch.bfloat16, 'cuda')
     if a.fuse:
-      model.fuse_projections()
+      model.fuse_projections(gemv={'default': None, 'on': True, 'off': False}[a.gemv])
     r = results[name] = {'params': sum(x.numel() for x in model.parameters())}
     for shape in filter(None, a.prefill.split(',')):
       b, t = map(int, shape.split('x'))

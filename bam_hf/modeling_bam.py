@@ -58,6 +58,12 @@ except ImportError:      # repo scripts import this file as a top-level module (
   BamConfig = importlib.import_module('configuration_bam').BamConfig
 
 
+def rope_rows(rotary, positions, rows, dtype):
+  """(cos, sin) [rows, D/2] contiguous from the shared table (or computed from position ids)."""
+  _, cos, sin = positions if isinstance(positions, tuple) else rotary.table(positions, dtype)
+  return cos.reshape(rows, -1).contiguous(), sin.reshape(rows, -1).contiguous()
+
+
 def position_ids_of(positions):
   return positions[0] if isinstance(positions, tuple) else positions
 
@@ -297,20 +303,30 @@ class MhaAttention(nn.Module):
     self.rotary = BamRotary(d, config.rope_min_timescale, config.rope_max_timescale)
     self.o_proj = nn.Linear(n * d, h, bias=False)
     self.fused_qkv = None
+    self._input_norm = ()     # (input RMSNorm,) when the layer passes x un-normalized (set by the layer)
 
   def fuse(self):
     """Q/K/V as one GEMM (inference; the separate parameters stay for checkpoint I/O)."""
     self.fused_qkv = fused_linear(*[(m.weight, None) for m in (self.q_proj, self.k_proj, self.v_proj)])
 
-  def forward(self, x, M, positions, attention_mask=None, past_key_value=None, defer_write=False):
+  def forward(self, x, M, positions, attention_mask=None, past_key_value=None, defer_write=False, residual=None):
     if self.fused_qkv is not None:
-      q, k, v = self.fused_qkv(x)[..., :3 * self.q_proj.out_features].unflatten(-1, (3, -1, self.head_dim)).unbind(-3)
+      if residual is not None:      # decode bs1 with the one-token GEMV kernels (norm fused)
+        norm = self._input_norm[0]
+        qkv = _bam_gemv(x.reshape(-1), None, norm.weight, self.fused_qkv.weight, None, None,
+                        norm.eps).reshape(1, 1, -1)
+      else:
+        qkv = self.fused_qkv(self._input_norm[0](x) if self._input_norm else x)
+      q, k, v = qkv[..., :3 * self.q_proj.out_features].unflatten(-1, (3, -1, self.head_dim)).unbind(-3)
     else:
       q, k, v = self.q_proj(x), self.k_proj(x), self.v_proj(x)
     q = self.rotary(q, positions)
     k = self.rotary(k, positions)
     if self.fused_qkv is not None:    # inference path: the softmax scale is applied by the attention kernel
       y = causal_attention(q, k, v, self.layer_idx, attention_mask, past_key_value, scale=self.head_dim ** -0.5)
+      if residual is not None:
+        return _bam_gemv(y.reshape(-1), None, None, self.o_proj.weight, None, residual.reshape(-1),
+                         0.).reshape(residual.shape), M
       return self.o_proj(y.flatten(-2)), M
     q = q / torch.tensor(math.sqrt(self.head_dim), dtype=q.dtype)
     y = causal_attention(q, k, v, self.layer_idx, attention_mask, past_key_value)
@@ -460,8 +476,8 @@ class BamAttention(nn.Module):
         wa = self.padded_write_address_up.linear
         y, m_new, address = _bam_decode_read(
             raw[3].reshape(b * t, -1), self.fused_up.weight, self.fused_up.bias, flat_m, gates, self.static_keys,
-            std, position_ids_of(positions), self.read_eps, self.read_scale, self.static_gate_init, self.qk_cols,
-            1.0 / math.sqrt(self.head_dim), self.rotary_max_timescale, *pend, wdown.reshape(b * t, -1),
+            std, *rope_rows(self.rotary, positions, b * t, x.dtype), self.read_eps, self.read_scale,
+            self.static_gate_init, self.qk_cols, 1.0 / math.sqrt(self.head_dim), *pend, wdown.reshape(b * t, -1),
             wa.weight, wa.bias)
         address = address.reshape(b, t, n, -1)
       else:                                     # decode: RoPE/q scale in the kernel; prefill: in torch
@@ -472,9 +488,7 @@ class BamAttention(nn.Module):
       if groups:
         M = m_new.reshape(M.shape)
       if not decode:    # RoPE tail written in place (no q/k concatenation); the softmax scale goes to SDPA
-        _, cos, sin = positions if isinstance(positions, tuple) else self.rotary.table(positions, y.dtype)
-        _bam_rope_tail(y, std, cos.reshape(b * t, -1).contiguous(), sin.reshape(b * t, -1).contiguous(),
-                       self.qk_cols)
+        _bam_rope_tail(y, std, *rope_rows(self.rotary, positions, b * t, y.dtype), self.qk_cols)
       q, k, v, local_o = y.reshape(b, t, 4, n, -1).unbind(2)
       attn = causal_attention(q, k, v, self.layer_idx, attention_mask, past_key_value,
                               scale=1.0 if decode else self.head_dim ** -0.5)
@@ -641,14 +655,15 @@ class BamDecoderLayer(nn.Module):
          else self.mlp_write(hidden, mlp_out, M, M_or_factors, extra))
     return mlp_out + x, M
 
-  def fuse(self, triton_m=False):
+  def fuse(self, triton_m=False, gemv=True):
     if isinstance(self.self_attn, BamAttention):
       self.self_attn.fuse(triton_m)
-      if self.self_attn.triton_m and _bam_gemv is not None:
-        self.self_attn._input_norm = (self.input_layernorm,)   # tuple: not registered as a submodule
-        self.mlp._norm = (self.post_attention_layernorm,)
+      gemv = gemv and self.self_attn.triton_m
     else:
       self.self_attn.fuse()
+    if gemv and _bam_gemv is not None:
+      self.self_attn._input_norm = (self.input_layernorm,)   # tuple: not registered as a submodule
+      self.mlp._norm = (self.post_attention_layernorm,)
     self.mlp.fuse(self.mlp_write.projections() if self.mlp_write is not None else ())
 
 
@@ -752,11 +767,14 @@ class BamForCausalLM(BamPreTrainedModel, GenerationMixin):
     return self.lm_head
 
   @torch.no_grad()
-  def fuse_projections(self, triton_m=True):
+  def fuse_projections(self, triton_m=True, gemv=None):
     """Inference-time GEMM fusion: every projection sharing an input becomes one GEMM (both models);
-    BAM's per-token M reads/writes use the fused Triton kernels when available (triton_m)."""
+    BAM's per-token M reads/writes use the fused Triton kernels when available (triton_m). gemv: decode bs1
+    runs the projections as one-token Triton GEMVs with the RMSNorm / residual fused (default: BAM only;
+    the MHA baseline is plain torch.compile, gemv=True measures it with the same kernels)."""
+    gemv = self.config.bam_enabled if gemv is None else gemv
     for layer in self.model.layers:
-      layer.fuse(triton_m)
+      layer.fuse(triton_m, gemv)
     return self
 
   def set_output_embeddings(self, new_embeddings):

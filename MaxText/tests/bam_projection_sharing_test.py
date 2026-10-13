@@ -14,7 +14,9 @@ from layers.models import Transformer
 BASE='BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile'
 EXPS=[('BamMediumPropMShiftReadG050ReadAttentionSharedR256TruePile',256,False,432111680),
       ('BamMediumPropMShiftReadG050ReadAttentionSharedR384TruePile',384,False,432121472),
-      ('BamMediumPropMShiftReadG050ReadAttentionMLPSharedR384TruePile',384,True,432118688)]
+      ('BamMediumPropMShiftReadG050ReadAttentionMLPSharedR384TruePile',384,True,432118688),
+      ('BamMediumPropMShiftReadG050SharedR256R384ByWriteTruePile',[256,384,256],True,432119360),
+      ('BamMediumPropMShiftReadG050ReadAttentionMLPSharedR256TruePile',[256,256,256],True,432104480)]
 class ProjectionSharingTest(MLPWriteTest,unittest.TestCase):
   def mesh(self,c):
     return jax.sharding.Mesh(np.array(jax.devices()[:1]).reshape((1,)*len(c.mesh_axes)),c.mesh_axes)
@@ -26,6 +28,10 @@ class ProjectionSharingTest(MLPWriteTest,unittest.TestCase):
         emb_bam_v_bottleneck_dim=8,bam_mlp_write_address_rank=8,
         bam_local_full_m_read_bottleneck_dim=8,mlp_dim_by_block=[32,24,32],
         bam_layer_modes=c.bam_layer_modes[:3])
+    if c.bam_shared_projection_rank_by_block is not None:
+      ranks = [8 if rank == 256 else 12 for rank in c.bam_shared_projection_rank_by_block]
+      c.get_keys().update(bam_shared_projection_rank_by_block=ranks,
+                         bam_mlp_write_address_rank=ranks[1])
     return c
   def attention(self,c):
     return attentions.BamAttention(config=c,num_query_heads=2,num_kv_heads=2,
@@ -42,7 +48,10 @@ class ProjectionSharingTest(MLPWriteTest,unittest.TestCase):
       self.assertFalse(any('P_loc_down' in p for p in flat))
       downs=[(p,v) for p,v in flat.items() if 'full_m_read_down' in p and p[-1]=='kernel']
       self.assertEqual(len(downs),3)
-      for p,v in downs:self.assertEqual(v.shape,(1200,6,rank),(p,v.shape))
+      for p,v in downs:
+        offset = next(int(part.rsplit('_',1)[1]) for part in p if part in ('local_0','local_1','fetch_2'))
+        expected_rank = rank[offset] if isinstance(rank,list) else rank
+        self.assertEqual(v.shape,(1200,6,expected_rank),(p,v.shape))
       self.assertEqual(any('mlp_address_down' in p for p in flat),not mlp)
       self.assertEqual(sum(6 for p in flat if 'mlp_address_up' in p and p[-1]=='kernel'),6)
       self.assertEqual(sum(6 for p in flat if 'M_shift_gate' in p and p[-1]=='kernel'),18)
@@ -74,7 +83,11 @@ class ProjectionSharingTest(MLPWriteTest,unittest.TestCase):
     grad=jax.grad(lambda p:jnp.sum(a.apply({'params':p},o,x,m,method=a._write)[0]**2))(v['params'])
     self.assertGreater(float(jnp.sum(nn.unbox(grad)['full_m_read_down']['kernel']**2)),0)
   def test_mlp_reprojects_post_attention_input_and_scan_is_causal(self):
-    c=self.tiny(EXPS[2][0]);mesh=self.mesh(c);model=Transformer(c,mesh,quant=None)
+    for exp in [EXPS[2][0], EXPS[3][0], EXPS[4][0]]:
+      with self.subTest(exp=exp):
+        self.check_mlp_scan(exp)
+  def check_mlp_scan(self,exp):
+    c=self.tiny(exp);mesh=self.mesh(c);model=Transformer(c,mesh,quant=None)
     tok=jnp.array([[1,2,3,4]],jnp.int32);pos=jnp.arange(4)[None];mask=jnp.ones_like(tok)
     c.get_keys().update(scan_layers=False,remat_policy='none')
     original=linears.DenseGeneral.__call__;captured=[]

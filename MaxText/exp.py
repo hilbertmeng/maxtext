@@ -349,6 +349,7 @@ class BamLlama2Medium(Llama2Medium):
     bam_m_shift_init = .5
     bam_record_m_shift_health = False
     bam_m_shift_compact_health = False
+    bam_shared_projection_rank_by_block = None
     bam_share_read_attention_write_down = False
     bam_share_mlp_write_down = False
     bam_write_v_bottleneck_dim = None  # optional P_loc: D -> r -> n*v
@@ -12728,3 +12729,24 @@ class BamMediumPropMShiftReadG050ReadAttentionMLPSharedR384TruePile(BamMediumPro
     mlp_dim_by_block = [3794, 3669, 3794]
     compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile', 'BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile']
     bam_m_shift_compact_health = True
+
+
+class BamMediumPropMShiftReadG050SharedR256R384ByWriteTruePile(BamMediumPropMShiftReadG050ReadAttentionMLPSharedR384TruePile):
+    """R256 read/attention on non-MLP-write layers; all three share R384 on write layers."""
+    model_name = 'BamMediumPropMShiftReadG050SharedR256R384ByWriteTruePile'
+    bam_shared_projection_rank_by_block = [256, 384, 256]
+    mlp_dim_by_block = [3871, 3746, 3871]
+    compare_runs = ['BamMediumPropMShiftReadG050ReadAttentionSharedR256TruePile',
+                    'BamMediumPropMShiftReadG050ReadAttentionMLPSharedR384TruePile',
+                    'BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile',
+                    'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile']
+
+
+class BamMediumPropMShiftReadG050ReadAttentionMLPSharedR256TruePile(BamMediumPropMShiftReadG050SharedR256R384ByWriteTruePile):
+    """All layers share R256; MLP write joins the same bank in its six layers."""
+    model_name = 'BamMediumPropMShiftReadG050ReadAttentionMLPSharedR256TruePile'
+    bam_shared_projection_rank_by_block = [256, 256, 256]
+    bam_local_full_m_read_bottleneck_dim = 256
+    bam_write_v_bottleneck_dim = 256
+    bam_mlp_write_address_rank = 256
+    mlp_dim_by_block = [3915, 3791, 3915]

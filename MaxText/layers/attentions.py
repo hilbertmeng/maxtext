@@ -2692,6 +2692,12 @@ class BamAttention(Attention):
             and getattr(cfg, 'bam_local_o_compress_v', True)) else None)
     self._direct_qk_c8 = bool(getattr(cfg, 'bam_local_qk_direct_c8', False))
     self._full_m_read_rank = getattr(cfg, 'bam_local_full_m_read_bottleneck_dim', None)
+    shared_ranks = getattr(cfg, 'bam_shared_projection_rank_by_block', None)
+    if shared_ranks is not None:
+      assert getattr(cfg, 'bam_share_read_attention_write_down', False)
+      assert len(shared_ranks) == cfg.bam_local_fetch_block_size
+      self._full_m_read_rank = int(shared_ranks[self.layer_inx % len(shared_ranks)])
+
     self._full_m_read_share_down = bool(getattr(cfg, 'bam_local_full_m_read_share_down', False))
     self._share_read_attention_down = bool(getattr(cfg, 'bam_share_read_attention_write_down', False))
     self._general_read = bool(getattr(cfg, 'bam_general_column_read', False))
@@ -2790,7 +2796,8 @@ class BamAttention(Attention):
     self._write_data_rms = bool(cfg.bam_write_data_rms)
     self._write_factor_norm = cfg.bam_write_factor_norm
     self._write_address_norm_bias = bool(cfg.bam_write_address_norm_bias)
-    self._write_v_bottleneck_dim = cfg.bam_write_v_bottleneck_dim
+    self._write_v_bottleneck_dim = (self._full_m_read_rank if shared_ranks is not None
+                                    else cfg.bam_write_v_bottleneck_dim)
     self._write_v_bottleneck_activation = cfg.bam_write_v_bottleneck_activation
     self._write_outer_implementation = cfg.bam_write_outer_implementation
     assert self._write_factor_norm in ('rms', 'grouped_rms')
@@ -2806,7 +2813,9 @@ class BamAttention(Attention):
       assert not getattr(cfg, 'bam_pallas_core', False), 'Shared projections use the JAX core'
     if getattr(cfg, 'bam_share_mlp_write_down', False):
       assert self._share_read_attention_down
-      assert cfg.bam_mlp_write_address_rank == self._full_m_read_rank
+      mlp_every = int(getattr(cfg, 'bam_mlp_write_every', 0) or 0)
+      if mlp_every and (self.layer_inx + 1) % mlp_every == int(cfg.bam_mlp_write_offset or 0) % mlp_every:
+        assert cfg.bam_mlp_write_address_rank == self._full_m_read_rank
     assert not self._replicate_ploc_up or self._write_v_bottleneck_dim is not None, (
         'replicated P_loc_up requires a write-V bottleneck')
     assert self._write_outer_implementation in ('dot', 'mul_reduce')

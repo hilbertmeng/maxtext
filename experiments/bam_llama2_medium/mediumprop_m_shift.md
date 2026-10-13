@@ -162,3 +162,17 @@ Full3000windowreported09:43UTC: new−SOTA−.012459,new−ReadG050−.004165,ra
 ## Shared-gate6000 report
 
 Full30windowcumulativegap/r200/MHArefrelSOTAmultipliersdelivered09:52UTC:6000gap−.008618,ratio1.048738;latestfivegap−.008964(previous−.008591),ratiosmean1.048949(range1.044693..1.054675),previous1.043695. Throughput−4.256%SOTA. Absolutebenefit~.009 persists;relativebenefitstillgrows. Bothhealthy,no newP;checkpoint6000/3200committed. Onlyowned2continue,cursorsshared6000/new3000,next7000/4000. Newhealth3000allfiniteQ/K/VOmean.260884/.499279/.242610,pairdifferences.406057/.242866/.402378,patternstable,noadditionalhealthcommentaryneeded. Nativeintegratedreport-read050-6000-next.txtretainsallfigures.
+
+
+## Three-gate4000 report
+
+At10:20UTCfull4000windowreportedimmediately,nocompetinghealthwait. New−SOTA−.011379,new−ReadG050−.002785,MHA-reference multiplier1.054509. Full20cumulativewindowsdeliveredgap/r200/multiplier;relativeSOTA lastfive1.052836(range1.050833..1.055012),previous1.050195,approachingplateau. SOTAgaprecentfive−.011665(range−.012159..−.011290),previous−.013384. Parentgaprecentfive−.003664(range−.005725..−.002785),previous−.005692;contractionper1000now+.002028versusprior+.006398. Stillnonzeroparentadvantage,noclearasymptoticfloor. Continue;updatednearparity..−.001terminalextragainforecastunchanged,original−.003betretained. Throughput−3.4853%parent/−7.5931%SOTA. Nextnormalnew5000/shared7000. CP4000committed,bothhealthy/no newP. Native report-qkvo-4000-next.txtretainsallfigures.
+
+
+## Shared-gate7000 and correction of three-gate forecast
+
+SharedReadG0507000−SOTA−.009329,MHA-refgain/SOTA1.054842. Recentfivegap−.009368(previous−.008964),ratio1.054316(range1.050476..1.060355),previous1.048949. Full35cumulativewindowsgap/r200/multipliersdelivered10:28UTC;throughput−4.256%SOTA. CP7000verified,bothhealthy,nofurtherP. Nextnew5000/shared8000. Nativeintegratedreport-read050-7000-next.txtsaved.
+
+Agentcorrectsnearparityforecast after checkingcontractionwitha nonzerofloor: (new−ReadG050)(s)=a+b*exp(-(s-start)/tau). Nativepairedwindows,allpoints1000..4000/1400..4000/2000..4000(16/14/11points)givefloor−.002541/−.003560/−.002402. BroadestfitRMSE.000963 versuszero-floor.001156;extrafreeparametermeansfitimprovementaloneisnotproof. Densefits5000predict−.002763/−.003588/−.002734. Retrospective1000..3000fitfloor−.002011,predicted4000−.002843vsobserved−.002785;explicitlyNOTpreregistered. FittingwasdoneAFTER4000observed,before5000;no newtraining/probe/ablationarm. Artifactqkvo-parent-gap-floor-fit-4000.jsonincludesallinputpoints/fits/flags.
+
+Previousnear0..−.001terminalforecastwithcentral−.0005wasoveraggressivezero-floor extrapolationandiswithdrawn. Currentworkingbetnew−parentterminal−.0025,5000−.0028;originalpre-runterminal−.003 remainsforhonestfinalassessment. Actualnonzeroplateaunotyetestablished;future5000windowtestsforwardprediction. Thisupdatesforecast,notobservedlossconclusionor stopcriterion.

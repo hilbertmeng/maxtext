@@ -12215,6 +12215,7 @@ class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMRe
     bam_record_m_shift_health = False
     bam_m_shift_mode = 'none'  # none | read | persist; experimental worktree path
     bam_m_shift_init = .05  # Previous-token share, sigmoid gate bias initialization
+    bam_m_shift_separate_reads = False
     mlp_dim_by_block = [3813, 3686, 3813]
     compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadSharedGelu256TruePile']
 
@@ -12746,3 +12747,12 @@ class BamMediumPropSharedR256GeneralReadMShiftPersistG050TruePile(BamMediumPropK
     max_to_keep = 2
     tensorboard_gcs_rotate_period = 500
     compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile', 'BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile', 'BamMediumPropSharedR256GeneralReadMShiftPersistG005TruePile']
+
+
+class BamMediumPropSharedR256GeneralReadMShiftReadQKVoG050TruePile(BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile):
+    """Independent v32 previous-token gates for Q, K and shared VO read-only M views."""
+    model_name = 'BamMediumPropSharedR256GeneralReadMShiftReadQKVoG050TruePile'
+    bam_m_shift_separate_reads = True
+    mlp_dim_by_block = [3781, 3654, 3781]  # Repay all 3 gate kernels; +1728 biases vs SOTA.
+    compare_runs = ['BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile',
+                    'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile']

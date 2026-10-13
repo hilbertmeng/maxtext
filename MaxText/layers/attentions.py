@@ -2457,7 +2457,7 @@ def mix_bam_previous_token(M, gate, segment_ids=None, positions=None):
   return jnp.where(valid[..., None, None], mixed, M)
 
 
-def bam_m_shift_health(M, mixed, gate, segment_ids=None, positions=None):
+def bam_m_shift_health(M, mixed, gate, segment_ids=None, positions=None, *, column_metrics=True):
   """All valid-token gate stats; M health samples at most32 positions/sequence."""
   valid = bam_m_shift_valid_mask(M.shape, segment_ids, positions)
   weights = valid.astype(jnp.float32)
@@ -2465,7 +2465,8 @@ def bam_m_shift_health(M, mixed, gate, segment_ids=None, positions=None):
   g = gate.astype(jnp.float32)
   column_mean = jnp.sum(g * weights[..., None], axis=(0, 1)) / count
   column_square = jnp.sum(g * g * weights[..., None], axis=(0, 1)) / count
-  column_std = jnp.sqrt(jnp.maximum(column_square - column_mean**2, 0))
+  columns = (jnp.stack((column_mean, jnp.sqrt(jnp.maximum(column_square - column_mean**2, 0))))
+             if column_metrics else None)
   mean = jnp.mean(column_mean)
   std = jnp.sqrt(jnp.maximum(jnp.mean(column_square) - mean**2, 0))
   fraction = lambda condition: jnp.sum(condition * weights[..., None]) / (count * g.shape[-1])
@@ -2491,7 +2492,7 @@ def bam_m_shift_health(M, mixed, gate, segment_ids=None, positions=None):
   state = jnp.stack((current_rms, previous_rms, mixed_rms,
                      mixed_rms / jnp.maximum(current_rms, 1e-12),
                      delta_rms / jnp.maximum(current_rms, 1e-12), average(cosine)))
-  return stats, jnp.stack((column_mean, column_std)), state
+  return stats, columns, state
 
 
 class BamAttention(Attention):
@@ -2695,7 +2696,9 @@ class BamAttention(Attention):
     self._full_m_read_share_down = bool(getattr(cfg, 'bam_local_full_m_read_share_down', False))
     self._general_read = bool(getattr(cfg, 'bam_general_column_read', False))
     self._m_shift_mode = getattr(cfg, 'bam_m_shift_mode', None) or 'none'
+    self._m_shift_separate_reads = bool(getattr(cfg, 'bam_m_shift_separate_reads', False))
     assert self._m_shift_mode in ('none', 'read', 'persist')
+    assert not self._m_shift_separate_reads or self._m_shift_mode == 'read'
     if self._m_shift_mode != 'none':
       assert self._full_m_read_rank is not None and self._general_read
       assert not getattr(cfg, 'bam_pallas_core', False), 'M shift uses the pure-JAX SOTA'
@@ -2710,6 +2713,17 @@ class BamAttention(Attention):
           'M_shift_gate_b0', nn.with_logical_partitioning(
               nn.initializers.constant(math.log(opening / (1 - opening))), ('v_factor',)),
           (self.bam_v,), self.weight_dtype)
+      if self._m_shift_separate_reads:
+        for arm in ('k', 'vo'):
+          setattr(self, f'm_shift_{arm}_gate', linears.DenseGeneral(
+              features=self.bam_v, axis=-1, use_bias=False,
+              kernel_init=zeros_init, kernel_axes=('embed', 'v_factor'),
+              dtype=self.dtype, weight_dtype=self.weight_dtype, quant=self.quant,
+              matmul_precision=cfg.matmul_precision, name=f'M_shift_{arm}_gate'))
+          setattr(self, f'm_shift_{arm}_bias', self.param(
+              f'M_shift_{arm}_gate_b0', nn.with_logical_partitioning(
+                  nn.initializers.constant(math.log(opening / (1 - opening))), ('v_factor',)),
+              (self.bam_v,), self.weight_dtype))
 
     if self._full_m_read_rank is not None:
       assert not getattr(cfg, 'bam_general_matrix_write', False), 'Generalized writes remain worktree-only'
@@ -3928,13 +3942,37 @@ class BamAttention(Attention):
     inputs_q = nn.with_logical_constraint(inputs_q, self.input_axis_names)
     inputs_kv = nn.with_logical_constraint(inputs_kv, self.input_axis_names)
     M_read = M_in
+    separate_m_reads = None
     if getattr(self, '_m_shift_mode', 'none') != 'none':
       assert M_in is not None
       with jax.named_scope('bam/m_shift'):
         logits = self.m_shift_gate(inputs_q).astype(jnp.float32) + self.m_shift_bias.astype(jnp.float32)
         gate = jax.nn.sigmoid(logits)  # Gate is the previous-token share.
         M_read = mix_bam_previous_token(M_in, gate, decoder_segment_ids, inputs_positions)
-        if getattr(cfg, 'bam_record_m_shift_health', False):
+        if self._m_shift_separate_reads:
+          separate_m_reads = {'q': M_read}
+          gates = {'q': gate}
+          for arm in ('k', 'vo'):
+            logits = (getattr(self, f'm_shift_{arm}_gate')(inputs_q).astype(jnp.float32)
+                      + getattr(self, f'm_shift_{arm}_bias').astype(jnp.float32))
+            gates[arm] = jax.nn.sigmoid(logits)
+            separate_m_reads[arm] = mix_bam_previous_token(
+                M_in, gates[arm], decoder_segment_ids, inputs_positions)
+          M_read = separate_m_reads['vo']
+          if getattr(cfg, 'bam_record_m_shift_health', False):
+            for arm in ('q', 'k', 'vo'):
+              stats, _, state = bam_m_shift_health(
+                  M_in, separate_m_reads[arm], gates[arm], decoder_segment_ids,
+                  inputs_positions, column_metrics=False)
+              self.sow('intermediates', f'm_shift_{arm}_summary',
+                       jnp.stack((stats[0], stats[1], stats[4], stats[5], state[4])))
+            valid = bam_m_shift_valid_mask(M_in.shape, decoder_segment_ids, inputs_positions)
+            weights = valid.astype(jnp.float32)[..., None]
+            count = jnp.maximum(jnp.sum(weights) * self.bam_v, 1)
+            self.sow('intermediates', 'm_shift_read_gate_differences', jnp.stack(tuple(
+                jnp.sum(jnp.abs(gates[a] - gates[b]) * weights) / count
+                for a, b in (('q', 'k'), ('q', 'vo'), ('k', 'vo')))))
+        elif getattr(cfg, 'bam_record_m_shift_health', False):
           stats, columns, state = bam_m_shift_health(M_in, M_read, gate, decoder_segment_ids, inputs_positions)
           self.sow('intermediates', 'm_shift_gate_stats', stats)
           self.sow('intermediates', 'm_shift_gate_columns', columns)
@@ -3986,17 +4024,28 @@ class BamAttention(Attention):
     # Inject LocalQK after RoPE.
     local_compressed_M = None
     if 'local_qk' in self._mode:  # V1 default
-      if Mh is None:
+      if separate_m_reads is not None:
+        assert self._direct_qk_c8, 'Separate M shift targets the direct full-M reader'
+        q_matrix = self._matrix_for_read(separate_m_reads['q'])
+        k_matrix = self._matrix_for_read(separate_m_reads['k'])
+        q_local = self._read_direct_qk_c8(
+            'q', q_matrix, self._compress_m(q_matrix), inputs_q, full_m_shared_hidden)
+        k_local = self._read_direct_qk_c8(
+            'k', k_matrix, self._compress_m(k_matrix), inputs_q, full_m_shared_hidden)
+      elif Mh is None:
         with jax.named_scope("bam/normalize_m"):
           Mh = self._matrix_for_read(M_read)
       with jax.named_scope("bam/read_local_m_for_qk"):
-        assert Mh is not None, "local_qk read requires M_in"
-        if self._direct_qk_c8:
+        if separate_m_reads is not None:
+          pass  # Q/K views must never populate the shared VO matrix/compression cache.
+        elif self._direct_qk_c8:
+          assert Mh is not None, "local_qk read requires M_in"
           local_compressed_M = self._compress_m(Mh)
           qk_compressed_M = local_compressed_M
           q_local = self._read_direct_qk_c8('q', Mh, qk_compressed_M, inputs_q, full_m_shared_hidden)
           k_local = self._read_direct_qk_c8('k', Mh, qk_compressed_M, inputs_q, full_m_shared_hidden)
         else:
+          assert Mh is not None, "local_qk read requires M_in"
           basis_cache = self._shared_qk_basis(Mh, local_inputs) if self._share_qk_basis else None
           q_local = self._read_local('q', Mh, inputs_q, local_inputs, basis_cache)
           k_local = self._read_local('k', Mh, inputs_q, local_inputs, basis_cache)

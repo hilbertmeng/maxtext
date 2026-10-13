@@ -2,6 +2,7 @@
 import copy
 import math
 import unittest
+from unittest import mock
 from pathlib import Path
 import tempfile
 from types import SimpleNamespace
@@ -21,6 +22,7 @@ from layers.models import Transformer
 PARENT='BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile'
 READ='BamMediumPropSharedR256GeneralReadMShiftReadG005TruePile'
 PERSIST='BamMediumPropSharedR256GeneralReadMShiftPersistG005TruePile'
+SEPARATE='BamMediumPropSharedR256GeneralReadMShiftReadQKVoG050TruePile'
 
 class MShiftTest(MLPWriteTest, unittest.TestCase):
   def tiny(self, mode):
@@ -96,9 +98,11 @@ class MShiftTest(MLPWriteTest, unittest.TestCase):
       self.assertGreater(float(jnp.linalg.norm(grad['M_shift_gate']['kernel'])),0)
 
   def test_scan_forward_gradients_and_future_causality(self):
-    for mode, opening in [('read',.05),('persist',.05),('read',.5),('persist',.5)]:
+    for mode, opening, separate in [('read',.05,False),('persist',.05,False),
+                                     ('read',.5,False),('persist',.5,False),('read',.5,True)]:
       cfg=self.tiny(mode)
       cfg.get_keys()['bam_m_shift_init']=opening
+      cfg.get_keys()['bam_m_shift_separate_reads']=separate
       mesh=jax.sharding.Mesh(np.array(jax.devices()[:1]).reshape((1,)*len(cfg.mesh_axes)),cfg.mesh_axes)
       model=Transformer(cfg,mesh,quant=None)
       tok=jnp.array([[1,2,3,4]],jnp.int32);pos=jnp.arange(4)[None];seg=jnp.ones_like(tok)
@@ -110,35 +114,83 @@ class MShiftTest(MLPWriteTest, unittest.TestCase):
         loss,grad=jax.jit(jax.value_and_grad(lambda params:jnp.mean(f(params)**2)))(p)
         self.assertTrue(np.isfinite(float(loss)))
         self.assertTrue(all(np.isfinite(np.asarray(v)).all() for v in jax.tree.leaves(grad)))
-        gates=[v for path,v in flatten_dict(grad).items() if any(part.startswith('M_shift_gate') for part in path)]
-        self.assertEqual(len(gates),6)
+        gates=[v for path,v in flatten_dict(grad).items() if any(part.startswith('M_shift_') for part in path)]
+        self.assertEqual(len(gates),18 if separate else 6)
         self.assertTrue(all(float(jnp.linalg.norm(v))>0 for v in gates))
         np.testing.assert_allclose(f(p)[:,:3],f(p,tok.at[:,3].set(9))[:,:3],rtol=1e-6,atol=1e-6)
         _,collections=model.apply({'params':p},tok,pos,seg,tok,enable_dropout=False,mutable=['intermediates'])
         metrics={'scalar':{}}
         train.record_bam_concat_health_metrics(metrics,collections,cfg)
         health={k:v for k,v in metrics['scalar'].items() if k.startswith('bam/m_shift/')}
-        self.assertEqual(len(health),3*(64+14))
+        self.assertEqual(len(health),3*(18 if separate else 64+14))
         self.assertTrue(all(np.isfinite(np.asarray(v)).all() for v in health.values()))
         for layer in range(3):
-          np.testing.assert_allclose(health[f'bam/m_shift/layer_{layer:03d}/gate_mean'],opening,rtol=1e-5)
+          for arm in ('q/','k/','vo/') if separate else ('',):
+            np.testing.assert_allclose(health[f'bam/m_shift/layer_{layer:03d}/{arm}gate_mean'],opening,rtol=1e-5)
+        if separate:
+          self.assertFalse(any('/column_' in tag for tag in health))
+          for pair in ('q_k','q_vo','k_vo'):
+            np.testing.assert_allclose(health[f'bam/m_shift/layer_000/{pair}_gate_mean_abs_diff'],0,atol=1e-7)
+
+  def test_separate_routes_equal_shared_at_init_and_keep_original_carry(self):
+    cfg=self.tiny('read')
+    cfg.get_keys().update(bam_m_shift_init=.5,bam_m_shift_separate_reads=True)
+    mesh=jax.sharding.Mesh(np.array(jax.devices()[:1]).reshape((1,)*len(cfg.mesh_axes)),cfg.mesh_axes)
+    mod=BamAttention(config=cfg,mesh=mesh,num_query_heads=2,num_kv_heads=2,
+        head_dim=75,bam_k=75,bam_v=32,max_target_length=4,max_prefill_predict_length=4,
+        attention_kernel='dot_product_chunk',dtype=cfg.dtype,weight_dtype=cfg.weight_dtype,
+        layer_mode='local_qk+local_v+local_o',read_side='col',attention_type=cfg.attention_type)
+    x=jax.random.normal(jax.random.key(11),(1,4,150))
+    m=jax.random.normal(jax.random.key(12),(1,4,75,32))
+    args=(x,x,jnp.arange(4)[None],jnp.ones((1,4),jnp.int32))
+    with mesh,nn.partitioning.axis_rules(cfg.logical_axis_rules):
+      params=nn.unbox(mod.init(jax.random.key(13),*args,M_in=m,deterministic=True)['params'])
+      separated=mod.apply({'params':params},*args,M_in=m,deterministic=True,defer_write=True)
+      cfg.get_keys()['bam_m_shift_separate_reads']=False
+      shared=mod.apply({'params':params},*args,M_in=m,deterministic=True,defer_write=True)
+      np.testing.assert_array_equal(separated[0],shared[0])
+      np.testing.assert_array_equal(separated[1],m)
+      for a,b in zip(separated[2],shared[2]):np.testing.assert_array_equal(a,b)
+      cfg.get_keys()['bam_m_shift_separate_reads']=True
+      views={}
+      read_qk=BamAttention._read_direct_qk_c8
+      read_vo=BamAttention._independent_local_vo
+      def capture_qk(self,arm,state,*rest):
+        views[arm]=state
+        return read_qk(self,arm,state,*rest)
+      def capture_vo(self,state,*rest):
+        views['vo']=state
+        return read_vo(self,state,*rest)
+      for arm,opening in [('q',.2),('k',.7),('vo',.9)]:
+        name='M_shift_gate_b0' if arm=='q' else f'M_shift_{arm}_gate_b0'
+        params[name]=jnp.full((32,),math.log(opening/(1-opening)),jnp.float32)
+      with mock.patch.object(BamAttention,'_read_direct_qk_c8',capture_qk), \
+           mock.patch.object(BamAttention,'_independent_local_vo',capture_vo):
+        actual=mod.apply({'params':params},*args,M_in=m,deterministic=True,defer_write=True)
+      np.testing.assert_array_equal(actual[1],m)
+      for arm,opening in [('q',.2),('k',.7),('vo',.9)]:
+        expected=mix_bam_previous_token(m,jnp.full((1,4,32),opening),args[3],args[2])
+        expected=mod.apply({'params':params},expected,method=mod._matrix_for_read)
+        np.testing.assert_allclose(views[arm],expected,rtol=1e-6,atol=1e-6)
 
 
   def test_full_parameter_budget_and_gate_sharding(self):
-    for name in (PARENT,READ,PERSIST,READ.replace('G005','G050'),PERSIST.replace('G005','G050')):
+    for name in (PARENT,READ,PERSIST,READ.replace('G005','G050'),PERSIST.replace('G005','G050'),SEPARATE):
       cfg=self.config(name,bam_splash_attention=False)
       mesh=jax.sharding.Mesh(max_utils.create_device_mesh(cfg),cfg.mesh_axes)
       args,_,spec,_=train_compile.get_shaped_inputs(mesh,cfg)
       params=flatten_dict(nn.unbox(args[0].params))
-      self.assertEqual(sum(math.prod(v.shape) for v in params.values()),432111104 if name==PARENT else 432111680)
-      gates={path:v for path,v in params.items() if any(part.startswith('M_shift_gate') for part in path)}
-      self.assertEqual(sum(math.prod(v.shape) for v in gates.values()),0 if name==PARENT else 691776)
+      self.assertEqual(sum(math.prod(v.shape) for v in params.values()),
+                       432111104 if name==PARENT else 432112832 if name==SEPARATE else 432111680)
+      gates={path:v for path,v in params.items() if any(part.startswith('M_shift_') for part in path)}
+      self.assertEqual(sum(math.prod(v.shape) for v in gates.values()),
+                       0 if name==PARENT else 2075328 if name==SEPARATE else 691776)
       if name!=PARENT:
-        self.assertEqual(len(gates),6)
+        self.assertEqual(len(gates),18 if name==SEPARATE else 6)
         specs=flatten_dict(nn.unbox(spec.params))
         for path,v in gates.items():
-          self.assertEqual(v.shape,(1200,6,32) if 'M_shift_gate' in path else (32,6))
-          if 'M_shift_gate' in path:
+          self.assertEqual(v.shape,(1200,6,32) if path[-1]=='kernel' else (32,6))
+          if path[-1]=='kernel':
             self.assertLess(math.prod(specs[path].shard_shape(v.shape)),math.prod(v.shape))
 
 if __name__=='__main__':unittest.main()

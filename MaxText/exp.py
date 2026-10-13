@@ -12778,7 +12778,7 @@ class BamMediumPropSharedR256GeneralReadMShiftReadQKVoG050TruePile(BamMediumProp
     # @5000 SOTA-.010377,ReadG050-.001660; MHA-ref multipliers1.054435/1.008326; forecast5000-.0028too optimistic.
     # @6000 SOTA-.010449,ReadG050-.001831; MHA-ref multipliers1.059090/1.009871; last5parent extra-.001273,shrinking.
     # @7000 SOTA-.009443,ReadG050-.000114; MHA-ref multipliers1.055511/1.000634; last5parent extra-.000714, shrinking;continue8000review.
-    # @9000 parent+.000443,last5-.000123; gain/parent.997333,last5 1.000726; -3.49%speed,closing.
+    # @9000 parent+.000443,last5-.000123; gain/parent.997333,last5 1.000726; stopped9198,P1,resourcesabsent/TBSYNCOK.
     model_name = 'BamMediumPropSharedR256GeneralReadMShiftReadQKVoG050TruePile'
     bam_m_shift_separate_reads = True
     mlp_dim_by_block = [3781, 3654, 3781]  # Repay all 3 gate kernels; +1728 biases vs SOTA.
@@ -12791,6 +12791,7 @@ class BamMediumPropSharedR256GeneralReadMShiftReadTwoLag532TruePile(BamMediumPro
     # code_commit: e79a303; UE5a SPOT v5p-16 xd-v5p-16-310183-maxtext; AOT/FIRST_STEP+14 verified.
     # Actual params432112256, custom health162, init/finite TB verified;20-99 .4576625step/s (-.15% vs single, -4.40% vs SOTA).
     # @1000 parent+.002732,SOTA+.002371; gains.995326/.995941. Gate1/2 .228751/.069299; secondlag mostlyshallow.
+    # @2000 parent+.003086,SOTA-.004004; gain.990348/1.012806; last5parent+.000156,not stable extra;gate2.068478.
     model_name = 'BamMediumPropSharedR256GeneralReadMShiftReadTwoLag532TruePile'
     bam_m_shift_two_lag = True
     bam_m_shift_two_lag_init = [.5, .3, .2]
@@ -12804,6 +12805,7 @@ class BamMediumPropSharedR256GeneralReadKVShiftG050TruePile(BamMediumPropSharedR
     # code_commit: e79a303; UE5a SPOT v5p-16 xd-v5p-16-310184-maxtext; AOT/FIRST_STEP+14 verified.
     # Actual params432111104, custom health180, init/finite TB verified;20-99 .4167750step/s (-9.07% vs single, -12.94% vs SOTA; !! slower than +2.5% preregistered).
     # @1000 parent-.018545,SOTA-.018906; MHA-ref gains1.031726/1.032363; K/V gates.554827/.324232.
+    # @2000 parent-.006162,SOTA-.013252; gains1.019272/1.042386,last5 1.023459/1.035984; K/V.538777/.342927.
     model_name = 'BamMediumPropSharedR256GeneralReadKVShiftG050TruePile'
     bam_m_shift_mode = 'none'
     bam_kv_shift = True

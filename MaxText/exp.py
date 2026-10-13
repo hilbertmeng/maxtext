@@ -12392,6 +12392,7 @@ class BamMHAMediumPropT8192SplashTruePile(BamMHAMediumPropC256TruePile):
     # Context family: /data0/xd/mediumprop-context-t2048, codex/mediumprop-context-t2048.
     # User authorizes Splash; unchanged parent architecture/params/optimizer,13500 steps.
     # code_commit: dbcaa31; UE5a v5p-16 TPU310160; actual AOT FIRST_STEP+14, batch64/T8192/TB500 verified.
+    # Mean20-99 0.5260250step/s (-26.33% vs T4096);13500 planned, training active.
     model_name = 'BamMHAMediumPropT8192SplashTruePile'
     DATASET_VARIANT = 'truepile8192'
     dataset_path = ''  # Launcher resolves the declared variant to the training region.
@@ -12411,6 +12412,7 @@ class MuddLlama2MediumPropT8192SplashTruePile(MuddLlama2MediumPropTruePile):
     # Context family: /data0/xd/mediumprop-context-t2048, codex/mediumprop-context-t2048.
     # Preserve full growing history and historical unrolled dispatch; Splash authorized.
     # code_commit: dbcaa31; UE5a v5p-16 TPU310161; actual AOT FIRST_STEP+14, batch64/T8192/TB500 verified.
+    # Mean20-99 0.4859625step/s (-22.86% vs T4096);13500 planned, training active.
     model_name = 'MuddLlama2MediumPropT8192SplashTruePile'
     DATASET_VARIANT = 'truepile8192'
     dataset_path = ''
@@ -12430,6 +12432,7 @@ class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMRe
     # Context family: /data0/xd/mediumprop-context-t2048, codex/mediumprop-context-t2048.
     # Preserve model/params/init/optimizer and pure-JAX Splash path; global batch64.
     # code_commit: dbcaa31; UE5a v5p-16 TPU310162; actual AOT FIRST_STEP+14, batch64/T8192/TB500 verified.
+    # Mean20-99 0.3889500step/s (-18.75% vs T4096);13500 planned, training active.
     model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadT8192'
     DATASET_VARIANT = 'truepile8192'
     dataset_path = ''

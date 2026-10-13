@@ -15,6 +15,7 @@
 """Initializers."""
 
 from typing import Callable, Tuple, Union
+import math
 
 from flax import linen as nn
 import jax
@@ -71,3 +72,18 @@ def get_init_method(init_method):
     init_fun = nd_dense_init_normal(0.006)
 
   return init_fun
+
+
+def bam_shared_address_gate_init(kernel_init, emb_dim, rank):
+  """Match the 006normal parent's write-logit second moment for RMS1 inputs.
+
+  Existing address hidden is GELU(x W_down), W_down std=.006. This fixed
+  initialization correction adds no parameter or runtime normalization.
+  """
+  q = float(emb_dim) * .006**2
+  second = q * (.25 + math.asin(q / (1 + q)) / (2 * math.pi))
+  second += q*q / (math.pi * (1 + q) * math.sqrt(1 + 2*q))
+  scale = math.sqrt(float(emb_dim) / (float(rank) * second))
+  def initialize(key, shape, dtype, in_axis=0, out_axis=1):
+    return kernel_init(key, shape, dtype, in_axis, out_axis) * scale
+  return initialize

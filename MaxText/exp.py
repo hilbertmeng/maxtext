@@ -298,6 +298,7 @@ class BamLlama2Medium(Llama2Medium):
     bam_local_qk_direct_c8 = False
     bam_local_full_m_read_bottleneck_dim = None  # Q/K/shared-VO GELU keys on full M
     bam_local_full_m_read_share_down = False
+    bam_address_shared_gates = False  # Experimental gates from existing read/write address GELU features.
     bam_general_column_read = False
     bam_general_matrix_write = False  # Historical write variants remain worktree-only.
     bam_static_read_gate_init = .99
@@ -12671,3 +12672,21 @@ class BamFullMGeneralReadPallasV8TProfile(BamFullMGeneralReadPallasFusedProfile)
     # 90d28c9 keys as [C,N,B,T] from the dot: TPU lowering rejects batch as a block's second-minor dim; reverted.
     model_name = 'BamFullMGeneralReadPallasV8TProfile'
     bam_pallas_body = 'v8t'
+
+
+class BamMediumPropSharedR256GeneralReadAddressSharedGatesTruePile(BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile):
+    """Eight read gates and both write gates reuse their respective address R256 hidden."""
+    # Implementation: codex/mediumprop-gate-feature-sharing, /data0/xd/mediumprop-gate-feature-sharing.
+    # Latest main fork0f7f6d10; read-only M-shift is a comparison, not inherited.
+    # Savings2537472=1.76213W_Q (MLP writes only6layers); refund2527200, residue-10272params.
+    # Read gate zero weights/initial biases preserved. Write006normal init analytically matches parent logit moment.
+    # Pre-run bet terminal loss-SOTA -.002; throughput near .479step/s (MLP refund restores dense FLOPs).
+    model_name = 'BamMediumPropSharedR256GeneralReadAddressSharedGatesTruePile'
+    bam_address_shared_gates = True
+    mlp_dim_by_block = [3852, 3725, 3852]
+    checkpoint_period = 200
+    max_to_keep = 2
+    keep_period = 0
+    tensorboard_gcs_rotate_period = 500
+    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile',
+                    'BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile']

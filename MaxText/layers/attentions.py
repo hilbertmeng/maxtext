@@ -2632,6 +2632,12 @@ class BamAttention(Attention):
     self._full_m_read_rank = getattr(cfg, 'bam_local_full_m_read_bottleneck_dim', None)
     self._full_m_read_share_down = bool(getattr(cfg, 'bam_local_full_m_read_share_down', False))
     self._general_read = bool(getattr(cfg, 'bam_general_column_read', False))
+    self._address_shared_gates = bool(getattr(cfg, 'bam_address_shared_gates', False))
+    if self._address_shared_gates:
+      assert self._full_m_read_share_down and self._general_read
+      assert cfg.bam_mlp_write_dynamic_address
+      assert cfg.init_method == '006normal'
+      assert not getattr(cfg, 'bam_pallas_core', False), 'Initial shared-gate experiment uses parent JAX core'
     if self._full_m_read_rank is not None:
       assert not getattr(cfg, 'bam_general_matrix_write', False), 'Generalized writes remain worktree-only'
     if self._general_read:
@@ -2942,7 +2948,12 @@ class BamAttention(Attention):
             quant=self.quant, matmul_precision=cfg.matmul_precision,
             use_bias=True)
       # Write gate g_write: regular kernel, bias = logit(eps) explicitly slightly open
-      self.W_gw = DenseGeneral(features=(self.num_query_heads,), axis=-1, kernel_init=reg_init,
+      write_gate_init = (initializers.bam_shared_address_gate_init(
+          reg_init, cfg.emb_dim, self._write_v_bottleneck_dim)
+          if self._address_shared_gates else reg_init)
+      if self._address_shared_gates:
+        assert self._write_v_bottleneck_dim is not None and self._write_v_bottleneck_activation == 'gelu'
+      self.W_gw = DenseGeneral(features=(self.num_query_heads,), axis=-1, kernel_init=write_gate_init,
           kernel_axes=("embed", "q_heads"), dtype=self.dtype, weight_dtype=self.weight_dtype,
           name="W_gw", quant=self.quant, matmul_precision=cfg.matmul_precision, use_bias=False)
       eps = float(cfg.bam_write_eps)
@@ -3050,9 +3061,15 @@ class BamAttention(Attention):
         name + '_bias', (self.num_query_heads,), ('q_heads',),
         math.log(opening / (1.1 - opening))))
 
-  def _static_gate(self, name, x):
+  def _read_gate_features(self, x, shared_hidden=None):
+    if not getattr(self, '_address_shared_gates', False):
+      return x
+    return nn.gelu(self.full_m_read_down(x)) if shared_hidden is None else shared_hidden
+
+  def _static_gate(self, name, x, shared_hidden=None):
     return 1.1 * jax.nn.sigmoid(
-        getattr(self, name)(x) + jnp.asarray(getattr(self, name + '_bias'), self.dtype))
+        getattr(self, name)(self._read_gate_features(x, shared_hidden))
+        + jnp.asarray(getattr(self, name + '_bias'), self.dtype))
 
   def _record_general_gate(self, name, gate):
     if self._concat_health:
@@ -3226,12 +3243,12 @@ class BamAttention(Attention):
         k_bam, k_std, k_bam / jnp.maximum(k_std, 1e-12))))
 
   def _project_read_gate_logits(
-      self, gate_name, x, squeeze_fetch_axis=False):
+      self, gate_name, x, squeeze_fetch_axis=False, shared_hidden=None):
     with jax.named_scope("bam/read_gate_projection"):
       gate_bias = getattr(self, f'{gate_name}_b0')
       if self._force_activation_dtype:
         gate_bias = jnp.asarray(gate_bias, self.dtype)
-      candidate_logits = getattr(self, gate_name)(x) + gate_bias
+      candidate_logits = getattr(self, gate_name)(self._read_gate_features(x, shared_hidden)) + gate_bias
     if squeeze_fetch_axis:
       candidate_logits = jnp.squeeze(candidate_logits, axis=-2)
     if (self._record_fetched_read_health_metrics
@@ -3309,11 +3326,11 @@ class BamAttention(Attention):
       result = result + _pack_fetched_bam_heads(static, self.num_query_heads, self.head_dim)
     return result
 
-  def _static_column(self, M, arm, x=None):
+  def _static_column(self, M, arm, x=None, shared_hidden=None):
     read = jnp.einsum('btkv,vn->btnk', M, getattr(self, 'static_' + arm + '_key').astype(M.dtype))
     if self._general_read:
       assert x is not None
-      gate = self._static_gate('general_' + arm + '_static_gate', x)
+      gate = self._static_gate('general_' + arm + '_static_gate', x, shared_hidden)
       self._record_general_gate(arm + '_static', gate)
       # Preserve the trained SOTA's 1.1*sigmoid gate and initial-amplitude compensation.
       read = read * (gate / self.config.bam_static_read_gate_init)[..., None]
@@ -3322,12 +3339,12 @@ class BamAttention(Attention):
   def _read_direct_qk_c8(self, name, M, compressed_M, x, shared_hidden=None):
     """Independent per-head compressed read plus the original full-M static read."""
     key = self._project_column_read_key(f'W_l{name}_c8', x, shared_hidden)
-    logits = self._project_read_gate_logits(f'W_l{name}_gate', x)
+    logits = self._project_read_gate_logits(f'W_l{name}_gate', x, shared_hidden=shared_hidden)
     self._record_concat_gate('local_' + name, logits)
     col, _ = bam_read(compressed_M, key, self._direct_qk_c8_arm, gate_logits=logits)
     col = col[..., :self._qk_col_width]
     if self._concat_static_qk:
-      static = self._static_column(M[..., :self._qk_col_width, :], name, x)
+      static = self._static_column(M[..., :self._qk_col_width, :], name, x, shared_hidden)
       self._record_concat_amplitude('static_' + name, static, col)
       col = col + static
     return _pack_fetched_bam_heads(col, self.num_query_heads, self.head_dim)
@@ -3342,7 +3359,7 @@ class BamAttention(Attention):
     if compressed_M is None:
       compressed_M = self._compress_m(M)
     read, o_logits = self._read_fetched_m(compressed_M, x, ungated=True, shared_hidden=shared_hidden)
-    v_logits = self._project_read_gate_logits('W_lv_gate', x)
+    v_logits = self._project_read_gate_logits('W_lv_gate', x, shared_hidden=shared_hidden)
     self._record_concat_gate('local_v', v_logits)
     if self._concat_health:
       v, o = (self._read_gate_activation(z.astype(jnp.float32)) for z in (v_logits, o_logits))
@@ -3394,17 +3411,20 @@ class BamAttention(Attention):
       assert o_head.dtype == self.dtype, (o_head.dtype, self.dtype)
     # V1 default
     u1 = o_head[..., :self.bam_k]  # U factor [b,t,n,k]
+    gate_input = x
     if self._write_v_bottleneck_dim is None:
       u2 = self.P_loc(x)
     else:  # V1 default
       u2 = self.P_loc_down(x)
       if self._write_v_bottleneck_activation == 'gelu':
         u2 = nn.gelu(u2)
+      if self._address_shared_gates:
+        gate_input = u2
       u2 = self.P_loc_up(u2)
     write_gate_bias = self.gw_b0
     if self._force_activation_dtype:
       write_gate_bias = jnp.asarray(write_gate_bias, self.dtype)
-    gate = jax.nn.sigmoid(self.W_gw(x) + write_gate_bias)  # [b,t,n]
+    gate = jax.nn.sigmoid(self.W_gw(gate_input) + write_gate_bias)  # [b,t,n]
     g = gate
     if cfg.bam_sqrt_n_scale:
       # With per-record rms, each head's record is unit energy, so |M| ~ n * Σg. Scaling the
@@ -3431,15 +3451,18 @@ class BamAttention(Attention):
   def _deferred_write_factors(self, o_head, x):
     """Same factors as _write, without forming its outer product yet."""
     u1 = o_head[..., :self.bam_k]
+    gate_input = x
     if self._write_v_bottleneck_dim is None:
       u2 = self.P_loc(x)
     else:
       u2 = self.P_loc_down(x)
       if self._write_v_bottleneck_activation == 'gelu':
         u2 = nn.gelu(u2)
+      if self._address_shared_gates:
+        gate_input = u2
       u2 = self.P_loc_up(u2)
     bias = jnp.asarray(self.gw_b0, self.dtype) if self._force_activation_dtype else self.gw_b0
-    gate = jax.nn.sigmoid(self.W_gw(x) + bias)
+    gate = jax.nn.sigmoid(self.W_gw(gate_input) + bias)
     scale = 1.0 / jnp.sqrt(self.num_query_heads) if self.config.bam_sqrt_n_scale else 1.0
     content = self.write_data_norm(u1) if self._write_data_rms else u1
     return scale * gate[..., None] * content, self.write_address_norm(u2), gate
@@ -3526,7 +3549,7 @@ class BamAttention(Attention):
         m_rms = jnp.sqrt(jnp.mean(jnp.square(Mbar.astype(jnp.float32))))
         self.sow('intermediates', 'fetched_read_m_rms', m_rms)
       gate_logits = self._project_read_gate_logits(
-          'W_R_gate', inputs_q, squeeze_fetch_axis=True)
+          'W_R_gate', inputs_q, squeeze_fetch_axis=True, shared_hidden=shared_hidden)
       self._record_concat_gate('local_o' if self._local_o else 'fetched_o', gate_logits)
       if self._vo_shared_read == 'local_o' and not self._vo_independent_gates:
         self._record_concat_gate('local_v', gate_logits)
@@ -3921,10 +3944,10 @@ class BamAttention(Attention):
         local_output = self._shared_local_vo(Mh, inputs_q, local_inputs)
         v_local = local_output
       if self._static_vo:
-        static_v = self._static_column(Mh, 'v', inputs_q)
+        static_v = self._static_column(Mh, 'v', inputs_q, full_m_shared_hidden)
         self._record_concat_amplitude('static_v', static_v, v_local)
         v_local = v_local + static_v
-        static_o = self._static_column(Mh, 'o', inputs_q)
+        static_o = self._static_column(Mh, 'o', inputs_q, full_m_shared_hidden)
         self._record_concat_amplitude('static_o', static_o, local_output)
         local_output = local_output + static_o
       if not self._local_v_replace:
@@ -3947,7 +3970,7 @@ class BamAttention(Attention):
         local_output = (self._gate_local_output(local_read, output_logits)
                         if shared_v else local_read)
         if self._static_vo:
-          static_o = self._static_column(Mh, 'o', inputs_q)
+          static_o = self._static_column(Mh, 'o', inputs_q, full_m_shared_hidden)
           self._record_concat_amplitude('static_o', static_o, local_output)
           local_output = local_output + static_o
     if 'v' in self._local_arms:

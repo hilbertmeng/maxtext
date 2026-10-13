@@ -304,18 +304,24 @@ class SubDecoderLayer(nn.Module):
       moe_lnx = nn.with_logical_constraint(moe_lnx, ("activation_batch", "activation_norm_length", "activation_embed"))
 
     if mlp_write:
-      mlp_logits = linears.DenseGeneral(
+      shared_gates = bool(getattr(cfg, 'bam_address_shared_gates', False))
+      gate_init = initializers.get_init_method(cfg.init_method)
+      if shared_gates:
+        assert cfg.bam_mlp_write_dynamic_address and cfg.init_method == '006normal'
+        gate_init = initializers.bam_shared_address_gate_init(
+            gate_init, cfg.emb_dim, int(cfg.bam_mlp_write_address_rank))
+      gate_projection = linears.DenseGeneral(
           features=(num_query_heads,), axis=-1, use_bias=False,
-          kernel_init=initializers.get_init_method(cfg.init_method),
+          kernel_init=gate_init,
           kernel_axes=('embed', 'q_heads'), dtype=cfg.dtype, weight_dtype=cfg.weight_dtype,
           quant=self.quant, matmul_precision=cfg.matmul_precision,
-          name='mlp_write_gate')(hidden_states)
+          name='mlp_write_gate')
       mlp_bias = self.param(
           'mlp_write_gate_bias', nn.with_logical_partitioning(
               nn.initializers.constant(math.log(cfg.bam_write_eps / (1.0 - cfg.bam_write_eps))),
               ('q_heads',)), (num_query_heads,), cfg.weight_dtype)
-      mlp_logits = mlp_logits + jnp.asarray(mlp_bias, cfg.dtype)
       independent_address = None
+      gate_input = hidden_states
       if getattr(cfg, 'bam_mlp_write_dynamic_address', False):
         rank = int(cfg.bam_mlp_write_address_rank)
         address_hidden = linears.DenseGeneral(
@@ -324,13 +330,17 @@ class SubDecoderLayer(nn.Module):
             kernel_axes=('embed', None), dtype=cfg.dtype, weight_dtype=cfg.weight_dtype,
             quant=self.quant, matmul_precision=cfg.matmul_precision,
             name='mlp_address_down')(hidden_states)
+        address_hidden = nn.gelu(address_hidden)
+        if shared_gates:
+          gate_input = address_hidden
         independent_address = linears.DenseGeneral(
             features=(num_query_heads, cfg.bam_v), axis=-1, use_bias=True,
             kernel_init=initializers.get_init_method(cfg.init_method),
             kernel_axes=('embed', 'q_heads', 'v_factor'),
             dtype=cfg.dtype, weight_dtype=cfg.weight_dtype,
             quant=self.quant, matmul_precision=cfg.matmul_precision,
-            name='mlp_address_up')(nn.gelu(address_hidden))
+            name='mlp_address_up')(address_hidden)
+      mlp_logits = gate_projection(gate_input) + jnp.asarray(mlp_bias, cfg.dtype)
       if not pallas_core:
         M_out = attention_layer.merge_mlp_write(
             mlp_lnx.reshape(mlp_lnx.shape[:-1] + (num_query_heads, cfg.bam_k)),

@@ -398,7 +398,13 @@ def record_bam_concat_health_metrics(output_metrics, intermediate_outputs, confi
       if key.startswith('m_shift_'):
         value = values[0] if index is None else values[0][index]
         prefix = f'bam/m_shift/layer_{layer:03d}'
-        if key in ('m_shift_q_summary', 'm_shift_k_summary', 'm_shift_vo_summary'):
+        if key == 'm_shift_two_lag_summary':
+          for i, name in enumerate(('current_mean', 'lag1_mean', 'lag2_mean', 'current_std',
+                                    'lag1_std', 'lag2_std', 'gate_sum_gt_one_fraction', 'mixed_over_current_rms',
+                                    'delta_over_current_rms')):
+            output_metrics['scalar'][f'{prefix}/two_lag/{name}'] = value[i]
+        elif key in ('m_shift_q_summary', 'm_shift_k_summary', 'm_shift_vo_summary',
+                     'm_shift_kv_k_summary', 'm_shift_kv_v_summary'):
           arm = key[len('m_shift_'):-len('_summary')]
           for i, name in enumerate(('gate_mean', 'gate_std', 'gate_frac_lt_001',
                                     'gate_frac_gt_099', 'delta_over_current_rms')):

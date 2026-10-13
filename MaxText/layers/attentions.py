@@ -2495,6 +2495,28 @@ def bam_m_shift_health(M, mixed, gate, segment_ids=None, positions=None, *, colu
   return stats, columns, state
 
 
+def mix_bam_two_previous_tokens(M, gate1, gate2, segment_ids=None, positions=None):
+  """Two independent sigmoid lag deltas; second gate zero recovers one-token shift."""
+  assert gate1.shape == gate2.shape == M.shape[:2] + (M.shape[-1],)
+  valid1 = bam_m_shift_valid_mask(M.shape, segment_ids, positions)
+  valid2 = valid1 & jnp.concatenate((jnp.zeros_like(valid1[:, :1]), valid1[:, :-1]), axis=1)
+  g1 = jnp.where(valid1[..., None], gate1, 0)
+  g2 = jnp.where(valid2[..., None], gate2, 0)
+  effective = jnp.stack((1-g1-g2, g1, g2), axis=-1)
+  previous = jnp.concatenate((M[:, :1], M[:, :-1]), axis=1)
+  previous2 = jnp.concatenate((previous[:, :1], previous[:, :-1]), axis=1)
+  w = effective.astype(M.dtype)
+  mixed = (M * w[..., 0][..., None, :] + previous * w[..., 1][..., None, :]
+           + previous2 * w[..., 2][..., None, :])
+  return mixed, effective, valid2
+
+
+def mix_bam_kv_previous_token(value, gate, segment_ids=None, positions=None):
+  """Per-head KV interpolation; gate denotes the previous-token share."""
+  return jnp.swapaxes(mix_bam_previous_token(
+      jnp.swapaxes(value, -1, -2), gate, segment_ids, positions), -1, -2)
+
+
 class BamAttention(Attention):
   """MHA plus a matrix stream written every BAM layer and optionally read by LocalQK/full."""
 
@@ -2697,22 +2719,43 @@ class BamAttention(Attention):
     self._general_read = bool(getattr(cfg, 'bam_general_column_read', False))
     self._m_shift_mode = getattr(cfg, 'bam_m_shift_mode', None) or 'none'
     self._m_shift_separate_reads = bool(getattr(cfg, 'bam_m_shift_separate_reads', False))
+    self._m_shift_two_lag = bool(getattr(cfg, 'bam_m_shift_two_lag', False))
+    self._bam_kv_shift = bool(getattr(cfg, 'bam_kv_shift', False))
     assert self._m_shift_mode in ('none', 'read', 'persist')
     assert not self._m_shift_separate_reads or self._m_shift_mode == 'read'
+    assert not self._m_shift_two_lag or (self._m_shift_mode == 'read' and not self._m_shift_separate_reads)
+    assert not self._bam_kv_shift or (self._m_shift_mode == 'none' and self._general_read and self._direct_qk_c8)
+    if self._bam_kv_shift:
+      assert not getattr(cfg, 'bam_pallas_core', False)
+      for arm in ('k', 'v'):
+        setattr(self, f'bam_kv_shift_{arm}_gate', linears.DenseGeneral(
+            features=self.num_kv_heads, axis=-1, use_bias=False,
+            kernel_init=zeros_init, kernel_axes=('embed', 'kv_heads'),
+            dtype=self.dtype, weight_dtype=self.weight_dtype, quant=self.quant,
+            matmul_precision=cfg.matmul_precision, name=f'KV_shift_{arm}_gate'))
     if self._m_shift_mode != 'none':
       assert self._full_m_read_rank is not None and self._general_read
       assert not getattr(cfg, 'bam_pallas_core', False), 'M shift uses the pure-JAX SOTA'
       opening = float(cfg.bam_m_shift_init)
       assert 0 < opening < 1
       self.m_shift_gate = linears.DenseGeneral(
-          features=self.bam_v, axis=-1, use_bias=False,
+          features=self.bam_v * (2 if self._m_shift_two_lag else 1), axis=-1, use_bias=False,
           kernel_init=zeros_init, kernel_axes=('embed', 'v_factor'),
           dtype=self.dtype, weight_dtype=self.weight_dtype, quant=self.quant,
           matmul_precision=cfg.matmul_precision, name='M_shift_gate')
+      def shift_bias_init(key, shape, dtype):
+        del key
+        if self._m_shift_two_lag:
+          shares = tuple(cfg.bam_m_shift_two_lag_init)
+          assert len(shares) == 3 and min(shares) > 0 and abs(sum(shares) - 1) < 1e-6
+          openings = shares[1:]
+          return jnp.concatenate(tuple(jnp.full((self.bam_v,), math.log(s / (1-s)), dtype)
+                                       for s in openings))
+        return jnp.full(shape, math.log(opening / (1 - opening)), dtype)
       self.m_shift_bias = self.param(
           'M_shift_gate_b0', nn.with_logical_partitioning(
-              nn.initializers.constant(math.log(opening / (1 - opening))), ('v_factor',)),
-          (self.bam_v,), self.weight_dtype)
+              shift_bias_init, ('v_factor',)),
+          (self.bam_v * (2 if self._m_shift_two_lag else 1),), self.weight_dtype)
       if self._m_shift_separate_reads:
         for arm in ('k', 'vo'):
           setattr(self, f'm_shift_{arm}_gate', linears.DenseGeneral(
@@ -3452,6 +3495,12 @@ class BamAttention(Attention):
     return M_in * jax.lax.rsqrt(
         jnp.mean(M_in ** 2, axis=(-2, -1), keepdims=True) + self._rms_epsilon)
 
+  def _record_bam_kv_shift_health(self, arm, original, mixed, gate, segments, positions):
+    stats, _, state = bam_m_shift_health(jnp.swapaxes(original, -1, -2),
+        jnp.swapaxes(mixed, -1, -2), gate, segments, positions, column_metrics=False)
+    self.sow('intermediates', f'm_shift_kv_{arm}_summary',
+             jnp.stack((stats[0], stats[1], stats[4], stats[5], state[4])))
+
   def _add_local_qk(self, query, key, q_local, k_local, segment_ids=None):
     """Inject LocalQK into the standard Q/K arm."""
     self._record_concat_amplitude('local_q', q_local[..., :self._qk_col_width], query)
@@ -3947,8 +3996,24 @@ class BamAttention(Attention):
       assert M_in is not None
       with jax.named_scope('bam/m_shift'):
         logits = self.m_shift_gate(inputs_q).astype(jnp.float32) + self.m_shift_bias.astype(jnp.float32)
-        gate = jax.nn.sigmoid(logits)  # Gate is the previous-token share.
-        M_read = mix_bam_previous_token(M_in, gate, decoder_segment_ids, inputs_positions)
+        if self._m_shift_two_lag:
+          gate1, gate2 = jnp.split(jax.nn.sigmoid(logits), 2, axis=-1)
+          M_read, effective, valid2 = mix_bam_two_previous_tokens(
+              M_in, gate1, gate2, decoder_segment_ids, inputs_positions)
+          if getattr(cfg, 'bam_record_m_shift_health', False):
+            valid_weights = valid2.astype(jnp.float32)[..., None, None]
+            count = jnp.maximum(jnp.sum(valid_weights) * self.bam_v, 1)
+            mean = jnp.sum(effective * valid_weights, axis=(0, 1, 2)) / count
+            square = jnp.sum(effective**2 * valid_weights, axis=(0, 1, 2)) / count
+            std = jnp.sqrt(jnp.maximum(square - mean**2, 0))
+            over_one = jnp.sum((effective[..., 0] < 0) * valid_weights[..., 0]) / count
+            _, _, state = bam_m_shift_health(M_in, M_read, jnp.sum(effective[..., 1:], -1),
+                decoder_segment_ids, inputs_positions, column_metrics=False)
+            self.sow('intermediates', 'm_shift_two_lag_summary',
+                     jnp.concatenate((mean, std, jnp.stack((over_one, state[3], state[4])))))
+        else:
+          gate = jax.nn.sigmoid(logits)  # Gate is the previous-token share.
+          M_read = mix_bam_previous_token(M_in, gate, decoder_segment_ids, inputs_positions)
         if self._m_shift_separate_reads:
           separate_m_reads = {'q': M_read}
           gates = {'q': gate}
@@ -3972,7 +4037,7 @@ class BamAttention(Attention):
             self.sow('intermediates', 'm_shift_read_gate_differences', jnp.stack(tuple(
                 jnp.sum(jnp.abs(gates[a] - gates[b]) * weights) / count
                 for a, b in (('q', 'k'), ('q', 'vo'), ('k', 'vo')))))
-        elif getattr(cfg, 'bam_record_m_shift_health', False):
+        elif not self._m_shift_two_lag and getattr(cfg, 'bam_record_m_shift_health', False):
           stats, columns, state = bam_m_shift_health(M_in, M_read, gate, decoder_segment_ids, inputs_positions)
           self.sow('intermediates', 'm_shift_gate_stats', stats)
           self.sow('intermediates', 'm_shift_gate_columns', columns)
@@ -4007,6 +4072,11 @@ class BamAttention(Attention):
 
     Mh = None
     local_inputs = self._local_inputs(inputs_q) if self._local_arms else None
+    kv_shift_gates = None
+    if self._bam_kv_shift:
+      kv_shift_gates = {arm: jax.nn.sigmoid(getattr(self, f'bam_kv_shift_{arm}_gate')(inputs_q).astype(jnp.float32))
+                        for arm in ('k', 'v')}
+      key = mix_bam_kv_previous_token(key, kv_shift_gates['k'], decoder_segment_ids, inputs_positions)
     query, key = dc.QKNorm(cfg, name='qk_norm')(query, key)
     if concat_qk:
       # Only the standard arm rotates; the retained BAM column is concatenated afterwards.
@@ -4049,6 +4119,12 @@ class BamAttention(Attention):
           basis_cache = self._shared_qk_basis(Mh, local_inputs) if self._share_qk_basis else None
           q_local = self._read_local('q', Mh, inputs_q, local_inputs, basis_cache)
           k_local = self._read_local('k', Mh, inputs_q, local_inputs, basis_cache)
+        if kv_shift_gates is not None:
+          original_k = k_local
+          k_local = mix_bam_kv_previous_token(k_local, kv_shift_gates['k'], decoder_segment_ids, inputs_positions)
+          if getattr(cfg, 'bam_record_m_shift_health', False):
+            self._record_bam_kv_shift_health('k', original_k, k_local, kv_shift_gates['k'],
+                                           decoder_segment_ids, inputs_positions)
         query, key = self._add_local_qk(query, key, q_local, k_local, decoder_segment_ids)
 
     query = nn.with_logical_constraint(query, self.query_axis_names)
@@ -4099,6 +4175,13 @@ class BamAttention(Attention):
         Mh = self._matrix_for_read(M_read)
       with jax.named_scope("bam/read_local_m_for_v"):
         value = value + self._read_local('v', Mh, inputs_q, local_inputs)
+
+    if kv_shift_gates is not None:
+      original_v = value
+      value = mix_bam_kv_previous_token(value, kv_shift_gates['v'], decoder_segment_ids, inputs_positions)
+      if getattr(cfg, 'bam_record_m_shift_health', False):
+        self._record_bam_kv_shift_health('v', original_v, value, kv_shift_gates['v'],
+                                       decoder_segment_ids, inputs_positions)
 
     query = query / jnp.sqrt(self.head_dim).astype(self.dtype)
     if cfg.float32_qk_product:

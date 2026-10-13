@@ -12216,6 +12216,9 @@ class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMRe
     bam_m_shift_mode = 'none'  # none | read | persist; experimental worktree path
     bam_m_shift_init = .05  # Previous-token share, sigmoid gate bias initialization
     bam_m_shift_separate_reads = False
+    bam_m_shift_two_lag = False
+    bam_m_shift_two_lag_init = [.5, .3, .2]
+    bam_kv_shift = False
     mlp_dim_by_block = [3813, 3686, 3813]
     compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadSharedGelu256TruePile']
 
@@ -12774,5 +12777,25 @@ class BamMediumPropSharedR256GeneralReadMShiftReadQKVoG050TruePile(BamMediumProp
     model_name = 'BamMediumPropSharedR256GeneralReadMShiftReadQKVoG050TruePile'
     bam_m_shift_separate_reads = True
     mlp_dim_by_block = [3781, 3654, 3781]  # Repay all 3 gate kernels; +1728 biases vs SOTA.
+    compare_runs = ['BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile',
+                    'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile']
+
+
+class BamMediumPropSharedR256GeneralReadMShiftReadTwoLag532TruePile(BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile):
+    """Independent sigmoid lag gates (.3/.2); current/lag1/lag2 initial shares .5/.3/.2."""
+    model_name = 'BamMediumPropSharedR256GeneralReadMShiftReadTwoLag532TruePile'
+    bam_m_shift_two_lag = True
+    bam_m_shift_two_lag_init = [.5, .3, .2]
+    mlp_dim_by_block = [3792, 3664, 3792]  # Repay two v32 kernels; +1152 bias params vs SOTA.
+    compare_runs = ['BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile',
+                    'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile']
+
+
+class BamMediumPropSharedR256GeneralReadKVShiftG050TruePile(BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile):
+    """Replace M shift with per-head dynamic K/V vector shift, zero-kernel .5/.5 init."""
+    model_name = 'BamMediumPropSharedR256GeneralReadKVShiftG050TruePile'
+    bam_m_shift_mode = 'none'
+    bam_kv_shift = True
+    mlp_dim_by_block = [3802, 3676, 3802]  # Two h16 gates repay691200 kernels exactly; no new bias.
     compare_runs = ['BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile',
                     'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile']

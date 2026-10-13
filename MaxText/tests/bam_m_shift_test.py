@@ -16,13 +16,16 @@ import pyconfig
 import train_compile
 import train
 from bam_prop_test_utils import MLPWriteTest
-from layers.attentions import BamAttention, mix_bam_previous_token, bam_m_shift_health
+from layers.attentions import (BamAttention, mix_bam_previous_token, bam_m_shift_health,
+                              mix_bam_two_previous_tokens, mix_bam_kv_previous_token)
 from layers.models import Transformer
 
 PARENT='BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile'
 READ='BamMediumPropSharedR256GeneralReadMShiftReadG005TruePile'
 PERSIST='BamMediumPropSharedR256GeneralReadMShiftPersistG005TruePile'
 SEPARATE='BamMediumPropSharedR256GeneralReadMShiftReadQKVoG050TruePile'
+TWO='BamMediumPropSharedR256GeneralReadMShiftReadTwoLag532TruePile'
+KV='BamMediumPropSharedR256GeneralReadKVShiftG050TruePile'
 
 class MShiftTest(MLPWriteTest, unittest.TestCase):
   def tiny(self, mode):
@@ -65,6 +68,77 @@ class MShiftTest(MLPWriteTest, unittest.TestCase):
     self.assertTrue(all(np.isfinite(np.asarray(v)).all() for v in (stats,columns,state)))
     empty=bam_m_shift_health(m,m,gate,jnp.zeros_like(segments))
     self.assertTrue(all(np.isfinite(np.asarray(v)).all() for v in empty))
+
+  def test_two_lag_sigmoid_weights_boundaries_and_gradient_sources(self):
+    m=jnp.arange(8*3*2,dtype=jnp.float32).reshape(1,8,3,2)
+    g=jnp.full((1,8,2),.3);h=jnp.full_like(g,.2)
+    seg=jnp.array([[1,1,1,2,2,2,0,2]]);pos=jnp.array([[0,1,2,0,1,2,0,3]])
+    y,w,valid=mix_bam_two_previous_tokens(m,g,h,seg,pos)
+    expected=np.asarray(m).copy()
+    for t in (1,4):expected[:,t]=.7*np.asarray(m[:,t])+.3*np.asarray(m[:,t-1])
+    for t in (2,5):expected[:,t]=.5*np.asarray(m[:,t])+.3*np.asarray(m[:,t-1])+.2*np.asarray(m[:,t-2])
+    np.testing.assert_allclose(y,expected)
+    np.testing.assert_allclose(w[:,2],jnp.broadcast_to(jnp.array([.5,.3,.2]),(1,2,3)))
+    np.testing.assert_array_equal(valid,jnp.array([[False,False,True,False,False,True,False,False]]))
+    old=mix_bam_previous_token(m,g,seg,pos)
+    np.testing.assert_allclose(mix_bam_two_previous_tokens(m,g,jnp.zeros_like(h),seg,pos)[0],old)
+    grad=jax.grad(lambda a:jnp.sum(mix_bam_two_previous_tokens(a,g,h,seg,pos)[0][:,2]))(m)
+    for t,share in enumerate((.2,.3,.5)):np.testing.assert_allclose(grad[:,t],share)
+    np.testing.assert_array_equal(grad[:,3:],0)
+    kv=jnp.swapaxes(m,-1,-2)
+    np.testing.assert_allclose(mix_bam_kv_previous_token(kv,g,seg,pos),jnp.swapaxes(old,-1,-2))
+
+  def test_new_two_lag_and_kv_scan_health_gradients_and_carry(self):
+    for kind in ('two','kv'):
+      cfg=self.tiny('read')
+      cfg.get_keys().update(bam_m_shift_two_lag=kind=='two',bam_kv_shift=kind=='kv',
+          bam_m_shift_mode='read' if kind=='two' else 'none',bam_m_shift_init=.5)
+      mesh=jax.sharding.Mesh(np.array(jax.devices()[:1]).reshape((1,)*len(cfg.mesh_axes)),cfg.mesh_axes)
+      model=Transformer(cfg,mesh,quant=None)
+      tok=jnp.array([[1,2,3,4]],jnp.int32);pos=jnp.arange(4)[None];seg=jnp.ones_like(tok)
+      with mesh,nn.partitioning.axis_rules(cfg.logical_axis_rules):
+        p=nn.unbox(model.init(jax.random.key(34),tok,pos,seg,tok)['params'])
+        def f(params,tokens=tok):
+          out=model.apply({'params':params},tokens,pos,seg,tokens,enable_dropout=False)
+          return out[0] if isinstance(out,tuple) else out
+        loss,grad=jax.jit(jax.value_and_grad(lambda params:jnp.mean(f(params)**2)))(p)
+        self.assertTrue(np.isfinite(float(loss)))
+        self.assertTrue(all(np.isfinite(np.asarray(v)).all() for v in jax.tree.leaves(grad)))
+        prefix='M_shift_' if kind=='two' else 'KV_shift_'
+        gates=[v for path,v in flatten_dict(grad).items() if any(part.startswith(prefix) for part in path)]
+        self.assertEqual(len(gates),6)
+        self.assertTrue(all(float(jnp.linalg.norm(v))>0 for v in gates))
+        np.testing.assert_allclose(f(p)[:,:3],f(p,tok.at[:,3].set(9))[:,:3],rtol=1e-6,atol=1e-6)
+        _,collections=model.apply({'params':p},tok,pos,seg,tok,enable_dropout=False,mutable=['intermediates'])
+        metrics={'scalar':{}};train.record_bam_concat_health_metrics(metrics,collections,cfg)
+        health={k:v for k,v in metrics['scalar'].items() if k.startswith('bam/m_shift/')}
+        self.assertEqual(len(health),27 if kind=='two' else 30)
+        self.assertFalse(any('/column_' in k for k in health))
+        self.assertTrue(all(np.isfinite(np.asarray(v)).all() for v in health.values()))
+        for layer in range(3):
+          if kind=='two':
+            for label,share in zip(('current','lag1','lag2'),(.5,.3,.2)):
+              np.testing.assert_allclose(health[f'bam/m_shift/layer_{layer:03d}/two_lag/{label}_mean'],share,rtol=1e-5)
+          else:
+            for arm in ('k','v'):
+              np.testing.assert_allclose(health[f'bam/m_shift/layer_{layer:03d}/kv_{arm}/gate_mean'],.5,rtol=1e-5)
+        mod=BamAttention(config=cfg,mesh=mesh,num_query_heads=2,num_kv_heads=2,
+            head_dim=75,bam_k=75,bam_v=32,max_target_length=4,max_prefill_predict_length=4,
+            attention_kernel='dot_product_chunk',dtype=cfg.dtype,weight_dtype=cfg.weight_dtype,
+            layer_mode='local_qk+local_v+local_o',read_side='col',attention_type=cfg.attention_type)
+        x=jax.random.normal(jax.random.key(35),(1,4,150));m=jax.random.normal(jax.random.key(36),(1,4,75,32))
+        args=(x,x,pos,seg)
+        params=nn.unbox(mod.init(jax.random.key(37),*args,M_in=m,deterministic=True)['params'])
+        shifted=mod.apply({'params':params},*args,M_in=m,deterministic=True,defer_write=True)
+        np.testing.assert_array_equal(shifted[1],m)
+        if kind=='kv':
+          calls=[]
+          def capture(value,gate,*rest):
+            calls.append(value.shape)
+            return mix_bam_kv_previous_token(value,gate,*rest)
+          with mock.patch('layers.attentions.mix_bam_kv_previous_token',capture):
+            mod.apply({'params':params},*args,M_in=m,deterministic=True,defer_write=True)
+          self.assertEqual(calls,[(1,4,2,18),(1,4,2,75),(1,4,2,75)])
 
   def test_read_and_persist_same_reads_but_distinct_write_bases(self):
     cfg=self.tiny('read')
@@ -175,21 +249,22 @@ class MShiftTest(MLPWriteTest, unittest.TestCase):
 
 
   def test_full_parameter_budget_and_gate_sharding(self):
-    for name in (PARENT,READ,PERSIST,READ.replace('G005','G050'),PERSIST.replace('G005','G050'),SEPARATE):
+    for name in (PARENT,READ,PERSIST,READ.replace('G005','G050'),PERSIST.replace('G005','G050'),SEPARATE,TWO,KV):
       cfg=self.config(name,bam_splash_attention=False)
       mesh=jax.sharding.Mesh(max_utils.create_device_mesh(cfg),cfg.mesh_axes)
       args,_,spec,_=train_compile.get_shaped_inputs(mesh,cfg)
       params=flatten_dict(nn.unbox(args[0].params))
       self.assertEqual(sum(math.prod(v.shape) for v in params.values()),
-                       432111104 if name==PARENT else 432112832 if name==SEPARATE else 432111680)
-      gates={path:v for path,v in params.items() if any(part.startswith('M_shift_') for part in path)}
+                       432111104 if name in (PARENT,KV) else 432112832 if name==SEPARATE else 432112256 if name==TWO else 432111680)
+      gates={path:v for path,v in params.items() if any(part.startswith(('M_shift_','KV_shift_')) for part in path)}
       self.assertEqual(sum(math.prod(v.shape) for v in gates.values()),
-                       0 if name==PARENT else 2075328 if name==SEPARATE else 691776)
+                       0 if name==PARENT else 2075328 if name==SEPARATE else 1383552 if name==TWO else 691200 if name==KV else 691776)
       if name!=PARENT:
         self.assertEqual(len(gates),18 if name==SEPARATE else 6)
         specs=flatten_dict(nn.unbox(spec.params))
         for path,v in gates.items():
-          self.assertEqual(v.shape,(1200,6,32) if path[-1]=='kernel' else (32,6))
+          width=64 if name==TWO else 16 if name==KV else 32
+          self.assertEqual(v.shape,(1200,6,width) if path[-1]=='kernel' else (width,6))
           if path[-1]=='kernel':
             self.assertLess(math.prod(specs[path].shard_shape(v.shape)),math.prod(v.shape))
 

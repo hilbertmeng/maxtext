@@ -38,14 +38,15 @@ except ImportError:
 
 try:   # Triton per-token M read/write kernels (CUDA); without them the batched-GEMM path is used
   from .bam_m_kernels import (bam_decode_read as _bam_decode_read, bam_read as _bam_read,
-                              bam_rope_tail as _bam_rope_tail, bam_write as _bam_write)
+                              bam_rope_tail as _bam_rope_tail, bam_write as _bam_write,
+                              bam_write_ohead as _bam_write_ohead)
 except ImportError:
   try:
     _m = importlib.import_module('bam_m_kernels')
-    _bam_read, _bam_write, _bam_decode_read, _bam_rope_tail = (_m.bam_read, _m.bam_write, _m.bam_decode_read,
-                                                               _m.bam_rope_tail)
+    _bam_read, _bam_write, _bam_decode_read, _bam_rope_tail, _bam_write_ohead = (
+        _m.bam_read, _m.bam_write, _m.bam_decode_read, _m.bam_rope_tail, _m.bam_write_ohead)
   except Exception:  # pylint: disable=broad-except
-    _bam_read = _bam_write = _bam_decode_read = _bam_rope_tail = None
+    _bam_read = _bam_write = _bam_decode_read = _bam_rope_tail = _bam_write_ohead = None
 
 DECODE_TOKENS = 64    # below this many tokens per step: per-arm read programs with RoPE fused
 FUSED_UP_TOKENS = 4   # up to this many: the read kernel also applies GELU + the key up-projection (A800: one
@@ -321,6 +322,7 @@ class BamAttention(nn.Module):
   def __init__(self, config: BamConfig, layer_idx: int):
     super().__init__()
     self.layer_idx = layer_idx
+    self.last_layer = layer_idx == config.num_hidden_layers - 1     # its write has no reader
     h, n, d = config.hidden_size, config.num_attention_heads, config.head_dim
     v, r = config.bam_v, config.read_bottleneck_dim
     self.num_heads, self.head_dim, self.bam_k = n, d, config.bam_k
@@ -473,8 +475,14 @@ class BamAttention(nn.Module):
       if decode:      # the local-O add happens inside the next read kernel
         out = self.o_proj((attn + local_o).flatten(-2))
         return out, (M, [((attn, local_o), wgate, address)])
+      if not defer_write and not self.last_layer:
+        # prefill, no MLP write: write now; the write kernel also emits o_head = attn + local_o
+        m_out, o_head = _bam_write_ohead(M.reshape(b * t, *M.shape[2:]), attn.reshape(b * t, n, -1),
+                                         local_o.reshape(b * t, n, -1), wgate.reshape(b * t, -1),
+                                         address.reshape(b * t, n, -1), self.eps)
+        return self.o_proj(o_head.reshape(b, t, -1)), (m_out.reshape(M.shape), [])
       o_head = attn + local_o
-      return self.o_proj(o_head.flatten(-2)), (M, [(o_head, wgate, address)])
+      return self.o_proj(o_head.flatten(-2)), (M, [] if self.last_layer else [(o_head, wgate, address)])
     q_key, k_key, vo_key = keys
     if self.fused_x is not None:      # inference path: stacked reads, one batched write
       yq, yk, v, local_o = self._stacked_reads(M, q_key, k_key, vo_key, g)

@@ -175,6 +175,40 @@ def _read_kernel_stacked(M, KEYS, GATES, S, Y, T, STD, POS, MOUT, C1, CL1, G1, A
                mask=nm[:, None] & km[None, :] & ~((a < 2)[:, None] & (k >= QCOLS)[None, :]))
 
 
+@triton.jit
+def _read_kernel_khalf(M, KEYS, GATES, S, Y, T, s_mt, s_kt, s_karm, s_kn, s_gt, s_y_t,
+                       N: tl.constexpr, K: tl.constexpr, V: tl.constexpr, BN: tl.constexpr, KH: tl.constexpr,
+                       NKH: tl.constexpr, BV: tl.constexpr, QCOLS: tl.constexpr, EPS: tl.constexpr,
+                       SCALE: tl.constexpr, STATIC_DIV: tl.constexpr, PREC: tl.constexpr, TB: tl.constexpr,
+                       STAGES: tl.constexpr):
+  """Prefill read (no deferred write, RoPE applied afterwards): X [4*BN, BV] built once per token, output
+  columns produced in NKH chunks of KH. The full-width [4*BN, 128] FP32 accumulator of the stacked kernel
+  needed 255 registers (spills, one program per SM); halves fit in 168 (A800: 123 vs 146 us at T=4096)."""
+  r = tl.arange(0, 4 * BN)
+  a = r // BN
+  n = r % BN
+  v = tl.arange(0, BV)
+  nm, vm = n < N, v < V
+  arm = tl.minimum(a, 2)
+  for t in tl.range(tl.program_id(0) * TB, tl.minimum(tl.program_id(0) * TB + TB, T), num_stages=STAGES):
+    key = tl.load(KEYS + t * s_kt + arm[:, None] * s_karm + n[:, None] * s_kn + v[None, :],
+                  mask=nm[:, None] & vm[None, :], other=0.).to(tl.float32)
+    gd = tl.load(GATES + t * s_gt + a * N + n, mask=nm, other=0.).to(tl.float32)
+    gs = tl.load(GATES + t * s_gt + (4 + a) * N + n, mask=nm, other=0.).to(tl.float32)
+    st = tl.load(S + a[:, None] * V * N + v[None, :] * N + n[:, None], mask=nm[:, None] & vm[None, :],
+                 other=0.).to(tl.float32)
+    inv = tl.rsqrt(tl.sum(key * key, axis=1) / V + EPS)
+    x = (SCALE * tl.sigmoid(gd) * inv)[:, None] * key + (1.1 * tl.sigmoid(gs) / STATIC_DIV)[:, None] * st
+    for hk in tl.static_range(NKH):
+      k = hk * KH + tl.arange(0, KH)
+      km = k < K
+      mkv = tl.load(M + t * s_mt + k[:, None] * V + v[None, :], mask=km[:, None] & vm[None, :], other=0.)
+      y = tl.dot(x.to(mkv.dtype), tl.trans(mkv), input_precision=PREC)
+      keep = nm[:, None] & km[None, :] & ~((a < 2)[:, None] & (k >= QCOLS)[None, :])   # q/k tails: RoPE later
+      tl.store(Y + t * s_y_t + a[:, None] * N * K + n[:, None] * K + k[None, :], y.to(Y.dtype.element_ty),
+               mask=keep)
+
+
 def _pending(m, c1, l1, g1, a1, c2, g2, a2, pending):
   """Output M buffer and pointer/stride arguments of the deferred write (dummies when pending == 0)."""
   used = ((c1, l1, g1, a1) if pending else ()) + ((c2, g2, a2) if pending > 1 else ())
@@ -219,7 +253,14 @@ def bam_read(m: torch.Tensor, keys: torch.Tensor, gates: torch.Tensor, static_ke
               PENDING=pending, HAS_LOCAL=has_local, PEPS=write_eps)
   if t < 64:     # decode: one program per (arm, token) for latency (A800: 3.7 us at T=1)
     _read_kernel[(4, t)](*args, **meta, TB=1, STAGES=1, num_warps=4)
-  else:          # prefill: four arms stacked into one product per token, M_t read once (A800: 131 us at T=4096)
+  elif not rope and not pending:     # prefill path
+    kh = 64
+    _read_kernel_khalf[(t,)](m, keys, gates, static_keys, y, t, m.stride(0), keys.stride(0), keys.stride(1),
+                             keys.stride(2), gates.stride(0), y.stride(0), N=n, K=kdim, V=vdim,
+                             BN=max(16, triton.next_power_of_2(n)), KH=kh, NKH=triton.cdiv(kdim, kh),
+                             BV=max(16, triton.next_power_of_2(vdim)), QCOLS=qk_cols, EPS=eps, SCALE=scale,
+                             STATIC_DIV=static_div, PREC=_prec(m), TB=1, STAGES=1, num_warps=2)
+  else:          # four arms stacked into one product per token, M_t read once
     for stages in ((2, 1) if rope else (3, 2, 1)):   # shared-memory budget differs (A800 164 KB, RTX 6000D 99 KB)
       try:
         _read_kernel_stacked[(triton.cdiv(t, 4),)](*args, **meta, TB=4, STAGES=stages, num_warps=4)
@@ -410,11 +451,11 @@ def bam_rope_tail(y: torch.Tensor, std: torch.Tensor, positions: torch.Tensor, q
 
 
 @triton.jit
-def _write_kernel(M, OUT, C1, CL1, G1, A1, C2, G2, A2,
+def _write_kernel(M, OUT, C1, CL1, G1, A1, C2, G2, A2, OH,
                   s_mt, s_c1t, s_c1n, s_cl1t, s_cl1n, s_g1t, s_a1t, s_a1n, s_c2t, s_c2n, s_g2t, s_a2t, s_a2n,
                   N: tl.constexpr, K: tl.constexpr, V: tl.constexpr, BN: tl.constexpr, BK: tl.constexpr,
                   BV: tl.constexpr, TWO: tl.constexpr, HAS_LOCAL: tl.constexpr, EPS: tl.constexpr,
-                  PREC: tl.constexpr):
+                  PREC: tl.constexpr, STORE_SUM: tl.constexpr):
   """Program = token t: M'_t = M_t + sum_g C_g^T A_g (one or two groups). A token loop or K split measured
   1.6x slower on A800 (prefill, T=4096); decode-step writes are fused into the next read instead."""
   t = tl.program_id(0)
@@ -425,6 +466,11 @@ def _write_kernel(M, OUT, C1, CL1, G1, A1, C2, G2, A2,
   mask = km[:, None] & vm[None, :]
   acc = tl.load(M + t * s_mt + k[:, None] * V + v[None, :], mask=mask, other=0.).to(tl.float32)
   dt = OUT.dtype.element_ty
+  if STORE_SUM:      # o_head = attention output + local O, for the output projection (saves an add kernel)
+    oh = tl.load(C1 + t * s_c1t + n[:, None] * s_c1n + k[None, :], mask=nm[:, None] & km[None, :], other=0.).to(tl.float32)
+    oh += tl.load(CL1 + t * s_cl1t + n[:, None] * s_cl1n + k[None, :], mask=nm[:, None] & km[None, :],
+                  other=0.).to(tl.float32)
+    tl.store(OH + t * N * K + n[:, None] * K + k[None, :], oh.to(dt), mask=nm[:, None] & km[None, :])
   c, a = _group(C1, CL1, G1, A1, t, s_c1t, s_c1n, s_cl1t, s_cl1n, s_g1t, s_a1t, s_a1n, n, k, k, v, nm, km, km, vm,
                 K, V, EPS, HAS_LOCAL, False)
   acc = tl.dot(tl.trans(c.to(dt)), a.to(dt), acc, input_precision=PREC)
@@ -450,13 +496,42 @@ def bam_write(m: torch.Tensor, content: torch.Tensor, local: torch.Tensor, gate:
   out = torch.empty_like(m)
   if t:
     _write_kernel[(t,)](
-        m, out, content, local, gate, address, content2, gate2, address2,
+        m, out, content, local, gate, address, content2, gate2, address2, out,
         m.stride(0), content.stride(0), content.stride(1), local.stride(0), local.stride(1), gate.stride(0),
         address.stride(0), address.stride(1), content2.stride(0), content2.stride(1), gate2.stride(0),
         address2.stride(0), address2.stride(1),
         N=n, K=kdim, V=vdim, BN=max(16, triton.next_power_of_2(n)), BK=triton.next_power_of_2(kdim),
-        BV=max(16, triton.next_power_of_2(vdim)), TWO=two, HAS_LOCAL=has_local, EPS=eps, PREC=_prec(m), num_warps=4)
+        BV=max(16, triton.next_power_of_2(vdim)), TWO=two, HAS_LOCAL=has_local, EPS=eps, PREC=_prec(m),
+        STORE_SUM=False, num_warps=4)
   return out
+
+
+@torch.library.custom_op('bam::write_ohead', mutates_args=())
+def bam_write_ohead(m: torch.Tensor, attn: torch.Tensor, local: torch.Tensor, gate: torch.Tensor,
+                    address: torch.Tensor, eps: float) -> Tuple[torch.Tensor, torch.Tensor]:
+  """Single-group write with content attn + local; also returns o_head = attn + local [T,N,K] (prefill)."""
+  t, kdim, vdim = m.shape
+  n = attn.shape[1]
+  assert m.is_contiguous()
+  for x in (attn, local, gate, address):
+    assert x.stride(-1) == 1
+  out = torch.empty_like(m)
+  oh = torch.empty((t, n, kdim), device=m.device, dtype=m.dtype)
+  if t:
+    _write_kernel[(t,)](
+        m, out, attn, local, gate, address, attn, gate, address, oh,
+        m.stride(0), attn.stride(0), attn.stride(1), local.stride(0), local.stride(1), gate.stride(0),
+        address.stride(0), address.stride(1), attn.stride(0), attn.stride(1), gate.stride(0),
+        address.stride(0), address.stride(1),
+        N=n, K=kdim, V=vdim, BN=max(16, triton.next_power_of_2(n)), BK=triton.next_power_of_2(kdim),
+        BV=max(16, triton.next_power_of_2(vdim)), TWO=False, HAS_LOCAL=True, EPS=eps, PREC=_prec(m),
+        STORE_SUM=True, num_warps=4)
+  return out, oh
+
+
+@bam_write_ohead.register_fake
+def _(m, attn, local, gate, address, eps):
+  return torch.empty_like(m), m.new_empty((m.shape[0], attn.shape[1], m.shape[1]))
 
 
 @bam_write.register_fake

@@ -8,7 +8,7 @@ import sys
 import torch
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from bam_m_kernels import bam_decode_read, bam_read, bam_rope_tail, bam_write  # noqa: E402
+from bam_m_kernels import bam_decode_read, bam_read, bam_rope_tail, bam_write, bam_write_ohead  # noqa: E402
 import torch.nn.functional as F  # noqa: E402
 
 
@@ -99,6 +99,11 @@ def main():
     w2 = bam_write(m, c1, loc, g1, a1, c2, g2, a2, True, True, 1e-6).float()
     r1, r2 = ref_write(m, [(c1, g1, a1)]), ref_write(m, [(c1 + loc, g1, a1), (c2, g2, a2)])
     e1, e2 = ((w1 - r1).norm() / r1.norm()).item(), ((w2 - r2).norm() / r2.norm()).item()
+    wo, oh = bam_write_ohead(m, c1, loc, g1, a1, 1e-6)
+    ro = ref_write(m, [(c1 + loc, g1, a1)])
+    e_wo = max(((wo.float() - ro).norm() / ro.norm()).item(), ((oh.float() - (c1 + loc).float()).norm() / (c1 + loc).float().norm()).item())
+    print(f'T={t} {dtype}: write_ohead rel {e_wo:.1e}')
+    assert e_wo < tol, e_wo
     print(f'T={t} {dtype}: read(rope) rel {e_read:.1e}  read(raw) rel {e_raw:.1e}  write1 rel {e1:.1e}  write2 rel {e2:.1e}')
     assert max(e_read, e_raw, e1, e2) < tol, (e_read, e_raw, e1, e2)
   # Deferred write applied inside the read: equals write-then-read, and returns the written M.

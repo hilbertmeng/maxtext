@@ -78,3 +78,19 @@ Healthy0P,CP8200/7600/6000committed,cursors8200/7600/6000. Common6000B8-M8-.2181
 SynchronizedR2048/R4096/R8192at6000=1.409099/1.679508/1.719235;second4/2=1.1919,8/4=1.023654,8/2=1.220095. RecentfiveR2/R4/R8means1.418680/1.676077/1.698898;ratio-firstsecond4/2mean1.181479(stablevs1.183211),8/4mean1.013646(prev.999841,.979358),8/2mean1.197585. Last5second8/4 1.020243/.996519/1.010027/1.017785/1.023654. Emergingweakpositive4k->8krelativeamplification; donotfreezeearlierparityinferenceorpretendterminal1.13bettedvalueverified.
 
 8/4contextBAM1.233370/Mudd1.204870at6000;last5means1.215577/1.199364. Δb+.041267/Δu+.021570/ratio1.913150/extra+.019697,means+.039484/+.021794/ratio1.820571/extra+.017690. Absoluteextra leadingmarginstable~.018whileproportionalratioincreaseschieflyasMuddcontextbenefitfadesfaster. Rawunpairedcrosslengthgapssignscontinueoscillating,no purecausalityclaim. Artifactsreport-6000.txt,factors-6000.json,summary-6000.json. Sharedreport-6000-all-owned.txt also containsunreportedM-shift200..600prefixes; keepnew4cursors0untilnormal1000report. New4actualTB500rotationverifiedinitsartifacts. Nextstudycommon7000~06:49UTC,new4common1000~06:20UTC.
+
+## Common7000 review and authorized closeout
+
+Atcommon7000B8−M8−.203961,U8−M8−.117586,B8−U8−.086375. LastfiveB8−M8mean−.206821(previous−.222650),drift+.015829/k;B8−U8mean−.087944(previous−.091562),drift+.003618/k. R2048/R4096/R8192@7000=1.402068/1.666957/1.734568;recentfive means1.406137/1.683965/1.739811. Ratio-firstsecond8/4mean1.033207(range1.023350..1.040559),previous1.013646;4/2mean1.197653,8/2mean1.237357. AddedgainmeansΔb+.034502/Δu+.016538,Δb/Δu2.091850,extra+.017963(previous+.017690). Modestpositive4k→8kbenefit,weakerthan2k→4k; stableabsoluteextra margin andslowinggapcontraction meetpreviousconditionalstopcriterion. User-authorizedthree-RUNcloseoutstarted06:51UTC;finalcheckpoint/resource/TBproofpending,notcomplete13500. Initialterminal1.13betnotmetatthisreview,unobservedendpointnotclaimed. Workingnear1forecastunderestimatedweakpositivemidtrainingbenefit. Fullcumulative report and matched3-lengthtable: reports/mediumprop_t8192_review_7000_20261013.md; artifactsfactors-7000.json,summary-7000.json,report-7000.txt. FourM-shiftarmscontinueunaffected.
+
+## Verified closeout
+
+Stoppedmanualreview,not13500completion. FinalcommittedcheckpointsMHA9639/Mudd8908/BAM7140;latestcommonfullcomparison7000. ThreeUE5av5p-16SPOTnodesandqueuedresources310160/161/162verifiedabsent,registrydeclaredstopped;allTBcloseoutSYNC_OK. RetainedFLEXcompilerandfourM-shifttrainersuntouched. Closeoutsummaryartifactcloseout-20261013T065658Z.jsonandregistry-after-closeout.json.
+
+| RUN | READY start UTC | READY end UTC | Duration | Preemptions |
+|---|---|---|---|---:|
+| MHA T8192 |2026-10-13 01:41:46|2026-10-13 06:51:29|5h09m43s|0|
+| Mudd T8192 |2026-10-13 01:40:20|2026-10-13 06:51:34|5h11m14s|0|
+| BAM T8192 |2026-10-13 01:40:37|2026-10-13 06:51:38|5h11m01s|0|
+
+Nozoneswitchorpassivecandidate;allendedbymanualreviewstop. Fullrun names/TPUsareinlaunchtable. Learned: largercontextsstrengthenBAMrelativeadvantageprimarily2k→4k;4k→8kaddsmodestbenefitwithalmoststable~.018absoluteextraBAM-over-Muddmargin. SequenceextensionaloneisnotanarchitectureSOTAbreakthrough. Preserve4kSOTAasdirectbaselinefortheongoingM-shiftdirection; no additionaldiagnosticarmstarted.

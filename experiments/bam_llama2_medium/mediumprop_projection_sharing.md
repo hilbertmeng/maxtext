@@ -88,3 +88,23 @@ This arguescapacityallocation cannotbeignored; jointsharing benefits are not
 monotonicinrank. Continue all3; nextagentreport2000,do notrush1000stop.
 Artifacts: mediumprop-projection-sharing/report-1000-compact.json and
 shift-health-0-500-1000.json; nativeoriginal report-1000.json.
+
+
+##3000 review and dominatedpairR384 stop
+
+Parentgap/Gain: R256-.006123/1.024492, pairR384+.002778/.988889,
+tripleR384-.008300/1.033201; SOTAgain1.059648/1.022823/1.068656.
+Latest5parentgapsR256-.008892/-.008754/-.007988/-.007718/-.006123;
+pairR384+.001005/+.001627/+.001028/+.001479/+.002778;
+tripleR384-.011493/-.010699/-.010168/-.008646/-.008300.
+PairR384 last5allloseparent anddeficitdeepens; triple dominateslossby.011078
+at3000 withslightlyfastercanonical .4658 vs.4644 andfewerparams. Agentjudgment
+stop pairR384, preserveCP/TB andresourceabsence. R256+triplekeeptraining.
+Artifacts pair-3000.json (leadingmark-reported lines followednativeJSON),
+triple-3000.json underlocaldiagnosticsroot.
+Earlierreport mean typo correctedimmediately: triplelatest1200–2000mean1.036484
+vsstandard200–1000mean1.047152 (startup200high1.109146); stable400–1000mean
+1.031654. Do notclaimstandardfive-windowmeanincreased.
+
+PairR384 closeout verified3140/CP3140, no failures, node/queueabsent,TBSYNCOK.
+OneREADYleaseUE5a17:03:36–19:01:33UTC,1h57m57s,P0.

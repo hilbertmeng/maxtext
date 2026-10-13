@@ -12679,7 +12679,7 @@ class BamFullMGeneralReadPallasV8TProfile(BamFullMGeneralReadPallasFusedProfile)
 class BamMediumPropSharedR256GeneralReadMShiftReadG005TruePile(BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile):
     """Dynamic previous-token M mix, read carry, initial share0.05."""
     # code_commit: 52cf0b3; UE5a v5p-16 xd-v5p-16-310176-maxtext; actual AOT FIRST_STEP+14 and TB health verified.
-    # Mean10-14 0.4602step/s (-3.87% vs SOTA); extra shift health ON,13500 planned.
+    # Mean20-99 0.4583750step/s (-4.25% vs SOTA); extra shift health ON,13500 bound.
     model_name = 'BamMediumPropSharedR256GeneralReadMShiftReadG005TruePile'
     bam_record_m_shift_health = True
     bam_m_shift_mode = 'read'
@@ -12695,7 +12695,7 @@ class BamMediumPropSharedR256GeneralReadMShiftReadG005TruePile(BamMediumPropK75E
 class BamMediumPropSharedR256GeneralReadMShiftPersistG005TruePile(BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile):
     """Dynamic previous-token M mix, persist carry, initial share0.05."""
     # code_commit: 52cf0b3; UE5a v5p-16 xd-v5p-16-310177-maxtext; actual AOT FIRST_STEP+14 and TB health verified.
-    # Mean10-14 0.4622step/s (-3.45% vs SOTA); extra shift health ON,13500 planned.
+    # Mean20-99 0.4599125step/s (-3.93% vs SOTA); extra shift health ON,13500 bound.
     model_name = 'BamMediumPropSharedR256GeneralReadMShiftPersistG005TruePile'
     bam_record_m_shift_health = True
     bam_m_shift_mode = 'persist'
@@ -12711,7 +12711,7 @@ class BamMediumPropSharedR256GeneralReadMShiftPersistG005TruePile(BamMediumPropK
 class BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile(BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile):
     """Dynamic previous-token M mix, read carry, initial share0.5."""
     # code_commit: 52cf0b3; UE5a v5p-16 xd-v5p-16-310178-maxtext; actual AOT FIRST_STEP+14 and TB health verified.
-    # Mean10-14 0.4612step/s (-3.66% vs SOTA); extra shift health ON,13500 planned.
+    # Mean20-99 0.4583500step/s (-4.26% vs SOTA); extra shift health ON,13500 bound.
     model_name = 'BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile'
     bam_record_m_shift_health = True
     bam_m_shift_mode = 'read'
@@ -12727,7 +12727,7 @@ class BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile(BamMediumPropK75E
 class BamMediumPropSharedR256GeneralReadMShiftPersistG050TruePile(BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile):
     """Dynamic previous-token M mix, persist carry, initial share0.5."""
     # code_commit: 52cf0b3; UE5a v5p-16 xd-v5p-16-310179-maxtext; actual AOT FIRST_STEP+14 and TB health verified.
-    # Mean10-14 0.4614step/s (-3.62% vs SOTA); extra shift health ON,13500 planned.
+    # Mean20-99 0.4586625step/s (-4.19% vs SOTA); extra shift health ON,13500 bound.
     model_name = 'BamMediumPropSharedR256GeneralReadMShiftPersistG050TruePile'
     bam_record_m_shift_health = True
     bam_m_shift_mode = 'persist'

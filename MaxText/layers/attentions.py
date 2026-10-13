@@ -2725,7 +2725,7 @@ class BamAttention(Attention):
     assert not self._m_shift_separate_reads or self._m_shift_mode == 'read'
     assert not self._m_shift_two_lag or (self._m_shift_mode == 'read' and not self._m_shift_separate_reads)
     assert not self._bam_kv_shift or (self._m_shift_mode == 'none' and self._general_read and self._direct_qk_c8)
-    if self._bam_kv_shift:
+    if getattr(self, '_bam_kv_shift', False):
       assert not getattr(cfg, 'bam_pallas_core', False)
       for arm in ('k', 'v'):
         setattr(self, f'bam_kv_shift_{arm}_gate', linears.DenseGeneral(
@@ -4073,7 +4073,7 @@ class BamAttention(Attention):
     Mh = None
     local_inputs = self._local_inputs(inputs_q) if self._local_arms else None
     kv_shift_gates = None
-    if self._bam_kv_shift:
+    if getattr(self, '_bam_kv_shift', False):
       kv_shift_gates = {arm: jax.nn.sigmoid(getattr(self, f'bam_kv_shift_{arm}_gate')(inputs_q).astype(jnp.float32))
                         for arm in ('k', 'v')}
       key = mix_bam_kv_previous_token(key, kv_shift_gates['k'], decoder_segment_ids, inputs_positions)

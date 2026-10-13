@@ -12759,7 +12759,7 @@ class BamMediumPropSharedR256GeneralReadMShiftReadQKVoG050TruePile(BamMediumProp
     # code_commit: e4e6e17; UE5a v5p-16 TPU310179 hot-transferred from Persist G050, starts0.
     # AOT/CPU/FIRST_STEP+14/params432112832/actual324health verified;20-99 .442375step/s.
     # Speed -3.49% vs Read G050, -7.59% vs SOTA; custom health324 vs parent1404, included.
-    # @1000 SOTA-.019421,ReadG050-.019060; gain/SOTA1.098613x(Mudd ref),1.033245x(MHA ref).
+    # @1000 SOTA-.019421,ReadG050-.019060; gain/SOTA1.033245x(MHA ref,default).
     model_name = 'BamMediumPropSharedR256GeneralReadMShiftReadQKVoG050TruePile'
     bam_m_shift_separate_reads = True
     mlp_dim_by_block = [3781, 3654, 3781]  # Repay all 3 gate kernels; +1728 biases vs SOTA.

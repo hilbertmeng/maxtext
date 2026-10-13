@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+set -euo pipefail
+TASK_ROOT=$(cd "$(dirname "$0")/.." && pwd)
+cd "$TASK_ROOT"
+git diff --quiet
+TASK_HASH=$(git rev-parse HEAD)
+TASK_CHECK=/data0/xd/bam_diagnostics/xlprop-m-shift/cpu/$TASK_HASH
+mkdir -p "$TASK_CHECK"
+exec 9>"$TASK_CHECK/check.lock"
+flock 9
+if [[ -f "$TASK_CHECK/ok" ]]; then echo "CPU_XL_MSHIFT_REUSED commit=$TASK_HASH"; exit 0; fi
+export JAX_PLATFORMS=cpu CUDA_VISIBLE_DEVICES= TF_CPP_MIN_LOG_LEVEL=3 PYTHONPATH="$TASK_ROOT/MaxText"
+export OMP_NUM_THREADS=8 OPENBLAS_NUM_THREADS=8 XLA_FLAGS=--xla_force_host_platform_device_count=8
+taskset -c 0-7 /data0/xd/conda/envs/maxtext-cpu/bin/python MaxText/tests/bam_xlprop_m_shift_test.py
+taskset -c 0-7 /data0/xd/conda/envs/maxtext-cpu/bin/python -m unittest discover -s MaxText/tests -p summary_writer_test.py
+python3 scripts/test_mshift_cross_scale.py
+touch "$TASK_CHECK/ok"
+echo "CPU_XL_MSHIFT_OK commit=$TASK_HASH (28-layer/tail budget/v40/read-only/scan/grad/causality/compact health + writers + stage alignment)"

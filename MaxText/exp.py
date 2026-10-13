@@ -12831,3 +12831,23 @@ class BamMediumPropSharedR256GeneralReadMShiftReadKVShiftG050TruePile(BamMediumP
     compare_runs = ['BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile',
                     'BamMediumPropSharedR256GeneralReadKVShiftG050TruePile',
                     'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile']
+
+
+class BamXLPropSharedR400GeneralReadMShiftReadG050TruePile(BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile):
+    """XL transfer of single read-only previous-token M mix, v40 gate initially .5."""
+    model_name = 'BamXLPropSharedR400GeneralReadMShiftReadG050TruePile'
+    bam_m_shift_mode = 'read'
+    bam_m_shift_init = .5
+    wd_mults = BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile.wd_mults + [('.*M_shift_gate_b0$', 0.0)]
+    bam_m_shift_separate_reads = False
+    bam_m_shift_two_lag = False
+    bam_kv_shift = False
+    bam_record_m_shift_health = True
+    bam_m_shift_compact_health = True
+    mlp_dim_by_block = [6127, 5938, 6127]
+    bam_final_local_mlp_dim = 6126
+    checkpoint_period = 250
+    keep_period = 0
+    max_to_keep = 2
+    tensorboard_gcs_rotate_period = 500
+    compare_runs = ['BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile']

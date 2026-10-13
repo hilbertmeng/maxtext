@@ -38,15 +38,16 @@ except ImportError:
 
 try:   # Triton per-token M read/write kernels (CUDA); without them the batched-GEMM path is used
   from .bam_m_kernels import (bam_decode_read as _bam_decode_read, bam_read as _bam_read,
-                              bam_rope_tail as _bam_rope_tail, bam_write as _bam_write,
-                              bam_write_ohead as _bam_write_ohead, bam_gemv as _bam_gemv)
+                              bam_write as _bam_write,
+                              bam_write_ohead as _bam_write_ohead, bam_gemv as _bam_gemv,
+                              bam_prefill_read as _bam_prefill_read)
 except ImportError:
   try:
     _m = importlib.import_module('bam_m_kernels')
-    _bam_read, _bam_write, _bam_decode_read, _bam_rope_tail, _bam_write_ohead, _bam_gemv = (
-        _m.bam_read, _m.bam_write, _m.bam_decode_read, _m.bam_rope_tail, _m.bam_write_ohead, _m.bam_gemv)
+    _bam_read, _bam_write, _bam_decode_read, _bam_write_ohead, _bam_gemv, _bam_prefill_read = (
+        _m.bam_read, _m.bam_write, _m.bam_decode_read, _m.bam_write_ohead, _m.bam_gemv, _m.bam_prefill_read)
   except Exception:  # pylint: disable=broad-except
-    _bam_read = _bam_write = _bam_decode_read = _bam_rope_tail = _bam_write_ohead = _bam_gemv = None
+    _bam_read = _bam_write = _bam_decode_read = _bam_write_ohead = _bam_gemv = _bam_prefill_read = None
 
 DECODE_TOKENS = 64    # below this many tokens per step: per-arm read programs with RoPE fused
 FUSED_UP_TOKENS = 4   # up to this many: the read kernel also applies GELU + the key up-projection (A800: one
@@ -480,15 +481,17 @@ class BamAttention(nn.Module):
             self.static_gate_init, self.qk_cols, 1.0 / math.sqrt(self.head_dim), *pend, wdown.reshape(b * t, -1),
             wa.weight, wa.bias)
         address = address.reshape(b, t, n, -1)
-      else:                                     # decode: RoPE/q scale in the kernel; prefill: in torch
+      elif decode:                              # RoPE and the q scale in the kernel
         y, m_new = _bam_read(flat_m, raw[0].reshape(b * t, 3, n, -1), gates, self.static_keys, std,
                              position_ids_of(positions).reshape(-1).contiguous(), self.read_eps, self.read_scale,
                              self.static_gate_init, self.qk_cols, 1.0 / math.sqrt(self.head_dim),
                              self.rotary_max_timescale, decode, *pend)
-      if groups:
+      else:     # prefill (deferred writes already applied): RoPE tail in the kernel; the softmax scale to SDPA
+        y = _bam_prefill_read(flat_m, raw[0].reshape(b * t, 3, n, -1), gates, self.static_keys, std,
+                              *rope_rows(self.rotary, positions, b * t, x.dtype), self.read_eps, self.read_scale,
+                              self.static_gate_init, self.qk_cols)
+      if groups and decode:
         M = m_new.reshape(M.shape)
-      if not decode:    # RoPE tail written in place (no q/k concatenation); the softmax scale goes to SDPA
-        _bam_rope_tail(y, std, *rope_rows(self.rotary, positions, b * t, y.dtype), self.qk_cols)
       q, k, v, local_o = y.reshape(b, t, 4, n, -1).unbind(2)
       attn = causal_attention(q, k, v, self.layer_idx, attention_mask, past_key_value,
                               scale=1.0 if decode else self.head_dim ** -0.5)

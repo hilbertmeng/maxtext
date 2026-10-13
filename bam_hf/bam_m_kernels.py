@@ -176,23 +176,27 @@ def _read_kernel_stacked(M, KEYS, GATES, S, Y, T, STD, POS, MOUT, C1, CL1, G1, A
 
 
 @triton.jit
-def _read_kernel_khalf(M, KEYS, GATES, S, Y, T, s_mt, s_kt, s_karm, s_kn, s_gt, s_y_t,
+def _read_kernel_khalf(M, KEYS, GATES, S, Y, STD, COS, SIN, T, s_mt, s_kt, s_karm, s_kn, s_gt, s_y_t, s_st, s_sn,
+                       s_sarm, s_ct,
                        N: tl.constexpr, K: tl.constexpr, V: tl.constexpr, BN: tl.constexpr, KH: tl.constexpr,
                        NKH: tl.constexpr, BV: tl.constexpr, QCOLS: tl.constexpr, EPS: tl.constexpr,
-                       SCALE: tl.constexpr, STATIC_DIV: tl.constexpr, PREC: tl.constexpr, TB: tl.constexpr,
-                       STAGES: tl.constexpr, ARMS: tl.constexpr):
-  """Prefill read (no deferred write, RoPE applied afterwards). Program (arm group, token block), the arm
-  group fastest so a token's programs share M_t through L2; each builds X rows [ARMS*BN, BV] once and
-  produces the output columns in NKH chunks of KH. The single-program [4*BN, 128] FP32 accumulator needed
-  255 registers (spills, one program per SM). A800, T=4096: 146 us (stacked) -> 123 (K halves) -> 110 us
-  (two arms per program, one warp)."""
-  r = tl.arange(0, ARMS * BN)
-  a = tl.program_id(0) * ARMS + r // BN
-  n = r % BN
-  v = tl.arange(0, BV)
-  nm, vm = n < N, v < V
-  arm = tl.minimum(a, 2)
-  for t in tl.range(tl.program_id(1) * TB, tl.minimum(tl.program_id(1) * TB + TB, T), num_stages=STAGES):
+                       SCALE: tl.constexpr, STATIC_DIV: tl.constexpr, PREC: tl.constexpr, ARMS: tl.constexpr,
+                       R: tl.constexpr, RB: tl.constexpr):
+  """Prefill read. Program (p, token t), p fastest so a token's programs share M_t through L2: p < 4/ARMS
+  builds X rows [ARMS*BN, BV] for arms p*ARMS.. once and produces the output columns in NKH chunks of KH
+  (q/k tail columns skipped); p == 4/ARMS (when launched) writes the q/k tail columns = RoPE(std) from the
+  shared cos/sin table [T, R/2]. The single-program [4*BN, 128] FP32 accumulator needed 255 registers
+  (spills, one program per SM); RoPE inside a read program adds register pressure. A800, T=4096: 146 us
+  (stacked) + 32 us (RoPE pass) -> 110 us (two arms per program, one warp) + ~20 us (RoPE program)."""
+  p = tl.program_id(0)
+  t = tl.program_id(1)
+  if p * ARMS < 4:
+    r = tl.arange(0, ARMS * BN)
+    a = p * ARMS + r // BN
+    n = r % BN
+    v = tl.arange(0, BV)
+    nm, vm = n < N, v < V
+    arm = tl.minimum(a, 2)
     key = tl.load(KEYS + t * s_kt + arm[:, None] * s_karm + n[:, None] * s_kn + v[None, :],
                   mask=nm[:, None] & vm[None, :], other=0.).to(tl.float32)
     gd = tl.load(GATES + t * s_gt + a * N + n, mask=nm, other=0.).to(tl.float32)
@@ -206,9 +210,62 @@ def _read_kernel_khalf(M, KEYS, GATES, S, Y, T, s_mt, s_kt, s_karm, s_kn, s_gt, 
       km = k < K
       mkv = tl.load(M + t * s_mt + k[:, None] * V + v[None, :], mask=km[:, None] & vm[None, :], other=0.)
       y = tl.dot(x.to(mkv.dtype), tl.trans(mkv), input_precision=PREC)
-      keep = nm[:, None] & km[None, :] & ~((a < 2)[:, None] & (k >= QCOLS)[None, :])   # q/k tails: RoPE later
+      keep = nm[:, None] & km[None, :] & ~((a < 2)[:, None] & (k >= QCOLS)[None, :])   # q/k tails: RoPE
       tl.store(Y + t * s_y_t + a[:, None] * N * K + n[:, None] * K + k[None, :], y.to(Y.dtype.element_ty),
                mask=keep)
+  else:
+    rr = tl.arange(0, 2 * BN)       # rows (arm q/k, head)
+    ra = rr // BN
+    rn = rr % BN
+    j = tl.arange(0, RB)
+    half = R // 2
+    i = tl.where(j < half, j, j - half)
+    partner = tl.where(j < half, j + half, j - half)
+    jm = j < R
+    rmask = (rn < N)[:, None] & jm[None, :]
+    base = STD + t * s_st + ra[:, None] * s_sarm + rn[:, None] * s_sn
+    s1 = tl.load(base + j[None, :], mask=rmask, other=0.).to(tl.float32)
+    s2 = tl.load(base + partner[None, :], mask=rmask, other=0.).to(tl.float32)
+    rc = tl.load(COS + t * s_ct + i, mask=jm, other=0.).to(tl.float32)
+    rs = tl.load(SIN + t * s_ct + i, mask=jm, other=0.).to(tl.float32)
+    rot = s1 * rc[None, :] + tl.where(j < half, -1.0, 1.0)[None, :] * s2 * rs[None, :]
+    tl.store(Y + t * s_y_t + ra[:, None] * N * K + rn[:, None] * K + QCOLS + j[None, :],
+             rot.to(Y.dtype.element_ty), mask=rmask)
+
+
+def _prefill_read(m, keys, gates, static_keys, y, std, cos, sin, eps, scale, static_div, qk_cols):
+  t, kdim, vdim = m.shape
+  n = gates.shape[2]
+  rope = std is not None
+  std, cos, sin = (std, cos, sin) if rope else (y, y, y)
+  kh, arms = 64, 2
+  _read_kernel_khalf[(4 // arms + rope, t)](
+      m, keys, gates, static_keys, y, std, cos, sin, t, m.stride(0), keys.stride(0), keys.stride(1), keys.stride(2),
+      gates.stride(0), y.stride(0), std.stride(0), std.stride(2) if rope else 0, std.stride(1) if rope else 0,
+      cos.stride(0), N=n, K=kdim, V=vdim, BN=max(16, triton.next_power_of_2(n)), KH=kh, NKH=triton.cdiv(kdim, kh),
+      BV=max(16, triton.next_power_of_2(vdim)), QCOLS=qk_cols, EPS=eps, SCALE=scale, STATIC_DIV=static_div,
+      PREC=_prec(m), ARMS=arms, R=kdim - qk_cols, RB=triton.next_power_of_2(kdim - qk_cols), num_warps=1)
+
+
+@torch.library.custom_op('bam::prefill_read', mutates_args=())
+def bam_prefill_read(m: torch.Tensor, keys: torch.Tensor, gates: torch.Tensor, static_keys: torch.Tensor,
+                     std: torch.Tensor, cos: torch.Tensor, sin: torch.Tensor, eps: float, scale: float,
+                     static_div: float, qk_cols: int) -> torch.Tensor:
+  """Prefill read with the RoPE tail: y [T,4,N,K] (q, k, v, local_o; q unscaled) from m [T,K,V], keys
+  [T,3,N,V], gates [T,8,N], std [T,2,N,R] and the shared cos/sin table [T, R/2]."""
+  t, kdim, _ = m.shape
+  n = gates.shape[2]
+  assert m.is_contiguous() and static_keys.is_contiguous() and keys.stride(-1) == 1 and gates.stride(-1) == 1
+  assert gates.stride(-2) == n and std.stride(-1) == 1 and cos.stride(-1) == 1 and sin.stride() == cos.stride()
+  y = torch.empty((t, 4, n, kdim), device=m.device, dtype=m.dtype)
+  if t:
+    _prefill_read(m, keys, gates, static_keys, y, std, cos, sin, eps, scale, static_div, qk_cols)
+  return y
+
+
+@bam_prefill_read.register_fake
+def _(m, keys, gates, static_keys, std, cos, sin, eps, scale, static_div, qk_cols):
+  return m.new_empty((m.shape[0], 4, gates.shape[2], m.shape[1]))
 
 
 def _pending(m, c1, l1, g1, a1, c2, g2, a2, pending):
@@ -255,13 +312,8 @@ def bam_read(m: torch.Tensor, keys: torch.Tensor, gates: torch.Tensor, static_ke
               PENDING=pending, HAS_LOCAL=has_local, PEPS=write_eps)
   if t < 64:     # decode: one program per (arm, token) for latency (A800: 3.7 us at T=1)
     _read_kernel[(4, t)](*args, **meta, TB=1, STAGES=1, num_warps=4)
-  elif not rope and not pending:     # prefill path
-    kh, arms = 64, 2
-    _read_kernel_khalf[(4 // arms, t)](m, keys, gates, static_keys, y, t, m.stride(0), keys.stride(0), keys.stride(1),
-                             keys.stride(2), gates.stride(0), y.stride(0), N=n, K=kdim, V=vdim,
-                             BN=max(16, triton.next_power_of_2(n)), KH=kh, NKH=triton.cdiv(kdim, kh),
-                             BV=max(16, triton.next_power_of_2(vdim)), QCOLS=qk_cols, EPS=eps, SCALE=scale,
-                             STATIC_DIV=static_div, PREC=_prec(m), TB=1, STAGES=1, ARMS=arms, num_warps=1)
+  elif not rope and not pending:     # prefill path (q/k tails left for bam_rope_tail)
+    _prefill_read(m, keys, gates, static_keys, y, None, None, None, eps, scale, static_div, qk_cols)
   else:          # four arms stacked into one product per token, M_t read once
     for stages in ((2, 1) if rope else (3, 2, 1)):   # shared-memory budget differs (A800 164 KB, RTX 6000D 99 KB)
       try:

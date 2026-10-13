@@ -8,7 +8,7 @@ import sys
 import torch
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from bam_m_kernels import bam_decode_read, bam_gemv, bam_read, bam_rope_tail, bam_write, bam_write_ohead  # noqa: E402
+from bam_m_kernels import bam_decode_read, bam_gemv, bam_prefill_read, bam_read, bam_rope_tail, bam_write, bam_write_ohead  # noqa: E402
 from modeling_bam import BamRMSNorm  # noqa: E402
 import torch.nn.functional as F  # noqa: E402
 
@@ -71,13 +71,15 @@ def main():
     r = ref_read(m, keys, gates, s, std, pos)
     raw = bam_read(m, keys, gates, s, std, pos, 1e-4, 0.1, 0.99, 72, 96 ** -0.5, 10000., False, *nop)[0].float()
     r_raw = ref_read(m, keys, gates, s, std, pos, qk_cols=96, q_scale=1.)
-    if t >= 64:      # prefill: q/k tails are filled in place by bam_rope_tail; q stays unscaled
+    if t >= 64:      # prefill: RoPE tail from the cos/sin table inside the read (or in place after it)
+      r_rope = ref_read(m, keys, gates, s, std, pos, q_scale=1.)
+      yp = bam_prefill_read(m, keys, gates, s, std, *rope_table(pos, 24, m.dtype), 1e-4, 0.1, 0.99, 72)
       yr, _ = bam_read(m, keys, gates, s, std, pos, 1e-4, 0.1, 0.99, 72, 96 ** -0.5, 10000., False, *nop)
       bam_rope_tail(yr, std, *rope_table(pos, 24, yr.dtype), 72)
-      r_rope = ref_read(m, keys, gates, s, std, pos, q_scale=1.)
+      e_p = ((yp.float() - r_rope).norm() / r_rope.norm()).item()
       e_rt = ((yr.float() - r_rope).norm() / r_rope.norm()).item()
-      print(f'T={t} {dtype}: read + rope_tail rel {e_rt:.1e}')
-      assert e_rt < tol, e_rt
+      print(f'T={t} {dtype}: prefill_read rel {e_p:.1e}, read + rope_tail rel {e_rt:.1e}')
+      assert max(e_p, e_rt) < tol, (e_p, e_rt)
       raw[:, :2, :, 72:] = r_raw[:, :2, :, 72:]     # the raw tail is not stored on this path
     e_raw = ((raw - r_raw).norm() / r_raw.norm()).item()
     e_read = ((y - r).norm() / r.norm()).item()

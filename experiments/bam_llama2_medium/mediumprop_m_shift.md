@@ -176,3 +176,17 @@ SharedReadG0507000−SOTA−.009329,MHA-refgain/SOTA1.054842. Recentfivegap−.0
 Agentcorrectsnearparityforecast after checkingcontractionwitha nonzerofloor: (new−ReadG050)(s)=a+b*exp(-(s-start)/tau). Nativepairedwindows,allpoints1000..4000/1400..4000/2000..4000(16/14/11points)givefloor−.002541/−.003560/−.002402. BroadestfitRMSE.000963 versuszero-floor.001156;extrafreeparametermeansfitimprovementaloneisnotproof. Densefits5000predict−.002763/−.003588/−.002734. Retrospective1000..3000fitfloor−.002011,predicted4000−.002843vsobserved−.002785;explicitlyNOTpreregistered. FittingwasdoneAFTER4000observed,before5000;no newtraining/probe/ablationarm. Artifactqkvo-parent-gap-floor-fit-4000.jsonincludesallinputpoints/fits/flags.
 
 Previousnear0..−.001terminalforecastwithcentral−.0005wasoveraggressivezero-floor extrapolationandiswithdrawn. Currentworkingbetnew−parentterminal−.0025,5000−.0028;originalpre-runterminal−.003 remainsforhonestfinalassessment. Actualnonzeroplateaunotyetestablished;future5000windowtestsforwardprediction. Thisupdatesforecast,notobservedlossconclusionor stopcriterion.
+
+
+## Three-gate5000 and first forward forecast check
+
+5000primaryreported10:59UTC: new−SOTA−.010377,new−ReadG050−.001660;throughput−3.4853%parent/−7.5931%SOTA. MHA-referencegainmultipliers new/SOTA1.054435,new/ReadG0501.008326. Addedsecondtripletoexistingnative persistentgain_ratios, notnewcomputationscript;sameMHAref,bothfull25windowsequencesdeliveredwithgap/r200. SOTAratiolatestfive1.054394(range1.052990..1.056471),previous1.052836;parentratiolatestfive1.010256(range1.007429..1.013675),previous1.015996. Parentgaplastfive−.002114(range−.002829..−.001479),previous−.003664;SOTAgaplastfive−.010705(previous−.011665). Directiongainproportionflat~5.4%,threegateextra~1%andstillshrinking.
+
+Forward5000bet−.0028observed−.001660,bias+.001140(~41%smalleradvantage). Explicitlyreportedoptimism;nonzero-floor extrapolationnotyetvalidatedforward. Do not claimretrospective4kfitasproof. Stillallfivewindowsnegativeagainstparent,notdominated,continue6000review. Terminal−.0025/currentandoriginal−.003betsremainrecordeduntilactualterminalassessment;no furtherfitusedforstopdecision. Bothhealthy,no newP,CP5000committed;sharednext8000. Native report-qkvo-5000-next.txtretainsfigures.
+
+
+## Shared-gate8000 report and reporter numerical guard
+
+SharedReadG0508000−SOTA−.010401,MHA-refratio1.063401;latestfivegap−.009983(previous−.009368),ratio1.060595(range1.057471..1.063401),previous1.054316. All40cumulativewindowsdelivered11:05UTC;throughput−4.256%SOTA. Bothhealthy,no newP,CP8000/5000committed. Cursorsshared8000/new5000,next9000/6000;continue. Nativeintegratedreport-read050-8000-next.txtsaved.
+
+Reusablegainfeaturecommit9f68649followedby4a4f770reporter-onlyguardagainstnumericalparity: abs(previouslossgap)<=1e-8 makesr200undefinedratherthanthe~1e13residueobservedat1600after1400trueparity. No rawlossortrainingruntimechange. 18reporttestsPASS,atomicdeploymenthash80a9fd25378f5318a424a31c19165516abc919e5e9a09a97cab2ec228363ae2bmatchesauthoritativesource. Ratioformulasandcursorsunchanged;futureeventsavoidmanualparityfiltering.

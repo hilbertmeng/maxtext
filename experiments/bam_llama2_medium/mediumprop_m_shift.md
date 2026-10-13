@@ -202,8 +202,8 @@ SharedReadG0509000full45windowsdelivered11:42UTC:−SOTA−.011055,MHArefmultipl
 ## Two-lag M shift and vector KV shift (2026-10-13)
 
 Both inherit the single shared Read G050 direction baseline; not the Q/K/VO three-gate arm. New RUNs:
-- `BamMediumPropSharedR256GeneralReadMShiftReadTwoLag532TruePile`, ID310181 (UE5a SPOT v5p-16).
-- `BamMediumPropSharedR256GeneralReadKVShiftG050TruePile`, ID310182 (UE5a SPOT v5p-16).
+- `BamMediumPropSharedR256GeneralReadMShiftReadTwoLag532TruePile`, ID310183 (UE5a SPOT v5p-16).
+- `BamMediumPropSharedR256GeneralReadKVShiftG050TruePile`, ID310184 (UE5a SPOT v5p-16).
 Worktree `/data0/xd/mediumprop-m-shift`, branch `codex/mediumprop-m-shift`; retained FLEX compiler `llm-jax-v6e-1-0` EW4a is borrowed, never lifecycle-owned. Existing Read G050 and QKVO training remains active.
 
 Two-lag: `Mread = M + sigmoid(z1)*(Mprev-M) + sigmoid(z2)*(Mprev2-M)` with W[D,64]=0, biases logit(.3)/logit(.2), giving initial current/lag1/lag2 coefficients .5/.3/.2. These are independent sigmoid gates, not softmax or multiplicative history allocation. Coefficient of current M may become negative; aggregate fraction(g1+g2>1) makes this visible. Boundary masks disable each unavailable lag independently and require valid intervening token; no recurrence, no carry update. MLP `[3792,3664,3792]`; total expected432112256 (+1152 biases vs432111104 SOTA). Gates1383552 params=.9608 W_Q total (.0533778 W_Q/layer); incremental vs single gate691776=.4804 W_Q. Nine compact metrics/layer (162 total); no column stats.
@@ -224,3 +224,12 @@ Preregistered bet: terminal loss−single about−.002, throughput about.451step
 Preparation correction: initial678ca128 full suite found two MHA-control missing optional `_bam_kv_shift` errors; fixed e79a3032 with getattr(False) guards. Fixed gate8Mshift+5writer+47BAM all passed. Initial training-only prequeues310181/182 released with both node/queue absence proof, no training step. Retry two-lag/pureKV resources310183/184, sealed runtimee79a3032. Original two active models unchanged. Compiler never cleanup-owned. Private/main operational audit remains main0f7f6d10.
 
 Latest direction evidence: single at10000 SOTA gap−.010185,last5−.010447, MHA-referenced gain1.066904,last5 1.067665; stable. Three-gate at7000 SOTA−.009443,parent−.000114; last5parent−.000714(previous−.001273), MHA-ref ratios1.055511/1.000634 and last5parent1.003928. Extra gain still fading; terminal−.0025 prediction now judged optimistic, all5paired gaps still negative, continue8000review. No new floor fits.
+
+
+### Startup evidence (all three new arms running)
+
+Two-lag/pureKV runtime `e79a3032515d6428ebd7662d7587d210027f9e1c`, trainers310183/310184; hybrid runtime `77ea4bb5ca3535c40b8b0569e970077286a69462`, trainer310185. All UE5a SPOT v5p16, original13500 schedule/global128/T4096/TruePile4096, AOT loaded and first+14 gates passed. Actual worker parameter shape dumps sum432112256/432111104/432111680, matching sealed CPU counts. Actual custom TB tags162/180/270, all finite at0/10/20; two-lag init.5/.3/.2, pureKV gates.5/.5, hybridM/K/V.5/.5/.5. Negative-current-weight fraction0 through20.
+
+Canonical20–99 speeds: two-lag.4576625 (−.15% vs single;−4.40% vs SOTA), pureKV.416775 (−9.07% vs single;−12.94% vs SOTA), hybrid.405525 (−11.53% vs single;−2.70% vs pureKV). Both KV speed forecasts failed. Inspect optimized offline HLO at sealed e79 on retained FLEX compiler, no live trainer change. Corrected premise: raw M75×32=2400 values/token, completeKV2×16×75=2400 too; KV shift has no inherently smaller transport volume here. It mixes standard K18, packed local K75 (later trim57), V75 across16heads, whereas M-shift shares one matrix mix among Q/K/V/O reads. Operator fusion/layout/copy evidence pending; do not assert a cause from volume alone.
+
+Native MHA-referenced gain monitoring persisted for all new arms: two-lag/pureKV vs single/SOTA, hybrid vs single/pureKV/SOTA. No MHA direct loss comparison. First reports at1000 with cumulative200-window loss, gain and speed. Existing cursors single10000/triple7000; monitor all5. Evidence root `/data0/xd/bam_diagnostics/mediumprop-m-shift/`, current state, actual parameter counts, startup health/worker logs and HLO inspection scripts.

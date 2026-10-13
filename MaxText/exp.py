@@ -12786,6 +12786,8 @@ class BamMediumPropSharedR256GeneralReadMShiftReadQKVoG050TruePile(BamMediumProp
 
 class BamMediumPropSharedR256GeneralReadMShiftReadTwoLag532TruePile(BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile):
     """Independent sigmoid lag gates (.3/.2); current/lag1/lag2 initial shares .5/.3/.2."""
+    # code_commit: e79a303; UE5a SPOT v5p-16 xd-v5p-16-310183-maxtext; AOT/FIRST_STEP+14 verified.
+    # Actual params432112256, custom health162, init/finite TB verified;20-99 .4576625step/s (-.15% vs single, -4.40% vs SOTA).
     model_name = 'BamMediumPropSharedR256GeneralReadMShiftReadTwoLag532TruePile'
     bam_m_shift_two_lag = True
     bam_m_shift_two_lag_init = [.5, .3, .2]
@@ -12796,6 +12798,8 @@ class BamMediumPropSharedR256GeneralReadMShiftReadTwoLag532TruePile(BamMediumPro
 
 class BamMediumPropSharedR256GeneralReadKVShiftG050TruePile(BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile):
     """Replace M shift with per-head dynamic K/V vector shift, zero-kernel .5/.5 init."""
+    # code_commit: e79a303; UE5a SPOT v5p-16 xd-v5p-16-310184-maxtext; AOT/FIRST_STEP+14 verified.
+    # Actual params432111104, custom health180, init/finite TB verified;20-99 .4167750step/s (-9.07% vs single, -12.94% vs SOTA; !! slower than +2.5% preregistered).
     model_name = 'BamMediumPropSharedR256GeneralReadKVShiftG050TruePile'
     bam_m_shift_mode = 'none'
     bam_kv_shift = True
@@ -12806,6 +12810,8 @@ class BamMediumPropSharedR256GeneralReadKVShiftG050TruePile(BamMediumPropSharedR
 
 class BamMediumPropSharedR256GeneralReadMShiftReadKVShiftG050TruePile(BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile):
     """Stack the single .5 M read shift with .5/.5 per-head KV vector shift."""
+    # code_commit: 77ea4bb; UE5a SPOT v5p-16 xd-v5p-16-310185-maxtext; AOT/FIRST_STEP+14 verified.
+    # Actual params432111680, custom health270, init/finite TB verified;20-99 .4055250step/s (-11.53% vs single, -2.70% vs pureKV; !! slower than -1.6% preregistered).
     model_name = 'BamMediumPropSharedR256GeneralReadMShiftReadKVShiftG050TruePile'
     bam_kv_shift = True
     bam_m_shift_compact_health = True

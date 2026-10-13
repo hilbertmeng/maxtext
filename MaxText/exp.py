@@ -12212,6 +12212,8 @@ class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMRe
     model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile'
     bam_general_column_read = True
     bam_general_matrix_write = False
+    bam_m_shift_mode = 'none'  # none | read | persist; experimental worktree path
+    bam_m_shift_init = .05  # Previous-token share, sigmoid gate bias initialization
     mlp_dim_by_block = [3813, 3686, 3813]
     compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadSharedGelu256TruePile']
 
@@ -12671,3 +12673,55 @@ class BamFullMGeneralReadPallasV8TProfile(BamFullMGeneralReadPallasFusedProfile)
     # 90d28c9 keys as [C,N,B,T] from the dot: TPU lowering rejects batch as a block's second-minor dim; reverted.
     model_name = 'BamFullMGeneralReadPallasV8TProfile'
     bam_pallas_body = 'v8t'
+
+
+class BamMediumPropSharedR256GeneralReadMShiftReadG005TruePile(BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile):
+    """Dynamic previous-token M mix, read carry, initial share0.05."""
+    model_name = 'BamMediumPropSharedR256GeneralReadMShiftReadG005TruePile'
+    bam_m_shift_mode = 'read'
+    bam_m_shift_init = 0.05
+    mlp_dim_by_block = [3802, 3676, 3802]  # Repay691200 kernel params; residual576 gate biases(+0.000133%).
+    checkpoint_period = 200
+    keep_period = 0
+    max_to_keep = 2
+    tensorboard_gcs_rotate_period = 500
+    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile', 'BamMHAMediumPropC256TruePile']
+
+
+class BamMediumPropSharedR256GeneralReadMShiftPersistG005TruePile(BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile):
+    """Dynamic previous-token M mix, persist carry, initial share0.05."""
+    model_name = 'BamMediumPropSharedR256GeneralReadMShiftPersistG005TruePile'
+    bam_m_shift_mode = 'persist'
+    bam_m_shift_init = 0.05
+    mlp_dim_by_block = [3802, 3676, 3802]  # Repay691200 kernel params; residual576 gate biases(+0.000133%).
+    checkpoint_period = 200
+    keep_period = 0
+    max_to_keep = 2
+    tensorboard_gcs_rotate_period = 500
+    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile', 'BamMHAMediumPropC256TruePile', 'BamMediumPropSharedR256GeneralReadMShiftReadG005TruePile']
+
+
+class BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile(BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile):
+    """Dynamic previous-token M mix, read carry, initial share0.5."""
+    model_name = 'BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile'
+    bam_m_shift_mode = 'read'
+    bam_m_shift_init = 0.5
+    mlp_dim_by_block = [3802, 3676, 3802]  # Repay691200 kernel params; residual576 gate biases(+0.000133%).
+    checkpoint_period = 200
+    keep_period = 0
+    max_to_keep = 2
+    tensorboard_gcs_rotate_period = 500
+    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile', 'BamMHAMediumPropC256TruePile', 'BamMediumPropSharedR256GeneralReadMShiftReadG005TruePile']
+
+
+class BamMediumPropSharedR256GeneralReadMShiftPersistG050TruePile(BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile):
+    """Dynamic previous-token M mix, persist carry, initial share0.5."""
+    model_name = 'BamMediumPropSharedR256GeneralReadMShiftPersistG050TruePile'
+    bam_m_shift_mode = 'persist'
+    bam_m_shift_init = 0.5
+    mlp_dim_by_block = [3802, 3676, 3802]  # Repay691200 kernel params; residual576 gate biases(+0.000133%).
+    checkpoint_period = 200
+    keep_period = 0
+    max_to_keep = 2
+    tensorboard_gcs_rotate_period = 500
+    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile', 'BamMHAMediumPropC256TruePile', 'BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile', 'BamMediumPropSharedR256GeneralReadMShiftPersistG005TruePile']

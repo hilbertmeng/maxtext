@@ -57,6 +57,10 @@ except ImportError:      # repo scripts import this file as a top-level module (
   BamConfig = importlib.import_module('configuration_bam').BamConfig
 
 
+def position_ids_of(positions):
+  return positions[0] if isinstance(positions, tuple) else positions
+
+
 def rms_norm(x, eps):
   """Parameter-free RMS norm over the last axis with FP32 statistics, returned in x.dtype."""
   f = x.float()
@@ -93,19 +97,25 @@ class HeadLinear(nn.Linear):
 class BamRotary(nn.Module):
   """MaxText RotaryEmbedding (half-split, not interleaved) over the standard Q/K tail.
 
-  The timescales are computed in forward rather than held in a buffer: non-persistent buffers are not
-  in the checkpoint and stay uninitialized when transformers >= 5 builds the model on the meta device."""
+  Timescales are Python constants (not a buffer: non-persistent buffers stay uninitialized when
+  transformers >= 5 builds the model on the meta device; not computed in forward: torch.compile would
+  inline the power into every rotated element, 4x slower for the MHA control)."""
 
   def __init__(self, dim, min_timescale, max_timescale):
     super().__init__()
-    self.dim, self.min_timescale, self.max_timescale = dim, float(min_timescale), float(max_timescale)
+    self.timescale = [min_timescale * (max_timescale / min_timescale) ** (2 * i / dim) for i in range(dim // 2)]
+
+  def table(self, positions, dtype):
+    """(position ids, cos, sin [B, T, 1, D/2]): computed once per forward and shared by all layers."""
+    timescale = torch.tensor(self.timescale, device=positions.device, dtype=torch.float32)
+    angle = positions.float()[:, :, None, None] / timescale
+    return positions, torch.cos(angle).to(dtype), torch.sin(angle).to(dtype)
 
   def forward(self, x, positions):
-    """x [B, T, N, D]; positions [B, T]."""
-    fraction = 2 * torch.arange(self.dim // 2, device=x.device, dtype=torch.float32) / self.dim
-    timescale = self.min_timescale * (self.max_timescale / self.min_timescale) ** fraction
-    angle = positions.float()[:, :, None, None] / timescale
-    sin, cos = torch.sin(angle).to(x.dtype), torch.cos(angle).to(x.dtype)
+    """x [B, T, N, D]; positions [B, T] ids or a (ids, cos, sin) table from `table`."""
+    if not isinstance(positions, tuple):
+      positions = self.table(positions, x.dtype)
+    _, cos, sin = positions
     a, b = x.chunk(2, dim=-1)
     return torch.cat((a * cos - b * sin, b * cos + a * sin), dim=-1)
 
@@ -441,19 +451,20 @@ class BamAttention(nn.Module):
         wa = self.padded_write_address_up.linear
         y, m_new, address = _bam_decode_read(
             raw[3].reshape(b * t, -1), self.fused_up.weight, self.fused_up.bias, flat_m, gates, self.static_keys,
-            std, positions, self.read_eps, self.read_scale, self.static_gate_init, self.qk_cols,
+            std, position_ids_of(positions), self.read_eps, self.read_scale, self.static_gate_init, self.qk_cols,
             1.0 / math.sqrt(self.head_dim), self.rotary_max_timescale, *pend, wdown.reshape(b * t, -1),
             wa.weight, wa.bias)
         address = address.reshape(b, t, n, -1)
       else:                                     # decode: RoPE/q scale in the kernel; prefill: in torch
         y, m_new = _bam_read(flat_m, raw[0].reshape(b * t, 3, n, -1), gates, self.static_keys, std,
-                             positions.reshape(-1).contiguous(), self.read_eps, self.read_scale,
+                             position_ids_of(positions).reshape(-1).contiguous(), self.read_eps, self.read_scale,
                              self.static_gate_init, self.qk_cols, 1.0 / math.sqrt(self.head_dim),
                              self.rotary_max_timescale, decode, *pend)
       if groups:
         M = m_new.reshape(M.shape)
       if not decode:    # RoPE tail written in place (no q/k concatenation); the softmax scale goes to SDPA
-        _bam_rope_tail(y, std, positions.reshape(-1).contiguous(), self.qk_cols, self.rotary_max_timescale)
+        _bam_rope_tail(y, std, position_ids_of(positions).reshape(-1).contiguous(), self.qk_cols,
+                       self.rotary_max_timescale)
       q, k, v, local_o = y.reshape(b, t, 4, n, -1).unbind(2)
       attn = causal_attention(q, k, v, self.layer_idx, attention_mask, past_key_value,
                               scale=1.0 if decode else self.head_dim ** -0.5)
@@ -646,6 +657,7 @@ class BamModel(BamPreTrainedModel):
     if isinstance(past_key_values, StaticKVCache):     # fixed-shape path (CUDA graphs)
       cache = past_key_values
       positions = (cache.pos + torch.arange(t, device=x.device))[None].expand(b, t)
+      positions = self.layers[0].self_attn.rotary.table(positions, x.dtype)
       M = self.embedding_write(x) if self.embedding_write is not None else None
       for layer in self.layers:
         x, M = layer(x, M, positions, None, cache)
@@ -675,8 +687,9 @@ class BamModel(BamPreTrainedModel):
       mask = allowed[:, None]                                  # [B,1,T,S] bool
     M = self.embedding_write(x) if self.embedding_write is not None else None
     hidden_states = (x,) if output_hidden_states else None
+    positions = self.layers[0].self_attn.rotary.table(position_ids, x.dtype)    # shared by all layers
     for layer in self.layers:
-      x, M = layer(x, M, position_ids, mask, past_key_values if use_cache else None)
+      x, M = layer(x, M, positions, mask, past_key_values if use_cache else None)
       if output_hidden_states:
         hidden_states += (x,)
     x = self.norm(x)

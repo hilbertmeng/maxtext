@@ -34,7 +34,7 @@ mode='max-autotune')`.
 | File | Role |
 |---|---|
 | `configuration_bam.py`, `modeling_bam.py` | config and model (reference path + `fuse_projections()` inference path) |
-| `bam_m_kernels.py` | Triton per-token M kernels: read (prefill: stacked tensor-core product; decode: GELU + key and write-address up-projections + the previous layer's deferred write + RoPE fused), write, in-place RoPE tail |
+| `bam_m_kernels.py` | Triton kernels: per-token M read (prefill: two arms per program + a RoPE-tail program; decode: GELU, key and write-address up-projections, the previous layer's deferred write and RoPE fused), M write, one-token GEMV (norm / residual fused), paired small GEMM |
 | `bam_decode_attention.py` | split-KV decode attention (shared by both models; CUDA-graph safe) |
 | `jax_reference.py` | MaxText side: params-only Orbax restore (or random params), flat export, reference logits |
 | `convert_maxtext_to_hf.py` | flat params -> HF directory (safetensors, config, code, tokenizer) |
@@ -47,7 +47,7 @@ mode='max-autotune')`.
 |---|---|---|
 | FP32 port vs JAX FP32 (rel RMS / max KL / top-1) | 3.9e-7 / 2e-11 / 100% | 4.5e-7 / 2e-11 / 100% |
 | FP32 incremental decoding, left padding vs full forward | 4.7e-7, 3.5e-7 | 6.7e-7, 2.0e-7 |
-| FP32 fused inference path (all kernels) vs JAX | 3.7e-7 prefill, 7.5e-7 decode | 4.3e-7, 7.4e-7 |
+| FP32 fused inference path (all kernels) vs JAX: prefill / decode bs1, bs2, 2 x 8 tokens | 4.7e-7 / 4.5e-7, 4.0e-7, 4.0e-7 | 4.1e-7 / 6.0e-7, 5.7e-7, 5.7e-7 |
 | BF16 port vs JAX FP32, mean KL (JAX BF16 itself) | 2.0e-4 (2.9e-4) | 6.4e-4 (8.1e-4) |
 
 Random-weight 4-layer fixtures (all layer types) also agree to ~2e-6. Full-depth random weights are
@@ -57,36 +57,57 @@ ulp, seen on MHA); in FP32 the fused path reproduces the reference generation to
 
 ## Inference speed, A800 80GB PCIe (BF16, torch.compile max-autotune + CUDA graphs, 4k context)
 
-MHA uses the same code path and every shared optimization (fused QKV / gate-up GEMMs, split-KV decode
-attention, softmax scale in SDPA); its best result of all paired runs is the baseline.
+torch 2.11 / Triton 3.8 (venv `/home/xd/venvs/bam-infer`). MHA runs the same code path with every shared
+optimization (fused QKV / gate-up GEMMs, split-KV decode attention, softmax scale in SDPA, shared RoPE
+table); the baseline is its best result over all paired runs (plain torch.compile, no custom GEMV).
 
 | | BAM | MHA (best) | BAM / MHA |
 |---|---:|---:|---:|
-| prefill 1 x 4096 | 76.7 ms | 68.9 ms | 0.898 |
-| prefill 4 x 4096 | 282.1 ms | 255.9 ms | 0.907 |
-| prefill 8 x 2048 | 260.6 ms | 233.7 ms | 0.897 |
-| decode bs1 | 3.48-3.51 ms/token | 3.14 ms | 0.89-0.905 |
-| decode bs16 | 13.4 ms | 12.6 ms | 0.94 |
-| decode bs64 | 40.8 ms | 39.3 ms | 0.96 |
+| prefill 1 x 4096 | 74.8 ms | 67.9 ms | 0.909 |
+| prefill 4 x 4096 | 277.8 ms | 255.9 ms | 0.921 |
+| prefill 8 x 2048 | 256.6 ms | 233.7 ms | 0.911 |
+| decode bs1 | 3.24-3.29 ms/token | 3.14 ms | 0.955-0.970 |
+| decode bs16 | 11.63 ms | 11.13 ms | 0.957 |
+| decode bs64 | 39.9 ms | 38.8 ms | 0.972 |
 
-Run-to-run noise is about +-0.5%. Starting point (compiled, unfused, SDPA with a mask): BAM/MHA
-0.78 prefill, 0.79-0.86 decode; eager BAM was 0.22-0.55 of eager MHA.
+Run-to-run noise: about +-0.5% for a fixed compilation, but max-autotune picks differ between compilations
+(MHA prefill 4x4096: 255.9-263.5 ms; BAM decode bs1: 3.24-3.29 ms). Starting point (compiled, unfused,
+SDPA with a mask): BAM/MHA 0.78 prefill, 0.79-0.86 decode; eager BAM was 0.22-0.55 of eager MHA.
+
+The bs1 one-token GEMV kernel (`bam::gemv`) is generic: with `fuse_projections(gemv=True)` MHA decodes bs1
+in 2.98-3.03 ms, so against an MHA given the same kernel BAM bs1 is 0.90-0.92. The other kernels are BAM
+specific.
 
 What mattered (measured):
 - Decode attention: SDPA with a boolean mask ran 13x off the bandwidth floor at bs1; the split-KV
   kernel cut MHA decode bs1 from 8.5 to 3.2 ms (both models use it).
 - GEMM alignment: K = 6140 (BAM MLP) halved cuBLAS throughput; zero-padding to 6144 (exact) and
   padding fused projection outputs to multiples of 64 gave ~6 ms of prefill.
-- Per-token M work as Triton kernels (all reads of a layer are linear in M_t: one stacked product,
-  the v8t insight); the decode read also folds GELU, the key and write-address up-projections and the
-  previous layer's deferred write (M is touched once per layer; the last layer's write is dropped).
-- Kernel count, not FLOPs, limits decode bs1: BAM went from 19.8 to 14.3 kernels per layer.
+- Per-token M work as Triton kernels (all reads of a layer are linear in M_t, the v8t insight). Decode
+  (<= 4 tokens): one read kernel per layer also does GELU, the key and write-address up-projections and the
+  previous layer's deferred write (M touched once per layer; the last layer's write is dropped).
+- Register pressure decides the prefill read: one program holding all four arms needs 255 registers and
+  spills; two arms per program (output columns in two K halves, one warp, arm group fastest so the
+  programs of a token share M_t in L2) plus a third program writing the RoPE tail: 146 + 32 -> 110 + ~20
+  us per 4096 tokens. The pure memory pattern of this read runs in ~70% of its time: little is left.
+- Decode bs1 is bound by many small, latency-limited GEMVs. A one-token Triton GEMV with the RMSNorm, the
+  attn + local-O add, the bias and the residual fused (BF16 bit-exact) replaced inductor's norm kernels,
+  an addmm template with one program per 64 rows (31 programs for fused_x) and the residual adds:
+  3.51 -> 3.24 ms.
+- Decode bs16: the two bottleneck up-projections (read keys, write address) in one small-GEMM launch over
+  one GELU (fused_x columns reordered so both GELU inputs are adjacent): 11.99 -> 11.75 ms.
+- RoPE from one shared cos/sin table stored as [B*T, D/2] rows: per-layer views of it were
+  re-materialized by inductor (a kernel per layer), and in-kernel sin/cos/exp sat on the decode critical
+  path.
 
 Negative results kept out of the code: FlexDecoding (fails for head dim 96 here), atomic head
-reduction for a fused decode write (L2 contention, 36 us), fused prefill write+read (pipeline depth
-loss, slower than separate), RoPE inside the prefill read (shared-memory pressure), token-loop/K-split
-prefill write (1.6x slower), low-rank correction instead of forming M' in the decode read.
+reduction for a fused decode write (L2 contention, 36 us), fused prefill write+read (no byte saving
+once o_head must still be formed for o_proj), RoPE inside a read program (register spills: +30 us),
+token-loop/K-split prefill write (1.6x slower), low-rank correction instead of forming M' in the decode
+read, the fused decode read beyond 4 tokens (per-token GEMV slices: bs16 12.57 vs 11.99 ms), GELU inside
+the small-GEMM kernel (every program recomputes the transcendentals: 11 vs 4 us), splitting V = 40 into
+32 + 16 blocks (fewer registers, not faster), bias added outside F.linear for GEMVs (inductor emits a
+reduction GEMV plus per-slice copy kernels: slower).
 
-Remaining gap: prefill 1x4096 / 8x2048 and decode bs1 sit at the 0.90 line. The prefill read
-(~145 us/layer) runs at ~55% of HBM bandwidth and the decode read (~11 us/layer) is latency-bound;
-a persistent per-layer kernel or a [B,T,V,K] M layout are the next candidates.
+Remaining gap: prefill (~0.91) is BAM's per-token M traffic (read ~30 KB, write ~28 KB per token and
+layer) at ~1.0-1.4 TB/s; the GEMMs and attention match MHA. Decode is within 3-5%.

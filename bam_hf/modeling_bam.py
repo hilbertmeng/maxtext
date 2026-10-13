@@ -65,10 +65,6 @@ def rope_rows(rotary, positions, rows, dtype):
   return cos.reshape(rows, -1).contiguous(), sin.reshape(rows, -1).contiguous()
 
 
-def position_ids_of(positions):
-  return positions[0] if isinstance(positions, tuple) else positions
-
-
 def rms_norm(x, eps):
   """Parameter-free RMS norm over the last axis with FP32 statistics, returned in x.dtype."""
   f = x.float()
@@ -351,8 +347,6 @@ class BamAttention(nn.Module):
     self.q_proj = HeadLinear(h, (n, config.standard_qk_dim))
     self.k_proj = HeadLinear(h, (n, config.standard_qk_dim))
     self.rotary = BamRotary(config.standard_qk_dim, config.rope_min_timescale, config.rope_max_timescale)
-    assert config.rope_min_timescale == 1.0       # the Triton read applies max_ts ** (2i / R)
-    self.rotary_max_timescale = float(config.rope_max_timescale)
     # Read keys: shared GELU bottleneck, per-arm up projection + pre-bias.
     self.read_down = nn.Linear(h, r, bias=False)
     self.q_read_up = HeadLinear(r, (n, v))
@@ -483,9 +477,8 @@ class BamAttention(nn.Module):
         address = address.reshape(b, t, n, -1)
       elif decode:                              # RoPE and the q scale in the kernel
         y, m_new = _bam_read(flat_m, raw[0].reshape(b * t, 3, n, -1), gates, self.static_keys, std,
-                             position_ids_of(positions).reshape(-1).contiguous(), self.read_eps, self.read_scale,
-                             self.static_gate_init, self.qk_cols, 1.0 / math.sqrt(self.head_dim),
-                             self.rotary_max_timescale, decode, *pend)
+                             *rope_rows(self.rotary, positions, b * t, x.dtype), self.read_eps, self.read_scale,
+                             self.static_gate_init, self.qk_cols, 1.0 / math.sqrt(self.head_dim), *pend)
       else:     # prefill (deferred writes already applied): RoPE tail in the kernel; the softmax scale to SDPA
         y = _bam_prefill_read(flat_m, raw[0].reshape(b * t, 3, n, -1), gates, self.static_keys, std,
                               *rope_rows(self.rotary, positions, b * t, x.dtype), self.read_eps, self.read_scale,

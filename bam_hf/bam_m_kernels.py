@@ -8,7 +8,6 @@ write: M'_t = M_t + sum_g C_g^T A_g with C_g = sigmoid(gate_g) rms(content_g) [N
        for one or two groups (attention write, plus the MLP write on its layers).
 Inputs may be strided views (e.g. column slices of a fused projection output). Accumulation is FP32.
 """
-import math
 from typing import Optional, Tuple
 
 import torch
@@ -24,11 +23,10 @@ def _prec(m):
 
 
 @triton.jit
-def _store_rows(y, a, n, k, t, Y, s_y_t, STD, POS, s_st, s_sn, s_sarm, nm, km, N: tl.constexpr, K: tl.constexpr,
-                QCOLS: tl.constexpr, R: tl.constexpr, RB: tl.constexpr, QSCALE: tl.constexpr,
-                LOG_MAX_TS: tl.constexpr):
+def _store_rows(y, a, n, k, t, Y, s_y_t, STD, COS, SIN, s_st, s_sn, s_sarm, s_ct, nm, km, N: tl.constexpr,
+                K: tl.constexpr, QCOLS: tl.constexpr, R: tl.constexpr, RB: tl.constexpr, QSCALE: tl.constexpr):
   """Store rows (arm a, head n) of token t. Q/K arms (a < 2) keep the M-read columns < QCOLS and take the
-  rotated standard coordinates in columns >= QCOLS (half-split RoPE over R dims, timescale max_ts ** (2i/R));
+  rotated standard coordinates in columns >= QCOLS (half-split RoPE over R dims, cos/sin table rows [R/2]);
   Q is scaled by QSCALE. The tail is computed on a narrow [rows, RB] tile and stored separately."""
   scale = tl.where(a == 0, QSCALE, 1.0)
   qk = a < 2
@@ -43,9 +41,9 @@ def _store_rows(y, a, n, k, t, Y, s_y_t, STD, POS, s_st, s_sn, s_sarm, nm, km, N
   base = STD + t * s_st + tl.minimum(a, 1)[:, None] * s_sarm + n[:, None] * s_sn
   s1 = tl.load(base + j[None, :], mask=tail, other=0.).to(tl.float32)
   s2 = tl.load(base + partner[None, :], mask=tail, other=0.).to(tl.float32)
-  pos = tl.load(POS + t).to(tl.float32)
-  ang = pos / tl.exp(LOG_MAX_TS * 2.0 * i.to(tl.float32) / R)
-  rot = s1 * tl.cos(ang)[None, :] + tl.where(j < half, -1.0, 1.0)[None, :] * s2 * tl.sin(ang)[None, :]
+  rc = tl.load(COS + t * s_ct + i, mask=j < R, other=0.).to(tl.float32)
+  rs = tl.load(SIN + t * s_ct + i, mask=j < R, other=0.).to(tl.float32)
+  rot = s1 * rc[None, :] + tl.where(j < half, -1.0, 1.0)[None, :] * s2 * rs[None, :]
   tl.store(row[:, None] + QCOLS + j[None, :], (rot * scale[:, None]).to(Y.dtype.element_ty), mask=tail)
 
 
@@ -98,26 +96,26 @@ def _load_m(M, MOUT, t, store, s_mt, C1, CL1, G1, A1, C2, G2, A2, s_c1t, s_c1n, 
 
 
 @triton.jit
-def _read_kernel(M, KEYS, GATES, S, Y, T, STD, POS, MOUT, C1, CL1, G1, A1, C2, G2, A2,
-                 s_mt, s_kt, s_karm, s_kn, s_gt, s_y_t, s_st, s_sn, s_sarm,
+def _read_kernel(M, KEYS, GATES, S, Y, T, STD, COS, SIN, MOUT, C1, CL1, G1, A1, C2, G2, A2,
+                 s_mt, s_kt, s_karm, s_kn, s_gt, s_y_t, s_st, s_sn, s_sarm, s_ct,
                  s_c1t, s_c1n, s_cl1t, s_cl1n, s_g1t, s_a1t, s_a1n, s_c2t, s_c2n, s_g2t, s_a2t, s_a2n,
                  N: tl.constexpr, K: tl.constexpr, V: tl.constexpr,
                  BN: tl.constexpr, BK: tl.constexpr, BV: tl.constexpr,
                  EPS: tl.constexpr, SCALE: tl.constexpr, STATIC_DIV: tl.constexpr, PREC: tl.constexpr,
                  QCOLS: tl.constexpr, R: tl.constexpr, RB: tl.constexpr, QSCALE: tl.constexpr,
-                 LOG_MAX_TS: tl.constexpr, ROPE: tl.constexpr, TB: tl.constexpr, STAGES: tl.constexpr,
                  PENDING: tl.constexpr, HAS_LOCAL: tl.constexpr, PEPS: tl.constexpr):
-  """Program (token block, arm): TB tokens, software-pipelined; one [BN,BV]x[BV,BK] tensor-core
-  product per token. M_t is shared by the four arm programs through L2."""
-  a = tl.program_id(0)                            # arm fastest: the 4 programs of a token block run together (L2)
-  blk = tl.program_id(1)
+  """Decode read (5..63 tokens; fewer go through _decode_read_kernel), program (arm, token): one
+  [BN,BV]x[BV,BK] tensor-core product; RoPE and the q scale applied. M_t is shared by the four arm programs
+  through L2."""
+  a = tl.program_id(0)                            # arm fastest: the 4 programs of a token run together (L2)
+  t = tl.program_id(1)
   n = tl.arange(0, BN)
   k = tl.arange(0, BK)
   v = tl.arange(0, BV)
   nm, km, vm = n < N, k < K, v < V
   arm = tl.minimum(a, 2)                          # v and o share the VO key
   st = tl.load(S + a * V * N + v[None, :] * N + n[:, None], mask=nm[:, None] & vm[None, :], other=0.).to(tl.float32)
-  for t in tl.range(blk * TB, tl.minimum(blk * TB + TB, T), num_stages=STAGES):
+  if t < T:
     mkv = _load_m(M, MOUT, t, a == 0, s_mt, C1, CL1, G1, A1, C2, G2, A2, s_c1t, s_c1n, s_cl1t, s_cl1n, s_g1t,
                 s_a1t, s_a1n, s_c2t, s_c2n, s_g2t, s_a2t, s_a2n, k, v, km, vm, N, K, V, BN, PEPS, PENDING,
                 HAS_LOCAL, PREC)
@@ -128,51 +126,8 @@ def _read_kernel(M, KEYS, GATES, S, Y, T, STD, POS, MOUT, C1, CL1, G1, A1, C2, G
     inv = tl.rsqrt(tl.sum(key * key, axis=1) / V + EPS)
     x = (SCALE * tl.sigmoid(gd) * inv)[:, None] * key + (1.1 * tl.sigmoid(gs) / STATIC_DIV)[:, None] * st
     y = tl.dot(x.to(mkv.dtype), tl.trans(mkv), input_precision=PREC)     # [BN, BK] fp32
-    if ROPE:
-      _store_rows(y, tl.zeros_like(n) + a, n, k, t, Y, s_y_t, STD, POS, s_st, s_sn, s_sarm, nm, km, N, K,
-                  QCOLS, R, RB, QSCALE, LOG_MAX_TS)
-    else:
-      tl.store(Y + t * s_y_t + a * N * K + n[:, None] * K + k[None, :], y.to(Y.dtype.element_ty),
-               mask=nm[:, None] & km[None, :])
-
-
-@triton.jit
-def _read_kernel_stacked(M, KEYS, GATES, S, Y, T, STD, POS, MOUT, C1, CL1, G1, A1, C2, G2, A2,
-                         s_mt, s_kt, s_karm, s_kn, s_gt, s_y_t, s_st, s_sn, s_sarm,
-                         s_c1t, s_c1n, s_cl1t, s_cl1n, s_g1t, s_a1t, s_a1n, s_c2t, s_c2n, s_g2t, s_a2t, s_a2n,
-                         N: tl.constexpr, K: tl.constexpr, V: tl.constexpr,
-                         BN: tl.constexpr, BK: tl.constexpr, BV: tl.constexpr,
-                         EPS: tl.constexpr, SCALE: tl.constexpr, STATIC_DIV: tl.constexpr, PREC: tl.constexpr,
-                         QCOLS: tl.constexpr, R: tl.constexpr, RB: tl.constexpr, QSCALE: tl.constexpr,
-                         LOG_MAX_TS: tl.constexpr, ROPE: tl.constexpr, TB: tl.constexpr, STAGES: tl.constexpr,
-                         PENDING: tl.constexpr, HAS_LOCAL: tl.constexpr, PEPS: tl.constexpr):
-  """Program = TB tokens; per token one [4*BN, BV] x [BV, BK] product with the four arms stacked as rows
-  (row r: arm r // BN, head r % BN), so M_t is read once and X is gathered in one 2-D load."""
-  r = tl.arange(0, 4 * BN)
-  a = r // BN
-  n = r % BN
-  k = tl.arange(0, BK)
-  v = tl.arange(0, BV)
-  nm, km, vm = n < N, k < K, v < V
-  arm = tl.minimum(a, 2)
-  st = tl.load(S + a[:, None] * V * N + v[None, :] * N + n[:, None], mask=nm[:, None] & vm[None, :], other=0.).to(tl.float32)
-  for t in tl.range(tl.program_id(0) * TB, tl.minimum(tl.program_id(0) * TB + TB, T), num_stages=STAGES):
-    mkv = _load_m(M, MOUT, t, True, s_mt, C1, CL1, G1, A1, C2, G2, A2, s_c1t, s_c1n, s_cl1t, s_cl1n, s_g1t,
-                s_a1t, s_a1n, s_c2t, s_c2n, s_g2t, s_a2t, s_a2n, k, v, km, vm, N, K, V, BN, PEPS, PENDING,
-                HAS_LOCAL, PREC)
-    key = tl.load(KEYS + t * s_kt + arm[:, None] * s_karm + n[:, None] * s_kn + v[None, :],
-                  mask=nm[:, None] & vm[None, :], other=0.).to(tl.float32)
-    gd = tl.load(GATES + t * s_gt + a * N + n, mask=nm, other=0.).to(tl.float32)
-    gs = tl.load(GATES + t * s_gt + (4 + a) * N + n, mask=nm, other=0.).to(tl.float32)
-    inv = tl.rsqrt(tl.sum(key * key, axis=1) / V + EPS)
-    x = (SCALE * tl.sigmoid(gd) * inv)[:, None] * key + (1.1 * tl.sigmoid(gs) / STATIC_DIV)[:, None] * st
-    y = tl.dot(x.to(mkv.dtype), tl.trans(mkv), input_precision=PREC)
-    if ROPE:
-      _store_rows(y, a, n, k, t, Y, s_y_t, STD, POS, s_st, s_sn, s_sarm, nm, km, N, K, QCOLS, R, RB, QSCALE,
-                  LOG_MAX_TS)
-    else:      # q/k columns >= QCOLS are left for bam_rope_tail
-      tl.store(Y + t * s_y_t + a[:, None] * N * K + n[:, None] * K + k[None, :], y.to(Y.dtype.element_ty),
-               mask=nm[:, None] & km[None, :] & ~((a < 2)[:, None] & (k >= QCOLS)[None, :]))
+    _store_rows(y, tl.zeros_like(n) + a, n, k, t, Y, s_y_t, STD, COS, SIN, s_st, s_sn, s_sarm, s_ct, nm, km, N,
+                K, QCOLS, R, RB, QSCALE)
 
 
 @triton.jit
@@ -282,52 +237,38 @@ def _pending(m, c1, l1, g1, a1, c2, g2, a2, pending):
 
 @torch.library.custom_op('bam::read', mutates_args=())
 def bam_read(m: torch.Tensor, keys: torch.Tensor, gates: torch.Tensor, static_keys: torch.Tensor,
-             std: torch.Tensor, positions: torch.Tensor, eps: float, scale: float, static_div: float,
-             qk_cols: int, q_scale: float, max_timescale: float, rope: bool,
-             c1: torch.Tensor, l1: torch.Tensor, g1: torch.Tensor, a1: torch.Tensor, c2: torch.Tensor,
-             g2: torch.Tensor, a2: torch.Tensor, pending: int, has_local: bool,
+             std: torch.Tensor, cos: torch.Tensor, sin: torch.Tensor, eps: float, scale: float, static_div: float,
+             qk_cols: int, q_scale: float, c1: torch.Tensor, l1: torch.Tensor, g1: torch.Tensor, a1: torch.Tensor,
+             c2: torch.Tensor, g2: torch.Tensor, a2: torch.Tensor, pending: int, has_local: bool,
              write_eps: float) -> Tuple[torch.Tensor, torch.Tensor]:
-  """m [T,K,V] contiguous; keys [T,3,N,V] (q, k, vo; any token/arm/head strides, unit V stride);
+  """Decode read. m [T,K,V] contiguous; keys [T,3,N,V] (q, k, vo; any token/arm/head strides, unit V stride);
   gates [T,8,N] logits (dyn q,k,v,o then static q,k,v,o; unit stride within the 8N block);
   static_keys [4,V,N] contiguous; std [T,2,N,R] unrotated standard Q/K coordinates (unit R stride);
-  positions [T] int. With `rope`, returns attention-ready Y [T,4,N,K]: q (scaled by q_scale), k, v, local_o
-  with q/k columns >= qk_cols holding the rotated standard coordinates (fewer kernels when decoding);
-  without, Y is the raw read (q/k columns >= qk_cols are unused) and the caller applies RoPE.
+  cos/sin [T, R/2] RoPE table. Returns attention-ready Y [T,4,N,K]: q (scaled by q_scale), k, v, local_o
+  with q/k columns >= qk_cols holding the rotated standard coordinates.
   pending (0, 1, 2) deferred-write groups of the previous layer (content c1 (+ l1 if has_local), gate logits
   g1, raw address a1; second group c2, g2, a2) are applied to M first; returns (Y, M') with M' empty if none."""
   t, kdim, vdim = m.shape
   n = keys.shape[2]
   assert m.is_contiguous() and static_keys.is_contiguous() and keys.stride(-1) == 1
   assert gates.stride(-1) == 1 and gates.stride(-2) == n
+  assert std.stride(-1) == 1 and cos.stride(-1) == 1 and sin.stride() == cos.stride()
   y = torch.empty((t, 4, n, kdim), device=m.device, dtype=m.dtype)
   m_out, ptrs, strides = _pending(m, c1, l1, g1, a1, c2, g2, a2, pending)
-  if not t:
-    return y, m_out
-  assert std.stride(-1) == 1 and positions.is_contiguous()
-  args = (m, keys, gates, static_keys, y, t, std, positions, *ptrs, m.stride(0), keys.stride(0), keys.stride(1),
-          keys.stride(2), gates.stride(0), y.stride(0), std.stride(0), std.stride(2), std.stride(1), *strides)
-  meta = dict(N=n, K=kdim, V=vdim, BN=max(16, triton.next_power_of_2(n)), BK=triton.next_power_of_2(kdim),
-              BV=max(16, triton.next_power_of_2(vdim)), EPS=eps, SCALE=scale, STATIC_DIV=static_div, PREC=_prec(m),
-              QCOLS=qk_cols, R=kdim - qk_cols, RB=triton.next_power_of_2(kdim - qk_cols), QSCALE=q_scale, LOG_MAX_TS=math.log(max_timescale), ROPE=rope,
-              PENDING=pending, HAS_LOCAL=has_local, PEPS=write_eps)
-  if t < 64:     # decode: one program per (arm, token) for latency (A800: 3.7 us at T=1)
-    _read_kernel[(4, t)](*args, **meta, TB=1, STAGES=1, num_warps=4)
-  elif not rope and not pending:     # prefill path (q/k tails left for bam_rope_tail)
-    _prefill_read(m, keys, gates, static_keys, y, None, None, None, eps, scale, static_div, qk_cols)
-  else:          # four arms stacked into one product per token, M_t read once
-    for stages in ((2, 1) if rope else (3, 2, 1)):   # shared-memory budget differs (A800 164 KB, RTX 6000D 99 KB)
-      try:
-        _read_kernel_stacked[(triton.cdiv(t, 4),)](*args, **meta, TB=4, STAGES=stages, num_warps=4)
-        break
-      except triton.runtime.errors.OutOfResources:
-        if stages == 1:
-          raise
+  if t:
+    _read_kernel[(4, t)](
+        m, keys, gates, static_keys, y, t, std, cos, sin, *ptrs, m.stride(0), keys.stride(0), keys.stride(1),
+        keys.stride(2), gates.stride(0), y.stride(0), std.stride(0), std.stride(2), std.stride(1), cos.stride(0),
+        *strides, N=n, K=kdim, V=vdim, BN=max(16, triton.next_power_of_2(n)), BK=triton.next_power_of_2(kdim),
+        BV=max(16, triton.next_power_of_2(vdim)), EPS=eps, SCALE=scale, STATIC_DIV=static_div, PREC=_prec(m),
+        QCOLS=qk_cols, R=kdim - qk_cols, RB=triton.next_power_of_2(kdim - qk_cols), QSCALE=q_scale,
+        PENDING=pending, HAS_LOCAL=has_local, PEPS=write_eps, num_warps=4)
   return y, m_out
 
 
 @bam_read.register_fake
-def _(m, keys, gates, static_keys, std, positions, eps, scale, static_div, qk_cols, q_scale, max_timescale, rope,
-      c1, l1, g1, a1, c2, g2, a2, pending, has_local, write_eps):
+def _(m, keys, gates, static_keys, std, cos, sin, eps, scale, static_div, qk_cols, q_scale, c1, l1, g1, a1, c2, g2,
+      a2, pending, has_local, write_eps):
   return (m.new_empty((m.shape[0], 4, keys.shape[2], m.shape[1])),
           torch.empty_like(m) if pending else m.new_empty((0,)))
 
@@ -492,45 +433,6 @@ def _(hidden, up_weight, up_bias, m, gates, static_keys, std, cos, sin, eps, sca
           torch.empty_like(m) if pending else m.new_empty((0,)),
           m.new_empty((m.shape[0], gates.shape[2], m.shape[2])))
 
-
-
-@triton.jit
-def _rope_tail_kernel(Y, STD, COS, SIN, ROWS, s_yt, s_st, s_sn, s_sarm, s_ct, N: tl.constexpr, K: tl.constexpr,
-                      QCOLS: tl.constexpr, R: tl.constexpr, RB: tl.constexpr, BROWS: tl.constexpr):
-  """Y[t, a, n, QCOLS:] = RoPE(std[t, a, n, :]) for the q, k arms, in place, from the model's shared cos/sin
-  table [T, R/2]. Rows r = (t * 2 + a) * N + n are flattened across tokens (dense [BROWS, RB] tiles)."""
-  r = tl.program_id(0) * BROWS + tl.arange(0, BROWS)
-  rm = r < ROWS
-  t = r // (2 * N)
-  a = (r // N) % 2
-  n = r % N
-  j = tl.arange(0, RB)
-  half = R // 2
-  i = tl.where(j < half, j, j - half)
-  partner = tl.where(j < half, j + half, j - half)
-  mask = rm[:, None] & (j < R)[None, :]
-  base = STD + t[:, None] * s_st + a[:, None] * s_sarm + n[:, None] * s_sn
-  s1 = tl.load(base + j[None, :], mask=mask, other=0.).to(tl.float32)
-  s2 = tl.load(base + partner[None, :], mask=mask, other=0.).to(tl.float32)
-  c = tl.load(COS + t[:, None] * s_ct + i[None, :], mask=mask, other=0.).to(tl.float32)
-  sn = tl.load(SIN + t[:, None] * s_ct + i[None, :], mask=mask, other=0.).to(tl.float32)
-  rot = s1 * c + tl.where(j < half, -1.0, 1.0)[None, :] * s2 * sn
-  tl.store(Y + t[:, None] * s_yt + (a * N + n)[:, None] * K + QCOLS + j[None, :], rot.to(Y.dtype.element_ty),
-           mask=mask)
-
-
-@torch.library.custom_op('bam::rope_tail', mutates_args=('y',))
-def bam_rope_tail(y: torch.Tensor, std: torch.Tensor, cos: torch.Tensor, sin: torch.Tensor, qk_cols: int) -> None:
-  """In place: q/k columns >= qk_cols of y [T,4,N,K] (from bam_read without rope) = RoPE(std [T,2,N,R]) with
-  the cos/sin table [T, R/2]."""
-  t, _, n, kdim = y.shape
-  assert y.is_contiguous() and std.stride(-1) == 1 and cos.is_contiguous() and sin.is_contiguous()
-  rows = t * 2 * n
-  if rows:
-    brows = 64      # A800: 19.9 us/layer at T=4096 (computing sin/cos per element: 32 us)
-    _rope_tail_kernel[(triton.cdiv(rows, brows),)](
-        y, std, cos, sin, rows, y.stride(0), std.stride(0), std.stride(2), std.stride(1), cos.stride(0), N=n, K=kdim,
-        QCOLS=qk_cols, R=kdim - qk_cols, RB=triton.next_power_of_2(kdim - qk_cols), BROWS=brows, num_warps=8)
 
 
 @triton.jit

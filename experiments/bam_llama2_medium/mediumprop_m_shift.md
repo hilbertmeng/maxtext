@@ -273,3 +273,10 @@ A72.43%,C35.24%; latest5extraJoint .00244688 vs6000 .00342364 (~-28.5%).
 MHA-referenceSOTAgainKV1.040654,joint1.069169;joint vsSingleloss-.0024372,
 vsKV-.0048506. Single continuescatching; terminaljoint excessbet0–.002,
 no evidence yet forsingleclearoverturn. KeepKV full13500 peruser; bothcontinue.
+
+
+Pair8000/9000: extraJointfive-windowmeans .00248128/.00197356 vs7000 .00244688.
+At8000 temporaryplateau;9000 singleclosesagain(-20% recent1k), butnotparity.
+9000 rawGsingle/KV/joint .011055/.007235/.012175,A66.57%,C15.48%;
+MHArefSOTAgainKV1.046712,joint1.078613. Canonicalspeeds .416775/.405525.
+Bothcontinue,KVkeepfull13500. Durablepair9000.json, no separateKVrefresh.

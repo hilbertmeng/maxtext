@@ -59,3 +59,14 @@ lineage differs, no same-VM pure-architecture speed claim.
 MHA-referenced gain specification persisted; family crossscale script deployed
 matchingSHA256472bdaa93fa20d2afba39a4fab260c017311fa5579614085ca130bc9ee2f56e7,
 firstpending report executes correctly. Native500 windows,agent1000 reporting.
+
+
+XL2000 review: ownparentgaps500/1000/1500/2000 -.048231/-.036913/-.028322/
+-.025337; MHA-referencegainmultiples1.040713/1.079065/1.087184/1.097893.
+Exactcrossscale2%: Medium270 .978969 vsXL1000 1.079065;4% Medium540 .989668
+vsXL2000 1.097893. XL strongeratbothobservedearlystages, no finalscalinglaw
+claim. Crossscale tables onlyratios; ownXL gap remainsseparate.
+Numerical-lineageaudit b83223f→0f7f6d10: train_compile/optimizers/maxtext_utils
+unchanged; train.py onlywriter.begin_step; max_utils rotatingwriteroperational
+fix. OldMHAe30c1b8 andparentb832 AOT both calltrain.create_model_optimizer,
+so no knownmissingWD-control issue inthesecomparisons.

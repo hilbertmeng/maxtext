@@ -50,3 +50,14 @@ prove read050 compatibility. All diagnostic results use capture-free paired forw
 no checkpoint writes. Artifacts gs://newproject-1-llm_base_models_us-central1/log/bam_diagnostics/mediumprop-r256-sharing/sota13500-20261013/cohort128-r384/.
 
 Status: exact parameter trees and full47 BAM regressions passed; new scan/gradient/causality checks passed. First preparation blocked by a test-only tracer capture bug; no training started. Corrected host callback observes actual post-attention input under remat; resealing and retrying all three gates.
+
+
+All3 actualFIRST_STEP andstep14 verified at17:07UTC, runtimec9a2a360.
+Final trainers310190/310191/310189; failed-gate187/188 nodes and queues allNOT_FOUND,
+retainedFLEX untouched. FullsealedCPU:5 new tests+writer5+full47 passed.
+Actual worker params432111680/432121472/432118688 matchfullshapeprobes; AOT loaded.
+Canonical20–99 .464425/.464400/.465800step/s (80samples each),
+vsRead050 .458350: +1.3254/+1.3200/+1.6254%, vsoriginalSOTA .478725:
+-2.9871/-2.9923/-2.6999%. Speedbet .460 actualwithin1.0–1.26% faster.
+NativeMHA-referenced gains vsRead050 andoriginalSOTA configured incommonreport;
+loss200stride andagent1000 cadence. No effect claim fromstartup loss.

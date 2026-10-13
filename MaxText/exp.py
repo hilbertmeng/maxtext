@@ -12724,6 +12724,7 @@ class BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile(BamMediumPropK75E
     # @3000 SOTA-.008294,last5-.007692;@3600 -.006434,last5-.007875; continue credible gain.
     # @4000 SOTA-.008594,last5-.008002; sustained benefit,continue.
     # @5000 SOTA-.008717,last5-.008591; MHA-referenced gain/SOTA1.045728x,last5 1.043695; P2,resumed4775.
+    # @6000 SOTA-.008618,last5-.008964; MHA-ref gain/SOTA1.048738x,last5 1.048949;continue.
     model_name = 'BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile'
     bam_record_m_shift_health = True
     bam_m_shift_mode = 'read'
@@ -12762,6 +12763,7 @@ class BamMediumPropSharedR256GeneralReadMShiftReadQKVoG050TruePile(BamMediumProp
     # Speed -3.49% vs Read G050, -7.59% vs SOTA; custom health324 vs parent1404, included.
     # @1000 SOTA-.019421,ReadG050-.019060; gain/SOTA1.033245x(MHA ref,default).
     # @2000 SOTA-.015143,ReadG050-.008053; MHA-referenced gain/SOTA1.048435x,last5 1.042730; P1,resumed1922.
+    # @3000 SOTA-.012459,ReadG050-.004165; gain/SOTA1.051550x,last5 1.050195; extra gain shrinks.
     model_name = 'BamMediumPropSharedR256GeneralReadMShiftReadQKVoG050TruePile'
     bam_m_shift_separate_reads = True
     mlp_dim_by_block = [3781, 3654, 3781]  # Repay all 3 gate kernels; +1728 biases vs SOTA.

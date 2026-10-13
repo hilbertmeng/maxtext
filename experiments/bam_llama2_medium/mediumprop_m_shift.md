@@ -150,3 +150,15 @@ Bothpreemptedwithin49s:QKVO08:51:30UTC/P1,firstREADY07:34:49→08:51:30=1h16m41s
 SharedReadG0505000−SOTA−.008717; latestfive−.008591(previous−.008002). MHA-reference relativeSOTA multiplier4200/4400/4600/4800/5000=1.045070/1.043361/1.039088/1.045226/1.045728;latestfive mean1.043695(range1.039088..1.045728),previousfive1.036278. Full25windowcumulativegap/r200/multiplierdelivered09:14UTC. Sustainedgaincontinues,throughput−4.256%vsSOTA;no architecture-only speedclaim aboutrequestedhealthcost. Recovery4775→4776originalLR22.733e-5 and AOTverified;nextperiodic5000checkpointcommitted. Bothactive;nextnormalReadG0506000/QKVO3000,reviewQKVO2800first. Noadditionaldiagnostic/ablationarm. Canonicalnativeintegratedreport-read050-5000-next.txtretainsfulldata; unchangedclosedRead005pairnotrepeated.
 
 Three-gate2000compacthealthfinite: Q/K/VOmeanpreviousshare.266678/.511142/.246553;1000.272975/.529466/.244714. Pairmeanabsdiff2000q-k.415627/q-vo.249565/k-vo.410581;1000.424050/.254613/.418018. Temporalpreferencepatternpersists,nomeaningfulnewanomaly,nocolumnmetricaddition.
+
+
+## Three-gate3000 and updated terminal forecast
+
+Full3000windowreported09:43UTC: new−SOTA−.012459,new−ReadG050−.004165,ratioMHArefrelativeSOTA1.051550. LastfiveSOTAgaps−.013384(previous−.016338),parentgaps−.005692(previous−.012090);ratio1.050195(range1.045360..1.053419),previous1.042730. Stablethroughput−3.4853%vsparent/−7.5931%vsSOTAincluded. All15cumulativewindowswithgap/r200/multiplierdelivered,nopoint-onlyratio. Artifactreport-qkvo-3000-next.txtfromnativeintegratedreport.
+
+2800reviewpassedwithcredibleSOTAgain−.013160/parent−.005240;continueboth. DirectiongainvstheoriginalSOTA remainscredible, butindependentthreegateextraadvantageoverbettersharedgatekeepscontracting. Forecastupdatedat3000beforeterminalobservation: new−ReadG050near0..−.001(central−.0005),downfromoriginal−.003bet. Preserveoriginalbetforfinalhonestassessment;do not retrodictit. Sharedreader'sownratiohascontinuedtogrow,soSOTA-relativeplateaualonecannotestablishthreegatefinalsuperiority. Nextnew4000testsifitsadditionalparentgainlevelsout;sharednext6000. No newablationarm.
+
+
+## Shared-gate6000 report
+
+Full30windowcumulativegap/r200/MHArefrelSOTAmultipliersdelivered09:52UTC:6000gap−.008618,ratio1.048738;latestfivegap−.008964(previous−.008591),ratiosmean1.048949(range1.044693..1.054675),previous1.043695. Throughput−4.256%SOTA. Absolutebenefit~.009 persists;relativebenefitstillgrows. Bothhealthy,no newP;checkpoint6000/3200committed. Onlyowned2continue,cursorsshared6000/new3000,next7000/4000. Newhealth3000allfiniteQ/K/VOmean.260884/.499279/.242610,pairdifferences.406057/.242866/.402378,patternstable,noadditionalhealthcommentaryneeded. Nativeintegratedreport-read050-6000-next.txtretainsallfigures.

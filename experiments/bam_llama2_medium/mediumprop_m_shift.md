@@ -1,4 +1,4 @@
-# MediumProp SOTA dynamic M shift: four arms
+# MediumProp SOTA dynamic M shift: shared and Q/K/VO gates
 
 User requests latest-main fork. Worktree `/data0/xd/mediumprop-m-shift`, branch `codex/mediumprop-m-shift`, base0f7f6d10a2760c205699cf34f9834c892b4926d0. Main exp.py ledger only. Read main AGENTS.md/current training+diagnostics+tpu-ag skills; current main operational paths inherited directly. Four T4096 arms retain sharedR256/generalized-read SOTA model, historical .99 read-gate math, pureJAX(no new Pallas backend), scan, TruePile4096/global128,524288targets/step, LR.0003/schedule13500 and parent health. Direct reference historical SOTA64e3fc3 (432111104 params,.478725step/s); keep SOTA and paired-arm references; MHA removed from live comparisons at user request on2026-10-13.
 
@@ -74,3 +74,58 @@ Customhealth5scalarsperlayerperarm(mean,std,frac<.01,frac>.99,delta/currentM_RMS
 DirectbaselinesReadG050andoriginalSOTAonly. Pre-runbetterminalnew−ReadG050−.003,new−SOTA−.009,speed.44step/s(~−4.0%vsReadG050,−8.1%vsSOTA). MainriskextraMLPrepaymentandmultipleMviewsincreasebandwidth;query/keytemporalpreferencescouldimproverelevancebutnothingrequiresdivergence. Gatepairdifftrackswhethermodelusestheadditionalfreedomwithoutanextraablationarm. No inferencecachesaving;onepreviousrawMbufferstillsharedbetween3gates.
 
 UserauthorizeshotswitchfromaPersistarmjudgedunpromisingat/after2800. PrepareCPU/config/AOTfirstusingretainedFLEXcompiler;thenreviewoldlossandhandoffREADYTPUifstopjustified. NewRUNstarts0,doesnotrestoreoldparameter-treecheckpoint. OldRUNfinalCP/TB/leaseboundariesretained;finalizeoldstoppedonlyafternewFIRST_STEPandexplicitownershiptransfer. Currentfourcontinuewhilepreparing.
+
+## Verified three-gate launch and Persist closeout
+
+Three-gate RUN `BamMediumPropSharedR256GeneralReadMShiftReadQKVoG050TruePile` actually trains on runtime `e4e6e1788c067783ce3ad1f8cb9536d1d80c660a`. CPU6shift tests+5writers+47BAM regressions, fullhashsealedconfig and exactv5p-16/s13500AOT passed. BorrowedretainedFLEXcompiler unchanged. User-authorizedhotswitch retained UE5aSPOTv5p-16 `xd-v5p-16-310179-maxtext`, logicalnewID310180. OldPersistG050quiescedwithcheckpoint3095;newlaunch07:34:46UTC, actualfreshstep0+14/AOTloadverified. Batch128,T4096,LR.0003,schedule13500,scan,pureJAX/Splash,T B500/keep2period200/keep_period0asintended. Actualtotalparams432112832. All324customTBhealthtagsfinite,all18×3initmeans.5,all3pairdifferenceszero,nocolumntags. Artifactsstartup-qkvo-proof.json/startup-qkvo-health-proof.json;hotswitchlog/dryrun/registry-hot-switch.json.
+
+Steady20–99 .442375step/s versusReadG050.458350:throughput−3.4853%,step-time+3.611%;versusSOTA.478725−7.5931%. Bet.44matched+.54%. BothrequestedhealthON,butcustom324vsparent1404;timingincludesthisloggingdifference,architecture-onlycostunseparated. Steps10–14arithmetic.4788distortedbyone.317/.743pair,effectivetime-based.444559;usecanonical20–99. Usercalledoutspeedomission,ratioexplicitlyreportedandnowmandatorywithnew-armreports.
+
+PersistG050stopped3095/0P,TPUtransferredafternewFIRST_STEP;oldregistryexplicitstoppedat07:34:00boundary,closeoutalready_closed=trueverifiedandresourceskipped,TBsynced. SOTAgap@3000+.007714,recentfive+.009020;latestfullsame-stepReadG050gap+.016008@3000. PersistG005stopped2957/1P,TPU310177nodeandqueueverifiedabsent,TBsynced;latestfullwindow2800SOTA+.007843,ReadG005+.006785,recentSOTAfive+.008261. Bothhadflatpositive2000..2800SOTAdeficits,no speed/parameter/cacheadvantage. Canonicaloutgoingcomparisonhistoriesinpersist-final-comparisons.txt.
+
+FullclosedREADYleases,UTC,allUE5av5p-16:
+
+| RUN | Lease start | Lease end | Duration | Exit |
+|---|---|---|---|---|
+|PersistG005|2026-10-13 05:32:56|2026-10-13 06:08:47|35m51s|preempted|
+|PersistG050|2026-10-13 05:36:45|2026-10-13 07:34:00|1h57m15s|hot transfer to QKVO Read|
+|PersistG005|2026-10-13 06:16:21|2026-10-13 07:38:23|1h22m02s|manual review stop|
+
+Nozonechangesorpassivecandidates. HottransferisRUNboundary,notphysicalTPUpreemptionorindependentnewcapacitylease.
+
+## Common3000 Reads and early three-gate audit
+
+ReadG005@3000SOTA+.000905,lastfive+.001477;ReadG050−.008294,lastfive−.007692;pairedReadG050−ReadG005−.009198. G050benefitpersists;lowopeningapproachesSOTAbutdoesnotcatchthebetteropening.
+
+Three-gate earlygaps(new−BASE):
+
+| step | ReadG050 BASE | SOTA BASE |
+|---:|---:|---:|
+|200|−.267658|−.229023|
+|400|−.082765|−.063358|
+|600|−.040955|−.030041|
+
+Unexpectedlarge200gainpromptedactualconfigandnativewindowaudit. WorkerconfigdiffsONLYintendedseparategateflag/MLPwidth/identitypaths;LR,WD,seed,data/batch/backendunchanged. Early159steps0..158targetcountsidentical(notliteraltokenhashproof);initiallossparent10.851151/new10.852258,nostep0boost. Allfive200windowpoints180/190/200/210/220negativevsparent,nativeaverageverified. Unitroute/initfunction/carry/causalitychecksalsopassed. No identifiedimplementationorcomparisonconfound;earlyadvantagecontractsover69%then50%,soitcannotbeclaimedasterminalceilinggain. Terminalbet−ReadG050−.003retained,notretrofitted.
+
+At400layeravgmeanpreviousshareQ.277223/K.553650/VO.231082vsparentshared.225215;pairmeanabsgatediffq-k.424628,q-vo.253785,k-vo.425813. Independentgatelearnsmarkedlydifferenttemporalpreferences,especiallyKmorepreviousM,consistentwithdesignmotivation. Thisisdescriptivehealth evidence,notcausalproofthatconditioningexplainsallgain. Noadditionalablationarmstarted. Artifactsqkvo-startup-comparison-audit.json,qkvo-200-window-audit.json,qkvo-gate-early.json.
+
+UsernowauthorizesReadG005stopifdominatedbyG050. Atlatestcommon3400ittrail+.009492,pairedrecentfive+.009053vsprior+.009535(contractonly.000481/k),no speed/parameter/cacheadvantage;itsSOTAgap3200+.000665→3400+.000930→3600+.001446regresses. AgentjudgesG050dominatesandstopsReadG005;closeout08:05:44UTC completed08:08:34UTC: finalcheckpoint3699 committed, TPU310176/node+queue verified absent, local TB SYNC_OK. Atfinalcommon3600 ReadG005 trails ReadG050+.007881 and SOTA+.001446. ContinueReadG050andnewQKVO,normal1000agentcadencewithspeedratios.
+
+
+## ReadG005 verified final closeout
+
+Stopped at checkpoint3699, P1, end08:05:44UTC. Closeout summary08:08:34UTC verifies checkpoint commit and TPU310176/node+queue absent; local TB SYNC_OK. Final SOTAwindow3600+.001446, same-step ReadG050 gap+.007881; saved full outgoing series at `/data0/xd/bam_diagnostics/mediumprop-m-shift/report-read005-final.txt`. Remaining active RUNs are ReadG050 and ReadQKVoG050 only.
+
+| RUN | Lease start UTC | Lease end UTC | Duration | Exit |
+|---|---|---|---|---|
+|ReadG005|2026-10-13 05:33:55|2026-10-13 06:29:30|55m35s|preempted|
+|ReadG005|2026-10-13 06:37:19|2026-10-13 08:05:44|1h28m25s|manual dominance stop|
+
+All closed assignments/leases added to main regional history; all UE5a v5p-16. SharedReadG0503600SOTAgap−.006434, recentfive−.007875; do not change its nextnormal4000 report because of outgoing005closeout. Newthreegate800gaps−ReadG050−.024986/−SOTA−.022308; nextnormal1000.
+
+
+## Three-gate1000 and shared-gate4000 reports
+
+Three-gate1000 new−SOTA−.0194212,new−ReadG050−.0190604; steady throughput−3.4853%vsReadG050,−7.5931%vsSOTA. UserrequiresrelativeSOTAgainmultipliersinnormalreports. DefineR_ref=(L_ref−L_new)/(L_ref−L_SOTA),samefiveexactcommonpointsper200-stepwindow; neverdivide losses or use tiny new−SOTA as denominator. Mudd-reference200/400/600/800/1000=1.260102/1.100577/1.085452/1.091351/1.098613; historicalMHA-reference1.158295/1.042108/1.030688/1.030606/1.033245. MHA remains removed from direct compare_runs; cached historical scalar only used for explicitly labeled normalization. At1000Mudd−SOTAdenominator.196943,MHA−SOTA.5841816. Earlygapcontractiondoesnotmeanlossgainproportionfalls:600..1000Muddrelative multiplier recovers1.0855→1.0986. No terminalclaim. Artifactqkvo-gain-ratios-1000.jsonandqkvo_gain_ratios_remote.py.
+
+SharedReadG0504000−SOTA−.008594,lastfive−.008002(range−.008594..−.006434),previousfive−.007692. ContinuescredibleSOTAgain;bothactive. Cursors4000/1000,nextnormal5000/2000. OutgoingRead005 commonpair3600−.007881 retained; no repeatedunchangedclosedcomparisons.

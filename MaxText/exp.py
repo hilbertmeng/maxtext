@@ -12683,6 +12683,7 @@ class BamMediumPropSharedR256GeneralReadMShiftReadG005TruePile(BamMediumPropK75E
     # Mean20-99 0.4583750step/s (-4.25% vs SOTA); extra shift health ON,13500 bound.
     # @1000 SOTA+.014688,latest1200+.008057; deficitshrinking; P1,recover1356.
     # @2000 gap vs SOTA +.002907,last5+.005122; P1,recovery verified.
+    # stopped at 3699; 1P; node/queue absent, TB synced;@3600 SOTA+.001446,ReadG050+.007881.
     model_name = 'BamMediumPropSharedR256GeneralReadMShiftReadG005TruePile'
     bam_record_m_shift_health = True
     bam_m_shift_mode = 'read'
@@ -12701,6 +12702,7 @@ class BamMediumPropSharedR256GeneralReadMShiftPersistG005TruePile(BamMediumPropK
     # Mean20-99 0.4599125step/s (-3.93% vs SOTA); extra shift health ON,13500 bound.
     # @1000 SOTA+.018491,latest1200+.015224; vsread005+.003803@1000; P1,resumed802.
     # @2000 gap vs SOTA +.007094,last5+.010862; persist-read+.004186; P1.
+    # stopped at 2957; 1P; node/queue absent, TB synced;@2800 SOTA+.007843,last5+.008261,read005+.006785.
     model_name = 'BamMediumPropSharedR256GeneralReadMShiftPersistG005TruePile'
     bam_record_m_shift_health = True
     bam_m_shift_mode = 'persist'
@@ -12719,6 +12721,8 @@ class BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile(BamMediumPropK75E
     # Mean20-99 0.4583500step/s (-4.26% vs SOTA); extra shift health ON,13500 bound.
     # @1000 SOTA-.000361 after800+.002678; notyetstablewin; vsread005-.015049; P1,resumed886.
     # @2000 gap vs SOTA -.007090,last5-.004248; emerging repeated gain; P1.
+    # @3000 SOTA-.008294,last5-.007692;@3600 -.006434,last5-.007875; continue credible gain.
+    # @4000 SOTA-.008594,last5-.008002; sustained benefit,continue.
     model_name = 'BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile'
     bam_record_m_shift_health = True
     bam_m_shift_mode = 'read'
@@ -12737,6 +12741,7 @@ class BamMediumPropSharedR256GeneralReadMShiftPersistG050TruePile(BamMediumPropK
     # Mean20-99 0.4586625step/s (-4.19% vs SOTA); extra shift health ON,13500 bound.
     # @1000 SOTA+.024615,latest1400+.017809; vsread050+.024976; P0.
     # @2000 gap vs SOTA +.008106,last5+.013756; persist-read+.015196; P0.
+    # stopped at 3095; 0P; TPU transferred to QKVO Read,TB synced;@3000 SOTA+.007714,last5+.009020.
     model_name = 'BamMediumPropSharedR256GeneralReadMShiftPersistG050TruePile'
     bam_record_m_shift_health = True
     bam_m_shift_mode = 'persist'
@@ -12751,6 +12756,10 @@ class BamMediumPropSharedR256GeneralReadMShiftPersistG050TruePile(BamMediumPropK
 
 class BamMediumPropSharedR256GeneralReadMShiftReadQKVoG050TruePile(BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile):
     """Independent v32 previous-token gates for Q, K and shared VO read-only M views."""
+    # code_commit: e4e6e17; UE5a v5p-16 TPU310179 hot-transferred from Persist G050, starts0.
+    # AOT/CPU/FIRST_STEP+14/params432112832/actual324health verified;20-99 .442375step/s.
+    # Speed -3.49% vs Read G050, -7.59% vs SOTA; custom health324 vs parent1404, included.
+    # @1000 SOTA-.019421,ReadG050-.019060; gain/SOTA1.098613x(Mudd ref),1.033245x(MHA ref).
     model_name = 'BamMediumPropSharedR256GeneralReadMShiftReadQKVoG050TruePile'
     bam_m_shift_separate_reads = True
     mlp_dim_by_block = [3781, 3654, 3781]  # Repay all 3 gate kernels; +1728 biases vs SOTA.

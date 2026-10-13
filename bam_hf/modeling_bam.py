@@ -39,14 +39,14 @@ except ImportError:
 try:   # Triton per-token M read/write kernels (CUDA); without them the batched-GEMM path is used
   from .bam_m_kernels import (bam_decode_read as _bam_decode_read, bam_read as _bam_read,
                               bam_rope_tail as _bam_rope_tail, bam_write as _bam_write,
-                              bam_write_ohead as _bam_write_ohead)
+                              bam_write_ohead as _bam_write_ohead, bam_gemv as _bam_gemv)
 except ImportError:
   try:
     _m = importlib.import_module('bam_m_kernels')
-    _bam_read, _bam_write, _bam_decode_read, _bam_rope_tail, _bam_write_ohead = (
-        _m.bam_read, _m.bam_write, _m.bam_decode_read, _m.bam_rope_tail, _m.bam_write_ohead)
+    _bam_read, _bam_write, _bam_decode_read, _bam_rope_tail, _bam_write_ohead, _bam_gemv = (
+        _m.bam_read, _m.bam_write, _m.bam_decode_read, _m.bam_rope_tail, _m.bam_write_ohead, _m.bam_gemv)
   except Exception:  # pylint: disable=broad-except
-    _bam_read = _bam_write = _bam_decode_read = _bam_rope_tail = _bam_write_ohead = None
+    _bam_read = _bam_write = _bam_decode_read = _bam_rope_tail = _bam_write_ohead = _bam_gemv = None
 
 DECODE_TOKENS = 64    # below this many tokens per step: per-arm read programs with RoPE fused
 FUSED_UP_TOKENS = 4   # up to this many: the read kernel also applies GELU + the key up-projection (A800: one
@@ -372,6 +372,7 @@ class BamAttention(nn.Module):
     triton_m: per-token M read/write in the fused Triton kernels (bam_m_kernels)."""
     n = self.num_heads
     self.triton_m = triton_m and _bam_read is not None
+    self._input_norm = ()     # (input RMSNorm,) when the layer passes x un-normalized (set by the layer)
     self.register_buffer('static_keys', torch.stack(
         [self.q_static_key, self.k_static_key, self.v_static_key, self.o_static_key]).contiguous(), persistent=False)
     gates = [gate_part(getattr(self, g + '_gate')) for g in self.GATES]
@@ -390,7 +391,12 @@ class BamAttention(nn.Module):
     write address hidden [., Rw] (pre-GELU) and write-gate logits [.,N]."""
     n = self.num_heads
     if self.fused_x is not None:
-      xs = self.fused_x(x)
+      if self._input_norm and x.is_cuda and x.shape[0] * x.shape[1] == 1:   # decode bs1: norm in the GEMV
+        norm = self._input_norm[0]
+        xs = _bam_gemv(x.reshape(-1), None, norm.weight, self.fused_x.weight, self.fused_x.bias, None,
+                       norm.eps).reshape(1, 1, -1)
+      else:
+        xs = self.fused_x(self._input_norm[0](x) if self._input_norm else x)
       qs, ks, down, gates, wdown, wgate, _ = xs.split(self._x_sizes, -1)
       decode = self.triton_m and x.is_cuda and x.shape[0] * x.shape[1] <= FUSED_UP_TOKENS
       # the decode kernel applies GELU and the key up-projection itself
@@ -431,8 +437,9 @@ class BamAttention(nn.Module):
     return y.reshape(b, t, 4, self.num_heads, -1).unbind(2)                                 # 4 x [B,T,N,K]
 
   def forward(self, x, M, positions, attention_mask=None, past_key_value: Optional[Cache] = None,
-              defer_write=False):
-    """x [B,T,H] (pre-normed), M [B,T,K,V]. Returns (out, M_out or write factors)."""
+              defer_write=False, residual=None):
+    """x [B,T,H] (pre-normed unless the layer set _input_norm), M [B,T,K,V]. Returns (out, M_out or write
+    factors); out includes `residual` when one is given (decode bs1, Triton path)."""
     qs, ks, keys, g, wdown, wgate, raw = self._projections(x)
     if self.fused_x is not None and self.triton_m and x.is_cuda:     # fused Triton M kernels
       # M arrives as (M, deferred write groups of the previous layer); the read applies them (one pass over
@@ -474,7 +481,11 @@ class BamAttention(nn.Module):
       if address is None:
         address = self.padded_write_address_up(gelu(wdown))
       if decode:      # the local-O add happens inside the next read kernel
-        out = self.o_proj((attn + local_o).flatten(-2))
+        if residual is not None:    # bs1: (attn + local_o) -> o_proj -> + residual in one GEMV
+          out = _bam_gemv(attn.reshape(-1), local_o.reshape(-1), None, self.o_proj.weight, None,
+                          residual.reshape(-1), 0.).reshape(residual.shape)
+        else:
+          out = self.o_proj((attn + local_o).flatten(-2))
         return out, (M, [((attn, local_o), wgate, address)])
       if not defer_write and not self.last_layer:
         # prefill, no MLP write: write now; the write kernel also emits o_head = attn + local_o
@@ -527,6 +538,7 @@ class BamMLP(nn.Module):
     self.down_proj = nn.Linear(intermediate_size, hidden_size, bias=False)   # wo
     self.fused = None
     self._sizes = None
+    self._norm = ()     # (post-attention RMSNorm,) when the layer passes x un-normalized (set by the layer)
 
   def fuse(self, extra=()):
     """gate/up as one GEMM with the intermediate width zero-padded to a multiple of ALIGN (silu(0) * 0 = 0,
@@ -553,6 +565,13 @@ class BamMLP(nn.Module):
     if self.fused is None:
       return self.down_proj(F.silu(self.gate_proj(x)) * self.up_proj(x)), ()
     w, b = self.fused.weight, self.fused.bias
+    if self._norm and x.is_cuda and x.shape[0] * x.shape[1] == 1:    # decode bs1: norm in the GEMV
+      norm = self._norm[0]
+      h = _bam_gemv(x.reshape(-1), None, norm.weight, w, b, None, norm.eps).reshape(1, 1, -1)
+      gate, up, *extra = h.split(self._sizes + self._extra_sizes, -1)
+      return self.fused_down(F.silu(gate) * up), list(extra[:-1])
+    if self._norm:
+      x = self._norm[0](x)
     if not self._extra_sizes:
       gate, up = F.linear(x, w, b).split(self._sizes, -1)
       extra = ()
@@ -610,10 +629,13 @@ class BamDecoderLayer(nn.Module):
     self.mlp_write = BamMLPWrite(config) if layer_idx in config.mlp_write_layers else None
 
   def forward(self, x, M, positions, attention_mask=None, past_key_value=None):
-    attn, M_or_factors = self.self_attn(self.input_layernorm(x), M, positions, attention_mask, past_key_value,
-                                        defer_write=self.mlp_write is not None)
-    x = x + attn
-    hidden = self.post_attention_layernorm(x)
+    # decode bs1 on the Triton path: the norms run inside the GEMV kernels, o_proj adds the residual
+    bs1 = bool(getattr(self.self_attn, '_input_norm', ())) and x.is_cuda and x.shape[0] * x.shape[1] == 1
+    normed = x if getattr(self.self_attn, '_input_norm', ()) else self.input_layernorm(x)
+    attn, M_or_factors = self.self_attn(normed, M, positions, attention_mask, past_key_value,
+                                        defer_write=self.mlp_write is not None, **({'residual': x} if bs1 else {}))
+    x = attn if bs1 else x + attn
+    hidden = x if self.mlp._norm else self.post_attention_layernorm(x)
     mlp_out, extra = self.mlp(hidden)
     M = (M_or_factors if self.mlp_write is None
          else self.mlp_write(hidden, mlp_out, M, M_or_factors, extra))
@@ -622,6 +644,9 @@ class BamDecoderLayer(nn.Module):
   def fuse(self, triton_m=False):
     if isinstance(self.self_attn, BamAttention):
       self.self_attn.fuse(triton_m)
+      if self.self_attn.triton_m and _bam_gemv is not None:
+        self.self_attn._input_norm = (self.input_layernorm,)   # tuple: not registered as a submodule
+        self.mlp._norm = (self.post_attention_layernorm,)
     else:
       self.self_attn.fuse()
     self.mlp.fuse(self.mlp_write.projections() if self.mlp_write is not None else ())

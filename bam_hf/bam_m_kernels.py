@@ -9,7 +9,7 @@ write: M'_t = M_t + sum_g C_g^T A_g with C_g = sigmoid(gate_g) rms(content_g) [N
 Inputs may be strided views (e.g. column slices of a fused projection output). Accumulation is FP32.
 """
 import math
-from typing import Tuple
+from typing import Optional, Tuple
 
 import torch
 import triton
@@ -567,3 +567,66 @@ def _(m, attn, local, gate, address, eps):
 @bam_write.register_fake
 def _(m, content, local, gate, address, content2, gate2, address2, has_local, two, eps):
   return torch.empty_like(m)
+
+
+@triton.jit
+def _gemv_kernel(X, X2, G, W, B, RES, Y, R, C: tl.constexpr, BCF: tl.constexpr, BR: tl.constexpr,
+                 BC: tl.constexpr, EPS: tl.constexpr, HAS_X2: tl.constexpr, NORM: tl.constexpr,
+                 HAS_B: tl.constexpr, HAS_RES: tl.constexpr):
+  """One-token GEMV y = W @ u + b (+ res), u = x (+ x2), optionally u = (1 + g) * rms_norm(u). Each program
+  owns BR rows of W and recomputes the RMS statistics of u (from L2). Every intermediate is rounded to x's
+  dtype exactly where the unfused ops round: x + x2, rms_norm(u), its product with (1 + g), the GEMV
+  output (bias added to the FP32 accumulator, as the addmm epilogue) and the residual sum."""
+  r = tl.program_id(0) * BR + tl.arange(0, BR)
+  rm = r < R
+  dt = X.dtype.element_ty
+  if NORM:
+    cf = tl.arange(0, BCF)
+    uf = tl.load(X + cf, mask=cf < C, other=0.)
+    if HAS_X2:
+      uf = (uf.to(tl.float32) + tl.load(X2 + cf, mask=cf < C, other=0.).to(tl.float32)).to(dt)
+    uf = uf.to(tl.float32)
+    inv = tl.rsqrt(tl.sum(uf * uf, 0) / C + EPS)
+  acc = tl.zeros((BR, BC), tl.float32)
+  for c0 in tl.range(0, C, BC):
+    c = c0 + tl.arange(0, BC)
+    cm = c < C
+    w = tl.load(W + r[:, None] * C + c[None, :], mask=rm[:, None] & cm[None, :], other=0.).to(tl.float32)
+    u = tl.load(X + c, mask=cm, other=0.).to(tl.float32)
+    if HAS_X2:
+      u = (u + tl.load(X2 + c, mask=cm, other=0.).to(tl.float32)).to(dt).to(tl.float32)
+    if NORM:
+      g1 = (tl.load(G + c, mask=cm, other=0.).to(dt) + 1).to(tl.float32)
+      u = ((u * inv).to(dt).to(tl.float32) * g1).to(dt).to(tl.float32)
+    acc += w * u[None, :]
+  y = tl.sum(acc, 1)
+  if HAS_B:
+    y += tl.load(B + r, mask=rm, other=0.).to(tl.float32)
+  if HAS_RES:
+    y = y.to(dt).to(tl.float32) + tl.load(RES + r, mask=rm, other=0.).to(tl.float32)
+  tl.store(Y + r, y.to(Y.dtype.element_ty), mask=rm)
+
+
+@torch.library.custom_op('bam::gemv', mutates_args=())
+def bam_gemv(x: torch.Tensor, x2: Optional[torch.Tensor], g: Optional[torch.Tensor], w: torch.Tensor,
+             b: Optional[torch.Tensor], res: Optional[torch.Tensor], eps: float) -> torch.Tensor:
+  """One token (x [C], decode bs1): F.linear(u, w, b) (+ res) with u = x (+ x2), normalized as BamRMSNorm with
+  scale g when g is given. Replaces inductor's norm kernel plus GEMV (an addmm template with one program
+  per 64 rows when there is a bias) and the residual-add kernel."""
+  c = x.shape[-1]
+  rows = w.shape[0]
+  for a in (x, x2, g, b, res, w):
+    assert a is None or a.is_contiguous()
+  assert x.numel() == c
+  y = torch.empty(rows, device=x.device, dtype=x.dtype)
+  br = 4      # A800 (C = 1920): 12288 rows 31.5 us (1.5 TB/s), 1984 rows 7.9 us, 1920 rows 7.3 us
+  _gemv_kernel[(triton.cdiv(rows, br),)](
+      x, x if x2 is None else x2, x if g is None else g, w, x if b is None else b, x if res is None else res,
+      y, rows, C=c, BCF=triton.next_power_of_2(c), BR=br, BC=1024, EPS=eps, HAS_X2=x2 is not None,
+      NORM=g is not None, HAS_B=b is not None, HAS_RES=res is not None, num_warps=2 if rows >= 8192 else 4)
+  return y
+
+
+@bam_gemv.register_fake
+def _(x, x2, g, w, b, res, eps):
+  return x.new_empty(w.shape[0])

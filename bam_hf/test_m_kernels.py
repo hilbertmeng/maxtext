@@ -8,7 +8,8 @@ import sys
 import torch
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from bam_m_kernels import bam_decode_read, bam_read, bam_rope_tail, bam_write, bam_write_ohead  # noqa: E402
+from bam_m_kernels import bam_decode_read, bam_gemv, bam_read, bam_rope_tail, bam_write, bam_write_ohead  # noqa: E402
+from modeling_bam import BamRMSNorm  # noqa: E402
 import torch.nn.functional as F  # noqa: E402
 
 
@@ -142,6 +143,20 @@ def main():
         assert max(e_d, e_dm) < tol, (e_d, e_dm)
       print(msg)
       assert max(e_y, e_m) < tol, (e_y, e_m)
+  for dt in (torch.float32, torch.bfloat16):   # one-token GEMV with fused add / norm / bias / residual
+    norm = BamRMSNorm(1920, 1e-6).cuda().to(dt)
+    norm.weight.data.normal_(0, .1)
+    w = torch.randn(1000, 1920, device='cuda', dtype=dt) * .02
+    b, res = torch.randn(2, 1000, device='cuda', dtype=dt)
+    x, x2 = torch.randn(2, 1920, device='cuda', dtype=dt) * 3
+    for has_x2, has_norm, has_b, has_res in ((0, 1, 1, 0), (1, 0, 0, 1), (1, 1, 1, 1), (0, 0, 0, 0)):
+      u = x + x2 if has_x2 else x
+      ref = F.linear(norm(u) if has_norm else u, w, b if has_b else None) + (res if has_res else 0)
+      out = bam_gemv(x, x2 if has_x2 else None, norm.weight if has_norm else None, w, b if has_b else None,
+                     res if has_res else None, 1e-6)
+      e = ((out.float() - ref.float()).norm() / ref.float().norm()).item()
+      assert e < (1e-6 if dt == torch.float32 else 1e-9), (dt, has_x2, has_norm, has_b, has_res, e)
+    print(f'{dt}: gemv variants ok (BF16 bit-exact)')
   print('M_KERNELS_OK')
 
 

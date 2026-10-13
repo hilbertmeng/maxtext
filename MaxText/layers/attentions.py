@@ -2724,7 +2724,9 @@ class BamAttention(Attention):
     assert self._m_shift_mode in ('none', 'read', 'persist')
     assert not self._m_shift_separate_reads or self._m_shift_mode == 'read'
     assert not self._m_shift_two_lag or (self._m_shift_mode == 'read' and not self._m_shift_separate_reads)
-    assert not self._bam_kv_shift or (self._m_shift_mode == 'none' and self._general_read and self._direct_qk_c8)
+    assert not self._bam_kv_shift or (self._m_shift_mode in ('none', 'read') and self._general_read
+                                    and self._direct_qk_c8 and not self._m_shift_separate_reads
+                                    and not self._m_shift_two_lag)
     if getattr(self, '_bam_kv_shift', False):
       assert not getattr(cfg, 'bam_pallas_core', False)
       for arm in ('k', 'v'):
@@ -4038,10 +4040,16 @@ class BamAttention(Attention):
                 jnp.sum(jnp.abs(gates[a] - gates[b]) * weights) / count
                 for a, b in (('q', 'k'), ('q', 'vo'), ('k', 'vo')))))
         elif not self._m_shift_two_lag and getattr(cfg, 'bam_record_m_shift_health', False):
-          stats, columns, state = bam_m_shift_health(M_in, M_read, gate, decoder_segment_ids, inputs_positions)
-          self.sow('intermediates', 'm_shift_gate_stats', stats)
-          self.sow('intermediates', 'm_shift_gate_columns', columns)
-          self.sow('intermediates', 'm_shift_state_stats', state)
+          compact = bool(getattr(cfg, 'bam_m_shift_compact_health', False))
+          stats, columns, state = bam_m_shift_health(M_in, M_read, gate, decoder_segment_ids,
+                                                    inputs_positions, column_metrics=not compact)
+          if compact:
+            self.sow('intermediates', 'm_shift_m_summary',
+                     jnp.stack((stats[0], stats[1], stats[4], stats[5], state[4])))
+          else:
+            self.sow('intermediates', 'm_shift_gate_stats', stats)
+            self.sow('intermediates', 'm_shift_gate_columns', columns)
+            self.sow('intermediates', 'm_shift_state_stats', state)
 
       if self._m_shift_mode == 'persist':
         M_in = M_read  # Existing attention/MLP writes accumulate onto the mixed carry.

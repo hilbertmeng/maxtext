@@ -26,6 +26,7 @@ PERSIST='BamMediumPropSharedR256GeneralReadMShiftPersistG005TruePile'
 SEPARATE='BamMediumPropSharedR256GeneralReadMShiftReadQKVoG050TruePile'
 TWO='BamMediumPropSharedR256GeneralReadMShiftReadTwoLag532TruePile'
 KV='BamMediumPropSharedR256GeneralReadKVShiftG050TruePile'
+HYBRID='BamMediumPropSharedR256GeneralReadMShiftReadKVShiftG050TruePile'
 
 class MShiftTest(MLPWriteTest, unittest.TestCase):
   def tiny(self, mode):
@@ -89,10 +90,11 @@ class MShiftTest(MLPWriteTest, unittest.TestCase):
     np.testing.assert_allclose(mix_bam_kv_previous_token(kv,g,seg,pos),jnp.swapaxes(old,-1,-2))
 
   def test_new_two_lag_and_kv_scan_health_gradients_and_carry(self):
-    for kind in ('two','kv'):
+    for kind in ('two','kv','hybrid'):
       cfg=self.tiny('read')
-      cfg.get_keys().update(bam_m_shift_two_lag=kind=='two',bam_kv_shift=kind=='kv',
-          bam_m_shift_mode='read' if kind=='two' else 'none',bam_m_shift_init=.5)
+      cfg.get_keys().update(bam_m_shift_two_lag=kind=='two',bam_kv_shift=kind in ('kv','hybrid'),
+          bam_m_shift_mode='none' if kind=='kv' else 'read',bam_m_shift_init=.5,
+          bam_m_shift_compact_health=kind=='hybrid')
       mesh=jax.sharding.Mesh(np.array(jax.devices()[:1]).reshape((1,)*len(cfg.mesh_axes)),cfg.mesh_axes)
       model=Transformer(cfg,mesh,quant=None)
       tok=jnp.array([[1,2,3,4]],jnp.int32);pos=jnp.arange(4)[None];seg=jnp.ones_like(tok)
@@ -104,15 +106,15 @@ class MShiftTest(MLPWriteTest, unittest.TestCase):
         loss,grad=jax.jit(jax.value_and_grad(lambda params:jnp.mean(f(params)**2)))(p)
         self.assertTrue(np.isfinite(float(loss)))
         self.assertTrue(all(np.isfinite(np.asarray(v)).all() for v in jax.tree.leaves(grad)))
-        prefix='M_shift_' if kind=='two' else 'KV_shift_'
-        gates=[v for path,v in flatten_dict(grad).items() if any(part.startswith(prefix) for part in path)]
-        self.assertEqual(len(gates),6)
+        prefixes=('M_shift_','KV_shift_') if kind=='hybrid' else ('M_shift_',) if kind=='two' else ('KV_shift_',)
+        gates=[v for path,v in flatten_dict(grad).items() if any(part.startswith(prefixes) for part in path)]
+        self.assertEqual(len(gates),12 if kind=='hybrid' else 6)
         self.assertTrue(all(float(jnp.linalg.norm(v))>0 for v in gates))
         np.testing.assert_allclose(f(p)[:,:3],f(p,tok.at[:,3].set(9))[:,:3],rtol=1e-6,atol=1e-6)
         _,collections=model.apply({'params':p},tok,pos,seg,tok,enable_dropout=False,mutable=['intermediates'])
         metrics={'scalar':{}};train.record_bam_concat_health_metrics(metrics,collections,cfg)
         health={k:v for k,v in metrics['scalar'].items() if k.startswith('bam/m_shift/')}
-        self.assertEqual(len(health),27 if kind=='two' else 30)
+        self.assertEqual(len(health),27 if kind=='two' else 45 if kind=='hybrid' else 30)
         self.assertFalse(any('/column_' in k for k in health))
         self.assertTrue(all(np.isfinite(np.asarray(v)).all() for v in health.values()))
         for layer in range(3):
@@ -122,6 +124,8 @@ class MShiftTest(MLPWriteTest, unittest.TestCase):
           else:
             for arm in ('k','v'):
               np.testing.assert_allclose(health[f'bam/m_shift/layer_{layer:03d}/kv_{arm}/gate_mean'],.5,rtol=1e-5)
+            if kind=='hybrid':
+              np.testing.assert_allclose(health[f'bam/m_shift/layer_{layer:03d}/m/gate_mean'],.5,rtol=1e-5)
         mod=BamAttention(config=cfg,mesh=mesh,num_query_heads=2,num_kv_heads=2,
             head_dim=75,bam_k=75,bam_v=32,max_target_length=4,max_prefill_predict_length=4,
             attention_kernel='dot_product_chunk',dtype=cfg.dtype,weight_dtype=cfg.weight_dtype,
@@ -131,7 +135,7 @@ class MShiftTest(MLPWriteTest, unittest.TestCase):
         params=nn.unbox(mod.init(jax.random.key(37),*args,M_in=m,deterministic=True)['params'])
         shifted=mod.apply({'params':params},*args,M_in=m,deterministic=True,defer_write=True)
         np.testing.assert_array_equal(shifted[1],m)
-        if kind=='kv':
+        if kind in ('kv','hybrid'):
           calls=[]
           def capture(value,gate,*rest):
             calls.append(value.shape)
@@ -249,7 +253,7 @@ class MShiftTest(MLPWriteTest, unittest.TestCase):
 
 
   def test_full_parameter_budget_and_gate_sharding(self):
-    for name in (PARENT,READ,PERSIST,READ.replace('G005','G050'),PERSIST.replace('G005','G050'),SEPARATE,TWO,KV):
+    for name in (PARENT,READ,PERSIST,READ.replace('G005','G050'),PERSIST.replace('G005','G050'),SEPARATE,TWO,KV,HYBRID):
       cfg=self.config(name,bam_splash_attention=False)
       mesh=jax.sharding.Mesh(max_utils.create_device_mesh(cfg),cfg.mesh_axes)
       args,_,spec,_=train_compile.get_shaped_inputs(mesh,cfg)
@@ -258,12 +262,12 @@ class MShiftTest(MLPWriteTest, unittest.TestCase):
                        432111104 if name in (PARENT,KV) else 432112832 if name==SEPARATE else 432112256 if name==TWO else 432111680)
       gates={path:v for path,v in params.items() if any(part.startswith(('M_shift_','KV_shift_')) for part in path)}
       self.assertEqual(sum(math.prod(v.shape) for v in gates.values()),
-                       0 if name==PARENT else 2075328 if name==SEPARATE else 1383552 if name==TWO else 691200 if name==KV else 691776)
+                       0 if name==PARENT else 2075328 if name==SEPARATE else 1383552 if name==TWO else 691200 if name==KV else 1382976 if name==HYBRID else 691776)
       if name!=PARENT:
-        self.assertEqual(len(gates),18 if name==SEPARATE else 6)
+        self.assertEqual(len(gates),18 if name==SEPARATE else 12 if name==HYBRID else 6)
         specs=flatten_dict(nn.unbox(spec.params))
         for path,v in gates.items():
-          width=64 if name==TWO else 16 if name==KV else 32
+          width=64 if name==TWO else 16 if name==KV or any(part.startswith('KV_shift_') for part in path) else 32
           self.assertEqual(v.shape,(1200,6,width) if path[-1]=='kernel' else (width,6))
           if path[-1]=='kernel':
             self.assertLess(math.prod(specs[path].shard_shape(v.shape)),math.prod(v.shape))

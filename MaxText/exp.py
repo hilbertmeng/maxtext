@@ -345,6 +345,12 @@ class BamLlama2Medium(Llama2Medium):
     bam_write_factor_norm = 'rms'   # rms | grouped_rms (per-head learned scale)
     bam_write_address_norm_bias = False  # learned post-norm shift on the address factor
     bam_write_rms_statistics_dtype = 'float32'  # float32 | activation
+    bam_m_shift_mode = 'none'
+    bam_m_shift_init = .5
+    bam_record_m_shift_health = False
+    bam_m_shift_compact_health = False
+    bam_share_read_attention_write_down = False
+    bam_share_mlp_write_down = False
     bam_write_v_bottleneck_dim = None  # optional P_loc: D -> r -> n*v
     bam_write_v_bottleneck_activation = 'none'  # none | gelu
     bam_write_outer_implementation = 'dot'  # dot | mul_reduce
@@ -12671,3 +12677,54 @@ class BamFullMGeneralReadPallasV8TProfile(BamFullMGeneralReadPallasFusedProfile)
     # 90d28c9 keys as [C,N,B,T] from the dot: TPU lowering rejects batch as a block's second-minor dim; reverted.
     model_name = 'BamFullMGeneralReadPallasV8TProfile'
     bam_pallas_body = 'v8t'
+
+
+class BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile(BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile):
+    model_name = 'BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile'
+    bam_m_shift_mode = 'read'
+    bam_m_shift_init = .5
+    bam_record_m_shift_health = True
+    mlp_dim_by_block = [3802,3676,3802]
+    checkpoint_period = 200
+    keep_period = 0
+    max_to_keep = 2
+    tensorboard_gcs_rotate_period = 500
+
+
+class BamMediumPropMShiftReadG050ReadAttentionSharedR256TruePile(BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile):
+    """Shared projection bank; MLP sharing applies only to MLP-write layers."""
+    model_name = 'BamMediumPropMShiftReadG050ReadAttentionSharedR256TruePile'
+    bam_share_read_attention_write_down = True
+    bam_share_mlp_write_down = False
+    bam_local_full_m_read_bottleneck_dim = 256
+    bam_write_v_bottleneck_dim = 256
+    bam_mlp_write_address_rank = 256
+    mlp_dim_by_block = [3887, 3762, 3887]
+    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile', 'BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile']
+    bam_m_shift_compact_health = True
+
+
+class BamMediumPropMShiftReadG050ReadAttentionSharedR384TruePile(BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile):
+    """Shared projection bank; MLP sharing applies only to MLP-write layers."""
+    model_name = 'BamMediumPropMShiftReadG050ReadAttentionSharedR384TruePile'
+    bam_share_read_attention_write_down = True
+    bam_share_mlp_write_down = False
+    bam_local_full_m_read_bottleneck_dim = 384
+    bam_write_v_bottleneck_dim = 384
+    bam_mlp_write_address_rank = 256
+    mlp_dim_by_block = [3772, 3646, 3772]
+    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile', 'BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile']
+    bam_m_shift_compact_health = True
+
+
+class BamMediumPropMShiftReadG050ReadAttentionMLPSharedR384TruePile(BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile):
+    """Shared projection bank; MLP sharing applies only to MLP-write layers."""
+    model_name = 'BamMediumPropMShiftReadG050ReadAttentionMLPSharedR384TruePile'
+    bam_share_read_attention_write_down = True
+    bam_share_mlp_write_down = True
+    bam_local_full_m_read_bottleneck_dim = 384
+    bam_write_v_bottleneck_dim = 384
+    bam_mlp_write_address_rank = 384
+    mlp_dim_by_block = [3794, 3669, 3794]
+    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile', 'BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile']
+    bam_m_shift_compact_health = True

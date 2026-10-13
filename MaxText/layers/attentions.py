@@ -2432,6 +2432,68 @@ def _identity_matrix_init(key, shape, dtype):
   return jnp.eye(shape[0], dtype=dtype)
 
 
+def bam_m_shift_valid_mask(shape, segment_ids=None, positions=None):
+  valid = jnp.broadcast_to(jnp.arange(shape[1])[None, :] > 0, shape[:2])
+  if segment_ids is not None:
+    prev_segment = jnp.concatenate((segment_ids[:, :1], segment_ids[:, :-1]), axis=1)
+    valid &= (segment_ids == prev_segment) & (segment_ids != 0)
+  if positions is not None:
+    prev_position = jnp.concatenate((positions[:, :1], positions[:, :-1]), axis=1)
+    valid &= (positions == prev_position + 1)
+  return valid
+
+
+def mix_bam_previous_token(M, gate, segment_ids=None, positions=None):
+  """Columnwise previous-token gate and causal shift of an immutable layer-input M [B,T,K,V].
+
+  Each source is the previous token before any mixing. Invalid/padded/segment
+  boundaries keep the current state. No sequence-prefix recurrence is used.
+  """
+  assert M.ndim == 4 and gate.shape == M.shape[:2] + (M.shape[-1],)
+  previous = jnp.concatenate((M[:, :1], M[:, :-1]), axis=1)
+  valid = bam_m_shift_valid_mask(M.shape, segment_ids, positions)
+  g = gate.astype(M.dtype)[..., None, :]
+  mixed = (jnp.asarray(1, M.dtype) - g) * M + g * previous
+  return jnp.where(valid[..., None, None], mixed, M)
+
+
+def bam_m_shift_health(M, mixed, gate, segment_ids=None, positions=None):
+  """All valid-token gate stats; M health samples at most32 positions/sequence."""
+  valid = bam_m_shift_valid_mask(M.shape, segment_ids, positions)
+  weights = valid.astype(jnp.float32)
+  count = jnp.maximum(jnp.sum(weights), 1)
+  g = gate.astype(jnp.float32)
+  column_mean = jnp.sum(g * weights[..., None], axis=(0, 1)) / count
+  column_square = jnp.sum(g * g * weights[..., None], axis=(0, 1)) / count
+  column_std = jnp.sqrt(jnp.maximum(column_square - column_mean**2, 0))
+  mean = jnp.mean(column_mean)
+  std = jnp.sqrt(jnp.maximum(jnp.mean(column_square) - mean**2, 0))
+  fraction = lambda condition: jnp.sum(condition * weights[..., None]) / (count * g.shape[-1])
+  lo = jnp.where(jnp.any(valid), jnp.min(jnp.where(valid[..., None], g, jnp.inf)), 0)
+  hi = jnp.where(jnp.any(valid), jnp.max(jnp.where(valid[..., None], g, -jnp.inf)), 0)
+  stats = jnp.stack((mean, std, lo, hi, fraction(g < .01), fraction(g > .99),
+                     fraction(g > .5), jnp.mean(weights)))
+  indices = jnp.linspace(1, max(M.shape[1]-1, 1), min(32, max(M.shape[1]-1, 1)), dtype=jnp.int32)
+  indices = jnp.minimum(indices, M.shape[1]-1)
+  current = M[:, indices].astype(jnp.float32)
+  previous = M[:, jnp.maximum(indices-1, 0)].astype(jnp.float32)
+  result = mixed[:, indices].astype(jnp.float32)
+  sample_weights = weights[:, indices]
+  sample_count = jnp.maximum(jnp.sum(sample_weights), 1)
+  average = lambda v: jnp.sum(v * sample_weights) / sample_count
+  squared = lambda v: jnp.mean(v*v, axis=(-2, -1))
+  current_sq, previous_sq = squared(current), squared(previous)
+  current_rms = jnp.sqrt(average(current_sq))
+  previous_rms = jnp.sqrt(average(previous_sq))
+  mixed_rms = jnp.sqrt(average(squared(result)))
+  delta_rms = jnp.sqrt(average(squared(result-current)))
+  cosine = jnp.mean(current*previous, axis=(-2, -1)) / jnp.maximum(jnp.sqrt(current_sq*previous_sq), 1e-12)
+  state = jnp.stack((current_rms, previous_rms, mixed_rms,
+                     mixed_rms / jnp.maximum(current_rms, 1e-12),
+                     delta_rms / jnp.maximum(current_rms, 1e-12), average(cosine)))
+  return stats, jnp.stack((column_mean, column_std)), state
+
+
 class BamAttention(Attention):
   """MHA plus a matrix stream written every BAM layer and optionally read by LocalQK/full."""
 
@@ -2631,7 +2693,25 @@ class BamAttention(Attention):
     self._direct_qk_c8 = bool(getattr(cfg, 'bam_local_qk_direct_c8', False))
     self._full_m_read_rank = getattr(cfg, 'bam_local_full_m_read_bottleneck_dim', None)
     self._full_m_read_share_down = bool(getattr(cfg, 'bam_local_full_m_read_share_down', False))
+    self._share_read_attention_down = bool(getattr(cfg, 'bam_share_read_attention_write_down', False))
     self._general_read = bool(getattr(cfg, 'bam_general_column_read', False))
+    self._m_shift_mode = getattr(cfg, 'bam_m_shift_mode', None) or 'none'
+    assert self._m_shift_mode in ('none', 'read', 'persist')
+    if self._m_shift_mode != 'none':
+      assert self._full_m_read_rank is not None and self._general_read
+      assert not getattr(cfg, 'bam_pallas_core', False), 'M shift uses the pure-JAX SOTA'
+      opening = float(cfg.bam_m_shift_init)
+      assert 0 < opening < 1
+      self.m_shift_gate = linears.DenseGeneral(
+          features=self.bam_v, axis=-1, use_bias=False,
+          kernel_init=zeros_init, kernel_axes=('embed', 'v_factor'),
+          dtype=self.dtype, weight_dtype=self.weight_dtype, quant=self.quant,
+          matmul_precision=cfg.matmul_precision, name='M_shift_gate')
+      self.m_shift_bias = self.param(
+          'M_shift_gate_b0', nn.with_logical_partitioning(
+              nn.initializers.constant(math.log(opening / (1 - opening))), ('v_factor',)),
+          (self.bam_v,), self.weight_dtype)
+
     if self._full_m_read_rank is not None:
       assert not getattr(cfg, 'bam_general_matrix_write', False), 'Generalized writes remain worktree-only'
     if self._general_read:
@@ -2719,6 +2799,14 @@ class BamAttention(Attention):
       assert self._write_v_bottleneck_activation == 'none'
     else:
       assert 0 < self._write_v_bottleneck_dim < cfg.emb_dim
+    if self._share_read_attention_down:
+      assert self._full_m_read_share_down and self._general_read
+      assert self._write_v_bottleneck_dim == self._full_m_read_rank
+      assert self._write_v_bottleneck_activation == 'gelu'
+      assert not getattr(cfg, 'bam_pallas_core', False), 'Shared projections use the JAX core'
+    if getattr(cfg, 'bam_share_mlp_write_down', False):
+      assert self._share_read_attention_down
+      assert cfg.bam_mlp_write_address_rank == self._full_m_read_rank
     assert not self._replicate_ploc_up or self._write_v_bottleneck_dim is not None, (
         'replicated P_loc_up requires a write-V bottleneck')
     assert self._write_outer_implementation in ('dot', 'mul_reduce')
@@ -2919,12 +3007,15 @@ class BamAttention(Attention):
       # Write anchor P_loc: V factor (default agg_u@loc_v), regular init
       loc_v = self.bam_v
       if self._write_v_bottleneck_dim is not None:
-        self.P_loc_down = DenseGeneral(
-            features=self._write_v_bottleneck_dim, axis=-1,
-            kernel_init=reg_init, kernel_axes=("embed", None),
-            dtype=self.dtype, weight_dtype=self.weight_dtype,
-            name="P_loc_down", quant=self.quant,
-            matmul_precision=cfg.matmul_precision, use_bias=False)
+        if self._share_read_attention_down:
+          assert hasattr(self, 'full_m_read_down'), 'Reader setup must create the shared bank'
+        else:
+          self.P_loc_down = DenseGeneral(
+              features=self._write_v_bottleneck_dim, axis=-1,
+              kernel_init=reg_init, kernel_axes=("embed", None),
+              dtype=self.dtype, weight_dtype=self.weight_dtype,
+              name="P_loc_down", quant=self.quant,
+              matmul_precision=cfg.matmul_precision, use_bias=False)
         self.P_loc_up = DenseGeneral(
             features=(self.num_query_heads, loc_v), axis=-1,
             kernel_init=reg_init,
@@ -3381,7 +3472,12 @@ class BamAttention(Attention):
         rope, positions, name=name, embedding_dims=rope.shape[-1])
     return jnp.concatenate((nope, rope), axis=-1)
 
-  def _write(self, o_head, x, M_in):
+  def shared_read_write_features(self, x):
+    """The tied down projection; MLP calls it on its own post-attention input."""
+    assert self._share_read_attention_down
+    return nn.gelu(self.full_m_read_down(x))
+
+  def _write(self, o_head, x, M_in, shared_hidden=None):
     """Write primitive (§4.2 safe write: aggregated U (outer) local V). o_head: [b,t,n,d] head output (pre W_O).
 
     Per-record factor normalization (§4.6.5 write-side per-record factor norm): the address
@@ -3397,9 +3493,12 @@ class BamAttention(Attention):
     if self._write_v_bottleneck_dim is None:
       u2 = self.P_loc(x)
     else:  # V1 default
-      u2 = self.P_loc_down(x)
-      if self._write_v_bottleneck_activation == 'gelu':
-        u2 = nn.gelu(u2)
+      if self._share_read_attention_down:
+        u2 = self.shared_read_write_features(x) if shared_hidden is None else shared_hidden
+      else:
+        u2 = self.P_loc_down(x)
+        if self._write_v_bottleneck_activation == 'gelu':
+          u2 = nn.gelu(u2)
       u2 = self.P_loc_up(u2)
     write_gate_bias = self.gw_b0
     if self._force_activation_dtype:
@@ -3428,15 +3527,18 @@ class BamAttention(Attention):
       assert M_out.dtype == self.dtype, (M_out.dtype, self.dtype)
     return M_out, gate
 
-  def _deferred_write_factors(self, o_head, x):
+  def _deferred_write_factors(self, o_head, x, shared_hidden=None):
     """Same factors as _write, without forming its outer product yet."""
     u1 = o_head[..., :self.bam_k]
     if self._write_v_bottleneck_dim is None:
       u2 = self.P_loc(x)
     else:
-      u2 = self.P_loc_down(x)
-      if self._write_v_bottleneck_activation == 'gelu':
-        u2 = nn.gelu(u2)
+      if self._share_read_attention_down:
+        u2 = self.shared_read_write_features(x) if shared_hidden is None else shared_hidden
+      else:
+        u2 = self.P_loc_down(x)
+        if self._write_v_bottleneck_activation == 'gelu':
+          u2 = nn.gelu(u2)
       u2 = self.P_loc_up(u2)
     bias = jnp.asarray(self.gw_b0, self.dtype) if self._force_activation_dtype else self.gw_b0
     gate = jax.nn.sigmoid(self.W_gw(x) + bias)
@@ -3848,6 +3950,23 @@ class BamAttention(Attention):
 
     inputs_q = nn.with_logical_constraint(inputs_q, self.input_axis_names)
     inputs_kv = nn.with_logical_constraint(inputs_kv, self.input_axis_names)
+    M_read = M_in
+    if getattr(self, '_m_shift_mode', 'none') != 'none':
+      assert M_in is not None
+      with jax.named_scope('bam/m_shift'):
+        logits = self.m_shift_gate(inputs_q).astype(jnp.float32) + self.m_shift_bias.astype(jnp.float32)
+        gate = jax.nn.sigmoid(logits)  # Gate is the previous-token share.
+        M_read = mix_bam_previous_token(M_in, gate, decoder_segment_ids, inputs_positions)
+        if getattr(cfg, 'bam_record_m_shift_health', False):
+          stats, columns, state = bam_m_shift_health(M_in, M_read, gate, decoder_segment_ids, inputs_positions)
+          self.sow('intermediates', 'm_shift_gate_stats', stats)
+          if not getattr(cfg, 'bam_m_shift_compact_health', False):
+            self.sow('intermediates', 'm_shift_gate_columns', columns)
+          self.sow('intermediates', 'm_shift_state_stats', state)
+
+      if self._m_shift_mode == 'persist':
+        M_in = M_read  # Existing attention/MLP writes accumulate onto the mixed carry.
+
     full_m_shared_hidden = (nn.gelu(self.full_m_read_down(inputs_q))
                             if getattr(self, '_full_m_read_share_down', False) else None)
 
@@ -3893,7 +4012,7 @@ class BamAttention(Attention):
     if 'local_qk' in self._mode:  # V1 default
       if Mh is None:
         with jax.named_scope("bam/normalize_m"):
-          Mh = self._matrix_for_read(M_in)
+          Mh = self._matrix_for_read(M_read)
       with jax.named_scope("bam/read_local_m_for_qk"):
         assert Mh is not None, "local_qk read requires M_in"
         if self._direct_qk_c8:
@@ -3914,7 +4033,7 @@ class BamAttention(Attention):
     local_output = None
     if self._local_o and self._vo_shared_read != 'none':
       if Mh is None:
-        Mh = self._matrix_for_read(M_in)
+        Mh = self._matrix_for_read(M_read)
       if self._vo_independent_gates:
         v_local, local_output = self._independent_local_vo(Mh, inputs_q, local_compressed_M, full_m_shared_hidden)
       else:
@@ -3936,7 +4055,7 @@ class BamAttention(Attention):
     elif self._local_o or self._local_v_mode == 'shared':
       shared_v = self._local_v_mode == 'shared'
       if Mh is None:
-        Mh = self._matrix_for_read(M_in)
+        Mh = self._matrix_for_read(M_read)
       local_state = self._compress_m(Mh)
       local_read, output_logits = self._read_fetched_m(
           local_state, inputs_q, ungated=shared_v)
@@ -3952,7 +4071,7 @@ class BamAttention(Attention):
           local_output = local_output + static_o
     if 'v' in self._local_arms:
       if Mh is None:
-        Mh = self._matrix_for_read(M_in)
+        Mh = self._matrix_for_read(M_read)
       with jax.named_scope("bam/read_local_m_for_v"):
         value = value + self._read_local('v', Mh, inputs_q, local_inputs)
 
@@ -3965,7 +4084,7 @@ class BamAttention(Attention):
     if 'full' in self._mode:
       if Mh is None:
         with jax.named_scope("bam/normalize_m"):
-          Mh = self._matrix_for_read(M_in)
+          Mh = self._matrix_for_read(M_read)
       with jax.named_scope("bam/mix_alpha_projection"):
         mix_weights = _dynamic_bam_fetch_mix_weights(
             self.fetch_head_mix(inputs_q), query.dtype,
@@ -4028,7 +4147,8 @@ class BamAttention(Attention):
 
     if defer_write:
       assert self._has_write and not self._mha_control and M_in is not None
-      factors = self._deferred_write_factors(o_head, inputs_q)
+      factors = self._deferred_write_factors(o_head, inputs_q,
+          shared_hidden=full_m_shared_hidden if self._share_read_attention_down else None)
       out = nn.with_logical_constraint(o_head, self.out_axis_names)
       return self.out_projection(inputs_q.shape[-1], out), M_in, factors
     if self._mha_control:
@@ -4036,7 +4156,8 @@ class BamAttention(Attention):
     elif self._has_write:
       assert M_in is not None, "write primitive requires M_in"
       with jax.named_scope("bam/write_m"):
-        M_out, _ = self._write(o_head, inputs_q, M_in)
+        M_out, _ = self._write(o_head, inputs_q, M_in,
+            shared_hidden=full_m_shared_hidden if self._share_read_attention_down else None)
     else:
       M_out = M_in
 

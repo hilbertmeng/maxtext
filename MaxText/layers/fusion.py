@@ -318,19 +318,22 @@ class SubDecoderLayer(nn.Module):
       independent_address = None
       if getattr(cfg, 'bam_mlp_write_dynamic_address', False):
         rank = int(cfg.bam_mlp_write_address_rank)
-        address_hidden = linears.DenseGeneral(
-            features=rank, axis=-1, use_bias=False,
-            kernel_init=initializers.get_init_method(cfg.init_method),
-            kernel_axes=('embed', None), dtype=cfg.dtype, weight_dtype=cfg.weight_dtype,
-            quant=self.quant, matmul_precision=cfg.matmul_precision,
-            name='mlp_address_down')(hidden_states)
+        if getattr(cfg, 'bam_share_mlp_write_down', False):
+          address_hidden = attention_layer.shared_read_write_features(hidden_states)
+        else:
+          address_hidden = nn.gelu(linears.DenseGeneral(
+              features=rank, axis=-1, use_bias=False,
+              kernel_init=initializers.get_init_method(cfg.init_method),
+              kernel_axes=('embed', None), dtype=cfg.dtype, weight_dtype=cfg.weight_dtype,
+              quant=self.quant, matmul_precision=cfg.matmul_precision,
+              name='mlp_address_down')(hidden_states))
         independent_address = linears.DenseGeneral(
             features=(num_query_heads, cfg.bam_v), axis=-1, use_bias=True,
             kernel_init=initializers.get_init_method(cfg.init_method),
             kernel_axes=('embed', 'q_heads', 'v_factor'),
             dtype=cfg.dtype, weight_dtype=cfg.weight_dtype,
             quant=self.quant, matmul_precision=cfg.matmul_precision,
-            name='mlp_address_up')(nn.gelu(address_hidden))
+            name='mlp_address_up')(address_hidden)
       if not pallas_core:
         M_out = attention_layer.merge_mlp_write(
             mlp_lnx.reshape(mlp_lnx.shape[:-1] + (num_query_heads, cfg.bam_k)),

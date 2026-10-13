@@ -2432,6 +2432,26 @@ def _identity_matrix_init(key, shape, dtype):
   return jnp.eye(shape[0], dtype=dtype)
 
 
+def mix_bam_previous_token(M, gate, segment_ids=None, positions=None):
+  """Columnwise causal shift of an immutable layer-input M [B,T,K,V].
+
+  Each source is the previous token before any mixing. Invalid/padded/segment
+  boundaries keep the current state. No sequence-prefix recurrence is used.
+  """
+  assert M.ndim == 4 and gate.shape == M.shape[:2] + (M.shape[-1],)
+  previous = jnp.concatenate((M[:, :1], M[:, :-1]), axis=1)
+  valid = jnp.broadcast_to(jnp.arange(M.shape[1])[None, :] > 0, M.shape[:2])
+  if segment_ids is not None:
+    prev_segment = jnp.concatenate((segment_ids[:, :1], segment_ids[:, :-1]), axis=1)
+    valid &= (segment_ids == prev_segment) & (segment_ids != 0)
+  if positions is not None:
+    prev_position = jnp.concatenate((positions[:, :1], positions[:, :-1]), axis=1)
+    valid &= (positions == prev_position + 1)
+  g = gate.astype(M.dtype)[..., None, :]
+  mixed = g * M + (jnp.asarray(1, M.dtype) - g) * previous
+  return jnp.where(valid[..., None, None], mixed, M)
+
+
 class BamAttention(Attention):
   """MHA plus a matrix stream written every BAM layer and optionally read by LocalQK/full."""
 
@@ -2632,6 +2652,17 @@ class BamAttention(Attention):
     self._full_m_read_rank = getattr(cfg, 'bam_local_full_m_read_bottleneck_dim', None)
     self._full_m_read_share_down = bool(getattr(cfg, 'bam_local_full_m_read_share_down', False))
     self._general_read = bool(getattr(cfg, 'bam_general_column_read', False))
+    self._m_shift_mode = getattr(cfg, 'bam_m_shift_mode', 'none')
+    assert self._m_shift_mode in ('none', 'read', 'persist')
+    if self._m_shift_mode != 'none':
+      assert self._full_m_read_rank is not None and self._general_read
+      assert not getattr(cfg, 'bam_pallas_core', False), 'M shift uses the pure-JAX family'
+      self.m_shift_gate = linears.DenseGeneral(
+          features=self.bam_v, axis=-1, use_bias=False,
+          kernel_init=zeros_init, kernel_axes=('embed', 'v_factor'),
+          dtype=self.dtype, weight_dtype=self.weight_dtype, quant=self.quant,
+          matmul_precision=cfg.matmul_precision, name='M_shift_gate')
+
     self._general_write = bool(getattr(cfg, 'bam_general_matrix_write', False))
     if self._general_read or self._general_write:
       assert self._full_m_read_rank is not None and not cfg.bam_pallas_core
@@ -3858,6 +3889,15 @@ class BamAttention(Attention):
 
     inputs_q = nn.with_logical_constraint(inputs_q, self.input_axis_names)
     inputs_kv = nn.with_logical_constraint(inputs_kv, self.input_axis_names)
+    M_read = M_in
+    if getattr(self, '_m_shift_mode', 'none') != 'none':
+      assert M_in is not None
+      with jax.named_scope('bam/m_shift'):
+        gate = jax.nn.sigmoid(self.m_shift_gate(inputs_q))
+        M_read = mix_bam_previous_token(M_in, gate, decoder_segment_ids, inputs_positions)
+      if self._m_shift_mode == 'persist':
+        M_in = M_read  # Existing attention/MLP writes accumulate onto the mixed carry.
+
     full_m_shared_hidden = (nn.gelu(self.full_m_read_down(inputs_q))
                             if self._full_m_read_share_down else None)
 
@@ -3903,7 +3943,7 @@ class BamAttention(Attention):
     if 'local_qk' in self._mode:  # V1 default
       if Mh is None:
         with jax.named_scope("bam/normalize_m"):
-          Mh = self._matrix_for_read(M_in)
+          Mh = self._matrix_for_read(M_read)
       with jax.named_scope("bam/read_local_m_for_qk"):
         assert Mh is not None, "local_qk read requires M_in"
         if self._direct_qk_c8:
@@ -3924,7 +3964,7 @@ class BamAttention(Attention):
     local_output = None
     if self._local_o and self._vo_shared_read != 'none':
       if Mh is None:
-        Mh = self._matrix_for_read(M_in)
+        Mh = self._matrix_for_read(M_read)
       if self._vo_independent_gates:
         v_local, local_output = self._independent_local_vo(Mh, inputs_q, local_compressed_M, full_m_shared_hidden)
       else:
@@ -3946,7 +3986,7 @@ class BamAttention(Attention):
     elif self._local_o or self._local_v_mode == 'shared':
       shared_v = self._local_v_mode == 'shared'
       if Mh is None:
-        Mh = self._matrix_for_read(M_in)
+        Mh = self._matrix_for_read(M_read)
       local_state = self._compress_m(Mh)
       local_read, output_logits = self._read_fetched_m(
           local_state, inputs_q, ungated=shared_v)
@@ -3962,7 +4002,7 @@ class BamAttention(Attention):
           local_output = local_output + static_o
     if 'v' in self._local_arms:
       if Mh is None:
-        Mh = self._matrix_for_read(M_in)
+        Mh = self._matrix_for_read(M_read)
       with jax.named_scope("bam/read_local_m_for_v"):
         value = value + self._read_local('v', Mh, inputs_q, local_inputs)
 
@@ -3975,7 +4015,7 @@ class BamAttention(Attention):
     if 'full' in self._mode:
       if Mh is None:
         with jax.named_scope("bam/normalize_m"):
-          Mh = self._matrix_for_read(M_in)
+          Mh = self._matrix_for_read(M_read)
       with jax.named_scope("bam/mix_alpha_projection"):
         mix_weights = _dynamic_bam_fetch_mix_weights(
             self.fetch_head_mix(inputs_q), query.dtype,

@@ -20,3 +20,7 @@ Define b_T=MHA_T-BAM_T, u_T=MHA_T-Mudd_T. At exact common steps, use five sample
 Pre-run bets: at13500 BAM-MHA-.165, Mudd-MHA-.088, BAM-Mudd-.077; b8/u8~1.875, second-order8/4~1.13. Predict Δb~+.0204, Δu~+.0011, Δb-Δu~+.0193 versus observed T4096 endpoint. Kernel throughput MHA.62/Mudd.54/BAM.39step/s; BAM about-18.5% vs T4096.4787. Shape/parameter count preserves each parent's budget; Mudd's historical+.45% versus MHA remains, no newly introduced architecture parameters. Timing and loss bets will be checked with observed runs.
 
 Artifacts `/data0/xd/bam_diagnostics/mediumprop-context-t8192`. Previous conversations consulted: original「查找Medium压缩M列读实验」01a0a354-2e46-7320-86bf-714eb273f0dd and completed handoff01a12fe7-da30-7302-940a-5476f71ebcac; final reportmediumprop_t2048_final_20261012.md supplies authoritative ratios and corrected matched baselines.
+
+## Actual launch proof
+
+All three actually training on sealed runtime dbcaa31f46ce88b9582793b38a57cccb2e9cd1ec. CPU full counts and finite gradients, five writer regressions, exact config and target-topology AOT passed. Actual FIRST_STEP and14 verified for all. Worker logs show Loaded compiled function, SplashTrue/T8192/global64/per-device8/TB500/LR.0003/schedule13500. Mean10–14 MHA.5280/Mudd.4880/BAM.3908;20–99 pending. Registry and controller environments agree on runtime, direct compares, region-local8192 data and AOT URI. Artifact startup14-proof.json and controller-env-proof.jsonl.

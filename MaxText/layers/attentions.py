@@ -2432,6 +2432,17 @@ def _identity_matrix_init(key, shape, dtype):
   return jnp.eye(shape[0], dtype=dtype)
 
 
+def bam_m_shift_valid_mask(shape, segment_ids=None, positions=None):
+  valid = jnp.broadcast_to(jnp.arange(shape[1])[None, :] > 0, shape[:2])
+  if segment_ids is not None:
+    prev_segment = jnp.concatenate((segment_ids[:, :1], segment_ids[:, :-1]), axis=1)
+    valid &= (segment_ids == prev_segment) & (segment_ids != 0)
+  if positions is not None:
+    prev_position = jnp.concatenate((positions[:, :1], positions[:, :-1]), axis=1)
+    valid &= (positions == prev_position + 1)
+  return valid
+
+
 def mix_bam_previous_token(M, gate, segment_ids=None, positions=None):
   """Columnwise previous-token gate and causal shift of an immutable layer-input M [B,T,K,V].
 
@@ -2440,16 +2451,47 @@ def mix_bam_previous_token(M, gate, segment_ids=None, positions=None):
   """
   assert M.ndim == 4 and gate.shape == M.shape[:2] + (M.shape[-1],)
   previous = jnp.concatenate((M[:, :1], M[:, :-1]), axis=1)
-  valid = jnp.broadcast_to(jnp.arange(M.shape[1])[None, :] > 0, M.shape[:2])
-  if segment_ids is not None:
-    prev_segment = jnp.concatenate((segment_ids[:, :1], segment_ids[:, :-1]), axis=1)
-    valid &= (segment_ids == prev_segment) & (segment_ids != 0)
-  if positions is not None:
-    prev_position = jnp.concatenate((positions[:, :1], positions[:, :-1]), axis=1)
-    valid &= (positions == prev_position + 1)
+  valid = bam_m_shift_valid_mask(M.shape, segment_ids, positions)
   g = gate.astype(M.dtype)[..., None, :]
   mixed = (jnp.asarray(1, M.dtype) - g) * M + g * previous
   return jnp.where(valid[..., None, None], mixed, M)
+
+
+def bam_m_shift_health(M, mixed, gate, segment_ids=None, positions=None):
+  """All valid-token gate stats; M health samples at most32 positions/sequence."""
+  valid = bam_m_shift_valid_mask(M.shape, segment_ids, positions)
+  weights = valid.astype(jnp.float32)
+  count = jnp.maximum(jnp.sum(weights), 1)
+  g = gate.astype(jnp.float32)
+  column_mean = jnp.sum(g * weights[..., None], axis=(0, 1)) / count
+  column_square = jnp.sum(g * g * weights[..., None], axis=(0, 1)) / count
+  column_std = jnp.sqrt(jnp.maximum(column_square - column_mean**2, 0))
+  mean = jnp.mean(column_mean)
+  std = jnp.sqrt(jnp.maximum(jnp.mean(column_square) - mean**2, 0))
+  fraction = lambda condition: jnp.sum(condition * weights[..., None]) / (count * g.shape[-1])
+  lo = jnp.where(jnp.any(valid), jnp.min(jnp.where(valid[..., None], g, jnp.inf)), 0)
+  hi = jnp.where(jnp.any(valid), jnp.max(jnp.where(valid[..., None], g, -jnp.inf)), 0)
+  stats = jnp.stack((mean, std, lo, hi, fraction(g < .01), fraction(g > .99),
+                     fraction(g > .5), jnp.mean(weights)))
+  indices = jnp.linspace(1, max(M.shape[1]-1, 1), min(32, max(M.shape[1]-1, 1)), dtype=jnp.int32)
+  indices = jnp.minimum(indices, M.shape[1]-1)
+  current = M[:, indices].astype(jnp.float32)
+  previous = M[:, jnp.maximum(indices-1, 0)].astype(jnp.float32)
+  result = mixed[:, indices].astype(jnp.float32)
+  sample_weights = weights[:, indices]
+  sample_count = jnp.maximum(jnp.sum(sample_weights), 1)
+  average = lambda v: jnp.sum(v * sample_weights) / sample_count
+  squared = lambda v: jnp.mean(v*v, axis=(-2, -1))
+  current_sq, previous_sq = squared(current), squared(previous)
+  current_rms = jnp.sqrt(average(current_sq))
+  previous_rms = jnp.sqrt(average(previous_sq))
+  mixed_rms = jnp.sqrt(average(squared(result)))
+  delta_rms = jnp.sqrt(average(squared(result-current)))
+  cosine = jnp.mean(current*previous, axis=(-2, -1)) / jnp.maximum(jnp.sqrt(current_sq*previous_sq), 1e-12)
+  state = jnp.stack((current_rms, previous_rms, mixed_rms,
+                     mixed_rms / jnp.maximum(current_rms, 1e-12),
+                     delta_rms / jnp.maximum(current_rms, 1e-12), average(cosine)))
+  return stats, jnp.stack((column_mean, column_std)), state
 
 
 class BamAttention(Attention):
@@ -3892,6 +3934,12 @@ class BamAttention(Attention):
         logits = self.m_shift_gate(inputs_q).astype(jnp.float32) + self.m_shift_bias.astype(jnp.float32)
         gate = jax.nn.sigmoid(logits)  # Gate is the previous-token share.
         M_read = mix_bam_previous_token(M_in, gate, decoder_segment_ids, inputs_positions)
+        if getattr(cfg, 'bam_record_m_shift_health', False):
+          stats, columns, state = bam_m_shift_health(M_in, M_read, gate, decoder_segment_ids, inputs_positions)
+          self.sow('intermediates', 'm_shift_gate_stats', stats)
+          self.sow('intermediates', 'm_shift_gate_columns', columns)
+          self.sow('intermediates', 'm_shift_state_stats', state)
+
       if self._m_shift_mode == 'persist':
         M_in = M_read  # Existing attention/MLP writes accumulate onto the mixed carry.
 

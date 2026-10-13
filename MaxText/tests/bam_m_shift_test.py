@@ -13,8 +13,9 @@ from flax.traverse_util import flatten_dict
 import max_utils
 import pyconfig
 import train_compile
+import train
 from bam_prop_test_utils import MLPWriteTest
-from layers.attentions import BamAttention, mix_bam_previous_token
+from layers.attentions import BamAttention, mix_bam_previous_token, bam_m_shift_health
 from layers.models import Transformer
 
 PARENT='BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile'
@@ -49,6 +50,19 @@ class MShiftTest(MLPWriteTest, unittest.TestCase):
     np.testing.assert_allclose(grad[:,0],jnp.broadcast_to(jnp.array([.25,.75]),(1,3,2)))
     np.testing.assert_allclose(grad[:,1],jnp.broadcast_to(jnp.array([.75,.25]),(1,3,2)))
     np.testing.assert_array_equal(grad[:,2:],jnp.zeros_like(grad[:,2:]))
+
+  def test_health_masks_and_known_mix(self):
+    m=jnp.array([0.,2.,4.,100.],jnp.float32).reshape(1,4,1,1)
+    gate=jnp.array([.99,.25,.25,.99],jnp.float32).reshape(1,4,1)
+    segments=jnp.array([[1,1,1,2]])
+    mixed=mix_bam_previous_token(m,gate,segments)
+    stats,columns,state=bam_m_shift_health(m,mixed,gate,segments)
+    np.testing.assert_allclose(stats[0],.25)
+    np.testing.assert_allclose(columns[0],.25)
+    np.testing.assert_allclose(state[4],.5/np.sqrt(10),rtol=1e-6)
+    self.assertTrue(all(np.isfinite(np.asarray(v)).all() for v in (stats,columns,state)))
+    empty=bam_m_shift_health(m,m,gate,jnp.zeros_like(segments))
+    self.assertTrue(all(np.isfinite(np.asarray(v)).all() for v in empty))
 
   def test_read_and_persist_same_reads_but_distinct_write_bases(self):
     cfg=self.tiny('read')
@@ -100,6 +114,15 @@ class MShiftTest(MLPWriteTest, unittest.TestCase):
         self.assertEqual(len(gates),6)
         self.assertTrue(all(float(jnp.linalg.norm(v))>0 for v in gates))
         np.testing.assert_allclose(f(p)[:,:3],f(p,tok.at[:,3].set(9))[:,:3],rtol=1e-6,atol=1e-6)
+        _,collections=model.apply({'params':p},tok,pos,seg,tok,enable_dropout=False,mutable=['intermediates'])
+        metrics={'scalar':{}}
+        train.record_bam_concat_health_metrics(metrics,collections,cfg)
+        health={k:v for k,v in metrics['scalar'].items() if k.startswith('bam/m_shift/')}
+        self.assertEqual(len(health),3*(64+14))
+        self.assertTrue(all(np.isfinite(np.asarray(v)).all() for v in health.values()))
+        for layer in range(3):
+          np.testing.assert_allclose(health[f'bam/m_shift/layer_{layer:03d}/gate_mean'],opening,rtol=1e-5)
+
 
   def test_full_parameter_budget_and_gate_sharding(self):
     for name in (PARENT,READ,PERSIST,READ.replace('G005','G050'),PERSIST.replace('G005','G050')):

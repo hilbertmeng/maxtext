@@ -12212,6 +12212,7 @@ class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMRe
     model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile'
     bam_general_column_read = True
     bam_general_matrix_write = False
+    bam_record_m_shift_health = False
     bam_m_shift_mode = 'none'  # none | read | persist; experimental worktree path
     bam_m_shift_init = .05  # Previous-token share, sigmoid gate bias initialization
     mlp_dim_by_block = [3813, 3686, 3813]
@@ -12678,6 +12679,7 @@ class BamFullMGeneralReadPallasV8TProfile(BamFullMGeneralReadPallasFusedProfile)
 class BamMediumPropSharedR256GeneralReadMShiftReadG005TruePile(BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile):
     """Dynamic previous-token M mix, read carry, initial share0.05."""
     model_name = 'BamMediumPropSharedR256GeneralReadMShiftReadG005TruePile'
+    bam_record_m_shift_health = True
     bam_m_shift_mode = 'read'
     bam_m_shift_init = 0.05
     mlp_dim_by_block = [3802, 3676, 3802]  # Repay691200 kernel params; residual576 gate biases(+0.000133%).
@@ -12691,6 +12693,7 @@ class BamMediumPropSharedR256GeneralReadMShiftReadG005TruePile(BamMediumPropK75E
 class BamMediumPropSharedR256GeneralReadMShiftPersistG005TruePile(BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile):
     """Dynamic previous-token M mix, persist carry, initial share0.05."""
     model_name = 'BamMediumPropSharedR256GeneralReadMShiftPersistG005TruePile'
+    bam_record_m_shift_health = True
     bam_m_shift_mode = 'persist'
     bam_m_shift_init = 0.05
     mlp_dim_by_block = [3802, 3676, 3802]  # Repay691200 kernel params; residual576 gate biases(+0.000133%).
@@ -12704,6 +12707,7 @@ class BamMediumPropSharedR256GeneralReadMShiftPersistG005TruePile(BamMediumPropK
 class BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile(BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile):
     """Dynamic previous-token M mix, read carry, initial share0.5."""
     model_name = 'BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile'
+    bam_record_m_shift_health = True
     bam_m_shift_mode = 'read'
     bam_m_shift_init = 0.5
     mlp_dim_by_block = [3802, 3676, 3802]  # Repay691200 kernel params; residual576 gate biases(+0.000133%).
@@ -12717,6 +12721,7 @@ class BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile(BamMediumPropK75E
 class BamMediumPropSharedR256GeneralReadMShiftPersistG050TruePile(BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile):
     """Dynamic previous-token M mix, persist carry, initial share0.5."""
     model_name = 'BamMediumPropSharedR256GeneralReadMShiftPersistG050TruePile'
+    bam_record_m_shift_health = True
     bam_m_shift_mode = 'persist'
     bam_m_shift_init = 0.5
     mlp_dim_by_block = [3802, 3676, 3802]  # Repay691200 kernel params; residual576 gate biases(+0.000133%).

@@ -48,3 +48,14 @@ Validation checks equalstage ratios with differentabsolute gains, missingpoint,
 nonpositive referencegain. No changes to commonreport script.
 
 Status: development checks, not yet AOT/FIRST_STEP.
+
+
+ActualFIRST_STEP andstep14 verified17:22UTC, workerparams1432383640 matchshape
+probe, compiled AOTloaded, runtimeeeec67ce551aa84ca578c22bef361e5a5ee5d491.
+UE5a SPOTv5p32 xd-v5p-32-310192-maxtext. Canonical20–99 .3646625step/s
+(80samples) vs historicalparent .3826: -4.6883%, speedbet .367 missedby-.64%.
+Parentlate .2564 is omitted as TBwhole-event slowdown; health/logging operational
+lineage differs, no same-VM pure-architecture speed claim.
+MHA-referenced gain specification persisted; family crossscale script deployed
+matchingSHA256472bdaa93fa20d2afba39a4fab260c017311fa5579614085ca130bc9ee2f56e7,
+firstpending report executes correctly. Native500 windows,agent1000 reporting.

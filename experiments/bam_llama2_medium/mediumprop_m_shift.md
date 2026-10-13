@@ -260,3 +260,16 @@ OfflineKVspeed2ndprototype: sample-before-transpose5healthstats bitwiseequal12CP
 2026-10-13 14:53UTC: ReadG050 completed13500 cleanexit0, CP13400/13500 commit_success confirmed, TPU310178/node+queue absent, localTBSYNCOK. Finalcompletewindow13400, last5gapSOTA−.011034,MHA-ref gain1.076290. Pre-runbet−.006/.460step/s versusactual−.011034/.45835:directioncorrect,effect1.84×prediction. Update: readonlyneighborM provides terminalceilinggain; retaining rawcarryimportant(persistfailed); independent3gates/2lags didnotimproveparent. KeepRead050 strongdirectbaseline.
 KV3000: SOTAbenefit.009064,parentextra.000770,MHA-ref gainSOTA1.037502,parent1.003081,last5SOTA1.040147,parent1.010823. UserexplicitkeepKVfull13500evenifitfallsbelowsingle, effectsfirst; neededindependentjointcontrol. Hybrid3000 absolutebenefits(single/KV/joint).008294/.009064/.013998; A80.65%,C59.50%;last5A79.70%,C51.12%; extrajoint-single.005704,joint-KV.004934. Both3000delivered/marked,next4000. Familyreportprints3rawgains+A/C,cumulativeexactwindows; genericreportrestoredoriginalSHA, noadditivityflags/registrykeys.
 NewuserR256gateexperiment hadnotlaunched whenasked1k; agentmistakenlytreatedimperativeasdiscussion, admitted andnowpreparing. Freshmain0f7f6d10worktree `/data0/xd/mediumprop-gate-feature-sharing`,branchcodex/mediumprop-gate-feature-sharing, runtime838e2c0262f76906879415882e95cb86aeb0d88b pushed. Fivefocused+full47 passed; correctedMLPgatecount6not18 saves2537472=1.76213W_Q, MLP3852/3725/3852, actual432100832(-10272vsSOTA). Sameexisting3GELUlatents,8readgates+2writeporttypes,writeinitfixedanalyticmomentcorrection~20.075,readzero-init. Launcherparallel sealedCPU5+writer5/AOTborrowedFLEX/prequeue310186UE5a inprogress; FIRST_STEP notyetverified. Sourcefrozenuntilgatescomplete. Source/gatepreparationlogs `/data0/xd/bam_diagnostics/mediumprop-gate-feature-sharing`; ROOTstateowns2live+newprequeue.
+
+
+## Pair7000 and joint single-source reporting
+
+UserrequestsKV/joint together sincejointreportalreadycontainsKVbaseline data.
+Familyfacade scripts/report_mediumprop_shift_pair.py refreshesjoint+its liveKV
+baseline exactlyonce, then uses common cachedgain helpers forbothRUNs andfamily
+additivity functions; no genericreport changes. Paired7000 artifactJSON local
+mediumprop-m-shift/paired-7000.json. RawG single/KV/joint .009329/.006916/.011766,
+A72.43%,C35.24%; latest5extraJoint .00244688 vs6000 .00342364 (~-28.5%).
+MHA-referenceSOTAgainKV1.040654,joint1.069169;joint vsSingleloss-.0024372,
+vsKV-.0048506. Single continuescatching; terminaljoint excessbet0–.002,
+no evidence yet forsingleclearoverturn. KeepKV full13500 peruser; bothcontinue.

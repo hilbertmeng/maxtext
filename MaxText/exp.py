@@ -300,7 +300,6 @@ class BamLlama2Medium(Llama2Medium):
     bam_local_full_m_read_share_down = False
     bam_general_column_read = False
     bam_general_matrix_write = False
-    bam_m_shift_mode = 'none'  # none | read | persist; worktree-only dynamic M shift
     bam_static_read_gate_init = .99
     bam_static_read_gate_sigmoid = False  # Legacy reads use 1.1*sigmoid with initial-amplitude compensation.
     bam_static_write_gate_init = .01
@@ -12412,27 +12411,3 @@ class BamMediumPropFullMGeneralReadFinalMatrixVGateTruePile(BamMediumPropFullMGe
     model_name = 'BamMediumPropFullMGeneralReadFinalMatrixVGateTruePile'
     bam_final_matrix_v_gate = True
     compare_runs = ['BamMediumPropFullMGeneralReadFinalMatrixResidualTruePile', 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile']
-
-
-class BamMediumPropSharedR256GeneralReadMShiftReadTruePile(BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile):
-    """Causal v32-gated previous-token M mix, read mode, exact MLP repayment."""
-    model_name = 'BamMediumPropSharedR256GeneralReadMShiftReadTruePile'
-    bam_m_shift_mode = 'read'
-    mlp_dim_by_block = [3802, 3676, 3802]  # -691200 MLP params exactly repays18*1200*32.
-    checkpoint_period = 200
-    keep_period = 0
-    max_to_keep = 2
-    tensorboard_gcs_rotate_period = 500
-    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile', 'BamMHAMediumPropC256TruePile']
-
-
-class BamMediumPropSharedR256GeneralReadMShiftPersistTruePile(BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile):
-    """Causal v32-gated previous-token M mix, persist mode, exact MLP repayment."""
-    model_name = 'BamMediumPropSharedR256GeneralReadMShiftPersistTruePile'
-    bam_m_shift_mode = 'persist'
-    mlp_dim_by_block = [3802, 3676, 3802]  # -691200 MLP params exactly repays18*1200*32.
-    checkpoint_period = 200
-    keep_period = 0
-    max_to_keep = 2
-    tensorboard_gcs_rotate_period = 500
-    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile', 'BamMediumPropSharedR256GeneralReadMShiftReadTruePile', 'BamMHAMediumPropC256TruePile']

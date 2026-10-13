@@ -2694,7 +2694,7 @@ class BamAttention(Attention):
     self._full_m_read_rank = getattr(cfg, 'bam_local_full_m_read_bottleneck_dim', None)
     self._full_m_read_share_down = bool(getattr(cfg, 'bam_local_full_m_read_share_down', False))
     self._general_read = bool(getattr(cfg, 'bam_general_column_read', False))
-    self._m_shift_mode = getattr(cfg, 'bam_m_shift_mode', 'none')
+    self._m_shift_mode = getattr(cfg, 'bam_m_shift_mode', None) or 'none'
     assert self._m_shift_mode in ('none', 'read', 'persist')
     if self._m_shift_mode != 'none':
       assert self._full_m_read_rank is not None and self._general_read

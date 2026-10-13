@@ -4,10 +4,10 @@ User requests latest-main fork. Worktree `/data0/xd/mediumprop-m-shift`, branch 
 
 | Arm | RUN | TPU |
 |---|---|---|
-| read,previous share.05 | BamMediumPropSharedR256GeneralReadMShiftReadG005TruePile | xd-v5p-16-310172-maxtext |
-| persist,previous share.05 | BamMediumPropSharedR256GeneralReadMShiftPersistG005TruePile | xd-v5p-16-310173-maxtext |
-| read,previous share.5 | BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile | xd-v5p-16-310174-maxtext |
-| persist,previous share.5 | BamMediumPropSharedR256GeneralReadMShiftPersistG050TruePile | xd-v5p-16-310175-maxtext |
+| read,previous share.05 | BamMediumPropSharedR256GeneralReadMShiftReadG005TruePile | xd-v5p-16-310176-maxtext |
+| persist,previous share.05 | BamMediumPropSharedR256GeneralReadMShiftPersistG005TruePile | xd-v5p-16-310177-maxtext |
+| read,previous share.5 | BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile | xd-v5p-16-310178-maxtext |
+| persist,previous share.5 | BamMediumPropSharedR256GeneralReadMShiftPersistG050TruePile | xd-v5p-16-310179-maxtext |
 
 Each layer generates a=sigmoid(xW+b),W[1200,32],from existing attention-prenorm residual, no extra RMS. W zero, learnable b[v32] initialized logit(.05)=-2.944439 orlogit(.5)=0. Define gate as PREVIOUS-token share: Mtilde=(1-a)M_t+aM_(t-1),broadcast alongk75. One mix perlayer for all Q/K/V/O reads. Previous token from immutable same-layer input, no within-layer prefix recurrence. First token,padded/different segment,position discontinuity keep current M. Read mode retains original carry as base of attention+MLP writes; persist mode first replaces carry withmixed M, then preserves all existing writes. Deferred write path uses the same distinction. Read mode still indirectly changes future writes through vector outputs.
 
@@ -22,3 +22,5 @@ Currentmain infra directly inherited: TB500 writerconstruction/begin_step,summar
 Abandoned earlier preparation: historicalfamilyc55410d2, two .5 armsnevertrained, fullCPUgatecaught historicalMHAcontrol missingfieldguard; botholdprequeues310170/171 releasedbyoldpreparers. Userrequestedfreshmainfork, sohistoricalfamilyreverted7e36c7b5/pushed, oldAOTsnotused. Preserveoldprep/artifacts as preparationevidence, no experimentalresult claimed. Newruntime/launchproof pending. Artifacts `/data0/xd/bam_diagnostics/mediumprop-m-shift`.
 
 User requests gatehealth beforelaunch. Allfour explicitlybam_record_m_shift_health=True, integratedexistingconcathealth decoder andAOT mutableintermediates. Perlayerglobalmean/std/min/max,<.01/>.99/>.5fractions,validfraction; eachv32columnmean/std; current/previous/mixedM RMS,mixed/currentRMS,delta/currentRMS,currentpreviouscosine. Gate reductions useallvalidtokens; matrixstatistics sampleatmost32positionspersequence,allbatch/K/V,excludeinvalidedges.1404newscalars perloggedstep over18layers; TB500rotation retained. CPU tests verifymaskedknownstate/emptyvalidfiniteness andreal scanmodel->trainmetricdecode forbothopenings. Additionalrequestedhealthcost included inactualspeed, noarchitecture-onlytimingclaim.
+
+Shared regressions exposed legacyconfig None fornewmodekey; normalized None->none, numericalbehaviorofnewarmsunchanged. Firstlatest-main9668e716preparationnevertrained;cancelledobsoleteCPUwaitersandletownedpreparersrelease310172..175. Correctedunsealeddevelopmentpassed5M-shift/health/count/gradienttests,5writers,all47BAMregressions. Do notreuseoldcommitCPUmarker; sealednewhashwillrepeatitsgate/AOT. CPUcachefailsfastforconcurrentwaitersafterfirstfailureandrequirescleansource. NewownedtrainingIDs310176..179avoidcleanupcollision.

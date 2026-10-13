@@ -12385,3 +12385,59 @@ class MuddLlama2MediumPropC256T2048(MuddLlama2MediumPropT2048):
     model_name = 'MuddLlama2MediumPropC256T2048'
     bam_splash_attention = False
     compare_runs = ['BamMHAMediumPropC256T2048Matched', 'MuddLlama2MediumPropTruePile']
+
+
+class BamMHAMediumPropT8192SplashTruePile(BamMHAMediumPropC256TruePile):
+    """T8192 MediumProp MHA; global64 keeps524288 target tokens per step."""
+    # Context family: /data0/xd/mediumprop-context-t2048, codex/mediumprop-context-t2048.
+    # User authorizes Splash; unchanged parent architecture/params/optimizer,13500 steps.
+    model_name = 'BamMHAMediumPropT8192SplashTruePile'
+    DATASET_VARIANT = 'truepile8192'
+    dataset_path = ''  # Launcher resolves the declared variant to the training region.
+    max_target_length = 8192
+    per_device_batch_size = 8.0
+    bam_splash_attention = True
+    checkpoint_period = 200
+    keep_period = 0
+    max_to_keep = 2
+    tensorboard_gcs_rotate_period = 500
+    jax_cache_dir = ''
+    compare_runs = ['BamMHAMediumPropC256TruePile']
+
+
+class MuddLlama2MediumPropT8192SplashTruePile(MuddLlama2MediumPropTruePile):
+    """T8192 full-history Mudd; same token budget and inherited parameter widths."""
+    # Context family: /data0/xd/mediumprop-context-t2048, codex/mediumprop-context-t2048.
+    # Preserve full growing history and historical unrolled dispatch; Splash authorized.
+    model_name = 'MuddLlama2MediumPropT8192SplashTruePile'
+    DATASET_VARIANT = 'truepile8192'
+    dataset_path = ''
+    max_target_length = 8192
+    per_device_batch_size = 8.0
+    bam_splash_attention = True
+    checkpoint_period = 200
+    keep_period = 0
+    max_to_keep = 2
+    tensorboard_gcs_rotate_period = 500
+    jax_cache_dir = ''
+    compare_runs = ['BamMHAMediumPropT8192SplashTruePile', 'MuddLlama2MediumPropTruePile']
+
+
+class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadT8192(BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile):
+    """T8192 shared-R256/generalized-read BAM SOTA, historical gate math."""
+    # Context family: /data0/xd/mediumprop-context-t2048, codex/mediumprop-context-t2048.
+    # Preserve model/params/init/optimizer and pure-JAX Splash path; global batch64.
+    model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadT8192'
+    DATASET_VARIANT = 'truepile8192'
+    dataset_path = ''
+    max_target_length = 8192
+    per_device_batch_size = 8.0
+    bam_splash_attention = True
+    checkpoint_period = 200
+    keep_period = 0
+    max_to_keep = 2
+    tensorboard_gcs_rotate_period = 500
+    jax_cache_dir = ''
+    compare_runs = ['BamMHAMediumPropT8192SplashTruePile', 'MuddLlama2MediumPropT8192SplashTruePile',
+                    'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile',
+                    'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadT2048']

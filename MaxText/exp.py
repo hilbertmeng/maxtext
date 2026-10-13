@@ -12733,6 +12733,7 @@ class BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile(BamMediumPropK75E
     # @8000 SOTA-.010401,last5-.009983; MHA-ref gain/SOTA1.063401x,last5 1.060595;continue.
     # @9000 SOTA-.011055,last5-.010434; MHA-ref gain/SOTA1.071381x,last5 1.066339;continue.
     # @10000 SOTA-.010185,last5-.010447; MHA-ref gain/SOTA1.066904x,last5 1.067665; stable gain,continue.
+    # @12000 SOTA-.010715,last5-.010521; MHA-ref gain1.073456,last5 1.072313; stable,continue13500.
     model_name = 'BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile'
     bam_record_m_shift_health = True
     bam_m_shift_mode = 'read'
@@ -12777,6 +12778,7 @@ class BamMediumPropSharedR256GeneralReadMShiftReadQKVoG050TruePile(BamMediumProp
     # @5000 SOTA-.010377,ReadG050-.001660; MHA-ref multipliers1.054435/1.008326; forecast5000-.0028too optimistic.
     # @6000 SOTA-.010449,ReadG050-.001831; MHA-ref multipliers1.059090/1.009871; last5parent extra-.001273,shrinking.
     # @7000 SOTA-.009443,ReadG050-.000114; MHA-ref multipliers1.055511/1.000634; last5parent extra-.000714, shrinking;continue8000review.
+    # @9000 parent+.000443,last5-.000123; gain/parent.997333,last5 1.000726; -3.49%speed,closing.
     model_name = 'BamMediumPropSharedR256GeneralReadMShiftReadQKVoG050TruePile'
     bam_m_shift_separate_reads = True
     mlp_dim_by_block = [3781, 3654, 3781]  # Repay all 3 gate kernels; +1728 biases vs SOTA.
@@ -12788,6 +12790,7 @@ class BamMediumPropSharedR256GeneralReadMShiftReadTwoLag532TruePile(BamMediumPro
     """Independent sigmoid lag gates (.3/.2); current/lag1/lag2 initial shares .5/.3/.2."""
     # code_commit: e79a303; UE5a SPOT v5p-16 xd-v5p-16-310183-maxtext; AOT/FIRST_STEP+14 verified.
     # Actual params432112256, custom health162, init/finite TB verified;20-99 .4576625step/s (-.15% vs single, -4.40% vs SOTA).
+    # @1000 parent+.002732,SOTA+.002371; gains.995326/.995941. Gate1/2 .228751/.069299; secondlag mostlyshallow.
     model_name = 'BamMediumPropSharedR256GeneralReadMShiftReadTwoLag532TruePile'
     bam_m_shift_two_lag = True
     bam_m_shift_two_lag_init = [.5, .3, .2]
@@ -12800,6 +12803,7 @@ class BamMediumPropSharedR256GeneralReadKVShiftG050TruePile(BamMediumPropSharedR
     """Replace M shift with per-head dynamic K/V vector shift, zero-kernel .5/.5 init."""
     # code_commit: e79a303; UE5a SPOT v5p-16 xd-v5p-16-310184-maxtext; AOT/FIRST_STEP+14 verified.
     # Actual params432111104, custom health180, init/finite TB verified;20-99 .4167750step/s (-9.07% vs single, -12.94% vs SOTA; !! slower than +2.5% preregistered).
+    # @1000 parent-.018545,SOTA-.018906; MHA-ref gains1.031726/1.032363; K/V gates.554827/.324232.
     model_name = 'BamMediumPropSharedR256GeneralReadKVShiftG050TruePile'
     bam_m_shift_mode = 'none'
     bam_kv_shift = True
@@ -12812,6 +12816,7 @@ class BamMediumPropSharedR256GeneralReadMShiftReadKVShiftG050TruePile(BamMediumP
     """Stack the single .5 M read shift with .5/.5 per-head KV vector shift."""
     # code_commit: 77ea4bb; UE5a SPOT v5p-16 xd-v5p-16-310185-maxtext; AOT/FIRST_STEP+14 verified.
     # Actual params432111680, custom health270, init/finite TB verified;20-99 .4055250step/s (-11.53% vs single, -2.70% vs pureKV; !! slower than -1.6% preregistered).
+    # @1000 single-.018721,pureKV-.000176,SOTA-.019081; gains1.032026/1.000291/1.032663; nearKVparity.
     model_name = 'BamMediumPropSharedR256GeneralReadMShiftReadKVShiftG050TruePile'
     bam_kv_shift = True
     bam_m_shift_compact_health = True

@@ -24,7 +24,7 @@ from typing import List, Optional, Tuple, Union
 import torch
 import torch.nn.functional as F
 from torch import nn
-from transformers import PreTrainedModel
+from transformers import GenerationMixin, PreTrainedModel
 from transformers.cache_utils import Cache, DynamicCache
 from transformers.modeling_outputs import BaseModelOutputWithPast, CausalLMOutputWithPast
 
@@ -91,17 +91,20 @@ class HeadLinear(nn.Linear):
 
 
 class BamRotary(nn.Module):
-  """MaxText RotaryEmbedding (half-split, not interleaved) over the standard Q/K tail."""
+  """MaxText RotaryEmbedding (half-split, not interleaved) over the standard Q/K tail.
+
+  The timescales are computed in forward rather than held in a buffer: non-persistent buffers are not
+  in the checkpoint and stay uninitialized when transformers >= 5 builds the model on the meta device."""
 
   def __init__(self, dim, min_timescale, max_timescale):
     super().__init__()
-    fraction = 2 * torch.arange(dim // 2, dtype=torch.float32) / dim
-    self.register_buffer('timescale', min_timescale * (max_timescale / min_timescale) ** fraction,
-                         persistent=False)
+    self.dim, self.min_timescale, self.max_timescale = dim, float(min_timescale), float(max_timescale)
 
   def forward(self, x, positions):
     """x [B, T, N, D]; positions [B, T]."""
-    angle = positions.float()[:, :, None, None] / self.timescale
+    fraction = 2 * torch.arange(self.dim // 2, device=x.device, dtype=torch.float32) / self.dim
+    timescale = self.min_timescale * (self.max_timescale / self.min_timescale) ** fraction
+    angle = positions.float()[:, :, None, None] / timescale
     sin, cos = torch.sin(angle).to(x.dtype), torch.cos(angle).to(x.dtype)
     a, b = x.chunk(2, dim=-1)
     return torch.cat((a * cos - b * sin, b * cos + a * sin), dim=-1)
@@ -626,7 +629,7 @@ class BamModel(BamPreTrainedModel):
   def forward(self, input_ids=None, attention_mask=None, position_ids=None, past_key_values=None,
               inputs_embeds=None, use_cache=None, output_hidden_states=None, return_dict=None, **kwargs):
     use_cache = self.config.use_cache if use_cache is None else use_cache
-    return_dict = self.config.use_return_dict if return_dict is None else return_dict
+    return_dict = getattr(self.config, 'use_return_dict', True) if return_dict is None else return_dict
     x = self.embed_tokens(input_ids) if inputs_embeds is None else inputs_embeds
     b, t = x.shape[:2]
     if isinstance(past_key_values, StaticKVCache):     # fixed-shape path (CUDA graphs)
@@ -639,8 +642,11 @@ class BamModel(BamPreTrainedModel):
       x = self.norm(x)
       return BaseModelOutputWithPast(last_hidden_state=x, past_key_values=cache)
     if use_cache and not isinstance(past_key_values, Cache):
-      past_key_values = (DynamicCache() if past_key_values is None
-                         else DynamicCache.from_legacy_cache(past_key_values))
+      legacy = past_key_values
+      past_key_values = DynamicCache()
+      if legacy is not None:      # tuple of per-layer (key, value) (transformers 4.x legacy format)
+        for i, (key, value) in enumerate(legacy):
+          past_key_values.update(key, value, i)
     past = past_key_values.get_seq_length() if past_key_values is not None else 0
     if position_ids is None:
       if attention_mask is not None:      # left padding: positions count real tokens only
@@ -669,7 +675,7 @@ class BamModel(BamPreTrainedModel):
                                    hidden_states=hidden_states)
 
 
-class BamForCausalLM(BamPreTrainedModel):
+class BamForCausalLM(BamPreTrainedModel, GenerationMixin):
   _tied_weights_keys = []
 
   def __init__(self, config: BamConfig):
@@ -702,7 +708,7 @@ class BamForCausalLM(BamPreTrainedModel):
               inputs_embeds=None, labels=None, use_cache=None, output_hidden_states=None, return_dict=None,
               logits_to_keep=0, **kwargs) -> Union[Tuple, CausalLMOutputWithPast]:
     """logits_to_keep > 0 projects only the last positions (prefill for generation)."""
-    return_dict = self.config.use_return_dict if return_dict is None else return_dict
+    return_dict = getattr(self.config, 'use_return_dict', True) if return_dict is None else return_dict
     outputs = self.model(input_ids=input_ids, attention_mask=attention_mask, position_ids=position_ids,
                          past_key_values=past_key_values, inputs_embeds=inputs_embeds, use_cache=use_cache,
                          output_hidden_states=output_hidden_states, return_dict=True)
@@ -718,7 +724,7 @@ class BamForCausalLM(BamPreTrainedModel):
                                   hidden_states=outputs.hidden_states)
 
   def prepare_inputs_for_generation(self, input_ids, past_key_values=None, attention_mask=None,
-                                    inputs_embeds=None, **kwargs):
+                                    inputs_embeds=None, cache_position=None, **kwargs):
     past = 0
     if past_key_values is not None:
       past = (past_key_values.get_seq_length() if isinstance(past_key_values, Cache)

@@ -22,7 +22,7 @@ def main():
   p.add_argument('--max-new-tokens', type=int, default=40)
   p.add_argument('--prompt', action='append')
   a = p.parse_args()
-  tok = AutoTokenizer.from_pretrained(a.hf_dir)
+  tok = AutoTokenizer.from_pretrained(a.hf_dir, trust_remote_code=True)
   tok.padding_side = 'left'
   if tok.pad_token is None:
     tok.pad_token = tok.eos_token

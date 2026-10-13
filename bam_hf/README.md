@@ -18,8 +18,8 @@ Tokenizer: GPT-NeoX-20B (Pythia), copied into each directory.
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
 d = '/data0/xd/bam_diagnostics/xlprop-fullm-general-hf/hf/bam-xlprop-fullm-general-33002-bfloat16'
-tok = AutoTokenizer.from_pretrained(d)
-model = AutoModelForCausalLM.from_pretrained(d, trust_remote_code=True, torch_dtype=torch.bfloat16).cuda().eval()
+tok = AutoTokenizer.from_pretrained(d, trust_remote_code=True)
+model = AutoModelForCausalLM.from_pretrained(d, trust_remote_code=True, dtype=torch.bfloat16).cuda().eval()  # torch_dtype= on transformers < 4.56
 model.fuse_projections()            # inference fast path (fused GEMMs, Triton kernels); optional
 out = model.generate(**tok('The capital of France is', return_tensors='pt').to('cuda'), max_new_tokens=32)
 ```

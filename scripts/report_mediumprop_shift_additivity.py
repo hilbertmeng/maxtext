@@ -58,6 +58,8 @@ def print_additivity_series(report, columns):
     for start in range(0, len(series), columns):
         block = series[start:start+columns]
         print('     step: ' + '  '.join(f"{p['step']:>10}" for p in block))
+        for label, key in (('single_G', 'arm_a_gain'), ('kv_G', 'arm_b_gain'), ('joint_G', 'joint_gain')):
+            print(f'{label:>9}: ' + '  '.join(f"{p[key]:+10.6f}" for p in block))
         print('  total_A: ' + '  '.join(f"{100*p['total_fraction']:9.2f}%" if p['total_fraction'] is not None
                                      else f"{'undefined':>10}" for p in block))
         print('retention: ' + '  '.join(f"{100*p['retention']:9.2f}%" if p['retention'] is not None

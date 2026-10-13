@@ -12734,6 +12734,7 @@ class BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile(BamMediumPropK75E
     # @9000 SOTA-.011055,last5-.010434; MHA-ref gain/SOTA1.071381x,last5 1.066339;continue.
     # @10000 SOTA-.010185,last5-.010447; MHA-ref gain/SOTA1.066904x,last5 1.067665; stable gain,continue.
     # @12000 SOTA-.010715,last5-.010521; MHA-ref gain1.073456,last5 1.072313; stable,continue13500.
+    # Completed13500,CP13500committed,resourcesabsent/TBSYNCOK;last5SOTA-.011034,gain1.076290;bet-.006underestimated.
     model_name = 'BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile'
     bam_record_m_shift_health = True
     bam_m_shift_mode = 'read'
@@ -12792,6 +12793,7 @@ class BamMediumPropSharedR256GeneralReadMShiftReadTwoLag532TruePile(BamMediumPro
     # Actual params432112256, custom health162, init/finite TB verified;20-99 .4576625step/s (-.15% vs single, -4.40% vs SOTA).
     # @1000 parent+.002732,SOTA+.002371; gains.995326/.995941. Gate1/2 .228751/.069299; secondlag mostlyshallow.
     # @2000 parent+.003086,SOTA-.004004; gain.990348/1.012806; last5parent+.000156,not stable extra;gate2.068478.
+    # Stopped3086,P0,resourcesabsent/TBSYNCOK;@3000parent+.001066,last5+.000802,no extra ceilinggain.
     model_name = 'BamMediumPropSharedR256GeneralReadMShiftReadTwoLag532TruePile'
     bam_m_shift_two_lag = True
     bam_m_shift_two_lag_init = [.5, .3, .2]
@@ -12806,6 +12808,7 @@ class BamMediumPropSharedR256GeneralReadKVShiftG050TruePile(BamMediumPropSharedR
     # Actual params432111104, custom health180, init/finite TB verified;20-99 .4167750step/s (-9.07% vs single, -12.94% vs SOTA; !! slower than +2.5% preregistered).
     # @1000 parent-.018545,SOTA-.018906; MHA-ref gains1.031726/1.032363; K/V gates.554827/.324232.
     # @2000 parent-.006162,SOTA-.013252; gains1.019272/1.042386,last5 1.023459/1.035984; K/V.538777/.342927.
+    # @3000SOTA-.009064,parent-.000770;gains1.037502/1.003081. Userkeepfull13500evenifparentovertakes.
     model_name = 'BamMediumPropSharedR256GeneralReadKVShiftG050TruePile'
     bam_m_shift_mode = 'none'
     bam_kv_shift = True
@@ -12820,6 +12823,7 @@ class BamMediumPropSharedR256GeneralReadMShiftReadKVShiftG050TruePile(BamMediumP
     # Actual params432111680, custom health270, init/finite TB verified;20-99 .4055250step/s (-11.53% vs single, -2.70% vs pureKV; !! slower than -1.6% preregistered).
     # @1000 single-.018721,pureKV-.000176,SOTA-.019081; gains1.032026/1.000291/1.032663; nearKVparity.
     # @2000 single-.013124,KV-.006962,SOTA-.020214; gains1.041047/1.021363/1.064654;last5KV1.010783,SOTA1.047169.
+    # @3000single/KV/jointSOTAgains.008294/.009064/.013998;A80.65%,C59.50%,last5A79.70/C51.12.
     model_name = 'BamMediumPropSharedR256GeneralReadMShiftReadKVShiftG050TruePile'
     bam_kv_shift = True
     bam_m_shift_compact_health = True

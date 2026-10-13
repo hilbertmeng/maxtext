@@ -49,4 +49,4 @@ all3 R384 +.01056610 (.00109684). This supports train-time validation but does n
 prove read050 compatibility. All diagnostic results use capture-free paired forwards;
 no checkpoint writes. Artifacts gs://newproject-1-llm_base_models_us-central1/log/bam_diagnostics/mediumprop-r256-sharing/sota13500-20261013/cohort128-r384/.
 
-Status: exact parameter trees and full47 BAM regressions passed; new scan/gradient checks in progress, not yet AOT or FIRST_STEP.
+Status: exact parameter trees and full47 BAM regressions passed; new scan/gradient/causality checks passed. First preparation blocked by a test-only tracer capture bug; no training started. Corrected host callback observes actual post-attention input under remat; resealing and retrying all three gates.

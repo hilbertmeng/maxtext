@@ -79,12 +79,14 @@ class ProjectionSharingTest(MLPWriteTest,unittest.TestCase):
     c.get_keys().update(scan_layers=False,remat_policy='none')
     original=linears.DenseGeneral.__call__;captured=[]
     def capture(module,inputs,*args,**kw):
-      if module.name=='full_m_read_down':captured.append(inputs)
+      if module.name=='full_m_read_down':
+        jax.debug.callback(lambda z:captured.append(np.asarray(z).copy()),inputs,ordered=True)
       return original(module,inputs,*args,**kw)
     with mesh,nn.partitioning.axis_rules(c.logical_axis_rules):
       with mock.patch.object(linears.DenseGeneral,'__call__',capture):
         params=model.init({'params':jax.random.key(30),'dropout':jax.random.key(31),'aqt':jax.random.key(32)},tok,pos,tok,mask,mask,enable_dropout=False)['params']
       # Two blocks project once, the MLP-write block projects the same bank twice.
+      jax.effects_barrier()
       self.assertEqual(len(captured),4)
       self.assertFalse(np.allclose(np.asarray(captured[1]),np.asarray(captured[2])))
       c.get_keys().update(scan_layers=True,remat_policy='full')

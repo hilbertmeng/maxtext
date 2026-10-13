@@ -587,3 +587,58 @@ def bam_gemv(x: torch.Tensor, x2: Optional[torch.Tensor], g: Optional[torch.Tens
 @bam_gemv.register_fake
 def _(x, x2, g, w, b, res, eps):
   return x.new_empty(w.shape[0])
+
+
+@triton.jit
+def _linear_tile(X, W, B, Y, T, s_xt, s_yt, nb, pid_m, R, H: tl.constexpr, BM: tl.constexpr, BN: tl.constexpr,
+                 BK: tl.constexpr):
+  m = pid_m * BM + tl.arange(0, BM)
+  r = nb * BN + tl.arange(0, BN)
+  mm, rm = m < T, r < R
+  acc = tl.zeros((BM, BN), tl.float32)
+  for k0 in tl.range(0, H, BK):
+    k = k0 + tl.arange(0, BK)
+    km = k < H
+    x = tl.load(X + m[:, None] * s_xt + k[None, :], mask=mm[:, None] & km[None, :], other=0.)
+    w = tl.load(W + r[:, None] * H + k[None, :], mask=rm[:, None] & km[None, :], other=0.)
+    acc = tl.dot(x, tl.trans(w), acc, input_precision='ieee' if x.dtype == tl.float32 else 'tf32')
+  acc += tl.load(B + r, mask=rm, other=0.).to(tl.float32)[None, :]
+  tl.store(Y + m[:, None] * s_yt + r[None, :], acc.to(Y.dtype.element_ty), mask=mm[:, None] & rm[None, :])
+
+
+@triton.jit
+def _linear2_kernel(X1, W1, B1, Y1, X2, W2, B2, Y2, T, s_x1, s_y1, s_x2, s_y2, R1, R2, NB1,
+                    H1: tl.constexpr, H2: tl.constexpr, BM: tl.constexpr, BN: tl.constexpr, BK: tl.constexpr):
+  """Y_i = X_i @ W_i^T + b_i for two (input, weight) pairs in one launch: programs (column block over both
+  outputs, token block)."""
+  nb = tl.program_id(0)
+  pid_m = tl.program_id(1)
+  if nb < NB1:
+    _linear_tile(X1, W1, B1, Y1, T, s_x1, s_y1, nb, pid_m, R1, H1, BM, BN, BK)
+  else:
+    _linear_tile(X2, W2, B2, Y2, T, s_x2, s_y2, nb - NB1, pid_m, R2, H2, BM, BN, BK)
+
+
+@torch.library.custom_op('bam::linear2', mutates_args=())
+def bam_linear2(x1: torch.Tensor, w1: torch.Tensor, b1: torch.Tensor, x2: torch.Tensor, w2: torch.Tensor,
+                b2: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+  """(F.linear(x1, w1, b1), F.linear(x2, w2, b2)) for a few tokens (decode): BAM's two small bottleneck
+  up-projections (read keys, write address) in one launch instead of two GEMM templates. x [T, H] (unit last
+  stride), w [R, H] contiguous, b [R]. (GELU stays outside: per-program recomputation of its transcendentals
+  cost more than the GEMM.)"""
+  t = x1.shape[0]
+  assert x2.shape[0] == t and x1.stride(-1) == 1 and x2.stride(-1) == 1 and w1.is_contiguous() and w2.is_contiguous()
+  y1 = torch.empty((t, w1.shape[0]), device=x1.device, dtype=x1.dtype)
+  y2 = torch.empty((t, w2.shape[0]), device=x1.device, dtype=x1.dtype)
+  if t:
+    bm, bn, bk = 16, 32, 128      # A800, T = 16, 2432 + 832 rows x 400: ~4.5 us
+    nb1 = triton.cdiv(w1.shape[0], bn)
+    _linear2_kernel[(nb1 + triton.cdiv(w2.shape[0], bn), triton.cdiv(t, bm))](
+        x1, w1, b1, y1, x2, w2, b2, y2, t, x1.stride(0), y1.stride(0), x2.stride(0), y2.stride(0), w1.shape[0],
+        w2.shape[0], nb1, H1=x1.shape[1], H2=x2.shape[1], BM=bm, BN=bn, BK=bk, num_warps=2)
+  return y1, y2
+
+
+@bam_linear2.register_fake
+def _(x1, w1, b1, x2, w2, b2):
+  return x1.new_empty((x1.shape[0], w1.shape[0])), x1.new_empty((x1.shape[0], w2.shape[0]))

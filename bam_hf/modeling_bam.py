@@ -40,14 +40,16 @@ try:   # Triton per-token M read/write kernels (CUDA); without them the batched-
   from .bam_m_kernels import (bam_decode_read as _bam_decode_read, bam_read as _bam_read,
                               bam_write as _bam_write,
                               bam_write_ohead as _bam_write_ohead, bam_gemv as _bam_gemv,
-                              bam_prefill_read as _bam_prefill_read)
+                              bam_prefill_read as _bam_prefill_read, bam_linear2 as _bam_linear2)
 except ImportError:
   try:
     _m = importlib.import_module('bam_m_kernels')
-    _bam_read, _bam_write, _bam_decode_read, _bam_write_ohead, _bam_gemv, _bam_prefill_read = (
-        _m.bam_read, _m.bam_write, _m.bam_decode_read, _m.bam_write_ohead, _m.bam_gemv, _m.bam_prefill_read)
+    _bam_read, _bam_write, _bam_decode_read, _bam_write_ohead, _bam_gemv, _bam_prefill_read, _bam_linear2 = (
+        _m.bam_read, _m.bam_write, _m.bam_decode_read, _m.bam_write_ohead, _m.bam_gemv, _m.bam_prefill_read,
+        _m.bam_linear2)
   except Exception:  # pylint: disable=broad-except
     _bam_read = _bam_write = _bam_decode_read = _bam_write_ohead = _bam_gemv = _bam_prefill_read = None
+    _bam_linear2 = None
 
 DECODE_TOKENS = 64    # below this many tokens per step: per-arm read programs with RoPE fused
 FUSED_UP_TOKENS = 4   # up to this many: the read kernel also applies GELU + the key up-projection (A800: one
@@ -60,9 +62,10 @@ except ImportError:      # repo scripts import this file as a top-level module (
 
 
 def rope_rows(rotary, positions, rows, dtype):
-  """(cos, sin) [rows, D/2] contiguous from the shared table (or computed from position ids)."""
+  """(cos, sin) [rows, D/2] from the shared table (or computed from position ids)."""
   _, cos, sin = positions if isinstance(positions, tuple) else rotary.table(positions, dtype)
-  return cos.reshape(rows, -1).contiguous(), sin.reshape(rows, -1).contiguous()
+  assert cos.shape[0] == rows
+  return cos, sin
 
 
 def rms_norm(x, eps):
@@ -110,9 +113,10 @@ class BamRotary(nn.Module):
     self.timescale = [min_timescale * (max_timescale / min_timescale) ** (2 * i / dim) for i in range(dim // 2)]
 
   def table(self, positions, dtype):
-    """(position ids, cos, sin [B, T, 1, D/2]): computed once per forward and shared by all layers."""
+    """(position ids [B, T], cos, sin [B*T, D/2]): computed once per forward and shared by all layers (the
+    Triton kernels take the rows as they are: one buffer, not a per-layer view to materialize)."""
     timescale = torch.tensor(self.timescale, device=positions.device, dtype=torch.float32)
-    angle = positions.float()[:, :, None, None] / timescale
+    angle = positions.float().reshape(-1, 1) / timescale
     return positions, torch.cos(angle).to(dtype), torch.sin(angle).to(dtype)
 
   def forward(self, x, positions):
@@ -120,6 +124,7 @@ class BamRotary(nn.Module):
     if not isinstance(positions, tuple):
       positions = self.table(positions, x.dtype)
     _, cos, sin = positions
+    cos, sin = cos.view(*x.shape[:2], 1, -1), sin.view(*x.shape[:2], 1, -1)
     a, b = x.chunk(2, dim=-1)
     return torch.cat((a * cos - b * sin, b * cos + a * sin), dim=-1)
 
@@ -387,10 +392,12 @@ class BamAttention(nn.Module):
     self.register_buffer('static_keys', torch.stack(
         [self.q_static_key, self.k_static_key, self.v_static_key, self.o_static_key]).contiguous(), persistent=False)
     gates = [gate_part(getattr(self, g + '_gate')) for g in self.GATES]
+    # [std q | std k | read hidden | write-address hidden | gates | write gate | pad]: the two GELU inputs
+    # are adjacent (one GELU over both when they are projected outside the read kernel)
     self.fused_x = fused_linear((self.q_proj.weight, None), (self.k_proj.weight, None), (self.read_down.weight, None),
-                                *gates, (self.write_address_down.weight, None), gate_part(self.write_gate))
+                                (self.write_address_down.weight, None), *gates, gate_part(self.write_gate))
     self._x_sizes = [self.q_proj.out_features, self.k_proj.out_features, self.read_down.out_features,
-                     8 * n, self.write_address_down.out_features, n]
+                     self.write_address_down.out_features, 8 * n, n]
     self._x_sizes.append(self.fused_x.out_features - sum(self._x_sizes))      # alignment padding
     self.fused_up = fused_linear(*[(up.weight, b.reshape(-1)) for up, b in (
         (self.q_read_up, self.q_read_pre_bias), (self.k_read_up, self.k_read_pre_bias),
@@ -408,11 +415,26 @@ class BamAttention(nn.Module):
                        norm.eps).reshape(1, 1, -1)
       else:
         xs = self.fused_x(self._input_norm[0](x) if self._input_norm else x)
-      qs, ks, down, gates, wdown, wgate, _ = xs.split(self._x_sizes, -1)
-      decode = self.triton_m and x.is_cuda and x.shape[0] * x.shape[1] <= FUSED_UP_TOKENS
-      # the decode kernel applies GELU and the key up-projection itself
-      keys = None if decode else self.fused_up(gelu(down))[..., :3 * self.q_read_up.out_features]
-      raw = (keys, gates, xs[..., :2 * self._x_sizes[0]], down)  # views for the Triton read (std Q|K adjacent)
+      qs, ks, down, wdown, gates, wgate, _ = xs.split(self._x_sizes, -1)
+      tokens = x.shape[0] * x.shape[1]
+      decode = self.triton_m and x.is_cuda and tokens <= FUSED_UP_TOKENS
+      address = None
+      if decode:      # the decode kernel applies GELU and the key and write-address up-projections itself
+        keys = None
+      elif self.triton_m and x.is_cuda and tokens < DECODE_TOKENS and _bam_linear2 is not None:
+        # few tokens: both bottleneck up-projections in one small-GEMM launch
+        wa = self.padded_write_address_up
+        lo = self._x_sizes[0] + self._x_sizes[1]
+        hd, hw = gelu(xs[..., lo:lo + self._x_sizes[2] + self._x_sizes[3]]).reshape(tokens, -1).split(
+            self._x_sizes[2:4], -1)
+        keys, address = _bam_linear2(hd, self.fused_up.weight, self.fused_up.bias, hw, wa.linear.weight,
+                                     wa.linear.bias)
+        keys = keys.reshape(*x.shape[:2], -1)[..., :3 * self.q_read_up.out_features]
+        address = address[:, :wa.out_features].reshape(*x.shape[:2], *wa.out_shape)
+      else:
+        keys = self.fused_up(gelu(down))[..., :3 * self.q_read_up.out_features]
+      # views for the Triton read (std Q|K adjacent); the write address when already computed
+      raw = (keys, gates, xs[..., :2 * self._x_sizes[0]], down, address)
       keys = None if decode else keys.unflatten(-1, (3, n, -1)).unbind(-3)
       gates = dict(zip(self.GATES, gates.unflatten(-1, (8, n)).unbind(-2)))
       return qs.unflatten(-1, (n, -1)), ks.unflatten(-1, (n, -1)), keys, gates, wdown, wgate, raw
@@ -466,7 +488,7 @@ class BamAttention(nn.Module):
         M = triton_write(M, *groups)
         flat_m, groups = M.reshape(b * t, *M.shape[2:]), None
       pend = pending_args(flat_m, groups, b, t, self.eps)
-      address = None
+      address = raw[4]
       if decode and b * t <= FUSED_UP_TOKENS:   # + GELU, key up-projection, and this layer's write address
         wa = self.padded_write_address_up.linear
         y, m_new, address = _bam_decode_read(

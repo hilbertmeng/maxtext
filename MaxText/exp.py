@@ -12727,6 +12727,7 @@ class BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile(BamMediumPropK75E
     # @6000 SOTA-.008618,last5-.008964; MHA-ref gain/SOTA1.048738x,last5 1.048949;continue.
     # @7000 SOTA-.009329,last5-.009368; MHA-ref gain/SOTA1.054842x,last5 1.054316;continue.
     # @8000 SOTA-.010401,last5-.009983; MHA-ref gain/SOTA1.063401x,last5 1.060595;continue.
+    # @9000 SOTA-.011055,last5-.010434; MHA-ref gain/SOTA1.071381x,last5 1.066339;continue.
     model_name = 'BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile'
     bam_record_m_shift_health = True
     bam_m_shift_mode = 'read'
@@ -12769,6 +12770,7 @@ class BamMediumPropSharedR256GeneralReadMShiftReadQKVoG050TruePile(BamMediumProp
     # @4000 SOTA-.011379,ReadG050-.002785; MHA-ref gain/SOTA1.054509x,last5 1.052836;continue.
     # After4000 revised terminal extra forecast-.0025,5000-.0028; near-parity extrapolation withdrawn,original-.003bet retained.
     # @5000 SOTA-.010377,ReadG050-.001660; MHA-ref multipliers1.054435/1.008326; forecast5000-.0028too optimistic.
+    # @6000 SOTA-.010449,ReadG050-.001831; MHA-ref multipliers1.059090/1.009871; last5parent extra-.001273,shrinking.
     model_name = 'BamMediumPropSharedR256GeneralReadMShiftReadQKVoG050TruePile'
     bam_m_shift_separate_reads = True
     mlp_dim_by_block = [3781, 3654, 3781]  # Repay all 3 gate kernels; +1728 biases vs SOTA.

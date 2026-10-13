@@ -190,3 +190,10 @@ Forward5000bet−.0028observed−.001660,bias+.001140(~41%smalleradvantage). Exp
 SharedReadG0508000−SOTA−.010401,MHA-refratio1.063401;latestfivegap−.009983(previous−.009368),ratio1.060595(range1.057471..1.063401),previous1.054316. All40cumulativewindowsdelivered11:05UTC;throughput−4.256%SOTA. Bothhealthy,no newP,CP8000/5000committed. Cursorsshared8000/new5000,next9000/6000;continue. Nativeintegratedreport-read050-8000-next.txtsaved.
 
 Reusablegainfeaturecommit9f68649followedby4a4f770reporter-onlyguardagainstnumericalparity: abs(previouslossgap)<=1e-8 makesr200undefinedratherthanthe~1e13residueobservedat1600after1400trueparity. No rawlossortrainingruntimechange. 18reporttestsPASS,atomicdeploymenthash80a9fd25378f5318a424a31c19165516abc919e5e9a09a97cab2ec228363ae2bmatchesauthoritativesource. Ratioformulasandcursorsunchanged;futureeventsavoidmanualparityfiltering.
+
+
+## Three-gate6000 and shared-gate9000 reports
+
+Three-gate6000full30windowsdelivered11:38UTC: new−SOTA−.010449,new−ReadG050−.001831;throughput−3.4853%parent/−7.5931%SOTA. MHArefnew/SOTA1.059090,new/parent1.009871. LatestfiveSOTAratio1.055921(previous1.054394),parentratio1.006654(previous1.010256). Parentgaplastfive−.001273(range−.001880..−.000482),previous−.002114;SOTAgaplastfive−.010237(previous−.010705). 6000singlepointreboundsbutlong-windowextraadvantagestillshrinks;allfiveparentwindowsnegative,no dominance stop. Continue7000review;nonzeroterminalfloor notestablishedandnoshortrefitused. Native report-qkvo-6000-next.txt saved.
+
+SharedReadG0509000full45windowsdelivered11:42UTC:−SOTA−.011055,MHArefmultiplier1.071381. Latestfivegap−.010434(previous−.009983),ratio1.066339(range1.063256..1.071381),previous1.060595. Throughput−4.256%SOTA. Benefitremainspositiveinthelaterplan,continue13500bound. Bothhealthy,no newP,CP9000/6000committed. Cursorsshared9000/new6000,next10000/7000. Native report-read050-9000-next.txtsaved;reporterparityguardnowautomaticallyprintsundefined1600r200.

@@ -180,17 +180,19 @@ def _read_kernel_khalf(M, KEYS, GATES, S, Y, T, s_mt, s_kt, s_karm, s_kn, s_gt, 
                        N: tl.constexpr, K: tl.constexpr, V: tl.constexpr, BN: tl.constexpr, KH: tl.constexpr,
                        NKH: tl.constexpr, BV: tl.constexpr, QCOLS: tl.constexpr, EPS: tl.constexpr,
                        SCALE: tl.constexpr, STATIC_DIV: tl.constexpr, PREC: tl.constexpr, TB: tl.constexpr,
-                       STAGES: tl.constexpr):
-  """Prefill read (no deferred write, RoPE applied afterwards): X [4*BN, BV] built once per token, output
-  columns produced in NKH chunks of KH. The full-width [4*BN, 128] FP32 accumulator of the stacked kernel
-  needed 255 registers (spills, one program per SM); halves fit in 168 (A800: 123 vs 146 us at T=4096)."""
-  r = tl.arange(0, 4 * BN)
-  a = r // BN
+                       STAGES: tl.constexpr, ARMS: tl.constexpr):
+  """Prefill read (no deferred write, RoPE applied afterwards). Program (arm group, token block), the arm
+  group fastest so a token's programs share M_t through L2; each builds X rows [ARMS*BN, BV] once and
+  produces the output columns in NKH chunks of KH. The single-program [4*BN, 128] FP32 accumulator needed
+  255 registers (spills, one program per SM). A800, T=4096: 146 us (stacked) -> 123 (K halves) -> 110 us
+  (two arms per program, one warp)."""
+  r = tl.arange(0, ARMS * BN)
+  a = tl.program_id(0) * ARMS + r // BN
   n = r % BN
   v = tl.arange(0, BV)
   nm, vm = n < N, v < V
   arm = tl.minimum(a, 2)
-  for t in tl.range(tl.program_id(0) * TB, tl.minimum(tl.program_id(0) * TB + TB, T), num_stages=STAGES):
+  for t in tl.range(tl.program_id(1) * TB, tl.minimum(tl.program_id(1) * TB + TB, T), num_stages=STAGES):
     key = tl.load(KEYS + t * s_kt + arm[:, None] * s_karm + n[:, None] * s_kn + v[None, :],
                   mask=nm[:, None] & vm[None, :], other=0.).to(tl.float32)
     gd = tl.load(GATES + t * s_gt + a * N + n, mask=nm, other=0.).to(tl.float32)
@@ -254,12 +256,12 @@ def bam_read(m: torch.Tensor, keys: torch.Tensor, gates: torch.Tensor, static_ke
   if t < 64:     # decode: one program per (arm, token) for latency (A800: 3.7 us at T=1)
     _read_kernel[(4, t)](*args, **meta, TB=1, STAGES=1, num_warps=4)
   elif not rope and not pending:     # prefill path
-    kh = 64
-    _read_kernel_khalf[(t,)](m, keys, gates, static_keys, y, t, m.stride(0), keys.stride(0), keys.stride(1),
+    kh, arms = 64, 2
+    _read_kernel_khalf[(4 // arms, t)](m, keys, gates, static_keys, y, t, m.stride(0), keys.stride(0), keys.stride(1),
                              keys.stride(2), gates.stride(0), y.stride(0), N=n, K=kdim, V=vdim,
                              BN=max(16, triton.next_power_of_2(n)), KH=kh, NKH=triton.cdiv(kdim, kh),
                              BV=max(16, triton.next_power_of_2(vdim)), QCOLS=qk_cols, EPS=eps, SCALE=scale,
-                             STATIC_DIV=static_div, PREC=_prec(m), TB=1, STAGES=1, num_warps=2)
+                             STATIC_DIV=static_div, PREC=_prec(m), TB=1, STAGES=1, ARMS=arms, num_warps=1)
   else:          # four arms stacked into one product per token, M_t read once
     for stages in ((2, 1) if rope else (3, 2, 1)):   # shared-memory budget differs (A800 164 KB, RTX 6000D 99 KB)
       try:
@@ -320,6 +322,22 @@ def _decode_read_kernel(HID, W, B, M, GATES, S, STD, POS, Y, MOUT, C1, CL1, G1, 
   else:
     k = tl.arange(0, BK)
     km = k < K
+    # Issue every load that does not depend on the key GEMV first (M and the deferred-write factors), so
+    # their latency overlaps the GEMV instead of following it.
+    mraw = tl.load(M + t * s_mt + k[:, None] * V + v[None, :], mask=km[:, None] & vm[None, :], other=0.)
+    if PENDING > 0:
+      hn = tl.arange(0, BN)
+      hm = hn < N
+      cmask = hm[:, None] & km[None, :]
+      amask = hm[:, None] & vm[None, :]
+      rc1 = tl.load(C1 + t * s_c1t + hn[:, None] * s_c1n + k[None, :], mask=cmask, other=0.)
+      rl1 = tl.load(CL1 + t * s_cl1t + hn[:, None] * s_cl1n + k[None, :], mask=cmask & HAS_LOCAL, other=0.)
+      rg1 = tl.load(G1 + t * s_g1t + hn, mask=hm, other=0.)
+      ra1 = tl.load(A1 + t * s_a1t + hn[:, None] * s_a1n + v[None, :], mask=amask, other=0.)
+      if PENDING > 1:
+        rc2 = tl.load(C2 + t * s_c2t + hn[:, None] * s_c2n + k[None, :], mask=cmask, other=0.)
+        rg2 = tl.load(G2 + t * s_g2t + hn, mask=hm, other=0.)
+        ra2 = tl.load(A2 + t * s_a2t + hn[:, None] * s_a2n + v[None, :], mask=amask, other=0.)
     key = tl.zeros((BV,), tl.float32)
     for c0 in tl.static_range(0, BH, BC):
       c = c0 + tl.arange(0, BC)
@@ -330,10 +348,24 @@ def _decode_read_kernel(HID, W, B, M, GATES, S, STD, POS, Y, MOUT, C1, CL1, G1, 
     key += tl.load(B + (ka * N + n) * V + v, mask=vm, other=0.).to(tl.float32)
     key = tl.where(vm, key, 0.)
     key = key * tl.rsqrt(tl.sum(key * key, axis=0) / V + EPS)
-    # M (with the deferred write applied) after the key GEMV: its loads are independent and go out first
-    mkv = _load_m(M, MOUT, t, (n == 0) & (ka == 0), s_mt, C1, CL1, G1, A1, C2, G2, A2, s_c1t, s_c1n, s_cl1t,
-                  s_cl1n, s_g1t, s_a1t, s_a1n, s_c2t, s_c2n, s_g2t, s_a2t, s_a2n, k, v, km, vm, N, K, V, BN, PEPS,
-                  PENDING, HAS_LOCAL, PREC)
+    if PENDING > 0:       # M' = M + sum_g C_g^T A_g (C: gated RMS content, A: RMS address)
+      dt = mraw.dtype
+      cc = rc1.to(tl.float32) + rl1.to(tl.float32)
+      cc = cc * (tl.sigmoid(rg1.to(tl.float32)) * tl.rsqrt(tl.sum(cc * cc, axis=1) / K + PEPS))[:, None]
+      aa = ra1.to(tl.float32)
+      aa = aa * tl.rsqrt(tl.sum(aa * aa, axis=1) / V + PEPS)[:, None]
+      acc = tl.dot(tl.trans(cc.to(dt)), aa.to(dt), mraw.to(tl.float32), input_precision=PREC)
+      if PENDING > 1:
+        cc = rc2.to(tl.float32)
+        cc = cc * (tl.sigmoid(rg2.to(tl.float32)) * tl.rsqrt(tl.sum(cc * cc, axis=1) / K + PEPS))[:, None]
+        aa = ra2.to(tl.float32)
+        aa = aa * tl.rsqrt(tl.sum(aa * aa, axis=1) / V + PEPS)[:, None]
+        acc = tl.dot(tl.trans(cc.to(dt)), aa.to(dt), acc, input_precision=PREC)
+      mkv = acc.to(dt)
+      if (n == 0) & (ka == 0):
+        tl.store(MOUT + t * s_mt + k[:, None] * V + v[None, :], mkv, mask=km[:, None] & vm[None, :])
+    else:
+      mkv = mraw
     for a2 in tl.static_range(2):
       a = tl.minimum(ka + a2, 3)
       if (a2 == 0) | (ka == 2):            # q, k: one row; VO key: v and o rows

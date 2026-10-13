@@ -52,3 +52,11 @@ At3000 b8/u8=1.596820 versus b4/u4=1.648943, b2/u2=1.426185.8/4 BAM1.269614/Mudd
 Working terminal second-order forecast revised from pre-run1.13 to near1.00 on this evidence; preserve initial bet for end scoring rather than editing history. Original absolute-loss and speed bets remain archived, not retroactively refitted. All three continue full13500 context plan, no2800 cull.
 
 Raw M8-M4 crosses negative at4000 (-.043272 after3800+.102618); unpaired raw length gaps are still noisy. Artifacts report-3000.txt, factors-3000.json, summary-3000.json. Next common4000; shared silent liveness checks between reports.
+
+## Common4000 review
+
+Healthy/unpreempted; CP5400/5000/4000 committed, reported cursors5400/4800/4000. Common4000 B8-M8-.255262,U8-M8-.153948,B8-U8-.101314. Recent3200..4000 B8-M8mean-.275338(previous-.335801),B8-U8-.105197(previous-.121030). Gains continue shrinking, at a slower rate; parallel curves not yet established.
+
+At4000 b8/u8=1.658102 versus b4/u4=1.665804,b2/u2=1.412085.8/4 BAM1.222734/Mudd1.228413,second-order.995376; Δb+.046499/Δu+.028625/extra+.017873,Δb/Δu1.624383. Last5 second .969018/.967563/1.000310/.964521/.995376: first tiny crossing above1 at3600 then back below, mean.979358(previous.964101),range.964521..1.000310. Means BAMcontext1.245106/Mudd1.271748, Δb+.054336/Δu+.036491/extra+.017845.8/2 second1.174222,recentmean1.141103(previous1.101355). Incremental4k->8k proportional benefit now close to parity; cumulative2k->8k proportional benefit increasingly favors BAM. Working terminal8/4 second-order forecast remains near1.00; initial1.13 preserved.
+
+Raw cross-length gaps repeatedly cross sign; M8-M4@5400+.084405,recent5mean+.024801. They remain unpaired and do not establish stable context-only reversals. All three continue full13500. Cumulative reports and ratio-first aggregates saved inreport-4000.txt,factors-4000.json,summary-4000.json. Next common5000, shared silent liveness checks between reports.

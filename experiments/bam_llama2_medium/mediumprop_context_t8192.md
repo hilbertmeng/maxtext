@@ -42,3 +42,13 @@ Healthy/unpreempted, committed CP2600/2400/2000, reported cursors2600/2400/2000.
 At2000 b8/u8=1.545024, b4/u4=1.585340, b2/u2=1.441008.8/4 context BAM1.268507/Mudd1.301608, second-order.974569; Δb+.083950/Δu+.059482/Δb-Δu+.024468,Δb/Δu1.411353. Recent1200/1400/1600/1800/2000 second-order.952404/.998713/.973351/.960801/.974569: allbelow1, mean.971968 (range.952404.. .998713). Means BAM context1.273209/Mudd1.310488, Δb+.106338/Δu+.077935/extra+.028403.8/2 cumulative second-order rises1.001671@1000->1.072183@2000 (last5mean1.045340). Provisional inference: relative scaling benefit is stronger2k->4k than4k->8k at this stage, despite larger absolute extra BAM leading margin. Terminal bet untested; phase behavior can change.
 
 Raw cross-length losses repeatedly flip: B8-B4 at2000-.014073, B8-B2-.077156; M8-M4+.069877,U8-U4+.010395. These unpaired-record differences do not establish pure context causality. Full cumulative owned direct comparisons inreport-2000.txt; factor seriesfactors-2000.json; recent means/rangessummary-2000.json. Next common3000, shared silent liveness checks in between.
+
+## Common3000 review / revised second-order forecast
+
+Healthy/unpreempted, CP4000/3800/3000 committed, reported cursors4000/3600/3000. Common3000 B8-M8-.306849,U8-M8-.192163,B8-U8-.114687. Common2200..3000 B8-M8 mean-.335801 (previous-.495098), B8-U8-.121030 (previous-.166364): early advantages still shrink but drift has slowed. B8-U8 rebounds slightly at3000 after2800-.109612; broad trend remains shrinking.
+
+At3000 b8/u8=1.596820 versus b4/u4=1.648943, b2/u2=1.426185.8/4 BAM1.269614/Mudd1.311056, second-order.968390; Δb+.065162/Δu+.045592/extra+.019570; Δb/Δu1.429253. Last2200/2400/2600/2800/3000 second-order.965423/.979910/.965223/.941559/.968390, mean.964101 (previous.971968),13 consecutive windows600..3000 below1. Means BAM context1.255955/Mudd1.302784, Δb+.068440/Δu+.049847/extra+.018594.8/2 cumulative second-order1.119644, recent mean1.101355 versus prior1.045340. Cumulative long-context proportional benefit stays positive, while incremental4k->8k proportional amplification slightly favorsMudd so far.
+
+Working terminal second-order forecast revised from pre-run1.13 to near1.00 on this evidence; preserve initial bet for end scoring rather than editing history. Original absolute-loss and speed bets remain archived, not retroactively refitted. All three continue full13500 context plan, no2800 cull.
+
+Raw M8-M4 crosses negative at4000 (-.043272 after3800+.102618); unpaired raw length gaps are still noisy. Artifacts report-3000.txt, factors-3000.json, summary-3000.json. Next common4000; shared silent liveness checks between reports.

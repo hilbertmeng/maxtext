@@ -12395,6 +12395,7 @@ class BamMHAMediumPropT8192SplashTruePile(BamMHAMediumPropC256TruePile):
     # Mean20-99 0.5260250step/s (-26.33% vs T4096);13500 planned, training active.
     # @1400 raw T4096 gap+.067427, unpaired records; context comparisons use within-length architecture gaps.
     # @2600 raw T4096 gap+.136554; cross-length raw loss remains noisy/unpaired.
+    # @4000 raw T4096 gap-.043272 after3800+.102618; unpaired raw length gap crosses sign.
     model_name = 'BamMHAMediumPropT8192SplashTruePile'
     DATASET_VARIANT = 'truepile8192'
     dataset_path = ''  # Launcher resolves the declared variant to the training region.
@@ -12417,6 +12418,7 @@ class MuddLlama2MediumPropT8192SplashTruePile(MuddLlama2MediumPropTruePile):
     # Mean20-99 0.4859625step/s (-22.86% vs T4096);13500 planned, training active.
     # @1200 MHA gap-.423494; @1000 MHA-relative context8/4=1.288186; training active.
     # @2000 MHA gap-.256697; context8/4=1.301608; latest2400 MHA-.223340.
+    # @3000 MHA gap-.192163; context8/4=1.311056; latest3600 MHA-.169164.
     model_name = 'MuddLlama2MediumPropT8192SplashTruePile'
     DATASET_VARIANT = 'truepile8192'
     dataset_path = ''
@@ -12439,6 +12441,7 @@ class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMRe
     # Mean20-99 0.3889500step/s (-18.75% vs T4096);13500 planned, training active.
     # @1000 MHA/Mudd gaps-.734407/-.235572; context8/4=1.257156, second-order.975912, Δextra+.038629.
     # @2000 MHA/Mudd gaps-.396604/-.139906; second-order8/4=.974569(last5.971968),8/2=1.072183.
+    # @3000 MHA/Mudd gaps-.306849/-.114687; second8/4=.968390(last5.964101),8/2=1.119644.
     model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadT8192'
     DATASET_VARIANT = 'truepile8192'
     dataset_path = ''

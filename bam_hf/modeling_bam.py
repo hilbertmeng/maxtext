@@ -465,8 +465,9 @@ class BamAttention(nn.Module):
       if groups:
         M = m_new.reshape(M.shape)
       if not decode:    # RoPE tail written in place (no q/k concatenation); the softmax scale goes to SDPA
-        _bam_rope_tail(y, std, position_ids_of(positions).reshape(-1).contiguous(), self.qk_cols,
-                       self.rotary_max_timescale)
+        _, cos, sin = positions if isinstance(positions, tuple) else self.rotary.table(positions, y.dtype)
+        _bam_rope_tail(y, std, cos.reshape(b * t, -1).contiguous(), sin.reshape(b * t, -1).contiguous(),
+                       self.qk_cols)
       q, k, v, local_o = y.reshape(b, t, 4, n, -1).unbind(2)
       attn = causal_attention(q, k, v, self.layer_idx, attention_mask, past_key_value,
                               scale=1.0 if decode else self.head_dim ** -0.5)

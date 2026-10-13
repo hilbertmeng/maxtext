@@ -25,6 +25,12 @@ def rope(x, pos, max_ts=10000.):
   return torch.cat((a * torch.cos(ang) - b * torch.sin(ang), b * torch.cos(ang) + a * torch.sin(ang)), -1)
 
 
+def rope_table(pos, d, dtype, max_ts=10000.):
+  ts = max_ts ** (2 * torch.arange(d // 2, device=pos.device, dtype=torch.float32) / d)
+  ang = pos.float()[:, None] / ts
+  return torch.cos(ang).to(dtype).contiguous(), torch.sin(ang).to(dtype).contiguous()
+
+
 def ref_read(m, keys, gates, s, std, pos, eps=1e-4, scale=0.1, div=0.99, qk_cols=72, q_scale=96 ** -0.5):
   out = []
   for a in range(4):
@@ -66,7 +72,7 @@ def main():
     r_raw = ref_read(m, keys, gates, s, std, pos, qk_cols=96, q_scale=1.)
     if t >= 64:      # prefill: q/k tails are filled in place by bam_rope_tail; q stays unscaled
       yr, _ = bam_read(m, keys, gates, s, std, pos, 1e-4, 0.1, 0.99, 72, 96 ** -0.5, 10000., False, *nop)
-      bam_rope_tail(yr, std, pos, 72, 10000.)
+      bam_rope_tail(yr, std, *rope_table(pos, 24, yr.dtype), 72)
       r_rope = ref_read(m, keys, gates, s, std, pos, q_scale=1.)
       e_rt = ((yr.float() - r_rope).norm() / r_rope.norm()).item()
       print(f'T={t} {dtype}: read + rope_tail rel {e_rt:.1e}')
@@ -121,7 +127,7 @@ def main():
       pargs = (attn, loc, g1, a1, c2, g2, a2, pend, has_local, 1e-6)
       y, m_new = bam_read(m, keys, gates, s, std, pos, 1e-4, 0.1, 0.99, 72, 96 ** -0.5, 10000., t < 64, *pargs)
       if t >= 64:
-        bam_rope_tail(y, std, pos, 72, 10000.)
+        bam_rope_tail(y, std, *rope_table(pos, 24, y.dtype), 72)
       r = ref_read(m_ref, keys, gates, s, std, pos) if t < 64 else ref_read(m_ref, keys, gates, s, std, pos, q_scale=1.)
       e_y = ((y.float() - r).norm() / r.norm()).item(); e_m = ((m_new.float() - m_ref.float()).norm() / m_ref.float().norm()).item()
       msg = f'T={t} {dtype} pending={pend} local={has_local}: read rel {e_y:.1e} M rel {e_m:.1e}'

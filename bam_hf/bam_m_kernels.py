@@ -442,11 +442,10 @@ def _(hidden, up_weight, up_bias, m, gates, static_keys, std, positions, eps, sc
 
 
 @triton.jit
-def _rope_tail_kernel(Y, STD, POS, ROWS, s_yt, s_st, s_sn, s_sarm, N: tl.constexpr, K: tl.constexpr,
-                      QCOLS: tl.constexpr, R: tl.constexpr, RB: tl.constexpr, LOG_MAX_TS: tl.constexpr,
-                      BROWS: tl.constexpr):
-  """Y[t, a, n, QCOLS:] = RoPE(std[t, a, n, :]) for the q, k arms, in place. Rows r = (t * 2 + a) * N + n are
-  flattened across tokens so a program handles a dense [BROWS, RB] tile (bandwidth-bound)."""
+def _rope_tail_kernel(Y, STD, COS, SIN, ROWS, s_yt, s_st, s_sn, s_sarm, s_ct, N: tl.constexpr, K: tl.constexpr,
+                      QCOLS: tl.constexpr, R: tl.constexpr, RB: tl.constexpr, BROWS: tl.constexpr):
+  """Y[t, a, n, QCOLS:] = RoPE(std[t, a, n, :]) for the q, k arms, in place, from the model's shared cos/sin
+  table [T, R/2]. Rows r = (t * 2 + a) * N + n are flattened across tokens (dense [BROWS, RB] tiles)."""
   r = tl.program_id(0) * BROWS + tl.arange(0, BROWS)
   rm = r < ROWS
   t = r // (2 * N)
@@ -460,26 +459,25 @@ def _rope_tail_kernel(Y, STD, POS, ROWS, s_yt, s_st, s_sn, s_sarm, N: tl.constex
   base = STD + t[:, None] * s_st + a[:, None] * s_sarm + n[:, None] * s_sn
   s1 = tl.load(base + j[None, :], mask=mask, other=0.).to(tl.float32)
   s2 = tl.load(base + partner[None, :], mask=mask, other=0.).to(tl.float32)
-  pos = tl.load(POS + t, mask=rm, other=0).to(tl.float32)
-  ang = pos[:, None] * tl.exp(-LOG_MAX_TS * 2.0 * i.to(tl.float32) / R)[None, :]
-  rot = s1 * tl.cos(ang) + tl.where(j < half, -1.0, 1.0)[None, :] * s2 * tl.sin(ang)
+  c = tl.load(COS + t[:, None] * s_ct + i[None, :], mask=mask, other=0.).to(tl.float32)
+  sn = tl.load(SIN + t[:, None] * s_ct + i[None, :], mask=mask, other=0.).to(tl.float32)
+  rot = s1 * c + tl.where(j < half, -1.0, 1.0)[None, :] * s2 * sn
   tl.store(Y + t[:, None] * s_yt + (a * N + n)[:, None] * K + QCOLS + j[None, :], rot.to(Y.dtype.element_ty),
            mask=mask)
 
 
 @torch.library.custom_op('bam::rope_tail', mutates_args=('y',))
-def bam_rope_tail(y: torch.Tensor, std: torch.Tensor, positions: torch.Tensor, qk_cols: int,
-                  max_timescale: float) -> None:
-  """In place: q/k columns >= qk_cols of y [T,4,N,K] (from bam_read without rope) = RoPE(std [T,2,N,R])."""
+def bam_rope_tail(y: torch.Tensor, std: torch.Tensor, cos: torch.Tensor, sin: torch.Tensor, qk_cols: int) -> None:
+  """In place: q/k columns >= qk_cols of y [T,4,N,K] (from bam_read without rope) = RoPE(std [T,2,N,R]) with
+  the cos/sin table [T, R/2]."""
   t, _, n, kdim = y.shape
-  assert y.is_contiguous() and std.stride(-1) == 1 and positions.is_contiguous()
+  assert y.is_contiguous() and std.stride(-1) == 1 and cos.is_contiguous() and sin.is_contiguous()
   rows = t * 2 * n
   if rows:
-    brows = 32      # A800: 32 us/layer at T=4096 (a plain copy of these strided tail bytes takes 22 us)
+    brows = 64      # A800: 19.9 us/layer at T=4096 (computing sin/cos per element: 32 us)
     _rope_tail_kernel[(triton.cdiv(rows, brows),)](
-        y, std, positions, rows, y.stride(0), std.stride(0), std.stride(2), std.stride(1), N=n, K=kdim,
-        QCOLS=qk_cols, R=kdim - qk_cols, RB=triton.next_power_of_2(kdim - qk_cols),
-        LOG_MAX_TS=math.log(max_timescale), BROWS=brows, num_warps=8)
+        y, std, cos, sin, rows, y.stride(0), std.stride(0), std.stride(2), std.stride(1), cos.stride(0), N=n, K=kdim,
+        QCOLS=qk_cols, R=kdim - qk_cols, RB=triton.next_power_of_2(kdim - qk_cols), BROWS=brows, num_warps=8)
 
 
 @triton.jit

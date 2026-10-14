@@ -1,4 +1,4 @@
-# Cross-layer projection sharing: nine active arms
+# Cross-layer projection sharing: nine-arm race
 
 
 Current authorized scope: **original eight plus the square-R384 conservative thirds
@@ -162,3 +162,27 @@ On user request, re-enumerated complete parameter trees for all nine arms and bo
 Evidence: `parameter-balance-audit.json`, `worker-parameter-census.json`, and reusable `audit_parameter_balance.py` under `/data0/xd/bam_diagnostics/cross-layer-race-20261014`. No training/config change was needed.
 
 Primary reporting comparator unified across all nine arms: `BamMediumPropMShiftReadG050ReadAttentionMLPSharedR384TruePile` (old triple-sharedR384), including gaps, MHA-reference gain ratios and throughput delta against0.465800 steps/s. Old ReadAttentionSharedR256 stays registered as auxiliary; configuration inheritance/runtime is unchanged. Historical pre-run bets and parameter-delta audits retain their explicitly named original parents.
+
+User review update at2026-10-14T07:09Z: first elimination review at3000, replacing blanket no-stop-before5000. Evaluate recent1000–1500-step gain-ratio trend, catchup against leading contenders, and speed/other actual gains; stop clearly dominated non-improving arms, retain credible catchup.
+
+Explicit user control for second elimination: at5000, present recommendations with evidence and late-MLP considerations, then wait for explicit user confirmation before any effect-based stop. No automatic stop at the review milestone. Current restored arms continue their resume workflow.
+
+## First review closeout and correction
+
+- `BamMediumPropMShiftReadG050CrossReadAttnR384DirectBlockTruePile`: CP3341; stopped. oldTripleR384: final5 mean gap+0.008756; last3200 gap+0.007431; oldPairR256: final5 mean gap+0.007002; last3200 gap+0.005892.
+- `BamMediumPropMShiftReadG050CrossReadAttnR384DirectThirdsTruePile`: CP3551; temporary stop, subsequently resume requested. oldTripleR384: final5 mean gap+0.008416; last3400 gap+0.007022; oldPairR256: final5 mean gap+0.006812; last3400 gap+0.005827.
+- `BamMediumPropMShiftReadG050CrossTripleR512ConservativeBlockTruePile`: CP3561; stopped. oldTripleR384: final5 mean gap+0.009660; last3400 gap+0.008978; oldPairR256: final5 mean gap+0.008056; last3400 gap+0.007783.
+- `BamMediumPropMShiftReadG050CrossTripleR384ConservativeInner384ThirdsTruePile`: CP3418; temporary stop, subsequently resume requested. oldTripleR384: final5 mean gap+0.010400; last3200 gap+0.009624; oldPairR256: final5 mean gap+0.008646; last3200 gap+0.008085; ReadAttnR384ConservativeThirdsTruePile: final5 mean gap+0.004612; last3200 gap+0.004581; TripleR512ConservativeThirdsTruePile: final5 mean gap-0.001275; last3200 gap-0.000979.
+
+The original four-stop decision was inconsistent: faster recent catchup was used to retain conservative512thirds while stronger current/larger-MLP direct384thirds and square384 were stopped. Two resumes restore consistent treatment. Seven contenders remain; direct384block and conservative512block stay stopped. Second elimination at5000 requires explicit user confirmation.
+
+Complete first-stint leases (UTC; v5p16, UE5a):
+
+| RUN | Lease | Zone | Start UTC | End UTC | Duration | End reason |
+|---|---|---|---|---|---|---|
+| `BamMediumPropMShiftReadG050CrossReadAttnR384DirectThirdsTruePile` | 1 | `us-east5-a` | 2026-10-14 04:51:49 | 2026-10-14 05:05:52 | 14m03s | preempted |
+| `BamMediumPropMShiftReadG050CrossReadAttnR384DirectBlockTruePile` | 1 | `us-east5-a` | 2026-10-14 04:59:28 | 2026-10-14 05:06:01 | 6m33s | preempted |
+| `BamMediumPropMShiftReadG050CrossReadAttnR384DirectBlockTruePile` | 2 | `us-east5-a` | 2026-10-14 05:17:09 | 2026-10-14 07:19:54 | 2h2m45s | review stop3341; node/queue absent, TB SYNC_OK |
+| `BamMediumPropMShiftReadG050CrossReadAttnR384DirectThirdsTruePile` | 2 | `us-east5-a` | 2026-10-14 05:16:56 | 2026-10-14 07:19:58 | 2h3m02s | temporary stop, subsequently resume requested; node/queue absent, TB SYNC_OK |
+| `BamMediumPropMShiftReadG050CrossTripleR512ConservativeBlockTruePile` | 1 | `us-east5-a` | 2026-10-14 04:47:42 | 2026-10-14 07:20:01 | 2h32m19s | review stop3561; node/queue absent, TB SYNC_OK |
+| `BamMediumPropMShiftReadG050CrossTripleR384ConservativeInner384ThirdsTruePile` | 1 | `us-east5-a` | 2026-10-14 05:12:11 | 2026-10-14 07:20:05 | 2h7m54s | temporary stop, subsequently resume requested; node/queue absent, TB SYNC_OK |

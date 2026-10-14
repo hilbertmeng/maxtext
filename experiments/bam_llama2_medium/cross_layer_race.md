@@ -142,3 +142,23 @@ Runtime remains f875525 for direct and38af4cc for conservative; later documentat
 | 310216 | 38af4cc | 0.459387 | -1.38% | 20–99 |
 
 Raw startup logs and verified-startups.json/verified-speeds.json reside in `/data0/xd/bam_diagnostics/cross-layer-race-20261014`. Recovery samples skip the first20 steps after resume; checkpoint/I/O outliers remain in each raw80-step mean. No unmatched health-off timing control is used.
+
+## Independent parameter-balance re-audit
+
+On user request, re-enumerated complete parameter trees for all nine arms and both historical parents. Every leaf shape matches the actual worker startup dump. MLP count is21600×sum(widths), with shared-bank, bridge, Up expansion and private MLP-down changes accounted separately. Unified target432111104; all nine choose the nearest reachable total at quantum21600 (max absolute error10368=0.0024%). Parent totals differ slightly from the unified target, so parent-relative remainders need not be within half a quantum.
+
+| ID | Non-MLP delta vs parent | MLP delta vs parent | Total delta vs common target |
+|---|---:|---:|---:|
+| 310200 | -995,328 | +993,600 | -1,152 |
+| 310201 | -2,377,728 | +2,376,000 | -1,152 |
+| 310202 | +1,953,792 | -1,944,000 | +10,368 |
+| 310203 | +571,392 | -561,600 | +10,368 |
+| 310204 | -1,069,056 | +1,058,400 | -3,072 |
+| 310205 | -2,912,256 | +2,894,400 | -10,272 |
+| 310206 | +503,808 | -518,400 | -7,008 |
+| 310207 | -1,339,392 | +1,339,200 | +7,392 |
+| 310216 | -4,257,792 | +4,255,200 | +4,992 |
+
+Evidence: `parameter-balance-audit.json`, `worker-parameter-census.json`, and reusable `audit_parameter_balance.py` under `/data0/xd/bam_diagnostics/cross-layer-race-20261014`. No training/config change was needed.
+
+Primary reporting comparator unified across all nine arms: `BamMediumPropMShiftReadG050ReadAttentionMLPSharedR384TruePile` (old triple-sharedR384), including gaps, MHA-reference gain ratios and throughput delta against0.465800 steps/s. Old ReadAttentionSharedR256 stays registered as auxiliary; configuration inheritance/runtime is unchanged. Historical pre-run bets and parameter-delta audits retain their explicitly named original parents.

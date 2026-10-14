@@ -12694,6 +12694,7 @@ class BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile(BamMediumPropK75E
 
 class BamMediumPropMShiftReadG050ReadAttentionSharedR256TruePile(BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile):
     """Shared projection bank; MLP sharing applies only to MLP-write layers."""
+    # Completed13500/CP13500, UE5a P0, resources absent. Final5 gap single-.003499/SOTA-.014533; gain1.022487/1.100491. TripleR384 nearly tied (triple-minus-this -.000141); initial +.003 loss bet wrong.
     model_name = 'BamMediumPropMShiftReadG050ReadAttentionSharedR256TruePile'
     bam_share_read_attention_write_down = True
     bam_share_mlp_write_down = False
@@ -12720,6 +12721,7 @@ class BamMediumPropMShiftReadG050ReadAttentionSharedR384TruePile(BamMediumPropSh
 
 class BamMediumPropMShiftReadG050ReadAttentionMLPSharedR384TruePile(BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile):
     """Shared projection bank; MLP sharing applies only to MLP-write layers."""
+    # Completed13500/CP13500, UE5a P0, resources absent. Final5 gap single-.003640/SOTA-.014674; SOTA gain1.101467. Direct pairR256 gap-.000141, near tie; speed +.30% vs pairR256, +1.63% vs single. Initial +.001 bet wrong.
     model_name = 'BamMediumPropMShiftReadG050ReadAttentionMLPSharedR384TruePile'
     bam_share_read_attention_write_down = True
     bam_share_mlp_write_down = True

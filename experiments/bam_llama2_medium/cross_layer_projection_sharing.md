@@ -103,3 +103,36 @@ Runner: `run_design_space_remote.py` under artifact root; remote log
 `/home/lishengping/xd/projects/logs/cross-layer-sharing-20261014-design-space.log`.
 No training launch; no diagnostic MLP refund. This tests frozen-checkpoint
 compressibility, not final matched-total-parameter training performance.
+
+User clarified primary design targets: old pairR256 -> aggregated basisR384; old tripleR384 -> aggregated basisR512. Prioritize tripleR384 geometry and paired losses, then pairR256. Preserve per-layer output widths via rectangular coefficients C; same-rank compression is only a diagnostic control.
+
+
+### Primary R384 -> shared R512 results
+
+Exact original plain-forward baseline reproduction: max absolute per-sequence delta 0.
+32 matched sequences. Positive deltas mean worse loss before any retraining or MLP refund.
+
+| Grouping | Mean layer weight energy retained | Paired loss delta ± SE | Saved parameters |
+|---|---:|---:|---:|
+| 6 blocks of 3 | .919002 | +.004240 ± .000438 | 1,069,056 |
+| 3 contiguous thirds | .849931 | +.008348 ± .000509 | 2,912,256 |
+| 2 contiguous halves | .812291 | +.010129 ± .000804 | 3,526,656 |
+| Global | .756434 | +.016071 ± .000993 | 4,141,056 |
+| 3 role groups | .833381 | +.009446 ± .000764 | 2,912,256 |
+
+Halves minus thirds: +.001781 ± .000582 for another 614,400 saved parameters;
+global minus halves: +.005942 ± .000598 for the same extra savings. Role grouping
+minus contiguous thirds: +.001097 ± .000683, insufficient for strong pairwise
+ordering on this cohort alone. Depth-contiguous grouping is supported by the
+weight matrix plus this direction of loss effect.
+At near-matched projection budget, thirdsR512 is +.001549 ± .000480 worse than
+blocksR384. Thus expanded rank compensates only part of the larger sharing scope.
+
+Working priors: thirdsR512 is a balanced candidate, halvesR512 the more aggressive
+candidate, globalR512 higher risk. These are **compression priors, not training
+performance ceilings**. Shared gradients may accelerate useful feature learning,
+reduce variance when aligned, or interfere when conflicting. MLP refund is not
+the sole possible gain mechanism; convergence and regularization matter independently.
+Frozen terminal-checkpoint loss cannot assess early learning speed. A gradient
+alignment probe would need to distinguish terminal evidence from early training,
+and project gradients into the common A parameterization consistently.

@@ -12895,3 +12895,17 @@ class BamMHAMediumPropC256QKNormTruePile(BamMHAMediumPropC256TruePile):
     bam_record_local_routing_metrics = False
     bam_record_local_qk_amplitude_metrics = False
     jax_cache_dir = ''
+
+
+class Llama2XLPropTruePileMHAQKNorm(Llama2XLPropTruePileMHA):
+    """Full96 Q/K RMSNorm before RoPE on the unchanged XLProp MHA backbone."""
+    model_name = 'Llama2XLPropTruePileMHAQKNorm'
+    qk_norm = True
+    checkpoint_period = 250
+    keep_period = 0
+    max_to_keep = 2
+    tensorboard_gcs_rotate_period = 500
+    record_training_health_metrics = False
+    record_internal_nn_metrics = False
+    compare_runs = ['Llama2XLPropTruePileMHA', 'BamXLPropSharedR400GeneralReadMShiftReadG050TruePile']
+    jax_cache_dir = ''

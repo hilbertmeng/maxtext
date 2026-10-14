@@ -12671,3 +12671,32 @@ class BamFullMGeneralReadPallasV8TProfile(BamFullMGeneralReadPallasFusedProfile)
     # 90d28c9 keys as [C,N,B,T] from the dot: TPU lowering rejects batch as a block's second-minor dim; reverted.
     model_name = 'BamFullMGeneralReadPallasV8TProfile'
     bam_pallas_body = 'v8t'
+
+
+class PythiaArchitecture(Common):
+    """Dimension-independent Pythia recipe; not a launched or budget-matched RUN.
+
+    Supply base_emb_dim/layers/heads/head_dim explicitly in a derived experiment.
+    base_mlp_dim=-1 derives 4D; an explicit positive width supports budget matching.
+    Data, schedule, precision and optimizer are inherited from the training recipe.
+    """
+    decoder_block = 'pythia'
+    init_method = 'pythia'
+    base_mlp_dim = -1
+    mlp_activations = ['gelu_exact']
+    qkv_bias = True
+    qk_norm = False
+    normalization_layer_epsilon = 1e-5
+    pythia_rotary_fraction = 0.25
+    pythia_rotary_dim = -1
+    rope_type = 'default'
+    rope_half = False
+    rope_min_timescale = 1
+    rope_max_timescale = 10000
+    logits_via_embedding = False
+    dropout_rate = 0.0
+    scan_layers = True
+    record_internal_nn_metrics = False
+    bam_enabled = False
+    dense_conn = False
+    sliding_window_size = None

@@ -81,3 +81,30 @@ def get_rmsnorm(name, cfg, **kwargs):
     base_scale_init = nn.initializers.ones if rms_kwargs['direct_scale'] else nn.initializers.zeros
     rms_kwargs['scale_init'] = kwargs.get("scale_init", base_scale_init)
     return RMSNorm(name=name, **rms_kwargs)
+
+
+class LayerNorm(nn.Module):
+  """NeoX affine LayerNorm with FP32 centered variance and direct scale."""
+
+  epsilon: float = 1e-5
+  dtype: Any = jnp.float32
+  weight_dtype: Any = jnp.float32
+
+  @nn.compact
+  def __call__(self, x):
+    stats = x.astype(jnp.float32)
+    centered = stats - jnp.mean(stats, axis=-1, keepdims=True)
+    y = centered * lax.rsqrt(jnp.mean(centered * centered, axis=-1, keepdims=True) + self.epsilon)
+    scale = self.param("scale", nn.with_logical_partitioning(nn.initializers.ones, ("norm",)),
+                       (x.shape[-1],), self.weight_dtype)
+    bias = self.param("bias", nn.with_logical_partitioning(nn.initializers.zeros, ("norm",)),
+                      (x.shape[-1],), self.weight_dtype)
+    return (y * scale.astype(jnp.float32) + bias.astype(jnp.float32)).astype(self.dtype)
+
+
+def get_decoder_norm(name, cfg):
+  """Select only the decoder/final norm; BAM's read/write norms remain RMSNorm."""
+  if cfg.decoder_block == "pythia":
+    return LayerNorm(name=name, epsilon=cfg.normalization_layer_epsilon,
+                     dtype=cfg.dtype, weight_dtype=cfg.weight_dtype)
+  return get_rmsnorm(name, cfg)

@@ -58,6 +58,8 @@ def _convert_to_activation_function(fn_or_string: Union[str, Callable[..., Any]]
   """Convert a string to an activation function."""
   if fn_or_string == "linear":
     return lambda x: x
+  elif fn_or_string == "gelu_exact":
+    return lambda x: nn.gelu(x, approximate=False)
   elif isinstance(fn_or_string, str):
     return getattr(nn, fn_or_string)
   elif callable(fn_or_string):
@@ -264,6 +266,7 @@ class MlpBlock(nn.Module):
       'linear', a string function name in flax.linen, or a function.
     kernel_init: Kernel function, passed to the dense layers.
     deterministic: Whether the dropout layers should be deterministic.
+    output_kernel_init: Optional initializer for the output projection only.
     intermediate_dropout_rate: Dropout rate used after the intermediate layers.
     dtype: computation data type for the dense layer.
     weight_dtype: weight data type for the dense layer.
@@ -276,6 +279,7 @@ class MlpBlock(nn.Module):
   intermediate_dim: int = 2048
   activations: Sequence[Union[str, Callable[..., Any]]] = ("relu",)
   kernel_init: NdInitializer = nd_dense_init(1.0, "fan_in", "truncated_normal")
+  output_kernel_init: NdInitializer | None = None
   intermediate_dropout_rate: float = 0.1
   dtype: Any = jnp.float32
   weight_dtype: Any = jnp.float32
@@ -380,7 +384,7 @@ class MlpBlock(nn.Module):
         inputs.shape[-1],
         dtype=self.dtype,
         weight_dtype=self.weight_dtype,
-        kernel_init=self.kernel_init,
+        kernel_init=self.output_kernel_init or self.kernel_init,
         kernel_axes=("mlp", "embed"),
         name="wo",
         quant=self.quant,

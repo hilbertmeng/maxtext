@@ -1102,6 +1102,9 @@ class Attention(nn.Module):
   max_prefill_predict_length: int = -1
   dropout_rate: float = 0.0
   kernel_init: NdInitializer = nd_dense_init(1.0, "fan_in", "normal")
+  output_kernel_init: NdInitializer | None = None
+  output_bias: bool = False
+  rotary_dim: int | None = None  # Prefix width; None preserves the legacy full-head path.
   float32_qk_product: bool = False  # computes logits in float32 for stability.
   float32_logits: bool = False  # cast logits in float32 for stability.
   quant: Optional[Quant] = None
@@ -1260,13 +1263,14 @@ class Attention(nn.Module):
     return query, key, value
 
   def out_projection(self, output_dim: int, out: Array) -> Array:
+    output_init = self.output_kernel_init or self.kernel_init
     if self.config.opt_type == 'muon':
       kernel_shape = (self.head_dim * self.num_query_heads, output_dim)
       kernel_in_axis = (0, )
       kernel_out_axis = (1, )
       kernel = self.param(
           "out",
-          nn.with_logical_partitioning(self.kernel_init, ("mlp", "embed")),
+          nn.with_logical_partitioning(output_init, ("mlp", "embed")),
           kernel_shape,
           self.weight_dtype,
           kernel_in_axis,
@@ -1275,15 +1279,19 @@ class Attention(nn.Module):
       kernel = kernel.reshape(self.num_query_heads, self.head_dim, output_dim)
       kernel = jnp.asarray(kernel, self.dtype)
       out_proj = jnp.einsum("btnh,nhd->btd", out, kernel)
+      if self.output_bias:
+        out_proj += self.param("out_bias", nn.initializers.zeros,
+                               (output_dim,), self.weight_dtype).astype(self.dtype)
     else:
       out_proj = DenseGeneral(
           features=output_dim,
           axis=(-2, -1),
-          kernel_init=self.kernel_init,
+          kernel_init=output_init,
           kernel_axes=("heads", "kv", "embed"),
           dtype=self.dtype,
           weight_dtype=self.weight_dtype,
           name="out",
+          use_bias=self.output_bias,
           quant=self.quant,
           matmul_precision=self.config.matmul_precision,
       )(out)
@@ -1409,9 +1417,21 @@ class Attention(nn.Module):
 
     query, key = dc.QKNorm(cfg, name='qk_norm')(query, key) # lsp
 
-    # apply ROPE
-    query = self.apply_rotary_embedding(query, inputs_positions, name="query_rotary")
-    key = self.apply_rotary_embedding(key, inputs_positions, name="key_rotary")
+    # A prefix-only RoPE for NeoX/Pythia; leave legacy full-head calls unchanged.
+    if self.rotary_dim is None:
+      query = self.apply_rotary_embedding(query, inputs_positions, name="query_rotary")
+      key = self.apply_rotary_embedding(key, inputs_positions, name="key_rotary")
+    else:
+      width = self.rotary_dim
+      if not isinstance(width, int) or width < 0 or width > self.head_dim or width % 2:
+        raise ValueError("rotary_dim must be an even integer in [0, head_dim]")
+      if width:
+        query = jnp.concatenate((self.apply_rotary_embedding(
+            query[..., :width], inputs_positions, name="query_rotary", embedding_dims=width),
+            query[..., width:]), axis=-1)
+        key = jnp.concatenate((self.apply_rotary_embedding(
+            key[..., :width], inputs_positions, name="key_rotary", embedding_dims=width),
+            key[..., width:]), axis=-1)
 
     if model_mode == common_types.MODEL_MODE_PREFILL:
       query = nn.with_logical_constraint(query, self.prefill_query_axis_names)

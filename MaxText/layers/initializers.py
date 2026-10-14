@@ -71,3 +71,17 @@ def get_init_method(init_method):
     init_fun = nd_dense_init_normal(0.006)
 
   return init_fun
+
+def get_model_init(config, *, residual_output=False):
+  """Pythia's original NeoX small/wang recipe, otherwise the unchanged default.
+
+  The LM vocabulary head uses small_init, not the residual-output initializer.
+  https://github.com/EleutherAI/gpt-neox/blob/v1.0/megatron/model/init_functions.py
+  """
+  if config.init_method != "pythia":
+    return get_init_method(config.init_method)
+  width, depth = config.emb_dim, config.num_decoder_layers
+  if width <= 0 or depth <= 0:
+    raise ValueError("Pythia initialization requires positive model width and depth")
+  std = 2 / depth / width**0.5 if residual_output else (2 / (5 * width))**0.5
+  return nd_dense_init_normal(std)

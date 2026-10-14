@@ -124,6 +124,8 @@ def validate_rope_type(rope_type: str) -> None:
 
 def validate_keys(keys):
   validate_bam_config(keys)
+  from pythia_config import validate_pythia_config
+  validate_pythia_config(keys)
   validate_attention_kernel(keys["attention"])
   validate_attention_type(keys["attention_type"])
   validate_profiler_type(keys["profiler"])
@@ -457,6 +459,8 @@ class _HyperParameters:
     raw_keys["mlp_dim"] = 2**mlp_dim_scale * raw_keys["base_mlp_dim"]
     raw_keys["moe_mlp_dim"] = 2**mlp_dim_scale * raw_keys["base_moe_mlp_dim"]
     raw_keys["num_decoder_layers"] = 2**layer_scale * raw_keys["base_num_decoder_layers"]
+    if raw_keys["decoder_block"] == "pythia" and raw_keys["base_mlp_dim"] == -1:
+      raw_keys["mlp_dim"] = 4 * raw_keys["emb_dim"]
 
     # This is the first command that initializes the backend - it calls
     # jax.devices()

@@ -339,10 +339,10 @@ class OutputHead(nn.Module):
   def setup(self):
     cfg = self.config
     self.norm = (None if getattr(cfg, "rmt_enabled", False)
-                 else normalizations.get_rmsnorm("decoder_norm", cfg))
+                 else normalizations.get_decoder_norm("decoder_norm", cfg))
     dense_kernel = self.param(
       "logits_dense",
-      nn.with_logical_partitioning(initializers.get_init_method(cfg.init_method), ("embed", "vocab")),
+      nn.with_logical_partitioning(initializers.get_model_init(cfg), ("embed", "vocab")),
       (cfg.emb_dim, cfg.vocab_size),
       cfg.weight_dtype,
       ) # int use 888 more quick，but more memory
@@ -596,6 +596,10 @@ class Decoder(nn.Module):
       from layers import gemma2
 
       return [gemma2.Gemma2DecoderLayer]
+    elif self.config.decoder_block == "pythia":
+      from layers import pythia
+
+      return [pythia.PythiaDecoderLayer]
     elif self.config.decoder_block == "gpt3":
       from layers import gpt3
 
@@ -1252,7 +1256,7 @@ class Transformer(nn.Module):
         features=emb_dim,
         dtype=cfg.dtype,
         attend_dtype=jnp.float32 if cfg.logits_dot_in_fp32 else cfg.dtype,  # for logit training stability
-        embedding_init=initializers.get_init_method(cfg.init_method), # lsp
+        embedding_init=initializers.get_model_init(cfg), # lsp
         name="token_embedder",
         config=cfg,
     )

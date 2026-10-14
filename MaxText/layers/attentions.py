@@ -2505,7 +2505,7 @@ class CrossLayerBridge(nn.Module):
   def __call__(self, x):
     r, n = x.shape[-1], self.features
     assert r >= n
-    delta = self.param('kernel', nn.with_logical_partitioning(nn.initializers.zeros, (None, None)),
+    delta = self.param('kernel', nn.with_logical_partitioning(nn.initializers.zeros, ('embed', None)),
                        (r, n), self.weight_dtype)
     rows = jnp.arange(r, dtype=jnp.float32)[:, None] + .5
     cols = jnp.arange(n, dtype=jnp.float32)[None, :]

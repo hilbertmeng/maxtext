@@ -13,6 +13,8 @@ from bam_prop_test_utils import MLPWriteTest
 from layers.models import Transformer
 
 ARMS = json.loads(Path('experiments/bam_llama2_medium/cross_layer_race_arms.json').read_text())
+if os.environ.get('CROSS_LAYER_REPAIR_ONLY'):
+  ARMS = [a for a in ARMS if a['mode']=='conservative']
 if os.environ.get('CROSS_LAYER_NEW_CONTROLS_ONLY'):
   ARMS = [a for a in ARMS if 'paired_run' in a]
 class CrossLayerSharingTest(MLPWriteTest, unittest.TestCase):
@@ -21,9 +23,15 @@ class CrossLayerSharingTest(MLPWriteTest, unittest.TestCase):
   def test_formal_budgets(self):
     for arm in ARMS:
       c=self.config(arm['run']); mesh=self.mesh(c)
-      args,_,_,_=train_compile.get_shaped_inputs(mesh,c)
+      # Match the formal eight-chip FSDP layout, without allocating full weights.
+      shape=[1]*len(c.mesh_axes);shape[c.mesh_axes.index('fsdp')]=8
+      mesh=jax.sharding.Mesh(np.array(jax.devices()[:8]).reshape(shape),c.mesh_axes)
+      args,_,shardings,_=train_compile.get_shaped_inputs(mesh,c)
       flat=flatten_dict(nn.unbox(args[0].params))
       count=sum(int(np.prod(x.shape)) for x in flat.values())
+      specs=flatten_dict(nn.unbox(shardings.params))
+      per_chip=sum(int(np.prod(specs[p].shard_shape(v.shape))) for p,v in flat.items())
+      self.assertLess(per_chip/(count/8)-1,c.sharding_tolerance,(arm['run'],per_chip,count))
       self.assertEqual(count,arm['params'],(arm['run'],count))
       bank=[v for p,v in flat.items() if p[-1]=='cross_layer_down']
       self.assertEqual(len(bank),1)
@@ -39,7 +47,7 @@ class CrossLayerSharingTest(MLPWriteTest, unittest.TestCase):
   def test_scan_gradients_and_causality(self):
     for arm in ARMS:
       with self.subTest(run=arm['run']):
-        old=8 if arm['old_rank']==256 else 12; new=12 if old==8 else 16
+        old=8 if arm['old_rank']==256 else 12; new=12 if arm['rank']==384 else 16
         c=self.config(arm['run'],bam_splash_attention=False,base_emb_dim=150,
           base_num_query_heads=2,base_num_kv_heads=2,base_num_decoder_layers=6,
           base_mlp_dim=32,vocab_size=32,dtype='float32',weight_dtype='float32')

@@ -78,3 +78,21 @@ No changes to the first eight's source, initialization, parameter counts, or AOT
 | `BamMediumPropMShiftReadG050CrossReadAttnR512ConservativeThirdsTruePile` | [3797, 3670, 3796] | 432100832 | +0.004 |
 | `BamMediumPropMShiftReadG050CrossReadAttnR512DirectBlockTruePile` | [3750, 3624, 3750] | 432121280 | +0.004 |
 | `BamMediumPropMShiftReadG050CrossReadAttnR512DirectThirdsTruePile` | [3779, 3652, 3778] | 432114080 | +0.004 |
+
+## Startup sharding repair and square-bridge arm
+
+The original conservative bridge used replicated axes(None,None), which passed
+single-device shape/gradient tests and AOT but failed real eight-chip startup's
+unchanged2% parameter-sharding tolerance (R512block:5.94% excess per-chip parameters).
+Fix the bridge input axis to `embed`, matching native DenseGeneral down sharding.
+Do not relax the guard. Full parameter shape tests now also calculate every leaf's
+per-chip shard size on an eight-device FSDP mesh and enforce the production bound.
+Original direct configurations are unaffected and keep their sealed runtime.
+Conservative configurations must recompile with this fix; preserve training resources.
+
+User also authorized one R384 conservative square384 bridge with shared MLP writes.
+Use contiguous thirds, `BamMediumPropMShiftReadG050CrossTripleR384ConservativeInner384ThirdsTruePile`,
+ID310216. MLP[3860,3734,3860],432116096params, projection savings4257792=2.9568W_Q.
+Compare to R384/inner256 and R512/inner384 conservative triple-thirds plus both old
+sharing winners. Terminal bet gap−.004 versus inner256, −.005 versus old tripleR384;
+expected speed−4% versus old tripleR384. No checkpoint conversion: train from scratch.

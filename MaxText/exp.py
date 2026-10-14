@@ -12922,3 +12922,13 @@ class BamMediumPropMShiftReadG050CrossReadAttnR512DirectThirdsTruePile(BamMedium
     bam_mlp_write_address_rank = 384
     mlp_dim_by_block = [3779, 3652, 3778]
     compare_runs = ['BamMediumPropMShiftReadG050CrossTripleR512DirectThirdsTruePile', 'BamMediumPropMShiftReadG050ReadAttentionMLPSharedR384TruePile', 'BamMediumPropMShiftReadG050ReadAttentionSharedR256TruePile']
+
+
+class BamMediumPropMShiftReadG050CrossTripleR384ConservativeInner384ThirdsTruePile(BamMediumPropMShiftReadG050CrossTripleR384ConservativeThirdsTruePile):
+    """Shared R384, square384 bridge, all three consumers, contiguous thirds."""
+    model_name = 'BamMediumPropMShiftReadG050CrossTripleR384ConservativeInner384ThirdsTruePile'
+    bam_local_full_m_read_bottleneck_dim = 384
+    bam_write_v_bottleneck_dim = 384
+    bam_mlp_write_address_rank = 384
+    mlp_dim_by_block = [3860, 3734, 3860]
+    compare_runs = ['BamMediumPropMShiftReadG050CrossTripleR384ConservativeThirdsTruePile', 'BamMediumPropMShiftReadG050CrossTripleR512ConservativeThirdsTruePile', 'BamMediumPropMShiftReadG050ReadAttentionMLPSharedR384TruePile', 'BamMediumPropMShiftReadG050ReadAttentionSharedR256TruePile']

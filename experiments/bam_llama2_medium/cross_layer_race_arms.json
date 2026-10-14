@@ -334,5 +334,27 @@
     "mlp_shared": false,
     "mlp_rank": 384,
     "bet_gap_vs_paired": 0.004
+  },
+  {
+    "run": "BamMediumPropMShiftReadG050CrossTripleR384ConservativeInner384ThirdsTruePile",
+    "parent": "BamMediumPropMShiftReadG050ReadAttentionMLPSharedR384TruePile",
+    "paired_run": "BamMediumPropMShiftReadG050CrossTripleR384ConservativeThirdsTruePile",
+    "old_rank": 384,
+    "rank": 384,
+    "mode": "conservative",
+    "group_size": 6,
+    "mlp": [
+      3860,
+      3734,
+      3860
+    ],
+    "params": 432116096,
+    "projection_saved": 4257792,
+    "id": 310216,
+    "bet_gap": -0.005,
+    "bet_gap_vs_paired": -0.004,
+    "bet_speed_pct": -4,
+    "mlp_shared": true,
+    "mlp_rank": 384
   }
 ]

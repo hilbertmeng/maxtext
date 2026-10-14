@@ -64,6 +64,43 @@ def cka(a,b):
   a=a-a.mean(0);b=b-b.mean(0)
   return float(np.sum((a.T@b)**2)/max(float(np.linalg.norm(a.T@a)*np.linalg.norm(b.T@b)),1e-30))
 
+def block_losses(cfg,model,params,evaluation,rng,mesh):
+  """Localize rank384 intervention without collecting activations again."""
+  previous=json.loads((out/'activation-report.json').read_text())
+  batches=[];hashes=[]
+  for _ in range(8):
+    batch=next(evaluation);batches.append(batch)
+    hashes.extend(hashlib.sha256(row.tobytes()).hexdigest() for row in np.asarray(batch['inputs']))
+  assert hashes==previous['sequence_hashes']
+  plain=jax.jit(lambda p,b,r:forward(model,p,b,r,False)[0])
+  def measure(tree):
+    result=[]
+    for batch in batches:
+      with mesh,nn_partitioning.axis_rules(cfg.logical_axis_rules):v=jax.device_get(plain(tree,batch,rng))
+      result.extend(v['loss'].tolist())
+    return np.asarray(result)
+  baseline=measure(params)
+  report=dict(checkpoint=cfg.load_parameters_path,sequence_hashes=hashes,
+      diagnostic_commit=subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip(),
+      baseline_losses=baseline.tolist(),baseline_delta_vs_previous=(baseline-np.asarray(previous['baseline_sequence_losses'])).tolist(),
+      rank=384,variants={})
+  bases=np.load(geometry/'bases.npz');flat=flatten_dict(params)
+  selected={p:v for p,v in flat.items() if p[-2:]==('full_m_read_down','kernel')}
+  for label,blocks in [(f'block{b}',[b]) for b in range(6)]+[('blocks1_5',range(1,6)),('all',range(6))]:
+    modified=dict(flat)
+    for key,w0 in selected.items():
+      w=np.asarray(w0,dtype=np.float32).copy()
+      for b in blocks:
+        u=bases[f'block{b}_rank384'];w[:,b]=u@(u.T@w[:,b])
+      modified[key]=jnp.asarray(w,dtype=w0.dtype)
+    tree=unflatten_dict(modified)
+    if isinstance(params,FrozenDict):tree=freeze(tree)
+    losses=measure(tree);delta=losses-baseline
+    report['variants'][label]=dict(blocks=list(blocks),sequence_losses=losses.tolist(),paired_deltas=delta.tolist(),
+        mean_delta=float(delta.mean()),standard_error=float(delta.std(ddof=1)/np.sqrt(len(delta))))
+    (out/'block-loss-report.json').write_text(json.dumps(report,indent=2)+'\n')
+    print('BLOCK_LOSS',label,report['variants'][label]['mean_delta'],flush=True)
+
 def run(cfg):
   assert cfg.only_eval and not cfg.bam_diagnostics
   cfg.get_keys()['enable_checkpointing']=False
@@ -76,6 +113,9 @@ def run(cfg):
   data,evaluation=create_data_iterator(cfg,mesh)
   state,_,_,_=max_utils.setup_training_state(model,data,tx,cfg,rng,mesh,manager)
   params=state.params;flat=flatten_dict(params)
+  if os.environ.get('CROSS_LAYER_BLOCK_ONLY')=='1':
+    block_losses(cfg,model,params,evaluation,rng,mesh)
+    return
   capture=jax.jit(lambda p,b,r:forward(model,p,b,r,True))
   plain=jax.jit(lambda p,b,r:forward(model,p,b,r,False)[0])
   batches=[];hashes=[];parts={};masks=[];losses=[];capture_deltas=[]

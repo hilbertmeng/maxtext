@@ -1,5 +1,6 @@
 """Cross-layer sharing: real parameter ties, budgets, scan differentiation and causality."""
 import json
+import os
 import unittest
 from pathlib import Path
 import numpy as np
@@ -12,6 +13,8 @@ from bam_prop_test_utils import MLPWriteTest
 from layers.models import Transformer
 
 ARMS = json.loads(Path('experiments/bam_llama2_medium/cross_layer_race_arms.json').read_text())
+if os.environ.get('CROSS_LAYER_NEW_CONTROLS_ONLY'):
+  ARMS = [a for a in ARMS if 'paired_run' in a]
 class CrossLayerSharingTest(MLPWriteTest, unittest.TestCase):
   def mesh(self,c):
     return jax.sharding.Mesh(np.array(jax.devices()[:1]).reshape((1,)*len(c.mesh_axes)),c.mesh_axes)
@@ -26,7 +29,7 @@ class CrossLayerSharingTest(MLPWriteTest, unittest.TestCase):
       self.assertEqual(len(bank),1)
       self.assertEqual(bank[0].shape,(18//arm['group_size'],1200,arm['rank']))
       self.assertFalse(any('full_m_read_down' in p or 'P_loc_down' in p for p in flat))
-      self.assertEqual(any('mlp_address_down' in p for p in flat),arm['old_rank']==256)
+      self.assertEqual(any('mlp_address_down' in p for p in flat),not arm['mlp_shared'])
       bridges=[v for p,v in flat.items() if 'cross_layer_bridge' in p]
       self.assertEqual(len(bridges),3 if arm['mode']=='conservative' else 0)
       for b in bridges:self.assertEqual(b.shape,(arm['rank'],6,arm['old_rank']))
@@ -43,7 +46,7 @@ class CrossLayerSharingTest(MLPWriteTest, unittest.TestCase):
         rank=old if arm['mode']=='conservative' else new
         c.get_keys().update(emb_bam_num_head=2,emb_bam_v_bottleneck_dim=8,
           bam_cross_layer_rank=new,bam_local_full_m_read_bottleneck_dim=rank,
-          bam_write_v_bottleneck_dim=rank,bam_mlp_write_address_rank=rank if arm['old_rank']==384 else 8,
+          bam_write_v_bottleneck_dim=rank,bam_mlp_write_address_rank=rank if arm['mlp_shared'] else old,
           mlp_dim_by_block=[32,24,32],bam_layer_modes=c.bam_layer_modes[:6],remat_policy='full')
         mesh=self.mesh(c);model=Transformer(c,mesh,quant=None)
         tok=jnp.array([[1,2,3,4]],jnp.int32);pos=jnp.arange(4)[None];mask=jnp.ones_like(tok)

@@ -56,3 +56,25 @@ report sequences of gaps and MHA-reference gain multiples. Include matched-mode 
 and matched-scope mode comparisons as new run windows mature. Training zone UE5a based
 on recent8-hour uninterrupted parent leases; no new FLEX training requests. Retained
 Flex `llm-jax-v6e-1-0` in EW4a is borrowed for AOT only, never deleted.
+
+## User-selected extension: retain eight, add eight MLP controls
+
+The user chose to keep the submitted eight unchanged and add the missing MLP-sharing
+counterparts (IDs310208–310215). Total16 configurations. Unlike the alternative design,
+conservative inner rank remains256 for sharedR384 and384 for sharedR512. Private MLP
+Down also keeps the native family rank256/384; when shared in direct mode its Up input
+expands with the shared bank. Thus the MLP toggle includes this width change in direct
+mode, with exact total-parameter compensation; it is not an equal-width weight-tying-only
+intervention. Report that boundary rather than attribute every difference to tying alone.
+No changes to the first eight's source, initialization, parameter counts, or AOT hash.
+
+| Added RUN | MLP widths | Params | Paired gap bet |
+|---|---|---:|---:|
+| `BamMediumPropMShiftReadG050CrossTripleR384ConservativeBlockTruePile` | [3932, 3805, 3930] | 432102752 | +0.004 |
+| `BamMediumPropMShiftReadG050CrossTripleR384ConservativeThirdsTruePile` | [3953, 3826, 3952] | 432102752 | +0.004 |
+| `BamMediumPropMShiftReadG050CrossTripleR384DirectBlockTruePile` | [3880, 3754, 3879] | 432118688 | -0.004 |
+| `BamMediumPropMShiftReadG050CrossTripleR384DirectThirdsTruePile` | [3902, 3775, 3900] | 432118688 | -0.004 |
+| `BamMediumPropMShiftReadG050CrossReadAttnR512ConservativeBlockTruePile` | [3769, 3642, 3767] | 432108032 | +0.004 |
+| `BamMediumPropMShiftReadG050CrossReadAttnR512ConservativeThirdsTruePile` | [3797, 3670, 3796] | 432100832 | +0.004 |
+| `BamMediumPropMShiftReadG050CrossReadAttnR512DirectBlockTruePile` | [3750, 3624, 3750] | 432121280 | +0.004 |
+| `BamMediumPropMShiftReadG050CrossReadAttnR512DirectThirdsTruePile` | [3779, 3652, 3778] | 432114080 | +0.004 |

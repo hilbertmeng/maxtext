@@ -12855,3 +12855,70 @@ class BamMediumPropMShiftReadG050CrossTripleR512DirectThirdsTruePile(BamMediumPr
     bam_local_full_m_read_bottleneck_dim = 512
     bam_write_v_bottleneck_dim = 512
     bam_mlp_write_address_rank = 512
+
+
+# Complete the MLP-private/shared axis; preserve the original eight configurations.
+
+class BamMediumPropMShiftReadG050CrossTripleR384ConservativeBlockTruePile(BamMediumPropMShiftReadG050CrossReadAttnR384ConservativeBlockTruePile):
+    """Matched MLP-sharing toggle; independent MLP keeps family native width 256."""
+    model_name = 'BamMediumPropMShiftReadG050CrossTripleR384ConservativeBlockTruePile'
+    bam_share_mlp_write_down = True
+    bam_mlp_write_address_rank = 256
+    mlp_dim_by_block = [3932, 3805, 3930]
+    compare_runs = ['BamMediumPropMShiftReadG050CrossReadAttnR384ConservativeBlockTruePile', 'BamMediumPropMShiftReadG050ReadAttentionSharedR256TruePile', 'BamMediumPropMShiftReadG050ReadAttentionMLPSharedR384TruePile']
+
+class BamMediumPropMShiftReadG050CrossTripleR384ConservativeThirdsTruePile(BamMediumPropMShiftReadG050CrossReadAttnR384ConservativeThirdsTruePile):
+    """Matched MLP-sharing toggle; independent MLP keeps family native width 256."""
+    model_name = 'BamMediumPropMShiftReadG050CrossTripleR384ConservativeThirdsTruePile'
+    bam_share_mlp_write_down = True
+    bam_mlp_write_address_rank = 256
+    mlp_dim_by_block = [3953, 3826, 3952]
+    compare_runs = ['BamMediumPropMShiftReadG050CrossReadAttnR384ConservativeThirdsTruePile', 'BamMediumPropMShiftReadG050ReadAttentionSharedR256TruePile', 'BamMediumPropMShiftReadG050ReadAttentionMLPSharedR384TruePile']
+
+class BamMediumPropMShiftReadG050CrossTripleR384DirectBlockTruePile(BamMediumPropMShiftReadG050CrossReadAttnR384DirectBlockTruePile):
+    """Matched MLP-sharing toggle; independent MLP keeps family native width 256."""
+    model_name = 'BamMediumPropMShiftReadG050CrossTripleR384DirectBlockTruePile'
+    bam_share_mlp_write_down = True
+    bam_mlp_write_address_rank = 384
+    mlp_dim_by_block = [3880, 3754, 3879]
+    compare_runs = ['BamMediumPropMShiftReadG050CrossReadAttnR384DirectBlockTruePile', 'BamMediumPropMShiftReadG050ReadAttentionSharedR256TruePile', 'BamMediumPropMShiftReadG050ReadAttentionMLPSharedR384TruePile']
+
+class BamMediumPropMShiftReadG050CrossTripleR384DirectThirdsTruePile(BamMediumPropMShiftReadG050CrossReadAttnR384DirectThirdsTruePile):
+    """Matched MLP-sharing toggle; independent MLP keeps family native width 256."""
+    model_name = 'BamMediumPropMShiftReadG050CrossTripleR384DirectThirdsTruePile'
+    bam_share_mlp_write_down = True
+    bam_mlp_write_address_rank = 384
+    mlp_dim_by_block = [3902, 3775, 3900]
+    compare_runs = ['BamMediumPropMShiftReadG050CrossReadAttnR384DirectThirdsTruePile', 'BamMediumPropMShiftReadG050ReadAttentionSharedR256TruePile', 'BamMediumPropMShiftReadG050ReadAttentionMLPSharedR384TruePile']
+
+class BamMediumPropMShiftReadG050CrossReadAttnR512ConservativeBlockTruePile(BamMediumPropMShiftReadG050CrossTripleR512ConservativeBlockTruePile):
+    """Matched MLP-sharing toggle; independent MLP keeps family native width 384."""
+    model_name = 'BamMediumPropMShiftReadG050CrossReadAttnR512ConservativeBlockTruePile'
+    bam_share_mlp_write_down = False
+    bam_mlp_write_address_rank = 384
+    mlp_dim_by_block = [3769, 3642, 3767]
+    compare_runs = ['BamMediumPropMShiftReadG050CrossTripleR512ConservativeBlockTruePile', 'BamMediumPropMShiftReadG050ReadAttentionMLPSharedR384TruePile', 'BamMediumPropMShiftReadG050ReadAttentionSharedR256TruePile']
+
+class BamMediumPropMShiftReadG050CrossReadAttnR512ConservativeThirdsTruePile(BamMediumPropMShiftReadG050CrossTripleR512ConservativeThirdsTruePile):
+    """Matched MLP-sharing toggle; independent MLP keeps family native width 384."""
+    model_name = 'BamMediumPropMShiftReadG050CrossReadAttnR512ConservativeThirdsTruePile'
+    bam_share_mlp_write_down = False
+    bam_mlp_write_address_rank = 384
+    mlp_dim_by_block = [3797, 3670, 3796]
+    compare_runs = ['BamMediumPropMShiftReadG050CrossTripleR512ConservativeThirdsTruePile', 'BamMediumPropMShiftReadG050ReadAttentionMLPSharedR384TruePile', 'BamMediumPropMShiftReadG050ReadAttentionSharedR256TruePile']
+
+class BamMediumPropMShiftReadG050CrossReadAttnR512DirectBlockTruePile(BamMediumPropMShiftReadG050CrossTripleR512DirectBlockTruePile):
+    """Matched MLP-sharing toggle; independent MLP keeps family native width 384."""
+    model_name = 'BamMediumPropMShiftReadG050CrossReadAttnR512DirectBlockTruePile'
+    bam_share_mlp_write_down = False
+    bam_mlp_write_address_rank = 384
+    mlp_dim_by_block = [3750, 3624, 3750]
+    compare_runs = ['BamMediumPropMShiftReadG050CrossTripleR512DirectBlockTruePile', 'BamMediumPropMShiftReadG050ReadAttentionMLPSharedR384TruePile', 'BamMediumPropMShiftReadG050ReadAttentionSharedR256TruePile']
+
+class BamMediumPropMShiftReadG050CrossReadAttnR512DirectThirdsTruePile(BamMediumPropMShiftReadG050CrossTripleR512DirectThirdsTruePile):
+    """Matched MLP-sharing toggle; independent MLP keeps family native width 384."""
+    model_name = 'BamMediumPropMShiftReadG050CrossReadAttnR512DirectThirdsTruePile'
+    bam_share_mlp_write_down = False
+    bam_mlp_write_address_rank = 384
+    mlp_dim_by_block = [3779, 3652, 3778]
+    compare_runs = ['BamMediumPropMShiftReadG050CrossTripleR512DirectThirdsTruePile', 'BamMediumPropMShiftReadG050ReadAttentionMLPSharedR384TruePile', 'BamMediumPropMShiftReadG050ReadAttentionSharedR256TruePile']

@@ -78,17 +78,21 @@ def run(cfg):
   params=state.params;flat=flatten_dict(params)
   capture=jax.jit(lambda p,b,r:forward(model,p,b,r,True))
   plain=jax.jit(lambda p,b,r:forward(model,p,b,r,False)[0])
-  batches=[];hashes=[];parts={};masks=[];losses=[]
+  batches=[];hashes=[];parts={};masks=[];losses=[];capture_deltas=[]
   for index in range(8):
     batch=next(evaluation);batches.append(batch)
     hashes.extend(hashlib.sha256(row.tobytes()).hexdigest() for row in np.asarray(batch['inputs']))
     masks.append(np.asarray(batch['targets_segmentation'][:,::STRIDE])!=0)
     with mesh,nn_partitioning.axis_rules(cfg.logical_axis_rules):
       metrics,values=jax.device_get(capture(params,batch,rng))
-      if index==0:
-        check=jax.device_get(plain(params,batch,rng))
-        np.testing.assert_allclose(metrics['loss'],check['loss'],rtol=1e-6,atol=1e-6)
-    losses.extend(metrics['loss'].tolist())
+      check=jax.device_get(plain(params,batch,rng))
+    # Extra outputs change TPU BF16 fusion. Pair all loss interventions with
+    # this SAME plain executable, never with the instrumented capture graph.
+    delta=metrics['loss']-check['loss']
+    if not np.isfinite(delta).all() or np.max(np.abs(delta)) > .01:
+      raise ValueError(f'Unexpected capture-path numerical discrepancy: {delta}')
+    capture_deltas.extend(delta.tolist())
+    losses.extend(check['loss'].tolist())
     for name,value in values.items():parts.setdefault(name,[]).append(np.asarray(value))
     print('CAPTURE',index,len(hashes),time.monotonic()-start,flush=True)
   assert len(hashes)==32 and len(set(hashes))==32
@@ -100,6 +104,7 @@ def run(cfg):
   report=dict(checkpoint=cfg.load_parameters_path,diagnostic_commit=commit,
       cohort_seed=cfg.data_shuffle_seed,sequence_hashes=hashes,stride=STRIDE,
       fit_sequences=0,heldout_sequences=32,baseline_sequence_losses=losses,
+      capture_minus_plain_sequence_losses=capture_deltas,
       activation_errors=[],activation_cka=[],loss_interventions={},
       scope='All six three-layer blocks; common pre-GELU input basis with per-layer coefficients.')
   selected={p:v for p,v in flat.items() if p[-2:]==('full_m_read_down','kernel')}

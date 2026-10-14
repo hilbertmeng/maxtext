@@ -121,3 +121,24 @@ sharing winners. Terminal bet gap−.004 versus inner256, −.005 versus old tri
 expected speed−4% versus old tripleR384. No checkpoint conversion: train from scratch.
 
 Monitoring format: one nine-row table per1000-step milestone, cumulative gap/gain-ratio trends retained compactly. XL remains every2000 steps. All nine registries carry MHA-reference ratios against both historical sharing winners.
+
+User monitoring refinement: no routine TB sync or M-shift gate report for these nine projection-sharing runs. Routine monitoring uses registry loss/gain/speed/checkpoint state; targeted health only for material anomalies, TB archive at closeout.
+
+## Verified launch and speed evidence (2026-10-14)
+
+All nine passed actual v5p16 AOT loading, full parameter-count verification and FIRST_STEP.
+Runtime remains f875525 for direct and38af4cc for conservative; later documentation commits do not alter running source.
+
+| ID | Runtime | 80-step mean steps/s | Delta vs historical parent | Sample steps |
+|---|---|---:|---:|---|
+| 310200 | 38af4cc | 0.463188 | -0.27% | 20–99 |
+| 310201 | 38af4cc | 0.460913 | -0.76% | 20–99 |
+| 310202 | f875525 | 0.463138 | -0.28% | 60–139 |
+| 310203 | f875525 | 0.462150 | -0.49% | 272–351 |
+| 310204 | 38af4cc | 0.464487 | -0.28% | 20–99 |
+| 310205 | 38af4cc | 0.462262 | -0.76% | 20–99 |
+| 310206 | f875525 | 0.464587 | -0.26% | 20–99 |
+| 310207 | f875525 | 0.459975 | -1.25% | 135–214 |
+| 310216 | 38af4cc | 0.459387 | -1.38% | 20–99 |
+
+Raw startup logs and verified-startups.json/verified-speeds.json reside in `/data0/xd/bam_diagnostics/cross-layer-race-20261014`. Recovery samples skip the first20 steps after resume; checkpoint/I/O outliers remain in each raw80-step mean. No unmatched health-off timing control is used.

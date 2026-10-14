@@ -106,12 +106,13 @@ def run(cfg):
   assert len(selected)==3
   act=jax.jit(lambda x,w:nn.gelu(jnp.asarray(x,cfg.dtype)@jnp.asarray(w,cfg.dtype)).astype(jnp.float32))
   for block in range(6):
-    hs=[]
+    hs=[];xs=[];ws=[]
     for offset,group in enumerate(GROUPS):
       key=next(p for p in selected if group in p)
       w=np.asarray(selected[key][:,block],dtype=np.float32)
       prefix='decoder/layers/'+group+'/block/self_attention/full_m_read_down/'
       hs.append(values[prefix+'cross_h/call0'][block][valid])
+      xs.append(values[prefix+'cross_x/call0'][block][valid]);ws.append(w)
       calls=sorted(n for n in values if n.startswith(prefix+'cross_x/'))
       for name in calls:
         x=values[name][block];native=values[name.replace('cross_x','cross_h')][block]
@@ -129,7 +130,9 @@ def run(cfg):
               native_recompute_relative_squared_error=float(np.sum((original[valid]-native[valid])**2)/np.sum(native[valid]**2))))
     for i,j in ((0,1),(1,2),(0,2)):
       perm=np.random.default_rng(42).permutation(len(hs[j]))
+      common_i=np.asarray(act(xs[i],ws[i]));common_j=np.asarray(act(xs[i],ws[j]))
       report['activation_cka'].append(dict(layers=[3*block+i,3*block+j],
+          input_residual_cka=cka(xs[i],xs[j]),same_input_gelu_cka=cka(common_i,common_j),
           own_input_gelu_cka=cka(hs[i],hs[j]),token_permuted_cka=cka(hs[i],hs[j][perm])))
   (out/'activation-report.json').write_text(json.dumps(report,indent=2)+'\n')
   for rank in (256,384):
@@ -154,5 +157,5 @@ def run(cfg):
   print('FUNCTIONAL_DONE',out,flush=True)
 
 def main(argv):
-  pyconfig.initialize(argv);run(pyconfig.config)
+  run(pyconfig.initialize(argv))
 if __name__=='__main__':app.run(main)

@@ -1,4 +1,26 @@
-# Cross-layer projection sharing: eight from-scratch runs
+# Cross-layer projection sharing: nine active arms
+
+
+Current authorized scope: **original eight plus the square-R384 conservative thirds
+arm, nine total**. The agent incorrectly expanded “add missing controls” to eight
+additional MLP toggles. The user challenged the count; IDs310208–310215 are withdrawn
+and never trained. Their classes remain only as implementation/test ancestry, not
+active experiments. No new formal training resources were created for those eight.
+Four owned managed compilers have been released, with node and queue absence verified
+on 2026-10-14. Two completed required conservative sharding repair AOTs before release.
+Reserved Flex is preserved.
+
+Original direct arms retain f8755258. Four original conservative arms and the new
+square bridge use38af4cc1. Original single-device gate missed replicated bridge
+parameters; all17 defined configurations now pass the actual eight-chip shard-size
+bound, and all9 conservative paths pass forward/gradient/causality checks. Production
+tolerance is unchanged. The completed full47 regression from f8755258 still applies
+to unchanged model paths.
+
+The square bridge's active comparison set is original ReadAttnR384 conservative
+thirds, TripleR512 conservative thirds, and both historical sharing winners. The
+withdrawn TripleR384/inner256 arm is not an available training baseline. Accordingly,
+only its comparison with TripleR512 holds inner width384 and MLP participation fixed.
 
 Implementation: `/data0/xd/mediumprop-projection-sharing`, branch
 `codex/mediumprop-projection-sharing`. Main infrastructure audited against
@@ -57,10 +79,11 @@ and matched-scope mode comparisons as new run windows mature. Training zone UE5a
 on recent8-hour uninterrupted parent leases; no new FLEX training requests. Retained
 Flex `llm-jax-v6e-1-0` in EW4a is borrowed for AOT only, never deleted.
 
-## User-selected extension: retain eight, add eight MLP controls
+## Withdrawn expansion: eight MLP controls never trained
 
-The user chose to keep the submitted eight unchanged and add the missing MLP-sharing
-counterparts (IDs310208–310215). Total16 configurations. Unlike the alternative design,
+The agent over-expanded the instruction into eight MLP-sharing counterparts
+(IDs310208–310215). This expansion was withdrawn; the definitions below are archived,
+not an authorized training plan. Unlike the alternative design,
 conservative inner rank remains256 for sharedR384 and384 for sharedR512. Private MLP
 Down also keeps the native family rank256/384; when shared in direct mode its Up input
 expands with the shared bank. Thus the MLP toggle includes this width change in direct
@@ -96,3 +119,5 @@ ID310216. MLP[3860,3734,3860],432116096params, projection savings4257792=2.9568W
 Compare to R384/inner256 and R512/inner384 conservative triple-thirds plus both old
 sharing winners. Terminal bet gap−.004 versus inner256, −.005 versus old tripleR384;
 expected speed−4% versus old tripleR384. No checkpoint conversion: train from scratch.
+
+Monitoring format: one nine-row table per1000-step milestone, cumulative gap/gain-ratio trends retained compactly. XL remains every2000 steps. All nine registries carry MHA-reference ratios against both historical sharing winners.

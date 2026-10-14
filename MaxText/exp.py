@@ -12740,6 +12740,7 @@ class BamMediumPropMShiftReadG050SharedR256R384ByWriteTruePile(BamMediumPropMShi
     # 20-99 speed 0.461225 step/s; vs singleRead050 +0.63%; health252 finite, gate init .5.
     # @1000 gap old pairR256 +.008060, tripleR384 +.011156; MHA-ref gain .986573/.981510; single1.013085/SOTA1.013711. gate .241005.
     # Stopped2859/CP2859, UE5a P0; resources absent, TB synced. 2800 vs pairR256+.004886/gain.981786, tripleR384+.005814/.978401; single-.002833/1.010874, SOTA-.010753/1.042570. Persistent normalized deficit, no speed advantage; combination bet failed.
+    # 2026-10-14 user-authorized resume from committed2859, unchanged a445bbc8/runtime/AOT/s13500, UE5a xd-v5p-16-310193-maxtext. Prior stop was premature: gain vs triple384 .973037->.974139->.978401 at2400/2600/2800. Terminal outcome unresolved. Observe at least5000, continue while credible recovery; report every1000 against pair256 and triple384, MHA-reference ratios. Relaunch submitted02:19:09Z; FIRST_STEP pending.
     model_name = 'BamMediumPropMShiftReadG050SharedR256R384ByWriteTruePile'
     bam_shared_projection_rank_by_block = [256, 384, 256]
     mlp_dim_by_block = [3871, 3746, 3871]

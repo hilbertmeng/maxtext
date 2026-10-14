@@ -12727,7 +12727,8 @@ class BamMediumPropMShiftReadG050ReadAttentionMLPSharedR384TruePile(BamMediumPro
     bam_write_v_bottleneck_dim = 384
     bam_mlp_write_address_rank = 384
     mlp_dim_by_block = [3794, 3669, 3794]
-    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile', 'BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile']
+    compare_runs = ['BamMediumPropMShiftReadG050ReadAttentionSharedR256TruePile',
+                    'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile', 'BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile']
     bam_m_shift_compact_health = True
 
 

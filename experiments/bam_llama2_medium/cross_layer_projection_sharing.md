@@ -136,3 +136,58 @@ the sole possible gain mechanism; convergence and regularization matter independ
 Frozen terminal-checkpoint loss cannot assess early learning speed. A gradient
 alignment probe would need to distinguish terminal evidence from early training,
 and project gradients into the common A parameterization consistently.
+
+
+### Primary pairR256 -> shared A384 complete
+
+Same 32 held-out sequences, original baseline reproduced exactly.
+
+| Partition | Loss delta ± SE | Saved projection parameters |
+|---|---:|---:|
+| blocks | +0.00321420 ± 0.00039168 | 995328 |
+| thirds | +0.00719633 ± 0.00065637 | 2377728 |
+| halves | +0.01008645 ± 0.00082755 | 2838528 |
+| global | +0.01569655 ± 0.00103961 | 3299328 |
+| roles | +0.00920345 ± 0.00060097 | 2377728 |
+
+
+### Direct shared Down, widened nonlinear feature bank (ongoing)
+
+User explicitly authorized completing the previously omitted harder diagnostic;
+the earlier temporary restriction on supplementary diagnostics is revoked.
+Runner `MaxText/bam_cross_layer_direct.py`, diagnostic commit
+`8e3d60d594fb1d726feb3c7e8f3f4df2e31e4786`, branch/worktree as above.
+First32 sequences are the identical previous held-out set; next96 calibrate
+native GELU unit selection and all affected affine Up heads. No independent
+pre-GELU C is retained. Original private MLP Down remains untouched for pair256;
+triple384 includes post-attention MLP input and Up. Native-down/refitted-Up control
+measures fitting error. All paired interventions use one padded plain executable.
+Truncated pivoted Cholesky unit selection matches pivoted QR in the host test;
+affine regression held-out synthetic relative error .0001104. Initial selection
+sketch had too few independent rows for512 pivots; increased to256 randomly
+chosen calibration positions per input/layer, with fixed seed. No held-out fitting.
+Final unused M writer contributes no selection score. Rank expansion costs in all
+Up kernels are included in parameter counts; no MLP budget compensation in probes.
+
+Triple384 -> direct Down512 results: native-refit delta -.00002548 ± .00010980.
+Native original baseline matches previous exactly; padded baseline has maximum
+per-sequence drift .00151825, and all interventions pair against that padded graph.
+| Partition | Loss delta ± SE | Saved parameters (negative = added) |
+|---|---:|---:|
+| blocks | +.02418385 ± .00209598 | -503808 |
+| thirds | +.04360446 ± .00359841 | 1339392 |
+| halves | +.05543705 ± .00495697 | 1953792 |
+| global | +.08335037 ± .00739662 | 2568192 |
+
+Artifacts: `gs://newproject-1-llm_base_models_us-central1/log/bam_diagnostics/cross-layer-direct-20261014/`.
+Reserved FLEX `llm-jax-v6e-1-0` EW4a handles triple384. Additional spot candidates:
+`xd-v6e-1-crossdown-r256-20261014` UC1a and
+`xd-v6e-1-crossdown-r256-20261014-ew4a` EW4a; release exact unused candidates and
+winner after artifacts, never delete reserved FLEX. Pair256 may reuse FLEX if
+its existing arm completes before spot is installed; launcher is serialized by
+same worker lock. No formal architecture-training runs launched.
+
+Mixed training RUN user-paused at committed CP5400 on2026-10-14; parameters,
+optimizer and matching data cursor retained. Seed9876, step_in_file401, files
+b5000/b5500, globalbatch128, hosts2. Node/queue absent; TB SYNC_OK. Terminal
+outcome unresolved; latest5000 reported oldpair/triple gaps +.0044464/+.0055738.

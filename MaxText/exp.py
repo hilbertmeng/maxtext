@@ -12735,6 +12735,11 @@ class BamMediumPropMShiftReadG050ReadAttentionMLPSharedR384TruePile(BamMediumPro
 
 
 class BamMediumPropMShiftReadG050SharedR256R384ByWriteTruePile(BamMediumPropMShiftReadG050ReadAttentionMLPSharedR384TruePile):
+  # 2026-10-14 user-paused at committed CP5400; resumable, not terminally rejected.
+  # Same a445bbc8 resumed from2859; 5000 loss gaps vs oldpair256 +.0044464,
+  # oldtriple384 +.0055738, singleRead050 -.0006984; MHA gain ratios .978257/.972893/1.003503.
+  # UE5a ~.461 step/s, P0; both leases23:28:31–01:15:49 and02:26:31–04:02:14UTC.
+  # TPU/queue absent; TB synced. Latest committed optimizer/data state retained.
     """R256 read/attention on non-MLP-write layers; all three share R384 on write layers."""
     # code_commit: a445bbc; UE5a v5p-16; actual FIRST_STEP, AOT and parameter count verified.
     # 20-99 speed 0.461225 step/s; vs singleRead050 +0.63%; health252 finite, gate init .5.

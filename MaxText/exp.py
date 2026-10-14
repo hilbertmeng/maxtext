@@ -12851,3 +12851,47 @@ class BamXLPropSharedR400GeneralReadMShiftReadG050TruePile(BamXLPropK96EmbedVOnl
     max_to_keep = 2
     tensorboard_gcs_rotate_period = 500
     compare_runs = ['BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile']
+
+
+class BamMediumPropMShiftReadG050FullQKNormTruePile(BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile):
+    """Full-head RMS QKNorm before RoPE; matched four-arm comparison."""
+    model_name = 'BamMediumPropMShiftReadG050FullQKNormTruePile'
+    bam_qk_norm_after_concat = True
+    compare_runs = ['BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile', 'BamMHAMediumPropC256QKNormTruePile', 'BamMHAMediumPropC256TruePile']
+    qk_norm = True
+    checkpoint_period = 200
+    keep_period = 0
+    max_to_keep = 2
+    tensorboard_gcs_rotate_period = 500
+    record_training_health_metrics = False
+    record_internal_nn_metrics = False
+    bam_record_m_shift_health = False
+    bam_record_concat_health = False
+    bam_record_fetched_read_health_metrics = False
+    bam_record_fetched_read_amplitude_metrics = False
+    bam_record_fetch_route_metrics = False
+    bam_record_local_routing_metrics = False
+    bam_record_local_qk_amplitude_metrics = False
+    jax_cache_dir = ''
+
+
+class BamMHAMediumPropC256QKNormTruePile(BamMHAMediumPropC256TruePile):
+    """Full-head RMS QKNorm before RoPE; matched four-arm comparison."""
+    model_name = 'BamMHAMediumPropC256QKNormTruePile'
+    bam_qk_norm_after_concat = False
+    compare_runs = ['BamMHAMediumPropC256TruePile']
+    qk_norm = True
+    checkpoint_period = 200
+    keep_period = 0
+    max_to_keep = 2
+    tensorboard_gcs_rotate_period = 500
+    record_training_health_metrics = False
+    record_internal_nn_metrics = False
+    bam_record_m_shift_health = False
+    bam_record_concat_health = False
+    bam_record_fetched_read_health_metrics = False
+    bam_record_fetched_read_amplitude_metrics = False
+    bam_record_fetch_route_metrics = False
+    bam_record_local_routing_metrics = False
+    bam_record_local_qk_amplitude_metrics = False
+    jax_cache_dir = ''

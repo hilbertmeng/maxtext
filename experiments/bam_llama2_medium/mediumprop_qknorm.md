@@ -1,0 +1,19 @@
+# Matched MediumProp BAM/MHA QKNorm
+
+Worktree /data0/xd/mediumprop-qknorm, branch codex/mediumprop-qknorm. Created from freshly fetched latest main0f7f6d10; fast-forwarded existing single-M-shift family152fdba3. Main remains0f7f6d10. Main infrastructure audit: no main-only fixes; train changes are shift-health reporting only. Inherit complete TBrotate500/begin_step and checkpoint/writer fixes. Port the default-ON generic telemetry guard verified in8ba35d8; both new arms explicitlyOFF, including all BAM diagnostic flags, at user's standing request. Optimizer/clipping unchanged.
+
+BAM: BamMediumPropMShiftReadG050FullQKNormTruePile, parent BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile. Shared readR256, independent attention/MLP writes, original single read.5 (not old sharing or activation-reuse arms). MLP[3802,3676,3802]. Full75 Q/K after dynamic/static/gated M57 reads concatenated with residual18, RMSNorm then RoPE only tail18, then original sqrt75 divisor. Existing gate/key RMSNorm and raw M carry unchanged. Added flag only active in new BAM; legacy paths preserved.
+
+MHA: BamMHAMediumPropC256QKNormTruePile, parent BamMHAMediumPropC256TruePile. Existing full75 QKNorm then partialRoPE74, unchanged C256 backbone. MLP and all model controls inherit parent.
+
+Both RMSNorm scales effective1 (parameter0 with direct_scale=False), FP32 statistics, epsilon1e-6; independent Q/K scale75, head-shared/per-layer. Scale WD0 inherited. No calibration to parent logits: normalization deliberately changes initial temperature; no learned additional temperature. Both add2700 parameters (.001875 W_Q total, .00010417/layer), negligible .000625%; no MLP compensation. CPU formal totals BAM432114380 vs432111680; MHA432123900 vs432121200. Preserve preexisting parent budget delta9520, add equal2700.
+
+TruePile4096 batch128 seed9876,13500 bound, review2800, CP200 keep2/no permanent,TB500. Native windows200, agent1000. UE5a v5p16 spot, no backups per current task. Borrow user FLEX llm-jax-v6e-1-0/EW4a, verified FLEX_START guaranteed ACTIVE and no train/compile/diagnostic worker. Never release it.
+
+BAM newID310220 will hot-replace user-authorized old R384 activation reuse on physicalxd-v5p-16-310219-maxtext after CPU+AOT gates; MHA newID310221 newTPU. Do not allocate an extra BAM trainer while old slot is retained.
+
+Second-order=(L_MHA_QK-L_BAM_QK)/(L_MHA-L_BAM), identical complete four-way windows. Also report individual QKNorm gains and their signed difference. Persistent scripts/report_qknorm_interaction.py reads registry caches, supports four specified RUNs, guards missing windows and nonpositive denominator. All ordinary gains retain MHA reference; do not substitute Mudd. Report sequences, not single points.
+
+Bet correction BEFORE launch: initial subjective1.03 [.98,1.08] was made without historical review and withdrawn. Old Paired40Rank2 four-way historical series1k..6.4k=.6264,.7089,.7593,.7607,.7784,.7796,.7849; MHA benefits more, BAM stopped6549, no terminal. OlderNoMNorm QKNorm harmedBAM. Revised subjective terminal second-order.90 [.80,1.00], not a fitted extrapolation; current concat57+18/generalizedread/Mshift/TruePile differs from old additive architecture/data. Historical evidence /data0/xd/bam_diagnostics/mediumprop-qknorm/history-rank2.json. Speed prior matched-telemetry QKNorm overhead0–3%; actual historical-parent timing includes telemetryOFF benefit and cannot isolate architecture.
+
+CPU tests: exact full75 norm placement beforeRoPE18/74, effective scale1, safe zero inputs, scale and shift gradients, scan causality, full parameter budgets, unchanged baseline paths via full BAM regressions, TB writer tests; FIRST_STEP/AOT/actual worker totals required after launch.

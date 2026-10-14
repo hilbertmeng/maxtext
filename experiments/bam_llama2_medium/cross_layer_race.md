@@ -186,3 +186,54 @@ Complete first-stint leases (UTC; v5p16, UE5a):
 | `BamMediumPropMShiftReadG050CrossReadAttnR384DirectThirdsTruePile` | 2 | `us-east5-a` | 2026-10-14 05:16:56 | 2026-10-14 07:19:58 | 2h3m02s | temporary stop, subsequently resume requested; node/queue absent, TB SYNC_OK |
 | `BamMediumPropMShiftReadG050CrossTripleR512ConservativeBlockTruePile` | 1 | `us-east5-a` | 2026-10-14 04:47:42 | 2026-10-14 07:20:01 | 2h32m19s | review stop3561; node/queue absent, TB SYNC_OK |
 | `BamMediumPropMShiftReadG050CrossTripleR384ConservativeInner384ThirdsTruePile` | 1 | `us-east5-a` | 2026-10-14 05:12:11 | 2026-10-14 07:20:05 | 2h7m54s | temporary stop, subsequently resume requested; node/queue absent, TB SYNC_OK |
+
+Square384 direct-control correction: against ReadAttnR384 conservative thirds, its gaps at1000/2000/3000/3200 are+.008979/+.002069/+.0032346/+.0045814 (last5 mean+.0046118), with4.1472M fewer MLP parameters (-1.6486%), ~0.33% slower and no M-cache reduction. Wider384 bridge/MLP-shared representation has no demonstrated payoff. Restoring based only on the weaker512conthird comparator was incomplete; square384 remains a priority5000 stop candidate subject to user confirmation. Always inspect closest architectural control as well as common SOTA before deciding.
+
+### Second elimination review timing (user clarification)
+
+Conduct the collective review when most other contenders reach 5,000 steps. Square384 need not reach 5,000: it may be proposed for stopping based on available matched-step comparisons and its full trend. This supersedes the mistaken per-arm-only interpretation. Present the proposed elimination list and wait for explicit user confirmation before execution. Square384 remains a priority candidate. Resumed arms203/216 both verified committed checkpoint3600 with expected TruePile data cursor (seed9876, batch128).
+
+At the second review, all R384-family contenders must also be judged against old read+attention sharedR256, alongside common old tripleR384. Report matched-step gap and MHA-reference gain-ratio trends for both, plus speed and MLP budget. Distinguish within-family improvements from overall competitiveness; square384 retains its closest conservative384thirds control. Both baseline/ratio registrations already exist.
+
+User additionally requires MLP absolute/percentage deltas vs oldR256 for the R384-family comparison. Audited oldR256 MLP=249,177,600 ([3887,3762,3887]); retain the original single-read.5 reference column as well.
+
+4k comparison: R384 conservative block/thirds, direct thirds, square384 gaps vs oldR256 = +.0005186/+.0032884/+.0055356/+.0074182; MHA-reference ratios=.997671/.985232/.975141/.966686. Between3k and4k the first3 ratios are flat/slightly worse; square worsens from.972503. Catchup vs oldTripleR384 must not be conflated with improving vs oldR256. Every future R384 summary must show both baseline gap/gain sequences alongside MLP deltas; initial4k omission was corrected in a supplemental table.
+
+### Second review executed after explicit confirmation
+
+- `BamMediumPropMShiftReadG050CrossTripleR512ConservativeThirdsTruePile`: stopped CP5198; BamMediumPropMShiftReadG050ReadAttentionMLPSharedR384TruePile: last5000 gap+0.008843, last5mean+0.009043; BamMediumPropMShiftReadG050ReadAttentionSharedR256TruePile: last5000 gap+0.007716, last5mean+0.008159. P1, UE5a v5p-16, no zone switch; resources absent and TB SYNC_OK.
+
+```text
+BamMediumPropMShiftReadG050CrossTripleR512ConservativeThirdsTruePile: preemptions=1 ready_leases=2
+01           -  us-east5-a  xd-v5p-16-310205-maxtext  - -> 2026-10-14T05:10:42Z  preempted
+02    3h12m28s  us-east5-a  xd-v5p-16-310205-maxtext  2026-10-14T05:20:13Z -> 2026-10-14T08:32:41Z  run_stop
+```
+
+- `BamMediumPropMShiftReadG050CrossTripleR512DirectBlockTruePile`: stopped CP6200; BamMediumPropMShiftReadG050ReadAttentionMLPSharedR384TruePile: last6000 gap+0.002614, last5mean+0.003939; BamMediumPropMShiftReadG050ReadAttentionSharedR256TruePile: last6000 gap+0.003191, last5mean+0.003501. P0, UE5a v5p-16, no zone switch; resources absent and TB SYNC_OK.
+
+```text
+BamMediumPropMShiftReadG050CrossTripleR512DirectBlockTruePile: preemptions=0 ready_leases=1
+01    3h47m09s  us-east5-a  xd-v5p-16-310206-maxtext  2026-10-14T04:47:42Z -> 2026-10-14T08:34:51Z  run_stop
+```
+
+- `BamMediumPropMShiftReadG050CrossTripleR384ConservativeInner384ThirdsTruePile`: stopped CP4960; BamMediumPropMShiftReadG050ReadAttentionMLPSharedR384TruePile: last4800 gap+0.007699, last5mean+0.007783; BamMediumPropMShiftReadG050ReadAttentionSharedR256TruePile: last4800 gap+0.006972, last5mean+0.007072; BamMediumPropMShiftReadG050CrossReadAttnR384ConservativeThirdsTruePile: last4800 gap+0.003718, last5mean+0.004017; BamMediumPropMShiftReadG050CrossTripleR512ConservativeThirdsTruePile: last4800 gap-0.001126, last5mean-0.001118. P0, UE5a v5p-16, no zone switch; resources absent and TB SYNC_OK.
+
+```text
+BamMediumPropMShiftReadG050CrossTripleR384ConservativeInner384ThirdsTruePile: preemptions=0 ready_leases=2
+01    2h07m54s  us-east5-a  xd-v5p-16-310216-maxtext  2026-10-14T05:12:11Z -> 2026-10-14T07:20:05Z  run_stop
+02      59m02s  us-east5-a  xd-v5p-16-310216-maxtext  2026-10-14T07:33:42Z -> 2026-10-14T08:32:44Z  run_stop
+```
+
+Remaining: conservative384 block/thirds, direct384 thirds, direct512 thirds.
+
+### Direct R384 thirds own5k review closeout
+
+User confirmed stop CP5157; all resources absent and TB SYNC_OK. BamMediumPropMShiftReadG050ReadAttentionMLPSharedR384TruePile: last5000 gap+0.005535, last5mean+0.005661; BamMediumPropMShiftReadG050ReadAttentionSharedR256TruePile: last5000 gap+0.004407, last5mean+0.004777. No zone switch.
+
+```text
+BamMediumPropMShiftReadG050CrossReadAttnR384DirectThirdsTruePile: preemptions=2 ready_leases=4
+01      14m03s  us-east5-a  xd-v5p-16-310203-maxtext  2026-10-14T04:51:49Z -> 2026-10-14T05:05:52Z  preempted
+02    2h03m02s  us-east5-a  xd-v5p-16-310203-maxtext  2026-10-14T05:16:56Z -> 2026-10-14T07:19:58Z  run_stop
+03      41m29s  us-east5-a  xd-v5p-16-310203-maxtext  2026-10-14T07:33:20Z -> 2026-10-14T08:14:49Z  preempted
+04      24m59s  us-east5-a  xd-v5p-16-310203-maxtext  2026-10-14T08:22:06Z -> 2026-10-14T08:47:05Z  run_stop
+```

@@ -12932,3 +12932,47 @@ class BamMediumPropMShiftReadG050CrossTripleR384ConservativeInner384ThirdsTruePi
     bam_mlp_write_address_rank = 384
     mlp_dim_by_block = [3860, 3734, 3860]
     compare_runs = ['BamMediumPropMShiftReadG050CrossTripleR384ConservativeThirdsTruePile', 'BamMediumPropMShiftReadG050CrossTripleR512ConservativeThirdsTruePile', 'BamMediumPropMShiftReadG050ReadAttentionMLPSharedR384TruePile', 'BamMediumPropMShiftReadG050ReadAttentionSharedR256TruePile']
+
+
+class BamXLPropSharedR400GeneralReadMShiftReadG050TruePile(BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile):
+    """XL transfer of single read-only previous-token M mix, v40 gate initially .5."""
+    model_name = 'BamXLPropSharedR400GeneralReadMShiftReadG050TruePile'
+    bam_m_shift_mode = 'read'
+    bam_m_shift_init = .5
+    wd_mults = BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile.wd_mults + [('.*M_shift_gate_b0$', 0.0)]
+    bam_m_shift_separate_reads = False
+    bam_m_shift_two_lag = False
+    bam_kv_shift = False
+    bam_record_m_shift_health = True
+    bam_m_shift_compact_health = True
+    mlp_dim_by_block = [6127, 5938, 6127]
+    bam_final_local_mlp_dim = 6126
+    checkpoint_period = 250
+    keep_period = 0
+    max_to_keep = 2
+    tensorboard_gcs_rotate_period = 500
+    compare_runs = ['BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile']
+
+
+class BamXLPropMShiftReadG050ReadAttentionSharedR384TruePile(BamXLPropSharedR400GeneralReadMShiftReadG050TruePile):
+    """XL transfer of Medium oldR256: shared read/attention down, private MLP down."""
+    model_name = 'BamXLPropMShiftReadG050ReadAttentionSharedR384TruePile'
+    bam_share_read_attention_write_down = True
+    bam_share_mlp_write_down = False
+    bam_local_full_m_read_bottleneck_dim = 384
+    bam_write_v_bottleneck_dim = 384
+    bam_mlp_write_address_rank = 384
+    mlp_dim_by_block = [6274, 6086, 6274]
+    bam_final_local_mlp_dim = 6282
+    compare_runs = ['BamXLPropSharedR400GeneralReadMShiftReadG050TruePile',
+                    'BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile']
+    # User requested minimal training telemetry; loss/accuracy/LR/throughput remain.
+    record_training_health_metrics = False
+    record_internal_nn_metrics = False
+    bam_record_m_shift_health = False
+    bam_record_concat_health = False
+    bam_record_fetched_read_health_metrics = False
+    bam_record_fetched_read_amplitude_metrics = False
+    bam_record_fetch_route_metrics = False
+    bam_record_local_routing_metrics = False
+    bam_record_local_qk_amplitude_metrics = False

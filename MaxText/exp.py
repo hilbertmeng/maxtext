@@ -12700,3 +12700,64 @@ class PythiaArchitecture(Common):
     bam_enabled = False
     dense_conn = False
     sliding_window_size = None
+
+
+class PythiaMediumPropT2048(PythiaArchitecture, Llama2MediumProp):
+    """Pythia MediumProp; T2048 x global batch256, 524288 tokens/step."""
+    model_name = 'PythiaMediumPropT2048'
+    DATASET_VARIANT = 'legacy2048'
+    base_mlp_dim = 4800
+    pythia_rotary_dim = 18  # Explicit even prefix for the inherited head_dim75.
+    max_target_length = 2048
+    per_device_batch_size = 32.0
+    steps = 13500
+    learning_rate_schedule_steps = 13500
+    attention = 'flash'
+    query_chunk_size = 256
+    qk_norm = False
+    checkpoint_period = 200
+    keep_period = 0
+    max_to_keep = 2
+    force_final_checkpoint = True
+    tensorboard_gcs_rotate_period = 500
+    record_training_health_metrics = False
+    record_internal_nn_metrics = False
+    jax_cache_dir = ''
+    compare_runs = ['BamMHAMediumPropC256T2048Matched']
+
+
+class MuddPythiaMediumPropT2048(Mudd, PythiaMediumPropT2048):
+    """Full-history Mudd on Pythia; preserve historical MLP allocation and router overhead."""
+    model_name = 'MuddPythiaMediumPropT2048'
+    pythia_use_fusion = True
+    mudd_full_history = True
+    scan_layers = False  # Growing history, same execution as the verified Mudd parent.
+    base_mlp_dim = 4800
+    dynamic_mlp_dim = True  # Preserve old Mudd: router overhead is additional.
+    compare_runs = ['PythiaMediumPropT2048', 'MuddLlama2MediumPropC256T2048']
+
+
+class BamPythiaMediumPropT2048MShiftReadG050ReadAttentionSharedR256(
+        PythiaMediumPropT2048,
+        BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile):
+    """Shared read/attention-write R256; independent MLP-write down; read M-shift .5."""
+    model_name = 'BamPythiaMediumPropT2048MShiftReadG050ReadAttentionSharedR256'
+    pythia_use_fusion = True
+    bam_enabled = True
+    bam_pair_scan = True
+    bam_share_read_attention_write_down = True
+    bam_share_mlp_write_down = False
+    bam_m_shift_mode = 'read'
+    bam_m_shift_init = 0.5
+    bam_record_m_shift_health = False
+    # Preserve the parent's 57 BAM coordinates + 18 rotary standard coordinates.
+    bam_partial_rope = True
+    bam_partial_rope_nope_dim = 57
+    mlp_dim_by_block = [5832, 5643, 5832]  # -3310 params vs MHA (integer widths).
+    bam_record_concat_health = False
+    bam_record_fetched_read_health_metrics = False
+    bam_record_fetched_read_amplitude_metrics = False
+    bam_record_fetch_route_metrics = False
+    bam_record_local_routing_metrics = False
+    bam_record_local_qk_amplitude_metrics = False
+    compare_runs = ['PythiaMediumPropT2048', 'MuddPythiaMediumPropT2048']

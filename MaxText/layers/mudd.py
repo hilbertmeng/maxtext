@@ -43,7 +43,7 @@ class Norm(nn.Module):
     cfg = self.config
     assert isinstance(inputs, (tuple, list, jnp.ndarray)) and len(inputs) == 3
     name = 'pre_self_attention_layer_norm'
-    lnx_q, lnx_k, lnx_v = [normalizations.get_rmsnorm(f'{name}_{suffix}', cfg)(inp) for inp, suffix in zip(inputs, 'qkv')]
+    lnx_q, lnx_k, lnx_v = [normalizations.get_decoder_norm(f'{name}_{suffix}', cfg)(inp) for inp, suffix in zip(inputs, 'qkv')]
     return lnx_q, lnx_k, lnx_v
 
 

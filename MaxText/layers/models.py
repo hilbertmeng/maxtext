@@ -527,7 +527,7 @@ class Decoder(nn.Module):
       self.embedding_bam_write = EmbeddingBamWrite(
           config=cfg, num_write_heads=write_heads, dtype=cfg.dtype,
           weight_dtype=cfg.weight_dtype, quant=self.quant,
-          kernel_init=initializers.get_init_method(cfg.init_method),
+          kernel_init=initializers.get_model_init(cfg),
           name="embedding_bam_write")
     if self.config.using_pipeline_parallelism:
       pipeline_stage_module = self.get_pipeline_stage_module(self.decoder_layer[0])
@@ -597,6 +597,9 @@ class Decoder(nn.Module):
 
       return [gemma2.Gemma2DecoderLayer]
     elif self.config.decoder_block == "pythia":
+      if self.config.pythia_use_fusion:
+        from layers import fusion
+        return [fusion.FusionDecoderLayer]
       from layers import pythia
 
       return [pythia.PythiaDecoderLayer]
@@ -665,7 +668,7 @@ class Decoder(nn.Module):
     )
     module_kwargs = dict(
         config=cfg, mesh=mesh, name=metdata_axis_name, quant=self.quant)
-    if cfg.decoder_block == 'fusion':
+    if cfg.decoder_block == 'fusion' or (cfg.decoder_block == 'pythia' and cfg.pythia_use_fusion):
       module_kwargs.update(
           sliding_window_size=sliding_window_size, scan_length=scan_length,
           all_global_attention=all_global_attention)
@@ -917,7 +920,7 @@ class Decoder(nn.Module):
 
           block_size = getattr(cfg, 'bam_local_fetch_block_size', None) or 2
           assert block_size >= 2 and scan_length > 0 and scan_length % block_size == 0
-          assert cfg.decoder_block == 'fusion' and cfg.bam_enabled
+          assert cfg.decoder_block in ('fusion', 'pythia') and cfg.bam_enabled
           assert len(cfg.bam_layer_modes) == cfg.num_decoder_layers
           modes = cfg.bam_layer_modes[:scan_length]
           assert modes == modes[:block_size] * (scan_length // block_size)

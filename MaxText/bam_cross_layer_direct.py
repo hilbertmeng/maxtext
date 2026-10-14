@@ -71,6 +71,7 @@ def select_units(features,score,rank):
   Avoid full QR of a many-thousand-column bank. Double precision Gram and
   residuals, unique pivots; caller uses only calibration inputs and sensitivities.
   """
+  assert features.shape[0]>rank, (features.shape,rank)
   f=features.astype(np.float64);f-=f.mean(0)
   f*=np.sqrt(np.maximum(score,1e-20))
   gram=f.T@f;diag=np.diag(gram).copy();total=float(diag.sum())
@@ -151,7 +152,7 @@ def run(cfg):
     layers.append(dict(index=i,scan=scan,dp=dp,w=np.asarray(flat[dp][:,scan],np.float32),xs=xs,hs=hs,heads=heads,score=score))
   report=dict(checkpoint=cfg.load_parameters_path,diagnostic_commit=subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip(),
       rank_before=r,rank_shared=rank,fit_sequences=96,heldout_sequences=32,sequence_hashes=hashes,
-      fit_indices=[32,128],heldout_indices=[0,32],selection_rows_per_input=128,sampling_stride=STRIDE,
+      fit_indices=[32,128],heldout_indices=[0,32],selection_rows_per_input=256,sampling_stride=STRIDE,
       method='calibration native-GELU unit selection + ridge affine Up refit',variants={},banks=[],reconstruction=[])
   plain=jax.jit(lambda p,b:forward(model,p,b,rng,False)[0])
   def evaluate(p):
@@ -176,7 +177,7 @@ def run(cfg):
         score=np.concatenate([layers[i]['score'] for i in ids]);inputs=[]
         for i in ids:
           for x in layers[i]['xs']:
-            xf=x[fit];indices=np.linspace(0,len(xf)-1,128,dtype=int);inputs.append(xf[indices])
+            xf=x[fit];indices=np.random.default_rng(20261013+i).choice(len(xf),256,replace=False);inputs.append(xf[indices])
         inputs=np.concatenate(inputs)
         features=np.asarray(hidden(inputs,bank))
         chosen,details=select_units(features,score,rank);joint=bank[:,chosen]

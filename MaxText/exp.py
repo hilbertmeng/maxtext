@@ -350,6 +350,9 @@ class BamLlama2Medium(Llama2Medium):
     bam_record_m_shift_health = False
     bam_m_shift_compact_health = False
     bam_shared_projection_rank_by_block = None
+    bam_cross_layer_rank = 0
+    bam_cross_layer_group_size = 3
+    bam_cross_layer_mode = "direct"
     bam_share_read_attention_write_down = False
     bam_share_mlp_write_down = False
     bam_write_v_bottleneck_dim = None  # optional P_loc: D -> r -> n*v
@@ -12767,3 +12770,88 @@ class BamMediumPropMShiftReadG050ReadAttentionMLPSharedR256TruePile(BamMediumPro
     bam_write_v_bottleneck_dim = 256
     bam_mlp_write_address_rank = 256
     mlp_dim_by_block = [3915, 3791, 3915]
+
+
+# Cross-layer projection sharing factorial race; all retain single M-shift read .5.
+
+class BamMediumPropMShiftReadG050CrossReadAttnR384ConservativeBlockTruePile(BamMediumPropMShiftReadG050ReadAttentionSharedR256TruePile):
+    """Conservative cross-layer shared R384, inner R256, 3 consecutive layers per bank."""
+    model_name = 'BamMediumPropMShiftReadG050CrossReadAttnR384ConservativeBlockTruePile'
+    bam_cross_layer_rank = 384
+    bam_cross_layer_group_size = 3
+    bam_cross_layer_mode = 'conservative'
+    mlp_dim_by_block = [3903, 3777, 3902]
+    compare_runs = ['BamMediumPropMShiftReadG050ReadAttentionSharedR256TruePile', 'BamMediumPropMShiftReadG050ReadAttentionMLPSharedR384TruePile']
+
+class BamMediumPropMShiftReadG050CrossReadAttnR384ConservativeThirdsTruePile(BamMediumPropMShiftReadG050ReadAttentionSharedR256TruePile):
+    """Conservative cross-layer shared R384, inner R256, 6 consecutive layers per bank."""
+    model_name = 'BamMediumPropMShiftReadG050CrossReadAttnR384ConservativeThirdsTruePile'
+    bam_cross_layer_rank = 384
+    bam_cross_layer_group_size = 6
+    bam_cross_layer_mode = 'conservative'
+    mlp_dim_by_block = [3924, 3798, 3924]
+    compare_runs = ['BamMediumPropMShiftReadG050ReadAttentionSharedR256TruePile', 'BamMediumPropMShiftReadG050ReadAttentionMLPSharedR384TruePile']
+
+class BamMediumPropMShiftReadG050CrossReadAttnR384DirectBlockTruePile(BamMediumPropMShiftReadG050ReadAttentionSharedR256TruePile):
+    """Direct cross-layer shared R384, inner R256, 3 consecutive layers per bank."""
+    model_name = 'BamMediumPropMShiftReadG050CrossReadAttnR384DirectBlockTruePile'
+    bam_cross_layer_rank = 384
+    bam_cross_layer_group_size = 3
+    bam_cross_layer_mode = 'direct'
+    mlp_dim_by_block = [3857, 3732, 3857]
+    compare_runs = ['BamMediumPropMShiftReadG050ReadAttentionSharedR256TruePile', 'BamMediumPropMShiftReadG050ReadAttentionMLPSharedR384TruePile']
+    bam_local_full_m_read_bottleneck_dim = 384
+    bam_write_v_bottleneck_dim = 384
+
+class BamMediumPropMShiftReadG050CrossReadAttnR384DirectThirdsTruePile(BamMediumPropMShiftReadG050ReadAttentionSharedR256TruePile):
+    """Direct cross-layer shared R384, inner R256, 6 consecutive layers per bank."""
+    model_name = 'BamMediumPropMShiftReadG050CrossReadAttnR384DirectThirdsTruePile'
+    bam_cross_layer_rank = 384
+    bam_cross_layer_group_size = 6
+    bam_cross_layer_mode = 'direct'
+    mlp_dim_by_block = [3879, 3753, 3878]
+    compare_runs = ['BamMediumPropMShiftReadG050ReadAttentionSharedR256TruePile', 'BamMediumPropMShiftReadG050ReadAttentionMLPSharedR384TruePile']
+    bam_local_full_m_read_bottleneck_dim = 384
+    bam_write_v_bottleneck_dim = 384
+
+class BamMediumPropMShiftReadG050CrossTripleR512ConservativeBlockTruePile(BamMediumPropMShiftReadG050ReadAttentionMLPSharedR384TruePile):
+    """Conservative cross-layer shared R512, inner R384, 3 consecutive layers per bank."""
+    model_name = 'BamMediumPropMShiftReadG050CrossTripleR512ConservativeBlockTruePile'
+    bam_cross_layer_rank = 512
+    bam_cross_layer_group_size = 3
+    bam_cross_layer_mode = 'conservative'
+    mlp_dim_by_block = [3811, 3685, 3810]
+    compare_runs = ['BamMediumPropMShiftReadG050ReadAttentionMLPSharedR384TruePile', 'BamMediumPropMShiftReadG050ReadAttentionSharedR256TruePile']
+
+class BamMediumPropMShiftReadG050CrossTripleR512ConservativeThirdsTruePile(BamMediumPropMShiftReadG050ReadAttentionMLPSharedR384TruePile):
+    """Conservative cross-layer shared R512, inner R384, 6 consecutive layers per bank."""
+    model_name = 'BamMediumPropMShiftReadG050CrossTripleR512ConservativeThirdsTruePile'
+    bam_cross_layer_rank = 512
+    bam_cross_layer_group_size = 6
+    bam_cross_layer_mode = 'conservative'
+    mlp_dim_by_block = [3839, 3713, 3839]
+    compare_runs = ['BamMediumPropMShiftReadG050ReadAttentionMLPSharedR384TruePile', 'BamMediumPropMShiftReadG050ReadAttentionSharedR256TruePile']
+
+class BamMediumPropMShiftReadG050CrossTripleR512DirectBlockTruePile(BamMediumPropMShiftReadG050ReadAttentionMLPSharedR384TruePile):
+    """Direct cross-layer shared R512, inner R384, 3 consecutive layers per bank."""
+    model_name = 'BamMediumPropMShiftReadG050CrossTripleR512DirectBlockTruePile'
+    bam_cross_layer_rank = 512
+    bam_cross_layer_group_size = 3
+    bam_cross_layer_mode = 'direct'
+    mlp_dim_by_block = [3786, 3661, 3786]
+    compare_runs = ['BamMediumPropMShiftReadG050ReadAttentionMLPSharedR384TruePile', 'BamMediumPropMShiftReadG050ReadAttentionSharedR256TruePile']
+    bam_local_full_m_read_bottleneck_dim = 512
+    bam_write_v_bottleneck_dim = 512
+    bam_mlp_write_address_rank = 512
+
+class BamMediumPropMShiftReadG050CrossTripleR512DirectThirdsTruePile(BamMediumPropMShiftReadG050ReadAttentionMLPSharedR384TruePile):
+    """Direct cross-layer shared R512, inner R384, 6 consecutive layers per bank."""
+    model_name = 'BamMediumPropMShiftReadG050CrossTripleR512DirectThirdsTruePile'
+    bam_cross_layer_rank = 512
+    bam_cross_layer_group_size = 6
+    bam_cross_layer_mode = 'direct'
+    mlp_dim_by_block = [3815, 3689, 3815]
+    compare_runs = ['BamMediumPropMShiftReadG050ReadAttentionMLPSharedR384TruePile', 'BamMediumPropMShiftReadG050ReadAttentionSharedR256TruePile']
+    bam_local_full_m_read_bottleneck_dim = 512
+    bam_write_v_bottleneck_dim = 512
+    bam_mlp_write_address_rank = 512

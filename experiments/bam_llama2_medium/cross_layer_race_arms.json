@@ -1,0 +1,146 @@
+[
+  {
+    "run": "BamMediumPropMShiftReadG050CrossReadAttnR384ConservativeBlockTruePile",
+    "parent": "BamMediumPropMShiftReadG050ReadAttentionSharedR256TruePile",
+    "old_rank": 256,
+    "rank": 384,
+    "mode": "conservative",
+    "group_size": 3,
+    "mlp": [
+      3903,
+      3777,
+      3902
+    ],
+    "params": 432109952,
+    "projection_saved": 995328,
+    "id": 310200,
+    "bet_gap": -0.003,
+    "bet_speed_pct": -3
+  },
+  {
+    "run": "BamMediumPropMShiftReadG050CrossReadAttnR384ConservativeThirdsTruePile",
+    "parent": "BamMediumPropMShiftReadG050ReadAttentionSharedR256TruePile",
+    "old_rank": 256,
+    "rank": 384,
+    "mode": "conservative",
+    "group_size": 6,
+    "mlp": [
+      3924,
+      3798,
+      3924
+    ],
+    "params": 432109952,
+    "projection_saved": 2377728,
+    "id": 310201,
+    "bet_gap": -0.005,
+    "bet_speed_pct": -3
+  },
+  {
+    "run": "BamMediumPropMShiftReadG050CrossReadAttnR384DirectBlockTruePile",
+    "parent": "BamMediumPropMShiftReadG050ReadAttentionSharedR256TruePile",
+    "old_rank": 256,
+    "rank": 384,
+    "mode": "direct",
+    "group_size": 3,
+    "mlp": [
+      3857,
+      3732,
+      3857
+    ],
+    "params": 432121472,
+    "projection_saved": -1953792,
+    "id": 310202,
+    "bet_gap": 0.002,
+    "bet_speed_pct": 0
+  },
+  {
+    "run": "BamMediumPropMShiftReadG050CrossReadAttnR384DirectThirdsTruePile",
+    "parent": "BamMediumPropMShiftReadG050ReadAttentionSharedR256TruePile",
+    "old_rank": 256,
+    "rank": 384,
+    "mode": "direct",
+    "group_size": 6,
+    "mlp": [
+      3879,
+      3753,
+      3878
+    ],
+    "params": 432121472,
+    "projection_saved": -571392,
+    "id": 310203,
+    "bet_gap": -0.003,
+    "bet_speed_pct": 0
+  },
+  {
+    "run": "BamMediumPropMShiftReadG050CrossTripleR512ConservativeBlockTruePile",
+    "parent": "BamMediumPropMShiftReadG050ReadAttentionMLPSharedR384TruePile",
+    "old_rank": 384,
+    "rank": 512,
+    "mode": "conservative",
+    "group_size": 3,
+    "mlp": [
+      3811,
+      3685,
+      3810
+    ],
+    "params": 432108032,
+    "projection_saved": 1069056,
+    "id": 310204,
+    "bet_gap": -0.004,
+    "bet_speed_pct": -5
+  },
+  {
+    "run": "BamMediumPropMShiftReadG050CrossTripleR512ConservativeThirdsTruePile",
+    "parent": "BamMediumPropMShiftReadG050ReadAttentionMLPSharedR384TruePile",
+    "old_rank": 384,
+    "rank": 512,
+    "mode": "conservative",
+    "group_size": 6,
+    "mlp": [
+      3839,
+      3713,
+      3839
+    ],
+    "params": 432100832,
+    "projection_saved": 2912256,
+    "id": 310205,
+    "bet_gap": -0.006,
+    "bet_speed_pct": -5
+  },
+  {
+    "run": "BamMediumPropMShiftReadG050CrossTripleR512DirectBlockTruePile",
+    "parent": "BamMediumPropMShiftReadG050ReadAttentionMLPSharedR384TruePile",
+    "old_rank": 384,
+    "rank": 512,
+    "mode": "direct",
+    "group_size": 3,
+    "mlp": [
+      3786,
+      3661,
+      3786
+    ],
+    "params": 432104096,
+    "projection_saved": -503808,
+    "id": 310206,
+    "bet_gap": -0.003,
+    "bet_speed_pct": -1
+  },
+  {
+    "run": "BamMediumPropMShiftReadG050CrossTripleR512DirectThirdsTruePile",
+    "parent": "BamMediumPropMShiftReadG050ReadAttentionMLPSharedR384TruePile",
+    "old_rank": 384,
+    "rank": 512,
+    "mode": "direct",
+    "group_size": 6,
+    "mlp": [
+      3815,
+      3689,
+      3815
+    ],
+    "params": 432118496,
+    "projection_saved": 1339392,
+    "id": 310207,
+    "bet_gap": -0.007,
+    "bet_speed_pct": -1
+  }
+]

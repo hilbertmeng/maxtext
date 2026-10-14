@@ -2494,6 +2494,27 @@ def bam_m_shift_health(M, mixed, gate, segment_ids=None, positions=None):
   return stats, jnp.stack((column_mean, column_std)), state
 
 
+class CrossLayerBridge(nn.Module):
+  """Fixed orthonormal map plus a zero-initialized, decayed residual."""
+  features: int
+  dtype: Any
+  weight_dtype: Any
+  precision: Any
+
+  @nn.compact
+  def __call__(self, x):
+    r, n = x.shape[-1], self.features
+    assert r >= n
+    delta = self.param('kernel', nn.with_logical_partitioning(nn.initializers.zeros, (None, None)),
+                       (r, n), self.weight_dtype)
+    rows = jnp.arange(r, dtype=jnp.float32)[:, None] + .5
+    cols = jnp.arange(n, dtype=jnp.float32)[None, :]
+    c0 = jnp.cos(jnp.pi * rows * cols / r) * jnp.sqrt(2. / r)
+    c0 = c0.at[:, 0].multiply(1 / jnp.sqrt(2.))
+    return jnp.einsum('...r,rn->...n', x.astype(self.dtype), (c0 + delta).astype(self.dtype),
+                      precision=self.precision)
+
+
 class BamAttention(Attention):
   """MHA plus a matrix stream written every BAM layer and optionally read by LocalQK/full."""
 
@@ -3017,7 +3038,7 @@ class BamAttention(Attention):
       loc_v = self.bam_v
       if self._write_v_bottleneck_dim is not None:
         if self._share_read_attention_down:
-          assert hasattr(self, 'full_m_read_down'), 'Reader setup must create the shared bank'
+          assert hasattr(self, 'full_m_read_down') or getattr(cfg, 'bam_cross_layer_rank', 0), 'Reader setup must create the shared bank'
         else:
           self.P_loc_down = DenseGeneral(
               features=self._write_v_bottleneck_dim, axis=-1,
@@ -3183,6 +3204,14 @@ class BamAttention(Attention):
         ('up', features, ('embed',) + axes[1:])):
       parameter_name = ('full_m_read_down' if suffix == 'down' and self._full_m_read_share_down
                         else f'{name}_{suffix}')
+      if suffix == 'down' and getattr(cfg, 'bam_cross_layer_rank', 0):
+        assert self._full_m_read_share_down and self._share_read_attention_down
+        if cfg.bam_cross_layer_mode == 'conservative' and not hasattr(self, 'cross_layer_bridge'):
+          assert self.quant is None
+          self.cross_layer_bridge = CrossLayerBridge(
+              features=output, dtype=self.dtype, weight_dtype=self.weight_dtype,
+              precision=cfg.matmul_precision, name='cross_layer_bridge')
+        continue
       if suffix == 'down' and self._full_m_read_share_down and hasattr(self, parameter_name):
         continue
       setattr(self, parameter_name, DenseGeneral(
@@ -3481,10 +3510,20 @@ class BamAttention(Attention):
         rope, positions, name=name, embedding_dims=rope.shape[-1])
     return jnp.concatenate((nope, rope), axis=-1)
 
-  def shared_read_write_features(self, x):
+  def _cross_layer_project(self, x, shared_down):
+    if shared_down is None:
+      assert not getattr(self.config, 'bam_cross_layer_rank', 0)
+      return self.full_m_read_down(x)
+    z = jnp.einsum('...d,dr->...r', x.astype(self.dtype), shared_down.astype(self.dtype),
+                   precision=self.config.matmul_precision)
+    if self.config.bam_cross_layer_mode == 'conservative':
+      z = self.cross_layer_bridge(z)
+    return z
+
+  def shared_read_write_features(self, x, shared_down=None):
     """The tied down projection; MLP calls it on its own post-attention input."""
     assert self._share_read_attention_down
-    return nn.gelu(self.full_m_read_down(x))
+    return nn.gelu(self._cross_layer_project(x, shared_down))
 
   def _write(self, o_head, x, M_in, shared_hidden=None):
     """Write primitive (§4.2 safe write: aggregated U (outer) local V). o_head: [b,t,n,d] head output (pre W_O).
@@ -3948,6 +3987,7 @@ class BamAttention(Attention):
       is_global: Array | bool | None = None,
       layer_index: Array | int | None = None,
       defer_write: bool = False,
+      shared_down: Array | None = None,
   ):
     """BAM forward. Returns (out, M_out): out [b,t,emb_dim], M_out [b,t,k,v].
 
@@ -3976,7 +4016,7 @@ class BamAttention(Attention):
       if self._m_shift_mode == 'persist':
         M_in = M_read  # Existing attention/MLP writes accumulate onto the mixed carry.
 
-    full_m_shared_hidden = (nn.gelu(self.full_m_read_down(inputs_q))
+    full_m_shared_hidden = (nn.gelu(self._cross_layer_project(inputs_q, shared_down))
                             if getattr(self, '_full_m_read_share_down', False) else None)
 
     concat_qk = bool(getattr(cfg, 'bam_concat_qk', False))

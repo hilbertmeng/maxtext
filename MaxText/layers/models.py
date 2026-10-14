@@ -630,6 +630,8 @@ class Decoder(nn.Module):
           nn.broadcast, nn.broadcast, nn.broadcast, 0)
       if scan_layer_index:
         in_axes += (nn.broadcast, nn.broadcast, 0)
+        if getattr(cfg, "bam_cross_layer_rank", 0):
+          in_axes += (nn.broadcast,)
     elif scan_hids:
       in_axes = (
           nn.broadcast, nn.broadcast, nn.broadcast,
@@ -969,6 +971,18 @@ class Decoder(nn.Module):
               None,
               jnp.arange(scan_length, dtype=jnp.int32),
           )
+        if getattr(cfg, "bam_cross_layer_rank", 0):
+          assert pair_scan and not final_local
+          group_size = int(cfg.bam_cross_layer_group_size)
+          assert group_size % block_size == 0 and cfg.num_decoder_layers % group_size == 0
+          groups = cfg.num_decoder_layers // group_size
+          def init_shared(key, shape, dtype):
+            init = initializers.get_init_method(cfg.init_method)
+            return jax.vmap(lambda k: init(k, shape[1:], dtype))(jax.random.split(key, shape[0]))
+          shared_down = self.param(
+              'cross_layer_down', nn.with_logical_partitioning(init_shared, (None, 'embed', None)),
+              (groups, cfg.emb_dim, cfg.bam_cross_layer_rank), cfg.weight_dtype)
+          scan_inputs += (shared_down,)
         scan_carry, _ = scan_module(*scan_inputs)
         if final_local:
           # Continue from the last F's hidden state and M; neither carry is reset.

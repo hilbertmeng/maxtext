@@ -101,6 +101,7 @@ class SubDecoderLayer(nn.Module):
       M_in=None,
       is_global=None,
       layer_index=None,
+      shared_down=None,
   ):
     cfg = self.config
     mesh = self.mesh
@@ -188,6 +189,8 @@ class SubDecoderLayer(nn.Module):
         eos_sum=eos_sum,
         deep_embedding=deep_embedding,
     )
+    if shared_down is not None:
+      call_kwargs['shared_down'] = shared_down
     mlp_write_every = int(getattr(cfg, 'bam_mlp_write_every', None) or 0)
     mlp_write = (
         cfg.bam_enabled and mlp_write_every > 0
@@ -319,7 +322,7 @@ class SubDecoderLayer(nn.Module):
       if getattr(cfg, 'bam_mlp_write_dynamic_address', False):
         rank = int(cfg.bam_mlp_write_address_rank)
         if getattr(cfg, 'bam_share_mlp_write_down', False):
-          address_hidden = attention_layer.shared_read_write_features(hidden_states)
+          address_hidden = attention_layer.shared_read_write_features(hidden_states, shared_down)
         else:
           address_hidden = nn.gelu(linears.DenseGeneral(
               features=rank, axis=-1, use_bias=False,
@@ -387,7 +390,7 @@ class BamLayerPair(nn.Module):
   @nn.compact
   def __call__(self, carry, segment_ids, positions, tokens, deep_embedding,
                deterministic, model_mode, eos_sum, is_global, hids, M_in,
-               block_index):
+               block_index, shared_banks=None):
     cfg = self.config
     assert cfg.scan_layers and cfg.bam_enabled and not cfg.bam_mha_control
     assert deep_embedding is None and not cfg.dense_conn and cfg.mtp_num_layers == 0
@@ -397,6 +400,9 @@ class BamLayerPair(nn.Module):
         policy=models.get_remat_policy(cfg), static_argnums=(6, 7),
         rngs={'params': True, 'aqt': True, 'dropout': True})
     block_size = getattr(cfg, 'bam_local_fetch_block_size', None) or 2
+    shared_down = None
+    if shared_banks is not None:
+      shared_down = shared_banks[block_index // (cfg.bam_cross_layer_group_size // block_size)]
     for offset in range(block_size):
       name = f'local_{offset}' if offset < block_size - 1 else f'fetch_{offset}'
       carry, _ = Layer(
@@ -404,7 +410,7 @@ class BamLayerPair(nn.Module):
           all_global_attention=True, static_layer_index=offset, name=name)(
               carry, segment_ids, positions, tokens, None,
               deterministic, model_mode, eos_sum, None, None, None,
-              block_size * block_index + offset)
+              block_size * block_index + offset, shared_down)
     return carry, ()
 
 
@@ -465,6 +471,7 @@ class FusionDecoderLayer(nn.Module):
       hids=None,
       M_in=None,
       layer_index=None,
+      shared_down=None,
   ):
     cfg = self.config
     scan_full_bam = (
@@ -527,6 +534,7 @@ class FusionDecoderLayer(nn.Module):
         M_in=M_in,
         is_global=is_global,
         layer_index=layer_index,
+        shared_down=shared_down,
     )
     max_logging.log(f'layer_inx: {self.layer_inx} break_layers: {self.break_layers}', debug=cfg.debug)
     if cfg.dense_conn and self.layer_inx in self.break_layers:

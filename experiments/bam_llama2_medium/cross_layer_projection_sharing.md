@@ -77,3 +77,29 @@ Diagnostic closeout: both passes ALL_DONE; worker->GCS->local artifact workflow 
 Concrete parameter-budgeted proposal (not launched): base old triple384/read050 widths3794/3669/3794, params432118688. Common A384 plus per-layer C384 gives widths3838/3714/3838 and total432116096 (parent-2592); direct shared A384 gives widths3879/3755/3879 and exact parent total. Preferred initialization C=I+Delta, Delta=0, A at parent .006 scale. Identity is a constant, not a decayed parameter; standard WD on Delta regularizes layer-specific adaptation toward the shared projection. This matches one effective Down decay at initialization and intentionally regularizes adaptation thereafter, rather than claiming decay is identical for all trained factor values. Materialize W_i=A(I+Delta_i) before token projection when efficient; no claim of saved token FLOPs or reduced M cache. Both proposed arms keep all layers rank384; do not add a first-block exception without stronger evidence.
 
 User requested a more aggressive cross-block proposal: promote global A1200x384 across all18 layers, retaining per-layer C=I+Delta384x384, to primary recommendation. Six-block A version becomes fallback. Global projection saving5,179,392=3.5968W_Q, extra2,304,000 vs blockwise. Refund widths3874/3749/3874 gives total432123296, parent+4608 (.0011%). All layer-specific Up/gates preserved, all ranks384, Delta zero init. This is a proposal, not a launched training run or a measured global-sharing diagnostic result.
+
+
+### Full 18 × 18 overlap matrices and design-space follow-up
+
+Artifacts: `/data0/xd/bam_diagnostics/cross-layer-sharing-20261014/layer-overlap-matrices.{png,pdf,json}`.
+Reproduce using `python experiments/bam_llama2_medium/plot_cross_layer_overlap.py ARTIFACT_ROOT`.
+Top-64 overlap is `||U_i.T @ U_j||_F² / 64`, independent of coefficient basis rotations;
+random expectation 64/1200 = .05333. Both checkpoint matrices show a continuous
+near-diagonal band, not isolated 3-layer blocks. At distances 1/3/6/9/17,
+old pair256 overlaps are .28357/.22071/.15674/.11875/.05226; old triple384:
+.30185/.24589/.17418/.13028/.05454. Full-subspace random baselines differ
+(.21333 versus .32), so absolute full-overlap colors must not be compared as
+stronger learned alignment. No strong periodic same-role cross-block pattern.
+This favors contiguous-depth sharing as a prior, not proof of retraining benefit.
+First layers differ geometrically; previous block-local loss interventions do
+not justify automatically exempting the first block.
+
+Follow-up diagnostic commit `7cb815452304f6038f68c6b8907755ac8e73a912` compares
+blocks / contiguous thirds / halves / global / same-role groups, each at R384,
+R512 and a rank matching block-R384 basis-plus-coefficients parameter budget.
+It reuses checkpoint13500, exact 32-sequence cohort and plain forward from above.
+Borrowed authorized FLEX_START `llm-jax-v6e-1-0`, EW4a, shared worker lock.
+Runner: `run_design_space_remote.py` under artifact root; remote log
+`/home/lishengping/xd/projects/logs/cross-layer-sharing-20261014-design-space.log`.
+No training launch; no diagnostic MLP refund. This tests frozen-checkpoint
+compressibility, not final matched-total-parameter training performance.

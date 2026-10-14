@@ -12737,6 +12737,7 @@ class BamMediumPropMShiftReadG050SharedR256R384ByWriteTruePile(BamMediumPropMShi
     # code_commit: a445bbc; UE5a v5p-16; actual FIRST_STEP, AOT and parameter count verified.
     # 20-99 speed 0.461225 step/s; vs singleRead050 +0.63%; health252 finite, gate init .5.
     # @1000 gap old pairR256 +.008060, tripleR384 +.011156; MHA-ref gain .986573/.981510; single1.013085/SOTA1.013711. gate .241005.
+    # Stopped2859/CP2859, UE5a P0; resources absent, TB synced. 2800 vs pairR256+.004886/gain.981786, tripleR384+.005814/.978401; single-.002833/1.010874, SOTA-.010753/1.042570. Persistent normalized deficit, no speed advantage; combination bet failed.
     model_name = 'BamMediumPropMShiftReadG050SharedR256R384ByWriteTruePile'
     bam_shared_projection_rank_by_block = [256, 384, 256]
     mlp_dim_by_block = [3871, 3746, 3871]
@@ -12751,6 +12752,7 @@ class BamMediumPropMShiftReadG050ReadAttentionMLPSharedR256TruePile(BamMediumPro
     # code_commit: a445bbc; UE5a v5p-16; actual FIRST_STEP, AOT and parameter count verified.
     # 20-99 speed 0.463200 step/s; vs singleRead050 +1.06%; health252 finite, gate init .5.
     # @1000 gap old pairR256 +.016598, tripleR384 +.019694; MHA-ref gain .972349/.967359; single .998479/SOTA .999096. gate .236640.
+    # Stopped2861/CP2861, UE5a P0; resources absent, TB synced. 2800 vs pairR256+.009362/.965099, tripleR384+.010290/.961771; single+.001643/.993692, SOTA-.006277/1.024850. Last5 all lose single, no normalized recovery or speed benefit; bet failed.
     model_name = 'BamMediumPropMShiftReadG050ReadAttentionMLPSharedR256TruePile'
     bam_shared_projection_rank_by_block = [256, 256, 256]
     bam_local_full_m_read_bottleneck_dim = 256

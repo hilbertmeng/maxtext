@@ -3988,12 +3988,14 @@ class BamAttention(Attention):
       layer_index: Array | int | None = None,
       defer_write: bool = False,
       shared_down: Array | None = None,
+      return_shared_features: bool = False,
   ):
     """BAM forward. Returns (out, M_out): out [b,t,emb_dim], M_out [b,t,k,v].
 
     v0.1 supports train mode and n==n_kv only; prefill/decode error out, deferred to v0.2.
     """
     cfg = self.config
+    assert not return_shared_features or defer_write, 'Feature reuse requires deferred MLP writes'
     assert model_mode == common_types.MODEL_MODE_TRAIN, "BamAttention v0.1 supports train mode only"
     assert self.num_query_heads == self.num_kv_heads, "BamAttention v0.1 requires n==n_kv (no GQA)"
 
@@ -4199,7 +4201,11 @@ class BamAttention(Attention):
       factors = self._deferred_write_factors(o_head, inputs_q,
           shared_hidden=full_m_shared_hidden if self._share_read_attention_down else None)
       out = nn.with_logical_constraint(o_head, self.out_axis_names)
-      return self.out_projection(inputs_q.shape[-1], out), M_in, factors
+      result = (self.out_projection(inputs_q.shape[-1], out), M_in, factors)
+      if return_shared_features:
+        assert self._share_read_attention_down and full_m_shared_hidden is not None
+        return result + (full_m_shared_hidden,)
+      return result
     if self._mha_control:
       M_out = M_in
     elif self._has_write:

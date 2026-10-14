@@ -355,6 +355,7 @@ class BamLlama2Medium(Llama2Medium):
     bam_cross_layer_mode = "direct"
     bam_share_read_attention_write_down = False
     bam_share_mlp_write_down = False
+    bam_reuse_read_attention_features_for_mlp_write = False
     bam_write_v_bottleneck_dim = None  # optional P_loc: D -> r -> n*v
     bam_write_v_bottleneck_activation = 'none'  # none | gelu
     bam_write_outer_implementation = 'dot'  # dot | mul_reduce
@@ -12967,6 +12968,40 @@ class BamXLPropMShiftReadG050ReadAttentionSharedR384TruePile(BamXLPropSharedR400
     compare_runs = ['BamXLPropSharedR400GeneralReadMShiftReadG050TruePile',
                     'BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile']
     # User requested minimal training telemetry; loss/accuracy/LR/throughput remain.
+    record_training_health_metrics = False
+    record_internal_nn_metrics = False
+    bam_record_m_shift_health = False
+    bam_record_concat_health = False
+    bam_record_fetched_read_health_metrics = False
+    bam_record_fetched_read_amplitude_metrics = False
+    bam_record_fetch_route_metrics = False
+    bam_record_local_routing_metrics = False
+    bam_record_local_qk_amplitude_metrics = False
+
+
+class BamMediumPropMShiftReadG050SharedR256ReuseActivationMLPWriteTruePile(BamMediumPropMShiftReadG050ReadAttentionSharedR256TruePile):
+    """Reuse the actual pre-attention shared GELU activation for MLP write addresses."""
+    model_name = 'BamMediumPropMShiftReadG050SharedR256ReuseActivationMLPWriteTruePile'
+    bam_reuse_read_attention_features_for_mlp_write = True
+    mlp_dim_by_block = [3915, 3791, 3915]
+    compare_runs = ['BamMediumPropMShiftReadG050ReadAttentionSharedR256TruePile', 'BamMediumPropMShiftReadG050ReadAttentionMLPSharedR384TruePile', 'BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile']
+    record_training_health_metrics = False
+    record_internal_nn_metrics = False
+    bam_record_m_shift_health = False
+    bam_record_concat_health = False
+    bam_record_fetched_read_health_metrics = False
+    bam_record_fetched_read_amplitude_metrics = False
+    bam_record_fetch_route_metrics = False
+    bam_record_local_routing_metrics = False
+    bam_record_local_qk_amplitude_metrics = False
+
+
+class BamMediumPropMShiftReadG050SharedR384ReuseActivationMLPWriteTruePile(BamMediumPropMShiftReadG050ReadAttentionMLPSharedR384TruePile):
+    """Reuse the actual pre-attention shared GELU activation for MLP write addresses."""
+    model_name = 'BamMediumPropMShiftReadG050SharedR384ReuseActivationMLPWriteTruePile'
+    bam_reuse_read_attention_features_for_mlp_write = True
+    mlp_dim_by_block = [3794, 3669, 3794]
+    compare_runs = ['BamMediumPropMShiftReadG050ReadAttentionMLPSharedR384TruePile', 'BamMediumPropMShiftReadG050ReadAttentionSharedR256TruePile', 'BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile']
     record_training_health_metrics = False
     record_internal_nn_metrics = False
     bam_record_m_shift_health = False

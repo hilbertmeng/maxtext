@@ -196,6 +196,12 @@ class SubDecoderLayer(nn.Module):
         cfg.bam_enabled and mlp_write_every > 0
         and (self.layer_inx + 1) % mlp_write_every
         == int(getattr(cfg, 'bam_mlp_write_offset', None) or 0) % mlp_write_every)
+    reuse_mlp_features = mlp_write and bool(getattr(
+        cfg, 'bam_reuse_read_attention_features_for_mlp_write', False))
+    shared_mlp_features = None
+    if reuse_mlp_features:
+      assert cfg.bam_share_read_attention_write_down and cfg.bam_mlp_write_dynamic_address
+      assert not getattr(cfg, 'bam_pallas_core', False)
     if mlp_write and getattr(cfg, 'bam_mlp_write_static_address', False):
       raise ValueError('Static MLP write experiments require their recorded runtime')
     pallas_core = cfg.bam_enabled and bool(getattr(cfg, 'bam_pallas_core', False))
@@ -209,9 +215,15 @@ class SubDecoderLayer(nn.Module):
           assert cfg.shared_experts == 1 and cfg.num_experts == 1
           assert cfg.emb_dim == num_query_heads * cfg.bam_k == num_query_heads * head_dim
           assert 'full' not in layer_mode and not cfg.bam_mha_control
-          attention_lnx, M_out, write_factors = attention_layer(
+          if reuse_mlp_features:
+            call_kwargs['return_shared_features'] = True
+          attention_result = attention_layer(
               **call_kwargs, M_in=M_in, is_global=is_global,
               layer_index=layer_index, defer_write=True)
+          if reuse_mlp_features:
+            attention_lnx, M_out, write_factors, shared_mlp_features = attention_result
+          else:
+            attention_lnx, M_out, write_factors = attention_result
         else:
           attention_lnx, M_out = attention_layer(
               **call_kwargs, M_in=M_in, is_global=is_global,
@@ -321,7 +333,10 @@ class SubDecoderLayer(nn.Module):
       independent_address = None
       if getattr(cfg, 'bam_mlp_write_dynamic_address', False):
         rank = int(cfg.bam_mlp_write_address_rank)
-        if getattr(cfg, 'bam_share_mlp_write_down', False):
+        if reuse_mlp_features:
+          assert shared_mlp_features is not None and shared_mlp_features.shape[-1] == rank
+          address_hidden = shared_mlp_features
+        elif getattr(cfg, 'bam_share_mlp_write_down', False):
           address_hidden = attention_layer.shared_read_write_features(hidden_states, shared_down)
         else:
           address_hidden = nn.gelu(linears.DenseGeneral(

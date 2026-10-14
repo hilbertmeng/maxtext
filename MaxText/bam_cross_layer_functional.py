@@ -80,25 +80,37 @@ def block_losses(cfg,model,params,evaluation,rng,mesh):
       result.extend(v['loss'].tolist())
     return np.asarray(result)
   baseline=measure(params)
+  global_mode=os.environ.get('CROSS_LAYER_GLOBAL')=='1'
   report=dict(checkpoint=cfg.load_parameters_path,sequence_hashes=hashes,
       diagnostic_commit=subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip(),
       baseline_losses=baseline.tolist(),baseline_delta_vs_previous=(baseline-np.asarray(previous['baseline_sequence_losses'])).tolist(),
-      rank=384,variants={})
-  bases=np.load(geometry/'bases.npz');flat=flatten_dict(params)
+      scope='global' if global_mode else 'blockwise',variants={})
+  bases=np.load(geometry/('global-bases.npz' if global_mode else 'bases.npz'));flat=flatten_dict(params)
   selected={p:v for p,v in flat.items() if p[-2:]==('full_m_read_down','kernel')}
-  for label,blocks in [(f'block{b}',[b]) for b in range(6)]+[('blocks1_5',range(1,6)),('all',range(6))]:
+  designs=json.loads((geometry/'global-geometry.json').read_text())['variants'] if global_mode else {}
+  cases=([(name,range(6),v['rank']) for name,v in designs.items()] if global_mode else
+         [(f'block{b}',[b],384) for b in range(6)]+[('blocks1_5',range(1,6),384),('all',range(6),384)])
+  for label,blocks,rank in cases:
     modified=dict(flat)
     for key,w0 in selected.items():
       w=np.asarray(w0,dtype=np.float32).copy()
       for b in blocks:
-        u=bases[f'block{b}_rank384'];w[:,b]=u@(u.T@w[:,b])
+        if global_mode:
+          layer=3*b+next(i for i,g in enumerate(GROUPS) if g in key)
+          design=designs[label]
+          gi=next(i for i,layers in enumerate(design['partition']) if layer in layers)
+          u=bases[design['basis_keys'][gi]]
+        else:
+          u=bases[f'block{b}_rank{rank}']
+        w[:,b]=u@(u.T@w[:,b])
       modified[key]=jnp.asarray(w,dtype=w0.dtype)
     tree=unflatten_dict(modified)
     if isinstance(params,FrozenDict):tree=freeze(tree)
     losses=measure(tree);delta=losses-baseline
-    report['variants'][label]=dict(blocks=list(blocks),sequence_losses=losses.tolist(),paired_deltas=delta.tolist(),
+    if global_mode:report.setdefault('designs',{})[label]=designs[label]
+    report['variants'][label]=dict(blocks=list(blocks),rank=rank,sequence_losses=losses.tolist(),paired_deltas=delta.tolist(),
         mean_delta=float(delta.mean()),standard_error=float(delta.std(ddof=1)/np.sqrt(len(delta))))
-    (out/'block-loss-report.json').write_text(json.dumps(report,indent=2)+'\n')
+    (out/('global-loss-report.json' if global_mode else 'block-loss-report.json')).write_text(json.dumps(report,indent=2)+'\n')
     print('BLOCK_LOSS',label,report['variants'][label]['mean_delta'],flush=True)
 
 def run(cfg):

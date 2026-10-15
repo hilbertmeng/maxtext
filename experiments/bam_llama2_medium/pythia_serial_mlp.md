@@ -62,3 +62,7 @@ no new schedule or dimension changes. Loss analysis uses actual same-step window
 
 Serial Mudd FIRST_STEP4 and worker434356347/AOT/config verified; ~.580step/s.
 BAM live comparison adds serial Mudd with serial MHA reference; no runtime change.
+
+### Serial versus parallel gain trajectory, common through9.2k
+
+Fixed parallel MHA reference at1/2/3/4/5/6/7/8/9/9.2k: BAM1.078070/1.150318/1.197431/1.232533/1.244977/1.268913/1.309371/1.312920/1.343117/1.339483; Mudd .975652/1.170061/1.279646/1.338332/1.394549/1.372843/1.397483/1.377641/1.403500/1.404503. Last5 common8.4--9.2k mean1.329971/1.396844; absolute own-architecture improvement .0233944/.0226364. Mudd larger multiplier chiefly reflects smaller original gain denominator; BAM multiplier still climbs while Mudd plateaus. Matching each family own MHA gives same qualitative result. Figure /data0/xd/bam_diagnostics/pythia-serial/serial-vs-parallel-gain-trend.png; generic registry gain series used, no custom window averaging.

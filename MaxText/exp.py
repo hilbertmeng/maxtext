@@ -12790,7 +12790,9 @@ class MuddPythiaMediumPropT2048SerialMLP(MuddPythiaMediumPropT2048):
 
 class PythiaMediumPropT2048SwiGLU(PythiaMediumPropT2048):
     """Budget-matched SwiGLU main MLP on parallel Pythia MHA."""
-    # Ledger: codex/pythia-mediumprop-t2048, /data0/xd/pythia-mediumprop-t2048; preparing.
+    # Ledger only: codex/pythia-mediumprop-t2048, /data0/xd/pythia-mediumprop-t2048.
+    # code_commit: d5a7282; UE5a v5p16 TPU310241; FIRST_STEP/AOT/actual params verified; running.
+    # All health OFF; mean20-99 0.7708375step/s, 432388800 parameters.
     model_name = 'PythiaMediumPropT2048SwiGLU'
     pythia_swiglu_mlp = True
     mlp_activations = ['silu', 'linear']
@@ -12801,7 +12803,9 @@ class PythiaMediumPropT2048SwiGLU(PythiaMediumPropT2048):
 
 class MuddPythiaMediumPropT2048SwiGLU(MuddPythiaMediumPropT2048):
     """Preserve Mudd layerwise MLP budgets and unrepaid router overhead."""
-    # Ledger: codex/pythia-mediumprop-t2048, /data0/xd/pythia-mediumprop-t2048; preparing.
+    # Ledger only: codex/pythia-mediumprop-t2048, /data0/xd/pythia-mediumprop-t2048.
+    # code_commit: d5a7282; UE5a v5p16 TPU310242; FIRST_STEP/AOT/actual params verified; running.
+    # All health OFF; mean20-99 0.6033250step/s, 434356331 parameters.
     model_name = 'MuddPythiaMediumPropT2048SwiGLU'
     pythia_swiglu_mlp = True
     mlp_activations = ['silu', 'linear']
@@ -12816,7 +12820,9 @@ class MuddPythiaMediumPropT2048SwiGLU(MuddPythiaMediumPropT2048):
 class BamPythiaMediumPropT2048MShiftReadG050ReadAttentionSharedR256SwiGLU(
         BamPythiaMediumPropT2048MShiftReadG050ReadAttentionSharedR256):
     """SwiGLU main MLP; retain every GELU read/write-address bottleneck."""
-    # Ledger: codex/pythia-mediumprop-t2048, /data0/xd/pythia-mediumprop-t2048; preparing.
+    # Ledger only: codex/pythia-mediumprop-t2048, /data0/xd/pythia-mediumprop-t2048.
+    # code_commit: d5a7282; UE5a v5p16 TPU310243; FIRST_STEP/AOT/actual params verified; running.
+    # All health OFF; mean20-99 0.5377125step/s, 432348080 parameters.
     model_name = 'BamPythiaMediumPropT2048MShiftReadG050ReadAttentionSharedR256SwiGLU'
     pythia_swiglu_mlp = True
     mlp_activations = ['silu', 'linear']

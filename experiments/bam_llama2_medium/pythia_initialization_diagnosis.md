@@ -67,3 +67,10 @@ FLEX上的两个AOT均完成，状态 `/home/lishengping/xd/projects/aot_runs/ea
 
 
 两路worker配置和实际参数树已全部核对，均156叶、432356690参数、AOT Loaded、health OFF。固定20–99步各80个速度样本：BAM修复.5175875step/s，全量原初始化.5166625step/s；相对串行父路.5103625为+1.42%/+1.23%。两路差异约.18%，未显示初始化本身的速度影响；共同小幅提速与健康计算门控修复混杂。运行登记中的基线和两组收益倍数（各自相对父BAM、相对串行Mudd，均用串行MHA参考）已添加。
+
+
+### Core gain report2000
+
+Report BAM/Mudd ratios FIRST, each with own-family MHA. Steps1000/1200/1400/1600/1800/2000: BAM fix2.505087/2.516143/2.302020/2.246572/1.996239/2.099398; all-original1.921299/1.965807/1.813596/1.789764/1.646009/1.739619. Unfixed serial ends this sequence1.624957; exact architecture-matched old recipe1.485257. At2000 second-order fix versus unfixed1.291971, versus old recipe1.413492; all-original1.070563/1.171258. Same-family new/parent ratio equals the ratio of BAM/Mudd ratios algebraically because MHA and Mudd cancel, but reporting only that number hides the cross-recipe question. User explicitly corrected the omitted primary metric; put full BAM/Mudd and second-order sequences before parent gap in future reports.
+
+Initialization fix absolute parent gain shrinks-.074227@1000→-.053175@2000 while second-order stays~1.29. All-original crosses parent at1200 and reaches-.012851@2000, still.040324 behind fix but catching up. Native window data in /data0/xd/bam_diagnostics/pythia-init/core-gain-common2000.json. Both checkpoints2000 committed. Early multipliers exceed old recipe even WITHOUT repair, so whether initialization fixes late relative degradation remains unproven; focus matched4k–6k crossover region and terminal. Speeds.5175875/.5166625 vs parent.5103625 include actual health-off compute fix.

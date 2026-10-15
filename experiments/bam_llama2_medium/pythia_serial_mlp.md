@@ -171,3 +171,10 @@ Core question remains unresolved: restoring serial GELU does not recover advanta
 Initialization follow-up: see `pythia_initialization_diagnosis.md`. Actual embedding-write initialization probe shows M RMS .018519->.179397 (~9.69x). Read-key epsilon stays1e-4; write RMS epsilon1e-6->1e-5. Restore BAM-only .006 initializer proposed, NOT launched/authorized; all existing runs unchanged.
 
 2026-10-15 新指令：用户已授权两路串行GELU初始化实验；SwiGLU三路已暂停保留checkpoint（MHA4527/Mudd3603/BAM3174），Mudd/BAM TPU热替换，详见 `pythia_initialization_diagnosis.md`。此前“建议、尚未开跑授权”的文字仅为当时历史状态。
+
+
+### Final serial GELU closeout13500, 2026-10-15
+
+All three complete13500. Final five windows12600–13400: serial BAM vs parallel BAM-.023564 (gain1.368450, parallel MHA reference); serial Mudd vs parallel Mudd-.021874 (gain1.402260). Serial MHA vs parallel+.000162. BAM/Mudd gain using own-family MHA is1.147469 serial vs1.176073 parallel, paired second-order about.9757. Updated1.14[1.10,1.17] forecast covered final; early1.10 underestimated. Serial improves both models without restoring BAM's relative upper-bound advantage. Final BAM-minus-Mudd absolute gap-.011264 versus parallel-.009574; larger absolute gap and smaller normalized multiplier are consistent because Mudd's MHA-relative advantage grows.
+
+BAM TPU310227 UE5a v5p16 P1: READY01:01:09–03:59:57UTC (2h58m48s, preempted),04:06:01–08:40:46 (4h34m45s, completed). Mudd TPU310229 UE5a v5p16 P1: READY01:49:05–04:14:22 (2h25m17s, preempted),04:21:11–08:42:14 (4h21m03s, completed). Each CP13500 commit_success verified, node and queue explicitly NOT_FOUND, localTB SYNC_OK. Closeout summary remote logs/closeout-20261015T085049Z.json, resources-absent-asserted.txt and final-full-leases.txt under local pythia-serial diagnostics. No region switch.

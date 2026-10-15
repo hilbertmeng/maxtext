@@ -12778,12 +12778,13 @@ class PythiaMediumPropT2048SerialMLP(PythiaMediumPropT2048):
 class BamPythiaMediumPropT2048MShiftReadG050ReadAttentionSharedR256SerialMLP(
         BamPythiaMediumPropT2048MShiftReadG050ReadAttentionSharedR256):
     """Serial MLP and its data/gate/address writes, same parameter tree and widths."""
-    # 阶段判断：串行 MLP 稳定改善 BAM，也同样改善 Mudd，尚不支持主要修复了 BAM 独有缺陷。
-    # 共同 11k 对并行父路 loss 低 .023433，收益倍数 1.3541（共同参考为并行 MHA）。
-    # 串行家族 BAM/Mudd 为 1.1578，并行家族 1.1941，二阶倍数 .9696；各家族用自己的 MHA。
-    # 当前终局预估 1.14（1.10–1.17）；原 1.10 预估保留供检验，条件是串行改善量能维持。
-    # UE5a v5p-16，.5103625 step/s，比并行父路约慢 2.6%；健康指标均关闭，继续训练。
-    # code_commit: d434e69；实现 codex/pythia-mediumprop-t2048，/data0/xd/pythia-mediumprop-t2048。
+    # 结论：串行MLP稳定改善BAM，但没有恢复BAM相对Mudd的优势；三路均完成13500。
+    # 末五窗口12600–13400对并行父路loss低.023564，收益倍数1.36845（并行MHA参考）。
+    # 串行BAM/Mudd末五1.147469，低于并行1.176073（二阶约.9757）；末五对串行Mudd-.011264。
+    # 对串行MHA末五-.087681；更新的终局预估1.14[1.10,1.17]命中，早期1.10预估偏低。
+    # UE5a v5p16，.5103625step/s，比并行父路慢2.6%；P1，同区恢复，CP13500已提交。
+    # 节点/队列删除已核验、TB SYNC_OK；参数和初始化与并行父路相同。
+    # code_commit:d434e69；实现codex/pythia-mediumprop-t2048，/data0/xd/pythia-mediumprop-t2048。
     model_name = 'BamPythiaMediumPropT2048MShiftReadG050ReadAttentionSharedR256SerialMLP'
     pythia_parallel_residual = False
     compare_runs = ['BamPythiaMediumPropT2048MShiftReadG050ReadAttentionSharedR256',
@@ -12792,12 +12793,12 @@ class BamPythiaMediumPropT2048MShiftReadG050ReadAttentionSharedR256SerialMLP(
 
 class MuddPythiaMediumPropT2048SerialMLP(MuddPythiaMediumPropT2048):
     """Serial MLP control; unchanged full-history routing and extra router budget."""
-    # 阶段判断：串行化稳定改善 Mudd，改善量与 BAM 接近；两路按共同步数一起评审。
-    # 共同 11k 对并行父路 loss 低 .021855，收益倍数 1.3944（共同参考为并行 MHA）。
-    # 近期五窗口平均改善 .022208，BAM 为 .023514；不是 Mudd 获得了更大的绝对改善。
-    # UE5a v5p-16，.57875 step/s，比并行父路约慢 3.2%；健康指标均关闭，继续训练。
-    # code_commit: 3538f6c；参数与父路一致，保留旧 Mudd 路由器额外预算。
-    # 实现 codex/pythia-mediumprop-t2048，/data0/xd/pythia-mediumprop-t2048。
+    # 结论：串行MLP稳定改善Mudd，改善量与BAM接近；三路均完成13500。
+    # 末五窗口12600–13400对并行父路loss低.021874，收益倍数1.40226（并行MHA参考）。
+    # 对串行MHA末五-.076417，对串行BAM+.011264；串行家族BAM/Mudd1.147469。
+    # UE5a v5p16，.57875step/s，比并行父路慢3.2%；P1，CP13500已提交。
+    # 节点/队列删除已核验，TB SYNC_OK；保留原Mudd额外路由器预算，未抵扣MLP。
+    # code_commit:3538f6c；实现codex/pythia-mediumprop-t2048，/data0/xd/pythia-mediumprop-t2048。
     model_name = 'MuddPythiaMediumPropT2048SerialMLP'
     pythia_parallel_residual = False
     compare_runs = ['MuddPythiaMediumPropT2048', 'PythiaMediumPropT2048SerialMLP',
@@ -12859,8 +12860,14 @@ class BamPythiaMediumPropT2048MShiftReadG050ReadAttentionSharedR256SwiGLU(
 class BamPythiaMediumPropT2048SerialMLPBamInitFix(
         BamPythiaMediumPropT2048MShiftReadG050ReadAttentionSharedR256SerialMLP):
     """Restore the BAM initialization chain, retaining the Pythia vector circuit."""
-    # UE5a v5p-16，20–99步速度.5175875（比父路+1.42%）；实际432356690参数，所有健康统计关闭。
-    # code_commit: eaa95f8；两路AOT已通过、已热替换并验证FIRST_STEP；初始化实验继续训练。
+    # 阶段判断：修复显著增强BAM相对Mudd的优势，但尚未验证是否阻止后期收益衰减。
+    # BAM/Mudd收益倍数（串行MHA参考）1k/1200/1400/1600/1800/2k：2.5051/2.5161/2.3020/2.2466/1.9962/2.0994。
+    # 2k未修复串行版1.624957，匹配架构的旧配方1.485257；对应二阶1.291971/1.413492。
+    # 对父BAM gap1k-.074227→2k-.053175，绝对领先收窄；相对未修复二阶仍守约1.29。
+    # token embedding/BAM专用非零投影恢复.006，BAM写RMS epsilon1e-6，语义零门/偏置/有效normscale保留原配方。
+    # 初始M RMS.018493与原链一致；健康统计实际关闭，UE5a v5p16 .5175875step/s（旧父路+1.42%，含健康计算修复）。
+    # code_commit:eaa95f8；实际432356690参数、MLP[5832,5643,5832]、FIRST_STEP/AOT核验。
+    # 跑前终局new/父BAM下注1.12[1.02,1.25]，串行MHA参考；实现codex/pythia-mediumprop-t2048。
     model_name = 'BamPythiaMediumPropT2048SerialMLPBamInitFix'
     bam_init_method = '006normal'
     token_embedding_init_method = '006normal'
@@ -12872,8 +12879,13 @@ class BamPythiaMediumPropT2048SerialMLPBamInitFix(
 class BamPythiaMediumPropT2048SerialMLPOriginalInit(
         BamPythiaMediumPropT2048SerialMLPBamInitFix):
     """All random kernels use the original .006 recipe; serial GELU/LN fixed."""
-    # UE5a v5p-16，20–99步速度.5166625（比父路+1.23%）；实际432356690参数，所有健康统计关闭。
-    # code_commit: eaa95f8；两路AOT已通过、已热替换并验证FIRST_STEP；初始化实验继续训练。
+    # 阶段判断：1200步由落后父BAM转为领先，逐渐回追修复版；还没有终局排名结论。
+    # BAM/Mudd收益倍数（串行MHA参考）1k/1200/1400/1600/1800/2k：1.9213/1.9658/1.8136/1.7898/1.6460/1.7396。
+    # 2k相对未修复串行版/匹配旧配方的二阶1.070563/1.171258；对父BAM gap1k+.010475→2k-.012851。
+    # 在BAM初始化修复基础上，标准QKV/attention输出/主MLP/unembedding也恢复.006；结构/LN/bias/门开度保持。
+    # UE5a v5p16 .5166625step/s（旧父路+1.23%，含健康修复）；实际432356690参数，健康全部关闭。
+    # code_commit:eaa95f8；两路AOT/FIRST_STEP已核验；实现codex/pythia-mediumprop-t2048。
+    # 跑前终局new/父BAM下注1.20[1.05,1.40]，串行MHA参考；继续训练。
     model_name = 'BamPythiaMediumPropT2048SerialMLPOriginalInit'
     init_method = '006normal'
     compare_runs = ['BamPythiaMediumPropT2048MShiftReadG050ReadAttentionSharedR256SerialMLP',

@@ -12761,3 +12761,19 @@ class BamPythiaMediumPropT2048MShiftReadG050ReadAttentionSharedR256(
     bam_record_local_routing_metrics = False
     bam_record_local_qk_amplitude_metrics = False
     compare_runs = ['PythiaMediumPropT2048', 'MuddPythiaMediumPropT2048']
+
+
+class PythiaMediumPropT2048SerialMLP(PythiaMediumPropT2048):
+    """Paired serial residual: MLP sees x+attention(x); other Pythia settings fixed."""
+    model_name = 'PythiaMediumPropT2048SerialMLP'
+    pythia_parallel_residual = False
+    compare_runs = ['PythiaMediumPropT2048', 'BamMHAMediumPropC256T2048Matched']
+
+
+class BamPythiaMediumPropT2048MShiftReadG050ReadAttentionSharedR256SerialMLP(
+        BamPythiaMediumPropT2048MShiftReadG050ReadAttentionSharedR256):
+    """Serial MLP and its data/gate/address writes, same parameter tree and widths."""
+    model_name = 'BamPythiaMediumPropT2048MShiftReadG050ReadAttentionSharedR256SerialMLP'
+    pythia_parallel_residual = False
+    compare_runs = ['BamPythiaMediumPropT2048MShiftReadG050ReadAttentionSharedR256',
+                    'PythiaMediumPropT2048SerialMLP', 'MuddPythiaMediumPropT2048']

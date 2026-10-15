@@ -30,7 +30,6 @@ class PythiaDecoderLayer(nn.Module):
     init = initializers.get_model_init(cfg)
     out_init = initializers.get_model_init(cfg, residual_output=True)
     attn_input = normalizations.get_decoder_norm("input_layernorm", cfg)(inputs)
-    mlp_input = normalizations.get_decoder_norm("post_attention_layernorm", cfg)(inputs)
     attention = attentions.Attention(
         config=cfg, mesh=self.mesh, quant=self.quant, name="self_attention",
         num_query_heads=cfg.num_query_heads, num_kv_heads=cfg.num_kv_heads,
@@ -52,6 +51,8 @@ class PythiaDecoderLayer(nn.Module):
         decoder_segment_ids=decoder_segment_ids, deterministic=deterministic,
         model_mode=model_mode, decoder_input_tokens=decoder_input_tokens,
         eos_sum=eos_sum)
+    mlp_residual = inputs if cfg.pythia_parallel_residual else inputs + attn_output
+    mlp_input = normalizations.get_decoder_norm("post_attention_layernorm", cfg)(mlp_residual)
     mlp_output = linears.MlpBlock(
         config=cfg, intermediate_dim=cfg.mlp_dim, activations=cfg.mlp_activations,
         kernel_init=init, output_kernel_init=out_init, use_bias=True,

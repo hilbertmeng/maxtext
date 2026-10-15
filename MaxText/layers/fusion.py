@@ -235,7 +235,8 @@ class SubDecoderLayer(nn.Module):
     # Fully Connected
     # Pythia's MLP consumes the layer input (Mudd's composed M route),
     # independently of this layer's attention output.
-    mlp_input = inputs if cfg.decoder_block == 'pythia' else intermediate_inputs
+    parallel_mlp = cfg.decoder_block == 'pythia' and cfg.pythia_parallel_residual
+    mlp_input = inputs if parallel_mlp else intermediate_inputs
     hidden_states = normalizations.get_decoder_norm("post_self_attention_layer_norm", cfg)(mlp_input)
     hidden_states = nn.with_logical_constraint(
         hidden_states, ("activation_batch", "activation_norm_length", "activation_embed")

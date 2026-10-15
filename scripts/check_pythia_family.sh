@@ -15,5 +15,6 @@ python3 /home/xd/projects/xd_tpu_scripts/run_cpu_tests_parallel.py "$TASK_ROOT" 
 python3 /home/xd/projects/xd_tpu_scripts/run_cpu_tests_parallel.py "$TASK_ROOT" --test-file MaxText/tests/pythia_test.py --test PythiaTest.test_config_and_init_roles --test PythiaTest.test_scan_gradients_causality_and_checkpoint --test PythiaTest.test_bfloat16_remat_training --test PythiaTest.test_fused_projection_parity_and_cached_decode --test PythiaTest.test_torch_neox_reference --jobs 2
 taskset -c 0-7 /data0/xd/conda/envs/maxtext-cpu/bin/python -m unittest discover -s MaxText/tests -p summary_writer_test.py
 bash /home/xd/projects/maxtext/.agents/skills/tpu-diagnostics/scripts/run_bam_unit_tests.sh "$TASK_ROOT"
+python3 /home/xd/projects/xd_tpu_scripts/run_cpu_tests_parallel.py "$TASK_ROOT" --test-file MaxText/tests/pythia_serial_test.py --test PythiaSerialTest.test_torch_neox_reference --test PythiaSerialTest.test_fusion_matches_pythia_parallel_circuit --test PythiaSerialTest.test_mudd_bam_gradients --test PythiaSerialTest.test_full_size_shapes --test PythiaSerialTest.test_parameter_tree_and_initialization_unchanged --test PythiaSerialTest.test_scan_gradients_causality_and_checkpoint --jobs 2
 touch "$TASK_CHECK/ok"
 echo "CPU_PYTHIA_FAMILY_OK commit=$TASK_HASH"

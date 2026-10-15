@@ -111,3 +111,7 @@ OriginalarmfirstUE5apreemption2026-10-15T12:32:51Z, READY08:16:33–12:32:51(4h1
 ## Common9k
 
 BothCP9000committed actual9356/9047. Primaryrepair/all-original1.632546/1.558084, new/unfixed1.386955/1.323694, new/matchedold1.095827/1.045845. Newprimaryoverrecent~1kstablewhileunfixeddeclines, soinitialization-chain/writeepsilonadaptationbenefitpersistsmidlate. Parentgaps-.0372112/-.0311278, mutual.0060834. Full200-stepseries core-gain-common9000.json, report-common9000.json. Continue10k; no terminalclaim. OriginalarmsecondcorrelatedUE5apreemptionCP9104, priorfull13500schedule/runtimeto beresumed; keep separatefromperformancejudgment.
+
+## Common10k
+
+BothCP10000committed; actualfix10790/original10078. BAM/Mudd9k/9.2k/9.4k/9.6k/9.8k/10k fix1.632546/1.623608/1.629457/1.630342/1.617951/1.612451, original1.558084/1.540857/1.550398/1.551406/1.547384/1.548499. Versusunfixedsecondorderfix1.386955/1.386921/1.388831/1.406790/1.389173/1.390247, original1.323694/1.316233/1.321447/1.338678/1.328585/1.335108. Last5matchedoldsecondorder1.101396/1.050448. Matchingoldstopped10160, lastusablewindow10000; futureprimaryreportscontinuewithoutinventingoldwindows. Parent10kgaps-.0359184/-.0308434; mutual.005075. Primaryrecentdeclineslightlywhileunfixeddeclinesfaster,sorepaircontributionpersistsmidlate. PreferBAM-specificchainfixoverfulltrunkoldinit. Speeds.5175875/.5166625, no newtimingclaim. Continue11k. Fullnativeprimaryseriescore-gain-common10000.json; allrawregisteredgaps/r200report-common10000.json. No terminalclaim.

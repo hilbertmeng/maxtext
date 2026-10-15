@@ -12980,3 +12980,27 @@ class BamMediumPropMShiftReadG050PostAttentionWriteMLPNormTruePile(
                     'BamMediumPropPostAttentionWriteSharedR256MLPNormTruePile',
                     'BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile',
                     'BamMHAMediumPropC256TruePile']
+
+
+class BamXLPropMShiftReadG050PostAttentionWriteMLPNormTruePile(
+        BamXLPropSharedR400GeneralReadMShiftReadG050TruePile):
+    """Transfer post-attention write controls with existing MLP norm onto XL single .5."""
+    # attention写门/地址用attention更新后的残差并复用MLP norm；MLP写控制、两写down保持父路。
+    # 新增0 W_Q、MLP宽度不变；不是已停读/attention共享R400投影实验。
+    # 跑前MHA参考收益倍数下注1.025[1.005,1.05]，对原XL单门.5；父路实测覆盖至32.5k。
+    # 同相对训练进度跨尺度仅比较收益倍数；UE5a v5p32，50000步，健康全OFF。
+    model_name = 'BamXLPropMShiftReadG050PostAttentionWriteMLPNormTruePile'
+    bam_write_controls_post_residual = False
+    bam_attention_write_controls_post_residual = True
+    bam_mlp_write_controls_post_residual = False
+    bam_attention_write_controls_norm = 'mlp'
+    record_training_health_metrics = False
+    record_internal_nn_metrics = False
+    bam_record_concat_health = False
+    bam_record_fetch_route_metrics = False
+    bam_record_fetched_read_amplitude_metrics = False
+    bam_record_fetched_read_health_metrics = False
+    bam_record_local_qk_amplitude_metrics = False
+    bam_record_local_routing_metrics = False
+    bam_record_m_shift_health = False
+    compare_runs = ['BamXLPropSharedR400GeneralReadMShiftReadG050TruePile', 'Llama2XLPropTruePileMHA']

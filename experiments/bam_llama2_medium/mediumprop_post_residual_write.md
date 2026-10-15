@@ -203,3 +203,11 @@ Actualparent12051/CP12000,norm4351/CP4200. Parent12k originalsingle gap-.00299/R
 ## 同组norm路完整6k（2026-10-15 UTC）
 
 Norm路6031/CP6000，完整6k对已完成attention单改父路gap+.0000086/R.9999552，末五5200–6000 gap+.0000364/R.9998029；近乎完全持平。对原单门.5末窗口−.0064636/R1.0348534，末五−.00662464/R1.0344810；对MHA末五−.19875488。父路终局13.5k与norm6k的各自原单门倍数不可直接比较，正式同阶段父路对照结果仍无额外loss收益。同健康速度+.232%，继续7k；不增加健康统计、不同步在训TB。完整registry报告 `/data0/xd/bam_diagnostics/report-active1-20261015-norm6000-mature.json`。
+
+## XL transfer of attention-only post-residual controls using MLP norm — launch definition
+
+RUN `BamXLPropMShiftReadG050PostAttentionWriteMLPNormTruePile`, worktree /data0/xd/mediumprop-m-shift, branch codex/mediumprop-m-shift, TPU xd-v5p-32-310254-maxtext, UE5a first. Direct parent is `BamXLPropSharedR400GeneralReadMShiftReadG050TruePile` (eeec67c), NOT the stopped read/attention-shared R400 child. Attention write gate/address consume norm_mlp(x+attention_output) already computed for MLP. Contents, MLP write controls, independent write downs and MLP widths [6127,5938,6127], final6126 remain unchanged. Parameter count1432383640, delta0 W_Q. Disable all health collections/compute.
+
+Forecast R1.025 [1.005,1.05] vs old XL single .5 using Llama2XLPropTruePileMHA as reference, within available equal-step coverage (through32.5k formal windows). This is not a verifiable full50k terminal bet: stopped parent has no later data. Compare with Medium transfer at equal relative training progress using ratios only. No meaningful speed overhead expected; historical health-on parent timing cannot establish a clean architecture speed delta. 50000-step plan, TruePile4096, native500/report2000, CP250/latest2/no permanent retention, TB rotation500. Borrow existing EW4a FLEX compiler worker0 with shared worker lock.
+
+Infrastructure audit against main334f26a9: train/train_compile/optimizers/max_utils/maxtext_utils/checkpointing/summary_writer inspected. Mshift branch has additional compact/two-lag health emission; main-only YAML Pythia rotary defaults are irrelevant to this original-decoder transfer. No logging/checkpoint/optimizer/AOT fix missing. Complete positive500 writer rotation/begin_step path retained; summary-writer regression in launch gate. Audit patch: /data0/xd/bam_diagnostics/post-residual-write/selective/xl-new-infra-review.patch.

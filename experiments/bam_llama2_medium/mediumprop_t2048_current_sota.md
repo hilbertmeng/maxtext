@@ -1,0 +1,48 @@
+# MediumProp T2048: current shared-R256 BAM transfer
+
+RUN `BamMediumPropMShiftReadG050ReadAttentionSharedR256T2048`; TPU
+`xd-v5p-16-310231-maxtext`, SPOT v5p-16, us-east5-a. Implementation worktree
+`/data0/xd/mediumprop-projection-sharing`, branch `codex/mediumprop-projection-sharing`.
+This task owns only the new RUN; existing active experiments belong to the main session.
+
+Parent: `BamMediumPropMShiftReadG050ReadAttentionSharedR256TruePile`, verified
+runtime c9a2a360. Original serial RMSNorm/SwiGLU MediumProp, D1200/L18/H16x75,
+full-M generalized reads, read-only previous-token M-shift with one v32 gate initialized .5.
+Read and attention-write share R256 down; MLP-write down remains independently R256.
+No QKNorm, no MLP activation reuse, no cross-layer projection sharing.
+
+T4096/global batch128 becomes T2048/global batch256: 524288 target tokens/step,
+13500-step full learning-rate schedule. DATASET_VARIANT=legacy2048 uses the
+same replicated legacy records as the completed T2048 controls; launcher resolves UE5a.
+MLP [3887,3762,3887] repeated six times preserves parent allocation. Expected
+432111680 parameters: -9520 versus matched MHA432121200; +576 versus old BAM432111104.
+Versus old generalized-read BAM, tying the attention-write down saves5529600
+parameters (3.84 W_Q across18 layers), new shift kernels cost691200 (.48 W_Q),
+and4838400 (3.36 W_Q) are returned to MLP; only576 gate biases remain additional.
+
+Direct controls: old T2048 BAM
+`BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadT2048`,
+`MuddLlama2MediumPropC256T2048`, `BamMHAMediumPropC256T2048Matched`;
+also retain T4096 architecture parent for context comparison. Report loss and gain-ratio
+trajectories versus old BAM and Mudd using matched T2048 MHA as reference. Any raw
+cross-length gap uses unpaired records and is secondary to within-length gains.
+
+Pre-run bet: terminal gain ratio versus old T2048 BAM1.10 [1.06,1.14], versus
+Mudd approximately1.51 (MHA reference); architectural timing delta expected within
+about3% of old BAM, but old healthON/current healthOFF timing is confounded.
+Agent reports every2000 steps; native loss windows remain200, +/-25 samplingstep10.
+Checkpoint every200, latest2, no permanent keep-period, forcedfinal13500; TB rotates500.
+All generic/internal/BAM health metrics OFF; retain loss/accuracy/LR/throughput.
+
+Infrastructure audit 2026-10-15 against main d4dc7617 and its current working files:
+train_compile.py, max_utils.py, optimizers.py, checkpointing.py, summary_writer.py
+identical. train.py differences are family M-shift metric emission and the explicit
+healthOFF switch; retain both. base.yml differs only in Pythia-specific rotary knobs,
+which this original-backbone experiment does not use. TB writer factory selects a
+rotating writer with period500; train calls begin_step before scalar emission.
+No compatible operational fix is missing. Targeted CPU gate checks full parameter
+shape/count parity, runtime transfer settings, shared-write gradient/read carry,
+shift boundary and existing summary-writer regression. Sealed runtime check plus
+v5p-16 AOT/FIRST_STEP/step14 are required. Retained user-owned FLEX compiler
+llm-jax-v6e-1-0 EW4a is borrowed, never lifecycle-owned; per-worker lock serializes AOT.
+UE5a selected from current long stable comparable training leases in regional history.

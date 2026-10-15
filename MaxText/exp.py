@@ -13027,3 +13027,32 @@ class BamXLPropMShiftReadG050ReadAttentionSharedR400TruePile(BamXLPropMShiftRead
     compare_runs = ['BamXLPropSharedR400GeneralReadMShiftReadG050TruePile',
                     'BamXLPropMShiftReadG050ReadAttentionSharedR384TruePile',
                     'BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile']
+
+
+class BamMediumPropMShiftReadG050ReadAttentionSharedR256T2048(BamMediumPropMShiftReadG050ReadAttentionSharedR256TruePile):
+    """Original MediumProp T2048 with read-only M-shift .5 and tied read/attention R256."""
+    model_name = 'BamMediumPropMShiftReadG050ReadAttentionSharedR256T2048'
+    DATASET_VARIANT = 'legacy2048'
+    max_target_length = 2048
+    per_device_batch_size = 32.0
+    steps = 13500
+    learning_rate_schedule_steps = 13500
+    qk_norm = False
+    checkpoint_period = 200
+    keep_period = 0
+    max_to_keep = 2
+    force_final_checkpoint = True
+    tensorboard_gcs_rotate_period = 500
+    jax_cache_dir = ''
+    record_training_health_metrics = False
+    record_internal_nn_metrics = False
+    bam_record_m_shift_health = False
+    bam_record_concat_health = False
+    bam_record_fetched_read_health_metrics = False
+    bam_record_fetched_read_amplitude_metrics = False
+    bam_record_fetch_route_metrics = False
+    bam_record_local_routing_metrics = False
+    bam_record_local_qk_amplitude_metrics = False
+    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadT2048',
+                    'MuddLlama2MediumPropC256T2048', 'BamMHAMediumPropC256T2048Matched',
+                    'BamMediumPropMShiftReadG050ReadAttentionSharedR256TruePile']

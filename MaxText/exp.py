@@ -6879,23 +6879,12 @@ class BamXLIndependentLLFLocalQKVCFp32AlignedRow(BamXLIndependentLLFLocalVRank4C
 
 class BamXLIndependentLLFLocalQKRank4CFp32AlignedRow(BamXLIndependentLLFLocalQKVCFp32AlignedRow):
     """Q/K rank2 -> rank4; retain LocalV rank4 and effective-key fp32 routing."""
-    # code_commit: b264b49; UE5a v5p-32 scan/AOT, loaded executable and FIRST_STEP verified.
-    # !? steps10-14 .5268 steps/s: -4.29% vs parent .5504 (EW4b).
-    # Timing also includes restored generic training-health statistics; BAM sow remains off.
-    # All-health-OFF comparison (v5p-32 scan/AOT; historical rows reused, not a same-commit/zone pair):
-    # configuration | steps/s | vs Rank2 | vs preceding row | zone, runtime
-    # BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2AllDecayRepro200 | .5524 | reference | -- | UE5a,1b39c64
-    # BamXLIndependentLLFLocalVRank4CFp32AlignedRow | .5532 | +.14% | +.14% | UE5a,d8ecbe2
-    # BamXLIndependentLLFLocalQKVCFp32AlignedRow | .5504 | -.36% | -.51% | EW4b,6977fa0
-    # BamXLIndependentLLFLocalQKRank4CFp32AlignedRow | .5360 | -2.97% | -2.62% | UE5a,c2134ff
-    # New row uses trace-free steps28-33 (all .536); steps12-14 .535 corroborate it.
-    # Old rows use steps10-14. Step11 of the new trace was disturbed; excluded explicitly.
-    # Health-off is +1.75% vs formal health-on .5268; residual rank cost ~-2.6%.
-    # Diagnostic-only branch codex/xl-qkr4-nohealth-speed; generic health stays ON in formal training.
-    # Historical runtime source: codex/local-read-gram, /data0/xd/local-read-gram.
-    # Stopped at 25726. vs LocalQKVC parent: early positive gap crossed repeatedly,
-    # then remained negative at 11500–25000; 20500–25000 mean -.00080, small plateau benefit.
-    # Against historical XL Rank2 the same window averaged -.00462.
+    # 结论：QK rank4最终有小幅loss收益，但计算速度代价高于预期；完整健康OFF对照表已归档。
+    # 停于25726；对LocalQKVC早期反复交叉后保持领先，20500–25000均值gap-.00080；对历史XL Rank2同窗-.00462。
+    # 正式UE5a v5p32 .5268 step/s，含generic健康；健康OFF测速c2134ff为.5360（28–33步，排除受profiling干扰的11步）。
+    # 健康OFF历史参照：Rank2 .5524/UE5a/1b39c64、LocalV .5532/UE5a/d8ecbe2、QKVC .5504/EW4b/6977fa0。
+    # 相对QKVC约慢2.62%；这些历史对照并非同commit/同区配对。正式训练保留generic健康，BAM sow关闭。
+    # code_commit: b264b49；历史实现codex/local-read-gram，/data0/xd/local-read-gram；测速分支codex/xl-qkr4-nohealth-speed。
     model_name = 'BamXLIndependentLLFLocalQKRank4CFp32AlignedRow'
     compare_runs = ['BamXLIndependentLLFLocalQKVCFp32AlignedRow']
     bam_local_q_rank = 4  # K follows Q; V is explicitly rank4 in the parent.
@@ -9340,23 +9329,13 @@ class BamXLSharedBasisQKDirectC8MLPPerLayerColOnlyK128QK96TruncatePartialRoPE(
     BamXLSharedBasisQKDirectC8MLPPerLayerColOnly
 ):
     """Ledger only: raw M128x32, DirectC8 LocalQK 128->96 truncate, NoPE96/RoPE32."""
-    # code_commit: 9a58407; resumed after step9024 from 4fb2021, same RUN/TPU.
-    # UE5a v5p-32, generic health ON/BAM sow OFF; W/R/S all dot.
-    # steps9035-39 .5690 steps/s: +13.89% vs pre-switch .4996 (8990-94),
-    # -4.08% vs K64 .5932.
-    # Profile 3d59d64: lowering/layout cost, FLOPs only +.5%; full-v5p K128
-    # all-dot +13.81%, then -4.31% vs K64.
-    # Artifacts: /data0/xd/bam_diagnostics/xl-colonly-k-operators/.
-    # Same parameter tree and MLP widths as K64. Stopped at 34,348.
-    # vs K64: early -.1132 narrowed to last-five mean -.00416
-    # (range -.00461..-.00309, through28.5k); advantage still shrinking.
-    # vs DirectC8MLP: crossed from negative to positive around14k;
-    # last-five mean +.00296 (.00226.. .00343, through27.5k), widening.
-    # vs SharedBasis: last-five mean +.00385 (.00350.. .00413,
-    # through30k), widening; +4.33% speed vs UE5a matched-health .5454.
-    # +3.23% speed and -8.23% params vs DirectC8MLP (.5512; different runtime).
-    # Conclusion: expanding K recovers ~.004 at equal parameters, but
-    # does not close the loss deficit versus the original BAM budget.
+    # 结论：等参数扩K追回部分loss，但收益持续收窄，仍未补平对原BAM预算架构的差距。
+    # 停于34348；对K64末五至28.5k gap-.00416且收窄；对DirectC8MLP于约14k反落后，至27.5k末五+.00296。
+    # 对SharedBasis至30k末五+.00385且扩大；参数比DirectC8MLP少8.23%，相同K64参数树/MLP宽度。
+    # UE5a v5p32 .5690 step/s，比K64慢4.08%、比DirectC8MLP快3.23%；generic ON/BAM sow OFF。
+    # W/R/S改dot后同状态续训提速13.89%；诊断显示主要为lowering/layout而非FLOPs(+.5%)，不可全部归因于K扩展。
+    # code_commit: 9a58407（9024后，前4fb2021）；codex/xl-directc8-all-col-k128，/data0/xd/xl-directc8-all-col-k128。
+    # 诊断源码3d59d64，产物/data0/xd/bam_diagnostics/xl-colonly-k-operators/。
     model_name = 'BamXLSharedBasisQKDirectC8MLPPerLayerColOnlyK128QK96TruncatePartialRoPE'
     bam_write_outer_implementation = 'dot'
     bam_read_implementation = 'dot_btn'

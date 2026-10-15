@@ -12899,6 +12899,8 @@ class BamMHAMediumPropC256QKNormTruePile(BamMHAMediumPropC256TruePile):
 
 class Llama2XLPropTruePileMHAQKNorm(Llama2XLPropTruePileMHA):
     """Full96 Q/K RMSNorm before RoPE on the unchanged XLProp MHA backbone."""
+    # User stopped26843/CP26843; UE5a P0, resources absent, TB SYNC_OK.
+    # Through26500 last5 gap vsMHA-.0182204, QKNorm/single gainshare .144057.
     model_name = 'Llama2XLPropTruePileMHAQKNorm'
     qk_norm = True
     checkpoint_period = 250
@@ -12913,6 +12915,7 @@ class Llama2XLPropTruePileMHAQKNorm(Llama2XLPropTruePileMHA):
 
 class BamXLPropMShiftReadG050FullQKNormTruePile(BamXLPropSharedR400GeneralReadMShiftReadG050TruePile):
     """Original XL single read .5 plus full96 Q/K RMSNorm before partial RoPE."""
+    # code_commit: 7249f01; UE5a TPU310230 FIRST_STEP/AOT/1432389016/healthOFF verified; ~.380step/s.
     model_name = 'BamXLPropMShiftReadG050FullQKNormTruePile'
     qk_norm = True
     bam_qk_norm_after_concat = True

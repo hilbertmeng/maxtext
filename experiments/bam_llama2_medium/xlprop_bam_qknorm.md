@@ -21,3 +21,14 @@ Only report observed second-order through common MHAQK horizon. Compare Medium/X
 Pre-run paired second-order bet .92 (range .89–.95), retain prior computed extrapolation;
 Medium terminal .91108. New arm directly tests the assumed cross-scale BAM/MHA QKNorm response ratio.
 BAMQK timing prior around .38–.40step/s including healthOFF; original parent .36466 had healthON, so unmatched causal timing.
+
+XL MHAQK closeout26843/CP26843; P0, resources absent, TB SYNC_OK.
+Sole lease UE5a v5p32 2026-10-14T11:31:06Z–2026-10-15T01:47:29Z (14h16m23s).
+Through26500 last5gap vsMHA-.0182204, QKNorm/single gainshare .14405695;
+late plateau maintained. Stored curve supports paired full windows through26500.
+XL BAMQK sealed7249f01, CPU budget5376/total1432389016 and all healthOFF verified,
+scan-tail finite norm+Mshift gradients and causality passed; AOT/prequeue preparing.
+
+FIRST_STEP0 then7 confirmed. Worker actual1432389016; qk_norm/after_concatTrue,
+MLP[6127,5938,6127]/tail6126; batch128. All bam_record flags/internal/generichealthFalse.
+Loaded compiled function; observed .380step/s. Continue active monitor, next XL report2000.

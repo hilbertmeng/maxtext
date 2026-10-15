@@ -15,16 +15,26 @@ def main():
  p.add_argument('--serial',type=Path,required=True,help='Completed serial BAM loss-report JSON')
  p.add_argument('--old-recipe',type=Path,required=True,help='Matched-circuit old recipe loss-report JSON')
  p.add_argument('--through-step',type=int,required=True)
+ p.add_argument('--arm-report',action='append',nargs=2,default=[],metavar=('RUN','JSON'),
+                help='Cached registry loss-report for an arm already completed/acknowledged; live pending reports take precedence')
  p.add_argument('--output',type=Path,required=True);a=p.parse_args()
  serial=json.loads(a.serial.read_text());old=json.loads(a.old_recipe.read_text());report=json.loads(a.report.read_text())
  comp='MuddPythiaMediumPropT2048SerialMLP'
  raw={'unfixed':points(ratio(serial,comp)),'old_recipe':points(ratio(old,'MuddLlama2MediumPropC256T2048'))}
  names={'BamPythiaMediumPropT2048SerialMLPBamInitFix':'bam_fix',
         'BamPythiaMediumPropT2048SerialMLPOriginalInit':'all_original'}
- for entry in report['runs']:
-  if entry['run_name'] not in names:continue
-  label=names[entry['run_name']]
-  raw[label]=points(ratio(entry['pending_report'],comp))
+ overrides=dict(a.arm_report)
+ if set(overrides)-set(names):p.error('Unknown initialization arm in --arm-report')
+ entries={entry['run_name']:entry for entry in report['runs']}
+ cached_sources={}
+ for name,label in names.items():
+  doc=entries.get(name,{}).get('pending_report')
+  if doc is None and name in overrides:
+   source=Path(overrides[name]);doc=json.loads(source.read_text());cached_sources[name]=str(source)
+  if doc is None:p.error(f'Missing pending report for {name}; supply --arm-report RUN JSON for a completed arm')
+  item=ratio(doc,comp)
+  if item.get('run')!=name:p.error(f'Gain report belongs to {item.get("run")}, expected {name}')
+  raw[label]=points(item)
  assert set(raw)=={'unfixed','old_recipe','bam_fix','all_original'},set(raw)
  serial_terminal=mean(list(raw['unfixed'].values())[-5:])
  old_late=mean(list(raw['old_recipe'].values())[-5:])
@@ -43,5 +53,6 @@ def main():
    serial_terminal_last5=serial_terminal,old_recipe_latest5=old_late,
    recovery_threshold_new_over_unfixed=old_late/serial_terminal,
    conditional_scope='Conditional terminal numbers ONLY assume the current new/parent ratio persists; not a fitted or observed terminal. Old recipe matched run stopped10160; late windows through10000, not full13500 terminal.',rows=rows)
+ if cached_sources:result['cached_arm_report_sources']=cached_sources
  a.output.write_text(json.dumps(result,indent=2)+'\n');print(json.dumps(result,indent=2))
 if __name__=='__main__':main()

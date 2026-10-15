@@ -40,11 +40,13 @@ class PythiaSwiGLUTest(PythiaTest):
     for arm in SWI:
       opts=dict(exp_class=arm,base_num_decoder_layers=3,base_mlp_dim=128,
           pythia_rotary_dim=4,remat_policy='full')
-      if arm.startswith('Mudd'):opts.update(mlp_dim_by_layer=[64,128,192])
+      if arm.startswith('Mudd'):opts.update(base_num_decoder_layers=18)
       if arm.startswith('Bam'):
         opts.update(base_emb_dim=300,base_num_query_heads=4,base_num_kv_heads=4,
             head_dim=75,pythia_rotary_dim=18,base_num_decoder_layers=6)
       c=self.config(**opts)
+      if arm.startswith('Mudd'):
+        c.get_keys().update(base_num_decoder_layers=3,num_decoder_layers=3,mlp_dim_by_layer=[64,128,192])
       if c.bam_enabled:
         c.get_keys().update(emb_bam_num_head=4,mlp_dim_by_block=[128,96,128],
             bam_local_full_m_read_bottleneck_dim=64,bam_write_v_bottleneck_dim=64,
@@ -68,6 +70,8 @@ class PythiaSwiGLUTest(PythiaTest):
   def test_reject_unrequested_variant_and_invalid_widths(self):
     with self.assertRaises(ValueError):self.config(mlp_activations=['silu','linear'])
     with self.assertRaises(ValueError):self.config(exp_class=SWI[0],mlp_activations=['gelu_exact'])
-    with self.assertRaises(ValueError):self.config(exp_class=SWI[1],mlp_dim_by_layer=[64])
+    from pythia_config import validate_pythia_config
+    c=self.config(exp_class=SWI[1],base_num_decoder_layers=18)
+    with self.assertRaises(ValueError):validate_pythia_config(dict(c.get_keys(),mlp_dim_by_layer=[64]))
 
 if __name__=='__main__':unittest.main()

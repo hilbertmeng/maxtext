@@ -183,3 +183,9 @@ Actualparent11763/CP11600,norm4080/CP4000. Latestparent11600originalsingle gap-.
 ### Joint attention-controls group: parent12k / norm4.2k
 
 Actualparent12051/CP12000,norm4351/CP4200. Parent12k originalsingle gap-.00299/R1.019096,last5gap-.00354424/R1.022741, MHAgap-.1595712(last5-.15956168). Last5R11k1.019387→11.6k1.021313→12k1.022741, recentreboundreachesrollingmean; last1knotmonotoniccontraction, nowaround1.02fluctuation, remaining1500stepswilltestterminal. Normoriginalsingle4200gap-.0077068/R1.036268,last5-.00947068/R1.042327. Same4200 norm-minus-parent+.0005382/R.997562,last5-.00011596/R1.000524, prior3aheadwindowsnotpersistent. StoppedsharedMLPnorm4200gap+.0010874/R.995086,last5+.00039768/R.998353. NormMHA4200gap-.2202044(last5-.23299144). Bothcontinue, normcanonical+.232%speedunchanged. Complete200-stepseries/r200 report-attention-group12000.json. Formalcursorsparent12000/norm4200,nextown13000/5000, ONEjointreport.
+
+## 写控制组：MLP norm路5k（2026-10-15 UTC）
+
+共同MHA参考。父路最新完整12600：对原单门.5 gap−.0032052、末五−.00330236，收益倍数约1.02060、末五1.021322。MLP norm路完整5k：对父路gap+.0002072、末五+.0005696，倍数.998999/末五.997317；4.2/4.4/4.6/4.8/5k倍数.997562/.997822/.998285/.993919/.998999。对原单门.5 gap−.0074578、倍数1.037410、末五1.037231。对已停共享写MLPnorm完整5k gap+.0000488、倍数.999764；末五+.00061384/.997152。
+
+暂无额外loss收益，近乎持平略弱；同健康速度较父路+.232%，继续6k；父路继续13k。只更新过程笔记和registry游标，不将监控窗口写入exp.py。完整registry结果 `/data0/xd/bam_diagnostics/report-active3-20261015-attention-norm5000.json`。

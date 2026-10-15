@@ -28,14 +28,15 @@ def main():
  assert set(raw)=={'unfixed','old_recipe','bam_fix','all_original'},set(raw)
  serial_terminal=mean(list(raw['unfixed'].values())[-5:])
  old_late=mean(list(raw['old_recipe'].values())[-5:])
- common=sorted(set.intersection(*(set(m) for m in raw.values())))
+ # A stopped old-recipe reference must not truncate the active primary series.
+ common=sorted(set.intersection(*(set(raw[k]) for k in ('unfixed','bam_fix','all_original'))))
  rows=[]
  for s in common:
   if s>a.through_step:continue
-  row=dict(step=s,**{k:m[s] for k,m in raw.items()})
+  row=dict(step=s,**{k:m.get(s) for k,m in raw.items()})
   for label in ['bam_fix','all_original']:
    row[label+'_vs_unfixed']=row[label]/row['unfixed']
-   row[label+'_vs_old_recipe']=row[label]/row['old_recipe']
+   row[label+'_vs_old_recipe']=row[label]/row['old_recipe'] if row['old_recipe'] is not None else None
    row[label+'_conditional_terminal']=row[label+'_vs_unfixed']*serial_terminal
   rows.append(row)
  result=dict(definition='Each BAM/Mudd ratio uses own-family MHA. Reuses registry window ratios. No raw loss re-averaging.',

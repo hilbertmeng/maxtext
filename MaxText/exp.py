@@ -12860,12 +12860,11 @@ class BamPythiaMediumPropT2048MShiftReadG050ReadAttentionSharedR256SwiGLU(
 class BamPythiaMediumPropT2048SerialMLPBamInitFix(
         BamPythiaMediumPropT2048MShiftReadG050ReadAttentionSharedR256SerialMLP):
     """Restore the BAM initialization chain, retaining the Pythia vector circuit."""
-    # 在训5k：BAM/Mudd1.71253；相对未修复串行二阶1.34194，相对同阶段旧配方1.15245。
-    # 3k/4k/5k修复贡献1.32122/1.32905/1.34194，效果持续；对应BAM/Mudd1.89202/1.80108/1.71253。
-    # 对父BAM5k gap-.040348；比全原初始化领先.010576（3k.023012、4k.016335），后者持续追近。
+    # 在训6k：BAM/Mudd1.72095；相对未修复串行二阶1.36622，相对同阶段旧配方1.15577。
+    # 3k/4k/5k/6k修复贡献1.32122/1.32905/1.34194/1.36622，持续增强；初始化不匹配证据明确。
     # 仅embedding/BAM专用非零投影回原初始化角色及写RMS epsilon1e-6；保留Pythia标准干路/GELU/LN。
     # UE5a v5p16 .5175875step/s，健康全OFF；参数432356690，MLP[5832,5643,5832]，legacy2048/global256。
-    # 跑前终局贡献下注1.12[1.02,1.25]低估；3k起当前预测1.30[1.20,1.40]，尚无终局检验。
+    # 跑前终局贡献下注1.12[1.02,1.25]低估；3k起预测1.30[1.20,1.40]，尚无终局检验。
     # code_commit: eaa95f8；codex/pythia-mediumprop-t2048，/data0/xd/pythia-mediumprop-t2048。
     model_name = 'BamPythiaMediumPropT2048SerialMLPBamInitFix'
     bam_init_method = '006normal'
@@ -12878,12 +12877,11 @@ class BamPythiaMediumPropT2048SerialMLPBamInitFix(
 class BamPythiaMediumPropT2048SerialMLPOriginalInit(
         BamPythiaMediumPropT2048SerialMLPBamInitFix):
     """All random kernels use the original .006 recipe; serial GELU/LN fixed."""
-    # 在训5k：BAM/Mudd1.59814；相对未修复串行二阶1.25231，相对同阶段旧配方1.07548。
-    # 3k/4k/5k修复贡献1.16207/1.20336/1.25231，持续增强；对父BAM5k gap-.029771。
-    # 对BAM专用修复落后.023012→.016335→.010576（3k/4k/5k），尚未追平，但后劲明确。
-    # 在专用修复外恢复标准QKV/MLP/unembedding原初始化角色；仍是串行GELU/LN，并非整套旧配方。
-    # UE5a v5p16 .5166625step/s，健康/参数/MLP宽/数据同专用修复。
-    # 跑前终局贡献下注1.20[1.05,1.40]中心已偏保守；保留原始预测供终局检验。
+    # 在训6k：BAM/Mudd1.61230；相对未修复串行二阶1.27997，相对同阶段旧配方1.08280。
+    # 3k/4k/5k/6k修复贡献1.16207/1.20336/1.25231/1.27997；仍落后专用修复，标准干路恢复非必要。
+    # 对父BAM6k gap-.030254；原下注1.20[1.05,1.40]中心已偏保守，保留供终局检验。
+    # 在专用修复外恢复标准QKV/MLP/unembedding原初始化角色；仍为串行GELU/LN，并非整套旧配方。
+    # UE5a v5p16 .5166625step/s，健康全OFF；432356690参数，MLP[5832,5643,5832]。
     # code_commit: eaa95f8；codex/pythia-mediumprop-t2048，/data0/xd/pythia-mediumprop-t2048。
     model_name = 'BamPythiaMediumPropT2048SerialMLPOriginalInit'
     init_method = '006normal'

@@ -12930,12 +12930,12 @@ class BamMediumPropMShiftReadG050PostMLPWriteControlsTruePile(
 class BamMediumPropPostAttentionWriteSharedR256AttentionNormTruePile(
         BamMediumPropMShiftReadG050PostAttentionWriteControlsTruePile):
     """Share actual post-attention write-address R256 features using attention norm."""
-    # 用户停于4673步；最终CP4673提交，TPU/队列释放、TB SYNC_OK。未训练终局。
+    # stopped 4673（用户指令）；最终CP4673提交，TPU/队列释放、TB SYNC_OK。未训练终局。
     # 对attention单改父路：早期落后后趋近持平，4600 gap+.000501/R.997676；末五gap-.000033/R1.000132。
     # 原终局下注1.03，已训阶段未建立额外收益；速度持平、参数找平，MLP norm同阶段略强，保留后者。
     # 六MLP写层共享实际R256 down/GELU，两路up及full-D写门独立，读端down独立；非写回12层不变。
     # UE5a v5p16 .4845000step/s，相对同健康父路基本持平；432104480参数，MLP[3802,3761,3802]，健康全OFF。
-    # UE5a v5p16 .4845000step/s；P2/三段READY租期，均同区；参数432104480，MLP[3802,3761,3802]。
+    # UE5a P2，完整三段READY租期已登记区域历史，无换区；最终资源/TB收尾完成。
     # code_commit: 99485ac；codex/mediumprop-m-shift，/data0/xd/mediumprop-m-shift。
     model_name = 'BamMediumPropPostAttentionWriteSharedR256AttentionNormTruePile'
     bam_attention_mlp_write_shared_norm = 'attention'
@@ -12948,12 +12948,12 @@ class BamMediumPropPostAttentionWriteSharedR256AttentionNormTruePile(
 class BamMediumPropPostAttentionWriteSharedR256MLPNormTruePile(
         BamMediumPropPostAttentionWriteSharedR256AttentionNormTruePile):
     """Share write-address features using the existing post-attention MLP norm."""
-    # 在训5k/CP5000：对attention单改父路gap+.000158、MHA参考倍数.999235；最近三窗口微弱落后。
-    # 4k微弱净收益未保持，末五gap-0.000044/R1.000167，整体持平；比已停attention norm在4600低.000342。
-    # attention norm用户停于4673；本路及纯MLP norm复用对照继续，区分共享收益和norm来源收益。
+    # stopped 5354（用户指令）；最终CP5354提交、TPU/队列释放、TB SYNC_OK，未训练终局。
+    # 对attention单改父路：5k前接近持平，5200回升gap-.001400/R1.00685；末五R1.001040，无稳定净收益。
+    # 对已停attention norm末共同4600低.000342/R1.001588；两共享写路均停，保留attention单改/改用MLP norm对照。
     # 六MLP写层共享实际R256 down/GELU，两路up及full-D写门独立，读端down独立；非写回12层不变。
     # UE5a v5p16 .4842625step/s，相对同健康父路基本持平；432104480参数，MLP[3802,3761,3802]，健康全OFF。
-    # 跑前终局new/父路下注1.04[.99,1.10]，MHA参考，保持作为待检验预测。
+    # 跑前终局下注1.04[.99,1.10]对已训阶段偏乐观；P1、全程UE5a，两段租期已登记；非终局测量。
     # code_commit: 99485ac；codex/mediumprop-m-shift，/data0/xd/mediumprop-m-shift。
     model_name = 'BamMediumPropPostAttentionWriteSharedR256MLPNormTruePile'
     bam_attention_mlp_write_shared_norm = 'mlp'

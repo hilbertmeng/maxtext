@@ -12898,6 +12898,9 @@ class BamMediumPropSharedR256GeneralReadAddressSharedGatesTruePile(BamMediumProp
 class BamMediumPropMShiftReadG050MLPReadWriteLayersTruePile(
         BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile):
     """Eight full-K BAM vectors replace W1 channels, only in six MLP-write layers."""
+    # 共同1k：对原单门.5的早期领先持续收窄；继续训练，尚不支持乐观终局下注。
+    # 200/400/600/800/1000 gap -0.139044/-0.044189/-0.014623/-0.006174/-0.003187。
+    # MHA参考收益倍数 1.09874/1.02975/1.01511/1.00850/1.00545；CP1000已提交。
     # 已开训：runtime3afcaa9，UE5a v5p16 TPU310246；FIRST_STEP/AOT/实际432112064参数与配置核验。
     # 20–99步0.4780875step/s，对健康关闭计时对照-1.25%。
     # 独立实现 codex/mediumprop-mlp-bam-read，/data0/xd/mediumprop-mlp-bam-read。
@@ -12917,6 +12920,9 @@ class BamMediumPropMShiftReadG050MLPReadWriteLayersTruePile(
 class BamMediumPropMShiftReadG050MLPReadNonWriteLayersTruePile(
         BamMediumPropMShiftReadG050MLPReadWriteLayersTruePile):
     """BAM value channels only in the twelve layers without an MLP write."""
+    # 共同1k：对原单门.5的早期领先持续收窄；继续训练，尚不支持乐观终局下注。
+    # 200/400/600/800/1000 gap -0.073807/-0.044727/-0.027268/-0.014963/-0.009198。
+    # MHA参考收益倍数 1.05241/1.03011/1.02817/1.02060/1.01574；CP1000已提交。
     # 已开训：runtime3afcaa9，UE5a v5p16 TPU310247；FIRST_STEP/AOT/实际432112448参数与配置核验。
     # 20–99步0.4687750step/s，对健康关闭计时对照-3.18%。
     # 本层找平，总参数432112448（父路+768）；前向净增449664 FLOPs/token，约+.04888%。
@@ -12929,6 +12935,9 @@ class BamMediumPropMShiftReadG050MLPReadNonWriteLayersTruePile(
 class BamMediumPropMShiftReadG050MLPReadAllLayersTruePile(
         BamMediumPropMShiftReadG050MLPReadWriteLayersTruePile):
     """BAM value channels in all eighteen MLPs, individually budget-matched."""
+    # 共同1k：对原单门.5的早期领先持续收窄；继续训练，尚不支持乐观终局下注。
+    # 200/400/600/800/1000 gap -0.156299/-0.067108/-0.034160/-0.018081/-0.012516。
+    # MHA参考收益倍数 1.11099/1.04518/1.03529/1.02490/1.02141；CP1000已提交。
     # 已开训：runtime3afcaa9，UE5a v5p16 TPU310248；FIRST_STEP/AOT/实际432112832参数与配置核验。
     # 20–99步0.4575625step/s，对健康关闭计时对照-5.49%。
     # 本层找平，总参数432112832（父路+1152）；前向净增674496 FLOPs/token，约+.07332%。

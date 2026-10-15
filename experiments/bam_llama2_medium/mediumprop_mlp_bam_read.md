@@ -54,3 +54,17 @@ Full18 initialization probe (3 seeds, 32 synthetic token rows/seed): mean read/W
 All three running from sealed runtime3afcaa9e8d0efaf15b66dc4355b145cf49ed1ae5 on UE5a v5p16: write6 TPU310246, nonwrite12 TPU310247, all18 TPU310248. CPU59 checks passed across new-path4, affected-Pythia3, summary-writer5 and BAM47; final focused launch gate reuses one fingerprint across three scripts. AOT loaded and FIRST_STEP verified for each. Actual full worker parameter trees148/156/164 leaves sum432112064/432112448/432112832, exactly matching local audit. Actual TruePile4096 UE5a dataset, T4096/per-device16(global128), CP200/latest2/keep0/TBrotate500, single read.5, all bam_record_* plus generic health OFF verified. No extra metrics.
 
 Canonical20–99 speeds, all80 steps present: write6 .4780875, nonwrite12 .4687750, all18 .4575625 step/s. Versus health-OFF timing control `BamMediumPropMShiftReadG050PostResidualWriteControlsTruePile` (.4841625 step/s), which has the same matrix multiply shapes and costs: -1.25%/-3.18%/-5.49%. It is not a replacement loss baseline. These actual overheads are much larger than .024%/.049%/.073% dominant-FLOP increments, consistent with added small ops/state dependencies; no kernel-level causal attribution established. Bets -2%/-4%/-6% roughly matched. Current loss is finite and falling; first formal group comparison at common1000, no verdict from startup loss. Artifacts worker-config-verification.json, speed-verification.json under local mediumprop-mlp-bam-read diagnostics.
+
+## Common 1,000-step report (2026-10-15)
+
+Actual progress write6/nonwrite12/all18:1076/1116/1083, committed CP1000 each. Gain multipliers use original single.5 as comparator and MHA as reference; values taken directly from registered report, not recomputed from raw loss.
+
+|step|write6 gap|write6 R|nonwrite12 gap|nonwrite12 R|all18 gap|all18 R|
+|---:|---:|---:|---:|---:|---:|---:|
+|200|-0.139044|1.09874|-0.073807|1.05241|-0.156299|1.11099|
+|400|-0.044189|1.02975|-0.044727|1.03011|-0.067108|1.04518|
+|600|-0.014623|1.01511|-0.027268|1.02817|-0.034160|1.03529|
+|800|-0.006174|1.00850|-0.014963|1.02060|-0.018081|1.02490|
+|1000|-0.003187|1.00545|-0.009198|1.01574|-0.012516|1.02141|
+
+All18 > nonwrite12 > write6, but each extra gain is contracting. Nonwrite12 delivers roughly three quarters of all18 extra loss improvement at1k with lower measured overhead (-3.18% versus-5.49% health-OFF timing control). Continue all three; next group report2000. Original terminal bets remain historical predictions, not supported by the early declining ratios. Full parent/MHA cumulative gaps and r200 in report-common1000.json.

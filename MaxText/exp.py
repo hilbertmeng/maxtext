@@ -12979,8 +12979,9 @@ class BamMediumPropMShiftReadG050MLPReadAllLayersNoReadGatesStaticZeroTruePile(
 class BamMediumPropMShiftReadG050MLPReadNonWriteLayersNoReadGatesStaticZeroTruePile(
         BamMediumPropMShiftReadG050MLPReadAllLayersNoReadGatesStaticZeroTruePile):
     """Ungated zero-static MLP reads only in the twelve non-writing layers."""
-    # 在训2k/CP2000：对原单门.5 gap-.005626、MHA参考倍数1.01759；对旧带门12层-.001876/1.00580。
-    # 对新18层2k首次略优：gap-.000617/倍数1.00190；此前均落后，未成稳定反超，速度快1.71%，继续3k。
+    # stopped 3149（用户指令）；最终CP3149提交、TPU/队列释放、TB SYNC_OK，未训练终局。
+    # 对原单门.5末完整3k gap-.000895/R1.003579，末五R1.009216；2k优势1.01760继续缩水。
+    # 对新18层末五全落后，3k gap+.002719/R.989277；快1.71%未弥补loss劣势，整组已停。
     # 参数432097856，MLP[3898,3676,3898]，原单门.5-13824整数余差；同层找平，六MLP写层无读且保持原宽。
     # .4709125step/s（20–99，80点），对健康同OFF旧带门12层+.46%、新无门零静态18层+1.71%。
     # 前向净增.420864MFLOPs/token(+.04575%)，reader每选中层.2592W_Q；全部健康统计OFF。

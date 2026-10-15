@@ -1,5 +1,12 @@
 # MediumProp T2048: current shared-R256 BAM transfer
 
+**Stopped by user at10160; final checkpoint10160 committed.** TPU and queued
+resource independently verified absent; TensorBoard SYNC_OK. Last complete native
+window10000; last5 gaps oldT2048BAM−.008719, Mudd−.044360, MHA−.138062; MHA-relative
+gain ratios versus oldBAM1.067418, Mudd1.473443. The planned13500-step terminal was
+not observed, so the revised terminal forecast1.07 remains an extrapolation.
+
+
 RUN `BamMediumPropMShiftReadG050ReadAttentionSharedR256T2048`; TPU
 `xd-v5p-16-310231-maxtext`, SPOT v5p-16, us-east5-a. Implementation worktree
 `/data0/xd/mediumprop-projection-sharing`, branch `codex/mediumprop-projection-sharing`.
@@ -256,3 +263,34 @@ Gain versus MuddLlama2MediumPropC256T2048
 |step|8200|8400|8600|8800|9000|9200|9400|9600|9800|10000|
 |---|---|---|---|---|---|---|---|---|---|---|
 |ratio|1.464918|1.474972|1.470322|1.475505|1.489784|1.472703|1.479170|1.456972|1.483915|1.474453|
+
+## User-requested closeout
+
+Stop boundary2026-10-15T09:00:37Z; finalstep/committedCP10160, estimatedloststeps0.
+Explicit GCS10160/commit_success.txt verified. Registry declared_status=stopped,
+final_step=10160. Node and queued resource both returned NOT_FOUND in independent
+checks after the release helper's Verified absent. TensorBoard SYNC_OK at local
+log /home/xd/.local/state/maxtext-tensorboard-sync/closeout-20261015T090036815403Z.log.
+Authoritative remote summary /home/lishengping/xd/projects/logs/closeout-20261015T090255Z.json,
+local copy in task evidence root; failures[]. Monitoring ended at user stop.
+
+Final full same-step trajectories are final-loss.json (native200 windows through10000).
+Relative to oldT2048BAM, the large200-step startup advantage contracted to~-.0057
+at1000, then held near-.008–.009 from1400 to10000. Last5mean-.00871912,
+range[-.0095716,-.008177]. Last5 Mudd gap-.04435952 and MHA gap-.13806184;
+gain ratios1.067418485/1.473442800. The late observed gain agrees with the revised
+forecast vicinity, but no terminal claim is possible after stopping10160/13500.
+Original pre-run1.10 was optimistic relative to late observed1.0674; successive
+posterior updates1.08 then1.07 were recorded before stop. Same joint modification
+atT4096 yielded1.093207 at10000, versusT2048's1.064421 single-window ratio.
+Canonical throughput .549975/s, +1.96% versus oldBAM .5394; healthOFF versus oldON
+confounds timing. No code/numerical anomaly found. Params432111680 unchanged
+versus architecture parent; -9520 versus MHA, +576 versus old generalized-read BAM.
+
+Complete READY lease history (SPOT v5p-16, us-east5-a, zero preemptions):
+
+| StartUTC | EndUTC | Duration | TPU | Endreason |
+|---|---|---|---|---|
+|2026-10-15T03:48:42Z|2026-10-15T09:00:37Z|5h11m55s|xd-v5p-16-310231-maxtext|user_stop|
+
+The retained FLEX compiler llm-jax-v6e-1-0 was borrowed only and was not released.

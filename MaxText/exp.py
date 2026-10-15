@@ -13011,3 +13011,16 @@ class BamMediumPropMShiftReadG050SharedR384ReuseActivationMLPWriteTruePile(BamMe
     bam_record_fetch_route_metrics = False
     bam_record_local_routing_metrics = False
     bam_record_local_qk_amplitude_metrics = False
+
+
+class BamXLPropMShiftReadG050ReadAttentionSharedR400TruePile(BamXLPropMShiftReadG050ReadAttentionSharedR384TruePile):
+    """Shared read/attention R400, parent-matched private MLP write R384."""
+    model_name = 'BamXLPropMShiftReadG050ReadAttentionSharedR400TruePile'
+    bam_local_full_m_read_bottleneck_dim = 400
+    bam_write_v_bottleneck_dim = 400
+    bam_mlp_write_address_rank = 384
+    mlp_dim_by_block = [6260, 6072, 6260]
+    bam_final_local_mlp_dim = 6262
+    compare_runs = ['BamXLPropSharedR400GeneralReadMShiftReadG050TruePile',
+                    'BamXLPropMShiftReadG050ReadAttentionSharedR384TruePile',
+                    'BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile']

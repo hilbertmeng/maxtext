@@ -12856,8 +12856,12 @@ class BamXLPropSharedR400GeneralReadMShiftReadG050TruePile(BamXLPropK96EmbedVOnl
 
 class BamMediumPropMShiftReadG050PostResidualWriteControlsTruePile(BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile):
     """Generate attention/MLP write gates and addresses after their residual additions."""
-    # code_commit: b49a392; UE5a v5p-16 TPU310240; FIRST_STEP6/AOT/actual432111680/healthOFF verified.
-    # Mean20-99 .4841625step/s; parent .45835 has healthON, architectural speed delta not isolated.
+    # 阶段判断：用加完各自输出后的残差生成写门/地址，目前优于原单门 .5，参数量不变。
+    # 2k 对父路 loss 低 .014164；以 MHA 作共同参考，收益倍数 1.0443，近期五窗口均值 1.0422。
+    # 1k–2k 绝对改善收窄，但归一化收益守在约 1.04；维持终局预期 1.02（.99–1.05）。
+    # 按用户要求只保留原单门 .5 父路和 MHA，不再报告读+attention 写共享 R256 对照。
+    # UE5a v5p-16，.4841625 step/s；健康指标关闭，与历史父路的架构速度差尚未隔离。
+    # code_commit: b49a392；实现 codex/mediumprop-m-shift，/data0/xd/mediumprop-m-shift；继续训练。
     model_name = 'BamMediumPropMShiftReadG050PostResidualWriteControlsTruePile'
     bam_write_controls_post_residual = True
     record_training_health_metrics = False

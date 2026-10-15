@@ -21,3 +21,7 @@ Runtime b49a3923d4154004e097b864bbad771976933a14; exact CPU3+writers5+fullBAM47,
 ### Monitoring override, 2026-10-15
 
 User removed `BamMediumPropMShiftReadG050ReadAttentionSharedR256TruePile` from this RUN baseline list and gain-ratio monitoring. Keep only the original single read .5 parent and MHA; one gain-ratio triple uses MHA reference and that parent comparator. Registry updated live, class compare_runs updated; runtime remains b49a392 with unchanged training/parameters. Historical comparison figures above are retained solely as history and will not recur in reports.
+
+### Common2k, original parent only
+
+Progress2180/CP2000 committed. Own-parent gaps1/1.2/1.4/1.6/1.8/2k -.024810/-.021286/-.022045/-.015110/-.011158/-.014164. MHA-reference gain ratios1.042444/1.044202/1.050423/1.039949/1.032034/1.044299. Last5 mean gap-.0167526, ratio1.0421815. Absolute benefit contracts but normalized benefit holds~1.04 over1--2k. Retain terminal1.02 [.99,1.05]. Original parent and MHA remain the only registered baselines. Next3k.

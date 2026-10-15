@@ -210,3 +210,49 @@ Gain versus MuddLlama2MediumPropC256T2048
 |step|6200|6400|6600|6800|7000|7200|7400|7600|7800|8000|
 |---|---|---|---|---|---|---|---|---|---|---|
 |ratio|1.488570|1.498357|1.495084|1.488674|1.480936|1.474683|1.471305|1.465675|1.487075|1.484248|
+
+## 10000-step report
+
+CP10000,P0,~.550/s. OldBAM gap-.008177,last5mean-.00871912, range[-.0095716,-.008177]; gain1.064421,last5mean1.067418. The improvement is back near .0087, within the long-standing .008–.009 band. Mudd gap-.043475,last5mean-.04435952; gain1.474453,last5mean1.473443. MHA gap-.135108,last5mean-.13806184. Mudd-relative ratio slightly narrowed from early~1.49, but remains strong. T4096 same-modification gain1.093207 at10000. Posterior terminal1.07 [1.06,1.08] retained; full13500 continues, next12000.
+
+Native200-window continuation:
+
+BamMediumPropMShiftReadG050ReadAttentionSharedR256T2048 minus BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadT2048
+
+|step|8200|8400|8600|8800|9000|9200|9400|9600|9800|10000|
+|---|---|---|---|---|---|---|---|---|---|---|
+|gap|-0.008928|-0.007765|-0.008430|-0.008257|-0.008091|-0.008744|-0.008517|-0.008586|-0.009572|-0.008177|
+|r200|+13.3%|-13.0%|+8.6%|-2.1%|-2.0%|+8.1%|-2.6%|+0.8%|+11.5%|-14.6%|
+
+BamMediumPropMShiftReadG050ReadAttentionSharedR256T2048 minus MuddLlama2MediumPropC256T2048
+
+|step|8200|8400|8600|8800|9000|9200|9400|9600|9800|10000|
+|---|---|---|---|---|---|---|---|---|---|---|
+|gap|-0.045503|-0.045825|-0.044789|-0.045507|-0.046026|-0.044975|-0.045246|-0.043088|-0.045013|-0.043475|
+|r200|-3.3%|+0.7%|-2.3%|+1.6%|+1.1%|-2.3%|+0.6%|-4.8%|+4.5%|-3.4%|
+
+BamMediumPropMShiftReadG050ReadAttentionSharedR256T2048 minus BamMHAMediumPropC256T2048Matched
+
+|step|8200|8400|8600|8800|9000|9200|9400|9600|9800|10000|
+|---|---|---|---|---|---|---|---|---|---|---|
+|gap|-0.143376|-0.142306|-0.140020|-0.141209|-0.139997|-0.140119|-0.139673|-0.137378|-0.138032|-0.135108|
+|r200|-0.5%|-0.7%|-1.6%|+0.8%|-0.9%|+0.1%|-0.3%|-1.6%|+0.5%|-2.1%|
+
+BamMediumPropMShiftReadG050ReadAttentionSharedR256T2048 minus BamMediumPropMShiftReadG050ReadAttentionSharedR256TruePile
+
+|step|8200|8400|8600|8800|9000|9200|9400|9600|9800|10000|
+|---|---|---|---|---|---|---|---|---|---|---|
+|gap|+0.070610|+0.087908|+0.010446|+0.078244|+0.057409|+0.060586|+0.032820|+0.058610|+0.046207|+0.039310|
+|r200|+181.2%|+24.5%|-88.1%|+649.0%|-26.6%|+5.5%|-45.8%|+78.6%|-21.2%|-14.9%|
+
+Gain versus BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadT2048
+
+|step|8200|8400|8600|8800|9000|9200|9400|9600|9800|10000|
+|---|---|---|---|---|---|---|---|---|---|---|
+|ratio|1.066403|1.057712|1.064061|1.062102|1.061341|1.066558|1.064941|1.066663|1.074510|1.064421|
+
+Gain versus MuddLlama2MediumPropC256T2048
+
+|step|8200|8400|8600|8800|9000|9200|9400|9600|9800|10000|
+|---|---|---|---|---|---|---|---|---|---|---|
+|ratio|1.464918|1.474972|1.470322|1.475505|1.489784|1.472703|1.479170|1.456972|1.483915|1.474453|

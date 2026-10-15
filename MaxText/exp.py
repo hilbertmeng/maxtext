@@ -13037,6 +13037,7 @@ class BamMediumPropMShiftReadG050ReadAttentionSharedR256T2048(BamMediumPropMShif
     # @4000 oldBAM gap-.008550,last5-.008822; gains oldBAM1.049702/Mudd1.482269; plateau~-.009, posterior terminal1.08.
     # @6000 oldBAM gap-.008338,last5-.008237; gains oldBAM1.056708/Mudd1.489007; stable absolute benefit, P0,CP6000.
     # @8000 oldBAM gap-.007881,last5-.007944; gains oldBAM1.057834/Mudd1.484248; posterior terminal1.07 [1.06,1.08],P0.
+    # @10000 oldBAM gap-.008177,last5-.008719; gains oldBAM1.064421/Mudd1.474453; posterior1.07 retained,P0,CP10000.
     model_name = 'BamMediumPropMShiftReadG050ReadAttentionSharedR256T2048'
     DATASET_VARIANT = 'legacy2048'
     max_target_length = 2048

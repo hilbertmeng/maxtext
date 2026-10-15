@@ -301,6 +301,7 @@ class BamLlama2Medium(Llama2Medium):
     bam_write_controls_post_residual = False
     bam_attention_write_controls_post_residual = False
     bam_mlp_write_controls_post_residual = False
+    bam_attention_write_controls_norm = 'attention'  # attention | mlp
     bam_attention_mlp_write_shared_norm = 'none'  # none | attention | mlp
     bam_general_column_read = False
     bam_general_matrix_write = False  # Historical write variants remain worktree-only.
@@ -12956,3 +12957,19 @@ class BamMediumPropPostAttentionWriteSharedR256MLPNormTruePile(
     # code_commit: 99485ac；codex/mediumprop-m-shift，/data0/xd/mediumprop-m-shift。
     model_name = 'BamMediumPropPostAttentionWriteSharedR256MLPNormTruePile'
     bam_attention_mlp_write_shared_norm = 'mlp'
+
+
+class BamMediumPropMShiftReadG050PostAttentionWriteMLPNormTruePile(
+        BamMediumPropMShiftReadG050PostAttentionWriteControlsTruePile):
+    """Post-attention controls reuse the MLP norm; write downs stay independent."""
+    # 用户授权：attention写门/地址复用已有MLP norm，每层省一次norm；其他沿用attention单改父路。
+    # 无新增参数，预计432111680，MLP[3802,3676,3802]；两写端R256投影/激活各自独立。
+    # 所有健康统计OFF；T4096/global128/TruePile4096/13500/CP200/latest2/TB500。
+    # 跑前终局new/父路MHA参考下注1.01[.99,1.04]，速度+0.3%[0,1%]；与共享写MLP norm同组对照。
+    # 实现codex/mediumprop-m-shift，/data0/xd/mediumprop-m-shift；runtime待封存/启动验证。
+    model_name = 'BamMediumPropMShiftReadG050PostAttentionWriteMLPNormTruePile'
+    bam_attention_write_controls_norm = 'mlp'
+    compare_runs = ['BamMediumPropMShiftReadG050PostAttentionWriteControlsTruePile',
+                    'BamMediumPropPostAttentionWriteSharedR256MLPNormTruePile',
+                    'BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile',
+                    'BamMHAMediumPropC256TruePile']

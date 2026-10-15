@@ -203,6 +203,10 @@ class SubDecoderLayer(nn.Module):
     mlp_post_residual_controls = post_residual_controls or bool(
         getattr(cfg, 'bam_mlp_write_controls_post_residual', False))
     shared_write_norm = getattr(cfg, 'bam_attention_mlp_write_shared_norm', 'none')
+    attention_write_norm = getattr(cfg, 'bam_attention_write_controls_norm', 'attention')
+    assert attention_write_norm in ('attention', 'mlp')
+    if attention_write_norm == 'mlp':
+        assert attention_post_residual_controls
     assert shared_write_norm in ('none', 'attention', 'mlp')
     if shared_write_norm != 'none':
         assert attention_post_residual_controls and not mlp_post_residual_controls
@@ -248,14 +252,14 @@ class SubDecoderLayer(nn.Module):
     )
     intermediate_inputs = inputs + attention_lnx
 
-    # Only the new shared arms need the MLP norm before deferred attention writing.
-    # Reuse this same tensor for the MLP and its gate; no second norm evaluation.
+    # Reuse the MLP norm for optional post-attention write controls or shared addresses.
     mlp_norm = normalizations.get_rmsnorm("post_self_attention_layer_norm", cfg)
-    hidden_states = mlp_norm(intermediate_inputs) if share_write_hidden else None
+    hidden_states = (mlp_norm(intermediate_inputs)
+                     if share_write_hidden or attention_write_norm == 'mlp' else None)
     shared_write_hidden = None
     if attention_post_residual_controls:
-      # Preserve the attention gate's original context even in the MLP-norm arm.
-      write_context = attention_norm(intermediate_inputs)
+      write_context = (hidden_states if attention_write_norm == 'mlp'
+                       else attention_norm(intermediate_inputs))
       if mlp_write:
         if share_write_hidden:
           shared_write_hidden = attention_layer.write_address_hidden(

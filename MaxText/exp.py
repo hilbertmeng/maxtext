@@ -12892,10 +12892,14 @@ class BamPythiaMediumPropT2048SerialMLPBamInitFix(
 class BamPythiaMediumPropT2048SerialMLPOriginalInit(
         BamPythiaMediumPropT2048SerialMLPBamInitFix):
     """All random kernels use the original .006 recipe; serial GELU/LN fixed."""
-    # 在BAM/embedding/写epsilon修复之外，将标准QKV/MLP/unembedding恢复原初始化角色；仍为串行GELU/LN。
-    # 跑前相对未修复串行父路终局收益倍数下注1.20[1.05,1.40]，共同串行MHA参考。
-    # UE5a v5p16，.5166625 step/s，健康全OFF；432356690参数，MLP[5832,5643,5832]。
-    # code_commit: eaa95f8；ledger only：codex/pythia-mediumprop-t2048，/data0/xd/pythia-mediumprop-t2048；过程见 pythia_initialization_diagnosis.md。
+    # 结论：全原初始化显著改善未修复串行Pythia BAM，但弱于保留Pythia标准干路的BAM专用修复。
+    # 完成13500；末五12600–13400 BAM/Mudd收益倍数1.549689，对未修复串行版二阶1.350542（共同串行MHA参考）。
+    # 对未修复BAM末五gap-.030736；对专用修复loss高.005115，后者BAM/Mudd1.616629。
+    # 初期落后很快反转为领先，后期对未修复版二阶约1.35；跑前1.20[1.05,1.40]中心偏低、实测仍在区间内。
+    # embedding/BAM专用投影及写epsilon沿修复路，标准QKV/MLP/unembedding恢复原初始化；仍是串行GELU/LN。
+    # UE5a v5p16，P2，无换区，.5166625step/s，健康全OFF；432356690参数，MLP[5832,5643,5832]。
+    # CP13500提交、节点/队列释放、TB同步；旧配方匹配参考止10000，无同阶段旧配方完整终局对照。
+    # code_commit: eaa95f8；ledger only：codex/pythia-mediumprop-t2048，/data0/xd/pythia-mediumprop-t2048；详见 pythia_initialization_diagnosis.md。
     model_name = 'BamPythiaMediumPropT2048SerialMLPOriginalInit'
     init_method = '006normal'
     compare_runs = ['BamPythiaMediumPropT2048MShiftReadG050ReadAttentionSharedR256SerialMLP',

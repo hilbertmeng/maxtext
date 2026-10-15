@@ -167,3 +167,27 @@ Reporthelpernowaccepts --arm-report RUN JSON asfallbackforacompleted/acknowledge
 既有3种子实际EmbeddingBamWrite初始化探针给出：原embedding初始M RMS均值.0185188161，Pythia embedding .0688865806，约3.72倍；并非真实Pile loss或训练因果测评，不能把尺度变大直接等同于loss变差。现有修复/全原两路embedding均.006，没有这项单独对照。
 
 主观下注：终局BAM loss较修复路增加+.009，范围−.003～+.020；以修复路实测2.36197836为锚约2.371。终局BAM/Mudd收益倍数（串行MHA参考）中心1.50，范围1.35～1.65，当前实测1.616629。两项须一致：固定对照MHA−Mudd优势约.07641716，loss每增加.001，倍数约下降.0131。判断为损失部分修复收益，仍强于未修复路；范围为判断区间，非统计置信区间。禁止把该预测当新实验结果或写进exp.py。
+
+## 未启动假设：Pythia embedding的BAM侧尺度补偿（2026-10-15 UTC）
+
+推荐仅在EmbeddingBamWrite输入使用固定alpha=.006/sqrt(2/(5D))=.3286335345，不改变向量残差的Pythia embedding。保留BAM全部.006投影、写epsilon1e-6与门偏置；无新增参数/GEMM，逐元素乘法开销可忽略。备选只将直接接收embedding的W_emb_u/W_emb_v_down/W_emb_g初始化std降至.0019718012，W_emb_v_up仍.006；该方案虽初始前向等价，但Adam相对初值的更新比例改变，优先固定输入scale。不能将全部BAM投影一起缩小。
+
+已有实际模块的配对CPU验证（Gaussian token rows，不是真实Pile loss）：三种子bf16初始M RMS，baseline.0185188161、无补偿.0688865806、固定输入scale.0184793665、仅三首投影缩初值.0185186025；bf16逐元素M相对L2误差.72786%/.71580%，cosine约.999946。FP32固定输入scale相对误差3.4375e-7；其余BAM配置/权重完全一致。可复现脚本 `/data0/xd/bam_diagnostics/pythia-init/probe_embedding_compensation.py`，结果 `embedding-compensation-init.json`，日志 `embedding-compensation-probe.log`；固定CPU环境、JAX_PLATFORMS=cpu、8核。未改模型源码、未启动训练。
+
+补偿后下注：当前修复路为父，固定MHA/Mudd对照，终局BAM/Mudd倍数中心1.61，范围1.49–1.68；绝对loss相对父路中心+.0005，范围−.005～+.010。范围为判断区间，非统计CI。预期追回不补偿时所押的大部分损失，但向量残差初始尺度、首层LayerNorm及残差更新比例仍改变，不能保证整网轨迹等价。
+
+## 初始化组完成：最终配对结论（2026-10-15 UTC）
+
+两路均完成13500，末五12600–13400：未修复串行BAM loss2.39782872、BAM/Mudd1.147469；BAM专用修复loss2.36197836、倍数1.616629、相对未修复二阶1.408882；全原初始化loss2.36709296、倍数1.549689、二阶1.350542。共同串行MHA loss2.48550996、Mudd2.40909280。全原比修复loss高.00511460，修复领先贯穿后期。修复预下注二阶1.12[1.02,1.25]显著低估；全原1.20[1.05,1.40]中心低估、仍在区间内。最初认为全原更好，实际相反；支持在该串行GELU/LN配方保留Pythia标准干路，但不等于对其他骨架可直接迁移或隔离embedding效应。
+
+全原CP13500提交、节点/队列独立查询NOT_FOUND、TB SYNC_OK；自动registry complete/clean-exit于16:02:18UTC，未被幂等收尾包装器改变。UE5a v5p16 TPU310242，P2，无换区，三段完整READY租期：08:16:33–12:32:51（4h16m18s，抢占），12:38:35–13:28:09（49m34s，抢占），13:35:04–16:02:18（2h27m14s，正常完成）。最终registry/loss/资源/租期/收尾文件位于 `/data0/xd/bam_diagnostics/pythia-init/original-final*` 和 `original-completed-closeout.log`。两次抢占均恢复原eaa95f8/full13500计划，包含优化器和数据位置，未重置训练。
+
+## Pythia embedding初始化来源核验（2026-10-15 UTC）
+
+直接依据是官方Pythia配置采用init_method=small_init，以及GPT-NeoX将该initializer传给词embedding的完整调用链：
+- 配置：https://github.com/EleutherAI/pythia/blob/main/models/410M/pythia-410m.yml
+- 公式及非截断normal实现：https://github.com/EleutherAI/gpt-neox/blob/v1.0/megatron/model/init_functions.py#L92-L100
+- 模型向embedding传入init_method：https://github.com/EleutherAI/gpt-neox/blob/v1.0/megatron/model/gpt2_model.py#L174-L184
+- 词表权重使用同一initializer：https://github.com/EleutherAI/gpt-neox/blob/v1.0/megatron/model/word_embeddings.py#L49-L55
+
+公式small_init的研究来源为Nguyen & Salazar2019《Transformers without Tears》§2.2，https://aclanthology.org/2019.iwslt-1.17.pdf：将attention初始化从方差1/D缩到FFN D→4D对应的2/(5D)。该论文§3.2的非FixNorm词embedding使用std=1/sqrt(D)，所以它不直接证明embedding应取2/(5D)；embedding的该选择来自Pythia实际代码。不得将官方配方迁移等同于已证明对BAM最优。GPT-NeoX函数注释中的论文年份2010是上游笔误，实际2019。

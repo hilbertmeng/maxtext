@@ -38,3 +38,13 @@ Report the whole experiment group together: every report includes each member ac
 ### Group common2k
 
 All-member progress reported together: MHA3091/Mudd2490/BAM2178; CP2000 committed all. Own GELU-parent loss gaps at2k MHA-.028990/Mudd-.055576/BAM-.016329. New-family BAM/Mudd ratios1/1.2/1.4/1.6/1.8/2k1.210186/1.245718/1.230356/1.194778/1.226005/1.210954; old-family2.052126/1.915731/1.821710/1.752355/1.694841/1.753009; second-order .589723/.650257/.675385/.681813/.723374/.690786. New-family ratio essentially flat1.21 since1k, second-order recovery mainly falling GELU ratio. Valuable local signal: GELU terminal1.176073, so holding new1.21 could still produce terminal improvement; no premature failure declaration. Original terminal1.30 remains optimistic. Speeds .7708375/.603325/.5377125 (20--99), approximate parent deltas+3.7%/+.9%/+2.6%. Next group common3k.
+
+### Core mechanism reassessment with matched original-recipe control
+
+Read-only reference from another session: `BamMediumPropMShiftReadG050ReadAttentionSharedR256T2048`, runtime3b26679, TPU310231 UE5a, owner unchanged. Same single .5/read-attention shared R256 BAM circuit on original recipe, T2048/global256. Reference only; this task does not acquire lifecycle or reporting ownership. At1/2/3/4/5/6/7k its BAM/Mudd multiplier (own original-recipe MHA reference) is1.489194/1.485257/1.490971/1.482269/1.485985/1.489007/1.480936; current observed7569. Parallel Pythia GELU at7k1.320451, serial1.227782. Thus matching circuit does not remove the puzzle and makes the original recipe advantage clearer. Previous old-circuit terminal1.36851 is not a fully matched recipe reference. Use4k--5k relative-curve intersection focus with matched control, not old~5.2k; neither intersection is automatically a training-dynamics inflection.
+
+Core question remains unresolved: restoring serial GELU does not recover advantage; parallel SwiGLU early helps Mudd most. Missing factorial cell is serial+SwiGLU on MHA/Mudd/BAM. This is a concrete next proposal, NOT authorized/launched, and is not proof that interaction is the cause. Complete current SwiGLU trajectory before claiming terminal conclusions. Evidence artifact `/data0/xd/bam_diagnostics/pythia-serial/matched-llama-bam-control-current.json`.
+
+Initialization follow-up: see `pythia_initialization_diagnosis.md`. Actual embedding-write initialization probe shows M RMS .018519->.179397 (~9.69x). Read-key epsilon stays1e-4; write RMS epsilon1e-6->1e-5. Restore BAM-only .006 initializer proposed, NOT launched/authorized; all existing runs unchanged.
+
+2026-10-15 新指令：用户已授权两路串行GELU初始化实验；SwiGLU三路已暂停保留checkpoint（MHA4527/Mudd3603/BAM3174），Mudd/BAM TPU热替换，详见 `pythia_initialization_diagnosis.md`。此前“建议、尚未开跑授权”的文字仅为当时历史状态。

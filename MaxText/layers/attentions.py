@@ -2636,7 +2636,7 @@ class BamAttention(Attention):
     # kernels work both in DenseGeneral and in direct self.param calls below.
     zeros_init = initializers.contant_dense_init(0.0)
     orth_init = nn.initializers.orthogonal()
-    reg_init = self.kernel_init
+    reg_init = initializers.get_bam_init(cfg, fallback=self.kernel_init)
 
     self._read_key_scale = float(cfg.bam_read_key_scale)
     self._rms_epsilon = float(cfg.normalization_layer_epsilon)
@@ -3066,14 +3066,14 @@ class BamAttention(Attention):
       address_bias = self._write_address_norm_bias
       self.write_data_norm = GroupedRMSNorm(
           scale_shape=(self.num_query_heads, self.bam_k),
-          epsilon=self._rms_epsilon, dtype=self.dtype,
+          epsilon=initializers.get_bam_write_epsilon(cfg), dtype=self.dtype,
           statistics_dtype=self._write_rms_statistics_dtype,
           weight_dtype=self.weight_dtype, kernel_axes=('q_heads', 'kv'),
           scale_init=nn.initializers.zeros if learned_write_scale else None,
           name='write_data_norm')
       self.write_address_norm = GroupedRMSNorm(
           scale_shape=(self.num_query_heads, loc_v),
-          epsilon=self._rms_epsilon, dtype=self.dtype,
+          epsilon=initializers.get_bam_write_epsilon(cfg), dtype=self.dtype,
           statistics_dtype=self._write_rms_statistics_dtype,
           weight_dtype=self.weight_dtype, kernel_axes=('q_heads', 'kv'),
           scale_init=nn.initializers.zeros if learned_write_scale else None,

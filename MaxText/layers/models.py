@@ -483,10 +483,10 @@ class EmbeddingBamWrite(nn.Module):
         if cfg.bam_write_rms_statistics_dtype == "float32"
         else self.dtype)
     data = normalizations.rms_norm(
-        data, dtype=data.dtype, epsilon=cfg.normalization_layer_epsilon,
+        data, dtype=data.dtype, epsilon=initializers.get_bam_write_epsilon(cfg),
         statistics_dtype=statistics_dtype)
     address = normalizations.rms_norm(
-        address, dtype=address.dtype, epsilon=cfg.normalization_layer_epsilon,
+        address, dtype=address.dtype, epsilon=initializers.get_bam_write_epsilon(cfg),
         statistics_dtype=statistics_dtype)
     with jax.named_scope("bam/embedding_write_outer"):
       if getattr(cfg, 'bam_pallas_core', False):
@@ -527,7 +527,7 @@ class Decoder(nn.Module):
       self.embedding_bam_write = EmbeddingBamWrite(
           config=cfg, num_write_heads=write_heads, dtype=cfg.dtype,
           weight_dtype=cfg.weight_dtype, quant=self.quant,
-          kernel_init=initializers.get_model_init(cfg),
+          kernel_init=initializers.get_bam_init(cfg),
           name="embedding_bam_write")
     if self.config.using_pipeline_parallelism:
       pipeline_stage_module = self.get_pipeline_stage_module(self.decoder_layer[0])
@@ -1259,7 +1259,7 @@ class Transformer(nn.Module):
         features=emb_dim,
         dtype=cfg.dtype,
         attend_dtype=jnp.float32 if cfg.logits_dot_in_fp32 else cfg.dtype,  # for logit training stability
-        embedding_init=initializers.get_model_init(cfg), # lsp
+        embedding_init=initializers.get_token_embedding_init(cfg), # lsp
         name="token_embedder",
         config=cfg,
     )

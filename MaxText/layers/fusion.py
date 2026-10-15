@@ -324,7 +324,7 @@ class SubDecoderLayer(nn.Module):
     if mlp_write:
       mlp_logits = linears.DenseGeneral(
           features=(num_query_heads,), axis=-1, use_bias=False,
-          kernel_init=initializers.get_model_init(cfg),
+          kernel_init=initializers.get_bam_init(cfg),
           kernel_axes=('embed', 'q_heads'), dtype=cfg.dtype, weight_dtype=cfg.weight_dtype,
           quant=self.quant, matmul_precision=cfg.matmul_precision,
           name='mlp_write_gate')(hidden_states)
@@ -338,13 +338,13 @@ class SubDecoderLayer(nn.Module):
         rank = int(cfg.bam_mlp_write_address_rank)
         address_hidden = linears.DenseGeneral(
             features=rank, axis=-1, use_bias=False,
-            kernel_init=initializers.get_model_init(cfg),
+            kernel_init=initializers.get_bam_init(cfg),
             kernel_axes=('embed', None), dtype=cfg.dtype, weight_dtype=cfg.weight_dtype,
             quant=self.quant, matmul_precision=cfg.matmul_precision,
             name='mlp_address_down')(hidden_states)
         independent_address = linears.DenseGeneral(
             features=(num_query_heads, cfg.bam_v), axis=-1, use_bias=True,
-            kernel_init=initializers.get_model_init(cfg),
+            kernel_init=initializers.get_bam_init(cfg),
             kernel_axes=('embed', 'q_heads', 'v_factor'),
             dtype=cfg.dtype, weight_dtype=cfg.weight_dtype,
             quant=self.quant, matmul_precision=cfg.matmul_precision,
@@ -362,7 +362,7 @@ class SubDecoderLayer(nn.Module):
                        mlp_logits, independent_address))
       with jax.named_scope('bam/pallas_write'):
         M_out = bam_pallas.write(
-            M_out, groups, epsilon=float(cfg.normalization_layer_epsilon),
+            M_out, groups, epsilon=initializers.get_bam_write_epsilon(cfg),
             forward_tile=int(getattr(cfg, 'bam_pallas_write_tile', None) or 128),
             reverse_tile=int(getattr(cfg, 'bam_pallas_write_reverse_tile', None) or 128),
             vmem_mib=getattr(cfg, 'bam_pallas_vmem_mib', None),

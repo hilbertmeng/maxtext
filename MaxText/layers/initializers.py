@@ -85,3 +85,27 @@ def get_model_init(config, *, residual_output=False):
     raise ValueError("Pythia initialization requires positive model width and depth")
   std = 2 / depth / width**0.5 if residual_output else (2 / (5 * width))**0.5
   return nd_dense_init_normal(std)
+
+
+def get_bam_init(config, *, fallback=None):
+  """Override only BAM-specific random kernels; leave semantic zero gates intact."""
+  method = getattr(config, 'bam_init_method', '')
+  if method not in ('', '006normal'):
+    raise ValueError(f'Unsupported BAM initialization override: {method}')
+  return get_init_method(method) if method else (fallback if fallback is not None else get_model_init(config))
+
+
+def get_token_embedding_init(config):
+  """Token embeddings also drive the unnormalized first BAM write."""
+  method = getattr(config, 'token_embedding_init_method', '')
+  if method not in ('', '006normal'):
+    raise ValueError(f'Unsupported token embedding initialization override: {method}')
+  return get_init_method(method) if method else get_model_init(config)
+
+
+def get_bam_write_epsilon(config):
+  value = getattr(config, 'bam_write_rms_epsilon', None)
+  epsilon = float(config.normalization_layer_epsilon if value is None else value)
+  if not 0 < epsilon < float('inf'):
+    raise ValueError('BAM write RMS epsilon must be finite and positive')
+  return epsilon

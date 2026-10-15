@@ -12852,3 +12852,24 @@ class BamPythiaMediumPropT2048MShiftReadG050ReadAttentionSharedR256SwiGLU(
     # 432348080 params: -8610 vs GELU, nearest three-layer repeated integer budget.
     compare_runs = ['BamPythiaMediumPropT2048MShiftReadG050ReadAttentionSharedR256',
                     'PythiaMediumPropT2048SwiGLU', 'MuddPythiaMediumPropT2048SwiGLU']
+
+
+class BamPythiaMediumPropT2048SerialMLPBamInitFix(
+        BamPythiaMediumPropT2048MShiftReadG050ReadAttentionSharedR256SerialMLP):
+    """Restore the BAM initialization chain, retaining the Pythia vector circuit."""
+    model_name = 'BamPythiaMediumPropT2048SerialMLPBamInitFix'
+    bam_init_method = '006normal'
+    token_embedding_init_method = '006normal'
+    bam_write_rms_epsilon = 1e-6
+    compare_runs = ['BamPythiaMediumPropT2048MShiftReadG050ReadAttentionSharedR256SerialMLP',
+                    'PythiaMediumPropT2048SerialMLP', 'MuddPythiaMediumPropT2048SerialMLP']
+
+
+class BamPythiaMediumPropT2048SerialMLPOriginalInit(
+        BamPythiaMediumPropT2048SerialMLPBamInitFix):
+    """All random kernels use the original .006 recipe; serial GELU/LN fixed."""
+    model_name = 'BamPythiaMediumPropT2048SerialMLPOriginalInit'
+    init_method = '006normal'
+    compare_runs = ['BamPythiaMediumPropT2048MShiftReadG050ReadAttentionSharedR256SerialMLP',
+                    'BamPythiaMediumPropT2048SerialMLPBamInitFix',
+                    'PythiaMediumPropT2048SerialMLP', 'MuddPythiaMediumPropT2048SerialMLP']

@@ -434,6 +434,12 @@ class EmbeddingBamWrite(nn.Module):
   @nn.compact
   def __call__(self, inputs):
     cfg = self.config
+    # Compensate only the first matrix write; the vector residual keeps its embedding scale.
+    input_scale = float(getattr(cfg, "bam_embedding_write_input_scale", 1.0))
+    if not math.isfinite(input_scale) or input_scale <= 0:
+      raise ValueError("bam_embedding_write_input_scale must be finite and positive")
+    if input_scale != 1.0:
+      inputs = inputs * jnp.asarray(input_scale, inputs.dtype)
     heads = self.num_write_heads
     bam_k = int(cfg.bam_k)
     bam_v = int(cfg.bam_v)

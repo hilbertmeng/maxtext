@@ -542,6 +542,7 @@ init_method: '006normal'
 # Explicit initialization controls; empty values preserve the historical runtime.
 bam_init_method: ''
 token_embedding_init_method: ''
+bam_embedding_write_input_scale: 1.0 # Only the input of the first token-embedding M write.
 bam_write_rms_epsilon: null # Separate BAM write epsilon from the vector decoder norm.
 global_attn_head_dim: 0
 partial_scan_layers: False

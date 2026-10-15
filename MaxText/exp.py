@@ -12905,3 +12905,17 @@ class BamPythiaMediumPropT2048SerialMLPOriginalInit(
     compare_runs = ['BamPythiaMediumPropT2048MShiftReadG050ReadAttentionSharedR256SerialMLP',
                     'BamPythiaMediumPropT2048SerialMLPBamInitFix',
                     'PythiaMediumPropT2048SerialMLP', 'MuddPythiaMediumPropT2048SerialMLP']
+
+
+class BamPythiaMediumPropT2048SerialMLPPythiaEmbeddingScaledWrite(
+        BamPythiaMediumPropT2048SerialMLPBamInitFix):
+    """Init-fix parent with Pythia embedding and compensated input to the first M write."""
+    # 仅改embedding初始化与首次写M输入固定缩放；串行GELU/LayerNorm、其余初始化和宽度沿修复父路。
+    # 新增0 W_Q，参数432356690，MLP[5832,5643,5832]；健康全OFF，T2048/global256/13500步。
+    # 跑前终局BAM/Mudd倍数下注1.61[1.49,1.68]（串行MHA参考）；对修复父路loss +.0005[-.005,.010]。
+    # UE5a v5p16；复用已完成串行MHA/Mudd，无变化的两条对照不重跑；编译借用预留FLEX。
+    model_name = 'BamPythiaMediumPropT2048SerialMLPPythiaEmbeddingScaledWrite'
+    token_embedding_init_method = ''
+    bam_embedding_write_input_scale = 0.3286335345030997  # .006 / sqrt(2 / (5 * 1200))
+    compare_runs = ['BamPythiaMediumPropT2048SerialMLPBamInitFix',
+                    'PythiaMediumPropT2048SerialMLP', 'MuddPythiaMediumPropT2048SerialMLP']

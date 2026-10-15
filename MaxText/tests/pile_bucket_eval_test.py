@@ -29,6 +29,21 @@ class BucketEvalTest(unittest.TestCase):
     result = summarize_xent(jnp.full((1,256),jnp.nan),jnp.ones((1,256)),jnp.ones((1,256)))
     self.assertEqual(int(result['nonfinite_tokens']),256)
 
+  def test_actual_shell_configuration_contract_for_all_models(self):
+    import os,subprocess,sys
+    root=Path(__file__).resolve().parents[2]
+    names=['BamMHAMediumPropC256T2048Matched','MuddLlama2MediumPropC256T2048',
+           'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadT2048']
+    env=dict(os.environ,PILE_BUCKET_CONFIG_ONLY='1',PILE_BUCKET_PYTHON=sys.executable,
+             JAX_PLATFORMS='cpu',CUDA_VISIBLE_DEVICES='')
+    for i,name in enumerate(names):
+      with self.subTest(name=name):
+        r=subprocess.run(['bash','scripts/run_pile_bucket_eval.sh',name,
+             'gs://unused/checkpoints/13500/items','config_test_'+str(i),'gs://unused/output'],
+             cwd=root,env=env,text=True,capture_output=True,timeout=120)
+        self.assertEqual(r.returncode,0,r.stdout[-3000:]+r.stderr[-3000:])
+        self.assertIn('PILE_BUCKET_CONFIG_OK '+name,r.stdout)
+
   def test_original_record_boundaries_and_cache_integrity(self):
     with tempfile.TemporaryDirectory() as name:
       source=Path(name)/'source.tf';cache=Path(name)/'cache'

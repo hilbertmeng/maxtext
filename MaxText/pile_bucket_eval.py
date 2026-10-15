@@ -294,7 +294,13 @@ def run(config):
 
 def main(argv):
   import pyconfig
-  run(pyconfig.initialize(argv))
+  config = pyconfig.initialize(argv)
+  if os.environ.get('PILE_BUCKET_CONFIG_ONLY') == '1':
+    if not config.only_eval or not config.load_parameters_path or config.load_full_state_path != '':
+      raise ValueError('Invalid parameter-only evaluation launch contract')
+    print('PILE_BUCKET_CONFIG_OK ' + config.exp_class, flush=True)
+    return
+  run(config)
 
 
 if __name__ == '__main__':

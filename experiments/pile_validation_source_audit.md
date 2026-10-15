@@ -26,7 +26,8 @@ built directly from those tokens, without these duplicated Megatron maps or
 another tokenization pass. Read 4097 tokens per full window and advance by 4096:
 one overlapping boundary token makes shifted targets disjoint and continuous.
 For this stream there are 83239 full windows and a final window with 1123 valid
-targets (1124 stored tokens before padding). No new dataset was published here.
+targets (1124 stored tokens before padding). The subsequent completed build and
+regional URIs are documented in [TruePile validation T4096](truepile_validation_t4096.md).
 
 ## Official validation provenance and complete reconstruction
 

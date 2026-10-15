@@ -12806,9 +12806,10 @@ class MuddPythiaMediumPropT2048SerialMLP(MuddPythiaMediumPropT2048):
 
 class PythiaMediumPropT2048SwiGLU(PythiaMediumPropT2048):
     """Budget-matched SwiGLU main MLP on parallel Pythia MHA."""
-    # 阶段结果：共同 2k 对 GELU 父路 loss 低 .028990，优势较 1k 的 .107800 明显收窄。
-    # 与 Mudd、BAM 一起报告进展；配对收益倍数在共同步数比较，不用各路最新步数混算。
-    # UE5a v5p-16，.7708375 step/s，比 GELU 父路约快 3.7%；健康指标关闭，继续训练。
+    # 阶段结论：共同2k对GELU父路loss低.028990，优势从1k的.107800明显收窄。
+    # 用户暂停于4527，CP4527已提交；TPU/queue已释放，TB SYNC_OK；P0，尚无终局结论。
+    # UE5a v5p-16，.7708375 step/s（较父路约+3.7%）；健康配置false但旧runtime未门控norm计算。
+    # 与Mudd/BAM同组暂停，资源转向串行GELU初始化实验；非效果判停。
     # code_commit: d5a7282；实现 codex/pythia-mediumprop-t2048，/data0/xd/pythia-mediumprop-t2048。
     model_name = 'PythiaMediumPropT2048SwiGLU'
     pythia_swiglu_mlp = True
@@ -12820,9 +12821,10 @@ class PythiaMediumPropT2048SwiGLU(PythiaMediumPropT2048):
 
 class MuddPythiaMediumPropT2048SwiGLU(MuddPythiaMediumPropT2048):
     """Preserve Mudd layerwise MLP budgets and unrepaid router overhead."""
-    # 阶段结果：共同 2k 对 GELU 父路 loss 低 .055576，改善多于 MHA 的 .028990 和 BAM 的 .016329。
-    # 保留旧 Mudd 路由器额外参数，不从 MLP 抵扣；本路分层 MLP 预算与 GELU 父路匹配。
-    # 与 MHA、BAM 一起评审；UE5a v5p-16，.603325 step/s，比父路约快 .9%，健康指标关闭。
+    # 阶段结论：共同2k对GELU父路loss低.055576，改善多于MHA/BAM；不是BAM独占SwiGLU收益。
+    # 用户暂停于3603，CP3603已提交，TB SYNC_OK；P0，TPU310242热替换为全量原初始化BAM。
+    # UE5a v5p-16，.603325 step/s（较父路约+.9%）；健康配置false但旧runtime未门控norm计算。
+    # 保留旧Mudd路由器额外参数，未从MLP抵扣；暂停结论为阶段性。
     # code_commit: d5a7282；实现 codex/pythia-mediumprop-t2048，/data0/xd/pythia-mediumprop-t2048。
     model_name = 'MuddPythiaMediumPropT2048SwiGLU'
     pythia_swiglu_mlp = True
@@ -12838,11 +12840,11 @@ class MuddPythiaMediumPropT2048SwiGLU(MuddPythiaMediumPropT2048):
 class BamPythiaMediumPropT2048MShiftReadG050ReadAttentionSharedR256SwiGLU(
         BamPythiaMediumPropT2048MShiftReadG050ReadAttentionSharedR256):
     """SwiGLU main MLP; retain every GELU read/write-address bottleneck."""
-    # 阶段判断：共同 2k 对 GELU 父路 loss 低 .016329，少于 MHA/Mudd；早期未支持 BAM 特别受益的假设。
-    # 各配方用自己的 MHA 作参考，BAM/Mudd 倍数：SwiGLU 1.2110，GELU 1.7530，二阶倍数 .6908。
-    # 新配方 1k–2k 约 1.21 横盘；旧 GELU 终局 1.1761，若守住平台仍可能获得终局优势。
-    # 继续完整计划；原终局 1.30 下注仍偏乐观。只改主 MLP，读写地址的 GELU 瓶颈保持原样。
-    # UE5a v5p-16，.5377125 step/s，比 GELU 父路约快 2.6%；健康指标关闭。
+    # 阶段结论：共同3k对GELU父路loss低.013378；对Mudd领先.017519，尚未恢复旧配方约1.49倍优势。
+    # BAM/Mudd收益倍数1k/2k/3k为1.2102/1.2110/1.1787，各家族均用自己的MHA参考。
+    # 用户暂停于3174，CP3174已提交，TB SYNC_OK；P0，TPU310243热替换为BAM初始化修复路。
+    # 原终局1.30下注未验证；暂停是资源转向，不能判为终局失败。
+    # UE5a v5p-16，.5377125 step/s（较父路约+2.6%）；健康配置false但旧runtime未门控norm计算。
     # code_commit: d5a7282；实现 codex/pythia-mediumprop-t2048，/data0/xd/pythia-mediumprop-t2048。
     model_name = 'BamPythiaMediumPropT2048MShiftReadG050ReadAttentionSharedR256SwiGLU'
     pythia_swiglu_mlp = True
@@ -12857,6 +12859,8 @@ class BamPythiaMediumPropT2048MShiftReadG050ReadAttentionSharedR256SwiGLU(
 class BamPythiaMediumPropT2048SerialMLPBamInitFix(
         BamPythiaMediumPropT2048MShiftReadG050ReadAttentionSharedR256SerialMLP):
     """Restore the BAM initialization chain, retaining the Pythia vector circuit."""
+    # UE5a v5p-16，20–99步速度.5175875（比父路+1.42%）；实际432356690参数，所有健康统计关闭。
+    # code_commit: eaa95f8；两路AOT已通过、已热替换并验证FIRST_STEP；初始化实验继续训练。
     model_name = 'BamPythiaMediumPropT2048SerialMLPBamInitFix'
     bam_init_method = '006normal'
     token_embedding_init_method = '006normal'
@@ -12868,6 +12872,8 @@ class BamPythiaMediumPropT2048SerialMLPBamInitFix(
 class BamPythiaMediumPropT2048SerialMLPOriginalInit(
         BamPythiaMediumPropT2048SerialMLPBamInitFix):
     """All random kernels use the original .006 recipe; serial GELU/LN fixed."""
+    # UE5a v5p-16，20–99步速度.5166625（比父路+1.23%）；实际432356690参数，所有健康统计关闭。
+    # code_commit: eaa95f8；两路AOT已通过、已热替换并验证FIRST_STEP；初始化实验继续训练。
     model_name = 'BamPythiaMediumPropT2048SerialMLPOriginalInit'
     init_method = '006normal'
     compare_runs = ['BamPythiaMediumPropT2048MShiftReadG050ReadAttentionSharedR256SerialMLP',

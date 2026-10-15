@@ -51,3 +51,19 @@ Pythia LayerNorm epsilon=1e-5 通过全局配置同时影响 BAM 写入 RMS，�
 验证包括完整参数树/形状与父路相同、逐参数初始化角色及语义常量、实际全宽 seed M 与原尺度一致、两路有限前向和非零梯度/因果性、原Pythia/串行回归、完整BAM回归及summary writer。CPU/AOT通过前不启动训练。
 
 暂停记录：SwiGLU MHA 4527、Mudd3603、BAM3174，均有提交checkpoint；MHA TPU310241已释放，Mudd310242和BAM310243保留热替换。暂停为资源转向，结论仍属阶段性，不能记为失败。TPU选UE5a，沿用已READY的v5p-16，无新区域申请。预留FLEX `llm-jax-v6e-1-0` / EW4a，实际queued resource为FLEX_START，两路编译通过worker锁串行执行。
+
+
+## 启动证据（2026-10-15）
+
+Runtime `eaa95f811e4ca774a680e4f3323fc29efe812343` 已推送并通过SEALED_CONFIG。新增初始化5项、Pythia/串行回归4项、完整BAM47项、summary writer5项均通过；日志在 `/data0/xd/bam_diagnostics/pythia-init/`。实际全宽bf16 seed M RMS=.018492952，和用原epsilon的同参数模块逐元素完全相等。
+
+两路都在原UE5a READY v5p-16上热替换，从头step0训练，不加载SwiGLU旧checkpoint：
+- `BamPythiaMediumPropT2048SerialMLPBamInitFix`：物理TPU `xd-v5p-16-310243-maxtext`，旧RUN BAM SwiGLU保留CP3174；FIRST_STEP=5，.518step/s。
+- `BamPythiaMediumPropT2048SerialMLPOriginalInit`：物理TPU `xd-v5p-16-310242-maxtext`，旧RUN Mudd SwiGLU保留CP3603；FIRST_STEP=9，.518step/s。
+
+FLEX上的两个AOT均完成，状态 `/home/lishengping/xd/projects/aot_runs/eaa95f8-36b3968a.json`（修复版）和 `eaa95f8-78a1a3a6.json`（全量原初始化）。两份manifest的commit/topology/13500schedule已在hot-switch dry-run核对。预留编译机保持不变。暂停三路TB均SYNC_OK。
+
+全量原初始化worker实际参数树156叶、432356690参数；实际配置已核对T2048/batch32 per-device、串行、MLP宽度、两类epsilon、checkpoint200/latest2/TB500、health OFF，AOT Loaded。修复版和稳定速度继续核对。特别注意.006是原配方的普通随机投影规则；如static_v_key本来使用专用初始化，仍保留其原有规则，语义零门及bias等不改成随机值。
+
+
+两路worker配置和实际参数树已全部核对，均156叶、432356690参数、AOT Loaded、health OFF。固定20–99步各80个速度样本：BAM修复.5175875step/s，全量原初始化.5166625step/s；相对串行父路.5103625为+1.42%/+1.23%。两路差异约.18%，未显示初始化本身的速度影响；共同小幅提速与健康计算门控修复混杂。运行登记中的基线和两组收益倍数（各自相对父BAM、相对串行Mudd，均用串行MHA参考）已添加。

@@ -12987,8 +12987,10 @@ class BamXLPropMShiftReadG050PostAttentionWriteMLPNormTruePile(
     """Transfer post-attention write controls with existing MLP norm onto XL single .5."""
     # attention写门/地址用attention更新后的残差并复用MLP norm；MLP写控制、两写down保持父路。
     # 新增0 W_Q、MLP宽度不变；不是已停读/attention共享R400投影实验。
-    # 跑前MHA参考收益倍数下注1.025[1.005,1.05]，对原XL单门.5；父路实测覆盖至32.5k。
+    # 跑前MHA参考收益倍数下注1.03[1.00,1.06]，对原XL单门.5，共同30k–32.5k阶段。
     # 同相对训练进度跨尺度仅比较收益倍数；UE5a v5p32，50000步，健康全OFF。
+    # 启动20–99步 0.3893375 step/s；历史父路健康ON，不能分离架构速度收益。
+    # code_commit: 7573944；/data0/xd/mediumprop-m-shift；FIRST_STEP/AOT/实际参数量及健康全OFF已核验。
     model_name = 'BamXLPropMShiftReadG050PostAttentionWriteMLPNormTruePile'
     bam_write_controls_post_residual = False
     bam_attention_write_controls_post_residual = True

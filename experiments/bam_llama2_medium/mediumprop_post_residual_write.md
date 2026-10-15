@@ -83,3 +83,7 @@ Actual1036/1063, CP1000both. Relativeattention-onlyparent, gaps200/400/600/800/1
 ### Attention-only common5k
 
 Original-single.5 gaps4000/4200/4400/4600/4800/5000: -.008295/-.008245/-.008279/-.008825/-.008071/-.007665; MHA-reference new/parent1.038162/1.038800/1.039675/1.042654/1.040529/1.038450. Latest5mean gap-.00821704, ratio1.04002154. Versus both-change5k gap-.003497, gain1.017185, latest5-.00349312/1.01665838. MHA gap-.207017. Standardized benefit remains~1.04 while rawgap contracts; continue6k, no terminal claim or forecast revision. CP5000committed, full report selective/report5000.json.
+
+### Shared write norm common2k
+
+CP2000both. Parentgaps at1k/1.2k/1.4k/1.6k/1.8k/2k: attention+.0037848/+.0031866/-.00017/+.002656/+.002342/+.0023576, MLP+.0034042/+.0034414/+.000435/+.0001374/+.002166/+.0011046. MHA-reference new/parentA .993860/.993750/1.000367/.993338/.993591/.993029; M .994477/.993250/.999060/.999655/.994073/.996734. Latest5meanparentgaps+.00207444/+.00145688, ratios.994815/.996554. Latest5MLP-minus-A gap-.00061756, peerR1.001753. No additionalsharedbenefit yet, slightMLPnormedge small. Originalsingle2k ratios1.050410/1.054329, inheritedattention-onlygainmainlyresponsible. Speedflat; retainbets/continue3k. Fullcumulativeshared-write/report-common2000.json.

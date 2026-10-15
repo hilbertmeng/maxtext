@@ -12860,8 +12860,8 @@ class BamPythiaMediumPropT2048MShiftReadG050ReadAttentionSharedR256SwiGLU(
 class BamPythiaMediumPropT2048SerialMLPBamInitFix(
         BamPythiaMediumPropT2048MShiftReadG050ReadAttentionSharedR256SerialMLP):
     """Restore the BAM initialization chain, retaining the Pythia vector circuit."""
-    # 共同11k/CP11000：BAM/Mudd1.61459，相对未修复串行二阶1.39457；匹配旧配方无10k之后窗口。
-    # 对未修复父BAM11k gap-.035712；修复绝对loss领先全原.005679/末五.005802，近期已趋稳，继续12k。
+    # 共同12k/最新CP12600：BAM/Mudd1.62081，相对未修复串行二阶1.41217；旧配方参考止10k。
+    # 对未修复父BAM12k gap-.036565；修复绝对loss领先全原.005522/末五.005551，近期小幅收窄，继续13k。
     # 仅embedding/BAM专用非零投影回原初始化角色及写RMS epsilon1e-6；保留Pythia标准干路/GELU/LN。
     # UE5a v5p16 .5175875step/s，健康全OFF；参数432356690，MLP[5832,5643,5832]，legacy2048/global256。
     # 跑前终局贡献下注1.12[1.02,1.25]低估；3k起预测1.30[1.20,1.40]，尚无终局检验。
@@ -12877,9 +12877,9 @@ class BamPythiaMediumPropT2048SerialMLPBamInitFix(
 class BamPythiaMediumPropT2048SerialMLPOriginalInit(
         BamPythiaMediumPropT2048SerialMLPBamInitFix):
     """All random kernels use the original .006 recipe; serial GELU/LN fixed."""
-    # 共同11k/CP11000：BAM/Mudd1.54194，相对未修复串行二阶1.33182；匹配旧配方无10k之后窗口。
-    # 对未修复父BAM11k gap-.030032；修复绝对loss领先全原.005679/末五.005802，近期已趋稳，继续12k。
-    # 对父BAM9k gap-.031128；原下注1.20[1.05,1.40]中心已偏保守，保留供终局检验。
+    # 共同12k/最新CP12000：BAM/Mudd1.54937，相对未修复串行二阶1.34993；旧配方参考止10k。
+    # 对未修复父BAM12k gap-.031044；修复绝对loss领先全原.005522/末五.005551，近期小幅收窄，继续13k。
+    # 原跑前相对未修复父路终局下注1.20[1.05,1.40]偏保守，保留原注供终局检验。
     # 在专用修复外恢复标准QKV/MLP/unembedding原初始化角色；仍为串行GELU/LN，并非整套旧配方。
     # UE5a v5p16 .5166625step/s，健康全OFF；432356690参数，MLP[5832,5643,5832]。
     # code_commit: eaa95f8；codex/pythia-mediumprop-t2048，/data0/xd/pythia-mediumprop-t2048。

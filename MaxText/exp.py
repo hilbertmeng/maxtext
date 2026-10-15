@@ -12856,6 +12856,8 @@ class BamXLPropSharedR400GeneralReadMShiftReadG050TruePile(BamXLPropK96EmbedVOnl
 
 class BamMediumPropMShiftReadG050PostResidualWriteControlsTruePile(BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile):
     """Generate attention/MLP write gates and addresses after their residual additions."""
+    # code_commit: b49a392; UE5a v5p-16 TPU310240; FIRST_STEP6/AOT/actual432111680/healthOFF verified.
+    # Mean20-99 .4841625step/s; parent .45835 has healthON, architectural speed delta not isolated.
     model_name = 'BamMediumPropMShiftReadG050PostResidualWriteControlsTruePile'
     bam_write_controls_post_residual = True
     record_training_health_metrics = False

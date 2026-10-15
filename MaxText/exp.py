@@ -12892,12 +12892,12 @@ class BamMediumPropMShiftReadG050PostResidualWriteControlsTruePile(BamMediumProp
 class BamMediumPropMShiftReadG050PostAttentionWriteControlsTruePile(
         BamMediumPropMShiftReadG050PostResidualWriteControlsTruePile):
     """Use post-attention residual only for attention write gate/address controls."""
-    # 在训10.8k：对原单门.5 gap-.003440/R1.021343；末五gap-.003367/R1.020795，10k后又收缩。
-    # 更正稳定判断：6k/8k/10k/10.8k末五R1.03468/1.03017/1.02541/1.02080，短平台不等于终局稳定。
+    # 在训11k/CP11000：对原单门.5 gap-.002901/R1.018455；末五gap-.003120/R1.019387，优势仍收缩。
+    # 10k/10.8k/11k末五R1.02541/1.02080/1.01939，撤回稳定判断，继续12k验证末段。
     # 对双改6k gap-.003543、倍数1.01881；末五gap-.003282、倍数1.01682，始终领先。
     # 双改停6167、MLP单改停2231；只保留原单门.5/MHA和双改对照，未引入读写共享R256基线。
     # UE5a v5p16 TPU310244，.4844125step/s，与健康OFF双改计时对照基本相同（+.05%）。
-    # 参数432111680，MLP[3802,3676,3802]，新增0W_Q，健康全OFF；CP10000已提交。
+    # 参数432111680，MLP[3802,3676,3802]，新增0W_Q，健康全OFF；CP11000已提交。
     # 跑前终局new/原单门.5下注1.025[.995,1.06]，MHA参考，尚无终局检验。
     # code_commit: 34d9afd；codex/mediumprop-m-shift，/data0/xd/mediumprop-m-shift。
     model_name = 'BamMediumPropMShiftReadG050PostAttentionWriteControlsTruePile'
@@ -12962,8 +12962,8 @@ class BamMediumPropPostAttentionWriteSharedR256MLPNormTruePile(
 class BamMediumPropMShiftReadG050PostAttentionWriteMLPNormTruePile(
         BamMediumPropMShiftReadG050PostAttentionWriteControlsTruePile):
     """Post-attention controls reuse the MLP norm; write downs stay independent."""
-    # 在训3k/CP3000：对attention单改父路gap+.000140/R.999464；末五gap-.000541/R1.001817，整体持平波动。
-    # 2k转弱未持续；对已停shared-write MLP norm 3k gap-.000238/R1.000913；少一次norm速度+.23%，继续4k。
+    # 同组在训3.2k/CP3200：对attention单改父路gap+.000174/R.999304；末五gap-.000334/R1.001137，持平波动。
+    # 对原单门.5在3200 gap-.009628/R1.040129；不与父路11k直接横比，少一次norm速度+.23%，继续4k。
     # UE5a v5p16 TPU310252，.4855375step/s（20–99，80点），对同健康attention单改父路+.232%。
     # MLP[3802,3676,3802]，参数变化0；T4096/global128/TruePile4096/13500/CP200/latest2/keep0/TB500。
     # 新3+共享4+旧postres3+writer5+全BAM47=62项CPU检查通过，SEALED_CONFIG/AOT/FIRST_STEP全部通过。

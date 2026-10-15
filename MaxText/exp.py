@@ -12909,3 +12909,27 @@ class Llama2XLPropTruePileMHAQKNorm(Llama2XLPropTruePileMHA):
     record_internal_nn_metrics = False
     compare_runs = ['Llama2XLPropTruePileMHA', 'BamXLPropSharedR400GeneralReadMShiftReadG050TruePile']
     jax_cache_dir = ''
+
+
+class BamXLPropMShiftReadG050FullQKNormTruePile(BamXLPropSharedR400GeneralReadMShiftReadG050TruePile):
+    """Original XL single read .5 plus full96 Q/K RMSNorm before partial RoPE."""
+    model_name = 'BamXLPropMShiftReadG050FullQKNormTruePile'
+    qk_norm = True
+    bam_qk_norm_after_concat = True
+    compare_runs = ['BamXLPropSharedR400GeneralReadMShiftReadG050TruePile',
+                    'Llama2XLPropTruePileMHAQKNorm', 'Llama2XLPropTruePileMHA']
+    checkpoint_period = 250
+    keep_period = 0
+    max_to_keep = 2
+    force_final_checkpoint = True
+    tensorboard_gcs_rotate_period = 500
+    record_training_health_metrics = False
+    record_internal_nn_metrics = False
+    bam_record_m_shift_health = False
+    bam_record_concat_health = False
+    bam_record_fetched_read_health_metrics = False
+    bam_record_fetched_read_amplitude_metrics = False
+    bam_record_fetch_route_metrics = False
+    bam_record_local_routing_metrics = False
+    bam_record_local_qk_amplitude_metrics = False
+    jax_cache_dir = ''

@@ -13034,6 +13034,7 @@ class BamMediumPropMShiftReadG050ReadAttentionSharedR256T2048(BamMediumPropMShif
     # code_commit: 3b26679; UE5a v5p-16 TPU310231; FIRST_STEP+14/AOT/actual432111680 verified.
     # Canonical20-99 .549975step/s (+1.96% vs oldT2048BAM .5394); healthOFF vs oldON confounds timing.
     # @2000 oldT2048BAM gap-.007646,last5-.008089; MHA-ref gains oldBAM1.030707/Mudd1.485257; P0,CP2000.
+    # @4000 oldBAM gap-.008550,last5-.008822; gains oldBAM1.049702/Mudd1.482269; plateau~-.009, posterior terminal1.08.
     model_name = 'BamMediumPropMShiftReadG050ReadAttentionSharedR256T2048'
     DATASET_VARIANT = 'legacy2048'
     max_target_length = 2048

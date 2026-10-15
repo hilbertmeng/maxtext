@@ -73,3 +73,20 @@ T4096 same architecture change versus its old generalized-read BAM gain1.054573
 at2000; T2048 is weaker so far. Retain terminalbet1.10 pending later progress.
 Canonical speed remains .549975/s;P0. Next agent report4000, native stride200.
 Artifacts report-2000.json/loss-2000.json/parent-gain-2000.json in task evidence root.
+
+## 4000-step report
+
+Observed4158, CP4000 committed,P0, speed~.550/s. OldT2048BAM gap at4000-.008550,
+last5mean-.00882152, range[-.0100486,-.0080526]. New absolute benefit has held
+~.008–.010 since1400, rather than steadily widening. MHA-relative gain versus old
+BAM1.049702, last5mean1.048997; versus Mudd1.482269,last5mean1.489563. Last gaps
+Mudd-.058754,MHA-.1805822. Ratios rise mostly because old-BAM gains shrink.
+T4096 same modification gain1.066647 at4000, still stronger thanT2048.
+Conditional terminal calculation with fixed current last5 improvement:
+1+.00882152/.12112868=1.0728277; old-BAM terminal gain .12112868 is observed.
+Posterior bet revised from1.10 to1.08 [1.06,1.11], allowing a modest late MLP benefit;
+original bet retained above. Implied terminal BAM/Mudd ratio~1.478.
+Raw unpaired cross-length current-architecture gap last5+.05890548, noisy sign
+crossing at3200, unsuitable for quality ranking; use length-local normalized gains.
+Full native cumulative series preserved in report-4000.json, parent-gain-4000.json.
+Next agent report6000; continue full13500 plan.

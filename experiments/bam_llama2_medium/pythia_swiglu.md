@@ -26,3 +26,15 @@ Against parallel GELU Pythia MHA, loss gaps at200/400/600/800/1000: -.4570736/-.
 ### First full paired comparison, 1k
 
 Own GELU-parent loss benefits at1k MHA .1078004, Mudd .132123, BAM .0390994. With each family own MHA reference, BAM/Mudd ratio at200/400/600/800/1000 is4.055144/1.436543/1.320994/1.277966/1.210186; GELU4.928783/4.510251/3.008271/2.275470/2.052126; second-order .822747/.318506/.439121/.561627/.589723. Absolute BAM lead over Mudd at1k shrinks .1226350 to .0296114. This early evidence opposes original hypothesis that GELU especially hurts BAM; the1.30 terminal bet currently unsupported. Second-order recovery since400 is real but not a terminal result. Continue planned schedule, retain historical~5.2k crossover focus. All CP1000 committed; next normal2k.
+
+### MHA2k
+
+Own GELU-parent loss gaps1/1.2/1.4/1.6/1.8/2k: -.107800/-.073072/-.056910/-.043860/-.039086/-.028990; last5 -.04838356. Early benefit continues contracting, no extra ceiling plateau yet. CP2000 committed; speed~.77/s. Next3k; paired-family2k waits Mudd/BAM to reach2k.
+
+### Group reporting policy, user instruction2026-10-15
+
+Report the whole experiment group together: every report includes each member actual current progress and paired metrics at common mature steps. Do not publish separate normal MHA/Mudd/BAM progress/milestone messages. Native loss-cache windows remain200; normal results use common1k checkpoints, with whole-group context for anomalies or unusually divergent progress.
+
+### Group common2k
+
+All-member progress reported together: MHA3091/Mudd2490/BAM2178; CP2000 committed all. Own GELU-parent loss gaps at2k MHA-.028990/Mudd-.055576/BAM-.016329. New-family BAM/Mudd ratios1/1.2/1.4/1.6/1.8/2k1.210186/1.245718/1.230356/1.194778/1.226005/1.210954; old-family2.052126/1.915731/1.821710/1.752355/1.694841/1.753009; second-order .589723/.650257/.675385/.681813/.723374/.690786. New-family ratio essentially flat1.21 since1k, second-order recovery mainly falling GELU ratio. Valuable local signal: GELU terminal1.176073, so holding new1.21 could still produce terminal improvement; no premature failure declaration. Original terminal1.30 remains optimistic. Speeds .7708375/.603325/.5377125 (20--99), approximate parent deltas+3.7%/+.9%/+2.6%. Next group common3k.

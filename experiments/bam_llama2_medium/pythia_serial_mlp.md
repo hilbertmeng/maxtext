@@ -149,3 +149,15 @@ Fixed parallel MHA reference at1/2/3/4/5/6/7/8/9/9.2k: BAM1.078070/1.150318/1.19
 ### Common10k
 
 Serial BAM/Mudd gain ratio9/9.2/9.4/9.6/9.8/10k:1.177072/1.170657/1.173258/1.158909/1.164686/1.159830; six-arm .952972/.950405/.965461/.951282/.945907/.954977. Own serial-versus-parallel multipliers at10k BAM1.341182, Mudd1.401018; own loss benefits .0230654/.0223224. Both ratios plateau over9--10k; BAM is not yet continuing to close multiplier difference. Retain terminal serial BAM/Mudd1.10 [1.03,1.16]. CP10000 both committed, old serial MHA complete.
+
+### Serial BAM11k
+
+Against parallel BAM,10/10.2/10.4/10.6/10.8/11k loss gaps -.023065/-.023325/-.023958/-.023282/-.023570/-.023433; MHA-reference gain multipliers1.341182/1.350869/1.355428/1.346308/1.353485/1.354129. Recent5 own benefit~.02351 remains flat, multiplier rise mainly shrinking parent advantage. At11k gaps vs serial MHA -.090507 and parallel Mudd -.034188. Common10.6k serial Mudd gap -.012693, family ratio1.160295. CP11000 committed, ~.514/s; continue.
+
+### Group reporting policy, user instruction2026-10-15
+
+Report the whole experiment group together: every report includes each member actual current progress and paired metrics at common mature steps. Do not publish separate normal MHA/Mudd/BAM progress/milestone messages. Native loss-cache windows remain200; normal results use common1k checkpoints, with whole-group context for anomalies or unusually divergent progress.
+
+### Group common11k and revised conditional forecast
+
+All group progress reported together: serial MHA complete13500, BAM11425/CP11400, Mudd11129/CP11000; parallel controls complete13500. At11k own serial/parallel multipliers BAM1.354129, Mudd1.394382; family ratios serial1.157764, parallel1.194078, second-order .969588. Last5 own loss benefits .02351360/.02220776. Anchoring to completed parallel terminal gains .06395572/.05438136 and completed serial MHA penalty+.00016152 gives conditional terminal(.06395572+.00016152+.0235136)/(.05438136+.00016152+.02220776)=1.14176038. Update current terminal bet1.10->1.14 [1.10,1.17], preserving old bet historically. Assumes current absolute serial improvements persist; not an observed terminal result. Structured input artifact terminal-forecast-11000.json. Next group report common12k.

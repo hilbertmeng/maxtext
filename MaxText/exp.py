@@ -12860,14 +12860,16 @@ class BamPythiaMediumPropT2048MShiftReadG050ReadAttentionSharedR256SwiGLU(
 class BamPythiaMediumPropT2048SerialMLPBamInitFix(
         BamPythiaMediumPropT2048MShiftReadG050ReadAttentionSharedR256SerialMLP):
     """Restore the BAM initialization chain, retaining the Pythia vector circuit."""
-    # 阶段判断：修复显著增强BAM相对Mudd的优势，但尚未验证是否阻止后期收益衰减。
-    # BAM/Mudd收益倍数（串行MHA参考）1k/1200/1400/1600/1800/2k：2.5051/2.5161/2.3020/2.2466/1.9962/2.0994。
-    # 2k未修复串行版1.624957，匹配架构的旧配方1.485257；对应二阶1.291971/1.413492。
-    # 对父BAM gap1k-.074227→2k-.053175，绝对领先收窄；相对未修复二阶仍守约1.29。
-    # token embedding/BAM专用非零投影恢复.006，BAM写RMS epsilon1e-6，语义零门/偏置/有效normscale保留原配方。
-    # 初始M RMS.018493与原链一致；健康统计实际关闭，UE5a v5p16 .5175875step/s（旧父路+1.42%，含健康计算修复）。
-    # code_commit:eaa95f8；实际432356690参数、MLP[5832,5643,5832]、FIRST_STEP/AOT核验。
-    # 跑前终局new/父BAM下注1.12[1.02,1.25]，串行MHA参考；实现codex/pythia-mediumprop-t2048。
+    # 阶段判断：BAM专用初始化修复显著增强相对Mudd收益；是否守住后期优势仍待4k–6k验证。
+    # BAM/Mudd倍数（串行MHA参考）1k/2k/3k=2.505087/2.099398/1.892021；未修复3k1.432027。
+    # 相对未修复二阶1.256631/1.291971/1.321219，上升；相对同阶段旧配方3k1.268986，下降。
+    # 父串行版终局末五1.147469、匹配旧配方后期末五1.473443；恢复门槛new/parent≈1.284081。
+    # 保持当前二阶的条件折算终局1.516058，不是拟合/实测终局；旧配方匹配路仅训到10160。
+    # 对父BAM gap1k-.074227→2k-.053175→3k-.046445；当前终局new/parent预期上调1.30[1.20,1.40]。
+    # 跑前下注1.12[1.02,1.25]保留检验。token embedding/BAM专用非零投影.006、写RMS epsilon1e-6。
+    # 实际初始M RMS.018493与原链一致；语义零门/门偏置/有效normscale均保持原配方。
+    # UE5a v5p16 .5175875step/s，actual432356690，MLP[5832,5643,5832]，健康全部关闭，继续训练。
+    # code_commit:eaa95f8；实现codex/pythia-mediumprop-t2048，/data0/xd/pythia-mediumprop-t2048。
     model_name = 'BamPythiaMediumPropT2048SerialMLPBamInitFix'
     bam_init_method = '006normal'
     token_embedding_init_method = '006normal'
@@ -12879,13 +12881,15 @@ class BamPythiaMediumPropT2048SerialMLPBamInitFix(
 class BamPythiaMediumPropT2048SerialMLPOriginalInit(
         BamPythiaMediumPropT2048SerialMLPBamInitFix):
     """All random kernels use the original .006 recipe; serial GELU/LN fixed."""
-    # 阶段判断：1200步由落后父BAM转为领先，逐渐回追修复版；还没有终局排名结论。
-    # BAM/Mudd收益倍数（串行MHA参考）1k/1200/1400/1600/1800/2k：1.9213/1.9658/1.8136/1.7898/1.6460/1.7396。
-    # 2k相对未修复串行版/匹配旧配方的二阶1.070563/1.171258；对父BAM gap1k+.010475→2k-.012851。
-    # 在BAM初始化修复基础上，标准QKV/attention输出/主MLP/unembedding也恢复.006；结构/LN/bias/门开度保持。
-    # UE5a v5p16 .5166625step/s（旧父路+1.23%，含健康修复）；实际432356690参数，健康全部关闭。
-    # code_commit:eaa95f8；两路AOT/FIRST_STEP已核验；实现codex/pythia-mediumprop-t2048。
-    # 跑前终局new/父BAM下注1.20[1.05,1.40]，串行MHA参考；继续训练。
+    # 阶段判断：全原初始化在持续追回修复版，不据早期落后判终局；继续训练。
+    # BAM/Mudd倍数（串行MHA参考）1k/2k/3k=1.921299/1.739619/1.664113。
+    # 相对未修复串行二阶.963784/1.070563/1.162068，上升；对匹配旧配方3k二阶1.116127。
+    # 对父BAM gap1k+.010475→2k-.012851→3k-.023433；3k仍落后修复.023012，差距持续缩小。
+    # 维持当前二阶条件折算终局1.333437，非拟合/观测终局；跑前终局new/parent下注1.20[1.05,1.40]。
+    # 在BAM修复基础上，标准QKV/attention输出/主MLP/unembedding恢复.006；专用静态键等保留原配方各自初始化。
+    # GELU/LN/bias/结构保持Pythia串行版；并不等于完整旧Llama配方。
+    # UE5a v5p16 .5166625step/s，actual432356690参数、健康全部关闭；runtimeeaa95f8，AOT/FIRST_STEP已核验。
+    # 实现codex/pythia-mediumprop-t2048，/data0/xd/pythia-mediumprop-t2048。
     model_name = 'BamPythiaMediumPropT2048SerialMLPOriginalInit'
     init_method = '006normal'
     compare_runs = ['BamPythiaMediumPropT2048MShiftReadG050ReadAttentionSharedR256SerialMLP',

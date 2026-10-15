@@ -3981,6 +3981,7 @@ class BamAttention(Attention):
       is_global: Array | bool | None = None,
       layer_index: Array | int | None = None,
       defer_write: bool = False,
+      defer_write_context: bool = False,
   ):
     """BAM forward. Returns (out, M_out): out [b,t,emb_dim], M_out [b,t,k,v].
 
@@ -4263,7 +4264,8 @@ class BamAttention(Attention):
 
     if defer_write:
       assert self._has_write and not self._mha_control and M_in is not None
-      factors = self._deferred_write_factors(o_head, inputs_q)
+      # The caller can finish the residual addition before generating controls.
+      factors = o_head if defer_write_context else self._deferred_write_factors(o_head, inputs_q)
       out = nn.with_logical_constraint(o_head, self.out_axis_names)
       return self.out_projection(inputs_q.shape[-1], out), M_in, factors
     if self._mha_control:

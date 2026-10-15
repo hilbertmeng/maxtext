@@ -115,7 +115,8 @@ class SubDecoderLayer(nn.Module):
     else:
       inputs = nn.with_logical_constraint(inputs, ("activation_batch", "activation_norm_length", "activation_embed"))
       inputs = checkpoint_name(inputs, "decoder_layer_input")
-      lnx = normalizations.get_rmsnorm("pre_self_attention_layer_norm", cfg)(inputs)
+      attention_norm = normalizations.get_rmsnorm("pre_self_attention_layer_norm", cfg)
+      lnx = attention_norm(inputs)
       lnx = nn.with_logical_constraint(lnx, ("activation_batch", "activation_norm_length", "activation_embed"))
       lnx_kv = [lnx, lnx]
 
@@ -196,7 +197,15 @@ class SubDecoderLayer(nn.Module):
     if mlp_write and getattr(cfg, 'bam_mlp_write_static_address', False):
       raise ValueError('Static MLP write experiments require their recorded runtime')
     pallas_core = cfg.bam_enabled and bool(getattr(cfg, 'bam_pallas_core', False))
-    if pallas_core:
+    post_residual_controls = bool(getattr(cfg, 'bam_write_controls_post_residual', False))
+    if post_residual_controls:
+        assert cfg.bam_enabled and not pallas_core and not cfg.dense_conn
+        assert cfg.shared_experts == 1 and cfg.num_experts == 1
+        assert 'full' not in layer_mode and not cfg.bam_mha_control
+        attention_lnx, M_out, write_head = attention_layer(
+            **call_kwargs, M_in=M_in, is_global=is_global, layer_index=layer_index,
+            defer_write=True, defer_write_context=True)
+    elif pallas_core:
         # Fused core: the attention returns its raw write factors; one kernel
         # applies the attention (and MLP) writes after the MLP.
         attention_lnx, M_out, write_factors = attention_layer(
@@ -226,8 +235,17 @@ class SubDecoderLayer(nn.Module):
     )
     intermediate_inputs = inputs + attention_lnx
 
+    if post_residual_controls:
+      # Reuse the original attention prenorm parameters at the updated residual.
+      write_context = attention_norm(intermediate_inputs)
+      if mlp_write:
+        write_factors = attention_layer._deferred_write_factors(write_head, write_context)
+      else:
+        M_out, _ = attention_layer._write(write_head, write_context, M_out)
+
     # Fully Connected
-    hidden_states = normalizations.get_rmsnorm("post_self_attention_layer_norm", cfg)(intermediate_inputs)
+    mlp_norm = normalizations.get_rmsnorm("post_self_attention_layer_norm", cfg)
+    hidden_states = mlp_norm(intermediate_inputs)
     hidden_states = nn.with_logical_constraint(
         hidden_states, ("activation_batch", "activation_norm_length", "activation_embed")
     )
@@ -304,12 +322,14 @@ class SubDecoderLayer(nn.Module):
       moe_lnx = nn.with_logical_constraint(moe_lnx, ("activation_batch", "activation_norm_length", "activation_embed"))
 
     if mlp_write:
+      mlp_write_context = (mlp_norm(intermediate_inputs + mlp_lnx)
+                           if post_residual_controls else hidden_states)
       mlp_logits = linears.DenseGeneral(
           features=(num_query_heads,), axis=-1, use_bias=False,
           kernel_init=initializers.get_init_method(cfg.init_method),
           kernel_axes=('embed', 'q_heads'), dtype=cfg.dtype, weight_dtype=cfg.weight_dtype,
           quant=self.quant, matmul_precision=cfg.matmul_precision,
-          name='mlp_write_gate')(hidden_states)
+          name='mlp_write_gate')(mlp_write_context)
       mlp_bias = self.param(
           'mlp_write_gate_bias', nn.with_logical_partitioning(
               nn.initializers.constant(math.log(cfg.bam_write_eps / (1.0 - cfg.bam_write_eps))),
@@ -323,7 +343,7 @@ class SubDecoderLayer(nn.Module):
             kernel_init=initializers.get_init_method(cfg.init_method),
             kernel_axes=('embed', None), dtype=cfg.dtype, weight_dtype=cfg.weight_dtype,
             quant=self.quant, matmul_precision=cfg.matmul_precision,
-            name='mlp_address_down')(hidden_states)
+            name='mlp_address_down')(mlp_write_context)
         independent_address = linears.DenseGeneral(
             features=(num_query_heads, cfg.bam_v), axis=-1, use_bias=True,
             kernel_init=initializers.get_init_method(cfg.init_method),

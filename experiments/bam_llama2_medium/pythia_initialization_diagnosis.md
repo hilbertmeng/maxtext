@@ -191,3 +191,9 @@ Reporthelpernowaccepts --arm-report RUN JSON asfallbackforacompleted/acknowledge
 - 词表权重使用同一initializer：https://github.com/EleutherAI/gpt-neox/blob/v1.0/megatron/model/word_embeddings.py#L49-L55
 
 公式small_init的研究来源为Nguyen & Salazar2019《Transformers without Tears》§2.2，https://aclanthology.org/2019.iwslt-1.17.pdf：将attention初始化从方差1/D缩到FFN D→4D对应的2/(5D)。该论文§3.2的非FixNorm词embedding使用std=1/sqrt(D)，所以它不直接证明embedding应取2/(5D)；embedding的该选择来自Pythia实际代码。不得将官方配方迁移等同于已证明对BAM最优。GPT-NeoX函数注释中的论文年份2010是上游笔误，实际2019。
+
+## 用户提供的PaxML/Praxis复现代码核验（2026-10-15 UTC）
+
+固定源码paxml9f12f128808b2496b1b55f40e3477753db3e6896、praxis3d80c945f5d469f836bda6b7d9e61e17280219f7，xd/dev。用户锚点为PilePythia3B128x1FixRot，显式混入PythiaInit。configure_gpt3_task计算small_init std=sqrt(2/(5D))，赋给model.params_init与unembedding；独立embedding未覆盖initializer，经BaseLayer.copy_base_hparams/create_child/create_variable继承同一Gaussian。WeightInit.Gaussian的scale即std，实际init_var使用scale*jax.random.normal；无额外fan缩放，查表后scale_sqrt_depth=False。attention输出与FFN第二投影由wang_init=2/(L*sqrt(D))覆盖，两个相关gshard内部初始化覆盖默认False且该配置未开启。当前Medium D1200/L18得到.0182574186/.0032075015，与当前完整Pythia迁移普通角色初始化一致；修复路embedding.006为有意实验偏离，不能称完整Pythia复现。
+
+部分7B AlignInit配置混入另一PythiaInit7B，显式std .02/output .0025，不属于上述small/wang数值；不能仅凭Pythia类名归为同一初始化。这里只确认代码，不据此推断未提供的历史运行hash/checkpoint实测。完整固定源码与audit-summary.json在 `/data0/xd/bam_diagnostics/pythia-paxml-init-audit-20261016/`。未改模型、未启动训练。

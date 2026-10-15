@@ -101,3 +101,9 @@ At6000 primary BAM/Mudd ratios repair1.720946/all-original1.612302, each own-fam
 ## Common7k
 
 CP7000both. PrimaryBAM/Mudd repair1.675229/all-original1.578812; second-orderunfixed1.364435/1.285905; second-orderoldrecipe1.131197/1.066091. Repaircontribution6k1.366223->7k1.364435 stable~1.36, whileprimaryandcross-recipeedgestillcontract. Parentgaps-.0385608/-.0302516. Full-originalsinglepoint1.285905justaboverecoverythreshold1.284081, butlatest5meanbelowthreshold; conditionalestimate notobservedterminal. Fullnative6k/6.2k/6.4k/6.6k/6.8k/7kprimary repair1.720946/1.696401/1.681294/1.686960/1.657650/1.675229, fulloriginal1.612302/1.591275/1.582752/1.592641/1.569566/1.578812. Completeallprimary/second-orderin core-gain-common7000.json, registryreport report-common7000.json. Bothcontinue8k; preservebets.
+
+## Common8k after first preemption
+
+CP8000both, actual8355/8037. Repair/all-original primary BAM/Mudd1.640465/1.557850, new/unfixed1.368075/1.299178, new/matchedold1.105249/1.049589. Wholelastfiveall-original ratios1.299344/1.296346/1.306686/1.303847/1.299178 exceed recoverythreshold1.284081; bothwouldrecoveroldlateadvantageIFcontributionpersists, notobservedterminal. Repaircontributionstable~1.37, full-original~1.30. Repair8kparentgap-.0368916, original-.0299862, mutual.0069054. Primaryandcross-recipeedgesstillcontract; currentbestinitadaptationretainsPythiastandardtrunk. Core8kquestion evidence favorsBAMinitialization-chain/writeepsilonadaptation asmajorfactor, notsoleisolatedinitcause. Source core-gain-common8000.json andreport-common8000.json.
+
+OriginalarmfirstUE5apreemption2026-10-15T12:32:51Z, READY08:16:33–12:32:51(4h16m18s), CP7770committed. Recovered7771 exacteaa95f8/full13500schedule/AOT, resumedLRconsistentwithstep7771, CP7800then8000committed. No from0restart. Native7800windowentirelypostrestore, previous7600cache retained. Continue9k, preserveoriginalbets.

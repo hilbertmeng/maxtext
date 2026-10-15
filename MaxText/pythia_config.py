@@ -35,8 +35,9 @@ def validate_pythia_config(keys):
     raise ValueError("Pythia requires positive MLP width and layer count")
   if not keys['qkv_bias']:
     raise ValueError("Pythia requires QKV bias")
-  if list(keys['mlp_activations']) != ['gelu_exact']:
-    raise ValueError("Pythia requires the single gelu_exact MLP activation")
+  expected_mlp = ['silu', 'linear'] if keys.get('pythia_swiglu_mlp', False) else ['gelu_exact']
+  if list(keys['mlp_activations']) != expected_mlp:
+    raise ValueError(f"Pythia MLP activations must match its explicit variant: {expected_mlp}")
   if keys['rope_type'] != 'default' or keys['rope_half']:
     raise ValueError("Pythia requires ordinary RoPE (rope_half=False); use pythia_rotary_dim for its prefix")
   if keys['logits_via_embedding']:
@@ -45,6 +46,12 @@ def validate_pythia_config(keys):
     raise ValueError('BAM/Mudd Pythia extensions require pythia_use_fusion=True')
   if keys.get('dynamic_mlp_dim') and not keys.get('pythia_use_fusion', False):
     raise ValueError('Dynamic MLP widths require pythia_use_fusion=True')
+  widths = keys.get('mlp_dim_by_layer')
+  if widths is not None:
+    if (not keys.get('pythia_use_fusion', False) or keys['scan_layers']
+        or len(widths) != keys['num_decoder_layers']
+        or any(not isinstance(w, int) or w <= 0 for w in widths)):
+      raise ValueError('Per-layer MLP widths require unscanned fusion and one positive width per layer')
   if keys.get('bam_enabled') and keys.get('dense_conn'):
     raise ValueError('Combined BAM+Mudd is not a supported Pythia arm')
   # These extensions change the circuit or require a different decoder contract.

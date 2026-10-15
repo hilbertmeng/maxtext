@@ -12786,3 +12786,42 @@ class MuddPythiaMediumPropT2048SerialMLP(MuddPythiaMediumPropT2048):
     pythia_parallel_residual = False
     compare_runs = ['MuddPythiaMediumPropT2048', 'PythiaMediumPropT2048SerialMLP',
                     'BamPythiaMediumPropT2048MShiftReadG050ReadAttentionSharedR256SerialMLP']
+
+
+class PythiaMediumPropT2048SwiGLU(PythiaMediumPropT2048):
+    """Budget-matched SwiGLU main MLP on parallel Pythia MHA."""
+    # Ledger: codex/pythia-mediumprop-t2048, /data0/xd/pythia-mediumprop-t2048; preparing.
+    model_name = 'PythiaMediumPropT2048SwiGLU'
+    pythia_swiglu_mlp = True
+    mlp_activations = ['silu', 'linear']
+    base_mlp_dim = 3200
+    # 432388800 params: +28800 vs GELU from integer uniform width and second input bias.
+    compare_runs = ['PythiaMediumPropT2048']
+
+
+class MuddPythiaMediumPropT2048SwiGLU(MuddPythiaMediumPropT2048):
+    """Preserve Mudd layerwise MLP budgets and unrepaid router overhead."""
+    # Ledger: codex/pythia-mediumprop-t2048, /data0/xd/pythia-mediumprop-t2048; preparing.
+    model_name = 'MuddPythiaMediumPropT2048SwiGLU'
+    pythia_swiglu_mlp = True
+    mlp_activations = ['silu', 'linear']
+    base_mlp_dim = 3200
+    dynamic_mlp_dim = False
+    mlp_dim_by_layer = [1621, 1792, 1962, 2133, 2389, 2560, 2730, 2901, 3072,
+                        3328, 3498, 3669, 3839, 4010, 4266, 4437, 4607, 4778]
+    # 434356331 params: -16 vs GELU, same router tree and old depth-allocation profile.
+    compare_runs = ['MuddPythiaMediumPropT2048', 'PythiaMediumPropT2048SwiGLU']
+
+
+class BamPythiaMediumPropT2048MShiftReadG050ReadAttentionSharedR256SwiGLU(
+        BamPythiaMediumPropT2048MShiftReadG050ReadAttentionSharedR256):
+    """SwiGLU main MLP; retain every GELU read/write-address bottleneck."""
+    # Ledger: codex/pythia-mediumprop-t2048, /data0/xd/pythia-mediumprop-t2048; preparing.
+    model_name = 'BamPythiaMediumPropT2048MShiftReadG050ReadAttentionSharedR256SwiGLU'
+    pythia_swiglu_mlp = True
+    mlp_activations = ['silu', 'linear']
+    base_mlp_dim = 3200
+    mlp_dim_by_block = [3887, 3762, 3887]
+    # 432348080 params: -8610 vs GELU, nearest three-layer repeated integer budget.
+    compare_runs = ['BamPythiaMediumPropT2048MShiftReadG050ReadAttentionSharedR256',
+                    'PythiaMediumPropT2048SwiGLU', 'MuddPythiaMediumPropT2048SwiGLU']

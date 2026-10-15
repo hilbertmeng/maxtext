@@ -46,3 +46,14 @@ shift boundary and existing summary-writer regression. Sealed runtime check plus
 v5p-16 AOT/FIRST_STEP/step14 are required. Retained user-owned FLEX compiler
 llm-jax-v6e-1-0 EW4a is borrowed, never lifecycle-owned; per-worker lock serializes AOT.
 UE5a selected from current long stable comparable training leases in regional history.
+
+Launch verified 2026-10-15: sealed runtime3b26679fb6cc4fb4d4d7f67427fcbdcf5a06b260,
+controller started03:48:38UTC, worker FIRST_STEP2 and step19/.551step/s verified.
+Worker reports432111680 parameters and Loaded compiled function; resolvedT2048,
+per-device32/global256, scanTrue, schedule13500, qk_normFalse, every health flagOFF,
+TB rotation500. Checkpoint0 cursor confirms legacy2048 UE5a records and global256.
+Shared reporter persists both RUN/oldBAM and RUN/Mudd gain triples, reference matchedMHA.
+Pinned targeted CPU suite completed9 tests (budget1/shared-gradient+carry+boundary3/writer5);
+launch CPU gate reuses its verified commit-bound receipt and checks sealed configuration.
+No repeated model test execution was needed. Launch prep/log receipt and active monitor state:
+`/data0/xd/bam_diagnostics/mediumprop-t2048-current-sota/`.

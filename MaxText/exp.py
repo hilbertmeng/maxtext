@@ -12860,6 +12860,8 @@ class BamPythiaMediumPropT2048MShiftReadG050ReadAttentionSharedR256SwiGLU(
 class BamPythiaMediumPropT2048SerialMLPBamInitFix(
         BamPythiaMediumPropT2048MShiftReadG050ReadAttentionSharedR256SerialMLP):
     """Restore the BAM initialization chain, retaining the Pythia vector circuit."""
+    # 共同4k：BAM/Mudd1.80108；相对未修复串行二阶1.32905，相对同阶段旧配方1.21508。
+    # 对父BAM gap-.042763；修复贡献仍强，跨配方优势继续收窄；继续5k，终局下注1.30[1.20,1.40]保留。
     # 阶段判断：BAM专用初始化修复显著增强相对Mudd收益；是否守住后期优势仍待4k–6k验证。
     # BAM/Mudd倍数（串行MHA参考）1k/2k/3k=2.505087/2.099398/1.892021；未修复3k1.432027。
     # 相对未修复二阶1.256631/1.291971/1.321219，上升；相对同阶段旧配方3k1.268986，下降。
@@ -12881,6 +12883,8 @@ class BamPythiaMediumPropT2048SerialMLPBamInitFix(
 class BamPythiaMediumPropT2048SerialMLPOriginalInit(
         BamPythiaMediumPropT2048SerialMLPBamInitFix):
     """All random kernels use the original .006 recipe; serial GELU/LN fixed."""
+    # 共同4k：BAM/Mudd1.63075；相对未修复串行二阶1.20336，相对同阶段旧配方1.10017。
+    # 对父BAM gap-.026429；落后BAM专用修复.016335（3k为.023012），继续追近；继续5k。
     # 阶段判断：全原初始化在持续追回修复版，不据早期落后判终局；继续训练。
     # BAM/Mudd倍数（串行MHA参考）1k/2k/3k=1.921299/1.739619/1.664113。
     # 相对未修复串行二阶.963784/1.070563/1.162068，上升；对匹配旧配方3k二阶1.116127。

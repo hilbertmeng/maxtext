@@ -19,8 +19,11 @@ def main():
  serial=json.loads(a.serial.read_text());old=json.loads(a.old_recipe.read_text());report=json.loads(a.report.read_text())
  comp='MuddPythiaMediumPropT2048SerialMLP'
  raw={'unfixed':points(ratio(serial,comp)),'old_recipe':points(ratio(old,'MuddLlama2MediumPropC256T2048'))}
+ names={'BamPythiaMediumPropT2048SerialMLPBamInitFix':'bam_fix',
+        'BamPythiaMediumPropT2048SerialMLPOriginalInit':'all_original'}
  for entry in report['runs']:
-  label='bam_fix' if entry['run_name'].endswith('BamInitFix') else 'all_original'
+  if entry['run_name'] not in names:continue
+  label=names[entry['run_name']]
   raw[label]=points(ratio(entry['pending_report'],comp))
  assert set(raw)=={'unfixed','old_recipe','bam_fix','all_original'},set(raw)
  serial_terminal=mean(list(raw['unfixed'].values())[-5:])

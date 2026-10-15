@@ -59,3 +59,17 @@ No repeated model test execution was needed. Launch prep/log receipt and active 
 `/data0/xd/bam_diagnostics/mediumprop-t2048-current-sota/`.
 
 Canonical20-99 throughput .549975step/s (80 samples), +1.9605% versus old T2048BAM .5394. HealthOFF versus oldON; do not attribute the full delta to projection sharing. Stable preemption-free startup.
+
+## 2000-step report
+
+Reported after observedstep2047; committedCP2000. Auto-event stillthrough1800 at
+pull, so shared loss-report refreshed complete2000 windows (no additional TB sync).
+All ten windows beat old T2048BAM. Last2000 gap-.007646, last5mean-.00808912,
+range[-.009236,-.0057724]; gain1.030707, last5mean1.027818. Versus Mudd,
+lastgap-.083847, gain1.485257, last5gain1.485503; versus MHA lastgap-.256637.
+After startup, old-BAM gap contracted to-.00569 at1000 then grew to~-.0092 at
+1600–1800 before-.00765 at2000. Positive benefit, not a sustained widening trend.
+T4096 same architecture change versus its old generalized-read BAM gain1.054573
+at2000; T2048 is weaker so far. Retain terminalbet1.10 pending later progress.
+Canonical speed remains .549975/s;P0. Next agent report4000, native stride200.
+Artifacts report-2000.json/loss-2000.json/parent-gain-2000.json in task evidence root.

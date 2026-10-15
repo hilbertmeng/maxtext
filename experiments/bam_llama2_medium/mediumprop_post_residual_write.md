@@ -87,3 +87,7 @@ Original-single.5 gaps4000/4200/4400/4600/4800/5000: -.008295/-.008245/-.008279/
 ### Shared write norm common2k
 
 CP2000both. Parentgaps at1k/1.2k/1.4k/1.6k/1.8k/2k: attention+.0037848/+.0031866/-.00017/+.002656/+.002342/+.0023576, MLP+.0034042/+.0034414/+.000435/+.0001374/+.002166/+.0011046. MHA-reference new/parentA .993860/.993750/1.000367/.993338/.993591/.993029; M .994477/.993250/.999060/.999655/.994073/.996734. Latest5meanparentgaps+.00207444/+.00145688, ratios.994815/.996554. Latest5MLP-minus-A gap-.00061756, peerR1.001753. No additionalsharedbenefit yet, slightMLPnormedge small. Originalsingle2k ratios1.050410/1.054329, inheritedattention-onlygainmainlyresponsible. Speedflat; retainbets/continue3k. Fullcumulativeshared-write/report-common2000.json.
+
+### Attention-only common6k
+
+CP6000committed. Parentgap5k/5.2k/5.4k/5.6k/5.8k/6k -.007665/-.006443/-.0068612/-.0074576/-.0060712/-.0064722; MHA-reference ratios1.038450/1.032563/1.035443/1.038908/1.031608/1.034900. Latest5gap-.00666104/R1.034684 versus5kR1.040022, slowcontraction. Both-change6k gap-.0035434/R1.018810, last5-.00328196/1.016821 stable. MHA6kgap-.191923. Continue7k, retainterminal1.025forecast. Sharedreportpendingeventstill5800 althoughlive>6025, manualregistryloss-report refreshedcomplete6000, no interpolation. Source selective/report6000.json. Stoppedbothbaselineends6000mature, do not repeatunchangedhorizon afterthisreport.

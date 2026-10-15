@@ -97,3 +97,15 @@ Frozenruntimec560cd62ce2d8563b56891655bdc3c7d47659528, `BamMediumPropMShiftReadG
 
 Temporarynormal-staticungatedf6137cc successorstopped228/CP228, TBSYNC_OK, solelyuserinitializationcorrection, notarchitecturalfailure. Itscanonical.463075step/s +1.20475%versusgatedall18 recordedonlyasstartupreproduction. P0/UE5av5p16 retainedTPU310246: READY10:49:26–10:59:16UTC (9m50s), hotreplacement. Zero-staticnewRUNstartsfrom0, notfromtemporarycheckpoint. Oldwrite6hasCP2008andTBSYNC_OK; nevercloseout/deletephysicalTPUviaeitheroldregistryafterhandoff. Artifacts static-zero-worker-verification.json/static-zero-speed-verification.json/static-zero-state.json andnogates-temporary-final-registry.json.
 
+
+## Original gated12/all18: authorized2800 review closeout
+
+Stoppedaftercommon2800review, finalcommittedCP2970(nonwrite12)/2909(all18). Nodes+queues explicitlyverifiedabsent, finalTBsyncaftercloseoutbothSYNC_OK. At1k/2k/2800 parentgaps12-.009198/-.003750/+.0007348 andall18-.012516/-.0033438/-.0001364. MHA-reference ratios12:1.01574/1.01173/.997179, all18:1.02141/1.01046/1.000524. 12crossedbehind2400 and stayednegative; all18extraadvantagecontracted tonearzero. Earlyconvergenceaccelerationdidnotbecomesustainedgain. Bets1.12/1.15wereoveroptimistic; thisisnotafullterminalmeasurement. Zero-static/no-read-gates successorcontinues; bothclosedRUNsremainregisteredhistoricalbaselines, availablethrough2800.
+
+UE5av5p16 P0 both: nonwrite12READY2026-10-15 09:32:57–11:21:51UTC(1h48m54s), all18READY09:32:36–11:21:54UTC(1h49m18s); nozonechange. Fullsummarygated-2800-closeout-summary.json, remote logs/closeout-20261015T112447Z.json. Fullreview200-stepseries report-review2800.json, finalTBproof gated-2800-final-tb-sync.log.
+
+Parameter-flowinterpretation: larger total hiddenwidth isnotlargerordinaryMLP parametercount. Gatedreaders replace392400ordinaryMLPkernelparamswith392464readerparams perselectedlayer; ungatedreplaces374400with373248. Write-downsharing insteadrefundsitsremovedkernel intocompleteordinaryMLPchannels. These aredifferentcapacitytrades; assess theirconvergenceindependently.
+
+## Zero-static ungated reader: first1k
+
+Actual1103, CP1000 committed. Versus gatedall18 at200/400/600/800/1000 gaps+.053885/-.001054/-.000918/-.004377/-.004948, MHA-reference ratios.965557/1.000679/1.000916/1.005881/1.008287. Turns ahead400, recent benefit increases. Versus originalsingle.5 gaps-.102414/-.068162/-.035078/-.022458/-.017464, ratios1.072728/1.045893/1.036237/1.030926/1.029876: total advantage stillcontracts, so lack-of-late-benefit not yet fixed. All18closedbaseline remainsavailablethrough2800; reference seriesbeyonditsstop must remainmissing. AllhealthOFF speed+1.18563percent(.4629875 vs.4575625). Pre-run new/all18 terminalbet1.05[.98,1.12] kept; continue2k–2800. Fullreport report-common1000-static-zero.json.

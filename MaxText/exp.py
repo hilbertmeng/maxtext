@@ -12917,14 +12917,12 @@ class BamMediumPropMShiftReadG050MLPReadWriteLayersTruePile(
 class BamMediumPropMShiftReadG050MLPReadNonWriteLayersTruePile(
         BamMediumPropMShiftReadG050MLPReadWriteLayersTruePile):
     """BAM value channels only in the twelve layers without an MLP write."""
-    # 共同2k：对单门.5 gap-.003750、MHA参考倍数1.01173（1k1.01574）；收益已缩至约1%，继续3k。
-    # 共同1k：对原单门.5的早期领先持续收窄；继续训练，尚不支持乐观终局下注。
-    # 200/400/600/800/1000 gap -0.073807/-0.044727/-0.027268/-0.014963/-0.009198。
-    # MHA参考收益倍数 1.05241/1.03011/1.02817/1.02060/1.01574；CP1000已提交。
-    # 已开训：runtime3afcaa9，UE5a v5p16 TPU310247；FIRST_STEP/AOT/实际432112448参数与配置核验。
-    # 20–99步0.4687750step/s，对健康关闭计时对照-3.18%。
-    # 本层找平，总参数432112448（父路+768）；前向净增449664 FLOPs/token，约+.04888%。
-    # 跑前下注：相对单门.5终局收益倍数1.12（.98–1.25），预期吞吐相对同健康控制-4%。
+    # 用户授权2800评审判停，最终CP2970提交、节点/队列释放、TB最终SYNC_OK；UE5a P0。
+    # 对原单门.5初期领先持续消失：1k/2k/2800 gap-.009198/-.003750/+.000735，MHA参考倍数1.01574/1.01173/.99718。
+    # 2400步转负，2600/2800连续落后；未建立持续收益，跑前终局1.12[.98,1.25]预期过于乐观。
+    # .4687750step/s，对健康OFF计时对照-3.18%；参数432112448（父路+768），MLP[3893,3676,3893]。
+    # 六个选中层组外的12层读M；前向净增.450MFLOPs/token，所有健康OFF。历史对照保留。
+    # code_commit: 3afcaa9；codex/mediumprop-mlp-bam-read，/data0/xd/mediumprop-mlp-bam-read。
     model_name = 'BamMediumPropMShiftReadG050MLPReadNonWriteLayersTruePile'
     bam_mlp_read_location = 'nonwrite'
     mlp_dim_by_block = [3893, 3676, 3893]
@@ -12933,14 +12931,12 @@ class BamMediumPropMShiftReadG050MLPReadNonWriteLayersTruePile(
 class BamMediumPropMShiftReadG050MLPReadAllLayersTruePile(
         BamMediumPropMShiftReadG050MLPReadWriteLayersTruePile):
     """BAM value channels in all eighteen MLPs, individually budget-matched."""
-    # 共同2k：对单门.5 gap-.003344、MHA参考倍数1.01046（1k1.02141）；首次微弱落后nonwrite12(.000406)，继续3k。
-    # 共同1k：对原单门.5的早期领先持续收窄；继续训练，尚不支持乐观终局下注。
-    # 200/400/600/800/1000 gap -0.156299/-0.067108/-0.034160/-0.018081/-0.012516。
-    # MHA参考收益倍数 1.11099/1.04518/1.03529/1.02490/1.02141；CP1000已提交。
-    # 已开训：runtime3afcaa9，UE5a v5p16 TPU310248；FIRST_STEP/AOT/实际432112832参数与配置核验。
-    # 20–99步0.4575625step/s，对健康关闭计时对照-5.49%。
-    # 本层找平，总参数432112832（父路+1152）；前向净增674496 FLOPs/token，约+.07332%。
-    # 跑前下注：相对单门.5终局收益倍数1.15（.97–1.30），预期吞吐相对同健康控制-6%。
+    # 用户授权2800评审判停，最终CP2909提交、节点/队列释放、TB最终SYNC_OK；UE5a P0。
+    # 对原单门.5初期领先持续消失：1k/2k/2800 gap-.012516/-.003344/-.000136，MHA参考倍数1.02141/1.01046/1.00052。
+    # 到2800已接近持平，无明确回升；跑前终局1.15[.97,1.30]预期过于乐观，无训练终局数据。
+    # .4575625step/s，对健康OFF计时对照-5.49%；参数432112832（父路+1152），MLP[3893,3767,3893]。
+    # 全18层读M，前向净增.674MFLOPs/token，所有健康OFF；新零静态无读门路继续，保留本路2800以内对照。
+    # code_commit: 3afcaa9；codex/mediumprop-mlp-bam-read，/data0/xd/mediumprop-mlp-bam-read。
     model_name = 'BamMediumPropMShiftReadG050MLPReadAllLayersTruePile'
     bam_mlp_read_location = 'all'
     mlp_dim_by_block = [3893, 3767, 3893]
@@ -12966,12 +12962,13 @@ class BamMediumPropMShiftReadG050MLPReadAllLayersNoReadGatesTruePile(
 class BamMediumPropMShiftReadG050MLPReadAllLayersNoReadGatesStaticZeroTruePile(
         BamMediumPropMShiftReadG050MLPReadAllLayersNoReadGatesTruePile):
     """Ungated all-layer MLP read, with only static addresses zero-initialized."""
-    # 已开训：静态key[32,8]全零初始化、无两类读门，动态投影仍normal(.006)，读出非零且静态梯度非零。
-    # UE5a v5p16 TPU310246热接管；FIRST_STEP/AOT/实际参数432090944和worker配置已核验，健康全OFF。
-    # MLP[3898,3772,3898]，同层找平、原单门.5-20736参数整数余差；静态零初始化不减少可学习参数。
-    # 20–99步.4629875step/s，相对健康同OFF的全18层门控父路+1.19%；符合约+1%预期。
-    # 跑前终局new/all18收益倍数1.05[.98,1.12]，MHA参考；首个正式效果报告1k。
-    # 新鲜参数/数据从0训；原write6停CP2008，中间normal-static临时版停CP228，均保留TB/CP而不删除复用TPU。
+    # 在训1k/CP1000：对原全18层读gap-.004948、MHA参考倍数1.00829；200步落后、400转优、800–1000优势扩大。
+    # 对原单门.5 gap-.017464、倍数1.02988；其总收益仍收缩，不能认定解决旧版后劲不足，继续2k–2800。
+    # 静态key[32,8]零初始化可学习，无动态/静态读门；动态投影normal(.006)、读出非零且静态梯度非零。
+    # UE5a v5p16 TPU310246，.4629875step/s，健康同OFF对原全18层读+1.19%；432090944参数。
+    # MLP[3898,3772,3898]，同层找平、原单门.5-20736参数整数余差；前向净增.631MFLOPs/token(+.0686%)。
+    # 跑前终局new/all18下注1.05[.98,1.12]，MHA参考；旧门控12/18路停CP2970/2909，缓存对照至2800。
+    # 新鲜参数从0训；原write6停CP2008、中间normal-static停CP228，均已保留TB/CP、移交同一TPU。
     # code_commit: c560cd6；codex/mediumprop-mlp-bam-read，/data0/xd/mediumprop-mlp-bam-read。
     model_name = 'BamMediumPropMShiftReadG050MLPReadAllLayersNoReadGatesStaticZeroTruePile'
     bam_mlp_read_static_key_init = 'zero'

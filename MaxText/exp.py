@@ -13038,7 +13038,7 @@ class BamMediumPropMShiftReadG050ReadAttentionSharedR256T2048(BamMediumPropMShif
     # @6000 oldBAM gap-.008338,last5-.008237; gains oldBAM1.056708/Mudd1.489007; stable absolute benefit, P0,CP6000.
     # @8000 oldBAM gap-.007881,last5-.007944; gains oldBAM1.057834/Mudd1.484248; posterior terminal1.07 [1.06,1.08],P0.
     # @10000 oldBAM gap-.008177,last5-.008719; gains oldBAM1.064421/Mudd1.474453; posterior1.07 retained,P0,CP10000.
-    # User stopped10160/CP10160 committed; TPU/queue absent, TB SYNC_OK, UE5a P0; full13500 endpoint unobserved.
+    # User stopped at 10160; CP10160 committed; TPU/queue absent, TB SYNC_OK, UE5a P0; full13500 endpoint unobserved.
     # Through10000 last5 gaps oldBAM-.008719/Mudd-.044360/MHA-.138062; gains1.067418/1.473443 (MHA ref).
     # Early oldBAM gain contracted, then held~-.008–.009 after1400; short-context improvement weaker than T4096.
     model_name = 'BamMediumPropMShiftReadG050ReadAttentionSharedR256T2048'

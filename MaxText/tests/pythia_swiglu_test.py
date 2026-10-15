@@ -69,9 +69,9 @@ class PythiaSwiGLUTest(PythiaTest):
 
   def test_reject_unrequested_variant_and_invalid_widths(self):
     with self.assertRaises(ValueError):self.config(mlp_activations=['silu','linear'])
-    with self.assertRaises(ValueError):self.config(exp_class=SWI[0],mlp_activations=['gelu_exact'])
+    with self.assertRaises(ValueError):self.config(exp_class=SWI[0],mlp_activations=['gelu_exact'],pythia_rotary_dim=4)
     from pythia_config import validate_pythia_config
-    c=self.config(exp_class=SWI[1],base_num_decoder_layers=18)
+    c=self.config(exp_class=SWI[1],base_num_decoder_layers=18,pythia_rotary_dim=4)
     with self.assertRaises(ValueError):validate_pythia_config(dict(c.get_keys(),mlp_dim_by_layer=[64]))
 
 if __name__=='__main__':unittest.main()

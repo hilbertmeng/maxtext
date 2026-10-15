@@ -12899,13 +12899,14 @@ class BamMediumPropMShiftReadG050MLPReadWriteLayersTruePile(
         BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile):
     """Eight full-K BAM vectors replace W1 channels, only in six MLP-write layers."""
     # 已开训：runtime3afcaa9，UE5a v5p16 TPU310246；FIRST_STEP/AOT/实际432112064参数与配置核验。
-    # 20–99步0.4780875step/s，对历史健康开启父路+4.31%，对同形健康关闭计时对照-1.25%。
+    # 20–99步0.4780875step/s，对健康关闭计时对照-1.25%。
     # 独立实现 codex/mediumprop-mlp-bam-read，/data0/xd/mediumprop-mlp-bam-read。
     # 从attention写后M读取8x75通道，跳过W1，保留Wg/W2；动静地址先合并，单次读M。
     # 本层找平：MLP总宽+91、普通W1宽-509；总参数432112064（父路+384）。
     # 前向净增224832 FLOPs/token，主导计算约+.02444%；健康指标全部关闭。
     # 跑前下注：终局相对原单门.5收益倍数1.08（.98–1.18），MHA为共同参考。
-    # 预计吞吐比健康关闭的同形控制低2%；历史父路健康开启，不能直接归因速度差。
+    # 预计吞吐比健康关闭的同形控制低2%。
+    # 计时对照：BamMediumPropMShiftReadG050PostResidualWriteControlsTruePile，.4841625step/s；仅作计时比较。
     model_name = 'BamMediumPropMShiftReadG050MLPReadWriteLayersTruePile'
     bam_mlp_read_location = 'write'
     bam_mlp_read_rank = 256
@@ -12917,7 +12918,7 @@ class BamMediumPropMShiftReadG050MLPReadNonWriteLayersTruePile(
         BamMediumPropMShiftReadG050MLPReadWriteLayersTruePile):
     """BAM value channels only in the twelve layers without an MLP write."""
     # 已开训：runtime3afcaa9，UE5a v5p16 TPU310247；FIRST_STEP/AOT/实际432112448参数与配置核验。
-    # 20–99步0.4687750step/s，对历史健康开启父路+2.27%，对同形健康关闭计时对照-3.18%。
+    # 20–99步0.4687750step/s，对健康关闭计时对照-3.18%。
     # 本层找平，总参数432112448（父路+768）；前向净增449664 FLOPs/token，约+.04888%。
     # 跑前下注：相对单门.5终局收益倍数1.12（.98–1.25），预期吞吐相对同健康控制-4%。
     model_name = 'BamMediumPropMShiftReadG050MLPReadNonWriteLayersTruePile'
@@ -12929,7 +12930,7 @@ class BamMediumPropMShiftReadG050MLPReadAllLayersTruePile(
         BamMediumPropMShiftReadG050MLPReadWriteLayersTruePile):
     """BAM value channels in all eighteen MLPs, individually budget-matched."""
     # 已开训：runtime3afcaa9，UE5a v5p16 TPU310248；FIRST_STEP/AOT/实际432112832参数与配置核验。
-    # 20–99步0.4575625step/s，对历史健康开启父路-0.17%，对同形健康关闭计时对照-5.49%。
+    # 20–99步0.4575625step/s，对健康关闭计时对照-5.49%。
     # 本层找平，总参数432112832（父路+1152）；前向净增674496 FLOPs/token，约+.07332%。
     # 跑前下注：相对单门.5终局收益倍数1.15（.97–1.30），预期吞吐相对同健康控制-6%。
     model_name = 'BamMediumPropMShiftReadG050MLPReadAllLayersTruePile'

@@ -20,3 +20,16 @@ TB rotation500 and writer.begin_step present; checkpoint250/latest2/force-final 
 No omitted main-only runtime fix found. Original worktree pending research ledger edits committed d2c6a205.
 Only configuration changes; validate full shaped parameter tree and exact private MLP shapes vs original single,
 plus summary writer regressions. Existing shared-family forward/gradient/causality tests previously passed.
+
+R384 closeout:22295/committedCP22295, resources absent and TB SYNC_OK.
+At22k vs single.5 gap-.000112, last5mean+.0001232, ratio1.000870/last5 .999080.
+Vs no-shift SOTA last5gap-.00877396, gain1.071306. Early deficit->long near-tie.
+Original terminal1.025 gain bet unsupported. UE5a v5p32, preemptions1:
+2026-10-14T09:16:00Z–10:49:31Z 1h33m31s (preempted);
+2026-10-14T10:55:54Z–2026-10-15T01:22:30Z 14h26m36s (user stop).
+New runtime f9a455e; full shaped parameter tree confirms1432399000 and unchanged
+private MLP projection shapes vs single.5. Five summary-writer regressions passed.
+
+New run FIRST_STEP6 then20 verified; worker ranks400/400/384, params1432399000,
+widths[6260,6072,6260]/tail6262, batch128, healthOFF, TBrotate500, AOT loaded.
+Observed .393step/s ~same as old shared384. Continue active monitoring at XL2k cadence.

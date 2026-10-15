@@ -12957,6 +12957,8 @@ class BamXLPropSharedR400GeneralReadMShiftReadG050TruePile(BamXLPropK96EmbedVOnl
 
 class BamXLPropMShiftReadG050ReadAttentionSharedR384TruePile(BamXLPropSharedR400GeneralReadMShiftReadG050TruePile):
     """XL transfer of Medium oldR256: shared read/attention down, private MLP down."""
+    # User stopped22295/CP22295; UE5a P1, node/queue absent, TB SYNC_OK.
+    # Through22k last5 gap vs single.5 +.0001232, gain.999080; early deficit->long near-tie.
     model_name = 'BamXLPropMShiftReadG050ReadAttentionSharedR384TruePile'
     bam_share_read_attention_write_down = True
     bam_share_mlp_write_down = False
@@ -13015,6 +13017,7 @@ class BamMediumPropMShiftReadG050SharedR384ReuseActivationMLPWriteTruePile(BamMe
 
 class BamXLPropMShiftReadG050ReadAttentionSharedR400TruePile(BamXLPropMShiftReadG050ReadAttentionSharedR384TruePile):
     """Shared read/attention R400, parent-matched private MLP write R384."""
+    # code_commit: f9a455e; UE5a TPU310228 FIRST_STEP/AOT/actual1432399000 verified; ~.393step/s.
     model_name = 'BamXLPropMShiftReadG050ReadAttentionSharedR400TruePile'
     bam_local_full_m_read_bottleneck_dim = 400
     bam_write_v_bottleneck_dim = 400

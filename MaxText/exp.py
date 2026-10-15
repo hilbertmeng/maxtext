@@ -12891,16 +12891,14 @@ class BamMediumPropMShiftReadG050PostResidualWriteControlsTruePile(BamMediumProp
 class BamMediumPropMShiftReadG050PostAttentionWriteControlsTruePile(
         BamMediumPropMShiftReadG050PostResidualWriteControlsTruePile):
     """Use post-attention residual only for attention write gate/address controls."""
-    # 共同4k：对单门.5 gap-.008295、倍数1.03816；末五gap-.009666/倍数1.04219，较3k仅缓慢收窄，继续5k。
-    # 对双改4k gap-.003161、倍数1.01421；末五gap-.003253/倍数1.01384。共享写norm两路均已开训，独立成组报。
-    # 继续训练：3k对原单门.5 gap-.010694，MHA参考收益倍数1.04278；末五均值gap-.012328、倍数1.04472。
-    # 1k/2k/3k对父路gap-.031872/-.018476/-.010694，倍数1.05452/1.05778/1.04278；领先仍收窄。
-    # 始终优于双改：1k/2k/3k gap-.007062/-.004312/-.004530，倍数1.01159/1.01291/1.01768。
-    # 双改停6167、MLP单改停2231；本路保留两项原基线和双改方向对照。
-    # UE5a v5p16 TPU310244，.4844125step/s，与健康关闭双改计时对照基本相同（+.05%）。
-    # 参数432111680，MLP[3802,3676,3802]，新增0W_Q，健康全部关闭；CP3000提交。
-    # 跑前终局下注：相对原单门.5收益倍数1.025[.995,1.06]，MHA参考；尚未获终局检验。
-    # code_commit:34d9afd；实现codex/mediumprop-m-shift，/data0/xd/mediumprop-m-shift。
+    # 在训5k：对原单门.5 gap-.007665，MHA参考倍数1.03845；末五gap-.008217、倍数1.04002。
+    # 3k/4k/5k倍数1.04278/1.03816/1.03845，raw gap收窄但标准化收益约1.04稳定，继续6k。
+    # 对双改5k gap-.003497、倍数1.01719；末五gap-.003493、倍数1.01666，始终领先。
+    # 双改停6167、MLP单改停2231；只保留原单门.5/MHA和双改对照，未引入读写共享R256基线。
+    # UE5a v5p16 TPU310244，.4844125step/s，与健康OFF双改计时对照基本相同（+.05%）。
+    # 参数432111680，MLP[3802,3676,3802]，新增0W_Q，健康全OFF；CP5000已提交。
+    # 跑前终局new/原单门.5下注1.025[.995,1.06]，MHA参考，尚无终局检验。
+    # code_commit: 34d9afd；codex/mediumprop-m-shift，/data0/xd/mediumprop-m-shift。
     model_name = 'BamMediumPropMShiftReadG050PostAttentionWriteControlsTruePile'
     bam_write_controls_post_residual = False
     bam_attention_write_controls_post_residual = True
@@ -12931,12 +12929,13 @@ class BamMediumPropMShiftReadG050PostMLPWriteControlsTruePile(
 class BamMediumPropPostAttentionWriteSharedR256AttentionNormTruePile(
         BamMediumPropMShiftReadG050PostAttentionWriteControlsTruePile):
     """Share actual post-attention write-address R256 features using attention norm."""
-    # 已开训：UE5a v5p16 TPU310249，FIRST_STEP/AOT/实际参数432104480与配置核验，健康全部OFF。
-    # 20–99步0.4845000step/s，相对同健康attention单改父路+0.018%，速度基本持平。
-    # 六个MLP写层共享实际R256地址down/GELU；两路up和full-D写门独立，读端down独立。
-    # MLP[3802,3761,3802]，父路-7200参数（整数找平余差）；非MLP写回12层行为不变。
-    # 终局相对attention单改下注1.03[.99,1.08]，MHA参考；尚无正式loss结论，每1k两路一起报。
-    # code_commit: 99485ac；实现codex/mediumprop-m-shift，/data0/xd/mediumprop-m-shift。
+    # 在训共同1k：对attention单改父路gap+.003785、MHA参考倍数.99386；早期落后正在收窄，继续2k。
+    # 相对原单门.5的1k倍数1.04805；父路为1.05452，新增共享收益尚未建立。
+    # 两norm在1k近乎持平：MLP-minus-attention gap-.000381、倍数1.00062，800时曾反向，尚无明确胜者。
+    # 六MLP写层共享实际R256 down/GELU，两路up及full-D写门独立，读端down独立；非写回12层不变。
+    # UE5a v5p16 .4845000step/s，相对同健康父路基本持平；432104480参数，MLP[3802,3761,3802]，健康全OFF。
+    # 跑前终局new/父路下注1.03[.99,1.08]，MHA参考，保持作为待检验预测。
+    # code_commit: 99485ac；codex/mediumprop-m-shift，/data0/xd/mediumprop-m-shift。
     model_name = 'BamMediumPropPostAttentionWriteSharedR256AttentionNormTruePile'
     bam_attention_mlp_write_shared_norm = 'attention'
     mlp_dim_by_block = [3802, 3761, 3802]
@@ -12948,11 +12947,12 @@ class BamMediumPropPostAttentionWriteSharedR256AttentionNormTruePile(
 class BamMediumPropPostAttentionWriteSharedR256MLPNormTruePile(
         BamMediumPropPostAttentionWriteSharedR256AttentionNormTruePile):
     """Share write-address features using the existing post-attention MLP norm."""
-    # 已开训：UE5a v5p16 TPU310250，FIRST_STEP/AOT/实际参数432104480与配置核验，健康全部OFF。
-    # 20–99步0.4842625step/s，相对同健康attention单改父路-0.031%，速度基本持平。
-    # 六个MLP写层共享实际R256地址down/GELU；两路up和full-D写门独立，读端down独立。
-    # MLP[3802,3761,3802]，父路-7200参数（整数找平余差）；非MLP写回12层行为不变。
-    # 终局相对attention单改下注1.04[.99,1.10]，MHA参考；尚无正式loss结论，每1k两路一起报。
-    # code_commit: 99485ac；实现codex/mediumprop-m-shift，/data0/xd/mediumprop-m-shift。
+    # 在训共同1k：对attention单改父路gap+.003404、MHA参考倍数.99448；早期落后正在收窄，继续2k。
+    # 相对原单门.5的1k倍数1.04870；父路为1.05452，新增共享收益尚未建立。
+    # 两norm在1k近乎持平：MLP-minus-attention gap-.000381、倍数1.00062，800时曾反向，尚无明确胜者。
+    # 六MLP写层共享实际R256 down/GELU，两路up及full-D写门独立，读端down独立；非写回12层不变。
+    # UE5a v5p16 .4842625step/s，相对同健康父路基本持平；432104480参数，MLP[3802,3761,3802]，健康全OFF。
+    # 跑前终局new/父路下注1.04[.99,1.10]，MHA参考，保持作为待检验预测。
+    # code_commit: 99485ac；codex/mediumprop-m-shift，/data0/xd/mediumprop-m-shift。
     model_name = 'BamMediumPropPostAttentionWriteSharedR256MLPNormTruePile'
     bam_attention_mlp_write_shared_norm = 'mlp'

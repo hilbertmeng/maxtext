@@ -12876,4 +12876,4 @@ class BamMediumPropMShiftReadG050PostResidualWriteControlsTruePile(BamMediumProp
     bam_record_row_anchor_metrics = False
     bam_record_row_relay_health_metrics = False
     bam_record_std_tail_write_metrics = False
-    compare_runs = ['BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile', 'BamMediumPropMShiftReadG050ReadAttentionSharedR256TruePile', 'BamMHAMediumPropC256TruePile']
+    compare_runs = ['BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile', 'BamMHAMediumPropC256TruePile']

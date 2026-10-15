@@ -17,3 +17,7 @@ Validation: explicit tests for full-size exact parent budget/tree and resolved h
 ## Verified launch
 
 Runtime b49a3923d4154004e097b864bbad771976933a14; exact CPU3+writers5+fullBAM47, sealed config and v5p16/s13500AOT passed. UE5a TPU310240 FIRST_STEP6, actual432111680 parsed from140 worker parameter leaves, health flagsOFF, T4096/global128, correct4096 data, AOTloaded. Mean20--99 .4841625step/s (80points); historical parent .45835 has healthON, so raw+5.63% includes logging difference and cannot test architecture-only speed prior. All five prior runs remain active; report new run1k native200, parent and MediumsharedR256 comparisons retained, both gain ratios MHA-referenced. Artifacts /data0/xd/bam_diagnostics/post-residual-write/{state.json,startup-worker.log,launch.log}.
+
+### Monitoring override, 2026-10-15
+
+User removed `BamMediumPropMShiftReadG050ReadAttentionSharedR256TruePile` from this RUN baseline list and gain-ratio monitoring. Keep only the original single read .5 parent and MHA; one gain-ratio triple uses MHA reference and that parent comparator. Registry updated live, class compare_runs updated; runtime remains b49a392 with unchanged training/parameters. Historical comparison figures above are retained solely as history and will not recur in reports.

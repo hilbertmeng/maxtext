@@ -12892,12 +12892,12 @@ class BamMediumPropMShiftReadG050PostResidualWriteControlsTruePile(BamMediumProp
 class BamMediumPropMShiftReadG050PostAttentionWriteControlsTruePile(
         BamMediumPropMShiftReadG050PostResidualWriteControlsTruePile):
     """Use post-attention residual only for attention write gate/address controls."""
-    # 在训8k：对原单门.5 gap-.005119、MHA参考倍数1.02934；末五gap-.005271、倍数1.03017。
-    # 7k末五1.03095→8k1.03017，收缩明显放缓，最近约1k守住约1.03；继续9k，原终局下注1.025未变。
+    # 在训9k/CP9000：对原单门.5 gap-.003827、MHA参考倍数1.02306；末五gap-.004338、倍数1.02585。
+    # 8k末五1.03017→9k1.02585，近期优势再缓慢收缩；仍正收益，继续10k，原终局下注1.025未变。
     # 对双改6k gap-.003543、倍数1.01881；末五gap-.003282、倍数1.01682，始终领先。
     # 双改停6167、MLP单改停2231；只保留原单门.5/MHA和双改对照，未引入读写共享R256基线。
     # UE5a v5p16 TPU310244，.4844125step/s，与健康OFF双改计时对照基本相同（+.05%）。
-    # 参数432111680，MLP[3802,3676,3802]，新增0W_Q，健康全OFF；CP8000已提交。
+    # 参数432111680，MLP[3802,3676,3802]，新增0W_Q，健康全OFF；CP9000已提交。
     # 跑前终局new/原单门.5下注1.025[.995,1.06]，MHA参考，尚无终局检验。
     # code_commit: 34d9afd；codex/mediumprop-m-shift，/data0/xd/mediumprop-m-shift。
     model_name = 'BamMediumPropMShiftReadG050PostAttentionWriteControlsTruePile'
@@ -12930,12 +12930,12 @@ class BamMediumPropMShiftReadG050PostMLPWriteControlsTruePile(
 class BamMediumPropPostAttentionWriteSharedR256AttentionNormTruePile(
         BamMediumPropMShiftReadG050PostAttentionWriteControlsTruePile):
     """Share actual post-attention write-address R256 features using attention norm."""
-    # 在训共同4k/CP4000：对attention单改父路gap+.000076、MHA参考倍数.99966；末五倍数.999015。
-    # MLP norm最近五窗口均优于父路，开始微弱净收益；对attention norm末五gap-.000790/倍数1.00325，继续5k。
-    # UE5a P2，最近抢占CP4222后从4223恢复原99485ac/13500计划；已核验实际续训，非性能判停。
+    # 用户停于4673步；最终CP4673提交，TPU/队列释放、TB SYNC_OK。未训练终局。
+    # 对attention单改父路：早期落后后趋近持平，4600 gap+.000501/R.997676；末五gap-.000033/R1.000132。
+    # 原终局下注1.03，已训阶段未建立额外收益；速度持平、参数找平，MLP norm同阶段略强，保留后者。
     # 六MLP写层共享实际R256 down/GELU，两路up及full-D写门独立，读端down独立；非写回12层不变。
     # UE5a v5p16 .4845000step/s，相对同健康父路基本持平；432104480参数，MLP[3802,3761,3802]，健康全OFF。
-    # 跑前终局new/父路下注1.03[.99,1.08]，MHA参考，保持作为待检验预测。
+    # UE5a v5p16 .4845000step/s；P2/三段READY租期，均同区；参数432104480，MLP[3802,3761,3802]。
     # code_commit: 99485ac；codex/mediumprop-m-shift，/data0/xd/mediumprop-m-shift。
     model_name = 'BamMediumPropPostAttentionWriteSharedR256AttentionNormTruePile'
     bam_attention_mlp_write_shared_norm = 'attention'

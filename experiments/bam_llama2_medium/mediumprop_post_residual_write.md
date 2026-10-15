@@ -131,3 +131,11 @@ Rootfixauthoritativexd_tpu_scripts commit9f3f1d4: wait-stepcapturesrecent200loss
 ### Second preemption actual resume verification
 
 AllfiveaffectedRUNsactualresumestepsverified9105/4223/4569/1957/1042 fromCP9104/4222/4568/1956/1041, exactfrozenruntimesandAOTloaded, full13500schedule retained. Firststepsproof recovery-20261015-1326-first-steps.json. SharedA4200windowwasmissingbecausepreemptionCP4222precededconservative4225maturitygate; exportedactualTB, importedONLYmissing4180/4190/4200/4210/4220, existinglogpoints preserved, overlap<1e-6. Provenance shared-write/a4200-repair-provenance.json. Onlyactualmissinglosswindows promptedTBsync, nohealthsync.
+
+### Attention-only9k and user stop shared-write attention norm
+
+Attention-only CP9000 committed, actual9042. Original-single8k/8.2k/8.4k/8.6k/8.8k/9k gaps-.0051192/-.004343/-.004412/-.0041418/-.0049674/-.0038268; MHA-reference ratios1.029343/1.025424/1.025947/1.025137/1.029700/1.023062. Latest5gap-.00433820/R1.025854 vs8kR1.030165: advantage remains but contraction resumes after prior short plateau. Continue10k. Report selective/report9000.json.
+
+User explicitly stopped shared-write attention norm, finalCP4673 committed, resources absent13:53UTC, TB SYNC_OK. Final nativewindow4600: parentgap+.0005014/R.9976758, originalsinglegap-.0083238/R1.0402303, MHAgap-.2152274. Latest5parentgap-0.000032707/R1.000132176: after initial deficit converged to parity, no established incremental sharing gain. Originalterminal1.03 bet was optimistic for trained horizon; this is not a terminal measurement. SamehealthOFF speed.4845, essentially parent.4844125; params parent-7200 from integer width remainder. Shared MLPnorm survives, as do pureMLPnormreusecontrol andattention-onlyparent. Stoppedarm remains cached directreference.
+
+v5p-16 TPU310249, onlyus-east5-a/no switches, two preemptions. Every READY lease UTC: 10:44:13–12:32:08 1h47m55s preempted; 12:38:47–13:26:50 48m03s preempted; 13:31:52–13:50:10 18m18s user stop (2026-10-15). Finalproof shared-write/attention-norm-user-closeout.log, attention-norm-final4673.json; remote logs/closeout-20261015T135300Z.json. Remaining7RUNs continue; shared MLPnorm nextown5k, no waiting for stoppedarm.

@@ -50,7 +50,7 @@ PY
   base_output_directory=/tmp/pile-bucket-t2048/config \
   tensorboard_dir=/tmp/pile-bucket-t2048/tensorboard \
   load_parameters_path="$checkpoint" load_full_state_path= \
-  only_eval=True enable_checkpointing=True \
+  only_eval=True enable_checkpointing=True async_checkpointing=False skip_jax_distributed_system=True \
   per_device_batch_size=1.0 eval_per_device_batch_size=16.0 \
   max_target_length=2048 jax_cache_dir=/tmp/pile-bucket-t2048/jax-cache \
   log_config=False \

@@ -27,6 +27,7 @@ active leases are censored, and manual migration releases are not preemptions.
 
 | RUN | TPU | Zone | Start UTC | End UTC | End reason | Passive candidates |
 |---|---|---|---|---|---|---|
+| `BamXLPropMShiftReadG050FullQKNormTruePile` | v5p-32 (`xd-v5p-32-310230-maxtext`) | `us-east5-a` | 2026-10-15 01:58:01 | 2026-10-15 09:45:21 | user pause10272; P1; CP10272 committed; node/queue absent; TB SYNC_OK; resumable50000 | none |
 | `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadSigmoidStaticGateTruePile` | v5p-16 (`xd-v5p-16-310120-maxtext`) | `us-east5-a` | 2026-10-11 10:50:07 | 2026-10-11 19:09:16 | complete13500;1preemption; checkpoint13500 committed, node/queue absent, TB synced | none |
 | `BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile` | v5p-32 (`xd-v5p-32-310118-maxtext`) | `us-east5-a` | 2026-10-11 05:13:34 | 2026-10-12 09:19:32 | user stop33002;0preemptions; checkpoint committed, resources absent, TB synced | none |
 | `BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdFullMReadSharedGelu400TruePile` | v5p-32 (`xd-v5p-32-310119-maxtext`) | `us-east5-a` | 2026-10-11 05:18:49 | 2026-10-12 09:19:36 | user stop37253;1preemption; checkpoint committed, resources absent, TB synced | none |
@@ -1293,3 +1294,5 @@ active leases are censored, and manual migration releases are not preemptions.
 | `BamMHAMediumPropC256T2048` | 1 | `us-east5-a` | 2026-10-12 05:25:33 | 2026-10-12 05:45:49 | 20m16s | hot-switch to matched control; no preemption |
 | `MuddLlama2MediumPropT2048` | 1 | `us-east5-a` | 2026-10-12 05:27:25 | 2026-10-12 05:48:41 | 21m16s | hot-switch to matched control; no preemption |
 | `BamMediumPropL27K75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile` | 4 | `us-east5-a` | 2026-10-11 21:06:32 | 2026-10-12 05:51:17 | 8h44m45s | complete13500; resources released |
+| `BamXLPropMShiftReadG050FullQKNormTruePile` | 1 | `us-east5-a` | 2026-10-15 01:58:04 | 2026-10-15 04:25:32 | 2h27m28s | preempted |
+| `BamXLPropMShiftReadG050FullQKNormTruePile` | 2 | `us-east5-a` | 2026-10-15 04:31:39 | 2026-10-15 09:45:21 | 5h13m42s | user pause10272; CP committed; resources absent; TB SYNC_OK; provisional |

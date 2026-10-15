@@ -12325,15 +12325,11 @@ class BamMediumPropL27K75V48EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdF
 
 class BamMediumPropFullMGeneralReadStaticEmbeddingTruePile(BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile):
     """Raw embedding content, static addresses and learned elementwise M scale."""
-    # Runtime: codex/mediumprop-full-m-read-gelu128, /data0/xd/mediumprop-full-m-read-gelu128.
-    # UE5a v5p-16; planned13500, review2800/5000. Bet loss0, speed+0.5% vs SOTA.
-    # code_commit: f6ce0a4; params432109616; UE5a v5p-16 startup10-14 .4808step/s.
-    # GCS TB event rotation500; actual compiled FIRST_STEP verified; training active.
-    # 20-99 .47894step/s (+.04%); @200 loss+.316375 vs SOTA; early raw-grad median1.063 vs6.381.
-    # Through600: SOTA gap+.3164/+.1146/+.0712 at200/400/600; catching up, health improved.
-    # @2800 SOTA+.017515; catch-up slows, last5+.018931. User requests patient continuation through5000+.
-    # @4200 SOTA+.014525; last5+.015408, slow catch-up; user requests patient5000+ observation.
-    # User stopped at4531; final common4400 SOTA+.014657, recent5+.015254; speed+.0444%, params-1488; no preemptions.
+    # 结论：纯静态 embedding 写入改善早期梯度表现，但未追回原 SOTA 的 loss；不支持替换父架构。
+    # 早期差距快速收窄，2.8k 后追赶明显放缓；末五窗口至4400仍落后 .015254，末窗口 +.014657。
+    # 用户停于4531，CP已提交、资源释放、TB同步；未跑满13500。
+    # UE5a v5p16，.47894 step/s，较父路 +.0444%；432109616参数，较父路少1488。
+    # code_commit: f6ce0a4；ledger only：codex/mediumprop-full-m-read-gelu128，/data0/xd/mediumprop-full-m-read-gelu128。
     model_name = 'BamMediumPropFullMGeneralReadStaticEmbeddingTruePile'
     bam_embedding_init_mode = 'static'
     bam_embedding_matrix_scale_init = 3.74
@@ -12343,15 +12339,11 @@ class BamMediumPropFullMGeneralReadStaticEmbeddingTruePile(BamMediumPropK75Embed
 
 class BamMediumPropFullMGeneralReadMatrixEmbeddingTruePile(BamMediumPropFullMGeneralReadStaticEmbeddingTruePile):
     """Independent V x75x32 matrix embedding; same MLP widths as static arm."""
-    # Runtime: codex/mediumprop-full-m-read-gelu128, /data0/xd/mediumprop-full-m-read-gelu128.
-    # UE5a v5p-16; planned13500, review2800/5000. Bet loss-.005, speed0% vs SOTA.
-    # code_commit: f6ce0a4; params551703504; UE5a v5p-16 startup10-14 .4780step/s.
-    # GCS TB event rotation500; actual compiled FIRST_STEP verified; training active.
-    # 20-99 .47624step/s (-.52%); @200 loss+.041272 vs SOTA/-.275103 vs static; raw-grad median1.140.
-    # Through600: SOTA gap+.0413/+.0143/+.0215 at200/400/600; no sustained catch-up yet.
-    # @2800 SOTA+.009505/static-.008010; last5 SOTA+.009357, recent flattening. User: continue through5000+.
-    # @4200 SOTA+.007710/static-.006815; last5 SOTA+.008619; patient5000+ observation.
-    # User stopped at4427; final common4400 SOTA+.008160/static-.006497; recent5 SOTA+.008487; speed-.5196% vs SOTA.
+    # 结论：逐 token 矩阵 embedding 优于纯静态写入，但增加大量参数后仍未优于原 SOTA。
+    # 初期追赶后趋缓；末五窗口至4400对 SOTA gap +.008487，末窗口 +.008160；比纯静态低 .006497。
+    # 用户停于4427，CP已提交、资源释放、TB同步；未跑满13500。
+    # UE5a v5p16，.47624 step/s，较 SOTA -.5196%；551703504参数。
+    # code_commit: f6ce0a4；ledger only：codex/mediumprop-full-m-read-gelu128，/data0/xd/mediumprop-full-m-read-gelu128。
     model_name = 'BamMediumPropFullMGeneralReadMatrixEmbeddingTruePile'
     bam_embedding_init_mode = 'lookup'
     bam_embedding_matrix_std = .01865
@@ -12360,15 +12352,11 @@ class BamMediumPropFullMGeneralReadMatrixEmbeddingTruePile(BamMediumPropFullMGen
 
 class BamMediumPropFullMGeneralReadDirectEmbeddingTruePile(BamMediumPropFullMGeneralReadStaticEmbeddingTruePile):
     """Single free D x K x V embedding map, initialized from folded U/A/S."""
-    # Runtime worktree: /data0/xd/mediumprop-full-m-read-gelu128.
-    # UE5a v5p-16; planned13500, review2800/5000; matched budget via MLP [3798,3671,3798].
-    # Bet final loss-.003 vs static / -.001 vs SOTA; matched-budget speed within1%.
-    # code_commit: 0f5f6c4; params432121104 (+10000 vs SOTA); TPU310131, UE5a v5p-16.
-    # Actual AOT FIRST_STEP and14 passed; mean20-99 .4786375step/s (-.06% vs static/-.02% vs SOTA).
-    # @1000 SOTA+.020135/static-.022238; faster early adaptation vs factored, no SOTA win yet.
-    # @2200 SOTA+.015022/static-.005451; startup advantage over factors narrows, training active.
-    # User authorizes stop at2800 if no clear sustained catch-up; @2000/2200/2400 SOTA+.014502/+.015022/+.016623.
-    # Stopped at2894 after user-authorized2800 review: SOTA gap+.014938/static-.002577, no clear recent catch-up.
+    # 结论：合并 W_U、A 并吸收 scale 的直接写入仅加快早期适应，未建立优于原 SOTA 的趋势。
+    # 对因式分解静态路的早期优势收窄；2800对 SOTA gap +.014938、对静态路 -.002577，近期没有明确追赶。
+    # 按授权评审停于2894，CP/资源/TB收尾完成；未跑满13500。
+    # UE5a v5p16，.4786375 step/s，对 SOTA -.02%、静态路 -.06%；432121104参数，父路+10000整数余差。
+    # MLP[3798,3671,3798]；code_commit: 0f5f6c4；ledger only：codex/mediumprop-full-m-read-gelu128，/data0/xd/mediumprop-full-m-read-gelu128。
     model_name = 'BamMediumPropFullMGeneralReadDirectEmbeddingTruePile'
     bam_embedding_init_mode = 'direct'
     mlp_dim_by_block = [3798, 3671, 3798]
@@ -12377,16 +12365,11 @@ class BamMediumPropFullMGeneralReadDirectEmbeddingTruePile(BamMediumPropFullMGen
 
 class BamMediumPropFullMGeneralReadFinalMatrixResidualTruePile(BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile):
     """Final M -> residual before final RMSNorm; independent zero-init K x V x D map."""
-    # Runtime worktree: /data0/xd/mediumprop-full-m-read-gelu128.
-    # UE5a v5p-16; planned13500, review2800/5000; matched budget via MLP [3769,3641,3769].
-    # Bet final loss-.005 vs SOTA; matched-budget speed within1%; +2 W_Q repaid from MLP.
-    # code_commit: 0f5f6c4; params432118304 (+7200 vs SOTA); TPU310130, UE5a v5p-16.
-    # Actual AOT FIRST_STEP and14 passed; mean20-99 .478950step/s (+.05% vs SOTA).
-    # @200/400/600/800/1000 SOTA+.106657/+.031168/+.017734/+.013917/+.011775; sustained catch-up.
-    # @2000 SOTA+.006440; last5+.007925, continuing catch-up; training active.
-    # @2800 SOTA gap+.006140, last5+.006638 vs prev5+.008992; continue, also direct baseline for gated arm.
-    # @4000 SOTA gap+.005775; last5+.005559 vs prev5+.006592, slow catch-up; gated parent kept active.
-    # Stopped at5125 after user-authorized5000 review: SOTA gap+.004474, recent5+.004535 plateau; gated dominates overlapping steps.
+    # 结论：最终 M 直接投影回残差未优于原 SOTA，且在共同训练阶段被门控版支配。
+    # 早期大幅落后逐渐追近，但至5000形成约+.0045的平台；末窗口 gap +.004474，末五 +.004535。
+    # 按授权5000步评审停于5125，CP/资源/TB收尾完成；未训练终局。
+    # UE5a v5p16，.478950 step/s，对 SOTA +.05%；新增2W_Q由 MLP 抵扣，宽度[3769,3641,3769]。
+    # 432118304参数，父路+7200整数余差；code_commit: 0f5f6c4；ledger only：codex/mediumprop-full-m-read-gelu128，/data0/xd/mediumprop-full-m-read-gelu128。
     model_name = 'BamMediumPropFullMGeneralReadFinalMatrixResidualTruePile'
     bam_final_matrix_residual = True
     mlp_dim_by_block = [3769, 3641, 3769]
@@ -12395,19 +12378,12 @@ class BamMediumPropFullMGeneralReadFinalMatrixResidualTruePile(BamMediumPropK75E
 
 class BamMediumPropFullMGeneralReadFinalMatrixVGateTruePile(BamMediumPropFullMGeneralReadFinalMatrixResidualTruePile):
     """Final residual predicts32 column gates, matching generalized static-read gate math."""
-    # Runtime worktree: /data0/xd/mediumprop-full-m-read-gelu128.
-    # User explicitly keeps MLP[3769,3641,3769]; +38432=.026689W_Q vs final-M parent.
-    # Gate kernel0, biaslog9; 1.1*sigmoid/.99 => initial effective multiplier1, matching parent reads.
-    # Bet final loss-.003 and speed-.1% vs final-M parent; planned13500, review2800/5000.
-    # code_commit: 1810a41; params432156736; TPU310150, UE5a v5p-16; AOT FIRST_STEP+14 verified, TB500.
-    # Mean20-99 .479450step/s (+.1044% vs final-M parent/+.1514% vs SOTA); actual steady speed verified.
-    # @200 parent+.014759/SOTA+.121415; no early benefit established; checkpoint200 committed.
-    # @200/400/600 parent gaps+.014759/+.010329/+.003595; SOTA+.121415/+.041497/+.021329, still no win.
-    # @800/1000 parent+.001072/-.000108: tiny first sign crossing, parity only; SOTA+.014989/+.011667.
-    # @1400/1600/1800/2000 parent gaps-.000680/-.001811/-.001488/-.002006; @2000 SOTA+.004434.
-    # @3000 parent gap-.001943/SOTA+.004264;9 consecutive parent wins, recent5-.001681/+.004910; training active.
-    # @4000 parent gap-.001605/SOTA+.004170; recent5-.001630/+.003929; user authorizes5000 trend review.
-    # Stopped at5121: @5000 SOTA gap+.003643/parent-.000831; recent5+.003894/-.000642, flat/shrinking gain.
+    # 结论：最终 M 的逐列门控小幅改善无门控输出支路，但未消除对原 SOTA 的劣势。
+    # 对无门控父路约1k转为领先，随后收益缩小；5000 gap -.000831、末五 -.000642。
+    # 对 SOTA 同期 gap +.003643、末五 +.003894；按授权评审停于5121，非完整终局。
+    # UE5a v5p16，.479450 step/s，对无门控 +.1044%、SOTA +.1514%；CP/资源/TB收尾完成。
+    # 用户明确保留父路 MLP[3769,3641,3769]，新增38432参数=.026689W_Q；总量432156736。
+    # 门 kernel0/biaslog9，有效初值1，匹配普通层读门；code_commit: 1810a41；ledger only：codex/mediumprop-full-m-read-gelu128，/data0/xd/mediumprop-full-m-read-gelu128。
     model_name = 'BamMediumPropFullMGeneralReadFinalMatrixVGateTruePile'
     bam_final_matrix_v_gate = True
     compare_runs = ['BamMediumPropFullMGeneralReadFinalMatrixResidualTruePile', 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile']

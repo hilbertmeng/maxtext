@@ -12892,12 +12892,12 @@ class BamMediumPropMShiftReadG050PostResidualWriteControlsTruePile(BamMediumProp
 class BamMediumPropMShiftReadG050PostAttentionWriteControlsTruePile(
         BamMediumPropMShiftReadG050PostResidualWriteControlsTruePile):
     """Use post-attention residual only for attention write gate/address controls."""
-    # 同组在训11.6k/CP11600：对原单门.5 gap-.003394/R1.021573，末五R1.021313。
-    # 11k后近600步小幅回升，仍不足推翻此前长期收缩；不再用短平台判定稳定，继续12k。
+    # 在训12k/CP12000：对原单门.5 gap-.002990/R1.019096，末五gap-.003544/R1.022741。
+    # 末五11k1.01939→11.6k1.02131→12k1.02274，近期回升；当前约1.02波动，继续至13500看终局。
     # 对双改6k gap-.003543、倍数1.01881；末五gap-.003282、倍数1.01682，始终领先。
     # 双改停6167、MLP单改停2231；只保留原单门.5/MHA和双改对照，未引入读写共享R256基线。
     # UE5a v5p16 TPU310244，.4844125step/s，与健康OFF双改计时对照基本相同（+.05%）。
-    # 参数432111680，MLP[3802,3676,3802]，新增0W_Q，健康全OFF；CP11600已提交。
+    # 参数432111680，MLP[3802,3676,3802]，新增0W_Q，健康全OFF；CP12000已提交。
     # 跑前终局new/原单门.5下注1.025[.995,1.06]，MHA参考，尚无终局检验。
     # code_commit: 34d9afd；codex/mediumprop-m-shift，/data0/xd/mediumprop-m-shift。
     model_name = 'BamMediumPropMShiftReadG050PostAttentionWriteControlsTruePile'
@@ -12962,8 +12962,8 @@ class BamMediumPropPostAttentionWriteSharedR256MLPNormTruePile(
 class BamMediumPropMShiftReadG050PostAttentionWriteMLPNormTruePile(
         BamMediumPropMShiftReadG050PostAttentionWriteControlsTruePile):
     """Post-attention controls reuse the MLP norm; write downs stay independent."""
-    # 在训4k/CP4000：对attention单改父路gap-.000542/R1.002402，末五gap-.000189/R1.000872，整体持平。
-    # 最近三窗口微弱领先；对已停sharedMLPnorm 4k gap-.000218/R1.000966，省一次norm速度+.23%，继续5k。
+    # 同组在训4.2k/CP4200：对attention单改父路gap+.000538/R.997562，末五R1.000524，仍持平。
+    # 前三窗口领先后再转微弱落后；对已停sharedMLPnorm 4200 gap+.001087/R.995086；速度+.23%，继续5k。
     # UE5a v5p16 TPU310252，.4855375step/s（20–99，80点），对同健康attention单改父路+.232%。
     # MLP[3802,3676,3802]，参数变化0；T4096/global128/TruePile4096/13500/CP200/latest2/keep0/TB500。
     # 新3+共享4+旧postres3+writer5+全BAM47=62项CPU检查通过，SEALED_CONFIG/AOT/FIRST_STEP全部通过。

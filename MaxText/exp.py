@@ -12977,13 +12977,14 @@ class BamMediumPropMShiftReadG050MLPReadAllLayersNoReadGatesStaticZeroTruePile(
 class BamMediumPropMShiftReadG050MLPReadNonWriteLayersNoReadGatesStaticZeroTruePile(
         BamMediumPropMShiftReadG050MLPReadAllLayersNoReadGatesStaticZeroTruePile):
     """Ungated zero-static MLP reads only in the twelve non-writing layers."""
-    # 用户授权新增12层对照：从头训，不读M的六MLP写层保持原单门.5宽度3676。
-    # 预计432097856参数，MLP[3898,3676,3898]；逐层找平，比原单门.5少13824整数余差。
-    # 读本层attention写后M，动态地址normal(.006)、静态key零初始化可学习，无两类读门，保留Wg/W2。
-    # 前向净增.420864MFLOPs/token(+.04575%)，参数较原带门12层少14592。
-    # 跑前终局new/旧带门12层收益倍数1.05[.98,1.12]，MHA参考；预计与新无门18层接近。
-    # 健康全OFF，预期对同健康旧12层速度+1%[0,3%]；CPU/SEALED_CONFIG/AOT/FIRST_STEP待验证。
-    # 实现codex/mediumprop-mlp-bam-read，/data0/xd/mediumprop-mlp-bam-read；runtime待封存。
+    # 已开训，FIRST_STEP8、102步稳定测速、AOT/worker实际参数/配置全核验；UE5a v5p16 TPU310251。
+    # 静态key零初始化可学习，无动/静读门；仅非写回12层读本层attention写后M，动态地址仍normal(.006)。
+    # 参数432097856，MLP[3898,3676,3898]，原单门.5-13824整数余差；同层找平，六MLP写层无读且保持原宽。
+    # .4709125step/s（20–99，80点），对健康同OFF旧带门12层+.46%、新无门零静态18层+1.71%。
+    # 前向净增.420864MFLOPs/token(+.04575%)，reader每选中层.2592W_Q；全部健康统计OFF。
+    # 跑前终局new/旧12层下注1.05[.98,1.12]，MHA参考；速度+1%[0,3%]，实测落范围内。
+    # 直接对照旧12层（可用至2800）、新版18层、原单门.5和MHA；三个收益倍数已登记，首报1k。
+    # code_commit: ae19f92；codex/mediumprop-mlp-bam-read，/data0/xd/mediumprop-mlp-bam-read。
     model_name = 'BamMediumPropMShiftReadG050MLPReadNonWriteLayersNoReadGatesStaticZeroTruePile'
     bam_mlp_read_location = 'nonwrite'
     mlp_dim_by_block = [3898, 3676, 3898]

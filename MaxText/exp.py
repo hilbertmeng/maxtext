@@ -12389,17 +12389,11 @@ class MuddLlama2MediumPropC256T2048(MuddLlama2MediumPropT2048):
 
 class BamMHAMediumPropT8192SplashTruePile(BamMHAMediumPropC256TruePile):
     """T8192 MediumProp MHA; global64 keeps524288 target tokens per step."""
-    # Context family: /data0/xd/mediumprop-context-t2048, codex/mediumprop-context-t2048.
-    # User authorizes Splash; unchanged parent architecture/params/optimizer,13500 steps.
-    # code_commit: dbcaa31; UE5a v5p-16 TPU310160; actual AOT FIRST_STEP+14, batch64/T8192/TB500 verified.
-    # Mean20-99 0.5260250step/s (-26.33% vs T4096);stopped at 9639,0P; CP committed, node/queue absent, TB synced.
-    # @1400 raw T4096 gap+.067427, unpaired records; context comparisons use within-length architecture gaps.
-    # @2600 raw T4096 gap+.136554; cross-length raw loss remains noisy/unpaired.
-    # @4000 raw T4096 gap-.043272 after3800+.102618; unpaired raw length gap crosses sign.
-    # @5400 raw T4096 gap+.084405; repeated sign crossings, recent5mean+.024801.
-    # @6600 raw T4096 gap+.018150; latest5mean+.025748, unpaired/noisy.
-    # @8200 raw T4096 gap+.083283; latest5mean+.016236,unpaired. User permits stable-study stop.
-    # Final raw T4096 comparison remains noisy/unpaired; context inference uses within-length gaps.
+    # 结论：T8192 MHA 作为同长度收益基线；与 T4096 的原始 loss 差多次变号，不能据此判断长度收益。
+    # 保留原模型/参数/优化器，用户授权 Splash；T8192/global64，原计划13500。
+    # UE5a v5p16，.526025 step/s，较 T4096 -26.33%；停于9639，无抢占，CP/资源/TB收尾完成。
+    # 长度结论采用各长度内部 MHA 相对收益及其二阶倍数，非未配对的跨长度 raw loss。
+    # code_commit: dbcaa31；ledger only：codex/mediumprop-context-t2048，/data0/xd/mediumprop-context-t2048；详见 mediumprop_context_t8192.md。
     model_name = 'BamMHAMediumPropT8192SplashTruePile'
     DATASET_VARIANT = 'truepile8192'
     dataset_path = ''  # Launcher resolves the declared variant to the training region.
@@ -12416,17 +12410,11 @@ class BamMHAMediumPropT8192SplashTruePile(BamMHAMediumPropC256TruePile):
 
 class MuddLlama2MediumPropT8192SplashTruePile(MuddLlama2MediumPropTruePile):
     """T8192 full-history Mudd; same token budget and inherited parameter widths."""
-    # Context family: /data0/xd/mediumprop-context-t2048, codex/mediumprop-context-t2048.
-    # Preserve full growing history and historical unrolled dispatch; Splash authorized.
-    # code_commit: dbcaa31; UE5a v5p-16 TPU310161; actual AOT FIRST_STEP+14, batch64/T8192/TB500 verified.
-    # Mean20-99 0.4859625step/s (-22.86% vs T4096);stopped at 8908,0P; CP committed, node/queue absent, TB synced.
-    # @1200 MHA gap-.423494; @1000 MHA-relative context8/4=1.288186; training active.
-    # @2000 MHA gap-.256697; context8/4=1.301608; latest2400 MHA-.223340.
-    # @3000 MHA gap-.192163; context8/4=1.311056; latest3600 MHA-.169164.
-    # @4000 MHA gap-.153948; context8/4=1.228413; latest4800 MHA-.141775.
-    # @5000 MHA gap-.136516; context8/4=1.220028; latest6200 MHA-.120706.
-    # @6000 MHA-.126859; context8/4=1.204870; latest7600 MHA-.109845.
-    # Common7000 MHA gap-.117586; 8/4contextgain1.152271; stop follows synchronized length conclusion.
+    # 结论：更长上下文提高 Mudd 的 MHA 相对收益，但 T8192/T4096 倍数随训练逐渐收窄。
+    # 同阶段2k约1.302、4k约1.228，至共同7k为1.152271；7k对同长度 MHA gap -.117586。
+    # UE5a v5p16，.4859625 step/s，较 T4096 -22.86%；停于8908，无抢占，CP/资源/TB收尾完成。
+    # T8192/global64；保持完整增长历史、原 unrolled 路由和额外 router 参数，用户授权 Splash。
+    # code_commit: dbcaa31；ledger only：codex/mediumprop-context-t2048，/data0/xd/mediumprop-context-t2048；详见 mediumprop_context_t8192.md。
     model_name = 'MuddLlama2MediumPropT8192SplashTruePile'
     DATASET_VARIANT = 'truepile8192'
     dataset_path = ''
@@ -12443,17 +12431,11 @@ class MuddLlama2MediumPropT8192SplashTruePile(MuddLlama2MediumPropTruePile):
 
 class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadT8192(BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile):
     """T8192 shared-R256/generalized-read BAM SOTA, historical gate math."""
-    # Context family: /data0/xd/mediumprop-context-t2048, codex/mediumprop-context-t2048.
-    # Preserve model/params/init/optimizer and pure-JAX Splash path; global batch64.
-    # code_commit: dbcaa31; UE5a v5p-16 TPU310162; actual AOT FIRST_STEP+14, batch64/T8192/TB500 verified.
-    # Mean20-99 0.3889500step/s (-18.75% vs T4096);stopped at 7140,0P; CP committed, node/queue absent, TB synced.
-    # @1000 MHA/Mudd gaps-.734407/-.235572; context8/4=1.257156, second-order.975912, Δextra+.038629.
-    # @2000 MHA/Mudd gaps-.396604/-.139906; second-order8/4=.974569(last5.971968),8/2=1.072183.
-    # @3000 MHA/Mudd gaps-.306849/-.114687; second8/4=.968390(last5.964101),8/2=1.119644.
-    # @4000 MHA/Mudd gaps-.255262/-.101314; second8/4=.995376(last5.979358),8/2=1.174222.
-    # @5000 MHA/Mudd gaps-.227972/-.091456; second8/4=.980194(last5.999841),8/2=1.180178.
-    # @6000 MHA/Mudd-.218100/-.091241; second8/4=1.023654(last5=1.013646),8/2=1.220095; review7000.
-    # Common7000 MHA/Mudd gaps-.203961/-.086375; recent5second8/4=1.033207,4/2=1.197653; modest 4k->8k gain.
+    # 结论：BAM 在 T8192 保留对 Mudd 的优势；4k→8k 的二阶收益从早期略弱转为小幅正收益。
+    # 共同7k对同长度 MHA/Mudd gap -.203961/-.086375；最近五二阶8k/4k为1.033207，4k/2k为1.197653。
+    # 相对4k的二阶倍数前期约.97、4k附近趋近1、6k后略高于1；未观测完整13500步终局。
+    # UE5a v5p16，.388950 step/s，较 T4096 -18.75%；停于7140，无抢占，CP/资源/TB收尾完成。
+    # T8192/global64，保持模型/参数/初始化/优化器；code_commit: dbcaa31；ledger only：codex/mediumprop-context-t2048，/data0/xd/mediumprop-context-t2048；详见 mediumprop_context_t8192.md。
     model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadT8192'
     DATASET_VARIANT = 'truepile8192'
     dataset_path = ''

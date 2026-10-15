@@ -1,0 +1,15 @@
+# Single M-shift read .5 in refactor-bam
+
+User requested production merge2026-10-15. Integration worktree `/data0/xd/merge-single-mshift`, branch `codex/merge-single-mshift`, based on main d4dc7617. Historical numerical source52cf0b3 and completed `BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile`; original runtime/worktree `/data0/xd/mediumprop-m-shift` remain reproducibility references.
+
+The production configuration uses shared R256 only within the read side, generalized full-M reads, independent attention-write R256 and independent sparse MLP-write R256. At every layer a zero-initialized [D,V32] projection and zero bias generate previous-token sigmoid share .5. Each column reads `(1-g)*M_current + g*M_previous`, using immutable same-layer input states. First token, padding, segment changes and nonconsecutive positions keep current M. The mixture is read-only: existing attention/MLP writes accumulate onto the original carried M, with original once-per-layer decay. Existing internal normalization, .99 static read gate numerics and optimizer WD exclusions remain unchanged.
+
+Parameter names/shapes and initializers match52cf0b3, including `M_shift_gate/kernel` and `M_shift_gate_b0`. Total432111680, inherited MLP[3802,3676,3802], no new budget changes. The read/persist primitive is covered for compatibility, but only completed read.5 production configuration is imported; other experimental gates, KV-shift, projection-sharing and post-residual controls remain in their experiment branches. Pallas core explicitly rejects active M-shift, preserving the validated pure-JAX lineage.
+
+Production defaults disable generic/activation/BAM health metrics to honor current user speed preference; loss/timing remain. Historical opt-in health transport remains available. The compatible generic-health guard defaults True for configurations that do not opt out. Health-only changes do not change the checkpoint parameter tree. TBrotate500, CP200/latest2/no keep_period accumulation and final-save schedule remain inherited.
+
+Validation entry: `bash scripts/check_single_mshift.sh`. It covers boundary masking/column broadcast/nonrecursive source gradients, known health masks, identical read vs persist outputs with distinct carry bases, scanned finite/nonzero gradients and future causality at .05/.5, exact full-size count/sharding and default health-off training metrics. Also summary-writer tests, independent old Pythia reference/config tests and full pinned47 BAM regression. Test CPU fixture requires8 emulated devices for the actual shard-size assertion; the entrypoint sets this explicitly.
+
+Main exp.py is shared and has unrelated unstaged ledger updates. Merge only this production class/defaults plus attention/train support/tests/documentation; preserve other sessions' working changes.
+
+Verified2026-10-15: M-shift5 tests, writer5, Pythia2 and fullBAM47 passed. Full-size count432111680 and actual8-device sharding match historical source. Production health-off training-metric shape gate passed. Logs `/data0/xd/bam_diagnostics/merge-mshift-check.log` and its runner group manifests.

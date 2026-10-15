@@ -298,6 +298,9 @@ class BamLlama2Medium(Llama2Medium):
     bam_local_qk_direct_c8 = False
     bam_local_full_m_read_bottleneck_dim = None  # Q/K/shared-VO GELU keys on full M
     bam_local_full_m_read_share_down = False
+    bam_m_shift_mode = 'none'
+    bam_m_shift_init = 0.5
+    bam_record_m_shift_health = False
     bam_general_column_read = False
     bam_general_matrix_write = False  # Historical write variants remain worktree-only.
     bam_static_read_gate_init = .99
@@ -12700,3 +12703,47 @@ class PythiaArchitecture(Common):
     bam_enabled = False
     dense_conn = False
     sliding_window_size = None
+
+
+class BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile(BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile):
+    """Dynamic previous-token M mix, read carry, initial share0.5."""
+    # Production implementation in refactor-bam; historical runtime/worktree recorded below.
+    # code_commit: 52cf0b3; UE5a v5p-16 xd-v5p-16-310178-maxtext; actual AOT FIRST_STEP+14 and TB health verified.
+    # Mean20-99 0.4583500step/s (-4.26% vs SOTA); extra shift health ON,13500 bound.
+    # @1000 SOTA-.000361 after800+.002678; notyetstablewin; vsread005-.015049; P1,resumed886.
+    # @2000 gap vs SOTA -.007090,last5-.004248; emerging repeated gain; P1.
+    # @3000 SOTA-.008294,last5-.007692;@3600 -.006434,last5-.007875; continue credible gain.
+    # @4000 SOTA-.008594,last5-.008002; sustained benefit,continue.
+    # @5000 SOTA-.008717,last5-.008591; MHA-referenced gain/SOTA1.045728x,last5 1.043695; P2,resumed4775.
+    # @6000 SOTA-.008618,last5-.008964; MHA-ref gain/SOTA1.048738x,last5 1.048949;continue.
+    # @7000 SOTA-.009329,last5-.009368; MHA-ref gain/SOTA1.054842x,last5 1.054316;continue.
+    # @8000 SOTA-.010401,last5-.009983; MHA-ref gain/SOTA1.063401x,last5 1.060595;continue.
+    # @9000 SOTA-.011055,last5-.010434; MHA-ref gain/SOTA1.071381x,last5 1.066339;continue.
+    # @10000 SOTA-.010185,last5-.010447; MHA-ref gain/SOTA1.066904x,last5 1.067665; stable gain,continue.
+    # @12000 SOTA-.010715,last5-.010521; MHA-ref gain1.073456,last5 1.072313; stable,continue13500.
+    # Completed13500,CP13500committed,resourcesabsent/TBSYNCOK;last5SOTA-.011034,gain1.076290;bet-.006underestimated.
+    model_name = 'BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile'
+    bam_record_m_shift_health = False
+    bam_m_shift_mode = 'read'
+    bam_m_shift_init = 0.5
+    mlp_dim_by_block = [3802, 3676, 3802]  # Repay691200 kernel params; residual576 gate biases(+0.000133%).
+    checkpoint_period = 200
+    keep_period = 0
+    max_to_keep = 2
+    tensorboard_gcs_rotate_period = 500
+    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile', 'BamMediumPropSharedR256GeneralReadMShiftReadG005TruePile']
+    record_training_health_metrics = False
+    record_internal_nn_metrics = False
+    bam_record_concat_health = False
+    bam_record_dual_write_health = False
+    bam_record_fetch_route_metrics = False
+    bam_record_fetched_read_amplitude_metrics = False
+    bam_record_fetched_read_health_metrics = False
+    bam_record_local_qk_amplitude_metrics = False
+    bam_record_local_routing_metrics = False
+    bam_record_local_v_dual_health = False
+    bam_record_m_relay_metrics = False
+    bam_record_o_row_branch_metrics = False
+    bam_record_row_anchor_metrics = False
+    bam_record_row_relay_health_metrics = False
+    bam_record_std_tail_write_metrics = False

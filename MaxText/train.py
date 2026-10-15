@@ -395,6 +395,22 @@ def record_bam_concat_health_metrics(output_metrics, intermediate_outputs, confi
   size = config.bam_local_fetch_block_size
   def emit(attention, layer, index=None):
     for key, values in attention.items():
+      if key.startswith('m_shift_'):
+        value = values[0] if index is None else values[0][index]
+        prefix = f'bam/m_shift/layer_{layer:03d}'
+        if key == 'm_shift_gate_columns':
+          for column in range(config.bam_v):
+            for i, name in enumerate(('mean', 'std')):
+              output_metrics['scalar'][f'{prefix}/column_{column:02d}/gate_{name}'] = value[i, column]
+        else:
+          names = (('gate_mean', 'gate_std', 'gate_min', 'gate_max', 'gate_frac_lt_001',
+                    'gate_frac_gt_099', 'gate_frac_gt_050', 'valid_fraction')
+                   if key == 'm_shift_gate_stats' else
+                   ('current_m_rms', 'previous_m_rms', 'mixed_m_rms', 'mixed_over_current_rms',
+                    'delta_over_current_rms', 'current_previous_cosine'))
+          for i, name in enumerate(names):
+            output_metrics['scalar'][f'{prefix}/{name}'] = value[i]
+        continue
       if not key.startswith('concat_'):
         continue
       value = values[0] if index is None else values[0][index]
@@ -934,16 +950,17 @@ def train_step(model, config, state_mesh_shardings, state, data, dropout_rng):
       "learning/total_weights": aux["total_weights"], # sum
       "learning/accuracy": accuracy, # mean
   }
-  # lsp: recored params before update, because loss realily is computed before param update. so use state.params,  not new_state.params
-  params_scalar_values = compute_params_norm(state.params, config=config)
-  scalar_metrics.update(params_scalar_values)
+  if getattr(config, 'record_training_health_metrics', True):
+    # lsp: recored params before update, because loss realily is computed before param update. so use state.params,  not new_state.params
+    params_scalar_values = compute_params_norm(state.params, config=config)
+    scalar_metrics.update(params_scalar_values)
 
-  if not config.optimizer_memory_host_offload:
-    scalar_metrics["learning/grad_norm"] = max_utils.l2norm_pytree(grads)
-    scalar_metrics["learning/raw_grad_norm"] = max_utils.l2norm_pytree(raw_grads)
-    scalar_metrics["learning/param_norm"] = max_utils.l2norm_pytree(new_state.params)
-    raw_grads_norms = compute_params_norm(raw_grads, config, prefix='raw_grads')
-    scalar_metrics.update(raw_grads_norms)
+    if not config.optimizer_memory_host_offload:
+      scalar_metrics["learning/grad_norm"] = max_utils.l2norm_pytree(grads)
+      scalar_metrics["learning/raw_grad_norm"] = max_utils.l2norm_pytree(raw_grads)
+      scalar_metrics["learning/param_norm"] = max_utils.l2norm_pytree(new_state.params)
+      raw_grads_norms = compute_params_norm(raw_grads, config, prefix='raw_grads')
+      scalar_metrics.update(raw_grads_norms)
   if config.use_dpo:
     scalar_metrics["learning/dpo_reward_accuracy"] = aux["reward_accuracy"]
   metrics = {

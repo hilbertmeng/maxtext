@@ -147,3 +147,13 @@ New12secondpreemptionCP1956 before2000window, oldruntime/scheduleautomaticallyre
 ## New12 common2k after second recovery
 
 CP2000committed actual2043, all18actual4422/CP4400(lastnormalreport4k). At1k/1.2k/1.4k/1.6k/1.8k/2k originalsingle gaps-.0144866/-.0135726/-.0140698/-.008169/-.0042818/-.0056258, MHA-reference1.024783/1.028185/1.032182/1.021598/1.012293/1.017595. New18gaps+.002977/+.0016138/+.0013912/+.0017408/+.0040584/-.0006168, ratios.995055/.996751/.996927/.995515/.988621/1.001899. Firstsinglewindowturnsahead2k, notstableovertake; ifnearparitypersists12's1.71%timingedgecouldmatter. Oldgated12at2k gap-.0018758/R1.005799. Continue3k. Source report-common2000-nonwrite-static-zero.json. Actualresume1957 fromCP1956 verified; full13500schedule/AOTretained. Newlydeployedwait-stepcached2kwindowinthesameSSHsnapshot, noTBrepairneededforthiswindow.
+
+## Ungated static-zero all18 5k
+
+All18actual5027/CP5000verified; new12actual2684/CP2600. Originalsingle4k/4.2k/4.4k/4.6k/4.8k/5k gaps-.0015946/-.0017402/-.0018954/-.0010426/-.0011254/-.0013488, MHA-reference ratios1.007336/1.008189/1.009084/1.005039/1.005651/1.006766. Latest5gap-0.00143048/R1.00694577 versus3k1.019104 and4k1.014509: positivebutcontinuedcontraction. No newoldgatedwindow beyond2800. Speed.4629875 (+1.18563%vshealthOFFgated18); nohealthONhistoricalspeedcomparison. Continue12own3k/18own6k; fullsource report-all18-5000.json.
+
+## User closes ungated static-zero all18 at5117
+
+Explicituserstop, finalCP5117committed, TPU310246/queueabsent14:09:20UTC, TBSYNC_OKafteronechanging-filetransferretry. Frozen c560cd6. Finalnativewindow5000originalsingle gap-.0013488/R1.006766; last5gap-.00143048/R1.006946, versus3k1.019104/4k1.014509continuedcontraction. Originalgated18finalcommon2800 new-oldgap-.0049298/R1.018914; oldbaselineended2800sooriginalterminalnew/old1.05betnotobservable. MHA5kgap-.2007004. Wholeinitialadvantagedeclined; changeimprovesoldversionbutnotdurablebreakthrough. Paramsparent-20736(localintegerrefund), healthOFFspeed.4629875/+1.18563%versushealthOFFgated18. Nativefullseriesall18-zero-final5117.json. 12layerungatedstaticzerocontinues, retainsstopped18cachethrough5000forpeers.
+
+v5p16UE5a/nozoneswitch/P0, soleREADYlease2026-10-15UTC11:00:10–14:06:30(3h06m20s,userstop). Closeoutall18-zero-user-closeout.log; remote logs/closeout-20261015T140920Z.json. Priorhot-switchownershipboundariesremainseparatefromthisRUN'slease.

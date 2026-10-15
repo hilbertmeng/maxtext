@@ -12962,8 +12962,9 @@ class BamMediumPropMShiftReadG050MLPReadAllLayersNoReadGatesTruePile(
 class BamMediumPropMShiftReadG050MLPReadAllLayersNoReadGatesStaticZeroTruePile(
         BamMediumPropMShiftReadG050MLPReadAllLayersNoReadGatesTruePile):
     """Ungated all-layer MLP read, with only static addresses zero-initialized."""
-    # 在训4k/CP4000：对原单门.5 gap-.001595、MHA参考倍数1.00734；最近五倍数1.01451，继续收缩。
-    # 去门+零静态比旧版改善，但仍呈早期收益逐渐缩水；继续下一评审点，重点看额外收益能否保住。
+    # stopped 5117（用户指令）；最终CP5117提交、TPU/队列释放、TB SYNC_OK。未训练终局。
+    # 对原单门.5：末完整5k gap-.001349/R1.006766；末五1.006946，从3k1.01910/4k1.01451继续收缩。
+    # 去门+静态零初始化改善旧有门版，但新增收益未守住；12层版继续，保留本路缓存作同阶段对照。
     # 静态key[32,8]零初始化可学习，无动态/静态读门；动态投影normal(.006)、读出非零且静态梯度非零。
     # UE5a v5p16 TPU310246，.4629875step/s，健康同OFF对原全18层读+1.19%；432090944参数。
     # MLP[3898,3772,3898]，同层找平、原单门.5-20736参数整数余差；前向净增.631MFLOPs/token(+.0686%)。

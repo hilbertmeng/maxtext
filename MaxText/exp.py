@@ -305,6 +305,7 @@ class BamLlama2Medium(Llama2Medium):
     bam_mlp_read_location = 'none'
     bam_mlp_read_rank = 256
     bam_mlp_read_gates = True
+    bam_mlp_read_static_key_init = 'normal'
     bam_general_matrix_write = False  # Historical write variants remain worktree-only.
     bam_static_read_gate_init = .99
     bam_static_write_gate_init = .01
@@ -12962,3 +12963,15 @@ class BamMediumPropMShiftReadG050MLPReadAllLayersNoReadGatesTruePile(
     compare_runs = ['BamMediumPropMShiftReadG050MLPReadAllLayersTruePile',
                     'BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile',
                     'BamMHAMediumPropC256TruePile']
+
+
+class BamMediumPropMShiftReadG050MLPReadAllLayersNoReadGatesStaticZeroTruePile(
+        BamMediumPropMShiftReadG050MLPReadAllLayersNoReadGatesTruePile):
+    """Ungated all-layer MLP read, with only static addresses zero-initialized."""
+    # User initialization correction; start fresh, replace temporary normal-static no-gate RUN.
+    # Dynamic down/up remain normal(.006); pre-RMS bias0, RMS epsilon1e-4/key_scale.1.
+    # Static key[32,8] starts exactlyzero, can learn; total readout is not initiallyzero.
+    # Params432090944 and widths[3898,3772,3898] unchanged. Direct parent gatedall18 retained.
+    # Pre-run new/all18 gain1.05 [.98,1.12], MHAreference; expected speed+1% [0,3%].
+    model_name = 'BamMediumPropMShiftReadG050MLPReadAllLayersNoReadGatesStaticZeroTruePile'
+    bam_mlp_read_static_key_init = 'zero'

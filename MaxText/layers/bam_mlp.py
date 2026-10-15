@@ -65,8 +65,11 @@ class BamMlpRead(nn.Module):
     else:
       dynamic_key = jnp.asarray(arm.key_scale,dtype) * attentions._transform_bam_read_key(
           key, dataclasses.replace(arm,key_mode='rms'))
+    static_init = getattr(cfg, 'bam_mlp_read_static_key_init', 'normal')
+    assert static_init in ('normal', 'zero')
     static_key = self.param('static_key',nn.with_logical_partitioning(
-        nn.initializers.normal(width**-.5),('v_factor','q_heads')),(width,heads),wdtype)
+        nn.initializers.zeros if static_init == 'zero' else nn.initializers.normal(width**-.5),
+        ('v_factor','q_heads')),(width,heads),wdtype)
     if use_read_gates:
       static_opening = float(cfg.bam_static_read_gate_init)
       logits = dense('static_gate',heads,('embed','q_heads'),zero)

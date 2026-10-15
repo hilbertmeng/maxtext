@@ -12962,16 +12962,14 @@ class BamMediumPropMShiftReadG050MLPReadAllLayersNoReadGatesTruePile(
 class BamMediumPropMShiftReadG050MLPReadAllLayersNoReadGatesStaticZeroTruePile(
         BamMediumPropMShiftReadG050MLPReadAllLayersNoReadGatesTruePile):
     """Ungated all-layer MLP read, with only static addresses zero-initialized."""
-    # stopped 5117（用户指令）；最终CP5117提交、TPU/队列释放、TB SYNC_OK。未训练终局。
-    # 对原单门.5：末完整5k gap-.001349/R1.006766；末五1.006946，从3k1.01910/4k1.01451继续收缩。
-    # 去门+静态零初始化改善旧有门版，但新增收益未守住；12层版继续，保留本路缓存作同阶段对照。
-    # 静态key[32,8]零初始化可学习，无动态/静态读门；动态投影normal(.006)、读出非零且静态梯度非零。
-    # UE5a v5p16 TPU310246，.4629875step/s，健康同OFF对原全18层读+1.19%；432090944参数。
-    # MLP[3898,3772,3898]，同层找平、原单门.5-20736参数整数余差；前向净增.631MFLOPs/token(+.0686%)。
-    # 跑前终局new/all18下注1.05[.98,1.12]，MHA参考；旧门控12/18路停CP2970/2909，缓存对照至2800。
-    # 新鲜参数从0训；原write6停CP2008、中间normal-static停CP228，均已保留TB/CP、移交同一TPU。
-    # code_commit: c560cd6；codex/mediumprop-mlp-bam-read，/data0/xd/mediumprop-mlp-bam-read。
-    # 旧带门对照停于约2800，历史终局new/旧版1.05下注不可直接验收；后续终局看原单门.5及新12/18互比。
+    # 结论：去读门＋静态读地址零初始化改善早期学习，但全18层MLP读M的增益继续衰减，未建立有力后期收益。
+    # 对原单门.5末五收益倍数3k1.01910→4k1.01451→5k1.006946；末完整5k gap-.001349、倍数1.006766。
+    # 用户停于5117，CP提交、资源释放、TB同步；未训练终局，同组12层版亦已停。
+    # 静态key[32,8]零初始化可学习；无动态/静态读门，动态投影normal(.006)，初始读出与静态key梯度非零。
+    # UE5a v5p16，.4629875 step/s，同健康OFF较旧带门18层+1.19%；432090944参数，MLP[3898,3772,3898]。
+    # 本层找平，父路-20736整数余差；前向净增.631MFLOPs/token(+.0686%)；健康全OFF。
+    # 跑前new/旧带门18终局下注1.05[.98,1.12]，因旧路止2800而不可完整验收；不把早期对照充作终局。
+    # code_commit: c560cd6；ledger only：codex/mediumprop-mlp-bam-read，/data0/xd/mediumprop-mlp-bam-read。
     model_name = 'BamMediumPropMShiftReadG050MLPReadAllLayersNoReadGatesStaticZeroTruePile'
     bam_mlp_read_static_key_init = 'zero'
 
@@ -12979,18 +12977,13 @@ class BamMediumPropMShiftReadG050MLPReadAllLayersNoReadGatesStaticZeroTruePile(
 class BamMediumPropMShiftReadG050MLPReadNonWriteLayersNoReadGatesStaticZeroTruePile(
         BamMediumPropMShiftReadG050MLPReadAllLayersNoReadGatesStaticZeroTruePile):
     """Ungated zero-static MLP reads only in the twelve non-writing layers."""
-    # stopped 3149（用户指令）；最终CP3149提交、TPU/队列释放、TB SYNC_OK，未训练终局。
-    # 对原单门.5末完整3k gap-.000895/R1.003579，末五R1.009216；2k优势1.01760继续缩水。
-    # 对新18层末五全落后，3k gap+.002719/R.989277；快1.71%未弥补loss劣势，整组已停。
-    # 参数432097856，MLP[3898,3676,3898]，原单门.5-13824整数余差；同层找平，六MLP写层无读且保持原宽。
-    # .4709125step/s（20–99，80点），对健康同OFF旧带门12层+.46%、新无门零静态18层+1.71%。
-    # 前向净增.420864MFLOPs/token(+.04575%)，reader每选中层.2592W_Q；全部健康统计OFF。
-    # 跑前终局new/旧12层下注1.05[.98,1.12]，MHA参考；速度+1%[0,3%]，实测落范围内。
-    # 直接对照旧12层（可用至2800）、新版18层、原单门.5和MHA；三个收益倍数已登记，首报1k。
-    # code_commit: ae19f92；codex/mediumprop-mlp-bam-read，/data0/xd/mediumprop-mlp-bam-read。
-    # 首次抢占CP731，原ae19f92/13500计划从732恢复，CP800/1000提交；P1。
-    # 旧带门对照停于约2800，历史终局new/旧版1.05下注不可直接验收；后续终局看原单门.5及新12/18互比。
-    # 第二次抢占CP1956，从1957按原ae19f92/13500计划恢复，CP2000提交；P2。
+    # 结论：仅12个非写回层读M同样未保住早期增益；同阶段持续弱于新18层版，1.71%提速不足以弥补。
+    # 对原单门.5末五倍数2k1.01760→3k1.009216，3k gap-.000895/倍数1.003579。
+    # 对新18层版末五窗口全落后，3k gap+.002719/倍数.989277；用户停于3149，非完整终局。
+    # UE5a v5p16，P2，.4709125 step/s，对同健康旧带门12层+.46%、新18层+1.71%；CP/资源/TB收尾完成。
+    # 432097856参数、MLP[3898,3676,3898]，父路-13824整数余差；前向净增.420864MFLOPs/token(+.04575%)。
+    # 跑前new/旧12层终局下注1.05[.98,1.12]因旧路止2800而不可完整验收；速度+1%[0,3%]下注范围内。
+    # code_commit: ae19f92；ledger only：codex/mediumprop-mlp-bam-read，/data0/xd/mediumprop-mlp-bam-read。
     model_name = 'BamMediumPropMShiftReadG050MLPReadNonWriteLayersNoReadGatesStaticZeroTruePile'
     bam_mlp_read_location = 'nonwrite'
     mlp_dim_by_block = [3898, 3676, 3898]

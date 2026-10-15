@@ -1,0 +1,621 @@
+{
+  "schema_version": 1,
+  "complete": true,
+  "primary_policy": "excluding_eos",
+  "eos_token_id": 0,
+  "metric": "cross_entropy_nats_per_valid_target_token",
+  "dataset": {
+    "arrays": {
+      "lengths.npy": {
+        "bytes": 332924,
+        "crc32c": "p/RISA==",
+        "sha256": "81c90d8c57e6d547717166880232742c618b6b5a2e92372279df53f5400db48a"
+      },
+      "tokens.npy": {
+        "bytes": 681899132,
+        "crc32c": "iXQ72g==",
+        "sha256": "45bf2cc09841465dc0dc8a9e43f4d75798b038869e6dbbfc92a63e10d98cf747"
+      }
+    },
+    "record_order": "original; no rewindow or shuffle",
+    "records": 166398,
+    "sequence_length": 2048,
+    "source_integrity": {
+      "bytes": 666518239,
+      "crc32c": "NZ9gfw==",
+      "sha256": "44c3c5efa34f5a1f6c4cc2f3f6fe92974a8c7ef3fd14af029c9bcb8f485a4f40"
+    },
+    "source_uri": "gs://newproject-1-common_datasets_us-east5/pythia_model_test/pile_test/val_with_eos.tfrecord",
+    "stored_tokens": 340948068,
+    "target_tokens_before_eos_mask": 340781670
+  },
+  "source_generation": 1742902686628652,
+  "sequence_length": 2048,
+  "bucket_size": 256,
+  "bucket_count": 8,
+  "position_semantics": "zero-based prediction slots [start,end); slot s predicts original record token index s+1",
+  "mask_semantics": "length padding and padded batch rows excluded; including_eos keeps real EOS=0, excluding_eos additionally removes EOS=0",
+  "record_order": "original TFRecord order; no shuffle, rewindowing, or record truncation",
+  "models": {
+    "BamMHAMediumPropC256T2048Matched": {
+      "alias": "mha",
+      "checkpoint_step": 13500,
+      "checkpoint": "gs://newproject-1-llm_projects_us-east5/log/BamMHAMediumPropC256T2048Matched/checkpoints/13500/items",
+      "training_runtime_commit": "e9f77281a61d1e3dfa8416574655f48d28d98481",
+      "evaluation_runtime_commit": "017fd64c4c42471dfa5df25bdb3f4266d97e3466",
+      "parameter_count": 432121200,
+      "evaluation_batch_size": 16,
+      "records_evaluated": 166398,
+      "complete": true,
+      "policies": {
+        "excluding_eos": {
+          "buckets": [
+            {
+              "index": 0,
+              "loss": 2.76087902683258,
+              "loss_sum": 117533323.0728302,
+              "prediction_end_exclusive": 256,
+              "prediction_start": 0,
+              "token_count": 42570979
+            },
+            {
+              "index": 1,
+              "loss": 2.476318174139703,
+              "loss_sum": 105419529.19148254,
+              "prediction_end_exclusive": 512,
+              "prediction_start": 256,
+              "token_count": 42571076
+            },
+            {
+              "index": 2,
+              "loss": 2.4296629947073454,
+              "loss_sum": 103433904.95759583,
+              "prediction_end_exclusive": 768,
+              "prediction_start": 512,
+              "token_count": 42571297
+            },
+            {
+              "index": 3,
+              "loss": 2.406982790619052,
+              "loss_sum": 102467144.47116089,
+              "prediction_end_exclusive": 1024,
+              "prediction_start": 768,
+              "token_count": 42570784
+            },
+            {
+              "index": 4,
+              "loss": 2.391147685435603,
+              "loss_sum": 101793203.79141235,
+              "prediction_end_exclusive": 1280,
+              "prediction_start": 1024,
+              "token_count": 42570856
+            },
+            {
+              "index": 5,
+              "loss": 2.384906403251263,
+              "loss_sum": 101527304.34924316,
+              "prediction_end_exclusive": 1536,
+              "prediction_start": 1280,
+              "token_count": 42570771
+            },
+            {
+              "index": 6,
+              "loss": 2.378684967542965,
+              "loss_sum": 101262279.39041138,
+              "prediction_end_exclusive": 1792,
+              "prediction_start": 1536,
+              "token_count": 42570698
+            },
+            {
+              "index": 7,
+              "loss": 2.374340061367531,
+              "loss_sum": 101077178.36439514,
+              "prediction_end_exclusive": 2048,
+              "prediction_start": 1792,
+              "token_count": 42570641
+            }
+          ],
+          "global_loss": 2.4503654718491616,
+          "loss_sum": 834513867.5885315,
+          "perplexity": 11.59258270774772,
+          "token_count": 340567102
+        },
+        "including_eos": {
+          "buckets": [
+            {
+              "index": 0,
+              "loss": 2.774586435214999,
+              "loss_sum": 118191522.21360779,
+              "prediction_end_exclusive": 256,
+              "prediction_start": 0,
+              "token_count": 42597888
+            },
+            {
+              "index": 1,
+              "loss": 2.4900653287384187,
+              "loss_sum": 106071523.98628235,
+              "prediction_end_exclusive": 512,
+              "prediction_start": 256,
+              "token_count": 42597888
+            },
+            {
+              "index": 2,
+              "loss": 2.443231723527567,
+              "loss_sum": 104076135.05918884,
+              "prediction_end_exclusive": 768,
+              "prediction_start": 512,
+              "token_count": 42597734
+            },
+            {
+              "index": 3,
+              "loss": 2.420765012073717,
+              "loss_sum": 103118857.14279175,
+              "prediction_end_exclusive": 1024,
+              "prediction_start": 768,
+              "token_count": 42597632
+            },
+            {
+              "index": 4,
+              "loss": 2.404902563008865,
+              "loss_sum": 102443154.37490845,
+              "prediction_end_exclusive": 1280,
+              "prediction_start": 1024,
+              "token_count": 42597632
+            },
+            {
+              "index": 5,
+              "loss": 2.3987050651096213,
+              "loss_sum": 102179155.64007568,
+              "prediction_end_exclusive": 1536,
+              "prediction_start": 1280,
+              "token_count": 42597632
+            },
+            {
+              "index": 6,
+              "loss": 2.3925502843548525,
+              "loss_sum": 101916976.55444336,
+              "prediction_end_exclusive": 1792,
+              "prediction_start": 1536,
+              "token_count": 42597632
+            },
+            {
+              "index": 7,
+              "loss": 2.3882071089760903,
+              "loss_sum": 101731967.56794739,
+              "prediction_end_exclusive": 2048,
+              "prediction_start": 1792,
+              "token_count": 42597632
+            }
+          ],
+          "global_loss": 2.464126936578618,
+          "loss_sum": 839729292.5392456,
+          "perplexity": 11.75321636799772,
+          "token_count": 340781670
+        }
+      },
+      "detailed_result_json": "/data0/xd/bam_diagnostics/pile-bucket-t2048-20261015/mha/result.json",
+      "verification": {
+        "sequence_records_verified": 166398,
+        "sequence_chunks_verified": 82,
+        "clean_exit": true
+      }
+    },
+    "MuddLlama2MediumPropC256T2048": {
+      "alias": "mudd",
+      "checkpoint_step": 13500,
+      "checkpoint": "gs://newproject-1-llm_projects_us-east5/log/MuddLlama2MediumPropC256T2048/checkpoints/13500/items",
+      "training_runtime_commit": "e9f77281a61d1e3dfa8416574655f48d28d98481",
+      "evaluation_runtime_commit": "017fd64c4c42471dfa5df25bdb3f4266d97e3466",
+      "parameter_count": 434076747,
+      "evaluation_batch_size": 16,
+      "records_evaluated": 166398,
+      "complete": true,
+      "policies": {
+        "excluding_eos": {
+          "buckets": [
+            {
+              "index": 0,
+              "loss": 2.6708796419411764,
+              "loss_sum": 113701961.14860535,
+              "prediction_end_exclusive": 256,
+              "prediction_start": 0,
+              "token_count": 42570979
+            },
+            {
+              "index": 1,
+              "loss": 2.388731365236634,
+              "loss_sum": 101690864.49307251,
+              "prediction_end_exclusive": 512,
+              "prediction_start": 256,
+              "token_count": 42571076
+            },
+            {
+              "index": 2,
+              "loss": 2.342070629685957,
+              "loss_sum": 99704984.37133789,
+              "prediction_end_exclusive": 768,
+              "prediction_start": 512,
+              "token_count": 42571297
+            },
+            {
+              "index": 3,
+              "loss": 2.319316238202291,
+              "loss_sum": 98735110.60420227,
+              "prediction_end_exclusive": 1024,
+              "prediction_start": 768,
+              "token_count": 42570784
+            },
+            {
+              "index": 4,
+              "loss": 2.3035694927115697,
+              "loss_sum": 98064925.16021729,
+              "prediction_end_exclusive": 1280,
+              "prediction_start": 1024,
+              "token_count": 42570856
+            },
+            {
+              "index": 5,
+              "loss": 2.2972946253466056,
+              "loss_sum": 97797603.41516113,
+              "prediction_end_exclusive": 1536,
+              "prediction_start": 1280,
+              "token_count": 42570771
+            },
+            {
+              "index": 6,
+              "loss": 2.2907693210124047,
+              "loss_sum": 97519648.95248413,
+              "prediction_end_exclusive": 1792,
+              "prediction_start": 1536,
+              "token_count": 42570698
+            },
+            {
+              "index": 7,
+              "loss": 2.2865019671988627,
+              "loss_sum": 97337854.39141655,
+              "prediction_end_exclusive": 2048,
+              "prediction_start": 1792,
+              "token_count": 42570641
+            }
+          ],
+          "global_loss": 2.3623918687733294,
+          "loss_sum": 804552952.5364971,
+          "perplexity": 10.616313938270007,
+          "token_count": 340567102
+        },
+        "including_eos": {
+          "buckets": [
+            {
+              "index": 0,
+              "loss": 2.6840831960322493,
+              "loss_sum": 114336275.3672638,
+              "prediction_end_exclusive": 256,
+              "prediction_start": 0,
+              "token_count": 42597888
+            },
+            {
+              "index": 1,
+              "loss": 2.4020727646047244,
+              "loss_sum": 102323226.59448242,
+              "prediction_end_exclusive": 512,
+              "prediction_start": 256,
+              "token_count": 42597888
+            },
+            {
+              "index": 2,
+              "loss": 2.355260976608599,
+              "loss_sum": 100328780.58215332,
+              "prediction_end_exclusive": 768,
+              "prediction_start": 512,
+              "token_count": 42597734
+            },
+            {
+              "index": 3,
+              "loss": 2.332722277648303,
+              "loss_sum": 99368445.14146423,
+              "prediction_end_exclusive": 1024,
+              "prediction_start": 768,
+              "token_count": 42597632
+            },
+            {
+              "index": 4,
+              "loss": 2.3169537744154605,
+              "loss_sum": 98696744.24356079,
+              "prediction_end_exclusive": 1280,
+              "prediction_start": 1024,
+              "token_count": 42597632
+            },
+            {
+              "index": 5,
+              "loss": 2.3107100851750135,
+              "loss_sum": 98430777.86697388,
+              "prediction_end_exclusive": 1536,
+              "prediction_start": 1280,
+              "token_count": 42597632
+            },
+            {
+              "index": 6,
+              "loss": 2.3042642531082915,
+              "loss_sum": 98156200.68466187,
+              "prediction_end_exclusive": 1792,
+              "prediction_start": 1536,
+              "token_count": 42597632
+            },
+            {
+              "index": 7,
+              "loss": 2.300003458748056,
+              "loss_sum": 97974700.93447685,
+              "prediction_end_exclusive": 2048,
+              "prediction_start": 1792,
+              "token_count": 42597632
+            }
+          ],
+          "global_loss": 2.3757590935423174,
+          "loss_sum": 809615151.4150372,
+          "perplexity": 10.759177309033753,
+          "token_count": 340781670
+        }
+      },
+      "detailed_result_json": "/data0/xd/bam_diagnostics/pile-bucket-t2048-20261015/mudd/result.json",
+      "verification": {
+        "sequence_records_verified": 166398,
+        "sequence_chunks_verified": 82,
+        "clean_exit": true
+      }
+    },
+    "BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadT2048": {
+      "alias": "bam",
+      "checkpoint_step": 13500,
+      "checkpoint": "gs://newproject-1-llm_projects_us-east5/log/BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadT2048/checkpoints/13500/items",
+      "training_runtime_commit": "55deb7c34ae85530b2276b933a5aac5e99e6c0ba",
+      "evaluation_runtime_commit": "017fd64c4c42471dfa5df25bdb3f4266d97e3466",
+      "parameter_count": 432111104,
+      "evaluation_batch_size": 16,
+      "records_evaluated": 166398,
+      "complete": true,
+      "policies": {
+        "excluding_eos": {
+          "buckets": [
+            {
+              "index": 0,
+              "loss": 2.651638866710822,
+              "loss_sum": 112882862.5103302,
+              "prediction_end_exclusive": 256,
+              "prediction_start": 0,
+              "token_count": 42570979
+            },
+            {
+              "index": 1,
+              "loss": 2.3613505578465994,
+              "loss_sum": 100525234.06072998,
+              "prediction_end_exclusive": 512,
+              "prediction_start": 256,
+              "token_count": 42571076
+            },
+            {
+              "index": 2,
+              "loss": 2.3112565041631026,
+              "loss_sum": 98393187.08190918,
+              "prediction_end_exclusive": 768,
+              "prediction_start": 512,
+              "token_count": 42571297
+            },
+            {
+              "index": 3,
+              "loss": 2.2861552189054315,
+              "loss_sum": 97323420.01449585,
+              "prediction_end_exclusive": 1024,
+              "prediction_start": 768,
+              "token_count": 42570784
+            },
+            {
+              "index": 4,
+              "loss": 2.268838028332942,
+              "loss_sum": 96586376.9914856,
+              "prediction_end_exclusive": 1280,
+              "prediction_start": 1024,
+              "token_count": 42570856
+            },
+            {
+              "index": 5,
+              "loss": 2.260527947176929,
+              "loss_sum": 96232417.57836914,
+              "prediction_end_exclusive": 1536,
+              "prediction_start": 1280,
+              "token_count": 42570771
+            },
+            {
+              "index": 6,
+              "loss": 2.252627426126199,
+              "loss_sum": 95895921.86413574,
+              "prediction_end_exclusive": 1792,
+              "prediction_start": 1536,
+              "token_count": 42570698
+            },
+            {
+              "index": 7,
+              "loss": 2.2465300027976385,
+              "loss_sum": 95636222.24482727,
+              "prediction_end_exclusive": 2048,
+              "prediction_start": 1792,
+              "token_count": 42570641
+            }
+          ],
+          "global_loss": 2.3298657964511293,
+          "loss_sum": 793475642.346283,
+          "perplexity": 10.276562289366396,
+          "token_count": 340567102
+        },
+        "including_eos": {
+          "buckets": [
+            {
+              "index": 0,
+              "loss": 2.664779170326912,
+              "loss_sum": 113513964.64231873,
+              "prediction_end_exclusive": 256,
+              "prediction_start": 0,
+              "token_count": 42597888
+            },
+            {
+              "index": 1,
+              "loss": 2.3746566451544813,
+              "loss_sum": 101155357.80874634,
+              "prediction_end_exclusive": 512,
+              "prediction_start": 256,
+              "token_count": 42597888
+            },
+            {
+              "index": 2,
+              "loss": 2.3244172758619994,
+              "loss_sum": 99014908.82217407,
+              "prediction_end_exclusive": 768,
+              "prediction_start": 512,
+              "token_count": 42597734
+            },
+            {
+              "index": 3,
+              "loss": 2.299531945167263,
+              "loss_sum": 97954615.57247925,
+              "prediction_end_exclusive": 1024,
+              "prediction_start": 768,
+              "token_count": 42597632
+            },
+            {
+              "index": 4,
+              "loss": 2.2822031282019277,
+              "loss_sum": 97216449.00439453,
+              "prediction_end_exclusive": 1280,
+              "prediction_start": 1024,
+              "token_count": 42597632
+            },
+            {
+              "index": 5,
+              "loss": 2.2739250450316044,
+              "loss_sum": 96863822.26383972,
+              "prediction_end_exclusive": 1536,
+              "prediction_start": 1280,
+              "token_count": 42597632
+            },
+            {
+              "index": 6,
+              "loss": 2.266093630077505,
+              "loss_sum": 96530222.5315857,
+              "prediction_end_exclusive": 1792,
+              "prediction_start": 1536,
+              "token_count": 42597632
+            },
+            {
+              "index": 7,
+              "loss": 2.2600105757544875,
+              "loss_sum": 96271098.82209778,
+              "prediction_end_exclusive": 2048,
+              "prediction_start": 1792,
+              "token_count": 42597632
+            }
+          ],
+          "global_loss": 2.343202436526695,
+          "loss_sum": 798520439.4676361,
+          "perplexity": 10.414535103666449,
+          "token_count": 340781670
+        }
+      },
+      "detailed_result_json": "/data0/xd/bam_diagnostics/pile-bucket-t2048-20261015/bam/result.json",
+      "verification": {
+        "sequence_records_verified": 166398,
+        "sequence_chunks_verified": 82,
+        "clean_exit": true
+      }
+    }
+  },
+  "comparisons": {
+    "mudd_minus_mha": {
+      "including_eos": {
+        "global_loss_delta": -0.08836784303630063,
+        "bucket_loss_deltas": [
+          -0.0905032391827496,
+          -0.08799256413369427,
+          -0.08797074691896833,
+          -0.088042734425414,
+          -0.08794878859340471,
+          -0.08799497993460781,
+          -0.08828603124656098,
+          -0.08820365022803456
+        ]
+      },
+      "excluding_eos": {
+        "global_loss_delta": -0.08797360307583224,
+        "bucket_loss_deltas": [
+          -0.08999938489140336,
+          -0.08758680890306891,
+          -0.08759236502138856,
+          -0.08766655241676125,
+          -0.08757819272403333,
+          -0.08761177790465746,
+          -0.08791564653056039,
+          -0.0878380941686685
+        ]
+      }
+    },
+    "bam_minus_mha": {
+      "including_eos": {
+        "global_loss_delta": -0.12092450005192301,
+        "bucket_loss_deltas": [
+          -0.10980726488808701,
+          -0.11540868358393741,
+          -0.1188144476655677,
+          -0.12123306690645386,
+          -0.12269943480693746,
+          -0.12478002007801692,
+          -0.12645665427734754,
+          -0.12819653322160285
+        ]
+      },
+      "excluding_eos": {
+        "global_loss_delta": -0.1204996753980323,
+        "bucket_loss_deltas": [
+          -0.10924016012175786,
+          -0.1149676162931037,
+          -0.11840649054424279,
+          -0.12082757171362069,
+          -0.12230965710266117,
+          -0.12437845607433395,
+          -0.12605754141676595,
+          -0.1278100585698927
+        ]
+      }
+    },
+    "bam_minus_mudd": {
+      "including_eos": {
+        "global_loss_delta": -0.03255665701562238,
+        "bucket_loss_deltas": [
+          -0.019304025705337402,
+          -0.027416119450243137,
+          -0.030843700746599367,
+          -0.033190332481039864,
+          -0.03475064621353274,
+          -0.03678504014340911,
+          -0.038170623030786555,
+          -0.03999288299356829
+        ]
+      },
+      "excluding_eos": {
+        "global_loss_delta": -0.03252607232220006,
+        "bucket_loss_deltas": [
+          -0.0192407752303545,
+          -0.02738080739003479,
+          -0.03081412552285423,
+          -0.03316101929685944,
+          -0.03473146437862784,
+          -0.03676667816967649,
+          -0.03814189488620556,
+          -0.03997196440122419
+        ]
+      }
+    }
+  },
+  "artifact_gcs_root": "gs://newproject-1-llm_projects_us-east5/bam_diagnostics/pile-bucket-t2048-20261015",
+  "downloaded_artifact_files": 258,
+  "downloaded_artifact_bytes": 26687544,
+  "combined_result_gcs_uri": "gs://newproject-1-llm_projects_us-east5/bam_diagnostics/pile-bucket-t2048-20261015/results.json",
+  "batch_benchmark_gcs_uri": "gs://newproject-1-llm_projects_us-east5/bam_diagnostics/pile-bucket-t2048-20261015/batch_benchmark.json"
+}

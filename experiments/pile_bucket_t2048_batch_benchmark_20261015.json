@@ -1,0 +1,296 @@
+{
+  "benchmark_only": true,
+  "benchmark_complete": true,
+  "scope": "First real Pile batches, two warmup iterations then eight timed repetitions; no full validation scores from this benchmark",
+  "lease": {
+    "tpu": "xd-v6e-1-pile2048-bench-1015",
+    "zone": "europe-west4-a",
+    "runtime_commit": "e02a006b8e6f6f6c36c24866c0876a3e16edc0bf",
+    "launch_utc": "2026-10-15T04:38:57Z",
+    "receipt": "SOURCE_FETCH attempt=1 commit=e02a006b8e6f6f6c36c24866c0876a3e16edc0bf repo=https://github.com/hilbertmeng/maxtext.git\nSOURCE_READY transport=git commit=e02a006b8e6f6f6c36c24866c0876a3e16edc0bf tree=95610a5317160cd6aa4b921ea1bdad9c52a6c26b\nPILE_BENCHMARK_PID=8712\n"
+  },
+  "models": {
+    "BamMHAMediumPropC256T2048Matched": {
+      "benchmark_only": true,
+      "best_batch_size": 16,
+      "checkpoint": "gs://newproject-1-llm_projects_us-east5/log/BamMHAMediumPropC256T2048Matched/checkpoints/13500/items",
+      "complete": false,
+      "exp_class": "BamMHAMediumPropC256T2048Matched",
+      "parameter_count": 432121200,
+      "repetitions": 8,
+      "rows": [
+        {
+          "batch_size": 16,
+          "compile_and_first_batch_seconds": 5.234594997000045,
+          "device_memory_stats": {
+            "bytes_in_use": 1770202624,
+            "bytes_limit": 33550237184,
+            "bytes_reservable_limit": 31793246208,
+            "bytes_reserved": 3306258432,
+            "largest_alloc_size": 276480000,
+            "largest_free_block_bytes": 28473102848,
+            "num_allocs": 18,
+            "peak_bytes_in_use": 1770876416,
+            "peak_bytes_reserved": 3306258432
+          },
+          "median_batch_seconds": 0.1305433160000007,
+          "prefix_global_loss_delta": 0.0,
+          "prefix_max_bucket_loss_delta": 0.0,
+          "prefix_mean_abs_bucket_loss_delta": 0.0,
+          "target_tokens_per_second": 251012.46853572977
+        },
+        {
+          "batch_size": 32,
+          "compile_and_first_batch_seconds": 5.195865406000053,
+          "device_memory_stats": {
+            "bytes_in_use": 1770848768,
+            "bytes_limit": 33550237184,
+            "bytes_reservable_limit": 31792590848,
+            "bytes_reserved": 6768541696,
+            "largest_alloc_size": 276480000,
+            "largest_free_block_bytes": 25009518080,
+            "num_allocs": 18,
+            "peak_bytes_in_use": 1772177920,
+            "peak_bytes_reserved": 6768541696
+          },
+          "median_batch_seconds": 0.26302689199997076,
+          "prefix_global_loss_delta": 6.282740224115487e-05,
+          "prefix_max_bucket_loss_delta": 0.005177696235477924,
+          "prefix_mean_abs_bucket_loss_delta": 0.0014290879480540752,
+          "target_tokens_per_second": 249160.83485489115
+        },
+        {
+          "batch_size": 64,
+          "compile_and_first_batch_seconds": 6.202115116999948,
+          "device_memory_stats": {
+            "bytes_in_use": 1772137472,
+            "bytes_limit": 33550237184,
+            "bytes_reservable_limit": 31791280128,
+            "bytes_reserved": 13535969280,
+            "largest_alloc_size": 276480000,
+            "largest_free_block_bytes": 18239491072,
+            "num_allocs": 18,
+            "peak_bytes_in_use": 1774777344,
+            "peak_bytes_reserved": 13535969280
+          },
+          "median_batch_seconds": 0.5330396090000136,
+          "prefix_global_loss_delta": 6.282740224115487e-05,
+          "prefix_max_bucket_loss_delta": 0.005177696235477924,
+          "prefix_mean_abs_bucket_loss_delta": 0.0014290879480540752,
+          "target_tokens_per_second": 245895.42275459057
+        },
+        {
+          "batch_size": 128,
+          "compile_and_first_batch_seconds": 7.92829730599999,
+          "device_memory_stats": {
+            "bytes_in_use": 1770599424,
+            "bytes_limit": 33550237184,
+            "bytes_reservable_limit": 31788658688,
+            "bytes_reserved": 27071070208,
+            "largest_alloc_size": 276480000,
+            "largest_free_block_bytes": 4703306752,
+            "num_allocs": 18,
+            "peak_bytes_in_use": 1775860736,
+            "peak_bytes_reserved": 27071070208
+          },
+          "median_batch_seconds": 1.0737098140000398,
+          "prefix_global_loss_delta": 6.282740224115487e-05,
+          "prefix_max_bucket_loss_delta": 0.005177696235477924,
+          "prefix_mean_abs_bucket_loss_delta": 0.0014290879480540752,
+          "target_tokens_per_second": 244147.90344832433
+        }
+      ],
+      "runtime_commit": "e02a006b8e6f6f6c36c24866c0876a3e16edc0bf",
+      "sequence_length": 2048,
+      "source_sha256": "44c3c5efa34f5a1f6c4cc2f3f6fe92974a8c7ef3fd14af029c9bcb8f485a4f40"
+    },
+    "MuddLlama2MediumPropC256T2048": {
+      "benchmark_only": true,
+      "best_batch_size": 32,
+      "checkpoint": "gs://newproject-1-llm_projects_us-east5/log/MuddLlama2MediumPropC256T2048/checkpoints/13500/items",
+      "complete": false,
+      "exp_class": "MuddLlama2MediumPropC256T2048",
+      "parameter_count": 434076747,
+      "repetitions": 8,
+      "rows": [
+        {
+          "batch_size": 16,
+          "compile_and_first_batch_seconds": 28.403719455999976,
+          "device_memory_stats": {
+            "bytes_in_use": 1973992960,
+            "bytes_limit": 33550237184,
+            "bytes_reservable_limit": 31784674304,
+            "bytes_reserved": 3413803008,
+            "largest_alloc_size": 242073600,
+            "largest_free_block_bytes": 28161767936,
+            "num_allocs": 259,
+            "peak_bytes_in_use": 1974666752,
+            "peak_bytes_reserved": 3413803008
+          },
+          "median_batch_seconds": 0.1825456004999637,
+          "prefix_global_loss_delta": 0.0,
+          "prefix_max_bucket_loss_delta": 0.0,
+          "prefix_mean_abs_bucket_loss_delta": 0.0,
+          "target_tokens_per_second": 179505.83257144297
+        },
+        {
+          "batch_size": 32,
+          "compile_and_first_batch_seconds": 29.941325533000054,
+          "device_memory_stats": {
+            "bytes_in_use": 2010850304,
+            "bytes_limit": 33550237184,
+            "bytes_reservable_limit": 31784018944,
+            "bytes_reserved": 6792003584,
+            "largest_alloc_size": 245960704,
+            "largest_free_block_bytes": 24746054656,
+            "num_allocs": 259,
+            "peak_bytes_in_use": 2012179456,
+            "peak_bytes_reserved": 6792003584
+          },
+          "median_batch_seconds": 0.3526556909999954,
+          "prefix_global_loss_delta": -0.00021662037558407648,
+          "prefix_max_bucket_loss_delta": 0.005718231201171875,
+          "prefix_mean_abs_bucket_loss_delta": 0.0014574904926121235,
+          "target_tokens_per_second": 185835.65123864924
+        },
+        {
+          "batch_size": 64,
+          "compile_and_first_batch_seconds": 33.06124840799998,
+          "device_memory_stats": {
+            "bytes_in_use": 2025500672,
+            "bytes_limit": 33550237184,
+            "bytes_reservable_limit": 31782708224,
+            "bytes_reserved": 13558611968,
+            "largest_alloc_size": 260611072,
+            "largest_free_block_bytes": 17963485184,
+            "num_allocs": 259,
+            "peak_bytes_in_use": 2028140544,
+            "peak_bytes_reserved": 13558611968
+          },
+          "median_batch_seconds": 0.7154914099999701,
+          "prefix_global_loss_delta": -0.00011240355461115014,
+          "prefix_max_bucket_loss_delta": 0.00433349609375,
+          "prefix_mean_abs_bucket_loss_delta": 0.0014052242040634155,
+          "target_tokens_per_second": 183191.5773803706
+        },
+        {
+          "batch_size": 128,
+          "compile_and_first_batch_seconds": 32.19983769099997,
+          "device_memory_stats": {
+            "bytes_in_use": 1837011968,
+            "bytes_limit": 33550237184,
+            "bytes_reservable_limit": 31780086784,
+            "bytes_reserved": 27092271104,
+            "largest_alloc_size": 260611072,
+            "largest_free_block_bytes": 4615693312,
+            "num_allocs": 259,
+            "peak_bytes_in_use": 2028140544,
+            "peak_bytes_reserved": 27092271104
+          },
+          "median_batch_seconds": 1.4409964449999961,
+          "prefix_global_loss_delta": 4.070998694417298e-06,
+          "prefix_max_bucket_loss_delta": 0.004062652587890625,
+          "prefix_mean_abs_bucket_loss_delta": 0.001401243032887578,
+          "target_tokens_per_second": 181918.5612217112
+        }
+      ],
+      "runtime_commit": "e02a006b8e6f6f6c36c24866c0876a3e16edc0bf",
+      "sequence_length": 2048,
+      "source_sha256": "44c3c5efa34f5a1f6c4cc2f3f6fe92974a8c7ef3fd14af029c9bcb8f485a4f40"
+    },
+    "BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadT2048": {
+      "benchmark_only": true,
+      "best_batch_size": 32,
+      "checkpoint": "gs://newproject-1-llm_projects_us-east5/log/BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadT2048/checkpoints/13500/items",
+      "complete": false,
+      "exp_class": "BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadT2048",
+      "parameter_count": 432111104,
+      "repetitions": 8,
+      "rows": [
+        {
+          "batch_size": 16,
+          "compile_and_first_batch_seconds": 1.2261791330000165,
+          "device_memory_stats": {
+            "bytes_in_use": 1790346240,
+            "bytes_limit": 33550237184,
+            "bytes_reservable_limit": 31801523712,
+            "bytes_reserved": 3314630656,
+            "largest_alloc_size": 242073600,
+            "largest_free_block_bytes": 28444587008,
+            "num_allocs": 140,
+            "peak_bytes_in_use": 1791020032,
+            "peak_bytes_reserved": 3314630656
+          },
+          "median_batch_seconds": 0.2745056864999924,
+          "prefix_global_loss_delta": 0.0,
+          "prefix_max_bucket_loss_delta": 0.0,
+          "prefix_mean_abs_bucket_loss_delta": 0.0,
+          "target_tokens_per_second": 119370.9333230913
+        },
+        {
+          "batch_size": 32,
+          "compile_and_first_batch_seconds": 1.4122780110000122,
+          "device_memory_stats": {
+            "bytes_in_use": 1791009280,
+            "bytes_limit": 33550237184,
+            "bytes_reservable_limit": 31800868352,
+            "bytes_reserved": 6776651776,
+            "largest_alloc_size": 242073600,
+            "largest_free_block_bytes": 24981247488,
+            "num_allocs": 140,
+            "peak_bytes_in_use": 1792338432,
+            "peak_bytes_reserved": 6776651776
+          },
+          "median_batch_seconds": 0.543255878999986,
+          "prefix_global_loss_delta": 8.751155984684217e-05,
+          "prefix_max_bucket_loss_delta": 0.005706787109375,
+          "prefix_mean_abs_bucket_loss_delta": 0.0012233646120876074,
+          "target_tokens_per_second": 120635.60199410506
+        },
+        {
+          "batch_size": 64,
+          "compile_and_first_batch_seconds": 17.038478548,
+          "device_memory_stats": {
+            "bytes_in_use": 1794575872,
+            "bytes_limit": 33550237184,
+            "bytes_reservable_limit": 31799557632,
+            "bytes_reserved": 13540982784,
+            "largest_alloc_size": 242073600,
+            "largest_free_block_bytes": 18212039168,
+            "num_allocs": 140,
+            "peak_bytes_in_use": 1797215744,
+            "peak_bytes_reserved": 13540982784
+          },
+          "median_batch_seconds": 1.1184875875000273,
+          "prefix_global_loss_delta": 8.751155984684217e-05,
+          "prefix_max_bucket_loss_delta": 0.005706787109375,
+          "prefix_mean_abs_bucket_loss_delta": 0.0012233646120876074,
+          "target_tokens_per_second": 117186.81679156033
+        },
+        {
+          "batch_size": 128,
+          "compile_and_first_batch_seconds": 22.89564844199998,
+          "device_memory_stats": {
+            "bytes_in_use": 1765286400,
+            "bytes_limit": 33550237184,
+            "bytes_reservable_limit": 31796936192,
+            "bytes_reserved": 27073822720,
+            "largest_alloc_size": 242073600,
+            "largest_free_block_bytes": 4705867264,
+            "num_allocs": 140,
+            "peak_bytes_in_use": 1797215744,
+            "peak_bytes_reserved": 27073822720
+          },
+          "median_batch_seconds": 2.3013148129999763,
+          "prefix_global_loss_delta": -2.949237240983081e-05,
+          "prefix_max_bucket_loss_delta": 0.00473785400390625,
+          "prefix_mean_abs_bucket_loss_delta": 0.0012526009231805801,
+          "target_tokens_per_second": 113910.5343254933
+        }
+      ],
+      "runtime_commit": "e02a006b8e6f6f6c36c24866c0876a3e16edc0bf",
+      "sequence_length": 2048,
+      "source_sha256": "44c3c5efa34f5a1f6c4cc2f3f6fe92974a8c7ef3fd14af029c9bcb8f485a4f40"
+    }
+  }
+}

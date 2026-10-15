@@ -13032,6 +13032,7 @@ class BamXLPropMShiftReadG050ReadAttentionSharedR400TruePile(BamXLPropMShiftRead
 class BamMediumPropMShiftReadG050ReadAttentionSharedR256T2048(BamMediumPropMShiftReadG050ReadAttentionSharedR256TruePile):
     """Original MediumProp T2048 with read-only M-shift .5 and tied read/attention R256."""
     # code_commit: 3b26679; UE5a v5p-16 TPU310231; FIRST_STEP+14/AOT/actual432111680 verified.
+    # Canonical20-99 .549975step/s (+1.96% vs oldT2048BAM .5394); healthOFF vs oldON confounds timing.
     model_name = 'BamMediumPropMShiftReadG050ReadAttentionSharedR256T2048'
     DATASET_VARIANT = 'legacy2048'
     max_target_length = 2048

@@ -57,3 +57,5 @@ Pinned targeted CPU suite completed9 tests (budget1/shared-gradient+carry+bounda
 launch CPU gate reuses its verified commit-bound receipt and checks sealed configuration.
 No repeated model test execution was needed. Launch prep/log receipt and active monitor state:
 `/data0/xd/bam_diagnostics/mediumprop-t2048-current-sota/`.
+
+Canonical20-99 throughput .549975step/s (80 samples), +1.9605% versus old T2048BAM .5394. HealthOFF versus oldON; do not attribute the full delta to projection sharing. Stable preemption-free startup.

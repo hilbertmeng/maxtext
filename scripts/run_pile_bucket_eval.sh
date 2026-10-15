@@ -20,6 +20,10 @@ export PILE_BUCKET_OUTPUT=$output PILE_BUCKET_GCS=$gcs
 export PILE_BUCKET_SAVE_EVERY=${PILE_BUCKET_SAVE_EVERY:-128}
 export LIBTPU_INIT_ARGS=${LIBTPU_INIT_ARGS:-}
 cd "$root"
+entrypoint=MaxText/pile_bucket_eval.py
+if [[ ${PILE_BUCKET_BENCHMARK:-0} == 1 ]]; then
+  entrypoint=MaxText/pile_bucket_benchmark.py
+fi
 config_args=(
   MaxText/configs/base.yml
   exp_class="$exp" run_name="$tag"
@@ -34,7 +38,7 @@ config_args=(
 )
 # Exercise the exact shell/CLI/config contract without contacting GCS or a checkpoint.
 if [[ ${PILE_BUCKET_CONFIG_ONLY:-0} == 1 ]]; then
-  "$python" MaxText/pile_bucket_eval.py "${config_args[@]}"
+  "$python" "$entrypoint" "${config_args[@]}"
   exit
 fi
 on_exit() {
@@ -62,4 +66,4 @@ except NotFound:pass
 try:client.bucket(bucket).blob(name+'/exit.txt').delete()
 except NotFound:pass
 PY
-"$python" MaxText/pile_bucket_eval.py "${config_args[@]}" >"$output/eval.log" 2>&1
+"$python" "$entrypoint" "${config_args[@]}" >"$output/eval.log" 2>&1

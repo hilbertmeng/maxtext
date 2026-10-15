@@ -46,27 +46,36 @@ class BamMlpRead(nn.Module):
     key = key + jnp.asarray(bias,dtype)
     epsilon = cfg.bam_read_key_epsilon
     epsilon = cfg.normalization_layer_epsilon if epsilon is None else epsilon
-    opening = cfg.bam_read_gate_init
-    opening = math.sqrt(epsilon)/cfg.bam_read_key_scale if opening is None else opening
-    zero = initializers.contant_dense_init(0.)
-    gate = dense('read_gate',(heads,1),('embed','q_heads',None),zero)
-    gate_bias = self.param('read_gate_b0',nn.with_logical_partitioning(
-        nn.initializers.constant(math.log(opening/(1-opening))),('q_heads',None)),(heads,1),wdtype)
+    use_read_gates = bool(getattr(cfg, 'bam_mlp_read_gates', True))
+    if use_read_gates:
+      opening = cfg.bam_read_gate_init
+      opening = math.sqrt(epsilon)/cfg.bam_read_key_scale if opening is None else opening
+      zero = initializers.contant_dense_init(0.)
+      gate = dense('read_gate',(heads,1),('embed','q_heads',None),zero)
+      gate_bias = self.param('read_gate_b0',nn.with_logical_partitioning(
+          nn.initializers.constant(math.log(opening/(1-opening))),('q_heads',None)),(heads,1),wdtype)
     arm = attentions._BamReadArm(name='mlp',k_dim=cfg.bam_k,v_dim=width,
         num_heads=heads,read_side='col',prune_row=True,key_mode='rms_gate',
         key_scale=float(cfg.bam_read_key_scale),rms_epsilon=float(epsilon),
         rms_statistics_dtype=jnp.float32 if cfg.bam_read_rms_statistics_dtype=='float32' else dtype,
         gate_activation=jax.nn.sigmoid,implementation=cfg.bam_read_implementation)
-    dynamic_key = attentions._transform_bam_read_key(
-        key, arm, gate+jnp.asarray(gate_bias,dtype))
+    if use_read_gates:
+      dynamic_key = attentions._transform_bam_read_key(
+          key, arm, gate+jnp.asarray(gate_bias,dtype))
+    else:
+      dynamic_key = jnp.asarray(arm.key_scale,dtype) * attentions._transform_bam_read_key(
+          key, dataclasses.replace(arm,key_mode='rms'))
     static_key = self.param('static_key',nn.with_logical_partitioning(
         nn.initializers.normal(width**-.5),('v_factor','q_heads')),(width,heads),wdtype)
-    static_opening = float(cfg.bam_static_read_gate_init)
-    logits = dense('static_gate',heads,('embed','q_heads'),zero)
-    static_bias = self.param('static_gate_b0',nn.with_logical_partitioning(
-        nn.initializers.constant(math.log(static_opening/(1.1-static_opening))),('q_heads',)),(heads,),wdtype)
-    static_gate = 1.1*jax.nn.sigmoid(logits+jnp.asarray(static_bias,dtype))
-    # Both terms are column keys: combine them before the single M contraction.
-    effective_key = dynamic_key + jnp.asarray(static_key,dtype).T*(static_gate/static_opening)[...,None]
+    if use_read_gates:
+      static_opening = float(cfg.bam_static_read_gate_init)
+      logits = dense('static_gate',heads,('embed','q_heads'),zero)
+      static_bias = self.param('static_gate_b0',nn.with_logical_partitioning(
+          nn.initializers.constant(math.log(static_opening/(1.1-static_opening))),('q_heads',)),(heads,),wdtype)
+      static_gate = 1.1*jax.nn.sigmoid(logits+jnp.asarray(static_bias,dtype))
+      effective_key = dynamic_key + jnp.asarray(static_key,dtype).T*(static_gate/static_opening)[...,None]
+    else:
+      effective_key = dynamic_key + jnp.asarray(static_key,dtype).T
+    # Both terms are column keys: combine before one matrix contraction.
     result,_ = attentions.bam_read(matrix,effective_key,dataclasses.replace(arm,key_mode='none'))
     return result.reshape(result.shape[:-2]+(heads*cfg.bam_k,))

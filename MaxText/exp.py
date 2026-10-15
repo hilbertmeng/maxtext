@@ -304,6 +304,7 @@ class BamLlama2Medium(Llama2Medium):
     bam_general_column_read = False
     bam_mlp_read_location = 'none'
     bam_mlp_read_rank = 256
+    bam_mlp_read_gates = True
     bam_general_matrix_write = False  # Historical write variants remain worktree-only.
     bam_static_read_gate_init = .99
     bam_static_write_gate_init = .01
@@ -12945,3 +12946,19 @@ class BamMediumPropMShiftReadG050MLPReadAllLayersTruePile(
     model_name = 'BamMediumPropMShiftReadG050MLPReadAllLayersTruePile'
     bam_mlp_read_location = 'all'
     mlp_dim_by_block = [3893, 3767, 3893]
+
+
+class BamMediumPropMShiftReadG050MLPReadAllLayersNoReadGatesTruePile(
+        BamMediumPropMShiftReadG050MLPReadAllLayersTruePile):
+    """All-layer MLP reads with ungated dynamic/static addresses, retaining Wg."""
+    # Hot-replace write6 after gates pass and AOT is ready; direct parent is gated all18.
+    # Keep address RMS/key_scale.1, raw static keys, post-attention M and native MLP Wg/W2.
+    # Remove both read-gate projections/biases. Dynamic component initializes20x parent, static unchanged.
+    # Refund in each layer: total widths[3898,3772,3898], expected432090944params.
+    # Pre-run terminal new/all18 gain1.03 [.97,1.10] using MHA; expected speed+1% [0,3%].
+    model_name = 'BamMediumPropMShiftReadG050MLPReadAllLayersNoReadGatesTruePile'
+    bam_mlp_read_gates = False
+    mlp_dim_by_block = [3898, 3772, 3898]
+    compare_runs = ['BamMediumPropMShiftReadG050MLPReadAllLayersTruePile',
+                    'BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile',
+                    'BamMHAMediumPropC256TruePile']

@@ -42,13 +42,15 @@ bucket,name=sys.argv[1][5:].split('/',1)
 b=storage.Client(project='newproject-1-451205').bucket(bucket).blob(name+'/progress.json')
 try:Path(sys.argv[2]).write_bytes(b.download_as_bytes())
 except NotFound:pass
+try:storage.Client(project='newproject-1-451205').bucket(bucket).blob(name+'/exit.txt').delete()
+except NotFound:pass
 PY
 "$python" MaxText/pile_bucket_eval.py MaxText/configs/base.yml \
   exp_class="$exp" run_name="$tag" \
   base_output_directory=/tmp/pile-bucket-t2048/config \
   tensorboard_dir=/tmp/pile-bucket-t2048/tensorboard \
   load_parameters_path="$checkpoint" load_full_state_path= \
-  only_eval=True enable_checkpointing=False \
+  only_eval=True enable_checkpointing=True \
   per_device_batch_size=1.0 eval_per_device_batch_size=16.0 \
   max_target_length=2048 jax_cache_dir=/tmp/pile-bucket-t2048/jax-cache \
   log_config=False \

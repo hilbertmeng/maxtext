@@ -119,8 +119,8 @@ def run(config):
   from layers import quantizations
 
   started = time.monotonic()
-  if not config.only_eval or not config.load_parameters_path or config.enable_checkpointing:
-    raise ValueError('Require only_eval=True, explicit parameters path, checkpointing disabled')
+  if not config.only_eval or not config.load_parameters_path:
+    raise ValueError('Require only_eval=True and an explicit parameters path')
   if jax.default_backend() != 'tpu':
     raise ValueError('Checkpoint evaluation requires a TPU backend')
   if config.load_full_state_path or jax.process_count() != 1:
@@ -274,6 +274,7 @@ def run(config):
       'median_batch_seconds_excluding_first': float(np.median(timings[1:])) if len(timings)>1 else None,
       'sequence_chunks': chunk_number, 'jax_version': jax.__version__,
       'devices': [str(d) for d in jax.devices()],
+      'checkpoint_manager_created': False, 'checkpoint_writer_created': False,
   }
   for policy in ('including_eos','excluding_eos'):
     sums,counts = totals['sum_'+policy],totals['count_'+policy]

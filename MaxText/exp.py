@@ -12698,7 +12698,11 @@ class BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile(BamMediumPropK75E
 
 class BamMediumPropMShiftReadG050ReadAttentionSharedR256TruePile(BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile):
     """Shared projection bank; MLP sharing applies only to MLP-write layers."""
-    # Completed13500/CP13500, UE5a P0, resources absent. Final5 gap single-.003499/SOTA-.014533; gain1.022487/1.100491. TripleR384 nearly tied (triple-minus-this -.000141); initial +.003 loss bet wrong.
+    # 结论：读/attention写共享 R256 有稳定终局增益，与老三路共享 R384 最终接近持平；原先负面下注错误。
+    # 相对单门.5早期优势收窄后保留：末五12600–13400 gap -.003499、MHA参考收益倍数1.022487。
+    # 对无 M-shift SOTA 末五 gap -.014533、倍数1.100491；老三路 R384 仅再低 .000141。
+    # 完成13500，CP13500提交、资源释放、TB收尾；UE5a v5p16，P0，.464425 step/s，对单门+1.325%。
+    # code_commit: c9a2a36；ledger only：codex/mediumprop-projection-sharing，/data0/xd/mediumprop-projection-sharing。
     model_name = 'BamMediumPropMShiftReadG050ReadAttentionSharedR256TruePile'
     bam_share_read_attention_write_down = True
     bam_share_mlp_write_down = False
@@ -12712,6 +12716,10 @@ class BamMediumPropMShiftReadG050ReadAttentionSharedR256TruePile(BamMediumPropSh
 
 class BamMediumPropMShiftReadG050ReadAttentionSharedR384TruePile(BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile):
     """Shared projection bank; MLP sharing applies only to MLP-write layers."""
+    # 结论：只将读/attention写共享加宽至 R384、MLP写保持独立 R256，未形成收益，明显弱于老三路 R384。
+    # 相对单门.5由近乎持平转为落后；3000 gap +.002778、MHA参考倍数.988889，比三路 R384 高 .011078。
+    # 停于3140，CP3140提交、资源释放、TB同步；非完整终局。
+    # UE5a v5p16，P0，.464400 step/s，对单门+1.320%；code_commit: c9a2a36；ledger only：codex/mediumprop-projection-sharing，/data0/xd/mediumprop-projection-sharing。
     model_name = 'BamMediumPropMShiftReadG050ReadAttentionSharedR384TruePile'
     bam_share_read_attention_write_down = True
     bam_share_mlp_write_down = False
@@ -12725,7 +12733,11 @@ class BamMediumPropMShiftReadG050ReadAttentionSharedR384TruePile(BamMediumPropSh
 
 class BamMediumPropMShiftReadG050ReadAttentionMLPSharedR384TruePile(BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile):
     """Shared projection bank; MLP sharing applies only to MLP-write layers."""
-    # Completed13500/CP13500, UE5a P0, resources absent. Final5 gap single-.003640/SOTA-.014674; SOTA gain1.101467. Direct pairR256 gap-.000141, near tie; speed +.30% vs pairR256, +1.63% vs single. Initial +.001 bet wrong.
+    # 结论：读/attention写/MLP写共享 R384 有稳定终局增益；与老读/attention共享 R256 接近持平。
+    # 对单门.5早期优势收窄后保留：末五12600–13400 gap -.003640；对无 M-shift SOTA -.014674、MHA参考倍数1.101467。
+    # 对老共享 R256 末五仅低 .000141；.465800 step/s，比其快 .30%、比单门快1.63%。
+    # 完成13500，CP13500提交、资源释放、TB收尾；UE5a v5p16，P0；原先loss落后.001的下注错误。
+    # code_commit: c9a2a36；ledger only：codex/mediumprop-projection-sharing，/data0/xd/mediumprop-projection-sharing。
     model_name = 'BamMediumPropMShiftReadG050ReadAttentionMLPSharedR384TruePile'
     bam_share_read_attention_write_down = True
     bam_share_mlp_write_down = True
@@ -12739,17 +12751,12 @@ class BamMediumPropMShiftReadG050ReadAttentionMLPSharedR384TruePile(BamMediumPro
 
 
 class BamMediumPropMShiftReadG050SharedR256R384ByWriteTruePile(BamMediumPropMShiftReadG050ReadAttentionMLPSharedR384TruePile):
-  # 2026-10-14 user-paused at committed CP5400; resumable, not terminally rejected.
-  # Same a445bbc8 resumed from2859; 5000 loss gaps vs oldpair256 +.0044464,
-  # oldtriple384 +.0055738, singleRead050 -.0006984; MHA gain ratios .978257/.972893/1.003503.
-  # UE5a ~.461 step/s, P0; both leases23:28:31–01:15:49 and02:26:31–04:02:14UTC.
-  # TPU/queue absent; TB synced. Latest committed optimizer/data state retained.
     """R256 read/attention on non-MLP-write layers; all three share R384 on write layers."""
-    # code_commit: a445bbc; UE5a v5p-16; actual FIRST_STEP, AOT and parameter count verified.
-    # 20-99 speed 0.461225 step/s; vs singleRead050 +0.63%; health252 finite, gate init .5.
-    # @1000 gap old pairR256 +.008060, tripleR384 +.011156; MHA-ref gain .986573/.981510; single1.013085/SOTA1.013711. gate .241005.
-    # Stopped2859/CP2859, UE5a P0; resources absent, TB synced. 2800 vs pairR256+.004886/gain.981786, tripleR384+.005814/.978401; single-.002833/1.010874, SOTA-.010753/1.042570. Initial review stop was premature; terminal outcome unresolved; see authorized resume below.
-    # 2026-10-14 user-authorized resume from committed2859, unchanged a445bbc8/runtime/AOT/s13500, UE5a xd-v5p-16-310193-maxtext. Prior stop was premature: gain vs triple384 .973037->.974139->.978401 at2400/2600/2800. Terminal outcome unresolved. Observe at least5000, continue while credible recovery; report every1000 against pair256 and triple384, MHA-reference ratios. Relaunch02:19:09Z; restored2859 including data cursor, loaded original AOT, actual2860 then steady~.462 step/s; CP3000 committed. At3000 gains vs pair/triple .983788/.975496; continue.
+    # 暂时结论：混合 R256/R384 截至5k仍落后两个老共享基线；曾有追赶，不能据暂停判定终局失败。
+    # 5k对老共享R256/老三路R384 gap +.0044464/+.0055738，MHA参考倍数.978257/.972893；对单门.5 -.0006984/1.003503。
+    # 初停2859过早，按用户指令原状态续训；现用户暂停于已提交CP5400以集中诊断，资源释放、TB同步。
+    # UE5a v5p16，P0，.461225 step/s，对单门+.63%；原13500步计划及优化器/数据状态可续。
+    # code_commit: a445bbc；ledger only：codex/mediumprop-projection-sharing，/data0/xd/mediumprop-projection-sharing。
     model_name = 'BamMediumPropMShiftReadG050SharedR256R384ByWriteTruePile'
     bam_shared_projection_rank_by_block = [256, 384, 256]
     mlp_dim_by_block = [3871, 3746, 3871]
@@ -12761,10 +12768,10 @@ class BamMediumPropMShiftReadG050SharedR256R384ByWriteTruePile(BamMediumPropMShi
 
 class BamMediumPropMShiftReadG050ReadAttentionMLPSharedR256TruePile(BamMediumPropMShiftReadG050SharedR256R384ByWriteTruePile):
     """All layers share R256; MLP write joins the same bank in its six layers."""
-    # code_commit: a445bbc; UE5a v5p-16; actual FIRST_STEP, AOT and parameter count verified.
-    # 20-99 speed 0.463200 step/s; vs singleRead050 +1.06%; health252 finite, gate init .5.
-    # @1000 gap old pairR256 +.016598, tripleR384 +.019694; MHA-ref gain .972349/.967359; single .998479/SOTA .999096. gate .236640.
-    # Stopped2861/CP2861, UE5a P0; resources absent, TB synced. 2800 vs pairR256+.009362/.965099, tripleR384+.010290/.961771; single+.001643/.993692, SOTA-.006277/1.024850. Last5 all lose single, no normalized recovery or speed benefit; bet failed.
+    # 结论：MLP写也共享同层 R256 投影时，逊于老共享 R256、老三路 R384，未获得单门父路上的增益。
+    # 2800对老两基线 gap +.009362/+.010290，MHA参考倍数.965099/.961771；对单门+.001643/.993692。
+    # 末五均落后单门，未见相对收益恢复；停于2861，CP/资源/TB收尾完成，非完整终局。
+    # UE5a v5p16，P0，.463200 step/s，对单门+1.06%；code_commit: a445bbc；ledger only：codex/mediumprop-projection-sharing，/data0/xd/mediumprop-projection-sharing。
     model_name = 'BamMediumPropMShiftReadG050ReadAttentionMLPSharedR256TruePile'
     bam_shared_projection_rank_by_block = [256, 256, 256]
     bam_local_full_m_read_bottleneck_dim = 256
@@ -12806,6 +12813,10 @@ class BamMediumPropMShiftReadG050CrossReadAttnR384DirectBlockTruePile(BamMediumP
 
 class BamMediumPropMShiftReadG050CrossReadAttnR384DirectThirdsTruePile(BamMediumPropMShiftReadG050ReadAttentionSharedR256TruePile):
     """Direct cross-layer shared R384, inner R256, 6 consecutive layers per bank."""
+    # 结论：R384直接跨六层共享的劣势收窄，但5k评审仍明显弱于两个老共享基线。
+    # 最后五窗口至5000对老三路R384/老共享R256 gap+.005661/+.004777；不能据提前停止证明终局绝无追赶。
+    # 曾撤回3k筛选暂停并按原状态续训；最终按用户确认停于5157，CP/资源/TB收尾完成。
+    # UE5a v5p16，P2，.462150 step/s（272–351），对历史共享父路-.49%；code_commit: f875525；ledger only：codex/mediumprop-projection-sharing，/data0/xd/mediumprop-projection-sharing。
     model_name = 'BamMediumPropMShiftReadG050CrossReadAttnR384DirectThirdsTruePile'
     bam_cross_layer_rank = 384
     bam_cross_layer_group_size = 6
@@ -12862,6 +12873,8 @@ class BamMediumPropMShiftReadG050CrossTripleR512DirectThirdsTruePile(BamMediumPr
 
 class BamMediumPropMShiftReadG050CrossTripleR384ConservativeBlockTruePile(BamMediumPropMShiftReadG050CrossReadAttnR384ConservativeBlockTruePile):
     """Matched MLP-sharing toggle; independent MLP keeps family native width 256."""
+    # 未开训即撤销：当时擅自扩展了授权范围；实际赛马仅原8路＋方形R384。
+    # Ledger only：codex/mediumprop-projection-sharing，/data0/xd/mediumprop-projection-sharing；候选源码c7a93f6，无训练结论。
     model_name = 'BamMediumPropMShiftReadG050CrossTripleR384ConservativeBlockTruePile'
     bam_share_mlp_write_down = True
     bam_mlp_write_address_rank = 256
@@ -12870,6 +12883,8 @@ class BamMediumPropMShiftReadG050CrossTripleR384ConservativeBlockTruePile(BamMed
 
 class BamMediumPropMShiftReadG050CrossTripleR384ConservativeThirdsTruePile(BamMediumPropMShiftReadG050CrossReadAttnR384ConservativeThirdsTruePile):
     """Matched MLP-sharing toggle; independent MLP keeps family native width 256."""
+    # 未开训即撤销：当时擅自扩展了授权范围；实际赛马仅原8路＋方形R384。
+    # Ledger only：codex/mediumprop-projection-sharing，/data0/xd/mediumprop-projection-sharing；候选源码c7a93f6，无训练结论。
     model_name = 'BamMediumPropMShiftReadG050CrossTripleR384ConservativeThirdsTruePile'
     bam_share_mlp_write_down = True
     bam_mlp_write_address_rank = 256
@@ -12878,6 +12893,8 @@ class BamMediumPropMShiftReadG050CrossTripleR384ConservativeThirdsTruePile(BamMe
 
 class BamMediumPropMShiftReadG050CrossTripleR384DirectBlockTruePile(BamMediumPropMShiftReadG050CrossReadAttnR384DirectBlockTruePile):
     """Matched MLP-sharing toggle; independent MLP keeps family native width 256."""
+    # 未开训即撤销：当时擅自扩展了授权范围；实际赛马仅原8路＋方形R384。
+    # Ledger only：codex/mediumprop-projection-sharing，/data0/xd/mediumprop-projection-sharing；候选源码c7a93f6，无训练结论。
     model_name = 'BamMediumPropMShiftReadG050CrossTripleR384DirectBlockTruePile'
     bam_share_mlp_write_down = True
     bam_mlp_write_address_rank = 384
@@ -12886,6 +12903,8 @@ class BamMediumPropMShiftReadG050CrossTripleR384DirectBlockTruePile(BamMediumPro
 
 class BamMediumPropMShiftReadG050CrossTripleR384DirectThirdsTruePile(BamMediumPropMShiftReadG050CrossReadAttnR384DirectThirdsTruePile):
     """Matched MLP-sharing toggle; independent MLP keeps family native width 256."""
+    # 未开训即撤销：当时擅自扩展了授权范围；实际赛马仅原8路＋方形R384。
+    # Ledger only：codex/mediumprop-projection-sharing，/data0/xd/mediumprop-projection-sharing；候选源码c7a93f6，无训练结论。
     model_name = 'BamMediumPropMShiftReadG050CrossTripleR384DirectThirdsTruePile'
     bam_share_mlp_write_down = True
     bam_mlp_write_address_rank = 384
@@ -12894,6 +12913,8 @@ class BamMediumPropMShiftReadG050CrossTripleR384DirectThirdsTruePile(BamMediumPr
 
 class BamMediumPropMShiftReadG050CrossReadAttnR512ConservativeBlockTruePile(BamMediumPropMShiftReadG050CrossTripleR512ConservativeBlockTruePile):
     """Matched MLP-sharing toggle; independent MLP keeps family native width 384."""
+    # 未开训即撤销：当时擅自扩展了授权范围；实际赛马仅原8路＋方形R384。
+    # Ledger only：codex/mediumprop-projection-sharing，/data0/xd/mediumprop-projection-sharing；候选源码c7a93f6，无训练结论。
     model_name = 'BamMediumPropMShiftReadG050CrossReadAttnR512ConservativeBlockTruePile'
     bam_share_mlp_write_down = False
     bam_mlp_write_address_rank = 384
@@ -12902,6 +12923,8 @@ class BamMediumPropMShiftReadG050CrossReadAttnR512ConservativeBlockTruePile(BamM
 
 class BamMediumPropMShiftReadG050CrossReadAttnR512ConservativeThirdsTruePile(BamMediumPropMShiftReadG050CrossTripleR512ConservativeThirdsTruePile):
     """Matched MLP-sharing toggle; independent MLP keeps family native width 384."""
+    # 未开训即撤销：当时擅自扩展了授权范围；实际赛马仅原8路＋方形R384。
+    # Ledger only：codex/mediumprop-projection-sharing，/data0/xd/mediumprop-projection-sharing；候选源码c7a93f6，无训练结论。
     model_name = 'BamMediumPropMShiftReadG050CrossReadAttnR512ConservativeThirdsTruePile'
     bam_share_mlp_write_down = False
     bam_mlp_write_address_rank = 384
@@ -12910,6 +12933,8 @@ class BamMediumPropMShiftReadG050CrossReadAttnR512ConservativeThirdsTruePile(Bam
 
 class BamMediumPropMShiftReadG050CrossReadAttnR512DirectBlockTruePile(BamMediumPropMShiftReadG050CrossTripleR512DirectBlockTruePile):
     """Matched MLP-sharing toggle; independent MLP keeps family native width 384."""
+    # 未开训即撤销：当时擅自扩展了授权范围；实际赛马仅原8路＋方形R384。
+    # Ledger only：codex/mediumprop-projection-sharing，/data0/xd/mediumprop-projection-sharing；候选源码c7a93f6，无训练结论。
     model_name = 'BamMediumPropMShiftReadG050CrossReadAttnR512DirectBlockTruePile'
     bam_share_mlp_write_down = False
     bam_mlp_write_address_rank = 384
@@ -12918,6 +12943,8 @@ class BamMediumPropMShiftReadG050CrossReadAttnR512DirectBlockTruePile(BamMediumP
 
 class BamMediumPropMShiftReadG050CrossReadAttnR512DirectThirdsTruePile(BamMediumPropMShiftReadG050CrossTripleR512DirectThirdsTruePile):
     """Matched MLP-sharing toggle; independent MLP keeps family native width 384."""
+    # 未开训即撤销：当时擅自扩展了授权范围；实际赛马仅原8路＋方形R384。
+    # Ledger only：codex/mediumprop-projection-sharing，/data0/xd/mediumprop-projection-sharing；候选源码c7a93f6，无训练结论。
     model_name = 'BamMediumPropMShiftReadG050CrossReadAttnR512DirectThirdsTruePile'
     bam_share_mlp_write_down = False
     bam_mlp_write_address_rank = 384
@@ -12927,6 +12954,11 @@ class BamMediumPropMShiftReadG050CrossReadAttnR512DirectThirdsTruePile(BamMedium
 
 class BamMediumPropMShiftReadG050CrossTripleR384ConservativeInner384ThirdsTruePile(BamMediumPropMShiftReadG050CrossTripleR384ConservativeThirdsTruePile):
     """Shared R384, square384 bridge, all three consumers, contiguous thirds."""
+    # 结论：R384方形C_i未优于内宽256的保守三等分对照；两者均弱于老共享基线。
+    # 最后五窗口至4800对内宽256对照gap+.004017，对老三路R384/老共享R256 +.007783/+.007072。
+    # 末窗口对内宽256 +.003718、对老三路+.007699；用户确认停于4960，非完整终局。
+    # UE5a v5p16，P0，.459387 step/s，对历史共享父路-1.38%；CP/资源/TB收尾完成。
+    # code_commit: 38af4cc；ledger only：codex/mediumprop-projection-sharing，/data0/xd/mediumprop-projection-sharing。
     model_name = 'BamMediumPropMShiftReadG050CrossTripleR384ConservativeInner384ThirdsTruePile'
     bam_local_full_m_read_bottleneck_dim = 384
     bam_write_v_bottleneck_dim = 384
@@ -12957,8 +12989,11 @@ class BamXLPropSharedR400GeneralReadMShiftReadG050TruePile(BamXLPropK96EmbedVOnl
 
 class BamXLPropMShiftReadG050ReadAttentionSharedR384TruePile(BamXLPropSharedR400GeneralReadMShiftReadG050TruePile):
     """XL transfer of Medium oldR256: shared read/attention down, private MLP down."""
-    # User stopped22295/CP22295; UE5a P1, node/queue absent, TB SYNC_OK.
-    # Through22k last5 gap vs single.5 +.0001232, gain.999080; early deficit->long near-tie.
+    # 结论：Medium 有效的共享投影方案迁到 XL 后，仅与 XL 单门.5接近持平，未验证额外收益。
+    # 早期落后后长期近乎持平；22k对单门 MHA参考倍数1.000870，原终局1.025[1.015,1.040]下注未获支持。
+    # 用户停于22295，CP提交、资源释放、TB同步；未跑满50000；UE5a v5p32，P1。
+    # .392263 step/s，比单门快7.57%，但健康OFF/父路ON，不能归因于投影共享。
+    # 全部rank384，1432397720参数，较MHA少1000；code_commit: 8ba35d8；ledger only：codex/mediumprop-projection-sharing，/data0/xd/mediumprop-projection-sharing。
     model_name = 'BamXLPropMShiftReadG050ReadAttentionSharedR384TruePile'
     bam_share_read_attention_write_down = True
     bam_share_mlp_write_down = False
@@ -12983,6 +13018,13 @@ class BamXLPropMShiftReadG050ReadAttentionSharedR384TruePile(BamXLPropSharedR400
 
 class BamMediumPropMShiftReadG050SharedR256ReuseActivationMLPWriteTruePile(BamMediumPropMShiftReadG050ReadAttentionSharedR256TruePile):
     """Reuse the actual pre-attention shared GELU activation for MLP write addresses."""
+    # 结论：复用实际共享激活修复了老三路 R256 的早期失败，但最终观察仍只与更强的两个老共享基线近乎持平。
+    # 对老两路R256/老三路R384，早期落后后追平；至7600末五 gap -.000438/-.000378，末窗口倍数1.002627/1.004835。
+    # 对已停老三路R256共同2800 gap -.009425、倍数1.036407；不能外推该对照的未训终局。
+    # 对单门.5在7600 gap -.004826、倍数1.027804；无额外明确上限收益，用户停于7719。
+    # UE5a v5p16，P0，.485050 step/s；比各自父路快4.44%，含关闭健康统计收益，非纯架构测速。
+    # CP7719提交、TB同步；资源已释放。
+    # 复用实际 pre-attention GELU 激活供 MLP 地址up；432104480参数；code_commit: bac3317；ledger only：codex/mediumprop-projection-sharing，/data0/xd/mediumprop-projection-sharing。
     model_name = 'BamMediumPropMShiftReadG050SharedR256ReuseActivationMLPWriteTruePile'
     bam_reuse_read_attention_features_for_mlp_write = True
     mlp_dim_by_block = [3915, 3791, 3915]
@@ -13000,6 +13042,12 @@ class BamMediumPropMShiftReadG050SharedR256ReuseActivationMLPWriteTruePile(BamMe
 
 class BamMediumPropMShiftReadG050SharedR384ReuseActivationMLPWriteTruePile(BamMediumPropMShiftReadG050ReadAttentionMLPSharedR384TruePile):
     """Reuse the actual pre-attention shared GELU activation for MLP write addresses."""
+    # 结论：R384 激活复用早期优势反转，未优于老三路 R384，也未优于老共享 R256。
+    # 至3200对老三路R384 gap +.003315、末五+.002988、倍数.986666；对老两路R256 +.001776/.992811。
+    # 同期仍比单门.5低 .005356，但不足以证明优于方向内基线；用户于3333热替换，非终局失败判定。
+    # UE5a v5p16，P0，.488575 step/s；比各自父路快4.89%，含关闭健康统计收益，非纯架构测速。
+    # CP3333提交、TB同步；原TPU当时移交QKNorm，不能按旧RUN删除新路资源。
+    # 复用实际 pre-attention GELU 激活供 MLP 地址up；432118688参数；code_commit: bac3317；ledger only：codex/mediumprop-projection-sharing，/data0/xd/mediumprop-projection-sharing。
     model_name = 'BamMediumPropMShiftReadG050SharedR384ReuseActivationMLPWriteTruePile'
     bam_reuse_read_attention_features_for_mlp_write = True
     mlp_dim_by_block = [3794, 3669, 3794]
@@ -13017,7 +13065,10 @@ class BamMediumPropMShiftReadG050SharedR384ReuseActivationMLPWriteTruePile(BamMe
 
 class BamXLPropMShiftReadG050ReadAttentionSharedR400TruePile(BamXLPropMShiftReadG050ReadAttentionSharedR384TruePile):
     """Shared read/attention R400, parent-matched private MLP write R384."""
-    # code_commit: f9a455e; UE5a TPU310228 FIRST_STEP/AOT/actual1432399000 verified; ~.393step/s.
+    # 结论：恢复与父路一致的 R400 未验证共享收益，至6k还落后原单门.5与旧共享 R384。
+    # 6k对单门 gap +.002231、MHA参考倍数.986812；对旧共享R384 +.001570/.990681，早期领先已反转。
+    # 用户停于6407，CP提交、资源释放、TB同步；UE5a v5p32，P1，约.393 step/s，1432399000参数。
+    # 共享rank400、MLP沿用父路R384宽度配置；code_commit: f9a455e；ledger only：codex/mediumprop-projection-sharing，/data0/xd/mediumprop-projection-sharing。
     model_name = 'BamXLPropMShiftReadG050ReadAttentionSharedR400TruePile'
     bam_local_full_m_read_bottleneck_dim = 400
     bam_write_v_bottleneck_dim = 400
@@ -13031,16 +13082,13 @@ class BamXLPropMShiftReadG050ReadAttentionSharedR400TruePile(BamXLPropMShiftRead
 
 class BamMediumPropMShiftReadG050ReadAttentionSharedR256T2048(BamMediumPropMShiftReadG050ReadAttentionSharedR256TruePile):
     """Original MediumProp T2048 with read-only M-shift .5 and tied read/attention R256."""
-    # code_commit: 3b26679; UE5a v5p-16 TPU310231; FIRST_STEP+14/AOT/actual432111680 verified.
-    # Canonical20-99 .549975step/s (+1.96% vs oldT2048BAM .5394); healthOFF vs oldON confounds timing.
-    # @2000 oldT2048BAM gap-.007646,last5-.008089; MHA-ref gains oldBAM1.030707/Mudd1.485257; P0,CP2000.
-    # @4000 oldBAM gap-.008550,last5-.008822; gains oldBAM1.049702/Mudd1.482269; plateau~-.009, posterior terminal1.08.
-    # @6000 oldBAM gap-.008338,last5-.008237; gains oldBAM1.056708/Mudd1.489007; stable absolute benefit, P0,CP6000.
-    # @8000 oldBAM gap-.007881,last5-.007944; gains oldBAM1.057834/Mudd1.484248; posterior terminal1.07 [1.06,1.08],P0.
-    # @10000 oldBAM gap-.008177,last5-.008719; gains oldBAM1.064421/Mudd1.474453; posterior1.07 retained,P0,CP10000.
-    # User stopped at 10160; CP10160 committed; TPU/queue absent, TB SYNC_OK, UE5a P0; full13500 endpoint unobserved.
-    # Through10000 last5 gaps oldBAM-.008719/Mudd-.044360/MHA-.138062; gains1.067418/1.473443 (MHA ref).
-    # Early oldBAM gain contracted, then held~-.008–.009 after1400; short-context improvement weaker than T4096.
+    # 结论：单门.5＋读/attention写共享R256在T2048保留增益；早期优势收窄后维持约-.008～-.009，弱于T4096增益。
+    # 末五9200–10000对旧T2048 BAM/Mudd/MHA gap -.008719/-.044360/-.138062。
+    # 以同一T2048 MHA为参考，对旧BAM/Mudd收益倍数1.067418/1.473443；旧BAM不含单门及共享改动。
+    # 用户停于10160，CP10160提交、资源释放、TB同步；未观测13500终局。
+    # T2048/global256，432111680参数；UE5a v5p16，P0，.549975 step/s。
+    # 较旧BAM快1.96%含健康OFF/旧ON差异，不能当作架构提速；完整过程见 mediumprop_t2048_current_sota.md。
+    # code_commit: 3b26679；ledger only：codex/mediumprop-projection-sharing，/data0/xd/mediumprop-projection-sharing。
     model_name = 'BamMediumPropMShiftReadG050ReadAttentionSharedR256T2048'
     DATASET_VARIANT = 'legacy2048'
     max_target_length = 2048

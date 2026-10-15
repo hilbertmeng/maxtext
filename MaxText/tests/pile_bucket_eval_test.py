@@ -60,7 +60,9 @@ class BucketEvalTest(unittest.TestCase):
     import os,subprocess,sys
     root=Path(__file__).resolve().parents[2]
     names=['BamMHAMediumPropC256T2048Matched','MuddLlama2MediumPropC256T2048',
-           'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadT2048']
+           'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadT2048',
+           'BamMHAMediumPropC256TruePile','MuddLlama2MediumPropTruePile',
+           'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile']
     env=dict(os.environ,PILE_BUCKET_CONFIG_ONLY='1',PILE_BUCKET_PYTHON=sys.executable,
              JAX_PLATFORMS='cpu',CUDA_VISIBLE_DEVICES='')
     for i,name in enumerate(names):

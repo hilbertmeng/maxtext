@@ -20,6 +20,17 @@ from pile_validation_data import atomic_json, file_integrity, read_records
 SOURCE_URI = 'gs://newproject-1-common_datasets_us-east5/pythia_model_test/pile_test/val_with_eos.tfrecord'
 SOURCE_SHA256 = '44c3c5efa34f5a1f6c4cc2f3f6fe92974a8c7ef3fd14af029c9bcb8f485a4f40'
 SOURCE_RECORDS = 166398
+# Actual training registries; evaluation window length is independently recorded.
+TRAINING_RUNS = {
+    'BamMHAMediumPropC256T2048Matched': ('e9f77281a61d1e3dfa8416574655f48d28d98481', 2048, 432121200),
+    'MuddLlama2MediumPropC256T2048': ('e9f77281a61d1e3dfa8416574655f48d28d98481', 2048, 434076747),
+    'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadT2048':
+        ('55deb7c34ae85530b2276b933a5aac5e99e6c0ba', 2048, 432111104),
+    'BamMHAMediumPropC256TruePile': ('0d31a3d4f2df68885d5c6e3d61cceeb8986adf2f', 4096, 432121200),
+    'MuddLlama2MediumPropTruePile': ('4fee4903a40d0e3f1fa461f572464daa78df4499', 4096, 434076747),
+    'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile':
+        ('64e3fc326b39d9d7ec9ebcfcdbe961c7ed46bdbb', 4096, 432111104),
+}
 
 
 def prepare_data(source, directory, sequence_length=2048, expected_sha256=SOURCE_SHA256,
@@ -158,12 +169,8 @@ def run(config):
   identity = {
       'exp_class': config.exp_class, 'checkpoint': config.load_parameters_path,
       'checkpoint_step': int(config.load_parameters_path.rstrip('/').split('/')[-2]),
-      'training_runtime_commit': {
-          'BamMHAMediumPropC256T2048Matched': 'e9f77281a61d1e3dfa8416574655f48d28d98481',
-          'MuddLlama2MediumPropC256T2048': 'e9f77281a61d1e3dfa8416574655f48d28d98481',
-          'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadT2048':
-              '55deb7c34ae85530b2276b933a5aac5e99e6c0ba',
-      }.get(config.exp_class),
+      'training_runtime_commit': TRAINING_RUNS.get(config.exp_class, (None,None,None))[0],
+      'training_sequence_length': TRAINING_RUNS.get(config.exp_class, (None,None,None))[1],
       'runtime_commit': commit, 'source_sha256': meta['source_integrity']['sha256'],
       'sequence_length': config.max_target_length, 'bucket_size': bucket_size,
       'batch_size': batch_size, 'health_overrides': overrides,
@@ -216,12 +223,8 @@ def run(config):
   model = Transformer(config, mesh, quant=quantizations.configure_quantization(config))
   state = restore_parameters(model, config, rng, mesh)
   param_count = int(max_utils.calculate_num_params_from_pytree(state.params))
-  expected_params = {
-      'BamMHAMediumPropC256T2048Matched': 432121200,
-      'MuddLlama2MediumPropC256T2048': 434076747,
-      'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadT2048': 432111104,
-  }
-  if config.exp_class in expected_params and param_count != expected_params[config.exp_class]:
+  expected_params = TRAINING_RUNS.get(config.exp_class, (None,None,None))[2]
+  if expected_params is not None and param_count != expected_params:
     raise ValueError(f'Checkpoint parameter count differs: {param_count}')
   compiled = jax.jit(lambda params,batch,key: forward(model,params,batch,key,bucket_size))
   setup_seconds = time.monotonic() - started
@@ -305,6 +308,10 @@ def main(argv):
   if os.environ.get('PILE_BUCKET_CONFIG_ONLY') == '1':
     if not config.only_eval or not config.load_parameters_path or config.load_full_state_path != '':
       raise ValueError('Invalid parameter-only evaluation launch contract')
+    if config.max_target_length != 2048 or config.eval_per_device_batch_size != 16:
+      raise ValueError('Original Pile evaluation must use T2048 and batch16')
+    if config.exp_class in ('BamMHAMediumPropC256TruePile', 'MuddLlama2MediumPropTruePile') and config.bam_splash_attention:
+      raise ValueError('Historical MHA/Mudd require the C256 attention implementation')
     print('PILE_BUCKET_CONFIG_OK ' + config.exp_class, flush=True)
     return
   run(config)

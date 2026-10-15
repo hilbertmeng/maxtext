@@ -36,6 +36,13 @@ config_args=(
   max_target_length=2048 jax_cache_dir=/tmp/pile-bucket-t2048/jax-cache
   log_config=False
 )
+# These historical MHA/Mudd checkpoints used the C256 BF16-logits core.
+# Later base.yml defaults enable Splash; preserve the training implementation.
+case "$exp" in
+  BamMHAMediumPropC256TruePile|MuddLlama2MediumPropTruePile)
+    config_args+=(bam_splash_attention=False)
+    ;;
+esac
 # Exercise the exact shell/CLI/config contract without contacting GCS or a checkpoint.
 if [[ ${PILE_BUCKET_CONFIG_ONLY:-0} == 1 ]]; then
   "$python" "$entrypoint" "${config_args[@]}"

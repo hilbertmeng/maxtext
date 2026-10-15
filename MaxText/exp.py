@@ -12891,6 +12891,8 @@ class BamMediumPropMShiftReadG050PostResidualWriteControlsTruePile(BamMediumProp
 class BamMediumPropMShiftReadG050PostAttentionWriteControlsTruePile(
         BamMediumPropMShiftReadG050PostResidualWriteControlsTruePile):
     """Use post-attention residual only for attention write gate/address controls."""
+    # 共同4k：对单门.5 gap-.008295、倍数1.03816；末五gap-.009666/倍数1.04219，较3k仅缓慢收窄，继续5k。
+    # 对双改4k gap-.003161、倍数1.01421；末五gap-.003253/倍数1.01384。共享写norm两路均已开训，独立成组报。
     # 继续训练：3k对原单门.5 gap-.010694，MHA参考收益倍数1.04278；末五均值gap-.012328、倍数1.04472。
     # 1k/2k/3k对父路gap-.031872/-.018476/-.010694，倍数1.05452/1.05778/1.04278；领先仍收窄。
     # 始终优于双改：1k/2k/3k gap-.007062/-.004312/-.004530，倍数1.01159/1.01291/1.01768。

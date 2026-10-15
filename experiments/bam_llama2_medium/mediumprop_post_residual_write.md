@@ -71,3 +71,7 @@ Operational audit against current mainc5e02ad8: no missing subsequent training/A
 ### Shared-write norm arms: actual startup verified
 
 Both running frozen99485ac2f7c9414f641eaf79ed80c5c34b1fff35, UE5a v5p16 TPU310249(attention norm)/310250(MLP norm), FIRST_STEP and AOTloaded verified. Worker params432104480 each, exactwidths[3802,3761,3802], rank256, T4096/global128, zone-localTruePile4096, CP200/latest2/keep0/TBrotate500, generic/internal/allbam_record_* OFF verified. CPU59 checks pass(4new+3oldpost-residual+47BAM+5writer). Steady20–99(80/80samples) .4845000/.4842625step/s, versushealthOFF attention-onlyparent.4844125 +.018%/-.031%, flat as predicted. Two registered parent/originalsingle gain ratios use MHA; MLP-norm additionally compares its attention-norm sibling, same reference. No initial-loss verdict; first normal pairedreport1k. Allartifacts under local post-residual-write/shared-write.
+
+### Attention-only common4k
+
+Actual4088, committedCP4000; sharedwrite-normchildren286each, reporttheirfirstpairedlossat1k. Parentgap1k/2k/3k/4k -.031872/-.018476/-.010694/-.008295, MHA-reference gain1.05452/1.05778/1.04278/1.03816. Latestfive3200–4000meanparentgap-.009666, gain1.042190 versus3kmean1.044717, slowcontraction. Versusboth-change4k gap-.003161, gain1.014209; lastfive-.00325324/1.0138446. VersusMHA4k-.225652. Continue5k, retainoriginalterminalbet1.025[.995,1.06]. Fullcumulative200–4000 report-common4000.json in post-residual-write/selective.

@@ -12962,8 +12962,8 @@ class BamMediumPropMShiftReadG050MLPReadAllLayersNoReadGatesTruePile(
 class BamMediumPropMShiftReadG050MLPReadAllLayersNoReadGatesStaticZeroTruePile(
         BamMediumPropMShiftReadG050MLPReadAllLayersNoReadGatesTruePile):
     """Ungated all-layer MLP read, with only static addresses zero-initialized."""
-    # 在训3k/CP3000：对原单门.5 gap-.003614、MHA参考倍数1.01446；最近五倍数1.01910，仍小幅领先。
-    # 对旧带门18层最后共同2800 gap-.004930/倍数1.01891；旧路已停，无3k及终局共同对照，继续4k。
+    # 在训4k/CP4000：对原单门.5 gap-.001595、MHA参考倍数1.00734；最近五倍数1.01451，继续收缩。
+    # 去门+零静态比旧版改善，但仍呈早期收益逐渐缩水；继续下一评审点，重点看额外收益能否保住。
     # 静态key[32,8]零初始化可学习，无动态/静态读门；动态投影normal(.006)、读出非零且静态梯度非零。
     # UE5a v5p16 TPU310246，.4629875step/s，健康同OFF对原全18层读+1.19%；432090944参数。
     # MLP[3898,3772,3898]，同层找平、原单门.5-20736参数整数余差；前向净增.631MFLOPs/token(+.0686%)。
@@ -12978,8 +12978,8 @@ class BamMediumPropMShiftReadG050MLPReadAllLayersNoReadGatesStaticZeroTruePile(
 class BamMediumPropMShiftReadG050MLPReadNonWriteLayersNoReadGatesStaticZeroTruePile(
         BamMediumPropMShiftReadG050MLPReadAllLayersNoReadGatesStaticZeroTruePile):
     """Ungated zero-static MLP reads only in the twelve non-writing layers."""
-    # 在训1k/CP1000：对旧带门12层gap-.005289/倍数1.00891，对原单门.5-.014487/1.02478（MHA参考）。
-    # 同步1k比新无门零静态18层落后.002977/倍数.99505，速度快1.71%；先继续2k看追近。
+    # 在训2k/CP2000：对原单门.5 gap-.005626、MHA参考倍数1.01759；对旧带门12层-.001876/1.00580。
+    # 对新18层2k首次略优：gap-.000617/倍数1.00190；此前均落后，未成稳定反超，速度快1.71%，继续3k。
     # 参数432097856，MLP[3898,3676,3898]，原单门.5-13824整数余差；同层找平，六MLP写层无读且保持原宽。
     # .4709125step/s（20–99，80点），对健康同OFF旧带门12层+.46%、新无门零静态18层+1.71%。
     # 前向净增.420864MFLOPs/token(+.04575%)，reader每选中层.2592W_Q；全部健康统计OFF。
@@ -12988,6 +12988,7 @@ class BamMediumPropMShiftReadG050MLPReadNonWriteLayersNoReadGatesStaticZeroTrueP
     # code_commit: ae19f92；codex/mediumprop-mlp-bam-read，/data0/xd/mediumprop-mlp-bam-read。
     # 首次抢占CP731，原ae19f92/13500计划从732恢复，CP800/1000提交；P1。
     # 旧带门对照停于约2800，历史终局new/旧版1.05下注不可直接验收；后续终局看原单门.5及新12/18互比。
+    # 第二次抢占CP1956，从1957按原ae19f92/13500计划恢复，CP2000提交；P2。
     model_name = 'BamMediumPropMShiftReadG050MLPReadNonWriteLayersNoReadGatesStaticZeroTruePile'
     bam_mlp_read_location = 'nonwrite'
     mlp_dim_by_block = [3898, 3676, 3898]

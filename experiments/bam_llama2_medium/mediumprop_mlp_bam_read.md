@@ -137,3 +137,13 @@ New12at200/400/600/800/1000 oldgated12gaps-.0041004/-.0100522/-.0042524/-.005496
 Betobservabilitycorrection: preregisteredterminalnew/oldgated1.05 cannotbeverifiedat13500 becauseoldgated12/all18stopped~2800. Preservehistoricalbets, nevercallcommon2800ratios terminalverification. Subsequentterminalcomparisonsusecompletedoriginalsingle.5 andactivezero-static12/18 peers. No retroactive numerical pre-run bet.
 
 New12firstpreemption2026-10-15T12:32:05Z, firstREADY12:01:02–12:32:05(31m03s), CP731committed. Resumed732 sameae19f92/AOT/13500schedule, CP800then1000committed. First31minleasepartofsameUE5acorrelatedeventasoriginal-init/sharedwriteA, notanindependentzonefailuresample.
+
+## All18 4k / new12 preempted atCP1956
+
+All18CP4000committed actual4053. Originalsingle3k/3.2k/3.4k/3.6k/3.8k/4k gaps-.0036138/-.002998/-.003742/-.0047234/-.0036068/-.0015946, MHA-reference1.014456/1.012496/1.015716/1.020766/1.016233/1.007336. Last5gap-.00333296/R1.014509 versus3kR1.019104, extracapabilitystillcontracts. Improvementoveroldgateddoesnotyetalterearly-gain/late-contractionpattern. Continue nextreview, notcalledbreakthrough.
+
+New12secondpreemptionCP1956 before2000window, oldruntime/scheduleautomaticallyrecovering; lastcomplete1800. Originalsingle1k/1.2k/1.4k/1.6k/1.8kgaps-.0144866/-.0135726/-.0140698/-.008169/-.0042818, ratios1.024783/1.028185/1.032182/1.021598/1.012293. New18gaps+.002977/+.0016138/+.0013912/+.0017408/+.0040584, ratios.995055/.996751/.996927/.995515/.988621. Doesnotyetcatch18; continue2kafterrecovery. LastMHAgap-.3525884, oldgated12gap-.0026612/R1.007605 at1800. No invented2000window. Fullsource report-common4000-preemption1326.json.
+
+## New12 common2k after second recovery
+
+CP2000committed actual2043, all18actual4422/CP4400(lastnormalreport4k). At1k/1.2k/1.4k/1.6k/1.8k/2k originalsingle gaps-.0144866/-.0135726/-.0140698/-.008169/-.0042818/-.0056258, MHA-reference1.024783/1.028185/1.032182/1.021598/1.012293/1.017595. New18gaps+.002977/+.0016138/+.0013912/+.0017408/+.0040584/-.0006168, ratios.995055/.996751/.996927/.995515/.988621/1.001899. Firstsinglewindowturnsahead2k, notstableovertake; ifnearparitypersists12's1.71%timingedgecouldmatter. Oldgated12at2k gap-.0018758/R1.005799. Continue3k. Source report-common2000-nonwrite-static-zero.json. Actualresume1957 fromCP1956 verified; full13500schedule/AOTretained. Newlydeployedwait-stepcached2kwindowinthesameSSHsnapshot, noTBrepairneededforthiswindow.

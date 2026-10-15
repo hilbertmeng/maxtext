@@ -109,6 +109,14 @@ def forward(model, params, batch, rng, bucket_size):
   return summarize_xent(xent, batch['targets'], batch['targets_segmentation'], bucket_size)
 
 
+def restore_parameters(model, config, rng, mesh):
+  # The helper manages its own logical-axis scopes. An outer scope makes Flax
+  # constrain abstract ShapeDtypeStruct leaves while unboxing outside JIT.
+  import max_utils
+  state, _ = max_utils.setup_decode_state(model, config, rng, mesh, None)
+  return state
+
+
 def run(config):
   from flax.linen import partitioning as nn_partitioning
   import jax
@@ -206,8 +214,7 @@ def run(config):
   rng = jax.random.PRNGKey(config.init_weights_seed)
   mesh = Mesh(max_utils.create_device_mesh(config), config.mesh_axes)
   model = Transformer(config, mesh, quant=quantizations.configure_quantization(config))
-  with mesh, nn_partitioning.axis_rules(config.logical_axis_rules):
-    state, _ = max_utils.setup_decode_state(model, config, rng, mesh, None)
+  state = restore_parameters(model, config, rng, mesh)
   param_count = int(max_utils.calculate_num_params_from_pytree(state.params))
   expected_params = {
       'BamMHAMediumPropC256T2048Matched': 432121200,

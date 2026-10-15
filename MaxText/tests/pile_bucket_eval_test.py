@@ -29,6 +29,33 @@ class BucketEvalTest(unittest.TestCase):
     result = summarize_xent(jnp.full((1,256),jnp.nan),jnp.ones((1,256)),jnp.ones((1,256)))
     self.assertEqual(int(result['nonfinite_tokens']),256)
 
+  def test_parameter_only_restore_owns_axis_context(self):
+    from flax import linen as nn
+    from jax.sharding import Mesh
+    from types import SimpleNamespace
+    from unittest import mock
+    import checkpointing
+    from pile_bucket_eval import restore_parameters
+    class TinyModel(nn.Module):
+      @nn.compact
+      def __call__(self, ids, positions, segments, targets):
+        self.param('kernel', nn.with_logical_partitioning(nn.initializers.ones,
+                   ('embed','mlp')), (2,3))
+        return ids
+    cfg=SimpleNamespace(micro_batch_size_to_train_on=1,max_target_length=4,
+        logical_axis_rules=(('embed','data'),('mlp',None)),optimizer_memory_host_offload=False,
+        load_parameters_path='gs://unused/checkpoints/13500/items')
+    mesh=Mesh(np.asarray(jax.devices()[:1]),('data',))
+    def restored(path,abstract):
+      self.assertEqual(path,cfg.load_parameters_path)
+      return jax.tree_util.tree_map(lambda a:jax.device_put(np.zeros(a.shape,a.dtype),a.sharding),abstract)
+    with mock.patch.object(checkpointing,'load_params_from_path',side_effect=restored) as load:
+      state=restore_parameters(TinyModel(),cfg,jax.random.PRNGKey(0),mesh)
+    self.assertEqual(load.call_count,1)
+    self.assertEqual(state.params['params']['kernel'].shape,(2,3))
+    np.testing.assert_array_equal(state.params['params']['kernel'],0)
+    self.assertEqual(state.opt_state,{})
+
   def test_actual_shell_configuration_contract_for_all_models(self):
     import os,subprocess,sys
     root=Path(__file__).resolve().parents[2]

@@ -12900,18 +12900,13 @@ class BamMediumPropSharedR256GeneralReadAddressSharedGatesTruePile(BamMediumProp
 class BamMediumPropMShiftReadG050MLPReadWriteLayersTruePile(
         BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile):
     """Eight full-K BAM vectors replace W1 channels, only in six MLP-write layers."""
-    # 共同1k：对原单门.5的早期领先持续收窄；继续训练，尚不支持乐观终局下注。
-    # 200/400/600/800/1000 gap -0.139044/-0.044189/-0.014623/-0.006174/-0.003187。
-    # MHA参考收益倍数 1.09874/1.02975/1.01511/1.00850/1.00545；CP1000已提交。
-    # 已开训：runtime3afcaa9，UE5a v5p16 TPU310246；FIRST_STEP/AOT/实际432112064参数与配置核验。
-    # 20–99步0.4780875step/s，对健康关闭计时对照-1.25%。
-    # 独立实现 codex/mediumprop-mlp-bam-read，/data0/xd/mediumprop-mlp-bam-read。
-    # 从attention写后M读取8x75通道，跳过W1，保留Wg/W2；动静地址先合并，单次读M。
-    # 本层找平：MLP总宽+91、普通W1宽-509；总参数432112064（父路+384）。
-    # 前向净增224832 FLOPs/token，主导计算约+.02444%；健康指标全部关闭。
-    # 跑前下注：终局相对原单门.5收益倍数1.08（.98–1.18），MHA为共同参考。
-    # 预计吞吐比健康关闭的同形控制低2%。
-    # 计时对照：BamMediumPropMShiftReadG050PostResidualWriteControlsTruePile，.4841625step/s；仅作计时比较。
+    # 用户热替换停于2008，CP2008提交、TB SYNC_OK；TPU310246保留交给无读门all18，不能按旧RUN删除资源。
+    # 对原单门.5：200/1000/1800 gap-.139044/-.003187/-.000194，MHA参考倍数1.09874/1.00545/1.00056。
+    # 初期领先收窄至接近零；2k完整窗口未成熟，未训练终局，跑前下注1.08[.98,1.18]未获终局检验。
+    # UE5a v5p16 .4780875step/s，对健康OFF计时对照-1.25%；P0，READY09:35:09–10:48:22UTC共1h13m13s。
+    # 参数432112064（父路+384），MLP[3802,3767,3802]，健康全OFF；计时仅用同健康双改控制.4841625。
+    # 从attention写后M读8x75通道，无W1、有Wg/W2；动静地址合并单次读。本层找平，前向净增.225MFLOPs/token。
+    # code_commit: 3afcaa9；实现codex/mediumprop-mlp-bam-read，/data0/xd/mediumprop-mlp-bam-read。
     model_name = 'BamMediumPropMShiftReadG050MLPReadWriteLayersTruePile'
     bam_mlp_read_location = 'write'
     bam_mlp_read_rank = 256
@@ -12922,6 +12917,7 @@ class BamMediumPropMShiftReadG050MLPReadWriteLayersTruePile(
 class BamMediumPropMShiftReadG050MLPReadNonWriteLayersTruePile(
         BamMediumPropMShiftReadG050MLPReadWriteLayersTruePile):
     """BAM value channels only in the twelve layers without an MLP write."""
+    # 共同2k：对单门.5 gap-.003750、MHA参考倍数1.01173（1k1.01574）；收益已缩至约1%，继续3k。
     # 共同1k：对原单门.5的早期领先持续收窄；继续训练，尚不支持乐观终局下注。
     # 200/400/600/800/1000 gap -0.073807/-0.044727/-0.027268/-0.014963/-0.009198。
     # MHA参考收益倍数 1.05241/1.03011/1.02817/1.02060/1.01574；CP1000已提交。
@@ -12937,6 +12933,7 @@ class BamMediumPropMShiftReadG050MLPReadNonWriteLayersTruePile(
 class BamMediumPropMShiftReadG050MLPReadAllLayersTruePile(
         BamMediumPropMShiftReadG050MLPReadWriteLayersTruePile):
     """BAM value channels in all eighteen MLPs, individually budget-matched."""
+    # 共同2k：对单门.5 gap-.003344、MHA参考倍数1.01046（1k1.02141）；首次微弱落后nonwrite12(.000406)，继续3k。
     # 共同1k：对原单门.5的早期领先持续收窄；继续训练，尚不支持乐观终局下注。
     # 200/400/600/800/1000 gap -0.156299/-0.067108/-0.034160/-0.018081/-0.012516。
     # MHA参考收益倍数 1.11099/1.04518/1.03529/1.02490/1.02141；CP1000已提交。
@@ -12952,11 +12949,12 @@ class BamMediumPropMShiftReadG050MLPReadAllLayersTruePile(
 class BamMediumPropMShiftReadG050MLPReadAllLayersNoReadGatesTruePile(
         BamMediumPropMShiftReadG050MLPReadAllLayersTruePile):
     """All-layer MLP reads with ungated dynamic/static addresses, retaining Wg."""
-    # Hot-replace write6 after gates pass and AOT is ready; direct parent is gated all18.
-    # Keep address RMS/key_scale.1, raw static keys, post-attention M and native MLP Wg/W2.
-    # Remove both read-gate projections/biases. Dynamic component initializes20x parent, static unchanged.
-    # Refund in each layer: total widths[3898,3772,3898], expected432090944params.
-    # Pre-run terminal new/all18 gain1.03 [.97,1.10] using MHA; expected speed+1% [0,3%].
+    # 用户修正静态初始化后，被零静态新RUN替换于228步，CP228提交/TB SYNC_OK；无效果结论。
+    # 临时版本仍是静态normal(1/sqrt32)；动态/静态读门已删除，保留MLP Wg/W2。
+    # 实际参数432090944、MLP[3898,3772,3898]；健康全OFF，UE5a v5p16 TPU310246保留再交新RUN。
+    # 20–99步.4630750step/s，对同健康all18父路+1.20%；非正式效果对照。
+    # 原始下注相对all18终局收益倍数1.03[.97,1.10]因用户初始化修正未获检验。
+    # code_commit: f6137cc；codex/mediumprop-mlp-bam-read，/data0/xd/mediumprop-mlp-bam-read。
     model_name = 'BamMediumPropMShiftReadG050MLPReadAllLayersNoReadGatesTruePile'
     bam_mlp_read_gates = False
     mlp_dim_by_block = [3898, 3772, 3898]
@@ -12968,10 +12966,12 @@ class BamMediumPropMShiftReadG050MLPReadAllLayersNoReadGatesTruePile(
 class BamMediumPropMShiftReadG050MLPReadAllLayersNoReadGatesStaticZeroTruePile(
         BamMediumPropMShiftReadG050MLPReadAllLayersNoReadGatesTruePile):
     """Ungated all-layer MLP read, with only static addresses zero-initialized."""
-    # User initialization correction; start fresh, replace temporary normal-static no-gate RUN.
-    # Dynamic down/up remain normal(.006); pre-RMS bias0, RMS epsilon1e-4/key_scale.1.
-    # Static key[32,8] starts exactlyzero, can learn; total readout is not initiallyzero.
-    # Params432090944 and widths[3898,3772,3898] unchanged. Direct parent gatedall18 retained.
-    # Pre-run new/all18 gain1.05 [.98,1.12], MHAreference; expected speed+1% [0,3%].
+    # 已开训：静态key[32,8]全零初始化、无两类读门，动态投影仍normal(.006)，读出非零且静态梯度非零。
+    # UE5a v5p16 TPU310246热接管；FIRST_STEP/AOT/实际参数432090944和worker配置已核验，健康全OFF。
+    # MLP[3898,3772,3898]，同层找平、原单门.5-20736参数整数余差；静态零初始化不减少可学习参数。
+    # 20–99步.4629875step/s，相对健康同OFF的全18层门控父路+1.19%；符合约+1%预期。
+    # 跑前终局new/all18收益倍数1.05[.98,1.12]，MHA参考；首个正式效果报告1k。
+    # 新鲜参数/数据从0训；原write6停CP2008，中间normal-static临时版停CP228，均保留TB/CP而不删除复用TPU。
+    # code_commit: c560cd6；codex/mediumprop-mlp-bam-read，/data0/xd/mediumprop-mlp-bam-read。
     model_name = 'BamMediumPropMShiftReadG050MLPReadAllLayersNoReadGatesStaticZeroTruePile'
     bam_mlp_read_static_key_init = 'zero'

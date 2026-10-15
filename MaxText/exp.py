@@ -12855,6 +12855,12 @@ class BamXLPropSharedR400GeneralReadMShiftReadG050TruePile(BamXLPropK96EmbedVOnl
 
 class BamMediumPropMShiftReadG050FullQKNormTruePile(BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile):
     """Full-head RMS QKNorm before RoPE; matched four-arm comparison."""
+    # 结论：QKNorm改善BAM自身loss，但对MHA帮助更大，BAM相对MHA的优势反而缩小。
+    # 二阶收益倍数从初期低位回升，后期约.91；末窗口13400为.916021，未回到1。
+    # 完成13500；末五12600–13400对单门.5 gap-.010904，对QKNorm MHA/原MHA -.141809/-.166556。
+    # 以原MHA为参考，对原单门.5收益倍数末五1.070066；不能把这项自身提升误作二阶收益。
+    # UE5a v5p16 .474300 step/s，432114380参数；健康OFF/父路ON，测速不可作纯架构提速。
+    # code_commit: 03c8ade；ledger only：codex/mediumprop-qknorm，/data0/xd/mediumprop-qknorm；详见 exit_followup_20261015.md。
     model_name = 'BamMediumPropMShiftReadG050FullQKNormTruePile'
     bam_qk_norm_after_concat = True
     compare_runs = ['BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile', 'BamMHAMediumPropC256QKNormTruePile', 'BamMHAMediumPropC256TruePile']
@@ -12877,6 +12883,10 @@ class BamMediumPropMShiftReadG050FullQKNormTruePile(BamMediumPropSharedR256Gener
 
 class BamMHAMediumPropC256QKNormTruePile(BamMHAMediumPropC256TruePile):
     """Full-head RMS QKNorm before RoPE; matched four-arm comparison."""
+    # 结论：MHA的QKNorm有持续终局收益，且改善量大于同组BAM。
+    # 完成13500；末五12600–13400对原MHA gap-.024747，收益占原单门BAM优势的.158984。
+    # UE5a v5p16 .699175 step/s，432123900参数；健康OFF/父路ON，测速不可作纯架构比较。
+    # code_commit: 03c8ade；ledger only：codex/mediumprop-qknorm，/data0/xd/mediumprop-qknorm；详见 exit_followup_20261015.md。
     model_name = 'BamMHAMediumPropC256QKNormTruePile'
     bam_qk_norm_after_concat = False
     compare_runs = ['BamMHAMediumPropC256TruePile']
@@ -12899,8 +12909,11 @@ class BamMHAMediumPropC256QKNormTruePile(BamMHAMediumPropC256TruePile):
 
 class Llama2XLPropTruePileMHAQKNorm(Llama2XLPropTruePileMHA):
     """Full96 Q/K RMSNorm before RoPE on the unchanged XLProp MHA backbone."""
-    # User stopped26843/CP26843; UE5a P0, resources absent, TB SYNC_OK.
-    # Through26500 last5 gap vsMHA-.0182204, QKNorm/single gainshare .144057.
+    # 结论：XL MHA 的 QKNorm 收益后期趋于平台；相对单门 BAM 收益份额弱于已观测的 Medium 终局。
+    # 至26500末五对MHA gap -.0182204；QKNorm收益/XL单门收益为.144057，非BAM QKNorm二阶收益倍数。
+    # 用户停于26843，CP提交、资源释放、TB同步；未跑满50000。
+    # UE5a v5p32，P0，.528400 step/s；健康OFF/父路ON，速度不可作纯架构比较；1432404096参数。
+    # code_commit: 7aa738f；ledger only：codex/mediumprop-qknorm，/data0/xd/mediumprop-qknorm。
     model_name = 'Llama2XLPropTruePileMHAQKNorm'
     qk_norm = True
     checkpoint_period = 250

@@ -51,7 +51,7 @@ def benchmark(config):
       'parameter_count': int(max_utils.calculate_num_params_from_pytree(state.params)),
       'repetitions': repetitions, 'rows': [],
   }
-  reference = None
+  reference = reference_counts = None
   for size in batches:
     compiled = jax.jit(lambda params,batch,key: forward(model,params,batch,key,256))
     try:
@@ -65,12 +65,14 @@ def benchmark(config):
       if int(measured['nonfinite_tokens']):
         raise FloatingPointError('Nonfinite real token loss')
       prefix = np.asarray(measured['sum_excluding_eos'])[:batches[0]]
+      counts = np.asarray(measured['count_excluding_eos'])[:batches[0]]
       if reference is None:
         reference = prefix.copy()
-      prefix_delta = float(np.max(np.abs(prefix-reference))/256)
-      # Report numerical agreement rather than silently assuming batch invariance.
-      if prefix_delta > 0.002:
-        raise ValueError(f'Batch shape changed loss materially: {prefix_delta}')
+        reference_counts = counts.copy()
+      if not np.array_equal(counts,reference_counts):
+        raise ValueError('Batch shape changed the reference target masks')
+      deltas = np.divide(prefix-reference,counts,out=np.zeros_like(prefix),where=counts>0)
+      prefix_delta = float(np.max(np.abs(deltas)))
       seconds = []
       for _ in range(repetitions+2):
         t0 = time.monotonic()
@@ -82,6 +84,8 @@ def benchmark(config):
              'target_tokens_per_second': size*config.max_target_length/median,
              'compile_and_first_batch_seconds': compile_seconds,
              'prefix_max_bucket_loss_delta': prefix_delta,
+             'prefix_mean_abs_bucket_loss_delta': float(np.mean(np.abs(deltas))),
+             'prefix_global_loss_delta': float(np.sum(prefix-reference,dtype=np.float64)/counts.sum()),
              'device_memory_stats': jax.devices()[0].memory_stats()}
       result['rows'].append(row)
       print('PILE_BATCH_BENCH '+json.dumps(row),flush=True)

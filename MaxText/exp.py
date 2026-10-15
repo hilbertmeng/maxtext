@@ -12777,3 +12777,11 @@ class BamPythiaMediumPropT2048MShiftReadG050ReadAttentionSharedR256SerialMLP(
     pythia_parallel_residual = False
     compare_runs = ['BamPythiaMediumPropT2048MShiftReadG050ReadAttentionSharedR256',
                     'PythiaMediumPropT2048SerialMLP', 'MuddPythiaMediumPropT2048']
+
+
+class MuddPythiaMediumPropT2048SerialMLP(MuddPythiaMediumPropT2048):
+    """Serial MLP control; unchanged full-history routing and extra router budget."""
+    model_name = 'MuddPythiaMediumPropT2048SerialMLP'
+    pythia_parallel_residual = False
+    compare_runs = ['MuddPythiaMediumPropT2048', 'PythiaMediumPropT2048SerialMLP',
+                    'BamPythiaMediumPropT2048MShiftReadG050ReadAttentionSharedR256SerialMLP']

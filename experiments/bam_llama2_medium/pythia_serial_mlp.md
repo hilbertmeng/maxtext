@@ -44,3 +44,18 @@ relative-gain crossover occurred only around5.2k, do not stop from early orderin
 Focused tests: same parameter values at initialization, independent HF NeoX serial
 logits/loss/all gradients, pure/fusion circuit parity, full parameter shapes,
 BAM write gradients, scan/casuality/checkpoint. Parent regression and TB rotation gate.
+
+
+User added Mudd serial control on2026-10-15. RUN MuddPythiaMediumPropT2048SerialMLP,
+TPU xd-v5p-16-310229-maxtext UE5a. Same existing family branch/worktree.
+Only pythia_parallel_residual=False; full-history routing, scanFalse, MLP4800,
+dynamic_mlp_dimTrue (router extra budget), total434356347 remain identical to parallel Mudd.
+T2048/globalbatch256/13500steps, noQKNorm, healthOFF, CP200/latest2/TBrotate500.
+Infrastructure audit: no changes in training/AOT/optimizer/checkpoint/summary files between
+serial parent d434e69 and main d4dc7617. Serial Mudd path was already gradient-tested before
+MHA/BAM launch; map formal new class and rerun full-size accounting/gradients/writers.
+Main comparison: Mudd own parallel parent; BAM versus Mudd under serial MHA reference;
+second-order BAM/Mudd advantage ratio across serial vs parallel families.
+Pre-run terminal latter bet1.05, range.95–1.15; expect Mudd also benefits but less than BAM.
+Timing prior serial/parallel .95–1.00. Preserve warmup lineage as inherited config;
+no new schedule or dimension changes. Loss analysis uses actual same-step windows, not wall time.

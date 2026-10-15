@@ -8,6 +8,7 @@ from pythia_test import PythiaTest
 class PythiaSerialTest(PythiaFamilyTest):
   def config(self, **kwargs):
     names = {
+        'MuddPythiaMediumPropT2048': 'MuddPythiaMediumPropT2048SerialMLP',
         'PythiaMediumPropT2048': 'PythiaMediumPropT2048SerialMLP',
         'BamPythiaMediumPropT2048MShiftReadG050ReadAttentionSharedR256':
             'BamPythiaMediumPropT2048MShiftReadG050ReadAttentionSharedR256SerialMLP'}

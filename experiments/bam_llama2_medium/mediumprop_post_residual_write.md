@@ -25,3 +25,18 @@ User removed `BamMediumPropMShiftReadG050ReadAttentionSharedR256TruePile` from t
 ### Common2k, original parent only
 
 Progress2180/CP2000 committed. Own-parent gaps1/1.2/1.4/1.6/1.8/2k -.024810/-.021286/-.022045/-.015110/-.011158/-.014164. MHA-reference gain ratios1.042444/1.044202/1.050423/1.039949/1.032034/1.044299. Last5 mean gap-.0167526, ratio1.0421815. Absolute benefit contracts but normalized benefit holds~1.04 over1--2k. Retain terminal1.02 [.99,1.05]. Original parent and MHA remain the only registered baselines. Next3k.
+
+
+## 2026-10-15 补充两路：只改attention / 只改MLP
+
+用户授权与现有双改路同组比较，所有路保持原单门read.5作为直接父路、MHA作收益倍数参考，不重新引入读/attention写共享R256对照。
+
+新配置 `BamMediumPropMShiftReadG050PostAttentionWriteControlsTruePile` 与 `BamMediumPropMShiftReadG050PostMLPWriteControlsTruePile`。把既有双改开关拆为两个独立opt-in开关；旧总开关仍保留原语义。仅改attention时，MLP门/地址仍取加完attention后的prenorm残差、未看到MLP本次输出；仅改MLP时，attention门/地址仍取attention输入，MLP控制取加完本次MLP输出的残差。复用各自原norm参数；写内容不变。
+
+两路都432111680参数、MLP[3802,3676,3802]，新增0 W_Q无需偿还。原配方T4096/global128、13500schedule、checkpoint200/latest2/TB500、所有健康统计关闭。运行源码仍在 `/data0/xd/mediumprop-m-shift` / `codex/mediumprop-m-shift`。
+
+下注：相对原单门.5、共同MHA参考，attention单改终局收益倍数1.025（.995–1.06），MLP单改1.005（.98–1.035）。主要先验是attention新聚合上下文更值得用来控制写入，MLP点式变换提供额外收益有限；如MLP单改显著更好则推翻。现有双改3k倍数1.0247，近期五均1.0317且收窄；不把它当终局证据。两新路预期速度与双改相当或略快，MLP单改少18次attention控制norm，attention单改少6次MLP控制norm，具体以相同20–99窗口实测。
+
+基础设施重新对照主分支c5e02ad8：train/train_compile/max_utils/maxtext_utils/optimizers/checkpointing的差别只剩本工作树已有更多shift健康导出，sow已关；record_training_health_metrics计算门控、TB500/rotating writer/begin_step和checkpoint修复已带上。保留历史模型谱系，无需整体合并主干。
+
+CPU gate扩展为旧双改+两新路：全规模参数树与父路一致、实际门/地址输入来源拦截验证、单层向量输出不变/无MLP写层的MLP单改M完全不变、scan有限前向和各写投影非零梯度、因果性、实际健康输出为空、summary writer。同fingerprint文件锁避免两并发启动脚本重复跑CPU检查。两路AOT共享预留FLEX的worker锁串行编译；UE5a新v5p-16预排队与CPU/AOT并行。

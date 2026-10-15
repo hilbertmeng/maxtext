@@ -15,10 +15,13 @@ from layers.models import Transformer
 
 PARENT = 'BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile'
 EXP = 'BamMediumPropMShiftReadG050PostResidualWriteControlsTruePile'
+ATTN = 'BamMediumPropMShiftReadG050PostAttentionWriteControlsTruePile'
+MLP = 'BamMediumPropMShiftReadG050PostMLPWriteControlsTruePile'
+ARMS = (EXP, ATTN, MLP)
 
 class PostResidualWriteTest(MLPWriteTest, unittest.TestCase):
-  def tiny(self, enabled=True):
-    c=self.config(EXP if enabled else PARENT,bam_splash_attention=False,
+  def tiny(self, enabled=True, arm=EXP):
+    c=self.config(arm if enabled else PARENT,bam_splash_attention=False,
         base_emb_dim=150,base_num_query_heads=2,base_num_kv_heads=2,
         base_num_decoder_layers=3,base_mlp_dim=32,vocab_size=32,
         dtype='float32',weight_dtype='float32')
@@ -31,7 +34,7 @@ class PostResidualWriteTest(MLPWriteTest, unittest.TestCase):
 
   def test_full_size_budget_and_health_off(self):
     trees=[]
-    for name in (PARENT,EXP):
+    for name in (PARENT,)+ARMS:
       c=self.config(name)
       mesh=jax.sharding.Mesh(max_utils.create_device_mesh(c),c.mesh_axes)
       args,kw,sharding,model=train_compile.get_shaped_inputs(mesh,c)
@@ -39,18 +42,21 @@ class PostResidualWriteTest(MLPWriteTest, unittest.TestCase):
       trees.append({p:v.shape for p,v in flat.items()})
       self.assertEqual(sum(int(np.prod(v.shape)) for v in flat.values()),432111680)
       self.assertEqual(c.mlp_dim_by_block,[3802,3676,3802])
-      if name==EXP:
+      if name in ARMS:
         self.assertFalse(c.record_training_health_metrics)
         self.assertFalse(c.record_internal_nn_metrics)
         self.assertTrue(all(not v for k,v in c.get_keys().items() if k.startswith('bam_record_')))
         with mesh,nn.partitioning.axis_rules(c.logical_axis_rules):
           metrics=jax.eval_shape(functools.partial(train.train_step,model,c,sharding),*args,**kw)[1]
         self.assertFalse(any('grad_norm' in k or k.startswith('bam/') or k.startswith('raw_grads/') for k in metrics['scalar']))
-    self.assertEqual(trees[0],trees[1])
+    for tree in trees[1:]:self.assertEqual(trees[0],tree)
     print('POST_RESIDUAL_FULL_BUDGET_HEALTH_OK',432111680,flush=True)
 
   def test_controls_use_updated_residual_and_preserve_contents(self):
-    c=self.tiny();mesh=jax.sharding.Mesh(np.array(jax.devices()[:1]).reshape((1,)*len(c.mesh_axes)),c.mesh_axes)
+    for arm in ARMS:
+      with self.subTest(arm=arm):self.check_controls(arm)
+  def check_controls(self,arm):
+    c=self.tiny(arm=arm);mesh=jax.sharding.Mesh(np.array(jax.devices()[:1]).reshape((1,)*len(c.mesh_axes)),c.mesh_axes)
     x=jax.random.normal(jax.random.key(10),(1,4,150))
     m=jax.random.normal(jax.random.key(11),(1,4,75,32))
     tok=jnp.array([[1,2,3,4]],jnp.int32);pos=jnp.arange(4)[None];seg=jnp.ones_like(tok)
@@ -77,18 +83,33 @@ class PostResidualWriteTest(MLPWriteTest, unittest.TestCase):
         oldout,oldm=old.apply(original,*call,M_in=m,is_global=True)
         np.testing.assert_allclose(out,oldout,rtol=2e-6,atol=2e-6)
         an=tape['pre_self_attention_layer_norm'];fn=tape['post_self_attention_layer_norm']
-        np.testing.assert_allclose(an[1][0],x+tape['self_attention'][0][1][0],rtol=2e-6,atol=2e-6)
-        np.testing.assert_allclose(tape['W_gw'][0][0],an[1][1],rtol=2e-6,atol=2e-6)
-        np.testing.assert_allclose(tape['P_loc_down'][0][0],an[1][1],rtol=2e-6,atol=2e-6)
+        attention_post = arm in (EXP,ATTN)
+        mlp_post = arm in (EXP,MLP)
+        self.assertEqual(len(an),2 if attention_post else 1)
+        if attention_post:
+          np.testing.assert_allclose(an[1][0],x+tape['self_attention'][0][1][0],rtol=2e-6,atol=2e-6)
+        context=an[1 if attention_post else 0][1]
+        np.testing.assert_allclose(tape['W_gw'][0][0],context,rtol=2e-6,atol=2e-6)
+        np.testing.assert_allclose(tape['P_loc_down'][0][0],context,rtol=2e-6,atol=2e-6)
         if layer==1:
-          np.testing.assert_allclose(fn[1][0],fn[0][0]+tape['mlp'][0][1],rtol=2e-6,atol=2e-6)
-          np.testing.assert_allclose(tape['mlp_write_gate'][0][0],fn[1][1],rtol=2e-6,atol=2e-6)
-          np.testing.assert_allclose(tape['mlp_address_down'][0][0],fn[1][1],rtol=2e-6,atol=2e-6)
-        self.assertGreater(float(jnp.linalg.norm(mout-oldm)),1e-5)
+          self.assertEqual(len(fn),2 if mlp_post else 1)
+          if mlp_post:
+            np.testing.assert_allclose(fn[1][0],fn[0][0]+tape['mlp'][0][1],rtol=2e-6,atol=2e-6)
+          context=fn[1 if mlp_post else 0][1]
+          np.testing.assert_allclose(tape['mlp_write_gate'][0][0],context,rtol=2e-6,atol=2e-6)
+          np.testing.assert_allclose(tape['mlp_address_down'][0][0],context,rtol=2e-6,atol=2e-6)
+        if attention_post or (layer==1 and mlp_post):
+          self.assertGreater(float(jnp.linalg.norm(mout-oldm)),1e-5)
+        else:
+          np.testing.assert_array_equal(mout,oldm)
     print('POST_RESIDUAL_CONTROLS_INIT_CONTENT_OK',flush=True)
 
   def test_scan_gradients_and_causality(self):
-    c=self.tiny();mesh=jax.sharding.Mesh(np.array(jax.devices()[:1]).reshape((1,)*len(c.mesh_axes)),c.mesh_axes)
+    for arm in ARMS:
+      with self.subTest(arm=arm):self.check_gradients(arm)
+
+  def check_gradients(self,arm):
+    c=self.tiny(arm=arm);mesh=jax.sharding.Mesh(np.array(jax.devices()[:1]).reshape((1,)*len(c.mesh_axes)),c.mesh_axes)
     model=Transformer(c,mesh,quant=None)
     tok=jnp.array([[1,2,3,4]],jnp.int32);pos=jnp.arange(4)[None];seg=jnp.ones_like(tok)
     def call(p,t):return model.apply({'params':p},t,pos,t,seg,seg,enable_dropout=False,rngs={'aqt':jax.random.key(5)})[0]

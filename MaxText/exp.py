@@ -299,6 +299,8 @@ class BamLlama2Medium(Llama2Medium):
     bam_local_full_m_read_bottleneck_dim = None  # Q/K/shared-VO GELU keys on full M
     bam_local_full_m_read_share_down = False
     bam_write_controls_post_residual = False
+    bam_attention_write_controls_post_residual = False
+    bam_mlp_write_controls_post_residual = False
     bam_general_column_read = False
     bam_general_matrix_write = False  # Historical write variants remain worktree-only.
     bam_static_read_gate_init = .99
@@ -12881,3 +12883,27 @@ class BamMediumPropMShiftReadG050PostResidualWriteControlsTruePile(BamMediumProp
     bam_record_row_relay_health_metrics = False
     bam_record_std_tail_write_metrics = False
     compare_runs = ['BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile', 'BamMHAMediumPropC256TruePile']
+
+
+class BamMediumPropMShiftReadG050PostAttentionWriteControlsTruePile(
+        BamMediumPropMShiftReadG050PostResidualWriteControlsTruePile):
+    """Use post-attention residual only for attention write gate/address controls."""
+    model_name = 'BamMediumPropMShiftReadG050PostAttentionWriteControlsTruePile'
+    bam_write_controls_post_residual = False
+    bam_attention_write_controls_post_residual = True
+    bam_mlp_write_controls_post_residual = False
+    compare_runs = ['BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile',
+                    'BamMediumPropMShiftReadG050PostResidualWriteControlsTruePile',
+                    'BamMHAMediumPropC256TruePile']
+
+
+class BamMediumPropMShiftReadG050PostMLPWriteControlsTruePile(
+        BamMediumPropMShiftReadG050PostResidualWriteControlsTruePile):
+    """Use post-MLP residual only for MLP write gate/address controls."""
+    model_name = 'BamMediumPropMShiftReadG050PostMLPWriteControlsTruePile'
+    bam_write_controls_post_residual = False
+    bam_attention_write_controls_post_residual = False
+    bam_mlp_write_controls_post_residual = True
+    compare_runs = ['BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile',
+                    'BamMediumPropMShiftReadG050PostResidualWriteControlsTruePile',
+                    'BamMHAMediumPropC256TruePile']

@@ -198,10 +198,15 @@ class SubDecoderLayer(nn.Module):
       raise ValueError('Static MLP write experiments require their recorded runtime')
     pallas_core = cfg.bam_enabled and bool(getattr(cfg, 'bam_pallas_core', False))
     post_residual_controls = bool(getattr(cfg, 'bam_write_controls_post_residual', False))
-    if post_residual_controls:
+    attention_post_residual_controls = post_residual_controls or bool(
+        getattr(cfg, 'bam_attention_write_controls_post_residual', False))
+    mlp_post_residual_controls = post_residual_controls or bool(
+        getattr(cfg, 'bam_mlp_write_controls_post_residual', False))
+    if attention_post_residual_controls or mlp_post_residual_controls:
         assert cfg.bam_enabled and not pallas_core and not cfg.dense_conn
         assert cfg.shared_experts == 1 and cfg.num_experts == 1
         assert 'full' not in layer_mode and not cfg.bam_mha_control
+    if attention_post_residual_controls:
         attention_lnx, M_out, write_head = attention_layer(
             **call_kwargs, M_in=M_in, is_global=is_global, layer_index=layer_index,
             defer_write=True, defer_write_context=True)
@@ -235,7 +240,7 @@ class SubDecoderLayer(nn.Module):
     )
     intermediate_inputs = inputs + attention_lnx
 
-    if post_residual_controls:
+    if attention_post_residual_controls:
       # Reuse the original attention prenorm parameters at the updated residual.
       write_context = attention_norm(intermediate_inputs)
       if mlp_write:
@@ -323,7 +328,7 @@ class SubDecoderLayer(nn.Module):
 
     if mlp_write:
       mlp_write_context = (mlp_norm(intermediate_inputs + mlp_lnx)
-                           if post_residual_controls else hidden_states)
+                           if mlp_post_residual_controls else hidden_states)
       mlp_logits = linears.DenseGeneral(
           features=(num_query_heads,), axis=-1, use_bias=False,
           kernel_init=initializers.get_init_method(cfg.init_method),

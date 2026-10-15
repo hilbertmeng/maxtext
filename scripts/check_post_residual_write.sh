@@ -11,6 +11,8 @@ PYHASH
 )
 TASK_CACHE=/data0/xd/bam_diagnostics/post-residual-write/cpu/$TASK_FINGERPRINT
 mkdir -p "$TASK_CACHE"
+exec 9>"$TASK_CACHE/check.lock"
+flock 9
 if [[ -f "$TASK_CACHE/ok" ]]; then echo "POST_RESIDUAL_CPU_REUSED fingerprint=$TASK_FINGERPRINT"; exit 0; fi
 export JAX_PLATFORMS=cpu CUDA_VISIBLE_DEVICES= TF_CPP_MIN_LOG_LEVEL=3
 export PYTHONPATH="$TASK_ROOT/MaxText:$TASK_ROOT/MaxText/tests"

@@ -32,9 +32,9 @@ def audit(source, records, names):
     if commit and not re.search(r'\b'+re.escape(commit[:7])+r'\b', text):
       errors.append(f'{name}: registered runtime {commit[:7]} absent from class record')
     if record.get('declared_status') in ('stopped','complete','paused'):
-      if not re.search(r'\b(stopped|finished|completed|paused|complete)\b',text,re.I):
+      if not re.search(r'\b(stopped|finished|completed|paused|complete)\b|(?<!未)(?:完成|完训)\s*\d|停于|停训|暂停|热替换',text,re.I):
         errors.append(f'{name}: terminal/pause annotation missing')
-      if not re.search(r'dloss|gap|\bvs\b|reproduc|instab|unstable|failed|matched|exact',text,re.I):
+      if not re.search(r'dloss|gap|\bvs\b|reproduc|instab|unstable|failed|matched|exact|结论|收益|持平|差距|未建立|无效果',text,re.I):
         errors.append(f'{name}: experimental outcome annotation missing')
   return errors
 

@@ -12707,21 +12707,14 @@ class PythiaArchitecture(Common):
 
 class BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile(BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile):
     """Dynamic previous-token M mix, read carry, initial share0.5."""
-    # Production implementation in refactor-bam; historical runtime/worktree recorded below.
-    # code_commit: 52cf0b3; UE5a v5p-16 xd-v5p-16-310178-maxtext; actual AOT FIRST_STEP+14 and TB health verified.
-    # Mean20-99 0.4583500step/s (-4.26% vs SOTA); extra shift health ON,13500 bound.
-    # @1000 SOTA-.000361 after800+.002678; notyetstablewin; vsread005-.015049; P1,resumed886.
-    # @2000 gap vs SOTA -.007090,last5-.004248; emerging repeated gain; P1.
-    # @3000 SOTA-.008294,last5-.007692;@3600 -.006434,last5-.007875; continue credible gain.
-    # @4000 SOTA-.008594,last5-.008002; sustained benefit,continue.
-    # @5000 SOTA-.008717,last5-.008591; MHA-referenced gain/SOTA1.045728x,last5 1.043695; P2,resumed4775.
-    # @6000 SOTA-.008618,last5-.008964; MHA-ref gain/SOTA1.048738x,last5 1.048949;continue.
-    # @7000 SOTA-.009329,last5-.009368; MHA-ref gain/SOTA1.054842x,last5 1.054316;continue.
-    # @8000 SOTA-.010401,last5-.009983; MHA-ref gain/SOTA1.063401x,last5 1.060595;continue.
-    # @9000 SOTA-.011055,last5-.010434; MHA-ref gain/SOTA1.071381x,last5 1.066339;continue.
-    # @10000 SOTA-.010185,last5-.010447; MHA-ref gain/SOTA1.066904x,last5 1.067665; stable gain,continue.
-    # @12000 SOTA-.010715,last5-.010521; MHA-ref gain1.073456,last5 1.072313; stable,continue13500.
-    # Completed13500,CP13500committed,resourcesabsent/TBSYNCOK;last5SOTA-.011034,gain1.076290;bet-.006underestimated.
+    # 结论：只读混合前一 token 的 M 有稳定终局收益；保留原 M 跨层 carry，作为单门方向基线。
+    # 相对无 M-shift 父路，以 BamMHAMediumPropC256TruePile 为共同参考，收益倍数持续上升：
+    # 2k / 5k / 8k / 12k 为 1.0227 / 1.0457 / 1.0634 / 1.0735；末五窗口均值 1.0763。
+    # 终局 loss 比父路低 .011034（12.6k–13.4k 五窗口均值），优于跑前预期的 .006。
+    # UE5a v5p-16，.458350 step/s，比父路慢 4.26%；历史测速含健康指标，不能视为当前关闭后的速度。
+    # 完成 13,500 步，2 次抢占；最终 checkpoint 已提交，资源已释放，TB 已同步。新增门参数已从 MLP 抵扣。
+    # code_commit: 52cf0b3；历史实现 codex/mediumprop-m-shift，/data0/xd/mediumprop-m-shift。
+    # 已以 0b1f2a4d 合入 refactor-bam；当前默认关闭健康指标，模型参数与历史训练兼容。
     model_name = 'BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile'
     bam_record_m_shift_health = False
     bam_m_shift_mode = 'read'
@@ -12747,3 +12740,154 @@ class BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile(BamMediumPropK75E
     bam_record_row_anchor_metrics = False
     bam_record_row_relay_health_metrics = False
     bam_record_std_tail_write_metrics = False
+
+
+class BamMediumPropSharedR256GeneralReadMShiftReadG005TruePile(BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile):
+    """Dynamic previous-token M mix, read carry, initial share0.05."""
+    # 结论：初始开度 .05 不如单门 .5；到停训时仍未优于无 M-shift 父路。
+    # 3.6k loss 比父路高 .001446，比 ReadG050 高 .007881；此前追赶未形成反超。
+    # UE5a v5p-16，.458375 step/s，比父路慢 4.25%（历史健康指标开启）。
+    # 停于 3,699 步，1 次抢占；checkpoint 已提交，资源已释放，TB 已同步。
+    # code_commit: 52cf0b3；实现位于 codex/mediumprop-m-shift，/data0/xd/mediumprop-m-shift。
+    model_name = 'BamMediumPropSharedR256GeneralReadMShiftReadG005TruePile'
+    bam_record_m_shift_health = True
+    bam_m_shift_mode = 'read'
+    bam_m_shift_init = 0.05
+    mlp_dim_by_block = [3802, 3676, 3802]  # Repay691200 kernel params; residual576 gate biases(+0.000133%).
+    checkpoint_period = 200
+    keep_period = 0
+    max_to_keep = 2
+    tensorboard_gcs_rotate_period = 500
+    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile']
+
+
+
+class BamMediumPropSharedR256GeneralReadMShiftPersistG005TruePile(BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile):
+    """Dynamic previous-token M mix, persist carry, initial share0.05."""
+    # 结论：将混合 M 写入跨层 carry 未带来收益，弱于同开度的只读混合。
+    # 2.8k loss 比无 M-shift 父路高 .007843，比 ReadG005 高 .006785；父路差距近期仍约 .008。
+    # UE5a v5p-16，.4599125 step/s，比父路慢 3.93%（历史健康指标开启）。
+    # 停于 2,957 步，1 次抢占；checkpoint 已提交，资源已释放，TB 已同步。
+    # code_commit: 52cf0b3；实现位于 codex/mediumprop-m-shift，/data0/xd/mediumprop-m-shift。
+    model_name = 'BamMediumPropSharedR256GeneralReadMShiftPersistG005TruePile'
+    bam_record_m_shift_health = True
+    bam_m_shift_mode = 'persist'
+    bam_m_shift_init = 0.05
+    mlp_dim_by_block = [3802, 3676, 3802]  # Repay691200 kernel params; residual576 gate biases(+0.000133%).
+    checkpoint_period = 200
+    keep_period = 0
+    max_to_keep = 2
+    tensorboard_gcs_rotate_period = 500
+    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile', 'BamMediumPropSharedR256GeneralReadMShiftReadG005TruePile']
+
+
+
+class BamMediumPropSharedR256GeneralReadMShiftPersistG050TruePile(BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile):
+    """Dynamic previous-token M mix, persist carry, initial share0.5."""
+    # 结论：初始开度 .5 的持久混合弱于只读混合，没有观察到额外收益。
+    # 3k loss 比无 M-shift 父路高 .007714，比 ReadG050 高 .016008；对父路近期差距约 .009。
+    # UE5a v5p-16，.4586625 step/s，比父路慢 4.19%（历史健康指标开启）。
+    # 停于 3,095 步，无抢占；checkpoint 已提交，原 TPU 热转给 QKVO 三门路，TB 已同步。
+    # code_commit: 52cf0b3；实现位于 codex/mediumprop-m-shift，/data0/xd/mediumprop-m-shift。
+    model_name = 'BamMediumPropSharedR256GeneralReadMShiftPersistG050TruePile'
+    bam_record_m_shift_health = True
+    bam_m_shift_mode = 'persist'
+    bam_m_shift_init = 0.5
+    mlp_dim_by_block = [3802, 3676, 3802]  # Repay691200 kernel params; residual576 gate biases(+0.000133%).
+    checkpoint_period = 200
+    keep_period = 0
+    max_to_keep = 2
+    tensorboard_gcs_rotate_period = 500
+    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile', 'BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile', 'BamMediumPropSharedR256GeneralReadMShiftPersistG005TruePile']
+
+
+
+class BamMediumPropSharedR256GeneralReadMShiftReadQKVoG050TruePile(BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile):
+    """Independent v32 previous-token gates for Q, K and shared VO read-only M views."""
+    # 结论：Q、K、VO 分设三门有明显早期收益，但相对单门 .5 的优势逐步消失，未证明额外上限收益。
+    # 相对父类 ReadG050，以 BamMHAMediumPropC256TruePile 为共同参考，收益倍数：
+    # 1k / 3k / 5k / 7k / 9k 为 1.0326 / 1.0167 / 1.0083 / 1.0006 / .9973。
+    # 9k 已反落后父路 .000443；末五窗口近乎持平（loss gap -.000123，收益倍数 1.0007）。
+    # 同期仍优于无 M-shift 基线（末五 loss gap -.010556），但不能据此认定优于单门。
+    # UE5a v5p-16，.442375 step/s，比单门慢 3.49%；历史自定义健康指标 324 项，单门 1,404 项。
+    # 停于 9,198 步，1 次抢占；checkpoint 已提交，资源已释放，TB 已同步，未跑完整终局。
+    # 跑前额外收益预期 .003、后续外推 .0025 均未得到支持；新增两门参数已从 MLP 抵扣。
+    # code_commit: e4e6e17；实现位于 codex/mediumprop-m-shift，/data0/xd/mediumprop-m-shift。
+    model_name = 'BamMediumPropSharedR256GeneralReadMShiftReadQKVoG050TruePile'
+    bam_m_shift_separate_reads = True
+    mlp_dim_by_block = [3781, 3654, 3781]  # Repay all 3 gate kernels; +1728 biases vs SOTA.
+    compare_runs = ['BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile',
+                    'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile']
+
+
+
+class BamMediumPropSharedR256GeneralReadMShiftReadTwoLag532TruePile(BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile):
+    """Independent sigmoid lag gates (.3/.2); current/lag1/lag2 initial shares .5/.3/.2."""
+    # 结论：增加前二 token 的 M 混合未优于单门 .5；在本次评审阶段没有观察到额外上限收益。
+    # 3k loss 比父类 ReadG050 高 .001066，末五窗口高 .000802；因此没有继续扩大历史窗口。
+    # UE5a v5p-16，.4576625 step/s，比单门慢 .15%（历史健康指标开启）；总参数 432112256。
+    # 停于 3,086 步，无抢占；checkpoint 已提交，资源已释放，TB 已同步；不作完整终局断言。
+    # code_commit: e79a303；实现位于 codex/mediumprop-m-shift，/data0/xd/mediumprop-m-shift。
+    model_name = 'BamMediumPropSharedR256GeneralReadMShiftReadTwoLag532TruePile'
+    bam_m_shift_two_lag = True
+    bam_m_shift_two_lag_init = [.5, .3, .2]
+    mlp_dim_by_block = [3792, 3664, 3792]  # Repay two v32 kernels; +1152 bias params vs SOTA.
+    compare_runs = ['BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile',
+                    'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile']
+
+
+
+class BamMediumPropSharedR256GeneralReadKVShiftG050TruePile(BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile):
+    """Replace M shift with per-head dynamic K/V vector shift, zero-kernel .5/.5 init."""
+    # 结论：纯 KV-shift 有独立正收益，但单门 M-shift 后期追平并反超，纯 KV 终局较弱。
+    # 完成 13,500 步；末五窗口（12.6k–13.4k）loss 比无 shift 基线低 .006075，比单门高 .004959。
+    # 以 BamMHAMediumPropC256TruePile 为共同参考，终局收益倍数：对无 shift 基线 1.0420，对单门 .9681。
+    # UE5a v5p-16，.416775 step/s，比单门慢 9.07%；当前实现速度不用于否定 KV-shift 的效果价值。
+    # 无抢占；最终 checkpoint 已提交，资源已释放。按用户要求跑满，作为叠加路的独立效果对照。
+    # code_commit: e79a303；实现位于 codex/mediumprop-m-shift，/data0/xd/mediumprop-m-shift。
+    model_name = 'BamMediumPropSharedR256GeneralReadKVShiftG050TruePile'
+    bam_m_shift_mode = 'none'
+    bam_kv_shift = True
+    mlp_dim_by_block = [3802, 3676, 3802]  # Two h16 gates repay691200 kernels exactly; no new bias.
+    compare_runs = ['BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile',
+                    'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile']
+
+
+
+class BamMediumPropSharedR256GeneralReadMShiftReadKVShiftG050TruePile(BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile):
+    """Stack the single .5 M read shift with .5/.5 per-head KV vector shift."""
+    # 结论：M-shift 与 KV-shift 部分叠加，终局仍优于两条单独支路；单门没有在后期追平叠加路。
+    # 完成 13,500 步；末五窗口（12.6k–13.4k）比单门低 .001981，比纯 KV 低 .006940。
+    # 相对无 shift 基线，单门 / 纯 KV / 叠加的绝对收益为 .011034 / .006075 / .013015。
+    # 以 BamMHAMediumPropC256TruePile 为共同参考，对上述基线收益倍数 1.0900；对单门 1.0127。
+    # 末五窗口叠加率 A 约 76.19%、C 约 32.82%；额外收益达到跑前约 .002 的预期。
+    # UE5a v5p-16，.405525 step/s，比单门慢 11.53%，比纯 KV 慢 2.70%（历史健康指标开启）。
+    # 1 次抢占；最终 checkpoint 已提交，资源已释放。新增参数已从 MLP 抵扣。
+    # code_commit: 77ea4bb；实现位于 codex/mediumprop-m-shift，/data0/xd/mediumprop-m-shift。
+    model_name = 'BamMediumPropSharedR256GeneralReadMShiftReadKVShiftG050TruePile'
+    bam_kv_shift = True
+    bam_m_shift_compact_health = True
+    mlp_dim_by_block = [3792, 3664, 3792]  # Repay both shift kernels; +576 M-gate biases vs SOTA.
+    compare_runs = ['BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile',
+                    'BamMediumPropSharedR256GeneralReadKVShiftG050TruePile',
+                    'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile']
+
+
+
+class BamMediumPropSharedR256GeneralReadAddressSharedGatesTruePile(BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile):
+    """Eight read gates and both write gates reuse their respective address R256 hidden."""
+    # 结论：从各自地址 R256 特征生成读写门未改善效果；即使省参数补回 MLP，仍明显弱于原门投影。
+    # 3k loss 比无 M-shift 父路高 .021951，比单门 ReadG050 高 .030244；收益倍数分别为 .9092 / .8790。
+    # 门投影省 2537472 参数（1.7621 W_Q），补入 MLP 后总量比父路少 10272；跑前改善 .002 的预期失败。
+    # UE5a v5p-16，.4878625 step/s，比父路快 1.91%，比单门快 6.44%；不足以弥补效果退步。
+    # 停于 3,234 步，无抢占；checkpoint 已提交，资源已释放，TB 已同步，归一化差距未追回。
+    # code_commit: 838e2c0；实现位于 codex/mediumprop-gate-feature-sharing，/data0/xd/mediumprop-gate-feature-sharing。
+    model_name = 'BamMediumPropSharedR256GeneralReadAddressSharedGatesTruePile'
+    bam_address_shared_gates = True
+    mlp_dim_by_block = [3852, 3725, 3852]
+    checkpoint_period = 200
+    max_to_keep = 2
+    keep_period = 0
+    tensorboard_gcs_rotate_period = 500
+    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile',
+                    'BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile']

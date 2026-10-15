@@ -12781,6 +12781,7 @@ class BamPythiaMediumPropT2048MShiftReadG050ReadAttentionSharedR256SerialMLP(
 
 class MuddPythiaMediumPropT2048SerialMLP(MuddPythiaMediumPropT2048):
     """Serial MLP control; unchanged full-history routing and extra router budget."""
+    # code_commit: 3538f6c; UE5a TPU310229 FIRST_STEP/AOT/434356347 verified; ~.580step/s.
     model_name = 'MuddPythiaMediumPropT2048SerialMLP'
     pythia_parallel_residual = False
     compare_runs = ['MuddPythiaMediumPropT2048', 'PythiaMediumPropT2048SerialMLP',

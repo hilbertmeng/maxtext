@@ -59,3 +59,6 @@ second-order BAM/Mudd advantage ratio across serial vs parallel families.
 Pre-run terminal latter bet1.05, range.95–1.15; expect Mudd also benefits but less than BAM.
 Timing prior serial/parallel .95–1.00. Preserve warmup lineage as inherited config;
 no new schedule or dimension changes. Loss analysis uses actual same-step windows, not wall time.
+
+Serial Mudd FIRST_STEP4 and worker434356347/AOT/config verified; ~.580step/s.
+BAM live comparison adds serial Mudd with serial MHA reference; no runtime change.

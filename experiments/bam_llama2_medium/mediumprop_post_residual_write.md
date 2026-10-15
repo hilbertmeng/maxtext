@@ -157,3 +157,7 @@ CP2000committed, actual2045; independentattention-onlyparent9761/CP9600. Sharedw
 ### Attention-only10k
 
 CP10000committed, actual10032waiter; sharedreportqueriedbeforefreshauto-event andcontained9800pendingevent, nextpullparent10000-event.jsoncontainscomplete10000event. Originalsingle9k/9.2k/9.4k/9.6k/9.8k/10kgaps-.0038268/-.0039828/-.0034686/-.0052916/-.0040424/-.0041406; ratios1.023062/1.024007/1.020656/1.032083/1.024825/1.025494. Last5gap-.0041852/R1.025413 versus9k1.025854: nearstablelatest1k,no continuedmaterialcontractionorexpansion. MHA10kgap-.1665564,last5-.16898708. Canonicalspeed.4844125flatversushealthOFFbothchange. Norm-sourcecontrol2357/CP2200, allsharedwrite/MLPreadchildrenclosedatuserrequest. Continue11k, originalterminalbet1.025retained,nofinalclaim.
+
+### Attention-only / MLP norm source control3k
+
+CP3000committed, actual3064, parent10755/CP10600. Parent2k/2.2k/2.4k/2.6k/2.8k/3k gaps+.001825/-.0008644/-.0012076/+.0002348/-.0010096/+.0001398; MHA-reference.994604/1.002706/1.004025/.999176/1.003715/.999464. Last5gap-.0005414/R1.001817: 2kweaknessdidnotpersist, overallparityoscillationratherthansustainedlossgain. StoppedsharedMLPnorm3kgap-.0002376/R1.000913,last5-.00062216/R1.002077, alsonearparity. Originalsingle3kgap-.010554/R1.042219; MHAgap-.2605348. Speedsamecanonical.4855375, +.232%vshealthOFFparent, onenormsaved. Continue4k, noprerunbetrevisionorbreakthroughclaim. Fullnativehistory/r200 mlp-norm-control/report3000.json.

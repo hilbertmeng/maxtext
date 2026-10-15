@@ -12962,8 +12962,8 @@ class BamMediumPropPostAttentionWriteSharedR256MLPNormTruePile(
 class BamMediumPropMShiftReadG050PostAttentionWriteMLPNormTruePile(
         BamMediumPropMShiftReadG050PostAttentionWriteControlsTruePile):
     """Post-attention controls reuse the MLP norm; write downs stay independent."""
-    # 在训2k/CP2000：对attention单改父路gap+.001825、MHA参考倍数.994604；末五.999459，尚无loss优势。
-    # 最近两窗口转负，2k对已停shared-write MLP norm亦从领先转为落后+.000720；继续跟踪。
+    # 在训3k/CP3000：对attention单改父路gap+.000140/R.999464；末五gap-.000541/R1.001817，整体持平波动。
+    # 2k转弱未持续；对已停shared-write MLP norm 3k gap-.000238/R1.000913；少一次norm速度+.23%，继续4k。
     # UE5a v5p16 TPU310252，.4855375step/s（20–99，80点），对同健康attention单改父路+.232%。
     # MLP[3802,3676,3802]，参数变化0；T4096/global128/TruePile4096/13500/CP200/latest2/keep0/TB500。
     # 新3+共享4+旧postres3+writer5+全BAM47=62项CPU检查通过，SEALED_CONFIG/AOT/FIRST_STEP全部通过。

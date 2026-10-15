@@ -151,3 +151,19 @@ UseraskswhichcurrentRthe1.55betcompareswith. OriginalcontextlengthtrioBAMclass B
 ForSTRICToriginaltrioonlyinitializerchange(embedding.006, standardTransformerprojectionrolesPythia, BAM/otherarchitecture/recipeunchanged), revisedcenterR1.43(range1.30..1.60), Aincrementstill+.005(range-.005..+.015). Illustrativeanchor(.121129+.005)/.088513=1.425, prior1.55wouldbe13.3%relativeincreasefromoriginalR1.36851andisnotsupportedascentralforecast. Thisreplaces1.55ONLYforthisoriginaltrioarchitecture; keepoldmatchedcircuitnumbersclearlylabeled. NoRUNauthorized/launched. OriginaltrioBAMvs laterSOTABAMmustbeexplicitinanyfuturelaunchclass, neverinferfromT2048labelalone. Source mainexp.py originalclass14260+ andmediumprop_context_t2048.md; latermatchedclass15600+.
 
 Reporthelpernowaccepts --arm-report RUN JSON asfallbackforacompleted/acknowledgedarmwhileitspeerruns. Livependingreporttakesprecedence; verifiesratioowner; keepsoriginaloutputsidenticalwithoutfallback. Fiveactual12kdataregressionspassed:unchangedlive,nullpendingfallback,omittedcompletedentryfallback,missingcacherejected,wrongarmrejected. Provenance directory pythia-init/completed-arm-report-check (actualpathpythia-init). Preparedforasynchronouscompletion, notnewlosswindowimplementation.
+
+## 初始化组：共同13k与修复路完成（2026-10-15 UTC）
+
+共同13k的BAM/Mudd收益倍数：修复路1.617556，全原初始化1.545702；末五1.618638/1.551212。共同串行MHA参考。相对未修复串行BAM的二阶倍数为1.414845/1.351996。完整序列见 `/data0/xd/bam_diagnostics/pythia-init/core-common13000.json`，全原路仍训练至13500。
+
+修复路已完成13500，最终CP13500提交，节点/队列独立查询均NOT_FOUND，最终TB同步SYNC_OK。终局末五12600–13400：BAM/Mudd1.616629、相对未修复串行版二阶1.408882；对未修复BAM/Mudd/MHA的loss gap分别−.03585036/−.04711444/−.12353160。跑前1.12[1.02,1.25]明显低估；3k修订1.30[1.20,1.40]仍偏低。最初看好全原初始化超过局部修复，实际已训共同阶段持续相反；不能把embedding+BAM投影+写epsilon组合修复归因为单个std。
+
+资源：UE5a v5p16 `xd-v5p-16-310243-maxtext`，P0，无换区；唯一READY租期08:18:55–15:40:23 UTC，共7h21m28s。终局报告 `fix-final13500.json`、资源验证 `fix-final-resources.json`、租期 `fix-final-leases.txt`、收尾 `fix-completed-closeout.log` 均位于上述目录。权威registry状态complete；本地幂等closeout包装器already_closed时的stopped标签不改变实际完成状态。
+
+## 未启动假设：仅修复路embedding恢复Pythia（2026-10-15 UTC）
+
+用户询问预期，未授权开跑。父路为已完成的串行Pythia BAM初始化修复，MHA/Mudd对照固定。只将token_embedding_init_method从006normal清空以继承init_method=pythia；token embedding独立正态std=sqrt(2/(5D))=.0182574186（D1200），原std=.006，标准差3.042903倍、方差9.259259倍；unembedding独立且不变。BAM投影.006和写epsilon1e-6均保留。
+
+既有3种子实际EmbeddingBamWrite初始化探针给出：原embedding初始M RMS均值.0185188161，Pythia embedding .0688865806，约3.72倍；并非真实Pile loss或训练因果测评，不能把尺度变大直接等同于loss变差。现有修复/全原两路embedding均.006，没有这项单独对照。
+
+主观下注：终局BAM loss较修复路增加+.009，范围−.003～+.020；以修复路实测2.36197836为锚约2.371。终局BAM/Mudd收益倍数（串行MHA参考）中心1.50，范围1.35～1.65，当前实测1.616629。两项须一致：固定对照MHA−Mudd优势约.07641716，loss每增加.001，倍数约下降.0131。判断为损失部分修复收益，仍强于未修复路；范围为判断区间，非统计置信区间。禁止把该预测当新实验结果或写进exp.py。

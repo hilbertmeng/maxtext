@@ -12972,3 +12972,22 @@ class BamMediumPropMShiftReadG050MLPReadAllLayersNoReadGatesStaticZeroTruePile(
     # code_commit: c560cd6；codex/mediumprop-mlp-bam-read，/data0/xd/mediumprop-mlp-bam-read。
     model_name = 'BamMediumPropMShiftReadG050MLPReadAllLayersNoReadGatesStaticZeroTruePile'
     bam_mlp_read_static_key_init = 'zero'
+
+
+class BamMediumPropMShiftReadG050MLPReadNonWriteLayersNoReadGatesStaticZeroTruePile(
+        BamMediumPropMShiftReadG050MLPReadAllLayersNoReadGatesStaticZeroTruePile):
+    """Ungated zero-static MLP reads only in the twelve non-writing layers."""
+    # 用户授权新增12层对照：从头训，不读M的六MLP写层保持原单门.5宽度3676。
+    # 预计432097856参数，MLP[3898,3676,3898]；逐层找平，比原单门.5少13824整数余差。
+    # 读本层attention写后M，动态地址normal(.006)、静态key零初始化可学习，无两类读门，保留Wg/W2。
+    # 前向净增.420864MFLOPs/token(+.04575%)，参数较原带门12层少14592。
+    # 跑前终局new/旧带门12层收益倍数1.05[.98,1.12]，MHA参考；预计与新无门18层接近。
+    # 健康全OFF，预期对同健康旧12层速度+1%[0,3%]；CPU/SEALED_CONFIG/AOT/FIRST_STEP待验证。
+    # 实现codex/mediumprop-mlp-bam-read，/data0/xd/mediumprop-mlp-bam-read；runtime待封存。
+    model_name = 'BamMediumPropMShiftReadG050MLPReadNonWriteLayersNoReadGatesStaticZeroTruePile'
+    bam_mlp_read_location = 'nonwrite'
+    mlp_dim_by_block = [3898, 3676, 3898]
+    compare_runs = ['BamMediumPropMShiftReadG050MLPReadNonWriteLayersTruePile',
+                    'BamMediumPropMShiftReadG050MLPReadAllLayersNoReadGatesStaticZeroTruePile',
+                    'BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile',
+                    'BamMHAMediumPropC256TruePile']

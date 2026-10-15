@@ -18,3 +18,11 @@ Region chosen from same comparable multi-hour UE5a leases and prompt owned-run r
 ### Verified startup, 2026-10-15
 
 Runtime d5a728231cf192a32824a8aa5ca332035394d83e. All three loaded the compiled executable, produced FIRST_STEP (MHA15/Mudd3/BAM0), and actual worker parameter counts agree with the budget above. Generic/BAM health OFF verified in worker configs; CP200/latest2/TB500 verified. Canonical mean20--99 speeds: MHA .7708375, Mudd .6033250, BAM .5377125 step/s. Relative to approximate historical GELU speeds .743/.598/.524, +3.7%/+0.9%/+2.6%; these historical speed deltas are approximate. All three training normally, next loss/paired-ratio report1k.
+
+### MHA 1k
+
+Against parallel GELU Pythia MHA, loss gaps at200/400/600/800/1000: -.4570736/-.4031474/-.2208922/-.1390368/-.1078004. Canonical speed .7708375/s, historical approximate +3.7%; CP1000 committed. Strong early effect on MHA, not yet evidence of BAM-specific compatibility or terminal gain; wait for own-family paired BAM/Mudd trajectory. MHA next2k, Mudd/BAM1k still pending.
+
+### First full paired comparison, 1k
+
+Own GELU-parent loss benefits at1k MHA .1078004, Mudd .132123, BAM .0390994. With each family own MHA reference, BAM/Mudd ratio at200/400/600/800/1000 is4.055144/1.436543/1.320994/1.277966/1.210186; GELU4.928783/4.510251/3.008271/2.275470/2.052126; second-order .822747/.318506/.439121/.561627/.589723. Absolute BAM lead over Mudd at1k shrinks .1226350 to .0296114. This early evidence opposes original hypothesis that GELU especially hurts BAM; the1.30 terminal bet currently unsupported. Second-order recovery since400 is real but not a terminal result. Continue planned schedule, retain historical~5.2k crossover focus. All CP1000 committed; next normal2k.

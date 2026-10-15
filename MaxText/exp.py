@@ -12790,9 +12790,9 @@ class MuddPythiaMediumPropT2048SerialMLP(MuddPythiaMediumPropT2048):
 
 class PythiaMediumPropT2048SwiGLU(PythiaMediumPropT2048):
     """Budget-matched SwiGLU main MLP on parallel Pythia MHA."""
-    # Ledger only: codex/pythia-mediumprop-t2048, /data0/xd/pythia-mediumprop-t2048.
-    # code_commit: d5a7282; UE5a v5p16 TPU310241; FIRST_STEP/AOT/actual params verified; running.
-    # All health OFF; mean20-99 0.7708375step/s, 432388800 parameters.
+    # 阶段结果：1k 对 GELU 父路 loss 改善 .107800，早期明显获益；尚未观察完整终局。
+    # UE5a v5p-16，0.7708375 step/s，全部健康指标关闭；1k checkpoint 已提交。
+    # code_commit: d5a7282；实现 codex/pythia-mediumprop-t2048，/data0/xd/pythia-mediumprop-t2048。
     model_name = 'PythiaMediumPropT2048SwiGLU'
     pythia_swiglu_mlp = True
     mlp_activations = ['silu', 'linear']
@@ -12803,9 +12803,10 @@ class PythiaMediumPropT2048SwiGLU(PythiaMediumPropT2048):
 
 class MuddPythiaMediumPropT2048SwiGLU(MuddPythiaMediumPropT2048):
     """Preserve Mudd layerwise MLP budgets and unrepaid router overhead."""
-    # Ledger only: codex/pythia-mediumprop-t2048, /data0/xd/pythia-mediumprop-t2048.
-    # code_commit: d5a7282; UE5a v5p16 TPU310242; FIRST_STEP/AOT/actual params verified; running.
-    # All health OFF; mean20-99 0.6033250step/s, 434356331 parameters.
+    # 阶段结果：1k 对 GELU 父路 loss 改善 .132123，多于 MHA 的 .107800；配对 MHA 后收益倍数 1.2087。
+    # 保留旧 Mudd 路由器参数开销，不从 MLP 抵扣；本路 MLP 分层预算与 GELU 父路匹配。
+    # UE5a v5p-16，0.6033250 step/s，全部健康指标关闭；1k checkpoint 已提交。
+    # code_commit: d5a7282；实现 codex/pythia-mediumprop-t2048，/data0/xd/pythia-mediumprop-t2048。
     model_name = 'MuddPythiaMediumPropT2048SwiGLU'
     pythia_swiglu_mlp = True
     mlp_activations = ['silu', 'linear']
@@ -12820,9 +12821,11 @@ class MuddPythiaMediumPropT2048SwiGLU(MuddPythiaMediumPropT2048):
 class BamPythiaMediumPropT2048MShiftReadG050ReadAttentionSharedR256SwiGLU(
         BamPythiaMediumPropT2048MShiftReadG050ReadAttentionSharedR256):
     """SwiGLU main MLP; retain every GELU read/write-address bottleneck."""
-    # Ledger only: codex/pythia-mediumprop-t2048, /data0/xd/pythia-mediumprop-t2048.
-    # code_commit: d5a7282; UE5a v5p16 TPU310243; FIRST_STEP/AOT/actual params verified; running.
-    # All health OFF; mean20-99 0.5377125step/s, 432348080 parameters.
+    # 阶段结果：1k 对 GELU 父路 loss 改善 .039099，少于 MHA 的 .107800 和 Mudd 的 .132123。
+    # BAM/Mudd 收益倍数从 GELU 的 2.0521 降到 1.2102，二阶倍数 .5897；早期证据反对原适配假设。
+    # 继续按完整计划训练，观察后期走势；原终局 1.30 的下注尚未得到支持。
+    # UE5a v5p-16，0.5377125 step/s，全部健康指标关闭；1k checkpoint 已提交。
+    # code_commit: d5a7282；实现 codex/pythia-mediumprop-t2048，/data0/xd/pythia-mediumprop-t2048。
     model_name = 'BamPythiaMediumPropT2048MShiftReadG050ReadAttentionSharedR256SwiGLU'
     pythia_swiglu_mlp = True
     mlp_activations = ['silu', 'linear']

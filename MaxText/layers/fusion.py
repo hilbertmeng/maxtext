@@ -202,6 +202,14 @@ class SubDecoderLayer(nn.Module):
         getattr(cfg, 'bam_attention_write_controls_post_residual', False))
     mlp_post_residual_controls = post_residual_controls or bool(
         getattr(cfg, 'bam_mlp_write_controls_post_residual', False))
+    shared_write_norm = getattr(cfg, 'bam_attention_mlp_write_shared_norm', 'none')
+    assert shared_write_norm in ('none', 'attention', 'mlp')
+    if shared_write_norm != 'none':
+        assert attention_post_residual_controls and not mlp_post_residual_controls
+        assert cfg.bam_mlp_write_dynamic_address
+        assert cfg.bam_mlp_write_address_rank == cfg.bam_write_v_bottleneck_dim
+        assert cfg.bam_write_v_bottleneck_activation == 'gelu'
+    share_write_hidden = mlp_write and shared_write_norm != 'none'
     if attention_post_residual_controls or mlp_post_residual_controls:
         assert cfg.bam_enabled and not pallas_core and not cfg.dense_conn
         assert cfg.shared_experts == 1 and cfg.num_experts == 1
@@ -240,17 +248,26 @@ class SubDecoderLayer(nn.Module):
     )
     intermediate_inputs = inputs + attention_lnx
 
+    # Only the new shared arms need the MLP norm before deferred attention writing.
+    # Reuse this same tensor for the MLP and its gate; no second norm evaluation.
+    mlp_norm = normalizations.get_rmsnorm("post_self_attention_layer_norm", cfg)
+    hidden_states = mlp_norm(intermediate_inputs) if share_write_hidden else None
+    shared_write_hidden = None
     if attention_post_residual_controls:
-      # Reuse the original attention prenorm parameters at the updated residual.
+      # Preserve the attention gate's original context even in the MLP-norm arm.
       write_context = attention_norm(intermediate_inputs)
       if mlp_write:
-        write_factors = attention_layer._deferred_write_factors(write_head, write_context)
+        if share_write_hidden:
+          shared_write_hidden = attention_layer.write_address_hidden(
+              write_context if shared_write_norm == 'attention' else hidden_states)
+        write_factors = attention_layer._deferred_write_factors(
+            write_head, write_context, address_hidden=shared_write_hidden)
       else:
         M_out, _ = attention_layer._write(write_head, write_context, M_out)
 
     # Fully Connected
-    mlp_norm = normalizations.get_rmsnorm("post_self_attention_layer_norm", cfg)
-    hidden_states = mlp_norm(intermediate_inputs)
+    if hidden_states is None:
+      hidden_states = mlp_norm(intermediate_inputs)
     hidden_states = nn.with_logical_constraint(
         hidden_states, ("activation_batch", "activation_norm_length", "activation_embed")
     )
@@ -343,19 +360,22 @@ class SubDecoderLayer(nn.Module):
       independent_address = None
       if getattr(cfg, 'bam_mlp_write_dynamic_address', False):
         rank = int(cfg.bam_mlp_write_address_rank)
-        address_hidden = linears.DenseGeneral(
-            features=rank, axis=-1, use_bias=False,
-            kernel_init=initializers.get_init_method(cfg.init_method),
-            kernel_axes=('embed', None), dtype=cfg.dtype, weight_dtype=cfg.weight_dtype,
-            quant=self.quant, matmul_precision=cfg.matmul_precision,
-            name='mlp_address_down')(mlp_write_context)
+        if share_write_hidden:
+          address_hidden = shared_write_hidden
+        else:
+          address_hidden = nn.gelu(linears.DenseGeneral(
+              features=rank, axis=-1, use_bias=False,
+              kernel_init=initializers.get_init_method(cfg.init_method),
+              kernel_axes=('embed', None), dtype=cfg.dtype, weight_dtype=cfg.weight_dtype,
+              quant=self.quant, matmul_precision=cfg.matmul_precision,
+              name='mlp_address_down')(mlp_write_context))
         independent_address = linears.DenseGeneral(
             features=(num_query_heads, cfg.bam_v), axis=-1, use_bias=True,
             kernel_init=initializers.get_init_method(cfg.init_method),
             kernel_axes=('embed', 'q_heads', 'v_factor'),
             dtype=cfg.dtype, weight_dtype=cfg.weight_dtype,
             quant=self.quant, matmul_precision=cfg.matmul_precision,
-            name='mlp_address_up')(nn.gelu(address_hidden))
+            name='mlp_address_up')(address_hidden)
       if not pallas_core:
         M_out = attention_layer.merge_mlp_write(
             mlp_lnx.reshape(mlp_lnx.shape[:-1] + (num_query_heads, cfg.bam_k)),

@@ -301,6 +301,7 @@ class BamLlama2Medium(Llama2Medium):
     bam_write_controls_post_residual = False
     bam_attention_write_controls_post_residual = False
     bam_mlp_write_controls_post_residual = False
+    bam_attention_mlp_write_shared_norm = 'none'  # none | attention | mlp
     bam_general_column_read = False
     bam_general_matrix_write = False  # Historical write variants remain worktree-only.
     bam_static_read_gate_init = .99
@@ -12923,3 +12924,28 @@ class BamMediumPropMShiftReadG050PostMLPWriteControlsTruePile(
     compare_runs = ['BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile',
                     'BamMediumPropMShiftReadG050PostResidualWriteControlsTruePile',
                     'BamMHAMediumPropC256TruePile']
+
+
+class BamMediumPropPostAttentionWriteSharedR256AttentionNormTruePile(
+        BamMediumPropMShiftReadG050PostAttentionWriteControlsTruePile):
+    """Share actual post-attention write-address R256 features using attention norm."""
+    # New experiment: attention/MLP write address down and GELU computed once in six MLP-write layers.
+    # Independent address ups, full-D write gates, data factors and attention read down retained.
+    # Same-layer MLP refund +85: parent width3676->3761; expected432104480params (parent-7200 rounding).
+    # Pre-run terminal new/attention-only gain1.03 [.99,1.08], MHA reference; expected speed approximately flat.
+    bam_attention_mlp_write_shared_norm = 'attention'
+    mlp_dim_by_block = [3802, 3761, 3802]
+    model_name = 'BamMediumPropPostAttentionWriteSharedR256AttentionNormTruePile'
+    compare_runs = ['BamMediumPropMShiftReadG050PostAttentionWriteControlsTruePile',
+                    'BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile',
+                    'BamMHAMediumPropC256TruePile']
+
+
+class BamMediumPropPostAttentionWriteSharedR256MLPNormTruePile(
+        BamMediumPropPostAttentionWriteSharedR256AttentionNormTruePile):
+    """Share write-address features using the existing post-attention MLP norm."""
+    # Same budget/circuit as attention-norm arm; only shared address feature normalization differs.
+    # Attention gate keeps attention norm; MLP gate keeps MLP norm. Non-MLP-write layers unchanged.
+    # Pre-run terminal new/attention-only gain1.04 [.99,1.10]; predict small edge versus attention norm.
+    bam_attention_mlp_write_shared_norm = 'mlp'
+    model_name = 'BamMediumPropPostAttentionWriteSharedR256MLPNormTruePile'

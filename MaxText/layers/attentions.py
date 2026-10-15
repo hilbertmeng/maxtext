@@ -3572,15 +3572,26 @@ class BamAttention(Attention):
       assert M_out.dtype == self.dtype, (M_out.dtype, self.dtype)
     return M_out, gate
 
-  def _deferred_write_factors(self, o_head, x):
+  def write_address_hidden(self, x):
+    """Expose the actual address bottleneck once for a second write consumer."""
+    assert self._write_v_bottleneck_dim is not None
+    assert self._write_v_bottleneck_activation == 'gelu'
+    return nn.gelu(self.P_loc_down(x))
+
+  def _deferred_write_factors(self, o_head, x, address_hidden=None):
     """Same factors as _write, without forming its outer product yet."""
     u1 = o_head[..., :self.bam_k]
     if self._write_v_bottleneck_dim is None:
       u2 = self.P_loc(x)
     else:
-      u2 = self.P_loc_down(x)
-      if self._write_v_bottleneck_activation == 'gelu':
-        u2 = nn.gelu(u2)
+      if address_hidden is None:
+        u2 = self.P_loc_down(x)
+        if self._write_v_bottleneck_activation == 'gelu':
+          u2 = nn.gelu(u2)
+      else:
+        assert self._write_v_bottleneck_activation == 'gelu'
+        assert address_hidden.shape == x.shape[:-1] + (self._write_v_bottleneck_dim,)
+        u2 = address_hidden
       u2 = self.P_loc_up(u2)
     bias = jnp.asarray(self.gw_b0, self.dtype) if self._force_activation_dtype else self.gw_b0
     gate = jax.nn.sigmoid(self.W_gw(x) + bias)

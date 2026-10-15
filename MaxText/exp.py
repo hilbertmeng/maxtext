@@ -12984,7 +12984,7 @@ class BamMediumPropMShiftReadG050SharedR256ReuseActivationMLPWriteTruePile(BamMe
     model_name = 'BamMediumPropMShiftReadG050SharedR256ReuseActivationMLPWriteTruePile'
     bam_reuse_read_attention_features_for_mlp_write = True
     mlp_dim_by_block = [3915, 3791, 3915]
-    compare_runs = ['BamMediumPropMShiftReadG050ReadAttentionSharedR256TruePile', 'BamMediumPropMShiftReadG050ReadAttentionMLPSharedR384TruePile', 'BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile']
+    compare_runs = ['BamMediumPropMShiftReadG050ReadAttentionSharedR256TruePile', 'BamMediumPropMShiftReadG050ReadAttentionMLPSharedR256TruePile', 'BamMediumPropMShiftReadG050ReadAttentionMLPSharedR384TruePile', 'BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile']
     record_training_health_metrics = False
     record_internal_nn_metrics = False
     bam_record_m_shift_health = False

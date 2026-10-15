@@ -237,3 +237,13 @@ BamMediumPropMShiftReadG050CrossReadAttnR384DirectThirdsTruePile: preemptions=2 
 03      41m29s  us-east5-a  xd-v5p-16-310203-maxtext  2026-10-14T07:33:20Z -> 2026-10-14T08:14:49Z  preempted
 04      24m59s  us-east5-a  xd-v5p-16-310203-maxtext  2026-10-14T08:22:06Z -> 2026-10-14T08:47:05Z  run_stop
 ```
+
+## Calculated extrapolation review, 2026-10-14
+
+BamMediumPropMShiftReadG050CrossReadAttnR384ConservativeThirdsTruePile: stopped7538; oldTripleR384 last7400 gap+0.0022584, mean5+0.0023835; oldPairR256 last7400 gap+0.0016468, mean5+0.0022694. CP committed and resources absent. Calculated extrapolation was the user-authorized stop rationale, not an observed terminal outcome.
+
+BamMediumPropMShiftReadG050CrossTripleR512DirectThirdsTruePile: stopped7713; oldTripleR384 last7600 gap+0.0017974, mean5+0.0020988; oldPairR256 last7600 gap+0.0021884, mean5+0.0020388. CP committed and resources absent. Calculated extrapolation was the user-authorized stop rationale, not an observed terminal outcome.
+
+Only310200 continues. Forecast artifacts: /data0/xd/bam_diagnostics/cross-layer-race-20261014/extrapolation/. Closeout: closeout-thirds-result.json; both TB SYNC_OK verified.
+
+Final race closeout: user stopped310200 at committed9248 because gain too small, not failure. Last9200 gap vsoldTriple384-.0007816, ratio1.004572; last5mean-.00094272. VsoldPair256-.0020768, ratio1.012242; last5mean-.00120388. TPU/queue absent, TB SYNC_OK. UE5a P0; sole READY lease2026-10-14T04:48:58Z–10:45:22Z (5h56m24s). All nine now stopped. Preserve positive result for architecture guidance; no full-training terminal claim.

@@ -40,3 +40,10 @@ Progress2180/CP2000 committed. Own-parent gaps1/1.2/1.4/1.6/1.8/2k -.024810/-.02
 基础设施重新对照主分支c5e02ad8：train/train_compile/max_utils/maxtext_utils/optimizers/checkpointing的差别只剩本工作树已有更多shift健康导出，sow已关；record_training_health_metrics计算门控、TB500/rotating writer/begin_step和checkpoint修复已带上。保留历史模型谱系，无需整体合并主干。
 
 CPU gate扩展为旧双改+两新路：全规模参数树与父路一致、实际门/地址输入来源拦截验证、单层向量输出不变/无MLP写层的MLP单改M完全不变、scan有限前向和各写投影非零梯度、因果性、实际健康输出为空、summary writer。同fingerprint文件锁避免两并发启动脚本重复跑CPU检查。两路AOT共享预留FLEX的worker锁串行编译；UE5a新v5p-16预排队与CPU/AOT并行。
+
+
+### User stops both6167 and MLP-only2231, 2026-10-15
+
+Explicit user stop, neither full terminal run. Both-change CP6167 and MLP-only CP2231 committed; nodes/queues verified absent, TB SYNC_OK. Attention-only continues, retaining both-change as direct stopped baseline plus original single.5/MHA. Both-change final mature window6000: parent gap-.002929, parent gain1.015793; last5gap-.003379/gain1.017569. Early2k gain1.044299 continued contracting, so 1.02 terminal central forecast was already undercut before stop, not a terminal observation. MLP-only final2200: parent gap+.000657/gain.997849, last5gap-.001082/gain1.002096; transient1400 benefit disappeared and crossed back behind1800. Versus both-change2200 gap+.011103, last5+.013503. Attention-only same2k gap-.018476/gain1.057784 vs original parent, and-.004312/gain1.012913 vs both-change. Evidence favors updating attention write controls, not mechanically updating every write control.
+
+Resource leases UTC: both TPU310240 UE5a v5p16 P1,06:03:45–06:36:28 (32m43s,preempted),06:44:38–09:52:23 (3h07m45s,user stop). MLP-only TPU310245 UE5a v5p16 P0,08:32:30–09:52:26 (1h19m56s,user stop). No region switches. Closeout summary remote logs/closeout-20261015T095524Z.json; local post-residual-write/selective closeout-user-stop.json, both-final6167.json, mlp-final2231.json. Actual canonical speeds.4841625/.4846375 remain similar to attention-only.4844125.

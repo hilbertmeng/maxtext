@@ -12858,13 +12858,14 @@ class BamXLPropSharedR400GeneralReadMShiftReadG050TruePile(BamXLPropK96EmbedVOnl
 
 class BamMediumPropMShiftReadG050PostResidualWriteControlsTruePile(BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile):
     """Generate attention/MLP write gates and addresses after their residual additions."""
-    # 阶段判断：双改优于原单门.5，但领先逐步缩小；新增参数0，保持总参数432111680。
-    # 3k/4k/5k对父路gap-.006164/-.005133/-.004168，MHA参考收益倍数1.0247/1.0236/1.0209。
-    # 4200–5000末五gap-.004724，收益倍数1.0230；终局下注1.02[.99,1.05]继续检验。
-    # 仅attention/仅MLP新对照同1k分别比本路低.007062/高.024421，初期收益主要来自attention。
-    # 按用户要求仅以原单门.5父路和MHA比较，不恢复读/attention写共享R256基线。
-    # UE5a v5p16，.4841625step/s，全部健康关闭；与历史健康开启父路的速度差尚未隔离。
-    # code_commit:b49a392；实现codex/mediumprop-m-shift，/data0/xd/mediumprop-m-shift；继续训练。
+    # 用户停于6167步，CP6167提交、节点/队列释放、TB SYNC_OK；未训练终局。
+    # 相对原单门.5早期大幅领先持续收窄：2k/4k/6k gap-.014164/-.005133/-.002929。
+    # MHA参考收益倍数1.0443/1.0236/1.0158；末五5200–6000 gap-.003379，倍数1.01757。
+    # 仅attention在共同2k优于本路.004312，支持MLP控制更新没有带来叠加收益；不等于全部新残差寻址无效。
+    # 终局下注1.02[.99,1.05]未获完整终局检验；最新观察已低于中心预测。
+    # UE5a v5p16 .4841625step/s，P1同区恢复；参数432111680，新增0W_Q，健康全部关闭。
+    # 比较仅原单门.5父路和MHA，不恢复读/attention写共享R256基线。
+    # code_commit:b49a392；实现codex/mediumprop-m-shift，/data0/xd/mediumprop-m-shift。
     model_name = 'BamMediumPropMShiftReadG050PostResidualWriteControlsTruePile'
     bam_write_controls_post_residual = True
     record_training_health_metrics = False
@@ -12907,11 +12908,12 @@ class BamMediumPropMShiftReadG050PostAttentionWriteControlsTruePile(
 class BamMediumPropMShiftReadG050PostMLPWriteControlsTruePile(
         BamMediumPropMShiftReadG050PostResidualWriteControlsTruePile):
     """Use post-MLP residual only for MLP write gate/address controls."""
-    # 阶段判断：初期明显落后父路，800步转为微弱领先，1k基本持平；继续观察后期。
-    # 1k对原单门.5 gap-.000389，MHA参考收益倍数1.000665；对双改gap+.024421、倍数.959922。
-    # UE5a v5p16 TPU310245，.4846375step/s，与双改相同；FIRST_STEP/AOT/实际参数已核验。
-    # 参数/MLP宽度/健康关闭设置与attention单改完全相同；跑前终局下注1.005[.98,1.035]。
-    # code_commit:34d9afd；实现codex/mediumprop-m-shift，/data0/xd/mediumprop-m-shift。
+    # 用户停于2231步，CP2231提交、节点/队列释放、TB SYNC_OK；未训练终局。
+    # 初期落后→800步微弱领先→1800步重新落后；2200对父路gap+.000657，MHA参考倍数.997849。
+    # 末五1400–2200对父路gap-.001082、倍数1.002096，接近持平，未建立收益。
+    # 对双改2200 gap+.011103、末五+.013503；同2k仅attention明显更强。
+    # UE5a v5p16 .4846375step/s，P0；参数/MLP宽度/健康与attention单改一致，新增0W_Q。
+    # 跑前终局下注1.005[.98,1.035]未作完整终局检验；实现codex/mediumprop-m-shift，runtime34d9afd。
     model_name = 'BamMediumPropMShiftReadG050PostMLPWriteControlsTruePile'
     bam_write_controls_post_residual = False
     bam_attention_write_controls_post_residual = False

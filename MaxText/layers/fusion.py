@@ -22,6 +22,7 @@ from jax.sharding import Mesh
 import jax.numpy as jnp
 from jax.ad_checkpoint import checkpoint_name
 from layers import attentions
+from layers import bam_mlp
 from layers import embeddings
 from layers import linears
 from layers import normalizations
@@ -195,7 +196,13 @@ class SubDecoderLayer(nn.Module):
         == int(getattr(cfg, 'bam_mlp_write_offset', None) or 0) % mlp_write_every)
     if mlp_write and getattr(cfg, 'bam_mlp_write_static_address', False):
       raise ValueError('Static MLP write experiments require their recorded runtime')
+    use_mlp_bam_read = bam_mlp.read_enabled(cfg, self.layer_inx)
     pallas_core = cfg.bam_enabled and bool(getattr(cfg, 'bam_pallas_core', False))
+    if use_mlp_bam_read:
+      assert cfg.bam_enabled and not pallas_core and cfg.decoder_block == 'fusion'
+      assert cfg.shared_experts == 1 and cfg.num_experts == 1
+      assert cfg.bam_mlp_write_dynamic_address and not cfg.bam_general_matrix_write
+
     if pallas_core:
         # Fused core: the attention returns its raw write factors; one kernel
         # applies the attention (and MLP) writes after the MLP.
@@ -232,6 +239,17 @@ class SubDecoderLayer(nn.Module):
         hidden_states, ("activation_batch", "activation_norm_length", "activation_embed")
     )
     
+    bam_hidden = None
+    attention_write_delta = None
+    if use_mlp_bam_read:
+      # M_out is already post-attention except in the six deferred-write layers.
+      mlp_read_matrix = M_out
+      if mlp_write:
+        mlp_read_matrix, attention_write_delta = attention_layer.materialize_attention_write(
+            write_factors, M_out)
+      bam_hidden = bam_mlp.BamMlpRead(cfg, self.quant, name='mlp_bam_read')(
+          hidden_states, mlp_read_matrix)
+
     mlp_lnx = None
     if cfg.shared_experts == 1:
       # MLP block.
@@ -245,7 +263,7 @@ class SubDecoderLayer(nn.Module):
           config=cfg,
           quant=self.quant,
           kernel_init=initializers.get_init_method(cfg.init_method), # lsp
-      )(hidden_states, deep_embedding=deep_embedding, decoder_input_tokens=decoder_input_tokens, deterministic=deterministic)
+      )(hidden_states, deep_embedding=deep_embedding, decoder_input_tokens=decoder_input_tokens, deterministic=deterministic, bam_hidden=bam_hidden)
       mlp_lnx = nn.with_logical_constraint(mlp_lnx, ("activation_batch", "activation_norm_length", "activation_embed"))
 
       if cfg.record_internal_nn_metrics:
@@ -334,7 +352,8 @@ class SubDecoderLayer(nn.Module):
       if not pallas_core:
         M_out = attention_layer.merge_mlp_write(
             mlp_lnx.reshape(mlp_lnx.shape[:-1] + (num_query_heads, cfg.bam_k)),
-            jax.nn.sigmoid(mlp_logits), write_factors, M_out, independent_address=independent_address)
+            jax.nn.sigmoid(mlp_logits), write_factors, M_out, independent_address=independent_address,
+            attention_write_delta=attention_write_delta)
     if pallas_core:
       from layers import bam_pallas
       groups = [write_factors]

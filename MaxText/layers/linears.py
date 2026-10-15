@@ -313,7 +313,7 @@ class MlpBlock(nn.Module):
         )
 
   @nn.compact
-  def __call__(self, inputs, deep_embedding=None, decoder_input_tokens=None, decode: bool = False, deterministic: bool = False):
+  def __call__(self, inputs, deep_embedding=None, decoder_input_tokens=None, decode: bool = False, deterministic: bool = False, bam_hidden=None):
     """Applies Transformer MlpBlock module."""
     cfg = self.config
 
@@ -322,6 +322,10 @@ class MlpBlock(nn.Module):
 
     # Iterate over specified MLP input activation functions.
     # e.g. ('relu',) or ('gelu', 'linear') for gated-gelu.
+    if bam_hidden is not None:
+      assert tuple(self.activations) == ('silu', 'linear') and not cfg.fused_mlp
+      assert bam_hidden.shape[:-1] == inputs.shape[:-1]
+      assert 0 < bam_hidden.shape[-1] < self.intermediate_dim
     activations = []
     if cfg.fused_mlp:
       x = DenseGeneral(
@@ -342,8 +346,10 @@ class MlpBlock(nn.Module):
     else:
       for idx, act_fn in enumerate(self.activations): # wi_0 is mlp gate
         dense_name = "wi" if len(self.activations) == 1 else f"wi_{idx}"
+        input_width = (self.intermediate_dim - bam_hidden.shape[-1]
+                       if bam_hidden is not None and idx == 1 else self.intermediate_dim)
         x = DenseGeneral(
-            self.intermediate_dim,
+            input_width,
             dtype=self.dtype,
             weight_dtype=self.weight_dtype,
             kernel_init=self.kernel_init,
@@ -357,6 +363,8 @@ class MlpBlock(nn.Module):
         if cfg.activations_in_float32:
           x = x.astype(jnp.float32)
         x = _convert_to_activation_function(act_fn)(x)
+        if bam_hidden is not None and idx == 1:
+          x = jnp.concatenate((x, bam_hidden.astype(x.dtype)), axis=-1)
         activations.append(x)
 
     # Take elementwise product of above intermediate activations.

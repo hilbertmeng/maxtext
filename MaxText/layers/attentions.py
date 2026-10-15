@@ -3543,7 +3543,18 @@ class BamAttention(Attention):
     content = self.write_data_norm(u1) if self._write_data_rms else u1
     return scale * gate[..., None] * content, self.write_address_norm(u2), gate
 
-  def merge_mlp_write(self, mlp_head, mlp_gate, factors, M_in, independent_address=None):
+  def materialize_attention_write(self, factors, M_in):
+    """Expose post-attention M and retain its delta for the final merged write."""
+    content, address, _ = factors
+    with jax.named_scope('bam/write_outer'):
+      if self._write_outer_implementation == 'dot':
+        delta = jnp.einsum('btnk,btnv->btkv', content, address)
+      else:
+        delta = jnp.sum(content[..., None] * address[..., None, :], axis=-3)
+    return _update_bam_matrix(M_in, delta, self.config.bam_lambda_decay), delta
+
+  def merge_mlp_write(self, mlp_head, mlp_gate, factors, M_in, independent_address=None,
+                      attention_write_delta=None):
     """Merge attention/MLP writes, then decay the carried matrix exactly once."""
     attention_content, address, attention_gate = factors
     content = self.write_data_norm(mlp_head) if self._write_data_rms else mlp_head
@@ -3558,11 +3569,14 @@ class BamAttention(Attention):
           dM = jnp.sum(combined_content[..., None] * address[..., None, :], axis=-3)
     else:
       mlp_address = self.write_address_norm(independent_address)
-      with jax.named_scope('bam/write_outer'):
-        if self._write_outer_implementation == 'dot':
-          dM = jnp.einsum('btnk,btnv->btkv', attention_content, address)
-        else:
-          dM = jnp.sum(attention_content[..., None] * address[..., None, :], axis=-3)
+      if attention_write_delta is None:
+        with jax.named_scope('bam/write_outer'):
+          if self._write_outer_implementation == 'dot':
+            dM = jnp.einsum('btnk,btnv->btkv', attention_content, address)
+          else:
+            dM = jnp.sum(attention_content[..., None] * address[..., None, :], axis=-3)
+      else:
+        dM = attention_write_delta
       with jax.named_scope('bam/mlp_independent_write_outer'):
         if self._write_outer_implementation == 'dot':
           dM = dM + jnp.einsum('btnk,btnv->btkv', mlp_content, mlp_address)

@@ -150,9 +150,12 @@ def run(config):
   identity = {
       'exp_class': config.exp_class, 'checkpoint': config.load_parameters_path,
       'checkpoint_step': int(config.load_parameters_path.rstrip('/').split('/')[-2]),
-      'training_runtime_commit': ('55deb7c34ae85530b2276b933a5aac5e99e6c0ba'
-          if config.exp_class.startswith('BamMediumPropK75')
-          else 'e9f77281a61d1e3dfa8416574655f48d28d98481'),
+      'training_runtime_commit': {
+          'BamMHAMediumPropC256T2048Matched': 'e9f77281a61d1e3dfa8416574655f48d28d98481',
+          'MuddLlama2MediumPropC256T2048': 'e9f77281a61d1e3dfa8416574655f48d28d98481',
+          'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadT2048':
+              '55deb7c34ae85530b2276b933a5aac5e99e6c0ba',
+      }.get(config.exp_class),
       'runtime_commit': commit, 'source_sha256': meta['source_integrity']['sha256'],
       'sequence_length': config.max_target_length, 'bucket_size': bucket_size,
       'batch_size': batch_size, 'health_overrides': overrides,

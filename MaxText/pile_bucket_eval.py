@@ -121,6 +121,8 @@ def run(config):
   started = time.monotonic()
   if not config.only_eval or not config.load_parameters_path or config.enable_checkpointing:
     raise ValueError('Require only_eval=True, explicit parameters path, checkpointing disabled')
+  if jax.default_backend() != 'tpu':
+    raise ValueError('Checkpoint evaluation requires a TPU backend')
   if config.load_full_state_path or jax.process_count() != 1:
     raise ValueError('Use parameter-only restore on one TPU host')
   output = Path(os.environ['PILE_BUCKET_OUTPUT'])
@@ -147,6 +149,10 @@ def run(config):
   commit = subprocess.check_output(['git','rev-parse','HEAD'], text=True).strip()
   identity = {
       'exp_class': config.exp_class, 'checkpoint': config.load_parameters_path,
+      'checkpoint_step': int(config.load_parameters_path.rstrip('/').split('/')[-2]),
+      'training_runtime_commit': ('55deb7c34ae85530b2276b933a5aac5e99e6c0ba'
+          if config.exp_class.startswith('BamMediumPropK75')
+          else 'e9f77281a61d1e3dfa8416574655f48d28d98481'),
       'runtime_commit': commit, 'source_sha256': meta['source_integrity']['sha256'],
       'sequence_length': config.max_target_length, 'bucket_size': bucket_size,
       'batch_size': batch_size, 'health_overrides': overrides,

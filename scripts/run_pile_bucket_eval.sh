@@ -35,11 +35,12 @@ fi
 # Missing progress is normal on the first launch; access failures remain fatal.
 "$python" - "$gcs" "$output/progress.json" <<'PY'
 import sys
+from pathlib import Path
 from google.api_core.exceptions import NotFound
 from google.cloud import storage
 bucket,name=sys.argv[1][5:].split('/',1)
 b=storage.Client(project='newproject-1-451205').bucket(bucket).blob(name+'/progress.json')
-try:b.download_to_filename(sys.argv[2])
+try:Path(sys.argv[2]).write_bytes(b.download_as_bytes())
 except NotFound:pass
 PY
 "$python" MaxText/pile_bucket_eval.py MaxText/configs/base.yml \

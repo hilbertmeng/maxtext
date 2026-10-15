@@ -127,3 +127,13 @@ Canonical20–99 all80points .4709125step/s, versus samehealthOFF gated12 .46877
 ## Ungated zero-static group: all18 common2k
 
 All18actual2040/CP2000; newnonwrite12actual321/CP200 verifiedcommitted. At1k/1.2k/1.4k/1.6k/1.8k/2k versusgatedall18 gaps-.0049478/-.0044452/-.0033188/-.0043708/-.0055308/-.0016652, MHA-reference ratios1.008287/1.009029/1.007386/1.011389/1.015752/1.005154. Latest5mean-.00386616/R1.009742. Versusoriginalsingle.5 gaps-.0174636/-.0151864/-.015461/-.0099098/-.0083402/-.005009, ratios1.029876/1.031536/1.035364/1.026200/1.023945/1.015666; last5mean-.01078128/R1.026542. Totalgainpeaked1.4k thencontracts3windows, removalofgates/zerostatic hasnotreversedoldlateproblem. Stillmodestlybetterthangatedall18. Continue2800review; noearlyeffectverdictfornew12, firstformal1k. Speedunchanged canonical+1.18563percentagainsthealthOFFold18. Fullnativehistory report-common2000-static-zero.json.
+
+## New reader group: all18 3k / nonwrite12 first1k
+
+Actual3054/1065 CP3000/1000committed. All18 originalsingle gaps2k/2.2k/2.4k/2.6k/2.8k/3k -.005009/-.0070356/-.0050196/-.0057454/-.0050662/-.0036138; MHA-reference ratios1.015666/1.023045/1.017504/1.021068/1.019447/1.014456, last5R1.019104. Oldgated18 lastcommon2800 gap-.0049298/R1.018914; unavailableafter2800, notinterpolated. Improvementstillmodestbutdidnotvanishlikeoldgatedarms; continue4k.
+
+New12at200/400/600/800/1000 oldgated12gaps-.0041004/-.0100522/-.0042524/-.0054968/-.0052888, ratios1.002767/1.006570/1.004273/1.007417/1.008908; new18gaps+.0245064/+.0133832/+.0035572/+.0019982/+.002977, ratios.983777/.991385/.996454/.997331/.995055. Originalsingle gaps-.0779078/-.0547788/-.0315206/-.0204596/-.0144866, ratios1.055325/1.036882/1.032562/1.028174/1.024783. Old18/new18new12effectbothimprove~.005versusownoldgated1k, cannotattributecombinedchange solelytogateremoval. New12losesslightlyto18butfaster1.71%, continue2k. FullnativeMHAgapsandallratios report-common3000-1000-static-zero.json.
+
+Betobservabilitycorrection: preregisteredterminalnew/oldgated1.05 cannotbeverifiedat13500 becauseoldgated12/all18stopped~2800. Preservehistoricalbets, nevercallcommon2800ratios terminalverification. Subsequentterminalcomparisonsusecompletedoriginalsingle.5 andactivezero-static12/18 peers. No retroactive numerical pre-run bet.
+
+New12firstpreemption2026-10-15T12:32:05Z, firstREADY12:01:02–12:32:05(31m03s), CP731committed. Resumed732 sameae19f92/AOT/13500schedule, CP800then1000committed. First31minleasepartofsameUE5acorrelatedeventasoriginal-init/sharedwriteA, notanindependentzonefailuresample.

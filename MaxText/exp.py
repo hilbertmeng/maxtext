@@ -12915,7 +12915,14 @@ class Llama2XLPropTruePileMHAQKNorm(Llama2XLPropTruePileMHA):
 
 class BamXLPropMShiftReadG050FullQKNormTruePile(BamXLPropSharedR400GeneralReadMShiftReadG050TruePile):
     """Original XL single read .5 plus full96 Q/K RMSNorm before partial RoPE."""
-    # code_commit: 7249f01; UE5a TPU310230 FIRST_STEP/AOT/1432389016/healthOFF verified; ~.380step/s.
+    # 用户暂停10272步，CP10272已提交、TPU/队列已释放、TB SYNC_OK；保留原50000步计划以便续训。
+    # 暂时结论：QKNorm改善BAM自身loss，但对MHA帮助更大；尚未验证未观测的终局。
+    # 1k/2k/4k/6k/8k/10k二阶倍数.8094/.8655/.9225/.9408/.9337/.9275；6k后平台波动。
+    # 10k对原单门.5 gap-.009789、MHA参考父路收益倍数1.06468；末五gap-.010276、倍数1.06586。
+    # 同20%训练进度，Medium二阶.833936、XL.927458；XL优势差距较12%缩小，跨尺度不比较raw gap。
+    # 暂停前终局预估下调.94[.91,.98]，原.96及更早.92保留供检验；不是已观测终局。
+    # UE5a v5p32，.3791step/s，P1，同区恢复；actual1432389016参数，健康全部关闭。
+    # code_commit:7249f01；实现codex/mediumprop-qknorm，/data0/xd/mediumprop-qknorm。
     model_name = 'BamXLPropMShiftReadG050FullQKNormTruePile'
     qk_norm = True
     bam_qk_norm_after_concat = True

@@ -32,3 +32,8 @@ scan-tail finite norm+Mshift gradients and causality passed; AOT/prequeue prepar
 FIRST_STEP0 then7 confirmed. Worker actual1432389016; qk_norm/after_concatTrue,
 MLP[6127,5938,6127]/tail6126; batch128. All bam_record flags/internal/generichealthFalse.
 Loaded compiled function; observed .380step/s. Continue active monitor, next XL report2000.
+
+
+### User pause10272, 2026-10-15
+
+Explicit user pause; provisional conclusion, not failed terminal. CP10272 committed, registry paused retaining50000-step/LR schedule; TPU310230 UE5a v5p32 node+queue verified absent, localTB SYNC_OK. One preemption, same zone. Latest mature native window10000: parent gap-.009789, parent gain1.064680 using oldMHA; five-window means-.010276/1.065864. Paired QKNorm second-order1k/2k/3k/4k/5k/6k/7k/8k/9k/10k=.809407/.865533/.895029/.922459/.918007/.940791/.925051/.933668/.927974/.927458. At same20% schedule progress, Medium.833936 vsXL.927458; scale gap shrinks from12%. After6k no continued recovery, pre-pause terminal forecast revised.96->.94[.91,.98]; full50k endpoint unobserved. Source7249f01, diagnostics under /data0/xd/bam_diagnostics/xlprop-bam-qknorm: paired-10000.json, cross-scale-10000.json, user-pause-10000.log, pause-full-leases.txt.

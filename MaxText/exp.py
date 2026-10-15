@@ -12929,13 +12929,15 @@ class BamMediumPropMShiftReadG050PostMLPWriteControlsTruePile(
 class BamMediumPropPostAttentionWriteSharedR256AttentionNormTruePile(
         BamMediumPropMShiftReadG050PostAttentionWriteControlsTruePile):
     """Share actual post-attention write-address R256 features using attention norm."""
-    # New experiment: attention/MLP write address down and GELU computed once in six MLP-write layers.
-    # Independent address ups, full-D write gates, data factors and attention read down retained.
-    # Same-layer MLP refund +85: parent width3676->3761; expected432104480params (parent-7200 rounding).
-    # Pre-run terminal new/attention-only gain1.03 [.99,1.08], MHA reference; expected speed approximately flat.
+    # 已开训：UE5a v5p16 TPU310249，FIRST_STEP/AOT/实际参数432104480与配置核验，健康全部OFF。
+    # 20–99步0.4845000step/s，相对同健康attention单改父路+0.018%，速度基本持平。
+    # 六个MLP写层共享实际R256地址down/GELU；两路up和full-D写门独立，读端down独立。
+    # MLP[3802,3761,3802]，父路-7200参数（整数找平余差）；非MLP写回12层行为不变。
+    # 终局相对attention单改下注1.03[.99,1.08]，MHA参考；尚无正式loss结论，每1k两路一起报。
+    # code_commit: 99485ac；实现codex/mediumprop-m-shift，/data0/xd/mediumprop-m-shift。
+    model_name = 'BamMediumPropPostAttentionWriteSharedR256AttentionNormTruePile'
     bam_attention_mlp_write_shared_norm = 'attention'
     mlp_dim_by_block = [3802, 3761, 3802]
-    model_name = 'BamMediumPropPostAttentionWriteSharedR256AttentionNormTruePile'
     compare_runs = ['BamMediumPropMShiftReadG050PostAttentionWriteControlsTruePile',
                     'BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile',
                     'BamMHAMediumPropC256TruePile']
@@ -12944,8 +12946,11 @@ class BamMediumPropPostAttentionWriteSharedR256AttentionNormTruePile(
 class BamMediumPropPostAttentionWriteSharedR256MLPNormTruePile(
         BamMediumPropPostAttentionWriteSharedR256AttentionNormTruePile):
     """Share write-address features using the existing post-attention MLP norm."""
-    # Same budget/circuit as attention-norm arm; only shared address feature normalization differs.
-    # Attention gate keeps attention norm; MLP gate keeps MLP norm. Non-MLP-write layers unchanged.
-    # Pre-run terminal new/attention-only gain1.04 [.99,1.10]; predict small edge versus attention norm.
-    bam_attention_mlp_write_shared_norm = 'mlp'
+    # 已开训：UE5a v5p16 TPU310250，FIRST_STEP/AOT/实际参数432104480与配置核验，健康全部OFF。
+    # 20–99步0.4842625step/s，相对同健康attention单改父路-0.031%，速度基本持平。
+    # 六个MLP写层共享实际R256地址down/GELU；两路up和full-D写门独立，读端down独立。
+    # MLP[3802,3761,3802]，父路-7200参数（整数找平余差）；非MLP写回12层行为不变。
+    # 终局相对attention单改下注1.04[.99,1.10]，MHA参考；尚无正式loss结论，每1k两路一起报。
+    # code_commit: 99485ac；实现codex/mediumprop-m-shift，/data0/xd/mediumprop-m-shift。
     model_name = 'BamMediumPropPostAttentionWriteSharedR256MLPNormTruePile'
+    bam_attention_mlp_write_shared_norm = 'mlp'

@@ -12930,8 +12930,8 @@ class BamMediumPropMShiftReadG050PostMLPWriteControlsTruePile(
 class BamMediumPropPostAttentionWriteSharedR256AttentionNormTruePile(
         BamMediumPropMShiftReadG050PostAttentionWriteControlsTruePile):
     """Share actual post-attention write-address R256 features using attention norm."""
-    # 在训共同3k：对attention单改父路gap+.000951、MHA参考倍数.99635；接近持平，尚未建立共享净收益。
-    # MLP norm持续小幅领先：3k peer gap-.000574/倍数1.00221，最近五peer倍数1.00358，当前更倾向MLP norm。
+    # 在训共同4k/CP4000：对attention单改父路gap+.000076、MHA参考倍数.99966；末五倍数.999015。
+    # MLP norm最近五窗口均优于父路，开始微弱净收益；对attention norm末五gap-.000790/倍数1.00325，继续5k。
     # 首次抢占CP2975，按原99485ac/13500计划从2976恢复，CP3000已提交；P1。
     # 六MLP写层共享实际R256 down/GELU，两路up及full-D写门独立，读端down独立；非写回12层不变。
     # UE5a v5p16 .4845000step/s，相对同健康父路基本持平；432104480参数，MLP[3802,3761,3802]，健康全OFF。
@@ -12948,8 +12948,8 @@ class BamMediumPropPostAttentionWriteSharedR256AttentionNormTruePile(
 class BamMediumPropPostAttentionWriteSharedR256MLPNormTruePile(
         BamMediumPropPostAttentionWriteSharedR256AttentionNormTruePile):
     """Share write-address features using the existing post-attention MLP norm."""
-    # 在训共同3k：对attention单改父路gap+.000377、MHA参考倍数.99855；接近持平，尚未建立共享净收益。
-    # MLP norm持续小幅领先：3k peer gap-.000574/倍数1.00221，最近五peer倍数1.00358，当前更倾向MLP norm。
+    # 在训共同4k/CP4000：对attention单改父路gap-.000324、MHA参考倍数1.00143；末五倍数1.002256。
+    # MLP norm最近五窗口均优于父路，开始微弱净收益；对attention norm末五gap-.000790/倍数1.00325，继续5k。
     # UE5a持续运行P0，保留shared attention norm及attention单改父路对照。
     # 六MLP写层共享实际R256 down/GELU，两路up及full-D写门独立，读端down独立；非写回12层不变。
     # UE5a v5p16 .4842625step/s，相对同健康父路基本持平；432104480参数，MLP[3802,3761,3802]，健康全OFF。

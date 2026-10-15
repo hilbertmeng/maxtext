@@ -115,3 +115,7 @@ Canonical20–99 all80points .4855375step/s, parent.4844125 +.232240%, healthmat
 ### Attention-only common8k
 
 CP8000committed, actual8033; newnormreusecontrol704/CP600verified. Parentgaps7k/7.2k/7.4k/7.6k/7.8k/8k -.0046024/-.0049116/-.0055832/-.005589/-.0051506/-.0051192; MHA-reference ratios1.025649/1.027778/1.031518/1.032198/1.029989/1.029343. Latest5gap-.00527072/R1.030165 versus7kR1.030948, contractionmateriallyslowed, recent1k~1.03held. Continue9k; originalterminal1.025betretained, no terminalclaim. Source selective/report8000.json (extractedregisteredpendingreport from sharedreport-active8-20261015-parent8000.json). FullMHAgapsavailable, oldstoppedboth6000horizonunchanged/notrepeated.
+
+### Shared write norm common4k
+
+ActualA4041/M4374, CP4000both; newerpureMLPnormreusecontrol884/CP800. ParentgapA3k/3.2k/3.4k/3.6k/3.8k/4k+.0009512/-.0001328/+.0009688/+.0005946/-.000296/+.0000762, M+.0003774/-.000718/-.0011152/-.0002454/-.0003348/-.0003236. ParentMHA-reference RA.996351/1.000532/.996094/.997508/1.001279/.999662, RM.998552/1.002875/1.004497/1.001029/1.001447/1.001434. Latest5meanAgap+.00024216/R.999015, Mgap-.0005474/R1.002256, all5Mbetterthanparent: firstweaknetsharinggain, Aflat. Peer4kM-minus-A-.0003998/R1.001772, last5-.00078956/R1.003250, continuedMLPnormpreference. Originalsingle4kR1.037812/1.039651, parent1.038162. Speedflat; continue5k, no stop. Fullcumulativeregisteredreports shared-write/report-common4000.json andmlp-norm-common4000-fresh.json.

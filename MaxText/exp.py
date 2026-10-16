@@ -12911,11 +12911,13 @@ class BamPythiaMediumPropT2048SerialMLPPythiaEmbeddingScaledWrite(
         BamPythiaMediumPropT2048SerialMLPBamInitFix):
     """Init-fix parent with Pythia embedding and compensated input to the first M write."""
     # 仅改embedding初始化与首次写M输入固定缩放；串行GELU/LayerNorm、其余初始化和宽度沿修复父路。
-    # 新增0 W_Q，参数432356690，MLP[5832,5643,5832]；健康全OFF，T2048/global256/13500步。
-    # 跑前终局BAM/Mudd倍数下注1.60[1.45,1.72]（串行MHA参考）；对修复父路loss约+.0013。
-    # UE5a v5p16；复用已完成串行MHA/Mudd，无变化的两条对照不重跑；编译借用预留FLEX。
-    # 启动20–99步 0.5151875 step/s；同健康修复父路约-0.46%。
-    # code_commit: f98ce98；/data0/xd/pythia-mediumprop-t2048；FIRST_STEP/AOT/实际参数量及健康全OFF已核验。
+    # 完成13500；相对修复父路早期落后逐渐缩小，末期停在约+.011，未追回；末五+.011361。
+    # 对串行MHA优势逐渐收窄至末五-.112170，对串行Mudd末五-.035753；MHA参考终局倍数1.46793。
+    # 对修复父路收益倍数由1k .9439降至终局.90803；匹配首次M不足以保持训练收益。
+    # 跑前BAM/Mudd终局1.60[1.45,1.72]、对父路loss+.0013偏乐观；实测倍数仍在区间内。
+    # UE5a v5p16 .5151875step/s，同健康修复父路-.464%；参数432356690、增量0 W_Q、MLP[5832,5643,5832]。
+    # 健康全OFF；P2、三段READY租期已登记；CP13500提交、节点/队列删除及TB SYNC_OK核验。
+    # ledger only：codex/pythia-mediumprop-t2048，/data0/xd/pythia-mediumprop-t2048；code_commit: f98ce98。
     model_name = 'BamPythiaMediumPropT2048SerialMLPPythiaEmbeddingScaledWrite'
     token_embedding_init_method = ''
     bam_embedding_write_input_scale = 0.3286335345030997  # .006 / sqrt(2 / (5 * 1200))

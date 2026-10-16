@@ -228,7 +228,7 @@ Reusable CPU runner: experiments/bam_llama2_medium/analyze_pythia_embedding_sens
 
 The T64-only inference that MHA/Mudd barely respond does NOT carry over to formalT2048. Longer attention aggregation reduces its initial branch RMS; repeated real token identities partly restore it. These measurements support a shared mechanism with stronger amplification for BAM on this small Pile cohort, not a proven final-loss sensitivity ordering.
 
-Pile cohort: /data0/xd/bam_diagnostics/cohorts/pile-eval-t2048-seed9876-n128-v1/pile_eval_cohort.npz, first4 of the established128-sequence cohort;8192 valid tokens,2136 distinct ids, token-ids SHA256 2a181ff8907f5152b014e664dd142d1fe90097d36c49d122666650aacb9ba56c. Preserve saved segment/position arrays; compute RMS over valid tokens. Model embeddings are newly drawn Gaussian vectors shared by token identity, not restored semantic embeddings. Invocation: --length2048 --skip-grad --sequences4 --token-npz COHORT (insert ordinary spaces after option names). Artifact /data0/xd/bam_diagnostics/pythia-init/embedding-sensitivity-first-layer-PileT2048.json. The same runner without token-npz gives the independent-token control.
+Pile cohort: /data0/xd/bam_diagnostics/cohorts/pile-eval-t2048-seed9876-n128-v1/pile_eval_cohort.npz, first4 of the established128-sequence cohort;8192 valid tokens,2136 distinct ids, token-ids SHA256 2a181ff8907f5152b014e664dd142d1fe90097d36c49d122666650aacb9ba56c. Preserve saved segment/position arrays; compute RMS over valid tokens. Model embeddings are newly drawn Gaussian vectors shared by token identity, not restored semantic embeddings. Invocation: --length 2048 --skip-grad --sequences 4 --token-npz COHORT. Artifact /data0/xd/bam_diagnostics/pythia-init/embedding-sensitivity-first-layer-PileT2048.json. The same runner without token-npz gives the independent-token control.
 
 In PileT2048, small/large first attention RMS is .007744/.008820 for MHA/Mudd and .0002519/.0002523 for BAM. Post-attention MLP-input LN RMS .946989/.987829 versus BAM .884752/.985318. MLP-output RMS: MHA .080680/.084135; Mudd .057348/.059983; BAM .080542/.091485. Seed M .018598344/.018598346 is matched. Weak initial BAM attention allows more of the epsilon-dependent embedding-scale difference into the first MLP. After that MLP, its .08-level residual exceeds either embedding scale, so do not claim embedding dominates every deep layer.
 
@@ -239,3 +239,44 @@ Mudd stores raw embedding/history (mudd_prenorm=False), mixes them before Q/K/V/
 Completed TB inventory: repaired and full-original-init arms each545 total tags, zero gradient/BAM health tags; unfixed serial has889 health tags but also differs in BAM kernels/write epsilon. No paired training-health trend can establish the mechanism. Catalog /data0/xd/bam_diagnostics/pythia-init/initialization-health-catalog.json.
 
 Forecast, no new training launched: only token embedding to.006 in existing serial Pythia controls, all other initialization, widths and Mudd router budget unchanged. MHA terminal loss delta center−.006, subjective range[−.015,+.004]; Mudd center−.006, range[−.020,+.008]. Expect common benefit, with wider Mudd uncertainty rather than an asserted larger gain. Numbers are subjective forecasts, not a conversion from first-layer RMS into terminal loss. For unchanged repaired BAM, terminal H=2.48550996,U=2.40909280,B=2.36197836: if both baselines improve .006, R=(H−.006−B)/(H−U)≈1.538. Generally R_new=(H−h−B)/(H−U−h+u). Both absolute losses improving does not force R down: if h>R/(R−1)*u≈2.62u, R rises. The most direct next training controls are MHA and Mudd embedding-only .006, reusing completed repaired BAM; BAM embedding-only without compensation remains missing for strict isolation of its std effect.
+
+## Completed embedding-compensated run
+
+Completed13500 at2026-10-16T00:35:27Z. Terminal last-five windows12600–13400: vs repaired small-embedding parent gap+.0113612, gain multiplier.908034 (MHA reference); vs serial MHA gap−.1121704; vs serial Mudd gap−.0357532, gain multiplier1.467926. The parent gap narrowed from+.02039 at1k to roughly+.011 after10k, without a late catch-up. BAM/Mudd multipliers at1k/3k/5k/7k/9k/11k/13k/13.4k:2.36454/1.76196/1.57303/1.52791/1.48117/1.48076/1.46730/1.47774. Initial terminal bet1.60[1.45,1.72] was optimistic; late revised forecast~1.46–1.47 matched. Matching initial M did not preserve the repaired parent's training benefit.
+
+Canonical.5151875step/s, −.464% versus health-off repaired parent; same432356690 parameters and MLP widths, all healthOFF. P2, all v5p-16 UE5a, no active-zone switch or passive candidates. Every READY lease UTC:16:47:47–20:00:09 on Oct15 (3h12m22s,preempted);20:07:17–23:37:24 (3h30m07s,preempted);Oct15 23:43:12–Oct16 00:35:27 (52m15s,completion). CP13500 commit marker, node/queue NOT_FOUND and TB SYNC_OK verified. Final report, verification and leases: /data0/xd/bam_diagnostics/pythia-init/embedding-compensated-final13400.json, embedding-compensated-final-verification.json, embedding-compensated-leases.txt. Main exp.py and regional-history records finalized once at completion.
+
+## Why the first BAM attention branch starts small
+
+The quoted small-output result includes both repaired small embedding and large embedding with fixed seed compensation. They have nearly identical initial seed M and first-attention output; compensation does not uniquely cause the weak output. This is a first-layer initialization result, not a claim that all layers or trained attention outputs stay small.
+
+Trace same D1200/L18 initialization, parameter seed19, the same four PileT2048 sequences and fp32 inputs as above. Executed scripts and SHA256 manifest: /data0/xd/bam_diagnostics/pythia-init/attention-initialization-provenance.json. Traces: attention-initialization-trace-v2.json and attention-initialization-interventions.json in that directory. No production source or training health flags changed.
+
+The dominant initial V path is static M read, with no standard W_V (bam_local_v_replace=True). The static gate compensation gate/init is exactly1 initially, while static O key is zero. Thus dynamic read gates cannot explain most of the weak value branch.
+
+The source of small M is factorized seed-address initialization: .006 embedding -> W_emb_v_down(.006), near-zero GELU approximately multiplying by1/2, -> W_emb_v_up(.006). Expected raw address RMS is .006*sqrt(1200)*.006*.5*sqrt(256)*.006≈.000060, measured .00005984. Its variance≈3.58e-9 is much smaller than write RMSNorm epsilon1e-6; normalization yields address RMS≈.060 rather than1. Seed data raw RMS .001246 yields normalized RMS≈.779. With16 independent write heads and write gate.1, seed M is approximately sqrt(16)*.1*.779*.060≈.0187, measured .018598. Existing paired-seed artifact embedding-seed-init.json independently confirms normalized address/data RMS.
+
+| First-layer stage | BAM large embedding + compensated seed | MHA large embedding |
+|---|---:|---:|
+| Seed M RMS | .018598 | — |
+| After .5 previous-token M mixing | .013294 | — |
+| Static V read RMS | .012878 | — |
+| Dynamic V contribution RMS | .000264 | — |
+| Standard V projection RMS | absent | .623588 |
+| Attention-aggregated V RMS | .002275 | .080233 |
+| W_O output RMS | .0002523 | .0088198 |
+
+Both W_O kernels use Pythia Wang std≈.0032075, expected RMS gain sqrt(1200)*std≈.1111. This further contracts both branches; it is not a BAM-only penalty. MHA's initial V is about48x the BAM static V, and the final attention outputs differ about35x. Attention averaging and M-shift add contraction, but the main upstream cause is the weak seed value carrier.
+
+Same-parameter forward interventions:
+
+| Intervention | Seed M RMS | First attention output RMS |
+|---|---:|---:|
+| Unchanged | .018598 | .0002523 |
+| Write epsilon1e-8 | .203343 | .0027342 |
+| Write epsilon1e-10 | .394418 | .0052348 |
+| Only V/O dynamic gate logits changed from.05 to.5 | .018598 | .0003914 |
+
+The epsilon interventions change both seed data/address normalization; later attention-write epsilon is also changed by the probe config, but that write occurs after the measured current attention output and cannot explain it. These are forward interventions, not trained checkpoint evaluations. Opening dynamic gates10x gives only1.55x attention output, whereas reducing epsilon gives10.84x/20.75x, supporting the seed-scale diagnosis over a gate-only explanation.
+
+Research implication: separate seed initialization from recurring write normalization. If testing this bottleneck, prefer a seed-specific address normalization epsilon or seed address-up initialization/scale, keeping recurring attention/MLP writes unchanged; globally reducing every write epsilon would confound the test and alter optimization in all layers. The historical .006 BAM recipe already had this weak seed, so this is not by itself a newly introduced implementation bug or proof that larger initial M improves terminal loss. After the first attention write, M already rises to.367949 in the unchanged probe; do not extrapolate the first-layer weakness to every layer. Small embedding versus large+compensated still differs in residual LayerNorm response, relative Adam updates and learned embedding-to-M updates, even when seed M matches.

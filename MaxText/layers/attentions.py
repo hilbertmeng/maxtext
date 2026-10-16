@@ -2458,7 +2458,9 @@ def mix_bam_previous_token(M, gate, segment_ids=None, positions=None):
 
 
 def bam_m_shift_health(M, mixed, gate, segment_ids=None, positions=None, *, column_metrics=True):
-  """All valid-token gate stats; M health samples at most32 positions/sequence."""
+  """All valid-token gate stats; M health samples at most32 positions/sequence.
+
+  mixed may be a callable (indices -> mixed M at those positions) so the full mix need not exist."""
   valid = bam_m_shift_valid_mask(M.shape, segment_ids, positions)
   weights = valid.astype(jnp.float32)
   count = jnp.maximum(jnp.sum(weights), 1)
@@ -2478,7 +2480,7 @@ def bam_m_shift_health(M, mixed, gate, segment_ids=None, positions=None, *, colu
   indices = jnp.minimum(indices, M.shape[1]-1)
   current = M[:, indices].astype(jnp.float32)
   previous = M[:, jnp.maximum(indices-1, 0)].astype(jnp.float32)
-  result = mixed[:, indices].astype(jnp.float32)
+  result = (mixed(indices) if callable(mixed) else mixed[:, indices]).astype(jnp.float32)
   sample_weights = weights[:, indices]
   sample_count = jnp.maximum(jnp.sum(sample_weights), 1)
   average = lambda v: jnp.sum(v * sample_weights) / sample_count
@@ -2740,7 +2742,8 @@ class BamAttention(Attention):
       if getattr(cfg, 'bam_pallas_core', False):   # one read gate, mixed inside the v8t read kernel
         assert getattr(cfg, 'bam_pallas_body', None) == 'v8t' and self._m_shift_mode == 'read'
         assert not (self._m_shift_separate_reads or self._m_shift_two_lag or self._bam_kv_shift)
-        assert not getattr(cfg, 'bam_record_m_shift_health', False)
+        assert (not getattr(cfg, 'bam_record_m_shift_health', False)
+                or getattr(cfg, 'bam_m_shift_compact_health', False))
       opening = float(cfg.bam_m_shift_init)
       assert 0 < opening < 1
       self.m_shift_gate = linears.DenseGeneral(
@@ -3953,6 +3956,18 @@ class BamAttention(Attention):
         valid = bam_m_shift_valid_mask(inputs_q.shape, segments, positions)
         shift = jax.nn.sigmoid(shift_logits).astype(M_in.dtype)
         read_kwargs['shift'] = jnp.where(valid[..., None], shift, jnp.zeros_like(shift))
+        if getattr(cfg, 'bam_record_m_shift_health', False):
+          # Compact summary as the XLA path records it; M is token-major [B,T,V,K], so the
+          # (masked) share broadcasts over K and the mix is built only at the sampled positions.
+          def mixed(indices, M=M_in, g=read_kwargs['shift']):
+            current, previous = M[:, indices], M[:, jnp.maximum(indices-1, 0)]
+            share = g[:, indices][..., None]
+            return (jnp.asarray(1, M.dtype) - share) * current + share * previous
+          stats, _, state = bam_m_shift_health(M_in, mixed, jax.nn.sigmoid(shift_logits),
+                                               decoder_segment_ids, inputs_positions,
+                                               column_metrics=False)
+          self.sow('intermediates', 'm_shift_m_summary',
+                   jnp.stack((stats[0], stats[1], stats[4], stats[5], state[4])))
         if getattr(cfg, 'bam_pallas_shift_body', None):
           read_kwargs['shift_body'] = cfg.bam_pallas_shift_body
         if getattr(cfg, 'bam_pallas_shift_lane_dg', False):

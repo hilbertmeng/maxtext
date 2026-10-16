@@ -4,6 +4,7 @@ Reference: mix M in XLA (M_t + g'_t (M_{t-1} - M_t), g' zero at invalid tokens),
 v8t read, whose own equivalence to the original model is covered by bam_pallas_model_test.
 """
 import sys
+import tempfile
 import unittest
 
 import jax
@@ -88,6 +89,40 @@ class ShiftedModelTest(unittest.TestCase):
     model_test.ModelEquivalenceTest('_run')._run(
         'BamPallasMShiftTinyXlaTest', ('BamPallasMShiftTinyPallasV8TTest', 'BamPallasMShiftTinyPallasV8TFusedTest',
                                        'BamPallasMShiftTinyPallasV8TOptTest'))
+
+  def test_v8t_compact_health_matches_xla(self):
+    sys.path.insert(0, 'MaxText/tests')
+    import bam_pallas_model_test as model_test  # pylint: disable=import-outside-toplevel
+    out = tempfile.mkdtemp()
+    cfg, xla = model_test.build('BamPallasMShiftHealthTinyXlaTest', out)
+    pallas = model_test.build('BamPallasMShiftHealthTinyPallasTest', out)[1]
+    b, t = int(cfg.global_batch_size_to_train_on), cfg.max_target_length
+    tokens = jax.random.randint(jax.random.PRNGKey(0), (b, t), 0, 1000)
+    # Two packed documents so the segment/position mask enters both the gate and the M samples.
+    segments = jnp.where(jnp.arange(t) < t // 3, 1, 2)[None].repeat(b, 0).astype(jnp.int32)
+    positions = jnp.where(segments == 1, jnp.arange(t), jnp.arange(t) - t // 3)
+    rngs = {'params': jax.random.PRNGKey(1), 'dropout': jax.random.PRNGKey(2), 'aqt': jax.random.PRNGKey(3)}
+    params = xla.init(rngs, tokens, positions, segments, tokens)
+    leaves, tree = jax.tree.flatten(params)
+    keys = jax.random.split(jax.random.PRNGKey(4), len(leaves))
+    params = jax.tree.unflatten(tree, [x + 0.02 * jax.random.normal(k, x.shape, x.dtype)
+                                       for x, k in zip(leaves, keys)])
+
+    def summaries(model):
+      _, state = model.apply(params, tokens, positions, segments, tokens, enable_dropout=False,
+                             rngs=rngs, mutable=['intermediates'])
+      found = {jax.tree_util.keystr(path): np.asarray(leaf)
+               for path, leaf in jax.tree_util.tree_flatten_with_path(state['intermediates'])[0]
+               if 'm_shift_m_summary' in jax.tree_util.keystr(path)}
+      self.assertTrue(found)
+      return found
+
+    want, got = summaries(xla), summaries(pallas)
+    self.assertEqual(sorted(want), sorted(got))
+    for name, value in want.items():
+      print(name, value.reshape(-1, 5)[0], got[name].reshape(-1, 5)[0])
+      self.assertTrue(np.all(value.reshape(-1, 5)[:, 4] > 0), name)   # non-trivial mix delta
+      np.testing.assert_allclose(got[name], value, rtol=1e-4, atol=1e-6, err_msg=name)
 
 
 if __name__ == '__main__':

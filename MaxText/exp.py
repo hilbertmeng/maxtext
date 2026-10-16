@@ -12709,6 +12709,20 @@ class BamPallasMShiftTinyPallasV8TOptTest(BamPallasMShiftTinyPallasV8TFusedTest)
     bam_pallas_shift_lane_dg = True
 
 
+class BamPallasMShiftHealthTinyXlaTest(BamPallasMShiftTinyXlaTest):
+    """CPU fixture: + compact M-shift health (the XL MShiftReadG050 formal setting), pure JAX."""
+    model_name = 'BamPallasMShiftHealthTinyXlaTest'
+    bam_record_m_shift_health = True
+    bam_m_shift_compact_health = True
+
+
+class BamPallasMShiftHealthTinyPallasTest(BamPallasMShiftTinyPallasV8TOptTest):
+    """CPU fixture: the same compact health from the v8t core (mix built only at sampled tokens)."""
+    model_name = 'BamPallasMShiftHealthTinyPallasTest'
+    bam_record_m_shift_health = True
+    bam_m_shift_compact_health = True
+
+
 class BamFullMGeneralReadPallasV8TProfile(BamFullMGeneralReadPallasFusedProfile):
     """v8t: v7's T-minor kernel I/O + token-major M [B,T,V,K] + per-token MXU matmuls in the kernels."""
     # v5p-8 5286504: 0.582 vs v7 SaveRead 0.546 (+6.6%, 94.8% of MHA); kernels 114 vs 202 ms.
@@ -13159,4 +13173,36 @@ class BamMediumPropGeneralReadPallasProfile(TrainStepProfile, BamMediumPropK75Em
 
 class BamMediumPropMShiftPostAttnMLPNormPallasOptVmem32Profile(BamMediumPropMShiftPostAttnMLPNormPallasOptProfile):
     model_name = 'BamMediumPropMShiftPostAttnMLPNormPallasOptVmem32Profile'
+    bam_pallas_vmem_mib = 32
+
+
+class BamXLPropMShiftG050Profile(TrainStepProfile, BamXLPropSharedR400GeneralReadMShiftReadG050TruePile):
+    """Timing arm: XL single-gate read M shift .5, pure JAX, BAM concat health OFF (as the v8t control)."""
+    model_name = 'BamXLPropMShiftG050Profile'
+    steps = 60
+    bam_record_concat_health = False
+
+
+class BamXLPropMShiftG050PallasProfile(BamXLPropMShiftG050Profile):
+    """The same model on the v8t fused core (blend_tmb + lane gate gradient), compact M-shift health ON.
+
+    Direct speed comparison: BamFullMGeneralReadPallasV8TProfile (its parent on the same core)."""
+    model_name = 'BamXLPropMShiftG050PallasProfile'
+    bam_pallas_core = True
+    bam_pallas_body = 'v8t'
+    bam_pallas_vmem_mib = 48
+    bam_pallas_fused_inputs = True
+    bam_pallas_shift_body = 'blend_tmb'
+    bam_pallas_shift_lane_dg = True
+
+
+class BamXLPropMShiftG050PallasNoShiftHealthProfile(BamXLPropMShiftG050PallasProfile):
+    """Pallas arm without the compact M-shift health summary (its cost alone)."""
+    model_name = 'BamXLPropMShiftG050PallasNoShiftHealthProfile'
+    bam_record_m_shift_health = False
+
+
+class BamXLPropMShiftG050PallasVmem32Profile(BamXLPropMShiftG050PallasProfile):
+    """Pallas arm with a 32 MiB scoped VMEM limit (room for XLA's Splash segment-id prefetch)."""
+    model_name = 'BamXLPropMShiftG050PallasVmem32Profile'
     bam_pallas_vmem_mib = 32

@@ -97,3 +97,5 @@ python3 experiments/bam_llama2_medium/report_initial_residual_amplitudes.py  /da
 ```
 
 The report needs NumPy/Matplotlib only; the runner uses the pinned MaxText CPU environment. The initial tiny smoke used the same real dimensions/depth at T128 to verify scan collection layout; formal profile results above use T2048. No trained parameters were loaded or modified.
+
+Real TPU startup cross-check after this initialization probe: the new embedding-only.006 controls (training seed9876, actual BF16 training batch) measured first-step MLP/embedding13.383 for MHA and9.424 for Mudd, with parameter RMS.006000035 on both. These are separate from the fixed-cohort seed19 CPU curves above, and agree with the expected higher first-MLP ratios. Full scalar records are in small-embedding-health-startup.json. No checkpoint download was involved.

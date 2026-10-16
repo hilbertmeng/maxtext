@@ -12918,6 +12918,8 @@ class PythiaMediumPropT2048SerialMLPSmallEmbedding(PythiaMediumPropT2048SerialML
     # T2048/global256，13500步，CP200/latest2/keep0/final强制，TB轮换500。
     # 仅9个stem健康标量，每100步写入；通用grad/param及其余健康OFF。
     # ledger only：codex/pythia-mediumprop-t2048，/data0/xd/pythia-mediumprop-t2048；UE5a v5p16，TPU310255。
+    # code_commit: 1d4785f；FIRST_STEP/AOT加载、worker参数432360000及9个健康tag已核验。
+    # 启动20–99步0.7359500step/s，历史父路+0.89%（旧通用健康仍计算，非严格匹配）。
     model_name = 'PythiaMediumPropT2048SerialMLPSmallEmbedding'
     token_embedding_init_method = '006normal'
     record_embedding_stem_health_metrics = True
@@ -12932,6 +12934,8 @@ class MuddPythiaMediumPropT2048SerialMLPSmallEmbedding(MuddPythiaMediumPropT2048
     # T2048/global256，13500步，CP200/latest2/keep0/final强制，TB轮换500。
     # 仅9个stem健康标量，每100步写入；通用grad/param及其余健康OFF。
     # ledger only：codex/pythia-mediumprop-t2048，/data0/xd/pythia-mediumprop-t2048；UE5a v5p16，TPU310256。
+    # code_commit: 1d4785f；FIRST_STEP/AOT加载、worker参数434356347及9个健康tag已核验。
+    # 启动20–99步0.5828875step/s，历史父路+0.71%（旧通用健康仍计算，非严格匹配）。
     model_name = 'MuddPythiaMediumPropT2048SerialMLPSmallEmbedding'
     token_embedding_init_method = '006normal'
     record_embedding_stem_health_metrics = True

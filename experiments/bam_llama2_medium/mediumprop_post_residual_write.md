@@ -215,3 +215,11 @@ Infrastructure audit against main334f26a9: train/train_compile/optimizers/max_ut
 Before either FIRST_STEP, user requested fresh bets: supersede preliminary1.025 with XL/new-over-single-.5 R1.03 [1.00,1.06] over common30k–32.5k, XL MHA reference. Not a full50k terminal claim; parent stopped33009. Compare same-progress XL30000 with Medium8100, never Medium terminal versus unfinished XL. Medium attention-control benefit and norm-reuse parity motivate a modest improvement; no evidence yet for strong XL amplification. Speed expected unchanged.
 
 Startup verified: runtime 7573944cc7260d775aa0d542f7d04dcd3933f78b, FIRST_STEP and Loaded compiled function confirmed; actual worker parameter shapes sum to 1432383640 (182 leaves), all health flags OFF. Canonical steps20–99 mean 0.3893375 step/s over80 samples. Historical single-.5 parent .3646625 has health ON; no clean architecture speed attribution.
+
+## MLP-norm reuse control — completed13500
+
+`BamMediumPropMShiftReadG050PostAttentionWriteMLPNormTruePile`, runtime6c586f8714ecffaecd4de8c8bd2a915cf0e4d663, completed13500 at2026-10-15T20:50:40Z. CP13500 committed; node and queued resource NOT_FOUND; final TB SYNC_OK. UE5a v5p16, canonical.4855375step/s, +.232% over matched health-off attention-only parent. Parameter delta0 W_Q,432111680; unchanged [3802,3676,3802].
+
+Final12600–13400 mean gap versus attention-only parent+.00016216, gain ratio.9989871; last13400−.0004586/R1.0029041. Full trajectory fluctuates around parity, not a new loss improvement. Versus original single-.5: last5−.00312628/R1.0200955, sequence1k1.05632→6k1.03485→10k1.02505→13.4k1.02430. Versus MHA last5−.15877784. Versus stopped shared-write MLP-norm comparator, last common5200 window+.0010906; last5+.00061448/R.9970747, explicitly not an equal terminal comparison. Initial forecast versus attention-parent1.01[.99,1.04] optimistic at center, outcome inside range.
+
+P1, same zone only. Complete READY leases UTC:12:46:11→13:27:54,41m43s, preempted;13:34:42→20:50:40,7h15m58s, clean completion. Artifacts /data0/xd/bam_diagnostics/post-residual-write/mlp-norm-control/{final13500.json,final-leases-registry.txt,final-resources.json,completed-closeout-remote.log}.

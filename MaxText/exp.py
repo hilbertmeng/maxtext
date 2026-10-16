@@ -12969,11 +12969,13 @@ class BamMediumPropPostAttentionWriteSharedR256MLPNormTruePile(
 class BamMediumPropMShiftReadG050PostAttentionWriteMLPNormTruePile(
         BamMediumPropMShiftReadG050PostAttentionWriteControlsTruePile):
     """Post-attention controls reuse the MLP norm; write downs stay independent."""
-    # 每层attention写控制复用已有MLP norm，省一次norm；两写端R256/激活仍独立，写内容不变。
-    # 跑前相对attention单改父路终局倍数下注1.01[.99,1.04]（MHA参考）、速度+.3%[0,1%]。
-    # UE5a v5p16，.4855375 step/s（20–99），对同健康attention单改父路+.232%。
-    # MLP[3802,3676,3802]，参数变化0、健康全OFF；同组六层共享写对照并非完整因子消融。
-    # code_commit: 6c586f8；ledger only：codex/mediumprop-m-shift，/data0/xd/mediumprop-m-shift；过程见 mediumprop_post_residual_write.md。
+    # 结论：复用MLP norm与attention单改父路终局持平，省一次norm但没有额外loss收益。
+    # 完成13500；末五12600–13400对父路gap+.000162/R.998987，末窗口-.000459/R1.002904。
+    # 对原单门.5末五gap-.003126/R1.020096；1k/6k/10k/13.4k倍数1.0563/1.0349/1.0251/1.0243，继承的小幅收益保留到终局。
+    # 对MHA末五gap-.158778；对已停共享写MLP norm最后共同5200末五+.000614/R.997075，非完整终局对照。
+    # UE5a v5p16 .4855375step/s，对同健康attention单改父路+.232%；参数432111680、宽度不变，健康全OFF。
+    # 跑前对父路倍数1.01[.99,1.04]偏乐观，实测在区间内；P1，两段READY租期已登记。
+    # CP13500提交、节点/队列删除及TB SYNC_OK核验；code_commit: 6c586f8；codex/mediumprop-m-shift，/data0/xd/mediumprop-m-shift。
     model_name = 'BamMediumPropMShiftReadG050PostAttentionWriteMLPNormTruePile'
     bam_attention_write_controls_norm = 'mlp'
     compare_runs = ['BamMediumPropMShiftReadG050PostAttentionWriteControlsTruePile',

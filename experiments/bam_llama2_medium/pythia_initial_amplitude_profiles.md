@@ -64,6 +64,29 @@ The large-uncompensated arm is a forward-only intervention, not a launched train
 3. All-original initialization produces a much more attention-heavy deep stack. At layer18 attention/MLP is5.637, versus repaired1.175, unfixed1.774, large-compensated1.167, MHA.662 and Mudd.573. This is a concrete initialization-balance difference worth considering, not a new loss-ranking score. All-original still trains better than unfixed; no single amplitude ratio orders all terminal losses.
 4. Deep attention outputs have strong token-common components: per-sequence token-mean attention RMS/total RMS is about.90–.98 at layer18. Gaussian/GELU shared-feature correlations accumulate through residual depth. Thus an independent-token1/sqrt(T) attention approximation is unsuitable for deeper layers. The exact identity E||sum alpha_i V_i||² includes all i,j cross-covariances. RMS is not a measurement of useful information or trained expressivity.
 
+## First MLP / embedding as a candidate mechanism
+
+The three arms with repaired BAM-specific initialization rank consistently: first-layer MLP/embedding13.540 (repaired),7.247 (all-original),5.060 (large+compensated), versus terminal losses2.361978,2.367093,2.373340. This is a meaningful association supported by two different contrasts, not an established isolated first-layer effect. All-original also changes standard kernels throughout depth; large+compensated changes LayerNorm response and relative embedding/seed learning.
+
+At fixed initialization widths/stds, ignoring tiny first attention,
+
+    ratio(s_E) = sqrt(m)*sigma_W2*sqrt(F(q))/s_E,
+    q = D*sigma_W1^2*s_E^2/(s_E^2+epsilon_LN).
+
+Predicted repaired13.47 vs large+compensated5.03, measured13.54/5.06. LayerNorm makes MLP amplitude less sensitive to embedding std than the linear identity skip. Both already have MLP-dominated first outputs: the direct embedding squared-norm term is about.54%,1.87%,3.76% of the respective first output squared norm. Measured first-layer post-attention/MLP cosine is only.0010–.0023, so the independent-energy approximation is numerically adequate here. These are norm terms, not fractions of retained token information: the MLP and seed M both remain functions of embedding.
+
+There is a backward counterpart that can also be derived without checkpoint measurement. For an embedding perturbation orthogonal to its centered feature direction and the all-ones direction, the LayerNorm Jacobian gain is1/sqrt(s_E^2+epsilon). Fresh Gaussian W1 makes the perturbation's preactivation independent of the original preactivation. Hence expected RMS tangent gain through the first MLP branch is
+
+    J_gain = sqrt(D*m)*sigma_W1*sigma_W2*sqrt(G(q))/sqrt(s_E^2+epsilon),
+    G(q) = E[(GELU'(Z))^2]
+         = 1/4 + asin(q/(1+q))/(2*pi)
+           + q/(pi*(1+q)*sqrt(1+2*q))
+           + q/(2*pi*(1+2*q)^(3/2)).
+
+Predicted gains: repaired13.93, all-original7.30, large+compensated5.21. Scalar numerical Gaussian quadrature verified both F and G formulas to numerical precision. This shows the forward ratio is related to embedding-Jacobian conditioning, not only direct residual composition. It does NOT imply Adam gives proportionally larger absolute updates: normalization largely removes gradient magnitude, while relative update/embedding scale remains different.
+
+Most targeted improvement candidate, not launched: keep large embedding+compensated seed, and form first-block output c*E + attention + MLP(LN(E+attention)), c≈.37373. All attention/MLP computation inputs, initialized parameters, initial M and embedding parameter scale remain unchanged; only the first embedding identity skip is attenuated. It matches the repaired first MLP/direct-skip ratio without globally amplifying later residuals. This specifically tests the identity-skip mechanism; lack of recovery would not rule out LayerNorm/MLP conditioning or relative embedding learning as contributors. The default first-block MLP has no M write, so no first-layer MLP-write side effect needs compensating. No new training was started from this analysis.
+
 ## Reproduction
 
 From the family worktree, for each ARM in mha,mudd,unfixed,bam_fix,all_original,large_comp,large_uncomp:

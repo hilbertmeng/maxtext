@@ -12913,13 +12913,14 @@ class BamPythiaMediumPropT2048SerialMLPOriginalInit(
 
 class PythiaMediumPropT2048SerialMLPSmallEmbedding(PythiaMediumPropT2048SerialMLP):
     """Embedding-only .006 control; retain the serial Pythia Transformer initialization."""
-    # 只改token embedding初始化；标准Transformer仍Pythia，GELU/LayerNorm/串行/宽度及总参数量不变。
-    # 跑前终局相对原MHA父路loss下注-.006[-.015,+.004]；速度预期约持平，精简健康有少量开销。
-    # T2048/global256，13500步，CP200/latest2/keep0/final强制，TB轮换500。
-    # 仅9个stem健康标量，每100步写入；通用grad/param及其余健康OFF。
-    # ledger only：codex/pythia-mediumprop-t2048，/data0/xd/pythia-mediumprop-t2048；UE5a v5p16，TPU310255。
-    # code_commit: 1d4785f；FIRST_STEP/AOT加载、worker参数432360000及9个健康tag已核验。
-    # 启动20–99步0.7359500step/s，历史父路+0.89%（旧通用健康仍计算，非严格匹配）。
+    # 结论：仅将embedding改为normal(.006)使串行Pythia MHA小幅变差；较大首层MLP/embedding比值未带来收益。
+    # 完成13500，末五12600–13400对原MHA gap+.004563（+.003917～+.004977），末窗口+.004977。
+    # 早期波动后，1k起基本落后；3k/5k/7k/9k/11k/13k gap+.005720/+.001803/+.005421/+.004270/+.004452/+.004836。
+    # 跑前终局-.006[-.015,+.004]方向错误、实际略超区间上沿；标准Transformer仍Pythia、串行GELU/LN。
+    # 参数432360000、MLP4800不变，新增0W_Q；9个首层/embedding健康标量每100步记录，其余健康OFF。
+    # UE5a v5p16，初次20–99步.7359500step/s、抢占续训约.730；旧父路仍算通用健康，速度非严格可比。
+    # P1，CP13500提交、节点/队列释放、TB SYNC_OK；两段READY租期已登记，无换区。
+    # ledger only：codex/pythia-mediumprop-t2048，/data0/xd/pythia-mediumprop-t2048；code_commit: 1d4785f。
     model_name = 'PythiaMediumPropT2048SerialMLPSmallEmbedding'
     token_embedding_init_method = '006normal'
     record_embedding_stem_health_metrics = True

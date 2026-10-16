@@ -2737,7 +2737,10 @@ class BamAttention(Attention):
             matmul_precision=cfg.matmul_precision, name=f'KV_shift_{arm}_gate'))
     if self._m_shift_mode != 'none':
       assert self._full_m_read_rank is not None and self._general_read
-      assert not getattr(cfg, 'bam_pallas_core', False), 'M shift uses the pure-JAX SOTA'
+      if getattr(cfg, 'bam_pallas_core', False):   # one read gate, mixed inside the v8t read kernel
+        assert getattr(cfg, 'bam_pallas_body', None) == 'v8t' and self._m_shift_mode == 'read'
+        assert not (self._m_shift_separate_reads or self._m_shift_two_lag or self._bam_kv_shift)
+        assert not getattr(cfg, 'bam_record_m_shift_health', False)
       opening = float(cfg.bam_m_shift_init)
       assert 0 < opening < 1
       self.m_shift_gate = linears.DenseGeneral(
@@ -3817,6 +3820,8 @@ class BamAttention(Attention):
         'sigmoid gates': self._read_gate_activation is jax.nn.sigmoid,
         'health off': not self._concat_health and not self._record_fetched_read_health_metrics,
         'no fused qkv / mha control': not cfg.fused_qkv and not self._mha_control,
+        'single-gate read M shift on v8t only': self._m_shift_mode == 'none' or (
+            self._m_shift_mode == 'read' and getattr(cfg, 'bam_pallas_body', None) == 'v8t'),
     }
     failed = [name for name, ok in checks.items() if not ok]
     if failed:
@@ -3856,8 +3861,11 @@ class BamAttention(Attention):
     return out
 
   def _pallas_core_call(self, inputs_q, inputs_positions, decoder_segment_ids, M_in, is_global,
-                        standard_qk_width):
-    """Fused-kernel forward; M_in is token-minor [B,V,K,T]. Returns (out, M_in, write factors)."""
+                        standard_qk_width, defer_write_context=False):
+    """Fused-kernel forward; M_in is token-minor [B,V,K,T] (token-major [B,T,V,K] for v8t).
+
+    Returns (out, M_in, write factors), or (out, M_in, o_head) when the write controls are computed
+    later from another context (pallas_write_factors)."""
     from layers import bam_pallas
     cfg = self.config
     self._check_pallas_core()
@@ -3868,8 +3876,10 @@ class BamAttention(Attention):
     if fused:
       gate_names = ('W_lq_gate', 'W_lk_gate', 'W_R_gate', 'W_lv_gate')
       key_names = ('full_m_read_down',) if full_m else ('W_lq_c8', 'W_lk_c8', 'W_R')
+      write_names = () if defer_write_context else ('P_loc_down', 'W_gw')
+      shift_names = ('M_shift_gate',) if self._m_shift_mode != 'none' else ()
       raw = self._fused_input_projections(
-          inputs_q, ('query', 'key') + key_names + gate_names + static_gate_names + ('P_loc_down', 'W_gw'))
+          inputs_q, ('query', 'key') + key_names + gate_names + static_gate_names + shift_names + write_names)
       query = raw['query'].reshape(b_, t_, self.num_query_heads, standard_qk_width)
       key = raw['key'].reshape(b_, t_, self.num_kv_heads, standard_qk_width)
     else:
@@ -3928,6 +3938,16 @@ class BamAttention(Attention):
     weight = bam_pallas.static_weight(
         self.static_q_key, self.static_k_key, self.static_v_key, self.static_o_key, compression)
     body = getattr(cfg, 'bam_pallas_body', None) or 'blocked'
+    shift_kwargs = {}
+    if self._m_shift_mode != 'none':
+      # Same previous-token share as mix_bam_previous_token (cast to the M dtype, zero where invalid);
+      # the read kernel mixes M_t + g'(M_{t-1} - M_t) per V row; writes still accumulate onto M_in.
+      with jax.named_scope('bam/m_shift'):
+        shift_logits = raw['M_shift_gate'] if fused else self.m_shift_gate(inputs_q)
+        shift_logits = shift_logits.astype(jnp.float32) + self.m_shift_bias.astype(jnp.float32)
+        valid = bam_m_shift_valid_mask(inputs_q.shape, decoder_segment_ids, inputs_positions)
+        shift = jax.nn.sigmoid(shift_logits).astype(M_in.dtype)
+        shift_kwargs['shift'] = jnp.where(valid[..., None], shift, jnp.zeros_like(shift))
     pass_m = body in ('v7', 'v7u', 'v8t')   # M passthrough: dM sum fused into the read reverse
     q_scale = 1.0 / math.sqrt(self.head_dim) if pass_m else 1.0   # attention scale folded into the kernel
     with jax.named_scope('bam/pallas_read'):
@@ -3946,7 +3966,8 @@ class BamAttention(Attention):
           **({'token_io': True} if getattr(cfg, 'bam_pallas_token_io', False) else {}),
           **({'save_y': True} if getattr(cfg, 'bam_pallas_save_y', False) else {}),
           **({'rolled_passes': tuple(cfg.bam_pallas_rolled_passes)}
-             if getattr(cfg, 'bam_pallas_rolled_passes', None) else {}))
+             if getattr(cfg, 'bam_pallas_rolled_passes', None) else {}),
+          **shift_kwargs)
     query, key, value, local_output = outs[:4]
     if pass_m:
       M_in = outs[4]
@@ -3966,14 +3987,22 @@ class BamAttention(Attention):
       y_std, _ = self._attention_block(query, key, value, decoder_segment_ids,
                                        q0=0, s0=0, window_size=local_window)
     o_head = y_std + local_output
-    if fused:
+    out = self.out_projection(inputs_q.shape[-1], nn.with_logical_constraint(o_head, self.out_axis_names))
+    if defer_write_context:
+      return out, M_in, o_head
+    return out, M_in, self.pallas_write_factors(o_head, inputs_q, raw if fused else None)
+
+  def pallas_write_factors(self, o_head, x, raw=None):
+    """Fused-core attention write group (content, logits, address) with controls computed from x."""
+    if raw is None and bool(getattr(self.config, 'bam_pallas_fused_inputs', False)) and not self.is_initializing():
+      raw = self._fused_input_projections(x, ('P_loc_down', 'W_gw'))
+    if raw is not None:
       address = self.P_loc_up(nn.gelu(raw['P_loc_down']))
       write_logits = raw['W_gw'] + jnp.asarray(self.gw_b0, self.dtype)
     else:
-      address = self.P_loc_up(nn.gelu(self.P_loc_down(inputs_q)))
-      write_logits = self.W_gw(inputs_q) + jnp.asarray(self.gw_b0, self.dtype)
-    out = nn.with_logical_constraint(o_head, self.out_axis_names)
-    return self.out_projection(inputs_q.shape[-1], out), M_in, (o_head, write_logits, address)
+      address = self.P_loc_up(nn.gelu(self.P_loc_down(x)))
+      write_logits = self.W_gw(x) + jnp.asarray(self.gw_b0, self.dtype)
+    return o_head, write_logits, address
 
   @nn.compact
   def __call__(
@@ -4006,7 +4035,7 @@ class BamAttention(Attention):
     inputs_kv = nn.with_logical_constraint(inputs_kv, self.input_axis_names)
     M_read = M_in
     separate_m_reads = None
-    if getattr(self, '_m_shift_mode', 'none') != 'none':
+    if getattr(self, '_m_shift_mode', 'none') != 'none' and not getattr(cfg, 'bam_pallas_core', False):
       assert M_in is not None
       with jax.named_scope('bam/m_shift'):
         logits = self.m_shift_gate(inputs_q).astype(jnp.float32) + self.m_shift_bias.astype(jnp.float32)
@@ -4079,7 +4108,8 @@ class BamAttention(Attention):
     standard_qk_width = self._standard_qk_width or (self.head_dim - self._qk_col_width)
     if getattr(cfg, 'bam_pallas_core', False):
       return self._pallas_core_call(
-          inputs_q, inputs_positions, decoder_segment_ids, M_in, is_global, standard_qk_width)
+          inputs_q, inputs_positions, decoder_segment_ids, M_in, is_global, standard_qk_width,
+          defer_write_context=defer_write_context)
     # ---- QKV projection + QKNorm + RoPE ----
     if cfg.fused_qkv:
       query, key, value = self.qkv_projection(inputs_q, proj_name="qkv_proj")

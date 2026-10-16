@@ -215,7 +215,10 @@ class SubDecoderLayer(nn.Module):
         assert cfg.bam_write_v_bottleneck_activation == 'gelu'
     share_write_hidden = mlp_write and shared_write_norm != 'none'
     if attention_post_residual_controls or mlp_post_residual_controls:
-        assert cfg.bam_enabled and not pallas_core and not cfg.dense_conn
+        assert cfg.bam_enabled and not cfg.dense_conn
+        # Fused core: attention-only post-attention controls feed the same post-MLP write kernel.
+        assert not pallas_core or (attention_post_residual_controls and not mlp_post_residual_controls
+                                   and shared_write_norm == 'none')
         assert cfg.shared_experts == 1 and cfg.num_experts == 1
         assert 'full' not in layer_mode and not cfg.bam_mha_control
     if attention_post_residual_controls:
@@ -260,7 +263,9 @@ class SubDecoderLayer(nn.Module):
     if attention_post_residual_controls:
       write_context = (hidden_states if attention_write_norm == 'mlp'
                        else attention_norm(intermediate_inputs))
-      if mlp_write:
+      if pallas_core:
+        write_factors = attention_layer.pallas_write_factors(write_head, write_context)
+      elif mlp_write:
         if share_write_hidden:
           shared_write_hidden = attention_layer.write_address_hidden(
               write_context if shared_write_norm == 'attention' else hidden_states)

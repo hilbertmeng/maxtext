@@ -12676,6 +12676,31 @@ class BamPallasFullMTinyPallasV8TTest(BamPallasFullMTinyPallasV7FusedInputsTest)
     bam_pallas_body = 'v8t'
 
 
+class BamPallasMShiftTinyXlaTest(BamPallasFullMTinyXlaTest):
+    """CPU fixture: tiny full-M model + single-gate read M shift and post-attention write controls
+    (MLP norm), the BamMediumPropMShiftReadG050PostAttentionWriteMLPNormTruePile recipe, pure JAX."""
+    model_name = 'BamPallasMShiftTinyXlaTest'
+    bam_m_shift_mode = 'read'
+    bam_m_shift_init = 0.5
+    bam_record_m_shift_health = False
+    bam_attention_write_controls_post_residual = True
+    bam_attention_write_controls_norm = 'mlp'
+
+
+class BamPallasMShiftTinyPallasV8TTest(BamPallasMShiftTinyXlaTest):
+    """CPU fixture: the same model through the interpreted v8t core (in-kernel M shift)."""
+    model_name = 'BamPallasMShiftTinyPallasV8TTest'
+    bam_pallas_core = True
+    bam_pallas_interpret = True
+    bam_pallas_body = 'v8t'
+
+
+class BamPallasMShiftTinyPallasV8TFusedTest(BamPallasMShiftTinyPallasV8TTest):
+    """CPU fixture: + fused input projections (shift gate joins the x-side dot; write controls do not)."""
+    model_name = 'BamPallasMShiftTinyPallasV8TFusedTest'
+    bam_pallas_fused_inputs = True
+
+
 class BamFullMGeneralReadPallasV8TProfile(BamFullMGeneralReadPallasFusedProfile):
     """v8t: v7's T-minor kernel I/O + token-major M [B,T,V,K] + per-token MXU matmuls in the kernels."""
     # v5p-8 5286504: 0.582 vs v7 SaveRead 0.546 (+6.6%, 94.8% of MHA); kernels 114 vs 202 ms.
@@ -12685,6 +12710,38 @@ class BamFullMGeneralReadPallasV8TProfile(BamFullMGeneralReadPallasFusedProfile)
     model_name = 'BamFullMGeneralReadPallasV8TProfile'
     bam_pallas_body = 'v8t'
 
+
+
+class BamFullMGeneralReadPallasV8TMShiftProfile(BamFullMGeneralReadPallasV8TProfile):
+    """v8t + single-gate read M shift (initial share .5) mixed inside the read kernel."""
+    model_name = 'BamFullMGeneralReadPallasV8TMShiftProfile'
+    bam_m_shift_mode = 'read'
+    bam_m_shift_init = 0.5
+    bam_record_m_shift_health = False
+
+
+class BamFullMGeneralReadPallasV8TPostAttnProfile(BamFullMGeneralReadPallasV8TProfile):
+    """v8t + attention write gate/address from the post-attention residual (MLP norm)."""
+    model_name = 'BamFullMGeneralReadPallasV8TPostAttnProfile'
+    bam_attention_write_controls_post_residual = True
+    bam_attention_write_controls_norm = 'mlp'
+
+
+class BamFullMGeneralReadPallasV8TMShiftPostAttnProfile(BamFullMGeneralReadPallasV8TMShiftProfile):
+    """v8t + both: the MediumProp MShiftReadG050PostAttentionWriteMLPNorm recipe at XL shapes."""
+    model_name = 'BamFullMGeneralReadPallasV8TMShiftPostAttnProfile'
+    bam_attention_write_controls_post_residual = True
+    bam_attention_write_controls_norm = 'mlp'
+
+
+class BamFullMGeneralReadMShiftPostAttnProfile(BamFullMGeneralReadNoHealthProfile):
+    """Pure-JAX reference of the same recipe at XL shapes (BAM health OFF)."""
+    model_name = 'BamFullMGeneralReadMShiftPostAttnProfile'
+    bam_m_shift_mode = 'read'
+    bam_m_shift_init = 0.5
+    bam_record_m_shift_health = False
+    bam_attention_write_controls_post_residual = True
+    bam_attention_write_controls_norm = 'mlp'
 
 class BamMediumPropSharedR256GeneralReadMShiftReadG005TruePile(BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile):
     """Dynamic previous-token M mix, read carry, initial share0.05."""

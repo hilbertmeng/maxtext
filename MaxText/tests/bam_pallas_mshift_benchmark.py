@@ -77,3 +77,22 @@ gk, gx = outs['kernel_shift_grad'], outs['xla_mix_grad']
 res['grad_rel_err'] = {'m': rel(gk[0], gx[0]), 'shift': rel(gk[1], gx[1]),
                        'keys': [rel(a, b) for a, b in zip(jax.tree.leaves(gk[2]), jax.tree.leaves(gx[2]))]}
 print('BENCH_JSON ' + json.dumps(res))
+
+# ---- kernel-only: pallas_calls on pre-laid-out T-minor operands (no wrapper transposes / boundary add) ----
+opts = dict(heads=N, qk_cols=QKC, read_epsilon=1e-4, key_scale=0.2, tile=TILE, reverse_tile=TILE, vmem_mib=48,
+            interpret=False, q_scale=float(1 / np.sqrt(K)), chunk=8)
+keys = lambda x: jnp.transpose(x, (0, 3, 2, 1))
+gate = lambda x: jnp.moveaxis(x, 1, -1)
+st = sw.astype(jnp.float32)
+args = (m, st, keys(xs[0]), gate(xs[1]), keys(xs[2]), gate(xs[3]), keys(xs[4]), gate(xs[5]), gate(xs[6]),
+        gate(xs[7]), gate(xs[8]), jnp.stack([gate(x) for x in sgs], axis=1))
+sh = gate(shift)
+kcts = tuple(jnp.transpose(c, (0, 2, 1, 3)) for c in cts[:4]) + (cts[4],)
+args, sh, kcts = jax.device_put((args, sh, kcts))
+kernel = {}
+for name, s in (('plain', None), ('kernel_shift', sh)):
+  f = jax.jit(lambda a, s=s: v8._tm_read_forward_call(a, opts, s))
+  b_raw = jax.jit(lambda a, c, s=s: v8._tm_read_backward_call(a, c, opts, s))
+  kernel[name] = {'fwd_ms': timeit(f, args), 'bwd_ms': timeit(b_raw, args, kcts)}
+  print('kernel', name, kernel[name], flush=True)
+print('KERNEL_JSON ' + json.dumps(kernel))

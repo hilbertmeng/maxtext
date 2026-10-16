@@ -123,6 +123,12 @@ def _prev_m(m_ref, mh_ref, t0, ch):
   return jnp.concatenate((mh_ref[...][None], m_ref[pl.ds(0, ch - 1)]), axis=0)
 
 
+def _prev_from(m_ref, mh_ref, t0, mt):
+  """M_{t-1} of the loaded chunk mt [ch, V, K]: one extra token (halo at the tile start) + mt[:-1]."""
+  first = mh_ref[...][None] if t0 == 0 else m_ref[pl.ds(t0 - 1, 1)]
+  return jnp.concatenate((first.astype(mt.dtype), mt[:-1]), axis=0)
+
+
 def _tm_read_kernel(n, qk_cols, eps, scale, q_scale, gated, ch, shifted=False):
   def kernel(m_ref, st_ref, rq, lq, rk, lk, rr, lo, lv, qs, ks, *refs):
     if gated:
@@ -146,7 +152,7 @@ def _tm_read_kernel(n, qk_cols, eps, scale, q_scale, gated, ch, shifted=False):
         xt = _chunk(xt_scr, t0, ch, cdim).astype(dt)
         mt = m_ref[pl.ds(t0, ch)].astype(F32)
         gk = _chunk(gb_scr, t0, ch, cdim) if gb_scr is not None else _shift_gate(sh_ref, t0, ch, kdim)
-        mr = mt + gk * (_prev_m(m_ref, mh_ref, t0, ch).astype(F32) - mt)
+        mr = mt + gk * (_prev_from(m_ref, mh_ref, t0, mt) - mt)
         y = _bdot(xt, mr.astype(dt), 1, 1)
       elif shifted:   # Y_t = X_t ((1-g') M_t + g' M_{t-1}) = (X_t - X_t g') M_t + (X_t g') M_{t-1}
         xt = _chunk(xt_scr, t0, ch, cdim)
@@ -226,7 +232,7 @@ def _tm_read_backward_kernel(n, qk_cols, eps, scale, q_scale, gated, ch, pass_m,
         # dg' = sum_k dM_read (M_{t-1} - M_t), reduced over K in the T-minor pass below.
         xt = _chunk(xt_scr, t0, ch, cdim).astype(dt)
         mt = m_ref[pl.ds(t0, ch)].astype(F32)
-        d = _prev_m(m_ref, mh_ref, t0, ch).astype(F32) - mt
+        d = _prev_from(m_ref, mh_ref, t0, mt) - mt
         gk = _chunk(gb_scr, t0, ch, cdim) if gb_scr is not None else _shift_gate(sh_ref, t0, ch, kdim)
         dxt = _bdot((mt + gk * d).astype(dt), dy, 2, 2)                   # [ch, C, R]
         dmr = _bdot(xt, dy, 2, 1)                                         # [ch, C, K]

@@ -383,12 +383,14 @@ _tm_read.defvjp(_tm_read_fwd, _tm_read_bwd)
 def read_tm(m, static_weight, q_key, q_logits, k_key, k_logits, vo_key, o_logits, v_logits, q_standard,
             k_standard, *, qk_cols, read_epsilon, key_scale, forward_tile=128, reverse_tile=128,
             vmem_mib=None, interpret=False, q_scale=1.0, static_gates=None, chunk=8, pad_heads=False,
-            shift=None, shift_body='dot', **_):
+            shift=None, shift_body='blend', **_):
   """v7.read's interface (keys [B,T,N,C], logits [B,T,N], standard QK [B,T,N,Rs]) for M [B,T,V,K] and
   full-M reads (C == V, identity compression). Returns (query, key, value, local_o) [B,T,N,K] and M.
 
   shift [B,T,V]: optional previous-token share g' (zero at invalid tokens); every read then sees
-  M_t + g'_t (M_{t-1} - M_t), mixed per V row inside the kernel. The passthrough M stays unmixed."""
+  M_t + g'_t (M_{t-1} - M_t), mixed per V row inside the kernel. The passthrough M stays unmixed.
+  shift_body 'blend' mixes M on the VPU (one read dot, two reverse dots); 'dot' keeps M and reads
+  (X - Xg') M_t + (Xg') M_{t-1} (two / four dots). v5p XL: blend read F/B +12%/+16% vs +17%/+18%."""
   b, t, n, cdim = q_key.shape
   assert cdim == m.shape[2], 'v8t supports full-M reads (identity compression) only'
   np_ = _pad_rows(n) if pad_heads else n

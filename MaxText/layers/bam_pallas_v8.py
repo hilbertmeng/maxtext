@@ -107,6 +107,15 @@ def _shift_gate(sh_ref, t0, ch, rows):
                     for i in range(ch)], axis=0)
 
 
+def _fill_shift_gate(sh_ref, gb_scr):
+  """gb_scr rows t*C + c = g'[c, t] broadcast over lanes: one XLU transpose + strided store per c."""
+  cdim, t = sh_ref.shape
+  lanes = gb_scr.shape[1]
+  for c in range(cdim):
+    row = jnp.broadcast_to(sh_ref[pl.ds(c, 1), :].astype(F32), (lanes, t))
+    gb_scr[pl.ds(c, t, stride=cdim), :] = _to_tokens(row)
+
+
 def _prev_m(m_ref, mh_ref, t0, ch):
   """M_{t-1} of tokens t0..t0+ch; the tile's first token reads the one-token halo."""
   if t0:
@@ -120,7 +129,8 @@ def _tm_read_kernel(n, qk_cols, eps, scale, q_scale, gated, ch, shifted=False):
       sg_ref, refs = refs[0], refs[1:]
     if shifted:
       (sh_ref, mh_ref), refs = refs[:2], refs[2:]
-    q_ref, k_ref, v_ref, o_ref, xt_scr, y_scr = refs
+    q_ref, k_ref, v_ref, o_ref, xt_scr, y_scr = refs[:6]
+    gb_scr = refs[6] if shifted == 'blend_tm' else None
     t, _, kdim = m_ref.shape
     cdim = rq.shape[0]
     np_ = rq.shape[1]                 # heads, optionally padded to a multiple of 8 by the wrapper
@@ -129,11 +139,14 @@ def _tm_read_kernel(n, qk_cols, eps, scale, q_scale, gated, ch, shifted=False):
     inv, g = _tm_slabs(eps, scale, rq, lq, rk, lk, rr, lo, lv)
     sg = sg_ref[...].astype(F32).reshape(r, t) if gated else None
     _tm_fill_keys(rq, rk, rr, inv, g, st_ref[...].astype(F32), sg, xt_scr)
+    if gb_scr is not None:
+      _fill_shift_gate(sh_ref, gb_scr)
     for t0 in range(0, t, ch):
-      if shifted == 'blend':   # Y_t = X_t M_read_t, M_read_t = M_t + g'(M_{t-1} - M_t) on the VPU
+      if shifted in ('blend', 'blend_tm'):   # Y_t = X_t M_read_t, M_read_t = M_t + g'(M_{t-1} - M_t) on the VPU
         xt = _chunk(xt_scr, t0, ch, cdim).astype(dt)
         mt = m_ref[pl.ds(t0, ch)].astype(F32)
-        mr = mt + _shift_gate(sh_ref, t0, ch, kdim) * (_prev_m(m_ref, mh_ref, t0, ch).astype(F32) - mt)
+        gk = _chunk(gb_scr, t0, ch, cdim) if gb_scr is not None else _shift_gate(sh_ref, t0, ch, kdim)
+        mr = mt + gk * (_prev_m(m_ref, mh_ref, t0, ch).astype(F32) - mt)
         y = _bdot(xt, mr.astype(dt), 1, 1)
       elif shifted:   # Y_t = X_t ((1-g') M_t + g' M_{t-1}) = (X_t - X_t g') M_t + (X_t g') M_{t-1}
         xt = _chunk(xt_scr, t0, ch, cdim)
@@ -174,6 +187,7 @@ def _tm_read_backward_kernel(n, qk_cols, eps, scale, q_scale, gated, ch, pass_m,
       (dsh_ref, bnd_ref), refs = refs[:2], refs[2:]
     xt_scr, dy_scr, dxt_scr, dkey_scr = refs[:4]
     gx_scr = refs[4] if shifted else None
+    gb_scr = refs[5] if shifted == 'blend_tm' else None
     t, _, kdim = m_ref.shape
     cdim = rq.shape[0]
     np_ = rq.shape[1]                 # heads, optionally padded to a multiple of 8 by the wrapper
@@ -202,16 +216,18 @@ def _tm_read_backward_kernel(n, qk_cols, eps, scale, q_scale, gated, ch, pass_m,
     # Per-token matmuls: dX_t^T = M_t dY_t^T, dM_t = X_t^T dY_t; dS = sum_t sg * dX^T.
     sgt = _to_tokens(sg) if gated else None                                # [T, R]
     dst = jnp.zeros((cdim, r), F32)
+    if gb_scr is not None:
+      _fill_shift_gate(sh_ref, gb_scr)
     nxt = None        # shifted: dM_{t-1} share of the first token of the chunk after this one
     for t0 in (range(0, t, ch)[::-1] if shifted else range(0, t, ch)):
       dy = _gather(dy_scr, t0, ch, t).astype(dt)
-      if shifted == 'blend':
+      if shifted in ('blend', 'blend_tm'):
         # dX = M_read dY^T, dM_read = X^T dY; dM_t = (1-g'_t) dM_read_t + g'_{t+1} dM_read_{t+1};
         # dg' = sum_k dM_read (M_{t-1} - M_t), reduced over K in the T-minor pass below.
         xt = _chunk(xt_scr, t0, ch, cdim).astype(dt)
         mt = m_ref[pl.ds(t0, ch)].astype(F32)
         d = _prev_m(m_ref, mh_ref, t0, ch).astype(F32) - mt
-        gk = _shift_gate(sh_ref, t0, ch, kdim)
+        gk = _chunk(gb_scr, t0, ch, cdim) if gb_scr is not None else _shift_gate(sh_ref, t0, ch, kdim)
         dxt = _bdot((mt + gk * d).astype(dt), dy, 2, 2)                   # [ch, C, R]
         dmr = _bdot(xt, dy, 2, 1)                                         # [ch, C, K]
         gx_scr[pl.ds(t0 * cdim, ch * cdim), :] = (dmr * d).reshape(ch * cdim, kdim)
@@ -310,7 +326,9 @@ def _tm_read_forward_call(args, opts, sh=None):
                       len(args) == 12, opts['chunk'], (opts.get('shift_body') or 'dot') if sh is not None else False),
       grid=(b, t // tile), in_specs=_tm_read_specs(args, tile) + _shift_specs(m, sh, tile),
       out_specs=[_tm_out_spec(n, tile, kdim)] * 4, out_shape=(out,) * 4,
-      scratch_shapes=[pltpu.VMEM((cdim * tile, r), F32), pltpu.VMEM((tile * r, kdim), F32)],
+      scratch_shapes=[pltpu.VMEM((cdim * tile, r), F32), pltpu.VMEM((tile * r, kdim), F32)]
+                     + ([pltpu.VMEM((tile * cdim, kdim), F32)]
+                        if sh is not None and opts.get('shift_body') == 'blend_tm' else []),
       interpret=opts['interpret'], compiler_params=_params(('parallel', 'parallel'), opts['vmem_mib']),
       name='bam_core_read')(*args, *(() if sh is None else (sh, m)))
 
@@ -337,7 +355,9 @@ def _tm_read_backward_call(args, cts, opts, sh=None):
   if shifted:
     out_specs += [_spec(sh.shape[1:-1], tile), pl.BlockSpec((None, None, vdim, kdim), lambda bb, i: (bb, i, 0, 0))]
     out_shape += [jax.ShapeDtypeStruct(sh.shape, sh.dtype), jax.ShapeDtypeStruct((b, t // tile, vdim, kdim), F32)]
-    scratch += [pltpu.VMEM((tile * cdim, kdim if shifted == 'blend' else r), F32)]
+    scratch += [pltpu.VMEM((tile * cdim, kdim if shifted in ('blend', 'blend_tm') else r), F32)]
+    if shifted == 'blend_tm':
+      scratch += [pltpu.VMEM((tile * cdim, kdim), F32)]
   outs = pl.pallas_call(
       _tm_read_backward_kernel(n, opts['qk_cols'], opts['read_epsilon'], opts['key_scale'], opts['q_scale'],
                                gated, opts['chunk'], pass_m, shifted),

@@ -56,6 +56,7 @@ arms = {
     'plain': lambda m, shift, xs: v8.read_tm(m, sw, *xs, **kw),
     'kernel_shift': lambda m, shift, xs: v8.read_tm(m, sw, *xs, shift=shift, **kw),
     'kernel_blend': lambda m, shift, xs: v8.read_tm(m, sw, *xs, shift=shift, shift_body='blend', **kw),
+    'kernel_blend_tm': lambda m, shift, xs: v8.read_tm(m, sw, *xs, shift=shift, shift_body='blend_tm', **kw),
     'xla_mix': lambda m, shift, xs: v8.read_tm(mixed(m, shift), sw, *xs, **kw)[:4] + (m,),
 }
 res = {'batch': B, 'tile': TILE}
@@ -94,7 +95,8 @@ sh = gate(shift)
 kcts = tuple(jnp.transpose(c, (0, 2, 1, 3)) for c in cts[:4]) + (cts[4],)
 args, sh, kcts = jax.device_put((args, sh, kcts))
 kernel = {}
-for name, s, body in (('plain', None, 'dot'), ('kernel_shift', sh, 'dot'), ('kernel_blend', sh, 'blend')):
+for name, s, body in (('plain', None, 'dot'), ('kernel_shift', sh, 'dot'), ('kernel_blend', sh, 'blend'),
+                      ('kernel_blend_tm', sh, 'blend_tm')):
   o = dict(opts, shift_body=body)
   f = jax.jit(lambda a, s=s, o=o: v8._tm_read_forward_call(a, o, s))
   b_raw = jax.jit(lambda a, c, s=s, o=o: v8._tm_read_backward_call(a, c, o, s))

@@ -60,7 +60,7 @@ class ShiftedReadTest(unittest.TestCase):
         return sum(jnp.sum(o * c) for o, c in zip(outs[:4], cts)) + jnp.sum(outs[4] * ct_m)
       return f
 
-    for tile, body in ((64, 'dot'), (256, 'dot'), (64, 'blend'), (256, 'blend')):
+    for tile, body in ((64, 'dot'), (256, 'dot'), (64, 'blend'), (256, 'blend'), (64, 'blend_tm')):
       kernel = lambda m, sw, xs, sgs, shift, tile=tile, body=body: read(m, sw, xs, sgs, shift, tile, body)
       ref = lambda m, sw, xs, sgs, shift, tile=tile: (
           read(mixed(m, shift), sw, xs, sgs, None, tile)[:4] + (m,))

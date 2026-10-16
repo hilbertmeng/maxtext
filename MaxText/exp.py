@@ -12761,6 +12761,23 @@ class BamFullMGeneralReadPallasV8TMShiftPostAttnOptSaveReadProfile(BamFullMGener
     remat_policy = 'full_save_bam_read'
 
 
+class BamFullMGeneralReadPallasV8TVmem32Profile(BamFullMGeneralReadPallasV8TProfile):
+    """v8t control with a 32 MiB scoped VMEM limit for the fused kernels."""
+    model_name = 'BamFullMGeneralReadPallasV8TVmem32Profile'
+    bam_pallas_vmem_mib = 32
+
+
+class BamFullMGeneralReadPallasV8TMShiftPostAttnOptVmem32Profile(BamFullMGeneralReadPallasV8TMShiftPostAttnOptProfile):
+    """Opt with a 32 MiB scoped VMEM limit (room for XLA's Splash segment-id prefetch)."""
+    model_name = 'BamFullMGeneralReadPallasV8TMShiftPostAttnOptVmem32Profile'
+    bam_pallas_vmem_mib = 32
+
+
+class BamFullMGeneralReadPallasV8TMShiftPostAttnOptVmem40Profile(BamFullMGeneralReadPallasV8TMShiftPostAttnOptProfile):
+    model_name = 'BamFullMGeneralReadPallasV8TMShiftPostAttnOptVmem40Profile'
+    bam_pallas_vmem_mib = 40
+
+
 class BamFullMGeneralReadMShiftPostAttnProfile(BamFullMGeneralReadNoHealthProfile):
     """Pure-JAX reference of the same recipe at XL shapes (BAM health OFF)."""
     model_name = 'BamFullMGeneralReadMShiftPostAttnProfile'
@@ -13138,3 +13155,8 @@ class BamMediumPropGeneralReadPallasProfile(TrainStepProfile, BamMediumPropK75Em
     bam_pallas_body = 'v8t'
     bam_pallas_fused_inputs = True
     bam_pallas_vmem_mib = 48
+
+
+class BamMediumPropMShiftPostAttnMLPNormPallasOptVmem32Profile(BamMediumPropMShiftPostAttnMLPNormPallasOptProfile):
+    model_name = 'BamMediumPropMShiftPostAttnMLPNormPallasOptVmem32Profile'
+    bam_pallas_vmem_mib = 32

@@ -377,7 +377,10 @@ def _tm_read_backward_call(args, cts, opts, sh=None):
   if shifted:
     out_specs += [_spec(sh.shape[1:-1], tile), pl.BlockSpec((None, None, vdim, kdim), lambda bb, i: (bb, i, 0, 0))]
     out_shape += [jax.ShapeDtypeStruct(sh.shape, sh.dtype), jax.ShapeDtypeStruct((b, t // tile, vdim, kdim), F32)]
-    scratch += [pltpu.VMEM((tile * cdim, kdim if shifted in ('blend', 'blend_tm') else r), F32)]
+    lane_dg = bool(opts.get('lane_dg')) and shifted in ('blend', 'blend_tm')
+    # gx (dg' products) is unused with the lane-reduced gate gradient: keep a stub for the ref order.
+    scratch += [pltpu.VMEM((8, 128) if lane_dg else (tile * cdim, kdim if shifted in ('blend', 'blend_tm') else r),
+                           F32)]
     if shifted == 'blend_tm':
       scratch += [pltpu.VMEM((tile * cdim, kdim), F32)]
   outs = pl.pallas_call(

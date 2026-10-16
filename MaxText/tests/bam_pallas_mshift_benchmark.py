@@ -42,7 +42,7 @@ xs = (r((B, T, N, V)), r((B, T, N)), r((B, T, N, V)), r((B, T, N)), r((B, T, N, 
 sgs = tuple(jax.nn.sigmoid(r((B, T, N))) for _ in range(4))
 shift = (jax.nn.sigmoid(r((B, T, V))) * (jnp.arange(T) > 0)[None, :, None]).astype(dt)
 cts = tuple(r((B, T, N, K)) for _ in range(4)) + (r((B, T, V, K)),)
-kw = dict(qk_cols=QKC, read_epsilon=1e-4, key_scale=0.2, forward_tile=TILE, reverse_tile=TILE,
+kw = dict(qk_cols=QKC, read_epsilon=1e-4, key_scale=0.2, forward_tile=TILE, reverse_tile=TILE, vmem_mib=48,
           q_scale=1 / np.sqrt(K), static_gates=sgs)
 
 

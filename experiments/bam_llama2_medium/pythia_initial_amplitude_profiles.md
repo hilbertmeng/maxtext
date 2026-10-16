@@ -12,7 +12,7 @@ Let E be token embedding, x_l the incoming residual, a_l the post-W_O attention 
 
 For Pythia s=sqrt(2/(5D))=.01825742 and output std t=2/(L sqrt(D))=.00320750. Thus W_O's expected RMS gain is sqrt(D)t=2/L=.111111. Original initialization gives s=t=.006 and gain .207846. E std is .006 on repaired/full-original, s on other Pythia arms. Semantic zeros, gate biases and norm scales remain their actual initialized values.
 
-A normalized input with per-feature second moment N² gives pre-GELU variance q=D s² N². For exact GELU g(z)=z Phi(z), Z~N(0,q):
+Condition on a fixed normalized input x. A fresh independent Gaussian W_1 makes each preactivation Gaussian with variance q=s²*||x||²=D*s²*N²; the residual itself need not be Gaussian. The formula below gives the conditional expected second moment over W_1 and independent W_2. The table uses pooled N², a small further approximation when per-token normalized norms vary. For exact GELU g(z)=z Phi(z), Z~N(0,q):
 
     F(q)=E[g(Z)^2]
         =q*(1/4+asin(q/(1+q))/(2*pi))

@@ -3945,7 +3945,12 @@ class BamAttention(Attention):
       with jax.named_scope('bam/m_shift'):
         shift_logits = raw['M_shift_gate'] if fused else self.m_shift_gate(inputs_q)
         shift_logits = shift_logits.astype(jnp.float32) + self.m_shift_bias.astype(jnp.float32)
-        valid = bam_m_shift_valid_mask(inputs_q.shape, decoder_segment_ids, inputs_positions)
+        # Barrier: sharing the segment ids with this mask cost Splash its VMEM-prefetched segment
+        # operand (+7 ms/step at XL on v5p-8).
+        segments, positions = ((decoder_segment_ids, inputs_positions)
+                               if not getattr(cfg, 'bam_pallas_shift_mask_barrier', False) else
+                               jax.lax.optimization_barrier((decoder_segment_ids, inputs_positions)))
+        valid = bam_m_shift_valid_mask(inputs_q.shape, segments, positions)
         shift = jax.nn.sigmoid(shift_logits).astype(M_in.dtype)
         shift_kwargs['shift'] = jnp.where(valid[..., None], shift, jnp.zeros_like(shift))
     pass_m = body in ('v7', 'v7u', 'v8t')   # M passthrough: dM sum fused into the read reverse

@@ -15,6 +15,7 @@ from layers import bam_pallas_v8 as v8  # pylint: disable=wrong-import-position
 
 B = int(sys.argv[1]) if len(sys.argv) > 1 else 8
 TILE = int(sys.argv[2]) if len(sys.argv) > 2 else 128
+CHUNK = int(sys.argv[3]) if len(sys.argv) > 3 else 8
 T, V, K, N, QKC, RS = 4096, 40, 96, 20, 72, 24
 dt = jnp.bfloat16
 
@@ -42,7 +43,7 @@ xs = (r((B, T, N, V)), r((B, T, N)), r((B, T, N, V)), r((B, T, N)), r((B, T, N, 
 sgs = tuple(jax.nn.sigmoid(r((B, T, N))) for _ in range(4))
 shift = (jax.nn.sigmoid(r((B, T, V))) * (jnp.arange(T) > 0)[None, :, None]).astype(dt)
 cts = tuple(r((B, T, N, K)) for _ in range(4)) + (r((B, T, V, K)),)
-kw = dict(qk_cols=QKC, read_epsilon=1e-4, key_scale=0.2, forward_tile=TILE, reverse_tile=TILE, vmem_mib=48,
+kw = dict(qk_cols=QKC, read_epsilon=1e-4, key_scale=0.2, forward_tile=TILE, reverse_tile=TILE, vmem_mib=48, chunk=CHUNK,
           q_scale=1 / np.sqrt(K), static_gates=sgs)
 
 
@@ -57,6 +58,9 @@ arms = {
     'kernel_shift': lambda m, shift, xs: v8.read_tm(m, sw, *xs, shift=shift, **kw),
     'kernel_blend': lambda m, shift, xs: v8.read_tm(m, sw, *xs, shift=shift, shift_body='blend', **kw),
     'kernel_blend_tm': lambda m, shift, xs: v8.read_tm(m, sw, *xs, shift=shift, shift_body='blend_tm', **kw),
+    'kernel_blend_tmb': lambda m, shift, xs: v8.read_tm(m, sw, *xs, shift=shift, shift_body='blend_tmb', **kw),
+    'kernel_blend_tmb_lane': lambda m, shift, xs: v8.read_tm(m, sw, *xs, shift=shift, shift_body='blend_tmb',
+                                                         lane_dg=True, **kw),
     'xla_mix': lambda m, shift, xs: v8.read_tm(mixed(m, shift), sw, *xs, **kw)[:4] + (m,),
 }
 res = {'batch': B, 'tile': TILE}
@@ -85,7 +89,7 @@ print('BENCH_JSON ' + json.dumps(res))
 
 # ---- kernel-only: pallas_calls on pre-laid-out T-minor operands (no wrapper transposes / boundary add) ----
 opts = dict(heads=N, qk_cols=QKC, read_epsilon=1e-4, key_scale=0.2, tile=TILE, reverse_tile=TILE, vmem_mib=48,
-            interpret=False, q_scale=float(1 / np.sqrt(K)), chunk=8)
+            interpret=False, q_scale=float(1 / np.sqrt(K)), chunk=CHUNK)
 keys = lambda x: jnp.transpose(x, (0, 3, 2, 1))
 gate = lambda x: jnp.moveaxis(x, 1, -1)
 st = sw.astype(jnp.float32)
@@ -96,8 +100,9 @@ kcts = tuple(jnp.transpose(c, (0, 2, 1, 3)) for c in cts[:4]) + (cts[4],)
 args, sh, kcts = jax.device_put((args, sh, kcts))
 kernel = {}
 for name, s, body in (('plain', None, 'dot'), ('kernel_shift', sh, 'dot'), ('kernel_blend', sh, 'blend'),
-                      ('kernel_blend_tm', sh, 'blend_tm')):
-  o = dict(opts, shift_body=body)
+                      ('kernel_blend_tm', sh, 'blend_tm'), ('kernel_blend_tmb', sh, 'blend_tmb'),
+                      ('kernel_blend_lane', sh, 'blend_lane'), ('kernel_blend_tmb_lane', sh, 'blend_tmb_lane')):
+  o = dict(opts, shift_body=body.replace('_lane', ''), lane_dg=body.endswith('_lane'))
   f = jax.jit(lambda a, s=s, o=o: v8._tm_read_forward_call(a, o, s))
   b_raw = jax.jit(lambda a, c, s=s, o=o: v8._tm_read_backward_call(a, c, o, s))
   kernel[name] = {'fwd_ms': timeit(f, args), 'bwd_ms': timeit(b_raw, args, kcts)}

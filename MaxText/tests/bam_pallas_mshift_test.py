@@ -35,10 +35,10 @@ def inputs(seed=0):
   return m, sw, xs, static_gates, shift * valid[..., None]
 
 
-def read(m, sw, xs, static_gates, shift, tile, body='dot'):
+def read(m, sw, xs, static_gates, shift, tile, body='dot', lane_dg=False):
   outs = v8.read_tm(m, sw, *xs, qk_cols=QKC, read_epsilon=EPS, key_scale=SCALE, forward_tile=tile,
                     reverse_tile=tile, interpret=True, q_scale=0.125, static_gates=static_gates, shift=shift,
-                    shift_body=body)
+                    shift_body=body, lane_dg=lane_dg)
   return outs
 
 
@@ -60,8 +60,10 @@ class ShiftedReadTest(unittest.TestCase):
         return sum(jnp.sum(o * c) for o, c in zip(outs[:4], cts)) + jnp.sum(outs[4] * ct_m)
       return f
 
-    for tile, body in ((64, 'dot'), (256, 'dot'), (64, 'blend'), (256, 'blend'), (64, 'blend_tm')):
-      kernel = lambda m, sw, xs, sgs, shift, tile=tile, body=body: read(m, sw, xs, sgs, shift, tile, body)
+    for tile, body in ((64, 'dot'), (256, 'dot'), (64, 'blend'), (256, 'blend'), (64, 'blend_tm'), (64, 'blend_tmb'), (64, 'blend_lane'), (64, 'blend_tmb_lane')):
+      lane = body.endswith('_lane')
+      kernel = lambda m, sw, xs, sgs, shift, tile=tile, body=body.replace('_lane', ''), lane=lane: read(
+          m, sw, xs, sgs, shift, tile, body, lane)
       ref = lambda m, sw, xs, sgs, shift, tile=tile: (
           read(mixed(m, shift), sw, xs, sgs, None, tile)[:4] + (m,))
       for i, (a, b) in enumerate(zip(kernel(m, sw, xs, sgs, shift), ref(m, sw, xs, sgs, shift))):

@@ -12701,6 +12701,14 @@ class BamPallasMShiftTinyPallasV8TFusedTest(BamPallasMShiftTinyPallasV8TTest):
     bam_pallas_fused_inputs = True
 
 
+class BamPallasMShiftTinyPallasV8TOptTest(BamPallasMShiftTinyPallasV8TFusedTest):
+    """CPU fixture: + shift-mask barrier, blend_tmb body, lane-reduced gate gradient."""
+    model_name = 'BamPallasMShiftTinyPallasV8TOptTest'
+    bam_pallas_shift_mask_barrier = True
+    bam_pallas_shift_body = 'blend_tmb'
+    bam_pallas_shift_lane_dg = True
+
+
 class BamFullMGeneralReadPallasV8TProfile(BamFullMGeneralReadPallasFusedProfile):
     """v8t: v7's T-minor kernel I/O + token-major M [B,T,V,K] + per-token MXU matmuls in the kernels."""
     # v5p-8 5286504: 0.582 vs v7 SaveRead 0.546 (+6.6%, 94.8% of MHA); kernels 114 vs 202 ms.

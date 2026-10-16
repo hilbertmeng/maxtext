@@ -86,7 +86,8 @@ class ShiftedModelTest(unittest.TestCase):
     sys.path.insert(0, 'MaxText/tests')
     import bam_pallas_model_test as model_test  # pylint: disable=import-outside-toplevel
     model_test.ModelEquivalenceTest('_run')._run(
-        'BamPallasMShiftTinyXlaTest', ('BamPallasMShiftTinyPallasV8TTest', 'BamPallasMShiftTinyPallasV8TFusedTest'))
+        'BamPallasMShiftTinyXlaTest', ('BamPallasMShiftTinyPallasV8TTest', 'BamPallasMShiftTinyPallasV8TFusedTest',
+                                       'BamPallasMShiftTinyPallasV8TOptTest'))
 
 
 if __name__ == '__main__':

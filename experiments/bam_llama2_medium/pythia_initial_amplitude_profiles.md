@@ -99,3 +99,54 @@ python3 experiments/bam_llama2_medium/report_initial_residual_amplitudes.py  /da
 The report needs NumPy/Matplotlib only; the runner uses the pinned MaxText CPU environment. The initial tiny smoke used the same real dimensions/depth at T128 to verify scan collection layout; formal profile results above use T2048. No trained parameters were loaded or modified.
 
 Real TPU startup cross-check after this initialization probe: the new embedding-only.006 controls (training seed9876, actual BF16 training batch) measured first-step MLP/embedding13.383 for MHA and9.424 for Mudd, with parameter RMS.006000035 on both. These are separate from the fixed-cohort seed19 CPU curves above, and agree with the expected higher first-MLP ratios. Full scalar records are in small-embedding-health-startup.json. No checkpoint download was involved.
+
+## Completed embedding-only MHA/Mudd controls (2026-10-16)
+
+`PythiaMediumPropT2048SerialMLPSmallEmbedding` and
+`MuddPythiaMediumPropT2048SerialMLPSmallEmbedding` both completed13500, runtime
+1d4785fbd987b2b83337f39c19e5006c8ea488d2. Only token embedding initialization
+changed to normal(.006); serial GELU/LayerNorm, Pythia standard kernels and untied
+unembedding, optimizer, data/global256/T2048 and each parent's widths were retained.
+Parameter changes are zero; Mudd retains its original extra router budget.
+
+Last-five native windows12600–13400:
+
+| Model | Original large-embedding loss | .006-embedding loss | New minus original |
+|---|---:|---:|---:|
+| MHA | 2.48550996 | 2.49007284 | +.00456288 |
+| Mudd | 2.40909280 | 2.42592864 | +.01683584 |
+
+The completed BAM-repair model stays fixed at loss2.36197836. Its BAM/Mudd
+MHA-reference multiplier, using matched .006 MHA/Mudd controls, has last-five
+window-ratio mean1.99713638 (range1.97802689–2.03455380), versus1.61662914 with
+the original large-embedding controls. This is changed comparator performance,
+not a new improvement in the BAM weights. The late conditional forecast~1.98 was
+close; both original pre-run own-parent loss bets-.006 were wrong in direction.
+
+MHA settles to a small deficit after early transients. Mudd briefly leads early,
+then falls behind near1000 and stays about+.016–.018 from1400 onward. Large
+first-MLP/embedding ratios therefore do not establish a generally helpful mechanism.
+Small embedding can change both forward composition and learning trajectory;
+the architecture-specific BAM M-seed path deserves attention. Fixed input compensation
+scales trained embedding updates entering that path as well as its initial input,
+so matching initial M does not establish matched learning.
+
+The existing large-embedding BAM training arm also applies fixed first-write
+compensation and ends+.01136120 above repair. No trained BAM control changes
+only embedding to large without that compensation. Do not attribute this coupled
+contrast, or the whole BAM initialization-chain repair, solely to embedding variance.
+These controls do not prove the M-seed learning explanation; no further training
+intervention was launched.
+
+Observed training health is exactly nine first-block/embedding scalars every100
+steps, other health disabled. New-run first-step MLP/embedding is13.383/9.424 for
+MHA/Mudd. This is BF16 training seed9876, distinct from the seed19 CPU cohort above.
+The small embedding tables grow substantially while the loss deficits persist;
+initial scale should not be confused with permanently tiny learned embeddings.
+
+Artifacts: `/data0/xd/bam_diagnostics/pythia-init/`
+`small-embedding-mha-final13400.json`, `small-embedding-mudd-final13400.json`,
+`small-embedding-bam-ratios-final13400.json`, plus final registries/leases and
+`small-embedding-health-final13400.json`. Both CP13500, node/queue release and
+final TensorBoard SYNC_OK were verified. MHA had one preemption and resumed the
+exact runtime from12048 with the next12200 checkpoint verified; Mudd had none.

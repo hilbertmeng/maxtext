@@ -12883,6 +12883,7 @@ class BamPythiaMediumPropT2048SerialMLPBamInitFix(
     # UE5a v5p16，P0，.5175875 step/s，健康全OFF；432356690参数，MLP[5832,5643,5832]，T2048/global256。
     # CP13500提交、节点/队列释放、TB同步；旧配方匹配对照止10000，无同阶段完整终局对比。
     # code_commit: eaa95f8；ledger only：codex/pythia-mediumprop-t2048，/data0/xd/pythia-mediumprop-t2048；详见 pythia_initialization_diagnosis.md。
+    # 补充完整对照：MHA/Mudd也改用.006 embedding后，本路权重不变，末五BAM/Mudd为1.997136；原对照1.616629保留。
     model_name = 'BamPythiaMediumPropT2048SerialMLPBamInitFix'
     bam_init_method = '006normal'
     token_embedding_init_method = '006normal'
@@ -12930,13 +12931,15 @@ class PythiaMediumPropT2048SerialMLPSmallEmbedding(PythiaMediumPropT2048SerialML
 
 class MuddPythiaMediumPropT2048SerialMLPSmallEmbedding(MuddPythiaMediumPropT2048SerialMLP):
     """Embedding-only .006 Mudd control; preserve growing widths and extra router budget."""
-    # 只改token embedding初始化；标准Transformer仍Pythia，保留旧Mudd路由器额外预算与逐层MLP宽度。
-    # 跑前终局相对原Mudd父路loss下注-.006[-.020,+.008]；速度预期约持平，精简健康有少量开销。
-    # T2048/global256，13500步，CP200/latest2/keep0/final强制，TB轮换500。
-    # 仅9个stem健康标量，每100步写入；通用grad/param及其余健康OFF。
-    # ledger only：codex/pythia-mediumprop-t2048，/data0/xd/pythia-mediumprop-t2048；UE5a v5p16，TPU310256。
-    # code_commit: 1d4785f；FIRST_STEP/AOT加载、worker参数434356347及9个健康tag已核验。
-    # 启动20–99步0.5828875step/s，历史父路+0.71%（旧通用健康仍计算，非严格匹配）。
+    # 结论：仅将embedding改为normal(.006)使串行Pythia Mudd明显变差，损伤大于MHA，较大首层MLP/embedding比值未带来收益。
+    # 完成13500；末五12600–13400对原Mudd gap+.016836（+.016297～+.017492），末窗口+.016433。
+    # 早期先领先，1k转落后、1.4k后基本保持约+.016～+.018平台，终局未追回；跑前-.006[-.020,+.008]方向和范围均错。
+    # 对小embedding MHA早期优势收窄，末五gap-.064144；对BAM修复路末五+.063950，8k后落后约+.064～+.070。
+    # BAM/本路以小embedding MHA为参考，末五收益倍数1.997136（原大embedding对照1.616629）；BAM权重未变。
+    # UE5a v5p16 .5828875step/s；旧父路仍算通用健康，速度非严格可比；参数434356347，新增0W_Q。
+    # 标准Transformer仍Pythia，MLP2432→7168和旧路由器额外预算不变；仅9个健康标量每100步，其余健康OFF。
+    # P0，唯一READY租期UTC 2026-10-16 01:48:00至08:23:42（6h35m42s），无换区；CP13500/资源释放/TB SYNC_OK均核验。
+    # ledger only：codex/pythia-mediumprop-t2048，/data0/xd/pythia-mediumprop-t2048；code_commit: 1d4785f。
     model_name = 'MuddPythiaMediumPropT2048SerialMLPSmallEmbedding'
     token_embedding_init_method = '006normal'
     record_embedding_stem_health_metrics = True

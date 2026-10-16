@@ -55,6 +55,7 @@ def mixed(m, shift):
 arms = {
     'plain': lambda m, shift, xs: v8.read_tm(m, sw, *xs, **kw),
     'kernel_shift': lambda m, shift, xs: v8.read_tm(m, sw, *xs, shift=shift, **kw),
+    'kernel_blend': lambda m, shift, xs: v8.read_tm(m, sw, *xs, shift=shift, shift_body='blend', **kw),
     'xla_mix': lambda m, shift, xs: v8.read_tm(mixed(m, shift), sw, *xs, **kw)[:4] + (m,),
 }
 res = {'batch': B, 'tile': TILE}
@@ -73,6 +74,9 @@ for name, fn in arms.items():
   print(name, res[name], flush=True)
 
 res['fwd_rel_err'] = [rel(a, b) for a, b in zip(outs['kernel_shift'][:4], outs['xla_mix'][:4])]
+res['blend_fwd_rel_err'] = [rel(a, b) for a, b in zip(outs['kernel_blend'][:4], outs['xla_mix'][:4])]
+gb_ = outs['kernel_blend_grad']
+res['blend_grad_rel_err'] = {'m': rel(gb_[0], outs['xla_mix_grad'][0]), 'shift': rel(gb_[1], outs['xla_mix_grad'][1])}
 gk, gx = outs['kernel_shift_grad'], outs['xla_mix_grad']
 res['grad_rel_err'] = {'m': rel(gk[0], gx[0]), 'shift': rel(gk[1], gx[1]),
                        'keys': [rel(a, b) for a, b in zip(jax.tree.leaves(gk[2]), jax.tree.leaves(gx[2]))]}
@@ -90,9 +94,10 @@ sh = gate(shift)
 kcts = tuple(jnp.transpose(c, (0, 2, 1, 3)) for c in cts[:4]) + (cts[4],)
 args, sh, kcts = jax.device_put((args, sh, kcts))
 kernel = {}
-for name, s in (('plain', None), ('kernel_shift', sh)):
-  f = jax.jit(lambda a, s=s: v8._tm_read_forward_call(a, opts, s))
-  b_raw = jax.jit(lambda a, c, s=s: v8._tm_read_backward_call(a, c, opts, s))
+for name, s, body in (('plain', None, 'dot'), ('kernel_shift', sh, 'dot'), ('kernel_blend', sh, 'blend')):
+  o = dict(opts, shift_body=body)
+  f = jax.jit(lambda a, s=s, o=o: v8._tm_read_forward_call(a, o, s))
+  b_raw = jax.jit(lambda a, c, s=s, o=o: v8._tm_read_backward_call(a, c, o, s))
   kernel[name] = {'fwd_ms': timeit(f, args), 'bwd_ms': timeit(b_raw, args, kcts)}
   print('kernel', name, kernel[name], flush=True)
 print('KERNEL_JSON ' + json.dumps(kernel))

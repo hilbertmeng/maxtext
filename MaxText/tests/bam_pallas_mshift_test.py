@@ -35,9 +35,10 @@ def inputs(seed=0):
   return m, sw, xs, static_gates, shift * valid[..., None]
 
 
-def read(m, sw, xs, static_gates, shift, tile):
+def read(m, sw, xs, static_gates, shift, tile, body='dot'):
   outs = v8.read_tm(m, sw, *xs, qk_cols=QKC, read_epsilon=EPS, key_scale=SCALE, forward_tile=tile,
-                    reverse_tile=tile, interpret=True, q_scale=0.125, static_gates=static_gates, shift=shift)
+                    reverse_tile=tile, interpret=True, q_scale=0.125, static_gates=static_gates, shift=shift,
+                    shift_body=body)
   return outs
 
 
@@ -59,19 +60,19 @@ class ShiftedReadTest(unittest.TestCase):
         return sum(jnp.sum(o * c) for o, c in zip(outs[:4], cts)) + jnp.sum(outs[4] * ct_m)
       return f
 
-    for tile in (64, 256):
-      kernel = lambda m, sw, xs, sgs, shift, tile=tile: read(m, sw, xs, sgs, shift, tile)
+    for tile, body in ((64, 'dot'), (256, 'dot'), (64, 'blend'), (256, 'blend')):
+      kernel = lambda m, sw, xs, sgs, shift, tile=tile, body=body: read(m, sw, xs, sgs, shift, tile, body)
       ref = lambda m, sw, xs, sgs, shift, tile=tile: (
           read(mixed(m, shift), sw, xs, sgs, None, tile)[:4] + (m,))
       for i, (a, b) in enumerate(zip(kernel(m, sw, xs, sgs, shift), ref(m, sw, xs, sgs, shift))):
-        self.assert_close(a, b, 1e-5, f'tile {tile} output {i}')
+        self.assert_close(a, b, 1e-5, f'{body} tile {tile} output {i}')
       plain = read(m, sw, xs, sgs, None, tile)[3]
       shifted = kernel(m, sw, xs, sgs, shift)[3]
       self.assertGreater(float(jnp.max(jnp.abs(plain - shifted)) / jnp.max(jnp.abs(plain))), 0.05)
       ga = jax.grad(loss(kernel), argnums=(0, 1, 2, 3, 4))(m, sw, xs, sgs, shift)
       gb = jax.grad(loss(ref), argnums=(0, 1, 2, 3, 4))(m, sw, xs, sgs, shift)
       for (path, a), b in zip(jax.tree_util.tree_flatten_with_path(ga)[0], jax.tree.leaves(gb)):
-        self.assert_close(a, b, 1e-5, f'tile {tile} grad {jax.tree_util.keystr(path)}')
+        self.assert_close(a, b, 1e-5, f'{body} tile {tile} grad {jax.tree_util.keystr(path)}')
 
 
 if __name__ == '__main__':

@@ -130,7 +130,12 @@ def _tm_read_kernel(n, qk_cols, eps, scale, q_scale, gated, ch, shifted=False):
     sg = sg_ref[...].astype(F32).reshape(r, t) if gated else None
     _tm_fill_keys(rq, rk, rr, inv, g, st_ref[...].astype(F32), sg, xt_scr)
     for t0 in range(0, t, ch):
-      if shifted:   # Y_t = X_t ((1-g') M_t + g' M_{t-1}) = (X_t - X_t g') M_t + (X_t g') M_{t-1}
+      if shifted == 'blend':   # Y_t = X_t M_read_t, M_read_t = M_t + g'(M_{t-1} - M_t) on the VPU
+        xt = _chunk(xt_scr, t0, ch, cdim).astype(dt)
+        mt = m_ref[pl.ds(t0, ch)].astype(F32)
+        mr = mt + _shift_gate(sh_ref, t0, ch, kdim) * (_prev_m(m_ref, mh_ref, t0, ch).astype(F32) - mt)
+        y = _bdot(xt, mr.astype(dt), 1, 1)
+      elif shifted:   # Y_t = X_t ((1-g') M_t + g' M_{t-1}) = (X_t - X_t g') M_t + (X_t g') M_{t-1}
         xt = _chunk(xt_scr, t0, ch, cdim)
         xb = xt * _shift_gate(sh_ref, t0, ch, r)
         y = (_bdot((xt - xb).astype(dt), m_ref[pl.ds(t0, ch)], 1, 1)
@@ -200,7 +205,21 @@ def _tm_read_backward_kernel(n, qk_cols, eps, scale, q_scale, gated, ch, pass_m,
     nxt = None        # shifted: dM_{t-1} share of the first token of the chunk after this one
     for t0 in (range(0, t, ch)[::-1] if shifted else range(0, t, ch)):
       dy = _gather(dy_scr, t0, ch, t).astype(dt)
-      if shifted:
+      if shifted == 'blend':
+        # dX = M_read dY^T, dM_read = X^T dY; dM_t = (1-g'_t) dM_read_t + g'_{t+1} dM_read_{t+1};
+        # dg' = sum_k dM_read (M_{t-1} - M_t), reduced over K in the T-minor pass below.
+        xt = _chunk(xt_scr, t0, ch, cdim).astype(dt)
+        mt = m_ref[pl.ds(t0, ch)].astype(F32)
+        d = _prev_m(m_ref, mh_ref, t0, ch).astype(F32) - mt
+        gk = _shift_gate(sh_ref, t0, ch, kdim)
+        dxt = _bdot((mt + gk * d).astype(dt), dy, 2, 2)                   # [ch, C, R]
+        dmr = _bdot(xt, dy, 2, 1)                                         # [ch, C, K]
+        gx_scr[pl.ds(t0 * cdim, ch * cdim), :] = (dmr * d).reshape(ch * cdim, kdim)
+        e = gk * dmr
+        tail = jnp.zeros_like(e[:1]) if nxt is None else nxt
+        dmv = dmr - e + jnp.concatenate((e[1:], tail), axis=0)
+        nxt = e[:1]
+      elif shifted:
         # M_read_t = M_t + g'(M_{t-1} - M_t): dX = dXa + g'(dXb - dXa), dg' = sum_r X (dXb - dXa),
         # dM_t = Xa_t^T dY_t + Xb_{t+1}^T dY_{t+1}; the tile's first Xb^T dY leaves as a boundary.
         xt = _chunk(xt_scr, t0, ch, cdim)
@@ -288,7 +307,7 @@ def _tm_read_forward_call(args, opts, sh=None):
   out = jax.ShapeDtypeStruct((b, n, t, kdim), m.dtype)
   return pl.pallas_call(
       _tm_read_kernel(n, opts['qk_cols'], opts['read_epsilon'], opts['key_scale'], opts['q_scale'],
-                      len(args) == 12, opts['chunk'], sh is not None),
+                      len(args) == 12, opts['chunk'], (opts.get('shift_body') or 'dot') if sh is not None else False),
       grid=(b, t // tile), in_specs=_tm_read_specs(args, tile) + _shift_specs(m, sh, tile),
       out_specs=[_tm_out_spec(n, tile, kdim)] * 4, out_shape=(out,) * 4,
       scratch_shapes=[pltpu.VMEM((cdim * tile, r), F32), pltpu.VMEM((tile * r, kdim), F32)],
@@ -305,7 +324,7 @@ def _tm_read_backward_call(args, cts, opts, sh=None):
   tile = min(opts['reverse_tile'], t)
   pass_m = len(cts) == 5
   gated = len(args) == 12
-  shifted = sh is not None
+  shifted = (opts.get('shift_body') or 'dot') if sh is not None else False
   extra = () if sh is None else (sh, m)
   in_specs = (_tm_read_specs(args, tile) + _shift_specs(m, sh, tile) + [_tm_out_spec(n, tile, kdim)] * 4
               + [_token_spec((vdim, kdim), tile)] * pass_m)
@@ -318,7 +337,7 @@ def _tm_read_backward_call(args, cts, opts, sh=None):
   if shifted:
     out_specs += [_spec(sh.shape[1:-1], tile), pl.BlockSpec((None, None, vdim, kdim), lambda bb, i: (bb, i, 0, 0))]
     out_shape += [jax.ShapeDtypeStruct(sh.shape, sh.dtype), jax.ShapeDtypeStruct((b, t // tile, vdim, kdim), F32)]
-    scratch += [pltpu.VMEM((tile * cdim, r), F32)]
+    scratch += [pltpu.VMEM((tile * cdim, kdim if shifted == 'blend' else r), F32)]
   outs = pl.pallas_call(
       _tm_read_backward_kernel(n, opts['qk_cols'], opts['read_epsilon'], opts['key_scale'], opts['q_scale'],
                                gated, opts['chunk'], pass_m, shifted),
@@ -364,7 +383,7 @@ _tm_read.defvjp(_tm_read_fwd, _tm_read_bwd)
 def read_tm(m, static_weight, q_key, q_logits, k_key, k_logits, vo_key, o_logits, v_logits, q_standard,
             k_standard, *, qk_cols, read_epsilon, key_scale, forward_tile=128, reverse_tile=128,
             vmem_mib=None, interpret=False, q_scale=1.0, static_gates=None, chunk=8, pad_heads=False,
-            shift=None, **_):
+            shift=None, shift_body='dot', **_):
   """v7.read's interface (keys [B,T,N,C], logits [B,T,N], standard QK [B,T,N,Rs]) for M [B,T,V,K] and
   full-M reads (C == V, identity compression). Returns (query, key, value, local_o) [B,T,N,K] and M.
 
@@ -375,7 +394,7 @@ def read_tm(m, static_weight, q_key, q_logits, k_key, k_logits, vo_key, o_logits
   np_ = _pad_rows(n) if pad_heads else n
   opts = _freeze(dict(heads=n, qk_cols=qk_cols, read_epsilon=read_epsilon, key_scale=key_scale,
                       tile=forward_tile, reverse_tile=reverse_tile, vmem_mib=vmem_mib, interpret=interpret,
-                      q_scale=float(q_scale), chunk=chunk))
+                      q_scale=float(q_scale), chunk=chunk, shift_body=shift_body))
   padn = lambda x: jnp.pad(x, [(0, 0)] * (x.ndim - 2) + [(0, np_ - n), (0, 0)]) if np_ > n else x
   keys = lambda x: padn(jnp.transpose(x, (0, 3, 2, 1)))                  # [B,T,N,C] -> [B,C,NP,T]
   gate = lambda x: padn(_minor_t(x))                                      # [B,T,N] -> [B,NP,T]

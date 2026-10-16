@@ -12987,12 +12987,15 @@ class BamMediumPropMShiftReadG050PostAttentionWriteMLPNormTruePile(
 class BamXLPropMShiftReadG050PostAttentionWriteMLPNormTruePile(
         BamXLPropSharedR400GeneralReadMShiftReadG050TruePile):
     """Transfer post-attention write controls with existing MLP norm onto XL single .5."""
-    # attention写门/地址用attention更新后的残差并复用MLP norm；MLP写控制、两写down保持父路。
-    # 新增0 W_Q、MLP宽度不变；不是已停读/attention共享R400投影实验。
-    # 跑前MHA参考收益倍数下注1.03[1.00,1.06]，对原XL单门.5，共同30k–32.5k阶段。
-    # 同相对训练进度跨尺度仅比较收益倍数；UE5a v5p32，50000步，健康全OFF。
-    # 启动20–99步 0.3893375 step/s；历史父路健康ON，不能分离架构速度收益。
-    # code_commit: 7573944；/data0/xd/mediumprop-m-shift；FIRST_STEP/AOT/实际参数量及健康全OFF已核验。
+    # 结论：attention写控制改用更新后残差并复用MLP norm，在XL未保住Medium的小幅收益。
+    # 用户停于15157，CP15157提交、节点/队列释放、TB SYNC_OK；未跑满50000步，非完整终局。
+    # 对单门.5父路：2k/6k/10k/12k/14k/15k倍数1.00327/1.00270/.99613/.98544/.97781/.97518。
+    # 前期近持平，10k后持续落后；末五13000–15000 gap+.002686、MHA参考倍数.980888；15k gap+.003463。
+    # 对XL MHA末五gap-.138267；原30k–32.5k下注1.03[1.00,1.06]未到验收阶段，已训趋势不支持。
+    # UE5a v5p32 .3893375step/s；历史父路健康ON，不能归因架构速度差；健康全OFF，新增0W_Q、MLP沿父路。
+    # 参数1432383640，MLP[6127,5938,6127]、末层6126；同层Q/K/VO共享读R400，读/attention写/MLP写down互相独立。
+    # P0，唯一READY租期UTC 2026-10-15 16:47:51至2026-10-16 03:43:03（10h55m12s），无换区。
+    # ledger only：codex/mediumprop-m-shift，/data0/xd/mediumprop-m-shift；code_commit: 7573944。
     model_name = 'BamXLPropMShiftReadG050PostAttentionWriteMLPNormTruePile'
     bam_write_controls_post_residual = False
     bam_attention_write_controls_post_residual = True

@@ -950,7 +950,7 @@ def train_step(model, config, state_mesh_shardings, state, data, dropout_rng):
       "learning/total_weights": aux["total_weights"], # sum
       "learning/accuracy": accuracy, # mean
   }
-  if getattr(config, 'record_training_health_metrics', True):
+  if config.record_training_health_metrics:
     # lsp: recored params before update, because loss realily is computed before param update. so use state.params,  not new_state.params
     params_scalar_values = compute_params_norm(state.params, config=config)
     scalar_metrics.update(params_scalar_values)

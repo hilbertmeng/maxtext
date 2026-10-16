@@ -2709,7 +2709,7 @@ class BamAttention(Attention):
     self._abs_v_dim = (
         getattr(cfg, 'bam_abs_v_compression_dim', None)
         if ('full' in self._mode or (self._local_o or shared_v)
-            and getattr(cfg, 'bam_local_o_compress_v', True)) else None)
+            and cfg.bam_local_o_compress_v) else None)
     self._direct_qk_c8 = bool(getattr(cfg, 'bam_local_qk_direct_c8', False))
     self._full_m_read_rank = getattr(cfg, 'bam_local_full_m_read_bottleneck_dim', None)
     self._full_m_read_share_down = bool(getattr(cfg, 'bam_local_full_m_read_share_down', False))

@@ -172,6 +172,9 @@ fused_qkv: False
 fused_mlp: False
 
 record_internal_nn_metrics: 0
+# Effective default of every class that does not declare it (HyperParameters returns None for
+# undeclared keys, so code-side getattr defaults never apply). Formal BAM runs declare True.
+record_training_health_metrics: False
 
 # Output directory
 # Create a GCS bucket, e.g. my-maxtext-outputs and set this to "gs://my-maxtext-outputs/"
@@ -494,6 +497,17 @@ sa_v_layout: "HEAD_DIM_MINOR"
 # lane-aligned sequences without a BAM fetch. CPU einsum tests must explicitly disable this.
 # Splash accumulates logits/softmax in FP32 (einsum path: BF16 logits unless float32_logits).
 bam_splash_attention: True
+# LocalO/shared-V reads use the compressed V cache only when declared; undeclared classes ran False.
+bam_local_o_compress_v: False
+# Values every reachable class already declares; listed so code-side defaults are not dead.
+bam_abs_v_row_output: 'direct'
+bam_local_vo_shared_read: 'none'
+bam_read_gate_activation: 'sigmoid'
+bam_local_packed_parameter_name: 'W_local_packed'   # = the setup attribute name used when unset
+rmt_dynamic_write_rows: 32
+bam_local_qk_post_read_v_share_qk: True
+bam_local_qk_post_read_v_init: 'orthogonal'
+bam_abs_v_row_decoder_output: 'full'
 # SEQ_MINOR BAM Splash q/k/v; null = per path (pure JAX: True, fused Pallas core: False).
 bam_splash_seq_minor: null
 

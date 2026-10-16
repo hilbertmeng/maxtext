@@ -13068,3 +13068,26 @@ class BamXLPropMShiftReadG050PostAttentionWriteMLPNormTruePile(
     bam_record_local_routing_metrics = False
     bam_record_m_shift_health = False
     compare_runs = ['BamXLPropSharedR400GeneralReadMShiftReadG050TruePile', 'Llama2XLPropTruePileMHA']
+
+# Paired timing arms for the fused-core port of the MediumProp M-shift recipe (claude/mshift-pallas-v8t).
+
+class BamMediumPropMShiftPostAttnMLPNormProfile(TrainStepProfile, BamMediumPropMShiftReadG050PostAttentionWriteMLPNormTruePile):
+    """Timing arm: the MediumProp M-shift + post-attention MLP-norm recipe, pure JAX, formal health (all OFF)."""
+    model_name = 'BamMediumPropMShiftPostAttnMLPNormProfile'
+    steps = 100
+
+
+class BamMediumPropMShiftPostAttnMLPNormPallasProfile(BamMediumPropMShiftPostAttnMLPNormProfile):
+    """Same recipe through the fused v8t core (in-kernel M shift) + fused input projections + Splash."""
+    model_name = 'BamMediumPropMShiftPostAttnMLPNormPallasProfile'
+    bam_pallas_core = True
+    bam_pallas_body = 'v8t'
+    bam_pallas_fused_inputs = True
+    bam_pallas_vmem_mib = 48
+
+
+class BamMHAMediumPropC256Profile(TrainStepProfile, BamMHAMediumPropC256TruePile):
+    """MHA Medium timing reference, generic health OFF to match the BAM recipe arms."""
+    model_name = 'BamMHAMediumPropC256Profile'
+    steps = 100
+    record_training_health_metrics = False

@@ -202,8 +202,9 @@ class SubDecoderLayer(nn.Module):
         getattr(cfg, 'bam_attention_write_controls_post_residual', False))
     mlp_post_residual_controls = post_residual_controls or bool(
         getattr(cfg, 'bam_mlp_write_controls_post_residual', False))
-    shared_write_norm = getattr(cfg, 'bam_attention_mlp_write_shared_norm', 'none')
-    attention_write_norm = getattr(cfg, 'bam_attention_write_controls_norm', 'attention')
+    # HyperParameters returns None for keys a (non-BAM) class never declares.
+    shared_write_norm = getattr(cfg, 'bam_attention_mlp_write_shared_norm', None) or 'none'
+    attention_write_norm = getattr(cfg, 'bam_attention_write_controls_norm', None) or 'attention'
     assert attention_write_norm in ('attention', 'mlp')
     if attention_write_norm == 'mlp':
         assert attention_post_residual_controls

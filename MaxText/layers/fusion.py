@@ -29,6 +29,7 @@ from layers import models
 from layers import quantizations
 from layers import mudd
 from layers import initializers
+from layers import embedding_stem_health
 import max_logging
 
 import common_types
@@ -386,6 +387,9 @@ class SubDecoderLayer(nn.Module):
         layer_output,
         ("activation_batch", "activation_norm_length", "activation_embed"),
     )
+    if mlp_lnx is not None:
+      embedding_stem_health.record(self, cfg, inputs, attention_lnx, mlp_lnx,
+                                  hidden_states, layer_index)
     return layer_output, M_out
 
 

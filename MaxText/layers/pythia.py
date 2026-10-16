@@ -8,7 +8,7 @@ from flax import linen as nn
 import jax.numpy as jnp
 from jax.ad_checkpoint import checkpoint_name
 
-from layers import attentions, initializers, linears, normalizations, quantizations
+from layers import attentions, initializers, linears, normalizations, quantizations, embedding_stem_health
 from pythia_config import rotary_width
 
 
@@ -21,7 +21,7 @@ class PythiaDecoderLayer(nn.Module):
   @nn.compact
   def __call__(self, inputs, decoder_segment_ids, decoder_positions,
                decoder_input_tokens, deep_embedding, deterministic, model_mode,
-               eos_sum=None, is_global=None, hids=None, M_in=None):
+               eos_sum=None, is_global=None, hids=None, M_in=None, layer_index=None):
     # Match the current Decoder's scanned/unscanned call contract. Pythia has no
     # matrix stream, deep embeddings, history composition or local layer schedule.
     del deep_embedding, is_global, M_in
@@ -60,6 +60,7 @@ class PythiaDecoderLayer(nn.Module):
         weight_dtype=cfg.weight_dtype, quant=self.quant, name="mlp")(
             mlp_input, deterministic=deterministic)
     output = inputs + attn_output + mlp_output
+    embedding_stem_health.record(self, cfg, inputs, attn_output, mlp_output, mlp_input, layer_index)
     output = nn.with_logical_constraint(
         output, ("activation_batch", "activation_norm_length", "activation_embed"))
     if cfg.record_internal_nn_metrics:

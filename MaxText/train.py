@@ -230,6 +230,11 @@ def write_metrics(writer, local_metrics_file, running_gcs_metrics, metrics, step
     steps_to_write = step
 
   if metrics_to_write:
+    if (getattr(config, 'record_embedding_stem_health_metrics', False)
+        and steps_to_write % config.embedding_stem_health_period != 0):
+      metrics_to_write = dict(metrics_to_write, scalar={
+          k:v for k,v in metrics_to_write['scalar'].items()
+          if not k.startswith('embedding_stem/')})
     if config.enable_tensorboard:
       write_metrics_to_tensorboard(writer, metrics_to_write, steps_to_write, config, is_training)
 
@@ -947,6 +952,11 @@ def train_step(model, config, state_mesh_shardings, state, data, dropout_rng):
       scalar_metrics.update(raw_grads_norms)
   if config.use_dpo:
     scalar_metrics["learning/dpo_reward_accuracy"] = aux["reward_accuracy"]
+  if getattr(config, 'record_embedding_stem_health_metrics', False):
+    from layers import embedding_stem_health
+    scalar_metrics.update(embedding_stem_health.metrics(
+        intermediate_outputs, state.params, new_state.params, state.step,
+        int(config.embedding_stem_health_period)))
   metrics = {
       "scalar": scalar_metrics,
       "scalars": {},

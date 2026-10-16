@@ -1,6 +1,8 @@
 import math
 
 class Common:
+    record_embedding_stem_health_metrics = False
+    embedding_stem_health_period = 100
     enable_goodput_recording = False # true is slower then false, decend 15%
     monitor_goodput = False
     monitor_step_time_deviation = False
@@ -12905,6 +12907,38 @@ class BamPythiaMediumPropT2048SerialMLPOriginalInit(
     compare_runs = ['BamPythiaMediumPropT2048MShiftReadG050ReadAttentionSharedR256SerialMLP',
                     'BamPythiaMediumPropT2048SerialMLPBamInitFix',
                     'PythiaMediumPropT2048SerialMLP', 'MuddPythiaMediumPropT2048SerialMLP']
+
+
+
+
+class PythiaMediumPropT2048SerialMLPSmallEmbedding(PythiaMediumPropT2048SerialMLP):
+    """Embedding-only .006 control; retain the serial Pythia Transformer initialization."""
+    # 只改token embedding初始化；标准Transformer仍Pythia，GELU/LayerNorm/串行/宽度及总参数量不变。
+    # 跑前终局相对原MHA父路loss下注-.006[-.015,+.004]；速度预期约持平，精简健康有少量开销。
+    # T2048/global256，13500步，CP200/latest2/keep0/final强制，TB轮换500。
+    # 仅9个stem健康标量，每100步写入；通用grad/param及其余健康OFF。
+    # ledger only：codex/pythia-mediumprop-t2048，/data0/xd/pythia-mediumprop-t2048；UE5a v5p16，TPU310255。
+    model_name = 'PythiaMediumPropT2048SerialMLPSmallEmbedding'
+    token_embedding_init_method = '006normal'
+    record_embedding_stem_health_metrics = True
+    embedding_stem_health_period = 100
+    compare_runs = ['PythiaMediumPropT2048SerialMLP']
+
+
+class MuddPythiaMediumPropT2048SerialMLPSmallEmbedding(MuddPythiaMediumPropT2048SerialMLP):
+    """Embedding-only .006 Mudd control; preserve growing widths and extra router budget."""
+    # 只改token embedding初始化；标准Transformer仍Pythia，保留旧Mudd路由器额外预算与逐层MLP宽度。
+    # 跑前终局相对原Mudd父路loss下注-.006[-.020,+.008]；速度预期约持平，精简健康有少量开销。
+    # T2048/global256，13500步，CP200/latest2/keep0/final强制，TB轮换500。
+    # 仅9个stem健康标量，每100步写入；通用grad/param及其余健康OFF。
+    # ledger only：codex/pythia-mediumprop-t2048，/data0/xd/pythia-mediumprop-t2048；UE5a v5p16，TPU310256。
+    model_name = 'MuddPythiaMediumPropT2048SerialMLPSmallEmbedding'
+    token_embedding_init_method = '006normal'
+    record_embedding_stem_health_metrics = True
+    embedding_stem_health_period = 100
+    compare_runs = ['MuddPythiaMediumPropT2048SerialMLP',
+                    'PythiaMediumPropT2048SerialMLPSmallEmbedding',
+                    'BamPythiaMediumPropT2048SerialMLPBamInitFix']
 
 
 class BamPythiaMediumPropT2048SerialMLPPythiaEmbeddingScaledWrite(

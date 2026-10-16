@@ -950,6 +950,7 @@ class Decoder(nn.Module):
           assert all(s >= cfg.max_target_length for s in swss)
           is_global = is_global[:cfg.num_decoder_layers - int(final_local):block_size]
         full_bam = cfg.bam_enabled and not getattr(cfg, 'bam_mha_control', False)
+        scan_stem_index = full_bam or bool(getattr(cfg, 'record_embedding_stem_health_metrics', False))
         if full_bam:
           M = self.initial_bam_matrix(y)
           scan_carry = (y, M)
@@ -963,7 +964,7 @@ class Decoder(nn.Module):
             scan_deep_embedding=deep_embeddings is not None,
             runtime_schedule=True,
             all_global_attention=all_global_attention,
-            scan_layer_index=full_bam,
+            scan_layer_index=scan_stem_index,
         )
         scan_inputs = (
             scan_carry,
@@ -976,7 +977,7 @@ class Decoder(nn.Module):
             eos_sum,
             is_global,
         )
-        if full_bam:
+        if scan_stem_index:
           scan_inputs += (
               None,
               None,

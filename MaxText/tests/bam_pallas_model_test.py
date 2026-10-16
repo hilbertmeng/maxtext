@@ -39,10 +39,6 @@ class ModelEquivalenceTest(unittest.TestCase):
   def test_v8t_token_major(self):
     self._run('BamPallasFullMTinyXlaTest', ('BamPallasFullMTinyPallasV8TTest',))
 
-  def test_v8t_m_shift_post_attention_controls(self):
-    self._run('BamPallasMShiftTinyXlaTest', ('BamPallasMShiftTinyPallasV8TTest',
-                                             'BamPallasMShiftTinyPallasV8TFusedTest'))
-
   def _run(self, xla_exp, fused_exps):
     out = tempfile.mkdtemp()
     cfg, xla = build(xla_exp, out)

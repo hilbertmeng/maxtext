@@ -75,5 +75,17 @@ class ShiftedReadTest(unittest.TestCase):
         self.assert_close(a, b, 1e-5, f'{body} tile {tile} grad {jax.tree_util.keystr(path)}')
 
 
+class ShiftedModelTest(unittest.TestCase):
+  """Model-level: the MediumProp M-shift + post-attention MLP-norm recipe, pure JAX vs the v8t core.
+
+  Kept out of bam_pallas_model_test: one process interpreting all 14 fused models there segfaults."""
+
+  def test_v8t_m_shift_post_attention_controls(self):
+    sys.path.insert(0, 'MaxText/tests')
+    import bam_pallas_model_test as model_test  # pylint: disable=import-outside-toplevel
+    model_test.ModelEquivalenceTest('_run')._run(
+        'BamPallasMShiftTinyXlaTest', ('BamPallasMShiftTinyPallasV8TTest', 'BamPallasMShiftTinyPallasV8TFusedTest'))
+
+
 if __name__ == '__main__':
   unittest.main()

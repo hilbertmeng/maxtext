@@ -13,10 +13,13 @@ import numpy as np
 sys.path.insert(0, 'MaxText')
 from layers import bam_pallas_v8 as v8  # pylint: disable=wrong-import-position
 
+import os  # pylint: disable=wrong-import-position,wrong-import-order
 B = int(sys.argv[1]) if len(sys.argv) > 1 else 8
 TILE = int(sys.argv[2]) if len(sys.argv) > 2 else 128
 CHUNK = int(sys.argv[3]) if len(sys.argv) > 3 else 8
-T, V, K, N, QKC, RS = 4096, 40, 96, 20, 72, 24
+# MSHIFT_SHAPES=medium: MediumProp (V32 K75 N16 QK57); default XLProp (V40 K96 N20 QK72).
+T, V, K, N, QKC, RS = ((4096, 32, 75, 16, 57, 18) if os.environ.get('MSHIFT_SHAPES') == 'medium'
+                       else (4096, 40, 96, 20, 72, 24))
 dt = jnp.bfloat16
 
 

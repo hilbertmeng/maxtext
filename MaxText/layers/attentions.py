@@ -3938,7 +3938,7 @@ class BamAttention(Attention):
     weight = bam_pallas.static_weight(
         self.static_q_key, self.static_k_key, self.static_v_key, self.static_o_key, compression)
     body = getattr(cfg, 'bam_pallas_body', None) or 'blocked'
-    shift_kwargs = {}
+    read_kwargs = {}
     if self._m_shift_mode != 'none':
       # Same previous-token share as mix_bam_previous_token (cast to the M dtype, zero where invalid);
       # the read kernel mixes M_t + g'(M_{t-1} - M_t) per V row; writes still accumulate onto M_in.
@@ -3952,7 +3952,13 @@ class BamAttention(Attention):
                                jax.lax.optimization_barrier((decoder_segment_ids, inputs_positions)))
         valid = bam_m_shift_valid_mask(inputs_q.shape, segments, positions)
         shift = jax.nn.sigmoid(shift_logits).astype(M_in.dtype)
-        shift_kwargs['shift'] = jnp.where(valid[..., None], shift, jnp.zeros_like(shift))
+        read_kwargs['shift'] = jnp.where(valid[..., None], shift, jnp.zeros_like(shift))
+        if getattr(cfg, 'bam_pallas_shift_body', None):
+          read_kwargs['shift_body'] = cfg.bam_pallas_shift_body
+        if getattr(cfg, 'bam_pallas_shift_lane_dg', False):
+          read_kwargs['lane_dg'] = True
+    if getattr(cfg, 'bam_pallas_read_chunk', None):
+      read_kwargs['chunk'] = int(cfg.bam_pallas_read_chunk)
     pass_m = body in ('v7', 'v7u', 'v8t')   # M passthrough: dM sum fused into the read reverse
     q_scale = 1.0 / math.sqrt(self.head_dim) if pass_m else 1.0   # attention scale folded into the kernel
     with jax.named_scope('bam/pallas_read'):
@@ -3972,7 +3978,7 @@ class BamAttention(Attention):
           **({'save_y': True} if getattr(cfg, 'bam_pallas_save_y', False) else {}),
           **({'rolled_passes': tuple(cfg.bam_pallas_rolled_passes)}
              if getattr(cfg, 'bam_pallas_rolled_passes', None) else {}),
-          **shift_kwargs)
+          **read_kwargs)
     query, key, value, local_output = outs[:4]
     if pass_m:
       M_in = outs[4]

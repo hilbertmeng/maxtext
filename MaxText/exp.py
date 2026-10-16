@@ -12734,6 +12734,25 @@ class BamFullMGeneralReadPallasV8TMShiftPostAttnProfile(BamFullMGeneralReadPalla
     bam_attention_write_controls_norm = 'mlp'
 
 
+class BamFullMGeneralReadPallasV8TMShiftPostAttnBarrierProfile(BamFullMGeneralReadPallasV8TMShiftPostAttnProfile):
+    """+ optimization barrier on the segment ids feeding the shift mask (keeps Splash's VMEM prefetch)."""
+    model_name = 'BamFullMGeneralReadPallasV8TMShiftPostAttnBarrierProfile'
+    bam_pallas_shift_mask_barrier = True
+
+
+class BamFullMGeneralReadPallasV8TMShiftPostAttnOptProfile(BamFullMGeneralReadPallasV8TMShiftPostAttnBarrierProfile):
+    """+ blend forward / gate-scratch reverse (blend_tmb) and the lane-reduced gate gradient."""
+    model_name = 'BamFullMGeneralReadPallasV8TMShiftPostAttnOptProfile'
+    bam_pallas_shift_body = 'blend_tmb'
+    bam_pallas_shift_lane_dg = True
+
+
+class BamFullMGeneralReadPallasV8TMShiftPostAttnOptSaveReadProfile(BamFullMGeneralReadPallasV8TMShiftPostAttnOptProfile):
+    """+ remat keeps the fused read outputs (shifted read F is ~22% dearer than the plain v8t read)."""
+    model_name = 'BamFullMGeneralReadPallasV8TMShiftPostAttnOptSaveReadProfile'
+    remat_policy = 'full_save_bam_read'
+
+
 class BamFullMGeneralReadMShiftPostAttnProfile(BamFullMGeneralReadNoHealthProfile):
     """Pure-JAX reference of the same recipe at XL shapes (BAM health OFF)."""
     model_name = 'BamFullMGeneralReadMShiftPostAttnProfile'
@@ -13091,3 +13110,23 @@ class BamMHAMediumPropC256Profile(TrainStepProfile, BamMHAMediumPropC256TruePile
     model_name = 'BamMHAMediumPropC256Profile'
     steps = 100
     record_training_health_metrics = False
+
+
+class BamMediumPropMShiftPostAttnMLPNormPallasOptProfile(BamMediumPropMShiftPostAttnMLPNormPallasProfile):
+    """+ shift-mask barrier, blend_tmb body and lane-reduced gate gradient."""
+    model_name = 'BamMediumPropMShiftPostAttnMLPNormPallasOptProfile'
+    bam_pallas_shift_mask_barrier = True
+    bam_pallas_shift_body = 'blend_tmb'
+    bam_pallas_shift_lane_dg = True
+
+
+class BamMediumPropGeneralReadPallasProfile(TrainStepProfile, BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile):
+    """The recipe's parent (no M shift, no post-attention controls) through the same fused v8t core."""
+    model_name = 'BamMediumPropGeneralReadPallasProfile'
+    steps = 100
+    record_training_health_metrics = False
+    bam_record_concat_health = False
+    bam_pallas_core = True
+    bam_pallas_body = 'v8t'
+    bam_pallas_fused_inputs = True
+    bam_pallas_vmem_mib = 48

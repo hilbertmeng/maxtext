@@ -51,6 +51,7 @@ class PythiaMuddTest(unittest.TestCase):
     self.assertEqual(c.init_weights_seed, 1234)
     self.assertEqual(c.pile_loss_mask, 'nonnegative')
     self.assertEqual(c.rms_norm_epsilon, 1e-6)
+    self.assertTrue(c.record_training_health_metrics)
     m, mesh = self.model(c)
     with mesh, nn.partitioning.axis_rules(c.logical_axis_rules):
       p = nn.unbox(jax.eval_shape(lambda key: m.init(key, *self.inputs(), enable_dropout=False)['params'], jax.random.key(0)))
@@ -75,6 +76,42 @@ class PythiaMuddTest(unittest.TestCase):
                           gradient_accumulation_steps=accumulation)
         self.assertEqual(c.global_batch_size_to_train_on, 1024)
         self.assertEqual(c.per_device_batch_size, per_device)
+
+  def test_3b_health_metrics_report_unclipped_norm_without_changing_update(self):
+    from flax.training.train_state import TrainState
+    import optax
+    # External cloud adapters are unrelated to the train-step numerical contract.
+    with mock.patch.dict('sys.modules', {
+        'vertex_tensorboard': SimpleNamespace(VertexTensorboardManager=object),
+        'gcp_workload_monitor': SimpleNamespace(GCPWorkloadMonitor=object),
+        'ml_goodput_measurement': SimpleNamespace(monitoring=object),
+    }):
+      import train
+    c = self.config(exp_class='MuddPythia3BSerialMLP', target_global_batch_size=0,
+                    base_num_decoder_layers=2, base_mlp_dim=256,
+                    mudd_router_hidden_expand=[1, 4], pythia_rotary_dim=4,
+                    gradient_clipping_threshold=.01)
+    m, mesh, p = self.init(c)
+    state = TrainState.create(apply_fn=m.apply, params={'params': nn.unbox(p)},
+                              tx=optax.sgd(.01))
+    tokens, positions, targets, mask, segments = self.inputs()
+    batch = dict(inputs=tokens, inputs_position=positions, targets=targets,
+                 targets_segmentation=mask, inputs_segmentation=segments)
+    off = pyconfig.HyperParameters(SimpleNamespace(
+        keys=dict(c.get_keys(), record_training_health_metrics=False)))
+    with mesh, nn.partitioning.axis_rules(c.logical_axis_rules):
+      on_state, metrics = jax.jit(lambda s: train.train_step(
+          m, c, None, s, dict(batch), jax.random.PRNGKey(9)))(state)
+      off_state, off_metrics = jax.jit(lambda s: train.train_step(
+          m, off, None, s, dict(batch), jax.random.PRNGKey(9)))(state)
+    raw = float(metrics['scalar']['learning/raw_grad_norm'])
+    clipped = float(metrics['scalar']['learning/grad_norm'])
+    self.assertTrue(np.isfinite(raw))
+    self.assertGreater(raw, clipped)
+    self.assertLessEqual(clipped, .010001)
+    self.assertNotIn('learning/raw_grad_norm', off_metrics['scalar'])
+    for a, b in zip(jax.tree.leaves(on_state.params), jax.tree.leaves(off_state.params)):
+      np.testing.assert_allclose(a, b, rtol=1e-6, atol=1e-7)
 
   def test_pile_zero_token_mask_is_opt_in(self):
     import tensorflow as tf

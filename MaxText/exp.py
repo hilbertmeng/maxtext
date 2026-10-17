@@ -12997,4 +12997,5 @@ class MuddPythia3BSerialMLP(TrainPythia, Train3B, MuddPythiaMediumPropT2048Seria
     mlp_activations = ['gelu']  # Praxis GELU defaults to approximate=True.
     pythia_parallel_residual = False
     mudd_router_hidden_expand = [1] * 31 + [4]
+    record_training_health_metrics = True  # Include unclipped gradient norms in training/TensorBoard.
     compare_runs = []

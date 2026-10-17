@@ -933,3 +933,24 @@ remain READY and are not enrolled in cleanup.
   真实HBM复制；MXU/VPU混合没有实现预期收缩重叠，未选用。
 - FP32全梯度、三层scan四种remat及两硬件BF16检查通过；未宣称逐位或长期收敛等价。
   原始v6e/MHA曾因统一预算而退速，最终比较使用更快的原已验证AOT控制。
+
+## 2026-10-17：XL M-shift 上 v8t 融合核；Splash 块尺寸与 MLP 宽度
+
+分支 `claude/mshift-pallas-v8t`（`/data0/xd/mshift-pallas-v8t`），v5p-8 profile 矩阵，配置类见 `exp.py` 的 `BamXLPropMShiftG050*Profile`。
+
+- **Splash 块尺寸从未调过，是最大的单项杠杆。** XL 形状（每卡 B8 N20 T4096 D96，causal + segment ids）：
+  fwd q/kv 1024、compute 512（4.77→3.43 ms，−28%）；融合反向 + dkv 1024/1024/1024（11.22→6.57 ms，−41%）。
+  整步：v8t 对照 0.5909→0.6737（+14.0%），MHA 0.6134→0.7069（+15.2%）；前向和 dk/dv 逐位一致，dq 相对差 5e-3，
+  35 步 loss 最大差 0.0017（MHA 0.0001）。block_q 2048 或 dkv 2048 会撑爆 VMEM。
+  默认 512 块下，Splash 速度取决于 XLA MSA 是否碰巧把 segment ids 预取进 VMEM（单次 fwd 4042–4476 µs），
+  新增的小数组会挤掉预取（M-shift 臂 +7 ms/step）；1024 块下这项敏感性消失。
+  把 fused 核 scoped VMEM 从 48 降到 32 或升到 56，都会让 Splash 变慢，不是可用的旋钮。
+- **按参数量配平得到的 MLP 宽度会影响整步速度，但规律不是简单的对齐。** 单独测 MLP 宽度几乎没有影响
+  （6127 比 6140 还快，128 的倍数反而偏慢）；整模型里，正式宽度 [6127,5938,6127] 比父路 [6140,5952,6140] 的 MLP
+  慢 15.7 ms/step；16 对齐的 [6128,5936,6128] 也慢 7.6 ms。参数量完全不变（9 个周期内 +/−抵消）的候选中，
+  [6144,5904,6144] 最快（−1.54% vs 对照，正式宽度 −2.80%）。因此新配置的宽度要在整模型 profile 里选，
+  不能从单独的 MLP 基准推断。账本里 147 个 `mlp_dim_by_block` 类有 143 个不是 16 的倍数。
+- **单门 read M-shift 在 v8t 核内的开销已接近下限。** 核内单独测：read F/B 比 plain 慢 +0.17/+0.28 ms（各约 +10%）。
+  F 的 2/3 来自 gate 逐 token 沿 lane 广播；B 余下 ~0.1 ms 是 M 的 bf16→f32→bf16 往返（v5p VPU 必需）。
+  以下都更慢或没有收益：halo 改为跨 tile 携带、gate 预转 f32、整块寄存器广播、把门移到 X 侧做 2C 收缩
+  （fwd +0.37 ms）、dot 双矩阵乘形式；chunk 8 最优，tile 256 撑爆 VMEM。compact M-shift health 只在 32 个采样位置构造混合，开销为零。

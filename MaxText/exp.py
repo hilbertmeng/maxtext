@@ -13265,6 +13265,7 @@ class SplashXLTunedBlocks:
 class BamFullMGeneralReadPallasV8TSplashProfile(SplashXLTunedBlocks, BamFullMGeneralReadPallasV8TProfile):
     """v8t control with the tuned Splash blocks."""
     # v5p-8 ue5a c6b4283: 0.6737 vs default blocks 0.5909 (+14.0%), 95.3% of MHA+S 0.7069.
+    # v5p-8 ue5a ebff499 repeat: 0.6744.
     model_name = 'BamFullMGeneralReadPallasV8TSplashProfile'
 
 
@@ -13283,22 +13284,27 @@ class Llama2XLPropMHAPallasCoreSplashProfile(SplashXLTunedBlocks, Llama2XLPropMH
 
 class BamXLPropMShiftG050PallasSplashProfile(SplashXLTunedBlocks, BamXLPropMShiftG050PallasProfile):
     """XL M-shift Pallas arm, formal (parameter-matched) MLP widths, tuned Splash blocks."""
+    # v5p-8 ue5a ebff499: 0.6555 vs control+S 0.6744 (-2.80%).
     model_name = 'BamXLPropMShiftG050PallasSplashProfile'
 
 
 class BamXLPropMShiftG050PallasW6140SplashProfile(BamXLPropMShiftG050PallasSplashProfile):
     """Same parameters: local MLPs keep the parent's 6140, the fetch-block MLP absorbs the shift gate."""
+    # v5p-8 ue5a ebff499: 0.6619 (-1.85% vs control+S 0.6744).
     model_name = 'BamXLPropMShiftG050PallasW6140SplashProfile'
     mlp_dim_by_block = [6140, 5912, 6140]
 
 
 class BamXLPropMShiftG050PallasW6144SplashProfile(BamXLPropMShiftG050PallasSplashProfile):
     """Same parameters with 128-aligned local MLPs."""
+    # v5p-8 ue5a ebff499: 0.6640 (-1.54% vs control+S 0.6744), best parameter-matched arm; 93.9% of MHA+S 0.7069;
+    # +12.4% over the default-Splash v8t control 0.5909. Remaining cost: shifted read kernels (~1.1%, near floor).
     model_name = 'BamXLPropMShiftG050PallasW6144SplashProfile'
     mlp_dim_by_block = [6144, 5904, 6144]
 
 
 class BamXLPropMShiftG050PallasW6136SplashProfile(BamXLPropMShiftG050PallasSplashProfile):
     """Same parameters with 8-aligned widths."""
+    # v5p-8 ue5a ebff499: 0.6573 (-2.54% vs control+S 0.6744).
     model_name = 'BamXLPropMShiftG050PallasW6136SplashProfile'
     mlp_dim_by_block = [6136, 5920, 6136]

@@ -12999,3 +12999,15 @@ class MuddPythia3BSerialMLP(TrainPythia, Train3B, MuddPythiaMediumPropT2048Seria
     mudd_router_hidden_expand = [1] * 31 + [4]
     record_training_health_metrics = True  # Include unclipped gradient norms in training/TensorBoard.
     compare_runs = []
+
+
+class MuddPythia3BSerialMLPProfileSaveAll(MuddPythia3BSerialMLP):
+    """Speed-only control: save named attention/MLP activations instead of full remat."""
+    remat_policy = 'save_all'
+    record_training_health_metrics = False
+    enable_checkpointing = False
+
+
+class MuddPythia3BSerialMLPProfileMinimal(MuddPythia3BSerialMLPProfileSaveAll):
+    """Speed-only control: retain non-batched dot results using the existing policy."""
+    remat_policy = 'minimal'

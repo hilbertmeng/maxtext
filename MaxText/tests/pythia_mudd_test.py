@@ -77,6 +77,26 @@ class PythiaMuddTest(unittest.TestCase):
         self.assertEqual(c.global_batch_size_to_train_on, 1024)
         self.assertEqual(c.per_device_batch_size, per_device)
 
+  def test_3b_remat_profiles_preserve_logits_and_gradients(self):
+    c = self.config(exp_class='MuddPythia3BSerialMLP', target_global_batch_size=0,
+                    base_mlp_dim=256, mudd_router_hidden_expand=[1, 4],
+                    pythia_rotary_dim=4, remat_policy='full')
+    model, mesh, params = self.init(c)
+    args = self.inputs()
+    results = []
+    for policy in ('full', 'save_all', 'minimal'):
+      config = pyconfig.HyperParameters(SimpleNamespace(
+          keys=dict(c.get_keys(), remat_policy=policy)))
+      model, _ = self.model(config)
+      def loss(p):
+        logits = model.apply({'params': p}, *args, enable_dropout=False)[0]
+        return jnp.mean(jnp.square(logits)), logits
+      with mesh, nn.partitioning.axis_rules(c.logical_axis_rules):
+        results.append(jax.jit(jax.value_and_grad(loss, has_aux=True))(params))
+    for value in results[1:]:
+      for control, candidate in zip(jax.tree.leaves(results[0]), jax.tree.leaves(value)):
+        np.testing.assert_allclose(candidate, control, rtol=5e-5, atol=1e-6)
+
   def test_3b_health_metrics_report_unclipped_norm_without_changing_update(self):
     from flax.training.train_state import TrainState
     import optax

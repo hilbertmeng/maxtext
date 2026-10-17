@@ -12777,6 +12777,7 @@ class BamFullMGeneralReadPallasV8TMShiftPostAttnOptSaveReadProfile(BamFullMGener
 
 class BamFullMGeneralReadPallasV8TVmem32Profile(BamFullMGeneralReadPallasV8TProfile):
     """v8t control with a 32 MiB scoped VMEM limit for the fused kernels."""
+    # v5p-8 uc1a 4c71312: 0.5877 vs 0.5927 (-0.84%): Splash dkv/fwd +9.3/+5.9 ms.
     model_name = 'BamFullMGeneralReadPallasV8TVmem32Profile'
     bam_pallas_vmem_mib = 32
 
@@ -13178,6 +13179,7 @@ class BamMediumPropMShiftPostAttnMLPNormPallasOptVmem32Profile(BamMediumPropMShi
 
 class BamXLPropMShiftG050Profile(TrainStepProfile, BamXLPropSharedR400GeneralReadMShiftReadG050TruePile):
     """Timing arm: XL single-gate read M shift .5, pure JAX, BAM concat health OFF (as the v8t control)."""
+    # v5p-8 uc1a 4c71312: 0.4389 (control v8t 0.5927); Pallas arm +31.8%.
     model_name = 'BamXLPropMShiftG050Profile'
     steps = 60
     bam_record_concat_health = False
@@ -13187,6 +13189,9 @@ class BamXLPropMShiftG050PallasProfile(BamXLPropMShiftG050Profile):
     """The same model on the v8t fused core (blend_tmb + lane gate gradient), compact M-shift health ON.
 
     Direct speed comparison: BamFullMGeneralReadPallasV8TProfile (its parent on the same core)."""
+    # v5p-8 uc1a 4c71312: 0.5784 vs v8t control 0.5927 (-2.41%), 94.0% of MHA 0.6150; health ON = OFF (0.5784).
+    # Trace +41.4 ms: read kernels +16.3, Splash +7.2 (lost segment-id VMEM prefetch), small XLA +1.4,
+    # MLP +15.7 (formal widths 6127/5938 vs parent 6140/5952; not explained by alignment, see Mlp16).
     model_name = 'BamXLPropMShiftG050PallasProfile'
     bam_pallas_core = True
     bam_pallas_body = 'v8t'
@@ -13210,6 +13215,7 @@ class BamXLPropMShiftG050PallasVmem32Profile(BamXLPropMShiftG050PallasProfile):
 
 class BamFullMGeneralReadPallasV8TVmem56Profile(BamFullMGeneralReadPallasV8TProfile):
     """v8t control with a 56 MiB scoped VMEM limit (32 MiB slowed Splash by 15 ms/step)."""
+    # v5p-8 ue5a e1af6ca: 0.5890 vs 0.5909 (-0.32%).
     model_name = 'BamFullMGeneralReadPallasV8TVmem56Profile'
     bam_pallas_vmem_mib = 56
 
@@ -13218,18 +13224,21 @@ class BamXLPropMShiftG050PallasMlp16Profile(BamXLPropMShiftG050PallasProfile):
     """Pallas arm with the parameter-matched MLP widths rounded to multiples of 16 (+1/-2/+1: same total).
 
     The odd formal widths 6127/5938 slowed every MLP matmul (wi_0 forward +6%, mlp backward +11 ms/step)."""
+    # v5p-8 ue5a e1af6ca: 0.5780 vs control 0.5909 (-2.18%); ParentMlp 0.5834 (-1.27%): x16 is not the fast rule.
     model_name = 'BamXLPropMShiftG050PallasMlp16Profile'
     mlp_dim_by_block = [6128, 5936, 6128]
 
 
 class BamXLPropMShiftG050PallasMlp16Vmem56Profile(BamXLPropMShiftG050PallasMlp16Profile):
     """+ 56 MiB scoped VMEM for the fused kernels."""
+    # v5p-8 ue5a e1af6ca: 0.5801 (-1.83%); control Vmem56 0.5890 (-0.32%).
     model_name = 'BamXLPropMShiftG050PallasMlp16Vmem56Profile'
     bam_pallas_vmem_mib = 56
 
 
 class BamXLPropMShiftG050PallasParentMlpProfile(BamXLPropMShiftG050PallasProfile):
     """Timing reference only: the parent's MLP widths (2720 more parameters), isolating the shift's own cost."""
+    # v5p-8 ue5a e1af6ca: 0.5834 vs control 0.5909 (-1.27%): the shift alone at matched MLP shapes.
     model_name = 'BamXLPropMShiftG050PallasParentMlpProfile'
     mlp_dim_by_block = [6140, 5952, 6140]
     bam_final_local_mlp_dim = 6140
@@ -13251,14 +13260,41 @@ class SplashXLTunedBlocks:
 
 class BamFullMGeneralReadPallasV8TSplashProfile(SplashXLTunedBlocks, BamFullMGeneralReadPallasV8TProfile):
     """v8t control with the tuned Splash blocks."""
+    # v5p-8 ue5a c6b4283: 0.6737 vs default blocks 0.5909 (+14.0%), 95.3% of MHA+S 0.7069.
     model_name = 'BamFullMGeneralReadPallasV8TSplashProfile'
 
 
 class BamXLPropMShiftG050PallasMlp16SplashProfile(SplashXLTunedBlocks, BamXLPropMShiftG050PallasMlp16Profile):
     """XL M-shift Pallas arm (aligned MLP widths) with the tuned Splash blocks."""
+    # v5p-8 ue5a c6b4283: 0.6588 (+14.0% vs default blocks), -2.21% vs control+S 0.6737, 93.2% of MHA+S.
+    # Trace +27.9 ms: read kernels +16.9, MLP widths +7.7, misc ~3; the Splash shift penalty is gone.
     model_name = 'BamXLPropMShiftG050PallasMlp16SplashProfile'
 
 
 class Llama2XLPropMHAPallasCoreSplashProfile(SplashXLTunedBlocks, Llama2XLPropMHAPallasCoreProfile):
     """Paired MHA arm with the same tuned Splash blocks."""
+    # v5p-8 ue5a c6b4283: 0.7069 vs default blocks 0.6134 (+15.2%).
     model_name = 'Llama2XLPropMHAPallasCoreSplashProfile'
+
+
+class BamXLPropMShiftG050PallasSplashProfile(SplashXLTunedBlocks, BamXLPropMShiftG050PallasProfile):
+    """XL M-shift Pallas arm, formal (parameter-matched) MLP widths, tuned Splash blocks."""
+    model_name = 'BamXLPropMShiftG050PallasSplashProfile'
+
+
+class BamXLPropMShiftG050PallasW6140SplashProfile(BamXLPropMShiftG050PallasSplashProfile):
+    """Same parameters: local MLPs keep the parent's 6140, the fetch-block MLP absorbs the shift gate."""
+    model_name = 'BamXLPropMShiftG050PallasW6140SplashProfile'
+    mlp_dim_by_block = [6140, 5912, 6140]
+
+
+class BamXLPropMShiftG050PallasW6144SplashProfile(BamXLPropMShiftG050PallasSplashProfile):
+    """Same parameters with 128-aligned local MLPs."""
+    model_name = 'BamXLPropMShiftG050PallasW6144SplashProfile'
+    mlp_dim_by_block = [6144, 5904, 6144]
+
+
+class BamXLPropMShiftG050PallasW6136SplashProfile(BamXLPropMShiftG050PallasSplashProfile):
+    """Same parameters with 8-aligned widths."""
+    model_name = 'BamXLPropMShiftG050PallasW6136SplashProfile'
+    mlp_dim_by_block = [6136, 5920, 6136]

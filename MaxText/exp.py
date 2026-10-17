@@ -13312,53 +13312,62 @@ class BamXLPropMShiftG050PallasW6136SplashProfile(BamXLPropMShiftG050PallasSplas
 
 class BamXLPropMShiftG050PallasParentMlpSplashProfile(SplashXLTunedBlocks, BamXLPropMShiftG050PallasParentMlpProfile):
     """MLP-width diagnosis reference: parent widths [6140, 5952, 6140] + final 6140, tuned Splash."""
+    # v5p-8 39645a0/663ae8a: ue5a 0.6663 / uc1a 0.6659 (reference; 6140 width-minor, 5952 token-minor).
     model_name = 'BamXLPropMShiftG050PallasParentMlpSplashProfile'
 
 
 class BamXLPropMShiftG050PallasL6128SplashProfile(BamXLPropMShiftG050PallasParentMlpSplashProfile):
     """Width diagnosis: only the two 6140 MLPs -> 6128."""
+    # v5p-8 39645a0/663ae8a: ue5a 0.6646 (-0.26% vs reference): 6128 token-minor.
     model_name = 'BamXLPropMShiftG050PallasL6128SplashProfile'
     mlp_dim_by_block = [6128, 5952, 6128]
 
 
 class BamXLPropMShiftG050PallasL6127SplashProfile(BamXLPropMShiftG050PallasParentMlpSplashProfile):
     """Width diagnosis: only the two 6140 MLPs -> 6127."""
+    # v5p-8 39645a0/663ae8a: ue5a 0.6617 (-0.69%): token-minor.
     model_name = 'BamXLPropMShiftG050PallasL6127SplashProfile'
     mlp_dim_by_block = [6127, 5952, 6127]
 
 
 class BamXLPropMShiftG050PallasL6144SplashProfile(BamXLPropMShiftG050PallasParentMlpSplashProfile):
     """Width diagnosis: only the two 6140 MLPs -> 6144."""
+    # v5p-8 39645a0/663ae8a: ue5a 0.6682 (+0.29%): width-minor.
     model_name = 'BamXLPropMShiftG050PallasL6144SplashProfile'
     mlp_dim_by_block = [6144, 5952, 6144]
 
 
 class BamXLPropMShiftG050PallasL6136SplashProfile(BamXLPropMShiftG050PallasParentMlpSplashProfile):
     """Width diagnosis: only the two 6140 MLPs -> 6136."""
+    # v5p-8 39645a0/663ae8a: ue5a 0.6627 (-0.54%): token-minor.
     model_name = 'BamXLPropMShiftG050PallasL6136SplashProfile'
     mlp_dim_by_block = [6136, 5952, 6136]
 
 
 class BamXLPropMShiftG050PallasM5936SplashProfile(BamXLPropMShiftG050PallasParentMlpSplashProfile):
     """Width diagnosis: only the 5952 MLP -> 5936."""
+    # v5p-8 39645a0/663ae8a: ue5a 0.6670 (+0.10%): 5936 token-minor like 5952.
     model_name = 'BamXLPropMShiftG050PallasM5936SplashProfile'
     mlp_dim_by_block = [6140, 5936, 6140]
 
 
 class BamXLPropMShiftG050PallasL6141SplashProfile(BamXLPropMShiftG050PallasParentMlpSplashProfile):
     """Layout-rule prediction: odd 6141 (mod 128 = 125) keeps the width-minor MLP layout, so it is fast."""
+    # v5p-8 39645a0/663ae8a: uc1a 0.6666 (+0.11%): odd but width-minor, as predicted.
     model_name = 'BamXLPropMShiftG050PallasL6141SplashProfile'
     mlp_dim_by_block = [6141, 5952, 6141]
 
 
 class BamXLPropMShiftG050PallasM5888SplashProfile(BamXLPropMShiftG050PallasParentMlpSplashProfile):
     """Layout-rule prediction: the middle MLP at 5888 (mod 128 = 0) leaves the token-minor layout."""
+    # v5p-8 39645a0/663ae8a: uc1a 0.6679 (+0.30%): middle MLP width-minor, as predicted.
     model_name = 'BamXLPropMShiftG050PallasM5888SplashProfile'
     mlp_dim_by_block = [6140, 5888, 6140]
 
 
 class BamXLPropMShiftG050PallasAllWMinorSplashProfile(BamXLPropMShiftG050PallasSplashProfile):
     """Parameter-matched with every MLP width-minor: [6144, 5888, 6144] + final 6270 (9*18176 + 6270 = 169854)."""
+    # v5p-8 39645a0/663ae8a: uc1a 0.6676 (+0.26% vs reference, which has 2720 more parameters): all width-minor.
     model_name = 'BamXLPropMShiftG050PallasAllWMinorSplashProfile'
     mlp_dim_by_block = [6144, 5888, 6144]
     bam_final_local_mlp_dim = 6270

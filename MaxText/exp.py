@@ -13308,3 +13308,38 @@ class BamXLPropMShiftG050PallasW6136SplashProfile(BamXLPropMShiftG050PallasSplas
     # v5p-8 ue5a ebff499: 0.6573 (-2.54% vs control+S 0.6744).
     model_name = 'BamXLPropMShiftG050PallasW6136SplashProfile'
     mlp_dim_by_block = [6136, 5920, 6136]
+
+
+class BamXLPropMShiftG050PallasParentMlpSplashProfile(SplashXLTunedBlocks, BamXLPropMShiftG050PallasParentMlpProfile):
+    """MLP-width diagnosis reference: parent widths [6140, 5952, 6140] + final 6140, tuned Splash."""
+    model_name = 'BamXLPropMShiftG050PallasParentMlpSplashProfile'
+
+
+class BamXLPropMShiftG050PallasL6128SplashProfile(BamXLPropMShiftG050PallasParentMlpSplashProfile):
+    """Width diagnosis: only the two 6140 MLPs -> 6128."""
+    model_name = 'BamXLPropMShiftG050PallasL6128SplashProfile'
+    mlp_dim_by_block = [6128, 5952, 6128]
+
+
+class BamXLPropMShiftG050PallasL6127SplashProfile(BamXLPropMShiftG050PallasParentMlpSplashProfile):
+    """Width diagnosis: only the two 6140 MLPs -> 6127."""
+    model_name = 'BamXLPropMShiftG050PallasL6127SplashProfile'
+    mlp_dim_by_block = [6127, 5952, 6127]
+
+
+class BamXLPropMShiftG050PallasL6144SplashProfile(BamXLPropMShiftG050PallasParentMlpSplashProfile):
+    """Width diagnosis: only the two 6140 MLPs -> 6144."""
+    model_name = 'BamXLPropMShiftG050PallasL6144SplashProfile'
+    mlp_dim_by_block = [6144, 5952, 6144]
+
+
+class BamXLPropMShiftG050PallasL6136SplashProfile(BamXLPropMShiftG050PallasParentMlpSplashProfile):
+    """Width diagnosis: only the two 6140 MLPs -> 6136."""
+    model_name = 'BamXLPropMShiftG050PallasL6136SplashProfile'
+    mlp_dim_by_block = [6136, 5952, 6136]
+
+
+class BamXLPropMShiftG050PallasM5936SplashProfile(BamXLPropMShiftG050PallasParentMlpSplashProfile):
+    """Width diagnosis: only the 5952 MLP -> 5936."""
+    model_name = 'BamXLPropMShiftG050PallasM5936SplashProfile'
+    mlp_dim_by_block = [6140, 5936, 6140]

@@ -1,6 +1,6 @@
 """TPU microbenchmark: v8t read without / with the in-kernel M shift / with an XLA-mixed M, XL shapes.
 
-usage: python MaxText/tests/bam_pallas_mshift_benchmark.py [batch] [tile]
+usage: [MSHIFT_SHAPES=medium] python MaxText/tests/bam_pallas_mshift_benchmark.py [batch] [tile] [chunk]
 """
 import json
 import sys
@@ -59,11 +59,6 @@ def mixed(m, shift):
 arms = {
     'plain': lambda m, shift, xs: v8.read_tm(m, sw, *xs, **kw),
     'kernel_shift': lambda m, shift, xs: v8.read_tm(m, sw, *xs, shift=shift, **kw),
-    'kernel_blend': lambda m, shift, xs: v8.read_tm(m, sw, *xs, shift=shift, shift_body='blend', **kw),
-    'kernel_blend_tm': lambda m, shift, xs: v8.read_tm(m, sw, *xs, shift=shift, shift_body='blend_tm', **kw),
-    'kernel_blend_tmb': lambda m, shift, xs: v8.read_tm(m, sw, *xs, shift=shift, shift_body='blend_tmb', **kw),
-    'kernel_blend_tmb_lane': lambda m, shift, xs: v8.read_tm(m, sw, *xs, shift=shift, shift_body='blend_tmb',
-                                                         lane_dg=True, **kw),
     'xla_mix': lambda m, shift, xs: v8.read_tm(mixed(m, shift), sw, *xs, **kw)[:4] + (m,),
 }
 res = {'batch': B, 'tile': TILE}
@@ -82,9 +77,6 @@ for name, fn in arms.items():
   print(name, res[name], flush=True)
 
 res['fwd_rel_err'] = [rel(a, b) for a, b in zip(outs['kernel_shift'][:4], outs['xla_mix'][:4])]
-res['blend_fwd_rel_err'] = [rel(a, b) for a, b in zip(outs['kernel_blend'][:4], outs['xla_mix'][:4])]
-gb_ = outs['kernel_blend_grad']
-res['blend_grad_rel_err'] = {'m': rel(gb_[0], outs['xla_mix_grad'][0]), 'shift': rel(gb_[1], outs['xla_mix_grad'][1])}
 gk, gx = outs['kernel_shift_grad'], outs['xla_mix_grad']
 res['grad_rel_err'] = {'m': rel(gk[0], gx[0]), 'shift': rel(gk[1], gx[1]),
                        'keys': [rel(a, b) for a, b in zip(jax.tree.leaves(gk[2]), jax.tree.leaves(gx[2]))]}
@@ -102,10 +94,8 @@ sh = gate(shift)
 kcts = tuple(jnp.transpose(c, (0, 2, 1, 3)) for c in cts[:4]) + (cts[4],)
 args, sh, kcts = jax.device_put((args, sh, kcts))
 kernel = {}
-for name, s, body in (('plain', None, 'dot'), ('kernel_shift', sh, 'dot'), ('kernel_blend', sh, 'blend'),
-                      ('kernel_blend_tm', sh, 'blend_tm'), ('kernel_blend_tmb', sh, 'blend_tmb'),
-                      ('kernel_blend_lane', sh, 'blend_lane'), ('kernel_blend_tmb_lane', sh, 'blend_tmb_lane')):
-  o = dict(opts, shift_body=body.replace('_lane', ''), lane_dg=body.endswith('_lane'))
+for name, s in (('plain', None), ('kernel_shift', sh)):
+  o = opts
   f = jax.jit(lambda a, s=s, o=o: v8._tm_read_forward_call(a, o, s))
   b_raw = jax.jit(lambda a, c, s=s, o=o: v8._tm_read_backward_call(a, c, o, s))
   kernel[name] = {'fwd_ms': timeit(f, args), 'bwd_ms': timeit(b_raw, args, kcts)}

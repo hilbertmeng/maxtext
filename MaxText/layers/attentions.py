@@ -3948,12 +3948,7 @@ class BamAttention(Attention):
       with jax.named_scope('bam/m_shift'):
         shift_logits = raw['M_shift_gate'] if fused else self.m_shift_gate(inputs_q)
         shift_logits = shift_logits.astype(jnp.float32) + self.m_shift_bias.astype(jnp.float32)
-        # Barrier: sharing the segment ids with this mask cost Splash its VMEM-prefetched segment
-        # operand (+7 ms/step at XL on v5p-8).
-        segments, positions = ((decoder_segment_ids, inputs_positions)
-                               if not getattr(cfg, 'bam_pallas_shift_mask_barrier', False) else
-                               jax.lax.optimization_barrier((decoder_segment_ids, inputs_positions)))
-        valid = bam_m_shift_valid_mask(inputs_q.shape, segments, positions)
+        valid = bam_m_shift_valid_mask(inputs_q.shape, decoder_segment_ids, inputs_positions)
         shift = jax.nn.sigmoid(shift_logits).astype(M_in.dtype)
         read_kwargs['shift'] = jnp.where(valid[..., None], shift, jnp.zeros_like(shift))
         if getattr(cfg, 'bam_record_m_shift_health', False):
@@ -3968,10 +3963,6 @@ class BamAttention(Attention):
                                                column_metrics=False)
           self.sow('intermediates', 'm_shift_m_summary',
                    jnp.stack((stats[0], stats[1], stats[4], stats[5], state[4])))
-        if getattr(cfg, 'bam_pallas_shift_body', None):
-          read_kwargs['shift_body'] = cfg.bam_pallas_shift_body
-        if getattr(cfg, 'bam_pallas_shift_lane_dg', False):
-          read_kwargs['lane_dg'] = True
     if getattr(cfg, 'bam_pallas_read_chunk', None):
       read_kwargs['chunk'] = int(cfg.bam_pallas_read_chunk)
     pass_m = body in ('v7', 'v7u', 'v8t')   # M passthrough: dM sum fused into the read reverse

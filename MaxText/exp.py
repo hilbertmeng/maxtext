@@ -12702,7 +12702,9 @@ class BamPallasMShiftTinyPallasV8TFusedTest(BamPallasMShiftTinyPallasV8TTest):
 
 
 class BamPallasMShiftTinyPallasV8TOptTest(BamPallasMShiftTinyPallasV8TFusedTest):
-    """CPU fixture: + shift-mask barrier, blend_tmb body, lane-reduced gate gradient."""
+    """CPU fixture: + shift-mask barrier, blend_tmb body, lane-reduced gate gradient.
+
+    Those knobs were removed once blend_tmb + lane gate gradient became the only shifted path."""
     model_name = 'BamPallasMShiftTinyPallasV8TOptTest'
     bam_pallas_shift_mask_barrier = True
     bam_pallas_shift_body = 'blend_tmb'
@@ -13187,6 +13189,8 @@ class BamXLPropMShiftG050Profile(TrainStepProfile, BamXLPropSharedR400GeneralRea
 
 class BamXLPropMShiftG050PallasProfile(BamXLPropMShiftG050Profile):
     """The same model on the v8t fused core (blend_tmb + lane gate gradient), compact M-shift health ON.
+
+    The shift_body / lane_dg knobs below were removed later: that path is now the only one.
 
     Direct speed comparison: BamFullMGeneralReadPallasV8TProfile (its parent on the same core)."""
     # v5p-8 uc1a 4c71312: 0.5784 vs v8t control 0.5927 (-2.41%), 94.0% of MHA 0.6150; health ON = OFF (0.5784).

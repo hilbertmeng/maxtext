@@ -36,11 +36,10 @@ def inputs(seed=0):
   return m, sw, xs, static_gates, shift * valid[..., None]
 
 
-def read(m, sw, xs, static_gates, shift, tile, body='dot', lane_dg=False):
-  outs = v8.read_tm(m, sw, *xs, qk_cols=QKC, read_epsilon=EPS, key_scale=SCALE, forward_tile=tile,
+def read(m, sw, xs, static_gates, shift, tile, chunk=8):
+  return v8.read_tm(m, sw, *xs, qk_cols=QKC, read_epsilon=EPS, key_scale=SCALE, forward_tile=tile,
                     reverse_tile=tile, interpret=True, q_scale=0.125, static_gates=static_gates, shift=shift,
-                    shift_body=body, lane_dg=lane_dg)
-  return outs
+                    chunk=chunk)
 
 
 class ShiftedReadTest(unittest.TestCase):
@@ -61,10 +60,9 @@ class ShiftedReadTest(unittest.TestCase):
         return sum(jnp.sum(o * c) for o, c in zip(outs[:4], cts)) + jnp.sum(outs[4] * ct_m)
       return f
 
-    for tile, body in ((64, 'dot'), (256, 'dot'), (64, 'blend'), (256, 'blend'), (64, 'blend_tm'), (64, 'blend_tmb'), (64, 'blend_lane'), (64, 'blend_tmb_lane')):
-      lane = body.endswith('_lane')
-      kernel = lambda m, sw, xs, sgs, shift, tile=tile, body=body.replace('_lane', ''), lane=lane: read(
-          m, sw, xs, sgs, shift, tile, body, lane)
+    for tile, chunk in ((64, 8), (256, 8), (64, 4)):   # tile boundaries, one tile, chunk boundaries
+      body = f'chunk {chunk}'
+      kernel = lambda m, sw, xs, sgs, shift, tile=tile, chunk=chunk: read(m, sw, xs, sgs, shift, tile, chunk)
       ref = lambda m, sw, xs, sgs, shift, tile=tile: (
           read(mixed(m, shift), sw, xs, sgs, None, tile)[:4] + (m,))
       for i, (a, b) in enumerate(zip(kernel(m, sw, xs, sgs, shift), ref(m, sw, xs, sgs, shift))):
@@ -87,8 +85,7 @@ class ShiftedModelTest(unittest.TestCase):
     sys.path.insert(0, 'MaxText/tests')
     import bam_pallas_model_test as model_test  # pylint: disable=import-outside-toplevel
     model_test.ModelEquivalenceTest('_run')._run(
-        'BamPallasMShiftTinyXlaTest', ('BamPallasMShiftTinyPallasV8TTest', 'BamPallasMShiftTinyPallasV8TFusedTest',
-                                       'BamPallasMShiftTinyPallasV8TOptTest'))
+        'BamPallasMShiftTinyXlaTest', ('BamPallasMShiftTinyPallasV8TTest', 'BamPallasMShiftTinyPallasV8TFusedTest'))
 
   def test_v8t_compact_health_matches_xla(self):
     sys.path.insert(0, 'MaxText/tests')

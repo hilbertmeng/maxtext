@@ -13343,3 +13343,22 @@ class BamXLPropMShiftG050PallasM5936SplashProfile(BamXLPropMShiftG050PallasParen
     """Width diagnosis: only the 5952 MLP -> 5936."""
     model_name = 'BamXLPropMShiftG050PallasM5936SplashProfile'
     mlp_dim_by_block = [6140, 5936, 6140]
+
+
+class BamXLPropMShiftG050PallasL6141SplashProfile(BamXLPropMShiftG050PallasParentMlpSplashProfile):
+    """Layout-rule prediction: odd 6141 (mod 128 = 125) keeps the width-minor MLP layout, so it is fast."""
+    model_name = 'BamXLPropMShiftG050PallasL6141SplashProfile'
+    mlp_dim_by_block = [6141, 5952, 6141]
+
+
+class BamXLPropMShiftG050PallasM5888SplashProfile(BamXLPropMShiftG050PallasParentMlpSplashProfile):
+    """Layout-rule prediction: the middle MLP at 5888 (mod 128 = 0) leaves the token-minor layout."""
+    model_name = 'BamXLPropMShiftG050PallasM5888SplashProfile'
+    mlp_dim_by_block = [6140, 5888, 6140]
+
+
+class BamXLPropMShiftG050PallasAllWMinorSplashProfile(BamXLPropMShiftG050PallasSplashProfile):
+    """Parameter-matched with every MLP width-minor: [6144, 5888, 6144] + final 6270 (9*18176 + 6270 = 169854)."""
+    model_name = 'BamXLPropMShiftG050PallasAllWMinorSplashProfile'
+    mlp_dim_by_block = [6144, 5888, 6144]
+    bam_final_local_mlp_dim = 6270

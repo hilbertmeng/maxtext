@@ -13206,3 +13206,30 @@ class BamXLPropMShiftG050PallasVmem32Profile(BamXLPropMShiftG050PallasProfile):
     """Pallas arm with a 32 MiB scoped VMEM limit (room for XLA's Splash segment-id prefetch)."""
     model_name = 'BamXLPropMShiftG050PallasVmem32Profile'
     bam_pallas_vmem_mib = 32
+
+
+class BamFullMGeneralReadPallasV8TVmem56Profile(BamFullMGeneralReadPallasV8TProfile):
+    """v8t control with a 56 MiB scoped VMEM limit (32 MiB slowed Splash by 15 ms/step)."""
+    model_name = 'BamFullMGeneralReadPallasV8TVmem56Profile'
+    bam_pallas_vmem_mib = 56
+
+
+class BamXLPropMShiftG050PallasMlp16Profile(BamXLPropMShiftG050PallasProfile):
+    """Pallas arm with the parameter-matched MLP widths rounded to multiples of 16 (+1/-2/+1: same total).
+
+    The odd formal widths 6127/5938 slowed every MLP matmul (wi_0 forward +6%, mlp backward +11 ms/step)."""
+    model_name = 'BamXLPropMShiftG050PallasMlp16Profile'
+    mlp_dim_by_block = [6128, 5936, 6128]
+
+
+class BamXLPropMShiftG050PallasMlp16Vmem56Profile(BamXLPropMShiftG050PallasMlp16Profile):
+    """+ 56 MiB scoped VMEM for the fused kernels."""
+    model_name = 'BamXLPropMShiftG050PallasMlp16Vmem56Profile'
+    bam_pallas_vmem_mib = 56
+
+
+class BamXLPropMShiftG050PallasParentMlpProfile(BamXLPropMShiftG050PallasProfile):
+    """Timing reference only: the parent's MLP widths (2720 more parameters), isolating the shift's own cost."""
+    model_name = 'BamXLPropMShiftG050PallasParentMlpProfile'
+    mlp_dim_by_block = [6140, 5952, 6140]
+    bam_final_local_mlp_dim = 6140

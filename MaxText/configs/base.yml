@@ -530,6 +530,7 @@ train_shuffle_buffer_size: 200
 eval_shuffle_buffer_size: 0
 iter_file_nums: 20
 pad_id: 0
+pile_loss_mask: 'pad' # 'nonnegative': include token ID 0, matching PaxML Pile.
 
 # ================================= [dc] =================================
 exp_class: 'Llama2Medium'
@@ -560,6 +561,8 @@ dynamic_dense_type: 'qkvm'
 dynamic_dense_act_cls: 'gelu'
 dynamic_dense_fix_last_layer: True
 dynamic_dense_hidden_round: True
+mudd_router_hidden_expand: [] # Per-completed-layer expansion; empty preserves legacy routers.
+rms_norm_epsilon: -1.0 # Positive override for RMSNorm only; -1 inherits normalization_layer_epsilon.
 ddw_gen_pattern: 'q,k,v,m'
 ddw_gen_chunk_size: None
 mudd_prenorm: False
@@ -673,6 +676,7 @@ base_num_decoder_layers: 16
 head_dim: 128
 max_target_length: 2048 # Maximum sequence length
 per_device_batch_size: 12.0
+target_global_batch_size: 0 # Positive: derive per-device batch for actual topology and accumulation.
 eval_per_device_batch_size: 12.0
 eval_interval: 1000  # the specific number of train step between eval_step
 eval_steps: -1  # only run this number of batches for eval, for debugging use

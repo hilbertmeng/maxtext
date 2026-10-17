@@ -77,6 +77,9 @@ def get_rmsnorm(name, cfg, **kwargs):
     for item in ['dtype', 'weight_dtype', 'normalization_layer_epsilon', 'direct_scale']:
         key = 'epsilon' if item == 'normalization_layer_epsilon' else item
         rms_kwargs[key] = kwargs.get(key, getattr(cfg, item))
+    rms_epsilon = getattr(cfg, 'rms_norm_epsilon', -1.0)
+    if rms_epsilon > 0 and 'epsilon' not in kwargs:
+        rms_kwargs['epsilon'] = rms_epsilon
     rms_kwargs['axis'] = kwargs.get('axis', -1)
     base_scale_init = nn.initializers.ones if rms_kwargs['direct_scale'] else nn.initializers.zeros
     rms_kwargs['scale_init'] = kwargs.get("scale_init", base_scale_init)

@@ -36,7 +36,8 @@ class PileDatasets():
                 num_batches_to_skip: Optional[int] = None,
                 only_eval: bool = False,
                 zero_loss: bool = True,
-                mix_attn: bool = False
+                mix_attn: bool = False,
+                loss_mask: str = 'pad',
                 ):
         self.mesh = mesh
         self.name = name
@@ -56,6 +57,9 @@ class PileDatasets():
         self.num_batches_to_skip = num_batches_to_skip
         self.only_eval = only_eval
         self.zero_loss = zero_loss
+        if loss_mask not in ('pad', 'nonnegative'):
+            raise ValueError(f'Unknown Pile loss mask: {loss_mask}')
+        self.loss_mask = loss_mask
         self.batch_padding_size = 0
         self.mix_attn = mix_attn
         
@@ -169,8 +173,7 @@ class PileDatasets():
         model_needed_inputs['inputs'] = data["input_ids"][:, : seq_len]
         model_needed_inputs['targets'] = data["input_ids"][:, 1: seq_len + 1]
         key = 'labels' if "labels" in data else 'input_ids'
-        # weights = data[key] >= 0 if self.zero_loss else data[key] > 0
-        weights = data[key] != self.pad_id
+        weights = data[key] >= 0 if self.loss_mask == 'nonnegative' else data[key] != self.pad_id
         # label loss mask, origin bool type, but due the complie is int32
         model_needed_inputs['targets_segmentation'] = tf.cast(weights[:, 1: seq_len + 1], dtype=tf.int32) 
         model_needed_inputs['inputs_segmentation'] = self.build_attn_mask()
@@ -655,6 +658,7 @@ def make_pile_train_iterator(config, mesh):  # lsp
                             num_batches_to_skip=None,
                             only_eval=False,
                             zero_loss=config.zero_loss,
+                            loss_mask=config.pile_loss_mask,
                             iter_file_nums=config.iter_file_nums,
                             mix_attn=config.mix_attn,
                             pad_id=config.pad_id,
@@ -675,6 +679,7 @@ def make_pile_train_iterator(config, mesh):  # lsp
                             num_batches_to_skip=None,
                             only_eval=False,
                             zero_loss=config.zero_loss,
+                            loss_mask=config.pile_loss_mask,
                             iter_file_nums=config.iter_file_nums,
                             mix_attn=config.mix_attn,
                             pad_id=config.pad_id,

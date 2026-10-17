@@ -464,6 +464,13 @@ class _HyperParameters:
 
     # This is the first command that initializes the backend - it calls
     # jax.devices()
+    target_batch = raw_keys['target_global_batch_size']
+    if target_batch:
+      devices = get_num_target_devices(raw_keys)
+      accumulation = raw_keys['gradient_accumulation_steps']
+      if target_batch < 1 or target_batch % (devices * accumulation):
+        raise ValueError('target_global_batch_size must be divisible by devices * gradient_accumulation_steps')
+      raw_keys['per_device_batch_size'] = float(target_batch // (devices * accumulation))
     (
         raw_keys["global_batch_size_to_load"],
         raw_keys["global_batch_size_to_train_on"],

@@ -3,6 +3,7 @@ import copy
 import math
 from types import SimpleNamespace
 import unittest
+from unittest import mock
 
 import jax
 import jax.numpy as jnp
@@ -29,6 +30,66 @@ class PythiaMuddTest(unittest.TestCase):
   model = reference.PythiaTest.model
   inputs = reference.PythiaTest.inputs
   init = reference.PythiaTest.init
+
+  def test_paxml_3b_config_and_router_shapes(self):
+    # Trace the real 3B parameter tree without allocating its multi-GB weights.
+    c = self.config(exp_class='MuddPythia3BSerialMLP', base_emb_dim=2560,
+                    base_num_decoder_layers=32, base_num_query_heads=32,
+                    base_num_kv_heads=32, head_dim=80, vocab_size=50432)
+    self.assertEqual(c.model_name, 'MuddPythia3BSerialMLP')
+    self.assertEqual(c.mlp_dim, 10240)
+    self.assertEqual(c.global_batch_size_to_train_on, 1024)
+    self.assertEqual(c.pythia_rotary_dim, 20)
+    self.assertEqual(c.mlp_activations, ['gelu'])
+    self.assertTrue(c.qk_norm)
+    self.assertFalse(c.pythia_parallel_residual)
+    self.assertEqual(c.steps, 143000)
+    self.assertEqual(c.learning_rate_schedule_steps, 143000)
+    self.assertEqual(int(c.steps * c.warmup_steps_fraction), 1430)
+    self.assertEqual(c.learning_rate, 1.6e-4)
+    self.assertEqual(c.adam_weight_decay, .1)
+    self.assertEqual(c.init_weights_seed, 1234)
+    self.assertEqual(c.pile_loss_mask, 'nonnegative')
+    self.assertEqual(c.rms_norm_epsilon, 1e-6)
+    m, mesh = self.model(c)
+    with mesh, nn.partitioning.axis_rules(c.logical_axis_rules):
+      p = nn.unbox(jax.eval_shape(lambda key: m.init(key, *self.inputs(), enable_dropout=False)['params'], jax.random.key(0)))
+    for i in range(32):
+      width = round(10240 * (i / 31 + .5) / 128) * 128
+      self.assertEqual(p['decoder'][f'layers_{i}']['block']['mlp']['wi']['kernel'].shape, (2560, width))
+      if i:
+        router = p['decoder'][f'layers_{i}']['compose']['mlp']
+        hidden = (4 * (i + 1) // 64 + 1) * 64
+        self.assertEqual(router['dynamic_dense_conn1']['kernel'].shape, (2560, hidden))
+        self.assertEqual(router['dynamic_dense_conn2']['kernel'].shape, (hidden, 4, i + 1))
+    final = p['decoder']['compose_final']['mlp']
+    self.assertEqual(final['dynamic_dense_conn1']['kernel'].shape, (2560, 192))
+    self.assertEqual(final['dynamic_dense_conn2']['kernel'].shape, (192, 1, 33))
+
+  def test_3b_batch_follows_topology(self):
+    for devices, accumulation, per_device in [(128, 1, 8.), (256, 1, 4.), (128, 2, 4.)]:
+      with self.subTest(devices=devices, accumulation=accumulation):
+        with mock.patch.object(pyconfig, 'get_num_target_devices', return_value=devices):
+          c = self.config(exp_class='MuddPythia3BSerialMLP',
+                          mudd_router_hidden_expand=[1, 4], pythia_rotary_dim=4,
+                          gradient_accumulation_steps=accumulation)
+        self.assertEqual(c.global_batch_size_to_train_on, 1024)
+        self.assertEqual(c.per_device_batch_size, per_device)
+
+  def test_pile_zero_token_mask_is_opt_in(self):
+    import tensorflow as tf
+    from input_pipeline._pile_data_processing import PileDatasets
+    loader = PileDatasets.__new__(PileDatasets)
+    loader.seq_len = 3
+    loader.batch_size = 1
+    loader.pad_id = 0
+    loader.mix_attn = False
+    data = {'input_ids': tf.constant([[9, 0, 2, 3]]),
+            'labels': tf.constant([[9, 0, 2, -100]])}
+    loader.loss_mask = 'nonnegative'
+    np.testing.assert_array_equal(loader.convert(data)['targets_segmentation'], [[1, 1, 0]])
+    loader.loss_mask = 'pad'
+    np.testing.assert_array_equal(loader.convert(data)['targets_segmentation'], [[0, 1, 1]])
 
   def test_fusion_matches_plain_pythia(self):
     # Use identical nonzero affine parameters to expose LayerNorm/bias mistakes.

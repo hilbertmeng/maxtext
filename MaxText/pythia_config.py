@@ -35,8 +35,14 @@ def validate_pythia_config(keys):
     raise ValueError("Pythia requires positive MLP width and layer count")
   if not keys['qkv_bias']:
     raise ValueError("Pythia requires QKV bias")
-  if list(keys['mlp_activations']) != ['gelu_exact']:
-    raise ValueError("Pythia requires the single gelu_exact MLP activation")
+  if list(keys['mlp_activations']) not in (['gelu_exact'], ['gelu']):
+    raise ValueError("Pythia requires a single GELU MLP activation (gelu_exact or gelu)")
+  expands = keys.get('mudd_router_hidden_expand')
+  if expands:
+    if (not keys.get('mudd_full_history') or not keys.get('dense_conn')
+        or len(expands) != keys['num_decoder_layers']
+        or any(type(x) is not int or x <= 0 for x in expands)):
+      raise ValueError('mudd_router_hidden_expand requires full-history Mudd and one positive integer per layer')
   if keys['rope_type'] != 'default' or keys['rope_half']:
     raise ValueError("Pythia requires ordinary RoPE (rope_half=False); use pythia_rotary_dim for its prefix")
   if keys['logits_via_embedding']:

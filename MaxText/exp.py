@@ -173,6 +173,43 @@ class TrainSmall:
     learning_rate_schedule_steps = 4800
     eval_interval = 4800
 
+class TrainPythia:
+    """PaxML Pythia training recipe, retaining weight decay 0.1."""
+    steps = 143000
+    learning_rate_schedule_steps = 143000
+    warmup_steps_fraction = 0.01  # 1430 steps
+    stable_steps_fraction = 1 / 143000  # PaxML starts cosine decay at step 1431.
+    cosine_learning_rate_final_fraction = 0.1
+    opt_type = 'adam_pax'
+    adam_b1 = 0.9
+    adam_b2 = 0.95
+    adam_eps = 1e-8
+    adam_eps_root = 0.0
+    adam_weight_decay = 0.1
+    gradient_clipping_threshold = 1.0
+    init_weights_seed = 1234
+    data_shuffle_seed = 9876
+    max_target_length = 2048
+    vocab_size = 50432
+    zero_loss = True
+    pile_loss_mask = 'nonnegative'  # PaxML includes token ID 0 in the loss.
+    train_shuffle_buffer_size = None
+    eval_shuffle_buffer_size = None
+    checkpoint_period = 500
+    async_checkpointing = True
+    max_to_keep = 2
+    keep_period = 0
+    force_final_checkpoint = True
+    eval_interval = 0  # PaxML training defaults to eval_on_test=False.
+    rms_norm_epsilon = 1e-6  # QK/router RMSNorm; LayerNorm stays at 1e-5.
+
+class Train3B:
+    """3B learning rate and topology-independent 1024-sequence global batch."""
+    learning_rate = 1.6e-4
+    target_global_batch_size = 1024
+    per_device_batch_size = 4.0  # Reference: 256 devices; resolved for actual topology.
+    eval_per_device_batch_size = -1.0
+
 class Llama2Medium(GWindow, PileDataset, Optimizer, Common):
     # ~0.804 steps/s; completed 13,500 steps.
     checkpoint_period = 200
@@ -12939,3 +12976,25 @@ class MuddPythiaMediumPropT2048SerialMLP(MuddPythiaMediumPropT2048):
     pythia_parallel_residual = False
     compare_runs = ['MuddPythiaMediumPropT2048', 'PythiaMediumPropT2048SerialMLP',
                     'BamPythiaMediumPropT2048MShiftReadG050ReadAttentionSharedR256SerialMLP']
+
+
+class MuddPythia3BSerialMLP(TrainPythia, Train3B, MuddPythiaMediumPropT2048SerialMLP):
+    """PaxML PileMUDDPythia3BPlusOcdbt recipe with serial MLP and WD=0.1.
+
+    Uses the existing MaxText attention/checkpoint backends. Full-history router
+    expansion is indexed by the completed layer, including the final readout.
+    """
+    model_name = 'MuddPythia3BSerialMLP'
+    base_num_decoder_layers = 32
+    base_emb_dim = 2560
+    base_num_query_heads = 32
+    base_num_kv_heads = 32
+    head_dim = 80
+    base_mlp_dim = 10240
+    dynamic_mlp_dim = True
+    qk_norm = True
+    pythia_rotary_dim = 20
+    mlp_activations = ['gelu']  # Praxis GELU defaults to approximate=True.
+    pythia_parallel_residual = False
+    mudd_router_hidden_expand = [1] * 31 + [4]
+    compare_runs = []

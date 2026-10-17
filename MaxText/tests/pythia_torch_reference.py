@@ -20,7 +20,7 @@ def main(source, destination):
       hidden_size=width, num_hidden_layers=depth, num_attention_heads=heads,
       intermediate_size=mlp_width, hidden_act='gelu', rotary_pct=.25,
       rotary_emb_base=10000, max_position_embeddings=32, layer_norm_eps=1e-5,
-      use_parallel_residual=True, tie_word_embeddings=False,
+      use_parallel_residual=bool(arrays["parallel_residual"]) if "parallel_residual" in arrays else True, tie_word_embeddings=False,
       attention_dropout=0., hidden_dropout=0., use_cache=False)
   config._attn_implementation = 'eager'
   model = GPTNeoXForCausalLM(config).float().eval()
@@ -60,7 +60,7 @@ def main(source, destination):
   bind(root+'decoder_norm/scale',model.gpt_neox.final_layer_norm.weight)
   bind(root+'decoder_norm/bias',model.gpt_neox.final_layer_norm.bias)
   bind(root+'logits_dense',model.embed_out.weight,lambda a:a.T,lambda a:a.T)
-  expected = set(arrays.files) - {'tokens','targets'}
+  expected = set(arrays.files) - {'tokens','targets','parallel_residual'}
   assert set(mapping) == expected, (expected-set(mapping),set(mapping)-expected)
   logits = model(torch.from_numpy(arrays['tokens']).long()).logits
   targets = torch.from_numpy(arrays['targets']).long()

@@ -12870,3 +12870,72 @@ class BamMediumPropSharedR256GeneralReadAddressSharedGatesTruePile(BamMediumProp
     tensorboard_gcs_rotate_period = 500
     compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile',
                     'BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile']
+
+
+class PythiaMediumPropT2048(PythiaArchitecture, Llama2MediumProp):
+    """Pythia MediumProp; T2048 x global batch256, 524288 tokens/step."""
+    # 结论：整套Pythia迁移后的MHA终局loss弱于旧配方，不是与旧MHA等效的架构替换。
+    # 完成13500；末五12600–13400对旧T2048 MHA gap+.047280，不能误记成+.4728。
+    # 并行残差/LayerNorm/GELU/偏置/初始化同时改变，不能将差距归为其中单项；UE5a v5p16。
+    # code_commit: 973b94c；实现已合入 refactor-bam；历史工作树 /data0/xd/pythia-mediumprop-t2048；详见 exit_followup_20261015.md。
+    model_name = 'PythiaMediumPropT2048'
+    DATASET_VARIANT = 'legacy2048'
+    base_mlp_dim = 4800
+    pythia_rotary_dim = 18  # Explicit even prefix for the inherited head_dim75.
+    max_target_length = 2048
+    per_device_batch_size = 32.0
+    steps = 13500
+    learning_rate_schedule_steps = 13500
+    attention = 'flash'
+    query_chunk_size = 256
+    qk_norm = False
+    checkpoint_period = 200
+    keep_period = 0
+    max_to_keep = 2
+    force_final_checkpoint = True
+    tensorboard_gcs_rotate_period = 500
+    record_training_health_metrics = False
+    record_internal_nn_metrics = False
+    jax_cache_dir = ''
+    compare_runs = ['BamMHAMediumPropC256T2048Matched']
+
+
+class MuddPythiaMediumPropT2048(Mudd, PythiaMediumPropT2048):
+    """Full-history Mudd on Pythia; preserve historical MLP allocation and router overhead."""
+    # 结论：并行Pythia中的Mudd保留部分相对MHA优势，但原配方收益衰减，且弱于后续串行MLP方案。
+    # 完成13500；末五12600–13400对同族MHA gap-.054381，对旧T2048 Mudd +.081412。
+    # 相对MHA绝对收益保留旧族系61.4%；这些是整套实现族对比，非单因素归因；UE5a v5p16。
+    # code_commit: 973b94c；实现已合入 refactor-bam；历史工作树 /data0/xd/pythia-mediumprop-t2048；详见 exit_followup_20261015.md。
+    model_name = 'MuddPythiaMediumPropT2048'
+    pythia_use_fusion = True
+    mudd_full_history = True
+    scan_layers = False  # Growing history, same execution as the verified Mudd parent.
+    base_mlp_dim = 4800
+    dynamic_mlp_dim = True  # Preserve old Mudd: router overhead is additional.
+    compare_runs = ['PythiaMediumPropT2048', 'MuddLlama2MediumPropC256T2048']
+
+
+class PythiaMediumPropT2048SerialMLP(PythiaMediumPropT2048):
+    """Paired serial residual: MLP sees x+attention(x); other Pythia settings fixed."""
+    # 结论：恢复串行 MLP 后，MHA 终局与并行版基本持平，仍没有修复 Pythia 相对旧 MHA 的差距。
+    # 完成 13,500 步；末五窗口对并行版 loss gap +.000162，对旧 MHA +.047442。
+    # UE5a v5p-16，.7294875 step/s，比并行版约慢 1.8%；零抢占，一次 checkpoint 异常已恢复。
+    # 最终 checkpoint 已提交，节点和队列已删除，TB 已同步；参数与并行父路一致。
+    # code_commit: d434e69；实现已合入 refactor-bam；历史工作树 /data0/xd/pythia-mediumprop-t2048。
+    model_name = 'PythiaMediumPropT2048SerialMLP'
+    pythia_parallel_residual = False
+    compare_runs = ['PythiaMediumPropT2048', 'BamMHAMediumPropC256T2048Matched']
+
+
+class MuddPythiaMediumPropT2048SerialMLP(MuddPythiaMediumPropT2048):
+    """Serial MLP control; unchanged full-history routing and extra router budget."""
+    # 结论：串行MLP稳定改善Mudd，改善量与BAM接近；三路均完成13500。
+    # 末五窗口12600–13400对并行父路loss低.021874，收益倍数1.40226（并行MHA参考）。
+    # 对串行MHA末五-.076417，对串行BAM+.011264；串行家族BAM/Mudd1.147469。
+    # UE5a v5p16，.57875step/s，比并行父路慢3.2%；P1，CP13500已提交。
+    # 节点/队列删除已核验，TB SYNC_OK；保留原Mudd额外路由器预算，未抵扣MLP。
+    # code_commit:3538f6c；实现已合入 refactor-bam；历史工作树 /data0/xd/pythia-mediumprop-t2048。
+    model_name = 'MuddPythiaMediumPropT2048SerialMLP'
+    pythia_parallel_residual = False
+    compare_runs = ['MuddPythiaMediumPropT2048', 'PythiaMediumPropT2048SerialMLP',
+                    'BamPythiaMediumPropT2048MShiftReadG050ReadAttentionSharedR256SerialMLP']

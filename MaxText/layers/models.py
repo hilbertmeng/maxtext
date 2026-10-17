@@ -597,6 +597,9 @@ class Decoder(nn.Module):
 
       return [gemma2.Gemma2DecoderLayer]
     elif self.config.decoder_block == "pythia":
+      if self.config.pythia_use_fusion:
+        from layers import fusion
+        return [fusion.FusionDecoderLayer]
       from layers import pythia
 
       return [pythia.PythiaDecoderLayer]
@@ -665,7 +668,7 @@ class Decoder(nn.Module):
     )
     module_kwargs = dict(
         config=cfg, mesh=mesh, name=metdata_axis_name, quant=self.quant)
-    if cfg.decoder_block == 'fusion':
+    if cfg.decoder_block == 'fusion' or (cfg.decoder_block == 'pythia' and cfg.pythia_use_fusion):
       module_kwargs.update(
           sliding_window_size=sliding_window_size, scan_length=scan_length,
           all_global_attention=all_global_attention)

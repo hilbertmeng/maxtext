@@ -115,7 +115,7 @@ class SubDecoderLayer(nn.Module):
     else:
       inputs = nn.with_logical_constraint(inputs, ("activation_batch", "activation_norm_length", "activation_embed"))
       inputs = checkpoint_name(inputs, "decoder_layer_input")
-      lnx = normalizations.get_rmsnorm("pre_self_attention_layer_norm", cfg)(inputs)
+      lnx = normalizations.get_decoder_norm("pre_self_attention_layer_norm", cfg)(inputs)
       lnx = nn.with_logical_constraint(lnx, ("activation_batch", "activation_norm_length", "activation_embed"))
       lnx_kv = [lnx, lnx]
 
@@ -160,10 +160,16 @@ class SubDecoderLayer(nn.Module):
         reshape_q=cfg.reshape_q,
         use_ragged_attention=cfg.use_ragged_attention,
         ragged_block_size=cfg.ragged_block_size,
-        kernel_init=initializers.get_init_method(cfg.init_method), # lsp
+        kernel_init=initializers.get_model_init(cfg), # lsp
         sliding_window_size=self.sliding_window_size,
         use_kv_shift=cfg.use_kv_shift,
     )
+    if cfg.decoder_block == 'pythia':
+        from pythia_config import rotary_width
+        attn_kwargs.update(
+            output_kernel_init=initializers.get_model_init(cfg, residual_output=True),
+            output_bias=True,
+            rotary_dim=rotary_width(head_dim, cfg.pythia_rotary_fraction, cfg.pythia_rotary_dim))
     if cfg.bam_enabled:
         AttnCls = attentions.BamAttention
         modes = cfg.bam_layer_modes
@@ -227,7 +233,11 @@ class SubDecoderLayer(nn.Module):
     intermediate_inputs = inputs + attention_lnx
 
     # Fully Connected
-    hidden_states = normalizations.get_rmsnorm("post_self_attention_layer_norm", cfg)(intermediate_inputs)
+    # Parallel Pythia uses the layer input (Mudd's composed M route).
+    # Serial Pythia includes this layer's attention update before the MLP.
+    parallel_mlp = cfg.decoder_block == 'pythia' and cfg.pythia_parallel_residual
+    mlp_input = inputs if parallel_mlp else intermediate_inputs
+    hidden_states = normalizations.get_decoder_norm("post_self_attention_layer_norm", cfg)(mlp_input)
     hidden_states = nn.with_logical_constraint(
         hidden_states, ("activation_batch", "activation_norm_length", "activation_embed")
     )
@@ -244,7 +254,10 @@ class SubDecoderLayer(nn.Module):
           name="mlp",
           config=cfg,
           quant=self.quant,
-          kernel_init=initializers.get_init_method(cfg.init_method), # lsp
+          kernel_init=initializers.get_model_init(cfg), # lsp
+          output_kernel_init=(initializers.get_model_init(cfg, residual_output=True)
+                              if cfg.decoder_block == 'pythia' else None),
+          use_bias=cfg.decoder_block == 'pythia',
       )(hidden_states, deep_embedding=deep_embedding, decoder_input_tokens=decoder_input_tokens, deterministic=deterministic)
       mlp_lnx = nn.with_logical_constraint(mlp_lnx, ("activation_batch", "activation_norm_length", "activation_embed"))
 
@@ -492,7 +505,10 @@ class FusionDecoderLayer(nn.Module):
       )
 
     if cfg.dense_conn:
-      if self.layer_inx == 0:
+      if self.layer_inx == 0 and cfg.get_keys().get('mudd_full_history', False):
+        # Decoder already seeded the history with the embedding once.
+        pass
+      elif self.layer_inx == 0:
         y_normed = normalizations.get_rmsnorm("mudd_prenorm", cfg)(inputs) \
           if cfg.mudd_prenorm else inputs
         # inputs = [inputs] * len(cfg.dynamic_dense_type) # 0层要不要分4路？
@@ -526,7 +542,12 @@ class FusionDecoderLayer(nn.Module):
         layer_index=layer_index,
     )
     max_logging.log(f'layer_inx: {self.layer_inx} break_layers: {self.break_layers}', debug=cfg.debug)
-    if cfg.dense_conn and self.layer_inx in self.break_layers:
+    full_history = cfg.dense_conn and cfg.get_keys().get('mudd_full_history', False)
+    if full_history:
+      # Return a fresh list across remat; never mutate the caller's history.
+      stored = normalizations.get_rmsnorm("mudd_history_norm", cfg)(inputs) if cfg.mudd_prenorm else inputs
+      hids = hids + [stored]
+    if cfg.dense_conn and self.layer_inx in self.break_layers and not full_history:
       C = self.get_C(cfg)
       inputs, hids = mudd.Compose(
         cfg, self.mesh, self.quant,

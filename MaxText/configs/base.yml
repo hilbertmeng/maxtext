@@ -535,6 +535,8 @@ pad_id: 0
 exp_class: 'Llama2Medium'
 pre_compose: False
 post_compose: False
+pythia_parallel_residual: true # False: MLP consumes the post-attention residual
+pythia_use_fusion: false # Opt-in Pythia decoder using the fusion/Mudd circuit
 pythia_rotary_fraction: 0.25
 pythia_rotary_dim: -1  # -1 derives an exact even width; explicit override for odd head dimensions.
 qk_norm: False

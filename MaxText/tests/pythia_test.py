@@ -161,7 +161,7 @@ class PythiaTest(unittest.TestCase):
       logits=m.apply({'params':p},hidden,method=m.logits_from_hidden_states)
       g=jax.grad(lambda p:jnp.mean(m.apply({'params':p},*args,enable_dropout=False)[0]))(p)
     source=Path(self.tmp.name)/'jax.npz';target=Path(self.tmp.name)/'torch.npz'
-    np.savez(source,**{'/'.join(k):np.array(v) for k,v in flatten_dict(p).items()},tokens=np.array(args[0]),targets=np.array(args[2]))
+    np.savez(source,**{'/'.join(k):np.array(v) for k,v in flatten_dict(p).items()},tokens=np.array(args[0]),targets=np.array(args[2]),parallel_residual=np.array(c.pythia_parallel_residual))
     subprocess.run([python,str(Path(__file__).with_name('pythia_torch_reference.py')),str(source),str(target)],check=True,
         env=dict(os.environ,OMP_NUM_THREADS='2',MKL_NUM_THREADS='2',CUDA_VISIBLE_DEVICES=''),timeout=120)
     ref=np.load(target)

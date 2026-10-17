@@ -1,4 +1,4 @@
-"""Validation of the plain Pythia decoder; no TPU/JAX dependency."""
+"""Validation of the Pythia decoder and opt-in Mudd circuit; no TPU/JAX dependency."""
 import math
 
 
@@ -41,10 +41,16 @@ def validate_pythia_config(keys):
     raise ValueError("Pythia requires ordinary RoPE (rope_half=False); use pythia_rotary_dim for its prefix")
   if keys['logits_via_embedding']:
     raise ValueError("Pythia uses independent input/output embeddings")
+  if keys.get('dense_conn') and not keys.get('pythia_use_fusion'):
+    raise ValueError('Mudd Pythia requires pythia_use_fusion=True')
+  if keys.get('dynamic_mlp_dim') and not keys.get('pythia_use_fusion'):
+    raise ValueError('Dynamic MLP widths require pythia_use_fusion=True')
+  if keys.get('mudd_full_history') and keys.get('dense_conn') and keys.get('scan_layers'):
+    raise ValueError('Full-history Mudd requires scan_layers=False')
   # These extensions change the circuit or require a different decoder contract.
-  for key in ('bam_enabled', 'rmt_enabled', 'dense_conn', 'partial_scan_layers',
+  for key in ('bam_enabled', 'rmt_enabled', 'partial_scan_layers',
               'use_kv_shift', 'use_v_gate', 'pre_compose', 'post_compose',
-              'dynamic_mlp_dim', 'mtp_num_layers', 'me_nums',
+              'mtp_num_layers', 'me_nums',
               'mgate_dim', 'use_untrainable_positional_embedding',
               'using_pipeline_parallelism', 'mix_attn'):
     if keys.get(key):

@@ -13233,3 +13233,32 @@ class BamXLPropMShiftG050PallasParentMlpProfile(BamXLPropMShiftG050PallasProfile
     model_name = 'BamXLPropMShiftG050PallasParentMlpProfile'
     mlp_dim_by_block = [6140, 5952, 6140]
     bam_final_local_mlp_dim = 6140
+
+
+class SplashXLTunedBlocks:
+    """Splash block sizes tuned at the XL shape (B8 N20 T4096 D96, causal + segment ids, v5p).
+
+    Kernel-only per call: forward 4.77 -> 3.43 ms (q/kv 1024, compute 512); fused backward with
+    1024/1024/1024 dkv blocks 11.22 -> 6.57 ms. Forward and dk/dv bitwise equal, dq 5e-3 (bf16 level)."""
+    sa_block_q = 1024
+    sa_block_kv = 1024
+    sa_block_kv_compute = 512
+    sa_block_q_dkv = 1024
+    sa_block_kv_dkv = 1024
+    sa_block_kv_dkv_compute = 1024
+    sa_use_fused_bwd_kernel = True
+
+
+class BamFullMGeneralReadPallasV8TSplashProfile(SplashXLTunedBlocks, BamFullMGeneralReadPallasV8TProfile):
+    """v8t control with the tuned Splash blocks."""
+    model_name = 'BamFullMGeneralReadPallasV8TSplashProfile'
+
+
+class BamXLPropMShiftG050PallasMlp16SplashProfile(SplashXLTunedBlocks, BamXLPropMShiftG050PallasMlp16Profile):
+    """XL M-shift Pallas arm (aligned MLP widths) with the tuned Splash blocks."""
+    model_name = 'BamXLPropMShiftG050PallasMlp16SplashProfile'
+
+
+class Llama2XLPropMHAPallasCoreSplashProfile(SplashXLTunedBlocks, Llama2XLPropMHAPallasCoreProfile):
+    """Paired MHA arm with the same tuned Splash blocks."""
+    model_name = 'Llama2XLPropMHAPallasCoreSplashProfile'

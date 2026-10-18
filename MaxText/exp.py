@@ -13015,6 +13015,9 @@ class MuddPythia3BSerialMLPProfileMinimal(MuddPythia3BSerialMLPProfileSaveAll):
 
 class MuddPythia3BSerialMLPKeepActivations(MuddPythia3BSerialMLP):
     """Retain dot activations; preserve the 3B recipe and training health metrics."""
+    # code_commit: cf53d97; UE5a Spot v5p-256, batch1024, health ON.
+    # 50-step mean10-49:1.81913s (full2.02283s, save_all1.92752s).
+    # Formal RUN=MuddPythia3BSerialMLP;143000-step schedule, running2026-10-18.
     remat_policy = 'minimal'
 
 

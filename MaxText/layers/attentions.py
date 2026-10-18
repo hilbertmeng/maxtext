@@ -2477,15 +2477,18 @@ def mix_bam_previous_token(M, gate, segment_ids=None, positions=None):
   return jnp.where(valid[..., None, None], mixed, M)
 
 
-def bam_m_shift_health(M, mixed, gate, segment_ids=None, positions=None):
-  """All valid-token gate stats; M health samples at most32 positions/sequence."""
+def bam_m_shift_health(M, mixed, gate, segment_ids=None, positions=None, *, column_metrics=True):
+  """All valid-token gate stats; M health samples at most32 positions/sequence.
+
+  mixed may be a callable (indices -> mixed M at those positions) so the full mix need not exist."""
   valid = bam_m_shift_valid_mask(M.shape, segment_ids, positions)
   weights = valid.astype(jnp.float32)
   count = jnp.maximum(jnp.sum(weights), 1)
   g = gate.astype(jnp.float32)
   column_mean = jnp.sum(g * weights[..., None], axis=(0, 1)) / count
   column_square = jnp.sum(g * g * weights[..., None], axis=(0, 1)) / count
-  column_std = jnp.sqrt(jnp.maximum(column_square - column_mean**2, 0))
+  columns = (jnp.stack((column_mean, jnp.sqrt(jnp.maximum(column_square - column_mean**2, 0))))
+             if column_metrics else None)
   mean = jnp.mean(column_mean)
   std = jnp.sqrt(jnp.maximum(jnp.mean(column_square) - mean**2, 0))
   fraction = lambda condition: jnp.sum(condition * weights[..., None]) / (count * g.shape[-1])
@@ -2497,7 +2500,7 @@ def bam_m_shift_health(M, mixed, gate, segment_ids=None, positions=None):
   indices = jnp.minimum(indices, M.shape[1]-1)
   current = M[:, indices].astype(jnp.float32)
   previous = M[:, jnp.maximum(indices-1, 0)].astype(jnp.float32)
-  result = mixed[:, indices].astype(jnp.float32)
+  result = (mixed(indices) if callable(mixed) else mixed[:, indices]).astype(jnp.float32)
   sample_weights = weights[:, indices]
   sample_count = jnp.maximum(jnp.sum(sample_weights), 1)
   average = lambda v: jnp.sum(v * sample_weights) / sample_count
@@ -2511,7 +2514,7 @@ def bam_m_shift_health(M, mixed, gate, segment_ids=None, positions=None):
   state = jnp.stack((current_rms, previous_rms, mixed_rms,
                      mixed_rms / jnp.maximum(current_rms, 1e-12),
                      delta_rms / jnp.maximum(current_rms, 1e-12), average(cosine)))
-  return stats, jnp.stack((column_mean, column_std)), state
+  return stats, columns, state
 
 
 class BamAttention(Attention):
@@ -2718,7 +2721,10 @@ class BamAttention(Attention):
     assert self._m_shift_mode in ('none', 'read', 'persist')
     if self._m_shift_mode != 'none':
       assert self._full_m_read_rank is not None and self._general_read
-      assert not getattr(cfg, 'bam_pallas_core', False), 'M shift uses the pure-JAX SOTA'
+      if getattr(cfg, 'bam_pallas_core', False):   # one read gate, mixed inside the v8t read kernel
+        assert getattr(cfg, 'bam_pallas_body', None) == 'v8t' and self._m_shift_mode == 'read'
+        assert (not getattr(cfg, 'bam_record_m_shift_health', False)
+                or getattr(cfg, 'bam_m_shift_compact_health', False))
       opening = float(cfg.bam_m_shift_init)
       assert 0 < opening < 1
       self.m_shift_gate = linears.DenseGeneral(
@@ -3761,6 +3767,8 @@ class BamAttention(Attention):
         'sigmoid gates': self._read_gate_activation is jax.nn.sigmoid,
         'health off': not self._concat_health and not self._record_fetched_read_health_metrics,
         'no fused qkv / mha control': not cfg.fused_qkv and not self._mha_control,
+        'single-gate read M shift on v8t only': self._m_shift_mode == 'none' or (
+            self._m_shift_mode == 'read' and getattr(cfg, 'bam_pallas_body', None) == 'v8t'),
     }
     failed = [name for name, ok in checks.items() if not ok]
     if failed:
@@ -3801,7 +3809,9 @@ class BamAttention(Attention):
 
   def _pallas_core_call(self, inputs_q, inputs_positions, decoder_segment_ids, M_in, is_global,
                         standard_qk_width):
-    """Fused-kernel forward; M_in is token-minor [B,V,K,T]. Returns (out, M_in, write factors)."""
+    """Fused-kernel forward; M_in is token-minor [B,V,K,T] (token-major [B,T,V,K] for v8t).
+
+    Returns (out, M_in, write factors)."""
     from layers import bam_pallas
     cfg = self.config
     self._check_pallas_core()
@@ -3812,8 +3822,10 @@ class BamAttention(Attention):
     if fused:
       gate_names = ('W_lq_gate', 'W_lk_gate', 'W_R_gate', 'W_lv_gate')
       key_names = ('full_m_read_down',) if full_m else ('W_lq_c8', 'W_lk_c8', 'W_R')
+      shift_names = ('M_shift_gate',) if self._m_shift_mode != 'none' else ()
       raw = self._fused_input_projections(
-          inputs_q, ('query', 'key') + key_names + gate_names + static_gate_names + ('P_loc_down', 'W_gw'))
+          inputs_q, ('query', 'key') + key_names + gate_names + static_gate_names + shift_names
+          + ('P_loc_down', 'W_gw'))
       query = raw['query'].reshape(b_, t_, self.num_query_heads, standard_qk_width)
       key = raw['key'].reshape(b_, t_, self.num_kv_heads, standard_qk_width)
     else:
@@ -3872,6 +3884,30 @@ class BamAttention(Attention):
     weight = bam_pallas.static_weight(
         self.static_q_key, self.static_k_key, self.static_v_key, self.static_o_key, compression)
     body = getattr(cfg, 'bam_pallas_body', None) or 'blocked'
+    read_kwargs = {}
+    if self._m_shift_mode != 'none':
+      # Same previous-token share as mix_bam_previous_token (cast to the M dtype, zero where invalid);
+      # the read kernel mixes M_t + g'(M_{t-1} - M_t) per V row; writes still accumulate onto M_in.
+      with jax.named_scope('bam/m_shift'):
+        shift_logits = raw['M_shift_gate'] if fused else self.m_shift_gate(inputs_q)
+        shift_logits = shift_logits.astype(jnp.float32) + self.m_shift_bias.astype(jnp.float32)
+        valid = bam_m_shift_valid_mask(inputs_q.shape, decoder_segment_ids, inputs_positions)
+        shift = jax.nn.sigmoid(shift_logits).astype(M_in.dtype)
+        read_kwargs['shift'] = jnp.where(valid[..., None], shift, jnp.zeros_like(shift))
+        if getattr(cfg, 'bam_record_m_shift_health', False):
+          # Compact summary as the XLA path records it; M is token-major [B,T,V,K], so the
+          # (masked) share broadcasts over K and the mix is built only at the sampled positions.
+          def mixed(indices, M=M_in, g=read_kwargs['shift']):
+            current, previous = M[:, indices], M[:, jnp.maximum(indices-1, 0)]
+            share = g[:, indices][..., None]
+            return (jnp.asarray(1, M.dtype) - share) * current + share * previous
+          stats, _, state = bam_m_shift_health(M_in, mixed, jax.nn.sigmoid(shift_logits),
+                                               decoder_segment_ids, inputs_positions,
+                                               column_metrics=False)
+          self.sow('intermediates', 'm_shift_m_summary',
+                   jnp.stack((stats[0], stats[1], stats[4], stats[5], state[4])))
+    if getattr(cfg, 'bam_pallas_read_chunk', None):
+      read_kwargs['chunk'] = int(cfg.bam_pallas_read_chunk)
     pass_m = body in ('v7', 'v7u', 'v8t')   # M passthrough: dM sum fused into the read reverse
     q_scale = 1.0 / math.sqrt(self.head_dim) if pass_m else 1.0   # attention scale folded into the kernel
     with jax.named_scope('bam/pallas_read'):
@@ -3890,7 +3926,8 @@ class BamAttention(Attention):
           **({'token_io': True} if getattr(cfg, 'bam_pallas_token_io', False) else {}),
           **({'save_y': True} if getattr(cfg, 'bam_pallas_save_y', False) else {}),
           **({'rolled_passes': tuple(cfg.bam_pallas_rolled_passes)}
-             if getattr(cfg, 'bam_pallas_rolled_passes', None) else {}))
+             if getattr(cfg, 'bam_pallas_rolled_passes', None) else {}),
+          **read_kwargs)
     query, key, value, local_output = outs[:4]
     if pass_m:
       M_in = outs[4]
@@ -3948,17 +3985,24 @@ class BamAttention(Attention):
     inputs_q = nn.with_logical_constraint(inputs_q, self.input_axis_names)
     inputs_kv = nn.with_logical_constraint(inputs_kv, self.input_axis_names)
     M_read = M_in
-    if getattr(self, '_m_shift_mode', 'none') != 'none':
+    # The fused core (v8t) computes the same gate and mixes inside its read kernel.
+    if getattr(self, '_m_shift_mode', 'none') != 'none' and not getattr(cfg, 'bam_pallas_core', False):
       assert M_in is not None
       with jax.named_scope('bam/m_shift'):
         logits = self.m_shift_gate(inputs_q).astype(jnp.float32) + self.m_shift_bias.astype(jnp.float32)
         gate = jax.nn.sigmoid(logits)  # Gate is the previous-token share.
         M_read = mix_bam_previous_token(M_in, gate, decoder_segment_ids, inputs_positions)
         if getattr(cfg, 'bam_record_m_shift_health', False):
-          stats, columns, state = bam_m_shift_health(M_in, M_read, gate, decoder_segment_ids, inputs_positions)
-          self.sow('intermediates', 'm_shift_gate_stats', stats)
-          self.sow('intermediates', 'm_shift_gate_columns', columns)
-          self.sow('intermediates', 'm_shift_state_stats', state)
+          compact = bool(getattr(cfg, 'bam_m_shift_compact_health', False))
+          stats, columns, state = bam_m_shift_health(M_in, M_read, gate, decoder_segment_ids,
+                                                    inputs_positions, column_metrics=not compact)
+          if compact:   # Five scalars per layer; the fused core records the same summary.
+            self.sow('intermediates', 'm_shift_m_summary',
+                     jnp.stack((stats[0], stats[1], stats[4], stats[5], state[4])))
+          else:
+            self.sow('intermediates', 'm_shift_gate_stats', stats)
+            self.sow('intermediates', 'm_shift_gate_columns', columns)
+            self.sow('intermediates', 'm_shift_state_stats', state)
 
       if self._m_shift_mode == 'persist':
         M_in = M_read  # Existing attention/MLP writes accumulate onto the mixed carry.

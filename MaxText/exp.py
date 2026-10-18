@@ -12645,6 +12645,42 @@ class BamPallasFullMTinyPallasV8TTest(BamPallasFullMTinyPallasV7FusedInputsTest)
     bam_pallas_body = 'v8t'
 
 
+class BamPallasMShiftTinyXlaTest(BamPallasFullMTinyXlaTest):
+    """CPU fixture: tiny full-M model + single-gate read M shift .5 (production recipe), pure JAX."""
+    model_name = 'BamPallasMShiftTinyXlaTest'
+    bam_m_shift_mode = 'read'
+    bam_m_shift_init = 0.5
+    bam_record_m_shift_health = False
+
+
+class BamPallasMShiftTinyPallasV8TTest(BamPallasMShiftTinyXlaTest):
+    """CPU fixture: the same model through the interpreted v8t core (M mixed inside the read kernel)."""
+    model_name = 'BamPallasMShiftTinyPallasV8TTest'
+    bam_pallas_core = True
+    bam_pallas_interpret = True
+    bam_pallas_body = 'v8t'
+
+
+class BamPallasMShiftTinyPallasV8TFusedTest(BamPallasMShiftTinyPallasV8TTest):
+    """CPU fixture: + fused input projections (the shift gate joins the x-side dot)."""
+    model_name = 'BamPallasMShiftTinyPallasV8TFusedTest'
+    bam_pallas_fused_inputs = True
+
+
+class BamPallasMShiftHealthTinyXlaTest(BamPallasMShiftTinyXlaTest):
+    """CPU fixture: + compact M-shift health (five scalars per layer), pure JAX."""
+    model_name = 'BamPallasMShiftHealthTinyXlaTest'
+    bam_record_m_shift_health = True
+    bam_m_shift_compact_health = True
+
+
+class BamPallasMShiftHealthTinyPallasTest(BamPallasMShiftTinyPallasV8TFusedTest):
+    """CPU fixture: the same compact health from the v8t core (mix built only at sampled tokens)."""
+    model_name = 'BamPallasMShiftHealthTinyPallasTest'
+    bam_record_m_shift_health = True
+    bam_m_shift_compact_health = True
+
+
 class BamFullMGeneralReadPallasV8TProfile(BamFullMGeneralReadPallasFusedProfile):
     """v8t: v7's T-minor kernel I/O + token-major M [B,T,V,K] + per-token MXU matmuls in the kernels."""
     # v5p-8 5286504: 0.582 vs v7 SaveRead 0.546 (+6.6%, 94.8% of MHA); kernels 114 vs 202 ms.
@@ -13060,3 +13096,48 @@ class BamPythia2p8BSota(
     bam_record_local_routing_metrics = False
     bam_record_local_qk_amplitude_metrics = False
     compare_runs = ['Pythia2p8B']
+
+
+class BamPallasPythiaSotaTinyXlaTest(BamPythia2p8BSota):
+    """CPU fixture: BamPythia2p8BSota at tiny width (serial LayerNorm/bias/GELU, partial RoPE, k = head_dim,
+    single-gate read M shift .5, one scanned 3-layer block + 2 carried-M tails), FP32, pure JAX."""
+    model_name = 'BamPallasPythiaSotaTinyXlaTest'
+    base_num_decoder_layers = 5
+    bam_layer_modes = ['local_qk+local_v+local_o'] * 5
+    base_emb_dim = 64
+    base_num_query_heads = 2
+    base_num_kv_heads = 2
+    head_dim = 32
+    bam_k = 32
+    bam_v = 16
+    emb_bam_num_head = 2
+    pythia_rotary_dim = 8
+    bam_standard_qk_dim = 8
+    bam_partial_rope_nope_dim = 24
+    bam_local_qk_col_output_dim = 24
+    bam_local_full_m_read_bottleneck_dim = 24
+    bam_write_v_bottleneck_dim = 24
+    emb_bam_v_bottleneck_dim = 24
+    bam_mlp_write_address_rank = 24
+    base_mlp_dim = 128
+    mlp_dim_by_block = [128, 96, 128]
+    bam_final_local_mlp_dim = 128
+    bam_last_mlp_dim = 112
+    vocab_size = 1024
+    max_target_length = 256
+    max_prefill_predict_length = 256
+    query_chunk_size = 128
+    target_train_batch_size = None
+    per_device_batch_size = 1.0
+    dtype = 'float32'
+    attention = 'dot_product'
+    bam_splash_attention = False
+
+
+class BamPallasPythiaSotaTinyPallasV8TTest(BamPallasPythiaSotaTinyXlaTest):
+    """CPU fixture: the same model through the interpreted v8t core with fused input projections."""
+    model_name = 'BamPallasPythiaSotaTinyPallasV8TTest'
+    bam_pallas_core = True
+    bam_pallas_interpret = True
+    bam_pallas_body = 'v8t'
+    bam_pallas_fused_inputs = True

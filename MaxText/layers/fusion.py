@@ -372,7 +372,7 @@ class SubDecoderLayer(nn.Module):
                        mlp_logits, independent_address))
       with jax.named_scope('bam/pallas_write'):
         M_out = bam_pallas.write(
-            M_out, groups, epsilon=float(cfg.normalization_layer_epsilon),
+            M_out, groups, epsilon=initializers.get_bam_write_epsilon(cfg),   # same as the XLA write norms
             forward_tile=int(getattr(cfg, 'bam_pallas_write_tile', None) or 128),
             reverse_tile=int(getattr(cfg, 'bam_pallas_write_reverse_tile', None) or 128),
             vmem_mib=getattr(cfg, 'bam_pallas_vmem_mib', None),

@@ -30,17 +30,18 @@ This field defaults to null for existing experiments.
 
 `BamPythia2p8BSota` transfers the architecture of XL single-gate read.5 SOTA
 (`BamXLPropSharedR400GeneralReadMShiftReadG050TruePile`, historical runtime `eeec67c`),
-not the later read/attention-write sharing variants. The name denotes the transferred circuit;
+with read/write ranks reduced from400 to384, not the later read/attention-write sharing variants.
+The name denotes the transferred circuit;
 no2.8B loss improvement has been measured.
 
 - M80x40; NoPE60 plus standard RoPE20 coordinates/head;32 embedding-write heads.
-- Shared GELU R400 inside Q/K/VO generalized reads. Attention-write R400 and MLP-write R384
+- Shared GELU R384 inside Q/K/VO generalized reads. Attention-write R384 and MLP-write R384
   remain independent. Every-third-layer MLP writing keeps the XL offset: zero-based1,4,...,28.
   The layer31 MLP write is omitted: final M has no downstream consumer.
 - One dynamic v40 M-shift gate, read-only mixing with previous-token M, initially .5.
 - Serial residual, GELU, affine LayerNorm. No QKNorm or KV-shift.
 - Thirty-two layers:10 scanned three-layer blocks, then two explicit tail layers carrying
-  both residual and M. Both tails use the non-write MLP width.
+  both residual and M. Tail widths are12416 and13254; the last layer absorbs the budget remainder.
 - Generic and BAM-specific health statistics are OFF.
 
 The initialization repair follows the Medium serial Pythia experiment (`eaa95f8`):
@@ -62,11 +63,13 @@ stays1e-4. The initial embedding write has no added input compensation factor.
 | Configuration | MLP widths | Parameters |
 |---|---|---:|
 | Pythia2p8B |10240 every layer|2,775,208,960|
-| BamPythia2p8BSota |[12427,12116,12427]; both tail MLPs12427|2,775,208,602|
+| BamPythia2p8BSota |[12416,12160,12416]; tail widths12416/13254|2,775,209,638|
 
-There are22 non-write and10 write MLPs. Freed parameters refill MLP; write-layer width compensates
-its extra address/gate budget. The nearest balanced repeated integer widths fall below MHA by358
-parameters (.0000129%). Full parameter trees are checked with `jax.eval_shape`; full weights are not allocated.
+There are22 non-write and10 write MLPs. R400→384 frees5,304,320 parameters (including the
+embedding-write bottleneck), which refill MLP. The first31 layers use128-aligned widths;
+`bam_last_mlp_dim=13254` overrides only the last layer, after the regular tail-width override.
+Each extra GELU MLP channel costs2D+1=5121 parameters. The nearest integer last width leaves
+678 parameters above MHA (.0000244%). Full parameter trees are checked with `jax.eval_shape`; full weights are not allocated.
 
 ## Validation
 
@@ -75,5 +78,6 @@ batch invariance, full parameter accounting, initialization roles and first-writ
 scanned/unscanned forward parity with two tails, and BF16 gradients plus an optimizer update.
 Existing serial Pythia/Mudd and XL single-tail checks cover compatibility.
 
-All25 targeted CPU checks passed: four2.8B tests, nine serial Pythia/Mudd checks, and twelve
-XL single-tail/health/config/default checks. No TPU training or AOT validation was performed.
+The R384 revision checks full parameter accounting, separate tail widths, BF16 forward/backward
+and an update, plus legacy XL tail behavior and config-default lint. No TPU training or AOT
+validation was performed.

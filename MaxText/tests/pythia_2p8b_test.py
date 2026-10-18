@@ -41,7 +41,7 @@ class Pythia2p8BTest(unittest.TestCase):
                 target_train_batch_size=None, per_device_batch_size=1.,
                 attention='dot_product', dtype='float32', weight_dtype='float32',
                 loss_chunk_size=4, bam_layer_modes=['local_qk+local_v+local_o']*5,
-                emb_bam_num_head=4, mlp_dim_by_block=[256, 224, 256], bam_final_local_mlp_dim=256,
+                emb_bam_num_head=4, mlp_dim_by_block=[256, 224, 256], bam_final_local_mlp_dim=256, bam_last_mlp_dim=288,
                 bam_local_full_m_read_bottleneck_dim=64, bam_write_v_bottleneck_dim=64,
                 emb_bam_v_bottleneck_dim=64, bam_mlp_write_address_rank=64,
                 bam_splash_attention=False, remat_policy='full')
@@ -72,6 +72,10 @@ class Pythia2p8BTest(unittest.TestCase):
         self.assertEqual((c.bam_k, c.bam_v), (80, 40))
         self.assertEqual((c.bam_partial_rope_nope_dim, c.bam_standard_qk_dim), (60, 20))
         self.assertTrue(c.bam_local_full_m_read_share_down)
+        self.assertEqual((c.bam_local_full_m_read_bottleneck_dim, c.bam_write_v_bottleneck_dim,
+                          c.emb_bam_v_bottleneck_dim, c.bam_mlp_write_address_rank), (384, 384, 384, 384))
+        self.assertTrue(all(width % 128 == 0 for width in c.mlp_dim_by_block))
+        self.assertEqual(c.bam_final_local_mlp_dim % 128, 0)
         self.assertFalse(c.bam_share_read_attention_write_down)
         self.assertFalse(c.bam_share_mlp_write_down)
         self.assertEqual(c.bam_m_shift_init, .5)
@@ -114,14 +118,14 @@ class Pythia2p8BTest(unittest.TestCase):
       flat = flatten_dict(p)
       counts[arm] = sum(math.prod(a.shape) for a in flat.values())
       if c.bam_enabled:
-        self.assertEqual(p['decoder']['layers']['local_0']['block']['mlp']['wi']['kernel'].shape, (2560, 10, 12427))
-        self.assertEqual(p['decoder']['final_local_layer_0']['block']['mlp']['wi']['kernel'].shape, (2560, 12427))
-        self.assertEqual(p['decoder']['final_local_layer_1']['block']['mlp']['wi']['kernel'].shape, (2560, 12427))
+        self.assertEqual(p['decoder']['layers']['local_0']['block']['mlp']['wi']['kernel'].shape, (2560, 10, 12416))
+        self.assertEqual(p['decoder']['final_local_layer_0']['block']['mlp']['wi']['kernel'].shape, (2560, 12416))
+        self.assertEqual(p['decoder']['final_local_layer_1']['block']['mlp']['wi']['kernel'].shape, (2560, 13254))
         self.assertNotIn('mlp_address_down', p['decoder']['final_local_layer_1']['block'])
         attn = p['decoder']['layers']['local_0']['block']['self_attention']
         self.assertIn('full_m_read_down', attn)
         self.assertIn('P_loc_down', attn)  # Read and write downs are independent.
-    self.assertEqual(counts, {'Pythia2p8B': 2775208960, 'BamPythia2p8BSota': 2775208602})
+    self.assertEqual(counts, {'Pythia2p8B': 2775208960, 'BamPythia2p8BSota': 2775209638})
 
   def test_initialization_roles_and_seed_epsilon(self):
     c = self.small_config(scan_layers=False)

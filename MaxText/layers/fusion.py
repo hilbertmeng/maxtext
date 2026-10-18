@@ -87,6 +87,14 @@ class SubDecoderLayer(nn.Module):
         and cfg.bam_final_local_mlp_dim is not None):
       assert isinstance(cfg.bam_final_local_mlp_dim, int) and cfg.bam_final_local_mlp_dim > 0
       self.updated_mlp_dim = cfg.bam_final_local_mlp_dim
+    last_width = cfg.bam_last_mlp_dim
+    if last_width is not None and last_width != 0:
+      if type(last_width) is not int or last_width <= 0:
+        raise ValueError('bam_last_mlp_dim must be a positive integer')
+      if cfg.scan_layers and not tail_count:
+        raise ValueError('bam_last_mlp_dim requires an explicit tail when scanning')
+      if self.layer_inx == cfg.num_decoder_layers - 1:
+        self.updated_mlp_dim = last_width
     max_logging.log(f'sliding_window_size: {self.sliding_window_size} updated_mlp_dim: {self.updated_mlp_dim}', debug=cfg.debug)
 
 

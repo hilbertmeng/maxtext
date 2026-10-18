@@ -13003,8 +13003,8 @@ class BamPythia2p8BSota(
         BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile):
     """XL single read .5/general-read circuit on Pythia-2.8B; not yet trained.
 
-    XL eeec67c architecture: shared R400 inside Q/K/VO reads only; attention
-    write R400 and MLP write R384 remain independent. M adapts to80x40 per head.
+    XL eeec67c circuit with read/write ranks unified to384: Q/K/VO share
+    their read down; attention and MLP write downs remain independent. M is80x40.
     Medium eaa95f8 initialization repair: serial GELU, .006 embedding/BAM random
     kernels, Pythia Transformer kernels; semantic zeros and gate openings unchanged.
     Thirty-two layers use10 three-layer blocks plus two carried-M tail layers.
@@ -13020,9 +13020,9 @@ class BamPythia2p8BSota(
     bam_standard_qk_dim = 20
     bam_partial_rope_nope_dim = 60
     bam_local_qk_col_output_dim = 60
-    bam_local_full_m_read_bottleneck_dim = 400
-    bam_write_v_bottleneck_dim = 400
-    emb_bam_v_bottleneck_dim = 400
+    bam_local_full_m_read_bottleneck_dim = 384
+    bam_write_v_bottleneck_dim = 384
+    emb_bam_v_bottleneck_dim = 384
     bam_mlp_write_address_rank = 384
     bam_share_read_attention_write_down = False
     bam_share_mlp_write_down = False
@@ -13030,9 +13030,10 @@ class BamPythia2p8BSota(
     bam_final_local_layer_count = 2
     bam_extra_final_local_layer = False
     bam_skip_final_mlp_write = True  # Its M has no downstream consumer.
-    bam_final_local_mlp_dim = 12427  # Both tail MLPs use the non-write width.
-    mlp_dim_by_block = [12427, 12116, 12427]  # 2,775,208,602 params: -358 vs official MHA.
-    # 22 non-write /10 write MLPs; freed parameters refill the MLP budget.
+    bam_final_local_mlp_dim = 12416
+    bam_last_mlp_dim = 13254  # Final layer absorbs the integer-width budget remainder.
+    mlp_dim_by_block = [12416, 12160, 12416]  # 2,775,209,638 params: +678 vs official MHA.
+    # First31 layers are128-aligned; R400->384 frees5,304,320 params to refill MLP.
     bam_m_shift_mode = 'read'
     bam_m_shift_init = .5
     bam_m_shift_separate_reads = False

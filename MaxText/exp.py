@@ -12939,3 +12939,114 @@ class MuddPythiaMediumPropT2048SerialMLP(MuddPythiaMediumPropT2048):
     pythia_parallel_residual = False
     compare_runs = ['MuddPythiaMediumPropT2048', 'PythiaMediumPropT2048SerialMLP',
                     'BamPythiaMediumPropT2048MShiftReadG050ReadAttentionSharedR256SerialMLP']
+
+
+class Pythia2p8B(PythiaArchitecture, Llama2Medium):
+    """Official Pythia-2.8B architecture/optimizer schedule; user-approved BF16 on TPU.
+
+    Sources: EleutherAI/pythia models/2.8B/pythia-2.8b.yml and HF config.json.
+    Not a replay of NeoX's FP16/DeepSpeed runtime or original data ordering.
+    Global batch1024 is resolved across devices; change accumulation for memory.
+    No training RUN has been launched for this configuration.
+    """
+    model_name = 'Pythia2p8B'
+    DATASET_VARIANT = 'legacy2048'
+    base_emb_dim = 2560
+    base_num_decoder_layers = 32
+    base_num_query_heads = 32
+    base_num_kv_heads = 32
+    head_dim = 80
+    base_mlp_dim = 10240
+    vocab_size = 50304
+    max_target_length = 2048
+    max_prefill_predict_length = 2048
+    pythia_rotary_dim = 20
+    pythia_parallel_residual = True
+    pythia_use_fusion = False
+    tokenizer_type = 'huggingface'
+    tokenizer_path = 'EleutherAI/pythia-2.8b'
+    pad_id = -1  # Token0 is Pythia EOS; it must remain a supervised target.
+    dtype = 'bfloat16'
+    weight_dtype = 'float32'
+    target_train_batch_size = 1024
+    per_device_batch_size = 1.0  # Resolved from target_train_batch_size, topology and accumulation.
+    gradient_accumulation_steps = 1
+    eval_per_device_batch_size = -1.0
+    learning_rate = 1.6e-4
+    steps = 143000
+    learning_rate_schedule_steps = 143000
+    warmup_steps_fraction = .01
+    cosine_learning_rate_final_fraction = .1
+    gradient_clipping_threshold = 1.0
+    adam_b1 = .9
+    adam_b2 = .95
+    adam_eps = 1e-8
+    adam_weight_decay = .1
+    wd_mults = Optimizer.wd_mults
+    eval_interval = 40000
+    eval_steps = 10
+    checkpoint_period = 1000
+    keep_period = 0
+    max_to_keep = 2
+    force_final_checkpoint = True
+    tensorboard_gcs_rotate_period = 500
+    attention = 'flash'
+    query_chunk_size = 256
+    record_training_health_metrics = False
+    record_internal_nn_metrics = False
+    compare_runs = []
+    jax_cache_dir = ''
+
+
+class BamPythia2p8BSota(
+        Pythia2p8B,
+        BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile):
+    """XL single read .5/general-read circuit on Pythia-2.8B; not yet trained.
+
+    XL eeec67c architecture: shared R400 inside Q/K/VO reads only; attention
+    write R400 and MLP write R384 remain independent. M adapts to80x40 per head.
+    Medium eaa95f8 initialization repair: serial GELU, .006 embedding/BAM random
+    kernels, Pythia Transformer kernels; semantic zeros and gate openings unchanged.
+    Thirty-two layers use10 three-layer blocks plus two carried-M tail layers.
+    """
+    model_name = 'BamPythia2p8BSota'
+    pythia_use_fusion = True
+    pythia_parallel_residual = False
+    bam_enabled = True
+    bam_k = 80
+    bam_v = 40
+    emb_bam_num_head = 32
+    bam_layer_modes = ['local_qk+local_v+local_o'] * 32
+    bam_standard_qk_dim = 20
+    bam_partial_rope_nope_dim = 60
+    bam_local_qk_col_output_dim = 60
+    bam_local_full_m_read_bottleneck_dim = 400
+    bam_write_v_bottleneck_dim = 400
+    emb_bam_v_bottleneck_dim = 400
+    bam_mlp_write_address_rank = 384
+    bam_share_read_attention_write_down = False
+    bam_share_mlp_write_down = False
+    bam_pair_scan = True
+    bam_final_local_layer_count = 2
+    bam_extra_final_local_layer = False
+    bam_skip_final_mlp_write = True  # Its M has no downstream consumer.
+    bam_final_local_mlp_dim = 12427  # Both tail MLPs use the non-write width.
+    mlp_dim_by_block = [12427, 12116, 12427]  # 2,775,208,602 params: -358 vs official MHA.
+    # 22 non-write /10 write MLPs; freed parameters refill the MLP budget.
+    bam_m_shift_mode = 'read'
+    bam_m_shift_init = .5
+    bam_m_shift_separate_reads = False
+    bam_m_shift_two_lag = False
+    bam_kv_shift = False
+    bam_init_method = '006normal'
+    token_embedding_init_method = '006normal'
+    bam_write_rms_epsilon = 1e-6
+    wd_mults = Optimizer.wd_mults + [('.*_gate_b0$', 0.0), ('.*gw_b0$', 0.0)]
+    bam_record_m_shift_health = False
+    bam_record_concat_health = False
+    bam_record_fetched_read_health_metrics = False
+    bam_record_fetched_read_amplitude_metrics = False
+    bam_record_fetch_route_metrics = False
+    bam_record_local_routing_metrics = False
+    bam_record_local_qk_amplitude_metrics = False
+    compare_runs = ['Pythia2p8B']

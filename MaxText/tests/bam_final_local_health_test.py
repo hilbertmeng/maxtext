@@ -16,7 +16,7 @@ class BamFinalLocalHealthTest(unittest.TestCase):
     intermediates = {'intermediates': {'decoder': decoder}}
     for tail in (False, True):
       with self.subTest(tail=tail):
-        config = SimpleNamespace(bam_local_fetch_block_size=3,
+        config = SimpleNamespace(bam_pair_scan=True, bam_local_fetch_block_size=3,
                                  num_decoder_layers=27 + int(tail),
                                  bam_extra_final_local_layer=tail)
         output = {'scalar': {}}
@@ -27,6 +27,23 @@ class BamFinalLocalHealthTest(unittest.TestCase):
         if tail:
           self.assertEqual(metrics['bam/concat/local_q_gate/layer_027/mean'], 1000)
           self.assertEqual(metrics['bam/concat/local_q_gate/layer_027/frac_gt_095'], 1004)
+
+
+  def test_two_tail_layers_are_exported(self):
+    def attention(value):
+      return {'block': {'self_attention': {'concat_local_q_gate': (value,)}}}
+    decoder = {'layers': {name: attention(np.zeros((10, 5), np.float32))
+                          for name in ('local_0', 'local_1', 'fetch_2')},
+               'final_local_layer_0': attention(np.arange(5, dtype=np.float32) + 1000),
+               'final_local_layer_1': attention(np.arange(5, dtype=np.float32) + 2000)}
+    config = SimpleNamespace(bam_pair_scan=True, bam_local_fetch_block_size=3,
+                             num_decoder_layers=32, bam_final_local_layer_count=2)
+    output = {'scalar': {}}
+    record_bam_concat_health_metrics(output, {'intermediates': {'decoder': decoder}}, config)
+    metrics = output['scalar']
+    self.assertEqual(len(metrics), 5 * 32)
+    self.assertEqual(metrics['bam/concat/local_q_gate/layer_030/mean'], 1000)
+    self.assertEqual(metrics['bam/concat/local_q_gate/layer_031/mean'], 2000)
 
 
 if __name__ == '__main__':

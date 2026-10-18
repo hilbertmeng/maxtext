@@ -483,10 +483,10 @@ class EmbeddingBamWrite(nn.Module):
         if cfg.bam_write_rms_statistics_dtype == "float32"
         else self.dtype)
     data = normalizations.rms_norm(
-        data, dtype=data.dtype, epsilon=cfg.normalization_layer_epsilon,
+        data, dtype=data.dtype, epsilon=initializers.get_bam_write_epsilon(cfg),
         statistics_dtype=statistics_dtype)
     address = normalizations.rms_norm(
-        address, dtype=address.dtype, epsilon=cfg.normalization_layer_epsilon,
+        address, dtype=address.dtype, epsilon=initializers.get_bam_write_epsilon(cfg),
         statistics_dtype=statistics_dtype)
     with jax.named_scope("bam/embedding_write_outer"):
       if getattr(cfg, 'bam_pallas_core', False):
@@ -527,7 +527,8 @@ class Decoder(nn.Module):
       self.embedding_bam_write = EmbeddingBamWrite(
           config=cfg, num_write_heads=write_heads, dtype=cfg.dtype,
           weight_dtype=cfg.weight_dtype, quant=self.quant,
-          kernel_init=initializers.get_init_method(cfg.init_method),
+          kernel_init=initializers.get_bam_init(
+              cfg, fallback=initializers.get_init_method(cfg.init_method)),
           name="embedding_bam_write")
     if self.config.using_pipeline_parallelism:
       pipeline_stage_module = self.get_pipeline_stage_module(self.decoder_layer[0])
@@ -907,20 +908,25 @@ class Decoder(nn.Module):
       if cfg.scan_layers:
         RemattedBlockLayer = RemattedBlockLayers[1]
         pair_scan = getattr(cfg, 'bam_pair_scan', False)
-        final_local = bool(getattr(cfg, 'bam_extra_final_local_layer', False))
+        final_local = cfg.bam_final_local_layer_count
+        if final_local is None:
+          final_local = int(bool(getattr(cfg, 'bam_extra_final_local_layer', False)))
+        if type(final_local) is not int or not 0 <= final_local < cfg.num_decoder_layers:
+          raise ValueError('bam_final_local_layer_count must be an integer in [0, num_decoder_layers)')
         if final_local:
           assert pair_scan and cfg.bam_enabled and not cfg.bam_mha_control
           assert deep_embeddings is None and not cfg.dense_conn and cfg.mtp_num_layers == 0
           assert len(cfg.bam_layer_modes) == cfg.num_decoder_layers
-          assert set(cfg.bam_layer_modes[-1].split('+')) in (
+          assert all(set(mode.split('+')) in (
               {'local_qk', 'local_o'}, {'local_qk', 'local_v', 'local_o'})
+              for mode in cfg.bam_layer_modes[-final_local:])
         scan_length = cfg.num_decoder_layers - int(final_local)
         if pair_scan:
           from layers import fusion
 
           block_size = getattr(cfg, 'bam_local_fetch_block_size', None) or 2
           assert block_size >= 2 and scan_length > 0 and scan_length % block_size == 0
-          assert cfg.decoder_block == 'fusion' and cfg.bam_enabled
+          assert cfg.decoder_block in ('fusion', 'pythia') and cfg.bam_enabled
           assert len(cfg.bam_layer_modes) == cfg.num_decoder_layers
           modes = cfg.bam_layer_modes[:scan_length]
           assert modes == modes[:block_size] * (scan_length // block_size)
@@ -983,14 +989,16 @@ class Decoder(nn.Module):
               fusion.FusionDecoderLayer, prevent_cse=True,
               policy=get_remat_policy(cfg), static_argnums=(6, 7),
               rngs={'params': True, 'aqt': True, 'dropout': True})
-          index = cfg.num_decoder_layers - 1
-          scan_carry, _ = Layer(
-              cfg, mesh, local_sws, self.quant,
-              all_global_attention=True, static_layer_index=index,
-              name='final_local_layer')(
-                  scan_carry, decoder_segment_ids, decoder_positions,
-                  decoder_input_tokens, None, deterministic, model_mode,
-                  eos_sum, None, None, None, jnp.asarray(index, jnp.int32))
+          for offset in range(final_local):
+            index = cfg.num_decoder_layers - final_local + offset
+            name = 'final_local_layer' if final_local == 1 else f'final_local_layer_{offset}'
+            scan_carry, _ = Layer(
+                cfg, mesh, local_sws, self.quant,
+                all_global_attention=True, static_layer_index=index,
+                name=name)(
+                    scan_carry, decoder_segment_ids, decoder_positions,
+                    decoder_input_tokens, None, deterministic, model_mode,
+                    eos_sum, None, None, None, jnp.asarray(index, jnp.int32))
         y = scan_carry[0] if full_bam else scan_carry
 
       elif cfg.partial_scan_layers:
@@ -1259,7 +1267,7 @@ class Transformer(nn.Module):
         features=emb_dim,
         dtype=cfg.dtype,
         attend_dtype=jnp.float32 if cfg.logits_dot_in_fp32 else cfg.dtype,  # for logit training stability
-        embedding_init=initializers.get_model_init(cfg), # lsp
+        embedding_init=initializers.get_token_embedding_init(cfg), # lsp
         name="token_embedder",
         config=cfg,
     )

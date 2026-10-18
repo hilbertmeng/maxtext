@@ -80,8 +80,11 @@ class SubDecoderLayer(nn.Module):
       self.updated_mlp_dim = round(cfg.mlp_dim * (layer_inx / (cfg.num_decoder_layers - 1) + 0.5) / 128) * 128 
     else:
       self.updated_mlp_dim = cfg.mlp_dim
-    if (getattr(cfg, 'bam_extra_final_local_layer', False)
-        and self.layer_inx == cfg.num_decoder_layers - 1):
+    tail_count = cfg.bam_final_local_layer_count
+    if tail_count is None:
+      tail_count = int(bool(getattr(cfg, 'bam_extra_final_local_layer', False)))
+    if (tail_count and self.layer_inx >= cfg.num_decoder_layers - tail_count
+        and cfg.bam_final_local_mlp_dim is not None):
       assert isinstance(cfg.bam_final_local_mlp_dim, int) and cfg.bam_final_local_mlp_dim > 0
       self.updated_mlp_dim = cfg.bam_final_local_mlp_dim
     max_logging.log(f'sliding_window_size: {self.sliding_window_size} updated_mlp_dim: {self.updated_mlp_dim}', debug=cfg.debug)
@@ -197,6 +200,7 @@ class SubDecoderLayer(nn.Module):
     mlp_write_every = int(getattr(cfg, 'bam_mlp_write_every', None) or 0)
     mlp_write = (
         cfg.bam_enabled and mlp_write_every > 0
+        and not (cfg.bam_skip_final_mlp_write and self.layer_inx == cfg.num_decoder_layers - 1)
         and (self.layer_inx + 1) % mlp_write_every
         == int(getattr(cfg, 'bam_mlp_write_offset', None) or 0) % mlp_write_every)
     if mlp_write and getattr(cfg, 'bam_mlp_write_static_address', False):
@@ -319,7 +323,8 @@ class SubDecoderLayer(nn.Module):
     if mlp_write:
       mlp_logits = linears.DenseGeneral(
           features=(num_query_heads,), axis=-1, use_bias=False,
-          kernel_init=initializers.get_init_method(cfg.init_method),
+          kernel_init=initializers.get_bam_init(
+              cfg, fallback=initializers.get_init_method(cfg.init_method)),
           kernel_axes=('embed', 'q_heads'), dtype=cfg.dtype, weight_dtype=cfg.weight_dtype,
           quant=self.quant, matmul_precision=cfg.matmul_precision,
           name='mlp_write_gate')(hidden_states)
@@ -333,13 +338,15 @@ class SubDecoderLayer(nn.Module):
         rank = int(cfg.bam_mlp_write_address_rank)
         address_hidden = linears.DenseGeneral(
             features=rank, axis=-1, use_bias=False,
-            kernel_init=initializers.get_init_method(cfg.init_method),
+            kernel_init=initializers.get_bam_init(
+              cfg, fallback=initializers.get_init_method(cfg.init_method)),
             kernel_axes=('embed', None), dtype=cfg.dtype, weight_dtype=cfg.weight_dtype,
             quant=self.quant, matmul_precision=cfg.matmul_precision,
             name='mlp_address_down')(hidden_states)
         independent_address = linears.DenseGeneral(
             features=(num_query_heads, cfg.bam_v), axis=-1, use_bias=True,
-            kernel_init=initializers.get_init_method(cfg.init_method),
+            kernel_init=initializers.get_bam_init(
+              cfg, fallback=initializers.get_init_method(cfg.init_method)),
             kernel_axes=('embed', 'q_heads', 'v_factor'),
             dtype=cfg.dtype, weight_dtype=cfg.weight_dtype,
             quant=self.quant, matmul_precision=cfg.matmul_precision,

@@ -464,6 +464,10 @@ class _HyperParameters:
 
     # This is the first command that initializes the backend - it calls
     # jax.devices()
+    target_devices = get_num_target_devices(raw_keys)
+    raw_keys["per_device_batch_size"] = resolve_per_device_batch_size(
+        raw_keys["per_device_batch_size"], target_devices,
+        raw_keys["gradient_accumulation_steps"], raw_keys["target_train_batch_size"])
     (
         raw_keys["global_batch_size_to_load"],
         raw_keys["global_batch_size_to_train_on"],
@@ -471,7 +475,7 @@ class _HyperParameters:
     ) = calculate_global_batch_sizes(
         raw_keys["per_device_batch_size"],
         raw_keys["expansion_factor_real_data"],
-        get_num_target_devices(raw_keys),
+        target_devices,
         raw_keys["gradient_accumulation_steps"],
     )
 
@@ -826,6 +830,18 @@ def get_individual_scales(scale):
   emb_scale = base_scale + int(rem > 1)
   layer_scale = base_scale
   return emb_scale, num_head_scale, mlp_dim_scale, layer_scale
+
+
+def resolve_per_device_batch_size(per_device_batch_size, num_devices,
+                                  gradient_accumulation_steps, target_train_batch_size=None):
+  """Resolve an optional global sequence budget without changing legacy recipes."""
+  if target_train_batch_size is None:
+    return per_device_batch_size
+  if type(target_train_batch_size) is not int or target_train_batch_size <= 0:
+    raise ValueError("target_train_batch_size must be a positive integer")
+  if gradient_accumulation_steps <= 0 or target_train_batch_size % gradient_accumulation_steps:
+    raise ValueError("target_train_batch_size must be divisible by gradient_accumulation_steps")
+  return target_train_batch_size / (num_devices * gradient_accumulation_steps)
 
 
 def calculate_global_batch_sizes(

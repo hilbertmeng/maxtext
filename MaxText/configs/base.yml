@@ -551,6 +551,13 @@ seperate_qk_dw_proj: True
 query_chunk_method: ''
 static_proj: False
 init_method: '006normal'
+# Empty overrides preserve the existing initialization roles.
+bam_init_method: ''
+token_embedding_init_method: ''
+bam_write_rms_epsilon: null
+# Explicit tail count supersedes the legacy single-tail boolean when set.
+bam_final_local_layer_count: null
+bam_skip_final_mlp_write: false # Opt-in: omit an M write with no downstream M consumer.
 global_attn_head_dim: 0
 partial_scan_layers: False
 
@@ -672,6 +679,7 @@ base_mlp_dim: 7168
 base_num_decoder_layers: 16
 head_dim: 128
 max_target_length: 2048 # Maximum sequence length
+target_train_batch_size: null # Optional global sequences/optimizer step, independent of device count.
 per_device_batch_size: 12.0
 eval_per_device_batch_size: 12.0
 eval_interval: 1000  # the specific number of train step between eval_step

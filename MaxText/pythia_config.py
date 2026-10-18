@@ -41,14 +41,18 @@ def validate_pythia_config(keys):
     raise ValueError("Pythia requires ordinary RoPE (rope_half=False); use pythia_rotary_dim for its prefix")
   if keys['logits_via_embedding']:
     raise ValueError("Pythia uses independent input/output embeddings")
-  if keys.get('dense_conn') and not keys.get('pythia_use_fusion'):
-    raise ValueError('Mudd Pythia requires pythia_use_fusion=True')
+  if (keys.get('dense_conn') or keys.get('bam_enabled')) and not keys.get('pythia_use_fusion'):
+    raise ValueError('BAM/Mudd Pythia requires pythia_use_fusion=True')
+  if keys.get('bam_share_read_attention_write_down') or keys.get('bam_share_mlp_write_down'):
+    raise ValueError('Shared read/write down experiments require their recorded runtime commit')
+  if keys.get('dense_conn') and keys.get('bam_enabled'):
+    raise ValueError('Combined BAM+Mudd is not a supported Pythia circuit')
   if keys.get('dynamic_mlp_dim') and not keys.get('pythia_use_fusion'):
     raise ValueError('Dynamic MLP widths require pythia_use_fusion=True')
   if keys.get('mudd_full_history') and keys.get('dense_conn') and keys.get('scan_layers'):
     raise ValueError('Full-history Mudd requires scan_layers=False')
   # These extensions change the circuit or require a different decoder contract.
-  for key in ('bam_enabled', 'rmt_enabled', 'partial_scan_layers',
+  for key in ('rmt_enabled', 'partial_scan_layers',
               'use_kv_shift', 'use_v_gate', 'pre_compose', 'post_compose',
               'mtp_num_layers', 'me_nums',
               'mgate_dim', 'use_untrainable_positional_embedding',

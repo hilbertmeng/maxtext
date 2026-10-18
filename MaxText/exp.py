@@ -13011,3 +13011,13 @@ class MuddPythia3BSerialMLPProfileSaveAll(MuddPythia3BSerialMLP):
 class MuddPythia3BSerialMLPProfileMinimal(MuddPythia3BSerialMLPProfileSaveAll):
     """Speed-only control: retain non-batched dot results using the existing policy."""
     remat_policy = 'minimal'
+
+
+class MuddPythia3BSerialMLPKeepActivations(MuddPythia3BSerialMLP):
+    """Retain dot activations; preserve the 3B recipe and training health metrics."""
+    remat_policy = 'minimal'
+
+
+class MuddPythia3BSerialMLPSaveActivations(MuddPythia3BSerialMLP):
+    """Retain named attention/MLP activations with normal training health metrics."""
+    remat_policy = 'save_all'

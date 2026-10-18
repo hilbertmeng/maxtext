@@ -44,6 +44,25 @@ no2.8B loss improvement has been measured.
   both residual and M. Tail widths are12416 and13254; the last layer absorbs the budget remainder.
 - Generic and BAM-specific health statistics are OFF.
 
+The configuration declares the scan schedule explicitly:
+
+```python
+scan_layers = True
+scan_layers_unroll = 1
+bam_pair_scan = True
+bam_local_fetch_block_size = 3
+bam_mlp_write_every = 3
+bam_mlp_write_offset = 2
+bam_final_local_layer_count = 2
+```
+
+The32-layer computation is `scan(block_of_3, length=10) -> tail30 -> tail31`.
+Each layer has independent parameters; `(residual, M)` carries across blocks and both tails.
+Every layer uses local Q/K/V/O reads; `fetch_2` is a legacy module name for the third slot.
+The middle slot writes M from its MLP. Tail30 uses MLP12416, tail31 uses MLP13254;
+the final MLP write is disabled because no later layer reads its M.
+The MHA reference uses an ordinary32-layer scan with parallel Pythia residual.
+
 The initialization repair follows the Medium serial Pythia experiment (`eaa95f8`):
 
 | Role | Initialization |

@@ -12963,6 +12963,9 @@ class Pythia2p8B(PythiaArchitecture, Llama2Medium):
     pythia_rotary_dim = 20
     pythia_parallel_residual = True
     pythia_use_fusion = False
+    scan_layers = True  # Scan32 ordinary Pythia decoder layers.
+    scan_layers_unroll = 1
+    remat_policy = 'full'
     tokenizer_type = 'huggingface'
     tokenizer_path = 'EleutherAI/pythia-2.8b'
     pad_id = -1  # Token0 is Pythia EOS; it must remain a supervised target.
@@ -13026,7 +13029,13 @@ class BamPythia2p8BSota(
     bam_mlp_write_address_rank = 384
     bam_share_read_attention_write_down = False
     bam_share_mlp_write_down = False
+    # Scan10 independent three-layer blocks (layers0..29); then tails30 and31.
+    scan_layers = True
+    scan_layers_unroll = 1
     bam_pair_scan = True
+    bam_local_fetch_block_size = 3
+    bam_mlp_write_every = 3
+    bam_mlp_write_offset = 2  # Middle layer of each block: zero-based1,4,...,28.
     bam_final_local_layer_count = 2
     bam_extra_final_local_layer = False
     bam_skip_final_mlp_write = True  # Its M has no downstream consumer.

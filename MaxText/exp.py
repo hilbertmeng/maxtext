@@ -13141,3 +13141,43 @@ class BamPallasPythiaSotaTinyPallasV8TTest(BamPallasPythiaSotaTinyXlaTest):
     bam_pallas_interpret = True
     bam_pallas_body = 'v8t'
     bam_pallas_fused_inputs = True
+
+
+class Pythia2p8BProfile(TrainStepProfile, Pythia2p8B):
+    """Timing arm: official parallel-residual Pythia-2.8B, 16 sequences x T2048 per device, health OFF.
+
+    The formal global batch1024 would resolve to 256 sequences/device on v5p-8; every Pythia-2.8B
+    timing arm uses the same 16/device micro-batch (formal training reaches1024 by accumulation)."""
+    model_name = 'Pythia2p8BProfile'
+    target_train_batch_size = None
+    per_device_batch_size = 16.0
+    steps = 100
+
+
+class Pythia2p8BSerialProfile(Pythia2p8BProfile):
+    """Serial residual (MLP sees x + attention(x)) in the same Pythia decoder layer."""
+    model_name = 'Pythia2p8BSerialProfile'
+    pythia_parallel_residual = False
+
+
+class Pythia2p8BSerialFusionProfile(Pythia2p8BSerialProfile):
+    """Serial MHA through the fusion decoder layer BAM uses (BAM off): isolates the layer implementation."""
+    model_name = 'Pythia2p8BSerialFusionProfile'
+    pythia_use_fusion = True
+
+
+class BamPythia2p8BSotaProfile(TrainStepProfile, BamPythia2p8BSota):
+    """Timing arm: BamPythia2p8BSota, pure JAX, same micro-batch and health OFF as Pythia2p8BProfile."""
+    model_name = 'BamPythia2p8BSotaProfile'
+    target_train_batch_size = None
+    per_device_batch_size = 16.0
+    steps = 100
+
+
+class BamPythia2p8BSotaPallasProfile(BamPythia2p8BSotaProfile):
+    """The same model on the fused v8t core (in-kernel M shift, fused input projections, 48 MiB VMEM)."""
+    model_name = 'BamPythia2p8BSotaPallasProfile'
+    bam_pallas_core = True
+    bam_pallas_body = 'v8t'
+    bam_pallas_vmem_mib = 48
+    bam_pallas_fused_inputs = True

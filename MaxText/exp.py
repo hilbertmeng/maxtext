@@ -13022,6 +13022,10 @@ class MuddPythia3BSerialMLPKeepActivations(MuddPythia3BSerialMLP):
     # 2026-10-19: resumed49023 from49022; native PaxML milestone retention active.
     remat_policy = 'minimal'
 
+class MuddPythia3BKeepActivationsReproduce(MuddPythia3BSerialMLPKeepActivations):
+    """Parallel-residual reproduction; retain existing norm/scale implementation."""
+    adam_weight_decay = 0.01
+    pythia_parallel_residual = True
 
 class MuddPythia3BSerialMLPSaveActivations(MuddPythia3BSerialMLP):
     """Retain named attention/MLP activations with normal training health metrics."""

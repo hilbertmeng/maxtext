@@ -13019,11 +13019,14 @@ class MuddPythia3BSerialMLPKeepActivations(MuddPythia3BSerialMLP):
     # code_commit: 9cdcbd02; UE5a Spot v5p-256, batch1024, health ON; AOT cf53d97.
     # 50-step mean10-49:1.81913s (full2.02283s, save_all1.92752s).
     # Formal RUN=MuddPythia3BSerialMLP;143000-step schedule, running2026-10-18.
-    # 2026-10-19: resumed49023 from49022; native PaxML milestone retention active.
+    # 2026-10-19: paused at57671 (checkpoint committed); loss above historical PaxML.
+    # Same TPU transferred to MuddPythia3BKeepActivationsReproduce; conclusion provisional.
     remat_policy = 'minimal'
 
 class MuddPythia3BKeepActivationsReproduce(MuddPythia3BSerialMLPKeepActivations):
     """Parallel-residual reproduction; retain existing norm/scale implementation."""
+    # code_commit: 55411fd; UE5a Spot v5p-256; fresh RUN from0 on retained TPU.
+    # Native PaxML milestone retention, health ON; norm/scale parity deferred.
     adam_weight_decay = 0.01
     pythia_parallel_residual = True
 

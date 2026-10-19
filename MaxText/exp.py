@@ -13278,3 +13278,19 @@ class BamPythia2p8BSotaAlignPallasDefaultSplash(BamPythia2p8BSotaAlignPallas):
     sa_block_kv_dkv_compute = 512
     sa_use_fused_bwd_kernel = False
     compare_runs = ['BamPythia2p8BSotaAlignPallas', 'BamPythia2p8BSotaAlignXla']
+
+
+class BamPythia2p8BSotaAlignXlaDefaultSplash(BamPythia2p8BSotaAlignXla):
+    """Pure-JAX noise floor: the reference run with the base.yml Splash blocks.
+
+    With BamPythia2p8BSotaAlignPallasDefaultSplash this gives the run-to-run spread of small benign
+    perturbations on both paths, against which the v8t-vs-pure-JAX gap is judged."""
+    model_name = 'BamPythia2p8BSotaAlignXlaDefaultSplash'
+    sa_block_q = 512
+    sa_block_kv = 512
+    sa_block_kv_compute = 512
+    sa_block_q_dkv = 512
+    sa_block_kv_dkv = 512
+    sa_block_kv_dkv_compute = 512
+    sa_use_fused_bwd_kernel = False
+    compare_runs = ['BamPythia2p8BSotaAlignXla', 'BamPythia2p8BSotaAlignPallasDefaultSplash']

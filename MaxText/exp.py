@@ -200,6 +200,7 @@ class TrainPythia:
     max_to_keep = 2
     keep_period = 0
     force_final_checkpoint = True
+    checkpoint_keep_steps = list(range(3000, 143001, 10000))  # PaxML SAVE_ON_STEPS.
     eval_interval = 0  # PaxML training defaults to eval_on_test=False.
     rms_norm_epsilon = 1e-6  # QK/router RMSNorm; LayerNorm stays at 1e-5.
 

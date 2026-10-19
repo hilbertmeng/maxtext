@@ -13236,3 +13236,45 @@ class BamPythia2p8BSotaPallasSplashProfile(SplashTunedBlocks1024, BamPythia2p8BS
     """BamPythia2p8BSota on the fused v8t core with the tuned Splash blocks."""
     # 482bfed: 0.3483 (+6.5% vs default blocks; -1.4% vs Pythia2p8BSplashProfile; bet -7% [-10,-4] missed).
     model_name = 'BamPythia2p8BSotaPallasSplashProfile'
+
+
+class BamPythia2p8BSotaAlignXla(BamPythia2p8BSota):
+    """Numerical alignment reference: BamPythia2p8BSota, pure JAX, formal tuned Splash, 16 x T2048 per device.
+
+    The fused-core arms below train from the same initialization and data order; their loss gap at
+    common steps measures the v8t core's numerical drift against this pure-JAX path. The formal LR
+    schedule (warmup 1430 of 143000) is kept; global batch is 64 instead of 1024 (16/device on v5p-8).
+    Run to 2000 steps; continue to 4000 when the gap is not clearly within +-0.001."""
+    model_name = 'BamPythia2p8BSotaAlignXla'
+    target_train_batch_size = None
+    per_device_batch_size = 16.0
+    steps = 4000
+    checkpoint_period = 500
+    max_to_keep = 2
+    compare_runs = []
+
+
+class BamPythia2p8BSotaAlignPallas(BamPythia2p8BSotaAlignXla):
+    """The same run on the fused v8t core (in-kernel M shift, fused input projections, 48 MiB VMEM)."""
+    model_name = 'BamPythia2p8BSotaAlignPallas'
+    bam_pallas_core = True
+    bam_pallas_body = 'v8t'
+    bam_pallas_vmem_mib = 48
+    bam_pallas_fused_inputs = True
+    compare_runs = ['BamPythia2p8BSotaAlignXla']
+
+
+class BamPythia2p8BSotaAlignPallasDefaultSplash(BamPythia2p8BSotaAlignPallas):
+    """Noise floor: the v8t run with the base.yml Splash blocks (forward and dk/dv bitwise, dq 8e-4).
+
+    Its gap to BamPythia2p8BSotaAlignPallas shows how far a known-benign numerical perturbation
+    drifts in bf16 training; the v8t-vs-pure-JAX gap is judged against it."""
+    model_name = 'BamPythia2p8BSotaAlignPallasDefaultSplash'
+    sa_block_q = 512
+    sa_block_kv = 512
+    sa_block_kv_compute = 512
+    sa_block_q_dkv = 512
+    sa_block_kv_dkv = 512
+    sa_block_kv_dkv_compute = 512
+    sa_use_fused_bwd_kernel = False
+    compare_runs = ['BamPythia2p8BSotaAlignPallas', 'BamPythia2p8BSotaAlignXla']

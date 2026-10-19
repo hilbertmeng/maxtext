@@ -13181,3 +13181,28 @@ class BamPythia2p8BSotaPallasProfile(BamPythia2p8BSotaProfile):
     bam_pallas_body = 'v8t'
     bam_pallas_vmem_mib = 48
     bam_pallas_fused_inputs = True
+
+
+class SplashTunedBlocks1024:
+    """Splash blocks q/kv 1024 (compute 512) and fused backward dkv 1024/1024/1024.
+
+    Pythia-2.8B per device (B16 N32 T2048 D80, causal + segment ids, v5p, MaxText/tests/splash_block_benchmark.py):
+    forward 4.66 -> 3.66 ms, forward+backward 15.42 -> ~10.4 ms; forward and dk/dv bitwise, dq 8e-4.
+    The same blocks won at XL (B8 N20 T4096 D96); 2048-size blocks exhaust VMEM."""
+    sa_block_q = 1024
+    sa_block_kv = 1024
+    sa_block_kv_compute = 512
+    sa_block_q_dkv = 1024
+    sa_block_kv_dkv = 1024
+    sa_block_kv_dkv_compute = 1024
+    sa_use_fused_bwd_kernel = True
+
+
+class Pythia2p8BSplashProfile(SplashTunedBlocks1024, Pythia2p8BProfile):
+    """Pythia-2.8B MHA timing arm with the tuned Splash blocks."""
+    model_name = 'Pythia2p8BSplashProfile'
+
+
+class BamPythia2p8BSotaPallasSplashProfile(SplashTunedBlocks1024, BamPythia2p8BSotaPallasProfile):
+    """BamPythia2p8BSota on the fused v8t core with the tuned Splash blocks."""
+    model_name = 'BamPythia2p8BSotaPallasSplashProfile'

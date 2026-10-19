@@ -13031,6 +13031,15 @@ class Pythia2p8B(PythiaArchitecture, Llama2Medium):
     tensorboard_gcs_rotate_period = 500
     attention = 'flash'
     query_chunk_size = 256
+    # Tuned Splash blocks (user decision 2026-10-19: formal Pythia-2.8B and BamPythia2p8BSota both use them).
+    # v5p-8 482bfed: MHA +6.7%, BAM v8t +6.5% step/s; forward and dk/dv bitwise, dq 8e-4 (pythia2p8b_pallas_timing.md).
+    sa_block_q = 1024
+    sa_block_kv = 1024
+    sa_block_kv_compute = 512
+    sa_block_q_dkv = 1024
+    sa_block_kv_dkv = 1024
+    sa_block_kv_dkv_compute = 1024
+    sa_use_fused_bwd_kernel = True
     record_training_health_metrics = False
     record_internal_nn_metrics = False
     compare_runs = []
@@ -13153,6 +13162,13 @@ class Pythia2p8BProfile(TrainStepProfile, Pythia2p8B):
     target_train_batch_size = None
     per_device_batch_size = 16.0
     steps = 100
+    sa_block_q = 512  # Recorded with the base.yml Splash defaults; Pythia2p8B now uses SplashTunedBlocks1024 values.
+    sa_block_kv = 512
+    sa_block_kv_compute = 512
+    sa_block_q_dkv = 512
+    sa_block_kv_dkv = 512
+    sa_block_kv_dkv_compute = 512
+    sa_use_fused_bwd_kernel = False
 
 
 class Pythia2p8BSerialProfile(Pythia2p8BProfile):
@@ -13176,6 +13192,13 @@ class BamPythia2p8BSotaProfile(TrainStepProfile, BamPythia2p8BSota):
     target_train_batch_size = None
     per_device_batch_size = 16.0
     steps = 100
+    sa_block_q = 512  # Recorded with the base.yml Splash defaults; Pythia2p8B now uses SplashTunedBlocks1024 values.
+    sa_block_kv = 512
+    sa_block_kv_compute = 512
+    sa_block_q_dkv = 512
+    sa_block_kv_dkv = 512
+    sa_block_kv_dkv_compute = 512
+    sa_use_fused_bwd_kernel = False
 
 
 class BamPythia2p8BSotaPallasProfile(BamPythia2p8BSotaProfile):

@@ -13027,6 +13027,8 @@ class MuddPythia3BKeepActivationsReproduce(MuddPythia3BSerialMLPKeepActivations)
     """Parallel-residual reproduction; retain existing norm/scale implementation."""
     # code_commit: 55411fd; UE5a Spot v5p-256; fresh RUN from0 on retained TPU.
     # Native PaxML milestone retention, health ON; norm/scale parity deferred.
+    # 2026-10-20 JST: user stopped at checkpoint13198; ~1.81s/step on UE5a v5p-256.
+    # Same-batch EMA gap vs PaxML:4k -0.00305 ->13k -0.00142; vs serial:+0.00222 ->+0.00823.
     adam_weight_decay = 0.01
     pythia_parallel_residual = True
 

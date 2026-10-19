@@ -433,6 +433,7 @@ active leases are censored, and manual migration releases are not preemptions.
 | `BamMHAMediumPropC256T2048Matched` | v5p-16 (`xd-v5p-16-310130-maxtext`) | `us-east5-a` | 2026-10-12 05:46:47 | 2026-10-12 10:05:58 | complete13500;0preemptions; checkpoint committed, resources absent | none |
 | `MuddLlama2MediumPropC256T2048` | v5p-16 (`xd-v5p-16-310131-maxtext`) | `us-east5-a` | 2026-10-12 05:49:36 | — | active; fresh step0/AOT/FIRST_STEP verified | none |
 | `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadT2048` | v5p-16 (`xd-v5p-16-310132-maxtext`) | `us-east5-a` | 2026-10-12 05:25:26 | — | active; AOT/FIRST_STEP verified | none |
+| `MuddPythia3BKeepActivationsReproduce` | v5p-256 (`xd-v5p-256-mengqy3b-ue5`, retained from serial RUN) | `us-east5-a` | 2026-10-19 08:30:55 | 2026-10-19 15:21:50 | user stop13198;0preemptions; checkpoint committed, node/queue absent | none |
 
 ## READY leases
 
@@ -1293,3 +1294,4 @@ active leases are censored, and manual migration releases are not preemptions.
 | `BamMHAMediumPropC256T2048` | 1 | `us-east5-a` | 2026-10-12 05:25:33 | 2026-10-12 05:45:49 | 20m16s | hot-switch to matched control; no preemption |
 | `MuddLlama2MediumPropT2048` | 1 | `us-east5-a` | 2026-10-12 05:27:25 | 2026-10-12 05:48:41 | 21m16s | hot-switch to matched control; no preemption |
 | `BamMediumPropL27K75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile` | 4 | `us-east5-a` | 2026-10-11 21:06:32 | 2026-10-12 05:51:17 | 8h44m45s | complete13500; resources released |
+| `MuddPythia3BKeepActivationsReproduce` | 1 | `us-east5-a` | 2026-10-19 08:30:57 | 2026-10-19 15:21:50 | 6h50m53s | user stop13198; retained v5p-256;0preemptions; node/queue absent |

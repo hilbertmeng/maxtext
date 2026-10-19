@@ -13148,6 +13148,7 @@ class Pythia2p8BProfile(TrainStepProfile, Pythia2p8B):
 
     The formal global batch1024 would resolve to 256 sequences/device on v5p-8; every Pythia-2.8B
     timing arm uses the same 16/device micro-batch (formal training reaches1024 by accumulation)."""
+    # v5p-8 UC1a 482bfed: 0.3310 step/s, device step 3018.5 ms; reference arm of pythia2p8b_pallas_timing.md.
     model_name = 'Pythia2p8BProfile'
     target_train_batch_size = None
     per_device_batch_size = 16.0
@@ -13156,18 +13157,21 @@ class Pythia2p8BProfile(TrainStepProfile, Pythia2p8B):
 
 class Pythia2p8BSerialProfile(Pythia2p8BProfile):
     """Serial residual (MLP sees x + attention(x)) in the same Pythia decoder layer."""
+    # 482bfed: 0.3251 (-1.8% vs parallel; bet -0.3% [-1.5,+0.5] missed): out_proj+residual+LN on the serial path.
     model_name = 'Pythia2p8BSerialProfile'
     pythia_parallel_residual = False
 
 
 class Pythia2p8BSerialFusionProfile(Pythia2p8BSerialProfile):
     """Serial MHA through the fusion decoder layer BAM uses (BAM off): isolates the layer implementation."""
+    # 482bfed: 0.3250, same as the Pythia layer: the fusion layer itself costs nothing.
     model_name = 'Pythia2p8BSerialFusionProfile'
     pythia_use_fusion = True
 
 
 class BamPythia2p8BSotaProfile(TrainStepProfile, BamPythia2p8BSota):
     """Timing arm: BamPythia2p8BSota, pure JAX, same micro-batch and health OFF as Pythia2p8BProfile."""
+    # 482bfed: 0.2650 (-19.9% vs Pythia2p8BProfile; bet -25% [-32,-18]).
     model_name = 'BamPythia2p8BSotaProfile'
     target_train_batch_size = None
     per_device_batch_size = 16.0
@@ -13176,6 +13180,7 @@ class BamPythia2p8BSotaProfile(TrainStepProfile, BamPythia2p8BSota):
 
 class BamPythia2p8BSotaPallasProfile(BamPythia2p8BSotaProfile):
     """The same model on the fused v8t core (in-kernel M shift, fused input projections, 48 MiB VMEM)."""
+    # 482bfed: 0.3270 (-1.2% vs parallel MHA, +0.6% vs serial MHA; +23.4% vs pure JAX); bet -8% [-11,-5] missed.
     model_name = 'BamPythia2p8BSotaPallasProfile'
     bam_pallas_core = True
     bam_pallas_body = 'v8t'
@@ -13200,9 +13205,11 @@ class SplashTunedBlocks1024:
 
 class Pythia2p8BSplashProfile(SplashTunedBlocks1024, Pythia2p8BProfile):
     """Pythia-2.8B MHA timing arm with the tuned Splash blocks."""
+    # 482bfed: 0.3532 (+6.7% vs default blocks; bet +4% [+2,+7]); Splash 575.7 -> 381.9 ms/step.
     model_name = 'Pythia2p8BSplashProfile'
 
 
 class BamPythia2p8BSotaPallasSplashProfile(SplashTunedBlocks1024, BamPythia2p8BSotaPallasProfile):
     """BamPythia2p8BSota on the fused v8t core with the tuned Splash blocks."""
+    # 482bfed: 0.3483 (+6.5% vs default blocks; -1.4% vs Pythia2p8BSplashProfile; bet -7% [-10,-4] missed).
     model_name = 'BamPythia2p8BSotaPallasSplashProfile'

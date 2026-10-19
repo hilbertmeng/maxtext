@@ -20,4 +20,6 @@ Validation (CPU, pinned env): `MaxText/tests/bam_pallas_mshift_test.py`
 
 Plus `scripts/check_single_mshift.sh` (M-shift, summary writer, Pythia reference and the full BAM suite), the config-key lint and `pythia_2p8b_test`.
 
-Not yet done: TPU timing. The Splash S* blocks were tuned at T4096/N20/D96 and need retuning at T2048/N32/D80 for Pythia 2.8B, as do VMEM and read tile. XL timing evidence and the MLP layout rule are recorded in the v8t branch (`bam_exp_memo.md` 2026-10-17 section).
+TPU timing (2026-10-19): `pythia2p8b_pallas_timing.md`. On v5p-8, BamPythia2p8BSota on v8t is 1.2% behind the official parallel Pythia-2.8B (+0.6% vs serial MHA) and 23.4% faster than pure JAX. With the same tuned Splash blocks on both sides it is 1.4% behind. XL timing evidence and the MLP layout rule are recorded in the v8t branch (`bam_exp_memo.md` 2026-10-17 section).
+
+Follow-up fix: compact M-shift health reached the metrics only when concat health was also on. The fused core rejects concat health, so its summary was dropped; `train.py` now decodes M-shift health on its own flag.

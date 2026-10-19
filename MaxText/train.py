@@ -388,7 +388,8 @@ def record_rmt_dynamic_health_metrics(output_metrics, intermediate_outputs, conf
 def record_bam_concat_health_metrics(output_metrics, intermediate_outputs, config):
   """Decode compact read metrics from LLF block scan and an optional final L."""
   decoder = intermediate_outputs['intermediates']['decoder']
-  if getattr(config, 'bam_embedding_write', False):
+  # M-shift health alone (e.g. the fused core, which rejects concat health) carries only m_shift_* keys.
+  if getattr(config, 'bam_embedding_write', False) and getattr(config, 'bam_record_concat_health', False):
     gate = decoder['embedding_bam_write']['seed_gate'][0]
     for i, name in enumerate(('mean', 'std')):
       output_metrics['scalar'][f'bam/embedding_write/gate_{name}'] = gate[i]
@@ -976,7 +977,7 @@ def train_step(model, config, state_mesh_shardings, state, data, dropout_rng):
       "scalars": {},
   }
 
-  if getattr(config, 'bam_record_concat_health', False):
+  if getattr(config, 'bam_record_concat_health', False) or getattr(config, 'bam_record_m_shift_health', False):
     record_bam_concat_health_metrics(metrics, intermediate_outputs, config)
   if getattr(config, 'rmt_record_dynamic_health', False):
     record_rmt_dynamic_health_metrics(metrics, intermediate_outputs, config)

@@ -119,9 +119,18 @@ class ShiftedModelTest(unittest.TestCase):
                for path, leaf in jax.tree_util.tree_flatten_with_path(state['intermediates'])[0]
                if 'm_shift_m_summary' in jax.tree_util.keystr(path)}
       self.assertTrue(found)
-      return found
+      return found, state
 
-    want, got = summaries(xla), summaries(pallas)
+    (want, _), (got, pallas_state) = summaries(xla), summaries(pallas)
+    # The fused core rejects concat health; its M-shift summary must still reach the scalar metrics.
+    import train  # pylint: disable=import-outside-toplevel
+    self.assertFalse(cfg.bam_record_concat_health)
+    metrics = {'scalar': {}}
+    train.record_bam_concat_health_metrics(metrics, pallas_state, cfg)
+    for layer in range(cfg.num_decoder_layers):
+      for name in ('gate_mean', 'gate_std', 'gate_frac_lt_001', 'gate_frac_gt_099', 'delta_over_current_rms'):
+        self.assertIn(f'bam/m_shift/layer_{layer:03d}/m/{name}', metrics['scalar'])
+    self.assertEqual(len(metrics['scalar']), 5 * cfg.num_decoder_layers, sorted(metrics['scalar']))
     self.assertEqual(sorted(want), sorted(got))
     for name, value in want.items():
       print(name, value.reshape(-1, 5)[0], got[name].reshape(-1, 5)[0])

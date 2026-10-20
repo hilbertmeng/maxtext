@@ -16311,3 +16311,44 @@ class BamPythia2p8BSotaAlignXlaDefaultSplash(BamPythia2p8BSotaAlignXla):
     sa_block_kv_dkv_compute = 512
     sa_use_fused_bwd_kernel = False
     compare_runs = ['BamPythia2p8BSotaAlignXla', 'BamPythia2p8BSotaAlignPallasDefaultSplash']
+
+
+class Pythia2p8BV64Profile(TrainStepProfile, Pythia2p8B):
+    """Timing arm for the v64/R1024 BamPythia2p8BSota matrix: official MHA, tuned Splash, 8 x T2048 per device
+    (the v5p-256 formal per-device batch), generic + internal health ON as in BamPythia2p8BSotaPallas."""
+    model_name = 'Pythia2p8BV64Profile'
+    target_train_batch_size = None
+    per_device_batch_size = 8.0
+    steps = 100
+    record_training_health_metrics = True
+    record_internal_nn_metrics = True
+
+
+class Pythia2p8BV64MinimalProfile(Pythia2p8BV64Profile):
+    """MHA arm with remat_policy='minimal'."""
+    model_name = 'Pythia2p8BV64MinimalProfile'
+    remat_policy = 'minimal'
+
+
+class BamPythia2p8BSotaV64Profile(TrainStepProfile, BamPythia2p8BSota):
+    """v64/R1024/shared-down/QKNorm BamPythia2p8BSota, pure JAX, same batch and health as Pythia2p8BV64Profile."""
+    model_name = 'BamPythia2p8BSotaV64Profile'
+    target_train_batch_size = None
+    per_device_batch_size = 8.0
+    steps = 100
+    record_training_health_metrics = True
+    record_internal_nn_metrics = True
+
+
+class BamPythia2p8BSotaPallasV64Profile(TrainStepProfile, BamPythia2p8BSotaPallas):
+    """Formal BamPythia2p8BSotaPallas (v8t, health ON, remat full) at 8 x T2048 per device."""
+    model_name = 'BamPythia2p8BSotaPallasV64Profile'
+    target_train_batch_size = None
+    per_device_batch_size = 8.0
+    steps = 100
+
+
+class BamPythia2p8BSotaPallasV64MinimalProfile(BamPythia2p8BSotaPallasV64Profile):
+    """The same with remat_policy='minimal' (the formal class's 'remate_policy' line is a misspelled no-op)."""
+    model_name = 'BamPythia2p8BSotaPallasV64MinimalProfile'
+    remat_policy = 'minimal'

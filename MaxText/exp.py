@@ -16123,6 +16123,9 @@ class BamPythia2p8BSotaIndependentR768Pallas(BamPythia2p8BSotaIndependentR768):
     # Fastest validated: v5p-8 UE5a 71de72a, 8/device, health OFF: 0.6958 step/s with remat minimal
     # (minimal_save_bam_read 0.6936, none 0.6444); shared-R1024 v64 SOTA 0.6968, MHA minimal 0.7404 (-6.0%).
     model_name = 'BamPythia2p8BSotaIndependentR768Pallas'
+    # FSDP128: 1,284,832 replicated bias/norm/static-address scalars (0.0463% of params)
+    # give 5.88031% per-chip overhead versus ideal sharding; all large matrices shard.
+    sharding_tolerance = .06
     bam_pallas_core = True
     bam_pallas_body = 'v8t'
     bam_pallas_vmem_mib = 56

@@ -36,6 +36,15 @@ and all five rotating-summary-writer tests. Logs for this launch:
 All passed. Exact topology AOT, sealed-source check, worker-side retention API check and
 actual AOT-loaded FIRST_STEP are required before declaring startup successful.
 
+For FSDP128, the abstract parameter/sharding audit exactly reproduces the worker's
+22,953,824 parameters/chip (ideal21,679,029.75). The 1,284,832 intentionally replicated
+bias/norm/static-address scalars are0.0463% of global parameters and cause5.88031%
+overhead per chip; every large matrix is sharded. This class therefore uses a6%
+sharding guard instead of the default2%. This changes no numerical computation.
+Audit: `/data0/xd/bam_diagnostics/pythia2p8b-r768-training/sharding-audit.json`.
+After retaining and quiescing all32 training workers, the startup repair's exact-commit
+AOT uses worker0 via the lifecycle-free idle-worker compiler; it must not delete this TPU.
+
 The old user-owned FLEX compilers discovered in EW4a are SUSPENDED, not borrowed.
 Use the lifecycle-managed spot compiler workflow for offline v5p-256 AOT; it must release
 its own compiler after artifact verification. Do not request the training TPU before AOT ready.
@@ -61,6 +70,11 @@ or negative gain denominators instead of reading early ratio magnitude as archit
 Pre-run terminal bets: BAM/Mudd gain ratio1.5 (range1.2..1.8); BAM/6.9B .96
 (range.75..1.15). Baseline late500 means: 2.8B1.869504599, 6.9B1.791840698,
 Mudd1.819718043; a BAM gain about.075 produces these two central forecasts.
+Reviewing the full late trajectory gives Mudd/6.9B gain ratios1.0655/.8992/.7365/.6227/
+.6181/.6309 at60k/80k/100k/120k/130k/140k. Its last5000-step ratio is.63240268,
+so the consistent revised central bet is BAM/Mudd1.50 and BAM/6.9B.9486 (rounded.95),
+using the same final5000-step window. The original rounded bets are compatible but
+were insufficiently grounded in the late trajectory.
 Speed prior .65step/s (range.50...80), informed by the same B8/device v5p-8 health-OFF
 profile .6958; the formal run has generic health ON and larger FSDP communication.
 

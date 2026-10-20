@@ -569,6 +569,35 @@ def record_bam_local_qk_routing_metrics(
           read_health[layer_num, stat_num])
 
 
+def record_scanned_layer_norms(output_metrics, decoder, config, stride):
+  """Per-layer activation scalars of scanned stacks without the fusion 'sub_0' wrapper.
+
+  Plain scanned layers (e.g. Pythia: decoder/layers/<key>[L]) and BAM pair scan
+  (decoder/layers/{local_i,fetch_i}/block/<key>[blocks] plus final_local_layer[_j]/block/<key>)."""
+  def emit(values, layer):
+    for key, value in values.items():
+      if layer % stride == 0 and not isinstance(value, dict):
+        output_metrics["scalar"][f"block/{key}/layer_{layer:03d}"] = value
+  layers = decoder.get("layers", {})
+  if getattr(config, 'bam_pair_scan', False):
+    size = config.bam_local_fetch_block_size
+    tails = getattr(config, 'bam_final_local_layer_count', None)
+    tails = int(bool(getattr(config, 'bam_extra_final_local_layer', False))) if tails is None else tails
+    blocks = (config.num_decoder_layers - tails) // size
+    for offset in range(size):
+      name = f'local_{offset}' if offset < size - 1 else f'fetch_{offset}'
+      block = layers.get(name, {}).get('block', {})
+      for i in range(blocks):
+        emit({k: v[0][i] for k, v in block.items() if not isinstance(v, dict)}, i * size + offset)
+    for offset in range(tails):
+      name = 'final_local_layer' if tails == 1 else f'final_local_layer_{offset}'
+      block = decoder.get(name, {}).get('block', {})
+      emit({k: v[0] for k, v in block.items() if not isinstance(v, dict)}, config.num_decoder_layers - tails + offset)
+  else:
+    for i in range(config.num_decoder_layers):
+      emit({k: v[0][i] for k, v in layers.items() if not isinstance(v, dict)}, i)
+
+
 def record_activation_metrics(output_metrics, intermediate_outputs, config):
   """Adds the activation metrics to the metrics dict"""
   if 'eos_sum' in intermediate_outputs["intermediates"]["decoder"]:
@@ -577,7 +606,9 @@ def record_activation_metrics(output_metrics, intermediate_outputs, config):
     output_metrics["scalar"]["eos_sum_mean"] = intermediate_outputs["intermediates"]["decoder"]["eos_sum_mean"]
 
   l_step_len = max(config.base_num_decoder_layers // 8, 1)
-  if config.scan_layers:
+  if config.scan_layers and 'sub_0' not in intermediate_outputs["intermediates"]["decoder"].get("layers", {}):
+    record_scanned_layer_norms(output_metrics, intermediate_outputs["intermediates"]["decoder"], config, l_step_len)
+  elif config.scan_layers:
     metrics_dict = intermediate_outputs["intermediates"]["decoder"]["layers"]['sub_0'] # decode -> layers
     for layer_num in range(0, config.base_num_decoder_layers, l_step_len): # 每8层记录一下
       if config.num_experts >= 1 and layer_num in config.insert_moe_indexes:

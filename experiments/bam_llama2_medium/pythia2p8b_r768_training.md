@@ -64,6 +64,18 @@ histories and PaxML Mudd are observational references, not asserted same-batch r
 Existing aligned loss rows were exported using the shared TB exporter, sample period10,
 to `/data0/xd/bam_diagnostics/pythia2p8b-r768-training/BASE.loss.txt` (14300 points each,
 10..143000), for import into the registry cache. No smoothing or interpolation.
+Comparison coordinates are completed optimizer updates: native MaxText batch/log step0
+maps to completed update1; the imported Pythia/PaxML reference indices already count
+completed updates. Configure this RUN with
+`run_registry.py update-monitoring BamPythia2p8BSotaIndependentR768Pallas --loss-step-offset BamPythia2p8BSotaIndependentR768Pallas 1`.
+The registry keeps raw caches native and applies the offset only to comparison inputs,
+for both gaps and gain ratios. Report events carry the offset map and reject stale
+coordinate versions. Training log/checkpoint labels retain their native convention;
+health plots label the same completed-update coordinate as the comparison plots.
+The unshifted monitoring reports through8k are superseded. See the corrected
+`loss-7000-8000-aligned.png` and `sync-correlation-history-aligned.json` under the
+task's diagnostic directory; the three curves' batch-loss fluctuations synchronize
+after this correction. This reporting fix does not alter the sealed model runtime.
 6.9B's advantage versus2.8B is negative early and near zero around10000; label unstable
 or negative gain denominators instead of reading early ratio magnitude as architecture quality.
 

@@ -13236,3 +13236,19 @@ class BamPythia2p8BSotaPallasSplashProfile(SplashTunedBlocks1024, BamPythia2p8BS
     """BamPythia2p8BSota on the fused v8t core with the tuned Splash blocks."""
     # 482bfed: 0.3483 (+6.5% vs default blocks; -1.4% vs Pythia2p8BSplashProfile; bet -7% [-10,-4] missed).
     model_name = 'BamPythia2p8BSotaPallasSplashProfile'
+
+
+class BamPythia2p8BSotaPallas(BamPythia2p8BSota):
+    """Formal BamPythia2p8BSota on the fused v8t core: the fastest validated configuration.
+
+    Same parameters and math as BamPythia2p8BSota (in-kernel single-gate read M shift, fused input
+    projections, 48 MiB scoped VMEM) plus the inherited tuned Splash blocks. v5p-8, 16 x T2048/device:
+    0.348 vs 0.278 step/s pure JAX (+25%). Alignment (pythia2p8b_pallas_timing.md, align branch 83d4734):
+    same-checkpoint eval loss within 3e-5 of pure JAX; 4000-step trajectories within the Splash-only
+    noise floor. Not yet trained."""
+    model_name = 'BamPythia2p8BSotaPallas'
+    bam_pallas_core = True
+    bam_pallas_body = 'v8t'
+    bam_pallas_vmem_mib = 48
+    bam_pallas_fused_inputs = True
+    compare_runs = ['Pythia2p8B', 'BamPythia2p8BSota']

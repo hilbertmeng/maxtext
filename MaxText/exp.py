@@ -16126,6 +16126,8 @@ class BamPythia2p8BSotaIndependentR768Pallas(BamPythia2p8BSotaIndependentR768):
     """BamPythia2p8BSotaIndependentR768 on the fused v8t core, remat minimal; same settings as BamPythia2p8BSotaPallas.
 
     Kernel shapes (V64, K80, N32, T2048) are those of the v64 SOTA, so its 56 MiB scoped VMEM applies."""
+    # Fastest validated: v5p-8 UE5a 71de72a, 8/device, health OFF: 0.6958 step/s with remat minimal
+    # (minimal_save_bam_read 0.6936, none 0.6444); shared-R1024 v64 SOTA 0.6968, MHA minimal 0.7404 (-6.0%).
     model_name = 'BamPythia2p8BSotaIndependentR768Pallas'
     bam_pallas_core = True
     bam_pallas_body = 'v8t'
@@ -16420,6 +16422,7 @@ class BamPythia2p8BSotaPallasV64Vmem63Profile(BamPythia2p8BSotaPallasV64Profile)
 
 class BamPythia2p8BSotaIndependentR768PallasProfile(TrainStepProfile, BamPythia2p8BSotaIndependentR768Pallas):
     """Timing arm: formal R768 Pallas (remat minimal) at 8 x T2048 per device, health OFF for timing."""
+    # 71de72a: 0.6958 (fastest; -0.1% vs shared-R1024 0.6968, -6.0% vs MHA minimal 0.7404).
     model_name = 'BamPythia2p8BSotaIndependentR768PallasProfile'
     target_train_batch_size = None
     per_device_batch_size = 8.0
@@ -16430,11 +16433,13 @@ class BamPythia2p8BSotaIndependentR768PallasProfile(TrainStepProfile, BamPythia2
 
 class BamPythia2p8BSotaIndependentR768PallasSaveReadProfile(BamPythia2p8BSotaIndependentR768PallasProfile):
     """remat minimal plus the saved fused read outputs (no forward read-kernel recompute)."""
+    # 71de72a: 0.6936 (-0.3% vs minimal; bet +2% [0,+4] missed): saving the read outputs does not pay.
     model_name = 'BamPythia2p8BSotaIndependentR768PallasSaveReadProfile'
     remat_policy = 'minimal_save_bam_read'
 
 
 class BamPythia2p8BSotaIndependentR768PallasNoRematProfile(BamPythia2p8BSotaIndependentR768PallasProfile):
     """No rematerialization at all (fastest if it fits in HBM)."""
+    # 71de72a: 0.6444 (-7.4% vs minimal; bet +5% [+2,+8] missed): fits in HBM but slower.
     model_name = 'BamPythia2p8BSotaIndependentR768PallasNoRematProfile'
     remat_policy = 'none'

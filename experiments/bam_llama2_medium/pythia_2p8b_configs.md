@@ -27,6 +27,31 @@ accumulation. Changing `gradient_accumulation_steps` changes the microbatch with
 this global budget. It must divide1024. Set the target to null to use legacy per-device sizing.
 This field defaults to null for existing experiments.
 
+The public `TrainPythia(PileDataset, Optimizer, Common)` owns the shared vocabulary50304,
+tokenizer, T2048, global batch1024,143000-step schedule, checkpoint/logging settings and
+training-health defaults. It disables periodic eval (`eval_interval=0`, user decision), with
+TensorBoard GCS file rotation every1000steps. `PythiaArchitecture` supplies the common
+model architecture. `Pythia2p8B` retains the dimensions, head-dependent rotary width20,
+size-dependent LR1.6e-4, tuned Splash tiles and the existing `checkpoint_keep_steps` declaration.
+
+AdamPax, betas, epsilon, WD, warmup and cosine floor are explicit in `TrainPythia` as requested;
+asynchronous checkpointing and shuffle settings are inherited. BF16, FP32 weights,
+gradient clipping1 and accumulation1 already have the desired base defaults. The complete
+Splash tile specification belongs to `Pythia2p8B`. T2048 stays explicit despite matching
+`PileDataset`: removing it would let the BAM XL ancestor's T4096 override it. The user's
+training-health flag is ON, internal NN health OFF; speed-only classes can override them.
+Retention2/keep0 override `Common`'s retention4/keep1000.
+
+The fixed-step retention implementation is ported from
+[mqy/refactor-bam checkpointing.py](https://github.com/hilbertmeng/maxtext/blob/mqy/refactor-bam/MaxText/checkpointing.py).
+`checkpoint_keep_steps` defaults to an empty list. With the Pythia list, steps3000,13000,...,143000
+are saved and permanently retained alongside the two most recent checkpoints. Orbax combines
+`LatestN`, `CustomSteps` and, when enabled, `EveryNSteps` using `AnyPreservationPolicy`;
+`save_on_steps` also saves milestones outside the ordinary checkpoint cadence. Empty/unset
+lists retain the previous rolling/periodic behavior. The CPU regression saves actual tiny
+checkpoints synchronously/asynchronously, restarts the manager, restores a milestone and
+verifies physical directory cleanup.
+
 ## BAM circuit and initialization
 
 `BamPythia2p8BSota` transfers the architecture of XL single-gate read.5 SOTA
@@ -46,7 +71,8 @@ no2.8B loss improvement has been measured.
 - Serial residual, GELU, affine LayerNorm. QKNorm enabled; no KV-shift.
 - Thirty-two layers:10 scanned three-layer blocks, then two explicit tail layers carrying
   both residual and M. Tail widths are11008 and11648; the final budget adjustment is128-aligned.
-- Generic and BAM-specific health statistics are OFF.
+- Generic training health follows `TrainPythia` (currently ON); internal NN and BAM-specific
+  health statistics are OFF. Timing classes override generic health to OFF.
 
 The configuration declares the scan schedule explicitly:
 
@@ -87,6 +113,7 @@ stays1e-4. The initial embedding write has no added input compensation factor.
 |---|---|---:|
 | Pythia2p8B |10240 every layer|2,775,208,960|
 | BamPythia2p8BSota |[11008,10112,11008]; tail widths11008/11648|2,775,039,456|
+| BamPythia2p8BSotaIndependentR768 |[11264,10496,11136]; tail widths11264/11136|2,774,915,808|
 
 There are22 non-write and10 write MLPs. The new circuit at the old MLP widths would have
 3,039,559,590 parameters, up264,349,952 from the old independent-R384, M80x40 circuit.
@@ -101,6 +128,22 @@ The non-MLP subtotal is1,013,661,280 and the MLP subtotal is1,761,378,176.
 Each extra GELU MLP channel costs2D+1=5121 parameters. Rounding the near-exact last width11681
 to11648 leaves169,504 parameters below MHA (-.00611%, -.0258643 W_Q with W_Q=2560^2).
 Full parameter trees are checked with `jax.eval_shape`; full weights are not allocated.
+
+### Independent R768 configuration
+
+`BamPythia2p8BSotaIndependentR768` inherits the shared-R1024 class, overriding all four
+ranks to768 (Q/K/VO reads, attention writing, independent MLP writing, and embedding writing)
+and setting `bam_share_read_attention_write_down=False`. Q/K/VO retain their internal shared
+read down. M80x64, serial GELU, QKNorm, single read.5 M-shift, initialization, scan schedule,
+batch and optimizer remain as in the parent. This is a configuration only; no RUN was launched.
+
+The non-MLP subtotal is975,519,328, saving38,141,952 versus the shared-R1024 parent.
+The MLP subtotal is1,799,396,480, up38,018,304. Each MLP write costs3,622,944 outside the MLP,
+equivalent to707.47 GELU channels. The two non-writing block slots use11264 and11136,
+with10496 in the writing slot; this balances their total budgets to within one128-channel
+increment and avoids an unusually narrow or wide final MLP. Tail30 uses11264 and tail31
+uses11136. Every width is128-aligned. The total is293,152 below MHA (-.01056%, -.0447314 W_Q)
+and123,648 below the shared-R1024 parent, the residual from integer-width rounding.
 
 ## Validation
 

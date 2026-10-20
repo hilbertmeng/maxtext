@@ -38,6 +38,28 @@ LocalCheckpointOptions = emergency_checkpoint_manager.LocalCheckpointOptions
 PersistentCheckpointOptions = emergency_checkpoint_manager.PersistentCheckpointOptions
 
 
+def _checkpoint_retention_options(config):
+  """Combine rolling/periodic retention with exact, permanent milestone steps."""
+  keep_period = config.keep_period if config.keep_period > 0 else None
+  keep_steps = getattr(config, "checkpoint_keep_steps", ())
+  if not keep_steps:
+    return {"max_to_keep": config.max_to_keep, "keep_period": keep_period}
+  if any(type(step) is not int or step < 0 for step in keep_steps):
+    raise ValueError("checkpoint_keep_steps must contain nonnegative integer steps")
+  from orbax.checkpoint._src.checkpoint_managers import preservation_policy
+
+  policies = [
+      preservation_policy.LatestN(config.max_to_keep),
+      preservation_policy.CustomSteps(keep_steps),
+  ]
+  if keep_period is not None:
+    policies.append(preservation_policy.EveryNSteps(keep_period))
+  return {
+      "save_on_steps": frozenset(keep_steps),
+      "preservation_policy": preservation_policy.AnyPreservationPolicy(policies),
+  }
+
+
 def create_orbax_checkpoint_manager(
     checkpoint_dir: str,
     enable_checkpointing: bool,
@@ -66,11 +88,6 @@ def create_orbax_checkpoint_manager(
   # we need to use ocdbt and zarr3 to control max file size in the checkpoint
   # omitting `iter` uses default handler for `iter`
   item_handlers = {"items": PyTreeCheckpointHandler(use_ocdbt=use_ocdbt, use_zarr3=use_zarr3)}
-  # Orbax treats ``keep_period`` as either a positive interval or ``None``.
-  # Some MaxText experiment configs use 0 to mean "do not permanently retain
-  # periodic checkpoints"; passing that value through raises when the first
-  # checkpoint is saved on newer Orbax releases.
-  keep_period = config.keep_period if config.keep_period > 0 else None
   mngr = CheckpointManager(
       p,
       item_names=item_names,
@@ -79,8 +96,7 @@ def create_orbax_checkpoint_manager(
           create=True,
           save_interval_steps=save_interval_steps,
           enable_async_checkpointing=use_async,
-          max_to_keep=config.max_to_keep, # lsp: max save checkpoint nums nearby
-          keep_period=keep_period, # lsp: step / keep_period would not be deleted
+          **_checkpoint_retention_options(config),
       ),
       logger=orbax_logger,
   )

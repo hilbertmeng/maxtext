@@ -15970,7 +15970,44 @@ class BamXLPropMShiftReadG050PostAttentionWriteMLPNormTruePile(
     compare_runs = ['BamXLPropSharedR400GeneralReadMShiftReadG050TruePile', 'Llama2XLPropTruePileMHA']
 
 
-class Pythia2p8B(PythiaArchitecture, Llama2Medium):
+class TrainPythia(PileDataset, Optimizer, Common):
+    """Size-independent Pythia data/training recipe with explicit optimizer settings."""
+    DATASET_VARIANT = 'legacy2048'
+    steps = 143000
+    learning_rate_schedule_steps = 143000
+    opt_type = 'adam_pax'
+    adam_b1 = .9
+    adam_b2 = .95
+    adam_eps = 1e-8
+    adam_weight_decay = .1
+    warmup_steps_fraction = .01
+    cosine_learning_rate_final_fraction = .1
+    vocab_size = 50304  # Released Pythia vocabulary; override PileDataset's padded50432.
+    max_target_length = 2048  # Explicit: otherwise historical BAM XL parents select4096.
+    max_prefill_predict_length = 2048
+    tokenizer_type = 'huggingface'
+    tokenizer_path = 'EleutherAI/pythia-2.8b'  # Shared Pythia tokenizer, sourced from this model repo.
+    pad_id = -1   # Token0 is Pythia EOS; it must remain a supervised target.
+    target_train_batch_size = 1024
+    per_device_batch_size = 1.0  # Resolved from global batch, topology and accumulation.
+    eval_per_device_batch_size = -1.0
+    checkpoint_period = 1000
+    max_to_keep = 2
+    keep_period = 0
+    force_final_checkpoint = True
+    checkpoint_keep_steps = list(range(3000, 143001, 10000))  # PaxML SAVE_ON_STEPS.
+    eval_interval = 0  # PaxML training defaults to eval_on_test=False.
+    eval_steps = 10
+    tensorboard_gcs_rotate_period = 1000
+    attention = 'flash'
+    query_chunk_size = 256
+    record_training_health_metrics = True
+    record_internal_nn_metrics = False
+    compare_runs = []
+    jax_cache_dir = ''
+
+
+class Pythia2p8B(TrainPythia, PythiaArchitecture, Llama2Medium):
     """Official Pythia-2.8B architecture/optimizer schedule; user-approved BF16 on TPU.
 
     Sources: EleutherAI/pythia models/2.8B/pythia-2.8b.yml and HF config.json.
@@ -15979,54 +16016,16 @@ class Pythia2p8B(PythiaArchitecture, Llama2Medium):
     No training RUN has been launched for this configuration.
     """
     model_name = 'Pythia2p8B'
-    DATASET_VARIANT = 'legacy2048'
     base_emb_dim = 2560
     base_num_decoder_layers = 32
     base_num_query_heads = 32
     base_num_kv_heads = 32
     head_dim = 80
     base_mlp_dim = 10240
-    vocab_size = 50304
-    max_target_length = 2048
-    max_prefill_predict_length = 2048
     pythia_rotary_dim = 20
-    pythia_parallel_residual = True
-    pythia_use_fusion = False
-    scan_layers = True  # Scan32 ordinary Pythia decoder layers.
-    scan_layers_unroll = 1
-    remat_policy = 'full'
-    tokenizer_type = 'huggingface'
-    tokenizer_path = 'EleutherAI/pythia-2.8b'
-    pad_id = -1  # Token0 is Pythia EOS; it must remain a supervised target.
-    dtype = 'bfloat16'
-    weight_dtype = 'float32'
-    target_train_batch_size = 1024
-    per_device_batch_size = 1.0  # Resolved from target_train_batch_size, topology and accumulation.
-    gradient_accumulation_steps = 1
-    eval_per_device_batch_size = -1.0
     learning_rate = 1.6e-4
-    steps = 143000
-    learning_rate_schedule_steps = 143000
-    warmup_steps_fraction = .01
-    cosine_learning_rate_final_fraction = .1
-    gradient_clipping_threshold = 1.0
-    adam_b1 = .9
-    adam_b2 = .95
-    adam_eps = 1e-8
-    adam_weight_decay = .1
-    wd_mults = Optimizer.wd_mults
-    eval_interval = 40000
-    eval_steps = 10
-    checkpoint_period = 1000
     checkpoint_keep_steps = list(range(3000, 143001, 10000))  # TODO
-    keep_period = 0
-    max_to_keep = 2  # TODO: remove?
-    force_final_checkpoint = True
-    tensorboard_gcs_rotate_period = 500  # TODO: enlarge
-    attention = 'flash'
-    query_chunk_size = 256
-    # Tuned Splash blocks (user decision 2026-10-19: formal Pythia-2.8B and BamPythia2p8BSota both use them).
-    # v5p-8 482bfed: MHA +6.7%, BAM v8t +6.5% step/s; forward and dk/dv bitwise, dq 8e-4 (pythia2p8b_pallas_timing.md).
+    # Splash tuning for this model; retain the full tile specification here.
     sa_block_q = 1024
     sa_block_kv = 1024
     sa_block_kv_compute = 512
@@ -16034,10 +16033,6 @@ class Pythia2p8B(PythiaArchitecture, Llama2Medium):
     sa_block_kv_dkv = 1024
     sa_block_kv_dkv_compute = 1024
     sa_use_fused_bwd_kernel = True
-    record_training_health_metrics = False
-    record_internal_nn_metrics = False
-    compare_runs = []
-    jax_cache_dir = ''
 
 
 class BamPythia2p8BSota(
@@ -16119,7 +16114,6 @@ class BamPythia2p8BSotaIndependentR768(BamPythia2p8BSota):
     mlp_dim_by_block = [11264, 10496, 11136]
     bam_final_local_mlp_dim = 11264
     bam_last_mlp_dim = 11136
-    compare_runs = ['Pythia2p8B', 'BamPythia2p8BSota']
 
 
 class BamPythia2p8BSotaIndependentR768Pallas(BamPythia2p8BSotaIndependentR768):
@@ -16136,7 +16130,7 @@ class BamPythia2p8BSotaIndependentR768Pallas(BamPythia2p8BSotaIndependentR768):
     remat_policy = 'minimal'
     record_training_health_metrics = True
     record_internal_nn_metrics = False  # global L2 norms of attn/MLP outputs; little value, baseline lacks them
-    compare_runs = ['Pythia2p8B', 'BamPythia2p8BSotaPallas']  # TODO
+    compare_runs = ['Pythia_2.8B_2022', 'Pythia_6.9B_2022_Decay', 'PileMUDDPythia3BPlusOcdbtv6e']
 
 
 class BamPallasPythiaSotaTinyXlaTest(BamPythia2p8BSota):

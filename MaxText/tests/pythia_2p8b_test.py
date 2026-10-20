@@ -52,7 +52,7 @@ class Pythia2p8BTest(unittest.TestCase):
     return pyconfig.HyperParameters(SimpleNamespace(keys=dict(c.get_keys(), **patch)))
 
   def test_official_recipe_and_device_independent_batch(self):
-    for arm in ('Pythia2p8B', 'BamPythia2p8BSota'):
+    for arm in ('Pythia2p8B', 'BamPythia2p8BSota', 'BamPythia2p8BSotaIndependentR768'):
       c = self.config(exp_class=arm)
       self.assertEqual((c.emb_dim, c.num_decoder_layers, c.num_query_heads, c.head_dim), (2560, 32, 32, 80))
       self.assertEqual((c.mlp_dim, c.vocab_size, c.max_target_length), (10240, 50304, 2048))
@@ -64,19 +64,27 @@ class Pythia2p8BTest(unittest.TestCase):
       self.assertEqual(c.global_batch_size_to_train_on, 1024)
       self.assertEqual((c.steps, c.learning_rate_schedule_steps), (143000, 143000))
       self.assertEqual(c.learning_rate, 1.6e-4)
+      self.assertEqual(c.opt_type, 'adam_pax')
+      self.assertEqual((c.adam_b1, c.adam_b2, c.adam_eps, c.adam_weight_decay), (.9, .95, 1e-8, .1))
+      self.assertEqual((c.warmup_steps_fraction, c.cosine_learning_rate_final_fraction), (.01, .1))
+      self.assertEqual(c.checkpoint_keep_steps, list(range(3000, 143001, 10000)))
+      self.assertEqual(c.eval_interval, 0)
+      self.assertEqual(c.tensorboard_gcs_rotate_period, 1000)
       self.assertEqual(c.pad_id, -1)
       self.assertEqual(c.qk_norm, arm.startswith('Bam'))
-      self.assertFalse(c.record_training_health_metrics)
+      self.assertTrue(c.record_training_health_metrics)
       if arm.startswith('Bam'):
         self.assertFalse(c.pythia_parallel_residual)
         self.assertEqual((c.bam_k, c.bam_v), (80, 64))
         self.assertEqual((c.bam_partial_rope_nope_dim, c.bam_standard_qk_dim), (60, 20))
         self.assertTrue(c.bam_local_full_m_read_share_down)
+        rank = 768 if arm.endswith('IndependentR768') else 1024
         self.assertEqual((c.bam_local_full_m_read_bottleneck_dim, c.bam_write_v_bottleneck_dim,
-                          c.emb_bam_v_bottleneck_dim, c.bam_mlp_write_address_rank), (1024, 1024, 1024, 1024))
+                          c.emb_bam_v_bottleneck_dim, c.bam_mlp_write_address_rank), (rank,) * 4)
         self.assertTrue(all(width % 128 == 0 for width in c.mlp_dim_by_block))
         self.assertEqual(c.bam_final_local_mlp_dim % 128, 0)
-        self.assertTrue(c.bam_share_read_attention_write_down)
+        self.assertEqual(c.bam_last_mlp_dim % 128, 0)
+        self.assertEqual(c.bam_share_read_attention_write_down, rank == 1024)
         self.assertFalse(c.bam_share_mlp_write_down)
         self.assertEqual(c.bam_m_shift_init, .5)
         self.assertEqual(c.bam_m_shift_mode, 'read')
@@ -110,7 +118,7 @@ class Pythia2p8BTest(unittest.TestCase):
 
   def test_full_parameter_budget(self):
     counts = {}
-    for arm in ('Pythia2p8B', 'BamPythia2p8BSota'):
+    for arm in ('Pythia2p8B', 'BamPythia2p8BSota', 'BamPythia2p8BSotaIndependentR768'):
       c = self.config(exp_class=arm, max_target_length=8, max_prefill_predict_length=4,
                       attention='dot_product', loss_chunk_size=4, bam_splash_attention=False)
       m, mesh = self.model(c)
@@ -120,18 +128,25 @@ class Pythia2p8BTest(unittest.TestCase):
       flat = flatten_dict(p)
       counts[arm] = sum(math.prod(a.shape) for a in flat.values())
       if c.bam_enabled:
-        self.assertEqual(p['decoder']['layers']['local_0']['block']['mlp']['wi']['kernel'].shape, (2560, 10, 11008))
-        self.assertEqual(p['decoder']['layers']['local_1']['block']['mlp']['wi']['kernel'].shape, (2560, 10, 10112))
-        self.assertEqual(p['decoder']['final_local_layer_0']['block']['mlp']['wi']['kernel'].shape, (2560, 11008))
-        self.assertEqual(p['decoder']['final_local_layer_1']['block']['mlp']['wi']['kernel'].shape, (2560, 11648))
+        widths = (11264, 10496, 11136, 11264, 11136) if arm.endswith('IndependentR768') else (11008, 10112, 11008, 11008, 11648)
+        for slot, width in zip(('local_0', 'local_1', 'fetch_2'), widths[:3]):
+          self.assertEqual(p['decoder']['layers'][slot]['block']['mlp']['wi']['kernel'].shape, (2560, 10, width))
+        self.assertEqual(p['decoder']['final_local_layer_0']['block']['mlp']['wi']['kernel'].shape, (2560, widths[3]))
+        self.assertEqual(p['decoder']['final_local_layer_1']['block']['mlp']['wi']['kernel'].shape, (2560, widths[4]))
         self.assertNotIn('mlp_address_down', p['decoder']['final_local_layer_1']['block'])
         attn = p['decoder']['layers']['local_0']['block']['self_attention']
         self.assertIn('full_m_read_down', attn)
-        self.assertNotIn('P_loc_down', attn)
-        self.assertEqual(attn['full_m_read_down']['kernel'].shape, (2560, 10, 1024))
+        rank = c.bam_local_full_m_read_bottleneck_dim
+        if c.bam_share_read_attention_write_down:
+          self.assertNotIn('P_loc_down', attn)
+        else:
+          self.assertEqual(attn['P_loc_down']['kernel'].shape, (2560, 10, rank))
+        self.assertEqual(attn['full_m_read_down']['kernel'].shape, (2560, 10, rank))
         write = p['decoder']['layers']['local_1']['block']
-        self.assertEqual(write['mlp_address_down']['kernel'].shape, (2560, 10, 1024))
-    self.assertEqual(counts, {'Pythia2p8B': 2775208960, 'BamPythia2p8BSota': 2775039456})
+        self.assertEqual(write['mlp_address_down']['kernel'].shape, (2560, 10, rank))
+        self.assertEqual(p['decoder']['embedding_bam_write']['W_emb_v_down']['kernel'].shape, (2560, rank))
+    self.assertEqual(counts, {'Pythia2p8B': 2775208960, 'BamPythia2p8BSota': 2775039456,
+                            'BamPythia2p8BSotaIndependentR768': 2774915808})
 
   def test_shared_read_write_matches_tied_independent_projections(self):
     c = self.small_config()

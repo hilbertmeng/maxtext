@@ -13252,3 +13252,64 @@ class BamPythia2p8BSotaPallas(BamPythia2p8BSota):
     bam_pallas_vmem_mib = 48
     bam_pallas_fused_inputs = True
     compare_runs = ['Pythia2p8B', 'BamPythia2p8BSota']
+
+
+class BamPythia2p8BSotaAlignXla(BamPythia2p8BSota):
+    """Numerical alignment reference: BamPythia2p8BSota, pure JAX, formal tuned Splash, 16 x T2048 per device.
+
+    The fused-core arms below train from the same initialization and data order; their loss gap at
+    common steps measures the v8t core's numerical drift against this pure-JAX path. The formal LR
+    schedule (warmup 1430 of 143000) is kept; global batch is 64 instead of 1024 (16/device on v5p-8)."""
+    # 结论：v8t 与纯 JAX 数值对齐。同检查点两路径 eval loss 差 ≤3e-5；4000 步轨迹差在只换 Splash 的误差底线内。
+    # UC1a v5p-8 .278step/s，完成4000，0抢占；健康全OFF；ledger only：claude/pythia2p8b-align；code_commit: 8672d94。
+    model_name = 'BamPythia2p8BSotaAlignXla'
+    target_train_batch_size = None
+    per_device_batch_size = 16.0
+    steps = 4000
+    checkpoint_period = 500
+    max_to_keep = 2
+    compare_runs = []
+
+
+class BamPythia2p8BSotaAlignPallas(BamPythia2p8BSotaAlignXla):
+    """The same run on the fused v8t core (in-kernel M shift, fused input projections, 48 MiB VMEM)."""
+    # 对纯JAX：200–399步因陡降段发生时机晚约5步+.032（换Splash后反号，属扰动敏感非系统偏差），之后转负。
+    # 1000步窗口 −.0034/−.0050/−.0044（3000–3999）；held-out eval@4000 −.0033（2.79740 vs 2.80068）。
+    # 同检查点 v8t路径−纯JAX路径 −1e-5（@3500 −2e-5）。UC1a v5p-8 .347step/s，完成4000，0抢占；code_commit: 8672d94。
+    model_name = 'BamPythia2p8BSotaAlignPallas'
+    bam_pallas_core = True
+    bam_pallas_body = 'v8t'
+    bam_pallas_vmem_mib = 48
+    bam_pallas_fused_inputs = True
+    compare_runs = ['BamPythia2p8BSotaAlignXla']
+
+
+class BamPythia2p8BSotaAlignPallasDefaultSplash(BamPythia2p8BSotaAlignPallas):
+    """Noise floor: the v8t run with the base.yml Splash blocks (forward and dk/dv bitwise, dq 8e-4)."""
+    # 对 v8t 调好Splash（同路径只换Splash）：3000–3999 +.0035、eval@4000 +.0054——误差底线约 ±.003–.005。
+    # 对纯JAX默认Splash：3000–3999 +.0011。UC1a v5p-8 .322step/s，完成4000，0抢占；code_commit: 8672d94。
+    model_name = 'BamPythia2p8BSotaAlignPallasDefaultSplash'
+    sa_block_q = 512
+    sa_block_kv = 512
+    sa_block_kv_compute = 512
+    sa_block_q_dkv = 512
+    sa_block_kv_dkv = 512
+    sa_block_kv_dkv_compute = 512
+    sa_use_fused_bwd_kernel = False
+    compare_runs = ['BamPythia2p8BSotaAlignPallas', 'BamPythia2p8BSotaAlignXla']
+
+
+class BamPythia2p8BSotaAlignXlaDefaultSplash(BamPythia2p8BSotaAlignXla):
+    """Pure-JAX noise floor: the reference run with the base.yml Splash blocks."""
+    # 对纯JAX调好Splash：200–399 +.022（陡降段时机同样敏感），3000–3999 −.0018，eval@4000 −.0004。
+    # UC1a v5p-8 .262step/s，完成4000；3次抢占（租期3h27m/6m/43m/24m），同区恢复，3500检查点被保留策略清掉。
+    # code_commit: 83d4734。
+    model_name = 'BamPythia2p8BSotaAlignXlaDefaultSplash'
+    sa_block_q = 512
+    sa_block_kv = 512
+    sa_block_kv_compute = 512
+    sa_block_q_dkv = 512
+    sa_block_kv_dkv = 512
+    sa_block_kv_dkv_compute = 512
+    sa_use_fused_bwd_kernel = False
+    compare_runs = ['BamPythia2p8BSotaAlignXla', 'BamPythia2p8BSotaAlignPallasDefaultSplash']

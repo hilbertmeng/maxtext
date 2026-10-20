@@ -37,3 +37,41 @@ Findings:
 - **Splash.** The same blocks as XL S* win at T2048/N32/D80: forward 4.66 → 3.66 ms, forward+backward 15.4 → ~10.4 ms per device call, and step speed +6.5% to +6.7% on both sides. Adopting them for formal runs is the user's decision; both BAM and its MHA baseline would need them.
 
 Microbenchmark: `MaxText/tests/splash_block_benchmark.py` with `SPLASH_SHAPE=16,32,2048,80`. Forward and dk/dv are bitwise equal to the default blocks, dq relative 8e-4. Every 2048-size block exhausted VMEM.
+
+## Numerical alignment: v8t vs pure JAX (2026-10-19/20)
+
+Four `BamPythia2p8BSotaAlign*` runs (ledger in `exp.py`; branch `claude/pythia2p8b-align`, runtime 8672d94 / 83d4734). All share the formal BamPythia2p8BSota config, the same initialization and Pile data order, and 16 x T2048/device (global 64) on spot v5p-8 in UC1a, for 4000 steps. Arms: pure JAX and v8t, each with tuned and with default Splash blocks. The Splash-only pairs are the noise floor: a numerically benign perturbation on the same path.
+
+Training loss, mean difference per 1000-step window:
+
+| Pair | 0–999 | 1000–1999 | 2000–2999 | 3000–3999 |
+|---|---|---|---|---|
+| v8t − pure JAX (tuned Splash) | +.0051 | −.0034 | −.0050 | −.0044 |
+| v8t − pure JAX (default Splash) | −.0025 | +.0004 | +.0003 | +.0011 |
+| noise floor v8t (default − tuned) | +.0001 | +.0022 | +.0037 | +.0035 |
+| noise floor pure JAX (default − tuned) | +.0077 | −.0016 | −.0016 | −.0018 |
+
+Held-out eval: 40 batches x 64 x 2048 tokens, the same batches for every cell. Each checkpoint is evaluated through both paths (`/data0/xd/bam_diagnostics/pythia2p8b_pallas/xeval.sh`):
+
+| Checkpoint @4000 | pure-JAX path | v8t path | path difference |
+|---|---|---|---|
+| pure JAX, tuned Splash | 2.800682 | 2.800679 | −3e-6 |
+| pure JAX, default Splash | 2.800242 | 2.800240 | −2e-6 |
+| v8t, tuned Splash | 2.797401 | 2.797390 | −1.1e-5 |
+| v8t, default Splash | 2.802831 | 2.802802 | −2.9e-5 |
+
+At step 3500 the path differences are −1.2e-5 to −2.3e-5.
+
+Conclusions:
+- **Implementation: aligned.** At identical parameters the two paths agree to ≤3e-5 in loss, about 100x below the ±.003 bar. That excludes leakage and systematic kernel bias.
+- **Trajectory: within the noise floor.** Benign Splash-only changes move a 4000-step run by ±.002–.005 in training and eval loss. The two v8t checkpoints sit on both sides of pure JAX (eval −.0033 / +.0021). Family means differ by −.0003 (v8t lower).
+- **The ±.001 single-pair criterion cannot be resolved at this batch size.** Any perturbation exceeds it.
+- **Early-phase "lag" is timing sensitivity.** v8t − pure JAX reached +.04 at steps 200–399 with tuned Splash, during the steep loss drop. The sign flips with default Splash, and pure JAX lags itself by +.022 under a Splash-only change.
+
+Leases (UC1a, `run_registry.py lease-report`; also to be entered in `tpu_region_preemption_history.md`):
+- AlignXla 15:45:14–19:53:09 (4h07m55s, run_stop).
+- AlignPallas 15:44:54–19:06:17 (3h21m23s).
+- AlignPallasDefaultSplash 15:44:47–19:19:43 (3h34m56s).
+- AlignXlaDefaultSplash 16:33:30–20:00:49 (3h27m19s, preempted), 20:06:31–20:12:52 (6m21s, preempted), 20:18:34–21:01:23 (42m49s, preempted), 21:07:20–21:31:15 (23m55s, run_stop).
+
+The cross-eval TPU `xd-v5p-8-alignxeval-1020a-uc1a` was also preempted; its replacement `-1020b` finished the last two evals. All resources are deleted.

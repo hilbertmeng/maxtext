@@ -16102,6 +16102,41 @@ class BamPythia2p8BSota(
     compare_runs = ['Pythia2p8B']
 
 
+class BamPythia2p8BSotaIndependentR768(BamPythia2p8BSota):
+    """M80x64 single-read .5 BAM with independent R768 read/attention-write downs.
+
+    Read, attention-write, MLP-write and embedding-write ranks are all768.
+    Retains Q/K/VO read-down sharing, serial GELU, QKNorm and the parent's initialization.
+    Every MLP width is128-aligned; total2,774,915,808, -293,152 vs Pythia2p8B.
+    """
+    model_name = 'BamPythia2p8BSotaIndependentR768'
+    bam_local_full_m_read_bottleneck_dim = 768
+    bam_write_v_bottleneck_dim = 768
+    emb_bam_v_bottleneck_dim = 768
+    bam_mlp_write_address_rank = 768
+    bam_share_read_attention_write_down = False
+    bam_share_mlp_write_down = False
+    mlp_dim_by_block = [11264, 10496, 11136]
+    bam_final_local_mlp_dim = 11264
+    bam_last_mlp_dim = 11136
+    compare_runs = ['Pythia2p8B', 'BamPythia2p8BSota']
+
+
+class BamPythia2p8BSotaIndependentR768Pallas(BamPythia2p8BSotaIndependentR768):
+    """BamPythia2p8BSotaIndependentR768 on the fused v8t core, remat minimal; same settings as BamPythia2p8BSotaPallas.
+
+    Kernel shapes (V64, K80, N32, T2048) are those of the v64 SOTA, so its 56 MiB scoped VMEM applies."""
+    model_name = 'BamPythia2p8BSotaIndependentR768Pallas'
+    bam_pallas_core = True
+    bam_pallas_body = 'v8t'
+    bam_pallas_vmem_mib = 56
+    bam_pallas_fused_inputs = True
+    remat_policy = 'minimal'
+    record_training_health_metrics = True
+    record_internal_nn_metrics = True
+    compare_runs = ['Pythia2p8B', 'BamPythia2p8BSotaPallas']
+
+
 class BamPallasPythiaSotaTinyXlaTest(BamPythia2p8BSota):
     """CPU fixture: BamPythia2p8BSota at tiny width (serial LayerNorm/bias/GELU, partial RoPE, k = head_dim,
     single-gate read M shift .5, one scanned 3-layer block + 2 carried-M tails), FP32, pure JAX."""
@@ -16141,6 +16176,21 @@ class BamPallasPythiaSotaTinyXlaTest(BamPythia2p8BSota):
 class BamPallasPythiaSotaTinyPallasV8TTest(BamPallasPythiaSotaTinyXlaTest):
     """CPU fixture: the same model through the interpreted v8t core with fused input projections."""
     model_name = 'BamPallasPythiaSotaTinyPallasV8TTest'
+    bam_pallas_core = True
+    bam_pallas_interpret = True
+    bam_pallas_body = 'v8t'
+    bam_pallas_fused_inputs = True
+
+
+class BamPallasPythiaR768TinyXlaTest(BamPallasPythiaSotaTinyXlaTest):
+    """CPU fixture: the tiny Pythia SOTA with independent read/attention-write downs (IndependentR768 topology)."""
+    model_name = 'BamPallasPythiaR768TinyXlaTest'
+    bam_share_read_attention_write_down = False
+
+
+class BamPallasPythiaR768TinyPallasV8TTest(BamPallasPythiaR768TinyXlaTest):
+    """CPU fixture: the same through the interpreted v8t core with fused input projections."""
+    model_name = 'BamPallasPythiaR768TinyPallasV8TTest'
     bam_pallas_core = True
     bam_pallas_interpret = True
     bam_pallas_body = 'v8t'
@@ -16366,3 +16416,25 @@ class BamPythia2p8BSotaPallasV64Vmem63Profile(BamPythia2p8BSotaPallasV64Profile)
     # 0335888: 0.6402, same as 56 MiB: extra scoped VMEM buys nothing.
     model_name = 'BamPythia2p8BSotaPallasV64Vmem63Profile'
     bam_pallas_vmem_mib = 63
+
+
+class BamPythia2p8BSotaIndependentR768PallasProfile(TrainStepProfile, BamPythia2p8BSotaIndependentR768Pallas):
+    """Timing arm: formal R768 Pallas (remat minimal) at 8 x T2048 per device, health OFF for timing."""
+    model_name = 'BamPythia2p8BSotaIndependentR768PallasProfile'
+    target_train_batch_size = None
+    per_device_batch_size = 8.0
+    steps = 100
+    record_training_health_metrics = False
+    record_internal_nn_metrics = False
+
+
+class BamPythia2p8BSotaIndependentR768PallasSaveReadProfile(BamPythia2p8BSotaIndependentR768PallasProfile):
+    """remat minimal plus the saved fused read outputs (no forward read-kernel recompute)."""
+    model_name = 'BamPythia2p8BSotaIndependentR768PallasSaveReadProfile'
+    remat_policy = 'minimal_save_bam_read'
+
+
+class BamPythia2p8BSotaIndependentR768PallasNoRematProfile(BamPythia2p8BSotaIndependentR768PallasProfile):
+    """No rematerialization at all (fastest if it fits in HBM)."""
+    model_name = 'BamPythia2p8BSotaIndependentR768PallasNoRematProfile'
+    remat_policy = 'none'

@@ -146,6 +146,10 @@ def get_remat_policy(cfg):
       )
     elif cfg.remat_policy == "full_save_bam_read":   # full remat except the fused BAM read kernel's results
       policy = jax.checkpoint_policies.save_only_these_names("bam_read_out", "bam_read_y")
+    elif cfg.remat_policy == "minimal_save_bam_read":   # minimal plus the fused BAM read kernel's results
+      policy = jax.checkpoint_policies.save_from_both_policies(
+          jax.checkpoint_policies.checkpoint_dots_with_no_batch_dims,
+          jax.checkpoint_policies.save_only_these_names("bam_read_out", "bam_read_y"))
     elif cfg.remat_policy == "save_qkv_proj":
       policy = jax.checkpoint_policies.save_only_these_names(
           "query_proj",

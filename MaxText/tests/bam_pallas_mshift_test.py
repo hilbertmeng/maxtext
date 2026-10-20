@@ -94,6 +94,13 @@ class ShiftedModelTest(unittest.TestCase):
     model_test.ModelEquivalenceTest('_run')._run(
         'BamPallasPythiaSotaTinyXlaTest', ('BamPallasPythiaSotaTinyPallasV8TTest',))
 
+  def test_v8t_pythia_independent_downs(self):
+    """IndependentR768 topology: read and attention-write downs separate (P_loc_down in the fused dot)."""
+    sys.path.insert(0, 'MaxText/tests')
+    import bam_pallas_model_test as model_test  # pylint: disable=import-outside-toplevel
+    model_test.ModelEquivalenceTest('_run')._run(
+        'BamPallasPythiaR768TinyXlaTest', ('BamPallasPythiaR768TinyPallasV8TTest',))
+
   def test_v8t_compact_health_matches_xla(self):
     sys.path.insert(0, 'MaxText/tests')
     import bam_pallas_model_test as model_test  # pylint: disable=import-outside-toplevel

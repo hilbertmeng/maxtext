@@ -16135,8 +16135,8 @@ class BamPythia2p8BSotaIndependentR768Pallas(BamPythia2p8BSotaIndependentR768):
     bam_pallas_fused_inputs = True
     remat_policy = 'minimal'
     record_training_health_metrics = True
-    record_internal_nn_metrics = True
-    compare_runs = ['Pythia2p8B', 'BamPythia2p8BSotaPallas']
+    record_internal_nn_metrics = False  # global L2 norms of attn/MLP outputs; little value, baseline lacks them
+    compare_runs = ['Pythia2p8B', 'BamPythia2p8BSotaPallas']  # TODO
 
 
 class BamPallasPythiaSotaTinyXlaTest(BamPythia2p8BSota):

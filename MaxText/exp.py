@@ -16244,7 +16244,7 @@ class BamPythia2p8BSotaPallas(BamPythia2p8BSota):
     model_name = 'BamPythia2p8BSotaPallas'
     bam_pallas_core = True
     bam_pallas_body = 'v8t'
-    bam_pallas_vmem_mib = 48
+    bam_pallas_vmem_mib = 56  # v64: read backward needs >52 MiB scoped VMEM at tile 128; 56/60/63 equally fast
     bam_pallas_fused_inputs = True
     remate_policy = 'minimal'  # TODO: test speed
     record_training_health_metrics = True
@@ -16354,3 +16354,9 @@ class BamPythia2p8BSotaPallasV64MinimalProfile(BamPythia2p8BSotaPallasV64Profile
     """The same with remat_policy='minimal' (the formal class's 'remate_policy' line is a misspelled no-op)."""
     model_name = 'BamPythia2p8BSotaPallasV64MinimalProfile'
     remat_policy = 'minimal'
+
+
+class BamPythia2p8BSotaPallasV64Vmem63Profile(BamPythia2p8BSotaPallasV64Profile):
+    """The v8t arm with a 63 MiB scoped VMEM limit (physical ~64 MiB) instead of 56."""
+    model_name = 'BamPythia2p8BSotaPallasV64Vmem63Profile'
+    bam_pallas_vmem_mib = 63

@@ -14,7 +14,7 @@ project `newproject-1-451205`; TPU `v5p-16`. Before each formal launch, choose
 `PRIMARY_ZONE` from the user's current direction and the latest comparable leases in
 `experiments/tpu_region_preemption_history.md`; record the chosen zone in the RUN. `run_exp_xd.sh`
 selects its zone-local output and Pile-data buckets. For repaired TruePile records, set
-`DATASET_VARIANT = 'truepile4096'` (4097 tokens) or 'truepile8192' (8193 tokens) directly
+`DATASET_VARIANT = 'truepile4096'` (4097 tokens) or `'truepile8192'` (8193 tokens) directly
 or through inheritance on the `exp.py` class in the sealed runtime commit.
 `run_exp_xd.sh` reads that declaration, then selects the zone-local `_4096` or `_8192`
 replica in UC1a, UE5a, or EW4b. T8192 dataset generation and coverage are documented in
@@ -23,6 +23,10 @@ replica in UC1a, UE5a, or EW4b. T8192 dataset generation and coverage are docume
 data. `dataset_paths.py` is the routing authority; do not hardcode a region in a new `exp.py`
 class. `migrate_zone.py` re-resolves the registered dataset path and checks the target replica
 **before** stopping the source run. Check the registered path after launch.
+When extending TruePile, replicate the actual new shards to UC1a, UE5a, and EW4b.
+Verify each region's old prefix and every new shard by size/CRC, then publish that
+region's extended manifest last; a present dataset path alone does not prove its
+materialized length covers a resumed or migrated RUN.
 For an in-flight data-replica switch, collect the old worker's loss before its log is replaced;
 stop at a committed checkpoint, then verify the new worker's path, resumed step, adjacent loss
 windows, and the path written in the next checkpoint's `cur_files`.
@@ -43,6 +47,21 @@ worktree; keep an inheritance-related experiment family in the same branch/workt
 `exp.py` remains the shared ledger. Before deriving a RUN, verify its parent's implementation
 and runtime commit in that location as well as its configuration class.
 
+Before sealing a new RUN in an existing/historical worktree, audit training infrastructure
+against the current main worktree, not only the historical model parent. Inspect main-only
+changes since the branch point in `train.py`, `max_utils.py`, summary writers, checkpointing,
+`train_compile.py`, optimizers and runtime defaults; inspect any helpers introduced by those
+changes. Record the reviewed main commit and the disposition of relevant fixes in the experiment
+note. Preserve intended model/numerical lineage; cherry-pick compatible operational fixes rather
+than merging main wholesale. A clean worktree and `SEALED_CONFIG_OK` prove source consistency,
+not that current operational fixes are present.
+For new GCS-logging runs, verify the complete TensorBoard rotation path: positive resolved
+`tensorboard_gcs_rotate_period` (normally500), rotating writer construction, and `begin_step`
+before scalars. Include the runtime's summary-writer regression tests in the CPU launch gate.
+Only an explicitly requested historical infrastructure reproduction should omit this fix; record
+that exception. If this audit changes the sealed commit, repeat its config/CPU/AOT gates before
+training; preserve already-owned prequeues and borrowed compilers during the handoff.
+
 Choose CPU checks from the code change and its dependencies. For a local experimental
 change on a verified parent, use focused parameter/initialization, forward/gradient and
 affected-path regression checks in the pinned CPU environment; do not repeat unrelated
@@ -52,7 +71,10 @@ merging such changes. The full runner uses four processes with eight disjoint ph
 cores each; `MAXTEXT_CPU_TEST_JOBS=1` restores serial execution. Keep the sealed runtime
 config check and actual `FIRST_STEP` for either scope. Add a standalone v6e check only
 for TPU-specific uncertainty those gates do not cover.
-For a new formal v5p-16 RUN with a verified idle user-owned non-preemptible/FLEX_START compiler,
+The pinned CPU environment is not guaranteed to match every worker package version.
+For new host-side library APIs (for example checkpoint retention), check the installed
+worker API before relying on a local-only test; an AOT success does not test checkpoint-manager setup.
+For a new formal v5p-16 or v5p-32 RUN with a verified idle user-owned non-preemptible/FLEX_START compiler,
 prefer the local `/home/xd/projects/xd_tpu_scripts/launch_train_parallel.py`: it runs the pinned
 CPU checks locally, AOT on the retained compiler, and a **training-only** TPU prequeue on tpu-ag
 concurrently. All three must succeed before it calls `run_exp_xd.sh`; it then waits for
@@ -77,9 +99,15 @@ tests. The local `run_cpu_tests_parallel.py` can run named checks in pinned, bou
 groups; group failure fails the whole CPU gate and terminates unfinished groups.
 The launcher records scope and commands in `preparation.json` and `cpu.log`; preparation
 failures retain the same no-training/owned-training-TPU cleanup behavior in both modes.
+A prequeue SSH exit255 is a transport failure, not a TPU failure: reconnect to the same
+queue/resource and retain submission ownership. CPU/AOT failures still block training and
+release an owned prequeue; never delete a provisioning TPU solely because its SSH waiter disconnected.
 
 `--loss-interval` is the gap-window stride, not the agent's wake/report cadence.
-Keep it at 200 even when the agent reports about every 1000 or 2000 steps.
+Keep it at 200 for Medium, or the user-directed XL window stride (normally500),
+even when the agent reports about every1000 or2000 steps. For XL, pass
+`--topology v5p-32 --steps 50000 --loss-interval 500`; the launcher propagates
+the same topology to AOT, prequeue and `run_exp_xd.sh`'s `TPU_TYPE`.
 
 Keep the sequential path below for a running-TPU hot switch, no retained compiler, or an
 unsupported topology. The parallel launcher owns only preparation and first-step gating;
@@ -280,9 +308,26 @@ print one cumulative horizontal table with only `step`, `gap`, and `r200`; omit 
 and split after about 20 steps into another horizontal block. Label each RUN−BASE title with its
 verified steady-throughput change (`RUN steps/s / BASE steps/s - 1`); identify any matched timing
 control used instead of the loss BASE, or mark timing unavailable when conditions are incomparable.
-Report every direct `compare_runs`
-entry, including completed BASEs with no new common steps; omit one only after the user explicitly
-removes it or the registry is updated. Here
+Report direct `compare_runs` entries when they have new common windows. Do not repeat
+unchanged comparisons against stopped/completed/paused BASEs on every report; retain their
+registration and history. `report-all` and `pending-report` filter already-reported pair horizons
+by default; `--include-unchanged` or manual `loss-report` retrieves the full history when requested.
+Also report gain multipliers for architecture comparisons. Unless the user specifies otherwise,
+use the matched MHA as the common reference, never silently substitute Mudd.
+`R = (L_REFERENCE - L_EXPERIMENT) / (L_REFERENCE - L_COMPARATOR)`; for an experiment versus
+the direction SOTA, COMPARATOR is that SOTA. Use the shared registry implementation, not a
+fresh per-report script. Both `loss-report` and `report-all` accept repeatable
+`--gain-ratio EXPERIMENT COMPARATOR REFERENCE` triples. Persist them once with
+`update-monitoring RUN --gain-ratio RUN SOTA MHA` so `emit-report`, `pending-report`,
+`report-all`, and `mark-reported` carry the ratios automatically without changing direct
+`compare_runs`. Keep the actual full configuration names in these commands; `SOTA` and `MHA`
+here are placeholders. Adding ratio monitoring preserves delivered loss cursors.
+The script uses complete three-way common windows, divides the window-mean gains, and then
+summarizes the latest window ratios with a mean/range. Missing reference data does not block
+available loss reports. Near-zero/nonpositive denominators are explicitly undefined; do not
+interpret them as gain multipliers. JSON `loss-report` retains its historical list format when
+no ratios are configured; with ratios it returns `reports` and `gain_ratios` fields.
+For a comparison with new points, retain its cumulative series. Here
 `r200 = (abs(gap[s]) - abs(gap[s-200])) / abs(gap[s-200])`: negative means the gap
 magnitude shrank from the preceding window, positive means it grew. Summarize the current gap
 level with the mean and range of the latest 5–8 reported points, but judge stability from the full
@@ -310,6 +355,10 @@ At every due milestone:
    records and scans each RUN/BASE once. Select health metrics with explanatory value or meaningful
    changes/anomalies; omit the health section when there is nothing worth reporting. For selected
    metrics, show compact multi-point RUN/BASE sequences at matching steps and layer bands.
+   For temporal M/KV-shift gates, use `scripts/report_bam_shift_health.py RUN... --steps 0 1000 2000
+   --output FILE.json` after sync. It reuses the same incremental scalar cache, reports actual tag
+   counts and aggregate layer statistics for all shift variants, skips column tables, and fails on
+   nonfinite selected metrics. Do not create another per-variant TB scanner.
 3. Mark the cursor:
 
 ```bash
@@ -370,6 +419,12 @@ ssh -S /tmp/ssh-tpu-ag-xd.sock tpu-ag \
 Use `--dry-run` to inspect resolved TPU/zone/checkpoint targets. On failure, read `failures` and
 the per-RUN phase outputs in the summary; retry only failed RUNs. The operation is idempotent, but
 do not use it for two registries sharing one READY TPU—the hot-switch workflow owns that case.
+The script rejects controller/worker/resource operations when another live RUN owns the same
+project/zone/TPU. After verified hot-switch `FIRST_STEP`, finalize the old RUN with
+`run_registry.py stop --status stopped --step COMMITTED_OLD_STEP --end-utc HANDOFF_BOUNDARY`,
+verify its stopped registry in a separate checked call, then use the local closeout wrapper
+for TB/bookkeeping; it must report `already_closed=true` and skip all resource operations.
+Do not continue into closeout when a preceding handoff check fails.
 `exp.py` conclusions and the regional history remain judgment-bearing Close Out work below.
 
 ## Close Out a Completed Run
@@ -455,9 +510,9 @@ Uses `auto_train_xd_maxtext.sh`, the RUN's registered commit, and `delete_tpu_xd
   accelerator-types list --zone=ZONE --filter=type=v6e-1`; treat quota and current capacity as
   separate conditions. Prefer proven zones `us-central1-a`, `europe-west4-a`, then `us-east5-a`.
 - Preserve WAITING_FOR_RESOURCES/PROVISIONING queues; deleting resets queue position.
-- If best-effort pods are repeatedly reclaimed before useful progress, first validate the exact
-  topology/zone with a passive FLEX_START queued-resource. After creation succeeds, freeze the RUN
-  and activate exactly one flex trainer with a duration longer than its ETA.
+- Do not request FLEX_START training TPUs or passive FLEX_START training-capacity probes without
+  the user's explicit approval. Repeated spot preemption does not authorize such requests.
+  Existing user-owned FLEX_START compilers may still be borrowed through the compiler workflow above.
 - For formal spot `v5p`, queue and recover in `PRIMARY_ZONE`; passive candidates come only from the
   user-directed `BACKUP_ZONES`, following the same 5-minute staged queue policy under Start Training.
   Revisit both from the shared region/preemption history.
@@ -500,6 +555,21 @@ provides fallback sync independently of Codex. The local closeout entrypoint sta
 sync; `python3 scripts/sync_completed_tensorboards.py RUN...` retries selected RUNs manually.
 TB storage is independent of checkpoint storage: the sync discovers existing event paths across
 registered and supported regional roots rather than assuming the training zone determines it.
+
+On 2026-09-27, 167 completed/stopped early runs (Medium loss before step 3,200;
+XL before step 11,000) and 13 speed-profile runs were moved, **not deleted**, from
+`/data0/xd/tensorboard_logs/` to
+`/data0/xd/tensorboard_archive/earlystop-20260927/RUN/`. The 180 exact run names,
+original/destination paths, available loss steps and sizes are in
+`/data0/xd/bam_diagnostics/tb_archive_manifest_20260927.json`; the per-directory
+move journal is `tb_archive_moves_20260927.jsonl` beside it. Search the manifest
+before concluding that a missing run has no local TB data. To restore one run to
+the live TensorBoard page, verify `ARCHIVE/RUN` exists and `LIVE/RUN` does not,
+then move that directory back on the same filesystem; the port-6007 service
+reloads it automatically. A direct `sync_completed_tensorboards.py RUN` may also
+recreate the live copy from GCS. Archiving reduces the web run list but does not
+free disk space.
+
 Use manual sync only to repair a reported failure:
 
 ```bash

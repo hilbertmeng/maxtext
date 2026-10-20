@@ -27,6 +27,34 @@ active leases are censored, and manual migration releases are not preemptions.
 
 | RUN | TPU | Zone | Start UTC | End UTC | End reason | Passive candidates |
 |---|---|---|---|---|---|---|
+| `MuddPythiaMediumPropT2048SerialMLPSmallEmbedding` | v5p-16 (`xd-v5p-16-310256-maxtext`) | `us-east5-a` | 2026-10-16 01:47:56 | 2026-10-16 08:23:42 | complete13500; P0; CP13500 committed, resources absent, TB SYNC_OK | none |
+| `PythiaMediumPropT2048SerialMLPSmallEmbedding` | v5p-16 (`xd-v5p-16-310255-maxtext`) | `us-east5-a` | 2026-10-16 01:47:24 | 2026-10-16 07:15:48 | complete13500; P1; CP13500 committed, resources absent, TB SYNC_OK | none |
+| `BamXLPropMShiftReadG050PostAttentionWriteMLPNormTruePile` | v5p-32 (`xd-v5p-32-310254-maxtext`) | `us-east5-a` | 2026-10-15 16:47:48 | 2026-10-16 03:43:03 | user stop15157; P0; CP15157 committed, resources absent, TB SYNC_OK | none |
+| `BamPythiaMediumPropT2048SerialMLPPythiaEmbeddingScaledWrite` | v5p-16 (`xd-v5p-16-310253-maxtext`) | `us-east5-a` | 2026-10-15 16:47:47 | 2026-10-16 00:35:27 | complete13500; P2; CP13500 committed, resources absent, TB SYNC_OK | none |
+| `BamMediumPropMShiftReadG050PostAttentionWriteMLPNormTruePile` | v5p-16 (`xd-v5p-16-310252-maxtext`) | `us-east5-a` | 2026-10-15 12:46:11 | 2026-10-15 20:50:40 | complete13500; P1; CP13500 committed, resources absent, TB SYNC_OK | none |
+| `BamMediumPropMShiftReadG050MLPReadAllLayersTruePile` | v5p-16 (`xd-v5p-16-310248-maxtext`) | `us-east5-a` | 2026-10-15 09:32:32 | 2026-10-15 11:21:54 | user2800reviewstop2909; P0; CPcommitted; resourcesabsent; TBSYNC_OK | none |
+| `BamMediumPropMShiftReadG050MLPReadNonWriteLayersTruePile` | v5p-16 (`xd-v5p-16-310247-maxtext`) | `us-east5-a` | 2026-10-15 09:32:54 | 2026-10-15 11:21:51 | user2800reviewstop2970; P0; CPcommitted; resourcesabsent; TBSYNC_OK | none |
+| `BamMediumPropMShiftReadG050MLPReadAllLayersNoReadGatesTruePile` | v5p-16 (`xd-v5p-16-310246-maxtext`) | `us-east5-a` | 2026-10-15 10:49:24 | 2026-10-15 10:59:16 | user static-init correction; CP228/TB SYNC_OK; P0; TPU retained/reassigned | none |
+| `BamMediumPropMShiftReadG050MLPReadWriteLayersTruePile` | v5p-16 (`xd-v5p-16-310246-maxtext`) | `us-east5-a` | 2026-10-15 09:35:05 | 2026-10-15 10:48:22 | user hot-replace2008; P0; CP committed; TB SYNC_OK; TPU retained/reassigned | none |
+| `BamMediumPropMShiftReadG050PostMLPWriteControlsTruePile` | v5p-16 (`xd-v5p-16-310245-maxtext`) | `us-east5-a` | 2026-10-15 08:32:26 | 2026-10-15 09:52:26 | user stop2231; P0; CP committed; node/queue absent; TB SYNC_OK | none |
+| `BamMediumPropMShiftReadG050PostResidualWriteControlsTruePile` | v5p-16 (`xd-v5p-16-310240-maxtext`) | `us-east5-a` | 2026-10-15 06:03:43 | 2026-10-15 09:52:23 | user stop6167; P1; CP committed; node/queue absent; TB SYNC_OK | none |
+| `BamXLPropMShiftReadG050FullQKNormTruePile` | v5p-32 (`xd-v5p-32-310230-maxtext`) | `us-east5-a` | 2026-10-15 01:58:01 | 2026-10-15 09:45:21 | user pause10272; P1; CP10272 committed; node/queue absent; TB SYNC_OK; resumable50000 | none |
+| `MuddPythiaMediumPropT2048SerialMLP` | v5p-16 (`xd-v5p-16-310229-maxtext`) | `us-east5-a` | 2026-10-15 01:49:05 | 2026-10-15 08:42:14 | complete13500; start=first verified READY; P1; CP13500 committed; node/queue absent; TB SYNC_OK | none |
+| `BamPythiaMediumPropT2048MShiftReadG050ReadAttentionSharedR256SerialMLP` | v5p-16 (`xd-v5p-16-310227-maxtext`) | `us-east5-a` | 2026-10-15 01:01:06 | 2026-10-15 08:40:46 | complete13500; P1; CP13500 committed; node/queue absent; TB SYNC_OK | none |
+| `PythiaMediumPropT2048SwiGLU` | v5p-16 (`xd-v5p-16-310241-maxtext`) | `us-east5-a` | 2026-10-15 06:25:04 | 2026-10-15 08:06:17 | user pause4527; CP committed; P0; TPU/queue absent | none |
+| `MuddPythiaMediumPropT2048SwiGLU` | v5p-16 (`xd-v5p-16-310242-maxtext`) | `us-east5-a` | 2026-10-15 06:21:47 | 2026-10-15 08:06:11 | user pause3603; CP committed; P0; READY TPU retained for hot switch | none |
+| `BamPythiaMediumPropT2048MShiftReadG050ReadAttentionSharedR256SwiGLU` | v5p-16 (`xd-v5p-16-310243-maxtext`) | `us-east5-a` | 2026-10-15 06:23:48 | 2026-10-15 08:06:10 | user pause3174; CP committed; P0; READY TPU retained for hot switch | none |
+| `PythiaMediumPropT2048SerialMLP` | v5p-16 (`xd-v5p-16-310226-maxtext`) | `us-east5-a` | 2026-10-15 01:00:47 | 2026-10-15 06:32:41 | complete13500; P0; CP13500; node/queue absent; TB SYNC_OK; one checkpoint crash recovered | none |
+| `BamXLPropMShiftReadG050ReadAttentionSharedR400TruePile` | v5p-32 (`xd-v5p-32-310228-maxtext`) | `us-east5-a` | 2026-10-15 01:30:45 | 2026-10-15 06:18:36 | user stop6407; P1; CP6407 committed; node/queue absent; TB SYNC_OK | none |
+| `BamMediumPropMShiftReadG050ReadAttentionSharedR256T2048` | v5p-16 (`xd-v5p-16-310231-maxtext`) | `us-east5-a` | 2026-10-15 03:48:38 | 2026-10-15 09:00:37 | user stop10160; P0; CP10160 committed; node/queue absent; TB SYNC_OK; runtime3b26679 | none |
+| `BamMediumPropMShiftReadG050ReadAttentionSharedR256TruePile` | v5p-16 (`xd-v5p-16-310190-maxtext`) | `us-east5-a` | 2026-10-13 17:03:13 | 2026-10-14 01:21:11 | complete13500; P0; CP13500; node/queue absent | none |
+| `BamMediumPropMShiftReadG050ReadAttentionMLPSharedR384TruePile` | v5p-16 (`xd-v5p-16-310189-maxtext`) | `us-east5-a` | 2026-10-13 17:00:49 | 2026-10-14 01:15:22 | complete13500; P0; CP13500; node/queue absent | none |
+| `BamMediumPropMShiftReadG050SharedR256R384ByWriteTruePile` | v5p-16 (`xd-v5p-16-310193-maxtext`) | `us-east5-a` | 2026-10-13 23:28:31 | 2026-10-14 01:15:49 | review stop2859; P0; CP2859; node/queue absent; TB synced | none |
+| `BamMediumPropMShiftReadG050ReadAttentionMLPSharedR256TruePile` | v5p-16 (`xd-v5p-16-310194-maxtext`) | `us-east5-a` | 2026-10-13 23:28:33 | 2026-10-14 01:15:10 | review stop2861; P0; CP2861; node/queue absent; TB synced | none |
+| `BamMediumPropSharedR256GeneralReadKVShiftG050TruePile` | v5p-16 (`xd-v5p-16-310184-maxtext`) | `us-east5-a` | 2026-10-13 12:22:25 | 2026-10-13 21:33:09 | complete13500; P0; final CP13500; node/queue absent | none |
+| `BamMediumPropSharedR256GeneralReadMShiftReadKVShiftG050TruePile` | v5p-16 (`xd-v5p-16-310185-maxtext`) | `us-east5-a` | 2026-10-13 12:29:15 | 2026-10-13 22:26:28 | complete13500; P1 same-zone recovery; final CP13500; node/queue absent | none |
+| `BamMediumPropMShiftReadG050ReadAttentionSharedR384TruePile` | v5p-16 (`xd-v5p-16-310191-maxtext`) | `us-east5-a` | 2026-10-13 17:03:32 | 2026-10-13 19:01:33 | review stop3140;0preemptions; CP3140committed, node/queue absent, TB synced | none |
+| `BamMediumPropSharedR256GeneralReadAddressSharedGatesTruePile` | v5p-16 (`xd-v5p-16-310186-maxtext`) | `us-east5-a` | 2026-10-13 14:56:01 | 2026-10-13 16:51:31 | review stop3234;0preemptions; CP3234committed, node/queue absent, TB synced | none |
 | `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadSigmoidStaticGateTruePile` | v5p-16 (`xd-v5p-16-310120-maxtext`) | `us-east5-a` | 2026-10-11 10:50:07 | 2026-10-11 19:09:16 | complete13500;1preemption; checkpoint13500 committed, node/queue absent, TB synced | none |
 | `BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile` | v5p-32 (`xd-v5p-32-310118-maxtext`) | `us-east5-a` | 2026-10-11 05:13:34 | 2026-10-12 09:19:32 | user stop33002;0preemptions; checkpoint committed, resources absent, TB synced | none |
 | `BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdFullMReadSharedGelu400TruePile` | v5p-32 (`xd-v5p-32-310119-maxtext`) | `us-east5-a` | 2026-10-11 05:18:49 | 2026-10-12 09:19:36 | user stop37253;1preemption; checkpoint committed, resources absent, TB synced | none |
@@ -49,6 +77,48 @@ active leases are censored, and manual migration releases are not preemptions.
 | `BamMediumPropD1152H32K72V64C16AllLocalMLPWriteIndependentEveryThirdTruePile` | v5p-16 (`xd-v5p-16-310104-maxtext`) | `us-east5-a` | 2026-10-10 04:14:29 | 2026-10-10 05:58:36 | user pause2038;0preemptions; committed checkpoint, node/queue absent | EW4b/UC1a spot candidates, never active; released |
 | `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdDirectC8SeparateQKVProjectionIndependentInitTruePile` | v5p-16 (`xd-v5p-16-1010-maxtext`) | `us-east5-a` | 2026-10-09 14:18:48 | 2026-10-09 17:12:48 | review stop5066;0preemptions;checkpoint committed, resources absent, TB synced | none |
 | `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdDirectC8SeparateQKVProjectionTruePile` | v5p-16 (`xd-v5p-16-1009-maxtext`) | `us-east5-a` | 2026-10-09 13:44:32 | 2026-10-09 16:41:31 | review stop5108;0preemptions;checkpoint committed, resources absent, TB synced | none |
+| `RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZeroStaticQVMLPReadBiasWriteContentBias` | v5p-16 (`xd-v5p-16-2910054-maxtext`) | `us-east5-a` | 2026-10-04 04:30:14 | 2026-10-04 15:16:38 | complete13500; 2preemptions; checkpoint committed, resources absent, TB synced | none |
+| `RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZeroMLPInputPreNormSharedRawWrite` | v5p-16 (`xd-v5p-16-2910053-maxtext`) | `us-east5-a` | 2026-10-04 03:54:36 | 2026-10-04 14:09:10 | complete13500; 0preemptions; checkpoint committed, resources absent, TB synced | none |
+| `BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdTruePile` | v5p-32 (`xd-v5p-32-2910046-maxtext`) | `us-east5-a` | 2026-10-03 10:34:26 | 2026-10-04 13:48:58 | user stop32054; 2preemptions; checkpoint committed, resources absent, TB synced | none |
+| `RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZeroMLPInputPreNormSharedRawWriteFinalReadoutNorm` | v5p-16 (`xd-v5p-16-2910055-maxtext`) | `us-east5-a` | 2026-10-04 08:28:22 | 2026-10-04 12:58:25 | review stop5548; 1preemption; checkpoint committed, resources absent, TB synced | none |
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdRawContentTruePile` | v5p-16 (`xd-v5p-16-2910059-maxtext`) | `us-east5-a` | 2026-10-04 09:06:41 | 2026-10-04 11:59:19 | review stop5210; 0preemptions; checkpoint committed, resources absent, TB synced | none |
+| `RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZeroMLPInputPreNormSharedRawWriteAttnStaticQVReadWriteBias` | v5p-16 (`xd-v5p-16-2910060-maxtext`) | `us-east5-a` | 2026-10-04 09:45:59 | 2026-10-04 11:59:23 | review stop2967; 0preemptions; checkpoint committed, resources absent, TB synced | none |
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEverySecondBlockFirstTruePile` | v5p-16 (`xd-v5p-16-2910056-maxtext`) | `us-east5-a` | 2026-10-04 08:04:06 | 2026-10-04 09:47:43 | review stop2884; 0preemptions; checkpoint committed, resources absent, TB synced | none |
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryFourthBlockFirstTruePile` | v5p-16 (`xd-v5p-16-2910057-maxtext`) | `us-east5-a` | 2026-10-04 08:07:18 | 2026-10-04 09:05:40 | user early stop1489; 0preemptions; checkpoint committed, resources absent, TB synced | none |
+| `RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZeroWriteContentBiasInitialMatrixBias` | v5p-16 (`xd-v5p-16-2910055-maxtext`) | `us-east5-a` | 2026-10-04 04:52:32 | 2026-10-04 08:27:32 | hot-replaced4670; 0preemptions; checkpoint committed, TPU transferred, TB synced | none |
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteStaticEveryThirdHeadMixPreserveRoutesTruePile` | v5p-16 (`xd-v5p-16-2910043-maxtext`) | `us-east5-a` | 2026-10-03 08:27:01 | 2026-10-03 10:04:20 | hot-replaced2926; 0preemptions; checkpoint committed, TPU transferred, TB synced | none |
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdPostWriteLocalOHeadMixNoWOTruePile` | v5p-16 (`xd-v5p-16-2910034-maxtext`) | `us-east5-a` | 2026-10-02 16:37:31 | 2026-10-02 18:44:15 | review stop3029; 1preemption; resources absent, TB synced | none |
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdPostWriteLocalONoWOTruePile` | v5p-16 (`xd-v5p-16-2910030-maxtext`) | `us-east5-a` | 2026-10-02 16:23:22 | 2026-10-02 18:23:07 | review stop3051; 1preemption; resources absent, TB synced | none |
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdHeadMixNoWOSeparateVOKeysNoGateTruePile` | v5p-16 (`xd-v5p-16-2910031-maxtext`) | `us-east5-a` | 2026-10-02 16:18:22 | 2026-10-02 18:00:27 | review stop2994; 0preemptions; resources absent, TB synced | none |
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdHeadMixNoWOTruePile` | v5p-16 (`xd-v5p-16-2910030-maxtext`) | `us-east5-a` | 2026-10-02 13:57:13 | 2026-10-02 16:23:22 | hot-replaced; 4preemptions; TPU transferred to successor, TB synced | none |
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdHeadMixNoWOSeparateVOKeysTruePile` | v5p-16 (`xd-v5p-16-2910031-maxtext`) | `us-east5-a` | 2026-10-02 13:56:45 | 2026-10-02 16:18:22 | hot-replaced; 2preemptions; TPU transferred to successor, TB synced | none |
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile` | v5p-16 (`xd-v5p-16-2910026-maxtext`) | `us-east5-a` | 2026-10-02 07:15:40 | 2026-10-02 14:48:52 | completed13500; 0preemptions; checkpoint committed, TPU/queue absent, TB synced | none |
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdNoWOTruePile` | v5p-16 (`xd-v5p-16-2910029-maxtext`) | `us-east5-a` | 2026-10-02 10:44:03 | 2026-10-02 12:25:22 | review stop3026; 0preemptions; checkpoint committed, TPU/queue absent, TB synced | none |
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteStaticEveryThirdNoWOTruePile` | v5p-16 (`xd-v5p-16-2910028-maxtext`) | `us-east5-a` | 2026-10-02 10:24:39 | 2026-10-02 12:01:12 | review stop2947; 0preemptions; checkpoint committed, TPU/queue absent, TB synced | none |
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteStaticEveryThirdTruePile` | v5p-16 (`xd-v5p-16-2910023-maxtext`) | `us-east5-a` | 2026-10-02 03:50:48 | 2026-10-02 11:56:49 | completed13500; 4preemptions; checkpoint committed, TPU/queue absent, TB synced | none |
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryLayerTruePile` | v5p-16 (`xd-v5p-16-2910027-maxtext`) | `us-east5-a` | 2026-10-02 08:35:27 | 2026-10-02 11:38:13 | review stop5247; 0preemptions; checkpoint committed, TPU/queue absent, TB synced | none |
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteEveryThirdTruePile` | v5p-16 (`xd-v5p-16-2910020-maxtext`) | `us-east5-a` | 2026-10-02 02:00:20 | 2026-10-02 09:51:05 | completed13500; 3preemptions; checkpoint committed, TPU/queue absent, TB synced | none |
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteEveryThirdUnembedDirect32TruePile` | v5p-16 (`xd-v5p-16-2910024-maxtext`) | `us-east5-a` | 2026-10-02 07:09:26 | 2026-10-02 09:16:34 | review stop2977; 1preemption; checkpoint committed, TPU/queue absent, TB synced | none |
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteStaticEveryThirdUnembedDirect32TruePile` | v5p-16 (`xd-v5p-16-2910025-maxtext`) | `us-east5-a` | 2026-10-02 07:08:50 | 2026-10-02 08:46:57 | review stop2971; 0preemptions; checkpoint committed, TPU/queue absent, TB synced | none |
+| `BamXLPropK96EmbedVOnlyQK72LLFTruePile` | v5p-32 (`xd-v5p-32-2910011-maxtext`) | `us-east5-a` | 2026-09-30 23:59:16 | 2026-10-02 05:39:36 | user pause33874; 11preemptions, no zone switches; checkpoint committed, node/queue absent, TB synced | none |
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteStaticEveryLayerTruePile` | v5p-16 (`xd-v5p-16-2910022-maxtext`) | `us-east5-a` | 2026-10-02 01:52:46 | 2026-10-02 05:18:42 | review stop5836; 1preemption; checkpoint committed, node/queue absent, TB synced | none |
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteEveryLayerTruePile` | v5p-16 (`xd-v5p-16-2910021-maxtext`) | `us-east5-a` | 2026-10-02 01:41:02 | 2026-10-02 03:37:02 | review stop3153; 1preemption before training; checkpoint committed, node/queue absent, TB synced | none |
+| `RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedWriteNormEmbedScale0` | v5p-16 (`xd-v5p-16-2910014-maxtext`) | `us-east5-a` | 2026-10-01 08:08:26 | 2026-10-01 14:40:51 | hot-replaced8025;2preemptions;checkpoint committed, TPU retained for StaticGate, TB synced | none |
+| `RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedWriteNormStaticGate` | v5p-16 (`xd-v5p-16-2910014-maxtext`) | `us-east5-a` | 2026-10-01 14:41:58 | 2026-10-01 16:56:16 | review stop2906; checkpoint committed; resources absent, TB synced; 0preemptions | none |
+| `RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedWriteNormEmbedSeedZero` | v5p-16 | `us-east5-a` | 2026-10-01 06:27:23 | 2026-10-01 10:11:45 | stopped4879; no preemption; resources absent, TB synced | none |
+| `RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedEmbedWriteNormScale0` | v5p-16 | `us-east5-a` | 2026-09-30 15:03:56 | 2026-10-01 03:49:58 | completed13500; eleven preemptions; resources absent, TB synced | none |
+| `RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedWriteNormStaticKeyZeroInit` | v5p-16 | `us-east5-a` | 2026-09-30 23:15:58 | 2026-10-01 03:17:56 | review stop5144; one preemption; resources absent, TB synced | none |
+| `RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedEmbedWriteNormSeedKeyZeroInit` | v5p-16 | `us-east5-a` | 2026-09-30 15:28:15 | 2026-10-01 02:57:20 | completed13500; four preemptions; node/queue absent, TB synced | none |
+| `RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedWriteNorm` | v5p-16 | `us-east5-a` | 2026-09-29 21:25:55 | 2026-09-30 07:55:05 | completed13500; one preemption; checkpoint committed, node/queue absent | none |
+| `RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedEmbedNorm` | v5p-16 | `us-east5-a` | 2026-09-29 21:02:33 | 2026-09-30 07:26:06 | completed13500; no preemption; checkpoint committed, node/queue absent | none |
+| `MuddLlama2MediumPropTruePile` | v5p-16 | `us-east5-a` | 2026-09-30 00:48:29 | 2026-09-30 07:12:54 | completed13500; one preemption; checkpoint committed, node/queue absent | none |
+| `RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOMPreNorm` | v5p-32 | `us-east5-a` | 2026-09-29 10:16:47 | 2026-09-30 03:41:39 | manual stop17733; 3 preemptions; checkpoint committed, node/queue absent03:44:39 | none |
+| `RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormRawWriteSharedEmbedNorm` | v5p-16 | `us-east5-a` | 2026-09-29 18:03:12 | 2026-09-29 20:12:42 | review stop2876; no preemption; node/queue absent20:15:16 | none |
+| `RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormRawWriteSharedEmbed` | v5p-16 | `us-east5-a` | 2026-09-29 15:44:10 | 2026-09-29 18:01:58 | review hot replacement3000; no preemption; TPU retained by SharedEmbedNorm | none |
+| `RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormRawWrite` | v5p-16 | `us-east5-a` | 2026-09-29 15:26:10 | 2026-09-29 17:35:39 | stop2885 at2800 review; no preemption; TPU/queue absent17:38:18 | none |
+| `RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNorm` | v5p-16 | `us-east5-a` | 2026-09-29 10:16:45 | 2026-09-29 15:25:04 | hot replacement5575; 3 preemptions; TPU retained by RawWrite | none |
+| `RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOQKPreNorm` | v5p-32 | `us-east5-a` | 2026-09-29 09:51:01 | 2026-09-29 14:46:16 | stopped4222, NaN from3334; 3 preemptions; node/queue absent14:48:40 | none |
+| `RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOQKPreNorm` | v5p-16 | `us-east5-a` | 2026-09-29 09:47:11 | 2026-09-29 12:19:05 | manual stop3092, checkpoint3000; 1 preemption; TPU/queue verified absent12:31:19 | none |
 | `BamLlama2XLHead16x128V2C256FetchRank2` | v5p-32 | `europe-west4-b` | 2026-08-25 07:34:52 | 2026-08-26 00:07:55 | manual stop | `us-central1-a` (never active) |
 | `BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2GroupedWriteRMSNormNoBias` | v5p-32 | `europe-west4-b` | 2026-08-25 13:46:30 | 2026-08-26 00:08:00 | manual stop | `us-central1-a` (never active) |
 | `BamLlama2MediumV2C256Paired40LocalQKRank2GroupedWriteRMSNormKeepBias` | v5p-16 | `europe-west4-b` | 2026-08-26 02:53:12 | 2026-08-26 08:27:42 | manual stop | `us-central1-a` (never active) |
@@ -113,11 +183,8 @@ active leases are censored, and manual migration releases are not preemptions.
 | `BamLlama2MediumV2C256DepthAmplitudeGate050InterpolatedReadPerHeadAmplitude` | v5p-16 | `us-east5-a` | 2026-09-02 15:56:50 | 2026-09-02 19:43:03 | resumed; completed 13,500 | none |
 | `BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2M48x48C12` | v5p-32 | `us-east5-a` | 2026-09-03 09:30:10 | 2026-09-03 14:10:50 | negative ablation; manual stop at 8,225 | none |
 | `BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2AbsV4` | v5p-32 | `us-east5-a` | 2026-09-03 10:12:11 | 2026-09-03 14:10:47 | negative ablation; manual stop at 7,250 | none |
-
 | `BamLlama2MediumV2C256RowRelayRowSlot` | v5p-16 | `us-east5-a` | 2026-09-05 07:19:15 | 2026-09-05 10:14:03 | user stop; checkpoint 6,216; no preemption or zone switch | none |
-
 | `BamLlama2MediumV2C256FetchNoRMSNormalInit` | v5p-16 | `us-east5-a` | 2026-09-05 11:02:58 | 2026-09-05 12:50:21 | user stop; checkpoint 3,517; no preemption or zone switch | `europe-west4-b` (never READY; deleted after UE5a FIRST_STEP) |
-
 | `BamLlama2MediumV2C256RmsGeluAlphaMix` | v5p-16 | `us-east5-a` | 2026-09-06 05:50:20 | 2026-09-06 10:43:36 | user stop; checkpoint 10,860; no preemption or zone switch | none |
 | `BamLlama2MediumV2C256ScanAotCleanNativeDiagonal` | v5p-16 | `us-east5-a` | 2026-09-06 09:42:11 | 2026-09-06 11:54:28 | user stop; checkpoint 4,714; no preemption; TPU hot-switched to CleanGate050FixedAmplitude | none |
 | `BamLlama2MediumV2C256RmsGeluAlphaMixWDFix` | v5p-16 | `us-east5-a` | 2026-09-06 07:08:19 | 2026-09-06 13:21:54 | completed 13,499; checkpoint 13,400; no preemption; TPU and queue deletion verified | none |
@@ -130,111 +197,67 @@ active leases are censored, and manual migration releases are not preemptions.
 | `BamLlama2MediumV2C256ScanAotOldGeluMixScaleNoWD` | v5p-16 | `us-east5-a` | 2026-09-07 01:21:07 | 2026-09-07 06:36:11 | user stop; checkpoint 11,445; zero preemptions or zone switches; TPU and queue deletion verified | none |
 | `BamLlama2MediumV2C256ScanAotOldMixScaleOnly` | v5p-16 | `us-east5-a` | 2026-09-07 01:19:07 | 2026-09-07 07:32:40 | completed 13,500; final checkpoint committed; zero preemptions/switches; TPU and queue deletion verified | none |
 | `BamLlama2MediumV2C256ScanAotCleanMixScaleOnly` | v5p-16 | `us-east5-a` | 2026-09-07 01:21:07 | 2026-09-07 07:35:57 | completed 13,500; final checkpoint committed; zero preemptions/switches; TPU and queue deletion verified | none |
-
 | `BamLlama2MediumV2C256LocalFetchFullScan` | v5p-16 | `us-east5-a` | 2026-09-07 10:21:06 | 2026-09-07 13:40:20 | stopped 7,756; zero preemptions/switches; retained TPU for C8LocalVLLFScan | none |
 | `BamLlama2MediumV2C256LocalFetchFullSharedReadScan` | v5p-16 | `us-east5-a` | 2026-09-07 10:28:38 | 2026-09-07 13:40:20 | stopped 7,410; zero preemptions/switches; retained TPU for C8SharedReadLLFScan | none |
-
 | `BamLlama2MediumV2C256LocalFetchC8Scan` | v5p-16 | `us-east5-a` | 2026-09-07 10:21:05 | 2026-09-07 15:47:57 | completed 13,500; zero preemptions/switches; TPU and queue deletion verified | none |
-
 | `BamLlama2MediumV2C256LocalFetchC8SharedReadScan` | v5p-16 | `us-east5-a` | 2026-09-07 10:21:06 | 2026-09-07 15:58:11 | completed 13,500; zero preemptions/switches; TPU and queue deletion verified | none |
-
 | `BamLlama2MediumV2C256LocalFetchC8LocalVScan` | v5p-16 | `us-east5-a` | 2026-09-07 10:21:05 | 2026-09-07 16:03:09 | completed 13,500; zero preemptions/switches; TPU and queue deletion verified | none |
-
 | `BamLlama2MediumV2C256LocalFetchC8SharedReadLLLFScan` | v5p-16 | `us-east5-a` | 2026-09-07 23:43:24 | 2026-09-08 01:37:41 | stopped 4,479; zero preemptions/switches; TPU and queue deletion verified 01:40:09 | none |
 | `BamLlama2MediumV2C256LocalFetchC8SharedIndependentSharedLLLFScan` | v5p-16 | `us-east5-a` | 2026-09-08 00:10:20 | 2026-09-08 01:37:39 | stopped 3,327; zero preemptions/switches; TPU and queue deletion verified 01:40:09 | none |
-
 | `BamLlama2MediumV2C256LocalFetchC8SharedReadLLFNativeDiagonalScan` | v5p-16 | `us-east5-a` | 2026-09-08 00:48:56 | 2026-09-08 01:55:52 | stopped 2,532; zero preemptions/switches; TPU and queue deletion verified 01:58:17 | none |
-
 | `BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2AllDecayRepro200` | v5p-32 | `us-east5-a` | 2026-09-08 04:47:30 | 2026-09-08 05:04:18 | completed 201; zero preemptions/switches; TPU retained and hot-switched to XL shared LLF | none |
 | `BamLlama2MediumV2C256LocalFetchC8SharedReadLLFV64PostReadV32Scan` | v5p-16 | `us-east5-a` | 2026-09-08 03:44:16 | 2026-09-08 05:16:18 | review stop; checkpoint 2,876; one preemption, same-zone recovery; TPU and queue deletion verified 05:18:54 | none |
-
 | `BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2LocalFetchC8SharedReadLF` | v5p-32 | `us-east5-a` | 2026-09-08 06:09:43 | 2026-09-08 06:46:21 | stopped 786 for health-enabled restart; same TPU handed to LFHealth; zero preemptions | none |
-
 | `BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2LocalFetchC8SharedReadLLF` | v5p-32 | `us-east5-a` | 2026-09-08 05:04:47 | 2026-09-08 08:13:41 | paused at committed checkpoint 6133; zero preemptions/switches; resources verified absent 08:16:46 | none |
-
 | `BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2LocalFetchC8SharedReadLFHealth` | v5p-32 | `us-east5-a` | 2026-09-08 06:46:21 | 2026-09-08 09:33:12 | paused at committed checkpoint 5328; zero preemptions/switches; resources verified absent09:35:48 | none |
-
 | `BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2LocalFetchC8SharedReadLLLF` | v5p-32 | `us-east5-a` | 2026-09-08 10:48:22 | 2026-09-08 12:54:09 | stopped3467; one preemption, same-zone recovery; hot-switched TPU to independent LocalV LF | none |
-
 | `BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2LocalFetchC8LocalVLF` | v5p-32 | `us-east5-a` | 2026-09-08 12:54:09 | 2026-09-08 15:20:59 | user stop; committed4783; zero preemptions/switches; TPU/queue absent | none |
 | `BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2FullFetchAlternatingSharedLocalV` | v5p-32 | `us-east5-a` | 2026-09-08 11:18:33 | 2026-09-08 15:21:02 | user stop; committed7509; zero preemptions/switches; TPU/queue absent | none |
 | `BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2FullFetchAlternatingIndependentLocalV` | v5p-32 | `us-east5-a` | 2026-09-08 12:56:49 | 2026-09-08 15:21:05 | user stop; committed4379; zero preemptions/switches; TPU/queue absent | none |
-
 | `BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2LocalFetchC8LocalVLLF` | v5p-32 | `us-east5-a` | 2026-09-08 11:10:27 | 2026-09-08 22:10:24 | resumable pause; committed21372; zero preemptions/switches; TPU/queue absent | none |
-
 | `BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2LocalFetchC8LocalVLLLF` | v5p-32 | `us-east5-a` | 2026-09-08 16:16:54 | 2026-09-09 03:21:41 | resumable pause after21000 report; committed21108; one preemption, same-zone recovery; TPU/queue absent03:24:45 | none |
-
 | `BamMediumIndependentLLFRoutingA` | v5p-16 | `us-east5-a` | 2026-09-10 02:01:55 (READY) | 2026-09-10 03:11:11 | user stop; committed2741; zero preemptions/switches; TPU/queue verified absent by03:15:18 | none |
 | `BamMediumIndependentLLFRoutingB` | v5p-16 | `us-east5-a` | 2026-09-10 02:02:03 (READY) | 2026-09-10 03:11:13 | user stop; committed2720; zero preemptions/switches; TPU/queue verified absent by03:15:18 | none |
 | `BamMediumIndependentLLFRoutingCFp32` | v5p-16 | `us-east5-a` | 2026-09-10 02:02:13 (READY) | 2026-09-10 03:11:16 | user stop; committed2727; zero preemptions/switches; TPU/queue verified absent by03:15:18 | none |
 | `BamMediumIndependentLLFRoutingCActivation` | v5p-16 | `us-east5-a` | 2026-09-10 02:02:07 (READY) | 2026-09-10 03:11:18 | user stop; committed2735; zero preemptions/switches; TPU/queue verified absent by03:15:18 | none |
-
 | `BamMediumIndependentLLFRoutingLegacyMixBias` | v5p-16 | `us-east5-a` | 2026-09-10 04:06:30 (READY) | 2026-09-10 05:47:13 | user stop; committed4037; zero preemptions/switches; TPU/queue verified absent05:49:39 | none |
-
 | `BamMediumIndependentLLFRoutingLegacyQKRank2` | v5p-16 | `us-east5-a` | 2026-09-10 04:29:54 (READY) | 2026-09-10 06:00:01 | user stop; committed3497; zero preemptions/switches; TPU/queue verified absent06:02:30 | none |
 | `BamMediumIndependentLLFRoutingLegacy` | v5p-16 | `us-east5-a` | 2026-09-10 02:01:57 (READY) | 2026-09-10 06:22:00 | paused; committed10607; zero preemptions/switches; end is Rank4 launcher submission, retained physical TPU | none |
-
 | `BamMediumIndependentLLFRoutingLegacyLocalVRank4` | v5p-16 | `us-east5-a` | 2026-09-10 06:22:03 (RUN adoption of retained READY TPU) | 2026-09-10 07:34:02 | user stop; committed2894; zero preemptions/switches; TPU/queue verified absent07:36:31 | none |
-
 | `BamMediumIndependentLLFRoutingLegacySoftplusReadGate` | v5p-16 | `us-east5-a` | 2026-09-10 06:54:41 (READY) | 2026-09-10 08:03:39 | hot-replaced; committed2739; zero preemptions/switches; TPU retained for BAlignedRow | none |
-
 | `BamMediumIndependentLLFLocalVRank4RoutingA` | v5p-16 | `us-east5-a` | 2026-09-10 07:01:39 (READY) | 2026-09-10 09:24:32 | user stop; committed5717; zero preemptions/switches; resources absent09:27:03 | none |
-
 | `BamMediumIndependentLLFLocalVRank4RoutingBAlignedDirectCol` | v5p-16 | `us-east5-a` | 2026-09-10 10:57:42 (READY) | 2026-09-10 12:42:12 | user stop; committed4197; zero preemptions/switches; resources absent12:45:00 | none |
 | `BamMediumIndependentLLFLocalVRank4RoutingBLocalORowDecode` | v5p-16 | `us-east5-a` | 2026-09-10 08:53:30 (READY) | 2026-09-10 12:42:15 | user stop; committed9199; zero preemptions/switches; resources absent12:45:00 | none |
-
 | `BamMediumIndependentLLFLocalVRank4RoutingCFp32` | v5p-16 | `us-east5-a` | 2026-09-10 07:01:48 (READY) | 2026-09-10 12:39:46 | completed13500; final checkpoint committed; zero preemptions/switches; resources absent12:39:46 | none |
-
 | `BamMediumIndependentLLFLocalVRank4RoutingB` | v5p-16 | `us-east5-a` | 2026-09-10 07:01:37 (READY) | 2026-09-10 12:53:22 | completed13500; final checkpoint committed; zero preemptions/switches; resources absent12:53:22; earlier checkpoint rollback on same TPU | none |
-
 | `BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow` | v5p-16 | `us-east5-a` | 2026-09-10 08:04:34 (retained TPU RUN adoption) | 2026-09-10 13:38:00 | completed13500; final checkpoint committed; zero preemptions/switches; resources absent13:38:00 | none |
-
 | `BamMediumIndependentLLFAlignedRowLocalOColRank4CFp32` | v5p-16 | `us-east5-a` | 2026-09-10 13:23:59 | 2026-09-10 15:21:52 | user hot-switch at committed4481; zero preemptions/switches; TPU retained for LocalVRowRank2 | none |
-
 | `BamMediumIndependentLLFAlignedRowLocalVRowRank2` | v5p-16 | `us-east5-a` | 2026-09-10 15:22:47 | 2026-09-10 20:57:14 | completed13500; final checkpoint committed; zero preemptions/switches; TPU/queue verified absent; TB marker published | none |
-
 | `BamXLIndependentLLFLocalVRank4CFp32AlignedRow` | v5p-32 | `us-east5-a` | 2026-09-10 14:52:10 | 2026-09-11 06:44:15 | five service preemptions; checkpoint27256; original recovery queue waited05:53:39–06:49 without capacity; migrated to EW4b; both UE5a queues verified absent after EW4b first progress | independent same-zone queue `xd-v5p-32-gram-xl-queuecheck-0911`, submitted06:13:02, also remained WAITING; no READY lease |
 | `BamXLIndependentLLFLocalVRank4CFp32AlignedRow` | v5p-32 | `europe-west4-b` | 2026-09-11 06:44:15 | 2026-09-11 09:10:58 | user stop after30k; final checkpoint30054; resources absent09:14:42; migrated checkpoint27256 before first progress27263 | UE5a candidates removed after FIRST_STEP |
 | `BamMediumIndependentLLFAlignedRowLocalVStaticCol` | v5p-16 | `us-east5-a` | 2026-09-11 02:06:47 | stopped3251 | one preemption; emergency3251 committed; stopped during same-zone recovery; TPU/queue verified absent; closeout-20260911T034322Z.json | none |
 | `BamMediumIndependentLLFAlignedRowLocalVStaticPlusDynamicCol` | v5p-16 | `us-east5-a` | 2026-09-11 02:06:47 | stopped3487 | zero preemptions; final3487 committed; TPU/queue verified absent; closeout-20260911T034322Z.json | none |
 | `BamMediumIndependentLLFLocalVRank2RoutingBAlignedRow` | v5p-16 | `us-east5-a` | 2026-09-11 04:08:22 | stopped 2026-09-11 05:54:32 | runtime1eac2b4; 2 preemptions, 3 READY leases; final checkpoint3580; TPU/queue absent05:56:58; .6956 steps/s; closeout143.5s, TB marker published | none |
-
 | `BamXLIndependentLLFLocalQKVCFp32AlignedRow` | v5p-32 | `europe-west4-b` | 2026-09-11 09:06:32 | active | runtime6977fa0; checkpoint1000 committed | initial UE5a queue released after FIRST_STEP |
 | `BamMediumPaired40Rank2CurrentControlRepro` | v5p-16 | `europe-west4-b` | 2026-09-11 09:28:48 | 2026-09-11 09:45:44 | two short leases; checkpoint26 migrated and verified in UE5a | UE5a r1 submitted09:35:29; READY confirmed before migration |
 | `BamMediumPaired40Rank2CurrentControlRepro` | v5p-16 | `us-east5-a` | 2026-09-11 09:45:44 | active | runtime28aefca; recovery from26; first adopted pod reclaimed before resumed FIRST_STEP | old EW4b node/queue verified absent |
-
 | `BamMediumPaired40Rank2CFp32` | v5p-16 | `us-east5-a` | 2026-09-11 10:29:43 | 2026-09-11 13:44:09 | user stop6718; zero preemptions or region switches; health-fix process restart retained the same TPU; deletion verified13:46:48 | none |
-
 | `BamXLIndependentLLFLocalQKVCFp32AlignedRow` | v5p-32 | `europe-west4-b` | 2026-09-11 09:06:35 (READY) | 2026-09-12 00:58:50 | user stop30013; one preemption, no zone switches; checkpoint committed; TPU/queue absent01:01:20; closeout146s | none |
-
 | `BamMediumIndependentLLFLocalVRank4RoutingCFp32NoBias` | v5p-16 | `us-east5-a` | 2026-09-12 02:18:51 | 2026-09-12 05:38:18 | user stop7139; two preemptions, no zone switch; recovery queue removed | none |
-
 | `BamXLIndependentLLFLocalQKRank4CFp32AlignedRow` | v5p-32 | `us-east5-a` | 2026-09-11 14:36:27 | 2026-09-11 15:32:32 | service preemption | EW4b became active |
 | `BamXLIndependentLLFLocalQKRank4CFp32AlignedRow` | v5p-32 | `europe-west4-b` | 2026-09-11 15:50:20 | 2026-09-12 06:07:45 | hot-switch at25726 | none |
 | `BamMediumIndependentLLFLocalVRank4RoutingBAlignedRowSharedRead` | v5p-16 | `us-east5-a` | 2026-09-12 05:46:52 (READY) | 2026-09-12 10:10:25 | user stop; checkpoint 9728; zero preemptions/switches; TPU/queue verified absent 10:13:06; scripted closeout 158s | none |
-
 | `BamMediumIndependentLLFBAlignedRowORowRank4CFp32` | v5p-16 | `us-east5-a` | 2026-09-12 14:26:03 (READY) | 2026-09-12 17:15:06 | authorized plateau stop6179; one preemption, same-zone recovery; checkpoint6179 committed | none |
-
 | `BamXLIndependentLLFLocalQKRank4CFp32AlignedRowSharedBasis` | v5p-32 | `europe-west4-b` | 2026-09-12 06:09:23 (READY) | 2026-09-12 23:40:37 | user stop30091; three preemptions, no zone switches; checkpoint30091 committed; TPU/queue verified absent; scripted closeout177s | none |
-
 | `BamMediumIndependentLLFBAlignedRowMLPUniform` | v5p-16 | `us-east5-a` | 2026-09-14 00:23:03 (READY) | 2026-09-14 03:08:45 | user stop5882; two preemptions, no zone switches; checkpoint5882 committed; TPU/queue verified absent; scripted closeout146s | none |
-
 | `BamMediumIndependentLLFBAlignedRowMLPPerLayer` | v5p-16 | `us-east5-a` | 2026-09-14 00:22:18 (READY) | 2026-09-14 06:17:57 | completed 13500 (exit 0); one TPU preemption (lease 1) + one worker crash @11200 (recovered, non-TPU); no zone switches; checkpoint13500 committed; TPU/queue verified absent; auto-release on completion | none |
-
 | `BamMediumIndependentLLFBAlignedRow21LayerMLP2896` | v5p-16 | `us-east5-a` | 2026-09-14 04:01:31 (READY) | 2026-09-14 06:47:50 | paused at 6181 for hot replacement; two worker crashes @05:25/06:31 (exit 1, recovered, non-TPU); no TPU preemptions; checkpoint 6181 committed; TPU hot-switched to LocalOStaticDynamicRow (same node) | none |
-
 | `BamMHALlama2MediumC256ScanAotCleanMLP2304` | v5p-16 | `us-east5-a` | 2026-09-14 03:58:34 (READY) | 2026-09-14 07:33:56 | user stop10583; two worker crashes @04:52/05:08 (exit 1, recovered, non-TPU); no TPU preemptions; checkpoint10583 committed; TPU/queue verified absent; scripted closeout159s | none |
-
 | `BamMediumIndependentLLFBAlignedRowLocalOStaticDynamicRow` | v5p-16 | `us-east5-a` | 2026-09-14 06:48:45 (READY) | 2026-09-14 08:02:27 | user stop2800; zero preemptions; no zone switches; checkpoint2874 committed; TPU/queue verified absent; scripted closeout; hot-switched from 21LayerMLP2896 (same TPU) | none |
-
 | `BamMediumIndependentLLFBAlignedRowLocalOStaticDynamicRowNoNorm` | v5p-16 | `us-east5-a` | 2026-09-14 07:01:33 (READY) | 2026-09-14 08:02:29 | user stop1800; one preemption (lease 1), no zone switches; checkpoint1879 committed; TPU/queue verified absent; scripted closeout | none |
-
 | `BamMediumIndependentLLFBAlignedRowSharedRowRank4CFp32` | v5p-16 | `us-east5-a` | 2026-09-14 08:35:49 (READY) | 2026-09-14 10:37:58 | user stop4172; zero preemptions; one worker crash @09:39 (Orbax FileExistsError ckpt2200, recovered, non-TPU); no zone switches; checkpoint4199 committed; TPU/queue verified absent; scripted closeout | none |
-
 | `BamMediumIndependentLLFBAlignedRowStdTailWriteOrth` | v5p-16 | `us-east5-a` | 2026-09-14 09:40:08 (READY) | 2026-09-14 10:38:00 | user stop1675; zero preemptions; one worker crash @10:03 (Orbax FileExistsError ckpt600, recovered, non-TPU); no zone switches; checkpoint1687 committed; TPU/queue verified absent; scripted closeout | none |
-
 | `BamMediumIndependentLLFBAlignedRowStdTailWriteNormal` | v5p-16 | `us-east5-a` | 2026-09-14 09:38:25 (READY) | 2026-09-14 13:51:54 | user stop9032; zero preemptions; two worker crashes @10:21/@10:54 (Orbax DEADLINE_EXCEEDED ckpt1400/2200, recovered, non-TPU); no zone switches; checkpoint9058 committed; TPU/queue verified absent; scripted closeout | none |
-
 | `BamMediumIndependentLLFBAlignedRowPostBamTailWriteNormal` | v5p-16 | `us-east5-a` | 2026-09-14 11:12:18 (READY) | 2026-09-14 13:51:57 | user stop6333; zero preemptions/worker crashes; no zone switches; checkpoint6377 committed; TPU/queue verified absent; scripted closeout | none |
 | `BamMediumIndependentLLFBAlignedRowFetchORowR256Gelu` | v5p-16 | `us-east5-a` | 2026-09-14 13:37:44 (READY) | 2026-09-14 21:00:04 | user stop11000; 10 service preemptions (all same-zone recovery, us-east5-a churn wave); no zone switches; checkpoint11600 committed; TPU/queue verified absent; scripted closeout164s | none |
 | `BamMediumIndependentLLFBAlignedRowLocalORowR256Gelu` | v5p-16 | `us-east5-a` | 2026-09-14 13:39:12 (READY) | 2026-09-14 21:00:07 | user stop13116; 9 service preemptions (all same-zone recovery, us-east5-a churn wave); no zone switches; checkpoint13000 committed; TPU/queue verified absent; scripted closeout159s | none |
@@ -246,7 +269,6 @@ active leases are censored, and manual migration releases are not preemptions.
 | `BamXLSharedBasisQKColOnlyMLP` | v5p-32 | `europe-west4-b` | 2026-09-15 12:20:29 | 2026-09-16 00:40:31 | user stop20,933; 5 service preemptions (all same-zone recovery); checkpoint 20,750 committed; TPU/queue verified absent; scripted closeout | none |
 | `BamMediumIndependentLLFBAlignedRowLocalVRowSharedColRank4B` | v5p-16 | `europe-west4-b` | 2026-09-15 12:38:13 | 2026-09-15 19:40:21 | completed 13,500 (clean-exit); 5 service preemptions (all same-zone recovery); no zone switches; checkpoint 13,400 committed; TPU/queue verified absent | none |
 | `BamXLSharedBasisQKDirectC8MLP` | v5p-32 | `us-east5-a` | 2026-09-15 11:48:20 | active | UE5a arm of scoped region A/B | none during A/B |
-
 | `BamMediumIndependentLLFBAlignedRowColOnly` | v5p-16 | `us-east5-a` | 2026-09-16 01:57:42 | 2026-09-16 07:34:38 | completed 13,500 (clean-exit); 1 service preemption (same-zone recovery); checkpoint 13,500 committed; TPU/queue verified absent | EW4b staged fallback (never active) |
 | `BamMediumIndependentLLFBAlignedRowOColOnly` | v5p-16 | `us-east5-a` | 2026-09-16 02:18:22 | 2026-09-16 09:28:45 | completed 13,500; 5 service preemptions (all same-zone recovery); checkpoint 13,500 committed; TPU/queue verified absent | EW4b staged fallback (never active) |
 | `BamMediumIndependentLLFBAlignedRowQKVColOnly` | v5p-16 | `us-east5-a` | 2026-09-16 03:37:58 | 2026-09-16 10:37:27 | completed 13,500; 7 service preemptions (all same-zone recovery); checkpoint 13,500 committed; TPU/queue verified absent | EW4b staged fallback (never active) |
@@ -265,20 +287,16 @@ active leases are censored, and manual migration releases are not preemptions.
 | `BamMediumIndependentLLFMLPPerLayerColOnlyK48PartialRoPENoLocalQK` | v5p-16 | `us-east5-a` | 2026-09-18 01:40:46 | 2026-09-18 06:15:17 | user stop11,491 after stable conclusion; zero preemptions; checkpoint11,491 committed; TPU/queue verified absent; scripted closeout; TB sync OK | none |
 | `BamMediumIndependentLLFMLPPerLayerColOnlyK64NoPE48PartialRoPENoLocalQK` | v5p-16 | `us-east5-a` | 2026-09-18 01:34:01 | 2026-09-18 06:15:20 | user stop11,143 after stable conclusion; zero preemptions; one same-TPU incomplete-10800 checkpoint repair/resume from10600; checkpoint11,143 committed; TPU/queue verified absent; scripted closeout; TB sync OK | none |
 | `BamXLSharedBasisQKDirectC8MLPPerLayerColOnly` | v5p-32 | `us-east5-a` | 2026-09-18 07:38:48 | 2026-09-18 22:33:16 | user replacement; checkpoint 28,927; after third preemption, accepted replacement queue transferred to DirectC8MLPPerLayer | none |
-
 | `BamXLSharedBasisQKDirectC8MLPPerLayerColOnlyK128QK96TruncatePartialRoPE` | v5p-32 | `us-east5-a` | 2026-09-18 07:38:48 | 2026-09-19 02:16:27 | user stop34,348; 3 service preemptions, no zone switches; checkpoint34,348 committed; TPU/queue verified absent; TB sync OK | none |
-
 | `BamXLSharedBasisQKDirectC8MLPPerLayer` | v5p-32 | `us-east5-a` | 2026-09-18 22:33:19 | 2026-09-19 04:54:35 | migrated to UC1a after 3 preemptions; checkpoint10,758 copied and verified; old TPU/queue verified absent | none |
 | `BamXLSharedBasisQKDirectC8MLPPerLayer` | v5p-32 | `us-central1-a` | 2026-09-19 04:54:35 | 2026-09-19 05:15:35 | queue-only assignment; no training or READY lease; EW4b won the three-zone capacity race | UE5a and EW4b submitted concurrently at ~05:11:35 |
 | `BamXLSharedBasisQKDirectC8MLPPerLayer` | v5p-32 | `europe-west4-b` | 2026-09-19 05:15:35 | 2026-09-19 07:52:28 | resumed checkpoint10,758; two preemptions; final committed checkpoint15,320 migrated to UE5a; same runtime57291c7 | initial UC1a/UE5a candidates released after FIRST_STEP; requeued both after 07:38 preemption |
 | `BamXLSharedBasisQKDirectC8MLPPerLayer` | v5p-32 | `us-east5-a` | 2026-09-19 07:52:28 | 2026-09-19 14:31:41 | resumed checkpoint15,320; user paused at committed28,005 during recovery; all TPU/queues verified absent by14:41:40; TB SYNC_OK | UC1a/EW4b candidates released after each FIRST_STEP and at pause; neither trained; checkpoint28,005 copied to both regions |
-
 | `BamMediumColOnlyK32MRelayM1` | v5p-16 | `us-east5-a` | 2026-09-19 13:42:43 | 2026-09-19 15:37:52 | user stop3487; 2 maintenance/preemptions, same-zone recovery; checkpoint3487 committed; TPU/queue absent; TB sync OK | none observed |
 | `BamMediumColOnlyK64TruncateMRelayM1` | v5p-16 | `us-east5-a` | 2026-09-19 13:52:57 | 2026-09-19 15:37:55 | user stop3927; zero preemptions, no zone switches; checkpoint3927 committed; TPU/queue absent; TB sync OK | none observed |
 | `BamMediumIndependentLLFMLPPerLayerColOnlyLocalOStaticCol` | v5p-16 | `us-east5-a` | 2026-09-19 15:57:04 | 2026-09-19 17:12:41 | no sustained benefit at2800 review; stopped2909 | UC1a/EW4b configured, not activated |
 | `BamMediumColOnlyK32MRelayM3Linear` | v5p-16 | `us-east5-a` | 2026-09-19 16:13:41 | 2026-09-19 17:41:23 | authorized review stop2909; one recovery plus maintenance17:40:26 during closeout; no zone switch; final checkpoint2909 committed, TB synced, TPU/queue absent | none activated |
 | `BamMediumColOnlyK32MRelayM3Interpolate` | v5p-16 | `us-east5-a` | 2026-09-19 16:17:54 | 2026-09-19 17:33:29 | authorized review stop2903; zero preemptions, no zone switch; final checkpoint committed, TB synced, TPU/queue absent | none observed |
-
 | `BamMediumColOnlyK64MRelayM3QKOnly` | v5p-16 | `us-east5-a` | 2026-09-20 02:04:53 | 2026-09-20 03:37:54 | user hot-switch at2054 to decoupled M3; two preemptions, no zone switch; checkpoint committed, TB sync OK; TPU retained for successor | EW4b configured, not activated |
 | `BamMediumColOnlyK64MRelayM3Decoupled` | v5p-16 | `us-east5-a` | 2026-09-20 03:38:49 | 2026-09-20 05:50:17 | user stop5133; no preemption or zone switch; final checkpoint committed, TB sync OK; TPU/queue released | EW4b configured, not activated |
 | `BamMediumColOnlyK32MRelayM3VOnly` | v5p-16 | `us-east5-a` | 2026-09-20 04:49:19 | 2026-09-20 06:57:58 | user stop5125; no preemption or zone switch; checkpoint committed, TB sync OK; TPU/queue released | EW4b configured, not activated |
@@ -287,7 +305,6 @@ active leases are censored, and manual migration releases are not preemptions.
 | `BamMediumColOnlyK32PartialMRelayM3` | v5p-16 | `us-east5-a` | 2026-09-20 02:04:48 | 2026-09-20 03:53:52 | user stop3319; two preemptions; no zone switch; committed checkpoint and TB sync verified; TPU/queue released | EW4b configured, not activated |
 | `BamMediumColOnlyK64MRelayM3OOnly` | v5p-16 | `us-east5-a` | 2026-09-20 02:04:36 | 2026-09-20 03:53:55 | user stop3135; two preemptions; no zone switch; committed checkpoint and TB sync verified; TPU/queue released | EW4b configured, not activated |
 | `BamMediumIndependentLLFColOnlyK64QK48TruncatePartialRoPED976` | v5p-16 | `us-east5-a` | 2026-09-20 03:11:55 | 2026-09-20 05:48:12 | user stop5271; same-zone recovery once | UC1a/EW4b configured, not activated |
-
 | `BamMediumIndependentLLFColOnlyVConcatMLPPerLayer` | v5p-16 | `us-east5-a` | 2026-09-20 07:44:53 | 2026-09-20 08:48:33 | user hot switch at2455; TPU retained by StaticVOWriteMix | UC1a/EW4b configured, never active |
 | `BamMediumIndependentLLFColOnlyVConcatStaticVOWriteMixMLPPerLayer` | v5p-16 | `us-east5-a` | 2026-09-20 08:49:12 | 2026-09-20 10:01:52 | 2800-step review stop; committed2979; no sustained gain | UC1a/EW4b configured, never active |
 | `BamMediumIndependentLLFQKConcatStaticLocalVOSharedRank4MLPPerLayer` | v5p-16 | `us-east5-a` | 2026-09-20 10:03:41 | 2026-09-20 11:32:10 | user hot replacement; committed3338; TPU retained by C8IndependentGates | UC1a/EW4b configured, never active |
@@ -302,98 +319,61 @@ active leases are censored, and manual migration releases are not preemptions.
 | `BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK64TruncateMLPPerLayer` | `xd-v5p-16-qkstatic-vo-c8-k64-maxtext` (v5p-16) | `us-east5-a` | 2026-09-20 15:03:18 | 2026-09-20 21:41:38 | completed13500; 3 preemptions | UC1a/EW4b configured as passive backups; never active |
 | `BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK64QK48TruncateMLPPerLayer` | `xd-v5p-16-qkstatic-vo-c8-k64-qk48-maxtext` (v5p-16) | `us-east5-a` | 2026-09-20 15:02:52 | 2026-09-20 21:44:29 | completed13500; 3 preemptions | UC1a/EW4b configured as passive backups; never active |
 | `BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK64QK48Truncate25Layer` | `xd-v5p-16-qkstatic-vo-c8-k64-qk48-25-maxtext` (v5p-16) | `us-east5-a` | 2026-09-20 15:02:08 | 2026-09-20 21:27:53 | completed13500; 0 preemptions | UC1a/EW4b configured as passive backups; never active |
-
 | `BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK64QK48VRank256LinearMLPPerLayer` | `xd-v5p-16-qkstatic-vo-c8-ig-v256-linear-maxtext` (v5p-16) | `us-east5-a` | 2026-09-21 00:38:55 | 2026-09-21 02:31:23 | user stop; committed3257; zero preemptions; resources absent | none acquired |
 | `BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK64QK48VRank256GeluMLPPerLayer` | `xd-v5p-16-qkstatic-vo-c8-ig-v256-gelu-maxtext` (v5p-16) | `us-east5-a` | 2026-09-21 00:36:55 | 2026-09-21 02:15:25 | service preemption; committed2002 migrated to EW4b | UC1a queued02:08, EW4b queued02:08; EW4b selected |
 | `BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK64QK48VRank256GeluMLPPerLayer` | `xd-v5p-16-qkstatic-vo-c8-ig-v256-gelu-maxtext` (v5p-16) | `europe-west4-b` | 2026-09-21 02:15:25 | 2026-09-21 02:31:26 | two preemptions before resumed training; user stop at committed2002; resources absent02:39:30 | UC1a remained queued, UE5a requeued02:21; both released on stop, never trained |
-
 | `BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48DirectC8MLPPerLayer` | `xd-v5p-16-qkstatic-vo-c8-ig-k48-qk48-directc8-maxtext` (v5p-16) | `us-east5-a` | 2026-09-21 04:24:56 | 2026-09-21 06:44:40 | user hot switch at4891; no preemptions; retained for separate QK projection | UC1a/EW4b configured, never active |
-
 | `BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayer` | `xd-v5p-16-qkstatic-vo-c8-ig-k48-qk48-maxtext` (v5p-16) | `us-east5-a` | 2026-09-21 00:28:09 | 2026-09-21 06:49:43 | completed13500; zero preemptions; resources verified absent | UC1a/EW4b configured, never active |
-
 | `BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK64QK48DirectC8MLPPerLayer` | `xd-v5p-16-qkstatic-vo-c8-ig-k64-qk48-directc8-maxtext` (v5p-16) | `us-east5-a` | 2026-09-21 00:25:39 | 2026-09-21 07:13:18 | completed13500; two same-zone preemptions; resources verified absent | UC1a/EW4b configured, never active |
-
 | `BamXLSharedBasisQKConcatStaticLocalVOSharedC8IndependentGatesK96QK96DirectC827Layer` | `xd-v5p-32-xl-qkstatic-vo-c8-ig-k96-directc8-27-maxtext` (v5p-32) | `us-east5-a` | 2026-09-21 05:07:19 (first READY) | 2026-09-21 08:10:45 | paused4826 for QK-read comparisons; one same-zone preemption; retained for SeparateQKProjection | UC1a/EW4b configured, never active |
-
 | `BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48DirectC8SeparateQKProjectionMLPPerLayer` | `xd-v5p-16-qkstatic-vo-c8-ig-k48-qk48-directc8-maxtext` (v5p-16) | `us-east5-a` | 2026-09-21 06:45:46 (first READY) | 2026-09-21 09:01:45 | review stop; checkpoint4961 committed; 0 preemptions; resources verified absent | UC1a/EW4b configured, never active |
-
 | `BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK64QK48DirectC8SeparateQKProjectionMLPPerLayer` | `xd-v5p-16-qkstatic-k64-directc8-separate-qk-proj-maxtext` (v5p-16) | `us-east5-a` | 2026-09-21 06:54:11 (first READY) | 2026-09-21 09:01:48 | review stop; checkpoint4172 committed; 1 preemptions; resources verified absent | UC1a/EW4b configured, never active |
-
 | `BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerPLocSlice384Gelu` | v5p-16 | `us-east5-a` | 2026-09-21 09:59:45 | 2026-09-21 11:05:41 | user-authorized review stop; checkpoint2116 committed | UC1a/EW4b configured; no active switch |
-
 | `BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerPLocStatic` | v5p-16 | `us-east5-a` | 2026-09-21 09:59:46 | 2026-09-21 11:28:03 | user-authorized review stop; checkpoint3037 committed | UC1a/EW4b configured; no active switch |
-
 | `BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerPLocHeadC8Gelu` | v5p-16 | `us-east5-a` | 2026-09-21 11:01:57 | 2026-09-21 12:06:12 | user-authorized review stop; checkpoint2104 committed | UC1a/EW4b configured; no active switch |
-
 | `BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerPLocHeadC8` | v5p-16 | `us-east5-a` | 2026-09-21 10:43:48 | 2026-09-21 12:09:54 | planned review stop; checkpoint2903 committed | UC1a/EW4b configured; no active switch |
-
 | `BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerPLocR128Gelu` | v5p-16 | `us-east5-a` | 2026-09-21 10:00:15 | 2026-09-21 12:49:06 | review stop; checkpoint5918 committed | UC1a/EW4b configured; no active switch |
-
 | `BamXLSharedBasisQKConcatStaticLocalVOSharedC8IndependentGatesK96QK96DirectC8SeparateQKProjectionMLPPerLayer` | v5p-32 | `us-east5-a` | 2026-09-21 08:11:38 | 2026-09-21 14:14:39 | user hot switch; checkpoint11193 committed; 0 preemptions | UC1a/EW4b configured; no active switch |
-
 | `BamXLSharedBasisQKConcatStaticLocalVOSharedC8IndependentGatesK96QK96SharedRank4MLPPerLayer` | v5p-32 | `us-east5-a` | 2026-09-21 08:19:45 | 2026-09-21 14:55:20 | user pause; checkpoint11777 committed; 1 preemption | UC1a/EW4b configured; same-zone recovery |
-
 | `BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerPLocSlice384Linear` | v5p-16 | `us-east5-a` | 2026-09-21 09:59:45 | 2026-09-21 15:18:35 | user hot switch; checkpoint10924 committed; 1 preemption | UC1a/EW4b configured; same-zone recovery |
-
 | `BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerQKJointGelu256` | v5p-16 | `us-east5-a` | 2026-09-21 15:19:26 | 2026-09-21 16:52:09 | 2800-step review stop; checkpoint2900 committed; 2 preemptions | UC1a/EW4b passive candidates; same-zone recovery |
 | `BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerQKJointGelu256` | v5p-16 | `us-east5-a` | 2026-09-21 21:24:34 | 2026-09-21 23:31:02 | user hot switch to GELU128; checkpoint7245 retained | UC1a/EW4b passive candidates, never active |
-
 | `BamXLSharedBasisQKConcatStaticLocalVOSharedC8IndependentGatesK96QK96DirectC8MLPPerLayer` | v5p-32 | `us-east5-a` | 2026-09-21 04:31:11 | 2026-09-22 00:12:36 | user stop at historical K128 endpoint; checkpoint34359 committed; 2 preemptions | UC1a/EW4b passive candidates; never active |
 | `BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerPLocSlice768Linear` | v5p-16 | `us-east5-a` | 2026-09-21 23:30:28 | 2026-09-22 00:56:36 | 2800 review stop; checkpoint2913 committed | UC1a/EW4b backups (never active) |
 | `BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerPLocSlice512Linear` | v5p-16 | `us-east5-a` | 2026-09-21 23:48:56 | 2026-09-22 01:15:00 | 2800 review stop; checkpoint2945 committed | UC1a/EW4b backups (never active) |
 | `BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerQKJointGelu128` | v5p-16 | `us-east5-a` | 2026-09-21 23:31:56 | 2026-09-22 03:17:08 | review stop; checkpoint8194 committed | UC1a/EW4b backups (never active) |
 | `BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerQKJointGelu256` | v5p-16 | `us-east5-a` | 2026-09-22 00:33:41 | 2026-09-22 03:34:26 | completed13500; original schedule resumed from7245 | UC1a/EW4b backups (never active) |
 | `BamXLSharedBasisQKConcatStaticLocalVOSharedC8IndependentGatesK96QK96SharedRank4MLPPerLayer` | v5p-32 | `us-east5-a` | 2026-09-21 15:07:26 | 2026-09-22 03:47:51 | resumed11777; stopped34206; checkpoint committed | UC1a/EW4b backups, never active |
-
 | `BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerMRelayM3QKVO` | v5p-16 | `us-east5-a` | 2026-09-22 04:53:58 | 2026-09-22 06:20:58 | review stop; checkpoint2937 committed; 0 preemptions | UC1a/EW4b backups, never active |
-
 | `BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerMRelayM3` | v5p-16 | `us-east5-a` | 2026-09-22 04:39:26 | 2026-09-22 07:27:14 | review stop; checkpoint5679 committed; 1 preemption | UC1a/EW4b backups, never active |
 | `BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerMRelayM3LearnedScale` | v5p-16 | `us-east5-a` | 2026-09-22 05:56:13 | 2026-09-22 07:27:17 | review stop; checkpoint3044 committed; 0 preemptions | UC1a/EW4b backups, never active |
-
 | `BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerMRelayM3VOOnly` | v5p-16 | `us-east5-a` | 2026-09-22 06:32:12 | 2026-09-22 08:02:50 | review stop; checkpoint3068 committed; 0 preemptions | UC1a/EW4b backups, never active |
-
 | `BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerAllLocal` | v5p-16 | `us-east5-a` | 2026-09-22 01:56:04 | 2026-09-22 08:20:51 | completed13500; 1 preemption | UC1a/EW4b backups, never active |
-
 | `BamXLSharedBasisQKConcatStaticLocalVOSharedC8IndependentGatesK96QK96SharedRank4MLPPerLayerQKJointGelu256` | v5p-32 | `us-east5-a` | 2026-09-21 14:15:32 | 2026-09-22 09:20:29 | review stop; checkpoint34170 committed; 1 preemption | UC1a/EW4b backups, never active |
-
 | `BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerV48` | v5p-16 | `us-east5-a` | 2026-09-23 01:59:36 | 2026-09-23 03:28:11 | review stop; checkpoint2891 committed; 0 preemptions | UC1a/EW4b backups, never active |
-
 | `BamMediumAllLocalRawReadWriteGate` | v5p-16 | `us-east5-a` | 2026-09-23 03:14:35 | 2026-09-23 04:53:11 | hot-switch pause; checkpoint3304 committed; 0 preemptions; TPU retained for tanh | UC1a/EW4b backups, never active |
-
 | `BamMediumAllLocalRawReadWriteSharedGelu3N` | v5p-16 | `us-east5-a` | 2026-09-23 03:53:47 | 2026-09-23 05:20:50 | review stop; checkpoint2903 committed; 0 preemptions | UC1a/EW4b backups, never active |
-
 | `BamMediumAllLocalDualWriteSharedGelu3N` | v5p-16 | `us-east5-a` | 2026-09-23 03:46:46 | 2026-09-23 05:22:56 | review stop; checkpoint2900 committed; 1 preemption, same-zone recovery | UC1a/EW4b backups, never active |
-
 | `BamMediumAllLocalDualWriteTanhFeedback` | v5p-16 | `us-east5-a` | 2026-09-23 04:54:16 | 2026-09-23 06:46:09 | hot-switch pause; checkpoint3941 committed; 0 preemptions; TPU retained for independent edges | UC1a/EW4b backups, never active |
 | `BamXLSharedBasisQKConcatStaticLocalVOSharedC8IndependentGatesK96QK96SharedRank4MLPPerLayerAllLocal` | `xd-v5p-32-xl-k96-rank4-all-local-maxtext` (v5p-32) | `us-east5-a` | 2026-09-22 14:19:51 | 2026-09-23 08:00:44 | user stop; checkpoint31583 committed; 2 preemptions; TPU/queue verified absent | UC1a/EW4b configured, never active |
-
 | BamMediumAllLocalDualWriteGates | v5p-16 | `us-east5-a` | 2026-09-23 01:59:07 | 2026-09-23 08:42:29 | completed13500; 0 preemptions; TPU/queue verified absent | none |
-
 | BamMediumAllLocalIndependentEdgesAddressMix | v5p-16 | `us-east5-a` | 2026-09-23 08:11:43 | 2026-09-23 09:33:28 | user stop; committed2519; TPU/queue absent | none |
 | BamMediumAllLocalIndependentErase | v5p-16 | `us-east5-a` | 2026-09-23 08:11:45 | 2026-09-23 09:33:31 | user stop; committed2474; TPU/queue absent | none |
-
 | BamMediumAllLocalIndependentEdges | v5p-16 | `us-east5-a` | 2026-09-23 06:47:03 | 2026-09-23 10:08:04 | user-directed stop; committed7174; TPU/queue absent | none |
-
 | `BamMHAMediumPropC256` | v5p-16 | `us-east5-a` | 2026-09-23 13:01:04 | 2026-09-23 18:27:46 | completed13500; TPU/queue absent | none activated |
 | `BamLlama2MediumPropK57SharedRank4MLPPerLayer` | v5p-16 | `us-east5-a` | 2026-09-23 13:01:04 | 2026-09-23 14:13:52 | same-RUN resource replacement at checkpoint942 | none activated |
 | `BamLlama2MediumPropK57SharedRank4MLPPerLayer` | v5p-16 | `us-east5-a` | 2026-09-23 14:13:55 | 2026-09-23 21:11:39 | completed13500; TPU/queue absent | none activated |
-
 | `BamLlama2MediumPropK57SharedRank4H18MLPPerLayer` | v5p-16 | `us-east5-a` | 2026-09-24 00:40:01 | 2026-09-24 02:13:22 | user stop1972; TPU/queue verified absent | none |
 | `Llama2XLPropTrain` | v5p-32 | `us-east5-a` | 2026-09-23 11:02:49 | 2026-09-23 23:05:12 | preempted; migrated checkpoint21198 to EW4b | UC1a never active |
 | `Llama2XLPropTrain` | v5p-32 | `europe-west4-b` | 2026-09-23 23:52:18 | 2026-09-24 07:36:04 | user stop; checkpoint34598; TPU/queue absent | none |
 | `Llama2XLPropTrain` | v5p-32 | `europe-west4-b` | 2026-09-24 08:02:45 | 2026-09-24 16:35:47 | completed50,000; TPU/queue absent | none |
 | `BamLlama2XLPropK72SharedRank4MLPPerLayerTrain` | v5p-32 | `us-east5-a` | 2026-09-23 11:02:54 | 2026-09-24 07:36:08 | user stop; checkpoint23022; TPU/queue absent | EW4b/UC1a never active |
 | `BamMediumPropK75EmbedQKVOnlyRoPE18` | v5p-16 | `us-east5-a` | 2026-09-24 06:10:14 | 2026-09-24 08:57:36 | user stop4042; TPU/queue absent | none |
-
 | `BamMediumPropK75EmbedQKVOnlyStaticRoPE18` | v5p-16 | `us-east5-a` | 2026-09-24 09:50:56 | 2026-09-24 11:42:40 | review stop2,912; no benefit | none |
-
 | `BamMediumPropK75EmbedVOnlyQK57` | v5p-16 | `us-east5-a` | 2026-09-24 03:13:43 | 2026-09-24 11:52:28 | completed13,500 | none |
-
 | `BamMediumPropK75EmbedVOnlyQK75` | v5p-16 | `us-east5-a` | 2026-09-24 03:16:29 | 2026-09-24 12:23:33 | completed13,500 | none |
-
 | `BamMediumPropK75EmbedVOnlyQK57MLP3200` | v5p-16 | `us-east5-a` | 2026-09-24 13:10:21 | 2026-09-24 20:43:33 | completed13,500; TPU/queue absent | none |
 | `BamMediumPropK75EmbedVOnlyQK57AllLocal` | v5p-16 | `us-east5-a` | 2026-09-24 13:13:01 | 2026-09-24 21:05:41 | completed13,500; TPU/queue absent | none |
-
 | `BamMHAMediumPropAlibiC256` | v5p-16 | `us-east5-a` | 2026-09-25 03:06:16 | 2026-09-25 09:01:19 | completed13,500; 1 preemption; TPU/queue absent | none |
 | `RMTMediumPropAlibiK48` | v5p-16 | `us-east5-a` | 2026-09-25 02:58:39 | 2026-09-25 09:24:27 | completed13,500; 1 preemption; TPU/queue absent | none |
 | `RMTMediumPropAlibiK64` | v5p-16 | `us-east5-a` | 2026-09-25 03:08:58 | 2026-09-25 09:54:52 | completed13,500; 1 preemption; TPU/queue absent | none |
@@ -418,12 +398,118 @@ active leases are censored, and manual migration releases are not preemptions.
 | `RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicUnembedding` | v5p-16 (`xd-v5p-16-2609265-maxtext`) | `us-east5-a` | 2026-09-26 13:35:05 | 2026-09-26 17:25:20 | stopped5088; TPU/queue absent, TB synced | none |
 | `RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicUnembeddingDirect32` | v5p-16 (`xd-v5p-16-2609266-maxtext`) | `us-east5-a` | 2026-09-26 15:01:08 | 2026-09-27 01:31:10 | completed13500; 2 preemptions; TPU/queue absent, TB synced | none |
 | `RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicEmbeddingUnembeddingDirect32` | v5p-16 (`xd-v5p-16-2609267-maxtext`) | `us-east5-a` | 2026-09-26 17:30:51 | 2026-09-27 03:51:11 | completed13500; 1 preemption, same-zone recovery; TPU/queue absent, TB synced | none |
-| `RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicEmbeddingUnembeddingDirect32L22` | v5p-16 (`xd-v5p-16-2609268-maxtext`) | `us-east5-a` | 2026-09-27 00:30:03 | — | active; no preemptions; through3400 | none |
+| `RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicEmbeddingUnembeddingDirect32L22` | v5p-16 (`xd-v5p-16-2609268-maxtext`) | `us-east5-a` | 2026-09-27 00:30:03 | 2026-09-27 06:47:27 | stopped7097; no preemptions; TPU/queue absent, TB synced | none |
 | `RMT Pallas profile sweep` | v5p-16 (`xd-v5p-16-rmtpallas-0927-uc1a`) | `us-central1-a` | 2026-09-27 05:50:49 | 2026-09-27 07:16:51–07:24:58 | preempted in this interval; completed traces retained; node/queue absent | none |
 | `RMT Pallas final + MHA profile` | v5p-16 (`xd-v5p-16-rmtpallas-final-0927-uc1a`) | `us-central1-a` | 2026-09-27 07:26:00 | 2026-09-27 08:00:31 (verified absent) | completed matrices; manual release; no preemption | none |
+| `RMT analytic reverse + MHA profile` | v5p-16 (`xd-v5p-16-rmtreverse-0927-uc1a`) | `us-central1-a` | 2026-09-27 12:05:36 | 2026-09-27 12:28 (absence checked) | completed4 arms; manual release; no preemption | none |
 | `RMT middle-reverse follow-up profiles` | v5p-16 (`xd-v5p-16-rmt-midv2-0927-uc1a`) | `us-central1-a` | 2026-09-27 15:51:34 (submitted) | 2026-09-27 16:31:40 (verified absent) | all7 profiles complete; manual release; no preemption | none |
 | `RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32` | v5p-16 (`xd-v5p-16-2709272-maxtext`) | `us-east5-a` | 2026-09-28 03:05:29 | 2026-09-28 05:42:16 | stopped3442 after NoO matched loss with fewer params and higher speed; 0 preemptions; TPU/queue absent, TB synced | none |
 | `BamMHAMediumPropC256TruePile` | v5p-16 (`xd-v5p-16-2709271-maxtext`) | `us-east5-a` | 2026-09-28 03:05:44 | 2026-09-28 08:30:36 | completed13500; 0 preemptions; TPU/queue absent, TB synced | none |
+| `RMTMediumT2048AllLocalK48EmbedUnembedDirect32` | v5p-16 (`xd-v5p-16-2709273-maxtext`) | `us-east5-a` | 2026-09-28 03:05:45 | 2026-09-28 12:58:40 | completed13500; 0 preemptions; TPU/queue absent, TB synced | none |
+| `BamMHAMediumPropAlibiC256TruePile` | v5p-16 (`xd-v5p-16-2709286-maxtext`) | `us-east5-a` | 2026-09-28 07:27:52 | 2026-09-28 13:17:24 | completed13500; 0 preemptions; TPU/queue absent, TB synced | none |
+| `RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoO` | v5p-16 (`xd-v5p-16-2709274-maxtext`) | `us-east5-a` | 2026-09-28 03:22:30 | 2026-09-28 13:39:30 | completed13500; 1 preemption, same-zone recovery; TPU/queue absent, TB synced | none |
+| `RMTMediumPropAlibiK64TruePile` | v5p-16 (`xd-v5p-16-2709287-maxtext`) | `us-east5-a` | 2026-09-28 07:28:08 | 2026-09-28 13:46:15 | completed13500; 0 preemptions; TPU/queue absent, TB synced | none |
+| `RMTMediumPropT4096TruePileK48EmbedUnembedDirect32NoOLLF` | v5p-16 (`xd-v5p-16-2709285-maxtext`) | `us-east5-a` | 2026-09-28 06:04:21 | 2026-09-28 13:53:45 | paused10176; hot-switched to `BamMediumT2048K64EmbedVOnlyQK48`; 0 preemptions | none |
+| `BamMediumPropK75EmbedVOnlyQK57TruePile` | v5p-16 (`xd-v5p-16-2709288-maxtext`) | `us-east5-a` | 2026-09-28 07:47:41 | 2026-09-28 15:15:12 | completed13500; 0 preemptions; TPU/queue absent, TB synced | none |
+| `BamMediumT2048K64EmbedVOnlyQK48` | v5p-16 (`xd-v5p-16-2709285-maxtext`) | `us-east5-a` | 2026-09-28 13:54:55 | 2026-09-28 20:24:44 | completed13500 after LLF hot switch; 0 preemptions; TPU/queue absent, TB synced | none |
+| `Llama2XLPropTruePileMHA` | v5p-32 (`xd-v5p-32-xlprop-truepile-mha-maxtext`) | `us-east5-a` | 2026-09-28 09:44:11 | by 2026-09-29 00:16:16 | paused at valid checkpoint13250: TruePile shard set ends at13500; TPU/queue absent, 0 preemptions | none |
+| `Llama2XLPropTruePileMHA` | v5p-32 (`xd-v5p-32-xlprop-truepile-mha-maxtext`) | `us-east5-a` | 2026-09-29 00:41:13 | 2026-09-29 21:43:12 | completed50000; TPU/queue absent; 6 preemptions, same-zone recovery after data extension | none |
+| `RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScale` | v5p-16 (`xd-v5p-16-2909297-maxtext`) | `us-east5-a` | 2026-09-29 16:22:07 | 2026-09-30 03:14:46 | completed13500; 3 preemptions, same-zone recovery; TPU/queue absent, TB synced | none |
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalTruePile` | v5p-16 (`xd-v5p-16-2909302-maxtext`) | `us-east5-a` | 2026-09-30 03:59:29 | 2026-09-30 11:33:13 | completed13500; one preemption, same-zone recovery; checkpoint committed, resources absent, TB synced | none |
+| `RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedEmbedWriteNorm` | v5p-16 (`xd-v5p-16-2909305-maxtext`) | `us-east5-a` | 2026-09-30 10:25:38 | 2026-09-30 12:46:46 | review stop3052; no preemption; checkpoint committed, resources absent, TB synced | none |
+| `RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOMPreNormLearnedScaleSharedWriteEmbedNorm` | v5p-32 (`xd-v5p-32-2909303-maxtext`) | `us-east5-a` | 2026-09-30 08:20:00 | 2026-09-30 13:12:15 | user stop5271; 0 preemptions; checkpoint committed, resources absent13:15:16, TB synced | none |
+| `MuddLlama2XLProp` | v5p-32 (`xd-v5p-32-muddxlprop-maxtext`) | `us-east5-a` | 2026-09-29 07:11:56 | 2026-09-30 15:17:13 | completed50000; 4 preemptions, same-zone recovery; checkpoint50000 committed, node/queue absent, TB synced | none |
+| `RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedEmbedWriteNormScale006` | v5p-16 (`xd-v5p-16-2909306-maxtext`) | `us-east5-a` | 2026-09-30 13:09:25 | 2026-09-30 23:15:12 | hot-replaced12431;3preemptions;checkpoint committed, TPUretained for LayerStaticZero, TB synced | none |
+| `RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOMPreNormLearnedScaleSharedWriteEmbedNormSeedKeyZeroInit` | `xd-v5p-32-2910013-maxtext` (v5p-32) | `us-east5-a` | 2026-10-01 06:30:15 | 2026-10-01 23:23:22 | user pause; 2 preemptions; checkpoint committed, TPU/queue absent, TB synced | none |
+| `RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOMPreNormLearnedScaleSharedWriteNormEmbedScale0` | `xd-v5p-32-2910015-maxtext` (v5p-32) | `us-east5-a` | 2026-10-01 12:18:44 | 2026-10-01 22:22:02 | user pause; 7 preemptions; checkpoint committed, TPU/queue absent, TB synced | none |
+| `BamXLPropK96EmbedVOnlyQK72AllLocalTruePile` | `xd-v5p-32-2909304-maxtext` (v5p-32) | `us-east5-a` | 2026-09-30 08:19:36 | 2026-10-01 16:30:59 | user pause; 8 preemptions; checkpoint committed, TPU/queue absent, TB synced | none |
+| `BamMediumPropK75EmbedVOnlyQK57PseudoFTruePile` | `xd-v5p-16-2910018-maxtext` (v5p-16) | `us-east5-a` | 2026-10-01 16:42:04 | 2026-10-02 00:28:28 | completed13500; checkpoint committed, TPU/queue absent, TB synced; 3 preemptions | none |
+| `BamMediumPropK75EmbedVOnlyQK57LLFMatrixVTruePile` | `xd-v5p-16-2910017-maxtext` (v5p-16) | `us-east5-a` | 2026-10-01 16:00:30 | 2026-10-02 00:59:40 | completed13500; checkpoint committed, TPU/queue absent, TB synced; 5 preemptions | none |
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdPostWriteLocalORawWOTruePile` | v5p-16 (`xd-v5p-16-2910036-maxtext`) | `us-east5-a` | 2026-10-03 01:21:32 | 2026-10-03 04:02:47 | user stop4575; 0 preemptions; checkpoint committed, TPU/queue absent, TB synced | none |
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdPreWriteLocalORawWOTruePile` | v5p-16 (`xd-v5p-16-2910037-maxtext`) | `us-east5-a` | 2026-10-03 03:06:46 | 2026-10-03 04:34:47 | user stop2515; 0 preemptions; checkpoint committed, TPU/queue absent, TB synced | none |
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdPreWriteLocalORawWOUpdatedQueryTruePile` | v5p-16 (`xd-v5p-16-2910039-maxtext`) | `us-east5-a` | 2026-10-03 04:05:18 | 2026-10-03 06:01:00 | hot-replaced at3285; 0 preemptions; TPU transferred, TB synced | none |
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdPostWriteLocalORawWOUpdatedQueryTruePile` | v5p-16 (`xd-v5p-16-2910038-maxtext`) | `us-east5-a` | 2026-10-03 04:03:55 | 2026-10-03 07:36:19 | review stop5657; 1 preemption; CP committed, resources absent, TB synced | none |
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdPostWriteLocalOGatedHeadMixUpdatedQueryTruePile` | v5p-16 (`xd-v5p-16-2910039-maxtext`) | `us-east5-a` | 2026-10-03 06:01:58 | 2026-10-03 07:51:42 | hot-replaced3051; 0 preemptions; TPU transferred, TB synced | none |
+| `RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKZeroInit` | v5p-16 | `us-east5-a` | 2026-10-03 07:52:52 (READY) | 2026-10-03 11:42:01 | review stop5162; zero preemptions; checkpoint committed, resources absent | none |
+| `RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedScale0` | v5p-16 | `us-east5-a` | 2026-10-03 10:14:54 (READY) | 2026-10-03 12:44:05 | user stop3307; zero preemptions; checkpoint committed, resources absent, TB synced | none |
+| `RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZeroFinalReadZero` | v5p-16 (`xd-v5p-16-2910047-maxtext`) | `us-east5-a` | 2026-10-03 14:10:54 (READY) | 2026-10-03 16:00:22 | hot-replaced2427; zero preemptions; checkpoint committed, TPU transferred, TB synced | none |
+| `RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZeroStaticQVMLPReadBias` | v5p-16 (`xd-v5p-16-2910047-maxtext`) | `us-east5-a` | 2026-10-03 16:01:11 (READY) | 2026-10-03 18:01:22 | review stop2693; zero preemptions; checkpoint committed, resources absent, TB synced | none |
+| `RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInit` | v5p-16 (`xd-v5p-16-2910042-maxtext`) | `us-east5-a` | 2026-10-03 08:11:55 (READY) | 2026-10-03 18:20:55 | complete13500; zero preemptions; checkpoint committed, resources released, TB synced | none |
+| `RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZeroFinalVectorSkip` | v5p-16 (`xd-v5p-16-2910049-maxtext`) | `us-east5-a` | 2026-10-03 17:22:27 (READY) | 2026-10-03 18:57:39 | user stop2092; zero preemptions; checkpoint committed, resources absent, TB synced | none |
+| `RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZero` | v5p-16 (`xd-v5p-16-2910043-maxtext`) | `us-east5-a` | 2026-10-03 10:07:19 (READY) | 2026-10-03 20:15:26 | complete13500; zero preemptions; checkpoint committed, resources absent, TB synced | none |
+| `RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZeroMLPFront16FullEveryThird` | v5p-16 (`xd-v5p-16-2910051-maxtext`) | `us-east5-a` | 2026-10-04 00:20:22 (READY) | 2026-10-04 03:00:41 | user stop3583; zero preemptions; checkpoint committed, resources absent, TB synced | none |
+| `RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOSharedWriteNormQKVZeroInitEmbedSeedZero` | v5p-32 (`xd-v5p-32-2910050-maxtext`) | `us-east5-a` | 2026-10-03 18:27:05 (READY) | 2026-10-04 05:48:27 | user stop12293; zero preemptions; checkpoint committed, TPU/queue verified absent, TB synced | none |
+| `RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZeroMLPInputPreNorm` | v5p-16 (`xd-v5p-16-2910052-maxtext`) | `us-east5-a` | 2026-10-04 04:03:56 (READY) | 2026-10-04 06:58:49 | review stop3661; one preemption, same-zone recovery; checkpoint committed, resources absent, TB synced | none |
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryLayerRawContentTruePile` | `xd-v5p-16-2910063-maxtext` (v5p-16) | `us-east5-a` | 2026-10-04 14:47:32 | 2026-10-04 18:41:18 | review stop3086; checkpoint committed; node/queue absent; TB synced; 5 preemptions | none |
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEverySecondBlockFirstRawContentTruePile` | `xd-v5p-16-2910062-maxtext` (v5p-16) | `us-east5-a` | 2026-10-04 14:47:30 | 2026-10-04 19:48:25 | manual stop at5000 review; 4 preemptions | none |
+| `RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZeroMLPInputPreNormSharedRawWriteAttnWriteContentBias` | `xd-v5p-16-2910061-maxtext` (v5p-16) | `us-east5-a` | 2026-10-04 09:45:54 | 2026-10-04 22:32:40 | completed13500; 10 preemptions | none |
+| `RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOSharedWriteNormQKVZeroInitEmbedSeedZeroMLPInputPreNormSharedRawWriteAttnWriteContentBias` | `xd-v5p-32-2910064-maxtext` (v5p-32) | `us-east5-a` | 2026-10-04 16:10:13 | 2026-10-05 00:49:39 | user stopped5553; 5 preemptions | none |
+| `RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOSharedWriteNormQKVZeroInitEmbedSeedZeroMLPInputPreNormSharedWriteNormAttnWriteContentBias` | `xd-v5p-32-2910065-maxtext` (v5p-32) | `europe-west4-b` | 2026-10-05 03:06:40 | 2026-10-05 03:54:18 | migrate from committed101; 2preemptions | UE5a released; UC1a became active |
+| `RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOSharedWriteNormQKVZeroInitEmbedSeedZeroMLPInputPreNormSharedWriteNormAttnWriteContentBias` | `xd-v5p-32-2910065-maxtext` (v5p-32) | `us-central1-a` | 2026-10-05 03:54:18 | 2026-10-05 07:40:46 | user stop4316; checkpoint committed, resources absent, TB synced | EW4b/UE5a released |
+| `Llama2XLPropHD64` | `xd-v5p-32-2910067-maxtext` (v5p-32) | `us-central1-a` | 2026-10-05 05:48:50 | 2026-10-05 19:12:58 | completed; 7 preemptions | none |
+| `Llama2XLPropHD64` | `xd-v5p-32-2910067-maxtext` (v5p-32) | `us-east5-a` | 2026-10-05 19:12:58 | 2026-10-05 19:40:29 | completed; 7 preemptions | none |
+| `Llama2XLPropHD64` | `xd-v5p-32-2910067-maxtext` (v5p-32) | `us-central1-a` | 2026-10-05 19:40:29 | 2026-10-06 02:38:07 | completed; 7 preemptions | none |
+| `BamMediumPropK75V48C12EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdWVBlockFirstKeepVOTruePile` | `xd-v5p-16-2910075-maxtext` (v5p-16) | `us-east5-a` | 2026-10-05 14:59:14 | 2026-10-05 20:08:05 | user-stopped at2635; 16 preemptions | none |
+| `BamMediumPropK75V48C12EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdWVBlockFirstKeepVOTruePile` | `xd-v5p-16-2910075-maxtext` (v5p-16) | `us-central1-a` | 2026-10-05 20:08:05 | 2026-10-05 21:19:40 | user-stopped at2635; 16 preemptions | none |
+| `BamMediumPropK75V48C12EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdWVBlockFirstKeepVOTruePile` | `xd-v5p-16-2910075-maxtext` (v5p-16) | `europe-west4-b` | 2026-10-05 21:19:40 | 2026-10-06 02:24:07 | user-stopped at2635; 16 preemptions | none |
+| `BamMediumPropK75V48C12EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdWVBlockFirstKeepVOTruePile` | `xd-v5p-16-2910075-maxtext` (v5p-16) | `us-central1-a` | 2026-10-06 02:24:07 | 2026-10-06 02:55:54 | user-stopped at2635; 16 preemptions | none |
+| `BamMediumPropK75V48C12EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdWVBlockFirstNoVOTruePile` | `xd-v5p-16-2910076-maxtext` (v5p-16) | `us-east5-a` | 2026-10-05 15:10:44 | 2026-10-05 20:08:21 | Stopped3303; hot switch retains TPU for residual-complement; 6 preemptions | none |
+| `BamMediumPropK75V48C12EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdWVBlockFirstNoVOTruePile` | `xd-v5p-16-2910076-maxtext` (v5p-16) | `us-central1-a` | 2026-10-05 20:08:21 | 2026-10-06 03:33:20 | Stopped3303; hot switch retains TPU for residual-complement; 6 preemptions | none |
+| `MuddLlama2XLPropHD64` | `xd-v5p-32-2910068-maxtext` (v5p-32) | `us-central1-a` | 2026-10-05 05:48:46 | 2026-10-06 03:45:01 | Completed24000; 6 preemptions | none |
+| `BamXLPropK96V60C15EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdTruePile` | `xd-v5p-32-2910074-maxtext` (v5p-32) | `us-central1-a` | 2026-10-05 13:33:45 | 2026-10-06 00:57:10 | user stop4313; checkpoint committed, TPU/queue absent, TB synced; 10 preemptions | none |
+| `BamXLPropK96V60C15EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdTruePile` | `xd-v5p-32-2910074-maxtext` (v5p-32) | `europe-west4-b` | 2026-10-06 00:57:10 | 2026-10-06 02:24:09 | user stop4313; checkpoint committed, TPU/queue absent, TB synced; 10 preemptions | none |
+| `BamXLPropK96V60C15EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdTruePile` | `xd-v5p-32-2910074-maxtext` (v5p-32) | `us-central1-a` | 2026-10-06 02:24:09 | 2026-10-06 09:42:20 | user stop4313; checkpoint committed, TPU/queue absent, TB synced; 10 preemptions | UE5a/EW4b passive queues released after UC1a resumed; backup proof in verified-recovery-backup-release-0912.log |
+| `RMTXLPropHD64T4096TruePileAllLocalK60EmbedUnembedDirect40NoOSharedWriteNormQKVZeroInitEmbedSeedZero` | `xd-v5p-32-2910072-maxtext` (v5p-32) | `us-central1-a` | 2026-10-05 10:07:58 | 2026-10-05 15:45:12 | review stop13179; checkpoint committed, TPU/queue absent, TB synced; 17 preemptions | none |
+| `RMTXLPropHD64T4096TruePileAllLocalK60EmbedUnembedDirect40NoOSharedWriteNormQKVZeroInitEmbedSeedZero` | `xd-v5p-32-2910072-maxtext` (v5p-32) | `europe-west4-b` | 2026-10-05 15:45:12 | 2026-10-05 19:13:03 | review stop13179; checkpoint committed, TPU/queue absent, TB synced; 17 preemptions | none |
+| `RMTXLPropHD64T4096TruePileAllLocalK60EmbedUnembedDirect40NoOSharedWriteNormQKVZeroInitEmbedSeedZero` | `xd-v5p-32-2910072-maxtext` (v5p-32) | `us-east5-a` | 2026-10-05 19:13:03 | 2026-10-05 19:40:29 | review stop13179; checkpoint committed, TPU/queue absent, TB synced; 17 preemptions | none |
+| `RMTXLPropHD64T4096TruePileAllLocalK60EmbedUnembedDirect40NoOSharedWriteNormQKVZeroInitEmbedSeedZero` | `xd-v5p-32-2910072-maxtext` (v5p-32) | `us-central1-a` | 2026-10-05 19:40:29 | 2026-10-06 11:49:20 | review stop13179; checkpoint committed, TPU/queue absent, TB synced; 17 preemptions | none |
+| `BamMediumPropK75V48C12EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdContentTransformTruePile` | `xd-v5p-16-2910077-maxtext` (v5p-16) | `us-east5-a` | 2026-10-05 18:00:26 | 2026-10-05 20:03:00 | user stop8674; checkpoint committed, TPU/queue absent, TB synced; 6 preemptions | none |
+| `BamMediumPropK75V48C12EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdContentTransformTruePile` | `xd-v5p-16-2910077-maxtext` (v5p-16) | `us-central1-a` | 2026-10-05 20:03:00 | 2026-10-06 12:03:12 | user stop8674; checkpoint committed, TPU/queue absent, TB synced; 6 preemptions | none |
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdResidualComplementTruePile` | `xd-v5p-16-2910076-maxtext` (v5p-16) | `us-central1-a` | 2026-10-06 03:34:16 | 2026-10-06 12:23:36 | stopped6452; complementary residual no gain; 1 preemptions | none |
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdResidualOffTruePile` | `xd-v5p-16-2910079-retry-maxtext` (v5p-16) | `europe-west4-b` | 2026-10-06 07:26:07 | 2026-10-06 08:54:44 | stopped7045; residual cut no gain; 6 preemptions | none |
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdResidualOffTruePile` | `xd-v5p-16-2910079-retry-maxtext` (v5p-16) | `us-central1-a` | 2026-10-06 08:54:44 | 2026-10-06 13:14:05 | stopped7045; residual cut no gain; 6 preemptions | none |
+| `BamXLPropHD64K64EmbedVOnlyQK48AllLocalMLPWriteIndependentEveryThirdTruePile` | `xd-v5p-32-2910069-maxtext` (v5p-32) | `us-central1-a` | 2026-10-05 05:29:28 | 2026-10-06 13:39:40 | resource switch; total14 preemptions | [candidate records](/data0/xd/bam_diagnostics/rmt-readnorm-launch/hd64-bam-passive-candidates-final.json) |
+| `BamXLPropHD64K64EmbedVOnlyQK48AllLocalMLPWriteIndependentEveryThirdTruePile` | `xd-v5p-32-2910069-maxtext` (v5p-32) | `europe-west4-b` | 2026-10-06 13:39:40 | 2026-10-06 14:09:07 | resource switch; total14 preemptions | [candidate records](/data0/xd/bam_diagnostics/rmt-readnorm-launch/hd64-bam-passive-candidates-final.json) |
+| `BamXLPropHD64K64EmbedVOnlyQK48AllLocalMLPWriteIndependentEveryThirdTruePile` | `xd-v5p-32-2910069-maxtext` (v5p-32) | `us-central1-a` | 2026-10-06 14:09:07 | 2026-10-06 15:39:02 | completed24000; total14 preemptions | [candidate records](/data0/xd/bam_diagnostics/rmt-readnorm-launch/hd64-bam-passive-candidates-final.json) |
+| `BamXLT2048K128EmbedVOnlyQK96AllLocalMLPWriteIndependentEveryThird` | `xd-v5p-32-2910066-maxtext` (v5p-32) | `europe-west4-b` | 2026-10-05 03:07:24 | 2026-10-05 03:52:08 | resource_switch | none active |
+| `BamXLT2048K128EmbedVOnlyQK96AllLocalMLPWriteIndependentEveryThird` | `xd-v5p-32-2910066-maxtext` (v5p-32) | `us-central1-a` | 2026-10-05 03:52:08 | 2026-10-06 17:39:10 | resource_switch | none active |
+| `BamXLT2048K128EmbedVOnlyQK96AllLocalMLPWriteIndependentEveryThird` | `xd-v5p-32-2910066-maxtext` (v5p-32) | `us-east5-a` | 2026-10-06 17:39:10 | 2026-10-07 00:55:50 | user stop42473 | none active |
+| `MuddLlama2XLT2048Head16x128` | `xd-v5p-32-2910071-maxtext` (v5p-32) | `us-central1-a` | 2026-10-05 07:30:38 | 2026-10-06 07:57:34 | resource_switch | none active |
+| `MuddLlama2XLT2048Head16x128` | `xd-v5p-32-2910071-maxtext` (v5p-32) | `europe-west4-b` | 2026-10-06 07:57:34 | 2026-10-06 08:51:34 | resource_switch | none active |
+| `MuddLlama2XLT2048Head16x128` | `xd-v5p-32-2910071-maxtext` (v5p-32) | `us-central1-a` | 2026-10-06 08:51:34 | 2026-10-06 13:40:00 | resource_switch | none active |
+| `MuddLlama2XLT2048Head16x128` | `xd-v5p-32-2910071-maxtext` (v5p-32) | `europe-west4-b` | 2026-10-06 13:40:00 | 2026-10-06 14:09:02 | resource_switch | none active |
+| `MuddLlama2XLT2048Head16x128` | `xd-v5p-32-2910071-maxtext` (v5p-32) | `us-central1-a` | 2026-10-06 14:09:02 | 2026-10-06 17:39:03 | resource_switch | none active |
+| `MuddLlama2XLT2048Head16x128` | `xd-v5p-32-2910071-maxtext` (v5p-32) | `us-east5-a` | 2026-10-06 17:39:03 | 2026-10-07 00:55:53 | user stop44463 | none active |
+| `RMTXLT2048AllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZero` | `xd-v5p-32-2910075-maxtext` (v5p-32) | `us-central1-a` | 2026-10-06 14:35:30 | 2026-10-06 17:39:06 | resource_switch | none active |
+| `RMTXLT2048AllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZero` | `xd-v5p-32-2910075-maxtext` (v5p-32) | `us-east5-a` | 2026-10-06 17:39:06 | 2026-10-07 03:41:00 | user stop17604 | none active |
+| `BamMediumPropK75EmbedVOnlyQK75AllLocalMLPWriteIndependentEveryThirdTruePile` | v5p-16 (`xd-v5p-16-2910108-maxtext`) | `us-east5-a` | 2026-10-07 05:31:25 | 2026-10-07 13:24:09 | completed13500; 1preemptions; resources absent,TB synced | none |
+| `BamXLPropK96EmbedVOnlyQK96AllLocalMLPWriteIndependentEveryThirdTruePile` | v5p-32 (`xd-v5p-32-2910109-maxtext`) | `us-east5-a` | 2026-10-07 05:46:26 | 2026-10-07 23:21:51 | stopped21028; 0preemptions; resources absent,TB synced | none |
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdLastBlockSeparateVOTruePile` | v5p-16 (`xd-v5p-16-2910110-maxtext`) | `us-east5-a` | 2026-10-07 13:55:09 | 2026-10-07 16:14:41 | stopped2954; 3preemptions; resources absent,TB synced | none |
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdDirectC8TruePile` | v5p-16 (`xd-v5p-16-2910111-maxtext`) | `us-east5-a` | 2026-10-07 15:00:52 | 2026-10-07 22:54:14 | completed13500; 1preemptions; resources absent,TB synced | none |
+| `BamMediumPropK75EmbedVOnlyQK75AddBeforeRoPEAllLocalMLPWriteIndependentEveryThirdTruePile` | v5p-16 (`xd-v5p-16-2910113-maxtext`) | `us-east5-a` | 2026-10-07 15:40:41 | 2026-10-07 22:57:07 | stopped11604; 4preemptions; resources absent,TB synced | none |
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdL21TruePile` | v5p-16 (`xd-v5p-16-2910114-maxtext`) | `us-east5-a` | 2026-10-07 15:55:22 | 2026-10-08 00:23:47 | completed13500; 0preemptions; resources absent,TB synced | none |
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdWOTransposeTruePile` | v5p-16 (`xd-v5p-16-2910117-maxtext`) | `us-east5-a` | 2026-10-08 00:47:39 | 2026-10-08 03:36:31 | stopped5085; 0preemptions; resources absent, TB synced | none |
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdSeparateProjectionTruePile` | v5p-16 (`xd-v5p-16-2910118-maxtext`) | `us-east5-a` | 2026-10-08 00:47:24 | 2026-10-08 04:44:05 | stopped7204; 0preemptions; resources absent, TB synced | none |
+
+| `BamMHAMediumPropL27C256TruePile` | v5p-16 (`xd-v5p-16-2910115-maxtext`) | `us-east5-a` | 2026-10-07 23:53:19 | 2026-10-08 07:16:54 | complete13500; 2preemptions; resources absent, TB synced | none |
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdResidualProjectionTruePile` | v5p-16 (`xd-v5p-16-2910120-maxtext`) | `us-east5-a` | 2026-10-08 03:17:20 | 2026-10-08 07:18:37 | stopped7195; 0preemptions; resources absent, TB synced | none |
+
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdResidualWOTruePile` | v5p-16 (`xd-v5p-16-2910119-maxtext`) | `us-east5-a` | 2026-10-08 03:17:25 | 2026-10-08 08:01:53 | stopped8578; 0preemptions; resources absent, TB synced | none |
+| `BamMediumPropL27K75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile` | v5p-16 (`xd-v5p-16-2910116-maxtext`) | `us-east5-a` | 2026-10-07 23:53:41 | 2026-10-08 08:03:32 | stopped10706; 1preemptions; resources absent, TB synced | none |
+| `BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdDirectC10TruePile` | v5p-32 (`xd-v5p-32-2910112-maxtext`) | `us-east5-a` | 2026-10-07 14:59:14 | 2026-10-08 08:34:30 | stopped20185; 1preemption; checkpoint committed, resources absent, TB synced | none |
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdVOReadNormalStaticVSmallTruePile` | v5p-16 (`xd-v5p-16-2910122-maxtext`) | `us-east5-a` | 2026-10-08 11:05:05 | 2026-10-08 12:18:15 | stopped2012; hot replacement, 0preemptions | none |
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdLocalVStaticZeroVOReadNormalTruePile` | v5p-16 (`xd-v5p-16-2910121-maxtext`) | `us-east5-a` | 2026-10-08 11:02:23 | 2026-10-08 12:15:50 | stopped2000; loss through2025; hot replacement, 0preemptions | none |
+
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdStaticVOrthogonalInitTruePile` | v5p-16 (`xd-v5p-16-2910122-maxtext`) | `us-east5-a` | 2026-10-08 12:25:18 | 2026-10-08 14:29:40 | user stop3771; 0preemptions; checkpoint committed, resources absent, TB synced | none |
+
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdVOReadKeySmallInitTruePile` | v5p-16 (`xd-v5p-16-2910121-maxtext`) | `us-east5-a` | 2026-10-08 12:27:51 | 2026-10-08 15:15:00 | review stop5073; 0preemptions; checkpoint committed, resources absent, TB synced | none |
+
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdNoLocalOTruePile` | v5p-16 (`xd-v5p-16-2910127-maxtext`) | `us-east5-a` | 2026-10-08 15:53:51 | 2026-10-09 00:02:05 | complete13500; 0preemptions; checkpoint committed, resources absent, TB synced | none |
+
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdVOReadScale1TruePile` | v5p-16 (`xd-v5p-16-2910128-maxtext`) | `us-east5-a` | 2026-10-09 02:05:25 | 2026-10-09 04:59:23 | review stop5114; 0preemptions; checkpoint committed, resources absent, TB synced | none |
+
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdVOReadScale1TruePile` | v5p-16 (`xd-v5p-16-2910128-maxtext`) | `us-east5-a` | 2026-10-09 06:05:14 | 2026-10-09 11:03:04 | complete13500 after resume5114; 0preemptions; checkpoint committed, resources absent, TB synced | none |
+| `BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdDirectC10PallasV7TruePile` | v5p-32 (`xd-v5p-32-2910131-maxtext`) | `us-east5-a` | 2026-10-09 05:01:25 | 2026-10-09 23:49:23 | user stop31500; 0preemptions; checkpoint committed, resources absent | none |
 
 | `BamMediumPropK75V48EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadSharedGelu384GeneralReadTruePile` | v5p-16 (`xd-v5p-16-310121-maxtext`) | `us-east5-a` | 2026-10-11 17:55:20 (prequeue READY) | 2026-10-12 00:21:39 | review stop9701; 1preemption; checkpoint committed, resources absent, TB synced | none |
 | `BamMediumPropL27K75V48EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadSharedGelu384GeneralReadTruePile` | v5p-16 (`xd-v5p-16-310123-maxtext`) | `us-east5-a` | 2026-10-11 17:55:32 (READY) | 2026-10-12 00:21:42 | review stop6826; 2preemptions; checkpoint committed, resources absent, TB synced | none |
@@ -431,8 +517,72 @@ active leases are censored, and manual migration releases are not preemptions.
 | `BamMHAMediumPropC256T2048` | v5p-16 (`xd-v5p-16-310130-maxtext`) | `us-east5-a` | 2026-10-12 05:25:30 | 2026-10-12 05:45:49 | replaced898 by matched C256 control; TB synced, resource transferred | none |
 | `MuddLlama2MediumPropT2048` | v5p-16 (`xd-v5p-16-310131-maxtext`) | `us-east5-a` | 2026-10-12 05:27:25 | 2026-10-12 05:48:41 | replaced809 by matched C256 control; TB synced, resource transferred | none |
 | `BamMHAMediumPropC256T2048Matched` | v5p-16 (`xd-v5p-16-310130-maxtext`) | `us-east5-a` | 2026-10-12 05:46:47 | 2026-10-12 10:05:58 | complete13500;0preemptions; checkpoint committed, resources absent | none |
-| `MuddLlama2MediumPropC256T2048` | v5p-16 (`xd-v5p-16-310131-maxtext`) | `us-east5-a` | 2026-10-12 05:49:36 | — | active; fresh step0/AOT/FIRST_STEP verified | none |
-| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadT2048` | v5p-16 (`xd-v5p-16-310132-maxtext`) | `us-east5-a` | 2026-10-12 05:25:26 | — | active; AOT/FIRST_STEP verified | none |
+| `MuddLlama2MediumPropC256T2048` | v5p-16 (`xd-v5p-16-310131-maxtext`) | `us-east5-a` | 2026-10-12 05:49:36 | 2026-10-12 10:48:15 | complete13500;0preemptions; checkpoint committed, resources released, TB SYNC_OK | none |
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadT2048` | v5p-16 (`xd-v5p-16-310132-maxtext`) | `us-east5-a` | 2026-10-12 05:25:26 | 2026-10-12 12:34:02 | complete13500;0preemptions; checkpoint committed, resources absent, TB SYNC_OK | none |
+| `BamMediumPropFullMGeneralReadStaticEmbeddingTruePile` | v5p-16 (`xd-v5p-16-310127-maxtext`) | `us-east5-a` | 2026-10-12 10:28:15 | 2026-10-12 13:09:58 | user stop4531;0preemptions; checkpoint committed, node/queue absent, TB SYNC_OK | none |
+| `BamMediumPropFullMGeneralReadMatrixEmbeddingTruePile` | v5p-16 (`xd-v5p-16-310128-maxtext`) | `us-east5-a` | 2026-10-12 10:30:21 | 2026-10-12 13:10:00 | user stop4427;0preemptions; checkpoint committed, node/queue absent, TB SYNC_OK | none |
+| `BamMediumPropFullMGeneralReadDirectEmbeddingTruePile` | v5p-16 (`xd-v5p-16-310131-maxtext`) | `us-east5-a` | 2026-10-12 11:41:52 | 2026-10-12 13:26:18 | review stop2894;0preemptions; checkpoint committed, node/queue absent, TB SYNC_OK | none |
+| `BamMediumPropFullMGeneralReadFinalMatrixResidualTruePile` | v5p-16 (`xd-v5p-16-310130-maxtext`) | `us-east5-a` | 2026-10-12 11:45:41 | 2026-10-12 14:48:38 | review stop5125;0preemptions; checkpoint committed, node/queue absent, TB SYNC_OK | none |
+| `BamMediumPropFullMGeneralReadFinalMatrixVGateTruePile` | v5p-16 (`xd-v5p-16-310150-maxtext`) | `us-east5-a` | 2026-10-12 13:00:34 | 2026-10-12 16:03:38 | review stop5121;0preemptions; checkpoint committed, node/queue absent, TB SYNC_OK | none |
+
+| `BamMHAMediumPropT8192SplashTruePile` | v5p-16 (`xd-v5p-16-310160-maxtext`) | `us-east5-a` | 2026-10-13 01:41:42 | 2026-10-13 06:51:29 | review stop9639;0preemptions;checkpoint committed, node/queue absent, TB SYNC_OK | none |
+| `MuddLlama2MediumPropT8192SplashTruePile` | v5p-16 (`xd-v5p-16-310161-maxtext`) | `us-east5-a` | 2026-10-13 01:40:17 | 2026-10-13 06:51:34 | review stop8908;0preemptions;checkpoint committed, node/queue absent, TB SYNC_OK | none |
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadT8192` | v5p-16 (`xd-v5p-16-310162-maxtext`) | `us-east5-a` | 2026-10-13 01:40:34 | 2026-10-13 06:51:38 | review stop7140;0preemptions;checkpoint committed, node/queue absent, TB SYNC_OK | none |
+
+| `BamMediumPropSharedR256GeneralReadMShiftReadG005TruePile` | v5p-16 (`xd-v5p-16-310176-maxtext`) | `us-east5-a` | 2026-10-13 05:33:51 | 2026-10-13 08:05:44 | review stop3699;1preemptions; checkpoint committed; node/queue absent; TB SYNC_OK | none |
+| `BamMediumPropSharedR256GeneralReadMShiftPersistG005TruePile` | v5p-16 (`xd-v5p-16-310177-maxtext`) | `us-east5-a` | 2026-10-13 05:32:53 | 2026-10-13 07:38:23 | review stop2957;1preemptions; checkpoint committed; node/queue absent; TB SYNC_OK | none |
+| `BamMediumPropSharedR256GeneralReadMShiftPersistG050TruePile` | v5p-16 (`xd-v5p-16-310179-maxtext`) | `us-east5-a` | 2026-10-13 05:36:42 | 2026-10-13 07:34:00 | review stop3095;0preemptions; checkpoint committed; hot-transferred to QKVO Read; TB SYNC_OK | none |
+
+| `BamMediumPropSharedR256GeneralReadMShiftReadQKVoG050TruePile` | v5p-16 (`xd-v5p-16-310179-maxtext`) | `us-east5-a` | 2026-10-13 07:34:49 (READY) | 2026-10-13 13:36:10 | review stop9198; 1preemption; resources absent, TB SYNC_OK | none |
+
+| `BamMediumPropSharedR256GeneralReadMShiftReadTwoLag532TruePile` | v5p-16 (`xd-v5p-16-310183-maxtext`) | `us-east5-a` | 2026-10-13 12:23:47 (READY) | 2026-10-13 14:20:23 | effects review stop3086; 0preemptions; resources absent, TB SYNC_OK | none |
+
+| `BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile` | v5p-16 (`xd-v5p-16-310178-maxtext`) | `us-east5-a` | 2026-10-13 05:39:34 (READY) | 2026-10-13 14:26:39 | complete13500; 2preemptions; finalCP13500 committed, resources absent, TB SYNC_OK | none |
+
+| `BamMediumPropMShiftReadG050CrossReadAttnR384DirectBlockTruePile` | v5p-16 (`xd-v5p-16-310202-maxtext`) | `us-east5-a` | 2026-10-14 04:59:26 | 2026-10-14 07:19:54 | 3k review stop; CP3341; resources absent; TB SYNC_OK | none |
+| `BamMediumPropMShiftReadG050CrossReadAttnR384DirectThirdsTruePile` | v5p-16 (`xd-v5p-16-310203-maxtext`) | `us-east5-a` | 2026-10-14 04:51:42 | 2026-10-14 07:19:58 | temporary stop; decision retracted; resume requested; CP3551; resources absent; TB SYNC_OK | none |
+| `BamMediumPropMShiftReadG050CrossTripleR512ConservativeBlockTruePile` | v5p-16 (`xd-v5p-16-310204-maxtext`) | `us-east5-a` | 2026-10-14 04:47:40 | 2026-10-14 07:20:01 | 3k review stop; CP3561; resources absent; TB SYNC_OK | none |
+| `BamMediumPropMShiftReadG050CrossTripleR384ConservativeInner384ThirdsTruePile` | v5p-16 (`xd-v5p-16-310216-maxtext`) | `us-east5-a` | 2026-10-14 05:07:51 | 2026-10-14 07:20:05 | temporary stop; decision retracted; resume requested; CP3418; resources absent; TB SYNC_OK | none |
+
+| `BamMediumPropMShiftReadG050CrossTripleR512ConservativeThirdsTruePile` | v5p-16 (`xd-v5p-16-310205-maxtext`) | `us-east5-a` | 2026-10-14 05:10:40 | 2026-10-14 08:32:41 | user-confirmed second review stop5198; P1; CP committed, resources absent, TB SYNC_OK | none |
+| `BamMediumPropMShiftReadG050CrossTripleR512DirectBlockTruePile` | v5p-16 (`xd-v5p-16-310206-maxtext`) | `us-east5-a` | 2026-10-14 04:47:40 | 2026-10-14 08:34:51 | user-confirmed second review stop6200; P0; CP committed, resources absent, TB SYNC_OK | none |
+| `BamMediumPropMShiftReadG050CrossTripleR384ConservativeInner384ThirdsTruePile` | v5p-16 (`xd-v5p-16-310216-maxtext`) | `us-east5-a` | 2026-10-14 07:28:24 | 2026-10-14 08:32:44 | user-confirmed second review stop4960; P0; CP committed, resources absent, TB SYNC_OK | none |
+
+| `BamMediumPropMShiftReadG050CrossReadAttnR384DirectThirdsTruePile` | v5p-16 (`xd-v5p-16-310203-maxtext`) | `us-east5-a` | 2026-10-14 07:28:04 | 2026-10-14 08:47:05 | user-confirmed stop5157 after own5k review; P2 total; CP committed, resources absent, TB SYNC_OK | none |
+
+| `BamMediumPropMShiftReadG050CrossReadAttnR384ConservativeThirdsTruePile` | v5p-16 (`xd-v5p-16-310201-maxtext`) | `us-east5-a` | 2026-10-14 05:05:10 | 2026-10-14 09:52:05 | user-authorized extrapolation review stop7538; P1; CP committed; node/queue absent | none |
+| `BamMediumPropMShiftReadG050CrossTripleR512DirectThirdsTruePile` | v5p-16 (`xd-v5p-16-310207-maxtext`) | `us-east5-a` | 2026-10-14 04:56:51 | 2026-10-14 09:52:08 | user-authorized extrapolation review stop7713; P1; CP committed; node/queue absent | none |
+
+| `BamMediumPropMShiftReadG050CrossReadAttnR384ConservativeBlockTruePile` | v5p-16 (`xd-v5p-16-310200-maxtext`) | `us-east5-a` | 2026-10-14 04:48:56 | 2026-10-14 10:45:22 | user stop9248: small positive gain; P0; CP committed, resources absent, TB SYNC_OK | none |
+
+| `BamMediumPropMShiftReadG050SharedR384ReuseActivationMLPWriteTruePile` | v5p-16 (`xd-v5p-16-310219-maxtext`) | `us-east5-a` | 2026-10-14 09:25:04 | 2026-10-14 11:22:16 | hot replacement at3333; P0; CP committed, TB SYNC_OK; TPU retained for FullQKNorm | none |
+
+| `BamMediumPropMShiftReadG050SharedR256ReuseActivationMLPWriteTruePile` | v5p-16 (`xd-v5p-16-310218-maxtext`) | `us-east5-a` | 2026-10-14 09:25:04 | 2026-10-14 13:54:24 | user stop7719; P0; CP committed, node/queue absent, TB SYNC_OK | none |
+
+| `PythiaMediumPropT2048` | v5p-16 (`xd-v5p-16-310223-maxtext`) | `us-east5-a` | 2026-10-14 16:42:18 | 2026-10-14 21:54:18 | complete13500; P0; CP13500; node/queue absent; TB SYNC_OK | none |
+| `MuddPythiaMediumPropT2048` | v5p-16 (`xd-v5p-16-310224-maxtext`) | `us-east5-a` | 2026-10-14 16:41:57 | 2026-10-14 23:10:14 | complete13500; P0; CP13500; node/queue absent; TB SYNC_OK | none |
+| `BamMediumPropMShiftReadG050FullQKNormTruePile` | v5p-16 (`xd-v5p-16-310219-maxtext`) | `us-east5-a` | 2026-10-14 11:23:03 | 2026-10-14 19:24:54 | complete13500; P0; CP13500; node/queue absent; TB SYNC_OK | none |
+| `BamMHAMediumPropC256QKNormTruePile` | v5p-16 (`xd-v5p-16-310221-maxtext`) | `us-east5-a` | 2026-10-14 11:24:55 | 2026-10-14 17:08:36 | complete13500; P1; CP13500; node/queue absent; TB SYNC_OK | none |
+| `BamXLPropSharedR400GeneralReadMShiftReadG050TruePile` | v5p-32 (`xd-v5p-32-310192-maxtext`) | `us-east5-a` | 2026-10-13 17:17:15 | 2026-10-14 18:28:28 | stopped33009; P0; CP33009; node/queue absent; TB SYNC_OK | none |
+
+| `BamPythiaMediumPropT2048MShiftReadG050ReadAttentionSharedR256` | v5p-16 (`xd-v5p-16-310225-maxtext`) | `us-east5-a` | 2026-10-14 16:43:51 | 2026-10-15 00:03:48 | complete13500; P0; CP13500; node/queue absent; TB SYNC_OK | none |
+
+| `BamXLPropMShiftReadG050ReadAttentionSharedR384TruePile` | v5p-32 (`xd-v5p-32-310217-maxtext`) | `us-east5-a` | 2026-10-14 09:15:56 | 2026-10-15 01:22:30 | user stop22295; CP22295; P1; resources absent; TB SYNC_OK; fresh R400 replacement | none |
+
+| `Llama2XLPropTruePileMHAQKNorm` | v5p-32 (`xd-v5p-32-310222-maxtext`) | `us-east5-a` | 2026-10-14 11:31:04 | 2026-10-15 01:47:29 | user stop26843; CP26843; P0; resources absent; TB SYNC_OK; replaced by BAM QKNorm | none |
+
+| `BamMediumPropPostAttentionWriteSharedR256AttentionNormTruePile` | v5p-16 (`xd-v5p-16-310249-maxtext`) | `us-east5-a` | 2026-10-15 10:44:13 | 2026-10-15 13:50:10 | user stop4673; P2; CP4673 committed, TPU/queue absent, TB SYNC_OK | none |
+
+| `BamMediumPropPostAttentionWriteSharedR256MLPNormTruePile` | v5p-16 (`xd-v5p-16-310250-maxtext`) | `us-east5-a` | 2026-10-15 10:44:10 | 2026-10-15 14:04:56 | user stop5354; P1; CP5354 committed, resources absent, TB SYNC_OK | none |
+| `BamMediumPropMShiftReadG050MLPReadAllLayersNoReadGatesStaticZeroTruePile` | v5p-16 (`xd-v5p-16-310246-maxtext`) | `us-east5-a` | 2026-10-15 11:00:10 | 2026-10-15 14:06:30 | user stop5117; P0; CP5117 committed, resources absent, TB SYNC_OK | none |
+
+| `BamMediumPropMShiftReadG050MLPReadNonWriteLayersNoReadGatesStaticZeroTruePile` | v5p-16 (`xd-v5p-16-310251-maxtext`) | `us-east5-a` | 2026-10-15 12:01:02 | 2026-10-15 14:20:41 | user stop3149; P2; CP3149 committed, resources absent, TB SYNC_OK | none |
+
+| `BamPythiaMediumPropT2048SerialMLPBamInitFix` | v5p-16 (`xd-v5p-16-310243-maxtext`) | `us-east5-a` | 2026-10-15 08:18:55 | 2026-10-15 15:40:23 | complete13500; P0; CP13500 committed, resources absent, TB SYNC_OK | none |
+
+| `BamPythiaMediumPropT2048SerialMLPOriginalInit` | v5p-16 (`xd-v5p-16-310242-maxtext`) | `us-east5-a` | 2026-10-15 08:16:33 | 2026-10-15 16:02:18 | complete13500; P2; CP13500 committed, resources absent, TB SYNC_OK | none |
+
+| `BamMediumPropMShiftReadG050PostAttentionWriteControlsTruePile` | v5p-16 (`xd-v5p-16-310244-maxtext`) | `us-east5-a` | 2026-10-15 08:32:34 | 2026-10-15 16:25:52 | complete13500; P0; CP13500 committed, resources absent, TB SYNC_OK | none |
 
 ## READY leases
 
@@ -1250,18 +1400,415 @@ active leases are censored, and manual migration releases are not preemptions.
 | `RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicEmbedding` | 6 | `us-east5-a` | 2026-09-26 20:43:57 | 2026-09-27 00:33:13 | 3h49m16s | completed13500; TPU/queue absent, TB synced |
 | `RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicUnembeddingDirect32` | 3 | `us-east5-a` | 2026-09-26 19:10:38 | 2026-09-27 01:31:10 | 6h20m32s | completed13500; TPU/queue absent, TB synced |
 | `RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicEmbeddingUnembeddingDirect32` | 2 | `us-east5-a` | 2026-09-26 20:43:59 | 2026-09-27 03:51:11 | 7h7m12s | completed13500; TPU/queue absent, TB synced |
-| `BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdFullMReadSharedGelu400TruePile` | 1 | `us-east5-a` | 2026-10-11 05:18:52 | 2026-10-11 16:02:44 | 10h43m52s | preempted; same-zone recovery |
-| `BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile` | 1 | `us-east5-a` | 2026-10-11 05:13:37 | 2026-10-12 09:19:32 | 28h05m55s | user stop33002; resources released |
-| `BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdFullMReadSharedGelu400TruePile` | 2 | `us-east5-a` | 2026-10-11 16:09:24 | 2026-10-12 09:19:36 | 17h10m12s | user stop37253; resources released |
-| `BamMHAMediumPropC256T2048Matched` | 1 | `us-east5-a` | 2026-10-12 05:46:50 | 2026-10-12 10:05:58 | 4h19m08s | complete13500; resources released |
-| `RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicEmbeddingUnembeddingDirect32L22` | 1 | `us-east5-a` | 2026-09-27 00:29:56 | — | censored | active; prequeue READY precedes registry00:30:07 |
+| `RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicEmbeddingUnembeddingDirect32L22` | 1 | `us-east5-a` | 2026-09-27 00:29:56 | 2026-09-27 06:47:27 | 6h17m31s | stopped7097; no preemption; known READY precedes registry00:30:07 |
 | `RMT Pallas profile sweep` | 1 | `us-central1-a` | 2026-09-27 05:54:13 | 2026-09-27 07:16:51–07:24:58 | 1h22m38s–1h30m45s | preempted; end bounded by last observed step/terminal-state check |
 | `RMT Pallas final + MHA profile` | 1 | `us-central1-a` | 2026-09-27 07:30:30 | 2026-09-27 08:00:31 (verified absent) | ≤30m01s | completed profiles, manual release; upper bound uses absence verification |
+| `RMT three-stage NoO profiles` | 1 | `us-central1-a` | 2026-09-27 14:20:16 (first observed READY) | 2026-09-27 14:42:39 (verified absent) | ≤22m23s observed window | all5 profiles complete; no preemption; exact xd-v5p-16-rmtthree-0927-uc1a node/queue released; retained v6e hosts untouched |
 | `RMT middle-reverse follow-up profiles` | 1 | `us-central1-a` | 2026-09-27 15:55:42 (first observed READY) | 2026-09-27 16:31:40 (verified absent) | ≤35m58s observed window | all7 profiles complete; no preemption; exact xd-v5p-16-rmt-midv2-0927-uc1a node/queue absent; both retained v6e hosts remain READY |
 | `RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32` | 1 | `us-east5-a` | 2026-09-28 03:05:32 | 2026-09-28 05:42:16 | 2h36m44s | manual stop; checkpoint3442; TPU/queue absent |
 | `BamMHAMediumPropC256TruePile` | 1 | `us-east5-a` | 2026-09-28 03:05:47 | 2026-09-28 08:30:36 | 5h24m49s | clean exit at checkpoint13500; TPU/queue absent |
+| `RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoO` | 1 | `us-east5-a` | 2026-09-28 03:22:33 | 2026-09-28 11:57:13 | 8h34m40s | preempted |
+| `RMTMediumT2048AllLocalK48EmbedUnembedDirect32` | 1 | `us-east5-a` | 2026-09-28 03:05:48 | 2026-09-28 12:58:40 | 9h52m52s | completed13500; TPU/queue absent |
+| `BamMHAMediumPropAlibiC256TruePile` | 1 | `us-east5-a` | 2026-09-28 07:27:57 | 2026-09-28 13:17:24 | 5h49m27s | completed13500; TPU/queue absent |
+| `RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoO` | 2 | `us-east5-a` | 2026-09-28 12:02:35 | 2026-09-28 13:39:30 | 1h36m55s | completed13500; TPU/queue absent |
+| `RMTMediumPropAlibiK64TruePile` | 1 | `us-east5-a` | 2026-09-28 07:28:13 | 2026-09-28 13:46:15 | 6h18m02s | completed13500; TPU/queue absent |
+| `RMTMediumPropT4096TruePileK48EmbedUnembedDirect32NoOLLF` | 1 | `us-east5-a` | 2026-09-28 06:04:27 | 2026-09-28 13:53:45 | 7h49m18s | hot switch; TPU retained by `BamMediumT2048K64EmbedVOnlyQK48` |
+| `BamMediumPropK75EmbedVOnlyQK57TruePile` | 1 | `us-east5-a` | 2026-09-28 07:47:44 | 2026-09-28 15:15:12 | 7h27m28s | completed13500; TPU/queue absent |
+| `BamMediumT2048K64EmbedVOnlyQK48` | 1 | `us-east5-a` | 2026-09-28 13:54:59 | 2026-09-28 20:24:44 | 6h29m45s | completed13500; TPU/queue absent |
+| `Llama2XLPropTruePileMHA` | 2 | `us-east5-a` | 2026-09-29 00:45:07 | 2026-09-29 01:44:24 | 59m17s | preempted |
+| `RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoO` | 1 | `us-east5-a` | 2026-09-29 06:54:24 | 2026-09-29 07:24:12 | 29m48s | stopped507; no preemption; TPU retained for gradient diagnosis |
+| `RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOQKPreNorm` | 1 | `us-east5-a` | 2026-09-29 09:51:01 | 2026-09-29 10:18:55 | 27m54s | preempted |
+| `RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOMPreNorm` | 1 | `us-east5-a` | 2026-09-29 10:16:47 | 2026-09-29 10:21:39 | 4m52s | preempted |
+| `MuddLlama2XLProp` | 1 | `us-east5-a` | 2026-09-29 07:11:56 | 2026-09-29 10:42:37 | 3h30m41s | preempted |
+| `RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOQKPreNorm` | 2 | `us-east5-a` | 2026-09-29 10:26:53 | 2026-09-29 10:42:40 | 15m47s | preempted |
+| `RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOMPreNorm` | 2 | `us-east5-a` | 2026-09-29 10:30:31 | 2026-09-29 10:42:41 | 12m10s | preempted |
+| `RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNorm` | 1 | `us-east5-a` | 2026-09-29 10:16:45 | 2026-09-29 10:42:50 | 26m05s | preempted |
+| `RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOQKPreNorm` | 1 | `us-east5-a` | 2026-09-29 09:47:11 | 2026-09-29 10:43:02 | 55m51s | preempted |
+| `MuddLlama2XLProp` | 2 | `us-east5-a` | 2026-09-29 10:51:21 | 2026-09-29 11:10:58 | 0h19m37s | preempted |
+| `RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOQKPreNorm` | 3 | `us-east5-a` | 2026-09-29 10:51:13 | 2026-09-29 11:10:59 | 19m46s | preempted |
+| `RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOMPreNorm` | 3 | `us-east5-a` | 2026-09-29 10:51:44 | 2026-09-29 11:11:07 | 19m23s | preempted |
+| `RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNorm` | 2 | `us-east5-a` | 2026-09-29 10:51:14 | 2026-09-29 11:11:08 | 19m54s | preempted |
+| `RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOQKPreNorm` | 2 | `us-east5-a` | 2026-09-29 10:51:32 | 2026-09-29 12:19:05 | 1h27m33s | manual stop3092; checkpoint3000; node/queue absence verified12:31:19 |
+| `RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNorm` | 3 | `us-east5-a` | 2026-09-29 11:40:11 | 2026-09-29 12:53:51 | 1h13m40s | preempted |
+| `Llama2XLPropTruePileMHA` | 3 | `us-east5-a` | 2026-09-29 01:52:54 | 2026-09-29 13:04:34 | 11h11m40s | preempted |
+| `RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOQKPreNorm` | 4 | `us-east5-a` | 2026-09-29 11:40:04 | 2026-09-29 14:46:16 | 3h06m12s | stop4222 after persistent NaN; resources absent14:48:40 |
+| `MuddLlama2XLProp` | 3 | `us-east5-a` | 2026-09-29 11:40:21 | 2026-09-29 15:11:27 | 3h31m06s | preempted |
+| `RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNorm` | 4 | `us-east5-a` | 2026-09-29 13:03:21 | 2026-09-29 15:25:04 | 2h21m43s | hot replacement5575; checkpoint committed; TPU retained by RawWrite |
+| `Llama2XLPropTruePileMHA` | 4 | `us-east5-a` | 2026-09-29 13:25:46 | 2026-09-29 16:01:20 | 2h35m34s | preempted |
+| `RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormRawWrite` | 1 | `us-east5-a` | 2026-09-29 15:26:10 | 2026-09-29 17:35:39 | 2h09m29s | manual review stop2885, checkpoint committed; no preemption; resources absent17:38:18 |
+| `Llama2XLPropTruePileMHA` | 5 | `us-east5-a` | 2026-09-29 16:25:36 | 2026-09-29 17:36:50 | 1h11m14s | preempted |
+| `RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormRawWriteSharedEmbed` | 1 | `us-east5-a` | 2026-09-29 15:44:10 | 2026-09-29 18:01:58 | 2h17m48s | hot replacement3000; checkpoint committed; TPU retained by SharedEmbedNorm |
+| `RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScale` | 1 | `us-east5-a` | 2026-09-29 16:22:12 | 2026-09-29 19:18:35 | 2h56m23s | preempted |
+| `Llama2XLPropTruePileMHA` | 6 | `us-east5-a` | 2026-09-29 17:45:35 | 2026-09-29 19:19:35 | 1h34m00s | preempted |
+| `RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormRawWriteSharedEmbedNorm` | 1 | `us-east5-a` | 2026-09-29 18:03:12 | 2026-09-29 20:12:42 | 2h09m30s | review stop2876; checkpoint committed; resources absent20:15:16 |
+| `RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScale` | 2 | `us-east5-a` | 2026-09-29 19:29:30 | 2026-09-29 20:14:44 | 45m14s | preempted |
+| `Llama2XLPropTruePileMHA` | 7 | `us-east5-a` | 2026-09-29 19:33:25 | 2026-09-29 20:40:45 | 1h07m20s | preempted |
+| `RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScale` | 3 | `us-east5-a` | 2026-09-29 20:25:30 | 2026-09-29 20:52:20 | 26m50s | preempted |
+| `Llama2XLPropTruePileMHA` | 8 | `us-east5-a` | 2026-09-29 20:48:52 | 2026-09-29 21:43:12 | 54m20s | completed50000; TPU/queue absent |
+| `RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScale` | 4 | `us-east5-a` | 2026-09-29 20:57:41 | 2026-09-30 03:14:46 | 6h17m05s | completed13500; TPU/queue absent |
+| `MuddLlama2MediumPropTruePile` | 1 | `us-east5-a` | 2026-09-30 00:48:29 | 2026-09-30 03:21:27 | 2h32m58s | preempted |
+| `RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOMPreNorm` | 4 | `us-east5-a` | 2026-09-29 11:40:27 | 2026-09-30 03:41:39 | 16h01m12s | manual stop17733; resources absent03:44:39 |
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalTruePile` | 1 | `us-east5-a` | 2026-09-30 03:59:29 | 2026-09-30 04:12:37 | 13m08s | preempted |
+| `MuddLlama2XLProp` | 4 | `us-east5-a` | 2026-09-29 15:19:41 | 2026-09-30 04:34:46 | 13h15m05s | preempted |
+| `RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedWriteNorm` | 1 | `us-east5-a` | 2026-09-29 21:25:55 | 2026-09-30 04:35:22 | 7h09m27s | preempted |
+| `MuddLlama2MediumPropTruePile` | 2 | `us-east5-a` | 2026-09-30 03:28:42 | 2026-09-30 07:12:54 | 3h44m12s | completed13500; resources absent |
+| `RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedEmbedNorm` | 1 | `us-east5-a` | 2026-09-29 21:02:33 | 2026-09-30 07:26:06 | 10h23m33s | completed13500; resources absent |
+| `RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedWriteNorm` | 2 | `us-east5-a` | 2026-09-30 04:45:17 | 2026-09-30 07:55:05 | 3h09m48s | completed13500; resources absent |
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalTruePile` | 2 | `us-east5-a` | 2026-09-30 04:23:15 | 2026-09-30 11:33:13 | 7h09m58s | completed13500; resources absent, TB synced |
+| `RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedEmbedWriteNorm` | 1 | `us-east5-a` | 2026-09-30 10:25:38 | 2026-09-30 12:46:46 | 2h21m08s | review stop3052; resources absent, TB synced |
+| `RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOMPreNormLearnedScaleSharedWriteEmbedNorm` | 1 | `us-east5-a` | 2026-09-30 08:20:00 | 2026-09-30 13:12:15 | 4h52m15s | manual stop5271; resources absent13:15:16, TB synced |
+| `MuddLlama2XLProp` | 5 | `us-east5-a` | 2026-09-30 04:46:05 | 2026-09-30 15:17:13 | 10h31m08s | completed50000; resources absent, TB synced |
+| `BamXLPropK96EmbedVOnlyQK72AllLocalTruePile` | 1 | `us-east5-a` | 2026-09-30 08:19:39 | 2026-09-30 15:26:49 | 7h07m10s | preempted |
+| `RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedEmbedWriteNormSeedKeyZeroInit` | 1 | `us-east5-a` | 2026-09-30 15:28:17 | 2026-09-30 15:37:49 | 9m32s | preempted |
+| `RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedEmbedWriteNormScale0` | 1 | `us-east5-a` | 2026-09-30 15:03:59 | 2026-09-30 15:38:00 | 34m01s | preempted |
+| `BamXLPropK96EmbedVOnlyQK72AllLocalTruePile` | 2 | `us-east5-a` | 2026-09-30 15:37:05 | 2026-09-30 15:47:03 | 09m58s | preempted |
+| `BamXLPropK96EmbedVOnlyQK72AllLocalTruePile` | 3 | `us-east5-a` | 2026-09-30 15:57:08 | 2026-09-30 16:10:30 | 13m22s | preempted |
+| `RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedEmbedWriteNormScale0` | 2 | `us-east5-a` | 2026-09-30 15:48:37 | 2026-09-30 18:31:44 | 2h43m07s | preempted |
+| `RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedEmbedWriteNormScale0` | 3 | `us-east5-a` | 2026-09-30 18:39:16 | 2026-09-30 19:19:04 | 39m48s | preempted |
+| `RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedEmbedWriteNormScale0` | 4 | `us-east5-a` | 2026-09-30 19:26:02 | 2026-09-30 21:19:20 | 1h53m18s | preempted |
+| `RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedEmbedWriteNormSeedKeyZeroInit` | 2 | `us-east5-a` | 2026-09-30 15:49:42 | 2026-09-30 21:44:20 | 5h54m38s | preempted |
+| `RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedEmbedWriteNormScale006` | 1 | `us-east5-a` | 2026-09-30 13:09:25 | 2026-09-30 21:44:36 | 8h35m11s | preempted |
+| `RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedEmbedWriteNormScale0` | 5 | `us-east5-a` | 2026-09-30 21:27:40 | 2026-09-30 21:45:08 | 17m28s | preempted |
+| `RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedEmbedWriteNormScale0` | 6 | `us-east5-a` | 2026-09-30 21:52:51 | 2026-09-30 21:59:19 | 6m28s | preempted |
+| `RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedEmbedWriteNormSeedKeyZeroInit` | 3 | `us-east5-a` | 2026-09-30 21:53:02 | 2026-09-30 21:59:23 | 6m21s | preempted |
+| `BamXLPropK96EmbedVOnlyQK72AllLocalTruePile` | 4 | `us-east5-a` | 2026-09-30 16:20:10 | 2026-09-30 22:16:01 | 5h55m51s | preempted |
+| `RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedEmbedWriteNormScale006` | 2 | `us-east5-a` | 2026-09-30 21:49:46 | 2026-09-30 22:19:53 | 30m07s | preempted |
+| `RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedEmbedWriteNormScale0` | 7 | `us-east5-a` | 2026-09-30 22:33:13 | 2026-09-30 22:37:00 | 3m47s | preempted |
+| `RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedEmbedWriteNormScale006` | 3 | `us-east5-a` | 2026-09-30 22:33:16 | 2026-09-30 22:37:05 | 3m49s | preempted |
+| `RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedEmbedWriteNormScale006` | 4 | `us-east5-a` | 2026-09-30 22:43:24 | 2026-09-30 23:15:12 | 31m48s | hot replacement12431; TPUretained by LayerStaticZero |
+| `RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedEmbedWriteNormSeedKeyZeroInit` | 4 | `us-east5-a` | 2026-09-30 22:32:57 | 2026-09-30 23:34:29 | 1h01m32s | preempted |
+| `BamXLPropK96EmbedVOnlyQK72AllLocalTruePile` | 5 | `us-east5-a` | 2026-09-30 22:32:56 | 2026-09-30 23:37:27 | 1h04m31s | preempted |
+| `RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedEmbedWriteNormScale0` | 8 | `us-east5-a` | 2026-09-30 22:43:20 | 2026-09-30 23:40:06 | 56m46s | preempted |
+| `BamXLPropK96EmbedVOnlyQK72LLFTruePile` | 1 | `us-east5-a` | 2026-09-30 23:59:19 | 2026-10-01 00:02:58 | 3m39s | preempted |
+| `BamXLPropK96EmbedVOnlyQK72AllLocalTruePile` | 6 | `us-east5-a` | 2026-09-30 23:47:51 | 2026-10-01 00:13:09 | 25m18s | preempted |
+| `RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedEmbedWriteNormScale0` | 9 | `us-east5-a` | 2026-09-30 23:47:13 | 2026-10-01 00:16:08 | 28m55s | preempted |
+| `BamXLPropK96EmbedVOnlyQK72LLFTruePile` | 2 | `us-east5-a` | 2026-10-01 00:12:32 | 2026-10-01 00:16:33 | 4m01s | preempted |
+| `RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedWriteNormStaticKeyZeroInit` | 1 | `us-east5-a` | 2026-09-30 23:16:01 | 2026-10-01 02:11:44 | 2h55m43s | preempted |
+| `RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedEmbedWriteNormScale0` | 10 | `us-east5-a` | 2026-10-01 00:22:10 | 2026-10-01 02:11:56 | 1h49m46s | preempted |
+| `RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedEmbedWriteNormScale0` | 11 | `us-east5-a` | 2026-10-01 02:19:01 | 2026-10-01 02:28:58 | 9m57s | preempted |
+| `RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedEmbedWriteNormSeedKeyZeroInit` | 5 | `us-east5-a` | 2026-09-30 23:41:49 | 2026-10-01 02:57:20 | 3h15m31s | completed13500; resources absent, TB synced |
+| `RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedWriteNormStaticKeyZeroInit` | 2 | `us-east5-a` | 2026-10-01 02:18:04 | 2026-10-01 03:17:56 | 59m52s | review stop5144; resources absent, TB synced |
+| `RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedEmbedWriteNormScale0` | 12 | `us-east5-a` | 2026-10-01 02:37:52 | 2026-10-01 03:49:58 | 1h12m06s | completed13500; resources absent, TB synced |
+| `RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedWriteNormEmbedScale0` | 1 | `us-east5-a` | 2026-10-01 08:08:29 | 2026-10-01 09:36:40 | 1h28m11s | preempted |
+| `RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedWriteNormEmbedSeedZero` | 1 | `us-east5-a` | 2026-10-01 06:27:26 | 2026-10-01 10:11:45 | 3h44m19s | user stop4879; resources absent, TB synced |
+| `RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedWriteNormEmbedScale0` | 2 | `us-east5-a` | 2026-10-01 09:42:36 | 2026-10-01 13:31:26 | 3h48m50s | preempted |
+| `BamXLPropK96EmbedVOnlyQK72AllLocalTruePile` | 7 | `us-east5-a` | 2026-10-01 00:22:40 | 2026-10-01 13:35:36 | 13h12m56s | preempted |
+| `RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOMPreNormLearnedScaleSharedWriteNormEmbedScale0` | 1 | `us-east5-a` | 2026-10-01 12:23:08 | 2026-10-01 13:38:54 | 1h15m46s | preempted |
+| `BamXLPropK96EmbedVOnlyQK72AllLocalTruePile` | 8 | `us-east5-a` | 2026-10-01 13:46:10 | 2026-10-01 14:35:31 | 49m21s | preempted |
+| `RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedWriteNormEmbedScale0` | 3 | `us-east5-a` | 2026-10-01 13:43:33 | 2026-10-01 14:40:51 | 57m18s | hot replacement8025; TPU retained by StaticGate; TB synced |
+| `BamXLPropK96EmbedVOnlyQK72AllLocalTruePile` | 9 | `us-east5-a` | 2026-10-01 14:44:53 | 2026-10-01 16:30:59 | 1h46m06s | user pause; checkpoint committed, TPU/queue absent, TB synced |
+| `RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOMPreNormLearnedScaleSharedWriteNormEmbedScale0` | 2 | `us-east5-a` | 2026-10-01 13:46:04 | 2026-10-01 16:40:45 | 2h54m41s | preempted |
+| `BamMediumPropK75EmbedVOnlyQK57PseudoFTruePile` | 1 | `us-east5-a` | 2026-10-01 16:42:07 | 2026-10-01 16:54:40 | 12m33s | preempted |
+| `RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedWriteNormStaticGate` | 1 | `us-east5-a` | 2026-10-01 14:41:58 | 2026-10-01 16:56:16 | 2h14m18s | review stop2906; resources absent, TB synced |
+| `RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOMPreNormLearnedScaleSharedWriteNormEmbedScale0` | 3 | `us-east5-a` | 2026-10-01 16:49:57 | 2026-10-01 17:06:10 | 16m13s | preempted |
+| `BamMediumPropK75EmbedVOnlyQK57PseudoFTruePile` | 2 | `us-east5-a` | 2026-10-01 17:01:54 | 2026-10-01 17:06:19 | 04m25s | preempted |
+| `BamMediumPropK75EmbedVOnlyQK57LLFMatrixVTruePile` | 1 | `us-east5-a` | 2026-10-01 16:00:32 | 2026-10-01 17:47:19 | 1h46m47s | preempted |
+| `RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOMPreNormLearnedScaleSharedWriteNormEmbedScale0` | 4 | `us-east5-a` | 2026-10-01 17:46:32 | 2026-10-01 18:43:22 | 56m50s | preempted |
+| `BamMediumPropK75EmbedVOnlyQK57PseudoFTruePile` | 3 | `us-east5-a` | 2026-10-01 17:14:29 | 2026-10-01 18:43:32 | 1h29m03s | preempted |
+| `BamMediumPropK75EmbedVOnlyQK57LLFMatrixVTruePile` | 2 | `us-east5-a` | 2026-10-01 17:54:50 | 2026-10-01 18:43:32 | 48m42s | preempted |
+| `BamXLPropK96EmbedVOnlyQK72LLFTruePile` | 3 | `us-east5-a` | 2026-10-01 00:22:38 | 2026-10-01 18:45:36 | 18h22m58s | preempted |
+| `RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOMPreNormLearnedScaleSharedWriteEmbedNormSeedKeyZeroInit` | 1 | `us-east5-a` | 2026-10-01 06:30:18 | 2026-10-01 18:45:44 | 12h15m26s | preempted |
+| `BamMediumPropK75EmbedVOnlyQK57LLFMatrixVTruePile` | 3 | `us-east5-a` | 2026-10-01 18:57:25 | 2026-10-01 19:15:07 | 17m42s | preempted |
+| `RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOMPreNormLearnedScaleSharedWriteNormEmbedScale0` | 5 | `us-east5-a` | 2026-10-01 18:57:35 | 2026-10-01 19:15:18 | 17m43s | preempted |
+| `BamXLPropK96EmbedVOnlyQK72LLFTruePile` | 4 | `us-east5-a` | 2026-10-01 19:00:03 | 2026-10-01 19:53:38 | 53m35s | preempted |
+| `BamMediumPropK75EmbedVOnlyQK57LLFMatrixVTruePile` | 4 | `us-east5-a` | 2026-10-01 19:25:50 | 2026-10-01 19:54:01 | 28m11s | preempted |
+| `BamXLPropK96EmbedVOnlyQK72LLFTruePile` | 5 | `us-east5-a` | 2026-10-01 20:00:30 | 2026-10-01 20:20:06 | 19m36s | preempted |
+| `RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOMPreNormLearnedScaleSharedWriteNormEmbedScale0` | 6 | `us-east5-a` | 2026-10-01 19:37:30 | 2026-10-01 20:31:30 | 54m00s | preempted |
+| `BamXLPropK96EmbedVOnlyQK72LLFTruePile` | 6 | `us-east5-a` | 2026-10-01 20:26:44 | 2026-10-01 20:34:04 | 7m20s | preempted |
+| `RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOMPreNormLearnedScaleSharedWriteNormEmbedScale0` | 7 | `us-east5-a` | 2026-10-01 20:40:20 | 2026-10-01 21:01:09 | 20m49s | preempted |
+| `BamMediumPropK75EmbedVOnlyQK57LLFMatrixVTruePile` | 5 | `us-east5-a` | 2026-10-01 20:00:09 | 2026-10-01 21:02:21 | 1h02m12s | preempted |
+| `BamXLPropK96EmbedVOnlyQK72LLFTruePile` | 7 | `us-east5-a` | 2026-10-01 20:40:28 | 2026-10-01 21:03:25 | 22m57s | preempted |
+| `RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOMPreNormLearnedScaleSharedWriteEmbedNormSeedKeyZeroInit` | 2 | `us-east5-a` | 2026-10-01 18:57:33 | 2026-10-01 21:12:47 | 2h15m14s | preempted |
+| `RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOMPreNormLearnedScaleSharedWriteNormEmbedScale0` | 8 | `us-east5-a` | 2026-10-01 21:35:39 | 2026-10-01 22:22:02 | 46m23s | user pause; checkpoint committed, TPU/queue absent, TB synced |
+| `RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOMPreNormLearnedScaleSharedWriteEmbedNormSeedKeyZeroInit` | 3 | `us-east5-a` | 2026-10-01 21:35:42 | 2026-10-01 23:23:22 | 1h47m40s | user pause; checkpoint committed, TPU/queue absent, TB synced |
+| `BamMediumPropK75EmbedVOnlyQK57PseudoFTruePile` | 4 | `us-east5-a` | 2026-10-01 18:57:24 | 2026-10-02 00:28:28 | 5h31m04s | completed13500; checkpoint committed, TPU/queue absent, TB synced |
+| `BamMediumPropK75EmbedVOnlyQK57LLFMatrixVTruePile` | 6 | `us-east5-a` | 2026-10-01 21:35:45 | 2026-10-02 00:59:40 | 3h23m55s | completed13500; checkpoint committed, TPU/queue absent, TB synced |
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteEveryLayerTruePile` | 1 | `us-east5-a` | 2026-10-02 01:41:05 | 2026-10-02 01:44:21 | 3m16s | preempted |
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteEveryLayerTruePile` | 2 | `us-east5-a` | 2026-10-02 01:50:35 | 2026-10-02 03:37:02 | 1h46m27s | run_stop |
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteEveryThirdTruePile` | 1 | `us-east5-a` | 2026-10-02 02:00:23 | 2026-10-02 03:46:39 | 1h46m16s | preempted |
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteStaticEveryThirdTruePile` | 1 | `us-east5-a` | 2026-10-02 03:50:50 | 2026-10-02 04:07:39 | 16m49s | preempted |
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteStaticEveryLayerTruePile` | 1 | `us-east5-a` | 2026-10-02 01:52:49 | 2026-10-02 04:07:41 | 2h14m52s | preempted |
+| `BamXLPropK96EmbedVOnlyQK72LLFTruePile` | 8 | `us-east5-a` | 2026-10-01 21:35:40 | 2026-10-02 04:07:44 | 6h32m04s | preempted |
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteEveryThirdTruePile` | 2 | `us-east5-a` | 2026-10-02 03:55:31 | 2026-10-02 04:07:44 | 12m13s | preempted |
+| `BamXLPropK96EmbedVOnlyQK72LLFTruePile` | 9 | `us-east5-a` | 2026-10-02 04:18:23 | 2026-10-02 04:25:08 | 6m45s | preempted |
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteStaticEveryThirdTruePile` | 2 | `us-east5-a` | 2026-10-02 04:18:14 | 2026-10-02 04:25:35 | 07m21s | preempted |
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteStaticEveryThirdTruePile` | 3 | `us-east5-a` | 2026-10-02 04:31:45 | 2026-10-02 04:49:12 | 17m27s | preempted |
+| `BamXLPropK96EmbedVOnlyQK72LLFTruePile` | 10 | `us-east5-a` | 2026-10-02 04:31:33 | 2026-10-02 04:49:31 | 17m58s | preempted |
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteEveryThirdTruePile` | 3 | `us-east5-a` | 2026-10-02 04:15:49 | 2026-10-02 05:01:36 | 45m47s | preempted |
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteStaticEveryThirdTruePile` | 4 | `us-east5-a` | 2026-10-02 04:58:48 | 2026-10-02 05:01:46 | 02m58s | preempted |
+| `BamXLPropK96EmbedVOnlyQK72LLFTruePile` | 11 | `us-east5-a` | 2026-10-02 04:58:54 | 2026-10-02 05:01:57 | 3m03s | preempted |
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteStaticEveryLayerTruePile` | 2 | `us-east5-a` | 2026-10-02 04:16:10 | 2026-10-02 05:18:42 | 1h02m32s | run_stop |
+| `BamXLPropK96EmbedVOnlyQK72LLFTruePile` | 12 | `us-east5-a` | 2026-10-02 05:10:33 | 2026-10-02 05:39:36 | 29m03s | user pause; checkpoint committed, resources absent, TB synced |
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteEveryThirdUnembedDirect32TruePile` | 1 | `us-east5-a` | 2026-10-02 07:09:28 | 2026-10-02 07:23:44 | 14m16s | preempted |
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteStaticEveryThirdUnembedDirect32TruePile` | 1 | `us-east5-a` | 2026-10-02 07:08:53 | 2026-10-02 08:46:57 | 1h38m04s | run_stop; checkpoint committed, TPU/queue absent, TB synced |
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteEveryThirdUnembedDirect32TruePile` | 2 | `us-east5-a` | 2026-10-02 07:50:27 | 2026-10-02 09:16:34 | 1h26m07s | run_stop; checkpoint committed, TPU/queue absent, TB synced |
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteEveryThirdTruePile` | 4 | `us-east5-a` | 2026-10-02 05:07:59 | 2026-10-02 09:51:05 | 4h43m06s | completed13500; resources absent, TB synced |
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryLayerTruePile` | 1 | `us-east5-a` | 2026-10-02 08:35:30 | 2026-10-02 11:38:13 | 3h02m43s | review stop5247 |
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteStaticEveryThirdTruePile` | 5 | `us-east5-a` | 2026-10-02 05:10:43 | 2026-10-02 11:56:49 | 6h46m06s | completed13500 |
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteStaticEveryThirdNoWOTruePile` | 1 | `us-east5-a` | 2026-10-02 10:24:44 | 2026-10-02 12:01:12 | 1h36m28s | review stop2947 |
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdNoWOTruePile` | 1 | `us-east5-a` | 2026-10-02 10:44:07 | 2026-10-02 12:25:22 | 1h41m15s | review stop3026 |
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile` | 1 | `us-east5-a` | 2026-10-02 07:15:43 | 2026-10-02 14:48:52 | 7h33m09s | completed13500; checkpoint committed, resources absent, TB synced |
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdHeadMixNoWOSeparateVOKeysTruePile` | 1 | `us-east5-a` | 2026-10-02 13:56:48 | 2026-10-02 14:49:42 | 52m54s | preempted |
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdHeadMixNoWOTruePile` | 1 | `us-east5-a` | 2026-10-02 13:57:16 | 2026-10-02 14:49:54 | 52m38s | preempted |
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdHeadMixNoWOTruePile` | 2 | `us-east5-a` | 2026-10-02 14:57:40 | 2026-10-02 15:00:04 | 2m24s | preempted |
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdHeadMixNoWOTruePile` | 3 | `us-east5-a` | 2026-10-02 15:09:40 | 2026-10-02 15:47:42 | 38m02s | preempted |
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdHeadMixNoWOSeparateVOKeysTruePile` | 2 | `us-east5-a` | 2026-10-02 15:00:55 | 2026-10-02 15:48:31 | 47m36s | preempted |
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdHeadMixNoWOTruePile` | 4 | `us-east5-a` | 2026-10-02 15:57:26 | 2026-10-02 15:59:54 | 2m28s | preempted |
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdHeadMixNoWOSeparateVOKeysTruePile` | 3 | `us-east5-a` | 2026-10-02 16:00:35 | 2026-10-02 16:18:22 | 17m47s | hot_switch_run_boundary |
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdHeadMixNoWOTruePile` | 5 | `us-east5-a` | 2026-10-02 16:10:20 | 2026-10-02 16:23:22 | 13m02s | hot_switch_run_boundary |
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdPostWriteLocalOHeadMixNoWOTruePile` | 1 | `us-east5-a` | 2026-10-02 16:37:33 | 2026-10-02 16:57:50 | 20m17s | preempted |
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdPostWriteLocalONoWOTruePile` | 1 | `us-east5-a` | 2026-10-02 16:23:25 | 2026-10-02 17:10:02 | 46m37s | preempted |
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdHeadMixNoWOSeparateVOKeysNoGateTruePile` | 1 | `us-east5-a` | 2026-10-02 16:18:24 | 2026-10-02 18:00:27 | 1h42m03s | review stop2994; checkpoint committed, resources absent, TB synced |
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdPostWriteLocalONoWOTruePile` | 2 | `us-east5-a` | 2026-10-02 17:18:46 | 2026-10-02 18:23:07 | 1h04m21s | run_stop |
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdPostWriteLocalOHeadMixNoWOTruePile` | 2 | `us-east5-a` | 2026-10-02 17:14:03 | 2026-10-02 18:44:15 | 1h30m12s | run_stop |
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdPostWriteLocalOGatedHeadMixNoWOTruePile` | 1 | `us-east5-a` | 2026-10-03 01:19:13 | 2026-10-03 02:39:36 | 1h20m23s | preempted |
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdPostWriteLocalOGatedHeadMixNoWOTruePile` | 2 | `us-east5-a` | 2026-10-03 02:50:36 | 2026-10-03 03:20:00 | 29m24s | review stop2945; checkpoint committed, resources absent, TB synced |
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdPostWriteLocalORawWOTruePile` | 1 | `us-east5-a` | 2026-10-03 01:21:32 | 2026-10-03 04:02:47 | 2h41m15s | user stop4575; checkpoint committed, resources absent, TB synced |
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdPreWriteLocalORawWOTruePile` | 1 | `us-east5-a` | 2026-10-03 03:06:46 | 2026-10-03 04:34:47 | 1h28m01s | user stop2515; checkpoint committed, resources absent, TB synced |
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdPreWriteLocalORawWOUpdatedQueryTruePile` | 1 | `us-east5-a` | 2026-10-03 04:05:18 | 2026-10-03 06:01:00 | 1h55m42s | hot-switch at3285; checkpoint committed, TPU transferred, TB synced |
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdPostWriteLocalORawWOUpdatedQueryTruePile` | 1 | `us-east5-a` | 2026-10-03 04:03:55 | 2026-10-03 06:33:38 | 2h29m43s | preempted |
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdPostWriteLocalORawWOUpdatedQueryTruePile` | 2 | `us-east5-a` | 2026-10-03 06:39:22 | 2026-10-03 07:36:19 | 56m57s | review stop5657; resources absent, TB synced |
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdPostWriteLocalOGatedHeadMixUpdatedQueryTruePile` | 1 | `us-east5-a` | 2026-10-03 06:01:58 | 2026-10-03 07:51:42 | 1h49m44s | hot-replaced3051; checkpoint committed, TPU transferred, TB synced |
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteStaticEveryThirdHeadMixPreserveRoutesTruePile` | 1 | `us-east5-a` | 2026-10-03 08:27:01 | 2026-10-03 10:04:20 | 1h37m19s | hot-replaced2926; checkpoint committed, TPU transferred, TB synced |
+| `RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKZeroInit` | 1 | `us-east5-a` | 2026-10-03 07:52:52 | 2026-10-03 11:42:01 | 3h49m09s | review stop5162; checkpoint committed, resources absent |
+| `RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedScale0` | 1 | `us-east5-a` | 2026-10-03 10:14:54 | 2026-10-03 12:44:05 | 2h29m11s | user stop3307; checkpoint committed, resources absent, TB synced |
+| `BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdTruePile` | 1 | `us-east5-a` | 2026-10-03 10:34:29 | 2026-10-03 15:49:33 | 5h15m04s | preempted; same-zone automatic recovery |
+| `RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZeroFinalReadZero` | 1 | `us-east5-a` | 2026-10-03 14:10:54 | 2026-10-03 16:00:22 | 1h49m28s | hot-replaced2427; checkpoint committed, TPU transferred, TB synced |
+| `RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZeroStaticQVMLPReadBias` | 1 | `us-east5-a` | 2026-10-03 16:01:11 | 2026-10-03 18:01:22 | 2h00m11s | review stop2693; checkpoint committed, resources absent, TB synced |
+| `RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInit` | 1 | `us-east5-a` | 2026-10-03 08:11:55 | 2026-10-03 18:20:55 | 10h09m00s | complete13500; checkpoint committed, resources released, TB synced |
+| `RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZeroFinalVectorSkip` | 1 | `us-east5-a` | 2026-10-03 17:22:27 | 2026-10-03 18:57:39 | 1h35m12s | user stop2092; checkpoint committed, resources absent, TB synced |
+| `RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZero` | 1 | `us-east5-a` | 2026-10-03 10:07:19 | 2026-10-03 20:15:26 | 10h08m07s | complete13500; checkpoint committed, resources absent, TB synced |
+| `RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZeroMLPFront16FullEveryThird` | 1 | `us-east5-a` | 2026-10-04 00:20:22 | 2026-10-04 03:00:41 | 2h40m19s | user stop3583; checkpoint committed, resources absent, TB synced |
+| `BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdTruePile` | 2 | `us-east5-a` | 2026-10-03 15:58:55 | 2026-10-04 04:19:40 | 12h20m45s | preempted; same-zone automatic recovery |
+| `RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZeroMLPInputPreNorm` | 1 | `us-east5-a` | 2026-10-04 04:03:56 | 2026-10-04 05:20:08 | 1h16m12s | preempted; same-zone recovery |
+| `RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOSharedWriteNormQKVZeroInitEmbedSeedZero` | 1 | `us-east5-a` | 2026-10-03 18:27:05 | 2026-10-04 05:48:27 | 11h21m22s | user stop12293; checkpoint committed, resources absent, TB synced |
+| `RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZeroMLPInputPreNorm` | 2 | `us-east5-a` | 2026-10-04 05:28:05 | 2026-10-04 06:58:49 | 1h30m44s | review stop3661; checkpoint committed, resources absent, TB synced |
+| `RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZeroWriteContentBiasInitialMatrixBias` | 1 | `us-east5-a` | 2026-10-04 04:57:47 | 2026-10-04 08:27:32 | 3h29m45s | hot_switch_run_boundary; checkpoint4670, TB synced |
+| `RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZeroMLPInputPreNormSharedRawWriteFinalReadoutNorm` | 1 | `us-east5-a` | 2026-10-04 08:28:22 | 2026-10-04 08:35:57 | 7m35s | manual closeout ownership error, not preemption; checkpoint60 retained, same-zone recovery |
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryFourthBlockFirstTruePile` | 1 | `us-east5-a` | 2026-10-04 08:14:28 | 2026-10-04 09:05:40 | 51m12s | user early stop1489; checkpoint committed, resources absent, TB synced |
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEverySecondBlockFirstTruePile` | 1 | `us-east5-a` | 2026-10-04 08:10:05 | 2026-10-04 09:47:43 | 1h37m38s | review stop2884; checkpoint committed, resources absent, TB synced |
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdRawContentTruePile` | 1 | `us-east5-a` | 2026-10-04 09:06:44 | 2026-10-04 11:59:19 | 2h52m35s | review stop5210; checkpoint committed, resources absent, TB synced |
+| `RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZeroMLPInputPreNormSharedRawWriteAttnStaticQVReadWriteBias` | 1 | `us-east5-a` | 2026-10-04 09:46:04 | 2026-10-04 11:59:23 | 2h13m19s | review stop2967; checkpoint committed, resources absent, TB synced |
+| `RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZeroMLPInputPreNormSharedRawWriteFinalReadoutNorm` | 2 | `us-east5-a` | 2026-10-04 08:42:21 | 2026-10-04 12:04:02 | 3h21m41s | preempted; same-zone automatic recovery |
+| `RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZeroMLPInputPreNormSharedRawWriteFinalReadoutNorm` | 3 | `us-east5-a` | 2026-10-04 12:14:06 | 2026-10-04 12:58:25 | 44m19s | review stop5548; checkpoint committed, resources absent, TB synced |
+| `BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdTruePile` | 3 | `us-east5-a` | 2026-10-04 04:28:53 | 2026-10-04 13:48:58 | 9h20m05s | user stop32054; checkpoint committed, resources absent, TB synced |
+| `RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZeroMLPInputPreNormSharedRawWrite` | 1 | `us-east5-a` | 2026-10-04 04:00:06 | 2026-10-04 14:09:10 | 10h09m04s | complete13500; checkpoint committed, resources absent, TB synced |
+| `RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZeroMLPInputPreNormSharedRawWriteAttnWriteContentBias` | 1 | `us-east5-a` | 2026-10-04 09:46:00 | 2026-10-04 14:23:33 | 4h37m33s | preempted |
+| `RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZeroStaticQVMLPReadBiasWriteContentBias` | 1 | `us-east5-a` | 2026-10-04 04:35:45 | 2026-10-04 14:25:56 | 9h50m11s | preempted; same-zone automatic recovery |
+| `RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZeroMLPInputPreNormSharedRawWriteAttnWriteContentBias` | 2 | `us-east5-a` | 2026-10-04 14:33:03 | 2026-10-04 14:49:23 | 16m20s | preempted |
+| `RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZeroStaticQVMLPReadBiasWriteContentBias` | 2 | `us-east5-a` | 2026-10-04 14:32:32 | 2026-10-04 14:49:35 | 17m03s | preempted; same-zone automatic recovery |
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEverySecondBlockFirstRawContentTruePile` | 1 | `us-east5-a` | 2026-10-04 14:47:33 | 2026-10-04 14:50:55 | 03m22s | preempted |
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryLayerRawContentTruePile` | 1 | `us-east5-a` | 2026-10-04 14:47:37 | 2026-10-04 14:51:55 | 04m18s | preempted |
+| `RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZeroStaticQVMLPReadBiasWriteContentBias` | 3 | `us-east5-a` | 2026-10-04 15:07:04 | 2026-10-04 15:16:38 | 9m34s | complete13500; checkpoint committed, resources absent, TB synced |
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEverySecondBlockFirstRawContentTruePile` | 2 | `us-east5-a` | 2026-10-04 15:07:18 | 2026-10-04 15:17:58 | 10m40s | preempted |
+| `RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZeroMLPInputPreNormSharedRawWriteAttnWriteContentBias` | 3 | `us-east5-a` | 2026-10-04 15:11:20 | 2026-10-04 15:18:26 | 07m06s | preempted |
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryLayerRawContentTruePile` | 2 | `us-east5-a` | 2026-10-04 15:06:49 | 2026-10-04 15:20:28 | 13m39s | preempted |
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryLayerRawContentTruePile` | 3 | `us-east5-a` | 2026-10-04 15:38:46 | 2026-10-04 15:40:22 | 01m36s | preempted |
+| `RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZeroMLPInputPreNormSharedRawWriteAttnWriteContentBias` | 4 | `us-east5-a` | 2026-10-04 15:38:26 | 2026-10-04 15:40:27 | 02m01s | preempted |
+| `RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZeroMLPInputPreNormSharedRawWriteAttnWriteContentBias` | 5 | `us-east5-a` | 2026-10-04 16:05:09 | 2026-10-04 16:31:24 | 26m15s | preempted |
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryLayerRawContentTruePile` | 4 | `us-east5-a` | 2026-10-04 16:05:23 | 2026-10-04 16:31:36 | 26m13s | preempted |
+| `RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOSharedWriteNormQKVZeroInitEmbedSeedZeroMLPInputPreNormSharedRawWriteAttnWriteContentBias` | 1 | `us-east5-a` | 2026-10-04 16:10:16 | 2026-10-04 16:31:36 | 21m20s | preempted |
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEverySecondBlockFirstRawContentTruePile` | 3 | `us-east5-a` | 2026-10-04 16:05:34 | 2026-10-04 16:32:34 | 27m00s | preempted |
+| `RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZeroMLPInputPreNormSharedRawWriteAttnWriteContentBias` | 6 | `us-east5-a` | 2026-10-04 16:39:46 | 2026-10-04 16:41:23 | 01m37s | preempted |
+| `RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZeroMLPInputPreNormSharedRawWriteAttnWriteContentBias` | 7 | `us-east5-a` | 2026-10-04 16:57:05 | 2026-10-04 16:59:44 | 02m39s | preempted |
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryLayerRawContentTruePile` | 5 | `us-east5-a` | 2026-10-04 17:14:42 | 2026-10-04 17:20:26 | 05m44s | preempted |
+| `RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOSharedWriteNormQKVZeroInitEmbedSeedZeroMLPInputPreNormSharedRawWriteAttnWriteContentBias` | 2 | `us-east5-a` | 2026-10-04 17:14:20 | 2026-10-04 17:20:29 | 06m09s | preempted |
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEverySecondBlockFirstRawContentTruePile` | 4 | `us-east5-a` | 2026-10-04 17:14:46 | 2026-10-04 17:20:36 | 05m50s | preempted |
+| `RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZeroMLPInputPreNormSharedRawWriteAttnWriteContentBias` | 8 | `us-east5-a` | 2026-10-04 17:19:18 | 2026-10-04 17:22:35 | 03m17s | preempted |
+| `RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZeroMLPInputPreNormSharedRawWriteAttnWriteContentBias` | 9 | `us-east5-a` | 2026-10-04 17:28:46 | 2026-10-04 17:30:47 | 02m01s | preempted |
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryLayerRawContentTruePile` | 6 | `us-east5-a` | 2026-10-04 17:29:34 | 2026-10-04 18:41:18 | 1h11m44s | review stop3086; checkpoint committed; node/queue absent; TB synced |
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEverySecondBlockFirstRawContentTruePile` | 5 | `us-east5-a` | 2026-10-04 17:29:41 | 2026-10-04 19:48:25 | 2h18m44s | manual stop at5000 review |
+| `RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOSharedWriteNormQKVZeroInitEmbedSeedZeroMLPInputPreNormSharedRawWriteAttnWriteContentBias` | 3 | `us-east5-a` | 2026-10-04 17:29:16 | 2026-10-04 22:05:49 | 4h36m33s | preempted |
+| `RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZeroMLPInputPreNormSharedRawWriteAttnWriteContentBias` | 10 | `us-east5-a` | 2026-10-04 17:37:24 | 2026-10-04 22:06:10 | 4h28m46s | preempted |
+| `RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZeroMLPInputPreNormSharedRawWriteAttnWriteContentBias` | 11 | `us-east5-a` | 2026-10-04 22:11:57 | 2026-10-04 22:32:40 | 20m43s | completed13500 |
+| `RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOSharedWriteNormQKVZeroInitEmbedSeedZeroMLPInputPreNormSharedRawWriteAttnWriteContentBias` | 4 | `us-east5-a` | 2026-10-05 00:11:31 | 2026-10-05 00:16:12 | 04m41s | preempted |
+| `RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOSharedWriteNormQKVZeroInitEmbedSeedZeroMLPInputPreNormSharedRawWriteAttnWriteContentBias` | 5 | `us-east5-a` | 2026-10-05 00:25:00 | 2026-10-05 00:29:19 | 04m19s | preempted |
+| `BamXLT2048K128EmbedVOnlyQK96AllLocalMLPWriteIndependentEveryThird` | 1 | `europe-west4-b` | 2026-10-05 03:07:28 | 2026-10-05 03:09:42 | 2m14s | preempted |
+| `RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOSharedWriteNormQKVZeroInitEmbedSeedZeroMLPInputPreNormSharedWriteNormAttnWriteContentBias` | 1 | `europe-west4-b` | 2026-10-05 03:06:45 | 2026-10-05 03:11:25 | 04m40s | preempted |
+| `BamXLT2048K128EmbedVOnlyQK96AllLocalMLPWriteIndependentEveryThird` | 2 | `europe-west4-b` | 2026-10-05 03:15:34 | 2026-10-05 03:23:29 | 7m55s | preempted |
+| `RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOSharedWriteNormQKVZeroInitEmbedSeedZeroMLPInputPreNormSharedWriteNormAttnWriteContentBias` | 2 | `europe-west4-b` | 2026-10-05 03:15:45 | 2026-10-05 03:23:30 | 07m45s | preempted |
+| `BamXLT2048K128EmbedVOnlyQK96AllLocalMLPWriteIndependentEveryThird` | 3 | `us-central1-a` | 2026-10-05 03:52:10 | 2026-10-05 04:44:49 | 52m39s | preempted |
+| `RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOSharedWriteNormQKVZeroInitEmbedSeedZeroMLPInputPreNormSharedWriteNormAttnWriteContentBias` | 3 | `us-central1-a` | 2026-10-05 03:54:21 | 2026-10-05 07:40:46 | 3h46m25s | user stop4316; checkpoint committed, TPU/queue absent, TB synced |
+| `RMTXLPropHD64T4096TruePileAllLocalK60EmbedUnembedDirect40NoOSharedWriteNormQKVZeroInitEmbedSeedZero` | 1 | `us-central1-a` | 2026-10-05 10:08:03 | 2026-10-05 12:42:28 | 2h34m25s | preempted |
+| `MuddLlama2XLPropHD64` | 1 | `us-central1-a` | 2026-10-05 05:48:48 | 2026-10-05 12:42:35 | 6h53m47s | preempted |
+| `BamMediumPropK75V48C12EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile` | 1 | `us-central1-a` | 2026-10-05 05:55:28 | 2026-10-05 12:42:40 | 6h47m12s | preempted; same-zone recovery |
+| `Llama2XLPropHD64` | 1 | `us-central1-a` | 2026-10-05 05:48:53 | 2026-10-05 12:42:40 | 6h53m47s | preempted |
+| `BamXLT2048K128EmbedVOnlyQK96AllLocalMLPWriteIndependentEveryThird` | 4 | `us-central1-a` | 2026-10-05 05:11:01 | 2026-10-05 12:42:41 | 7h31m40s | preempted |
+| `MuddLlama2XLT2048Head16x128` | 1 | `us-central1-a` | 2026-10-05 07:30:42 | 2026-10-05 12:43:36 | 5h12m54s | preempted |
+| `BamMediumPropK75V48C12EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile` | 2 | `us-central1-a` | 2026-10-05 12:50:42 | 2026-10-05 13:50:13 | 59m31s | complete13500; checkpoint committed, TPU/queue absent, TB synced |
+| `BamXLPropK96V60C15EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdTruePile` | 1 | `us-central1-a` | 2026-10-05 13:37:50 | 2026-10-05 14:03:06 | 25m16s | preempted |
+| `MuddLlama2XLPropHD64` | 2 | `us-central1-a` | 2026-10-05 12:50:12 | 2026-10-05 14:08:41 | 1h18m29s | preempted |
+| `BamXLPropHD64K64EmbedVOnlyQK48AllLocalMLPWriteIndependentEveryThirdTruePile` | 1 | `us-central1-a` | 2026-10-05 05:29:31 | 2026-10-05 14:08:42 | 8h39m11s | preempted |
+| `RMTXLPropHD64T4096TruePileAllLocalK60EmbedUnembedDirect40NoOSharedWriteNormQKVZeroInitEmbedSeedZero` | 2 | `us-central1-a` | 2026-10-05 12:51:01 | 2026-10-05 14:08:44 | 1h17m43s | preempted |
+| `MuddLlama2XLT2048Head16x128` | 2 | `us-central1-a` | 2026-10-05 12:51:22 | 2026-10-05 14:08:49 | 1h17m27s | preempted |
+| `Llama2XLPropHD64` | 2 | `us-central1-a` | 2026-10-05 12:50:51 | 2026-10-05 14:08:51 | 1h18m00s | preempted |
+| `BamXLT2048K128EmbedVOnlyQK96AllLocalMLPWriteIndependentEveryThird` | 5 | `us-central1-a` | 2026-10-05 12:51:16 | 2026-10-05 14:08:51 | 1h17m35s | preempted |
+| `BamXLPropK96V60C15EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdTruePile` | 2 | `us-central1-a` | 2026-10-05 14:08:19 | 2026-10-05 14:10:54 | 02m35s | preempted |
+| `BamXLPropHD64K64EmbedVOnlyQK48AllLocalMLPWriteIndependentEveryThirdTruePile` | 2 | `us-central1-a` | 2026-10-05 14:19:24 | 2026-10-05 14:32:44 | 13m20s | preempted |
+| `MuddLlama2XLT2048Head16x128` | 3 | `us-central1-a` | 2026-10-05 14:19:50 | 2026-10-05 14:32:48 | 12m58s | preempted |
+| `RMTXLPropHD64T4096TruePileAllLocalK60EmbedUnembedDirect40NoOSharedWriteNormQKVZeroInitEmbedSeedZero` | 3 | `us-central1-a` | 2026-10-05 14:19:40 | 2026-10-05 14:32:58 | 13m18s | preempted |
+| `MuddLlama2XLPropHD64` | 3 | `us-central1-a` | 2026-10-05 14:19:32 | 2026-10-05 14:33:03 | 13m31s | preempted |
+| `BamXLT2048K128EmbedVOnlyQK96AllLocalMLPWriteIndependentEveryThird` | 6 | `us-central1-a` | 2026-10-05 14:19:49 | 2026-10-05 14:33:06 | 13m17s | preempted |
+| `Llama2XLPropHD64` | 3 | `us-central1-a` | 2026-10-05 14:19:18 | 2026-10-05 14:33:07 | 13m49s | preempted |
+| `BamXLPropK96V60C15EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdTruePile` | 3 | `us-central1-a` | 2026-10-05 14:21:04 | 2026-10-05 14:33:09 | 12m05s | preempted |
+| `BamXLT2048K128EmbedVOnlyQK96AllLocalMLPWriteIndependentEveryThird` | 7 | `us-central1-a` | 2026-10-05 14:45:33 | 2026-10-05 14:52:26 | 6m53s | preempted |
+| `RMTXLPropHD64T4096TruePileAllLocalK60EmbedUnembedDirect40NoOSharedWriteNormQKVZeroInitEmbedSeedZero` | 4 | `us-central1-a` | 2026-10-05 14:46:00 | 2026-10-05 14:55:02 | 09m02s | preempted |
+| `BamXLT2048K128EmbedVOnlyQK96AllLocalMLPWriteIndependentEveryThird` | 8 | `us-central1-a` | 2026-10-05 15:00:55 | 2026-10-05 15:03:56 | 3m01s | preempted |
+| `RMTXLPropHD64T4096TruePileAllLocalK60EmbedUnembedDirect40NoOSharedWriteNormQKVZeroInitEmbedSeedZero` | 5 | `us-central1-a` | 2026-10-05 15:00:41 | 2026-10-05 15:03:59 | 03m18s | preempted |
+| `MuddLlama2XLT2048Head16x128` | 4 | `us-central1-a` | 2026-10-05 14:45:54 | 2026-10-05 15:04:51 | 18m57s | preempted |
+| `Llama2XLPropHD64` | 4 | `us-central1-a` | 2026-10-05 14:45:32 | 2026-10-05 15:04:53 | 19m21s | preempted |
+| `BamXLPropK96V60C15EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdTruePile` | 4 | `us-central1-a` | 2026-10-05 14:46:34 | 2026-10-05 15:04:55 | 18m21s | preempted |
+| `MuddLlama2XLPropHD64` | 4 | `us-central1-a` | 2026-10-05 14:45:42 | 2026-10-05 15:04:56 | 19m14s | preempted |
+| `BamXLPropHD64K64EmbedVOnlyQK48AllLocalMLPWriteIndependentEveryThirdTruePile` | 3 | `us-central1-a` | 2026-10-05 14:45:24 | 2026-10-05 15:04:58 | 19m34s | preempted |
+| `BamMediumPropK75V48C12EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdWVBlockFirstKeepVOTruePile` | 1 | `us-east5-a` | 2026-10-05 14:59:18 | 2026-10-05 15:11:34 | 12m16s | preempted |
+| `BamMediumPropK75V48C12EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdWVBlockFirstNoVOTruePile` | 1 | `us-east5-a` | 2026-10-05 15:10:46 | 2026-10-05 15:13:26 | 02m40s | preempted |
+| `BamMediumPropK75V48C12EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdWVBlockFirstNoVOTruePile` | 2 | `us-east5-a` | 2026-10-05 15:24:42 | 2026-10-05 15:27:51 | 03m09s | preempted |
+| `BamMediumPropK75V48C12EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdWVBlockFirstKeepVOTruePile` | 2 | `us-east5-a` | 2026-10-05 15:24:53 | 2026-10-05 15:28:29 | 03m36s | preempted |
+| `BamMediumPropK75V48C12EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdWVBlockFirstNoVOTruePile` | 3 | `us-east5-a` | 2026-10-05 15:33:46 | 2026-10-05 15:37:30 | 03m44s | preempted |
+| `RMTXLPropHD64T4096TruePileAllLocalK60EmbedUnembedDirect40NoOSharedWriteNormQKVZeroInitEmbedSeedZero` | 6 | `europe-west4-b` | unknown | 2026-10-05 15:45:16 | unknown | preempted |
+| `BamMediumPropK75V48C12EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdWVBlockFirstNoVOTruePile` | 4 | `us-east5-a` | 2026-10-05 15:46:17 | 2026-10-05 15:57:13 | 10m56s | preempted |
+| `BamMediumPropK75V48C12EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdWVBlockFirstKeepVOTruePile` | 3 | `us-east5-a` | 2026-10-05 15:36:57 | 2026-10-05 16:05:24 | 28m27s | preempted |
+| `RMTXLPropHD64T4096TruePileAllLocalK60EmbedUnembedDirect40NoOSharedWriteNormQKVZeroInitEmbedSeedZero` | 7 | `europe-west4-b` | 2026-10-05 16:21:12 | 2026-10-05 16:23:44 | 02m32s | preempted |
+| `RMTXLPropHD64T4096TruePileAllLocalK60EmbedUnembedDirect40NoOSharedWriteNormQKVZeroInitEmbedSeedZero` | 8 | `europe-west4-b` | 2026-10-05 17:40:16 | 2026-10-05 17:42:26 | 02m10s | preempted |
+| `BamMediumPropK75V48C12EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdContentTransformTruePile` | 1 | `us-east5-a` | 2026-10-05 18:00:29 | 2026-10-05 18:06:44 | 06m15s | preempted |
+| `RMTXLPropHD64T4096TruePileAllLocalK60EmbedUnembedDirect40NoOSharedWriteNormQKVZeroInitEmbedSeedZero` | 9 | `europe-west4-b` | 2026-10-05 18:22:56 | 2026-10-05 18:25:56 | 03m00s | preempted |
+| `BamMediumPropK75V48C12EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdWVBlockFirstNoVOTruePile` | 5 | `us-east5-a` | 2026-10-05 18:31:19 | 2026-10-05 18:38:19 | 07m00s | preempted |
+| `RMTXLPropHD64T4096TruePileAllLocalK60EmbedUnembedDirect40NoOSharedWriteNormQKVZeroInitEmbedSeedZero` | 10 | `europe-west4-b` | 2026-10-05 18:59:26 | 2026-10-05 19:01:08 | 01m42s | preempted |
+| `RMTXLPropHD64T4096TruePileAllLocalK60EmbedUnembedDirect40NoOSharedWriteNormQKVZeroInitEmbedSeedZero` | 11 | `europe-west4-b` | 2026-10-05 19:06:24 | 2026-10-05 19:10:22 | 03m58s | preempted |
+| `RMTXLPropHD64T4096TruePileAllLocalK60EmbedUnembedDirect40NoOSharedWriteNormQKVZeroInitEmbedSeedZero` | 12 | `us-east5-a` | 2026-10-05 19:13:06 | 2026-10-05 19:14:43 | 01m37s | preempted |
+| `BamMediumPropK75V48C12EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdContentTransformTruePile` | 2 | `us-east5-a` | 2026-10-05 19:09:57 | 2026-10-05 19:16:01 | 06m04s | preempted |
+| `Llama2XLPropHD64` | 5 | `us-east5-a` | 2026-10-05 19:13:02 | 2026-10-05 19:16:48 | 03m46s | preempted |
+| `BamMediumPropK75V48C12EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdWVBlockFirstKeepVOTruePile` | 4 | `us-east5-a` | 2026-10-05 19:18:02 | 2026-10-05 19:20:57 | 02m55s | preempted |
+| `RMTXLPropHD64T4096TruePileAllLocalK60EmbedUnembedDirect40NoOSharedWriteNormQKVZeroInitEmbedSeedZero` | 13 | `us-east5-a` | 2026-10-05 19:22:34 | 2026-10-05 19:26:41 | 04m07s | preempted |
+| `BamMediumPropK75V48C12EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdWVBlockFirstKeepVOTruePile` | 5 | `us-east5-a` | 2026-10-05 19:28:19 | 2026-10-05 19:31:11 | 02m52s | preempted |
+| `BamXLT2048K128EmbedVOnlyQK96AllLocalMLPWriteIndependentEveryThird` | 9 | `us-central1-a` | 2026-10-05 19:16:01 | 2026-10-05 19:37:27 | 21m26s | preempted |
+| `BamXLPropK96V60C15EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdTruePile` | 5 | `us-central1-a` | 2026-10-05 19:15:46 | 2026-10-05 19:37:49 | 22m03s | preempted |
+| `MuddLlama2XLT2048Head16x128` | 5 | `us-central1-a` | 2026-10-05 19:15:51 | 2026-10-05 19:38:08 | 22m17s | preempted |
+| `BamMediumPropK75V48C12EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdWVBlockFirstKeepVOTruePile` | 6 | `us-east5-a` | 2026-10-05 19:40:31 | 2026-10-05 19:43:16 | 02m45s | preempted |
+| `BamXLT2048K128EmbedVOnlyQK96AllLocalMLPWriteIndependentEveryThird` | 10 | `us-central1-a` | 2026-10-05 19:43:23 | 2026-10-05 19:46:40 | 3m17s | preempted |
+| `MuddLlama2XLPropHD64` | 5 | `us-central1-a` | 2026-10-05 19:16:00 | 2026-10-05 19:46:46 | 30m46s | preempted |
+| `Llama2XLPropHD64` | 6 | `us-central1-a` | 2026-10-05 19:40:34 | 2026-10-05 19:46:47 | 06m13s | preempted |
+| `BamXLPropHD64K64EmbedVOnlyQK48AllLocalMLPWriteIndependentEveryThirdTruePile` | 4 | `us-central1-a` | 2026-10-05 19:15:38 | 2026-10-05 19:46:48 | 31m10s | preempted |
+| `RMTXLPropHD64T4096TruePileAllLocalK60EmbedUnembedDirect40NoOSharedWriteNormQKVZeroInitEmbedSeedZero` | 14 | `us-central1-a` | 2026-10-05 19:40:34 | 2026-10-05 19:46:53 | 06m19s | preempted |
+| `MuddLlama2XLT2048Head16x128` | 6 | `us-central1-a` | 2026-10-05 19:44:48 | 2026-10-05 19:47:10 | 2m22s | preempted |
+| `BamXLPropK96V60C15EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdTruePile` | 6 | `us-central1-a` | 2026-10-05 19:44:50 | 2026-10-05 19:47:11 | 02m21s | preempted |
+| `BamMediumPropK75V48C12EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdWVBlockFirstKeepVOTruePile` | 7 | `us-east5-a` | 2026-10-05 19:58:15 | 2026-10-05 20:00:10 | 01m55s | preempted |
+| `BamMediumPropK75V48C12EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdWVBlockFirstNoVOTruePile` | 6 | `us-central1-a` | 2026-10-05 20:08:38 | 2026-10-05 20:38:14 | 29m36s | preempted |
+| `BamMediumPropK75V48C12EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdWVBlockFirstKeepVOTruePile` | 8 | `us-central1-a` | 2026-10-05 20:08:28 | 2026-10-05 20:38:20 | 29m52s | preempted |
+| `BamMediumPropK75V48C12EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdContentTransformTruePile` | 3 | `us-central1-a` | 2026-10-05 20:03:07 | 2026-10-05 20:38:20 | 35m13s | preempted |
+| `BamXLPropK96V60C15EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdTruePile` | 7 | `us-central1-a` | 2026-10-05 19:56:47 | 2026-10-05 20:39:15 | 42m28s | preempted |
+| `MuddLlama2XLPropHD64` | 6 | `us-central1-a` | 2026-10-05 19:54:11 | 2026-10-05 20:39:18 | 45m07s | preempted |
+| `Llama2XLPropHD64` | 7 | `us-central1-a` | 2026-10-05 19:53:09 | 2026-10-05 20:39:23 | 46m14s | preempted |
+| `RMTXLPropHD64T4096TruePileAllLocalK60EmbedUnembedDirect40NoOSharedWriteNormQKVZeroInitEmbedSeedZero` | 15 | `us-central1-a` | 2026-10-05 19:53:08 | 2026-10-05 20:39:33 | 46m25s | preempted |
+| `MuddLlama2XLT2048Head16x128` | 7 | `us-central1-a` | 2026-10-05 19:56:45 | 2026-10-05 20:39:34 | 42m49s | preempted |
+| `BamXLPropHD64K64EmbedVOnlyQK48AllLocalMLPWriteIndependentEveryThirdTruePile` | 5 | `us-central1-a` | 2026-10-05 20:09:56 | 2026-10-05 20:39:42 | 29m46s | preempted |
+| `BamXLT2048K128EmbedVOnlyQK96AllLocalMLPWriteIndependentEveryThird` | 11 | `us-central1-a` | 2026-10-05 19:55:28 | 2026-10-05 20:40:32 | 45m04s | preempted |
+| `BamMediumPropK75V48C12EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdWVBlockFirstKeepVOTruePile` | 9 | `europe-west4-b` | unknown | 2026-10-05 21:19:43 | unknown | preempted |
+| `BamMediumPropK75V48C12EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdWVBlockFirstKeepVOTruePile` | 10 | `europe-west4-b` | 2026-10-05 22:11:43 | 2026-10-05 22:14:29 | 02m46s | preempted |
+| `BamMediumPropK75V48C12EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdWVBlockFirstKeepVOTruePile` | 11 | `europe-west4-b` | 2026-10-05 22:34:05 | 2026-10-05 22:36:47 | 02m42s | preempted |
+| `BamMediumPropK75V48C12EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdWVBlockFirstKeepVOTruePile` | 12 | `europe-west4-b` | 2026-10-06 00:05:42 | 2026-10-06 00:07:30 | 01m48s | preempted |
+| `BamMediumPropK75V48C12EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdWVBlockFirstKeepVOTruePile` | 13 | `europe-west4-b` | 2026-10-06 00:13:33 | 2026-10-06 00:16:23 | 02m50s | preempted |
+| `BamMediumPropK75V48C12EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdWVBlockFirstKeepVOTruePile` | 14 | `europe-west4-b` | 2026-10-06 00:31:25 | 2026-10-06 00:33:37 | 02m12s | preempted |
+| `BamMediumPropK75V48C12EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdWVBlockFirstKeepVOTruePile` | 15 | `europe-west4-b` | 2026-10-06 00:50:33 | 2026-10-06 00:54:24 | 03m51s | preempted |
+| `BamXLPropK96V60C15EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdTruePile` | 8 | `europe-west4-b` | 2026-10-06 00:57:27 | 2026-10-06 00:59:19 | 01m52s | preempted |
+| `BamXLPropK96V60C15EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdTruePile` | 9 | `europe-west4-b` | 2026-10-06 01:07:02 | 2026-10-06 01:11:06 | 04m04s | preempted |
+| `BamMediumPropK75V48C12EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdWVBlockFirstKeepVOTruePile` | 16 | `europe-west4-b` | 2026-10-06 01:15:44 | 2026-10-06 01:17:55 | 02m11s | preempted |
+| `Llama2XLPropHD64` | 8 | `us-central1-a` | 2026-10-06 02:17:57 | 2026-10-06 02:38:07 | 20m10s | completed |
+| `BamMediumPropK75V48C12EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdWVBlockFirstKeepVOTruePile` | 17 | `us-central1-a` | 2026-10-06 02:24:19 | 2026-10-06 02:55:54 | 31m35s | user-stopped at2635 |
+| `BamMediumPropK75V48C12EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdWVBlockFirstNoVOTruePile` | 7 | `us-central1-a` | 2026-10-06 02:17:06 | 2026-10-06 03:33:20 | 1h16m14s | Stopped3303; hot switch retains TPU for residual-complement |
+| `BamXLPropHD64K64EmbedVOnlyQK48AllLocalMLPWriteIndependentEveryThirdTruePile` | 6 | `us-central1-a` | 2026-10-06 02:17:59 | 2026-10-06 03:44:09 | 1h26m10s | preempted |
+| `MuddLlama2XLT2048Head16x128` | 8 | `us-central1-a` | 2026-10-06 02:17:59 | 2026-10-06 03:44:09 | 1h26m10s | preempted |
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdResidualComplementTruePile` | 1 | `us-central1-a` | 2026-10-06 03:34:20 | 2026-10-06 03:44:10 | 09m50s | preempted |
+| `BamMediumPropK75V48C12EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdContentTransformTruePile` | 4 | `us-central1-a` | 2026-10-06 02:17:05 | 2026-10-06 03:44:13 | 1h27m08s | preempted |
+| `RMTXLPropHD64T4096TruePileAllLocalK60EmbedUnembedDirect40NoOSharedWriteNormQKVZeroInitEmbedSeedZero` | 16 | `us-central1-a` | 2026-10-06 02:17:06 | 2026-10-06 03:44:15 | 1h27m09s | preempted |
+| `BamXLPropK96V60C15EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdTruePile` | 10 | `us-central1-a` | 2026-10-06 02:24:22 | 2026-10-06 03:44:21 | 1h19m59s | preempted |
+| `BamXLT2048K128EmbedVOnlyQK96AllLocalMLPWriteIndependentEveryThird` | 12 | `us-central1-a` | 2026-10-06 02:17:58 | 2026-10-06 03:44:58 | 1h27m00s | preempted |
+| `MuddLlama2XLPropHD64` | 7 | `us-central1-a` | 2026-10-06 02:17:57 | 2026-10-06 03:45:01 | 1h27m04s | Completed24000 |
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdResidualOffTruePile` | 1 | `europe-west4-b` | 2026-10-06 07:26:10 | 2026-10-06 07:28:49 | 02m39s | preempted |
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdResidualOffTruePile` | 2 | `europe-west4-b` | 2026-10-06 07:33:45 | 2026-10-06 07:37:45 | 04m00s | preempted |
+| `MuddLlama2XLT2048Head16x128` | 9 | `europe-west4-b` | 2026-10-06 07:57:37 | 2026-10-06 08:04:41 | 7m04s | preempted |
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdResidualOffTruePile` | 3 | `europe-west4-b` | 2026-10-06 07:53:15 | 2026-10-06 08:04:58 | 11m43s | preempted |
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdResidualOffTruePile` | 4 | `europe-west4-b` | 2026-10-06 08:39:37 | 2026-10-06 08:41:42 | 02m05s | preempted |
+| `BamXLPropK96V60C15EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdTruePile` | 11 | `us-central1-a` | 2026-10-06 08:43:36 | 2026-10-06 09:42:20 | 58m44s | user stop4313; checkpoint committed, TPU/queue absent, TB synced |
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdResidualOffTruePile` | 5 | `us-central1-a` | 2026-10-06 08:54:47 | 2026-10-06 10:29:43 | 1h34m56s | preempted |
+| `RMTXLPropHD64T4096TruePileAllLocalK60EmbedUnembedDirect40NoOSharedWriteNormQKVZeroInitEmbedSeedZero` | 17 | `us-central1-a` | 2026-10-06 08:43:42 | 2026-10-06 10:30:37 | 1h46m55s | preempted |
+| `BamXLT2048K128EmbedVOnlyQK96AllLocalMLPWriteIndependentEveryThird` | 13 | `us-central1-a` | 2026-10-06 08:44:11 | 2026-10-06 10:30:58 | 1h46m47s | preempted |
+| `BamXLPropHD64K64EmbedVOnlyQK48AllLocalMLPWriteIndependentEveryThirdTruePile` | 7 | `us-central1-a` | 2026-10-06 08:43:26 | 2026-10-06 10:31:02 | 1h47m36s | preempted |
+| `MuddLlama2XLT2048Head16x128` | 10 | `us-central1-a` | 2026-10-06 08:51:38 | 2026-10-06 10:31:03 | 1h39m25s | preempted |
+| `BamMediumPropK75V48C12EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdContentTransformTruePile` | 5 | `us-central1-a` | 2026-10-06 08:43:15 | 2026-10-06 10:31:06 | 1h47m51s | preempted |
+| `RMTXLPropHD64T4096TruePileAllLocalK60EmbedUnembedDirect40NoOSharedWriteNormQKVZeroInitEmbedSeedZero` | 18 | `us-central1-a` | 2026-10-06 10:36:39 | 2026-10-06 11:49:20 | 1h12m41s | review stop13179; checkpoint committed, TPU/queue absent, TB synced |
+| `BamXLT2048K128EmbedVOnlyQK96AllLocalMLPWriteIndependentEveryThird` | 14 | `us-central1-a` | 2026-10-06 10:37:43 | 2026-10-06 11:56:17 | 1h18m34s | preempted |
+| `BamXLPropHD64K64EmbedVOnlyQK48AllLocalMLPWriteIndependentEveryThirdTruePile` | 8 | `us-central1-a` | 2026-10-06 10:37:49 | 2026-10-06 11:56:24 | 1h18m35s | preempted |
+| `BamMediumPropK75V48C12EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdContentTransformTruePile` | 6 | `us-central1-a` | 2026-10-06 10:37:50 | 2026-10-06 11:59:55 | 1h22m05s | preempted |
+| `BamXLPropHD64K64EmbedVOnlyQK48AllLocalMLPWriteIndependentEveryThirdTruePile` | 9 | `us-central1-a` | 2026-10-06 12:02:43 | 2026-10-06 12:16:03 | 13m20s | preempted |
+| `MuddLlama2XLT2048Head16x128` | 11 | `us-central1-a` | 2026-10-06 10:37:29 | 2026-10-06 12:16:21 | 1h38m52s | preempted |
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdResidualComplementTruePile` | 2 | `us-central1-a` | 2026-10-06 08:54:46 | 2026-10-06 12:23:36 | 3h28m50s | stopped6452; complementary residual no gain |
+| `MuddLlama2XLT2048Head16x128` | 12 | `us-central1-a` | 2026-10-06 12:23:39 | 2026-10-06 12:42:08 | 18m29s | preempted |
+| `BamXLPropHD64K64EmbedVOnlyQK48AllLocalMLPWriteIndependentEveryThirdTruePile` | 10 | `us-central1-a` | 2026-10-06 12:23:42 | 2026-10-06 12:42:13 | 18m31s | preempted |
+| `BamXLPropHD64K64EmbedVOnlyQK48AllLocalMLPWriteIndependentEveryThirdTruePile` | 11 | `us-central1-a` | 2026-10-06 12:55:41 | 2026-10-06 12:58:27 | 02m46s | preempted |
+| `MuddLlama2XLT2048Head16x128` | 13 | `us-central1-a` | 2026-10-06 12:55:44 | 2026-10-06 12:58:32 | 2m48s | preempted |
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdResidualOffTruePile` | 6 | `us-central1-a` | 2026-10-06 10:36:41 | 2026-10-06 13:08:21 | 2h31m40s | preempted |
+| `BamXLT2048K128EmbedVOnlyQK96AllLocalMLPWriteIndependentEveryThird` | 15 | `us-central1-a` | 2026-10-06 12:18:42 | 2026-10-06 13:08:50 | 50m08s | preempted |
+| `BamXLPropHD64K64EmbedVOnlyQK48AllLocalMLPWriteIndependentEveryThirdTruePile` | 12 | `europe-west4-b` | 2026-10-06 13:39:43 | 2026-10-06 13:43:46 | 04m03s | preempted |
+| `MuddLlama2XLT2048Head16x128` | 14 | `europe-west4-b` | 2026-10-06 13:40:03 | 2026-10-06 13:44:43 | 4m40s | preempted |
+| `BamXLPropHD64K64EmbedVOnlyQK48AllLocalMLPWriteIndependentEveryThirdTruePile` | 13 | `us-central1-a` | 2026-10-06 14:09:10 | 2026-10-06 14:13:10 | 04m00s | preempted |
+| `BamXLT2048K128EmbedVOnlyQK96AllLocalMLPWriteIndependentEveryThird` | 16 | `us-central1-a` | 2026-10-06 13:55:05 | 2026-10-06 14:13:12 | 18m07s | preempted |
+| `MuddLlama2XLT2048Head16x128` | 15 | `us-central1-a` | 2026-10-06 14:09:05 | 2026-10-06 14:13:28 | 4m23s | preempted |
+| `BamXLT2048K128EmbedVOnlyQK96AllLocalMLPWriteIndependentEveryThird` | 17 | `us-central1-a` | 2026-10-06 14:33:27 | 2026-10-06 14:36:32 | 3m05s | preempted |
+| `BamXLPropHD64K64EmbedVOnlyQK48AllLocalMLPWriteIndependentEveryThirdTruePile` | 14 | `us-central1-a` | 2026-10-06 14:33:54 | 2026-10-06 14:36:45 | 02m51s | preempted |
+| `RMTXLT2048AllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZero` | 1 | `us-central1-a` | 2026-10-06 14:35:33 | 2026-10-06 14:36:45 | 1m12s | preempted |
+| `MuddLlama2XLT2048Head16x128` | 16 | `us-central1-a` | 2026-10-06 14:33:57 | 2026-10-06 14:36:49 | 2m52s | preempted |
+| `BamXLPropHD64K64EmbedVOnlyQK48AllLocalMLPWriteIndependentEveryThirdTruePile` | 15 | `us-central1-a` | 2026-10-06 14:45:56 | 2026-10-06 15:39:02 | 53m06s | completed24000 |
+| `BamXLT2048K128EmbedVOnlyQK96AllLocalMLPWriteIndependentEveryThird` | 18 | `us-central1-a` | 2026-10-06 14:45:46 | 2026-10-06 16:29:24 | 1h43m38s | preempted |
+| `MuddLlama2XLT2048Head16x128` | 17 | `us-central1-a` | 2026-10-06 14:45:57 | 2026-10-06 16:29:32 | 1h43m35s | preempted |
+| `RMTXLT2048AllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZero` | 2 | `us-central1-a` | 2026-10-06 14:45:52 | 2026-10-06 16:29:32 | 1h43m40s | preempted |
+| `RMTXLT2048AllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZero` | 3 | `us-central1-a` | 2026-10-06 16:35:19 | 2026-10-06 16:37:44 | 2m25s | preempted |
+| `MuddLlama2XLT2048Head16x128` | 18 | `us-central1-a` | 2026-10-06 16:35:13 | 2026-10-06 16:37:46 | 2m33s | preempted |
+| `BamXLT2048K128EmbedVOnlyQK96AllLocalMLPWriteIndependentEveryThird` | 19 | `us-central1-a` | 2026-10-06 16:37:14 | 2026-10-06 16:38:48 | 1m34s | preempted |
+| `MuddLlama2XLT2048Head16x128` | 19 | `us-central1-a` | 2026-10-06 16:49:44 | 2026-10-06 17:04:54 | 15m10s | preempted |
+| `BamXLT2048K128EmbedVOnlyQK96AllLocalMLPWriteIndependentEveryThird` | 20 | `us-central1-a` | 2026-10-06 16:49:57 | 2026-10-06 17:04:58 | 15m01s | preempted |
+| `RMTXLT2048AllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZero` | 4 | `us-central1-a` | 2026-10-06 16:49:17 | 2026-10-06 17:05:00 | 15m43s | preempted |
+| `BamXLT2048K128EmbedVOnlyQK96AllLocalMLPWriteIndependentEveryThird` | 21 | `us-east5-a` | 2026-10-06 17:39:13 | 2026-10-07 00:55:50 | 7h16m37s | user stop |
+| `MuddLlama2XLT2048Head16x128` | 20 | `us-east5-a` | 2026-10-06 17:39:07 | 2026-10-07 00:55:53 | 7h16m46s | user stop |
+| `RMTXLT2048AllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZero` | 5 | `us-east5-a` | 2026-10-06 17:39:08 | 2026-10-07 03:41:00 | 10h1m52s | user stop |
+| `BamMediumPropK75EmbedVOnlyQK75AllLocalMLPWriteIndependentEveryThirdTruePile` | 1 | `us-east5-a` | 2026-10-07 05:31:28 | 2026-10-07 06:01:04 | 0h29m36s | preempted |
+| `BamMediumPropK75EmbedVOnlyQK75AllLocalMLPWriteIndependentEveryThirdTruePile` | 2 | `us-east5-a` | 2026-10-07 06:06:49 | 2026-10-07 13:24:09 | 7h17m20s | completed13500 |
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdLastBlockSeparateVOTruePile` | 1 | `us-east5-a` | 2026-10-07 13:55:12 | 2026-10-07 14:39:13 | 0h44m01s | preempted |
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdLastBlockSeparateVOTruePile` | 2 | `us-east5-a` | 2026-10-07 14:46:12 | 2026-10-07 14:54:30 | 0h08m18s | preempted |
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdLastBlockSeparateVOTruePile` | 3 | `us-east5-a` | 2026-10-07 15:03:25 | 2026-10-07 15:15:54 | 0h12m29s | preempted |
+| `BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdDirectC10TruePile` | 1 | `us-east5-a` | 2026-10-07 14:59:17 | 2026-10-07 15:16:09 | 16m52s | preempted |
+| `BamMediumPropK75EmbedVOnlyQK75AddBeforeRoPEAllLocalMLPWriteIndependentEveryThirdTruePile` | 1 | `us-east5-a` | 2026-10-07 15:40:45 | 2026-10-07 16:03:03 | 0h22m18s | preempted |
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdLastBlockSeparateVOTruePile` | 4 | `us-east5-a` | 2026-10-07 15:24:26 | 2026-10-07 16:14:41 | 0h50m15s | stopped2954 |
+| `BamMediumPropK75EmbedVOnlyQK75AddBeforeRoPEAllLocalMLPWriteIndependentEveryThirdTruePile` | 2 | `us-east5-a` | 2026-10-07 16:10:26 | 2026-10-07 16:14:49 | 0h04m23s | preempted |
+| `BamMediumPropK75EmbedVOnlyQK75AddBeforeRoPEAllLocalMLPWriteIndependentEveryThirdTruePile` | 3 | `us-east5-a` | 2026-10-07 16:21:20 | 2026-10-07 19:01:07 | 2h39m47s | preempted |
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdDirectC8TruePile` | 1 | `us-east5-a` | 2026-10-07 15:00:55 | 2026-10-07 21:08:41 | 6h07m46s | preempted |
+| `BamMediumPropK75EmbedVOnlyQK75AddBeforeRoPEAllLocalMLPWriteIndependentEveryThirdTruePile` | 4 | `us-east5-a` | 2026-10-07 19:09:39 | 2026-10-07 21:09:49 | 2h00m10s | preempted |
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdDirectC8TruePile` | 2 | `us-east5-a` | 2026-10-07 21:15:37 | 2026-10-07 22:54:14 | 1h38m37s | completed13500 |
+| `BamMediumPropK75EmbedVOnlyQK75AddBeforeRoPEAllLocalMLPWriteIndependentEveryThirdTruePile` | 5 | `us-east5-a` | 2026-10-07 21:19:07 | 2026-10-07 22:57:07 | 1h38m00s | stopped11604 |
+| `BamXLPropK96EmbedVOnlyQK96AllLocalMLPWriteIndependentEveryThirdTruePile` | 1 | `us-east5-a` | 2026-10-07 05:46:29 | 2026-10-07 23:21:51 | 17h35m22s | stopped21028 |
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdL21TruePile` | 1 | `us-east5-a` | 2026-10-07 15:55:25 | 2026-10-08 00:23:47 | 8h28m22s | completed13500 |
+| `BamMHAMediumPropL27C256TruePile` | 1 | `us-east5-a` | 2026-10-07 23:53:21 | 2026-10-08 00:48:18 | 0h54m57s | preempted |
+| `BamMHAMediumPropL27C256TruePile` | 2 | `us-east5-a` | 2026-10-08 00:53:42 | 2026-10-08 01:08:04 | 0h14m22s | preempted |
+| `BamMediumPropL27K75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile` | 1 | `us-east5-a` | 2026-10-07 23:53:45 | 2026-10-08 01:36:37 | 1h42m52s | preempted |
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdWOTransposeTruePile` | 1 | `us-east5-a` | 2026-10-08 00:47:42 | 2026-10-08 03:36:31 | 2h48m49s | stopped5085 |
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdSeparateProjectionTruePile` | 1 | `us-east5-a` | 2026-10-08 00:47:27 | 2026-10-08 04:44:05 | 3h56m38s | stopped7204 |
+| `BamMHAMediumPropL27C256TruePile` | 3 | `us-east5-a` | 2026-10-08 01:16:29 | 2026-10-08 07:16:54 | 6h00m25s | complete13500 |
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdResidualProjectionTruePile` | 1 | `us-east5-a` | 2026-10-08 03:17:22 | 2026-10-08 07:18:37 | 4h01m15s | stopped7195 |
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdResidualWOTruePile` | 1 | `us-east5-a` | 2026-10-08 03:17:30 | 2026-10-08 08:01:53 | 4h44m23s | stopped8578 |
+| `BamMediumPropL27K75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile` | 2 | `us-east5-a` | 2026-10-08 01:46:13 | 2026-10-08 08:03:32 | 6h17m19s | stopped10706 |
+| `BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdDirectC10TruePile` | 2 | `us-east5-a` | 2026-10-07 15:24:38 | 2026-10-08 08:34:30 | 17h09m52s | stopped20185 |
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdLocalVStaticZeroTruePile` | 1 | `us-east5-a` | 2026-10-08 08:58:52 | 2026-10-08 11:01:40 | 2h02m48s | hot replacement |
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdLocalVStaticZeroAttnWriteContentBiasTruePile` | 1 | `us-east5-a` | 2026-10-08 09:49:15 | 2026-10-08 11:04:10 | 1h14m55s | hot replacement |
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdLocalVStaticZeroVOReadNormalTruePile` | 1 | `us-east5-a` | 2026-10-08 11:02:26 | 2026-10-08 12:15:50 | 1h13m24s | hot replacement |
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdVOReadNormalStaticVSmallTruePile` | 1 | `us-east5-a` | 2026-10-08 11:05:08 | 2026-10-08 12:18:15 | 1h13m07s | hot replacement |
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdStaticVOrthogonalInitTruePile` | 1 | `us-east5-a` | 2026-10-08 12:25:20 | 2026-10-08 14:29:40 | 2h04m20s | user stop3771; checkpoint committed, TPU/queue absent, TB synced |
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdVOReadKeySmallInitTruePile` | 1 | `us-east5-a` | 2026-10-08 12:27:53 | 2026-10-08 15:15:00 | 2h47m07s | review stop5073; checkpoint committed, TPU/queue absent, TB synced |
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdNoLocalOTruePile` | 1 | `us-east5-a` | 2026-10-08 15:57:22 | 2026-10-09 00:02:05 | 8h04m43s | complete13500; same-TPU TB writer repair at800, no zone switch |
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdVOReadScale1TruePile` | 1 | `us-east5-a` | 2026-10-09 02:09:40 | 2026-10-09 04:59:23 | 2h49m43s | review stop5114; checkpoint committed, resources absent, TB synced |
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdVOReadScale1TruePile` | 2 | `us-east5-a` | 2026-10-09 06:10:14 | 2026-10-09 11:03:04 | 4h52m50s | complete13500; same-TPU checkpoint12800 repair, resources absent, TB synced |
 | `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdDirectC8SeparateQKVProjectionTruePile` | 1 | `us-east5-a` | 2026-10-09 13:44:32 | 2026-10-09 16:41:31 | 2h56m59s | review stop5108; checkpoint committed, resources absent, TB synced |
 | `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdDirectC8SeparateQKVProjectionIndependentInitTruePile` | 1 | `us-east5-a` | 2026-10-09 14:18:48 | 2026-10-09 17:12:48 | 2h54m00s | review stop5066; checkpoint committed, resources absent, TB synced |
+| `BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdDirectC10PallasV7TruePile` | 1 | `us-east5-a` | 2026-10-09 05:01:27 | 2026-10-09 23:49:23 | 18h47m56s | user stop31500; checkpoint committed, resources absent |
 | `BamMediumPropD1152H24K96V32C8AllLocalMLPWriteIndependentEveryThirdTruePile` | 1 | `us-east5-a` | 2026-10-10 04:14:58 | 2026-10-10 05:40:37 | 1h25m39s | user pause2054; resources released |
 | `BamMediumPropD1152H24K96V48C12AllLocalMLPWriteIndependentEveryThirdTruePile` | 1 | `us-east5-a` | 2026-10-10 04:14:52 | 2026-10-10 05:45:03 | 1h30m11s | user pause2043; resources released |
 | `BamMediumPropD1152H32K72V48C12AllLocalMLPWriteIndependentEveryThirdTruePile` | 1 | `us-east5-a` | 2026-10-10 04:14:25 | 2026-10-10 05:54:21 | 1h39m56s | user pause2052; resources released |
@@ -1281,6 +1828,7 @@ active leases are censored, and manual migration releases are not preemptions.
 | `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadSharedGelu128GeneralReadTruePile` | 1 | `us-east5-a` | 2026-10-11 01:59:58 | 2026-10-11 04:03:40 | 2h03m42s | user stop3407; resources released |
 | `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadSharedGelu384GeneralReadTruePile` | 1 | `us-east5-a` | 2026-10-11 02:02:02 | 2026-10-11 04:03:42 | 2h01m40s | user stop3359; resources released |
 | `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadSigmoidStaticGateTruePile` | 1 | `us-east5-a` | 2026-10-11 10:50:09 | 2026-10-11 15:17:35 | 4h27m26s | preempted |
+| `BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdFullMReadSharedGelu400TruePile` | 1 | `us-east5-a` | 2026-10-11 05:18:52 | 2026-10-11 16:02:44 | 10h43m52s | preempted; same-zone recovery |
 | `BamMediumPropK75V48EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadSharedGelu384GeneralReadTruePile` | 1 | `us-east5-a` | 2026-10-11 17:55:20 | 2026-10-11 17:58:09 | 2m49s | preempted before FIRST_STEP; same-zone recovery; READY from prequeue |
 | `BamMediumPropL27K75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile` | 1 | `us-east5-a` | 2026-10-11 17:55:38 | 2026-10-11 17:58:37 | 2m59s | preempted before FIRST_STEP; same-zone recovery |
 | `BamMediumPropL27K75V48EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadSharedGelu384GeneralReadTruePile` | 1 | `us-east5-a` | 2026-10-11 17:55:32 | 2026-10-11 17:58:55 | 3m23s | preempted before FIRST_STEP; same-zone recovery |
@@ -1293,3 +1841,147 @@ active leases are censored, and manual migration releases are not preemptions.
 | `BamMHAMediumPropC256T2048` | 1 | `us-east5-a` | 2026-10-12 05:25:33 | 2026-10-12 05:45:49 | 20m16s | hot-switch to matched control; no preemption |
 | `MuddLlama2MediumPropT2048` | 1 | `us-east5-a` | 2026-10-12 05:27:25 | 2026-10-12 05:48:41 | 21m16s | hot-switch to matched control; no preemption |
 | `BamMediumPropL27K75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile` | 4 | `us-east5-a` | 2026-10-11 21:06:32 | 2026-10-12 05:51:17 | 8h44m45s | complete13500; resources released |
+| `BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile` | 1 | `us-east5-a` | 2026-10-11 05:13:37 | 2026-10-12 09:19:32 | 28h05m55s | user stop33002; resources released |
+| `BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdFullMReadSharedGelu400TruePile` | 2 | `us-east5-a` | 2026-10-11 16:09:24 | 2026-10-12 09:19:36 | 17h10m12s | user stop37253; resources released |
+| `BamMHAMediumPropC256T2048Matched` | 1 | `us-east5-a` | 2026-10-12 05:46:50 | 2026-10-12 10:05:58 | 4h19m08s | complete13500; resources released |
+| `MuddLlama2MediumPropC256T2048` | 1 | `us-east5-a` | 2026-10-12 05:49:38 | 2026-10-12 10:48:15 | 4h58m37s | complete13500; resources released, TB SYNC_OK |
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadT2048` | 1 | `us-east5-a` | 2026-10-12 05:25:29 | 2026-10-12 12:34:02 | 7h08m33s | complete13500; resources released, TB SYNC_OK |
+| `BamMediumPropFullMGeneralReadStaticEmbeddingTruePile` | 1 | `us-east5-a` | 2026-10-12 10:28:18 | 2026-10-12 13:09:58 | 2h41m40s | user stop4531; resources released, TB SYNC_OK |
+| `BamMediumPropFullMGeneralReadMatrixEmbeddingTruePile` | 1 | `us-east5-a` | 2026-10-12 10:30:23 | 2026-10-12 13:10:00 | 2h39m37s | user stop4427; resources released, TB SYNC_OK |
+| `BamMediumPropFullMGeneralReadDirectEmbeddingTruePile` | 1 | `us-east5-a` | 2026-10-12 11:41:54 | 2026-10-12 13:26:18 | 1h44m24s | review stop2894; resources released, TB SYNC_OK |
+| `BamMediumPropFullMGeneralReadFinalMatrixResidualTruePile` | 1 | `us-east5-a` | 2026-10-12 11:45:43 | 2026-10-12 14:48:38 | 3h02m55s | review stop5125; resources released, TB SYNC_OK |
+| `BamMediumPropFullMGeneralReadFinalMatrixVGateTruePile` | 1 | `us-east5-a` | 2026-10-12 13:00:36 | 2026-10-12 16:03:38 | 3h03m02s | review stop5121; resources released, TB SYNC_OK |
+| `BamMediumPropSharedR256GeneralReadMShiftPersistG005TruePile` | 1 | `us-east5-a` | 2026-10-13 05:32:56 | 2026-10-13 06:08:47 | 0h35m51s | preempted |
+| `BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile` | 1 | `us-east5-a` | 2026-10-13 05:39:34 | 2026-10-13 06:18:01 | 38m27s | preempted |
+| `BamMediumPropSharedR256GeneralReadMShiftReadG005TruePile` | 1 | `us-east5-a` | 2026-10-13 05:33:55 | 2026-10-13 06:29:30 | 0h55m35s | preempted |
+| `BamMHAMediumPropT8192SplashTruePile` | 1 | `us-east5-a` | 2026-10-13 01:41:46 | 2026-10-13 06:51:29 | 5h09m43s | manual review stop9639; resources absent, TB SYNC_OK |
+| `MuddLlama2MediumPropT8192SplashTruePile` | 1 | `us-east5-a` | 2026-10-13 01:40:20 | 2026-10-13 06:51:34 | 5h11m14s | manual review stop8908; resources absent, TB SYNC_OK |
+| `BamPythiaMediumPropT2048SerialMLPPythiaEmbeddingScaledWrite` | 1 | `us-east5-a` | 2026-10-15 16:47:47 | 2026-10-15 20:00:09 | 3h12m22s | preempted |
+| `BamPythiaMediumPropT2048SerialMLPPythiaEmbeddingScaledWrite` | 2 | `us-east5-a` | 2026-10-15 20:07:17 | 2026-10-15 23:37:24 | 3h30m07s | preempted |
+| `BamPythiaMediumPropT2048SerialMLPPythiaEmbeddingScaledWrite` | 3 | `us-east5-a` | 2026-10-15 23:43:12 | 2026-10-16 00:35:27 | 52m15s | complete13500; CP13500 committed, resources absent, TB SYNC_OK |
+
+| `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadT8192` | 1 | `us-east5-a` | 2026-10-13 01:40:37 | 2026-10-13 06:51:38 | 5h11m01s | manual review stop7140; resources absent, TB SYNC_OK |
+
+| `BamMediumPropSharedR256GeneralReadMShiftPersistG050TruePile` | 1 | `us-east5-a` | 2026-10-13 05:36:45 | 2026-10-13 07:34:00 | 1h57m15s | hot_switch_run_boundary |
+
+| `BamMediumPropSharedR256GeneralReadMShiftPersistG005TruePile` | 2 | `us-east5-a` | 2026-10-13 06:16:21 | 2026-10-13 07:38:23 | 1h22m02s | run_stop |
+
+| `BamMediumPropSharedR256GeneralReadMShiftReadG005TruePile` | 2 | `us-east5-a` | 2026-10-13 06:37:19 | 2026-10-13 08:05:44 | 1h28m25s | run_stop |
+
+| `BamMediumPropSharedR256GeneralReadMShiftReadQKVoG050TruePile` | 1 | `us-east5-a` | 2026-10-13 07:34:49 | 2026-10-13 08:51:30 | 1h16m41s | preempted; same-zone recovery |
+
+| `BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile` | 2 | `us-east5-a` | 2026-10-13 06:24:44 | 2026-10-13 08:52:19 | 2h27m35s | preempted |
+| `BamMediumPropSharedR256GeneralReadMShiftReadQKVoG050TruePile` | 2 | `us-east5-a` | 2026-10-13 08:57:34 | 2026-10-13 13:36:10 | 4h38m36s | review stop9198; resources absent, TB SYNC_OK |
+| `BamMediumPropSharedR256GeneralReadMShiftReadTwoLag532TruePile` | 1 | `us-east5-a` | 2026-10-13 12:23:47 | 2026-10-13 14:20:23 | 1h56m36s | effects review stop3086; resources absent, TB SYNC_OK |
+
+| `BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile` | 3 | `us-east5-a` | 2026-10-13 09:01:05 | 2026-10-13 14:26:39 | 5h25m34s | complete13500; resources absent, TB SYNC_OK |
+| `BamMediumPropSharedR256GeneralReadAddressSharedGatesTruePile` | 1 | `us-east5-a` | 2026-10-13 14:56:04 | 2026-10-13 16:51:31 | 1h55m27s | review stop3234; CP3234 committed, resources released; no preemption |
+
+| `BamMediumPropMShiftReadG050ReadAttentionSharedR384TruePile` | 1 | `us-east5-a` | 2026-10-13 17:03:36 | 2026-10-13 19:01:33 | 1h57m57s | review stop3140; checkpoint committed, resources released |
+
+| `BamMediumPropSharedR256GeneralReadMShiftReadKVShiftG050TruePile` | 1 | `us-east5-a` | 2026-10-13 12:29:19 | 2026-10-13 21:21:13 | 8h51m54s | preempted; same-zone recovery |
+
+| `BamMediumPropSharedR256GeneralReadKVShiftG050TruePile` | 1 | `us-east5-a` | 2026-10-13 12:22:28 | 2026-10-13 21:33:09 | 9h10m41s | complete13500; final checkpoint committed, node/queue absent |
+| `BamMediumPropSharedR256GeneralReadMShiftReadKVShiftG050TruePile` | 2 | `us-east5-a` | 2026-10-13 21:28:10 | 2026-10-13 22:26:28 | 58m18s | complete13500; final checkpoint committed, node/queue absent |
+| `BamMediumPropMShiftReadG050ReadAttentionMLPSharedR256TruePile` | 1 | `us-east5-a` | 2026-10-13 23:28:33 | 2026-10-14 01:15:10 | 1h46m37s | review stop2861; CP committed, resources absent, TB synced |
+
+| `BamMediumPropMShiftReadG050ReadAttentionMLPSharedR384TruePile` | 1 | `us-east5-a` | 2026-10-13 17:00:53 | 2026-10-14 01:15:22 | 8h14m29s | complete13500; final CP committed, resources absent |
+| `BamMediumPropMShiftReadG050SharedR256R384ByWriteTruePile` | 1 | `us-east5-a` | 2026-10-13 23:28:31 | 2026-10-14 01:15:49 | 1h47m18s | review stop2859; CP committed, resources absent, TB synced |
+| `BamMediumPropMShiftReadG050ReadAttentionSharedR256TruePile` | 1 | `us-east5-a` | 2026-10-13 17:03:17 | 2026-10-14 01:21:11 | 8h17m54s | complete13500; final CP committed, resources absent |
+| `BamMediumPropMShiftReadG050CrossReadAttnR384ConservativeThirdsTruePile` | 1 | `us-east5-a` | ? | 2026-10-14 05:05:13 | ? | preempted |
+
+| `BamMediumPropMShiftReadG050CrossReadAttnR384DirectThirdsTruePile` | 1 | `us-east5-a` | 2026-10-14 04:51:49 | 2026-10-14 05:05:52 | 14m03s | preempted |
+| `BamMediumPropMShiftReadG050CrossTripleR512DirectThirdsTruePile` | 1 | `us-east5-a` | 2026-10-14 04:56:54 | 2026-10-14 05:05:57 | 9m03s | preempted |
+| `BamMediumPropMShiftReadG050CrossReadAttnR384DirectBlockTruePile` | 1 | `us-east5-a` | 2026-10-14 04:59:28 | 2026-10-14 05:06:01 | 6m33s | preempted |
+| `BamMediumPropMShiftReadG050CrossTripleR512ConservativeThirdsTruePile` | 1 | `us-east5-a` | ? | 2026-10-14 05:10:42 | unknown | preempted |
+| `BamMediumPropMShiftReadG050CrossReadAttnR384DirectBlockTruePile` | 2 | `us-east5-a` | 2026-10-14 05:17:09 | 2026-10-14 07:19:54 | 2h2m45s | review stop3341; node/queue absent, TB SYNC_OK |
+| `BamMediumPropMShiftReadG050CrossReadAttnR384DirectThirdsTruePile` | 2 | `us-east5-a` | 2026-10-14 05:16:56 | 2026-10-14 07:19:58 | 2h3m02s | temporary stop, subsequently resume requested; node/queue absent, TB SYNC_OK |
+| `BamMediumPropMShiftReadG050CrossTripleR512ConservativeBlockTruePile` | 1 | `us-east5-a` | 2026-10-14 04:47:42 | 2026-10-14 07:20:01 | 2h32m19s | review stop3561; node/queue absent, TB SYNC_OK |
+| `BamMediumPropMShiftReadG050CrossTripleR384ConservativeInner384ThirdsTruePile` | 1 | `us-east5-a` | 2026-10-14 05:12:11 | 2026-10-14 07:20:05 | 2h7m54s | temporary stop, subsequently resume requested; node/queue absent, TB SYNC_OK |
+| `BamMediumPropMShiftReadG050CrossReadAttnR384DirectThirdsTruePile` | 3 | `us-east5-a` | 2026-10-14 07:33:20 | 2026-10-14 08:14:49 | 0h41m29s | preempted |
+
+| `BamMediumPropMShiftReadG050CrossTripleR512ConservativeThirdsTruePile` | 2 | `us-east5-a` | 2026-10-14 05:20:13 | 2026-10-14 08:32:41 | 3h12m28s | user-confirmed review stop5198; resources absent, TB SYNC_OK |
+| `BamMediumPropMShiftReadG050CrossTripleR384ConservativeInner384ThirdsTruePile` | 2 | `us-east5-a` | 2026-10-14 07:33:42 | 2026-10-14 08:32:44 | 0h59m02s | user-confirmed review stop4960; resources absent, TB SYNC_OK |
+| `BamMediumPropMShiftReadG050CrossTripleR512DirectBlockTruePile` | 1 | `us-east5-a` | 2026-10-14 04:47:42 | 2026-10-14 08:34:51 | 3h47m09s | user-confirmed review stop6200; resources absent, TB SYNC_OK |
+| `BamMediumPropMShiftReadG050CrossReadAttnR384DirectThirdsTruePile` | 4 | `us-east5-a` | 2026-10-14 08:22:06 | 2026-10-14 08:47:05 | 0h24m59s | user-confirmed review stop5157; node/queue absent, TB SYNC_OK |
+| `BamMediumPropMShiftReadG050CrossReadAttnR384ConservativeThirdsTruePile` | 2 | `us-east5-a` | 2026-10-14 05:12:57 | 2026-10-14 09:52:05 | 4h39m08s | user-authorized stop7538; resources absent |
+| `BamMediumPropMShiftReadG050CrossTripleR512DirectThirdsTruePile` | 2 | `us-east5-a` | 2026-10-14 05:12:21 | 2026-10-14 09:52:08 | 4h39m47s | user-authorized stop7713; resources absent |
+| `BamMediumPropMShiftReadG050CrossReadAttnR384ConservativeBlockTruePile` | 1 | `us-east5-a` | 2026-10-14 04:48:58 | 2026-10-14 10:45:22 | 5h56m24s | user stop9248; node/queue absent, TB SYNC_OK |
+| `BamXLPropMShiftReadG050ReadAttentionSharedR384TruePile` | 1 | `us-east5-a` | 2026-10-14 09:16:00 | 2026-10-14 10:49:31 | 1h33m31s | preempted |
+| `BamMediumPropMShiftReadG050SharedR384ReuseActivationMLPWriteTruePile` | 1 | `us-east5-a` | 2026-10-14 09:25:07 | 2026-10-14 11:22:16 | 1h57m09s | hot-switch boundary; TPU retained by new RUN; TB SYNC_OK |
+| `BamMHAMediumPropC256QKNormTruePile` | 1 | `us-east5-a` | 2026-10-14 11:24:55 | 2026-10-14 12:48:14 | 1h23m19s | preempted |
+| `BamMediumPropMShiftReadG050SharedR256ReuseActivationMLPWriteTruePile` | 1 | `us-east5-a` | 2026-10-14 09:25:07 | 2026-10-14 13:54:24 | 4h29m17s | user stop7719; node/queue absent, TB SYNC_OK |
+| `BamMHAMediumPropC256QKNormTruePile` | 2 | `us-east5-a` | 2026-10-14 12:57:01 | 2026-10-14 17:08:36 | 4h11m35s | complete13500; CP13500; resources absent; TB SYNC_OK |
+| `BamXLPropSharedR400GeneralReadMShiftReadG050TruePile` | 1 | `us-east5-a` | 2026-10-13 17:17:15 | 2026-10-14 18:28:28 | 25h11m13s | user stop33009; CP33009; resources absent; TB SYNC_OK |
+| `BamMediumPropMShiftReadG050FullQKNormTruePile` | 1 | `us-east5-a` | 2026-10-14 11:23:03 | 2026-10-14 19:24:54 | 8h01m51s | complete13500; CP13500; resources absent; TB SYNC_OK |
+| `PythiaMediumPropT2048` | 1 | `us-east5-a` | 2026-10-14 16:42:18 | 2026-10-14 21:54:18 | 5h12m00s | complete13500; CP13500; resources absent; TB SYNC_OK |
+| `MuddPythiaMediumPropT2048` | 1 | `us-east5-a` | 2026-10-14 16:41:57 | 2026-10-14 23:10:14 | 6h28m17s | complete13500; CP13500; resources absent; TB SYNC_OK |
+| `Llama2XLPropTruePileMHA` | 1 | `us-east5-a` | 2026-09-28 09:44:22 | by 2026-09-29 00:16:16 | ≤14h31m54s | paused for distinct-data extension; TPU/queue verified absent, no preemption |
+
+| `BamPythiaMediumPropT2048MShiftReadG050ReadAttentionSharedR256` | 1 | `us-east5-a` | 2026-10-14 16:43:51 | 2026-10-15 00:03:48 | 7h19m57s | complete13500; CP13500; resources absent; TB SYNC_OK |
+| `BamXLPropMShiftReadG050ReadAttentionSharedR384TruePile` | 2 | `us-east5-a` | 2026-10-14 10:55:54 | 2026-10-15 01:22:30 | 14h26m36s | user stop22295; CP committed, resources absent, TB SYNC_OK |
+| `Llama2XLPropTruePileMHAQKNorm` | 1 | `us-east5-a` | 2026-10-14 11:31:06 | 2026-10-15 01:47:29 | 14h16m23s | user stop26843; CP committed, resources absent, TB SYNC_OK |
+
+| `BamPythiaMediumPropT2048MShiftReadG050ReadAttentionSharedR256SerialMLP` | 1 | `us-east5-a` | 2026-10-15 01:01:09 | 2026-10-15 03:59:57 | 2h58m48s | preempted |
+| `MuddPythiaMediumPropT2048SerialMLP` | 1 | `us-east5-a` | 2026-10-15 01:49:05 | 2026-10-15 04:14:22 | 2h25m17s | preempted |
+| `BamXLPropMShiftReadG050ReadAttentionSharedR400TruePile` | 1 | `us-east5-a` | 2026-10-15 01:30:47 | 2026-10-15 04:22:55 | 2h52m08s | preempted |
+| `BamXLPropMShiftReadG050FullQKNormTruePile` | 1 | `us-east5-a` | 2026-10-15 01:58:04 | 2026-10-15 04:25:32 | 2h27m28s | preempted |
+| `BamXLPropMShiftReadG050ReadAttentionSharedR400TruePile` | 2 | `us-east5-a` | 2026-10-15 04:28:37 | 2026-10-15 06:18:36 | 1h49m59s | user stop6407; CP committed; resources absent; TB SYNC_OK |
+
+| `PythiaMediumPropT2048SerialMLP` | 1 | `us-east5-a` | 2026-10-15 01:00:47 | 2026-10-15 06:32:41 | 5h31m54s | complete13500; CP13500; resources absent; TB SYNC_OK; P0 |
+
+| `BamMediumPropMShiftReadG050PostResidualWriteControlsTruePile` | 1 | `us-east5-a` | 2026-10-15 06:03:45 | 2026-10-15 06:36:28 | 32m43s | preempted |
+| `BamPythiaMediumPropT2048MShiftReadG050ReadAttentionSharedR256SwiGLU` | 1 | `us-east5-a` | 2026-10-15 06:23:51 | 2026-10-15 08:06:10 | 1h42m19s | user pause3174; P0; CP committed; READY TPU retained for hot switch; provisional |
+| `MuddPythiaMediumPropT2048SwiGLU` | 1 | `us-east5-a` | 2026-10-15 06:21:52 | 2026-10-15 08:06:11 | 1h44m19s | user pause3603; P0; CP committed; READY TPU retained for hot switch; provisional |
+| `PythiaMediumPropT2048SwiGLU` | 1 | `us-east5-a` | 2026-10-15 06:25:07 | 2026-10-15 08:06:17 | 1h41m10s | user pause4527; P0; CP committed; TPU/queue absent; provisional |
+
+| `BamPythiaMediumPropT2048MShiftReadG050ReadAttentionSharedR256SerialMLP` | 2 | `us-east5-a` | 2026-10-15 04:06:01 | 2026-10-15 08:40:46 | 4h34m45s | complete13500; CP13500 committed; resources absent; TB SYNC_OK |
+| `MuddPythiaMediumPropT2048SerialMLP` | 2 | `us-east5-a` | 2026-10-15 04:21:11 | 2026-10-15 08:42:14 | 4h21m03s | complete13500; CP13500 committed; resources absent; TB SYNC_OK |
+| `BamMediumPropMShiftReadG050ReadAttentionSharedR256T2048` | 1 | `us-east5-a` | 2026-10-15 03:48:42 | 2026-10-15 09:00:37 | 5h11m55s | user stop10160; P0; CP10160 committed; node/queue absent; TB SYNC_OK |
+| `BamXLPropMShiftReadG050FullQKNormTruePile` | 2 | `us-east5-a` | 2026-10-15 04:31:39 | 2026-10-15 09:45:21 | 5h13m42s | user pause10272; CP committed; resources absent; TB SYNC_OK; provisional |
+| `BamMediumPropMShiftReadG050PostResidualWriteControlsTruePile` | 2 | `us-east5-a` | 2026-10-15 06:44:38 | 2026-10-15 09:52:23 | 3h07m45s | user stop6167; CP committed; resources absent; TB SYNC_OK |
+| `BamMediumPropMShiftReadG050PostMLPWriteControlsTruePile` | 1 | `us-east5-a` | 2026-10-15 08:32:30 | 2026-10-15 09:52:26 | 1h19m56s | user stop2231; CP committed; resources absent; TB SYNC_OK |
+| `BamMediumPropMShiftReadG050MLPReadWriteLayersTruePile` | 1 | `us-east5-a` | 2026-10-15 09:35:09 | 2026-10-15 10:48:22 | 1h13m13s | user hot-replace2008; CP committed; TB SYNC_OK; TPU retained/reassigned |
+| `BamMediumPropMShiftReadG050MLPReadAllLayersNoReadGatesTruePile` | 1 | `us-east5-a` | 2026-10-15 10:49:26 | 2026-10-15 10:59:16 | 9m50s | user static-init correction; CP228/TB SYNC_OK; TPU retained/reassigned |
+| `BamMediumPropMShiftReadG050MLPReadNonWriteLayersTruePile` | 1 | `us-east5-a` | 2026-10-15 09:32:57 | 2026-10-15 11:21:51 | 1h48m54s | user2800reviewstop2970; CPcommitted; resourcesabsent; TBSYNC_OK |
+| `BamMediumPropMShiftReadG050MLPReadAllLayersTruePile` | 1 | `us-east5-a` | 2026-10-15 09:32:36 | 2026-10-15 11:21:54 | 1h49m18s | user2800reviewstop2909; CPcommitted; resourcesabsent; TBSYNC_OK |
+| `BamMediumPropMShiftReadG050MLPReadNonWriteLayersNoReadGatesStaticZeroTruePile` | 1 | `us-east5-a` | 2026-10-15 12:01:02 | 2026-10-15 12:32:05 | 0h31m03s | preempted; correlatedUE5a20261015T1232; CP731committed; same-zone recovery |
+| `BamMediumPropPostAttentionWriteSharedR256AttentionNormTruePile` | 1 | `us-east5-a` | 2026-10-15 10:44:13 | 2026-10-15 12:32:08 | 1h47m55s | preempted; correlatedUE5a20261015T1232; CP2975committed; same-zone recovery |
+| `BamPythiaMediumPropT2048SerialMLPOriginalInit` | 1 | `us-east5-a` | 2026-10-15 08:16:33 | 2026-10-15 12:32:51 | 4h16m18s | preempted; correlatedUE5a20261015T1232; CP7770committed; same-zone recovery |
+| `BamMediumPropPostAttentionWriteSharedR256AttentionNormTruePile` | 2 | `us-east5-a` | 2026-10-15 12:38:47 | 2026-10-15 13:26:50 | 0h48m03s | preempted; correlatedUE5a20261015T1326; exactruntime/schedule resumed |
+| `BamMediumPropMShiftReadG050MLPReadNonWriteLayersNoReadGatesStaticZeroTruePile` | 2 | `us-east5-a` | 2026-10-15 12:38:25 | 2026-10-15 13:27:48 | 0h49m23s | preempted; correlatedUE5a20261015T1326; exactruntime/schedule resumed |
+| `BamMediumPropPostAttentionWriteSharedR256MLPNormTruePile` | 1 | `us-east5-a` | 2026-10-15 10:44:10 | 2026-10-15 13:27:51 | 2h43m41s | preempted; correlatedUE5a20261015T1326; exactruntime/schedule resumed |
+| `BamMediumPropMShiftReadG050PostAttentionWriteMLPNormTruePile` | 1 | `us-east5-a` | 2026-10-15 12:46:11 | 2026-10-15 13:27:54 | 0h41m43s | preempted; correlatedUE5a20261015T1326; exactruntime/schedule resumed |
+| `BamPythiaMediumPropT2048SerialMLPOriginalInit` | 2 | `us-east5-a` | 2026-10-15 12:38:35 | 2026-10-15 13:28:09 | 0h49m34s | preempted; correlatedUE5a20261015T1326; exactruntime/schedule resumed |
+| `BamMediumPropPostAttentionWriteSharedR256AttentionNormTruePile` | 3 | `us-east5-a` | 2026-10-15 13:31:52 | 2026-10-15 13:50:10 | 0h18m18s | user stop4673; CP committed, resources absent, TB SYNC_OK |
+| `BamMediumPropPostAttentionWriteSharedR256MLPNormTruePile` | 2 | `us-east5-a` | 2026-10-15 13:34:59 | 2026-10-15 14:04:56 | 0h29m57s | user stop5354; CP committed, resources absent, TB SYNC_OK |
+| `BamMediumPropMShiftReadG050MLPReadAllLayersNoReadGatesStaticZeroTruePile` | 1 | `us-east5-a` | 2026-10-15 11:00:10 | 2026-10-15 14:06:30 | 3h06m20s | user stop5117; CP committed, resources absent, TB SYNC_OK |
+| `BamMediumPropMShiftReadG050MLPReadNonWriteLayersNoReadGatesStaticZeroTruePile` | 3 | `us-east5-a` | 2026-10-15 13:35:09 | 2026-10-15 14:20:41 | 0h45m32s | user stop3149; CP committed, resources absent, TB SYNC_OK |
+| `BamPythiaMediumPropT2048SerialMLPBamInitFix` | 1 | `us-east5-a` | 2026-10-15 08:18:55 | 2026-10-15 15:40:23 | 7h21m28s | complete13500; P0; CP committed, resources absent, TB SYNC_OK |
+| `BamPythiaMediumPropT2048SerialMLPOriginalInit` | 3 | `us-east5-a` | 2026-10-15 13:35:04 | 2026-10-15 16:02:18 | 2h27m14s | complete13500; CP committed, resources absent, TB SYNC_OK |
+| `BamMediumPropMShiftReadG050PostAttentionWriteControlsTruePile` | 1 | `us-east5-a` | 2026-10-15 08:32:34 | 2026-10-15 16:25:52 | 7h53m18s | complete13500; P0; CP committed, resources absent, TB SYNC_OK |
+| `BamMediumPropMShiftReadG050PostAttentionWriteMLPNormTruePile` | 2 | `us-east5-a` | 2026-10-15 13:34:42 | 2026-10-15 20:50:40 | 7h15m58s | complete13500; CP13500 committed, resources absent, TB SYNC_OK |
+| `BamXLPropMShiftReadG050PostAttentionWriteMLPNormTruePile` | 1 | `us-east5-a` | 2026-10-15 16:47:51 | 2026-10-16 03:43:03 | 10h55m12s | user stop15157; CP15157 committed, resources absent, TB SYNC_OK |
+| `PythiaMediumPropT2048SerialMLPSmallEmbedding` | 1 | `us-east5-a` | 2026-10-16 01:47:27 | 2026-10-16 06:26:41 | 4h39m14s | preempted; committed12048, same runtime restored and CP12200 verified |
+| `PythiaMediumPropT2048SerialMLPSmallEmbedding` | 2 | `us-east5-a` | 2026-10-16 06:36:23 | 2026-10-16 07:15:48 | 39m25s | complete13500; CP13500 committed, resources absent, TB SYNC_OK |
+| `MuddPythiaMediumPropT2048SerialMLPSmallEmbedding` | 1 | `us-east5-a` | 2026-10-16 01:48:00 | 2026-10-16 08:23:42 | 6h35m42s | complete13500; CP13500 committed, resources absent, TB SYNC_OK |
+
+
+### 2026-10-14 user pause: resumed mixed R256/R384
+
+RUN `BamMediumPropMShiftReadG050SharedR256R384ByWriteTruePile`, v5p-16,
+`xd-v5p-16-310193-maxtext`, us-east5-a, runtime a445bbc8. User-paused at
+committed checkpoint5400 to focus on diagnostics/design; not a terminal failure
+verdict. Node and queued resource verified absent, TensorBoard SYNC_OK. P0.
+Complete READY leases (UTC):
+
+| Start | End | Duration | End reason |
+|---|---|---|---|
+| 2026-10-13 23:28:31 | 2026-10-14 01:15:49 | 1h47m18s | Initial manual stop; later resumed |
+| 2026-10-14 02:26:31 | 2026-10-14 04:02:14 | 1h35m43s | User-requested pause |
+
+Diagnostic capacity observation: EW4a spot `xd-v6e-1-crossdepth-r256-20261014`
+was installed then PREEMPTED before inference on 2026-10-14. Creator log retained
+on tpu-ag; exact READY lease timestamps not recorded. Its node/queue were both
+verified absent after cleanup. This did not affect formal training. Retained
+user-owned FLEX `llm-jax-v6e-1-0` completed the displaced probe and is preserved.

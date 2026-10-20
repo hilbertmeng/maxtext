@@ -232,7 +232,6 @@ class Llama2MediumPropL27(Llama2MediumProp):
     base_mlp_dim = 1600
 
 
-
 class Llama2MediumQKNorm(Llama2Medium):
     """Standard MHA control with learned Q/K RMSNorm before RoPE."""
     # code_commit: 4408ccb
@@ -5642,6 +5641,24 @@ class Llama2XLProp(Llama2XL):
     compare_runs = []
 
 
+class Llama2XLPropHD64(Llama2XLProp):
+    """Width-only XLProp control: 28 layers, 20x64 heads, D1280, TruePile4096."""
+    # code_commit: 5a330c5; UC1a v5p-32 ~.711 steps/s; generic health ON.
+    # Completed 24000 steps; 679645440 params; HD64 MHA reference (LR 2.5e-4).
+    model_name = 'Llama2XLPropHD64'
+    bam_final_local_layer_count = 0  # no partial-block tail in the MHA control
+    DATASET_VARIANT = 'truepile4096'
+    base_emb_dim = 1280
+    head_dim = 64
+    base_mlp_dim = 3413  # nearest integer to 5120 * 2/3; no hardware rounding
+    learning_rate = 2.5e-4
+    learning_rate_schedule_steps = 24000
+    steps = 24000
+    eval_interval = 24000
+    compare_runs = []
+    jax_cache_dir = ''
+
+
 class Llama2XLHead16x128(Llama2XL):
     base_num_query_heads = 16
     base_num_kv_heads = 16
@@ -5660,6 +5677,21 @@ class Llama2XLSG(Llama2Medium):
 
 class MuddLlama2XL(Mudd, Llama2XL):
     pass
+
+
+class MuddLlama2XLProp(Mudd, Llama2XLProp):
+    """Original Mudd recipe on XLProp with complete layer history and TruePile4096."""
+    # code_commit: 9f86f0e; UE5a v5p-32 ~.461 step/s, -15.1% vs MHA .543; generic health ON.
+    # Ledger only; runtime: codex/mudd-xlprop-truepile, /data0/xd/mudd-xlprop-truepile.
+    # 1,438,369,841 params: +5,971,121 (+.417%) vs XLProp MHA; original MLP schedule.
+    # Completed50000. vs MHA: early lead shrank, then slowly declined; terminal r500 last5 -.068592 (-.069275..-.067654).
+    model_name = 'MuddLlama2XLProp'
+    DATASET_VARIANT = 'truepile4096'
+    mudd_full_history = True
+    scan_layers = False  # Mudd history and per-layer MLP shapes grow with depth.
+    compare_runs = ['Llama2XLPropTruePileMHA']
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/mudd-xlprop-truepile'
+
 
 class DcLlama2XLSG(LGLLWindow, DC, Llama2XLSG):
     pass
@@ -9460,6 +9492,17 @@ class BamLlama2MediumPropK57SharedRank4MLPPerLayer(BamLlama2MediumProp):
     jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/medium-prop-k57-shared-rank4'
 
 
+class BamLlama2MediumPropK57SharedRank4MLPPerLayerTruePile(BamLlama2MediumPropK57SharedRank4MLPPerLayer):
+    """TruePile K57 control for the K75 EmbedVOnly QK57 architecture suite."""
+    # Ledger only: codex/mediumprop-k57-truepile, /data0/xd/mediumprop-k57-truepile.
+    # code_commit: 8030d9e; UE5a v5p-16 .559 steps/s, +6.5% vs K75/QK57 ~.525 (health unmatched).
+    # Final5 K75/QK57 minus K57 bet -.015..-.025.
+    model_name = 'BamLlama2MediumPropK57SharedRank4MLPPerLayerTruePile'
+    DATASET_VARIANT = 'truepile4096'
+    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57TruePile', 'BamMHAMediumPropC256TruePile']
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/medium-prop-k57-shared-rank4-truepile'
+
+
 class BamLlama2MediumPropK57SharedRank4H18MLPPerLayer(BamLlama2MediumPropK57SharedRank4MLPPerLayer):
     """18 heads at fixed D1200/head75/M57x32; redistribute the attention budget."""
     # code_commit: 9580fa0; UE5a v5p-16 .5083 steps/s (20-99), -9.8% vs H16 .5637.
@@ -9544,8 +9587,11 @@ class Llama2XLPropTrain(Llama2XLProp):
 
 class Llama2XLPropTruePileMHA(Llama2XLPropTrain):
     """XLProp MHA control on true 4097-token Pile records."""
-    # code_commit: e30c1b8; UE5a v5p-32 ~.546 step/s (20-39), generic health ON.
-    # First step verified; regional TruePile copy avoids cross-region training reads.
+    # Runtime e30c1b8; UE5a v5p-32 ~.543 step/s, generic health ON.
+    # Completed 50,000; final checkpoint committed and TPU/queue released.
+    # TruePile extended to 50k distinct steps: 100 shards, old 27 unchanged;
+    # UE5a/UC1a/EW4b replicas match (audit: /data0/xd/bam_diagnostics/truepile4096-extension-20260929).
+    # Resumed from 13,569 after boundary check; full-data loader enumerates N=50.
     # Same architecture, schedule and health metrics as Llama2XLPropTrain.
     # The padded-data predecessor is not a same-step loss baseline.
     model_name = 'Llama2XLPropTruePileMHA'
@@ -9646,6 +9692,80 @@ class BamMediumPropK75EmbedVOnlyQK57TruePile(BamMediumPropK75EmbedVOnlyQK57):
     jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/mediumprop-k75-embed-qk57-truepile'
 
 
+class BamMediumPropK75EmbedVOnlyQK57PseudoFTruePile(BamMediumPropK75EmbedVOnlyQK57TruePile):
+    """Every third layer uses standard vector V and local matrix O, without fetch."""
+    # Ledger only. Implementation: codex/mediumprop-k75-embed; /data0/xd/mediumprop-k75-embed.
+    # Opens MLP->x->V->attention->M without fetchedO; local O keeps static+dynamic reads.
+    # Common MHA budget: L3901/pseudoF3507; V matrix reads/gates removed only in pseudoF.
+    # code_commit: 9d6d77d; UE5a v5p-16 0.541 step/s (20-99); +2.6% vs AllLocal / +3.0% vs originalLLF.
+    # Basic+concat health ON; pseudoF omits V health, so timing is not strictly matched.
+    # Completed13500: AllLocal gain grew then held~-.023(final5-.022883); originalLLF deficit held~+.005(final5+.004870).
+    # vs MatrixVLLF final5-.018058; four-cell interaction-.000045, route/fetch effects nearly additive.
+    model_name = 'BamMediumPropK75EmbedVOnlyQK57PseudoFTruePile'
+    bam_layer_modes = ['local_qk+local_v+local_o', 'local_qk+local_v+local_o',
+                       'local_qk+local_o'] * 6
+    mlp_dim_by_block = [3901, 3901, 3507]
+    checkpoint_period = 200
+    keep_period = 1000
+    max_to_keep = 2
+    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalTruePile',
+                    'BamMediumPropK75EmbedVOnlyQK57TruePile',
+                    'BamMediumPropK75EmbedVOnlyQK57LLFMatrixVTruePile']
+    jax_cache_dir = ''
+
+
+class BamMediumPropK75EmbedVOnlyQK57LLFMatrixVTruePile(BamMediumPropK75EmbedVOnlyQK57TruePile):
+    """LLF with matrix-only V in every layer; F retains the original fetched O."""
+    # Ledger only. Implementation: codex/mediumprop-k75-embed; /data0/xd/mediumprop-k75-embed.
+    # F V: full-M static32->16 plus C8 dynamic, W_R shared with fetched O; independent V/O gates.
+    # Per-layer budget: L3901/F3896; no standard W_V in any layer.
+    # code_commit: ea76369; UE5a v5p-16 .513 step/s (20-99); -2.3% vs LLF .525 / -2.7% vs AllLocal .5271.
+    # !? Slower than originalLLF; basic+concat health ON, 54 extra F-V scalars vs LLF; cause unresolved.
+    # Completed13500: originalLLF deficit grew then held~+.023(final5+.022928); AllLocal gain shrank then held~-.005(final5-.004825).
+    model_name = 'BamMediumPropK75EmbedVOnlyQK57LLFMatrixVTruePile'
+    bam_layer_modes = ['local_qk+local_v+local_o', 'local_qk+local_v+local_o',
+                       'local_qk+local_v+full'] * 6
+    mlp_dim_by_block = [3901, 3901, 3896]
+    checkpoint_period = 200
+    keep_period = 1000
+    max_to_keep = 2
+    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57TruePile',
+                    'BamMediumPropK75EmbedVOnlyQK57AllLocalTruePile']
+    jax_cache_dir = ''
+
+
+class BamMediumT2048K64EmbedVOnlyQK48(BamMediumPropK75EmbedVOnlyQK57):
+    """Original Medium T2048 counterpart of the Prop matrix-value QK57 recipe."""
+    # Ledger only: codex/medium-t2048-k64-embed-qk48, /data0/xd/medium-t2048-k64-embed-qk48.
+    # code_commit: 8a626c2; 411623824 params (+7568 vs Llama2Medium), equal L/F layer budgets.
+    # UE5a .609 steps/s (10-14), -4.5% vs K48 .6378, +55% vs old RMT .3924; health not matched.
+    # Completed 13,500, no preemptions. vs old MHA final5 -.100354; vs fetchedO
+    # K48 BAM +.000577 (crossed zero near12k); vs dynamic RMT +.014463.
+    # Thus the T2048 bridge did not beat either direct architectural comparator.
+    model_name = 'BamMediumT2048K64EmbedVOnlyQK48'
+    base_num_decoder_layers = 24
+    base_emb_dim = 1024
+    base_num_query_heads = 16
+    base_num_kv_heads = 16
+    head_dim = 64
+    base_mlp_dim = 2816
+    max_target_length = 2048
+    per_device_batch_size = 32.0
+    bam_k = 64
+    bam_local_qk_col_output_dim = 48
+    bam_partial_rope_nope_dim = 48
+    bam_standard_qk_dim = 16
+    bam_layer_modes = ['local_qk+local_v+local_o', 'local_qk+local_v+local_o',
+                       'local_qk+full'] * 8
+    mlp_dim_by_block = [3366, 3366, 3025]
+    compare_runs = [
+        'BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayer',
+        'RMTMediumT2048AllLocalK48EmbedUnembedDirect32',
+        'Llama2Medium',
+    ]
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/medium-t2048-k64-embed-qk48'
+
+
 class BamMediumPropK75EmbedVOnlyQK75(BamMediumPropK75EmbedVOnlyQK57):
     """Same parameters; full75 BAM QK plus18 standard RoPE coordinates."""
     # Ledger only: codex/mediumprop-k75-embed; /data0/xd/mediumprop-k75-embed.
@@ -9720,6 +9840,102 @@ class BamMediumPropK75EmbedVOnlyQK57AllLocal(BamMediumPropK75EmbedVOnlyQK57):
     jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/mediumprop-k75-qk57-all-local'
 
 
+class BamMediumPropK75EmbedVOnlyQK57AllLocalTruePile(BamMediumPropK75EmbedVOnlyQK57AllLocal):
+    """All-local matrix-value BAM, repaired TruePile, ordinary layer scan."""
+    # Implementation merged into refactor-bam; see prop_bam_main_merge.md.
+    # Runtime: codex/mediumprop-k75-embed; /data0/xd/mediumprop-k75-embed.
+    # code_commit: 0649e72; UE5a v5p-16 .5271 step/s (20-99).
+    # +37.7% vs RMT NoO .3828; +0.4% vs LLF QK57 .525; extra health differs.
+    # 432091328 params, MLP3901, 18-layer scan; full13500 comparison control.
+    # Completed13500; vs NoO deficit held ~+.050 after4000 (last5 +.051476).
+    # vs LLF QK57: crossed above by1000, held ~+.027 late (last5 +.027753).
+    # vs MHA last5 -.091272; vs Mudd early lead shrank to -.004361; gain ratio1.050x.
+    model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalTruePile'
+    DATASET_VARIANT = 'truepile4096'
+    bam_pair_scan = False
+    scan_layers = True
+    base_mlp_dim = 3901
+    mlp_dim_by_block = None
+    compare_runs = ['RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoO',
+                    'BamMediumPropK75EmbedVOnlyQK57TruePile',
+                    'BamMHAMediumPropC256TruePile', 'MuddLlama2MediumPropTruePile']
+    jax_cache_dir = ''
+
+
+
+class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteEveryThirdTruePile(BamMediumPropK75EmbedVOnlyQK57AllLocalTruePile):
+    """Direct MLP content writes every third layer, sharing cached attention addresses."""
+    # Implementation merged into refactor-bam; see prop_bam_main_merge.md.
+    # Source implementation: codex/mediumprop-k75-embed; /data0/xd/mediumprop-k75-embed.
+    # code_commit: 6248e46; UE5a v5p-16 .527 step/s (flat vs AllLocal .5271); basic+concat+write health ON.
+    # Same AllLocal reads; MLP output1200->16x75, independent write gate, one fused outer.
+    # Budget: [3901,3896,3901], 432098624 params (-22576 vs MHA); layer2/5/.../17 write.
+    # Completed13500: AllLocal gain held~-.030 from1000(final5-.030036); originalLLF~-.0023 from2800(final5-.002283).
+    # SeedZero deficit shrank then plateaued~+.016 after8000(final5+.016752).
+    model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteEveryThirdTruePile'
+    bam_mlp_write_every = 3
+    bam_mlp_write_offset = 2
+    bam_mlp_write_static_address = False
+    bam_pair_scan = True
+    bam_local_fetch_block_size = 3
+    bam_layer_modes = ['local_qk+local_v+local_o'] * 18
+    mlp_dim_by_block = [3901, 3896, 3901]
+    checkpoint_period = 200
+    keep_period = 1000
+    max_to_keep = 2
+    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalTruePile',
+                    'BamMediumPropK75EmbedVOnlyQK57TruePile',
+                    'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedEmbedWriteNormSeedKeyZeroInit']
+    jax_cache_dir = ''
+
+
+class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteEveryLayerTruePile(BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteEveryThirdTruePile):
+    """Direct MLP content writes in all layers, ordinary layer scan."""
+    # Ledger only. Implementation: codex/mediumprop-k75-embed; /data0/xd/mediumprop-k75-embed.
+    # code_commit: 6248e46; UE5a v5p-16 .515 step/s (-2.3% vs AllLocal .5271); basic+concat+write health ON.
+    # MLP3896, 432113216 params (-7984 vs MHA); attention address values reused exactly.
+    # Stopped3153 at2800 review: everyThird deficit grew after2000 (last5+.005538, latest+.008923), slower2.2%.
+    # AllLocal gain shrank(last5-.021808); originalLLF crossed behind2400(latest+.006224); pseudoF-.001071 / SeedZero+.040794.
+    # StaticEveryLayer also better~-.007; no dense-write advantage.
+    model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteEveryLayerTruePile'
+    bam_mlp_write_every = 1
+    bam_mlp_write_offset = 0
+    bam_pair_scan = False
+    mlp_dim_by_block = None
+    base_mlp_dim = 3896
+    compare_runs = BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteEveryThirdTruePile.compare_runs + [
+                    'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteEveryThirdTruePile']
+
+
+class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteStaticEveryLayerTruePile(BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteEveryLayerTruePile):
+    """Independent learned static MLP write addresses in every layer."""
+    # Ledger only. Implementation: codex/mediumprop-k75-embed; /data0/xd/mediumprop-k75-embed.
+    # code_commit: 6248e46; UE5a v5p-16 .512 step/s (-2.9% vs AllLocal .5271); basic+concat+write health ON.
+    # Static16x32 address per layer, RMS-normalized; same independent MLP sigmoid gate and content norm.
+    # MLP3896, 432122432 params (+1232 vs MHA); attention and MLP require separate contractions.
+    # Stopped5836 at5000 review: sparse dynamic deficit grew after2600(last5+.006417), 2.8% slower.
+    # AllLocal gain shrank(last5-.021660); pseudoF-.001477 / originalLLF+.003557 / SeedZero+.027907.
+    # vs stopped dense dynamic last5-.006790 through3000; originalLLF crossing alone was not a stop reason.
+    model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteStaticEveryLayerTruePile'
+    bam_mlp_write_static_address = True
+    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalTruePile',
+                    'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteEveryLayerTruePile',
+                    'BamMediumPropK75EmbedVOnlyQK57TruePile',
+                    'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedEmbedWriteNormSeedKeyZeroInit']
+
+
+class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteStaticEveryThirdTruePile(BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteEveryThirdTruePile):
+    """Independent static MLP write addresses at layers2/5/8/11/14/17."""
+    # Ledger only. Implementation: codex/mediumprop-k75-embed; /data0/xd/mediumprop-k75-embed.
+    # code_commit: f79776c; UE5a v5p-16 .531 step/s(20-99), +.9% vs dynamic sparse .5265; basic+concat+write health ON.
+    # Same [3901,3896,3901] MLP; 432101696 params, +3072 vs dynamic everyThird (-19504 vs MHA).
+    # Completed 13500: vs shared dynamic crosses ahead1200, peaks~-.0032@4000, holds~-.0014 over10000-13400.
+    # Final5-.001388(range-.001774..-.000933); .9% faster, +3072params; small net gain.
+    model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteStaticEveryThirdTruePile'
+    bam_mlp_write_static_address = True
+    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteEveryThirdTruePile']
+
+
 class BamMHAMediumPropAlibiC256(BamMHAMediumPropC256):
     """Ledger only: ALiBi MHA control for the MediumProp RMT comparison."""
     # Runtime: codex/rmt-mediumprop-compare, /data0/xd/rmt-mediumprop-compare;
@@ -9764,7 +9980,9 @@ class BamMHAMediumPropAlibiC256TruePile(BamMHAMediumPropAlibiC256):
     """ALiBi MHA control on true 4097-token Pile records."""
     # Ledger only: runtime 692216b, codex/rmt-static-k64-truepile,
     # /data0/xd/rmt-static-k64-truepile.
-    # UE5a v5p-16 running, .669 step/s near step500.
+    # UE5a v5p-16 ~.669 step/s; completed 13,500, no preemptions.
+    # vs matched TruePile Prop RoPE MHA: final5 -.016659; gap narrowed until
+    # ~8k, then held around -.016 to -.017. ALiBi wins in this matched setup.
     # UE5a local-data switch ckpt7299; resumed7300; pre/post75 loss 2.514631/2.516021; ckpt7400 local.
     model_name = 'BamMHAMediumPropAlibiC256TruePile'
     DATASET_VARIANT = 'truepile4096'
@@ -9776,7 +9994,9 @@ class BamMHAMediumPropAlibiC256TruePile(BamMHAMediumPropAlibiC256):
 class RMTMediumPropAlibiK64TruePile(RMTMediumPropAlibiK64):
     """Original static ALiBi K64 RMT on true 4097-token Pile records."""
     # Ledger only: runtime 692216b, codex/rmt-static-k64-truepile.
-    # UE5a v5p-16 running, .621 step/s near step500 (-7.2% vs paired ALiBi MHA).
+    # UE5a v5p-16 ~.621 step/s (-7.2% vs ALiBi MHA); completed 13,500,
+    # no preemptions. Relative gain steadily decayed: final5 -.003681
+    # vs ALiBi MHA, range -.004778..-.002104. K64 static edge nearly vanished.
     # UE5a local-data switch ckpt6572; resumed6573; pre/post25 2.518069/2.502365; ckpt6600 local.
     # Old padded pair final5 K64-ALiBi MHA -.020872; true-length bet -.030.
     model_name = 'RMTMediumPropAlibiK64TruePile'
@@ -10034,10 +10254,10 @@ class RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicEmbeddingUnem
     # code_commit: a8d5bcd; UE5a v5p-16 .3190 step/s; -15.53% vs18-layer parent.
     # Matched steps20-99, same inherited layer/basic and both boundary health flags.
     # Layer scan; same dynamic embedding/Direct32 output.
-    # Interim through3400: vs18-layer parent deficit shrank from +.0303@1000
-    # to ~+.0045; latest5 +.005434. Continue beyond2800: still closing.
+    # Stopped7097: vs18-layer parent deficit shrank from +.0303@1000 to ~+.002
+    # by6000-7000; final5 +.002107, no crossing. Late narrowing slowed markedly.
+    # Extrapolated13500 near parity (~-.003..+.002); insufficient gain for -15.53% speed.
     # MLP3212; 432083008 params, 38192 below MHA. Parent: 18 layers/MLP4078.
-    # Pre-run13500 bet vs parent: loss -.008; steady speed -15%.
     model_name = 'RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicEmbeddingUnembeddingDirect32L22'
     base_num_decoder_layers = 22
     base_mlp_dim = 3212
@@ -10055,6 +10275,9 @@ class RMTMediumT2048AllLocalK48EmbedUnembedDirect32(
     # dynamic embedding and direct32 unembedding; local O stays on, with no fetch.
     # Full-size parameter-tree audit: 411639712, +23456 vs Llama2Medium
     # (411616256). Uniform MLP3474 is the closest integer width.
+    # Completed 13,500, no preemptions. Final5 vs MHA -.114816; vs fetchedO
+    # K48 BAM -.013886; vs all-local K48 BAM -.028515. The MHA advantage is
+    # 1.138x / 1.330x those two BAM controls at the matched endpoint.
     model_name = 'RMTMediumT2048AllLocalK48EmbedUnembedDirect32'
     base_num_decoder_layers = 24
     base_emb_dim = 1024
@@ -10089,7 +10312,7 @@ class BamMHAMediumPropC256TruePile(BamMHAMediumPropC256):
     # code_commit: 0d31a3d; UE5a xd-v5p-16-2709271-maxtext, .7210 steps/s
     # (10-14), vs old Prop MHA .7271 (-.84%); active weights ~524k/step.
     # Completed 13,500, UE5a steady .714 step/s, no preemptions; TB synced.
-    # vs TruePile RoPE MHA control: early -.2266@600 shrank to final5 -.002970.
+    # vs original Medium TruePile RoPE MHA: early -.2266@600 shrank to final5 -.002970.
     model_name = 'BamMHAMediumPropC256TruePile'
     DATASET_VARIANT = 'truepile4096'
     dataset_path = Llama2MediumC256T4096TruePile.dataset_path
@@ -10150,10 +10373,187 @@ class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoO(
     # code_commit: 36fe0f8; UE5a xd-v5p-16-2709274-maxtext, .3828 steps/s
     # (10-14), +1.7% vs matched FullO .3764. Pure JAX and direct layer scan;
     # same MLP width, 431773472 params (-345888 vs FullO).
+    # Completed 13,500 after one UE5a preemption; vs TruePile Prop MHA final5
+    # -.142748. The gap narrowed from -.249@2800, then stabilized near -.143.
     model_name = 'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoO'
     rmt_dynamic_o_enabled = False
     compare_runs = ['BamMHAMediumPropC256TruePile']
     jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/rmt-mediumprop-true-pile-direct32-no-o'
+
+
+class RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoO(
+    Llama2XLProp, RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoO):
+    """Proportional XL NoO: M60x96, proxy20/tail40, C10, R384 and RoPE24."""
+    # code_commit: 19d1b18; UE5a v5p-32 .3148 step/s (10-14), -42.0% vs MHA .543.
+    # Generic + RMT health ON; MHA generic only (health-unmatched timing).
+    # Implementation: codex/rmt-xlprop-noo, /data0/xd/rmt-xlprop-noo (ledger only).
+    # Stopped at507: loss gap vs MHA +1.486691@200 -> +2.502202@400; abnormal startup.
+    # Diagnosis: embedding address bias dominates global clipping; Adam epsilon suppresses downstream updates.
+    # Plan/abstract parameter audit: experiments/bam_llama2_medium/rmt_xlprop_noo.md.
+    # Uniform MLP6622: 1,432,430,680 params, +31,960 (+.00223%) vs XLProp MHA.
+    model_name = 'RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoO'
+    DATASET_VARIANT = 'truepile4096'
+    rmt_reskey_dim = 60
+    rmt_dynamic_write_rows = 60
+    rmt_dynamic_compression_dim = 10  # Medium default remains8.
+    rmt_dynamic_write_bottleneck_dim = 384  # Nearest multiple of128 to proportional R400.
+    rmt_rope_qk_dim = 24
+    rmt_dynamic_o_enabled = False
+    rmt_dynamic_read_full_matrix = False
+    rmt_dynamic_embedding_write = True
+    rmt_dynamic_unembedding_read = True
+    rmt_dynamic_unembedding_direct_read = True
+    rmt_llf_enabled = False
+    rmt_block_scan = False
+    rmt_mlp_dim_by_block = None
+    base_mlp_dim = 6622
+    compare_runs = ['Llama2XLPropTruePileMHA', 'MuddLlama2XLProp']
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/rmt-xlprop-truepile-direct40-no-o'
+
+
+
+class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOQKPreNorm(RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoO):
+    """Ledger only: parameter-free QK matrix-read pre-norm, retaining VectorNorm."""
+    # Implementation: codex/rmt-xlprop-noo, /data0/xd/rmt-xlprop-noo; pure JAX.
+    # code_commit: 562bfb9; UE5a .376 step/s, -1.8% vs matched NoO .3828.
+    # Stopped3092 (checkpoint3000): vs NoO crossed zero near800; ~+.019-.020 at2000-3000, no recovery.
+    # Last5 through3000 +.019478; B better by ~.014 at800-1600; no parameter benefit.
+    model_name = 'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOQKPreNorm'
+    rmt_matrix_read_norm = 'qk'
+    compare_runs = ['RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoO']
+    jax_cache_dir = ''
+
+
+class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNorm(RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoO):
+    """Ledger only: parameter-free full matrix-read pre-norm, retaining VectorNorm."""
+    # Implementation: codex/rmt-xlprop-noo, /data0/xd/rmt-xlprop-noo; pure JAX.
+    # code_commit: 562bfb9; UE5a ~.375 step/s, -2.0% vs matched NoO .3828.
+    # Stopped5575, hot replaced: vs NoO crossed zero1400, then deficit grew to +.009851@5400.
+    # Last5 +.008847; vs QKPreNorm last5 through3000 -.014113; no recovery versus NoO.
+    model_name = 'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNorm'
+    rmt_matrix_read_norm = 'all'
+    compare_runs = ['RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoO', 'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOQKPreNorm']
+    jax_cache_dir = ''
+
+
+class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormRawWrite(
+    RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNorm):
+    """Ledger only: retain address RMSNorm, raw attention/MLP write contents."""
+    # Implementation: codex/rmt-xlprop-noo, /data0/xd/rmt-xlprop-noo; pure JAX.
+    # code_commit: ffba66d; UE5a .379 step/s (10-14), +1.1% vs matched MPreNorm .375.
+    # Stopped2885: vs B deficit shrank early, then ~+.003-.005 after1400; last5 through2800 +.003962.
+    # vs original NoO crossed zero800, deficit grew; last5 +.008723, no recovery.
+    model_name = 'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormRawWrite'
+    rmt_layer_write_content_norm = False
+    compare_runs = ['RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNorm',
+                    'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoO']
+    jax_cache_dir = ''
+
+
+class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormRawWriteSharedEmbed(
+    RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormRawWrite):
+    """Ledger only: shared raw embedding contents, saved projection budget to MLP."""
+    # Implementation: codex/rmt-xlprop-noo, /data0/xd/rmt-xlprop-noo; pure JAX.
+    # code_commit: d410258; UE5a ~.378 step/s at10-15, ~-.3% vs matched RawWrite .379.
+    # Stopped3000: vs RawWrite early deficit shrank then ~+.012-.014 after1600; last5 through2800 +.013167.
+    # vs B last5 +.017129; vs original NoO ~+.020-.023 after1400, last5 +.021889.
+    model_name = 'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormRawWriteSharedEmbed'
+    rmt_embedding_shared_content = True
+    base_mlp_dim = 4100
+    compare_runs = ['RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNorm',
+                    'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormRawWrite',
+                    'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoO']
+    jax_cache_dir = ''
+
+
+class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScale(
+    RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNorm):
+    """Ledger only: original B plus full per-sublayer matrix read scales."""
+    # Implementation: codex/rmt-xlprop-noo, /data0/xd/rmt-xlprop-noo; pure JAX.
+    # code_commit: 9f83f6e; UE5a .3748 step/s at10-14, -.05% vs matched B .375.
+    # Completed13500. vs B latest5 through5400 -.002188; no later B comparison.
+    # vs original NoO: deficit grew, then held ~+.010 after9k; final5 +.010113,
+    # retaining92.9% of NoO's MHA gain. Small B improvement; does not recover NoO.
+    model_name = 'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScale'
+    rmt_matrix_read_learned_scale = True
+    compare_runs = ['RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNorm',
+                    'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoO']
+    jax_cache_dir = ''
+
+
+class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormRawWriteSharedEmbedNorm(
+    RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormRawWriteSharedEmbed):
+    """Ledger only: restore embedding content RMSNorm without its projection."""
+    # Implementation: codex/rmt-xlprop-noo, /data0/xd/rmt-xlprop-noo; pure JAX.
+    # code_commit: 44f93bc; UE5a ~.378 step/s, flat vs matched SharedEmbed/RawWrite.
+    # Stopped2876. Through2800 last5 vs SharedEmbed -.014315, RawWrite -.001148, originalNoO +.007574.
+    # vs B last5 +.002814; restoring embedding content norm recovers most shared-content regression.
+    model_name = 'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormRawWriteSharedEmbedNorm'
+    rmt_embedding_content_norm = True
+    compare_runs = ['RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNorm',
+                    'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormRawWriteSharedEmbed',
+                    'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormRawWrite',
+                    'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoO']
+    jax_cache_dir = ''
+
+
+class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedEmbedNorm(
+    RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScale):
+    """Ledger only: normalized shared embedding on learned full-M read scales."""
+    # Implementation: codex/rmt-xlprop-noo, /data0/xd/rmt-xlprop-noo; pure JAX.
+    # code_commit: 7df8144; UE5a .371 step/s at10-14, -1.0% vs matched LearnedScale .3748.
+    # Completed13500: early +.002 deficit vs LearnedScale vanished; late gap oscillates around0,
+    # final5 +.000150 (essentially tied). vs B common through5400 -.002176; vs NoO final5 +.010263.
+    model_name = 'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedEmbedNorm'
+    rmt_embedding_shared_content = True
+    rmt_embedding_content_norm = True
+    rmt_layer_write_content_norm = True
+    base_mlp_dim = 4100
+    compare_runs = ['RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScale',
+                    'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNorm']
+    jax_cache_dir = ''
+
+
+class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedWriteNorm(
+    RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScale):
+    """Ledger only: both layer-write branches use normalized contents."""
+    # Implementation: codex/rmt-xlprop-noo, /data0/xd/rmt-xlprop-noo; pure JAX.
+    # code_commit: 0b9c1ae; UE5a .374-.375 step/s, flat vs matched LearnedScale .3748.
+    # Completed13500: vs LearnedScale crossed at4400, then widened to ~-.0025 by9k and held;
+    # final5 -.002553. vs B last5 common through5400 -.003337 (B stopped5575).
+    # vs originalNoO final5 +.007559, retaining94.70% of its MHA gain.
+    model_name = 'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedWriteNorm'
+    rmt_static_write_content_norm = True
+    compare_runs = ['RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScale', 'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNorm']
+    jax_cache_dir = ''
+
+
+class RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOQKPreNorm(RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoO):
+    """Ledger only: parameter-free QK matrix-read pre-norm, retaining VectorNorm."""
+    # Implementation: codex/rmt-xlprop-noo, /data0/xd/rmt-xlprop-noo; pure JAX.
+    # code_commit: 562bfb9; UE5a ~.296 step/s, -5.7% vs matched parent .314.
+    # NaN begins3334 and persists; stopped4222 (checkpoint contaminated).
+    # At3000: vs MHA -.189586, Mudd -.047145 (1.331x Mudd gain); B better by .002511.
+    # QK-only M pre-norm delays, but does not resolve, XL instability.
+    model_name = 'RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOQKPreNorm'
+    rmt_matrix_read_norm = 'qk'
+    compare_runs = ['RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoO', 'Llama2XLPropTruePileMHA', 'MuddLlama2XLProp']
+    jax_cache_dir = ''
+
+
+class RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOMPreNorm(RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoO):
+    """Ledger only: parameter-free full matrix-read pre-norm, retaining VectorNorm."""
+    # Implementation: codex/rmt-xlprop-noo, /data0/xd/rmt-xlprop-noo; pure JAX.
+    # code_commit: 562bfb9; UE5a ~.307 step/s, -2.2% vs matched parent .314.
+    # Stopped17733: finite training recovered, but advantage over Mudd steadily vanished;
+    # gap -.009787@16000 -> -.000824@17000 -> +.001754@17500.
+    # Mudd-relative MHA-gain ratio fell from ~1.39 near8k to below1; no cross-scale recovery.
+    # vs MHA last5 -.086468, still shrinking; vs QKPreNorm last5 through3000 -.002775.
+    # Original NoO failed before a common mature500 window; B cured divergence, not the loss deficit.
+    model_name = 'RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOMPreNorm'
+    rmt_matrix_read_norm = 'all'
+    compare_runs = ['RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoO', 'RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOQKPreNorm', 'Llama2XLPropTruePileMHA', 'MuddLlama2XLProp']
+    jax_cache_dir = ''
 
 
 class RMTMediumPropT4096TruePileK48EmbedUnembedDirect32NoOLLF(
@@ -10164,6 +10564,7 @@ class RMTMediumPropT4096TruePileK48EmbedUnembedDirect32NoOLLF(
     # /data0/xd/rmt-truepile-noo-llf. No preemptions at launch.
     # F MLP4067 repays its O gate and head-mix; L MLP4078 unchanged.
     # 431766464 params, -7008 vs NoO; both use true 4097-token Pile records.
+    # Paused at 10176; vs NoO gap narrowed from ~-.005@2800 to last5(9200-10000) mean -.000581.
     model_name = 'RMTMediumPropT4096TruePileK48EmbedUnembedDirect32NoOLLF'
     rmt_llf_enabled = True
     rmt_fetch_independent_o_key = False
@@ -10534,6 +10935,112 @@ class RMTCombinedLayerScanJoinedReadL6Profile(RMTCombinedLayerScanJoinedReadProf
     base_num_decoder_layers = 6
 
 
+# Ledger only: codex/rmt-write-read-chunks, /data0/xd/rmt-write-read-chunks.
+# Runtime3617fbb; paired write/read chunk tuning, rmt_write_read_chunks.md.
+class RMTWriteReadControlProfile(TrainStepProfile, RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicEmbeddingUnembeddingDirect32):
+    """Paired write/read tuning: exact18-layer model, basic health only."""
+    # EW4b v5p-16 0.3848 step/s; paired device throughput +0.00%.
+    model_name = 'RMTWriteReadControlProfile'
+    rmt_record_dynamic_health = False
+    record_training_health_metrics = True
+    rmt_mlp_merge_reads = False
+    rmt_write_read_chunk_size = 0
+    force_final_checkpoint = False
+    steps = 13500
+    jax_cache_dir = ''
+    compare_runs = []
+
+
+class RMTWriteReadMergedProfile(RMTWriteReadControlProfile):
+    # EW4b v5p-16 0.3833 step/s; paired device throughput -0.18%.
+    model_name = 'RMTWriteReadMergedProfile'
+    rmt_mlp_merge_reads = True
+
+
+class RMTWriteReadSplitC64Profile(RMTWriteReadControlProfile):
+    # EW4b v5p-16 0.2800 step/s; paired device throughput -27.23%.
+    model_name = 'RMTWriteReadSplitC64Profile'
+    rmt_write_read_chunk_size = 64
+    rmt_mlp_merge_reads = False
+
+
+class RMTWriteReadMergedC64Profile(RMTWriteReadControlProfile):
+    # EW4b v5p-16 0.2820 step/s; paired device throughput -26.89%.
+    model_name = 'RMTWriteReadMergedC64Profile'
+    rmt_write_read_chunk_size = 64
+    rmt_mlp_merge_reads = True
+
+
+class RMTWriteReadSplitC128Profile(RMTWriteReadControlProfile):
+    # EW4b v5p-16 0.3220 step/s; paired device throughput -16.32%.
+    model_name = 'RMTWriteReadSplitC128Profile'
+    rmt_write_read_chunk_size = 128
+    rmt_mlp_merge_reads = False
+
+
+class RMTWriteReadMergedC128Profile(RMTWriteReadControlProfile):
+    # EW4b v5p-16 0.3220 step/s; paired device throughput -16.36%.
+    model_name = 'RMTWriteReadMergedC128Profile'
+    rmt_write_read_chunk_size = 128
+    rmt_mlp_merge_reads = True
+
+
+class RMTWriteReadSplitC256Profile(RMTWriteReadControlProfile):
+    # EW4b v5p-16 0.3343 step/s; paired device throughput -13.14%.
+    model_name = 'RMTWriteReadSplitC256Profile'
+    rmt_write_read_chunk_size = 256
+    rmt_mlp_merge_reads = False
+
+
+class RMTWriteReadMergedC256Profile(RMTWriteReadControlProfile):
+    # EW4b v5p-16 0.3338 step/s; paired device throughput -13.24%.
+    model_name = 'RMTWriteReadMergedC256Profile'
+    rmt_write_read_chunk_size = 256
+    rmt_mlp_merge_reads = True
+
+
+class RMTWriteReadSplitC512Profile(RMTWriteReadControlProfile):
+    # EW4b v5p-16 0.3398 step/s; paired device throughput -11.72%.
+    model_name = 'RMTWriteReadSplitC512Profile'
+    rmt_write_read_chunk_size = 512
+    rmt_mlp_merge_reads = False
+
+
+class RMTWriteReadMergedC512Profile(RMTWriteReadControlProfile):
+    # EW4b v5p-16 0.3400 step/s; paired device throughput -11.74%.
+    model_name = 'RMTWriteReadMergedC512Profile'
+    rmt_write_read_chunk_size = 512
+    rmt_mlp_merge_reads = True
+
+
+class RMTWriteReadSplitC1024Profile(RMTWriteReadControlProfile):
+    # EW4b v5p-16 0.3425 step/s; paired device throughput -11.06%.
+    model_name = 'RMTWriteReadSplitC1024Profile'
+    rmt_write_read_chunk_size = 1024
+    rmt_mlp_merge_reads = False
+
+
+class RMTWriteReadMergedC1024Profile(RMTWriteReadControlProfile):
+    # EW4b v5p-16 0.3420 step/s; paired device throughput -11.01%.
+    model_name = 'RMTWriteReadMergedC1024Profile'
+    rmt_write_read_chunk_size = 1024
+    rmt_mlp_merge_reads = True
+
+
+class RMTWriteReadSplitC2048Profile(RMTWriteReadControlProfile):
+    # EW4b v5p-16 0.3420 step/s; paired device throughput -11.23%.
+    model_name = 'RMTWriteReadSplitC2048Profile'
+    rmt_write_read_chunk_size = 2048
+    rmt_mlp_merge_reads = False
+
+
+class RMTWriteReadMergedC2048Profile(RMTWriteReadControlProfile):
+    # EW4b v5p-16 0.3410 step/s; paired device throughput -11.33%.
+    model_name = 'RMTWriteReadMergedC2048Profile'
+    rmt_write_read_chunk_size = 2048
+    rmt_mlp_merge_reads = True
+
+
 class RMTCombinedLayerScanJoinedPallasReadProfile(RMTCombinedLayerScanJoinedReadProfile):
     """Fuse the joined projection, C8 key norm/read and gates, with custom VJP."""
     # Implementation merged into refactor-bam from codex/rmt-pallas, /data0/xd/rmt-pallas.
@@ -10549,86 +11056,108 @@ class RMTCombinedLayerScanJoinedPallasReadL6Profile(RMTCombinedLayerScanJoinedPa
 
 
 class RMTCombinedLayerScanPallasQKProfile(RMTCombinedLayerScanNoHealthProfile):
+    # Implementation merged into refactor-bam from codex/rmt-pallas, /data0/xd/rmt-pallas; screening, no promoted runtime.
     # code_commit: f4fadcd; UC1a v5p-16 .375033 step/s, -2.46%; rejected.
-  model_name = 'RMTCombinedLayerScanPallasQKProfile'
-  rmt_pallas_qk = True
-  rmt_pallas_qk_tile = 32
-
+    model_name = 'RMTCombinedLayerScanPallasQKProfile'
+    rmt_pallas_qk = True
+    rmt_pallas_qk_tile = 32
 
 class RMTCombinedLayerScanPallasQKL6Profile(RMTCombinedLayerScanPallasQKProfile):
+    # Implementation merged into refactor-bam from codex/rmt-pallas, /data0/xd/rmt-pallas; screening, no promoted runtime.
     # code_commit: 2bb8959; v6e .739899; rejected; target f4fadcd also slower.
-  model_name = 'RMTCombinedLayerScanPallasQKL6Profile'
-  base_num_decoder_layers = 6
-
+    model_name = 'RMTCombinedLayerScanPallasQKL6Profile'
+    base_num_decoder_layers = 6
 
 class RMTCombinedLayerScanPaddedCarryProfile(RMTCombinedLayerScanNoHealthProfile):
+    # Implementation merged into refactor-bam from codex/rmt-pallas, /data0/xd/rmt-pallas; screening, no promoted runtime.
     model_name = 'RMTCombinedLayerScanPaddedCarryProfile'
     rmt_pad_value_dim = 128
 
-
 class RMTCombinedLayerScanPaddedCarryL6Profile(RMTCombinedLayerScanPaddedCarryProfile):
+    # Implementation merged into refactor-bam from codex/rmt-pallas, /data0/xd/rmt-pallas; screening, no promoted runtime.
     # code_commit: 758028e; v6e .663833 (-11.42% screening); rejected.
     model_name = 'RMTCombinedLayerScanPaddedCarryL6Profile'
     base_num_decoder_layers = 6
 
-
 class RMTCombinedLayerScanPackedProjectionProfile(RMTCombinedLayerScanNoHealthProfile):
+    # Implementation merged into refactor-bam from codex/rmt-pallas, /data0/xd/rmt-pallas; screening, no promoted runtime.
     model_name = 'RMTCombinedLayerScanPackedProjectionProfile'
     rmt_pack_dynamic_projections = True
 
-
 class RMTCombinedLayerScanPackedProjectionL6Profile(RMTCombinedLayerScanPackedProjectionProfile):
+    # Implementation merged into refactor-bam from codex/rmt-pallas, /data0/xd/rmt-pallas; screening, no promoted runtime.
     # code_commit: b57b787; v6e .779497 vs .764965 (+1.90%); selected as component.
     model_name = 'RMTCombinedLayerScanPackedProjectionL6Profile'
     base_num_decoder_layers = 6
 
-
 class RMTCombinedLayerScanPallasWriteBackwardProfile(RMTCombinedLayerScanPallasWriteProfile):
+    # Implementation merged into refactor-bam from codex/rmt-pallas, /data0/xd/rmt-pallas; screening, no promoted runtime.
     model_name = 'RMTCombinedLayerScanPallasWriteBackwardProfile'
     rmt_pallas_write_forward_jax = True
 
-
 class RMTCombinedLayerScanPallasWriteBackwardL6Profile(RMTCombinedLayerScanPallasWriteBackwardProfile):
+    # Implementation merged into refactor-bam from codex/rmt-pallas, /data0/xd/rmt-pallas; screening, no promoted runtime.
     # code_commit: 428c62b; v6e .725633 (-3.17% screening); rejected.
     model_name = 'RMTCombinedLayerScanPallasWriteBackwardL6Profile'
     base_num_decoder_layers = 6
 
 
 class RMTCombinedLayerScanSaveDenseProfile(RMTCombinedLayerScanNoHealthProfile):
+    # Implementation merged into refactor-bam from codex/rmt-pallas, runtime839605c; no accepted speed result yet.
     # code_commit: f4fadcd; UC1a v5p-16 .350933 step/s, -8.73%; rejected.
     model_name = 'RMTCombinedLayerScanSaveDenseProfile'
     rmt_remat_policy = 'save_dense'
 
 
 class RMTCombinedLayerScanSaveDenseL6Profile(RMTCombinedLayerScanSaveDenseProfile):
+    # Implementation merged into refactor-bam from codex/rmt-pallas, runtime839605c; no accepted speed result yet.
     # code_commit: 839605c; v6e HBM OOM33.79GiB >31.25GiB; no timing.
     model_name = 'RMTCombinedLayerScanSaveDenseL6Profile'
     base_num_decoder_layers = 6
 
 
+# Ledger only: static-unrolled follow-up, runtime4988442; same experiment worktree.
+class RMTWriteReadUnrolledC512Profile(RMTWriteReadSplitC512Profile):
+    # EW4b v5p-16 0.3690 step/s; paired device throughput -4.04%.
+    model_name = 'RMTWriteReadUnrolledC512Profile'
+    rmt_write_read_chunk_unroll = True
+
+
+class RMTWriteReadUnrolledC1024Profile(RMTWriteReadSplitC1024Profile):
+    # EW4b v5p-16 0.3370 step/s; paired device throughput -12.30%.
+    # !! Initial learning stalls vs control; numerical equivalence unresolved. Rejected.
+    model_name = 'RMTWriteReadUnrolledC1024Profile'
+    rmt_write_read_chunk_unroll = True
+
+
 class RMTCombinedLayerScanAttentionRematProfile(RMTCombinedLayerScanNoHealthProfile):
+    # Implementation merged into refactor-bam from codex/rmt-pallas, runtimefbcffdf; target validation pending.
     model_name = 'RMTCombinedLayerScanAttentionRematProfile'
     rmt_remat_policy = 'attention_only'
 
 
 class RMTCombinedLayerScanAttentionRematL6Profile(RMTCombinedLayerScanAttentionRematProfile):
+    # Implementation merged into refactor-bam from codex/rmt-pallas, runtimefbcffdf; target validation pending.
     model_name = 'RMTCombinedLayerScanAttentionRematL6Profile'
     base_num_decoder_layers = 6
 
 
 class RMTCombinedLayerScanSaveDenseStateProfile(RMTCombinedLayerScanNoHealthProfile):
+    # Implementation merged into refactor-bam from codex/rmt-pallas, runtimef4fadcd; target validation pending.
     # code_commit: f4fadcd; UC1a v5p-16 .366933 step/s, -4.57%; rejected.
     model_name = 'RMTCombinedLayerScanSaveDenseStateProfile'
     rmt_remat_policy = 'save_dense_state'
 
 
 class RMTCombinedLayerScanSaveDenseStatePackedProfile(RMTCombinedLayerScanSaveDenseStateProfile):
+    # Implementation merged into refactor-bam from codex/rmt-pallas, runtimef4fadcd; target validation pending.
     # code_commit: f4fadcd; UC1a v5p-16 .400399 step/s, +4.14%; superseded.
     model_name = 'RMTCombinedLayerScanSaveDenseStatePackedProfile'
     rmt_pack_dynamic_projections = True
 
 
 class RMTCombinedLayerScanTokenMinorWriteProfile(RMTCombinedLayerScanPallasWriteProfile):
+    # Implementation merged into refactor-bam from codex/rmt-pallas, /data0/xd/rmt-pallas, runtime30d4c70; see rmt_pallas.md.
     # code_commit: 30d4c70; UC1a v5p-16 .397866 step/s, +3.49%; profile through49.
     model_name = 'RMTCombinedLayerScanTokenMinorWriteProfile'
     rmt_pallas_write_layout = 'token_minor'
@@ -10636,12 +11165,14 @@ class RMTCombinedLayerScanTokenMinorWriteProfile(RMTCombinedLayerScanPallasWrite
 
 
 class RMTCombinedLayerScanTokenMinorWriteL6Profile(RMTCombinedLayerScanTokenMinorWriteProfile):
+    # Implementation merged into refactor-bam from codex/rmt-pallas, /data0/xd/rmt-pallas, runtime30d4c70; see rmt_pallas.md.
     # code_commit: 0a3d12f; v6e .844099 vs .765331 (+10.29%); selected component.
     model_name = 'RMTCombinedLayerScanTokenMinorWriteL6Profile'
     base_num_decoder_layers = 6
 
 
 class RMTCombinedLayerScanSaveStateProfile(RMTCombinedLayerScanNoHealthProfile):
+    # Implementation merged into refactor-bam from codex/rmt-pallas, /data0/xd/rmt-pallas, runtime30d4c70; see rmt_pallas.md.
     # code_commit: 30d4c70; UC1a v5p-16 .427000 step/s, +11.07%; profile through49.
     model_name = 'RMTCombinedLayerScanSaveStateProfile'
     rmt_remat_policy = 'save_state'
@@ -10649,140 +11180,169 @@ class RMTCombinedLayerScanSaveStateProfile(RMTCombinedLayerScanNoHealthProfile):
 
 
 class RMTCombinedLayerScanSaveStateL6Profile(RMTCombinedLayerScanSaveStateProfile):
+    # Implementation merged into refactor-bam from codex/rmt-pallas, /data0/xd/rmt-pallas, runtime30d4c70; see rmt_pallas.md.
     model_name = 'RMTCombinedLayerScanSaveStateL6Profile'
     base_num_decoder_layers = 6
 
 
 class RMTCombinedLayerScanTokenMinorReadProfile(RMTCombinedLayerScanNoHealthProfile):
+    # Implementation merged into refactor-bam from codex/rmt-pallas, /data0/xd/rmt-pallas, runtime6cdf790.
     model_name = 'RMTCombinedLayerScanTokenMinorReadProfile'
     rmt_pallas_c8 = True
 
 
 class RMTCombinedLayerScanTokenMinorReadL6Profile(RMTCombinedLayerScanTokenMinorReadProfile):
+    # Implementation merged into refactor-bam from codex/rmt-pallas, /data0/xd/rmt-pallas, runtime6cdf790.
     # code_commit: 6cdf790; v6e .815830 (+6.60% screening); selected component.
     model_name = 'RMTCombinedLayerScanTokenMinorReadL6Profile'
     base_num_decoder_layers = 6
 
 
 class RMTCombinedLayerScanKeyTokenWriteProfile(RMTCombinedLayerScanTokenMinorWriteProfile):
+    # Implementation merged into refactor-bam from codex/rmt-pallas, /data0/xd/rmt-pallas, runtime396339d.
     model_name = 'RMTCombinedLayerScanKeyTokenWriteProfile'
     rmt_pallas_key_contiguous = True
 
 
 class RMTCombinedLayerScanKeyTokenWriteL6Profile(RMTCombinedLayerScanKeyTokenWriteProfile):
+    # Implementation merged into refactor-bam from codex/rmt-pallas, /data0/xd/rmt-pallas, runtime396339d.
     model_name = 'RMTCombinedLayerScanKeyTokenWriteL6Profile'
     base_num_decoder_layers = 6
 
 
 class RMTCombinedLayerScanTokenWritePackedProfile(RMTCombinedLayerScanTokenMinorWriteProfile):
+    # Implementation merged into refactor-bam from codex/rmt-pallas, /data0/xd/rmt-pallas, runtime396339d.
     # code_commit: 396339d; UC1a v5p-16 .436132 step/s, +13.46%; profile through49.
     model_name = 'RMTCombinedLayerScanTokenWritePackedProfile'
     rmt_pack_dynamic_projections = True
 
 
 class RMTCombinedLayerScanTokenWriteSaveStateProfile(RMTCombinedLayerScanTokenWritePackedProfile):
+    # Implementation merged into refactor-bam from codex/rmt-pallas, /data0/xd/rmt-pallas, runtime396339d.
     # code_commit: 396339d; UC1a v5p-16 .439433 step/s, +14.32%; profile through49.
     model_name = 'RMTCombinedLayerScanTokenWriteSaveStateProfile'
     rmt_remat_policy = 'save_state'
 
 
 class RMTCombinedLayerScanTokenWriteSaveDenseStateProfile(RMTCombinedLayerScanTokenWritePackedProfile):
+    # Implementation merged into refactor-bam from codex/rmt-pallas, /data0/xd/rmt-pallas, runtime396339d.
     model_name = 'RMTCombinedLayerScanTokenWriteSaveDenseStateProfile'
     rmt_remat_policy = 'save_dense_state'
 
 
 class RMTCombinedLayerScanTokenReadWriteProfile(RMTCombinedLayerScanTokenWritePackedProfile):
+    # Implementation merged into refactor-bam from codex/rmt-pallas, /data0/xd/rmt-pallas, runtimece9dabe; see rmt_pallas.md.
     # code_commit: c031d76; UC1a v5p-16 .444233 step/s, +15.58%; profile through49.
     model_name = 'RMTCombinedLayerScanTokenReadWriteProfile'
     rmt_pallas_c8 = True
 
 
 class RMTCombinedLayerScanTokenReadWriteL6Profile(RMTCombinedLayerScanTokenReadWriteProfile):
+    # Implementation merged into refactor-bam from codex/rmt-pallas, /data0/xd/rmt-pallas, runtimece9dabe; see rmt_pallas.md.
     # code_commit: da0f95a; v6e .885399; screening only.
     model_name = 'RMTCombinedLayerScanTokenReadWriteL6Profile'
     base_num_decoder_layers = 6
 
 
 class RMTCombinedLayerScanTokenReadWriteSaveStateProfile(RMTCombinedLayerScanTokenReadWriteProfile):
+    # Implementation merged into refactor-bam from codex/rmt-pallas, /data0/xd/rmt-pallas, runtimece9dabe; see rmt_pallas.md.
     # code_commit: c031d76; UC1a v5p-16 .454517 step/s, +18.25%; profile through49.
     model_name = 'RMTCombinedLayerScanTokenReadWriteSaveStateProfile'
     rmt_remat_policy = 'save_state'
 
 
 class RMTCombinedLayerScanTokenReadWriteSaveDenseStateProfile(RMTCombinedLayerScanTokenReadWriteProfile):
+    # Implementation merged into refactor-bam from codex/rmt-pallas, /data0/xd/rmt-pallas, runtimece9dabe; see rmt_pallas.md.
     model_name = 'RMTCombinedLayerScanTokenReadWriteSaveDenseStateProfile'
     rmt_remat_policy = 'save_dense_state'
 
 
 class RMTCombinedLayerScanLeadingParamsProfile(RMTCombinedLayerScanNoHealthProfile):
+    # Implementation merged into refactor-bam from codex/rmt-pallas, /data0/xd/rmt-pallas, runtimece9dabe; see rmt_pallas.md.
     model_name = 'RMTCombinedLayerScanLeadingParamsProfile'
     param_scan_axis = 0
 
 
 class RMTCombinedLayerScanLeadingParamsL6Profile(RMTCombinedLayerScanLeadingParamsProfile):
+    # Implementation merged into refactor-bam from codex/rmt-pallas, /data0/xd/rmt-pallas, runtimece9dabe; see rmt_pallas.md.
     # code_commit: ce9dabe; v6e ~.764, no gain; not selected.
     model_name = 'RMTCombinedLayerScanLeadingParamsL6Profile'
     base_num_decoder_layers = 6
 
 
 class RMTCombinedLayerScanTokenReadWriteLeadingParamsProfile(RMTCombinedLayerScanTokenReadWriteProfile):
+    # Implementation merged into refactor-bam from codex/rmt-pallas, /data0/xd/rmt-pallas, runtimece9dabe; see rmt_pallas.md.
     model_name = 'RMTCombinedLayerScanTokenReadWriteLeadingParamsProfile'
     param_scan_axis = 0
 
 
 class RMTCombinedLayerScanTokenReadWriteSaveStateMLPProfile(RMTCombinedLayerScanTokenReadWriteSaveStateProfile):
+    # Implementation merged into refactor-bam from codex/rmt-pallas, /data0/xd/rmt-pallas, runtimec031d76; see rmt_pallas.md.
     # code_commit: c031d76; UC1a v5p-16 .444766 step/s; slower than save_state; rejected.
     model_name = 'RMTCombinedLayerScanTokenReadWriteSaveStateMLPProfile'
     rmt_remat_policy = 'save_state_mlp'
 
 
+
 class RMTCombinedLayerScanTokenJoinedReadProfile(RMTCombinedLayerScanJoinedPallasReadProfile):
+    # Implementation merged into refactor-bam from codex/rmt-pallas, /data0/xd/rmt-pallas, runtime91902dd; see rmt_pallas.md.
     model_name = 'RMTCombinedLayerScanTokenJoinedReadProfile'
     rmt_pallas_joined_layout = 'token_minor'
     rmt_pallas_read_tile = 128
 
 
 class RMTCombinedLayerScanTokenJoinedReadL6Profile(RMTCombinedLayerScanTokenJoinedReadProfile):
+    # Implementation merged into refactor-bam from codex/rmt-pallas, /data0/xd/rmt-pallas, runtime91902dd; see rmt_pallas.md.
     # code_commit: 91902dd; v6e ~.769-.770, marginal; not selected.
     model_name = 'RMTCombinedLayerScanTokenJoinedReadL6Profile'
     base_num_decoder_layers = 6
 
 
+
 class RMTCombinedLayerScanPaddedCarry80Profile(RMTCombinedLayerScanPaddedCarryProfile):
+    # Implementation merged into refactor-bam from codex/rmt-pallas, /data0/xd/rmt-pallas, runtimea628e80; see rmt_pallas.md.
     model_name = 'RMTCombinedLayerScanPaddedCarry80Profile'
     rmt_pad_value_dim = 80
 
 
 class RMTCombinedLayerScanPaddedCarry80L6Profile(RMTCombinedLayerScanPaddedCarry80Profile):
+    # Implementation merged into refactor-bam from codex/rmt-pallas, /data0/xd/rmt-pallas, runtimea628e80; see rmt_pallas.md.
     # code_commit: a628e80; v6e ~.726 vs ~.749; rejected.
     model_name = 'RMTCombinedLayerScanPaddedCarry80L6Profile'
     base_num_decoder_layers = 6
 
 
+
 class RMTCombinedLayerScanTokenQKPostProfile(RMTCombinedLayerScanNoHealthProfile):
+    # Implementation merged into refactor-bam from codex/rmt-pallas, /data0/xd/rmt-pallas, runtime71f46b3; see rmt_pallas.md.
     model_name = 'RMTCombinedLayerScanTokenQKPostProfile'
     rmt_pallas_qk_post = True
 
 
 class RMTCombinedLayerScanTokenQKPostL6Profile(RMTCombinedLayerScanTokenQKPostProfile):
+    # Implementation merged into refactor-bam from codex/rmt-pallas, /data0/xd/rmt-pallas, runtime71f46b3; see rmt_pallas.md.
     # code_commit: 71f46b3; v6e .821865; selected component; full-target gain smaller.
     model_name = 'RMTCombinedLayerScanTokenQKPostL6Profile'
     base_num_decoder_layers = 6
 
 
 class RMTCombinedLayerScanTokenAllProfile(RMTCombinedLayerScanTokenReadWriteProfile):
+    # Implementation merged into refactor-bam from codex/rmt-pallas, /data0/xd/rmt-pallas, runtime71f46b3; see rmt_pallas.md.
     # code_commit: 71f46b3; v5p follow-up preempted before accepted window; no timing.
     model_name = 'RMTCombinedLayerScanTokenAllProfile'
     rmt_pallas_qk_post = True
 
 
 class RMTCombinedLayerScanTokenAllSaveStateProfile(RMTCombinedLayerScanTokenAllProfile):
+    # Implementation merged into refactor-bam from codex/rmt-pallas, /data0/xd/rmt-pallas, runtime71f46b3; see rmt_pallas.md.
     # code_commit: 39c7e0f; UC1a v5p-16 .458666 step/s; +19.00% vs original, 63.10% of MHA; measured20-49.
     model_name = 'RMTCombinedLayerScanTokenAllSaveStateProfile'
     rmt_remat_policy = 'save_state'
 
 
+
 class RMTCombinedLayerScanTokenAllSaveStateTile256Profile(RMTCombinedLayerScanTokenAllSaveStateProfile):
+    # Implementation merged into refactor-bam from codex/rmt-pallas, /data0/xd/rmt-pallas, runtime68bb3a2; see rmt_pallas.md.
     # code_commit: 5d5a2c0; UC1a v5p-16 .456833; .44% slower than128; not selected.
     model_name = 'RMTCombinedLayerScanTokenAllSaveStateTile256Profile'
     rmt_pallas_qk_post_tile = 256
@@ -10790,15 +11350,19 @@ class RMTCombinedLayerScanTokenAllSaveStateTile256Profile(RMTCombinedLayerScanTo
 
 
 class RMTCombinedLayerScanTokenAllSaveStateTile512Profile(RMTCombinedLayerScanTokenAllSaveStateProfile):
+    # Implementation merged into refactor-bam from codex/rmt-pallas, /data0/xd/rmt-pallas, runtime68bb3a2; see rmt_pallas.md.
     model_name = 'RMTCombinedLayerScanTokenAllSaveStateTile512Profile'
     rmt_pallas_qk_post_tile = 512
     rmt_pallas_c8_tile = 512
 
 
+
 class RMTCombinedLayerScanTokenAllSaveDynamicProfile(RMTCombinedLayerScanTokenAllSaveStateProfile):
+    # Implementation merged into refactor-bam from codex/rmt-pallas, /data0/xd/rmt-pallas, runtime5d5a2c0; see rmt_pallas.md.
     # code_commit: 5d5a2c0; UC1a v5p-16 .427166; 6.91% slower than save_state; not selected.
     model_name = 'RMTCombinedLayerScanTokenAllSaveDynamicProfile'
     rmt_remat_policy = 'save_state_dynamic'
+
 
 
 class RMTCombinedLayerScanNoHealthV6eB4Profile(RMTCombinedLayerScanNoHealthProfile):
@@ -10967,6 +11531,7 @@ class RMTCombinedLayerScanMajorDirect128WriteV6eB4Profile(RMTCombinedLayerScanMa
 
 
 class RMTCombinedLayerScanTokenAllSaveStateNoOProfile(RMTCombinedLayerScanTokenAllSaveStateProfile):
+    # Implementation merged into refactor-bam from codex/rmt-pallas, /data0/xd/rmt-pallas; runtime8ebb3e9e, short profile only.
     """Speed ablation: remove only dynamic O, retain width and all other routes."""
     model_name = 'RMTCombinedLayerScanTokenAllSaveStateNoOProfile'
     rmt_dynamic_o_enabled = False
@@ -10992,6 +11557,8 @@ class RMTCombinedLayerScanTokenAllSaveStateNoOFoldVV6eB4Profile(RMTCombinedLayer
     per_device_batch_size = 4.0
 
 
+# Ledger only: /data0/xd/rmt-pallas, codex/rmt-pallas. Full write/read fusion;
+# Runtime832a20e9: target v5p B16 forward/backward compile passed; full-step timings pending.
 class RMTCombinedLayerScanFusedWriteReadProfile(RMTCombinedLayerScanMajorDirectWriteProfile):
     """Full attention write through dynamic MLP input, fused forward and analytic reverse."""
     model_name = 'RMTCombinedLayerScanFusedWriteReadProfile'
@@ -11006,6 +11573,8 @@ class RMTCombinedLayerScanFusedWriteReadV6eB4Profile(RMTCombinedLayerScanTokenAl
     rmt_fused_write_read_buffers = 2
 
 
+# Implementation merged into refactor-bam from codex/rmt-pallas, /data0/xd/rmt-pallas. Chunked whole reverse,
+# runtime faf3742; NoO becomes the default new fusion architecture by user direction.
 class RMTCombinedLayerScanFusedWriteReadChunk32Profile(RMTCombinedLayerScanFusedWriteReadProfile):
     """Whole fused reverse with native 32-token storage and joint MXU write pullback."""
     model_name = 'RMTCombinedLayerScanFusedWriteReadChunk32Profile'
@@ -11044,6 +11613,9 @@ class RMTCombinedLayerScanMajorDirectWriteNoOProfile(RMTCombinedLayerScanMajorDi
     """Matched NoO control with the prior selected v5p local kernels."""
     model_name = 'RMTCombinedLayerScanMajorDirectWriteNoOProfile'
     rmt_dynamic_o_enabled = False
+
+# Three-stage NoO Pallas family: merged into refactor-bam; original runtime ebd5ba0.
+# Implementation /data0/xd/rmt-pallas, branch codex/rmt-pallas; full-step timing pending.
 
 
 class RMTThreeStageNoOProfile(RMTCombinedLayerScanFusedWriteReadNoOProfile):
@@ -11114,6 +11686,7 @@ class RMTThreeStageMHAControlV6eB4Profile(RMTThreeStageMHAControlProfile):
     rmt_scoped_vmem_limit_kib = 98304
 
 
+# Implementation merged into refactor-bam from codex/rmt-pallas, runtime be0d8d3; full-step timing pending.
 class RMTThreeStageNoOReverse128Profile(RMTThreeStageNoOProfile):
     """Independent reverse tiles; full fusion and forward128 preserved."""
     # Three-stage profile: runtime be0d8d3, us-central1-a v5p-16; 0.534267 step/s (20-49), all health OFF.
@@ -11134,7 +11707,6 @@ class RMTThreeStageNoOTunedV6eB4Profile(RMTThreeStageNoOV6eB4Profile):
     rmt_attention_read_reverse_tile = 256
     rmt_fused_write_read_backward_tile = 128
     rmt_projected_write_reverse_tile = 256
-
 
 class RMTThreeStageMiddleStreamProfile(RMTThreeStageNoOReverse128Profile):
     # Microbenchmark only; not selected; native token-minor outperformed this major-layout schedule.
@@ -11306,7 +11878,6 @@ class RMTThreeStageMiddleSingleBuffer50Profile(RMTThreeStageMiddleSingleBufferPr
     model_name = 'RMTThreeStageMiddleSingleBuffer50Profile'
     rmt_scoped_vmem_limit_kib = 51200
 
-
 # Rank-H layer-write optimization integrated into refactor-bam from codex/rmt-pallas-rankh.
 # Source worktree: /data0/xd/rmt-pallas-rankh; measured runtime dd871623.
 # Bet: +4-8% full-step throughput; exact-arithmetic equivalent, BF16 reassociated.
@@ -11471,53 +12042,51 @@ class RMTRankHVPUV6Profile(RMTRankHPairedK1V6Profile):
     rmt_projected_write_reverse_tile = 128
 
 
-class BamMediumPropK75EmbedVOnlyQK57AllLocalTruePile(BamMediumPropK75EmbedVOnlyQK57AllLocal):
-    """All-local matrix-value BAM, repaired TruePile, ordinary layer scan."""
-    # Implementation merged into refactor-bam; see prop_bam_main_merge.md.
-    # Runtime: codex/mediumprop-k75-embed; /data0/xd/mediumprop-k75-embed.
-    # code_commit: 0649e72; UE5a v5p-16 .5271 step/s (20-99).
-    # +37.7% vs RMT NoO .3828; +0.4% vs LLF QK57 .525; extra health differs.
-    # 432091328 params, MLP3901, 18-layer scan; full13500 comparison control.
-    # Completed13500; vs NoO deficit held ~+.050 after4000 (last5 +.051476).
-    # vs LLF QK57: crossed above by1000, held ~+.027 late (last5 +.027753).
-    # vs MHA last5 -.091272; vs Mudd early lead shrank to -.004361; gain ratio1.050x.
-    model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalTruePile'
-    DATASET_VARIANT = 'truepile4096'
-    bam_pair_scan = False
-    scan_layers = True
-    base_mlp_dim = 3901
-    mlp_dim_by_block = None
-    compare_runs = ['RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoO',
-                    'BamMediumPropK75EmbedVOnlyQK57TruePile',
-                    'BamMHAMediumPropC256TruePile', 'MuddLlama2MediumPropTruePile']
+class RMTXLPropNorm6LControlProfile(TrainStepProfile, RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoO):
+    """Ledger only: matched-health 6L/B1 v6e-1 profile; codex/rmt-xlprop-noo."""
+    # code_commit: 0e487d4; /data0/xd/rmt-xlprop-noo. EW4a device step103.560ms.
+    # Raw artifacts: /data0/xd/bam_diagnostics/rmt-readnorm-speed-0e487d4/.
+    model_name = 'RMTXLPropNorm6LControlProfile'
+    base_num_decoder_layers = 6
+    per_device_batch_size = 1.0
+    rmt_matrix_read_norm = 'none'
+    record_training_health_metrics = True
+    rmt_record_dynamic_health = True
+    force_final_checkpoint = False
+    compare_runs = []
     jax_cache_dir = ''
 
 
-class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteEveryThirdTruePile(BamMediumPropK75EmbedVOnlyQK57AllLocalTruePile):
-    """Direct MLP content writes every third layer, sharing cached attention addresses."""
-    # Implementation merged into refactor-bam; see prop_bam_main_merge.md.
-    # Source implementation: codex/mediumprop-k75-embed; /data0/xd/mediumprop-k75-embed.
-    # code_commit: 6248e46; UE5a v5p-16 .527 step/s (flat vs AllLocal .5271); basic+concat+write health ON.
-    # Same AllLocal reads; MLP output1200->16x75, independent write gate, one fused outer.
-    # Budget: [3901,3896,3901], 432098624 params (-22576 vs MHA); layer2/5/.../17 write.
-    # Completed13500: AllLocal gain held~-.030 from1000(final5-.030036); originalLLF~-.0023 from2800(final5-.002283).
-    # SeedZero deficit shrank then plateaued~+.016 after8000(final5+.016752).
-    model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteEveryThirdTruePile'
-    bam_mlp_write_every = 3
-    bam_mlp_write_offset = 2
-    bam_mlp_write_static_address = False
-    bam_pair_scan = True
-    bam_local_fetch_block_size = 3
-    bam_layer_modes = ['local_qk+local_v+local_o'] * 18
-    mlp_dim_by_block = [3901, 3896, 3901]
-    checkpoint_period = 200
-    keep_period = 1000
-    max_to_keep = 2
-    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalTruePile',
-                    'BamMediumPropK75EmbedVOnlyQK57TruePile',
-                    'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedEmbedWriteNormSeedKeyZeroInit']
-    jax_cache_dir = ''
+class RMTXLPropNorm6LQKInputProfile(RMTXLPropNorm6LControlProfile):
+    # code_commit: 0e487d4; device106.316ms (+2.66% vs control), added layout overhead.
+    model_name = 'RMTXLPropNorm6LQKInputProfile'
+    rmt_matrix_read_norm = 'qk'
 
+
+class RMTXLPropNorm6LQKOutputProfile(RMTXLPropNorm6LControlProfile):
+    # code_commit: 0e487d4; device104.263ms (+.68% vs control); BF16 trajectory differs.
+    model_name = 'RMTXLPropNorm6LQKOutputProfile'
+    rmt_probe_qk_matrix_rms = True
+
+class RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOMPreNormLearnedScaleSharedWriteEmbedNorm(
+    RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOMPreNorm):
+    """Full-M learned gains; shared normalized layer and embedding write contents."""
+    # Ledger only: codex/rmt-xlprop-noo, /data0/xd/rmt-xlprop-noo; pure JAX.
+    # code_commit: db4f60c; UE5a v5p-32 ~.307 step/s, flat vs B .307; extra scale health added.
+    # Ordinary layer scan, TruePile4096; total50000, checkpoint250.
+    # Stopped5271; vs B: crossed behind at1200, deficit kept widening; last5 +.030349.
+    # vs MHA/Mudd: early gains shrank; last5 -.125322/-.012418 (4400-5200).
+    model_name = 'RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOMPreNormLearnedScaleSharedWriteEmbedNorm'
+    rmt_matrix_read_learned_scale = True
+    rmt_static_write_content_norm = True
+    rmt_layer_write_content_norm = True
+    rmt_embedding_shared_content = True
+    rmt_embedding_content_norm = True
+    rmt_embedding_shared_write_norm = True
+    base_mlp_dim = 6643
+    compare_runs = ['RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOMPreNorm',
+                    'Llama2XLPropTruePileMHA', 'MuddLlama2XLProp']
+    jax_cache_dir = ''
 
 class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile(
     BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteEveryThirdTruePile):
@@ -11541,6 +12110,36 @@ class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePil
         'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteStaticEveryThirdTruePile',
         'BamMediumPropK75EmbedVOnlyQK57TruePile',
         'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedEmbedWriteNormSeedKeyZeroInit']
+
+class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteEveryThirdUnembedDirect32TruePile(
+    BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteEveryThirdTruePile):
+    """Direct32 gated final M read on sparse dynamic-address MLP writes."""
+    # Ledger only. Implementation: codex/mediumprop-k75-embed; /data0/xd/mediumprop-k75-embed.
+    # code_commit: cb65817; UE5a v5p-16 startup~.528step/s, near parent; extra boundary health ON.
+    # Full75x32 matrix norm+scale; final vector query norm; zero key, gate.05; no fixed read scale.
+    # Global read637216=.44251W_Q; nearest per-layer MLP widths [3891,3886,3891].
+    # Stopped2977: parent deficit shrinks to+.009 by2000, then plateaus; last5@2800+.008508(range+.008278..+.008799).
+    model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteEveryThirdUnembedDirect32TruePile'
+    bam_dynamic_unembedding_read = True
+    bam_unembedding_gate_init = .05
+    mlp_dim_by_block = [3891, 3886, 3891]
+    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteEveryThirdTruePile']
+
+
+class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteStaticEveryThirdUnembedDirect32TruePile(
+    BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteStaticEveryThirdTruePile):
+    """Full-M gated final column read, with no fixed read amplitude coefficient."""
+    # Ledger only. Implementation: codex/mediumprop-k75-embed; /data0/xd/mediumprop-k75-embed.
+    # code_commit: cb65817; UE5a v5p-16 startup~.528step/s, near parent; extra boundary health ON.
+    # Direct32: final75x32 matrix RMSNorm+learned scale, normalized final vector queries.
+    # Zero read-key/gate kernels; sigmoid gate opens.05; add16x75 read before original head norm.
+    # Global read637216=.44251W_Q; pay10 MLP units/layer (nearest per-layer integer).
+    # Stopped2971: parent deficit held~+.005-.006 after1000; last5@2800+.005725, range+.003985..+.006380.
+    model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteStaticEveryThirdUnembedDirect32TruePile'
+    bam_dynamic_unembedding_read = True
+    bam_unembedding_gate_init = .05
+    mlp_dim_by_block = [3891, 3886, 3891]
+    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteStaticEveryThirdTruePile']
 
 
 class BamXLPropK96EmbedVOnlyQK72AllLocalTruePile(
@@ -11582,6 +12181,89 @@ class BamXLPropK96EmbedVOnlyQK72AllLocalTruePile(
     jax_cache_dir = ''
 
 
+class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedWriteNormStaticGate(
+    RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedWriteNorm):
+    """Independent token/head gates on normalized static attention and MLP writes."""
+    # Ledger only. Implementation: codex/rmt-xlprop-noo, /data0/xd/rmt-xlprop-noo; pure JAX, layer scan.
+    # code_commit: d5c607f; UE5a v5p-16 ~.367 step/s (-2.1% vs SharedWriteNorm .375); extra write/gate health ON.
+    # Stopped2906 at2800 review; vs SharedWriteNorm persistent~+.003-.005 (last5+.003186), vs LearnedScale last5+.004435.
+    # Static gates suppress early writes but retain terminal MLP (~.992); no loss/speed benefit. TB synced.
+    model_name = 'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedWriteNormStaticGate'
+    rmt_static_write_gates = True
+    rmt_static_write_gate_init = .9
+    rmt_record_write_scale_health = True
+    checkpoint_period = 200
+    keep_period = 1000
+    max_to_keep = 2
+    compare_runs = ['RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedWriteNorm',
+                    'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScale']
+    jax_cache_dir = ''
+
+
+class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedEmbedWriteNorm(
+    RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedEmbedNorm):
+    """Ledger only: isolate normalized static embedding write on SharedEmbedNorm."""
+    # Implementation: codex/rmt-xlprop-noo, /data0/xd/rmt-xlprop-noo.
+    # code_commit: 0264fb6; UE5a v5p-16 ~.371 step/s, flat vs SharedEmbedNorm .371.
+    # Stopped3052; vs SharedEmbedNorm: early200-step gain reversed by400,
+    # deficit widened through2800; last5(2200-3000) +.055960, no speed gain.
+    model_name = 'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedEmbedWriteNorm'
+    rmt_embedding_shared_write_norm = True
+    compare_runs = ['RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedEmbedNorm']
+    jax_cache_dir = ''
+
+
+class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedEmbedWriteNormScale006(
+    RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedEmbedWriteNorm):
+    """Ledger only: normalize static embedding contents but restore initial amplitude balance."""
+    # Implementation: codex/rmt-xlprop-noo, /data0/xd/rmt-xlprop-noo; autonomous Medium1/2.
+    # code_commit: 7cba5c2; UE5a v5p-16 ~.371 step/s, flat vs SharedEmbedNorm .371.
+    # Hot-replaced12431; vs SharedEmbedNorm crossed at1400, then held ~-.003; last5 -.002836.
+    # vs unscaled WriteNorm last5(common2200-3000) -.058819; matched speed flat.
+    model_name = 'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedEmbedWriteNormScale006'
+    rmt_embedding_static_write_scale = .006
+    compare_runs = ['RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedEmbedNorm', 'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedEmbedWriteNorm']
+    jax_cache_dir = ''
+
+
+class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedEmbedWriteNormScale0(
+    RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedEmbedWriteNormScale006):
+    """Ledger only: zero static embedding contribution; retain parameter tree."""
+    # Implementation: codex/rmt-xlprop-noo, /data0/xd/rmt-xlprop-noo; user-directed.
+    # code_commit: 49623a7; UE5a v5p-16 ~.372 step/s, flat vs Scale006/SharedEmbedNorm .371.
+    # Completed13500: last5 vs SharedEmbedNorm -.005587 / standalone SharedWriteNorm -.002884; late advantage stable.
+    # Vs Scale006 last5(common through12400) -.002454; final SeedZero-Scale0 +.000012, effectively tied.
+    model_name = 'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedEmbedWriteNormScale0'
+    rmt_embedding_static_write_scale = 0.
+    compare_runs = ['RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedEmbedWriteNormScale006', 'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedEmbedNorm']
+    jax_cache_dir = ''
+
+class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedEmbedWriteNormSeedKeyZeroInit(
+    RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedEmbedWriteNorm):
+    """Ledger only: initially zero, trainable static embedding address; scale one."""
+    # Implementation: codex/rmt-xlprop-noo, /data0/xd/rmt-xlprop-noo; user-directed.
+    # code_commit: 9dfa158; UE5a v5p-16 ~.373 step/s, flat vs Scale0 .372 / Scale006 .371.
+    # Completed13500: last5 vs SharedEmbedNorm -.005575, nearly flat late.
+    # Final SeedZero-Scale0 +.000012; early lead vanished. Vs Scale006 common through12400 -.002895.
+    model_name = 'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedEmbedWriteNormSeedKeyZeroInit'
+    rmt_embedding_seed_key_zero_init = True
+    rmt_embedding_static_write_scale = 1.
+    compare_runs = ['RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedEmbedWriteNormScale0', 'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedEmbedWriteNormScale006', 'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedEmbedNorm']
+    jax_cache_dir = ''
+
+class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedWriteNormStaticKeyZeroInit(
+    RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedWriteNorm):
+    """Zero-initialize learnable attention/MLP static write addresses."""
+    # Ledger only. Implementation: codex/rmt-xlprop-noo, /data0/xd/rmt-xlprop-noo; pure JAX, layer scan.
+    # code_commit: 8caa48d; UE5a v5p-16 ~.375 step/s, flat vs matched SharedWriteNorm .3748.
+    # Stopped5144 at5000 review: vs SharedWriteNorm behind since2000; last5 +.002355, widening.
+    # No speed benefit; embedding zero-init gain did not transfer to layer static write addresses.
+    model_name = 'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedWriteNormStaticKeyZeroInit'
+    rmt_attn_write_key_zero_init = True
+    rmt_mlp_write_key_zero_init = True
+    compare_runs = ['RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedWriteNorm']
+    jax_cache_dir = ''
+
 class BamXLPropK96EmbedVOnlyQK72LLFTruePile(BamXLPropK96EmbedVOnlyQK72AllLocalTruePile):
     """Nine LLF blocks plus a terminal L, same proportional matrix-value recipe."""
     # Implementation merged into refactor-bam; see prop_bam_main_merge.md.
@@ -11600,6 +12282,422 @@ class BamXLPropK96EmbedVOnlyQK72LLFTruePile(BamXLPropK96EmbedVOnlyQK72AllLocalTr
     mlp_dim_by_block = [6294, 6294, 5654]
     compare_runs = ['BamXLPropK96EmbedVOnlyQK72AllLocalTruePile', 'Llama2XLPropTruePileMHA', 'MuddLlama2XLProp']
     jax_cache_dir = ''
+
+
+class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedWriteNormEmbedSeedZero(
+    RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedEmbedWriteNormSeedKeyZeroInit):
+    """Combine learned full-M scales, zero seed and shared normalized layer writes."""
+    # Ledger only. Implementation: codex/rmt-xlprop-noo, /data0/xd/rmt-xlprop-noo; pure JAX, layer scan.
+    # code_commit: 4cd403f; UE5a v5p-16 ~.371 step/s (-.5% vs SeedZero .373); dynamic health ON.
+    # Stopped4879: vs SeedZero deficit held~+.009 (last5+.008673); SharedWriteNorm +.002781 / B flat / NoO +.008257; no additive gain.
+    model_name = 'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedWriteNormEmbedSeedZero'
+    rmt_static_write_content_norm = True
+    checkpoint_period = 200
+    keep_period = 1000
+    max_to_keep = 2
+    compare_runs = ['RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedEmbedWriteNormSeedKeyZeroInit',
+                    'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedWriteNorm',
+                    'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNorm',
+                    'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoO']
+    jax_cache_dir = ''
+
+class RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOMPreNormLearnedScaleSharedWriteEmbedNormSeedKeyZeroInit(
+    RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOMPreNormLearnedScaleSharedWriteEmbedNorm):
+    """Zero static embedding seed in the learned-scale/shared-write XL combination."""
+    # Ledger only. Implementation: codex/rmt-xlprop-noo, /data0/xd/rmt-xlprop-noo; pure JAX, layer scan.
+    # code_commit: 9f78e30 (write-scale health from4152; prior4cd403f); UE5a v5p-32 ~.307 step/s, flat vs B .307.
+    # Paused17547 (provisional, original LR schedule retained): B early gain shrank to last5-.000674 through17500.
+    # Mudd lead collapsed and crossed at17500 (+.001357, gain0.983x); BAM LLF deficit grew(last5+.020350); MHA last5-.087142.
+    # Final-layer dynamic/static remains25.50 vs B .197: normalized writes prevent static takeover but do not recover late loss.
+    model_name = 'RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOMPreNormLearnedScaleSharedWriteEmbedNormSeedKeyZeroInit'
+    rmt_embedding_seed_key_zero_init = True
+    rmt_record_write_scale_health = True
+    rmt_embedding_static_write_scale = 1.
+    checkpoint_period = 250
+    keep_period = 4000
+    max_to_keep = 2
+    compare_runs = ['RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOMPreNorm',
+                    'Llama2XLPropTruePileMHA',
+                    'MuddLlama2XLProp',
+                    'BamXLPropK96EmbedVOnlyQK72LLFTruePile']
+    jax_cache_dir = ''
+
+
+class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedWriteNormEmbedScale0(
+    RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedWriteNormEmbedSeedZero):
+    """Disable static embedding writes in the normalized-write/learned-scale combination."""
+    # Ledger only. Implementation: codex/rmt-xlprop-noo, /data0/xd/rmt-xlprop-noo; pure JAX, layer scan.
+    # code_commit: 8694956; UE5a v5p-16 ~.372 step/s (+.3% vs combined SeedZero .371); dynamic health ON.
+    # Hot-replaced8025: Scale0 early gain reversed at2600, then ~+.003 cost; last5 +.003239 through7800 / standalone SharedWriteNorm -.000313 (tie). B -.004361 through5400 / combined SeedZero -.004411 through4800.
+    model_name = 'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedWriteNormEmbedScale0'
+    rmt_embedding_seed_key_zero_init = False
+    rmt_embedding_static_write_scale = 0.
+    compare_runs = ['RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedWriteNormEmbedSeedZero',
+                    'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedEmbedWriteNormScale0',
+                    'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNorm']
+    jax_cache_dir = ''
+
+
+class RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOMPreNormLearnedScaleSharedWriteNormEmbedScale0(
+    RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOMPreNormLearnedScaleSharedWriteEmbedNormSeedKeyZeroInit):
+    """Disable static embedding writes while retaining normalized layer writes."""
+    # Ledger only. Implementation: codex/rmt-xlprop-noo, /data0/xd/rmt-xlprop-noo; pure JAX, layer scan.
+    # code_commit: 4b5779c; UE5a v5p-32 ~.307 step/s, flat vs combined SeedZero .307; write-scale health ON.
+    # Paused8049 (provisional, original LR schedule retained): SeedZero gap stays near zero (8000+.000075); B8000-.003551.
+    # Early lead over BAM LLF shrank to8000-.008323; Mudd-.040291 (gain1.412x), MHA-.138004.
+    # Final-layer dynamic/static34.40 at8000; this pause precedes the historical late B regression.
+    model_name = 'RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOMPreNormLearnedScaleSharedWriteNormEmbedScale0'
+    rmt_embedding_seed_key_zero_init = False
+    rmt_embedding_static_write_scale = 0.
+    compare_runs = ['RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOMPreNormLearnedScaleSharedWriteEmbedNormSeedKeyZeroInit',
+                    'RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOMPreNorm',
+                    'Llama2XLPropTruePileMHA',
+                    'MuddLlama2XLProp',
+                    'BamXLPropK96EmbedVOnlyQK72LLFTruePile']
+    jax_cache_dir = ''
+
+
+class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdRawContentTruePile(
+    BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile):
+    """Keep raw MLP output magnitude in sparse private-address matrix writes."""
+    # Ledger only. Implementation: codex/mediumprop-k75-embed; /data0/xd/mediumprop-k75-embed.
+    # code_commit: 77b81a0; UE5a v5p-16 ~.520step/s (flat vs parent .520; matched health).
+    # Only MLP content norm off; input/address/attention/embedding norms, gates and MLP widths unchanged.
+    # Stopped5210; last5 vs independentEveryThird +.000071 through5000, speed flat.
+    # Large early gain vanishes by3-5k; repeated zero crossings, no sustained benefit.
+    model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdRawContentTruePile'
+    bam_mlp_write_content_rms = False
+    checkpoint_period = 200
+    keep_period = 2000
+    max_to_keep = 2
+    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile']
+    jax_cache_dir = ''
+
+
+class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEverySecondBlockFirstTruePile(
+    BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile):
+    """Private R256 MLP writes at two-layer block starts: zero-based0/2/.../16."""
+    # Ledger only: codex/mediumprop-k75-embed, /data0/xd/mediumprop-k75-embed; pure JAX.
+    # Nine writes; 432098528 params (MHA-22672), MLP3774 at write layers /3901 otherwise.
+    # code_commit: dba1dea; UE5a v5p-16 0.5125step/s vs parent .520 -1.4%; same write/address health.
+    # Stopped2884: vs everyThird crosses behind1400, deficit grows+.010786@2800; last5+.008620, slower1.4%.
+    model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEverySecondBlockFirstTruePile'
+    bam_mlp_write_every = 2
+    bam_mlp_write_offset = 1
+    bam_local_fetch_block_size = 2
+    bam_extra_final_local_layer = False
+    bam_final_local_layer_count = 0
+    mlp_dim_by_block = [3774, 3901]
+    keep_period = 2000
+    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile']
+
+class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryFourthBlockFirstTruePile(
+    BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile):
+    """Private R256 MLP writes at four-layer block starts:0/4/8/12/16."""
+    # Ledger only: codex/mediumprop-k75-embed, /data0/xd/mediumprop-k75-embed; pure JAX.
+    # Five writes; 432095328 params (MHA-25872), MLP3774 at write layers /3901 otherwise.
+    # Four complete scanned blocks followed by two local layers; layer16 writes,17 consumes.
+    # code_commit: dba1dea; UE5a v5p-16 0.5240step/s vs parent .520 +0.8%; same write/address health.
+    # Stopped1489: vs everyThird crosses behind1000, deficit grows to+.018409@1400; +.8% speed insufficient.
+    model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryFourthBlockFirstTruePile'
+    bam_mlp_write_every = 4
+    bam_mlp_write_offset = 1
+    bam_local_fetch_block_size = 4
+    bam_extra_final_local_layer = False
+    bam_final_local_layer_count = 2
+    mlp_dim_by_block = [3774, 3901, 3901, 3901]
+    keep_period = 2000
+    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile']
+
+
+class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryLayerTruePile(BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteEveryLayerTruePile):
+    """Independent token-conditioned MLP write addresses in every layer."""
+    # Ledger only. Implementation: codex/mediumprop-k75-embed; /data0/xd/mediumprop-k75-embed.
+    # code_commit: 8222ceb; UE5a v5p-16 .495step/s(20-99), -4.8% vs private sparse .520; write+address health ON.
+    # Own R256 GELU->16x32 +pre-RMS bias at every layer; ordinary layer scan, no new unembedding.
+    # Private addresses7898112=5.48480W_Q; repay122 MLP units per layer, uniform3774.
+    # 432105728 params (-15472 vs MHA; +9600 vs independent everyThird).
+    # Stopped 5247: sparse-private early lead vanishes near2400; deficit grows through4000, holds~+.0074 over4400-5200.
+    # Final5+.007366(range+.006481..+.008039); 4.8% slower, no loss/parameter benefit.
+    model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryLayerTruePile'
+    bam_mlp_write_dynamic_address = True
+    bam_mlp_write_address_rank = 256
+    base_mlp_dim = 3774
+    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile']
+
+
+class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEverySecondBlockFirstRawContentTruePile(BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEverySecondBlockFirstTruePile):
+    """Raw MLP write contents with inherited private-address frequency and exact MLP budget."""
+    # Ledger only. Implementation: codex/mediumprop-k75-embed; /data0/xd/mediumprop-k75-embed.
+    # code_commit: de9ea9c; UE5a v5p-16 ~.514step/s vs third .520 -1.2% / norm-second .5125 +.3%; matched health.
+    # Only MLP content RMSNorm off vs same-frequency control; input/address/attention norms retained.
+    # Stopped5211. vs original third: ~-.0037 at2-3k narrowed to last5-.001830 at4200-5000; latest-.001343.
+    # vs raw-third last5-.001901; vs same-frequency norm-second -.014473 at2800 (base stopped).
+    model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEverySecondBlockFirstRawContentTruePile'
+    bam_mlp_write_content_rms = False
+    checkpoint_period = 200
+    keep_period = 2000
+    max_to_keep = 2
+    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdRawContentTruePile', 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEverySecondBlockFirstTruePile', 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile']
+    jax_cache_dir = ''
+
+
+class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryLayerRawContentTruePile(BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryLayerTruePile):
+    """Raw MLP write contents with inherited private-address frequency and exact MLP budget."""
+    # Ledger only. Implementation: codex/mediumprop-k75-embed; /data0/xd/mediumprop-k75-embed.
+    # code_commit: de9ea9c; UE5a v5p-16 ~.497step/s vs sparse .520 -4.4% / norm-dense .495 +.4%; matched health.
+    # Only MLP content RMSNorm off vs same-frequency control; input/address/attention norms retained.
+    # Stopped3086: vs rawEveryThird crosses behind2200, widens to+.002494@3000; last5+.001783.
+    # vs originalEveryThird gain vanishes2600, +.003353@3000 (last5+.000542); norm-dense~tie(last5-.000332).
+    # 432105728 params; exact unchanged MLP budget vs norm-dense.
+    model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryLayerRawContentTruePile'
+    bam_mlp_write_content_rms = False
+    checkpoint_period = 200
+    keep_period = 2000
+    max_to_keep = 2
+    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdRawContentTruePile', 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryLayerTruePile', 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile']
+    jax_cache_dir = ''
+
+
+class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteStaticEveryThirdNoWOTruePile(
+    BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteStaticEveryThirdTruePile):
+    """Identity attention output; repay W_O into each layer's MLP."""
+    # Ledger only. Implementation: codex/mediumprop-k75-embed; /data0/xd/mediumprop-k75-embed.
+    # code_commit: bc9a9a0
+    # UE5a .533step/s vs parent .531 (+.4%); matched health; stopped 2947.
+    # Remove18 W_O kernels; +400 SwiGLU units/layer, identical432101696 total parameters.
+    # Keep static MLP addresses at L1/4/7/10/13/16 and all existing read/write rules.
+    # Parent gap crosses behind800, grows through2000, holds~+.029 over2000-2800; final5+.029136.
+    # Range+.027257..+.030662; no recovery, only.4% faster.
+    model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteStaticEveryThirdNoWOTruePile'
+    bam_no_output_projection = True
+    mlp_dim_by_block = [4301, 4296, 4301]
+    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteStaticEveryThirdTruePile']
+
+
+class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdNoWOTruePile(
+    BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile):
+    """Identity attention output on sparse private dynamic MLP addresses."""
+    # Ledger only. Implementation: codex/mediumprop-k75-embed; /data0/xd/mediumprop-k75-embed.
+    # code_commit: bc9a9a0
+    # UE5a .521step/s vs parent .520 (+.2%); matched health; stopped 3026.
+    # Remove18 W_O kernels; +400 SwiGLU units/layer, identical432096128 total parameters.
+    # Parent gap crosses behind800, grows to~+.03 after1400; no recovery through2800.
+    # Final5+.031440(range+.029615..+.033669); only.2% faster.
+    model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdNoWOTruePile'
+    bam_no_output_projection = True
+    mlp_dim_by_block = [4301, 4174, 4301]
+    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile']
+
+
+class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdHeadMixNoWOTruePile(BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile):
+    """Replace W_O with gated head mixing; LocalO directly enters residual."""
+    # Implementation: codex/mediumprop-k75-embed, /data0/xd/mediumprop-k75-embed.
+    # Ledger only: codex/mediumprop-k75-embed, /data0/xd/mediumprop-k75-embed.
+    # code_commit: bf057ff; UE5a ~0.515step/s (-1.0% vs parent .520); extra H/gate health differs.
+    # AOT loaded, regional TruePile4096 path and exact parameter count verified.
+    # Stopped at checkpoint2800; parent last5 +.012111; shared H remains worse than independent keys; hot-replaced.
+    model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdHeadMixNoWOTruePile'
+    bam_no_output_projection = True
+    bam_output_head_mix = True
+    bam_local_vo_separate_c8_keys = False
+    mlp_dim_by_block = [4296, 4169, 4296]
+    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile', 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdNoWOTruePile']
+
+class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdHeadMixNoWOSeparateVOKeysTruePile(BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdHeadMixNoWOTruePile):
+    """Separate V/O dynamic C8 keys, retaining shared compression."""
+    # Ledger only: codex/mediumprop-k75-embed, /data0/xd/mediumprop-k75-embed.
+    # code_commit: bf057ff; UE5a ~0.503step/s (-3.3% vs parent .520); extra H/gate health differs.
+    # AOT loaded, regional TruePile4096 path and exact parameter count verified.
+    # Stopped3178; through3000 parent last5+.008436 [.006200,.010512], deficit grows since1000; hot-replaced.
+    model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdHeadMixNoWOSeparateVOKeysTruePile'
+    bam_local_vo_separate_c8_keys = True
+    mlp_dim_by_block = [4253, 4126, 4253]
+    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile', 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdHeadMixNoWOTruePile', 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdNoWOTruePile']
+
+class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdPostWriteLocalONoWOTruePile(BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdHeadMixNoWOSeparateVOKeysTruePile):
+    """Raw attention writes M, then independent static/dynamic LocalO reads it."""
+    # ledger only: codex/mediumprop-k75-embed; /data0/xd/mediumprop-k75-embed.
+    # code_commit: 89f2943; UE5a ~.494step/s (-5.0% vs W_O .520; health differs).
+    # Stopped3051; through2800 W_O last5+.038127 [.036523,.039289], ungated H+.018388.
+    # Deficit settles near+.038 after1600; write-then-read does not recover W_O performance.
+    model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdPostWriteLocalONoWOTruePile'
+    bam_output_head_mix = False
+    bam_local_o_post_write = True
+    mlp_dim_by_block = [4259, 4132, 4259]
+    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile', 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdHeadMixNoWOSeparateVOKeysNoGateTruePile']
+
+
+class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdHeadMixNoWOSeparateVOKeysNoGateTruePile(BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdHeadMixNoWOSeparateVOKeysTruePile):
+    """Independent V/O keys; Gaussian H without its output gate."""
+    # ledger only: codex/mediumprop-k75-embed, /data0/xd/mediumprop-k75-embed.
+    # code_commit: 9c6013b; UE5a ~.503step/s (-3.3% vs W_O .520; health differs).
+    # Stopped2994; through2800 vs W_O last5+.019739 [.019077,.020716], flat near+.02 since1400.
+    # Removing H gate worsens2800 by+.011194 vs gated H; no speed gain.
+    model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdHeadMixNoWOSeparateVOKeysNoGateTruePile'
+    bam_output_head_gate = False
+    mlp_dim_by_block = [4259, 4132, 4259]
+    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile', 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdPostWriteLocalONoWOTruePile']
+
+
+class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdPostWriteLocalOHeadMixNoWOTruePile(BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdPostWriteLocalONoWOTruePile):
+    """Post-write LocalO plus ungated Gaussian H bypass of raw attention."""
+    # ledger only: codex/mediumprop-k75-embed, /data0/xd/mediumprop-k75-embed.
+    # code_commit: 3228ced; UE5a ~.485step/s (-6.7% vs W_O .520; health differs).
+    # Stopped3029; through2800 W_O last5+.050233 [.048154,.051641]; pure post-write+.012106, old-M ungated H+.030494.
+    # H bypass remains harmful; gap vs pure post-write settles near+.012 after1600.
+    model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdPostWriteLocalOHeadMixNoWOTruePile'
+    bam_output_head_mix = True
+    bam_output_head_gate = False
+    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile', 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdPostWriteLocalONoWOTruePile', 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdHeadMixNoWOSeparateVOKeysNoGateTruePile']
+
+class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdPostWriteLocalOGatedHeadMixNoWOTruePile(BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdHeadMixNoWOSeparateVOKeysTruePile):
+    """Only move LocalO after raw attention write; retain gated H and zero static O."""
+    # Ledger only; code_commit: 5ad52ba. Implementation: codex/mediumprop-k75-embed, /data0/xd/mediumprop-k75-embed.
+    # code_commit: 5ad52ba; UE5a v5p16 ~.488step/s (-3.0% vs gated-H parent .503; -6.2% vs original W_O .520, health differs).
+    # Stopped2945; through2800 old-M gated-H parent last5+.013716 [.011882,.015376]; original W_O+.021186 [.019677,.022046].
+    # Original-W_O gap flat~+.022 since1600; apparent catch-up to gated-H parent comes from that parent's deterioration.
+    model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdPostWriteLocalOGatedHeadMixNoWOTruePile'
+    bam_local_o_post_write = True
+    bam_local_o_static_zero_init = True
+    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdHeadMixNoWOSeparateVOKeysTruePile', 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile']
+
+
+class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdPostWriteLocalORawWOTruePile(BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdPostWriteLocalOGatedHeadMixNoWOTruePile):
+    """Raw attention through W_O; updated-M LocalO directly enters residual."""
+    # Ledger only; code_commit: 5ad52ba. Implementation: codex/mediumprop-k75-embed, /data0/xd/mediumprop-k75-embed.
+    # code_commit: 5ad52ba; UE5a v5p16 ~.490step/s (+.4% vs post-write gated H .488; -5.8% vs original W_O .520, health differs).
+    # Stopped4575. vs original W_O: deficit shrank to +.0189@2800, then plateaued; last5 through4400 +.018583 [.018288,.019112].
+    # vs post-write gated H: crossed slightly negative near2400; last5 through2800 -.000890 [-.003148,+.000138].
+    model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdPostWriteLocalORawWOTruePile'
+    bam_no_output_projection = False
+    bam_output_head_mix = False
+    mlp_dim_by_block = [3859, 3732, 3859]
+    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdPostWriteLocalOGatedHeadMixNoWOTruePile', 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile']
+
+class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdPreWriteLocalORawWOTruePile(BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdPostWriteLocalORawWOTruePile):
+    """Old-M LocalO bypasses W_O; raw attention alone writes M and passes W_O."""
+    # Ledger only; implementation: codex/mediumprop-k75-embed, /data0/xd/mediumprop-k75-embed.
+    # code_commit: b3689b7; UE5a ~.500step/s (+2.0% vs post-write W_O .490; health differs).
+    # User stop2515. Deficits still narrowing: vs post-write W_O +.080515@1000 -> +.026262@2400 (last5+.032069).
+    # vs gated-H parent last5+.048768; vs original W_O last5+.054525; no plateau established before stop.
+    model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdPreWriteLocalORawWOTruePile'
+    bam_local_o_post_write = False
+    bam_output_raw_wo = True
+    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdPostWriteLocalORawWOTruePile', 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdHeadMixNoWOSeparateVOKeysTruePile', 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile']
+
+
+class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdPostWriteLocalORawWOUpdatedQueryTruePile(BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdPostWriteLocalORawWOTruePile):
+    """O keys/gates from shared MLP pre-norm of x+W_O(Y); post-write M."""
+    # Ledger only; implementation: codex/mediumprop-k75-embed, /data0/xd/mediumprop-k75-embed.
+    # code_commit: 1ef8c23; UE5a ~.481step/s (-1.8% vs parent .490; query health added); stopped5657.
+    # vs old-query parent: early deficit shrank to +.000966@4400; final common5 +.001491.
+    # vs original W_O: ~+.019-.020 after3200; final5 through5600 +.018992 [.018599,.019586].
+    model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdPostWriteLocalORawWOUpdatedQueryTruePile'
+    bam_output_raw_wo = True
+    bam_local_o_updated_query = True
+    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdPostWriteLocalORawWOTruePile', 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile']
+
+
+class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdPreWriteLocalORawWOUpdatedQueryTruePile(BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdPreWriteLocalORawWOTruePile):
+    """O keys/gates from shared MLP pre-norm of x+W_O(Y); pre-write M."""
+    # Ledger only; implementation: codex/mediumprop-k75-embed, /data0/xd/mediumprop-k75-embed.
+    # code_commit: 1ef8c23; UE5a ~.492step/s (-1.6% vs parent .500; query health added); stopped3285.
+    # vs old-query parent: tied after600, final common2400 last5 +.000236.
+    # vs new-M A: deficit shrank to +.017118@3200; final5 +.019394. No own-parent gain.
+    model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdPreWriteLocalORawWOUpdatedQueryTruePile'
+    bam_output_raw_wo = True
+    bam_local_o_updated_query = True
+    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdPreWriteLocalORawWOTruePile', 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdPostWriteLocalORawWOUpdatedQueryTruePile']
+
+
+class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdPostWriteLocalOGatedHeadMixUpdatedQueryTruePile(BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdPostWriteLocalORawWOUpdatedQueryTruePile):
+    """Updated O query from x+gH(Y); new-M LocalO bypasses H and its gate."""
+    # Ledger only; implementation: codex/mediumprop-k75-embed, /data0/xd/mediumprop-k75-embed.
+    # code_commit: b441980; UE5a ~.478step/s (-.6% vs A .481); stopped3051.
+    # vs A: lead shrank rapidly to -.003821@3000, final5 -.005722; vs old H parent final common5 -.004822.
+    # vs original W_O: deficit grew from ~+.014 to +.018633@3000, final5 +.017249.
+    model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdPostWriteLocalOGatedHeadMixUpdatedQueryTruePile'
+    bam_output_raw_wo = False
+    bam_no_output_projection = True
+    bam_output_head_mix = True
+    bam_output_head_gate = True
+    mlp_dim_by_block = [4253, 4126, 4253]
+    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdPostWriteLocalORawWOUpdatedQueryTruePile', 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdPostWriteLocalOGatedHeadMixNoWOTruePile', 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile']
+
+
+class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKZeroInit(RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedWriteNorm):
+    """Shared normalized writes, zero static QK and no matrix read pre-norm."""
+    # Implementation: codex/rmt-xlprop-noo, /data0/xd/rmt-xlprop-noo; pure JAX, layer scan.
+    # code_commit: 8d93940; UE5a ~.383step/s (+2.1% vs parent .375; extra write-scale health ON).
+    # Stopped5162: vs SharedWriteNorm gain shrank to last5 -.005088 at4200-5000; vs original NoO +.000311 (near zero).
+    # QKV-zero (same parameters/speed) led by ~.010 over the recent ~2k steps.
+    model_name = 'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKZeroInit'
+    rmt_static_qk_zero_init = True
+    rmt_matrix_read_norm = 'none'
+    rmt_matrix_read_learned_scale = False
+    rmt_record_write_scale_health = True
+    checkpoint_period = 200
+    keep_period = 1000
+    max_to_keep = 2
+    compare_runs = ['RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedWriteNorm', 'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoO']
+    jax_cache_dir = ''
+
+
+class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInit(RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKZeroInit):
+    """Zero static V too; otherwise identical to QK-zero/no-M-pre-norm."""
+    # Implementation: codex/rmt-xlprop-noo, /data0/xd/rmt-xlprop-noo; pure JAX, layer scan.
+    # code_commit: 1ecbd16; UE5a .382step/s vs QKZero .383 (-.3%); matched health.
+    # Completed13500: SharedWriteNorm last5 -.008667; original NoO -.001107 (near tie), through13400.
+    # Early NoO advantage decayed almost to zero; QKZero last5 -.009463 at4200-5000.
+    model_name = 'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInit'
+    rmt_static_v_zero_init = True
+    compare_runs = ['RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKZeroInit', 'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedWriteNorm', 'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoO']
+
+
+class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteStaticEveryThirdHeadMixPreserveRoutesTruePile(BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteStaticEveryThirdTruePile):
+    """Strict W_O replacement: H+gate on raw+LocalO; original M writes; saved parameters repaid to MLP."""
+    # Ledger only; implementation codex/mediumprop-k75-embed, /data0/xd/mediumprop-k75-embed.
+    # code_commit: 905ac07; UE5a ~.527step/s (-.8% vs parent .531; added H/gate health).
+    # Hot-replaced2926: vs static-every-third W_O parent crossed to deficit at1200, then widened; last5@2800 +.015033 (latest+.017594).
+    # Strict route-preserving replacement still loses despite MLP refund; no demonstrated speed gain.
+    model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteStaticEveryThirdHeadMixPreserveRoutesTruePile'
+    bam_no_output_projection = True
+    bam_output_head_mix = True
+    bam_output_head_gate = True
+    bam_output_head_mix_preserve_routes = True
+    mlp_dim_by_block = [4296, 4291, 4296]
+    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteStaticEveryThirdTruePile']
+
+
+class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZero(RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInit):
+    """Shared normalized embedding contents with a learnable zero static address."""
+    # Implementation: codex/rmt-xlprop-noo, /data0/xd/rmt-xlprop-noo; pure JAX, layer scan.
+    # code_commit: 5e0812f; UE5a .383step/s vs QKVZero .382, matched health, approximately flat.
+    # Completed13500; vs QKVZero gain held ~-.015 through late training (last5 -.015130).
+    # vs SharedWriteNorm / original NoO: early gains shrank; final5 -.023797 / -.016237, slowly narrowing late.
+    # Gain/Mudd holds~1.83x after3k; originalLLF multiplier rises late; final5 1.829x / 1.336x.
+    model_name = 'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZero'
+    rmt_embedding_shared_content = True
+    rmt_embedding_content_norm = True
+    rmt_embedding_shared_write_norm = True
+    rmt_embedding_seed_key_zero_init = True
+    rmt_embedding_static_write_scale = 1.
+    base_mlp_dim = 4100
+    compare_runs = ['RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInit', 'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOMPreNormLearnedScaleSharedWriteNorm', 'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoO']
+    jax_cache_dir = ''
+
+
+class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedScale0(RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZero):
+    """Shared normalized embedding contents, permanently disabled static write."""
+    # Implementation: codex/rmt-xlprop-noo, /data0/xd/rmt-xlprop-noo; pure JAX, layer scan.
+    # code_commit: 5e0812f; UE5a startup .380step/s (-.6% vs QKVZero .382, -.7% vs SeedZero .383); matched health.
+    # Stopped3307: QKV-zero gap crossed at1000 then improved (last5 -.006491); SeedZero deficit narrowed slowly (last5 +.010289 at2400-3200).
+    # Same parameters as SeedZero, slightly slower; trainable zero seed preferred to permanently disabled static embedding write.
+    model_name = 'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedScale0'
+    rmt_embedding_seed_key_zero_init = False
+    rmt_embedding_static_write_scale = 0.
+    compare_runs = ['RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInit', 'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZero']
 
 
 class BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdTruePile(BamXLPropK96EmbedVOnlyQK72AllLocalTruePile):
@@ -11629,6 +12727,316 @@ class BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdTruePile(Ba
     jax_cache_dir = ''
 
 
+class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZeroFinalReadZero(RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZero):
+    """Only zero-initialize the full-matrix static unembedding read key."""
+    # Implementation: codex/rmt-xlprop-noo, /data0/xd/rmt-xlprop-noo; pure JAX, layer scan.
+    # code_commit: a08a7b1; UE5a startup ~.382step/s, matches SeedZero .382; matched health.
+    # Hot-replaced2427: SeedZero deficit shrank +.710305@200 -> +.056261@2400; last5 +.069377, still declining.
+    # Zero final static read stayed weak; dynamic read carried output. No loss/speed gain established.
+    model_name = 'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZeroFinalReadZero'
+    rmt_final_read_key_zero_init = True
+    compare_runs = ['RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZero']
+
+
+class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZeroStaticQVMLPReadBias(RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZero):
+    """Affine static Q/V/MLP reads; zero bias per layer/head, no K or RoPE bias."""
+    # Implementation: codex/rmt-xlprop-noo, /data0/xd/rmt-xlprop-noo; pure JAX, layer scan.
+    # code_commit: ef37971; UE5a startup .3808step/s vs SeedZero .3826 (-.5%); matched health.
+    # Stopped2693: vs SeedZero last5 +.017270 through2600; early recovery stalled near+.018 from1400. No speed gain.
+    model_name = 'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZeroStaticQVMLPReadBias'
+    rmt_static_qv_mlp_read_bias = True
+    compare_runs = ['RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZero']
+
+
+class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZeroFinalVectorSkip(RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZero):
+    """Add the final normalized first16-row proxy directly to unembedding reads."""
+    # Implementation: codex/rmt-xlprop-noo, /data0/xd/rmt-xlprop-noo; pure JAX, layer scan.
+    # code_commit: 4975460; UE5a v5p-16 .3804 step/s (-.6% vs SeedZero .3826; matched health).
+    # Stopped2092: vs SeedZero initial gain reversed by600, then +.004-.006 at1000-2000; last5mean +.004829.
+    # No parameter or speed benefit; final CP2092 and TB synced.
+    model_name = 'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZeroFinalVectorSkip'
+    rmt_unembedding_vector_skip = True
+    compare_runs = ['RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZero']
+    jax_cache_dir = ''
+
+
+class RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOSharedWriteNormQKVZeroInitEmbedSeedZero(RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOMPreNormLearnedScaleSharedWriteEmbedNormSeedKeyZeroInit):
+    """Medium QKV-zero/SeedZero transfer: normalized writes without layer M pre-norm."""
+    # Implementation: codex/rmt-xlprop-noo, /data0/xd/rmt-xlprop-noo; pure JAX, direct layer scan.
+    # code_commit: 671a0f2; UE5a ~.317 step/s, -8.6% vs BAM independent .347 / -11.7% vs LLF .359; health differs.
+    # Stopped12293. Gain/Mudd peaked1.509@6k then fell1.356@12k; /LLF1.023, /BAM independent.959 at12k.
+    # vs independent crossed11k-11.5k; +.005062@12k. Last5 means: independent+.000324, LLF-.006917.
+    # Last5 vs MHA-.125080, Mudd-.035443, original B-.006638. Early divergence fixed; late gain decay persists without M pre-norm.
+    model_name = 'RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOSharedWriteNormQKVZeroInitEmbedSeedZero'
+    rmt_static_qk_zero_init = True
+    rmt_static_v_zero_init = True
+    rmt_matrix_read_norm = 'none'
+    rmt_matrix_read_learned_scale = False
+    rmt_unembedding_vector_skip = False
+    rmt_record_dynamic_health = True
+    rmt_record_write_scale_health = True
+    rmt_record_stability_health = True
+    rmt_carry_health_layers = [1, 7, 14, 21, 25, 27]
+    checkpoint_period = 250
+    keep_period = 2000
+    max_to_keep = 2
+    compare_runs = ['BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdTruePile',
+                    'RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOMPreNorm',
+                    'Llama2XLPropTruePileMHA', 'MuddLlama2XLProp',
+                    'BamXLPropK96EmbedVOnlyQK72LLFTruePile']
+    jax_cache_dir = ''
+
+
+class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZeroMLPFront16FullEveryThird(RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZero):
+    """MLP writes front16 rows except every third layer, which writes full48."""
+    # Implementation: codex/rmt-xlprop-noo, /data0/xd/rmt-xlprop-noo; pure JAX.
+    # code_commit: 2e89bd2
+    # UE5a ~.383 step/s, vs SeedZero ~+.3%; stopped3583.
+    # vs SeedZero: +.109@200 shrank to ~+.02 by1800, then ~+.018 over3000-3400; last5 +.018974.
+    model_name = 'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZeroMLPFront16FullEveryThird'
+    rmt_block_scan = True
+    rmt_mlp_write_rows_by_block = [16, 48, 16]
+    rmt_mlp_dim_by_block = [4137, 4100, 4137]
+    compare_runs = ['RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZero']
+    jax_cache_dir = ''
+
+
+class RMTHealthDefaults:
+    """Health defaults for new RMT runs; place first when mixing with historical parents."""
+    record_training_health_metrics = True
+    rmt_record_dynamic_health = True
+    rmt_record_write_health = True
+    rmt_record_write_scale_health = True
+    rmt_record_stability_health = True
+    rmt_carry_health_layers = 'all'
+
+    keep_period = 0  # normalize to None: no permanent periodic retention
+    max_to_keep = 2
+
+class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZeroMLPInputPreNorm(RMTHealthDefaults, RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZero):
+    """Normalize summed static/dynamic MLP read; retain shared normalized writes."""
+    # Implementation: codex/rmt-xlprop-noo, /data0/xd/rmt-xlprop-noo; pure JAX layer scan.
+    # code_commit: 6eb004b; UE5a v5p-16 .378step/s; vs SeedZero .382 -1%(extra carry/stability health).
+    # Stopped3661: vs SeedZero deficit held~+.044..+.046 after600; last5+.045177, no recovery or speed gain.
+    model_name = 'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZeroMLPInputPreNorm'
+    rmt_mlp_input_pre_norm = True
+    checkpoint_period = 200
+    keep_period = 2000
+    max_to_keep = 2
+    compare_runs = ['RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZero']
+    jax_cache_dir = ''
+
+
+class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZeroMLPInputPreNormSharedRawWrite(RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZeroMLPInputPreNorm):
+    """Only MLP static/dynamic writes share raw y; attention/embedding unchanged."""
+    # code_commit: 6eb004b; UE5a v5p-16 .381step/s; vs input-norm .378 +.8%(matched health).
+    # Completed13500; vs SeedZero crossed ahead1800, held~-.003; final5-.003013 (12600-13400).
+    # vs input-norm-only -.048060 through3600; near-flat speed vs SeedZero .382, extra health.
+    model_name = 'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZeroMLPInputPreNormSharedRawWrite'
+    rmt_mlp_shared_raw_write = True
+    compare_runs = ['RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZero', 'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZeroMLPInputPreNorm']
+
+
+class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZeroStaticQVMLPReadBiasWriteContentBias(RMTHealthDefaults, RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZeroStaticQVMLPReadBias):
+    """Zero-initialized per-head biases before shared attention/MLP write content RMSNorm."""
+    # Implementation: codex/rmt-xlprop-noo, /data0/xd/rmt-xlprop-noo; pure JAX layer scan.
+    # code_commit: 274268a; UE5a v5p-16 ~.381-.382step/s, near-flat vs SeedZero .382 (extra carry/stability health).
+    # Completed13500; vs SeedZero early deficit narrowed to~+.001 over10k-13.4k; final5+.000530.
+    # Brief crossings at9200/13200 did not persist. No stable net loss gain; vs read-bias parent improved~.011 through2600.
+    model_name = 'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZeroStaticQVMLPReadBiasWriteContentBias'
+    rmt_write_content_pre_norm_bias = True
+    checkpoint_period = 200
+    keep_period = 2000
+    max_to_keep = 2
+    compare_runs = ['RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZeroStaticQVMLPReadBias', 'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZero']
+    jax_cache_dir = ''
+
+
+class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZeroWriteContentBiasInitialMatrixBias(RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZeroStaticQVMLPReadBiasWriteContentBias):
+    """Replace static read biases with one zero-initialized shared initial M bias."""
+    # Implementation: codex/rmt-xlprop-noo, /data0/xd/rmt-xlprop-noo; pure JAX layer scan.
+    # code_commit: 67f3002; UE5a v5p-16 .381step/s (~SeedZero .382); stopped4670, hot-replaced.
+    # vs SeedZero deficit plateaued~+.0117 after2k; vs read+write-bias deficit widened~+.007.
+    # Keep layer write content biases; embedding write unchanged; add shared B[48,75] after seed.
+    # Remove 59616 static read-bias params; add3600; MLP unchanged.
+    model_name = 'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZeroWriteContentBiasInitialMatrixBias'
+    rmt_static_qv_mlp_read_bias = False
+    rmt_initial_matrix_bias = True
+    compare_runs = ['RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZeroStaticQVMLPReadBiasWriteContentBias', 'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZero']
+    jax_cache_dir = ''
+
+
+class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZeroMLPInputPreNormSharedRawWriteFinalReadoutNorm(RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZeroMLPInputPreNormSharedRawWrite):
+    """Read raw final M, then normalize summed static/dynamic vector before vocabulary projection."""
+    # Implementation: codex/rmt-xlprop-noo, /data0/xd/rmt-xlprop-noo; pure JAX layer scan.
+    # code_commit: aebd29f; UE5a v5p-16 .384step/s (~parent .381); extra final-readout health.
+    # Inherits RMTHealthDefaults; add final matrix/readout/logits RMS; recent two checkpoints only.
+    # Stopped5548; deficit shrank to~+.001 by2800, then stalled; last5+.001548 through5000.
+    # Remove3600 matrix gains, add1200 vector gains; MLP4100 unchanged (-2400=.001667W_Q).
+    model_name = 'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZeroMLPInputPreNormSharedRawWriteFinalReadoutNorm'
+    rmt_final_readout_norm = True
+    keep_period = 0
+    max_to_keep = 2
+    compare_runs = ['RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZeroMLPInputPreNormSharedRawWrite']
+    jax_cache_dir = ''
+
+
+class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZeroMLPInputPreNormSharedRawWriteAttnStaticQVReadWriteBias(RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZeroMLPInputPreNormSharedRawWrite):
+    """Attention-only static Q/V read and pre-RMS write-content biases; MLP stays raw."""
+    # Ledger only. Implementation: codex/rmt-xlprop-noo, /data0/xd/rmt-xlprop-noo; pure JAX layer scan.
+    # code_commit: 2a73456; UE5a v5p-16 ~.383step/s vs parent .381-.382, matched health.
+    # Only attention biases; MLP/embedding unchanged, MLP4100, RMTHealthDefaults inherited.
+    # Stopped2967; last5 vs raw-MLP parent -.009244 through2800; vs write-bias-only +.002201.
+    # Extra read bias leads early, falls behind write-only from1400 through2800; no catch-up.
+    model_name = 'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZeroMLPInputPreNormSharedRawWriteAttnStaticQVReadWriteBias'
+    rmt_attn_static_qv_read_bias = True
+    rmt_attn_write_content_pre_norm_bias = True
+    rmt_static_qv_mlp_read_bias = False
+    rmt_write_content_pre_norm_bias = False
+    checkpoint_period = 200
+    keep_period = 0
+    max_to_keep = 2
+    compare_runs = ['RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZeroMLPInputPreNormSharedRawWrite']
+    jax_cache_dir = ''
+
+
+class RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZeroMLPInputPreNormSharedRawWriteAttnWriteContentBias(RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZeroMLPInputPreNormSharedRawWrite):
+    """Attention-only pre-RMS write-content biases; MLP stays raw."""
+    # Ledger only. Implementation: codex/rmt-xlprop-noo, /data0/xd/rmt-xlprop-noo; pure JAX layer scan.
+    # code_commit: 2a73456; UE5a v5p-16 ~.383step/s vs parent .382, matched health.
+    # Completed13500. vs MLPInputPreNormSharedRawWrite: early gain shrank, then held ~-.009 from5k-13.4k.
+    # Final5(12600-13400) mean-.009463, range[-.009923,-.009103]; speed flat.
+    # Only attention biases; MLP/embedding unchanged, MLP4100, RMTHealthDefaults inherited.
+    model_name = 'RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZeroMLPInputPreNormSharedRawWriteAttnWriteContentBias'
+    rmt_attn_static_qv_read_bias = False
+    rmt_attn_write_content_pre_norm_bias = True
+    rmt_static_qv_mlp_read_bias = False
+    rmt_write_content_pre_norm_bias = False
+    checkpoint_period = 200
+    keep_period = 0
+    max_to_keep = 2
+    compare_runs = ['RMTMediumPropT4096TruePileAllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZeroMLPInputPreNormSharedRawWrite']
+    jax_cache_dir = ''
+
+
+class RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOSharedWriteNormQKVZeroInitEmbedSeedZeroMLPInputPreNormSharedRawWriteAttnWriteContentBias(RMTHealthDefaults, RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOSharedWriteNormQKVZeroInitEmbedSeedZero):
+    """Transfer Medium MLP-input norm/raw writes and attention content bias to XL."""
+    # Ledger only. Implementation: codex/rmt-xlprop-noo, /data0/xd/rmt-xlprop-noo; pure JAX layer scan.
+    # code_commit: 874fd51; UE5a v5p-32 startup~.316step/s; vs BAM independent .347 -8.9%, extra RMT health.
+    # Stopped5553. vs previous XL RMT: +.002560@1500 widened to+.011729@5000; last5+.008810.
+    # vs BAM independent crossed5000(+.000486); vs LLF-.009878, gain/Mudd1.397 at5000.
+    # Smaller raw MLP output did not fix dynamic/static write imbalance or shared-energy growth.
+    model_name = 'RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOSharedWriteNormQKVZeroInitEmbedSeedZeroMLPInputPreNormSharedRawWriteAttnWriteContentBias'
+    rmt_mlp_input_pre_norm = True
+    rmt_mlp_shared_raw_write = True
+    rmt_attn_static_qv_read_bias = False
+    rmt_attn_write_content_pre_norm_bias = True
+    rmt_static_qv_mlp_read_bias = False
+    rmt_write_content_pre_norm_bias = False
+    base_mlp_dim = 6644
+    checkpoint_period = 250
+    keep_period = 2000
+    max_to_keep = 2
+    compare_runs = ['RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOSharedWriteNormQKVZeroInitEmbedSeedZero', 'BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdTruePile', 'BamXLPropK96EmbedVOnlyQK72LLFTruePile', 'MuddLlama2XLProp', 'Llama2XLPropTruePileMHA']
+    jax_cache_dir = ''
+
+class RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOSharedWriteNormQKVZeroInitEmbedSeedZeroMLPInputPreNormSharedWriteNormAttnWriteContentBias(RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOSharedWriteNormQKVZeroInitEmbedSeedZeroMLPInputPreNormSharedRawWriteAttnWriteContentBias):
+    """Restore shared per-head normalized MLP write contents; keep input norm and attention bias."""
+    # Ledger only. Implementation: codex/rmt-xlprop-noo, /data0/xd/rmt-xlprop-noo; pure JAX layer scan.
+    # code_commit: bda7516; UC1a v5p-32~.315step/s, flat vs raw-write parent .316; matched RMT health.
+    # Stopped4316. vs raw-write parent: early gain vanished, crossed at2500; +.000608@4000.
+    # vs SeedZero crossed at2000 and worsened to+.009433@4000; BAM independent lead shrank to-.002188.
+    # Last complete500-window@4000: LLF-.017730, Mudd-.049837, MHA-.170242; gain/Mudd1.414, /LLF1.116.
+    model_name = 'RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOSharedWriteNormQKVZeroInitEmbedSeedZeroMLPInputPreNormSharedWriteNormAttnWriteContentBias'
+    rmt_mlp_shared_raw_write = False
+    compare_runs = ['RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOSharedWriteNormQKVZeroInitEmbedSeedZeroMLPInputPreNormSharedRawWriteAttnWriteContentBias', 'RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOSharedWriteNormQKVZeroInitEmbedSeedZero', 'BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdTruePile', 'BamXLPropK96EmbedVOnlyQK72LLFTruePile', 'MuddLlama2XLProp', 'Llama2XLPropTruePileMHA']
+    jax_cache_dir = ''
+
+
+class BamXLT2048K128EmbedVOnlyQK96AllLocalMLPWriteIndependentEveryThird(BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdTruePile):
+    """Legacy XL T2048 transfer of the best XLProp sparse independent MLP-write BAM."""
+    # Ledger only. Implementation: codex/mediumprop-k75-embed, /data0/xd/mediumprop-k75-embed; pure JAX.
+    # code_commit: eddf2b0; UE5a v5p-32~.488step/s (-9.3% vs DirectC8 .5378; extra writer health, unmatched); UC1a~.496.
+    # Match old XL16x128 data/batch and actual all-decay WD.
+    # 24 all-local layers, no standard V; zero-based MLP writers1/4/.../22. Rebudget each layer against MHA.
+    # 1,420,908,048 params (MHA-12,784); MLP6916/6808/6915.
+    # Stopped at 42473; at42k vs MHA-.073212, Mudd-.013825; last5 means-.073745/-.013672.
+    # vs Mudd: lead eased through32k, then held roughly-.013 to-.015 over34k-42k; /Mudd~1.23x.
+    # vs DirectC8 last common34k: last5-.015772; its earlier stop prevents a later comparison.
+    model_name = 'BamXLT2048K128EmbedVOnlyQK96AllLocalMLPWriteIndependentEveryThird'
+    DATASET_VARIANT = 'legacy2048'
+    base_num_decoder_layers = 24
+    base_emb_dim = 2048
+    base_num_query_heads = 16
+    base_num_kv_heads = 16
+    head_dim = 128
+    base_mlp_dim = 5504
+    max_target_length = 2048
+    per_device_batch_size = 16.0
+    bam_k = 128
+    bam_v = 32
+    bam_abs_v_compression_dim = 8
+    bam_local_qk_col_output_dim = 96
+    bam_partial_rope_nope_dim = 96
+    bam_standard_qk_dim = 32
+    bam_write_v_bottleneck_dim = 256
+    emb_bam_num_head = 16
+    emb_bam_v_bottleneck_dim = 256
+    bam_mlp_write_address_rank = 246
+    bam_mlp_write_address_hidden_replicated = True
+    bam_layer_modes = ['local_qk+local_v+local_o'] * 24
+    bam_extra_final_local_layer = False
+    bam_final_local_mlp_dim = None
+    mlp_dim_by_block = [6916, 6808, 6915]
+    wd_mults = []  # Reproduce the historical XL MHA/DirectC8 AOT optimizer effect explicitly.
+    checkpoint_period = 250
+    keep_period = 2000
+    max_to_keep = 2
+    compare_runs = ['BamXLSharedBasisQKConcatStaticLocalVOSharedC8IndependentGatesK96QK96DirectC8MLPPerLayer', 'BamMHALlama2XLHead16x128C256', 'MuddLlama2XLT2048Head16x128']
+    jax_cache_dir = ''
+
+
+class MuddLlama2XLPropHD64(Mudd, Llama2XLPropHD64):
+    """Original full-history Mudd on the width-scaled XLProp backbone."""
+    # Ledger only. Implementation: codex/mudd-xlprop-truepile, /data0/xd/mudd-xlprop-truepile.
+    # code_commit: 1bdd511; UC1a v5p-32 ~.620 steps/s, -12.8% vs HD64 MHA; generic health ON.
+    # Completed24000; vs MHA early lead shrank, after14k held roughly-.08 with slow late erosion.
+    # Last5(21500-23500) -0.080172 [-0.081206,-0.079284].
+    model_name = 'MuddLlama2XLPropHD64'
+    mudd_full_history = True
+    mlp_dim_by_layer = [round(round(5120 * (i / 27 + .5) / 128) * 128 * 2 / 3) for i in range(28)]
+    scan_layers = False
+    compare_runs = ['Llama2XLPropHD64']
+    jax_cache_dir = ''
+
+
+
+
+class BamXLPropHD64K64EmbedVOnlyQK48AllLocalMLPWriteIndependentEveryThirdTruePile(
+    Llama2XLPropHD64, BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdTruePile):
+    """Width-scaled XLProp sparse MLP-write BAM; keep address40/C10 and address ranks."""
+    # Ledger only. Implementation: codex/mediumprop-k75-embed, /data0/xd/mediumprop-k75-embed.
+    # code_commit: 21e5ef7
+    # UC1a v5p-32 ~.446 steps/s; -37.3% vs HD64 MHA / -28.1% vs Mudd; extra concat/write health ON.
+    # Completed24000; final5(21500-23500) vs MHA-.111092, vs Mudd-.030920; /Mudd1.386x.
+    # Early gains narrowed; vs Mudd held near-.031 over18k-23.5k, /Mudd settled near1.38x.
+    model_name = 'BamXLPropHD64K64EmbedVOnlyQK48AllLocalMLPWriteIndependentEveryThirdTruePile'
+    bam_k = 64
+    bam_v = 40
+    bam_abs_v_compression_dim = 10
+    bam_standard_qk_dim = 16
+    bam_local_qk_col_output_dim = 48
+    bam_partial_rope_nope_dim = 48
+    bam_write_v_bottleneck_dim = 400
+    emb_bam_num_head = 20
+    emb_bam_v_bottleneck_dim = 400
+    bam_mlp_write_address_rank = 384
+    mlp_dim_by_block = [4030, 3818, 4033]
+    bam_final_local_mlp_dim = 4030
+    compare_runs = ['Llama2XLPropHD64', 'MuddLlama2XLPropHD64']
+    jax_cache_dir = ''
+
+
 class BamMediumPropK75V48C12EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile(
     BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile):
     """Expand the address space to48 with unchanged4:1 compression and proportional write-address ranks."""
@@ -11645,6 +13053,193 @@ class BamMediumPropK75V48C12EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdT
     bam_mlp_write_address_rank = 384
     mlp_dim_by_block = [3765, 3550, 3765]  # exact per-layer refund; 432115072 params, -6128 vs MHA
     compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile']
+    jax_cache_dir = ''
+
+
+class MuddLlama2XLT2048Head16x128(Mudd, Llama2XLHead16x128):
+    """Full-history Mudd control on the historical XL16x128 T2048 backbone."""
+    # Ledger only. Implementation: codex/mudd-xlprop-truepile, /data0/xd/mudd-xlprop-truepile.
+    # code_commit: 367ee52; UE5a v5p-32~.585step/s (+8.8% vs DirectC8 .5378; unmatched health); UC1a~.590.
+    # 1,426,013,701 params (MHA+5,092,869, +.358%); original Mudd MLP schedule.
+    # Stopped at 44463; vs DirectC8: +.007272@10k -> +.001725@20k, fluctuated near zero from28k.
+    # Last common32.5k-34k stayed negative; at34k-.001604, last5-.001191: a small late lead.
+    # DirectC8 stopped34359; no measured comparison beyond34k or at the 50k endpoint.
+    model_name = 'MuddLlama2XLT2048Head16x128'
+    DATASET_VARIANT = 'legacy2048'
+    mudd_full_history = True
+    scan_layers = False  # Growing full history and the original per-layer MLP widths.
+    attention = 'dot_product_chunk'
+    query_chunk_size = 256
+    float32_logits = False
+    record_training_health_metrics = True
+    per_device_batch_size = 16.0
+    steps = 50000
+    eval_interval = 50000
+    force_final_checkpoint = True
+    wd_mults = []  # Match the actual historical XL MHA/BAM AOT all-decay optimizer.
+    checkpoint_period = 250
+    keep_period = 2000
+    max_to_keep = 2
+    compare_runs = ['BamXLSharedBasisQKConcatStaticLocalVOSharedC8IndependentGatesK96QK96DirectC8MLPPerLayer']
+    jax_cache_dir = ''
+
+
+class RMTXLPropHD64T4096TruePileAllLocalK60EmbedUnembedDirect40NoOSharedWriteNormQKVZeroInitEmbedSeedZero(RMTHealthDefaults, RMTXLPropT4096TruePileAllLocalK60EmbedUnembedDirect40NoOSharedWriteNormQKVZeroInitEmbedSeedZero):
+    """Width-only HD64 transfer of the XLProp QKV-zero/SeedZero RMT."""
+    # code_commit: 93a139a; UC1a v5p-32~.408step/s, vs HD64 BAM .446 -8.6% (extra RMT health).
+    # Ledger only. Implementation: codex/rmt-xlprop-noo, /data0/xd/rmt-xlprop-noo; pure JAX layer scan.
+    # M60x64, proxy20/tail40, C10; address-output dimensions unchanged, keep R384.
+    # Stopped13179: early BAM lead shrank, crossed12k; +.000680/+.002197/+.003085 at12k/12.5k/13k.
+    # At13k vs MHA-.125035, Mudd-.033262 (/Mudd1.362x); last5 vsBAM+.000770, /BAM.976x.
+    # At8k->13k terminal MLPraw367->941, Mraw13.84->19.52; middle shared-energy fraction .216 at13k.
+    model_name = 'RMTXLPropHD64T4096TruePileAllLocalK60EmbedUnembedDirect40NoOSharedWriteNormQKVZeroInitEmbedSeedZero'
+    DATASET_VARIANT = 'truepile4096'
+    base_emb_dim = 1280
+    head_dim = 64
+    rmt_rope_qk_dim = 16
+    base_mlp_dim = 4109  # nearest equal-budget width: 679,685,720 params, MHA+40,280
+    learning_rate = 2.5e-4
+    learning_rate_schedule_steps = 24000
+    steps = 24000
+    eval_interval = 24000
+    force_final_checkpoint = True
+    checkpoint_period = 250
+    keep_period = 2000
+    max_to_keep = 2
+    compare_runs = ['Llama2XLPropHD64', 'MuddLlama2XLPropHD64',
+                    'BamXLPropHD64K64EmbedVOnlyQK48AllLocalMLPWriteIndependentEveryThirdTruePile']
+    jax_cache_dir = ''
+
+
+class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdResidualComplementTruePile(
+    BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile):
+    """Route MLP output between vector and matrix streams at layers1/4/7/10/13/16."""
+    # Ledger only. Implementation: codex/mediumprop-k75-embed; /data0/xd/mediumprop-k75-embed.
+    # code_commit: 616c738; UC1a v5p-16 .517step/s vs V32 parent .520 (-0.6%); health ON.
+    # Stopped6452: parent gap narrowed early, then held near +.0043 over4.4k-6.4k.
+    # Last5 through6400 +.004237 (range +.003691..+.004590); no stable gain.
+    model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdResidualComplementTruePile'
+    bam_mlp_write_vector_residual_mode = 'complement'
+    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile']
+    jax_cache_dir = ''
+
+class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdResidualOffTruePile(
+    BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile):
+    """Route MLP output between vector and matrix streams at layers1/4/7/10/13/16."""
+    # Ledger only. Implementation: codex/mediumprop-k75-embed; /data0/xd/mediumprop-k75-embed.
+    # code_commit: 616c738; EW4b v5p-16 .523step/s vs V32 parent .520 (+0.6%); health ON.
+    # Stopped7045: early parent gap narrowed, then plateaued near +.0035 over3.2k-7k.
+    # Last5 through7000 +.003588 (range +.002772..+.003966); no loss/parameter/speed gain.
+    # Last5 vs Complement through6400 -.000717; UC1a .516 vs parent .520 (-.8%), same health.
+    model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdResidualOffTruePile'
+    bam_mlp_write_vector_residual_mode = 'off'
+    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile',
+                    'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdResidualComplementTruePile']
+    jax_cache_dir = ''
+
+class BamMediumPropK75V48C12EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdContentTransformTruePile(
+    BamMediumPropK75V48C12EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile):
+    """Untie MLP residual and matrix-write content coordinates with identity-initialized maps."""
+    # Ledger only; implementation: codex/mediumprop-k75-embed; /data0/xd/mediumprop-k75-embed.
+    # Six independent16x75x75 maps: +.375W_Q; repay25 MLP units at each write layer.
+    # Stopped8674: after the initial transient, vs V48 parent stayed near zero; no stable gain.
+    # Last5 through8600 -.000263 (range -.000779..+.000248); matched-health speed -0.2%.
+    # code_commit: 524c9ad; UC1a ~.502 step/s vs V48 parent .503 (-.2%); health ON.
+    model_name = 'BamMediumPropK75V48C12EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdContentTransformTruePile'
+    bam_mlp_write_content_transform = True
+    mlp_dim_by_block = [3765, 3525, 3765]
+    compare_runs = ['BamMediumPropK75V48C12EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile']
+    jax_cache_dir = ''
+
+
+class BamMediumPropK75V48C12EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdWVBlockFirstKeepVOTruePile(
+    BamMediumPropK75V48C12EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile):
+    """Restore W_V immediately before each independent MLP write, retaining LocalVO."""
+    # Ledger only; implementation: codex/mediumprop-k75-embed; /data0/xd/mediumprop-k75-embed.
+    # code_commit: 09da7cd; UE5a/UC1a v5p-16 ~.506step/s, +.6% vs V48 parent .503; same health.
+    # Stopped2635: vs V48 parent crossed to worse at800; +.018772@2000, +.015999@2600.
+    # Late gap narrowed slightly but remained worse; last5 +.016827 (range +.015999..+.018772).
+    model_name = 'BamMediumPropK75V48C12EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdWVBlockFirstKeepVOTruePile'
+    bam_local_v_replace = [False, True, True] * 6
+    mlp_dim_by_block = [3365, 3550, 3765]
+    compare_runs = ['BamMediumPropK75V48C12EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile']
+    jax_cache_dir = ''
+
+
+class BamMediumPropK75V48C12EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdWVBlockFirstNoVOTruePile(
+    BamMediumPropK75V48C12EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdWVBlockFirstKeepVOTruePile):
+    """Restore W_V before each MLP write, dropping LocalVO only on W_V layers."""
+    # Ledger only; implementation: codex/mediumprop-k75-embed; /data0/xd/mediumprop-k75-embed.
+    # code_commit: 09da7cd; UE5a v5p-16 ~.520step/s, +3.4% vs V48 parent .503; same basic+concat/write health.
+    # Stopped3303: vs V48 parent crossed behind600, then held roughly+.016; last5+.016321 through3200.
+    # vs KeepVO through2600 last5+.000579: no sustained advantage; speed +3.4% vs V48.
+    model_name = 'BamMediumPropK75V48C12EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdWVBlockFirstNoVOTruePile'
+    bam_layer_modes = ['local_qk', 'local_qk+local_v+local_o', 'local_qk+local_v+local_o'] * 6
+    mlp_dim_by_block = [3440, 3550, 3765]  # exact net refund: 432109408, MHA-11792
+    compare_runs = ['BamMediumPropK75V48C12EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile', 'BamMediumPropK75V48C12EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdWVBlockFirstKeepVOTruePile']
+    jax_cache_dir = ''
+
+
+class BamXLPropK96V60C15EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdTruePile(
+    BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdTruePile):
+    """XLProp transfer of the 1.5x address-space expansion with 4:1 compression."""
+    # Ledger only: codex/mediumprop-k75-embed; /data0/xd/mediumprop-k75-embed.
+    # code_commit: e0125ba; UC1a v5p-32 ~.336step/s, -3.2% vs parent .347; same basic+concat/write health.
+    # Parent M96x40/C10 -> M96x60/C15; unchanged QK72+RoPE24 and sparse write layers.
+    # Added BAM 39,262,800 = 10.65072 W_Q before MLP refund; exact nearest total: MHA-2,040.
+    # Stopped4313: initial V40-parent gain shrank by2k, then held ~-.0028 (last5 through4k -.002751).
+    # At4k: LLF-.018023 (/LLF1.118x), Mudd-.050130 (/Mudd1.416x), MHA-.170535; small parent gain costs3.2% speed.
+    model_name = 'BamXLPropK96V60C15EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdTruePile'
+    bam_v = 60
+    bam_abs_v_compression_dim = 15
+    bam_write_v_bottleneck_dim = 600
+    emb_bam_v_bottleneck_dim = 600
+    bam_mlp_write_address_rank = 576
+    bam_replicate_ploc_up = True  # preserve exact R600 on 16-way FSDP, including embedding up
+    sharding_tolerance = .23  # measured per-chip overhead .222051; 20.88M up weights intentionally replicated
+    mlp_dim_by_block = [6092, 5773, 6093]
+    bam_final_local_mlp_dim = 6094
+    compare_runs = ['BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdTruePile',
+                    'BamXLPropK96EmbedVOnlyQK72LLFTruePile',
+                    'MuddLlama2XLProp', 'Llama2XLPropTruePileMHA']
+    jax_cache_dir = ''
+
+
+class RMTXLT2048AllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZero(
+    RMTXLPropHD64T4096TruePileAllLocalK60EmbedUnembedDirect40NoOSharedWriteNormQKVZeroInitEmbedSeedZero):
+    """Transfer HD64 QKV-zero/SeedZero RMT to the historical XL16x128 T2048 backbone."""
+    # Ledger only. Implementation: codex/rmt-xlprop-noo, /data0/xd/rmt-xlprop-noo; pure JAX layer scan.
+    # code_commit: 408e2c9; UE5a v5p-32 ~.424step/s; vs BAM .488 -13.1%, Mudd .585 -27.5%, MHA .708 -40.1%; health unmatched.
+    # Stopped at 17604; vs BAM: early lead eroded, -.019944@12k -> -.004254@16k -> +.001092@17k -> +.003336@17.5k.
+    # At 17.5k vs Mudd -.015400, vs MHA -.084634; latest-five means -.022287/-.092394, both advantages shrinking.
+    # MHA-advantage / BAM: 1.209x@12k -> .962x@17.5k; /Mudd: 1.555x -> 1.222x. Raw gradients finite and unclipped.
+    model_name = 'RMTXLT2048AllLocalK48EmbedUnembedDirect32NoOSharedWriteNormQKVZeroInitEmbedSeedZero'
+    DATASET_VARIANT = 'legacy2048'
+    base_num_decoder_layers = 24
+    base_emb_dim = 2048
+    base_num_query_heads = 16
+    base_num_kv_heads = 16
+    head_dim = 128
+    max_target_length = 2048
+    per_device_batch_size = 16.0
+    rmt_reskey_dim = 48
+    rmt_dynamic_write_rows = 48
+    rmt_dynamic_compression_dim = 8
+    rmt_dynamic_write_bottleneck_dim = 256
+    rmt_rope_qk_dim = 32
+    base_mlp_dim = 7442  # 1,420,865,056 params, MHA-55,776; nearest uniform integer width.
+    learning_rate = 2e-4
+    learning_rate_schedule_steps = 50000
+    warmup_steps_fraction = .01
+    steps = 50000
+    eval_interval = 50000
+    force_final_checkpoint = True
+    wd_mults = []  # Match the historical XL MHA/BAM/Mudd all-decay AOT optimizer.
+    checkpoint_period = 250
+    keep_period = 2000
+    max_to_keep = 2
+    compare_runs = ['BamXLT2048K128EmbedVOnlyQK96AllLocalMLPWriteIndependentEveryThird',
+                    'MuddLlama2XLT2048Head16x128', 'BamMHALlama2XLHead16x128C256']
     jax_cache_dir = ''
 
 
@@ -11678,6 +13273,22 @@ class BamXLPropK96EmbedVOnlyQK96AllLocalMLPWriteIndependentEveryThirdTruePile(
     bam_local_qk_col_output_dim = 96
     bam_partial_rope_nope_dim = 96
     compare_runs = ['BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdTruePile']
+    jax_cache_dir = ''
+
+
+class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdLastBlockSeparateVOTruePile(
+    BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile):
+    """Separate dynamic C8 V/O reads only in the final three-layer block."""
+    # Ledger only: codex/mediumprop-qk75-sparse, /data0/xd/mediumprop-qk75-sparse.
+    # code_commit: 2867d2f; UE5a v5p-16 .515step/s(20-99), -1.0% vs parent .520; extra final-block VO-read health.
+    # Dynamic V/O keys separate only at layers15/16/17; C8 shared; static reads/gates unchanged.
+    # Added .32W_Q; nearest per-layer MLP repayment .3225W_Q; parent-3600 parameters.
+    # Stopped 2954; vs QK57 last5(2000-2800) -.00000448 [-.000622,+.000726].
+    # Gap settles near zero after2000; no identifiable gain from final-block VO-key separation.
+    model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdLastBlockSeparateVOTruePile'
+    bam_local_vo_separate_last_block = True
+    bam_final_block_mlp_dim_by_block = [3858, 3731, 3858]
+    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile']
     jax_cache_dir = ''
 
 
@@ -11742,8 +13353,9 @@ class BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdDirectC10Pa
     scale, M passthrough; C256 attention. Formal numerical-equivalence run against DirectC10."""
     # Runtime: claude/bam-pallas-directc10, code_commit: efc1977; UE5a v5p-32 xd-v5p-32-2910131-maxtext.
     # 0.491step/s: +44% vs DirectC10 0.340 (BAM health ON there), 90.4% of MHA 0.543.
-    # vs DirectC10: +.0095@500 -> +.0035@1000 -> mean -.00017 [-.0009,+.0010] over 2500-17000 (rounding noise).
-    # vs MHA: -.112@17000, slowly narrowing.
+    # Stopped 31500 (user; 0 preemptions, one 18h48m UE5a lease). vs DirectC10 (to its stop 20185): +.0095@500 ->
+    # +.0035@1000 -> mean ~-.0002 [-.0009,+.0010] over 2500-20000: rounding noise, no drift (equivalence confirmed).
+    # vs MHA: -.1272@10k, -.1106@20k, -.0990@31000; narrowing ~.001/1k steps after 20k.
     model_name = 'BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdDirectC10PallasV7TruePile'
     bam_pallas_body = 'v7u'
     bam_pallas_fused_inputs = True
@@ -11926,6 +13538,240 @@ class BamPallasCoreTinyPallasV7FusedInputsTest(BamPallasCoreTinyPallasV7Test):
     model_name = 'BamPallasCoreTinyPallasV7FusedInputsTest'
     bam_pallas_fused_inputs = True
 
+
+class BamMediumPropK75EmbedVOnlyQK75AddBeforeRoPEAllLocalMLPWriteIndependentEveryThirdTruePile(
+    BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile):
+    """Add vector QK18 to the full M75 tail, then rotate that shared tail once."""
+    # Ledger only: codex/mediumprop-qk75-sparse, /data0/xd/mediumprop-qk75-sparse.
+    # code_commit: 237f3e5
+    # UE5a v5p-16 .516 step/s (20-99), -.77% vs parent .520; same basic+concat health.
+    # Stopped 11604; vs QK57 last5(10600-11400) +.00636728 [+.005948,+.006590].
+    # Early deficit shrank, then held near+.006 since2200; no loss or speed gain.
+    model_name = 'BamMediumPropK75EmbedVOnlyQK75AddBeforeRoPEAllLocalMLPWriteIndependentEveryThirdTruePile'
+    bam_local_qk_add_before_rope = True
+    bam_local_qk_col_output_dim = 75
+    bam_partial_rope_nope_dim = 57
+    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile']
+    jax_cache_dir = ''
+
+
+class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdL21TruePile(
+    BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile):
+    """Reallocate the parent's MLP surplus to three layers, retaining QK57+RoPE18."""
+    # Ledger only: codex/mediumprop-qk75-sparse, /data0/xd/mediumprop-qk75-sparse.
+    # code_commit: e10dfc6
+    # UE5a v5p-16 .466 step/s (20-99), -10.4% vs parent .520; same basic+concat health.
+    # 432088816 params;21 layers, uniform MLP3177, QK57+RoPE18; parent432096128.
+    # Completed 13500; vs18-layer parent early lead shrank, then ~-.009 from1k onward.
+    # Final5 -.009504 (range -.010253..-.008951); no late erosion.
+    model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdL21TruePile'
+    base_num_decoder_layers = 21
+    bam_layer_modes = ['local_qk+local_v+local_o'] * 21
+    base_mlp_dim = 3177
+    mlp_dim_by_block = [3177, 3177, 3177]
+    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile']
+    jax_cache_dir = ''
+
+
+class BamMHAMediumPropL27C256TruePile(Llama2MediumPropL27, BamMHAMediumPropC256TruePile):
+    """27-layer standard MHA through the matched BAM-MHA C256 control."""
+    # code_commit: c088eb8
+    # !? UE5a .555 step/s (20-99), -22.3% vs MHA18 .714; exceeds bet -10.4%, unresolved.
+    # Ledger only: codex/mediumprop-qk75-sparse, /data0/xd/mediumprop-qk75-sparse.
+    # 432142800 params; MLP1600, +21600 versus18-layer MHA (normalization gains).
+    # Completed13500: vsMHA18 last5+.011369 [+.010798,+.012659]; ~+.011 plateau after8000; deeper/narrower MHA loses.
+    model_name = 'BamMHAMediumPropL27C256TruePile'
+    bam_layer_modes = ['none'] * 27
+    DATASET_VARIANT = 'truepile4096'
+    dataset_path = Llama2MediumC256T4096TruePile.dataset_path
+    scan_layers = True
+    bam_pair_scan = False
+    mlp_dim_by_block = None
+    bam_partial_rope = True
+    bam_partial_rope_nope_dim = 1
+    compare_runs = ['BamMHAMediumPropC256TruePile']
+    jax_cache_dir = ''
+
+
+class BamMediumPropL27K75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile(
+    Llama2MediumPropL27, BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile):
+    """27-layer QK57 BAM with private sparse MLP writes and matched MHA budget."""
+    # code_commit: c088eb8
+    # !? UE5a .385 step/s (20-99), -17.4% vs BAM21 .466; exceeds bet -8.8%, unresolved.
+    # Ledger only: codex/mediumprop-qk75-sparse, /data0/xd/mediumprop-qk75-sparse.
+    # 432128192 params; MLP[2311,2184,2311], -14608 versus27-layer MHA.
+    # Stopped10706: final5@10600 vsBAM21-.011915 / BAM18-.020583 / MHA27-.165965; advantage ratio1.239x@10600.
+    # vsBAM18/21 gains slowly grew in early/mid training (~-.0195/-.0105 at2800 to~-.021/-.012); broadly stable after6000, no clear late widening.
+    model_name = 'BamMediumPropL27K75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile'
+    bam_layer_modes = ['local_qk+local_v+local_o'] * 27
+    base_mlp_dim = 2311
+    mlp_dim_by_block = [2311, 2184, 2311]
+    compare_runs = ['BamMHAMediumPropL27C256TruePile',
+                    'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdL21TruePile',
+                    'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile']
+    jax_cache_dir = ''
+
+
+class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdWOTransposeTruePile(
+    BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile):
+    """Reuse this layer's W_O adjoint only on the MLP-to-M content branch."""
+    # Ledger only. Implementation: codex/mediumprop-qk75-sparse; /data0/xd/mediumprop-qk75-sparse.
+    # code_commit: 41fa303; UE5a v5p-16 .521 step/s(20-99), +.2% vs parent .520; basic+concat+write health ON.
+    # L18 M75x32/C8; same content norm/address/gate/residual; no added parameters.
+    # MLP[3901,3774,3901]; 432096128 parameters.
+    # Stopped5085. vsparent deficit plateaued near+.005 over2200-5000; last5+.005021 (latest+.004696), negligible speed gain.
+    model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdWOTransposeTruePile'
+    bam_mlp_write_content_projection = 'wo_transpose'
+    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile']
+
+
+class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdSeparateProjectionTruePile(
+    BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdWOTransposeTruePile):
+    """Independent learned head-content map, paid back at the six write layers."""
+    # Ledger only. Implementation: codex/mediumprop-qk75-sparse; /data0/xd/mediumprop-qk75-sparse.
+    # code_commit: 41fa303; UE5a v5p-16 .525 step/s(20-99), +1.0% vs parent .520; basic+concat+write health ON.
+    # Six independent D x D matrices = 6W_Q; subtract400 MLP units per write layer.
+    # Main GEMM FLOPs unchanged (D^2 = 3D*400); elementwise saving tiny, +1% speed cause unconfirmed.
+    # MLP[3901,3374,3901]; 432096128 parameters, equal to parent/shared version.
+    # Stopped7204. vsparent deficit .005739@3000 -> .003251@5000 -> last5+.002404@7000; slow catch-up, projected13500~+.0015.
+    # vs shared transpose last5-.001770@5000; better independent map, still no net loss gain over parent.
+    model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdSeparateProjectionTruePile'
+    bam_mlp_write_content_projection = 'independent'
+    mlp_dim_by_block = [3901,3374,3901]
+    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile',
+                    'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdWOTransposeTruePile']
+
+
+class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdResidualWOTruePile(
+    BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile):
+    """Write original MLP head content to M, reuse W_O on its residual branch."""
+    # Ledger only: codex/mediumprop-qk75-sparse; /data0/xd/mediumprop-qk75-sparse.
+    # code_commit: d296d0e; UE5a v5p-16 .521 step/s(20-99), +.2% vs parent .520; basic+concat+write health ON.
+    # L18, writers1/4/7/10/13/16; original M write and normalization unchanged.
+    # No new parameters; MLP[3901,3774,3901], 432096128 parameters.
+    # Stopped8578: final5@8400 vsparent+.001798 [+.001111,+.002686], slow deficit narrowing; vswrite-side shared-.002401@5000.
+    # Terminal forecast mostly+.001~+.002 (recent5000-8400 linear+.001218); no parameter saving, speed+.2%, stopped on forecast.
+    model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdResidualWOTruePile'
+    bam_mlp_residual_projection = 'wo'
+    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile',
+                    'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdWOTransposeTruePile']
+
+
+class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdResidualProjectionTruePile(
+    BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdResidualWOTruePile):
+    """Independent residual projection, exact repayment at the six write layers."""
+    # Ledger only: codex/mediumprop-qk75-sparse; /data0/xd/mediumprop-qk75-sparse.
+    # code_commit: d296d0e; UE5a v5p-16 .515 step/s(20-99), -1.0% vs parent .520; basic+concat+write health ON.
+    # Six independent D x D kernels=6W_Q; reduce each writer's MLP by400.
+    # MLP[3901,3374,3901]; 432096128 parameters, equal to parent/shared version.
+    # Stopped7195: vsparent last5+.003046@7000; early lead reversed, deficit widening after2800; vsshared residual+.001193 / write-side independent+.000642.
+    model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdResidualProjectionTruePile'
+    bam_mlp_residual_projection = 'independent'
+    mlp_dim_by_block = [3901,3374,3901]
+    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile',
+                    'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdResidualWOTruePile',
+                    'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdSeparateProjectionTruePile']
+
+
+class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdLocalVStaticZeroTruePile(
+    BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile):
+    """Ledger only: zero the static LocalV full-M read on standard Prop BAM."""
+    # codex/mediumprop-qk75-sparse; /data0/xd/mediumprop-qk75-sparse; code_commit: 83f9d79.
+    # UE5a v5p-16 0.5184step/s (20-99), -0.30% vs parent.520; matched health.
+    # Stopped3675; vs standard last5(2800-3600) +.087358; early400+ gap remained large.
+    model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdLocalVStaticZeroTruePile'
+    bam_local_v_static_zero_init = True
+    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile']
+
+
+class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdLocalVStaticZeroAttnWriteContentBiasTruePile(
+    BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdLocalVStaticZeroTruePile):
+    """Ledger only: zero per-head attention write-content bias before RMSNorm."""
+    # codex/mediumprop-qk75-sparse; /data0/xd/mediumprop-qk75-sparse; code_commit: e2a3874.
+    # UE5a v5p-16 .5191step/s (20-99), +.12% vs LocalVStaticZero, -.18% vs standard; matched health.
+    # +.015W_Q total; MLP widths unchanged. Normal and deferred attention writes both covered.
+    # Stopped2208; last5(1200-2000) vs V-zero -.003832 / standard +.090495; small gain, large deficit remains.
+    model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdLocalVStaticZeroAttnWriteContentBiasTruePile'
+    bam_attn_write_content_pre_rms_bias = True
+    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdLocalVStaticZeroTruePile',
+                    'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile']
+
+
+class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdLocalVStaticZeroVOReadNormalTruePile(
+    BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdLocalVStaticZeroTruePile):
+    """Nonzero shared dynamic VO key, unit VO scales, V/O gates .1/.05."""
+    # Ledger only: codex/mediumprop-qk75-sparse; /data0/xd/mediumprop-qk75-sparse; code_commit: 5e087d7.
+    # Static V remains zero; QK scale .2 and all writes/MLP unchanged.
+    # UE5a v5p-16 .5183step/s (20-99), -.02% vs V-zero / -.32% vs standard; matched health.
+    # Stopped2000 (loss through2025); vs V-zero converged to parity(last5+.001850), standard deficit +.096176(last5), slowly shrinking.
+    model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdLocalVStaticZeroVOReadNormalTruePile'
+    bam_fetched_read_kernel_init = 'normal'
+    bam_local_vo_read_key_scale = 1.0
+    bam_local_v_read_gate_init = .1
+    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdLocalVStaticZeroTruePile',
+                    'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile']
+
+class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdVOReadNormalStaticVSmallTruePile(
+    BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdLocalVStaticZeroVOReadNormalTruePile):
+    """B treatment with static V Gaussian std .1/sqrt32 instead of zero."""
+    # Ledger only: codex/mediumprop-qk75-sparse; /data0/xd/mediumprop-qk75-sparse; code_commit: 2fa62ee.
+    # Same parameter budget/MLP, nonzero dynamic VO key and .1/.05 gates.
+    # UE5a v5p-16 .5192step/s (20-99), +.17% vs B / -.16% vs standard; matched health.
+    # Stopped2012; vs B early gain shrank to -.028204@1800 (last5-.034966); standard deficit plateau +.065719(last5).
+    model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdVOReadNormalStaticVSmallTruePile'
+    bam_local_v_static_zero_init = False
+    bam_local_v_static_init_scale = .1
+    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdLocalVStaticZeroVOReadNormalTruePile',
+                    'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile']
+
+class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdVOReadKeySmallInitTruePile(BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile):
+    """Small nonzero shared VO key; original static V, gates and scales."""
+    # Ledger only: codex/mediumprop-qk75-sparse; /data0/xd/mediumprop-qk75-sparse.
+    # code_commit: 95443af; UE5a v5p-16, AOT/FIRST_STEP verified.
+    # Steady20-99 0.519788step/s (-0.04% vs standard .520); matched concat/write health.
+    # Stopped5073; vs standard initial +.054@200 shrank, then positive ~.001-002 plateau; last5+.001490@5000.
+    model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdVOReadKeySmallInitTruePile'
+    bam_local_vo_read_kernel_init_std = .001 / math.sqrt(1200)
+    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile']
+
+class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdStaticVOrthogonalInitTruePile(BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile):
+    """Unit orthonormal static V columns; original zero dynamic VO key."""
+    # Ledger only: codex/mediumprop-qk75-sparse; /data0/xd/mediumprop-qk75-sparse.
+    # code_commit: 95443af; UE5a v5p-16, AOT/FIRST_STEP verified.
+    # Steady20-99 0.517737step/s (-0.44% vs standard .520); matched concat/write health.
+    # Stopped3771; vs standard early -.238@200 vanished, lagging since1200; 2800-3600 last5+.002465.
+    model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdStaticVOrthogonalInitTruePile'
+    bam_local_v_static_init = 'orthogonal'
+    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile']
+
+class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdNoLocalOTruePile(BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile):
+    """Remove LocalO; retain the original LocalV recipe and repay MLP."""
+    # Ledger only: codex/mediumprop-qk75-sparse; /data0/xd/mediumprop-qk75-sparse.
+    # code_commit: 0e9ec8b; UE5a v5p-16; completed 13500.
+    # 20-99 mean .5247step/s (+.91% vs parent .520; one I/O pause); typical .532 (+2.3%).
+    # -355104 BAM params (.2466W_Q); MLP [3907,3780,3907], 432129824 total (+8624 vs MHA).
+    # vs standard: +.595@200 -> +.092@1k -> +.024@5k; late ~+.018 plateau.
+    # Last5 (12600-13400) +.017949 [.017484,.018449]; removing LocalO retains a clear loss cost.
+    model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdNoLocalOTruePile'
+    bam_disable_local_o = True
+    mlp_dim_by_block = [3907, 3780, 3907]
+    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile']
+
+
+class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdVOReadScale1TruePile(BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile):
+    """Only scale shared-C8 dynamic LocalV/O reads from .2 to1."""
+    # ledger only; codex/mediumprop-qk75-sparse; /data0/xd/mediumprop-qk75-sparse.
+    # code_commit: 9e25856
+    # UE5a .5196step/s (-.08% vs matched-health standard .520); completed 13500.
+    # Parameters/MLP unchanged (0W_Q); only dynamic LocalVO read scale .2 ->1.
+    # vs standard: -.502@200 -> -.029@1k; crossed zero at5600 and remained worse thereafter.
+    # Last5 (12600-13400) +.002178 [+.001874,+.002753]; late ~+.002 plateau, no continued divergence.
+    # Artifacts: /data0/xd/bam_diagnostics/mediumprop-vo-scale1.
+    model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdVOReadScale1TruePile'
+    bam_local_vo_read_key_scale = 1.0
+    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile']
+
+
 class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdDirectC8SeparateQKVProjectionTruePile(BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdDirectC8TruePile):
     """Independent Q/K/VO compressed views, cloned from the parent's initial view."""
     # Ledger only: codex/mediumprop-qk75-sparse, /data0/xd/mediumprop-qk75-sparse.
@@ -11949,6 +13795,7 @@ class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdDirectC
     model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdDirectC8SeparateQKVProjectionIndependentInitTruePile'
     bam_local_qkv_c_projection_init = 'orthogonal'
     compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdDirectC8SeparateQKVProjectionTruePile', 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdDirectC8TruePile']
+
 
 class BamMediumPropD1152AttentionBudget(BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile):
     """Redistribute the MediumProp MHA budget into attention at D1152."""
@@ -12291,7 +14138,6 @@ class BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdFullMReadGe
     jax_cache_dir = ''
 
 
-
 class BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdFullMReadSharedGelu400TruePile(BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile):
     """Shared full-M GELU reads alone; original un-gated static reads and no pre-bias."""
     # Implementation in refactor-bam; historical runtime: codex/mediumprop-full-m-read-gelu128.
@@ -12394,6 +14240,12 @@ class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMRe
     """Shared R256/generalized-read MediumProp T2048 context arm, historical gates."""
     # Ledger only: codex/mediumprop-context-t2048, /data0/xd/mediumprop-context-t2048; code_commit: 55deb7c.
     # UE5a v5p-16 .5394step/s(20-99), +12.68% vs T4096 parent .4787; same model/health.
+    # Completed 13500; checkpoint committed, TPU/queue absent, TB SYNC_OK; UE5a 0preemptions.
+    # vs T2048 MHA: early gain shrank; 10k-13.4k mean gap-.123891, final5-.121129; speed-39.73%, params-.0023%.
+    # vs T2048 Mudd: early gain shrank more slowly late; final5 gap-.032616; speed-30.45%, params-.45%.
+    # vs T4096 BAM: initial raw loss gap positive, noisy later; final5+.038738, unpaired records; params unchanged.
+    # MHA-relative context gain: BAM1.194024x, Mudd.981942x; second-order1.215992x; added gain+.023489 vs-.001602.
+    # BAM/Mudd MHA-relative gain1.368510x(T2048)/1.664052x(T4096); extra context advantage+.025091.
     model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadT2048'
     DATASET_VARIANT = 'legacy2048'
     dataset_path = BamMHAMediumPropC256T2048.dataset_path
@@ -12408,7 +14260,7 @@ class BamMHAMediumPropC256T2048Matched(BamMHAMediumPropC256T2048):
     """T2048 length control preserving the historical T4096 C256 BF16-logits core."""
     # Ledger only: codex/mediumprop-context-t2048; code_commit: e9f7728.
     # UE5a v5p-16 .8951step/s(20-99), +25.36% vs T4096 parent .714; same model/health.
-    # Completed13500: vs T4096 early lower loss faded; late difference fluctuated around zero, final5 +.015249.
+    # Completed 13500: vs T4096 early lower loss faded; late difference fluctuated around zero, final5 +.015249.
     model_name = 'BamMHAMediumPropC256T2048Matched'
     bam_splash_attention = False
 
@@ -12416,7 +14268,11 @@ class BamMHAMediumPropC256T2048Matched(BamMHAMediumPropC256T2048):
 class MuddLlama2MediumPropC256T2048(MuddLlama2MediumPropT2048):
     """Full-history Mudd T2048, preserving its historical C256 attention core."""
     # Ledger only: codex/mediumprop-context-t2048; code_commit: e9f7728.
-    # UE5a v5p-16 .7755step/s(20-99), +23.10% vs T4096 parent .630; same model/health.
+    # UE5a v5p-16 .7755step/s(20-99), +23.10% vs T4096 parent .630; -13.36% vs T2048 MHA; same health.
+    # Completed 13500; checkpoint committed, TPU/queue released, TB SYNC_OK; 0preemptions.
+    # vs T2048 MHA: early gain shrank; 10k-13.4k mean gap-.090014, final5-.088513; params+0.45%.
+    # vs T4096 Mudd: early lower loss faded, repeated sign crossings; final5 gap+.013647 (unpaired records).
+    # Mudd's advantage over MHA: context4096/2048 final5 mean .981942x; added gain-.001602, no late length benefit.
     model_name = 'MuddLlama2MediumPropC256T2048'
     bam_splash_attention = False
     compare_runs = ['BamMHAMediumPropC256T2048Matched', 'MuddLlama2MediumPropTruePile']
@@ -12691,33 +14547,173 @@ class BamFullMGeneralReadPallasV8TProfile(BamFullMGeneralReadPallasFusedProfile)
     bam_pallas_body = 'v8t'
 
 
-class PythiaArchitecture(Common):
-    """Dimension-independent Pythia recipe; not a launched or budget-matched RUN.
+class BamMediumPropFullMGeneralReadStaticEmbeddingTruePile(BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile):
+    """Raw embedding content, static addresses and learned elementwise M scale."""
+    # 结论：纯静态 embedding 写入改善早期梯度表现，但未追回原 SOTA 的 loss；不支持替换父架构。
+    # 早期差距快速收窄，2.8k 后追赶明显放缓；末五窗口至4400仍落后 .015254，末窗口 +.014657。
+    # 用户停于4531，CP已提交、资源释放、TB同步；未跑满13500。
+    # UE5a v5p16，.47894 step/s，较父路 +.0444%；432109616参数，较父路少1488。
+    # code_commit: f6ce0a4；ledger only：codex/mediumprop-full-m-read-gelu128，/data0/xd/mediumprop-full-m-read-gelu128。
+    model_name = 'BamMediumPropFullMGeneralReadStaticEmbeddingTruePile'
+    bam_embedding_init_mode = 'static'
+    bam_embedding_matrix_scale_init = 3.74
+    mlp_dim_by_block = [3820, 3693, 3820]
+    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile']
 
-    Supply base_emb_dim/layers/heads/head_dim explicitly in a derived experiment.
-    base_mlp_dim=-1 derives 4D; an explicit positive width supports budget matching.
-    Data, schedule, precision and optimizer are inherited from the training recipe.
-    """
-    decoder_block = 'pythia'
-    init_method = 'pythia'
-    base_mlp_dim = -1
-    mlp_activations = ['gelu_exact']
-    qkv_bias = True
-    qk_norm = False
-    normalization_layer_epsilon = 1e-5
-    pythia_rotary_fraction = 0.25
-    pythia_rotary_dim = -1
-    rope_type = 'default'
-    rope_half = False
-    rope_min_timescale = 1
-    rope_max_timescale = 10000
-    logits_via_embedding = False
-    dropout_rate = 0.0
-    scan_layers = True
-    record_internal_nn_metrics = False
-    bam_enabled = False
-    dense_conn = False
-    sliding_window_size = None
+
+class BamMediumPropFullMGeneralReadMatrixEmbeddingTruePile(BamMediumPropFullMGeneralReadStaticEmbeddingTruePile):
+    """Independent V x75x32 matrix embedding; same MLP widths as static arm."""
+    # 结论：逐 token 矩阵 embedding 优于纯静态写入，但增加大量参数后仍未优于原 SOTA。
+    # 初期追赶后趋缓；末五窗口至4400对 SOTA gap +.008487，末窗口 +.008160；比纯静态低 .006497。
+    # 用户停于4427，CP已提交、资源释放、TB同步；未跑满13500。
+    # UE5a v5p16，.47624 step/s，较 SOTA -.5196%；551703504参数。
+    # code_commit: f6ce0a4；ledger only：codex/mediumprop-full-m-read-gelu128，/data0/xd/mediumprop-full-m-read-gelu128。
+    model_name = 'BamMediumPropFullMGeneralReadMatrixEmbeddingTruePile'
+    bam_embedding_init_mode = 'lookup'
+    bam_embedding_matrix_std = .01865
+    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile', 'BamMediumPropFullMGeneralReadStaticEmbeddingTruePile']
+
+
+class BamMediumPropFullMGeneralReadDirectEmbeddingTruePile(BamMediumPropFullMGeneralReadStaticEmbeddingTruePile):
+    """Single free D x K x V embedding map, initialized from folded U/A/S."""
+    # 结论：合并 W_U、A 并吸收 scale 的直接写入仅加快早期适应，未建立优于原 SOTA 的趋势。
+    # 对因式分解静态路的早期优势收窄；2800对 SOTA gap +.014938、对静态路 -.002577，近期没有明确追赶。
+    # 按授权评审停于2894，CP/资源/TB收尾完成；未跑满13500。
+    # UE5a v5p16，.4786375 step/s，对 SOTA -.02%、静态路 -.06%；432121104参数，父路+10000整数余差。
+    # MLP[3798,3671,3798]；code_commit: 0f5f6c4；ledger only：codex/mediumprop-full-m-read-gelu128，/data0/xd/mediumprop-full-m-read-gelu128。
+    model_name = 'BamMediumPropFullMGeneralReadDirectEmbeddingTruePile'
+    bam_embedding_init_mode = 'direct'
+    mlp_dim_by_block = [3798, 3671, 3798]
+    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile', 'BamMediumPropFullMGeneralReadStaticEmbeddingTruePile']
+
+
+class BamMediumPropFullMGeneralReadFinalMatrixResidualTruePile(BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile):
+    """Final M -> residual before final RMSNorm; independent zero-init K x V x D map."""
+    # 结论：最终 M 直接投影回残差未优于原 SOTA，且在共同训练阶段被门控版支配。
+    # 早期大幅落后逐渐追近，但至5000形成约+.0045的平台；末窗口 gap +.004474，末五 +.004535。
+    # 按授权5000步评审停于5125，CP/资源/TB收尾完成；未训练终局。
+    # UE5a v5p16，.478950 step/s，对 SOTA +.05%；新增2W_Q由 MLP 抵扣，宽度[3769,3641,3769]。
+    # 432118304参数，父路+7200整数余差；code_commit: 0f5f6c4；ledger only：codex/mediumprop-full-m-read-gelu128，/data0/xd/mediumprop-full-m-read-gelu128。
+    model_name = 'BamMediumPropFullMGeneralReadFinalMatrixResidualTruePile'
+    bam_final_matrix_residual = True
+    mlp_dim_by_block = [3769, 3641, 3769]
+    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile']
+
+
+class BamMediumPropFullMGeneralReadFinalMatrixVGateTruePile(BamMediumPropFullMGeneralReadFinalMatrixResidualTruePile):
+    """Final residual predicts32 column gates, matching generalized static-read gate math."""
+    # 结论：最终 M 的逐列门控小幅改善无门控输出支路，但未消除对原 SOTA 的劣势。
+    # 对无门控父路约1k转为领先，随后收益缩小；5000 gap -.000831、末五 -.000642。
+    # 对 SOTA 同期 gap +.003643、末五 +.003894；按授权评审停于5121，非完整终局。
+    # UE5a v5p16，.479450 step/s，对无门控 +.1044%、SOTA +.1514%；CP/资源/TB收尾完成。
+    # 用户明确保留父路 MLP[3769,3641,3769]，新增38432参数=.026689W_Q；总量432156736。
+    # 门 kernel0/biaslog9，有效初值1，匹配普通层读门；code_commit: 1810a41；ledger only：codex/mediumprop-full-m-read-gelu128，/data0/xd/mediumprop-full-m-read-gelu128。
+    model_name = 'BamMediumPropFullMGeneralReadFinalMatrixVGateTruePile'
+    bam_final_matrix_v_gate = True
+    compare_runs = ['BamMediumPropFullMGeneralReadFinalMatrixResidualTruePile', 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile']
+
+
+class BamMHAMediumPropT8192SplashTruePile(BamMHAMediumPropC256TruePile):
+    """T8192 MediumProp MHA; global64 keeps524288 target tokens per step."""
+    # 结论：T8192 MHA 作为同长度收益基线；与 T4096 的原始 loss 差多次变号，不能据此判断长度收益。
+    # 保留原模型/参数/优化器，用户授权 Splash；T8192/global64，原计划13500。
+    # UE5a v5p16，.526025 step/s，较 T4096 -26.33%；停于9639，无抢占，CP/资源/TB收尾完成。
+    # 长度结论采用各长度内部 MHA 相对收益及其二阶倍数，非未配对的跨长度 raw loss。
+    # code_commit: dbcaa31；ledger only：codex/mediumprop-context-t2048，/data0/xd/mediumprop-context-t2048；详见 mediumprop_context_t8192.md。
+    model_name = 'BamMHAMediumPropT8192SplashTruePile'
+    DATASET_VARIANT = 'truepile8192'
+    dataset_path = ''  # Launcher resolves the declared variant to the training region.
+    max_target_length = 8192
+    per_device_batch_size = 8.0
+    bam_splash_attention = True
+    checkpoint_period = 200
+    keep_period = 0
+    max_to_keep = 2
+    tensorboard_gcs_rotate_period = 500
+    jax_cache_dir = ''
+    compare_runs = ['BamMHAMediumPropC256TruePile']
+
+
+class MuddLlama2MediumPropT8192SplashTruePile(MuddLlama2MediumPropTruePile):
+    """T8192 full-history Mudd; same token budget and inherited parameter widths."""
+    # 结论：更长上下文提高 Mudd 的 MHA 相对收益，但 T8192/T4096 倍数随训练逐渐收窄。
+    # 同阶段2k约1.302、4k约1.228，至共同7k为1.152271；7k对同长度 MHA gap -.117586。
+    # UE5a v5p16，.4859625 step/s，较 T4096 -22.86%；停于8908，无抢占，CP/资源/TB收尾完成。
+    # T8192/global64；保持完整增长历史、原 unrolled 路由和额外 router 参数，用户授权 Splash。
+    # code_commit: dbcaa31；ledger only：codex/mediumprop-context-t2048，/data0/xd/mediumprop-context-t2048；详见 mediumprop_context_t8192.md。
+    model_name = 'MuddLlama2MediumPropT8192SplashTruePile'
+    DATASET_VARIANT = 'truepile8192'
+    dataset_path = ''
+    max_target_length = 8192
+    per_device_batch_size = 8.0
+    bam_splash_attention = True
+    checkpoint_period = 200
+    keep_period = 0
+    max_to_keep = 2
+    tensorboard_gcs_rotate_period = 500
+    jax_cache_dir = ''
+    compare_runs = ['BamMHAMediumPropT8192SplashTruePile', 'MuddLlama2MediumPropTruePile']
+
+
+class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadT8192(BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile):
+    """T8192 shared-R256/generalized-read BAM SOTA, historical gate math."""
+    # 结论：BAM 在 T8192 保留对 Mudd 的优势；4k→8k 的二阶收益从早期略弱转为小幅正收益。
+    # 共同7k对同长度 MHA/Mudd gap -.203961/-.086375；最近五二阶8k/4k为1.033207，4k/2k为1.197653。
+    # 相对4k的二阶倍数前期约.97、4k附近趋近1、6k后略高于1；未观测完整13500步终局。
+    # UE5a v5p16，.388950 step/s，较 T4096 -18.75%；停于7140，无抢占，CP/资源/TB收尾完成。
+    # T8192/global64，保持模型/参数/初始化/优化器；code_commit: dbcaa31；ledger only：codex/mediumprop-context-t2048，/data0/xd/mediumprop-context-t2048；详见 mediumprop_context_t8192.md。
+    model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadT8192'
+    DATASET_VARIANT = 'truepile8192'
+    dataset_path = ''
+    max_target_length = 8192
+    per_device_batch_size = 8.0
+    bam_splash_attention = True
+    checkpoint_period = 200
+    keep_period = 0
+    max_to_keep = 2
+    tensorboard_gcs_rotate_period = 500
+    jax_cache_dir = ''
+    compare_runs = ['BamMHAMediumPropT8192SplashTruePile', 'MuddLlama2MediumPropT8192SplashTruePile',
+                    'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile',
+                    'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadT2048']
+
+
+class BamMediumPropSharedR256GeneralReadMShiftReadG005TruePile(BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile):
+    """Dynamic previous-token M mix, read carry, initial share0.05."""
+    # 结论：初始开度 .05 不如单门 .5；到停训时仍未优于无 M-shift 父路。
+    # 3.6k loss 比父路高 .001446，比 ReadG050 高 .007881；此前追赶未形成反超。
+    # UE5a v5p-16，.458375 step/s，比父路慢 4.25%（历史健康指标开启）。
+    # 停于 3,699 步，1 次抢占；checkpoint 已提交，资源已释放，TB 已同步。
+    # code_commit: 52cf0b3；实现位于 codex/mediumprop-m-shift，/data0/xd/mediumprop-m-shift。
+    model_name = 'BamMediumPropSharedR256GeneralReadMShiftReadG005TruePile'
+    bam_record_m_shift_health = True
+    bam_m_shift_mode = 'read'
+    bam_m_shift_init = 0.05
+    mlp_dim_by_block = [3802, 3676, 3802]  # Repay691200 kernel params; residual576 gate biases(+0.000133%).
+    checkpoint_period = 200
+    keep_period = 0
+    max_to_keep = 2
+    tensorboard_gcs_rotate_period = 500
+    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile']
+
+
+class BamMediumPropSharedR256GeneralReadMShiftPersistG005TruePile(BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile):
+    """Dynamic previous-token M mix, persist carry, initial share0.05."""
+    # 结论：将混合 M 写入跨层 carry 未带来收益，弱于同开度的只读混合。
+    # 2.8k loss 比无 M-shift 父路高 .007843，比 ReadG005 高 .006785；父路差距近期仍约 .008。
+    # UE5a v5p-16，.4599125 step/s，比父路慢 3.93%（历史健康指标开启）。
+    # 停于 2,957 步，1 次抢占；checkpoint 已提交，资源已释放，TB 已同步。
+    # code_commit: 52cf0b3；实现位于 codex/mediumprop-m-shift，/data0/xd/mediumprop-m-shift。
+    model_name = 'BamMediumPropSharedR256GeneralReadMShiftPersistG005TruePile'
+    bam_record_m_shift_health = True
+    bam_m_shift_mode = 'persist'
+    bam_m_shift_init = 0.05
+    mlp_dim_by_block = [3802, 3676, 3802]  # Repay691200 kernel params; residual576 gate biases(+0.000133%).
+    checkpoint_period = 200
+    keep_period = 0
+    max_to_keep = 2
+    tensorboard_gcs_rotate_period = 500
+    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile', 'BamMediumPropSharedR256GeneralReadMShiftReadG005TruePile']
 
 
 class BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile(BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile):
@@ -12757,46 +14753,6 @@ class BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile(BamMediumPropK75E
     bam_record_std_tail_write_metrics = False
 
 
-class BamMediumPropSharedR256GeneralReadMShiftReadG005TruePile(BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile):
-    """Dynamic previous-token M mix, read carry, initial share0.05."""
-    # 结论：初始开度 .05 不如单门 .5；到停训时仍未优于无 M-shift 父路。
-    # 3.6k loss 比父路高 .001446，比 ReadG050 高 .007881；此前追赶未形成反超。
-    # UE5a v5p-16，.458375 step/s，比父路慢 4.25%（历史健康指标开启）。
-    # 停于 3,699 步，1 次抢占；checkpoint 已提交，资源已释放，TB 已同步。
-    # code_commit: 52cf0b3；实现位于 codex/mediumprop-m-shift，/data0/xd/mediumprop-m-shift。
-    model_name = 'BamMediumPropSharedR256GeneralReadMShiftReadG005TruePile'
-    bam_record_m_shift_health = True
-    bam_m_shift_mode = 'read'
-    bam_m_shift_init = 0.05
-    mlp_dim_by_block = [3802, 3676, 3802]  # Repay691200 kernel params; residual576 gate biases(+0.000133%).
-    checkpoint_period = 200
-    keep_period = 0
-    max_to_keep = 2
-    tensorboard_gcs_rotate_period = 500
-    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile']
-
-
-
-class BamMediumPropSharedR256GeneralReadMShiftPersistG005TruePile(BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile):
-    """Dynamic previous-token M mix, persist carry, initial share0.05."""
-    # 结论：将混合 M 写入跨层 carry 未带来收益，弱于同开度的只读混合。
-    # 2.8k loss 比无 M-shift 父路高 .007843，比 ReadG005 高 .006785；父路差距近期仍约 .008。
-    # UE5a v5p-16，.4599125 step/s，比父路慢 3.93%（历史健康指标开启）。
-    # 停于 2,957 步，1 次抢占；checkpoint 已提交，资源已释放，TB 已同步。
-    # code_commit: 52cf0b3；实现位于 codex/mediumprop-m-shift，/data0/xd/mediumprop-m-shift。
-    model_name = 'BamMediumPropSharedR256GeneralReadMShiftPersistG005TruePile'
-    bam_record_m_shift_health = True
-    bam_m_shift_mode = 'persist'
-    bam_m_shift_init = 0.05
-    mlp_dim_by_block = [3802, 3676, 3802]  # Repay691200 kernel params; residual576 gate biases(+0.000133%).
-    checkpoint_period = 200
-    keep_period = 0
-    max_to_keep = 2
-    tensorboard_gcs_rotate_period = 500
-    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile', 'BamMediumPropSharedR256GeneralReadMShiftReadG005TruePile']
-
-
-
 class BamMediumPropSharedR256GeneralReadMShiftPersistG050TruePile(BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile):
     """Dynamic previous-token M mix, persist carry, initial share0.5."""
     # 结论：初始开度 .5 的持久混合弱于只读混合，没有观察到额外收益。
@@ -12814,7 +14770,6 @@ class BamMediumPropSharedR256GeneralReadMShiftPersistG050TruePile(BamMediumPropK
     max_to_keep = 2
     tensorboard_gcs_rotate_period = 500
     compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile', 'BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile', 'BamMediumPropSharedR256GeneralReadMShiftPersistG005TruePile']
-
 
 
 class BamMediumPropSharedR256GeneralReadMShiftReadQKVoG050TruePile(BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile):
@@ -12835,7 +14790,6 @@ class BamMediumPropSharedR256GeneralReadMShiftReadQKVoG050TruePile(BamMediumProp
                     'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile']
 
 
-
 class BamMediumPropSharedR256GeneralReadMShiftReadTwoLag532TruePile(BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile):
     """Independent sigmoid lag gates (.3/.2); current/lag1/lag2 initial shares .5/.3/.2."""
     # 结论：增加前二 token 的 M 混合未优于单门 .5；在本次评审阶段没有观察到额外上限收益。
@@ -12849,7 +14803,6 @@ class BamMediumPropSharedR256GeneralReadMShiftReadTwoLag532TruePile(BamMediumPro
     mlp_dim_by_block = [3792, 3664, 3792]  # Repay two v32 kernels; +1152 bias params vs SOTA.
     compare_runs = ['BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile',
                     'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile']
-
 
 
 class BamMediumPropSharedR256GeneralReadKVShiftG050TruePile(BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile):
@@ -12866,7 +14819,6 @@ class BamMediumPropSharedR256GeneralReadKVShiftG050TruePile(BamMediumPropSharedR
     mlp_dim_by_block = [3802, 3676, 3802]  # Two h16 gates repay691200 kernels exactly; no new bias.
     compare_runs = ['BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile',
                     'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile']
-
 
 
 class BamMediumPropSharedR256GeneralReadMShiftReadKVShiftG050TruePile(BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile):
@@ -12888,7 +14840,6 @@ class BamMediumPropSharedR256GeneralReadMShiftReadKVShiftG050TruePile(BamMediumP
                     'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile']
 
 
-
 class BamMediumPropSharedR256GeneralReadAddressSharedGatesTruePile(BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile):
     """Eight read gates and both write gates reuse their respective address R256 hidden."""
     # 结论：从各自地址 R256 特征生成读写门未改善效果；即使省参数补回 MLP，仍明显弱于原门投影。
@@ -12906,6 +14857,526 @@ class BamMediumPropSharedR256GeneralReadAddressSharedGatesTruePile(BamMediumProp
     tensorboard_gcs_rotate_period = 500
     compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile',
                     'BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile']
+
+
+class BamMediumPropMShiftReadG050ReadAttentionSharedR256TruePile(BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile):
+    """Ledger only: projection sharing on single M-shift read .5."""
+    # 结论：读/attention写共享 R256 有稳定终局增益，与老三路共享 R384 最终接近持平；原先负面下注错误。
+    # 相对单门.5早期优势收窄后保留：末五12600–13400 gap -.003499、MHA参考收益倍数1.022487。
+    # 对无 M-shift SOTA 末五 gap -.014533、倍数1.100491；老三路 R384 仅再低 .000141。
+    # 完成13500，CP13500提交、资源释放、TB收尾；UE5a v5p16，P0，.464425 step/s，对单门+1.325%。
+    # code_commit: c9a2a36；ledger only：codex/mediumprop-projection-sharing，/data0/xd/mediumprop-projection-sharing。
+    model_name = 'BamMediumPropMShiftReadG050ReadAttentionSharedR256TruePile'
+    bam_share_read_attention_write_down = True
+    bam_share_mlp_write_down = False
+    bam_local_full_m_read_bottleneck_dim = 256
+    bam_write_v_bottleneck_dim = 256
+    bam_mlp_write_address_rank = 256
+    mlp_dim_by_block = [3887, 3762, 3887]
+    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile', 'BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile']
+    bam_m_shift_compact_health = True
+
+
+class BamMediumPropMShiftReadG050ReadAttentionSharedR384TruePile(BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile):
+    """Ledger only: projection sharing on single M-shift read .5."""
+    # 结论：只将读/attention写共享加宽至 R384、MLP写保持独立 R256，未形成收益，明显弱于老三路 R384。
+    # 相对单门.5由近乎持平转为落后；3000 gap +.002778、MHA参考倍数.988889，比三路 R384 高 .011078。
+    # 停于3140，CP3140提交、资源释放、TB同步；非完整终局。
+    # UE5a v5p16，P0，.464400 step/s，对单门+1.320%；code_commit: c9a2a36；ledger only：codex/mediumprop-projection-sharing，/data0/xd/mediumprop-projection-sharing。
+    model_name = 'BamMediumPropMShiftReadG050ReadAttentionSharedR384TruePile'
+    bam_share_read_attention_write_down = True
+    bam_share_mlp_write_down = False
+    bam_local_full_m_read_bottleneck_dim = 384
+    bam_write_v_bottleneck_dim = 384
+    bam_mlp_write_address_rank = 256
+    mlp_dim_by_block = [3772, 3646, 3772]
+    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile', 'BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile']
+    bam_m_shift_compact_health = True
+
+
+class BamMediumPropMShiftReadG050ReadAttentionMLPSharedR384TruePile(BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile):
+    """Ledger only: projection sharing on single M-shift read .5."""
+    # 结论：读/attention写/MLP写共享 R384 有稳定终局增益；与老读/attention共享 R256 接近持平。
+    # 对单门.5早期优势收窄后保留：末五12600–13400 gap -.003640；对无 M-shift SOTA -.014674、MHA参考倍数1.101467。
+    # 对老共享 R256 末五仅低 .000141；.465800 step/s，比其快 .30%、比单门快1.63%。
+    # 完成13500，CP13500提交、资源释放、TB收尾；UE5a v5p16，P0；原先loss落后.001的下注错误。
+    # code_commit: c9a2a36；ledger only：codex/mediumprop-projection-sharing，/data0/xd/mediumprop-projection-sharing。
+    model_name = 'BamMediumPropMShiftReadG050ReadAttentionMLPSharedR384TruePile'
+    bam_share_read_attention_write_down = True
+    bam_share_mlp_write_down = True
+    bam_local_full_m_read_bottleneck_dim = 384
+    bam_write_v_bottleneck_dim = 384
+    bam_mlp_write_address_rank = 384
+    mlp_dim_by_block = [3794, 3669, 3794]
+    compare_runs = ['BamMediumPropMShiftReadG050ReadAttentionSharedR256TruePile',
+                    'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile', 'BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile']
+    bam_m_shift_compact_health = True
+
+
+class BamXLPropSharedR400GeneralReadMShiftReadG050TruePile(BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile):
+    """Ledger only: XL transfer of read-only M-shift .5, one v40 gate."""
+    # 结论：XL 单门 M-shift .5 保留明确晚期收益，后期收益倍数回升；并非持续向 Medium 终局下滑。
+    # 对原 XL SOTA，以 XL MHA 为参考：28k/30k/32k/32.5k倍数1.0757/1.0725/1.0809/1.0818。
+    # 至32.5k末五 gap -.009111、倍数1.081013；超过 Medium 终局1.0763，但 XL 未跑满50000，不能视为 XL 终局。
+    # 用户停于33009，CP已提交、资源释放、TB同步；UE5a v5p32，.3646625 step/s，较历史父路-4.69%。
+    # 参数1432383640，较父路少2720；跑前倍数1.06–1.08，晚期略高于区间上沿。
+    # 直接父类是 BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile。
+    # code_commit: eeec67c；codex/mediumprop-m-shift，/data0/xd/mediumprop-m-shift。
+    model_name = 'BamXLPropSharedR400GeneralReadMShiftReadG050TruePile'
+    bam_m_shift_mode = 'read'
+    bam_m_shift_init = .5
+    wd_mults = BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile.wd_mults + [('.*M_shift_gate_b0$', 0.0)]
+    bam_m_shift_separate_reads = False
+    bam_m_shift_two_lag = False
+    bam_kv_shift = False
+    bam_record_m_shift_health = True
+    bam_m_shift_compact_health = True
+    mlp_dim_by_block = [6127, 5938, 6127]
+    bam_final_local_mlp_dim = 6126
+    checkpoint_period = 250
+    keep_period = 0
+    max_to_keep = 2
+    tensorboard_gcs_rotate_period = 500
+    compare_runs = ['BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile']
+
+
+class BamMediumPropMShiftReadG050SharedR256R384ByWriteTruePile(BamMediumPropMShiftReadG050ReadAttentionMLPSharedR384TruePile):
+    """R256 read/attention on non-MLP-write layers; all three share R384 on write layers."""
+    # 暂时结论：混合 R256/R384 截至5k仍落后两个老共享基线；曾有追赶，不能据暂停判定终局失败。
+    # 5k对老共享R256/老三路R384 gap +.0044464/+.0055738，MHA参考倍数.978257/.972893；对单门.5 -.0006984/1.003503。
+    # 初停2859过早，按用户指令原状态续训；现用户暂停于已提交CP5400以集中诊断，资源释放、TB同步。
+    # UE5a v5p16，P0，.461225 step/s，对单门+.63%；原13500步计划及优化器/数据状态可续。
+    # code_commit: a445bbc；ledger only：codex/mediumprop-projection-sharing，/data0/xd/mediumprop-projection-sharing。
+    model_name = 'BamMediumPropMShiftReadG050SharedR256R384ByWriteTruePile'
+    bam_shared_projection_rank_by_block = [256, 384, 256]
+    mlp_dim_by_block = [3871, 3746, 3871]
+    compare_runs = ['BamMediumPropMShiftReadG050ReadAttentionSharedR256TruePile',
+                    'BamMediumPropMShiftReadG050ReadAttentionMLPSharedR384TruePile',
+                    'BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile',
+                    'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile']
+
+
+class BamMediumPropMShiftReadG050ReadAttentionMLPSharedR256TruePile(BamMediumPropMShiftReadG050SharedR256R384ByWriteTruePile):
+    """All layers share R256; MLP write joins the same bank in its six layers."""
+    # 结论：MLP写也共享同层 R256 投影时，逊于老共享 R256、老三路 R384，未获得单门父路上的增益。
+    # 2800对老两基线 gap +.009362/+.010290，MHA参考倍数.965099/.961771；对单门+.001643/.993692。
+    # 末五均落后单门，未见相对收益恢复；停于2861，CP/资源/TB收尾完成，非完整终局。
+    # UE5a v5p16，P0，.463200 step/s，对单门+1.06%；code_commit: a445bbc；ledger only：codex/mediumprop-projection-sharing，/data0/xd/mediumprop-projection-sharing。
+    model_name = 'BamMediumPropMShiftReadG050ReadAttentionMLPSharedR256TruePile'
+    bam_shared_projection_rank_by_block = [256, 256, 256]
+    bam_local_full_m_read_bottleneck_dim = 256
+    bam_write_v_bottleneck_dim = 256
+    bam_mlp_write_address_rank = 256
+    mlp_dim_by_block = [3915, 3791, 3915]
+
+
+# Cross-layer projection sharing factorial race; all retain single M-shift read .5.
+
+class BamMediumPropMShiftReadG050CrossReadAttnR384ConservativeBlockTruePile(BamMediumPropMShiftReadG050ReadAttentionSharedR256TruePile):
+    """Conservative cross-layer shared R384, inner R256, 3 consecutive layers per bank."""
+    # Ledger only: codex/mediumprop-projection-sharing; runtime 38af4cc; FIRST_STEP verified; UE5a.
+    # Steps20-99: 0.463188 steps/s, -0.27% vs historical sharing parent.
+    # code_commit: 38af4cc
+    # User stopped9248: positive but insufficient magnitude; CP committed, TPU/queue absent, TB SYNC_OK; P0 UE5a.
+    # vs oldTriple384: early deficit became persistent small lead from6600; last9200 gap-.000782, ratio1.004572, last5 mean-.000943.
+    # vs oldPair256: last9200 gap-.002077, ratio1.012242, last5 mean-.001204; speed-.56% vs triple384.
+    model_name = 'BamMediumPropMShiftReadG050CrossReadAttnR384ConservativeBlockTruePile'
+    bam_cross_layer_rank = 384
+    bam_cross_layer_group_size = 3
+    bam_cross_layer_mode = 'conservative'
+    mlp_dim_by_block = [3903, 3777, 3902]
+    compare_runs = ['BamMediumPropMShiftReadG050ReadAttentionSharedR256TruePile', 'BamMediumPropMShiftReadG050ReadAttentionMLPSharedR384TruePile']
+
+class BamMediumPropMShiftReadG050CrossReadAttnR384ConservativeThirdsTruePile(BamMediumPropMShiftReadG050ReadAttentionSharedR256TruePile):
+    """Conservative cross-layer shared R384, inner R256, 6 consecutive layers per bank."""
+    # Ledger only: codex/mediumprop-projection-sharing; runtime 38af4cc; FIRST_STEP verified; UE5a.
+    # code_commit: 38af4cc
+    # Steps20-99: 0.460913 steps/s, -0.76% vs historical sharing parent.
+    # Stopped7538 by user after calculated7200 extrapolation; CP committed, node/queue absent; P1 UE5a.
+    # oldTripleR384: last7400 gap+0.002258, last5 mean+0.002384; oldPairR256 last5 mean+0.002269.
+    # Early catch-up then near-flat relative gains; terminal below-baseline forecast remains untested.
+    model_name = 'BamMediumPropMShiftReadG050CrossReadAttnR384ConservativeThirdsTruePile'
+    bam_cross_layer_rank = 384
+    bam_cross_layer_group_size = 6
+    bam_cross_layer_mode = 'conservative'
+    mlp_dim_by_block = [3924, 3798, 3924]
+    compare_runs = ['BamMediumPropMShiftReadG050ReadAttentionSharedR256TruePile', 'BamMediumPropMShiftReadG050ReadAttentionMLPSharedR384TruePile']
+
+class BamMediumPropMShiftReadG050CrossReadAttnR384DirectBlockTruePile(BamMediumPropMShiftReadG050ReadAttentionSharedR256TruePile):
+    """Direct cross-layer shared R384, Up input R384, 3 consecutive layers per bank."""
+    # Ledger only: codex/mediumprop-projection-sharing; runtime f875525; FIRST_STEP verified; UE5a.
+    # code_commit: f875525
+    # Steps60-139: 0.463138 steps/s, -0.28% vs historical sharing parent.
+    # Stopped3341 at3k review; CP committed, TPU/queue absent, TB synced; P1 UE5a.
+    # oldTripleR384: final5 mean gap+0.008756; last3200 gap+0.007431; oldPairR256: final5 mean gap+0.007002; last3200 gap+0.005892.
+    model_name = 'BamMediumPropMShiftReadG050CrossReadAttnR384DirectBlockTruePile'
+    bam_cross_layer_rank = 384
+    bam_cross_layer_group_size = 3
+    bam_cross_layer_mode = 'direct'
+    mlp_dim_by_block = [3857, 3732, 3857]
+    compare_runs = ['BamMediumPropMShiftReadG050ReadAttentionSharedR256TruePile', 'BamMediumPropMShiftReadG050ReadAttentionMLPSharedR384TruePile']
+    bam_local_full_m_read_bottleneck_dim = 384
+    bam_write_v_bottleneck_dim = 384
+
+class BamMediumPropMShiftReadG050CrossReadAttnR384DirectThirdsTruePile(BamMediumPropMShiftReadG050ReadAttentionSharedR256TruePile):
+    """Direct cross-layer shared R384, Up input R384, 6 consecutive layers per bank."""
+    # 结论：R384直接跨六层共享的劣势收窄，但5k评审仍明显弱于两个老共享基线。
+    # 最后五窗口至5000对老三路R384/老共享R256 gap+.005661/+.004777；不能据提前停止证明终局绝无追赶。
+    # 曾撤回3k筛选暂停并按原状态续训；最终按用户确认停于5157，CP/资源/TB收尾完成。
+    # UE5a v5p16，P2，.462150 step/s（272–351），对历史共享父路-.49%；code_commit: f875525；ledger only：codex/mediumprop-projection-sharing，/data0/xd/mediumprop-projection-sharing。
+    model_name = 'BamMediumPropMShiftReadG050CrossReadAttnR384DirectThirdsTruePile'
+    bam_cross_layer_rank = 384
+    bam_cross_layer_group_size = 6
+    bam_cross_layer_mode = 'direct'
+    mlp_dim_by_block = [3879, 3753, 3878]
+    compare_runs = ['BamMediumPropMShiftReadG050ReadAttentionSharedR256TruePile', 'BamMediumPropMShiftReadG050ReadAttentionMLPSharedR384TruePile']
+    bam_local_full_m_read_bottleneck_dim = 384
+    bam_write_v_bottleneck_dim = 384
+
+class BamMediumPropMShiftReadG050CrossTripleR512ConservativeBlockTruePile(BamMediumPropMShiftReadG050ReadAttentionMLPSharedR384TruePile):
+    """Conservative cross-layer shared R512, inner R384, 3 consecutive layers per bank."""
+    # Ledger only: codex/mediumprop-projection-sharing; runtime 38af4cc; FIRST_STEP verified; UE5a.
+    # Steps20-99: 0.464487 steps/s, -0.28% vs historical sharing parent.
+    # code_commit: 38af4cc
+    # Stopped3561 at3k review; CP committed, TPU/queue absent, TB synced; P0 UE5a.
+    # oldTripleR384: final5 mean gap+0.009660; last3400 gap+0.008978; oldPairR256: final5 mean gap+0.008056; last3400 gap+0.007783.
+    model_name = 'BamMediumPropMShiftReadG050CrossTripleR512ConservativeBlockTruePile'
+    bam_cross_layer_rank = 512
+    bam_cross_layer_group_size = 3
+    bam_cross_layer_mode = 'conservative'
+    mlp_dim_by_block = [3811, 3685, 3810]
+    compare_runs = ['BamMediumPropMShiftReadG050ReadAttentionMLPSharedR384TruePile', 'BamMediumPropMShiftReadG050ReadAttentionSharedR256TruePile']
+
+class BamMediumPropMShiftReadG050CrossTripleR512ConservativeThirdsTruePile(BamMediumPropMShiftReadG050ReadAttentionMLPSharedR384TruePile):
+    """Conservative cross-layer shared R512, inner R384, 6 consecutive layers per bank."""
+    # Ledger only: codex/mediumprop-projection-sharing; runtime 38af4cc; FIRST_STEP verified; UE5a.
+    # code_commit: 38af4cc
+    # Steps20-99: 0.462262 steps/s, -0.76% vs historical sharing parent.
+    # User-confirmed second review stop5198; CP committed, TPU/queue absent, TB SYNC_OK; UE5a P1.
+    # ReadAttentionMLPSharedR384: last5000 gap+0.008843, last5mean+0.009043.
+    # ReadAttentionSharedR256: last5000 gap+0.007716, last5mean+0.008159.
+    model_name = 'BamMediumPropMShiftReadG050CrossTripleR512ConservativeThirdsTruePile'
+    bam_cross_layer_rank = 512
+    bam_cross_layer_group_size = 6
+    bam_cross_layer_mode = 'conservative'
+    mlp_dim_by_block = [3839, 3713, 3839]
+    compare_runs = ['BamMediumPropMShiftReadG050ReadAttentionMLPSharedR384TruePile', 'BamMediumPropMShiftReadG050ReadAttentionSharedR256TruePile']
+
+class BamMediumPropMShiftReadG050CrossTripleR512DirectBlockTruePile(BamMediumPropMShiftReadG050ReadAttentionMLPSharedR384TruePile):
+    """Direct cross-layer shared R512, Up input R512, 3 consecutive layers per bank."""
+    # Ledger only: codex/mediumprop-projection-sharing; runtime f875525; FIRST_STEP verified; UE5a.
+    # Steps20-99: 0.464587 steps/s, -0.26% vs historical sharing parent.
+    # code_commit: f875525
+    # User-confirmed second review stop6200; CP committed, TPU/queue absent, TB SYNC_OK; UE5a P0.
+    # ReadAttentionMLPSharedR384: last6000 gap+0.002614, last5mean+0.003939.
+    # ReadAttentionSharedR256: last6000 gap+0.003191, last5mean+0.003501.
+    # Catchup persisted after5k (gap+.005305 -> +.002614@6k); user resource-allocation stop, not proof of no late upside.
+    model_name = 'BamMediumPropMShiftReadG050CrossTripleR512DirectBlockTruePile'
+    bam_cross_layer_rank = 512
+    bam_cross_layer_group_size = 3
+    bam_cross_layer_mode = 'direct'
+    mlp_dim_by_block = [3786, 3661, 3786]
+    compare_runs = ['BamMediumPropMShiftReadG050ReadAttentionMLPSharedR384TruePile', 'BamMediumPropMShiftReadG050ReadAttentionSharedR256TruePile']
+    bam_local_full_m_read_bottleneck_dim = 512
+    bam_write_v_bottleneck_dim = 512
+    bam_mlp_write_address_rank = 512
+
+class BamMediumPropMShiftReadG050CrossTripleR512DirectThirdsTruePile(BamMediumPropMShiftReadG050ReadAttentionMLPSharedR384TruePile):
+    """Direct cross-layer shared R512, Up input R512, 6 consecutive layers per bank."""
+    # Ledger only: codex/mediumprop-projection-sharing; runtime f875525; FIRST_STEP verified; UE5a.
+    # code_commit: f875525
+    # Steps135-214: 0.459975 steps/s, -1.25% vs historical sharing parent.
+    # Stopped7713 by user after calculated7200 extrapolation; CP committed, node/queue absent; P1 UE5a.
+    # oldTripleR384: last7600 gap+0.001797, last5 mean+0.002099; oldPairR256 last5 mean+0.002039.
+    # Early catch-up then near-flat relative gains; terminal below-baseline forecast remains untested.
+    model_name = 'BamMediumPropMShiftReadG050CrossTripleR512DirectThirdsTruePile'
+    bam_cross_layer_rank = 512
+    bam_cross_layer_group_size = 6
+    bam_cross_layer_mode = 'direct'
+    mlp_dim_by_block = [3815, 3689, 3815]
+    compare_runs = ['BamMediumPropMShiftReadG050ReadAttentionMLPSharedR384TruePile', 'BamMediumPropMShiftReadG050ReadAttentionSharedR256TruePile']
+    bam_local_full_m_read_bottleneck_dim = 512
+    bam_write_v_bottleneck_dim = 512
+    bam_mlp_write_address_rank = 512
+
+
+# Complete the MLP-private/shared axis; preserve the original eight configurations.
+
+class BamMediumPropMShiftReadG050CrossTripleR384ConservativeBlockTruePile(BamMediumPropMShiftReadG050CrossReadAttnR384ConservativeBlockTruePile):
+    """Matched MLP-sharing toggle; independent MLP keeps family native width 256."""
+    # 未开训即撤销：当时擅自扩展了授权范围；实际赛马仅原8路＋方形R384。
+    # Ledger only：codex/mediumprop-projection-sharing，/data0/xd/mediumprop-projection-sharing；候选源码c7a93f6，无训练结论。
+    model_name = 'BamMediumPropMShiftReadG050CrossTripleR384ConservativeBlockTruePile'
+    bam_share_mlp_write_down = True
+    bam_mlp_write_address_rank = 256
+    mlp_dim_by_block = [3932, 3805, 3930]
+    compare_runs = ['BamMediumPropMShiftReadG050CrossReadAttnR384ConservativeBlockTruePile', 'BamMediumPropMShiftReadG050ReadAttentionSharedR256TruePile', 'BamMediumPropMShiftReadG050ReadAttentionMLPSharedR384TruePile']
+
+class BamMediumPropMShiftReadG050CrossTripleR384ConservativeThirdsTruePile(BamMediumPropMShiftReadG050CrossReadAttnR384ConservativeThirdsTruePile):
+    """Matched MLP-sharing toggle; independent MLP keeps family native width 256."""
+    # 未开训即撤销：当时擅自扩展了授权范围；实际赛马仅原8路＋方形R384。
+    # Ledger only：codex/mediumprop-projection-sharing，/data0/xd/mediumprop-projection-sharing；候选源码c7a93f6，无训练结论。
+    model_name = 'BamMediumPropMShiftReadG050CrossTripleR384ConservativeThirdsTruePile'
+    bam_share_mlp_write_down = True
+    bam_mlp_write_address_rank = 256
+    mlp_dim_by_block = [3953, 3826, 3952]
+    compare_runs = ['BamMediumPropMShiftReadG050CrossReadAttnR384ConservativeThirdsTruePile', 'BamMediumPropMShiftReadG050ReadAttentionSharedR256TruePile', 'BamMediumPropMShiftReadG050ReadAttentionMLPSharedR384TruePile']
+
+class BamMediumPropMShiftReadG050CrossTripleR384DirectBlockTruePile(BamMediumPropMShiftReadG050CrossReadAttnR384DirectBlockTruePile):
+    """Matched MLP-sharing toggle; independent MLP keeps family native width 256."""
+    # 未开训即撤销：当时擅自扩展了授权范围；实际赛马仅原8路＋方形R384。
+    # Ledger only：codex/mediumprop-projection-sharing，/data0/xd/mediumprop-projection-sharing；候选源码c7a93f6，无训练结论。
+    model_name = 'BamMediumPropMShiftReadG050CrossTripleR384DirectBlockTruePile'
+    bam_share_mlp_write_down = True
+    bam_mlp_write_address_rank = 384
+    mlp_dim_by_block = [3880, 3754, 3879]
+    compare_runs = ['BamMediumPropMShiftReadG050CrossReadAttnR384DirectBlockTruePile', 'BamMediumPropMShiftReadG050ReadAttentionSharedR256TruePile', 'BamMediumPropMShiftReadG050ReadAttentionMLPSharedR384TruePile']
+
+class BamMediumPropMShiftReadG050CrossTripleR384DirectThirdsTruePile(BamMediumPropMShiftReadG050CrossReadAttnR384DirectThirdsTruePile):
+    """Matched MLP-sharing toggle; independent MLP keeps family native width 256."""
+    # 未开训即撤销：当时擅自扩展了授权范围；实际赛马仅原8路＋方形R384。
+    # Ledger only：codex/mediumprop-projection-sharing，/data0/xd/mediumprop-projection-sharing；候选源码c7a93f6，无训练结论。
+    model_name = 'BamMediumPropMShiftReadG050CrossTripleR384DirectThirdsTruePile'
+    bam_share_mlp_write_down = True
+    bam_mlp_write_address_rank = 384
+    mlp_dim_by_block = [3902, 3775, 3900]
+    compare_runs = ['BamMediumPropMShiftReadG050CrossReadAttnR384DirectThirdsTruePile', 'BamMediumPropMShiftReadG050ReadAttentionSharedR256TruePile', 'BamMediumPropMShiftReadG050ReadAttentionMLPSharedR384TruePile']
+
+class BamMediumPropMShiftReadG050CrossReadAttnR512ConservativeBlockTruePile(BamMediumPropMShiftReadG050CrossTripleR512ConservativeBlockTruePile):
+    """Matched MLP-sharing toggle; independent MLP keeps family native width 384."""
+    # 未开训即撤销：当时擅自扩展了授权范围；实际赛马仅原8路＋方形R384。
+    # Ledger only：codex/mediumprop-projection-sharing，/data0/xd/mediumprop-projection-sharing；候选源码c7a93f6，无训练结论。
+    model_name = 'BamMediumPropMShiftReadG050CrossReadAttnR512ConservativeBlockTruePile'
+    bam_share_mlp_write_down = False
+    bam_mlp_write_address_rank = 384
+    mlp_dim_by_block = [3769, 3642, 3767]
+    compare_runs = ['BamMediumPropMShiftReadG050CrossTripleR512ConservativeBlockTruePile', 'BamMediumPropMShiftReadG050ReadAttentionMLPSharedR384TruePile', 'BamMediumPropMShiftReadG050ReadAttentionSharedR256TruePile']
+
+class BamMediumPropMShiftReadG050CrossReadAttnR512ConservativeThirdsTruePile(BamMediumPropMShiftReadG050CrossTripleR512ConservativeThirdsTruePile):
+    """Matched MLP-sharing toggle; independent MLP keeps family native width 384."""
+    # 未开训即撤销：当时擅自扩展了授权范围；实际赛马仅原8路＋方形R384。
+    # Ledger only：codex/mediumprop-projection-sharing，/data0/xd/mediumprop-projection-sharing；候选源码c7a93f6，无训练结论。
+    model_name = 'BamMediumPropMShiftReadG050CrossReadAttnR512ConservativeThirdsTruePile'
+    bam_share_mlp_write_down = False
+    bam_mlp_write_address_rank = 384
+    mlp_dim_by_block = [3797, 3670, 3796]
+    compare_runs = ['BamMediumPropMShiftReadG050CrossTripleR512ConservativeThirdsTruePile', 'BamMediumPropMShiftReadG050ReadAttentionMLPSharedR384TruePile', 'BamMediumPropMShiftReadG050ReadAttentionSharedR256TruePile']
+
+class BamMediumPropMShiftReadG050CrossReadAttnR512DirectBlockTruePile(BamMediumPropMShiftReadG050CrossTripleR512DirectBlockTruePile):
+    """Matched MLP-sharing toggle; independent MLP keeps family native width 384."""
+    # 未开训即撤销：当时擅自扩展了授权范围；实际赛马仅原8路＋方形R384。
+    # Ledger only：codex/mediumprop-projection-sharing，/data0/xd/mediumprop-projection-sharing；候选源码c7a93f6，无训练结论。
+    model_name = 'BamMediumPropMShiftReadG050CrossReadAttnR512DirectBlockTruePile'
+    bam_share_mlp_write_down = False
+    bam_mlp_write_address_rank = 384
+    mlp_dim_by_block = [3750, 3624, 3750]
+    compare_runs = ['BamMediumPropMShiftReadG050CrossTripleR512DirectBlockTruePile', 'BamMediumPropMShiftReadG050ReadAttentionMLPSharedR384TruePile', 'BamMediumPropMShiftReadG050ReadAttentionSharedR256TruePile']
+
+class BamMediumPropMShiftReadG050CrossReadAttnR512DirectThirdsTruePile(BamMediumPropMShiftReadG050CrossTripleR512DirectThirdsTruePile):
+    """Matched MLP-sharing toggle; independent MLP keeps family native width 384."""
+    # 未开训即撤销：当时擅自扩展了授权范围；实际赛马仅原8路＋方形R384。
+    # Ledger only：codex/mediumprop-projection-sharing，/data0/xd/mediumprop-projection-sharing；候选源码c7a93f6，无训练结论。
+    model_name = 'BamMediumPropMShiftReadG050CrossReadAttnR512DirectThirdsTruePile'
+    bam_share_mlp_write_down = False
+    bam_mlp_write_address_rank = 384
+    mlp_dim_by_block = [3779, 3652, 3778]
+    compare_runs = ['BamMediumPropMShiftReadG050CrossTripleR512DirectThirdsTruePile', 'BamMediumPropMShiftReadG050ReadAttentionMLPSharedR384TruePile', 'BamMediumPropMShiftReadG050ReadAttentionSharedR256TruePile']
+
+
+class BamMediumPropMShiftReadG050CrossTripleR384ConservativeInner384ThirdsTruePile(BamMediumPropMShiftReadG050CrossTripleR384ConservativeThirdsTruePile):
+    """Shared R384, square384 bridge, all three consumers, contiguous thirds."""
+    # 结论：R384方形C_i未优于内宽256的保守三等分对照；两者均弱于老共享基线。
+    # 最后五窗口至4800对内宽256对照gap+.004017，对老三路R384/老共享R256 +.007783/+.007072。
+    # 末窗口对内宽256 +.003718、对老三路+.007699；用户确认停于4960，非完整终局。
+    # UE5a v5p16，P0，.459387 step/s，对历史共享父路-1.38%；CP/资源/TB收尾完成。
+    # code_commit: 38af4cc；ledger only：codex/mediumprop-projection-sharing，/data0/xd/mediumprop-projection-sharing。
+    model_name = 'BamMediumPropMShiftReadG050CrossTripleR384ConservativeInner384ThirdsTruePile'
+    bam_local_full_m_read_bottleneck_dim = 384
+    bam_write_v_bottleneck_dim = 384
+    bam_mlp_write_address_rank = 384
+    mlp_dim_by_block = [3860, 3734, 3860]
+    compare_runs = ['BamMediumPropMShiftReadG050CrossReadAttnR384ConservativeThirdsTruePile', 'BamMediumPropMShiftReadG050CrossTripleR512ConservativeThirdsTruePile', 'BamMediumPropMShiftReadG050ReadAttentionMLPSharedR384TruePile', 'BamMediumPropMShiftReadG050ReadAttentionSharedR256TruePile']
+
+
+class BamXLPropMShiftReadG050ReadAttentionSharedR384TruePile(BamXLPropSharedR400GeneralReadMShiftReadG050TruePile):
+    """XL transfer of Medium oldR256: shared read/attention down, private MLP down."""
+    # 结论：Medium 有效的共享投影方案迁到 XL 后，仅与 XL 单门.5接近持平，未验证额外收益。
+    # 早期落后后长期近乎持平；22k对单门 MHA参考倍数1.000870，原终局1.025[1.015,1.040]下注未获支持。
+    # 用户停于22295，CP提交、资源释放、TB同步；未跑满50000；UE5a v5p32，P1。
+    # .392263 step/s，比单门快7.57%，但健康OFF/父路ON，不能归因于投影共享。
+    # 全部rank384，1432397720参数，较MHA少1000；code_commit: 8ba35d8；ledger only：codex/mediumprop-projection-sharing，/data0/xd/mediumprop-projection-sharing。
+    model_name = 'BamXLPropMShiftReadG050ReadAttentionSharedR384TruePile'
+    bam_share_read_attention_write_down = True
+    bam_share_mlp_write_down = False
+    bam_local_full_m_read_bottleneck_dim = 384
+    bam_write_v_bottleneck_dim = 384
+    bam_mlp_write_address_rank = 384
+    mlp_dim_by_block = [6274, 6086, 6274]
+    bam_final_local_mlp_dim = 6282
+    compare_runs = ['BamXLPropSharedR400GeneralReadMShiftReadG050TruePile',
+                    'BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile']
+    # User requested minimal training telemetry; loss/accuracy/LR/throughput remain.
+    record_training_health_metrics = False
+    record_internal_nn_metrics = False
+    bam_record_m_shift_health = False
+    bam_record_concat_health = False
+    bam_record_fetched_read_health_metrics = False
+    bam_record_fetched_read_amplitude_metrics = False
+    bam_record_fetch_route_metrics = False
+    bam_record_local_routing_metrics = False
+    bam_record_local_qk_amplitude_metrics = False
+
+
+
+class BamMediumPropMShiftReadG050SharedR256ReuseActivationMLPWriteTruePile(BamMediumPropMShiftReadG050ReadAttentionSharedR256TruePile):
+    """Reuse the actual pre-attention shared GELU activation for MLP write addresses."""
+    # 结论：复用实际共享激活修复了老三路 R256 的早期失败，但最终观察仍只与更强的两个老共享基线近乎持平。
+    # 对老两路R256/老三路R384，早期落后后追平；至7600末五 gap -.000438/-.000378，末窗口倍数1.002627/1.004835。
+    # 对已停老三路R256共同2800 gap -.009425、倍数1.036407；不能外推该对照的未训终局。
+    # 对单门.5在7600 gap -.004826、倍数1.027804；无额外明确上限收益，用户停于7719。
+    # UE5a v5p16，P0，.485050 step/s；比各自父路快4.44%，含关闭健康统计收益，非纯架构测速。
+    # CP7719提交、TB同步；资源已释放。
+    # 复用实际 pre-attention GELU 激活供 MLP 地址up；432104480参数；code_commit: bac3317；ledger only：codex/mediumprop-projection-sharing，/data0/xd/mediumprop-projection-sharing。
+    model_name = 'BamMediumPropMShiftReadG050SharedR256ReuseActivationMLPWriteTruePile'
+    bam_reuse_read_attention_features_for_mlp_write = True
+    mlp_dim_by_block = [3915, 3791, 3915]
+    compare_runs = ['BamMediumPropMShiftReadG050ReadAttentionSharedR256TruePile', 'BamMediumPropMShiftReadG050ReadAttentionMLPSharedR256TruePile', 'BamMediumPropMShiftReadG050ReadAttentionMLPSharedR384TruePile', 'BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile']
+    record_training_health_metrics = False
+    record_internal_nn_metrics = False
+    bam_record_m_shift_health = False
+    bam_record_concat_health = False
+    bam_record_fetched_read_health_metrics = False
+    bam_record_fetched_read_amplitude_metrics = False
+    bam_record_fetch_route_metrics = False
+    bam_record_local_routing_metrics = False
+    bam_record_local_qk_amplitude_metrics = False
+
+
+
+class BamMediumPropMShiftReadG050SharedR384ReuseActivationMLPWriteTruePile(BamMediumPropMShiftReadG050ReadAttentionMLPSharedR384TruePile):
+    """Reuse the actual pre-attention shared GELU activation for MLP write addresses."""
+    # 结论：R384 激活复用早期优势反转，未优于老三路 R384，也未优于老共享 R256。
+    # 至3200对老三路R384 gap +.003315、末五+.002988、倍数.986666；对老两路R256 +.001776/.992811。
+    # 同期仍比单门.5低 .005356，但不足以证明优于方向内基线；用户于3333热替换，非终局失败判定。
+    # UE5a v5p16，P0，.488575 step/s；比各自父路快4.89%，含关闭健康统计收益，非纯架构测速。
+    # CP3333提交、TB同步；原TPU当时移交QKNorm，不能按旧RUN删除新路资源。
+    # 复用实际 pre-attention GELU 激活供 MLP 地址up；432118688参数；code_commit: bac3317；ledger only：codex/mediumprop-projection-sharing，/data0/xd/mediumprop-projection-sharing。
+    model_name = 'BamMediumPropMShiftReadG050SharedR384ReuseActivationMLPWriteTruePile'
+    bam_reuse_read_attention_features_for_mlp_write = True
+    mlp_dim_by_block = [3794, 3669, 3794]
+    compare_runs = ['BamMediumPropMShiftReadG050ReadAttentionMLPSharedR384TruePile', 'BamMediumPropMShiftReadG050ReadAttentionSharedR256TruePile', 'BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile']
+    record_training_health_metrics = False
+    record_internal_nn_metrics = False
+    bam_record_m_shift_health = False
+    bam_record_concat_health = False
+    bam_record_fetched_read_health_metrics = False
+    bam_record_fetched_read_amplitude_metrics = False
+    bam_record_fetch_route_metrics = False
+    bam_record_local_routing_metrics = False
+    bam_record_local_qk_amplitude_metrics = False
+
+
+
+class BamMediumPropMShiftReadG050FullQKNormTruePile(BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile):
+    """Full-head RMS QKNorm before RoPE; matched four-arm comparison."""
+    # 结论：QKNorm改善BAM自身loss，但对MHA帮助更大，BAM相对MHA的优势反而缩小。
+    # 二阶收益倍数从初期低位回升，后期约.91；末窗口13400为.916021，未回到1。
+    # 完成13500；末五12600–13400对单门.5 gap-.010904，对QKNorm MHA/原MHA -.141809/-.166556。
+    # 以原MHA为参考，对原单门.5收益倍数末五1.070066；不能把这项自身提升误作二阶收益。
+    # UE5a v5p16 .474300 step/s，432114380参数；健康OFF/父路ON，测速不可作纯架构提速。
+    # code_commit: 03c8ade；ledger only：codex/mediumprop-qknorm，/data0/xd/mediumprop-qknorm；详见 exit_followup_20261015.md。
+    model_name = 'BamMediumPropMShiftReadG050FullQKNormTruePile'
+    bam_qk_norm_after_concat = True
+    compare_runs = ['BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile', 'BamMHAMediumPropC256QKNormTruePile', 'BamMHAMediumPropC256TruePile']
+    qk_norm = True
+    checkpoint_period = 200
+    keep_period = 0
+    max_to_keep = 2
+    tensorboard_gcs_rotate_period = 500
+    record_training_health_metrics = False
+    record_internal_nn_metrics = False
+    bam_record_m_shift_health = False
+    bam_record_concat_health = False
+    bam_record_fetched_read_health_metrics = False
+    bam_record_fetched_read_amplitude_metrics = False
+    bam_record_fetch_route_metrics = False
+    bam_record_local_routing_metrics = False
+    bam_record_local_qk_amplitude_metrics = False
+    jax_cache_dir = ''
+
+
+class BamMHAMediumPropC256QKNormTruePile(BamMHAMediumPropC256TruePile):
+    """Full-head RMS QKNorm before RoPE; matched four-arm comparison."""
+    # 结论：MHA的QKNorm有持续终局收益，且改善量大于同组BAM。
+    # 完成13500；末五12600–13400对原MHA gap-.024747，收益占原单门BAM优势的.158984。
+    # UE5a v5p16 .699175 step/s，432123900参数；健康OFF/父路ON，测速不可作纯架构比较。
+    # code_commit: 03c8ade；ledger only：codex/mediumprop-qknorm，/data0/xd/mediumprop-qknorm；详见 exit_followup_20261015.md。
+    model_name = 'BamMHAMediumPropC256QKNormTruePile'
+    bam_qk_norm_after_concat = False
+    compare_runs = ['BamMHAMediumPropC256TruePile']
+    qk_norm = True
+    checkpoint_period = 200
+    keep_period = 0
+    max_to_keep = 2
+    tensorboard_gcs_rotate_period = 500
+    record_training_health_metrics = False
+    record_internal_nn_metrics = False
+    bam_record_m_shift_health = False
+    bam_record_concat_health = False
+    bam_record_fetched_read_health_metrics = False
+    bam_record_fetched_read_amplitude_metrics = False
+    bam_record_fetch_route_metrics = False
+    bam_record_local_routing_metrics = False
+    bam_record_local_qk_amplitude_metrics = False
+    jax_cache_dir = ''
+
+
+class Llama2XLPropTruePileMHAQKNorm(Llama2XLPropTruePileMHA):
+    """Full96 Q/K RMSNorm before RoPE on the unchanged XLProp MHA backbone."""
+    # 结论：XL MHA 的 QKNorm 收益后期趋于平台；相对单门 BAM 收益份额弱于已观测的 Medium 终局。
+    # 至26500末五对MHA gap -.0182204；QKNorm收益/XL单门收益为.144057，非BAM QKNorm二阶收益倍数。
+    # 用户停于26843，CP提交、资源释放、TB同步；未跑满50000。
+    # UE5a v5p32，P0，.528400 step/s；健康OFF/父路ON，速度不可作纯架构比较；1432404096参数。
+    # code_commit: 7aa738f；ledger only：codex/mediumprop-qknorm，/data0/xd/mediumprop-qknorm。
+    model_name = 'Llama2XLPropTruePileMHAQKNorm'
+    qk_norm = True
+    checkpoint_period = 250
+    keep_period = 0
+    max_to_keep = 2
+    tensorboard_gcs_rotate_period = 500
+    record_training_health_metrics = False
+    record_internal_nn_metrics = False
+    compare_runs = ['Llama2XLPropTruePileMHA', 'BamXLPropSharedR400GeneralReadMShiftReadG050TruePile']
+    jax_cache_dir = ''
+
+
+class PythiaArchitecture(Common):
+    """Dimension-independent Pythia recipe; not a launched or budget-matched RUN.
+
+    Supply base_emb_dim/layers/heads/head_dim explicitly in a derived experiment.
+    base_mlp_dim=-1 derives 4D; an explicit positive width supports budget matching.
+    Data, schedule, precision and optimizer are inherited from the training recipe.
+    """
+    decoder_block = 'pythia'
+    init_method = 'pythia'
+    base_mlp_dim = -1
+    mlp_activations = ['gelu_exact']
+    qkv_bias = True
+    qk_norm = False
+    normalization_layer_epsilon = 1e-5
+    pythia_rotary_fraction = 0.25
+    pythia_rotary_dim = -1
+    rope_type = 'default'
+    rope_half = False
+    rope_min_timescale = 1
+    rope_max_timescale = 10000
+    logits_via_embedding = False
+    dropout_rate = 0.0
+    scan_layers = True
+    record_internal_nn_metrics = False
+    bam_enabled = False
+    dense_conn = False
+    sliding_window_size = None
 
 
 class PythiaMediumPropT2048(PythiaArchitecture, Llama2MediumProp):
@@ -12951,6 +15422,37 @@ class MuddPythiaMediumPropT2048(Mudd, PythiaMediumPropT2048):
     compare_runs = ['PythiaMediumPropT2048', 'MuddLlama2MediumPropC256T2048']
 
 
+class BamPythiaMediumPropT2048MShiftReadG050ReadAttentionSharedR256(
+        PythiaMediumPropT2048,
+        BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile):
+    """Shared read/attention-write R256; independent MLP-write down; read M-shift .5."""
+    # 结论：并行Pythia中BAM相对Mudd的优势明显减弱；相对旧族系的二阶倍数约5.2k由强转弱。
+    # 完成13500；末五12600–13400对本族MHA/Mudd gap-.063956/-.009574，MHA参考BAM/Mudd倍数1.176073。
+    # 相对旧族系二阶倍数2k1.2165→4k1.0633→8k.9018→12k.8659；优势损失不能只用MHA骨架退化解释。
+    # 旧BAM无单门及读/attention共享，MHA/Mudd attention内核也有差别；这是实现族对比，非纯Pythia单因素实验。
+    # UE5a v5p16；后续串行MLP与初始化修复分别登记；code_commit: 973b94c；ledger only：codex/pythia-mediumprop-t2048，/data0/xd/pythia-mediumprop-t2048；详见 exit_followup_20261015.md。
+    model_name = 'BamPythiaMediumPropT2048MShiftReadG050ReadAttentionSharedR256'
+    pythia_use_fusion = True
+    bam_enabled = True
+    bam_pair_scan = True
+    bam_share_read_attention_write_down = True
+    bam_share_mlp_write_down = False
+    bam_m_shift_mode = 'read'
+    bam_m_shift_init = 0.5
+    bam_record_m_shift_health = False
+    # Preserve the parent's 57 BAM coordinates + 18 rotary standard coordinates.
+    bam_partial_rope = True
+    bam_partial_rope_nope_dim = 57
+    mlp_dim_by_block = [5832, 5643, 5832]  # -3310 params vs MHA (integer widths).
+    bam_record_concat_health = False
+    bam_record_fetched_read_health_metrics = False
+    bam_record_fetched_read_amplitude_metrics = False
+    bam_record_fetch_route_metrics = False
+    bam_record_local_routing_metrics = False
+    bam_record_local_qk_amplitude_metrics = False
+    compare_runs = ['PythiaMediumPropT2048', 'MuddPythiaMediumPropT2048']
+
+
 class PythiaMediumPropT2048SerialMLP(PythiaMediumPropT2048):
     """Paired serial residual: MLP sees x+attention(x); other Pythia settings fixed."""
     # 结论：恢复串行 MLP 后，MHA 终局与并行版基本持平，仍没有修复 Pythia 相对旧 MHA 的差距。
@@ -12961,6 +15463,39 @@ class PythiaMediumPropT2048SerialMLP(PythiaMediumPropT2048):
     model_name = 'PythiaMediumPropT2048SerialMLP'
     pythia_parallel_residual = False
     compare_runs = ['PythiaMediumPropT2048', 'BamMHAMediumPropC256T2048Matched']
+
+
+class BamPythiaMediumPropT2048MShiftReadG050ReadAttentionSharedR256SerialMLP(
+        BamPythiaMediumPropT2048MShiftReadG050ReadAttentionSharedR256):
+    """Serial MLP and its data/gate/address writes, same parameter tree and widths."""
+    # 结论：串行MLP稳定改善BAM，但没有恢复BAM相对Mudd的优势；三路均完成13500。
+    # 末五窗口12600–13400对并行父路loss低.023564，收益倍数1.36845（并行MHA参考）。
+    # 串行BAM/Mudd末五1.147469，低于并行1.176073（二阶约.9757）；末五对串行Mudd-.011264。
+    # 对串行MHA末五-.087681；更新的终局预估1.14[1.10,1.17]命中，早期1.10预估偏低。
+    # UE5a v5p16，.5103625step/s，比并行父路慢2.6%；P1，同区恢复，CP13500已提交。
+    # 节点/队列删除已核验、TB SYNC_OK；参数和初始化与并行父路相同。
+    # code_commit:d434e69；实现codex/pythia-mediumprop-t2048，/data0/xd/pythia-mediumprop-t2048。
+    model_name = 'BamPythiaMediumPropT2048MShiftReadG050ReadAttentionSharedR256SerialMLP'
+    pythia_parallel_residual = False
+    compare_runs = ['BamPythiaMediumPropT2048MShiftReadG050ReadAttentionSharedR256',
+                    'PythiaMediumPropT2048SerialMLP', 'MuddPythiaMediumPropT2048']
+
+
+class BamXLPropMShiftReadG050ReadAttentionSharedR400TruePile(BamXLPropMShiftReadG050ReadAttentionSharedR384TruePile):
+    """Shared read/attention R400, parent-matched private MLP write R384."""
+    # 结论：恢复与父路一致的 R400 未验证共享收益，至6k还落后原单门.5与旧共享 R384。
+    # 6k对单门 gap +.002231、MHA参考倍数.986812；对旧共享R384 +.001570/.990681，早期领先已反转。
+    # 用户停于6407，CP提交、资源释放、TB同步；UE5a v5p32，P1，约.393 step/s，1432399000参数。
+    # 共享rank400、MLP沿用父路R384宽度配置；code_commit: f9a455e；ledger only：codex/mediumprop-projection-sharing，/data0/xd/mediumprop-projection-sharing。
+    model_name = 'BamXLPropMShiftReadG050ReadAttentionSharedR400TruePile'
+    bam_local_full_m_read_bottleneck_dim = 400
+    bam_write_v_bottleneck_dim = 400
+    bam_mlp_write_address_rank = 384
+    mlp_dim_by_block = [6260, 6072, 6260]
+    bam_final_local_mlp_dim = 6262
+    compare_runs = ['BamXLPropSharedR400GeneralReadMShiftReadG050TruePile',
+                    'BamXLPropMShiftReadG050ReadAttentionSharedR384TruePile',
+                    'BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile']
 
 
 class MuddPythiaMediumPropT2048SerialMLP(MuddPythiaMediumPropT2048):
@@ -12975,6 +15510,464 @@ class MuddPythiaMediumPropT2048SerialMLP(MuddPythiaMediumPropT2048):
     pythia_parallel_residual = False
     compare_runs = ['MuddPythiaMediumPropT2048', 'PythiaMediumPropT2048SerialMLP',
                     'BamPythiaMediumPropT2048MShiftReadG050ReadAttentionSharedR256SerialMLP']
+
+
+class BamXLPropMShiftReadG050FullQKNormTruePile(BamXLPropSharedR400GeneralReadMShiftReadG050TruePile):
+    """Original XL single read .5 plus full96 Q/K RMSNorm before partial RoPE."""
+    # 用户暂停10272步，CP10272已提交、TPU/队列已释放、TB SYNC_OK；保留原50000步计划以便续训。
+    # 暂时结论：QKNorm改善BAM自身loss，但对MHA帮助更大；尚未验证未观测的终局。
+    # 1k/2k/4k/6k/8k/10k二阶倍数.8094/.8655/.9225/.9408/.9337/.9275；6k后平台波动。
+    # 10k对原单门.5 gap-.009789、MHA参考父路收益倍数1.06468；末五gap-.010276、倍数1.06586。
+    # 同20%训练进度，Medium二阶.833936、XL.927458；XL优势差距较12%缩小，跨尺度不比较raw gap。
+    # 暂停前终局预估下调.94[.91,.98]，原.96及更早.92保留供检验；不是已观测终局。
+    # UE5a v5p32，.3791step/s，P1，同区恢复；actual1432389016参数，健康全部关闭。
+    # code_commit:7249f01；实现codex/mediumprop-qknorm，/data0/xd/mediumprop-qknorm。
+    model_name = 'BamXLPropMShiftReadG050FullQKNormTruePile'
+    qk_norm = True
+    bam_qk_norm_after_concat = True
+    compare_runs = ['BamXLPropSharedR400GeneralReadMShiftReadG050TruePile',
+                    'Llama2XLPropTruePileMHAQKNorm', 'Llama2XLPropTruePileMHA']
+    checkpoint_period = 250
+    keep_period = 0
+    max_to_keep = 2
+    force_final_checkpoint = True
+    tensorboard_gcs_rotate_period = 500
+    record_training_health_metrics = False
+    record_internal_nn_metrics = False
+    bam_record_m_shift_health = False
+    bam_record_concat_health = False
+    bam_record_fetched_read_health_metrics = False
+    bam_record_fetched_read_amplitude_metrics = False
+    bam_record_fetch_route_metrics = False
+    bam_record_local_routing_metrics = False
+    bam_record_local_qk_amplitude_metrics = False
+    jax_cache_dir = ''
+
+
+class BamMediumPropMShiftReadG050ReadAttentionSharedR256T2048(BamMediumPropMShiftReadG050ReadAttentionSharedR256TruePile):
+    """Original MediumProp T2048 with read-only M-shift .5 and tied read/attention R256."""
+    # 结论：单门.5＋读/attention写共享R256在T2048保留增益；早期优势收窄后维持约-.008～-.009，弱于T4096增益。
+    # 末五9200–10000对旧T2048 BAM/Mudd/MHA gap -.008719/-.044360/-.138062。
+    # 以同一T2048 MHA为参考，对旧BAM/Mudd收益倍数1.067418/1.473443；旧BAM不含单门及共享改动。
+    # 用户停于10160，CP10160提交、资源释放、TB同步；未观测13500终局。
+    # T2048/global256，432111680参数；UE5a v5p16，P0，.549975 step/s。
+    # 较旧BAM快1.96%含健康OFF/旧ON差异，不能当作架构提速；完整过程见 mediumprop_t2048_current_sota.md。
+    # code_commit: 3b26679；ledger only：codex/mediumprop-projection-sharing，/data0/xd/mediumprop-projection-sharing。
+    model_name = 'BamMediumPropMShiftReadG050ReadAttentionSharedR256T2048'
+    DATASET_VARIANT = 'legacy2048'
+    max_target_length = 2048
+    per_device_batch_size = 32.0
+    steps = 13500
+    learning_rate_schedule_steps = 13500
+    qk_norm = False
+    checkpoint_period = 200
+    keep_period = 0
+    max_to_keep = 2
+    force_final_checkpoint = True
+    tensorboard_gcs_rotate_period = 500
+    jax_cache_dir = ''
+    record_training_health_metrics = False
+    record_internal_nn_metrics = False
+    bam_record_m_shift_health = False
+    bam_record_concat_health = False
+    bam_record_fetched_read_health_metrics = False
+    bam_record_fetched_read_amplitude_metrics = False
+    bam_record_fetch_route_metrics = False
+    bam_record_local_routing_metrics = False
+    bam_record_local_qk_amplitude_metrics = False
+    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadT2048',
+                    'MuddLlama2MediumPropC256T2048', 'BamMHAMediumPropC256T2048Matched',
+                    'BamMediumPropMShiftReadG050ReadAttentionSharedR256TruePile']
+
+
+class BamMediumPropMShiftReadG050PostResidualWriteControlsTruePile(BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile):
+    """Generate attention/MLP write gates and addresses after their residual additions."""
+    # 用户停于6167步，CP6167提交、节点/队列释放、TB SYNC_OK；未训练终局。
+    # 相对原单门.5早期大幅领先持续收窄：2k/4k/6k gap-.014164/-.005133/-.002929。
+    # MHA参考收益倍数1.0443/1.0236/1.0158；末五5200–6000 gap-.003379，倍数1.01757。
+    # 仅attention在共同2k优于本路.004312，支持MLP控制更新没有带来叠加收益；不等于全部新残差寻址无效。
+    # 终局下注1.02[.99,1.05]未获完整终局检验；最新观察已低于中心预测。
+    # UE5a v5p16 .4841625step/s，P1同区恢复；参数432111680，新增0W_Q，健康全部关闭。
+    # 比较仅原单门.5父路和MHA，不恢复读/attention写共享R256基线。
+    # code_commit:b49a392；实现codex/mediumprop-m-shift，/data0/xd/mediumprop-m-shift。
+    model_name = 'BamMediumPropMShiftReadG050PostResidualWriteControlsTruePile'
+    bam_write_controls_post_residual = True
+    record_training_health_metrics = False
+    record_internal_nn_metrics = False
+    bam_record_concat_health = False
+    bam_record_dual_write_health = False
+    bam_record_fetch_route_metrics = False
+    bam_record_fetched_read_amplitude_metrics = False
+    bam_record_fetched_read_health_metrics = False
+    bam_record_local_qk_amplitude_metrics = False
+    bam_record_local_routing_metrics = False
+    bam_record_local_v_dual_health = False
+    bam_record_m_relay_metrics = False
+    bam_record_m_shift_health = False
+    bam_record_o_row_branch_metrics = False
+    bam_record_row_anchor_metrics = False
+    bam_record_row_relay_health_metrics = False
+    bam_record_std_tail_write_metrics = False
+    compare_runs = ['BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile', 'BamMHAMediumPropC256TruePile']
+
+
+class PythiaMediumPropT2048SwiGLU(PythiaMediumPropT2048):
+    """Budget-matched SwiGLU main MLP on parallel Pythia MHA."""
+    # 阶段结论：共同2k对GELU父路loss低.028990，优势从1k的.107800明显收窄。
+    # 用户暂停于4527，CP4527已提交；TPU/queue已释放，TB SYNC_OK；P0，尚无终局结论。
+    # UE5a v5p-16，.7708375 step/s（较父路约+3.7%）；健康配置false但旧runtime未门控norm计算。
+    # 与Mudd/BAM同组暂停，资源转向串行GELU初始化实验；非效果判停。
+    # code_commit: d5a7282；实现 codex/pythia-mediumprop-t2048，/data0/xd/pythia-mediumprop-t2048。
+    model_name = 'PythiaMediumPropT2048SwiGLU'
+    pythia_swiglu_mlp = True
+    mlp_activations = ['silu', 'linear']
+    base_mlp_dim = 3200
+    # 432388800 params: +28800 vs GELU from integer uniform width and second input bias.
+    compare_runs = ['PythiaMediumPropT2048']
+
+
+class MuddPythiaMediumPropT2048SwiGLU(MuddPythiaMediumPropT2048):
+    """Preserve Mudd layerwise MLP budgets and unrepaid router overhead."""
+    # 阶段结论：共同2k对GELU父路loss低.055576，改善多于MHA/BAM；不是BAM独占SwiGLU收益。
+    # 用户暂停于3603，CP3603已提交，TB SYNC_OK；P0，TPU310242热替换为全量原初始化BAM。
+    # UE5a v5p-16，.603325 step/s（较父路约+.9%）；健康配置false但旧runtime未门控norm计算。
+    # 保留旧Mudd路由器额外参数，未从MLP抵扣；暂停结论为阶段性。
+    # code_commit: d5a7282；实现 codex/pythia-mediumprop-t2048，/data0/xd/pythia-mediumprop-t2048。
+    model_name = 'MuddPythiaMediumPropT2048SwiGLU'
+    pythia_swiglu_mlp = True
+    mlp_activations = ['silu', 'linear']
+    base_mlp_dim = 3200
+    dynamic_mlp_dim = False
+    mlp_dim_by_layer = [1621, 1792, 1962, 2133, 2389, 2560, 2730, 2901, 3072,
+                        3328, 3498, 3669, 3839, 4010, 4266, 4437, 4607, 4778]
+    # 434356331 params: -16 vs GELU, same router tree and old depth-allocation profile.
+    compare_runs = ['MuddPythiaMediumPropT2048', 'PythiaMediumPropT2048SwiGLU']
+
+
+class BamPythiaMediumPropT2048MShiftReadG050ReadAttentionSharedR256SwiGLU(
+        BamPythiaMediumPropT2048MShiftReadG050ReadAttentionSharedR256):
+    """SwiGLU main MLP; retain every GELU read/write-address bottleneck."""
+    # 阶段结论：共同3k对GELU父路loss低.013378；对Mudd领先.017519，尚未恢复旧配方约1.49倍优势。
+    # BAM/Mudd收益倍数1k/2k/3k为1.2102/1.2110/1.1787，各家族均用自己的MHA参考。
+    # 用户暂停于3174，CP3174已提交，TB SYNC_OK；P0，TPU310243热替换为BAM初始化修复路。
+    # 原终局1.30下注未验证；暂停是资源转向，不能判为终局失败。
+    # UE5a v5p-16，.5377125 step/s（较父路约+2.6%）；健康配置false但旧runtime未门控norm计算。
+    # code_commit: d5a7282；实现 codex/pythia-mediumprop-t2048，/data0/xd/pythia-mediumprop-t2048。
+    model_name = 'BamPythiaMediumPropT2048MShiftReadG050ReadAttentionSharedR256SwiGLU'
+    pythia_swiglu_mlp = True
+    mlp_activations = ['silu', 'linear']
+    base_mlp_dim = 3200
+    mlp_dim_by_block = [3887, 3762, 3887]
+    # 432348080 params: -8610 vs GELU, nearest three-layer repeated integer budget.
+    compare_runs = ['BamPythiaMediumPropT2048MShiftReadG050ReadAttentionSharedR256',
+                    'PythiaMediumPropT2048SwiGLU', 'MuddPythiaMediumPropT2048SwiGLU']
+
+
+class BamPythiaMediumPropT2048SerialMLPBamInitFix(
+        BamPythiaMediumPropT2048MShiftReadG050ReadAttentionSharedR256SerialMLP):
+    """Ledger only: serial GELU BAM initialization-chain repair; runtime worktree required."""
+    # 结论：修复BAM/embedding初始化角色与写RMS epsilon，显著恢复串行Pythia中BAM相对Mudd的优势。
+    # 完成13500；末五12600–13400 BAM/Mudd收益倍数1.616629，未修复串行版1.147469，二阶倍数1.408882。
+    # 对未修复BAM末五loss低.035850，末窗口低.035580；对串行Mudd/MHA末五低.047114/.123532。
+    # 恢复前期收益后相对Mudd倍数晚期约1.61–1.62；跑前二阶下注1.12[1.02,1.25]明显低估，3k修订1.30[1.20,1.40]仍偏低。
+    # embedding/BAM专用非零投影回原角色，写epsilon1e-6；保留Pythia标准干路/GELU/LN，并非只改单项std。
+    # UE5a v5p16，P0，.5175875 step/s，健康全OFF；432356690参数，MLP[5832,5643,5832]，T2048/global256。
+    # CP13500提交、节点/队列释放、TB同步；旧配方匹配对照止10000，无同阶段完整终局对比。
+    # code_commit: eaa95f8；ledger only：codex/pythia-mediumprop-t2048，/data0/xd/pythia-mediumprop-t2048；详见 pythia_initialization_diagnosis.md。
+    # 补充完整对照：MHA/Mudd也改用.006 embedding后，本路权重不变，末五BAM/Mudd为1.997136；原对照1.616629保留。
+    model_name = 'BamPythiaMediumPropT2048SerialMLPBamInitFix'
+    bam_init_method = '006normal'
+    token_embedding_init_method = '006normal'
+    bam_write_rms_epsilon = 1e-6
+    compare_runs = ['BamPythiaMediumPropT2048MShiftReadG050ReadAttentionSharedR256SerialMLP',
+                    'PythiaMediumPropT2048SerialMLP', 'MuddPythiaMediumPropT2048SerialMLP']
+
+
+class BamPythiaMediumPropT2048SerialMLPOriginalInit(
+        BamPythiaMediumPropT2048SerialMLPBamInitFix):
+    """Ledger only: restore original initialization roles; keep serial GELU/LN."""
+    # 结论：全原初始化显著改善未修复串行Pythia BAM，但弱于保留Pythia标准干路的BAM专用修复。
+    # 完成13500；末五12600–13400 BAM/Mudd收益倍数1.549689，对未修复串行版二阶1.350542（共同串行MHA参考）。
+    # 对未修复BAM末五gap-.030736；对专用修复loss高.005115，后者BAM/Mudd1.616629。
+    # 初期落后很快反转为领先，后期对未修复版二阶约1.35；跑前1.20[1.05,1.40]中心偏低、实测仍在区间内。
+    # embedding/BAM专用投影及写epsilon沿修复路，标准QKV/MLP/unembedding恢复原初始化；仍是串行GELU/LN。
+    # UE5a v5p16，P2，无换区，.5166625step/s，健康全OFF；432356690参数，MLP[5832,5643,5832]。
+    # CP13500提交、节点/队列释放、TB同步；旧配方匹配参考止10000，无同阶段旧配方完整终局对照。
+    # code_commit: eaa95f8；ledger only：codex/pythia-mediumprop-t2048，/data0/xd/pythia-mediumprop-t2048；详见 pythia_initialization_diagnosis.md。
+    model_name = 'BamPythiaMediumPropT2048SerialMLPOriginalInit'
+    init_method = '006normal'
+    compare_runs = ['BamPythiaMediumPropT2048MShiftReadG050ReadAttentionSharedR256SerialMLP',
+                    'BamPythiaMediumPropT2048SerialMLPBamInitFix',
+                    'PythiaMediumPropT2048SerialMLP', 'MuddPythiaMediumPropT2048SerialMLP']
+
+
+class BamMediumPropMShiftReadG050PostAttentionWriteControlsTruePile(
+        BamMediumPropMShiftReadG050PostResidualWriteControlsTruePile):
+    """Ledger only: only attention write controls use its updated residual."""
+    # 结论：仅attention写门/地址改用attention更新后的残差有小幅、保留到终局的收益；MLP写控制保持父架构。
+    # 完成13500；末五12600–13400对原单门.5 gap-.003288，MHA参考收益倍数1.021130；末窗口-.003299/1.021338。
+    # 早期优势收窄，6k/10k/13.4k倍数1.03490/1.02549/1.02134；11k后约1.02波动，未继续消失。
+    # 对双改最后共同6k gap-.003543、末五-.003282；双改停6167，不能外推该对照的未训终局。
+    # 跑前终局1.025[.995,1.06]实测略低于中心、在区间内；不把收益归于参数扩张，新增0W_Q。
+    # UE5a v5p16，P0，.4844125step/s，与健康OFF双改计时对照基本持平（+.05%）；432111680参数。
+    # MLP[3802,3676,3802]、健康全OFF；CP13500提交、节点/队列释放、TB同步；未恢复读/attention共享R256基线。
+    # code_commit: 34d9afd；ledger only：codex/mediumprop-m-shift，/data0/xd/mediumprop-m-shift；详见 mediumprop_post_residual_write.md。
+    model_name = 'BamMediumPropMShiftReadG050PostAttentionWriteControlsTruePile'
+    bam_write_controls_post_residual = False
+    bam_attention_write_controls_post_residual = True
+    bam_mlp_write_controls_post_residual = False
+    compare_runs = ['BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile',
+                    'BamMediumPropMShiftReadG050PostResidualWriteControlsTruePile',
+                    'BamMHAMediumPropC256TruePile']
+
+
+class BamMediumPropMShiftReadG050PostMLPWriteControlsTruePile(
+        BamMediumPropMShiftReadG050PostResidualWriteControlsTruePile):
+    """Ledger only: only MLP write controls use its updated residual."""
+    # 用户停于2231步，CP2231提交、节点/队列释放、TB SYNC_OK；未训练终局。
+    # 初期落后→800步微弱领先→1800步重新落后；2200对父路gap+.000657，MHA参考倍数.997849。
+    # 末五1400–2200对父路gap-.001082、倍数1.002096，接近持平，未建立收益。
+    # 对双改2200 gap+.011103、末五+.013503；同2k仅attention明显更强。
+    # UE5a v5p16 .4846375step/s，P0；参数/MLP宽度/健康与attention单改一致，新增0W_Q。
+    # 跑前终局下注1.005[.98,1.035]未作完整终局检验；实现codex/mediumprop-m-shift，runtime34d9afd。
+    model_name = 'BamMediumPropMShiftReadG050PostMLPWriteControlsTruePile'
+    bam_write_controls_post_residual = False
+    bam_attention_write_controls_post_residual = False
+    bam_mlp_write_controls_post_residual = True
+    compare_runs = ['BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile',
+                    'BamMediumPropMShiftReadG050PostResidualWriteControlsTruePile',
+                    'BamMHAMediumPropC256TruePile']
+
+class BamMediumPropMShiftReadG050MLPReadWriteLayersTruePile(
+        BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile):
+    """Ledger only: eight full-K BAM vectors replace W1 channels, only in six MLP-write layers."""
+    # 用户热替换停于2008，CP2008提交、TB SYNC_OK；TPU310246保留交给无读门all18，不能按旧RUN删除资源。
+    # 对原单门.5：200/1000/1800 gap-.139044/-.003187/-.000194，MHA参考倍数1.09874/1.00545/1.00056。
+    # 初期领先收窄至接近零；2k完整窗口未成熟，未训练终局，跑前下注1.08[.98,1.18]未获终局检验。
+    # UE5a v5p16 .4780875step/s，对健康OFF计时对照-1.25%；P0，READY09:35:09–10:48:22UTC共1h13m13s。
+    # 参数432112064（父路+384），MLP[3802,3767,3802]，健康全OFF；计时仅用同健康双改控制.4841625。
+    # 从attention写后M读8x75通道，无W1、有Wg/W2；动静地址合并单次读。本层找平，前向净增.225MFLOPs/token。
+    # code_commit: 3afcaa9；实现codex/mediumprop-mlp-bam-read，/data0/xd/mediumprop-mlp-bam-read。
+    model_name = 'BamMediumPropMShiftReadG050MLPReadWriteLayersTruePile'
+    bam_mlp_read_location = 'write'
+    bam_mlp_read_rank = 256
+    mlp_dim_by_block = [3802, 3767, 3802]
+    compare_runs = ['BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile', 'BamMHAMediumPropC256TruePile']
+
+
+class BamMediumPropMShiftReadG050MLPReadNonWriteLayersTruePile(
+        BamMediumPropMShiftReadG050MLPReadWriteLayersTruePile):
+    """Ledger only: BAM value channels only in the twelve layers without an MLP write."""
+    # 用户授权2800评审判停，最终CP2970提交、节点/队列释放、TB最终SYNC_OK；UE5a P0。
+    # 对原单门.5初期领先持续消失：1k/2k/2800 gap-.009198/-.003750/+.000735，MHA参考倍数1.01574/1.01173/.99718。
+    # 2400步转负，2600/2800连续落后；未建立持续收益，跑前终局1.12[.98,1.25]预期过于乐观。
+    # .4687750step/s，对健康OFF计时对照-3.18%；参数432112448（父路+768），MLP[3893,3676,3893]。
+    # 六个选中层组外的12层读M；前向净增.450MFLOPs/token，所有健康OFF。历史对照保留。
+    # code_commit: 3afcaa9；codex/mediumprop-mlp-bam-read，/data0/xd/mediumprop-mlp-bam-read。
+    model_name = 'BamMediumPropMShiftReadG050MLPReadNonWriteLayersTruePile'
+    bam_mlp_read_location = 'nonwrite'
+    mlp_dim_by_block = [3893, 3676, 3893]
+
+
+class BamMediumPropMShiftReadG050MLPReadAllLayersTruePile(
+        BamMediumPropMShiftReadG050MLPReadWriteLayersTruePile):
+    """Ledger only: BAM value channels in all eighteen MLPs, individually budget-matched."""
+    # 用户授权2800评审判停，最终CP2909提交、节点/队列释放、TB最终SYNC_OK；UE5a P0。
+    # 对原单门.5初期领先持续消失：1k/2k/2800 gap-.012516/-.003344/-.000136，MHA参考倍数1.02141/1.01046/1.00052。
+    # 到2800已接近持平，无明确回升；跑前终局1.15[.97,1.30]预期过于乐观，无训练终局数据。
+    # .4575625step/s，对健康OFF计时对照-5.49%；参数432112832（父路+1152），MLP[3893,3767,3893]。
+    # 全18层读M，前向净增.674MFLOPs/token，所有健康OFF；新零静态无读门路继续，保留本路2800以内对照。
+    # code_commit: 3afcaa9；codex/mediumprop-mlp-bam-read，/data0/xd/mediumprop-mlp-bam-read。
+    model_name = 'BamMediumPropMShiftReadG050MLPReadAllLayersTruePile'
+    bam_mlp_read_location = 'all'
+    mlp_dim_by_block = [3893, 3767, 3893]
+
+
+
+class BamMediumPropPostAttentionWriteSharedR256AttentionNormTruePile(
+        BamMediumPropMShiftReadG050PostAttentionWriteControlsTruePile):
+    """Ledger only: shared post-attention write features with attention norm."""
+    # stopped 4673（用户指令）；最终CP4673提交，TPU/队列释放、TB SYNC_OK。未训练终局。
+    # 对attention单改父路：早期落后后趋近持平，4600 gap+.000501/R.997676；末五gap-.000033/R1.000132。
+    # 原终局下注1.03，已训阶段未建立额外收益；速度持平、参数找平，MLP norm同阶段略强，保留后者。
+    # 六MLP写层共享实际R256 down/GELU，两路up及full-D写门独立，读端down独立；非写回12层不变。
+    # UE5a v5p16 .4845000step/s，相对同健康父路基本持平；432104480参数，MLP[3802,3761,3802]，健康全OFF。
+    # UE5a P2，完整三段READY租期已登记区域历史，无换区；最终资源/TB收尾完成。
+    # code_commit: 99485ac；codex/mediumprop-m-shift，/data0/xd/mediumprop-m-shift。
+    model_name = 'BamMediumPropPostAttentionWriteSharedR256AttentionNormTruePile'
+    bam_attention_mlp_write_shared_norm = 'attention'
+    mlp_dim_by_block = [3802, 3761, 3802]
+    compare_runs = ['BamMediumPropMShiftReadG050PostAttentionWriteControlsTruePile',
+                    'BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile',
+                    'BamMHAMediumPropC256TruePile']
+
+
+class BamMediumPropPostAttentionWriteSharedR256MLPNormTruePile(
+        BamMediumPropPostAttentionWriteSharedR256AttentionNormTruePile):
+    """Ledger only: shared post-attention write features with MLP norm."""
+    # stopped 5354（用户指令）；最终CP5354提交、TPU/队列释放、TB SYNC_OK，未训练终局。
+    # 对attention单改父路：5k前接近持平，5200回升gap-.001400/R1.00685；末五R1.001040，无稳定净收益。
+    # 对已停attention norm末共同4600低.000342/R1.001588；两共享写路均停，保留attention单改/改用MLP norm对照。
+    # 六MLP写层共享实际R256 down/GELU，两路up及full-D写门独立，读端down独立；非写回12层不变。
+    # UE5a v5p16 .4842625step/s，相对同健康父路基本持平；432104480参数，MLP[3802,3761,3802]，健康全OFF。
+    # 跑前终局下注1.04[.99,1.10]对已训阶段偏乐观；P1、全程UE5a，两段租期已登记；非终局测量。
+    # code_commit: 99485ac；codex/mediumprop-m-shift，/data0/xd/mediumprop-m-shift。
+    model_name = 'BamMediumPropPostAttentionWriteSharedR256MLPNormTruePile'
+    bam_attention_mlp_write_shared_norm = 'mlp'
+
+
+class BamMediumPropMShiftReadG050MLPReadAllLayersNoReadGatesTruePile(
+        BamMediumPropMShiftReadG050MLPReadAllLayersTruePile):
+    """Ledger only: all-layer MLP reads without dynamic/static gates, retaining Wg."""
+    # 用户修正静态初始化后，被零静态新RUN替换于228步，CP228提交/TB SYNC_OK；无效果结论。
+    # 临时版本仍是静态normal(1/sqrt32)；动态/静态读门已删除，保留MLP Wg/W2。
+    # 实际参数432090944、MLP[3898,3772,3898]；健康全OFF，UE5a v5p16 TPU310246保留再交新RUN。
+    # 20–99步.4630750step/s，对同健康all18父路+1.20%；非正式效果对照。
+    # 原始下注相对all18终局收益倍数1.03[.97,1.10]因用户初始化修正未获检验。
+    # code_commit: f6137cc；codex/mediumprop-mlp-bam-read，/data0/xd/mediumprop-mlp-bam-read。
+    model_name = 'BamMediumPropMShiftReadG050MLPReadAllLayersNoReadGatesTruePile'
+    bam_mlp_read_gates = False
+    mlp_dim_by_block = [3898, 3772, 3898]
+    compare_runs = ['BamMediumPropMShiftReadG050MLPReadAllLayersTruePile',
+                    'BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile',
+                    'BamMHAMediumPropC256TruePile']
+
+
+class BamMediumPropMShiftReadG050MLPReadAllLayersNoReadGatesStaticZeroTruePile(
+        BamMediumPropMShiftReadG050MLPReadAllLayersNoReadGatesTruePile):
+    """Ledger only: ungated all-layer MLP read with zero static addresses."""
+    # 结论：去读门＋静态读地址零初始化改善早期学习，但全18层MLP读M的增益继续衰减，未建立有力后期收益。
+    # 对原单门.5末五收益倍数3k1.01910→4k1.01451→5k1.006946；末完整5k gap-.001349、倍数1.006766。
+    # 用户停于5117，CP提交、资源释放、TB同步；未训练终局，同组12层版亦已停。
+    # 静态key[32,8]零初始化可学习；无动态/静态读门，动态投影normal(.006)，初始读出与静态key梯度非零。
+    # UE5a v5p16，.4629875 step/s，同健康OFF较旧带门18层+1.19%；432090944参数，MLP[3898,3772,3898]。
+    # 本层找平，父路-20736整数余差；前向净增.631MFLOPs/token(+.0686%)；健康全OFF。
+    # 跑前new/旧带门18终局下注1.05[.98,1.12]，因旧路止2800而不可完整验收；不把早期对照充作终局。
+    # code_commit: c560cd6；ledger only：codex/mediumprop-mlp-bam-read，/data0/xd/mediumprop-mlp-bam-read。
+    model_name = 'BamMediumPropMShiftReadG050MLPReadAllLayersNoReadGatesStaticZeroTruePile'
+    bam_mlp_read_static_key_init = 'zero'
+
+class BamMediumPropMShiftReadG050MLPReadNonWriteLayersNoReadGatesStaticZeroTruePile(
+        BamMediumPropMShiftReadG050MLPReadAllLayersNoReadGatesStaticZeroTruePile):
+    """Ledger only: ungated zero-static MLP reads in twelve non-writing layers."""
+    # 结论：仅12个非写回层读M同样未保住早期增益；同阶段持续弱于新18层版，1.71%提速不足以弥补。
+    # 对原单门.5末五倍数2k1.01760→3k1.009216，3k gap-.000895/倍数1.003579。
+    # 对新18层版末五窗口全落后，3k gap+.002719/倍数.989277；用户停于3149，非完整终局。
+    # UE5a v5p16，P2，.4709125 step/s，对同健康旧带门12层+.46%、新18层+1.71%；CP/资源/TB收尾完成。
+    # 432097856参数、MLP[3898,3676,3898]，父路-13824整数余差；前向净增.420864MFLOPs/token(+.04575%)。
+    # 跑前new/旧12层终局下注1.05[.98,1.12]因旧路止2800而不可完整验收；速度+1%[0,3%]下注范围内。
+    # code_commit: ae19f92；ledger only：codex/mediumprop-mlp-bam-read，/data0/xd/mediumprop-mlp-bam-read。
+    model_name = 'BamMediumPropMShiftReadG050MLPReadNonWriteLayersNoReadGatesStaticZeroTruePile'
+    bam_mlp_read_location = 'nonwrite'
+    mlp_dim_by_block = [3898, 3676, 3898]
+    compare_runs = ['BamMediumPropMShiftReadG050MLPReadNonWriteLayersTruePile',
+                    'BamMediumPropMShiftReadG050MLPReadAllLayersNoReadGatesStaticZeroTruePile',
+                    'BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile',
+                    'BamMHAMediumPropC256TruePile']
+
+class BamMediumPropMShiftReadG050PostAttentionWriteMLPNormTruePile(
+        BamMediumPropMShiftReadG050PostAttentionWriteControlsTruePile):
+    """Ledger only: post-attention write controls reuse the existing MLP norm."""
+    # 结论：复用MLP norm与attention单改父路终局持平，省一次norm但没有额外loss收益。
+    # 完成13500；末五12600–13400对父路gap+.000162/R.998987，末窗口-.000459/R1.002904。
+    # 对原单门.5末五gap-.003126/R1.020096；1k/6k/10k/13.4k倍数1.0563/1.0349/1.0251/1.0243，继承的小幅收益保留到终局。
+    # 对MHA末五gap-.158778；对已停共享写MLP norm最后共同5200末五+.000614/R.997075，非完整终局对照。
+    # UE5a v5p16 .4855375step/s，对同健康attention单改父路+.232%；参数432111680、宽度不变，健康全OFF。
+    # 跑前对父路倍数1.01[.99,1.04]偏乐观，实测在区间内；P1，两段READY租期已登记。
+    # CP13500提交、节点/队列删除及TB SYNC_OK核验；code_commit: 6c586f8；codex/mediumprop-m-shift，/data0/xd/mediumprop-m-shift。
+    model_name = 'BamMediumPropMShiftReadG050PostAttentionWriteMLPNormTruePile'
+    bam_attention_write_controls_norm = 'mlp'
+    compare_runs = ['BamMediumPropMShiftReadG050PostAttentionWriteControlsTruePile',
+                    'BamMediumPropPostAttentionWriteSharedR256MLPNormTruePile',
+                    'BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile',
+                    'BamMHAMediumPropC256TruePile']
+
+
+
+
+
+class PythiaMediumPropT2048SerialMLPSmallEmbedding(PythiaMediumPropT2048SerialMLP):
+    """Embedding-only .006 control; retain the serial Pythia Transformer initialization."""
+    # 结论：仅将embedding改为normal(.006)使串行Pythia MHA小幅变差；较大首层MLP/embedding比值未带来收益。
+    # 完成13500，末五12600–13400对原MHA gap+.004563（+.003917～+.004977），末窗口+.004977。
+    # 早期波动后，1k起基本落后；3k/5k/7k/9k/11k/13k gap+.005720/+.001803/+.005421/+.004270/+.004452/+.004836。
+    # 跑前终局-.006[-.015,+.004]方向错误、实际略超区间上沿；标准Transformer仍Pythia、串行GELU/LN。
+    # 参数432360000、MLP4800不变，新增0W_Q；9个首层/embedding健康标量每100步记录，其余健康OFF。
+    # UE5a v5p16，初次20–99步.7359500step/s、抢占续训约.730；旧父路仍算通用健康，速度非严格可比。
+    # P1，CP13500提交、节点/队列释放、TB SYNC_OK；两段READY租期已登记，无换区。
+    # ledger only：codex/pythia-mediumprop-t2048，/data0/xd/pythia-mediumprop-t2048；code_commit: 1d4785f。
+    model_name = 'PythiaMediumPropT2048SerialMLPSmallEmbedding'
+    token_embedding_init_method = '006normal'
+    record_embedding_stem_health_metrics = True
+    embedding_stem_health_period = 100
+    compare_runs = ['PythiaMediumPropT2048SerialMLP']
+
+
+class MuddPythiaMediumPropT2048SerialMLPSmallEmbedding(MuddPythiaMediumPropT2048SerialMLP):
+    """Embedding-only .006 Mudd control; preserve growing widths and extra router budget."""
+    # 结论：仅将embedding改为normal(.006)使串行Pythia Mudd明显变差，损伤大于MHA，较大首层MLP/embedding比值未带来收益。
+    # 完成13500；末五12600–13400对原Mudd gap+.016836（+.016297～+.017492），末窗口+.016433。
+    # 早期先领先，1k转落后、1.4k后基本保持约+.016～+.018平台，终局未追回；跑前-.006[-.020,+.008]方向和范围均错。
+    # 对小embedding MHA早期优势收窄，末五gap-.064144；对BAM修复路末五+.063950，8k后落后约+.064～+.070。
+    # BAM/本路以小embedding MHA为参考，末五收益倍数1.997136（原大embedding对照1.616629）；BAM权重未变。
+    # UE5a v5p16 .5828875step/s；旧父路仍算通用健康，速度非严格可比；参数434356347，新增0W_Q。
+    # 标准Transformer仍Pythia，MLP2432→7168和旧路由器额外预算不变；仅9个健康标量每100步，其余健康OFF。
+    # P0，唯一READY租期UTC 2026-10-16 01:48:00至08:23:42（6h35m42s），无换区；CP13500/资源释放/TB SYNC_OK均核验。
+    # ledger only：codex/pythia-mediumprop-t2048，/data0/xd/pythia-mediumprop-t2048；code_commit: 1d4785f。
+    model_name = 'MuddPythiaMediumPropT2048SerialMLPSmallEmbedding'
+    token_embedding_init_method = '006normal'
+    record_embedding_stem_health_metrics = True
+    embedding_stem_health_period = 100
+    compare_runs = ['MuddPythiaMediumPropT2048SerialMLP',
+                    'PythiaMediumPropT2048SerialMLPSmallEmbedding',
+                    'BamPythiaMediumPropT2048SerialMLPBamInitFix']
+
+
+class BamPythiaMediumPropT2048SerialMLPPythiaEmbeddingScaledWrite(
+        BamPythiaMediumPropT2048SerialMLPBamInitFix):
+    """Init-fix parent with Pythia embedding and compensated input to the first M write."""
+    # 仅改embedding初始化与首次写M输入固定缩放；串行GELU/LayerNorm、其余初始化和宽度沿修复父路。
+    # 完成13500；相对修复父路早期落后逐渐缩小，末期停在约+.011，未追回；末五+.011361。
+    # 对串行MHA优势逐渐收窄至末五-.112170，对串行Mudd末五-.035753；MHA参考终局倍数1.46793。
+    # 对修复父路收益倍数由1k .9439降至终局.90803；匹配首次M不足以保持训练收益。
+    # 跑前BAM/Mudd终局1.60[1.45,1.72]、对父路loss+.0013偏乐观；实测倍数仍在区间内。
+    # UE5a v5p16 .5151875step/s，同健康修复父路-.464%；参数432356690、增量0 W_Q、MLP[5832,5643,5832]。
+    # 健康全OFF；P2、三段READY租期已登记；CP13500提交、节点/队列删除及TB SYNC_OK核验。
+    # ledger only：codex/pythia-mediumprop-t2048，/data0/xd/pythia-mediumprop-t2048；code_commit: f98ce98。
+    model_name = 'BamPythiaMediumPropT2048SerialMLPPythiaEmbeddingScaledWrite'
+    token_embedding_init_method = ''
+    bam_embedding_write_input_scale = 0.3286335345030997  # .006 / sqrt(2 / (5 * 1200))
+    compare_runs = ['BamPythiaMediumPropT2048SerialMLPBamInitFix',
+                    'PythiaMediumPropT2048SerialMLP', 'MuddPythiaMediumPropT2048SerialMLP']
+
+
+class BamXLPropMShiftReadG050PostAttentionWriteMLPNormTruePile(
+        BamXLPropSharedR400GeneralReadMShiftReadG050TruePile):
+    """Transfer post-attention write controls with existing MLP norm onto XL single .5."""
+    # 结论：attention写控制改用更新后残差并复用MLP norm，在XL未保住Medium的小幅收益。
+    # 用户停于15157，CP15157提交、节点/队列释放、TB SYNC_OK；未跑满50000步，非完整终局。
+    # 对单门.5父路：2k/6k/10k/12k/14k/15k倍数1.00327/1.00270/.99613/.98544/.97781/.97518。
+    # 前期近持平，10k后持续落后；末五13000–15000 gap+.002686、MHA参考倍数.980888；15k gap+.003463。
+    # 对XL MHA末五gap-.138267；原30k–32.5k下注1.03[1.00,1.06]未到验收阶段，已训趋势不支持。
+    # UE5a v5p32 .3893375step/s；历史父路健康ON，不能归因架构速度差；健康全OFF，新增0W_Q、MLP沿父路。
+    # 参数1432383640，MLP[6127,5938,6127]、末层6126；同层Q/K/VO共享读R400，读/attention写/MLP写down互相独立。
+    # P0，唯一READY租期UTC 2026-10-15 16:47:51至2026-10-16 03:43:03（10h55m12s），无换区。
+    # ledger only：codex/mediumprop-m-shift，/data0/xd/mediumprop-m-shift；code_commit: 7573944。
+    model_name = 'BamXLPropMShiftReadG050PostAttentionWriteMLPNormTruePile'
+    bam_write_controls_post_residual = False
+    bam_attention_write_controls_post_residual = True
+    bam_mlp_write_controls_post_residual = False
+    bam_attention_write_controls_norm = 'mlp'
+    record_training_health_metrics = False
+    record_internal_nn_metrics = False
+    bam_record_concat_health = False
+    bam_record_fetch_route_metrics = False
+    bam_record_fetched_read_amplitude_metrics = False
+    bam_record_fetched_read_health_metrics = False
+    bam_record_local_qk_amplitude_metrics = False
+    bam_record_local_routing_metrics = False
+    bam_record_m_shift_health = False
+    compare_runs = ['BamXLPropSharedR400GeneralReadMShiftReadG050TruePile', 'Llama2XLPropTruePileMHA']
 
 
 class Pythia2p8B(PythiaArchitecture, Llama2Medium):
@@ -13025,10 +16018,11 @@ class Pythia2p8B(PythiaArchitecture, Llama2Medium):
     eval_interval = 40000
     eval_steps = 10
     checkpoint_period = 1000
+    checkpoint_keep_steps = list(range(3000, 143001, 10000))  # TODO
     keep_period = 0
-    max_to_keep = 2
+    max_to_keep = 2  # TODO: remove?
     force_final_checkpoint = True
-    tensorboard_gcs_rotate_period = 500
+    tensorboard_gcs_rotate_period = 500  # TODO: enlarge
     attention = 'flash'
     query_chunk_size = 256
     # Tuned Splash blocks (user decision 2026-10-19: formal Pythia-2.8B and BamPythia2p8BSota both use them).
@@ -13051,8 +16045,8 @@ class BamPythia2p8BSota(
         BamXLPropK96EmbedVOnlyQK72AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile):
     """XL single read .5/general-read circuit on Pythia-2.8B; not yet trained.
 
-    XL eeec67c circuit with read/write ranks unified to384: Q/K/VO share
-    their read down; attention and MLP write downs remain independent. M is80x40.
+    XL eeec67c-derived circuit with M80x64 and rank1024: Q/K/VO and attention
+    write share their activated down projection; MLP write has its own down.
     Medium eaa95f8 initialization repair: serial GELU, .006 embedding/BAM random
     kernels, Pythia Transformer kernels; semantic zeros and gate openings unchanged.
     Thirty-two layers use10 three-layer blocks plus two carried-M tail layers.
@@ -13060,19 +16054,20 @@ class BamPythia2p8BSota(
     model_name = 'BamPythia2p8BSota'
     pythia_use_fusion = True
     pythia_parallel_residual = False
+    qk_norm = True  # TODO
     bam_enabled = True
     bam_k = 80
-    bam_v = 40
+    bam_v = 64  # TODO: 40->64
     emb_bam_num_head = 32
     bam_layer_modes = ['local_qk+local_v+local_o'] * 32
     bam_standard_qk_dim = 20
     bam_partial_rope_nope_dim = 60
     bam_local_qk_col_output_dim = 60
-    bam_local_full_m_read_bottleneck_dim = 384
-    bam_write_v_bottleneck_dim = 384
-    emb_bam_v_bottleneck_dim = 384
-    bam_mlp_write_address_rank = 384
-    bam_share_read_attention_write_down = False
+    bam_local_full_m_read_bottleneck_dim = 1024  # TODO: 384->1024
+    bam_write_v_bottleneck_dim = 1024
+    emb_bam_v_bottleneck_dim = 1024
+    bam_mlp_write_address_rank = 1024
+    bam_share_read_attention_write_down = True
     bam_share_mlp_write_down = False
     # Scan10 independent three-layer blocks (layers0..29); then tails30 and31.
     scan_layers = True
@@ -13084,10 +16079,10 @@ class BamPythia2p8BSota(
     bam_final_local_layer_count = 2
     bam_extra_final_local_layer = False
     bam_skip_final_mlp_write = True  # Its M has no downstream consumer.
-    bam_final_local_mlp_dim = 12416
-    bam_last_mlp_dim = 13254  # Final layer absorbs the integer-width budget remainder.
-    mlp_dim_by_block = [12416, 12160, 12416]  # 2,775,209,638 params: +678 vs official MHA.
-    # First31 layers are128-aligned; R400->384 frees5,304,320 params to refill MLP.
+    bam_final_local_mlp_dim = 11008
+    bam_last_mlp_dim = 11648  # Final budget adjustment, rounded to128 channels.
+    mlp_dim_by_block = [11008, 10112, 11008]  # 2,775,039,456 params: -169,504 vs official MHA.
+    # All32 layers are128-aligned; includes QKNorm and independent R1024 MLP-write down.
     bam_m_shift_mode = 'read'
     bam_m_shift_init = .5
     bam_m_shift_separate_reads = False
@@ -13251,7 +16246,10 @@ class BamPythia2p8BSotaPallas(BamPythia2p8BSota):
     bam_pallas_body = 'v8t'
     bam_pallas_vmem_mib = 48
     bam_pallas_fused_inputs = True
-    compare_runs = ['Pythia2p8B', 'BamPythia2p8BSota']
+    remate_policy = 'minimal'  # TODO: test speed
+    record_training_health_metrics = True
+    record_internal_nn_metrics = True
+    compare_runs = []
 
 
 class BamPythia2p8BSotaAlignXla(BamPythia2p8BSota):

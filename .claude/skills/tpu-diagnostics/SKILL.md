@@ -65,6 +65,13 @@ Use `MaxText/bam_diagnostics.py` with `exp_class=BamLlama2MediumDiagnostics` and
   the existing 128-sequence Pile cohort). For a new probe, start with 32 fixed-seed,
   pre-batch-shuffled sequences; retain per-sequence measurements and hashes so aggregation can change.
 - Slice diagnostic collections inside the jitted forward before device-to-host transfer.
+- Pass restored checkpoint arrays as explicit JIT arguments; do not capture a large
+  parameter tree as compile-time constants. For a targeted backward probe, differentiate
+  only the selected parameter leaves instead of materializing unrelated gradients.
+- For CPU-only library/serialization probes on one worker of a TPU pod, set
+  `JAX_PLATFORMS=cpu` explicitly; otherwise implicit backend initialization can hold
+  that worker's TPU or wait indefinitely for the other hosts. Stop both the remote
+  probe and its upstream SSH retry process before handing the pod back to training.
 - Run host statistics on the TPU VM. Use `BAM_DIAG_RAW_LAYERS` to retain selected layers or
   `BAM_DIAG_SAVE_RAW=0` when JSON is sufficient.
 - For CPU-heavy host statistics, inspect worker CPU/memory availability and measure utilization
@@ -149,8 +156,22 @@ formal RUN's health settings and schedule.
   rather than configured-step completion, ends it and keeps the TPU alive through artifact copy.
 - Compare stable log speed and all-device XPlane step time; split read-key projection, gate,
   transform, M contraction, and routing scopes. Report theoretical cost in `W_Q` units.
+- For optimization comparisons, report forward and backward (including remat) from
+  the same full-training trace, plus stable throughput. Split each major fused stage
+  by direction and tune forward/reverse tiles independently. Keep optimizer/communication
+  cross-cuts distinct from additive phase buckets; do not invent a split of fused scopes.
+- Compiler-budget changes also affect controls. Retain matching-budget ablations,
+  but repeat any regressed baseline with its prior verified executable before claiming
+  headline speedup; compare against the faster verified baseline on the same hardware.
 - Inspect HLO/XPlane lowering, layout/copies, fusion type, kernel count, and whether conceptual
   broadcast/zero tensors materialize.
+- For Pallas VMEM failures, distinguish physical per-core capacity, configured scoped budget,
+  and final allocation including register spills. Estimate padded live buffers and DMA buffering
+  first, then compare compiler allocation details; inspect lifetime/reuse and internal compute
+  chunks before reducing fusion scope. Early scoped-stack totals and HBM memory stats are not
+  final VMEM peaks. Record compiler-budget flags alongside topology and forward/reverse tiles.
+- Attribute kernels from raw `*.xplane.pb`; trace JSON can cap at about one million events.
+  Check leaf-time coverage against the enclosing step and reject truncated attribution.
 - Keep `tpu-ag` for orchestration and object verification only; store no profile artifacts and
   parse XPlane traces only on the local workstation.
 

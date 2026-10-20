@@ -10,6 +10,21 @@ Local Q/K/V rank, routing and AlignedRow experiments are consolidated in
 [`local_qkv_routing_review.md`](local_qkv_routing_review.md), with the complete
 configuration inventory, matched-window evidence, confidence and open questions.
 
+## Current XL comparison reference (2026-10-01)
+
+User-designated current SOTA: `BamXLPropK96EmbedVOnlyQK72LLFTruePile`
+(runtime22c2c5c, `/data0/xd/mediumprop-k75-embed`, `codex/mediumprop-k75-embed`).
+Ongoing XL RMT combinations and newly launched XL experiments must include this RUN
+as a direct loss/speed baseline; retain other decision-relevant controls.
+AllLocal remains the LLF ablation control: the existing LLF-AllLocal series already
+provides their paired comparison, so do not duplicate its inverse on AllLocal.
+LLF itself retains AllLocal/MHA/Mudd. Compare exact common mature windows; when an arm runs ahead
+of LLF, report the last common step explicitly rather than extrapolating its loss.
+At16000 its last5 versusAllLocal/Mudd are-.027244/-.026602, Mudd gain1.327x.
+UE5a v5p-32 .359 versusAllLocal .355 (+1.1%); this reverses the pre-run
+-1.4% speed forecast and remains an unresolved timing anomaly (`!?` inexp.py).
+Generic+concat health enabled; cross-family health costs are not fully matched.
+
 ## Reading conventions
 
 - `dloss = RUN loss - BASE loss`; negative is better.
@@ -277,6 +292,25 @@ there is no universal rule that LGLL lowers retention; SWA reduces both standard
 BAM mix/fetch, while fixed BAM projections/read/write remain.
 
 ## Current performance picture
+
+### Fused BAM core: per-token MXU (v8t, 2026-10-12)
+
+XLProp full-M generalized read (`...FullMReadGeneralReadTruePile`), v5p-8 paired on one VM, BAM health OFF:
+pure JAX 0.453 → v7u fused (VPU dynamic reads) 0.532 → v7 tail 0.547 → **v8t 0.593 step/s = 96.6% of MHA
+0.614**; device 1655 vs 1618 ms, of which the parameter-refund MLP widening alone is +114 ms. Kernels 255 → 102 ms.
+Branch `claude/bam-pallas-fullm` (`cd06c769`), worktree `.claude/worktrees/bam-pallas-directc10`,
+report `experiments/bam_llama2_medium/fullm_general_read_profile.md` on that branch.
+
+- Every token's M_t is a stationary MXU operand: per-token `[R,V]x[V,K]` costs ~13 cycles/token on v5p vs
+  ~160 VALU cycles for the VPU broadcast form. All reads of one layer are linear in M_t, so static keys and
+  gates fold into one stacked key `X_t[4N,V]`; the write is `M_t += A_t^T C_t`; reverses are matmuls too.
+- Keep kernel I/O T-minor ([..,T] slabs; Splash-native [B,N,T,K] outputs); only M is token-major `[B,T,V,K]`.
+  Moving key building / output splitting to XLA (v8) made `[B,T,N,40/96]` small-minor tensors cost +330 ms of
+  pads/copies/reduces (0.445 step/s). Norms belong in T-minor too (sublane sums are VPU adds; lane sums need XLU).
+- Mosaic: stride-T sublane loads/stores cost ~1 op per row; aligned [8,L] blocks + an in-register
+  major<->sublane swap are cheap but VALU-heavy, so use them only to replace such gathers. `scr[:, t, :]` on a
+  3D ref is not a native strided load.
+- Saving kernel outputs under remat costs scan stacking (~43 ms here) comparable to recomputing the read.
 
 ### Pure-JAX mix-alpha outcome
 
@@ -654,6 +688,8 @@ This differs from old K64 all-mul and K128 all-dot: rerun the operator compariso
 
 ### AllLocal local-O writeback geometry (2026-09-22)
 
+AllLocal without fetchedO needs no cross-token M-cache: it retains ordinary attention KV-cache. Expanding M changes forward activations and matrix read/write work; it does not add a persistent source-M cache. Historical fetchedO configurations do retain source matrices for cross-token fetch.
+
 `BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerAllLocal`,
 checkpoint13500 / training runtime `ba29940`: 128 fixed Pile sequences, dual read-O/write
 gates>=.1. L2-L22 actual O update / old-content norm median .179; 35.86% oppose
@@ -815,40 +851,131 @@ to this block-scanned MHA-budget model.
 Raw artifacts: `/data0/xd/bam_diagnostics/rmt-headwise-carry/`.
 
 
+### RMT attention-write / MLP-read chunk sweep (2026-09-27)
+
+Full18 combined-boundary model (MLP4078), same EW4b v5p-16; generic health ON,
+extra RMT health OFF. Attention C256 unchanged. Original runtime3617fbb and
+static-unrolled follow-up4988442; each follow-up has a same-commit control.
+
+| Write/read scheduling | Device step ms | Stable step/s | Throughput vs paired control |
+|---|---:|---:|---:|
+| Original | 2579.69 | .3848 | — |
+| Merge48→16 static read + padded32→8 compression | 2584.47 | .3833 | −.18% |
+| Best mapped chunk (merged1024) | 2898.98 | .3420 | −11.01% |
+| Mapped64, separate reads | 3544.77 | .2800 | −27.23% |
+| Static-unrolled512 | 2688.54 | .3690 | −4.04% |
+| Static-unrolled1024 | 2941.76 | .3370 | −12.30% |
+
+Retain original. Mapped1024 adds122 ms formatting,98 ms loop fusion,58 ms
+broadcast,28 ms output updates. Unrolling removes most of those costs, but
+convolution-fusion time grows78 ms at512 and348 ms at1024. Combining the two
+linear reads saves14 ms GEMM time but loses it to layout/elementwise work.
+Unlike attention QChunk, these chunks remove no nominal FLOPs; reuse must
+actually stay on chip. Simple JAX chunk boundaries do not ensure that.
+
+Unrolled1024 also stalls near initial loss through step30; one-layer CPU
+value/gradient agreement does not establish whole-model TPU equivalence.
+This candidate is rejected with its numerical discrepancy unresolved.
+Original repeat timing differs by .01%, and same-step losses reproduce exactly.
+Use raw XPlane: small chunks exceed trace JSON's ~1M-event cap.
+[Full16-configuration sweep, kernel table and reproduction](rmt_write_read_chunks.md).
+Artifacts: `/data0/xd/bam_diagnostics/rmt-write-read-chunks`.
+
+
 ### Full18 dynamic RMT Pallas optimization (2026-09-27)
 
-Runtime39c7e0f, `codex/rmt-pallas`, `/data0/xd/rmt-pallas`; implementation stays
-in the worktree, main exp.py is the ledger. Direct32 combined-boundary model,
-18 layers/MLP4078, unchanged equations/per-layer dimensions and parameter count.
+Latest matched runtime9ef9053, `codex/rmt-pallas`, `/data0/xd/rmt-pallas`;
+implementation stays in the worktree, main exp.py is the ledger. Direct32 combined
+boundaries,18 layers/MLP4078,432119360 parameters, unchanged equations/dimensions.
 Attention C256 unchanged. All health OFF, exact AOT, same-VM steps20–49.
 
-| Target / global batch | Original RMT step/s | Optimized RMT step/s | RoPE MHA step/s | Gain | Optimized/MHA |
+| Target / global batch | Original RMT step/s | Selected RMT step/s | RoPE MHA step/s | Gain | Selected/MHA |
 |---|---:|---:|---:|---:|---:|
-| UC1a v5p-16 /128 |.385433|.458666|.726933|+19.00%|63.10%|
-| EW4a v6e-1 /4 |1.205498|1.425064|2.516287|+18.21%|56.63%|
+| UC1a v5p-16 /128 |.383933|.468967|.724233|+22.15%|64.75%|
+| EW4a v6e-1 /4 |1.202465|1.413598|2.475063|+17.56%|57.11%|
 
-Selected `RMTCombinedLayerScanTokenAllSaveStateProfile` (v6e suffixV6eB4):
-pack same-input dynamic projections; token-minor tile128 Pallas writes;
-keep C8/QK matrix contractions in XLA and fuse subsequent reductions/mixing/gates;
-save only attention output and post-attention matrix across layer remat.
-Original controls `RMTOriginalBlockScanNoHealthProfile`/V6eB4;
-MHA `RMTMatchedMHARoPENoHealthProfile`/V6eB4 derives from `BamMHAMediumPropC256`.
+Shared recipe: direct layer scan, packed dynamic projections, token-minor128
+write forward, fused C8/QK post-read operations, retain attention output and
+post-attention matrix through remat. V5p selects
+`RMTCombinedLayerScanMajorDirectWriteProfile` with explicit analytic reverse64;
+v6e retains`RMTCombinedLayerScanTokenAllSaveStateV6eB4Profile` with fused AD reverse.
+V5p previous best.457066→.468967 (+2.60%); v6e new reverse64/128 reaches only
+1.385299/1.390132, so neither replaces its paired1.413598 baseline.
 
-V5p raw device2574.44→2160.20ms; MHA1368.54ms. Formatting−176.82ms,
-scan-buffer updates−122.63ms, convolution fusion−305.58ms and small-op fusion
-savings offset341.70ms of new Pallas calls. Bigger kernels alone failed;
-layout, fusion boundary and remat policy must be optimized together.
-Retaining dense/MLP activations loses; even small dynamic-state saves add
-99.18ms scan-buffer updates on v5p. Tile256 is slower on v5p, tied on v6e.
+Write reverse kernels185.522→76.553ms on v5p (−58.7%) and51.521→33.175/31.336ms
+on v6e. However formatting grows60.587/31.686/32.414ms; v5p device time improves
+2165.413→2110.980ms while v6e regresses698.403→713.009/710.664ms. Kernel speed
+alone is insufficient: producer/consumer layouts and fusion boundaries are
+first-order costs. Next candidate is a true fused write→MLP-read path, not the
+JAX mapped/unrolled schedules rejected above.
 
-Optimized RMT still takes58.49%/76.57% longer per step than MHA; this removes
-33.99%/29.58% of its former excess latency, not all of the architecture's tax.
-Do not compare absolute step/s across these different batch sizes/topologies.
-Full layer and mapped block/direct scan gradients checked; BF16 multi-tile
-TPU output/all-input gradients checked. No long-run convergence or production
-checkpoint conversion claimed. Both retained diagnostic v6es stay allocated.
-[Full configuration tables, failed paths, validation and reproduction](rmt_pallas.md).
-Artifacts: `/data0/xd/bam_diagnostics/rmt-pallas-*`.
+Use actual topology and batch for VMEM screening. The previously observed default
+scoped budgets were v5p16MiB/v6e32MiB, NOT physical capacities: physical VMEM is
+64MiB/128MiB per TensorCore. Budgets can be raised with
+`--xla_tpu_scoped_vmem_limit_kib`; account for full-step XLA headroom and verify
+compiler live allocation before reducing fusion scope. Under the old defaults, major128 passes B1 but requires16.38MiB at B16 and fails v5p. Major64
+passes actual full-model AOT/training. V6e256 needs31.39MiB with negligible micro
+gain. Do not require the two TPU types to share the same winning kernel/config.
+
+This removes38.59%/29.05% of original RMT excess latency over MHA. Absolute
+steps/s across different batches/topologies is not a hardware comparison.
+FP32 full-layer/mapped-scan gradients checked; BF16 operation order differs,
+so no long-run convergence equivalence is claimed. V5p loss49 is7.749873 versus
+old7.752004; short profiles are not retraining evidence. Both retained v6es stay
+allocated; temporary UC1a target is verified absent after artifact validation.
+[Configuration tables, failed paths, tests and reproduction](rmt_pallas.md).
+Artifacts: `/data0/xd/bam_diagnostics/rmt-direct-v5p`, `rmt-direct-v6e`.
+
+Separate NoO speed ablation at8ebb3e9 on retained v6e host-1: O-enabled1.424598,
+plain NoO1.445265 (+1.45%), gate-on-key V-only kernel1.444064 (+1.37%). The
+specialized reverse kernel saves6.254→3.624ms, yet provides no extra whole-step
+gain over plain NoO. Loss neutrality on the current RoPE/dynamic-boundary model
+is untested; historical ALiBi final-loss evidence does not transfer automatically.
+NoO removes345888 parameters (.2402 W_Q), with no MLP reinvestment.
+Artifacts: `/data0/xd/bam_diagnostics/rmt-noo-v6e`.
+
+
+### Complete three-stage NoO Pallas trunk and phase accounting (2026-09-27)
+
+Runtimebe0d8d3, same worktree/branch. Main trunk is attention read, attention write
+plus MLP read, MLP write; both directions use complete Pallas kernels with explicit
+analytic pullbacks. Attention operator is unchanged. New default removes dynamic O;
+therefore retain a matching NoO implementation control as well as original FullO.
+All18 layers/MLP4078/T4096, health OFF, exact AOT, same-VM stable log steps20–49.
+
+| Target / global batch | Original FullO | Previous optimized NoO | Selected three-stage NoO | RoPE MHA | vs original / NoO | Selected/MHA |
+|---|---:|---:|---:|---:|---:|---:|
+| UC1a v5p-16 /128 |.389900|.482733|.534267|.754033|+37.03% / +10.68%|70.85%|
+| EW4a v6e-1 /4 |1.206433|1.445767|1.672400|2.521000|+38.62% / +15.68%|66.34%|
+
+Device forward / backward including remat, milliseconds:
+
+| Target | Original | Previous NoO | Selected NoO | MHA |
+|---|---:|---:|---:|---:|
+| v5p |652.852 /1860.928|605.036 /1438.095|447.905 /1399.914|401.680 /913.100|
+| v6e |204.422 /596.668|182.312 /484.257|122.151 /451.255|80.055 /297.910|
+
+Most improvement remains in forward. Backward occupies75.58%/76.50% of the new
+v5p/v6e device step; the complete middle reverse alone costs290.043/81.815ms.
+Initial reverse32 actually regressed v5p backward1438.095→1457.992ms despite
+higher total throughput. Independent block tuning fixes that regression.
+Forward tiles attention/middle/write: v5p128/128/128, v6e128/128/256;
+reverse tiles128/128/128 and256/128/256. Budgets48/96MiB, not physical capacities.
+
+Important control correction: forcing the enlarged96MiB scoped budget onto the
+v6e baseline executable family yielded original/NoO/MHA1.126367/1.399433/2.343467.
+Repeating the earlier default-budget executables on the same retained host recovered
+the faster baselines in the table. Use these for headline comparisons, and retain
+the matched-budget ablation separately. Budget-matched controls alone can inflate
+apparent gain if the baseline regresses; compilation budget is itself a tuning choice.
+
+FP32 equations/scan/remat/shared gradients pass; all tuned blocks pass actual TPU
+BF16 output/gradient probes. BF16 short training trajectories do diverge, so these
+speed profiles do not establish long-run convergence equivalence. Full stage times,
+recompute/optimizer attribution limits, exact classes/runtime hashes and all13
+traces: [canonical report](rmt_pallas.md). JSON:
+`/data0/xd/bam_diagnostics/rmt-three-stage-comparison.json`.
+Temporary v5p node/queue released; both user-retained v6e machines remain READY.
 
 ### Middle-stage analytic backward follow-up (2026-09-27)
 
@@ -910,6 +1037,7 @@ Resource closeout: temporary UC1a v5p node/queue verified absent2026-09-27
 16:31:40UTC after all7 profiles; no preemption. Both retained EW4a v6e hosts
 remain READY and are not enrolled in cleanup.
 
+
 ## 2026-09-28：Rank-H 写更新与 native VPU 后续
 
 完整证据、配置和代码索引见 [rmt_rankh_write.md](rmt_rankh_write.md)。实现位于
@@ -933,3 +1061,178 @@ remain READY and are not enrolled in cleanup.
   真实HBM复制；MXU/VPU混合没有实现预期收缩重叠，未选用。
 - FP32全梯度、三层scan四种remat及两硬件BF16检查通过；未宣称逐位或长期收敛等价。
   原始v6e/MHA曾因统一预算而退速，最终比较使用更快的原已验证AOT控制。
+
+
+### 2026-09-29：QK 的 M 归一化与投影拆分开销
+
+纯 JAX XLProp NoO 的6层/B1/T4096定位，runtime `0e487d4`，EW4a同一预留
+v6e-1；三路均开基础与RMT健康指标。原始 XPlane 的5个训练步均值：
+
+| 配置类 | ms/步 | 相对控制的耗时 |
+|---|---:|---:|
+| `RMTXLPropNorm6LControlProfile` | 103.560 | — |
+| `RMTXLPropNorm6LQKInputProfile` | 106.316 | +2.66% |
+| `RMTXLPropNorm6LQKOutputProfile` | 104.263 | +0.68% |
+
+输入归一化版将静态 QKV 投影拆为 QK 和 V，第一个完整profile步的数据布局转换
+比控制多2.275ms。将逐token的同一标量归一化移到矩阵QK读出后，保留合并QKV投影，
+可回收大部分开销。数学等价不代表BF16轨迹完全一致；尚未验证完整28层v5p-32，
+正式训练仍用 `562bfb9`，不能把此表当作完整模型的已兑现加速。
+实现worktree `/data0/xd/rmt-xlprop-noo`，分支 `codex/rmt-xlprop-noo`；
+原始trace与解析结果 `/data0/xd/bam_diagnostics/rmt-readnorm-speed-0e487d4/`。
+详见 [实验记录](rmt_prop_read_norm_training.md)。
+
+
+## 2026-10-13 JST：MediumProp 静态入口与最终 M 输出（均未胜 SOTA）
+
+直接基线为 `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile`，runtime64e3fc3；TruePile4096、UE5a v5p-16、20–99步吞吐对齐。实现 worktree `/data0/xd/mediumprop-full-m-read-gelu128`，分支 `codex/mediumprop-full-m-read-gelu128`；主exp是ledger only。完整配置、初始化、累计轨迹及资源证据见 [实验记录](mediumprop_embedding_initialization.md)。下表为各停止时最后完整共同窗口，gap=实验−SOTA，不代表未观察的13500步终点。
+
+| 方案 / runtime | 最终checkpoint / 比较窗口 | loss gap | 稳定速度差 | 净参数差（W_Q） |
+|---|---:|---:|---:|---:|
+| 因子化静态写U/A/S / f6ce0a4 | 4531 / 4400 | +.014657 | +.0444% | -.001033 |
+| 独立矩阵embedding / f6ce0a4 | 4427 / 4400 | +.008160 | -.5196% | +83.050278 |
+| 自由直接B写 / 0f5f6c4 | 2894 / 2800 | +.014938 | -.0183% | +.006944 |
+| 最终M输出 / 0f5f6c4 | 5125 / 5000 | +.004474 | +.0470% | +.005000 |
+| 最终M按列门控输出 / 1810a41 | 5121 / 5000 | +.003643 | +.1514% | +.031689 |
+
+- 新增实质参数从MLP抵扣；矩阵lookup和最终门控的MLP宽度按用户明确例外保留。额外lookup表为84.0533W_Q，净增加83.0503W_Q；没有新增前传dense投影，不等于没有lookup/优化器/带宽开销。
+- 静态入口去掉原写地址pre-RMS-bias梯度尖峰，仍未改善loss。直接B显著消除因子化静态写的启动劣势，但到2800只比静态写好.002577，仍距SOTA+.014938。梯度范数和参数化启动速度都不能替代后期loss证据。
+- 最终门控与父路保持相同MLP、共享参数初始化、初始logits和输出投影梯度幅度。1400..4000持续约-.0016局部优势，到4200..5000缩成均值-.000642，并在4600短暂反转；SOTA差距同期均值+.003894，前五窗+.003929，停止符合用户5000趋势审查。修正中期看法：局部收益未保持同样幅度，没有已兑现的SOTA收益。
+- 五路0抢占、均主动停止，checkpoint/资源删除/TB同步已核验；全程UE5a，未切区。吞吐差均不到1%，不能宣称实质加速；M-cache无新增优势。
+- 此前逐token门改逐列均值、rank截断的消融建议已撤回优先级：用户目标是突破当前SOTA；当前证据没有显示该失败输出支路值得继续投入。未启动这些后续实验。
+
+历史补充：廉价最终M动态读已跑过：cb65817 Direct32的16个v32条件读头，仅.442511W_Q，动态/静态MLP地址两路到2800相对父版last5+.008508/+.005725，分别停2977/2971。更早V2UnEmbRead亦未建立收益。四读头+投影建议只比旧廉价方案省约19.4%，不能仅凭比本轮dense输出省82%就当作新突破方向；已撤回优先推荐。旧底座不是当前SOTA精确对照，但这些负证据必须纳入新实验选择。详情见上面的实验记录历史审计节。
+
+## 2026-10-13：MediumProp T8192 同步7000步收尾
+
+固定每步524288目标token，保留原参数/LR/优化器；MHA/Mudd使用用户允许的Splash，BAM共享R256+泛化读端保留父实现。相对同长度MHA的BAM/Mudd收益倍数，最近五同步窗口T2048/T4096/T8192为1.4061/1.6840/1.7398；ratio-first二阶4k/2k为1.1977，8k/4k为1.0332（范围1.0234–1.0406）。因此2k→4k收益明显，4k→8k收益较小且初期还曾略偏向Mudd，不能用早期结果固定后期结论。后者绝对额外领先量近期~.018基本稳定；倍数上升部分源自Mudd额外收益消退更快。不同长度记录未配对，不把跨长度raw loss符号当纯上下文因果。
+
+7000步BAM−MHA/−Mudd为−.203961/−.086375，后者近期均值−.087944，收窄速度+.003618/千步，足以回答本轮长度问题。按用户允许的稳定后停止条件收尾，最终CP9639/8908/7140，均0抢占，资源删除/TB同步核验。停止点并非13500终点；初始二阶1.13下注未在观察范围兑现，后来near1预测低估了小幅正收益。BAM速度相对MHA/Mudd为−26.06%/−19.96%，相对T4096−18.75%；参数与推理M-cache没有新增开销。四路M-shift仍保留T4096方向SOTA作直接基线。详见[完整7000步报告](reports/mediumprop_t8192_review_7000_20261013.md)。
+
+
+## 2026-10-13：MediumProp 动态 M-shift 阶段结论
+
+实现 worktree `/data0/xd/mediumprop-m-shift`，分支 `codex/mediumprop-m-shift`；从最新主分支0f7f6d10派生并审计TB500步轮转。四路runtime52cf0b3，TruePile4096/global128/UE5a v5p-16、参数432111680（较SOTA仅+576偏置）。新门691776参数=.4804W_Q，MLP[3802,3676,3802]抵扣691200核参数。所有比较保留共享R256+泛化读端SOTA，按用户指示移除MHA。
+
+| 方案 | 最终CP / 最新完整窗口 | 实验−SOTA | 速度差vs SOTA | 状态 |
+|---|---:|---:|---:|---|
+| read .05 | 3699 / 3600 | +.001446 | −4.251% | 判定被read .5支配，停止；P1 |
+| persist .05 | 2957 / 2800 | +.007843 | −3.930% | 后期劣势平台，停止；P1 |
+| read .5 | 进行中 / 3600 | −.006434 | −4.256% | 最近五窗均值−.007875，继续；P1 |
+| persist .5 | 3095 / 3000 | +.007714 | −4.191% | 劣势平台，热替三门；P0 |
+
+持久混合把跨token操作写回跨层状态，此轮两种初始开度均失败；read .5保留约.008 loss收益。read .05自2000至3400落后read .5约.009，最终共同3600仍+.007881，没有速度、预算或cache优势。三路停止的CP提交、资源归属、TB同步已核验；310176/177释放，310179热转移给三门版。原4路均1404自定义健康指标，后续新增已收紧。
+
+用户要求Q/K/VO三个独立v32门，runtime e4e6e17，新RUN `BamMediumPropSharedR256GeneralReadMShiftReadQKVoG050TruePile`。额外两门=.9608W_Q，MLP[3781,3654,3781]补偿，总参数432112832（较父路+1152偏置）。实际324健康指标，无逐列指标；速度.442375step/s，较父路−3.4853%、较SOTA−7.5931%，包含324vs1404日志差异。初始.5零权重，CPU与实际启动检查通过。200/400/600/800步相对父路−.267658/−.082765/−.040955/−.024986；早期优势明显收窄，不能据此宣称终点上限突破。实际配置、目标token数、原始共同loss点及初始函数审计未发现非预期对照差异。400步K门平均前token份额.554，高于Q .277/VO .231，说明模型使用独立时间选择；不把描述性健康当完整因果解释。当前最值得验证的是这一已有训练能否把启动优势转为后期平台收益，无额外消融任务。终点下注仍为新−父−.003、新−SOTA−.009。
+
+两类read均需上一token原始M的每层缓存，三门共用一个缓冲，不是三个；无新增推理M-cache优势，当前实现未验证decode。完整配置、轨迹与资源证据见[实验记录](mediumprop_m_shift.md)。
+
+
+M-shift后续核验：共享read .5到5000仍−SOTA.008717，最近五窗−.008591；默认MHA参照相对SOTA收益倍数1.045728x，近期均值1.043695较前五1.036278提高。三门到2000−SOTA.015143、−共享父路.008053，MHA参照倍数1.048435x；600–1000约1.0315，1200–2000约1.0427，绝对gap收窄不能等同于比例收益消失。用户指定默认参照为MHA，之前Mudd-first汇报已承认并更正。通用三参数接口与持久监控已集成到权威run_registry.py/9f68649并部署，17报告测试及实际auto-event核验；不再临时写每轮计算脚本。当前两路继续，尚无终点结论。
+
+
+三门3000：−SOTA.012459、−共享父路.004165，默认MHA参照相对SOTA倍数1.051550x（近期均值1.050195，上组1.042730）。方向收益持续，但共享门本身也在进步，三门额外父路优势近期均值从−.012090缩至−.005692。因此下调三门终点额外收益预期：原−.003下注保留，当前预测接近平手到−.001（中心−.0005）；不能只看SOTA-relative倍数稳定就认为三门提高了共享门最终上限。继续到下一阶段检验是否形成非零收益平台。
+
+
+4000后预测修正：三门−父路.002785，额外优势收窄速度明显减慢。带非零下限指数拟合不同起始区间得到平台−.0024..−.0036；把收窄直接外推平手过于悲观，撤回3000时近乎平手预测。当前下注终点−.0025，5000−.0028，原始终点−.003仍保留。拟合在4000观测后完成，非事前验证；5000实测检验，不据此宣称已观察到终点平台。共享门7000仍−SOTA.009329，近期均值−.009368；默认MHA参照相对SOTA倍数1.054842，近期均值1.054316，上组1.048949。两路继续。
+
+
+### MediumProp temporal read shift update (2026-10-13)
+Single Read .5 retains loss−SOTA~−.01045 at10k (recent MHA-ref gain/SOTA1.067665); three-gate extra shrinks to recent−.000714 at7k (gain/parent1.003928) for−3.49% throughput. The latter approaches parity, not a validated−.0025 terminal floor. User-authorized two-lag independent sigmoids.5/.3/.2, pureKV.5/.5, and singleM.5+KV.5/.5 all runUE5a with MLP-repaid budgets. Verified speed vs single:−.15%/−9.07%/−11.53%; KV speed optimism was wrong. M75×32 and completeKV2×16×75 both2400 values/token; vectors are not intrinsically smaller here. Inspect optimized HLO before attributing overhead to layout/copies/fusion. Full configs/hashes/counts/health/bets in `mediumprop_m_shift.md` and main exp.py. Temporal-gate reports reuse training skill `report_bam_shift_health.py`, no new column metrics.
+
+
+2026-10-13 MediumProp M-shift review: singleRead.5 retains SOTA gap−.010521(last5 through12000), MHA-ref gain1.072313, speed−4.26%. Q/K/VO separate gates extra gain fades: parent gap−.001660@5000→last5−.000123@9000, repeatedzero crossings; stopped9198 vs−3.49%parent speed. More conditional gates did not preserve stronger asymptotic gain. Two-lag at2000 remains parentparity(last5+.000156); secondlaggate.0685 concentrates earlylayers(.1090/.0647/.0317). NativeKV2000andhybrid2000pending.
+Gate/address feature-sharing proposal(originalSOTA, not M-shift): reuse readGELUR256 for8dynamic/staticQKVO gates, ownaddressGELUR256 forattention/MLP writegates. Ten1200→16kernelsbecome256→16,saving2718720=1.888W_Q; refundMLP3855/3728/3855,+2880rounding. InitialreadzeroW preserved. Fixed006normalwriteW must rescaleagainstlatentRMS; GaussianRMS1 estimate latentRMS.10785,newgateσ.12045 to preserve parentlogitRMS. Actualbatchverifybeforelaunch. Discussion only.
+KV optimizedHLO probes reject simplistic transpose cause: directmixlayout leaves12largecopies; sample-firstequivalenthealth merely movescopies to naturalK/Vlayout(total513unchanged). No rolloutwithouttimingproof; borrowedFLEXcompileonly,nolifecyclechange.
+
+
+### 2026-10-14 单门 read050 的读写投影共享（准备中）
+
+独立最新主分支0f7f6d10工作树 `/data0/xd/mediumprop-projection-sharing`，
+分支 `codex/mediumprop-projection-sharing`，runtime `c9a2a360`。三路 RUN：
+`BamMediumPropMShiftReadG050ReadAttentionSharedR256TruePile` /
+`BamMediumPropMShiftReadG050ReadAttentionSharedR384TruePile` /
+`BamMediumPropMShiftReadG050ReadAttentionMLPSharedR384TruePile`。
+最后一路仅6个MLP写回层共享三路R384，其余12层为读+attention写R384。
+实际参数432111680/432121472/432118688，MLP3887/3762/3887、
+3772/3646/3772、3794/3669/3794。R384扩大up后整体不省参数，MLP据总量抵扣。
+TPU310190/191/189（首轮187/188因CPU门禁失败已进入GCP删除，交接用新队列），UE5a SPOTv5p16，预留EW4a FLEX v6e编译；三路FIRST_STEP+14均核验。
+canonical20–99速度.464425/.464400/.465800，比read050快1.325/1.320/1.625%；健康记录精简，不是隔离架构的配对测速。
+新测试+writer5+full47 BAM封存门禁；TB500轮转，CP200保留最近2。
+相对单门read050的跑前下注loss +.003/-.001/+.001，速度.460steps/s。
+用户预期更乐观，今后建议开跑不能仅以预期-.001微小改进为充分依据。
+原SOTA13500 checkpoint 128序列、96fit/32held同6层诊断：读+attention
+压R384 +.002202，attention+MLP +.003396，三路R384 +.010566；
+诊断不等同训练上限，且未验证与M-shift的叠加适应。
+
+
+### 2026-10-14 XLProp 单门 read .5移植（已提交准备）
+
+RUN `BamXLPropSharedR400GeneralReadMShiftReadG050TruePile`，M-shift家族工作树
+`/data0/xd/mediumprop-m-shift`，latest-main0f7f6d10基础设施审计无差异；
+runtimeeeec67ce，TPU310192 UE5a SPOTv5p32，50000步，CP250/keep2/no永留，TB500。
+父路XL sharedR400 generalizedread，D1920/L28/V40，gate1920x40+bias40
+×28=2151520=.583637W_Q。MLP[6127,5938,6127]+末层6126，
+实际1432383640，父路1432386360余差-2720。只有新增门bias排除WD，旧XL规则保持。
+新增健康140个汇总，无列统计。参数树、v40只读carry、末层scan/梯度/因果性和
+compacthealth已通过开发检查；封存CPU门禁+AOT+trainer预队列完成，FIRST_STEP+14/AOT加载/实际worker1432383640参数已核验。
+跑前下注同XL内部loss-parent-.008、收益倍数1.06–1.08、速度.367steps/s。
+跨尺度只比收益倍数，不比lossgap；按step/planned_steps对齐，Medium2700→XL10000。
+家族专用report_mshift_cross_scale.py，MHA作各尺度reference，原SOTA作comparator，
+2%阶段精确五个10步点、不插值，三项脚本回归通过。旧XL SOTA截止33002，
+父路倍数只支持约66%阶段，不外推其后基线。
+
+
+2026-10-13: KV and M+KV completed13500 (e79a303/77ea4bb), UE5a v5p16 P0/P1. Final12600-13400 means: single gain .011034, KV .006075, joint .013015 vs originalSOTA; extra joint .001981, A~76.19%, C~32.82%. Single did not catch joint; original terminal -.002 bet matched. R256 shared read/attention and tripleR384 still running~9.8k: normalized gains vs single remain~1.02-1.03, early triple advantage largely gone. XL singleMshift at7000: MHA-ref gain1.065168 vs parent; same14% Medium1.016076. Cross-scale only ratios. Artifacts: /data0/xd/bam_diagnostics/mediumprop-m-shift/paired-13400.json and status-latest-reports.json.
+
+2026-10-14 projection sharing final: pairR256 and tripleR384 both completed13500, runtime c9a2a360, direct final5 gap triple-minus-pair -.000141, effectively tied. SingleRead050 gaps -.003499/-.003640; originalSOTA gain ratios1.100491/1.101467; speed+.30% triple vs pair. Initial predictions +.003/+.001 vs single were wrong. Follow-up mixed[256,384,256] and all256 a445bbc8 stopped2859/2861, all CP/resource/TB verified: latest2800 normalized gain vs pair .981786/.965099, no recovery and slower, so combining layerwise did not improve. Six-write-layer R384 capacity improves over all256, but reducing other12 layers to256 also loses vs allR384. Cannot infer per-layer substitutability from whole-model results. XLsingle at10000 crossscale20%1.051370 vsMedium1.032471; known Medium terminal1.076290 is forecast anchor, expect likely crossing unless XL rebounds.
+
+2026-10-14 failure mechanism review (user challenged insufficient analysis): full sharedR256 removes MLP-private256 from six layers; read/attention use pre-attention normalized residual whereas MLP writes use post-attention normalized residual. Hypothesis: excessive tying across purposes/input distributions, recoverable partly by384, not proven gradient conflict. Mixed failure disproves inferring layerwise substitutability from whole-model pairR256-vs-pairR384 comparison. Init M RMS four arms1.25-1.26; @1000 pairR2563.442/tripleR3843.486/mixed3.247/all2562.889, gates live; may reflect write strength/coherence/use, not causal evidence. CPU rank-selector identity audit: original pairR256 and tripleR384 versus identical per-block ranks produce bitwise-equal params/loss/grads (tiny scanned fixture). Artifact /data0/xd/bam_diagnostics/mediumprop-projection-sharing/rank-selector-identity-audit.log. Remaining rank/MLP budget/init confounds explicit. Proposed, NOT LAUNCHED: six write layers use shared128 + read/attention-private128 + MLP-private128 (union384, eachconsumer256), anchored to successful pairR256 and refund saved parameters toMLP. Discriminating diagnostics: consumer-specific Down gradient alignment plus MLP write increment/currentM alignment and functional readout contribution. No new training authorized by this discussion.
+
+2026-10-14 correction incorporating failed pairR384/private-MLP control: prior private-feature hypothesis was overprioritized. At2800, parent gaps: pair256/private256=-0.0077184; pair384/private256=+0.0014794; allshared256=+0.0016432; allshared384=-0.0086464. Triple384 minus pair384 at2000/2200/2400/2600/2800: -0.012053/-0.012498/-0.012327/-0.011196/-0.010126. Sharing MLP hurts at256 but helps at384; neither generic anti-sharing nor necessary-private-feature explanation fits. Pair384->triple384 simultaneously expands MLP address features256->384, couples MLP training into shared Down, and refunds net1,449,984 projection parameters into MLP widths [3772,3646,3772]->[3794,3669,3794] (total parameter difference -2784). Capacity/budget and constructive read-write feature learning remain competing hypotheses, not established causes. Mixed combo preserves six triple384 layers but narrows remaining12; its +0.005814 gap vs triple384 at2800 indicates context-dependent value of those ranks, not incompatible M shapes. Downgrade shared128+private128 proposal from preferred next experiment to speculative. Diagnostic priority: explain historical pair384->triple384 improvement, separating address-feature capacity, functional write/read compatibility and MLP-budget effects; matched-stage evidence required. No new run launched.
+
+2026-10-14 user-authorized resume from committed2859, unchanged a445bbc8/runtime/AOT/s13500, UE5a xd-v5p-16-310193-maxtext. Prior stop was premature: gain vs triple384 .973037->.974139->.978401 at2400/2600/2800. Terminal outcome unresolved. Observe at least5000, continue while credible recovery; report every1000 against pair256 and triple384, MHA-reference ratios. Relaunch submitted02:19:09Z; FIRST_STEP pending.
+
+2026-10-14 cross-layer projection diagnosis (user uniform-rank hypothesis): pair256/triple384 step13500, six consecutive3-layer blocks, reserved Flex EW4a. Dominant directions overlap beyond random, but full shared384 retains90.4–91.2%/84.4–85.8% weight energy. Same32-sequence plain-JIT interventions yield loss costs shared256 +.007053/+.013568; shared384 +.003214/+.006799. Same compression factor3R->R gives similar ~.007 costs. Blockwise384 localization: first block not dominant; excluding first yields+.002867/+.005450. Common-basis A with layer-specific pre-GELU C is supported as a training candidate, not direct feature tying or proof uniform rank causes mixed-run lag. Full report /data0/xd/mediumprop-projection-sharing/experiments/bam_llama2_medium/cross_layer_projection_sharing.md; scripts committed4e248efe; artifacts /data0/xd/bam_diagnostics/cross-layer-sharing-20261014. Mixed run resumed2859, AOT/data/CP3000 verified, nextreview>=5000; do not label terminal failure.
+
+
+Cross-layer sharing race (2026-10-14): eight from-scratch arms authorized: ReadAttnR384 / TripleR512 × conservative / direct × blocks / thirds; no global/halves/adapter. Runtime f8755258, codex/mediumprop-projection-sharing, `/data0/xd/mediumprop-projection-sharing`. Parameters matched through MLP; audit/bets/arm table in that worktree's `experiments/bam_llama2_medium/cross_layer_race.md`. Owned UE5a v5p16 IDs310200–310207; preparation submitted, FIRST_STEP not yet verified.
+
+2026-10-14 cross-layer race update: authorized original8+square R384 conservative inner384/MLP-shared thirds =9, IDs310200–310207/310216; all nine FIRST_STEP/AOT/full parameter counts verified. Direct runtime f875525; conservative runtime38af4cc fixes bridge sharding without relaxing production tolerance. IDs310208–310215 withdrawn, never trained; four owned AOT nodes/queues verified released, reserved Flex preserved. Nine-row combined report every1000, XL every2000; both historical sharing winners retained, MHA-reference gain sequences registered. Startup evidence /data0/xd/bam_diagnostics/cross-layer-race-20261014/verified-startups.json; speeds in verified-speeds.json.
+
+### 2026-10-14 cross-layer sharing second review
+
+Nine-arm race (runtime38af4cc conservative / f875525 direct, worktree `/data0/xd/mediumprop-projection-sharing`): user explicitly approved stopping conservativeR512 thirds CP5198, directR512 block CP6200, square384 conservative thirds CP4960. All checkpoints committed, corresponding xd-v5p-16-310205/310206/310216 nodes and queues absent, TB SYNC_OK. Four arms remain: conservativeR384 block/thirds, directR384 thirds, directR512 thirds. Main exp.py records final direct-baseline results; full evidence `/data0/xd/bam_diagnostics/cross-layer-race-20261014/second-review-closeout.md`.
+
+At5k conservativeR384 block is near oldTriple384 parity (last5 +.000507) and slightly ahead of oldPair256 (last5 -.000377). R384-family reports require gap/gain sequences and MLP parameter deltas against oldPair256 as well as common oldTriple384; MHA is the gain-ratio reference. Direct512block continued catching up to +.002614 at6k; its user-approved stop was a resource-allocation decision, not evidence of no late upside. Square384 has no demonstrated advantage vs its closest conservative384thirds control, with fewer MLP parameters. Larger MLP late payoff remains a reason to retain conservative384thirds.
+
+XL singleMShift reached20k/CP20k: MHA-reference gain1.069456 vs Medium same40%1.044693; Medium terminal1.076290 remains the relevant late-stage prior. Next XL report22k.
+
+2026-10-14 cross-layer thirds calculated extrapolation: through7200, fit starts2000/3000/4000; rolling heldout4600→6000 and5600→7000. Ratio forecasts vs oldTriple384 center~.988 conservativeR384thirds /~.990 directR512thirds; subjective prior.995/.990 corrected, MLP late payoff remains unobserved hypothesis. User authorized stops: CP7538/7713, TPU+queues absent, TB SYNC_OK. Last complete7400/7600 gaps+.0022584/+.0017974 vsoldTriple384, ratios.987590/.989877. Only conservativeR384block remains in original9; continue newMediumactivationreuse256/384 and twoXL runs. Full reproduction /data0/xd/bam_diagnostics/cross-layer-race-20261014/extrapolation/.
+
+
+### MLP hidden-channel BAM read, runtime3afcaa9 (2026-10-15)
+
+Three authorized Medium original single.5 arms run from `/data0/xd/mediumprop-mlp-bam-read`, branch `codex/mediumprop-mlp-bam-read`, latest-main parentc5e02ad8. Read actual attention-written M into8x75=600 SwiGLU value channels, no W1 on these channels, existing Wg/W2 retained. Independent R256 generalized column addresses; inherited static/dynamic gates control their mixture, no extra common output gate. Static/dynamic keys combine before ONE contraction. Deferred attention delta is reused, decay once. Added locationswrite6/nonwrite12/all18, locally refunded total MLP widths[3802,3767,3802]/[3893,3676,3893]/[3893,3767,3893]; parameters parent+384/+768/+1152 only. Forward net extra.225/.450/.674MFLOPs per token, dominant full-model+.024%/+.049%/+.073%. CPU59 and actual AOT/FIRST_STEP/tree/config verified. UE5a v5p16 TPU310246/247/248;20–99 .4780875/.468775/.4575625step/s, versus health-OFF same-shape timing control-1.25%/-3.18%/-5.49%. Full18 three-seed initialization finite, read/W1 RMS grows2x→10x; keep native scale, not a matched-amplitude control. Pre-run terminal new/parent MHA-ref R bets1.08/1.12/1.15. [Full design, budgets and evidence](mediumprop_mlp_bam_read.md).
+
+Common1k: write6/nonwrite12/all18 versus original single.5 gap-.003187/-.009198/-.012516, MHA-reference gain1.00545/1.01574/1.02141. All three extra gains contracted from200; nonwrite12 presently offers more favorable effect/overhead than write6. Continue all; original terminal bets not established. Full200–1000 series in mediumprop_mlp_bam_read.md and report-common1000.json.
+
+2026-10-15 attention-only post-residual write review3k: parent gap-.010694 and MHA-reference gain1.04278 (latest five mean1.04472), versus both-change gap-.004530 andgain1.01768. Continue attention-only; both-change/MLP-only user-stopped6167/2231. Full note mediumprop_post_residual_write.md.
+
+2026-10-15 MLP-read follow-up: write6 stoppedCP2008 for hot replacement; gatednonwrite12/all18 authorized2800 review stopsCP2970/2909, resourcesabsent/TBsyncOK. Final2800 originalsingle-reference ratios.997179/1.000524: earlyextraadvantagevanished. New no-read-gates/static-zero all18 runtimec560cd6 active, locally matched432090944params, widths[3898,3772,3898], dynamicaddressesnormal.006/staticSzero; readnotzero. First1k versusgatedall18 gap-.004948/R1.008287, versusoriginalsingle gap-.017464/R1.029876, totalgainstillcontracting. Health-OFF speed.4629875 versusgatedall18.4575625(+1.19%); no historical health-ON timing comparison. Forwardnetextra.631MFLOPs/token(+.0686%). Fullhistory andparameterflow inmediumprop_mlp_bam_read.md.
+
+2026-10-15 attention-only5k parentgap-.007665/R1.038450, latest5R1.040022 stable; versusbothgap-.003497/R1.017185. Sharedattention/MLPwriteR256 actualactivation childnormA/M first1k parentgaps+.003785/+.003404, R.993860/.994477, deficitscontracting; speedflat, extraMLPrefundlocally+85width. Neithernewnormwinnerestablished. Initializationpair6k primaryBAM/Mudd1.720946/1.612302, second-orderunfixed1.366223/1.279973, oldrecipe1.155768/1.082803. Allsixcontinue.
+
+2026-10-15 zero-static/no-read-gates nonwrite12 launchedae19f92 UE5av5p16TPU310251, FIRST_STEP8/CP200committed. Actual432097856params/MLP[3898,3676,3898], localintegerremainder-13824;8CPUchecks/AOT/workerconfigallverified, allhealthOFF. Speed.4709125(+.46% vsoldgated12,+1.71% vsnew18). Reader.2592W_Q/selectedlayer, forwardnet.420864MFLOPs/token(+.04575%). Betnew/oldgated12 MHA-reference1.05[.98,1.12]. New18at2k versusold18gap-.001665/R1.005154(last5R1.009742), versusoriginalsingle.5-.005009/R1.015666 after1.4kpeak1.035364: totalbenefitstillcontracts. Allsevencontinue, nofirst1keffectjudgmentfornew12.
+
+2026-10-15 follow-up: all18zero-static/no-read-gates3k parentgap-.0036138/R1.014456(last5R1.019104), nofullcollapse butgainmodest; new12first1k parent-.0144866/R1.024783, oldgated12-.0052888/R1.008908, new18+.002977/R.995055, faster1.71%. Historicalterminalnew/oldgated1.05betscannotbeverifiedbecauseoldstopped~2800; useoriginalsingle.5 andactive12/18forfutureterminalcomparison. Continueboth. Init8kprimaryBAM/Mudd1.640465/1.557850, second-orderunfixed1.368075/1.299178, oldrecipe1.105249/1.049589; full-originallast5 nowallaboveconditionalrecoverythreshold1.284081.
+
+Newattention-onlyMLPnormreusecontrolruntime6c586f8, UE5aTPU310252, FIRST_STEP6/actual140leaves432111680/MLP[3802,3676,3802]/allhealthOFF verified, 62CPUchecks+AOTpass. GatesandaddressesuseexistingMLPnorm onpostattentionresidual, independentwriteR256preserved. Exactinitialparams/outputmatchparent; learnednormscalestestprovesnewinputs andonecallpernorm. .4855375step/s(+.232% vshealthOFFparent) matches+.3%prior; terminalnew/parentgainbet1.01[.99,1.04]. Shared-writepair3kA/M parentR.996351/.998552, peerM/A1.002209(last5 1.003580), notyetaddedsharinggain. Parentattention-only7kR1.025649(last5 1.030948), shrinking.
+
+CorrelatedUE5a2026-10-15T1232 firstpreemption: initoriginalCP7770->7771, shared-writeA2975->2976, newMLPread12 731->732, allsamezone/exactruntimes/full13500schedule/AOTresumed; firstperiodicCP7800/3000/800committed. Leasesinregionalhistory. All8RUNsactive.
+
+2026-10-15：用户停共享写attention norm于4673，末五对attention单改gap-0.0000327/R1.000132，未建立净收益；MLPnorm继续。attention单改9k对原单门.5末五R1.025854，较8k1.030165收缩。完整证据见mediumprop_post_residual_write.md。
+
+2026-10-15：用户相继停共享写attention norm4673/MLPnorm5354、去读门零静态MLP读18层5117，均CP提交/资源释放/TBSYNC_OK。共享写两路末五对attention单改R约1.0001/1.0010；18层读M末五对原单门R1.00695，较3k1.01910继续缩水。12层读M继续。attention单改/MLPnorm来源对照2k对父路末五R.999459，少一次norm速度+.23%，尚无额外loss收益。初始化组共同10k：BAM/Mudd1.61245/1.54850；对未修复串行二阶1.39025/1.33511，修复效果保持到中后期。详细证据见各组note。
+
+2026-10-16 JST（UTC15日）：MLP读12层也按用户指令停3149，至此MLP读整组均已收尾。attention单改父路11k末五R1.019387/gap-.003120，较10k1.025413/-.004185继续收缩，撤回“已稳定”判断；全程及后段放大图见本地post-residual-write/selective/attention-only-trajectory-20261015T1453.png。改用MLPnorm对照3.2k对父路R.999304/gap+.000174，仍近持平。两者例行报告已合并为一个完整组，不能用“单路数据+一句同组进度”冒充一起报。初始化组共同11k修复/全原BAM-Mudd末五1.622815/1.549095，绝对loss修复路末五领先.005802，最近约1k稳定；与attention单改父路的收缩是不同方向、不同配方，不能混淆。

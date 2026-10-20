@@ -2716,6 +2716,7 @@ class BamAttention(Attention):
     self._direct_qk_c8 = bool(getattr(cfg, 'bam_local_qk_direct_c8', False))
     self._full_m_read_rank = getattr(cfg, 'bam_local_full_m_read_bottleneck_dim', None)
     self._full_m_read_share_down = bool(getattr(cfg, 'bam_local_full_m_read_share_down', False))
+    self._share_read_attention_down = bool(getattr(cfg, 'bam_share_read_attention_write_down', False))
     self._general_read = bool(getattr(cfg, 'bam_general_column_read', False))
     self._m_shift_mode = getattr(cfg, 'bam_m_shift_mode', None) or 'none'
     assert self._m_shift_mode in ('none', 'read', 'persist')
@@ -2824,6 +2825,10 @@ class BamAttention(Attention):
       assert self._write_v_bottleneck_activation == 'none'
     else:
       assert 0 < self._write_v_bottleneck_dim < cfg.emb_dim
+    if self._share_read_attention_down:
+      assert self._full_m_read_share_down and self._general_read
+      assert self._write_v_bottleneck_dim == self._full_m_read_rank
+      assert self._write_v_bottleneck_activation == 'gelu'
     assert not self._replicate_ploc_up or self._write_v_bottleneck_dim is not None, (
         'replicated P_loc_up requires a write-V bottleneck')
     assert self._write_outer_implementation in ('dot', 'mul_reduce')
@@ -3024,12 +3029,13 @@ class BamAttention(Attention):
       # Write anchor P_loc: V factor (default agg_u@loc_v), regular init
       loc_v = self.bam_v
       if self._write_v_bottleneck_dim is not None:
-        self.P_loc_down = DenseGeneral(
-            features=self._write_v_bottleneck_dim, axis=-1,
-            kernel_init=reg_init, kernel_axes=("embed", None),
-            dtype=self.dtype, weight_dtype=self.weight_dtype,
-            name="P_loc_down", quant=self.quant,
-            matmul_precision=cfg.matmul_precision, use_bias=False)
+        if not self._share_read_attention_down:
+          self.P_loc_down = DenseGeneral(
+              features=self._write_v_bottleneck_dim, axis=-1,
+              kernel_init=reg_init, kernel_axes=("embed", None),
+              dtype=self.dtype, weight_dtype=self.weight_dtype,
+              name="P_loc_down", quant=self.quant,
+              matmul_precision=cfg.matmul_precision, use_bias=False)
         self.P_loc_up = DenseGeneral(
             features=(self.num_query_heads, loc_v), axis=-1,
             kernel_init=reg_init,
@@ -3486,7 +3492,19 @@ class BamAttention(Attention):
         rope, positions, name=name, embedding_dims=rope.shape[-1])
     return jnp.concatenate((nope, rope), axis=-1)
 
-  def _write(self, o_head, x, M_in):
+  def _write_address(self, x, shared_hidden=None):
+    """Reuse the reader's activated down projection when read/write sharing is enabled."""
+    if self._write_v_bottleneck_dim is None:
+      return self.P_loc(x)
+    if self._share_read_attention_down:
+      hidden = nn.gelu(self.full_m_read_down(x)) if shared_hidden is None else shared_hidden
+    else:
+      hidden = self.P_loc_down(x)
+      if self._write_v_bottleneck_activation == 'gelu':
+        hidden = nn.gelu(hidden)
+    return self.P_loc_up(hidden)
+
+  def _write(self, o_head, x, M_in, shared_hidden=None):
     """Write primitive (§4.2 safe write: aggregated U (outer) local V). o_head: [b,t,n,d] head output (pre W_O).
 
     Per-record factor normalization (§4.6.5 write-side per-record factor norm): the address
@@ -3499,13 +3517,7 @@ class BamAttention(Attention):
       assert o_head.dtype == self.dtype, (o_head.dtype, self.dtype)
     # V1 default
     u1 = o_head[..., :self.bam_k]  # U factor [b,t,n,k]
-    if self._write_v_bottleneck_dim is None:
-      u2 = self.P_loc(x)
-    else:  # V1 default
-      u2 = self.P_loc_down(x)
-      if self._write_v_bottleneck_activation == 'gelu':
-        u2 = nn.gelu(u2)
-      u2 = self.P_loc_up(u2)
+    u2 = self._write_address(x, shared_hidden)
     write_gate_bias = self.gw_b0
     if self._force_activation_dtype:
       write_gate_bias = jnp.asarray(write_gate_bias, self.dtype)
@@ -3533,16 +3545,10 @@ class BamAttention(Attention):
       assert M_out.dtype == self.dtype, (M_out.dtype, self.dtype)
     return M_out, gate
 
-  def _deferred_write_factors(self, o_head, x):
+  def _deferred_write_factors(self, o_head, x, shared_hidden=None):
     """Same factors as _write, without forming its outer product yet."""
     u1 = o_head[..., :self.bam_k]
-    if self._write_v_bottleneck_dim is None:
-      u2 = self.P_loc(x)
-    else:
-      u2 = self.P_loc_down(x)
-      if self._write_v_bottleneck_activation == 'gelu':
-        u2 = nn.gelu(u2)
-      u2 = self.P_loc_up(u2)
+    u2 = self._write_address(x, shared_hidden)
     bias = jnp.asarray(self.gw_b0, self.dtype) if self._force_activation_dtype else self.gw_b0
     gate = jax.nn.sigmoid(self.W_gw(x) + bias)
     scale = 1.0 / jnp.sqrt(self.num_query_heads) if self.config.bam_sqrt_n_scale else 1.0
@@ -3823,9 +3829,10 @@ class BamAttention(Attention):
       gate_names = ('W_lq_gate', 'W_lk_gate', 'W_R_gate', 'W_lv_gate')
       key_names = ('full_m_read_down',) if full_m else ('W_lq_c8', 'W_lk_c8', 'W_R')
       shift_names = ('M_shift_gate',) if self._m_shift_mode != 'none' else ()
+      write_names = ('W_gw',) if self._share_read_attention_down else ('P_loc_down', 'W_gw')
       raw = self._fused_input_projections(
           inputs_q, ('query', 'key') + key_names + gate_names + static_gate_names + shift_names
-          + ('P_loc_down', 'W_gw'))
+          + write_names)
       query = raw['query'].reshape(b_, t_, self.num_query_heads, standard_qk_width)
       key = raw['key'].reshape(b_, t_, self.num_kv_heads, standard_qk_width)
     else:
@@ -3947,11 +3954,15 @@ class BamAttention(Attention):
       y_std, _ = self._attention_block(query, key, value, decoder_segment_ids,
                                        q0=0, s0=0, window_size=local_window)
     o_head = y_std + local_output
-    if fused:
+    if self._share_read_attention_down:
+      address = self.P_loc_up(hidden)
+    elif fused:
       address = self.P_loc_up(nn.gelu(raw['P_loc_down']))
+    else:
+      address = self._write_address(inputs_q)
+    if fused:
       write_logits = raw['W_gw'] + jnp.asarray(self.gw_b0, self.dtype)
     else:
-      address = self.P_loc_up(nn.gelu(self.P_loc_down(inputs_q)))
       write_logits = self.W_gw(inputs_q) + jnp.asarray(self.gw_b0, self.dtype)
     out = nn.with_logical_constraint(o_head, self.out_axis_names)
     return self.out_projection(inputs_q.shape[-1], out), M_in, (o_head, write_logits, address)
@@ -4187,7 +4198,7 @@ class BamAttention(Attention):
 
     if defer_write:
       assert self._has_write and not self._mha_control and M_in is not None
-      factors = self._deferred_write_factors(o_head, inputs_q)
+      factors = self._deferred_write_factors(o_head, inputs_q, full_m_shared_hidden)
       out = nn.with_logical_constraint(o_head, self.out_axis_names)
       return self.out_projection(inputs_q.shape[-1], out), M_in, factors
     if self._mha_control:
@@ -4195,7 +4206,7 @@ class BamAttention(Attention):
     elif self._has_write:
       assert M_in is not None, "write primitive requires M_in"
       with jax.named_scope("bam/write_m"):
-        M_out, _ = self._write(o_head, inputs_q, M_in)
+        M_out, _ = self._write(o_head, inputs_q, M_in, full_m_shared_hidden)
     else:
       M_out = M_in
 

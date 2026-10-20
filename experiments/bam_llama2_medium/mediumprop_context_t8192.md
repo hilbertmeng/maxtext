@@ -1,0 +1,96 @@
+# MediumProp T8192 length extension: MHA / Mudd / shared-R256 generalized BAM
+
+Worktree `/data0/xd/mediumprop-context-t2048`, branch `codex/mediumprop-context-t2048`.
+Reuse the completed T2048 context-family implementation at e9f77281 rather than latest main model changes. Main exp.py remains ledger only. Three new RUNs inherit their T4096 parents; no parameter-tree or MLP-width change.
+
+| Arm | RUN | Planned TPU | Params |
+|---|---|---|---:|
+| MHA | BamMHAMediumPropT8192SplashTruePile | xd-v5p-16-310160-maxtext |432121200|
+| Mudd | MuddLlama2MediumPropT8192SplashTruePile | xd-v5p-16-310161-maxtext |434076747|
+| BAM | BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadT8192 | xd-v5p-16-310162-maxtext |432111104|
+
+T4096/global128 -> T8192/global64, per_device_batch_size8 on v5p-16's8 devices. Each step524288 target tokens,13500 steps,7,077,888,000 total targets; retain corresponding parent LR/optimizer/init/model widths. Mudd retains full growing history and historical unrolled dispatch; MHA/BAM scan as parent. All three use Splash. User explicitly accepts Splash/C256 effects as small and directs proceeding without extra backend controls. Historical T4096 MHA/Mudd C256 results remain comparison references; record this one backend difference, do not request additional controls. T2048 aborted Splash prefixes are excluded.
+
+Dataset declaration truepile8192, no hardcoded regional prefix. Selected UE5a replica `gs://newproject-1-common_datasets_us-east5/pythia_pile_idxmaps_tfrecord_8192`. Verified manifest8193-token records,3,200,000 samples,100 materialized shards and coverage50000 at batch64. Source/replica all-shard CRC audits retained in truepile8192-build; this run preserves region-local routing. Record boundaries/order differ across lengths, so primary length conclusions use within-length MHA-relative gaps and their differences/ratios, not raw cross-length loss alone.
+
+Infrastructure audit against main0f7f6d10a2760c205699cf34f9834c892b4926d0: main-only historical commits5ae86564/2a6c2d46 reviewed; effective train/train_compile/optimizer/max_utils/maxtext_utils/base runtime defaults and summary writer already match their operational fixes in this family. No model merge. TB positive period500 -> rotating writer -> begin_step before scalar writes; five writer regression tests in CPU gate. Keep latest2 checkpoints with keep_period0, periodic200 and final save. Formal launch gates exact sealed config, focused full-count/token-budget/history/forward-gradient CPU checks, target-topology AOT, actual FIRST_STEP and14. CPU parameter-shape fixtures disable Splash solely for CPU execution; actual sealed configs and AOT retain Splash. Borrow verified idle ACTIVE FLEX_START llm-jax-v6e-1-0/EW4a worker0, pinned Python; never lifecycle-adopt/delete it. Three AOTs serialize on the worker lock; CPU checks and trainer prequeues overlap. UE5a chosen from latest five same-zone unpreempted formal leases; no backup zones requested.
+
+Define b_T=MHA_T-BAM_T, u_T=MHA_T-Mudd_T. At exact common steps, use five samples step+-20/10 inside200-step windows. Report b_T/u_T, length amplification b8/b4 and u8/u4, second-order (b8/u8)/(b4/u4), added gains Δb=b8-b4 and Δu=u8-u4, Δb/Δu and Δb-Δu. Retain the T2048 family as an extra8/2 view when windows are common. Compute each ratio per window then aggregate; tiny or sign-changing denominators must remain visible and are not interpreted as meaningful performance multiples. Normal1000-step agent reporting,200-step cached windows and silent~10min liveness checks. Planned13500 to completion as a sequence-length comparison, no default2800 cull.
+
+Pre-run bets: at13500 BAM-MHA-.165, Mudd-MHA-.088, BAM-Mudd-.077; b8/u8~1.875, second-order8/4~1.13. Predict Δb~+.0204, Δu~+.0011, Δb-Δu~+.0193 versus observed T4096 endpoint. Kernel throughput MHA.62/Mudd.54/BAM.39step/s; BAM about-18.5% vs T4096.4787. Shape/parameter count preserves each parent's budget; Mudd's historical+.45% versus MHA remains, no newly introduced architecture parameters. Timing and loss bets will be checked with observed runs.
+
+Artifacts `/data0/xd/bam_diagnostics/mediumprop-context-t8192`. Previous conversations consulted: original「查找Medium压缩M列读实验」01a0a354-2e46-7320-86bf-714eb273f0dd and completed handoff01a12fe7-da30-7302-940a-5476f71ebcac; final reportmediumprop_t2048_final_20261012.md supplies authoritative ratios and corrected matched baselines.
+
+## Actual launch proof
+
+All three actually training on sealed runtime dbcaa31f46ce88b9582793b38a57cccb2e9cd1ec. CPU full counts and finite gradients, five writer regressions, exact config and target-topology AOT passed. Actual FIRST_STEP and14 verified for all. Worker logs show Loaded compiled function, SplashTrue/T8192/global64/per-device8/TB500/LR.0003/schedule13500. Mean10–14 MHA.5280/Mudd.4880/BAM.3908;20–99 pending. Registry and controller environments agree on runtime, direct compares, region-local8192 data and AOT URI. Artifact startup14-proof.json and controller-env-proof.jsonl.
+
+Steady20–99: MHA.5260250/Mudd.4859625/BAM.3889500step/s, versus T4096-.26327/-.22863/-.18753. Same-length BAM speed-26.0586% versusMHA/-19.9630% versusMudd. MHA/Mudd speed bets missed(-15.16%/-10.01%), BAM-.27% from bet. Sanity-check affine step-time extrapolation from observed T2048/T4096 predicts approximatelyMHA.508/Mudd.458/BAM.391; actual speeds are compatible with increased attention arithmetic at fixed tokens, so the original MHA/Mudd forecasts were optimistic rather than an identified runtime fault. Baseline MHA/Mudd kernels differ by user authorization; this is a timing sanity estimate, not a measured matched-backend ablation. Artifact startup-speed-proof.json.
+
+## Common1000 review
+
+All running normally/unpreempted. Committed checkpoints MHA1400/Mudd1200/BAM1000, reported cursors1400/1200/1000. Common1000 BAM-MHA-.734407, Mudd-MHA-.498835, BAM-Mudd-.235572. Initial advantages are already shrinking after400/600; no early淘汰 for this context study. TB inventory verifies part00000 and00001 on all three actual GCS event streams after500.
+
+At1000 b8/u8=1.472244 versus b4/u4=1.508583; BAM context8/4=1.257156, Mudd1.288186, second-order.975912. Last600/800/1000 second-order.950605/.981745/.975912, all just below1; first-five mean1.000592. Δb+.150226, Δu+.111597, Δb/Δu1.346149, Δb-Δu+.038629. Absolute extra leading margin favors BAM, while proportional context amplification favors Mudd at this early stage. These are different questions; do not interpret second-order<1 as smaller absolute extra BAM gain.8/2 cumulative second-order1.001671.200/400 Δu negative, raw added-gain ratios retained but not meaningful gain multipliers. No current support for terminal1.13 second-order bet; only1000 observed, continue planned13500.
+
+Cross-length raw losses remain unpaired: MHA8-MHA4+.168656, Mudd8-Mudd4+.057059, BAM8-BAM4+.018430, BAM8-BAM2-.002395 at1000. BAM8-BAM4 crosses behind at1000 after briefly ahead600/800; raw sign flips are not pure context causality. Artifacts report-1000.txt, factors-1000.json, tb-rotation-inventory.txt. Next regular common report2000, shared silent liveness checks in between; do not hide faster RUNs on peer failure.
+
+## Common2000 review
+
+Healthy/unpreempted, committed CP2600/2400/2000, reported cursors2600/2400/2000. Common2000 B8-M8-.396604,U8-M8-.256697,B8-U8-.139906; recent common1200..2000 B8-M8 mean-.495098/B8-U8-.166364. Large startup gains shrink; retain full13500 length plan.
+
+At2000 b8/u8=1.545024, b4/u4=1.585340, b2/u2=1.441008.8/4 context BAM1.268507/Mudd1.301608, second-order.974569; Δb+.083950/Δu+.059482/Δb-Δu+.024468,Δb/Δu1.411353. Recent1200/1400/1600/1800/2000 second-order.952404/.998713/.973351/.960801/.974569: allbelow1, mean.971968 (range.952404.. .998713). Means BAM context1.273209/Mudd1.310488, Δb+.106338/Δu+.077935/extra+.028403.8/2 cumulative second-order rises1.001671@1000->1.072183@2000 (last5mean1.045340). Provisional inference: relative scaling benefit is stronger2k->4k than4k->8k at this stage, despite larger absolute extra BAM leading margin. Terminal bet untested; phase behavior can change.
+
+Raw cross-length losses repeatedly flip: B8-B4 at2000-.014073, B8-B2-.077156; M8-M4+.069877,U8-U4+.010395. These unpaired-record differences do not establish pure context causality. Full cumulative owned direct comparisons inreport-2000.txt; factor seriesfactors-2000.json; recent means/rangessummary-2000.json. Next common3000, shared silent liveness checks in between.
+
+## Common3000 review / revised second-order forecast
+
+Healthy/unpreempted, CP4000/3800/3000 committed, reported cursors4000/3600/3000. Common3000 B8-M8-.306849,U8-M8-.192163,B8-U8-.114687. Common2200..3000 B8-M8 mean-.335801 (previous-.495098), B8-U8-.121030 (previous-.166364): early advantages still shrink but drift has slowed. B8-U8 rebounds slightly at3000 after2800-.109612; broad trend remains shrinking.
+
+At3000 b8/u8=1.596820 versus b4/u4=1.648943, b2/u2=1.426185.8/4 BAM1.269614/Mudd1.311056, second-order.968390; Δb+.065162/Δu+.045592/extra+.019570; Δb/Δu1.429253. Last2200/2400/2600/2800/3000 second-order.965423/.979910/.965223/.941559/.968390, mean.964101 (previous.971968),13 consecutive windows600..3000 below1. Means BAM context1.255955/Mudd1.302784, Δb+.068440/Δu+.049847/extra+.018594.8/2 cumulative second-order1.119644, recent mean1.101355 versus prior1.045340. Cumulative long-context proportional benefit stays positive, while incremental4k->8k proportional amplification slightly favorsMudd so far.
+
+Working terminal second-order forecast revised from pre-run1.13 to near1.00 on this evidence; preserve initial bet for end scoring rather than editing history. Original absolute-loss and speed bets remain archived, not retroactively refitted. All three continue full13500 context plan, no2800 cull.
+
+Raw M8-M4 crosses negative at4000 (-.043272 after3800+.102618); unpaired raw length gaps are still noisy. Artifacts report-3000.txt, factors-3000.json, summary-3000.json. Next common4000; shared silent liveness checks between reports.
+
+## Common4000 review
+
+Healthy/unpreempted; CP5400/5000/4000 committed, reported cursors5400/4800/4000. Common4000 B8-M8-.255262,U8-M8-.153948,B8-U8-.101314. Recent3200..4000 B8-M8mean-.275338(previous-.335801),B8-U8-.105197(previous-.121030). Gains continue shrinking, at a slower rate; parallel curves not yet established.
+
+At4000 b8/u8=1.658102 versus b4/u4=1.665804,b2/u2=1.412085.8/4 BAM1.222734/Mudd1.228413,second-order.995376; Δb+.046499/Δu+.028625/extra+.017873,Δb/Δu1.624383. Last5 second .969018/.967563/1.000310/.964521/.995376: first tiny crossing above1 at3600 then back below, mean.979358(previous.964101),range.964521..1.000310. Means BAMcontext1.245106/Mudd1.271748, Δb+.054336/Δu+.036491/extra+.017845.8/2 second1.174222,recentmean1.141103(previous1.101355). Incremental4k->8k proportional benefit now close to parity; cumulative2k->8k proportional benefit increasingly favors BAM. Working terminal8/4 second-order forecast remains near1.00; initial1.13 preserved.
+
+Raw cross-length gaps repeatedly cross sign; M8-M4@5400+.084405,recent5mean+.024801. They remain unpaired and do not establish stable context-only reversals. All three continue full13500. Cumulative reports and ratio-first aggregates saved inreport-4000.txt,factors-4000.json,summary-4000.json. Next common5000, shared silent liveness checks between reports.
+
+## Common5000 review
+
+Healthy/0P, committedCP6800/6200/5000, cursors6600/6200/5000. Common5000 B8-M8-.227972,U8-M8-.136516,B8-U8-.091456. Recent4200..5000 B8-M8mean-.242943(prev-.275338),B8-U8-.098202(prev-.105197); shrinkage slows further but has not ended. All13500continue.
+
+At5000 b8/u8=1.669929,b4/u4=1.703673,b2/u2=1.414981;8/4 BAM1.195863/Mudd1.220028,second.980194. Δb+.037338/Δu+.024620/extra+.012718,Δb/Δu1.516568. Last5second1.003338/1.029524/.997265/.988884/.980194,mean.999841(prev.979358),range.980194..1.029524. Briefly above1 at4200/4400 then backbelow; parity workingforecastretained. Ratio-firstmeans BAMcontext1.234792/Mudd1.234927,Δb+.046221/Δu+.027510/extra+.018711.8/2second1.180178,last5mean1.182782(prev1.141103),cumulativeproportionalbenefitcontinuesfavorBAM. Rawunpairedlengthgapsstillflip; do not infer stablepurecontextreversal. Artifactsreport-5000.txt,factors-5000.json,summary-5000.json. Nextcommon6000~06:05UTC; threeownRUNscontinuealongsideM-shiftpreparation.
+
+User asks three-length synchronized BAM/Mudd gainmultipliers explicitly. Future normal reports display R2048/R4096/R8192 alongside matched milestone rows, plus ratio-first means. At1000..5000 R2=1.46979/1.44101/1.42619/1.41209/1.41498,R4=1.50858/1.58534/1.64894/1.66580/1.70367,R8=1.47224/1.54502/1.59682/1.65810/1.66993. Recentfive R2/R4/R8means1.41933/1.67919/1.67853;second4/2mean1.18321,8/4=.99984. Interpretation2k->4krelativebenefitstronger,4k->8kparitysofar.
+
+UserauthorizesstoppingT8192threewhenlengthtrendsstableandconclusionsclear; thisrevokesrequirementfull13500. Atcommon5000agentjudgesnotyetstable: BAM/MHArecent1000drift+.032395,BAM/Mudd+.006994;8/4ratio-firstblockmeans.979358->.999841stillchanging. Nextcommon6000assess2k->4kimprovementand4k->8kparitypersistenceandfurtherdriftslowdown; stopallthreeoncestabilized. NewM-shiftfourunaffected.
+
+## Common6000 review / conditional-stop reassessment
+
+Healthy0P,CP8200/7600/6000committed,cursors8200/7600/6000. Common6000B8-M8-.218100,U8-M8-.126859,B8-U8-.091241. Recent5200..6000 B8-M8mean-.222650(prev-.242943),B8-U8-.091562(prev-.098202): drift+.020292/+.006640 per1000,slowerbutstillchanging. Agentdoesnotstopat6000underuserconditionalauthorizationbecause8/4relativegainfirstblockmeanmovesabove1. Observeonecommon1000windowto7000; ifratio staysnear1withsmallfluctuationsandgapdriftslowdowncontinues,closeoutthree. Avoidfull13500blindendpoint; new4M-shift unaffected.
+
+SynchronizedR2048/R4096/R8192at6000=1.409099/1.679508/1.719235;second4/2=1.1919,8/4=1.023654,8/2=1.220095. RecentfiveR2/R4/R8means1.418680/1.676077/1.698898;ratio-firstsecond4/2mean1.181479(stablevs1.183211),8/4mean1.013646(prev.999841,.979358),8/2mean1.197585. Last5second8/4 1.020243/.996519/1.010027/1.017785/1.023654. Emergingweakpositive4k->8krelativeamplification; donotfreezeearlierparityinferenceorpretendterminal1.13bettedvalueverified.
+
+8/4contextBAM1.233370/Mudd1.204870at6000;last5means1.215577/1.199364. Δb+.041267/Δu+.021570/ratio1.913150/extra+.019697,means+.039484/+.021794/ratio1.820571/extra+.017690. Absoluteextra leadingmarginstable~.018whileproportionalratioincreaseschieflyasMuddcontextbenefitfadesfaster. Rawunpairedcrosslengthgapssignscontinueoscillating,no purecausalityclaim. Artifactsreport-6000.txt,factors-6000.json,summary-6000.json. Sharedreport-6000-all-owned.txt also containsunreportedM-shift200..600prefixes; keepnew4cursors0untilnormal1000report. New4actualTB500rotationverifiedinitsartifacts. Nextstudycommon7000~06:49UTC,new4common1000~06:20UTC.
+
+## Common7000 review and authorized closeout
+
+Atcommon7000B8−M8−.203961,U8−M8−.117586,B8−U8−.086375. LastfiveB8−M8mean−.206821(previous−.222650),drift+.015829/k;B8−U8mean−.087944(previous−.091562),drift+.003618/k. R2048/R4096/R8192@7000=1.402068/1.666957/1.734568;recentfive means1.406137/1.683965/1.739811. Ratio-firstsecond8/4mean1.033207(range1.023350..1.040559),previous1.013646;4/2mean1.197653,8/2mean1.237357. AddedgainmeansΔb+.034502/Δu+.016538,Δb/Δu2.091850,extra+.017963(previous+.017690). Modestpositive4k→8kbenefit,weakerthan2k→4k; stableabsoluteextra margin andslowinggapcontraction meetpreviousconditionalstopcriterion. User-authorizedthree-RUNcloseoutstarted06:51UTC;finalcheckpoint/resource/TBproofpending,notcomplete13500. Initialterminal1.13betnotmetatthisreview,unobservedendpointnotclaimed. Workingnear1forecastunderestimatedweakpositivemidtrainingbenefit. Fullcumulative report and matched3-lengthtable: reports/mediumprop_t8192_review_7000_20261013.md; artifactsfactors-7000.json,summary-7000.json,report-7000.txt. FourM-shiftarmscontinueunaffected.
+
+## Verified closeout
+
+Stoppedmanualreview,not13500completion. FinalcommittedcheckpointsMHA9639/Mudd8908/BAM7140;latestcommonfullcomparison7000. ThreeUE5av5p-16SPOTnodesandqueuedresources310160/161/162verifiedabsent,registrydeclaredstopped;allTBcloseoutSYNC_OK. RetainedFLEXcompilerandfourM-shifttrainersuntouched. Closeoutsummaryartifactcloseout-20261013T065658Z.jsonandregistry-after-closeout.json.
+
+| RUN | READY start UTC | READY end UTC | Duration | Preemptions |
+|---|---|---|---|---:|
+| MHA T8192 |2026-10-13 01:41:46|2026-10-13 06:51:29|5h09m43s|0|
+| Mudd T8192 |2026-10-13 01:40:20|2026-10-13 06:51:34|5h11m14s|0|
+| BAM T8192 |2026-10-13 01:40:37|2026-10-13 06:51:38|5h11m01s|0|
+
+Nozoneswitchorpassivecandidate;allendedbymanualreviewstop. Fullrun names/TPUsareinlaunchtable. Learned: largercontextsstrengthenBAMrelativeadvantageprimarily2k→4k;4k→8kaddsmodestbenefitwithalmoststable~.018absoluteextraBAM-over-Muddmargin. SequenceextensionaloneisnotanarchitectureSOTAbreakthrough. Preserve4kSOTAasdirectbaselinefortheongoingM-shiftdirection; no additionaldiagnosticarmstarted.

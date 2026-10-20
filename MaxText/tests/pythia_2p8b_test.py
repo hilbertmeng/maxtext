@@ -7,7 +7,7 @@ from types import SimpleNamespace
 import unittest
 
 from flax import linen as nn
-from flax.traverse_util import flatten_dict
+from flax.traverse_util import flatten_dict, unflatten_dict
 import jax
 import jax.numpy as jnp
 import numpy as np
@@ -65,18 +65,18 @@ class Pythia2p8BTest(unittest.TestCase):
       self.assertEqual((c.steps, c.learning_rate_schedule_steps), (143000, 143000))
       self.assertEqual(c.learning_rate, 1.6e-4)
       self.assertEqual(c.pad_id, -1)
-      self.assertFalse(c.qk_norm)
+      self.assertEqual(c.qk_norm, arm.startswith('Bam'))
       self.assertFalse(c.record_training_health_metrics)
       if arm.startswith('Bam'):
         self.assertFalse(c.pythia_parallel_residual)
-        self.assertEqual((c.bam_k, c.bam_v), (80, 40))
+        self.assertEqual((c.bam_k, c.bam_v), (80, 64))
         self.assertEqual((c.bam_partial_rope_nope_dim, c.bam_standard_qk_dim), (60, 20))
         self.assertTrue(c.bam_local_full_m_read_share_down)
         self.assertEqual((c.bam_local_full_m_read_bottleneck_dim, c.bam_write_v_bottleneck_dim,
-                          c.emb_bam_v_bottleneck_dim, c.bam_mlp_write_address_rank), (384, 384, 384, 384))
+                          c.emb_bam_v_bottleneck_dim, c.bam_mlp_write_address_rank), (1024, 1024, 1024, 1024))
         self.assertTrue(all(width % 128 == 0 for width in c.mlp_dim_by_block))
         self.assertEqual(c.bam_final_local_mlp_dim % 128, 0)
-        self.assertFalse(c.bam_share_read_attention_write_down)
+        self.assertTrue(c.bam_share_read_attention_write_down)
         self.assertFalse(c.bam_share_mlp_write_down)
         self.assertEqual(c.bam_m_shift_init, .5)
         self.assertEqual(c.bam_m_shift_mode, 'read')
@@ -91,9 +91,11 @@ class Pythia2p8BTest(unittest.TestCase):
     batch = reader.convert({'input_ids': tf.constant([[7, 0, 8, -1]], tf.int32)})
     np.testing.assert_array_equal(batch['targets_segmentation'], [[1, 1, 0]])
     from pythia_config import validate_pythia_config
-    for flag in ('bam_share_read_attention_write_down', 'bam_share_mlp_write_down'):
-      with self.assertRaisesRegex(ValueError, 'recorded runtime'):
-        validate_pythia_config(dict(c.get_keys(), **{flag: True}))
+    with self.assertRaisesRegex(ValueError, 'recorded runtime'):
+      validate_pythia_config(dict(c.get_keys(), bam_share_mlp_write_down=True))
+    with self.assertRaisesRegex(ValueError, 'matching GELU ranks'):
+      validate_pythia_config(dict(c.get_keys(), bam_share_read_attention_write_down=True,
+                                  bam_write_v_bottleneck_dim=512))
     for devices in (1, 8, 32, 64, 128):
       for accumulation in (1, 4, 16):
         per_device = pyconfig.resolve_per_device_batch_size(3., devices, accumulation, 1024)
@@ -118,14 +120,46 @@ class Pythia2p8BTest(unittest.TestCase):
       flat = flatten_dict(p)
       counts[arm] = sum(math.prod(a.shape) for a in flat.values())
       if c.bam_enabled:
-        self.assertEqual(p['decoder']['layers']['local_0']['block']['mlp']['wi']['kernel'].shape, (2560, 10, 12416))
-        self.assertEqual(p['decoder']['final_local_layer_0']['block']['mlp']['wi']['kernel'].shape, (2560, 12416))
-        self.assertEqual(p['decoder']['final_local_layer_1']['block']['mlp']['wi']['kernel'].shape, (2560, 13254))
+        self.assertEqual(p['decoder']['layers']['local_0']['block']['mlp']['wi']['kernel'].shape, (2560, 10, 11008))
+        self.assertEqual(p['decoder']['layers']['local_1']['block']['mlp']['wi']['kernel'].shape, (2560, 10, 10112))
+        self.assertEqual(p['decoder']['final_local_layer_0']['block']['mlp']['wi']['kernel'].shape, (2560, 11008))
+        self.assertEqual(p['decoder']['final_local_layer_1']['block']['mlp']['wi']['kernel'].shape, (2560, 11648))
         self.assertNotIn('mlp_address_down', p['decoder']['final_local_layer_1']['block'])
         attn = p['decoder']['layers']['local_0']['block']['self_attention']
         self.assertIn('full_m_read_down', attn)
-        self.assertIn('P_loc_down', attn)  # Read and write downs are independent.
-    self.assertEqual(counts, {'Pythia2p8B': 2775208960, 'BamPythia2p8BSota': 2775209638})
+        self.assertNotIn('P_loc_down', attn)
+        self.assertEqual(attn['full_m_read_down']['kernel'].shape, (2560, 10, 1024))
+        write = p['decoder']['layers']['local_1']['block']
+        self.assertEqual(write['mlp_address_down']['kernel'].shape, (2560, 10, 1024))
+    self.assertEqual(counts, {'Pythia2p8B': 2775208960, 'BamPythia2p8BSota': 2775039456})
+
+  def test_shared_read_write_matches_tied_independent_projections(self):
+    c = self.small_config()
+    m, mesh, p = self.init(c)
+    p = nn.unbox(p)
+    flat = flatten_dict(p)
+    independent = dict(flat)
+    for path, value in flat.items():
+      if path[-2:] == ('full_m_read_down', 'kernel'):
+        independent[path[:-2] + ('P_loc_down', 'kernel')] = value
+    uc = pyconfig.HyperParameters(SimpleNamespace(keys=dict(
+        c.get_keys(), bam_share_read_attention_write_down=False)))
+    um, _ = self.model(uc)
+    with mesh, nn.partitioning.axis_rules(c.logical_axis_rules):
+      forward = lambda model, params: model.apply({'params': params}, *self.inputs(), enable_dropout=False)[0]
+      np.testing.assert_allclose(forward(m, p), forward(um, unflatten_dict(independent)), atol=3e-6, rtol=3e-6)
+      grad = lambda model, params: jax.grad(lambda ps: jnp.mean(forward(model, ps)**2))(params)
+      shared_g = flatten_dict(grad(m, p))
+      independent_g = flatten_dict(grad(um, unflatten_dict(independent)))
+    for path, value in shared_g.items():
+      expected = independent_g[path]
+      if path[-2:] == ('full_m_read_down', 'kernel'):
+        expected = expected + independent_g[path[:-2] + ('P_loc_down', 'kernel')]
+        self.assertGreater(float(jnp.linalg.norm(value)), 0.)
+      # Reusing a dot changes reverse-mode accumulation order; scale tolerance per tensor
+      # so cancellation near individual zero entries does not dominate the comparison.
+      scale = float(jnp.max(jnp.abs(expected)))
+      np.testing.assert_allclose(value, expected, atol=3e-6 + 3e-5 * scale, rtol=0, err_msg=str(path))
 
   def test_initialization_roles_and_seed_epsilon(self):
     c = self.small_config(scan_layers=False)

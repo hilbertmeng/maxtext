@@ -1,7 +1,8 @@
 # Pythia-2.8B / BAM configuration pair
 
 Implementation: main worktree `/home/xd/projects/maxtext`, branch `refactor-bam`.
-No RUN, TPU, AOT submission, or training result belongs to these configurations.
+No formal training RUN has been launched. Earlier timing/alignment runs used the old
+M80x40, independent R384 circuit; their measurements do not validate the current revision.
 
 ## Reference and scope
 
@@ -30,18 +31,21 @@ This field defaults to null for existing experiments.
 
 `BamPythia2p8BSota` transfers the architecture of XL single-gate read.5 SOTA
 (`BamXLPropSharedR400GeneralReadMShiftReadG050TruePile`, historical runtime `eeec67c`),
-with read/write ranks reduced from400 to384, not the later read/attention-write sharing variants.
+with the user-requested M80x64, R1024 read/write projections, read/attention-write down sharing
+and QKNorm revision (2026-10-20).
 The name denotes the transferred circuit;
 no2.8B loss improvement has been measured.
 
-- M80x40; NoPE60 plus standard RoPE20 coordinates/head;32 embedding-write heads.
-- Shared GELU R384 inside Q/K/VO generalized reads. Attention-write R384 and MLP-write R384
-  remain independent. Every-third-layer MLP writing keeps the XL offset: zero-based1,4,...,28.
+- M80x64; NoPE60 plus standard RoPE20 coordinates/head;32 embedding-write heads.
+- Shared GELU R1024 inside Q/K/VO generalized reads and attention writing: one down kernel
+  and one activated feature tensor, with independent up projections. MLP-write R1024 remains
+  independent; embedding-write bottleneck is also1024.
+  Every-third-layer MLP writing keeps the XL offset: zero-based1,4,...,28.
   The layer31 MLP write is omitted: final M has no downstream consumer.
-- One dynamic v40 M-shift gate, read-only mixing with previous-token M, initially .5.
-- Serial residual, GELU, affine LayerNorm. No QKNorm or KV-shift.
+- One dynamic v64 M-shift gate, read-only mixing with previous-token M, initially .5.
+- Serial residual, GELU, affine LayerNorm. QKNorm enabled; no KV-shift.
 - Thirty-two layers:10 scanned three-layer blocks, then two explicit tail layers carrying
-  both residual and M. Tail widths are12416 and13254; the last layer absorbs the budget remainder.
+  both residual and M. Tail widths are11008 and11648; the final budget adjustment is128-aligned.
 - Generic and BAM-specific health statistics are OFF.
 
 The configuration declares the scan schedule explicitly:
@@ -59,7 +63,7 @@ bam_final_local_layer_count = 2
 The32-layer computation is `scan(block_of_3, length=10) -> tail30 -> tail31`.
 Each layer has independent parameters; `(residual, M)` carries across blocks and both tails.
 Every layer uses local Q/K/V/O reads; `fetch_2` is a legacy module name for the third slot.
-The middle slot writes M from its MLP. Tail30 uses MLP12416, tail31 uses MLP13254;
+The middle slot writes M from its MLP. Tail30 uses MLP11008, tail31 uses MLP11648;
 the final MLP write is disabled because no later layer reads its M.
 The MHA reference uses an ordinary32-layer scan with parallel Pythia residual.
 
@@ -82,21 +86,31 @@ stays1e-4. The initial embedding write has no added input compensation factor.
 | Configuration | MLP widths | Parameters |
 |---|---|---:|
 | Pythia2p8B |10240 every layer|2,775,208,960|
-| BamPythia2p8BSota |[12416,12160,12416]; tail widths12416/13254|2,775,209,638|
+| BamPythia2p8BSota |[11008,10112,11008]; tail widths11008/11648|2,775,039,456|
 
-There are22 non-write and10 write MLPs. R400→384 frees5,304,320 parameters (including the
-embedding-write bottleneck), which refill MLP. The first31 layers use128-aligned widths;
-`bam_last_mlp_dim=13254` overrides only the last layer, after the regular tail-width override.
-Each extra GELU MLP channel costs2D+1=5121 parameters. The nearest integer last width leaves
-678 parameters above MHA (.0000244%). Full parameter trees are checked with `jax.eval_shape`; full weights are not allocated.
+There are22 non-write and10 write MLPs. The new circuit at the old MLP widths would have
+3,039,559,590 parameters, up264,349,952 from the old independent-R384, M80x40 circuit.
+This count includes the user's enabled QKNorm. Sharing eliminates all32 independent
+attention-write down kernels (32*2560*1024 =83,886,080 parameters versus independent R1024).
+
+An independent MLP write now costs4,802,592 parameters;896 fewer hidden channels in its
+MLP refund4,588,416, the nearest128-channel increment. Use21 non-write MLPs of11008,
+10 write MLPs of10112, and the last non-write MLP of11648. All32 layers are128-aligned.
+`bam_last_mlp_dim=11648` overrides only the last layer, after the regular tail-width override.
+The non-MLP subtotal is1,013,661,280 and the MLP subtotal is1,761,378,176.
+Each extra GELU MLP channel costs2D+1=5121 parameters. Rounding the near-exact last width11681
+to11648 leaves169,504 parameters below MHA (-.00611%, -.0258643 W_Q with W_Q=2560^2).
+Full parameter trees are checked with `jax.eval_shape`; full weights are not allocated.
 
 ## Validation
 
 `MaxText/tests/pythia_2p8b_test.py` checks resolved reference settings, topology/accumulation
 batch invariance, full parameter accounting, initialization roles and first-write epsilon,
 scanned/unscanned forward parity with two tails, and BF16 gradients plus an optimizer update.
+Shared read/write forward and gradients are compared against independent down projections
+whose weights are tied explicitly; shared-down gradients must equal the sum of both branches.
 Existing serial Pythia/Mudd and XL single-tail checks cover compatibility.
 
-The R384 revision checks full parameter accounting, separate tail widths, BF16 forward/backward
-and an update, plus legacy XL tail behavior and config-default lint. No TPU training or AOT
-validation was performed.
+The R1024 revision also uses the tiny end-to-end Pythia v8t test to compare pure JAX with
+the interpreted fused-input Pallas path, including logits and all gradients. No full-size TPU
+training, AOT or throughput validation has been performed for this revision.

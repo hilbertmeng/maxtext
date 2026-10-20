@@ -43,8 +43,14 @@ def validate_pythia_config(keys):
     raise ValueError("Pythia uses independent input/output embeddings")
   if (keys.get('dense_conn') or keys.get('bam_enabled')) and not keys.get('pythia_use_fusion'):
     raise ValueError('BAM/Mudd Pythia requires pythia_use_fusion=True')
-  if keys.get('bam_share_read_attention_write_down') or keys.get('bam_share_mlp_write_down'):
-    raise ValueError('Shared read/write down experiments require their recorded runtime commit')
+  if keys.get('bam_share_mlp_write_down'):
+    raise ValueError('Shared MLP-write down experiments require their recorded runtime commit')
+  if keys.get('bam_share_read_attention_write_down'):
+    if not (keys.get('bam_enabled') and keys.get('bam_local_full_m_read_share_down')
+            and keys.get('bam_general_column_read')
+            and keys.get('bam_local_full_m_read_bottleneck_dim') == keys.get('bam_write_v_bottleneck_dim')
+            and keys.get('bam_write_v_bottleneck_activation') == 'gelu'):
+      raise ValueError('Shared attention-write down requires BAM generalized reads and matching GELU ranks')
   if keys.get('dense_conn') and keys.get('bam_enabled'):
     raise ValueError('Combined BAM+Mudd is not a supported Pythia circuit')
   if keys.get('dynamic_mlp_dim') and not keys.get('pythia_use_fusion'):

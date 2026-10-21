@@ -15305,6 +15305,29 @@ class BamMediumPropMShiftReadG050FullQKNormTruePile(BamMediumPropSharedR256Gener
     jax_cache_dir = ''
 
 
+class BamMediumPropMShiftReadG050StandardQKNormTruePile(BamMediumPropMShiftReadG050FullQKNormTruePile):
+    """Normalize only the standard18 Q/K arm before RoPE; M-derived57 stays unchanged."""
+    # Compare with historical full75 QKNorm and no-QKNorm single.5; original TruePile4096 recipe.
+    # Standard-arm scales add648 params (0.00045 W_Q total); MLP widths are unchanged.
+    # Prediction: terminal loss vs full75 +.005 [-.005,+.015]; matched-health speed within1%.
+    # Implementation: codex/mediumprop-qknorm, /data0/xd/mediumprop-qknorm.
+    model_name = 'BamMediumPropMShiftReadG050StandardQKNormTruePile'
+    bam_qk_norm_after_concat = False
+    qk_norm = True
+    force_final_checkpoint = True
+    # Same tuned Splash blocks used for matched timing controls; model-level tuning.
+    sa_block_q = 1024
+    sa_block_kv = 1024
+    sa_block_kv_compute = 512
+    sa_block_q_dkv = 1024
+    sa_block_kv_dkv = 1024
+    sa_block_kv_dkv_compute = 1024
+    sa_use_fused_bwd_kernel = True
+    compare_runs = ['BamMediumPropMShiftReadG050FullQKNormTruePile',
+                    'BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile',
+                    'BamMHAMediumPropC256TruePile', 'BamMHAMediumPropC256QKNormTruePile']
+
+
 class BamMHAMediumPropC256QKNormTruePile(BamMHAMediumPropC256TruePile):
     """Full-head RMS QKNorm before RoPE; matched four-arm comparison."""
     # 结论：MHA的QKNorm有持续终局收益，且改善量大于同组BAM。

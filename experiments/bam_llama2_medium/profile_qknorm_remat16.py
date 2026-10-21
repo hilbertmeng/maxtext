@@ -6,6 +6,7 @@ Both arms run on one owned v5p-16, exact formal per-device batch16/global128,
 On preemption, repeat the whole pair on a backup. Delete all owned candidates.
 """
 import json
+import argparse
 from pathlib import Path
 import shlex
 import subprocess
@@ -23,18 +24,16 @@ STAMP = '20261021-remat16'
 ROOT = aot.ROOT
 
 
-def run_pair(candidate, state):
-    for policy, commit in [('full', FULL), ('minimal', MINIMAL)]:
+def run_pair(candidate, state, arms):
+    for policy, commit, exp, artifact in arms:
         name, zone = candidate['name'], candidate['zone']
-        artifact = f'{AOT}/{commit[:7]}/jax081-i0ae3f58-c17f538a/v5p-16/s13500'
-        aot.run(['gsutil', 'stat', f'{artifact}/{EXP}.pickle'])
         dataset = aot.run(['python3', str(ROOT/'dataset_paths.py'), '--zone', zone,
-                           '--variant=truepile4096', '--exp', EXP, '--commit', commit]).stdout.strip()
+                           '--variant=truepile4096', '--exp', exp, '--commit', commit]).stdout.strip()
         command = ['env', f'AOT_ROOT={artifact}', 'PROFILE_STEPS=13500',
                    'PROFILE_DONE_STEP=99', 'PROFILE_SKIP=10', 'PROFILE_PERIOD=1000',
                    'PROFILE_DURATION=5', 'PROFILE_TRACE_COUNT=1', f'DATASET_PATH={dataset}',
                    str(ROOT/'run_profile_matrix.sh'), name, zone, commit,
-                   f'qknorm-remat16-{policy}', EXP]
+                   f'qknorm-remat16-{policy}', exp]
         log = ROOT/'logs'/f'{STAMP}-{name}-{policy}.log'
         state['active'] = dict(candidate=candidate, policy=policy, commit=commit, log=str(log))
         save(state)
@@ -56,10 +55,27 @@ def save(state):
 
 
 def main():
-    candidates = [dict(name=f'xd-v5p-16-qknorm-rematdiag-20261021-{tag}', zone=zone)
+    global STAMP
+    parser=argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--aligned-commit')
+    parser.add_argument('--aligned-aot-root')
+    args=parser.parse_args()
+    arms=[(policy,commit,EXP,f'{AOT}/{commit[:7]}/jax081-i0ae3f58-c17f538a/v5p-16/s13500')
+          for policy,commit in [('full',FULL),('minimal',MINIMAL)]]
+    label='rematdiag'
+    if args.aligned_commit:
+        if not args.aligned_aot_root:parser.error('--aligned-aot-root required')
+        commit=aot.resolve_remote_commit(args.aligned_commit)
+        arms += [(f'align128-{policy}',commit,
+                  f'BamMediumPropMShiftReadG050StandardQKNormAligned128{policy.title()}Profile',
+                  args.aligned_aot_root.rstrip('/')) for policy in ('full','minimal')]
+        label='align128';STAMP+='-aligned128'
+    # AOT-first: do not allocate target hardware while a required executable is missing.
+    for _,_,exp,artifact in arms:aot.run(['gsutil','stat',f'{artifact}/{exp}.pickle'])
+    candidates = [dict(name=f'xd-v5p-16-qknorm-{label}-20261021-{tag}', zone=zone)
                   for tag,zone in [('ue5a','us-east5-a'), ('uc1a','us-central1-a'),
                                    ('ew4b','europe-west4-b')]]
-    state = dict(candidates=candidates, status='acquiring', source_commits=[FULL,MINIMAL])
+    state = dict(candidates=candidates, status='acquiring', arms=arms)
     save(state)
     try:
         for c in candidates:
@@ -78,7 +94,7 @@ def main():
                 tried.add(c['name'])
                 try:
                     state['status']='profiling';save(state)
-                    run_pair(c,state)
+                    run_pair(c,state,arms)
                     state.update(status='complete', winner=c);save(state)
                     print('PROFILE_PAIR_OK', c, flush=True)
                     return
@@ -92,7 +108,7 @@ def main():
     finally:
         failures=[]
         for c in candidates:
-            result=aot.run([str(ROOT/'delete_tpu_xd.sh'),c['name'],c['zone']],check=False,timeout=900)
+            result=aot.run([str(ROOT/'delete_tpu_xd.sh'),c['name'],c['zone'],aot.PROJECT],check=False,timeout=900)
             if result.returncode:failures.append(dict(candidate=c,output=result.stdout))
         state['cleanup_failures']=failures;save(state)
         if failures:raise RuntimeError(f'Owned profile cleanup failed: {failures}')

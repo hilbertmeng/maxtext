@@ -144,14 +144,33 @@ def analyze_sequence(arrays,cfg):
                     attention_final_signed_share=projected(a,final_m),mlp_final_signed_share=projected(b,final_m),
                     rounding_final_signed_share=projected(rounding,final_m)),
                  reads=read_statistics(r,cfg))
-        for name in ['attention_write_gate','mlp_write_gate','m_shift_gate']:
-            if name in r:
-                z=r[name];row[name]=dict(mean=float(z.mean()),closed_fraction=float(np.mean(z<.05)),open_fraction=float(np.mean(z>.95)))
+        gate_values={name:r[name] for name in ['attention_write_gate','mlp_write_gate','m_shift_gate'] if name in r}
+        if 'attention_write_gate' not in gate_values and 'attention_write_logits' in r:
+            gate_values['attention_write_gate']=sigmoid(r['attention_write_logits'])
+        if 'mlp_write_gate' not in gate_values and 'dense_mlp_write_gate' in r:
+            gate_values['mlp_write_gate']=sigmoid(r['dense_mlp_write_gate']+r['mlp_write_bias'])
+        for name,z in gate_values.items():
+            row[name]=dict(mean=float(z.mean()),closed_fraction=float(np.mean(z<.05)),open_fraction=float(np.mean(z>.95)))
         if 'dense_M_shift_gate' in r:
             z=sigmoid(r['dense_M_shift_gate']+r['m_shift_bias']);row['m_shift_gate']=dict(mean=float(z.mean()),closed_fraction=float(np.mean(z<.05)),open_fraction=float(np.mean(z>.95)))
+        # Coordinate energies describe signed address factors, not routing probabilities.
+        attention_address=r.get('attention_write_address')
+        if attention_address is None and 'attention_write_address_raw' in r:
+            epsilon=cfg.get('bam_write_rms_epsilon') or cfg['normalization_layer_epsilon']
+            attention_address=norm(r['attention_write_address_raw'],epsilon)
+        mlp_address=r.get('mlp_write_address')
+        if mlp_address is None and 'dense_mlp_address_up' in r:
+            epsilon=cfg.get('bam_write_rms_epsilon') or cfg['normalization_layer_epsilon']
+            mlp_address=norm(r['dense_mlp_address_up'],epsilon)
+        for source,address in [('attention',attention_address),('mlp',mlp_address)]:
+            if address is not None:
+                row['matrix'][source+'_address_usage']=usage(np.mean(address**2,axis=tuple(range(address.ndim-1))))
+                row['matrix'][source+'_address_rank']=matrix_rank(address.reshape(-1,address.shape[-1])[None])
         result[str(i)]=row
     embedding_decay=decay**len(layers)
     return dict(layers=result,embedding=dict(vector_rms=rms(embedding['embedding_vector']),matrix_rms=rms(embedding['embedding_M']),
+        matrix_rank=matrix_rank(embedding['embedding_M']),
+        matrix_address_usage=usage(np.mean(embedding['embedding_M']**2,axis=(0,1,2))),
         vector_final_signed_share=projected(embedding['embedding_vector'],final_x),
         matrix_final_signed_share=projected(embedding_decay*embedding['embedding_M'],final_m)),
         closure=dict(vector_relative_rms=rms(accumulated_x-final_x)/max(rms(final_x),EPS),
@@ -171,14 +190,24 @@ def scalar_paths(tree,prefix=''):
 def main():
     parser=argparse.ArgumentParser();parser.add_argument('directory');args=parser.parse_args()
     root=Path(args.directory);meta=json.loads((root/'metadata.json').read_text());rows=[]
-    for path in sorted(root.glob('sequence_*.npz')):
-        with np.load(path,allow_pickle=False) as data:row=analyze_sequence({k:data[k] for k in data.files},meta['config'])
+    paths=sorted(root.glob('sequence_*.npz'))
+    if len(paths)!=meta['sequences']:raise ValueError('Incomplete sequence artifacts')
+    for path in paths:
+        with np.load(path,allow_pickle=False) as data:
+            arrays={k:data[k] for k in data.files}
+        if not all(np.isfinite(value).all() for value in arrays.values()):raise ValueError('Nonfinite activation in '+str(path))
+        _,layers=records(arrays,meta['config'])
+        for i in range(1,len(layers)):
+            for before,after in [('M_in','M_out'),('x_in','x_out')]:
+                if not np.array_equal(layers[i][before],layers[i-1][after]):
+                    raise ValueError(f'Layer continuity mismatch: {path.name} layer{i} {before}')
+        row=analyze_sequence(arrays,meta['config'])
         rows.append(row);print('ANALYZED',path.name,flush=True)
     paths={}
     for row in rows:
         for key,value in scalar_paths(row):paths.setdefault(key,[]).append(value)
     aggregate={key:dict(mean=float(np.mean(value)),std=float(np.std(value)),min=float(np.min(value)),max=float(np.max(value))) for key,value in paths.items()}
-    report=dict(experiment=meta['experiment'],checkpoint=meta['checkpoint'],length=meta['length'],sequences=len(rows),
+    report=dict(validated_finiteness_and_layer_continuity=True,experiment=meta['experiment'],checkpoint=meta['checkpoint'],length=meta['length'],sequences=len(rows),
         config={k:meta['config'].get(k) for k in ['emb_dim','num_decoder_layers','num_query_heads','bam_k','bam_v','bam_mlp_write_every','bam_write_rms_epsilon','normalization_layer_epsilon','bam_local_full_m_read_bottleneck_dim']},
         sequence_hashes=meta['sequence_hashes'],losses=meta['losses'],ablations=meta.get('ablations'),aggregate=aggregate,per_sequence=rows)
     (root/'stream_analysis.json').write_text(json.dumps(report,indent=2)+'\n')

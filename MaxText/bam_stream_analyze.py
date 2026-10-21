@@ -28,10 +28,11 @@ def usage(energy):
 
 
 def matrix_rank(x):
-    x=np.asarray(x,np.float64);gram=np.swapaxes(x,-1,-2)@x
+    x=np.asarray(x,np.float64)
+    gram=x@np.swapaxes(x,-1,-2) if x.shape[-2]<x.shape[-1] else np.swapaxes(x,-1,-2)@x
     eigen=np.maximum(np.linalg.eigvalsh(gram),0);total=eigen.sum(-1)
     p=eigen/np.maximum(total[...,None],EPS)
-    effective=np.exp(-np.sum(p*np.log(np.maximum(p,EPS)),axis=-1))
+    effective=np.where(total>EPS,np.exp(-np.sum(p*np.log(np.maximum(p,EPS)),axis=-1)),0.)
     stable=total/np.maximum(eigen[...,-1],EPS);rank=min(x.shape[-2:])
     return dict(effective_rank=float(effective.mean()),effective_rank_fraction=float((effective/rank).mean()),
         stable_rank=float(stable.mean()),stable_rank_fraction=float((stable/rank).mean()),
@@ -173,6 +174,10 @@ def analyze_sequence(arrays,cfg):
                     content=norm(raw,epsilon)*gate_values[source+'_write_gate'][...,None]
                 active=address*np.sqrt(np.mean(content**2,axis=-1,keepdims=True))
                 row['matrix'][source+'_active_address_usage']=usage(np.mean(active**2,axis=tuple(range(active.ndim-1))))
+                row['matrix'][source+'_content_rank']=matrix_rank(content)
+                row['matrix'][source+'_per_token_address_rank']=matrix_rank(active)
+                row['matrix'][source+'_update_rank']=matrix_rank(a if source=='attention' else b)
+                row['matrix'][source+'_head_activity']=usage(np.mean(content**2,axis=(0,1,3)))
         result[str(i)]=row
     embedding_decay=decay**len(layers)
     return dict(layers=result,embedding=dict(vector_rms=rms(embedding['embedding_vector']),matrix_rms=rms(embedding['embedding_M']),

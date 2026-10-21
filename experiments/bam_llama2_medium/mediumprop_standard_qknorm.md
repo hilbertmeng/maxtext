@@ -41,6 +41,10 @@ the same three historical controls for the second-order series.
 
 Prior: standard18 minus full75 terminal loss+.005, range[-.005,+.015];
 matched-health throughput within1%. This is a mechanism prior, not an extrapolation.
+Equivalent explicit no-QKNorm prior: terminal loss-.006, range[-.016,+.004],
+MHA-referenced gain multiplier about1.04. Expected to retain roughly half the
+observed full75 improvement; beating full75 would falsify the claimed benefit
+of constraining the amplitude of the M-derived Q/K coordinates.
 Runtime shape/initialization/causality tests explicitly check the norm width
 and RoPE order; agreement between two implementations alone is insufficient.
 For speed, compare the same all-health-OFF/tuned-Splash setup for both norm

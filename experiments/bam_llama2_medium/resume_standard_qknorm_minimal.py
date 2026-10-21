@@ -23,20 +23,23 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('aot_state', type=Path)
     parser.add_argument('--execute', action='store_true', help='Default only previews the validated handoff')
+    parser.add_argument('--restore-full', action='store_true', help='Return from the tested minimal runtime to the verified full runtime')
     args = parser.parse_args()
+    old_commit, new_commit = (NEW, OLD) if args.restore_full else (OLD, NEW)
+    old_mode, new_mode = ('minimal', 'full') if args.restore_full else ('full', 'minimal')
     aot = json.loads(args.aot_state.read_text())
     assert aot['status'] in ('ready', 'artifact_ready'), aot['status']
-    expected = dict(exp=RUN, commit=NEW, target_topology='v5p-16', steps=13500)
+    expected = dict(exp=RUN, commit=new_commit, target_topology='v5p-16', steps=13500)
     assert all(aot.get(k) == v for k, v in expected.items())
     closeout.run_command(['gsutil', '-q', 'stat', aot['artifact']])
     manifest = json.loads(closeout.run_command(['gsutil', 'cat', aot['manifest']]).stdout)
     assert all(manifest.get(k) == v for k, v in expected.items())
     item = closeout.resolve_run(ROOT, RUN, 'running', 'User-requested compatible minimal-remat continuation')
     assert item.registry['declared_status'] == 'running'
-    if item.registry['code_commit'] == NEW:
+    if item.registry['code_commit'] == new_commit:
         print('ALREADY_SUBMITTED: verify newer FIRST_STEP and checkpoint; trainer not touched')
         return
-    assert item.registry['code_commit'] == OLD
+    assert item.registry['code_commit'] == old_commit
     assert item.tpu == 'xd-v5p-16-310260-maxtext' and item.zone == 'us-east5-a'
     closeout.assert_resource_ownership(item)
     node = json.loads(closeout.run_command(['gcloud', 'compute', 'tpus', 'tpu-vm', 'describe',
@@ -46,21 +49,21 @@ def main():
     env = dict(EXP=RUN, RUN_NAME=RUN, ID='310260', MODE='train',
                TPU_NAME_OVERRIDE=item.tpu, TPU_TYPE='v5p-16', PRIMARY_ZONE=item.zone, ZONE=item.zone,
                BACKUP_ZONES=','.join(item.registry.get('backup_zones', [])) if isinstance(item.registry.get('backup_zones'), list) else item.registry.get('backup_zones', ''),
-               BRANCH='codex/mediumprop-qknorm', CODE_COMMIT=NEW, PLANNED_STEPS='13500',
+               BRANCH='codex/mediumprop-qknorm', CODE_COMMIT=new_commit, PLANNED_STEPS='13500',
                COMPARE_RUNS=','.join(item.registry['compare_runs']), LOSS_REPORT_INTERVAL='200', LOSS_WINDOW='25',
                DATASET_PATH=item.registry['dataset_path'], DATASET_VARIANT='truepile4096',
                BASE_OUTPUT_DIR_OVERRIDE=item.registry['base_output_directory'],
                COMPILED_TRAINSTEP_GCS=aot['artifact'])
     launch = ['tmux', 'new-session', '-d', '-s', item.registry['tmux_session'],
               shlex.join(['env', *(f'{k}={v}' for k, v in env.items()), 'bash', str(ROOT/'run_exp_xd.sh')])]
-    state = dict(run=RUN, old_commit=OLD, new_commit=NEW, tpu=item.tpu, zone=item.zone,
+    state = dict(run=RUN, old_commit=old_commit, new_commit=new_commit, tpu=item.tpu, zone=item.zone,
                  observed_step=item.last_progress_step, artifact=aot['artifact'], launch=launch)
     if not args.execute:
         print(json.dumps(dict(dry_run=True, **state), indent=2))
         return
     folder = ROOT/'logs'/'runtime-restarts'
     folder.mkdir(parents=True, exist_ok=True)
-    journal = folder/f'{RUN}-minimal-ea0c153.json'
+    journal = folder/f'{RUN}-{new_mode}-{new_commit[:7]}.json'
     def save(phase):
         state.update(phase=phase, updated_utc=registry.now_utc())
         registry.atomic_json(journal, state)
@@ -96,12 +99,12 @@ def main():
         assert cursor == newest and cursor['checkpoint_step'] == final
         assert cursor['global_batch_size'] == 128 and cursor['num_infeed_hosts'] == workers
         state.update(checkpoint=final, data_cursor=cursor)
-        gcs_log = f'gs://newproject-1-llm_projects_us-east5/log/diagnostics/qknorm_minimal_resume/ea0c153/full-before-{final}.log'
+        gcs_log = f'gs://newproject-1-llm_projects_us-east5/log/diagnostics/qknorm_minimal_resume/{new_commit[:7]}/{old_mode}-before-{final}.log'
         copy_log = shlex.join(['gsutil', '-q', 'cp', item.registry['train_log'], gcs_log])
         closeout.run_command(['gcloud', 'compute', 'tpus', 'tpu-vm', 'ssh', '--internal-ip', item.tpu,
             f'--zone={item.zone}', f'--project={item.project}', '--worker=0', f'--command={copy_log}'], timeout=120)
         state['old_worker_log_gcs'] = gcs_log
-        shutil.copy2(item.registry['launcher_log'], folder/f'{RUN}-full-before-{final}.launcher.log')
+        shutil.copy2(item.registry['launcher_log'], folder/f'{RUN}-{old_mode}-before-{final}.launcher.log')
         pid_file = ROOT/'logs'/f'{RUN}.pid'
         if pid_file.exists() and pid_file.read_text().strip() == str(item.registry.get('auto_pid')):
             pid_file.unlink()

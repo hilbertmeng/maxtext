@@ -12891,7 +12891,6 @@ class BamMediumPropMShiftReadG050StandardQKNormTruePile(BamMediumPropMShiftReadG
     bam_qk_norm_after_concat = False
     qk_norm = True
     force_final_checkpoint = True
-    remat_policy = 'minimal'  # User-requested compatible resume after matched v5p timing.
     # Same tuned Splash blocks used for matched timing controls; model-level tuning.
     sa_block_q = 1024
     sa_block_kv = 1024
@@ -12902,8 +12901,7 @@ class BamMediumPropMShiftReadG050StandardQKNormTruePile(BamMediumPropMShiftReadG
     sa_use_fused_bwd_kernel = True
     compare_runs = ['BamMediumPropMShiftReadG050FullQKNormTruePile',
                     'BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile',
-                    'BamMHAMediumPropC256TruePile', 'BamMHAMediumPropC256QKNormTruePile',
-                    'MuddLlama2MediumPropTruePile']
+                    'BamMHAMediumPropC256TruePile', 'BamMHAMediumPropC256QKNormTruePile']
 
 
 class BamMediumPropMShiftReadG050StandardQKNormMinimalProfile(BamMediumPropMShiftReadG050StandardQKNormTruePile):

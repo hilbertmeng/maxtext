@@ -98,3 +98,16 @@ and a subsequent periodic checkpoint. Keep the existing training TPU throughout.
 Prior for formal v5p-16: +3--5% throughput (.541 to approximately.56 step/s),
 subject to target verification. The paired v5p-8 result is documented in
 `mediumprop_qknorm_timing.md`; it is not the formal-v5p-16 result.
+
+
+Target verification contradicted the transfer prior: on the same formal v5p-16,
+full5620--5679 averaged.5394333 step/s (median.541), minimal5702--5761 averaged
+.4397667 (median.441), 60 samples each: minimal -18.4762%. Actual configs differ
+only in remat, report metadata and executable path; batch128/per-device16,
+Splash1024/fused, health OFF, data cursor and13500-step LR schedule match.
+Minimal resumed correctly at5682 from committed5681; no checkpoint/data reset.
+The v5p-8 +3.89% result therefore does not transfer to this target. Perform a
+same-machine return to the original full executable to distinguish an executable
+regression from a changed machine condition; do not assert a specific HLO cause
+without profiling. Preserve both executables and logs. Full13.5k loss training
+continues, as explicitly requested by the user.

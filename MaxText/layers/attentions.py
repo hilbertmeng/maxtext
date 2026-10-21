@@ -2517,6 +2517,32 @@ def bam_m_shift_health(M, mixed, gate, segment_ids=None, positions=None, *, colu
   return stats, columns, state
 
 
+class _RMSNormMultiplier(nn.Module):
+  """RMSNorm's per-feature multiplier alone: the same 'scale' parameter as get_rmsnorm(name, cfg)."""
+  config: Any
+  features: int
+
+  @nn.compact
+  def __call__(self):
+    cfg = self.config
+    direct = getattr(cfg, 'direct_scale')
+    init = nn.initializers.ones if direct else nn.initializers.zeros
+    scale = self.param('scale', nn.with_logical_partitioning(init, ('norm',)), (self.features,), cfg.weight_dtype)
+    scale = jnp.asarray(scale, cfg.dtype)
+    return scale if direct else scale + 1.0
+
+
+class _QKNormMultipliers(nn.Module):
+  """Parameters of dc.QKNorm (qk_norm/{q_norm,k_norm}/scale) as multipliers, without normalizing anything."""
+  config: Any
+  features: int
+
+  @nn.compact
+  def __call__(self):
+    return (_RMSNormMultiplier(self.config, self.features, name='q_norm')(),
+            _RMSNormMultiplier(self.config, self.features, name='k_norm')())
+
+
 class BamAttention(Attention):
   """MHA plus a matrix stream written every BAM layer and optionally read by LocalQK/full."""
 
@@ -3845,6 +3871,18 @@ class BamAttention(Attention):
                                           embedding_dims=standard_qk_width)
       key = self.apply_rotary_embedding(key, inputs_positions, name='key_rotary',
                                         embedding_dims=standard_qk_width)
+    else:
+      # Full-head QKNorm then RoPE on the standard tail, rearranged exactly: the RMS statistic is one
+      # scalar per token/head and RoPE is linear, so RoPE(s*x/r) = RoPE(s_tail*x_tail)/r. Scale and rotate
+      # the narrow standard arm here; after the read only 1/r and the local scales remain (no post-read
+      # RoPE on a 10-wide minor dimension, no relayout). r uses the unscaled, unrotated head.
+      head_scale = _QKNormMultipliers(cfg, self.head_dim, name='qk_norm')()
+      tail = slice(self._qk_col_width, None)
+      standard_sumsq = tuple(jnp.sum(jnp.square(x.astype(jnp.float32)), axis=-1) for x in (query, key))
+      query = self.apply_rotary_embedding(query * head_scale[0][tail], inputs_positions, name='query_rotary',
+                                          embedding_dims=standard_qk_width)
+      key = self.apply_rotary_embedding(key * head_scale[1][tail], inputs_positions, name='key_rotary',
+                                        embedding_dims=standard_qk_width)
 
     def logits(name, squeeze):
       if fused:     # same bias handling as _project_read_gate_logits
@@ -3943,9 +3981,18 @@ class BamAttention(Attention):
     if pass_m:
       M_in = outs[4]
     if full_qk_norm:
-      query, key = dc.QKNorm(cfg, name='qk_norm')(query, key)
-      query = self._apply_partial_rope(query, inputs_positions, name='query_rotary')
-      key = self._apply_partial_rope(key, inputs_positions, name='key_rotary')
+      local = slice(None, self._qk_col_width)
+      eps = float(cfg.normalization_layer_epsilon)
+
+      def finish(x, scale, standard_ss):
+        stats = x.astype(jnp.float32)
+        mean2 = (jnp.sum(jnp.square(stats[..., local]), axis=-1) + standard_ss) / self.head_dim
+        multiplier = jnp.concatenate((scale[local].astype(jnp.float32),
+                                      jnp.ones((self.head_dim - self._qk_col_width,), jnp.float32)))
+        return jnp.asarray(stats * lax.rsqrt(mean2 + eps)[..., None] * multiplier, self.dtype)
+
+      query = finish(query, head_scale[0], standard_sumsq[0])
+      key = finish(key, head_scale[1], standard_sumsq[1])
     query = nn.with_logical_constraint(query, self.query_axis_names)
     key = nn.with_logical_constraint(key, self.key_axis_names)
     value = nn.with_logical_constraint(value, self.value_axis_names)

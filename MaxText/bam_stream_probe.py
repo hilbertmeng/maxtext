@@ -27,8 +27,11 @@ def cohort(path, source, seed, count):
     if path.exists():
         with np.load(path) as d:return {k:d[k] for k in d.files}
     import tensorflow as tf
-    tf.config.threading.set_inter_op_parallelism_threads(2)
-    tf.config.threading.set_intra_op_parallelism_threads(2)
+    try:
+        tf.config.threading.set_inter_op_parallelism_threads(2)
+        tf.config.threading.set_intra_op_parallelism_threads(2)
+    except RuntimeError:
+        pass  # The process-level TF thread limits still apply after TF context initialization.
     pool=[];labels=[]
     for record in tf.data.TFRecordDataset([source]).take(512):
         example=tf.train.Example.FromString(record.numpy())
@@ -135,7 +138,8 @@ def main():
         seed=args.seed,cohort_source=args.cohort_source,sequences=args.sequences,config=cfg.get_keys(),
         parameter_count=sum(v.size for v in jax.tree.leaves(params)),parameter_shapes=shapes,
         setup_seconds=time.time()-start,source_commit=subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip(),
-        token_positions=capture.positions(args.length).tolist(),devices=[str(d) for d in jax.devices()])
+        token_positions=capture.positions(args.length).tolist(),devices=[str(d) for d in jax.devices()],
+        jax_version=jax.__version__,device_batch=args.batch_size)
     (output/'metadata.json').write_text(json.dumps(metadata,indent=2,default=str)+'\n')
     data=cohort(args.cohort,args.cohort_source,args.seed,args.sequences)
     plain_fn=jax.jit(lambda p,b:plain(model,p,b,rng))

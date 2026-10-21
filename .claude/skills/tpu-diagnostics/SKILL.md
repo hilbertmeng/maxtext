@@ -169,6 +169,11 @@ formal RUN's health settings and schedule.
   headline speedup; compare against the faster verified baseline on the same hardware.
 - Inspect HLO/XPlane lowering, layout/copies, fusion type, kernel count, and whether conceptual
   broadcast/zero tensors materialize.
+  Before recompiling solely for HLO or memory attribution, check an existing raw XPlane's
+  embedded `Hlo Proto`: locally run the pinned CPU Python with
+  `experiments/bam_llama2_medium/extract_xplane_hlo.py TRACE.xplane.pb OUTPUT_DIR`.
+  It recovers the executed HLO and compiler buffer assignment without a TPU;
+  compiler heap reservations differ from post-step live-buffer statistics.
 - For Pallas VMEM failures, distinguish physical per-core capacity, configured scoped budget,
   and final allocation including register spills. Estimate padded live buffers and DMA buffering
   first, then compare compiler allocation details; inspect lifetime/reuse and internal compute

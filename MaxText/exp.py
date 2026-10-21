@@ -300,6 +300,7 @@ class BamLlama2Medium(Llama2Medium):
     bam_local_full_m_read_share_down = False
     bam_general_column_read = False
     bam_general_matrix_write = False  # Historical write variants remain worktree-only.
+    bam_qk_static_read_gate = True  # Generalized static Q/K read gating; V/O unchanged.
     bam_static_read_gate_init = .99
     bam_static_write_gate_init = .01
     bam_local_vo_shared_read = 'none'  # none | local_o (C8 column donor)
@@ -12879,6 +12880,25 @@ class BamMediumPropMShiftReadG050FullQKNormTruePile(BamMediumPropSharedR256Gener
     bam_record_local_routing_metrics = False
     bam_record_local_qk_amplitude_metrics = False
     jax_cache_dir = ''
+
+
+class BamMediumPropMShiftReadG050FullQKNormNoQKStaticGateTruePile(BamMediumPropMShiftReadG050FullQKNormTruePile):
+    """Keep static Q/K reads, remove their input-dependent gates; full-head QKNorm."""
+    model_name = 'BamMediumPropMShiftReadG050FullQKNormNoQKStaticGateTruePile'
+    bam_qk_static_read_gate = False
+    mlp_dim_by_block = [3813, 3686, 3813]
+    force_final_checkpoint = True
+    sa_block_q = 1024
+    sa_block_kv = 1024
+    sa_block_kv_compute = 512
+    sa_block_q_dkv = 1024
+    sa_block_kv_dkv = 1024
+    sa_block_kv_dkv_compute = 1024
+    sa_use_fused_bwd_kernel = True
+    compare_runs = ['BamMediumPropMShiftReadG050FullQKNormTruePile',
+                    'BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile',
+                    'BamMHAMediumPropC256TruePile', 'BamMHAMediumPropC256QKNormTruePile',
+                    'MuddLlama2MediumPropTruePile']
 
 
 class BamMediumPropMShiftReadG050StandardQKNormTruePile(BamMediumPropMShiftReadG050FullQKNormTruePile):

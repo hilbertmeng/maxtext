@@ -131,7 +131,16 @@ def main():
     mesh=jax.sharding.Mesh(max_utils.create_device_mesh(cfg),cfg.mesh_axes)
     model=Transformer(cfg,mesh,quant=None);rng=jax.random.key(20261021)
     with mesh,nn.partitioning.axis_rules(cfg.logical_axis_rules):
-        abstract,_,_=max_utils.get_abstract_state(model,None,cfg,rng,mesh,is_training=False)
+        # Old MaxText unboxes ShapeDtypeStruct under active axis rules. Flax's
+        # default unbox applies a real sharding primitive to these abstract leaves.
+        original_unbox=max_utils.unbox_logicallypartioned
+        max_utils.unbox_logicallypartioned=lambda tree: jax.tree.map(
+            lambda leaf: leaf.unbox(apply_constraint=False) if isinstance(leaf,nn.spmd.LogicallyPartitioned) else leaf,
+            tree,is_leaf=lambda leaf:isinstance(leaf,nn.spmd.LogicallyPartitioned))
+        try:
+            abstract,_,_=max_utils.get_abstract_state(model,None,cfg,rng,mesh,is_training=False)
+        finally:
+            max_utils.unbox_logicallypartioned=original_unbox
         params=checkpointing.load_params_from_path(args.checkpoint,abstract.params)
     shapes={'/'.join(k):list(v.shape) for k,v in flatten_dict(params).items()}
     metadata=dict(experiment=args.experiment,checkpoint=args.checkpoint,label=args.label,length=args.length,

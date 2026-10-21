@@ -135,7 +135,8 @@ def main():
         params=checkpointing.load_params_from_path(args.checkpoint,abstract.params)
     shapes={'/'.join(k):list(v.shape) for k,v in flatten_dict(params).items()}
     metadata=dict(experiment=args.experiment,checkpoint=args.checkpoint,label=args.label,length=args.length,
-        seed=args.seed,cohort_source=args.cohort_source,sequences=args.sequences,config=cfg.get_keys(),
+        seed=args.seed,cohort_source=args.cohort_source,sequences=args.sequences,
+        config={k:('<redacted>' if any(marker in k.lower() for marker in ('access_token','api_key','password','credential','secret')) else v) for k,v in cfg.get_keys().items()},
         parameter_count=sum(v.size for v in jax.tree.leaves(params)),parameter_shapes=shapes,
         setup_seconds=time.time()-start,source_commit=subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip(),
         token_positions=capture.positions(args.length).tolist(),devices=[str(d) for d in jax.devices()],

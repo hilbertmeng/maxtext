@@ -18,6 +18,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('report', type=Path)
     parser.add_argument('output', type=Path)
+    parser.add_argument('--experiment-label', default='norm18')
     args = parser.parse_args()
     runs = json.loads(args.report.read_text())['runs']
     assert len(runs) == 1
@@ -31,7 +32,7 @@ def main():
         series = gaps[base]
         ax.plot([p['step']/1000 for p in series], [p['gap'] for p in series],
                 color=color, marker='o', markersize=3)
-        ax.set(title=f'Loss gap: norm18 minus {label}', ylabel='Loss gap (negative is better)')
+        ax.set(title=f'Loss gap: {args.experiment_label} minus {label}', ylabel='Loss gap (negative is better)')
         ax.axhline(0, color='black', linewidth=.8, linestyle='--')
     for base, label, color in [(FULL, 'vs full75', 'tab:blue'),
                                (NONE, 'vs no QKNorm', 'tab:orange')]:
@@ -48,7 +49,7 @@ def main():
     for ax in axes.flat:
         ax.set_xlabel('Training step (thousands)')
         ax.grid(alpha=.25)
-    fig.suptitle(f'MediumProp norm18 QKNorm: cumulative series through step {report["through_step"]:,}')
+    fig.suptitle(f'MediumProp {args.experiment_label}: cumulative series through step {report["through_step"]:,}')
     args.output.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(args.output, dpi=160)
     fig.savefig(args.output.with_suffix('.svg'))

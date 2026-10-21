@@ -16122,6 +16122,8 @@ class BamPythia2p8BSotaIndependentR768Pallas(BamPythia2p8BSotaIndependentR768):
     Kernel shapes (V64, K80, N32, T2048) are those of the v64 SOTA, so its 56 MiB scoped VMEM applies."""
     # code_commit: 1ac1183; UE5a v5p-256, 8/device, training health ON/BAM health OFF:
     # steps20-99 ~0.592 step/s including routine flushes (median0.596); startup steps10-19 0.598.
+    # ce946ed UE5a v5p-128, B16/device, health ON: 20-49 .337699 step/s (2.96122s), 50-step diagnostic.
+    # Same-window v5p-256 B8 .593847: throughput .568664x, chip-time -12.07%; global batch1024 unchanged.
     # User-paused at committed CP37042/143000; late steady speed ~0.585 step/s, UE5a, P0.
     # Provisional: early gains eroded; parallel Mudd overtook near31k and widened its lead.
     # 31.5k->36.5k gap vs MHA2.8B -.06344->-.06068, vs Mudd +.00124->+.00378,

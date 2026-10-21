@@ -15333,6 +15333,11 @@ class BamMediumPropMShiftReadG050FullQKNormNoQKStaticGateTruePile(BamMediumPropM
 
 class BamMediumPropMShiftReadG050FullQKNormNoQKStaticGateSoftCapSiLUTruePile(BamMediumPropMShiftReadG050FullQKNormNoQKStaticGateTruePile):
     """SoftCapSiLU tau2 on all dynamic M reads and embedding/attention/MLP writes."""
+    # 结论：全部动态读/写门换SoftCapSiLU持续损失收益，未看到追平趋势；跑前1.03正收益判断错误。
+    # 用户停于9336；44个原生200步窗口均落后sigmoid父路，末五8400–9200 gap+.018847、收益倍数.895148。
+    # 对完整头QKNorm SOTA末五gap+.017728、倍数.900740；对MHA QKNorm gap-.132858，倍数均以原MHA为参考。
+    # 同431422604参数/MLP和M-cache，UE5a v5p16 ~.533–.534 step/s，与匹配父路基本等速。
+    # P5；CP9336提交、node/queue释放、TB SYNC_OK；机制限制与完整走势见 mediumprop_softcap_gates.md。
     # ledger only: codex/mediumprop-qknorm, /data0/xd/mediumprop-qknorm.
     # Same431422604 params/MLP widths; read .05 and write .1 nominal openings, no slope compensation.
     # Prior vs no-static-QK-gate parent: MHA-referenced final gain1.03 [.95,1.10], speed -1 to-3%.

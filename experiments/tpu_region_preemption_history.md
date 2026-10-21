@@ -591,6 +591,7 @@ active leases are censored, and manual migration releases are not preemptions.
 
 | `BamMediumPropMShiftReadG050StandardQKNormTruePile` | v5p-16 (`xd-v5p-16-310260-maxtext`) | `us-east5-a` | 2026-10-21 06:33:20 (READY) | 2026-10-21 13:55:59 | complete13500; P1, same-zone recovery; CP13500 committed, node/queue absent, TB SYNC_OK | none |
 
+| `BamMediumPropMShiftReadG050FullQKNormNoQKStaticGateSoftCapSiLUTruePile` | v5p-16 (`xd-v5p-16-310280-maxtext`) | `us-east5-a` | 2026-10-21 17:36:22 | 2026-10-21 23:42:01 | user stop9336; P5 same-zone recovery; CP9336 committed, node/queue absent, TB SYNC_OK; runtime5a81f73 | EW4b/UC1a passive only; never active |
 | `BamMediumPropMShiftReadG050FullQKNormNoQKStaticGateTruePile` | v5p-16 (`xd-v5p-16-310270-maxtext`) | `us-east5-a` | 2026-10-21 11:39:16 (READY) | 2026-10-21 19:15:19 | complete13500; P2, same-zone recovery; CP13500 committed, node/queue absent, TB SYNC_OK | none |
 
 ## READY leases
@@ -1979,9 +1980,15 @@ active leases are censored, and manual migration releases are not preemptions.
 | `BamMediumPropMShiftReadG050StandardQKNormTruePile` | 1 | `us-east5-a` | 2026-10-21 06:33:20 | 2026-10-21 13:05:36 | 6h32m16s | preempted; forcedCP12283 committed; same-zone resume12284 |
 | `BamMediumPropMShiftReadG050FullQKNormNoQKStaticGateTruePile` | 1 | `us-east5-a` | 2026-10-21 11:39:16 | 2026-10-21 13:09:13 | 1h29m57s | preempted; same-zone recovery |
 | `BamMediumPropMShiftReadG050StandardQKNormTruePile` | 2 | `us-east5-a` | 2026-10-21 13:12:03 | 2026-10-21 13:55:59 | 43m56s | complete13500; CP13500 committed, node/queue absent, TB SYNC_OK |
+| `BamMediumPropMShiftReadG050FullQKNormNoQKStaticGateSoftCapSiLUTruePile` | 1 | `us-east5-a` | 2026-10-21 17:36:22 | 2026-10-21 18:33:25 | 57m03s | preempted; same-zone recovery |
 | `BamMediumPropMShiftReadG050FullQKNormNoQKStaticGateTruePile` | 2 | `us-east5-a` | 2026-10-21 13:14:29 | 2026-10-21 18:36:40 | 5h22m11s | preempted; same-zone recovery |
+| `BamMediumPropMShiftReadG050FullQKNormNoQKStaticGateSoftCapSiLUTruePile` | 2 | `us-east5-a` | 2026-10-21 18:41:09 | 2026-10-21 18:54:50 | 13m41s | preempted; same-zone recovery |
 | `BamMediumPropMShiftReadG050FullQKNormNoQKStaticGateTruePile` | 3 | `us-east5-a` | 2026-10-21 18:43:58 | 2026-10-21 19:15:19 | 31m21s | complete13500; CP13500 committed, node/queue absent, TB SYNC_OK |
+| `BamMediumPropMShiftReadG050FullQKNormNoQKStaticGateSoftCapSiLUTruePile` | 3 | `us-east5-a` | 2026-10-21 19:07:19 | 2026-10-21 19:20:29 | 13m10s | preempted; same-zone recovery |
+| `BamMediumPropMShiftReadG050FullQKNormNoQKStaticGateSoftCapSiLUTruePile` | 4 | `us-east5-a` | 2026-10-21 19:27:48 | 2026-10-21 19:43:08 | 15m20s | preempted; same-zone recovery |
 | `BamPythia2p8BSotaIndependentR768PallasShortTrainNoQKStaticGate` | 1 | `us-east5-a` | 2026-10-21 16:04:36 | 2026-10-21 20:19:25 | 4h14m49s | authorized manual stop4868; P0; CP committed, node/queue absent, TB SYNC_OK |
+| `BamMediumPropMShiftReadG050FullQKNormNoQKStaticGateSoftCapSiLUTruePile` | 5 | `us-east5-a` | 2026-10-21 19:50:41 | 2026-10-21 22:37:09 | 2h46m28s | preempted; same-zone recovery |
+| `BamMediumPropMShiftReadG050FullQKNormNoQKStaticGateSoftCapSiLUTruePile` | 6 | `us-east5-a` | 2026-10-21 22:44:47 | 2026-10-21 23:42:01 | 57m14s | user stop9336; CP9336 committed, node/queue absent, TB SYNC_OK |
 
 
 ### 2026-10-14 user pause: resumed mixed R256/R384

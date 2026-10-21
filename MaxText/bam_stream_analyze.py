@@ -166,10 +166,19 @@ def analyze_sequence(arrays,cfg):
             if address is not None:
                 row['matrix'][source+'_address_usage']=usage(np.mean(address**2,axis=tuple(range(address.ndim-1))))
                 row['matrix'][source+'_address_rank']=matrix_rank(address.reshape(-1,address.shape[-1])[None])
+                content=r.get(source+'_write_content')
+                if content is None:
+                    epsilon=cfg.get('bam_write_rms_epsilon') or cfg['normalization_layer_epsilon']
+                    raw=r['attention_write_data_raw'] if source=='attention' else r['mlp_vector'].reshape(r['mlp_vector'].shape[:2]+(int(cfg['num_query_heads']),int(cfg['bam_k'])))
+                    content=norm(raw,epsilon)*gate_values[source+'_write_gate'][...,None]
+                active=address*np.sqrt(np.mean(content**2,axis=-1,keepdims=True))
+                row['matrix'][source+'_active_address_usage']=usage(np.mean(active**2,axis=tuple(range(active.ndim-1))))
         result[str(i)]=row
     embedding_decay=decay**len(layers)
     return dict(layers=result,embedding=dict(vector_rms=rms(embedding['embedding_vector']),matrix_rms=rms(embedding['embedding_M']),
         matrix_rank=matrix_rank(embedding['embedding_M']),
+        write_gate_mean=float(sigmoid(embedding['dense_W_emb_g']+embedding['embedding_gate_bias']).mean()),
+        write_gate_bias_mean=float(embedding['embedding_gate_bias'].mean()),
         matrix_address_usage=usage(np.mean(embedding['embedding_M']**2,axis=(0,1,2))),
         vector_final_signed_share=projected(embedding['embedding_vector'],final_x),
         matrix_final_signed_share=projected(embedding_decay*embedding['embedding_M'],final_m)),

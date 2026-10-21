@@ -16,10 +16,10 @@ The sigmoid argument initially corresponds to.9, not.99; it is not a completely
 saturated plain sigmoid. No new health metrics; inherit health OFF.
 
 D1200/L18/N16: saves18*2*(1200*16+16)=691776 params (.4804 W_Q).
-MLP [3802,3676,3802] -> [3813,3686,3813] restores691200 (.48 W_Q).
-Total432113804 versus parent432114380, residual-576 (-.0004 W_Q).
-New MLP widths make this a parameter-matched retraining comparison; initial
-operator parity is separately checked with fixed MLP shapes and shared parameters.
+User explicitly requests no MLP reimbursement: retain[3802,3676,3802].
+Total431422604 versus parent432114380, saving691776 (.4804 W_Q, .1601%).
+This isolates gate removal with identical remaining parameter shapes; initial
+operator parity is checked with shared seeded parameters.
 T4096/global128/per-device16/v5p16, full remat,13500 steps, inherited original
 optimizer/LR/data order. CP200/latest2/keep0/finalforced; TB rotate500.
 Splash q/kv1024,kv_compute512,q_dkv/kv_dkv/kv_dkv_compute1024,fused backward.
@@ -30,7 +30,7 @@ MHA and MHA QKNorm; Mudd. Original MHA is the common gain reference.
 Register gain triples versus full75, noQK and Mudd. Native stride200,
 report1000. Historical full75 uses512/nonfused Splash, so raw speed differences
 are not pure gate-removal effects. Prior for matched-kernel/health throughput:
-0 to+1%; with tuning, expect speed near the tuned standard18 formal control
++0.5 to+1.5%; with tuning, expect speed near the tuned standard18 formal control
 (.54 step/s), rather than the parent's historical.4743.
 Terminal prior versus full75 loss-.002, range[-.006,+.003];
 MHA-referenced gain versus full75 about1.01. This tests whether learned static

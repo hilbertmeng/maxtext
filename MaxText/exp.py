@@ -12221,7 +12221,6 @@ class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMRe
     bam_m_shift_two_lag_init = [.5, .3, .2]
     bam_kv_shift = False
     bam_m_shift_compact_health = False
-    mlp_dim_by_block = [3813, 3686, 3813]
     compare_runs = ['BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadSharedGelu256TruePile']
 
 
@@ -12886,7 +12885,6 @@ class BamMediumPropMShiftReadG050FullQKNormNoQKStaticGateTruePile(BamMediumPropM
     """Keep static Q/K reads, remove their input-dependent gates; full-head QKNorm."""
     model_name = 'BamMediumPropMShiftReadG050FullQKNormNoQKStaticGateTruePile'
     bam_qk_static_read_gate = False
-    mlp_dim_by_block = [3813, 3686, 3813]
     force_final_checkpoint = True
     sa_block_q = 1024
     sa_block_kv = 1024

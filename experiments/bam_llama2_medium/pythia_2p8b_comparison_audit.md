@@ -68,6 +68,55 @@ The historical full-head implementation is absent from current main's attention
 code and was restricted to the JAX path; setting that historical flag alone does
 not enable full-head QKNorm in the current Pallas circuit.
 
+### QKNorm provenance: source and original chat
+
+This is not a full-head-to-standard20 rewrite. The original 2.8B configuration
+in 1d03b323 (2026-10-18) has QKNorm OFF. The standard-arm QKNorm call already
+existed in the Pallas wrapper (blame881ed182, 2026-10-10), before M-derived
+coordinates are assembled. The full-head experiments03c8ade/7249f01 remain on
+`codex/mediumprop-qknorm`; neither commit is an ancestor of current main.
+
+Original chat evidence (timestamps below UTC, exact public messages):
+
+- Codex session
+  `/home/xd/.codex/sessions/2026/10/12/rollout-2026-10-12T18-34-06-01a12f6f-6eac-7373-9064-16a8d4349af6_01a12f76-532d-76a1-9064-e8e191f5937c.jsonl`,
+  line24005, 2026-10-14 10:56:52: assistant explicitly recommended full-head
+  Q/K normalization before partial RoPE and warned:
+  “不能直接打开现有 `qk_norm=True` 就算完成。” The same message explains that
+  the existing switch normalizes only the standard18 arm on Medium.
+- Same session, line24142, 2026-10-14 11:09:43: user requested the Medium
+  BAM/MHA experiments “按你说的方式加qknorm”. Those experiments implemented
+  the full-head intervention, not the standard-arm one.
+- Same session, line48352, 2026-10-18 12:44:25: user requested the official
+  2.8B class and XL single.5/general-read BAM transfer, serial MLP, .006 embedding
+  and BAM initialization. Initial1d03b323 follows the QKNorm-OFF parent.
+- Same session, line49120, 2026-10-20 04:48:13: during the V64/R1024 budget
+  task, assistant said: “当前配置里还启用了 QKNorm，我会把它的参数也计入。”
+  It did not flag the standard20 versus historical full-head distinction.
+- Claude session
+  `/home/xd/.claude/projects/-home-xd-projects-maxtext/39ab0da8-14a6-4f1b-9d75-aa0f4933206a.jsonl`,
+  line22169, 2026-10-20 05:09:15: user explicitly stated:
+  “还加了qk_norm = True。都在主分支。” and said the Pythia MHA baseline
+  remained without QKNorm. Thus enabling QKNorm is explicitly user-directed;
+  that message does not request standard20-only normalization.
+- `qk_norm=True # TODO` first enters committed2.8B source in ed2d6310
+  (2026-10-20 05:01:02 UTC). It activates the pre-existing standard-arm path.
+  This timestamp precedes the Claude message; the message is confirmation of
+  the user's already-made edit, not an earlier instruction to the agent.
+- Claude session line22386, 2026-10-20 05:14:15: assistant reported XLA/v8t
+  parity under the revised config. Both paths implement the same standard20
+  operation, so parity establishes agreement, not equivalence to the historical
+  full-head QKNorm design. The revised recipe test checks the Boolean flag,
+  not the normalized head width or operation order.
+
+Conclusion: the user explicitly enabled QKNorm but did not specify a change
+to normalizing only the standard arm. The assistant failed to reconnect the
+new switch to the previously discussed full-head definition and failed to
+report the mismatch before validating and training the revised recipe.
+Later IndependentR768 and Pallas subclasses inherit that behavior unchanged.
+The current2.8B run therefore measures standard-arm QKNorm; historical
+full-head-QKNorm loss evidence does not directly apply.
+
 ## Interpretation
 
 The three classes support comparing complete model recipes under the same

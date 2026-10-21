@@ -101,6 +101,13 @@ class ShiftedModelTest(unittest.TestCase):
     model_test.ModelEquivalenceTest('_run')._run(
         'BamPallasPythiaR768TinyXlaTest', ('BamPallasPythiaR768TinyPallasV8TTest',))
 
+  def test_v8t_pythia_no_qk_static_gate(self):
+    """Ungated static Q/K reads: the fused read gets constant 1 multipliers for those arms."""
+    sys.path.insert(0, 'MaxText/tests')
+    import bam_pallas_model_test as model_test  # pylint: disable=import-outside-toplevel
+    model_test.ModelEquivalenceTest('_run')._run(
+        'BamPallasPythiaNoQKGateTinyXlaTest', ('BamPallasPythiaNoQKGateTinyPallasV8TTest',))
+
   def test_v8t_compact_health_matches_xla(self):
     sys.path.insert(0, 'MaxText/tests')
     import bam_pallas_model_test as model_test  # pylint: disable=import-outside-toplevel

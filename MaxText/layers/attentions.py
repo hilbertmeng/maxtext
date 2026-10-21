@@ -3167,6 +3167,8 @@ class BamAttention(Attention):
         setattr(self, 'general_' + arm + '_pre_bias', self._constant_general_parameter(
             'general_' + arm + '_pre_bias', shape, axes))
       for arm in ('q', 'k', 'v', 'o'):
+        if arm in ('q', 'k') and not cfg.bam_qk_static_read_gate:
+          continue
         self._add_static_gate('general_' + arm + '_static_gate', cfg.bam_static_read_gate_init)
 
 
@@ -3448,7 +3450,7 @@ class BamAttention(Attention):
 
   def _static_column(self, M, arm, x=None):
     read = jnp.einsum('btkv,vn->btnk', M, getattr(self, 'static_' + arm + '_key').astype(M.dtype))
-    if self._general_read:
+    if self._general_read and (arm not in ('q', 'k') or self.config.bam_qk_static_read_gate):
       assert x is not None
       gate = self._static_gate('general_' + arm + '_static_gate', x)
       self._record_general_gate(arm + '_static', gate)
@@ -3850,7 +3852,8 @@ class BamAttention(Attention):
     b_, t_ = inputs_q.shape[:2]
     fused = bool(getattr(cfg, 'bam_pallas_fused_inputs', False)) and not self.is_initializing()
     full_m = self._full_m_read_rank is not None
-    static_gate_names = tuple(f'general_{a}_static_gate' for a in 'qkvo') if self._general_read else ()
+    static_gate_names = tuple(f'general_{a}_static_gate' for a in 'qkvo'
+                              if a not in 'qk' or cfg.bam_qk_static_read_gate) if self._general_read else ()
     if fused:
       gate_names = ('W_lq_gate', 'W_lk_gate', 'W_R_gate', 'W_lv_gate')
       key_names = ('full_m_read_down',) if full_m else ('W_lq_c8', 'W_lk_c8', 'W_R')
@@ -3924,10 +3927,14 @@ class BamAttention(Attention):
     static_gates = None
     if self._general_read:      # 1.1 sigmoid(W x + b) / init, as _static_column applies it
       init = float(cfg.bam_static_read_gate_init)
-      static_gates = tuple(
-          (1.1 * jax.nn.sigmoid(raw[name] + jnp.asarray(getattr(self, name + '_bias'), self.dtype))
-           if fused else self._static_gate(name, inputs_q)) / init
-          for name in static_gate_names)
+      def static_multiplier(arm):   # an ungated static Q/K read passes a constant 1 to the kernel
+        name = f'general_{arm}_static_gate'
+        if name not in static_gate_names:
+          return jnp.ones(inputs_q.shape[:2] + (self.num_query_heads,), self.dtype)
+        gate = (1.1 * jax.nn.sigmoid(raw[name] + jnp.asarray(getattr(self, name + '_bias'), self.dtype))
+                if fused else self._static_gate(name, inputs_q))
+        return gate / init
+      static_gates = tuple(static_multiplier(arm) for arm in 'qkvo')
     weight = bam_pallas.static_weight(
         self.static_q_key, self.static_k_key, self.static_v_key, self.static_o_key, compression)
     body = getattr(cfg, 'bam_pallas_body', None) or 'blocked'

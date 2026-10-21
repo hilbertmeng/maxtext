@@ -16276,6 +16276,17 @@ class BamPythia2p8BSotaIndependentR768PallasShortTrain(ShortTrain2p8B, BamPythia
     compare_runs = ['Pythia2p8BShortTrain', 'MuddPythia3BSerialMLPShortTrain']
 
 
+class BamPythia2p8BSotaIndependentR768PallasShortTrainNoQKStaticGate(BamPythia2p8BSotaIndependentR768PallasShortTrain):
+    """Static Q/K full-M reads kept, their input-dependent gates removed (as the Medium
+    BamMediumPropMShiftReadG050FullQKNormNoQKStaticGateTruePile); V/O static gates unchanged.
+
+    Budget exception as in the Medium experiment: the removed gate parameters are not reimbursed to the MLP.
+    Pallas: the fused read receives constant 1 static multipliers for Q/K (no kernel change)."""
+    model_name = 'BamPythia2p8BSotaIndependentR768PallasShortTrainNoQKStaticGate'
+    bam_qk_static_read_gate = False
+    compare_runs = ['BamPythia2p8BSotaIndependentR768PallasShortTrain', 'Pythia2p8BShortTrain']
+
+
 # Paired v5p-128 timing controls; same 28k schedule, batch and health as formal runs.
 # Historical 2a108de artifacts use *NoRematTiming/none; none executed full remat.
 # Use explicit full and accurate names here; replay old artifacts at their sealed commit.
@@ -16345,6 +16356,21 @@ class BamPallasPythiaR768TinyXlaTest(BamPallasPythiaSotaTinyXlaTest):
 class BamPallasPythiaR768TinyPallasV8TTest(BamPallasPythiaR768TinyXlaTest):
     """CPU fixture: the same through the interpreted v8t core with fused input projections."""
     model_name = 'BamPallasPythiaR768TinyPallasV8TTest'
+    bam_pallas_core = True
+    bam_pallas_interpret = True
+    bam_pallas_body = 'v8t'
+    bam_pallas_fused_inputs = True
+
+
+class BamPallasPythiaNoQKGateTinyXlaTest(BamPallasPythiaR768TinyXlaTest):
+    """CPU fixture: the tiny independent-downs Pythia SOTA without static Q/K read gates."""
+    model_name = 'BamPallasPythiaNoQKGateTinyXlaTest'
+    bam_qk_static_read_gate = False
+
+
+class BamPallasPythiaNoQKGateTinyPallasV8TTest(BamPallasPythiaNoQKGateTinyXlaTest):
+    """CPU fixture: the same through the interpreted v8t core with fused input projections."""
+    model_name = 'BamPallasPythiaNoQKGateTinyPallasV8TTest'
     bam_pallas_core = True
     bam_pallas_interpret = True
     bam_pallas_body = 'v8t'

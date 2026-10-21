@@ -560,6 +560,7 @@ bam_write_rms_epsilon: null
 bam_final_local_layer_count: null
 bam_last_mlp_dim: 0 # 0 preserves the regular width; scanned BAM requires a tail for an override.
 bam_skip_final_mlp_write: false # Opt-in: omit an M write with no downstream M consumer.
+bam_qk_static_read_gate: True  # False: static Q/K full-M reads ungated (V/O keep their gates)
 global_attn_head_dim: 0
 partial_scan_layers: False
 

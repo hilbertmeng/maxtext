@@ -50,7 +50,7 @@ approximately-.005 loss with a broad[-.016,+.008] range; throughput-1 to-3%
 versus parent's~.533 step/s. The positive prior is a research hypothesis about
 stronger gate learning and conditional signed scaling, not evidence from a
 previous BAM SoftCapSiLU experiment. All-write initial variability is the main
-risk. The ongoing parent is monitored and not stopped/replaced.
+risk. The parent was retained as a direct control; it subsequently completed13500.
 
 Planned trainer owned by this task: `xd-v5p-16-310280-maxtext`, primary
 us-east5-a, backups europe-west4-b/us-central1-a. UE5a's recent standard18
@@ -109,8 +109,78 @@ Formal TPU `xd-v5p-16-310280-maxtext`, us-east5-a; controller launch
 Direct comparison list and both gain triples (parent/full75, original MHA
 reference) verified in the registry. Native loss stride200; report cadence1000.
 
-User authorized agent exit after normal startup; both this run and the
-gate-removal parent continue under auto-train. No early loss conclusion is
-recorded. Startup proof, launch gate, CPU logs and AOT state are in
+User authorized agent exit after normal startup. Both runs initially continued
+under auto-train; subsequent final outcomes are recorded below. Startup proof, launch gate, CPU logs and AOT state are in
 `/data0/xd/bam_diagnostics/mediumprop-qknorm/softcap-*`; the task-owned
 `launch_softcap_gates.py` invokes the authoritative TPU lifecycle scripts.
+
+
+## Closeout: user stop at9336
+
+User stopped this run on2026-10-21T23:42:01Z (Oct22 JST). Canonical closeout
+verified committed checkpoint9336, stopped registry, TPU and queued-resource
+absence, and local TensorBoard SYNC_OK. Summary:
+`tpu-ag:/home/lishengping/xd/projects/logs/closeout-20261021T234414Z.json`.
+No other trainer or retained compiler was touched. Runtime5a81f73 is unchanged;
+the isolated SoftCapSiLU implementation remains ledger-only on main.
+
+The all-read/all-write replacement failed: every one of44 complete native200-step
+windows through9200 trails the matched sigmoid-gate parent. Absolute gap shrinks,
+but the MHA-referenced gain ratio falls then remains near.895; this is no relative
+catchup. Native1600 and7600 windows are incomplete and omitted, not interpolated.
+At stop, the latest five common windows8400/8600/8800/9000/9200 average:
+
+| Direct comparator | Loss gap (SoftCap minus comparator) | MHA-referenced gain ratio |
+|---|---:|---:|
+| No-static-QK-gate sigmoid parent | +.01884696 | .89514827 |
+| Full-head QKNorm direction SOTA | +.01772800 | .90073976 |
+| MHA QKNorm | -.13285824 | — |
+
+Cumulative trajectory against the sigmoid parent, using registry-native reports:
+
+| Step | Loss gap | Gain ratio |
+|---:|---:|---:|
+| 1000 | +0.0367776 | 0.941933 |
+| 2000 | +0.0260284 | 0.925592 |
+| 3000 | +0.0252628 | 0.906996 |
+| 4000 | +0.0239056 | 0.898432 |
+| 5000 | +0.0216876 | 0.899391 |
+| 6000 | +0.0201376 | 0.899510 |
+| 7000 | +0.0209840 | 0.891613 |
+| 8000 | +0.0200980 | 0.893269 |
+| 8400 | +0.0192122 | 0.895230 |
+| 8600 | +0.0182102 | 0.897021 |
+| 8800 | +0.0192366 | 0.893801 |
+| 9000 | +0.0177858 | 0.899966 |
+| 9200 | +0.0197900 | 0.889723 |
+
+The positive prior1.03 [.95,1.10] versus parent was wrong at the stopping point;
+this run is not a13500-step terminal measurement. Steady UE5a v5p16 throughput
+.533–.534 step/s is approximately equal to the matched parent, versus the forecast
+1–3% slowdown. Parameter count431422604, MLP[3802,3676,3802] and inference M-cache
+are unchanged, so they do not offset the loss regression.
+
+Stronger local gate slope alone did not improve this design. Nominal openings
+were matched but random write projections amplify token-wise initial variability,
+and SoftCapSiLU permits signed writes. Those are plausible sources of damage,
+not isolated causal findings: this arm changed both reads and writes. The most
+informative next candidate would retain sigmoid writes and change dynamic reads
+only; that experiment has not been authorized or launched.
+
+Final loss/registry/status evidence is saved under
+`/data0/xd/bam_diagnostics/mediumprop-qknorm/softcap-final-*`;
+`softcap-closeout.log` and the local TB closeout log record teardown and sync.
+
+### Resource history (UTC2026-10-21)
+
+Only us-east5-a was active; no zone switch. v5p16
+`xd-v5p-16-310280-maxtext`, five preemptions and six READY leases:
+
+| Start UTC | End UTC | Duration | End reason |
+|---|---|---|---|
+| 17:36:22 | 18:33:25 | 57m03s | preempted |
+| 18:41:09 | 18:54:50 | 13m41s | preempted |
+| 19:07:19 | 19:20:29 | 13m10s | preempted |
+| 19:27:48 | 19:43:08 | 15m20s | preempted |
+| 19:50:41 | 22:37:09 | 2h46m28s | preempted |
+| 22:44:47 | 23:42:01 | 57m14s | user stop; CP9336 committed, resources absent |

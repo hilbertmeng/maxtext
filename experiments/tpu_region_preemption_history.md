@@ -27,6 +27,9 @@ active leases are censored, and manual migration releases are not preemptions.
 
 | RUN | TPU | Zone | Start UTC | End UTC | End reason | Passive candidates |
 |---|---|---|---|---|---|---|
+| `Pythia2p8BShortTrain` | v5p-128 (`xd-v5p-128-short28k-mha-1021`) | `us-east5-a` | 2026-10-21 11:24:34 | — | running; first READY observed by registry; runtime2a108de | EW4b recovery policy |
+| `MuddPythia3BSerialMLPShortTrain` | v5p-128 (`xd-v5p-128-short28k-mudd-1021`) | `us-east5-a` | 2026-10-21 11:33:48 | — | running; first READY observed by registry; runtime2a108de | EW4b recovery policy |
+| `BamPythia2p8BSotaIndependentR768PallasShortTrain` | v5p-128 (`xd-v5p-128-short28k-remat-1021-ue5a`) | `us-east5-a` | 2026-10-21 11:38:13 | — | running; diagnostic→formal handoff; runtime2a108de | EW4b recovery policy |
 | `BamPythia2p8BSotaIndependentR768Pallas` | v5p-256 (`xd-v5p-256-310201-maxtext`) | `us-east5-a` | 2026-10-20 09:09:20 | 2026-10-21 03:32:13 | user pause37042/143000; P0; CP37042+data cursor committed, node/queue absent, TB SYNC_OK; provisional | none |
 | `MuddPythiaMediumPropT2048SerialMLPSmallEmbedding` | v5p-16 (`xd-v5p-16-310256-maxtext`) | `us-east5-a` | 2026-10-16 01:47:56 | 2026-10-16 08:23:42 | complete13500; P0; CP13500 committed, resources absent, TB SYNC_OK | none |
 | `PythiaMediumPropT2048SerialMLPSmallEmbedding` | v5p-16 (`xd-v5p-16-310255-maxtext`) | `us-east5-a` | 2026-10-16 01:47:24 | 2026-10-16 07:15:48 | complete13500; P1; CP13500 committed, resources absent, TB SYNC_OK | none |

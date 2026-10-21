@@ -12910,6 +12910,24 @@ class BamMediumPropMShiftReadG050StandardQKNormMinimalProfile(BamMediumPropMShif
     remat_policy = 'minimal'
 
 
+class BamMediumPropMShiftReadG050StandardQKNormAligned128FullProfile(BamMediumPropMShiftReadG050StandardQKNormTruePile):
+    """Timing only: 128-aligned MLP, full remat; compare to the identical minimal arm.
+
+    Closest 128-aligned symmetric block: sum11264 versus11280, -345600 params
+    (-.07998%); preserves per-device16, T4096, health OFF and the13500 schedule.
+    """
+    model_name = 'BamMediumPropMShiftReadG050StandardQKNormAligned128FullProfile'
+    mlp_dim_by_block = [3840, 3584, 3840]
+    steps = 13500
+    remat_policy = 'full'
+
+
+class BamMediumPropMShiftReadG050StandardQKNormAligned128MinimalProfile(BamMediumPropMShiftReadG050StandardQKNormAligned128FullProfile):
+    """Matched aligned-MLP arm; only remat differs from Aligned128FullProfile."""
+    model_name = 'BamMediumPropMShiftReadG050StandardQKNormAligned128MinimalProfile'
+    remat_policy = 'minimal'
+
+
 class BamMediumPropMShiftReadG050FullQKNormTunedSplashProfile(BamMediumPropMShiftReadG050FullQKNormTruePile):
     """Timing-only full75 arm with the same explicit Splash tuning as the standard18 arm."""
     model_name = 'BamMediumPropMShiftReadG050FullQKNormTunedSplashProfile'

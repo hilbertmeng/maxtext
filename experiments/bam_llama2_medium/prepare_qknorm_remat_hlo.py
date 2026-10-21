@@ -28,6 +28,8 @@ class HloPreparer(aot.Preparer):
             '/home/lishengping/miniconda3/bin/python '
             f'{remote} --prefix {shlex.quote(prefix)} '
             f'--primary-output {shlex.quote(self.output)} --steps {self.args.steps}')
+        if 'Aligned128' in self.args.exp:
+            command += ' --aligned'
         self.save('compiling', compiler_tpu=name, compiler_zone=zone,
                   diagnostic_runner_sha256=aot.sha256(runner), diagnostic_prefix=prefix)
         output = aot.gcloud_ssh(name, zone, command, timeout=self.args.compile_timeout,

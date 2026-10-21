@@ -19,6 +19,7 @@ def main():
     parser.add_argument('--prefix', required=True)
     parser.add_argument('--primary-output', required=True)
     parser.add_argument('--steps', type=int, default=13500)
+    parser.add_argument('--aligned', action='store_true', help='Only the aligned full/minimal v5p-16 pair')
     args = parser.parse_args()
     assert os.environ.get('JAX_PLATFORMS') == 'cpu'
     sys.path.insert(0, str(Path.cwd() / 'MaxText'))
@@ -29,10 +30,14 @@ def main():
     manifest = []
     with tempfile.TemporaryDirectory(prefix='qknorm-remat-hlo-') as tmp:
         root = Path(tmp)
-        for topology in ('v5p-16', 'v5p-8'):
-            for policy, exp in (
+        arms = (
                 ('full', 'BamMediumPropMShiftReadG050StandardQKNormTruePile'),
-                ('minimal', 'BamMediumPropMShiftReadG050StandardQKNormMinimalProfile')):
+                ('minimal', 'BamMediumPropMShiftReadG050StandardQKNormMinimalProfile'))
+        if args.aligned:
+            arms = tuple((policy, f'BamMediumPropMShiftReadG050StandardQKNormAligned128{policy.title()}Profile')
+                         for policy in ('full', 'minimal'))
+        for topology in (('v5p-16',) if args.aligned else ('v5p-16', 'v5p-8')):
+            for policy, exp in arms:
                 label = f'{topology}-{policy}'
                 arm = root / label
                 arm.mkdir()
@@ -68,6 +73,9 @@ def main():
                                 str(arm / 'analysis.json'), str(executable), destination+'/'], check=True)
                 if label == 'v5p-16-full':
                     subprocess.run(['gsutil', '-q', 'cp', str(executable), args.primary_output], check=True)
+                if args.aligned:
+                    alias = args.primary_output.rsplit('/', 1)[0] + f'/{exp}.pickle'
+                    subprocess.run(['gsutil', '-q', 'cp', str(executable), alias], check=True)
                 manifest.append(dict(topology=topology, policy=policy, exp=exp,
                                      steps=args.steps, prefix=destination))
                 print('HLO_ARM_OK', label, flush=True)

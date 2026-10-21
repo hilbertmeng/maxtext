@@ -30,6 +30,13 @@ tpu-ag handles orchestration only. Release this exact diagnostic TPU after
 verified artifact collection. Do not interrupt the formal training TPU.
 
 Prior: placement alone within1% throughput; minimal +3--8% if it fits memory.
+The v6e matrix's two full-remat arms completed, but standard18/minimal exceeded
+the v6e memory limit during compilation. This does not establish v5p feasibility.
+Keep per-device batch16 and rerun all four arms on v5p-8; do not reduce batch.
+The v6e is reused solely as a CPU AOT compiler for the v5p-8 matrix, then released.
+The full75 v5p profiles explicitly inherit the same tuned Splash settings, so
+compiled execution does not depend on unrecorded environment overrides.
+
 Timing-only classes do not alter formal source/runtime or automatically switch
 the ongoing training run. A formal remat change requires a matching AOT and
 checkpoint/cursor-preserving restart after measurement.

@@ -12910,7 +12910,19 @@ class BamMediumPropMShiftReadG050StandardQKNormMinimalProfile(BamMediumPropMShif
     remat_policy = 'minimal'
 
 
-class BamMediumPropMShiftReadG050FullQKNormMinimalProfile(BamMediumPropMShiftReadG050FullQKNormTruePile):
+class BamMediumPropMShiftReadG050FullQKNormTunedSplashProfile(BamMediumPropMShiftReadG050FullQKNormTruePile):
+    """Timing-only full75 arm with the same explicit Splash tuning as the standard18 arm."""
+    model_name = 'BamMediumPropMShiftReadG050FullQKNormTunedSplashProfile'
+    sa_block_q = 1024
+    sa_block_kv = 1024
+    sa_block_kv_compute = 512
+    sa_block_q_dkv = 1024
+    sa_block_kv_dkv = 1024
+    sa_block_kv_dkv_compute = 1024
+    sa_use_fused_bwd_kernel = True
+
+
+class BamMediumPropMShiftReadG050FullQKNormMinimalProfile(BamMediumPropMShiftReadG050FullQKNormTunedSplashProfile):
     """Timing-only full75 QKNorm with minimal remat; no formal training RUN."""
     model_name = 'BamMediumPropMShiftReadG050FullQKNormMinimalProfile'
     remat_policy = 'minimal'

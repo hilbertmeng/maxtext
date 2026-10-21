@@ -12907,6 +12907,7 @@ class BamMediumPropMShiftReadG050FullQKNormNoQKStaticGateSoftCapSiLUTruePile(Bam
     # Implementation: codex/mediumprop-qknorm, /data0/xd/mediumprop-qknorm.
     # Same431422604 params/MLP widths; read .05 and write .1 nominal openings, no slope compensation.
     # Prior vs no-static-QK-gate parent: MHA-referenced final gain1.03 [.95,1.10], speed -1 to-3%.
+    # code_commit:5a81f73; exact v5p16 AOT/FIRST_STEP verified; UE5a startup~.533 step/s, health OFF/tuned Splash.
     model_name = 'BamMediumPropMShiftReadG050FullQKNormNoQKStaticGateSoftCapSiLUTruePile'
     bam_read_gate_activation = 'softcap_silu'
     bam_write_gate_activation = 'softcap_silu'

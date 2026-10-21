@@ -82,3 +82,35 @@ regression suite because read/write paths and embedding initialization are
 affected; summary-writer regression. Sealed config, exact-topology AOT load
 and actual FIRST_STEP remain mandatory before declaring training started.
 Artifacts under `/data0/xd/bam_diagnostics/mediumprop-qknorm/softcap-*`.
+
+## Sealed runtime and startup verification
+
+Runtime5a81f730439bb1b2c5004ebddf7325b61ad52766, pushed on the implementation
+branch. All55 CPU checks passed:47 shared BAM,3 SoftCapSiLU scope/budget/
+causality/gradient checks and5 summary-writer tests. Sealed configuration
+consistency passed. Exact v5p16/s13500 AOT loaded; actual FIRST_STEP and step14
+verified, with finite descending initial loss through at least step38.
+Startup10–14 mean.5332 step/s on UE5a, approximately equal to the matched
+gate-removal parent's steady~.533; the forecast1–3% slowdown was not observed.
+
+Worker output confirms431422604 params, MLP[3802,3676,3802], both dynamic
+read/write activations softcap_silu, read.05 and embedding/attention/MLP
+write.1 nominal openings, full-head QKNorm, Q/K static gates absent, sigmoid
+M-shift.5, health OFF, TB500 and all seven tuned Splash settings.
+
+AOT: `gs://newproject-1-llm_base_models_us-central1/log/compiled_trainsteps/5a81f73/jax081-i0ae3f58-c17f538a/v5p-16/s13500/BamMediumPropMShiftReadG050FullQKNormNoQKStaticGateSoftCapSiLUTruePile.pickle`.
+Object403210245 bytes/CRC32C ZKl59Q==; manifest verified. Managed EW4a
+compiler and UC1a/UE5a candidates all released (ready/cleanup_failures=[]).
+No retained FLEX compiler was altered.
+
+Formal TPU `xd-v5p-16-310280-maxtext`, us-east5-a; controller launch
+2026-10-21T17:30:47Z, train process2026-10-21T17:38:44Z. Regional data path is
+`gs://newproject-1-common_datasets_us-east5/pythia_pile_idxmaps_tfrecord_4096`.
+Direct comparison list and both gain triples (parent/full75, original MHA
+reference) verified in the registry. Native loss stride200; report cadence1000.
+
+User authorized agent exit after normal startup; both this run and the
+gate-removal parent continue under auto-train. No early loss conclusion is
+recorded. Startup proof, launch gate, CPU logs and AOT state are in
+`/data0/xd/bam_diagnostics/mediumprop-qknorm/softcap-*`; the task-owned
+`launch_softcap_gates.py` invokes the authoritative TPU lifecycle scripts.

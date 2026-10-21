@@ -28,12 +28,15 @@ User requests this tuning for future experiments as well.
 Direct baselines: full75 QKNorm parent; no-QKNorm single.5;
 MHA and MHA QKNorm; Mudd. Original MHA is the common gain reference.
 Register gain triples versus full75, noQK and Mudd. Native stride200,
-report1000. Historical full75 uses512/nonfused Splash, so raw speed differences
+new arm reports1000. Existing standard18 arm reports only at final closeout,
+per the user; continue liveness checks and training to13500. Historical full75 uses512/nonfused Splash, so raw speed differences
 are not pure gate-removal effects. Prior for matched-kernel/health throughput:
 +0.5 to+1.5%; with tuning, expect speed near the tuned standard18 formal control
 (.54 step/s), rather than the parent's historical.4743.
-Terminal prior versus full75 loss-.002, range[-.006,+.003];
-MHA-referenced gain versus full75 about1.01. This tests whether learned static
+Revised prior after reviewing the mechanism: terminal loss versus full75 about0,
+range[-.005,+.005]; MHA-referenced gain versus full75 about1.00 [0.97,1.03].
+The earlier-.002/1.01 positive prior lacked direct evidence: full-head norm does
+not cancel static/dynamic/standard arm mixture changes introduced by the gate. This tests whether learned static
 Q/K read suppression helps after full-head normalization, not whether the
 initial static M-read amplitude should be increased.
 

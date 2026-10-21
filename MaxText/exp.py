@@ -12213,6 +12213,7 @@ class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMRe
     model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile'
     bam_general_column_read = True
     bam_general_matrix_write = False
+    mlp_dim_by_block = [3813, 3686, 3813]
     bam_record_m_shift_health = False
     bam_m_shift_mode = 'none'  # none | read | persist; experimental worktree path
     bam_m_shift_init = .05  # Previous-token share, sigmoid gate bias initialization

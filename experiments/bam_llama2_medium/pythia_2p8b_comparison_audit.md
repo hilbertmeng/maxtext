@@ -57,6 +57,17 @@ Splash attention paths accumulate logits/softmax in FP32; this flag is relevant
 when switching to the einsum attention path. Sharding tolerances .02/.02/.06
 are validation thresholds, not a loss/optimizer hyperparameter.
 
+Important historical distinction: the Medium/XL SOTA QKNorm experiments
+`BamMediumPropMShiftReadG050FullQKNormTruePile` (03c8ade) and
+`BamXLPropMShiftReadG050FullQKNormTruePile` (7249f01) normalize the complete
+concatenated Q/K (75/96 coordinates) after the static/dynamic M reads and gates,
+then apply partial RoPE. They set `bam_qk_norm_after_concat=True`; their runtime
+source explicitly skips the earlier standard-arm norm. Current 2.8B's standard20
+norm is a different intervention and cannot inherit those experiments' evidence.
+The historical full-head implementation is absent from current main's attention
+code and was restricted to the JAX path; setting that historical flag alone does
+not enable full-head QKNorm in the current Pallas circuit.
+
 ## Interpretation
 
 The three classes support comparing complete model recipes under the same
@@ -69,10 +80,11 @@ that change hurt MHA and Mudd. Retain each model's deliberately chosen
 embedding initialization for the current recipe comparison and state it.
 
 Mudd's default Splash tiles/fused-backward differ because it does not inherit
-`Pythia2p8B`. These should be considered in a speed comparison; aligning tiles
-and remat requires checking memory feasibility, especially with full history.
-They are not grounds for changing the loss recipe or forcing equal remat when
-one architecture has a different activation-memory requirement.
+`Pythia2p8B`. All three attention interfaces have T2048/N32/D80 and can use
+the same tuned1024 tiles, compute512, fused backward. Full-history routing does
+not require different Splash tiles; keep this tuning in model-level classes
+rather than the size-independent TrainPythia. Remat is a separate whole-model
+memory choice and need not be forced equal when activation storage differs.
 
 ## Reproduction
 

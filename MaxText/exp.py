@@ -16129,6 +16129,8 @@ class Pythia2p8B(TrainPythia, PythiaArchitecture, Llama2Medium):
     sa_use_fused_bwd_kernel = True
 
 class Pythia2p8BShortTrain(ShortTrain2p8B, Pythia2p8B):
+    # code_commit:2a108de; UE5a v5p-128, B16/device, health ON/internal OFF.
+    # Paired timing: minimal .360333 vs full .326432 step/s (+10.39%); selected minimal.
     qk_norm = True
     
 
@@ -16156,6 +16158,8 @@ class MuddPythia3BSerialMLP(TrainPythia, MuddPythiaMediumPropT2048SerialMLP): # 
     compare_runs = []
 
 class MuddPythia3BSerialMLPShortTrain(ShortTrain2p8B, MuddPythia3BSerialMLP):
+    # code_commit:2a108de; UE5a v5p-128, B16/device, health ON/internal OFF.
+    # Paired timing: minimal .300399 vs full .269000 step/s (+11.67%); selected minimal.
     compare_runs = ['Pythia2p8BShortTrain']
 
 class BamPythia2p8BSota(
@@ -16265,21 +16269,25 @@ class BamPythia2p8BSotaIndependentR768Pallas(BamPythia2p8BSotaIndependentR768):
 
 
 class BamPythia2p8BSotaIndependentR768PallasShortTrain(ShortTrain2p8B, BamPythia2p8BSotaIndependentR768Pallas):
+    # code_commit:2a108de; UE5a v5p-128, B16/device, health ON/internal OFF.
+    # Paired timing: minimal .309199 vs full .283900 step/s (+8.91%); selected minimal.
     bam_qk_norm_after_concat = True
     compare_runs = ['Pythia2p8BShortTrain', 'MuddPythia3BSerialMLPShortTrain']
 
 
-# Paired v5p-128 timing controls; same 28k schedule, batch and health as the formal runs.
-class Pythia2p8BShortTrainNoRematTiming(Pythia2p8BShortTrain):
-    remat_policy = 'none'
+# Paired v5p-128 timing controls; same 28k schedule, batch and health as formal runs.
+# Historical 2a108de artifacts use *NoRematTiming/none; none executed full remat.
+# Use explicit full and accurate names here; replay old artifacts at their sealed commit.
+class Pythia2p8BShortTrainFullRematTiming(Pythia2p8BShortTrain):
+    remat_policy = 'full'
 
 
-class MuddPythia3BSerialMLPShortTrainNoRematTiming(MuddPythia3BSerialMLPShortTrain):
-    remat_policy = 'none'
+class MuddPythia3BSerialMLPShortTrainFullRematTiming(MuddPythia3BSerialMLPShortTrain):
+    remat_policy = 'full'
 
 
-class BamPythia2p8BSotaIndependentR768PallasShortTrainNoRematTiming(BamPythia2p8BSotaIndependentR768PallasShortTrain):
-    remat_policy = 'none'
+class BamPythia2p8BSotaIndependentR768PallasShortTrainFullRematTiming(BamPythia2p8BSotaIndependentR768PallasShortTrain):
+    remat_policy = 'full'
 
 
 class BamPallasPythiaSotaTinyXlaTest(BamPythia2p8BSota):

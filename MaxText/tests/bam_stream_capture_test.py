@@ -46,6 +46,15 @@ class StreamCaptureTest(unittest.TestCase):
             self.assertTrue(any(k[-1]=='stream_x_in' for k in captured))
             self.assertTrue(any(k[-1]=='stream_embedding_M' for k in captured))
             self.assertTrue(any(k[-1]=='stream_mlp_vector' for k in captured))
+            from bam_stream_analyze import analyze_sequence
+            def unwrap(value):
+                while isinstance(value,(tuple,list)) and len(value)==1:value=value[0]
+                return np.asarray(value,dtype=np.float32)
+            raw={'__'.join(k):unwrap(v) for k,v in captured.items() if k[-1].startswith('stream_')}
+            measured=analyze_sequence(raw,cfg.get_keys())
+            self.assertLess(measured['closure']['matrix_relative_rms'],1e-4)
+            self.assertLess(measured['closure']['vector_relative_rms'],1e-4)
+            print('ANALYZER_OK',experiment,len(measured['layers']),flush=True)
             print('PROBE_OK',experiment,'captured',len(captured),flush=True)
         probe.ACTIVE=False
 

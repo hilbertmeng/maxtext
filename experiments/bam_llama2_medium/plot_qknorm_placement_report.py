@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
-"""Plot cumulative registry report series without recalculating gain ratios."""
+"""Plot registered cumulative gaps and gain ratios; never recalculate metrics."""
 import argparse
 import json
 from pathlib import Path
-
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
@@ -26,30 +25,26 @@ def main():
     gaps = {item['base']: item['series'] for item in report['reports']}
     ratios = {item['comparator']: item['series'] for item in report['gain_ratios']}
     assert all(item['reference'] == REFERENCE for item in report['gain_ratios'])
-    secondary = NONE if NONE in gaps and NONE in ratios else MUDD
-    secondary_label = 'no QKNorm' if secondary == NONE else 'Mudd'
-    fig, axes = plt.subplots(2, 2, figsize=(12, 8), constrained_layout=True)
-    for ax, base, label, color in [(axes[0, 0], FULL, 'full75', 'tab:blue'),
-                                    (axes[0, 1], secondary, secondary_label, 'tab:orange')]:
+    available = [(base, label, color) for base, label, color in
+                 [(FULL, 'full75', 'tab:blue'), (NONE, 'no QKNorm', 'tab:orange'),
+                  (MUDD, 'Mudd', 'tab:green')]
+                 if base in gaps and base in ratios]
+    assert available, 'No registered comparison has both gap and gain series'
+    fig, axes = plt.subplots(len(available), 2, figsize=(12, 3.6*len(available)),
+                             squeeze=False, constrained_layout=True)
+    for row, (base, label, color) in enumerate(available):
+        left, right = axes[row]
         series = gaps[base]
-        ax.plot([p['step']/1000 for p in series], [p['gap'] for p in series],
-                color=color, marker='o', markersize=3)
-        ax.set(title=f'Loss gap: {args.experiment_label} minus {label}', ylabel='Loss gap (negative is better)')
-        ax.axhline(0, color='black', linewidth=.8, linestyle='--')
-    comparisons = [(FULL, 'vs full75', 'tab:blue')]
-    if secondary == NONE:
-        comparisons.append((NONE, 'vs no QKNorm', 'tab:orange'))
-    for base, label, color in comparisons:
+        left.plot([p['step']/1000 for p in series], [p['gap'] for p in series],
+                  color=color, marker='o', markersize=3)
+        left.set(title=f'Loss gap: {args.experiment_label} minus {label}',
+                 ylabel='Loss gap (negative is better)')
+        left.axhline(0, color='black', linewidth=.8, linestyle='--')
         series = ratios[base]
-        axes[1, 0].plot([p['step']/1000 for p in series], [p['ratio'] for p in series],
-                        label=label, color=color, marker='o', markersize=3)
-    axes[1, 0].axhline(1, color='black', linewidth=.8, linestyle='--')
-    axes[1, 0].set(title='Gain ratio, common reference: MHA', ylabel='Gain ratio')
-    axes[1, 0].legend()
-    series = ratios[MUDD]
-    axes[1, 1].plot([p['step']/1000 for p in series], [p['ratio'] for p in series],
-                    color='tab:green', marker='o', markersize=3)
-    axes[1, 1].set(title='Gain ratio vs Mudd', ylabel='Gain ratio')
+        right.plot([p['step']/1000 for p in series], [p['ratio'] for p in series],
+                   color=color, marker='o', markersize=3)
+        right.set(title=f'Gain ratio vs {label}; common reference: MHA', ylabel='Gain ratio')
+        right.axhline(1, color='black', linewidth=.8, linestyle='--')
     for ax in axes.flat:
         ax.set_xlabel('Training step (thousands)')
         ax.grid(alpha=.25)

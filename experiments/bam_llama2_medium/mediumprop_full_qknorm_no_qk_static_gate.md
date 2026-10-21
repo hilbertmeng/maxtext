@@ -25,10 +25,10 @@ optimizer/LR/data order. CP200/latest2/keep0/finalforced; TB rotate500.
 Splash q/kv1024,kv_compute512,q_dkv/kv_dkv/kv_dkv_compute1024,fused backward.
 User requests this tuning for future experiments as well.
 
-Direct baselines: full75 QKNorm parent, MHA and MHA QKNorm, and Mudd.
-User removed the no-QKNorm BAM sibling from this arm's comparisons.
-Original MHA remains the common gain reference.
-Register gain triples versus full75 and Mudd. Native stride200,
+Direct baselines: full75 QKNorm parent and MHA QKNorm.
+User removed the no-QKNorm BAM sibling and the historical non-QKNorm Mudd.
+Original MHA is only the common gain reference, not a direct loss comparator.
+Register the gain triple versus full75. Native stride200,
 new arm reports1000. Existing standard18 arm reports only at final closeout,
 per the user; continue liveness checks and training to13500. Historical full75 uses512/nonfused Splash, so raw speed differences
 are not pure gate-removal effects. Prior for matched-kernel/health throughput:
@@ -74,8 +74,8 @@ AOT artifact:
 Manifest and object CRC/size verified. Managed compiler node and queue released;
 no retained FLEX resource was allocated or changed.
 Formal trainer: xd-v5p-16-310270-maxtext / us-east5-a, started2026-10-21T11:41:43Z.
-Registry gain triples versus full75 and Mudd use original MHA; the no-QKNorm
-BAM comparison was removed at user request, preserving the report cursor.
+The registered gain triple versus full75 uses original MHA. Non-QKNorm BAM
+and Mudd comparisons were removed at user request; delivered cursors preserved.
 Reproduction: run_exp_xd.sh with this EXP, exact runtime commit,13500 total
 steps and the artifact above. Local validation/proof artifacts are under
 `/data0/xd/bam_diagnostics/mediumprop-qknorm/no-qk-static-gate-*`.

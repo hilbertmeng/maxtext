@@ -16122,6 +16122,11 @@ class BamPythia2p8BSotaIndependentR768Pallas(BamPythia2p8BSotaIndependentR768):
     Kernel shapes (V64, K80, N32, T2048) are those of the v64 SOTA, so its 56 MiB scoped VMEM applies."""
     # code_commit: 1ac1183; UE5a v5p-256, 8/device, training health ON/BAM health OFF:
     # steps20-99 ~0.592 step/s including routine flushes (median0.596); startup steps10-19 0.598.
+    # User-paused at committed CP37042/143000; late steady speed ~0.585 step/s, UE5a, P0.
+    # Provisional: early gains eroded; parallel Mudd overtook near31k and widened its lead.
+    # 31.5k->36.5k gap vs MHA2.8B -.06344->-.06068, vs Mudd +.00124->+.00378,
+    # vs Pythia6.9B -.02102->-.01374; MHA-reference gain ratios .9809->.9413 / 1.4956->1.2926.
+    # No sustained stabilization by pause; terminal bets untested. WD/LR recipes differ across baselines.
     # Fastest validated: v5p-8 UE5a 71de72a, 8/device, health OFF: 0.6958 step/s with remat minimal
     # (minimal_save_bam_read 0.6936, none 0.6444); shared-R1024 v64 SOTA 0.6968, MHA minimal 0.7404 (-6.0%).
     model_name = 'BamPythia2p8BSotaIndependentR768Pallas'

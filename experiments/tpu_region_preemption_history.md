@@ -27,6 +27,7 @@ active leases are censored, and manual migration releases are not preemptions.
 
 | RUN | TPU | Zone | Start UTC | End UTC | End reason | Passive candidates |
 |---|---|---|---|---|---|---|
+| `BamPythia2p8BSotaIndependentR768Pallas` | v5p-256 (`xd-v5p-256-310201-maxtext`) | `us-east5-a` | 2026-10-20 09:09:20 | 2026-10-21 03:32:13 | user pause37042/143000; P0; CP37042+data cursor committed, node/queue absent, TB SYNC_OK; provisional | none |
 | `MuddPythiaMediumPropT2048SerialMLPSmallEmbedding` | v5p-16 (`xd-v5p-16-310256-maxtext`) | `us-east5-a` | 2026-10-16 01:47:56 | 2026-10-16 08:23:42 | complete13500; P0; CP13500 committed, resources absent, TB SYNC_OK | none |
 | `PythiaMediumPropT2048SerialMLPSmallEmbedding` | v5p-16 (`xd-v5p-16-310255-maxtext`) | `us-east5-a` | 2026-10-16 01:47:24 | 2026-10-16 07:15:48 | complete13500; P1; CP13500 committed, resources absent, TB SYNC_OK | none |
 | `BamXLPropMShiftReadG050PostAttentionWriteMLPNormTruePile` | v5p-32 (`xd-v5p-32-310254-maxtext`) | `us-east5-a` | 2026-10-15 16:47:48 | 2026-10-16 03:43:03 | user stop15157; P0; CP15157 committed, resources absent, TB SYNC_OK | none |
@@ -1965,6 +1966,8 @@ active leases are censored, and manual migration releases are not preemptions.
 | `PythiaMediumPropT2048SerialMLPSmallEmbedding` | 1 | `us-east5-a` | 2026-10-16 01:47:27 | 2026-10-16 06:26:41 | 4h39m14s | preempted; committed12048, same runtime restored and CP12200 verified |
 | `PythiaMediumPropT2048SerialMLPSmallEmbedding` | 2 | `us-east5-a` | 2026-10-16 06:36:23 | 2026-10-16 07:15:48 | 39m25s | complete13500; CP13500 committed, resources absent, TB SYNC_OK |
 | `MuddPythiaMediumPropT2048SerialMLPSmallEmbedding` | 1 | `us-east5-a` | 2026-10-16 01:48:00 | 2026-10-16 08:23:42 | 6h35m42s | complete13500; CP13500 committed, resources absent, TB SYNC_OK |
+
+| `BamPythia2p8BSotaIndependentR768Pallas` | 1 | `us-east5-a` | 2026-10-20 09:15:30 | 2026-10-21 03:32:13 | 18h16m43s | user pause37042; P0; CP committed, node/queue absent, TB SYNC_OK; provisional |
 
 
 ### 2026-10-14 user pause: resumed mixed R256/R384

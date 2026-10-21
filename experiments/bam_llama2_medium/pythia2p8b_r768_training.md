@@ -95,3 +95,34 @@ At3000 verify committed milestone; after5000/6000 verify3000 survives rolling la
 Repeat at13000 and later milestones, including after preemption recovery. Report actual
 commit_success markers, not just directory existence. Monitoring updates belong in reports,
 not in provisional exp.py conclusions.
+
+## User-requested pause, 2026-10-21 (provisional)
+
+Runtime1ac1183 paused at committed checkpoint37042 of143000, preserving the original
+schedule and resumable optimizer/data state. The checkpoint's data cursor records
+globalbatch1024,32infeedhosts, seed9876, file37/step43 in the UE5a b37000/b37500 shards.
+Late steady throughput was approximately.585step/s; the single UE5a v5p-256 lease had
+zero preemptions. Pause is not a terminal architecture verdict.
+
+The final fully sampled comparison horizon is36500 (radius25, stride500). Over the
+last5000steps, BAM's loss gap versus MHA2.8B went from-.06344 to-.06068, versus
+parallel Mudd from+.00124 to+.00378, and versus Pythia6.9B from-.02102 to-.01374.
+MHA-reference gain ratios changed from.9809 to.9413 versus Mudd and1.4956 to1.2926
+versus6.9B. Early gains eroded, Mudd overtook near31k, and no sustained stabilization
+was established by pause. Terminal bets1.50/.95 remain untested at26% progress.
+
+Both raw-gradient series have500 finite samples over[31500,36500), with
+median/P95/max BAM.19991/.31944/.52673 and Mudd.22910/.32074/.73992. There is no
+sustained gradient-health deterioration corresponding to the relative-loss decline.
+The complete final series and paired1000-step health bins are preserved in
+`/data0/xd/bam_diagnostics/pythia2p8b-r768-training/final-pause-report.md`.
+
+Longer-window analysis corrected the earlier endpoint-based claim that BAM's gain
+was flat: its five nonoverlapping5k means from5k to30k fell
+.10546/.08207/.07301/.06844/.06598, while Mudd bottomed near15k then improved.
+Mudd's historical gain subsequently weakens after~70k, but this cannot be attributed
+to WD alone: BAM/MHA useWD.1 versus Mudd.01, and official MHA's cosine-to-zero then
+floor-clamp differs from BAM/Mudd's affine cosine-to-floor. Actual MHA reaches its
+floor near115306 whereas Mudd continues annealing to143k. These are complete-recipe
+comparisons; neither the early decline nor historical late recovery isolates an
+architectural cause or identifies the unobserved BAM terminal result.

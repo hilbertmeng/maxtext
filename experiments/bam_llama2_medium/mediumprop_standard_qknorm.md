@@ -78,3 +78,23 @@ Validation includes standard18 norm placement, unchanged other parameter shapes
 and seeded initial values, scanned finite/nonzero gradients, causality, existing
 full75 placement/scales and the actual summary-writer rotation regression tests.
 Sealed-runtime consistency and actual AOT load/FIRST_STEP remain launch gates.
+
+## Compatible minimal-remat continuation
+
+User requests continuation to the full13500-step endpoint, even though the
+standard18 normalization comparison has become clear, to measure its final gap.
+User also authorizes switching this same RUN to minimal remat after the completed
+v5p-8 timing pair (+3.89%, per-device16). Preserve the RUN/checkpoint/output/data
+identities, original13500-step optimizer/LR schedule and all health-OFF settings.
+
+The new runtime changes only remat from full to minimal; compare_runs also records
+Mudd explicitly, matching the five already registered live comparisons. Runtime
+2f6466ba18472c4ea3886534cf44bfc65e1ac394 is the pre-switch full-remat source.
+No model/optimizer implementation or parameter shapes change. Compile exact
+v5p-16/s13500 AOT before stopping the old trainer; require committed final save,
+all old workers absent, preserved data cursor, then a strictly newer FIRST_STEP
+and a subsequent periodic checkpoint. Keep the existing training TPU throughout.
+
+Prior for formal v5p-16: +3--5% throughput (.541 to approximately.56 step/s),
+subject to target verification. The paired v5p-8 result is documented in
+`mediumprop_qknorm_timing.md`; it is not the formal-v5p-16 result.

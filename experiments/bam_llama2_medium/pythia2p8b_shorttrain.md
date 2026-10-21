@@ -118,3 +118,34 @@ User-facing cadence: every1000 common steps, report all three together. Preserve
 loss gaps, gain ratios, matched speeds and concise comparative raw_grad_norm.
 At2k verify the permanent milestone, then after rolling checkpoints advance verify
 it remains. Keep routine training snapshots out of exp.py and this note.
+
+
+## BAM QKNorm executable switch at checkpoint3000
+
+At the user's request, BAM alone moved from runtime2a108de to
+`b902c690689c9e0bb91eedb58284145e62b8b878`, retaining the same RUN, TPU,
+28k schedule, optimizer state, dataset cursor and reporting cursors.
+The new executable rearranges full-head QKNorm/RoPE to avoid the expensive
+post-read tail layout; all effective experiment attributes match the old runtime.
+Its v5p-128/s28000 manifest,419461339-byte size and CRC32C p5LGGw== verified.
+Three forward/gradient Pallas equivalence checks passed at the sealed new source.
+
+Checkpoint3000 committed before the old controller was stopped. SIGTERM caused
+Orbax to save an additional tail checkpoint3014; that checkpoint was preserved.
+After all16 old workers were verified gone, the root data-cursor pointer was
+restored to checkpoint3000's saved cursor so the requested handoff remained
+exactly at3000. Old worker logs and both cursor versions were archived.
+New MODE=train launcher started2026-10-21T14:29:10Z. The worker logged
+`Loaded compiled function!`, restored checkpoint3000 and resumed at3001.
+On12 overlapping replayed batches3001–3012, new-minus-old mean loss difference
+was+2.75e-6 and maximum absolute difference2.8e-5, confirming continuity.
+
+Same-TPU timing, generic health ON/internal OFF: old2990–2999 .307000 step/s;
+new3011–3020 .319299 step/s, +4.0063%. These use the reciprocal of mean step
+time from the logged rates; startup and checkpoint steps are excluded. The
+v5p-128 gain is smaller than the separate v5p-8 diagnostic's11.9%.
+AOT:
+`gs://newproject-1-llm_base_models_us-central1/log/compiled_trainsteps/b902c69/jax081-i0ae3f58-c17f538a/v5p-128/s28000/BamPythia2p8BSotaIndependentR768PallasShortTrain.pickle`.
+Reproduction/evidence: task directory `switch-3000/` below the artifact root
+above, including sealed CPU log, source archive, old/new worker steps,
+`verification.json` and the remote handoff journal/cursors.

@@ -16275,9 +16275,10 @@ class BamPythia2p8BSotaIndependentR768Pallas(BamPythia2p8BSotaIndependentR768):
 
 
 class BamPythia2p8BSotaIndependentR768PallasShortTrain(ShortTrain2p8B, BamPythia2p8BSotaIndependentR768Pallas):
-    # code_commit:2a108de; UE5a v5p-128, B16/device, health ON/internal OFF.
-    # Paired timing: minimal .309199 vs full .283900 step/s (+8.91%); selected minimal.
-    # QKNorm-rewrite runtime b902c69 (v5p-8 B16 +11.9%): v5p-128/s28000 AOT ready for a hot switch; update code_commit at FIRST_STEP.
+    # code_commit:b902c69; UE5a v5p-128, B16/device, health ON/internal OFF.
+    # Started 2a108de; QKNorm rewrite switched at committed checkpoint3000, resumed3001 (same RUN/optimizer/data).
+    # Same TPU: .307000 -> .319299 step/s (+4.01%); 12 replayed batches max loss difference2.8e-5.
+    # Initial 2a108de remat timing: minimal .309199 vs full .283900 (+8.91%); selected minimal.
     bam_qk_norm_after_concat = True
     compare_runs = ['Pythia2p8BShortTrain', 'MuddPythia3BSerialMLPShortTrain']
 

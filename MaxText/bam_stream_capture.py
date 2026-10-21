@@ -157,6 +157,8 @@ def install():
     def gate(self, name, *args, **kwargs):
         result = original_gate(self, name, *args, **kwargs)
         put(self, 'read_logits_' + name, result)
+        if enabled(self):
+            put(self, 'read_gate_' + name, self._read_gate_activation(result.astype(jnp.float32)))
         return result
     attentions.BamAttention._project_read_gate_logits = gate
 
@@ -181,6 +183,7 @@ def install():
                 elif name in ('W_lq_gate', 'W_lk_gate', 'W_R_gate', 'W_lv_gate'):
                     value = value + jnp.asarray(getattr(self, name + '_b0'), value.dtype)
                     put(self, 'read_logits_' + name, value)
+                    put(self, 'read_gate_' + name, self._read_gate_activation(value.astype(jnp.float32)))
                 elif name.startswith('general_') and name.endswith('_static_gate'):
                     value = value + jnp.asarray(getattr(self, name + '_bias'), value.dtype)
                     put(self, 'static_gate_' + name, 1.1 * jax.nn.sigmoid(value))

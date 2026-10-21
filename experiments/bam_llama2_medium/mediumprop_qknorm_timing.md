@@ -44,3 +44,20 @@ compiled execution does not depend on unrecorded environment overrides.
 Timing-only classes do not alter formal source/runtime or automatically switch
 the ongoing training run. A formal remat change requires a matching AOT and
 checkpoint/cursor-preserving restart after measurement.
+
+V6e artifacts were collected before release:
+`/data0/xd/bam_diagnostics/mediumprop-qknorm/timing-20261021/` contains both
+primary raw XPlanes/JSONs, all three worker logs (including minimal's compile OOM),
+steady-speed JSON and raw-XPlane analysis. Full remat only: standard18 .4278875
+step/s versus full75 .4185875 (+2.22%), window20--99/80 samples. Primary device
+step means2330.840 versus2384.148ms agree. This supersedes the placement-within1%
+prior for this v6e measurement; no v5p placement conclusion is claimed.
+
+V5p AOT root: `gs://newproject-1-llm_base_models_us-central1/log/diagnostics/qknorm_timing/aa1c980/v5p-8/s200`;
+compile log collected locally as `v5p8-compile.log`. Both sourceaa1c980 AOTs
+passed `AOT_MATRIX_OK`, topologyv5p-8/steps200. Owned spot candidates:
+`xd-v5p-8-qknorm-remat-20261021-ue5a` (us-east5-a) and
+`xd-v5p-8-qknorm-remat-20261021-uc1a` (us-central1-a).
+The winner will run both arms; release the loser only after verified trace success.
+Orchestration wrapper `/tmp/qknorm-v5p8-profile-20261021.sh` on tpu-ag invokes the
+authoritative immutable matrix runner with regional TruePile4096 routing.

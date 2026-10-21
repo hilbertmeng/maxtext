@@ -16031,6 +16031,12 @@ class TrainPythia(PileDataset, Optimizer, Common):
     compare_runs = []
     jax_cache_dir = ''
 
+class ShortTrain2p8B:
+    steps = 28000
+    learning_rate_schedule_steps = 28000
+    warmup_steps_fraction = .02
+    checkpoint_keep_steps = list(range(2000, 28000, 2000))
+    learning_rate = 2e-4
 
 class Pythia2p8B(TrainPythia, PythiaArchitecture, Llama2Medium):
     """Official Pythia-2.8B architecture/optimizer schedule; user-approved BF16 on TPU.
@@ -16059,6 +16065,29 @@ class Pythia2p8B(TrainPythia, PythiaArchitecture, Llama2Medium):
     sa_block_kv_dkv_compute = 1024
     sa_use_fused_bwd_kernel = True
 
+
+class MuddPythia3BSerialMLP(TrainPythia, MuddPythiaMediumPropT2048SerialMLP): # MuddPythiaMediumPropT2048SerialMLP already inherits from PythiaArchitecture so we don't need to repeat that here.
+    """PaxML PileMUDDPythia3BPlusOcdbt recipe with serial MLP and WD=0.1.
+
+    Uses the existing MaxText attention/checkpoint backends. Full-history router
+    expansion is indexed by the completed layer, including the final readout.
+    """
+    model_name = 'MuddPythia3BSerialMLP'
+    base_num_decoder_layers = 32
+    base_emb_dim = 2560
+    base_num_query_heads = 32
+    base_num_kv_heads = 32
+    head_dim = 80
+    base_mlp_dim = 10240
+    dynamic_mlp_dim = True
+    qk_norm = True
+    pythia_rotary_dim = 20
+    learning_rate = 1.6e-4
+    # mlp_activations = ['gelu']  # Praxis GELU defaults to approximate=True.
+    pythia_parallel_residual = False
+    mudd_router_hidden_expand = [1] * 31 + [4]
+    record_training_health_metrics = True  # Include unclipped gradient norms in training/TensorBoard.
+    compare_runs = []
 
 class BamPythia2p8BSota(
         Pythia2p8B,
@@ -16149,11 +16178,6 @@ class BamPythia2p8BSotaIndependentR768Pallas(BamPythia2p8BSotaIndependentR768):
     # steps20-99 ~0.592 step/s including routine flushes (median0.596); startup steps10-19 0.598.
     # ce946ed UE5a v5p-128, B16/device, health ON: 20-49 .337699 step/s (2.96122s), 50-step diagnostic.
     # Same-window v5p-256 B8 .593847: throughput .568664x, chip-time -12.07%; global batch1024 unchanged.
-    # User-paused at committed CP37042/143000; late steady speed ~0.585 step/s, UE5a, P0.
-    # Provisional: early gains eroded; parallel Mudd overtook near31k and widened its lead.
-    # 31.5k->36.5k gap vs MHA2.8B -.06344->-.06068, vs Mudd +.00124->+.00378,
-    # vs Pythia6.9B -.02102->-.01374; MHA-reference gain ratios .9809->.9413 / 1.4956->1.2926.
-    # No sustained stabilization by pause; terminal bets untested. WD/LR recipes differ across baselines.
     # Fastest validated: v5p-8 UE5a 71de72a, 8/device, health OFF: 0.6958 step/s with remat minimal
     # (minimal_save_bam_read 0.6936, none 0.6444); shared-R1024 v64 SOTA 0.6968, MHA minimal 0.7404 (-6.0%).
     model_name = 'BamPythia2p8BSotaIndependentR768Pallas'

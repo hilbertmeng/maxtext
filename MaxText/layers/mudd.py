@@ -70,6 +70,10 @@ class Mlp(nn.Module):
     self.dw_shape = dw_shape
     # lsp
     dynamic_dense_hidden_expand = len(cfg.dynamic_dense_type) if hids_length == cfg.num_decoder_layers - 1 + cfg.mtp_num_layers else 1
+    expands = cfg.get_keys().get('mudd_router_hidden_expand')
+    if expands:
+      # Before layer i+1 (or final readout): embedding + i+1 completed outputs.
+      dynamic_dense_hidden_expand = expands[hids_length - 2]
     dynamic_dense_inter_dim = int(np.prod(dw_shape) * dynamic_dense_hidden_expand)
 
     if cfg.dynamic_dense_hidden_round:  # default: round to 64 or 128

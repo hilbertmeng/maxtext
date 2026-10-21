@@ -95,5 +95,26 @@ MHA/Mudd MODE=install+train used new TPUs. Formal recovery is owned by auto-trai
 with UE5a primary and EW4b passive backup. Three-way gain ratio persisted in BAM's
 registry: experiment=BAMShortTrain, comparator=MuddShortTrain,
 reference=Pythia2p8BShortTrain (full names as in the table). Report together about
-every2000steps, preserving500-step comparison windows and the gain-ratio sequence.
+every1000steps, preserving500-step comparison windows and the gain-ratio sequence.
 Keep raw_grad_norm for comparisons; avoid redundant BAM internal health syncs.
+
+
+## Early forecast and reporting contract
+
+At the user's request after launch, before the first complete1000-step common
+window, terminal BAM/Mudd gain-ratio bet: center1.40, main expected range1.15–1.70.
+Use this group's MHA reference and the ratio of mean gains over the final2000
+steps, not the mean of pointwise ratios:
+`R = (mean(L_MHA)-mean(L_BAM))/(mean(L_MHA)-mean(L_Mudd))`.
+A terminal ratio near1.0 would contradict the central forecast; early peaks alone
+do not count as reproducing Medium's gain. Historical anchors reviewed: Medium
+initialization-repair terminal1.616629 with its original embedding baselines;
+old2.8B long run about.9413 at its final observed36.5k window, not its terminal
+result. The new complete-head QKNorm repair, commonWD.1 and common annealing
+motivate partial recovery, without assuming the full Medium advantage transfers.
+
+User-facing cadence: every1000 common steps, report all three together. Preserve
+500-step/radius25/stride10 loss and gain-ratio windows internally. Show cumulative
+loss gaps, gain ratios, matched speeds and concise comparative raw_grad_norm.
+At2k verify the permanent milestone, then after rolling checkpoints advance verify
+it remains. Keep routine training snapshots out of exp.py and this note.

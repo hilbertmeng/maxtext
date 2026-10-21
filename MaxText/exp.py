@@ -16307,6 +16307,11 @@ class BamPythia2p8BSotaIndependentR768PallasShortTrainNoQKStaticGate(BamPythia2p
     Pallas: the fused read receives constant 1 static multipliers for Q/K (no kernel change)."""
     # code_commit:0579479; UE5a v5p-128 B16; AOT/first-step verified, ~.326 step/s; health ON/internal OFF.
     # Same MLP as parent; -5244928 params (-.1890%, -.8003 W_Q), per the gate-removal budget exception.
+    # Early stopped at4868: vs parent -.01653@500 -> -.00291@1k -> ~0@3.5k; broad means then crossed positive.
+    # Narrow4k +.000319 /4.5k -.000292 remained noisy; final201 paired steps4666-4866: +.000228 vs parent.
+    # vs MHA -.50753@1k -> -.16202@4k -> -.14738 final201; gain ratios parent .99846 /Mudd1.83548 (MHA ref).
+    # No sustained loss gain at stop; terminal1.01 forecast not tested. Recent speed ~.324 vs parent~.326.
+    # Final CP4868 committed; fixed2k/4k retained, P0, TPU/queue absent, TB SYNC_OK.
     model_name = 'BamPythia2p8BSotaIndependentR768PallasShortTrainNoQKStaticGate'
     bam_qk_static_read_gate = False
     compare_runs = ['BamPythia2p8BSotaIndependentR768PallasShortTrain', 'Pythia2p8BShortTrain']

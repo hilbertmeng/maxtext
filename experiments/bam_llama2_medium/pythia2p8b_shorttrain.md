@@ -172,8 +172,9 @@ forced28k and TB rotation1000 all verified from the worker's resolved config.
 
 Direct comparisons: parent BAM and this group's MHA. Persisted gain ratios
 compare this arm to both parent BAM and Mudd, with MHA as common reference.
-Report each1000-step horizon, retaining500-step loss/ratio windows; health
-reports retain median/P95 trajectories using the preceding500 steps per point.
+Initially report each1000-step horizon; from the core arms' common6k, report
+each2000 steps, retaining500-step loss/ratio windows. Health reports retain
+median/P95 trajectories using the preceding500 steps per point.
 The arm's later start does not delay the original three arms' grouped reports.
 
 Before first training step, forecast for terminal NoQKStaticGate/parent BAM gain
@@ -210,3 +211,42 @@ mean step time; exclude startup and checkpoint steps. AOT uses the0579479
 prefix and the parent RUN's filename. Evidence: `switch-5000/` under the task
 artifact root, including manifests/stats, source/CPU gate, exact handoff script,
 remote journal/cursors and old/new worker logs plus `verification.json`.
+
+
+## No-Q/K-static-gate closeout
+
+User-authorized early stop at committed checkpoint4868 on2026-10-21.
+The direct-parent advantage shrank from-.016527 at500 to-.002909 at1k,
+-.001017 at2k, -.000523 at3k and-.000183 at3.5k. Narrow windows were noisy
+around zero thereafter:4k+.000319 and4.5k-.000292. The decision therefore
+used the paired all-step trajectory as well:3001–3500 mean-.0000272,
+3501–4000-.0000223,4001–4500+.0000496,4501–4700+.0001355,
+4701–4857+.0001864. Both of the last two disjoint segments had positive
+medians. This supports early benefit exhaustion and a small emerging loss cost,
+not a claim that terminal recovery is impossible.
+
+The final common201-step window4666–4866, calculated with the shared registry
+loss/gain-ratio functions at sample period1, has gap+.0002279005 versus parent
+and-.1473778458 versus MHA. MHA-reference gain ratio versus parent is.9984560;
+versus Mudd it is1.8354759. The regular sample10/±25-window ratios versus parent
+were1k1.005765,2k1.003996,3k1.002735,3.5k1.001049,4k.998032,
+4.5k1.001937. Do not mistake that last narrow-window rebound for a sustained
+advantage; it is why the stop decision also examined every paired batch.
+The terminal1.01 forecast remains untested because of the early stop.
+
+Generic raw-gradient median/P95, each over the preceding500 steps:
+1k.483792/.901451 →2k.224065/.342848 →3k.168759/.218194
+→4k.157684/.228785. No health deterioration drove the stop. Recent throughput
+about.324 step/s versus the parent's same0579479 runtime about.326, with matched
+generic health ON/internal OFF; these are different TPUs, not a paired speed test.
+The unchanged MLP/gate-removal budget exception remains as documented above.
+
+Closeout verified CP4868 commit, retained permanent CP2000/4000, stopped registry,
+absence of both owned TPU and queued resource, and local TensorBoard SYNC_OK.
+One v5p-128 READY lease inus-east5-a:2026-10-21T16:04:36Z →
+2026-10-21T20:19:25Z,4h14m49s, manual stop, zero preemptions; no zone switch.
+The other three formal runs continue. Evidence under the task artifact root:
+`noqkgate-stop-decision.json`, `noqkgate-final-metrics.json`,
+`noqkgate-closeout-summary.json`, `noqkgate-final-registry.json` and the final
+health/TB-sync logs. Remote closeout summary:
+`logs/closeout-20261021T202228Z.json`.

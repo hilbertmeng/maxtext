@@ -4,8 +4,8 @@ User authorized2026-10-21. New formal RUN:
 `BamMediumPropMShiftReadG050StandardQKNormTruePile`.
 Formal runtime `2f6466ba18472c4ea3886534cf44bfc65e1ac394`;
 AOT load and FIRST_STEP verified2026-10-21 (global batch128, norm-after-concat
-False, all health OFF, TB500, actual432112328 parameters). Model loss/forecast
-results remain to be measured.
+False, all health OFF, TB500, actual432112328 parameters). Completed13500 on
+2026-10-21; final results and forecast assessment follow below.
 Worktree `/data0/xd/mediumprop-qknorm`, branch `codex/mediumprop-qknorm`;
 new TPU identity `xd-v5p-16-310260-maxtext`, primary `us-east5-a`.
 Retained FLEX compilers checked first: none READY in EW4a/UC1a/UE5a.
@@ -36,11 +36,10 @@ Direct references (all completed13500):
 - `BamMHAMediumPropC256TruePile`, runtime0d31a3d: common gain reference.
 - `BamMHAMediumPropC256QKNormTruePile`, runtime03c8ade: strengthened MHA
   control available for second-order QKNorm comparisons; no new MHA run.
-- `MuddLlama2MediumPropTruePile`, runtime4fee490: user-added direct baseline,
-  same TruePile4096 and13500-step plan. Include BAM/Mudd gain trajectories
-  with `BamMHAMediumPropC256TruePile` as the common reference. Added after
-  runtime sealing through launch COMPARE_RUNS/registry metadata; no model change
-  or AOT invalidation is required.
+
+Mudd was subsequently removed at the user's request: it has no QKNorm and is
+not the relevant control for this question. Original MHA remains only the common
+gain reference, not a separate direct-loss comparison.
 
 Native loss stride200, agent reports1000. Register gain triples for standard18
 versus full75 and versus no-QKNorm using the original MHA reference; also
@@ -63,6 +62,61 @@ Runtime shape/initialization/causality tests explicitly check the norm width
 and RoPE order; agreement between two implementations alone is insufficient.
 For speed, compare the same all-health-OFF/tuned-Splash setup for both norm
 placements, not historical measurements with other kernel or health settings.
+
+## Final result, 2026-10-21
+
+Standard18 fails to retain the benefit of full-head QKNorm. Against no QKNorm,
+the modest early advantage vanishes around3k; after the final sign reversal at
+3.8k, every native200-step window is worse through13.4k. Training to completion
+confirms this was not merely slower convergence.
+
+All loss points use five common raw samples in a +/-25 window. Ratios are from
+the shared registry, with original MHA as the common reference. Final five
+windows are12600/12800/13000/13200/13400:
+
+| Comparator | Final5 mean gap (standard18 minus comparator) | Range | Mean gain multiplier |
+|---|---:|---:|---:|
+| Full75 QKNorm | +.01299896 | +.0126354 to +.0137142 | .92194879 |
+| No QKNorm BAM | +.00209472 | +.0015134 to +.0025742 | .98654200 |
+| MHA QKNorm | -.12881012 | -.1299094 to -.1276328 | not registered |
+
+The full75 gap shrinks from+.038144 at1k to+.016912 at5k and+.013294 at10k,
+then plateaus near+.013. No-QKNorm gap moves from-.006243 at1k to+.001204
+at5k, +.001625 at10k and+.002095 at the final5 mean. Its corresponding gain
+multiplier moves1.01068 -> .99396 -> .98999 -> .98654. Full75-referenced ratios
+remain around.92 in late training despite a shrinking absolute gap.
+
+The prior +.005 versus full75 was too optimistic (outcome+.013, inside the
+stated upper bound+.015). More decisively, the -.006 /1.04 prior versus no
+QKNorm was wrong: the measured mean is+.002095 /.986542. Normalizing only the
+standard arm is not a useful approximation here. These results support making
+the M-derived and standard Q/K coordinates share the normalization denominator;
+they do not separately identify logit-scale and branch-balance mechanisms.
+The currently training ungated-static-read arm tests a different issue: whether
+those gates add value after full-head normalization. No extra experiment is
+authorized by this closeout.
+
+Formal throughput ~.541 step/s with all health OFF and tuned Splash. Historical
+full75 used older Splash tiles, and no-QKNorm had health ON: their formal speeds
+are not matched timing controls. The v6e matched norm-placement probe found
+standard18+2.22%; that is a v6e result, not a measured v5p16 speedup.
+
+The checkpoint-preserving full/minimal/full segment is documented in
+`mediumprop_qknorm_timing.md`: only steps5682–5856 used minimal; all other
+steps used the original full runtime, same data and original13500-step LR
+schedule. One UE5a preemption forced checkpoint12283; resumed at12284.
+Final checkpoint13500 is committed; the TPU and queued resource are verified
+absent; TensorBoard SYNC_OK verified. Complete READY leases (UTC), all on
+v5p16/us-east5-a:
+
+| Start | End | Duration | Exit |
+|---|---|---|---|
+| 2026-10-21 06:33:20 | 2026-10-21 13:05:36 | 6h32m16s | preempted |
+| 2026-10-21 13:12:03 | 2026-10-21 13:55:59 | 43m56s | complete13500 |
+
+Artifacts: `/data0/xd/bam_diagnostics/mediumprop-qknorm/standard-final-report.json`
+(complete native200 trajectories), `standard-final-trends.png`/`.svg`,
+`standard-final-leases.txt`, and `standard-final-tb-sync.log` in the same directory.
 
 ## Mainline implementation
 

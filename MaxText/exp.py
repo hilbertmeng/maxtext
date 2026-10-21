@@ -15307,7 +15307,7 @@ class BamMediumPropMShiftReadG050FullQKNormTruePile(BamMediumPropSharedR256Gener
 
 class BamMediumPropMShiftReadG050FullQKNormNoQKStaticGateTruePile(BamMediumPropMShiftReadG050FullQKNormTruePile):
     """Keep static Q/K reads, remove their input-dependent gates; full-head QKNorm."""
-    # ledger only: codex/mediumprop-qknorm, /data0/xd/mediumprop-qknorm.
+    # Formal runtime: codex/mediumprop-qknorm, /data0/xd/mediumprop-qknorm; implementation merged e3b9d00f.
     # User budget exception: remove691776 gate params (.4804 W_Q), retain parent MLP widths.
     # code_commit:390b853; exact v5p16 AOT load and FIRST_STEP verified.
     model_name = 'BamMediumPropMShiftReadG050FullQKNormNoQKStaticGateTruePile'
@@ -15328,6 +15328,11 @@ class BamMediumPropMShiftReadG050FullQKNormNoQKStaticGateTruePile(BamMediumPropM
 
 class BamMediumPropMShiftReadG050StandardQKNormTruePile(BamMediumPropMShiftReadG050FullQKNormTruePile):
     """Normalize only the standard18 Q/K arm before RoPE; M-derived57 stays unchanged."""
+    # 结论：仅标准18维QKNorm未保留完整头版的收益；早期略胜无QKNorm，3–4k反转后持续小幅落后。
+    # 完成13500；末五12600–13400对完整头gap+.012999、收益倍数.921949；对无QKNorm+.002095、.986542。
+    # 原MHA为倍数共同基准；对MHA QKNorm末五gap-.128810。跑前对无QKNorm-.006/1.04的判断错误。
+    # UE5a v5p16 ~.541 step/s，健康OFF/调优Splash；历史基线kernel/健康不同，速度不作纯架构对比。
+    # P1，CP13500提交、node/queue释放、TB SYNC_OK；终局与复现见 mediumprop_standard_qknorm.md。
     # code_commit: 2f6466b; formal runtime uses codex/mediumprop-qknorm.
     # Runtime segment5682–5856:ea0c153/minimal; CP5856 restored2f6466b/full at5857, same data/LR.
     # Compare with historical full75 QKNorm and no-QKNorm single.5; original TruePile4096 recipe.

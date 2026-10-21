@@ -588,6 +588,8 @@ active leases are censored, and manual migration releases are not preemptions.
 
 | `BamMediumPropMShiftReadG050PostAttentionWriteControlsTruePile` | v5p-16 (`xd-v5p-16-310244-maxtext`) | `us-east5-a` | 2026-10-15 08:32:34 | 2026-10-15 16:25:52 | complete13500; P0; CP13500 committed, resources absent, TB SYNC_OK | none |
 
+| `BamMediumPropMShiftReadG050StandardQKNormTruePile` | v5p-16 (`xd-v5p-16-310260-maxtext`) | `us-east5-a` | 2026-10-21 06:33:20 (READY) | 2026-10-21 13:55:59 | complete13500; P1, same-zone recovery; CP13500 committed, node/queue absent, TB SYNC_OK | none |
+
 ## READY leases
 
 | RUN | # | Zone | Start UTC | End UTC | Duration | Exit |
@@ -1971,6 +1973,8 @@ active leases are censored, and manual migration releases are not preemptions.
 | `MuddPythiaMediumPropT2048SerialMLPSmallEmbedding` | 1 | `us-east5-a` | 2026-10-16 01:48:00 | 2026-10-16 08:23:42 | 6h35m42s | complete13500; CP13500 committed, resources absent, TB SYNC_OK |
 
 | `BamPythia2p8BSotaIndependentR768Pallas` | 1 | `us-east5-a` | 2026-10-20 09:15:30 | 2026-10-21 03:32:13 | 18h16m43s | user pause37042; P0; CP committed, node/queue absent, TB SYNC_OK; provisional |
+| `BamMediumPropMShiftReadG050StandardQKNormTruePile` | 1 | `us-east5-a` | 2026-10-21 06:33:20 | 2026-10-21 13:05:36 | 6h32m16s | preempted; forcedCP12283 committed; same-zone resume12284 |
+| `BamMediumPropMShiftReadG050StandardQKNormTruePile` | 2 | `us-east5-a` | 2026-10-21 13:12:03 | 2026-10-21 13:55:59 | 43m56s | complete13500; CP13500 committed, node/queue absent, TB SYNC_OK |
 
 
 ### 2026-10-14 user pause: resumed mixed R256/R384

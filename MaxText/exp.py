@@ -16595,3 +16595,19 @@ class BamPythia2p8BSotaIndependentR768PallasNoRematProfile(BamPythia2p8BSotaInde
     # 71de72a: 0.6444 (-7.4% vs minimal; bet +5% [+2,+8] missed): fits in HBM but slower.
     model_name = 'BamPythia2p8BSotaIndependentR768PallasNoRematProfile'
     remat_policy = 'none'
+
+
+class BamPythia2p8BSotaIndependentR768PallasShortTrainV5p8Profile(TrainStepProfile, BamPythia2p8BSotaIndependentR768PallasShortTrain):
+    """Timing: formal R768 ShortTrain (remat minimal, its health settings) at the v5p-128 per-device batch16 on v5p-8."""
+    model_name = 'BamPythia2p8BSotaIndependentR768PallasShortTrainV5p8Profile'
+    target_train_batch_size = None
+    per_device_batch_size = 16.0
+    steps = 100
+
+
+class Pythia2p8BShortTrainV5p8Profile(TrainStepProfile, Pythia2p8BShortTrain):
+    """Matched MHA timing arm for the R768 ShortTrain profile (batch16/device on v5p-8)."""
+    model_name = 'Pythia2p8BShortTrainV5p8Profile'
+    target_train_batch_size = None
+    per_device_batch_size = 16.0
+    steps = 100

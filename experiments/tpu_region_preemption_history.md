@@ -591,6 +591,8 @@ active leases are censored, and manual migration releases are not preemptions.
 
 | `BamMediumPropMShiftReadG050StandardQKNormTruePile` | v5p-16 (`xd-v5p-16-310260-maxtext`) | `us-east5-a` | 2026-10-21 06:33:20 (READY) | 2026-10-21 13:55:59 | complete13500; P1, same-zone recovery; CP13500 committed, node/queue absent, TB SYNC_OK | none |
 
+| `BamMediumPropMShiftReadG050FullQKNormNoQKStaticGateTruePile` | v5p-16 (`xd-v5p-16-310270-maxtext`) | `us-east5-a` | 2026-10-21 11:39:16 (READY) | 2026-10-21 19:15:19 | complete13500; P2, same-zone recovery; CP13500 committed, node/queue absent, TB SYNC_OK | none |
+
 ## READY leases
 
 | RUN | # | Zone | Start UTC | End UTC | Duration | Exit |
@@ -1975,7 +1977,10 @@ active leases are censored, and manual migration releases are not preemptions.
 
 | `BamPythia2p8BSotaIndependentR768Pallas` | 1 | `us-east5-a` | 2026-10-20 09:15:30 | 2026-10-21 03:32:13 | 18h16m43s | user pause37042; P0; CP committed, node/queue absent, TB SYNC_OK; provisional |
 | `BamMediumPropMShiftReadG050StandardQKNormTruePile` | 1 | `us-east5-a` | 2026-10-21 06:33:20 | 2026-10-21 13:05:36 | 6h32m16s | preempted; forcedCP12283 committed; same-zone resume12284 |
+| `BamMediumPropMShiftReadG050FullQKNormNoQKStaticGateTruePile` | 1 | `us-east5-a` | 2026-10-21 11:39:16 | 2026-10-21 13:09:13 | 1h29m57s | preempted; same-zone recovery |
 | `BamMediumPropMShiftReadG050StandardQKNormTruePile` | 2 | `us-east5-a` | 2026-10-21 13:12:03 | 2026-10-21 13:55:59 | 43m56s | complete13500; CP13500 committed, node/queue absent, TB SYNC_OK |
+| `BamMediumPropMShiftReadG050FullQKNormNoQKStaticGateTruePile` | 2 | `us-east5-a` | 2026-10-21 13:14:29 | 2026-10-21 18:36:40 | 5h22m11s | preempted; same-zone recovery |
+| `BamMediumPropMShiftReadG050FullQKNormNoQKStaticGateTruePile` | 3 | `us-east5-a` | 2026-10-21 18:43:58 | 2026-10-21 19:15:19 | 31m21s | complete13500; CP13500 committed, node/queue absent, TB SYNC_OK |
 | `BamPythia2p8BSotaIndependentR768PallasShortTrainNoQKStaticGate` | 1 | `us-east5-a` | 2026-10-21 16:04:36 | 2026-10-21 20:19:25 | 4h14m49s | authorized manual stop4868; P0; CP committed, node/queue absent, TB SYNC_OK |
 
 

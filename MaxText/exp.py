@@ -15307,6 +15307,11 @@ class BamMediumPropMShiftReadG050FullQKNormTruePile(BamMediumPropSharedR256Gener
 
 class BamMediumPropMShiftReadG050FullQKNormNoQKStaticGateTruePile(BamMediumPropMShiftReadG050FullQKNormTruePile):
     """Keep static Q/K reads, remove their input-dependent gates; full-head QKNorm."""
+    # 结论：去掉Q/K静态读门基本不损效果，伴随很小的持续正收益；省下的参数未补MLP。
+    # 完成13500；对完整头父路67个200步窗口全部领先，末五gap-.001207、MHA参考收益倍数1.007246。
+    # 对MHA QKNorm末五gap-.143016；省691776参数(.4804 W_Q，.1601%)，M-cache不变。
+    # UE5a v5p16 ~.533 step/s，健康OFF/调优Splash；历史父路Splash不同，不能作纯去门速度比较。
+    # P2；CP13500提交、node/queue释放、TB SYNC_OK；详见 mediumprop_static_qk_gate_closeout.md。
     # Formal runtime: codex/mediumprop-qknorm, /data0/xd/mediumprop-qknorm; implementation merged e3b9d00f.
     # User budget exception: remove691776 gate params (.4804 W_Q), retain parent MLP widths.
     # code_commit:390b853; exact v5p16 AOT load and FIRST_STEP verified.

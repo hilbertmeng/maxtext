@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 import subprocess
 import time
+import zipfile
 from types import SimpleNamespace
 
 from flax import linen as nn
@@ -104,6 +105,14 @@ def variant(params,name):
 def unwrap(x):
     while isinstance(x,(list,tuple)) and len(x)==1:x=x[0]
     return np.asarray(x,dtype=np.float32)
+
+
+def save_capture(path,arrays):
+    # Low compression avoids spending most of a short TPU probe in CPU deflate.
+    with zipfile.ZipFile(path,'w',compression=zipfile.ZIP_DEFLATED,compresslevel=1,allowZip64=True) as archive:
+        for name,value in arrays.items():
+            with archive.open(name+'.npy','w',force_zip64=True) as item:
+                np.lib.format.write_array(item,np.asarray(value),allow_pickle=False)
 
 
 def upload(output,destination):
@@ -216,7 +225,7 @@ def main():
                 arrays[key.replace('/','__')]=arr
             arrays['inputs']=np.asarray(batch['inputs'][within:within+1])
             arrays['mask']=np.asarray(batch['mask'][within:within+1])
-            np.savez_compressed(output/f'sequence_{sequence_index:03d}.npz',**arrays)
+            save_capture(output/f'sequence_{sequence_index:03d}.npz',arrays)
             losses.append(float(native[within]))
             measurements.append(dict(sequence=sequence_index,loss=losses[-1],hash=hashes[sequence_index],seconds=time.time()-t))
         (output/'progress.json').write_text(json.dumps(dict(completed_sequences=len(losses),losses=losses,measurements=measurements),indent=2)+'\n')

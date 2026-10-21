@@ -184,3 +184,29 @@ effect rather than a large predicted improvement. Evidence and exact launch
 environment: `noqkstaticgate-launch.json`, resolved config and first worker log
 under the task artifact root. AOT uses the0579479/v5p-128/s28000 prefix above
 with this RUN's filename.
+
+
+## BAM executable switch at checkpoint5000
+
+User-directed second same-RUN handoff: committed checkpoint5000, runtime
+b902c69 -> `0579479d8616024d0f817ebf2e8803aa483ce291`; unchanged parameter
+tree, effective attributes, optimizer/data state and28k schedule. This finish
+rewrite avoids the full f32 copy of the read output while retaining f32 RMS
+accumulation. Exact new v5p-128/s28000 AOT:420349220bytes, CRC32C9FsjQg==.
+Three sealed-source Pallas QKNorm forward/gradient checks passed before handoff.
+
+Old controller stopped2026-10-21T16:18:05Z after checkpoint5000 committed.
+All16 old trainers exited; SIGTERM tail checkpoint5015 and old logs/cursors
+were preserved. The root data cursor was reset to checkpoint5000's saved cursor
+for the requested exact boundary. New MODE=train launcher began16:19:09Z.
+The worker logged Loaded compiled function, restored checkpoint5000 and resumed
+at5001. Thirteen replayed same batches5001–5013 had mean new-minus-old loss
++1.8923e-5 and maximum absolute difference4.5e-5.
+
+Same-TPU timing: pre-switch4990–4999 .3189994 step/s; post-switch5011–5020
+.3270000 step/s, +2.5080%, close to the supplied v5p-8 expectation of+2.7%.
+User-facing pre-switch speed bet was approximately.328 step/s. Use reciprocal
+mean step time; exclude startup and checkpoint steps. AOT uses the0579479
+prefix and the parent RUN's filename. Evidence: `switch-5000/` under the task
+artifact root, including manifests/stats, source/CPU gate, exact handoff script,
+remote journal/cursors and old/new worker logs plus `verification.json`.

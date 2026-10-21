@@ -2,6 +2,10 @@
 
 User authorized2026-10-21. New formal RUN:
 `BamMediumPropMShiftReadG050StandardQKNormTruePile`.
+Formal runtime `2f6466ba18472c4ea3886534cf44bfc65e1ac394`;
+AOT load and FIRST_STEP verified2026-10-21 (global batch128, norm-after-concat
+False, all health OFF, TB500, actual432112328 parameters). Model loss/forecast
+results remain to be measured.
 Worktree `/data0/xd/mediumprop-qknorm`, branch `codex/mediumprop-qknorm`;
 new TPU identity `xd-v5p-16-310260-maxtext`, primary `us-east5-a`.
 Retained FLEX compilers checked first: none READY in EW4a/UC1a/UE5a.
@@ -32,12 +36,22 @@ Direct references (all completed13500):
 - `BamMHAMediumPropC256TruePile`, runtime0d31a3d: common gain reference.
 - `BamMHAMediumPropC256QKNormTruePile`, runtime03c8ade: strengthened MHA
   control available for second-order QKNorm comparisons; no new MHA run.
+- `MuddLlama2MediumPropTruePile`, runtime4fee490: user-added direct baseline,
+  same TruePile4096 and13500-step plan. Include BAM/Mudd gain trajectories
+  with `BamMHAMediumPropC256TruePile` as the common reference. Added after
+  runtime sealing through launch COMPARE_RUNS/registry metadata; no model change
+  or AOT invalidation is required.
 
 Native loss stride200, agent reports1000. Register gain triples for standard18
 versus full75 and versus no-QKNorm using the original MHA reference; also
 retain full75 versus no-QKNorm with that same reference. Do not substitute Mudd.
 The existing paired-QKNorm interaction reporter can use the new BAM arm and
 the same three historical controls for the second-order series.
+
+The matched timing probe is separate from formal training: four norm-placement
+and remat full/minimal arms on one spotv6e-1, per-device batch16/T4096,
+source6750b251, wrapper and note in the implementation worktree. Report timing
+hardware explicitly; do not compare those absolute speeds with formal v5p-16.
 
 Prior: standard18 minus full75 terminal loss+.005, range[-.005,+.015];
 matched-health throughput within1%. This is a mechanism prior, not an extrapolation.

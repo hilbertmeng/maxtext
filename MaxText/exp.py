@@ -15307,6 +15307,7 @@ class BamMediumPropMShiftReadG050FullQKNormTruePile(BamMediumPropSharedR256Gener
 
 class BamMediumPropMShiftReadG050StandardQKNormTruePile(BamMediumPropMShiftReadG050FullQKNormTruePile):
     """Normalize only the standard18 Q/K arm before RoPE; M-derived57 stays unchanged."""
+    # code_commit: 2f6466b; formal runtime uses codex/mediumprop-qknorm.
     # Compare with historical full75 QKNorm and no-QKNorm single.5; original TruePile4096 recipe.
     # Standard-arm scales add648 params (0.00045 W_Q total); MLP widths are unchanged.
     # Prediction: terminal loss vs full75 +.005 [-.005,+.015]; matched-health speed within1%.
@@ -15325,7 +15326,8 @@ class BamMediumPropMShiftReadG050StandardQKNormTruePile(BamMediumPropMShiftReadG
     sa_use_fused_bwd_kernel = True
     compare_runs = ['BamMediumPropMShiftReadG050FullQKNormTruePile',
                     'BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile',
-                    'BamMHAMediumPropC256TruePile', 'BamMHAMediumPropC256QKNormTruePile']
+                    'BamMHAMediumPropC256TruePile', 'BamMHAMediumPropC256QKNormTruePile',
+                    'MuddLlama2MediumPropTruePile']
 
 
 class BamMHAMediumPropC256QKNormTruePile(BamMHAMediumPropC256TruePile):

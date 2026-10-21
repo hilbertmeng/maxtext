@@ -16277,6 +16277,7 @@ class BamPythia2p8BSotaIndependentR768Pallas(BamPythia2p8BSotaIndependentR768):
 class BamPythia2p8BSotaIndependentR768PallasShortTrain(ShortTrain2p8B, BamPythia2p8BSotaIndependentR768Pallas):
     # code_commit:2a108de; UE5a v5p-128, B16/device, health ON/internal OFF.
     # Paired timing: minimal .309199 vs full .283900 step/s (+8.91%); selected minimal.
+    # QKNorm-rewrite runtime b902c69 (v5p-8 B16 +11.9%): v5p-128/s28000 AOT ready for a hot switch; update code_commit at FIRST_STEP.
     bam_qk_norm_after_concat = True
     compare_runs = ['Pythia2p8BShortTrain', 'MuddPythia3BSerialMLPShortTrain']
 
@@ -16287,6 +16288,7 @@ class BamPythia2p8BSotaIndependentR768PallasShortTrainNoQKStaticGate(BamPythia2p
 
     Budget exception as in the Medium experiment: the removed gate parameters are not reimbursed to the MLP.
     Pallas: the fused read receives constant 1 static multipliers for Q/K (no kernel change)."""
+    # code_commit:e3b9d00; v5p-128/s28000 AOT ready (includes the QKNorm rewrite); not yet launched.
     model_name = 'BamPythia2p8BSotaIndependentR768PallasShortTrainNoQKStaticGate'
     bam_qk_static_read_gate = False
     compare_runs = ['BamPythia2p8BSotaIndependentR768PallasShortTrain', 'Pythia2p8BShortTrain']

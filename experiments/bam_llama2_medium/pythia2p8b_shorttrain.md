@@ -149,3 +149,38 @@ AOT:
 Reproduction/evidence: task directory `switch-3000/` below the artifact root
 above, including sealed CPU log, source archive, old/new worker steps,
 `verification.json` and the remote handoff journal/cursors.
+
+
+## No-Q/K-static-gate arm
+
+RUN `BamPythia2p8BSotaIndependentR768PallasShortTrainNoQKStaticGate`, runtime
+`0579479d8616024d0f817ebf2e8803aa483ce291`, same main worktree/branch and
+28k plan. TPU `xd-v5p-128-short28k-noqkgate-1022`, us-east5-a, ID310273;
+backup europe-west4-b. Prequeue/installation overlapped CPU checks; the formal
+MODE=train launcher began2026-10-21T16:04:34Z after3 QKNorm and1 ungated
+Pallas forward/gradient checks passed. AOT load, step0 and the step14 gate
+verified. Initial steady speed about.326 step/s, health ON/internal OFF.
+Compare gate-removal speed to the parent's same0579479 runtime after its5k
+handoff, rather than attributing the executable optimization to gate removal.
+
+Keep static Q/K matrix reads and remove their input-dependent gates; V/O gates
+remain. Same MLP widths as the parent, honoring the configuration's user budget
+exception. Actual parameter count2,769,674,720: parent minus5,244,928
+(-.1890%, -.8003125 W_Q). Global batch1024,16/device, no accumulation,
+minimal remat, complete-head QKNorm, checkpoint1000, permanent2k/.../26k,
+forced28k and TB rotation1000 all verified from the worker's resolved config.
+
+Direct comparisons: parent BAM and this group's MHA. Persisted gain ratios
+compare this arm to both parent BAM and Mudd, with MHA as common reference.
+Report each1000-step horizon, retaining500-step loss/ratio windows; health
+reports retain median/P95 trajectories using the preceding500 steps per point.
+The arm's later start does not delay the original three arms' grouped reports.
+
+Before first training step, forecast for terminal NoQKStaticGate/parent BAM gain
+ratio:1.01, expected.98–1.04, using the ratio of final2000-step mean gains over
+this group's MHA. Historical evidence reviewed: Medium ungated-static-Q/K arm
+at6.8k–7.6k led its parent by.000586–.001752 loss, supporting a small positive
+effect rather than a large predicted improvement. Evidence and exact launch
+environment: `noqkstaticgate-launch.json`, resolved config and first worker log
+under the task artifact root. AOT uses the0579479/v5p-128/s28000 prefix above
+with this RUN's filename.

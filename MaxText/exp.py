@@ -16290,7 +16290,8 @@ class BamPythia2p8BSotaIndependentR768PallasShortTrainNoQKStaticGate(BamPythia2p
 
     Budget exception as in the Medium experiment: the removed gate parameters are not reimbursed to the MLP.
     Pallas: the fused read receives constant 1 static multipliers for Q/K (no kernel change)."""
-    # code_commit:0579479; v5p-128/s28000 AOT ready (QKNorm rewrite + finish); not yet launched (supersedes e3b9d00).
+    # code_commit:0579479; UE5a v5p-128 B16; AOT/first-step verified, ~.326 step/s; health ON/internal OFF.
+    # Same MLP as parent; -5244928 params (-.1890%, -.8003 W_Q), per the gate-removal budget exception.
     model_name = 'BamPythia2p8BSotaIndependentR768PallasShortTrainNoQKStaticGate'
     bam_qk_static_read_gate = False
     compare_runs = ['BamPythia2p8BSotaIndependentR768PallasShortTrain', 'Pythia2p8BShortTrain']

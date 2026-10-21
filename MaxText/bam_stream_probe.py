@@ -50,7 +50,7 @@ def hash_sequence(x):return hashlib.sha256(np.asarray(x,dtype=np.int32).tobytes(
 def config_for(args):
     parent=getattr(exp,args.experiment)
     attrs=dict(model_name=args.experiment,only_eval=True,enable_checkpointing=False,
-        per_device_batch_size=1.0,eval_per_device_batch_size=1.0,target_train_batch_size=1,
+        per_device_batch_size=1.0,eval_per_device_batch_size=1.0,target_train_batch_size=args.batch_size,
         max_target_length=args.length,max_prefill_predict_length=args.length,
         dataset_type='synthetic',log_config=False,jax_cache_dir='',enable_goodput_recording=False,
         monitor_goodput=False,record_training_health_metrics=False,record_internal_nn_metrics=False,
@@ -117,7 +117,12 @@ def main():
     parser.add_argument('--cohort-source',default='gs://newproject-1-common_datasets_us-east5/pythia_pile_idxmaps_tfrecord_4096/pile.tfrecord.b0')
     parser.add_argument('--output',required=True);parser.add_argument('--gcs-output',default='')
     parser.add_argument('--no-ablations',action='store_true');parser.add_argument('--skip-raw',action='store_true')
-    args=parser.parse_args();output=Path(args.output);output.mkdir(parents=True,exist_ok=True)
+    parser.add_argument('--batch-size',type=int,default=1)
+    args=parser.parse_args()
+    if args.sequences % args.batch_size:
+        raise ValueError('Sequence count must be divisible by diagnostic batch size')
+    Path('/tmp/bam_stream_probe',args.label).mkdir(parents=True,exist_ok=True)
+    output=Path(args.output);output.mkdir(parents=True,exist_ok=True)
     start=time.time();capture.install();capture.ACTIVE=False
     cfg=config_for(args)
     mesh=jax.sharding.Mesh(max_utils.create_device_mesh(cfg),cfg.mesh_axes)
@@ -135,14 +140,14 @@ def main():
     data=cohort(args.cohort,args.cohort_source,args.seed,args.sequences)
     plain_fn=jax.jit(lambda p,b:plain(model,p,b,rng))
     batches=[];hashes=[];losses=[];measurements=[]
-    for i in range(args.sequences):
-        seq=data['tokens'][i:i+1,:args.length+1]
-        labels=data['labels'][i:i+1,1:args.length+1]
+    for i in range(0,args.sequences,args.batch_size):
+        seq=data['tokens'][i:i+args.batch_size,:args.length+1]
+        labels=data['labels'][i:i+args.batch_size,1:args.length+1]
         batch=dict(inputs=jnp.asarray(seq[:,:-1]),targets=jnp.asarray(seq[:,1:]),
-            positions=jnp.arange(args.length)[None,:],segments=jnp.ones((1,args.length),jnp.int32),
+            positions=jnp.broadcast_to(jnp.arange(args.length),(args.batch_size,args.length)),segments=jnp.ones((args.batch_size,args.length),jnp.int32),
             mask=jnp.asarray(labels>=0,dtype=jnp.int32))
         if int(seq.max())>=cfg.vocab_size:raise RuntimeError('Out-of-vocabulary shared cohort')
-        batches.append(batch);hashes.append(hash_sequence(seq))
+        batches.append(batch);hashes.extend(hash_sequence(row) for row in seq)
     with mesh,nn.partitioning.axis_rules(cfg.logical_axis_rules):
         baseline=np.asarray(jax.device_get(plain_fn(params,batches[0])))
     capture.ACTIVE=True
@@ -156,12 +161,26 @@ def main():
             difference=float(np.max(np.abs(np.asarray(loss)-baseline)))
             if difference>2e-3:raise RuntimeError(f'Instrumentation changed loss by {difference}')
             metadata['instrumentation_loss_abs_difference']=difference
-        arrays={k.replace('/','__'):unwrap(v) for k,v in raw.items()}
-        arrays['inputs']=np.asarray(batch['inputs']);arrays['mask']=np.asarray(batch['mask'])
-        np.savez_compressed(output/f'sequence_{i:03d}.npz',**arrays)
-        losses.append(float(loss[0]));measurements.append(dict(sequence=i,loss=losses[-1],hash=hashes[i],seconds=time.time()-t))
-        (output/'progress.json').write_text(json.dumps(dict(completed_sequences=i+1,losses=losses,measurements=measurements),indent=2)+'\n')
-        print('PROBE_SEQUENCE',args.label,i,losses[-1],'arrays',len(arrays),'seconds',time.time()-t,flush=True)
+        for within in range(args.batch_size):
+            sequence_index=i*args.batch_size+within
+            arrays={}
+            for key,value in raw.items():
+                arr=unwrap(value);metric=key.split('/')[-1]
+                static=(metric in ('stream_mlp_write_bias','stream_embedding_gate_bias','stream_m_shift_bias',
+                        'stream_read_key_epsilon','stream_read_key_scale')
+                        or metric.startswith('stream_static_') and metric.endswith('_key'))
+                if not static:
+                    axis=1 if 'layers' in key.split('/') else 0
+                    if arr.shape[axis]!=args.batch_size:raise RuntimeError((key,arr.shape,args.batch_size))
+                    arr=np.take(arr,[within],axis=axis)
+                arrays[key.replace('/','__')]=arr
+            arrays['inputs']=np.asarray(batch['inputs'][within:within+1])
+            arrays['mask']=np.asarray(batch['mask'][within:within+1])
+            np.savez_compressed(output/f'sequence_{sequence_index:03d}.npz',**arrays)
+            losses.append(float(loss[within]))
+            measurements.append(dict(sequence=sequence_index,loss=losses[-1],hash=hashes[sequence_index],seconds=time.time()-t))
+        (output/'progress.json').write_text(json.dumps(dict(completed_sequences=len(losses),losses=losses,measurements=measurements),indent=2)+'\n')
+        print('PROBE_SEQUENCE',args.label,'through',len(losses),'loss',float(np.mean(loss)),'arrays',len(arrays),'seconds',time.time()-t,flush=True)
     capture.ACTIVE=False
     variants={}
     if not args.no_ablations:
@@ -170,7 +189,7 @@ def main():
             for i,batch in enumerate(batches):
                 with mesh,nn.partitioning.axis_rules(cfg.logical_axis_rules):
                     loss=np.asarray(jax.device_get(plain_fn(changed,batch)))
-                values.append(float(loss[0]))
+                values.extend(float(value) for value in loss)
             delta=np.array(values)-np.array(losses)
             variants[name]=dict(losses=values,paired_delta=delta.tolist(),mean_delta=float(delta.mean()),
                 sem=float(delta.std(ddof=1)/np.sqrt(len(delta))),changed_tensors=changed_count)

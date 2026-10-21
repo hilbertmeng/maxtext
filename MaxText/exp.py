@@ -16036,8 +16036,23 @@ class ShortTrain2p8B:
     steps = 28000
     learning_rate_schedule_steps = 28000
     warmup_steps_fraction = .02
+    checkpoint_period = 1000
     checkpoint_keep_steps = list(range(2000, 28000, 2000))
     learning_rate = 2e-4
+    
+    # Splash tuning for this model; retain the full tile specification here.
+    sa_block_q = 1024
+    sa_block_kv = 1024
+    sa_block_kv_compute = 512
+    sa_block_q_dkv = 1024
+    sa_block_kv_dkv = 1024
+    sa_block_kv_dkv_compute = 1024
+    sa_use_fused_bwd_kernel = True
+    remat_policy = 'minimal'
+    sharding_tolerance = .05
+
+    record_training_health_metrics = True
+    record_internal_nn_metrics = False
 
 class Pythia2p8B(TrainPythia, PythiaArchitecture, Llama2Medium):
     """Official Pythia-2.8B architecture/optimizer schedule; user-approved BF16 on TPU.
@@ -16066,6 +16081,9 @@ class Pythia2p8B(TrainPythia, PythiaArchitecture, Llama2Medium):
     sa_block_kv_dkv_compute = 1024
     sa_use_fused_bwd_kernel = True
 
+class Pythia2p8BShortTrain(ShortTrain2p8B, Pythia2p8B):
+    qk_norm = True
+    
 
 class MuddPythia3BSerialMLP(TrainPythia, MuddPythiaMediumPropT2048SerialMLP): # MuddPythiaMediumPropT2048SerialMLP already inherits from PythiaArchitecture so we don't need to repeat that here.
     """PaxML PileMUDDPythia3BPlusOcdbt recipe with serial MLP and WD=0.1.
@@ -16089,6 +16107,9 @@ class MuddPythia3BSerialMLP(TrainPythia, MuddPythiaMediumPropT2048SerialMLP): # 
     mudd_router_hidden_expand = [1] * 31 + [4]
     record_training_health_metrics = True  # Include unclipped gradient norms in training/TensorBoard.
     compare_runs = []
+
+class MuddPythia3BSerialMLPShortTrain(ShortTrain2p8B, MuddPythia3BSerialMLP):
+    compare_runs = ['Pythia2p8BShortTrain']
 
 class BamPythia2p8BSota(
         Pythia2p8B,
@@ -16194,6 +16215,24 @@ class BamPythia2p8BSotaIndependentR768Pallas(BamPythia2p8BSotaIndependentR768):
     record_training_health_metrics = True
     record_internal_nn_metrics = False  # global L2 norms of attn/MLP outputs; little value, baseline lacks them
     compare_runs = ['Pythia_2.8B_2022', 'Pythia_6.9B_2022_Decay', 'PileMUDDPythia3BPlusOcdbtv6e']
+
+
+class BamPythia2p8BSotaIndependentR768PallasShortTrain(ShortTrain2p8B, BamPythia2p8BSotaIndependentR768Pallas):
+    bam_qk_norm_after_concat = True
+    compare_runs = ['Pythia2p8BShortTrain', 'MuddPythia3BSerialMLPShortTrain']
+
+
+# Paired v5p-128 timing controls; same 28k schedule, batch and health as the formal runs.
+class Pythia2p8BShortTrainNoRematTiming(Pythia2p8BShortTrain):
+    remat_policy = 'none'
+
+
+class MuddPythia3BSerialMLPShortTrainNoRematTiming(MuddPythia3BSerialMLPShortTrain):
+    remat_policy = 'none'
+
+
+class BamPythia2p8BSotaIndependentR768PallasShortTrainNoRematTiming(BamPythia2p8BSotaIndependentR768PallasShortTrain):
+    remat_policy = 'none'
 
 
 class BamPallasPythiaSotaTinyXlaTest(BamPythia2p8BSota):

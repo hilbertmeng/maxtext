@@ -17,6 +17,17 @@ benefit. The weak embedding path already exists at13k. On the same8 sequences,
 cost0.077→0.148 and all-M-read removal cost4.574→4.960. No evidence here for a
 mid-training abandonment/collapse of M as the Mudd-relative advantage disappears.
 
+The most informative temporal vector change is localized to the last MLP:
+13k→33k on the same8 sequences, final-vector attention direct projection share
+falls51.14%→32.34%, while last-MLP share rises17.68%→37.06%, accounting for nearly
+all of the total MLP share increase48.85%→67.64%. Last-MLP output RMS3.075→8.032
+versus input7.949→9.738; middle attention absolute RMS0.607→0.625 stays nearly
+constant. Feature-mean removal leaves the finding unchanged; token-mean centering
+still gives attention61.20%→39.98%. This is the priority candidate for a small
+last-MLP vector-output intervention and matched Mudd control, not proof of lost
+attention information: MLP transformations also carry attention's information.
+XL33k last-MLP share23.71%, overall attention/MLP~34%/66%; no early XL control here.
+
 Both distribute coordinate energy broadly, but final energy-effective ranks are
 14.90/40 (XL) versus16.37/64 (Pythia). Address-factor ranks scale reasonably;
 content rank/head is mildly lower in Pythia. Lower normalized M rank alone is not

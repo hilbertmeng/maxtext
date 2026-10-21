@@ -2,6 +2,10 @@
 
 User authorized2026-10-21. New formal RUN:
 `BamMediumPropMShiftReadG050StandardQKNormTruePile`.
+Formal runtime `2f6466ba18472c4ea3886534cf44bfc65e1ac394`;
+AOT load and FIRST_STEP verified2026-10-21 (global batch128, norm-after-concat
+False, all health OFF, TB500, actual432112328 parameters). Completed13500 on
+2026-10-21; final results and forecast assessment follow below.
 Worktree `/data0/xd/mediumprop-qknorm`, branch `codex/mediumprop-qknorm`;
 new TPU identity `xd-v5p-16-310260-maxtext`, primary `us-east5-a`.
 Retained FLEX compilers checked first: none READY in EW4a/UC1a/UE5a.
@@ -33,11 +37,20 @@ Direct references (all completed13500):
 - `BamMHAMediumPropC256QKNormTruePile`, runtime03c8ade: strengthened MHA
   control available for second-order QKNorm comparisons; no new MHA run.
 
+Mudd was subsequently removed at the user's request: it has no QKNorm and is
+not the relevant control for this question. Original MHA remains only the common
+gain reference, not a separate direct-loss comparison.
+
 Native loss stride200, agent reports1000. Register gain triples for standard18
 versus full75 and versus no-QKNorm using the original MHA reference; also
 retain full75 versus no-QKNorm with that same reference. Do not substitute Mudd.
 The existing paired-QKNorm interaction reporter can use the new BAM arm and
 the same three historical controls for the second-order series.
+
+The matched timing probe is separate from formal training: four norm-placement
+and remat full/minimal arms on one spotv6e-1, per-device batch16/T4096,
+source6750b251, wrapper and note in the implementation worktree. Report timing
+hardware explicitly; do not compare those absolute speeds with formal v5p-16.
 
 Prior: standard18 minus full75 terminal loss+.005, range[-.005,+.015];
 matched-health throughput within1%. This is a mechanism prior, not an extrapolation.
@@ -49,6 +62,89 @@ Runtime shape/initialization/causality tests explicitly check the norm width
 and RoPE order; agreement between two implementations alone is insufficient.
 For speed, compare the same all-health-OFF/tuned-Splash setup for both norm
 placements, not historical measurements with other kernel or health settings.
+
+## Final result, 2026-10-21
+
+Standard18 fails to retain the benefit of full-head QKNorm. Against no QKNorm,
+the modest early advantage vanishes around3k; after the final sign reversal at
+3.8k, every native200-step window is worse through13.4k. Training to completion
+confirms this was not merely slower convergence.
+
+All loss points use five common raw samples in a +/-25 window. Ratios are from
+the shared registry, with original MHA as the common reference. Final five
+windows are12600/12800/13000/13200/13400:
+
+| Comparator | Final5 mean gap (standard18 minus comparator) | Range | Mean gain multiplier |
+|---|---:|---:|---:|
+| Full75 QKNorm | +.01299896 | +.0126354 to +.0137142 | .92194879 |
+| No QKNorm BAM | +.00209472 | +.0015134 to +.0025742 | .98654200 |
+| MHA QKNorm | -.12881012 | -.1299094 to -.1276328 | not registered |
+
+The full75 gap shrinks from+.038144 at1k to+.016912 at5k and+.013294 at10k,
+then plateaus near+.013. No-QKNorm gap moves from-.006243 at1k to+.001204
+at5k, +.001625 at10k and+.002095 at the final5 mean. Its corresponding gain
+multiplier moves1.01068 -> .99396 -> .98999 -> .98654. Full75-referenced ratios
+remain around.92 in late training despite a shrinking absolute gap.
+
+The prior +.005 versus full75 was too optimistic (outcome+.013, inside the
+stated upper bound+.015). More decisively, the -.006 /1.04 prior versus no
+QKNorm was wrong: the measured mean is+.002095 /.986542. Normalizing only the
+standard arm is not a useful approximation here. These results support making
+the M-derived and standard Q/K coordinates share the normalization denominator;
+they do not separately identify logit-scale and branch-balance mechanisms.
+The currently training ungated-static-read arm tests a different issue: whether
+those gates add value after full-head normalization. No extra experiment is
+authorized by this closeout.
+
+Formal throughput ~.541 step/s with all health OFF and tuned Splash. Historical
+full75 used older Splash tiles, and no-QKNorm had health ON: their formal speeds
+are not matched timing controls. The v6e matched norm-placement probe found
+standard18+2.22%; that is a v6e result, not a measured v5p16 speedup.
+
+The checkpoint-preserving full/minimal/full segment is documented in
+`mediumprop_qknorm_timing.md`: only steps5682–5856 used minimal; all other
+steps used the original full runtime, same data and original13500-step LR
+schedule. One UE5a preemption forced checkpoint12283; resumed at12284.
+Final checkpoint13500 is committed; the TPU and queued resource are verified
+absent; TensorBoard SYNC_OK verified. Complete READY leases (UTC), all on
+v5p16/us-east5-a:
+
+| Start | End | Duration | Exit |
+|---|---|---|---|
+| 2026-10-21 06:33:20 | 2026-10-21 13:05:36 | 6h32m16s | preempted |
+| 2026-10-21 13:12:03 | 2026-10-21 13:55:59 | 43m56s | complete13500 |
+
+Artifacts: `/data0/xd/bam_diagnostics/mediumprop-qknorm/standard-final-report.json`
+(complete native200 trajectories), `standard-final-trends.png`/`.svg`,
+`standard-final-leases.txt`, and `standard-final-tb-sync.log` in the same directory.
+
+## Mainline implementation
+
+Full-head BAM QKNorm is now implemented on both the pure JAX and fused Pallas
+paths. For concat-QK BAM with `qk_norm=True`, the default
+`bam_qk_norm_after_concat=True` normalizes concatenated M-derived and standard
+coordinates, then applies RoPE to the standard tail only. Both full-head and
+standard-arm-only implementations normalize **before** RoPE. MHA is unchanged.
+The explicit False flag reproduces this experiment's standard18 placement.
+With QKNorm disabled, the existing computation is unchanged.
+
+The Pallas read receives unrotated standard Q/K in full-head mode. Its folded
+Q scale is disabled, then full-head norm, partial RoPE and the usual
+`1/sqrt(head_dim)` Q scaling run after the read. Normalizing an already scaled
+or rotated query would change the model; neither is used.
+
+`BamPythia2p8BSota` explicitly selects full80 norm before RoPE20, inherited by
+IndependentR768 and Pallas variants. Norm scales increase by3840 parameters
+from the previous standard20 scope; MLP widths stay128-aligned and unchanged
+(negligible budget exception). Existing standard20 checkpoints retain their
+explicit False scope when resumed; current formal training remains pinned to
+its registered runtime, not this mainline change.
+
+Regression coverage: `MaxText/tests/bam_full_qknorm_test.py` checks width,
+pre-RoPE ordering, nonuniform learned scales, formal budgets, finite/nonzero
+scan gradients and causality; `bam_pallas_qknorm_test.py` checks logits and all
+parameter gradients against pure JAX for v7 and v8t with single-gate M-shift,
+plus standard-arm compatibility. The shared BAM suite is also a merge gate.
 
 ## Infrastructure audit before sealing
 
@@ -78,36 +174,3 @@ Validation includes standard18 norm placement, unchanged other parameter shapes
 and seeded initial values, scanned finite/nonzero gradients, causality, existing
 full75 placement/scales and the actual summary-writer rotation regression tests.
 Sealed-runtime consistency and actual AOT load/FIRST_STEP remain launch gates.
-
-## Compatible minimal-remat continuation
-
-User requests continuation to the full13500-step endpoint, even though the
-standard18 normalization comparison has become clear, to measure its final gap.
-User also authorizes switching this same RUN to minimal remat after the completed
-v5p-8 timing pair (+3.89%, per-device16). Preserve the RUN/checkpoint/output/data
-identities, original13500-step optimizer/LR schedule and all health-OFF settings.
-
-The new runtime changes only remat from full to minimal; compare_runs also records
-Mudd explicitly, matching the five already registered live comparisons. Runtime
-2f6466ba18472c4ea3886534cf44bfc65e1ac394 is the pre-switch full-remat source.
-No model/optimizer implementation or parameter shapes change. Compile exact
-v5p-16/s13500 AOT before stopping the old trainer; require committed final save,
-all old workers absent, preserved data cursor, then a strictly newer FIRST_STEP
-and a subsequent periodic checkpoint. Keep the existing training TPU throughout.
-
-Prior for formal v5p-16: +3--5% throughput (.541 to approximately.56 step/s),
-subject to target verification. The paired v5p-8 result is documented in
-`mediumprop_qknorm_timing.md`; it is not the formal-v5p-16 result.
-
-
-Target verification contradicted the transfer prior: on the same formal v5p-16,
-full5620--5679 averaged.5394333 step/s (median.541), minimal5702--5761 averaged
-.4397667 (median.441), 60 samples each: minimal -18.4762%. Actual configs differ
-only in remat, report metadata and executable path; batch128/per-device16,
-Splash1024/fused, health OFF, data cursor and13500-step LR schedule match.
-Minimal resumed correctly at5682 from committed5681; no checkpoint/data reset.
-The v5p-8 +3.89% result therefore does not transfer to this target. Perform a
-same-machine return to the original full executable to distinguish an executable
-regression from a changed machine condition; do not assert a specific HLO cause
-without profiling. Preserve both executables and logs. Full13.5k loss training
-continues, as explicitly requested by the user.

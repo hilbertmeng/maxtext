@@ -15308,10 +15308,9 @@ class BamMediumPropMShiftReadG050FullQKNormTruePile(BamMediumPropSharedR256Gener
 class BamMediumPropMShiftReadG050FullQKNormNoQKStaticGateTruePile(BamMediumPropMShiftReadG050FullQKNormTruePile):
     """Keep static Q/K reads, remove their input-dependent gates; full-head QKNorm."""
     # ledger only: codex/mediumprop-qknorm, /data0/xd/mediumprop-qknorm.
-    # Removed 691776 gate params; MLP restores691200; parent residual-576 (-.0004 W_Q).
+    # User budget exception: remove691776 gate params (.4804 W_Q), retain parent MLP widths.
     model_name = 'BamMediumPropMShiftReadG050FullQKNormNoQKStaticGateTruePile'
     bam_qk_static_read_gate = False
-    mlp_dim_by_block = [3813, 3686, 3813]
     force_final_checkpoint = True
     sa_block_q = 1024
     sa_block_kv = 1024

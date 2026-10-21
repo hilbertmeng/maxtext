@@ -16036,7 +16036,6 @@ class ShortTrain2p8B:
     steps = 28000
     learning_rate_schedule_steps = 28000
     warmup_steps_fraction = .02
-    checkpoint_period = 1000
     checkpoint_keep_steps = list(range(2000, 28000, 2000))
     learning_rate = 2e-4
 
@@ -16067,7 +16066,6 @@ class Pythia2p8B(TrainPythia, PythiaArchitecture, Llama2Medium):
     sa_block_kv_dkv_compute = 1024
     sa_use_fused_bwd_kernel = True
 
-class Pythia2p8BSho
 
 class MuddPythia3BSerialMLP(TrainPythia, MuddPythiaMediumPropT2048SerialMLP): # MuddPythiaMediumPropT2048SerialMLP already inherits from PythiaArchitecture so we don't need to repeat that here.
     """PaxML PileMUDDPythia3BPlusOcdbt recipe with serial MLP and WD=0.1.

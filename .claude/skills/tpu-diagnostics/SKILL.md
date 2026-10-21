@@ -123,10 +123,14 @@ formal RUN's health settings and schedule.
   `scripts/pull_primary_xplanes.sh GCS_PREFIX LOCAL_DIR`.
 - Keep profile TPU lifecycle separate from `auto-train`: create/install it standalone, launch
   paired arms directly, collect the complete profile set, then delete it. Keep `auto-train`
-  detached from profile TPUs. For a large matrix, distribute arms across cheap spot `v6e-1`s;
+  detached from profile TPUs. For speed/profile comparisons, use spot `v5p-8`;
+  keep the formal RUN's per-device batch size, sequence length and precision.
+  Do not increase per-device batch to preserve global batch on fewer devices;
+  record device count and global batch alongside the timings.
+  For a large matrix, distribute arms across spot `v5p-8`s;
   one shared control per TPU type is normally sufficient. Re-pair on one VM only for marginal or
   anomalous results. Keep every arm used for a cross-configuration conclusion on one TPU type
-  (normally `v6e-1`); use the target training TPU only as a final confirmation.
+  (`v5p-8` by default); use the target training TPU only as a final confirmation.
 - Keep every full-layer arm in a paired throughput matrix in one zone as well as one TPU type;
   if the zone changes, rerun the whole matrix rather than filling missing rows across zones.
 - Precompile every sealed full-layer target configuration for its exact topology on a cheap TPU/CPU with

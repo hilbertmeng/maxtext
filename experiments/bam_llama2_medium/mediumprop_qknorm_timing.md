@@ -32,7 +32,11 @@ verified artifact collection. Do not interrupt the formal training TPU.
 Prior: placement alone within1% throughput; minimal +3--8% if it fits memory.
 The v6e matrix's two full-remat arms completed, but standard18/minimal exceeded
 the v6e memory limit during compilation. This does not establish v5p feasibility.
-Keep per-device batch16 and rerun all four arms on v5p-8; do not reduce batch.
+At the user's direction, the v5p-8 follow-up tests only standard18 QKNorm,
+full versus minimal remat. Keep per-device batch16/T4096/BF16 and all health OFF;
+global batch64 on four devices. Do not reduce per-device batch or repeat norm-placement timings.
+The two v5p-8 profiles use source aa1c98016c044fd2b1e26f35ecfba7c438c04915
+and 200-step AOTs; the formal RUN stays at2f6466b/full.
 The v6e is reused solely as a CPU AOT compiler for the v5p-8 matrix, then released.
 The full75 v5p profiles explicitly inherit the same tuned Splash settings, so
 compiled execution does not depend on unrecorded environment overrides.

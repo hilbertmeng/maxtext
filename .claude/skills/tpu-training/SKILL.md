@@ -121,6 +121,9 @@ auto-train still owns subsequent preemption recovery and training closeout.
    available; retain alternates until the selected trainer produces `FIRST_STEP`, then release them.
    Use `install+train` for a new/reprovisioned VM and `train` for an installed READY VM.
    Use `attach` to replace only the auto-train controller while leaving a healthy worker RUN alive.
+   New experiments use the tuned Splash configuration by default: q/kv1024,
+   kv_compute512, q_dkv/kv_dkv/kv_dkv_compute1024, fused backward enabled.
+   Verify resolved values before sealing; preserve historical controls at their runtime commits.
    Formal training defaults to `scan_layers=True`; verify the resolved class value before launch.
    Use another setting only when the user explicitly requests it.
    Use `checkpoint_period=200` for Medium and `250` for XL.

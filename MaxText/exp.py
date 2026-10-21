@@ -15305,6 +15305,27 @@ class BamMediumPropMShiftReadG050FullQKNormTruePile(BamMediumPropSharedR256Gener
     jax_cache_dir = ''
 
 
+class BamMediumPropMShiftReadG050FullQKNormNoQKStaticGateTruePile(BamMediumPropMShiftReadG050FullQKNormTruePile):
+    """Keep static Q/K reads, remove their input-dependent gates; full-head QKNorm."""
+    # ledger only: codex/mediumprop-qknorm, /data0/xd/mediumprop-qknorm.
+    # Removed 691776 gate params; MLP restores691200; parent residual-576 (-.0004 W_Q).
+    model_name = 'BamMediumPropMShiftReadG050FullQKNormNoQKStaticGateTruePile'
+    bam_qk_static_read_gate = False
+    mlp_dim_by_block = [3813, 3686, 3813]
+    force_final_checkpoint = True
+    sa_block_q = 1024
+    sa_block_kv = 1024
+    sa_block_kv_compute = 512
+    sa_block_q_dkv = 1024
+    sa_block_kv_dkv = 1024
+    sa_block_kv_dkv_compute = 1024
+    sa_use_fused_bwd_kernel = True
+    compare_runs = ['BamMediumPropMShiftReadG050FullQKNormTruePile',
+                    'BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile',
+                    'BamMHAMediumPropC256TruePile', 'BamMHAMediumPropC256QKNormTruePile',
+                    'MuddLlama2MediumPropTruePile']
+
+
 class BamMediumPropMShiftReadG050StandardQKNormTruePile(BamMediumPropMShiftReadG050FullQKNormTruePile):
     """Normalize only the standard18 Q/K arm before RoPE; M-derived57 stays unchanged."""
     # code_commit: 2f6466b; formal runtime uses codex/mediumprop-qknorm.

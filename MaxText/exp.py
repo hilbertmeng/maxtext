@@ -15331,6 +15331,32 @@ class BamMediumPropMShiftReadG050StandardQKNormTruePile(BamMediumPropMShiftReadG
                     'MuddLlama2MediumPropTruePile']
 
 
+class BamMediumPropMShiftReadG050StandardQKNormMinimalProfile(BamMediumPropMShiftReadG050StandardQKNormTruePile):
+    """Timing only: match full/minimal per-device batch and health flags."""
+    # v5p8 aa1c980: .6165 vs full .59344 (+3.89%); v5p16 formal-class ea0c153: -18.35%.
+    # Historical implementation: codex/mediumprop-qknorm; see mediumprop_qknorm_timing.md.
+    model_name = 'BamMediumPropMShiftReadG050StandardQKNormMinimalProfile'
+    remat_policy = 'minimal'
+
+
+class BamMediumPropMShiftReadG050StandardQKNormAligned128FullProfile(BamMediumPropMShiftReadG050StandardQKNormTruePile):
+    """Timing only: symmetric128-aligned MLP; parameter budget within.08%."""
+    # Completed same-VM EW4b v5p16: full .545975; minimal .4434625 (-18.78%).
+    # Alignment does not fix the reverse projection/gradient assembly overhead.
+    # 431766728 params, parent -345600 (-.07998%, -.24 W_Q); health OFF/B16/T4096.
+    # code_commit:a380095; implementation codex/mediumprop-qknorm, /data0/xd/mediumprop-qknorm.
+    model_name = 'BamMediumPropMShiftReadG050StandardQKNormAligned128FullProfile'
+    mlp_dim_by_block = [3840, 3584, 3840]
+    steps = 13500
+    remat_policy = 'full'
+
+
+class BamMediumPropMShiftReadG050StandardQKNormAligned128MinimalProfile(BamMediumPropMShiftReadG050StandardQKNormAligned128FullProfile):
+    """Matched aligned minimal arm: observed-18.78% versus its full control."""
+    model_name = 'BamMediumPropMShiftReadG050StandardQKNormAligned128MinimalProfile'
+    remat_policy = 'minimal'
+
+
 class BamMHAMediumPropC256QKNormTruePile(BamMHAMediumPropC256TruePile):
     """Full-head RMS QKNorm before RoPE; matched four-arm comparison."""
     # 结论：MHA的QKNorm有持续终局收益，且改善量大于同组BAM。

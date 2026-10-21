@@ -64,6 +64,34 @@ and RoPE order; agreement between two implementations alone is insufficient.
 For speed, compare the same all-health-OFF/tuned-Splash setup for both norm
 placements, not historical measurements with other kernel or health settings.
 
+## Mainline implementation
+
+Full-head BAM QKNorm is now implemented on both the pure JAX and fused Pallas
+paths. For concat-QK BAM with `qk_norm=True`, the default
+`bam_qk_norm_after_concat=True` normalizes concatenated M-derived and standard
+coordinates, then applies RoPE to the standard tail only. Both full-head and
+standard-arm-only implementations normalize **before** RoPE. MHA is unchanged.
+The explicit False flag reproduces this experiment's standard18 placement.
+With QKNorm disabled, the existing computation is unchanged.
+
+The Pallas read receives unrotated standard Q/K in full-head mode. Its folded
+Q scale is disabled, then full-head norm, partial RoPE and the usual
+`1/sqrt(head_dim)` Q scaling run after the read. Normalizing an already scaled
+or rotated query would change the model; neither is used.
+
+`BamPythia2p8BSota` explicitly selects full80 norm before RoPE20, inherited by
+IndependentR768 and Pallas variants. Norm scales increase by3840 parameters
+from the previous standard20 scope; MLP widths stay128-aligned and unchanged
+(negligible budget exception). Existing standard20 checkpoints retain their
+explicit False scope when resumed; current formal training remains pinned to
+its registered runtime, not this mainline change.
+
+Regression coverage: `MaxText/tests/bam_full_qknorm_test.py` checks width,
+pre-RoPE ordering, nonuniform learned scales, formal budgets, finite/nonzero
+scan gradients and causality; `bam_pallas_qknorm_test.py` checks logits and all
+parameter gradients against pure JAX for v7 and v8t with single-gate M-shift,
+plus standard-arm compatibility. The shared BAM suite is also a merge gate.
+
 ## Infrastructure audit before sealing
 
 Reviewed main `e094303f` against existing worktree `809f5b5b` (and original

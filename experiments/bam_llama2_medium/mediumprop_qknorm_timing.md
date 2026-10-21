@@ -70,6 +70,35 @@ The owned `xd-v6e-1-qknorm-pair-20261021-ew4a`/europe-west4-a was reused only
 as a CPU compiler for the two v5p AOTs, then verified absent after compile-log
 collection. User-retained compilers were not modified or released.
 
-Formal loss training remains runtime2f6466b on
-`xd-v5p-16-310260-maxtext`/us-east5-a, full remat/T4096/global128. This timing
-probe does not automatically change its runtime or resume/checkpoint state.
+## Formal v5p-16 confirmation: minimal regresses
+
+The user's authorized checkpoint-preserving switch exposed the opposite result
+on the formal v5p-16/global128. Same TPU `xd-v5p-16-310260-maxtext` in UE5a,
+per-device16/T4096/BF16, health OFF, tuned Splash; no preemption or lease change:
+
+| Arm | Window (60 steps each) | Mean step/s | Median |
+|---|---|---:|---:|
+| full before | 5620–5679 | .5394333 | .541 |
+| minimal | 5702–5761 | .4397667 | .441 |
+| full restored | 5877–5936 | .5393333 | .541 |
+
+Minimal is **18.476% slower**; restoring full recovers the original throughput
+within .019%. The v5p-8 speedup does not transfer. The +3–5% target prior was wrong.
+The effective old/new configs differ only in remat and comparison metadata.
+This A/B/A establishes an executable/remat regression, not its kernel-level cause.
+Do not infer peak memory from post-step live-buffer metrics.
+
+Old/full runtime `2f6466ba18472c4ea3886534cf44bfc65e1ac394`, minimal
+`ea0c153bd9e09c9cc86655b506b3009757c685b1`. CP5681 restored at5682;
+minimal ran5682–5856, CP5856 restored full at5857. Both AOTs retain the original
+13500-step schedule. First resumed steps, LR and committed data cursor were
+verified; the cursor advanced exactly175 batches across the minimal segment.
+Training continues full to the user-directed13500, not an early closeout.
+
+Artifacts: `/data0/xd/bam_diagnostics/mediumprop-qknorm/minimal-resume/`,
+especially `aba-speed-check.json`, both handoff journals and three worker logs.
+The journals' runbook is
+`/data0/xd/mediumprop-qknorm/experiments/bam_llama2_medium/resume_standard_qknorm_minimal.py`.
+Both transient AOT compiler node/queue pairs were verified deleted; the trainer
+was retained. Further attribution compares optimized HLO on both topologies
+before deciding whether a separate target-device trace is necessary.

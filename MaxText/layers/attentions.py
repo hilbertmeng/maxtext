@@ -3838,11 +3838,13 @@ class BamAttention(Attention):
     else:
       query = self.query_projection(inputs_q, standard_qk_width)
       key = self.kv_projection(inputs_q, proj_name='key', projection_dim=standard_qk_width)
-    query, key = dc.QKNorm(cfg, name='qk_norm')(query, key)
-    query = self.apply_rotary_embedding(query, inputs_positions, name='query_rotary',
+    full_qk_norm = cfg.qk_norm and cfg.bam_qk_norm_after_concat
+    if not full_qk_norm:
+      query, key = dc.QKNorm(cfg, name='qk_norm')(query, key)
+      query = self.apply_rotary_embedding(query, inputs_positions, name='query_rotary',
+                                          embedding_dims=standard_qk_width)
+      key = self.apply_rotary_embedding(key, inputs_positions, name='key_rotary',
                                         embedding_dims=standard_qk_width)
-    key = self.apply_rotary_embedding(key, inputs_positions, name='key_rotary',
-                                      embedding_dims=standard_qk_width)
 
     def logits(name, squeeze):
       if fused:     # same bias handling as _project_read_gate_logits
@@ -3916,7 +3918,9 @@ class BamAttention(Attention):
     if getattr(cfg, 'bam_pallas_read_chunk', None):
       read_kwargs['chunk'] = int(cfg.bam_pallas_read_chunk)
     pass_m = body in ('v7', 'v7u', 'v8t')   # M passthrough: dM sum fused into the read reverse
-    q_scale = 1.0 / math.sqrt(self.head_dim) if pass_m else 1.0   # attention scale folded into the kernel
+    # Full-head norm needs the unscaled, unrotated concatenated Q/K. In that case
+    # attention scaling must follow QKNorm, rather than being folded into the read.
+    q_scale = 1.0 / math.sqrt(self.head_dim) if pass_m and not full_qk_norm else 1.0
     with jax.named_scope('bam/pallas_read'):
       outs = bam_pallas.read(
           M_in, weight, q_key, logits('W_lq_gate', False), k_key, logits('W_lk_gate', False),
@@ -3938,6 +3942,10 @@ class BamAttention(Attention):
     query, key, value, local_output = outs[:4]
     if pass_m:
       M_in = outs[4]
+    if full_qk_norm:
+      query, key = dc.QKNorm(cfg, name='qk_norm')(query, key)
+      query = self._apply_partial_rope(query, inputs_positions, name='query_rotary')
+      key = self._apply_partial_rope(key, inputs_positions, name='key_rotary')
     query = nn.with_logical_constraint(query, self.query_axis_names)
     key = nn.with_logical_constraint(key, self.key_axis_names)
     value = nn.with_logical_constraint(value, self.value_axis_names)
@@ -4029,6 +4037,7 @@ class BamAttention(Attention):
       assert self._partial_rope and self._partial_rope_nope_dim == self._qk_col_width
       assert self._share_qk_basis or self._direct_qk_c8
     standard_qk_width = self._standard_qk_width or (self.head_dim - self._qk_col_width)
+    full_qk_norm = cfg.qk_norm and concat_qk and cfg.bam_qk_norm_after_concat
     if getattr(cfg, 'bam_pallas_core', False):
       return self._pallas_core_call(
           inputs_q, inputs_positions, decoder_segment_ids, M_in, is_global, standard_qk_width)
@@ -4044,21 +4053,22 @@ class BamAttention(Attention):
 
     Mh = None
     local_inputs = self._local_inputs(inputs_q) if self._local_arms else None
-    query, key = dc.QKNorm(cfg, name='qk_norm')(query, key)
-    if concat_qk:
-      # Only the standard arm rotates; the retained BAM column is concatenated afterwards.
-      query = self.apply_rotary_embedding(query, inputs_positions, name='query_rotary',
+    if not full_qk_norm:
+      query, key = dc.QKNorm(cfg, name='qk_norm')(query, key)
+      if concat_qk:
+        # Compatibility path: normalize/rotate the standard arm before concatenation.
+        query = self.apply_rotary_embedding(query, inputs_positions, name='query_rotary',
+                                            embedding_dims=standard_qk_width)
+        key = self.apply_rotary_embedding(key, inputs_positions, name='key_rotary',
                                           embedding_dims=standard_qk_width)
-      key = self.apply_rotary_embedding(key, inputs_positions, name='key_rotary',
-                                        embedding_dims=standard_qk_width)
-    elif self._partial_rope:
-      query = self._apply_partial_rope(query, inputs_positions, name='query_rotary')
-      key = self._apply_partial_rope(key, inputs_positions, name='key_rotary')
-    else:
-      query = self.apply_rotary_embedding(query, inputs_positions, name="query_rotary")
-      key = self.apply_rotary_embedding(key, inputs_positions, name="key_rotary")
+      elif self._partial_rope:
+        query = self._apply_partial_rope(query, inputs_positions, name='query_rotary')
+        key = self._apply_partial_rope(key, inputs_positions, name='key_rotary')
+      else:
+        query = self.apply_rotary_embedding(query, inputs_positions, name="query_rotary")
+        key = self.apply_rotary_embedding(key, inputs_positions, name="key_rotary")
 
-    # Inject LocalQK after RoPE.
+    # Full-head QKNorm waits for this M read; compatibility/additive paths already rotated.
     local_compressed_M = None
     if 'local_qk' in self._mode:  # V1 default
       if Mh is None:
@@ -4076,6 +4086,11 @@ class BamAttention(Attention):
           q_local = self._read_local('q', Mh, inputs_q, local_inputs, basis_cache)
           k_local = self._read_local('k', Mh, inputs_q, local_inputs, basis_cache)
         query, key = self._add_local_qk(query, key, q_local, k_local, decoder_segment_ids)
+
+    if full_qk_norm:
+      query, key = dc.QKNorm(cfg, name='qk_norm')(query, key)
+      query = self._apply_partial_rope(query, inputs_positions, name='query_rotary')
+      key = self._apply_partial_rope(key, inputs_positions, name='key_rotary')
 
     query = nn.with_logical_constraint(query, self.query_axis_names)
     key = nn.with_logical_constraint(key, self.key_axis_names)

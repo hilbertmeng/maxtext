@@ -15284,7 +15284,7 @@ class BamMediumPropMShiftReadG050FullQKNormTruePile(BamMediumPropSharedR256Gener
     # 完成13500；末五12600–13400对单门.5 gap-.010904，对QKNorm MHA/原MHA -.141809/-.166556。
     # 以原MHA为参考，对原单门.5收益倍数末五1.070066；不能把这项自身提升误作二阶收益。
     # UE5a v5p16 .474300 step/s，432114380参数；健康OFF/父路ON，测速不可作纯架构提速。
-    # code_commit: 03c8ade；ledger only：codex/mediumprop-qknorm，/data0/xd/mediumprop-qknorm；详见 exit_followup_20261015.md。
+    # 历史runtime:03c8ade，codex/mediumprop-qknorm，/data0/xd/mediumprop-qknorm；完整头QKNorm现已合入主干。
     model_name = 'BamMediumPropMShiftReadG050FullQKNormTruePile'
     bam_qk_norm_after_concat = True
     compare_runs = ['BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile', 'BamMHAMediumPropC256QKNormTruePile', 'BamMHAMediumPropC256TruePile']
@@ -15308,6 +15308,7 @@ class BamMediumPropMShiftReadG050FullQKNormTruePile(BamMediumPropSharedR256Gener
 class BamMediumPropMShiftReadG050StandardQKNormTruePile(BamMediumPropMShiftReadG050FullQKNormTruePile):
     """Normalize only the standard18 Q/K arm before RoPE; M-derived57 stays unchanged."""
     # code_commit: 2f6466b; formal runtime uses codex/mediumprop-qknorm.
+    # Runtime segment5682–5856:ea0c153/minimal; CP5856 restored2f6466b/full at5857, same data/LR.
     # Compare with historical full75 QKNorm and no-QKNorm single.5; original TruePile4096 recipe.
     # Standard-arm scales add648 params (0.00045 W_Q total); MLP widths are unchanged.
     # Prediction: terminal loss vs full75 +.005 [-.005,+.015]; matched-health speed within1%.
@@ -16035,6 +16036,7 @@ class ShortTrain2p8B:
     steps = 28000
     learning_rate_schedule_steps = 28000
     warmup_steps_fraction = .02
+    checkpoint_period = 1000
     checkpoint_keep_steps = list(range(2000, 28000, 2000))
     learning_rate = 2e-4
 
@@ -16065,6 +16067,7 @@ class Pythia2p8B(TrainPythia, PythiaArchitecture, Llama2Medium):
     sa_block_kv_dkv_compute = 1024
     sa_use_fused_bwd_kernel = True
 
+class Pythia2p8BSho
 
 class MuddPythia3BSerialMLP(TrainPythia, MuddPythiaMediumPropT2048SerialMLP): # MuddPythiaMediumPropT2048SerialMLP already inherits from PythiaArchitecture so we don't need to repeat that here.
     """PaxML PileMUDDPythia3BPlusOcdbt recipe with serial MLP and WD=0.1.
@@ -16103,7 +16106,8 @@ class BamPythia2p8BSota(
     model_name = 'BamPythia2p8BSota'
     pythia_use_fusion = True
     pythia_parallel_residual = False
-    qk_norm = True  # TODO
+    qk_norm = True
+    bam_qk_norm_after_concat = True  # Complete80-d Q/K, before RoPE20, in both XLA and Pallas.
     bam_enabled = True
     bam_k = 80
     bam_v = 64  # TODO: 40->64
@@ -16130,7 +16134,7 @@ class BamPythia2p8BSota(
     bam_skip_final_mlp_write = True  # Its M has no downstream consumer.
     bam_final_local_mlp_dim = 11008
     bam_last_mlp_dim = 11648  # Final budget adjustment, rounded to128 channels.
-    mlp_dim_by_block = [11008, 10112, 11008]  # 2,775,039,456 params: -169,504 vs official MHA.
+    mlp_dim_by_block = [11008, 10112, 11008]  # 2,775,043,296 params: -165,664 vs official MHA.
     # All32 layers are128-aligned; includes QKNorm and independent R1024 MLP-write down.
     bam_m_shift_mode = 'read'
     bam_m_shift_init = .5
@@ -16156,7 +16160,7 @@ class BamPythia2p8BSotaIndependentR768(BamPythia2p8BSota):
 
     Read, attention-write, MLP-write and embedding-write ranks are all768.
     Retains Q/K/VO read-down sharing, serial GELU, QKNorm and the parent's initialization.
-    Every MLP width is128-aligned; total2,774,915,808, -293,152 vs Pythia2p8B.
+    Every MLP width is128-aligned; total2,774,919,648, -289,312 vs Pythia2p8B.
     """
     model_name = 'BamPythia2p8BSotaIndependentR768'
     bam_local_full_m_read_bottleneck_dim = 768

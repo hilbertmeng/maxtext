@@ -540,6 +540,7 @@ pythia_use_fusion: false # Opt-in Pythia decoder using the fusion/Mudd circuit
 pythia_rotary_fraction: 0.25
 pythia_rotary_dim: -1  # -1 derives an exact even width; explicit override for odd head dimensions.
 qk_norm: False
+bam_qk_norm_after_concat: True # BAM concat-QK: normalize the complete head before partial RoPE; False reproduces standard-arm-only QKNorm.
 query_chunk_size: 512
 query_wise: True
 key_wise: True

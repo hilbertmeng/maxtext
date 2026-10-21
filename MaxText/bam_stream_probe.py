@@ -121,6 +121,8 @@ def main():
     parser.add_argument('--output',required=True);parser.add_argument('--gcs-output',default='')
     parser.add_argument('--no-ablations',action='store_true');parser.add_argument('--skip-raw',action='store_true')
     parser.add_argument('--batch-size',type=int,default=1)
+    parser.add_argument('--instrumentation-tolerance',type=float,default=2e-3)
+    parser.add_argument('--verify-only',action='store_true')
     args=parser.parse_args()
     if args.sequences % args.batch_size:
         raise ValueError('Sequence count must be divisible by diagnostic batch size')
@@ -150,7 +152,7 @@ def main():
         setup_seconds=time.time()-start,source_commit=subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip(),
         token_positions=capture.positions(args.length).tolist(),devices=[str(d) for d in jax.devices()],
         jax_version=jax.__version__,device_batch=args.batch_size)
-    (output/'metadata.json').write_text(json.dumps(metadata,indent=2,default=str)+'\n')
+    if not args.verify_only:(output/'metadata.json').write_text(json.dumps(metadata,indent=2,default=str)+'\n')
     data=cohort(args.cohort,args.cohort_source,args.seed,args.sequences)
     plain_fn=jax.jit(lambda p,b:plain(model,p,b,rng))
     batches=[];hashes=[];losses=[];measurements=[]
@@ -162,6 +164,25 @@ def main():
             mask=jnp.asarray(labels>=0,dtype=jnp.int32))
         if int(seq.max())>=cfg.vocab_size:raise RuntimeError('Out-of-vocabulary shared cohort')
         batches.append(batch);hashes.extend(hash_sequence(row) for row in seq)
+    if args.verify_only:
+        previous=json.loads((output/'metadata.json').read_text())
+        if previous['checkpoint']!=args.checkpoint or previous['sequence_hashes']!=hashes:
+            raise ValueError('Verification does not match recorded checkpoint/cohort')
+        native=[]
+        for batch in batches:
+            with mesh,nn.partitioning.axis_rules(cfg.logical_axis_rules):
+                native.extend(np.asarray(jax.device_get(plain_fn(params,batch))).tolist())
+        observed_losses=previous.get('observed_losses',previous['losses'])
+        delta=np.asarray(observed_losses)-np.asarray(native)
+        verified=dict(native_losses=native,observed_losses=observed_losses,
+            per_sequence_delta=delta.tolist(),max_absolute_difference=float(np.max(np.abs(delta))),
+            mean_difference=float(delta.mean()),source_commit=metadata['source_commit'])
+        if verified['max_absolute_difference']>args.instrumentation_tolerance:raise ValueError(verified)
+        (output/'native_baseline_verification.json').write_text(json.dumps(verified,indent=2)+'\n')
+        if args.gcs_output:subprocess.run(['gsutil','cp',str(output/'native_baseline_verification.json'),args.gcs_output+'/native_baseline_verification.json'],check=True)
+        print('NATIVE_BASELINE_VERIFIED',verified['max_absolute_difference'],flush=True)
+        return
+    observed_losses=[];differences=[]
     with mesh,nn.partitioning.axis_rules(cfg.logical_axis_rules):
         baseline=np.asarray(jax.device_get(plain_fn(params,batches[0])))
     capture.ACTIVE=True
@@ -171,10 +192,15 @@ def main():
         with mesh,nn.partitioning.axis_rules(cfg.logical_axis_rules):
             loss,raw=observed_fn(params,batch)
             loss,raw=jax.device_get((loss,raw))
-        if i==0:
-            difference=float(np.max(np.abs(np.asarray(loss)-baseline)))
-            if difference>2e-3:raise RuntimeError(f'Instrumentation changed loss by {difference}')
-            metadata['instrumentation_loss_abs_difference']=difference
+        with mesh,nn.partitioning.axis_rules(cfg.logical_axis_rules):
+            native=baseline if i==0 else np.asarray(jax.device_get(plain_fn(params,batch)))
+        difference=float(np.max(np.abs(np.asarray(loss)-native)))
+        if difference>args.instrumentation_tolerance:raise RuntimeError(f'Instrumentation changed loss by {difference}')
+        observed_losses.extend(np.asarray(loss).tolist());differences.extend((np.asarray(loss)-native).tolist())
+        metadata['instrumentation_loss_abs_difference']=max(abs(value) for value in differences)
+        metadata['instrumentation_loss_per_sequence_difference']=differences
+        metadata['instrumentation_tolerance']=args.instrumentation_tolerance
+        metadata['observed_losses']=observed_losses
         for within in range(args.batch_size):
             sequence_index=i*args.batch_size+within
             arrays={}
@@ -191,7 +217,7 @@ def main():
             arrays['inputs']=np.asarray(batch['inputs'][within:within+1])
             arrays['mask']=np.asarray(batch['mask'][within:within+1])
             np.savez_compressed(output/f'sequence_{sequence_index:03d}.npz',**arrays)
-            losses.append(float(loss[within]))
+            losses.append(float(native[within]))
             measurements.append(dict(sequence=sequence_index,loss=losses[-1],hash=hashes[sequence_index],seconds=time.time()-t))
         (output/'progress.json').write_text(json.dumps(dict(completed_sequences=len(losses),losses=losses,measurements=measurements),indent=2)+'\n')
         print('PROBE_SEQUENCE',args.label,'through',len(losses),'loss',float(np.mean(loss)),'arrays',len(arrays),'seconds',time.time()-t,flush=True)

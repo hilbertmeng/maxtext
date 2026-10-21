@@ -15320,9 +15320,10 @@ class BamMediumPropMShiftReadG050FullQKNormNoQKStaticGateTruePile(BamMediumPropM
     sa_block_kv_dkv = 1024
     sa_block_kv_dkv_compute = 1024
     sa_use_fused_bwd_kernel = True
-    compare_runs = ['BamMediumPropMShiftReadG050FullQKNormTruePile',
-                    'BamMHAMediumPropC256TruePile', 'BamMHAMediumPropC256QKNormTruePile',
-                    'MuddLlama2MediumPropTruePile']
+    compare_runs = [
+        'BamMediumPropMShiftReadG050FullQKNormTruePile',
+        'BamMHAMediumPropC256QKNormTruePile',
+    ]
 
 
 class BamMediumPropMShiftReadG050StandardQKNormTruePile(BamMediumPropMShiftReadG050FullQKNormTruePile):
@@ -15345,10 +15346,11 @@ class BamMediumPropMShiftReadG050StandardQKNormTruePile(BamMediumPropMShiftReadG
     sa_block_kv_dkv = 1024
     sa_block_kv_dkv_compute = 1024
     sa_use_fused_bwd_kernel = True
-    compare_runs = ['BamMediumPropMShiftReadG050FullQKNormTruePile',
-                    'BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile',
-                    'BamMHAMediumPropC256TruePile', 'BamMHAMediumPropC256QKNormTruePile',
-                    'MuddLlama2MediumPropTruePile']
+    compare_runs = [
+        'BamMediumPropMShiftReadG050FullQKNormTruePile',
+        'BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile',
+        'BamMHAMediumPropC256QKNormTruePile',
+    ]
 
 
 class BamMediumPropMShiftReadG050StandardQKNormMinimalProfile(BamMediumPropMShiftReadG050StandardQKNormTruePile):

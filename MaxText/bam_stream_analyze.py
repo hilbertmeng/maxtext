@@ -119,6 +119,7 @@ def analyze_sequence(arrays,cfg):
     accumulated_x=embedding['embedding_vector'].astype(np.float64)
     accumulated_m=embedding['embedding_M'].astype(np.float64)
     all_a=np.zeros_like(final_m);all_b=np.zeros_like(final_m);all_round=np.zeros_like(final_m)
+    ref_m=final['M_in'];prefix_a=np.zeros_like(ref_m);prefix_b=np.zeros_like(ref_m);prefix_round=np.zeros_like(ref_m)
     result={}
     decay=float(cfg['bam_lambda_decay'])
     for i,r in layers.items():
@@ -127,6 +128,8 @@ def analyze_sequence(arrays,cfg):
         a,b=writes(r,cfg);rounding=delta-a-b
         accumulated_x+=attention+mlp;accumulated_m=decay*accumulated_m+delta
         all_a=decay*all_a+a;all_b=decay*all_b+b;all_round=decay*all_round+rounding
+        if i<max(layers):
+            prefix_a=decay*prefix_a+a;prefix_b=decay*prefix_b+b;prefix_round=decay*prefix_round+rounding
         row=dict(vector=dict(input_rms=rms(x),output_rms=rms(y),attention_rms=rms(attention),mlp_rms=rms(mlp),
                     attention_to_input=rms(attention)/max(rms(x),EPS),mlp_to_input=rms(mlp)/max(rms(x),EPS),
                     attention_input_cosine=cosine(attention,x),mlp_input_cosine=cosine(mlp,x+attention),
@@ -153,6 +156,8 @@ def analyze_sequence(arrays,cfg):
         matrix_final_signed_share=projected(embedding_decay*embedding['embedding_M'],final_m)),
         closure=dict(vector_relative_rms=rms(accumulated_x-final_x)/max(rms(final_x),EPS),
                      matrix_relative_rms=rms(accumulated_m-final_m)/max(rms(final_m),EPS)),
+        last_read_carry_source_shares=dict(embedding=projected(decay**(len(layers)-1)*embedding['embedding_M'],ref_m),
+            attention=projected(prefix_a,ref_m),mlp=projected(prefix_b,ref_m),rounding=projected(prefix_round,ref_m)),
         final_M_source_shares=dict(embedding=projected(embedding_decay*embedding['embedding_M'],final_m),
             attention=projected(all_a,final_m),mlp=projected(all_b,final_m),rounding=projected(all_round,final_m)))
 

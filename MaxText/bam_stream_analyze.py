@@ -190,6 +190,13 @@ def scalar_paths(tree,prefix=''):
 def main():
     parser=argparse.ArgumentParser();parser.add_argument('directory');args=parser.parse_args()
     root=Path(args.directory);meta=json.loads((root/'metadata.json').read_text());rows=[]
+    native_verification=root/'native_baseline_verification.json'
+    if native_verification.exists():
+        verified=json.loads(native_verification.read_text())
+        meta['losses']=verified['native_losses']
+        for result in meta.get('ablations',{}).values():
+            delta=np.asarray(result['losses'])-np.asarray(meta['losses'])
+            result.update(paired_delta=delta.tolist(),mean_delta=float(delta.mean()),sem=float(delta.std(ddof=1)/np.sqrt(len(delta))))
     paths=sorted(root.glob('sequence_*.npz'))
     if len(paths)!=meta['sequences']:raise ValueError('Incomplete sequence artifacts')
     for path in paths:

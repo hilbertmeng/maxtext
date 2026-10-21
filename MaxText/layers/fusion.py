@@ -29,6 +29,7 @@ from layers import models
 from layers import quantizations
 from layers import mudd
 from layers import initializers
+from layers import bam_gates
 import max_logging
 
 import common_types
@@ -312,7 +313,8 @@ class SubDecoderLayer(nn.Module):
           name='mlp_write_gate')(hidden_states)
       mlp_bias = self.param(
           'mlp_write_gate_bias', nn.with_logical_partitioning(
-              nn.initializers.constant(math.log(cfg.bam_write_eps / (1.0 - cfg.bam_write_eps))),
+              nn.initializers.constant(bam_gates.bias_for_opening(
+                  cfg.bam_write_eps, getattr(cfg, 'bam_write_gate_activation', None) or 'sigmoid')),
               ('q_heads',)), (num_query_heads,), cfg.weight_dtype)
       mlp_logits = mlp_logits + jnp.asarray(mlp_bias, cfg.dtype)
       independent_address = None
@@ -334,7 +336,8 @@ class SubDecoderLayer(nn.Module):
       if not pallas_core:
         M_out = attention_layer.merge_mlp_write(
             mlp_lnx.reshape(mlp_lnx.shape[:-1] + (num_query_heads, cfg.bam_k)),
-            jax.nn.sigmoid(mlp_logits), write_factors, M_out, independent_address=independent_address)
+            bam_gates.activation(getattr(cfg, 'bam_write_gate_activation', None) or 'sigmoid')(mlp_logits),
+            write_factors, M_out, independent_address=independent_address)
     if pallas_core:
       from layers import bam_pallas
       groups = [write_factors]

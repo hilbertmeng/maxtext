@@ -461,6 +461,8 @@ class EmbeddingBamWrite(nn.Module):
         kernel_axes=("embed", "q_heads"), dtype=self.dtype,
         weight_dtype=self.weight_dtype, name="W_emb_g", quant=self.quant,
         matmul_precision=cfg.matmul_precision, use_bias=False)(inputs)
+    from layers import bam_gates
+    gate_activation = getattr(cfg, 'bam_write_gate_activation', None) or 'sigmoid'
     eps = float(cfg.bam_embedding_write_eps)
     if not 0.0 < eps < 1.0:
       raise ValueError(f"bam_embedding_write_eps must be in (0, 1), got {eps}")
@@ -468,10 +470,10 @@ class EmbeddingBamWrite(nn.Module):
         "emb_gw_b0",
         nn.with_logical_partitioning(
             lambda key, shape, dtype: jnp.full(
-                shape, math.log(eps / (1.0 - eps)), dtype),
+                shape, bam_gates.bias_for_opening(eps, gate_activation), dtype),
             ("q_heads",)),
         (heads,), self.weight_dtype)
-    gate = jax.nn.sigmoid(
+    gate = bam_gates.activation(gate_activation)(
         gate_logits + jnp.asarray(gate_bias, self.dtype))
     if getattr(cfg, 'bam_record_concat_health', False):
       self.sow('intermediates', 'seed_gate', jnp.stack((jnp.mean(gate), jnp.std(gate))))

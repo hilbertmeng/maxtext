@@ -2656,12 +2656,12 @@ class BamAttention(Attention):
     self._read_gate_init = (
         None if cfg.bam_read_gate_init is None else float(cfg.bam_read_gate_init))
     read_gate_activation = getattr(cfg, 'bam_read_gate_activation', 'sigmoid')
-    if read_gate_activation not in ('sigmoid', 'softplus'):
-      raise ValueError(f'Unknown BAM read gate activation: {read_gate_activation}')
-    self._read_gate_activation = getattr(jax.nn, read_gate_activation)
+    from layers import bam_gates
+    self._read_gate_activation = bam_gates.activation(read_gate_activation)
+    write_gate_activation = getattr(cfg, 'bam_write_gate_activation', None) or 'sigmoid'
+    self._write_gate_activation = bam_gates.activation(write_gate_activation)
     def read_gate_bias(opening):
-      return (math.log(math.expm1(opening)) if read_gate_activation == 'softplus'
-              else math.log(opening / (1.0 - opening)))
+      return bam_gates.bias_for_opening(opening, read_gate_activation)
     fetched_read_gate_init = getattr(cfg, 'bam_fetched_read_gate_init', None)
     self._fetched_read_gate_init = (
         None if fetched_read_gate_init is None
@@ -3086,7 +3086,7 @@ class BamAttention(Attention):
       eps = float(cfg.bam_write_eps)
       self.gw_b0 = self.param('gw_b0',
           nn.with_logical_partitioning(
-              lambda key, shape, dtype: jnp.full(shape, math.log(eps / (1.0 - eps))),
+              lambda key, shape, dtype: jnp.full(shape, bam_gates.bias_for_opening(eps, write_gate_activation)),
               ("q_heads",)),
           (self.num_query_heads,), self.weight_dtype)
       learned_write_scale = self._write_factor_norm == 'grouped_rms'
@@ -3550,7 +3550,7 @@ class BamAttention(Attention):
     write_gate_bias = self.gw_b0
     if self._force_activation_dtype:
       write_gate_bias = jnp.asarray(write_gate_bias, self.dtype)
-    gate = jax.nn.sigmoid(self.W_gw(x) + write_gate_bias)  # [b,t,n]
+    gate = self._write_gate_activation(self.W_gw(x) + write_gate_bias)  # [b,t,n]
     g = gate
     if cfg.bam_sqrt_n_scale:
       # With per-record rms, each head's record is unit energy, so |M| ~ n * Σg. Scaling the
@@ -3585,7 +3585,7 @@ class BamAttention(Attention):
         u2 = nn.gelu(u2)
       u2 = self.P_loc_up(u2)
     bias = jnp.asarray(self.gw_b0, self.dtype) if self._force_activation_dtype else self.gw_b0
-    gate = jax.nn.sigmoid(self.W_gw(x) + bias)
+    gate = self._write_gate_activation(self.W_gw(x) + bias)
     scale = 1.0 / jnp.sqrt(self.num_query_heads) if self.config.bam_sqrt_n_scale else 1.0
     content = self.write_data_norm(u1) if self._write_data_rms else u1
     return scale * gate[..., None] * content, self.write_address_norm(u2), gate
@@ -3806,6 +3806,7 @@ class BamAttention(Attention):
             and self._write_v_bottleneck_activation == 'gelu'),
         'raw W_O output': not getattr(cfg, 'bam_no_output_projection', False),
         'sigmoid gates': self._read_gate_activation is jax.nn.sigmoid,
+        'sigmoid write gates': self._write_gate_activation is jax.nn.sigmoid,
         'health off': not self._concat_health and not self._record_fetched_read_health_metrics,
         'no fused qkv / mha control': not cfg.fused_qkv and not self._mha_control,
     }

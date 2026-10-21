@@ -274,6 +274,7 @@ class BamLlama2Medium(Llama2Medium):
     bam_n_f = 2
 
     bam_write_eps = 0.1              # write-gate bias b0 = logit(eps), slightly open
+    bam_write_gate_activation = 'sigmoid'
 
     bam_lambda_decay = 1.0           # M <- lambda*M + dM; 1.0 = bare accumulation
     bam_sqrt_n_scale = False         # scale write gate by 1/sqrt(n)
@@ -12896,6 +12897,21 @@ class BamMediumPropMShiftReadG050FullQKNormNoQKStaticGateTruePile(BamMediumPropM
     sa_block_kv_dkv_compute = 1024
     sa_use_fused_bwd_kernel = True
     compare_runs = [
+        'BamMediumPropMShiftReadG050FullQKNormTruePile',
+        'BamMHAMediumPropC256QKNormTruePile',
+    ]
+
+
+class BamMediumPropMShiftReadG050FullQKNormNoQKStaticGateSoftCapSiLUTruePile(BamMediumPropMShiftReadG050FullQKNormNoQKStaticGateTruePile):
+    """SoftCapSiLU tau2 on all dynamic M reads and embedding/attention/MLP writes."""
+    # Implementation: codex/mediumprop-qknorm, /data0/xd/mediumprop-qknorm.
+    # Same431422604 params/MLP widths; read .05 and write .1 nominal openings, no slope compensation.
+    # Prior vs no-static-QK-gate parent: MHA-referenced final gain1.03 [.95,1.10], speed -1 to-3%.
+    model_name = 'BamMediumPropMShiftReadG050FullQKNormNoQKStaticGateSoftCapSiLUTruePile'
+    bam_read_gate_activation = 'softcap_silu'
+    bam_write_gate_activation = 'softcap_silu'
+    compare_runs = [
+        'BamMediumPropMShiftReadG050FullQKNormNoQKStaticGateTruePile',
         'BamMediumPropMShiftReadG050FullQKNormTruePile',
         'BamMHAMediumPropC256QKNormTruePile',
     ]

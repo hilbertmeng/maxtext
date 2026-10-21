@@ -12904,6 +12904,18 @@ class BamMediumPropMShiftReadG050StandardQKNormTruePile(BamMediumPropMShiftReadG
                     'BamMHAMediumPropC256TruePile', 'BamMHAMediumPropC256QKNormTruePile']
 
 
+class BamMediumPropMShiftReadG050StandardQKNormMinimalProfile(BamMediumPropMShiftReadG050StandardQKNormTruePile):
+    """Timing-only minimal-remat arm; common profiling/Splash overrides supplied by the paired runner."""
+    model_name = 'BamMediumPropMShiftReadG050StandardQKNormMinimalProfile'
+    remat_policy = 'minimal'
+
+
+class BamMediumPropMShiftReadG050FullQKNormMinimalProfile(BamMediumPropMShiftReadG050FullQKNormTruePile):
+    """Timing-only full75 QKNorm with minimal remat; no formal training RUN."""
+    model_name = 'BamMediumPropMShiftReadG050FullQKNormMinimalProfile'
+    remat_policy = 'minimal'
+
+
 class BamMHAMediumPropC256QKNormTruePile(BamMHAMediumPropC256TruePile):
     """Full-head RMS QKNorm before RoPE; matched four-arm comparison."""
     # 结论：MHA的QKNorm有持续终局收益，且改善量大于同组BAM。

@@ -70,6 +70,123 @@ The owned `xd-v6e-1-qknorm-pair-20261021-ew4a`/europe-west4-a was reused only
 as a CPU compiler for the two v5p AOTs, then verified absent after compile-log
 collection. User-retained compilers were not modified or released.
 
-Formal loss training remains runtime2f6466b on
-`xd-v5p-16-310260-maxtext`/us-east5-a, full remat/T4096/global128. This timing
-probe does not automatically change its runtime or resume/checkpoint state.
+## Formal v5p-16 confirmation: minimal regresses
+
+The user's authorized checkpoint-preserving switch exposed the opposite result
+on the formal v5p-16/global128. Same TPU `xd-v5p-16-310260-maxtext` in UE5a,
+per-device16/T4096/BF16, health OFF, tuned Splash; no preemption or lease change:
+
+| Arm | Window (60 steps each) | Mean step/s | Median |
+|---|---|---:|---:|
+| full before | 5620–5679 | .5394333 | .541 |
+| minimal | 5702–5761 | .4397667 | .441 |
+| full restored | 5877–5936 | .5393333 | .541 |
+
+Minimal is **18.476% slower**; restoring full recovers the original throughput
+within .019%. The v5p-8 speedup does not transfer. The +3–5% target prior was wrong.
+The effective old/new configs differ only in remat and comparison metadata.
+This A/B/A establishes an executable/remat regression, not its kernel-level cause.
+Do not infer peak memory from post-step live-buffer metrics.
+
+Old/full runtime `2f6466ba18472c4ea3886534cf44bfc65e1ac394`, minimal
+`ea0c153bd9e09c9cc86655b506b3009757c685b1`. CP5681 restored at5682;
+minimal ran5682–5856, CP5856 restored full at5857. Both AOTs retain the original
+13500-step schedule. First resumed steps, LR and committed data cursor were
+verified; the cursor advanced exactly175 batches across the minimal segment.
+Training continues full to the user-directed13500, not an early closeout.
+
+Artifacts: `/data0/xd/bam_diagnostics/mediumprop-qknorm/minimal-resume/`,
+especially `aba-speed-check.json`, both handoff journals and three worker logs.
+The journals' runbook is
+`/data0/xd/mediumprop-qknorm/experiments/bam_llama2_medium/resume_standard_qknorm_minimal.py`.
+Both transient AOT compiler node/queue pairs were verified deleted; the trainer
+was retained. The completed attribution and alignment control follow.
+
+## Same-VM v5p-16 diagnosis and128-alignment control
+
+The v5p-8 test does not reproduce the inversion, so this diagnostic used a
+separate v5p-16: `xd-v5p-16-qknorm-rematdiag-20261021-ew4b`, europe-west4-b.
+All four arms used that same VM without preemption: per-device16/global128,
+T4096/BF16, health OFF, tuned Splash. Log windows20–99 contain80 samples each.
+XPlane samples five steps on eight execution cores of one host, not all16 cores;
+first-core leaf overlap is negligible and unattributed time is below1ms.
+
+| Configuration | runtime | MLP | remat | mean step/s | device mean ms |
+|---|---|---|---|---:|---:|
+| BamMediumPropMShiftReadG050StandardQKNormTruePile | 2f6466b | 3802/3676/3802 | full | .5406250 | 1841.446 |
+| BamMediumPropMShiftReadG050StandardQKNormTruePile | ea0c153 | 3802/3676/3802 | minimal | .4414000 | 2258.507 |
+| BamMediumPropMShiftReadG050StandardQKNormAligned128FullProfile | a380095 | 3840/3584/3840 | full | .5459750 | 1822.867 |
+| BamMediumPropMShiftReadG050StandardQKNormAligned128MinimalProfile | a380095 | 3840/3584/3840 | minimal | .4434625 | 2246.212 |
+
+Minimal versus full: **-18.3538% before alignment, -18.7760% after**.
+Alignment does not repair the regression. Aligned parameters431766728 versus
+432112328: -345600 (-.07998%, -.24 W_Q); closest symmetric128-aligned block
+sum11264 versus11280. Only remat/run identity differs within each pair.
+The before-minimal alignment prior of about-10% was still too optimistic.
+These are timing probes, not new loss-training RUNs.
+
+### Attribution and next optimization
+
+Original widths: minimal adds417.061ms. First-core additive categories:
+dynamic-update-slice **+339.208ms**, loop fusion **+161.604ms**, convolution/MXU
+fusion **-138.138ms**, broadcast+32.158ms, data-formatting+14.979ms.
+Aligned widths add423.345ms; dynamic-update-slice+339.384ms and loop
+fusion+160.635ms are essentially unchanged.
+
+The expensive new updates are **reverse dot_general result assembly**, for
+MLP/read-write gates/addresses: BF16[16,4096,1200] receives[16,4096,150] chunks,
+150=1200/8 FSDP shards. They are not activation-tape updates; that early verbal
+interpretation was corrected after inspecting individual source-tagged kernels.
+The extra cost is mainly local assembly, not collective wait time alone.
+
+Executed HLO full→minimal counts on v5p-16: all-gather394→60,
+collective-permute-start720→1055, dynamic-update-slice167→498. On v5p-8 the
+permute count stays17→17 and the expensive extra reverse assembly is absent.
+These are static instruction counts, not runtime counts or bandwidth estimates.
+They support a different collective-matmul lowering with many partial outputs.
+
+Consistently extracted executed-HLO buffer allocations (color0/HBM):
+v5p-16 original18.655→70.921GiB, aligned18.657→70.794GiB;
+v5p-8 original18.188→69.821GiB. Saving intermediates costs about52GiB on both
+topologies, contradicting large extra activation replication as the explanation.
+These are compiler heap reservations, not post-step live buffers; do not mix
+them with a different-scope CPU-AOT memory report.
+
+The next targeted optimization is to fuse projections sharing an input,
+assembling their input gradients once. Main's Pallas
+`BamAttention._fused_input_projections` already does this, another difference in
+previously fast Pallas/minimal variants. The affected gate/address kernels
+support this direction, but it has not been isolated causally in this original
+pure-JAX v5p-16 circuit. This result does not imply alignment is generally useless.
+
+### Reproduction and artifacts
+
+- Worktree/branch: `/data0/xd/mediumprop-qknorm`, `codex/mediumprop-qknorm`.
+  Aligned source `a380095bbd13b9b85f4373eced426020b6824820`;
+  CPU parameter counts and sealed configs verified. Reusable controllers there:
+  `profile_qknorm_remat16.py`, `continue_qknorm_aligned128.py`,
+  `compile_qknorm_remat_hlo.py`, `analyze_remat_hlo.py`, all under
+  `experiments/bam_llama2_medium/`.
+- Aligned AOT root:
+  `gs://newproject-1-llm_base_models_us-central1/log/diagnostics/qknorm_aligned128/a380095/v5p-16/s13500`.
+  The completed raw pair's idle worker0 compiled both new AOTs with CPU backend;
+  both training workers then ran the aligned pair. All four AOT loads/FIRST_STEP
+  and original13500-step schedules verified; profile processes ended after trace
+  and stable-window collection. The formal trainer was not interrupted.
+- Profile GCS root:
+  `gs://newproject-1-llm_base_models_us-central1/log/diagnostics/profile_matrix/`,
+  subpaths `2f6466b/qknorm-remat16-full`, `ea0c153/qknorm-remat16-minimal`,
+  `a380095/qknorm-remat16-align128`.
+- Complete local traces/logs: `/data0/xd/bam_diagnostics/mediumprop-qknorm/timing-v5p16-20261021/`;
+  summaries `four-arm-speeds.json` and both raw-XPlane analyses. Sibling
+  `hlo-from-xplanes/` contains executed HLO/buffer assignments, recovered with
+  main's `experiments/bam_llama2_medium/extract_xplane_hlo.py`.
+- Five`xd-v6e-aot-cc1b07c-15a21-*` resources (two EW4a preemptions) were
+  cancelled/released after finding HLO embedded in XPlane; three
+  `xd-v6e-aot-a380095-147c5-*` queues were released when the owned profile VM
+  became idle. All verified absent. The original profile controller's cleanup
+  omitted the helper's project argument; fixed in the reusable script, backups
+  explicitly released, winner transferred to the aligned continuation.
+  Its complete journal records cleanup_returncode0 and verified node+queue
+  absence. All three profile resources are gone; retained/FLEX resources and
+  the formal trainer were not deleted.

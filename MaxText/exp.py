@@ -15309,6 +15309,7 @@ class BamMediumPropMShiftReadG050FullQKNormNoQKStaticGateTruePile(BamMediumPropM
     """Keep static Q/K reads, remove their input-dependent gates; full-head QKNorm."""
     # ledger only: codex/mediumprop-qknorm, /data0/xd/mediumprop-qknorm.
     # User budget exception: remove691776 gate params (.4804 W_Q), retain parent MLP widths.
+    # code_commit:390b853; exact v5p16 AOT load and FIRST_STEP verified.
     model_name = 'BamMediumPropMShiftReadG050FullQKNormNoQKStaticGateTruePile'
     bam_qk_static_read_gate = False
     force_final_checkpoint = True

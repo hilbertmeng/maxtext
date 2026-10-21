@@ -16635,6 +16635,7 @@ class BamPythia2p8BSotaIndependentR768PallasShortTrainV5p8Profile(TrainStepProfi
     """Timing: formal R768 ShortTrain (remat minimal, its health settings) at the v5p-128 per-device batch16 on v5p-8."""
     # v5p-8 UC1a batch16, same VM: before the QKNorm rewrite (a526eaa) 0.2939; after (0ffd09b) 0.3289 step/s
     # (+11.9%, ~360 ms/step; bet +6.5% [+4,+9]). MHA control 0.3756 (BAM 78.2% -> 87.6% on v5p-8).
+    # finish() without the f32 copy (89c56b4): 0.3379 vs 0.3292 same VM (+2.7%, ~78 ms; bet +3% [+2,+4]).
     model_name = 'BamPythia2p8BSotaIndependentR768PallasShortTrainV5p8Profile'
     target_train_batch_size = None
     per_device_batch_size = 16.0

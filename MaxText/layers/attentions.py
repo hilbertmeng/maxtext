@@ -3992,11 +3992,13 @@ class BamAttention(Attention):
       eps = float(cfg.normalization_layer_epsilon)
 
       def finish(x, scale, standard_ss):
-        stats = x.astype(jnp.float32)
-        mean2 = (jnp.sum(jnp.square(stats[..., local]), axis=-1) + standard_ss) / self.head_dim
-        multiplier = jnp.concatenate((scale[local].astype(jnp.float32),
-                                      jnp.ones((self.head_dim - self._qk_col_width,), jnp.float32)))
-        return jnp.asarray(stats * lax.rsqrt(mean2 + eps)[..., None] * multiplier, self.dtype)
+        # Keep the read output in its own dtype/layout: accumulate the local sum of squares in f32
+        # inside the reduction and apply 1/r and the local scales as one elementwise pass, so no f32
+        # copy of the [B,T,N,K] output is materialized (that copy plus its relayout cost ~170 ms/step).
+        local_ss = jnp.sum(jnp.square(x[..., local].astype(jnp.float32)), axis=-1)
+        inv_rms = lax.rsqrt((local_ss + standard_ss) / self.head_dim + eps).astype(x.dtype)
+        multiplier = jnp.concatenate((scale[local], jnp.ones((self.head_dim - self._qk_col_width,), scale.dtype)))
+        return x * inv_rms[..., None] * multiplier.astype(x.dtype)
 
       query = finish(query, head_scale[0], standard_sumsq[0])
       key = finish(key, head_scale[1], standard_sumsq[1])

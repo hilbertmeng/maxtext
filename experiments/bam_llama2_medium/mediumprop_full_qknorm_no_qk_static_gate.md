@@ -56,3 +56,24 @@ TPU ownership planned: xd-v5p-16-310270-maxtext, primary us-east5-a,
 backups europe-west4-b/us-central1-a. Recent same-shape formal UE5a lease
 has no preemptions through9k; EW4b diagnostics also stable. Retained FLEX
 compilers checked: no READY host in EW4a/UC1a/UE5a; use managed AOT queues.
+
+## Sealed runtime and startup verification
+
+Runtime390b853e0acc97898f81c2221ec2fd3605e04387; all targeted CPU gates passed.
+Worker log confirms431422604 params, original MLP widths, full-head QKNorm,
+Q/K static gateFalse, health OFF, tuned Splash and TB rotation500.
+Exact v5p16/s13500 executable loaded, FIRST_STEP verified, CP0 committed.
+Startup steps10--14 average.5358 step/s on UE5a, health OFF; historical full75
+parent.4743 uses untuned Splash and is not a matched speed control.
+Tuned standard18 formal control is about.541; difference about-1%, with a
+normalization-scope difference as well as the gate change.
+
+AOT artifact:
+`gs://newproject-1-llm_base_models_us-central1/log/compiled_trainsteps/390b853/jax081-i0ae3f58-c17f538a/v5p-16/s13500/BamMediumPropMShiftReadG050FullQKNormNoQKStaticGateTruePile.pickle`.
+Manifest and object CRC/size verified. Managed compiler node and queue released;
+no retained FLEX resource was allocated or changed.
+Formal trainer: xd-v5p-16-310270-maxtext / us-east5-a, started2026-10-21T11:41:43Z.
+Registry gain triples versus full75, noQK and Mudd all use original MHA.
+Reproduction: run_exp_xd.sh with this EXP, exact runtime commit,13500 total
+steps and the artifact above. Local validation/proof artifacts are under
+`/data0/xd/bam_diagnostics/mediumprop-qknorm/no-qk-static-gate-*`.

@@ -12884,6 +12884,7 @@ class BamMediumPropMShiftReadG050FullQKNormTruePile(BamMediumPropSharedR256Gener
 
 class BamMediumPropMShiftReadG050FullQKNormNoQKStaticGateTruePile(BamMediumPropMShiftReadG050FullQKNormTruePile):
     """Keep static Q/K reads, remove their input-dependent gates; full-head QKNorm."""
+    # code_commit:390b853; exact v5p16 AOT load and FIRST_STEP verified.
     model_name = 'BamMediumPropMShiftReadG050FullQKNormNoQKStaticGateTruePile'
     bam_qk_static_read_gate = False
     force_final_checkpoint = True

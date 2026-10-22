@@ -34,6 +34,8 @@ VM_ONE = 'BamMediumPropMShiftReadG050MuddVMSharedRouterLastBlockTruePile'
 MIXED_L2 = 'BamMediumPropMShiftReadG050MuddVMQKVMSharedRouterLastTwoLayersL2AnchorTruePile'
 QKVM_L2_WRITE = 'BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockL2AnchorMLPWriteTruePile'
 VM_L5 = 'BamMediumPropMShiftReadG050MuddVMSharedRouterLastBlockL2L5AnchorTruePile'
+DUAL_QKVM_L2 = 'BamMediumPropMShiftReadG050MuddQKVMDualValueSharedRouterLastBlockL2AnchorTruePile'
+DUAL_VM_L2 = 'BamMediumPropMShiftReadG050MuddVMDualValueSharedRouterLastBlockL2AnchorTruePile'
 
 
 class NativeTailTest(MLPWriteTest, unittest.TestCase):
@@ -358,14 +360,31 @@ class NativeTailTest(MLPWriteTest, unittest.TestCase):
           self.assertFalse(any(p[:len(tail)] == tail and name in p for p in flat), name)
 
   def test_dual_value_formal_budget_reuses_vo_projection(self):
-    for exp, total, routers, width in ((DUAL_QKVM, 432266399, 154575, 3015),
-                                      (DUAL_VM, 432266265, 154185, 3529)):
+    self.check_dual_value_formal_budget((DUAL_QKVM, DUAL_VM))
+
+  def test_l2_dual_value_formal_budget_preserves_parent_widths_and_writes(self):
+    self.check_dual_value_formal_budget((DUAL_QKVM_L2, DUAL_VM_L2))
+    for exp, parent in ((DUAL_QKVM_L2, L2), (DUAL_VM_L2, VM_L2)):
+      cfg, base = self.config(exp), self.config(parent)
+      self.assertEqual(cfg.bam_mudd_tail_mlp_dims, base.bam_mudd_tail_mlp_dims)
+      for key, value in base.get_keys().items():
+        if key not in ('model_name', 'bam_mudd_tail_dual_value'):
+          self.assertEqual(cfg.get_keys()[key], value, key)
+
+  def check_dual_value_formal_budget(self, experiments):
+    for exp, total, routers, width, middle_width, l2, skip_write in (
+        (DUAL_QKVM, 432266399, 154575, 3015, 3676, False, False),
+        (DUAL_VM, 432266265, 154185, 3529, 3676, False, False),
+        (DUAL_QKVM_L2, 432305524, 154900, 3026, 3803, True, True),
+        (DUAL_VM_L2, 432306060, 154380, 3540, 3676, True, False)):
+      if exp not in experiments:
+        continue
       with self.subTest(exp=exp):
         cfg = self.config(exp, bam_splash_attention=False)
         cfg.get_keys().update(max_target_length=256, max_prefill_predict_length=256,
                               query_chunk_size=256)
-        self.assertFalse(cfg.bam_mudd_tail_l2_anchor)
-        self.assertFalse(cfg.bam_mudd_tail_skip_mlp_write)
+        self.assertEqual(cfg.bam_mudd_tail_l2_anchor, l2)
+        self.assertEqual(cfg.bam_mudd_tail_skip_mlp_write, skip_write)
         mesh = jax.sharding.Mesh(max_utils.create_device_mesh(cfg), cfg.mesh_axes)
         state, _, _, _ = train_compile.get_shaped_inputs(mesh, cfg)
         flat = flatten_dict(nn.unbox(state[0].params))
@@ -388,17 +407,23 @@ class NativeTailTest(MLPWriteTest, unittest.TestCase):
         for p in parent:
           self.assertEqual(parent[p].shape, flat[p].shape, p)
         prefix = ('params', 'decoder', 'tail_layers')
-        for layer, expected in (('local_0', 3802), ('local_1', 3676), ('fetch_2', width)):
+        for layer, expected in (('local_0', 3802), ('local_1', middle_width), ('fetch_2', width)):
           self.assertEqual(flat[prefix + (layer, 'block', 'mlp', 'wi_0', 'kernel')].shape,
                            (1200, 1, expected))
         mlp_write = {p: v for p, v in flat.items() if p[:len(prefix)] == prefix and
                      any(n in p for n in ('mlp_write_gate', 'mlp_write_gate_bias',
                                           'mlp_address_down', 'mlp_address_up'))}
-        self.assertEqual(sum(math.prod(v.shape) for v in mlp_write.values()), 458000)
+        self.assertEqual(sum(math.prod(v.shape) for v in mlp_write.values()), 0 if skip_write else 458000)
         self.assertTrue(all('local_1' in p for p in mlp_write))
 
   def test_dual_value_isolation_causality_and_gradients(self):
-    for exp in (DUAL_QKVM, DUAL_VM):
+    self.check_dual_value_isolation_causality_and_gradients((DUAL_QKVM, DUAL_VM))
+
+  def test_l2_dual_value_isolation_causality_and_gradients(self):
+    self.check_dual_value_isolation_causality_and_gradients((DUAL_QKVM_L2, DUAL_VM_L2))
+
+  def check_dual_value_isolation_causality_and_gradients(self, experiments):
+    for exp in experiments:
       with self.subTest(exp=exp):
         cfg, mesh, model, params, tokens, pos, seg, rng = self.build(exp)
         flat = flatten_dict(params)
@@ -441,6 +466,9 @@ class NativeTailTest(MLPWriteTest, unittest.TestCase):
           for name in ('mlp_write_gate', 'mlp_address_down', 'mlp_address_up'):
             selected = [v for p, v in gradients.items() if 'tail_layers' in p
                         and 'local_1' in p and name in p]
+            if cfg.bam_mudd_tail_skip_mlp_write:
+              self.assertFalse(selected, name)
+              continue
             self.assertTrue(selected, name)
             self.assertGreater(sum(float(jnp.sum(v * v)) for v in selected), 0., name)
 

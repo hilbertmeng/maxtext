@@ -1204,3 +1204,56 @@ JAX/v8t bridge, plus old default causal/anchor checks and shared BAM47/legacy8.
 Full13500 v5p16 AOT and formal training, TruePile4096 global128/B16, scan5+1,
 v8t48MiB/fused inputs prefix plus JAX L17, tuned Splash/full remat, generic
 health ON/internal+BAM OFF, CP200/latest2/keep0/forced-final and TB500.
+
+### Verified L5 VM startup
+
+BamMediumPropMShiftReadG050MuddVMSharedRouterLastBlockL2L5AnchorTruePile
+sealed dba589001751730a8d830fd2aa97074548abf013 passed fresh62 CPU checks,
+reused unchanged rotating-writer5 evidence, exact13500 v5p16 AOT, FIRST_STEP3,
+14-step gate37 and actual worker configuration validation. Trainer is
+xd-v5p-16-310300-maxtext/us-east5-a, ordinary fresh allocation rather than
+hot replacement of the already-deleted VM dual V trainer. Startup~.714step/s;
+TruePile4096/global128/B16, scan5+1, v8t48MiB/fused prefix, JAX L17, tuned
+Splash/full remat, generic health ON/internal+BAM OFF, CP200 and TB500 verified.
+Direct comparison and registered MHA-reference gain use L2 VM only.
+Evidence: l5-vm-{completed-cpu,startup-proof,startup-validation}.json,
+l5-vm-step14.log, l5-vm-monitoring-registration.log and launch-l5-vm.log in
+/data0/xd/bam_diagnostics/mediumprop-mudd-tail.
+
+### L2 champion parents: add only the second V channel
+
+User requested one dual-V child of each promising parent, original L2 QKVM
+and L2 VM. Preserve the original L16 write policies: attention ON in both,
+MLP OFF for QKVM and ON for VM. The existing no-L2 dual-V arms do not isolate
+this change relative to these two parents. Each new child compares only with
+its own direct parent; BamMHAMediumPropC256TruePile remains the gain reference.
+
+| RUN | Tail widths, unchanged from parent | Total | Tiny routers | Parent |
+|---|---|---:|---:|---|
+| BamMediumPropMShiftReadG050MuddQKVMDualValueSharedRouterLastBlockL2AnchorTruePile | 3802/3803/3026 | 432305524 | 154900 | BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockL2AnchorTruePile |
+| BamMediumPropMShiftReadG050MuddVMDualValueSharedRouterLastBlockL2AnchorTruePile | 3802/3676/3540 | 432306060 | 154380 | BamMediumPropMShiftReadG050MuddVMSharedRouterLastBlockL2AnchorTruePile |
+
+Reuse O's complete dynamic V-column read/address projection; restore only
+V dynamic gate(Dx16+16), static key(16x32) and static gate(Dx16+16), total
+38944=.027044W_Q, .00901% of the model. User explicitly rejected shrinking
+MLP by11 units for this negligible cost: no width repayment in either child.
+No new mixing coefficient or other routing/normalization/initialization change.
+
+Pre-run terminal gain vs each direct parent: QKVM1.015[.990,1.040],
+VM1.005[.985,1.030], matched speed about1% lower(+/-2%). QKVM has more
+reason to benefit from the restored M-content path because its QK bypass M;
+VM already consults M for QK. L2 may alter complementarity, not guarantee it.
+
+Keep TruePile4096/global128/B16,13500 steps, scan5+1, v8t48MiB/fused prefix,
+JAX selected L17, tuned Splash/full remat, generic health ON/internal+BAM OFF,
+CP200/latest2/keep0/forced-final and TB500. Infrastructure audit against main
+257861f5: model/train/AOT/checkpoint/writer/optimizer unchanged since dba5890.
+Only two configuration classes and focused budget/causal-gradient test extensions.
+Reuse the completed dba5890 CPU62 and writer5 evidence after source/hash checks;
+rerun old dual formal+causal checks and their new L2 counterparts(4 test methods).
+
+Resource ownership plan: logical310301 QKVM dual V hot-replaces the reviewed
+mixed two-layer RUN on physical xd-v5p-16-310291-maxtext only after CPU/AOT gates;
+logical310302 VM dual V gets fresh xd-v5p-16-310302-maxtext. Both UE5a, no backups.
+Both AOTs borrow the retained llm-jax-v6e-1-0/EW4a compiler through its worker lock;
+serialize compilation there, never delete or adopt its lifecycle.

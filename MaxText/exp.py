@@ -14974,6 +14974,8 @@ class BamMediumPropMShiftReadG050MuddVMSharedRouterLastBlockL2AnchorTruePile(Bam
 
 
 class BamMediumPropMShiftReadG050MuddVMSharedRouterLastBlockL2L5AnchorTruePile(BamMediumPropMShiftReadG050MuddVMSharedRouterLastBlockL2AnchorTruePile):
+    # code_commit:dba5890; CPU62/writer5, full AOT/FIRST_STEP3/14-step37 and worker flags verified.
+    # xd-v5p-16-310300-maxtext/UE5a, startup~.714step/s, generic ON/internal+BAM OFF.
     """Add complete L5 to L17 VM and final Mudd sources; preserve both L16 writes."""
     # Sources[embedding,L0,L2,L5,current]; native C2 at L17 and C1 at final output.
     # Both hidden widths remain64; extra195 router params are exempt, MLP widths unchanged.
@@ -15048,6 +15050,7 @@ class BamMediumPropMShiftReadG050MuddQKVMDualValueSharedRouterLastBlockTruePile(
 
 
 class BamMediumPropMShiftReadG050MuddVMDualValueSharedRouterLastBlockTruePile(BamMediumPropMShiftReadG050MuddVMSharedRouterLastBlockL2AnchorTruePile):
+    # ledger only: codex/mediumprop-mudd-tail, /data0/xd/mediumprop-mudd-tail.
     """L17 Mudd VM plus the original V M read, native Q/K reads, L16 MLP write, no L2."""
     # Restore38944 V gates/static-address params; repay11 SwiGLU units at L17.
     # Total432266265 = trained L2 VM parent -851; native routers154185 exempt.
@@ -15056,11 +15059,37 @@ class BamMediumPropMShiftReadG050MuddVMDualValueSharedRouterLastBlockTruePile(Ba
     # CPU58 + writer5, full13500 AOT/FIRST_STEP/14-step gates verified; steady~.710step/s (-.4% vs parent~.713).
     # Relative to trained L2 VM: dual V plus removal of both L2 anchors; total parent-851.
     # Generic training health ON/internal+BAM OFF, tuned Splash, v8t48MiB/fused inputs, TB500.
+    # 结论：加V的匹配VM对照下始终无稳定收益，末五3.8k-4.6k gap+.00191224/R.99119514。
+    # 早期绝对差距收窄，但相对亏损约1%；对匹配双V QKVM末五5.4k-6.2k +.00017288/R.99911870，近持平。
+    # 对单V VM参数-656、L17 MLP少11；同健康/内核速度约慢1-1.5%，无cache收益，过评审判停。
+    # 停于6343，CP提交/TB SYNC_OK；UE5a v5p16，P1，节点及队列确认释放；非热交接。
     model_name = 'BamMediumPropMShiftReadG050MuddVMDualValueSharedRouterLastBlockTruePile'
     bam_mudd_tail_dual_value = True
     bam_mudd_tail_l2_anchor = False
     bam_mudd_tail_mlp_dims = [3802, 3676, 3529]
     compare_runs = ['BamMediumPropMShiftReadG050MuddVMSharedRouterLastBlockTruePile', 'BamMediumPropMShiftReadG050MuddQKVMDualValueSharedRouterLastBlockTruePile']
+
+
+class BamMediumPropMShiftReadG050MuddQKVMDualValueSharedRouterLastBlockL2AnchorTruePile(BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockL2AnchorTruePile):
+    """Add only the M-read V channel to the original L2 QKVM champion."""
+    # Reuse the O dynamic address/projection; +38944=.027044W_Q (.00901% total).
+    # Explicit tiny-parameter exemption: retain all parent MLP widths and L16 MLP-write omission.
+    # Total432305524; native routers154900 unchanged. Direct control is the original L2 QKVM.
+    # Prior terminal MHA-ref gain1.015[.990,1.040], matched speed -1% (+/-2%).
+    model_name = 'BamMediumPropMShiftReadG050MuddQKVMDualValueSharedRouterLastBlockL2AnchorTruePile'
+    bam_mudd_tail_dual_value = True
+    compare_runs = ['BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockL2AnchorTruePile']
+
+
+class BamMediumPropMShiftReadG050MuddVMDualValueSharedRouterLastBlockL2AnchorTruePile(BamMediumPropMShiftReadG050MuddVMSharedRouterLastBlockL2AnchorTruePile):
+    """Add only the M-read V channel to L2 VM, retaining both L16 M writes."""
+    # Reuse the O dynamic address/projection; +38944=.027044W_Q (.00901% total).
+    # Explicit tiny-parameter exemption: retain all parent MLP widths and L16 MLP write.
+    # Total432306060; native routers154380 unchanged. Direct control is L2 VM.
+    # Prior terminal MHA-ref gain1.005[.985,1.030], matched speed -1% (+/-2%).
+    model_name = 'BamMediumPropMShiftReadG050MuddVMDualValueSharedRouterLastBlockL2AnchorTruePile'
+    bam_mudd_tail_dual_value = True
+    compare_runs = ['BamMediumPropMShiftReadG050MuddVMSharedRouterLastBlockL2AnchorTruePile']
 
 
 class BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockSwapMLPTruePile(BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockTruePile):

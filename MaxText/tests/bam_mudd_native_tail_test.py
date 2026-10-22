@@ -26,6 +26,7 @@ TWO = 'BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastTwoLayersTruePile'
 SWAP = 'BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockSwapMLPTruePile'
 REBALANCE = 'BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastTwoLayersRebalanceMLPTruePile'
 VM = 'BamMediumPropMShiftReadG050MuddVMSharedRouterLastTwoLayersTruePile'
+VM_L2 = 'BamMediumPropMShiftReadG050MuddVMSharedRouterLastBlockL2AnchorTruePile'
 
 
 class NativeTailTest(MLPWriteTest, unittest.TestCase):
@@ -42,7 +43,8 @@ class NativeTailTest(MLPWriteTest, unittest.TestCase):
         (SWAP, 432266255, 154575, 3802, 3026, 3803, 4),
         (REBALANCE, 432344635, 232155, 3027, 3414, 3414, 4),
         (L2, 432266580, 154900, 3802, 3803, 3026, 4),
-        (VM, 432345167, 231375, 3802, 3414, 3540, 2)):
+        (VM, 432345167, 231375, 3802, 3414, 3540, 2),
+        (VM_L2, 432266316, 154380, 3802, 3676, 3540, 2)):
       with self.subTest(exp=exp):
         cfg = self.config(exp, bam_splash_attention=False)
         cfg.get_keys().update(max_target_length=256, max_prefill_predict_length=256,
@@ -64,10 +66,10 @@ class NativeTailTest(MLPWriteTest, unittest.TestCase):
         self.assertEqual(sum(math.prod(v.shape) for v in routers.values()), router_count)
         two_layers = exp in (TWO, REBALANCE, VM)
         self.assertEqual(total - router_count - 432111680,
-                         2112 if exp == VM else 800 if two_layers else 0)
+                         2112 if exp == VM else 256 if exp == VM_L2 else 800 if two_layers else 0)
         prefix = ('params', 'decoder', 'tail_layers')
         layers = ('local_1', 'fetch_2') if two_layers else ('fetch_2',)
-        sources = 4 if exp == L2 else 3
+        sources = 4 if exp in (L2, VM_L2) else 3
         for layer in layers:
           p = prefix + (layer, 'block', 'qkvm_compose', 'mlp')
           self.assertEqual(flat[p + ('dynamic_dense_conn1', 'kernel')].shape, (1200, 1, 64))
@@ -87,7 +89,7 @@ class NativeTailTest(MLPWriteTest, unittest.TestCase):
                          (1200, 1, last_width))
         self.assertFalse(any(n in p for p in flat for n in
                              ('value_compose', 'q_compose', 'k_compose', 'm_compose')))
-        if exp == VM:
+        if exp in (VM, VM_L2):
           for layer in ('local_1', 'fetch_2'):
             block = prefix + (layer, 'block')
             for name in ('query', 'key'):
@@ -100,9 +102,13 @@ class NativeTailTest(MLPWriteTest, unittest.TestCase):
                                             'mlp_address_down', 'mlp_address_up'))}
           self.assertEqual(sum(math.prod(v.shape) for v in mlp_write.values()), 458000)
           self.assertTrue(all('local_1' in p for p in mlp_write))
+          middle_attention = prefix + ('local_1', 'block', 'self_attention')
+          for name in ('P_loc_down', 'P_loc_up', 'W_gw', 'gw_b0'):
+            self.assertEqual(any(p[:len(middle_attention)] == middle_attention and name in p
+                                 for p in flat), exp == VM_L2, name)
 
   def test_v8t_tail_layout_bridge_preserves_parameters_outputs_and_gradients(self):
-    for exp, index in ((QKV, 8), (ONE, 8), (TWO, 7), (TWO, 8), (VM, 7), (VM, 8)):
+    for exp, index in ((QKV, 8), (ONE, 8), (TWO, 7), (TWO, 8), (VM, 7), (VM, 8), (VM_L2, 8)):
       with self.subTest(exp=exp, index=index):
         cfg = self.tiny(exp)
         accelerated = pyconfig.HyperParameters(SimpleNamespace(keys=dict(
@@ -111,7 +117,7 @@ class NativeTailTest(MLPWriteTest, unittest.TestCase):
         original = fusion.SubDecoderLayer(cfg, mesh, layer_inx=index)
         bridge = fusion.SubDecoderLayer(accelerated, mesh, layer_inx=index)
         inputs = tuple(jax.random.normal(jax.random.key(i + 70), (1, 4, 150))
-                       for i in range(3))
+                       for i in range(4 if cfg.bam_mudd_tail_l2_anchor else 3))
         matrix = .2 * jax.random.normal(jax.random.key(73), (1, 4, 75, 32))
         tokens = jnp.ones((1, 4), jnp.int32)
         kwargs = dict(decoder_segment_ids=tokens, decoder_positions=jnp.arange(4)[None],
@@ -271,7 +277,13 @@ class NativeTailTest(MLPWriteTest, unittest.TestCase):
           self.assertGreater(float(jnp.sum(head[:, :, i, :] ** 2)), 0., (layer, i))
 
   def test_vm_restores_qk_reads_and_mlp_only_write_with_causal_gradients(self):
-    cfg, mesh, model, params, tokens, pos, seg, rng = self.build(VM)
+    self.check_vm_causal_gradients(VM)
+
+  def test_vm_l2_restores_last_qk_reads_and_mlp_write_with_causal_gradients(self):
+    self.check_vm_causal_gradients(VM_L2)
+
+  def check_vm_causal_gradients(self, experiment):
+    cfg, mesh, model, params, tokens, pos, seg, rng = self.build(experiment)
     flat = flatten_dict(params)
     for path, value in flat.items():
       if 'dynamic_dense_conn2' in path:
@@ -302,15 +314,26 @@ class NativeTailTest(MLPWriteTest, unittest.TestCase):
         self.assertTrue(selected, name)
         self.assertGreater(sum(float(jnp.sum(v * v)) for v in selected), 0., name)
       for layer in ('local_1', 'fetch_2'):
-        for name in ('static_q_key', 'static_k_key', 'static_o_key', 'dynamic_dense_conn1'):
+        for name in ('static_q_key', 'static_k_key', 'static_o_key'):
           selected = [v for p, v in gradients.items() if 'tail_layers' in p and layer in p and name in p]
           self.assertTrue(selected, (layer, name))
           self.assertGreater(sum(float(jnp.sum(v * v)) for v in selected), 0., (layer, name))
+        if experiment == VM_L2 and layer == 'local_1':
+          for name in ('P_loc_down', 'P_loc_up', 'W_gw', 'gw_b0'):
+            selected = [v for p, v in gradients.items() if 'tail_layers' in p and layer in p and name in p]
+            self.assertTrue(selected, name)
+            self.assertGreater(sum(float(jnp.sum(v * v)) for v in selected), 0., name)
+          continue
+        down = [v for p, v in gradients.items() if 'tail_layers' in p and layer in p
+                and 'qkvm_compose' in p and 'dynamic_dense_conn1' in p]
+        self.assertGreater(sum(float(jnp.sum(v * v)) for v in down), 0., layer)
         heads = [v for p, v in gradients.items() if 'tail_layers' in p and layer in p
                  and 'qkvm_compose' in p and 'dynamic_dense_conn2' in p][0]
-        self.assertEqual(heads.shape[-2:], (2, 3))
+        self.assertEqual(heads.shape[-2:], (2, 4 if cfg.bam_mudd_tail_l2_anchor else 3))
         for i in range(2):
           self.assertGreater(float(jnp.sum(heads[:, :, i, :] ** 2)), 0., (layer, i))
+          if cfg.bam_mudd_tail_l2_anchor:
+            self.assertGreater(float(jnp.sum(heads[:, :, i, 2] ** 2)), 0., (layer, i, 'L2'))
 
   def test_l2_anchor_costs325_and_preserves_initialized_model(self):
     base = self.build(ONE)

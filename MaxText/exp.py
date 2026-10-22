@@ -14946,9 +14946,20 @@ class BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockL2AnchorTruePile(B
     bam_mudd_tail_l2_anchor = True
     compare_runs = [
         'BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockTruePile',
-        'BamMediumPropMShiftReadG050MuddQKVLastBlockTruePile',
-        'BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile',
     ]
+
+
+class BamMediumPropMShiftReadG050MuddVMSharedRouterLastBlockL2AnchorTruePile(BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockL2AnchorTruePile):
+    """Four-source joint V/m at L17, native Q/K reads and restored L16 MLP M write."""
+    # Retain L16 attention write, both local O reads, L2 anchor and final C1 Mudd.
+    # Per-layer repayment: L16 -127 and L17 +514 SwiGLU units; no cross-layer transfer.
+    # Expected total432266316 = L2 parent -264; tiny C2+C1 routers154380 exempt.
+    # Prior terminal MHA-ref gain vs L2 QKVM1.015[.990,1.040], matched speed +/-3%.
+    model_name = 'BamMediumPropMShiftReadG050MuddVMSharedRouterLastBlockL2AnchorTruePile'
+    bam_mudd_tail_residual_qk = False
+    bam_mudd_tail_skip_mlp_write = False
+    bam_mudd_tail_mlp_dims = [3802, 3676, 3540]
+    compare_runs = ['BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockL2AnchorTruePile']
 
 
 class BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockSwapMLPTruePile(BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockTruePile):

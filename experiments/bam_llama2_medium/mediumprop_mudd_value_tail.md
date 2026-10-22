@@ -573,3 +573,29 @@ After preparing the replacement AOTs, resume these same compatible RUNs from
 committed checkpoints with the original total13500-step schedule; preserve
 runtime-transition journals and loss/TB history. This is a kernel change within
 the three RUNs, not three additional architecture experiments.
+
+### Shared L17 QKVM: exchange L16/L17 MLP widths
+
+BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockSwapMLPTruePile inherits
+BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockTruePile and exchanges
+its L16/L17 widths: [3802,3803,3026] -> [3802,3026,3803]. This explicit user
+intervention moves777 SwiGLU units,2797200=1.9425W_Q parameters, from L16 to
+L17. Exact model total remains432266255; total MLP MACs also remain unchanged.
+The question is whether complete final-layer QKVM and readout benefit more
+from that capacity than the preceding layer whose MLP no longer writes M.
+No attention, M routing, router, write omission or initialization changes.
+
+Keep the inherited v8t/48MiB/fused-input prefix, read-only JAX QKV tail,
+tuned Splash, generic training health ON, internal/BAM statistics OFF,
+full remat, TruePile4096 global128/per-device16, CP200/latest2 and total13500
+steps. The changed MLP shapes require a distinct RUN/checkpoint prefix.
+Targets: xd-v5p-16-310288-maxtext, us-east5-a; borrow the retained EW4a FLEX
+compiler under its worker lock and never mutate its lifecycle.
+
+Pre-run terminal MHA-reference gain versus the direct L17 shared-QKVM parent:
+1.020[.995,1.045]. Matched throughput forecast +/-2% of that parent's v8t
+rate. Direct controls retain all three native variants, old independent QKV
+and original single.5; reference remains BamMHAMediumPropC256TruePile.
+The formal budget/tree regression checks the new widths and exact count,
+reusing the verified model/kernel regressions because only configuration
+and the corresponding shape/budget coverage change.

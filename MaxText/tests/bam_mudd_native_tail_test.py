@@ -22,6 +22,7 @@ import train_compile
 QKV = 'BamMediumPropMShiftReadG050MuddQKVSharedRouterLastBlockTruePile'
 ONE = 'BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockTruePile'
 TWO = 'BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastTwoLayersTruePile'
+SWAP = 'BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockSwapMLPTruePile'
 
 
 class NativeTailTest(MLPWriteTest, unittest.TestCase):
@@ -31,10 +32,11 @@ class NativeTailTest(MLPWriteTest, unittest.TestCase):
     return cfg
 
   def test_formal_budget_joint_layout_and_router_exemption(self):
-    for exp, total, router_count, middle_width, targets in (
-        (QKV, 432266060, 154380, 3803, 3),
-        (ONE, 432266255, 154575, 3803, 4),
-        (TWO, 432344635, 232155, 3027, 4)):
+    for exp, total, router_count, middle_width, last_width, targets in (
+        (QKV, 432266060, 154380, 3803, 3026, 3),
+        (ONE, 432266255, 154575, 3803, 3026, 4),
+        (TWO, 432344635, 232155, 3027, 3026, 4),
+        (SWAP, 432266255, 154575, 3026, 3803, 4)):
       with self.subTest(exp=exp):
         cfg = self.config(exp, bam_splash_attention=False)
         cfg.get_keys().update(max_target_length=256, max_prefill_predict_length=256,
@@ -71,7 +73,7 @@ class NativeTailTest(MLPWriteTest, unittest.TestCase):
         self.assertEqual(flat[prefix + ('local_1', 'block', 'mlp', 'wi_0', 'kernel')].shape,
                          (1200, 1, middle_width))
         self.assertEqual(flat[prefix + ('fetch_2', 'block', 'mlp', 'wi_0', 'kernel')].shape,
-                         (1200, 1, 3026))
+                         (1200, 1, last_width))
         self.assertFalse(any(n in p for p in flat for n in
                              ('value_compose', 'q_compose', 'k_compose', 'm_compose')))
 

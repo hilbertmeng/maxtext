@@ -14935,6 +14935,22 @@ class BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockTruePile(BamMedium
     ]
 
 
+class BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockSwapMLPTruePile(BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockTruePile):
+    """Move777 SwiGLU units from L16 to L17, keeping the shared-QKVM model budget unchanged."""
+    # Explicit user-requested cross-layer allocation: move2797200=1.9425W_Q, no new parameters.
+    # Exact432266255 params, identical total MLP MACs; Pallas/tunedSplash/generic health inherited.
+    # Prior terminal MHA-ref gain vs shared L17 QKVM1.020[.995,1.045], matched speed +/-2%.
+    model_name = 'BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockSwapMLPTruePile'
+    bam_mudd_tail_mlp_dims = [3802, 3026, 3803]
+    compare_runs = [
+        'BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockTruePile',
+        'BamMediumPropMShiftReadG050MuddQKVSharedRouterLastBlockTruePile',
+        'BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastTwoLayersTruePile',
+        'BamMediumPropMShiftReadG050MuddQKVLastBlockTruePile',
+        'BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile',
+    ]
+
+
 class BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastTwoLayersTruePile(BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockTruePile):
     """Native shared QKVM controller in both L16/L17; both local O reads retained."""
     # No attention write in L16/L17 or MLP write in L16; sources remain embedding/L0/current.

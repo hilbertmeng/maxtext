@@ -14753,6 +14753,49 @@ class BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile(BamMediumPropK75E
     bam_record_std_tail_write_metrics = False
 
 
+class BamMediumPropMShiftReadG050MuddValueLastTwoBlocksTruePile(BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile):
+    """L14/L17 use three-source Mudd WV; remove L13/L16 MLP writes; Mudd final output."""
+    # ledger only: codex/mediumprop-mudd-tail, /data0/xd/mediumprop-mudd-tail; fork main1c0f4f16.
+    # Two stage scans: ordinary blocks x4, modified blocks x2; independent parameters per block.
+    # Both value routers expand1/final expand4 -> hidden64 using the existing Mudd rounding.
+    # User approved final-router budget split over L14/L17 (both3381); nominal parent+2697 params.
+    # Prior: terminal MHA-ref gain vs single.5 1.04 (~-.006 loss); matched throughput -2..+2%.
+    # code_commit:33734c9; sealed configuration and55 CPU checks verified.
+    model_name = 'BamMediumPropMShiftReadG050MuddValueLastTwoBlocksTruePile'
+    bam_mudd_tail_blocks = 2
+    bam_mudd_tail_mlp_dims = [3802, 3803, 3381]
+    dynamic_dense_hidden_round = True
+    dynamic_dense_act_cls = 'gelu'
+    force_final_checkpoint = True
+    sa_block_q = 1024
+    sa_block_kv = 1024
+    sa_block_kv_compute = 512
+    sa_block_q_dkv = 1024
+    sa_block_kv_dkv = 1024
+    sa_block_kv_dkv_compute = 1024
+    sa_use_fused_bwd_kernel = True
+    compare_runs = [
+        'BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile',
+        'MuddLlama2MediumPropTruePile',
+    ]
+    jax_cache_dir = ''
+
+class BamMediumPropMShiftReadG050MuddValueLastBlockTruePile(BamMediumPropMShiftReadG050MuddValueLastTwoBlocksTruePile):
+    """Only L17 uses Mudd WV; remove L16 MLP write; retain the same Mudd final output."""
+    # ledger only: codex/mediumprop-mudd-tail, /data0/xd/mediumprop-mudd-tail.
+    # Two stage scans: ordinary blocks x5, modified block x1. Nominal parent+246 params.
+    # Prior: terminal MHA-ref gain vs single.5 1.025 (~-.004 loss); matched throughput -2..+2%.
+    # code_commit:33734c9; sealed configuration and55 CPU checks verified.
+    model_name = 'BamMediumPropMShiftReadG050MuddValueLastBlockTruePile'
+    bam_mudd_tail_blocks = 1
+    bam_mudd_tail_mlp_dims = [3802, 3803, 3370]
+    compare_runs = [
+        'BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile',
+        'BamMediumPropMShiftReadG050MuddValueLastTwoBlocksTruePile',
+        'MuddLlama2MediumPropTruePile',
+    ]
+
+
 class BamMediumPropSharedR256GeneralReadMShiftPersistG050TruePile(BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile):
     """Dynamic previous-token M mix, persist carry, initial share0.5."""
     # 结论：初始开度 .5 的持久混合弱于只读混合，没有观察到额外收益。

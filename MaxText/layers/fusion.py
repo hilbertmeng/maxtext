@@ -17,6 +17,7 @@ limitations under the License.
 """Transformer model definition."""
 import jax
 import math
+from types import SimpleNamespace
 from flax import linen as nn
 from jax.sharding import Mesh
 import jax.numpy as jnp
@@ -33,6 +34,7 @@ from layers import initializers
 import max_logging
 
 import common_types
+import pyconfig
 from typing import Optional, Any
 
 Array = common_types.Array
@@ -201,6 +203,14 @@ class SubDecoderLayer(nn.Module):
             layer_inx=self.layer_inx)
     else:
         AttnCls = Attention
+    pallas_tail = bool(cfg.bam_pallas_core) and bam_mudd.is_value_layer(cfg, self.layer_inx)
+    if pallas_tail:
+      # The existing fused QKVO kernel serves ordinary layers. Selective full
+      # QKV layers retain their O-only JAX read and bridge the v8t M layout.
+      if cfg.bam_pallas_body != 'v8t' or not bam_mudd.skips_attention_write(cfg, self.layer_inx):
+        raise ValueError('Pallas selective tail requires v8t and no attention write')
+      attn_kwargs['config'] = pyconfig.HyperParameters(SimpleNamespace(
+          keys=dict(cfg.get_keys(), bam_pallas_core=False)))
     attention_layer = AttnCls(**attn_kwargs)
 
     call_kwargs = dict(
@@ -249,27 +259,33 @@ class SubDecoderLayer(nn.Module):
         == int(getattr(cfg, 'bam_mlp_write_offset', None) or 0) % mlp_write_every)
     if mlp_write and getattr(cfg, 'bam_mlp_write_static_address', False):
       raise ValueError('Static MLP write experiments require their recorded runtime')
-    pallas_core = cfg.bam_enabled and bool(getattr(cfg, 'bam_pallas_core', False))
+    pallas_core = cfg.bam_enabled and bool(getattr(cfg, 'bam_pallas_core', False)) and not pallas_tail
+    if pallas_tail and mlp_write:
+      raise ValueError('Pallas selective tail must not write M from its MLP')
+    attention_M = jnp.swapaxes(M_in, -1, -2) if pallas_tail else M_in
     if pallas_core:
         # Fused core: the attention returns its raw write factors; one kernel
         # applies the attention (and MLP) writes after the MLP.
         attention_lnx, M_out, write_factors = attention_layer(
-            **call_kwargs, M_in=M_in, is_global=is_global, layer_index=layer_index)
+            **call_kwargs, M_in=attention_M, is_global=is_global, layer_index=layer_index)
     elif cfg.bam_enabled:
         if mlp_write:
           assert cfg.shared_experts == 1 and cfg.num_experts == 1
           assert cfg.emb_dim == num_query_heads * cfg.bam_k == num_query_heads * head_dim
           assert 'full' not in layer_mode and not cfg.bam_mha_control
           attention_lnx, M_out, write_factors = attention_layer(
-              **call_kwargs, M_in=M_in, is_global=is_global,
+              **call_kwargs, M_in=attention_M, is_global=is_global,
               layer_index=layer_index, defer_write=True)
         else:
           attention_lnx, M_out = attention_layer(
-              **call_kwargs, M_in=M_in, is_global=is_global,
+              **call_kwargs, M_in=attention_M, is_global=is_global,
               layer_index=layer_index)
     else:
         attention_lnx = attention_layer(**call_kwargs)
         M_out = M_in
+
+    if pallas_tail:
+      M_out = jnp.swapaxes(M_out, -1, -2)
 
     if cfg.record_internal_nn_metrics:
         attention_lnx_l2norm = jnp.sqrt(jnp.sum(jnp.square(attention_lnx)))

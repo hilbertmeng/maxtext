@@ -25,7 +25,10 @@ TWO = 'BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastTwoLayersTruePile'
 
 
 class NativeTailTest(MLPWriteTest, unittest.TestCase):
-  tiny = tail_reference.MuddTailTest.tiny
+  def tiny(self, experiment=ONE):
+    cfg = tail_reference.MuddTailTest.tiny(self, experiment)
+    cfg.get_keys()['bam_pallas_core'] = False  # CPU reference; formal trees retain Pallas.
+    return cfg
 
   def test_formal_budget_joint_layout_and_router_exemption(self):
     for exp, total, router_count, middle_width, targets in (
@@ -34,9 +37,19 @@ class NativeTailTest(MLPWriteTest, unittest.TestCase):
         (TWO, 432344635, 232155, 3027, 4)):
       with self.subTest(exp=exp):
         cfg = self.config(exp, bam_splash_attention=False)
+        cfg.get_keys().update(max_target_length=256, max_prefill_predict_length=256,
+                              query_chunk_size=256)  # v8t's token tiles require >=128.
         mesh = jax.sharding.Mesh(max_utils.create_device_mesh(cfg), cfg.mesh_axes)
         shaped, _, _, _ = train_compile.get_shaped_inputs(mesh, cfg)
         flat = flatten_dict(nn.unbox(shaped[0].params))
+        reference_cfg = pyconfig.HyperParameters(SimpleNamespace(
+            keys=dict(cfg.get_keys(), bam_pallas_core=False)))
+        reference, _, _, _ = train_compile.get_shaped_inputs(mesh, reference_cfg)
+        reference = flatten_dict(nn.unbox(reference[0].params))
+        self.assertEqual(set(flat), set(reference))
+        for path in flat:
+          self.assertEqual((flat[path].shape, flat[path].dtype),
+                           (reference[path].shape, reference[path].dtype), path)
         self.assertEqual(sum(math.prod(v.shape) for v in flat.values()), total)
         routers = {p: v for p, v in flat.items()
                    if 'qkvm_compose' in p or 'compose_final_three_source' in p}
@@ -61,6 +74,55 @@ class NativeTailTest(MLPWriteTest, unittest.TestCase):
                          (1200, 1, 3026))
         self.assertFalse(any(n in p for p in flat for n in
                              ('value_compose', 'q_compose', 'k_compose', 'm_compose')))
+
+  def test_v8t_tail_layout_bridge_preserves_parameters_outputs_and_gradients(self):
+    for exp, index in ((QKV, 8), (ONE, 8), (TWO, 7), (TWO, 8)):
+      with self.subTest(exp=exp, index=index):
+        cfg = self.tiny(exp)
+        accelerated = pyconfig.HyperParameters(SimpleNamespace(keys=dict(
+            cfg.get_keys(), bam_pallas_core=True, bam_pallas_body='v8t')))
+        mesh = jax.sharding.Mesh(max_utils.create_device_mesh(cfg), cfg.mesh_axes)
+        original = fusion.SubDecoderLayer(cfg, mesh, layer_inx=index)
+        bridge = fusion.SubDecoderLayer(accelerated, mesh, layer_inx=index)
+        inputs = tuple(jax.random.normal(jax.random.key(i + 70), (1, 4, 150))
+                       for i in range(3))
+        matrix = .2 * jax.random.normal(jax.random.key(73), (1, 4, 75, 32))
+        tokens = jnp.ones((1, 4), jnp.int32)
+        kwargs = dict(decoder_segment_ids=tokens, decoder_positions=jnp.arange(4)[None],
+                      decoder_input_tokens=tokens, deep_embedding=None, deterministic=True,
+                      model_mode='train', eos_sum=None, layer_index=index)
+        def apply(module, parameters, x, m):
+          return module.apply({'params': parameters}, x[0], **kwargs, M_in=m,
+                              early_residuals=x[1:])
+        rng = {'params': jax.random.key(74), 'dropout': jax.random.key(75)}
+        with mesh, nn.partitioning.axis_rules(cfg.logical_axis_rules):
+          parameters = nn.unbox(original.init(
+              rng, inputs[0], **kwargs, M_in=matrix, early_residuals=inputs[1:])['params'])
+          other = nn.unbox(bridge.init(rng, inputs[0], **kwargs,
+              M_in=jnp.swapaxes(matrix, -1, -2), early_residuals=inputs[1:])['params'])
+          a, b = flatten_dict(parameters), flatten_dict(other)
+          self.assertEqual(set(a), set(b))
+          for path in a:
+            np.testing.assert_array_equal(a[path], b[path])
+            if 'dynamic_dense_conn2' in path:
+              a[path] = a[path] + .01 * jax.random.normal(jax.random.key(76), a[path].shape)
+          parameters = unflatten_dict(a)
+          expected, expected_m = apply(original, parameters, inputs, matrix)
+          actual, actual_m = apply(bridge, parameters, inputs, jnp.swapaxes(matrix, -1, -2))
+          np.testing.assert_array_equal(actual, expected)
+          np.testing.assert_array_equal(actual_m, jnp.swapaxes(expected_m, -1, -2))
+          np.testing.assert_array_equal(expected_m, matrix)
+          def loss(module, p, x, m, transpose):
+            result, _ = apply(module, p, x, jnp.swapaxes(m, -1, -2) if transpose else m)
+            return jnp.mean(result ** 2)
+          reference_grad = jax.jit(jax.grad(
+              lambda p, x, m: loss(original, p, x, m, False), argnums=(0, 1, 2)))(
+                  parameters, inputs, matrix)
+          actual_grad = jax.jit(jax.grad(
+              lambda p, x, m: loss(bridge, p, x, m, True), argnums=(0, 1, 2)))(
+                  parameters, inputs, matrix)
+          for a, b in zip(jax.tree.leaves(reference_grad), jax.tree.leaves(actual_grad)):
+            np.testing.assert_allclose(a, b, rtol=2e-6, atol=2e-6)
 
   def test_forced_native_controller_matches_original_and_heads_are_independent(self):
     cfg = self.tiny(ONE)

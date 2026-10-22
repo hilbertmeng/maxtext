@@ -14905,6 +14905,10 @@ class BamMediumPropMShiftReadG050MuddQKVSharedRouterLastBlockTruePile(BamMediumP
     model_name = 'BamMediumPropMShiftReadG050MuddQKVSharedRouterLastBlockTruePile'
     record_training_health_metrics = True
     record_internal_nn_metrics = False
+    bam_pallas_core = True
+    bam_pallas_body = 'v8t'
+    bam_pallas_vmem_mib = 48
+    bam_pallas_fused_inputs = True
     bam_mudd_tail_native_shared_router = True
     bam_mudd_tail_skip_attention_write_last_layers = 1
     bam_mudd_tail_mlp_dims = [3802, 3803, 3026]

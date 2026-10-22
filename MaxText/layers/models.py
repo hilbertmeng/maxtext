@@ -980,13 +980,16 @@ class Decoder(nn.Module):
             or not cfg.bam_mudd_tail_residual_qk or cfg.mudd_prenorm or cfg.mudd_postnorm
             or cfg.dynamic_dense_scale_dw or cfg.mudd_use_scale or cfg.mudd_cap):
           raise ValueError('native shared tail requires one QKV[/m] block with plain identity-initialized Mudd')
+        if cfg.bam_pallas_core and (not cfg.bam_mudd_tail_native_shared_router
+            or cfg.bam_pallas_body != 'v8t'):
+          raise ValueError('Pallas selective tail supports native shared routing with v8t only')
         if (blocks not in (1, 2) or cfg.num_decoder_layers % 3
             or not cfg.bam_pair_scan or not cfg.bam_enabled or cfg.bam_mha_control
             or cfg.dense_conn or cfg.mtp_num_layers or deep_embeddings is not None
-            or cfg.bam_pallas_core or cfg.bam_final_local_layer_count
+            or cfg.bam_final_local_layer_count
             or cfg.dynamic_mlp_dim or not cfg.dynamic_dense_hidden_round
             or cfg.dynamic_dense_act_cls != 'gelu'):
-          raise ValueError('selective Mudd tail requires pure-JAX BAM three-layer block scan')
+          raise ValueError('selective Mudd tail requires BAM three-layer block scan')
         if not persistent and (len(cfg.bam_mudd_tail_mlp_dims) != 3
             or any(type(x) is not int or x <= 0 for x in cfg.bam_mudd_tail_mlp_dims)):
           raise ValueError('selective Mudd tail requires three positive integer MLP widths')

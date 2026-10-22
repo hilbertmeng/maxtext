@@ -544,3 +544,32 @@ europe-west4-a through its worker lock. Finish gates before pausing old
 controllers, commit the old checkpoints and immediately hand READY nodes to
 new RUNs. Retain paused independent variants as provisional comparisons;
 never delete the borrowed compiler or the two handed-off trainers.
+
+### v8t acceleration on the same three native RUNs
+
+User requested bam_pallas_core=True, bam_pallas_body='v8t',
+bam_pallas_vmem_mib=48 and bam_pallas_fused_inputs=True. The latter two native
+classes inherit all four from the shared-QKV class. Generic training health
+remains ON, internal and BAM-specific telemetry OFF, tuned Splash unchanged.
+
+The existing v8t implementation handles ordinary BAM layers. The selective
+full-QKV tail had explicitly required pure JAX, so a scoped bridge preserves
+its O-only read without modifying the kernel:17 ordinary layers use v8t for
+shared QKV and single-layer QKVM,16 for the two-layer arm; their final1/2
+full-QKV layers use the original JAX attention with a [B,T,V,K] <-> [B,T,K,V]
+M layout swap. Those layers have no attention or MLP matrix writes, preserve
+the matrix carry exactly, and retain both O reads. Only these native v8t
+read-only tails are accepted; unsupported combinations continue to fail.
+
+Parameter paths/shapes/dtypes are verified identical between pure JAX and
+v8t for all three formal models. The bridge also verifies initialized parameter
+values, activated-router outputs, unchanged M carry and gradients against the
+pure-JAX selected-layer reference. Existing M-shift v8t model equivalence and
+BAM/tail regressions cover the accelerated prefix. No router, projection,
+MLP budget, source selection or training schedule changes.
+
+The first native startup used61457aa71801c9043e2b8c3dae24050bb515f75c.
+After preparing the replacement AOTs, resume these same compatible RUNs from
+committed checkpoints with the original total13500-step schedule; preserve
+runtime-transition journals and loss/TB history. This is a kernel change within
+the three RUNs, not three additional architecture experiments.

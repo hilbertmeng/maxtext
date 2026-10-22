@@ -728,9 +728,9 @@ prefix. Target trainer xd-v5p-16-310290-maxtext/us-east5-a. Reuse the retained
 EW4a llm-jax-v6e-1-0 compiler under its worker lock, with no lifecycle ownership.
 
 Prior terminal MHA-reference gain versus the direct shared L17 QKVM parent:
-1.020[.995,1.045], matched speed +/-2%. Retain that parent, completed old
-independent QKV and original single.5 as direct controls, each with
-BamMHAMediumPropC256TruePile as the common gain reference.
+1.020[.995,1.045], matched speed +/-2%. Per user direction, retain only the
+direct shared L17 QKVM parent as the loss/gain comparator, with
+BamMHAMediumPropC256TruePile as the gain reference.
 
 Infrastructure audit against main10004248 finds no additional operational
 changes since6d2848e0 in training, checkpointing, summary writers, optimizers
@@ -751,7 +751,8 @@ AOT loaded; FIRST_STEP7 and the14-step gate passed, with actual proof beyond76.
 Worker confirms L2 anchor ON, shared joint QKVM, MLP[3802,3803,3026], v8t
 48MiB/fused inputs, tuned Splash, generic health ON/internal/BAM OFF and TB500.
 Initial throughput~.728step/s versus the direct parent's~.725 under the same
-settings. Three registered controls retain MHA-reference gain triples.
+settings. Monitoring retains only the direct shared L17 QKVM parent and its
+MHA-reference gain triple; removing controls does not restart training.
 Evidence: l2-startup-proof.json, l2-step14-gate.log, l2-completed-cpu-and-aot.json,
 l2-gain-registration.log and launch-l2.log in the evidence directory above.
 
@@ -780,3 +781,117 @@ registry, including the stronger shared QKVM added for closeout. Evidence:
 closeout-shared-qkv6343.json, final-shared-qkv-evidence.json and
 qkv-stop-assert-and-6k-gate.log under the evidence directory above. Active training
 continues independently; the stopped RUN no longer owns resources.
+
+### Shared L16/L17 VM: restore Q/K M reads and the L16 MLP write
+
+BamMediumPropMShiftReadG050MuddVMSharedRouterLastTwoLayersTruePile inherits
+BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastTwoLayersTruePile. At both
+L16/L17, replace the native joint C4 Q/K/V/m controller with joint C2 V/m.
+Each uses one shared D->64 down, with independent signed V/m mixture outputs
+over [embedding, complete L0, current residual]. Q/K return to the original
+RoPE18 plus M-read57 architecture, including original dynamic/static read gates;
+their full W_Q/W_K and Mudd-input norms are removed. Keep both local O reads.
+Restore the L16 MLP-only M write with its independent R256 address, gate and
+original write normalization. Its updated M feeds the L17 Q/K/O reads. Both
+L16/L17 attention writes remain omitted, and final C1/expand4 Mudd is unchanged.
+
+Balance each layer locally: restoring Q/K M reads saves1850144 parameters at
+each layer; restoring the L16 MLP writer costs458000. L16 MLP grows3027->3414
+(+387 units), and L17 grows3026->3540 (+514). L15 remains3802. Large-parameter
+integer rounding is +1056/+256 relative to the corresponding parent layers;
+each C4->C2 router saves390 tiny, exempt parameters. Net layer differences are
++666/-134, model total432345167 versus432344635 (+532). Router total231375;
+non-router rounding relative to original single.5 is2112. MLP increases by
+3243600=2.2525W_Q in total; the added compute is part of the architecture test.
+
+Keep prefix5/final1 block scans. The first16 layers use v8t/48MiB/fused inputs;
+the final two use JAX M reads and the restored JAX MLP-only write. Keep their M
+in [K,V] layout through the write and return [V,K] only at the carry boundary.
+No Pallas kernel changes. Tuned Splash, full remat, generic health ON,
+internal/BAM OFF, TruePile4096 global128/per-device16, CP200/latest2/keep0,
+forced final/TB500, and the full13500-step schedule remain unchanged.
+
+Runtime location: /data0/xd/mediumprop-mudd-tail, codex/mediumprop-mudd-tail.
+Target trainer xd-v5p-16-310291-maxtext/us-east5-a; borrow retained compiler
+llm-jax-v6e-1-0/europe-west4-a under its worker lock, without lifecycle ownership.
+The family remains in UE5a; the recent two preemptions of310289 are isolated
+while its four same-zone peers retain uninterrupted leases. No FLEX training.
+Prior terminal MHA-reference gain versus the direct two-layer QKVM parent:
+1.040[1.000,1.080], matched speed +/-3%. Retain that parent, shared L17 QKVM,
+completed old independent QKV and original single.5 as direct controls, all with
+BamMHAMediumPropC256TruePile as the common gain reference.
+
+Infrastructure audit against main535cec58 finds no new operational fixes since
+6d2848e0 in training, checkpointing, summary writers, optimizers, AOT or runtime
+defaults. Writer rotation500, construction and begin_step remain present, with
+the unchanged five writer regressions reused. Fresh native8 checks cover seven
+formal budget/tree layouts, restored Q/K reads, MLP-only write parameters and
+gradients, causal outputs, native V/m routing, and JAX/Pallas carry/gradient
+equivalence. Fresh legacy8 and full BAM47 regressions gate formal startup.
+
+
+Startup verified on xd-v5p-16-310291-maxtext/us-east5-a at runtime
+5fbe2f99369c485bbfec46bc8c00b6874188ca7e. CPU63 fresh plus unchanged writer5,
+full13500-step AOT, FIRST_STEP13 and14-step gate passed; worker proof beyond137.
+Actual MLP[3802,3414,3540], restored Q/K reads and L16 MLP write, generic health
+ON/internal+BAM OFF, tuned Splash, full remat, v8t48MiB/fused inputs and TB500
+are verified. Startup~.699step/s versus matched two-layer parent's~.719 (-2.8%).
+Four direct controls and their MHA-reference gain triples are registered.
+Evidence: vm-startup-proof.json, vm-step14-gate.log, vm-completed-cpu-and-aot.json,
+vm-gain-registration.log and launch-vm.log under the evidence directory above.
+
+### L2-anchor shared L17 VM: restore Q/K M reads and the L16 MLP write
+
+BamMediumPropMShiftReadG050MuddVMSharedRouterLastBlockL2AnchorTruePile inherits
+BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockL2AnchorTruePile. Only
+L17 changes its joint C4 controller to C2 V/m, with the same four sources
+[embedding, complete L0, complete L2, current residual] and shared D->64 down.
+Its Q/K return to the standard RoPE18 plus BAM M-read57 paths. Restore the L16
+MLP write with its original independent R256 address and gate; retain L16's
+attention write. L17 attention write remains omitted. Both local O reads and
+the final four-source C1/expand4 Mudd remain unchanged.
+
+Balance each affected layer locally. Restoring the L16 writer costs458000,
+so shrink its MLP3803->3676 (-127 SwiGLU units), rounding+800. Restoring L17
+Q/K M reads saves1850144, so grow its MLP3026->3540 (+514), rounding+256.
+C4->C2 with four sources saves520 tiny, exempt router parameters. Actual shaped
+total432267116 versus L2 parent's432266580 (+536), routers154380, non-router
+rounding+1056 relative to original single.5. Final-block widths[3802,3676,3540].
+Net MLP growth is1393200=.9675W_Q. Verify the exact formal parameter trees.
+
+Keep prefix5/final1 block scans,17 ordinary v8t/48MiB/fused-input layers and
+the L17 read-only JAX bridge. The restored L16 attention+MLP write uses the
+existing fused prefix path. No model math or kernel changes beyond runtime
+5fbe2f9; only this configuration and matching tests are added. Keep tuned
+Splash/full remat, generic health ON/internal/BAM OFF, TruePile4096
+global128/per-device16, CP200/latest2/keep0/forcedfinal/TB500 and13500steps.
+Separate RUN/checkpoint prefix; target xd-v5p-16-310293-maxtext/us-east5-a.
+Borrow llm-jax-v6e-1-0/europe-west4-a worker0 under its compiler lock, with
+no compiler lifecycle ownership. No FLEX training.
+
+Prior terminal MHA-reference gain versus the direct L2 shared QKVM parent:
+1.015[.990,1.040], matched speed +/-3%. Only that parent is a loss/gain
+comparator; BamMHAMediumPropC256TruePile remains the ratio reference.
+Infrastructure audit against main535cec58 remains unchanged from the preceding
+VM launch: operational fixes and rotating-writer500 path retained. CPU scope
+is targeted: fresh formal eight-config budgets/JAX-Pallas parameter trees,
+four-source C2 tail bridge and scanned causal/gradient test of restored L16
+writes and L17 Q/K/O plus both V/m heads consuming L2. Reuse the unchanged
+native, writer5, legacy8 and full BAM47 evidence from5fbe2f9; shared model and
+kernel sources are unchanged. Full-topology AOT and FIRST_STEP still required.
+
+
+Startup verified on xd-v5p-16-310293-maxtext/us-east5-a at runtime
+9d265b6c8733482fdfc416a4c1124faa5fd29330. Three targeted checks passed: restored
+writes/read causal gradients, four-source C2/JAX-Pallas bridge, and corrected
+formal parameter trees/count. Unchanged native/legacy/BAM/writer evidence is
+reused. Full13500-step AOT, FIRST_STEP6 and14-step gate105 passed; actual worker
+proof103 verifies L2 ON, joint VM, restored Q/K/L16 MLP write, L16 attention write
+retained, MLP[3802,3676,3540], v8t48MiB/fused inputs, tuned Splash, full remat,
+generic health ON/internal+BAM OFF and TB500. Startup~.713step/s versus the
+matched L2 QKVM parent's~.725 (-1.7%). Only that parent and its MHA-reference
+gain triple are retained. Initial preparation310292 never trained; the budget
+assertion omitted800 rounding parameters, and its node+queue cleanup is verified.
+Evidence: vml2-startup-proof.json, vml2-step14-gate.log,
+vml2-completed-cpu-and-aot.json, vml2-gain-registration.log and
+launch-vml2-fixed.log under the evidence directory above.

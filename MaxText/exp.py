@@ -14965,9 +14965,23 @@ class BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockL2AnchorTruePile(B
     bam_mudd_tail_l2_anchor = True
     compare_runs = [
         'BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockTruePile',
-        'BamMediumPropMShiftReadG050MuddQKVLastBlockTruePile',
-        'BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile',
     ]
+
+
+class BamMediumPropMShiftReadG050MuddVMSharedRouterLastBlockL2AnchorTruePile(BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockL2AnchorTruePile):
+    """Four-source joint V/m at L17, native Q/K reads and restored L16 MLP M write."""
+    # ledger only: codex/mediumprop-mudd-tail, /data0/xd/mediumprop-mudd-tail; code_commit:9d265b6.
+    # xd-v5p-16-310293-maxtext/UE5a; AOT/FIRST_STEP/14-step gate verified; startup~.713step/s.
+    # vs matched-health L2 QKVM parent's~.725: -1.7%; generic ON/internal+BAM OFF, tuned Splash.
+    # Retain L16 attention write, both local O reads, L2 anchor and final C1 Mudd.
+    # Per-layer repayment: L16 -127 and L17 +514 SwiGLU units; no cross-layer transfer.
+    # Total432267116 = L2 parent +536; tiny C2+C1 routers154380 exempt.
+    # Prior terminal MHA-ref gain vs L2 QKVM1.015[.990,1.040], matched speed +/-3%.
+    model_name = 'BamMediumPropMShiftReadG050MuddVMSharedRouterLastBlockL2AnchorTruePile'
+    bam_mudd_tail_residual_qk = False
+    bam_mudd_tail_skip_mlp_write = False
+    bam_mudd_tail_mlp_dims = [3802, 3676, 3540]
+    compare_runs = ['BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockL2AnchorTruePile']
 
 
 class BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockSwapMLPTruePile(BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockTruePile):
@@ -15006,6 +15020,27 @@ class BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastTwoLayersTruePile(BamMe
         'BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockTruePile',
         'BamMediumPropMShiftReadG050MuddQKVSharedRouterLastBlockTruePile',
         'BamMediumPropMShiftReadG050MuddQKVMLastTwoLayersTruePile',
+        'BamMediumPropMShiftReadG050MuddQKVLastBlockTruePile',
+        'BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile',
+    ]
+
+
+class BamMediumPropMShiftReadG050MuddVMSharedRouterLastTwoLayersTruePile(BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastTwoLayersTruePile):
+    """Ledger only: shared V/m tail controllers, restored BAM Q/K and L16 MLP write."""
+    # Implementation: codex/mediumprop-mudd-tail, /data0/xd/mediumprop-mudd-tail; code_commit:5fbe2f9.
+    # xd-v5p-16-310291-maxtext/UE5a; full AOT/FIRST_STEP/14-step gate verified.
+    # Matched-health v8t startup~.699step/s vs parent's~.719 (-2.8%); generic ON/internal+BAM OFF.
+    # Keep both omitted attention writes and both local O reads; restore only L16 MLP write.
+    # In-layer repayment: L16 +387, L17 +514 SwiGLU units; no cross-layer transfer.
+    # Total432345167 = two-layer parent +532; C2+C2+C1 routers231375 exempt.
+    # Prior terminal MHA-ref gain vs two-layer QKVM1.040[1.000,1.080], speed +/-3%.
+    model_name = 'BamMediumPropMShiftReadG050MuddVMSharedRouterLastTwoLayersTruePile'
+    bam_mudd_tail_residual_qk = False
+    bam_mudd_tail_skip_mlp_write = False
+    bam_mudd_tail_mlp_dims = [3802, 3414, 3540]
+    compare_runs = [
+        'BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastTwoLayersTruePile',
+        'BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockTruePile',
         'BamMediumPropMShiftReadG050MuddQKVLastBlockTruePile',
         'BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile',
     ]

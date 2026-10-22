@@ -15080,7 +15080,9 @@ class BamMediumPropMShiftReadG050MuddVMDualValueSharedRouterLastBlockTruePile(Ba
 
 class BamMediumPropMShiftReadG050MuddQKVMDualValueSharedRouterLastBlockL2AnchorTruePile(BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockL2AnchorTruePile):
     """Add only the M-read V channel to the original L2 QKVM champion."""
-    # ledger only: codex/mediumprop-mudd-tail, /data0/xd/mediumprop-mudd-tail; code_commit:dedbb65.
+    # ledger only: codex/mediumprop-mudd-tail, /data0/xd/mediumprop-mudd-tail; code_commit:727974c.
+    # Initial numerical runtime dedbb65; infra-only async checkpoint-directory repair resumes compatible CP1964.
+    # Same model flags/cursor and AOT load verified through1985; fixed runtime periodic CP2000 committed.
     # Fresh dual budget+causal4 and reused model62/writer5, full13500 AOT/FIRST_STEP/14-step/config verified.
     # Logical310301/physical310291 UE5a, retained from mixed run4066; startup~.726step/s, near parent.
     # Generic health ON/internal+BAM OFF, tuned Splash/full remat, v8t48MiB/fused prefix, CP200/TB500.

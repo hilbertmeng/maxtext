@@ -1380,3 +1380,35 @@ Evidence: l2-qkvm-write-formal-review5000.json,
 l2-qkvm-write-final-evidence.json and closeout-l2-qkvm-write5000.log under
 /data0/xd/bam_diagnostics/mediumprop-mudd-tail; remote journal
 /home/lishengping/xd/projects/logs/closeout-20261022T175633Z.json.
+
+### Checkpoint directory race: compatible infrastructure repair
+
+The L2 QKVM dual-V trainer hit FileExistsError creating checkpoint1400's
+GCS directory, then an Orbax timeout. The TPU stayed READY and preemption
+count remained zero. Pile writes its step-local skip_file_and_step.json
+immediately after checkpoint_manager.save returns; Orbax0.12.4 created the
+directory asynchronously, so that cursor could pre-create the GCS prefix.
+Auto-recovery removed the incomplete1400 only after workers stopped and
+restored the root cursor from committed1200. The retry committed1400.
+
+Main fix b639ea1f, worktree runtime727974c5b7fb600364b4351f9e40679909a6d7f2:
+set AsyncOptions(create_directories_asynchronously=False), leaving array
+I/O asynchronous. The real Orbax directory/cursor regression failed before
+the fix and passed after it; existing retention3 tests passed. The pinned
+CPU Orbax0.11.25 and actual worker0.12.4 both support this API. This changes
+only host checkpoint setup; model, optimizer and data-order flags are intact.
+
+Exact full13500 v5p16 AOT was prepared on retained FLEX
+llm-jax-v6e-1-0/EW4a; that compiler was preserved. The same RUN paused at
+2026-10-22 18:08:17 UTC on committed1964, verified identical root/step data
+cursors and stopped workers, then resumed on retained physical310291.
+FIRST_STEP1968, speed gate1985 and periodic CP2000 were verified; actual
+worker Git hash and the directory option match727974c, and all captured
+model flags match initial dedbb65. No architecture or parameter change.
+
+Evidence under /data0/xd/bam_diagnostics/mediumprop-mudd-tail:
+checkpoint-directory-race-{red,green}.log,
+checkpoint-directory-retention-regression.log, orbax-worker-checkpoint-api.txt,
+checkpoint-race-fixed-{aot,pause}.log, checkpoint-race-resume-boundary-proof.txt,
+checkpoint-race-fixed-resume-{gates.log,worker-proof.json,validation.json},
+checkpoint-race-fixed-periodic2000-proof.json. Remote AOT state727974c-2c8e78d1.

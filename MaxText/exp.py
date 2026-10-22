@@ -14958,14 +14958,16 @@ class BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockTruePile(BamMedium
 
 
 class BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockL2AnchorTruePile(BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockTruePile):
-    """Native L17 QKVM and final Mudd also read the complete L2 residual."""
-    # ledger only: codex/mediumprop-mudd-tail, /data0/xd/mediumprop-mudd-tail; code_commit: 2b035f8.
-    # xd-v5p-16-310290-maxtext/us-east5-a; actual AOT/14-step startup verified; initial~.728step/s.
-    # Sources [embedding,L0,L2,current]; shared D->64 down and signed joint coefficients.
-    # Zero up and [0,0,0,1] bias preserve the identity initialization at both sites.
-    # Extra325=.000226W_Q tiny router parameters are exempt; MLP[3802,3803,3026] unchanged.
-    # Total432266580; routers154900; block scan5+1 with one extra residual carry.
-    # Prior terminal MHA-ref gain vs shared L17 QKVM1.020[.995,1.045], matched speed +/-2%.
+    """Ledger only: L2 anchors improve the shared L17 QKVM arm; completed13500."""
+    # 结论：L2锚点在已比较区间持续有正收益；共同9.8k-10.6k末五gap-.00252024/R1.01539869。
+    # 从600步排除瞬态后的滚动倍数1k1.00810 ->5k1.01106 ->10.6k1.01540；最后区间gap范围[-.002942,-.002255]。
+    # 完成13500，CP13500提交/节点队列释放/TB SYNC_OK；UE5a v5p16，P0。
+    # 父路停10789，共同窗口止于10600；1.0154不是13.5k终局倍数。跑前中心1.020未完成终局验收。
+    # 同健康/内核~.722step/s，对父路~.725约慢.4%；仅增加325=.000226W_Q，MLP宽度不变。
+    # ledger only: codex/mediumprop-mudd-tail, /data0/xd/mediumprop-mudd-tail; code_commit:2b035f8.
+    # Sources[embedding,L0,L2,current], shared D->64 down; zero up/identity bias preserve initial function.
+    # Total432266580, routers154900 exempt; tail MLP[3802,3803,3026], scan5+1 with one extra carry.
+    # Prior terminal MHA-ref gain1.020[.995,1.045], matched speed +/-2%.
     model_name = 'BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockL2AnchorTruePile'
     bam_mudd_tail_l2_anchor = True
     compare_runs = ['BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockTruePile']

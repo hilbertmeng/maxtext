@@ -756,9 +756,9 @@ the final four-source C1/expand4 Mudd remain unchanged.
 Balance each affected layer locally. Restoring the L16 writer costs458000,
 so shrink its MLP3803->3676 (-127 SwiGLU units), rounding+800. Restoring L17
 Q/K M reads saves1850144, so grow its MLP3026->3540 (+514), rounding+256.
-C4->C2 with four sources saves520 tiny, exempt router parameters. Expected
-total432266316 versus L2 parent's432266580 (-264), routers154380, non-router
-rounding+256 relative to original single.5. Final-block widths[3802,3676,3540].
+C4->C2 with four sources saves520 tiny, exempt router parameters. Actual shaped
+total432267116 versus L2 parent's432266580 (+536), routers154380, non-router
+rounding+1056 relative to original single.5. Final-block widths[3802,3676,3540].
 Net MLP growth is1393200=.9675W_Q. Verify the exact formal parameter trees.
 
 Keep prefix5/final1 block scans,17 ordinary v8t/48MiB/fused-input layers and

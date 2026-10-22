@@ -36,6 +36,12 @@ class NativeTailTest(MLPWriteTest, unittest.TestCase):
     return cfg
 
   def test_formal_budget_joint_layout_and_router_exemption(self):
+    self.check_formal_budget((QKV, ONE, TWO, SWAP, REBALANCE, L2, VM))
+
+  def test_vm_l2_formal_budget_joint_layout_and_router_exemption(self):
+    self.check_formal_budget((VM_L2,))
+
+  def check_formal_budget(self, experiments):
     for exp, total, router_count, first_width, middle_width, last_width, targets in (
         (QKV, 432266060, 154380, 3802, 3803, 3026, 3),
         (ONE, 432266255, 154575, 3802, 3803, 3026, 4),
@@ -44,7 +50,9 @@ class NativeTailTest(MLPWriteTest, unittest.TestCase):
         (REBALANCE, 432344635, 232155, 3027, 3414, 3414, 4),
         (L2, 432266580, 154900, 3802, 3803, 3026, 4),
         (VM, 432345167, 231375, 3802, 3414, 3540, 2),
-        (VM_L2, 432266316, 154380, 3802, 3676, 3540, 2)):
+        (VM_L2, 432267116, 154380, 3802, 3676, 3540, 2)):
+      if exp not in experiments:
+        continue
       with self.subTest(exp=exp):
         cfg = self.config(exp, bam_splash_attention=False)
         cfg.get_keys().update(max_target_length=256, max_prefill_predict_length=256,
@@ -66,7 +74,7 @@ class NativeTailTest(MLPWriteTest, unittest.TestCase):
         self.assertEqual(sum(math.prod(v.shape) for v in routers.values()), router_count)
         two_layers = exp in (TWO, REBALANCE, VM)
         self.assertEqual(total - router_count - 432111680,
-                         2112 if exp == VM else 256 if exp == VM_L2 else 800 if two_layers else 0)
+                         2112 if exp == VM else 1056 if exp == VM_L2 else 800 if two_layers else 0)
         prefix = ('params', 'decoder', 'tail_layers')
         layers = ('local_1', 'fetch_2') if two_layers else ('fetch_2',)
         sources = 4 if exp in (L2, VM_L2) else 3

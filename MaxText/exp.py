@@ -14953,7 +14953,7 @@ class BamMediumPropMShiftReadG050MuddVMSharedRouterLastBlockL2AnchorTruePile(Bam
     """Four-source joint V/m at L17, native Q/K reads and restored L16 MLP M write."""
     # Retain L16 attention write, both local O reads, L2 anchor and final C1 Mudd.
     # Per-layer repayment: L16 -127 and L17 +514 SwiGLU units; no cross-layer transfer.
-    # Expected total432266316 = L2 parent -264; tiny C2+C1 routers154380 exempt.
+    # Total432267116 = L2 parent +536; tiny C2+C1 routers154380 exempt.
     # Prior terminal MHA-ref gain vs L2 QKVM1.015[.990,1.040], matched speed +/-3%.
     model_name = 'BamMediumPropMShiftReadG050MuddVMSharedRouterLastBlockL2AnchorTruePile'
     bam_mudd_tail_residual_qk = False

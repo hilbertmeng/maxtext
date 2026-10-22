@@ -14965,7 +14965,8 @@ class BamMediumPropMShiftReadG050MuddVMSharedRouterLastBlockL2AnchorTruePile(Bam
     bam_mudd_tail_residual_qk = False
     bam_mudd_tail_skip_mlp_write = False
     bam_mudd_tail_mlp_dims = [3802, 3676, 3540]
-    compare_runs = ['BamMediumPropMShiftReadG050MuddVMSharedRouterLastBlockTruePile']
+    # Keep the previous direct control for current-stage combined gains while the new factor control catches up.
+    compare_runs = ['BamMediumPropMShiftReadG050MuddVMSharedRouterLastBlockTruePile', 'BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockL2AnchorTruePile']
 
 
 class BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockMLPWriteTruePile(BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockTruePile):
@@ -15010,7 +15011,8 @@ class BamMediumPropMShiftReadG050MuddQKVMDualValueSharedRouterLastBlockTruePile(
     bam_mudd_tail_l2_anchor = False
     bam_mudd_tail_skip_mlp_write = False
     bam_mudd_tail_mlp_dims = [3802, 3676, 3015]
-    compare_runs = ['BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockMLPWriteTruePile']
+    # Keep the previous direct control for current-stage combined gains while the new factor control catches up.
+    compare_runs = ['BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockMLPWriteTruePile', 'BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockTruePile']
 
 
 class BamMediumPropMShiftReadG050MuddVMDualValueSharedRouterLastBlockTruePile(BamMediumPropMShiftReadG050MuddVMSharedRouterLastBlockL2AnchorTruePile):

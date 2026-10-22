@@ -601,6 +601,8 @@ active leases are censored, and manual migration releases are not preemptions.
 | `BamMediumPropMShiftReadG050MuddValueLastBlockTruePile` | v5p-16 (`xd-v5p-16-310282-maxtext`) | `us-east5-a` | 2026-10-22 01:29:12 | 2026-10-22 08:43:27 | complete13500; P1 same-zone recovery; CP13500 committed, node/queue absent, TB SYNC_OK; runtime33734c9 | none |
 | `BamMediumPropMShiftReadG050MuddQKVLastBlockTruePile` | v5p-16 (`xd-v5p-16-310283-maxtext`) | `us-east5-a` | 2026-10-22 01:42:00 | 2026-10-22 08:43:27 | complete13500; P0; CP13500 committed, node/queue absent, TB SYNC_OK; runtime3c86e4a | none |
 
+| `BamMediumPropMShiftReadG050MuddQKVSharedRouterLastBlockTruePile` | v5p-16 (`xd-v5p-16-310285-maxtext`) | `us-east5-a` | 2026-10-22 09:38:43 (READY) | 2026-10-22 12:16:23 | user stop6343, dominated by shared L17 QKVM; P0; CP6343 committed, node/queue absent12:19:05, TB SYNC_OK; Pallas runtime35a1fd3 | none |
+
 ## READY leases
 
 | RUN | # | Zone | Start UTC | End UTC | Duration | Exit |
@@ -2004,6 +2006,7 @@ active leases are censored, and manual migration releases are not preemptions.
 | `BamMediumPropMShiftReadG050PersistentEmbedMLastQKVOTruePile` | 1 | `us-east5-a` | 2026-10-22 05:07:22 | 2026-10-22 07:43:50 | 2h36m28s | user stop4929; P0; CP4929 committed, node/queue absent07:46:03, TB SYNC_OK |
 | `BamMediumPropMShiftReadG050MuddValueLastBlockTruePile` | 2 | `us-east5-a` | 2026-10-22 05:15:31 | 2026-10-22 08:43:27 | 3h27m56s | complete13500; CP committed, node/queue absent, TB SYNC_OK |
 | `BamMediumPropMShiftReadG050MuddQKVLastBlockTruePile` | 1 | `us-east5-a` | 2026-10-22 01:42:03 | 2026-10-22 08:43:27 | 7h01m24s | complete13500; P0; CP committed, node/queue absent, TB SYNC_OK |
+| `BamMediumPropMShiftReadG050MuddQKVSharedRouterLastBlockTruePile` | 1 | `us-east5-a` | 2026-10-22 09:38:43 | 2026-10-22 12:16:23 | 2h37m40s | user stop6343, dominated by shared L17 QKVM; P0; CP6343 committed, node/queue absent12:19:05, TB SYNC_OK |
 
 
 ### 2026-10-14 user pause: resumed mixed R256/R384

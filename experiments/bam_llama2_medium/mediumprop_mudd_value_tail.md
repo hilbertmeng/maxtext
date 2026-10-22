@@ -700,3 +700,83 @@ settings. All six registered controls include MHA-reference gain triples.
 Evidence: launch-native-rebalance.log, rebalance-step14-gate.log,
 rebalance-startup-proof.json and cpu-native-rebalance-budget.log in the evidence
 directory above. No additional numerical backend check was launched.
+
+### Shared L17 QKVM with a completed L2 residual anchor
+
+BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockL2AnchorTruePile
+inherits BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockTruePile.
+Both the L17 joint Q/K/V/m controller and the final C1 Mudd readout use
+[embedding output, complete L0 output, complete L2 output, current residual].
+L2 includes its attention and MLP updates. Its residual is captured at runtime
+layer index2 and carried through the existing prefix5/tail1 block scans;
+there is no detach, extra normalization or recomputation of L2.
+
+Reuse native Compose with one shared D->64 down per site. The signed up and
+bias expand from64x4x3/4x3 to64x4x4/4x4 at L17 (+260), and from64x1x3/1x3
+to64x1x4/1x4 at final readout (+65). Both hidden widths remain64 under the
+existing rounding, including final expand4. Zero up and [0,0,0,1] biases keep
+the initialized model identical to its parent. Historical final-router module
+name compose_final_three_source is retained for consistent parameter naming.
+
+The325=.000225694W_Q tiny router parameters are exempt from MLP repayment;
+MLP widths remain[3802,3803,3026], total432266580, router total154900.
+All M read/write semantics, local O, scan grouping, Pallas v8t/48MiB/fused inputs,
+tuned Splash, full remat, generic health ON/internal/BAM OFF and TruePile4096
+global128/per-device16 remain inherited. CP200/latest2/keep0/forced final/TB500;
+full13500-step schedule. This source-axis change requires a new RUN/checkpoint
+prefix. Target trainer xd-v5p-16-310290-maxtext/us-east5-a. Reuse the retained
+EW4a llm-jax-v6e-1-0 compiler under its worker lock, with no lifecycle ownership.
+
+Prior terminal MHA-reference gain versus the direct shared L17 QKVM parent:
+1.020[.995,1.045], matched speed +/-2%. Retain that parent, completed old
+independent QKV and original single.5 as direct controls, each with
+BamMHAMediumPropC256TruePile as the common gain reference.
+
+Infrastructure audit against main10004248 finds no additional operational
+changes since6d2848e0 in training, checkpointing, summary writers, optimizers
+or AOT; the new base default is an architecture flag only. Existing rotating
+writer500 construction/begin_step and its five regression checks are retained.
+New checks cover the exact formal six-config budget/Pallas parameter trees,
+initial identity and unchanged other parameters, complete L2 capture across scan,
+all four routes consuming L2, causal output, and live backpropagation to L2's
+first-block MLP while later blocks have zero gradient when final readout selects
+only L2. Native regressions and shared BAM/legacy-tail regressions cover the
+unchanged flag-OFF path.
+
+Startup verified at runtime2b035f87c94bff2c3dac175b652d3efd446b3da9 on
+xd-v5p-16-310290-maxtext/us-east5-a. Branch codex/mediumprop-mudd-tail,
+worktree /data0/xd/mediumprop-mudd-tail. Native7, legacy8 and BAM47 checks
+passed (62 fresh), with unchanged writer5 evidence reused. The full13500-step
+AOT loaded; FIRST_STEP7 and the14-step gate passed, with actual proof beyond76.
+Worker confirms L2 anchor ON, shared joint QKVM, MLP[3802,3803,3026], v8t
+48MiB/fused inputs, tuned Splash, generic health ON/internal/BAM OFF and TB500.
+Initial throughput~.728step/s versus the direct parent's~.725 under the same
+settings. Three registered controls retain MHA-reference gain triples.
+Evidence: l2-startup-proof.json, l2-step14-gate.log, l2-completed-cpu-and-aot.json,
+l2-gain-registration.log and launch-l2.log in the evidence directory above.
+
+### Shared QKV closeout: dominated by shared QKVM
+
+BamMediumPropMShiftReadG050MuddQKVSharedRouterLastBlockTruePile was user-stopped
+at committed checkpoint6343. TPU and queued resource xd-v5p-16-310285-maxtext
+in us-east5-a are verified absent; TensorBoard SYNC_OK. P0, one complete READY
+lease09:38:43..12:16:23 UTC on2026-10-22, duration2h37m40s. Initial native
+JAX61457aa continued with compatible Pallas35a1fd3; v8t throughput~.723step/s.
+
+Its strongest matched control is shared L17 QKVM: identical MLP widths and
+non-router structure, only195 extra router parameters for m. QKV was generally
+worse after2k; all five common5.2k..6k windows were worse, with mean gap+.0020684 and MHA-reference
+gain multiplier.9893699. Against completed old independent QKV, the early gap
+shrank then plateaued above zero: final5.4k..6.2k mean+.00223896/R.9884217.
+Against old single V, +.00135096/R.9929706; against original single.5,
+only-.00038076/R1.0020082, with5.8k and6.2k windows crossing to worse loss.
+The prior terminal1.010[.995,1.025] versus old independent QKV was unsupported
+at this early stop. Sharing/reclaiming the dead write did not add a loss benefit;
+the nearly free m route was the useful improvement. M-cache shapes are unchanged
+versus shared QKVM; old health-OFF QKV timing remains incomparable.
+
+All four controls and their MHA-reference gain triples are retained in the stopped
+registry, including the stronger shared QKVM added for closeout. Evidence:
+closeout-shared-qkv6343.json, final-shared-qkv-evidence.json and
+qkv-stop-assert-and-6k-gate.log under the evidence directory above. Active training
+continues independently; the stopped RUN no longer owns resources.

@@ -14903,15 +14903,17 @@ class BamMediumPropMShiftReadG050MuddQKVMLastTwoLayersTruePile(BamMediumPropMShi
 
 
 class BamMediumPropMShiftReadG050MuddQKVSharedRouterLastBlockTruePile(BamMediumPropMShiftReadG050MuddQKVLastBlockTruePile):
-    """Native shared Mudd QKV controller; reclaim the dead final write into L17 MLP."""
+    """共享 QKV 未胜旧独立 QKV，同宽 MLP 的共享 QKVM 更强；用户判停。"""
     # ledger only; implementation codex/mediumprop-mudd-tail, /data0/xd/mediumprop-mudd-tail.
-    # code_commit:35a1fd3f; v8t prefix + read-only JAX tail bridge; CPU70 verified.
-    # Same RUN continues compatible initial native startup61457aa7; see family note.
+    # code_commit:35a1fd3; initial native JAX61457aa -> compatible v8t continuation.
+    # UE5a ~.723step/s; user stopped at 6343; CP6343 committed, node/queue absent, TB SYNC_OK; P0.
+    # vs shared L17 QKVM: 2k后整体落后，5.2k-6k五窗口均落后，均值gap+.002068/R.989370 (MHA reference).
+    # vs old independent QKV: 初期差距缩小后停在正gap平台，5.4k-6.2k末五+.002239/R.988422.
+    # 同期vs旧单V +.001351/R.992971；vs原单门.5仅-.000381/R1.002008，5.8k/6.2k窗口反落后。
     # Native Compose: shared1200x64 down, joint64x3x3 up, identity bias; final C1/expand4.
-    # Mudd routers154380 are exempt from MLP repayment, matching the established Mudd baseline.
-    # All large projection/write changes are repaid in their own layer; no L17 attention write.
-    # Nominal432266060 = original single.5 +154380; non-router budget matches exactly.
-    # Prior MHA-ref terminal vs old independent-QKV1.010[.995,1.025].
+    # No L17 attention write; MLP[3802,3803,3026] equals QKVM control; only195 fewer router params.
+    # Total432266060 = original single.5 +154380 exempt routers; M-cache unchanged vs QKVM.
+    # Prior terminal vs old independent-QKV1.010[.995,1.025] unsupported at this early stop.
     # Generic training health ON; internal/BAM health OFF. Old health-OFF speed is unmatched.
     model_name = 'BamMediumPropMShiftReadG050MuddQKVSharedRouterLastBlockTruePile'
     record_training_health_metrics = True
@@ -14924,6 +14926,7 @@ class BamMediumPropMShiftReadG050MuddQKVSharedRouterLastBlockTruePile(BamMediumP
     bam_mudd_tail_skip_attention_write_last_layers = 1
     bam_mudd_tail_mlp_dims = [3802, 3803, 3026]
     compare_runs = [
+        'BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockTruePile',
         'BamMediumPropMShiftReadG050MuddQKVLastBlockTruePile',
         'BamMediumPropMShiftReadG050MuddValueLastBlockTruePile',
         'BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile',
@@ -14944,6 +14947,24 @@ class BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockTruePile(BamMedium
     compare_runs = [
         'BamMediumPropMShiftReadG050MuddQKVSharedRouterLastBlockTruePile',
         'BamMediumPropMShiftReadG050MuddQKVMLastBlockTruePile',
+        'BamMediumPropMShiftReadG050MuddQKVLastBlockTruePile',
+        'BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile',
+    ]
+
+
+class BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockL2AnchorTruePile(BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockTruePile):
+    """Native L17 QKVM and final Mudd also read the complete L2 residual."""
+    # ledger only: codex/mediumprop-mudd-tail, /data0/xd/mediumprop-mudd-tail; code_commit: 2b035f8.
+    # xd-v5p-16-310290-maxtext/us-east5-a; actual AOT/14-step startup verified; initial~.728step/s.
+    # Sources [embedding,L0,L2,current]; shared D->64 down and signed joint coefficients.
+    # Zero up and [0,0,0,1] bias preserve the identity initialization at both sites.
+    # Extra325=.000226W_Q tiny router parameters are exempt; MLP[3802,3803,3026] unchanged.
+    # Total432266580; routers154900; block scan5+1 with one extra residual carry.
+    # Prior terminal MHA-ref gain vs shared L17 QKVM1.020[.995,1.045], matched speed +/-2%.
+    model_name = 'BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockL2AnchorTruePile'
+    bam_mudd_tail_l2_anchor = True
+    compare_runs = [
+        'BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockTruePile',
         'BamMediumPropMShiftReadG050MuddQKVLastBlockTruePile',
         'BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile',
     ]

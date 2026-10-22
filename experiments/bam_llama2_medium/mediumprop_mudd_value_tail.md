@@ -694,3 +694,50 @@ all four routes consuming L2, causal output, and live backpropagation to L2's
 first-block MLP while later blocks have zero gradient when final readout selects
 only L2. Native regressions and shared BAM/legacy-tail regressions cover the
 unchanged flag-OFF path.
+
+### Shared L16/L17 VM: restore Q/K M reads and the L16 MLP write
+
+BamMediumPropMShiftReadG050MuddVMSharedRouterLastTwoLayersTruePile inherits
+BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastTwoLayersTruePile. At both
+L16/L17, replace the native joint C4 Q/K/V/m controller with joint C2 V/m.
+Each uses one shared D->64 down, with independent signed V/m mixture outputs
+over [embedding, complete L0, current residual]. Q/K return to the original
+RoPE18 plus M-read57 architecture, including original dynamic/static read gates;
+their full W_Q/W_K and Mudd-input norms are removed. Keep both local O reads.
+Restore the L16 MLP-only M write with its independent R256 address, gate and
+original write normalization. Its updated M feeds the L17 Q/K/O reads. Both
+L16/L17 attention writes remain omitted, and final C1/expand4 Mudd is unchanged.
+
+Balance each layer locally: restoring Q/K M reads saves1850144 parameters at
+each layer; restoring the L16 MLP writer costs458000. L16 MLP grows3027->3414
+(+387 units), and L17 grows3026->3540 (+514). L15 remains3802. Large-parameter
+integer rounding is +1056/+256 relative to the corresponding parent layers;
+each C4->C2 router saves390 tiny, exempt parameters. Net layer differences are
++666/-134, model total432345167 versus432344635 (+532). Router total231375;
+non-router rounding relative to original single.5 is2112. MLP increases by
+3243600=2.2525W_Q in total; the added compute is part of the architecture test.
+
+Keep prefix5/final1 block scans. The first16 layers use v8t/48MiB/fused inputs;
+the final two use JAX M reads and the restored JAX MLP-only write. Keep their M
+in [K,V] layout through the write and return [V,K] only at the carry boundary.
+No Pallas kernel changes. Tuned Splash, full remat, generic health ON,
+internal/BAM OFF, TruePile4096 global128/per-device16, CP200/latest2/keep0,
+forced final/TB500, and the full13500-step schedule remain unchanged.
+
+Runtime location: /data0/xd/mediumprop-mudd-tail, codex/mediumprop-mudd-tail.
+Target trainer xd-v5p-16-310291-maxtext/us-east5-a; borrow retained compiler
+llm-jax-v6e-1-0/europe-west4-a under its worker lock, without lifecycle ownership.
+The family remains in UE5a; the recent two preemptions of310289 are isolated
+while its four same-zone peers retain uninterrupted leases. No FLEX training.
+Prior terminal MHA-reference gain versus the direct two-layer QKVM parent:
+1.040[1.000,1.080], matched speed +/-3%. Retain that parent, shared L17 QKVM,
+completed old independent QKV and original single.5 as direct controls, all with
+BamMHAMediumPropC256TruePile as the common gain reference.
+
+Infrastructure audit against main535cec58 finds no new operational fixes since
+6d2848e0 in training, checkpointing, summary writers, optimizers, AOT or runtime
+defaults. Writer rotation500, construction and begin_step remain present, with
+the unchanged five writer regressions reused. Fresh native8 checks cover seven
+formal budget/tree layouts, restored Q/K reads, MLP-only write parameters and
+gradients, causal outputs, native V/m routing, and JAX/Pallas carry/gradient
+equivalence. Fresh legacy8 and full BAM47 regressions gate formal startup.

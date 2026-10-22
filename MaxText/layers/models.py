@@ -970,16 +970,18 @@ class Decoder(nn.Module):
           raise ValueError('residual M route requires a single selective tail block and serial MLP')
         qkvm_count = cfg.bam_mudd_tail_qkvm_last_layers
         if qkvm_count and (qkvm_count != 2 or blocks != 1 or persistent
-            or not cfg.bam_mudd_tail_residual_qk or not cfg.bam_mudd_tail_residual_mlp):
-          raise ValueError('last-two-layer QKVM requires a single tail block with both residual QK and m routes')
+            or not cfg.bam_mudd_tail_residual_mlp
+            or (not cfg.bam_mudd_tail_residual_qk and not cfg.bam_mudd_tail_native_shared_router)):
+          raise ValueError('last-two-layer routing requires one native VM or residual QKVM block')
         skip_writes = cfg.bam_mudd_tail_skip_attention_write_last_layers
         if skip_writes and (type(skip_writes) is not int or skip_writes not in (1, 2)
             or blocks != 1 or persistent or (skip_writes == 2 and qkvm_count != 2)):
           raise ValueError('selective tail write omission requires the final one/two QKVM layers')
         if cfg.bam_mudd_tail_native_shared_router and (blocks != 1 or persistent
-            or not cfg.bam_mudd_tail_residual_qk or cfg.mudd_prenorm or cfg.mudd_postnorm
+            or not (cfg.bam_mudd_tail_residual_qk or cfg.bam_mudd_tail_residual_mlp)
+            or cfg.mudd_prenorm or cfg.mudd_postnorm
             or cfg.dynamic_dense_scale_dw or cfg.mudd_use_scale or cfg.mudd_cap):
-          raise ValueError('native shared tail requires one QKV[/m] block with plain identity-initialized Mudd')
+          raise ValueError('native shared tail requires one QKV[/m] or VM block with plain identity-initialized Mudd')
         if cfg.bam_mudd_tail_l2_anchor and not cfg.bam_mudd_tail_native_shared_router:
           raise ValueError('L2 residual anchor requires native shared tail routing')
         if cfg.bam_pallas_core and (not cfg.bam_mudd_tail_native_shared_router

@@ -14986,6 +14986,24 @@ class BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastTwoLayersTruePile(BamMe
     ]
 
 
+class BamMediumPropMShiftReadG050MuddVMSharedRouterLastTwoLayersTruePile(BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastTwoLayersTruePile):
+    """Joint V/m routes at L16/L17, native BAM Q/K reads and the L16 MLP M write."""
+    # Keep both omitted attention writes and both local O reads; restore only L16 MLP write.
+    # Per-layer repayment: L16 +387 and L17 +514 SwiGLU units, no cross-layer transfer.
+    # Total432345167 = parent +532; C2+C2+C1 routers231375 remain exempt.
+    # Prior terminal MHA-ref gain vs two-layer QKVM1.040[1.000,1.080], speed +/-3%.
+    model_name = 'BamMediumPropMShiftReadG050MuddVMSharedRouterLastTwoLayersTruePile'
+    bam_mudd_tail_residual_qk = False
+    bam_mudd_tail_skip_mlp_write = False
+    bam_mudd_tail_mlp_dims = [3802, 3414, 3540]
+    compare_runs = [
+        'BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastTwoLayersTruePile',
+        'BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockTruePile',
+        'BamMediumPropMShiftReadG050MuddQKVLastBlockTruePile',
+        'BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile',
+    ]
+
+
 class BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastTwoLayersRebalanceMLPTruePile(BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastTwoLayersTruePile):
     """Move775 SwiGLU units from L15 into L16/L17 without changing the two-layer budget."""
     # User-requested allocation: L15 -775, L16 +387, L17 +388; total2790000=1.9375W_Q moved.

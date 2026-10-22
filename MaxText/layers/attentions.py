@@ -3102,6 +3102,7 @@ class BamAttention(Attention):
               lambda key, shape, dtype: jnp.full(shape, math.log(eps / (1.0 - eps))),
               ("q_heads",)),
           (self.num_query_heads,), self.weight_dtype)
+    if self._has_write or bam_mudd.restores_mlp_write(cfg, self.layer_inx):
       learned_write_scale = self._write_factor_norm == 'grouped_rms'
       address_bias = self._write_address_norm_bias
       self.write_data_norm = GroupedRMSNorm(
@@ -3112,7 +3113,7 @@ class BamAttention(Attention):
           scale_init=nn.initializers.zeros if learned_write_scale else None,
           name='write_data_norm')
       self.write_address_norm = GroupedRMSNorm(
-          scale_shape=(self.num_query_heads, loc_v),
+          scale_shape=(self.num_query_heads, self.bam_v),
           epsilon=initializers.get_bam_write_epsilon(cfg), dtype=self.dtype,
           statistics_dtype=self._write_rms_statistics_dtype,
           weight_dtype=self.weight_dtype, kernel_axes=('q_heads', 'kv'),
@@ -3605,10 +3606,20 @@ class BamAttention(Attention):
 
   def merge_mlp_write(self, mlp_head, mlp_gate, factors, M_in, independent_address=None):
     """Merge attention/MLP writes, then decay the carried matrix exactly once."""
-    attention_content, address, attention_gate = factors
     content = self.write_data_norm(mlp_head) if self._write_data_rms else mlp_head
     scale = 1.0 / jnp.sqrt(self.num_query_heads) if self.config.bam_sqrt_n_scale else 1.0
     mlp_content = scale * mlp_gate[..., None] * content
+    if factors is None:
+      if independent_address is None:
+        raise ValueError('MLP-only M write requires an independent address')
+      mlp_address = self.write_address_norm(independent_address)
+      with jax.named_scope('bam/mlp_independent_write_outer'):
+        if self._write_outer_implementation == 'dot':
+          dM = jnp.einsum('btnk,btnv->btkv', mlp_content, mlp_address)
+        else:
+          dM = jnp.sum(mlp_content[..., None] * mlp_address[..., None, :], axis=-3)
+      return _update_bam_matrix(M_in, dM, self.config.bam_lambda_decay)
+    attention_content, address, attention_gate = factors
     if independent_address is None:
       combined_content = attention_content + mlp_content
       with jax.named_scope('bam/write_outer'):

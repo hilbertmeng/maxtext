@@ -227,26 +227,29 @@ class SubDecoderLayer(nn.Module):
     if getattr(cfg, 'bam_persistent_embedding_m', False):
       call_kwargs['persistent_M'] = persistent_M
     shared_routes = None
-    if cfg.bam_mudd_tail_native_shared_router and bam_mudd.is_qk_layer(cfg, self.layer_inx):
+    if cfg.bam_mudd_tail_native_shared_router and bam_mudd.is_value_layer(cfg, self.layer_inx):
       if early_residuals is None or len(early_residuals) != (3 if cfg.bam_mudd_tail_l2_anchor else 2):
         raise ValueError('native tail Mudd requires all configured residual anchors')
       # Native Mudd expects the current residual last (identity bias [0,0,1]).
       sources = [*early_residuals, inputs]
-      targets = 4 if bam_mudd.is_mlp_route_layer(cfg, self.layer_inx) else 3
-      shared_routes, _ = mudd.Compose(
-          cfg, mesh, self.quant, C=targets, compose=True, force_router=True,
+      route_names = ('q', 'k', 'v') if bam_mudd.is_qk_layer(cfg, self.layer_inx) else ('v',)
+      if bam_mudd.is_mlp_route_layer(cfg, self.layer_inx):
+        route_names += ('m',)
+      routed, _ = mudd.Compose(
+          cfg, mesh, self.quant, C=len(route_names), compose=True, force_router=True,
           hidden_expand_override=1, name='qkvm_compose')(
               layer_output=inputs, hids=sources)
+      shared_routes = dict(zip(route_names, routed))
     if bam_mudd.is_value_layer(cfg, self.layer_inx):
       if early_residuals is None:
         raise ValueError('selective residual V requires embedding and L0 anchors')
-      value_input = shared_routes[2] if shared_routes is not None else bam_mudd.ThreeSourceRouter(
+      value_input = shared_routes['v'] if shared_routes is not None else bam_mudd.ThreeSourceRouter(
           cfg, mesh, self.quant, hidden_expand=1, name='value_compose')(inputs, early_residuals)
       call_kwargs['inputs_v'] = normalizations.get_decoder_norm(
           'value_input_norm', cfg)(value_input)
       if bam_mudd.is_qk_layer(cfg, self.layer_inx):
         for route_index, arm in enumerate(('q', 'k')):
-          route = shared_routes[route_index] if shared_routes is not None else bam_mudd.ThreeSourceRouter(
+          route = shared_routes[arm] if shared_routes is not None else bam_mudd.ThreeSourceRouter(
               cfg, mesh, self.quant, hidden_expand=1, name=arm + '_compose')(inputs, early_residuals)
           call_kwargs['inputs_' + arm + '_route'] = normalizations.get_decoder_norm(
               arm + '_input_norm', cfg)(route)
@@ -260,8 +263,7 @@ class SubDecoderLayer(nn.Module):
     if mlp_write and getattr(cfg, 'bam_mlp_write_static_address', False):
       raise ValueError('Static MLP write experiments require their recorded runtime')
     pallas_core = cfg.bam_enabled and bool(getattr(cfg, 'bam_pallas_core', False)) and not pallas_tail
-    if pallas_tail and mlp_write:
-      raise ValueError('Pallas selective tail must not write M from its MLP')
+    write_factors = None
     attention_M = jnp.swapaxes(M_in, -1, -2) if pallas_tail else M_in
     if pallas_core:
         # Fused core: the attention returns its raw write factors; one kernel
@@ -269,7 +271,7 @@ class SubDecoderLayer(nn.Module):
         attention_lnx, M_out, write_factors = attention_layer(
             **call_kwargs, M_in=attention_M, is_global=is_global, layer_index=layer_index)
     elif cfg.bam_enabled:
-        if mlp_write:
+        if mlp_write and not bam_mudd.skips_attention_write(cfg, self.layer_inx):
           assert cfg.shared_experts == 1 and cfg.num_experts == 1
           assert cfg.emb_dim == num_query_heads * cfg.bam_k == num_query_heads * head_dim
           assert 'full' not in layer_mode and not cfg.bam_mha_control
@@ -284,9 +286,6 @@ class SubDecoderLayer(nn.Module):
         attention_lnx = attention_layer(**call_kwargs)
         M_out = M_in
 
-    if pallas_tail:
-      M_out = jnp.swapaxes(M_out, -1, -2)
-
     if cfg.record_internal_nn_metrics:
         attention_lnx_l2norm = jnp.sqrt(jnp.sum(jnp.square(attention_lnx)))
         self.sow('intermediates', 'attn_lnx/l2norm', attention_lnx_l2norm)
@@ -300,7 +299,7 @@ class SubDecoderLayer(nn.Module):
         raise ValueError('selective residual M route requires embedding and L0 anchors')
       # Match Mudd's m path: route the residual before adding attention, then use
       # the result for both the MLP input and its identity residual connection.
-      residual_input = shared_routes[3] if shared_routes is not None else bam_mudd.ThreeSourceRouter(
+      residual_input = shared_routes['m'] if shared_routes is not None else bam_mudd.ThreeSourceRouter(
           cfg, mesh, self.quant, hidden_expand=1, name='m_compose')(inputs, early_residuals)
     intermediate_inputs = residual_input + attention_lnx
 
@@ -456,6 +455,10 @@ class SubDecoderLayer(nn.Module):
         layer_output,
         ("activation_batch", "activation_norm_length", "activation_embed"),
     )
+    if pallas_tail:
+      # Tail reads and any MLP-only write use the JAX [K,V] layout; restore
+      # the prefix kernel's [V,K] carry only after all writes have finished.
+      M_out = jnp.swapaxes(M_out, -1, -2)
     return layer_output, M_out
 
 

@@ -27,6 +27,8 @@ SWAP = 'BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockSwapMLPTruePile'
 REBALANCE = 'BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastTwoLayersRebalanceMLPTruePile'
 VM = 'BamMediumPropMShiftReadG050MuddVMSharedRouterLastTwoLayersTruePile'
 VM_L2 = 'BamMediumPropMShiftReadG050MuddVMSharedRouterLastBlockL2AnchorTruePile'
+DUAL_QKVM = 'BamMediumPropMShiftReadG050MuddQKVMDualValueSharedRouterLastBlockTruePile'
+DUAL_VM = 'BamMediumPropMShiftReadG050MuddVMDualValueSharedRouterLastBlockTruePile'
 
 
 class NativeTailTest(MLPWriteTest, unittest.TestCase):
@@ -116,7 +118,8 @@ class NativeTailTest(MLPWriteTest, unittest.TestCase):
                                  for p in flat), exp == VM_L2, name)
 
   def test_v8t_tail_layout_bridge_preserves_parameters_outputs_and_gradients(self):
-    for exp, index in ((QKV, 8), (ONE, 8), (TWO, 7), (TWO, 8), (VM, 7), (VM, 8), (VM_L2, 8)):
+    for exp, index in ((QKV, 8), (ONE, 8), (TWO, 7), (TWO, 8), (VM, 7), (VM, 8), (VM_L2, 8),
+                       (DUAL_QKVM, 8), (DUAL_VM, 8)):
       with self.subTest(exp=exp, index=index):
         cfg = self.tiny(exp)
         accelerated = pyconfig.HyperParameters(SimpleNamespace(keys=dict(
@@ -201,6 +204,93 @@ class NativeTailTest(MLPWriteTest, unittest.TestCase):
       self.assertGreater(float(jnp.linalg.norm(before[0] - after[0])), 0.)
       for x, y in zip(before[1:], after[1:]):
         np.testing.assert_array_equal(x, y)
+
+  def test_dual_value_formal_budget_reuses_vo_projection(self):
+    for exp, total, routers, width in ((DUAL_QKVM, 432266399, 154575, 3015),
+                                      (DUAL_VM, 432266265, 154185, 3529)):
+      with self.subTest(exp=exp):
+        cfg = self.config(exp, bam_splash_attention=False)
+        cfg.get_keys().update(max_target_length=256, max_prefill_predict_length=256,
+                              query_chunk_size=256)
+        self.assertFalse(cfg.bam_mudd_tail_l2_anchor)
+        self.assertFalse(cfg.bam_mudd_tail_skip_mlp_write)
+        mesh = jax.sharding.Mesh(max_utils.create_device_mesh(cfg), cfg.mesh_axes)
+        state, _, _, _ = train_compile.get_shaped_inputs(mesh, cfg)
+        flat = flatten_dict(nn.unbox(state[0].params))
+        parent_cfg = pyconfig.HyperParameters(SimpleNamespace(keys=dict(
+            cfg.get_keys(), bam_mudd_tail_dual_value=False)))
+        state, _, _, _ = train_compile.get_shaped_inputs(mesh, parent_cfg)
+        parent = flatten_dict(nn.unbox(state[0].params))
+        self.assertEqual(sum(math.prod(v.shape) for v in flat.values()), total)
+        self.assertEqual(sum(math.prod(v.shape) for p, v in flat.items()
+                             if 'qkvm_compose' in p or 'compose_final_three_source' in p), routers)
+        extra = set(flat) - set(parent)
+        self.assertEqual(sum(math.prod(flat[p].shape) for p in extra), 38944)
+        self.assertEqual({p[-2] if p[-1] == 'kernel' else p[-1] for p in extra},
+                         {'W_lv_gate', 'W_lv_gate_b0', 'static_v_key',
+                          'general_v_static_gate', 'general_v_static_gate_bias'})
+        for p in extra:
+          self.assertIn('fetch_2', p)
+          self.assertIn('self_attention', p)
+        self.assertFalse(set(parent) - set(flat))
+        for p in parent:
+          self.assertEqual(parent[p].shape, flat[p].shape, p)
+        prefix = ('params', 'decoder', 'tail_layers')
+        for layer, expected in (('local_0', 3802), ('local_1', 3676), ('fetch_2', width)):
+          self.assertEqual(flat[prefix + (layer, 'block', 'mlp', 'wi_0', 'kernel')].shape,
+                           (1200, 1, expected))
+        mlp_write = {p: v for p, v in flat.items() if p[:len(prefix)] == prefix and
+                     any(n in p for n in ('mlp_write_gate', 'mlp_write_gate_bias',
+                                          'mlp_address_down', 'mlp_address_up'))}
+        self.assertEqual(sum(math.prod(v.shape) for v in mlp_write.values()), 458000)
+        self.assertTrue(all('local_1' in p for p in mlp_write))
+
+  def test_dual_value_isolation_causality_and_gradients(self):
+    for exp in (DUAL_QKVM, DUAL_VM):
+      with self.subTest(exp=exp):
+        cfg, mesh, model, params, tokens, pos, seg, rng = self.build(exp)
+        flat = flatten_dict(params)
+        for path, value in flat.items():
+          if 'dynamic_dense_conn2' in path:
+            flat[path] = value + .01 * jax.random.normal(jax.random.key(88), value.shape)
+        params = unflatten_dict(flat)
+        reference_cfg = pyconfig.HyperParameters(SimpleNamespace(keys=dict(
+            cfg.get_keys(), bam_mudd_tail_dual_value=False)))
+        reference = Transformer(reference_cfg, mesh, quant=None)
+        with mesh, nn.partitioning.axis_rules(cfg.logical_axis_rules):
+          def forward(p, t=tokens, module=model):
+            return module.apply({'params': p}, t, pos, tokens, seg,
+                decoder_segment_ids=seg, enable_dropout=False, rngs=rng)[0]
+          output = forward(params)
+          future = tokens.at[:, 2:].set(jnp.asarray([[9, 10]], jnp.int32))
+          np.testing.assert_allclose(forward(params, future)[:, :2], output[:, :2],
+                                     rtol=3e-5, atol=3e-5)
+          disabled = dict(flat)
+          for path, value in disabled.items():
+            if 'tail_layers' in path and 'fetch_2' in path:
+              if path[-1] == 'W_lv_gate_b0':
+                disabled[path] = jnp.full_like(value, -100.)
+              elif path[-1] == 'static_v_key':
+                disabled[path] = jnp.zeros_like(value)
+          disabled = unflatten_dict(disabled)
+          np.testing.assert_allclose(forward(disabled), forward(disabled, module=reference),
+                                     rtol=3e-5, atol=3e-5)
+          self.assertGreater(float(jnp.sum((output - forward(disabled)) ** 2)), 0.)
+          loss, grad = jax.jit(jax.value_and_grad(lambda p: jnp.mean(forward(p) ** 2)))(params)
+          self.assertTrue(np.isfinite(float(loss)))
+          self.assertTrue(all(np.isfinite(np.asarray(v)).all() for v in jax.tree.leaves(grad)))
+          gradients = flatten_dict(grad)
+          for name in ('W_lv_gate', 'W_lv_gate_b0', 'static_v_key',
+                       'general_v_static_gate', 'general_v_static_gate_bias', 'W_R_up'):
+            selected = [v for p, v in gradients.items() if 'tail_layers' in p
+                        and 'fetch_2' in p and name in p]
+            self.assertTrue(selected, name)
+            self.assertGreater(sum(float(jnp.sum(v * v)) for v in selected), 0., name)
+          for name in ('mlp_write_gate', 'mlp_address_down', 'mlp_address_up'):
+            selected = [v for p, v in gradients.items() if 'tail_layers' in p
+                        and 'local_1' in p and name in p]
+            self.assertTrue(selected, name)
+            self.assertGreater(sum(float(jnp.sum(v * v)) for v in selected), 0., name)
 
   def build(self, exp):
     cfg = self.tiny(exp)

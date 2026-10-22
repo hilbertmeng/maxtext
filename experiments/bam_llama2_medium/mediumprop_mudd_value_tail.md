@@ -797,3 +797,59 @@ assertion omitted800 rounding parameters, and its node+queue cleanup is verified
 Evidence: vml2-startup-proof.json, vml2-step14-gate.log,
 vml2-completed-cpu-and-aot.json, vml2-gain-registration.log and
 launch-vml2-fixed.log under the evidence directory above.
+
+
+### Dual-value L17 tails with restored L16 MLP write, no L2
+
+User-authorized paired runs:
+BamMediumPropMShiftReadG050MuddQKVMDualValueSharedRouterLastBlockTruePile and
+BamMediumPropMShiftReadG050MuddVMDualValueSharedRouterLastBlockTruePile.
+Both retain L16 attention write and restore its independent R256 MLP write,
+retain local O reads, omit L17 attention write, and use three-source
+[embedding,L0,current] native controllers plus final C1 Mudd. No L2 anchor.
+The first routes Q/K/V/m through native C4; the second routes only V/m through
+C2 and restores the original Q/K M reads. The pure no-L2 VM configuration
+parent is defined for inheritance but is not an additional training RUN.
+
+At L17 add the original BAM V read to the existing Mudd->norm->W_V value.
+Reuse O's complete dynamic key projection, pre-bias, normalized key and ungated
+M contraction. V retains its own dynamic gate and static address/gate; no extra
+per-head mixing scale. Original V-read initialization is retained. New params:
+19216 dynamic-gate +512 static-address +19216 static-gate =38944=.027044W_Q.
+Both repay11 SwiGLU units at L17. Restore458000 of L16 writer params by removing
+127 units there. Calculated last-block widths: QKVM[3802,3676,3015],
+VM[3802,3676,3529]. Expected totals432266399/432266265, routers154575/154185
+exempt; non-router rounding relative to original single.5 is+144/+400.
+No additional D->R or R->NV projection, W_V, attention pass or M cache.
+The existing V is augmented before the single attention operation.
+
+Runtime WT /data0/xd/mediumprop-mudd-tail, branch codex/mediumprop-mudd-tail.
+Cold-start distinct RUN/checkpoint prefixes on retained READY trainers:
+QKVM dual replaces MLP redistribution on xd-v5p-16-310289-maxtext/us-east5-a;
+VM dual replaces MLP exchange on xd-v5p-16-310288-maxtext/us-east5-a.
+User explicitly approved both handoffs. Logical launch IDs310294/310295;
+physical TPU names remain310289/310288 through TPU_NAME_OVERRIDE. Prepare both
+full13500-step AOTs on retained llm-jax-v6e-1-0/EW4a worker0 under its serial
+compiler lock, with no compiler ownership or new training prequeues. Keep both
+old trainers running until pushed/sealed source, CPU gates and AOTs are ready.
+Use hot_switch_run.py, committed old checkpoints, new FIRST_STEP/14-step gates,
+then close the old RUN records without touching their transferred trainers.
+
+Both keep prefix5/final1 scans,17 ordinary v8t/48MiB/fused-input layers and a
+JAX dual-value L17, tuned Splash/full remat, TruePile4096 global128/B16,
+generic health ON/internal+BAM OFF, CP200/latest2/keep0/forcedfinal and TB500.
+Direct common trained baseline is shared L17 QKVM; VM dual also compares to
+QKVM dual. All gain ratios use BamMHAMediumPropC256TruePile. No clean historical
+pure no-L2 VM trajectory exists; do not substitute its L2 version as that control.
+Prior terminal gains versus common shared QKVM:1.030[.990,1.070] and
+1.020[.980,1.060], implying VM/QKVM dual~.9903. Matched speed forecasts
+about-1% and-2%, respectively, with+/-2% uncertainty.
+
+Infrastructure audit against main0d52c953 finds only ledger changes since535cec58;
+all previously audited operational fixes and the rotating-writer500 path remain.
+New flag defaults OFF. Fresh checks cover both exact formal parameter trees,
+38944-only additions with no duplicated VO projection, in-layer widths/writers,
+isolating the new V path by disabling its two components, causal outputs,
+finite/live gradients through V gates/static address/shared up/restored L16
+writer, and the JAX/Pallas tail bridge. Shared-read edits also gate on the full
+BAM47 and legacy-tail8 suites. Existing unchanged writer5 evidence is retained.

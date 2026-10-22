@@ -14964,6 +14964,44 @@ class BamMediumPropMShiftReadG050MuddVMSharedRouterLastBlockL2AnchorTruePile(Bam
     compare_runs = ['BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockL2AnchorTruePile']
 
 
+class BamMediumPropMShiftReadG050MuddVMSharedRouterLastBlockTruePile(BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockTruePile):
+    """Configuration parent only: no L2, native VM, Q/K M reads and L16 MLP write."""
+    # Not launched separately; the dual-value child is the requested training experiment.
+    model_name = 'BamMediumPropMShiftReadG050MuddVMSharedRouterLastBlockTruePile'
+    bam_mudd_tail_residual_qk = False
+    bam_mudd_tail_skip_mlp_write = False
+    bam_mudd_tail_mlp_dims = [3802, 3676, 3540]
+
+
+class BamMediumPropMShiftReadG050MuddQKVMDualValueSharedRouterLastBlockTruePile(BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockTruePile):
+    """L17 Mudd QKVM plus the original V M read; restore L16 MLP write, no L2."""
+    # Reuse the full O dynamic key/read, including its down/up and pre-bias. No extra mixing scale.
+    # Restore38944 V gates/static-address params; L17 MLP -11. L16 writer458000: MLP -127.
+    # Expected432266399 = shared QKVM parent +144; tiny native routers154575 exempt.
+    # Prior terminal MHA-ref gain vs shared QKVM1.030[.990,1.070], matched speed about -1% (+/-2%).
+    model_name = 'BamMediumPropMShiftReadG050MuddQKVMDualValueSharedRouterLastBlockTruePile'
+    bam_mudd_tail_dual_value = True
+    bam_mudd_tail_l2_anchor = False
+    bam_mudd_tail_skip_mlp_write = False
+    bam_mudd_tail_mlp_dims = [3802, 3676, 3015]
+    compare_runs = ['BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockTruePile']
+
+
+class BamMediumPropMShiftReadG050MuddVMDualValueSharedRouterLastBlockTruePile(BamMediumPropMShiftReadG050MuddVMSharedRouterLastBlockTruePile):
+    """L17 Mudd VM plus the original V M read, native Q/K reads, L16 MLP write, no L2."""
+    # Restore38944 V gates/static-address params; repay11 SwiGLU units at L17.
+    # Expected432266265 = unlaunched VM configuration parent -656; native routers154185 exempt.
+    # Prior terminal MHA-ref gain vs shared QKVM1.020[.980,1.060], matched speed about -2% (+/-2%).
+    model_name = 'BamMediumPropMShiftReadG050MuddVMDualValueSharedRouterLastBlockTruePile'
+    bam_mudd_tail_dual_value = True
+    bam_mudd_tail_l2_anchor = False
+    bam_mudd_tail_mlp_dims = [3802, 3676, 3529]
+    compare_runs = [
+        'BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockTruePile',
+        'BamMediumPropMShiftReadG050MuddQKVMDualValueSharedRouterLastBlockTruePile',
+    ]
+
+
 class BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockSwapMLPTruePile(BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockTruePile):
     """Move777 SwiGLU units from L16 to L17, keeping the shared-QKVM model budget unchanged."""
     # Explicit user-requested cross-layer allocation: move2797200=1.9425W_Q, no new parameters.

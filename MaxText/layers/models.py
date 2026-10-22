@@ -984,6 +984,9 @@ class Decoder(nn.Module):
           raise ValueError('native shared tail requires one QKV[/m] or VM block with plain identity-initialized Mudd')
         if cfg.bam_mudd_tail_l2_anchor and not cfg.bam_mudd_tail_native_shared_router:
           raise ValueError('L2 residual anchor requires native shared tail routing')
+        if cfg.bam_mudd_tail_dual_value and (not cfg.bam_mudd_tail_native_shared_router
+            or cfg.bam_local_vo_shared_read != 'local_o' or not cfg.bam_local_vo_independent_gates):
+          raise ValueError('dual tail V requires native routing and independently gated shared VO reads')
         if cfg.bam_pallas_core and (not cfg.bam_mudd_tail_native_shared_router
             or cfg.bam_pallas_body != 'v8t'):
           raise ValueError('Pallas selective tail supports native shared routing with v8t only')

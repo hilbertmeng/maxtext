@@ -2568,6 +2568,8 @@ class BamAttention(Attention):
     super().setup()             # reuse attention_op / projections / rope / out_projection
     cfg = self.config
     self._residual_value = bam_mudd.is_value_layer(cfg, self.layer_inx)
+    self._dual_value = self._residual_value and cfg.bam_mudd_tail_dual_value
+    self._has_value_m_read = not self._residual_value or self._dual_value
     self._residual_qk = bam_mudd.is_qk_layer(cfg, self.layer_inx)
     self._persistent_read = (bool(getattr(cfg, 'bam_persistent_embedding_m', False))
                              and self.layer_inx == cfg.num_decoder_layers - 1)
@@ -3021,7 +3023,7 @@ class BamAttention(Attention):
     if self._local_v_replace:
       assert self._vo_independent_gates and self.bam_k == self.head_dim
     if self._static_vo:
-      for arm in (('v', 'o') if 'local_v' in self._mode and not self._residual_value else ('o',)):
+      for arm in (('v', 'o') if 'local_v' in self._mode and self._has_value_m_read else ('o',)):
         setattr(self, 'static_' + arm + '_key', self.param(
             'static_' + arm + '_key', nn.with_logical_partitioning(
                 nn.initializers.normal(self._read_bam_v ** -0.5) if arm == 'v' else zeros_init,
@@ -3120,7 +3122,7 @@ class BamAttention(Attention):
           scale_init=nn.initializers.zeros if learned_write_scale else None,
           use_bias=address_bias, name='write_address_norm')
 
-    if self._vo_independent_gates and not self._residual_value:
+    if self._vo_independent_gates and self._has_value_m_read:
       add_read_gate('W_lv_gate', (self.num_query_heads, 1),
                     ('embed', 'q_heads', None), ('q_heads', None), fetched_gate_init)
 
@@ -3186,7 +3188,7 @@ class BamAttention(Attention):
       for arm in ('q', 'k', 'v', 'o'):
         if arm in ('q', 'k') and self._residual_qk:
           continue
-        if arm == 'v' and self._residual_value:
+        if arm == 'v' and not self._has_value_m_read:
           continue
         if arm in ('q', 'k') and not cfg.bam_qk_static_read_gate:
           continue
@@ -4207,7 +4209,7 @@ class BamAttention(Attention):
     if self._local_o and self._vo_shared_read != 'none':
       if Mh is None:
         Mh = self._matrix_for_read(M_read)
-      if self._residual_value:
+      if not self._has_value_m_read:
         # O still needs the shared VO key/read. No V static read or dynamic gate survives.
         local_output = self._read_fetched_m(
             self._compress_m(Mh), inputs_q, shared_hidden=full_m_shared_hidden)[0]
@@ -4218,19 +4220,19 @@ class BamAttention(Attention):
       else:
         local_output = self._shared_local_vo(Mh, inputs_q, local_inputs)
         v_local = local_output
-      if self._static_vo and not self._residual_value:
+      if self._static_vo and self._has_value_m_read:
         static_v = self._static_column(Mh, 'v', inputs_q)
         self._record_concat_amplitude('static_v', static_v, v_local)
         v_local = v_local + static_v
         static_o = self._static_column(Mh, 'o', inputs_q)
         self._record_concat_amplitude('static_o', static_o, local_output)
         local_output = local_output + static_o
-      if not self._residual_value and not self._local_v_replace:
+      if self._has_value_m_read and not self._local_v_replace:
         self._record_concat_amplitude('local_v', v_local[..., :self.bam_k], value)
-      elif not self._residual_value and self._concat_health:
+      elif self._has_value_m_read and self._concat_health:
         self.sow('intermediates', 'concat_local_v_content', jnp.stack((
             jnp.sqrt(jnp.mean(v_local.astype(jnp.float32) ** 2)),)))
-      if not self._residual_value:
+      if self._has_value_m_read:
         value = value + v_local
     elif self._local_o or self._local_v_mode == 'shared':
       shared_v = self._local_v_mode == 'shared'

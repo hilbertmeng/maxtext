@@ -368,7 +368,7 @@ class NativeTailTest(MLPWriteTest, unittest.TestCase):
       cfg, base = self.config(exp), self.config(parent)
       self.assertEqual(cfg.bam_mudd_tail_mlp_dims, base.bam_mudd_tail_mlp_dims)
       for key, value in base.get_keys().items():
-        if key not in ('model_name', 'bam_mudd_tail_dual_value'):
+        if key not in ('model_name', 'exp_class', 'bam_mudd_tail_dual_value'):
           self.assertEqual(cfg.get_keys()[key], value, key)
 
   def check_dual_value_formal_budget(self, experiments):

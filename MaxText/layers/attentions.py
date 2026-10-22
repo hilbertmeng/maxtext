@@ -40,6 +40,7 @@ from layers import quantizations
 from layers import dc
 from layers import accelerator
 from layers import normalizations
+from layers import bam_mudd
 from layers import kv_shift
 
 import max_logging
@@ -2566,6 +2567,9 @@ class BamAttention(Attention):
   def setup(self):
     super().setup()             # reuse attention_op / projections / rope / out_projection
     cfg = self.config
+    self._residual_value = bam_mudd.is_value_layer(cfg, self.layer_inx)
+    if self._residual_value and getattr(cfg, 'bam_pallas_core', False):
+      raise ValueError('selective residual V uses the pure-JAX BAM path')
     validate_bam_config(cfg, layer_mode=self.layer_mode)
     self._local_v_replace = False
     self._static_vo = False
@@ -3002,12 +3006,12 @@ class BamAttention(Attention):
     # Static VO reads precede packed-arm parameters, preserving Prop init order.
     self._local_v_replace = (
         'local_v' in self._mode and self._local_o
-        and bool(getattr(cfg, 'bam_local_v_replace', False)))
+        and bool(getattr(cfg, 'bam_local_v_replace', False)) and not self._residual_value)
     self._static_vo = self._local_o and bool(getattr(cfg, 'bam_local_vo_static', False))
     if self._local_v_replace:
       assert self._vo_independent_gates and self.bam_k == self.head_dim
     if self._static_vo:
-      for arm in (('v', 'o') if 'local_v' in self._mode else ('o',)):
+      for arm in (('v', 'o') if 'local_v' in self._mode and not self._residual_value else ('o',)):
         setattr(self, 'static_' + arm + '_key', self.param(
             'static_' + arm + '_key', nn.with_logical_partitioning(
                 nn.initializers.normal(self.bam_v ** -0.5) if arm == 'v' else zeros_init,
@@ -3105,7 +3109,7 @@ class BamAttention(Attention):
           scale_init=nn.initializers.zeros if learned_write_scale else None,
           use_bias=address_bias, name='write_address_norm')
 
-    if self._vo_independent_gates:
+    if self._vo_independent_gates and not self._residual_value:
       add_read_gate('W_lv_gate', (self.num_query_heads, 1),
                     ('embed', 'q_heads', None), ('q_heads', None), fetched_gate_init)
 
@@ -3167,6 +3171,8 @@ class BamAttention(Attention):
         setattr(self, 'general_' + arm + '_pre_bias', self._constant_general_parameter(
             'general_' + arm + '_pre_bias', shape, axes))
       for arm in ('q', 'k', 'v', 'o'):
+        if arm == 'v' and self._residual_value:
+          continue
         if arm in ('q', 'k') and not cfg.bam_qk_static_read_gate:
           continue
         self._add_static_gate('general_' + arm + '_static_gate', cfg.bam_static_read_gate_init)
@@ -4048,6 +4054,7 @@ class BamAttention(Attention):
       is_global: Array | bool | None = None,
       layer_index: Array | int | None = None,
       defer_write: bool = False,
+      inputs_v: Array | None = None,
   ):
     """BAM forward. Returns (out, M_out): out [b,t,emb_dim], M_out [b,t,k,v].
 
@@ -4056,6 +4063,8 @@ class BamAttention(Attention):
     cfg = self.config
     assert model_mode == common_types.MODEL_MODE_TRAIN, "BamAttention v0.1 supports train mode only"
     assert self.num_query_heads == self.num_kv_heads, "BamAttention v0.1 requires n==n_kv (no GQA)"
+    if self._residual_value != (inputs_v is not None):
+      raise ValueError('selective residual V must receive its independently normalized route')
 
     inputs_q = nn.with_logical_constraint(inputs_q, self.input_axis_names)
     inputs_kv = nn.with_logical_constraint(inputs_kv, self.input_axis_names)
@@ -4105,7 +4114,8 @@ class BamAttention(Attention):
       key = self.kv_projection(inputs_kv, proj_name="key",
                                projection_dim=standard_qk_width if concat_qk else None)
       value = (jnp.zeros(inputs_kv.shape[:-1] + (self.num_kv_heads, self.head_dim), self.dtype)
-               if self._local_v_replace else self.kv_projection(inputs_kv, proj_name='value'))
+               if self._local_v_replace else self.kv_projection(
+                   inputs_kv if inputs_v is None else inputs_v, proj_name='value'))
 
     Mh = None
     local_inputs = self._local_inputs(inputs_q) if self._local_arms else None
@@ -4156,24 +4166,31 @@ class BamAttention(Attention):
     if self._local_o and self._vo_shared_read != 'none':
       if Mh is None:
         Mh = self._matrix_for_read(M_read)
-      if self._vo_independent_gates:
+      if self._residual_value:
+        # O still needs the shared VO key/read. No V static read or dynamic gate survives.
+        local_output = self._read_fetched_m(
+            self._compress_m(Mh), inputs_q, shared_hidden=full_m_shared_hidden)[0]
+        if self._static_vo:
+          local_output = local_output + self._static_column(Mh, 'o', inputs_q)
+      elif self._vo_independent_gates:
         v_local, local_output = self._independent_local_vo(Mh, inputs_q, local_compressed_M, full_m_shared_hidden)
       else:
         local_output = self._shared_local_vo(Mh, inputs_q, local_inputs)
         v_local = local_output
-      if self._static_vo:
+      if self._static_vo and not self._residual_value:
         static_v = self._static_column(Mh, 'v', inputs_q)
         self._record_concat_amplitude('static_v', static_v, v_local)
         v_local = v_local + static_v
         static_o = self._static_column(Mh, 'o', inputs_q)
         self._record_concat_amplitude('static_o', static_o, local_output)
         local_output = local_output + static_o
-      if not self._local_v_replace:
+      if not self._residual_value and not self._local_v_replace:
         self._record_concat_amplitude('local_v', v_local[..., :self.bam_k], value)
-      elif self._concat_health:
+      elif not self._residual_value and self._concat_health:
         self.sow('intermediates', 'concat_local_v_content', jnp.stack((
             jnp.sqrt(jnp.mean(v_local.astype(jnp.float32) ** 2)),)))
-      value = value + v_local
+      if not self._residual_value:
+        value = value + v_local
     elif self._local_o or self._local_v_mode == 'shared':
       shared_v = self._local_v_mode == 'shared'
       if Mh is None:

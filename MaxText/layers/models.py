@@ -37,6 +37,7 @@ import re
 import max_utils
 from layers import mtp
 from layers import mudd
+from layers import bam_mudd
 from layers import engram
 from layers.kv_shift import shift_1d
 from collections import defaultdict
@@ -631,7 +632,7 @@ class Decoder(nn.Module):
   def scan_decoder_layers(self, cfg, decoder_layer, length, metdata_axis_name, mesh,
    sliding_window_size=None, scan_length=1, scan_deep_embedding=False,
    runtime_schedule=False, scan_hids=False, all_global_attention=False,
-   scan_layer_index=False):
+   scan_layer_index=False, stage_start_layer=None):
     initializing = self.is_mutable_collection("params")
     params_spec = cfg.param_scan_axis if initializing else ScanIn(cfg.param_scan_axis)
     cache_spec = 0
@@ -673,6 +674,8 @@ class Decoder(nn.Module):
     )
     module_kwargs = dict(
         config=cfg, mesh=mesh, name=metdata_axis_name, quant=self.quant)
+    if stage_start_layer is not None:
+      module_kwargs['stage_start_layer'] = stage_start_layer
     if cfg.decoder_block == 'fusion' or (cfg.decoder_block == 'pythia' and cfg.pythia_use_fusion):
       module_kwargs.update(
           sliding_window_size=sliding_window_size, scan_length=scan_length,
@@ -909,7 +912,46 @@ class Decoder(nn.Module):
         y = normalizations.get_rmsnorm("mudd_prenorm", cfg)(y) if cfg.mudd_prenorm or cfg.me_prenorm else y
         hids.append(y)
 
-      if cfg.scan_layers:
+      if cfg.scan_layers and getattr(cfg, 'bam_mudd_tail_blocks', 0):
+        from layers import fusion
+
+        blocks = int(cfg.bam_mudd_tail_blocks)
+        if (blocks not in (1, 2) or cfg.num_decoder_layers % 3
+            or not cfg.bam_pair_scan or not cfg.bam_enabled or cfg.bam_mha_control
+            or cfg.dense_conn or cfg.mtp_num_layers or deep_embeddings is not None
+            or cfg.bam_pallas_core or cfg.bam_final_local_layer_count
+            or cfg.dynamic_mlp_dim or not cfg.dynamic_dense_hidden_round
+            or cfg.dynamic_dense_act_cls != 'gelu'):
+          raise ValueError('selective Mudd tail requires pure-JAX BAM three-layer block scan')
+        if (len(cfg.bam_mudd_tail_mlp_dims) != 3
+            or any(type(x) is not int or x <= 0 for x in cfg.bam_mudd_tail_mlp_dims)):
+          raise ValueError('selective Mudd tail requires three positive integer MLP widths')
+        swss = format_swss(sws_list)[:cfg.num_decoder_layers]
+        if any(s < cfg.max_target_length for s in swss):
+          raise ValueError('selective Mudd tail currently requires all-global attention')
+        prefix = bam_mudd.tail_start(cfg)
+        if prefix < 3 or cfg.bam_local_fetch_block_size != 3:
+          raise ValueError('selective Mudd tail needs at least one ordinary three-layer block')
+        if cfg.bam_layer_modes != ['local_qk+local_v+local_o'] * cfg.num_decoder_layers:
+          raise ValueError('selective Mudd tail requires all-local QK/VO modes')
+        carry = (y, self.initial_bam_matrix(y), y, jnp.zeros_like(y))
+        # Separate scan stages retain independent layer parameters while sharing each stage's HLO.
+        for start, count, name in ((0, prefix // 3, 'layers'),
+                                   (prefix, blocks, 'tail_layers')):
+          module = self.scan_decoder_layers(
+              cfg, fusion.BamLayerPair, count, name, mesh,
+              sliding_window_size=cfg.max_target_length, runtime_schedule=True,
+              all_global_attention=True, scan_layer_index=True, stage_start_layer=start)
+          carry, _ = module(
+              carry, decoder_segment_ids, decoder_positions, decoder_input_tokens,
+              None, deterministic, model_mode, eos_sum, jnp.ones((count,), jnp.bool_),
+              None, None, jnp.arange(start // 3, start // 3 + count, dtype=jnp.int32))
+        y, M, embedding_anchor, l0_anchor = carry
+        y = bam_mudd.ThreeSourceRouter(
+            cfg, mesh, self.quant, hidden_expand=4, name='compose_final_three_source')(
+                y, (embedding_anchor, l0_anchor))
+
+      elif cfg.scan_layers:
         RemattedBlockLayer = RemattedBlockLayers[1]
         pair_scan = getattr(cfg, 'bam_pair_scan', False)
         final_local = cfg.bam_final_local_layer_count

@@ -28,6 +28,7 @@ from layers import normalizations
 from layers import models
 from layers import quantizations
 from layers import mudd
+from layers import bam_mudd
 from layers import initializers
 import max_logging
 
@@ -80,6 +81,9 @@ class SubDecoderLayer(nn.Module):
       self.updated_mlp_dim = round(cfg.mlp_dim * (layer_inx / (cfg.num_decoder_layers - 1) + 0.5) / 128) * 128 
     else:
       self.updated_mlp_dim = cfg.mlp_dim
+    if (getattr(cfg, 'bam_mudd_tail_blocks', 0)
+        and self.layer_inx >= bam_mudd.tail_start(cfg)):
+      self.updated_mlp_dim = cfg.bam_mudd_tail_mlp_dims[self.layer_inx % 3]
     tail_count = cfg.bam_final_local_layer_count
     if tail_count is None:
       tail_count = int(bool(getattr(cfg, 'bam_extra_final_local_layer', False)))
@@ -112,6 +116,7 @@ class SubDecoderLayer(nn.Module):
       M_in=None,
       is_global=None,
       layer_index=None,
+      early_residuals=None,
   ):
     cfg = self.config
     mesh = self.mesh
@@ -205,9 +210,17 @@ class SubDecoderLayer(nn.Module):
         eos_sum=eos_sum,
         deep_embedding=deep_embedding,
     )
+    if bam_mudd.is_value_layer(cfg, self.layer_inx):
+      if early_residuals is None:
+        raise ValueError('selective residual V requires embedding and L0 anchors')
+      value_input = bam_mudd.ThreeSourceRouter(
+          cfg, mesh, self.quant, hidden_expand=1, name='value_compose')(inputs, early_residuals)
+      call_kwargs['inputs_v'] = normalizations.get_decoder_norm(
+          'value_input_norm', cfg)(value_input)
     mlp_write_every = int(getattr(cfg, 'bam_mlp_write_every', None) or 0)
     mlp_write = (
         cfg.bam_enabled and mlp_write_every > 0
+        and not bam_mudd.skips_mlp_write(cfg, self.layer_inx)
         and not (cfg.bam_skip_final_mlp_write and self.layer_inx == cfg.num_decoder_layers - 1)
         and (self.layer_inx + 1) % mlp_write_every
         == int(getattr(cfg, 'bam_mlp_write_offset', None) or 0) % mlp_write_every)
@@ -408,6 +421,7 @@ class BamLayerPair(nn.Module):
   quant: Optional[Quant] = None
   scan_length: int = 1
   all_global_attention: bool = True
+  stage_start_layer: int = 0
 
   @nn.compact
   def __call__(self, carry, segment_ids, positions, tokens, deep_embedding,
@@ -426,7 +440,8 @@ class BamLayerPair(nn.Module):
       name = f'local_{offset}' if offset < block_size - 1 else f'fetch_{offset}'
       carry, _ = Layer(
           cfg, self.mesh, self.sliding_window_size, self.quant,
-          all_global_attention=True, static_layer_index=offset, name=name)(
+          all_global_attention=True,
+          static_layer_index=self.stage_start_layer + offset, name=name)(
               carry, segment_ids, positions, tokens, None,
               deterministic, model_mode, eos_sum, None, None, None,
               block_size * block_index + offset)
@@ -498,7 +513,10 @@ class FusionDecoderLayer(nn.Module):
     if cfg.scan_layers:
       assert not cfg.dense_conn, 'flat layer scan currently requires dense_conn=False'
       if scan_full_bam:
-        inputs, M_in = inputs
+        if getattr(cfg, 'bam_mudd_tail_blocks', 0):
+          inputs, M_in, embedding_anchor, l0_anchor = inputs
+        else:
+          inputs, M_in = inputs
       else:
         M_in = None
       if self.all_global_attention:
@@ -543,6 +561,8 @@ class FusionDecoderLayer(nn.Module):
             lidx=self.layer_inx,
           )
     # return's inputs length is 1
+    extra_inputs = ({'early_residuals': (embedding_anchor, l0_anchor)}
+                    if scan_full_bam and getattr(cfg, 'bam_mudd_tail_blocks', 0) else {})
     inputs, M_out = self.layer(
         inputs,
         decoder_segment_ids,
@@ -555,6 +575,7 @@ class FusionDecoderLayer(nn.Module):
         M_in=M_in,
         is_global=is_global,
         layer_index=layer_index,
+        **extra_inputs,
     )
     max_logging.log(f'layer_inx: {self.layer_inx} break_layers: {self.break_layers}', debug=cfg.debug)
     full_history = cfg.dense_conn and cfg.get_keys().get('mudd_full_history', False)
@@ -577,6 +598,9 @@ class FusionDecoderLayer(nn.Module):
 
     if cfg.scan_layers:
       carry = (inputs, M_out) if scan_full_bam else inputs
+      if scan_full_bam and getattr(cfg, 'bam_mudd_tail_blocks', 0):
+        l0_anchor = jnp.where(jnp.asarray(layer_index) == 0, inputs, l0_anchor)
+        carry = (inputs, M_out, embedding_anchor, l0_anchor)
       return carry, ()
     if cfg.bam_enabled:
       return inputs, hids, M_out

@@ -1257,3 +1257,73 @@ mixed two-layer RUN on physical xd-v5p-16-310291-maxtext only after CPU/AOT gate
 logical310302 VM dual V gets fresh xd-v5p-16-310302-maxtext. Both UE5a, no backups.
 Both AOTs borrow the retained llm-jax-v6e-1-0/EW4a compiler through its worker lock;
 serialize compilation there, never delete or adopt its lifecycle.
+
+### Mixed two-layer closeout at4066
+
+BamMediumPropMShiftReadG050MuddVMQKVMSharedRouterLastTwoLayersL2AnchorTruePile
+was hot-replaced after its post-2800 review. Against old single-layer L2 QKVM,
+common3.2k–4k last-five mean gap+.00486684/gain.97927403; relative deficit
+persisted despite an initially narrowing absolute gap. Against the registered
+write-matched single-layer L2 QKVM control, common2.4k–3.2k mean+.00404512/
+gain.98494225. Thus writing-policy differences do not explain the loss from
+adding L16 VM. Against replaced two-layer VM, common3.2k–4k mean-.00042832/
+gain1.00189593 is a small repair, insufficient to beat the strong single-layer
+controls. All gains use BamMHAMediumPropC256TruePile. Matched steady~.701step/s
+is2.9% below single L2 QKVM~.722, with79976 extra parameters and no cache gain.
+The terminal1.020 prior was not evaluated to completion; observed relative
+recovery did not justify retaining this training slot.
+
+CP4066 committed with zero lost steps; TB SYNC_OK. Physical310291 and its
+queue were retained and handed to verified L2 QKVM dual V, never deleted.
+Zone path is UE5a only, v5p16, P0; assignment15:22:20–17:03:12 UTC2026-10-22;
+its only READY lease15:22:24–17:03:12 UTC(1h40m48s), ending at hot handoff.
+Old stopped registry and new owner were verified in a separate checked call;
+bookkeeping closeout reported already_closed=true and skipped resource operations.
+Evidence: mixed-tail-final-evidence4066.json, l2-qkvm-dualv-handoff-journal.json,
+hot-l2-qkvm-dualv.log, closeout-mixed-tail4066-remote.log; remote closeout journal
+/home/lishengping/xd/projects/logs/closeout-20261022T170927Z.json.
+
+### Verified L2 dual-V startup
+
+Both children run sealed dedbb656e82891c0145c0527e1b3c67960298b0d with their
+original parent MLP widths; each adds38944 negligible parameters with no repayment.
+QKVM: FIRST_STEP11/14-step gate15, actual config verified, startup~.726step/s,
+logical310301/physical310291 UE5a retained from mixed4066. VM: FIRST_STEP6/
+14-step gate45, actual config verified, startup~.712step/s, fresh310302 UE5a.
+New four formal-budget/causal-gradient methods passed, reusing unchanged model62
+and writer5 evidence. Both exact full13500 v5p16 AOTs compiled serially through
+the retained EW4a FLEX compiler's worker lock. Generic health ON/internal+BAM OFF,
+tuned Splash/full remat, v8t48MiB/fused prefix, CP200/latest2/keep0 and TB500 verified.
+Registries retain only each direct parent and its MHA-reference gain triple.
+No effect conclusions are recorded during training.
+
+Evidence: l2-dualv-completed-cpu.json; l2-{qkvm,vm}-dualv-{startup-proof,
+startup-validation}.json, corresponding step14 and monitoring-registration logs,
+launch-l2-vm-dualv-final.log and aot-l2-qkvm-dualv-final.log under
+/data0/xd/bam_diagnostics/mediumprop-mudd-tail.
+
+### VM dual V closeout at6343
+
+BamMediumPropMShiftReadG050MuddVMDualValueSharedRouterLastBlockTruePile
+was stopped after its overdue post-2800 review. At matched write policy/noL2,
+the extra M-read V channel remained worse than single-V VM: common3.8k–4.6k
+last-five mean gap+.00191224, MHA-reference gain.99119514. Early absolute
+loss differences narrowed, but normalized deficit persisted around1%.
+Against registered QKVM dual V, common5.4k–6.2k mean+.00017288/gain.99911870
+is essentially tied. This is no evidence that VM dual V improves its direct
+single-V control. Total params are656 fewer than that control, with11 fewer
+L17 SwiGLU units; speed under matched generic-health/tuned kernels is about
+1–1.5% lower, with no inference-cache benefit.
+
+CP6343 committed, estimated lost steps0, local TB SYNC_OK. Full active zone
+path is us-east5-a only, v5p16/xd-v5p-16-310288-maxtext; preemptions1:
+READY13:52:49–14:19:54 UTC(27m05s, preempted), then14:25:42–16:36:53 UTC
+(2h11m11s, manual review stop), all2026-10-22. Node and queued resource were
+independently verified absent after16:39:45. Ordinary teardown was mistakenly
+chosen before considering reuse for L5; this was not a hot handoff. L5 already
+had its separate accepted310300 queue and continues there.
+
+Evidence: vm-dualv-final-evidence.json, report-dualv-overdue-review.json,
+dualv-formal-review-common4000.png and closeout-vm-dualv-review.log under
+/data0/xd/bam_diagnostics/mediumprop-mudd-tail; remote closeout journal
+/home/lishengping/xd/projects/logs/closeout-20261022T163945Z.json.

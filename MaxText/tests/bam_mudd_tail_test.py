@@ -19,6 +19,7 @@ from layers.models import Transformer
 PARENT = 'BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile'
 DOUBLE = 'BamMediumPropMShiftReadG050MuddValueLastTwoBlocksTruePile'
 SINGLE = 'BamMediumPropMShiftReadG050MuddValueLastBlockTruePile'
+VM = 'BamMediumPropMShiftReadG050MuddVMLastBlockTruePile'
 QKV = 'BamMediumPropMShiftReadG050MuddQKVLastBlockTruePile'
 
 
@@ -28,6 +29,7 @@ class MuddTailTest(MLPWriteTest, unittest.TestCase):
         (PARENT, 432111680, 6, 0, 3802),
         (DOUBLE, 432114377, 4, 2, 3381),
         (SINGLE, 432111926, 5, 1, 3370),
+        (VM, 432113321, 5, 1, 3349),
         (QKV, 432110860, 5, 1, 2813)):
       with self.subTest(exp=exp):
         cfg = self.config(exp, bam_splash_attention=False)
@@ -61,6 +63,13 @@ class MuddTailTest(MLPWriteTest, unittest.TestCase):
                 'general_v_static_gate', 'general_v_static_gate_bias')))
         self.assertTrue(any(path[:len(v_path)] == v_path and 'W_R_up' in path for path in params))
         self.assertTrue(any(path[:len(v_path)] == v_path and 'static_o_key' in path for path in params))
+        if exp == VM:
+          self.assertEqual(params[v_path + ('m_compose', 'dynamic_dense_conn1', 'kernel')].shape,
+                           (1200, 1, 64))
+          self.assertEqual([i for i in range(18) if bam_mudd.is_mlp_route_layer(cfg, i)], [17])
+          self.assertFalse(cfg.bam_mudd_tail_residual_qk)
+        else:
+          self.assertFalse(any('m_compose' in path for path in params))
         if exp == QKV:
           for arm in ('q', 'k'):
             name = 'query' if arm == 'q' else 'key'
@@ -116,6 +125,57 @@ class MuddTailTest(MLPWriteTest, unittest.TestCase):
   def test_residual_qk_causal_scan_and_active_gradients(self):
     self.check_scan_runtime(QKV)
 
+  def test_residual_mlp_causal_scan_and_active_gradients(self):
+    self.check_scan_runtime(VM)
+
+  def test_m_route_identity_and_attention_addition_mlp_residual_semantics(self):
+    cfg = self.tiny(VM)
+    parent_cfg = self.tiny(SINGLE)
+    mesh = jax.sharding.Mesh(max_utils.create_device_mesh(cfg), cfg.mesh_axes)
+    layer = fusion.SubDecoderLayer(cfg, mesh, layer_inx=8)
+    parent = fusion.SubDecoderLayer(parent_cfg, mesh, layer_inx=8)
+    current, embedding, l0 = [jax.random.normal(jax.random.key(i + 40), (1, 4, 150))
+                              for i in range(3)]
+    matrix = .2 * jax.random.normal(jax.random.key(45), (1, 4, 75, 32))
+    tokens = jnp.ones((1, 4), jnp.int32)
+    kwargs = dict(decoder_segment_ids=tokens, decoder_positions=jnp.arange(4)[None],
+                  decoder_input_tokens=tokens, deep_embedding=None, deterministic=True,
+                  model_mode='train', eos_sum=None, M_in=matrix, layer_index=8,
+                  early_residuals=(embedding, l0))
+    rngs = {name: jax.random.key(i + 51) for i, name in enumerate(('params', 'dropout', 'aqt'))}
+    with mesh, nn.partitioning.axis_rules(cfg.logical_axis_rules):
+      params = nn.unbox(layer.init(rngs, current, **kwargs)['params'])
+      initial, initial_matrix = layer.apply({'params': params}, current, **kwargs)
+      baseline, baseline_matrix = parent.apply({'params': params}, current, **kwargs)
+      np.testing.assert_allclose(initial, baseline, rtol=1e-6, atol=1e-6)
+      np.testing.assert_array_equal(initial_matrix, baseline_matrix)
+      params['m_compose']['mix_bias'] = jnp.asarray([.7, .2, -.1])
+      traces = {}
+
+      def trace(next_function, args, call_kwargs, context):
+        if context.method_name == '__call__':
+          if context.module.name == 'm_compose':
+            traces['controller_current'] = args[0]
+          elif context.module.name == 'post_self_attention_layer_norm':
+            traces['mlp_input'] = args[0]
+        result = next_function(*args, **call_kwargs)
+        if context.method_name == '__call__':
+          if context.module.name == 'self_attention':
+            traces['attention'] = result[0]
+          elif context.module.name == 'mlp':
+            traces['mlp_output'] = result
+        return result
+
+      with nn.intercept_methods(trace):
+        actual, actual_matrix = layer.apply({'params': params}, current, **kwargs)
+      expected_residual = .7 * current + .2 * embedding - .1 * l0 + traces['attention']
+      np.testing.assert_array_equal(traces['controller_current'], current)
+      np.testing.assert_allclose(traces['mlp_input'], expected_residual, rtol=2e-6, atol=2e-6)
+      np.testing.assert_allclose(actual, expected_residual + traces['mlp_output'],
+                                 rtol=2e-6, atol=2e-6)
+      # Mudd's m route must not change Q/K/V/O or attention write controls.
+      np.testing.assert_array_equal(actual_matrix, baseline_matrix)
+
   def check_scan_runtime(self, experiment):
     cfg = self.tiny(experiment)
     mesh = jax.sharding.Mesh(max_utils.create_device_mesh(cfg), cfg.mesh_axes)
@@ -162,9 +222,11 @@ class MuddTailTest(MLPWriteTest, unittest.TestCase):
       self.assertTrue(all(np.isfinite(np.asarray(v)).all() for v in jax.tree.leaves(grad)))
       gradients = flatten_dict(grad)
       for path, value in gradients.items():
-        if ((any(name in path for name in ('q_compose', 'k_compose', 'value_compose', 'compose_final_three_source')))
+        if ((any(name in path for name in ('q_compose', 'k_compose', 'value_compose', 'm_compose', 'compose_final_three_source')))
             and path[-1] == 'kernel'):
           self.assertGreater(float(jnp.sum(value * value)), 0., '/'.join(path))
+      if experiment == VM:
+        self.assertTrue(any('m_compose' in path for path in gradients))
       for name in (('value', 'query', 'key', 'W_R_up', 'M_shift_gate') if experiment == QKV
                    else ('value', 'W_lq_c8_up', 'W_lk_c8_up', 'W_R_up', 'M_shift_gate')):
         chosen = [v for path, v in gradients.items() if 'tail_layers' in path and name in path]

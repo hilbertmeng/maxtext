@@ -267,7 +267,15 @@ class SubDecoderLayer(nn.Module):
     attention_lnx = nn.with_logical_constraint(
         attention_lnx, ("activation_batch", "activation_norm_length", "activation_embed")
     )
-    intermediate_inputs = inputs + attention_lnx
+    residual_input = inputs
+    if bam_mudd.is_mlp_route_layer(cfg, self.layer_inx):
+      if early_residuals is None:
+        raise ValueError('selective residual M route requires embedding and L0 anchors')
+      # Match Mudd's m path: route the residual before adding attention, then use
+      # the result for both the MLP input and its identity residual connection.
+      residual_input = bam_mudd.ThreeSourceRouter(
+          cfg, mesh, self.quant, hidden_expand=1, name='m_compose')(inputs, early_residuals)
+    intermediate_inputs = residual_input + attention_lnx
 
     # Fully Connected
     # Parallel Pythia uses the layer input (Mudd's composed M route).

@@ -562,6 +562,7 @@ bam_last_mlp_dim: 0 # 0 preserves the regular width; scanned BAM requires a tail
 bam_mudd_tail_blocks: 0 # Selective WV/Mudd blocks, with a separate repeated tail scan.
 bam_mudd_tail_mlp_dims: null # Three shared widths in the modified tail block.
 bam_mudd_tail_residual_qk: False # Also restore full Q/K from separate three-source residual routes.
+bam_mudd_tail_residual_mlp: False # Route final-layer residual M before its attention addition, as Mudd's m path.
 bam_mudd_final_output: False # Independent three-source Mudd readout after complete final layer.
 bam_persistent_embedding_m: False # Carry a separate embedding-only [K,num_query_heads] matrix.
 bam_persistent_embedding_last_mlp_dim: null # Last-layer width repaying persistent seed/readout costs.

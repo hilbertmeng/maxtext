@@ -31,6 +31,10 @@ def is_qk_layer(config, layer_index):
   return bool(getattr(config, 'bam_mudd_tail_residual_qk', False)) and is_value_layer(config, layer_index)
 
 
+def is_mlp_route_layer(config, layer_index):
+  return bool(getattr(config, 'bam_mudd_tail_residual_mlp', False)) and is_value_layer(config, layer_index)
+
+
 class ThreeSourceRouter(nn.Module):
   """Mudd's signed coefficients over [current, embedding, complete L0 output]."""
 

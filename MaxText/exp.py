@@ -14803,6 +14803,25 @@ class BamMediumPropMShiftReadG050MuddValueLastBlockTruePile(BamMediumPropMShiftR
     ]
 
 
+class BamMediumPropMShiftReadG050MuddVMLastBlockTruePile(BamMediumPropMShiftReadG050MuddValueLastBlockTruePile):
+    """Add an independent final-layer Mudd m route to the single-V arm."""
+    # Implementation: codex/mediumprop-mudd-tail, /data0/xd/mediumprop-mudd-tail.
+    # m=Mudd(h,e,L0), r=m+attention, output=r+MLP(norm(r)); final output Mudd retained.
+    # New router76995=.05346875W_Q; L17 MLP3370->3349 repays75600, parent+1395.
+    # Nominal432113321 params: original single.5+1641; all healthOFF/tunedSplash.
+    # Prior MHA-ref terminal VM/singleV1.025[.995,1.055], matched speed +/-1%.
+    # Revise singleV/parent1.025->1.010; QKV/parent1.015 retained.
+    # Consistent implied VM/parent1.03525 and VM/QKV1.0199507.
+    model_name = 'BamMediumPropMShiftReadG050MuddVMLastBlockTruePile'
+    bam_mudd_tail_residual_mlp = True
+    bam_mudd_tail_mlp_dims = [3802, 3803, 3349]
+    compare_runs = [
+        'BamMediumPropMShiftReadG050MuddValueLastBlockTruePile',
+        'BamMediumPropMShiftReadG050MuddQKVLastBlockTruePile',
+        'BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile',
+    ]
+
+
 class BamMediumPropMShiftReadG050MuddQKVLastBlockTruePile(BamMediumPropMShiftReadG050MuddValueLastBlockTruePile):
     """L17 Q/K/V use separate three-source Mudd/full projections; O still reads M."""
     # Implementation: codex/mediumprop-mudd-tail, /data0/xd/mediumprop-mudd-tail.

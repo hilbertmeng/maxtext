@@ -15105,6 +15105,10 @@ class BamMediumPropMShiftReadG050MuddVMDualValueSharedRouterLastBlockL2AnchorTru
     # Explicit tiny-parameter exemption: retain all parent MLP widths and L16 MLP write.
     # Total432306060; native routers154380 unchanged. Direct control is L2 VM.
     # Prior terminal MHA-ref gain1.005[.985,1.030], matched speed -1% (+/-2%).
+    # 结论：对直接L2 VM父路始终落后；末五gain 1k .98007 ->2k .97866 ->2.8k .97662。
+    # 末五2k-2.8k gap+.00691196/R.97662384，绝对差缩小而相对亏损未追；MLP宽度相同，排除抵扣MLP的解释。
+    # 参数+38944(.00901%)、cache不变、同健康/内核速度约持平；2800评审判停于2977，原1.005下注未到终局验收。
+    # CP2977提交/零丢步/TB SYNC_OK；UE5a v5p16，P0，节点及队列独立确认释放。
     model_name = 'BamMediumPropMShiftReadG050MuddVMDualValueSharedRouterLastBlockL2AnchorTruePile'
     bam_mudd_tail_dual_value = True
     compare_runs = ['BamMediumPropMShiftReadG050MuddVMSharedRouterLastBlockL2AnchorTruePile']

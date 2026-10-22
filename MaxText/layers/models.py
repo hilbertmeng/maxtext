@@ -990,6 +990,9 @@ class Decoder(nn.Module):
           raise ValueError('native shared tail requires one QKV[/m] or VM block with plain identity-initialized Mudd')
         if cfg.bam_mudd_tail_l2_anchor and not cfg.bam_mudd_tail_native_shared_router:
           raise ValueError('L2 residual anchor requires native shared tail routing')
+        if cfg.bam_mudd_tail_l5_anchor and (not cfg.bam_mudd_tail_l2_anchor
+            or not cfg.bam_mudd_tail_native_shared_router or persistent):
+          raise ValueError('L5 residual anchor extends the native L2 tail routing')
         if cfg.bam_mudd_tail_dual_value and (not cfg.bam_mudd_tail_native_shared_router
             or cfg.bam_local_vo_shared_read != 'local_o' or not cfg.bam_local_vo_independent_gates):
           raise ValueError('dual tail V requires native routing and independently gated shared VO reads')
@@ -1024,6 +1027,8 @@ class Decoder(nn.Module):
           carry += (y, jnp.zeros_like(y))
           if cfg.bam_mudd_tail_l2_anchor:
             carry += (jnp.zeros_like(y),)
+          if cfg.bam_mudd_tail_l5_anchor:
+            carry += (jnp.zeros_like(y),)
         if persistent:
           carry += (persistent_M,)
         # Separate scan stages retain independent layer parameters while sharing each stage's HLO.
@@ -1043,6 +1048,8 @@ class Decoder(nn.Module):
           anchors = [embedding_anchor, l0_anchor]
           if cfg.bam_mudd_tail_l2_anchor:
             anchors.append(carry[4])
+          if cfg.bam_mudd_tail_l5_anchor:
+            anchors.append(carry[5])
           if cfg.bam_mudd_tail_native_shared_router:
             routed, _ = mudd.Compose(
                 cfg, mesh, self.quant, C=1, compose=True, force_router=True,

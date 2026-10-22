@@ -228,7 +228,8 @@ class SubDecoderLayer(nn.Module):
       call_kwargs['persistent_M'] = persistent_M
     shared_routes = None
     if cfg.bam_mudd_tail_native_shared_router and bam_mudd.is_value_layer(cfg, self.layer_inx):
-      if early_residuals is None or len(early_residuals) != (3 if cfg.bam_mudd_tail_l2_anchor else 2):
+      anchor_count = 2 + int(cfg.bam_mudd_tail_l2_anchor) + int(cfg.bam_mudd_tail_l5_anchor)
+      if early_residuals is None or len(early_residuals) != anchor_count:
         raise ValueError('native tail Mudd requires all configured residual anchors')
       # Native Mudd expects the current residual last (identity bias [0,0,1]).
       sources = [*early_residuals, inputs]
@@ -567,7 +568,9 @@ class FusionDecoderLayer(nn.Module):
         if getattr(cfg, 'bam_persistent_embedding_m', False):
           persistent_M, inputs = inputs[-1], inputs[:-1]
         if bam_mudd.uses_anchors(cfg):
-          if cfg.bam_mudd_tail_l2_anchor:
+          if cfg.bam_mudd_tail_l5_anchor:
+            inputs, M_in, embedding_anchor, l0_anchor, l2_anchor, l5_anchor = inputs
+          elif cfg.bam_mudd_tail_l2_anchor:
             inputs, M_in, embedding_anchor, l0_anchor, l2_anchor = inputs
           else:
             inputs, M_in, embedding_anchor, l0_anchor = inputs
@@ -621,6 +624,8 @@ class FusionDecoderLayer(nn.Module):
                     if scan_full_bam and bam_mudd.uses_anchors(cfg) else {})
     if extra_inputs and cfg.bam_mudd_tail_l2_anchor:
       extra_inputs['early_residuals'] += (l2_anchor,)
+    if extra_inputs and cfg.bam_mudd_tail_l5_anchor:
+      extra_inputs['early_residuals'] += (l5_anchor,)
     if scan_full_bam and getattr(cfg, 'bam_persistent_embedding_m', False):
       extra_inputs['persistent_M'] = persistent_M
     inputs, M_out = self.layer(
@@ -664,6 +669,9 @@ class FusionDecoderLayer(nn.Module):
         if cfg.bam_mudd_tail_l2_anchor:
           l2_anchor = jnp.where(jnp.asarray(layer_index) == 2, inputs, l2_anchor)
           carry += (l2_anchor,)
+        if cfg.bam_mudd_tail_l5_anchor:
+          l5_anchor = jnp.where(jnp.asarray(layer_index) == 5, inputs, l5_anchor)
+          carry += (l5_anchor,)
       if scan_full_bam and getattr(cfg, 'bam_persistent_embedding_m', False):
         carry += (persistent_M,)
       return carry, ()

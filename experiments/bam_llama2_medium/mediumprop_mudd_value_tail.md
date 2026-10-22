@@ -1167,3 +1167,40 @@ Retain the previous current-stage controls as the new late-started parent
 catches up; only the new paired edge isolates the intended single change.
 All pairs use registered BamMHAMediumPropC256TruePile-reference gain ratios;
 these metadata updates do not replace or resume training processes.
+
+### L2 VM with an additional complete L5 residual anchor
+
+User authorized BamMediumPropMShiftReadG050MuddVMSharedRouterLastBlockL2L5AnchorTruePile.
+Implementation stays in /data0/xd/mediumprop-mudd-tail, codex/mediumprop-mudd-tail.
+Parent is BamMediumPropMShiftReadG050MuddVMSharedRouterLastBlockL2AnchorTruePile;
+compare_runs retains only that direct parent, with BamMHAMediumPropC256TruePile
+as the gain-ratio reference. Fresh spot v5p-16 ID310300/us-east5-a, no backup
+zones or new FLEX training allocation. Borrow retained llm-jax-v6e-1-0/EW4a
+worker0 under its serial compiler lock; CPU/AOT/training-only prequeue run in
+parallel. Existing review candidates are not automatically stopped by this launch.
+
+Both native composition sites now use [embedding,L0,L2,L5,current]: C2 V/m at
+L17 and C1 before final norm/unembedding. Capture the complete L5 residual after
+attention and MLP, carry it through the existing5+1 block scans, and preserve
+L16 attention+MLP writes, Q/K M reads, L17 local O M read and no L17 attention
+write. No dual V. Both router hidden widths stay64 and their extra output
+coefficients start zero; current-source identity bias remains1. No new norm.
+
+Extra router parameters: (64+1)*(2+1)=195=.000135417W_Q. These tiny native
+router costs stay exempt, as for the parent: MLP[3802,3676,3540] unchanged.
+Exact expected total432267311, native routers154575, non-router rounding+1056.
+The additional residual carry extends activation lifetime; no extra dense model
+projection is introduced. Prior terminal MHA-reference gain vs L2 VM1.015
+[.995,1.035], matched throughput cost0-2% versus parent~.706step/s.
+
+Infrastructure audit against main e46827fe5b41937e886873d8f69f74fb6b3a34c3:
+no later main-only train/AOT/checkpoint/summary/optimizer/config-parser/default
+fixes since the prior3aba9ee2 audit. TB rotation500 and begin_step remain present;
+reuse verified unchanged writer5 evidence. New flag defaultsFalse, preserving
+old carry layout. CPU gate covers the new exact budget/live-write tree,
+initial-parameter/output identity, complete L5 capture/causality/gradients and
+JAX/v8t bridge, plus old default causal/anchor checks and shared BAM47/legacy8.
+
+Full13500 v5p16 AOT and formal training, TruePile4096 global128/B16, scan5+1,
+v8t48MiB/fused inputs prefix plus JAX L17, tuned Splash/full remat, generic
+health ON/internal+BAM OFF, CP200/latest2/keep0/forced-final and TB500.

@@ -1435,3 +1435,37 @@ Evidence under /data0/xd/bam_diagnostics/mediumprop-mudd-tail:
 l2-vm-dualv-formal-review2800.json, l2-vm-dualv-final-evidence2977.json,
 closeout-l2-vm-dualv2800-remote.log. Remote closeout journal:
 /home/lishengping/xd/projects/logs/closeout-20261022T182247Z.json.
+
+### L2 QKVM dual V: stopped2946 after2800 review
+
+BamMediumPropMShiftReadG050MuddQKVMDualValueSharedRouterLastBlockL2AnchorTruePile
+ran initial dedbb65 and compatible infrastructure-fixed727974c described above.
+Against its only direct L2 QKVM parent, MHA-reference rolling gain was
+1k .98673455 ->2k .98585892 ->2.8k .98565960. Final common2k–2.8k last-five
+gap+.00418324; a better2k window did not persist. Original parent MLP widths
+[3802,3803,3026] were unchanged. Added38944 parameters, unchanged cache and
+approximately flat matched speed offer no compensating benefit. The terminal
+1.015 prior was not evaluated to completion; observed results do not support it.
+Stop after2800 review committed CP2946, with no additional loss at closeout,
+local TB SYNC_OK and independently verified node/queue absence.
+
+Full zone path is us-east5-a only, v5p16, P0. Both RUN assignments used retained
+physical310291:2026-10-22 17:04:14–18:08:17 and18:10:39–18:36:03 UTC.
+Corresponding READY leases were17:04:18–18:08:17(1h03m59s) and
+18:10:43–18:36:03(25m20s). The first ended for the checkpoint repair, with the
+same TPU retained, not a preemption; the second ended at review stop.
+Before that software restart, the failed1400 checkpoint caused a replay from
+committed1200; do not describe the whole RUN as having zero lost work.
+Evidence: l2-qkvm-dualv-formal-review2800.json,
+l2-qkvm-dualv-final-evidence.json and closeout-l2-qkvm-dualv2800.log under
+/data0/xd/bam_diagnostics/mediumprop-mudd-tail. Remote journal:
+/home/lishengping/xd/projects/logs/closeout-20261022T183853Z.json.
+
+Both new L2 dual-V children retained their parent MLP widths yet lost, so width
+repayment is not the explanation for these two losses. Source review confirms
+the intended V addition and independent V/O gates. A remaining initialization
+hypothesis is specific: static_v_key is zero-mean normal with std1/sqrt(32), and the static
+gate's initial .99/.99 compensation gives coefficient1. Thus the added static
+V path is nonzero at startup. If this direction is revisited, zero-initializing
+only that new address is a concrete candidate, retaining dynamic V gates and
+all parameter widths. This is an untested proposal, not an authorized RUN.

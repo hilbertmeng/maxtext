@@ -15090,6 +15090,10 @@ class BamMediumPropMShiftReadG050MuddQKVMDualValueSharedRouterLastBlockL2AnchorT
     # Explicit tiny-parameter exemption: retain all parent MLP widths and L16 MLP-write omission.
     # Total432305524; native routers154900 unchanged. Direct control is the original L2 QKVM.
     # Prior terminal MHA-ref gain1.015[.990,1.040], matched speed -1% (+/-2%).
+    # 结论：对直接L2 QKVM父路持续亏损；末五gain 1k .98673 ->2k .98586 ->2.8k .98566。
+    # 末五2k-2.8k gap+.00418324/R.98565960，2k短暂改善未持续；父子MLP同宽，参数+38944、cache不变、速度约持平。
+    # 2800评审停于2946，CP2946提交/TB SYNC_OK、节点队列独立确认释放；原1.015下注未到终局验收，已训结果不支持。
+    # UE5a v5p16，P0；曾checkpoint故障退至1200重放，后保留同一TPU于1964切修复版，非抢占。
     model_name = 'BamMediumPropMShiftReadG050MuddQKVMDualValueSharedRouterLastBlockL2AnchorTruePile'
     bam_mudd_tail_dual_value = True
     compare_runs = ['BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockL2AnchorTruePile']

@@ -413,3 +413,13 @@ each skipped layer; actual m residual semantics; causality and activated
 Q/K/V/m plus both O/M-shift gradients; shared BAM, persistent-bank and rotating
 summary-writer regressions. Private evidence is in
 /data0/xd/bam_diagnostics/mediumprop-mudd-tail.
+
+Launch verification: both corrected arms run sealed runtime
+386e69e7f38db13866d6248eca1eefe0ee7d63b7 on their owned UE5a v5p-16s.
+All64 CPU checks and exact resolved-class verification passed before AOT.
+Each worker reports Loaded compiled function and completed steps10 through14.
+Mean step10-14 rates are.5498 and.5570step/s, respectively +.51% and+1.83%
+versus matched health-OFF QKV.547. The inherited full schedule and dataset
+path match the registry. Source proof and startup logs are retained privately
+in qkvm-one/two-worker-startup.txt. Gain triples against each registered direct
+control use BamMHAMediumPropC256TruePile and remain centralized in the registry.

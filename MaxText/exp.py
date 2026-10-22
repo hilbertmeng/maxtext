@@ -14796,6 +14796,23 @@ class BamMediumPropMShiftReadG050MuddValueLastBlockTruePile(BamMediumPropMShiftR
     ]
 
 
+class BamMediumPropMShiftReadG050MuddQKVLastBlockTruePile(BamMediumPropMShiftReadG050MuddValueLastBlockTruePile):
+    """L17 Q/K/V use separate three-source Mudd/full projections; O still reads M."""
+    # ledger only: codex/mediumprop-mudd-tail, /data0/xd/mediumprop-mudd-tail.
+    # Keep18 RoPE dimensions, original current-residual O/write controls and final Mudd expand4.
+    # Ordinary3-layer blocks x5, modified block x1; extra Q/K budget repaid from L17 MLP.
+    # Prior: terminal MHA-ref gain vs single.5 1.03 (~-.005 loss); matched throughput -2..+2%.
+    # code_commit:3c86e4a; sealed configuration and56 CPU checks verified.
+    model_name = 'BamMediumPropMShiftReadG050MuddQKVLastBlockTruePile'
+    bam_mudd_tail_residual_qk = True
+    bam_mudd_tail_mlp_dims = [3802, 3803, 2813]
+    compare_runs = [
+        'BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile',
+        'BamMediumPropMShiftReadG050MuddValueLastBlockTruePile',
+        'MuddLlama2MediumPropTruePile',
+    ]
+
+
 class BamMediumPropSharedR256GeneralReadMShiftPersistG050TruePile(BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile):
     """Dynamic previous-token M mix, persist carry, initial share0.5."""
     # 结论：初始开度 .5 的持久混合弱于只读混合，没有观察到额外收益。

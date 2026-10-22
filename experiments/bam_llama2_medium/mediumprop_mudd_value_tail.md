@@ -253,6 +253,10 @@ original single-gate .5 parent and both continuing one-block arms; all gain
 ratios use BamMHAMediumPropC256TruePile as reference, without Mudd ratios.
 Prior: terminal gain multiplier1.03 versus the single-gate parent (1.01–1.05),
 matched throughput within +/-2% of the continuing .546–.547 step/s arms.
+The user additionally requested a terminal bet against QKV:1.015 (1.00–1.03).
+To keep centers consistent, explicitly revise the earlier QKV/parent prior1.03
+to1.015 based on its narrowing full trajectory; new/parent=1.015*1.015=1.030225.
+This is a pre-launch forecast revision, not a measured terminal result.
 
 Keep TruePile4096/global128/per-device16,13500 planned steps, full remat,
 all health OFF, tuned Splash, CP200/latest2/keep0/finalforced and TB rotation500.
@@ -261,7 +265,8 @@ were uninterrupted, so UE5a remains the justified choice. Retained READY/idle
 EW4a llm-jax-v6e-1-0 is borrowed under the per-worker compile lock, with no
 lifecycle changes. The source family remains in the same independent worktree.
 
-Infrastructure audit against main b2e2c324: no main-only train/max_utils/
+Sealed implementation runtime:4038d9a8d38a52f54386e281ae85f8fa3944c201.
+Infrastructure audit against main62a3052c (including the prior b2e2c324 review): no main-only train/max_utils/
 maxtext_utils/checkpoint/summary-writer/train_compile/optimizer fixes since the
 reviewed fork; operational files are unchanged. Added defaults concern this
 model only. Parent TB rotation500 and writer begin_step remain intact. Local
@@ -269,3 +274,13 @@ and deployed prepare_train_aot.py/run_exp_xd.sh/auto_train_xd_maxtext.sh hashes
 match. New focused tests verify unchanged original seed initialization, independent
 gate gradients, post-shift concatenation, original-width writes, unchanged P/L0
 through both scan stages, causal prefixes and active end-to-end gradients.
+
+Startup verification: the parallel launcher passed the cached60-check CPU gate,
+exact v5p16 AOT and owned prequeue gates. The worker verified full runtime4038d9a
+and `Loaded compiled function!`; FIRST_STEP0 and progress23 are confirmed.
+At23, .540 step/s versus matched all-health-OFF QKV.547 (-1.28%), within the
+prior +/-2% throughput range. Registry comparison/gain specifications include
+the original parent, continuing QKV and single V, with MHA as the sole reference.
+Artifacts: private `launch-persistent.log`, `persistent-step14.txt`,
+`persistent-worker-startup.txt`, `cpu-gate-persistent.json` and
+`registry-persistent-monitoring.json` in the family's diagnostic directory.

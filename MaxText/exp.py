@@ -14828,7 +14828,10 @@ class BamMediumPropMShiftReadG050PersistentEmbedMLastQKVOTruePile(BamMediumPropS
     # Keep L16 MLP write; ordinary blocks x5 and final block x1; final Mudd expand4 ->64.
     # New seed/read/final-router budget 667603; L17 MLP3802->3617 repays666000 (+1603 params).
     # Prior: terminal MHA-ref gain vs single.5 1.03 (1.01..1.05); matched throughput +/-2%.
+    # Prior vs QKV1.015[1.00,1.03]; QKV/parent revised1.015, so new/parent1.030225.
     # CPU: shared BAM47 + prior tail4 + persistent-bank4 + summary-writer5 passed before sealing.
+    # code_commit:4038d9a; v5p16 AOT/FIRST_STEP verified; all healthOFF/tunedSplash.
+    # UE5a ~.540 step/s at23, vs matched QKV.547 -1.28%; startup evidence only.
     model_name = 'BamMediumPropMShiftReadG050PersistentEmbedMLastQKVOTruePile'
     bam_persistent_embedding_m = True
     bam_persistent_embedding_last_mlp_dim = 3617

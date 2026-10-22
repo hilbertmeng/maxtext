@@ -14830,6 +14830,7 @@ class BamMediumPropMShiftReadG050MuddVMLastBlockTruePile(BamMediumPropMShiftRead
 
 class BamMediumPropMShiftReadG050MuddQKVLastBlockTruePile(BamMediumPropMShiftReadG050MuddValueLastBlockTruePile):
     """Ledger only: L17 Mudd QKV and final readout; completed13500."""
+    # 定制独立down变体：Q/K/V各有R64控制器，不是原生Mudd的共享down。
     # 结论：L17三源Mudd完整Q/K/V投影优于单V及单门.5父路；O仍读M。
     # 终局末五12.6k–13.4k对单门.5 gap-.00205144，MHA参考倍数1.01318701。
     # 对单V gap-.00067472、倍数1.00430212；对Mudd终局gap-.07079156。
@@ -14855,6 +14856,7 @@ class BamMediumPropMShiftReadG050MuddQKVMLastBlockTruePile(BamMediumPropMShiftRe
     # ledger only: codex/mediumprop-mudd-tail, /data0/xd/mediumprop-mudd-tail.
     # Sealed runtime386e69e7; 64 CPU budget/path/shared-BAM/writer checks passed.
     # Corrected user intent: QKV parent, not single V; V/Q/K/m and final Mudd independent.
+    # Independent-down variant: four R64 controllers, distinct from native Mudd sharing.
     # m adds76995=.05346875W_Q; delete458000=.31805556W_Q of L17 write-only params.
     # L17 MLP2813->2919 adds381600; netQKV+595, original single.5-225.
     # Exact nominal432111455; ordinary blocks x5/final block x1, local O retained.
@@ -14892,6 +14894,68 @@ class BamMediumPropMShiftReadG050MuddQKVMLastTwoLayersTruePile(BamMediumPropMShi
         'BamMediumPropMShiftReadG050MuddQKVMLastBlockTruePile',
         'BamMediumPropMShiftReadG050MuddQKVLastBlockTruePile',
         'BamMediumPropMShiftReadG050MuddValueLastBlockTruePile',
+        'BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile',
+    ]
+
+
+class BamMediumPropMShiftReadG050MuddQKVSharedRouterLastBlockTruePile(BamMediumPropMShiftReadG050MuddQKVLastBlockTruePile):
+    """Native shared Mudd QKV controller; reclaim the dead final write into L17 MLP."""
+    # ledger only; implementation codex/mediumprop-mudd-tail, /data0/xd/mediumprop-mudd-tail.
+    # code_commit:61457aa7; native Compose/Mlp shared controller; CPU68 verified.
+    # Native Compose: shared1200x64 down, joint64x3x3 up, identity bias; final C1/expand4.
+    # Mudd routers154380 are exempt from MLP repayment, matching the established Mudd baseline.
+    # All large projection/write changes are repaid in their own layer; no L17 attention write.
+    # Nominal432266060 = original single.5 +154380; non-router budget matches exactly.
+    # Prior MHA-ref terminal vs old independent-QKV1.010[.995,1.025].
+    # Generic training health ON; internal/BAM health OFF. Old health-OFF speed is unmatched.
+    model_name = 'BamMediumPropMShiftReadG050MuddQKVSharedRouterLastBlockTruePile'
+    record_training_health_metrics = True
+    record_internal_nn_metrics = False
+    bam_mudd_tail_native_shared_router = True
+    bam_mudd_tail_skip_attention_write_last_layers = 1
+    bam_mudd_tail_mlp_dims = [3802, 3803, 3026]
+    compare_runs = [
+        'BamMediumPropMShiftReadG050MuddQKVLastBlockTruePile',
+        'BamMediumPropMShiftReadG050MuddValueLastBlockTruePile',
+        'BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile',
+    ]
+
+
+class BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockTruePile(BamMediumPropMShiftReadG050MuddQKVSharedRouterLastBlockTruePile):
+    """Same native shared QKV parent plus m coefficients, costing only195 parameters."""
+    # ledger only; implementation codex/mediumprop-mudd-tail, /data0/xd/mediumprop-mudd-tail.
+    # code_commit:61457aa7; native Compose/Mlp shared controller; CPU68 verified.
+    # Same MLP widths and all non-router parameters as shared QKV; one shared down/activation.
+    # Native up64x4x3/bias4x3; router total154575, no MLP deduction for the extra195.
+    # Nominal432266255 = original single.5 +154575; non-router budget matches exactly.
+    # Prior MHA-ref terminal vs shared-QKV1.020[.995,1.045], implied vs old-QKV1.0302.
+    model_name = 'BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockTruePile'
+    bam_mudd_tail_residual_mlp = True
+    compare_runs = [
+        'BamMediumPropMShiftReadG050MuddQKVSharedRouterLastBlockTruePile',
+        'BamMediumPropMShiftReadG050MuddQKVMLastBlockTruePile',
+        'BamMediumPropMShiftReadG050MuddQKVLastBlockTruePile',
+        'BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile',
+    ]
+
+
+class BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastTwoLayersTruePile(BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockTruePile):
+    """Native shared QKVM controller in both L16/L17; both local O reads retained."""
+    # ledger only; implementation codex/mediumprop-mudd-tail, /data0/xd/mediumprop-mudd-tail.
+    # code_commit:61457aa7; native Compose/Mlp shared controller; CPU68 verified.
+    # No attention write in L16/L17 or MLP write in L16; sources remain embedding/L0/current.
+    # Routers232155 are exempt; non-router rounding+800, all large costs repaid in-layer.
+    # Nominal432344635 = original single.5 +232955 (.0539%).
+    # Prior vs shared single-layer1.000[.970,1.030], lowered after independent two-layer evidence.
+    model_name = 'BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastTwoLayersTruePile'
+    bam_mudd_tail_qkvm_last_layers = 2
+    bam_mudd_tail_skip_attention_write_last_layers = 2
+    bam_mudd_tail_mlp_dims = [3802, 3027, 3026]
+    compare_runs = [
+        'BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockTruePile',
+        'BamMediumPropMShiftReadG050MuddQKVSharedRouterLastBlockTruePile',
+        'BamMediumPropMShiftReadG050MuddQKVMLastTwoLayersTruePile',
+        'BamMediumPropMShiftReadG050MuddQKVLastBlockTruePile',
         'BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile',
     ]
 

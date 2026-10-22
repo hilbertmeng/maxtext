@@ -127,8 +127,9 @@ auto-train still owns subsequent preemption recovery and training closeout.
    Formal training defaults to `scan_layers=True`; verify the resolved class value before launch.
    Use another setting only when the user explicitly requests it.
    Use `checkpoint_period=200` for Medium and `250` for XL.
-   Normal training uses `record_training_health_metrics=True` and BAM-specific `sow`
-   statistics OFF unless the user requests otherwise. Verify inherited values before AOT
+   Normal training uses `record_training_health_metrics=True`,
+   `record_internal_nn_metrics=False`, and BAM-specific `sow` statistics OFF unless
+   the user requests otherwise. Verify inherited values before AOT
    compilation; keep explicitly requested health capture enabled for its experiment.
 2. Before a parameter-tree change, use a new run name/GCS prefix. Commit the prepared runtime
    code, push its worktree branch, and use its full hash. Commit/push first-step fixes and

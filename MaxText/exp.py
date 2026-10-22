@@ -15025,6 +15025,10 @@ class BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockL2AnchorMLPWriteTr
     # Restore458000 writer params, repay127 L16 SwiGLU units (457200); non-router rounding+800.
     # Total432267380, native C4+C1 routers154900 exempt. Both L16 attention/MLP writes retained.
     # Prior terminal MHA-ref gain vs L2 QKVM1.015[.995,1.035]; expected~.72step/s (+/-2%).
+    # 结论：恢复L16 MLP写回未改善L2 QKVM；对直接父路1k R.9930、2.8k .9960、5k .98865。
+    # 末五4.2k-5k gap+.00239516/R.98865402；对无L2的匹配写回对照-.00047132/R1.00223073，L2小收益不足弥补写回代价。
+    # 参数较父路+800、无cache收益，速度约慢.7%；5k评审判停于5207，CP提交/TB SYNC_OK。
+    # UE5a v5p16，P0，节点和队列确认释放；未到终局验收，已训走势不支持1.015下注。
     model_name = 'BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockL2AnchorMLPWriteTruePile'
     bam_mudd_tail_skip_mlp_write = False
     bam_mudd_tail_dual_value = False

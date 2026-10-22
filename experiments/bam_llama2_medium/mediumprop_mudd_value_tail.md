@@ -1355,3 +1355,28 @@ use as a complete13500-step direct parent for its new dual-V child.
 Evidence: l2-qkvm-final-evidence13500.json and closeout-l2-qkvm13500.log in
 /data0/xd/bam_diagnostics/mediumprop-mudd-tail; remote closeout journal
 /home/lishengping/xd/projects/logs/closeout-20261022T173556Z.json.
+
+### L2 QKVM plus L16 MLP write: stopped5207 after5000 review
+
+BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockL2AnchorMLPWriteTruePile
+ran runtime8a58c063f711c21c5ba7215c0564fc1708587952. Restoring the L16 MLP
+writer repaid127 L16 SwiGLU units, preserving the original parameter budget
+within800 parameters. Against its direct L2 QKVM parent, the MHA-reference
+rolling gain was1k .9930 ->2.8k .9960 ->5k .98865402. The final common
+4.2k–5k last-five gap was+.00239516, with all five windows positive.
+Against the registered no-L2 QKVM/write control, the same interval gave
+-.00047132/gain1.00223073. L2 offers a small repair within the write-enabled
+family, but adding this write does not improve the stronger L2 parent.
+Matched speed~.717 versus~.722 is about.7% slower; there is no cache or
+parameter benefit. The terminal1.015 prior was not observed to completion;
+the trained trajectory does not support it. Stop after5000 review was
+executed at committed CP5207 with zero lost steps and local TB SYNC_OK.
+
+Full zone path is us-east5-a only, v5p16, P0. Assignment2026-10-22
+15:46:51–17:53:55 UTC; the sole READY lease was15:46:57–17:53:55 UTC
+(2h06m58s), ending at review stop. Both node and queued resource310299
+were independently verified absent; no successor owned this resource.
+Evidence: l2-qkvm-write-formal-review5000.json,
+l2-qkvm-write-final-evidence.json and closeout-l2-qkvm-write5000.log under
+/data0/xd/bam_diagnostics/mediumprop-mudd-tail; remote journal
+/home/lishengping/xd/projects/logs/closeout-20261022T175633Z.json.

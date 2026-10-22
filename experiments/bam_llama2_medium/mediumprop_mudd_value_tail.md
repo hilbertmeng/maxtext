@@ -599,3 +599,56 @@ and original single.5; reference remains BamMHAMediumPropC256TruePile.
 The formal budget/tree regression checks the new widths and exact count,
 reusing the verified model/kernel regressions because only configuration
 and the corresponding shape/budget coverage change.
+
+### Short backend loss alignment on shared L17 QKVM
+
+Only BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockTruePile was
+checked, per user direction. Reuse its existing xd-v5p-16-310286-maxtext and
+cached13500-step JAX61457aa7/Pallas35a1fd3f AOTs. Restore the committed Pallas
+checkpoint2800 into JAX, retaining the same optimizer/data cursor/seed9876,
+TruePile4096 global128/per-device16 and full schedule. Compare its steps
+2801..2810 with the already recorded Pallas losses; do not repeat Pallas.
+JAX-minus-Pallas mean=-.0000098, maximum absolute difference=.000091,
+with both signs. This quick continuation check passes. Discard diagnostic JAX
+updates and restore the original Pallas checkpoint2812, preserving its trajectory;
+Pallas resumed beyond2831 at~.725step/s. Diagnostic losses were removed from
+the formal loss cache and its original Pallas points restored. No new diagnostic
+TPU/AOT was created. No equivalent check is scheduled for the other runs.
+
+Evidence: /data0/xd/bam_diagnostics/mediumprop-mudd-tail/
+jax-vs-existing-pallas-overlap-result.json (ten paired points and runtime hashes),
+jax-existing-pallas-overlap-launch.json (exact restored data cursor), and
+pallas-after-overlap-step-gate.log. Checkpoint source is the registered UE5a
+BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockTruePile/checkpoints/2800
+under gs://newproject-1-llm_projects_us-east5/log/; normal continuation uses2812.
+
+### Shared L16/L17 QKVM: redistribute final-block MLP widths
+
+BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastTwoLayersRebalanceMLPTruePile
+inherits BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastTwoLayersTruePile.
+User allocation [3802,3027,3026] -> [3027,3414,3414] moves775 SwiGLU units
+from L15:387 to L16 and388 to L17. This transfers2790000=1.9375W_Q parameters
+within the block; total432344635 and total MLP MACs remain exactly unchanged.
+The test is whether both restored QKVM layers were constrained by their reduced
+MLPs, rather than treating the present two-layer result as a pure routing effect.
+
+All attention/Mudd/M read/write behavior, initialization and scan grouping stay
+unchanged: ordinary blocks x5 plus final block x1, both tail O reads retained,
+no L16/L17 attention write or L16 MLP write. Retain v8t/48MiB/fused inputs on
+16 prefix layers, read-only JAX tail, tuned Splash, full remat and generic health
+ON/internal/BAM statistics OFF. Same TruePile4096 global128/per-device16,
+CP200/latest2/keep0/forcedfinal/TB500 and full13500-step schedule. Distinct
+RUN/checkpoint prefix required for changed MLP shapes. Target trainer
+xd-v5p-16-310289-maxtext in us-east5-a; borrow the existing EW4a FLEX compiler
+under its worker lock, without lifecycle ownership.
+
+Prior terminal MHA-reference gain versus the direct two-layer parent:
+1.040[1.000,1.080], matched speed +/-2%. Keep the two-layer parent running as
+its direct allocation control, plus the strongest shared one-layer arm, its width
+exchange, shared QKV, completed independent QKV and original single.5 controls.
+All ratios use BamMHAMediumPropC256TruePile as reference. Formal budget/tree
+coverage is expanded to five configs, including all three final-block widths,
+joint controllers, removed write parameters and Pallas/JAX parameter compatibility.
+Unchanged model/kernel regressions are reused. Infrastructure audit against main
+621e2e73 finds no additional runtime fixes since6d2848e0 in training, checkpointing,
+summary writers, optimizers, AOT or defaults.

@@ -23,6 +23,7 @@ QKV = 'BamMediumPropMShiftReadG050MuddQKVSharedRouterLastBlockTruePile'
 ONE = 'BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockTruePile'
 TWO = 'BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastTwoLayersTruePile'
 SWAP = 'BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockSwapMLPTruePile'
+REBALANCE = 'BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastTwoLayersRebalanceMLPTruePile'
 
 
 class NativeTailTest(MLPWriteTest, unittest.TestCase):
@@ -32,11 +33,12 @@ class NativeTailTest(MLPWriteTest, unittest.TestCase):
     return cfg
 
   def test_formal_budget_joint_layout_and_router_exemption(self):
-    for exp, total, router_count, middle_width, last_width, targets in (
-        (QKV, 432266060, 154380, 3803, 3026, 3),
-        (ONE, 432266255, 154575, 3803, 3026, 4),
-        (TWO, 432344635, 232155, 3027, 3026, 4),
-        (SWAP, 432266255, 154575, 3026, 3803, 4)):
+    for exp, total, router_count, first_width, middle_width, last_width, targets in (
+        (QKV, 432266060, 154380, 3802, 3803, 3026, 3),
+        (ONE, 432266255, 154575, 3802, 3803, 3026, 4),
+        (TWO, 432344635, 232155, 3802, 3027, 3026, 4),
+        (SWAP, 432266255, 154575, 3802, 3026, 3803, 4),
+        (REBALANCE, 432344635, 232155, 3027, 3414, 3414, 4)):
       with self.subTest(exp=exp):
         cfg = self.config(exp, bam_splash_attention=False)
         cfg.get_keys().update(max_target_length=256, max_prefill_predict_length=256,
@@ -56,9 +58,10 @@ class NativeTailTest(MLPWriteTest, unittest.TestCase):
         routers = {p: v for p, v in flat.items()
                    if 'qkvm_compose' in p or 'compose_final_three_source' in p}
         self.assertEqual(sum(math.prod(v.shape) for v in routers.values()), router_count)
-        self.assertEqual(total - router_count - 432111680, 800 if exp == TWO else 0)
+        two_layers = exp in (TWO, REBALANCE)
+        self.assertEqual(total - router_count - 432111680, 800 if two_layers else 0)
         prefix = ('params', 'decoder', 'tail_layers')
-        layers = ('local_1', 'fetch_2') if exp == TWO else ('fetch_2',)
+        layers = ('local_1', 'fetch_2') if two_layers else ('fetch_2',)
         for layer in layers:
           p = prefix + (layer, 'block', 'qkvm_compose', 'mlp')
           self.assertEqual(flat[p + ('dynamic_dense_conn1', 'kernel')].shape, (1200, 1, 64))
@@ -70,6 +73,8 @@ class NativeTailTest(MLPWriteTest, unittest.TestCase):
           self.assertFalse(any(p[:len(attention)] == attention and
                                any(n in p for n in ('P_loc_down', 'P_loc_up', 'W_gw', 'gw_b0'))
                                for p in flat))
+        self.assertEqual(flat[prefix + ('local_0', 'block', 'mlp', 'wi_0', 'kernel')].shape,
+                         (1200, 1, first_width))
         self.assertEqual(flat[prefix + ('local_1', 'block', 'mlp', 'wi_0', 'kernel')].shape,
                          (1200, 1, middle_width))
         self.assertEqual(flat[prefix + ('fetch_2', 'block', 'mlp', 'wi_0', 'kernel')].shape,

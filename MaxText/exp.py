@@ -14990,6 +14990,26 @@ class BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastTwoLayersTruePile(BamMe
     ]
 
 
+class BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastTwoLayersRebalanceMLPTruePile(BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastTwoLayersTruePile):
+    """Move 775 SwiGLU units from L15 into L16/L17 without changing the two-layer budget."""
+    # ledger only: codex/mediumprop-mudd-tail, /data0/xd/mediumprop-mudd-tail.
+    # code_commit: 7e52560; five-config budget/tree and actual AOT startup verified.
+    # xd-v5p-16-310289-maxtext, us-east5-a; initial ~.718step/s, generic health ON/BAM OFF.
+    # User-requested allocation: L15 -775, L16 +387, L17 +388; total2790000=1.9375W_Q moved.
+    # Same432344635 parameters and MLP MACs as the two-layer parent; routers232155 exempt.
+    # Prior terminal MHA-ref gain vs two-layer parent1.040[1.000,1.080], matched speed +/-2%.
+    model_name = 'BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastTwoLayersRebalanceMLPTruePile'
+    bam_mudd_tail_mlp_dims = [3027, 3414, 3414]
+    compare_runs = [
+        'BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastTwoLayersTruePile',
+        'BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockTruePile',
+        'BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockSwapMLPTruePile',
+        'BamMediumPropMShiftReadG050MuddQKVSharedRouterLastBlockTruePile',
+        'BamMediumPropMShiftReadG050MuddQKVLastBlockTruePile',
+        'BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile',
+    ]
+
+
 class BamMediumPropMShiftReadG050PersistentEmbedMLastQKVOTruePile(BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile):
     """Ledger only: embedding-only persistent M joins shifted M for L17 Q/K/V/O; final three-source Mudd."""
     # 结论：末层拼接 embedding 持久 M 未带来收益；对 QKV 从2k近持平转为持续落后。

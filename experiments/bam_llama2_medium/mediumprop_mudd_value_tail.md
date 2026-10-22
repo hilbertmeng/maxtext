@@ -629,3 +629,74 @@ under the same settings; this is an initial timing check, not a new benchmark.
 Registry persists all five direct controls and their MHA-reference gain triples.
 Evidence: swap-startup-proof.json, swap-step14-gate.log and launch-native-swap.log
 in /data0/xd/bam_diagnostics/mediumprop-mudd-tail.
+
+### Short backend loss alignment on shared L17 QKVM
+
+Only BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockTruePile was
+checked, per user direction. Reuse its existing xd-v5p-16-310286-maxtext and
+cached13500-step JAX61457aa7/Pallas35a1fd3f AOTs. Restore the committed Pallas
+checkpoint2800 into JAX, retaining the same optimizer/data cursor/seed9876,
+TruePile4096 global128/per-device16 and full schedule. Compare its steps
+2801..2810 with the already recorded Pallas losses; do not repeat Pallas.
+JAX-minus-Pallas mean=-.0000098, maximum absolute difference=.000091,
+with both signs. This quick continuation check passes. Discard diagnostic JAX
+updates and restore the original Pallas checkpoint2812, preserving its trajectory;
+Pallas resumed beyond2831 at~.725step/s. Diagnostic losses were removed from
+the formal loss cache and its original Pallas points restored. No new diagnostic
+TPU/AOT was created. No equivalent check is scheduled for the other runs.
+
+Evidence: /data0/xd/bam_diagnostics/mediumprop-mudd-tail/
+jax-vs-existing-pallas-overlap-result.json (ten paired points and runtime hashes),
+jax-existing-pallas-overlap-launch.json (exact restored data cursor), and
+pallas-after-overlap-step-gate.log. Checkpoint source is the registered UE5a
+BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockTruePile/checkpoints/2800
+under gs://newproject-1-llm_projects_us-east5/log/; normal continuation uses2812.
+
+### Shared L16/L17 QKVM: redistribute final-block MLP widths
+
+BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastTwoLayersRebalanceMLPTruePile
+inherits BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastTwoLayersTruePile.
+User allocation [3802,3027,3026] -> [3027,3414,3414] moves775 SwiGLU units
+from L15:387 to L16 and388 to L17. This transfers2790000=1.9375W_Q parameters
+within the block; total432344635 and total MLP MACs remain exactly unchanged.
+The test is whether both restored QKVM layers were constrained by their reduced
+MLPs, rather than treating the present two-layer result as a pure routing effect.
+
+All attention/Mudd/M read/write behavior, initialization and scan grouping stay
+unchanged: ordinary blocks x5 plus final block x1, both tail O reads retained,
+no L16/L17 attention write or L16 MLP write. Retain v8t/48MiB/fused inputs on
+16 prefix layers, read-only JAX tail, tuned Splash, full remat and generic health
+ON/internal/BAM statistics OFF. Same TruePile4096 global128/per-device16,
+CP200/latest2/keep0/forcedfinal/TB500 and full13500-step schedule. Distinct
+RUN/checkpoint prefix required for changed MLP shapes. Target trainer
+xd-v5p-16-310289-maxtext in us-east5-a; borrow the existing EW4a FLEX compiler
+under its worker lock, without lifecycle ownership.
+
+Prior terminal MHA-reference gain versus the direct two-layer parent:
+1.040[1.000,1.080], matched speed +/-2%. Keep the two-layer parent running as
+its direct allocation control, plus the strongest shared one-layer arm, its width
+exchange, shared QKV, completed independent QKV and original single.5 controls.
+All ratios use BamMHAMediumPropC256TruePile as reference. Formal budget/tree
+coverage is expanded to five configs, including all three final-block widths,
+joint controllers, removed write parameters and Pallas/JAX parameter compatibility.
+Unchanged model/kernel regressions are reused. Infrastructure audit against main
+621e2e73 finds no additional runtime fixes since6d2848e0 in training, checkpointing,
+summary writers, optimizers, AOT or defaults.
+
+Alignment orchestration reuses the formal training entrypoint and saved AOTs.
+Task scripts launch_native_overlap_phase.py jax and finish_jax_existing_overlap.py
+are archived in /data0/xd/bam_diagnostics/mediumprop-mudd-tail and executed on
+tpu-ag under /home/lishengping/xd/projects/logs/hot-switch/. They preserve the
+original checkpoint2812 and discard the JAX replay updates.
+
+Startup verified on xd-v5p-16-310289-maxtext/us-east5-a at runtime
+7e5256020c024a708f8eae8f61954646f9c7325e, branch codex/mediumprop-mudd-tail,
+worktree /data0/xd/mediumprop-mudd-tail. The cached full13500-step AOT loaded;
+FIRST_STEP13 and the14-step gate passed. Actual worker flags confirm tail widths
+[3027,3414,3414], both native controllers, both skipped attention writes, v8t
+48MiB/fused inputs, tuned Splash, generic health ON/internal/BAM OFF. Initial
+throughput ~.718step/s versus the direct two-layer parent's~.720 under the same
+settings. All six registered controls include MHA-reference gain triples.
+Evidence: launch-native-rebalance.log, rebalance-step14-gate.log,
+rebalance-startup-proof.json and cpu-native-rebalance-budget.log in the evidence
+directory above. No additional numerical backend check was launched.

@@ -573,3 +573,59 @@ After preparing the replacement AOTs, resume these same compatible RUNs from
 committed checkpoints with the original total13500-step schedule; preserve
 runtime-transition journals and loss/TB history. This is a kernel change within
 the three RUNs, not three additional architecture experiments.
+
+### Verified v8t handoff and matched timing
+
+Runtime35a1fd3f23df44249e1082148766f47d737d865c resumed shared QKV, shared L17
+QKVM and shared L16/L17 QKVM from committed checkpoints559,636,642 respectively.
+Each loaded its exact13500-step AOT and passed resumed-step+14. Parameter trees
+and the full LR/data schedule remain compatible. On the same respective UE5a
+v5p16, with generic health ON/internal and BAM statistics OFF, median throughput
+over100 logged steps changed .543->.723(+33.1%), .543->.725(+33.5%) and
+.549->.720(+31.1%). These are matched kernel timings, not comparisons against
+historical all-health-OFF controls. Evidence: native-pre-pallas-timing.json and
+v8t-post-timing-initial.json in /data0/xd/bam_diagnostics/mediumprop-mudd-tail.
+The selected final1/2 layers retain the verified read-only JAX tail; prefix
+layers17/16 use v8t. Adjacent training losses do not establish backend equality:
+this handoff left no same-checkpoint replay overlap.
+
+### Shared L17 QKVM: exchange L16/L17 MLP widths
+
+
+BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockSwapMLPTruePile inherits
+BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockTruePile and exchanges
+its L16/L17 widths: [3802,3803,3026] -> [3802,3026,3803]. This explicit user
+intervention moves777 SwiGLU units,2797200=1.9425W_Q parameters, from L16 to
+L17. Exact model total remains432266255; total MLP MACs also remain unchanged.
+The question is whether complete final-layer QKVM and readout benefit more
+from that capacity than the preceding layer whose MLP no longer writes M.
+No attention, M routing, router, write omission or initialization changes.
+
+Keep the inherited v8t/48MiB/fused-input prefix, read-only JAX QKV tail,
+tuned Splash, generic training health ON, internal/BAM statistics OFF,
+full remat, TruePile4096 global128/per-device16, CP200/latest2 and total13500
+steps. The changed MLP shapes require a distinct RUN/checkpoint prefix.
+Targets: xd-v5p-16-310288-maxtext, us-east5-a; borrow the retained EW4a FLEX
+compiler under its worker lock and never mutate its lifecycle.
+
+Pre-run terminal MHA-reference gain versus the direct L17 shared-QKVM parent:
+1.020[.995,1.045]. Matched throughput forecast +/-2% of that parent's v8t
+rate. Direct controls retain all three native variants, old independent QKV
+and original single.5; reference remains BamMHAMediumPropC256TruePile.
+The formal budget/tree regression checks the new widths and exact count,
+reusing the verified model/kernel regressions because only configuration
+and the corresponding shape/budget coverage change.
+
+Prepared runtime7df904dda7cffbfe6ac7631ef5120ee0aad71595; formal four-config
+budget/tree regression passed. Reused70 unique verified model/kernel/writer
+checks with that method expanded and rerun (71 executions). Operational audit
+against main568592e4 found no infrastructure changes since6d2848e0 in train,
+max_utils/maxtext_utils, checkpointing, train_compile, optimizers or defaults.
+
+Exact7df904d AOT/FIRST_STEP and step14 passed on the owned310288 UE5a trainer.
+Worker flags confirm v8t/48MiB/fused inputs, tuned Splash, generic health ON
+and internal/BAM statistics OFF. Startup~.724step/s matches the parent~.725
+under the same settings; this is an initial timing check, not a new benchmark.
+Registry persists all five direct controls and their MHA-reference gain triples.
+Evidence: swap-startup-proof.json, swap-step14-gate.log and launch-native-swap.log
+in /data0/xd/bam_diagnostics/mediumprop-mudd-tail.

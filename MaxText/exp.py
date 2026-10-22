@@ -14949,6 +14949,25 @@ class BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockTruePile(BamMedium
     ]
 
 
+class BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockSwapMLPTruePile(BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockTruePile):
+    """Ledger only: exchange L16/L17 MLP capacity in the native shared-QKVM tail."""
+    # ledger only: codex/mediumprop-mudd-tail, /data0/xd/mediumprop-mudd-tail.
+    # code_commit:7df904d; exact v5p16 AOT/FIRST_STEP and step14 verified.
+    # UE5a startup~.724 step/s, vs matched-health v8t parent~.725; formal budget/tree check passed.
+    # Move777 SwiGLU units/2797200=1.9425W_Q from L16 to L17; exact432266255 total unchanged.
+    # Identical total MLP MACs, Pallas prefix, tuned Splash and generic-health settings.
+    # Prior terminal MHA-ref gain vs shared L17 QKVM1.020[.995,1.045], matched speed +/-2%.
+    model_name = 'BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockSwapMLPTruePile'
+    bam_mudd_tail_mlp_dims = [3802, 3026, 3803]
+    compare_runs = [
+        'BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockTruePile',
+        'BamMediumPropMShiftReadG050MuddQKVSharedRouterLastBlockTruePile',
+        'BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastTwoLayersTruePile',
+        'BamMediumPropMShiftReadG050MuddQKVLastBlockTruePile',
+        'BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile',
+    ]
+
+
 class BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastTwoLayersTruePile(BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockTruePile):
     """Native shared QKVM controller in both L16/L17; both local O reads retained."""
     # ledger only; implementation codex/mediumprop-mudd-tail, /data0/xd/mediumprop-mudd-tail.

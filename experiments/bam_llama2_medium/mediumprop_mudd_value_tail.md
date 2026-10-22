@@ -171,3 +171,43 @@ The retained EW4a compiler was borrowed through the per-worker lock, compiled al
 three jobs serially and was not released or repurposed. Formal trainers remain
 owned by auto-train. The comparison group consists of these three runs, with the normal1000-step
 report cadence and native200 windows.
+
+## Two-block V closeout: 5k review
+
+`BamMediumPropMShiftReadG050MuddValueLastTwoBlocksTruePile` stopped at committed
+checkpoint5081 on2026-10-22 UTC, retaining runtime33734c9. The early parent gap
+(-.02935 at200) rapidly contracted; over2.2k–5k it oscillated around zero without
+a persistent improvement. At the final mature5000 window its parent gap was
+-.000064 and MHA-reference gain multiplier1.00032; the latest five windows averaged
+gap+.00013492 / multiplier.999346 (range.997142–1.001107).
+
+The one-block V control led continuously from1600 through the common5000 window.
+At5000 the two-block arm trailed it by.0027094, with a latest-five mean+.00272392.
+It retained the underlying BAM advantage over historical Mudd, whose gap narrowed
+to-.0875196 at5000, but did not improve the direction's single-gate.5 baseline.
+Steady throughput was~.544 step/s, -.37% versus the matched one-block V arm's.546;
+the historical parent's health/kernel conditions prevent a matched speed claim.
+The parent+2697 parameter remainder is unchanged. Inference cache savings were not
+demonstrated; this runtime remains training-only.
+
+This contradicts the prior preference for the two-block arm. It is a5k review
+result rather than an observed terminal multiplier. Extending the combined V-route,
+MLP-write removal and local-budget changes to L14/L17 did not pay off; this result
+does not isolate the contribution of any one change. The remaining one-block V
+and QKV arms continue, without interim loss conclusions in this ledger.
+
+Closure: finalCP5081 `commit_success.txt` verified; TPU and queued resource both
+NOT_FOUND; controller stopped; local TensorBoard SYNC_OK. Sole trainer was
+`xd-v5p-16-310281-maxtext`, us-east5-a, v5p-16, with zero preemptions and no zone
+switch or passive candidates. The prequeue log first observed READY at01:29:02;
+the registry only began observing it at01:31:53. Its single observed READY interval
+ended at the review-stop boundary04:11:41 (2h42m39s from the prequeue observation;
+registry subinterval2h39m48s). Resource cleanup finished04:13:59. The retained
+EW4a FLEX compiler was not touched.
+
+Evidence: `/data0/xd/bam_diagnostics/mediumprop-mudd-tail/`, including
+`report-double-5000-review.json`, `report-single-vs-double-5000.json`,
+`closeout-double.log`, `lease-double-closed.json`, node/queue NOT_FOUND probes and
+`double-checkpoint-commit.txt`. The central registry retains the full loss cache.
+For future group reports, the user requested parent/internal gain multipliers
+only; historical Mudd remains a loss control, without its gain multiplier.

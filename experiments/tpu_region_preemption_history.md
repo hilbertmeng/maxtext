@@ -594,6 +594,8 @@ active leases are censored, and manual migration releases are not preemptions.
 | `BamMediumPropMShiftReadG050FullQKNormNoQKStaticGateSoftCapSiLUTruePile` | v5p-16 (`xd-v5p-16-310280-maxtext`) | `us-east5-a` | 2026-10-21 17:36:22 | 2026-10-21 23:42:01 | user stop9336; P5 same-zone recovery; CP9336 committed, node/queue absent, TB SYNC_OK; runtime5a81f73 | EW4b/UC1a passive only; never active |
 | `BamMediumPropMShiftReadG050FullQKNormNoQKStaticGateTruePile` | v5p-16 (`xd-v5p-16-310270-maxtext`) | `us-east5-a` | 2026-10-21 11:39:16 (READY) | 2026-10-21 19:15:19 | complete13500; P2, same-zone recovery; CP13500 committed, node/queue absent, TB SYNC_OK | none |
 
+| `BamMediumPropMShiftReadG050MuddValueLastTwoBlocksTruePile` | v5p-16 (`xd-v5p-16-310281-maxtext`) | `us-east5-a` | 2026-10-22 01:29:02 (prequeue READY; registry01:31:53) | 2026-10-22 04:11:41 | 5k review stop5081; P0; CP5081 committed, node/queue absent04:13:59, TB SYNC_OK; runtime33734c9 | none |
+
 ## READY leases
 
 | RUN | # | Zone | Start UTC | End UTC | Duration | Exit |
@@ -1989,6 +1991,7 @@ active leases are censored, and manual migration releases are not preemptions.
 | `BamPythia2p8BSotaIndependentR768PallasShortTrainNoQKStaticGate` | 1 | `us-east5-a` | 2026-10-21 16:04:36 | 2026-10-21 20:19:25 | 4h14m49s | authorized manual stop4868; P0; CP committed, node/queue absent, TB SYNC_OK |
 | `BamMediumPropMShiftReadG050FullQKNormNoQKStaticGateSoftCapSiLUTruePile` | 5 | `us-east5-a` | 2026-10-21 19:50:41 | 2026-10-21 22:37:09 | 2h46m28s | preempted; same-zone recovery |
 | `BamMediumPropMShiftReadG050FullQKNormNoQKStaticGateSoftCapSiLUTruePile` | 6 | `us-east5-a` | 2026-10-21 22:44:47 | 2026-10-21 23:42:01 | 57m14s | user stop9336; CP9336 committed, node/queue absent, TB SYNC_OK |
+| `BamMediumPropMShiftReadG050MuddValueLastTwoBlocksTruePile` | 1 | `us-east5-a` | 2026-10-22 01:29:02 | 2026-10-22 04:11:41 | 2h42m39s | 5k review stop5081; P0; first prequeue READY observation, registry subinterval01:31:53–04:11:41=2h39m48s; CP committed, node/queue absent04:13:59, TB SYNC_OK |
 
 
 ### 2026-10-14 user pause: resumed mixed R256/R384

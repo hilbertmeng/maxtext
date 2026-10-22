@@ -12,6 +12,11 @@ def tail_start(config):
   return config.num_decoder_layers - 3 * int(getattr(config, 'bam_mudd_tail_blocks', 0))
 
 
+def uses_anchors(config):
+  return bool(getattr(config, 'bam_mudd_tail_blocks', 0)
+              or getattr(config, 'bam_mudd_final_output', False))
+
+
 def is_value_layer(config, layer_index):
   return (bool(getattr(config, 'bam_mudd_tail_blocks', 0))
           and layer_index >= tail_start(config) and layer_index % 3 == 2)

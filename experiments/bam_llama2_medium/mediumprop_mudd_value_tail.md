@@ -1,4 +1,4 @@
-# MediumProp: shallow residual routes for late V and final readout
+# MediumProp: shallow content at late reads and final readout
 
 User authorized both runs and the two-block scan/budget split on2026-10-22 JST.
 Implementation: `/data0/xd/mediumprop-mudd-tail`, branch
@@ -11,6 +11,7 @@ until the implementation is explicitly merged.
 | BamMediumPropMShiftReadG050MuddValueLastTwoBlocksTruePile | WV L14/L17, no MLP write L13/L16 | ordinary x4, modified x2 | [3802,3803,3381] | 432114377 | +2697 (+.000624%) |
 | BamMediumPropMShiftReadG050MuddValueLastBlockTruePile | WV L17, no MLP write L16 | ordinary x5, modified x1 | [3802,3803,3370] | 432111926 | +246 (+.000057%) |
 | BamMediumPropMShiftReadG050MuddQKVLastBlockTruePile | full WQ/WK/WV L17, no MLP write L16 | ordinary x5, modified x1 | [3802,3803,2813] | 432110860 | -820 (-.000190%) |
+| BamMediumPropMShiftReadG050PersistentEmbedMLastQKVOTruePile | L17 Q/K/V/O read shifted M plus embedding-only P; final Mudd | ordinary x5, modified x1 | [3802,3676,3617] | 432113283 | +1603 (+.000371%) |
 
 The user explicitly approved spreading the final router's budget between L14/L17
 in the two-block arm so their widths agree and those blocks scan together.
@@ -211,3 +212,60 @@ Evidence: `/data0/xd/bam_diagnostics/mediumprop-mudd-tail/`, including
 `double-checkpoint-commit.txt`. The central registry retains the full loss cache.
 For future group reports, the user requested parent/internal gain multipliers
 only; historical Mudd remains a loss control, without its gain multiplier.
+
+## Persistent embedding bank and final Mudd
+
+User authorized this arm on 2026-10-22, retaining the original single-gate .5
+parent's L16 MLP write and explicitly retaining the final three-source Mudd
+after complete L17. No residual Mudd Q/K/V projection is used in L17.
+
+For embedding output e, reuse the original W_emb_u projection and its per-head
+75-dimensional RMS-normalized contents U[16,75]. A separate address network
+W_emb_persistent_v_down[1200,256] -> GELU -> W_emb_persistent_v_up[256,16,16]
+plus zero bias produces per-head RMS-normalized addresses A[16,16]. The user
+explicitly requested an independent write gate: W_emb_persistent_g[1200,16]
+plus its own logit(.1) bias. All nonzero new random projections use BAM .006
+initialization. The parent has bam_sqrt_n_scale=False; neither seed write uses
+1/sqrt(n) scaling. The original embedding write and its parameters are unchanged.
+P = U^T diag(g_p) A has shape [75,16], capacity 1200=D, and is differentiable.
+
+Carry (residual,M,embedding_anchor,L0_anchor,P) through ordinary blocks x5 and
+the separately scanned final block x1. P is never shifted, decayed, overwritten,
+or stop-gradiented. L17 first applies the original read-only .5 token shift to
+M[75,32], then concatenates P on the address axis, yielding [75,48] for every
+Q/K/V/O read. Shared read R256 down and existing gate semantics are retained;
+up projections, static keys and generalized pre-biases grow to48 columns only
+in L17. The attention write still targets75x32, and all six MLP writes remain.
+After complete L17, the same three-source Mudd combines current residual,
+embedding and complete L0; expand4 rounds to64, initializes current-only, and
+executes once outside scans before the parent's final RMSNorm/unembedding.
+
+Parameter trace (W_Q=1440000): independent seed address372992, independent seed
+gate19216, expanded L17 reads198400, final router76995; total667603=.463613W_Q.
+Reducing only L17 SwiGLU width3802->3617 repays666000, leaving parent+1603
+parameters. Formal abstract initialization confirms total432113283 and scan
+axes5/1, retained L16 write, 48-column last reads and32-column writes.
+
+This tests the late shallow-information route inside BAM's matrix-addressing
+interface, while the V/QKV arms use vector residual mixtures. P preserves only
+embedding contents rather than a separate L0 matrix. Primary controls are the
+original single-gate .5 parent and both continuing one-block arms; all gain
+ratios use BamMHAMediumPropC256TruePile as reference, without Mudd ratios.
+Prior: terminal gain multiplier1.03 versus the single-gate parent (1.01–1.05),
+matched throughput within +/-2% of the continuing .546–.547 step/s arms.
+
+Keep TruePile4096/global128/per-device16,13500 planned steps, full remat,
+all health OFF, tuned Splash, CP200/latest2/keep0/finalforced and TB rotation500.
+Owned new trainer: xd-v5p-16-310284-maxtext, us-east5-a; the three preceding leases
+were uninterrupted, so UE5a remains the justified choice. Retained READY/idle
+EW4a llm-jax-v6e-1-0 is borrowed under the per-worker compile lock, with no
+lifecycle changes. The source family remains in the same independent worktree.
+
+Infrastructure audit against main b2e2c324: no main-only train/max_utils/
+maxtext_utils/checkpoint/summary-writer/train_compile/optimizer fixes since the
+reviewed fork; operational files are unchanged. Added defaults concern this
+model only. Parent TB rotation500 and writer begin_step remain intact. Local
+and deployed prepare_train_aot.py/run_exp_xd.sh/auto_train_xd_maxtext.sh hashes
+match. New focused tests verify unchanged original seed initialization, independent
+gate gradients, post-shift concatenation, original-width writes, unchanged P/L0
+through both scan stages, causal prefixes and active end-to-end gradients.

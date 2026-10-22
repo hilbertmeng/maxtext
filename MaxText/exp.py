@@ -14820,6 +14820,37 @@ class BamMediumPropMShiftReadG050MuddQKVLastBlockTruePile(BamMediumPropMShiftRea
     ]
 
 
+class BamMediumPropMShiftReadG050PersistentEmbedMLastQKVOTruePile(BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile):
+    """Embedding-only persistent M joins shifted M for L17 Q/K/V/O; final three-source Mudd."""
+    # Implementation: codex/mediumprop-mudd-tail, /data0/xd/mediumprop-mudd-tail.
+    # Reuse W_emb_u; independent R256 GELU address and write gate, initial opening .1.
+    # Carry P[75,16] unchanged; L17 reads [shift(M)[75,32],P] with 48-column keys.
+    # Keep L16 MLP write; ordinary blocks x5 and final block x1; final Mudd expand4 ->64.
+    # New seed/read/final-router budget 667603; L17 MLP3802->3617 repays666000 (+1603 params).
+    # Prior: terminal MHA-ref gain vs single.5 1.03 (1.01..1.05); matched throughput +/-2%.
+    # CPU: shared BAM47 + prior tail4 + persistent-bank4 + summary-writer5 passed before sealing.
+    model_name = 'BamMediumPropMShiftReadG050PersistentEmbedMLastQKVOTruePile'
+    bam_persistent_embedding_m = True
+    bam_persistent_embedding_last_mlp_dim = 3617
+    bam_mudd_final_output = True
+    dynamic_dense_hidden_round = True
+    dynamic_dense_act_cls = 'gelu'
+    force_final_checkpoint = True
+    sa_block_q = 1024
+    sa_block_kv = 1024
+    sa_block_kv_compute = 512
+    sa_block_q_dkv = 1024
+    sa_block_kv_dkv = 1024
+    sa_block_kv_dkv_compute = 1024
+    sa_use_fused_bwd_kernel = True
+    compare_runs = [
+        'BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile',
+        'BamMediumPropMShiftReadG050MuddQKVLastBlockTruePile',
+        'BamMediumPropMShiftReadG050MuddValueLastBlockTruePile',
+    ]
+    jax_cache_dir = ''
+
+
 class BamMediumPropSharedR256GeneralReadMShiftPersistG050TruePile(BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile):
     """Dynamic previous-token M mix, persist carry, initial share0.5."""
     # 结论：初始开度 .5 的持久混合弱于只读混合，没有观察到额外收益。

@@ -2569,6 +2569,9 @@ class BamAttention(Attention):
     cfg = self.config
     self._residual_value = bam_mudd.is_value_layer(cfg, self.layer_inx)
     self._residual_qk = bam_mudd.is_qk_layer(cfg, self.layer_inx)
+    self._persistent_read = (bool(getattr(cfg, 'bam_persistent_embedding_m', False))
+                             and self.layer_inx == cfg.num_decoder_layers - 1)
+    self._read_bam_v = self.bam_v + (int(cfg.num_query_heads) if self._persistent_read else 0)
     if self._residual_value and getattr(cfg, 'bam_pallas_core', False):
       raise ValueError('selective residual V uses the pure-JAX BAM path')
     validate_bam_config(cfg, layer_mode=self.layer_mode)
@@ -2750,6 +2753,12 @@ class BamAttention(Attention):
     self._share_read_attention_down = bool(getattr(cfg, 'bam_share_read_attention_write_down', False))
     self._general_read = bool(getattr(cfg, 'bam_general_column_read', False))
     self._m_shift_mode = getattr(cfg, 'bam_m_shift_mode', None) or 'none'
+    if self._persistent_read and (
+        not self._general_read or self._full_m_read_rank is None
+        or self._m_shift_mode != 'read' or self._abs_v_dim is not None
+        or self._residual_value or self._residual_qk
+        or getattr(cfg, 'bam_pallas_core', False)):
+      raise ValueError('persistent embedding read requires uncompressed generalized read-only M-shift')
     assert self._m_shift_mode in ('none', 'read', 'persist')
     if self._m_shift_mode != 'none':
       assert self._full_m_read_rank is not None and self._general_read
@@ -2806,7 +2815,7 @@ class BamAttention(Attention):
         + (('v',) if self._local_v_mode == 'rank2' else ()))
     self._local_arms = {
         name: _BamReadArm(
-            name=name, k_dim=self.bam_k, v_dim=self.bam_v,
+            name=name, k_dim=self.bam_k, v_dim=self._read_bam_v,
             num_heads=self.num_query_heads, read_side=self.read_side,
             second_implementation=cfg.bam_local_second_implementation,
             gram_implementation=cfg.bam_local_gram_implementation,
@@ -2820,14 +2829,14 @@ class BamAttention(Attention):
                for key in ('rank', 'rank_routing', 'pre_rms_bias')})
         for name in arm_names}
     self._fetched_arm = _BamReadArm(
-        name='f', k_dim=self.bam_k, v_dim=self._abs_v_dim or self.bam_v,
+        name='f', k_dim=self.bam_k, v_dim=self._abs_v_dim or self._read_bam_v,
         num_heads=self._fetched_read_num_heads, read_side=self._fetched_read_side,
         **{**read_settings, 'rms_epsilon': self._fetched_read_key_epsilon})
     # Ungated sharing (LocalV 'shared') contracts the normalized key without a gate.
     self._fetched_arm_ungated = dataclasses.replace(self._fetched_arm, key_mode='rms')
     if self._direct_qk_c8:
       self._direct_qk_c8_arm = _BamReadArm(
-          name='q', k_dim=self.bam_k, v_dim=self._abs_v_dim or self.bam_v, num_heads=self.num_query_heads,
+          name='q', k_dim=self.bam_k, v_dim=self._abs_v_dim or self._read_bam_v, num_heads=self.num_query_heads,
           read_side='col', **read_settings)
     if read_settings['prune_row']:
       assert self.read_side == self._fetched_read_side == 'col'
@@ -2927,7 +2936,7 @@ class BamAttention(Attention):
 
     if self._output_read:
       read_k_dim = self.bam_k
-      read_v_dim = self._abs_v_dim or self.bam_v
+      read_v_dim = self._abs_v_dim or self._read_bam_v
 
       def decoder_init(_key, shape, dtype):
         direct = jnp.eye(shape[-2], shape[-1], dtype=dtype)
@@ -3002,7 +3011,7 @@ class BamAttention(Attention):
       for arm in ('q', 'k'):
         setattr(self, 'static_' + arm + '_key', self.param(
             'static_' + arm + '_key', nn.with_logical_partitioning(zeros_init, ('v_factor', 'q_heads')),
-            (self.bam_v, self.num_query_heads), self.weight_dtype))
+            (self._read_bam_v, self.num_query_heads), self.weight_dtype))
 
     # Static VO reads precede packed-arm parameters, preserving Prop init order.
     self._local_v_replace = (
@@ -3015,9 +3024,9 @@ class BamAttention(Attention):
       for arm in (('v', 'o') if 'local_v' in self._mode and not self._residual_value else ('o',)):
         setattr(self, 'static_' + arm + '_key', self.param(
             'static_' + arm + '_key', nn.with_logical_partitioning(
-                nn.initializers.normal(self.bam_v ** -0.5) if arm == 'v' else zeros_init,
+                nn.initializers.normal(self._read_bam_v ** -0.5) if arm == 'v' else zeros_init,
                 ('v_factor', 'q_heads')),
-            (self.bam_v, self.num_query_heads), self.weight_dtype))
+            (self._read_bam_v, self.num_query_heads), self.weight_dtype))
 
     # ---- Packed local projection with per-arm bias / gate / norm / adapter. ----
     if self._local_arms:
@@ -3120,7 +3129,7 @@ class BamAttention(Attention):
         # no attention-score cross term to awaken their dynamic read keys.
         if self._full_m_read_rank is not None:
           self._add_full_m_key_projection(
-              f'W_l{name}_c8', (self.num_query_heads, self.bam_v), ('embed', 'q_heads', 'kv'), reg_init)
+              f'W_l{name}_c8', (self.num_query_heads, self._read_bam_v), ('embed', 'q_heads', 'kv'), reg_init)
         else:
           setattr(self, f'W_l{name}_c8', DenseGeneral(
               features=(self.num_query_heads, self._abs_v_dim), axis=-1, kernel_init=reg_init,
@@ -3166,9 +3175,9 @@ class BamAttention(Attention):
     # Append generalized read parameters after the parent parameters to preserve init RNG order.
     if self._general_read:
       for arm, shape, axes in (
-          ('q', (self.num_query_heads, self.bam_v), ('q_heads', 'kv')),
-          ('k', (self.num_query_heads, self.bam_v), ('q_heads', 'kv')),
-          ('vo', (self.num_query_heads, cfg.bam_n_f, self.bam_v), ('q_heads', 'fetch', 'kv'))):
+          ('q', (self.num_query_heads, self._read_bam_v), ('q_heads', 'kv')),
+          ('k', (self.num_query_heads, self._read_bam_v), ('q_heads', 'kv')),
+          ('vo', (self.num_query_heads, cfg.bam_n_f, self._read_bam_v), ('q_heads', 'fetch', 'kv'))):
         if arm in ('q', 'k') and self._residual_qk:
           continue
         setattr(self, 'general_' + arm + '_pre_bias', self._constant_general_parameter(
@@ -4062,6 +4071,7 @@ class BamAttention(Attention):
       inputs_v: Array | None = None,
       inputs_q_route: Array | None = None,
       inputs_k_route: Array | None = None,
+      persistent_M: Array | None = None,
   ):
     """BAM forward. Returns (out, M_out): out [b,t,emb_dim], M_out [b,t,k,v].
 
@@ -4099,6 +4109,16 @@ class BamAttention(Attention):
 
       if self._m_shift_mode == 'persist':
         M_in = M_read  # Existing attention/MLP writes accumulate onto the mixed carry.
+
+    if self._persistent_read:
+      expected = M_in.shape[:-1] + (int(cfg.num_query_heads),)
+      if persistent_M is None or persistent_M.shape != expected:
+        raise ValueError(f'persistent embedding M must have shape {expected}')
+      if persistent_M.dtype != M_in.dtype:
+        raise ValueError('persistent embedding M and ordinary M must share their dtype')
+      # Only the evolving bank is shifted. All Q/K/V/O reads see both banks;
+      # writes still target the original V-wide M_in below.
+      M_read = jnp.concatenate((M_read, persistent_M), axis=-1)
 
     full_m_shared_hidden = (nn.gelu(self.full_m_read_down(inputs_q))
                             if getattr(self, '_full_m_read_share_down', False) else None)

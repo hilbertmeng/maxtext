@@ -84,6 +84,9 @@ class SubDecoderLayer(nn.Module):
     if (getattr(cfg, 'bam_mudd_tail_blocks', 0)
         and self.layer_inx >= bam_mudd.tail_start(cfg)):
       self.updated_mlp_dim = cfg.bam_mudd_tail_mlp_dims[self.layer_inx % 3]
+    if (getattr(cfg, 'bam_persistent_embedding_m', False)
+        and self.layer_inx == cfg.num_decoder_layers - 1):
+      self.updated_mlp_dim = cfg.bam_persistent_embedding_last_mlp_dim
     tail_count = cfg.bam_final_local_layer_count
     if tail_count is None:
       tail_count = int(bool(getattr(cfg, 'bam_extra_final_local_layer', False)))
@@ -117,6 +120,7 @@ class SubDecoderLayer(nn.Module):
       is_global=None,
       layer_index=None,
       early_residuals=None,
+      persistent_M=None,
   ):
     cfg = self.config
     mesh = self.mesh
@@ -210,6 +214,8 @@ class SubDecoderLayer(nn.Module):
         eos_sum=eos_sum,
         deep_embedding=deep_embedding,
     )
+    if getattr(cfg, 'bam_persistent_embedding_m', False):
+      call_kwargs['persistent_M'] = persistent_M
     if bam_mudd.is_value_layer(cfg, self.layer_inx):
       if early_residuals is None:
         raise ValueError('selective residual V requires embedding and L0 anchors')
@@ -519,7 +525,10 @@ class FusionDecoderLayer(nn.Module):
     if cfg.scan_layers:
       assert not cfg.dense_conn, 'flat layer scan currently requires dense_conn=False'
       if scan_full_bam:
-        if getattr(cfg, 'bam_mudd_tail_blocks', 0):
+        persistent_M = None
+        if getattr(cfg, 'bam_persistent_embedding_m', False):
+          persistent_M, inputs = inputs[-1], inputs[:-1]
+        if bam_mudd.uses_anchors(cfg):
           inputs, M_in, embedding_anchor, l0_anchor = inputs
         else:
           inputs, M_in = inputs
@@ -568,7 +577,9 @@ class FusionDecoderLayer(nn.Module):
           )
     # return's inputs length is 1
     extra_inputs = ({'early_residuals': (embedding_anchor, l0_anchor)}
-                    if scan_full_bam and getattr(cfg, 'bam_mudd_tail_blocks', 0) else {})
+                    if scan_full_bam and bam_mudd.uses_anchors(cfg) else {})
+    if scan_full_bam and getattr(cfg, 'bam_persistent_embedding_m', False):
+      extra_inputs['persistent_M'] = persistent_M
     inputs, M_out = self.layer(
         inputs,
         decoder_segment_ids,
@@ -604,9 +615,11 @@ class FusionDecoderLayer(nn.Module):
 
     if cfg.scan_layers:
       carry = (inputs, M_out) if scan_full_bam else inputs
-      if scan_full_bam and getattr(cfg, 'bam_mudd_tail_blocks', 0):
+      if scan_full_bam and bam_mudd.uses_anchors(cfg):
         l0_anchor = jnp.where(jnp.asarray(layer_index) == 0, inputs, l0_anchor)
         carry = (inputs, M_out, embedding_anchor, l0_anchor)
+      if scan_full_bam and getattr(cfg, 'bam_persistent_embedding_m', False):
+        carry += (persistent_M,)
       return carry, ()
     if cfg.bam_enabled:
       return inputs, hids, M_out

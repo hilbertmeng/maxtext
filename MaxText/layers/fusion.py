@@ -206,9 +206,9 @@ class SubDecoderLayer(nn.Module):
     pallas_tail = bool(cfg.bam_pallas_core) and bam_mudd.is_value_layer(cfg, self.layer_inx)
     if pallas_tail:
       # The existing fused QKVO kernel serves ordinary layers. Selective full
-      # QKV layers retain their O-only JAX read and bridge the v8t M layout.
-      if cfg.bam_pallas_body != 'v8t' or not bam_mudd.skips_attention_write(cfg, self.layer_inx):
-        raise ValueError('Pallas selective tail requires v8t and no attention write')
+      # QKV/VM layers use JAX reads/writes and bridge the v8t M layout.
+      if cfg.bam_pallas_body != 'v8t':
+        raise ValueError('Pallas selective tail requires the v8t M layout')
       attn_kwargs['config'] = pyconfig.HyperParameters(SimpleNamespace(
           keys=dict(cfg.get_keys(), bam_pallas_core=False)))
     attention_layer = AttnCls(**attn_kwargs)
@@ -456,7 +456,7 @@ class SubDecoderLayer(nn.Module):
         ("activation_batch", "activation_norm_length", "activation_embed"),
     )
     if pallas_tail:
-      # Tail reads and any MLP-only write use the JAX [K,V] layout; restore
+      # Tail reads and attention/MLP writes use the JAX [K,V] layout; restore
       # the prefix kernel's [V,K] carry only after all writes have finished.
       M_out = jnp.swapaxes(M_out, -1, -2)
     return layer_output, M_out

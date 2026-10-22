@@ -43,7 +43,11 @@ def skips_attention_write(config, layer_index):
 
 
 def is_qk_layer(config, layer_index):
-  return bool(getattr(config, 'bam_mudd_tail_residual_qk', False)) and is_value_layer(config, layer_index)
+  if not (bool(getattr(config, 'bam_mudd_tail_residual_qk', False))
+          and is_value_layer(config, layer_index)):
+    return False
+  count = getattr(config, 'bam_mudd_tail_qk_last_layers', None)
+  return count is None or layer_index >= config.num_decoder_layers - count
 
 
 def is_mlp_route_layer(config, layer_index):

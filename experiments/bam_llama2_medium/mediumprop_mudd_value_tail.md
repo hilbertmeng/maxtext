@@ -1025,3 +1025,58 @@ QKVM, and QKVM dual V versus original shared QKVM. They measure combined
 changes and cover the consumers' current training stages; they must not be
 mislabelled as isolated QK-source or V-channel effects. New factor comparisons
 use only mature common steps. Other earlier unrelated controls remain removed.
+
+### Mixed L16 VM / L17 QKVM with L2 and both L16 writes
+
+User authorized BamMediumPropMShiftReadG050MuddVMQKVMSharedRouterLastTwoLayersL2AnchorTruePile
+to hot-replace BamMediumPropMShiftReadG050MuddVMSharedRouterLastTwoLayersTruePile.
+Same worktree /data0/xd/mediumprop-mudd-tail, codex/mediumprop-mudd-tail.
+Logical launch ID310298; retain physical xd-v5p-16-310291-maxtext/us-east5-a.
+Keep the old trainer running until pushed/sealed source, CPU checks and AOT are
+ready. New RUN starts from scratch with its own checkpoint prefix. Borrow
+llm-jax-v6e-1-0/europe-west4-a worker0 under the serial compiler lock; no new
+training TPU or FLEX allocation is needed.
+
+L16 uses native C2 V/m routing and BAM Q/K M reads; L17 uses native C4 Q/K/V/m.
+The final output retains native C1 Mudd. All three routers use four sources
+[embedding,L0,L2,current], hidden64, independent up coefficients and a single
+shared down per site; identity initialization and expand1/expand4 rounding are
+unchanged. Both local O reads remain. Restore L16 attention write and retain
+L16 MLP write; L17 attention write remains omitted, with no downstream reader.
+No dual-V branch. Add an optional QK-tail subset count (defaultNone preserves
+all existing routes). The v8t/JAX bridge now allows attention and MLP writes
+before transposing the completed M carry back to v8t layout.
+
+Compared with the current two-layer VM, restore458000=.318056W_Q attention
+writer parameters and remove127 L16 SwiGLU units (457200). Restoring L17
+Mudd Q/K costs1850144 non-router parameters and removes514 L17 units
+(1850400). Last-block widths[3802,3287,3026]. Calculated total432346556,
+routers232220 exempt, non-router rounding+2656 vs original single.5. Total
++1389 vs the replaced VM run; +79976 vs single L2 QKVM, comprising77320
+additional tiny router parameters plus2656 rounding. Formal tree tests must
+verify both QK widths, C2/C4 layout, both458000 L16 writers and no L17 writer.
+
+Prior terminal MHA-reference gain versus single L2 QKVM1.020[.990,1.050];
+matched throughput expected~.70-.71step/s. Direct compare_runs are current
+two-layer VM and single-layer L2 QKVM; reference BamMHAMediumPropC256TruePile.
+The first comparison combines L2 anchors, L17 QK source and L16 attention
+write restoration; do not attribute it to any one factor. The second measures
+the added L16 VM plus MLP write against the strongest single-layer tail.
+Exceeding the old two-layer parent alone is insufficient to establish a gain
+over the strongest single-layer architecture. Existing write/no-L2 VM controls
+help interpret results but do not isolate every interaction in this new bundle.
+
+Infrastructure audit against main 3aba9ee2a701b0bc08956cf2f24072c26006bfc7: no main-only operational changes
+since cc867d94 in train/AOT/checkpoint/summary-writer/optimizer/config parser.
+The base.yml differences are experimental model flags absent on main; preserve
+them here. TB rotation500 and the begin_step writer path remain present, with
+unchanged summary-writer5 evidence. CPU gate: fresh shared BAM47, legacy-tail8,
+new formal/causal-write/layout3 and old QKVM/VM causal2 checks; retain the
+existing five writer tests after validating their source and evidence hashes.
+
+Full13500-step v5p-16 AOT, TruePile4096 global128/B16, scan5 ordinary blocks
+plus1 explicit modified block, ordinary prefix16 v8t48MiB/fused inputs and JAX
+L16/L17. Tuned Splash/full remat, generic health ON/internal+BAM OFF,
+CP200/latest2/keep0/forced-final and TB500 remain inherited. At handoff use
+hot_switch_run.py, committed old checkpoint, new FIRST_STEP/14-step gates,
+then close the old registry and TB without touching its transferred trainer.

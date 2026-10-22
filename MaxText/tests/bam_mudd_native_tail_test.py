@@ -12,7 +12,7 @@ import numpy as np
 
 import bam_mudd_tail_test as tail_reference
 from bam_prop_test_utils import MLPWriteTest
-from layers import fusion, mudd
+from layers import bam_mudd, fusion, mudd
 from layers.models import Transformer
 import max_utils
 import pyconfig
@@ -31,6 +31,7 @@ DUAL_QKVM = 'BamMediumPropMShiftReadG050MuddQKVMDualValueSharedRouterLastBlockTr
 DUAL_VM = 'BamMediumPropMShiftReadG050MuddVMDualValueSharedRouterLastBlockTruePile'
 QKVM_MLP_WRITE = 'BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockMLPWriteTruePile'
 VM_ONE = 'BamMediumPropMShiftReadG050MuddVMSharedRouterLastBlockTruePile'
+MIXED_L2 = 'BamMediumPropMShiftReadG050MuddVMQKVMSharedRouterLastTwoLayersL2AnchorTruePile'
 
 
 class NativeTailTest(MLPWriteTest, unittest.TestCase):
@@ -120,8 +121,14 @@ class NativeTailTest(MLPWriteTest, unittest.TestCase):
                                  for p in flat), exp == VM_L2, name)
 
   def test_v8t_tail_layout_bridge_preserves_parameters_outputs_and_gradients(self):
-    for exp, index in ((QKV, 8), (ONE, 8), (TWO, 7), (TWO, 8), (VM, 7), (VM, 8), (VM_L2, 8),
-                       (DUAL_QKVM, 8), (DUAL_VM, 8)):
+    self.check_v8t_tail_layout_bridge(((QKV, 8), (ONE, 8), (TWO, 7), (TWO, 8),
+        (VM, 7), (VM, 8), (VM_L2, 8), (DUAL_QKVM, 8), (DUAL_VM, 8)))
+
+  def test_mixed_tail_v8t_layout_bridge(self):
+    self.check_v8t_tail_layout_bridge(((MIXED_L2, 7), (MIXED_L2, 8)))
+
+  def check_v8t_tail_layout_bridge(self, experiments):
+    for exp, index in experiments:
       with self.subTest(exp=exp, index=index):
         cfg = self.tiny(exp)
         accelerated = pyconfig.HyperParameters(SimpleNamespace(keys=dict(
@@ -156,7 +163,7 @@ class NativeTailTest(MLPWriteTest, unittest.TestCase):
           actual, actual_m = apply(bridge, parameters, inputs, jnp.swapaxes(matrix, -1, -2))
           np.testing.assert_array_equal(actual, expected)
           np.testing.assert_array_equal(actual_m, jnp.swapaxes(expected_m, -1, -2))
-          writes = exp == VM and index == 7
+          writes = exp in (VM, MIXED_L2) and index == 7
           if writes:
             self.assertGreater(float(jnp.sum((expected_m - matrix) ** 2)), 0.)
           else:
@@ -172,6 +179,93 @@ class NativeTailTest(MLPWriteTest, unittest.TestCase):
                   parameters, inputs, matrix)
           for a, b in zip(jax.tree.leaves(reference_grad), jax.tree.leaves(actual_grad)):
             np.testing.assert_allclose(a, b, rtol=2e-6, atol=2e-6)
+
+  def test_mixed_tail_formal_budget_and_live_writers(self):
+    cfg = self.config(MIXED_L2, bam_splash_attention=False)
+    cfg.get_keys().update(max_target_length=256, max_prefill_predict_length=256,
+                          query_chunk_size=256)
+    self.assertEqual([i for i in range(18) if bam_mudd.is_value_layer(cfg, i)], [16, 17])
+    self.assertEqual([i for i in range(18) if bam_mudd.is_qk_layer(cfg, i)], [17])
+    self.assertEqual([i for i in range(18) if bam_mudd.skips_attention_write(cfg, i)], [17])
+    mesh = jax.sharding.Mesh(max_utils.create_device_mesh(cfg), cfg.mesh_axes)
+    state, _, _, _ = train_compile.get_shaped_inputs(mesh, cfg)
+    flat = flatten_dict(nn.unbox(state[0].params))
+    self.assertEqual(sum(math.prod(v.shape) for v in flat.values()), 432346556)
+    routers = sum(math.prod(v.shape) for p, v in flat.items()
+                  if 'qkvm_compose' in p or 'compose_final_three_source' in p)
+    self.assertEqual(routers, 232220)
+    self.assertEqual(432346556 - routers - 432111680, 2656)
+    prefix = ('params', 'decoder', 'tail_layers')
+    for layer, width in (('local_0', 3802), ('local_1', 3287), ('fetch_2', 3026)):
+      self.assertEqual(flat[prefix + (layer, 'block', 'mlp', 'wi_0', 'kernel')].shape,
+                       (1200, 1, width))
+    for layer, targets, q_width in (('local_1', 2, 18), ('fetch_2', 4, 75)):
+      block = prefix + (layer, 'block')
+      for name in ('query', 'key'):
+        self.assertEqual(flat[block + ('self_attention', name, 'kernel')].shape,
+                         (1200, 1, 16, q_width))
+      self.assertEqual(flat[block + ('qkvm_compose', 'mlp', 'dynamic_dense_conn2', 'kernel')].shape,
+                       (64, 1, targets, 4))
+      for name in ('W_R_up', 'static_o_key'):
+        self.assertTrue(any(p[:len(block)] == block and name in p for p in flat))
+      attention_write = {p: v for p, v in flat.items() if p[:len(block)] == block and
+                         any(n in p for n in ('P_loc_down', 'P_loc_up', 'W_gw', 'gw_b0'))}
+      mlp_write = {p: v for p, v in flat.items() if p[:len(block)] == block and
+                   any(n in p for n in ('mlp_write_gate', 'mlp_write_gate_bias',
+                                        'mlp_address_down', 'mlp_address_up'))}
+      self.assertEqual(sum(math.prod(v.shape) for v in attention_write.values()),
+                       458000 if layer == 'local_1' else 0)
+      self.assertEqual(sum(math.prod(v.shape) for v in mlp_write.values()),
+                       458000 if layer == 'local_1' else 0)
+
+  def test_mixed_tail_writes_reach_readout_and_causal_gradients(self):
+    cfg, mesh, model, params, tokens, pos, seg, rng = self.build(MIXED_L2)
+    flat = flatten_dict(params)
+    for path, value in flat.items():
+      if 'dynamic_dense_conn2' in path:
+        flat[path] = value + .01 * jax.random.normal(jax.random.key(91), value.shape)
+    params = unflatten_dict(flat)
+    with mesh, nn.partitioning.axis_rules(cfg.logical_axis_rules):
+      def forward(p, t=tokens, capture=False):
+        return model.apply({'params': p}, t, pos, tokens, seg,
+            decoder_segment_ids=seg, enable_dropout=False, rngs=rng,
+            capture_intermediates=(lambda module, method: isinstance(module, fusion.FusionDecoderLayer))
+                                  if capture else False,
+            mutable=['intermediates'] if capture else False)
+      output, capture = forward(params, capture=True)
+      tail = capture['intermediates']['decoder']['tail_layers']
+      matrices = [tail[name]['__call__'][0][0][1]
+                  for name in ('local_0', 'local_1', 'fetch_2')]
+      self.assertGreater(float(jnp.sum((matrices[1] - matrices[0]) ** 2)), 0.)
+      np.testing.assert_array_equal(matrices[1], matrices[2])
+      for gate in ('gw_b0', 'mlp_write_gate_bias'):
+        ablated = dict(flat)
+        selected = [p for p in flat if 'tail_layers' in p and 'local_1' in p and gate in p]
+        self.assertTrue(selected, gate)
+        for path in selected:
+          ablated[path] = jnp.full_like(flat[path], -100.)
+        ablated_output, ablated_capture = forward(unflatten_dict(ablated), capture=True)
+        ablated_m = ablated_capture['intermediates']['decoder']['tail_layers']['local_1']['__call__'][0][0][1]
+        self.assertGreater(float(jnp.sum((ablated_m - matrices[1]) ** 2)), 0., gate)
+        self.assertGreater(float(jnp.sum((ablated_output[0] - output[0]) ** 2)), 0., gate)
+      future = tokens.at[:, 2:].set(jnp.asarray([[9, 10]], jnp.int32))
+      np.testing.assert_allclose(forward(params, future)[0][:, :2], output[0][:, :2],
+                                 rtol=3e-5, atol=3e-5)
+      loss, grad = jax.jit(jax.value_and_grad(lambda p: jnp.mean(forward(p)[0] ** 2)))(params)
+      self.assertTrue(np.isfinite(float(loss)))
+      self.assertTrue(all(np.isfinite(np.asarray(v)).all() for v in jax.tree.leaves(grad)))
+      gradients = flatten_dict(grad)
+      for name in ('P_loc_down', 'P_loc_up', 'W_gw', 'gw_b0', 'mlp_address_down',
+                   'mlp_address_up', 'mlp_write_gate', 'mlp_write_gate_bias'):
+        selected = [v for p, v in gradients.items() if 'tail_layers' in p and 'local_1' in p and name in p]
+        self.assertTrue(selected, name)
+        self.assertGreater(sum(float(jnp.sum(v * v)) for v in selected), 0., name)
+      for layer, targets in (('local_1', 2), ('fetch_2', 4)):
+        heads = [v for p, v in gradients.items() if 'tail_layers' in p and layer in p
+                 and 'qkvm_compose' in p and 'dynamic_dense_conn2' in p][0]
+        self.assertEqual(heads.shape[-2:], (targets, 4))
+        for i in range(targets):
+          self.assertGreater(float(jnp.sum(heads[:, :, i, 2] ** 2)), 0., (layer, i, 'L2'))
 
   def test_forced_native_controller_matches_original_and_heads_are_independent(self):
     cfg = self.tiny(ONE)

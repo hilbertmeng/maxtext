@@ -973,6 +973,12 @@ class Decoder(nn.Module):
             or not cfg.bam_mudd_tail_residual_mlp
             or (not cfg.bam_mudd_tail_residual_qk and not cfg.bam_mudd_tail_native_shared_router)):
           raise ValueError('last-two-layer routing requires one native VM or residual QKVM block')
+        qk_count = cfg.bam_mudd_tail_qk_last_layers
+        if qk_count is not None and (type(qk_count) is not int
+            or not 1 <= qk_count <= (qkvm_count or 1)
+            or not cfg.bam_mudd_tail_native_shared_router
+            or not cfg.bam_mudd_tail_residual_qk):
+          raise ValueError('QK tail subset requires native QK routing and a valid final-layer count')
         skip_writes = cfg.bam_mudd_tail_skip_attention_write_last_layers
         if skip_writes and (type(skip_writes) is not int or skip_writes not in (1, 2)
             or blocks != 1 or persistent or (skip_writes == 2 and qkvm_count != 2)):

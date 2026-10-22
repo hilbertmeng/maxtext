@@ -14760,6 +14760,7 @@ class BamMediumPropMShiftReadG050MuddValueLastTwoBlocksTruePile(BamMediumPropSha
     # Both value routers expand1/final expand4 -> hidden64 using the existing Mudd rounding.
     # User approved final-router budget split over L14/L17 (both3381); nominal parent+2697 params.
     # Prior: terminal MHA-ref gain vs single.5 1.04 (~-.006 loss); matched throughput -2..+2%.
+    # Formal runtime:33734c9; exact v5p16 AOT/FIRST_STEP verified; healthOFF/tunedSplash.
     model_name = 'BamMediumPropMShiftReadG050MuddValueLastTwoBlocksTruePile'
     bam_mudd_tail_blocks = 2
     bam_mudd_tail_mlp_dims = [3802, 3803, 3381]
@@ -14785,6 +14786,7 @@ class BamMediumPropMShiftReadG050MuddValueLastBlockTruePile(BamMediumPropMShiftR
     # Implementation: codex/mediumprop-mudd-tail, /data0/xd/mediumprop-mudd-tail.
     # Two stage scans: ordinary blocks x5, modified block x1. Nominal parent+246 params.
     # Prior: terminal MHA-ref gain vs single.5 1.025 (~-.004 loss); matched throughput -2..+2%.
+    # Formal runtime:33734c9; exact v5p16 AOT/FIRST_STEP verified; healthOFF/tunedSplash.
     model_name = 'BamMediumPropMShiftReadG050MuddValueLastBlockTruePile'
     bam_mudd_tail_blocks = 1
     bam_mudd_tail_mlp_dims = [3802, 3803, 3370]
@@ -14801,6 +14803,7 @@ class BamMediumPropMShiftReadG050MuddQKVLastBlockTruePile(BamMediumPropMShiftRea
     # Keep18 RoPE dimensions, original current-residual O/write controls and final Mudd expand4.
     # Ordinary3-layer blocks x5, modified block x1; extra Q/K budget repaid from L17 MLP.
     # Prior: terminal MHA-ref gain vs single.5 1.03 (~-.005 loss); matched throughput -2..+2%.
+    # Formal runtime:3c86e4a; exact v5p16 AOT/FIRST_STEP verified; healthOFF/tunedSplash.
     model_name = 'BamMediumPropMShiftReadG050MuddQKVLastBlockTruePile'
     bam_mudd_tail_residual_qk = True
     bam_mudd_tail_mlp_dims = [3802, 3803, 2813]

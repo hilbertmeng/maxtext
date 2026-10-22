@@ -139,3 +139,35 @@ flag defaultsFalse. Full formal parameter traces verify all first-two/parent
 counts remain unchanged. The focused suite now also checks the restored full
 Q/K shapes, absence of all Q/K M-read parameters in L17, causal prefixes, preserved
 L0 anchors and finite active gradients through separate Q/K/V routers/projections.
+
+
+## Startup gates completed
+
+All three formal v5p16 AOT executables were loaded by their actual trainers and
+all three passed FIRST_STEP and the progress gate beyond step14. This is launch evidence,
+not a mid-training loss conclusion. Runtime/CPU gates:
+
+| Arm | Formal runtime | CPU checks | AOT/FIRST_STEP |
+|---|---|---:|---|
+| LastTwoBlocks V | 33734c9f0e5b63669b79389b685c7bb6480d1293 | 55 | verified |
+| LastBlock V | 33734c9f0e5b63669b79389b685c7bb6480d1293 | 55, shared verified family gate | verified |
+| LastBlock QKV | 3c86e4acc03aa26b671c535da8b6d3b17c478bd5 | 56 | verified |
+
+The first two share one completed full-family CPU gate; the third reran shared
+BAM47 and focused4 after its attention edits, reusing unchanged summary-writer5.
+The latest main2dcd86ee adds only this task's ledger/documentation since the
+reviewed fork; no intervening operational fix is missing.
+
+Actual worker configuration confirms TruePile4096/per-device16, declared tail
+MLP widths and QKV flag, health OFF, all seven tuned Splash settings, CP200/latest2/
+keep0 and TB500. Registry commits and regional dataset paths match the sealed
+runtimes. All registered gain triples use original MHA as reference; each retains
+its stated direct controls. Source/AOT/queue/controller commands and actual
+worker proofs are in `/data0/xd/bam_diagnostics/mediumprop-mudd-tail/`:
+`startup-proof-final.json`, `status-startup-final.json`, `registry-startup-list.json`,
+`launch-{two,one,qkv}.log`, `cpu-gate{,-qkv}.json` and sealed-config logs.
+
+The retained EW4a compiler was borrowed through the per-worker lock, compiled all
+three jobs serially and was not released or repurposed. Formal trainers remain
+owned by auto-train. The comparison group consists of these three runs, with the normal1000-step
+report cadence and native200 windows.

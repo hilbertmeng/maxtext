@@ -14787,11 +14787,16 @@ class BamMediumPropMShiftReadG050MuddValueLastTwoBlocksTruePile(BamMediumPropSha
     jax_cache_dir = ''
 
 class BamMediumPropMShiftReadG050MuddValueLastBlockTruePile(BamMediumPropMShiftReadG050MuddValueLastTwoBlocksTruePile):
-    """Only L17 uses Mudd WV; remove L16 MLP write; retain the same Mudd final output."""
+    """Ledger only: L17 Mudd WV and final readout; completed13500."""
+    # 结论：只改L17的Mudd V及最终读出有稳定小幅收益，优于改两个block。
+    # 终局末五12.6k–13.4k对单门.5 gap-.00137672，MHA参考倍数1.00884581。
+    # 对双block失败路共同末五4.2k–5k gap-.00272392、倍数1.01328552；对Mudd终局gap-.07011684。
+    # 完成13500；CP13500提交，节点/队列释放、TB SYNC_OK；UE5a v5p16，P1，无换区。
+    # 健康全OFF/tunedSplash，steady~.545step/s；比匹配健康设置的QKV.547慢.37%。
+    # 432111926参数，单门.5+246；L17 MLP3370，保留local O读，去L16 MLP写。
+    # 原下注1.025偏高，后修正1.010接近实测；历史父路健康ON，不作架构速度归因。
+    # code_commit:33734c9；完整READY租期与基线趋势见同族实验文档。
     # ledger only: codex/mediumprop-mudd-tail, /data0/xd/mediumprop-mudd-tail.
-    # Two stage scans: ordinary blocks x5, modified block x1. Nominal parent+246 params.
-    # Prior: terminal MHA-ref gain vs single.5 1.025 (~-.004 loss); matched throughput -2..+2%.
-    # code_commit:33734c9; 55 CPU checks; exact v5p16 AOT/FIRST_STEP verified; healthOFF/tunedSplash.
     model_name = 'BamMediumPropMShiftReadG050MuddValueLastBlockTruePile'
     bam_mudd_tail_blocks = 1
     bam_mudd_tail_mlp_dims = [3802, 3803, 3370]
@@ -14824,12 +14829,17 @@ class BamMediumPropMShiftReadG050MuddVMLastBlockTruePile(BamMediumPropMShiftRead
 
 
 class BamMediumPropMShiftReadG050MuddQKVLastBlockTruePile(BamMediumPropMShiftReadG050MuddValueLastBlockTruePile):
-    """L17 Q/K/V use separate three-source Mudd/full projections; O still reads M."""
+    """Ledger only: L17 Mudd QKV and final readout; completed13500."""
+    # 结论：L17三源Mudd完整Q/K/V投影优于单V及单门.5父路；O仍读M。
+    # 终局末五12.6k–13.4k对单门.5 gap-.00205144，MHA参考倍数1.01318701。
+    # 对单V gap-.00067472、倍数1.00430212；对Mudd终局gap-.07079156。
+    # 4k后总体维持小幅领先，未反转；原下注1.030偏高，后修正1.015接近实测。
+    # 完成13500；CP13500提交，节点/队列释放、TB SYNC_OK；UE5a v5p16，P0，无换区。
+    # 健康全OFF/tunedSplash，steady~.547step/s；比匹配的单V.545快.37%。
+    # 432110860参数，单门.5-820；L17 MLP2813 vs父路3802(-26.01%)，参数转给有效QKV路径。
+    # 保留18维RoPE、最终Mudd及local O，去L16 MLP写；历史父路健康ON，不作速度归因。
+    # code_commit:3c86e4a；完整READY租期与基线趋势见同族实验文档。
     # ledger only: codex/mediumprop-mudd-tail, /data0/xd/mediumprop-mudd-tail.
-    # Keep18 RoPE dimensions, original current-residual O/write controls and final Mudd expand4.
-    # Ordinary3-layer blocks x5, modified block x1; extra Q/K budget repaid from L17 MLP.
-    # Prior: terminal MHA-ref gain vs single.5 1.03 (~-.005 loss); matched throughput -2..+2%.
-    # code_commit:3c86e4a; 56 CPU checks; exact v5p16 AOT/FIRST_STEP verified; healthOFF/tunedSplash.
     model_name = 'BamMediumPropMShiftReadG050MuddQKVLastBlockTruePile'
     bam_mudd_tail_residual_qk = True
     bam_mudd_tail_mlp_dims = [3802, 3803, 2813]

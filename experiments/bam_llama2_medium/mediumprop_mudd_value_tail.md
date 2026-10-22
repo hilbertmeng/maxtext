@@ -423,3 +423,50 @@ versus matched health-OFF QKV.547. The inherited full schedule and dataset
 path match the registry. Source proof and startup logs are retained privately
 in qkvm-one/two-worker-startup.txt. Gain triples against each registered direct
 control use BamMHAMediumPropC256TruePile and remain centralized in the registry.
+
+## Final closeout: single V and QKV
+
+Both completed13500 with committed CP13500. Their exact node and queued-resource
+names310282/310283 were independently verified NOT_FOUND, and both TensorBoards
+returned SYNC_OK. Worker clean exits were UTC08:41:16/08:41:17; automatic
+resource cleanup and registry completion finished08:43:27. All times2026-10-22.
+
+Final five common windows are12600,12800,13000,13200,13400, each with five
+exact samples at10-step stride within +/-25, MHA reference
+BamMHAMediumPropC256TruePile. These are means of the central per-window ratios.
+
+| RUN | gap vs original single.5 | gain ratio vs original | gap vs single V | ratio vs single V |
+|---|---:|---:|---:|---:|
+| BamMediumPropMShiftReadG050MuddValueLastBlockTruePile | -.00137672 | 1.00884581 | 0 | 1 |
+| BamMediumPropMShiftReadG050MuddQKVLastBlockTruePile | -.00205144 | 1.01318701 | -.00067472 | 1.00430212 |
+
+Single V's final gap range is[-.00178940,-.00112040], QKV's
+[-.00271300,-.00154740]. QKV's gap versus single V stays negative in every
+final window. The small gains persist rather than becoming a large late gain.
+Single V also leads the stopped two-block V arm through their last common
+five4200–5000 windows: gap-.00272392, ratio1.01328552. Final gaps versus
+MuddLlama2MediumPropTruePile are-.07011684 and-.07079156; no Mudd-reference
+gain ratios are used. The original1.025/1.030 terminal priors were optimistic;
+the revised1.010/1.015 priors are closer. Nominal counts remain parent+246/-820.
+
+Both use all-health-OFF/tuned Splash at the same UE5a v5p-16 batch and sequence.
+Steady.545/.547step/s means QKV is+.37% versus single V. The original single.5
+parent has different health instrumentation, so its historical speed is not a
+matched architecture timing control. In particular, QKV retains a smaller
+L17 MLP2813 versus parent's3802 (-26.01%) and still improves loss: reallocating
+MLP parameters to late shallow-source QKV can be effective. This does not by
+itself establish that duplicating the change in L16, or deleting its live
+attention write, will help; those are the two continuing QKVM arms.
+
+Single V runtime33734c9f0e5b63669b79389b685c7bb6480d1293: one preemption,
+all assignments us-east5-a, registry launch01:29:12. Full recorded READY leases:
+01:29:15–05:08:42 (3h39m27s, preempted), and05:15:31–08:43:27
+(3h27m56s, completed). QKV runtime3c86e4acc03aa26b671c535da8b6d3b17c478bd5:
+zero preemptions, registry launch01:42:00, one READY lease01:42:03–08:43:27
+(7h01m24s, completed), us-east5-a throughout.
+
+Private reproducible evidence: single/qkv-final-loss-report.json,
+single/qkv-final-leases.json, registry-single/qkv-final.json,
+old-pair-final-checkpoints-verified.txt, old-pair-resources-absent.json,
+old-pair-tb-closeout.log, and old-pair-final-gap-and-gain-2000to13400
+(PNG/SVG/CSV). The reusable plot_tail_comparisons.py consumes central reports.

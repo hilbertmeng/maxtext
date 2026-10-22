@@ -14951,6 +14951,8 @@ class BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockL2AnchorTruePile(B
 
 class BamMediumPropMShiftReadG050MuddVMSharedRouterLastBlockL2AnchorTruePile(BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockL2AnchorTruePile):
     """Four-source joint V/m at L17, native Q/K reads and restored L16 MLP M write."""
+    # code_commit: 9d265b6; xd-v5p-16-310293-maxtext/UE5a; full AOT/FIRST_STEP/14-step gate verified.
+    # Matched-health startup~.713step/s vs L2 parent~.725 (-1.7%); tuned Splash, v8t, generic health ON.
     # Retain L16 attention write, both local O reads, L2 anchor and final C1 Mudd.
     # Per-layer repayment: L16 -127 and L17 +514 SwiGLU units; no cross-layer transfer.
     # Total432267116 = L2 parent +536; tiny C2+C1 routers154380 exempt.
@@ -14999,6 +15001,8 @@ class BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastTwoLayersTruePile(BamMe
 
 class BamMediumPropMShiftReadG050MuddVMSharedRouterLastTwoLayersTruePile(BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastTwoLayersTruePile):
     """Joint V/m routes at L16/L17, native BAM Q/K reads and the L16 MLP M write."""
+    # code_commit: 5fbe2f9; xd-v5p-16-310291-maxtext/UE5a; full AOT/FIRST_STEP/14-step gate verified.
+    # Matched-health startup~.699step/s vs two-layer parent~.719 (-2.8%); tuned Splash, generic health ON.
     # Keep both omitted attention writes and both local O reads; restore only L16 MLP write.
     # Per-layer repayment: L16 +387 and L17 +514 SwiGLU units, no cross-layer transfer.
     # Total432345167 = parent +532; C2+C2+C1 routers231375 remain exempt.

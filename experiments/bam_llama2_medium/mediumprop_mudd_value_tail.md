@@ -767,7 +767,7 @@ existing fused prefix path. No model math or kernel changes beyond runtime
 5fbe2f9; only this configuration and matching tests are added. Keep tuned
 Splash/full remat, generic health ON/internal/BAM OFF, TruePile4096
 global128/per-device16, CP200/latest2/keep0/forcedfinal/TB500 and13500steps.
-Separate RUN/checkpoint prefix; target xd-v5p-16-310292-maxtext/us-east5-a.
+Separate RUN/checkpoint prefix; target xd-v5p-16-310293-maxtext/us-east5-a.
 Borrow llm-jax-v6e-1-0/europe-west4-a worker0 under its compiler lock, with
 no compiler lifecycle ownership. No FLEX training.
 
@@ -781,3 +781,19 @@ four-source C2 tail bridge and scanned causal/gradient test of restored L16
 writes and L17 Q/K/O plus both V/m heads consuming L2. Reuse the unchanged
 native, writer5, legacy8 and full BAM47 evidence from5fbe2f9; shared model and
 kernel sources are unchanged. Full-topology AOT and FIRST_STEP still required.
+
+
+Startup verified on xd-v5p-16-310293-maxtext/us-east5-a at runtime
+9d265b6c8733482fdfc416a4c1124faa5fd29330. Three targeted checks passed: restored
+writes/read causal gradients, four-source C2/JAX-Pallas bridge, and corrected
+formal parameter trees/count. Unchanged native/legacy/BAM/writer evidence is
+reused. Full13500-step AOT, FIRST_STEP6 and14-step gate105 passed; actual worker
+proof103 verifies L2 ON, joint VM, restored Q/K/L16 MLP write, L16 attention write
+retained, MLP[3802,3676,3540], v8t48MiB/fused inputs, tuned Splash, full remat,
+generic health ON/internal+BAM OFF and TB500. Startup~.713step/s versus the
+matched L2 QKVM parent's~.725 (-1.7%). Only that parent and its MHA-reference
+gain triple are retained. Initial preparation310292 never trained; the budget
+assertion omitted800 rounding parameters, and its node+queue cleanup is verified.
+Evidence: vml2-startup-proof.json, vml2-step14-gate.log,
+vml2-completed-cpu-and-aot.json, vml2-gain-registration.log and
+launch-vml2-fixed.log under the evidence directory above.

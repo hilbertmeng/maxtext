@@ -14936,12 +14936,17 @@ class BamMediumPropMShiftReadG050MuddQKVSharedRouterLastBlockTruePile(BamMediumP
 class BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockTruePile(BamMediumPropMShiftReadG050MuddQKVSharedRouterLastBlockTruePile):
     """Same native shared QKV parent plus m coefficients, costing only195 parameters."""
     # ledger only; implementation codex/mediumprop-mudd-tail, /data0/xd/mediumprop-mudd-tail.
-    # code_commit:35a1fd3f; v8t prefix + read-only JAX tail bridge; CPU70 verified.
+    # code_commit:35a1fd3; v8t prefix + read-only JAX tail bridge; CPU70 verified.
     # Same RUN continues compatible initial native startup61457aa7; see family note.
     # Same MLP widths and all non-router parameters as shared QKV; one shared down/activation.
     # Native up64x4x3/bias4x3; router total154575, no MLP deduction for the extra195.
     # Nominal432266255 = original single.5 +154575; non-router budget matches exactly.
     # Prior MHA-ref terminal vs shared-QKV1.020[.995,1.045], implied vs old-QKV1.0302.
+    # 结论：共享m读出改善同宽共享QKV，但未优于旧独立QKV；扩到两层更差。
+    # 用户停于10789，CP10789提交/节点队列释放/TB SYNC_OK；UE5a v5p16，P0。
+    # 对旧独立QKV末五9.8k-10.6k gap+.00060860/R.99630466；对原单门.5 -.00146572/R1.00901850。
+    # 对共享QKV共同末五5.4k-6.2k -.00211116/R1.01106536；对独立QKVM至3.2k近持平。
+    # 原终局vs共享QKV1.020未完成验收；以上是各自完整共同区间的结论。
     model_name = 'BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockTruePile'
     bam_mudd_tail_residual_mlp = True
     compare_runs = [
@@ -14963,9 +14968,7 @@ class BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockL2AnchorTruePile(B
     # Prior terminal MHA-ref gain vs shared L17 QKVM1.020[.995,1.045], matched speed +/-2%.
     model_name = 'BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockL2AnchorTruePile'
     bam_mudd_tail_l2_anchor = True
-    compare_runs = [
-        'BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockTruePile',
-    ]
+    compare_runs = ['BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockTruePile']
 
 
 class BamMediumPropMShiftReadG050MuddVMSharedRouterLastBlockL2AnchorTruePile(BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockL2AnchorTruePile):
@@ -14981,7 +14984,41 @@ class BamMediumPropMShiftReadG050MuddVMSharedRouterLastBlockL2AnchorTruePile(Bam
     bam_mudd_tail_residual_qk = False
     bam_mudd_tail_skip_mlp_write = False
     bam_mudd_tail_mlp_dims = [3802, 3676, 3540]
-    compare_runs = ['BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockL2AnchorTruePile']
+    compare_runs = ['BamMediumPropMShiftReadG050MuddVMSharedRouterLastBlockTruePile']
+
+
+class BamMediumPropMShiftReadG050MuddQKVMDualValueSharedRouterLastBlockTruePile(BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockTruePile):
+    # ledger only: codex/mediumprop-mudd-tail, /data0/xd/mediumprop-mudd-tail.
+    """L17 Mudd QKVM plus the original V M read; restore L16 MLP write, no L2."""
+    # Reuse the full O dynamic key/read, including its down/up and pre-bias. No extra mixing scale.
+    # Restore38944 V gates/static-address params; L17 MLP -11. L16 writer458000: MLP -127.
+    # Total432266399 = shared QKVM parent +144; tiny native routers154575 exempt.
+    # Prior terminal MHA-ref gain vs shared QKVM1.030[.990,1.070], matched speed about -1% (+/-2%).
+    # code_commit: bdae8b3; xd-v5p-16-310289-maxtext/UE5a retained from MLP redistribution.
+    # CPU58 + writer5, full13500 AOT/FIRST_STEP/14-step gates verified; steady~.720step/s (-.7% vs parent~.725).
+    # Generic training health ON/internal+BAM OFF, tuned Splash, v8t48MiB/fused inputs, TB500.
+    model_name = 'BamMediumPropMShiftReadG050MuddQKVMDualValueSharedRouterLastBlockTruePile'
+    bam_mudd_tail_dual_value = True
+    bam_mudd_tail_l2_anchor = False
+    bam_mudd_tail_skip_mlp_write = False
+    bam_mudd_tail_mlp_dims = [3802, 3676, 3015]
+    compare_runs = ['BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockMLPWriteTruePile']
+
+class BamMediumPropMShiftReadG050MuddVMDualValueSharedRouterLastBlockTruePile(BamMediumPropMShiftReadG050MuddVMSharedRouterLastBlockL2AnchorTruePile):
+    # ledger only: codex/mediumprop-mudd-tail, /data0/xd/mediumprop-mudd-tail.
+    """L17 Mudd VM plus the original V M read, native Q/K reads, L16 MLP write, no L2."""
+    # Restore38944 V gates/static-address params; repay11 SwiGLU units at L17.
+    # Total432266265 = trained L2 VM parent -851; native routers154185 exempt.
+    # Matched dual QKVM isolates QK source; new no-L2 VM control isolates the added V channel.
+    # code_commit: bdae8b3; xd-v5p-16-310288-maxtext/UE5a retained from MLP swap.
+    # CPU58 + writer5, full13500 AOT/FIRST_STEP/14-step gates verified; steady~.710step/s (-.4% vs parent~.713).
+    # Relative to trained L2 VM: dual V plus removal of both L2 anchors; total parent-851.
+    # Generic training health ON/internal+BAM OFF, tuned Splash, v8t48MiB/fused inputs, TB500.
+    model_name = 'BamMediumPropMShiftReadG050MuddVMDualValueSharedRouterLastBlockTruePile'
+    bam_mudd_tail_dual_value = True
+    bam_mudd_tail_l2_anchor = False
+    bam_mudd_tail_mlp_dims = [3802, 3676, 3529]
+    compare_runs = ['BamMediumPropMShiftReadG050MuddVMSharedRouterLastBlockTruePile', 'BamMediumPropMShiftReadG050MuddQKVMDualValueSharedRouterLastBlockTruePile']
 
 
 class BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockSwapMLPTruePile(BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockTruePile):
@@ -14992,26 +15029,28 @@ class BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockSwapMLPTruePile(Ba
     # Move777 SwiGLU units/2797200=1.9425W_Q from L16 to L17; exact432266255 total unchanged.
     # Identical total MLP MACs, Pallas prefix, tuned Splash and generic-health settings.
     # Prior terminal MHA-ref gain vs shared L17 QKVM1.020[.995,1.045], matched speed +/-2%.
+    # 结论：初期领先转为持续落后，7k近持平未持续；7.4k-8.2k末五gap+.00135968/R.99225663。
+    # 用户确认热替换停于8309，CP8309提交/TB SYNC_OK；P0，无换区，原TPU交VM双V路。
+    # 宽度后移未建立收益；原终局1.020下注未到终局验收，已训结果不支持。
     model_name = 'BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockSwapMLPTruePile'
     bam_mudd_tail_mlp_dims = [3802, 3026, 3803]
-    compare_runs = [
-        'BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockTruePile',
-        'BamMediumPropMShiftReadG050MuddQKVSharedRouterLastBlockTruePile',
-        'BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastTwoLayersTruePile',
-        'BamMediumPropMShiftReadG050MuddQKVLastBlockTruePile',
-        'BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile',
-    ]
+    compare_runs = ['BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockTruePile']
 
 
 class BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastTwoLayersTruePile(BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockTruePile):
     """Native shared QKVM controller in both L16/L17; both local O reads retained."""
     # ledger only; implementation codex/mediumprop-mudd-tail, /data0/xd/mediumprop-mudd-tail.
-    # code_commit:35a1fd3f; v8t prefix + read-only JAX tail bridge; CPU70 verified.
+    # code_commit:35a1fd3; v8t prefix + read-only JAX tail bridge; CPU70 verified.
     # Same RUN continues compatible initial native startup61457aa7; see family note.
     # No attention write in L16/L17 or MLP write in L16; sources remain embedding/L0/current.
     # Routers232155 are exempt; non-router rounding+800, all large costs repaid in-layer.
     # Nominal432344635 = original single.5 +232955 (.0539%).
     # Prior vs shared single-layer1.000[.970,1.030], lowered after independent two-layer evidence.
+    # 结论：原搭配下两层QKVM持续落后单层，末五9.8k-10.6k gap+.00390720/R.97615443。
+    # 用户停于11093，CP11093提交/节点队列释放/TB SYNC_OK；UE5a v5p16，P0。
+    # 对旧独立QKV末五10.2k-11k +.00442652/R.97284756；对原单门.5 +.00251560/R.98437386。
+    # 对对应独立两层路至3.2k近持平；共享纠偏未修复两层方案。原下注1.000未到终局验收。
+    # 仅限无L2/无双V/无L16 MLP写、并删除L16 attention写的原搭配，不能外推新组合。
     model_name = 'BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastTwoLayersTruePile'
     bam_mudd_tail_qkvm_last_layers = 2
     bam_mudd_tail_skip_attention_write_last_layers = 2
@@ -15038,12 +15077,7 @@ class BamMediumPropMShiftReadG050MuddVMSharedRouterLastTwoLayersTruePile(BamMedi
     bam_mudd_tail_residual_qk = False
     bam_mudd_tail_skip_mlp_write = False
     bam_mudd_tail_mlp_dims = [3802, 3414, 3540]
-    compare_runs = [
-        'BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastTwoLayersTruePile',
-        'BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockTruePile',
-        'BamMediumPropMShiftReadG050MuddQKVLastBlockTruePile',
-        'BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile',
-    ]
+    compare_runs = ['BamMediumPropMShiftReadG050MuddVMSharedRouterLastBlockTruePile', 'BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastTwoLayersTruePile']
 
 
 class BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastTwoLayersRebalanceMLPTruePile(BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastTwoLayersTruePile):
@@ -15054,16 +15088,12 @@ class BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastTwoLayersRebalanceMLPTr
     # User-requested allocation: L15 -775, L16 +387, L17 +388; total2790000=1.9375W_Q moved.
     # Same432344635 parameters and MLP MACs as the two-layer parent; routers232155 exempt.
     # Prior terminal MHA-ref gain vs two-layer parent1.040[1.000,1.080], matched speed +/-2%.
+    # 结论：早期落后缩小后停在+.002至+.003平台；4.4k-5.2k末五gap+.00272904/R.98634509。
+    # 用户确认热替换停于5423，CP5423提交/TB SYNC_OK；P2均同区恢复，原TPU交QKVM双V路。
+    # 重分配未修复两层路；原终局1.040下注未到终局验收，已训结果不支持。
     model_name = 'BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastTwoLayersRebalanceMLPTruePile'
     bam_mudd_tail_mlp_dims = [3027, 3414, 3414]
-    compare_runs = [
-        'BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastTwoLayersTruePile',
-        'BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockTruePile',
-        'BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockSwapMLPTruePile',
-        'BamMediumPropMShiftReadG050MuddQKVSharedRouterLastBlockTruePile',
-        'BamMediumPropMShiftReadG050MuddQKVLastBlockTruePile',
-        'BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile',
-    ]
+    compare_runs = ['BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastTwoLayersTruePile']
 
 
 class BamMediumPropMShiftReadG050PersistentEmbedMLastQKVOTruePile(BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile):

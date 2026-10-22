@@ -603,6 +603,12 @@ active leases are censored, and manual migration releases are not preemptions.
 
 | `BamMediumPropMShiftReadG050MuddQKVSharedRouterLastBlockTruePile` | v5p-16 (`xd-v5p-16-310285-maxtext`) | `us-east5-a` | 2026-10-22 09:38:43 (READY) | 2026-10-22 12:16:23 | user stop6343, dominated by shared L17 QKVM; P0; CP6343 committed, node/queue absent12:19:05, TB SYNC_OK; Pallas runtime35a1fd3 | none |
 
+| `BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastTwoLayersRebalanceMLPTruePile` | v5p-16 (`xd-v5p-16-310289-maxtext`) | `us-east5-a` | 2026-10-22 11:17:12 | 2026-10-22 13:49:17 | user hot-replace5423; P2; CP committed, TB SYNC_OK; trainer retained/transferred, no deletion | none |
+| `BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockSwapMLPTruePile` | v5p-16 (`xd-v5p-16-310288-maxtext`) | `us-east5-a` | 2026-10-22 10:32:46 | 2026-10-22 13:51:32 | user hot-replace8309; P0; CP committed, TB SYNC_OK; trainer retained/transferred, no deletion | none |
+
+| `BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockTruePile` | v5p-16 (`xd-v5p-16-310286-maxtext`) | `us-east5-a` | 2026-10-22 09:40:49 | 2026-10-22 14:12:10 | user stop10789; P0; CP committed, node/queue absent, TB SYNC_OK; runtime35a1fd3 | none |
+| `BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastTwoLayersTruePile` | v5p-16 (`xd-v5p-16-310287-maxtext`) | `us-east5-a` | 2026-10-22 09:41:07 | 2026-10-22 14:12:13 | user stop11093; P0; CP committed, node/queue absent, TB SYNC_OK; runtime35a1fd3 | none |
+
 ## READY leases
 
 | RUN | # | Zone | Start UTC | End UTC | Duration | Exit |
@@ -2007,6 +2013,14 @@ active leases are censored, and manual migration releases are not preemptions.
 | `BamMediumPropMShiftReadG050MuddValueLastBlockTruePile` | 2 | `us-east5-a` | 2026-10-22 05:15:31 | 2026-10-22 08:43:27 | 3h27m56s | complete13500; CP committed, node/queue absent, TB SYNC_OK |
 | `BamMediumPropMShiftReadG050MuddQKVLastBlockTruePile` | 1 | `us-east5-a` | 2026-10-22 01:42:03 | 2026-10-22 08:43:27 | 7h01m24s | complete13500; P0; CP committed, node/queue absent, TB SYNC_OK |
 | `BamMediumPropMShiftReadG050MuddQKVSharedRouterLastBlockTruePile` | 1 | `us-east5-a` | 2026-10-22 09:38:43 | 2026-10-22 12:16:23 | 2h37m40s | user stop6343, dominated by shared L17 QKVM; P0; CP6343 committed, node/queue absent12:19:05, TB SYNC_OK |
+
+| `BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastTwoLayersRebalanceMLPTruePile` | 1 | `us-east5-a` | 2026-10-22 11:17:16 | 2026-10-22 12:27:05 | 1h09m49s | preempted; same-zone recovery |
+| `BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastTwoLayersRebalanceMLPTruePile` | 2 | `us-east5-a` | 2026-10-22 12:32:51 | 2026-10-22 12:35:44 | 02m53s | preempted; same-zone recovery |
+| `BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastTwoLayersRebalanceMLPTruePile` | 3 | `us-east5-a` | 2026-10-22 12:41:47 | 2026-10-22 13:49:17 | 1h07m30s | user hot-replace5423; CP committed, TB SYNC_OK; trainer transferred |
+| `BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockSwapMLPTruePile` | 1 | `us-east5-a` | 2026-10-22 10:32:48 | 2026-10-22 13:51:32 | 3h18m44s | user hot-replace8309; CP committed, TB SYNC_OK; trainer transferred |
+
+| `BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockTruePile` | 1 | `us-east5-a` | 2026-10-22 09:40:51 | 2026-10-22 14:12:10 | 4h31m19s | user stop10789; CP committed, node/queue absent, TB SYNC_OK |
+| `BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastTwoLayersTruePile` | 1 | `us-east5-a` | 2026-10-22 09:41:09 | 2026-10-22 14:12:13 | 4h31m04s | user stop11093; CP committed, node/queue absent, TB SYNC_OK |
 
 
 ### 2026-10-14 user pause: resumed mixed R256/R384

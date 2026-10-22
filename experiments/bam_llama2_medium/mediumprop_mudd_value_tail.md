@@ -274,3 +274,13 @@ and deployed prepare_train_aot.py/run_exp_xd.sh/auto_train_xd_maxtext.sh hashes
 match. New focused tests verify unchanged original seed initialization, independent
 gate gradients, post-shift concatenation, original-width writes, unchanged P/L0
 through both scan stages, causal prefixes and active end-to-end gradients.
+
+Startup verification: the parallel launcher passed the cached60-check CPU gate,
+exact v5p16 AOT and owned prequeue gates. The worker verified full runtime4038d9a
+and `Loaded compiled function!`; FIRST_STEP0 and progress23 are confirmed.
+At23, .540 step/s versus matched all-health-OFF QKV.547 (-1.28%), within the
+prior +/-2% throughput range. Registry comparison/gain specifications include
+the original parent, continuing QKV and single V, with MHA as the sole reference.
+Artifacts: private `launch-persistent.log`, `persistent-step14.txt`,
+`persistent-worker-startup.txt`, `cpu-gate-persistent.json` and
+`registry-persistent-monitoring.json` in the family's diagnostic directory.

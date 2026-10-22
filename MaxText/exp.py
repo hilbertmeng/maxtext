@@ -14822,13 +14822,14 @@ class BamMediumPropMShiftReadG050MuddQKVLastBlockTruePile(BamMediumPropMShiftRea
 class BamMediumPropMShiftReadG050PersistentEmbedMLastQKVOTruePile(BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile):
     """Ledger only: embedding-only persistent M joins shifted M at L17; final Mudd."""
     # ledger only: codex/mediumprop-mudd-tail, /data0/xd/mediumprop-mudd-tail.
-    # Sealed runtime4038d9a; reuse W_emb_u, independent R256 address and .1 write gate.
+    # code_commit:4038d9a; reuse W_emb_u, independent R256 address and .1 write gate.
     # Carry P[75,16] unchanged; L17 Q/K/V/O read [shift(M)[75,32],P]; keep L16 write.
     # Ordinary blocks x5, final block x1; final three-source Mudd expand4 ->64.
     # Added667603 params; only L17 MLP3802->3617 repays666000, parent+1603.
     # Prior: terminal MHA-ref gain vs parent1.03[1.01,1.05], vs QKV1.015[1.00,1.03].
     # Consistent centers: QKV/parent revised1.015; new/parent1.015**2=1.030225.
-    # CPU60 passed; all healthOFF, tunedSplash; matched throughput prior +/-2%.
+    # CPU60/AOT/FIRST_STEP verified; all healthOFF, tunedSplash; throughput prior +/-2%.
+    # UE5a v5p16 ~.540 step/s at23, vs matched QKV.547 -1.28%; startup evidence only.
     model_name = 'BamMediumPropMShiftReadG050PersistentEmbedMLastQKVOTruePile'
     bam_persistent_embedding_m = True
     bam_persistent_embedding_last_mlp_dim = 3617

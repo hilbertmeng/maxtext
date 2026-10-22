@@ -21,8 +21,10 @@ class StreamCaptureTest(unittest.TestCase):
         probe.install()
         with tempfile.TemporaryDirectory() as out:
             os.makedirs(out + '/probe')
+            if experiment=='HeadMuddTiny':
+                exp.HeadMuddTiny=type('HeadMuddTiny',(exp.MuddPythia3BSerialMLPKeepActivations,),dict(base_emb_dim=128,base_num_query_heads=4,base_num_kv_heads=4,head_dim=32,base_mlp_dim=512,base_num_decoder_layers=3,mudd_router_hidden_expand=[1,1,4],pythia_rotary_dim=8,max_target_length=32,max_prefill_predict_length=32,vocab_size=1024,dtype='float32',weight_dtype='float32',attention='dot_product'))
             batch=int(os.environ.get('BAM_STREAM_TEST_BATCH_SIZE','1'))
-            exp.StreamCaptureBatchConfig=type('StreamCaptureBatchConfig',(getattr(exp,experiment),),{'target_train_batch_size':batch,'per_device_batch_size':1.0})
+            exp.StreamCaptureBatchConfig=type('StreamCaptureBatchConfig',(getattr(exp,experiment),),{'target_global_batch_size':batch,'per_device_batch_size':1.0})
             cfg = pyconfig.initialize(['test', 'MaxText/configs/base.yml'],
                 exp_class='StreamCaptureBatchConfig', run_name='probe', base_output_directory=out+'/',
                 dataset_type='synthetic', enable_checkpointing=False, jax_cache_dir='', log_config=False,
@@ -54,7 +56,6 @@ class StreamCaptureTest(unittest.TestCase):
             print('HEAD_PROBE_NATIVE_EQUALITY_OK',experiment,flush=True)
         probe.ACTIVE=False
 
-    def test_xla(self):self.check('BamPallasPythiaR768TinyXlaTest')
-    def test_pallas(self):self.check('BamPallasPythiaR768TinyPallasV8TTest')
+    def test_mudd(self):self.check('HeadMuddTiny')
 
 if __name__=='__main__':unittest.main()

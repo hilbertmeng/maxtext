@@ -54,7 +54,7 @@ def hash_sequence(x):return hashlib.sha256(np.asarray(x,dtype=np.int32).tobytes(
 def config_for(args):
     parent=getattr(exp,args.experiment)
     attrs=dict(model_name=args.experiment,only_eval=True,enable_checkpointing=False,
-        per_device_batch_size=1.0,eval_per_device_batch_size=1.0,target_train_batch_size=args.batch_size,
+        per_device_batch_size=1.0,eval_per_device_batch_size=1.0,target_global_batch_size=args.batch_size,
         max_target_length=args.length,max_prefill_predict_length=args.length,
         dataset_type='synthetic',log_config=False,jax_cache_dir='',enable_goodput_recording=False,
         monitor_goodput=False,record_training_health_metrics=False,record_internal_nn_metrics=False,

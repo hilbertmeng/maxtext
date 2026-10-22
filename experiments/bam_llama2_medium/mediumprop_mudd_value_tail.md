@@ -1080,3 +1080,36 @@ L16/L17. Tuned Splash/full remat, generic health ON/internal+BAM OFF,
 CP200/latest2/keep0/forced-final and TB500 remain inherited. At handoff use
 hot_switch_run.py, committed old checkpoint, new FIRST_STEP/14-step gates,
 then close the old registry and TB without touching its transferred trainer.
+
+### Single-layer L2 QKVM with restored L16 MLP write
+
+User authorized BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockL2AnchorMLPWriteTruePile.
+Same WT/branch; fresh spot v5p-16 ID310299, us-east5-a, no backup zones or FLEX
+training. Retained llm-jax-v6e-1-0/europe-west4-a worker0 supplies the AOT under
+its serial lock. The parallel launcher runs a focused CPU gate, AOT and
+training-only prequeue concurrently. No other trainer stop is authorized here.
+
+Inherit the single-layer L2 QKVM architecture and restore only L16 MLP writing;
+L16 attention write remains enabled, L17 attention write remains omitted.
+Keep C4 L17 and C1 final native Mudd, four sources[embedding,L0,L2,current],
+no dual V. Repay458000 writer params by removing127 L16 SwiGLU units; tail
+widths[3802,3676,3026], total432267380, tiny routers154900 exempt,
+non-router rounding+800. All other widths and parameters remain inherited.
+
+Compare with single L2 QKVM (MLP-write effect with L2), and no-L2 QKVM with
+restored MLP write (L2 effect at matched write policy). This also supplies
+the matched single-layer control for the mixed L16 VM/L17 QKVM route, where
+the extra L16 VM can then be assessed independently of write restoration.
+Prior terminal MHA-reference gain vs single L2 QKVM1.015[.995,1.035],
+throughput~.72step/s (+/-2%). Reference BamMHAMediumPropC256TruePile.
+
+Infrastructure audit against main 3aba9ee2a701b0bc08956cf2f24072c26006bfc7: no main-only operational changes
+since33d56958; experimental model flags absent from main remain in this WT.
+No implementation/default changes relative to the verified33d56958 model:
+reuse its60 checks plus unchanged writer5 after file/evidence hash checks,
+and run only the new formal parameter/tree check. Full sealed configuration
+check still covers T4096/B16 and every inherited numerical setting.
+
+Full13500-step v5p-16 training, TruePile4096 global128/B16, block scan5+1,
+ordinary prefix17 v8t48MiB/fused inputs plus JAX L17, tuned Splash/full remat,
+generic health ON/internal+BAM OFF, CP200/latest2/keep0/forced-final and TB500.

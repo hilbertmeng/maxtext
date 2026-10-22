@@ -32,6 +32,7 @@ DUAL_VM = 'BamMediumPropMShiftReadG050MuddVMDualValueSharedRouterLastBlockTruePi
 QKVM_MLP_WRITE = 'BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockMLPWriteTruePile'
 VM_ONE = 'BamMediumPropMShiftReadG050MuddVMSharedRouterLastBlockTruePile'
 MIXED_L2 = 'BamMediumPropMShiftReadG050MuddVMQKVMSharedRouterLastTwoLayersL2AnchorTruePile'
+QKVM_L2_WRITE = 'BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockL2AnchorMLPWriteTruePile'
 
 
 class NativeTailTest(MLPWriteTest, unittest.TestCase):
@@ -302,14 +303,23 @@ class NativeTailTest(MLPWriteTest, unittest.TestCase):
         np.testing.assert_array_equal(x, y)
 
   def test_single_layer_write_controls_formal_budgets(self):
-    for exp, total, routers, width, q_width, rounding in (
-        (QKVM_MLP_WRITE, 432267055, 154575, 3026, 75, 800),
-        (VM_ONE, 432266921, 154185, 3540, 18, 1056)):
+    self.check_single_layer_write_controls((QKVM_MLP_WRITE, VM_ONE))
+
+  def test_l2_qkvm_write_control_formal_budget(self):
+    self.check_single_layer_write_controls((QKVM_L2_WRITE,))
+
+  def check_single_layer_write_controls(self, experiments):
+    for exp, total, routers, width, q_width, rounding, l2 in (
+        (QKVM_MLP_WRITE, 432267055, 154575, 3026, 75, 800, False),
+        (VM_ONE, 432266921, 154185, 3540, 18, 1056, False),
+        (QKVM_L2_WRITE, 432267380, 154900, 3026, 75, 800, True)):
+      if exp not in experiments:
+        continue
       with self.subTest(exp=exp):
         cfg = self.config(exp, bam_splash_attention=False)
         cfg.get_keys().update(max_target_length=256, max_prefill_predict_length=256,
                               query_chunk_size=256)
-        self.assertFalse(cfg.bam_mudd_tail_l2_anchor)
+        self.assertEqual(cfg.bam_mudd_tail_l2_anchor, l2)
         self.assertFalse(cfg.bam_mudd_tail_dual_value)
         self.assertFalse(cfg.bam_mudd_tail_skip_mlp_write)
         mesh = jax.sharding.Mesh(max_utils.create_device_mesh(cfg), cfg.mesh_axes)

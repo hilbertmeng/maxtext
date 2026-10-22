@@ -14997,6 +14997,21 @@ class BamMediumPropMShiftReadG050MuddVMSharedRouterLastBlockTruePile(BamMediumPr
     compare_runs = ['BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockMLPWriteTruePile']
 
 
+class BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockL2AnchorMLPWriteTruePile(BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockL2AnchorTruePile):
+    """Single L17 L2 QKVM plus the independent L16 MLP write; no dual V."""
+    # Restore458000 writer params, repay127 L16 SwiGLU units (457200); non-router rounding+800.
+    # Total432267380, native C4+C1 routers154900 exempt. Both L16 attention/MLP writes retained.
+    # Prior terminal MHA-ref gain vs L2 QKVM1.015[.995,1.035]; expected~.72step/s (+/-2%).
+    model_name = 'BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockL2AnchorMLPWriteTruePile'
+    bam_mudd_tail_skip_mlp_write = False
+    bam_mudd_tail_dual_value = False
+    bam_mudd_tail_mlp_dims = [3802, 3676, 3026]
+    compare_runs = [
+        'BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockL2AnchorTruePile',
+        'BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockMLPWriteTruePile',
+    ]
+
+
 class BamMediumPropMShiftReadG050MuddQKVMDualValueSharedRouterLastBlockTruePile(BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockTruePile):
     """L17 Mudd QKVM plus the original V M read; restore L16 MLP write, no L2."""
     # Reuse the full O dynamic key/read, including its down/up and pre-bias. No extra mixing scale.

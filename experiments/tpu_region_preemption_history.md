@@ -609,6 +609,8 @@ active leases are censored, and manual migration releases are not preemptions.
 | `BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockTruePile` | v5p-16 (`xd-v5p-16-310286-maxtext`) | `us-east5-a` | 2026-10-22 09:40:49 | 2026-10-22 14:12:10 | user stop10789; P0; CP committed, node/queue absent, TB SYNC_OK; runtime35a1fd3 | none |
 | `BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastTwoLayersTruePile` | v5p-16 (`xd-v5p-16-310287-maxtext`) | `us-east5-a` | 2026-10-22 09:41:07 | 2026-10-22 14:12:13 | user stop11093; P0; CP committed, node/queue absent, TB SYNC_OK; runtime35a1fd3 | none |
 
+| `BamMediumPropMShiftReadG050MuddVMSharedRouterLastTwoLayersTruePile` | v5p-16 (`xd-v5p-16-310291-maxtext`) | `us-east5-a` | 2026-10-22 12:52:48 | 2026-10-22 15:21:20 | user hot-replace5977; P0; CP committed, TB SYNC_OK; trainer/queue retained and transferred to mixed L16 VM/L17 QKVM, runtime5fbe2f9 | none |
+
 ## READY leases
 
 | RUN | # | Zone | Start UTC | End UTC | Duration | Exit |
@@ -2021,6 +2023,7 @@ active leases are censored, and manual migration releases are not preemptions.
 
 | `BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockTruePile` | 1 | `us-east5-a` | 2026-10-22 09:40:51 | 2026-10-22 14:12:10 | 4h31m19s | user stop10789; CP committed, node/queue absent, TB SYNC_OK |
 | `BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastTwoLayersTruePile` | 1 | `us-east5-a` | 2026-10-22 09:41:09 | 2026-10-22 14:12:13 | 4h31m04s | user stop11093; CP committed, node/queue absent, TB SYNC_OK |
+| `BamMediumPropMShiftReadG050MuddVMSharedRouterLastTwoLayersTruePile` | 1 | `us-east5-a` | 2026-10-22 12:52:51 | 2026-10-22 15:21:20 | 2h28m29s | user hot-replace5977; P0; CP committed, TB SYNC_OK; physical310291 transferred, no deletion |
 
 
 ### 2026-10-14 user pause: resumed mixed R256/R384

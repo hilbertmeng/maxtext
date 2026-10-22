@@ -14761,6 +14761,12 @@ class BamMediumPropMShiftReadG050MuddValueLastTwoBlocksTruePile(BamMediumPropSha
     # User approved final-router budget split over L14/L17 (both3381); nominal parent+2697 params.
     # Prior: terminal MHA-ref gain vs single.5 1.04 (~-.006 loss); matched throughput -2..+2%.
     # code_commit:33734c9; 55 CPU checks; exact v5p16 AOT/FIRST_STEP verified; healthOFF/tunedSplash.
+    # 结论：双 block 组合未改善单门 .5 父路，弱于单 block V；5k 评审后停于 5081 步。
+    # 对父路早期领先迅速收窄，2.2k–5k 基本持平；末五 gap +.000135 / R .99935，5k R1.00032。
+    # 对单 block V 在1.6k后持续落后，5k gap +.002709、末五 +.002724；扩至L14/L17不划算。
+    # 对历史 Mudd 仍领先，但差距逐步收窄：5k gap -.087520、末五 -.087947。
+    # UE5a v5p16 ~.544 step/s，较同设置单 V -.37%；历史父路健康统计不同，速度不可直接比较。
+    # CP5081 committed，node/queue absent，TB SYNC_OK；P0，保留原 runtime/参数预算。
     model_name = 'BamMediumPropMShiftReadG050MuddValueLastTwoBlocksTruePile'
     bam_mudd_tail_blocks = 2
     bam_mudd_tail_mlp_dims = [3802, 3803, 3381]

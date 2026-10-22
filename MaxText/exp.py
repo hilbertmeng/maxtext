@@ -14805,7 +14805,8 @@ class BamMediumPropMShiftReadG050MuddValueLastBlockTruePile(BamMediumPropMShiftR
 class BamMediumPropMShiftReadG050MuddVMLastBlockTruePile(BamMediumPropMShiftReadG050MuddValueLastBlockTruePile):
     """Ledger only: independent final-layer Mudd m route on the single-V arm."""
     # ledger only: codex/mediumprop-mudd-tail, /data0/xd/mediumprop-mudd-tail.
-    # Sealed runtime9663458a; m=Mudd(h,e,L0), r=m+attention, output=r+MLP(norm(r)).
+    # Cancelled before FIRST_STEP: corrected user intent is QKV parent; zero updates/no checkpoint.
+    # Prepared runtime9663458a; m=Mudd(h,e,L0), r=m+attention, output=r+MLP(norm(r)).
     # Keep final output Mudd; ordinary blocks x5/final x1; all healthOFF/tunedSplash.
     # New76995=.05346875W_Q; L17 MLP3370->3349 repays75600, single V+1395.
     # Exact432113321 params, original single.5+1641; 15 affected-path/writer checks passed.
@@ -14839,17 +14840,65 @@ class BamMediumPropMShiftReadG050MuddQKVLastBlockTruePile(BamMediumPropMShiftRea
     ]
 
 
-class BamMediumPropMShiftReadG050PersistentEmbedMLastQKVOTruePile(BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile):
-    """Ledger only: embedding-only persistent M joins shifted M at L17; final Mudd."""
+class BamMediumPropMShiftReadG050MuddQKVMLastBlockTruePile(BamMediumPropMShiftReadG050MuddQKVLastBlockTruePile):
+    """Ledger only: QKV parent plus L17 Mudd m; omit L17 attention write and expand its MLP."""
     # ledger only: codex/mediumprop-mudd-tail, /data0/xd/mediumprop-mudd-tail.
-    # code_commit:4038d9a; reuse W_emb_u, independent R256 address and .1 write gate.
-    # Carry P[75,16] unchanged; L17 Q/K/V/O read [shift(M)[75,32],P]; keep L16 write.
-    # Ordinary blocks x5, final block x1; final three-source Mudd expand4 ->64.
-    # Added667603 params; only L17 MLP3802->3617 repays666000, parent+1603.
-    # Prior: terminal MHA-ref gain vs parent1.03[1.01,1.05], vs QKV1.015[1.00,1.03].
-    # Consistent centers: QKV/parent revised1.015; new/parent1.015**2=1.030225.
-    # CPU60/AOT/FIRST_STEP verified; all healthOFF, tunedSplash; throughput prior +/-2%.
-    # UE5a v5p16 ~.540 step/s at23, vs matched QKV.547 -1.28%; startup evidence only.
+    # Sealed runtime386e69e7; 64 CPU budget/path/shared-BAM/writer checks passed.
+    # Corrected user intent: QKV parent, not single V; V/Q/K/m and final Mudd independent.
+    # m adds76995=.05346875W_Q; delete458000=.31805556W_Q of L17 write-only params.
+    # L17 MLP2813->2919 adds381600; netQKV+595, original single.5-225.
+    # Exact nominal432111455; ordinary blocks x5/final block x1, local O retained.
+    # Prior MHA-ref terminal vsQKV1.020[.995,1.045], implied vsoriginal parent1.0353.
+    # Matched speed +/-2%; retain final-output Mudd and disabled L16 MLP write.
+    model_name = 'BamMediumPropMShiftReadG050MuddQKVMLastBlockTruePile'
+    bam_mudd_tail_residual_mlp = True
+    bam_mudd_tail_skip_attention_write_last_layers = 1
+    bam_mudd_tail_mlp_dims = [3802, 3803, 2919]
+    compare_runs = [
+        'BamMediumPropMShiftReadG050MuddQKVLastBlockTruePile',
+        'BamMediumPropMShiftReadG050MuddValueLastBlockTruePile',
+        'BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile',
+    ]
+
+
+class BamMediumPropMShiftReadG050MuddQKVMLastTwoLayersTruePile(BamMediumPropMShiftReadG050MuddQKVMLastBlockTruePile):
+    """Ledger only: L16/L17 each use independent Q/K/V/m Mudd; both local O matrix reads retained."""
+    # ledger only: codex/mediumprop-mudd-tail, /data0/xd/mediumprop-mudd-tail.
+    # Sealed runtime386e69e7; 64 CPU budget/path/shared-BAM/writer checks passed.
+    # L16 QKVM adds3560380, delete458000 write params; MLP3803->2941 repays3103200.
+    # Exact nominal432110635: original single.5-1045, one-layer QKVM-820.
+    # L16/L17 attention writes absent; L16 MLP write disabled; both O reads retained.
+    # Prior MHA-ref vsone-layer1.010[.980,1.040], vsQKV1.0302, vsparent1.045653.
+    # Matched speed +/-2% ofQKV; L17 O now reads M without the L16 attention update.
+    model_name = 'BamMediumPropMShiftReadG050MuddQKVMLastTwoLayersTruePile'
+    bam_mudd_tail_qkvm_last_layers = 2
+    bam_mudd_tail_skip_attention_write_last_layers = 2
+    bam_mudd_tail_mlp_dims = [3802, 2941, 2919]
+    compare_runs = [
+        'BamMediumPropMShiftReadG050MuddQKVMLastBlockTruePile',
+        'BamMediumPropMShiftReadG050MuddQKVLastBlockTruePile',
+        'BamMediumPropMShiftReadG050MuddValueLastBlockTruePile',
+        'BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile',
+    ]
+
+
+class BamMediumPropMShiftReadG050PersistentEmbedMLastQKVOTruePile(BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile):
+    """Ledger only: embedding-only persistent M joins shifted M for L17 Q/K/V/O; final three-source Mudd."""
+    # 结论：末层拼接 embedding 持久 M 未带来收益；对 QKV 从2k近持平转为持续落后。
+    # 用户停于4929，CP4929提交，节点/队列释放、TB SYNC_OK；P0，未跑满13500。
+    # 末五4k–4.8k：对单门.5/QKV/单V gap +.002093/+.005060/+.004475，
+    # MHA参考收益倍数 .989962/.976070/.978776；2.2k后持续落后QKV，无可靠追回趋势。
+    # 原终局vsQKV1.015、vs单门.5约1.03下注未到终局验收，已训趋势不支持。
+    # ledger only: codex/mediumprop-mudd-tail, /data0/xd/mediumprop-mudd-tail.
+    # Reuse W_emb_u; independent R256 GELU address and write gate, initial opening .1.
+    # Carry P[75,16] unchanged; L17 reads [shift(M)[75,32],P] with 48-column keys.
+    # Keep L16 MLP write; ordinary blocks x5 and final block x1; final Mudd expand4 ->64.
+    # New seed/read/final-router budget 667603; L17 MLP3802->3617 repays666000 (+1603 params).
+    # Prior: terminal MHA-ref gain vs single.5 1.03 (1.01..1.05); matched throughput +/-2%.
+    # Prior vs QKV1.015[1.00,1.03]; QKV/parent revised1.015, so new/parent1.030225.
+    # CPU: shared BAM47 + prior tail4 + persistent-bank4 + summary-writer5 passed before sealing.
+    # code_commit:4038d9a; v5p16 AOT/FIRST_STEP verified; all healthOFF/tunedSplash.
+    # UE5a v5p16 steady~.539 step/s，vs matched QKV.547 -1.46%；两路健康全OFF。
     model_name = 'BamMediumPropMShiftReadG050PersistentEmbedMLastQKVOTruePile'
     bam_persistent_embedding_m = True
     bam_persistent_embedding_last_mlp_dim = 3617

@@ -12,6 +12,8 @@ until the implementation is explicitly merged.
 | BamMediumPropMShiftReadG050MuddValueLastBlockTruePile | WV L17, no MLP write L16 | ordinary x5, modified x1 | [3802,3803,3370] | 432111926 | +246 (+.000057%) |
 | BamMediumPropMShiftReadG050MuddVMLastBlockTruePile | single V plus L17 residual m route | ordinary x5, modified x1 | [3802,3803,3349] | 432113321 | +1641 (+.000380%) |
 | BamMediumPropMShiftReadG050MuddQKVLastBlockTruePile | full WQ/WK/WV L17, no MLP write L16 | ordinary x5, modified x1 | [3802,3803,2813] | 432110860 | -820 (-.000190%) |
+| BamMediumPropMShiftReadG050MuddQKVMLastBlockTruePile | L17 Q/K/V/m Mudd; no L17 attention write | ordinary x5, modified x1 | [3802,3803,2919] | 432111455 | -225 (-.000052%) |
+| BamMediumPropMShiftReadG050MuddQKVMLastTwoLayersTruePile | L16/L17 Q/K/V/m Mudd; neither attention write | ordinary x5, modified x1 | [3802,2941,2919] | 432110635 | -1045 (-.000242%) |
 | BamMediumPropMShiftReadG050PersistentEmbedMLastQKVOTruePile | L17 Q/K/V/O read shifted M plus embedding-only P; final Mudd | ordinary x5, modified x1 | [3802,3676,3617] | 432113283 | +1603 (+.000371%) |
 
 The user explicitly approved spreading the final router's budget between L14/L17
@@ -286,9 +288,22 @@ Artifacts: private `launch-persistent.log`, `persistent-step14.txt`,
 `persistent-worker-startup.txt`, `cpu-gate-persistent.json` and
 `registry-persistent-monitoring.json` in the family's diagnostic directory.
 
-## Single V plus the final-layer Mudd m route
+Final closeout: user stopped4929; checkpoint4929 committed, node and queue310284
+verified absent, TensorBoard SYNC_OK, zero preemptions. Through4800, the last five
+common windows4k–4.8k average gaps versus original parent/QKV/single V are
++.00209344/+.00506000/+.00447480; MHA-reference gain ratios
+.98996234/.97607022/.97877598. Near parity with QKV at2k became a persistent
+deficit from2.2k onward, without credible recovery despite the larger MLP.
+The terminal priors were not evaluated at a completed terminal schedule;
+the observed trajectory does not support them. Steady.539step/s versus matched
+QKV.547 is-1.46%, all health OFF in both. Sole READY lease UTC
+2026-10-22T05:07:22Z to07:43:50Z,2h36m28s; resource teardown finished07:46:03Z.
+Final central report and paired loss/gain chart are retained privately as
+`persistent-final-loss-report.json` and `persistent-final-gap-and-gain-2000to4800`.
 
-User authorized this arm on2026-10-22, based on the continuing single-V arm,
+## Cancelled preparation: single V plus the final-layer Mudd m route
+
+The initial instruction named this arm on2026-10-22, based on the continuing single-V arm,
 BamMediumPropMShiftReadG050MuddValueLastBlockTruePile (runtime33734c9).
 New RUN/config: BamMediumPropMShiftReadG050MuddVMLastBlockTruePile.
 Use the existing Mudd m-path semantics, rather than routing only the MLP branch:
@@ -332,3 +347,69 @@ CPU checks cover complete counts/scan layouts for all tail variants, identity
 initialization and the actual m-route attention-addition/MLP-residual semantics,
 activated scanned causal forward/gradients, persistent-bank regressions, and
 summary-writer regressions. Evidence is in the private family diagnostic directory.
+
+The user corrected the intended parent to QKV before training. Runtime9663458a's
+AOT and training-node preparation completed, but both workers were verified to
+have no training process or train log; there was no FIRST_STEP or checkpoint.
+The controller was stopped and the registry closed at zero updates. This is a
+cancelled preparation, not a trained VM result. Preserve the owned READY training
+TPU310285 for the corrected first arm; the borrowed FLEX compiler is unchanged.
+
+## Corrected QKVM arms with write parameters removed
+
+Both arms use the continuing QKV parent, not single V. Independent Q/K/V/m
+three-source routers retain the initialization and semantics above. The first
+modifies only L17; the second modifies both L16 and L17. Each retains the final
+output router and all local O matrix reads, dynamic/static O controls and .5
+read-only M-shift. L16 MLP writing remains disabled in both arms.
+
+User explicitly requested removing L17 attention writing in the first arm and
+both L16/L17 attention writes in the second, with each saving returned to its
+own layer's MLP. This removes parameter leaves as well as the write operation.
+In the second arm, L17 O reads the unchanged M carried through L16; this is a
+real change from the writing parent. L17 writing alone has no later M consumer
+in the parent: its parameters still count in the historical budget, although
+its output is discarded by the loss. Earlier trained runtimes remain unchanged.
+
+Exact per-layer independent attention-write cost in this Medium recipe is
+458000=.31805556W_Q: down1200x256=307200, up256x16x32=131072,
+up bias512, gate1200x16=19200 and gate bias16. Write RMS norms have no learned
+parameters in this recipe. Each SwiGLU width unit costs3600. Removing a write
+therefore restores127 units (457200 params), with800 left unused per layer.
+
+One-layer QKVM: m router adds76995; removing the L17 write and expanding its
+MLP2813->2919 adds381600. Net+595 versus QKV, or-225 versus original single.5;
+total432111455. Tail widths[3802,3803,2919]. Two-layer QKVM adds L16's
+3560380 QKVM parameters and removes458000 write parameters; reducing L16 MLP
+3803->2941 repays3103200, net-820 versus the first arm. Total432110635,
+original single.5-1045; tail widths[3802,2941,2919]. No budgets are pooled.
+
+Both retain ordinary three-layer blocks x5 and one separately scanned final
+block x1. Static L16/L17 selection is inside that final block, so no additional
+scan split is needed. New flags default to zero, preserving all old family
+configurations. Formal recipe remains TruePile4096, global128/per-device16,
+13500 steps, full remat, all health OFF, tuned Splash, CP200/latest2/keep0,
+forced final checkpoint and TensorBoard rotation500.
+
+Priors, all MHA-referenced: keep QKV/original parent1.015 and the explicitly
+revised single-V/original parent1.010. One-layer QKVM/QKV1.020[.995,1.045],
+implying one-layer/original parent1.0353. Two-layer/one-layer1.010[.980,1.040],
+implying two-layer/QKV1.0302 and two-layer/original parent1.045653. Both matched
+throughput forecasts are within +/-2% of QKV. The failed older two-block V arm
+argues against assuming layerwise additivity; the second arm also reallocates
+862 L16 MLP units and removes a previously live L16 matrix update.
+
+Owned targets: one-layer xd-v5p-16-310285-maxtext (retain READY installed node),
+two-layer xd-v5p-16-310286-maxtext (new queue), both us-east5-a. Keep the
+verified FLEX_START llm-jax-v6e-1-0 compiler in europe-west4-a and serialize AOT
+through its existing worker lock. Main2d9c05b0 was reviewed before sealing:
+since the prior infrastructure audit at98c921e3 only experiment metadata
+changed; train/max_utils/maxtext_utils, summary-writer, checkpoint, optimizer,
+AOT and runtime defaults retain the current operational fixes.
+
+CPU gates cover full parameter counts and absent write leaves; identical
+same-layer residual/O read with writing disabled; unchanged M scan carry at
+each skipped layer; actual m residual semantics; causality and activated
+Q/K/V/m plus both O/M-shift gradients; shared BAM, persistent-bank and rotating
+summary-writer regressions. Private evidence is in
+/data0/xd/bam_diagnostics/mediumprop-mudd-tail.

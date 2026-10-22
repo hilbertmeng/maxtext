@@ -596,6 +596,8 @@ active leases are censored, and manual migration releases are not preemptions.
 
 | `BamMediumPropMShiftReadG050MuddValueLastTwoBlocksTruePile` | v5p-16 (`xd-v5p-16-310281-maxtext`) | `us-east5-a` | 2026-10-22 01:29:02 (prequeue READY; registry01:31:53) | 2026-10-22 04:11:41 | 5k review stop5081; P0; CP5081 committed, node/queue absent04:13:59, TB SYNC_OK; runtime33734c9 | none |
 
+| `BamMediumPropMShiftReadG050PersistentEmbedMLastQKVOTruePile` | v5p-16 (`xd-v5p-16-310284-maxtext`) | `us-east5-a` | 2026-10-22 05:07:20 (registry; READY05:07:22) | 2026-10-22 07:43:50 | user stop4929; P0; CP4929 committed, node/queue absent07:46:03, TB SYNC_OK; runtime4038d9a | none |
+
 ## READY leases
 
 | RUN | # | Zone | Start UTC | End UTC | Duration | Exit |
@@ -1995,6 +1997,7 @@ active leases are censored, and manual migration releases are not preemptions.
 | `MuddPythia3BSerialMLPShortTrain` | 1 | `us-east5-a` | 2026-10-21 11:33:48 | 2026-10-22 04:19:57 | 16h46m09s | user pause17578; P0; CP committed, node/queue absent, TB SYNC_OK; resumable |
 | `Pythia2p8BShortTrain` | 1 | `us-east5-a` | 2026-10-21 11:24:34 | 2026-10-22 04:19:58 | 16h55m24s | user pause21726; P0; CP committed, node/queue absent, TB SYNC_OK; resumable |
 | `BamPythia2p8BSotaIndependentR768PallasShortTrain` | 1 | `us-east5-a` | 2026-10-21 11:38:13 | 2026-10-22 04:19:58 | 16h41m45s | user pause18941; P0; CP committed, node/queue absent, TB SYNC_OK; resumable |
+| `BamMediumPropMShiftReadG050PersistentEmbedMLastQKVOTruePile` | 1 | `us-east5-a` | 2026-10-22 05:07:22 | 2026-10-22 07:43:50 | 2h36m28s | user stop4929; P0; CP4929 committed, node/queue absent07:46:03, TB SYNC_OK |
 
 
 ### 2026-10-14 user pause: resumed mixed R256/R384

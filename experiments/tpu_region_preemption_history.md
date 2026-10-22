@@ -616,6 +616,7 @@ active leases are censored, and manual migration releases are not preemptions.
 | `BamMediumPropMShiftReadG050MuddVMQKVMSharedRouterLastTwoLayersL2AnchorTruePile` | v5p-16 (`xd-v5p-16-310291-maxtext`) | `us-east5-a` | 2026-10-22 15:22:20 | 2026-10-22 17:03:12 | post-2800 review hot-replace4066; P0; CP committed/TB SYNC_OK, retained node/queue transferred to verified L2 QKVM dual V; runtime33d5695 | none |
 
 | `BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockL2AnchorTruePile` | v5p-16 (`xd-v5p-16-310290-maxtext`) | `us-east5-a` | 2026-10-22 12:09:40 | 2026-10-22 17:33:22 | complete13500; P0; CP13500 committed, node/queue absent, TB SYNC_OK; runtime2b035f8 | none |
+| `BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockL2AnchorMLPWriteTruePile` | v5p-16 (`xd-v5p-16-310299-maxtext`) | `us-east5-a` | 2026-10-22 15:46:51 | 2026-10-22 17:53:55 | 5k review stop5207; P0; CP5207 committed, node/queue absent, TB SYNC_OK; runtime8a58c06 | none |
 
 ## READY leases
 
@@ -2034,6 +2035,7 @@ active leases are censored, and manual migration releases are not preemptions.
 | `BamMediumPropMShiftReadG050MuddVMDualValueSharedRouterLastBlockTruePile` | 2 | `us-east5-a` | 2026-10-22 14:25:42 | 2026-10-22 16:36:53 | 2h11m11s | post-2800 review stop6343; CP committed, node/queue absent16:39:45, TB SYNC_OK |
 | `BamMediumPropMShiftReadG050MuddVMQKVMSharedRouterLastTwoLayersL2AnchorTruePile` | 1 | `us-east5-a` | 2026-10-22 15:22:24 | 2026-10-22 17:03:12 | 1h40m48s | post-2800 review hot-replace4066; P0; CP committed/TB SYNC_OK, physical310291 retained and transferred to L2 QKVM dual V |
 | `BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockL2AnchorTruePile` | 1 | `us-east5-a` | 2026-10-22 12:09:43 | 2026-10-22 17:33:22 | 5h23m39s | complete13500; P0; CP13500 committed, node/queue absent, TB SYNC_OK |
+| `BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockL2AnchorMLPWriteTruePile` | 1 | `us-east5-a` | 2026-10-22 15:46:57 | 2026-10-22 17:53:55 | 2h06m58s | 5k review stop5207; P0; CP5207 committed, node/queue absent, TB SYNC_OK |
 
 
 ### 2026-10-14 user pause: resumed mixed R256/R384

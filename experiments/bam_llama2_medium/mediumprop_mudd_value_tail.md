@@ -517,11 +517,13 @@ Pre-run MHA-reference forecasts: shared QKV / old independent QKV1.010
 shared two-layer / shared single-layer1.000[.970,1.030]. Implied single- and
 two-layer gain versus old QKV1.0302. The two-layer forecast is reduced from
 1.010 in light of the independent two-layer arm's negative evidence; sharing
-is not assumed to erase that evidence. Matched speed forecasts are within
-+/-2% of old health-OFF QKV.547step/s.
+is not assumed to erase that evidence. The user restored generic training
+health before AOT; old health-OFF QKV.547step/s is not a matched timing control.
+Compare speeds within the new three-arm group under identical telemetry.
 
 Continue the TruePile4096 global128/per-device16 13500-step recipe, full remat,
-all generic/internal/BAM health OFF, tuned Splash, CP200/latest2/keep0/forcedfinal
+generic training health ON, internal/BAM health OFF, tuned Splash,
+CP200/latest2/keep0/forcedfinal
 and TB rotation500. Direct comparisons include the corrected shared parent,
 old independent counterpart and completed independent QKV direction SOTA.
 All gain references remain BamMHAMediumPropC256TruePile, never Mudd.

@@ -14900,8 +14900,11 @@ class BamMediumPropMShiftReadG050MuddQKVSharedRouterLastBlockTruePile(BamMediumP
     # Mudd routers154380 are exempt from MLP repayment, matching the established Mudd baseline.
     # All large projection/write changes are repaid in their own layer; no L17 attention write.
     # Nominal432266060 = original single.5 +154380; non-router budget matches exactly.
-    # Prior MHA-ref terminal vs old independent-QKV1.010[.995,1.025]; all matched speeds +/-2%.
+    # Prior MHA-ref terminal vs old independent-QKV1.010[.995,1.025].
+    # Generic training health ON; internal/BAM health OFF. Old health-OFF speed is unmatched.
     model_name = 'BamMediumPropMShiftReadG050MuddQKVSharedRouterLastBlockTruePile'
+    record_training_health_metrics = True
+    record_internal_nn_metrics = False
     bam_mudd_tail_native_shared_router = True
     bam_mudd_tail_skip_attention_write_last_layers = 1
     bam_mudd_tail_mlp_dims = [3802, 3803, 3026]

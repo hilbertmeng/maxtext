@@ -14965,6 +14965,11 @@ class BamMediumPropMShiftReadG050MuddVMSharedRouterLastBlockL2AnchorTruePile(Bam
     # Per-layer repayment: L16 -127 and L17 +514 SwiGLU units; no cross-layer transfer.
     # Total432267116 = L2 parent +536; tiny C2+C1 routers154380 exempt.
     # Prior terminal MHA-ref gain vs L2 QKVM1.015[.990,1.040], matched speed +/-3%.
+    # 结论：完成13500；对老L2 QKVM多阶段小幅落后，末段追回，末五12.6k-13.4k gap+.00014436/R.99909040，近持平。
+    # 对无L2 VM共同末五9.4k-10.2k -.00025936/R1.00159859；该父路仍在训，非双方终局比较。
+    # 对匹配写回L2 QKVM共同末五4.2k-5k -.00194528/R1.00933722；该对照已停5207。
+    # 参数较老L2 QKVM+536、cache不变；同健康/内核steady~.706 vs .722，约慢2.2%，未建立综合优势。
+    # 原1.015终局点估计偏乐观；CP13500提交/TB SYNC_OK、节点队列独立确认释放；UE5a v5p16，P1。
     model_name = 'BamMediumPropMShiftReadG050MuddVMSharedRouterLastBlockL2AnchorTruePile'
     bam_mudd_tail_residual_qk = False
     bam_mudd_tail_skip_mlp_write = False

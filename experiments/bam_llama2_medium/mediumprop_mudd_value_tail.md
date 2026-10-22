@@ -1494,3 +1494,36 @@ No successor was pending; ordinary resource release. Evidence under
 l5-vm-formal-review5000.json, l5-vm-final-evidence.json,
 closeout-l5-vm5000.log. Remote journal:
 /home/lishengping/xd/projects/logs/closeout-20261022T185020Z.json.
+
+### L2 VM completed13500
+
+BamMediumPropMShiftReadG050MuddVMSharedRouterLastBlockL2AnchorTruePile
+completed13500 on9d265b6c8733482fdfc416a4c1124faa5fd29330. Against old L2
+QKVM, rolling MHA-reference gain was1k .99829167 ->4k .99443984 ->8k .99781746
+->12.2k .99586332 ->13.4k .99909040. Final common12.6k–13.4k last-five
+gap+.00014436(range-.0002252..+.0005534). The late windows straddle zero;
+this is approximately parity, with no established win. The initial1.015
+terminal point forecast was too optimistic. Total432267116 is the old L2
+QKVM+536, cache unchanged; matched generic-health/tuned Splash/v8t steady
+~.706 versus~.722 is2.2% slower, so the completed arm offers no overall gain.
+
+All registered direct controls are retained. Against no-L2 VM, common
+9.4k–10.2k last-five gap-.00025936/gain1.00159859; that parent is still
+training, so this is not a full terminal paired comparison and must be
+updated when it catches up. Against L2 QKVM with matched L16 writing,
+common4.2k–5k gap-.00194528/gain1.00933722; that control stopped5207.
+The latter demonstrates the VM/MLP trade at matched writing, not a win
+over the stronger original L2 QKVM. The model-width trade remains
+the declared127-unit L16 repayment and514-unit L17 expansion; no new changes.
+
+CP13500 committed, local TB SYNC_OK, node and queue independently absent.
+Full zone path us-east5-a only, v5p16, P1; assignment2026-10-22
+13:14:19–18:56:10 UTC. READY leases:13:14:22–16:08:53(2h54m31s, preempted),
+then16:15:27–18:56:10(2h40m43s, planned completion). Recovery restored
+committed7029, resumed past7045 and committed7200; no zone change.
+Bookkeeping closeout used status=complete and was already_closed=true,
+performing no controller or resource operations.
+Evidence under /data0/xd/bam_diagnostics/mediumprop-mudd-tail:
+l2-vm-terminal-central.json, l2-vm-final-evidence13500.json,
+closeout-l2-vm13500.log. Remote journal:
+/home/lishengping/xd/projects/logs/closeout-20261022T185723Z.json.

@@ -216,16 +216,27 @@ class SubDecoderLayer(nn.Module):
     )
     if getattr(cfg, 'bam_persistent_embedding_m', False):
       call_kwargs['persistent_M'] = persistent_M
+    shared_routes = None
+    if cfg.bam_mudd_tail_native_shared_router and bam_mudd.is_qk_layer(cfg, self.layer_inx):
+      if early_residuals is None:
+        raise ValueError('native tail Mudd requires embedding and L0 anchors')
+      # Native Mudd expects the current residual last (identity bias [0,0,1]).
+      sources = [*early_residuals, inputs]
+      targets = 4 if bam_mudd.is_mlp_route_layer(cfg, self.layer_inx) else 3
+      shared_routes, _ = mudd.Compose(
+          cfg, mesh, self.quant, C=targets, compose=True, force_router=True,
+          hidden_expand_override=1, name='qkvm_compose')(
+              layer_output=inputs, hids=sources)
     if bam_mudd.is_value_layer(cfg, self.layer_inx):
       if early_residuals is None:
         raise ValueError('selective residual V requires embedding and L0 anchors')
-      value_input = bam_mudd.ThreeSourceRouter(
+      value_input = shared_routes[2] if shared_routes is not None else bam_mudd.ThreeSourceRouter(
           cfg, mesh, self.quant, hidden_expand=1, name='value_compose')(inputs, early_residuals)
       call_kwargs['inputs_v'] = normalizations.get_decoder_norm(
           'value_input_norm', cfg)(value_input)
       if bam_mudd.is_qk_layer(cfg, self.layer_inx):
-        for arm in ('q', 'k'):
-          route = bam_mudd.ThreeSourceRouter(
+        for route_index, arm in enumerate(('q', 'k')):
+          route = shared_routes[route_index] if shared_routes is not None else bam_mudd.ThreeSourceRouter(
               cfg, mesh, self.quant, hidden_expand=1, name=arm + '_compose')(inputs, early_residuals)
           call_kwargs['inputs_' + arm + '_route'] = normalizations.get_decoder_norm(
               arm + '_input_norm', cfg)(route)
@@ -273,7 +284,7 @@ class SubDecoderLayer(nn.Module):
         raise ValueError('selective residual M route requires embedding and L0 anchors')
       # Match Mudd's m path: route the residual before adding attention, then use
       # the result for both the MLP input and its identity residual connection.
-      residual_input = bam_mudd.ThreeSourceRouter(
+      residual_input = shared_routes[3] if shared_routes is not None else bam_mudd.ThreeSourceRouter(
           cfg, mesh, self.quant, hidden_expand=1, name='m_compose')(inputs, early_residuals)
     intermediate_inputs = residual_input + attention_lnx
 

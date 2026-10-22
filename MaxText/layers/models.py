@@ -976,6 +976,10 @@ class Decoder(nn.Module):
         if skip_writes and (type(skip_writes) is not int or skip_writes not in (1, 2)
             or blocks != 1 or persistent or (skip_writes == 2 and qkvm_count != 2)):
           raise ValueError('selective tail write omission requires the final one/two QKVM layers')
+        if cfg.bam_mudd_tail_native_shared_router and (blocks != 1 or persistent
+            or not cfg.bam_mudd_tail_residual_qk or cfg.mudd_prenorm or cfg.mudd_postnorm
+            or cfg.dynamic_dense_scale_dw or cfg.mudd_use_scale or cfg.mudd_cap):
+          raise ValueError('native shared tail requires one QKV[/m] block with plain identity-initialized Mudd')
         if (blocks not in (1, 2) or cfg.num_decoder_layers % 3
             or not cfg.bam_pair_scan or not cfg.bam_enabled or cfg.bam_mha_control
             or cfg.dense_conn or cfg.mtp_num_layers or deep_embeddings is not None
@@ -1018,9 +1022,16 @@ class Decoder(nn.Module):
         y, M = carry[:2]
         if bam_mudd.uses_anchors(cfg):
           embedding_anchor, l0_anchor = carry[2:4]
-          y = bam_mudd.ThreeSourceRouter(
-              cfg, mesh, self.quant, hidden_expand=4, name='compose_final_three_source')(
-                  y, (embedding_anchor, l0_anchor))
+          if cfg.bam_mudd_tail_native_shared_router:
+            routed, _ = mudd.Compose(
+                cfg, mesh, self.quant, C=1, compose=True, force_router=True,
+                hidden_expand_override=4, name='compose_final_three_source')(
+                    layer_output=y, hids=[embedding_anchor, l0_anchor, y])
+            y = routed[0]
+          else:
+            y = bam_mudd.ThreeSourceRouter(
+                cfg, mesh, self.quant, hidden_expand=4, name='compose_final_three_source')(
+                    y, (embedding_anchor, l0_anchor))
 
       elif cfg.scan_layers:
         RemattedBlockLayer = RemattedBlockLayers[1]

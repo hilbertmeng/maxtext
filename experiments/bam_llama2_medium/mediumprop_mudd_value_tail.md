@@ -470,3 +470,75 @@ single/qkv-final-leases.json, registry-single/qkv-final.json,
 old-pair-final-checkpoints-verified.txt, old-pair-resources-absent.json,
 old-pair-tb-closeout.log, and old-pair-final-gap-and-gain-2000to13400
 (PNG/SVG/CSV). The reusable plot_tail_comparisons.py consumes central reports.
+
+## Native shared-controller correction
+
+The user clarified that Mudd means the native shared controller, not independent
+controllers per target. The original tail implementation had copied its single-V
+ThreeSourceRouter when adding Q/K (3c86e4a) and m (9663458a). This was an
+unjustified architectural deviation. The old QKV/QKVM RUNs are independent-R64
+variants; retain their evidence and checkpoints, without calling them native
+shared-Mudd results. No workflow rule is added to excuse this implementation error.
+
+The corrected family directly calls layers.mudd.Compose/Mlp. Optional force_router
+allows a selective BAM site without globally enabling dense_conn;
+hidden_expand_override preserves expand1 at QKV[/m] and expand4 at final readout.
+Defaults preserve existing full-Mudd configurations and paths. A single controller
+consumes the layer input, applies native parameter-free RMS, one fan-in-normal
+D x64 down, GELU, one zero-initialized joint64 x C x3 up and native C x3 bias.
+Sources are [embedding,L0,current], so native bias[0,0,1] is identity. Q/K/V/m
+remain distinct coefficient heads. The final C1 router consumes the complete L17
+output and is independently evaluated once. No custom coefficient logic is copied.
+
+Both shared QKV and single-layer shared QKVM omit the dead L17 attention write.
+Their non-router parameter trees, initialization and MLP widths are identical;
+adding m costs precisely195 parameters and preserves the initialized logits.
+The two-layer arm also omits L16 writing and keeps both O reads from carried M.
+L16 MLP write remains disabled throughout this tail family. Scan stays ordinary
+three-layer blocks x5 plus one separately scanned final block.
+
+Following the explicit established Mudd baseline convention, the tiny router
+parameters are not repaid from MLP. All large projection/write changes are still
+matched to original single.5's non-router432111680 budget in their own layers.
+
+| Configuration | Tail MLP widths | Mudd router params | Full params | Non-router rounding |
+|---|---|---:|---:|---:|
+| BamMediumPropMShiftReadG050MuddQKVSharedRouterLastBlockTruePile | [3802,3803,3026] | 154380 | 432266060 | 0 |
+| BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockTruePile | [3802,3803,3026] | 154575 | 432266255 | 0 |
+| BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastTwoLayersTruePile | [3802,3027,3026] | 232155 | 432344635 | +800 |
+
+Router totals are .107208/.107344/.161219 W_Q (W_Q=1440000), or .03573%/
+.03577%/.05372% of original total. The195-parameter m increment is .0001354W_Q.
+The corrected one-layer pair therefore isolates m without an MLP width confound.
+Three-source restriction and final expand4 remain explicitly user-requested.
+
+Pre-run MHA-reference forecasts: shared QKV / old independent QKV1.010
+[.995,1.025]; shared single-layer QKVM / shared QKV1.020[.995,1.045];
+shared two-layer / shared single-layer1.000[.970,1.030]. Implied single- and
+two-layer gain versus old QKV1.0302. The two-layer forecast is reduced from
+1.010 in light of the independent two-layer arm's negative evidence; sharing
+is not assumed to erase that evidence. Matched speed forecasts are within
++/-2% of old health-OFF QKV.547step/s.
+
+Continue the TruePile4096 global128/per-device16 13500-step recipe, full remat,
+all generic/internal/BAM health OFF, tuned Splash, CP200/latest2/keep0/forcedfinal
+and TB rotation500. Direct comparisons include the corrected shared parent,
+old independent counterpart and completed independent QKV direction SOTA.
+All gain references remain BamMHAMediumPropC256TruePile, never Mudd.
+
+Operational main audit:6d2848e0. Since prior audit2d9c05b0 main changed only
+experiment metadata; no newer train/checkpoint/writer/optimizer/AOT/default
+infrastructure fix was omitted. Native controller tests cover formal joint
+shapes and budgets, equality with ordinary native Mudd forward/backward, distinct
+heads on shared features, the195-parameter initialized-model equivalence,
+scanned causality/anchor/M carry and active Q/K/V/m/O/shift gradients. Regression
+scope is shared BAM47, historical tail8, original full-history Mudd4 and rotating
+summary writer5, plus new native-tail4:68 checks total.
+
+Owned handoff plan: existing310285 -> shared QKV baseline; existing310286 ->
+shared one-layer QKVM; new xd-v5p-16-310287-maxtext -> shared two-layer QKVM,
+all us-east5-a. Prepare exact AOTs on borrowed FLEX_START llm-jax-v6e-1-0 in
+europe-west4-a through its worker lock. Finish gates before pausing old
+controllers, commit the old checkpoints and immediately hand READY nodes to
+new RUNs. Retain paused independent variants as provisional comparisons;
+never delete the borrowed compiler or the two handed-off trainers.

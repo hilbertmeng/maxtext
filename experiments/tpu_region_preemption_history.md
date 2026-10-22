@@ -611,6 +611,8 @@ active leases are censored, and manual migration releases are not preemptions.
 
 | `BamMediumPropMShiftReadG050MuddVMSharedRouterLastTwoLayersTruePile` | v5p-16 (`xd-v5p-16-310291-maxtext`) | `us-east5-a` | 2026-10-22 12:52:48 | 2026-10-22 15:21:20 | user hot-replace5977; P0; CP committed, TB SYNC_OK; trainer/queue retained and transferred to mixed L16 VM/L17 QKVM, runtime5fbe2f9 | none |
 
+| `BamMediumPropMShiftReadG050MuddVMDualValueSharedRouterLastBlockTruePile` | v5p-16 (`xd-v5p-16-310288-maxtext`) | `us-east5-a` | 2026-10-22 13:52:46 | 2026-10-22 16:36:53 | post-2800 review stop6343; P1 same-zone recovery; CP committed, node/queue absent16:39:45, TB SYNC_OK; runtimebdae8b3; ordinary teardown, not hot transfer | none |
+
 ## READY leases
 
 | RUN | # | Zone | Start UTC | End UTC | Duration | Exit |
@@ -2023,7 +2025,9 @@ active leases are censored, and manual migration releases are not preemptions.
 
 | `BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockTruePile` | 1 | `us-east5-a` | 2026-10-22 09:40:51 | 2026-10-22 14:12:10 | 4h31m19s | user stop10789; CP committed, node/queue absent, TB SYNC_OK |
 | `BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastTwoLayersTruePile` | 1 | `us-east5-a` | 2026-10-22 09:41:09 | 2026-10-22 14:12:13 | 4h31m04s | user stop11093; CP committed, node/queue absent, TB SYNC_OK |
+| `BamMediumPropMShiftReadG050MuddVMDualValueSharedRouterLastBlockTruePile` | 1 | `us-east5-a` | 2026-10-22 13:52:49 | 2026-10-22 14:19:54 | 27m05s | preempted; same-zone recovery |
 | `BamMediumPropMShiftReadG050MuddVMSharedRouterLastTwoLayersTruePile` | 1 | `us-east5-a` | 2026-10-22 12:52:51 | 2026-10-22 15:21:20 | 2h28m29s | user hot-replace5977; P0; CP committed, TB SYNC_OK; physical310291 transferred, no deletion |
+| `BamMediumPropMShiftReadG050MuddVMDualValueSharedRouterLastBlockTruePile` | 2 | `us-east5-a` | 2026-10-22 14:25:42 | 2026-10-22 16:36:53 | 2h11m11s | post-2800 review stop6343; CP committed, node/queue absent16:39:45, TB SYNC_OK |
 
 
 ### 2026-10-14 user pause: resumed mixed R256/R384

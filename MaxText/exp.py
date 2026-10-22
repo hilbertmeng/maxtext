@@ -15068,6 +15068,10 @@ class BamMediumPropMShiftReadG050MuddVMDualValueSharedRouterLastBlockTruePile(Ba
     # CPU58 + writer5, full13500 AOT/FIRST_STEP/14-step gates verified; steady~.710step/s (-.4% vs parent~.713).
     # Relative to trained L2 VM: dual V plus removal of both L2 anchors; total parent-851.
     # Generic training health ON/internal+BAM OFF, tuned Splash, v8t48MiB/fused inputs, TB500.
+    # 结论：加V的匹配VM对照下始终无稳定收益，末五3.8k-4.6k gap+.00191224/R.99119514。
+    # 早期绝对差距收窄，但相对亏损约1%；对匹配双V QKVM末五5.4k-6.2k +.00017288/R.99911870，近持平。
+    # 对单V VM参数-656、L17 MLP少11；同健康/内核速度约慢1-1.5%，无cache收益，过评审判停。
+    # 停于6343，CP提交/TB SYNC_OK；UE5a v5p16，P1，节点及队列确认释放；非热交接。
     model_name = 'BamMediumPropMShiftReadG050MuddVMDualValueSharedRouterLastBlockTruePile'
     bam_mudd_tail_dual_value = True
     bam_mudd_tail_l2_anchor = False

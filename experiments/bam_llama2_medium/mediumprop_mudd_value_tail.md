@@ -1266,3 +1266,29 @@ Retain the previous current-stage controls as the new late-started parent
 catches up; only the new paired edge isolates the intended single change.
 All pairs use registered BamMHAMediumPropC256TruePile-reference gain ratios;
 these metadata updates do not replace or resume training processes.
+
+### VM dual V closeout at6343
+
+BamMediumPropMShiftReadG050MuddVMDualValueSharedRouterLastBlockTruePile
+was stopped after its overdue post-2800 review. At matched write policy/noL2,
+the extra M-read V channel remained worse than single-V VM: common3.8k–4.6k
+last-five mean gap+.00191224, MHA-reference gain.99119514. Early absolute
+loss differences narrowed, but normalized deficit persisted around1%.
+Against registered QKVM dual V, common5.4k–6.2k mean+.00017288/gain.99911870
+is essentially tied. This is no evidence that VM dual V improves its direct
+single-V control. Total params are656 fewer than that control, with11 fewer
+L17 SwiGLU units; speed under matched generic-health/tuned kernels is about
+1–1.5% lower, with no inference-cache benefit.
+
+CP6343 committed, estimated lost steps0, local TB SYNC_OK. Full active zone
+path is us-east5-a only, v5p16/xd-v5p-16-310288-maxtext; preemptions1:
+READY13:52:49–14:19:54 UTC(27m05s, preempted), then14:25:42–16:36:53 UTC
+(2h11m11s, manual review stop), all2026-10-22. Node and queued resource were
+independently verified absent after16:39:45. Ordinary teardown was mistakenly
+chosen before considering reuse for L5; this was not a hot handoff. L5 already
+had its separate accepted310300 queue and continues there.
+
+Evidence: vm-dualv-final-evidence.json, report-dualv-overdue-review.json,
+dualv-formal-review-common4000.png and closeout-vm-dualv-review.log under
+/data0/xd/bam_diagnostics/mediumprop-mudd-tail; remote closeout journal
+/home/lishengping/xd/projects/logs/closeout-20261022T163945Z.json.

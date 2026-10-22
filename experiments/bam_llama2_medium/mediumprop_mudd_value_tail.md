@@ -1109,10 +1109,17 @@ VM vs the new QKVM/write control, respectively, under matched health.
 Both retained-worker AOTs compiled serially under the worker lock while
 training-only spot prequeues progressed independently. No compiler lifecycle
 was adopted. Both trainers use the UE5a truepile4096 regional dataset.
-All seven live compare_runs edges and their MHA-reference gain triples now
+All seven RUNs' factor comparisons and their MHA-reference gain triples now
 match the factor plan above. Monitoring metadata changes preserved each RUN's
 code_commit, trainer, zone, status and controller; training was not restarted.
 Evidence under /data0/xd/bam_diagnostics/mediumprop-mudd-tail:
 write-controls-completed-cpu.json, write-controls-sealed-config.log,
 write-controls-startup-proof-final.json, write-{qkvm,vm}-step14.log,
 write-controls-aot-states.raw.json and factor-comparison-live-update.json.
+
+The new controls start later than their existing consumers. Retain the two
+previous direct comparisons alongside the new factor edges: L2 VM versus L2
+QKVM, and QKVM dual V versus original shared QKVM. They measure combined
+changes and cover the consumers' current training stages; they must not be
+mislabelled as isolated QK-source or V-channel effects. New factor comparisons
+use only mature common steps. Other earlier unrelated controls remain removed.

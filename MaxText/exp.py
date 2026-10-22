@@ -14849,6 +14849,8 @@ class BamMediumPropMShiftReadG050MuddQKVMLastBlockTruePile(BamMediumPropMShiftRe
     # L17 MLP2813->2919 adds381600; netQKV+595, original single.5-225.
     # Exact nominal432111455; ordinary blocks x5/final block x1, local O retained.
     # Prior MHA-ref terminal vsQKV1.020[.995,1.045], implied vsoriginal parent1.0353.
+    # code_commit:386e69e; v5p16 AOT/FIRST_STEP verified, all healthOFF/tunedSplash.
+    # UE5a step10-14 .5498step/s, vs matched QKV.547 +.51%; CPU64 passed.
     # Matched speed +/-2%; retain final-output Mudd and disabled L16 MLP write.
     model_name = 'BamMediumPropMShiftReadG050MuddQKVMLastBlockTruePile'
     bam_mudd_tail_residual_mlp = True
@@ -14869,6 +14871,8 @@ class BamMediumPropMShiftReadG050MuddQKVMLastTwoLayersTruePile(BamMediumPropMShi
     # Exact nominal432110635: original single.5-1045, one-layer QKVM-820.
     # L16/L17 attention writes absent; L16 MLP write disabled; both O reads retained.
     # Prior MHA-ref vsone-layer1.010[.980,1.040], vsQKV1.0302, vsparent1.045653.
+    # code_commit:386e69e; v5p16 AOT/FIRST_STEP verified, all healthOFF/tunedSplash.
+    # UE5a step10-14 .5570step/s, vs matched QKV.547 +1.83%; CPU64 passed.
     # Matched speed +/-2% ofQKV; L17 O now reads M without the L16 attention update.
     model_name = 'BamMediumPropMShiftReadG050MuddQKVMLastTwoLayersTruePile'
     bam_mudd_tail_qkvm_last_layers = 2

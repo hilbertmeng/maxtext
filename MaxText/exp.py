@@ -14991,6 +14991,20 @@ class BamMediumPropMShiftReadG050MuddVMSharedRouterLastBlockL2AnchorTruePile(Bam
         'BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockL2AnchorTruePile',
     ]
 
+
+class BamMediumPropMShiftReadG050MuddVMSharedRouterLastBlockL2L5AnchorTruePile(BamMediumPropMShiftReadG050MuddVMSharedRouterLastBlockL2AnchorTruePile):
+    """Add complete L5 to L17 VM and final Mudd sources; preserve both L16 writes."""
+    # ledger only: codex/mediumprop-mudd-tail, /data0/xd/mediumprop-mudd-tail; code_commit:dba5890.
+    # xd-v5p-16-310300-maxtext/UE5a; CPU62 + reused writer5, full AOT/FIRST_STEP3/14-step37 verified.
+    # Startup~.714step/s; generic health ON/internal+BAM OFF, tuned Splash/full remat, v8t48MiB/fused.
+    # Sources[embedding,L0,L2,L5,current]; native C2 at L17 and C1 at final output.
+    # Both hidden widths remain64; extra195 router params are exempt, MLP widths unchanged.
+    # Total432267311; native routers154575; non-router rounding+1056 vs original single.5.
+    # Prior terminal MHA-ref gain vs L2 VM1.015[.995,1.035], throughput cost0-2%.
+    model_name = 'BamMediumPropMShiftReadG050MuddVMSharedRouterLastBlockL2L5AnchorTruePile'
+    bam_mudd_tail_l5_anchor = True
+    compare_runs = ['BamMediumPropMShiftReadG050MuddVMSharedRouterLastBlockL2AnchorTruePile']
+
 class BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockMLPWriteTruePile(BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockTruePile):
     # ledger only: codex/mediumprop-mudd-tail, /data0/xd/mediumprop-mudd-tail.
     """Restore L16 MLP write with single-layer QKVM, no L2 and no dual V."""

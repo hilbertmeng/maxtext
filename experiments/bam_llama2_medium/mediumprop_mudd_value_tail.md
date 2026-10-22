@@ -1292,3 +1292,18 @@ Evidence: vm-dualv-final-evidence.json, report-dualv-overdue-review.json,
 dualv-formal-review-common4000.png and closeout-vm-dualv-review.log under
 /data0/xd/bam_diagnostics/mediumprop-mudd-tail; remote closeout journal
 /home/lishengping/xd/projects/logs/closeout-20261022T163945Z.json.
+
+### Verified L5 VM startup
+
+BamMediumPropMShiftReadG050MuddVMSharedRouterLastBlockL2L5AnchorTruePile
+sealed dba589001751730a8d830fd2aa97074548abf013 passed fresh62 CPU checks,
+reused unchanged rotating-writer5 evidence, exact13500 v5p16 AOT, FIRST_STEP3,
+14-step gate37 and actual worker configuration validation. Trainer is
+xd-v5p-16-310300-maxtext/us-east5-a, ordinary fresh allocation rather than
+hot replacement of the already-deleted VM dual V trainer. Startup~.714step/s;
+TruePile4096/global128/B16, scan5+1, v8t48MiB/fused prefix, JAX L17, tuned
+Splash/full remat, generic health ON/internal+BAM OFF, CP200 and TB500 verified.
+Direct comparison and registered MHA-reference gain use L2 VM only.
+Evidence: l5-vm-{completed-cpu,startup-proof,startup-validation}.json,
+l5-vm-step14.log, l5-vm-monitoring-registration.log and launch-l5-vm.log in
+/data0/xd/bam_diagnostics/mediumprop-mudd-tail.

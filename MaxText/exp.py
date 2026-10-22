@@ -14985,8 +14985,11 @@ class BamMediumPropMShiftReadG050MuddVMSharedRouterLastBlockL2AnchorTruePile(Bam
     bam_mudd_tail_skip_mlp_write = False
     bam_mudd_tail_mlp_dims = [3802, 3676, 3540]
     # Keep the previous direct control for current-stage combined gains while the new factor control catches up.
-    compare_runs = ['BamMediumPropMShiftReadG050MuddVMSharedRouterLastBlockTruePile', 'BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockL2AnchorTruePile']
-
+    compare_runs = [
+        'BamMediumPropMShiftReadG050MuddVMSharedRouterLastBlockTruePile',
+        'BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockL2AnchorMLPWriteTruePile',
+        'BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockL2AnchorTruePile',
+    ]
 
 class BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockMLPWriteTruePile(BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockTruePile):
     # ledger only: codex/mediumprop-mudd-tail, /data0/xd/mediumprop-mudd-tail.
@@ -15015,6 +15018,26 @@ class BamMediumPropMShiftReadG050MuddVMSharedRouterLastBlockTruePile(BamMediumPr
     bam_mudd_tail_residual_qk = False
     bam_mudd_tail_mlp_dims = [3802, 3676, 3540]
     compare_runs = ['BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockMLPWriteTruePile']
+
+
+class BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockL2AnchorMLPWriteTruePile(BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockL2AnchorTruePile):
+    """Ledger only: single L17 L2 QKVM with the independent L16 MLP write restored."""
+    # Implementation: codex/mediumprop-mudd-tail, /data0/xd/mediumprop-mudd-tail; code_commit:8a58c06.
+    # xd-v5p-16-310299-maxtext/UE5a; full13500 AOT/FIRST_STEP6/14-step23 and worker config verified.
+    # Fresh formal budget/tree check; unchanged model CPU60 and summary-writer5 evidence reused.
+    # Startup~.717step/s (-.7% vs matched L2 QKVM~.722); generic health ON/internal+BAM OFF.
+    # Tuned Splash/full remat, v8t48MiB/fused inputs prefix, JAX L17, CP200 and TB500.
+    # Restore458000 writer params, repay127 L16 SwiGLU units (457200); non-router rounding+800.
+    # Total432267380, native C4+C1 routers154900 exempt. Both L16 attention/MLP writes retained.
+    # Prior terminal MHA-ref gain vs L2 QKVM1.015[.995,1.035]; expected~.72step/s (+/-2%).
+    model_name = 'BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockL2AnchorMLPWriteTruePile'
+    bam_mudd_tail_skip_mlp_write = False
+    bam_mudd_tail_dual_value = False
+    bam_mudd_tail_mlp_dims = [3802, 3676, 3026]
+    compare_runs = [
+        'BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockL2AnchorTruePile',
+        'BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockMLPWriteTruePile',
+    ]
 
 
 class BamMediumPropMShiftReadG050MuddQKVMDualValueSharedRouterLastBlockTruePile(BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockTruePile):
@@ -15134,10 +15157,10 @@ class BamMediumPropMShiftReadG050MuddVMQKVMSharedRouterLastTwoLayersL2AnchorTrue
     bam_mudd_tail_skip_mlp_write = False
     bam_mudd_tail_mlp_dims = [3802, 3287, 3026]
     compare_runs = [
+        'BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockL2AnchorMLPWriteTruePile',
         'BamMediumPropMShiftReadG050MuddVMSharedRouterLastTwoLayersTruePile',
         'BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockL2AnchorTruePile',
     ]
-
 
 class BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastTwoLayersRebalanceMLPTruePile(BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastTwoLayersTruePile):
     """Move 775 SwiGLU units from L15 into L16/L17 without changing the two-layer budget."""

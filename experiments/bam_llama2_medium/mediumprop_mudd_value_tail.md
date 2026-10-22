@@ -1212,3 +1212,57 @@ proof of terminal domination. The prior terminal1.040 bet versus old two-layer
 QKVM was not measured to completion. Evidence: old-vm-for-mixed-final-evidence.json,
 old-vm-for-mixed-final-loss-summary.json, mixed-old-stopped-ownership-verified.json,
 and closeout-vm-for-mixed-tail.log; remote closeout-20261022T153023Z.json.
+
+### Single-layer L2 QKVM with restored L16 MLP write
+
+User authorized BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockL2AnchorMLPWriteTruePile.
+Same WT/branch; fresh spot v5p-16 ID310299, us-east5-a, no backup zones or FLEX
+training. Retained llm-jax-v6e-1-0/europe-west4-a worker0 supplies the AOT under
+its serial lock. The parallel launcher runs a focused CPU gate, AOT and
+training-only prequeue concurrently. No other trainer stop is authorized here.
+
+Inherit the single-layer L2 QKVM architecture and restore only L16 MLP writing;
+L16 attention write remains enabled, L17 attention write remains omitted.
+Keep C4 L17 and C1 final native Mudd, four sources[embedding,L0,L2,current],
+no dual V. Repay458000 writer params by removing127 L16 SwiGLU units; tail
+widths[3802,3676,3026], total432267380, tiny routers154900 exempt,
+non-router rounding+800. All other widths and parameters remain inherited.
+
+Compare with single L2 QKVM (MLP-write effect with L2), and no-L2 QKVM with
+restored MLP write (L2 effect at matched write policy). This also supplies
+the matched single-layer control for the mixed L16 VM/L17 QKVM route, where
+the extra L16 VM can then be assessed independently of write restoration.
+Prior terminal MHA-reference gain vs single L2 QKVM1.015[.995,1.035],
+throughput~.72step/s (+/-2%). Reference BamMHAMediumPropC256TruePile.
+
+Infrastructure audit against main 3aba9ee2a701b0bc08956cf2f24072c26006bfc7: no main-only operational changes
+since33d56958; experimental model flags absent from main remain in this WT.
+No implementation/default changes relative to the verified33d56958 model:
+reuse its60 checks plus unchanged writer5 after file/evidence hash checks,
+and run only the new formal parameter/tree check. Full sealed configuration
+check still covers T4096/B16 and every inherited numerical setting.
+
+Full13500-step v5p-16 training, TruePile4096 global128/B16, block scan5+1,
+ordinary prefix17 v8t48MiB/fused inputs plus JAX L17, tuned Splash/full remat,
+generic health ON/internal+BAM OFF, CP200/latest2/keep0/forced-final and TB500.
+
+Startup sealed8a58c063f711c21c5ba7215c0564fc1708587952: fresh formal tree/budget
+check and unchanged CPU60+writer5 evidence passed; full13500 v5p-16 AOT,
+FIRST_STEP6, 14-step gate23 and actual worker25 verified. Throughput~.717step/s,
+-.7% vs matched L2 QKVM~.722. Actual L2 anchor, restored L16 MLP write,
+widths[3802,3676,3026], generic health ON/internal+BAM OFF, tuned Splash,
+full remat, v8t48MiB/fused inputs and TB500 match the sealed source. The
+zero-valued qkvm_last_layers default still selects the final fetch layer L17;
+it does not disable that layer's routing (is_value_layer also selects index%3=2).
+Evidence: single-l2-write-completed-cpu.json, single-l2-write-startup-proof.json,
+single-l2-write-startup-validation.json, single-l2-write-step14.log,
+launch-single-l2-write.log and single-l2-write-comparison-registration.log.
+
+After FIRST_STEP, live registries and both source ledgers add the new matched
+single-layer control to mixed L16 VM/L17 QKVM and L2 VM. Mixed compare_runs:
+[new L2 QKVM+MLP write, replaced two-layer VM, L2 QKVM without MLP write].
+L2 VM compare_runs:[no-L2 VM, new L2 QKVM+MLP write, L2 QKVM without MLP write].
+Retain the previous current-stage controls as the new late-started parent
+catches up; only the new paired edge isolates the intended single change.
+All pairs use registered BamMHAMediumPropC256TruePile-reference gain ratios;
+these metadata updates do not replace or resume training processes.

@@ -15093,6 +15093,35 @@ class BamMediumPropMShiftReadG050MuddVMDualValueSharedRouterLastBlockTruePile(Ba
     compare_runs = ['BamMediumPropMShiftReadG050MuddVMSharedRouterLastBlockTruePile', 'BamMediumPropMShiftReadG050MuddQKVMDualValueSharedRouterLastBlockTruePile']
 
 
+class BamMediumPropMShiftReadG050MuddQKVMDualValueSharedRouterLastBlockL2AnchorTruePile(BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockL2AnchorTruePile):
+    """Add only the M-read V channel to the original L2 QKVM champion."""
+    # ledger only: codex/mediumprop-mudd-tail, /data0/xd/mediumprop-mudd-tail; code_commit:dedbb65.
+    # Fresh dual budget+causal4 and reused model62/writer5, full13500 AOT/FIRST_STEP/14-step/config verified.
+    # Logical310301/physical310291 UE5a, retained from mixed run4066; startup~.726step/s, near parent.
+    # Generic health ON/internal+BAM OFF, tuned Splash/full remat, v8t48MiB/fused prefix, CP200/TB500.
+    # Reuse the O dynamic address/projection; +38944=.027044W_Q (.00901% total).
+    # Explicit tiny-parameter exemption: retain all parent MLP widths and L16 MLP-write omission.
+    # Total432305524; native routers154900 unchanged. Direct control is the original L2 QKVM.
+    # Prior terminal MHA-ref gain1.015[.990,1.040], matched speed -1% (+/-2%).
+    model_name = 'BamMediumPropMShiftReadG050MuddQKVMDualValueSharedRouterLastBlockL2AnchorTruePile'
+    bam_mudd_tail_dual_value = True
+    compare_runs = ['BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockL2AnchorTruePile']
+
+
+class BamMediumPropMShiftReadG050MuddVMDualValueSharedRouterLastBlockL2AnchorTruePile(BamMediumPropMShiftReadG050MuddVMSharedRouterLastBlockL2AnchorTruePile):
+    """Add only the M-read V channel to L2 VM, retaining both L16 M writes."""
+    # ledger only: codex/mediumprop-mudd-tail, /data0/xd/mediumprop-mudd-tail; code_commit:dedbb65.
+    # Fresh dual budget+causal4 and reused model62/writer5, full13500 AOT/FIRST_STEP/14-step/config verified.
+    # xd-v5p-16-310302-maxtext/UE5a fresh; startup~.712step/s, near parent~.713.
+    # Generic health ON/internal+BAM OFF, tuned Splash/full remat, v8t48MiB/fused prefix, CP200/TB500.
+    # Reuse the O dynamic address/projection; +38944=.027044W_Q (.00901% total).
+    # Explicit tiny-parameter exemption: retain all parent MLP widths and L16 MLP write.
+    # Total432306060; native routers154380 unchanged. Direct control is L2 VM.
+    # Prior terminal MHA-ref gain1.005[.985,1.030], matched speed -1% (+/-2%).
+    model_name = 'BamMediumPropMShiftReadG050MuddVMDualValueSharedRouterLastBlockL2AnchorTruePile'
+    bam_mudd_tail_dual_value = True
+    compare_runs = ['BamMediumPropMShiftReadG050MuddVMSharedRouterLastBlockL2AnchorTruePile']
+
 class BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockSwapMLPTruePile(BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockTruePile):
     """Ledger only: exchange L16/L17 MLP capacity in the native shared-QKVM tail."""
     # ledger only: codex/mediumprop-mudd-tail, /data0/xd/mediumprop-mudd-tail.
@@ -15168,6 +15197,12 @@ class BamMediumPropMShiftReadG050MuddVMQKVMSharedRouterLastTwoLayersL2AnchorTrue
     # Total432346556; routers232220 exempt; non-router rounding+2656 vs original single.5.
     # Prior terminal MHA-ref gain vs single L2 QKVM1.020[.990,1.050]; expected~.70-.71step/s.
     # Generic health ON/internal+BAM OFF; tuned Splash/full remat, v8t48MiB prefix plus JAX tail, TB500.
+    # 结论：L16 VM/L17 QKVM分工未建立净收益；3.2k-4k对老L2 QKVM末五gap+.00486684/R.97927403。
+    # 对写回匹配的新单层L2 QKVM共同2.4k-3.2k +.00404512/R.98494225，不能归因于L16写回差别。
+    # 对旧末两层VM共同3.2k-4k -.00042832/R1.00189593，有小幅修复但未超过单层强基线。
+    # 同健康/内核~.701step/s，比单层L2 QKVM~.722慢2.9%；参数多79976，无cache收益。
+    # 过评审热替换停4066，CP提交/TB SYNC_OK；UE5a v5p16，P0，原310291节点/队列交L2 QKVM双V。
+    # 原终局1.020下注未到终局验收；当前归一化亏损未收敛，不支持继续占用槽位。
     model_name = 'BamMediumPropMShiftReadG050MuddVMQKVMSharedRouterLastTwoLayersL2AnchorTruePile'
     bam_mudd_tail_qkvm_last_layers = 2
     bam_mudd_tail_qk_last_layers = 1

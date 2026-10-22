@@ -1307,3 +1307,85 @@ Direct comparison and registered MHA-reference gain use L2 VM only.
 Evidence: l5-vm-{completed-cpu,startup-proof,startup-validation}.json,
 l5-vm-step14.log, l5-vm-monitoring-registration.log and launch-l5-vm.log in
 /data0/xd/bam_diagnostics/mediumprop-mudd-tail.
+
+### L2 champion parents: add only the second V channel
+
+User requested one dual-V child of each promising parent, original L2 QKVM
+and L2 VM. Preserve the original L16 write policies: attention ON in both,
+MLP OFF for QKVM and ON for VM. The existing no-L2 dual-V arms do not isolate
+this change relative to these two parents. Each new child compares only with
+its own direct parent; BamMHAMediumPropC256TruePile remains the gain reference.
+
+| RUN | Tail widths, unchanged from parent | Total | Tiny routers | Parent |
+|---|---|---:|---:|---|
+| BamMediumPropMShiftReadG050MuddQKVMDualValueSharedRouterLastBlockL2AnchorTruePile | 3802/3803/3026 | 432305524 | 154900 | BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockL2AnchorTruePile |
+| BamMediumPropMShiftReadG050MuddVMDualValueSharedRouterLastBlockL2AnchorTruePile | 3802/3676/3540 | 432306060 | 154380 | BamMediumPropMShiftReadG050MuddVMSharedRouterLastBlockL2AnchorTruePile |
+
+Reuse O's complete dynamic V-column read/address projection; restore only
+V dynamic gate(Dx16+16), static key(16x32) and static gate(Dx16+16), total
+38944=.027044W_Q, .00901% of the model. User explicitly rejected shrinking
+MLP by11 units for this negligible cost: no width repayment in either child.
+No new mixing coefficient or other routing/normalization/initialization change.
+
+Pre-run terminal gain vs each direct parent: QKVM1.015[.990,1.040],
+VM1.005[.985,1.030], matched speed about1% lower(+/-2%). QKVM has more
+reason to benefit from the restored M-content path because its QK bypass M;
+VM already consults M for QK. L2 may alter complementarity, not guarantee it.
+
+Keep TruePile4096/global128/B16,13500 steps, scan5+1, v8t48MiB/fused prefix,
+JAX selected L17, tuned Splash/full remat, generic health ON/internal+BAM OFF,
+CP200/latest2/keep0/forced-final and TB500. Infrastructure audit against main
+257861f5: model/train/AOT/checkpoint/writer/optimizer unchanged since dba5890.
+Only two configuration classes and focused budget/causal-gradient test extensions.
+Reuse the completed dba5890 CPU62 and writer5 evidence after source/hash checks;
+rerun old dual formal+causal checks and their new L2 counterparts(4 test methods).
+
+Resource ownership plan: logical310301 QKVM dual V hot-replaces the reviewed
+mixed two-layer RUN on physical xd-v5p-16-310291-maxtext only after CPU/AOT gates;
+logical310302 VM dual V gets fresh xd-v5p-16-310302-maxtext. Both UE5a, no backups.
+Both AOTs borrow the retained llm-jax-v6e-1-0/EW4a compiler through its worker lock;
+serialize compilation there, never delete or adopt its lifecycle.
+
+### Mixed two-layer closeout at4066
+
+BamMediumPropMShiftReadG050MuddVMQKVMSharedRouterLastTwoLayersL2AnchorTruePile
+was hot-replaced after its post-2800 review. Against old single-layer L2 QKVM,
+common3.2k–4k last-five mean gap+.00486684/gain.97927403; relative deficit
+persisted despite an initially narrowing absolute gap. Against the registered
+write-matched single-layer L2 QKVM control, common2.4k–3.2k mean+.00404512/
+gain.98494225. Thus writing-policy differences do not explain the loss from
+adding L16 VM. Against replaced two-layer VM, common3.2k–4k mean-.00042832/
+gain1.00189593 is a small repair, insufficient to beat the strong single-layer
+controls. All gains use BamMHAMediumPropC256TruePile. Matched steady~.701step/s
+is2.9% below single L2 QKVM~.722, with79976 extra parameters and no cache gain.
+The terminal1.020 prior was not evaluated to completion; observed relative
+recovery did not justify retaining this training slot.
+
+CP4066 committed with zero lost steps; TB SYNC_OK. Physical310291 and its
+queue were retained and handed to verified L2 QKVM dual V, never deleted.
+Zone path is UE5a only, v5p16, P0; assignment15:22:20–17:03:12 UTC2026-10-22;
+its only READY lease15:22:24–17:03:12 UTC(1h40m48s), ending at hot handoff.
+Old stopped registry and new owner were verified in a separate checked call;
+bookkeeping closeout reported already_closed=true and skipped resource operations.
+Evidence: mixed-tail-final-evidence4066.json, l2-qkvm-dualv-handoff-journal.json,
+hot-l2-qkvm-dualv.log, closeout-mixed-tail4066-remote.log; remote closeout journal
+/home/lishengping/xd/projects/logs/closeout-20261022T170927Z.json.
+
+### Verified L2 dual-V startup
+
+Both children run sealed dedbb656e82891c0145c0527e1b3c67960298b0d with their
+original parent MLP widths; each adds38944 negligible parameters with no repayment.
+QKVM: FIRST_STEP11/14-step gate15, actual config verified, startup~.726step/s,
+logical310301/physical310291 UE5a retained from mixed4066. VM: FIRST_STEP6/
+14-step gate45, actual config verified, startup~.712step/s, fresh310302 UE5a.
+New four formal-budget/causal-gradient methods passed, reusing unchanged model62
+and writer5 evidence. Both exact full13500 v5p16 AOTs compiled serially through
+the retained EW4a FLEX compiler's worker lock. Generic health ON/internal+BAM OFF,
+tuned Splash/full remat, v8t48MiB/fused prefix, CP200/latest2/keep0 and TB500 verified.
+Registries retain only each direct parent and its MHA-reference gain triple.
+No effect conclusions are recorded during training.
+
+Evidence: l2-dualv-completed-cpu.json; l2-{qkvm,vm}-dualv-{startup-proof,
+startup-validation}.json, corresponding step14 and monitoring-registration logs,
+launch-l2-vm-dualv-final.log and aot-l2-qkvm-dualv-final.log under
+/data0/xd/bam_diagnostics/mediumprop-mudd-tail.

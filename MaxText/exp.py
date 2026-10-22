@@ -14983,6 +14983,10 @@ class BamMediumPropMShiftReadG050MuddVMSharedRouterLastBlockL2L5AnchorTruePile(B
     """Add complete L5 to L17 VM and final Mudd sources; preserve both L16 writes."""
     # Sources[embedding,L0,L2,L5,current]; native C2 at L17 and C1 at final output.
     # Both hidden widths remain64; extra195 router params are exempt, MLP widths unchanged.
+    # 结论：新增L5未改善直接L2 VM父路；末五gain 2k .99466 ->2.8k .99468 ->4k .99272 ->5k .98893。
+    # 末五4.2k-5k gap+.00231892/R.98893480，绝对及相对亏损后期扩大；同MLP宽度，参数仅+195、速度约持平、cache不变。
+    # 5k评审停于5112，CP5112提交/零丢步/TB SYNC_OK，节点队列独立确认释放；UE5a v5p16，P0。
+    # 原终局1.015下注未到终局验收，已训走势不支持；增加更多累计残差锚点并未延续L2收益。
     # Total432267311; native routers154575; non-router rounding+1056 vs original single.5.
     # Prior terminal MHA-ref gain vs L2 VM1.015[.995,1.035], throughput cost0-2%.
     model_name = 'BamMediumPropMShiftReadG050MuddVMSharedRouterLastBlockL2L5AnchorTruePile'

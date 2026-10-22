@@ -1469,3 +1469,28 @@ gate's initial .99/.99 compensation gives coefficient1. Thus the added static
 V path is nonzero at startup. If this direction is revisited, zero-initializing
 only that new address is a concrete candidate, retaining dynamic V gates and
 all parameter widths. This is an untested proposal, not an authorized RUN.
+
+### Extra L5 VM anchor: stopped5112 after5000 review
+
+BamMediumPropMShiftReadG050MuddVMSharedRouterLastBlockL2L5AnchorTruePile
+ran dba589001751730a8d830fd2aa97074548abf013. Against its only direct L2 VM
+parent, MHA-reference rolling gain was2k .99465550 ->2.8k .99467912 ->
+4k .99271957 ->5k .98893480. Final common4.2k–5k last-five gap+.00231892
+(range+.0018404..+.0030494). The deficit narrowed initially, then widened
+in both absolute and relative terms. The2800 review extension to5000
+did not establish a recovery. Parent MLP widths[3802,3676,3540] remained
+identical; only195 native-router parameters were added, with unchanged cache
+and approximately flat matched speed. Thus MLP repayment cannot explain the
+loss. The terminal1.015 prior was not evaluated to completion; trained
+results do not support it. Additional cumulative residual anchors did not
+extend the observed L2 benefit in this VM family.
+
+The5000 review stopped at committed CP5112 with zero lost steps and local
+TB SYNC_OK; node and queue independently verified absent. Full zone path is
+us-east5-a only, v5p16, P0. Assignment2026-10-22 16:41:36–18:47:33 UTC;
+sole READY lease16:41:39–18:47:33 UTC(2h05m54s), ending at review stop.
+No successor was pending; ordinary resource release. Evidence under
+/data0/xd/bam_diagnostics/mediumprop-mudd-tail:
+l5-vm-formal-review5000.json, l5-vm-final-evidence.json,
+closeout-l5-vm5000.log. Remote journal:
+/home/lishengping/xd/projects/logs/closeout-20261022T185020Z.json.

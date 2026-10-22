@@ -620,6 +620,7 @@ active leases are censored, and manual migration releases are not preemptions.
 | `BamMediumPropMShiftReadG050MuddVMDualValueSharedRouterLastBlockL2AnchorTruePile` | v5p-16 (`xd-v5p-16-310302-maxtext`) | `us-east5-a` | 2026-10-22 17:05:02 | 2026-10-22 18:20:03 | 2800 review stop2977; P0; CP2977 committed, node/queue absent, TB SYNC_OK; runtime dedbb65 | none |
 | `BamMediumPropMShiftReadG050MuddQKVMDualValueSharedRouterLastBlockL2AnchorTruePile` | v5p-16 (`xd-v5p-16-310291-maxtext`) | `us-east5-a` | 2026-10-22 17:04:14 | 2026-10-22 18:08:17 | software pause1964 for checkpoint directory-race repair, retained same TPU; P0; initial runtime dedbb65 | none |
 | `BamMediumPropMShiftReadG050MuddQKVMDualValueSharedRouterLastBlockL2AnchorTruePile` | v5p-16 (`xd-v5p-16-310291-maxtext`) | `us-east5-a` | 2026-10-22 18:10:39 | 2026-10-22 18:36:03 | repaired runtime727974c resumed1964; 2800 review stop2946; CP2946 committed, node/queue absent, TB SYNC_OK; P0 | none |
+| `BamMediumPropMShiftReadG050MuddVMSharedRouterLastBlockL2L5AnchorTruePile` | v5p-16 (`xd-v5p-16-310300-maxtext`) | `us-east5-a` | 2026-10-22 16:41:36 | 2026-10-22 18:47:33 | 5000 review stop5112; P0; CP5112 committed, node/queue absent, TB SYNC_OK; runtime dba5890 | none |
 
 ## READY leases
 
@@ -2042,6 +2043,7 @@ active leases are censored, and manual migration releases are not preemptions.
 | `BamMediumPropMShiftReadG050MuddQKVMDualValueSharedRouterLastBlockL2AnchorTruePile` | 1 | `us-east5-a` | 2026-10-22 17:04:18 | 2026-10-22 18:08:17 | 1h03m59s | checkpoint infrastructure pause1964; P0; retained same physical310291, no deletion or zone change |
 | `BamMediumPropMShiftReadG050MuddVMDualValueSharedRouterLastBlockL2AnchorTruePile` | 1 | `us-east5-a` | 2026-10-22 17:05:08 | 2026-10-22 18:20:03 | 1h14m55s | 2800 review stop2977; P0; CP2977 committed, node/queue absent, TB SYNC_OK |
 | `BamMediumPropMShiftReadG050MuddQKVMDualValueSharedRouterLastBlockL2AnchorTruePile` | 2 | `us-east5-a` | 2026-10-22 18:10:43 | 2026-10-22 18:36:03 | 25m20s | resumed same retained TPU after checkpoint repair; 2800 review stop2946; P0, CP2946 committed, node/queue absent, TB SYNC_OK |
+| `BamMediumPropMShiftReadG050MuddVMSharedRouterLastBlockL2L5AnchorTruePile` | 1 | `us-east5-a` | 2026-10-22 16:41:39 | 2026-10-22 18:47:33 | 2h05m54s | 5000 review stop5112; P0; CP5112 committed, node/queue absent, TB SYNC_OK |
 
 
 ### 2026-10-14 user pause: resumed mixed R256/R384

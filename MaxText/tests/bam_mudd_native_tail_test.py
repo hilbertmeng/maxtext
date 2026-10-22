@@ -363,13 +363,14 @@ class NativeTailTest(MLPWriteTest, unittest.TestCase):
     self.check_dual_value_formal_budget((DUAL_QKVM, DUAL_VM))
 
   def test_l2_dual_value_formal_budget_preserves_parent_widths_and_writes(self):
-    self.check_dual_value_formal_budget((DUAL_QKVM_L2, DUAL_VM_L2))
     for exp, parent in ((DUAL_QKVM_L2, L2), (DUAL_VM_L2, VM_L2)):
       cfg, base = self.config(exp), self.config(parent)
       self.assertEqual(cfg.bam_mudd_tail_mlp_dims, base.bam_mudd_tail_mlp_dims)
+      self.assertEqual(cfg.compare_runs, [parent])
       for key, value in base.get_keys().items():
-        if key not in ('model_name', 'exp_class', 'bam_mudd_tail_dual_value'):
+        if key not in ('model_name', 'exp_class', 'compare_runs', 'bam_mudd_tail_dual_value'):
           self.assertEqual(cfg.get_keys()[key], value, key)
+    self.check_dual_value_formal_budget((DUAL_QKVM_L2, DUAL_VM_L2))
 
   def check_dual_value_formal_budget(self, experiments):
     for exp, total, routers, width, middle_width, l2, skip_write in (

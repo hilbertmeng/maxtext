@@ -1569,10 +1569,9 @@ terminal point forecast was too optimistic. Total432267116 is the old L2
 QKVM+536, cache unchanged; matched generic-health/tuned Splash/v8t steady
 ~.706 versus~.722 is2.2% slower, so the completed arm offers no overall gain.
 
-All registered direct controls are retained. Against no-L2 VM, common
-9.4k–10.2k last-five gap-.00025936/gain1.00159859; that parent is still
-training, so this is not a full terminal paired comparison and must be
-updated when it catches up. Against L2 QKVM with matched L16 writing,
+All registered direct controls are retained. Once no-L2 VM completed13500,
+the full terminal12.6k–13.4k pair gave gap-.00045820/gain1.00289399:
+a small positive L2 effect in this family. Against L2 QKVM with matched L16 writing,
 common4.2k–5k gap-.00194528/gain1.00933722; that control stopped5207.
 The latter demonstrates the VM/MLP trade at matched writing, not a win
 over the stronger original L2 QKVM. The model-width trade remains
@@ -1587,6 +1586,7 @@ Bookkeeping closeout used status=complete and was already_closed=true,
 performing no controller or resource operations.
 Evidence under /data0/xd/bam_diagnostics/mediumprop-mudd-tail:
 l2-vm-terminal-central.json, l2-vm-final-evidence13500.json,
+report-tail-final-terminal-pairs.json(the later full parent-aligned comparison),
 closeout-l2-vm13500.log. Remote journal:
 /home/lishengping/xd/projects/logs/closeout-20261022T185723Z.json.
 
@@ -1596,8 +1596,8 @@ BamMediumPropMShiftReadG050MuddQKVMDualValueSharedRouterLastBlockTruePile
 completed13500 on bdae8b33a97c7f04ce2f1d5215fcb366517d650e. Against the
 registered write-matched QKVM control, rolling MHA-reference gain rose from
 1k .988765 to5k1.000234 and8.8k1.001401, then returned to near parity:
-common10.2k–11k last-five gap+.00009084/gain.99946432. That control is
-still training, so the full terminal pair must be updated when it finishes.
+full terminal12.6k–13.4k last-five gap+.00010064/gain.99937388. Both
+the child and matched control completed13500.
 Against original shared QKVM, final common9.8k–10.6k gap-.00015264/
 gain1.00094268; that parent stopped10789. Thus the original terminal1.030
 forecast cannot be fully evaluated, and the observed common trajectory
@@ -1614,5 +1614,68 @@ redistribution, not newly created for this RUN. Bookkeeping closeout used
 status=complete, already_closed=true, and performed no resource operations.
 Evidence under /data0/xd/bam_diagnostics/mediumprop-mudd-tail:
 no-l2-qkvm-dualv-final-evidence13500.json,
+report-tail-final-terminal-pairs.json(the later full parent-aligned comparison),
 closeout-no-l2-qkvm-dualv13500.log. Remote journal:
 /home/lishengping/xd/projects/logs/closeout-20261022T191523Z.json.
+
+### Final no-L2 write and VM controls completed13500
+
+Both controls completed13500 on4c3e39f450f7da596bd1b711fde2a4d2b4197a45.
+BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockMLPWriteTruePile
+initially led original shared QKVM, then approached parity; its final common
+9.8k–10.6k last-five gap was-.00039300/gain1.00241056. The original
+control stopped10789, so this is not a full terminal pair and the1.005
+terminal forecast cannot be fully evaluated. Adding the writer repaid127
+L16 SwiGLU units, total432267055=parent+800; cache unchanged, matched
+steady~.718 versus~.725 is about1% slower. It supplies the completed
+write-matched parent for the VM and dual-V effects below.
+
+BamMediumPropMShiftReadG050MuddVMSharedRouterLastBlockTruePile
+was slightly behind that control early, then maintained a small advantage
+after2k. Full terminal12.6k–13.4k last-five gap-.00078988
+(range-.001178..-.0003638), gain1.00501341. All five windows favor VM.
+The1.010 point forecast was optimistic by roughly a factor of two in
+incremental gain. Q/K M reads and the associated514-unit L17 MLP expansion
+are the paired budget change, not separately isolated effects. Total432266921
+is its direct control-134, cache unchanged, matched~.715 versus~.718 about.4%
+slower. Its completion also fixes the full terminal L2 VM comparison above.
+
+Both CP13500 commit markers were independently read; local TB SYNC_OK for
+both, nodes and queued resources independently absent. Both v5p16, P0,
+us-east5-a only. Write-QKVM assignment2026-10-22 14:48:52–20:13:49 UTC;
+sole READY lease14:48:55–20:13:49(5h24m54s). VM assignment14:46:06–20:12:28;
+sole READY lease14:46:09–20:12:28(5h26m19s). Both ended at planned completion.
+Bookkeeping closeout was already_closed=true and skipped resource operations.
+Evidence under /data0/xd/bam_diagnostics/mediumprop-mudd-tail:
+qkvm-write-final-evidence13500.json, vm-final-evidence13500.json,
+report-tail-final-terminal-pairs.json, closeout-final-controls13500.log.
+Remote journal:/home/lishengping/xd/projects/logs/closeout-20261022T201549Z.json.
+
+### Completed matched comparisons and research conclusion
+
+All following terminal comparisons use the same12.6k–13.4k five windows,
+with BamMHAMediumPropC256TruePile as reference. Values come from the central
+registry report; each window has five exact common samples.
+
+| Experiment / direct comparator | Mean loss gap | Mean gain multiplier |
+|---|---:|---:|
+| VM / write-enabled QKVM | -.00078988 | 1.00501341 |
+| QKVM dual V / write-enabled QKVM | +.00010064 | .99937388 |
+| L2 VM / VM | -.00045820 | 1.00289399 |
+| L2 VM / old L2 QKVM | +.00014436 | .99909040 |
+
+Retain old L2 QKVM as the practical strong configuration: it has the lowest
+terminal mean along these registered comparison edges and~.722step/s,
+versus L2 VM~.706 and VM~.715. L2 VM almost ties its loss; do not describe
+it as a clear loss failure. The VM/MLP trade has a small positive effect
+at matched writing, and L2 gives another smaller positive effect within VM.
+Dual V does not provide a sustained gain. New L2 dual-V children also lost
+without any MLP repayment, and adding L5 worsened the L2 VM parent.
+
+Do not attribute the differing L2 effects solely to QK source. At common5k,
+adding L2 gives1.01106219 in L16 MLP write-OFF QKVM,1.00223073 in
+MLP write-ON QKVM, and1.00327385 in MLP write-ON VM. L16 attention
+writing remains ON in all three. The MLP writing policy and its coupled127-unit
+L16 MLP repayment are the stronger conditioning clue; current controls
+do not isolate those two variables. The new static-V zero-initialization
+candidate above remains untested and has not been launched.

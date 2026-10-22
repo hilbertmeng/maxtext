@@ -14983,7 +14983,7 @@ class BamMediumPropMShiftReadG050MuddVMSharedRouterLastBlockL2AnchorTruePile(Bam
     # Total432267116 = L2 parent +536; tiny C2+C1 routers154380 exempt.
     # Prior terminal MHA-ref gain vs L2 QKVM1.015[.990,1.040], matched speed +/-3%.
     # 结论：完成13500；对老L2 QKVM多阶段小幅落后，末段追回，末五12.6k-13.4k gap+.00014436/R.99909040，近持平。
-    # 对无L2 VM共同末五9.4k-10.2k -.00025936/R1.00159859；该父路仍在训，非双方终局比较。
+    # 对无L2 VM完整终局末五12.6k-13.4k -.00045820/R1.00289399，L2仅有很小正收益。
     # 对匹配写回L2 QKVM共同末五4.2k-5k -.00194528/R1.00933722；该对照已停5207。
     # 参数较老L2 QKVM+536、cache不变；同健康/内核steady~.706 vs .722，约慢2.2%，未建立综合优势。
     # 原1.015终局点估计偏乐观；CP13500提交/TB SYNC_OK、节点队列独立确认释放；UE5a v5p16，P1。
@@ -15024,6 +15024,10 @@ class BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockMLPWriteTruePile(B
     # Restore458000 writer params; L16 MLP3803->3676 repays457200, rounding+800.
     # Total432267055; native routers154575 remain exempt. All other layers unchanged.
     # Prior terminal MHA-ref gain vs original shared QKVM1.005[.985,1.025], speed +/-2%.
+    # 结论：完成13500；对原共享QKVM初期优势消退，后近持平，最后共同9.8k-10.6k gap-.00039300/R1.00241056，微领先。
+    # 原父路停10789，比较截止10600，不能称双方终局；原1.005下注未完整验收，共同阶段仅小收益。
+    # 相比原父路参数+800、cache不变，steady~.718 vs .725约慢1%；作为VM和双V的匹配写回控制完训。
+    # CP13500提交/TB SYNC_OK、节点队列独立确认释放；UE5a v5p16，P0，无换区。
     model_name = 'BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockMLPWriteTruePile'
     bam_mudd_tail_l2_anchor = False
     bam_mudd_tail_dual_value = False
@@ -15039,6 +15043,10 @@ class BamMediumPropMShiftReadG050MuddVMSharedRouterLastBlockTruePile(BamMediumPr
     # Q/K M reads save1850144 params; L17 MLP3026->3540 adds1850400, rounding+256.
     # Total432266921, parent-134; native routers154185 exempt, total non-router rounding+1056.
     # Prior terminal MHA-ref gain vs restored-write QKVM1.010[.985,1.040], speed -1.5% (+/-2%).
+    # 结论：完成13500；对同写回QKVM初期微亏，2k后保持小幅收益，终局末五12.6k-13.4k gap-.00078988/R1.00501341。
+    # 末五五窗口均领先；原1.010点估计偏高，实际增益约其一半，未突破老L2 QKVM。
+    # 参数较直接父路-134、cache不变，steady~.715 vs .718约慢.4%；QK改读M与L17 MLP扩宽是配套预算改动。
+    # CP13500提交/TB SYNC_OK、节点队列独立确认释放；UE5a v5p16，P0，无换区。
     model_name = 'BamMediumPropMShiftReadG050MuddVMSharedRouterLastBlockTruePile'
     bam_mudd_tail_residual_qk = False
     bam_mudd_tail_mlp_dims = [3802, 3676, 3540]
@@ -15079,8 +15087,8 @@ class BamMediumPropMShiftReadG050MuddQKVMDualValueSharedRouterLastBlockTruePile(
     # code_commit: bdae8b3; xd-v5p-16-310289-maxtext/UE5a retained from MLP redistribution.
     # CPU58 + writer5, full13500 AOT/FIRST_STEP/14-step gates verified; steady~.720step/s (-.7% vs parent~.725).
     # Generic training health ON/internal+BAM OFF, tuned Splash, v8t48MiB/fused inputs, TB500.
-    # 结论：完成13500；对匹配写回父路早期落后、5k追回，8.8k R1.00140后再归近持平，末五10.2k-11k gap+.00009084/R.99946432。
-    # 写回父路仍在训，完整终局配对待其完成；对原共享QKVM最后共同9.8k-10.6k -.00015264/R1.00094268，父路已停10789。
+    # 结论：完成13500；对匹配写回父路早期落后、5k追回，8.8k R1.00140后再归近持平，完整终局末五12.6k-13.4k gap+.00010064/R.99937388。
+    # 两路均已13500；对原共享QKVM最后共同9.8k-10.6k -.00015264/R1.00094268，原父路已停10789。
     # 相比匹配写回父路参数-656，cache不变，steady~.716 vs .718近持平；未建立可保持的双V收益。
     # 原vs原共享QKVM终局1.030下注无法完整验收，已训共同区间不支持；CP13500/TB SYNC_OK，节点队列独立确认释放。
     # UE5a v5p16，P0，唯一READY租期13:50:08-19:14:54 UTC2026-10-22；物理310289，无换区。

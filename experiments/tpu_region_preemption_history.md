@@ -623,6 +623,8 @@ active leases are censored, and manual migration releases are not preemptions.
 | `BamMediumPropMShiftReadG050MuddVMSharedRouterLastBlockL2L5AnchorTruePile` | v5p-16 (`xd-v5p-16-310300-maxtext`) | `us-east5-a` | 2026-10-22 16:41:36 | 2026-10-22 18:47:33 | 5000 review stop5112; P0; CP5112 committed, node/queue absent, TB SYNC_OK; runtime dba5890 | none |
 | `BamMediumPropMShiftReadG050MuddVMSharedRouterLastBlockL2AnchorTruePile` | v5p-16 (`xd-v5p-16-310293-maxtext`) | `us-east5-a` | 2026-10-22 13:14:19 | 2026-10-22 18:56:10 | complete13500; P1 same-zone recovery, CP13500 committed, node/queue absent, TB SYNC_OK; runtime9d265b6 | none |
 | `BamMediumPropMShiftReadG050MuddQKVMDualValueSharedRouterLastBlockTruePile` | v5p-16 (`xd-v5p-16-310289-maxtext`) | `us-east5-a` | 2026-10-22 13:50:04 | 2026-10-22 19:14:54 | complete13500; P0; CP13500 committed, node/queue absent, TB SYNC_OK; inherited physical310289, runtime bdae8b3 | none |
+| `BamMediumPropMShiftReadG050MuddVMSharedRouterLastBlockTruePile` | v5p-16 (`xd-v5p-16-310297-maxtext`) | `us-east5-a` | 2026-10-22 14:46:06 | 2026-10-22 20:12:28 | complete13500; P0; CP13500 committed, node/queue absent, TB SYNC_OK; runtime4c3e39f | none |
+| `BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockMLPWriteTruePile` | v5p-16 (`xd-v5p-16-310296-maxtext`) | `us-east5-a` | 2026-10-22 14:48:52 | 2026-10-22 20:13:49 | complete13500; P0; CP13500 committed, node/queue absent, TB SYNC_OK; runtime4c3e39f | none |
 
 ## READY leases
 
@@ -2049,6 +2051,8 @@ active leases are censored, and manual migration releases are not preemptions.
 | `BamMediumPropMShiftReadG050MuddVMSharedRouterLastBlockL2L5AnchorTruePile` | 1 | `us-east5-a` | 2026-10-22 16:41:39 | 2026-10-22 18:47:33 | 2h05m54s | 5000 review stop5112; P0; CP5112 committed, node/queue absent, TB SYNC_OK |
 | `BamMediumPropMShiftReadG050MuddVMSharedRouterLastBlockL2AnchorTruePile` | 2 | `us-east5-a` | 2026-10-22 16:15:27 | 2026-10-22 18:56:10 | 2h40m43s | complete13500 after same-zone recovery; CP13500 committed, node/queue absent, TB SYNC_OK |
 | `BamMediumPropMShiftReadG050MuddQKVMDualValueSharedRouterLastBlockTruePile` | 1 | `us-east5-a` | 2026-10-22 13:50:08 | 2026-10-22 19:14:54 | 5h24m46s | complete13500; P0; CP13500 committed, node/queue absent, TB SYNC_OK; inherited trainer |
+| `BamMediumPropMShiftReadG050MuddVMSharedRouterLastBlockTruePile` | 1 | `us-east5-a` | 2026-10-22 14:46:09 | 2026-10-22 20:12:28 | 5h26m19s | complete13500; P0; CP13500 committed, node/queue absent, TB SYNC_OK |
+| `BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockMLPWriteTruePile` | 1 | `us-east5-a` | 2026-10-22 14:48:55 | 2026-10-22 20:13:49 | 5h24m54s | complete13500; P0; CP13500 committed, node/queue absent, TB SYNC_OK |
 
 
 ### 2026-10-14 user pause: resumed mixed R256/R384

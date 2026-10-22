@@ -1049,3 +1049,70 @@ Complete READY leases,2026-10-22 UTC:
 Final evidence: native-one-two-final-evidence.json,
 native-one-two-final-loss-summary.json, closeout-native-one-two.json and
 closeout-native-one-two.log in the private family evidence directory.
+
+### Single-layer controls retaining L16 MLP write
+
+User authorized both controls to separate L16 write retention from the V channel
+and to supply matched no-L2 VM/QKVM controls for the existing factor comparisons.
+Implementation stays in /data0/xd/mediumprop-mudd-tail, codex/mediumprop-mudd-tail.
+
+| RUN | Direct control | Last block MLP widths | Total / exempt native routers / non-router rounding | TPU |
+|---|---|---|---|---|
+| BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockMLPWriteTruePile | BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockTruePile | 3802/3676/3026 | 432267055 / 154575 / +800 | xd-v5p-16-310296-maxtext |
+| BamMediumPropMShiftReadG050MuddVMSharedRouterLastBlockTruePile | BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockMLPWriteTruePile | 3802/3676/3540 | 432266921 / 154185 / +1056 | xd-v5p-16-310297-maxtext |
+
+QKVM restores458000=.318056W_Q of L16 writer parameters and removes127
+SwiGLU units (457200). VM restores the original Q/K M reads, saving1850144
+non-router parameters and adding514 L17 units (1850400); router reduction390
+is exempt, for total -134 relative to the new QKVM control. Both retain L16
+attention write and local O reads, omit L17 attention write, and use neither L2
+nor dual V. No model-path changes beyond the already-tested dual-V runtime.
+
+Pre-run terminal MHA-reference gain priors: QKVM/write vs original shared
+QKVM1.005[.985,1.025], speed +/-2%; VM vs QKVM/write1.010[.985,1.040],
+speed about -1.5% (+/-2%). Reference BamMHAMediumPropC256TruePile.
+
+Formal spot v5p-16 in us-east5-a, no backup zones or FLEX training. Retained
+llm-jax-v6e-1-0/europe-west4-a worker0 is an ACTIVE FLEX_START compiler
+(guaranteed, not bestEffort), borrowed under its serial lock with no lifecycle
+ownership. Submit CPU, compiler work and training-only prequeues through the
+parallel launcher. Full13500 schedule,200-step loss/checkpoint windows,
+latest2/keep0/forced-final, TruePile4096 T4096 global128/B16, TB rotation500.
+Prefix17 v8t48MiB/fused-input layers and JAX tail, scans5+1, tuned Splash,
+full remat, generic health ON/internal+BAM OFF remain inherited.
+
+Infrastructure audit against main 54b54273e64630ed4ac63037147bb53f3dafe821: no main-only operational fixes
+since fa30fca0 in train/AOT/checkpoint/summary-writer/optimizer/runtime paths.
+The base.yml difference only removes this worktree's experimental model flags
+from main; preserve those flags here. The complete GCS writer rotation path
+remains present. Fresh formal-budget/tree checks cover both controls; reuse
+unchanged BAM47, legacy-tail8, native dual/causal/layout3 and summary-writer5
+evidence from bdae8b3 after validating unchanged implementation file hashes.
+The sealed config gate checks the full formal inherited configurations.
+
+After FIRST_STEP, switch monitoring edges to the new controls: QKVM dual V
+vs QKVM/write; VM dual V vs VM and QKVM dual V; L2 VM vs VM; two-layer VM
+vs VM and two-layer QKVM. Keep L2 QKVM vs original shared QKVM. Thus each
+comparison answers a factor question; the depth comparison also removes L16
+attention write and must retain that qualification. No training-period loss
+diary goes into exp.py.
+
+Startup runtime4c3e39f450f7da596bd1b711fde2a4d2b4197a45 passed both full
+v5p-16/13500 AOTs, FIRST_STEP and14-step gates. Fresh formal shape/budget
+check1 passed; unchanged bdae8b3 BAM47/legacy8/native3/summary-writer5
+evidence was reused with hash validation. Actual workers beyond80/200 verify
+the declared widths, B16/T4096, scans5+1, full remat, tuned Splash,
+v8t48MiB/fused inputs, generic health ON/internal+BAM OFF, CP200/latest2/keep0
+and TB500. Startup~.722/.720step/s, -0.4% vs original QKVM~.725 and -0.3%
+VM vs the new QKVM/write control, respectively, under matched health.
+
+Both retained-worker AOTs compiled serially under the worker lock while
+training-only spot prequeues progressed independently. No compiler lifecycle
+was adopted. Both trainers use the UE5a truepile4096 regional dataset.
+All seven live compare_runs edges and their MHA-reference gain triples now
+match the factor plan above. Monitoring metadata changes preserved each RUN's
+code_commit, trainer, zone, status and controller; training was not restarted.
+Evidence under /data0/xd/bam_diagnostics/mediumprop-mudd-tail:
+write-controls-completed-cpu.json, write-controls-sealed-config.log,
+write-controls-startup-proof-final.json, write-{qkvm,vm}-step14.log,
+write-controls-aot-states.raw.json and factor-comparison-live-update.json.

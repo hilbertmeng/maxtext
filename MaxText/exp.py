@@ -14987,6 +14987,35 @@ class BamMediumPropMShiftReadG050MuddVMSharedRouterLastBlockL2AnchorTruePile(Bam
     compare_runs = ['BamMediumPropMShiftReadG050MuddVMSharedRouterLastBlockTruePile']
 
 
+class BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockMLPWriteTruePile(BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockTruePile):
+    # ledger only: codex/mediumprop-mudd-tail, /data0/xd/mediumprop-mudd-tail.
+    """Restore L16 MLP write with single-layer QKVM, no L2 and no dual V."""
+    # code_commit: 4c3e39f; xd-v5p-16-310296-maxtext/UE5a; full AOT/FIRST_STEP/14-step verified.
+    # Startup~.722step/s (-.4% vs matched parent~.725); generic health ON/internal+BAM OFF, tuned Splash/v8t48MiB.
+    # Restore458000 writer params; L16 MLP3803->3676 repays457200, rounding+800.
+    # Total432267055; native routers154575 remain exempt. All other layers unchanged.
+    # Prior terminal MHA-ref gain vs original shared QKVM1.005[.985,1.025], speed +/-2%.
+    model_name = 'BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockMLPWriteTruePile'
+    bam_mudd_tail_l2_anchor = False
+    bam_mudd_tail_dual_value = False
+    bam_mudd_tail_skip_mlp_write = False
+    bam_mudd_tail_mlp_dims = [3802, 3676, 3026]
+    compare_runs = ['BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockTruePile']
+
+class BamMediumPropMShiftReadG050MuddVMSharedRouterLastBlockTruePile(BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockMLPWriteTruePile):
+    # ledger only: codex/mediumprop-mudd-tail, /data0/xd/mediumprop-mudd-tail.
+    """Single-layer VM with native Q/K M reads, restored L16 MLP write, no L2 or dual V."""
+    # code_commit: 4c3e39f; xd-v5p-16-310297-maxtext/UE5a; full AOT/FIRST_STEP/14-step verified.
+    # Startup~.720step/s (-.3% vs matched new QKVM/write~.722); generic health ON/internal+BAM OFF, tuned Splash/v8t48MiB.
+    # Q/K M reads save1850144 params; L17 MLP3026->3540 adds1850400, rounding+256.
+    # Total432266921, parent-134; native routers154185 exempt, total non-router rounding+1056.
+    # Prior terminal MHA-ref gain vs restored-write QKVM1.010[.985,1.040], speed -1.5% (+/-2%).
+    model_name = 'BamMediumPropMShiftReadG050MuddVMSharedRouterLastBlockTruePile'
+    bam_mudd_tail_residual_qk = False
+    bam_mudd_tail_mlp_dims = [3802, 3676, 3540]
+    compare_runs = ['BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockMLPWriteTruePile']
+
+
 class BamMediumPropMShiftReadG050MuddQKVMDualValueSharedRouterLastBlockTruePile(BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockTruePile):
     # ledger only: codex/mediumprop-mudd-tail, /data0/xd/mediumprop-mudd-tail.
     """L17 Mudd QKVM plus the original V M read; restore L16 MLP write, no L2."""

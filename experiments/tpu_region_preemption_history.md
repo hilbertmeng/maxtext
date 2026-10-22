@@ -622,6 +622,7 @@ active leases are censored, and manual migration releases are not preemptions.
 | `BamMediumPropMShiftReadG050MuddQKVMDualValueSharedRouterLastBlockL2AnchorTruePile` | v5p-16 (`xd-v5p-16-310291-maxtext`) | `us-east5-a` | 2026-10-22 18:10:39 | 2026-10-22 18:36:03 | repaired runtime727974c resumed1964; 2800 review stop2946; CP2946 committed, node/queue absent, TB SYNC_OK; P0 | none |
 | `BamMediumPropMShiftReadG050MuddVMSharedRouterLastBlockL2L5AnchorTruePile` | v5p-16 (`xd-v5p-16-310300-maxtext`) | `us-east5-a` | 2026-10-22 16:41:36 | 2026-10-22 18:47:33 | 5000 review stop5112; P0; CP5112 committed, node/queue absent, TB SYNC_OK; runtime dba5890 | none |
 | `BamMediumPropMShiftReadG050MuddVMSharedRouterLastBlockL2AnchorTruePile` | v5p-16 (`xd-v5p-16-310293-maxtext`) | `us-east5-a` | 2026-10-22 13:14:19 | 2026-10-22 18:56:10 | complete13500; P1 same-zone recovery, CP13500 committed, node/queue absent, TB SYNC_OK; runtime9d265b6 | none |
+| `BamMediumPropMShiftReadG050MuddQKVMDualValueSharedRouterLastBlockTruePile` | v5p-16 (`xd-v5p-16-310289-maxtext`) | `us-east5-a` | 2026-10-22 13:50:04 | 2026-10-22 19:14:54 | complete13500; P0; CP13500 committed, node/queue absent, TB SYNC_OK; inherited physical310289, runtime bdae8b3 | none |
 
 ## READY leases
 
@@ -2047,6 +2048,7 @@ active leases are censored, and manual migration releases are not preemptions.
 | `BamMediumPropMShiftReadG050MuddQKVMDualValueSharedRouterLastBlockL2AnchorTruePile` | 2 | `us-east5-a` | 2026-10-22 18:10:43 | 2026-10-22 18:36:03 | 25m20s | resumed same retained TPU after checkpoint repair; 2800 review stop2946; P0, CP2946 committed, node/queue absent, TB SYNC_OK |
 | `BamMediumPropMShiftReadG050MuddVMSharedRouterLastBlockL2L5AnchorTruePile` | 1 | `us-east5-a` | 2026-10-22 16:41:39 | 2026-10-22 18:47:33 | 2h05m54s | 5000 review stop5112; P0; CP5112 committed, node/queue absent, TB SYNC_OK |
 | `BamMediumPropMShiftReadG050MuddVMSharedRouterLastBlockL2AnchorTruePile` | 2 | `us-east5-a` | 2026-10-22 16:15:27 | 2026-10-22 18:56:10 | 2h40m43s | complete13500 after same-zone recovery; CP13500 committed, node/queue absent, TB SYNC_OK |
+| `BamMediumPropMShiftReadG050MuddQKVMDualValueSharedRouterLastBlockTruePile` | 1 | `us-east5-a` | 2026-10-22 13:50:08 | 2026-10-22 19:14:54 | 5h24m46s | complete13500; P0; CP13500 committed, node/queue absent, TB SYNC_OK; inherited trainer |
 
 
 ### 2026-10-14 user pause: resumed mixed R256/R384

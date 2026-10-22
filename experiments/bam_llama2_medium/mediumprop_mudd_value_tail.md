@@ -1589,3 +1589,30 @@ Evidence under /data0/xd/bam_diagnostics/mediumprop-mudd-tail:
 l2-vm-terminal-central.json, l2-vm-final-evidence13500.json,
 closeout-l2-vm13500.log. Remote journal:
 /home/lishengping/xd/projects/logs/closeout-20261022T185723Z.json.
+
+### No-L2 QKVM dual V completed13500
+
+BamMediumPropMShiftReadG050MuddQKVMDualValueSharedRouterLastBlockTruePile
+completed13500 on bdae8b33a97c7f04ce2f1d5215fcb366517d650e. Against the
+registered write-matched QKVM control, rolling MHA-reference gain rose from
+1k .988765 to5k1.000234 and8.8k1.001401, then returned to near parity:
+common10.2k–11k last-five gap+.00009084/gain.99946432. That control is
+still training, so the full terminal pair must be updated when it finishes.
+Against original shared QKVM, final common9.8k–10.6k gap-.00015264/
+gain1.00094268; that parent stopped10789. Thus the original terminal1.030
+forecast cannot be fully evaluated, and the observed common trajectory
+does not support it. The write-matched control isolates dual V plus the
+original11-unit L17 repayment; total432266399 is control-656, cache unchanged.
+Matched generic-health/tuned Splash/v8t steady~.716 versus~.718 is near flat.
+There is no established sustained benefit from dual V in this pairing.
+
+CP13500 committed, local TB SYNC_OK, node/queue independently absent.
+Full active-zone path us-east5-a only, v5p16, P0. Assignment2026-10-22
+13:50:04–19:14:54 UTC; sole READY lease13:50:08–19:14:54 UTC(5h24m46s),
+ending at planned completion. Physical310289 was inherited from MLP
+redistribution, not newly created for this RUN. Bookkeeping closeout used
+status=complete, already_closed=true, and performed no resource operations.
+Evidence under /data0/xd/bam_diagnostics/mediumprop-mudd-tail:
+no-l2-qkvm-dualv-final-evidence13500.json,
+closeout-no-l2-qkvm-dualv13500.log. Remote journal:
+/home/lishengping/xd/projects/logs/closeout-20261022T191523Z.json.

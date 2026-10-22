@@ -15079,6 +15079,11 @@ class BamMediumPropMShiftReadG050MuddQKVMDualValueSharedRouterLastBlockTruePile(
     # code_commit: bdae8b3; xd-v5p-16-310289-maxtext/UE5a retained from MLP redistribution.
     # CPU58 + writer5, full13500 AOT/FIRST_STEP/14-step gates verified; steady~.720step/s (-.7% vs parent~.725).
     # Generic training health ON/internal+BAM OFF, tuned Splash, v8t48MiB/fused inputs, TB500.
+    # 结论：完成13500；对匹配写回父路早期落后、5k追回，8.8k R1.00140后再归近持平，末五10.2k-11k gap+.00009084/R.99946432。
+    # 写回父路仍在训，完整终局配对待其完成；对原共享QKVM最后共同9.8k-10.6k -.00015264/R1.00094268，父路已停10789。
+    # 相比匹配写回父路参数-656，cache不变，steady~.716 vs .718近持平；未建立可保持的双V收益。
+    # 原vs原共享QKVM终局1.030下注无法完整验收，已训共同区间不支持；CP13500/TB SYNC_OK，节点队列独立确认释放。
+    # UE5a v5p16，P0，唯一READY租期13:50:08-19:14:54 UTC2026-10-22；物理310289，无换区。
     model_name = 'BamMediumPropMShiftReadG050MuddQKVMDualValueSharedRouterLastBlockTruePile'
     bam_mudd_tail_dual_value = True
     bam_mudd_tail_l2_anchor = False

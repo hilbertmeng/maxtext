@@ -14970,6 +14970,8 @@ class BamMediumPropMShiftReadG050MuddVMSharedRouterLastBlockL2AnchorTruePile(Bam
 
 class BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockMLPWriteTruePile(BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockTruePile):
     """Restore L16 MLP write with single-layer QKVM, no L2 and no dual V."""
+    # code_commit: 4c3e39f; xd-v5p-16-310296-maxtext/UE5a; full AOT/FIRST_STEP/14-step verified.
+    # Startup~.722step/s (-.4% vs matched parent~.725); generic health ON/internal+BAM OFF, tuned Splash/v8t48MiB.
     # Restore458000 writer params; L16 MLP3803->3676 repays457200, rounding+800.
     # Total432267055; native routers154575 remain exempt. All other layers unchanged.
     # Prior terminal MHA-ref gain vs original shared QKVM1.005[.985,1.025], speed +/-2%.
@@ -14983,6 +14985,8 @@ class BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockMLPWriteTruePile(B
 
 class BamMediumPropMShiftReadG050MuddVMSharedRouterLastBlockTruePile(BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockMLPWriteTruePile):
     """Single-layer VM with native Q/K M reads, restored L16 MLP write, no L2 or dual V."""
+    # code_commit: 4c3e39f; xd-v5p-16-310297-maxtext/UE5a; full AOT/FIRST_STEP/14-step verified.
+    # Startup~.720step/s (-.3% vs matched new QKVM/write~.722); generic health ON/internal+BAM OFF, tuned Splash/v8t48MiB.
     # Q/K M reads save1850144 params; L17 MLP3026->3540 adds1850400, rounding+256.
     # Total432266921, parent-134; native routers154185 exempt, total non-router rounding+1056.
     # Prior terminal MHA-ref gain vs restored-write QKVM1.010[.985,1.040], speed -1.5% (+/-2%).

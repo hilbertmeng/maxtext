@@ -998,3 +998,23 @@ vs VM and two-layer QKVM. Keep L2 QKVM vs original shared QKVM. Thus each
 comparison answers a factor question; the depth comparison also removes L16
 attention write and must retain that qualification. No training-period loss
 diary goes into exp.py.
+
+Startup runtime4c3e39f450f7da596bd1b711fde2a4d2b4197a45 passed both full
+v5p-16/13500 AOTs, FIRST_STEP and14-step gates. Fresh formal shape/budget
+check1 passed; unchanged bdae8b3 BAM47/legacy8/native3/summary-writer5
+evidence was reused with hash validation. Actual workers beyond80/200 verify
+the declared widths, B16/T4096, scans5+1, full remat, tuned Splash,
+v8t48MiB/fused inputs, generic health ON/internal+BAM OFF, CP200/latest2/keep0
+and TB500. Startup~.722/.720step/s, -0.4% vs original QKVM~.725 and -0.3%
+VM vs the new QKVM/write control, respectively, under matched health.
+
+Both retained-worker AOTs compiled serially under the worker lock while
+training-only spot prequeues progressed independently. No compiler lifecycle
+was adopted. Both trainers use the UE5a truepile4096 regional dataset.
+All seven live compare_runs edges and their MHA-reference gain triples now
+match the factor plan above. Monitoring metadata changes preserved each RUN's
+code_commit, trainer, zone, status and controller; training was not restarted.
+Evidence under /data0/xd/bam_diagnostics/mediumprop-mudd-tail:
+write-controls-completed-cpu.json, write-controls-sealed-config.log,
+write-controls-startup-proof-final.json, write-{qkvm,vm}-step14.log,
+write-controls-aot-states.raw.json and factor-comparison-live-update.json.

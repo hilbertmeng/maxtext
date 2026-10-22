@@ -1327,3 +1327,31 @@ Evidence: vm-dualv-final-evidence.json, report-dualv-overdue-review.json,
 dualv-formal-review-common4000.png and closeout-vm-dualv-review.log under
 /data0/xd/bam_diagnostics/mediumprop-mudd-tail; remote closeout journal
 /home/lishengping/xd/projects/logs/closeout-20261022T163945Z.json.
+
+### L2 QKVM completed13500
+
+BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockL2AnchorTruePile
+completed its planned13500 steps on runtime2b035f87c94bff2c3dac175b652d3efd446b3da9.
+The L2-anchor change retained the parent MLP widths and added only325 router
+parameters, total432266580. Against registered direct parent
+BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockTruePile,
+MHA-reference rolling gain(starting600, at most five windows) was
+1k1.00810 ->5k1.01106 ->10.6k1.01540.
+Final common9.8k–10.6k last-five gap-.00252024(range-.0029418..-.0022546),
+gain1.01539869. The direct parent stopped10789, so comparison ends10600;
+this ratio is not a13500-step terminal estimate. The1.020 central prior
+was not evaluated at full terminal common training. Observed comparisons
+support a consistent small L2 benefit. Matched~.722step/s vs parent~.725
+is about.4% slower, with identical generic-health/tuned-kernel settings.
+
+CP13500 committed, local TB SYNC_OK; node and queued resource310290 were
+independently verified absent. Full zone path is us-east5-a only, v5p16,
+P0; assignment12:09:40–17:33:22 UTC2026-10-22. Its single READY lease was
+12:09:43–17:33:22 UTC(5h23m39s), ending at planned completion. The subsequent
+bookkeeping closeout was already_closed=true and performed no resource
+operations. The stopped parent's limited horizon does not limit this run's
+use as a complete13500-step direct parent for its new dual-V child.
+
+Evidence: l2-qkvm-final-evidence13500.json and closeout-l2-qkvm13500.log in
+/data0/xd/bam_diagnostics/mediumprop-mudd-tail; remote closeout journal
+/home/lishengping/xd/projects/logs/closeout-20261022T173556Z.json.

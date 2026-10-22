@@ -1474,3 +1474,26 @@ checkpoint-directory-retention-regression.log, orbax-worker-checkpoint-api.txt,
 checkpoint-race-fixed-{aot,pause}.log, checkpoint-race-resume-boundary-proof.txt,
 checkpoint-race-fixed-resume-{gates.log,worker-proof.json,validation.json},
 checkpoint-race-fixed-periodic2000-proof.json. Remote AOT state727974c-2c8e78d1.
+
+### L2 VM dual V: stopped2977 after2800 review
+
+BamMediumPropMShiftReadG050MuddVMDualValueSharedRouterLastBlockL2AnchorTruePile
+ran runtime dedbb656e82891c0145c0527e1b3c67960298b0d. Against its only direct
+control BamMediumPropMShiftReadG050MuddVMSharedRouterLastBlockL2AnchorTruePile,
+MHA-reference rolling gain declined1k .98007071 ->2k .97866269 ->2.8k .97662384.
+Final common2k–2.8k last-five gap+.00691196(range+.0064442..+.0078072).
+Absolute gaps narrowed while relative deficits persisted. Parent MLP widths
+[3802,3676,3540] were unchanged, so MLP repayment cannot explain this loss.
+It adds38944 parameters(.00901%) with unchanged cache; matched generic-health,
+tuned Splash/v8t speed is approximately flat. There is no compensating benefit.
+The terminal1.005 forecast was not evaluated to completion; observed results
+do not support it. The2800 review stopped training at committed CP2977,
+zero lost steps, local TB SYNC_OK, node and queue independently verified absent.
+
+Full active-zone path is us-east5-a only, v5p16, P0. Assignment2026-10-22
+17:05:02–18:20:03 UTC; sole READY lease17:05:08–18:20:03 UTC(1h14m55s),
+ending at review stop. No pending successor; this was ordinary resource release.
+Evidence under /data0/xd/bam_diagnostics/mediumprop-mudd-tail:
+l2-vm-dualv-formal-review2800.json, l2-vm-dualv-final-evidence2977.json,
+closeout-l2-vm-dualv2800-remote.log. Remote closeout journal:
+/home/lishengping/xd/projects/logs/closeout-20261022T182247Z.json.

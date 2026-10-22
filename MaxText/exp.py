@@ -16229,6 +16229,9 @@ class Pythia2p8B(TrainPythia, PythiaArchitecture, Llama2Medium):
 class Pythia2p8BShortTrain(ShortTrain2p8B, Pythia2p8B):
     # code_commit:2a108de; UE5a v5p-128, B16/device, health ON/internal OFF.
     # Paired timing: minimal .360333 vs full .326432 step/s (+10.39%); selected minimal.
+    # User paused at21726/28000; checkpoint committed; recent ~.359 step/s; P0; resumable original schedule.
+    # Last common17.5k: Mudd-MHA -.068782 /BAM-MHA -.092045, BAM/Mudd gain ratio1.3382 (MHA ref).
+    # Provisional control: its higher own step is not a completed28k baseline.
     qk_norm = True
     
 
@@ -16258,6 +16261,9 @@ class MuddPythia3BSerialMLP(TrainPythia, MuddPythiaMediumPropT2048SerialMLP): # 
 class MuddPythia3BSerialMLPShortTrain(ShortTrain2p8B, MuddPythia3BSerialMLP):
     # code_commit:2a108de; UE5a v5p-128, B16/device, health ON/internal OFF.
     # Paired timing: minimal .300399 vs full .269000 step/s (+11.67%); selected minimal.
+    # User paused at17578/28000; checkpoint committed; recent ~.294 step/s; P0; resumable original schedule.
+    # vs MHA gap -.22033@1k -> -.09530@3k -> -.07859@5k -> -.06929@14k -> -.06878@17.5k: late gain stable.
+    # Provisional paired control; original WD/LR/QKNorm settings and router budget unchanged.
     compare_runs = ['Pythia2p8BShortTrain']
 
 class BamPythia2p8BSota(
@@ -16371,6 +16377,10 @@ class BamPythia2p8BSotaIndependentR768PallasShortTrain(ShortTrain2p8B, BamPythia
     # Same-RUN runtime: 2a108de -> b902c69 at checkpoint3000 -> 0579479 at checkpoint5000; resumed3001/5001.
     # Same TPU: 3k .3070 -> .3193 (+4.01%); 5k .3190 -> .3270 (+2.51%); replay losses continuous.
     # Initial 2a108de remat timing: minimal .309199 vs full .283900 (+8.91%); selected minimal.
+    # User paused at18941/28000; checkpoint committed; recent ~.326 step/s; P0; resumable original schedule/AOT.
+    # vs MHA gap -.14267@5k -> -.09670@14k -> -.09204@17.5k; vs Mudd -.06408 -> -.02741 -> -.02326.
+    # MHA-reference BAM/Mudd gain ratio:3k2.0061 ->8k1.5848 ->12k1.4388 ->16k1.3582 ->17.5k1.3382.
+    # Extra gain shrinks with clear deceleration, no established plateau; provisional pause, terminal1.4 bet untested.
     bam_qk_norm_after_concat = True
     compare_runs = ['Pythia2p8BShortTrain', 'MuddPythia3BSerialMLPShortTrain']
 

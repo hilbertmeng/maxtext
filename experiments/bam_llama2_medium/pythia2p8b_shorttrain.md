@@ -250,3 +250,56 @@ The other three formal runs continue. Evidence under the task artifact root:
 `noqkgate-closeout-summary.json`, `noqkgate-final-registry.json` and the final
 health/TB-sync logs. Remote closeout summary:
 `logs/closeout-20261021T202228Z.json`.
+
+
+## User pause of the three core runs, 2026-10-22
+
+After the final grouped report at common17500, the user requested all three
+runs pause. Original28000-step training/LR plans, parameter trees, optimizer
+states, batch1024 and registered runtime/AOT sources remain unchanged.
+The verified existing `pause_at_step.py` -> `pause_review_run.py` flow stopped
+controllers, signalled all16 workers, waited for committed forced checkpoints
+and worker exit, marked each registry paused, then verified deletion of the
+owned TPU and queued resource. Each final local TB copy returned SYNC_OK.
+
+| RUN | Paused checkpoint | Runtime | Recent step/s | READY lease UTC | Duration |
+|---|---:|---|---:|---|---|
+| Pythia2p8BShortTrain | 21726 | 2a108de | .359 | 2026-10-21 11:24:34 -> 2026-10-22 04:19:58 | 16h55m24s |
+| MuddPythia3BSerialMLPShortTrain | 17578 | 2a108de | .294 | 2026-10-21 11:33:48 -> 2026-10-22 04:19:57 | 16h46m09s |
+| BamPythia2p8BSotaIndependentR768PallasShortTrain | 18941 | 0579479 | .326 | 2026-10-21 11:38:13 -> 2026-10-22 04:19:58 | 16h41m45s |
+
+All three use v5p-128 inus-east5-a, one READY lease each, zero preemptions and
+no zone switches. These are manual pauses, not completed28000-step runs.
+
+Final common17500 window: MHA2.094186, Mudd2.0254036, BAM2.002141;
+Mudd-MHA=-.0687824, BAM-MHA=-.0920450, BAM-Mudd=-.0232626.
+MHA-reference BAM/Mudd gain ratio1.3382057. Its full trend is2.0061 at3k,
+1.8154 at5k,1.5848 at8k,1.5069 at10k,1.4388 at12k,1.3956 at14k,
+1.3582 at16k,1.3460 at17k and1.3382 at17.5k.
+Mudd's MHA-relative gain has become fairly stable; BAM's extra gain still
+shrinks, with clear deceleration. This is not uniform decline and is not yet
+an established plateau. Per1000-step OLS decline:3–6k .095815,
+6–9k .070473,9–12k .034280,12–14k .021649,14–16k .019488.
+The nearly flat13–14k interval did not persist over14–16k.
+
+Raw-gradient median/P95 over each preceding500-step bin,14k ->16k ->17k:
+MHA .123362/.132751 ->.124115/.132240 ->.122570/.131411;
+Mudd .248589/.382888 ->.221757/.335196 ->.223401/.305081;
+BAM .118255/.150785 ->.117605/.138796 ->.114146/.140076.
+No gradient-health deterioration motivated the user pause.
+
+The pre-launch terminal bet1.40 (range1.15–1.70, ratio of final2000-step mean
+gains) remains untested. At10k, conditional power-law fits toR-1 suggested
+approximately1.21–1.27 at28k; the working expectation was revised toabout1.25.
+The4–10k fit predicted16k1.358427 versus observed1.358166; this supports the
+observed slowing decay, but does not establish the terminal plateau. These
+are provisional pause-time conclusions, not a completed-run claim.
+
+Evidence in `/data0/xd/bam_diagnostics/pythia2p8b-shorttrain-remat-20261021/`:
+`report-final-before-pause.json`, `bam-event-before-pause.txt`,
+`generic-health-17000.json`, `pause-verified.json`,
+`pause-final-registries.json`, `pause-final-tb-sync.log`, the three `pause-*.log`
+files, and `bam_mudd_gain_ratio_trend_17500.{png,svg,csv}`.
+Resume from the registered full runtime hashes and matching v5p-128/s28000
+AOT artifacts, same RUN/storage prefixes and original total28000-step schedule;
+do not substitute the later metadata commit or shorten the LR schedule.

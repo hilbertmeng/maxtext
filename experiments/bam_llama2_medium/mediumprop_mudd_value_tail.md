@@ -730,9 +730,8 @@ llm-jax-v6e-1-0/europe-west4-a under its worker lock, without lifecycle ownershi
 The family remains in UE5a; the recent two preemptions of310289 are isolated
 while its four same-zone peers retain uninterrupted leases. No FLEX training.
 Prior terminal MHA-reference gain versus the direct two-layer QKVM parent:
-1.040[1.000,1.080], matched speed +/-3%. Retain that parent, shared L17 QKVM,
-completed old independent QKV and original single.5 as direct controls, all with
-BamMHAMediumPropC256TruePile as the common gain reference.
+1.040[1.000,1.080], matched speed +/-3%. Compare with the direct two-layer
+QKVM parent only, using BamMHAMediumPropC256TruePile as the gain reference.
 
 Infrastructure audit against main535cec58 finds no new operational fixes since
 6d2848e0 in training, checkpointing, summary writers, optimizers, AOT or runtime
@@ -808,8 +807,9 @@ Both retain L16 attention write and restore its independent R256 MLP write,
 retain local O reads, omit L17 attention write, and use three-source
 [embedding,L0,current] native controllers plus final C1 Mudd. No L2 anchor.
 The first routes Q/K/V/m through native C4; the second routes only V/m through
-C2 and restores the original Q/K M reads. The pure no-L2 VM configuration
-parent is defined for inheritance but is not an additional training RUN.
+C2 and restores the original Q/K M reads. The VM arm derives from the trained
+L2-anchor VM run and explicitly removes L2 at both native routers while adding
+the V M-read channel.
 
 At L17 add the original BAM V read to the existing Mudd->norm->W_V value.
 Reuse O's complete dynamic key projection, pre-bias, normalized key and ungated
@@ -818,7 +818,7 @@ per-head mixing scale. Original V-read initialization is retained. New params:
 19216 dynamic-gate +512 static-address +19216 static-gate =38944=.027044W_Q.
 Both repay11 SwiGLU units at L17. Restore458000 of L16 writer params by removing
 127 units there. Calculated last-block widths: QKVM[3802,3676,3015],
-VM[3802,3676,3529]. Expected totals432266399/432266265, routers154575/154185
+VM[3802,3676,3529]. Verified totals432266399/432266265, routers154575/154185
 exempt; non-router rounding relative to original single.5 is+144/+400.
 No additional D->R or R->NV projection, W_V, attention pass or M cache.
 The existing V is augmented before the single attention operation.
@@ -838,12 +838,12 @@ then close the old RUN records without touching their transferred trainers.
 Both keep prefix5/final1 scans,17 ordinary v8t/48MiB/fused-input layers and a
 JAX dual-value L17, tuned Splash/full remat, TruePile4096 global128/B16,
 generic health ON/internal+BAM OFF, CP200/latest2/keep0/forcedfinal and TB500.
-Direct common trained baseline is shared L17 QKVM; VM dual also compares to
-QKVM dual. All gain ratios use BamMHAMediumPropC256TruePile. No clean historical
-pure no-L2 VM trajectory exists; do not substitute its L2 version as that control.
-Prior terminal gains versus common shared QKVM:1.030[.990,1.070] and
-1.020[.980,1.060], implying VM/QKVM dual~.9903. Matched speed forecasts
-about-1% and-2%, respectively, with+/-2% uncertainty.
+QKVM dual compares with shared L17 QKVM. VM dual compares with the trained
+L2-anchor L17 VM parent; label the combined change as dual V plus removal of L2
+at the layer router and final readout. This is the nearest useful trained parent,
+not a clean single-factor V ablation. No unrelated ancestor or sibling comparison
+is registered. Gain reference remains BamMHAMediumPropC256TruePile. QKVM dual
+prior versus its parent:1.030[.990,1.070], matched speed about-1% (+/-2%).
 
 Infrastructure audit against main0d52c953 finds only ledger changes since535cec58;
 all previously audited operational fixes and the rotating-writer500 path remain.
@@ -853,3 +853,59 @@ isolating the new V path by disabling its two components, causal outputs,
 finite/live gradients through V gates/static address/shared up/restored L16
 writer, and the JAX/Pallas tail bridge. Shared-read edits also gate on the full
 BAM47 and legacy-tail8 suites. Existing unchanged writer5 evidence is retained.
+
+Startup verified at runtime bdae8b33a97c7f04ce2f1d5215fcb366517d650e:
+CPU58 fresh (BAM47, legacy tail8, targeted budget/causal-gradient/layout3),
+unchanged writer5, both sealed configurations and full13500-step v5p16 AOTs
+passed. FIRST_STEP and14-step gates passed for both; actual worker proof at
+QKVM336/VM223 verifies dual V, no L2, restored L16 MLP write, exact tail widths,
+v8t48MiB/fused inputs, tuned Splash, generic health ON/internal+BAM OFF,
+CP200/latest2 and rotating TB500. Steady~.720/.710step/s. Compiler
+llm-jax-v6e-1-0/EW4a was borrowed serially and retained, with no lifecycle change.
+
+Physical trainers310289/310288 were transferred after old committed checkpoints
+5423/8309; new logical IDs310294/310295 start fresh at0 with separate storage.
+Comparison metadata now explicitly selects the trained QKVM and L2 VM parents,
+respectively. Equivalent inheritance cleanup changes no numerical configuration
+relative to the compiled runtime, as checked for every inherited attribute except
+compare_runs. Evidence under the private family directory: dualv-startup-proof.json,
+dualv-completed-cpu.json, dualv-aot-states.json, dualv-*-first-step.log,
+dualv-*-step14.log and dualv-post-monitoring-numerical-equivalence.log.
+
+### MLP allocation closeout and retained-TPU handoff
+
+User-approved replacements stopped
+BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockSwapMLPTruePile at8309
+and BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastTwoLayersRebalanceMLPTruePile
+at5423. Both final checkpoints are committed and both TensorBoards report
+SYNC_OK. The retained nodes/queues now belong to the verified new dual-value
+RUNs; old closeout reports already_closed and performs no resource deletion.
+
+| RUN | Direct parent | Last five mature windows | Mean gap / MHA-reference gain |
+|---|---|---|---|
+| BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockSwapMLPTruePile | BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockTruePile | 7400–8200 | +.00135968 / .99225663 |
+| BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastTwoLayersRebalanceMLPTruePile | BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastTwoLayersTruePile | 4400–5200 | +.00272904 / .98634509 |
+
+Swap: early weak lead became a persistent small deficit; a near tie at7k did
+not persist. Redistribution: the early deficit shrank but plateaued around
++.002–.003, without a credible recovery. Neither allocation established a gain
+at its user-approved replacement; these are early-stop findings, not measured
+terminal results. The original1.020/1.040 terminal bets remain untested and are
+unsupported by the observed trajectories. Parameter totals/MLP MACs and M cache
+remain identical to their respective parents. Swap startup~.724 vs parent~.725
+(-.14%); redistribution~.718 vs~.719 (-.14%), matched generic-health/Pallas/Splash.
+
+Both used v5p-16 in us-east5-a only, without passive candidates or zone switches.
+Complete READY leases on2026-10-22 UTC:
+
+| RUN | Start | End | Duration | End reason |
+|---|---|---|---|---|
+| MLP redistribution | 11:17:16 | 12:27:05 | 1h09m49s | preempted |
+| MLP redistribution | 12:32:51 | 12:35:44 | 2m53s | preempted |
+| MLP redistribution | 12:41:47 | 13:49:17 | 1h07m30s | user hot-switch boundary |
+| MLP swap | 10:32:48 | 13:51:32 | 3h18m44s | user hot-switch boundary |
+
+P2/P0 respectively. Final evidence: hot-replaced-final-evidence.json,
+report-final-hot-replaced.json, hot-replaced-final-loss-summary.json,
+closeout-hot-replaced-final.json, hot-dualv-{qkvm,vm}.log and
+native10000-and-closed-mlp.{png,csv}, under the private evidence directory.

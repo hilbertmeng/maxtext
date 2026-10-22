@@ -652,3 +652,45 @@ joint controllers, removed write parameters and Pallas/JAX parameter compatibili
 Unchanged model/kernel regressions are reused. Infrastructure audit against main
 621e2e73 finds no additional runtime fixes since6d2848e0 in training, checkpointing,
 summary writers, optimizers, AOT or defaults.
+
+### Shared L17 QKVM with a completed L2 residual anchor
+
+BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockL2AnchorTruePile
+inherits BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockTruePile.
+Both the L17 joint Q/K/V/m controller and the final C1 Mudd readout use
+[embedding output, complete L0 output, complete L2 output, current residual].
+L2 includes its attention and MLP updates. Its residual is captured at runtime
+layer index2 and carried through the existing prefix5/tail1 block scans;
+there is no detach, extra normalization or recomputation of L2.
+
+Reuse native Compose with one shared D->64 down per site. The signed up and
+bias expand from64x4x3/4x3 to64x4x4/4x4 at L17 (+260), and from64x1x3/1x3
+to64x1x4/1x4 at final readout (+65). Both hidden widths remain64 under the
+existing rounding, including final expand4. Zero up and [0,0,0,1] biases keep
+the initialized model identical to its parent. Historical final-router module
+name compose_final_three_source is retained for consistent parameter naming.
+
+The325=.000225694W_Q tiny router parameters are exempt from MLP repayment;
+MLP widths remain[3802,3803,3026], total432266580, router total154900.
+All M read/write semantics, local O, scan grouping, Pallas v8t/48MiB/fused inputs,
+tuned Splash, full remat, generic health ON/internal/BAM OFF and TruePile4096
+global128/per-device16 remain inherited. CP200/latest2/keep0/forced final/TB500;
+full13500-step schedule. This source-axis change requires a new RUN/checkpoint
+prefix. Target trainer xd-v5p-16-310290-maxtext/us-east5-a. Reuse the retained
+EW4a llm-jax-v6e-1-0 compiler under its worker lock, with no lifecycle ownership.
+
+Prior terminal MHA-reference gain versus the direct shared L17 QKVM parent:
+1.020[.995,1.045], matched speed +/-2%. Retain that parent, completed old
+independent QKV and original single.5 as direct controls, each with
+BamMHAMediumPropC256TruePile as the common gain reference.
+
+Infrastructure audit against main10004248 finds no additional operational
+changes since6d2848e0 in training, checkpointing, summary writers, optimizers
+or AOT; the new base default is an architecture flag only. Existing rotating
+writer500 construction/begin_step and its five regression checks are retained.
+New checks cover the exact formal six-config budget/Pallas parameter trees,
+initial identity and unchanged other parameters, complete L2 capture across scan,
+all four routes consuming L2, causal output, and live backpropagation to L2's
+first-block MLP while later blocks have zero gradient when final readout selects
+only L2. Native regressions and shared BAM/legacy-tail regressions cover the
+unchanged flag-OFF path.

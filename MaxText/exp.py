@@ -14935,6 +14935,22 @@ class BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockTruePile(BamMedium
     ]
 
 
+class BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockL2AnchorTruePile(BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockTruePile):
+    """Native L17 QKVM and final Mudd also read the complete L2 residual."""
+    # Sources [embedding,L0,L2,current]; shared D->64 down and signed joint coefficients.
+    # Zero up and [0,0,0,1] bias preserve the identity initialization at both sites.
+    # Extra325=.000226W_Q tiny router parameters are exempt; MLP[3802,3803,3026] unchanged.
+    # Total432266580; routers154900; block scan5+1 with one extra residual carry.
+    # Prior terminal MHA-ref gain vs shared L17 QKVM1.020[.995,1.045], matched speed +/-2%.
+    model_name = 'BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockL2AnchorTruePile'
+    bam_mudd_tail_l2_anchor = True
+    compare_runs = [
+        'BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockTruePile',
+        'BamMediumPropMShiftReadG050MuddQKVLastBlockTruePile',
+        'BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile',
+    ]
+
+
 class BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockSwapMLPTruePile(BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockTruePile):
     """Move777 SwiGLU units from L16 to L17, keeping the shared-QKVM model budget unchanged."""
     # Explicit user-requested cross-layer allocation: move2797200=1.9425W_Q, no new parameters.

@@ -980,6 +980,8 @@ class Decoder(nn.Module):
             or not cfg.bam_mudd_tail_residual_qk or cfg.mudd_prenorm or cfg.mudd_postnorm
             or cfg.dynamic_dense_scale_dw or cfg.mudd_use_scale or cfg.mudd_cap):
           raise ValueError('native shared tail requires one QKV[/m] block with plain identity-initialized Mudd')
+        if cfg.bam_mudd_tail_l2_anchor and not cfg.bam_mudd_tail_native_shared_router:
+          raise ValueError('L2 residual anchor requires native shared tail routing')
         if cfg.bam_pallas_core and (not cfg.bam_mudd_tail_native_shared_router
             or cfg.bam_pallas_body != 'v8t'):
           raise ValueError('Pallas selective tail supports native shared routing with v8t only')
@@ -1009,6 +1011,8 @@ class Decoder(nn.Module):
         carry = (y, M)
         if bam_mudd.uses_anchors(cfg):
           carry += (y, jnp.zeros_like(y))
+          if cfg.bam_mudd_tail_l2_anchor:
+            carry += (jnp.zeros_like(y),)
         if persistent:
           carry += (persistent_M,)
         # Separate scan stages retain independent layer parameters while sharing each stage's HLO.
@@ -1025,11 +1029,14 @@ class Decoder(nn.Module):
         y, M = carry[:2]
         if bam_mudd.uses_anchors(cfg):
           embedding_anchor, l0_anchor = carry[2:4]
+          anchors = [embedding_anchor, l0_anchor]
+          if cfg.bam_mudd_tail_l2_anchor:
+            anchors.append(carry[4])
           if cfg.bam_mudd_tail_native_shared_router:
             routed, _ = mudd.Compose(
                 cfg, mesh, self.quant, C=1, compose=True, force_router=True,
                 hidden_expand_override=4, name='compose_final_three_source')(
-                    layer_output=y, hids=[embedding_anchor, l0_anchor, y])
+                    layer_output=y, hids=[*anchors, y])
             y = routed[0]
           else:
             y = bam_mudd.ThreeSourceRouter(

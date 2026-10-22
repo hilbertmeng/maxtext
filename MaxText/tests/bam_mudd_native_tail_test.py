@@ -21,6 +21,7 @@ import train_compile
 
 QKV = 'BamMediumPropMShiftReadG050MuddQKVSharedRouterLastBlockTruePile'
 ONE = 'BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockTruePile'
+L2 = 'BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockL2AnchorTruePile'
 TWO = 'BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastTwoLayersTruePile'
 SWAP = 'BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockSwapMLPTruePile'
 REBALANCE = 'BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastTwoLayersRebalanceMLPTruePile'
@@ -38,7 +39,8 @@ class NativeTailTest(MLPWriteTest, unittest.TestCase):
         (ONE, 432266255, 154575, 3802, 3803, 3026, 4),
         (TWO, 432344635, 232155, 3802, 3027, 3026, 4),
         (SWAP, 432266255, 154575, 3802, 3026, 3803, 4),
-        (REBALANCE, 432344635, 232155, 3027, 3414, 3414, 4)):
+        (REBALANCE, 432344635, 232155, 3027, 3414, 3414, 4),
+        (L2, 432266580, 154900, 3802, 3803, 3026, 4)):
       with self.subTest(exp=exp):
         cfg = self.config(exp, bam_splash_attention=False)
         cfg.get_keys().update(max_target_length=256, max_prefill_predict_length=256,
@@ -62,11 +64,12 @@ class NativeTailTest(MLPWriteTest, unittest.TestCase):
         self.assertEqual(total - router_count - 432111680, 800 if two_layers else 0)
         prefix = ('params', 'decoder', 'tail_layers')
         layers = ('local_1', 'fetch_2') if two_layers else ('fetch_2',)
+        sources = 4 if exp == L2 else 3
         for layer in layers:
           p = prefix + (layer, 'block', 'qkvm_compose', 'mlp')
           self.assertEqual(flat[p + ('dynamic_dense_conn1', 'kernel')].shape, (1200, 1, 64))
-          self.assertEqual(flat[p + ('dynamic_dense_conn2', 'kernel')].shape, (64, 1, targets, 3))
-          self.assertEqual(flat[p + ('dense_proj2.bias',)].shape, (targets, 1, 3))
+          self.assertEqual(flat[p + ('dynamic_dense_conn2', 'kernel')].shape, (64, 1, targets, sources))
+          self.assertEqual(flat[p + ('dense_proj2.bias',)].shape, (targets, 1, sources))
           attention = prefix + (layer, 'block', 'self_attention')
           for name in ('W_R_up', 'static_o_key', 'M_shift_gate'):
             self.assertTrue(any(p[:len(attention)] == attention and name in p for p in flat))
@@ -246,6 +249,73 @@ class NativeTailTest(MLPWriteTest, unittest.TestCase):
                 and 'dynamic_dense_conn2' in p][0]
         for i in range(4):
           self.assertGreater(float(jnp.sum(head[:, :, i, :] ** 2)), 0., (layer, i))
+
+  def test_l2_anchor_costs325_and_preserves_initialized_model(self):
+    base = self.build(ONE)
+    full = self.build(L2)
+    cfg, mesh, model, params, t, pos, seg, rng = base
+    _, _, next_model, next_params, _, _, _, _ = full
+    a, b = flatten_dict(params), flatten_dict(next_params)
+    self.assertEqual(set(a), set(b))
+    self.assertEqual(sum(v.size for v in b.values()) - sum(v.size for v in a.values()), 325)
+    for path in a:
+      value = b[path]
+      if ('qkvm_compose' in path or 'compose_final_three_source' in path) and (
+          'dynamic_dense_conn2' in path or path[-1] == 'dense_proj2.bias'):
+        value = jnp.take(value, jnp.asarray([0, 1, 3]), axis=-1)
+      np.testing.assert_array_equal(a[path], value, err_msg='/'.join(path))
+    with mesh, nn.partitioning.axis_rules(cfg.logical_axis_rules):
+      def apply(module, p):
+        return module.apply({'params': p}, t, pos, t, seg, decoder_segment_ids=seg,
+                            enable_dropout=False, rngs=rng)[0]
+      np.testing.assert_allclose(apply(model, params), apply(next_model, next_params),
+                                 rtol=1e-6, atol=1e-6)
+
+  def test_l2_complete_residual_reaches_all_routes_and_backpropagates(self):
+    cfg, mesh, model, params, tokens, pos, seg, rng = self.build(L2)
+    flat = flatten_dict(params)
+    # Select only L2 at both native sites. This isolates the cached anchor's
+    # forward and gradient path from the normal current-residual connection.
+    for path, value in flat.items():
+      if ('qkvm_compose' in path or 'compose_final_three_source' in path) and path[-1] == 'dense_proj2.bias':
+        flat[path] = jnp.zeros_like(value).at[..., 2].set(1.)
+    params = unflatten_dict(flat)
+    with mesh, nn.partitioning.axis_rules(cfg.logical_axis_rules):
+      def forward(p, t=tokens, capture=False):
+        return model.apply({'params': p}, t, pos, tokens, seg,
+            decoder_segment_ids=seg, enable_dropout=False, rngs=rng,
+            capture_intermediates=(lambda module, method: isinstance(
+                module, (fusion.FusionDecoderLayer, mudd.Compose))) if capture else False,
+            mutable=['intermediates'] if capture else False)
+      output, capture = forward(params, capture=True)
+      stages = capture['intermediates']['decoder']
+      first_fetch = stages['layers']['fetch_2']['__call__'][0][0]
+      l2 = first_fetch[0][0]  # Complete first block, including L2 attention and MLP.
+      np.testing.assert_array_equal(first_fetch[4], jnp.broadcast_to(l2, first_fetch[4].shape))
+      for name in ('local_0', 'local_1'):
+        anchors = stages['layers'][name]['__call__'][0][0][4]
+        np.testing.assert_array_equal(anchors[0], jnp.zeros_like(l2))
+        np.testing.assert_array_equal(anchors[1:], jnp.broadcast_to(l2, anchors[1:].shape))
+      for name in ('local_0', 'local_1', 'fetch_2'):
+        anchor = stages['tail_layers'][name]['__call__'][0][0][4]
+        np.testing.assert_array_equal(anchor, jnp.broadcast_to(l2, anchor.shape))
+      routes = stages['tail_layers']['fetch_2']['block']['qkvm_compose']['__call__'][0][0]
+      self.assertEqual(len(routes), 4)
+      for route in routes:
+        np.testing.assert_array_equal(route, jnp.broadcast_to(l2, route.shape))
+      future = tokens.at[:, 2:].set(jnp.asarray([[9, 10]], jnp.int32))
+      np.testing.assert_allclose(forward(params, future)[0][:, :2], output[0][:, :2],
+                                 rtol=3e-5, atol=3e-5)
+      loss, grad = jax.jit(jax.value_and_grad(lambda p: jnp.mean(forward(p)[0] ** 2)))(params)
+      self.assertTrue(np.isfinite(float(loss)))
+      self.assertTrue(all(np.isfinite(np.asarray(v)).all() for v in jax.tree.leaves(grad)))
+      gradients = flatten_dict(grad)
+      path = ('decoder', 'layers', 'fetch_2', 'block', 'mlp', 'wo', 'kernel')
+      self.assertGreater(float(jnp.sum(gradients[path][:, 0, :] ** 2)), 0.)
+      np.testing.assert_array_equal(gradients[path][:, 1:, :], 0.)
+      for path, value in gradients.items():
+        if 'tail_layers' in path:
+          np.testing.assert_array_equal(value, 0., err_msg='/'.join(path))
 
 
 if __name__ == '__main__':

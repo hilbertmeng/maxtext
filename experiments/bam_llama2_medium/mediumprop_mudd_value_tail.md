@@ -1081,6 +1081,39 @@ CP200/latest2/keep0/forced-final and TB500 remain inherited. At handoff use
 hot_switch_run.py, committed old checkpoint, new FIRST_STEP/14-step gates,
 then close the old registry and TB without touching its transferred trainer.
 
+Startup verified at runtime33d56958593137f1a4986ef6c2f0c4d8989ee187:
+FIRST_STEP6, 14-step gate23, actual worker settings and the loaded AOT checked.
+Fresh60 CPU checks and unchanged writer5 passed. Native VM/QKVM routing,
+widths[3802,3287,3026], both live L16 writers and absent L17 writer match the
+sealed source. Startup~.701step/s, +.9% vs replaced two-layer VM~.695 and
+-2.9% vs single L2 QKVM~.722. Generic health ON/internal+BAM OFF, tuned Splash,
+full remat, v8t48MiB/fused inputs and TB500 are verified. The source defaults
+supply dual_value=False even though unchanged defaults are omitted from [EXP].
+Evidence: mixed-tail-completed-cpu.json, mixed-tail-aot.log,
+mixed-tail-startup-proof.json, mixed-tail-startup-validation.json,
+mixed-tail-first-step.log and mixed-tail-step14.log under the evidence directory.
+
+### Two-layer VM closeout and retained-trainer transfer
+
+Old BamMediumPropMShiftReadG050MuddVMSharedRouterLastTwoLayersTruePile stopped
+at committed5977 by the user-authorized mixed-tail replacement. Runtime5fbe2f9,
+UE5a physical310291, P0, no passive candidates or zone switches. Assignment
+2026-10-22 12:52:48..15:21:20 UTC; its only READY lease12:52:51..15:21:20,
+2h28m29s. The new mixed RUN owns the retained node and queue after FIRST_STEP;
+the old stopped registry was separately verified before bookkeeping-only
+closeout. No resource deletion was needed. TensorBoard SYNC_OK.
+
+Steady~.695step/s is -3.3% vs old two-layer QKVM~.719 and -3.5% vs single
+VM~.720. Against old two-layer QKVM, improvement diminished from early windows:
+final five5k..5.8k mean gap-.00183368/MHA-reference gain1.00950620.
+Against the new single VM, mature common data reach only1.8k;1k..1.8k
+mean+.00492296/R.98925236, with the deficit shrinking+.00643 ->+.00375.
+The extra layer had not repaid its cost at that common stage, but this is not
+proof of terminal domination. The prior terminal1.040 bet versus old two-layer
+QKVM was not measured to completion. Evidence: old-vm-for-mixed-final-evidence.json,
+old-vm-for-mixed-final-loss-summary.json, mixed-old-stopped-ownership-verified.json,
+and closeout-vm-for-mixed-tail.log; remote closeout-20261022T153023Z.json.
+
 ### Single-layer L2 QKVM with restored L16 MLP write
 
 User authorized BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockL2AnchorMLPWriteTruePile.
@@ -1113,3 +1146,24 @@ check still covers T4096/B16 and every inherited numerical setting.
 Full13500-step v5p-16 training, TruePile4096 global128/B16, block scan5+1,
 ordinary prefix17 v8t48MiB/fused inputs plus JAX L17, tuned Splash/full remat,
 generic health ON/internal+BAM OFF, CP200/latest2/keep0/forced-final and TB500.
+
+Startup sealed8a58c063f711c21c5ba7215c0564fc1708587952: fresh formal tree/budget
+check and unchanged CPU60+writer5 evidence passed; full13500 v5p-16 AOT,
+FIRST_STEP6, 14-step gate23 and actual worker25 verified. Throughput~.717step/s,
+-.7% vs matched L2 QKVM~.722. Actual L2 anchor, restored L16 MLP write,
+widths[3802,3676,3026], generic health ON/internal+BAM OFF, tuned Splash,
+full remat, v8t48MiB/fused inputs and TB500 match the sealed source. The
+zero-valued qkvm_last_layers default still selects the final fetch layer L17;
+it does not disable that layer's routing (is_value_layer also selects index%3=2).
+Evidence: single-l2-write-completed-cpu.json, single-l2-write-startup-proof.json,
+single-l2-write-startup-validation.json, single-l2-write-step14.log,
+launch-single-l2-write.log and single-l2-write-comparison-registration.log.
+
+After FIRST_STEP, live registries and both source ledgers add the new matched
+single-layer control to mixed L16 VM/L17 QKVM and L2 VM. Mixed compare_runs:
+[new L2 QKVM+MLP write, replaced two-layer VM, L2 QKVM without MLP write].
+L2 VM compare_runs:[no-L2 VM, new L2 QKVM+MLP write, L2 QKVM without MLP write].
+Retain the previous current-stage controls as the new late-started parent
+catches up; only the new paired edge isolates the intended single change.
+All pairs use registered BamMHAMediumPropC256TruePile-reference gain ratios;
+these metadata updates do not replace or resume training processes.

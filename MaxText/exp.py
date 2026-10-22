@@ -14966,7 +14966,11 @@ class BamMediumPropMShiftReadG050MuddVMSharedRouterLastBlockL2AnchorTruePile(Bam
     bam_mudd_tail_skip_mlp_write = False
     bam_mudd_tail_mlp_dims = [3802, 3676, 3540]
     # Keep the previous direct control for current-stage combined gains while the new factor control catches up.
-    compare_runs = ['BamMediumPropMShiftReadG050MuddVMSharedRouterLastBlockTruePile', 'BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockL2AnchorTruePile']
+    compare_runs = [
+        'BamMediumPropMShiftReadG050MuddVMSharedRouterLastBlockTruePile',
+        'BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockL2AnchorMLPWriteTruePile',
+        'BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockL2AnchorTruePile',
+    ]
 
 
 class BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockMLPWriteTruePile(BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockTruePile):
@@ -14999,6 +15003,8 @@ class BamMediumPropMShiftReadG050MuddVMSharedRouterLastBlockTruePile(BamMediumPr
 
 class BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockL2AnchorMLPWriteTruePile(BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockL2AnchorTruePile):
     """Single L17 L2 QKVM plus the independent L16 MLP write; no dual V."""
+    # code_commit:8a58c06; full13500 AOT/FIRST_STEP6/14-step23 and actual worker settings verified.
+    # Startup~.717step/s vs matched L2 QKVM~.722 (-.7%); generic health ON/internal+BAM OFF, tuned Splash/full remat, TB500.
     # Restore458000 writer params, repay127 L16 SwiGLU units (457200); non-router rounding+800.
     # Total432267380, native C4+C1 routers154900 exempt. Both L16 attention/MLP writes retained.
     # Prior terminal MHA-ref gain vs L2 QKVM1.015[.995,1.035]; expected~.72step/s (+/-2%).
@@ -15085,13 +15091,19 @@ class BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastTwoLayersTruePile(BamMe
 
 
 class BamMediumPropMShiftReadG050MuddVMSharedRouterLastTwoLayersTruePile(BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastTwoLayersTruePile):
-    """Joint V/m routes at L16/L17, native BAM Q/K reads and the L16 MLP M write."""
-    # code_commit: 5fbe2f9; xd-v5p-16-310291-maxtext/UE5a; full AOT/FIRST_STEP/14-step gate verified.
-    # Matched-health startup~.699step/s vs two-layer parent~.719 (-2.8%); tuned Splash, generic health ON.
+    """两层 VM 改善旧两层 QKVM，未建立单层竞争优势；热替换为分工方案。"""
+    # Implementation: codex/mediumprop-mudd-tail, /data0/xd/mediumprop-mudd-tail; code_commit:5fbe2f9.
+    # xd-v5p-16-310291-maxtext/UE5a; full AOT/FIRST_STEP/14-step gate verified.
+    # Matched-health v8t startup~.699step/s vs parent's~.719 (-2.8%); generic ON/internal+BAM OFF.
     # Keep both omitted attention writes and both local O reads; restore only L16 MLP write.
-    # Per-layer repayment: L16 +387 and L17 +514 SwiGLU units, no cross-layer transfer.
-    # Total432345167 = parent +532; C2+C2+C1 routers231375 remain exempt.
+    # In-layer repayment: L16 +387, L17 +514 SwiGLU units; no cross-layer transfer.
+    # Total432345167 = two-layer parent +532; C2+C2+C1 routers231375 exempt.
     # Prior terminal MHA-ref gain vs two-layer QKVM1.040[1.000,1.080], speed +/-3%.
+    # 用户热替换停于5977；CP5977提交/TB SYNC_OK，P0；原310291节点/队列交混合VM/QKVM路。
+    # UE5a稳态~.695step/s，较旧两层QKVM~.719慢3.3%，较单层VM~.720慢3.5%。
+    # 对旧两层QKVM优势后期缩小，5k-5.8k末五gap-.00183368/R1.00950620（MHA参考）。
+    # 对新单层VM仅共同至1.8k；1k-1.8k末五+.00492296/R.98925236，落后由+.00643缩至+.00375。
+    # 两层代价尚未追回，但不可把短共同区间当终局失败；原终局1.040下注未完成验收。
     model_name = 'BamMediumPropMShiftReadG050MuddVMSharedRouterLastTwoLayersTruePile'
     bam_mudd_tail_residual_qk = False
     bam_mudd_tail_skip_mlp_write = False
@@ -15101,6 +15113,8 @@ class BamMediumPropMShiftReadG050MuddVMSharedRouterLastTwoLayersTruePile(BamMedi
 
 class BamMediumPropMShiftReadG050MuddVMQKVMSharedRouterLastTwoLayersL2AnchorTruePile(BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockL2AnchorTruePile):
     """L16 VM and L17 QKVM, both with L2 anchors; retain both L16 M writes."""
+    # code_commit:33d5695; full13500 AOT/FIRST_STEP6/14-step23 and actual worker settings verified.
+    # Startup~.701step/s vs single L2 QKVM~.722 (-2.9%); generic health ON/internal+BAM OFF, tuned Splash/full remat, TB500.
     # Restore L16 attention+MLP writes; L17 retains local O M read and omits its dead attention write.
     # Native controllers share down within each site: C2 at L16, C4 at L17, C1 at final readout.
     # Total432346556; tiny routers232220 exempt; non-router rounding+2656 vs original single.5.
@@ -15112,6 +15126,7 @@ class BamMediumPropMShiftReadG050MuddVMQKVMSharedRouterLastTwoLayersL2AnchorTrue
     bam_mudd_tail_skip_mlp_write = False
     bam_mudd_tail_mlp_dims = [3802, 3287, 3026]
     compare_runs = [
+        'BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockL2AnchorMLPWriteTruePile',
         'BamMediumPropMShiftReadG050MuddVMSharedRouterLastTwoLayersTruePile',
         'BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockL2AnchorTruePile',
     ]

@@ -968,6 +968,14 @@ class Decoder(nn.Module):
         if cfg.bam_mudd_tail_residual_mlp and (blocks != 1 or persistent
             or (cfg.decoder_block == 'pythia' and cfg.pythia_parallel_residual)):
           raise ValueError('residual M route requires a single selective tail block and serial MLP')
+        qkvm_count = cfg.bam_mudd_tail_qkvm_last_layers
+        if qkvm_count and (qkvm_count != 2 or blocks != 1 or persistent
+            or not cfg.bam_mudd_tail_residual_qk or not cfg.bam_mudd_tail_residual_mlp):
+          raise ValueError('last-two-layer QKVM requires a single tail block with both residual QK and m routes')
+        skip_writes = cfg.bam_mudd_tail_skip_attention_write_last_layers
+        if skip_writes and (type(skip_writes) is not int or skip_writes not in (1, 2)
+            or blocks != 1 or persistent or (skip_writes == 2 and qkvm_count != 2)):
+          raise ValueError('selective tail write omission requires the final one/two QKVM layers')
         if (blocks not in (1, 2) or cfg.num_decoder_layers % 3
             or not cfg.bam_pair_scan or not cfg.bam_enabled or cfg.bam_mha_control
             or cfg.dense_conn or cfg.mtp_num_layers or deep_embeddings is not None

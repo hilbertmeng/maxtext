@@ -21,6 +21,8 @@ DOUBLE = 'BamMediumPropMShiftReadG050MuddValueLastTwoBlocksTruePile'
 SINGLE = 'BamMediumPropMShiftReadG050MuddValueLastBlockTruePile'
 VM = 'BamMediumPropMShiftReadG050MuddVMLastBlockTruePile'
 QKV = 'BamMediumPropMShiftReadG050MuddQKVLastBlockTruePile'
+QKVM = 'BamMediumPropMShiftReadG050MuddQKVMLastBlockTruePile'
+QKVM_TWO = 'BamMediumPropMShiftReadG050MuddQKVMLastTwoLayersTruePile'
 
 
 class MuddTailTest(MLPWriteTest, unittest.TestCase):
@@ -30,7 +32,9 @@ class MuddTailTest(MLPWriteTest, unittest.TestCase):
         (DOUBLE, 432114377, 4, 2, 3381),
         (SINGLE, 432111926, 5, 1, 3370),
         (VM, 432113321, 5, 1, 3349),
-        (QKV, 432110860, 5, 1, 2813)):
+        (QKV, 432110860, 5, 1, 2813),
+        (QKVM, 432111455, 5, 1, 2919),
+        (QKVM_TWO, 432110635, 5, 1, 2919)):
       with self.subTest(exp=exp):
         cfg = self.config(exp, bam_splash_attention=False)
         mesh = jax.sharding.Mesh(max_utils.create_device_mesh(cfg), cfg.mesh_axes)
@@ -63,14 +67,15 @@ class MuddTailTest(MLPWriteTest, unittest.TestCase):
                 'general_v_static_gate', 'general_v_static_gate_bias')))
         self.assertTrue(any(path[:len(v_path)] == v_path and 'W_R_up' in path for path in params))
         self.assertTrue(any(path[:len(v_path)] == v_path and 'static_o_key' in path for path in params))
-        if exp == VM:
+        if exp in (VM, QKVM, QKVM_TWO):
           self.assertEqual(params[v_path + ('m_compose', 'dynamic_dense_conn1', 'kernel')].shape,
                            (1200, 1, 64))
-          self.assertEqual([i for i in range(18) if bam_mudd.is_mlp_route_layer(cfg, i)], [17])
-          self.assertFalse(cfg.bam_mudd_tail_residual_qk)
+          modified = [16, 17] if exp == QKVM_TWO else [17]
+          self.assertEqual([i for i in range(18) if bam_mudd.is_mlp_route_layer(cfg, i)], modified)
+          self.assertEqual(cfg.bam_mudd_tail_residual_qk, exp != VM)
         else:
           self.assertFalse(any('m_compose' in path for path in params))
-        if exp == QKV:
+        if exp in (QKV, QKVM, QKVM_TWO):
           for arm in ('q', 'k'):
             name = 'query' if arm == 'q' else 'key'
             self.assertEqual(params[v_path + ('self_attention', name, 'kernel')].shape,
@@ -83,6 +88,29 @@ class MuddTailTest(MLPWriteTest, unittest.TestCase):
                     'W_l' + arm + '_c8_up', 'W_l' + arm + '_gate',
                     'static_' + arm + '_key', 'general_' + arm + '_pre_bias',
                     'general_' + arm + '_static_gate')))
+        if exp == QKVM_TWO:
+          penultimate = tail_path + ('local_1', 'block')
+          self.assertEqual(params[penultimate + ('mlp', 'wi_0', 'kernel')].shape, (1200, 1, 2941))
+          for layer_path in (penultimate, v_path):
+            for name in ('query', 'key', 'value'):
+              self.assertEqual(params[layer_path + ('self_attention', name, 'kernel')].shape,
+                               (1200, 1, 16, 75))
+            for name in ('q_compose', 'k_compose', 'value_compose', 'm_compose'):
+              self.assertEqual(params[layer_path + (name, 'dynamic_dense_conn1', 'kernel')].shape,
+                               (1200, 1, 64))
+            for name in ('W_R_up', 'static_o_key'):
+              self.assertTrue(any(path[:len(layer_path)] == layer_path and name in path for path in params))
+        if exp in (QKVM, QKVM_TWO):
+          skipped = [16, 17] if exp == QKVM_TWO else [17]
+          self.assertEqual([i for i in range(18) if bam_mudd.skips_attention_write(cfg, i)], skipped)
+          for layer in (('local_1', 'fetch_2') if exp == QKVM_TWO else ('fetch_2',)):
+            selected = tail_path + (layer, 'block', 'self_attention')
+            self.assertTrue(any(path[:len(selected)] == selected for path in params))
+            for path in params:
+              if path[:len(selected)] == selected:
+                self.assertFalse(any(name in path for name in (
+                    'P_loc_down', 'P_loc_up', 'P_loc', 'W_gw', 'gw_b0',
+                    'write_data_norm', 'write_address_norm')))
         self.assertFalse(cfg.qk_norm)
         self.assertFalse(cfg.bam_share_read_attention_write_down)
 
@@ -126,11 +154,15 @@ class MuddTailTest(MLPWriteTest, unittest.TestCase):
     self.check_scan_runtime(QKV)
 
   def test_residual_mlp_causal_scan_and_active_gradients(self):
-    self.check_scan_runtime(VM)
+    self.check_scan_runtime(QKVM)
+
+  def test_last_two_qkvm_causal_scan_and_both_local_o_gradients(self):
+    self.check_scan_runtime(QKVM_TWO)
 
   def test_m_route_identity_and_attention_addition_mlp_residual_semantics(self):
-    cfg = self.tiny(VM)
-    parent_cfg = self.tiny(SINGLE)
+    cfg = self.tiny(QKVM)
+    parent_cfg = self.tiny(QKV)
+    parent_cfg.get_keys().update(bam_mudd_tail_skip_attention_write_last_layers=1)
     mesh = jax.sharding.Mesh(max_utils.create_device_mesh(cfg), cfg.mesh_axes)
     layer = fusion.SubDecoderLayer(cfg, mesh, layer_inx=8)
     parent = fusion.SubDecoderLayer(parent_cfg, mesh, layer_inx=8)
@@ -176,6 +208,32 @@ class MuddTailTest(MLPWriteTest, unittest.TestCase):
       # Mudd's m route must not change Q/K/V/O or attention write controls.
       np.testing.assert_array_equal(actual_matrix, baseline_matrix)
 
+  def test_omitting_attention_write_preserves_same_layer_read_and_residual(self):
+    cfg = self.tiny(QKVM)
+    writing_cfg = self.tiny(QKVM)
+    writing_cfg.get_keys().update(bam_mudd_tail_skip_attention_write_last_layers=0)
+    mesh = jax.sharding.Mesh(max_utils.create_device_mesh(cfg), cfg.mesh_axes)
+    layer = fusion.SubDecoderLayer(cfg, mesh, layer_inx=8)
+    writing = fusion.SubDecoderLayer(writing_cfg, mesh, layer_inx=8)
+    current, embedding, l0 = [jax.random.normal(jax.random.key(i + 70), (1, 4, 150))
+                              for i in range(3)]
+    matrix = .2 * jax.random.normal(jax.random.key(74), (1, 4, 75, 32))
+    tokens = jnp.ones((1, 4), jnp.int32)
+    kwargs = dict(decoder_segment_ids=tokens, decoder_positions=jnp.arange(4)[None],
+                  decoder_input_tokens=tokens, deep_embedding=None, deterministic=True,
+                  model_mode='train', eos_sum=None, M_in=matrix, layer_index=8,
+                  early_residuals=(embedding, l0))
+    rngs = {name: jax.random.key(i + 75) for i, name in enumerate(('params', 'dropout', 'aqt'))}
+    with mesh, nn.partitioning.axis_rules(cfg.logical_axis_rules):
+      params = nn.unbox(writing.init(rngs, current, **kwargs)['params'])
+      expected, written = writing.apply({'params': params}, current, **kwargs)
+      actual, carried = layer.apply({'params': params}, current, **kwargs)
+      np.testing.assert_array_equal(actual, expected)
+      np.testing.assert_array_equal(carried, matrix)
+      self.assertGreater(float(jnp.sum((written - matrix) ** 2)), 0.)
+      initialized = flatten_dict(nn.unbox(layer.init(rngs, current, **kwargs)['params']))
+      self.assertFalse(any('P_loc_down' in path or 'W_gw' in path for path in initialized))
+
   def check_scan_runtime(self, experiment):
     cfg = self.tiny(experiment)
     mesh = jax.sharding.Mesh(max_utils.create_device_mesh(cfg), cfg.mesh_axes)
@@ -214,6 +272,14 @@ class MuddTailTest(MLPWriteTest, unittest.TestCase):
           carried = leaves[stage][layer]['__call__'][0][0]
           np.testing.assert_allclose(carried[3], jnp.broadcast_to(initial_l0, carried[3].shape),
                                      rtol=2e-6, atol=2e-6)
+      skip_count = cfg.bam_mudd_tail_skip_attention_write_last_layers
+      if skip_count:
+        middle = leaves['tail_layers']['local_1']['__call__'][0][0][1]
+        last = leaves['tail_layers']['fetch_2']['__call__'][0][0][1]
+        np.testing.assert_array_equal(last, middle)
+        if skip_count == 2:
+          first_tail = leaves['tail_layers']['local_0']['__call__'][0][0][1]
+          np.testing.assert_array_equal(middle, first_tail)
       changed = tokens.at[:, 2:].set(jnp.asarray([[9, 10]], jnp.int32))
       np.testing.assert_allclose(forward(params, changed)[0][:, :2], output[0][:, :2],
                                  rtol=3e-5, atol=3e-5)
@@ -225,9 +291,16 @@ class MuddTailTest(MLPWriteTest, unittest.TestCase):
         if ((any(name in path for name in ('q_compose', 'k_compose', 'value_compose', 'm_compose', 'compose_final_three_source')))
             and path[-1] == 'kernel'):
           self.assertGreater(float(jnp.sum(value * value)), 0., '/'.join(path))
-      if experiment == VM:
+      if experiment in (VM, QKVM, QKVM_TWO):
         self.assertTrue(any('m_compose' in path for path in gradients))
-      for name in (('value', 'query', 'key', 'W_R_up', 'M_shift_gate') if experiment == QKV
+      if experiment in (QKVM, QKVM_TWO):
+        for layer in (('local_1', 'fetch_2') if experiment == QKVM_TWO else ('fetch_2',)):
+          for name in ('W_R_up', 'static_o_key', 'M_shift_gate'):
+            chosen = [v for path, v in gradients.items()
+                      if 'tail_layers' in path and layer in path and name in path]
+            self.assertTrue(chosen, (layer, name))
+            self.assertGreater(sum(float(jnp.sum(x * x)) for x in chosen), 0., (layer, name))
+      for name in (('value', 'query', 'key', 'W_R_up', 'M_shift_gate') if cfg.bam_mudd_tail_residual_qk
                    else ('value', 'W_lq_c8_up', 'W_lk_c8_up', 'W_R_up', 'M_shift_gate')):
         chosen = [v for path, v in gradients.items() if 'tail_layers' in path and name in path]
         self.assertTrue(chosen, name)

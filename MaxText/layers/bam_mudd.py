@@ -18,13 +18,21 @@ def uses_anchors(config):
 
 
 def is_value_layer(config, layer_index):
+  count = int(getattr(config, 'bam_mudd_tail_qkvm_last_layers', 0))
   return (bool(getattr(config, 'bam_mudd_tail_blocks', 0))
-          and layer_index >= tail_start(config) and layer_index % 3 == 2)
+          and layer_index >= tail_start(config)
+          and (layer_index % 3 == 2 or (count > 0 and layer_index >= config.num_decoder_layers - count)))
 
 
 def skips_mlp_write(config, layer_index):
   return (bool(getattr(config, 'bam_mudd_tail_blocks', 0))
           and layer_index >= tail_start(config) and layer_index % 3 == 1)
+
+
+def skips_attention_write(config, layer_index):
+  count = int(getattr(config, 'bam_mudd_tail_skip_attention_write_last_layers', 0))
+  return (bool(getattr(config, 'bam_mudd_tail_blocks', 0)) and count > 0
+          and layer_index >= config.num_decoder_layers - count)
 
 
 def is_qk_layer(config, layer_index):

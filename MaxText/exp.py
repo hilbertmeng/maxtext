@@ -14812,6 +14812,7 @@ class BamMediumPropMShiftReadG050MuddVMLastBlockTruePile(BamMediumPropMShiftRead
     # Prior MHA-ref terminal VM/singleV1.025[.995,1.055], matched speed +/-1%.
     # Revise singleV/parent1.025->1.010; QKV/parent1.015 retained.
     # Consistent implied VM/parent1.03525 and VM/QKV1.0199507.
+    # Cancelled before FIRST_STEP: user corrected parent to QKV; see QKVMLastBlock below.
     model_name = 'BamMediumPropMShiftReadG050MuddVMLastBlockTruePile'
     bam_mudd_tail_residual_mlp = True
     bam_mudd_tail_mlp_dims = [3802, 3803, 3349]
@@ -14839,8 +14840,51 @@ class BamMediumPropMShiftReadG050MuddQKVLastBlockTruePile(BamMediumPropMShiftRea
     ]
 
 
+class BamMediumPropMShiftReadG050MuddQKVMLastBlockTruePile(BamMediumPropMShiftReadG050MuddQKVLastBlockTruePile):
+    """QKV parent plus L17 Mudd m; omit L17 attention write and expand its MLP."""
+    # Corrected user intent: QKV parent, not single V; V/Q/K/m and final Mudd independent.
+    # m adds76995=.05346875W_Q; delete458000=.31805556W_Q of L17 write-only params.
+    # L17 MLP2813->2919 adds381600; netQKV+595, original single.5-225.
+    # Exact nominal432111455; ordinary blocks x5/final block x1, local O retained.
+    # Prior MHA-ref terminal vsQKV1.020[.995,1.045], implied vsoriginal parent1.0353.
+    # Matched speed +/-2%; retain final-output Mudd and disabled L16 MLP write.
+    model_name = 'BamMediumPropMShiftReadG050MuddQKVMLastBlockTruePile'
+    bam_mudd_tail_residual_mlp = True
+    bam_mudd_tail_skip_attention_write_last_layers = 1
+    bam_mudd_tail_mlp_dims = [3802, 3803, 2919]
+    compare_runs = [
+        'BamMediumPropMShiftReadG050MuddQKVLastBlockTruePile',
+        'BamMediumPropMShiftReadG050MuddValueLastBlockTruePile',
+        'BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile',
+    ]
+
+
+class BamMediumPropMShiftReadG050MuddQKVMLastTwoLayersTruePile(BamMediumPropMShiftReadG050MuddQKVMLastBlockTruePile):
+    """L16/L17 each use independent Q/K/V/m Mudd; both local O matrix reads retained."""
+    # L16 QKVM adds3560380, delete458000 write params; MLP3803->2941 repays3103200.
+    # Exact nominal432110635: original single.5-1045, one-layer QKVM-820.
+    # L16/L17 attention writes absent; L16 MLP write disabled; both O reads retained.
+    # Prior MHA-ref vsone-layer1.010[.980,1.040], vsQKV1.0302, vsparent1.045653.
+    # Matched speed +/-2% ofQKV; L17 O now reads M without the L16 attention update.
+    model_name = 'BamMediumPropMShiftReadG050MuddQKVMLastTwoLayersTruePile'
+    bam_mudd_tail_qkvm_last_layers = 2
+    bam_mudd_tail_skip_attention_write_last_layers = 2
+    bam_mudd_tail_mlp_dims = [3802, 2941, 2919]
+    compare_runs = [
+        'BamMediumPropMShiftReadG050MuddQKVMLastBlockTruePile',
+        'BamMediumPropMShiftReadG050MuddQKVLastBlockTruePile',
+        'BamMediumPropMShiftReadG050MuddValueLastBlockTruePile',
+        'BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile',
+    ]
+
+
 class BamMediumPropMShiftReadG050PersistentEmbedMLastQKVOTruePile(BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile):
     """Embedding-only persistent M joins shifted M for L17 Q/K/V/O; final three-source Mudd."""
+    # 结论：末层拼接 embedding 持久 M 未带来收益；对 QKV 从2k近持平转为持续落后。
+    # 用户停于4929，CP4929提交，节点/队列释放、TB SYNC_OK；P0，未跑满13500。
+    # 末五4k–4.8k：对单门.5/QKV/单V gap +.002093/+.005060/+.004475，
+    # MHA参考收益倍数 .989962/.976070/.978776；2.2k后持续落后QKV，无可靠追回趋势。
+    # 原终局vsQKV1.015、vs单门.5约1.03下注未到终局验收，已训趋势不支持。
     # Implementation: codex/mediumprop-mudd-tail, /data0/xd/mediumprop-mudd-tail.
     # Reuse W_emb_u; independent R256 GELU address and write gate, initial opening .1.
     # Carry P[75,16] unchanged; L17 reads [shift(M)[75,32],P] with 48-column keys.
@@ -14850,7 +14894,7 @@ class BamMediumPropMShiftReadG050PersistentEmbedMLastQKVOTruePile(BamMediumPropS
     # Prior vs QKV1.015[1.00,1.03]; QKV/parent revised1.015, so new/parent1.030225.
     # CPU: shared BAM47 + prior tail4 + persistent-bank4 + summary-writer5 passed before sealing.
     # code_commit:4038d9a; v5p16 AOT/FIRST_STEP verified; all healthOFF/tunedSplash.
-    # UE5a ~.540 step/s at23, vs matched QKV.547 -1.28%; startup evidence only.
+    # UE5a v5p16 steady~.539 step/s，vs matched QKV.547 -1.46%；两路健康全OFF。
     model_name = 'BamMediumPropMShiftReadG050PersistentEmbedMLastQKVOTruePile'
     bam_persistent_embedding_m = True
     bam_persistent_embedding_last_mlp_dim = 3617

@@ -563,6 +563,8 @@ bam_mudd_tail_blocks: 0 # Selective WV/Mudd blocks, with a separate repeated tai
 bam_mudd_tail_mlp_dims: null # Three shared widths in the modified tail block.
 bam_mudd_tail_residual_qk: False # Also restore full Q/K from separate three-source residual routes.
 bam_mudd_tail_residual_mlp: False # Route final-layer residual M before its attention addition, as Mudd's m path.
+bam_mudd_tail_qkvm_last_layers: 0 # 2 extends the single-tail QKVM variant to L-2 as well as L-1; local O remains a matrix read.
+bam_mudd_tail_skip_attention_write_last_layers: 0 # Omit both operations and parameters in the last 1/2 tail layers; retain local O reads.
 bam_mudd_final_output: False # Independent three-source Mudd readout after complete final layer.
 bam_persistent_embedding_m: False # Carry a separate embedding-only [K,num_query_heads] matrix.
 bam_persistent_embedding_last_mlp_dim: null # Last-layer width repaying persistent seed/readout costs.

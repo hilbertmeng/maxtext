@@ -2665,7 +2665,7 @@ class BamAttention(Attention):
         self._local_v_mode = 'none'  # Remove LocalV keys/mixing/gates from the packed projection.
 
 
-    self._has_write = bool(self._mode)
+    self._has_write = bool(self._mode) and not bam_mudd.skips_attention_write(cfg, self.layer_inx)
     assert self.read_side in ('both', 'row', 'col')
 
     # DenseGeneral passes in_axis/out_axis to its initializer in addition to

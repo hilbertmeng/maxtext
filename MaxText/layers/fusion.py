@@ -217,6 +217,12 @@ class SubDecoderLayer(nn.Module):
           cfg, mesh, self.quant, hidden_expand=1, name='value_compose')(inputs, early_residuals)
       call_kwargs['inputs_v'] = normalizations.get_decoder_norm(
           'value_input_norm', cfg)(value_input)
+      if bam_mudd.is_qk_layer(cfg, self.layer_inx):
+        for arm in ('q', 'k'):
+          route = bam_mudd.ThreeSourceRouter(
+              cfg, mesh, self.quant, hidden_expand=1, name=arm + '_compose')(inputs, early_residuals)
+          call_kwargs['inputs_' + arm + '_route'] = normalizations.get_decoder_norm(
+              arm + '_input_norm', cfg)(route)
     mlp_write_every = int(getattr(cfg, 'bam_mlp_write_every', None) or 0)
     mlp_write = (
         cfg.bam_enabled and mlp_write_every > 0

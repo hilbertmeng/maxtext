@@ -2568,6 +2568,7 @@ class BamAttention(Attention):
     super().setup()             # reuse attention_op / projections / rope / out_projection
     cfg = self.config
     self._residual_value = bam_mudd.is_value_layer(cfg, self.layer_inx)
+    self._residual_qk = bam_mudd.is_qk_layer(cfg, self.layer_inx)
     if self._residual_value and getattr(cfg, 'bam_pallas_core', False):
       raise ValueError('selective residual V uses the pure-JAX BAM path')
     validate_bam_config(cfg, layer_mode=self.layer_mode)
@@ -2995,7 +2996,7 @@ class BamAttention(Attention):
                 nn.initializers.constant(self._fetch_mix_num_heads ** -0.5), (None,)),
             (1,), self.weight_dtype)
 
-    self._concat_static_qk = bool(getattr(cfg, 'bam_concat_static_qk', False))
+    self._concat_static_qk = bool(getattr(cfg, 'bam_concat_static_qk', False)) and not self._residual_qk
     if self._concat_static_qk:
       assert cfg.bam_concat_qk and cfg.bam_prune_all_row_reads
       for arm in ('q', 'k'):
@@ -3113,7 +3114,7 @@ class BamAttention(Attention):
       add_read_gate('W_lv_gate', (self.num_query_heads, 1),
                     ('embed', 'q_heads', None), ('q_heads', None), fetched_gate_init)
 
-    if self._direct_qk_c8:
+    if self._direct_qk_c8 and not self._residual_qk:
       for name in ('q', 'k'):
         # Nonzero keys are essential for concatenated QK: two zero arms have
         # no attention-score cross term to awaken their dynamic read keys.
@@ -3168,9 +3169,13 @@ class BamAttention(Attention):
           ('q', (self.num_query_heads, self.bam_v), ('q_heads', 'kv')),
           ('k', (self.num_query_heads, self.bam_v), ('q_heads', 'kv')),
           ('vo', (self.num_query_heads, cfg.bam_n_f, self.bam_v), ('q_heads', 'fetch', 'kv'))):
+        if arm in ('q', 'k') and self._residual_qk:
+          continue
         setattr(self, 'general_' + arm + '_pre_bias', self._constant_general_parameter(
             'general_' + arm + '_pre_bias', shape, axes))
       for arm in ('q', 'k', 'v', 'o'):
+        if arm in ('q', 'k') and self._residual_qk:
+          continue
         if arm == 'v' and self._residual_value:
           continue
         if arm in ('q', 'k') and not cfg.bam_qk_static_read_gate:
@@ -4055,6 +4060,8 @@ class BamAttention(Attention):
       layer_index: Array | int | None = None,
       defer_write: bool = False,
       inputs_v: Array | None = None,
+      inputs_q_route: Array | None = None,
+      inputs_k_route: Array | None = None,
   ):
     """BAM forward. Returns (out, M_out): out [b,t,emb_dim], M_out [b,t,k,v].
 
@@ -4065,6 +4072,8 @@ class BamAttention(Attention):
     assert self.num_query_heads == self.num_kv_heads, "BamAttention v0.1 requires n==n_kv (no GQA)"
     if self._residual_value != (inputs_v is not None):
       raise ValueError('selective residual V must receive its independently normalized route')
+    if self._residual_qk != (inputs_q_route is not None and inputs_k_route is not None):
+      raise ValueError('selective residual Q/K require their own independently normalized routes')
 
     inputs_q = nn.with_logical_constraint(inputs_q, self.input_axis_names)
     inputs_kv = nn.with_logical_constraint(inputs_kv, self.input_axis_names)
@@ -4094,7 +4103,7 @@ class BamAttention(Attention):
     full_m_shared_hidden = (nn.gelu(self.full_m_read_down(inputs_q))
                             if getattr(self, '_full_m_read_share_down', False) else None)
 
-    concat_qk = bool(getattr(cfg, 'bam_concat_qk', False))
+    concat_qk = bool(getattr(cfg, 'bam_concat_qk', False)) and not self._residual_qk
     if concat_qk:
       assert not cfg.fused_qkv and cfg.bam_prune_all_row_reads
     if concat_qk:
@@ -4110,8 +4119,9 @@ class BamAttention(Attention):
     if cfg.fused_qkv:
       query, key, value = self.qkv_projection(inputs_q, proj_name="qkv_proj")
     else:
-      query = self.query_projection(inputs_q, standard_qk_width if concat_qk else None)
-      key = self.kv_projection(inputs_kv, proj_name="key",
+      query = self.query_projection(inputs_q if inputs_q_route is None else inputs_q_route,
+                                    standard_qk_width if concat_qk else None)
+      key = self.kv_projection(inputs_kv if inputs_k_route is None else inputs_k_route, proj_name="key",
                                projection_dim=standard_qk_width if concat_qk else None)
       value = (jnp.zeros(inputs_kv.shape[:-1] + (self.num_kv_heads, self.head_dim), self.dtype)
                if self._local_v_replace else self.kv_projection(
@@ -4136,7 +4146,7 @@ class BamAttention(Attention):
 
     # Full-head QKNorm waits for this M read; compatibility/additive paths already rotated.
     local_compressed_M = None
-    if 'local_qk' in self._mode:  # V1 default
+    if 'local_qk' in self._mode and not self._residual_qk:  # V1 default
       if Mh is None:
         with jax.named_scope("bam/normalize_m"):
           Mh = self._matrix_for_read(M_read)

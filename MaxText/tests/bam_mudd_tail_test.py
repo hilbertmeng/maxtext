@@ -19,6 +19,7 @@ from layers.models import Transformer
 PARENT = 'BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile'
 DOUBLE = 'BamMediumPropMShiftReadG050MuddValueLastTwoBlocksTruePile'
 SINGLE = 'BamMediumPropMShiftReadG050MuddValueLastBlockTruePile'
+QKV = 'BamMediumPropMShiftReadG050MuddQKVLastBlockTruePile'
 
 
 class MuddTailTest(MLPWriteTest, unittest.TestCase):
@@ -26,7 +27,8 @@ class MuddTailTest(MLPWriteTest, unittest.TestCase):
     for exp, total, prefix, tail, width in (
         (PARENT, 432111680, 6, 0, 3802),
         (DOUBLE, 432114377, 4, 2, 3381),
-        (SINGLE, 432111926, 5, 1, 3370)):
+        (SINGLE, 432111926, 5, 1, 3370),
+        (QKV, 432110860, 5, 1, 2813)):
       with self.subTest(exp=exp):
         cfg = self.config(exp, bam_splash_attention=False)
         mesh = jax.sharding.Mesh(max_utils.create_device_mesh(cfg), cfg.mesh_axes)
@@ -59,6 +61,19 @@ class MuddTailTest(MLPWriteTest, unittest.TestCase):
                 'general_v_static_gate', 'general_v_static_gate_bias')))
         self.assertTrue(any(path[:len(v_path)] == v_path and 'W_R_up' in path for path in params))
         self.assertTrue(any(path[:len(v_path)] == v_path and 'static_o_key' in path for path in params))
+        if exp == QKV:
+          for arm in ('q', 'k'):
+            name = 'query' if arm == 'q' else 'key'
+            self.assertEqual(params[v_path + ('self_attention', name, 'kernel')].shape,
+                             (1200, 1, 16, 75))
+            self.assertEqual(params[v_path + (arm + '_compose', 'dynamic_dense_conn1', 'kernel')].shape,
+                             (1200, 1, 64))
+            for path in params:
+              if path[:len(v_path)] == v_path:
+                self.assertFalse(any(x in path for x in (
+                    'W_l' + arm + '_c8_up', 'W_l' + arm + '_gate',
+                    'static_' + arm + '_key', 'general_' + arm + '_pre_bias',
+                    'general_' + arm + '_static_gate')))
         self.assertFalse(cfg.qk_norm)
         self.assertFalse(cfg.bam_share_read_attention_write_down)
 
@@ -82,8 +97,8 @@ class MuddTailTest(MLPWriteTest, unittest.TestCase):
       grad = jax.grad(lambda p: jnp.mean(router.apply({'params': p}, current, (embedding, l0)) ** 2))(params)
       self.assertGreater(float(jnp.sum(grad['dynamic_dense_conn2']['kernel'] ** 2)), 0.)
 
-  def tiny(self):
-    cfg = self.config(DOUBLE, bam_splash_attention=False, base_emb_dim=150,
+  def tiny(self, experiment=DOUBLE):
+    cfg = self.config(experiment, bam_splash_attention=False, base_emb_dim=150,
                       base_num_query_heads=2, base_num_kv_heads=2,
                       base_num_decoder_layers=9, base_mlp_dim=48, vocab_size=32,
                       dtype='float32', weight_dtype='float32')
@@ -96,7 +111,13 @@ class MuddTailTest(MLPWriteTest, unittest.TestCase):
     return cfg
 
   def test_two_stage_scan_l0_anchor_causality_and_active_gradients(self):
-    cfg = self.tiny()
+    self.check_scan_runtime(DOUBLE)
+
+  def test_residual_qk_causal_scan_and_active_gradients(self):
+    self.check_scan_runtime(QKV)
+
+  def check_scan_runtime(self, experiment):
+    cfg = self.tiny(experiment)
     mesh = jax.sharding.Mesh(max_utils.create_device_mesh(cfg), cfg.mesh_axes)
     model = Transformer(cfg, mesh, quant=None)
     tokens = jnp.asarray([[1, 4, 8, 2]], jnp.int32)
@@ -141,10 +162,11 @@ class MuddTailTest(MLPWriteTest, unittest.TestCase):
       self.assertTrue(all(np.isfinite(np.asarray(v)).all() for v in jax.tree.leaves(grad)))
       gradients = flatten_dict(grad)
       for path, value in gradients.items():
-        if (('value_compose' in path or 'compose_final_three_source' in path)
+        if ((any(name in path for name in ('q_compose', 'k_compose', 'value_compose', 'compose_final_three_source')))
             and path[-1] == 'kernel'):
           self.assertGreater(float(jnp.sum(value * value)), 0., '/'.join(path))
-      for name in ('value', 'W_lq_c8_up', 'W_lk_c8_up', 'W_R_up', 'M_shift_gate'):
+      for name in (('value', 'query', 'key', 'W_R_up', 'M_shift_gate') if experiment == QKV
+                   else ('value', 'W_lq_c8_up', 'W_lk_c8_up', 'W_R_up', 'M_shift_gate')):
         chosen = [v for path, v in gradients.items() if 'tail_layers' in path and name in path]
         self.assertTrue(chosen, name)
         self.assertGreater(sum(float(jnp.sum(x * x)) for x in chosen), 0., name)

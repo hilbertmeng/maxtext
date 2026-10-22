@@ -22,6 +22,10 @@ def skips_mlp_write(config, layer_index):
           and layer_index >= tail_start(config) and layer_index % 3 == 1)
 
 
+def is_qk_layer(config, layer_index):
+  return bool(getattr(config, 'bam_mudd_tail_residual_qk', False)) and is_value_layer(config, layer_index)
+
+
 class ThreeSourceRouter(nn.Module):
   """Mudd's signed coefficients over [current, embedding, complete L0 output]."""
 

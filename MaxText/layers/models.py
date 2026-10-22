@@ -916,6 +916,8 @@ class Decoder(nn.Module):
         from layers import fusion
 
         blocks = int(cfg.bam_mudd_tail_blocks)
+        if cfg.bam_mudd_tail_residual_qk and blocks != 1:
+          raise ValueError('residual Q/K experiment is scoped to the final block only')
         if (blocks not in (1, 2) or cfg.num_decoder_layers % 3
             or not cfg.bam_pair_scan or not cfg.bam_enabled or cfg.bam_mha_control
             or cfg.dense_conn or cfg.mtp_num_layers or deep_embeddings is not None

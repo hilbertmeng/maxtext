@@ -10,6 +10,7 @@ until the implementation is explicitly merged.
 | BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile | parent | ordinary3-layer block x6 | [3802,3676,3802] | 432111680 | 0 |
 | BamMediumPropMShiftReadG050MuddValueLastTwoBlocksTruePile | WV L14/L17, no MLP write L13/L16 | ordinary x4, modified x2 | [3802,3803,3381] | 432114377 | +2697 (+.000624%) |
 | BamMediumPropMShiftReadG050MuddValueLastBlockTruePile | WV L17, no MLP write L16 | ordinary x5, modified x1 | [3802,3803,3370] | 432111926 | +246 (+.000057%) |
+| BamMediumPropMShiftReadG050MuddQKVLastBlockTruePile | full WQ/WK/WV L17, no MLP write L16 | ordinary x5, modified x1 | [3802,3803,2813] | 432110860 | -820 (-.000190%) |
 
 The user explicitly approved spreading the final router's budget between L14/L17
 in the two-block arm so their widths agree and those blocks scan together.
@@ -103,3 +104,38 @@ Run shared BAM regression and summary-writer checks because scan and shared atte
 paths were edited; seal/push the exact runtime, verify full resolved configurations,
 and require actual exact-topology AOT load plus FIRST_STEP for both runs.
 Local evidence: `/data0/xd/bam_diagnostics/mediumprop-mudd-tail/`.
+
+## Added arm: residual Q/K/V in L17
+
+User subsequently authorized a third run based on the one-block V arm. L17 Q and
+K each get a separate three-source Mudd router (expand1/hidden64), a separate
+learned RMSNorm and a full1200x1200 projection. The entire75-dimensional projected
+head comes from that route; retain the original positional convention, with the
+first57 dimensions unrotated and the last18 RoPE-rotated. No QKNorm is introduced.
+Delete both dynamic/static Q/K M reads and their up projections, keys, pre-biases
+and gates. The shared R256 down, VO up and O M read remain. O/read-address/write
+controls and M-shift continue to use the original unmixed normalized residual,
+not the Q/K-specific mixed inputs. Attention write content may of course change
+with the attention result. All other computations, including final Mudd, match
+the one-block V parent.
+
+Relative to the V-only arm: replacing the two existing18-dimensional standard
+Q/K tails with full75 projections adds1.52 W_Q; removing their M-read parameters
+saves341056=.236844W_Q; two routers and input norms add156390=.108604W_Q.
+Net2004134=1.391760W_Q is repaid by reducing L17 MLP3370->2813. The total model
+is820 parameters below the original single.5 parent (1066 below the V-only arm).
+This reduces L17 MLP by26% versus the original single.5, an explicit capacity cost.
+
+Prior versus original single.5: terminal MHA-reference gain1.03 (~-.005 loss),
+slightly above the one-block V prior1.025 and below the two-block V prior1.04;
+matched throughput -2..+2%. Primary direct comparison also includes the one-block
+V arm. Keep original MHA as gain reference and Mudd as a historical comparator.
+Owned trainer: `xd-v5p-16-310283-maxtext`, initial us-east5-a. Same retained EW4a
+compiler worker lock, with no compiler lifecycle mutation.
+
+The first two arms are sealed at33734c9f0e5b63669b79389b685c7bb6480d1293 and
+continue using that exact runtime while this additive Q/K arm is prepared. Its
+flag defaultsFalse. Full formal parameter traces verify all first-two/parent
+counts remain unchanged. The focused suite now also checks the restored full
+Q/K shapes, absence of all Q/K M-read parameters in L17, causal prefixes, preserved
+L0 anchors and finite active gradients through separate Q/K/V routers/projections.

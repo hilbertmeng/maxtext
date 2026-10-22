@@ -594,8 +594,8 @@ compiler under its worker lock and never mutate its lifecycle.
 
 Pre-run terminal MHA-reference gain versus the direct L17 shared-QKVM parent:
 1.020[.995,1.045]. Matched throughput forecast +/-2% of that parent's v8t
-rate. Direct controls retain all three native variants, old independent QKV
-and original single.5; reference remains BamMHAMediumPropC256TruePile.
+rate. The allocation comparison uses the direct shared L17 QKVM parent;
+reference remains BamMHAMediumPropC256TruePile.
 The formal budget/tree regression checks the new widths and exact count,
 reusing the verified model/kernel regressions because only configuration
 and the corresponding shape/budget coverage change.
@@ -644,8 +644,7 @@ under its worker lock, without lifecycle ownership.
 
 Prior terminal MHA-reference gain versus the direct two-layer parent:
 1.040[1.000,1.080], matched speed +/-2%. Keep the two-layer parent running as
-its direct allocation control, plus the strongest shared one-layer arm, its width
-exchange, shared QKV, completed independent QKV and original single.5 controls.
+its direct allocation control.
 All ratios use BamMHAMediumPropC256TruePile as reference. Formal budget/tree
 coverage is expanded to five configs, including all three final-block widths,
 joint controllers, removed write parameters and Pallas/JAX parameter compatibility.
@@ -838,12 +837,13 @@ then close the old RUN records without touching their transferred trainers.
 Both keep prefix5/final1 scans,17 ordinary v8t/48MiB/fused-input layers and a
 JAX dual-value L17, tuned Splash/full remat, TruePile4096 global128/B16,
 generic health ON/internal+BAM OFF, CP200/latest2/keep0/forcedfinal and TB500.
-QKVM dual compares with shared L17 QKVM. VM dual compares with the trained
-L2-anchor L17 VM parent; label the combined change as dual V plus removal of L2
-at the layer router and final readout. This is the nearest useful trained parent,
-not a clean single-factor V ablation. No unrelated ancestor or sibling comparison
-is registered. Gain reference remains BamMHAMediumPropC256TruePile. QKVM dual
-prior versus its parent:1.030[.990,1.070], matched speed about-1% (+/-2%).
+The initial QKVM-dual comparison with original shared L17 QKVM measures
+dual V plus restored L16 MLP write. The new write-retaining QKVM control
+will isolate the V channel. The no-L2 VM control similarly isolates V in
+VM dual; comparing the two dual arms isolates QK source at matched depth,
+L2 and write policy. These specific questions determine the comparison edges.
+Gain reference remains BamMHAMediumPropC256TruePile. Original QKVM-dual prior
+versus its combined-change parent:1.030[.990,1.070], speed about-1% (+/-2%).
 
 Infrastructure audit against main0d52c953 finds only ledger changes since535cec58;
 all previously audited operational fixes and the rotating-writer500 path remain.
@@ -865,8 +865,8 @@ llm-jax-v6e-1-0/EW4a was borrowed serially and retained, with no lifecycle chang
 
 Physical trainers310289/310288 were transferred after old committed checkpoints
 5423/8309; new logical IDs310294/310295 start fresh at0 with separate storage.
-Comparison metadata now explicitly selects the trained QKVM and L2 VM parents,
-respectively. Equivalent inheritance cleanup changes no numerical configuration
+Initial comparison metadata selected the trained QKVM and L2 VM parents;
+current factor comparisons are defined above and switch when controls start. Equivalent inheritance cleanup changes no numerical configuration
 relative to the compiled runtime, as checked for every inherited attribute except
 compare_runs. Evidence under the private family directory: dualv-startup-proof.json,
 dualv-completed-cpu.json, dualv-aot-states.json, dualv-*-first-step.log,
@@ -909,3 +909,92 @@ P2/P0 respectively. Final evidence: hot-replaced-final-evidence.json,
 report-final-hot-replaced.json, hot-replaced-final-loss-summary.json,
 closeout-hot-replaced-final.json, hot-dualv-{qkvm,vm}.log and
 native10000-and-closed-mlp.{png,csv}, under the private evidence directory.
+
+### Native single-layer and two-layer QKVM closeout
+
+User stopped BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockTruePile
+at10789 and BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastTwoLayersTruePile
+at11093 after their trajectories stabilized. Both final checkpoints are committed,
+nodes/queued resources are verified absent, and TensorBoards are SYNC_OK.
+Both were v5p-16 in us-east5-a with P0 and no zone switches. Runtime35a1fd3f
+continued the compatible initial native JAX61457aa7 trajectory.
+
+Single-layer: the native joint m output improves shared QKV at the same MLP
+widths (last common5400–6200 gap-.00211116/R1.01106536). It matches the old
+independent QKVM through3200 but does not beat completed old independent QKV:
+last common9800–10600 +.00060860/R.99630466. Against original single.5 the
+same windows retain a small-.00146572/R1.00901850 gain. The larger final MLP
+and corrected joint routing did not establish a new advantage over old QKV.
+
+Two-layer: the deficit to the shared single-layer parent persists through the
+last common9800–10600 windows, +.00390720/R.97615443. Last10200–11000 versus
+old independent QKV is+.00442652/R.97284756, and versus original single.5 is
++.00251560/R.98437386. Early matched trajectories to independent two-layer
+QKVM do not support a routing-implementation explanation for the failure.
+This verdict concerns the original combination: no L2, no dual V, no L16 MLP
+write, and omitted L16 attention write. It does not decide two-layer performance
+under the other factor combinations now being explored.
+
+Original terminal bets were not observed at13500; conclusions use the full
+available common trajectories, not extrapolated terminal measurements. Generic
+health/Pallas/Splash settings match within the native group (~.720/.719step/s);
+old independent-QKV health-OFF timing is incomparable. Parameter totals and
+M-cache remain those recorded in the architecture sections above.
+
+Complete READY leases,2026-10-22 UTC:
+
+| RUN | Start | End | Duration | End reason |
+|---|---|---|---|---|
+| shared L17 QKVM | 09:40:51 | 14:12:10 | 4h31m19s | user stop10789 |
+| shared L16/L17 QKVM | 09:41:09 | 14:12:13 | 4h31m04s | user stop11093 |
+
+Final evidence: native-one-two-final-evidence.json,
+native-one-two-final-loss-summary.json, closeout-native-one-two.json and
+closeout-native-one-two.log in the private family evidence directory.
+
+### Single-layer controls retaining L16 MLP write
+
+User authorized both controls to separate L16 write retention from the V channel
+and to supply matched no-L2 VM/QKVM controls for the existing factor comparisons.
+Implementation stays in /data0/xd/mediumprop-mudd-tail, codex/mediumprop-mudd-tail.
+
+| RUN | Direct control | Last block MLP widths | Total / exempt native routers / non-router rounding | TPU |
+|---|---|---|---|---|
+| BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockMLPWriteTruePile | BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockTruePile | 3802/3676/3026 | 432267055 / 154575 / +800 | xd-v5p-16-310296-maxtext |
+| BamMediumPropMShiftReadG050MuddVMSharedRouterLastBlockTruePile | BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockMLPWriteTruePile | 3802/3676/3540 | 432266921 / 154185 / +1056 | xd-v5p-16-310297-maxtext |
+
+QKVM restores458000=.318056W_Q of L16 writer parameters and removes127
+SwiGLU units (457200). VM restores the original Q/K M reads, saving1850144
+non-router parameters and adding514 L17 units (1850400); router reduction390
+is exempt, for total -134 relative to the new QKVM control. Both retain L16
+attention write and local O reads, omit L17 attention write, and use neither L2
+nor dual V. No model-path changes beyond the already-tested dual-V runtime.
+
+Pre-run terminal MHA-reference gain priors: QKVM/write vs original shared
+QKVM1.005[.985,1.025], speed +/-2%; VM vs QKVM/write1.010[.985,1.040],
+speed about -1.5% (+/-2%). Reference BamMHAMediumPropC256TruePile.
+
+Formal spot v5p-16 in us-east5-a, no backup zones or FLEX training. Retained
+llm-jax-v6e-1-0/europe-west4-a worker0 is an ACTIVE FLEX_START compiler
+(guaranteed, not bestEffort), borrowed under its serial lock with no lifecycle
+ownership. Submit CPU, compiler work and training-only prequeues through the
+parallel launcher. Full13500 schedule,200-step loss/checkpoint windows,
+latest2/keep0/forced-final, TruePile4096 T4096 global128/B16, TB rotation500.
+Prefix17 v8t48MiB/fused-input layers and JAX tail, scans5+1, tuned Splash,
+full remat, generic health ON/internal+BAM OFF remain inherited.
+
+Infrastructure audit against main 54b54273e64630ed4ac63037147bb53f3dafe821: no main-only operational fixes
+since fa30fca0 in train/AOT/checkpoint/summary-writer/optimizer/runtime paths.
+The base.yml difference only removes this worktree's experimental model flags
+from main; preserve those flags here. The complete GCS writer rotation path
+remains present. Fresh formal-budget/tree checks cover both controls; reuse
+unchanged BAM47, legacy-tail8, native dual/causal/layout3 and summary-writer5
+evidence from bdae8b3 after validating unchanged implementation file hashes.
+The sealed config gate checks the full formal inherited configurations.
+
+After FIRST_STEP, switch monitoring edges to the new controls: QKVM dual V
+vs QKVM/write; VM dual V vs VM and QKVM dual V; L2 VM vs VM; two-layer VM
+vs VM and two-layer QKVM. Keep L2 QKVM vs original shared QKVM. Thus each
+comparison answers a factor question; the depth comparison also removes L16
+attention write and must retain that qualification. No training-period loss
+diary goes into exp.py.

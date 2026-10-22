@@ -29,6 +29,8 @@ VM = 'BamMediumPropMShiftReadG050MuddVMSharedRouterLastTwoLayersTruePile'
 VM_L2 = 'BamMediumPropMShiftReadG050MuddVMSharedRouterLastBlockL2AnchorTruePile'
 DUAL_QKVM = 'BamMediumPropMShiftReadG050MuddQKVMDualValueSharedRouterLastBlockTruePile'
 DUAL_VM = 'BamMediumPropMShiftReadG050MuddVMDualValueSharedRouterLastBlockTruePile'
+QKVM_MLP_WRITE = 'BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockMLPWriteTruePile'
+VM_ONE = 'BamMediumPropMShiftReadG050MuddVMSharedRouterLastBlockTruePile'
 
 
 class NativeTailTest(MLPWriteTest, unittest.TestCase):
@@ -204,6 +206,43 @@ class NativeTailTest(MLPWriteTest, unittest.TestCase):
       self.assertGreater(float(jnp.linalg.norm(before[0] - after[0])), 0.)
       for x, y in zip(before[1:], after[1:]):
         np.testing.assert_array_equal(x, y)
+
+  def test_single_layer_write_controls_formal_budgets(self):
+    for exp, total, routers, width, q_width, rounding in (
+        (QKVM_MLP_WRITE, 432267055, 154575, 3026, 75, 800),
+        (VM_ONE, 432266921, 154185, 3540, 18, 1056)):
+      with self.subTest(exp=exp):
+        cfg = self.config(exp, bam_splash_attention=False)
+        cfg.get_keys().update(max_target_length=256, max_prefill_predict_length=256,
+                              query_chunk_size=256)
+        self.assertFalse(cfg.bam_mudd_tail_l2_anchor)
+        self.assertFalse(cfg.bam_mudd_tail_dual_value)
+        self.assertFalse(cfg.bam_mudd_tail_skip_mlp_write)
+        mesh = jax.sharding.Mesh(max_utils.create_device_mesh(cfg), cfg.mesh_axes)
+        state, _, _, _ = train_compile.get_shaped_inputs(mesh, cfg)
+        flat = flatten_dict(nn.unbox(state[0].params))
+        self.assertEqual(sum(math.prod(v.shape) for v in flat.values()), total)
+        self.assertEqual(sum(math.prod(v.shape) for p, v in flat.items()
+                             if 'qkvm_compose' in p or 'compose_final_three_source' in p), routers)
+        self.assertEqual(total - routers - 432111680, rounding)
+        prefix = ('params', 'decoder', 'tail_layers')
+        for layer, expected in (('local_0', 3802), ('local_1', 3676), ('fetch_2', width)):
+          self.assertEqual(flat[prefix + (layer, 'block', 'mlp', 'wi_0', 'kernel')].shape,
+                           (1200, 1, expected))
+        for name in ('query', 'key'):
+          self.assertEqual(flat[prefix + ('fetch_2', 'block', 'self_attention', name, 'kernel')].shape,
+                           (1200, 1, 16, q_width))
+        mlp_write = {p: v for p, v in flat.items() if p[:len(prefix)] == prefix and
+                     any(n in p for n in ('mlp_write_gate', 'mlp_write_gate_bias',
+                                          'mlp_address_down', 'mlp_address_up'))}
+        self.assertEqual(sum(math.prod(v.shape) for v in mlp_write.values()), 458000)
+        self.assertTrue(all('local_1' in p for p in mlp_write))
+        middle = prefix + ('local_1', 'block', 'self_attention')
+        tail = prefix + ('fetch_2', 'block', 'self_attention')
+        writes = ('P_loc_down', 'P_loc_up', 'W_gw', 'gw_b0')
+        for name in writes:
+          self.assertTrue(any(p[:len(middle)] == middle and name in p for p in flat), name)
+          self.assertFalse(any(p[:len(tail)] == tail and name in p for p in flat), name)
 
   def test_dual_value_formal_budget_reuses_vo_projection(self):
     for exp, total, routers, width in ((DUAL_QKVM, 432266399, 154575, 3015),

@@ -10,6 +10,7 @@ until the implementation is explicitly merged.
 | BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile | parent | ordinary3-layer block x6 | [3802,3676,3802] | 432111680 | 0 |
 | BamMediumPropMShiftReadG050MuddValueLastTwoBlocksTruePile | WV L14/L17, no MLP write L13/L16 | ordinary x4, modified x2 | [3802,3803,3381] | 432114377 | +2697 (+.000624%) |
 | BamMediumPropMShiftReadG050MuddValueLastBlockTruePile | WV L17, no MLP write L16 | ordinary x5, modified x1 | [3802,3803,3370] | 432111926 | +246 (+.000057%) |
+| BamMediumPropMShiftReadG050MuddVMLastBlockTruePile | single V plus L17 residual m route | ordinary x5, modified x1 | [3802,3803,3349] | 432113321 | +1641 (+.000380%) |
 | BamMediumPropMShiftReadG050MuddQKVLastBlockTruePile | full WQ/WK/WV L17, no MLP write L16 | ordinary x5, modified x1 | [3802,3803,2813] | 432110860 | -820 (-.000190%) |
 | BamMediumPropMShiftReadG050PersistentEmbedMLastQKVOTruePile | L17 Q/K/V/O read shifted M plus embedding-only P; final Mudd | ordinary x5, modified x1 | [3802,3676,3617] | 432113283 | +1603 (+.000371%) |
 
@@ -284,3 +285,50 @@ the original parent, continuing QKV and single V, with MHA as the sole reference
 Artifacts: private `launch-persistent.log`, `persistent-step14.txt`,
 `persistent-worker-startup.txt`, `cpu-gate-persistent.json` and
 `registry-persistent-monitoring.json` in the family's diagnostic directory.
+
+## Single V plus the final-layer Mudd m route
+
+User authorized this arm on2026-10-22, based on the continuing single-V arm,
+BamMediumPropMShiftReadG050MuddValueLastBlockTruePile (runtime33734c9).
+New RUN/config: BamMediumPropMShiftReadG050MuddVMLastBlockTruePile.
+Use the existing Mudd m-path semantics, rather than routing only the MLP branch:
+m=Router_m(h,e,h0), r=m+attention17(h), y=r+MLP(norm(r)). The controller consumes
+h before this attention addition, and r is both the MLP input and its identity
+residual. Q/K, Mudd V, O and attention-write controls retain the single-V path.
+L16 MLP writing remains disabled, and the complete L17 output still passes through
+the existing independent final three-source Mudd before final RMSNorm/unembedding.
+
+The new independent controller uses the same parameter-free RMS input norm,
+fan-in normal1200x64 first projection, GELU, zero64x3 second projection, and
+signed current-only bias[1,0,0]. hidden_expand1 rounds to64 as in the value route.
+It adds76995=.05346875W_Q. Reduce only L17 SwiGLU3370->3349, repaying75600;
+residual1395 versus single V, or1641 versus the original parent. Exact full
+abstract parameter count432113321 is verified. Router initialization is identity;
+the formal model also has the declared21-unit MLP reduction.
+
+Ordinary three-layer blocks x5 and the modified final block x1 remain separately
+scanned, carrying residual/M/embedding/L0 anchors. Scope is L17 only. Keep the
+single-V TruePile4096/global128/per-device16/13500-step recipe, full remat,
+all generic/internal/BAM health OFF, tuned Splash, CP200/latest2/keep0/finalforced,
+and TB rotation500. Registered direct controls: single V, QKV and original
+single-gate .5 parent; gain reference is BamMHAMediumPropC256TruePile, without
+Mudd gain ratios.
+
+Prior: VM/single V terminal gain1.025 [.995,1.055], matched speed within +/-1%.
+Explicitly revise the older single-V/parent forecast1.025 to1.010; retain the
+QKV/parent forecast1.015. The consistent implied VM/parent forecast is1.03525,
+and VM/QKV is1.0199507. These are forecasts, not terminal measurements.
+
+Same isolated family worktree/branch. Owned proposed trainer:
+xd-v5p-16-310285-maxtext, us-east5-a. UE5a remains justified by the continuing
+long QKV/persistent leases and only one same-zone single-V preemption so far.
+Borrow verified READY/idle llm-jax-v6e-1-0 in europe-west4-a, whose actual queued
+resource declares FLEX_START; preserve its lifecycle and use the per-worker lock.
+Infrastructure audit against main98c921e3: train/max_utils/maxtext_utils/
+checkpointing/train_compile/optimizers unchanged; subsequent main changes are
+experiment metadata only. Positive rotation500, rotating writer and begin_step
+remain present. Local/deployed AOT/launcher/auto-train source hashes match.
+CPU checks cover complete counts/scan layouts for all tail variants, identity
+initialization and the actual m-route attention-addition/MLP-residual semantics,
+activated scanned causal forward/gradients, persistent-bank regressions, and
+summary-writer regressions. Evidence is in the private family diagnostic directory.

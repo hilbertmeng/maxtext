@@ -293,3 +293,32 @@ Evidence under `/data0/xd/bam_diagnostics/mediumprop-dedicated-m-mlp/`:
 `rank8-final-proof.json`, `rank8-registry-final.json`, `rank8-final-report.json`,
 `closeout-rank8.json`, `review-rank8-2800.json`, and final charts. Retained FLEX compiler
 remains intact. Independent2:1 and3:1 continue; failed parents are cached comparisons.
+
+
+## Independent3:1 closeout
+
+`BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio3to1TruePile`, runtime
+faefbadaf669ce19744430a525a4c9b9f2d8b1a9, stopped7795 after the post5k extension.
+Its early deficit to2:1 narrowed, but from about4k its MHA-reference gain plateaued
+near.992. It trailed2:1 at every mature400..7600 window. Final five
+6800/7000/7200/7400/7600 average+.00150608/gain.99159309 vs2:1;
+vs original single.5 +.00039436/gain.99777083. Ordinary MLP parameters+11.5%
+vs2:1 did not yield a later relative catch-up. Initial terminal prior1.01 vs2:1
+was unsupported through the review stop. No speed/parameter/cache benefit:
+startup~.700 vs.707 (about−1%), identical432113280 parameters and75x32 cache.
+Same training-health ON, internal/BAM metrics OFF, Pallas and tuned Splash.
+
+v5p-16 xd-v5p-16-310320-maxtext stayed in us-east5-a, no passive candidates,
+one preemption. Recovered from committed4747 and verified next periodic4800.
+Assignment2026-10-23 06:27:52–09:52:46 UTC. Full chronological READY leases:
+
+| Lease | Start UTC | End UTC | Duration | End reason |
+|---|---|---|---|---|
+|1|2026-10-23 06:27:44|2026-10-23 08:28:16|2h00m32s|preempted; first prequeue READY, registry starts11s later|
+|2|2026-10-23 08:35:31|2026-10-23 09:52:46|1h17m15s|later review stop7795|
+
+CP7795 committed, independent node+queue NOT_FOUND verified, local TB SYNC_OK;
+retained FLEX compiler untouched. Artifacts under
+`/data0/xd/bam_diagnostics/mediumprop-dedicated-m-mlp/`:
+`closeout-ratio3.json`, `ratio3-final-proof.json`, `ratio3-registry-final.json`,
+`ratio3-final-report.json`. Independent2:1 is the remaining live arm.

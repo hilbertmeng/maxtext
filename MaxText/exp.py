@@ -17432,6 +17432,11 @@ class BamMediumPropMShiftReadG050SharedHiddenMemoryMLPTruePile(
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio3to1TruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1TruePile):
     """Vector/M-update budget3:1 with the2:1 arm's body budget and terminal width."""
+    # Stopped at7795 after later review; UE5a v5p-16 P1; CP committed, resources absent, TB SYNC_OK.
+    # Trailed2:1 at every400..7600 mature window; early narrowing plateaued near gain.992 after4k.
+    # Final5(6800..7600) vs2:1 +.001506/gain.991593; vs single.5 +.000394/gain.997771.
+    # Extra ordinary MLP params+11.5% vs2:1 did not produce a later relative recovery.
+    # Startup~.700 vs2:1~.707 (-1%); same total params/cache; expected gain1.01 unsupported.
     # Ledger only. Implementation: codex/mediumprop-dedicated-m-mlp; /data0/xd/mediumprop-dedicated-m-mlp.
     # code_commit: faefbad; UE5a v5p-16 startup~.700step/s (~-1% vs2:1 startup).
     # Generic training health ON; internal/BAM OFF; Pallas+tuned Splash.

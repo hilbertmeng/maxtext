@@ -581,3 +581,28 @@ forward/causality/gradients with live L14 attention and L15/L16 memory paths, di
 parent regression, and existing/new JAX/v8t bridge output/gradient equality. Borrow
 retained FLEX compiler, preserve its lifecycle; launcher owns only the new UE5a
 training prequeue. Main exp.py remains ledger-only for this worktree implementation.
+
+
+Verified L14-refund startup on`42f04a217636fbd52c3462d624f48320de3a5d95`: sealed CPU4 groups passed,
+six formal parameter trees and unchanged parent trees, no ordinary-write fallback,
+causal/active gradients for L14 attention and L15/L16 private branches, v8t bridge.
+Borrowed retained FLEX AOT and actual executable/FIRST_STEP/step14 verified;
+physical310330 UE5a v5p16, initial prequeue READY14:51:06 UTC, preparation retry
+20261023T144416Z. Startup0.6744 vs .6678 (+0.99%), within prior0..+2%.
+Full432343817 parameters, native routers232025, local3412 width measured. Sole
+direct two-VM/L1 parent and MHA-reference ratio registered;13500 schedule intact.
+Proof`no-l14-memory-startup.json`; compiler preserved. Implementation remains on
+codex/mediumprop-dedicated-m-mlp; main records configuration/launch metadata only.
+
+Single L17 VM/2:1 combination user-stopped7904. Final5(7000-7800) vs historical
+L2 VM +.002478494/R.986227696; vs2:1 -.000288720/R1.001674793. Large initial lead
+reversed vs historical tail, later approached2:1; slight final recovery does not
+establish convergence to historical tail. Prior terminal1.015 unsupported through
+stop; full13500 not completed. Total historical-parent+1600, cache unchanged,
+startup.6872 vs old.713 (-3.6%); no speed/parameter/cache offset. UE5a P0,
+first READY11:34:43-14:54:59 UTC=3h20m16s (registry starts9s later). CP7904 committed,
+node/queued resource independently verified absent by closeout; TB SYNC_OK.
+Final proofs`closeout-combined-vm.json`,`combined-vm-registry-final.json`,
+`combined-vm-final-report.json`. Historical oldVM's18 missing cached step10 points
+6850..7020 were restored from its already-synced real TB, preserving prior cache
+entries (`old-vm-loss-reexport.provenance.json`); final matched windows are complete.

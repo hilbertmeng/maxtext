@@ -17581,6 +17581,11 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MuddQKVML2TruePile(
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MuddVML2TruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MuddQKVML2TruePile):
     """Retain L17 QK matrix reads and L16 private M writer; use shared V/m Mudd."""
+    # Stopped at7904 by user; CP committed, node/queue absent, TB SYNC_OK; UE5a v5p16 P0.
+    # Large early lead faded: vs oldVM R1k1.02138 ->5k.98584 ->7k.98304 ->final.98623.
+    # Final5(7000..7800): vs oldVM gap+.00247849/R.98622770; vs2:1 -.00028872/R1.00167479.
+    # Slight recovery after7k, still clearly behind the original tail; no full13500 terminal verdict.
+    # Initial terminal1.015 prior unsupported through stop; total oldVM+1600, M-cache unchanged, speed-3.6%.
     # code_commit: 82e5a73; UE5a v5p-16 startup~0.6872step/s (-2.8% vs2:1).
     # Loaded AOT/FIRST_STEP/step14 verified; CPU74 passed, Pallas+tuned Splash.
     # Generic training health ON, internal/BAM OFF; three-layer staged scan.
@@ -17640,6 +17645,9 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MuddL14VML17VML1L2Tr
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MuddL14VML17VML1L2NoL14MemoryMLPTruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MuddL14VML17VML1L2TruePile):
     """Give L14 VM's private M-update budget back to its vector MLP; retain attention write."""
+    # code_commit: 42f04a2; UE5a v5p16 startup0.6744step/s (+0.99% vs direct parent).
+    # Sealed CPU4/AOT/FIRST_STEP/step14 verified; full parameter trees/no fallback/live attention write/v8t bridge.
+    # Pallas v8t48/fused + tuned Splash; generic health ON/internal+BAM OFF;13500-step schedule.
     # Remove all4094000 L14 private/control params; refund1137 ordinary widths4093200.
     # Total432343817 = direct parent-800; native routers232025 unchanged.
     # L15/L16 private M writers remain; L17 remains write-free; source set/routers unchanged.

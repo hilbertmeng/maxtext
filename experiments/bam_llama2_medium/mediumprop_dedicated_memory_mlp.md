@@ -79,3 +79,19 @@ independent2:1. Full13500 plan, reviews2800/5000, grouped reports every1000 earl
 Shared-hidden sealed runtime89d6bec543615acbae3ea5115235e90b2e7b2c4b;59 CPU checks
 (47 shared +7 family +5 summary writer) passed. AOT load, FIRST_STEP12 and step14
 gates verified; startup~.71step/s under the declared health/kernel settings.
+
+## Matched3:1 budget arm
+
+RUN `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio3to1TruePile`, TPU
+`xd-v5p-16-310320-maxtext`, UE5a. Derived from independent2:1, with exactly the same
+per-body-layer total and terminal3806: L0–16 ordinary2852/memory823; all other knobs
+unchanged. Ordinary188244000, memory50367600, controls7786000, total432113280,
+identical to independent2:1. Actual per-body-layer branch ratio10267200/3420800
+=3.00140318. New arm compares independent2:1 and original single.5; MHA common
+reference for both ratios. Terminal bet1.01 vs2:1 (~1.05 vs original parent, consistent
+with the previous priors), throughput flat. Same13500 plan,2800/5000 reviews.
+
+This is a configuration-only change on fully verified runtime89d6bec5 (59 checks).
+Main updates through7c02f49c are ledger metadata only; no infrastructure fixes missing.
+Use sealed inherited-config checks, the family's exact budget/settings CPU check and
+full target AOT/FIRST_STEP gates; no repeat of unrelated shared regressions.

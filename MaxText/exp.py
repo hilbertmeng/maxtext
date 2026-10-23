@@ -17409,3 +17409,17 @@ class BamMediumPropMShiftReadG050SharedHiddenMemoryMLPTruePile(
     bam_last_mlp_dim = 2794
     compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1TruePile',
                     'BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile']
+
+
+class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio3to1TruePile(
+    BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1TruePile):
+    """Vector/M-update budget3:1 with the2:1 arm's body budget and terminal width."""
+    # Ledger only. Implementation: codex/mediumprop-dedicated-m-mlp; /data0/xd/mediumprop-dedicated-m-mlp.
+    model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio3to1TruePile'
+    base_mlp_dim = 2852
+    mlp_dim_by_block = [2852, 2852]
+    bam_memory_mlp_dim = 823
+    bam_final_local_mlp_dim = 2852
+    bam_last_mlp_dim = 3806
+    compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1TruePile',
+                    'BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile']

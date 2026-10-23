@@ -15009,11 +15009,17 @@ class BamMediumPropMShiftReadG050MuddVMSharedRouterLastTwoBlocksL2AnchorTruePile
 
 class BamMediumPropMShiftReadG050MuddVMQKVMSharedRouterLastTwoBlocksL2AnchorTruePile(BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockL2AnchorTruePile):
     """Old L2 QKVM champion plus L14 native VM, with both L13/L14 writes retained."""
+    # Completed 13500; UE5a v5p-16, P1; CP13500 committed, node/queue absent, TB SYNC_OK.
+    # vs old L2 QKVM: early deficit+.00497@2k slowly vanished; from7.4k oscillated near parity.
+    # Final5(12600..13400) mean gap-.000185/gain1.001153; no substantial terminal SOTA gain.
+    # vs stopped L14 VM/VM at4200..5000 mean-.003211/gain1.015579;
+    # vs matched L15 VM/QKVM mean-.001059/gain1.005102 over the same windows.
+    # Startup~.705step/s vs parent.722 (-2.4%), params+75576=.052483W_Q, M-cache unchanged.
+    # Original terminal gain bet1.020 missed;8k computed working estimate1.003 was closer.
     # code_commit:4db9b15; FIRST_STEP and steady gates verified, UE5a v5p16.
     # ledger only on main; implementation codex/mediumprop-mudd-tail, /data0/xd/mediumprop-mudd-tail.
     # ~.705step/s vs QKVM parent~.722 (-2.4%); TPU310313.
     # L14 C2, L17 C4; keep the parent's L16 MLP write OFF and L17 attention write absent.
-    # Prior terminal MHA-reference gain vs direct parent1.020; throughput -2..-5%.
     model_name = 'BamMediumPropMShiftReadG050MuddVMQKVMSharedRouterLastTwoBlocksL2AnchorTruePile'
     # L14 non-router delta1402256=.973789W_Q; MLP3802->3412 repays1404000, rounding-1744.
     # New native C2 router77320 is exempt; parameter delta vs direct parent+75576.

@@ -625,6 +625,7 @@ active leases are censored, and manual migration releases are not preemptions.
 | `BamMediumPropMShiftReadG050MuddQKVMDualValueSharedRouterLastBlockTruePile` | v5p-16 (`xd-v5p-16-310289-maxtext`) | `us-east5-a` | 2026-10-22 13:50:04 | 2026-10-22 19:14:54 | complete13500; P0; CP13500 committed, node/queue absent, TB SYNC_OK; inherited physical310289, runtime bdae8b3 | none |
 | `BamMediumPropMShiftReadG050MuddVMSharedRouterLastBlockTruePile` | v5p-16 (`xd-v5p-16-310297-maxtext`) | `us-east5-a` | 2026-10-22 14:46:06 | 2026-10-22 20:12:28 | complete13500; P0; CP13500 committed, node/queue absent, TB SYNC_OK; runtime4c3e39f | none |
 | `BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockMLPWriteTruePile` | v5p-16 (`xd-v5p-16-310296-maxtext`) | `us-east5-a` | 2026-10-22 14:48:52 | 2026-10-22 20:13:49 | complete13500; P0; CP13500 committed, node/queue absent, TB SYNC_OK; runtime4c3e39f | none |
+| `BamMediumPropMShiftReadG050MuddVMQKVMSharedRouterLastTwoBlocksL2AnchorTruePile` | v5p-16 (`xd-v5p-16-310313-maxtext`) | `us-east5-a` | 2026-10-23 01:30:16 | 2026-10-23 07:19:09 | completed13500; P1; CP committed, node/queue absent, TB SYNC_OK; runtime4db9b15 | none |
 
 ## READY leases
 
@@ -1901,6 +1902,8 @@ active leases are censored, and manual migration releases are not preemptions.
 | `BamPythiaMediumPropT2048SerialMLPPythiaEmbeddingScaledWrite` | 1 | `us-east5-a` | 2026-10-15 16:47:47 | 2026-10-15 20:00:09 | 3h12m22s | preempted |
 | `BamPythiaMediumPropT2048SerialMLPPythiaEmbeddingScaledWrite` | 2 | `us-east5-a` | 2026-10-15 20:07:17 | 2026-10-15 23:37:24 | 3h30m07s | preempted |
 | `BamPythiaMediumPropT2048SerialMLPPythiaEmbeddingScaledWrite` | 3 | `us-east5-a` | 2026-10-15 23:43:12 | 2026-10-16 00:35:27 | 52m15s | complete13500; CP13500 committed, resources absent, TB SYNC_OK |
+| `BamMediumPropMShiftReadG050MuddVMQKVMSharedRouterLastTwoBlocksL2AnchorTruePile` | 1 | `us-east5-a` | 2026-10-23 01:30:10 | 2026-10-23 04:55:38 | 3h25m28s | preempted; first prequeue READY; registry subinterval01:30:18–04:55:38=3h25m20s |
+| `BamMediumPropMShiftReadG050MuddVMQKVMSharedRouterLastTwoBlocksL2AnchorTruePile` | 2 | `us-east5-a` | 2026-10-23 05:01:22 | 2026-10-23 07:19:09 | 2h17m47s | clean completion13500 and automatic release; CP committed, node/queue absent, TB SYNC_OK |
 
 | `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadT8192` | 1 | `us-east5-a` | 2026-10-13 01:40:37 | 2026-10-13 06:51:38 | 5h11m01s | manual review stop7140; resources absent, TB SYNC_OK |
 

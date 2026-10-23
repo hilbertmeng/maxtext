@@ -534,3 +534,16 @@ parameter/write-policy, scanned forward/causal/gradient and v8t bridge checks su
 on the verified77-check runtime. Main-only audit still37d4eea0 (metadata-only since
 previous audit). Initial launch ID310329, UE5a v5p16, same T4096/global128/percore16,
 Pallas and tuned Splash/health/CP/TB settings; borrow the retained FLEX compiler only.
+
+
+Verified two-VM startup: runtime`afb2ee9d1f557529ef07c0ed316432b89db3f098`, physical310329 UE5a v5p16.
+Scoped CPU3 groups passed (full five-arm parameter trees/write policies/JAX-Pallas
+shape agreement, new two-VM scanned causal/gradient paths including L16 writer,
+existing/new selective v8t bridge sites). Initial preparation was blocked by a
+legacy test fixture missing L1; fixed fixture only and resealed before launch.
+Owned first prequeue was released by the failed gate; retained FLEX compiler
+preserved. Successful retry preparation20261023T141904Z, first trainer READY
+14:23:55 UTC; actual AOT load/FIRST_STEP/step14 and controller source/data/plan
+verified in`two-vm-l1-startup.json`. Throughput0.6678 vs .677 (-1.36%).
+Sole direct L1 mixed-QKVM parent and MHA-reference gain registered. All widths,
+432344617 total,232025 routers and live L16 write confirmed in formal trees.

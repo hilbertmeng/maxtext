@@ -17524,7 +17524,7 @@ class BamMediumPropMShiftReadG050SharedHiddenRank8InputControlsTruePile(
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRank8R128H768TruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1TruePile):
     """Independent M-only SwiGLU768 produces8x75 content, with R128 nonlinear addresses."""
-    # User hot-replaced at8001; CP8001 committed, retained physical TPU transferred to L1 mixed tail.
+    # Stopped at8001 by user hot-replacement; CP8001 committed, retained TPU transferred to L1 mixed tail.
     # vs2:1: initial deficit narrowed then stalled; final5(7000..7800) gap+.003984/R.977481.
     # Gain1k .98927 ->3k .98639 ->5k .98155 ->7.8k .97748; no sustained late recovery by stop.
     # Ordinary MLP+20.8%, total parent-456, M-cache unchanged; startup+3.1%, steady~+2.8%.
@@ -17549,7 +17549,7 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRank8R128H768TruePile(
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MuddQKVML2TruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1TruePile):
     """Dense private M updates plus the L17 native shared QKVM/L2 champion exit."""
-    # User stop6166 after5k review; CP committed, node/queue absent, TB SYNC_OK; UE5a v5p16 P0.
+    # Stopped at6166 by user after5k review; CP committed, node/queue absent, TB SYNC_OK; UE5a v5p16 P0.
     # Large early convergence lead reversed vs oldL2 QKVM near1.2k; later also trailed2:1.
     # Final5(5200..6000) vs oldL2 QKVM +.005009/R.974546; vs2:1 +.001312/R.993216.
     # Native tail failed to add to dense2:1 by stop; parent+1600 params, cache unchanged.
@@ -17623,8 +17623,11 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MuddL14VML17QKVML1L2
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MuddL14VML17VML1L2TruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MuddL14VML17QKVML1L2TruePile):
     """Two spaced native VM sites, complete first-block anchors and live L16 M writes."""
+    # code_commit: afb2ee9; UE5a v5p16 startup0.6678step/s (-1.36% vs direct parent).
+    # Targeted parameter/write-policy, causal/gradient and v8t bridge gates passed; sealed config/AOT/FIRST_STEP/step14 verified.
+    # Pallas v8t48/fused + tuned Splash; generic health ON/internal+BAM OFF;13500-step schedule.
     # L17 Q/K return to M; L16 private M-MLP restored, attention write retained.
-    # Total432344617, native routers232025; parent+406 from integer width rounding.
+    # Total432344617, native routers232025; parent+406 = nonrouter rounding+1056 and router-650.
     # Terminal MHA-ref gain prior vs direct parent1.010[.995,1.025]; speed cost0..2%.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MuddL14VML17VML1L2TruePile'
     bam_mudd_tail_residual_qk = False

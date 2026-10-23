@@ -17590,6 +17590,11 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MuddQKVML2TruePile(
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MuddVML2TruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MuddQKVML2TruePile):
     """Retain L17 QK matrix reads and L16 private M writer; use shared V/m Mudd."""
+    # Stopped at7904 by user; CP committed, node/queue absent, TB SYNC_OK; UE5a v5p16 P0.
+    # Large early lead faded: vs oldVM R1k1.02138 ->5k.98584 ->7k.98304 ->final.98623.
+    # Final5(7000..7800): vs oldVM gap+.00247849/R.98622770; vs2:1 -.00028872/R1.00167479.
+    # Slight recovery after7k, still clearly behind the original tail; no full13500 terminal verdict.
+    # Initial terminal1.015 prior unsupported through stop; total oldVM+1600, M-cache unchanged, speed-3.6%.
     # code_commit: 82e5a73; UE5a v5p-16 startup~0.6872step/s (-2.8% vs2:1).
     # Loaded AOT/FIRST_STEP/step14 verified; CPU74 passed, Pallas+tuned Splash.
     # Generic training health ON, internal/BAM OFF; three-layer staged scan.
@@ -17646,3 +17651,21 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MuddL14VML17VML1L2Tr
     bam_mudd_tail_mlp_dims = [2535, 2535, 3544]
     bam_memory_mlp_dim_by_layer = [1140] * 14 + [1010, 1140, 1140, 0]
     compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MuddL14VML17QKVML1L2TruePile']
+
+
+class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MuddL14VML17VML1L2NoL14MemoryMLPTruePile(
+    BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MuddL14VML17VML1L2TruePile):
+    """Give L14 VM's private M-update budget back to its vector MLP; retain attention write."""
+    # code_commit: 42f04a2; UE5a v5p16 startup0.6744step/s (+0.99% vs direct parent).
+    # Sealed CPU4/AOT/FIRST_STEP/step14 verified; full parameter trees/no fallback/live attention write/v8t bridge.
+    # Pallas v8t48/fused + tuned Splash; generic health ON/internal+BAM OFF;13500-step schedule.
+    # Ledger only: codex/mediumprop-dedicated-m-mlp; /data0/xd/mediumprop-dedicated-m-mlp.
+    # Remove all4094000 L14 private/control params; refund1137 ordinary widths4093200.
+    # Total432343817 = direct parent-800; native routers232025 unchanged.
+    # L15/L16 private M writers remain; L17 remains write-free; source set/routers unchanged.
+    # Terminal MHA-reference gain prior1.015[1.000,1.030]; expected throughput0..+2%.
+    model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MuddL14VML17VML1L2NoL14MemoryMLPTruePile'
+    bam_mudd_pre_tail_vm_skip_mlp_write = True
+    bam_mudd_pre_tail_vm_mlp_dim = 3412
+    bam_memory_mlp_dim_by_layer = [1140] * 14 + [0, 1140, 1140, 0]
+    compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MuddL14VML17VML1L2TruePile']

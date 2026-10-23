@@ -626,6 +626,8 @@ active leases are censored, and manual migration releases are not preemptions.
 | `BamMediumPropMShiftReadG050MuddVMSharedRouterLastBlockTruePile` | v5p-16 (`xd-v5p-16-310297-maxtext`) | `us-east5-a` | 2026-10-22 14:46:06 | 2026-10-22 20:12:28 | complete13500; P0; CP13500 committed, node/queue absent, TB SYNC_OK; runtime4c3e39f | none |
 | `BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockMLPWriteTruePile` | v5p-16 (`xd-v5p-16-310296-maxtext`) | `us-east5-a` | 2026-10-22 14:48:52 | 2026-10-22 20:13:49 | complete13500; P0; CP13500 committed, node/queue absent, TB SYNC_OK; runtime4c3e39f | none |
 
+| `BamMediumPropMShiftReadG050MuddVMSharedRouterLastTwoBlocksL2AnchorTruePile` | v5p-16 (`xd-v5p-16-310312-maxtext`) | `us-east5-a` | 2026-10-23 01:30:37 | 2026-10-23 03:42:00 | 5k review stop5157; P0; CP5157 committed, node/queue absent by03:44:15, TB SYNC_OK; runtime4db9b15 | none |
+
 ## READY leases
 
 | RUN | # | Zone | Start UTC | End UTC | Duration | Exit |
@@ -2054,6 +2056,8 @@ active leases are censored, and manual migration releases are not preemptions.
 | `BamMediumPropMShiftReadG050MuddVMSharedRouterLastBlockTruePile` | 1 | `us-east5-a` | 2026-10-22 14:46:09 | 2026-10-22 20:12:28 | 5h26m19s | complete13500; P0; CP13500 committed, node/queue absent, TB SYNC_OK |
 | `BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockMLPWriteTruePile` | 1 | `us-east5-a` | 2026-10-22 14:48:55 | 2026-10-22 20:13:49 | 5h24m54s | complete13500; P0; CP13500 committed, node/queue absent, TB SYNC_OK |
 
+
+| `BamMediumPropMShiftReadG050MuddVMSharedRouterLastTwoBlocksL2AnchorTruePile` | 1 | `us-east5-a` | 2026-10-23 01:30:29 | 2026-10-23 03:42:00 | 2h11m31s | 5k review stop5157; P0; first prequeue READY observation; registry subinterval01:30:39–03:42:00=2h11m21s; CP committed, node/queue absent, TB SYNC_OK |
 
 ### 2026-10-14 user pause: resumed mixed R256/R384
 

@@ -1800,3 +1800,23 @@ versus matched original parents .706/.722 (-2.1%/-2.6%). L15 QKVM/QKVM uses
 runtime03b2749 on TPU310316; AOT/source/FIRST_STEP verified, steady .707step/s
 versus its direct L15 VM/QKVM parent .703 (+0.6%). All timings retain generic
 training health ON and internal/BAM statistics OFF.
+
+### L14 VM / L17 VM closeout
+
+BamMediumPropMShiftReadG050MuddVMSharedRouterLastTwoBlocksL2AnchorTruePile
+stopped5157 after the5000 review, runtime4db9b15. Adding L14 VM to the L2 VM
+parent did not improve loss by5000. Parent-relative gap initially narrowed
+from+.013578 at600 to+.003215 at1400, then stalled; final five mature windows
+4200..5000 average+.004118/gain.980425. Against old L2 QKVM champion the same
+windows average+.004568/gain.978348; against L14 VM+L17 QKVM average+.003211.
+Against matched L15 VM/VM, the last common3400..4200 windows average+.000575,
+including a3600 outlier: no demonstrated sustained L14 advantage on this base.
+The prior terminal gain1.015 was unsupported at stop. No inference M-cache gain;
+parent+75576 total parameters and verified startup throughput-1.6%.
+
+Checkpoint5157 committed; node and queue310312 absent, TB SYNC_OK. P0,
+us-east5-a only. First prequeue READY01:30:29 to manual stop03:42:00 UTC on
+2026-10-23 is2h11m31s; registry observed subinterval01:30:39 onward is2h11m21s.
+Closeout summary tpu-ag logs/closeout-20261023T034415Z.json; evidence under
+/data0/xd/bam_diagnostics/mediumprop-mudd-tail/l14-vm/closeout-l14-vm.json and
+lease-l14-vm.json. Borrowed retained FLEX compiler is outside this closeout.

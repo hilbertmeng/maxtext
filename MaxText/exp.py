@@ -15001,6 +15001,12 @@ class BamMediumPropMShiftReadG050MuddVMSharedRouterLastBlockL2AnchorTruePile(Bam
 
 class BamMediumPropMShiftReadG050MuddVMSharedRouterLastTwoBlocksL2AnchorTruePile(BamMediumPropMShiftReadG050MuddVMSharedRouterLastBlockL2AnchorTruePile):
     """L2 VM parent plus L14 native VM; preserve L13 MLP and L14 attention writes."""
+    # Stopped at 5157 after 5k review; CP committed, TPU/queue absent, TB SYNC_OK; UE5a P0.
+    # vs VM parent: early gap+.01358(600)->+.00321(1400), then persistent deficit;
+    # last4200..5000 mean gap+.004118, MHA-ref gain.980425; observed trajectory did not support prior1.015.
+    # vs old L2 QKVM champion mean gap+.004568/gain.978348; vs L14 VM+L17 QKVM+.003211.
+    # vs matched L15 VM/VM: common3400..4200 mean+.000575 (3600 outlier); no sustained location win.
+    # Parent+75576 tiny router/budget residual params; unchanged inference M-cache, throughput -1.6%.
     # code_commit:4db9b15; FIRST_STEP and steady gates verified, UE5a v5p16.
     # ledger only on main; implementation codex/mediumprop-mudd-tail, /data0/xd/mediumprop-mudd-tail.
     # ~.695step/s vs VM parent~.706 (-1.6%); TPU310312.

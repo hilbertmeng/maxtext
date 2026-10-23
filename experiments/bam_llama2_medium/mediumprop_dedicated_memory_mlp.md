@@ -170,3 +170,11 @@ Main-only changes from fork781a86a6 through2b6fb63a are ledger metadata; no miss
 train/AOT/optimizer/checkpoint/writer infrastructure fixes. CPU gate covers shared suite,
 formal full-tree budgets/no redundant controls, explicit projection references and gradient
 sources, unequal-head scan causality/gradients, v8t unequal-group fwd/back and writer rotation.
+
+
+Compact-write runtime47b0e1b0032d27851291ea7885243a0acda4af18:65 CPU checks
+(47 shared +13 family +5 rotating-writer) passed; both sealed configurations match.
+Both AOTs loaded and FIRST_STEP/step14 gates passed on the assigned UE5a v5p-16s.
+Startup joint~.723step/s, x controls~.725, versus shared-hidden~.710 (about+1.8%/+2.1%,
+same declared health/kernel settings). Registry gain triples use MHA as reference for
+every comparator. Borrowed FLEX compiler remains intact and idle after both compiles.

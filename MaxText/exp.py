@@ -17449,6 +17449,8 @@ class BamMediumPropMShiftReadG050SharedHiddenRank8WriteTruePile(
     BamMediumPropMShiftReadG050SharedHiddenMemoryMLPTruePile):
     """Eight M writes: U/address/gate jointly projected from ordinary SwiGLU hidden."""
     # Implementation: codex/mediumprop-dedicated-m-mlp; /data0/xd/mediumprop-dedicated-m-mlp.
+    # code_commit: 47b0e1b; UE5a v5p-16 startup~.723step/s; Pallas+tuned Splash.
+    # Generic training health ON; internal/BAM OFF; AOT/step14 verified.
     model_name = 'BamMediumPropMShiftReadG050SharedHiddenRank8WriteTruePile'
     base_mlp_dim = 3114
     mlp_dim_by_block = [3114, 3114]
@@ -17465,6 +17467,8 @@ class BamMediumPropMShiftReadG050SharedHiddenRank8InputControlsTruePile(
     BamMediumPropMShiftReadG050SharedHiddenRank8WriteTruePile):
     """Eight M writes: U from shared SwiGLU hidden, direct address/gate from norm input."""
     # Implementation: codex/mediumprop-dedicated-m-mlp; /data0/xd/mediumprop-dedicated-m-mlp.
+    # code_commit: 47b0e1b; UE5a v5p-16 startup~.725step/s; Pallas+tuned Splash.
+    # Generic training health ON; internal/BAM OFF; AOT/step14 verified.
     model_name = 'BamMediumPropMShiftReadG050SharedHiddenRank8InputControlsTruePile'
     base_mlp_dim = 3234
     mlp_dim_by_block = [3234, 3234]

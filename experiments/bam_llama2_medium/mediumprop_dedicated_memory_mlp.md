@@ -95,3 +95,7 @@ This is a configuration-only change on fully verified runtime89d6bec5 (59 checks
 Main updates through7c02f49c are ledger metadata only; no infrastructure fixes missing.
 Use sealed inherited-config checks, the family's exact budget/settings CPU check and
 full target AOT/FIRST_STEP gates; no repeat of unrelated shared regressions.
+
+Matched3:1 runtimefaefbada: sealed inherited-config, exact family budget/kernel-settings
+CPU check, target AOT load, FIRST_STEP8 and step14 gates verified. Startup~.700step/s
+versus independent2:1 startup.707 (about−1%, same health/kernel settings).

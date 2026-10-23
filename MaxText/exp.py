@@ -17431,6 +17431,8 @@ class BamMediumPropMShiftReadG050HalfMemoryMLPTruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio3to1TruePile):
     """D-wide private SwiGLU hidden writes M directly, without a content output projection."""
     # Implementation: codex/mediumprop-dedicated-m-mlp; /data0/xd/mediumprop-dedicated-m-mlp.
+    # code_commit: 8849623; UE5a v5p-16 steady~.701step/s; Pallas+tuned Splash.
+    # Generic training health ON; internal/BAM metrics OFF; AOT/step14/CP400 verified.
     model_name = 'BamMediumPropMShiftReadG050HalfMemoryMLPTruePile'
     base_mlp_dim = 2875
     mlp_dim_by_block = [2875, 2875]

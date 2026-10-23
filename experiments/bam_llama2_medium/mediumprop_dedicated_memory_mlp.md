@@ -125,3 +125,7 @@ throughput flat. Full13500 plan; reviews2800/5000 and grouped1000-step early rep
 Main-only updates throughca0a179f are ledger metadata, with no infrastructure fixes
 missing. Run full shared regressions plus family half-tree/reference/gradient and
 causality checks, summary-writer regression, sealed config, target AOT and FIRST_STEP.
+
+Half-memory runtime884962320e2aa9b757a839924a6615950f7b98ec:62 checks passed
+(47 shared +10 family +5 summary writer), AOT loaded, step14 gate and CP400 verified.
+Stable20–99 median.702step/s,100–399 about.701, versus full3:1 startup.700 (flat).

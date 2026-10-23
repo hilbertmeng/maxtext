@@ -17391,3 +17391,19 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1TruePile(
     bam_memory_mlp_last_write_dim = 0
     bam_final_local_mlp_dim = 2535
     bam_last_mlp_dim = 3806
+
+
+class BamMediumPropMShiftReadG050SharedHiddenMemoryMLPTruePile(
+    BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1TruePile):
+    """Share SwiGLU input/gate projections and hidden activation; separate vector/M heads."""
+    # Ledger only. Implementation: codex/mediumprop-dedicated-m-mlp; /data0/xd/mediumprop-dedicated-m-mlp.
+    model_name = 'BamMediumPropMShiftReadG050SharedHiddenMemoryMLPTruePile'
+    base_mlp_dim = 2801
+    mlp_dim_by_block = [2801, 2801]
+    bam_memory_mlp_share_hidden = True
+    bam_memory_mlp_dim = 2801
+    bam_memory_mlp_last_write_dim = 0
+    bam_final_local_mlp_dim = 2801
+    bam_last_mlp_dim = 2794
+    compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1TruePile',
+                    'BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile']

@@ -267,6 +267,7 @@ class MlpBlock(nn.Module):
     kernel_init: Kernel function, passed to the dense layers.
     deterministic: Whether the dropout layers should be deterministic.
     output_kernel_init: Optional initializer for the output projection only.
+    bam_memory_output: Return a second BAM-content projection of the same hidden activation.
     intermediate_dropout_rate: Dropout rate used after the intermediate layers.
     dtype: computation data type for the dense layer.
     weight_dtype: weight data type for the dense layer.
@@ -280,6 +281,7 @@ class MlpBlock(nn.Module):
   activations: Sequence[Union[str, Callable[..., Any]]] = ("relu",)
   kernel_init: NdInitializer = nd_dense_init(1.0, "fan_in", "truncated_normal")
   output_kernel_init: NdInitializer | None = None
+  bam_memory_output: bool = False
   intermediate_dropout_rate: float = 0.1
   dtype: Any = jnp.float32
   weight_dtype: Any = jnp.float32
@@ -397,6 +399,15 @@ class MlpBlock(nn.Module):
       output = self.deep_embed_block(inputs, output, decoder_input_tokens, deep_embedding)
 
     output = checkpoint_name(output, "mlpwo")
+    if self.bam_memory_output:
+      if self.use_bias:
+        raise ValueError('Shared-hidden BAM memory heads use bias-free projections')
+      memory_output = DenseGeneral(
+          inputs.shape[-1], dtype=self.dtype, weight_dtype=self.weight_dtype,
+          kernel_init=initializers.get_bam_init(cfg, fallback=self.kernel_init),
+          kernel_axes=("mlp", "embed"), name="memory_wo", quant=self.quant,
+          use_bias=False, matmul_precision=cfg.matmul_precision)(x)
+      return output, checkpoint_name(memory_output, "memory_mlpwo")
     return output
 
 

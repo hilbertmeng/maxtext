@@ -256,11 +256,15 @@ class SubDecoderLayer(nn.Module):
     
     mlp_lnx = None
     memory_mlp_dim = int(getattr(cfg, 'bam_memory_mlp_dim', 0) or 0)
+    share_memory_hidden = bool(getattr(cfg, 'bam_memory_mlp_share_hidden', False))
     memory_lnx = None
     if memory_mlp_dim:
       if not (cfg.bam_enabled and cfg.shared_experts == 1 and cfg.num_experts == 1):
         raise ValueError('A dedicated memory MLP requires dense BAM layers')
-      if mlp_write:
+      if mlp_write and share_memory_hidden:
+        if memory_mlp_dim != self.updated_mlp_dim:
+          raise ValueError('Shared memory/vector MLPs must have the same hidden width')
+      if mlp_write and not share_memory_hidden:
         last_write_dim = int(getattr(cfg, 'bam_memory_mlp_last_write_dim', 0) or 0)
         if last_write_dim and self.layer_inx == cfg.num_decoder_layers - 2:
           memory_mlp_dim = last_write_dim
@@ -289,8 +293,11 @@ class SubDecoderLayer(nn.Module):
           kernel_init=initializers.get_model_init(cfg), # lsp
           output_kernel_init=(initializers.get_model_init(cfg, residual_output=True)
                               if cfg.decoder_block == 'pythia' else None),
+          bam_memory_output=share_memory_hidden and mlp_write,
           use_bias=cfg.decoder_block == 'pythia',
       )(hidden_states, deep_embedding=deep_embedding, decoder_input_tokens=decoder_input_tokens, deterministic=deterministic)
+      if share_memory_hidden and mlp_write:
+        mlp_lnx, memory_lnx = mlp_lnx
       mlp_lnx = nn.with_logical_constraint(mlp_lnx, ("activation_batch", "activation_norm_length", "activation_embed"))
 
       if cfg.record_internal_nn_metrics:

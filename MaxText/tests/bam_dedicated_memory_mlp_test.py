@@ -9,12 +9,13 @@ from flax.traverse_util import flatten_dict
 import max_utils
 import train_compile
 from bam_prop_test_utils import MLPWriteTest
-from layers import fusion, quantizations, bam_pallas, normalizations
+from layers import fusion, quantizations, bam_pallas, normalizations, linears, initializers
 from layers.models import Transformer
 from common_types import MODEL_MODE_TRAIN
 
 A='BamMediumPropMShiftReadG050DedicatedMemoryMLPMHAWidthTruePile'
 B='BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1TruePile'
+SH='BamMediumPropMShiftReadG050SharedHiddenMemoryMLPTruePile'
 
 class DedicatedMemoryMLPTest(MLPWriteTest, unittest.TestCase):
   def test_formal_budgets_and_kernel_settings(self):
@@ -44,7 +45,56 @@ class DedicatedMemoryMLPTest(MLPWriteTest, unittest.TestCase):
         emb_bam_num_head=2,bam_write_v_bottleneck_dim=8,
         emb_bam_v_bottleneck_dim=8,bam_mlp_write_address_rank=8,
         bam_local_full_m_read_bottleneck_dim=8,bam_layer_modes=c.bam_layer_modes[:layers])
+    if getattr(c,'bam_memory_mlp_share_hidden',False):
+      c.get_keys().update(bam_memory_mlp_dim=32,bam_memory_mlp_last_write_dim=0)
     return c
+
+  def test_shared_formal_budget_and_projection_tree(self):
+    c=self.config(SH)
+    c.get_keys().update(max_target_length=256,max_prefill_predict_length=256)
+    mesh=jax.sharding.Mesh(max_utils.create_device_mesh(c),c.mesh_axes)
+    args,_,_,_=train_compile.get_shaped_inputs(mesh,c)
+    flat=flatten_dict(args[0].params)
+    self.assertEqual(sum(int(np.prod(v.shape)) for v in flat.values()),432121680)
+    self.assertFalse(any('memory_mlp' in p for p in flat))
+    self.assertEqual(sum(int(np.prod(v.shape)) for p,v in flat.items() if 'memory_wo' in p),57140400)
+    paths=['/'.join(p) for p in flat]
+    self.assertFalse(any('final_local_layer_1/' in p and 'memory_wo' in p for p in paths))
+    self.assertTrue(c.bam_pallas_core and c.bam_pallas_fused_inputs and c.record_training_health_metrics)
+    self.assertFalse(c.record_internal_nn_metrics)
+
+  def test_shared_hidden_reference_and_head_gradients(self):
+    c=self.tiny(SH)
+    mod=linears.MlpBlock(config=c,intermediate_dim=32,activations=c.mlp_activations,
+        kernel_init=initializers.get_model_init(c),bam_memory_output=True,
+        intermediate_dropout_rate=0,dtype=jnp.float32,weight_dtype=jnp.float32)
+    x=jax.random.normal(jax.random.key(21),(1,4,150))
+    p=nn.unbox(mod.init(jax.random.key(22),x,deterministic=True)['params'])
+    self.assertEqual(set(p),{'wi_0','wi_1','wo','memory_wo'})
+    a,b=mod.apply({'params':p},x,deterministic=True)
+    hidden=jax.nn.silu(x@p['wi_0']['kernel'])*(x@p['wi_1']['kernel'])
+    np.testing.assert_allclose(a,hidden@p['wo']['kernel'],rtol=1e-6,atol=1e-6)
+    np.testing.assert_allclose(b,hidden@p['memory_wo']['kernel'],rtol=1e-6,atol=1e-6)
+    for index,own,other in [(0,'wo','memory_wo'),(1,'memory_wo','wo')]:
+      grad=jax.grad(lambda q:jnp.sum(mod.apply({'params':q},x,deterministic=True)[index]**2))(p)
+      for name in ['wi_0','wi_1',own]:self.assertGreater(float(jnp.sum(grad[name]['kernel']**2)),0,name)
+      self.assertEqual(float(jnp.sum(grad[other]['kernel']**2)),0)
+
+  def test_shared_scan_gradients_causality_and_terminal_head_omission(self):
+    c=self.tiny(SH);mesh=jax.sharding.Mesh(max_utils.create_device_mesh(c),c.mesh_axes)
+    model=Transformer(c,mesh,quantizations.configure_quantization(c))
+    tok=jnp.array([[1,2,3,4]],jnp.int32);pos=jnp.arange(4)[None];seg=jnp.ones_like(tok)
+    with mesh,nn.partitioning.axis_rules(c.logical_axis_rules):
+      p=nn.unbox(model.init(jax.random.key(23),tok,pos,tok,seg,seg,enable_dropout=False)['params'])
+      def call(p,t):return model.apply({'params':p},t,pos,t,seg,seg,enable_dropout=False)[0]
+      y=call(p,tok);yp=call(p,tok.at[:,3].set(8))
+      np.testing.assert_allclose(y[:,:3],yp[:,:3],rtol=1e-6,atol=1e-6)
+      val,grad=jax.jit(jax.value_and_grad(lambda q:jnp.mean(call(q,tok)**2)))(p)
+      self.assertTrue(np.isfinite(float(val)))
+      for path,v in flatten_dict(grad).items():
+        self.assertTrue(np.isfinite(np.asarray(v)).all(),str(path))
+        if 'memory_wo' in path:self.assertGreater(float(jnp.sum(v*v)),0,str(path))
+      self.assertFalse(any('final_local_layer_1' in path and 'memory_wo' in path for path in flatten_dict(p)))
 
   def test_branches_are_functionally_separate(self):
     c=self.tiny();mesh=jax.sharding.Mesh(max_utils.create_device_mesh(c),c.mesh_axes)

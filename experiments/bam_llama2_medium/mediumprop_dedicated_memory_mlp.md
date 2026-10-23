@@ -47,3 +47,31 @@ Sealed runtime18a9d9cf5e912ffbc5549e65746f261b722c28ec; both FIRST_STEP and step
 Startup throughput~.707step/s, with the declared metric/kernel settings. CPU gate:47 shared
 BAM regressions +4 dedicated-path checks +5 summary-writer tests, all passed.
 Both AOTs compiled serially on the retained worker and launched on their assigned TPUs.
+
+## Shared hidden follow-up
+
+RUN `BamMediumPropMShiftReadG050SharedHiddenMemoryMLPTruePile`, TPU
+`xd-v5p-16-310319-maxtext`, UE5a. Same family worktree and retained compiler.
+Share W1/Wg and the actual SwiGLU hidden activation; independent vector `wo` and
+memory `memory_wo` output heads. L0–16 hidden2801, L17 hidden2794 with no memory head,
+address, or gate. Both outputs use the same post-attention normalized input and hidden;
+only vector `wo` contributes to the vector residual, memory `memory_wo` writes M.
+Pallas v8t read/write interfaces and M-cache remain unchanged.
+
+Exact parameter budget: 181479600 for shared inputs + vector output heads,
+57140400 for memory output heads, 7786000 write controls. Total432121680:
+MHA+480 (+.000333W_Q), original single.5 parent+10000 (+.006944W_Q),
+both independent-branch arms+8400 (+.005833W_Q). Attribution of common W1/Wg to the
+vector column here is bookkeeping, not a claim that they serve only that stream.
+
+Main-only commits after fork781a86a6 through current maincb8ba616 contain ledger/startup
+metadata only: no train/AOT/summary-writer/checkpoint/optimizer/default changes to port.
+Same schedule, initialization recipe, per-write gate opening.1, kernel and health settings;
+no new normalization or amplitude coefficient. CPU gate adds exact shared budget/tree,
+explicit hidden/head reference and cross-head gradients, scanned causality and live memory
+head gradients to the existing family checks and full shared BAM suite.
+
+Compare direct independent2:1 arm plus original single.5 direction anchor; MHA common
+reference for both gain ratios. Terminal bets:1.05 versus original parent, approximately
+1.01 versus independent2:1 (consistent with that arm's1.04 prior); throughput+2% versus
+independent2:1. Full13500 plan, reviews2800/5000, grouped reports every1000 early.

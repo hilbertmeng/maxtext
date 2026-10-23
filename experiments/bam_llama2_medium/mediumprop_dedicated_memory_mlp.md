@@ -208,3 +208,42 @@ Reproduction/proof: `/data0/xd/bam_diagnostics/mediumprop-dedicated-m-mlp/`
 `half-final-report.json`, `half-final-proof.json`, `half-lease-final.json`,
 `closeout-half.json`, `review-half2800-shared5k.png/.csv`. Parameter/configuration
 and startup details above remain the runtime specification.
+
+
+## MHA-width and shared-hidden closeout
+
+Both stopped by user. MHA-width runtime18a9d9cf5e912ffbc5549e65746f261b722c28ec
+stopped7849: its initial parent advantage vanished, and5k–7.8k showed a persistent
+loss deficit without late catch-up. Last five7000/7200/7400/7600/7800 windows average
++.00285040, MHA-reference gain.98381510 vs original single.5. Giving the ordinary
+MLP the MHA width while reducing the dedicated M network to511/505 did not improve
+the SOTA parent. Total parent+1600 (.001111W_Q), unchanged75x32 M-cache;
+startup~.707step/s, with parent timings incomparable because of health/kernel settings.
+Its terminal1.01 prior was unsupported through the stop.
+
+Shared-hidden runtime89d6bec543615acbae3ea5115235e90b2e7b2c4b stopped6264.
+It initially beat independent2:1, lost that advantage around2.8k, then persistently
+trailed original single.5 from about4k. Last five5400/5600/5800/6000/6200:
+vs2:1 +.00357544/gain.98130088; vs original +.00270456/gain.98578882.
+Its early learning benefit did not persist. Startup~.710 vs2:1~.707 (+.4%),
+parameters+8400 (.005833W_Q), same cache and matched metric/kernel settings;
+those small deltas do not justify the quality deficit. Initial priors1.05 vs
+original/1.01 vs2:1 were unsupported through the stop. Cached trajectory remains
+available to the rank8 descendants; independent2:1 continues as the full-run control.
+
+Both stayed on v5p-16 in us-east5-a, no passive candidates or zone switches,
+one preemption each. CP7849/CP6264 committed, independent TPU+queue NOT_FOUND
+verified, local TB SYNC_OK. Retained FLEX compiler untouched.
+
+| RUN suffix | READY start UTC | End UTC | Full duration | End reason |
+|---|---|---|---|---|
+|MHAWidth lease1|2026-10-23 05:28:56|2026-10-23 06:31:51|1h02m55s|preempted; first prequeue READY, registry starts9s later|
+|SharedHidden lease1|2026-10-23 06:12:03|2026-10-23 06:31:53|19m50s|preempted; first prequeue READY, registry starts11s later|
+|MHAWidth lease2|2026-10-23 06:37:36|2026-10-23 08:54:47|2h17m11s|user stop7849|
+|SharedHidden lease2|2026-10-23 06:37:29|2026-10-23 08:56:44|2h19m15s|user stop6264|
+
+Assignments: MHAWidth05:29:03–08:54:47, SharedHidden06:12:11–08:56:44 UTC.
+Artifacts under `/data0/xd/bam_diagnostics/mediumprop-dedicated-m-mlp/`:
+`stop-pair-proof.json`, `stop-pair-registry-final.json`, `stop-pair-final-report.json`,
+`stop-pair-final.png/.csv`, `closeout-mha-width.json`, `closeout-shared-hidden.json`.
+Metrics use final native canonical loss caches, not hand-computed gain ratios.

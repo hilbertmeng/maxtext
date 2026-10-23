@@ -17352,6 +17352,12 @@ class Pythia2p8BShortTrainV5p8Profile(TrainStepProfile, Pythia2p8BShortTrain):
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPMHAWidthTruePile(
     SplashTunedBlocks1024, BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile):
     """Per-layer vector FFN3200 plus a separate, M-only SwiGLU branch."""
+    # Stopped at7849 by user; UE5a v5p-16 P1; CP7849 committed, resources absent, TB SYNC_OK.
+    # Early advantage vanished;5k..7.8k persistent parent deficit, no late catch-up.
+    # Final5(7000..7800) vs single.5 mean gap+.002850/gain.983815: failed allocation.
+    # MHA-sized ordinary MLP did not offset the smaller M-update branch.
+    # Startup~.707; parent timing has different health/kernel settings; M-cache unchanged.
+    # Params parent+1600=.001111W_Q; expected gain1.01 unsupported through stop.
     # Implementation: codex/mediumprop-dedicated-m-mlp; /data0/xd/mediumprop-dedicated-m-mlp.
     # code_commit: 18a9d9c; UE5a v5p-16 startup~.707step/s; Pallas+tuned Splash.
     # Generic training health ON; internal/BAM metrics OFF.
@@ -17396,6 +17402,12 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1TruePile(
 class BamMediumPropMShiftReadG050SharedHiddenMemoryMLPTruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1TruePile):
     """Share SwiGLU input/gate projections and hidden activation; separate vector/M heads."""
+    # Stopped at6264 by user; UE5a v5p-16 P1; CP6264 committed, resources absent, TB SYNC_OK.
+    # Early convergence advantage reversed after~2.8k vs2:1 and~4k vs single.5.
+    # Final5(5400..6200) vs2:1 +.003575/gain.981301; vs single.5 +.002705/gain.985789.
+    # Shared nonlinear features did not preserve their early loss benefit; failed SOTA candidate.
+    # Startup~.710 vs2:1~.707 (+.4%); params+8400=.005833W_Q; M-cache unchanged.
+    # Initial gain bets1.05 vs single.5/1.01 vs2:1 unsupported through stop.
     # Implementation: codex/mediumprop-dedicated-m-mlp; /data0/xd/mediumprop-dedicated-m-mlp.
     # code_commit: 89d6bec; UE5a v5p-16 startup~.71step/s; Pallas+tuned Splash.
     # Generic training health ON; internal/BAM metrics OFF.

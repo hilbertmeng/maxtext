@@ -1679,3 +1679,53 @@ writing remains ON in all three. The MLP writing policy and its coupled127-unit
 L16 MLP repayment are the stronger conditioning clue; current controls
 do not isolate those two variables. The new static-V zero-initialization
 candidate above remains untested and has not been launched.
+
+
+### L14 VM duplication on L2 VM and old L2 QKVM parents
+
+User authorized two from-scratch runs, using the existing family worktree
+/data0/xd/mediumprop-mudd-tail, branch codex/mediumprop-mudd-tail.
+
+| RUN | Direct parent | L14 / L17 routing | L16 MLP write | TPU / zone |
+|---|---|---|---|---|
+| BamMediumPropMShiftReadG050MuddVMSharedRouterLastTwoBlocksL2AnchorTruePile | BamMediumPropMShiftReadG050MuddVMSharedRouterLastBlockL2AnchorTruePile | VM / VM | ON | xd-v5p-16-310310-maxtext / us-east5-a |
+| BamMediumPropMShiftReadG050MuddVMQKVMSharedRouterLastTwoBlocksL2AnchorTruePile | BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockL2AnchorTruePile | VM / QKVM | OFF | xd-v5p-16-310311-maxtext / us-east5-a |
+
+Both preserve L13 MLP writing and L14 attention writing. L14 Q/K/O read M,
+V uses a full W_V after native shared C2 V/m routing. All mixtures use
+[embedding,L0,L2,current]; hidden64, identity bias and zero up. The final
+C1 output router is unchanged and evaluated only once. L17 attention writing
+remains absent in both. No L5 anchor, dual V, QKNorm or new health statistics.
+The new flag selects L-4 only, without widening the old tail/write omission
+range. Preserve the original parent implementations/runtime lineage.
+
+L14 replacing M-read V with W_V and its norm costs1402256=.9737889W_Q
+non-router parameters. L14 MLP3802->3412 repays1404000, rounding-1744;
+L12/L13 widths3802/3676 are unchanged. One native C2 router adds77320
+tiny exempt parameters, consistent with the existing Mudd convention. Thus
+both children are parent+75576 parameters, with no inference M-cache increase.
+VM child total432342692, routers231700, last block3802/3676/3540.
+QKVM child total432342156, routers232220, last block3802/3803/3026.
+Scan stages: ordinary blocks0..3 x4, L12..14 x1 (pre_tail_layers),
+L15..17 x1 (tail_layers). Distinct stage shapes prevent accidental MLP tying.
+
+Direct compare_runs retain each parent plus the sibling; VM duplication also
+compares to old L2 QKVM as the direction SOTA. MHA-reference gain ratios are
+registered for these explicit edges. Report both arms together every2000
+steps, with independent2800/5000 reviews; loss windows remain200 steps.
+Plan13500, TruePile4096 T4096/global128/per-device16, CP200/latest2/keep0,
+TB rotation500. Generic health ON, internal/BAM OFF, tuned Splash and
+v8t/48MiB/fused inputs inherited; L14/L17 use the existing JAX bridge.
+Prior terminal gains versus direct parents: VM1.015, QKVM1.020; expected
+throughput2..5% lower. The experiment tests earlier VM processing while
+retaining the larger downstream influence of L13 writes.
+
+Infrastructure audit against main177ac65458cdd54629c188215946de165ffe92a6:
+train.py, max_utils.py, summary_writer.py, train_compile.py, checkpointing.py
+and optimizers.py have no differences. The b639ea1f checkpoint-directory
+repair is already present; rotating writer construction and begin_step before
+scalars are present. base.yml differences preserve family model flags only.
+Latest same-topology leases through2026-10-22 favor us-east5-a; use it for
+both spot trainers, with no new FLEX allocation. Borrow retained user FLEX
+llm-jax-v6e-1-0/europe-west4-a worker0; actual resource ACTIVE/FLEX_START
+and idle worker verified. AOTs serialize through its worker lock.

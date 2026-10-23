@@ -448,3 +448,15 @@ checkpoint/writer fixes versus family fork781a86a6. New base.yml fields are
 experimental tail defaults only. Borrowed retained FLEX `llm-jax-v6e-1-0`,
 europe-west4-a/worker0 is ACTIVE/idle, not best-effort. Its worker lock serializes
 all three AOTs; each launcher owns only its own formal UE5a training prequeue.
+
+Startup2026-10-23: all three RUNs sealed on`82e5a73a4e03dafabfb55f6d1d130e7dcae4f800`.
+CPU74 passed once and was reused under the local gate lock. Retained FLEX AOTs
+ran serially under its worker lock; all three training prequeues ran concurrently.
+Each worker loaded its exact AOT, produced FIRST_STEP and passed step14; registry
+and actual controller environments agree on runtime, both direct controls,
+zone-local truepile4096 data and full13500 schedule. Mean step10–14 throughput:
+QKVM.6960(−1.6% vs2:1), VM.6872(−2.8%), mixed.6760(−4.4%), within priors.
+Their old tail startup controls are.722/.713/.705 (about−3.6%/−3.6%/−4.1%).
+Same generic/internal/BAM health and tuned Splash;2:1 parent uses two-layer scan
+while these runs use three-layer stages. Proofs`combined-{qkvm,vm,mixed}-startup.json`
+and parallel-launch`*-20261023T112902Z/`; compiler lifecycle remains borrowed.

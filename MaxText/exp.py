@@ -17543,6 +17543,9 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRank8R128H768TruePile(
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MuddQKVML2TruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1TruePile):
     """Dense private M updates plus the L17 native shared QKVM/L2 champion exit."""
+    # code_commit: 82e5a73; UE5a v5p-16 startup~0.6960step/s (-1.6% vs2:1).
+    # Loaded AOT/FIRST_STEP/step14 verified; CPU74 passed, Pallas+tuned Splash.
+    # Generic training health ON, internal/BAM OFF; three-layer staged scan.
     # Implementation: codex/mediumprop-dedicated-m-mlp; /data0/xd/mediumprop-dedicated-m-mlp.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MuddQKVML2TruePile'
     bam_local_fetch_block_size = 3
@@ -17567,6 +17570,9 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MuddQKVML2TruePile(
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MuddVML2TruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MuddQKVML2TruePile):
     """Retain L17 QK matrix reads and L16 private M writer; use shared V/m Mudd."""
+    # code_commit: 82e5a73; UE5a v5p-16 startup~0.6872step/s (-2.8% vs2:1).
+    # Loaded AOT/FIRST_STEP/step14 verified; CPU74 passed, Pallas+tuned Splash.
+    # Generic training health ON, internal/BAM OFF; three-layer staged scan.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MuddVML2TruePile'
     bam_mudd_tail_residual_qk = False
     bam_mudd_tail_skip_mlp_write = False
@@ -17578,6 +17584,9 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MuddVML2TruePile(
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MuddL14VML17QKVML2TruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MuddQKVML2TruePile):
     """L14 VM and L17 QKVM, retaining both L14 writers and local2:1 MLP budgets."""
+    # code_commit: 82e5a73; UE5a v5p-16 startup~0.6760step/s (-4.4% vs2:1).
+    # Loaded AOT/FIRST_STEP/step14 verified; CPU74 passed, Pallas+tuned Splash.
+    # Generic training health ON, internal/BAM OFF; three-layer staged scan.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MuddL14VML17QKVML2TruePile'
     bam_mudd_pre_tail_vm = True
     bam_mudd_pre_tail_vm_mlp_dim = 2275

@@ -129,3 +129,52 @@ causality checks, summary-writer regression, sealed config, target AOT and FIRST
 Half-memory runtime884962320e2aa9b757a839924a6615950f7b98ec:62 checks passed
 (47 shared +10 family +5 summary writer), AOT loaded, step14 gate and CP400 verified.
 Stable20–99 median.702step/s,100–399 about.701, versus full3:1 startup.700 (flat).
+
+
+## Compact rank8 shared-hidden writes
+
+Two arms in the same implementation worktree/branch, new v5p-16 IDs310322/310323,
+us-east5-a, no passive candidates. Retained FLEX compiler unchanged; independent
+preparation jobs serialize AOT on its worker lock. Full13500 schedule, normal1000-step
+group reports and2800/5000 reviews; all inherited Pallas/tuned Splash, health,
+checkpoint, scan, dataset and initialization settings unchanged.
+
+Both replace the shared-hidden parent's16x75 memory output and independent R256
+GELU address/gate network with8 memory write heads, independent of16 attention heads.
+Ordinary SwiGLU hidden h is shared; U has8x75 entries. RMS content/address normalization,
+per-head sigmoid gates with bias logit(.1), additive write and original attention writes
+remain. Direct controls consume x = the same post-attention normalized MLP input,
+not raw residual or attention input. L17 has no memory branch/control parameters.
+No new amplitude scaling compensates16→8 write heads. Per-token update rank is at most8
+for this branch, unrelated to LocalQK read rank. Cache remains75x32. AOT uses16 scanned
+body layers as8two-layer blocks and separately compiled L16/L17.
+
+| RUN | Body hidden | Terminal | Body write projections | Total | MHA delta |
+|---|---:|---:|---|---:|---:|
+| `BamMediumPropMShiftReadG050SharedHiddenRank8WriteTruePile` |3114|2802|h→864 U/A/g factors|432122600|+1400|
+| `BamMediumPropMShiftReadG050SharedHiddenRank8InputControlsTruePile` |3234|2808|h→600 U; x→264 A/g|432122168|+968|
+
+Body budgets respectively4464*3114+264=13901160 and
+4200*3234+1200*264+264=13899864. Bias264 is256 address plus8 gate entries;
+content has no bias. Relative to shared-hidden432121680, integer residuals+920/+488
+(+.000639/+.000339 W_Q); versus MHA+.000972/+.000672 W_Q. Terminal widths differ
+from shared-hidden2794 only by8/14 to absorb accumulated integer rounding. Do not
+silently redistribute its terminal budget to3806; that would introduce a large confound.
+At equal H3114, x controls save(3114-1200)*264=505296 per body layer (.3509 W_Q),
+which funds the wider ordinary hidden in the matched-total arm.
+
+Joint arm compares shared-hidden parent and the independent2:1 direction leader;
+x-control arm additionally compares the joint arm. MHA remains the gain-ratio reference.
+Pre-run terminal bets vs shared-hidden1.02/1.03, x-control vsjoint1.01; speed flat.
+Main-only changes from fork781a86a6 through2b6fb63a are ledger metadata; no missing
+train/AOT/optimizer/checkpoint/writer infrastructure fixes. CPU gate covers shared suite,
+formal full-tree budgets/no redundant controls, explicit projection references and gradient
+sources, unequal-head scan causality/gradients, v8t unequal-group fwd/back and writer rotation.
+
+
+Compact-write runtime47b0e1b0032d27851291ea7885243a0acda4af18:65 CPU checks
+(47 shared +13 family +5 rotating-writer) passed; both sealed configurations match.
+Both AOTs loaded and FIRST_STEP/step14 gates passed on the assigned UE5a v5p-16s.
+Startup joint~.723step/s, x controls~.725, versus shared-hidden~.710 (about+1.8%/+2.1%,
+same declared health/kernel settings). Registry gain triples use MHA as reference for
+every comparator. Borrowed FLEX compiler remains intact and idle after both compiles.

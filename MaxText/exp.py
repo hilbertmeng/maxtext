@@ -17714,6 +17714,11 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MuddL14VML17VML2NoL1
     # Total432343492, native routers231700; matched L1 run-325, direct no-L1 parent-800.
     # Initial loss differs from matched L1 run by-1e-6; zero-up initial function preserved.
     # Terminal primary MHA-reference gain prior1.010[.995,1.025]; speed expected within~1%.
+    # Stopped at5195 after5k review; CP5195 committed, resources absent, TB SYNC_OK; P0.
+    # vs VM pair: brief near-tie at1.8-2k, persistent deficit from2.2k; final5 gap+.00102560/R.99505633.
+    # Refunding L14 private M-update budget to ordinary MLP does not pay through5k; no recovery trend.
+    # Total parent-800, ordinary L14+1137 widths, M-cache unchanged; startup+2.67% vs new VM parent.
+    # vs matched L1 refund through2.6k: no consistent source-removal gain; last5 mean is driven by2k outlier.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MuddL14VML17VML2NoL14MemoryMLPTruePile'
     bam_mudd_tail_l1_anchor = False
     compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MuddL14VML17VML2TruePile',

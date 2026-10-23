@@ -649,6 +649,8 @@ active leases are censored, and manual migration releases are not preemptions.
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MuddL14VML17VML1L2NoL14MemoryMLPTruePile` | v5p-16 (`xd-v5p-16-310330-maxtext`) | `us-east5-a` | 2026-10-23 14:51:16 | 2026-10-23 16:06:18 | user no-L1 hot-replace2720; CP committed, trainer transferred, TB SYNC_OK; runtime42f04a2; P0 | none |
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MuddL14VML17QKVML1L2TruePile` | v5p-16 (`xd-v5p-16-310324-maxtext`) | `us-east5-a` | 2026-10-23 14:05:09 | 2026-10-23 16:25:06 | post5k review stop5349; CP committed, resources absent, TB SYNC_OK; runtimedde6851; P0 | none |
 
+| `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MuddL14VML17VML2NoL14MemoryMLPTruePile` | v5p-16 (`xd-v5p-16-310330-maxtext`) | `us-east5-a` | 2026-10-23 16:07:26 | 2026-10-23 18:21:49 | post5k review stop5195; CP5195 committed, node/queue absent, TB SYNC_OK; P0; runtime607ee54; retained trainer after no-L1 handoff | none |
+
 ## READY leases
 
 | RUN | # | Zone | Start UTC | End UTC | Duration | Exit |
@@ -2105,6 +2107,8 @@ active leases are censored, and manual migration releases are not preemptions.
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MuddL14VML17VML1L2TruePile` | 1 | `us-east5-a` | 2026-10-23 14:23:55 | 2026-10-23 16:06:17 | 1h42m22s | user no-L1 hot-replace3670; CP committed, trainer transferred, TB SYNC_OK; runtimeafb2ee9; P0; first prequeue READY; registry starts14:26:47 |
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MuddL14VML17VML1L2NoL14MemoryMLPTruePile` | 1 | `us-east5-a` | 2026-10-23 14:51:06 | 2026-10-23 16:06:18 | 1h15m12s | user no-L1 hot-replace2720; CP committed, trainer transferred, TB SYNC_OK; runtime42f04a2; P0; first prequeue READY; registry starts14:51:19 |
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MuddL14VML17QKVML1L2TruePile` | 1 | `us-east5-a` | 2026-10-23 14:05:12 | 2026-10-23 16:25:06 | 2h19m54s | post5k review stop5349; CP committed, resources absent, TB SYNC_OK; runtimedde6851; P0; retained trainer after rank8 handoff; registry READY |
+
+| `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MuddL14VML17VML2NoL14MemoryMLPTruePile` | 1 | `us-east5-a` | 2026-10-23 16:07:28 | 2026-10-23 18:21:49 | 2h14m21s | post5k review stop5195; P0; CP5195 committed, node/queue absent, TB SYNC_OK; registry READY after retained hot handoff |
 
 ### 2026-10-14 user pause: resumed mixed R256/R384
 

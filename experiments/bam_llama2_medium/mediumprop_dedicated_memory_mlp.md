@@ -712,3 +712,32 @@ Chronological READY leases UTC, all v5p16 UE5a/P0:
 Native final reports and lease reports live under
 /data0/xd/bam_diagnostics/mediumprop-dedicated-m-mlp; loss/gain curves retain full
 mature history. New G/H are now the only live RUNs owned by this task.
+
+
+## No-L1 L14-refund final closeout (2026-10-24 JST)
+
+User narrowed reports to the5k stop review and13.5k closeout. At the common5k
+review retain the VM pair for full13500, stop only the L14-private-MLP refund.
+Native loss/gain full trajectories and plot: no-l1-review5k.json and
+no-l1-pair-review5k.png under the diagnostic directory. VM pair vs no-L1 mixed
+parent last5 gap-.00111836/R1.00540109; this modest direction-relative improvement
+warrants terminal verification, not a claim of breaking the old tail best.
+Review-only native comparison against completed original mixed tail still gives
++.00088712/R.99574787; do not replace the direction's direct parent with it.
+VM pair vs matched L1 version through3.6k +.00083488/R.99658981: L1's harm on
+QKVM cannot be generalized to VM. No intermediate exp.py diary for the live arm.
+
+Refund run stopped5195 at2026-10-23 18:21:49 UTC. CP5195 committed, node and queue
+independently verified absent, TB SYNC_OK; P0. Native final common horizon5000,
+last5(4200..5000) parent gap+.00102560/R.99505633. Brief near-tie at1.8-2k gave
+way to persistent positive gaps after2.2k; no late catch-up. Redistributing the
+L14 private MLP/control budget to1137 ordinary widths has no demonstrated gain
+through5k; not a full13500 terminal claim. Total parent-800; M-cache unchanged.
+Startup.6770 vs parent.6594 (+2.67%), same health/kernel settings; small speed
+benefit does not establish the intended loss/capacity gain. Matched L1-refund
+comparison's2.6k last5 average is dominated by a single2k window; four other
+windows remain worse, so do not interpret its mean as a source-removal win.
+Chronological READY: retained UE5a v5p16 physical310330, registry
+16:07:28–18:21:49 UTC=2h14m21s; preceding old L1 run recorded separately.
+Proofs:closeout-no-l1-refund-5k.json,no-l1-refund-registry-final.json,
+no-l1-refund-leases.json,no-l1-refund-final-report.json.

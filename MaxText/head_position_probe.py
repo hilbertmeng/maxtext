@@ -154,7 +154,7 @@ def main():
     mismatches=[];checked=[]
     for key,raw in expected.items():
         if key not in critical and not key.startswith(prefixes):continue
-        if not hasattr(cfg,key):continue
+        if key not in cfg.get_keys():continue
         actual=getattr(cfg,key)
         try:value=ast.literal_eval(raw)
         except (ValueError,SyntaxError):value=raw

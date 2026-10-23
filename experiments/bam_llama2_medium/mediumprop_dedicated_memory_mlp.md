@@ -741,3 +741,40 @@ Chronological READY: retained UE5a v5p16 physical310330, registry
 16:07:28–18:21:49 UTC=2h14m21s; preceding old L1 run recorded separately.
 Proofs:closeout-no-l1-refund-5k.json,no-l1-refund-registry-final.json,
 no-l1-refund-leases.json,no-l1-refund-final-report.json.
+
+
+## No-L1 spaced VM pair full closeout (2026-10-24 JST)
+
+Completed13500 at runtime607ee54, clean worker exit21:59:03 UTC; automatic resource
+release finished and registry complete at22:01:09 UTC. CP13500 committed; node
+and queued resource independently probed NOT_FOUND; local TensorBoard SYNC_OK.
+Already-closed wrapper skipped all lifecycle operations. No owned live RUNs remain;
+borrowed FLEX compiler is preserved. Single UE5a v5p16 READY lease:
+2026-10-23 16:07:43–22:01:09 UTC=5h53m26; P0, no zone switch/passive candidates.
+Physical310329 was transferred from preceding L1 run, recorded separately.
+
+Full native cumulative loss/gain data:no-l1-vm-final-group.json; plotted together
+from2400 to13400 in no-l1-vm-final-trajectories.png/.svg/.csv. Latest five windows
+use exact common samples, stride200; ratios remain MHA-referenced:
+- Direct mixed2:1 parent ends9806, mature comparison9600. Last5 gap-.00140780 /
+  R1.00832731; small persistent advantage, slight late strengthening. Initial
+  terminal1.015 point bet was optimistic at this shared phase; cannot verify a
+  terminal parent ratio without full parent training.
+- Matched L1 VM ends3670, mature3600: last5+.00083488/R.99658981. Removing L1 did
+  not improve this VM variant; earlier QKVM evidence does not transfer wholesale.
+- Completed original mixed tail was added at9800 as planned, preserving existing
+  ratio cursors and local delivered horizon; no intermediate user report. Full
+  common horizon13400: last5 gap-.00066760/R1.00422673, last10-.00038144/R1.00241647,
+  last15-.00026461/R1.00168502, last20-.00005909/R1.00043313. Mid-run positive
+  ~.001 gaps gradually closed; near tie from11k, final two windows favor new run.
+  Terminal advantage is tiny and depends on window length, not a clear SOTA
+  breakthrough. The VM+restored L16-write combination can recover the mid-run
+  cost; this does not establish clean additivity of2:1 and an unchanged tail.
+
+Total432344292 = mixed2:1 parent+536 / original mixed tail+2136. Native routers
+231700; original M75x32 dimensions remain. Startup.6594 vs mixed parent.6760
+(-2.46%), same generic-health-ON/internal+BAM-OFF and tuned Splash/Pallas settings.
+No new final diagnostic/profile workload. The refund descendant failed through5k;
+this full run supplies the terminal result of retaining L14 private M updating.
+Final evidence:no-l1-vm-final-registry.json,no-l1-vm-final-status.json,
+no-l1-vm-final-leases.json,no-l1-vm-final-summary.json,closeout-no-l1-vm-final.log.

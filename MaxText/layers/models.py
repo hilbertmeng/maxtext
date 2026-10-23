@@ -964,6 +964,8 @@ class Decoder(nn.Module):
         persistent = bool(getattr(cfg, 'bam_persistent_embedding_m', False))
         blocks = 1 if persistent else int(cfg.bam_mudd_tail_blocks)
         pre_tail_vm = bool(cfg.bam_mudd_pre_tail_vm)
+        if cfg.bam_mudd_pre_tail_vm_skip_mlp_write and not pre_tail_vm:
+          raise ValueError('pre-tail MLP write omission requires an additional VM site')
         if pre_tail_vm and (blocks != 1 or persistent
             or type(cfg.bam_mudd_pre_tail_vm_offset) is not int
             or cfg.bam_mudd_pre_tail_vm_offset not in (3, 4)

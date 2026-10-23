@@ -38,6 +38,9 @@ def is_value_layer(config, layer_index):
 
 
 def skips_mlp_write(config, layer_index):
+  if (getattr(config, 'bam_mudd_pre_tail_vm_skip_mlp_write', False)
+      and is_pre_tail_vm(config, layer_index)):
+    return True
   return (bool(getattr(config, 'bam_mudd_tail_blocks', 0))
           and getattr(config, 'bam_mudd_tail_skip_mlp_write', True)
           and layer_index >= tail_start(config) and layer_index % 3 == 1)

@@ -17635,3 +17635,17 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MuddL14VML17VML1L2Tr
     bam_mudd_tail_mlp_dims = [2535, 2535, 3544]
     bam_memory_mlp_dim_by_layer = [1140] * 14 + [1010, 1140, 1140, 0]
     compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MuddL14VML17QKVML1L2TruePile']
+
+
+class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MuddL14VML17VML1L2NoL14MemoryMLPTruePile(
+    BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MuddL14VML17VML1L2TruePile):
+    """Give L14 VM's private M-update budget back to its vector MLP; retain attention write."""
+    # Remove all4094000 L14 private/control params; refund1137 ordinary widths4093200.
+    # Total432343817 = direct parent-800; native routers232025 unchanged.
+    # L15/L16 private M writers remain; L17 remains write-free; source set/routers unchanged.
+    # Terminal MHA-reference gain prior1.015[1.000,1.030]; expected throughput0..+2%.
+    model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MuddL14VML17VML1L2NoL14MemoryMLPTruePile'
+    bam_mudd_pre_tail_vm_skip_mlp_write = True
+    bam_mudd_pre_tail_vm_mlp_dim = 3412
+    bam_memory_mlp_dim_by_layer = [1140] * 14 + [0, 1140, 1140, 0]
+    compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MuddL14VML17VML1L2TruePile']

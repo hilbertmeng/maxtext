@@ -547,3 +547,37 @@ preserved. Successful retry preparation20261023T141904Z, first trainer READY
 verified in`two-vm-l1-startup.json`. Throughput0.6678 vs .677 (-1.36%).
 Sole direct L1 mixed-QKVM parent and MHA-reference gain registered. All widths,
 432344617 total,232025 routers and live L16 write confirmed in formal trees.
+
+
+## L14 vector capacity refund on spaced VM pair (2026-10-23)
+
+User requests another independent RUN on the two-VM/L1 parent:
+`BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MuddL14VML17VML1L2NoL14MemoryMLPTruePile`.
+Remove the complete L14 private M branch, not only its hidden dimension: set
+`bam_mudd_pre_tail_vm_skip_mlp_write=True` and explicit per-layer private H14=0.
+The selective write policy suppresses the ordinary-MLP-to-M fallback and removes
+private content, address down/up/prebias and gate/bias parameters. L14 attention
+write remains, L15/L16 private writers remain1140, L17 stays write-free. Sources,
+native shared controllers, first-block anchors and final readout are unchanged.
+L14 content1010*3600=3636000 + controls458000 gives4094000; refund1137 ordinary
+widths4093200, L14 ordinary2275->3412. Last four normal widths3412/2535/2535/3544,
+private0/1140/1140/0. Expected432343817 total,232025 native routers: parent-800
+(-.0005556W_Q), ordinary171057600 (+4093200), cache unchanged.
+
+Sole direct parent is the already running L14VM/L17VM/L1 class, common MHA gain
+reference. Terminal prior1.015 [1.000,1.030], throughput0..+2%. This specifically
+restores vector-processing capacity at the Mudd VM site while ordinary L15/L16
+continue maintaining M; no simultaneous removal at ordinary L15. Early reports
+1000 then2000 after5k, keep through5000 (2800 observational review), full13500
+schedule. Initial launch ID310330 UE5a v5p16. Same independent family worktree,
+branch, data/shapes, tuned Splash/Pallas/health/checkpoint/TB settings as parent.
+
+Infrastructure audit through mainf50f17f6: main-only changes since prior audit are
+ledger and closeout notes, no missing operational fixes. The only functional change
+is a default-OFF selective pre-tail write-suppression flag and invalid-config guard;
+no BAM math, kernel, scan, optimizer or initialization changes. Scoped sealed CPU
+checks cover six full formal parameter trees/write policies, new no-fallback
+forward/causality/gradients with live L14 attention and L15/L16 memory paths, direct
+parent regression, and existing/new JAX/v8t bridge output/gradient equality. Borrow
+retained FLEX compiler, preserve its lifecycle; launcher owns only the new UE5a
+training prequeue. Main exp.py remains ledger-only for this worktree implementation.

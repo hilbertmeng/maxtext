@@ -635,6 +635,8 @@ active leases are censored, and manual migration releases are not preemptions.
 | `BamMediumPropMShiftReadG050HalfMemoryMLPTruePile` | v5p-16 (`xd-v5p-16-310321-maxtext`) | `us-east5-a` | 2026-10-23 07:13:51 | 2026-10-23 08:29:47 | review stop2998; P0; CP committed, node/queue absent, TB SYNC_OK; runtime8849623 | none |
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPMHAWidthTruePile` | v5p-16 (`xd-v5p-16-310317-maxtext`) | `us-east5-a` | 2026-10-23 05:29:03 | 2026-10-23 08:54:47 | user stop7849; P1; CP committed, node/queue absent, TB SYNC_OK; runtime18a9d9c | none |
 | `BamMediumPropMShiftReadG050SharedHiddenMemoryMLPTruePile` | v5p-16 (`xd-v5p-16-310319-maxtext`) | `us-east5-a` | 2026-10-23 06:12:11 | 2026-10-23 08:56:44 | user stop6264; P1; CP committed, node/queue absent, TB SYNC_OK; runtime89d6bec | none |
+| `BamMediumPropMShiftReadG050SharedHiddenRank8WriteTruePile` | v5p-16 (`xd-v5p-16-310322-maxtext`) | `us-east5-a` | 2026-10-23 07:59:41 | 2026-10-23 09:13:44 | review stop3005; P0; CP committed, node/queue absent, TB SYNC_OK; runtime47b0e1b | none |
+| `BamMediumPropMShiftReadG050SharedHiddenRank8InputControlsTruePile` | v5p-16 (`xd-v5p-16-310323-maxtext`) | `us-east5-a` | 2026-10-23 08:00:02 | 2026-10-23 09:13:48 | review stop2983; P0; CP committed, node/queue absent, TB SYNC_OK; runtime47b0e1b | none |
 
 ## READY leases
 
@@ -1916,6 +1918,8 @@ active leases are censored, and manual migration releases are not preemptions.
 | `BamMediumPropMShiftReadG050HalfMemoryMLPTruePile` | 1 | `us-east5-a` | 2026-10-23 07:13:43 | 2026-10-23 08:29:47 | 1h16m04s | review stop2998; first prequeue READY; registry subinterval07:13:54–08:29:47=1h15m53s; CP committed, resources absent, TB SYNC_OK |
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPMHAWidthTruePile` | 2 | `us-east5-a` | 2026-10-23 06:37:36 | 2026-10-23 08:54:47 | 2h17m11s | user stop7849; CP committed, resources absent, TB SYNC_OK |
 | `BamMediumPropMShiftReadG050SharedHiddenMemoryMLPTruePile` | 2 | `us-east5-a` | 2026-10-23 06:37:29 | 2026-10-23 08:56:44 | 2h19m15s | user stop6264; CP committed, resources absent, TB SYNC_OK |
+| `BamMediumPropMShiftReadG050SharedHiddenRank8WriteTruePile` | 1 | `us-east5-a` | 2026-10-23 07:59:32 | 2026-10-23 09:13:44 | 1h14m12s | review stop3005; first prequeue READY; CP committed, resources absent, TB SYNC_OK |
+| `BamMediumPropMShiftReadG050SharedHiddenRank8InputControlsTruePile` | 1 | `us-east5-a` | 2026-10-23 07:59:37 | 2026-10-23 09:13:48 | 1h14m11s | review stop2983; first prequeue READY; CP committed, resources absent, TB SYNC_OK |
 
 | `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadT8192` | 1 | `us-east5-a` | 2026-10-13 01:40:37 | 2026-10-13 06:51:38 | 5h11m01s | manual review stop7140; resources absent, TB SYNC_OK |
 

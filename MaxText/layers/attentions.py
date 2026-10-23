@@ -40,6 +40,7 @@ from layers import quantizations
 from layers import dc
 from layers import accelerator
 from layers import normalizations
+from layers import bam_mudd
 from layers import kv_shift
 
 import max_logging
@@ -2566,6 +2567,15 @@ class BamAttention(Attention):
   def setup(self):
     super().setup()             # reuse attention_op / projections / rope / out_projection
     cfg = self.config
+    self._residual_value = bam_mudd.is_value_layer(cfg, self.layer_inx)
+    self._dual_value = self._residual_value and cfg.bam_mudd_tail_dual_value
+    self._has_value_m_read = not self._residual_value or self._dual_value
+    self._residual_qk = bam_mudd.is_qk_layer(cfg, self.layer_inx)
+    self._persistent_read = (bool(getattr(cfg, 'bam_persistent_embedding_m', False))
+                             and self.layer_inx == cfg.num_decoder_layers - 1)
+    self._read_bam_v = self.bam_v + (int(cfg.num_query_heads) if self._persistent_read else 0)
+    if self._residual_value and getattr(cfg, 'bam_pallas_core', False):
+      raise ValueError('selective residual V uses the pure-JAX BAM path')
     validate_bam_config(cfg, layer_mode=self.layer_mode)
     self._local_v_replace = False
     self._static_vo = False
@@ -2657,7 +2667,7 @@ class BamAttention(Attention):
         self._local_v_mode = 'none'  # Remove LocalV keys/mixing/gates from the packed projection.
 
 
-    self._has_write = bool(self._mode)
+    self._has_write = bool(self._mode) and not bam_mudd.skips_attention_write(cfg, self.layer_inx)
     assert self.read_side in ('both', 'row', 'col')
 
     # DenseGeneral passes in_axis/out_axis to its initializer in addition to
@@ -2745,6 +2755,12 @@ class BamAttention(Attention):
     self._share_read_attention_down = bool(getattr(cfg, 'bam_share_read_attention_write_down', False))
     self._general_read = bool(getattr(cfg, 'bam_general_column_read', False))
     self._m_shift_mode = getattr(cfg, 'bam_m_shift_mode', None) or 'none'
+    if self._persistent_read and (
+        not self._general_read or self._full_m_read_rank is None
+        or self._m_shift_mode != 'read' or self._abs_v_dim is not None
+        or self._residual_value or self._residual_qk
+        or getattr(cfg, 'bam_pallas_core', False)):
+      raise ValueError('persistent embedding read requires uncompressed generalized read-only M-shift')
     assert self._m_shift_mode in ('none', 'read', 'persist')
     if self._m_shift_mode != 'none':
       assert self._full_m_read_rank is not None and self._general_read
@@ -2801,7 +2817,7 @@ class BamAttention(Attention):
         + (('v',) if self._local_v_mode == 'rank2' else ()))
     self._local_arms = {
         name: _BamReadArm(
-            name=name, k_dim=self.bam_k, v_dim=self.bam_v,
+            name=name, k_dim=self.bam_k, v_dim=self._read_bam_v,
             num_heads=self.num_query_heads, read_side=self.read_side,
             second_implementation=cfg.bam_local_second_implementation,
             gram_implementation=cfg.bam_local_gram_implementation,
@@ -2815,14 +2831,14 @@ class BamAttention(Attention):
                for key in ('rank', 'rank_routing', 'pre_rms_bias')})
         for name in arm_names}
     self._fetched_arm = _BamReadArm(
-        name='f', k_dim=self.bam_k, v_dim=self._abs_v_dim or self.bam_v,
+        name='f', k_dim=self.bam_k, v_dim=self._abs_v_dim or self._read_bam_v,
         num_heads=self._fetched_read_num_heads, read_side=self._fetched_read_side,
         **{**read_settings, 'rms_epsilon': self._fetched_read_key_epsilon})
     # Ungated sharing (LocalV 'shared') contracts the normalized key without a gate.
     self._fetched_arm_ungated = dataclasses.replace(self._fetched_arm, key_mode='rms')
     if self._direct_qk_c8:
       self._direct_qk_c8_arm = _BamReadArm(
-          name='q', k_dim=self.bam_k, v_dim=self._abs_v_dim or self.bam_v, num_heads=self.num_query_heads,
+          name='q', k_dim=self.bam_k, v_dim=self._abs_v_dim or self._read_bam_v, num_heads=self.num_query_heads,
           read_side='col', **read_settings)
     if read_settings['prune_row']:
       assert self.read_side == self._fetched_read_side == 'col'
@@ -2922,7 +2938,7 @@ class BamAttention(Attention):
 
     if self._output_read:
       read_k_dim = self.bam_k
-      read_v_dim = self._abs_v_dim or self.bam_v
+      read_v_dim = self._abs_v_dim or self._read_bam_v
 
       def decoder_init(_key, shape, dtype):
         direct = jnp.eye(shape[-2], shape[-1], dtype=dtype)
@@ -2991,28 +3007,28 @@ class BamAttention(Attention):
                 nn.initializers.constant(self._fetch_mix_num_heads ** -0.5), (None,)),
             (1,), self.weight_dtype)
 
-    self._concat_static_qk = bool(getattr(cfg, 'bam_concat_static_qk', False))
+    self._concat_static_qk = bool(getattr(cfg, 'bam_concat_static_qk', False)) and not self._residual_qk
     if self._concat_static_qk:
       assert cfg.bam_concat_qk and cfg.bam_prune_all_row_reads
       for arm in ('q', 'k'):
         setattr(self, 'static_' + arm + '_key', self.param(
             'static_' + arm + '_key', nn.with_logical_partitioning(zeros_init, ('v_factor', 'q_heads')),
-            (self.bam_v, self.num_query_heads), self.weight_dtype))
+            (self._read_bam_v, self.num_query_heads), self.weight_dtype))
 
     # Static VO reads precede packed-arm parameters, preserving Prop init order.
     self._local_v_replace = (
         'local_v' in self._mode and self._local_o
-        and bool(getattr(cfg, 'bam_local_v_replace', False)))
+        and bool(getattr(cfg, 'bam_local_v_replace', False)) and not self._residual_value)
     self._static_vo = self._local_o and bool(getattr(cfg, 'bam_local_vo_static', False))
     if self._local_v_replace:
       assert self._vo_independent_gates and self.bam_k == self.head_dim
     if self._static_vo:
-      for arm in (('v', 'o') if 'local_v' in self._mode else ('o',)):
+      for arm in (('v', 'o') if 'local_v' in self._mode and self._has_value_m_read else ('o',)):
         setattr(self, 'static_' + arm + '_key', self.param(
             'static_' + arm + '_key', nn.with_logical_partitioning(
-                nn.initializers.normal(self.bam_v ** -0.5) if arm == 'v' else zeros_init,
+                nn.initializers.normal(self._read_bam_v ** -0.5) if arm == 'v' else zeros_init,
                 ('v_factor', 'q_heads')),
-            (self.bam_v, self.num_query_heads), self.weight_dtype))
+            (self._read_bam_v, self.num_query_heads), self.weight_dtype))
 
     # ---- Packed local projection with per-arm bias / gate / norm / adapter. ----
     if self._local_arms:
@@ -3088,6 +3104,7 @@ class BamAttention(Attention):
               lambda key, shape, dtype: jnp.full(shape, math.log(eps / (1.0 - eps))),
               ("q_heads",)),
           (self.num_query_heads,), self.weight_dtype)
+    if self._has_write or bam_mudd.restores_mlp_write(cfg, self.layer_inx):
       learned_write_scale = self._write_factor_norm == 'grouped_rms'
       address_bias = self._write_address_norm_bias
       self.write_data_norm = GroupedRMSNorm(
@@ -3098,24 +3115,24 @@ class BamAttention(Attention):
           scale_init=nn.initializers.zeros if learned_write_scale else None,
           name='write_data_norm')
       self.write_address_norm = GroupedRMSNorm(
-          scale_shape=(self.num_query_heads, loc_v),
+          scale_shape=(self.num_query_heads, self.bam_v),
           epsilon=initializers.get_bam_write_epsilon(cfg), dtype=self.dtype,
           statistics_dtype=self._write_rms_statistics_dtype,
           weight_dtype=self.weight_dtype, kernel_axes=('q_heads', 'kv'),
           scale_init=nn.initializers.zeros if learned_write_scale else None,
           use_bias=address_bias, name='write_address_norm')
 
-    if self._vo_independent_gates:
+    if self._vo_independent_gates and self._has_value_m_read:
       add_read_gate('W_lv_gate', (self.num_query_heads, 1),
                     ('embed', 'q_heads', None), ('q_heads', None), fetched_gate_init)
 
-    if self._direct_qk_c8:
+    if self._direct_qk_c8 and not self._residual_qk:
       for name in ('q', 'k'):
         # Nonzero keys are essential for concatenated QK: two zero arms have
         # no attention-score cross term to awaken their dynamic read keys.
         if self._full_m_read_rank is not None:
           self._add_full_m_key_projection(
-              f'W_l{name}_c8', (self.num_query_heads, self.bam_v), ('embed', 'q_heads', 'kv'), reg_init)
+              f'W_l{name}_c8', (self.num_query_heads, self._read_bam_v), ('embed', 'q_heads', 'kv'), reg_init)
         else:
           setattr(self, f'W_l{name}_c8', DenseGeneral(
               features=(self.num_query_heads, self._abs_v_dim), axis=-1, kernel_init=reg_init,
@@ -3161,12 +3178,18 @@ class BamAttention(Attention):
     # Append generalized read parameters after the parent parameters to preserve init RNG order.
     if self._general_read:
       for arm, shape, axes in (
-          ('q', (self.num_query_heads, self.bam_v), ('q_heads', 'kv')),
-          ('k', (self.num_query_heads, self.bam_v), ('q_heads', 'kv')),
-          ('vo', (self.num_query_heads, cfg.bam_n_f, self.bam_v), ('q_heads', 'fetch', 'kv'))):
+          ('q', (self.num_query_heads, self._read_bam_v), ('q_heads', 'kv')),
+          ('k', (self.num_query_heads, self._read_bam_v), ('q_heads', 'kv')),
+          ('vo', (self.num_query_heads, cfg.bam_n_f, self._read_bam_v), ('q_heads', 'fetch', 'kv'))):
+        if arm in ('q', 'k') and self._residual_qk:
+          continue
         setattr(self, 'general_' + arm + '_pre_bias', self._constant_general_parameter(
             'general_' + arm + '_pre_bias', shape, axes))
       for arm in ('q', 'k', 'v', 'o'):
+        if arm in ('q', 'k') and self._residual_qk:
+          continue
+        if arm == 'v' and not self._has_value_m_read:
+          continue
         if arm in ('q', 'k') and not cfg.bam_qk_static_read_gate:
           continue
         self._add_static_gate('general_' + arm + '_static_gate', cfg.bam_static_read_gate_init)
@@ -3585,7 +3608,6 @@ class BamAttention(Attention):
 
   def merge_mlp_write(self, mlp_head, mlp_gate, factors, M_in, independent_address=None):
     """Merge attention/MLP writes, then decay the carried matrix exactly once."""
-    attention_content, address, attention_gate = factors
     compact_write = bool(getattr(self.config, 'bam_memory_write_heads', 0))
     # The attention norm checks its head count even when it has no parameters.
     # Compact memory heads have a separate count; preserve the same RMS math.
@@ -3597,6 +3619,17 @@ class BamAttention(Attention):
                if self._write_data_rms else mlp_head)
     scale = 1.0 / jnp.sqrt(self.num_query_heads) if self.config.bam_sqrt_n_scale else 1.0
     mlp_content = scale * mlp_gate[..., None] * content
+    if factors is None:
+      if independent_address is None:
+        raise ValueError('MLP-only M write requires an independent address')
+      mlp_address = compact_norm(independent_address) if compact_write else self.write_address_norm(independent_address)
+      with jax.named_scope('bam/mlp_independent_write_outer'):
+        if self._write_outer_implementation == 'dot':
+          dM = jnp.einsum('btnk,btnv->btkv', mlp_content, mlp_address)
+        else:
+          dM = jnp.sum(mlp_content[..., None] * mlp_address[..., None, :], axis=-3)
+      return _update_bam_matrix(M_in, dM, self.config.bam_lambda_decay)
+    attention_content, address, attention_gate = factors
     if independent_address is None:
       combined_content = attention_content + mlp_content
       with jax.named_scope('bam/write_outer'):
@@ -4057,6 +4090,10 @@ class BamAttention(Attention):
       is_global: Array | bool | None = None,
       layer_index: Array | int | None = None,
       defer_write: bool = False,
+      inputs_v: Array | None = None,
+      inputs_q_route: Array | None = None,
+      inputs_k_route: Array | None = None,
+      persistent_M: Array | None = None,
   ):
     """BAM forward. Returns (out, M_out): out [b,t,emb_dim], M_out [b,t,k,v].
 
@@ -4065,6 +4102,10 @@ class BamAttention(Attention):
     cfg = self.config
     assert model_mode == common_types.MODEL_MODE_TRAIN, "BamAttention v0.1 supports train mode only"
     assert self.num_query_heads == self.num_kv_heads, "BamAttention v0.1 requires n==n_kv (no GQA)"
+    if self._residual_value != (inputs_v is not None):
+      raise ValueError('selective residual V must receive its independently normalized route')
+    if self._residual_qk != (inputs_q_route is not None and inputs_k_route is not None):
+      raise ValueError('selective residual Q/K require their own independently normalized routes')
 
     inputs_q = nn.with_logical_constraint(inputs_q, self.input_axis_names)
     inputs_kv = nn.with_logical_constraint(inputs_kv, self.input_axis_names)
@@ -4091,10 +4132,20 @@ class BamAttention(Attention):
       if self._m_shift_mode == 'persist':
         M_in = M_read  # Existing attention/MLP writes accumulate onto the mixed carry.
 
+    if self._persistent_read:
+      expected = M_in.shape[:-1] + (int(cfg.num_query_heads),)
+      if persistent_M is None or persistent_M.shape != expected:
+        raise ValueError(f'persistent embedding M must have shape {expected}')
+      if persistent_M.dtype != M_in.dtype:
+        raise ValueError('persistent embedding M and ordinary M must share their dtype')
+      # Only the evolving bank is shifted. All Q/K/V/O reads see both banks;
+      # writes still target the original V-wide M_in below.
+      M_read = jnp.concatenate((M_read, persistent_M), axis=-1)
+
     full_m_shared_hidden = (nn.gelu(self.full_m_read_down(inputs_q))
                             if getattr(self, '_full_m_read_share_down', False) else None)
 
-    concat_qk = bool(getattr(cfg, 'bam_concat_qk', False))
+    concat_qk = bool(getattr(cfg, 'bam_concat_qk', False)) and not self._residual_qk
     if concat_qk:
       assert not cfg.fused_qkv and cfg.bam_prune_all_row_reads
     if concat_qk:
@@ -4110,11 +4161,13 @@ class BamAttention(Attention):
     if cfg.fused_qkv:
       query, key, value = self.qkv_projection(inputs_q, proj_name="qkv_proj")
     else:
-      query = self.query_projection(inputs_q, standard_qk_width if concat_qk else None)
-      key = self.kv_projection(inputs_kv, proj_name="key",
+      query = self.query_projection(inputs_q if inputs_q_route is None else inputs_q_route,
+                                    standard_qk_width if concat_qk else None)
+      key = self.kv_projection(inputs_kv if inputs_k_route is None else inputs_k_route, proj_name="key",
                                projection_dim=standard_qk_width if concat_qk else None)
       value = (jnp.zeros(inputs_kv.shape[:-1] + (self.num_kv_heads, self.head_dim), self.dtype)
-               if self._local_v_replace else self.kv_projection(inputs_kv, proj_name='value'))
+               if self._local_v_replace else self.kv_projection(
+                   inputs_kv if inputs_v is None else inputs_v, proj_name='value'))
 
     Mh = None
     local_inputs = self._local_inputs(inputs_q) if self._local_arms else None
@@ -4135,7 +4188,7 @@ class BamAttention(Attention):
 
     # Full-head QKNorm waits for this M read; compatibility/additive paths already rotated.
     local_compressed_M = None
-    if 'local_qk' in self._mode:  # V1 default
+    if 'local_qk' in self._mode and not self._residual_qk:  # V1 default
       if Mh is None:
         with jax.named_scope("bam/normalize_m"):
           Mh = self._matrix_for_read(M_read)
@@ -4165,24 +4218,31 @@ class BamAttention(Attention):
     if self._local_o and self._vo_shared_read != 'none':
       if Mh is None:
         Mh = self._matrix_for_read(M_read)
-      if self._vo_independent_gates:
+      if not self._has_value_m_read:
+        # O still needs the shared VO key/read. No V static read or dynamic gate survives.
+        local_output = self._read_fetched_m(
+            self._compress_m(Mh), inputs_q, shared_hidden=full_m_shared_hidden)[0]
+        if self._static_vo:
+          local_output = local_output + self._static_column(Mh, 'o', inputs_q)
+      elif self._vo_independent_gates:
         v_local, local_output = self._independent_local_vo(Mh, inputs_q, local_compressed_M, full_m_shared_hidden)
       else:
         local_output = self._shared_local_vo(Mh, inputs_q, local_inputs)
         v_local = local_output
-      if self._static_vo:
+      if self._static_vo and self._has_value_m_read:
         static_v = self._static_column(Mh, 'v', inputs_q)
         self._record_concat_amplitude('static_v', static_v, v_local)
         v_local = v_local + static_v
         static_o = self._static_column(Mh, 'o', inputs_q)
         self._record_concat_amplitude('static_o', static_o, local_output)
         local_output = local_output + static_o
-      if not self._local_v_replace:
+      if self._has_value_m_read and not self._local_v_replace:
         self._record_concat_amplitude('local_v', v_local[..., :self.bam_k], value)
-      elif self._concat_health:
+      elif self._has_value_m_read and self._concat_health:
         self.sow('intermediates', 'concat_local_v_content', jnp.stack((
             jnp.sqrt(jnp.mean(v_local.astype(jnp.float32) ** 2)),)))
-      value = value + v_local
+      if self._has_value_m_read:
+        value = value + v_local
     elif self._local_o or self._local_v_mode == 'shared':
       shared_v = self._local_v_mode == 'shared'
       if Mh is None:

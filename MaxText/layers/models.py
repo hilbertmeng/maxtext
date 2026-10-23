@@ -37,6 +37,7 @@ import re
 import max_utils
 from layers import mtp
 from layers import mudd
+from layers import bam_mudd
 from layers import engram
 from layers.kv_shift import shift_1d
 from collections import defaultdict
@@ -499,9 +500,43 @@ class EmbeddingBamWrite(nn.Module):
         content = (gate[..., None] * data).astype(data.dtype)
         layout = {'v7': 'bkvt', 'v7u': 'bkvt', 'v8t': 'btvk'}.get(getattr(cfg, 'bam_pallas_body', None), 'bvkt')
         return jnp.einsum(f'btnk,btnv->{layout}', content, address).astype(data.dtype)
-      return jnp.sum(
+      original = jnp.sum(
           gate[..., None, None] * data[..., :, None]
           * address[..., None, :], axis=-3)
+    if not getattr(cfg, 'bam_persistent_embedding_m', False):
+      return original
+    # Reuse normalized contents; the persistent bank owns its address network and gate.
+    slots = int(cfg.num_query_heads)
+    persistent_address = linears.DenseGeneral(
+        features=int(cfg.emb_bam_v_bottleneck_dim), axis=-1, kernel_init=self.kernel_init,
+        kernel_axes=('embed', None), dtype=self.dtype, weight_dtype=self.weight_dtype,
+        name='W_emb_persistent_v_down', quant=self.quant,
+        matmul_precision=cfg.matmul_precision, use_bias=False)(inputs)
+    persistent_address = nn.gelu(persistent_address)
+    persistent_address = linears.DenseGeneral(
+        features=(self.num_write_heads, slots), axis=-1, kernel_init=self.kernel_init,
+        kernel_axes=('embed', 'q_heads', 'v_factor'), dtype=self.dtype,
+        weight_dtype=self.weight_dtype, name='W_emb_persistent_v_up', quant=self.quant,
+        matmul_precision=cfg.matmul_precision, use_bias=True)(persistent_address)
+    persistent_address = normalizations.rms_norm(
+        persistent_address, dtype=persistent_address.dtype,
+        epsilon=initializers.get_bam_write_epsilon(cfg), statistics_dtype=statistics_dtype)
+    persistent_logits = linears.DenseGeneral(
+        features=self.num_write_heads, axis=-1, kernel_init=self.kernel_init,
+        kernel_axes=('embed', 'q_heads'), dtype=self.dtype, weight_dtype=self.weight_dtype,
+        name='W_emb_persistent_g', quant=self.quant,
+        matmul_precision=cfg.matmul_precision, use_bias=False)(inputs)
+    persistent_bias = self.param(
+        'emb_persistent_gw_b0', nn.with_logical_partitioning(
+            lambda key, shape, dtype: jnp.full(shape, math.log(eps / (1.0 - eps)), dtype),
+            ('q_heads',)), (self.num_write_heads,), self.weight_dtype)
+    persistent_gate = jax.nn.sigmoid(persistent_logits + jnp.asarray(persistent_bias, self.dtype))
+    if cfg.bam_sqrt_n_scale:
+      persistent_gate = persistent_gate / jnp.sqrt(jnp.asarray(heads, persistent_gate.dtype))
+    with jax.named_scope('bam/embedding_persistent_write_outer'):
+      persistent = jnp.einsum('btnk,btnv->btkv', persistent_gate[..., None] * data,
+                              persistent_address).astype(original.dtype)
+    return original, persistent
 
 
 class Decoder(nn.Module):
@@ -518,6 +553,17 @@ class Decoder(nn.Module):
     self.decoder_layer = self.get_decoder_layers()
     cfg = self.config
     full_bam = cfg.bam_enabled and not getattr(cfg, 'bam_mha_control', False)
+    if getattr(cfg, 'bam_persistent_embedding_m', False):
+      if (not full_bam or not cfg.bam_embedding_write or not cfg.scan_layers or not cfg.bam_pair_scan
+          or cfg.bam_pallas_core or cfg.bam_mudd_tail_blocks
+          or cfg.bam_local_fetch_block_size != 3
+          or cfg.num_decoder_layers % 3 or cfg.num_decoder_layers < 6
+          or cfg.emb_bam_num_head != cfg.num_query_heads
+          or cfg.emb_dim != cfg.num_query_heads * cfg.bam_k):
+        raise ValueError('persistent embedding M requires ordinary pure-JAX three-layer BAM block scan')
+    if (getattr(cfg, 'bam_mudd_final_output', False)
+        and not (cfg.bam_mudd_tail_blocks or cfg.bam_persistent_embedding_m)):
+      raise ValueError('three-source final Mudd requires the selective tail scan')
     self.embedding_bam_write = None
     if full_bam and getattr(cfg, 'bam_embedding_write', False):
       configured_heads = getattr(cfg, 'emb_bam_num_head', None)
@@ -631,7 +677,7 @@ class Decoder(nn.Module):
   def scan_decoder_layers(self, cfg, decoder_layer, length, metdata_axis_name, mesh,
    sliding_window_size=None, scan_length=1, scan_deep_embedding=False,
    runtime_schedule=False, scan_hids=False, all_global_attention=False,
-   scan_layer_index=False):
+   scan_layer_index=False, stage_start_layer=None):
     initializing = self.is_mutable_collection("params")
     params_spec = cfg.param_scan_axis if initializing else ScanIn(cfg.param_scan_axis)
     cache_spec = 0
@@ -673,6 +719,8 @@ class Decoder(nn.Module):
     )
     module_kwargs = dict(
         config=cfg, mesh=mesh, name=metdata_axis_name, quant=self.quant)
+    if stage_start_layer is not None:
+      module_kwargs['stage_start_layer'] = stage_start_layer
     if cfg.decoder_block == 'fusion' or (cfg.decoder_block == 'pythia' and cfg.pythia_use_fusion):
       module_kwargs.update(
           sliding_window_size=sliding_window_size, scan_length=scan_length,
@@ -909,7 +957,130 @@ class Decoder(nn.Module):
         y = normalizations.get_rmsnorm("mudd_prenorm", cfg)(y) if cfg.mudd_prenorm or cfg.me_prenorm else y
         hids.append(y)
 
-      if cfg.scan_layers:
+      if cfg.scan_layers and (getattr(cfg, 'bam_mudd_tail_blocks', 0)
+                              or getattr(cfg, 'bam_persistent_embedding_m', False)):
+        from layers import fusion
+
+        persistent = bool(getattr(cfg, 'bam_persistent_embedding_m', False))
+        blocks = 1 if persistent else int(cfg.bam_mudd_tail_blocks)
+        pre_tail_vm = bool(cfg.bam_mudd_pre_tail_vm)
+        if pre_tail_vm and (blocks != 1 or persistent
+            or type(cfg.bam_mudd_pre_tail_vm_offset) is not int
+            or cfg.bam_mudd_pre_tail_vm_offset not in (3, 4)
+            or not cfg.bam_mudd_tail_native_shared_router
+            or not cfg.bam_mudd_tail_residual_mlp or not cfg.bam_mudd_tail_l2_anchor
+            or cfg.bam_mudd_tail_qkvm_last_layers or cfg.bam_mudd_tail_dual_value
+            or type(cfg.bam_mudd_pre_tail_vm_mlp_dim) is not int
+            or cfg.bam_mudd_pre_tail_vm_mlp_dim <= 0):
+          raise ValueError('pre-tail VM requires one native L2 VM/QKVM tail and a positive local MLP width')
+        if cfg.bam_mudd_pre_tail_vm_qk and (not pre_tail_vm
+            or cfg.bam_mudd_pre_tail_vm_offset != 3 or not cfg.bam_mudd_tail_residual_qk):
+          raise ValueError('additional residual Q/K requires the L15 site and a native QKVM parent')
+        if cfg.bam_mudd_tail_residual_qk and blocks != 1:
+          raise ValueError('residual Q/K experiment is scoped to the final block only')
+        if cfg.bam_mudd_tail_residual_mlp and (blocks != 1 or persistent
+            or (cfg.decoder_block == 'pythia' and cfg.pythia_parallel_residual)):
+          raise ValueError('residual M route requires a single selective tail block and serial MLP')
+        qkvm_count = cfg.bam_mudd_tail_qkvm_last_layers
+        if qkvm_count and (qkvm_count != 2 or blocks != 1 or persistent
+            or not cfg.bam_mudd_tail_residual_mlp
+            or (not cfg.bam_mudd_tail_residual_qk and not cfg.bam_mudd_tail_native_shared_router)):
+          raise ValueError('last-two-layer routing requires one native VM or residual QKVM block')
+        qk_count = cfg.bam_mudd_tail_qk_last_layers
+        if qk_count is not None and (type(qk_count) is not int
+            or not 1 <= qk_count <= (qkvm_count or 1)
+            or not cfg.bam_mudd_tail_native_shared_router
+            or not cfg.bam_mudd_tail_residual_qk):
+          raise ValueError('QK tail subset requires native QK routing and a valid final-layer count')
+        skip_writes = cfg.bam_mudd_tail_skip_attention_write_last_layers
+        if skip_writes and (type(skip_writes) is not int or skip_writes not in (1, 2)
+            or blocks != 1 or persistent or (skip_writes == 2 and qkvm_count != 2)):
+          raise ValueError('selective tail write omission requires the final one/two QKVM layers')
+        if cfg.bam_mudd_tail_native_shared_router and (blocks != 1 or persistent
+            or not (cfg.bam_mudd_tail_residual_qk or cfg.bam_mudd_tail_residual_mlp)
+            or cfg.mudd_prenorm or cfg.mudd_postnorm
+            or cfg.dynamic_dense_scale_dw or cfg.mudd_use_scale or cfg.mudd_cap):
+          raise ValueError('native shared tail requires one QKV[/m] or VM block with plain identity-initialized Mudd')
+        if cfg.bam_mudd_tail_l2_anchor and not cfg.bam_mudd_tail_native_shared_router:
+          raise ValueError('L2 residual anchor requires native shared tail routing')
+        if cfg.bam_mudd_tail_l5_anchor and (not cfg.bam_mudd_tail_l2_anchor
+            or not cfg.bam_mudd_tail_native_shared_router or persistent):
+          raise ValueError('L5 residual anchor extends the native L2 tail routing')
+        if cfg.bam_mudd_tail_dual_value and (not cfg.bam_mudd_tail_native_shared_router
+            or cfg.bam_local_vo_shared_read != 'local_o' or not cfg.bam_local_vo_independent_gates):
+          raise ValueError('dual tail V requires native routing and independently gated shared VO reads')
+        if cfg.bam_pallas_core and (not cfg.bam_mudd_tail_native_shared_router
+            or cfg.bam_pallas_body != 'v8t'):
+          raise ValueError('Pallas selective tail supports native shared routing with v8t only')
+        if (blocks not in (1, 2) or cfg.num_decoder_layers % 3
+            or not cfg.bam_pair_scan or not cfg.bam_enabled or cfg.bam_mha_control
+            or cfg.dense_conn or cfg.mtp_num_layers or deep_embeddings is not None
+            or cfg.bam_final_local_layer_count
+            or cfg.dynamic_mlp_dim or not cfg.dynamic_dense_hidden_round
+            or cfg.dynamic_dense_act_cls != 'gelu'):
+          raise ValueError('selective Mudd tail requires BAM three-layer block scan')
+        if not persistent and (len(cfg.bam_mudd_tail_mlp_dims) != 3
+            or any(type(x) is not int or x <= 0 for x in cfg.bam_mudd_tail_mlp_dims)):
+          raise ValueError('selective Mudd tail requires three positive integer MLP widths')
+        if persistent and (type(cfg.bam_persistent_embedding_last_mlp_dim) is not int
+                           or cfg.bam_persistent_embedding_last_mlp_dim <= 0):
+          raise ValueError('persistent embedding M requires a positive last-layer MLP width')
+        swss = format_swss(sws_list)[:cfg.num_decoder_layers]
+        if any(s < cfg.max_target_length for s in swss):
+          raise ValueError('selective Mudd tail currently requires all-global attention')
+        prefix = cfg.num_decoder_layers - 3 * blocks
+        if prefix < 3 or cfg.bam_local_fetch_block_size != 3:
+          raise ValueError('selective Mudd tail needs at least one ordinary three-layer block')
+        if cfg.bam_layer_modes != ['local_qk+local_v+local_o'] * cfg.num_decoder_layers:
+          raise ValueError('selective Mudd tail requires all-local QK/VO modes')
+        initial = self.initial_bam_matrix(y)
+        M, persistent_M = initial if persistent else (initial, None)
+        carry = (y, M)
+        if bam_mudd.uses_anchors(cfg):
+          carry += (y, jnp.zeros_like(y))
+          if cfg.bam_mudd_tail_l2_anchor:
+            carry += (jnp.zeros_like(y),)
+          if cfg.bam_mudd_tail_l5_anchor:
+            carry += (jnp.zeros_like(y),)
+        if persistent:
+          carry += (persistent_M,)
+        # Separate scan stages retain independent layer parameters while sharing each stage's HLO.
+        stages = ((0, prefix // 3, 'layers'), (prefix, blocks, 'tail_layers'))
+        if pre_tail_vm and cfg.bam_mudd_pre_tail_vm_offset == 4:
+          if prefix < 6:
+            raise ValueError('pre-tail VM requires an ordinary prefix before the two modified blocks')
+          stages = ((0, prefix // 3 - 1, 'layers'),
+                    (prefix - 3, 1, 'pre_tail_layers'),
+                    (prefix, 1, 'tail_layers'))
+        for start, count, name in stages:
+          module = self.scan_decoder_layers(
+              cfg, fusion.BamLayerPair, count, name, mesh,
+              sliding_window_size=cfg.max_target_length, runtime_schedule=True,
+              all_global_attention=True, scan_layer_index=True, stage_start_layer=start)
+          carry, _ = module(
+              carry, decoder_segment_ids, decoder_positions, decoder_input_tokens,
+              None, deterministic, model_mode, eos_sum, jnp.ones((count,), jnp.bool_),
+              None, None, jnp.arange(start // 3, start // 3 + count, dtype=jnp.int32))
+        y, M = carry[:2]
+        if bam_mudd.uses_anchors(cfg):
+          embedding_anchor, l0_anchor = carry[2:4]
+          anchors = [embedding_anchor, l0_anchor]
+          if cfg.bam_mudd_tail_l2_anchor:
+            anchors.append(carry[4])
+          if cfg.bam_mudd_tail_l5_anchor:
+            anchors.append(carry[5])
+          if cfg.bam_mudd_tail_native_shared_router:
+            routed, _ = mudd.Compose(
+                cfg, mesh, self.quant, C=1, compose=True, force_router=True,
+                hidden_expand_override=4, name='compose_final_three_source')(
+                    layer_output=y, hids=[*anchors, y])
+            y = routed[0]
+          else:
+            y = bam_mudd.ThreeSourceRouter(
+                cfg, mesh, self.quant, hidden_expand=4, name='compose_final_three_source')(
+                    y, (embedding_anchor, l0_anchor))
+
+      elif cfg.scan_layers:
         RemattedBlockLayer = RemattedBlockLayers[1]
         pair_scan = getattr(cfg, 'bam_pair_scan', False)
         final_local = cfg.bam_final_local_layer_count

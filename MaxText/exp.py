@@ -17538,3 +17538,49 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRank8R128H768TruePile(
     bam_final_local_mlp_dim = 3108
     bam_last_mlp_dim = 3801
     compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1TruePile']
+
+
+class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MuddQKVML2TruePile(
+    BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1TruePile):
+    """Dense private M updates plus the L17 native shared QKVM/L2 champion exit."""
+    # Implementation: codex/mediumprop-dedicated-m-mlp; /data0/xd/mediumprop-dedicated-m-mlp.
+    model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MuddQKVML2TruePile'
+    bam_local_fetch_block_size = 3
+    mlp_dim_by_block = [2535, 2535, 2535]
+    bam_final_local_layer_count = 0
+    bam_final_local_mlp_dim = None
+    bam_last_mlp_dim = 0
+    bam_mudd_tail_blocks = 1
+    bam_mudd_tail_mlp_dims = [2535, 3802, 3030]
+    bam_mudd_tail_native_shared_router = True
+    bam_mudd_tail_residual_qk = True
+    bam_mudd_tail_residual_mlp = True
+    bam_mudd_tail_l2_anchor = True
+    bam_mudd_tail_skip_mlp_write = True
+    bam_mudd_tail_skip_attention_write_last_layers = 1
+    bam_mudd_final_output = True
+    force_final_checkpoint = True
+    compare_runs = ['BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockL2AnchorTruePile',
+                    'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1TruePile']
+
+
+class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MuddVML2TruePile(
+    BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MuddQKVML2TruePile):
+    """Retain L17 QK matrix reads and L16 private M writer; use shared V/m Mudd."""
+    model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MuddVML2TruePile'
+    bam_mudd_tail_residual_qk = False
+    bam_mudd_tail_skip_mlp_write = False
+    bam_mudd_tail_mlp_dims = [2535, 2535, 3544]
+    compare_runs = ['BamMediumPropMShiftReadG050MuddVMSharedRouterLastBlockL2AnchorTruePile',
+                    'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1TruePile']
+
+
+class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MuddL14VML17QKVML2TruePile(
+    BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MuddQKVML2TruePile):
+    """L14 VM and L17 QKVM, retaining both L14 writers and local2:1 MLP budgets."""
+    model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MuddL14VML17QKVML2TruePile'
+    bam_mudd_pre_tail_vm = True
+    bam_mudd_pre_tail_vm_mlp_dim = 2275
+    bam_memory_mlp_dim_by_layer = [1140] * 14 + [1010, 1140, 0, 0]
+    compare_runs = ['BamMediumPropMShiftReadG050MuddVMQKVMSharedRouterLastTwoBlocksL2AnchorTruePile',
+                    'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1TruePile']

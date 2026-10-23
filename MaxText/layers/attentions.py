@@ -3586,7 +3586,15 @@ class BamAttention(Attention):
   def merge_mlp_write(self, mlp_head, mlp_gate, factors, M_in, independent_address=None):
     """Merge attention/MLP writes, then decay the carried matrix exactly once."""
     attention_content, address, attention_gate = factors
-    content = self.write_data_norm(mlp_head) if self._write_data_rms else mlp_head
+    compact_write = bool(getattr(self.config, 'bam_memory_write_heads', 0))
+    # The attention norm checks its head count even when it has no parameters.
+    # Compact memory heads have a separate count; preserve the same RMS math.
+    def compact_norm(x):
+      return normalizations.rms_norm(
+          x, dtype=self.dtype, epsilon=initializers.get_bam_write_epsilon(self.config),
+          statistics_dtype=self._write_rms_statistics_dtype)
+    content = ((compact_norm(mlp_head) if compact_write else self.write_data_norm(mlp_head))
+               if self._write_data_rms else mlp_head)
     scale = 1.0 / jnp.sqrt(self.num_query_heads) if self.config.bam_sqrt_n_scale else 1.0
     mlp_content = scale * mlp_gate[..., None] * content
     if independent_address is None:
@@ -3597,7 +3605,8 @@ class BamAttention(Attention):
         else:
           dM = jnp.sum(combined_content[..., None] * address[..., None, :], axis=-3)
     else:
-      mlp_address = self.write_address_norm(independent_address)
+      mlp_address = (compact_norm(independent_address) if compact_write
+                     else self.write_address_norm(independent_address))
       with jax.named_scope('bam/write_outer'):
         if self._write_outer_implementation == 'dot':
           dM = jnp.einsum('btnk,btnv->btkv', attention_content, address)

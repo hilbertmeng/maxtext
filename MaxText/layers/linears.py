@@ -269,6 +269,8 @@ class MlpBlock(nn.Module):
     output_kernel_init: Optional initializer for the output projection only.
     bam_memory_output: Return a second BAM-content projection of the same hidden activation.
     bam_memory_direct_hidden: Return a D-wide gated hidden state without an output projection.
+    bam_memory_write_heads: Optional independent head count for compact shared-hidden writes.
+    bam_memory_controls_from_hidden: Project compact addresses/gates from hidden, else inputs.
     intermediate_dropout_rate: Dropout rate used after the intermediate layers.
     dtype: computation data type for the dense layer.
     weight_dtype: weight data type for the dense layer.
@@ -284,6 +286,8 @@ class MlpBlock(nn.Module):
   output_kernel_init: NdInitializer | None = None
   bam_memory_output: bool = False
   bam_memory_direct_hidden: bool = False
+  bam_memory_write_heads: int = 0
+  bam_memory_controls_from_hidden: bool = True
   intermediate_dropout_rate: float = 0.1
   dtype: Any = jnp.float32
   weight_dtype: Any = jnp.float32
@@ -409,6 +413,32 @@ class MlpBlock(nn.Module):
     if self.bam_memory_output:
       if self.use_bias:
         raise ValueError('Shared-hidden BAM memory heads use bias-free projections')
+      if self.bam_memory_write_heads:
+        # Rank is a write-head count, independent of the attention/read heads.
+        heads = self.bam_memory_write_heads
+        k, v = int(cfg.bam_k), int(cfg.bam_v)
+        init = initializers.get_bam_init(cfg, fallback=self.kernel_init)
+        if self.bam_memory_controls_from_hidden:
+          factors = DenseGeneral(
+              heads * (k + v + 1), dtype=self.dtype, weight_dtype=self.weight_dtype,
+              kernel_init=init, kernel_axes=('mlp', 'embed'),
+              name='memory_factors', quant=self.quant, use_bias=False,
+              matmul_precision=cfg.matmul_precision)(x)
+          content, address, logits = jnp.split(factors, [heads*k, heads*(k+v)], axis=-1)
+        else:
+          content = DenseGeneral(
+              heads*k, dtype=self.dtype, weight_dtype=self.weight_dtype,
+              kernel_init=init, kernel_axes=('mlp', 'embed'),
+              name='memory_wo', quant=self.quant, use_bias=False,
+              matmul_precision=cfg.matmul_precision)(x)
+          controls = DenseGeneral(
+              heads*(v+1), dtype=self.dtype, weight_dtype=self.weight_dtype,
+              kernel_init=init, kernel_axes=('embed', None),
+              name='memory_controls', quant=self.quant, use_bias=False,
+              matmul_precision=cfg.matmul_precision)(inputs)
+          address, logits = jnp.split(controls, [heads*v], axis=-1)
+        return (output, content,
+                address.reshape(address.shape[:-1] + (heads, v)), logits)
       memory_output = DenseGeneral(
           inputs.shape[-1], dtype=self.dtype, weight_dtype=self.weight_dtype,
           kernel_init=initializers.get_bam_init(cfg, fallback=self.kernel_init),

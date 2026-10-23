@@ -17443,3 +17443,35 @@ class BamMediumPropMShiftReadG050HalfMemoryMLPTruePile(
     compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio3to1TruePile',
                     'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1TruePile',
                     'BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile']
+
+
+class BamMediumPropMShiftReadG050SharedHiddenRank8WriteTruePile(
+    BamMediumPropMShiftReadG050SharedHiddenMemoryMLPTruePile):
+    """Eight M writes: U/address/gate jointly projected from ordinary SwiGLU hidden."""
+    # Implementation: codex/mediumprop-dedicated-m-mlp; /data0/xd/mediumprop-dedicated-m-mlp.
+    model_name = 'BamMediumPropMShiftReadG050SharedHiddenRank8WriteTruePile'
+    base_mlp_dim = 3114
+    mlp_dim_by_block = [3114, 3114]
+    bam_memory_mlp_dim = 3114
+    bam_final_local_mlp_dim = 3114
+    bam_last_mlp_dim = 2802
+    bam_memory_write_heads = 8
+    bam_memory_controls_from_hidden = True
+    compare_runs = ['BamMediumPropMShiftReadG050SharedHiddenMemoryMLPTruePile',
+                    'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1TruePile']
+
+
+class BamMediumPropMShiftReadG050SharedHiddenRank8InputControlsTruePile(
+    BamMediumPropMShiftReadG050SharedHiddenRank8WriteTruePile):
+    """Eight M writes: U from shared SwiGLU hidden, direct address/gate from norm input."""
+    # Implementation: codex/mediumprop-dedicated-m-mlp; /data0/xd/mediumprop-dedicated-m-mlp.
+    model_name = 'BamMediumPropMShiftReadG050SharedHiddenRank8InputControlsTruePile'
+    base_mlp_dim = 3234
+    mlp_dim_by_block = [3234, 3234]
+    bam_memory_mlp_dim = 3234
+    bam_final_local_mlp_dim = 3234
+    bam_last_mlp_dim = 2808
+    bam_memory_controls_from_hidden = False
+    compare_runs = ['BamMediumPropMShiftReadG050SharedHiddenRank8WriteTruePile',
+                    'BamMediumPropMShiftReadG050SharedHiddenMemoryMLPTruePile',
+                    'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1TruePile']

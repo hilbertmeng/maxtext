@@ -18,6 +18,8 @@ B='BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1TruePile'
 SH='BamMediumPropMShiftReadG050SharedHiddenMemoryMLPTruePile'
 C='BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio3to1TruePile'
 HALF='BamMediumPropMShiftReadG050HalfMemoryMLPTruePile'
+R8='BamMediumPropMShiftReadG050SharedHiddenRank8WriteTruePile'
+R8X='BamMediumPropMShiftReadG050SharedHiddenRank8InputControlsTruePile'
 
 class DedicatedMemoryMLPTest(MLPWriteTest, unittest.TestCase):
   def test_formal_budgets_and_kernel_settings(self):
@@ -51,7 +53,67 @@ class DedicatedMemoryMLPTest(MLPWriteTest, unittest.TestCase):
       c.get_keys().update(bam_memory_mlp_dim=32,bam_memory_mlp_last_write_dim=0)
     if getattr(c,'bam_memory_mlp_half',False):
       c.get_keys().update(bam_memory_mlp_dim=c.emb_dim,bam_memory_mlp_last_write_dim=0)
+    if getattr(c,'bam_memory_write_heads',0):
+      c.get_keys().update(bam_memory_write_heads=1)
     return c
+
+  def test_rank8_formal_budgets_and_no_redundant_controls(self):
+    for exp,total in [(R8,432122600),(R8X,432122168)]:
+      c=self.config(exp)
+      c.get_keys().update(max_target_length=256,max_prefill_predict_length=256)
+      mesh=jax.sharding.Mesh(max_utils.create_device_mesh(c),c.mesh_axes)
+      args,_,_,_=train_compile.get_shaped_inputs(mesh,c)
+      flat=flatten_dict(args[0].params)
+      self.assertEqual(sum(int(np.prod(v.shape)) for v in flat.values()),total)
+      self.assertEqual(c.bam_memory_write_heads,8)
+      self.assertFalse(any(any(n in p for n in ['memory_mlp','mlp_address_down','mlp_address_up','mlp_write_gate']) for p in flat))
+      self.assertFalse(any('final_local_layer_1' in p and any('memory_' in n or n=='mlp_address_bias' or n=='mlp_write_gate_bias' for n in p) for p in flat))
+      self.assertTrue(c.bam_pallas_core and c.bam_pallas_fused_inputs and c.sa_use_fused_bwd_kernel)
+      self.assertTrue(c.record_training_health_metrics and not c.record_internal_nn_metrics)
+      self.assertEqual((c.tensorboard_gcs_rotate_period,c.bam_write_eps),(500,.1))
+
+  def test_rank8_reference_and_control_gradient_sources(self):
+    for exp in [R8,R8X]:
+      c=self.tiny(exp)
+      mod=linears.MlpBlock(config=c,intermediate_dim=32,activations=c.mlp_activations,
+          kernel_init=initializers.get_model_init(c),bam_memory_output=True,
+          bam_memory_write_heads=1,bam_memory_controls_from_hidden=c.bam_memory_controls_from_hidden,
+          intermediate_dropout_rate=0,dtype=jnp.float32,weight_dtype=jnp.float32)
+      x=jax.random.normal(jax.random.key(41),(1,4,150))
+      p=nn.unbox(mod.init(jax.random.key(42),x,deterministic=True)['params'])
+      hidden=jax.nn.silu(x@p['wi_0']['kernel'])*(x@p['wi_1']['kernel'])
+      y,u,a,g=mod.apply({'params':p},x,deterministic=True)
+      np.testing.assert_allclose(y,hidden@p['wo']['kernel'],rtol=1e-6,atol=1e-6)
+      if exp==R8:
+        factors=hidden@p['memory_factors']['kernel']
+        ur,ar,gr=jnp.split(factors,[75,107],axis=-1)
+      else:
+        ur=hidden@p['memory_wo']['kernel']
+        ar,gr=jnp.split(x@p['memory_controls']['kernel'],[32],axis=-1)
+      for actual,ref in [(u,ur),(a,ar.reshape(1,4,1,32)),(g,gr)]:
+        np.testing.assert_allclose(actual,ref,rtol=1e-6,atol=1e-6)
+      # Address/gate losses reach shared nonlinear features only in the joint arm.
+      grad=jax.grad(lambda q:sum(jnp.sum(z*z) for z in mod.apply({'params':q},x,deterministic=True)[2:]))(p)
+      norm=float(jnp.sum(grad['wi_0']['kernel']**2))
+      if exp==R8:self.assertGreater(norm,0)
+      else:self.assertEqual(norm,0)
+
+  def test_rank8_scan_unequal_heads_live_gradients_and_causality(self):
+    for exp in [R8,R8X]:
+      c=self.tiny(exp);mesh=jax.sharding.Mesh(max_utils.create_device_mesh(c),c.mesh_axes)
+      model=Transformer(c,mesh,quantizations.configure_quantization(c))
+      tok=jnp.array([[1,2,3,4]],jnp.int32);pos=jnp.arange(4)[None];seg=jnp.ones_like(tok)
+      with mesh,nn.partitioning.axis_rules(c.logical_axis_rules):
+        p=nn.unbox(model.init(jax.random.key(43),tok,pos,tok,seg,seg,enable_dropout=False)['params'])
+        def call(p,t):return model.apply({'params':p},t,pos,t,seg,seg,enable_dropout=False)[0]
+        y=call(p,tok);yp=call(p,tok.at[:,3].set(8))
+        np.testing.assert_allclose(y[:,:3],yp[:,:3],rtol=1e-6,atol=1e-6)
+        val,grad=jax.jit(jax.value_and_grad(lambda q:jnp.mean(call(q,tok)**2)))(p)
+        self.assertTrue(np.isfinite(float(val)))
+        for path,v in flatten_dict(grad).items():
+          self.assertTrue(np.isfinite(np.asarray(v)).all(),str(path))
+          if any(n in path for n in ['memory_factors','memory_wo','memory_controls']):
+            self.assertGreater(float(jnp.sum(v*v)),0,str(path))
 
   def test_half_formal_budget_and_missing_output_projection(self):
     c=self.config(HALF)
@@ -189,7 +251,7 @@ class DedicatedMemoryMLPTest(MLPWriteTest, unittest.TestCase):
   def test_v8t_two_group_forward_and_backward(self):
     keys=iter(jax.random.split(jax.random.key(9),10))
     rnd=lambda shape:jax.random.normal(next(keys),shape)
-    m=rnd((1,128,75,32));groups=[(rnd((1,128,2,75)),rnd((1,128,2)),rnd((1,128,2,32))) for _ in range(2)]
+    m=rnd((1,128,75,32));groups=[(rnd((1,128,n,75)),rnd((1,128,n)),rnd((1,128,n,32))) for n in (2,1)]
     flat=tuple(a for group in groups for a in group);eps=1e-6
     def reference(m,*f):
       for i in range(0,len(f),3):

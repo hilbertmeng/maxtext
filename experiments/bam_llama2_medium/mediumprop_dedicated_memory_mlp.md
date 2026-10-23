@@ -402,3 +402,61 @@ resource mutations. Retained FLEX compiler preserved. Evidence under
 `/data0/xd/bam_diagnostics/mediumprop-dedicated-m-mlp/`: ratio2-final-proof.json,
 ratio2-final-report.json, ratio2-registry-final.json, closeout-ratio2.json,
 ratio2-auto-completion.log. Independent rank8/R128/768 remains in training.
+
+
+## Dense2:1 plus native Mudd combination race
+
+Three new RUNs extend this isolated family with the existing native shared Mudd
+implementation from `codex/mediumprop-mudd-tail` (4db9b15 model lineage),
+retaining one shared D→64 down per site, identity initialized joint up/bias,
+L2 residual anchors and final C1/expand4 readout. Original Mudd rounding gives64
+for both internal and final controllers. The ordinary MLP and dedicated M-MLP
+consume the same post-attention normalized residual, including the Mudd m route
+at selective sites. Private writers retain16 records, addressR256 and gate.1.
+No rank8/R128/gate-rescaling changes are included in this race.
+
+Prefix `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1Mudd`:
+
+| Suffix | TPU ID / zone | Ordinary L14–17 | Private M-MLP L14–17 | Total / exempt routers / non-router rounding vs2:1 | Old tail direct control | Terminal gain bet |
+|---|---|---|---|---|---|---|
+|QKVML2TruePile|310325 / us-east5-a|2535/2535/3802/3030|1140/1140/0/0|432268180 /154900 /0|old L2 QKVM|1.010|
+|VML2TruePile|310326 / us-east5-a|2535/2535/2535/3544|1140/1140/1140/0|432268716 /154380 /+1056|old L2 VM|1.015|
+|L14VML17QKVML2TruePile|310327 / us-east5-a|2275/2535/3802/3030|1010/1140/0/0|432343756 /232220 /−1744|old L14 VM/L17 QKVM|1.010|
+
+Each RUN also compares the completed independent2:1 directly. All gain ratios
+use `BamMHAMediumPropC256TruePile`; forecast refers to each old tail control.
+Two first arms use ordinary3-layer scan×5 + tail×1. Third uses ordinary×4,
+L12–14×1 and final×1. This reuses the proven three-layer anchor/stage machinery;
+the2:1 parent used two-layer scan. Parameter distributions and initialization
+recipes are preserved, while changed scan parameter paths change RNG assignments.
+Body Pallas v8t48/fused inputs retained; selective L14/L17 sites use the existing
+JAX layout bridge (including the private L14 write), original O reads retained.
+L16 attention write always present; final attention/MLP writes absent.
+
+Measured full parameter trees and JAX/Pallas shape agreement pass the formal
+preflight (`combined-formal-preflight.log`). Regression gate includes original
+BAM47 + family16 + combinations6 + rotating-writer5=74 checks. Combination checks
+cover original-tail parameter regression, exact full budgets/write omissions,
+scanned private-write/anchor gradients and causality, selective v8t bridge.
+Retain normal training health, disable internal/BAM statistics, tuned Splash,
+full remat/T4096/global128, checkpoint200/latest2/keep0/TBrotation500.
+Run13500, early report1000, review2800/5000. Speed priors: first two within±3%
+of2:1, third about−2..−5%; M-cache75x32 unchanged.
+
+Infrastructure audit through main1f3dbc67 finds no missing train/AOT/optimizer/
+checkpoint/writer fixes versus family fork781a86a6. New base.yml fields are
+experimental tail defaults only. Borrowed retained FLEX `llm-jax-v6e-1-0`,
+europe-west4-a/worker0 is ACTIVE/idle, not best-effort. Its worker lock serializes
+all three AOTs; each launcher owns only its own formal UE5a training prequeue.
+
+Startup2026-10-23: all three RUNs sealed on`82e5a73a4e03dafabfb55f6d1d130e7dcae4f800`.
+CPU74 passed once and was reused under the local gate lock. Retained FLEX AOTs
+ran serially under its worker lock; all three training prequeues ran concurrently.
+Each worker loaded its exact AOT, produced FIRST_STEP and passed step14; registry
+and actual controller environments agree on runtime, both direct controls,
+zone-local truepile4096 data and full13500 schedule. Mean step10–14 throughput:
+QKVM.6960(−1.6% vs2:1), VM.6872(−2.8%), mixed.6760(−4.4%), within priors.
+Their old tail startup controls are.722/.713/.705 (about−3.6%/−3.6%/−4.1%).
+Same generic/internal/BAM health and tuned Splash;2:1 parent uses two-layer scan
+while these runs use three-layer stages. Proofs`combined-{qkvm,vm,mixed}-startup.json`
+and parallel-launch`*-20261023T112902Z/`; compiler lifecycle remains borrowed.

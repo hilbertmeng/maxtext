@@ -247,3 +247,49 @@ Artifacts under `/data0/xd/bam_diagnostics/mediumprop-dedicated-m-mlp/`:
 `stop-pair-proof.json`, `stop-pair-registry-final.json`, `stop-pair-final-report.json`,
 `stop-pair-final.png/.csv`, `closeout-mha-width.json`, `closeout-shared-hidden.json`.
 Metrics use final native canonical loss caches, not hand-computed gain ratios.
+
+
+## Rank8 write closeout
+
+Both runtime47b0e1b0032d27851291ea7885243a0acda4af18, stopped after2800 review:
+joint-h3005, direct-x-controls2983. Last complete mature window remains2800.
+
+| Arm | Comparator | Final5 windows | Mean gap | MHA-reference gain |
+|---|---|---|---:|---:|
+|Joint h|independent2:1|2000..2800|+.00218924|.99240501|
+|Joint h|shared-hidden|2000..2800|+.00376248|.98737491|
+|Input controls|independent2:1|2000..2800|+.00386316|.98642332|
+|Input controls|shared-hidden|2000..2800|+.00543640|.98140964|
+|Input controls|joint h|2000..2800|+.00167392|.99397106|
+
+Joint-h's early advantage over independent2:1 disappeared around1800, then did not
+recover. Input controls had a transient win over joint-h at2000, lost the next four
+windows and fell further behind2:1. Both also trail the already failed shared-hidden
+parent at matched steps. Slight startup acceleration (.723/.725 vs~.710, about+2%),
+negligible integer parameter residuals (+920/+488 vs shared-hidden), and unchanged
+75x32 cache do not compensate for the quality deficits. Initial terminal bets1.02/1.03
+vs shared-hidden and input/joint1.01 were unsupported through the review stop.
+
+The input-control arm uses direct linear x→address/gate projections; the parent's
+address controller was independent R256+GELU. Parent comparisons change both the
+number of write records16→8 and the controller, so they do not isolate head count.
+Under the matched-total budgets tested, joint nonlinear h controls were better than
+direct x controls despite the latter's wider ordinary MLP. Next candidates should
+preserve16 records and proven nonlinear address control while considering a cheap,
+M-specific nonlinear decoder after shared features; preserving learned content mixing
+is also supported by the half-MLP failure.
+
+Both v5p-16s stayed in us-east5-a, zero preemptions, no passive candidates or zone
+switches. CP3005/CP2983 committed, independent node+queue NOT_FOUND verified,
+local TB SYNC_OK. Assignments joint07:59:41–09:13:44, input08:00:02–09:13:48 UTC.
+One full READY lease each on2026-10-23:
+
+| Arm | Start UTC | End UTC | Duration | End reason |
+|---|---|---|---|---|
+|Joint h|07:59:32|09:13:44|1h14m12s|review stop3005; first prequeue READY, registry starts12s later|
+|Input controls|07:59:37|09:13:48|1h14m11s|review stop2983; first prequeue READY, registry starts28s later|
+
+Evidence under `/data0/xd/bam_diagnostics/mediumprop-dedicated-m-mlp/`:
+`rank8-final-proof.json`, `rank8-registry-final.json`, `rank8-final-report.json`,
+`closeout-rank8.json`, `review-rank8-2800.json`, and final charts. Retained FLEX compiler
+remains intact. Independent2:1 and3:1 continue; failed parents are cached comparisons.

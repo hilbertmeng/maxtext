@@ -17472,6 +17472,11 @@ class BamMediumPropMShiftReadG050HalfMemoryMLPTruePile(
 class BamMediumPropMShiftReadG050SharedHiddenRank8WriteTruePile(
     BamMediumPropMShiftReadG050SharedHiddenMemoryMLPTruePile):
     """Eight M writes: U/address/gate jointly projected from ordinary SwiGLU hidden."""
+    # Stopped at3005 after2800 review; UE5a v5p-16 P0; CP committed, resources absent, TB SYNC_OK.
+    # Early gain vs2:1 vanished around1.8k;2k..2.8k had no relative recovery.
+    # Final5(2000..2800) vs2:1 +.002189/gain.992405; vs shared-hidden +.003762/gain.987375.
+    # Startup~.723 (~+2% vs shared-hidden); params+920=.000639W_Q, M-cache unchanged.
+    # Expected gain1.02 vs shared-hidden unsupported; nonlinear joint controls beat direct x controls.
     # Implementation: codex/mediumprop-dedicated-m-mlp; /data0/xd/mediumprop-dedicated-m-mlp.
     # code_commit: 47b0e1b; UE5a v5p-16 startup~.723step/s; Pallas+tuned Splash.
     # Generic training health ON; internal/BAM OFF; AOT/step14 verified.
@@ -17491,6 +17496,12 @@ class BamMediumPropMShiftReadG050SharedHiddenRank8WriteTruePile(
 class BamMediumPropMShiftReadG050SharedHiddenRank8InputControlsTruePile(
     BamMediumPropMShiftReadG050SharedHiddenRank8WriteTruePile):
     """Eight M writes: U from shared SwiGLU hidden, direct address/gate from norm input."""
+    # Stopped at2983 after2800 review; UE5a v5p-16 P0; CP committed, resources absent, TB SYNC_OK.
+    # Early gain vs2:1 reversed;2k..2.8k deficit grew despite wider ordinary MLP.
+    # Final5(2000..2800) vs2:1 +.003863/gain.986423; vs shared-hidden +.005436/gain.981410.
+    # vs joint h +.001674/gain.993971; isolated2k win did not persist.
+    # Startup~.725 (~+2% vs shared-hidden); params+488=.000339W_Q, M-cache unchanged.
+    # Expected gains1.03 vs shared-hidden/1.01 vs joint h unsupported through stop.
     # Implementation: codex/mediumprop-dedicated-m-mlp; /data0/xd/mediumprop-dedicated-m-mlp.
     # code_commit: 47b0e1b; UE5a v5p-16 startup~.725step/s; Pallas+tuned Splash.
     # Generic training health ON; internal/BAM OFF; AOT/step14 verified.

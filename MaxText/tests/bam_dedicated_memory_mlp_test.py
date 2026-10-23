@@ -16,10 +16,11 @@ from common_types import MODEL_MODE_TRAIN
 A='BamMediumPropMShiftReadG050DedicatedMemoryMLPMHAWidthTruePile'
 B='BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1TruePile'
 SH='BamMediumPropMShiftReadG050SharedHiddenMemoryMLPTruePile'
+C='BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio3to1TruePile'
 
 class DedicatedMemoryMLPTest(MLPWriteTest, unittest.TestCase):
   def test_formal_budgets_and_kernel_settings(self):
-    for exp,normal,memory in [(A,207360000,31251600),(B,168843600,69768000)]:
+    for exp,normal,memory in [(A,207360000,31251600),(B,168843600,69768000),(C,188244000,50367600)]:
       c=self.config(exp)
       c.get_keys().update(max_target_length=256,max_prefill_predict_length=256)
       mesh=jax.sharding.Mesh(max_utils.create_device_mesh(c),c.mesh_axes)

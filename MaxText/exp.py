@@ -17519,6 +17519,8 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRank8R128H768TruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1TruePile):
     """Independent M-only SwiGLU768 produces8x75 content, with R128 nonlinear addresses."""
     # Implementation: codex/mediumprop-dedicated-m-mlp; /data0/xd/mediumprop-dedicated-m-mlp.
+    # code_commit: eb76af1; UE5a v5p-16 startup~.729step/s (+3.1% vs independent2:1).
+    # Pallas+tuned Splash; generic health ON, internal/BAM OFF; loaded AOT/step14 verified.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRank8R128H768TruePile'
     base_mlp_dim = 3108
     mlp_dim_by_block = [3108, 3108]

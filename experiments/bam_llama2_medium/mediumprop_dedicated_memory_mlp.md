@@ -362,3 +362,10 @@ are ledger/closeout metadata, no missing train/AOT/optimizer/checkpoint/writer f
 CPU gates cover full shared regressions, private8-head full-tree budgets and controls,
 content projection reference/live gradients, scanned causal gradients/gate initialization,
 legacy family behavior, unequal-head v8t forward/back and rotating-writer regressions.
+
+Startup verified2026-10-23: sealed runtime`eb76af1`, full CPU68 checks and retained
+FLEX AOT passed; registry/auto environment agree on commit, parent,13500 schedule
+and zone-local truepile4096 dataset. Worker loaded compiled executable, FIRST_STEP
+and step32 passed; startup~.729step/s versus parent~.707 (+3.1%), matched health.
+Preparation proof: `/home/xd/.local/state/maxtext-parallel-launch/`
+`BamMediumPropMShiftReadG050DedicatedMemoryMLPRank8R128H768TruePile-20261023T103551Z/`.

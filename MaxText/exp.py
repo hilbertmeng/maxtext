@@ -15026,6 +15026,11 @@ class BamMediumPropMShiftReadG050MuddVMQKVMSharedRouterLastTwoBlocksL2AnchorTrue
 
 class BamMediumPropMShiftReadG050MuddVMSharedRouterL15L17L2AnchorTruePile(BamMediumPropMShiftReadG050MuddVMSharedRouterLastTwoBlocksL2AnchorTruePile):
     """L2 VM parent plus L15 native VM; retain the parent's L16 MLP writing."""
+    # Stopped at 5172 after 5k review; CP committed, TPU/queue absent, TB SYNC_OK; UE5a P0.
+    # vs VM parent: initial gap+.00657(600), late deficit persisted;4200..5000 mean+.003038/gain.985510.
+    # vs old L2 QKVM champion mean+.003488/gain.983421; no championship improvement by5k.
+    # vs matched L14 VM/VM mean-.001080; vs L15 VM+L17 QKVM mean+.001071, same4200..5000.
+    # Local position benefit did not recover parent loss; parent+75576 params, unchanged M-cache, speed-2.1%.
     # code_commit:cee5200; FIRST_STEP/AOT/source verified, UE5a v5p16.
     # ~.691step/s vs VM parent~.706 (-2.1%); TPU310314.
     # ledger only on main; implementation codex/mediumprop-mudd-tail, /data0/xd/mediumprop-mudd-tail.
@@ -15041,6 +15046,11 @@ class BamMediumPropMShiftReadG050MuddVMSharedRouterL15L17L2AnchorTruePile(BamMed
 
 class BamMediumPropMShiftReadG050MuddVMQKVMSharedRouterL15L17L2AnchorTruePile(BamMediumPropMShiftReadG050MuddVMQKVMSharedRouterLastTwoBlocksL2AnchorTruePile):
     """Old L2 QKVM champion plus L15 native VM; L16 MLP writing stays off."""
+    # Stopped at 5192 after 5k review; CP committed, TPU/queue absent, TB SYNC_OK; UE5a P0.
+    # vs old L2 QKVM parent: gap improved from+.00606(600);4200..5000 mean+.002416/gain.988549.
+    # vs same-budget L14 VM+L17 QKVM: lost every3800..5000 window, latest5 mean+.001059.
+    # vs L15 VM/VM latest4200..5000 mean-.001071; better sibling loss did not beat parent/direction leader.
+    # No speed/cache advantage: parent+75576 params, unchanged M-cache, startup throughput-2.6%.
     # code_commit:cee5200; FIRST_STEP/AOT/source verified, UE5a v5p16.
     # ~.703step/s vs QKVM parent~.722 (-2.6%); TPU310315.
     # ledger only on main; implementation codex/mediumprop-mudd-tail, /data0/xd/mediumprop-mudd-tail.

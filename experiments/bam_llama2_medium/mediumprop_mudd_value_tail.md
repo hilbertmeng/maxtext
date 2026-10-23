@@ -1758,3 +1758,31 @@ us-east5-a only. First prequeue READY01:30:29 to manual stop03:42:00 UTC on
 Closeout summary tpu-ag logs/closeout-20261023T034415Z.json; evidence under
 /data0/xd/bam_diagnostics/mediumprop-mudd-tail/l14-vm/closeout-l14-vm.json and
 lease-l14-vm.json. Borrowed retained FLEX compiler is outside this closeout.
+
+### L15 position controls closeout
+
+Both L15 VM position controls stopped after5000 review: VM/VM at committed5172,
+VM/QKVM at committed5192, runtime cee5200. First run4200..5000 means versus
+its VM parent are gap+.003038/MHA-reference gain.985510, versus old L2 QKVM
+champion+.003488/.983421. It improves the matched L14 VM/VM by.001080 but
+still loses its original parent, and loses the L15 VM/QKVM sibling by.001071.
+Second run versus its old L2 QKVM parent improves slowly, but still averages
++.002416/.988549 over4200..5000. It loses the matched, equal-budget L14 VM/QKVM
+in all seven3800..5000 windows, latest five mean+.001059; it beats L15 VM/VM
+by.001071. Neither provides throughput or inference M-cache improvement.
+Both are original parent+75576 parameters. The terminal priors1.015/1.020
+remain untested at completion and were not supported enough to continue.
+
+The useful local result is conditional: moving the additional VM from L14 to
+L15 helps on the VM/MLP-write-ON base, but hurts on the QKVM/write-OFF base.
+Do not attribute this uniquely to QK source; final routing, L16 MLP writing
+and width allocation differ between the bases. This is not a universal L14
+or L15 ranking and neither L15 control demonstrated a new SOTA by5000.
+
+CP5172/5192 committed; both node/queue pairs absent, TB SYNC_OK, P0, UE5a only.
+Full known READY leases on2026-10-23 UTC:31031401:48:10–03:58:44=2h10m34s,
+31031501:48:13–03:58:46=2h10m33s, both manual review stops. Registry-observed
+subintervals start01:48:21 and01:49:40 (2h10m23s/2h09m06s).
+Evidence: tpu-ag logs/closeout-20261023T040147Z.json; local
+/data0/xd/bam_diagnostics/mediumprop-mudd-tail/l14-vm/closeout-l15-pair.json,
+lease-l15-vm.json and lease-l15-vmqkvm.json. Retained FLEX compiler preserved.

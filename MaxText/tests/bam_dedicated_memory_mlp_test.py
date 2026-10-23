@@ -17,6 +17,7 @@ A='BamMediumPropMShiftReadG050DedicatedMemoryMLPMHAWidthTruePile'
 B='BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1TruePile'
 SH='BamMediumPropMShiftReadG050SharedHiddenMemoryMLPTruePile'
 C='BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio3to1TruePile'
+HALF='BamMediumPropMShiftReadG050HalfMemoryMLPTruePile'
 
 class DedicatedMemoryMLPTest(MLPWriteTest, unittest.TestCase):
   def test_formal_budgets_and_kernel_settings(self):
@@ -48,7 +49,52 @@ class DedicatedMemoryMLPTest(MLPWriteTest, unittest.TestCase):
         bam_local_full_m_read_bottleneck_dim=8,bam_layer_modes=c.bam_layer_modes[:layers])
     if getattr(c,'bam_memory_mlp_share_hidden',False):
       c.get_keys().update(bam_memory_mlp_dim=32,bam_memory_mlp_last_write_dim=0)
+    if getattr(c,'bam_memory_mlp_half',False):
+      c.get_keys().update(bam_memory_mlp_dim=c.emb_dim,bam_memory_mlp_last_write_dim=0)
     return c
+
+  def test_half_formal_budget_and_missing_output_projection(self):
+    c=self.config(HALF)
+    c.get_keys().update(max_target_length=256,max_prefill_predict_length=256)
+    mesh=jax.sharding.Mesh(max_utils.create_device_mesh(c),c.mesh_axes)
+    args,_,_,_=train_compile.get_shaped_inputs(mesh,c)
+    flat=flatten_dict(args[0].params)
+    self.assertEqual(sum(int(np.prod(v.shape)) for v in flat.values()),432113280)
+    self.assertEqual(sum(int(np.prod(v.shape)) for p,v in flat.items() if 'mlp' in p),189651600)
+    self.assertEqual(sum(int(np.prod(v.shape)) for p,v in flat.items() if 'memory_mlp' in p),48960000)
+    self.assertFalse(any('memory_mlp' in p and 'wo' in p for p in flat))
+    self.assertFalse(any('final_local_layer_1' in p and 'memory_mlp' in p for p in flat))
+    self.assertTrue(c.record_training_health_metrics and c.bam_pallas_core and c.sa_use_fused_bwd_kernel)
+    self.assertFalse(c.record_internal_nn_metrics)
+
+  def test_half_hidden_reference_and_both_input_gradients(self):
+    c=self.tiny(HALF)
+    mod=linears.MlpBlock(config=c,intermediate_dim=150,activations=c.mlp_activations,
+        kernel_init=initializers.get_bam_init(c,fallback=initializers.get_model_init(c)),
+        bam_memory_direct_hidden=True,intermediate_dropout_rate=0,
+        dtype=jnp.float32,weight_dtype=jnp.float32)
+    x=jax.random.normal(jax.random.key(31),(1,4,150));p=nn.unbox(mod.init(jax.random.key(32),x,deterministic=True)['params'])
+    self.assertEqual(set(p),{'wi_0','wi_1'})
+    y=mod.apply({'params':p},x,deterministic=True)
+    ref=jax.nn.silu(x@p['wi_0']['kernel'])*(x@p['wi_1']['kernel'])
+    np.testing.assert_allclose(y,ref,rtol=1e-6,atol=1e-6)
+    grad=jax.grad(lambda q:jnp.sum(mod.apply({'params':q},x,deterministic=True)**2))(p)
+    for name in ['wi_0','wi_1']:self.assertGreater(float(jnp.sum(grad[name]['kernel']**2)),0,name)
+
+  def test_half_scan_gradients_and_causality(self):
+    c=self.tiny(HALF);mesh=jax.sharding.Mesh(max_utils.create_device_mesh(c),c.mesh_axes)
+    model=Transformer(c,mesh,quantizations.configure_quantization(c))
+    tok=jnp.array([[1,2,3,4]],jnp.int32);pos=jnp.arange(4)[None];seg=jnp.ones_like(tok)
+    with mesh,nn.partitioning.axis_rules(c.logical_axis_rules):
+      p=nn.unbox(model.init(jax.random.key(33),tok,pos,tok,seg,seg,enable_dropout=False)['params'])
+      def call(p,t):return model.apply({'params':p},t,pos,t,seg,seg,enable_dropout=False)[0]
+      y=call(p,tok);yp=call(p,tok.at[:,3].set(8))
+      np.testing.assert_allclose(y[:,:3],yp[:,:3],rtol=1e-6,atol=1e-6)
+      val,grad=jax.jit(jax.value_and_grad(lambda q:jnp.mean(call(q,tok)**2)))(p)
+      self.assertTrue(np.isfinite(float(val)))
+      for path,v in flatten_dict(grad).items():
+        self.assertTrue(np.isfinite(np.asarray(v)).all(),str(path))
+        if 'memory_mlp' in path:self.assertGreater(float(jnp.sum(v*v)),0,str(path))
 
   def test_shared_formal_budget_and_projection_tree(self):
     c=self.config(SH)

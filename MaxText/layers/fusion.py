@@ -257,6 +257,7 @@ class SubDecoderLayer(nn.Module):
     mlp_lnx = None
     memory_mlp_dim = int(getattr(cfg, 'bam_memory_mlp_dim', 0) or 0)
     share_memory_hidden = bool(getattr(cfg, 'bam_memory_mlp_share_hidden', False))
+    direct_memory_hidden = bool(getattr(cfg, 'bam_memory_mlp_half', False))
     memory_lnx = None
     if memory_mlp_dim:
       if not (cfg.bam_enabled and cfg.shared_experts == 1 and cfg.num_experts == 1):
@@ -264,6 +265,9 @@ class SubDecoderLayer(nn.Module):
       if mlp_write and share_memory_hidden:
         if memory_mlp_dim != self.updated_mlp_dim:
           raise ValueError('Shared memory/vector MLPs must have the same hidden width')
+      if mlp_write and direct_memory_hidden:
+        if share_memory_hidden or memory_mlp_dim != cfg.emb_dim:
+          raise ValueError('Half memory MLP requires its own D-wide hidden state')
       if mlp_write and not share_memory_hidden:
         last_write_dim = int(getattr(cfg, 'bam_memory_mlp_last_write_dim', 0) or 0)
         if last_write_dim and self.layer_inx == cfg.num_decoder_layers - 2:
@@ -274,6 +278,7 @@ class SubDecoderLayer(nn.Module):
             intermediate_dim=memory_mlp_dim, activations=cfg.mlp_activations,
             intermediate_dropout_rate=cfg.dropout_rate, dtype=cfg.dtype,
             weight_dtype=cfg.weight_dtype, name='memory_mlp', config=cfg,
+            bam_memory_direct_hidden=direct_memory_hidden,
             quant=self.quant, kernel_init=initializers.get_bam_init(
                 cfg, fallback=initializers.get_init_method(cfg.init_method)),
             use_bias=False)(

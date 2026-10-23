@@ -268,6 +268,7 @@ class MlpBlock(nn.Module):
     deterministic: Whether the dropout layers should be deterministic.
     output_kernel_init: Optional initializer for the output projection only.
     bam_memory_output: Return a second BAM-content projection of the same hidden activation.
+    bam_memory_direct_hidden: Return a D-wide gated hidden state without an output projection.
     intermediate_dropout_rate: Dropout rate used after the intermediate layers.
     dtype: computation data type for the dense layer.
     weight_dtype: weight data type for the dense layer.
@@ -282,6 +283,7 @@ class MlpBlock(nn.Module):
   kernel_init: NdInitializer = nd_dense_init(1.0, "fan_in", "truncated_normal")
   output_kernel_init: NdInitializer | None = None
   bam_memory_output: bool = False
+  bam_memory_direct_hidden: bool = False
   intermediate_dropout_rate: float = 0.1
   dtype: Any = jnp.float32
   weight_dtype: Any = jnp.float32
@@ -381,6 +383,11 @@ class MlpBlock(nn.Module):
     if '4xmlp' in cfg.deep_embed_type:
       max_logging.log(f'Inside 4xmlp, deep_embedding: {deep_embedding.shape if deep_embedding is not None else None}', debug=self.config.debug)
       x = self.deep_embed_block(inputs, x, decoder_input_tokens, deep_embedding)
+
+    if self.bam_memory_direct_hidden:
+      if self.bam_memory_output or x.shape[-1] != inputs.shape[-1]:
+        raise ValueError('Direct memory hidden output requires width D and no second head')
+      return checkpoint_name(x, "memory_mlp_hidden")
 
     output = DenseGeneral(
         inputs.shape[-1],

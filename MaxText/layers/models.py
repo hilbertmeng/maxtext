@@ -973,6 +973,9 @@ class Decoder(nn.Module):
             or type(cfg.bam_mudd_pre_tail_vm_mlp_dim) is not int
             or cfg.bam_mudd_pre_tail_vm_mlp_dim <= 0):
           raise ValueError('pre-tail VM requires one native L2 VM/QKVM tail and a positive local MLP width')
+        if cfg.bam_mudd_pre_tail_vm_qk and (not pre_tail_vm
+            or cfg.bam_mudd_pre_tail_vm_offset != 3 or not cfg.bam_mudd_tail_residual_qk):
+          raise ValueError('additional residual Q/K requires the L15 site and a native QKVM parent')
         if cfg.bam_mudd_tail_residual_qk and blocks != 1:
           raise ValueError('residual Q/K experiment is scoped to the final block only')
         if cfg.bam_mudd_tail_residual_mlp and (blocks != 1 or persistent

@@ -1704,3 +1704,30 @@ writer/checkpoint/AOT/optimizer code; only the scoped site selector and scan
 stage condition change. Borrow the same retained idle FLEX compiler serially,
 with no new FLEX allocation. Source and writer-regression hashes from the
 verified L14 CPU gate are retained alongside fresh scan/model CPU evidence.
+
+
+### L15/L17 QKVM on the champion parent
+
+User authorized BamMediumPropMShiftReadG050MuddQKVMSharedRouterL15L17L2AnchorTruePile,
+based on the running BamMediumPropMShiftReadG050MuddVMQKVMSharedRouterL15L17L2AnchorTruePile.
+Same worktree/branch; planned spot xd-v5p-16-310316-maxtext/us-east5-a.
+Restore full L15 Q/K from native C4 QKVM mixtures, retaining L15 attention
+writing, L16 attention writing, L16 MLP writing OFF and L17 attention writing
+absent. O reads M at both modified layers. Preserve all anchors, M-shift,
+final C1 router, 5+1 block scan and all training/kernel/health settings.
+
+L15 Q/K costs1850144=1.2848222W_Q; local MLP3412->2898 repays1850400,
+rounding-256. C2->C4 adds520 tiny exempt router parameters. Total432342420
+is direct parent+264; routers232740. Tail widths2898/3803/3026. No inference
+M-cache increase. Direct comparisons: L15 VM+L17 QKVM and old L2 QKVM
+champion; MHA-reference gain multipliers registered centrally. Prior terminal
+gain versus direct parent1.010, throughput +/-2%; combined with the stated
+parent prior1.020, implied champion-relative point forecast1.0302.
+
+The new QK flag is restricted to the additional L15 site with a QKVM parent;
+defaultFalse preserves the four existing runs. Fresh exact-budget, identity,
+causal forward/backward and live-write v8t-bridge checks cover the new path;
+rerun the L15 VM controls to verify the defaultFalse path. The unchanged
+writer regression and current infrastructure audit are reused by source/log
+hash. This fifth run joins the existing2000-step group reporting and2800/5000
+reviews. The extra L14 QKVM and runner-up L15 QKVM cells remain unlaunched.

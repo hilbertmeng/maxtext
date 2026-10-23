@@ -573,6 +573,7 @@ bam_mudd_tail_l5_anchor: False # Add complete L5 alongside L2 to the native tail
 bam_mudd_tail_dual_value: False # Add the original independently gated V M read to the tail Mudd W_V value; reuse O's dynamic read.
 bam_mudd_pre_tail_vm: False # Add native V/m routing at L-4 or L-3, preserving existing write policies.
 bam_mudd_pre_tail_vm_offset: 4 # 4 selects L14, 3 selects L15 in an 18-layer model.
+bam_mudd_pre_tail_vm_qk: False # Also use native residual Q/K at the additional L15 site.
 bam_mudd_pre_tail_vm_mlp_dim: null # Local MLP budget for the additional VM layer.
 bam_mudd_final_output: False # Independent three-source Mudd readout after complete final layer.
 bam_persistent_embedding_m: False # Carry a separate embedding-only [K,num_query_heads] matrix.

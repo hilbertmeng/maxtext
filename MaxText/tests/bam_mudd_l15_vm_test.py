@@ -95,7 +95,7 @@ class L15VMTest(NativeTailTest):
         self.assertTrue(values,name)
         self.assertGreater(sum(float(jnp.sum(v*v)) for v in values),0.,name)
       heads=next(v for p,v in gradient.items() if 'tail_layers' in p and 'local_0' in p and 'dynamic_dense_conn2' in p)
-      for route in range(2):self.assertGreater(float(jnp.sum(heads[:,:,route,2]**2)),0.,('L2',route))
+      for route in range(heads.shape[-2]):self.assertGreater(float(jnp.sum(heads[:,:,route,2]**2)),0.,('L2',route))
 
   def test_l15_v8t_bridge_keeps_live_attention_write(self):
     self.check_v8t_tail_layout_bridge(((VM,6),(MIXED,6)))

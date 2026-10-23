@@ -51,7 +51,7 @@ def skips_attention_write(config, layer_index):
 
 def is_qk_layer(config, layer_index):
   if is_pre_tail_vm(config, layer_index):
-    return False
+    return bool(getattr(config, 'bam_mudd_pre_tail_vm_qk', False))
   if not (bool(getattr(config, 'bam_mudd_tail_residual_qk', False))
           and is_value_layer(config, layer_index)):
     return False

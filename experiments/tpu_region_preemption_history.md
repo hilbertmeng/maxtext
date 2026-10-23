@@ -639,6 +639,7 @@ active leases are censored, and manual migration releases are not preemptions.
 | `BamMediumPropMShiftReadG050SharedHiddenRank8WriteTruePile` | v5p-16 (`xd-v5p-16-310322-maxtext`) | `us-east5-a` | 2026-10-23 07:59:41 | 2026-10-23 09:13:44 | review stop3005; P0; CP committed, node/queue absent, TB SYNC_OK; runtime47b0e1b | none |
 | `BamMediumPropMShiftReadG050SharedHiddenRank8InputControlsTruePile` | v5p-16 (`xd-v5p-16-310323-maxtext`) | `us-east5-a` | 2026-10-23 08:00:02 | 2026-10-23 09:13:48 | review stop2983; P0; CP committed, node/queue absent, TB SYNC_OK; runtime47b0e1b | none |
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio3to1TruePile` | v5p-16 (`xd-v5p-16-310320-maxtext`) | `us-east5-a` | 2026-10-23 06:27:52 | 2026-10-23 09:52:46 | review stop7795; P1; CP committed, node/queue absent, TB SYNC_OK; runtimefaefbad | none |
+| `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1TruePile` | v5p-16 (`xd-v5p-16-310318-maxtext`) | `us-east5-a` | 2026-10-23 05:29:47 | 2026-10-23 11:02:11 | completed13500; P0; CP committed, resources absent, TB SYNC_OK; runtime18a9d9c | none |
 
 ## READY leases
 
@@ -1926,6 +1927,7 @@ active leases are censored, and manual migration releases are not preemptions.
 | `BamMediumPropMShiftReadG050SharedHiddenRank8WriteTruePile` | 1 | `us-east5-a` | 2026-10-23 07:59:32 | 2026-10-23 09:13:44 | 1h14m12s | review stop3005; first prequeue READY; CP committed, resources absent, TB SYNC_OK |
 | `BamMediumPropMShiftReadG050SharedHiddenRank8InputControlsTruePile` | 1 | `us-east5-a` | 2026-10-23 07:59:37 | 2026-10-23 09:13:48 | 1h14m11s | review stop2983; first prequeue READY; CP committed, resources absent, TB SYNC_OK |
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio3to1TruePile` | 2 | `us-east5-a` | 2026-10-23 08:35:31 | 2026-10-23 09:52:46 | 1h17m15s | review stop7795; CP committed, resources absent, TB SYNC_OK |
+| `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1TruePile` | 1 | `us-east5-a` | 2026-10-23 05:28:35 | 2026-10-23 11:02:11 | 5h33m36s | planned completion13500; first prequeue READY, registry begins74s later; resources absent/TB SYNC_OK |
 
 | `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadT8192` | 1 | `us-east5-a` | 2026-10-13 01:40:37 | 2026-10-13 06:51:38 | 5h11m01s | manual review stop7140; resources absent, TB SYNC_OK |
 

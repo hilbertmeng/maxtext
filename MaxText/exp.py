@@ -17757,10 +17757,18 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MuddL14VML17VML2True
     # Total432344292, native routers231700; matched L1 run-325, ordinary/private MLP widths unchanged.
     # Initial loss differs from matched L1 run by+2e-6; zero-up initial function preserved.
     # Terminal primary MHA-reference gain prior1.015[1.000,1.030]; speed expected within~1%.
+    # Completed at 13500; CP13500 committed, node/queue absent, TB SYNC_OK; P0.
+    # vs mixed2:1 parent through9.6k: small persistent lead, last5 gap-.00140780/R1.00832731.
+    # vs original mixed tail: mid-run ~+.001 cost, near tie from11k, tiny terminal lead.
+    # Terminal last5 gap-.00066760/R1.00422673; last10 -.00038144/R1.00241647, no clear SOTA breakthrough.
+    # vs matched L1 VM through3.6k: +.00083488/R.99658981; removing L1 is not an improvement here.
+    # Initial parent1.015 bet optimistic at common9.6k; parent stopped9806, no matched terminal ratio.
+    # Total mixed-parent+536 / original-tail+2136; startup-2.46% vs mixed parent; M stays75x32.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MuddL14VML17VML2TruePile'
     bam_mudd_tail_l1_anchor = False
     compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MuddL14VML17QKVML2TruePile',
-                    'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MuddL14VML17VML1L2TruePile']
+                    'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MuddL14VML17VML1L2TruePile',
+                    'BamMediumPropMShiftReadG050MuddVMQKVMSharedRouterLastTwoBlocksL2AnchorTruePile']
 
 
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MuddL14VML17VML2NoL14MemoryMLPTruePile(

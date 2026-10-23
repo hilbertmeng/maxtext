@@ -490,3 +490,47 @@ TB rotation500 retained. Borrow verified FLEX_START llm-jax-v6e-1-0 worker0 in
 EW4a for AOT; keep rank8 training until the new sealed gates/AOT are ready.
 Hot-switch only the owned rank8 trainer UE5a xd-v5p-16-310324-maxtext; never
 release the borrowed compiler. Initial agent launch ID310328.
+
+
+### Verified L1 startup and replaced-arm closeout
+
+L1 mixed route runtime dde685157893dc1378af5a833f4e57a3fe653f4c passed CPU77,
+sealed configuration, retained FLEX AOT, actual loaded executable/FIRST_STEP/step14.
+Mean step10-14 .677step/s vs direct parent.676 (+.15%, effectively unchanged).
+Training ID310328 owns inherited xd-v5p-16-310324-maxtext in UE5a;13500-step schedule,
+sole direct mixed-parent comparison and MHA-reference ratio registered. Startup proof
+`l1-startup.json`. Compiler preserved.
+
+Independent rank8 user-hot-replaced at committed8001 (not a full-schedule verdict).
+Final five mature windows7000-7800 vs2:1 +.00398424/R.97748136; early catch-up stalled
+rather than producing a sustained late MLP gain. Total parent-456, ordinary MLP+20.8%,
+cache unchanged, steady throughput~+2.8% (startup+3.1%). Original terminal1.02 bet
+unsupported through replacement. UE5a P1: first READY prequeue10:39:31-12:11:54 UTC
+(1h32m23s; registry starts11s later), recovered12:19:26-14:03:54 (1h44m28s, handoff
+boundary). CP8001 marker independently checked; old stopped registry verified before
+bookkeeping wrapper; already_closed=true, no resource operations, TB SYNC_OK.
+
+Single QKVM combination user-stopped6166 after common5k review. Latest five mature
+windows5200-6000 vs original L2 QKVM +.00500920/R.97454565, vs2:1 +.00131196/R.99321580.
+Large initial convergence lead reversed by~1.2k vs historical tail; later failed to add
+value even to dense2:1. Total+1600 vs old tail, cache unchanged, startup-3.6% vs old
+and-1.6% vs2:1. Original terminal1.010 prior unsupported through stop. UE5a P0,
+first prequeue READY11:34:38-14:11:08 UTC (2h36m30s); registry starts83s later.
+CP6166 committed, physical310325 node/queue verified absent, TB SYNC_OK.
+
+### Two spaced VM sites on the L1 mixed route
+
+User requests an additional independent RUN, not replacement of its L1/QKVM parent.
+Configuration `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MuddL14VML17VML1L2TruePile`.
+Change only final QKVM to VM and restore L16 private memory writer. L16 attention write
+stays enabled, L17 writers stay removed. Both native C2 sites and final C1 retain
+[embedding,L0,L1,L2,current], shared width64 controllers. Ordinary L14-17 widths
+2275/2535/2535/3544; private1010/1140/1140/0. Expected full total432344617 and native
+routers232025: direct parent+406 from nonrouter integer rounding+1056 and router-650.
+MLP kernels follow local existing budgets; native routers remain exempt. Sole direct
+comparison is L1 mixed QKVM parent, MHA-reference gain. Terminal prior1.010 [.995,1.025],
+throughput cost0..2%. Implementation has no further architecture change: scoped formal
+parameter/write-policy, scanned forward/causal/gradient and v8t bridge checks suffice
+on the verified77-check runtime. Main-only audit still37d4eea0 (metadata-only since
+previous audit). Initial launch ID310329, UE5a v5p16, same T4096/global128/percore16,
+Pallas and tuned Splash/health/CP/TB settings; borrow the retained FLEX compiler only.

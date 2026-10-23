@@ -17524,6 +17524,12 @@ class BamMediumPropMShiftReadG050SharedHiddenRank8InputControlsTruePile(
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRank8R128H768TruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1TruePile):
     """Independent M-only SwiGLU768 produces8x75 content, with R128 nonlinear addresses."""
+    # User hot-replaced at8001; CP8001 committed, retained physical TPU transferred to L1 mixed tail.
+    # vs2:1: initial deficit narrowed then stalled; final5(7000..7800) gap+.003984/R.977481.
+    # Gain1k .98927 ->3k .98639 ->5k .98155 ->7.8k .97748; no sustained late recovery by stop.
+    # Ordinary MLP+20.8%, total parent-456, M-cache unchanged; startup+3.1%, steady~+2.8%.
+    # Initial terminal1.02 bet unsupported through stop; full13500 was not completed (user replacement).
+    # UE5a v5p16 P1; READY10:39:31-12:11:54 and12:19:26-14:03:54 UTC; TB SYNC_OK.
     # Implementation: codex/mediumprop-dedicated-m-mlp; /data0/xd/mediumprop-dedicated-m-mlp.
     # code_commit: eb76af1; UE5a v5p-16 startup~.729step/s (+3.1% vs independent2:1).
     # Pallas+tuned Splash; generic health ON, internal/BAM OFF; loaded AOT/step14 verified.
@@ -17543,6 +17549,11 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRank8R128H768TruePile(
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MuddQKVML2TruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1TruePile):
     """Dense private M updates plus the L17 native shared QKVM/L2 champion exit."""
+    # User stop6166 after5k review; CP committed, node/queue absent, TB SYNC_OK; UE5a v5p16 P0.
+    # Large early convergence lead reversed vs oldL2 QKVM near1.2k; later also trailed2:1.
+    # Final5(5200..6000) vs oldL2 QKVM +.005009/R.974546; vs2:1 +.001312/R.993216.
+    # Native tail failed to add to dense2:1 by stop; parent+1600 params, cache unchanged.
+    # Startup-3.6% vs old tail/-1.6% vs2:1; initial terminal1.010 bet unsupported through stop.
     # code_commit: 82e5a73; UE5a v5p-16 startup~0.6960step/s (-1.6% vs2:1).
     # Loaded AOT/FIRST_STEP/step14 verified; CPU74 passed, Pallas+tuned Splash.
     # Generic training health ON, internal/BAM OFF; three-layer staged scan.
@@ -17598,9 +17609,26 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MuddL14VML17QKVML2Tr
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MuddL14VML17QKVML1L2TruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MuddL14VML17QKVML2TruePile):
     """Add completed L1 to the mixed tail's native L14/L17/final Mudd sources."""
+    # code_commit: dde6851; UE5a v5p16 startup.677step/s (+.15% vs direct parent.676).
+    # CPU77 + sealed config + borrowed FLEX AOT + FIRST_STEP/step14 verified.
+    # Generic health ON/internal+BAM OFF; Pallas v8t48/fused + tuned Splash; full13500 schedule.
     # Sources[embedding,L0,L1,L2,current]; shared controllers remain width64.
     # Native Mudd routers +455 parameters exempt; all ordinary/private MLP widths unchanged.
     # Terminal MHA-ref gain prior vs direct parent1.010[.995,1.025]; speed cost0..1%.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MuddL14VML17QKVML1L2TruePile'
     bam_mudd_tail_l1_anchor = True
     compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MuddL14VML17QKVML2TruePile']
+
+
+class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MuddL14VML17VML1L2TruePile(
+    BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MuddL14VML17QKVML1L2TruePile):
+    """Two spaced native VM sites, complete first-block anchors and live L16 M writes."""
+    # L17 Q/K return to M; L16 private M-MLP restored, attention write retained.
+    # Total432344617, native routers232025; parent+406 from integer width rounding.
+    # Terminal MHA-ref gain prior vs direct parent1.010[.995,1.025]; speed cost0..2%.
+    model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MuddL14VML17VML1L2TruePile'
+    bam_mudd_tail_residual_qk = False
+    bam_mudd_tail_skip_mlp_write = False
+    bam_mudd_tail_mlp_dims = [2535, 2535, 3544]
+    bam_memory_mlp_dim_by_layer = [1140] * 14 + [1010, 1140, 1140, 0]
+    compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MuddL14VML17QKVML1L2TruePile']

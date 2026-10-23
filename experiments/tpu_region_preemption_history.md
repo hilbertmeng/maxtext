@@ -631,6 +631,8 @@ active leases are censored, and manual migration releases are not preemptions.
 | `BamMediumPropMShiftReadG050MuddVMSharedRouterL15L17L2AnchorTruePile` | v5p-16 (`xd-v5p-16-310314-maxtext`) | `us-east5-a` | 2026-10-23 01:48:17 | 2026-10-23 03:58:44 | 5k review stop5172; P0; CP committed, node/queue absent by04:01:47, TB SYNC_OK; runtimecee5200 | none |
 | `BamMediumPropMShiftReadG050MuddVMQKVMSharedRouterL15L17L2AnchorTruePile` | v5p-16 (`xd-v5p-16-310315-maxtext`) | `us-east5-a` | 2026-10-23 01:49:38 | 2026-10-23 03:58:46 | 5k review stop5192; P0; CP committed, node/queue absent by04:01:47, TB SYNC_OK; runtimecee5200 | none |
 
+| `BamMediumPropMShiftReadG050MuddQKVMSharedRouterL15L17L2AnchorTruePile` | v5p-16 (`xd-v5p-16-310316-maxtext`) | `us-east5-a` | 2026-10-23 02:04:46 | 2026-10-23 04:11:16 | 5k review stop5122; P0; CP committed, node/queue absent by04:13:53, TB SYNC_OK; runtime03b2749 | none |
+
 ## READY leases
 
 | RUN | # | Zone | Start UTC | End UTC | Duration | Exit |
@@ -2064,6 +2066,8 @@ active leases are censored, and manual migration releases are not preemptions.
 
 | `BamMediumPropMShiftReadG050MuddVMSharedRouterL15L17L2AnchorTruePile` | 1 | `us-east5-a` | 2026-10-23 01:48:10 | 2026-10-23 03:58:44 | 2h10m34s | 5k review stop5172; P0; first prequeue READY; registry subinterval01:48:21–03:58:44=2h10m23s; CP committed, node/queue absent, TB SYNC_OK |
 | `BamMediumPropMShiftReadG050MuddVMQKVMSharedRouterL15L17L2AnchorTruePile` | 1 | `us-east5-a` | 2026-10-23 01:48:13 | 2026-10-23 03:58:46 | 2h10m33s | 5k review stop5192; P0; first prequeue READY; registry subinterval01:49:40–03:58:46=2h09m06s; CP committed, node/queue absent, TB SYNC_OK |
+
+| `BamMediumPropMShiftReadG050MuddQKVMSharedRouterL15L17L2AnchorTruePile` | 1 | `us-east5-a` | 2026-10-23 02:04:38 | 2026-10-23 04:11:16 | 2h06m38s | 5k review stop5122; P0; first prequeue READY; registry subinterval02:04:48–04:11:16=2h06m28s; CP committed, node/queue absent, TB SYNC_OK |
 
 ### 2026-10-14 user pause: resumed mixed R256/R384
 

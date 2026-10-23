@@ -15082,6 +15082,11 @@ class BamMediumPropMShiftReadG050MuddVMQKVMSharedRouterL15L17L2AnchorTruePile(Ba
 
 class BamMediumPropMShiftReadG050MuddQKVMSharedRouterL15L17L2AnchorTruePile(BamMediumPropMShiftReadG050MuddVMQKVMSharedRouterL15L17L2AnchorTruePile):
     """L15/L17 native shared QKVM, retaining the live L15 attention writer."""
+    # Stopped at 5122 after 5k review; CP committed, TPU/queue absent, TB SYNC_OK; UE5a P0.
+    # vs direct L15 VM+L17 QKVM parent: near tie early, then lost every2400..5000 window.
+    # Last4200..5000 mean gap+.002063/MHA-ref gain.990124; vs old champion+.004479/.978778.
+    # Prior terminal gain1.010 not supported by observed trajectory; extra L15 QK did not pay by5k.
+    # Parent+264 parameters after local MLP3412->2898; unchanged M-cache; startup speed+0.6% insufficient.
     # code_commit:03b2749; FIRST_STEP/AOT/source verified, UE5a v5p16.
     # ~.707step/s vs direct L15 VM+L17 QKVM parent~.703 (+0.6%); TPU310316.
     # ledger only on main; implementation codex/mediumprop-mudd-tail, /data0/xd/mediumprop-mudd-tail.

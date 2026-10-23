@@ -1848,3 +1848,24 @@ subintervals start01:48:21 and01:49:40 (2h10m23s/2h09m06s).
 Evidence: tpu-ag logs/closeout-20261023T040147Z.json; local
 /data0/xd/bam_diagnostics/mediumprop-mudd-tail/l14-vm/closeout-l15-pair.json,
 lease-l15-vm.json and lease-l15-vmqkvm.json. Retained FLEX compiler preserved.
+
+### L15/L17 QKVM closeout
+
+BamMediumPropMShiftReadG050MuddQKVMSharedRouterL15L17L2AnchorTruePile stopped
+at committed5122 after5000 review, runtime03b2749. Versus its direct L15 VM+
+L17 QKVM parent it was nearly tied over600..1200, briefly won the parent's
+1400 spike, then lost every2400..5000 window. Last4200..5000 means are
+gap+.002063/MHA-reference gain.990124; versus old L2 QKVM champion+.004479/
+.978778. Restoring full L15 QK under the same budget, replacing514 local MLP
+units with Q/K projections, did not pay by5000. Parent+264 total parameters,
+unchanged inference M-cache, startup throughput+0.6% did not offset the loss.
+The terminal gain prior1.010 was not supported enough to continue; no claim
+about an untrained terminal result. This result is scoped to L15 on this
+QKVM/write-OFF parent, not a proof that QKVM at every earlier layer fails.
+
+CP5122 committed; node/queue310316 absent by04:13:53, TB SYNC_OK, P0, UE5a only.
+Full known READY lease2026-10-23 UTC02:04:38–04:11:16=2h06m38s, ending in
+manual review stop; registry-observed02:04:48 onward is2h06m28s.
+Evidence: tpu-ag logs/closeout-20261023T041353Z.json and local
+/data0/xd/bam_diagnostics/mediumprop-mudd-tail/l14-vm/closeout-l15-qkvm.json,
+lease-l15-qkvm.json. Retained FLEX compiler preserved.

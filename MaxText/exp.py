@@ -17425,3 +17425,19 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio3to1TruePile(
     bam_last_mlp_dim = 3806
     compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1TruePile',
                     'BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile']
+
+
+class BamMediumPropMShiftReadG050HalfMemoryMLPTruePile(
+    BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio3to1TruePile):
+    """D-wide private SwiGLU hidden writes M directly, without a content output projection."""
+    # Ledger only. Implementation: codex/mediumprop-dedicated-m-mlp; /data0/xd/mediumprop-dedicated-m-mlp.
+    model_name = 'BamMediumPropMShiftReadG050HalfMemoryMLPTruePile'
+    base_mlp_dim = 2875
+    mlp_dim_by_block = [2875, 2875]
+    bam_memory_mlp_half = True
+    bam_memory_mlp_dim = 1200
+    bam_final_local_mlp_dim = 2875
+    bam_last_mlp_dim = 3806
+    compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio3to1TruePile',
+                    'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1TruePile',
+                    'BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile']

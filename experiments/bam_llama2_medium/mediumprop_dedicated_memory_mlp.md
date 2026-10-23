@@ -99,3 +99,29 @@ full target AOT/FIRST_STEP gates; no repeat of unrelated shared regressions.
 Matched3:1 runtimefaefbada: sealed inherited-config, exact family budget/kernel-settings
 CPU check, target AOT load, FIRST_STEP8 and step14 gates verified. Startup~.700step/s
 versus independent2:1 startup.707 (about−1%, same health/kernel settings).
+
+## Half memory MLP
+
+RUN `BamMediumPropMShiftReadG050HalfMemoryMLPTruePile`, TPU
+`xd-v5p-16-310321-maxtext`, UE5a; same family worktree and retained FLEX compiler.
+Independent W1/Wg, SwiGLU hidden1200=16x75 goes directly to the existing memory
+content RMS/gate/outer-product path. No memory `wo` is created. Ordinary widths
+L0–16:2875, L17:3806; no last-layer memory branch. Addresses/gates, initial gate.1,
+attention writes, read-only M-shift .5, read recipe, Pallas/tuned Splash and health
+settings unchanged. No new amplitude scaling.
+
+Body budget: ordinary10350000 + two memory inputs2880000 + write controls458000
+=13688000, identical to2:1 and3:1. Ordinary189651600, memory48960000,
+controls7786000, model432113280 (MHA−7920, same as all independent full-memory arms).
+Complete branch ratio3.100659:1, kernel-only3.59375:1. Compared with full3:1,
+ordinary width2852→2875, memory feature width823→1200, no postactivation mixing.
+Leading dense MAC count is unchanged because all saved projection weights fund
+the ordinary MLP; total hidden activations grow, so fewer output GEMMs do not prove
+whole-step acceleration. M-cache and the Pallas input/output shapes are unchanged.
+
+Primary comparator full3:1; retain full2:1 and original single.5 as references,
+with matched MHA as common gain-ratio reference. Bet terminal1.01 vsfull3:1,
+throughput flat. Full13500 plan; reviews2800/5000 and grouped1000-step early reports.
+Main-only updates throughca0a179f are ledger metadata, with no infrastructure fixes
+missing. Run full shared regressions plus family half-tree/reference/gradient and
+causality checks, summary-writer regression, sealed config, target AOT and FIRST_STEP.

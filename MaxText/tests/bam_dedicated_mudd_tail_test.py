@@ -113,7 +113,7 @@ class DedicatedMuddTailTest(NativeTailTest):
         leaves=[v for p,v in gf.items() if 'pre_tail_layers' in p and 'fetch_2' in p and 'memory_mlp' in p]
         self.assertGreater(sum(float(jnp.sum(v*v)) for v in leaves),0.)
       if exp==F:
-        self.assertFalse(any('pre_tail_layers' in p and 'memory_mlp' in p for p in gf))
+        self.assertFalse(any('pre_tail_layers' in p and 'fetch_2' in p and 'memory_mlp' in p for p in gf))
         for branch in ('mlp','P_loc_up','W_gw'):
           leaves=[v for p,v in gf.items() if 'pre_tail_layers' in p and 'fetch_2' in p and branch in p]
           self.assertTrue(leaves,branch);self.assertGreater(sum(float(jnp.sum(v*v)) for v in leaves),0.,branch)

@@ -230,7 +230,7 @@ class SubDecoderLayer(nn.Module):
       call_kwargs['persistent_M'] = persistent_M
     shared_routes = None
     if cfg.bam_mudd_tail_native_shared_router and bam_mudd.is_value_layer(cfg, self.layer_inx):
-      anchor_count = 2 + int(cfg.bam_mudd_tail_l2_anchor) + int(cfg.bam_mudd_tail_l5_anchor)
+      anchor_count = 1 + len(bam_mudd.anchor_layers(cfg))
       if early_residuals is None or len(early_residuals) != anchor_count:
         raise ValueError('native tail Mudd requires all configured residual anchors')
       # Native Mudd expects the current residual last (identity bias [0,0,1]).
@@ -633,12 +633,8 @@ class FusionDecoderLayer(nn.Module):
         if getattr(cfg, 'bam_persistent_embedding_m', False):
           persistent_M, inputs = inputs[-1], inputs[:-1]
         if bam_mudd.uses_anchors(cfg):
-          if cfg.bam_mudd_tail_l5_anchor:
-            inputs, M_in, embedding_anchor, l0_anchor, l2_anchor, l5_anchor = inputs
-          elif cfg.bam_mudd_tail_l2_anchor:
-            inputs, M_in, embedding_anchor, l0_anchor, l2_anchor = inputs
-          else:
-            inputs, M_in, embedding_anchor, l0_anchor = inputs
+          early_residuals = inputs[2:]
+          inputs, M_in = inputs[:2]
         else:
           inputs, M_in = inputs
       else:
@@ -685,12 +681,8 @@ class FusionDecoderLayer(nn.Module):
             lidx=self.layer_inx,
           )
     # return's inputs length is 1
-    extra_inputs = ({'early_residuals': (embedding_anchor, l0_anchor)}
+    extra_inputs = ({'early_residuals': early_residuals}
                     if scan_full_bam and bam_mudd.uses_anchors(cfg) else {})
-    if extra_inputs and cfg.bam_mudd_tail_l2_anchor:
-      extra_inputs['early_residuals'] += (l2_anchor,)
-    if extra_inputs and cfg.bam_mudd_tail_l5_anchor:
-      extra_inputs['early_residuals'] += (l5_anchor,)
     if scan_full_bam and getattr(cfg, 'bam_persistent_embedding_m', False):
       extra_inputs['persistent_M'] = persistent_M
     inputs, M_out = self.layer(
@@ -729,14 +721,9 @@ class FusionDecoderLayer(nn.Module):
     if cfg.scan_layers:
       carry = (inputs, M_out) if scan_full_bam else inputs
       if scan_full_bam and bam_mudd.uses_anchors(cfg):
-        l0_anchor = jnp.where(jnp.asarray(layer_index) == 0, inputs, l0_anchor)
-        carry = (inputs, M_out, embedding_anchor, l0_anchor)
-        if cfg.bam_mudd_tail_l2_anchor:
-          l2_anchor = jnp.where(jnp.asarray(layer_index) == 2, inputs, l2_anchor)
-          carry += (l2_anchor,)
-        if cfg.bam_mudd_tail_l5_anchor:
-          l5_anchor = jnp.where(jnp.asarray(layer_index) == 5, inputs, l5_anchor)
-          carry += (l5_anchor,)
+        carry += (early_residuals[0],)
+        carry += tuple(jnp.where(jnp.asarray(layer_index) == layer, inputs, previous)
+                       for layer, previous in zip(bam_mudd.anchor_layers(cfg), early_residuals[1:]))
       if scan_full_bam and getattr(cfg, 'bam_persistent_embedding_m', False):
         carry += (persistent_M,)
       return carry, ()

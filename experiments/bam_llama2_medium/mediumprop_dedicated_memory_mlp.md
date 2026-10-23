@@ -460,3 +460,33 @@ Their old tail startup controls are.722/.713/.705 (about−3.6%/−3.6%/−4.1%)
 Same generic/internal/BAM health and tuned Splash;2:1 parent uses two-layer scan
 while these runs use three-layer stages. Proofs`combined-{qkvm,vm,mixed}-startup.json`
 and parallel-launch`*-20261023T112902Z/`; compiler lifecycle remains borrowed.
+
+
+## Completed L1 source on the mixed dense2:1 tail (2026-10-23)
+
+User requested adding the completed L1 residual to the running mixed combination,
+hot-replacing independent rank8. New configuration:
+`BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MuddL14VML17QKVML1L2TruePile`.
+Direct sole comparison:
+`BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MuddL14VML17QKVML2TruePile`;
+MHA remains the gain reference. Same implementation family/worktree/branch as above.
+All three native sites (L14 C2 VM, L17 C4 QKVM, final C1) use
+[embedding, complete L0, complete L1, complete L2, current]. Each retains one
+shared D->64 controller, zero dynamic-up and current-identity bias. Expand1/4
+both retain hidden64. Total432344211, native routers232675: +455 parameters
+(.000316 W_Q), exempt under existing Mudd convention. All ordinary/private widths,
+write policies, scan stages, data and13500-step schedule remain the direct parent's.
+The extra scan carry captures the completed L1 output exactly once, not its input.
+Legacy default source ordering is preserved, including old L5 configurations.
+Prior terminal MHA-reference gain1.010 [.995,1.025], throughput cost0..1%; expectation
+is that supplying the missing intermediate first-block state can help where adding
+another later cumulative anchor (historical L5) did not. This is a hypothesis.
+
+Infrastructure audit through main37d4eea0: main-only changes since audited1f3dbc67
+are experiment metadata; no omitted training/AOT/optimizer/checkpoint/writer fixes.
+PallasTrue/v8t/48/fused inputs, tuned Splash, normal training health ON,
+internal/BAM OFF, full remat, T4096/global128/percore16, checkpoint200/latest2,
+TB rotation500 retained. Borrow verified FLEX_START llm-jax-v6e-1-0 worker0 in
+EW4a for AOT; keep rank8 training until the new sealed gates/AOT are ready.
+Hot-switch only the owned rank8 trainer UE5a xd-v5p-16-310324-maxtext; never
+release the borrowed compiler. Initial agent launch ID310328.

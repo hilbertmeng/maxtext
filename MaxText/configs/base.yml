@@ -569,6 +569,7 @@ bam_mudd_tail_skip_attention_write_last_layers: 0 # Omit both operations and par
 bam_mudd_tail_native_shared_router: False # Use native Mudd Compose once for joint QKV[/m] routing, and C1 final readout.
 bam_mudd_tail_skip_mlp_write: True # Omit the modified blocks' middle-layer MLP write; False restores its configured write.
 bam_mudd_tail_l2_anchor: False # Also carry the completed L2 residual into native tail and final Mudd mixtures.
+bam_mudd_tail_l1_anchor: False # Include complete L1 between L0 and L2 in native mixtures.
 bam_mudd_tail_l5_anchor: False # Add complete L5 alongside L2 to the native tail and final mixtures.
 bam_mudd_tail_dual_value: False # Add the original independently gated V M read to the tail Mudd W_V value; reuse O's dynamic read.
 bam_mudd_pre_tail_vm: False # Add native V/m routing at L-4 or L-3, preserving existing write policies.

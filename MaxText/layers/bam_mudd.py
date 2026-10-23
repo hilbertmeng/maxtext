@@ -17,6 +17,12 @@ def uses_anchors(config):
               or getattr(config, 'bam_mudd_final_output', False))
 
 
+def anchor_layers(config):
+  """Completed residuals carried after the embedding, in source order."""
+  return (0,) + tuple(layer for layer in (1, 2, 5)
+                      if getattr(config, f'bam_mudd_tail_l{layer}_anchor', False))
+
+
 def is_pre_tail_vm(config, layer_index):
   return (bool(getattr(config, 'bam_mudd_pre_tail_vm', False))
           and layer_index == config.num_decoder_layers - getattr(config, 'bam_mudd_pre_tail_vm_offset', 4))

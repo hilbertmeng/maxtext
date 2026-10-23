@@ -1003,6 +1003,9 @@ class Decoder(nn.Module):
           raise ValueError('native shared tail requires one QKV[/m] or VM block with plain identity-initialized Mudd')
         if cfg.bam_mudd_tail_l2_anchor and not cfg.bam_mudd_tail_native_shared_router:
           raise ValueError('L2 residual anchor requires native shared tail routing')
+        if cfg.bam_mudd_tail_l1_anchor and (not cfg.bam_mudd_tail_l2_anchor
+            or not cfg.bam_mudd_tail_native_shared_router or persistent):
+          raise ValueError('L1 residual anchor extends the native L2 tail routing')
         if cfg.bam_mudd_tail_l5_anchor and (not cfg.bam_mudd_tail_l2_anchor
             or not cfg.bam_mudd_tail_native_shared_router or persistent):
           raise ValueError('L5 residual anchor extends the native L2 tail routing')
@@ -1037,11 +1040,7 @@ class Decoder(nn.Module):
         M, persistent_M = initial if persistent else (initial, None)
         carry = (y, M)
         if bam_mudd.uses_anchors(cfg):
-          carry += (y, jnp.zeros_like(y))
-          if cfg.bam_mudd_tail_l2_anchor:
-            carry += (jnp.zeros_like(y),)
-          if cfg.bam_mudd_tail_l5_anchor:
-            carry += (jnp.zeros_like(y),)
+          carry += (y,) + tuple(jnp.zeros_like(y) for _ in bam_mudd.anchor_layers(cfg))
         if persistent:
           carry += (persistent_M,)
         # Separate scan stages retain independent layer parameters while sharing each stage's HLO.
@@ -1064,11 +1063,7 @@ class Decoder(nn.Module):
         y, M = carry[:2]
         if bam_mudd.uses_anchors(cfg):
           embedding_anchor, l0_anchor = carry[2:4]
-          anchors = [embedding_anchor, l0_anchor]
-          if cfg.bam_mudd_tail_l2_anchor:
-            anchors.append(carry[4])
-          if cfg.bam_mudd_tail_l5_anchor:
-            anchors.append(carry[5])
+          anchors = list(carry[2:3 + len(bam_mudd.anchor_layers(cfg))])
           if cfg.bam_mudd_tail_native_shared_router:
             routed, _ = mudd.Compose(
                 cfg, mesh, self.quant, C=1, compose=True, force_router=True,

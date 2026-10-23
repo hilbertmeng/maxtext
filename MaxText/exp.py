@@ -17593,3 +17593,14 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MuddL14VML17QKVML2Tr
     bam_memory_mlp_dim_by_layer = [1140] * 14 + [1010, 1140, 0, 0]
     compare_runs = ['BamMediumPropMShiftReadG050MuddVMQKVMSharedRouterLastTwoBlocksL2AnchorTruePile',
                     'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1TruePile']
+
+
+class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MuddL14VML17QKVML1L2TruePile(
+    BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MuddL14VML17QKVML2TruePile):
+    """Add completed L1 to the mixed tail's native L14/L17/final Mudd sources."""
+    # Sources[embedding,L0,L1,L2,current]; shared controllers remain width64.
+    # Native Mudd routers +455 parameters exempt; all ordinary/private MLP widths unchanged.
+    # Terminal MHA-ref gain prior vs direct parent1.010[.995,1.025]; speed cost0..1%.
+    model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MuddL14VML17QKVML1L2TruePile'
+    bam_mudd_tail_l1_anchor = True
+    compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MuddL14VML17QKVML2TruePile']

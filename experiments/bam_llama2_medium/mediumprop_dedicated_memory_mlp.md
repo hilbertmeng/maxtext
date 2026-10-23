@@ -75,3 +75,7 @@ Compare direct independent2:1 arm plus original single.5 direction anchor; MHA c
 reference for both gain ratios. Terminal bets:1.05 versus original parent, approximately
 1.01 versus independent2:1 (consistent with that arm's1.04 prior); throughput+2% versus
 independent2:1. Full13500 plan, reviews2800/5000, grouped reports every1000 early.
+
+Shared-hidden sealed runtime89d6bec543615acbae3ea5115235e90b2e7b2c4b;59 CPU checks
+(47 shared +7 family +5 summary writer) passed. AOT load, FIRST_STEP12 and step14
+gates verified; startup~.71step/s under the declared health/kernel settings.

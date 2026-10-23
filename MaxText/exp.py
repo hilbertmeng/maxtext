@@ -17521,3 +17521,23 @@ class BamMediumPropMShiftReadG050SharedHiddenRank8InputControlsTruePile(
     compare_runs = ['BamMediumPropMShiftReadG050SharedHiddenRank8WriteTruePile',
                     'BamMediumPropMShiftReadG050SharedHiddenMemoryMLPTruePile',
                     'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1TruePile']
+
+
+class BamMediumPropMShiftReadG050DedicatedMemoryMLPRank8R128H768TruePile(
+    BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1TruePile):
+    """Independent M-only SwiGLU768 produces8x75 content, with R128 nonlinear addresses."""
+    # Implementation: codex/mediumprop-dedicated-m-mlp; /data0/xd/mediumprop-dedicated-m-mlp.
+    # code_commit: eb76af1; UE5a v5p-16 startup~.729step/s (+3.1% vs independent2:1).
+    # Pallas+tuned Splash; generic health ON, internal/BAM OFF; loaded AOT/step14 verified.
+    # ledger only; implementation on the branch/worktree above.
+    model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRank8R128H768TruePile'
+    base_mlp_dim = 3108
+    mlp_dim_by_block = [3108, 3108]
+    bam_memory_mlp_dim = 768
+    bam_memory_mlp_last_write_dim = 0
+    bam_memory_write_heads = 8
+    bam_mlp_write_address_rank = 128
+    bam_memory_write_eps = 0.14142135623730953
+    bam_final_local_mlp_dim = 3108
+    bam_last_mlp_dim = 3801
+    compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1TruePile']

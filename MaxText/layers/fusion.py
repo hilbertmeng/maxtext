@@ -255,6 +255,26 @@ class SubDecoderLayer(nn.Module):
     )
     
     mlp_lnx = None
+    memory_mlp_dim = int(getattr(cfg, 'bam_memory_mlp_dim', 0) or 0)
+    memory_lnx = None
+    if memory_mlp_dim:
+      if not (cfg.bam_enabled and cfg.shared_experts == 1 and cfg.num_experts == 1):
+        raise ValueError('A dedicated memory MLP requires dense BAM layers')
+      if mlp_write:
+        last_write_dim = int(getattr(cfg, 'bam_memory_mlp_last_write_dim', 0) or 0)
+        if last_write_dim and self.layer_inx == cfg.num_decoder_layers - 2:
+          memory_mlp_dim = last_write_dim
+        # Both branches consume the same post-attention normalized residual.
+        # Only this branch supplies M content; it never enters the vector residual.
+        memory_lnx = linears.MlpBlock(
+            intermediate_dim=memory_mlp_dim, activations=cfg.mlp_activations,
+            intermediate_dropout_rate=cfg.dropout_rate, dtype=cfg.dtype,
+            weight_dtype=cfg.weight_dtype, name='memory_mlp', config=cfg,
+            quant=self.quant, kernel_init=initializers.get_bam_init(
+                cfg, fallback=initializers.get_init_method(cfg.init_method)),
+            use_bias=False)(
+                hidden_states, deep_embedding=deep_embedding,
+                decoder_input_tokens=decoder_input_tokens, deterministic=deterministic)
     if cfg.shared_experts == 1:
       # MLP block.
       mlp_lnx = linears.MlpBlock(
@@ -329,6 +349,7 @@ class SubDecoderLayer(nn.Module):
       moe_lnx = nn.with_logical_constraint(moe_lnx, ("activation_batch", "activation_norm_length", "activation_embed"))
 
     if mlp_write:
+      write_content = memory_lnx if memory_mlp_dim else mlp_lnx
       mlp_logits = linears.DenseGeneral(
           features=(num_query_heads,), axis=-1, use_bias=False,
           kernel_init=initializers.get_bam_init(
@@ -361,14 +382,14 @@ class SubDecoderLayer(nn.Module):
             name='mlp_address_up')(nn.gelu(address_hidden))
       if not pallas_core:
         M_out = attention_layer.merge_mlp_write(
-            mlp_lnx.reshape(mlp_lnx.shape[:-1] + (num_query_heads, cfg.bam_k)),
+            write_content.reshape(write_content.shape[:-1] + (num_query_heads, cfg.bam_k)),
             jax.nn.sigmoid(mlp_logits), write_factors, M_out, independent_address=independent_address)
     if pallas_core:
       from layers import bam_pallas
       groups = [write_factors]
       if mlp_write:
         assert independent_address is not None, 'fused core supports independent MLP addresses only'
-        groups.append((mlp_lnx.reshape(mlp_lnx.shape[:-1] + (num_query_heads, cfg.bam_k)),
+        groups.append((write_content.reshape(write_content.shape[:-1] + (num_query_heads, cfg.bam_k)),
                        mlp_logits, independent_address))
       with jax.named_scope('bam/pallas_write'):
         M_out = bam_pallas.write(

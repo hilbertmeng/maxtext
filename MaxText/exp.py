@@ -17347,3 +17347,43 @@ class Pythia2p8BShortTrainV5p8Profile(TrainStepProfile, Pythia2p8BShortTrain):
     target_train_batch_size = None
     per_device_batch_size = 16.0
     steps = 100
+
+
+class BamMediumPropMShiftReadG050DedicatedMemoryMLPMHAWidthTruePile(
+    SplashTunedBlocks1024, BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile):
+    """Per-layer vector FFN3200 plus a separate, M-only SwiGLU branch."""
+    # Implementation: codex/mediumprop-dedicated-m-mlp; /data0/xd/mediumprop-dedicated-m-mlp.
+    model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPMHAWidthTruePile'
+    base_mlp_dim = 3200
+    mlp_dim_by_block = [3200, 3200]
+    bam_memory_mlp_dim = 511
+    bam_memory_mlp_last_write_dim = 505
+    bam_mlp_write_every = 1
+    bam_mlp_write_offset = 0
+    bam_skip_final_mlp_write = True
+    bam_pair_scan = True
+    bam_local_fetch_block_size = 2
+    bam_final_local_layer_count = 2
+    bam_final_local_mlp_dim = 3200
+    bam_last_mlp_dim = 3200
+    bam_pallas_core = True
+    bam_pallas_body = 'v8t'
+    bam_pallas_vmem_mib = 48
+    bam_pallas_fused_inputs = True
+    bam_splash_attention = True
+    record_training_health_metrics = True
+    record_internal_nn_metrics = False
+    remat_policy = 'full'
+    compare_runs = ['BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile']
+
+
+class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1TruePile(
+    BamMediumPropMShiftReadG050DedicatedMemoryMLPMHAWidthTruePile):
+    """Per-layer vector/M-update budgets2:1, including M addresses and gates."""
+    model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1TruePile'
+    base_mlp_dim = 2535
+    mlp_dim_by_block = [2535, 2535]
+    bam_memory_mlp_dim = 1140
+    bam_memory_mlp_last_write_dim = 0
+    bam_final_local_mlp_dim = 2535
+    bam_last_mlp_dim = 3806

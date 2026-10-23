@@ -267,6 +267,7 @@ class MlpBlock(nn.Module):
     kernel_init: Kernel function, passed to the dense layers.
     deterministic: Whether the dropout layers should be deterministic.
     output_kernel_init: Optional initializer for the output projection only.
+    output_dim: Optional output width for a dedicated memory writer.
     bam_memory_output: Return a second BAM-content projection of the same hidden activation.
     bam_memory_direct_hidden: Return a D-wide gated hidden state without an output projection.
     bam_memory_write_heads: Optional independent head count for compact shared-hidden writes.
@@ -284,6 +285,7 @@ class MlpBlock(nn.Module):
   activations: Sequence[Union[str, Callable[..., Any]]] = ("relu",)
   kernel_init: NdInitializer = nd_dense_init(1.0, "fan_in", "truncated_normal")
   output_kernel_init: NdInitializer | None = None
+  output_dim: int | None = None
   bam_memory_output: bool = False
   bam_memory_direct_hidden: bool = False
   bam_memory_write_heads: int = 0
@@ -389,12 +391,12 @@ class MlpBlock(nn.Module):
       x = self.deep_embed_block(inputs, x, decoder_input_tokens, deep_embedding)
 
     if self.bam_memory_direct_hidden:
-      if self.bam_memory_output or x.shape[-1] != inputs.shape[-1]:
+      if self.bam_memory_output or self.output_dim is not None or x.shape[-1] != inputs.shape[-1]:
         raise ValueError('Direct memory hidden output requires width D and no second head')
       return checkpoint_name(x, "memory_mlp_hidden")
 
     output = DenseGeneral(
-        inputs.shape[-1],
+        self.output_dim if self.output_dim is not None else inputs.shape[-1],
         dtype=self.dtype,
         weight_dtype=self.weight_dtype,
         kernel_init=self.output_kernel_init or self.kernel_init,

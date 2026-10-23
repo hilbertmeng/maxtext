@@ -322,3 +322,43 @@ retained FLEX compiler untouched. Artifacts under
 `/data0/xd/bam_diagnostics/mediumprop-dedicated-m-mlp/`:
 `closeout-ratio3.json`, `ratio3-final-proof.json`, `ratio3-registry-final.json`,
 `ratio3-final-report.json`. Independent2:1 is the remaining live arm.
+
+
+## Independent rank8 / R128 / hidden768
+
+RUN `BamMediumPropMShiftReadG050DedicatedMemoryMLPRank8R128H768TruePile`,
+new v5p-16 ID310324, us-east5-a, same isolated family worktree/branch and retained
+FLEX compiler. Direct parent/control independent2:1 only; matched MHA is the
+native gain-ratio reference. Compare at common steps, report1000 early, review2800/5000,
+full13500 endpoint. Initial terminal prior1.02 versus independent2:1, throughput flat.
+
+Preserve independent M-only SwiGLU input/gate matrices, both taking the same
+post-attention normalized x as the ordinary MLP. Memory hidden768 outputs600=8x75
+through learned W2. Addresses retain the independent GELU bottleneck, now R128,
+producing8x32; write gates remain x→8 plus bias. Reader, attention and embedding
+projections retain their parent settings. MLP writes L0–16 only; no final memory
+branch. Ordinary widths3108 at L0–16,3801 at L17. Existing scan8two-layer blocks
+plus separately compiled L16/L17, Pallas v8t/48MiB/fused inputs and tuned Splash
+are retained. M-cache75x32 unchanged; no Pallas operator changes.
+
+Exact counts: ordinary203893200, M-MLP39168000, write controls3335944,
+model432112824 (parent−456=−.000317W_Q, MHA−8376=−.005817W_Q).
+Per writing layer ordinary11188800; memory kernels2304000 + address186624 +
+gates9608 =2500232. Complete branch ratio4.47510471:1; aggregate4.79704189:1
+including the terminal vector MLP. Content nonlinear width/output ratio768/600=1.28,
+versus parent1140/1200=.95; the higher vector/M parameter ratio accompanies fewer
+write records and does not by itself measure features available per record.
+
+Only the M-MLP write-gate bias opens at.1*sqrt(2)=.1414213562, approximately
+matching16-head parent write-increment RMS under independent outer products.
+Attention/embedding gate initialization remains.1; BAM kernels retain their.006
+recipe and existing factor RMS epsilon. Dense MAC budget is effectively constant;
+MLP write outer products halve, nonlinear hidden count changes, so no guaranteed
+whole-step speedup. Generic training health ON; internal/BAM health OFF,
+checkpoint200/latest2/keep0, TensorBoard rotation500, full remat/T4096/global128.
+
+Infrastructure audit through main7f9c373b: main-only changes since fork781a86a6
+are ledger/closeout metadata, no missing train/AOT/optimizer/checkpoint/writer fixes.
+CPU gates cover full shared regressions, private8-head full-tree budgets and controls,
+content projection reference/live gradients, scanned causal gradients/gate initialization,
+legacy family behavior, unequal-head v8t forward/back and rotating-writer regressions.

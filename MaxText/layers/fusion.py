@@ -259,8 +259,9 @@ class SubDecoderLayer(nn.Module):
     share_memory_hidden = bool(getattr(cfg, 'bam_memory_mlp_share_hidden', False))
     direct_memory_hidden = bool(getattr(cfg, 'bam_memory_mlp_half', False))
     memory_write_heads = int(getattr(cfg, 'bam_memory_write_heads', 0) or 0)
-    if memory_write_heads and (not share_memory_hidden or cfg.bam_sqrt_n_scale):
-      raise ValueError('Compact writes require shared hidden and unscaled per-head gates')
+    compact_controls = bool(memory_write_heads and share_memory_hidden)
+    if memory_write_heads and (not memory_mlp_dim or cfg.bam_sqrt_n_scale):
+      raise ValueError('Compact writes require a memory MLP and unscaled per-head gates')
     if memory_write_heads and (cfg.bam_write_factor_norm != 'rms' or cfg.bam_write_address_norm_bias):
       raise ValueError('Compact writes require parameter-free factor RMS normalization')
     memory_lnx = None
@@ -284,6 +285,7 @@ class SubDecoderLayer(nn.Module):
             intermediate_dropout_rate=cfg.dropout_rate, dtype=cfg.dtype,
             weight_dtype=cfg.weight_dtype, name='memory_mlp', config=cfg,
             bam_memory_direct_hidden=direct_memory_hidden,
+            output_dim=memory_write_heads * cfg.bam_k if memory_write_heads else None,
             quant=self.quant, kernel_init=initializers.get_bam_init(
                 cfg, fallback=initializers.get_init_method(cfg.init_method)),
             use_bias=False)(
@@ -304,13 +306,13 @@ class SubDecoderLayer(nn.Module):
           output_kernel_init=(initializers.get_model_init(cfg, residual_output=True)
                               if cfg.decoder_block == 'pythia' else None),
           bam_memory_output=share_memory_hidden and mlp_write,
-          bam_memory_write_heads=memory_write_heads if mlp_write else 0,
+          bam_memory_write_heads=memory_write_heads if compact_controls and mlp_write else 0,
           bam_memory_controls_from_hidden=bool(
               getattr(cfg, 'bam_memory_controls_from_hidden', True)),
           use_bias=cfg.decoder_block == 'pythia',
       )(hidden_states, deep_embedding=deep_embedding, decoder_input_tokens=decoder_input_tokens, deterministic=deterministic)
       if share_memory_hidden and mlp_write:
-        if memory_write_heads:
+        if compact_controls:
           mlp_lnx, memory_lnx, memory_address, memory_logits = mlp_lnx
         else:
           mlp_lnx, memory_lnx = mlp_lnx
@@ -374,7 +376,7 @@ class SubDecoderLayer(nn.Module):
     if mlp_write:
       write_content = memory_lnx if memory_mlp_dim else mlp_lnx
       write_heads = memory_write_heads or num_query_heads
-      if memory_write_heads:
+      if compact_controls:
         address_bias = self.param(
             'mlp_address_bias', nn.with_logical_partitioning(nn.initializers.zeros,
                 ('q_heads', 'v_factor')), (write_heads, cfg.bam_v), cfg.weight_dtype)
@@ -382,20 +384,23 @@ class SubDecoderLayer(nn.Module):
         mlp_logits = memory_logits
       else:
         mlp_logits = linears.DenseGeneral(
-            features=(num_query_heads,), axis=-1, use_bias=False,
+            features=(write_heads,), axis=-1, use_bias=False,
             kernel_init=initializers.get_bam_init(
                 cfg, fallback=initializers.get_init_method(cfg.init_method)),
             kernel_axes=('embed', 'q_heads'), dtype=cfg.dtype, weight_dtype=cfg.weight_dtype,
             quant=self.quant, matmul_precision=cfg.matmul_precision,
             name='mlp_write_gate')(hidden_states)
+      memory_write_eps = getattr(cfg, 'bam_memory_write_eps', None)
+      if memory_write_eps is None:
+        memory_write_eps = cfg.bam_write_eps
       mlp_bias = self.param(
           'mlp_write_gate_bias', nn.with_logical_partitioning(
-              nn.initializers.constant(math.log(cfg.bam_write_eps / (1.0 - cfg.bam_write_eps))),
+              nn.initializers.constant(math.log(memory_write_eps / (1.0 - memory_write_eps))),
               ('q_heads',)), (write_heads,), cfg.weight_dtype)
       mlp_logits = mlp_logits + jnp.asarray(mlp_bias, cfg.dtype)
-      if not memory_write_heads:
+      if not compact_controls:
         independent_address = None
-      if not memory_write_heads and getattr(cfg, 'bam_mlp_write_dynamic_address', False):
+      if not compact_controls and getattr(cfg, 'bam_mlp_write_dynamic_address', False):
         rank = int(cfg.bam_mlp_write_address_rank)
         address_hidden = linears.DenseGeneral(
             features=rank, axis=-1, use_bias=False,
@@ -405,7 +410,7 @@ class SubDecoderLayer(nn.Module):
             quant=self.quant, matmul_precision=cfg.matmul_precision,
             name='mlp_address_down')(hidden_states)
         independent_address = linears.DenseGeneral(
-            features=(num_query_heads, cfg.bam_v), axis=-1, use_bias=True,
+            features=(write_heads, cfg.bam_v), axis=-1, use_bias=True,
             kernel_init=initializers.get_bam_init(
               cfg, fallback=initializers.get_init_method(cfg.init_method)),
             kernel_axes=('embed', 'q_heads', 'v_factor'),

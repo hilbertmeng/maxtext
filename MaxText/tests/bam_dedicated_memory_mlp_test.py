@@ -20,6 +20,7 @@ C='BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio3to1TruePile'
 HALF='BamMediumPropMShiftReadG050HalfMemoryMLPTruePile'
 R8='BamMediumPropMShiftReadG050SharedHiddenRank8WriteTruePile'
 R8X='BamMediumPropMShiftReadG050SharedHiddenRank8InputControlsTruePile'
+I8='BamMediumPropMShiftReadG050DedicatedMemoryMLPRank8R128H768TruePile'
 
 class DedicatedMemoryMLPTest(MLPWriteTest, unittest.TestCase):
   def test_formal_budgets_and_kernel_settings(self):
@@ -71,6 +72,61 @@ class DedicatedMemoryMLPTest(MLPWriteTest, unittest.TestCase):
       self.assertTrue(c.bam_pallas_core and c.bam_pallas_fused_inputs and c.sa_use_fused_bwd_kernel)
       self.assertTrue(c.record_training_health_metrics and not c.record_internal_nn_metrics)
       self.assertEqual((c.tensorboard_gcs_rotate_period,c.bam_write_eps),(500,.1))
+
+  def test_independent_rank8_formal_budget_and_shapes(self):
+    c=self.config(I8)
+    c.get_keys().update(max_target_length=256,max_prefill_predict_length=256)
+    mesh=jax.sharding.Mesh(max_utils.create_device_mesh(c),c.mesh_axes)
+    args,_,_,_=train_compile.get_shaped_inputs(mesh,c);flat=flatten_dict(args[0].params)
+    size=lambda v:int(np.prod(v.shape))
+    self.assertEqual(sum(size(v) for v in flat.values()),432112824)
+    self.assertEqual(sum(size(v) for p,v in flat.items() if 'mlp' in p),203893200)
+    self.assertEqual(sum(size(v) for p,v in flat.items() if 'memory_mlp' in p),39168000)
+    control_names={'mlp_address_down','mlp_address_up','mlp_write_gate','mlp_write_gate_bias'}
+    self.assertEqual(sum(size(v) for p,v in flat.items() if set(p)&control_names),3335944)
+    for p,v in flat.items():
+      if 'memory_mlp' in p and 'wo' in p and p[-1]=='kernel':
+        self.assertIn(v.shape,[(768,600),(768,8,600)])  # Scan axis1: eight two-layer blocks.
+      if 'mlp_address_up' in p and p[-1]=='kernel':
+        self.assertIn(v.shape,[(128,8,32),(128,8,8,32)])
+    self.assertFalse(any('final_local_layer_1' in p and ('memory_mlp' in p or set(p)&control_names) for p in flat))
+    self.assertTrue(c.bam_pallas_core and c.bam_pallas_fused_inputs and c.sa_use_fused_bwd_kernel)
+    self.assertTrue(c.record_training_health_metrics and not c.record_internal_nn_metrics)
+    self.assertEqual((c.bam_memory_write_heads,c.bam_mlp_write_address_rank),(8,128))
+    self.assertEqual(c.tensorboard_gcs_rotate_period,500)
+
+  def test_independent_rank8_content_projection_reference(self):
+    c=self.tiny(I8)
+    mod=linears.MlpBlock(config=c,intermediate_dim=16,activations=c.mlp_activations,
+        output_dim=75,kernel_init=initializers.get_bam_init(c,fallback=initializers.get_model_init(c)),
+        intermediate_dropout_rate=0,dtype=jnp.float32,weight_dtype=jnp.float32)
+    x=jax.random.normal(jax.random.key(51),(1,4,150))
+    p=nn.unbox(mod.init(jax.random.key(52),x,deterministic=True)['params'])
+    self.assertEqual(set(p),{'wi_0','wi_1','wo'})
+    actual=mod.apply({'params':p},x,deterministic=True)
+    ref=(jax.nn.silu(x@p['wi_0']['kernel'])*(x@p['wi_1']['kernel']))@p['wo']['kernel']
+    self.assertEqual(actual.shape,(1,4,75));np.testing.assert_allclose(actual,ref,rtol=1e-6,atol=1e-6)
+    grad=jax.grad(lambda q:jnp.sum(mod.apply({'params':q},x,deterministic=True)**2))(p)
+    for name in p:self.assertGreater(float(jnp.sum(grad[name]['kernel']**2)),0,name)
+
+  def test_independent_rank8_scan_gradients_and_gate_initialization(self):
+    c=self.tiny(I8);mesh=jax.sharding.Mesh(max_utils.create_device_mesh(c),c.mesh_axes)
+    model=Transformer(c,mesh,quantizations.configure_quantization(c))
+    tok=jnp.array([[1,2,3,4]],jnp.int32);pos=jnp.arange(4)[None];seg=jnp.ones_like(tok)
+    with mesh,nn.partitioning.axis_rules(c.logical_axis_rules):
+      p=nn.unbox(model.init(jax.random.key(53),tok,pos,tok,seg,seg,enable_dropout=False)['params'])
+      def call(q,t):return model.apply({'params':q},t,pos,t,seg,seg,enable_dropout=False)[0]
+      y=call(p,tok);yp=call(p,tok.at[:,3].set(8))
+      np.testing.assert_allclose(y[:,:3],yp[:,:3],rtol=1e-6,atol=1e-6)
+      val,grad=jax.jit(jax.value_and_grad(lambda q:jnp.mean(call(q,tok)**2)))(p)
+      self.assertTrue(np.isfinite(float(val)))
+      for path,v in flatten_dict(grad).items():
+        self.assertTrue(np.isfinite(np.asarray(v)).all(),str(path))
+        if set(path)&{'memory_mlp','mlp_address_down','mlp_address_up','mlp_write_gate'}:
+          self.assertGreater(float(jnp.sum(v*v)),0,str(path))
+      for path,v in flatten_dict(p).items():
+        if path[-1]=='mlp_write_gate_bias':np.testing.assert_allclose(jax.nn.sigmoid(v),.1*np.sqrt(2),rtol=1e-6)
+        if path[-1]=='gw_b0':np.testing.assert_allclose(jax.nn.sigmoid(v),.1,rtol=1e-6)
 
   def test_rank8_reference_and_control_gradient_sources(self):
     for exp in [R8,R8X]:

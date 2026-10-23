@@ -17,7 +17,13 @@ def uses_anchors(config):
               or getattr(config, 'bam_mudd_final_output', False))
 
 
+def is_pre_tail_vm(config, layer_index):
+  return bool(getattr(config, 'bam_mudd_pre_tail_vm', False)) and layer_index == config.num_decoder_layers - 4
+
+
 def is_value_layer(config, layer_index):
+  if is_pre_tail_vm(config, layer_index):
+    return True
   count = int(getattr(config, 'bam_mudd_tail_qkvm_last_layers', 0))
   return (bool(getattr(config, 'bam_mudd_tail_blocks', 0))
           and layer_index >= tail_start(config)
@@ -43,6 +49,8 @@ def skips_attention_write(config, layer_index):
 
 
 def is_qk_layer(config, layer_index):
+  if is_pre_tail_vm(config, layer_index):
+    return False
   if not (bool(getattr(config, 'bam_mudd_tail_residual_qk', False))
           and is_value_layer(config, layer_index)):
     return False

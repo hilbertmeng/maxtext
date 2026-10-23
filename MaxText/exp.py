@@ -14982,6 +14982,36 @@ class BamMediumPropMShiftReadG050MuddVMSharedRouterLastBlockL2AnchorTruePile(Bam
     ]
 
 
+class BamMediumPropMShiftReadG050MuddVMSharedRouterLastTwoBlocksL2AnchorTruePile(BamMediumPropMShiftReadG050MuddVMSharedRouterLastBlockL2AnchorTruePile):
+    """L2 VM parent plus L14 native VM; preserve L13 MLP and L14 attention writes."""
+    # ledger only on main; implementation codex/mediumprop-mudd-tail, /data0/xd/mediumprop-mudd-tail.
+    # L14/L17 use shared C2 routers; final C1 router remains unchanged.
+    # Scan4 ordinary blocks +1 pre-tail block +1 final block; budgets stay local.
+    # Prior terminal MHA-reference gain vs direct parent1.015; throughput -2..-5%.
+    model_name = 'BamMediumPropMShiftReadG050MuddVMSharedRouterLastTwoBlocksL2AnchorTruePile'
+    # L14 non-router delta1402256=.973789W_Q; MLP3802->3412 repays1404000, rounding-1744.
+    # New native C2 router77320 is exempt; parameter delta vs direct parent+75576.
+    bam_mudd_pre_tail_vm = True
+    bam_mudd_pre_tail_vm_mlp_dim = 3412
+    compare_runs = ['BamMediumPropMShiftReadG050MuddVMSharedRouterLastBlockL2AnchorTruePile',
+                    'BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockL2AnchorTruePile',
+                    'BamMediumPropMShiftReadG050MuddVMQKVMSharedRouterLastTwoBlocksL2AnchorTruePile']
+
+
+class BamMediumPropMShiftReadG050MuddVMQKVMSharedRouterLastTwoBlocksL2AnchorTruePile(BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockL2AnchorTruePile):
+    """Old L2 QKVM champion plus L14 native VM, with both L13/L14 writes retained."""
+    # ledger only on main; implementation codex/mediumprop-mudd-tail, /data0/xd/mediumprop-mudd-tail.
+    # L14 C2, L17 C4; keep the parent's L16 MLP write OFF and L17 attention write absent.
+    # Prior terminal MHA-reference gain vs direct parent1.020; throughput -2..-5%.
+    model_name = 'BamMediumPropMShiftReadG050MuddVMQKVMSharedRouterLastTwoBlocksL2AnchorTruePile'
+    # L14 non-router delta1402256=.973789W_Q; MLP3802->3412 repays1404000, rounding-1744.
+    # New native C2 router77320 is exempt; parameter delta vs direct parent+75576.
+    bam_mudd_pre_tail_vm = True
+    bam_mudd_pre_tail_vm_mlp_dim = 3412
+    compare_runs = ['BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockL2AnchorTruePile',
+                    'BamMediumPropMShiftReadG050MuddVMSharedRouterLastTwoBlocksL2AnchorTruePile']
+
+
 class BamMediumPropMShiftReadG050MuddVMSharedRouterLastBlockL2L5AnchorTruePile(BamMediumPropMShiftReadG050MuddVMSharedRouterLastBlockL2AnchorTruePile):
     # code_commit:dba5890; CPU62/writer5, full AOT/FIRST_STEP3/14-step37 and worker flags verified.
     # xd-v5p-16-310300-maxtext/UE5a, startup~.714step/s, generic ON/internal+BAM OFF.

@@ -175,7 +175,7 @@ class NativeTailTest(MLPWriteTest, unittest.TestCase):
           actual, actual_m = apply(bridge, parameters, inputs, jnp.swapaxes(matrix, -1, -2))
           np.testing.assert_array_equal(actual, expected)
           np.testing.assert_array_equal(actual_m, jnp.swapaxes(expected_m, -1, -2))
-          writes = exp in (VM, MIXED_L2) and index == 7
+          writes = bam_mudd.is_pre_tail_vm(cfg, index) or (exp in (VM, MIXED_L2) and index == 7)
           if writes:
             self.assertGreater(float(jnp.sum((expected_m - matrix) ** 2)), 0.)
           else:

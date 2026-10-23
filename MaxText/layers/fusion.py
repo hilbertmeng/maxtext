@@ -86,6 +86,8 @@ class SubDecoderLayer(nn.Module):
     if (getattr(cfg, 'bam_mudd_tail_blocks', 0)
         and self.layer_inx >= bam_mudd.tail_start(cfg)):
       self.updated_mlp_dim = cfg.bam_mudd_tail_mlp_dims[self.layer_inx % 3]
+    if bam_mudd.is_pre_tail_vm(cfg, self.layer_inx):
+      self.updated_mlp_dim = cfg.bam_mudd_pre_tail_vm_mlp_dim
     if (getattr(cfg, 'bam_persistent_embedding_m', False)
         and self.layer_inx == cfg.num_decoder_layers - 1):
       self.updated_mlp_dim = cfg.bam_persistent_embedding_last_mlp_dim

@@ -571,6 +571,8 @@ bam_mudd_tail_skip_mlp_write: True # Omit the modified blocks' middle-layer MLP 
 bam_mudd_tail_l2_anchor: False # Also carry the completed L2 residual into native tail and final Mudd mixtures.
 bam_mudd_tail_l5_anchor: False # Add complete L5 alongside L2 to the native tail and final mixtures.
 bam_mudd_tail_dual_value: False # Add the original independently gated V M read to the tail Mudd W_V value; reuse O's dynamic read.
+bam_mudd_pre_tail_vm: False # Add native V/m routing at L-4, retaining the preceding MLP and this layer's attention writes.
+bam_mudd_pre_tail_vm_mlp_dim: null # Local MLP budget for the additional L-4 VM layer.
 bam_mudd_final_output: False # Independent three-source Mudd readout after complete final layer.
 bam_persistent_embedding_m: False # Carry a separate embedding-only [K,num_query_heads] matrix.
 bam_persistent_embedding_last_mlp_dim: null # Last-layer width repaying persistent seed/readout costs.

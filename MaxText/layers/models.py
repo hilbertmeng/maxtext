@@ -963,6 +963,14 @@ class Decoder(nn.Module):
 
         persistent = bool(getattr(cfg, 'bam_persistent_embedding_m', False))
         blocks = 1 if persistent else int(cfg.bam_mudd_tail_blocks)
+        pre_tail_vm = bool(cfg.bam_mudd_pre_tail_vm)
+        if pre_tail_vm and (blocks != 1 or persistent
+            or not cfg.bam_mudd_tail_native_shared_router
+            or not cfg.bam_mudd_tail_residual_mlp or not cfg.bam_mudd_tail_l2_anchor
+            or cfg.bam_mudd_tail_qkvm_last_layers or cfg.bam_mudd_tail_dual_value
+            or type(cfg.bam_mudd_pre_tail_vm_mlp_dim) is not int
+            or cfg.bam_mudd_pre_tail_vm_mlp_dim <= 0):
+          raise ValueError('pre-tail VM requires one native L2 VM/QKVM tail and a positive local MLP width')
         if cfg.bam_mudd_tail_residual_qk and blocks != 1:
           raise ValueError('residual Q/K experiment is scoped to the final block only')
         if cfg.bam_mudd_tail_residual_mlp and (blocks != 1 or persistent
@@ -1032,8 +1040,14 @@ class Decoder(nn.Module):
         if persistent:
           carry += (persistent_M,)
         # Separate scan stages retain independent layer parameters while sharing each stage's HLO.
-        for start, count, name in ((0, prefix // 3, 'layers'),
-                                   (prefix, blocks, 'tail_layers')):
+        stages = ((0, prefix // 3, 'layers'), (prefix, blocks, 'tail_layers'))
+        if pre_tail_vm:
+          if prefix < 6:
+            raise ValueError('pre-tail VM requires an ordinary prefix before the two modified blocks')
+          stages = ((0, prefix // 3 - 1, 'layers'),
+                    (prefix - 3, 1, 'pre_tail_layers'),
+                    (prefix, 1, 'tail_layers'))
+        for start, count, name in stages:
           module = self.scan_decoder_layers(
               cfg, fusion.BamLayerPair, count, name, mesh,
               sliding_window_size=cfg.max_target_length, runtime_schedule=True,

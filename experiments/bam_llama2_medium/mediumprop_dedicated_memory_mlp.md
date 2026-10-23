@@ -667,3 +667,48 @@ and operational fixes. CPU configuration-only gate covers eight formal parameter
 and write-policy trees, two new causal/active-gradient cases, exact single-source
 attribute/initial-function equivalence and legacy/new Pallas bridges. Original
 131-check main integration just passed; no further runtime code changed.
+
+
+## Final L1-generation closeout and no-L1 startup (2026-10-24 JST)
+
+Only configuration/startup and final closeout evidence is recorded here; routine
+in-flight windows remain in monitor-state and native registry reports.
+
+No-L1 runtime607ee54ae9a7a787d0c1c35c52260e219fb75d2b: both borrowed FLEX AOTs
+were ready before handoff and serialized by the worker lock. Exact sealed CPU5
+groups passed. Old VM pair CP3670 and old L14-refund CP2720 committed at handoff
+16:06:17/16:06:18 UTC; no uncheckpointed tail. New FIRST_STEP/step14 and loaded AOT
+verified on retained physical310329/310330. Old registries independently verified
+stopped; already-closed wrappers skipped all worker/resource operations. Both old
+TB copies report SYNC_OK. New source sets omit only L1; zero-up initial losses
+agree with matched predecessors within2e-6. Startup speeds.6594/.6770, versus
+matched old.6678/.6744 (-1.26%/+0.39%). Health ON, internal/BAM OFF, tuned Splash
+and Pallas v8t48/fused remain; full13500 schedule. CPU/init/ownership evidence:
+no-l1-cpu-proof.json,no-l1-vm-startup.json,no-l1-refund-startup.json.
+
+Final old results, five native common windows per comparison:
+- Mixed2:1/L14VM/L17QKVM user-stopped9806, mature9600: vs original mixed tail
+  gap+.00181036/R.98939476; vs standalone2:1 -.00109436/R1.00654879. Initial
+  original-tail lead reversed and never recovered; small gain over2:1 does not
+  restore original tail. Prior terminal1.010 unsupported through stop, no full
+  terminal verdict. CP committed, node/queue absent, TB SYNC_OK; P0.
+- L1-only increment post5k stopped5349, mature5200: parent gap+.00220212/R.98918036.
+  Early lead reversed at1.8k; persistent later deficit and no recovery trend.
+  No ordinary-capacity/cache benefit; initial1.010 prior unsupported. CP committed,
+  node/queue absent, TB SYNC_OK; P0.
+- L1 VM/VM hot-replaced3670, mature3600: direct L1 mixed parent gap-.00336640 /
+  R1.01380300; advantage grew after1k and held. VM+restored L16 private writing
+  is promising as a pair, QK source alone is not isolated. Partial result only.
+- L1 VM/VM L14-refund hot-replaced2720, mature2600: direct VM parent gap+.00264796 /
+  R.99165515; tiny early gain reversed after1.4k. Refund has no demonstrated
+  benefit yet; short trajectory cannot settle late ordinary-MLP capacity value.
+
+Chronological READY leases UTC, all v5p16 UE5a/P0:
+- mixed: first prequeue READY11:34:18–15:53:45 =4h19m27; registry starts11:40:21.
+- L1 VM/VM: first prequeue READY14:23:55–16:06:17 =1h42m22; registry starts14:26:47.
+- L1 refund: first prequeue READY14:51:06–16:06:18 =1h15m12; registry starts14:51:19.
+- L1-only: retained trainer handoff; registry READY14:05:12–16:25:06 =2h19m54.
+  Physical310324's preceding rank8 lease is recorded separately, no preemption.
+Native final reports and lease reports live under
+/data0/xd/bam_diagnostics/mediumprop-dedicated-m-mlp; loss/gain curves retain full
+mature history. New G/H are now the only live RUNs owned by this task.

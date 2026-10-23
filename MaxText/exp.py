@@ -17612,6 +17612,11 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MuddL14VML17QKVML2Tr
     # code_commit: 82e5a73; UE5a v5p-16 startup~0.6760step/s (-4.4% vs2:1).
     # Loaded AOT/FIRST_STEP/step14 verified; CPU74 passed, Pallas+tuned Splash.
     # Generic training health ON, internal/BAM OFF; three-layer staged scan.
+    # User-stopped at 9806; CP9806 committed, node/queue absent, TB SYNC_OK; no preemption.
+    # vs original mixed tail: initial lead reversed; deficit held through9.6k, last5 +.00181036/R.98939476.
+    # vs standalone2:1: last5 -.00109436/R1.00654879; small residual tail gain fails to recover original tail.
+    # Prior terminal1.010 vs original tail unsupported through stop; no full13500 verdict.
+    # Total original-tail+1600, M-cache unchanged; startup.676 vs old.705 (-4.1%).
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MuddL14VML17QKVML2TruePile'
     bam_mudd_pre_tail_vm = True
     bam_mudd_pre_tail_vm_mlp_dim = 2275
@@ -17630,6 +17635,10 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MuddL14VML17QKVML1L2
     # Sources[embedding,L0,L1,L2,current]; shared controllers remain width64.
     # Native Mudd routers +455 parameters exempt; all ordinary/private MLP widths unchanged.
     # Terminal MHA-ref gain prior vs direct parent1.010[.995,1.025]; speed cost0..1%.
+    # Post-5k review stopped at 5349; CP committed, node/queue absent, TB SYNC_OK; P0.
+    # vs no-L1 mixed parent: early lead reversed at1.8k, then persistent deficit through5.2k.
+    # Final5 gap+.00220212/R.98918036; prior terminal1.010 unsupported, no recovery trend.
+    # No MLP/capacity/cache gain to justify waiting; total parent+455 native routers, speed+.15%.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MuddL14VML17QKVML1L2TruePile'
     bam_mudd_tail_l1_anchor = True
     compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MuddL14VML17QKVML2TruePile']
@@ -17645,6 +17654,10 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MuddL14VML17VML1L2Tr
     # L17 Q/K return to M; L16 private M-MLP restored, attention write retained.
     # Total432344617, native routers232025; parent+406 = nonrouter rounding+1056 and router-650.
     # Terminal MHA-ref gain prior vs direct parent1.010[.995,1.025]; speed cost0..2%.
+    # Stopped at 3670 for user-requested no-L1 hot replacement; CP committed/TB SYNC_OK, trainer transferred, P0.
+    # vs L1 mixed parent: advantage grew after1k and held through3.6k; last5 -.00336640/R1.01380300.
+    # VM+restored L16 private write improves this parent; paired changes do not isolate QK alone.
+    # Promising partial trajectory, not terminal verdict; total parent+406, M-cache unchanged.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MuddL14VML17VML1L2TruePile'
     bam_mudd_tail_residual_qk = False
     bam_mudd_tail_skip_mlp_write = False
@@ -17664,6 +17677,10 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MuddL14VML17VML1L2No
     # Total432343817 = direct parent-800; native routers232025 unchanged.
     # L15/L16 private M writers remain; L17 remains write-free; source set/routers unchanged.
     # Terminal MHA-reference gain prior1.015[1.000,1.030]; expected throughput0..+2%.
+    # Stopped at 2720 for user-requested no-L1 hot replacement; CP committed/TB SYNC_OK, trainer transferred, P0.
+    # vs L1 VM parent: tiny early lead reversed after1.4k; last5 through2.6k +.00264796/R.99165515.
+    # L14 private-writer refund has no demonstrated gain through this early stop; not full-schedule verdict.
+    # Total parent-800, ordinary L14 width+1137; M-cache unchanged; startup+0.99%.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MuddL14VML17VML1L2NoL14MemoryMLPTruePile'
     bam_mudd_pre_tail_vm_skip_mlp_write = True
     bam_mudd_pre_tail_vm_mlp_dim = 3412
@@ -17675,8 +17692,12 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MuddL14VML17VML2True
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MuddL14VML17VML1L2TruePile):
     """Restart the spaced VM pair with original embedding/L0/L2/current sources."""
     # Only remove L1; routers-325, all MLP widths/write policies unchanged.
-    # Total432344292, native routers231700; native router savings remain exempt.
-    # Terminal MHA-reference gain prior vs no-L1 mixed parent1.015[1.000,1.030].
+    # code_commit: 607ee54; UE5a v5p16 startup.6594step/s (-1.26% vs matched L1 run.6678).
+    # Targeted CPU5 + sealed config/borrowed FLEX AOT/FIRST_STEP/step14 verified; Pallas+tuned Splash.
+    # Generic health ON/internal+BAM OFF; full13500; physical310329 hot-transferred, fresh run.
+    # Total432344292, native routers231700; matched L1 run-325, ordinary/private MLP widths unchanged.
+    # Initial loss differs from matched L1 run by+2e-6; zero-up initial function preserved.
+    # Terminal primary MHA-reference gain prior1.015[1.000,1.030]; speed expected within~1%.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MuddL14VML17VML2TruePile'
     bam_mudd_tail_l1_anchor = False
     compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MuddL14VML17QKVML2TruePile',
@@ -17687,8 +17708,12 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MuddL14VML17VML2NoL1
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MuddL14VML17VML1L2NoL14MemoryMLPTruePile):
     """Restart the L14-capacity refund with original sources and no L1."""
     # Only remove L1; same3412 L14 ordinary width, no L14 private writer/fallback.
-    # Total432343492, native routers231700; direct new VM parent-800.
-    # Terminal MHA-reference gain prior vs new no-L1 VM parent1.010[.995,1.025].
+    # code_commit: 607ee54; UE5a v5p16 startup.6770step/s (+.39% vs matched L1 run.6744).
+    # Targeted CPU5 + sealed config/borrowed FLEX AOT/FIRST_STEP/step14 verified; Pallas+tuned Splash.
+    # Generic health ON/internal+BAM OFF; full13500; physical310330 hot-transferred, fresh run.
+    # Total432343492, native routers231700; matched L1 run-325, direct no-L1 parent-800.
+    # Initial loss differs from matched L1 run by-1e-6; zero-up initial function preserved.
+    # Terminal primary MHA-reference gain prior1.010[.995,1.025]; speed expected within~1%.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MuddL14VML17VML2NoL14MemoryMLPTruePile'
     bam_mudd_tail_l1_anchor = False
     compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MuddL14VML17VML2TruePile',

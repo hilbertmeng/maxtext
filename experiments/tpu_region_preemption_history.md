@@ -644,6 +644,11 @@ active leases are censored, and manual migration releases are not preemptions.
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MuddQKVML2TruePile` | v5p-16 (`xd-v5p-16-310325-maxtext`) | `us-east5-a` | 2026-10-23 11:35:58 | 2026-10-23 14:11:08 | user stop6166; CP committed, resources absent; P0; TB SYNC_OK; runtime82e5a73 | none |
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MuddVML2TruePile` | v5p-16 (`xd-v5p-16-310326-maxtext`) | `us-east5-a` | 2026-10-23 11:34:50 | 2026-10-23 14:54:59 | user stop7904; P0; CP committed, resources absent/TB SYNC_OK; runtime82e5a73 | none |
 
+| `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MuddL14VML17QKVML2TruePile` | v5p-16 (`xd-v5p-16-310327-maxtext`) | `us-east5-a` | 2026-10-23 11:40:18 | 2026-10-23 15:53:45 | user stop9806; CP committed, resources absent, TB SYNC_OK; runtime82e5a73; P0 | none |
+| `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MuddL14VML17VML1L2TruePile` | v5p-16 (`xd-v5p-16-310329-maxtext`) | `us-east5-a` | 2026-10-23 14:26:45 | 2026-10-23 16:06:17 | user no-L1 hot-replace3670; CP committed, trainer transferred, TB SYNC_OK; runtimeafb2ee9; P0 | none |
+| `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MuddL14VML17VML1L2NoL14MemoryMLPTruePile` | v5p-16 (`xd-v5p-16-310330-maxtext`) | `us-east5-a` | 2026-10-23 14:51:16 | 2026-10-23 16:06:18 | user no-L1 hot-replace2720; CP committed, trainer transferred, TB SYNC_OK; runtime42f04a2; P0 | none |
+| `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MuddL14VML17QKVML1L2TruePile` | v5p-16 (`xd-v5p-16-310324-maxtext`) | `us-east5-a` | 2026-10-23 14:05:09 | 2026-10-23 16:25:06 | post5k review stop5349; CP committed, resources absent, TB SYNC_OK; runtimedde6851; P0 | none |
+
 ## READY leases
 
 | RUN | # | Zone | Start UTC | End UTC | Duration | Exit |
@@ -2095,6 +2100,11 @@ active leases are censored, and manual migration releases are not preemptions.
 | `BamMediumPropMShiftReadG050MuddVMQKVMSharedRouterL15L17L2AnchorTruePile` | 1 | `us-east5-a` | 2026-10-23 01:48:13 | 2026-10-23 03:58:46 | 2h10m33s | 5k review stop5192; P0; first prequeue READY; registry subinterval01:49:40–03:58:46=2h09m06s; CP committed, node/queue absent, TB SYNC_OK |
 
 | `BamMediumPropMShiftReadG050MuddQKVMSharedRouterL15L17L2AnchorTruePile` | 1 | `us-east5-a` | 2026-10-23 02:04:38 | 2026-10-23 04:11:16 | 2h06m38s | 5k review stop5122; P0; first prequeue READY; registry subinterval02:04:48–04:11:16=2h06m28s; CP committed, node/queue absent, TB SYNC_OK |
+
+| `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MuddL14VML17QKVML2TruePile` | 1 | `us-east5-a` | 2026-10-23 11:34:18 | 2026-10-23 15:53:45 | 4h19m27s | user stop9806; CP committed, resources absent, TB SYNC_OK; runtime82e5a73; P0; first prequeue READY; registry starts11:40:21 |
+| `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MuddL14VML17VML1L2TruePile` | 1 | `us-east5-a` | 2026-10-23 14:23:55 | 2026-10-23 16:06:17 | 1h42m22s | user no-L1 hot-replace3670; CP committed, trainer transferred, TB SYNC_OK; runtimeafb2ee9; P0; first prequeue READY; registry starts14:26:47 |
+| `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MuddL14VML17VML1L2NoL14MemoryMLPTruePile` | 1 | `us-east5-a` | 2026-10-23 14:51:06 | 2026-10-23 16:06:18 | 1h15m12s | user no-L1 hot-replace2720; CP committed, trainer transferred, TB SYNC_OK; runtime42f04a2; P0; first prequeue READY; registry starts14:51:19 |
+| `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MuddL14VML17QKVML1L2TruePile` | 1 | `us-east5-a` | 2026-10-23 14:05:12 | 2026-10-23 16:25:06 | 2h19m54s | post5k review stop5349; CP committed, resources absent, TB SYNC_OK; runtimedde6851; P0; retained trainer after rank8 handoff; registry READY |
 
 ### 2026-10-14 user pause: resumed mixed R256/R384
 

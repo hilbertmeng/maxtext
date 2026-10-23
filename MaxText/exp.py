@@ -17436,6 +17436,12 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio3to1TruePile(
 class BamMediumPropMShiftReadG050HalfMemoryMLPTruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio3to1TruePile):
     """D-wide private SwiGLU hidden writes M directly, without a content output projection."""
+    # Stopped at2998 after2800 review; UE5a v5p-16, P0; CP2998 committed, resources absent, TB SYNC_OK.
+    # vs full3:1: behind from400, worsening to last5(2000..2800) +.008808/gain.969278.
+    # Same windows vs2:1 +.012274/gain.957725; vs single.5 +.009660/gain.966252.
+    # Steady~.701 vs full3:1~.700 (flat); identical total params/M-cache.
+    # Wider nonlinear M hidden823->1200 did not offset removing content output mixing.
+    # Expected gain1.01 vs full3:1 was unsupported through the review stop.
     # Ledger only. Implementation: codex/mediumprop-dedicated-m-mlp; /data0/xd/mediumprop-dedicated-m-mlp.
     # code_commit: 8849623; UE5a v5p-16 steady~.701step/s; Pallas+tuned Splash.
     # Generic training health ON; internal/BAM metrics OFF; AOT/step14/CP400 verified.

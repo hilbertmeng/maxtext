@@ -15014,7 +15014,8 @@ class BamMediumPropMShiftReadG050MuddVMSharedRouterLastTwoBlocksL2AnchorTruePile
     bam_mudd_pre_tail_vm_mlp_dim = 3412
     compare_runs = ['BamMediumPropMShiftReadG050MuddVMSharedRouterLastBlockL2AnchorTruePile',
                     'BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockL2AnchorTruePile',
-                    'BamMediumPropMShiftReadG050MuddVMQKVMSharedRouterLastTwoBlocksL2AnchorTruePile']
+                    'BamMediumPropMShiftReadG050MuddVMQKVMSharedRouterLastTwoBlocksL2AnchorTruePile',
+                    'BamMediumPropMShiftReadG050MuddVMSharedRouterL15L17L2AnchorTruePile']
 
 
 class BamMediumPropMShiftReadG050MuddVMQKVMSharedRouterLastTwoBlocksL2AnchorTruePile(BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockL2AnchorTruePile):
@@ -15030,11 +15031,14 @@ class BamMediumPropMShiftReadG050MuddVMQKVMSharedRouterLastTwoBlocksL2AnchorTrue
     bam_mudd_pre_tail_vm = True
     bam_mudd_pre_tail_vm_mlp_dim = 3412
     compare_runs = ['BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockL2AnchorTruePile',
-                    'BamMediumPropMShiftReadG050MuddVMSharedRouterLastTwoBlocksL2AnchorTruePile']
+                    'BamMediumPropMShiftReadG050MuddVMSharedRouterLastTwoBlocksL2AnchorTruePile',
+                    'BamMediumPropMShiftReadG050MuddVMQKVMSharedRouterL15L17L2AnchorTruePile']
 
 
 class BamMediumPropMShiftReadG050MuddVMSharedRouterL15L17L2AnchorTruePile(BamMediumPropMShiftReadG050MuddVMSharedRouterLastTwoBlocksL2AnchorTruePile):
     """L2 VM parent plus L15 native VM; retain the parent's L16 MLP writing."""
+    # code_commit:cee5200; FIRST_STEP/AOT/source verified, UE5a v5p16.
+    # ~.691step/s vs VM parent~.706 (-2.1%); TPU310314.
     # ledger only on main; implementation codex/mediumprop-mudd-tail, /data0/xd/mediumprop-mudd-tail.
     # Same local budget as L14 VM duplication, moved to L15; prefix5/final1 block scan.
     # Prior terminal MHA-ref gain vs VM parent1.015; throughput -2..-5%.
@@ -15048,6 +15052,8 @@ class BamMediumPropMShiftReadG050MuddVMSharedRouterL15L17L2AnchorTruePile(BamMed
 
 class BamMediumPropMShiftReadG050MuddVMQKVMSharedRouterL15L17L2AnchorTruePile(BamMediumPropMShiftReadG050MuddVMQKVMSharedRouterLastTwoBlocksL2AnchorTruePile):
     """Old L2 QKVM champion plus L15 native VM; L16 MLP writing stays off."""
+    # code_commit:cee5200; FIRST_STEP/AOT/source verified, UE5a v5p16.
+    # ~.703step/s vs QKVM parent~.722 (-2.6%); TPU310315.
     # ledger only on main; implementation codex/mediumprop-mudd-tail, /data0/xd/mediumprop-mudd-tail.
     # Same local budget as L14 VM duplication, moved to L15; prefix5/final1 block scan.
     # Prior terminal MHA-ref gain vs QKVM parent1.020; throughput -2..-5%.
@@ -15060,6 +15066,8 @@ class BamMediumPropMShiftReadG050MuddVMQKVMSharedRouterL15L17L2AnchorTruePile(Ba
 
 class BamMediumPropMShiftReadG050MuddQKVMSharedRouterL15L17L2AnchorTruePile(BamMediumPropMShiftReadG050MuddVMQKVMSharedRouterL15L17L2AnchorTruePile):
     """L15/L17 native shared QKVM, retaining the live L15 attention writer."""
+    # code_commit:03b2749; FIRST_STEP/AOT/source verified, UE5a v5p16.
+    # ~.707step/s vs direct L15 VM+L17 QKVM parent~.703 (+0.6%); TPU310316.
     # ledger only on main; implementation codex/mediumprop-mudd-tail, /data0/xd/mediumprop-mudd-tail.
     # Extra Q/K1850144=1.284822W_Q; L15 MLP3412->2898 repays1850400 (rounding-256).
     # Additional coefficient heads520 are tiny/exempt; parent+264 total parameters.

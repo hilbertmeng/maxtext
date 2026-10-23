@@ -17397,6 +17397,8 @@ class BamMediumPropMShiftReadG050SharedHiddenMemoryMLPTruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1TruePile):
     """Share SwiGLU input/gate projections and hidden activation; separate vector/M heads."""
     # Implementation: codex/mediumprop-dedicated-m-mlp; /data0/xd/mediumprop-dedicated-m-mlp.
+    # code_commit: 89d6bec; UE5a v5p-16 startup~.71step/s; Pallas+tuned Splash.
+    # Generic training health ON; internal/BAM metrics OFF.
     model_name = 'BamMediumPropMShiftReadG050SharedHiddenMemoryMLPTruePile'
     base_mlp_dim = 2801
     mlp_dim_by_block = [2801, 2801]

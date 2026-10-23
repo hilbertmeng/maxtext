@@ -42,3 +42,8 @@ Resource ownership: new v5p-16 IDs310317/310318, us-east5-a; no passive candidat
 Retained FLEX compiler llm-jax-v6e-1-0/europe-west4-a worker0 is borrowed, never released.
 Independent launch preparations share its worker-level AOT lock (serial compiles).
 Preparation artifacts: `/data0/xd/bam_diagnostics/mediumprop-dedicated-m-mlp`.
+
+Sealed runtime18a9d9cf5e912ffbc5549e65746f261b722c28ec; both FIRST_STEP and step14 gates passed.
+Startup throughput~.707step/s, with the declared metric/kernel settings. CPU gate:47 shared
+BAM regressions +4 dedicated-path checks +5 summary-writer tests, all passed.
+Both AOTs compiled serially on the retained worker and launched on their assigned TPUs.

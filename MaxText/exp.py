@@ -17353,6 +17353,8 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPMHAWidthTruePile(
     SplashTunedBlocks1024, BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile):
     """Per-layer vector FFN3200 plus a separate, M-only SwiGLU branch."""
     # Ledger only. Implementation: codex/mediumprop-dedicated-m-mlp; /data0/xd/mediumprop-dedicated-m-mlp.
+    # code_commit: 18a9d9c; UE5a v5p-16 startup~.707step/s; Pallas+tuned Splash.
+    # Generic training health ON; internal/BAM metrics OFF.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPMHAWidthTruePile'
     base_mlp_dim = 3200
     mlp_dim_by_block = [3200, 3200]
@@ -17380,6 +17382,8 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPMHAWidthTruePile(
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1TruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPMHAWidthTruePile):
     """Per-layer vector/M-update budgets2:1, including M addresses and gates."""
+    # code_commit: 18a9d9c; UE5a v5p-16 startup~.707step/s; Pallas+tuned Splash.
+    # Generic training health ON; internal/BAM metrics OFF.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1TruePile'
     base_mlp_dim = 2535
     mlp_dim_by_block = [2535, 2535]

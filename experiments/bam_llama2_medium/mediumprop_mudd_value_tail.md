@@ -1869,3 +1869,36 @@ manual review stop; registry-observed02:04:48 onward is2h06m28s.
 Evidence: tpu-ag logs/closeout-20261023T041353Z.json and local
 /data0/xd/bam_diagnostics/mediumprop-mudd-tail/l14-vm/closeout-l15-qkvm.json,
 lease-l15-qkvm.json. Retained FLEX compiler preserved.
+
+
+### L14 VM / L17 QKVM final closeout
+
+`BamMediumPropMShiftReadG050MuddVMQKVMSharedRouterLastTwoBlocksL2AnchorTruePile`
+completed13500, runtime4db9b151327b28140fa209850078b09bb315524f.
+Against old L2 QKVM, the early deficit+.004970 at2000 gradually vanished;
+from7400 onward signed gaps oscillated around zero. Final five common windows
+12600/12800/13000/13200/13400 average−.00018536, MHA-reference gain1.00115323
+(range.99427067..1.00543236). It caught the champion but did not deliver a
+substantial terminal gain to justify~2.4% slower startup throughput (.705/.722),
++75576 parameters (.052483W_Q), and unchanged M-cache. Original terminal bet1.020
+was too optimistic; the computed8k working estimate1.003 was much closer.
+It does beat L14 VM/VM (4200..5000 mean−.00321104, gain1.01557877) and matched
+L15 VM/QKVM (−.00105944, gain1.00510158); those local improvements did not combine
+into a meaningful improvement over the old single-layer champion.
+
+No active-zone switch: v5p-16 xd-v5p-16-310313-maxtext, us-east5-a throughout;
+assignment2026-10-23 01:30:16–07:19:09 UTC, no passive candidates, one preemption.
+Full chronological READY leases (UTC):
+
+| Lease | Start | End | Duration | End reason |
+|---|---|---|---|---|
+|1|2026-10-23 01:30:10|2026-10-23 04:55:38|3h25m28s|preempted; first prequeue READY; registry begins01:30:18,8s later|
+|2|2026-10-23 05:01:22|2026-10-23 07:19:09|2h17m47s|clean completion13500 and automatic release|
+
+CP13500 commit_success verified (GCS creation07:16:23 UTC); TPU node and queue
+both returned NOT_FOUND. Local completed-TB sync state contains marker07:19:11Z,
+which is written only after SYNC_OK. The retained FLEX compiler is preserved.
+Reproduction/evidence: `/data0/xd/bam_diagnostics/mediumprop-mudd-tail/l14-vm/`
+`report-final.json`, `lease-final.json`, `registry-final.json`, `final.png/.csv`,
+`forecast-8k.json`; initial prequeue READY proof is the local parallel-launch
+20261023T012650Z queue.log. Final metrics are native canonical registry windows.

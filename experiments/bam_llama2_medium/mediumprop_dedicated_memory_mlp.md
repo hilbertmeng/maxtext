@@ -369,3 +369,36 @@ and zone-local truepile4096 dataset. Worker loaded compiled executable, FIRST_ST
 and step32 passed; startup~.729step/s versus parent~.707 (+3.1%), matched health.
 Preparation proof: `/home/xd/.local/state/maxtext-parallel-launch/`
 `BamMediumPropMShiftReadG050DedicatedMemoryMLPRank8R128H768TruePile-20261023T103551Z/`.
+
+
+## Independent2:1 completed13500
+
+`BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1TruePile` completed its
+13500-step schedule on runtime18a9d9cf5e912ffbc5549e65746f261b722c28ec.
+Against original single.5, the large initial convergence lead faded to a small
+positive platform:4.2k–6k mean gain1.005809,6.2k–8k1.005447,
+8.2k–10k1.007384,10.2k–12k1.007235. The last five12600..13400 windows
+average gap−.00143288, MHA-reference gain1.00921392. The12.2k–13k mean
+1.008724 and terminal1.009214 support a slight late strengthening; they do not
+recover the original1.04 prior or2k working1.02 forecast. Direction was right,
+magnitude optimistic. Last point13400 gain1.014751 is not the five-window endpoint.
+
+Total432113280 (single.5+1600=.001111W_Q), unchanged75x32 M-cache;
+ordinary L0–16 width2535, private M-MLP1140, terminal ordinary3806.
+Startup~.707step/s, later~.704; Pallas v8t/tuned Splash, generic health ON,
+internal/BAM OFF. Historical single.5 runtime has different health/kernel
+settings, so its speed is not a matched architectural timing comparison.
+
+v5p-16 xd-v5p-16-310318-maxtext stayed in us-east5-a, no passive candidates,
+zero preemptions. Assignment2026-10-23 05:29:47–11:02:11 UTC.
+Full READY lease:2026-10-23 05:28:35–11:02:11 UTC,5h33m36s, ending at
+planned completion and verified resource release. First READY is the prequeue
+log; registry observation begins05:29:49,74seconds later. Training itself
+exited cleanly11:00:03, followed by automatic resource deletion.
+
+CP13500 commit_success and node/queue NOT_FOUND were independently verified;
+local TB SYNC_OK. Follow-up closeout returned already_closed=true and made no
+resource mutations. Retained FLEX compiler preserved. Evidence under
+`/data0/xd/bam_diagnostics/mediumprop-dedicated-m-mlp/`: ratio2-final-proof.json,
+ratio2-final-report.json, ratio2-registry-final.json, closeout-ratio2.json,
+ratio2-auto-completion.log. Independent rank8/R128/768 remains in training.

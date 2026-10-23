@@ -17388,6 +17388,12 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPMHAWidthTruePile(
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1TruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPMHAWidthTruePile):
     """Per-layer vector/M-update budgets2:1, including M addresses and gates."""
+    # Completed 13500; UE5a v5p-16 P0; CP committed, node/queue absent, TB SYNC_OK.
+    # vs single.5: large initial convergence lead faded;4k..8k gain~1.005, late rose slightly.
+    # Final5(12600..13400) gap-.001433/gain1.009214; small sustained terminal improvement.
+    # Original gain1.04 and2k working1.02 were optimistic; late gain strengthened modestly.
+    # Params parent+1600=.001111W_Q; M-cache unchanged. Startup~.707, later~.704step/s.
+    # Historical parent health/kernel settings differ; no matched speed attribution.
     # code_commit: 18a9d9c; UE5a v5p-16 startup~.707step/s; Pallas+tuned Splash.
     # Generic training health ON; internal/BAM metrics OFF.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1TruePile'

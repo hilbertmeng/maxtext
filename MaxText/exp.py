@@ -15058,6 +15058,19 @@ class BamMediumPropMShiftReadG050MuddVMQKVMSharedRouterL15L17L2AnchorTruePile(Ba
                     'BamMediumPropMShiftReadG050MuddVMSharedRouterL15L17L2AnchorTruePile']
 
 
+class BamMediumPropMShiftReadG050MuddQKVMSharedRouterL15L17L2AnchorTruePile(BamMediumPropMShiftReadG050MuddVMQKVMSharedRouterL15L17L2AnchorTruePile):
+    """L15/L17 native shared QKVM, retaining the live L15 attention writer."""
+    # ledger only on main; implementation codex/mediumprop-mudd-tail, /data0/xd/mediumprop-mudd-tail.
+    # Extra Q/K1850144=1.284822W_Q; L15 MLP3412->2898 repays1850400 (rounding-256).
+    # Additional coefficient heads520 are tiny/exempt; parent+264 total parameters.
+    # Prior terminal MHA-ref gain vs L15 VM+L17 QKVM1.010; throughput within +/-2%.
+    model_name = 'BamMediumPropMShiftReadG050MuddQKVMSharedRouterL15L17L2AnchorTruePile'
+    bam_mudd_pre_tail_vm_qk = True
+    bam_mudd_pre_tail_vm_mlp_dim = 2898
+    compare_runs = ['BamMediumPropMShiftReadG050MuddVMQKVMSharedRouterL15L17L2AnchorTruePile',
+                    'BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockL2AnchorTruePile']
+
+
 class BamMediumPropMShiftReadG050MuddVMSharedRouterLastBlockL2L5AnchorTruePile(BamMediumPropMShiftReadG050MuddVMSharedRouterLastBlockL2AnchorTruePile):
     """Add complete L5 to L17 VM and final Mudd sources; preserve both L16 writes."""
     # ledger only: codex/mediumprop-mudd-tail, /data0/xd/mediumprop-mudd-tail; code_commit:dba5890.

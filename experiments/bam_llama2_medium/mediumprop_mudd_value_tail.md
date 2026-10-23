@@ -1649,8 +1649,8 @@ L15..17 x1 (tail_layers). Distinct stage shapes prevent accidental MLP tying.
 
 Direct compare_runs retain each parent plus the sibling; VM duplication also
 compares to old L2 QKVM as the direction SOTA. MHA-reference gain ratios are
-registered for these explicit edges. Report both arms together every2000
-steps, with independent2800/5000 reviews; loss windows remain200 steps.
+registered for these explicit edges. Report both arms together every1000
+steps in the early phase, with independent2800/5000 reviews; loss windows remain200 steps.
 Plan13500, TruePile4096 T4096/global128/per-device16, CP200/latest2/keep0,
 TB rotation500. Generic health ON, internal/BAM OFF, tuned Splash and
 v8t/48MiB/fused inputs inherited; L14/L17 use the existing JAX bridge.
@@ -1696,7 +1696,7 @@ position-only gain versus L14 is centered1.000. Keep the direction champion
 as an additional VM control and register MHA-reference multipliers centrally.
 Both new runs compare to their parent, matched L14 arm and sibling. Existing
 L14 comparison edges also receive their matched L15 arms. All four are reported
-as one group every2000 steps, with2800/5000 reviews. Full13500 schedule and
+as one group every1000 steps in the early phase, with2800/5000 reviews. Full13500 schedule and
 all data/batch/checkpoint/health/Splash/Pallas settings match the L14 arms.
 
 Infrastructure remains identical to mainedc6035d in train/max_utils/summary
@@ -1710,7 +1710,7 @@ verified L14 CPU gate are retained alongside fresh scan/model CPU evidence.
 
 User authorized BamMediumPropMShiftReadG050MuddQKVMSharedRouterL15L17L2AnchorTruePile,
 based on the running BamMediumPropMShiftReadG050MuddVMQKVMSharedRouterL15L17L2AnchorTruePile.
-Same worktree/branch; planned spot xd-v5p-16-310316-maxtext/us-east5-a.
+Same worktree/branch; spot xd-v5p-16-310316-maxtext/us-east5-a.
 Restore full L15 Q/K from native C4 QKVM mixtures, retaining L15 attention
 writing, L16 attention writing, L16 MLP writing OFF and L17 attention writing
 absent. O reads M at both modified layers. Preserve all anchors, M-shift,
@@ -1729,5 +1729,12 @@ defaultFalse preserves the four existing runs. Fresh exact-budget, identity,
 causal forward/backward and live-write v8t-bridge checks cover the new path;
 rerun the L15 VM controls to verify the defaultFalse path. The unchanged
 writer regression and current infrastructure audit are reused by source/log
-hash. This fifth run joins the existing2000-step group reporting and2800/5000
+hash. This fifth run joins the existing early-phase1000-step group reporting and2800/5000
 reviews. The extra L14 QKVM and runner-up L15 QKVM cells remain unlaunched.
+
+Startup provenance: L15 VM/VM and VM/QKVM use runtime cee5200; AOT/source
+and FIRST_STEP verified on TPU310314/310315. Steady throughput .691/.703step/s,
+versus matched original parents .706/.722 (-2.1%/-2.6%). L15 QKVM/QKVM uses
+runtime03b2749 on TPU310316; AOT/source/FIRST_STEP verified, steady .707step/s
+versus its direct L15 VM/QKVM parent .703 (+0.6%). All timings retain generic
+training health ON and internal/BAM statistics OFF.

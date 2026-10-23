@@ -14755,7 +14755,7 @@ class BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile(BamMediumPropK75E
 
 class BamMediumPropMShiftReadG050MuddValueLastTwoBlocksTruePile(BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile):
     """L14/L17 use three-source Mudd WV; remove L13/L16 MLP writes; Mudd final output."""
-    # ledger only: codex/mediumprop-mudd-tail, /data0/xd/mediumprop-mudd-tail; fork main1c0f4f16.
+    # codex/mediumprop-mudd-tail, /data0/xd/mediumprop-mudd-tail; fork main1c0f4f16.
     # Two stage scans: ordinary blocks x4, modified blocks x2; independent parameters per block.
     # Both value routers expand1/final expand4 -> hidden64 using the existing Mudd rounding.
     # User approved final-router budget split over L14/L17 (both3381); nominal parent+2697 params.
@@ -14787,7 +14787,7 @@ class BamMediumPropMShiftReadG050MuddValueLastTwoBlocksTruePile(BamMediumPropSha
     jax_cache_dir = ''
 
 class BamMediumPropMShiftReadG050MuddValueLastBlockTruePile(BamMediumPropMShiftReadG050MuddValueLastTwoBlocksTruePile):
-    """Ledger only: L17 Mudd WV and final readout; completed13500."""
+    """L17 Mudd WV and final readout; completed13500."""
     # 结论：只改L17的Mudd V及最终读出有稳定小幅收益，优于改两个block。
     # 终局末五12.6k–13.4k对单门.5 gap-.00137672，MHA参考倍数1.00884581。
     # 对双block失败路共同末五4.2k–5k gap-.00272392、倍数1.01328552；对Mudd终局gap-.07011684。
@@ -14796,7 +14796,7 @@ class BamMediumPropMShiftReadG050MuddValueLastBlockTruePile(BamMediumPropMShiftR
     # 432111926参数，单门.5+246；L17 MLP3370，保留local O读，去L16 MLP写。
     # 原下注1.025偏高，后修正1.010接近实测；历史父路健康ON，不作架构速度归因。
     # code_commit:33734c9；完整READY租期与基线趋势见同族实验文档。
-    # ledger only: codex/mediumprop-mudd-tail, /data0/xd/mediumprop-mudd-tail.
+    # codex/mediumprop-mudd-tail, /data0/xd/mediumprop-mudd-tail.
     model_name = 'BamMediumPropMShiftReadG050MuddValueLastBlockTruePile'
     bam_mudd_tail_blocks = 1
     bam_mudd_tail_mlp_dims = [3802, 3803, 3370]
@@ -14808,8 +14808,8 @@ class BamMediumPropMShiftReadG050MuddValueLastBlockTruePile(BamMediumPropMShiftR
 
 
 class BamMediumPropMShiftReadG050MuddVMLastBlockTruePile(BamMediumPropMShiftReadG050MuddValueLastBlockTruePile):
-    """Ledger only: independent final-layer Mudd m route on the single-V arm."""
-    # ledger only: codex/mediumprop-mudd-tail, /data0/xd/mediumprop-mudd-tail.
+    """independent final-layer Mudd m route on the single-V arm."""
+    # codex/mediumprop-mudd-tail, /data0/xd/mediumprop-mudd-tail.
     # Cancelled before FIRST_STEP: corrected user intent is QKV parent; zero updates/no checkpoint.
     # Prepared runtime9663458a; m=Mudd(h,e,L0), r=m+attention, output=r+MLP(norm(r)).
     # Keep final output Mudd; ordinary blocks x5/final x1; all healthOFF/tunedSplash.
@@ -14829,7 +14829,7 @@ class BamMediumPropMShiftReadG050MuddVMLastBlockTruePile(BamMediumPropMShiftRead
 
 
 class BamMediumPropMShiftReadG050MuddQKVLastBlockTruePile(BamMediumPropMShiftReadG050MuddValueLastBlockTruePile):
-    """Ledger only: L17 Mudd QKV and final readout; completed13500."""
+    """L17 Mudd QKV and final readout; completed13500."""
     # 定制独立down变体：Q/K/V各有R64控制器，不是原生Mudd的共享down。
     # 结论：L17三源Mudd完整Q/K/V投影优于单V及单门.5父路；O仍读M。
     # 终局末五12.6k–13.4k对单门.5 gap-.00205144，MHA参考倍数1.01318701。
@@ -14840,7 +14840,7 @@ class BamMediumPropMShiftReadG050MuddQKVLastBlockTruePile(BamMediumPropMShiftRea
     # 432110860参数，单门.5-820；L17 MLP2813 vs父路3802(-26.01%)，参数转给有效QKV路径。
     # 保留18维RoPE、最终Mudd及local O，去L16 MLP写；历史父路健康ON，不作速度归因。
     # code_commit:3c86e4a；完整READY租期与基线趋势见同族实验文档。
-    # ledger only: codex/mediumprop-mudd-tail, /data0/xd/mediumprop-mudd-tail.
+    # codex/mediumprop-mudd-tail, /data0/xd/mediumprop-mudd-tail.
     model_name = 'BamMediumPropMShiftReadG050MuddQKVLastBlockTruePile'
     bam_mudd_tail_residual_qk = True
     bam_mudd_tail_mlp_dims = [3802, 3803, 2813]
@@ -14852,8 +14852,8 @@ class BamMediumPropMShiftReadG050MuddQKVLastBlockTruePile(BamMediumPropMShiftRea
 
 
 class BamMediumPropMShiftReadG050MuddQKVMLastBlockTruePile(BamMediumPropMShiftReadG050MuddQKVLastBlockTruePile):
-    """Ledger only: QKV parent plus L17 Mudd m; omit L17 attention write and expand its MLP."""
-    # ledger only: codex/mediumprop-mudd-tail, /data0/xd/mediumprop-mudd-tail.
+    """QKV parent plus L17 Mudd m; omit L17 attention write and expand its MLP."""
+    # codex/mediumprop-mudd-tail, /data0/xd/mediumprop-mudd-tail.
     # Sealed runtime386e69e7; 64 CPU budget/path/shared-BAM/writer checks passed.
     # Corrected user intent: QKV parent, not single V; V/Q/K/m and final Mudd independent.
     # Independent-down variant: four R64 controllers, distinct from native Mudd sharing.
@@ -14878,8 +14878,8 @@ class BamMediumPropMShiftReadG050MuddQKVMLastBlockTruePile(BamMediumPropMShiftRe
 
 
 class BamMediumPropMShiftReadG050MuddQKVMLastTwoLayersTruePile(BamMediumPropMShiftReadG050MuddQKVMLastBlockTruePile):
-    """Ledger only: L16/L17 each use independent Q/K/V/m Mudd; both local O matrix reads retained."""
-    # ledger only: codex/mediumprop-mudd-tail, /data0/xd/mediumprop-mudd-tail.
+    """L16/L17 each use independent Q/K/V/m Mudd; both local O matrix reads retained."""
+    # codex/mediumprop-mudd-tail, /data0/xd/mediumprop-mudd-tail.
     # 暂停3253，CP3253已提交/TB已同步，P0；因原生共享纠偏热交接，结论暂定。
     # 已训区间持续弱于单层和旧QKV，未见明确追回；不能将独立down结果冒充原生Mudd结果。
     # Sealed runtime386e69e7; 64 CPU budget/path/shared-BAM/writer checks passed.
@@ -14904,7 +14904,7 @@ class BamMediumPropMShiftReadG050MuddQKVMLastTwoLayersTruePile(BamMediumPropMShi
 
 class BamMediumPropMShiftReadG050MuddQKVSharedRouterLastBlockTruePile(BamMediumPropMShiftReadG050MuddQKVLastBlockTruePile):
     """共享 QKV 未胜旧独立 QKV，同宽 MLP 的共享 QKVM 更强；用户判停。"""
-    # ledger only; implementation codex/mediumprop-mudd-tail, /data0/xd/mediumprop-mudd-tail.
+    # Implementation merged into main; experiment codex/mediumprop-mudd-tail, /data0/xd/mediumprop-mudd-tail.
     # code_commit:35a1fd3; initial native JAX61457aa -> compatible v8t continuation.
     # UE5a ~.723step/s; user stopped at 6343; CP6343 committed, node/queue absent, TB SYNC_OK; P0.
     # vs shared L17 QKVM: 2k后整体落后，5.2k-6k五窗口均落后，均值gap+.002068/R.989370 (MHA reference).
@@ -14935,7 +14935,7 @@ class BamMediumPropMShiftReadG050MuddQKVSharedRouterLastBlockTruePile(BamMediumP
 
 class BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockTruePile(BamMediumPropMShiftReadG050MuddQKVSharedRouterLastBlockTruePile):
     """Same native shared QKV parent plus m coefficients, costing only195 parameters."""
-    # ledger only; implementation codex/mediumprop-mudd-tail, /data0/xd/mediumprop-mudd-tail.
+    # Implementation merged into main; experiment codex/mediumprop-mudd-tail, /data0/xd/mediumprop-mudd-tail.
     # code_commit:35a1fd3; v8t prefix + read-only JAX tail bridge; CPU70 verified.
     # Same RUN continues compatible initial native startup61457aa7; see family note.
     # Same MLP widths and all non-router parameters as shared QKV; one shared down/activation.
@@ -14958,13 +14958,13 @@ class BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockTruePile(BamMedium
 
 
 class BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockL2AnchorTruePile(BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockTruePile):
-    """Ledger only: L2 anchors improve the shared L17 QKVM arm; completed13500."""
+    """L2 anchors improve the shared L17 QKVM arm; completed13500."""
     # 结论：L2锚点在已比较区间持续有正收益；共同9.8k-10.6k末五gap-.00252024/R1.01539869。
     # 从600步排除瞬态后的滚动倍数1k1.00810 ->5k1.01106 ->10.6k1.01540；最后区间gap范围[-.002942,-.002255]。
     # 完成13500，CP13500提交/节点队列释放/TB SYNC_OK；UE5a v5p16，P0。
     # 父路停10789，共同窗口止于10600；1.0154不是13.5k终局倍数。跑前中心1.020未完成终局验收。
     # 同健康/内核~.722step/s，对父路~.725约慢.4%；仅增加325=.000226W_Q，MLP宽度不变。
-    # ledger only: codex/mediumprop-mudd-tail, /data0/xd/mediumprop-mudd-tail; code_commit:2b035f8.
+    # codex/mediumprop-mudd-tail, /data0/xd/mediumprop-mudd-tail; code_commit:2b035f8.
     # Sources[embedding,L0,L2,current], shared D->64 down; zero up/identity bias preserve initial function.
     # Total432266580, routers154900 exempt; tail MLP[3802,3803,3026], scan5+1 with one extra carry.
     # Prior terminal MHA-ref gain1.020[.995,1.045], matched speed +/-2%.
@@ -14975,7 +14975,7 @@ class BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockL2AnchorTruePile(B
 
 class BamMediumPropMShiftReadG050MuddVMSharedRouterLastBlockL2AnchorTruePile(BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockL2AnchorTruePile):
     """Four-source joint V/m at L17, native Q/K reads and restored L16 MLP M write."""
-    # ledger only: codex/mediumprop-mudd-tail, /data0/xd/mediumprop-mudd-tail; code_commit:9d265b6.
+    # codex/mediumprop-mudd-tail, /data0/xd/mediumprop-mudd-tail; code_commit:9d265b6.
     # xd-v5p-16-310293-maxtext/UE5a; AOT/FIRST_STEP/14-step gate verified; startup~.713step/s.
     # vs matched-health L2 QKVM parent's~.725: -1.7%; generic ON/internal+BAM OFF, tuned Splash.
     # Retain L16 attention write, both local O reads, L2 anchor and final C1 Mudd.
@@ -15008,7 +15008,7 @@ class BamMediumPropMShiftReadG050MuddVMSharedRouterLastTwoBlocksL2AnchorTruePile
     # vs matched L15 VM/VM: common3400..4200 mean+.000575 (3600 outlier); no sustained location win.
     # Parent+75576 tiny router/budget residual params; unchanged inference M-cache, throughput -1.6%.
     # code_commit:4db9b15; FIRST_STEP and steady gates verified, UE5a v5p16.
-    # ledger only on main; implementation codex/mediumprop-mudd-tail, /data0/xd/mediumprop-mudd-tail.
+    # Implementation merged into main; experiment codex/mediumprop-mudd-tail, /data0/xd/mediumprop-mudd-tail.
     # ~.695step/s vs VM parent~.706 (-1.6%); TPU310312.
     # L14/L17 use shared C2 routers; final C1 router remains unchanged.
     # Scan4 ordinary blocks +1 pre-tail block +1 final block; budgets stay local.
@@ -15034,7 +15034,7 @@ class BamMediumPropMShiftReadG050MuddVMQKVMSharedRouterLastTwoBlocksL2AnchorTrue
     # Startup~.705step/s vs parent.722 (-2.4%), params+75576=.052483W_Q, M-cache unchanged.
     # Original terminal gain bet1.020 missed;8k computed working estimate1.003 was closer.
     # code_commit:4db9b15; FIRST_STEP and steady gates verified, UE5a v5p16.
-    # ledger only on main; implementation codex/mediumprop-mudd-tail, /data0/xd/mediumprop-mudd-tail.
+    # Implementation merged into main; experiment codex/mediumprop-mudd-tail, /data0/xd/mediumprop-mudd-tail.
     # ~.705step/s vs QKVM parent~.722 (-2.4%); TPU310313.
     # L14 C2, L17 C4; keep the parent's L16 MLP write OFF and L17 attention write absent.
     model_name = 'BamMediumPropMShiftReadG050MuddVMQKVMSharedRouterLastTwoBlocksL2AnchorTruePile'
@@ -15056,7 +15056,7 @@ class BamMediumPropMShiftReadG050MuddVMSharedRouterL15L17L2AnchorTruePile(BamMed
     # Local position benefit did not recover parent loss; parent+75576 params, unchanged M-cache, speed-2.1%.
     # code_commit:cee5200; FIRST_STEP/AOT/source verified, UE5a v5p16.
     # ~.691step/s vs VM parent~.706 (-2.1%); TPU310314.
-    # ledger only on main; implementation codex/mediumprop-mudd-tail, /data0/xd/mediumprop-mudd-tail.
+    # Implementation merged into main; experiment codex/mediumprop-mudd-tail, /data0/xd/mediumprop-mudd-tail.
     # Same local budget as L14 VM duplication, moved to L15; prefix5/final1 block scan.
     # Prior terminal MHA-ref gain vs VM parent1.015; throughput -2..-5%.
     model_name = 'BamMediumPropMShiftReadG050MuddVMSharedRouterL15L17L2AnchorTruePile'
@@ -15076,7 +15076,7 @@ class BamMediumPropMShiftReadG050MuddVMQKVMSharedRouterL15L17L2AnchorTruePile(Ba
     # No speed/cache advantage: parent+75576 params, unchanged M-cache, startup throughput-2.6%.
     # code_commit:cee5200; FIRST_STEP/AOT/source verified, UE5a v5p16.
     # ~.703step/s vs QKVM parent~.722 (-2.6%); TPU310315.
-    # ledger only on main; implementation codex/mediumprop-mudd-tail, /data0/xd/mediumprop-mudd-tail.
+    # Implementation merged into main; experiment codex/mediumprop-mudd-tail, /data0/xd/mediumprop-mudd-tail.
     # Same local budget as L14 VM duplication, moved to L15; prefix5/final1 block scan.
     # Prior terminal MHA-ref gain vs QKVM parent1.020; throughput -2..-5%.
     model_name = 'BamMediumPropMShiftReadG050MuddVMQKVMSharedRouterL15L17L2AnchorTruePile'
@@ -15095,7 +15095,7 @@ class BamMediumPropMShiftReadG050MuddQKVMSharedRouterL15L17L2AnchorTruePile(BamM
     # Parent+264 parameters after local MLP3412->2898; unchanged M-cache; startup speed+0.6% insufficient.
     # code_commit:03b2749; FIRST_STEP/AOT/source verified, UE5a v5p16.
     # ~.707step/s vs direct L15 VM+L17 QKVM parent~.703 (+0.6%); TPU310316.
-    # ledger only on main; implementation codex/mediumprop-mudd-tail, /data0/xd/mediumprop-mudd-tail.
+    # Implementation merged into main; experiment codex/mediumprop-mudd-tail, /data0/xd/mediumprop-mudd-tail.
     # Extra Q/K1850144=1.284822W_Q; L15 MLP3412->2898 repays1850400 (rounding-256).
     # Additional coefficient heads520 are tiny/exempt; parent+264 total parameters.
     # Prior terminal MHA-ref gain vs L15 VM+L17 QKVM1.010; throughput within +/-2%.
@@ -15108,7 +15108,7 @@ class BamMediumPropMShiftReadG050MuddQKVMSharedRouterL15L17L2AnchorTruePile(BamM
 
 class BamMediumPropMShiftReadG050MuddVMSharedRouterLastBlockL2L5AnchorTruePile(BamMediumPropMShiftReadG050MuddVMSharedRouterLastBlockL2AnchorTruePile):
     """Add complete L5 to L17 VM and final Mudd sources; preserve both L16 writes."""
-    # ledger only: codex/mediumprop-mudd-tail, /data0/xd/mediumprop-mudd-tail; code_commit:dba5890.
+    # codex/mediumprop-mudd-tail, /data0/xd/mediumprop-mudd-tail; code_commit:dba5890.
     # xd-v5p-16-310300-maxtext/UE5a; CPU62 + reused writer5, full AOT/FIRST_STEP3/14-step37 verified.
     # Startup~.714step/s; generic health ON/internal+BAM OFF, tuned Splash/full remat, v8t48MiB/fused.
     # Sources[embedding,L0,L2,L5,current]; native C2 at L17 and C1 at final output.
@@ -15124,7 +15124,7 @@ class BamMediumPropMShiftReadG050MuddVMSharedRouterLastBlockL2L5AnchorTruePile(B
     compare_runs = ['BamMediumPropMShiftReadG050MuddVMSharedRouterLastBlockL2AnchorTruePile']
 
 class BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockMLPWriteTruePile(BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockTruePile):
-    # ledger only: codex/mediumprop-mudd-tail, /data0/xd/mediumprop-mudd-tail.
+    # codex/mediumprop-mudd-tail, /data0/xd/mediumprop-mudd-tail.
     """Restore L16 MLP write with single-layer QKVM, no L2 and no dual V."""
     # code_commit: 4c3e39f; xd-v5p-16-310296-maxtext/UE5a; full AOT/FIRST_STEP/14-step verified.
     # Startup~.722step/s (-.4% vs matched parent~.725); generic health ON/internal+BAM OFF, tuned Splash/v8t48MiB.
@@ -15143,7 +15143,7 @@ class BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockMLPWriteTruePile(B
     compare_runs = ['BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockTruePile']
 
 class BamMediumPropMShiftReadG050MuddVMSharedRouterLastBlockTruePile(BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockMLPWriteTruePile):
-    # ledger only: codex/mediumprop-mudd-tail, /data0/xd/mediumprop-mudd-tail.
+    # codex/mediumprop-mudd-tail, /data0/xd/mediumprop-mudd-tail.
     """Single-layer VM with native Q/K M reads, restored L16 MLP write, no L2 or dual V."""
     # code_commit: 4c3e39f; xd-v5p-16-310297-maxtext/UE5a; full AOT/FIRST_STEP/14-step verified.
     # Startup~.720step/s (-.3% vs matched new QKVM/write~.722); generic health ON/internal+BAM OFF, tuned Splash/v8t48MiB.
@@ -15161,7 +15161,7 @@ class BamMediumPropMShiftReadG050MuddVMSharedRouterLastBlockTruePile(BamMediumPr
 
 
 class BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockL2AnchorMLPWriteTruePile(BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockL2AnchorTruePile):
-    """Ledger only: single L17 L2 QKVM with the independent L16 MLP write restored."""
+    """single L17 L2 QKVM with the independent L16 MLP write restored."""
     # Implementation: codex/mediumprop-mudd-tail, /data0/xd/mediumprop-mudd-tail; code_commit:8a58c06.
     # xd-v5p-16-310299-maxtext/UE5a; full13500 AOT/FIRST_STEP6/14-step23 and worker config verified.
     # Fresh formal budget/tree check; unchanged model CPU60 and summary-writer5 evidence reused.
@@ -15185,7 +15185,7 @@ class BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockL2AnchorMLPWriteTr
 
 
 class BamMediumPropMShiftReadG050MuddQKVMDualValueSharedRouterLastBlockTruePile(BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockTruePile):
-    # ledger only: codex/mediumprop-mudd-tail, /data0/xd/mediumprop-mudd-tail.
+    # codex/mediumprop-mudd-tail, /data0/xd/mediumprop-mudd-tail.
     """L17 Mudd QKVM plus the original V M read; restore L16 MLP write, no L2."""
     # Reuse the full O dynamic key/read, including its down/up and pre-bias. No extra mixing scale.
     # Restore38944 V gates/static-address params; L17 MLP -11. L16 writer458000: MLP -127.
@@ -15208,7 +15208,7 @@ class BamMediumPropMShiftReadG050MuddQKVMDualValueSharedRouterLastBlockTruePile(
     compare_runs = ['BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockMLPWriteTruePile', 'BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockTruePile']
 
 class BamMediumPropMShiftReadG050MuddVMDualValueSharedRouterLastBlockTruePile(BamMediumPropMShiftReadG050MuddVMSharedRouterLastBlockL2AnchorTruePile):
-    # ledger only: codex/mediumprop-mudd-tail, /data0/xd/mediumprop-mudd-tail.
+    # codex/mediumprop-mudd-tail, /data0/xd/mediumprop-mudd-tail.
     """L17 Mudd VM plus the original V M read, native Q/K reads, L16 MLP write, no L2."""
     # Restore38944 V gates/static-address params; repay11 SwiGLU units at L17.
     # Total432266265 = trained L2 VM parent -851; native routers154185 exempt.
@@ -15230,7 +15230,7 @@ class BamMediumPropMShiftReadG050MuddVMDualValueSharedRouterLastBlockTruePile(Ba
 
 class BamMediumPropMShiftReadG050MuddQKVMDualValueSharedRouterLastBlockL2AnchorTruePile(BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockL2AnchorTruePile):
     """Add only the M-read V channel to the original L2 QKVM champion."""
-    # ledger only: codex/mediumprop-mudd-tail, /data0/xd/mediumprop-mudd-tail; code_commit:727974c.
+    # codex/mediumprop-mudd-tail, /data0/xd/mediumprop-mudd-tail; code_commit:727974c.
     # Initial numerical runtime dedbb65; infra-only async checkpoint-directory repair resumes compatible CP1964.
     # Same model flags/cursor and AOT load verified through1985; fixed runtime periodic CP2000 committed.
     # Fresh dual budget+causal4 and reused model62/writer5, full13500 AOT/FIRST_STEP/14-step/config verified.
@@ -15251,7 +15251,7 @@ class BamMediumPropMShiftReadG050MuddQKVMDualValueSharedRouterLastBlockL2AnchorT
 
 class BamMediumPropMShiftReadG050MuddVMDualValueSharedRouterLastBlockL2AnchorTruePile(BamMediumPropMShiftReadG050MuddVMSharedRouterLastBlockL2AnchorTruePile):
     """Add only the M-read V channel to L2 VM, retaining both L16 M writes."""
-    # ledger only: codex/mediumprop-mudd-tail, /data0/xd/mediumprop-mudd-tail; code_commit:dedbb65.
+    # codex/mediumprop-mudd-tail, /data0/xd/mediumprop-mudd-tail; code_commit:dedbb65.
     # Fresh dual budget+causal4 and reused model62/writer5, full13500 AOT/FIRST_STEP/14-step/config verified.
     # xd-v5p-16-310302-maxtext/UE5a fresh; startup~.712step/s, near parent~.713.
     # Generic health ON/internal+BAM OFF, tuned Splash/full remat, v8t48MiB/fused prefix, CP200/TB500.
@@ -15268,8 +15268,8 @@ class BamMediumPropMShiftReadG050MuddVMDualValueSharedRouterLastBlockL2AnchorTru
     compare_runs = ['BamMediumPropMShiftReadG050MuddVMSharedRouterLastBlockL2AnchorTruePile']
 
 class BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockSwapMLPTruePile(BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockTruePile):
-    """Ledger only: exchange L16/L17 MLP capacity in the native shared-QKVM tail."""
-    # ledger only: codex/mediumprop-mudd-tail, /data0/xd/mediumprop-mudd-tail.
+    """exchange L16/L17 MLP capacity in the native shared-QKVM tail."""
+    # codex/mediumprop-mudd-tail, /data0/xd/mediumprop-mudd-tail.
     # code_commit:7df904d; exact v5p16 AOT/FIRST_STEP and step14 verified.
     # UE5a startup~.724 step/s, vs matched-health v8t parent~.725; formal budget/tree check passed.
     # Move777 SwiGLU units/2797200=1.9425W_Q from L16 to L17; exact432266255 total unchanged.
@@ -15285,7 +15285,7 @@ class BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockSwapMLPTruePile(Ba
 
 class BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastTwoLayersTruePile(BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockTruePile):
     """Native shared QKVM controller in both L16/L17; both local O reads retained."""
-    # ledger only; implementation codex/mediumprop-mudd-tail, /data0/xd/mediumprop-mudd-tail.
+    # Implementation merged into main; experiment codex/mediumprop-mudd-tail, /data0/xd/mediumprop-mudd-tail.
     # code_commit:35a1fd3; v8t prefix + read-only JAX tail bridge; CPU70 verified.
     # Same RUN continues compatible initial native startup61457aa7; see family note.
     # No attention write in L16/L17 or MLP write in L16; sources remain embedding/L0/current.
@@ -15332,7 +15332,7 @@ class BamMediumPropMShiftReadG050MuddVMSharedRouterLastTwoLayersTruePile(BamMedi
 
 
 class BamMediumPropMShiftReadG050MuddVMQKVMSharedRouterLastTwoLayersL2AnchorTruePile(BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockL2AnchorTruePile):
-    """Ledger only: L16 VM and L17 QKVM, L2 anchors and both L16 M writes."""
+    """L16 VM and L17 QKVM, L2 anchors and both L16 M writes."""
     # Implementation: codex/mediumprop-mudd-tail, /data0/xd/mediumprop-mudd-tail; code_commit:33d5695.
     # Logical310298 retains xd-v5p-16-310291-maxtext/UE5a; full AOT/FIRST_STEP6/14-step gate verified.
     # Fresh CPU60 plus unchanged writer5; causal tests confirm both L16 writes affect final logits.
@@ -15362,7 +15362,7 @@ class BamMediumPropMShiftReadG050MuddVMQKVMSharedRouterLastTwoLayersL2AnchorTrue
 
 class BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastTwoLayersRebalanceMLPTruePile(BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastTwoLayersTruePile):
     """Move 775 SwiGLU units from L15 into L16/L17 without changing the two-layer budget."""
-    # ledger only: codex/mediumprop-mudd-tail, /data0/xd/mediumprop-mudd-tail.
+    # codex/mediumprop-mudd-tail, /data0/xd/mediumprop-mudd-tail.
     # code_commit: 7e52560; five-config budget/tree and actual AOT startup verified.
     # xd-v5p-16-310289-maxtext, us-east5-a; initial ~.718step/s, generic health ON/BAM OFF.
     # User-requested allocation: L15 -775, L16 +387, L17 +388; total2790000=1.9375W_Q moved.
@@ -15377,13 +15377,13 @@ class BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastTwoLayersRebalanceMLPTr
 
 
 class BamMediumPropMShiftReadG050PersistentEmbedMLastQKVOTruePile(BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile):
-    """Ledger only: embedding-only persistent M joins shifted M for L17 Q/K/V/O; final three-source Mudd."""
+    """embedding-only persistent M joins shifted M for L17 Q/K/V/O; final three-source Mudd."""
     # 结论：末层拼接 embedding 持久 M 未带来收益；对 QKV 从2k近持平转为持续落后。
     # 用户停于4929，CP4929提交，节点/队列释放、TB SYNC_OK；P0，未跑满13500。
     # 末五4k–4.8k：对单门.5/QKV/单V gap +.002093/+.005060/+.004475，
     # MHA参考收益倍数 .989962/.976070/.978776；2.2k后持续落后QKV，无可靠追回趋势。
     # 原终局vsQKV1.015、vs单门.5约1.03下注未到终局验收，已训趋势不支持。
-    # ledger only: codex/mediumprop-mudd-tail, /data0/xd/mediumprop-mudd-tail.
+    # codex/mediumprop-mudd-tail, /data0/xd/mediumprop-mudd-tail.
     # Reuse W_emb_u; independent R256 GELU address and write gate, initial opening .1.
     # Carry P[75,16] unchanged; L17 reads [shift(M)[75,32],P] with 48-column keys.
     # Keep L16 MLP write; ordinary blocks x5 and final block x1; final Mudd expand4 ->64.
@@ -17364,7 +17364,7 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPMHAWidthTruePile(
     # MHA-sized ordinary MLP did not offset the smaller M-update branch.
     # Startup~.707; parent timing has different health/kernel settings; M-cache unchanged.
     # Params parent+1600=.001111W_Q; expected gain1.01 unsupported through stop.
-    # Ledger only. Implementation: codex/mediumprop-dedicated-m-mlp; /data0/xd/mediumprop-dedicated-m-mlp.
+    # Implementation merged into main; experiment: codex/mediumprop-dedicated-m-mlp; /data0/xd/mediumprop-dedicated-m-mlp.
     # code_commit: 18a9d9c; UE5a v5p-16 startup~.707step/s; Pallas+tuned Splash.
     # Generic training health ON; internal/BAM metrics OFF.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPMHAWidthTruePile'
@@ -17420,7 +17420,7 @@ class BamMediumPropMShiftReadG050SharedHiddenMemoryMLPTruePile(
     # Shared nonlinear features did not preserve their early loss benefit; failed SOTA candidate.
     # Startup~.710 vs2:1~.707 (+.4%); params+8400=.005833W_Q; M-cache unchanged.
     # Initial gain bets1.05 vs single.5/1.01 vs2:1 unsupported through stop.
-    # Ledger only. Implementation: codex/mediumprop-dedicated-m-mlp; /data0/xd/mediumprop-dedicated-m-mlp.
+    # Implementation merged into main; experiment: codex/mediumprop-dedicated-m-mlp; /data0/xd/mediumprop-dedicated-m-mlp.
     # code_commit: 89d6bec; UE5a v5p-16 startup~.71step/s; Pallas+tuned Splash.
     # Generic training health ON; internal/BAM metrics OFF.
     model_name = 'BamMediumPropMShiftReadG050SharedHiddenMemoryMLPTruePile'
@@ -17443,7 +17443,7 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio3to1TruePile(
     # Final5(6800..7600) vs2:1 +.001506/gain.991593; vs single.5 +.000394/gain.997771.
     # Extra ordinary MLP params+11.5% vs2:1 did not produce a later relative recovery.
     # Startup~.700 vs2:1~.707 (-1%); same total params/cache; expected gain1.01 unsupported.
-    # Ledger only. Implementation: codex/mediumprop-dedicated-m-mlp; /data0/xd/mediumprop-dedicated-m-mlp.
+    # Implementation merged into main; experiment: codex/mediumprop-dedicated-m-mlp; /data0/xd/mediumprop-dedicated-m-mlp.
     # code_commit: faefbad; UE5a v5p-16 startup~.700step/s (~-1% vs2:1 startup).
     # Generic training health ON; internal/BAM OFF; Pallas+tuned Splash.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio3to1TruePile'
@@ -17465,7 +17465,7 @@ class BamMediumPropMShiftReadG050HalfMemoryMLPTruePile(
     # Steady~.701 vs full3:1~.700 (flat); identical total params/M-cache.
     # Wider nonlinear M hidden823->1200 did not offset removing content output mixing.
     # Expected gain1.01 vs full3:1 was unsupported through the review stop.
-    # Ledger only. Implementation: codex/mediumprop-dedicated-m-mlp; /data0/xd/mediumprop-dedicated-m-mlp.
+    # Implementation merged into main; experiment: codex/mediumprop-dedicated-m-mlp; /data0/xd/mediumprop-dedicated-m-mlp.
     # code_commit: 8849623; UE5a v5p-16 steady~.701step/s; Pallas+tuned Splash.
     # Generic training health ON; internal/BAM metrics OFF; AOT/step14/CP400 verified.
     model_name = 'BamMediumPropMShiftReadG050HalfMemoryMLPTruePile'
@@ -17491,7 +17491,7 @@ class BamMediumPropMShiftReadG050SharedHiddenRank8WriteTruePile(
     # Implementation: codex/mediumprop-dedicated-m-mlp; /data0/xd/mediumprop-dedicated-m-mlp.
     # code_commit: 47b0e1b; UE5a v5p-16 startup~.723step/s; Pallas+tuned Splash.
     # Generic training health ON; internal/BAM OFF; AOT/step14 verified.
-    # ledger only; implementation on the branch/worktree above.
+    # Implementation merged into main.
     model_name = 'BamMediumPropMShiftReadG050SharedHiddenRank8WriteTruePile'
     base_mlp_dim = 3114
     mlp_dim_by_block = [3114, 3114]
@@ -17516,7 +17516,7 @@ class BamMediumPropMShiftReadG050SharedHiddenRank8InputControlsTruePile(
     # Implementation: codex/mediumprop-dedicated-m-mlp; /data0/xd/mediumprop-dedicated-m-mlp.
     # code_commit: 47b0e1b; UE5a v5p-16 startup~.725step/s; Pallas+tuned Splash.
     # Generic training health ON; internal/BAM OFF; AOT/step14 verified.
-    # ledger only; implementation on the branch/worktree above.
+    # Implementation merged into main.
     model_name = 'BamMediumPropMShiftReadG050SharedHiddenRank8InputControlsTruePile'
     base_mlp_dim = 3234
     mlp_dim_by_block = [3234, 3234]
@@ -17541,7 +17541,7 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRank8R128H768TruePile(
     # Implementation: codex/mediumprop-dedicated-m-mlp; /data0/xd/mediumprop-dedicated-m-mlp.
     # code_commit: eb76af1; UE5a v5p-16 startup~.729step/s (+3.1% vs independent2:1).
     # Pallas+tuned Splash; generic health ON, internal/BAM OFF; loaded AOT/step14 verified.
-    # ledger only; implementation on the branch/worktree above.
+    # Implementation merged into main.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRank8R128H768TruePile'
     base_mlp_dim = 3108
     mlp_dim_by_block = [3108, 3108]
@@ -17566,7 +17566,7 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MuddQKVML2TruePile(
     # code_commit: 82e5a73; UE5a v5p-16 startup~0.6960step/s (-1.6% vs2:1).
     # Loaded AOT/FIRST_STEP/step14 verified; CPU74 passed, Pallas+tuned Splash.
     # Generic training health ON, internal/BAM OFF; three-layer staged scan.
-    # ledger only; implementation: codex/mediumprop-dedicated-m-mlp; /data0/xd/mediumprop-dedicated-m-mlp.
+    # Implementation merged into main; experiment: codex/mediumprop-dedicated-m-mlp; /data0/xd/mediumprop-dedicated-m-mlp.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MuddQKVML2TruePile'
     bam_local_fetch_block_size = 3
     mlp_dim_by_block = [2535, 2535, 2535]
@@ -17626,7 +17626,7 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MuddL14VML17QKVML1L2
     # code_commit: dde6851; UE5a v5p16 startup.677step/s (+.15% vs direct parent.676).
     # CPU77 + sealed config + borrowed FLEX AOT + FIRST_STEP/step14 verified.
     # Generic health ON/internal+BAM OFF; Pallas v8t48/fused + tuned Splash; full13500 schedule.
-    # Ledger only: codex/mediumprop-dedicated-m-mlp; /data0/xd/mediumprop-dedicated-m-mlp.
+    # Implementation merged into main; experiment: codex/mediumprop-dedicated-m-mlp; /data0/xd/mediumprop-dedicated-m-mlp.
     # Sources[embedding,L0,L1,L2,current]; shared controllers remain width64.
     # Native Mudd routers +455 parameters exempt; all ordinary/private MLP widths unchanged.
     # Terminal MHA-ref gain prior vs direct parent1.010[.995,1.025]; speed cost0..1%.
@@ -17641,7 +17641,7 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MuddL14VML17VML1L2Tr
     # code_commit: afb2ee9; UE5a v5p16 startup0.6678step/s (-1.36% vs direct parent).
     # Targeted parameter/write-policy, causal/gradient and v8t bridge gates passed; sealed config/AOT/FIRST_STEP/step14 verified.
     # Pallas v8t48/fused + tuned Splash; generic health ON/internal+BAM OFF;13500-step schedule.
-    # Ledger only: codex/mediumprop-dedicated-m-mlp; /data0/xd/mediumprop-dedicated-m-mlp.
+    # Implementation merged into main; experiment: codex/mediumprop-dedicated-m-mlp; /data0/xd/mediumprop-dedicated-m-mlp.
     # L17 Q/K return to M; L16 private M-MLP restored, attention write retained.
     # Total432344617, native routers232025; parent+406 = nonrouter rounding+1056 and router-650.
     # Terminal MHA-ref gain prior vs direct parent1.010[.995,1.025]; speed cost0..2%.
@@ -17659,7 +17659,7 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MuddL14VML17VML1L2No
     # code_commit: 42f04a2; UE5a v5p16 startup0.6744step/s (+0.99% vs direct parent).
     # Sealed CPU4/AOT/FIRST_STEP/step14 verified; full parameter trees/no fallback/live attention write/v8t bridge.
     # Pallas v8t48/fused + tuned Splash; generic health ON/internal+BAM OFF;13500-step schedule.
-    # Ledger only: codex/mediumprop-dedicated-m-mlp; /data0/xd/mediumprop-dedicated-m-mlp.
+    # Implementation merged into main; experiment: codex/mediumprop-dedicated-m-mlp; /data0/xd/mediumprop-dedicated-m-mlp.
     # Remove all4094000 L14 private/control params; refund1137 ordinary widths4093200.
     # Total432343817 = direct parent-800; native routers232025 unchanged.
     # L15/L16 private M writers remain; L17 remains write-free; source set/routers unchanged.

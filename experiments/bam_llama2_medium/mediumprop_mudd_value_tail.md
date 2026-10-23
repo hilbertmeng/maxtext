@@ -1,9 +1,11 @@
 # MediumProp: shallow content at late reads and final readout
 
 User authorized both runs and the two-block scan/budget split on2026-10-22 JST.
-Implementation: `/data0/xd/mediumprop-mudd-tail`, branch
-`codex/mediumprop-mudd-tail`, forked from main1c0f4f16. Main exp.py is ledger-only
-until the implementation is explicitly merged.
+Implementation is available on `refactor-bam` (merged2026-10-24 JST).
+Original experiments: `/data0/xd/mediumprop-mudd-tail`, branch
+`codex/mediumprop-mudd-tail`, forked from main1c0f4f16. Historical runtime hashes
+below identify each trained implementation. Integration and131-check validation
+are recorded in [the dedicated-memory MLP note](mediumprop_dedicated_memory_mlp.md#main-branch-implementation-integration-2026-10-24-jst).
 
 | RUN/config | Modified layers | Scan stages | Tail MLP widths | Parameters | Delta vs parent |
 |---|---|---|---|---:|---:|

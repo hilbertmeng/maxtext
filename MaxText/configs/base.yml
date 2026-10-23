@@ -559,6 +559,27 @@ bam_write_rms_epsilon: null
 # Explicit tail count supersedes the legacy single-tail boolean when set.
 bam_final_local_layer_count: null
 bam_last_mlp_dim: 0 # 0 preserves the regular width; scanned BAM requires a tail for an override.
+bam_mudd_tail_blocks: 0 # Selective WV/Mudd blocks, with a separate repeated tail scan.
+bam_mudd_tail_mlp_dims: null # Three shared widths in the modified tail block.
+bam_mudd_tail_residual_qk: False # Also restore full Q/K from separate three-source residual routes.
+bam_mudd_tail_residual_mlp: False # Route final-layer residual M before its attention addition, as Mudd's m path.
+bam_mudd_tail_qkvm_last_layers: 0 # 2 extends the single-tail QKVM variant to L-2 as well as L-1; local O remains a matrix read.
+bam_mudd_tail_qk_last_layers: null # Optional QK subset of the routed tail: 1 keeps QK M reads in L-2 and uses Mudd QK only in L-1.
+bam_mudd_tail_skip_attention_write_last_layers: 0 # Omit both operations and parameters in the last 1/2 tail layers; retain local O reads.
+bam_mudd_tail_native_shared_router: False # Use native Mudd Compose once for joint QKV[/m] routing, and C1 final readout.
+bam_mudd_tail_skip_mlp_write: True # Omit the modified blocks' middle-layer MLP write; False restores its configured write.
+bam_mudd_tail_l2_anchor: False # Also carry the completed L2 residual into native tail and final Mudd mixtures.
+bam_mudd_tail_l1_anchor: False # Include complete L1 between L0 and L2 in native mixtures.
+bam_mudd_tail_l5_anchor: False # Add complete L5 alongside L2 to the native tail and final mixtures.
+bam_mudd_tail_dual_value: False # Add the original independently gated V M read to the tail Mudd W_V value; reuse O's dynamic read.
+bam_mudd_pre_tail_vm: False # Add native V/m routing at L-4 or L-3, preserving existing write policies.
+bam_mudd_pre_tail_vm_offset: 4 # 4 selects L14, 3 selects L15 in an 18-layer model.
+bam_mudd_pre_tail_vm_qk: False # Also use native residual Q/K at the additional L15 site.
+bam_mudd_pre_tail_vm_mlp_dim: null # Local MLP budget for the additional VM layer.
+bam_mudd_pre_tail_vm_skip_mlp_write: False # Omit the entire MLP write at the additional VM site, including controls.
+bam_mudd_final_output: False # Independent three-source Mudd readout after complete final layer.
+bam_persistent_embedding_m: False # Carry a separate embedding-only [K,num_query_heads] matrix.
+bam_persistent_embedding_last_mlp_dim: null # Last-layer width repaying persistent seed/readout costs.
 bam_skip_final_mlp_write: false # Opt-in: omit an M write with no downstream M consumer.
 bam_qk_static_read_gate: True  # False: static Q/K full-M reads ungated (V/O keep their gates)
 global_attn_head_dim: 0

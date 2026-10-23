@@ -54,10 +54,12 @@ class Mlp(nn.Module):
   hids_length: int = None
   use_bias: bool = True
   C: int = 4
+  force_router: bool = False  # Reuse the native controller at selective BAM sites.
+  hidden_expand_override: Optional[int] = None
 
   def setup(self):
     cfg = self.config
-    if not cfg.dense_conn: return
+    if not cfg.dense_conn and not self.force_router: return
 
     if not getattr(cfg, 'mudd_prenorm', False):
         self.pre_dense_proj1_norm = normalizations.get_rmsnorm("pre_dense_proj1_norm", cfg, scale_init=None)
@@ -74,6 +76,10 @@ class Mlp(nn.Module):
     if expands:
       # Before layer i+1 (or final readout): embedding + i+1 completed outputs.
       dynamic_dense_hidden_expand = expands[hids_length - 2]
+    if self.hidden_expand_override is not None:
+      if self.hidden_expand_override <= 0:
+        raise ValueError('Mudd hidden expansion must be positive')
+      dynamic_dense_hidden_expand = self.hidden_expand_override
     dynamic_dense_inter_dim = int(np.prod(dw_shape) * dynamic_dense_hidden_expand)
 
     if cfg.dynamic_dense_hidden_round:  # default: round to 64 or 128
@@ -115,7 +121,7 @@ class Mlp(nn.Module):
   ):
     cfg = self.config
     dyn_dense_w = None
-    if cfg.dynamic_dense_type == 'qkvm' and cfg.dense_conn:
+    if self.force_router or (cfg.dynamic_dense_type == 'qkvm' and cfg.dense_conn):
       x_out_normed = self.pre_dense_proj1_norm(layer_output)
       dense_w_inner = self.dense_activation(self.dense_proj1(x_out_normed))
       dyn_dense_kernel_out = self.dense_proj2(dense_w_inner)
@@ -156,6 +162,8 @@ class Compose(nn.Module):
   quant: Optional[Quant] = None
   C: int = 4
   compose: bool = False
+  force_router: bool = False
+  hidden_expand_override: Optional[int] = None
     
   @nn.compact
   def __call__(
@@ -171,7 +179,10 @@ class Compose(nn.Module):
     if not self.compose:
       return y, hids
 
-    dyn_dense_w = Mlp(self.config, self.mesh, self.quant, len(hids), name='mlp', C=C)(layer_output)
+    dyn_dense_w = Mlp(
+        self.config, self.mesh, self.quant, len(hids), name='mlp', C=C,
+        force_router=self.force_router,
+        hidden_expand_override=self.hidden_expand_override)(layer_output)
     
     if cfg.mudd_postnorm:
       post_norm = normalizations.get_rmsnorm("mudd_postnorm", cfg, scale_init=nn.initializers.constant(0.001), direct_scale=True)

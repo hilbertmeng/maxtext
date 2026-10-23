@@ -1,6 +1,7 @@
 # Per-layer dedicated memory MLPs
 
-Implementation worktree `/data0/xd/mediumprop-dedicated-m-mlp`, branch
+Implementation is available on `refactor-bam` (merged2026-10-24 JST).
+Original experiment worktree `/data0/xd/mediumprop-dedicated-m-mlp`, branch
 `codex/mediumprop-dedicated-m-mlp`; forked current `refactor-bam` at781a86a6.
 Parent: `BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile`.
 
@@ -606,3 +607,27 @@ Final proofs`closeout-combined-vm.json`,`combined-vm-registry-final.json`,
 `combined-vm-final-report.json`. Historical oldVM's18 missing cached step10 points
 6850..7020 were restored from its already-synced real TB, preserving prior cache
 entries (`old-vm-loss-reexport.provenance.json`); final matched windows are complete.
+
+
+## Main-branch implementation integration (2026-10-24 JST)
+
+Merged `codex/mediumprop-dedicated-m-mlp` at41d9a626 into refactor-bam,
+including original/native shared Mudd tail controllers, QKVM/VM/dual-V variants,
+residual anchors, persistent embedding M, staged block scan, omitted writes,
+independent/shared/half/compact-rank M-MLPs and all recent combination classes.
+Pallas v8t selective-layer matrix-layout bridges and ordinary fused-core writes
+are included. Historical experiment runtime hashes and results remain their
+original reproduction references; the43 supported classes now run from main.
+All43 effective configuration dictionaries match the sealed experiment source.
+The seven runtime source files (base defaults and six layer modules) match the
+verified experiment implementation byte-for-byte.
+
+Main integration gate:131 CPU checks passed in the pinned environment:
+shared BAM47, memory-MLP family16, combinations11, native Mudd23, original tail8,
+summary writer5, standard Pythia5, full Mudd4, full-head QKNorm6,
+Pallas/QKNorm3 and Pythia2.8B projection/init/scan compatibility3.
+Full parameter/write-policy trees, forward/causal/gradient behavior and JAX/Pallas
+bridges were validated. Proof:main-merge-gate-20261023T151202Z/passed.json under
+/data0/xd/bam_diagnostics/mediumprop-dedicated-m-mlp. No additional training or
+compiler resources were created for this integration; existing RUNs retain their
+sealed Git/AOT lineage.

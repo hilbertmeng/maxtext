@@ -17,6 +17,7 @@ limitations under the License.
 """Transformer model definition."""
 import jax
 import math
+from types import SimpleNamespace
 from flax import linen as nn
 from jax.sharding import Mesh
 import jax.numpy as jnp
@@ -28,10 +29,12 @@ from layers import normalizations
 from layers import models
 from layers import quantizations
 from layers import mudd
+from layers import bam_mudd
 from layers import initializers
 import max_logging
 
 import common_types
+import pyconfig
 from typing import Optional, Any
 
 Array = common_types.Array
@@ -80,6 +83,14 @@ class SubDecoderLayer(nn.Module):
       self.updated_mlp_dim = round(cfg.mlp_dim * (layer_inx / (cfg.num_decoder_layers - 1) + 0.5) / 128) * 128 
     else:
       self.updated_mlp_dim = cfg.mlp_dim
+    if (getattr(cfg, 'bam_mudd_tail_blocks', 0)
+        and self.layer_inx >= bam_mudd.tail_start(cfg)):
+      self.updated_mlp_dim = cfg.bam_mudd_tail_mlp_dims[self.layer_inx % 3]
+    if bam_mudd.is_pre_tail_vm(cfg, self.layer_inx):
+      self.updated_mlp_dim = cfg.bam_mudd_pre_tail_vm_mlp_dim
+    if (getattr(cfg, 'bam_persistent_embedding_m', False)
+        and self.layer_inx == cfg.num_decoder_layers - 1):
+      self.updated_mlp_dim = cfg.bam_persistent_embedding_last_mlp_dim
     tail_count = cfg.bam_final_local_layer_count
     if tail_count is None:
       tail_count = int(bool(getattr(cfg, 'bam_extra_final_local_layer', False)))
@@ -112,6 +123,8 @@ class SubDecoderLayer(nn.Module):
       M_in=None,
       is_global=None,
       layer_index=None,
+      early_residuals=None,
+      persistent_M=None,
   ):
     cfg = self.config
     mesh = self.mesh
@@ -192,6 +205,14 @@ class SubDecoderLayer(nn.Module):
             layer_inx=self.layer_inx)
     else:
         AttnCls = Attention
+    pallas_tail = bool(cfg.bam_pallas_core) and bam_mudd.is_value_layer(cfg, self.layer_inx)
+    if pallas_tail:
+      # The existing fused QKVO kernel serves ordinary layers. Selective full
+      # QKV/VM layers use JAX reads/writes and bridge the v8t M layout.
+      if cfg.bam_pallas_body != 'v8t':
+        raise ValueError('Pallas selective tail requires the v8t M layout')
+      attn_kwargs['config'] = pyconfig.HyperParameters(SimpleNamespace(
+          keys=dict(cfg.get_keys(), bam_pallas_core=False)))
     attention_layer = AttnCls(**attn_kwargs)
 
     call_kwargs = dict(
@@ -205,31 +226,64 @@ class SubDecoderLayer(nn.Module):
         eos_sum=eos_sum,
         deep_embedding=deep_embedding,
     )
+    if getattr(cfg, 'bam_persistent_embedding_m', False):
+      call_kwargs['persistent_M'] = persistent_M
+    shared_routes = None
+    if cfg.bam_mudd_tail_native_shared_router and bam_mudd.is_value_layer(cfg, self.layer_inx):
+      anchor_count = 1 + len(bam_mudd.anchor_layers(cfg))
+      if early_residuals is None or len(early_residuals) != anchor_count:
+        raise ValueError('native tail Mudd requires all configured residual anchors')
+      # Native Mudd expects the current residual last (identity bias [0,0,1]).
+      sources = [*early_residuals, inputs]
+      route_names = ('q', 'k', 'v') if bam_mudd.is_qk_layer(cfg, self.layer_inx) else ('v',)
+      if bam_mudd.is_mlp_route_layer(cfg, self.layer_inx):
+        route_names += ('m',)
+      routed, _ = mudd.Compose(
+          cfg, mesh, self.quant, C=len(route_names), compose=True, force_router=True,
+          hidden_expand_override=1, name='qkvm_compose')(
+              layer_output=inputs, hids=sources)
+      shared_routes = dict(zip(route_names, routed))
+    if bam_mudd.is_value_layer(cfg, self.layer_inx):
+      if early_residuals is None:
+        raise ValueError('selective residual V requires embedding and L0 anchors')
+      value_input = shared_routes['v'] if shared_routes is not None else bam_mudd.ThreeSourceRouter(
+          cfg, mesh, self.quant, hidden_expand=1, name='value_compose')(inputs, early_residuals)
+      call_kwargs['inputs_v'] = normalizations.get_decoder_norm(
+          'value_input_norm', cfg)(value_input)
+      if bam_mudd.is_qk_layer(cfg, self.layer_inx):
+        for route_index, arm in enumerate(('q', 'k')):
+          route = shared_routes[arm] if shared_routes is not None else bam_mudd.ThreeSourceRouter(
+              cfg, mesh, self.quant, hidden_expand=1, name=arm + '_compose')(inputs, early_residuals)
+          call_kwargs['inputs_' + arm + '_route'] = normalizations.get_decoder_norm(
+              arm + '_input_norm', cfg)(route)
     mlp_write_every = int(getattr(cfg, 'bam_mlp_write_every', None) or 0)
     mlp_write = (
         cfg.bam_enabled and mlp_write_every > 0
+        and not bam_mudd.skips_mlp_write(cfg, self.layer_inx)
         and not (cfg.bam_skip_final_mlp_write and self.layer_inx == cfg.num_decoder_layers - 1)
         and (self.layer_inx + 1) % mlp_write_every
         == int(getattr(cfg, 'bam_mlp_write_offset', None) or 0) % mlp_write_every)
     if mlp_write and getattr(cfg, 'bam_mlp_write_static_address', False):
       raise ValueError('Static MLP write experiments require their recorded runtime')
-    pallas_core = cfg.bam_enabled and bool(getattr(cfg, 'bam_pallas_core', False))
+    pallas_core = cfg.bam_enabled and bool(getattr(cfg, 'bam_pallas_core', False)) and not pallas_tail
+    write_factors = None
+    attention_M = jnp.swapaxes(M_in, -1, -2) if pallas_tail else M_in
     if pallas_core:
         # Fused core: the attention returns its raw write factors; one kernel
         # applies the attention (and MLP) writes after the MLP.
         attention_lnx, M_out, write_factors = attention_layer(
-            **call_kwargs, M_in=M_in, is_global=is_global, layer_index=layer_index)
+            **call_kwargs, M_in=attention_M, is_global=is_global, layer_index=layer_index)
     elif cfg.bam_enabled:
-        if mlp_write:
+        if mlp_write and not bam_mudd.skips_attention_write(cfg, self.layer_inx):
           assert cfg.shared_experts == 1 and cfg.num_experts == 1
           assert cfg.emb_dim == num_query_heads * cfg.bam_k == num_query_heads * head_dim
           assert 'full' not in layer_mode and not cfg.bam_mha_control
           attention_lnx, M_out, write_factors = attention_layer(
-              **call_kwargs, M_in=M_in, is_global=is_global,
+              **call_kwargs, M_in=attention_M, is_global=is_global,
               layer_index=layer_index, defer_write=True)
         else:
           attention_lnx, M_out = attention_layer(
-              **call_kwargs, M_in=M_in, is_global=is_global,
+              **call_kwargs, M_in=attention_M, is_global=is_global,
               layer_index=layer_index)
     else:
         attention_lnx = attention_layer(**call_kwargs)
@@ -242,7 +296,15 @@ class SubDecoderLayer(nn.Module):
     attention_lnx = nn.with_logical_constraint(
         attention_lnx, ("activation_batch", "activation_norm_length", "activation_embed")
     )
-    intermediate_inputs = inputs + attention_lnx
+    residual_input = inputs
+    if bam_mudd.is_mlp_route_layer(cfg, self.layer_inx):
+      if early_residuals is None:
+        raise ValueError('selective residual M route requires embedding and L0 anchors')
+      # Match Mudd's m path: route the residual before adding attention, then use
+      # the result for both the MLP input and its identity residual connection.
+      residual_input = shared_routes['m'] if shared_routes is not None else bam_mudd.ThreeSourceRouter(
+          cfg, mesh, self.quant, hidden_expand=1, name='m_compose')(inputs, early_residuals)
+    intermediate_inputs = residual_input + attention_lnx
 
     # Fully Connected
     # Parallel Pythia uses the layer input (Mudd's composed M route).
@@ -255,6 +317,47 @@ class SubDecoderLayer(nn.Module):
     )
     
     mlp_lnx = None
+    memory_mlp_dim = int(getattr(cfg, 'bam_memory_mlp_dim', 0) or 0)
+    memory_dims = getattr(cfg, 'bam_memory_mlp_dim_by_layer', None)
+    if memory_dims is not None:
+      if len(memory_dims) != cfg.num_decoder_layers or any(type(h) is not int or h < 0 for h in memory_dims):
+        raise ValueError('memory MLP per-layer widths must be nonnegative integers for every layer')
+      memory_mlp_dim = memory_dims[self.layer_inx]
+    share_memory_hidden = bool(getattr(cfg, 'bam_memory_mlp_share_hidden', False))
+    direct_memory_hidden = bool(getattr(cfg, 'bam_memory_mlp_half', False))
+    memory_write_heads = int(getattr(cfg, 'bam_memory_write_heads', 0) or 0)
+    compact_controls = bool(memory_write_heads and share_memory_hidden)
+    if memory_write_heads and (not memory_mlp_dim or cfg.bam_sqrt_n_scale):
+      raise ValueError('Compact writes require a memory MLP and unscaled per-head gates')
+    if memory_write_heads and (cfg.bam_write_factor_norm != 'rms' or cfg.bam_write_address_norm_bias):
+      raise ValueError('Compact writes require parameter-free factor RMS normalization')
+    memory_lnx = None
+    if memory_mlp_dim:
+      if not (cfg.bam_enabled and cfg.shared_experts == 1 and cfg.num_experts == 1):
+        raise ValueError('A dedicated memory MLP requires dense BAM layers')
+      if mlp_write and share_memory_hidden:
+        if memory_mlp_dim != self.updated_mlp_dim:
+          raise ValueError('Shared memory/vector MLPs must have the same hidden width')
+      if mlp_write and direct_memory_hidden:
+        if share_memory_hidden or memory_mlp_dim != cfg.emb_dim:
+          raise ValueError('Half memory MLP requires its own D-wide hidden state')
+      if mlp_write and not share_memory_hidden:
+        last_write_dim = int(getattr(cfg, 'bam_memory_mlp_last_write_dim', 0) or 0)
+        if last_write_dim and self.layer_inx == cfg.num_decoder_layers - 2:
+          memory_mlp_dim = last_write_dim
+        # Both branches consume the same post-attention normalized residual.
+        # Only this branch supplies M content; it never enters the vector residual.
+        memory_lnx = linears.MlpBlock(
+            intermediate_dim=memory_mlp_dim, activations=cfg.mlp_activations,
+            intermediate_dropout_rate=cfg.dropout_rate, dtype=cfg.dtype,
+            weight_dtype=cfg.weight_dtype, name='memory_mlp', config=cfg,
+            bam_memory_direct_hidden=direct_memory_hidden,
+            output_dim=memory_write_heads * cfg.bam_k if memory_write_heads else None,
+            quant=self.quant, kernel_init=initializers.get_bam_init(
+                cfg, fallback=initializers.get_init_method(cfg.init_method)),
+            use_bias=False)(
+                hidden_states, deep_embedding=deep_embedding,
+                decoder_input_tokens=decoder_input_tokens, deterministic=deterministic)
     if cfg.shared_experts == 1:
       # MLP block.
       mlp_lnx = linears.MlpBlock(
@@ -269,8 +372,17 @@ class SubDecoderLayer(nn.Module):
           kernel_init=initializers.get_model_init(cfg), # lsp
           output_kernel_init=(initializers.get_model_init(cfg, residual_output=True)
                               if cfg.decoder_block == 'pythia' else None),
+          bam_memory_output=share_memory_hidden and mlp_write,
+          bam_memory_write_heads=memory_write_heads if compact_controls and mlp_write else 0,
+          bam_memory_controls_from_hidden=bool(
+              getattr(cfg, 'bam_memory_controls_from_hidden', True)),
           use_bias=cfg.decoder_block == 'pythia',
       )(hidden_states, deep_embedding=deep_embedding, decoder_input_tokens=decoder_input_tokens, deterministic=deterministic)
+      if share_memory_hidden and mlp_write:
+        if compact_controls:
+          mlp_lnx, memory_lnx, memory_address, memory_logits = mlp_lnx
+        else:
+          mlp_lnx, memory_lnx = mlp_lnx
       mlp_lnx = nn.with_logical_constraint(mlp_lnx, ("activation_batch", "activation_norm_length", "activation_embed"))
 
       if cfg.record_internal_nn_metrics:
@@ -329,20 +441,33 @@ class SubDecoderLayer(nn.Module):
       moe_lnx = nn.with_logical_constraint(moe_lnx, ("activation_batch", "activation_norm_length", "activation_embed"))
 
     if mlp_write:
-      mlp_logits = linears.DenseGeneral(
-          features=(num_query_heads,), axis=-1, use_bias=False,
-          kernel_init=initializers.get_bam_init(
-              cfg, fallback=initializers.get_init_method(cfg.init_method)),
-          kernel_axes=('embed', 'q_heads'), dtype=cfg.dtype, weight_dtype=cfg.weight_dtype,
-          quant=self.quant, matmul_precision=cfg.matmul_precision,
-          name='mlp_write_gate')(hidden_states)
+      write_content = memory_lnx if memory_mlp_dim else mlp_lnx
+      write_heads = memory_write_heads or num_query_heads
+      if compact_controls:
+        address_bias = self.param(
+            'mlp_address_bias', nn.with_logical_partitioning(nn.initializers.zeros,
+                ('q_heads', 'v_factor')), (write_heads, cfg.bam_v), cfg.weight_dtype)
+        independent_address = memory_address + jnp.asarray(address_bias, cfg.dtype)
+        mlp_logits = memory_logits
+      else:
+        mlp_logits = linears.DenseGeneral(
+            features=(write_heads,), axis=-1, use_bias=False,
+            kernel_init=initializers.get_bam_init(
+                cfg, fallback=initializers.get_init_method(cfg.init_method)),
+            kernel_axes=('embed', 'q_heads'), dtype=cfg.dtype, weight_dtype=cfg.weight_dtype,
+            quant=self.quant, matmul_precision=cfg.matmul_precision,
+            name='mlp_write_gate')(hidden_states)
+      memory_write_eps = getattr(cfg, 'bam_memory_write_eps', None)
+      if memory_write_eps is None:
+        memory_write_eps = cfg.bam_write_eps
       mlp_bias = self.param(
           'mlp_write_gate_bias', nn.with_logical_partitioning(
-              nn.initializers.constant(math.log(cfg.bam_write_eps / (1.0 - cfg.bam_write_eps))),
-              ('q_heads',)), (num_query_heads,), cfg.weight_dtype)
+              nn.initializers.constant(math.log(memory_write_eps / (1.0 - memory_write_eps))),
+              ('q_heads',)), (write_heads,), cfg.weight_dtype)
       mlp_logits = mlp_logits + jnp.asarray(mlp_bias, cfg.dtype)
-      independent_address = None
-      if getattr(cfg, 'bam_mlp_write_dynamic_address', False):
+      if not compact_controls:
+        independent_address = None
+      if not compact_controls and getattr(cfg, 'bam_mlp_write_dynamic_address', False):
         rank = int(cfg.bam_mlp_write_address_rank)
         address_hidden = linears.DenseGeneral(
             features=rank, axis=-1, use_bias=False,
@@ -352,7 +477,7 @@ class SubDecoderLayer(nn.Module):
             quant=self.quant, matmul_precision=cfg.matmul_precision,
             name='mlp_address_down')(hidden_states)
         independent_address = linears.DenseGeneral(
-            features=(num_query_heads, cfg.bam_v), axis=-1, use_bias=True,
+            features=(write_heads, cfg.bam_v), axis=-1, use_bias=True,
             kernel_init=initializers.get_bam_init(
               cfg, fallback=initializers.get_init_method(cfg.init_method)),
             kernel_axes=('embed', 'q_heads', 'v_factor'),
@@ -361,14 +486,14 @@ class SubDecoderLayer(nn.Module):
             name='mlp_address_up')(nn.gelu(address_hidden))
       if not pallas_core:
         M_out = attention_layer.merge_mlp_write(
-            mlp_lnx.reshape(mlp_lnx.shape[:-1] + (num_query_heads, cfg.bam_k)),
+            write_content.reshape(write_content.shape[:-1] + (write_heads, cfg.bam_k)),
             jax.nn.sigmoid(mlp_logits), write_factors, M_out, independent_address=independent_address)
     if pallas_core:
       from layers import bam_pallas
       groups = [write_factors]
       if mlp_write:
         assert independent_address is not None, 'fused core supports independent MLP addresses only'
-        groups.append((mlp_lnx.reshape(mlp_lnx.shape[:-1] + (num_query_heads, cfg.bam_k)),
+        groups.append((write_content.reshape(write_content.shape[:-1] + (write_heads, cfg.bam_k)),
                        mlp_logits, independent_address))
       with jax.named_scope('bam/pallas_write'):
         M_out = bam_pallas.write(
@@ -396,6 +521,10 @@ class SubDecoderLayer(nn.Module):
         layer_output,
         ("activation_batch", "activation_norm_length", "activation_embed"),
     )
+    if pallas_tail:
+      # Tail reads and attention/MLP writes use the JAX [K,V] layout; restore
+      # the prefix kernel's [V,K] carry only after all writes have finished.
+      M_out = jnp.swapaxes(M_out, -1, -2)
     return layer_output, M_out
 
 
@@ -408,6 +537,7 @@ class BamLayerPair(nn.Module):
   quant: Optional[Quant] = None
   scan_length: int = 1
   all_global_attention: bool = True
+  stage_start_layer: int = 0
 
   @nn.compact
   def __call__(self, carry, segment_ids, positions, tokens, deep_embedding,
@@ -426,7 +556,8 @@ class BamLayerPair(nn.Module):
       name = f'local_{offset}' if offset < block_size - 1 else f'fetch_{offset}'
       carry, _ = Layer(
           cfg, self.mesh, self.sliding_window_size, self.quant,
-          all_global_attention=True, static_layer_index=offset, name=name)(
+          all_global_attention=True,
+          static_layer_index=self.stage_start_layer + offset, name=name)(
               carry, segment_ids, positions, tokens, None,
               deterministic, model_mode, eos_sum, None, None, None,
               block_size * block_index + offset)
@@ -498,7 +629,14 @@ class FusionDecoderLayer(nn.Module):
     if cfg.scan_layers:
       assert not cfg.dense_conn, 'flat layer scan currently requires dense_conn=False'
       if scan_full_bam:
-        inputs, M_in = inputs
+        persistent_M = None
+        if getattr(cfg, 'bam_persistent_embedding_m', False):
+          persistent_M, inputs = inputs[-1], inputs[:-1]
+        if bam_mudd.uses_anchors(cfg):
+          early_residuals = inputs[2:]
+          inputs, M_in = inputs[:2]
+        else:
+          inputs, M_in = inputs
       else:
         M_in = None
       if self.all_global_attention:
@@ -543,6 +681,10 @@ class FusionDecoderLayer(nn.Module):
             lidx=self.layer_inx,
           )
     # return's inputs length is 1
+    extra_inputs = ({'early_residuals': early_residuals}
+                    if scan_full_bam and bam_mudd.uses_anchors(cfg) else {})
+    if scan_full_bam and getattr(cfg, 'bam_persistent_embedding_m', False):
+      extra_inputs['persistent_M'] = persistent_M
     inputs, M_out = self.layer(
         inputs,
         decoder_segment_ids,
@@ -555,6 +697,7 @@ class FusionDecoderLayer(nn.Module):
         M_in=M_in,
         is_global=is_global,
         layer_index=layer_index,
+        **extra_inputs,
     )
     max_logging.log(f'layer_inx: {self.layer_inx} break_layers: {self.break_layers}', debug=cfg.debug)
     full_history = cfg.dense_conn and cfg.get_keys().get('mudd_full_history', False)
@@ -577,6 +720,12 @@ class FusionDecoderLayer(nn.Module):
 
     if cfg.scan_layers:
       carry = (inputs, M_out) if scan_full_bam else inputs
+      if scan_full_bam and bam_mudd.uses_anchors(cfg):
+        carry += (early_residuals[0],)
+        carry += tuple(jnp.where(jnp.asarray(layer_index) == layer, inputs, previous)
+                       for layer, previous in zip(bam_mudd.anchor_layers(cfg), early_residuals[1:]))
+      if scan_full_bam and getattr(cfg, 'bam_persistent_embedding_m', False):
+        carry += (persistent_M,)
       return carry, ()
     if cfg.bam_enabled:
       return inputs, hids, M_out

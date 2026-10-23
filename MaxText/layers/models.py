@@ -965,6 +965,8 @@ class Decoder(nn.Module):
         blocks = 1 if persistent else int(cfg.bam_mudd_tail_blocks)
         pre_tail_vm = bool(cfg.bam_mudd_pre_tail_vm)
         if pre_tail_vm and (blocks != 1 or persistent
+            or type(cfg.bam_mudd_pre_tail_vm_offset) is not int
+            or cfg.bam_mudd_pre_tail_vm_offset not in (3, 4)
             or not cfg.bam_mudd_tail_native_shared_router
             or not cfg.bam_mudd_tail_residual_mlp or not cfg.bam_mudd_tail_l2_anchor
             or cfg.bam_mudd_tail_qkvm_last_layers or cfg.bam_mudd_tail_dual_value
@@ -1041,7 +1043,7 @@ class Decoder(nn.Module):
           carry += (persistent_M,)
         # Separate scan stages retain independent layer parameters while sharing each stage's HLO.
         stages = ((0, prefix // 3, 'layers'), (prefix, blocks, 'tail_layers'))
-        if pre_tail_vm:
+        if pre_tail_vm and cfg.bam_mudd_pre_tail_vm_offset == 4:
           if prefix < 6:
             raise ValueError('pre-tail VM requires an ordinary prefix before the two modified blocks')
           stages = ((0, prefix // 3 - 1, 'layers'),

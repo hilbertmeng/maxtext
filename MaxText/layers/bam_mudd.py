@@ -18,7 +18,8 @@ def uses_anchors(config):
 
 
 def is_pre_tail_vm(config, layer_index):
-  return bool(getattr(config, 'bam_mudd_pre_tail_vm', False)) and layer_index == config.num_decoder_layers - 4
+  return (bool(getattr(config, 'bam_mudd_pre_tail_vm', False))
+          and layer_index == config.num_decoder_layers - getattr(config, 'bam_mudd_pre_tail_vm_offset', 4))
 
 
 def is_value_layer(config, layer_index):

@@ -1626,8 +1626,8 @@ User authorized two from-scratch runs, using the existing family worktree
 
 | RUN | Direct parent | L14 / L17 routing | L16 MLP write | TPU / zone |
 |---|---|---|---|---|
-| BamMediumPropMShiftReadG050MuddVMSharedRouterLastTwoBlocksL2AnchorTruePile | BamMediumPropMShiftReadG050MuddVMSharedRouterLastBlockL2AnchorTruePile | VM / VM | ON | xd-v5p-16-310310-maxtext / us-east5-a |
-| BamMediumPropMShiftReadG050MuddVMQKVMSharedRouterLastTwoBlocksL2AnchorTruePile | BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockL2AnchorTruePile | VM / QKVM | OFF | xd-v5p-16-310311-maxtext / us-east5-a |
+| BamMediumPropMShiftReadG050MuddVMSharedRouterLastTwoBlocksL2AnchorTruePile | BamMediumPropMShiftReadG050MuddVMSharedRouterLastBlockL2AnchorTruePile | VM / VM | ON | xd-v5p-16-310312-maxtext / us-east5-a |
+| BamMediumPropMShiftReadG050MuddVMQKVMSharedRouterLastTwoBlocksL2AnchorTruePile | BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockL2AnchorTruePile | VM / QKVM | OFF | xd-v5p-16-310313-maxtext / us-east5-a |
 
 Both preserve L13 MLP writing and L14 attention writing. L14 Q/K/O read M,
 V uses a full W_V after native shared C2 V/m routing. All mixtures use
@@ -1667,3 +1667,40 @@ Latest same-topology leases through2026-10-22 favor us-east5-a; use it for
 both spot trainers, with no new FLEX allocation. Borrow retained user FLEX
 llm-jax-v6e-1-0/europe-west4-a worker0; actual resource ACTIVE/FLEX_START
 and idle worker verified. AOTs serialize through its worker lock.
+
+
+### L15 position controls on the same two parents
+
+User additionally authorized two from-scratch L15 copies, without changing the
+running L14 arms. Same family worktree and branch.
+
+| RUN | Parent | Matched position control | TPU / zone |
+|---|---|---|---|
+| BamMediumPropMShiftReadG050MuddVMSharedRouterL15L17L2AnchorTruePile | BamMediumPropMShiftReadG050MuddVMSharedRouterLastBlockL2AnchorTruePile | BamMediumPropMShiftReadG050MuddVMSharedRouterLastTwoBlocksL2AnchorTruePile | xd-v5p-16-310314-maxtext / us-east5-a |
+| BamMediumPropMShiftReadG050MuddVMQKVMSharedRouterL15L17L2AnchorTruePile | BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockL2AnchorTruePile | BamMediumPropMShiftReadG050MuddVMQKVMSharedRouterLastTwoBlocksL2AnchorTruePile | xd-v5p-16-310315-maxtext / us-east5-a |
+
+Move only the additional native C2 VM site and its local MLP repayment from L14
+to L15. L14 remains ordinary BAM; L15 Q/K/O read M and its attention writer is
+retained. L16 MLP writing follows each original parent (VM ON, QKVM OFF).
+L17 routing and omitted L17 attention writing, final C1 Mudd and four sources
+remain unchanged. The additional VM offset is3 instead of the default4; the
+L14 runtime4db9b15 remains immutable. L15 MLP3802->3412; no other MLP width
+changes. Totals and tiny-router counts equal the matched L14 controls exactly:
+VM432342692/231700, QKVM432342156/232220. Scan5 ordinary blocks+1 final block;
+final widths3412/3676/3540 or3412/3803/3026.
+
+At18 layers L0 pairs with L17 and L2 with L15 under index reflection17-i;
+this motivates a position experiment, not an assumed gain. Priors against the
+original parents remain1.015(VM) and1.020(QKVM), with2..5% throughput loss;
+position-only gain versus L14 is centered1.000. Keep the direction champion
+as an additional VM control and register MHA-reference multipliers centrally.
+Both new runs compare to their parent, matched L14 arm and sibling. Existing
+L14 comparison edges also receive their matched L15 arms. All four are reported
+as one group every2000 steps, with2800/5000 reviews. Full13500 schedule and
+all data/batch/checkpoint/health/Splash/Pallas settings match the L14 arms.
+
+Infrastructure remains identical to mainedc6035d in train/max_utils/summary
+writer/checkpoint/AOT/optimizer code; only the scoped site selector and scan
+stage condition change. Borrow the same retained idle FLEX compiler serially,
+with no new FLEX allocation. Source and writer-regression hashes from the
+verified L14 CPU gate are retained alongside fresh scan/model CPU evidence.

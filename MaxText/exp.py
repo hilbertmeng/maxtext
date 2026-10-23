@@ -14984,7 +14984,9 @@ class BamMediumPropMShiftReadG050MuddVMSharedRouterLastBlockL2AnchorTruePile(Bam
 
 class BamMediumPropMShiftReadG050MuddVMSharedRouterLastTwoBlocksL2AnchorTruePile(BamMediumPropMShiftReadG050MuddVMSharedRouterLastBlockL2AnchorTruePile):
     """L2 VM parent plus L14 native VM; preserve L13 MLP and L14 attention writes."""
+    # code_commit:4db9b15; FIRST_STEP and steady gates verified, UE5a v5p16.
     # ledger only on main; implementation codex/mediumprop-mudd-tail, /data0/xd/mediumprop-mudd-tail.
+    # ~.695step/s vs VM parent~.706 (-1.6%); TPU310312.
     # L14/L17 use shared C2 routers; final C1 router remains unchanged.
     # Scan4 ordinary blocks +1 pre-tail block +1 final block; budgets stay local.
     # Prior terminal MHA-reference gain vs direct parent1.015; throughput -2..-5%.
@@ -15000,7 +15002,9 @@ class BamMediumPropMShiftReadG050MuddVMSharedRouterLastTwoBlocksL2AnchorTruePile
 
 class BamMediumPropMShiftReadG050MuddVMQKVMSharedRouterLastTwoBlocksL2AnchorTruePile(BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockL2AnchorTruePile):
     """Old L2 QKVM champion plus L14 native VM, with both L13/L14 writes retained."""
+    # code_commit:4db9b15; FIRST_STEP and steady gates verified, UE5a v5p16.
     # ledger only on main; implementation codex/mediumprop-mudd-tail, /data0/xd/mediumprop-mudd-tail.
+    # ~.705step/s vs QKVM parent~.722 (-2.4%); TPU310313.
     # L14 C2, L17 C4; keep the parent's L16 MLP write OFF and L17 attention write absent.
     # Prior terminal MHA-reference gain vs direct parent1.020; throughput -2..-5%.
     model_name = 'BamMediumPropMShiftReadG050MuddVMQKVMSharedRouterLastTwoBlocksL2AnchorTruePile'
@@ -15010,6 +15014,31 @@ class BamMediumPropMShiftReadG050MuddVMQKVMSharedRouterLastTwoBlocksL2AnchorTrue
     bam_mudd_pre_tail_vm_mlp_dim = 3412
     compare_runs = ['BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockL2AnchorTruePile',
                     'BamMediumPropMShiftReadG050MuddVMSharedRouterLastTwoBlocksL2AnchorTruePile']
+
+
+class BamMediumPropMShiftReadG050MuddVMSharedRouterL15L17L2AnchorTruePile(BamMediumPropMShiftReadG050MuddVMSharedRouterLastTwoBlocksL2AnchorTruePile):
+    """L2 VM parent plus L15 native VM; retain the parent's L16 MLP writing."""
+    # ledger only on main; implementation codex/mediumprop-mudd-tail, /data0/xd/mediumprop-mudd-tail.
+    # Same local budget as L14 VM duplication, moved to L15; prefix5/final1 block scan.
+    # Prior terminal MHA-ref gain vs VM parent1.015; throughput -2..-5%.
+    model_name = 'BamMediumPropMShiftReadG050MuddVMSharedRouterL15L17L2AnchorTruePile'
+    bam_mudd_pre_tail_vm_offset = 3
+    compare_runs = ['BamMediumPropMShiftReadG050MuddVMSharedRouterLastBlockL2AnchorTruePile',
+                    'BamMediumPropMShiftReadG050MuddVMSharedRouterLastTwoBlocksL2AnchorTruePile',
+                    'BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockL2AnchorTruePile',
+                    'BamMediumPropMShiftReadG050MuddVMQKVMSharedRouterL15L17L2AnchorTruePile']
+
+
+class BamMediumPropMShiftReadG050MuddVMQKVMSharedRouterL15L17L2AnchorTruePile(BamMediumPropMShiftReadG050MuddVMQKVMSharedRouterLastTwoBlocksL2AnchorTruePile):
+    """Old L2 QKVM champion plus L15 native VM; L16 MLP writing stays off."""
+    # ledger only on main; implementation codex/mediumprop-mudd-tail, /data0/xd/mediumprop-mudd-tail.
+    # Same local budget as L14 VM duplication, moved to L15; prefix5/final1 block scan.
+    # Prior terminal MHA-ref gain vs QKVM parent1.020; throughput -2..-5%.
+    model_name = 'BamMediumPropMShiftReadG050MuddVMQKVMSharedRouterL15L17L2AnchorTruePile'
+    bam_mudd_pre_tail_vm_offset = 3
+    compare_runs = ['BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockL2AnchorTruePile',
+                    'BamMediumPropMShiftReadG050MuddVMQKVMSharedRouterLastTwoBlocksL2AnchorTruePile',
+                    'BamMediumPropMShiftReadG050MuddVMSharedRouterL15L17L2AnchorTruePile']
 
 
 class BamMediumPropMShiftReadG050MuddVMSharedRouterLastBlockL2L5AnchorTruePile(BamMediumPropMShiftReadG050MuddVMSharedRouterLastBlockL2AnchorTruePile):

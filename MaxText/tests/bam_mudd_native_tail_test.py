@@ -148,8 +148,7 @@ class NativeTailTest(MLPWriteTest, unittest.TestCase):
         original = fusion.SubDecoderLayer(cfg, mesh, layer_inx=index)
         bridge = fusion.SubDecoderLayer(accelerated, mesh, layer_inx=index)
         inputs = tuple(jax.random.normal(jax.random.key(i + 70), (1, 4, 150))
-                       for i in range(3 + int(cfg.bam_mudd_tail_l2_anchor)
-                                      + int(cfg.bam_mudd_tail_l5_anchor)))
+                       for i in range(2 + len(bam_mudd.anchor_layers(cfg))))
         matrix = .2 * jax.random.normal(jax.random.key(73), (1, 4, 75, 32))
         tokens = jnp.ones((1, 4), jnp.int32)
         kwargs = dict(decoder_segment_ids=tokens, decoder_positions=jnp.arange(4)[None],

@@ -10,3 +10,5 @@ BAM worktree `/home/mengqy/Projects/Bam/maxtext-diag-heads`, branch `mqy/diag-he
 Result: no BAM-specific collapse into first-token/punctuation sinks, attention diffusion, or increasing map redundancy. BAM keeps more content-directed heads, but that does not preserve its loss advantage. Attention behavior alone cannot establish functional head contribution; next discriminating test is head-output and final-MLP perturbation with local/M paths separated. Details and values have a single source in the canonical report.
 
 Own resource `xd-v5p8-mqy-heads-1022-ue5a`, us-east5-a Spot v5p-8, FSDP4/batch4; all 128 observations verified, then TPU and queue deleted and independently observed NOT_FOUND. No active diagnostic controllers/resources remain. Formal training/monitoring untouched.
+
+Follow-up 2026-10-23: user supplied an exact per-position definition; see `head_position_20261023.md` and its canonical HTML for the new result. Old content-threshold numbers are not the new activation ratio.

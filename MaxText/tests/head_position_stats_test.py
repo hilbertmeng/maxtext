@@ -32,6 +32,7 @@ class PositionStatisticsTest(unittest.TestCase):
         q = jnp.ones((1, 9, 1, 1)); k = jnp.zeros_like(q).at[:, 3].set(100)
         for token_id, expected in [(0,False),(15,False),(187,False),(964,True),(16,True),(535,True)]:
             tokens = jnp.full((1,9),42).at[:,3].set(token_id)
+            if expected:tokens=tokens.at[:,4].set(187)  # A newline query still counts.
             top, _, _ = statistics(q,k,tokens,chunk_size=4)
             top = np.asarray(top)[0,0]; ids=np.asarray(tokens)[0,top]
             active = (top>=2)&~np.isin(ids,[0,15,187])

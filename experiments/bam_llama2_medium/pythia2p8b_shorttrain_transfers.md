@@ -37,8 +37,9 @@ reference. Every effective parent experiment attribute matches current main.
 Current main includes all runtime infrastructure fixes. Since0579479 the only
 changes in train/train_compile/optimizer/max_utils/checkpointing/pyconfig are
 the checkpoint-manager AsyncOptions directory-creation fix, retained here.
-Verify the installed worker API before launch. Rotation construction/begin_step
-and summary-writer regression remain launch gates. Main6595b1d1's merged
+The installed worker AsyncOptions API was verified; both checkpoint0 saves
+committed. Rotation construction/begin_step and summary-writer regression passed.
+Main6595b1d1's merged
 implementation previously passed131 CPU checks; this adaptation additionally
 checks full formal shapes/budgets, explicit-tail causal gradients, moved L29
 write gradients and the independent GELU memory branch. Broad BAM/native-tail
@@ -46,7 +47,7 @@ regressions and initialization/scan/summary checks run before formal launch.
 
 ## Resources and comparisons
 
-Planned physical ownership: UE5a v5p-128
+Active physical ownership: UE5a v5p-128
 `xd-v5p-128-pythia28k-vm-1024` ID310341 and
 `xd-v5p-128-pythia28k-mmlp-1024` ID310342; backup europe-west4-b.
 The previous three same-topology UE5a runs each had a16h+ lease with P0.
@@ -57,8 +58,9 @@ neither its lifecycle nor unrelated training resources.
 Persist gain ratios with MHA `Pythia2p8BShortTrain` as common reference:
 new/parent BAM (primary), and new/`MuddPythia3BSerialMLPShortTrain` for the
 existing cross-architecture question. Sole direct loss compare is original BAM.
-Keep internal windows500/±25/sample10; report both new arms together each2k,
-including relative speed and raw-gradient median/P95 trajectories.
+Keep internal windows500/±25/sample10. The user's final instruction is launch
+only: confirm startup and speed, then exit without ongoing agent monitoring.
+The auto-train controllers retain mechanical health checks, recovery and reports.
 Parent historical data reach18941, MHA21726 and Mudd17578; later comparisons
 need explicit continuation of those paused controls. Address that gap as the
 new runs approach it, without changing the new runs' full28k plans.
@@ -72,3 +74,31 @@ relative to their VM parents by5k, so the transfer prior does not add component
 gains or assume success. Original bets stay fixed for later evaluation.
 
 Task evidence: `/data0/xd/bam_diagnostics/pythia2p8b-transfer-20261024/`.
+
+## Verified launch
+
+Runtime `6c60bfd989b70afc8935546f34e48133cc650866`, pushed directly to
+`refactor-bam`. All84 CPU checks passed; sealed configurations match the commit.
+Both exact v5p-128/28000 AOT manifests verified, executables loaded, actual first
+steps completed with finite losses, and checkpoint0 committed. Runtime logs
+confirm B1024,16/device, accumulation1, minimal remat, generic health ON/internal
+OFF, checkpoint1000, fixed2k checkpoints and TB rotation1000. Later permanent
+checkpoint retention has not yet been exercised on these new RUNs.
+
+| Arm | Startup steady speed | Confirmation | Relative to historical parent~.326 |
+|---|---:|---:|---:|
+| VM L27/L31 | .3160 step/s, steps11–19 | .3159, steps20–27 | ~−3.1% |
+| Memory MLP2:1 | .3294 step/s, steps10–19 | .3295, steps20–27 | ~+1.0% |
+
+Rates use reciprocal mean step time from printed per-step rates. VM steps10–19
+average .3030 because step10 alone slowed to .221; subsequent11–27 were
+.315–.316, with no training error. This transient is retained in the evidence,
+not silently removed. Memory MLP is faster than the pre-launch .29–.32 prior;
+the actual formal batch, health, initialization and architecture were checked,
+and this is not a reduced-work timing configuration. Parent timing is historical,
+not a fresh paired run. No further profiling or training monitoring requested.
+
+TPUs were first observed READY at2026-10-23 16:37:35/16:37:37 UTC respectively;
+formal controllers registered at16:44:46. Both remain active in UE5a; no backup
+queue was required. The retained FLEX_START compiler was borrowed serially and
+preserved. Original MHA/Mudd/BAM controls remain paused.

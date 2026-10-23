@@ -16993,6 +16993,9 @@ class BamPythia2p8BSotaIndependentR768PallasShortTrainMuddL27L31VML2(
     L31 MLP10530 balances all costs including native routers:2,774,921,974
     parameters, parent+2326 (+0.000355 W_Q), nearest integer final width.
     """
+    # code_commit:6c60bfd; UE5a v5p-128, B16/device; health ON/internal+BAM OFF, minimal remat.
+    # AOT/FIRST_STEP verified; steps11-19 .316, confirmed20-27 .3159 step/s (~-3.1% vs parent~.326).
+    # Steps10-19 .3030 include one transient .221 step; subsequent steady timing above.
     model_name = 'BamPythia2p8BSotaIndependentR768PallasShortTrainMuddL27L31VML2'
     bam_mudd_tail_blocks = 1
     bam_mudd_tail_native_shared_router = True
@@ -17022,6 +17025,8 @@ class BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1(
     =1.998614:1 including address/gates. L31 ordinary7178; total2,774,920,842,
     parent+1194 (+0.000182 W_Q), nearest integer final width.
     """
+    # code_commit:6c60bfd; UE5a v5p-128, B16/device; health ON/internal+BAM OFF, minimal remat.
+    # AOT/FIRST_STEP verified; steps10-19 .3294, confirmed20-27 .3295 step/s (~+1.0% vs parent~.326).
     model_name = 'BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1'
     base_mlp_dim = 7552
     mlp_dim_by_block = [7552, 7552, 7552]

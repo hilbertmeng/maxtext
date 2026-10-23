@@ -17,6 +17,8 @@ C=PREFIX+'L14VML17QKVML2TruePile'
 D=PREFIX+'L14VML17QKVML1L2TruePile'
 E=PREFIX+'L14VML17VML1L2TruePile'
 F=PREFIX+'L14VML17VML1L2NoL14MemoryMLPTruePile'
+G=PREFIX+'L14VML17VML2TruePile'
+H=PREFIX+'L14VML17VML2NoL14MemoryMLPTruePile'
 
 
 class EchoResidual(nn.Module):
@@ -37,8 +39,8 @@ class DedicatedMuddTailTest(NativeTailTest):
         mlp_dim_by_block=[32,32,32],bam_mudd_tail_mlp_dims=[32,40,32],
         bam_mudd_pre_tail_vm_mlp_dim=28)
     if experiment in (C,D):cfg.get_keys()['bam_memory_mlp_dim_by_layer']=[16]*5+[12,16,0,0]
-    if experiment==E:cfg.get_keys()['bam_memory_mlp_dim_by_layer']=[16]*5+[12,16,16,0]
-    if experiment==F:cfg.get_keys()['bam_memory_mlp_dim_by_layer']=[16]*5+[0,16,16,0]
+    if experiment in (E,G):cfg.get_keys()['bam_memory_mlp_dim_by_layer']=[16]*5+[12,16,16,0]
+    if experiment in (F,H):cfg.get_keys()['bam_memory_mlp_dim_by_layer']=[16]*5+[0,16,16,0]
     return cfg
 
   def test_legacy_native_tail_parameter_regression(self):
@@ -52,7 +54,9 @@ class DedicatedMuddTailTest(NativeTailTest):
         (C,432343756,232220,[2275,2535,3802,3030],[1010,1140,0,0]),
         (D,432344211,232675,[2275,2535,3802,3030],[1010,1140,0,0]),
         (E,432344617,232025,[2275,2535,2535,3544],[1010,1140,1140,0]),
-        (F,432343817,232025,[3412,2535,2535,3544],[0,1140,1140,0])]:
+        (F,432343817,232025,[3412,2535,2535,3544],[0,1140,1140,0]),
+        (G,432344292,231700,[2275,2535,2535,3544],[1010,1140,1140,0]),
+        (H,432343492,231700,[3412,2535,2535,3544],[0,1140,1140,0])]:
       cfg=self.config(exp,bam_splash_attention=False)
       cfg.get_keys().update(max_target_length=256,max_prefill_predict_length=256,query_chunk_size=256)
       mesh=jax.sharding.Mesh(max_utils.create_device_mesh(cfg),cfg.mesh_axes)
@@ -60,9 +64,9 @@ class DedicatedMuddTailTest(NativeTailTest):
       self.assertEqual(sum(math.prod(v.shape) for v in flat.values()),total)
       self.assertEqual(sum(math.prod(v.shape) for p,v in flat.items() if 'qkvm_compose' in p or 'compose_final_three_source' in p),routers)
       ordinary=sum(math.prod(v.shape) for p,v in flat.items() if 'mlp' in p and any(k in p for k in ['wi_0','wi_1','wo']))
-      self.assertEqual(ordinary,{A:170611200,B:167900400,C:169675200,D:169675200,E:166964400,F:171057600}[exp])
+      self.assertEqual(ordinary,{A:170611200,B:167900400,C:169675200,D:169675200,E:166964400,F:171057600,G:166964400,H:171057600}[exp])
       for layer,width,h in zip(range(14,18),normal,mem):
-        stage='pre_tail_layers' if exp in (C,D,E,F) and layer==14 else 'layers' if layer==14 else 'tail_layers'
+        stage='pre_tail_layers' if exp in (C,D,E,F,G,H) and layer==14 else 'layers' if layer==14 else 'tail_layers'
         local=('local_0','local_1','fetch_2')[layer%3];block=('params','decoder',stage,local,'block')
         self.assertEqual(flat[block+('mlp','wi_0','kernel')].shape[-1],width)
         keys=[p for p in flat if p[:len(block)]==block and 'memory_mlp' in p]
@@ -71,10 +75,10 @@ class DedicatedMuddTailTest(NativeTailTest):
       tail=('params','decoder','tail_layers','fetch_2','block')
       self.assertFalse(any(p[:len(tail)]==tail and any(k in p for k in ['P_loc_down','P_loc_up','W_gw','gw_b0','memory_mlp','mlp_write_gate']) for p in flat))
       self.assertTrue(any(p[:len(tail)]==tail and 'static_o_key' in p for p in flat))
-      self.assertEqual(flat[tail+('qkvm_compose','mlp','dynamic_dense_conn2','kernel')].shape,(64,1,2 if exp in (B,E,F) else 4,5 if exp in (D,E,F) else 4))
+      self.assertEqual(flat[tail+('qkvm_compose','mlp','dynamic_dense_conn2','kernel')].shape,(64,1,2 if exp in (B,E,F,G,H) else 4,5 if exp in (D,E,F) else 4))
       for key in ['query','key']:
-        self.assertEqual(flat[tail+('self_attention',key,'kernel')].shape[-1],18 if exp in (B,E,F) else 75)
-      if exp==F:
+        self.assertEqual(flat[tail+('self_attention',key,'kernel')].shape[-1],18 if exp in (B,E,F,G,H) else 75)
+      if exp in (F,H):
         pre=('params','decoder','pre_tail_layers','fetch_2','block')
         self.assertTrue(bam_mudd.skips_mlp_write(cfg,14))
         self.assertFalse(bam_mudd.skips_attention_write(cfg,14))
@@ -106,18 +110,18 @@ class DedicatedMuddTailTest(NativeTailTest):
       for branch in ['memory_mlp','mlp_address_down','mlp_address_up','mlp_write_gate','qkvm_compose','compose_final_three_source']:
         leaves=[v for p,v in gf.items() if branch in p]
         self.assertTrue(leaves,branch);self.assertGreater(sum(float(jnp.sum(v*v)) for v in leaves),0.,branch)
-      if exp in (B,E,F):
+      if exp in (B,E,F,G,H):
         leaves=[v for p,v in gf.items() if 'tail_layers' in p and 'local_1' in p and 'memory_mlp' in p]
         self.assertGreater(sum(float(jnp.sum(v*v)) for v in leaves),0.)
-      if exp in (C,D,E):
+      if exp in (C,D,E,G):
         leaves=[v for p,v in gf.items() if 'pre_tail_layers' in p and 'fetch_2' in p and 'memory_mlp' in p]
         self.assertGreater(sum(float(jnp.sum(v*v)) for v in leaves),0.)
-      if exp==F:
+      if exp in (F,H):
         self.assertFalse(any('pre_tail_layers' in p and 'fetch_2' in p and 'memory_mlp' in p for p in gf))
         for branch in ('mlp','P_loc_up','W_gw'):
           leaves=[v for p,v in gf.items() if 'pre_tail_layers' in p and 'fetch_2' in p and branch in p]
           self.assertTrue(leaves,branch);self.assertGreater(sum(float(jnp.sum(v*v)) for v in leaves),0.,branch)
-      for stage in ['tail_layers']+(['pre_tail_layers'] if exp in (C,D,E,F) else []):
+      for stage in ['tail_layers']+(['pre_tail_layers'] if exp in (C,D,E,F,G,H) else []):
         heads=next(v for p,v in gf.items() if stage in p and 'qkvm_compose' in p and 'dynamic_dense_conn2' in p)
         for route in range(heads.shape[-2]):self.assertGreater(float(jnp.sum(heads[:,:,route,3 if exp in (D,E,F) else 2]**2)),0.,(stage,route,'L2'))
 
@@ -157,7 +161,21 @@ class DedicatedMuddTailTest(NativeTailTest):
   def test_l1_mixed_private_scan_causality_and_gradients(self):self.check_private_scan(D)
   def test_l1_two_vm_private_scan_causality_and_gradients(self):self.check_private_scan(E)
   def test_no_l14_memory_mlp_no_fallback_and_live_attention_write(self):self.check_private_scan(F)
+  def test_no_l1_two_vm_private_scan_causality_and_gradients(self):self.check_private_scan(G)
+  def test_no_l1_refund_scan_causality_and_live_attention_write(self):self.check_private_scan(H)
+  def test_no_l1_variants_only_change_source_and_preserve_initial_function(self):
+    import exp as experiments
+    for new,old in ((G,E),(H,F)):
+      a,b=getattr(experiments,new),getattr(experiments,old)
+      keys=[k for k in dir(a) if not k.startswith('__')]
+      changed={k for k in keys if getattr(a,k)!=getattr(b,k)}
+      self.assertEqual(changed,{'model_name','compare_runs','bam_mudd_tail_l1_anchor'})
+      cfg,mesh,model,params,tokens,pos,seg,rng=self.build(new)
+      _,_,parent,parent_params,*_=self.build(old)
+      with mesh,nn.partitioning.axis_rules(cfg.logical_axis_rules):
+        def f(m,p):return m.apply({'params':p},tokens,pos,tokens,seg,decoder_segment_ids=seg,enable_dropout=False,rngs=rng)[0]
+        np.testing.assert_allclose(f(model,params),f(parent,parent_params),rtol=2e-6,atol=2e-6)
   def test_selective_v8t_bridge_including_private_pre_tail_writer(self):
-    self.check_v8t_tail_layout_bridge(((A,8),(B,8),(C,5),(E,5),(E,8),(F,5)))
+    self.check_v8t_tail_layout_bridge(((A,8),(B,8),(C,5),(E,5),(E,8),(F,5),(G,5),(H,5)))
 
 if __name__=='__main__':unittest.main()

@@ -632,6 +632,7 @@ active leases are censored, and manual migration releases are not preemptions.
 | `BamMediumPropMShiftReadG050MuddVMQKVMSharedRouterL15L17L2AnchorTruePile` | v5p-16 (`xd-v5p-16-310315-maxtext`) | `us-east5-a` | 2026-10-23 01:49:38 | 2026-10-23 03:58:46 | 5k review stop5192; P0; CP committed, node/queue absent by04:01:47, TB SYNC_OK; runtimecee5200 | none |
 
 | `BamMediumPropMShiftReadG050MuddQKVMSharedRouterL15L17L2AnchorTruePile` | v5p-16 (`xd-v5p-16-310316-maxtext`) | `us-east5-a` | 2026-10-23 02:04:46 | 2026-10-23 04:11:16 | 5k review stop5122; P0; CP committed, node/queue absent by04:13:53, TB SYNC_OK; runtime03b2749 | none |
+| `BamMediumPropMShiftReadG050HalfMemoryMLPTruePile` | v5p-16 (`xd-v5p-16-310321-maxtext`) | `us-east5-a` | 2026-10-23 07:13:51 | 2026-10-23 08:29:47 | review stop2998; P0; CP committed, node/queue absent, TB SYNC_OK; runtime8849623 | none |
 
 ## READY leases
 
@@ -1908,6 +1909,7 @@ active leases are censored, and manual migration releases are not preemptions.
 | `BamPythiaMediumPropT2048SerialMLPPythiaEmbeddingScaledWrite` | 1 | `us-east5-a` | 2026-10-15 16:47:47 | 2026-10-15 20:00:09 | 3h12m22s | preempted |
 | `BamPythiaMediumPropT2048SerialMLPPythiaEmbeddingScaledWrite` | 2 | `us-east5-a` | 2026-10-15 20:07:17 | 2026-10-15 23:37:24 | 3h30m07s | preempted |
 | `BamPythiaMediumPropT2048SerialMLPPythiaEmbeddingScaledWrite` | 3 | `us-east5-a` | 2026-10-15 23:43:12 | 2026-10-16 00:35:27 | 52m15s | complete13500; CP13500 committed, resources absent, TB SYNC_OK |
+| `BamMediumPropMShiftReadG050HalfMemoryMLPTruePile` | 1 | `us-east5-a` | 2026-10-23 07:13:43 | 2026-10-23 08:29:47 | 1h16m04s | review stop2998; first prequeue READY; registry subinterval07:13:54–08:29:47=1h15m53s; CP committed, resources absent, TB SYNC_OK |
 
 | `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadT8192` | 1 | `us-east5-a` | 2026-10-13 01:40:37 | 2026-10-13 06:51:38 | 5h11m01s | manual review stop7140; resources absent, TB SYNC_OK |
 

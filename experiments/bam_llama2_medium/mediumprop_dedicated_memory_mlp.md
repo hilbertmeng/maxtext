@@ -178,3 +178,33 @@ Both AOTs loaded and FIRST_STEP/step14 gates passed on the assigned UE5a v5p-16s
 Startup joint~.723step/s, x controls~.725, versus shared-hidden~.710 (about+1.8%/+2.1%,
 same declared health/kernel settings). Registry gain triples use MHA as reference for
 every comparator. Borrowed FLEX compiler remains intact and idle after both compiles.
+
+
+## Half memory MLP closeout
+
+`BamMediumPropMShiftReadG050HalfMemoryMLPTruePile`, runtime
+884962320e2aa9b757a839924a6615950f7b98ec, stopped2998 after its2800 review.
+It trailed full3:1 from400 onward; last five common windows2000/2200/2400/2600/2800
+average gap+.0088078, MHA-reference gain.96927780 (latest2800 +.0087062/.96637240).
+Over those same windows, vs independent2:1 +.01227432/.95772495;
+vs original single.5 +.00965984/.96625229. Its early advantage over original parent
+vanished around1200 and turned into a growing deficit. Pre-run terminal prior1.01
+versus full3:1 was unsupported through the review stop.
+
+Steady~.701step/s versus full3:1~.700 (flat), with matching training health ON,
+internal/BAM health OFF and Pallas/tuned Splash. Same432113280 parameters and75x32
+M-cache as full3:1. Memory nonlinear hidden823→1200 (+45.8%), ordinary2852→2875
+(+.81%), but removing the content output projection worsened quality. This supports
+retaining learned postactivation content mixing in the next compact-write designs.
+
+v5p-16 xd-v5p-16-310321-maxtext stayed in us-east5-a, no passive candidate or
+preemption. Assignment07:13:51–08:29:47 UTC on2026-10-23. One full READY lease:
+07:13:43–08:29:47,1h16m04s, ending by review stop. The first timestamp is the
+parallel prequeue's READY node observation; registry covers07:13:54–08:29:47,
+1h15m53s,11s shorter. CP2998 commit_success and independent node/queue NOT_FOUND
+verified; local TB SYNC_OK after one bounded retry. Borrowed FLEX compiler retained.
+
+Reproduction/proof: `/data0/xd/bam_diagnostics/mediumprop-dedicated-m-mlp/`
+`half-final-report.json`, `half-final-proof.json`, `half-lease-final.json`,
+`closeout-half.json`, `review-half2800-shared5k.png/.csv`. Parameter/configuration
+and startup details above remain the runtime specification.

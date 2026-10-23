@@ -17669,3 +17669,27 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MuddL14VML17VML1L2No
     bam_mudd_pre_tail_vm_mlp_dim = 3412
     bam_memory_mlp_dim_by_layer = [1140] * 14 + [0, 1140, 1140, 0]
     compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MuddL14VML17VML1L2TruePile']
+
+
+class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MuddL14VML17VML2TruePile(
+    BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MuddL14VML17VML1L2TruePile):
+    """Restart the spaced VM pair with original embedding/L0/L2/current sources."""
+    # Only remove L1; routers-325, all MLP widths/write policies unchanged.
+    # Total432344292, native routers231700; native router savings remain exempt.
+    # Terminal MHA-reference gain prior vs no-L1 mixed parent1.015[1.000,1.030].
+    model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MuddL14VML17VML2TruePile'
+    bam_mudd_tail_l1_anchor = False
+    compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MuddL14VML17QKVML2TruePile',
+                    'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MuddL14VML17VML1L2TruePile']
+
+
+class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MuddL14VML17VML2NoL14MemoryMLPTruePile(
+    BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MuddL14VML17VML1L2NoL14MemoryMLPTruePile):
+    """Restart the L14-capacity refund with original sources and no L1."""
+    # Only remove L1; same3412 L14 ordinary width, no L14 private writer/fallback.
+    # Total432343492, native routers231700; direct new VM parent-800.
+    # Terminal MHA-reference gain prior vs new no-L1 VM parent1.010[.995,1.025].
+    model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MuddL14VML17VML2NoL14MemoryMLPTruePile'
+    bam_mudd_tail_l1_anchor = False
+    compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MuddL14VML17VML2TruePile',
+                    'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MuddL14VML17VML1L2NoL14MemoryMLPTruePile']

@@ -17415,6 +17415,8 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio3to1TruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1TruePile):
     """Vector/M-update budget3:1 with the2:1 arm's body budget and terminal width."""
     # Implementation: codex/mediumprop-dedicated-m-mlp; /data0/xd/mediumprop-dedicated-m-mlp.
+    # code_commit: faefbad; UE5a v5p-16 startup~.700step/s (~-1% vs2:1 startup).
+    # Generic training health ON; internal/BAM OFF; Pallas+tuned Splash.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio3to1TruePile'
     base_mlp_dim = 2852
     mlp_dim_by_block = [2852, 2852]

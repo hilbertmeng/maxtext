@@ -163,3 +163,25 @@ causal loss mechanism. Shared-cache plots omit the startup transient.
 
 Handoff proof, exact manifests, startup timing, final VM report/registry and
 bookkeeping outputs: task artifact subdirectory `ratio3-launch/`.
+
+## MHA-width ordinary MLP configuration
+
+`BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPMHAWidth`
+uses the2:1 implementation with L0–L30 ordinary GELU width10240 (official MHA),
+independent M-only width256, and no final M-only branch. Both body widths are128
+multiples. With every ordinary width fixed10240, exact budget balance would need
+memory width284.673992;256 is the closest128 multiple. L31 ordinary11129 absorbs
+the rounded memory-budget remainder. It is the nearest integer final-width match.
+
+Formal total2,774,921,081 = original BAM+1433 (+.000219 W_Q),2:1+239.
+Body ordinary52,441,600 /full memory4,933,664 =10.629342:1, including3,622,944
+memory-write address/gate parameters. The goal is MHA-width ordinary MLPs;
+no fixed ordinary/memory budget ratio is imposed. The final layer is the sole
+width-alignment exception. R768, serial GELU, initialization, block scan, Pallas,
+health, batch and28k schedule inherit unchanged. Direct controls are2:1 and
+original BAM. This change only adds a configuration; no TPU workload requested.
+
+Pinned CPU formal budget coverage includes this new configuration plus the
+existing VM,2:1 and3:1 classes; it checks the total parameter tree, final memory
+branch omission, aligned body widths and the nearest integer final-width match.
+Evidence: `/data0/xd/bam_diagnostics/pythia2p8b-transfer-20261024/mha-width-config-cpu/`.

@@ -17067,6 +17067,29 @@ class BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio3to1(
                     'BamPythia2p8BSotaIndependentR768PallasShortTrain']
 
 
+class BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPMHAWidth(
+        BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1):
+    """MHA-width ordinary GELU MLP plus an independent M-only MLP per layer.
+
+    Holding all ordinary widths at10240 gives ideal memory width284.673992;
+    round it to256, the nearest multiple of128. L0-L30 ordinary10240/memory256
+    are128-aligned. L31 has no memory branch; its ordinary11129 balances the
+    total to2,774,921,081, original BAM+1433 (+0.000219 W_Q),2:1+239.
+    The final width is the nearest integer match and the only alignment exception.
+    Body ordinary/full-M-write budget52,441,600 /(1,310,720+3,622,944)
+    =10.629342:1, including write addresses/gates. Same serial GELU, R768,
+    Pallas, block scan, initialization and training recipe as the2:1 arm.
+    """
+    model_name = 'BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPMHAWidth'
+    base_mlp_dim = 10240
+    mlp_dim_by_block = [10240, 10240, 10240]
+    bam_memory_mlp_dim = 256
+    bam_final_local_mlp_dim = 10240
+    bam_last_mlp_dim = 11129
+    compare_runs = ['BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1',
+                    'BamPythia2p8BSotaIndependentR768PallasShortTrain']
+
+
 class BamPythia2p8BSotaIndependentR768PallasShortTrainNoQKStaticGate(BamPythia2p8BSotaIndependentR768PallasShortTrain):
     """Static Q/K full-M reads kept, their input-dependent gates removed (as the Medium
     BamMediumPropMShiftReadG050FullQKNormNoQKStaticGateTruePile); V/O static gates unchanged.

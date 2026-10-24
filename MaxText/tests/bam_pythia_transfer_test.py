@@ -18,12 +18,13 @@ PARENT = 'BamPythia2p8BSotaIndependentR768PallasShortTrain'
 VM = PARENT + 'MuddL27L31VML2'
 RATIO = PARENT + 'MemoryMLPRatio2to1'
 RATIO3 = PARENT + 'MemoryMLPRatio3to1'
+MHA_WIDTH = PARENT + 'MemoryMLPMHAWidth'
 
 
 class PythiaTransferTest(MLPWriteTest, unittest.TestCase):
   def test_formal_budgets_and_live_parameter_placement(self):
     for exp, total in ((VM, 2774921974), (RATIO, 2774920842),
-                       (RATIO3, 2774917892)):
+                       (RATIO3, 2774917892), (MHA_WIDTH, 2774921081)):
       cfg = self.config(exp, target_train_batch_size=None)
       cfg.get_keys().update(max_target_length=256, max_prefill_predict_length=256,
                             query_chunk_size=256)
@@ -56,12 +57,18 @@ class PythiaTransferTest(MLPWriteTest, unittest.TestCase):
         self.assertFalse(any(p[:len(tail)] == tail and 'memory_mlp' in p for p in flat))
         ordinary = 5121 * cfg.base_mlp_dim + 2560
         memory = 5120 * cfg.bam_memory_mlp_dim + 3622944
-        target, tolerance = (2., .002) if exp == RATIO else (3., .08)
-        self.assertAlmostEqual(ordinary / memory, target, delta=tolerance)
+        if exp == MHA_WIDTH:
+          self.assertEqual(cfg.base_mlp_dim, 10240)  # Official MHA GELU width.
+          self.assertEqual(cfg.mlp_dim_by_block, [10240] * 3)
+          self.assertEqual(cfg.bam_final_local_mlp_dim, 10240)
+          self.assertEqual(cfg.bam_memory_mlp_dim, 256)
+        else:
+          target, tolerance = (2., .002) if exp == RATIO else (3., .08)
+          self.assertAlmostEqual(ordinary / memory, target, delta=tolerance)
         self.assertEqual(cfg.bam_memory_mlp_dim % 128, 0)
         self.assertEqual(cfg.base_mlp_dim % 128, 0)
-        if exp == RATIO3:
-          self.assertEqual(cfg.bam_last_mlp_dim, 7172)
+        if exp in (RATIO3, MHA_WIDTH):
+          self.assertEqual(cfg.bam_last_mlp_dim, 7172 if exp == RATIO3 else 11129)
           # One final GELU channel costs5121 parameters: the chosen width
           # must be the closest match to the original BAM parent's budget.
           error = total - 2774919648

@@ -17061,6 +17061,10 @@ class BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio3to1(
     # code_commit:417e95a; UE5a v5p-128, B16/device; health ON/internal+BAM OFF, minimal remat.
     # Fresh RUN on retained VM trainer (ID310343); exact AOT loaded, FIRST_STEP verified.
     # Steps10-19 .3225 vs2:1 .3294 (-2.10%); confirmed20-27 .3231step/s, matching health/topology.
+    # User stop CP5720; vs2:1 deficit persists after2k; final5(3.5k..5.5k) gap+.004764/R.968569.
+    # vs original BAM final5 gap+.005718/R.962902; MHA-ref R vs Mudd2.0881@2k ->1.8627@4k ->1.7028@5.5k.
+    # Later~.320step/s vs2:1~.326 (-1.8%); P0, CP committed, node/queue absent, TB SYNC_OK.
+    # Partial result favors2:1; original28k terminalR.995 bet untested, LR schedule unchanged.
     model_name = 'BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio3to1'
     base_mlp_dim = 8448
     mlp_dim_by_block = [8448, 8448, 8448]

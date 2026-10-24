@@ -8,13 +8,13 @@ validated Medium implementation; this adaptation adds the32-layer explicit
 tail and precise MLP-write placement. The temporary experiment worktree was
 removed at the user's request before compilation or training.
 
-Current ownership: independent2:1 is user-stopped at committed18481;
-independent3:1 continues on VM's former UE5a v5p-128. VM is closed at
-committed12695. Both closed RUNs have local TB SYNC_OK. The3:1 stop target is
-18941, matching original BAM; preserve the original28k LR schedule/AOT.
-Grouped monitoring is every2k per RUN;
-compare the fresh3:1 arm against same-step historical2:1 windows. Plotting omits
-the initial transient (these runs: start at2k).
+Current ownership: no active training resources. Independent2:1 is user-stopped
+at committed18481,3:1 at5720, and VM at12695. All three have local TB SYNC_OK;
+the two trainers and their queues are released. Original28k LR schedules/AOTs
+were preserved. Grouped monitoring used2k cadence and same-step historical
+controls. Plots omit the first2k and retain only three panels: gap versus
+original BAM, gain multiplier versus original BAM, and gain multiplier versus
+Mudd with the original BAM curve overlaid.
 
 ## Arms and budget
 
@@ -55,7 +55,7 @@ regressions and initialization/scan/summary checks run before formal launch.
 
 ## Resources and comparisons
 
-Active physical ownership: UE5a v5p-128
+Initial physical assignments: UE5a v5p-128
 `xd-v5p-128-pythia28k-vm-1024` ID310341 and
 `xd-v5p-128-pythia28k-mmlp-1024` ID310342; backup europe-west4-b.
 The previous three same-topology UE5a runs each had a16h+ lease with P0.
@@ -71,9 +71,9 @@ grouped monitoring every2k. Auto-train retains mechanical health checks, recover
 and reports; the agent owns interpretation and decisions.
 Parent historical data reach18941, MHA21726 and Mudd17578. Old controls remain
 paused. User limited2:1 conclusions to the Mudd17578 prefix and requested its
-immediate stop after it had already passed that horizon. The3:1 cap remains
-18941; its Mudd ratios end at the available same-step horizon. Neither cap
-changes the original28k learning-rate schedule.
+immediate stop after it had already passed that horizon. The3:1 initial18941
+cap was superseded by a user stop at5720. All ratios use available same-step
+data; neither stop changes the original28k learning-rate schedule.
 
 Pre-launch bets, acceptance as ratio of the final2000-step mean gains:
 VM/parent1.04, range.99–1.10; memory-MLP/parent1.025, range.99–1.07.
@@ -213,8 +213,32 @@ First prequeue READY2026-10-23 16:37:37 UTC to user stop2026-10-24 08:38:55 UTC
 is16h01m18s; registry's narrower READY interval16:44:49–08:38:55 is15h54m06s.
 All workers exited, final CP committed, node and queue independently verified
 absent, and local TensorBoard sync returned SYNC_OK. Runtime6c60bfd and the
-28k LR schedule are unchanged. The3:1 trainer and its18941 guard remain active.
+28k LR schedule are unchanged.
 
 Closeout and paired evidence under the task artifact root:
 `reports/M2-user-stop-closeout.log`, `M2-stop-verified.json`,
 `M2-final-paired17578.json`, `M2-final-leases.json`.
+
+## 3:1 user closeout
+
+User-stopped at committed checkpoint5720, with zero lost tail; the former18941
+guard was canceled before standard closeout. The last complete native window
+is5500. Against same-step2:1, the post-transient deficit persists: gap+.004827
+at2k and+.005017 at5.5k; gain multiplier.980592 ->.963583. Last five windows
+3500–5500 average gap+.00476352 /gain.968569. Against original BAM those
+windows average gap+.0057182 /gain.962902. All multipliers use MHA as reference.
+Against Mudd,3:1 falls2.088058@2k ->1.862704@4k ->1.702837@5.5k. This partial
+result favors2:1; it does not establish the28k terminal outcome or test the
+original.995 terminal bet.
+
+Recent speed~.320step/s is~1.8% below2:1~.326, consistent with the matched
+startup difference. UE5a only, P0, no passive backup submitted. The only registry
+READY lease runs2026-10-24 04:11:04–09:14:18 UTC,5h03m14s; assignment begins
+04:11:01 after VM's handoff. All workers exited, CP5720 committed, node and
+queue independently absent, local TB SYNC_OK. Borrowed FLEX compiler is preserved.
+Runtime417e95a and original28k schedule are unchanged. No task-owned trainers
+or endpoint guards remain active; old MHA/Mudd/BAM controls remain paused.
+
+Evidence: task-root `reports/M3-user-stop-closeout.log`, `M3-stop-verified.json`,
+`M3-final-loss.json`, `M3-final-leases.json`. Final plot uses2:1's<=17578
+comparison prefix and3:1 through5500, omitting the first2k.

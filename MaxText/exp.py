@@ -17693,7 +17693,7 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SharedWritePostAtten
     # Exact AOT/FIRST_STEP/worker checkout verified;20-99 .700530step/s (-1.26% vs pre parent).
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SharedWritePostAttentionOrdinaryRefundTruePile'
     bam_shared_write_activation_input = 'post_attention'
-    compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SharedWritePreAttentionOrdinaryRefundTruePile', 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1TruePile', 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SharedWritePreAttentionMemoryRefundTruePile', 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio3to1SharedWritePreAttentionMemoryRefundTruePile']
+    compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SharedWritePreAttentionOrdinaryRefundTruePile', 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1TruePile']
 
 
 class BamMediumPropMShiftReadG050HalfMemoryMLPTruePile(

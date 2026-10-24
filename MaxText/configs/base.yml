@@ -559,6 +559,9 @@ bam_write_rms_epsilon: null
 # Explicit tail count supersedes the legacy single-tail boolean when set.
 bam_final_local_layer_count: null
 bam_last_mlp_dim: 0 # 0 preserves the regular width; scanned BAM requires a tail for an override.
+bam_mha_writer_layers: null # Standard QKV/O attention without reading M, at these layer indices.
+bam_attention_write_layers: null # null preserves the parent schedule; [] disables every attention write.
+bam_mlp_dim_by_layer: null # Exact ordinary MLP widths, including explicit scan tails.
 bam_mudd_tail_blocks: 0 # Selective WV/Mudd blocks, with a separate repeated tail scan.
 bam_mudd_tail_mlp_dims: null # Three shared widths in the modified tail block.
 bam_mudd_tail_residual_qk: False # Also restore full Q/K from separate three-source residual routes.

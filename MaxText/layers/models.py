@@ -1110,7 +1110,8 @@ class Decoder(nn.Module):
           assert deep_embeddings is None and not cfg.dense_conn and cfg.mtp_num_layers == 0
           assert len(cfg.bam_layer_modes) == cfg.num_decoder_layers
           assert all(set(mode.split('+')) in (
-              {'local_qk', 'local_o'}, {'local_qk', 'local_v', 'local_o'})
+              {'local_qk', 'local_o'}, {'local_qk', 'local_v', 'local_o'},
+              *([{'write'}] if getattr(cfg, 'bam_mha_writer_layers', None) is not None else []))
               for mode in cfg.bam_layer_modes[-final_local:])
         scan_length = cfg.num_decoder_layers - int(final_local)
         if pair_scan:
@@ -1125,7 +1126,25 @@ class Decoder(nn.Module):
           without_v = [mode.replace('+local_v', '').replace('local_v+', '') for mode in modes]
           llf_modes = (
               ['local_qk+local_o'] * (block_size - 1) + ['local_qk+full']) * (scan_length // block_size)
-          assert without_v == llf_modes or without_v == ['local_qk+local_o'] * scan_length
+          if getattr(cfg, 'bam_mha_writer_layers', None) is not None:
+            writers = cfg.bam_mha_writer_layers
+            if (len(set(writers)) != len(writers) or any(type(i) is not int
+                or not 0 <= i < cfg.num_decoder_layers for i in writers)):
+              raise ValueError('bam_mha_writer_layers requires unique valid layer indices')
+            assert cfg.bam_layer_modes == [
+                'write' if i in writers else 'local_qk+local_v+local_o'
+                for i in range(cfg.num_decoder_layers)]
+            for key in ('bam_mlp_dim_by_layer', 'bam_memory_mlp_dim_by_layer'):
+              values = getattr(cfg, key, None)
+              if values is not None:
+                assert values[:scan_length] == values[:block_size] * (scan_length // block_size)
+            for key in ('bam_attention_write_layers', 'bam_mlp_write_layers'):
+              values = getattr(cfg, key, None)
+              if values is not None:
+                enabled = [i in values for i in range(scan_length)]
+                assert enabled == enabled[:block_size] * (scan_length // block_size)
+          else:
+            assert without_v == llf_modes or without_v == ['local_qk+local_o'] * scan_length
           # The block is compiled once; every per-layer read setting must repeat.
           for arm in ('q', 'k', 'v'):
             for key in ('rank', 'rank_routing', 'pre_rms_bias'):

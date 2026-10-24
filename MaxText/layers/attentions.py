@@ -2668,6 +2668,13 @@ class BamAttention(Attention):
 
 
     self._has_write = bool(self._mode) and not bam_mudd.skips_attention_write(cfg, self.layer_inx)
+    attention_writers = getattr(cfg, 'bam_attention_write_layers', None)
+    if attention_writers is not None:
+      if (not isinstance(attention_writers, (list, tuple))
+          or any(type(i) is not int or not 0 <= i < cfg.num_decoder_layers for i in attention_writers)
+          or len(set(attention_writers)) != len(attention_writers)):
+        raise ValueError('bam_attention_write_layers requires unique valid layer indices')
+      self._has_write = self._has_write and self.layer_inx in attention_writers
     assert self.read_side in ('both', 'row', 'col')
 
     # DenseGeneral passes in_axis/out_axis to its initializer in addition to
@@ -3912,6 +3919,8 @@ class BamAttention(Attention):
       shift_names = ('M_shift_gate',) if self._m_shift_mode != 'none' else ()
       write_names = (('W_gw',) if self._share_read_attention_down or defer_write_address
                      else ('P_loc_down', 'W_gw'))
+      if not self._has_write:
+        write_names = ()
       raw = self._fused_input_projections(
           inputs_q, ('query', 'key') + key_names + gate_names + static_gate_names + shift_names
           + write_names)
@@ -4071,6 +4080,10 @@ class BamAttention(Attention):
       y_std, _ = self._attention_block(query, key, value, decoder_segment_ids,
                                        q0=0, s0=0, window_size=local_window)
     o_head = y_std + local_output
+    if not self._has_write:
+      out = nn.with_logical_constraint(o_head, self.out_axis_names)
+      result = self.out_projection(inputs_q.shape[-1], out), M_in, None
+      return (*result, None) if return_write_features else result
     if defer_write_address:
       address, write_features = None, None
     elif self._share_read_attention_down:
@@ -4113,6 +4126,7 @@ class BamAttention(Attention):
       persistent_M: Array | None = None,
       return_write_features: bool = False,
       defer_write_address: bool = False,
+      raw_write_factors: bool = False,
   ):
     """BAM forward. Returns (out, M_out): out [b,t,emb_dim], M_out [b,t,k,v].
 
@@ -4356,6 +4370,13 @@ class BamAttention(Attention):
                   self.num_query_heads, self.head_dim))
       o_head = o_head + y_bam
 
+    if raw_write_factors:
+      if self._mode != {'write'} or getattr(cfg, 'bam_pallas_core', False):
+        raise ValueError('raw factors are only for standard-attention write-only layers')
+      factors = ((o_head, self.W_gw(inputs_q) + jnp.asarray(self.gw_b0, self.dtype),
+                  self._write_address(inputs_q)) if self._has_write else None)
+      out = nn.with_logical_constraint(o_head, self.out_axis_names)
+      return self.out_projection(inputs_q.shape[-1], out), M_in, factors
     if defer_write:
       assert self._has_write and not self._mha_control and M_in is not None
       factors = self._deferred_write_factors(

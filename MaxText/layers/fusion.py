@@ -106,6 +106,11 @@ class SubDecoderLayer(nn.Module):
         raise ValueError('bam_last_mlp_dim requires an explicit tail when scanning')
       if self.layer_inx == cfg.num_decoder_layers - 1:
         self.updated_mlp_dim = last_width
+    widths = getattr(cfg, 'bam_mlp_dim_by_layer', None)
+    if widths is not None:
+      if len(widths) != cfg.num_decoder_layers or any(type(h) is not int or h <= 0 for h in widths):
+        raise ValueError('bam_mlp_dim_by_layer requires one positive integer per layer')
+      self.updated_mlp_dim = widths[self.layer_inx]
     max_logging.log(f'sliding_window_size: {self.sliding_window_size} updated_mlp_dim: {self.updated_mlp_dim}', debug=cfg.debug)
 
 
@@ -213,6 +218,19 @@ class SubDecoderLayer(nn.Module):
         raise ValueError('Pallas selective tail requires the v8t M layout')
       attn_kwargs['config'] = pyconfig.HyperParameters(SimpleNamespace(
           keys=dict(cfg.get_keys(), bam_pallas_core=False)))
+    mha_writer_layers = getattr(cfg, 'bam_mha_writer_layers', None)
+    mha_writer = mha_writer_layers is not None and self.layer_inx in mha_writer_layers
+    if mha_writer:
+      if pallas_tail:
+        raise ValueError('standard MHA writers cannot also be Mudd tail routes')
+      # The outer layer keeps v8t M and applies raw factors with the existing
+      # write kernel. This attention neither reads nor transposes the M carry.
+      attn_kwargs['config'] = pyconfig.HyperParameters(SimpleNamespace(keys=dict(
+          cfg.get_keys(), bam_pallas_core=False, bam_m_shift_mode='none',
+          bam_general_column_read=False, bam_local_full_m_read_bottleneck_dim=None,
+          bam_local_full_m_read_share_down=False, bam_share_read_attention_write_down=False,
+          bam_concat_qk=False, bam_concat_static_qk=False, bam_local_qk_direct_c8=False,
+          bam_standard_qk_dim=None)))
     attention_layer = AttnCls(**attn_kwargs)
 
     call_kwargs = dict(
@@ -295,6 +313,8 @@ class SubDecoderLayer(nn.Module):
     if pallas_core:
         # Fused core: the attention returns its raw write factors; one kernel
         # applies the attention (and MLP) writes after the MLP.
+        if mha_writer:
+          call_kwargs['raw_write_factors'] = True
         attention_result = attention_layer(
             **call_kwargs, M_in=attention_M, is_global=is_global, layer_index=layer_index)
         if share_write_activation and not post_write_activation:
@@ -539,21 +559,22 @@ class SubDecoderLayer(nn.Module):
             jax.nn.sigmoid(mlp_logits), write_factors, M_out, independent_address=independent_address)
     if pallas_core:
       from layers import bam_pallas
-      groups = [write_factors]
+      groups = [] if write_factors is None else [write_factors]
       if mlp_write:
         assert independent_address is not None, 'fused core supports independent MLP addresses only'
         groups.append((write_content.reshape(write_content.shape[:-1] + (write_heads, cfg.bam_k)),
                        mlp_logits, independent_address))
-      with jax.named_scope('bam/pallas_write'):
-        M_out = bam_pallas.write(
-            M_out, groups, epsilon=initializers.get_bam_write_epsilon(cfg),   # same as the XLA write norms
-            forward_tile=int(getattr(cfg, 'bam_pallas_write_tile', None) or 128),
-            reverse_tile=int(getattr(cfg, 'bam_pallas_write_reverse_tile', None) or 128),
-            vmem_mib=getattr(cfg, 'bam_pallas_vmem_mib', None),
-            interpret=bool(getattr(cfg, 'bam_pallas_interpret', False)),
-            body=getattr(cfg, 'bam_pallas_body', None) or 'blocked',
-            **({'row_block': int(cfg.bam_pallas_write_block), 'head_block': int(cfg.bam_pallas_write_block)}
-               if getattr(cfg, 'bam_pallas_write_block', None) else {}))
+      if groups:
+        with jax.named_scope('bam/pallas_write'):
+          M_out = bam_pallas.write(
+              M_out, groups, epsilon=initializers.get_bam_write_epsilon(cfg),   # same as the XLA write norms
+              forward_tile=int(getattr(cfg, 'bam_pallas_write_tile', None) or 128),
+              reverse_tile=int(getattr(cfg, 'bam_pallas_write_reverse_tile', None) or 128),
+              vmem_mib=getattr(cfg, 'bam_pallas_vmem_mib', None),
+              interpret=bool(getattr(cfg, 'bam_pallas_interpret', False)),
+              body=getattr(cfg, 'bam_pallas_body', None) or 'blocked',
+              **({'row_block': int(cfg.bam_pallas_write_block), 'head_block': int(cfg.bam_pallas_write_block)}
+                 if getattr(cfg, 'bam_pallas_write_block', None) else {}))
 
     if mlp_lnx is not None and moe_lnx is not None:
       layer_output = mlp_lnx + intermediate_inputs + moe_lnx

@@ -146,3 +146,28 @@ Early sharing gains did not persist, and the original slight ordinary-refund
 preference did not persist either. One UE5a v5p16 READY lease from prequeue
 07:55:57 to09:51:58 UTC:1h56m01s, P0. Registry subinterval08:02:28-09:51:58 is
 1h49m30s. Physical TPU remains allocated to the new post-attention RUN.
+
+## Final closeout of the pre-attention family
+
+User stopped the remaining two arms:2:1 ordinary at committed5419,3:1 memory
+at5341; both P0, UE5a, node/queue independently absent and TB SYNC_OK. Latest
+complete native comparisons end5200; never extrapolate a missing5400 window.
+Last5:2:1 ordinary vs independent2:1 +.00170708/R.99159352.3:1 memory vs own3:1
++.00300016/R.98514719; vs independent2:1 +.00468140/R.97699625; versus2:1 ordinary
++.00297432/R.98528345. The absolute paired gap narrowed from early training while
+the normalized deficit remained roughly1-1.5%; no sustained catch-up.3:1 memory
+was better than3:1 ordinary at the final shared3400 horizon(-.00535524/R1.02195272),
+but this local allocation benefit did not beat the independent parents.
+
+All four pre-attention sharing arms are closed before13500. Sharing produced
+initial convergence gains that were not retained through their trained horizons.
+The early small preference for ordinary refund on2:1 was not stable. Claims
+about a precise terminal optimal ratio are unsupported; only the post-attention
+follow-up remains active. Keep its direct stopped parent on the observed interval
+(complete windows through5200), and the full independent2:1 baseline throughout.
+
+READY leases UTC2026-10-24, including first prequeue observations:2:1 ordinary
+07:56:01-10:14:29=2h18m28s (registry08:00:36-10:14:29=2h13m53s);3:1 memory
+07:56:14-10:14:34=2h18m20s (registry08:00:34-10:14:34=2h14m00s). Resources
+verified released by10:17:29. Final source/proofs/curves reside in the original
+pre-attention artifact directory; no new checkpoint probe or TB health sync added.

@@ -17577,8 +17577,11 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SharedWritePreAttent
     total432114480, parent+1200 (+.000833 W_Q), nearest integer match.
     Runtime implementation: codex/mediumprop-dedicated-m-mlp worktree.
     """
-    # code_commit:7bb211b; UE5a v5p16; Pallas v8t/fused, health ON/internal+BAM OFF.
-    # Exact AOT/FIRST_STEP verified; steady20-99 0.709469step/s; full13500 plan.
+    # code_commit:7bb211b; UE5a v5p16 .709469step/s; Pallas v8t/fused, health ON/internal+BAM OFF.
+    # User stopped5419; P0; CP5419 committed, node/queue absent, TB SYNC_OK; not full13500 result.
+    # vs original2:1: early gain faded, crossed behind around2400; final5 through5200 +.001707/R.991594.
+    # Refunding the removed down into ordinary MLP did not retain a net gain through stop.
+    # Initial terminal1.005 prior unsupported; retained as the post-attention child source and same-step loss reference.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SharedWritePreAttentionOrdinaryRefundTruePile'
     bam_share_attention_mlp_write_activation = True
     base_mlp_dim = 2620
@@ -17652,8 +17655,12 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio3to1SharedWritePreAttent
     total432114480, parent+1200 (+.000833 W_Q), nearest integer match.
     Runtime implementation: codex/mediumprop-dedicated-m-mlp worktree.
     """
-    # code_commit:7bb211b; UE5a v5p16; Pallas v8t/fused, health ON/internal+BAM OFF.
-    # Exact AOT/FIRST_STEP verified; steady20-99 0.696310step/s; full13500 plan.
+    # code_commit:7bb211b; UE5a v5p16 .696310step/s; Pallas v8t/fused, health ON/internal+BAM OFF.
+    # User stopped5341; P0; CP5341 committed, node/queue absent, TB SYNC_OK; not full13500 result.
+    # vs own3:1 early gain reversed around2200-2400; final5 through5200 +.003000/R.985147.
+    # vs original2:1 +.004681/R.976996; vs2:1 ordinary-refund +.002974/R.985283, no sustained catch-up.
+    # vs stopped3:1 ordinary-refund common3400 -.005355/R1.021953: better local allocation, no parent-level gain.
+    # Initial terminal1.025 prior unsupported through stop; all four pre-attention sharing arms closed.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio3to1SharedWritePreAttentionMemoryRefundTruePile'
     bam_share_attention_mlp_write_activation = True
     base_mlp_dim = 2852

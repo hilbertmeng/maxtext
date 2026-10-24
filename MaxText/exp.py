@@ -17804,8 +17804,7 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1StandardVEvery3KeepM
     bam_mlp_write_layers = list(range(17))
     bam_mlp_dim_by_layer = [2276 if (i+1)%3==0 else 2535 for i in range(17)] + [3543]
     bam_memory_mlp_dim_by_layer = [1010 if (i+1)%3==0 else 1140 for i in range(17)] + [0]
-    compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MHAWriterEvery3KeepMemoryTruePile',
-                    'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1TruePile']
+    compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1TruePile']
 
 
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1StandardVEvery3DropMemoryTruePile(
@@ -17818,9 +17817,7 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1StandardVEvery3DropM
     bam_mlp_write_layers = [i for i in range(17) if (i+1)%3!=0]
     bam_mlp_dim_by_layer = [3413 if (i+1)%3==0 else 2535 for i in range(17)] + [3544]
     bam_memory_mlp_dim_by_layer = [0 if (i+1)%3==0 else 1140 for i in range(17)] + [0]
-    compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MHAWriterEvery3DropMemoryTruePile',
-                    'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1TruePile',
-                    'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1StandardVEvery3KeepMemoryTruePile']
+    compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1TruePile']
 
 
 class BamMediumPropMShiftReadG050HalfMemoryMLPTruePile(

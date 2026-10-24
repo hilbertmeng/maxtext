@@ -17691,6 +17691,8 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SharedWritePostAtten
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MHAWriterEvery4KeepMemoryTruePile(
         BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1TruePile):
     """Every fourth layer uses standard attention, with a locally balanced M FFN."""
+    # code_commit: ad12938; UE5a v5p16 0.717172step/s20-99; vs2:1 startup +1.44%.
+    # Exact AOT/FIRST_STEP/worker config verified; health ON/internal+BAM OFF; Pallas v8t/tuned Splash.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MHAWriterEvery4KeepMemoryTruePile'
     bam_mha_writer_layers = [1, 5, 9, 13, 17]
     bam_layer_modes = ['write' if i % 4 == 1 else 'local_qk+local_v+local_o' for i in range(18)]
@@ -17709,6 +17711,8 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MHAWriterEvery4KeepM
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MHAWriterEvery4DropMemoryTruePile(
         BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MHAWriterEvery4KeepMemoryTruePile):
     """The standard-attention sites write M only from attention, refunding their private FFN."""
+    # code_commit: ad12938; UE5a v5p16 0.736744step/s20-99; vs2:1 startup +4.21%.
+    # Exact AOT/FIRST_STEP/worker config verified; health ON/internal+BAM OFF; Pallas v8t/tuned Splash.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MHAWriterEvery4DropMemoryTruePile'
     bam_mlp_write_layers = [i for i in range(16) if i % 4 != 1]
     bam_memory_mlp_dim_by_layer = [1140, 0, 1140, 1140, 1140, 0, 1140, 1140, 1140, 0, 1140, 1140, 1140, 0, 1140, 1140, 0, 0]
@@ -17720,6 +17724,8 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MHAWriterEvery4DropM
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MHAWriterEvery3KeepMemoryTruePile(
         BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MHAWriterEvery4KeepMemoryTruePile):
     """Every third layer uses standard attention and a locally balanced private M FFN."""
+    # code_commit: ad12938; UE5a v5p16 0.726750step/s20-99; vs2:1 startup +2.79%.
+    # Exact AOT/FIRST_STEP/worker config verified; health ON/internal+BAM OFF; Pallas v8t/tuned Splash.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MHAWriterEvery3KeepMemoryTruePile'
     bam_mha_writer_layers = [2, 5, 8, 11, 14, 17]
     bam_layer_modes = ['write' if (i + 1) % 3 == 0 else 'local_qk+local_v+local_o' for i in range(18)]
@@ -17734,6 +17740,8 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MHAWriterEvery3KeepM
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MHAWriterEvery3DropMemoryTruePile(
         BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MHAWriterEvery3KeepMemoryTruePile):
     """Every third standard-attention site refunds its entire private M FFN."""
+    # code_commit: ad12938; UE5a v5p16 0.737121step/s20-99; vs2:1 startup +4.26%.
+    # Exact AOT/FIRST_STEP/worker config verified; health ON/internal+BAM OFF; Pallas v8t/tuned Splash.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MHAWriterEvery3DropMemoryTruePile'
     bam_mlp_write_layers = [i for i in range(16) if (i + 1) % 3 != 0]
     bam_memory_mlp_dim_by_layer = [1140, 1140, 0, 1140, 1140, 0, 1140, 1140, 0, 1140, 1140, 0, 1140, 1140, 0, 1140, 0, 0]

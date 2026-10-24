@@ -45,8 +45,8 @@ Training zone us-east5-a, supported by the current long P0 lease and recent fami
 
 Direct comparisons: all vs independent2:1; drop vs keep at each period, Every3Keep vs
 Every4Keep, Every3Drop vs Every4Drop. All registered gain multipliers use
-`BamMHAMediumPropC256TruePile` as reference. Reports early1000 then2000, reviews2800/5000,
-full13500 plan. Cumulative plots begin600 and include gaps plus gain multipliers;
+`BamMHAMediumPropC256TruePile` as reference. Reports early1000 then2000, full13500 plan;
+no scheduled2800/5000 stop reviews, as requested by the user. Cumulative plots begin600 and include gaps plus gain multipliers;
 no detailed per-window data tables in human reports.
 
 Pre-run terminal multiplier bets versus independent2:1: Every4Keep1.03,

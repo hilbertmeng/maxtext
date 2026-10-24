@@ -27,6 +27,7 @@ active leases are censored, and manual migration releases are not preemptions.
 
 | RUN | TPU | Zone | Start UTC | End UTC | End reason | Passive candidates |
 |---|---|---|---|---|---|---|
+| `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SharedWritePreAttentionMemoryRefundTruePile` | v5p-16 (`xd-v5p-16-310345-maxtext`) | `us-east5-a` | 2026-10-24 07:55:57 | 2026-10-24 09:51:58 | user hot-replace4377; CP4377 committed, zero lost tail, P0, TB SYNC_OK; physical trainer transferred to post-attention RUN; runtime7bb211b; first prequeue READY, formal assignment08:02:25 | none |
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio3to1SharedWritePreAttentionOrdinaryRefundTruePile` | v5p-16 (`xd-v5p-16-310346-maxtext`) | `us-east5-a` | 2026-10-24 07:56:11 | 2026-10-24 09:28:13 | user stop3483; CP3483 committed, node/queue independently absent09:32:02, TB SYNC_OK; P0; runtime7bb211b; first prequeue READY, formal assignment08:00:31 | none |
 | `BamPythia2p8BSotaIndependentR768PallasShortTrainMuddL27L31VML2` | v5p-128 (`xd-v5p-128-pythia28k-vm-1024`) | `us-east5-a` | 2026-10-23 16:37:35 | 2026-10-24 04:09:46 | user hot-replace12695; CP committed, zero lost tail, physical TPU transferred to fresh3:1, TB SYNC_OK; P0; runtime6c60bfd | EW4b recovery policy; no backup submitted |
 | `BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1` | v5p-128 (`xd-v5p-128-pythia28k-mmlp-1024`) | `us-east5-a` | 2026-10-23 16:37:37 | 2026-10-24 08:38:55 | user stop18481; Mudd comparisons capped17578; CP committed, node/queue independently absent, TB SYNC_OK; P0; runtime6c60bfd; first prequeue READY, formal registration16:44:46 | EW4b recovery policy; no backup submitted |
@@ -2131,6 +2132,8 @@ active leases are censored, and manual migration releases are not preemptions.
 | `BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio3to1` | 1 | `us-east5-a` | 2026-10-24 04:11:04 | 2026-10-24 09:14:18 | 5h03m14s | user stop5720; P0; registry READY after retained hot handoff (assignment starts04:11:01); CP committed, node/queue independently absent, TB SYNC_OK |
 
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio3to1SharedWritePreAttentionOrdinaryRefundTruePile` | 1 | `us-east5-a` | 2026-10-24 07:56:11 | 2026-10-24 09:28:13 | 1h32m02s | user stop3483; P0; first prequeue READY; registry subinterval08:00:37–09:28:13=1h27m36s; CP3483 committed, node/queue independently absent09:32:02, TB SYNC_OK |
+
+| `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SharedWritePreAttentionMemoryRefundTruePile` | 1 | `us-east5-a` | 2026-10-24 07:55:57 | 2026-10-24 09:51:58 | 1h56m01s | user hot-replace4377; P0; first prequeue READY; registry subinterval08:02:28-09:51:58=1h49m30s; CP4377 committed, TB SYNC_OK; physical310345 retained/transferred, no release |
 
 ### 2026-10-14 user pause: resumed mixed R256/R384
 

@@ -126,3 +126,23 @@ node and queue absent, TB SYNC_OK. One UE5a v5p-16 READY lease from first preque
 observation07:56:11 to run boundary09:28:13 UTC2026-10-24:1h32m02s. Registry's
 subinterval08:00:37-09:28:13 is1h27m36s; resource release independently verified
 09:32:02. Final evidence remains in the pre-attention artifact directory.
+
+## Verified post-attention runtime
+
+Runtime06b6f35bb9867282e38914c565db779b3d17257c passed59 CPU checks, including
+old pre-attention regression, five formal budgets, actual norm/feature inputs,
+identical initialization, scan/causality and both fused Pallas gradient cases.
+Post Pallas maximum relative gradient error4.90406e-6. Exact v5p16/13500 AOT,
+worker checkout and FIRST_STEP verified. Steady20-99 .700530step/s versus direct
+pre parent.709469 (-1.26%), matched normal health settings. Actual T4096/B128,
+16/device, post_attention selector,2620/1140/final3812 and full13500 schedule
+verified on worker. User retained physical310345; logical ID310348.
+
+Old2:1 memory-refund RUN stopped at committed4377 with zero lost tail at UTC
+2026-10-24T09:51:58. TB SYNC_OK; bookkeeping reported already_closed=true and
+performed no resource operations after new FIRST_STEP. Final5 through4200 vs
+original2:1 +.00044332/R.99804032; vs ordinary-refund peer -.00046512/R1.00217513.
+Early sharing gains did not persist, and the original slight ordinary-refund
+preference did not persist either. One UE5a v5p16 READY lease from prequeue
+07:55:57 to09:51:58 UTC:1h56m01s, P0. Registry subinterval08:02:28-09:51:58 is
+1h49m30s. Physical TPU remains allocated to the new post-attention RUN.

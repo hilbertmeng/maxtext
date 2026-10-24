@@ -37,9 +37,9 @@ its matching Every3 MHA parent+496 parameters, with no material budget increase.
 
 Hot slots: Keep takes Every4Keep on `xd-v5p-16-310350-maxtext`, logical310354;
 Drop takes Every4Drop on `xd-v5p-16-310351-maxtext`, logical310355. UE5a retained
-READY workers; no new training TPU request. Do not touch Every3 controls350/351's
-siblings352/353 or the user-owned FLEX compiler. Prepare both exact AOTs before
-stopping either old worker, using the compiler's existing worker lock.
+READY workers; no new training TPU request. Both exact AOTs were prepared before
+stopping either old worker, using the compiler's existing worker lock. The
+user-owned FLEX compiler retained its independent lifecycle.
 
 Infrastructure audit against main60c0cd47: main-only changes since this worktree
 do not alter train/AOT/checkpoint/summary-writer/optimizer infrastructure. Inherit
@@ -58,3 +58,16 @@ Drop1.015. Expect recovery of most of the direct MHA parents' current loss penal
 the size of any final gain beyond2:1 remains the substantive question. Throughput
 prior about-2% versus corresponding MHA parents, plausible-5%..+2%.
 Artifacts `/data0/xd/bam_diagnostics/mediumprop-standard-v-writers`.
+
+Launch verified on runtime45b3ce3: both exact AOTs used the borrowed compiler
+serially through its worker lock, then reached real FIRST_STEP and passed sealed
+worker/source/config checks. Fresh starts (no checkpoint reuse). Stable20–99
+Keep .692718 step/s (-4.68% vs matching Every3 MHA parent), Drop .711704
+(-3.45%); normal training health ON, internal+BAM OFF in both.
+
+Old Every4 controls closed at4464/4847, committed zero-tail checkpoints,
+TB SYNC_OK; physical350/351 transferred to new Keep/Drop. On further user
+direction, original Every3 controls stopped5027/4505, node/queue verified
+absent, CP/TB preserved. Their complete comparison coverage is5000/4400;
+retain both as direct controls with those explicit endpoints, alongside the
+full13500 independent2:1 direction baseline.

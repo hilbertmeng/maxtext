@@ -17698,6 +17698,9 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MHAWriterEvery4KeepM
     """Every fourth layer uses standard attention, with a locally balanced M FFN."""
     # code_commit: ad12938; UE5a v5p16 0.717172step/s20-99; vs2:1 startup +1.44%.
     # Exact AOT/FIRST_STEP/worker config verified; health ON/internal+BAM OFF; Pallas v8t/tuned Splash.
+    # User stopped at 4464; P0; CP committed, zero lost tail, TB SYNC_OK; retained/transferred to new plain-V RUN after FIRST_STEP.
+    # vs independent2:1: early deficit shrank but plateaued; final5(3600..4400) +0.02334176/R0.893151.
+    # Slight startup speed gain and unchanged M-cache did not compensate the loss deficit; pre-run terminal gain bet unsupported through stop.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MHAWriterEvery4KeepMemoryTruePile'
     bam_mha_writer_layers = [1, 5, 9, 13, 17]
     bam_layer_modes = ['write' if i % 4 == 1 else 'local_qk+local_v+local_o' for i in range(18)]
@@ -17718,6 +17721,10 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MHAWriterEvery4DropM
     """The standard-attention sites write M only from attention, refunding their private FFN."""
     # code_commit: ad12938; UE5a v5p16 0.736744step/s20-99; vs2:1 startup +4.21%.
     # Exact AOT/FIRST_STEP/worker config verified; health ON/internal+BAM OFF; Pallas v8t/tuned Splash.
+    # User stopped at 4847; P0; CP committed, zero lost tail, TB SYNC_OK; retained/transferred to new plain-V RUN after FIRST_STEP.
+    # vs independent2:1: early deficit shrank but plateaued; final5(4000..4800) +0.02524492/R0.879617.
+    # vs Every4Keep through4400: final5 gap+0.00181644/R0.990733; same-step comparison.
+    # Slight startup speed gain and unchanged M-cache did not compensate the loss deficit; pre-run terminal gain bet unsupported through stop.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MHAWriterEvery4DropMemoryTruePile'
     bam_mlp_write_layers = [i for i in range(16) if i % 4 != 1]
     bam_memory_mlp_dim_by_layer = [1140, 0, 1140, 1140, 1140, 0, 1140, 1140, 1140, 0, 1140, 1140, 1140, 0, 1140, 1140, 0, 0]
@@ -17731,6 +17738,10 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MHAWriterEvery3KeepM
     """Every third layer uses standard attention and a locally balanced private M FFN."""
     # code_commit: ad12938; UE5a v5p16 0.726750step/s20-99; vs2:1 startup +2.79%.
     # Exact AOT/FIRST_STEP/worker config verified; health ON/internal+BAM OFF; Pallas v8t/tuned Splash.
+    # User stopped at 5027; P0; CP committed, zero lost tail, TB SYNC_OK; node/queue independently absent.
+    # vs independent2:1: early deficit shrank but plateaued; final5(4200..5000) +0.01995744/R0.903377.
+    # vs Every4Keep through4400: final5 gap-0.00278752/R1.014417; same-step comparison.
+    # Slight startup speed gain and unchanged M-cache did not compensate the loss deficit; pre-run terminal gain bet unsupported through stop.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MHAWriterEvery3KeepMemoryTruePile'
     bam_mha_writer_layers = [2, 5, 8, 11, 14, 17]
     bam_layer_modes = ['write' if (i + 1) % 3 == 0 else 'local_qk+local_v+local_o' for i in range(18)]
@@ -17747,6 +17758,11 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MHAWriterEvery3DropM
     """Every third standard-attention site refunds its entire private M FFN."""
     # code_commit: ad12938; UE5a v5p16 0.737121step/s20-99; vs2:1 startup +4.26%.
     # Exact AOT/FIRST_STEP/worker config verified; health ON/internal+BAM OFF; Pallas v8t/tuned Splash.
+    # User stopped at 4505; P1; CP committed, zero lost tail, TB SYNC_OK; node/queue independently absent.
+    # vs independent2:1: early deficit shrank but plateaued; final5(3600..4400) +0.01992624/R0.908829.
+    # vs Every3Keep through4400: final5 gap-0.00062800/R1.003109; near tie, no durable private-MLP advantage.
+    # vs Every4Drop through4400: final5 gap-0.00523196/R1.027081; same-step comparison.
+    # Slight startup speed gain and unchanged M-cache did not compensate the loss deficit; pre-run terminal gain bet unsupported through stop.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MHAWriterEvery3DropMemoryTruePile'
     bam_mlp_write_layers = [i for i in range(16) if (i + 1) % 3 != 0]
     bam_memory_mlp_dim_by_layer = [1140, 1140, 0, 1140, 1140, 0, 1140, 1140, 0, 1140, 1140, 0, 1140, 1140, 0, 1140, 0, 0]
@@ -17759,6 +17775,8 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MHAWriterEvery3DropM
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1StandardVEvery3KeepMemoryTruePile(
         BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MHAWriterEvery3KeepMemoryTruePile):
     """Periodic plain W_V with BAM Q/K/O, no Mudd; retain balanced private memory FFNs."""
+    # code_commit:45b3ce3; UE5a v5p16 retained310350; health ON/internal+BAM OFF.
+    # Exact AOT/FIRST_STEP/worker QKO+plain-V config verified;20-99 0.692718step/s (-4.68% vs Every3 MHA parent).
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1StandardVEvery3KeepMemoryTruePile'
     bam_mha_writer_layers = None
     bam_standard_value_layers = [2, 5, 8, 11, 14, 17]
@@ -17774,6 +17792,8 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1StandardVEvery3KeepM
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1StandardVEvery3DropMemoryTruePile(
         BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1StandardVEvery3KeepMemoryTruePile):
     """The same plain-V sites omit the private M FFN, refunding ordinary width."""
+    # code_commit:45b3ce3; UE5a v5p16 retained310351; health ON/internal+BAM OFF.
+    # Exact AOT/FIRST_STEP/worker QKO+plain-V config verified;20-99 0.711704step/s (-3.45% vs Every3 MHA parent).
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1StandardVEvery3DropMemoryTruePile'
     bam_mlp_write_layers = [i for i in range(17) if (i+1)%3!=0]
     bam_mlp_dim_by_layer = [3413 if (i+1)%3==0 else 2535 for i in range(17)] + [3544]

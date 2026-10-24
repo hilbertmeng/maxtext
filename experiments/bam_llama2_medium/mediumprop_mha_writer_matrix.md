@@ -70,3 +70,28 @@ verified, fresh from0, T4096/global128/per-device16, normal health settings.
 - `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MHAWriterEvery3DropMemoryTruePile`: `xd-v5p-16-310353-maxtext`, us-east5-a; 0.737121step/s20-99, about+4.26% versus independent2:1 startup.
 
 Startup/config/queue/AOT proofs and monitoring ownership remain in the artifact directory.
+
+## Closeout (2026-10-24 UTC)
+
+All four stopped on user direction; no full13500 endpoint claim. Every4 slots
+were retained and transferred to the new plain-V Every3 pair only after actual
+FIRST_STEP. Every3 controls were separately checkpointed/released; both node and
+queue independently absent. All final commit markers verified, no lost tail,
+all four TensorBoards SYNC_OK. Exact leases are in the regional history.
+
+| Arm | Stop | Final complete window | Last5 gap vs2:1 | Last5 MHA-reference multiplier |
+|---|---:|---:|---:|---:|
+| Every4 Keep | 4464 | 4400 | +0.02334176 | 0.893151 |
+| Every4 Drop | 4847 | 4800 | +0.02524492 | 0.879617 |
+| Every3 Keep | 5027 | 5000 | +0.01995744 | 0.903377 |
+| Every3 Drop | 4505 | 4400 | +0.01992624 | 0.908829 |
+
+The initial deficits narrowed then flattened around+.02–.025; all four
+missed their positive terminal-gain priors through the stop. Every3 was better
+than Every4 at matching steps, but still below independent2:1. Every4 private
+MLP retention helped slightly; Every3 private retention/drop converged to near
+parity, with a small final sign crossing rather than a durable advantage.
+Neither small startup speed gains nor equal M-cache offset the loss deficit.
+New hypothesis: preserve BAM Q/K/O addressing and replace only V contents.
+Artifacts: `/data0/xd/bam_diagnostics/mediumprop-standard-v-writers/`
+(`final-mha-summary.json`, closeout/lease/independent-verification proofs).

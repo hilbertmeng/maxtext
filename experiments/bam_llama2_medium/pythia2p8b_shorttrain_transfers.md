@@ -3,18 +3,51 @@
 User requests two new RUNs directly on refactor-bam, main worktree
 `/home/xd/projects/maxtext`, using original
 `BamPythia2p8BSotaIndependentR768PallasShortTrain` as sole direct loss baseline.
-No old paused RUN is resumed by this task. Main6595b1d1 already merged the
+The initial launch did not resume old paused controls. Main6595b1d1 already merged the
 validated Medium implementation; this adaptation adds the32-layer explicit
 tail and precise MLP-write placement. The temporary experiment worktree was
 removed at the user's request before compilation or training.
 
-Current ownership: no active training resources. Independent2:1 is user-stopped
-at committed18481,3:1 at5720, and VM at12695. All three have local TB SYNC_OK;
-the two trainers and their queues are released. Original28k LR schedules/AOTs
-were preserved. Grouped monitoring used2k cadence and same-step historical
-controls. Plots omit the first2k and retain only three panels: gap versus
-original BAM, gain multiplier versus original BAM, and gain multiplier versus
-Mudd with the original BAM curve overlaid.
+Current ownership: independent2:1 has resumed from18481 on the original Mudd
+control's retained UE5a v5p-128, using its same6c60bfd runtime/AOT. The user wants
+the complete21.5k comparison window, so the host stop guard targets21530 while
+the original28k LR schedule remains unchanged. VM12695 and3:1 5720 remain closed.
+All previous closeouts have local TB SYNC_OK. Grouped monitoring uses2k cadence
+and same-step historical controls, skips the first2k and omits allocation-arm
+raw-gradient tracking. Original MHA/Mudd/BAM now provide controls through21.5k;
+their continuation is documented in `pythia2p8b_shorttrain.md`.
+
+## Matched-horizon2:1 resumption (2026-10-24)
+
+After the controls reached the last shared21.5k window, the user requested
+same-machine hot resumption of2:1. Mudd's strict pause helper committedCP21666
+and verified every worker gone, retaining `xd-v5p-128-short28k-mudd-1021` in UE5a.
+New2:1 controller/ID310342 registered at13:47:23 UTC, restored its own18481
+checkpoint under its original GCS prefix, loaded its exact28k/v5p-128 AOT,
+and ran first resumed step18482. Source hash6c60bfd, globalB1024/T2048/minimal,
+memory GELU width3072 and generic-health settings match the sealed parent.
+Post-resume offsets10–19 measure.326100step/s, consistent with the former~.326;
+no new allocation, compiler or model/configuration change was needed.
+
+The standard fresh-RUN hot-switch entrypoint rejects a pre-existing new RUN.
+This existing-RUN continuation therefore sequences the existing strict
+`pause_review_run.py` and `run_exp_xd.sh MODE=train` helpers in a durable task
+coordinator, without changing the shared orchestration scripts. It checks the
+old checkpoint/all-worker barrier, removes only the dead stale2:1 PID record,
+starts the same RUN with the retained TPU override, arms the final stop guard,
+and verifies fresh FIRST_STEP before declaring ownership transferred.
+Original Mudd remains resumable-paused; its TPU is now owned by2:1 and must not
+be deleted by an old-RUN closeout. Direct baselines are original BAM, Mudd and
+MHA; both MHA-reference gain triples are preserved.
+
+Resumption evidence:
+`/data0/xd/bam_diagnostics/pythia2p8b-resume-to-mha-20261024/`, including
+`M2-hot-resume-plan.json`, `Mudd-to-M2-coordinator-earlier21500.py`,
+`reports/M2-hot-resume-startup-proof.json`, `M2-worker0-startup.log` and
+`reports/Mudd-pause-M2-transfer-verified.json`. The new host stop guard at21530
+finishes the ±25-step window centered21500; it preserves the original28k
+learning-rate schedule. This is a continuation of the same experiment, not a
+new terminal bet.
 
 ## Arms and budget
 

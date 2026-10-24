@@ -1,7 +1,11 @@
 # Pythia 2.8B: matched short training
 
-Current ownership update2026-10-24: user authorized the original Mudd and BAM
-RUNs to resume to MHA's existing21726 checkpoint; MHA remains paused. Mudd
+Current ownership update2026-10-24: the original-control continuation is closed
+provisionally: Mudd paused21666 and BAM21751; the final complete common window
+is21500. Mudd's trainer is retained and transferred to the resumed2:1 arm,
+which continues toward that window; MHA remains paused21726.
+The user initially authorized the original Mudd and BAM
+RUNs to resume to MHA's existing21726 checkpoint. Mudd
 restored17578 at its original2a108de runtime/AOT and resumed17579; BAM restored
 18941 at0579479 and resumed18942. Both exact v5p-128/28k executables loaded,
 globalB1024/T2048/minimal/generic-health/TB-rotation1000 settings verified.
@@ -10,8 +14,9 @@ are about.297/.329, consistent with the preceding leases.
 
 Same RUN names, dataset and GCS checkpoint prefixes; UE5a primary/EW4b backup,
 original TPU names/IDs310271 and310272. Controllers registered2026-10-24
-09:46:38 UTC. Durable guards pause at21726 and release each TPU after a
-committed checkpoint, preserving the original28000-step LR schedule and AOT.
+09:46:38 UTC. The initial guards target21726 with the original28000-step LR
+schedule and AOT. BAM's pause guard released its TPU; the user advanced Mudd's
+handoff threshold to a complete21500 window and retained its TPU for2:1.
 All three existing checkpoint markers and AOT manifests/size/CRC were verified;
 the effective classes match their sealed commits. Main's sole later training
 infrastructure difference, the host checkpoint-directory AsyncOptions fix,
@@ -20,6 +25,50 @@ and executable. The first resumed BAM periodic checkpoint19000 is committed.
 Grouped reporting remains2k cadence with500-step comparison windows and MHA
 reference gain ratios. Preparation/startup/guard evidence:
 `/data0/xd/bam_diagnostics/pythia2p8b-resume-to-mha-20261024/`.
+
+## Original-control continuation closeout
+
+Mudd restored17578 and paused21666 at2026-10-24 13:46:00 UTC. Its last complete
+21500 comparison window was available, so the user requested immediate hot
+replacement rather than waiting for21726. Every worker exited and checkpoint21666
+committed before2:1 launched. The same READY TPU is transferred, not deleted;
+its creation time remains2026-10-24 09:47:42.733 UTC. BAM's21726 guard paused at
+committed21751 (25-step polling/signal overshoot), with its node and queue
+independently verified absent. All comparisons stay within MHA's21726 prefix.
+Both controls retain fixed2k/4k/.../20k checkpoints; local TB returned SYNC_OK.
+
+At the final common21500 window, MHA loss2.041880, Mudd1.974752 and BAM1.9536354.
+Thus gaps versus MHA are-.067128/-.0882446, BAM−Mudd is-.0211166 and MHA-reference
+BAM/Mudd gain multiplier1.314572. Last five windows19500–21500 average gaps
+Mudd/MHA-.06755364, BAM/MHA-.08918576, BAM/Mudd-.02163212; mean multiplier1.320225.
+The multiplier declines1.5069@10k ->1.3956@14k ->1.3382@17.5k ->1.3146@21.5k.
+BAM's advantage contracts proportionally faster than Mudd's nearly flat late
+advantage; this explains most of the ratio decline. The small21k→21.5k ratio
+increase1.3107→1.3146 occurs with almost unchanged BAM−Mudd gap and slightly
+weaker gains for both models. It is not evidence of increasing BAM absolute gain.
+The requested horizon is partial; original28k terminal forecasts remain untested.
+
+Gradient median/P95 at20k→21.5k: Mudd.194/.259→.181/.257,
+BAM.108/.128→.105/.119, MHA.123/.133→.124/.133. No deterioration observed.
+Recent rates~.297 Mudd/~.327–.329 BAM, same B1024/minimal/generic-health settings.
+No preemptions or region switches; no passive backup submitted. Complete READY
+lease history for these RUNs (UTC, all v5p-128 in us-east5-a):
+
+| RUN | Start | End | Duration | Boundary |
+|---|---|---|---|---|
+| Mudd | 2026-10-21 11:33:48 | 2026-10-22 04:19:57 | 16h46m09s | Initial user pause17578; resources released |
+| Mudd | 2026-10-24 09:50:17 | 2026-10-24 13:46:00 | 3h55m43s | User hot-resume boundary21666; physical trainer retained for2:1 |
+| BAM | 2026-10-21 11:38:13 | 2026-10-22 04:19:58 | 16h41m45s | Initial user pause18941; resources released |
+| BAM | 2026-10-24 09:50:15 | 2026-10-24 12:18:59 | 2h28m44s | User pause21751; resources released |
+
+Evidence under the resumption artifact root: `reports/BAM-pause-verified.json`,
+`reports/Mudd-pause-M2-transfer-verified.json`, both final TB logs,
+`reports/original-controls-final-common21500.json`,
+`reports/health-original-controls-final21500.json` and
+`original_controls_final_common21500.png` (first2k omitted,14k+ insets).
+New2:1 ownership/startup and eventual closeout are documented separately in
+`pythia2p8b_shorttrain_transfers.md`; never run old-Mudd lifecycle cleanup on
+the trainer while2:1 owns it.
 
 Implementation: `/home/xd/projects/maxtext`, branch `refactor-bam`. Preparation
 runtime `2a108de923ed5ad2c2de8a7c0d200b76f4121373` includes current main's

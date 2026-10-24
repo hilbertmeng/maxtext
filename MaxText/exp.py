@@ -16857,9 +16857,11 @@ class MuddPythia3BSerialMLP(TrainPythia, MuddPythiaMediumPropT2048SerialMLP): # 
 class MuddPythia3BSerialMLPShortTrain(ShortTrain2p8B, MuddPythia3BSerialMLP):
     # code_commit:2a108de; UE5a v5p-128, B16/device, health ON/internal OFF.
     # Paired timing: minimal .300399 vs full .269000 step/s (+11.67%); selected minimal.
-    # User paused at17578/28000; checkpoint committed; recent ~.294 step/s; P0; resumable original schedule.
-    # vs MHA gap -.22033@1k -> -.09530@3k -> -.07859@5k -> -.06929@14k -> -.06878@17.5k: late gain stable.
-    # Provisional paired control; original WD/LR/QKNorm settings and router budget unchanged.
+    # Paused17578 -> same-code resume -> user hot-transfer at21666/28000; CP committed, TB SYNC_OK; P0.
+    # vs MHA gap -.09530@3k -> -.07859@5k -> -.06929@14k -> -.06878@17.5k -> -.067128@21.5k.
+    # Final5(19.5k..21.5k) gap-.067554; late gain near-.068, modest weakening. Recent~.297step/s.
+    # TPU retained/transferred to MemoryMLPRatio2to1; original WD/LR/QKNorm/router budget and28k schedule unchanged.
+    # Provisional paused control; fixed2k..20k retained. Complete comparison window21.5k, not a28k terminal result.
     compare_runs = ['Pythia2p8BShortTrain']
 
 class BamPythia2p8BSota(
@@ -16973,10 +16975,12 @@ class BamPythia2p8BSotaIndependentR768PallasShortTrain(ShortTrain2p8B, BamPythia
     # Same-RUN runtime: 2a108de -> b902c69 at checkpoint3000 -> 0579479 at checkpoint5000; resumed3001/5001.
     # Same TPU: 3k .3070 -> .3193 (+4.01%); 5k .3190 -> .3270 (+2.51%); replay losses continuous.
     # Initial 2a108de remat timing: minimal .309199 vs full .283900 (+8.91%); selected minimal.
-    # User paused at18941/28000; checkpoint committed; recent ~.326 step/s; P0; resumable original schedule/AOT.
-    # vs MHA gap -.14267@5k -> -.09670@14k -> -.09204@17.5k; vs Mudd -.06408 -> -.02741 -> -.02326.
-    # MHA-reference BAM/Mudd gain ratio:3k2.0061 ->8k1.5848 ->12k1.4388 ->16k1.3582 ->17.5k1.3382.
-    # Extra gain shrinks with clear deceleration, no established plateau; provisional pause, terminal1.4 bet untested.
+    # Paused18941 -> same-code resume -> paused21751/28000; compare<=MHA21726, mature last window21.5k.
+    # CP committed, node/queue absent, TB SYNC_OK; fixed2k..20k retained; recent~.327-.329step/s; P0.
+    # vs MHA gap -.14267@5k -> -.09670@14k -> -.09204@17.5k -> -.088245@21.5k; vs Mudd -.06408 -> -.02741 -> -.02326 -> -.021117.
+    # MHA-ref BAM/Mudd R:3k2.0061 ->8k1.5848 ->12k1.4388 ->17.5k1.3382 ->21.5k1.3146; final5mean1.320225.
+    # Final5 gap vs MHA-.089186 /Mudd-.021632. Late R decline mainly tracks BAM gain shrinking while Mudd stays near-.068.
+    # Decline slows but no established plateau; provisional pause, original28k LR/AOT retained, terminal1.4 bet untested.
     bam_qk_norm_after_concat = True
     compare_runs = ['Pythia2p8BShortTrain', 'MuddPythia3BSerialMLPShortTrain']
 
@@ -17034,6 +17038,8 @@ class BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1(
     # vs parent: early lag -> near tie6k -> ~-.0034 by13k..17.5k; final5 gap-.003468/R1.037192.
     # MHA-ref R vs Mudd2.1294@2k ->1.6036@8k ->1.4790@12k ->1.3881@17.5k: uplift, decline persists.
     # Later~.326step/s (~parent); P0, CP committed, node/queue absent, TB SYNC_OK; 28k terminal bet untested.
+    # Resumed same RUN from18481 on Mudd's retained UE5a v5p-128, same6c60bfd/AOT; FIRST_STEP18482, offsets10-19 .326100.
+    # Current user horizon is complete21.5k comparison window (guard21530), original28k LR unchanged; no raw-grad monitoring.
     model_name = 'BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1'
     base_mlp_dim = 7552
     mlp_dim_by_block = [7552, 7552, 7552]

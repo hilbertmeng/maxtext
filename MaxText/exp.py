@@ -17608,8 +17608,11 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SharedWritePreAttent
     total432114480, parent+1200 (+.000833 W_Q), nearest integer match.
     Runtime implementation: codex/mediumprop-dedicated-m-mlp worktree.
     """
-    # code_commit:7bb211b; UE5a v5p16; Pallas v8t/fused, health ON/internal+BAM OFF.
-    # Exact AOT/FIRST_STEP verified; steady20-99 0.702557step/s; full13500 plan.
+    # code_commit:7bb211b; UE5a v5p16 .702557step/s; Pallas v8t/fused, health ON/internal+BAM OFF.
+    # User hot-replaced4377; P0; CP4377 committed, TB SYNC_OK; physical310345 transferred to post-attention RUN.
+    # vs original2:1: initial gain faded to parity, then tiny deficit; final5 through4200 +.000443/R.998040.
+    # vs ordinary-refund peer: early deficit vanished; final5 -.000465/R1.002175, a weak late preference for memory.
+    # Terminal1.02 prior unsupported through stop; neither refund established a sustained parent gain.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SharedWritePreAttentionMemoryRefundTruePile'
     bam_share_attention_mlp_write_activation = True
     base_mlp_dim = 2535
@@ -17679,6 +17682,8 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SharedWritePostAtten
     for the updated residual; one down/GELU supplies both independent ups.
     Pallas write factors are completed outside the unchanged v8t write core.
     """
+    # code_commit:06b6f35; UE5a v5p16 retained310345; health ON/internal+BAM OFF.
+    # Exact AOT/FIRST_STEP/worker checkout verified;20-99 .700530step/s (-1.26% vs pre parent).
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SharedWritePostAttentionOrdinaryRefundTruePile'
     bam_shared_write_activation_input = 'post_attention'
     compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SharedWritePreAttentionOrdinaryRefundTruePile',

@@ -17577,6 +17577,8 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SharedWritePreAttent
     total432114480, parent+1200 (+.000833 W_Q), nearest integer match.
     Runtime implementation: codex/mediumprop-dedicated-m-mlp worktree.
     """
+    # code_commit:7bb211b; UE5a v5p16; Pallas v8t/fused, health ON/internal+BAM OFF.
+    # Exact AOT/FIRST_STEP verified; steady20-99 0.709469step/s; full13500 plan.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SharedWritePreAttentionOrdinaryRefundTruePile'
     bam_share_attention_mlp_write_activation = True
     base_mlp_dim = 2620
@@ -17598,6 +17600,8 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SharedWritePreAttent
     total432114480, parent+1200 (+.000833 W_Q), nearest integer match.
     Runtime implementation: codex/mediumprop-dedicated-m-mlp worktree.
     """
+    # code_commit:7bb211b; UE5a v5p16; Pallas v8t/fused, health ON/internal+BAM OFF.
+    # Exact AOT/FIRST_STEP verified; steady20-99 0.702557step/s; full13500 plan.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SharedWritePreAttentionMemoryRefundTruePile'
     bam_share_attention_mlp_write_activation = True
     base_mlp_dim = 2535
@@ -17619,6 +17623,8 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio3to1SharedWritePreAttent
     total432114480, parent+1200 (+.000833 W_Q), nearest integer match.
     Runtime implementation: codex/mediumprop-dedicated-m-mlp worktree.
     """
+    # code_commit:7bb211b; UE5a v5p16; Pallas v8t/fused, health ON/internal+BAM OFF.
+    # Exact AOT/FIRST_STEP verified; steady20-99 0.706371step/s; full13500 plan.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio3to1SharedWritePreAttentionOrdinaryRefundTruePile'
     bam_share_attention_mlp_write_activation = True
     base_mlp_dim = 2937
@@ -17640,6 +17646,8 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio3to1SharedWritePreAttent
     total432114480, parent+1200 (+.000833 W_Q), nearest integer match.
     Runtime implementation: codex/mediumprop-dedicated-m-mlp worktree.
     """
+    # code_commit:7bb211b; UE5a v5p16; Pallas v8t/fused, health ON/internal+BAM OFF.
+    # Exact AOT/FIRST_STEP verified; steady20-99 0.696310step/s; full13500 plan.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio3to1SharedWritePreAttentionMemoryRefundTruePile'
     bam_share_attention_mlp_write_activation = True
     base_mlp_dim = 2852

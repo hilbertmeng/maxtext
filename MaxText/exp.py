@@ -16981,6 +16981,115 @@ class BamPythia2p8BSotaIndependentR768PallasShortTrain(ShortTrain2p8B, BamPythia
     compare_runs = ['Pythia2p8BShortTrain', 'MuddPythia3BSerialMLPShortTrain']
 
 
+class BamPythia2p8BSotaIndependentR768PallasShortTrainMuddL27L31VML2(
+        BamPythia2p8BSotaIndependentR768PallasShortTrain):
+    """Transfer tail VM to L27/L31; embedding/L0/L2 anchors.
+
+    Native shared V/m routers; Q/K/O retain M reads. Preserve L27/L28 attention
+    write; move only the parent's L28 MLP M-write to L29. Omit dead L31 attention write.
+    Final C1 Mudd uses expand4. Nine prefix blocks, one pre-tail block,
+    then explicit L30/L31; unchanged serial GELU, initialization and Pallas.
+    L27 MLP9984; other non-final widths retain the parent128 alignment.
+    L31 MLP10530 balances all costs including native routers:2,774,921,974
+    parameters, parent+2326 (+0.000355 W_Q), nearest integer final width.
+    """
+    # code_commit:6c60bfd; UE5a v5p-128, B16/device; health ON/internal+BAM OFF, minimal remat.
+    # AOT/FIRST_STEP verified; steps11-19 .316, confirmed20-27 .3159 step/s (~-3.1% vs parent~.326).
+    # Steps10-19 .3030 include one transient .221 step; subsequent steady timing above.
+    # User hot-replaced at12695/28000 by MemoryMLPRatio3to1; CP committed, TPU transferred, TB SYNC_OK; P0.
+    # Final5(10500..12500) vs parent gap-.000487/R1.004678; last12.5k -.000005/R1.000050: tiny gain fading.
+    # Later~.313step/s (~-4% vs parent); no clear breakthrough through stop. TerminalR1.04 bet untested.
+    model_name = 'BamPythia2p8BSotaIndependentR768PallasShortTrainMuddL27L31VML2'
+    bam_mudd_tail_blocks = 1
+    bam_mudd_tail_native_shared_router = True
+    bam_mudd_tail_residual_mlp = True
+    bam_mudd_tail_residual_qk = False
+    bam_mudd_tail_l2_anchor = True
+    bam_mudd_tail_skip_mlp_write = False
+    bam_mudd_tail_skip_attention_write_last_layers = 1
+    bam_mudd_tail_mlp_dims = [11264, 10496, 11136]
+    bam_mudd_pre_tail_vm = True
+    bam_mudd_pre_tail_vm_offset = 5
+    bam_mudd_pre_tail_vm_mlp_dim = 9984
+    bam_mlp_write_layers = list(range(1, 28, 3)) + [29]
+    bam_mudd_final_output = True
+    bam_last_mlp_dim = 10530
+    compare_runs = ['BamPythia2p8BSotaIndependentR768PallasShortTrain']
+
+
+class BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1(
+        BamPythia2p8BSotaIndependentR768PallasShortTrain):
+    """Independent per-layer GELU M-only MLP; vector/full M-update budget ~2:1.
+
+    Includes M write address/gate parameters in the M branch budget. Every
+    non-final layer writes M; L31 has no memory MLP. The final vector MLP
+    absorbs integer-width parameter rounding. No tail Mudd changes.
+    Ordinary7552 /memory3072:38,676,352 /(15,728,640+3,622,944)
+    =1.998614:1 including address/gates. L31 ordinary7178; total2,774,920,842,
+    parent+1194 (+0.000182 W_Q), nearest integer final width.
+    """
+    # code_commit:6c60bfd; UE5a v5p-128, B16/device; health ON/internal+BAM OFF, minimal remat.
+    # AOT/FIRST_STEP verified; steps10-19 .3294, confirmed20-27 .3295 step/s (~+1.0% vs parent~.326).
+    model_name = 'BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1'
+    base_mlp_dim = 7552
+    mlp_dim_by_block = [7552, 7552, 7552]
+    bam_memory_mlp_dim = 3072
+    bam_memory_mlp_last_write_dim = 0
+    bam_mlp_write_every = 1
+    bam_mlp_write_offset = 0
+    bam_skip_final_mlp_write = True
+    bam_final_local_mlp_dim = 7552
+    bam_last_mlp_dim = 7178
+    compare_runs = ['BamPythia2p8BSotaIndependentR768PallasShortTrain']
+
+
+class BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio3to1(
+        BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1):
+    """Approximately3:1 vector/full M-update budget with128-aligned body widths.
+
+    Ordinary8448 /memory2176:43,264,768 /(11,141,120+3,622,944)
+    =2.930410:1 including write addresses/gates. Preserve the2:1 arm's
+    body budget within896 parameters/layer; L31 ordinary7172 balances the
+    total to2,774,917,892, original BAM-1756 (-0.000268 W_Q),2:1-2950.
+    The final width is the nearest integer match; it is the only non128 width.
+    Same serial GELU, independent R768, Pallas, scan and training recipe.
+    """
+    # code_commit:417e95a; UE5a v5p-128, B16/device; health ON/internal+BAM OFF, minimal remat.
+    # Fresh RUN on retained VM trainer (ID310343); exact AOT loaded, FIRST_STEP verified.
+    # Steps10-19 .3225 vs2:1 .3294 (-2.10%); confirmed20-27 .3231step/s, matching health/topology.
+    model_name = 'BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio3to1'
+    base_mlp_dim = 8448
+    mlp_dim_by_block = [8448, 8448, 8448]
+    bam_memory_mlp_dim = 2176
+    bam_final_local_mlp_dim = 8448
+    bam_last_mlp_dim = 7172
+    compare_runs = ['BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1',
+                    'BamPythia2p8BSotaIndependentR768PallasShortTrain']
+
+
+class BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPMHAWidth(
+        BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1):
+    """MHA-width ordinary GELU MLP plus an independent M-only MLP per layer.
+
+    Holding all ordinary widths at10240 gives ideal memory width284.673992;
+    round it to256, the nearest multiple of128. L0-L30 ordinary10240/memory256
+    are128-aligned. L31 has no memory branch; its ordinary11129 balances the
+    total to2,774,921,081, original BAM+1433 (+0.000219 W_Q),2:1+239.
+    The final width is the nearest integer match and the only alignment exception.
+    Body ordinary/full-M-write budget52,441,600 /(1,310,720+3,622,944)
+    =10.629342:1, including write addresses/gates. Same serial GELU, R768,
+    Pallas, block scan, initialization and training recipe as the2:1 arm.
+    """
+    model_name = 'BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPMHAWidth'
+    base_mlp_dim = 10240
+    mlp_dim_by_block = [10240, 10240, 10240]
+    bam_memory_mlp_dim = 256
+    bam_final_local_mlp_dim = 10240
+    bam_last_mlp_dim = 11129
+    compare_runs = ['BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1',
+                    'BamPythia2p8BSotaIndependentR768PallasShortTrain']
+
+
 class BamPythia2p8BSotaIndependentR768PallasShortTrainNoQKStaticGate(BamPythia2p8BSotaIndependentR768PallasShortTrain):
     """Static Q/K full-M reads kept, their input-dependent gates removed (as the Medium
     BamMediumPropMShiftReadG050FullQKNormNoQKStaticGateTruePile); V/O static gates unchanged.

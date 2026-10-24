@@ -963,12 +963,16 @@ class Decoder(nn.Module):
 
         persistent = bool(getattr(cfg, 'bam_persistent_embedding_m', False))
         blocks = 1 if persistent else int(cfg.bam_mudd_tail_blocks)
+        explicit_tail = cfg.bam_final_local_layer_count or 0
+        if explicit_tail and (persistent or blocks != 1 or explicit_tail != 2
+                              or cfg.num_decoder_layers % 3 != explicit_tail):
+          raise ValueError('selective Mudd explicit tail requires two carried-M layers after three-layer blocks')
         pre_tail_vm = bool(cfg.bam_mudd_pre_tail_vm)
         if cfg.bam_mudd_pre_tail_vm_skip_mlp_write and not pre_tail_vm:
           raise ValueError('pre-tail MLP write omission requires an additional VM site')
         if pre_tail_vm and (blocks != 1 or persistent
             or type(cfg.bam_mudd_pre_tail_vm_offset) is not int
-            or cfg.bam_mudd_pre_tail_vm_offset not in (3, 4)
+            or cfg.bam_mudd_pre_tail_vm_offset not in ((3, 4, 5) if explicit_tail else (3, 4))
             or not cfg.bam_mudd_tail_native_shared_router
             or not cfg.bam_mudd_tail_residual_mlp or not cfg.bam_mudd_tail_l2_anchor
             or cfg.bam_mudd_tail_qkvm_last_layers or cfg.bam_mudd_tail_dual_value
@@ -1017,10 +1021,9 @@ class Decoder(nn.Module):
         if cfg.bam_pallas_core and (not cfg.bam_mudd_tail_native_shared_router
             or cfg.bam_pallas_body != 'v8t'):
           raise ValueError('Pallas selective tail supports native shared routing with v8t only')
-        if (blocks not in (1, 2) or cfg.num_decoder_layers % 3
+        if (blocks not in (1, 2) or (cfg.num_decoder_layers - explicit_tail) % 3
             or not cfg.bam_pair_scan or not cfg.bam_enabled or cfg.bam_mha_control
             or cfg.dense_conn or cfg.mtp_num_layers or deep_embeddings is not None
-            or cfg.bam_final_local_layer_count
             or cfg.dynamic_mlp_dim or not cfg.dynamic_dense_hidden_round
             or cfg.dynamic_dense_act_cls != 'gelu'):
           raise ValueError('selective Mudd tail requires BAM three-layer block scan')
@@ -1033,7 +1036,7 @@ class Decoder(nn.Module):
         swss = format_swss(sws_list)[:cfg.num_decoder_layers]
         if any(s < cfg.max_target_length for s in swss):
           raise ValueError('selective Mudd tail currently requires all-global attention')
-        prefix = cfg.num_decoder_layers - 3 * blocks
+        prefix = cfg.num_decoder_layers - (explicit_tail or 3 * blocks)
         if prefix < 3 or cfg.bam_local_fetch_block_size != 3:
           raise ValueError('selective Mudd tail needs at least one ordinary three-layer block')
         if cfg.bam_layer_modes != ['local_qk+local_v+local_o'] * cfg.num_decoder_layers:
@@ -1046,13 +1049,16 @@ class Decoder(nn.Module):
         if persistent:
           carry += (persistent_M,)
         # Separate scan stages retain independent layer parameters while sharing each stage's HLO.
-        stages = ((0, prefix // 3, 'layers'), (prefix, blocks, 'tail_layers'))
-        if pre_tail_vm and cfg.bam_mudd_pre_tail_vm_offset == 4:
+        stages = ((0, prefix // 3, 'layers'),)
+        if not explicit_tail:
+          stages += ((prefix, blocks, 'tail_layers'),)
+        if pre_tail_vm and cfg.bam_mudd_pre_tail_vm_offset >= 4:
           if prefix < 6:
             raise ValueError('pre-tail VM requires an ordinary prefix before the two modified blocks')
           stages = ((0, prefix // 3 - 1, 'layers'),
-                    (prefix - 3, 1, 'pre_tail_layers'),
-                    (prefix, 1, 'tail_layers'))
+                    (prefix - 3, 1, 'pre_tail_layers'))
+          if not explicit_tail:
+            stages += ((prefix, 1, 'tail_layers'),)
         for start, count, name in stages:
           module = self.scan_decoder_layers(
               cfg, fusion.BamLayerPair, count, name, mesh,
@@ -1062,6 +1068,20 @@ class Decoder(nn.Module):
               carry, decoder_segment_ids, decoder_positions, decoder_input_tokens,
               None, deterministic, model_mode, eos_sum, jnp.ones((count,), jnp.bool_),
               None, None, jnp.arange(start // 3, start // 3 + count, dtype=jnp.int32))
+        if explicit_tail:
+          Layer = nn.remat(
+              fusion.FusionDecoderLayer, prevent_cse=True,
+              policy=get_remat_policy(cfg), static_argnums=(6, 7),
+              rngs={'params': True, 'aqt': True, 'dropout': True})
+          for offset in range(explicit_tail):
+            index = prefix + offset
+            carry, _ = Layer(
+                cfg, mesh, cfg.max_target_length, self.quant,
+                all_global_attention=True, static_layer_index=index,
+                name=f'final_local_layer_{offset}')(
+                    carry, decoder_segment_ids, decoder_positions,
+                    decoder_input_tokens, None, deterministic, model_mode,
+                    eos_sum, None, None, None, jnp.asarray(index, jnp.int32))
         y, M = carry[:2]
         if bam_mudd.uses_anchors(cfg):
           embedding_anchor, l0_anchor = carry[2:4]

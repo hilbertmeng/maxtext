@@ -257,12 +257,18 @@ class SubDecoderLayer(nn.Module):
           call_kwargs['inputs_' + arm + '_route'] = normalizations.get_decoder_norm(
               arm + '_input_norm', cfg)(route)
     mlp_write_every = int(getattr(cfg, 'bam_mlp_write_every', None) or 0)
+    write_layers = getattr(cfg, 'bam_mlp_write_layers', None)
+    if write_layers is not None and (not isinstance(write_layers, (list, tuple))
+        or any(type(i) is not int or not 0 <= i < cfg.num_decoder_layers for i in write_layers)
+        or len(set(write_layers)) != len(write_layers)):
+      raise ValueError('bam_mlp_write_layers must contain unique zero-based layer indices')
     mlp_write = (
-        cfg.bam_enabled and mlp_write_every > 0
+        cfg.bam_enabled
         and not bam_mudd.skips_mlp_write(cfg, self.layer_inx)
         and not (cfg.bam_skip_final_mlp_write and self.layer_inx == cfg.num_decoder_layers - 1)
-        and (self.layer_inx + 1) % mlp_write_every
-        == int(getattr(cfg, 'bam_mlp_write_offset', None) or 0) % mlp_write_every)
+        and (self.layer_inx in write_layers if write_layers is not None else
+             mlp_write_every > 0 and (self.layer_inx + 1) % mlp_write_every
+             == int(getattr(cfg, 'bam_mlp_write_offset', None) or 0) % mlp_write_every))
     if mlp_write and getattr(cfg, 'bam_mlp_write_static_address', False):
       raise ValueError('Static MLP write experiments require their recorded runtime')
     pallas_core = cfg.bam_enabled and bool(getattr(cfg, 'bam_pallas_core', False)) and not pallas_tail

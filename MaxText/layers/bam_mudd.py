@@ -9,6 +9,9 @@ from layers import initializers, linears, normalizations
 
 
 def tail_start(config):
+  explicit = getattr(config, 'bam_final_local_layer_count', 0)
+  if explicit and getattr(config, 'bam_mudd_tail_blocks', 0):
+    return config.num_decoder_layers - explicit
   return config.num_decoder_layers - 3 * int(getattr(config, 'bam_mudd_tail_blocks', 0))
 
 
@@ -34,7 +37,10 @@ def is_value_layer(config, layer_index):
   count = int(getattr(config, 'bam_mudd_tail_qkvm_last_layers', 0))
   return (bool(getattr(config, 'bam_mudd_tail_blocks', 0))
           and layer_index >= tail_start(config)
-          and (layer_index % 3 == 2 or (count > 0 and layer_index >= config.num_decoder_layers - count)))
+          and ((layer_index == config.num_decoder_layers - 1
+                if getattr(config, 'bam_final_local_layer_count', 0)
+                else layer_index % 3 == 2)
+               or (count > 0 and layer_index >= config.num_decoder_layers - count)))
 
 
 def skips_mlp_write(config, layer_index):

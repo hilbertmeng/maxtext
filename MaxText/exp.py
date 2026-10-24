@@ -17631,8 +17631,11 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio3to1SharedWritePreAttent
     total432114480, parent+1200 (+.000833 W_Q), nearest integer match.
     Runtime implementation: codex/mediumprop-dedicated-m-mlp worktree.
     """
-    # code_commit:7bb211b; UE5a v5p16; Pallas v8t/fused, health ON/internal+BAM OFF.
-    # Exact AOT/FIRST_STEP verified; steady20-99 0.706371step/s; full13500 plan.
+    # code_commit:7bb211b; UE5a v5p16 .706371step/s; Pallas v8t/fused, health ON/internal+BAM OFF.
+    # User stopped3483; P0; CP3483 committed, node/queue independently absent, TB SYNC_OK.
+    # vs own3:1: initial lead reversed at1200, then persistent deficit; final5 through3400 +.006538/R.973797.
+    # vs direction2:1 final5 +.009387/R.962971. Wider ordinary MLP did not repay the shared-address change.
+    # Terminal1.005 bet unsupported through stop; not a full13500-step result.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio3to1SharedWritePreAttentionOrdinaryRefundTruePile'
     bam_share_attention_mlp_write_activation = True
     base_mlp_dim = 2937
@@ -17664,6 +17667,22 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio3to1SharedWritePreAttent
     bam_final_local_mlp_dim = 2852
     bam_last_mlp_dim = 3812
     compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio3to1TruePile', 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio3to1SharedWritePreAttentionOrdinaryRefundTruePile', 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1TruePile', 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SharedWritePreAttentionOrdinaryRefundTruePile']
+
+
+class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SharedWritePostAttentionOrdinaryRefundTruePile(
+        BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SharedWritePreAttentionOrdinaryRefundTruePile):
+    """Ledger only: reuse the existing post-attention MLP norm for the shared write address feature.
+
+    Same2620/1140 ordinary/private memory widths and final3812 as the
+    pre-attention parent:432114480 parameters. Reader, both write gates,
+    and both content paths are unchanged. Attention address creation waits
+    for the updated residual; one down/GELU supplies both independent ups.
+    Pallas write factors are completed outside the unchanged v8t write core.
+    """
+    model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SharedWritePostAttentionOrdinaryRefundTruePile'
+    bam_shared_write_activation_input = 'post_attention'
+    compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SharedWritePreAttentionOrdinaryRefundTruePile',
+                    'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1TruePile']
 
 
 class BamMediumPropMShiftReadG050HalfMemoryMLPTruePile(

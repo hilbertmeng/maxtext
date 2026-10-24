@@ -75,3 +75,54 @@ causality; interpreted fused v8t versus JAX logits/all gradients plus single
 fused-down count; full shared BAM regression and summary-writer tests; sealed
 configuration, exact target AOT and actual FIRST_STEP/steady speed checks.
 Artifacts:`/data0/xd/bam_diagnostics/mediumprop-shared-write-pre-attention`.
+
+## Post-attention follow-up and retained trainer
+
+User requested the2:1 ordinary-refund architecture with its shared write address
+activation moved after attention, and explicitly chose to hot-replace the2:1
+memory-refund trainer. New class:
+`BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SharedWritePostAttentionOrdinaryRefundTruePile`.
+Reuse the existing `post_self_attention_layer_norm(x + attention_output)`, one
+P_loc_down/GELU and two independent address ups. Attention W_gw remains on the
+pre-attention normalized residual; memory gate and memory MLP remain post-attention.
+Read projections and both write contents are unchanged. Ordinary2620/memory1140,
+final3812, total432114480 exactly match the direct pre-attention parent; no extra
+norm or parameters. Both variants' initial parameter values match exactly in the
+actual-input CPU fixture. This is serial-only; reject a parallel MLP interpretation.
+
+Pallas returns raw attention content/pre-attention gate without an address for
+the17 shared layers. Fusion fills that address after the existing MLP norm, then
+passes both complete writes into the unchanged v8t write kernel. Remove P_loc_down
+from the initial fused-input projection only on these layers; calculate it once
+on the post-attention input. L17 retains its parent's unused pre-attention writer.
+Verify old pre-attention behavior and the new fused path, logits and all gradients.
+
+Infra audit: current main throughd670a681 has no training/AOT/optimizer/checkpoint/
+writer/default changes since audited7da86bed; intervening main changes are ledgers.
+Keep T4096/global128/per-device16,13500 schedule, full remat, scan, tuned Splash,
+v8t/48MiB/fused inputs, generic health ON/internal+BAM OFF and TB rotation500.
+Borrow the same retained FLEX compiler under its worker lock. After CPU/config/AOT
+checks, use hot_switch_run.py on the still-running2:1 memory-refund physical
+`xd-v5p-16-310345-maxtext`, us-east5-a; new logical ID310348. No new trainer is
+requested. Old training continues until new AOT readiness; switch at a committed
+checkpoint with no lost tail. New RUN starts from scratch with its full13500 plan.
+Primary comparison:2:1 ordinary-refund pre-attention parent; retain original
+independent2:1 as direction SOTA and MHA as the common gain-ratio reference.
+The requested2:1 ordinary versus3:1 memory direct comparison remains registered.
+
+Pre-run terminal gain-multiplier bet versus the direct pre-attention parent:
+1.02, plausible range.995-1.05; throughput-1% to-3% as the write down leaves the
+initial fused projection. Historical post-attention write-control gains support
+this prior; this experiment changes address features while preserving gates.
+Artifacts:`/data0/xd/bam_diagnostics/mediumprop-shared-write-post-attention`.
+
+## Closed3:1 ordinary-refund arm
+
+Runtime7bb211b; explicit user stop3483, P0. Initial lead reversed at1200, followed
+by a persistent deficit. Last five windows2600-3400: own3:1 gap+.00653784,
+MHA-reference multiplier.97379716; independent2:1 gap+.00938744/R.96297094.
+Full model13500 result unavailable. CP3483 commit marker independently verified;
+node and queue absent, TB SYNC_OK. One UE5a v5p-16 READY lease from first prequeue
+observation07:56:11 to run boundary09:28:13 UTC2026-10-24:1h32m02s. Registry's
+subinterval08:00:37-09:28:13 is1h27m36s; resource release independently verified
+09:32:02. Final evidence remains in the pre-attention artifact directory.

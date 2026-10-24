@@ -17444,18 +17444,14 @@ class Pythia2p8BShortTrainV5p8Profile(TrainStepProfile, Pythia2p8BShortTrain):
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPMHAWidthTruePile(
     SplashTunedBlocks1024, BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile):
     """Per-layer vector FFN3200 plus a separate, M-only SwiGLU branch."""
-    # Previously stopped at7849 by user; UE5a v5p-16 P1; CP7849 committed, resources absent, TB SYNC_OK.
-    # Early advantage vanished;5k..7.8k persistent parent deficit, no late catch-up.
-    # Pre-resume5(7000..7800) vs single.5 mean gap+.002850/gain.983815: provisional deficit through7.8k.
-    # MHA-sized ordinary MLP did not offset the smaller M-update branch.
-    # Startup~.707; parent timing has different health/kernel settings; M-cache unchanged.
-    # Params parent+1600=.001111W_Q; expected gain1.01 unsupported through stop.
-    # Implementation merged into main; experiment: codex/mediumprop-dedicated-m-mlp; /data0/xd/mediumprop-dedicated-m-mlp.
-    # code_commit: 18a9d9c; UE5a v5p-16 startup~.707step/s; Pallas+tuned Splash.
-    # Generic training health ON; internal/BAM metrics OFF.
-    # User-resumed 2026-10-24 from CP7849 on UE5a physical310335; original runtime/AOT, full13500.
-    # Actual first7850, original LR verified; resume~0.6980step/s.
-    # Prior conclusions describe the partial run; terminal verdict pending. Report group at10k/12k/full.
+    # code_commit: 18a9d9c; UE5a v5p16 startup.707 / resume.698step/s; Pallas+tuned Splash.
+    # Completed at13500 after user continuation from CP7849; CP13500 committed, resources absent, TB SYNC_OK.
+    # P1 over full history, no new preemptions during continuation; health ON/internal+BAM OFF.
+    # vs single.5: early lead reversed, then persistent deficit through13.4k; final5 gap+.00262068/R.98316324.
+    # vs2:1: final5+.00405356/R.97419305; no sustained late recovery, terminal result matches rank8 closely.
+    # Ordinary MLP+22.8% vs2:1 did not offset smaller M-update branch; equal total params, single.5+1600=.001111W_Q.
+    # Original terminal1.01 prior versus single.5 not met; no matched speed attribution versus historical single.5.
+    # Implementation on main; reproduction branch codex/mediumprop-dedicated-m-mlp, see family experiment note.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPMHAWidthTruePile'
     base_mlp_dim = 3200
     mlp_dim_by_block = [3200, 3200]
@@ -17529,17 +17525,14 @@ class BamMediumPropMShiftReadG050SharedHiddenMemoryMLPTruePile(
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio3to1TruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1TruePile):
     """Vector/M-update budget3:1 with the2:1 arm's body budget and terminal width."""
-    # Previously stopped at7795 after later review; UE5a v5p-16 P1; CP committed, resources absent, TB SYNC_OK.
-    # Trailed2:1 at every400..7600 mature window; early narrowing plateaued near gain.992 after4k.
-    # Pre-resume5(6800..7600) vs2:1 +.001506/gain.991593; vs single.5 +.000394/gain.997771.
-    # Extra ordinary MLP params+11.5% vs2:1 did not produce a later relative recovery.
-    # Startup~.700 vs2:1~.707 (-1%); same total params/cache; expected gain1.01 unsupported.
-    # Implementation merged into main; experiment: codex/mediumprop-dedicated-m-mlp; /data0/xd/mediumprop-dedicated-m-mlp.
-    # code_commit: faefbad; UE5a v5p-16 startup~.700step/s (~-1% vs2:1 startup).
-    # Generic training health ON; internal/BAM OFF; Pallas+tuned Splash.
-    # User-resumed 2026-10-24 from CP7795 on UE5a physical310334; original runtime/AOT, full13500.
-    # Actual first7796, original LR verified; resume~0.6982step/s.
-    # Prior conclusions describe the partial run; terminal verdict pending. Report group at10k/12k/full.
+    # code_commit: faefbad; UE5a v5p16 startup.700 / resume.6982step/s; Pallas+tuned Splash.
+    # Completed at13500 after user continuation from CP7795; CP13500 committed, resources absent, TB SYNC_OK.
+    # P1 over full history, no new preemptions during continuation; health ON/internal+BAM OFF.
+    # vs single.5: R7.6k.99777 ->10k.99969 ->12k1.00106 ->final.99966; terminal effectively tied.
+    # Final5 single.5 gap+.00005452/R.99966237; final10 R1.00082770, weak late recovery rather than clear gain.
+    # vs2:1: gap+.001506@7.6k ->+.001080@12k ->+.00148740 terminal/R.99054243; catch-up did not persist.
+    # Ordinary MLP+11.5% vs2:1 does not yield a terminal win; total params/cache equal, speed~-1%.
+    # Original terminal1.01 prior versus2:1 not met. Implementation on main; see family experiment note.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio3to1TruePile'
     base_mlp_dim = 2852
     mlp_dim_by_block = [2852, 2852]
@@ -17626,19 +17619,14 @@ class BamMediumPropMShiftReadG050SharedHiddenRank8InputControlsTruePile(
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRank8R128H768TruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1TruePile):
     """Independent M-only SwiGLU768 produces8x75 content, with R128 nonlinear addresses."""
-    # Previously stopped at8001 by user hot-replacement; CP8001 committed, retained TPU transferred to L1 mixed tail.
-    # vs2:1: initial deficit narrowed then stalled; final5(7000..7800) gap+.003984/R.977481.
-    # Gain1k .98927 ->3k .98639 ->5k .98155 ->7.8k .97748; no sustained late recovery by stop.
-    # Ordinary MLP+20.8%, total parent-456, M-cache unchanged; startup+3.1%, steady~+2.8%.
-    # Initial terminal1.02 bet unsupported through8k; full continuation now requested.
-    # UE5a v5p16 P1; READY10:39:31-12:11:54 and12:19:26-14:03:54 UTC; TB SYNC_OK.
-    # Implementation: codex/mediumprop-dedicated-m-mlp; /data0/xd/mediumprop-dedicated-m-mlp.
-    # code_commit: eb76af1; UE5a v5p-16 startup~.729step/s (+3.1% vs independent2:1).
-    # Pallas+tuned Splash; generic health ON, internal/BAM OFF; loaded AOT/step14 verified.
-    # Implementation merged into main.
-    # User-resumed 2026-10-24 from CP8001 on UE5a physical310336; original runtime/AOT, full13500.
-    # Actual first8002, original LR verified; resume~0.7260step/s.
-    # Prior conclusions describe the partial run; terminal verdict pending. Report group at10k/12k/full.
+    # code_commit: eb76af1; UE5a v5p16 startup.729 / resume.726step/s (~+2.7% vs2:1).
+    # Completed at13500 after user continuation from CP8001; CP13500 committed, resources absent, TB SYNC_OK.
+    # P1 over full history, no new preemptions during continuation; health ON/internal+BAM OFF, Pallas+tuned Splash.
+    # vs2:1: deficit stalled near+.004 from7k onward; final5 gap+.00405288/R.97419520, final10 R.97440429.
+    # vs single.5: final5+.00262000/R.98316552; slight late fluctuations, no sustained recovery; near MHA-width tie.
+    # Ordinary MLP+20.8% and reduced write rank/R128 do not restore accuracy; total2:1-456, M dimensions unchanged.
+    # Original terminal1.02 prior versus2:1 not met; small speed gain retained alongside the loss cost.
+    # Implementation on main; reproduction branch codex/mediumprop-dedicated-m-mlp, see family experiment note.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRank8R128H768TruePile'
     base_mlp_dim = 3108
     mlp_dim_by_block = [3108, 3108]

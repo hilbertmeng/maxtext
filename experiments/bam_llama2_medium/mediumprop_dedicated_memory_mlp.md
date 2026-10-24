@@ -818,3 +818,53 @@ registered-environment-proof.json,worker-startup-proof.json,submission.log.
 Original launcher logs/registries archived on tpu-ag logs/resume-three-20261024T021235Z
 before relaunch. No routine per-report exp.py updates; next source conclusions at
 full closeout.
+
+
+## Full continuation results of three allocations (2026-10-24 JST)
+
+All three completed13500 with original immutable runtimes/AOTs and restored
+optimizer/data/LR states. Independent checks confirm all CP13500 commit markers,
+all six node/queue resources absent, and local TensorBoard SYNC_OK. The local
+wrapper returned already_closed for each, without further resource operations.
+Each full RUN has one historical preemption; no new preemption during continuation.
+The user requested10k/12k group reports, delivered with cumulative gap/gain plots;
+no in-flight exp.py result diary was written. Only these final outcomes supersede
+the earlier partial-run verdicts.
+
+Native five-window means, common MHA reference. Pre-resume phase is6800..7600;
+final is12600..13400, all samples step%10 in each±25 window:
+
+| Arm | Single.5 R@7.6k | R@10k | R@12k | Final R | Final gap vs single.5 | Final gap / R vs2:1 |
+|---|---:|---:|---:|---:|---:|---|
+|2:1 control|1.00623792|1.00884310|1.00795849|1.00921392|-.00143288|0 /1|
+|3:1|.99777083|.99968995|1.00106214|.99966237|+.00005452|+.00148740 /.99054243|
+|MHA-width ordinary|.98365257|.98518207|.98234888|.98316324|+.00262068|+.00405356 /.97419305|
+|Rank8 independent|.98285397|.98372909|.98383048|.98316552|+.00262000|+.00405288 /.97419520|
+
+3:1 showed partial late recovery and near-tie with single.5; its12k catch-up
+against2:1 receded by completion. Last10 R versus single.5 is1.00082770,
+confirming a near-tie rather than a meaningful terminal gain. The other two did
+not develop sustained late improvement. Rank8 and MHA-width terminal means are
+within6.8e-7 loss, but individual matched windows differ: verified distinct native
+RUN payloads and window losses, not a copied cache/control. Equal total budgets
+with11.5–22.8% more ordinary-MLP parameters did not beat the2:1 allocation; this
+supports retaining sufficient M-update capacity within this tested architecture.
+Original gain priors1.01(MHA-width/single.5),1.01(3:1/2:1),1.02(rank8/2:1) were
+not met. Rank8 retains a small speed benefit, with a clear accuracy cost.
+
+Final curves start1k as requested:resume-three/four-arms-final.png/.svg/.csv;
+late direct2:1 comparisons start6k:three-vs-ratio2-final.*. Raw reports and
+summary-13400.json retain all mature windows. Rank8's8000 raw loss was absent
+from both its native old tail and pre-resume TB(max7990); no interpolation or
+synthetic import was used. This leaves only the8000 five-sample window absent,
+without affecting final statistics (rank8-boundary-missing-point-provenance.json).
+
+New READY leases, all UE5a v5p16, continuation P0:
+- 3:1 physical310334:02:18:23–04:43:49 UTC=2h25m26s.
+- MHA-width physical310335:02:18:22–04:43:01 UTC=2h24m39s.
+- Rank8 physical310336:02:18:00–04:33:19 UTC=2h15m19s.
+Full chronological old+new leases and independent lifecycle/CP verification are
+in resume-three/final-verification.json; prior prequeue starts remain documented
+in the regional history. Resource assignments are the same zone throughout;
+no passive candidates or compiler resources were requested for these resumes.
+Main/family ledgers updated at final closeout; all owned Medium RUNs now complete.

@@ -16996,6 +16996,9 @@ class BamPythia2p8BSotaIndependentR768PallasShortTrainMuddL27L31VML2(
     # code_commit:6c60bfd; UE5a v5p-128, B16/device; health ON/internal+BAM OFF, minimal remat.
     # AOT/FIRST_STEP verified; steps11-19 .316, confirmed20-27 .3159 step/s (~-3.1% vs parent~.326).
     # Steps10-19 .3030 include one transient .221 step; subsequent steady timing above.
+    # User hot-replaced at12695/28000 by MemoryMLPRatio3to1; CP committed, TPU transferred, TB SYNC_OK; P0.
+    # Final5(10500..12500) vs parent gap-.000487/R1.004678; last12.5k -.000005/R1.000050: tiny gain fading.
+    # Later~.313step/s (~-4% vs parent); no clear breakthrough through stop. TerminalR1.04 bet untested.
     model_name = 'BamPythia2p8BSotaIndependentR768PallasShortTrainMuddL27L31VML2'
     bam_mudd_tail_blocks = 1
     bam_mudd_tail_native_shared_router = True
@@ -17050,8 +17053,10 @@ class BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio3to1(
     total to2,774,917,892, original BAM-1756 (-0.000268 W_Q),2:1-2950.
     The final width is the nearest integer match; it is the only non128 width.
     Same serial GELU, independent R768, Pallas, scan and training recipe.
-    Configuration only; not launched.
     """
+    # code_commit:417e95a; UE5a v5p-128, B16/device; health ON/internal+BAM OFF, minimal remat.
+    # Fresh RUN on retained VM trainer (ID310343); exact AOT loaded, FIRST_STEP verified.
+    # Steps10-19 .3225 vs2:1 .3294 (-2.10%); confirmed20-27 .3231step/s, matching health/topology.
     model_name = 'BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio3to1'
     base_mlp_dim = 8448
     mlp_dim_by_block = [8448, 8448, 8448]

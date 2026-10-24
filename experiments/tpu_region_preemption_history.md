@@ -27,8 +27,9 @@ active leases are censored, and manual migration releases are not preemptions.
 
 | RUN | TPU | Zone | Start UTC | End UTC | End reason | Passive candidates |
 |---|---|---|---|---|---|---|
-| `BamPythia2p8BSotaIndependentR768PallasShortTrainMuddL27L31VML2` | v5p-128 (`xd-v5p-128-pythia28k-vm-1024`) | `us-east5-a` | 2026-10-23 16:37:35 | — | running; first observed prequeue READY; formal registration16:44:46, FIRST_STEP/AOT verified; runtime6c60bfd; active lease censored | EW4b recovery policy; no backup submitted |
+| `BamPythia2p8BSotaIndependentR768PallasShortTrainMuddL27L31VML2` | v5p-128 (`xd-v5p-128-pythia28k-vm-1024`) | `us-east5-a` | 2026-10-23 16:37:35 | 2026-10-24 04:09:46 | user hot-replace12695; CP committed, zero lost tail, physical TPU transferred to fresh3:1, TB SYNC_OK; P0; runtime6c60bfd | EW4b recovery policy; no backup submitted |
 | `BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1` | v5p-128 (`xd-v5p-128-pythia28k-mmlp-1024`) | `us-east5-a` | 2026-10-23 16:37:37 | — | running; first observed prequeue READY; formal registration16:44:46, FIRST_STEP/AOT verified; runtime6c60bfd; active lease censored | EW4b recovery policy; no backup submitted |
+| `BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio3to1` | v5p-128 (`xd-v5p-128-pythia28k-vm-1024`) | `us-east5-a` | 2026-10-24 04:11:01 | — | running; inherited READY physical310341, new training ID310343; exact AOT/FIRST_STEP verified, runtime417e95a; active lease censored | EW4b recovery policy; none submitted |
 | `Pythia2p8BShortTrain` | v5p-128 (`xd-v5p-128-short28k-mha-1021`) | `us-east5-a` | 2026-10-21 11:24:34 | 2026-10-22 04:19:58 | user pause21726/28000; P0; checkpoint committed, node/queue absent, TB SYNC_OK; resumable | EW4b recovery policy |
 | `MuddPythia3BSerialMLPShortTrain` | v5p-128 (`xd-v5p-128-short28k-mudd-1021`) | `us-east5-a` | 2026-10-21 11:33:48 | 2026-10-22 04:19:57 | user pause17578/28000; P0; checkpoint committed, node/queue absent, TB SYNC_OK; resumable | EW4b recovery policy |
 | `BamPythia2p8BSotaIndependentR768PallasShortTrain` | v5p-128 (`xd-v5p-128-short28k-remat-1021-ue5a`) | `us-east5-a` | 2026-10-21 11:38:13 | 2026-10-22 04:19:58 | user pause18941/28000; P0; checkpoint committed, node/queue absent, TB SYNC_OK; resumable | EW4b recovery policy |
@@ -2115,6 +2116,7 @@ active leases are censored, and manual migration releases are not preemptions.
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MuddL14VML17VML2NoL14MemoryMLPTruePile` | 1 | `us-east5-a` | 2026-10-23 16:07:28 | 2026-10-23 18:21:49 | 2h14m21s | post5k review stop5195; P0; CP5195 committed, node/queue absent, TB SYNC_OK; registry READY after retained hot handoff |
 
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MuddL14VML17VML2TruePile` | 1 | `us-east5-a` | 2026-10-23 16:07:43 | 2026-10-23 22:01:09 | 5h53m26s | completed13500; P0; CP13500 committed, node/queue independently absent, TB SYNC_OK; no zone switch |
+| `BamPythia2p8BSotaIndependentR768PallasShortTrainMuddL27L31VML2` | 1 | `us-east5-a` | 2026-10-23 16:37:35 | 2026-10-24 04:09:46 | 11h32m11s | user hot-replace12695; P0; first prequeue READY observation, registry subinterval16:44:48–04:09:46=11h24m58s; CP committed, TB SYNC_OK, physical TPU retained/transferred to3:1 |
 
 ### 2026-10-14 user pause: resumed mixed R256/R384
 

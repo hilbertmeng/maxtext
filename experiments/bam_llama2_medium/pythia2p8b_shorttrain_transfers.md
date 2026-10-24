@@ -8,6 +8,12 @@ validated Medium implementation; this adaptation adds the32-layer explicit
 tail and precise MLP-write placement. The temporary experiment worktree was
 removed at the user's request before compilation or training.
 
+Current ownership: independent2:1 continues; independent3:1 has replaced VM on
+the same UE5a v5p-128. VM is closed at committed12695, with local TB SYNC_OK.
+Both active RUNs retain their full28k plans. Grouped monitoring is every2k per RUN;
+compare the fresh3:1 arm against same-step historical2:1 windows. Plotting omits
+the initial transient (these runs: start at2k).
+
 ## Arms and budget
 
 - `BamPythia2p8BSotaIndependentR768PallasShortTrainMuddL27L31VML2`:
@@ -58,9 +64,9 @@ neither its lifecycle nor unrelated training resources.
 Persist gain ratios with MHA `Pythia2p8BShortTrain` as common reference:
 new/parent BAM (primary), and new/`MuddPythia3BSerialMLPShortTrain` for the
 existing cross-architecture question. Sole direct loss compare is original BAM.
-Keep internal windows500/±25/sample10. The user's final instruction is launch
-only: confirm startup and speed, then exit without ongoing agent monitoring.
-The auto-train controllers retain mechanical health checks, recovery and reports.
+Keep internal windows500/±25/sample10. The user subsequently requested continuous
+grouped monitoring every2k. Auto-train retains mechanical health checks, recovery
+and reports; the agent owns interpretation and decisions.
 Parent historical data reach18941, MHA21726 and Mudd17578; later comparisons
 need explicit continuation of those paused controls. Address that gap as the
 new runs approach it, without changing the new runs' full28k plans.
@@ -82,8 +88,8 @@ Runtime `6c60bfd989b70afc8935546f34e48133cc650866`, pushed directly to
 Both exact v5p-128/28000 AOT manifests verified, executables loaded, actual first
 steps completed with finite losses, and checkpoint0 committed. Runtime logs
 confirm B1024,16/device, accumulation1, minimal remat, generic health ON/internal
-OFF, checkpoint1000, fixed2k checkpoints and TB rotation1000. Later permanent
-checkpoint retention has not yet been exercised on these new RUNs.
+OFF, checkpoint1000, fixed2k checkpoints and TB rotation1000. Subsequent GCS
+audits verified fixed2k/4k/6k/8k/10k retained on both initial RUNs beyond11k.
 
 | Arm | Startup steady speed | Confirmation | Relative to historical parent~.326 |
 |---|---:|---:|---:|
@@ -96,14 +102,14 @@ average .3030 because step10 alone slowed to .221; subsequent11–27 were
 not silently removed. Memory MLP is faster than the pre-launch .29–.32 prior;
 the actual formal batch, health, initialization and architecture were checked,
 and this is not a reduced-work timing configuration. Parent timing is historical,
-not a fresh paired run. No further profiling or training monitoring requested.
+not a fresh paired run.
 
 TPUs were first observed READY at2026-10-23 16:37:35/16:37:37 UTC respectively;
-formal controllers registered at16:44:46. Both remain active in UE5a; no backup
+formal controllers registered at16:44:46. Both initially ran in UE5a; no backup
 queue was required. The retained FLEX_START compiler was borrowed serially and
 preserved. Original MHA/Mudd/BAM controls remain paused.
 
-## 3:1 configuration (not launched)
+## 3:1 configuration and verified hot replacement
 
 `BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio3to1`
 reuses the2:1 implementation, initialization, scan, Pallas and28k schedule.
@@ -116,9 +122,44 @@ The body budget differs from2:1 by only896 parameters/layer; this keeps the
 allocation comparison local rather than shifting a large budget into/out of L31.
 Total2,774,917,892 = original BAM-1756 (-.000268 W_Q),2:1-2950. The final width
 is the nearest integer budget match. Direct comparisons are2:1 and original BAM.
-No TPU or AOT work requested for this configuration.
+Both ordinary and M-only branches inherit `mlp_activations=['gelu_exact']`.
 
 Pinned CPU formal parameter-tree check passed for all three transfer classes,
 including exact totals,128 alignment, absent final memory branch and nearest
 integer final width. Evidence:
 `/data0/xd/bam_diagnostics/pythia2p8b-transfer-20261024/ratio3-config-cpu/`.
+
+Runtime417e95a5b6e1b9870c2214ad173db6658d7c5f18 is committed on main.
+Relative to the verified6c60bfd implementation, runtime model/training modules
+are unchanged; the new class changes only widths. Parent2:1 inherited attributes
+match6c60bfd. Sealed3:1 config check and8 CPU checks passed (three transfer budget/
+causal-gradient checks and five summary-writer checks). The retained idle FLEX
+llm-jax-v6e-1-0 compiled the exact v5p-128/28k artifact, with matching manifest,
+environment and compiler pins; it is preserved.
+
+The standard hot-switch journal stopped VM after committedCP12695, zero lost
+tail, then launched new RUN/ID310343 on xd-v5p-128-pythia28k-vm-1024 at
+2026-10-24 04:11:01 UTC. Loaded compiled function and actual first steps verified.
+Steps10–19 .322499step/s versus2:1's matched startup .329399 (−2.10%);20–27
+.323125 confirms the rate. Both use B1024,16/device, no accumulation, minimal
+remat, generic health ON/internal+BAM OFF. Actual worker config is gelu_exact.
+Checkpoint0 saved; permanent retention and TB rotation inherit the verified path.
+
+Compare_runs are2:1 plus original BAM. Registered MHA-reference gain triples
+cover new/2:1, new/original BAM and new/Mudd. Pre-run terminal bet versus2:1:
+.995, range .98–1.02, using the ratio of final2000-step mean gains; speed expected
+.320–.335step/s. Medium3:1 continuation had reached cached11.8k before this bet:
+most recent windows still below2:1, latest .99833; its terminal verdict was pending.
+This is a prior, not a claim that the Pythia GELU allocation must behave identically.
+
+VM's partial closeout result: final five mature windows10500–12500 mean gap
+−.00048656/gain1.00467794 against original BAM; last12500 window essentially ties
+(−.000005/gain1.00004974). Recent~.313step/s versus parent~.326. Small loss gain
+did not expand through user stop; the terminal1.04 forecast remains untested.
+Gradient attribution finds the L27 controller second projection dominates VM's
+high variability, while the remaining gradient has no corresponding sustained
+rise. Mudd's controller gradients are more dispersed; this does not establish a
+causal loss mechanism. Shared-cache plots omit the startup transient.
+
+Handoff proof, exact manifests, startup timing, final VM report/registry and
+bookkeeping outputs: task artifact subdirectory `ratio3-launch/`.

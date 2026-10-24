@@ -273,20 +273,39 @@ class SubDecoderLayer(nn.Module):
       raise ValueError('Static MLP write experiments require their recorded runtime')
     pallas_core = cfg.bam_enabled and bool(getattr(cfg, 'bam_pallas_core', False)) and not pallas_tail
     write_factors = None
+    share_write_activation = mlp_write and bool(getattr(
+        cfg, 'bam_share_attention_mlp_write_activation', False))
+    shared_write_features = None
+    if share_write_activation:
+      if (getattr(cfg, 'bam_share_read_attention_write_down', False)
+          or cfg.bam_write_v_bottleneck_dim != cfg.bam_mlp_write_address_rank
+          or cfg.bam_write_v_bottleneck_activation != 'gelu'
+          or not cfg.bam_mlp_write_dynamic_address
+          or bam_mudd.skips_attention_write(cfg, self.layer_inx)):
+        raise ValueError('Shared write activation requires independent reader and matching GELU write downs')
+      call_kwargs['return_write_features'] = True
     attention_M = jnp.swapaxes(M_in, -1, -2) if pallas_tail else M_in
     if pallas_core:
         # Fused core: the attention returns its raw write factors; one kernel
         # applies the attention (and MLP) writes after the MLP.
-        attention_lnx, M_out, write_factors = attention_layer(
+        attention_result = attention_layer(
             **call_kwargs, M_in=attention_M, is_global=is_global, layer_index=layer_index)
+        if share_write_activation:
+          attention_lnx, M_out, write_factors, shared_write_features = attention_result
+        else:
+          attention_lnx, M_out, write_factors = attention_result
     elif cfg.bam_enabled:
         if mlp_write and not bam_mudd.skips_attention_write(cfg, self.layer_inx):
           assert cfg.shared_experts == 1 and cfg.num_experts == 1
           assert cfg.emb_dim == num_query_heads * cfg.bam_k == num_query_heads * head_dim
           assert 'full' not in layer_mode and not cfg.bam_mha_control
-          attention_lnx, M_out, write_factors = attention_layer(
+          attention_result = attention_layer(
               **call_kwargs, M_in=attention_M, is_global=is_global,
               layer_index=layer_index, defer_write=True)
+          if share_write_activation:
+            attention_lnx, M_out, write_factors, shared_write_features = attention_result
+          else:
+            attention_lnx, M_out, write_factors = attention_result
         else:
           attention_lnx, M_out = attention_layer(
               **call_kwargs, M_in=attention_M, is_global=is_global,
@@ -475,13 +494,18 @@ class SubDecoderLayer(nn.Module):
         independent_address = None
       if not compact_controls and getattr(cfg, 'bam_mlp_write_dynamic_address', False):
         rank = int(cfg.bam_mlp_write_address_rank)
-        address_hidden = linears.DenseGeneral(
-            features=rank, axis=-1, use_bias=False,
-            kernel_init=initializers.get_bam_init(
-              cfg, fallback=initializers.get_init_method(cfg.init_method)),
-            kernel_axes=('embed', None), dtype=cfg.dtype, weight_dtype=cfg.weight_dtype,
-            quant=self.quant, matmul_precision=cfg.matmul_precision,
-            name='mlp_address_down')(hidden_states)
+        if share_write_activation:
+          if compact_controls or shared_write_features is None or shared_write_features.shape[-1] != rank:
+            raise ValueError('Missing shared write features')
+          address_hidden = shared_write_features
+        else:
+          address_hidden = nn.gelu(linears.DenseGeneral(
+              features=rank, axis=-1, use_bias=False,
+              kernel_init=initializers.get_bam_init(
+                cfg, fallback=initializers.get_init_method(cfg.init_method)),
+              kernel_axes=('embed', None), dtype=cfg.dtype, weight_dtype=cfg.weight_dtype,
+              quant=self.quant, matmul_precision=cfg.matmul_precision,
+              name='mlp_address_down')(hidden_states))
         independent_address = linears.DenseGeneral(
             features=(write_heads, cfg.bam_v), axis=-1, use_bias=True,
             kernel_init=initializers.get_bam_init(
@@ -489,7 +513,7 @@ class SubDecoderLayer(nn.Module):
             kernel_axes=('embed', 'q_heads', 'v_factor'),
             dtype=cfg.dtype, weight_dtype=cfg.weight_dtype,
             quant=self.quant, matmul_precision=cfg.matmul_precision,
-            name='mlp_address_up')(nn.gelu(address_hidden))
+            name='mlp_address_up')(address_hidden)
       if not pallas_core:
         M_out = attention_layer.merge_mlp_write(
             write_content.reshape(write_content.shape[:-1] + (write_heads, cfg.bam_k)),

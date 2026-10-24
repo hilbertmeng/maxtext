@@ -17566,6 +17566,90 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio3to1TruePile(
                     'BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile']
 
 
+class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SharedWritePreAttentionOrdinaryRefundTruePile(
+        BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1TruePile):
+    """Share pre-attention write-address activation; refund into ordinary MLP.
+
+    Reader remains independent. Both write address ups consume the actual
+    GELU(attention_norm(x) @ attention_write_down); gates and write content
+    retain their parent inputs. Seventeen removed1200x256 downs fund85
+    ordinary SwiGLU channels per body layer. Final ordinary3812 balances
+    total432114480, parent+1200 (+.000833 W_Q), nearest integer match.
+    Runtime implementation: codex/mediumprop-dedicated-m-mlp worktree.
+    """
+    model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SharedWritePreAttentionOrdinaryRefundTruePile'
+    bam_share_attention_mlp_write_activation = True
+    base_mlp_dim = 2620
+    mlp_dim_by_block = [2620, 2620]
+    bam_memory_mlp_dim = 1140
+    bam_final_local_mlp_dim = 2620
+    bam_last_mlp_dim = 3812
+    compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1TruePile']
+
+
+class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SharedWritePreAttentionMemoryRefundTruePile(
+        BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1TruePile):
+    """Share pre-attention write-address activation; refund into memory MLP.
+
+    Reader remains independent. Both write address ups consume the actual
+    GELU(attention_norm(x) @ attention_write_down); gates and write content
+    retain their parent inputs. Seventeen removed1200x256 downs fund85
+    memory SwiGLU channels per body layer. Final ordinary3812 balances
+    total432114480, parent+1200 (+.000833 W_Q), nearest integer match.
+    Runtime implementation: codex/mediumprop-dedicated-m-mlp worktree.
+    """
+    model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SharedWritePreAttentionMemoryRefundTruePile'
+    bam_share_attention_mlp_write_activation = True
+    base_mlp_dim = 2535
+    mlp_dim_by_block = [2535, 2535]
+    bam_memory_mlp_dim = 1225
+    bam_final_local_mlp_dim = 2535
+    bam_last_mlp_dim = 3812
+    compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1TruePile', 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SharedWritePreAttentionOrdinaryRefundTruePile']
+
+
+class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio3to1SharedWritePreAttentionOrdinaryRefundTruePile(
+        BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio3to1TruePile):
+    """Share pre-attention write-address activation; refund into ordinary MLP.
+
+    Reader remains independent. Both write address ups consume the actual
+    GELU(attention_norm(x) @ attention_write_down); gates and write content
+    retain their parent inputs. Seventeen removed1200x256 downs fund85
+    ordinary SwiGLU channels per body layer. Final ordinary3812 balances
+    total432114480, parent+1200 (+.000833 W_Q), nearest integer match.
+    Runtime implementation: codex/mediumprop-dedicated-m-mlp worktree.
+    """
+    model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio3to1SharedWritePreAttentionOrdinaryRefundTruePile'
+    bam_share_attention_mlp_write_activation = True
+    base_mlp_dim = 2937
+    mlp_dim_by_block = [2937, 2937]
+    bam_memory_mlp_dim = 823
+    bam_final_local_mlp_dim = 2937
+    bam_last_mlp_dim = 3812
+    compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio3to1TruePile', 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1TruePile']
+
+
+class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio3to1SharedWritePreAttentionMemoryRefundTruePile(
+        BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio3to1TruePile):
+    """Share pre-attention write-address activation; refund into memory MLP.
+
+    Reader remains independent. Both write address ups consume the actual
+    GELU(attention_norm(x) @ attention_write_down); gates and write content
+    retain their parent inputs. Seventeen removed1200x256 downs fund85
+    memory SwiGLU channels per body layer. Final ordinary3812 balances
+    total432114480, parent+1200 (+.000833 W_Q), nearest integer match.
+    Runtime implementation: codex/mediumprop-dedicated-m-mlp worktree.
+    """
+    model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio3to1SharedWritePreAttentionMemoryRefundTruePile'
+    bam_share_attention_mlp_write_activation = True
+    base_mlp_dim = 2852
+    mlp_dim_by_block = [2852, 2852]
+    bam_memory_mlp_dim = 908
+    bam_final_local_mlp_dim = 2852
+    bam_last_mlp_dim = 3812
+    compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio3to1TruePile', 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio3to1SharedWritePreAttentionOrdinaryRefundTruePile', 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1TruePile']
+
+
 class BamMediumPropMShiftReadG050HalfMemoryMLPTruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio3to1TruePile):
     """D-wide private SwiGLU hidden writes M directly, without a content output projection."""

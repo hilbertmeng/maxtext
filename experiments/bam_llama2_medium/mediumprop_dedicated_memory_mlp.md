@@ -778,3 +778,43 @@ No new final diagnostic/profile workload. The refund descendant failed through5k
 this full run supplies the terminal result of retaining L14 private M updating.
 Final evidence:no-l1-vm-final-registry.json,no-l1-vm-final-status.json,
 no-l1-vm-final-leases.json,no-l1-vm-final-summary.json,closeout-no-l1-vm-final.log.
+
+
+## User-requested full continuations of three partial arms (2026-10-24 JST)
+
+Resume original RUN prefixes, optimizer states, dataset positions and schedules
+through13500; no new early stopping. This tests whether the larger ordinary MLP
+budgets can recover later as the2:1 arm improved late. User requested shared reports
+at10k/12k and final13.5k, with loss gaps and native MHA-reference gain multipliers
+against both single.5 and completed2:1. Preserve cumulative pre-resume evidence;
+prior stopped-run verdicts remain partial until terminal continuation finishes.
+
+- 3:1: CP7795, actual first7796, originalfaefbadaf669ce19744430a525a4c9b9f2d8b1a9;
+ physical310334 UE5a v5p16, resume speed.6982step/s (oldstartup.700, about-.3%).
+- MHA-width ordinary MLP: CP7849, actual first7850, original18a9d9cf5e912ffbc5549e65746f261b722c28ec;
+ physical310335 UE5a v5p16, resume.6980 (oldstartup.707, about-1.3%).
+- Independent rank8: CP8001, actual first8002, originaleb76af17905b73e60421fb6200ee3112844e3922;
+ physical310336 UE5a v5p16, resume.7260 (oldstartup.729, about-.4%).
+
+Original AOT objects verified by exact commit/experiment/topology/full13500 manifest
+and byte length/CRC32C; installer/compiler pins match current deployed authorities.
+No recompilation or borrowed-compiler workload. Main infrastructure audit46ab9b15
+finds no later operational changes in train/optimizer/checkpoint/compile/helpers
+since any of the three runtimes. All sealed configurations match current family
+attributes; original TB rotation500, rotating writer and begin_step are present.
+Reuse prior tested executable/model source, no repeated unrelated CPU test workload.
+Worker Git commits and AOT loads verified. Saved checkpoints include their numbered
+training update, so restored TrainState starts at checkpoint+1; first logged steps
+match exactly. Logged LR matches original warmup135/cosine13365/.0003/floor.1,
+not a restarted schedule. Checkpoint commit markers and saved dataset cursor agree
+on their numbered steps, batch128/two infeed hosts, same UE5a4096 replica.
+Health ON/internal+BAM OFF, Pallas v8t48/fused and tuned Splash unchanged.
+All three new controllers' environments agree with registry hash, comparisons,
+dataset and13500 schedule. Same-zone spot allocations only; no backup queues.
+
+Proofs under /data0/xd/bam_diagnostics/mediumprop-dedicated-m-mlp/resume-three:
+resume-preflight.json,resume-plan.json,infrastructure-resume-audit.json,
+registered-environment-proof.json,worker-startup-proof.json,submission.log.
+Original launcher logs/registries archived on tpu-ag logs/resume-three-20261024T021235Z
+before relaunch. No routine per-report exp.py updates; next source conclusions at
+full closeout.

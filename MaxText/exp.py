@@ -17655,7 +17655,7 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio3to1SharedWritePreAttent
     bam_memory_mlp_dim = 908
     bam_final_local_mlp_dim = 2852
     bam_last_mlp_dim = 3812
-    compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio3to1TruePile', 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio3to1SharedWritePreAttentionOrdinaryRefundTruePile', 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1TruePile']
+    compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio3to1TruePile', 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio3to1SharedWritePreAttentionOrdinaryRefundTruePile', 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1TruePile', 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SharedWritePreAttentionOrdinaryRefundTruePile']
 
 
 class BamMediumPropMShiftReadG050HalfMemoryMLPTruePile(

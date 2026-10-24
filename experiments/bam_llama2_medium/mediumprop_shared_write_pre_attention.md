@@ -50,7 +50,7 @@ Classes use prefix`BamMediumPropMShiftReadG050DedicatedMemoryMLP` and suffixes
 
 Primary comparator is each original independent parent. Within each parent,
 compare the two refunds directly; retain2:1 as direction SOTA for3:1 descendants.
-Use matched MHA`BamMHAMediumPropC256TruePile` as gain-ratio reference. Report
+Use matched MHA`BamMHAMediumPropC256TruePile` as gain-ratio reference. Also directly compare3:1 memory refund against2:1 ordinary refund in every group report, with native loss gap and MHA-reference gain-ratio curves cumulative from600. Report
 loss-gap and gain-ratio curves together, skipping initial transient. Review2800
 and5000, full plan13500. Initial report1k, thereafter grouped2k cadence.
 

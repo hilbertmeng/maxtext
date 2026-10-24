@@ -53,3 +53,20 @@ Pre-run terminal multiplier bets versus independent2:1: Every4Keep1.03,
 Every3Keep1.02, Every4Drop1.015, Every3Drop1.00. Throughput prior roughly flat to
 slightly faster; verify the actual matched-health steady rates after first steps.
 Artifacts `/data0/xd/bam_diagnostics/mediumprop-mha-writer-matrix`.
+
+## Verified launch
+
+Frozen runtime `ad12938bf9be13df9d84c262ce461da25d5ab018`;57 CPU checks passed, including all four
+formal budgets, no-M-read/branch-isolation checks, both scan periods/causality/live
+writers,47 BAM regressions and5 rotating-summary tests. Complete JAX/Pallas logits
+and all-parameter gradients agree; worst relative gradient error4.51619e-6.
+All four exact v5p16/13500 AOTs compiled under the same borrowed worker lock;
+FLEX compiler preserved. All FIRST_STEP, worker Git/AOT/config and20-99 windows
+verified, fresh from0, T4096/global128/per-device16, normal health settings.
+
+- `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MHAWriterEvery4KeepMemoryTruePile`: `xd-v5p-16-310350-maxtext`, us-east5-a; 0.717172step/s20-99, about+1.44% versus independent2:1 startup.
+- `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MHAWriterEvery4DropMemoryTruePile`: `xd-v5p-16-310351-maxtext`, us-east5-a; 0.736744step/s20-99, about+4.21% versus independent2:1 startup.
+- `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MHAWriterEvery3KeepMemoryTruePile`: `xd-v5p-16-310352-maxtext`, us-east5-a; 0.726750step/s20-99, about+2.79% versus independent2:1 startup.
+- `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MHAWriterEvery3DropMemoryTruePile`: `xd-v5p-16-310353-maxtext`, us-east5-a; 0.737121step/s20-99, about+4.26% versus independent2:1 startup.
+
+Startup/config/queue/AOT proofs and monitoring ownership remain in the artifact directory.

@@ -1,5 +1,6 @@
 # MediumProp per-layer memory MLP: shared write activation
 
+Runtime7bb211b2e28952ae962f813840af4688451a5f9a; all four exact AOTs, actual worker checkouts and FIRST_STEP verified.
 User authorized four fresh13500-step Medium runs, not2.8B. Implementation uses
 `/data0/xd/mediumprop-dedicated-m-mlp`, branch`codex/mediumprop-dedicated-m-mlp`.
 Read current main7da86bed and latest training/diagnostics/tpu-ag skills. Clean

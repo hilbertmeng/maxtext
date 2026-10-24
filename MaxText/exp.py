@@ -17417,15 +17417,18 @@ class Pythia2p8BShortTrainV5p8Profile(TrainStepProfile, Pythia2p8BShortTrain):
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPMHAWidthTruePile(
     SplashTunedBlocks1024, BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile):
     """Per-layer vector FFN3200 plus a separate, M-only SwiGLU branch."""
-    # Stopped at7849 by user; UE5a v5p-16 P1; CP7849 committed, resources absent, TB SYNC_OK.
+    # Previously stopped at7849 by user; UE5a v5p-16 P1; CP7849 committed, resources absent, TB SYNC_OK.
     # Early advantage vanished;5k..7.8k persistent parent deficit, no late catch-up.
-    # Final5(7000..7800) vs single.5 mean gap+.002850/gain.983815: failed allocation.
+    # Pre-resume5(7000..7800) vs single.5 mean gap+.002850/gain.983815: provisional deficit through7.8k.
     # MHA-sized ordinary MLP did not offset the smaller M-update branch.
     # Startup~.707; parent timing has different health/kernel settings; M-cache unchanged.
     # Params parent+1600=.001111W_Q; expected gain1.01 unsupported through stop.
     # Implementation merged into main; experiment: codex/mediumprop-dedicated-m-mlp; /data0/xd/mediumprop-dedicated-m-mlp.
     # code_commit: 18a9d9c; UE5a v5p-16 startup~.707step/s; Pallas+tuned Splash.
     # Generic training health ON; internal/BAM metrics OFF.
+    # User-resumed 2026-10-24 from CP7849 on UE5a physical310335; original runtime/AOT, full13500.
+    # Actual first7850, original LR verified; resume~0.6980step/s.
+    # Prior conclusions describe the partial run; terminal verdict pending. Report group at10k/12k/full.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPMHAWidthTruePile'
     base_mlp_dim = 3200
     mlp_dim_by_block = [3200, 3200]
@@ -17447,7 +17450,8 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPMHAWidthTruePile(
     record_training_health_metrics = True
     record_internal_nn_metrics = False
     remat_policy = 'full'
-    compare_runs = ['BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile']
+    compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1TruePile',
+                    'BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile']
 
 
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1TruePile(
@@ -17468,6 +17472,7 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1TruePile(
     bam_memory_mlp_last_write_dim = 0
     bam_final_local_mlp_dim = 2535
     bam_last_mlp_dim = 3806
+    compare_runs = ['BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile']
 
 
 class BamMediumPropMShiftReadG050SharedHiddenMemoryMLPTruePile(
@@ -17497,14 +17502,17 @@ class BamMediumPropMShiftReadG050SharedHiddenMemoryMLPTruePile(
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio3to1TruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1TruePile):
     """Vector/M-update budget3:1 with the2:1 arm's body budget and terminal width."""
-    # Stopped at7795 after later review; UE5a v5p-16 P1; CP committed, resources absent, TB SYNC_OK.
+    # Previously stopped at7795 after later review; UE5a v5p-16 P1; CP committed, resources absent, TB SYNC_OK.
     # Trailed2:1 at every400..7600 mature window; early narrowing plateaued near gain.992 after4k.
-    # Final5(6800..7600) vs2:1 +.001506/gain.991593; vs single.5 +.000394/gain.997771.
+    # Pre-resume5(6800..7600) vs2:1 +.001506/gain.991593; vs single.5 +.000394/gain.997771.
     # Extra ordinary MLP params+11.5% vs2:1 did not produce a later relative recovery.
     # Startup~.700 vs2:1~.707 (-1%); same total params/cache; expected gain1.01 unsupported.
     # Implementation merged into main; experiment: codex/mediumprop-dedicated-m-mlp; /data0/xd/mediumprop-dedicated-m-mlp.
     # code_commit: faefbad; UE5a v5p-16 startup~.700step/s (~-1% vs2:1 startup).
     # Generic training health ON; internal/BAM OFF; Pallas+tuned Splash.
+    # User-resumed 2026-10-24 from CP7795 on UE5a physical310334; original runtime/AOT, full13500.
+    # Actual first7796, original LR verified; resume~0.6982step/s.
+    # Prior conclusions describe the partial run; terminal verdict pending. Report group at10k/12k/full.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio3to1TruePile'
     base_mlp_dim = 2852
     mlp_dim_by_block = [2852, 2852]
@@ -17591,16 +17599,19 @@ class BamMediumPropMShiftReadG050SharedHiddenRank8InputControlsTruePile(
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRank8R128H768TruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1TruePile):
     """Independent M-only SwiGLU768 produces8x75 content, with R128 nonlinear addresses."""
-    # Stopped at8001 by user hot-replacement; CP8001 committed, retained TPU transferred to L1 mixed tail.
+    # Previously stopped at8001 by user hot-replacement; CP8001 committed, retained TPU transferred to L1 mixed tail.
     # vs2:1: initial deficit narrowed then stalled; final5(7000..7800) gap+.003984/R.977481.
     # Gain1k .98927 ->3k .98639 ->5k .98155 ->7.8k .97748; no sustained late recovery by stop.
     # Ordinary MLP+20.8%, total parent-456, M-cache unchanged; startup+3.1%, steady~+2.8%.
-    # Initial terminal1.02 bet unsupported through stop; full13500 was not completed (user replacement).
+    # Initial terminal1.02 bet unsupported through8k; full continuation now requested.
     # UE5a v5p16 P1; READY10:39:31-12:11:54 and12:19:26-14:03:54 UTC; TB SYNC_OK.
     # Implementation: codex/mediumprop-dedicated-m-mlp; /data0/xd/mediumprop-dedicated-m-mlp.
     # code_commit: eb76af1; UE5a v5p-16 startup~.729step/s (+3.1% vs independent2:1).
     # Pallas+tuned Splash; generic health ON, internal/BAM OFF; loaded AOT/step14 verified.
     # Implementation merged into main.
+    # User-resumed 2026-10-24 from CP8001 on UE5a physical310336; original runtime/AOT, full13500.
+    # Actual first8002, original LR verified; resume~0.7260step/s.
+    # Prior conclusions describe the partial run; terminal verdict pending. Report group at10k/12k/full.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRank8R128H768TruePile'
     base_mlp_dim = 3108
     mlp_dim_by_block = [3108, 3108]
@@ -17611,7 +17622,8 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRank8R128H768TruePile(
     bam_memory_write_eps = 0.14142135623730953
     bam_final_local_mlp_dim = 3108
     bam_last_mlp_dim = 3801
-    compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1TruePile']
+    compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1TruePile',
+                    'BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile']
 
 
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MuddQKVML2TruePile(

@@ -102,3 +102,23 @@ TPUs were first observed READY at2026-10-23 16:37:35/16:37:37 UTC respectively;
 formal controllers registered at16:44:46. Both remain active in UE5a; no backup
 queue was required. The retained FLEX_START compiler was borrowed serially and
 preserved. Original MHA/Mudd/BAM controls remain paused.
+
+## 3:1 configuration (not launched)
+
+`BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio3to1`
+reuses the2:1 implementation, initialization, scan, Pallas and28k schedule.
+L0–L30 ordinary GELU widths8448, independent M-only widths2176; both128-aligned.
+L31 ordinary7172, no M-only MLP, absorbs integer parameter rounding.
+
+Per non-final layer: ordinary43,264,768 parameters; full memory branch14,764,064
+including3,622,944 write-address/gate parameters. Actual ratio2.930410:1.
+The body budget differs from2:1 by only896 parameters/layer; this keeps the
+allocation comparison local rather than shifting a large budget into/out of L31.
+Total2,774,917,892 = original BAM-1756 (-.000268 W_Q),2:1-2950. The final width
+is the nearest integer budget match. Direct comparisons are2:1 and original BAM.
+No TPU or AOT work requested for this configuration.
+
+Pinned CPU formal parameter-tree check passed for all three transfer classes,
+including exact totals,128 alignment, absent final memory branch and nearest
+integer final width. Evidence:
+`/data0/xd/bam_diagnostics/pythia2p8b-transfer-20261024/ratio3-config-cpu/`.

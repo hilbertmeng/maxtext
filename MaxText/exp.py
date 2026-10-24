@@ -17040,6 +17040,28 @@ class BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1(
     compare_runs = ['BamPythia2p8BSotaIndependentR768PallasShortTrain']
 
 
+class BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio3to1(
+        BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1):
+    """Approximately3:1 vector/full M-update budget with128-aligned body widths.
+
+    Ordinary8448 /memory2176:43,264,768 /(11,141,120+3,622,944)
+    =2.930410:1 including write addresses/gates. Preserve the2:1 arm's
+    body budget within896 parameters/layer; L31 ordinary7172 balances the
+    total to2,774,917,892, original BAM-1756 (-0.000268 W_Q),2:1-2950.
+    The final width is the nearest integer match; it is the only non128 width.
+    Same serial GELU, independent R768, Pallas, scan and training recipe.
+    Configuration only; not launched.
+    """
+    model_name = 'BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio3to1'
+    base_mlp_dim = 8448
+    mlp_dim_by_block = [8448, 8448, 8448]
+    bam_memory_mlp_dim = 2176
+    bam_final_local_mlp_dim = 8448
+    bam_last_mlp_dim = 7172
+    compare_runs = ['BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1',
+                    'BamPythia2p8BSotaIndependentR768PallasShortTrain']
+
+
 class BamPythia2p8BSotaIndependentR768PallasShortTrainNoQKStaticGate(BamPythia2p8BSotaIndependentR768PallasShortTrain):
     """Static Q/K full-M reads kept, their input-dependent gates removed (as the Medium
     BamMediumPropMShiftReadG050FullQKNormNoQKStaticGateTruePile); V/O static gates unchanged.

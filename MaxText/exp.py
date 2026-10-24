@@ -17030,6 +17030,10 @@ class BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1(
     """
     # code_commit:6c60bfd; UE5a v5p-128, B16/device; health ON/internal+BAM OFF, minimal remat.
     # AOT/FIRST_STEP verified; steps10-19 .3294, confirmed20-27 .3295 step/s (~+1.0% vs parent~.326).
+    # User stop CP18481; Mudd comparison capped17578 (native last17.5k), original28k LR retained.
+    # vs parent: early lag -> near tie6k -> ~-.0034 by13k..17.5k; final5 gap-.003468/R1.037192.
+    # MHA-ref R vs Mudd2.1294@2k ->1.6036@8k ->1.4790@12k ->1.3881@17.5k: uplift, decline persists.
+    # Later~.326step/s (~parent); P0, CP committed, node/queue absent, TB SYNC_OK; 28k terminal bet untested.
     model_name = 'BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1'
     base_mlp_dim = 7552
     mlp_dim_by_block = [7552, 7552, 7552]

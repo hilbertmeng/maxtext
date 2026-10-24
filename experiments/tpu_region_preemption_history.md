@@ -28,7 +28,7 @@ active leases are censored, and manual migration releases are not preemptions.
 | RUN | TPU | Zone | Start UTC | End UTC | End reason | Passive candidates |
 |---|---|---|---|---|---|---|
 | `BamPythia2p8BSotaIndependentR768PallasShortTrainMuddL27L31VML2` | v5p-128 (`xd-v5p-128-pythia28k-vm-1024`) | `us-east5-a` | 2026-10-23 16:37:35 | 2026-10-24 04:09:46 | user hot-replace12695; CP committed, zero lost tail, physical TPU transferred to fresh3:1, TB SYNC_OK; P0; runtime6c60bfd | EW4b recovery policy; no backup submitted |
-| `BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1` | v5p-128 (`xd-v5p-128-pythia28k-mmlp-1024`) | `us-east5-a` | 2026-10-23 16:37:37 | — | running; first observed prequeue READY; formal registration16:44:46, FIRST_STEP/AOT verified; runtime6c60bfd; active lease censored | EW4b recovery policy; no backup submitted |
+| `BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1` | v5p-128 (`xd-v5p-128-pythia28k-mmlp-1024`) | `us-east5-a` | 2026-10-23 16:37:37 | 2026-10-24 08:38:55 | user stop18481; Mudd comparisons capped17578; CP committed, node/queue independently absent, TB SYNC_OK; P0; runtime6c60bfd; first prequeue READY, formal registration16:44:46 | EW4b recovery policy; no backup submitted |
 | `BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio3to1` | v5p-128 (`xd-v5p-128-pythia28k-vm-1024`) | `us-east5-a` | 2026-10-24 04:11:01 | — | running; inherited READY physical310341, new training ID310343; exact AOT/FIRST_STEP verified, runtime417e95a; active lease censored | EW4b recovery policy; none submitted |
 | `Pythia2p8BShortTrain` | v5p-128 (`xd-v5p-128-short28k-mha-1021`) | `us-east5-a` | 2026-10-21 11:24:34 | 2026-10-22 04:19:58 | user pause21726/28000; P0; checkpoint committed, node/queue absent, TB SYNC_OK; resumable | EW4b recovery policy |
 | `MuddPythia3BSerialMLPShortTrain` | v5p-128 (`xd-v5p-128-short28k-mudd-1021`) | `us-east5-a` | 2026-10-21 11:33:48 | 2026-10-22 04:19:57 | user pause17578/28000; P0; checkpoint committed, node/queue absent, TB SYNC_OK; resumable | EW4b recovery policy |
@@ -2124,6 +2124,8 @@ active leases are censored, and manual migration releases are not preemptions.
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRank8R128H768TruePile` | 3 | `us-east5-a` | 2026-10-24 02:18:00 | 2026-10-24 04:33:19 | 2h15m19s | complete13500; continuationP0/cumulativeP1; CP13500 committed, node/queue independently absent, TB SYNC_OK; retained original schedule/state |
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPMHAWidthTruePile` | 3 | `us-east5-a` | 2026-10-24 02:18:22 | 2026-10-24 04:43:01 | 2h24m39s | complete13500; continuationP0/cumulativeP1; CP13500 committed, node/queue independently absent, TB SYNC_OK; retained original schedule/state |
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio3to1TruePile` | 3 | `us-east5-a` | 2026-10-24 02:18:23 | 2026-10-24 04:43:49 | 2h25m26s | complete13500; continuationP0/cumulativeP1; CP13500 committed, node/queue independently absent, TB SYNC_OK; retained original schedule/state |
+
+| `BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1` | 1 | `us-east5-a` | 2026-10-23 16:37:37 | 2026-10-24 08:38:55 | 16h01m18s | user stop18481; P0; first prequeue READY observation; registry subinterval16:44:49–08:38:55=15h54m06s; Mudd comparisons capped17578; CP committed, node/queue independently absent, TB SYNC_OK |
 
 ### 2026-10-14 user pause: resumed mixed R256/R384
 

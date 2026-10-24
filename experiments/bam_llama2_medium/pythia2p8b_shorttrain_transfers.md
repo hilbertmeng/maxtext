@@ -8,9 +8,11 @@ validated Medium implementation; this adaptation adds the32-layer explicit
 tail and precise MLP-write placement. The temporary experiment worktree was
 removed at the user's request before compilation or training.
 
-Current ownership: independent2:1 continues; independent3:1 has replaced VM on
-the same UE5a v5p-128. VM is closed at committed12695, with local TB SYNC_OK.
-Both active RUNs retain their full28k plans. Grouped monitoring is every2k per RUN;
+Current ownership: independent2:1 is user-stopped at committed18481;
+independent3:1 continues on VM's former UE5a v5p-128. VM is closed at
+committed12695. Both closed RUNs have local TB SYNC_OK. The3:1 stop target is
+18941, matching original BAM; preserve the original28k LR schedule/AOT.
+Grouped monitoring is every2k per RUN;
 compare the fresh3:1 arm against same-step historical2:1 windows. Plotting omits
 the initial transient (these runs: start at2k).
 
@@ -67,9 +69,11 @@ existing cross-architecture question. Sole direct loss compare is original BAM.
 Keep internal windows500/±25/sample10. The user subsequently requested continuous
 grouped monitoring every2k. Auto-train retains mechanical health checks, recovery
 and reports; the agent owns interpretation and decisions.
-Parent historical data reach18941, MHA21726 and Mudd17578; later comparisons
-need explicit continuation of those paused controls. Address that gap as the
-new runs approach it, without changing the new runs' full28k plans.
+Parent historical data reach18941, MHA21726 and Mudd17578. Old controls remain
+paused. User limited2:1 conclusions to the Mudd17578 prefix and requested its
+immediate stop after it had already passed that horizon. The3:1 cap remains
+18941; its Mudd ratios end at the available same-step horizon. Neither cap
+changes the original28k learning-rate schedule.
 
 Pre-launch bets, acceptance as ratio of the final2000-step mean gains:
 VM/parent1.04, range.99–1.10; memory-MLP/parent1.025, range.99–1.07.
@@ -185,3 +189,32 @@ Pinned CPU formal budget coverage includes this new configuration plus the
 existing VM,2:1 and3:1 classes; it checks the total parameter tree, final memory
 branch omission, aligned body widths and the nearest integer final-width match.
 Evidence: `/data0/xd/bam_diagnostics/pythia2p8b-transfer-20261024/mha-width-config-cpu/`.
+
+## 2:1 user closeout
+
+The user first capped both children at original BAM's18941, then changed2:1's
+endpoint to the available Mudd17578 comparison horizon. It had already reached
+18469 when the latter instruction arrived; the18941 guard was canceled and
+standard closeout stopped it immediately. Actual final checkpoint18481 is
+committed, with zero lost tail. Conclusions below use only the<=17578 prefix,
+not the extra training tail; standard500/±25/sample10 windows end at17500.
+
+Against original BAM,2:1 initially lagged, approximately tied by6k, and developed
+a small lead that was largely flat near-.0034 over13k–17.5k. Final five windows
+15500–17500 average gap-.003468 and MHA-reference gain multiplier1.037192.
+The last17500 window is-.0034288 /1.037251. Relative to Mudd, its multiplier
+falls2.1294@2k ->1.6036@8k ->1.4790@12k ->1.388056@17.5k, versus original
+BAM1.338206 at the same17.5k. The allocation raises the curve but does not
+reverse its decline; this partial horizon does not test the original28k bet.
+
+Recent speed~.326step/s is approximately equal to original BAM; startup
+.3294/.3295 is retained above. P0, UE5a only, no passive backup submitted.
+First prequeue READY2026-10-23 16:37:37 UTC to user stop2026-10-24 08:38:55 UTC
+is16h01m18s; registry's narrower READY interval16:44:49–08:38:55 is15h54m06s.
+All workers exited, final CP committed, node and queue independently verified
+absent, and local TensorBoard sync returned SYNC_OK. Runtime6c60bfd and the
+28k LR schedule are unchanged. The3:1 trainer and its18941 guard remain active.
+
+Closeout and paired evidence under the task artifact root:
+`reports/M2-user-stop-closeout.log`, `M2-stop-verified.json`,
+`M2-final-paired17578.json`, `M2-final-leases.json`.

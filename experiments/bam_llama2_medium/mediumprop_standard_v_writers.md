@@ -47,11 +47,13 @@ T4096/global128/per-device16/13500/BF16/full remat, tuned Splash1024/fused,
 Pallas v8t/48MiB/fused inputs, health ON/internal+BAM OFF, checkpoint200/latest2,
 and rotating TB500. Retained FLEX llm-jax-v6e-1-0/europe-west4-a remains borrowed.
 
-Direct controls: corresponding Every3 MHA arm plus independent2:1; Drop also
-compares new Keep. Gain multipliers use `BamMHAMediumPropC256TruePile` throughout.
-No scheduled2800/5000 stop reviews; regular reports with cumulative PNG plots
-from600, gaps and multipliers, no per-point tables. Report old Every4 trajectories
-immediately before handoff and preserve their final checkpoints/TB records.
+Comparison policy: both RUNs compare only independent2:1, with
+`BamMHAMediumPropC256TruePile` as the common gain reference. On user direction,
+remove the weak Every3 MHA controls and the separate Drop-vs-Keep comparison
+from live registry/class `compare_runs` and gain-ratio specs. Plot both arms
+on one shared two-row figure (loss gap above, gain multiplier below), cumulative
+from600. No scheduled2800/5000 stop reviews; no per-point tables. Initial
+comparison/launch evidence remains historical; training source/AOT stay45b3ce3.
 
 Pre-run terminal MHA-reference multiplier bets versus independent2:1: Keep1.02,
 Drop1.015. Expect recovery of most of the direct MHA parents' current loss penalty;
@@ -69,5 +71,5 @@ Old Every4 controls closed at4464/4847, committed zero-tail checkpoints,
 TB SYNC_OK; physical350/351 transferred to new Keep/Drop. On further user
 direction, original Every3 controls stopped5027/4505, node/queue verified
 absent, CP/TB preserved. Their complete comparison coverage is5000/4400;
-retain both as direct controls with those explicit endpoints, alongside the
-full13500 independent2:1 direction baseline.
+retain their data as historical evidence; the current comparison policy uses
+only the full13500 independent2:1 direction baseline.

@@ -17696,6 +17696,65 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SharedWritePostAtten
     compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SharedWritePreAttentionOrdinaryRefundTruePile', 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1TruePile']
 
 
+class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MHAWriterEvery4KeepMemoryTruePile(
+        BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1TruePile):
+    """Every fourth layer uses standard attention, with a locally balanced M FFN."""
+    # Ledger only: codex/mediumprop-dedicated-m-mlp; /data0/xd/mediumprop-dedicated-m-mlp.
+    model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MHAWriterEvery4KeepMemoryTruePile'
+    bam_mha_writer_layers = [1, 5, 9, 13, 17]
+    bam_layer_modes = ['write' if i % 4 == 1 else 'local_qk+local_v+local_o' for i in range(18)]
+    bam_attention_write_layers = list(range(16))
+    bam_mlp_write_layers = list(range(16))
+    mlp_dim_by_block = None
+    bam_mlp_dim_by_layer = [2535, 2029, 2535, 2535, 2535, 2029, 2535, 2535, 2535, 2029, 2535, 2535, 2535, 2029, 2535, 2535, 3929, 3174]
+    bam_memory_mlp_dim_by_layer = [1140, 887, 1140, 1140, 1140, 887, 1140, 1140, 1140, 887, 1140, 1140, 1140, 887, 1140, 1140, 0, 0]
+    bam_local_fetch_block_size = 4
+    bam_final_local_layer_count = 2
+    bam_final_local_mlp_dim = None
+    bam_last_mlp_dim = 0
+    compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1TruePile']
+
+
+class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MHAWriterEvery4DropMemoryTruePile(
+        BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MHAWriterEvery4KeepMemoryTruePile):
+    """The standard-attention sites write M only from attention, refunding their private FFN."""
+    # Ledger only: codex/mediumprop-dedicated-m-mlp; /data0/xd/mediumprop-dedicated-m-mlp.
+    model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MHAWriterEvery4DropMemoryTruePile'
+    bam_mlp_write_layers = [i for i in range(16) if i % 4 != 1]
+    bam_memory_mlp_dim_by_layer = [1140, 0, 1140, 1140, 1140, 0, 1140, 1140, 1140, 0, 1140, 1140, 1140, 0, 1140, 1140, 0, 0]
+    bam_mlp_dim_by_layer = [2535, 3043, 2535, 2535, 2535, 3043, 2535, 2535, 2535, 3043, 2535, 2535, 2535, 3043, 2535, 2535, 3929, 3175]
+    compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1TruePile',
+                    'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MHAWriterEvery4KeepMemoryTruePile']
+
+
+class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MHAWriterEvery3KeepMemoryTruePile(
+        BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MHAWriterEvery4KeepMemoryTruePile):
+    """Every third layer uses standard attention and a locally balanced private M FFN."""
+    # Ledger only: codex/mediumprop-dedicated-m-mlp; /data0/xd/mediumprop-dedicated-m-mlp.
+    model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MHAWriterEvery3KeepMemoryTruePile'
+    bam_mha_writer_layers = [2, 5, 8, 11, 14, 17]
+    bam_layer_modes = ['write' if (i + 1) % 3 == 0 else 'local_qk+local_v+local_o' for i in range(18)]
+    bam_local_fetch_block_size = 3
+    bam_final_local_layer_count = 3
+    bam_mlp_dim_by_layer = [2535, 2535, 2029, 2535, 2535, 2029, 2535, 2535, 2029, 2535, 2535, 2029, 2535, 2535, 2029, 2535, 3929, 3174]
+    bam_memory_mlp_dim_by_layer = [1140, 1140, 887, 1140, 1140, 887, 1140, 1140, 887, 1140, 1140, 887, 1140, 1140, 887, 1140, 0, 0]
+    compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1TruePile',
+                    'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MHAWriterEvery4KeepMemoryTruePile']
+
+
+class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MHAWriterEvery3DropMemoryTruePile(
+        BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MHAWriterEvery3KeepMemoryTruePile):
+    """Every third standard-attention site refunds its entire private M FFN."""
+    # Ledger only: codex/mediumprop-dedicated-m-mlp; /data0/xd/mediumprop-dedicated-m-mlp.
+    model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MHAWriterEvery3DropMemoryTruePile'
+    bam_mlp_write_layers = [i for i in range(16) if (i + 1) % 3 != 0]
+    bam_memory_mlp_dim_by_layer = [1140, 1140, 0, 1140, 1140, 0, 1140, 1140, 0, 1140, 1140, 0, 1140, 1140, 0, 1140, 0, 0]
+    bam_mlp_dim_by_layer = [2535, 2535, 3043, 2535, 2535, 3043, 2535, 2535, 3043, 2535, 2535, 3043, 2535, 2535, 3043, 2535, 3929, 3175]
+    compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1TruePile',
+                    'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MHAWriterEvery3KeepMemoryTruePile',
+                    'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MHAWriterEvery4DropMemoryTruePile']
+
+
 class BamMediumPropMShiftReadG050HalfMemoryMLPTruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio3to1TruePile):
     """D-wide private SwiGLU hidden writes M directly, without a content output projection."""

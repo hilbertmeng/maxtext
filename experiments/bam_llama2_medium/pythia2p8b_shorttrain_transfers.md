@@ -8,14 +8,13 @@ validated Medium implementation; this adaptation adds the32-layer explicit
 tail and precise MLP-write placement. The temporary experiment worktree was
 removed at the user's request before compilation or training.
 
-Current ownership: independent2:1 has resumed from18481 on the original Mudd
-control's retained UE5a v5p-128, using its same6c60bfd runtime/AOT. The user wants
-the complete21.5k comparison window, so the host stop guard targets21530 while
-the original28k LR schedule remains unchanged. VM12695 and3:1 5720 remain closed.
-All previous closeouts have local TB SYNC_OK. Grouped monitoring uses2k cadence
-and same-step historical controls, skips the first2k and omits allocation-arm
-raw-gradient tracking. Original MHA/Mudd/BAM now provide controls through21.5k;
-their continuation is documented in `pythia2p8b_shorttrain.md`.
+Current ownership: independent2:1 is resumable-paused at committedCP21545 after
+continuation from18481 on the original Mudd control's retained UE5a v5p-128,
+using its same6c60bfd runtime/AOT. All four controls compare through the complete
+21.5k window; the original28k LR schedule remains unchanged. VM12695 and3:1 5720
+remain closed. All task-owned trainers/queues are released and local TB SYNC_OK.
+Reports skip the first2k and omit allocation-arm raw-gradient tracking. Original
+MHA/Mudd/BAM continuation is documented in `pythia2p8b_shorttrain.md`.
 
 ## Matched-horizon2:1 resumption (2026-10-24)
 
@@ -48,6 +47,38 @@ Resumption evidence:
 finishes the ±25-step window centered21500; it preserves the original28k
 learning-rate schedule. This is a continuation of the same experiment, not a
 new terminal bet.
+
+The continuation is now paused atCP21545 (guard21530, signal/poll overshoot15),
+with checkpoint and fixed2k..20k commits verified. Every worker exited, and
+node plus queued resource were independently NOT_FOUND; final local TB SYNC_OK.
+The resumed READY lease is2026-10-24 13:47:28–16:28:37 UTC,2h41m09s, P0;
+controller assignment starts13:47:23. Physical310342 was reused without a new
+allocation or compiler. The initial full READY interval remains2026-10-23
+16:37:37–2026-10-24 08:38:55 UTC,16h01m18s (registry subinterval16:44:49 onward).
+Both leases are UE5a/v5p-128; no backup ever trained.
+
+At21.5k,2:1 loss1.9499768 versus original BAM1.9536354, Mudd1.974752 and
+MHA2.041880. Gap versus original is-.0036586, MHA-reference multiplier1.041460;
+last five19.5–21.5k windows average-.00375868 /1.042150. The extra advantage
+grows much more slowly: OLS gain growth per1k is.0003962 over8–12k,
+.0001908 over12–16k and.0000721 over16–21.5k (82% slower than8–12k).
+Late windows do widen slightly, so complete stagnation would overstate the result.
+
+Relative to Mudd, the multiplier goes1.439750@14k ->1.388056@17.5k ->
+1.371468@20k ->1.369074@21.5k, versus original BAM1.314572 at21.5k.
+Between17.5k and21.5k,2:1's MHA advantage falls.0954738 ->.0919032 (-3.74%),
+while Mudd's falls.0687824 ->.067128 (-2.41%); the ratio falls1.37%.
+Thus reallocating MLP budget preserves an additional gain but does not reverse
+the late relative-gain decline. This77%-of-plan observation does not settle the
+28k terminal bet. Steady~.325step/s is~1% below resumed original BAM~.329.
+
+Final continuation evidence under
+`/data0/xd/bam_diagnostics/pythia2p8b-resume-to-mha-20261024/`:
+`reports/M2-final-pause-verified.json`, `reports/M2-final-leases.json`,
+`reports/M2-final-TB-sync.log`, `reports/report-M2-final21500.json`,
+`reports/M2-decomposition-final21500.json`, `M2_vs_original_final21500.png`
+and `M2_final21500_gap_ratio.png`. All curves begin at2k; the18.5k restore-boundary
+window lacks one sample and is omitted rather than filled.
 
 ## Arms and budget
 

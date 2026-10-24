@@ -17034,12 +17034,12 @@ class BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1(
     """
     # code_commit:6c60bfd; UE5a v5p-128, B16/device; health ON/internal+BAM OFF, minimal remat.
     # AOT/FIRST_STEP verified; steps10-19 .3294, confirmed20-27 .3295 step/s (~+1.0% vs parent~.326).
-    # User stop CP18481; Mudd comparison capped17578 (native last17.5k), original28k LR retained.
-    # vs parent: early lag -> near tie6k -> ~-.0034 by13k..17.5k; final5 gap-.003468/R1.037192.
-    # MHA-ref R vs Mudd2.1294@2k ->1.6036@8k ->1.4790@12k ->1.3881@17.5k: uplift, decline persists.
-    # Later~.326step/s (~parent); P0, CP committed, node/queue absent, TB SYNC_OK; 28k terminal bet untested.
-    # Resumed same RUN from18481 on Mudd's retained UE5a v5p-128, same6c60bfd/AOT; FIRST_STEP18482, offsets10-19 .326100.
-    # Current user horizon is complete21.5k comparison window (guard21530), original28k LR unchanged; no raw-grad monitoring.
+    # User-paused CP21545/28000 after same-RUN resume18481 on retained Mudd trainer; same6c60bfd/AOT/LR schedule.
+    # Provisional common21.5k: vs parent gap-.003659/R1.041460; last5(19.5..21.5k) mean-.003759/R1.042150.
+    # Early lag -> near tie6k -> lead~-.0034 by13k..17.5k -> small late widening; growth slows sharply, not fully stagnant.
+    # MHA-ref R vs Mudd2.1294@2k ->1.4790@12k ->1.3881@17.5k ->1.3691@21.5k (parent1.3146); decline not reversed.
+    # Later~.325step/s (~-1% vs resumed parent~.329); UE5a/P0, CP/fixed2k..20k committed, resources absent, TB SYNC_OK.
+    # All controls resumable-paused; original28k terminalR1.025 vs parent bet untested. No allocation-arm raw-grad tracking.
     model_name = 'BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1'
     base_mlp_dim = 7552
     mlp_dim_by_block = [7552, 7552, 7552]

@@ -17697,6 +17697,11 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SharedWritePostAtten
     """
     # code_commit:06b6f35; UE5a v5p16 retained310345; health ON/internal+BAM OFF.
     # Exact AOT/FIRST_STEP/worker checkout verified;20-99 .700530step/s (-1.26% vs pre parent).
+    # User stopped10413; P0; CP10413 committed, node/queue absent, TB SYNC_OK; not full13500.
+    # vs independent2:1: early gain decayed to parity by8k; final5(9400..10200) +.00001284/R.9999305.
+    # vs pre-attention parent through5200: final5 -.00327980/R1.016246; repairs sharing loss without a net SOTA gain.
+    # Params/cache equal to pre parent; independent2:1+1200 params, startup speed about-.9%; no efficiency advantage.
+    # Initial terminal1.02 point prior unsupported through stop; latest complete window10200, no10400 interpolation.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SharedWritePostAttentionOrdinaryRefundTruePile'
     bam_shared_write_activation_input = 'post_attention'
     compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SharedWritePreAttentionOrdinaryRefundTruePile', 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1TruePile']

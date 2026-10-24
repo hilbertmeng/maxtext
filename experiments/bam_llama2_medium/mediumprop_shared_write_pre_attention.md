@@ -145,7 +145,7 @@ original2:1 +.00044332/R.99804032; vs ordinary-refund peer -.00046512/R1.0021751
 Early sharing gains did not persist, and the original slight ordinary-refund
 preference did not persist either. One UE5a v5p16 READY lease from prequeue
 07:55:57 to09:51:58 UTC:1h56m01s, P0. Registry subinterval08:02:28-09:51:58 is
-1h49m30s. Physical TPU remains allocated to the new post-attention RUN.
+1h49m30s. Physical TPU was transferred to the post-attention RUN; its final closeout is below.
 
 ## Final closeout of the pre-attention family
 
@@ -162,12 +162,31 @@ but this local allocation benefit did not beat the independent parents.
 All four pre-attention sharing arms are closed before13500. Sharing produced
 initial convergence gains that were not retained through their trained horizons.
 The early small preference for ordinary refund on2:1 was not stable. Claims
-about a precise terminal optimal ratio are unsupported; only the post-attention
-follow-up remains active. Keep its direct stopped parent on the observed interval
-(complete windows through5200), and the full independent2:1 baseline throughout.
+about a precise terminal optimal ratio are unsupported. All five sharing arms are
+now closed; post-attention results below retain its stopped parent only through5200
+and the full independent2:1 reference through its own final mature window.
 
 READY leases UTC2026-10-24, including first prequeue observations:2:1 ordinary
 07:56:01-10:14:29=2h18m28s (registry08:00:36-10:14:29=2h13m53s);3:1 memory
 07:56:14-10:14:34=2h18m20s (registry08:00:34-10:14:34=2h14m00s). Resources
 verified released by10:17:29. Final source/proofs/curves reside in the original
 pre-attention artifact directory; no new checkpoint probe or TB health sync added.
+
+## Post-attention final closeout
+
+Runtime06b6f35, user stop10413; P0, CP10413 committed, node/queue independently
+absent, TB SYNC_OK. Native final complete windows end10200;10400 is not mature.
+Independent2:1 early gains faded to near parity around8k; final5(9400-10200)
+gap+.00001284, MHA-reference multiplier.99993050. Direct pre-attention parent
+ends5200; its final5 comparison remains-.00327980/R1.01624590. Changing feature
+timing recovers the pre-sharing loss but establishes no net improvement over
+independent2:1 through stop. Initial terminal1.02 point prior unsupported;
+this is a10413 stop, not an unobserved13500 result. Parameters+1200 versus
+independent2:1, M-cache unchanged, startup throughput roughly-.9%, so no other
+material efficiency gain justified continuing after the loss benefit disappeared.
+
+Single UE5a v5p16 READY lease09:52:58-14:06:19 UTC2026-10-24=4h13m21s;
+assignment09:52:54, retained ownership handoff09:51:58. Final user stop, no zone
+switch or passive candidate. Resource release independently verified after
+closeout ended14:08:56. Final loss/lease/verification/curve evidence lives under
+`/data0/xd/bam_diagnostics/mediumprop-shared-write-post-attention`.

@@ -1126,8 +1126,9 @@ class Decoder(nn.Module):
           without_v = [mode.replace('+local_v', '').replace('local_v+', '') for mode in modes]
           llf_modes = (
               ['local_qk+local_o'] * (block_size - 1) + ['local_qk+full']) * (scan_length // block_size)
-          if getattr(cfg, 'bam_mha_writer_layers', None) is not None:
-            writers = cfg.bam_mha_writer_layers
+          if (getattr(cfg, 'bam_mha_writer_layers', None) is not None
+              or getattr(cfg, 'bam_standard_value_layers', None) is not None):
+            writers = getattr(cfg, 'bam_mha_writer_layers', None) or []
             if (len(set(writers)) != len(writers) or any(type(i) is not int
                 or not 0 <= i < cfg.num_decoder_layers for i in writers)):
               raise ValueError('bam_mha_writer_layers requires unique valid layer indices')

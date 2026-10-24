@@ -17756,6 +17756,33 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MHAWriterEvery3DropM
                     'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MHAWriterEvery4DropMemoryTruePile']
 
 
+class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1StandardVEvery3KeepMemoryTruePile(
+        BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MHAWriterEvery3KeepMemoryTruePile):
+    """Periodic plain W_V with BAM Q/K/O, no Mudd; retain balanced private memory FFNs."""
+    model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1StandardVEvery3KeepMemoryTruePile'
+    bam_mha_writer_layers = None
+    bam_standard_value_layers = [2, 5, 8, 11, 14, 17]
+    bam_layer_modes = ['local_qk+local_v+local_o'] * 18
+    bam_attention_write_layers = list(range(17))
+    bam_mlp_write_layers = list(range(17))
+    bam_mlp_dim_by_layer = [2276 if (i+1)%3==0 else 2535 for i in range(17)] + [3543]
+    bam_memory_mlp_dim_by_layer = [1010 if (i+1)%3==0 else 1140 for i in range(17)] + [0]
+    compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MHAWriterEvery3KeepMemoryTruePile',
+                    'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1TruePile']
+
+
+class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1StandardVEvery3DropMemoryTruePile(
+        BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1StandardVEvery3KeepMemoryTruePile):
+    """The same plain-V sites omit the private M FFN, refunding ordinary width."""
+    model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1StandardVEvery3DropMemoryTruePile'
+    bam_mlp_write_layers = [i for i in range(17) if (i+1)%3!=0]
+    bam_mlp_dim_by_layer = [3413 if (i+1)%3==0 else 2535 for i in range(17)] + [3544]
+    bam_memory_mlp_dim_by_layer = [0 if (i+1)%3==0 else 1140 for i in range(17)] + [0]
+    compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MHAWriterEvery3DropMemoryTruePile',
+                    'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1TruePile',
+                    'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1StandardVEvery3KeepMemoryTruePile']
+
+
 class BamMediumPropMShiftReadG050HalfMemoryMLPTruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio3to1TruePile):
     """D-wide private SwiGLU hidden writes M directly, without a content output projection."""

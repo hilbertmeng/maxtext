@@ -3599,16 +3599,21 @@ class BamAttention(Attention):
       assert M_out.dtype == self.dtype, (M_out.dtype, self.dtype)
     return M_out, gate
 
-  def _deferred_write_factors(self, o_head, x, shared_hidden=None, *, return_write_features=False):
+  def _deferred_write_factors(self, o_head, x, shared_hidden=None, *, return_write_features=False,
+                              defer_write_address=False):
     """Same factors as _write, without forming its outer product yet."""
+    if return_write_features and defer_write_address:
+      raise ValueError('Cannot return a write feature before its deferred address is computed')
     u1 = o_head[..., :self.bam_k]
-    address = self._write_address(x, shared_hidden, return_hidden=return_write_features)
+    address = (None if defer_write_address else
+               self._write_address(x, shared_hidden, return_hidden=return_write_features))
     u2, write_features = address if return_write_features else (address, None)
     bias = jnp.asarray(self.gw_b0, self.dtype) if self._force_activation_dtype else self.gw_b0
     gate = jax.nn.sigmoid(self.W_gw(x) + bias)
     scale = 1.0 / jnp.sqrt(self.num_query_heads) if self.config.bam_sqrt_n_scale else 1.0
     content = self.write_data_norm(u1) if self._write_data_rms else u1
-    factors = scale * gate[..., None] * content, self.write_address_norm(u2), gate
+    factors = (scale * gate[..., None] * content,
+               None if defer_write_address else self.write_address_norm(u2), gate)
     return (factors, write_features) if return_write_features else factors
 
   def merge_mlp_write(self, mlp_head, mlp_gate, factors, M_in, independent_address=None):
@@ -3889,7 +3894,7 @@ class BamAttention(Attention):
     return out
 
   def _pallas_core_call(self, inputs_q, inputs_positions, decoder_segment_ids, M_in, is_global,
-                        standard_qk_width, *, return_write_features=False):
+                        standard_qk_width, *, return_write_features=False, defer_write_address=False):
     """Fused-kernel forward; M_in is token-minor [B,V,K,T] (token-major [B,T,V,K] for v8t).
 
     Returns (out, M_in, write factors)."""
@@ -3905,7 +3910,8 @@ class BamAttention(Attention):
       gate_names = ('W_lq_gate', 'W_lk_gate', 'W_R_gate', 'W_lv_gate')
       key_names = ('full_m_read_down',) if full_m else ('W_lq_c8', 'W_lk_c8', 'W_R')
       shift_names = ('M_shift_gate',) if self._m_shift_mode != 'none' else ()
-      write_names = ('W_gw',) if self._share_read_attention_down else ('P_loc_down', 'W_gw')
+      write_names = (('W_gw',) if self._share_read_attention_down or defer_write_address
+                     else ('P_loc_down', 'W_gw'))
       raw = self._fused_input_projections(
           inputs_q, ('query', 'key') + key_names + gate_names + static_gate_names + shift_names
           + write_names)
@@ -4065,7 +4071,9 @@ class BamAttention(Attention):
       y_std, _ = self._attention_block(query, key, value, decoder_segment_ids,
                                        q0=0, s0=0, window_size=local_window)
     o_head = y_std + local_output
-    if self._share_read_attention_down:
+    if defer_write_address:
+      address, write_features = None, None
+    elif self._share_read_attention_down:
       write_features = hidden
       address = self.P_loc_up(hidden)
     elif fused:
@@ -4104,6 +4112,7 @@ class BamAttention(Attention):
       inputs_k_route: Array | None = None,
       persistent_M: Array | None = None,
       return_write_features: bool = False,
+      defer_write_address: bool = False,
   ):
     """BAM forward. Returns (out, M_out): out [b,t,emb_dim], M_out [b,t,k,v].
 
@@ -4167,7 +4176,7 @@ class BamAttention(Attention):
     if getattr(cfg, 'bam_pallas_core', False):
       return self._pallas_core_call(
           inputs_q, inputs_positions, decoder_segment_ids, M_in, is_global, standard_qk_width,
-          return_write_features=return_write_features)
+          return_write_features=return_write_features, defer_write_address=defer_write_address)
     # ---- QKV projection + QKNorm + RoPE ----
     if cfg.fused_qkv:
       query, key, value = self.qkv_projection(inputs_q, proj_name="qkv_proj")
@@ -4350,7 +4359,8 @@ class BamAttention(Attention):
     if defer_write:
       assert self._has_write and not self._mha_control and M_in is not None
       factors = self._deferred_write_factors(
-          o_head, inputs_q, full_m_shared_hidden, return_write_features=return_write_features)
+          o_head, inputs_q, full_m_shared_hidden, return_write_features=return_write_features,
+          defer_write_address=defer_write_address)
       out = nn.with_logical_constraint(o_head, self.out_axis_names)
       if return_write_features:
         factors, write_features = factors

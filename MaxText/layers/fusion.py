@@ -275,6 +275,10 @@ class SubDecoderLayer(nn.Module):
     write_factors = None
     share_write_activation = mlp_write and bool(getattr(
         cfg, 'bam_share_attention_mlp_write_activation', False))
+    write_activation_input = getattr(cfg, 'bam_shared_write_activation_input', None) or 'pre_attention'
+    if share_write_activation and write_activation_input not in ('pre_attention', 'post_attention'):
+      raise ValueError('Unknown shared write activation input')
+    post_write_activation = share_write_activation and write_activation_input == 'post_attention'
     shared_write_features = None
     if share_write_activation:
       if (getattr(cfg, 'bam_share_read_attention_write_down', False)
@@ -283,14 +287,17 @@ class SubDecoderLayer(nn.Module):
           or not cfg.bam_mlp_write_dynamic_address
           or bam_mudd.skips_attention_write(cfg, self.layer_inx)):
         raise ValueError('Shared write activation requires independent reader and matching GELU write downs')
-      call_kwargs['return_write_features'] = True
+      if post_write_activation:
+        call_kwargs['defer_write_address'] = True
+      else:
+        call_kwargs['return_write_features'] = True
     attention_M = jnp.swapaxes(M_in, -1, -2) if pallas_tail else M_in
     if pallas_core:
         # Fused core: the attention returns its raw write factors; one kernel
         # applies the attention (and MLP) writes after the MLP.
         attention_result = attention_layer(
             **call_kwargs, M_in=attention_M, is_global=is_global, layer_index=layer_index)
-        if share_write_activation:
+        if share_write_activation and not post_write_activation:
           attention_lnx, M_out, write_factors, shared_write_features = attention_result
         else:
           attention_lnx, M_out, write_factors = attention_result
@@ -302,7 +309,7 @@ class SubDecoderLayer(nn.Module):
           attention_result = attention_layer(
               **call_kwargs, M_in=attention_M, is_global=is_global,
               layer_index=layer_index, defer_write=True)
-          if share_write_activation:
+          if share_write_activation and not post_write_activation:
             attention_lnx, M_out, write_factors, shared_write_features = attention_result
           else:
             attention_lnx, M_out, write_factors = attention_result
@@ -340,6 +347,18 @@ class SubDecoderLayer(nn.Module):
     hidden_states = nn.with_logical_constraint(
         hidden_states, ("activation_batch", "activation_norm_length", "activation_embed")
     )
+    if post_write_activation:
+      if parallel_mlp:
+        raise ValueError('Post-attention shared write activation requires a serial MLP')
+      # Both address ups share one existing post-attention MLP-normalized
+      # residual. The attention gate still uses its original pre-attention input.
+      attention_address, shared_write_features = attention_layer._write_address(
+          hidden_states, return_hidden=True)
+      if pallas_core:
+        write_factors = (write_factors[0], write_factors[1], attention_address)
+      else:
+        write_factors = (write_factors[0], attention_layer.write_address_norm(attention_address),
+                         write_factors[2])
     
     mlp_lnx = None
     memory_mlp_dim = int(getattr(cfg, 'bam_memory_mlp_dim', 0) or 0)

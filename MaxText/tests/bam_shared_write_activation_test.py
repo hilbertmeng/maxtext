@@ -20,6 +20,8 @@ ARMS = [(PREFIX + f'Ratio{ratio}to1SharedWritePreAttention{refund}RefundTruePile
         for ratio, normal, mem in [(2, 2535, 1140), (3, 2852, 823)]
         for refund, ordinary, memory in [('Ordinary', normal + 85, mem), ('Memory', normal, mem + 85)]]
 
+POST = PREFIX + 'Ratio2to1SharedWritePostAttentionOrdinaryRefundTruePile'
+ARMS.append((POST,2620,1140))
 
 class SharedWriteActivationTest(MLPWriteTest, unittest.TestCase):
   def tiny(self):
@@ -64,13 +66,27 @@ class SharedWriteActivationTest(MLPWriteTest, unittest.TestCase):
       self.assertEqual({p:v.shape for p,v in flat.items()}, {p:v.shape for p,v in other.items()})
 
   def test_actual_activation_reuse_and_unchanged_gate_input(self):
-    c=self.tiny();mesh=jax.sharding.Mesh(max_utils.create_device_mesh(c),c.mesh_axes)
+    self.check_actual_activation(False)
+
+  def test_post_attention_activation_and_identical_initial_parameters(self):
+    self.check_actual_activation(True)
+
+  def check_actual_activation(self,post):
+    c=self.tiny()
+    if post:c.get_keys()['bam_shared_write_activation_input']='post_attention'
+    mesh=jax.sharding.Mesh(max_utils.create_device_mesh(c),c.mesh_axes)
     block=fusion.SubDecoderLayer(c,mesh,quantizations.configure_quantization(c),layer_inx=0)
     x=jax.random.normal(jax.random.key(10),(1,4,150));M=jax.random.normal(jax.random.key(11),(1,4,75,32))
     pos=jnp.arange(4)[None];seg=jnp.ones((1,4),jnp.int32)
     args=(x,seg,pos,seg,None,True,MODEL_MODE_TRAIN,None)
     with mesh,nn.partitioning.axis_rules(c.logical_axis_rules):
       p=block.init(jax.random.key(12),*args,M_in=M)
+      if post:
+        pre=pyconfig.HyperParameters(SimpleNamespace(keys=dict(c.get_keys(),bam_shared_write_activation_input='pre_attention')))
+        other=fusion.SubDecoderLayer(pre,mesh,quantizations.configure_quantization(pre),layer_inx=0).init(jax.random.key(12),*args,M_in=M)
+        left=flatten_dict(nn.unbox(p));right=flatten_dict(nn.unbox(other))
+        self.assertEqual(set(left),set(right))
+        for path in left:np.testing.assert_array_equal(left[path],right[path],err_msg=str(path))
       seen={}
       def capture(next_fun,args,kwargs,ctx):
         out=next_fun(*args,**kwargs)
@@ -83,13 +99,22 @@ class SharedWriteActivationTest(MLPWriteTest, unittest.TestCase):
     shared=jax.nn.gelu(seen['P_loc_down'][0][1])
     np.testing.assert_array_equal(seen['P_loc_up'][0][0],shared)
     np.testing.assert_array_equal(seen['mlp_address_up'][0][0],shared)
-    np.testing.assert_array_equal(seen['P_loc_down'][0][0],seen['full_m_read_down'][0][0])
-    np.testing.assert_array_equal(seen['P_loc_down'][0][0],seen['W_gw'][0][0])
+    np.testing.assert_array_equal(seen['full_m_read_down'][0][0],seen['W_gw'][0][0])
     np.testing.assert_array_equal(seen['mlp_write_gate'][0][0],seen['memory_mlp'][0][0])
-    self.assertGreater(float(jnp.max(jnp.abs(seen['mlp_write_gate'][0][0]-seen['P_loc_down'][0][0]))),1e-5)
+    expected=seen['mlp_write_gate'][0][0] if post else seen['W_gw'][0][0]
+    np.testing.assert_array_equal(seen['P_loc_down'][0][0],expected)
+    self.assertGreater(float(jnp.max(jnp.abs(seen['mlp_write_gate'][0][0]-seen['W_gw'][0][0]))),1e-5)
 
   def test_scanned_causality_and_live_both_write_gradients(self):
-    c=self.tiny();mesh=jax.sharding.Mesh(max_utils.create_device_mesh(c),c.mesh_axes)
+    self.check_scanned(False)
+
+  def test_post_scanned_causality_and_live_both_write_gradients(self):
+    self.check_scanned(True)
+
+  def check_scanned(self,post):
+    c=self.tiny()
+    if post:c.get_keys()['bam_shared_write_activation_input']='post_attention'
+    mesh=jax.sharding.Mesh(max_utils.create_device_mesh(c),c.mesh_axes)
     model=Transformer(c,mesh,quantizations.configure_quantization(c))
     tok=jnp.array([[1,2,3,4]],jnp.int32);pos=jnp.arange(4)[None];seg=jnp.ones_like(tok)
     with mesh,nn.partitioning.axis_rules(c.logical_axis_rules):
@@ -107,11 +132,18 @@ class SharedWriteActivationTest(MLPWriteTest, unittest.TestCase):
       self.assertGreater(sum(float(jnp.sum(v*v)) for v in leaves),0.,branch)
 
   def test_pallas_fused_logits_all_gradients_and_projection_count(self):
+    self.check_pallas(False)
+
+  def test_post_pallas_fused_logits_all_gradients_and_projection_count(self):
+    self.check_pallas(True)
+
+  def check_pallas(self,post):
     c=self.config('BamPallasMShiftTinyXlaTest', vocab_size=32)
     c.get_keys().update(max_target_length=128,max_prefill_predict_length=128,query_chunk_size=128,
         bam_share_attention_mlp_write_activation=True,
         bam_memory_mlp_dim=16,bam_mlp_write_every=1,bam_mlp_write_offset=0,
-        bam_skip_final_mlp_write=True,bam_mlp_write_address_rank=32)
+        bam_skip_final_mlp_write=True,bam_mlp_write_address_rank=32,
+        bam_shared_write_activation_input='post_attention' if post else 'pre_attention')
     pc=pyconfig.HyperParameters(SimpleNamespace(keys=dict(c.get_keys(),
         bam_pallas_core=True,bam_pallas_interpret=True,bam_pallas_body='v8t',bam_pallas_fused_inputs=True)))
     mesh=jax.sharding.Mesh(max_utils.create_device_mesh(c),c.mesh_axes)
@@ -130,16 +162,22 @@ class SharedWriteActivationTest(MLPWriteTest, unittest.TestCase):
         y=call(model,q)
         return jnp.mean(y*target),y
       (lx,yx),gx=jax.value_and_grad(lambda q:loss(xla,q),has_aux=True)(p)
-      seen=[]
+      seen=[];direct=[]
       def capture(next_fun,args,kwargs,ctx):
         if ctx.method_name=='_fused_input_projections' and 'full_m_read_down' in args[1]:seen.append(args[1])
         if ctx.method_name=='__call__' and ctx.module.name=='P_loc_down':
-          raise AssertionError('Fused apply recomputed P_loc_down outside fused input projection')
+          if not post:raise AssertionError('Pre-attention fused apply recomputed P_loc_down')
+          direct.append(ctx.module.scope.path)
         return next_fun(*args,**kwargs)
       with nn.intercept_methods(capture):
         (lp,yp),gp=jax.value_and_grad(lambda q:loss(pallas,q),has_aux=True)(p)
     self.assertGreaterEqual(len(seen),4)  # remat replays forward projections in backward
-    self.assertTrue(all(names.count('P_loc_down')==1 and names.count('full_m_read_down')==1 for names in seen))
+    self.assertTrue(all(names.count('full_m_read_down')==1 for names in seen))
+    if post:
+      self.assertTrue(any(names.count('P_loc_down')==0 for names in seen))
+      self.assertTrue(any(names.count('P_loc_down')==1 for names in seen))  # terminal writer remains pre-attention
+      self.assertGreaterEqual(len(direct),3)
+    else:self.assertTrue(all(names.count('P_loc_down')==1 for names in seen))
     np.testing.assert_allclose(yp,yx,rtol=1e-4,atol=1e-6)
     np.testing.assert_allclose(lp,lx,rtol=1e-4,atol=1e-7)
     worst=[]

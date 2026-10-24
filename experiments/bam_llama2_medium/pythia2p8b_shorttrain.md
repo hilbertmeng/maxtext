@@ -1,5 +1,26 @@
 # Pythia 2.8B: matched short training
 
+Current ownership update2026-10-24: user authorized the original Mudd and BAM
+RUNs to resume to MHA's existing21726 checkpoint; MHA remains paused. Mudd
+restored17578 at its original2a108de runtime/AOT and resumed17579; BAM restored
+18941 at0579479 and resumed18942. Both exact v5p-128/28k executables loaded,
+globalB1024/T2048/minimal/generic-health/TB-rotation1000 settings verified.
+Post-resume offsets10–19 run at.297499/.327327step/s; subsequent steady rates
+are about.297/.329, consistent with the preceding leases.
+
+Same RUN names, dataset and GCS checkpoint prefixes; UE5a primary/EW4b backup,
+original TPU names/IDs310271 and310272. Controllers registered2026-10-24
+09:46:38 UTC. Durable guards pause at21726 and release each TPU after a
+committed checkpoint, preserving the original28000-step LR schedule and AOT.
+All three existing checkpoint markers and AOT manifests/size/CRC were verified;
+the effective classes match their sealed commits. Main's sole later training
+infrastructure difference, the host checkpoint-directory AsyncOptions fix,
+was reviewed; these existing numerical controls retain their historical runtime
+and executable. The first resumed BAM periodic checkpoint19000 is committed.
+Grouped reporting remains2k cadence with500-step comparison windows and MHA
+reference gain ratios. Preparation/startup/guard evidence:
+`/data0/xd/bam_diagnostics/pythia2p8b-resume-to-mha-20261024/`.
+
 Implementation: `/home/xd/projects/maxtext`, branch `refactor-bam`. Preparation
 runtime `2a108de923ed5ad2c2de8a7c0d200b76f4121373` includes current main's
 checkpoint retention and TensorBoard rotation infrastructure.

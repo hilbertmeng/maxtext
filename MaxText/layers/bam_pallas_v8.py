@@ -48,7 +48,9 @@ from layers.bam_pallas_v7 import _from_tokens, _to_tokens   # noqa: E402
 
 
 def _tm_rows(rq, rk, rr, c):
-  """Raw key rows c of the four arms (q, k, v, o; v and o share the VO key): [R, T] FP32."""
+  """Raw Q/K/V/O rows; rr holds a shared VO key or packed independent V/O keys."""
+  if rr.shape[1] == 2 * rq.shape[1]:
+    return jnp.concatenate((rq[c].astype(F32), rk[c].astype(F32), rr[c].astype(F32)), axis=0)
   return jnp.concatenate([x[c].astype(F32) for x in (rq, rk, rr, rr)], axis=0)
 
 
@@ -245,7 +247,9 @@ def _tm_read_backward_kernel(n, qk_cols, eps, scale, q_scale, gated, ch, pass_m,
     # T-minor key reverse: X^T[c] = g * inv * r[c] + S[:, c] * sg; u = d(normalized key) per arm.
     gacc = jnp.zeros((r, t), F32)      # sum_c dX * r   (gate gradient before * inv)
     sacc = jnp.zeros((r, t), F32)
-    uacc = jnp.zeros((3 * np_, t), F32)  # sum_c u * r  (RMS-norm reverse)
+    independent_vo = rr.shape[1] == 2 * np_
+    key_rows = (4 if independent_vo else 3) * np_
+    uacc = jnp.zeros((key_rows, t), F32)  # sum_c u * r (RMS-norm reverse)
     gq, gk, gv, go = (g[i * np_:(i + 1) * np_] for i in range(4))
     for c in range(cdim):
       dx = _from_tokens(dxt_scr[pl.ds(c, t, stride=cdim), :])            # [R, T]
@@ -253,20 +257,22 @@ def _tm_read_backward_kernel(n, qk_cols, eps, scale, q_scale, gated, ch, pass_m,
       gacc = gacc + dx * rows
       if gated:
         sacc = sacc + dx * st[:, c:c + 1]
-      u = jnp.concatenate((gq * dx[0:np_], gk * dx[np_:2 * np_],
-                           gv * dx[2 * np_:3 * np_] + go * dx[3 * np_:4 * np_]), axis=0)
+      vo_u = ((gv * dx[2 * np_:3 * np_], go * dx[3 * np_:4 * np_]) if independent_vo else
+              (gv * dx[2 * np_:3 * np_] + go * dx[3 * np_:4 * np_],))
+      u = jnp.concatenate((gq * dx[0:np_], gk * dx[np_:2 * np_]) + vo_u, axis=0)
       dkey_scr[c] = u
-      uacc = uacc + u * rows[:3 * np_]
+      uacc = uacc + u * rows[:key_rows]
     gacc = gacc * inv
     sig = lambda l: _sigmoid(l[...]) * (1 - _sigmoid(l[...]))
     for i, (l, dl) in enumerate(((lq, dlq), (lk, dlk), (lv, dlv), (lo, dlo))):
       dl[...] = (scale * sig(l) * gacc[i * np_:(i + 1) * np_]).astype(dl.dtype)
-    inv3 = inv[:3 * np_]
-    coef = uacc / cdim * inv3 * inv3
+    key_inv = inv[:key_rows]
+    coef = uacc / cdim * key_inv * key_inv
     for c in range(cdim):     # d r[c] = (u[c] - r[c] * mean_c(u r) inv^2) inv
-      dr = (dkey_scr[c] - _tm_rows(rq, rk, rr, c)[:3 * np_] * coef) * inv3
-      for i, ref in enumerate((drq, drk, drr)):
+      dr = (dkey_scr[c] - _tm_rows(rq, rk, rr, c)[:key_rows] * coef) * key_inv
+      for i, ref in enumerate((drq, drk)):
         ref[c] = dr[i * np_:(i + 1) * np_].astype(ref.dtype)
+      drr[c] = dr[2 * np_:].astype(drr.dtype)
     if gated:
       dsg_ref[...] = sacc.reshape(4, np_, t).astype(dsg_ref.dtype)
   return kernel
@@ -326,7 +332,8 @@ def _tm_read_backward_call(args, cts, opts, sh=None):
   out_shape = ([jax.ShapeDtypeStruct(m.shape, m.dtype), jax.ShapeDtypeStruct((b, t // tile, cdim, r), F32)]
                + [jax.ShapeDtypeStruct(x.shape, x.dtype) for x in args[2:]])
   scratch = [pltpu.VMEM((cdim * tile, r), F32), pltpu.VMEM((r * tile, kdim), F32),
-             pltpu.VMEM((tile * cdim, r), F32), pltpu.VMEM((cdim, 3 * np_, tile), F32)]
+             pltpu.VMEM((tile * cdim, r), F32),
+             pltpu.VMEM((cdim, 2 * np_ + args[6].shape[2], tile), F32)]
   if shifted:
     out_specs += [_spec(sh.shape[1:-1], tile), pl.BlockSpec((None, None, vdim, kdim), lambda bb, i: (bb, i, 0, 0))]
     out_shape += [jax.ShapeDtypeStruct(sh.shape, sh.dtype), jax.ShapeDtypeStruct((b, t // tile, vdim, kdim), F32)]
@@ -380,6 +387,9 @@ def read_tm(m, static_weight, q_key, q_logits, k_key, k_logits, vo_key, o_logits
   """v7.read's interface (keys [B,T,N,C], logits [B,T,N], standard QK [B,T,N,Rs]) for M [B,T,V,K] and
   full-M reads (C == V, identity compression). Returns (query, key, value, local_o) [B,T,N,K] and M.
 
+  vo_key may instead be [B,T,2N,V], packing independent V then O keys. The read
+  matmul still has4N rows; the reverse keeps the two address cotangents separate.
+
   shift [B,T,V]: optional previous-token share g' (zero at invalid tokens); every read then sees
   M_t + g'_t (M_{t-1} - M_t), mixed per V row on the VPU inside the kernel (one read dot, two reverse
   dots); the passthrough M stays unmixed. v5p XL kernel-only: read F/B +10%/+10% over the plain read."""
@@ -394,7 +404,10 @@ def read_tm(m, static_weight, q_key, q_logits, k_key, k_logits, vo_key, o_logits
   gate = lambda x: padn(_minor_t(x))                                      # [B,T,N] -> [B,NP,T]
   sw = static_weight.astype(F32)
   st = jnp.concatenate([jnp.pad(sw[a * n:(a + 1) * n], ((0, np_ - n), (0, 0))) for a in range(4)], axis=0)
-  args = (m, st, keys(q_key), gate(q_logits), keys(k_key), gate(k_logits), keys(vo_key), gate(o_logits),
+  assert vo_key.shape[2] in (n, 2 * n), vo_key.shape
+  vo_keys = (keys(vo_key) if vo_key.shape[2] == n else
+             jnp.concatenate(tuple(keys(x) for x in jnp.split(vo_key, 2, axis=2)), axis=2))
+  args = (m, st, keys(q_key), gate(q_logits), keys(k_key), gate(k_logits), vo_keys, gate(o_logits),
           gate(v_logits), _minor_t(q_standard), _minor_t(k_standard))
   gated = bool(static_gates)
   if gated:

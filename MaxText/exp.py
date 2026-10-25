@@ -306,6 +306,7 @@ class BamLlama2Medium(Llama2Medium):
     bam_static_write_gate_init = .01
     bam_local_vo_shared_read = 'none'  # none | local_o (C8 column donor)
     bam_local_vo_independent_gates = False
+    bam_local_vo_independent_keys = False
     bam_local_qk_share_basis = False  # effective_key Q/K share bases; gates and mixing remain independent.
     bam_local_gram_implementation = 'mul_reduce'  # effective_key Gram: dot | mul_reduce
     bam_local_gram_statistics_dtype = 'float32'  # float32 | activation
@@ -17601,8 +17602,9 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1TruePile(
 
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1HybridV4KeepLocalOTruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1TruePile):
-    """Ledger only:4 residual W_V heads plus12 M-V heads in every layer; retain local O."""
+    """Four residual W_V heads plus12 M-V heads in every layer; retain local O."""
     # code_commit: b5e8b0e; implementation codex/mediumprop-hybrid-v-heads, /data0/xd/mediumprop-hybrid-v-heads.
+    # Model/Pallas/single-layer-scan support merged into main; hashes retain the actual training runtimes.
     # UE5a v5p16; real FIRST_STEP verified. Single-layer scan L0-16, explicit L17; plan13500.
     # Params432113632 (independent2:1+352); health ON/internal+BAM OFF; Pallas+tuned Splash.
     # Startup20-99 .68587step/s (~-3.0% vs parent's approximate.707); single-layer scan.
@@ -17629,7 +17631,7 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1HybridV4KeepLocalOTr
 
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1HybridV4DropLocalOTruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1HybridV4KeepLocalOTruePile):
-    """Ledger only: omit local O only on the4 residual-V heads; retain12 M-V/O heads."""
+    """Omit local O only on the4 residual-V heads; retain12 M-V/O heads."""
     # code_commit: b5e8b0e; same implementation worktree/branch and single-layer scan as Keep.
     # UE5a v5p16; real FIRST_STEP verified; params432113056 (independent2:1-224).
     # Startup20-99 .68450step/s (~-3.2% vs parent~.707); effectively same speed as Keep.
@@ -17646,12 +17648,16 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1HybridV4DropLocalOTr
 
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1HybridV4KeepLocalOSeparateVOKeysTruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1HybridV4KeepLocalOTruePile):
-    """Ledger only: independent V/O dynamic addresses on12 M-V heads; ordinary heads retain O."""
+    """Independent V/O dynamic addresses on12 M-V heads; ordinary heads retain O."""
     # code_commit: 4f3c59a; implementation codex/mediumprop-hybrid-v-heads, /data0/xd/mediumprop-hybrid-v-heads.
     # UE5a v5p16 xd-v5p-16-310368-maxtext; source/config/AOT/FIRST_STEP verified; plan13500.
     # Extra98688/layer=.068533W_Q; params432115216, matched parent+1584; complete MLP ratio2.000453:1.
     # Startup20-99 .671362step/s, -2.12% vs matched parent; health ON/internal+BAM OFF, single-layer scan.
     # Pallas v8t/fused independent-key core, tuned Splash; V up cloned from O's corresponding12 heads.
+    # User stopped at7677, P0; CP7677/TB secured, xd-v5p-16-310368-maxtext node/queue absent.
+    # vs hybrid Keep-O: sustained gain; final5(6800..7600) gap-.00346272/R1.01922949.
+    # vs pure independent VO: mostly behind after the transient, persistent late deficit;
+    # final5 gap+.00113780/R.99385940; speed-4.03%. VO decoupling helps, but this combination adds no net gain.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1HybridV4KeepLocalOSeparateVOKeysTruePile'
     bam_local_vo_independent_keys = True
     base_mlp_dim = 2451
@@ -17663,7 +17669,7 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1HybridV4KeepLocalOSe
 
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1HybridV4DropLocalOSeparateVOKeysTruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1HybridV4DropLocalOTruePile):
-    """Ledger only: independent V/O dynamic addresses on12 M-V heads; ordinary heads omit O."""
+    """Independent V/O dynamic addresses on12 M-V heads; ordinary heads omit O."""
     # code_commit: 4f3c59a; same implementation worktree/branch, health and single-layer scan as Keep.
     # UE5a v5p16 xd-v5p-16-310369-maxtext; source/config/AOT/FIRST_STEP verified; plan13500.
     # Params432114640, matched parent+1584; complete MLP ratio2.000452:1.
@@ -17679,7 +17685,7 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1HybridV4DropLocalOSe
 
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio3to1HybridV4KeepLocalOTruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1HybridV4KeepLocalOTruePile):
-    """Ledger only: matching hybrid Keep-O arm with ordinary/complete M-update budget3:1."""
+    """Matching hybrid Keep-O arm with ordinary/complete M-update budget3:1."""
     # code_commit: 2437dfe; implementation codex/mediumprop-hybrid-v-heads, /data0/xd/mediumprop-hybrid-v-heads.
     # UE5a v5p16 xd-v5p-16-310365-maxtext; AOT/source/config/FIRST_STEP verified; plan13500.
     # Params432113632, exactly matching Keep2:1; L17 remains3848; all17 productive widths2778/799.
@@ -17696,7 +17702,7 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio3to1HybridV4KeepLocalOTr
 
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio3to1HybridV4DropLocalOTruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1HybridV4DropLocalOTruePile):
-    """Ledger only: matching hybrid Drop-O arm with ordinary/complete M-update budget3:1."""
+    """Matching hybrid Drop-O arm with ordinary/complete M-update budget3:1."""
     # code_commit: 2437dfe; same implementation worktree/branch, health/kernel/scan protocol as Keep3:1.
     # UE5a v5p16 xd-v5p-16-310366-maxtext; AOT/source/config/FIRST_STEP verified; plan13500.
     # Params432113056, exactly matching Drop2:1; L17 remains3857; all17 productive widths2787/802.
@@ -17713,8 +17719,9 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio3to1HybridV4DropLocalOTr
 
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysTruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1TruePile):
-    """Ledger only: independent dynamic V/O read keys with shared R256 down."""
+    """Independent dynamic V/O read keys with shared R256 down."""
     # code_commit: 5dea945; implementation codex/mediumprop-hybrid-v-heads, /data0/xd/mediumprop-hybrid-v-heads.
+    # Model/Pallas support merged into main; the sealed runtime above remains the run's source.
     # UE5a v5p16 xd-v5p-16-310367-maxtext; actual source/config/AOT/FIRST_STEP verified; plan13500.
     # V up cloned from O at init; independent pre-bias. Gates and static reads already independent.
     # Extra131584/layer=.091378W_Q; remove unused458000-param L17 attention writer.

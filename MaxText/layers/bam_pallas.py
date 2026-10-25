@@ -764,6 +764,8 @@ def read(m, static_weight, q_key, q_logits, k_key, k_logits, vo_key, o_logits, v
   """m [B,V,K,T]; keys [B,T,N,C]; logits [B,T,N]; standard QK [B,T,N,R].
 
   Returns token-major (query, key, value, local_o), each [B,T,N,K]."""
+  if vo_key.shape[2] != q_key.shape[2] and body != 'v8t':
+    raise ValueError('Packed independent VO keys require body=v8t')
   if body == 'v8t':
     from layers import bam_pallas_v8
     return bam_pallas_v8.read_tm(m, static_weight, q_key, q_logits, k_key, k_logits, vo_key, o_logits,

@@ -95,8 +95,8 @@ Formal assignment2026-10-25 04:44:21/04:44:24 UTC; the same training TPUs
 were first observed READY during prequeue at04:32:28/04:32:24 UTC. The initial
 two-layer preparation was superseded before any training on user direction;
 queues/compiler were retained, all gates repeated on the single-layer runtime.
-Main contains ledger-only classes; model implementation remains in the stated
-experimental worktree/branch.
+Main now includes the model, Pallas and single-layer-scan support. The stated
+experimental worktree/branch and hashes retain the original sealed runtimes.
 
 Worker source hashes, Loaded-compiled markers, actual GCS configs and both live
 registry baseline/gain specifications were verified. Resolved T4096/global128/
@@ -198,8 +198,9 @@ stopping reviews, plan13500 for all four.
 
 Infrastructure audit versus latest main8832c269: no main-only changes in training,
 AOT, optimizer, checkpoint or summary-writer implementations since model parent
-b5e8b0e. Main's missing experimental head fields/script reflect ledger-only status,
-not infrastructure fixes to port. Core model code remains identical to the62-test
+b5e8b0e. At that audit, main's missing experimental head fields/scripts reflected
+ledger-only status, not infrastructure fixes to port; this model support is now
+merged. Core model code remains identical to the62-test
 verified parent. Targeted CPU gate checks both full parameter trees, inherited
 protocol and5 rotating-writer regressions; no repeated unrelated full BAM suite.
 
@@ -216,7 +217,8 @@ first prequeue READY06:30:27/06:30:09 respectively. Both trains passed100.
 20-99 harmonic throughput Keep.683735/Drop.679883step/s (80 samples each),
 -.31%/-.67% versus their matching2:1 arms; medians.687/.684.
 Both native live registries compare only their matching2:1 hybrid parent and
-persist the common MHA-reference gain multiplier. Main classes are ledger only.
+persist the common MHA-reference gain multiplier. Main contains these configurations
+and their model support; historical runtime hashes remain unchanged.
 Startup proof: ratio3/resolved-config-audit.json, worker-keep/drop-audit.json,
 speed-keep/drop.json, step100-keep/drop.log and monitoring-registration.txt
 under the family artifact root. No interim loss diary entries in exp.py.
@@ -293,7 +295,9 @@ scan packaging differs, so this is a package speed comparison. All17 productive
 attention/private writers remain; terminal neither write. All14 BAM statistic
 flags explicitly False; generic health ON/internal OFF. Native gain monitoring
 persisted with original independent2:1 comparator and matched MHA reference.
-Main class is ledger only. Startup evidence in separate-vo/resolved-config-audit.json,
+Main includes the independent-key model/Pallas support and configuration.
+Current user-directed reporting cadence is every2000 steps, with final13500 closeout.
+Startup evidence in separate-vo/resolved-config-audit.json,
 worker-audit.json, speed.json, step100.log and monitoring-registration.txt.
 
 ## Hybrid V heads plus independent V/O addresses
@@ -343,7 +347,8 @@ Each child compares both its matching hybrid parent and pure independent VO
 both direct gain ratios use BamMHAMediumPropC256TruePile as the common reference.
 The pure-VO comparison directly measures whether ordinary-V heads add net value
 after VO decoupling. Persist both triples in the native registry; this live
-monitoring override does not change the sealed training runtime. Group1k reports,
+monitoring override does not change the sealed training runtime. Remaining active
+runs report every2000 steps on the user's latest direction,
 curves from600; default Medium
 2800-step review,13500 endpoint. Pure independent VO versus pure2:1 supplies
 the other conditional effect for this family's secondary analysis:
@@ -382,4 +387,29 @@ same common MHA reference.
 Actual proof under hybrid-separate-vo/{resolved-config-audit.json,worker-keep/
 drop-audit.json,speed-keep/drop.json,step100-keep/drop.log,registry-keep/drop.json}.
 Family-only plot_pair.py consumes native window JSON and computes Q/I; no generic
-report modification. Main entries are ledger only; no interim loss diary entries.
+report modification. Main includes all three architecture families, Pallas adapters,
+single-layer scan support and their configuration classes; no interim loss diary entries.
+
+Keep-O combination user-stopped at7677 on2026-10-25, P0; final complete window7600.
+Its independent-address improvement over the matching hybrid Keep-O parent persisted:
+final5(6800..7600) gap-.00346272, MHA-reference R1.01922949. Against pure independent
+VO it was mostly behind after the transient, with a persistent late deficit:
+final5 gap+.00113780/R.99385940, despite4.03% lower startup throughput. This rules
+it out as the current SOTA candidate; the positive address-decoupling effect itself
+remains supported. The original1.015 terminal bet was versus the hybrid parent;
+the full13500 endpoint was not measured. Pure VO and the Drop-O combination continue,
+now every2000 steps, with final13500 closeout.
+
+CP7677 commit marker independently verified; both node and queued resource
+independently NOT_FOUND, local TB SYNC_OK. Registered READY lease08:53:19–12:09:42
+UTC (3h16m23s), UE5a v5p16 only; first prequeue READY08:52:49 preceded registration.
+User stop, no preemption or lost committed steps. Proof under hybrid-separate-vo:
+closeout-keep-summary.json, closeout-keep-verification.json, report-keep-final.json.
+
+Mainline integration validation:67 pinned-CPU checks passed (47 shared BAM,
+5 historical whole-layer standard-V,6 hybrid-V,8 independent-VO/combination,
+1 shifted-read regression). Model/Pallas/scan files match the trained4f3c59a
+implementation byte-for-byte, and all7 model configurations retain their sealed
+model attributes; reporting comparators follow the user's current choices.
+The independent-VO formal-budget test now expects both requested controls.
+Evidence: family root/mainline-merge-20261025/verification-summary.json.

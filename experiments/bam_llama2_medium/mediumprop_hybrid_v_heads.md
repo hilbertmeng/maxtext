@@ -296,9 +296,24 @@ attention/private writers remain; terminal neither write. All14 BAM statistic
 flags explicitly False; generic health ON/internal OFF. Native gain monitoring
 persisted with original independent2:1 comparator and matched MHA reference.
 Main includes the independent-key model/Pallas support and configuration.
-Current user-directed reporting cadence is every2000 steps, with final13500 closeout.
 Startup evidence in separate-vo/resolved-config-audit.json,
 worker-audit.json, speed.json, step100.log and monitoring-registration.txt.
+
+Completed13500 on2026-10-25 UTC, P0. Native final five windows12600..13400
+give gap-.00682740 and MHA-reference gain1.04346847 versus independent2:1;
+the final13400 point is-.00681700/1.04344867. The early absolute loss lead
+narrowed, then held near-.0068 late, while the relative gain increased.
+Independent dynamic V/O addresses provide a durable equal-budget improvement;
+the terminal1.02 prior was conservative. M-cache is unchanged. Throughput stayed
+near.700step/s; the historical parent~.707 uses different scan packaging, so no
+isolated speed delta is claimed. Final reports followed the user's2000 cadence.
+CP13500 commit marker and both absent GCP resources were independently checked;
+the local closeout wrapper found already_closed=true and TB finished SYNC_OK.
+The only registered READY lease is UE5a v5p16,08:10:41–13:43:15 UTC,
+5h32m34s; first prequeue READY08:05:24 precedes registry assignment08:10:39.
+Artifacts: separate-vo/native-final-loss.json, report-final.json,
+closeout-verification.json and closeout-local.log; final curve
+`independent-vo-final-13500-20261025-1343.png` in the session visualization directory.
 
 ## Hybrid V heads plus independent V/O addresses
 

@@ -17772,8 +17772,13 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysTruePi
     # V up cloned from O at init; independent pre-bias. Gates and static reads already independent.
     # Extra131584/layer=.091378W_Q; remove unused458000-param L17 attention writer.
     # Params432112192, parent-1088; ordinary/complete private branch ratio1.999646:1.
-    # Startup20-99 .699548step/s (~-1.1% vs parent~.707); scan packaging also differs.
+    # Startup20-99 .699548step/s, later~.700; historical parent~.707 uses different scan, no matched speed delta.
     # Health ON/internal+BAM OFF; Pallas v8t fused independent-key read, tuned Splash;59 CPU checks passed.
+    # Completed 13500/P0; CP13500 committed, node/queue independently absent, TB SYNC_OK.
+    # vs independent2:1: early absolute loss lead narrowed, then held near-.0068; relative gain rose late.
+    # Final5(12600..13400) gap-.00682740/R1.04346847; final13400-.00681700/R1.04344867 (MHA reference).
+    # Terminal1.02 bet was conservative; independent dynamic V/O addresses give a durable matched-budget gain.
+    # M-cache unchanged; see mediumprop_hybrid_v_heads.md for full trajectory and lifecycle evidence.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysTruePile'
     bam_local_vo_independent_keys = True
     bam_attention_write_layers = list(range(17))

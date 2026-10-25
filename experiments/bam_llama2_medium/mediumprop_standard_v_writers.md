@@ -1,7 +1,7 @@
 # Periodic residual V with BAM Q/K/O
 
-Implementation worktree `/data0/xd/mediumprop-dedicated-m-mlp`, branch
-`codex/mediumprop-dedicated-m-mlp`; main `MaxText/exp.py` is ledger-only.
+Original training worktree `/data0/xd/mediumprop-dedicated-m-mlp`, branch
+`codex/mediumprop-dedicated-m-mlp`; implementation is now available on `refactor-bam`.
 
 RUNs:
 - `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1StandardVEvery3KeepMemoryTruePile`
@@ -106,7 +106,7 @@ inference-cache-size measurement was performed.
 Startup20–99 Keep.692718 / Drop.711704 step/s, versus the documented approximate
 independent2:1 startup.707 (about-2.0% /+.7%). These are startup steady-window
 comparisons with training health ON, internal+BAM OFF, tuned Splash/Pallas;
-they are not full-run wall-time claims. No model code merged into main.
+they are not full-run wall-time claims. Main integration followed the run closeout.
 
 UE5a v5p16 only. Keep P0 READY2026-10-24 15:02:53–20:39:50 (5h36m57s).
 Drop P1 READY15:02:49–15:58:54 (56m05s), then16:05:39–20:44:50 (4h39m11s).
@@ -115,3 +115,34 @@ retained. The borrowed FLEX compiler was not part of training lifecycle cleanup.
 Full assignments/leases are in the regional history. Proofs and all comparisons:
 `/data0/xd/bam_diagnostics/mediumprop-standard-v-writers/` (`final-summary.json`,
 `final-verification.json`, `report-final-13400.json`, `final-lease-*.json`).
+
+## Main integration
+
+Ported the plain-V implementation from45b3ce3 into the current main branch,
+retaining later Pythia/residual-MLP control changes. Only the required explicit
+attention-write masks, writer-free terminal handling, scan validation, and fused
+v8t plain-V route were added. The Pallas kernel body is unchanged. The old MHA
+writer and shared-write-activation experiments remain in their recorded runtime;
+they are not prerequisites of these two merged configurations.
+
+On user direction, ordinary widths reuse the existing `mlp_dim_by_block` and
+`bam_last_mlp_dim` interfaces: Keep `[2535,2535,2276]` /3543; Drop
+`[2535,2535,3413]` /3544. No `bam_mlp_dim_by_layer` mechanism is added to main.
+The two classes derive from independent2:1 directly, preserving the trained
+layer widths, writer masks, parameter tree and scan structure without inheriting
+the old MHA-writer-specific settings. Private-memory widths retain their existing
+`bam_memory_mlp_dim_by_layer` interface. Both still compare only independent2:1.
+
+Historical RUNs and existing AOTs remain pinned to45b3ce3. The merged source is
+a new revision and needs its own matching AOT for any future training launch.
+
+Validation:52 pinned CPU checks passed (47 BAM regressions plus5 plain-V
+checks, including both Pallas forward/all-gradient comparisons). Both full
+training parameter trees match45b3ce3 in names, shapes and dtypes, totaling
+432112816/432112416. In the six-layer numerical probes, initialization and
+perturbed parameters, logits/loss and every gradient are bitwise identical to
+the archived runtime (maximum absolute difference0). All nonrepresentation
+class attributes are unchanged apart from the requested comparison policy.
+Final merge proofs/logs are under
+`/data0/xd/bam_diagnostics/mediumprop-standard-v-writers/main-merge-20261025/`
+(`passed.json`, `block-source-parity-proof.json`, `block-config-parity.json`).

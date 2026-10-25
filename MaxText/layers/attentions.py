@@ -2569,7 +2569,14 @@ class BamAttention(Attention):
     cfg = self.config
     self._residual_value = bam_mudd.is_value_layer(cfg, self.layer_inx)
     self._dual_value = self._residual_value and cfg.bam_mudd_tail_dual_value
-    self._has_value_m_read = not self._residual_value or self._dual_value
+    value_layers = getattr(cfg, 'bam_standard_value_layers', None)
+    if value_layers is not None and (len(set(value_layers)) != len(value_layers)
+        or any(type(i) is not int or not 0 <= i < cfg.num_decoder_layers for i in value_layers)):
+      raise ValueError('bam_standard_value_layers requires unique valid layer indices')
+    self._standard_value = self.layer_inx in (value_layers or [])
+    if self._standard_value and self._residual_value:
+      raise ValueError('plain residual V and Mudd V routes are alternatives')
+    self._has_value_m_read = not (self._residual_value or self._standard_value) or self._dual_value
     self._residual_qk = bam_mudd.is_qk_layer(cfg, self.layer_inx)
     self._persistent_read = (bool(getattr(cfg, 'bam_persistent_embedding_m', False))
                              and self.layer_inx == cfg.num_decoder_layers - 1)
@@ -2668,6 +2675,13 @@ class BamAttention(Attention):
 
 
     self._has_write = bool(self._mode) and not bam_mudd.skips_attention_write(cfg, self.layer_inx)
+    attention_writers = getattr(cfg, 'bam_attention_write_layers', None)
+    if attention_writers is not None:
+      if (not isinstance(attention_writers, (list, tuple))
+          or any(type(i) is not int or not 0 <= i < cfg.num_decoder_layers for i in attention_writers)
+          or len(set(attention_writers)) != len(attention_writers)):
+        raise ValueError('bam_attention_write_layers requires unique valid layer indices')
+      self._has_write = self._has_write and self.layer_inx in attention_writers
     assert self.read_side in ('both', 'row', 'col')
 
     # DenseGeneral passes in_axis/out_axis to its initializer in addition to
@@ -3018,7 +3032,8 @@ class BamAttention(Attention):
     # Static VO reads precede packed-arm parameters, preserving Prop init order.
     self._local_v_replace = (
         'local_v' in self._mode and self._local_o
-        and bool(getattr(cfg, 'bam_local_v_replace', False)) and not self._residual_value)
+        and bool(getattr(cfg, 'bam_local_v_replace', False))
+        and not self._residual_value and not self._standard_value)
     self._static_vo = self._local_o and bool(getattr(cfg, 'bam_local_vo_static', False))
     if self._local_v_replace:
       assert self._vo_independent_gates and self.bam_k == self.head_dim
@@ -3826,7 +3841,8 @@ class BamAttention(Attention):
         'concat QK': bool(getattr(cfg, 'bam_concat_qk', False)) and self._concat_static_qk,
         'direct C10 QK': self._direct_qk_c8,
         'LocalV replace + independent VO gates + static VO': (
-            self._local_v_replace and self._vo_independent_gates and self._static_vo),
+            (self._local_v_replace or self._standard_value)
+            and self._vo_independent_gates and self._static_vo),
         'local modes only': self._mode == {'local_qk', 'local_v', 'local_o'} and not self._local_arms,
         'column-only pruned reads': self._fetched_arm.prune_row and self._direct_qk_c8_arm.prune_row,
         'compressed V cache or full-M reads': (
@@ -3895,14 +3911,20 @@ class BamAttention(Attention):
     fused = bool(getattr(cfg, 'bam_pallas_fused_inputs', False)) and not self.is_initializing()
     full_m = self._full_m_read_rank is not None
     static_gate_names = tuple(f'general_{a}_static_gate' for a in 'qkvo'
-                              if a not in 'qk' or cfg.bam_qk_static_read_gate) if self._general_read else ()
+                              if (a not in 'qk' or cfg.bam_qk_static_read_gate)
+                              and (a != 'v' or self._has_value_m_read)) if self._general_read else ()
     if fused:
       gate_names = ('W_lq_gate', 'W_lk_gate', 'W_R_gate', 'W_lv_gate')
+      if self._standard_value:
+        gate_names = gate_names[:-1]
       key_names = ('full_m_read_down',) if full_m else ('W_lq_c8', 'W_lk_c8', 'W_R')
       shift_names = ('M_shift_gate',) if self._m_shift_mode != 'none' else ()
       write_names = ('W_gw',) if self._share_read_attention_down else ('P_loc_down', 'W_gw')
+      if not self._has_write:
+        write_names = ()
       raw = self._fused_input_projections(
-          inputs_q, ('query', 'key') + key_names + gate_names + static_gate_names + shift_names
+          inputs_q, ('query', 'key') + (('value',) if self._standard_value else ())
+          + key_names + gate_names + static_gate_names + shift_names
           + write_names)
       query = raw['query'].reshape(b_, t_, self.num_query_heads, standard_qk_width)
       key = raw['key'].reshape(b_, t_, self.num_kv_heads, standard_qk_width)
@@ -3930,6 +3952,8 @@ class BamAttention(Attention):
                                         embedding_dims=standard_qk_width)
 
     def logits(name, squeeze):
+      if name == 'W_lv_gate' and self._standard_value:
+        return jnp.full(inputs_q.shape[:2] + (self.num_query_heads,), -jnp.inf, self.dtype)
       if fused:     # same bias handling as _project_read_gate_logits
         gate_bias = getattr(self, f'{name}_b0')
         if self._force_activation_dtype:
@@ -3970,6 +3994,8 @@ class BamAttention(Attention):
     if self._general_read:      # 1.1 sigmoid(W x + b) / init, as _static_column applies it
       init = float(cfg.bam_static_read_gate_init)
       def static_multiplier(arm):   # an ungated static Q/K read passes a constant 1 to the kernel
+        if arm == 'v' and self._standard_value:
+          return jnp.zeros(inputs_q.shape[:2] + (self.num_query_heads,), self.dtype)
         name = f'general_{arm}_static_gate'
         if name not in static_gate_names:
           return jnp.ones(inputs_q.shape[:2] + (self.num_query_heads,), self.dtype)
@@ -3978,7 +4004,9 @@ class BamAttention(Attention):
         return gate / init
       static_gates = tuple(static_multiplier(arm) for arm in 'qkvo')
     weight = bam_pallas.static_weight(
-        self.static_q_key, self.static_k_key, self.static_v_key, self.static_o_key, compression)
+        self.static_q_key, self.static_k_key,
+        jnp.zeros_like(self.static_o_key) if self._standard_value else self.static_v_key,
+        self.static_o_key, compression)
     body = getattr(cfg, 'bam_pallas_body', None) or 'blocked'
     read_kwargs = {}
     if self._m_shift_mode != 'none':
@@ -4027,6 +4055,10 @@ class BamAttention(Attention):
              if getattr(cfg, 'bam_pallas_rolled_passes', None) else {}),
           **read_kwargs)
     query, key, value, local_output = outs[:4]
+    if self._standard_value:
+      # Q/K and O keep the unchanged v8t M read. V's gate/static plane has no
+      # parameters; use the ordinary residual projection for the actual V.
+      value = (raw['value'] if fused else self.kv_projection(inputs_q, proj_name='value'))
     if pass_m:
       M_in = outs[4]
     if full_qk_norm:
@@ -4060,6 +4092,9 @@ class BamAttention(Attention):
       y_std, _ = self._attention_block(query, key, value, decoder_segment_ids,
                                        q0=0, s0=0, window_size=local_window)
     o_head = y_std + local_output
+    if not self._has_write:
+      out = nn.with_logical_constraint(o_head, self.out_axis_names)
+      return self.out_projection(inputs_q.shape[-1], out), M_in, None
     if self._share_read_attention_down:
       address = self.P_loc_up(hidden)
     elif fused:

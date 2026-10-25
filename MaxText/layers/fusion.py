@@ -496,21 +496,22 @@ class SubDecoderLayer(nn.Module):
             jax.nn.sigmoid(mlp_logits), write_factors, M_out, independent_address=independent_address)
     if pallas_core:
       from layers import bam_pallas
-      groups = [write_factors]
+      groups = [] if write_factors is None else [write_factors]
       if mlp_write:
         assert independent_address is not None, 'fused core supports independent MLP addresses only'
         groups.append((write_content.reshape(write_content.shape[:-1] + (write_heads, cfg.bam_k)),
                        mlp_logits, independent_address))
-      with jax.named_scope('bam/pallas_write'):
-        M_out = bam_pallas.write(
-            M_out, groups, epsilon=initializers.get_bam_write_epsilon(cfg),   # same as the XLA write norms
-            forward_tile=int(getattr(cfg, 'bam_pallas_write_tile', None) or 128),
-            reverse_tile=int(getattr(cfg, 'bam_pallas_write_reverse_tile', None) or 128),
-            vmem_mib=getattr(cfg, 'bam_pallas_vmem_mib', None),
-            interpret=bool(getattr(cfg, 'bam_pallas_interpret', False)),
-            body=getattr(cfg, 'bam_pallas_body', None) or 'blocked',
-            **({'row_block': int(cfg.bam_pallas_write_block), 'head_block': int(cfg.bam_pallas_write_block)}
-               if getattr(cfg, 'bam_pallas_write_block', None) else {}))
+      if groups:
+        with jax.named_scope('bam/pallas_write'):
+          M_out = bam_pallas.write(
+              M_out, groups, epsilon=initializers.get_bam_write_epsilon(cfg),   # same as the XLA write norms
+              forward_tile=int(getattr(cfg, 'bam_pallas_write_tile', None) or 128),
+              reverse_tile=int(getattr(cfg, 'bam_pallas_write_reverse_tile', None) or 128),
+              vmem_mib=getattr(cfg, 'bam_pallas_vmem_mib', None),
+              interpret=bool(getattr(cfg, 'bam_pallas_interpret', False)),
+              body=getattr(cfg, 'bam_pallas_body', None) or 'blocked',
+              **({'row_block': int(cfg.bam_pallas_write_block), 'head_block': int(cfg.bam_pallas_write_block)}
+                 if getattr(cfg, 'bam_pallas_write_block', None) else {}))
 
     if mlp_lnx is not None and moe_lnx is not None:
       layer_output = mlp_lnx + intermediate_inputs + moe_lnx

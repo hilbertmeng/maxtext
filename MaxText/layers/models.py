@@ -1149,6 +1149,15 @@ class Decoder(nn.Module):
           llf_modes = (
               ['local_qk+local_o'] * (block_size - 1) + ['local_qk+full']) * (scan_length // block_size)
           assert without_v == llf_modes or without_v == ['local_qk+local_o'] * scan_length
+          if getattr(cfg, 'bam_standard_value_layers', None) is not None:
+            values = getattr(cfg, 'bam_memory_mlp_dim_by_layer', None)
+            if values is not None:
+              assert values[:scan_length] == values[:block_size] * (scan_length // block_size)
+            for key in ('bam_standard_value_layers', 'bam_attention_write_layers', 'bam_mlp_write_layers'):
+              values = getattr(cfg, key, None)
+              if values is not None:
+                enabled = [i in values for i in range(scan_length)]
+                assert enabled == enabled[:block_size] * (scan_length // block_size)
           # The block is compiled once; every per-layer read setting must repeat.
           for arm in ('q', 'k', 'v'):
             for key in ('rank', 'rank_routing', 'pre_rms_bias'):

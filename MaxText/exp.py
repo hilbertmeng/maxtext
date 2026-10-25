@@ -17182,6 +17182,8 @@ class BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640S
     128-aligned terminal match. All four read/write/embedding ranks remain640.
     """
     model_name = 'BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640SeparateVOKeys'
+    # Full32-head independent VO reverse needs58.13MiB on v5p; physical VMEM64MiB.
+    bam_pallas_vmem_mib = 60
     bam_local_vo_independent_keys = True
     bam_attention_write_layers = list(range(31))
     bam_pair_scan = False

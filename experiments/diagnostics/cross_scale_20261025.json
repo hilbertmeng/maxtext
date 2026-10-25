@@ -171,5 +171,20 @@
   "saved_long_run_self_mass_precheck": {
     "source": "/home/mengqy/Projects/Bam/training_reports/cross_scale_20261025/saved_self_mass_comparison.json",
     "result": "BAM13k→33k selfmass6.63→7.51%, SerialMudd3.22→3.11%; eight archivedqueries, differentQKnorm lineage fromShortTrain. No causal claim."
+  },
+  "self_bias_stage": {
+    "report_root": "/home/mengqy/Projects/Bam/training_reports/self_bias_20261025",
+    "state": "state.json",
+    "manifest": "arms.json",
+    "source_commits": {
+      "xl-bam": "4eaec0f416260b8200f7c279ec4d44bda7630427",
+      "py2k": "7dba06d6592ad730442127c8fbd8933b16265b8c",
+      "py16k": "9ff2e63a13ca46efef5ec5f2db8ce87a0793797a"
+    },
+    "resource": "xd-v5p8-mqy-selfbias-1025-ue5a",
+    "zone": "us-east5-a",
+    "scope": "Four frozen BAM checkpoints; onlyq>=64; first/last quarter diagonal-logit bias symmetric grid; no LM training.",
+    "selection_validation": "First16choose dose, last16validate chosen only; these32 participated in prior exploration. Any claimed improvement additionally requires freshtext and independentsoftmax replication.",
+    "status": "queued, CPU algebra/native zero/scanned scope checks passed; no measured counterfactual result yet"
   }
 }

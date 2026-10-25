@@ -16831,6 +16831,22 @@ class Pythia2p8BShortTrain(ShortTrain2p8B, Pythia2p8B):
     qk_norm = True
     
 
+class Pythia2p8BShortTrainResidualMLP7552(Pythia2p8BShortTrain):
+    """Narrow only ordinary FFNs to match the 2:1 BAM residual branch.
+
+    Scan31 layers with GELU width7552; an explicit identical Pythia layer
+    uses7178 last. Ordinary FFNs total1,235,728,010 parameters, exactly the
+    2:1 BAM ordinary branch. Total2,332,810,890, parent-442,403,190.
+    Mechanism-control budget exception: no parameter refund elsewhere.
+    Preserve the MHA parent's parallel residual and Pythia embedding/init.
+    """
+    model_name = 'Pythia2p8BShortTrainResidualMLP7552'
+    base_mlp_dim = 7552
+    pythia_last_mlp_dim = 7178
+    compare_runs = ['Pythia2p8BShortTrain',
+                    'BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1']
+
+
 class MuddPythia3BSerialMLP(TrainPythia, MuddPythiaMediumPropT2048SerialMLP): # MuddPythiaMediumPropT2048SerialMLP already inherits from PythiaArchitecture so we don't need to repeat that here.
     """PaxML PileMUDDPythia3BPlusOcdbt recipe with serial MLP and WD=0.1.
 
@@ -17102,6 +17118,48 @@ class BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPMHAWidth(
     bam_last_mlp_dim = 11129
     compare_runs = ['BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1',
                     'BamPythia2p8BSotaIndependentR768PallasShortTrain']
+
+
+class BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1ResidualMLP10240(
+        BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1):
+    """Restore MHA-width residual FFNs; hold every M-only writer unchanged.
+
+    All32 ordinary GELU widths10240. Memory widths3072, write placements,
+    all R768 read/write/embedding projections and the32-head/M80x64 circuit retain
+    the 2:1 parent. Total3,217,324,032, parent+442,403,190 (+67.50537 W_Q).
+    User-approved mechanism-control exception to equal total parameters.
+    """
+    model_name = 'BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1ResidualMLP10240'
+    base_mlp_dim = 10240
+    mlp_dim_by_block = [10240, 10240, 10240]
+    bam_final_local_mlp_dim = 10240
+    bam_last_mlp_dim = 10240
+    compare_runs = ['BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1',
+                    'Pythia2p8BShortTrain', 'MuddPythia3BSerialMLPShortTrain']
+
+
+class BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640(
+        BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1):
+    """All read/write/embedding ranks640 (=D/4); refund into residual FFNs.
+
+    User explicitly includes the shared read down, attention-write down,
+    independent MLP-write down and embedding-write down. M-only width3072
+    and all write sites retain the2:1 parent. Saves73,400,320 parameters;
+    residual widths [8064,7936,7936]x10 then8064/8192 are all128-aligned.
+    Ten3-layer blocks plus two explicit tails retain the parent's scan layout.
+    Total2,774,883,968, parent-36,874 (-.001329%, nearest all128-aligned total).
+    """
+    model_name = 'BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640'
+    bam_local_full_m_read_bottleneck_dim = 640
+    bam_write_v_bottleneck_dim = 640
+    emb_bam_v_bottleneck_dim = 640
+    bam_mlp_write_address_rank = 640
+    base_mlp_dim = 7936
+    mlp_dim_by_block = [8064, 7936, 7936]
+    bam_final_local_mlp_dim = 8064
+    bam_last_mlp_dim = 8192
+    compare_runs = ['BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1',
+                    'Pythia2p8BShortTrain', 'MuddPythia3BSerialMLPShortTrain']
 
 
 class BamPythia2p8BSotaIndependentR768PallasShortTrainNoQKStaticGate(BamPythia2p8BSotaIndependentR768PallasShortTrain):

@@ -17,6 +17,7 @@
 # pylint: disable=no-name-in-module
 
 from typing import Any, Callable, Optional
+from types import SimpleNamespace
 
 
 from flax import linen as nn
@@ -1096,6 +1097,28 @@ class Decoder(nn.Module):
             y = bam_mudd.ThreeSourceRouter(
                 cfg, mesh, self.quant, hidden_expand=4, name='compose_final_three_source')(
                     y, (embedding_anchor, l0_anchor))
+
+      elif cfg.scan_layers and cfg.get_keys().get('pythia_last_mlp_dim', 0):
+        # A width-matched Pythia control scans its uniform prefix, then uses
+        # the same decoder implementation for a differently sized final FFN.
+        # Keep the full depth in both initializers and the training schedule.
+        last_width = cfg.pythia_last_mlp_dim
+        if (cfg.decoder_block != 'pythia' or cfg.pythia_use_fusion
+            or cfg.bam_enabled or cfg.dense_conn or cfg.num_decoder_layers < 2
+            or type(last_width) is not int or last_width <= 0):
+          raise ValueError('pythia_last_mlp_dim requires scanned plain Pythia with a positive width')
+        if deep_embeddings is not None or cfg.mtp_num_layers:
+          raise ValueError('Pythia final-width control does not support deep embeddings or MTP')
+        Layer = RemattedBlockLayers[1]
+        y, _ = self.scan_decoder_layers(
+            cfg, Layer, cfg.num_decoder_layers - 1, 'layers', mesh)(
+                y, decoder_segment_ids, decoder_positions, decoder_input_tokens,
+                None, deterministic, model_mode, eos_sum)
+        tail_cfg = type(cfg)(SimpleNamespace(keys=dict(cfg.get_keys(), mlp_dim=last_width)))
+        y, _ = Layer(config=tail_cfg, mesh=mesh, quant=self.quant,
+                     name='final_pythia_layer')(
+                         y, decoder_segment_ids, decoder_positions,
+                         decoder_input_tokens, None, deterministic, model_mode, eos_sum)
 
       elif cfg.scan_layers:
         RemattedBlockLayer = RemattedBlockLayers[1]

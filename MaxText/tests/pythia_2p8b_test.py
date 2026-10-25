@@ -145,8 +145,10 @@ class Pythia2p8BTest(unittest.TestCase):
         write = p['decoder']['layers']['local_1']['block']
         self.assertEqual(write['mlp_address_down']['kernel'].shape, (2560, 10, rank))
         self.assertEqual(p['decoder']['embedding_bam_write']['W_emb_v_down']['kernel'].shape, (2560, rank))
-    self.assertEqual(counts, {'Pythia2p8B': 2775208960, 'BamPythia2p8BSota': 2775039456,
-                            'BamPythia2p8BSotaIndependentR768': 2774915808})
+    # Complete-head QKNorm has two80-wide scales, rather than two20-wide
+    # standard-arm scales: +3840 parameters at32 heads.
+    self.assertEqual(counts, {'Pythia2p8B': 2775208960, 'BamPythia2p8BSota': 2775043296,
+                            'BamPythia2p8BSotaIndependentR768': 2774919648})
 
   def test_shared_read_write_matches_tied_independent_projections(self):
     c = self.small_config()

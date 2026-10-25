@@ -109,6 +109,31 @@ timing attribution to O removal. Detailed audits and80-step timing evidence are
 in `resolved-config-audit.json`, `registry-launch-audit.jsonl`, `startup-summary.json`
 under the artifact root. No further interim loss entries belong in this ledger.
 
+Both original2:1 arms completed13500 on2026-10-25, P0. The last complete
+comparison window is13400; final5 means12600/12800/13000/13200/13400, not a
+fabricated13500 loss window. R uses the common MHA reference throughout.
+
+| Arm | Final5 gap/R vs independent2:1 | Final5 gap/R vs prior Every3 DropMemory |
+|---|---:|---:|
+| Keep O |-.00061880 /1.00393086|-.00948660 /1.06400436|
+| Drop O |-.00118136 /1.00752009|-.01004916 /1.06781005|
+
+The ordinary-V advantage over independent2:1 steadily faded after the early
+phase. Keep's last window crossed slightly above zero (+.00022980); Drop kept
+a small lead and beat Keep in all final5 windows. The Keep1.02 terminal bet
+was too optimistic; Drop1.01 was approximately met. Per-head ordinary V is
+clearly better than the earlier whole-layer replacement, but this entry alone
+did not deliver a substantial late improvement over pure independent2:1.
+
+CP13500 commit markers independently verified, both node/queued-resource pairs
+independently NOT_FOUND, and both local TensorBoards SYNC_OK. Registered READY
+leases were04:44:24–10:21:49 (5h37m25s) and04:44:28–10:23:03 (5h38m35s) UTC,
+UE5a only; prequeue first observations04:32:28/04:32:24 precede those registered
+intervals. Both exits were automatic clean completion, not preemption. Reproduction
+evidence: `report-final.json`, `registry-final.json`, `closeout-verification.json`,
+`tb-final-sync.log` under the artifact root. Pure VO and its two hybrid children
+continue under their own cursors; this closes only the original pair.
+
 User-requested speed diagnostic: one standalone spot v5p-16 in UE5a,
 `xd-v5p-16-hybrid-v4-pairscan-prof-1025`. Reuse the verified two-layer Keep AOT
 at `a978db2dff5475ad598d31a3a644499ea0203f35`, same class and exact model/batch/

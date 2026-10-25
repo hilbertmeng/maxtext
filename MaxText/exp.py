@@ -17607,6 +17607,10 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1HybridV4KeepLocalOTr
     # Params432113632 (independent2:1+352); health ON/internal+BAM OFF; Pallas+tuned Splash.
     # Startup20-99 .68587step/s (~-3.0% vs parent's approximate.707); single-layer scan.
     # Same-arm two-layer scan timing a978db2 on separate UE5a v5p16: .67580 (-1.47%); no speed benefit.
+    # Completed 13500, P0; CP13500/TB secured, xd-v5p-16-310363-maxtext node/queue absent.
+    # vs independent2:1: early lead faded; final5(12600..13400) gap-.00061880/R1.00393086;
+    # final13400 gap+.00022980. vs prior Every3 DropMemory: final5 gap-.00948660/R1.06400436.
+    # Keep-O terminalR1.02 bet overestimated; ordinary-V entry alone gave little durable improvement.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1HybridV4KeepLocalOTruePile'
     bam_standard_value_heads = 4
     bam_standard_value_keep_local_o = True
@@ -17629,6 +17633,10 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1HybridV4DropLocalOTr
     # code_commit: b5e8b0e; same implementation worktree/branch and single-layer scan as Keep.
     # UE5a v5p16; real FIRST_STEP verified; params432113056 (independent2:1-224).
     # Startup20-99 .68450step/s (~-3.2% vs parent~.707); effectively same speed as Keep.
+    # Completed 13500, P0; CP13500/TB secured, xd-v5p-16-310364-maxtext node/queue absent.
+    # vs independent2:1: early lead shrank but stayed positive; final5(12600..13400)
+    # gap-.00118136/R1.00752009. vs prior Every3 DropMemory: gap-.01004916/R1.06781005.
+    # Better than Keep O in all final5 windows; terminalR1.01 bet approximately matched, gain small.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1HybridV4DropLocalOTruePile'
     bam_standard_value_keep_local_o = False
     base_mlp_dim = 2477

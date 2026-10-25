@@ -17606,6 +17606,9 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1HybridV4KeepLocalOTr
     bam_standard_value_heads = 4
     bam_standard_value_keep_local_o = True
     bam_attention_write_layers = list(range(17))
+    bam_pair_scan = False
+    bam_local_fetch_block_size = None
+    bam_final_local_layer_count = 1
     base_mlp_dim = 2469
     mlp_dim_by_block = None
     bam_memory_mlp_dim = 1108

@@ -38,8 +38,11 @@ All first17 layers have exactly the same ordinary/private widths. Ordinary
 widths use the uniform `base_mlp_dim` and terminal `bam_last_mlp_dim` override;
 `mlp_dim_by_block` and `bam_final_local_mlp_dim` are None. No
 `bam_mlp_dim_by_layer` mechanism or ordinary per-layer width list is used.
-Scan packaging is separate from widths: prefix16 layers scan as eight identical
-2-layer blocks; L16/L17 compile separately, as in the parent.
+On user direction, disable `bam_pair_scan`: prefix17 layers scan one layer at a
+time; L17 compiles separately. The parent's two-layer packaging is not inherited.
+This changes parameter paths/RNG assignment relative to that historical parent;
+initialization distributions and layer math remain unchanged. Both new arms use
+the same single-layer packaging. No paired speed claim isolates scan granularity.
 
 The preceding whole-layer ordinary-V Every3 arms lost to independent2:1 by
 final5 gaps+.01118/+.00887 despite keeping Q/K/O reads. This experiment preserves
@@ -59,7 +62,9 @@ TB rotation500 with `begin_step` before scalar writes.
 
 Infrastructure audit: this worktree starts at current main68cc1df3, directly
 inherits its training/AOT/optimizer/checkpoint/summary-writer fixes, and changes
-none of these paths. Summary-writer regressions are part of the shared CPU gate.
+none of these paths. The decoder's existing explicit-tail path now also accepts
+a homogeneous single-layer-scanned prefix, validated against per-layer masks.
+Summary-writer regressions are part of the shared CPU gate.
 
 Training ownership: Keep logical310363 (`xd-v5p-16-310363-maxtext`), Drop310364
 (`xd-v5p-16-310364-maxtext`), spot UE5a, no passive backup zones.

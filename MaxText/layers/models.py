@@ -1129,13 +1129,31 @@ class Decoder(nn.Module):
         if type(final_local) is not int or not 0 <= final_local < cfg.num_decoder_layers:
           raise ValueError('bam_final_local_layer_count must be an integer in [0, num_decoder_layers)')
         if final_local:
-          assert pair_scan and cfg.bam_enabled and not cfg.bam_mha_control
+          assert cfg.bam_enabled and not cfg.bam_mha_control
           assert deep_embeddings is None and not cfg.dense_conn and cfg.mtp_num_layers == 0
           assert len(cfg.bam_layer_modes) == cfg.num_decoder_layers
           assert all(set(mode.split('+')) in (
               {'local_qk', 'local_o'}, {'local_qk', 'local_v', 'local_o'})
               for mode in cfg.bam_layer_modes[-final_local:])
         scan_length = cfg.num_decoder_layers - int(final_local)
+        if final_local and not pair_scan:
+          # A homogeneous prefix can scan one layer at a time; only the terminal
+          # writer-free/width exception needs an explicit module.
+          assert not cfg.dynamic_mlp_dim and cfg.mlp_dim_by_block is None
+          assert cfg.bam_layer_modes[:scan_length] == [cfg.bam_layer_modes[0]] * scan_length
+          for key in ('bam_standard_value_layers', 'bam_attention_write_layers', 'bam_mlp_write_layers'):
+            values = getattr(cfg, key, None)
+            if values is not None:
+              enabled = [i in values for i in range(scan_length)]
+              assert enabled == [enabled[0]] * scan_length
+          if cfg.bam_mlp_write_layers is None and cfg.bam_mlp_write_every:
+            every = int(cfg.bam_mlp_write_every)
+            offset = int(cfg.bam_mlp_write_offset or 0) % every
+            enabled = [(i + 1) % every == offset for i in range(scan_length)]
+            assert enabled == [enabled[0]] * scan_length
+          widths = getattr(cfg, 'bam_memory_mlp_dim_by_layer', None)
+          if widths is not None:
+            assert widths[:scan_length] == [widths[0]] * scan_length
         if pair_scan:
           from layers import fusion
 
@@ -1169,7 +1187,8 @@ class Decoder(nn.Module):
           scan_length //= block_size
         swss = format_swss(sws_list)[:cfg.num_decoder_layers]
         is_global = jnp.asarray(
-            [s >= cfg.max_target_length for s in swss], dtype=jnp.bool_)
+            [s >= cfg.max_target_length for s in swss[:cfg.num_decoder_layers - int(final_local)]],
+            dtype=jnp.bool_)
         if pair_scan:
           assert all(s >= cfg.max_target_length for s in swss)
           is_global = is_global[:cfg.num_decoder_layers - int(final_local):block_size]
@@ -1208,6 +1227,7 @@ class Decoder(nn.Module):
           )
         scan_carry, _ = scan_module(*scan_inputs)
         if final_local:
+          from layers import fusion
           # Continue from the last F's hidden state and M; neither carry is reset.
           Layer = nn.remat(
               fusion.FusionDecoderLayer, prevent_cse=True,

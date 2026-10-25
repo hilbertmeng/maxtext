@@ -28,7 +28,7 @@ class HybridValueTest(MLPWriteTest, unittest.TestCase):
         bam_attention_write_layers=list(range(5)), bam_mlp_write_layers=list(range(5)),
         mlp_dim_by_block=None, bam_memory_mlp_dim=16,
         bam_memory_mlp_dim_by_layer=None, bam_memory_mlp_last_write_dim=0,
-        bam_final_local_layer_count=2, bam_final_local_mlp_dim=None, bam_last_mlp_dim=0,
+        bam_final_local_layer_count=1, bam_final_local_mlp_dim=None, bam_last_mlp_dim=0,
         emb_bam_num_head=2, bam_write_v_bottleneck_dim=8, emb_bam_v_bottleneck_dim=8,
         bam_mlp_write_address_rank=8, bam_local_full_m_read_bottleneck_dim=8)
     return c
@@ -47,7 +47,12 @@ class HybridValueTest(MLPWriteTest, unittest.TestCase):
       self.assertIsNone(c.mlp_dim_by_block)
       self.assertIsNone(c.bam_final_local_mlp_dim)
       self.assertEqual(c.mlp_dim, 2469 if keep else 2477)
-      self.assertEqual(c.bam_local_fetch_block_size, 2)
+      self.assertFalse(c.bam_pair_scan)
+      self.assertIsNone(c.bam_local_fetch_block_size)
+      self.assertEqual(c.bam_final_local_layer_count, 1)
+      body = {p[p.index('self_attention')+1:]:v for p,v in flat.items()
+              if 'layers' in p and 'self_attention' in p}
+      self.assertEqual(body['value', 'kernel'].shape, (1200, 17, 4, 75))
       self.assertEqual(c.bam_attention_write_layers, list(range(17)))
       self.assertIsNone(c.bam_mlp_write_layers)
       self.assertEqual(c.bam_mlp_write_every, 1)
@@ -58,7 +63,7 @@ class HybridValueTest(MLPWriteTest, unittest.TestCase):
       self.assertLess(abs(ratio-2), .003)
       # The last explicit layer has unscanned shapes and no dead write parameters.
       tail = {p[p.index('self_attention')+1:]:v for p,v in flat.items()
-              if 'final_local_layer_1' in p and 'self_attention' in p}
+              if 'final_local_layer' in p and 'self_attention' in p}
       self.assertEqual(tail['value', 'kernel'].shape, (1200, 4, 75))
       self.assertEqual(tail['static_v_key',].shape, (32, 12))
       self.assertEqual(tail['W_lv_gate', 'kernel'].shape, (1200, 12, 1))
@@ -69,7 +74,7 @@ class HybridValueTest(MLPWriteTest, unittest.TestCase):
       self.assertEqual(tail['static_o_key',].shape, (32, o_heads))
       self.assertEqual(tail['general_o_static_gate', 'kernel'].shape, (1200, o_heads))
       for p in flat:
-        if 'final_local_layer_1' in p:
+        if 'final_local_layer' in p:
           self.assertFalse(set(p) & {'memory_mlp', 'P_loc_down', 'P_loc_up', 'W_gw', 'mlp_address_up'})
 
   def test_native_head_sources_and_local_o_mask(self):
@@ -119,8 +124,9 @@ class HybridValueTest(MLPWriteTest, unittest.TestCase):
         grad = jax.jit(jax.grad(lambda q: jnp.mean(call(q,tok)**2)))(p)
       for path, v in flatten_dict(grad).items():
         self.assertTrue(np.isfinite(np.asarray(v)).all(), str(path))
-        if 'final_local_layer_0' in path and ('memory_mlp' in path or 'P_loc_up' in path):
-          self.assertGreater(float(jnp.sum(v*v)), 0, str(path))
+        if 'layers' in path and ('memory_mlp' in path or 'P_loc_up' in path):
+          # param_scan_axis=1: the last prefix slice is the live L4 writer.
+          self.assertGreater(float(jnp.sum(v[:, -1]**2)), 0, str(path))
 
   check_pallas = StandardValueTest.check_pallas
   def test_pallas_keep_all_gradients(self): self.check_pallas(True)

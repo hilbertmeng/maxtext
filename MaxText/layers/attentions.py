@@ -2781,8 +2781,8 @@ class BamAttention(Attention):
     self._vo_independent_keys = bool(getattr(cfg, 'bam_local_vo_independent_keys', False))
     if self._vo_independent_keys:
       assert (self._general_read and self._full_m_read_share_down
-              and self._vo_independent_gates and not self._standard_value_heads
-              and self._has_value_m_read), 'Independent VO keys require full-head generalized shared-down reads'
+              and self._vo_independent_gates and not self._standard_value
+              and self._has_value_m_read), 'Independent VO keys require generalized shared-down M-V reads'
     self._m_shift_mode = getattr(cfg, 'bam_m_shift_mode', None) or 'none'
     if self._persistent_read and (
         not self._general_read or self._full_m_read_rank is None
@@ -3236,12 +3236,13 @@ class BamAttention(Attention):
       # identical address, then allow its up projection and bias to learn freely.
       def clone_vo_init(_key, shape, dtype, *unused, **unused_kwargs):
         source = nn.meta.unbox(self.variables['params']['W_R_up']['kernel'])
-        return jnp.reshape(source, shape).astype(dtype)
+        # Ordinary V heads lead. Their O-only keys, when present, stay untouched.
+        return jnp.reshape(source[:, -self._read_head_count('v'):, 0, :], shape).astype(dtype)
       self._add_full_m_key_projection(
-          'W_lv_c8', (self.num_query_heads, self._read_bam_v),
+          'W_lv_c8', (self._read_head_count('v'), self._read_bam_v),
           ('embed', 'q_heads', 'kv'), clone_vo_init)
       self.general_v_pre_bias = self._constant_general_parameter(
-          'general_v_pre_bias', (self.num_query_heads, self._read_bam_v), ('q_heads', 'kv'))
+          'general_v_pre_bias', (self._read_head_count('v'), self._read_bam_v), ('q_heads', 'kv'))
 
   def _constant_general_parameter(self, name, shape, axes, value=0.):
     # Constants need no random key; keep the parent's init RNG counters intact.
@@ -3337,7 +3338,8 @@ class BamAttention(Attention):
         normalized = key * jax.lax.rsqrt(jnp.mean(
             key.astype(self._read_rms_statistics_dtype)**2, axis=-1, keepdims=True)
             + self._read_key_epsilon).astype(key.dtype)
-        for target in (('v', 'o') if arm == 'vo' else (arm,)):
+        targets = (('o',) if self._vo_independent_keys else ('v', 'o')) if arm == 'vo' else (arm,)
+        for target in targets:
           post = getattr(self, 'static_' + target + '_key').T.astype(key.dtype)
           if arm == 'vo':
             post = post[:, None, :]
@@ -3575,6 +3577,7 @@ class BamAttention(Attention):
     v_read = read
     if self._vo_independent_keys:
       v_key = self._project_column_read_key('W_lv_c8', x, shared_hidden)
+      v_key = self._pad_read_heads(v_key, -2)
       v_read = bam_read(compressed_M, v_key, self._fetched_arm_ungated)
     if self._concat_health:
       v, o = (self._read_gate_activation(z.astype(jnp.float32)) for z in (v_logits, o_logits))
@@ -4047,7 +4050,8 @@ class BamAttention(Attention):
         v_key = (up['W_lv_c8_up'] + pre('v') if fused else
                  self._project_column_read_key('W_lv_c8', inputs_q, hidden))
         # v8t accepts two key slabs, V then O, instead of a shared VO slab.
-        vo_key = jnp.concatenate((v_key, vo_key), axis=-2)
+        vo_key = jnp.concatenate((self._pad_read_heads(v_key, -2),
+                                  self._pad_read_heads(vo_key, -2)), axis=-2)
       compression = jnp.eye(self.bam_v, dtype=self.static_q_key.dtype)
     else:
       if fused:
@@ -4058,7 +4062,8 @@ class BamAttention(Attention):
         k_key = self.W_lk_c8(inputs_q)
         vo_key = jnp.squeeze(self.W_R(inputs_q), axis=-2)
       compression = self.abs_v_cache_projection
-    vo_key = self._pad_read_heads(vo_key, -2)
+    if not self._vo_independent_keys:
+      vo_key = self._pad_read_heads(vo_key, -2)
     static_gates = None
     if self._general_read:      # 1.1 sigmoid(W x + b) / init, as _static_column applies it
       init = float(cfg.bam_static_read_gate_init)

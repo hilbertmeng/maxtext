@@ -17628,6 +17628,28 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1HybridV4DropLocalOTr
     bam_last_mlp_dim = 3857
 
 
+class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1HybridV4KeepLocalOSeparateVOKeysTruePile(
+    BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1HybridV4KeepLocalOTruePile):
+    """Separate V/O dynamic addresses on the12 M-V heads; ordinary heads retain O."""
+    model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1HybridV4KeepLocalOSeparateVOKeysTruePile'
+    bam_local_vo_independent_keys = True
+    base_mlp_dim = 2451
+    bam_memory_mlp_dim = 1098
+    bam_last_mlp_dim = 3831
+    compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1HybridV4KeepLocalOTruePile']
+
+
+class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1HybridV4DropLocalOSeparateVOKeysTruePile(
+    BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1HybridV4DropLocalOTruePile):
+    """Separate V/O dynamic addresses on the12 M-V heads; ordinary heads omit O."""
+    model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1HybridV4DropLocalOSeparateVOKeysTruePile'
+    bam_local_vo_independent_keys = True
+    base_mlp_dim = 2459
+    bam_memory_mlp_dim = 1102
+    bam_last_mlp_dim = 3840
+    compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1HybridV4DropLocalOTruePile']
+
+
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio3to1HybridV4KeepLocalOTruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1HybridV4KeepLocalOTruePile):
     """Reallocate the Keep-O arm's unchanged body budget to ordinary/private MLP3:1."""

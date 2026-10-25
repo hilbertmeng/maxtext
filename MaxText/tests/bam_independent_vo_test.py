@@ -66,7 +66,8 @@ class IndependentVOTest(MLPWriteTest, unittest.TestCase):
     with mesh, nn.partitioning.axis_rules(c.logical_axis_rules):
       p = nn.unbox(mod.init(jax.random.key(3),*args,M_in=m,is_global=True)['params'])
       a = p['self_attention']
-      np.testing.assert_array_equal(a['W_lv_c8_up']['kernel'], a['W_R_up']['kernel'][:,:,0,:])
+      v_heads = a['W_lv_c8_up']['kernel'].shape[1]
+      np.testing.assert_array_equal(a['W_lv_c8_up']['kernel'], a['W_R_up']['kernel'][:,-v_heads:,0,:])
       seen = []
       def capture(next_fun,args,kwargs,ctx):
         out = next_fun(*args,**kwargs)
@@ -79,6 +80,10 @@ class IndependentVOTest(MLPWriteTest, unittest.TestCase):
         mod.apply({'params':changed},*args,M_in=m,is_global=True)
       self.assertGreater(float(jnp.max(jnp.abs(seen[0][0]-seen[1][0]))),1e-6)
       np.testing.assert_array_equal(seen[0][1], seen[1][1])
+      if c.bam_standard_value_heads:
+        np.testing.assert_array_equal(seen[0][0][...,:c.bam_standard_value_heads,:],0)
+        if not c.bam_standard_value_keep_local_o:
+          np.testing.assert_array_equal(seen[0][1][...,:c.bam_standard_value_heads,:],0)
       grad = jax.grad(lambda q:jnp.mean(mod.apply({'params':q},*args,M_in=m,is_global=True)[0]**2))(p)
       for name in ('W_R_up','W_lv_c8_up'):
         self.assertGreater(float(jnp.sum(grad['self_attention'][name]['kernel']**2)),0)
@@ -122,6 +127,50 @@ class IndependentVOTest(MLPWriteTest, unittest.TestCase):
     gb = jax.grad(loss(direct),argnums=(0,1,2,3,4))(m,sw,xs,sg,sh)
     for a,bv in zip(jax.tree.leaves(ga),jax.tree.leaves(gb)):
       self.assertLess(float(jnp.max(jnp.abs(a-bv))/(jnp.max(jnp.abs(bv))+1e-12)),1e-4)
+
+
+class HybridIndependentVOTest(MLPWriteTest, unittest.TestCase):
+  def tiny(self, period=2, keep=None, length=4):
+    keep = getattr(self,'keep',True) if keep is None else keep
+    c = HybridValueTest.tiny(self,period,keep,length)
+    c.get_keys()['bam_local_vo_independent_keys'] = True
+    return c
+
+  def test_formal_hybrid_trees_and_budgets(self):
+    for keep,h,hm,last,total in [(True,2451,1098,3831,432115216),(False,2459,1102,3840,432114640)]:
+      suffix=('Keep' if keep else 'Drop')+'LocalO'
+      parent='BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1HybridV4'+suffix+'TruePile'
+      run=parent.replace('TruePile','SeparateVOKeysTruePile')
+      c=self.config(run);c.get_keys().update(max_target_length=256,max_prefill_predict_length=256)
+      mesh=jax.sharding.Mesh(max_utils.create_device_mesh(c),c.mesh_axes)
+      args,*_=train_compile.get_shaped_inputs(mesh,c);flat=flatten_dict(nn.unbox(args[0].params))
+      actual=sum(math.prod(v.shape) for v in flat.values());print('HYBRID_INDEPENDENT_VO_PARAMETERS',keep,actual,flush=True)
+      self.assertEqual(actual,total);self.assertEqual(c.compare_runs,[parent])
+      self.assertEqual((c.mlp_dim,c.bam_memory_mlp_dim,c.bam_last_mlp_dim),(h,hm,last))
+      self.assertLess(abs(3600*h/(3600*hm+458000)-2),.001)
+      self.assertNotIn('bam_mlp_dim_by_layer',c.get_keys());self.assertIsNone(c.mlp_dim_by_block)
+      self.assertIsNone(c.bam_final_local_mlp_dim);self.assertFalse(c.bam_pair_scan)
+      self.assertEqual(c.bam_final_local_layer_count,1);self.assertEqual(c.bam_attention_write_layers,list(range(17)))
+      self.assertTrue(c.bam_skip_final_mlp_write and c.bam_pallas_core and c.bam_pallas_fused_inputs)
+      self.assertTrue(c.record_training_health_metrics and not c.record_internal_nn_metrics and c.sa_use_fused_bwd_kernel)
+      self.assertFalse(any(v for k,v in c.get_keys().items() if k.startswith(('bam_record','record_bam'))))
+      body={p[p.index('self_attention')+1:]:v for p,v in flat.items() if 'layers' in p and 'self_attention' in p}
+      self.assertEqual(body['W_lv_c8_up','kernel'].shape,(256,17,12,32))
+      self.assertEqual(body['general_v_pre_bias',].shape,(12,17,32))
+      self.assertEqual(body['W_R_up','kernel'].shape,(256,17,16 if keep else 12,1,32))
+      self.assertEqual(body['value','kernel'].shape,(1200,17,4,75))
+      self.assertFalse(any('W_lv_c8_down' in p for p in flat))
+      for p in flat:
+        if 'final_local_layer' in p:
+          self.assertFalse(set(p)&{'memory_mlp','P_loc_down','P_loc_up','W_gw','mlp_address_up'})
+
+  def test_hybrid_cloned_keys_masks_and_independence(self):
+    for self.keep in (True,False):
+      IndependentVOTest.test_cloned_initial_key_and_independent_learning_paths(self)
+
+  check_pallas=StandardValueTest.check_pallas
+  def test_hybrid_keep_pallas_all_gradients(self):self.check_pallas(True)
+  def test_hybrid_drop_pallas_all_gradients(self):self.check_pallas(False)
 
 
 if __name__ == '__main__': unittest.main()

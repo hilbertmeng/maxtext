@@ -21,7 +21,7 @@ def install():
  global _INSTALLED
  if _INSTALLED:return
  _INSTALLED=True
- from layers import mudd,bam_pallas,attentions
+ from layers import mudd,attentions
  original=mudd.Mlp.__call__
  @functools.wraps(original)
  def router(self,*args,**kwargs):
@@ -30,6 +30,11 @@ def install():
   if w.shape[-2]!=4:raise ValueError(('Expected Q/K/V/residual channels',w.shape))
   return w.at[:,:,2,:].set(jnp.roll(w[:,:,2,:],SHIFT,axis=0))
  mudd.Mlp.__call__=router
+ try:
+  from layers import bam_pallas
+ except ImportError:
+  # Pre-Pallas XL Mudd only needs its signed depth-router hook.
+  return
  native=bam_pallas.read
  @functools.wraps(native)
  def read(*args,**kwargs):return pallas_v_read(native,args,kwargs,SHIFT)

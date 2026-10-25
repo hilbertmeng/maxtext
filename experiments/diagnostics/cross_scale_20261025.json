@@ -162,7 +162,11 @@
     "resource": "xd-v5p8-mqy-valroute-1025-ue5a",
     "zone": "us-east5-a",
     "scope": "Four BAM frozen checkpoints; full-query self diagonal mass and16query value moments/head participation rank; no optimizer updates.",
-    "results": "pending; do not treat as measured mechanism"
+    "results": "comparison.json",
+    "status": "4arms_native_quality_and_all_observations_verified; report published; ownnode+queueindependentlyNOT_FOUND",
+    "resource_audit": "final_resource_audit.json",
+    "result": "All-layer dynamicAV/currentO alignment43.07→42.95%2k→16k; late-quarter61.28→68.60% versusXL40.62%, pairedtemporal+7.32ppCI[2.03,12.18]. Late selfprob11.89→15.96% versusXL7.96%. Localized observational candidate, not causal loss explanation.",
+    "next": "Selective late self-attention bias with zero identity and selection/validation; compare head contributions after W_o before capacity claims."
   },
   "saved_long_run_self_mass_precheck": {
     "source": "/home/mengqy/Projects/Bam/training_reports/cross_scale_20261025/saved_self_mass_comparison.json",

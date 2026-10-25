@@ -81,9 +81,9 @@ The latter was added on user direction; exclude the weaker KeepMemory arm.
 Gain reference `BamMHAMediumPropC256TruePile` for both comparisons. Group plots
 start600, with loss gaps above and gain multipliers below; one column per baseline
 and both new arms overlaid, retaining each arm's latest complete horizon.
-Early reports around1k, then2k cadence; no interim diary entries in `exp.py`.
+Report both arms together every1000 steps; no interim diary entries in `exp.py`.
 User direction: neither arm has a2800/5000 stopping review; continue the13500-step
-plan and retain grouped2k reporting.
+plan and retain grouped1k reporting.
 Artifacts `/data0/xd/bam_diagnostics/mediumprop-hybrid-v-heads`.
 
 Sealed runtime `b5e8b0eb675f251c39e77c1a41c9e6e9ffca3824`:62 CPU checks

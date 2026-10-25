@@ -338,15 +338,21 @@ partial overlap: ordinary V changes the information source, while independent
 VO changes M addressing, but both relax value/O coupling. Do not assume
 ordinary-head O removal necessarily makes the independent-address gain larger.
 
-Only matching hybrid parent in compare_runs; matched common reference
-BamMHAMediumPropC256TruePile. Group1k reports, curves from600; default Medium
+Each child compares both its matching hybrid parent and pure independent VO
+(`BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysTruePile`);
+both direct gain ratios use BamMHAMediumPropC256TruePile as the common reference.
+The pure-VO comparison directly measures whether ordinary-V heads add net value
+after VO decoupling. Persist both triples in the native registry; this live
+monitoring override does not change the sealed training runtime. Group1k reports,
+curves from600; default Medium
 2800-step review,13500 endpoint. Pure independent VO versus pure2:1 supplies
 the other conditional effect for this family's secondary analysis:
 Q=R_child/hybrid divided by R_pureVO/pure2:1, with both native R using MHA.
 Q measures relative-gain interaction, not exact absolute additivity.
 I=(L_hybrid-L_child)-(L_pure2:1-L_pureVO), zero for absolute additive gains,
-positive above the additive prediction. Plot Q and I beside direct loss gaps/
-gain ratios at complete common windows. Keep both metrics in this family
+positive above the additive prediction. Use a2x3 figure: matching-parent gap/R,
+pure-VO gap/R, and Q/I; keep complete same-step windows in every comparison.
+Do not introduce a head-count-scaled reference line. Keep Q/I in this family
 analysis; do not modify the generic registry report. This tests complementarity
 or substitution, not a precise decomposition of the ordinary-V mechanism.
 
@@ -371,7 +377,8 @@ Startup20-99 harmonic speeds Keep.671362/Drop.672212step/s, medians.675/.676,
 -2.12%/-1.79% against their measured matched-parent.685872/.684498 windows.
 Matched batch, topology, health and scan; each has80 samples. All14 BAM statistics
 flags False, generic health True/internal False. Live native gain specifications
-include only the matching hybrid comparator and common MHA reference.
+include both the matching hybrid comparator and pure independent VO, with the
+same common MHA reference.
 Actual proof under hybrid-separate-vo/{resolved-config-audit.json,worker-keep/
 drop-audit.json,speed-keep/drop.json,step100-keep/drop.log,registry-keep/drop.json}.
 Family-only plot_pair.py consumes native window JSON and computes Q/I; no generic

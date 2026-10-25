@@ -15,3 +15,12 @@ def grams(gradients):
   og=jnp.einsum('lhif,lhjf->lhij',o,o,precision=jax.lax.Precision.HIGHEST)
   result['out_gram']=og.reshape(L,H,S,B,S,B).transpose(0,1,2,4,3,5)
  return result
+
+def sharded_gram_function(mesh):
+ """Contract feature shards locally, then all-reduce only the small Grams."""
+ P=jax.sharding.PartitionSpec
+ specs=dict(up=P(None,None,None,'fsdp',None,None,None),down=P(None,None,None,'fsdp',None),out=P(None,None,None,None,None,'fsdp'))
+ def local(g):
+  result=grams(g)
+  return jax.tree.map(lambda x:jax.lax.psum(x,'fsdp'),result)
+ return jax.jit(jax.shard_map(local,mesh=mesh,in_specs=(specs,),out_specs=P(),check_vma=False),donate_argnums=(0,))

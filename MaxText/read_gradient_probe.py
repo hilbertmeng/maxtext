@@ -115,7 +115,7 @@ def main():
   finally:capture.DELTA=None
   selected=objective_mask*b['mask'];denominator=jnp.sum(selected)
   return jnp.sum(loss*selected)/jnp.maximum(denominator,1.),jnp.sum(loss*b['mask'],axis=1)/jnp.maximum(b['mask'].sum(1),1)
- grad_fn=jax.jit(jax.value_and_grad(objective,argnums=1,has_aux=True));gram_fn=jax.jit(statistics.grams)
+ grad_fn=jax.jit(jax.value_and_grad(objective,argnums=1,has_aux=True));gram_fn=statistics.sharded_gram_function(mesh)
  finite_fn=jax.jit(lambda tree:jnp.all(jnp.stack([jnp.all(jnp.isfinite(v)) for v in jax.tree.leaves(tree)])))
  def gate_bias(weights,offset):
   flat=flatten_dict(weights);new={};matched=0
@@ -157,6 +157,8 @@ def main():
    drift=float(np.max(np.abs(np.asarray(predictions)-expected_losses)))
    if drift>.005:raise ValueError(('Zero-delta forward changed CE',mode,drift))
    stacked=jax.tree.map(lambda *xs:jnp.stack(xs),*gradients)
+   jax.block_until_ready(stacked)
+   del gradients,g;gc.collect()
    grams=jax.device_get(gram_fn(stacked))
    assert all(np.isfinite(x).all() for x in grams.values())
    assert grams['up_gram'].shape==(L,H,2,2,len(batches),len(batches))
@@ -167,7 +169,7 @@ def main():
    (out/'progress.json').write_text(json.dumps(dict(label=a.label,completed=list(modes)),indent=2)+'\n')
    subprocess.run(['gsutil','-q','cp',str(out/(mode+'.npz')),a.gcs_output+'/'+mode+'.npz'],check=True)
    print('READ_GRADIENT_MODE_COMPLETE',a.label,mode,flush=True)
-   del gradients,stacked,grams,g;gc.collect()
+   del stacked,grams;gc.collect()
  meta=dict(label=a.label,experiment=a.experiment,checkpoint=a.checkpoint,source_commit=subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip(),parameter_count=expected['parameter_count'],sequence_hashes=hashes,sequences=a.sequences,length=a.length,batch_size=a.batch_size,config=dict(num_decoder_layers=L,emb_dim=D,num_query_heads=H,bam_v=V,read_hidden=R),native_losses=baseline.mean(1).tolist(),native_reference_max_CE_delta=native_error,prewo_observer_max_CE_delta=prewo_drift,prewo_O_closure_max_relative_rms=prewo_closure_max_relative_rms,reader_weight_norms=weight_norms,modes=modes,elapsed_seconds=time.time()-start,definition='Zero-delta parameter-path gradients, no parameter updates. Four down paths Q/K/V/O sum to native shared full_m_read_down gradient, two up paths V/O sum to native W_R_up gradient; output-projection paths MHA/directO/rounding sum to native W_o gradient in FP32 checks. BF16 rounding is explicitly separate. Per-batch pairwise Gram matrices permit exact bootstrap of weighted pooled gradient cosines. FP32 CE statistics on native model/logits dtype. Raw gradients are not AdamW updates and do not establish training-gain attribution.')
  (out/'metadata.json').write_text(json.dumps(meta,indent=2)+'\n')
  subprocess.run(['gsutil','-m','rsync','-r',str(out),a.gcs_output],check=True)

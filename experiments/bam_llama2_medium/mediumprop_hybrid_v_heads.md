@@ -81,9 +81,10 @@ The latter was added on user direction; exclude the weaker KeepMemory arm.
 Gain reference `BamMHAMediumPropC256TruePile` for both comparisons. Group plots
 start600, with loss gaps above and gain multipliers below; one column per baseline
 and both new arms overlaid, retaining each arm's latest complete horizon.
-Report both arms together every1000 steps; no interim diary entries in `exp.py`.
+Report these original2:1 arms together every2000 steps on latest user direction;
+new3:1 arms retain1000-step reporting. No interim diary entries in `exp.py`.
 User direction: neither arm has a2800/5000 stopping review; continue the13500-step
-plan and retain grouped1k reporting.
+plan and retain grouped2k reporting.
 Artifacts `/data0/xd/bam_diagnostics/mediumprop-hybrid-v-heads`.
 
 Sealed runtime `b5e8b0eb675f251c39e77c1a41c9e6e9ffca3824`:62 CPU checks
@@ -167,7 +168,7 @@ Pre-run MHA-reference terminal multiplier bets versus each matching2:1 parent:
 Keep1.01 (range.99-1.03), Drop1.02 (.99-1.045). Throughput prior within~2% of
 each parent. Compare each new RUN only with its matching2:1 parent; use
 `BamMHAMediumPropC256TruePile` as the common reference. Historical pure3:1/2:1
-supplies the capacity-allocation prior. Group reports every1000 steps; no2800/5000
+supplies the capacity-allocation prior. Group reports for these3:1 arms remain every1000 steps; no2800/5000
 stopping reviews, plan13500 for all four.
 
 Infrastructure audit versus latest main8832c269: no main-only changes in training,

@@ -270,3 +270,84 @@ flags explicitly False; generic health ON/internal OFF. Native gain monitoring
 persisted with original independent2:1 comparator and matched MHA reference.
 Main class is ledger only. Startup evidence in separate-vo/resolved-config-audit.json,
 worker-audit.json, speed.json, step100.log and monitoring-registration.txt.
+
+## Hybrid V heads plus independent V/O addresses
+
+User requested both combinations after reviewing the independent-VO experiment.
+RUNs:
+- BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1HybridV4KeepLocalOSeparateVOKeysTruePile
+- BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1HybridV4DropLocalOSeparateVOKeysTruePile
+
+Each inherits only its matching2:1 HybridV4 parent. Four ordinary W_V heads stay
+unchanged. Separate dynamic V/O addresses only on the remaining12 M-V heads: one
+additional R256->12x32 up and12x32 pre-RMS bias; the shared Q/K/V/O R256 down
+remains. Clone each V address from its matching O address at initialization;
+ordinary-head O-only addresses, where present, stay unchanged. Dynamic/static
+gates and static reads already independent, with no added mixture gates.
+
+Use the existing independent-key v8t kernel unchanged. Adapt compact head keys
+by padding the four absent V slots and, for Drop, the four absent O slots before
+packing V/O separately. The read matmul still has4N rows. Native and fused
+paths must match forward and every parameter gradient. No JAX-only fallback.
+
+| Arm | Ordinary/private L0-16 | Complete branch ratio | L17 | Total | Parent delta |
+|---|---|---:|---:|---:|---:|
+| Keep O, independent VO |2451/1098|2.000453:1|3831|432115216|+1584|
+| Drop O, independent VO |2459/1102|2.000452:1|3840|432114640|+1584|
+
+Extra98688/layer=.0685333W_Q,1776384 total=1.2336W_Q, exactly3/4 of
+the pure independent-VO address overhead. Preserve the complete ordinary/
+private2:1 allocation after paying this cost, adjust only the terminal ordinary
+width for integer balancing. Both parent deltas+.0011W_Q. All first17 widths
+uniform, base_mlp_dim plus bam_last_mlp_dim; no ordinary per-layer width list.
+Single-layer scan17+explicit L17; retain all17 productive attention/private
+writes and neither terminal writer. No Mudd, no new M-shift gates, no cache change.
+T4096/global128/per-device16/BF16/full remat/13500, checkpoint200/latest2,
+TB rotate500. Pallas v8t/48MiB/fused inputs, tuned Splash1024/fused backward,
+generic training health ON/internal+BAM stats OFF.
+
+Before-run MHA-reference terminal gain bets versus matching hybrid parent:
+both1.015 (working range.99-1.04); approximate late gap-.0024 using the
+parent's late MHA advantage. Speed prior about-1% (range-3%..+1%). I expect
+partial overlap: ordinary V changes the information source, while independent
+VO changes M addressing, but both relax value/O coupling. Do not assume
+ordinary-head O removal necessarily makes the independent-address gain larger.
+
+Only matching hybrid parent in compare_runs; matched common reference
+BamMHAMediumPropC256TruePile. Group1k reports, curves from600; default Medium
+2800-step review,13500 endpoint. Pure independent VO versus pure2:1 supplies
+the other conditional effect for this family's secondary analysis:
+Q=R_child/hybrid divided by R_pureVO/pure2:1, with both native R using MHA.
+Q measures relative-gain interaction, not exact absolute additivity.
+I=(L_hybrid-L_child)-(L_pure2:1-L_pureVO), zero for absolute additive gains,
+positive above the additive prediction. Plot Q and I beside direct loss gaps/
+gain ratios at complete common windows. Keep both metrics in this family
+analysis; do not modify the generic registry report. This tests complementarity
+or substitution, not a precise decomposition of the ordinary-V mechanism.
+
+IDs310368/310369, spot v5p16 UE5a, no backup queue. Borrow only the verified
+READY/idle FLEX_START llm-jax-v6e-1-0 EW4a worker0; serialized AOT lock and
+parallel CPU/training prequeues. Never lifecycle-adopt/delete the compiler.
+Worktree/branch unchanged. Audit main55523afe versus5dea945: no main-only
+training/AOT/optimizer/checkpoint/summary-writer fixes. Kernel unchanged;
+focused CPU gates cover both full parameter trees, masks and cloned initial
+keys, native/Pallas logits/all gradients in both O modes, pure-VO regression
+and rotating writers. Artifacts: family root/hybrid-separate-vo.
+
+Sealed runtime4f3c59ae6b90f6a188b481e490f05f218fc588e7. Ten focused CPU
+checks passed once through a shared gate: both formal trees/budgets, both head
+masks/key independence, both native/Pallas model forwards/all gradients, pure-VO
+regression and5 writer regressions. Maximum relative model-gradient errors
+2.90e-6/4.11e-6. The kernel implementation is unchanged from verified5dea945.
+Both exact AOTs, actual worker hashes, Loaded-compiled markers, GCS resolved
+configs and FIRST_STEP/100-step gates verified. First prequeue READY2026-10-25
+08:52:49/08:52:11 UTC; registry assignments08:53:11/08:52:21.
+Startup20-99 harmonic speeds Keep.671362/Drop.672212step/s, medians.675/.676,
+-2.12%/-1.79% against their measured matched-parent.685872/.684498 windows.
+Matched batch, topology, health and scan; each has80 samples. All14 BAM statistics
+flags False, generic health True/internal False. Live native gain specifications
+include only the matching hybrid comparator and common MHA reference.
+Actual proof under hybrid-separate-vo/{resolved-config-audit.json,worker-keep/
+drop-audit.json,speed-keep/drop.json,step100-keep/drop.log,registry-keep/drop.json}.
+Family-only plot_pair.py consumes native window JSON and computes Q/I; no generic
+report modification. Main entries are ledger only; no interim loss diary entries.

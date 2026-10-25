@@ -17636,6 +17636,37 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1HybridV4DropLocalOTr
     bam_last_mlp_dim = 3857
 
 
+class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1HybridV4KeepLocalOSeparateVOKeysTruePile(
+    BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1HybridV4KeepLocalOTruePile):
+    """Ledger only: independent V/O dynamic addresses on12 M-V heads; ordinary heads retain O."""
+    # code_commit: 4f3c59a; implementation codex/mediumprop-hybrid-v-heads, /data0/xd/mediumprop-hybrid-v-heads.
+    # UE5a v5p16 xd-v5p-16-310368-maxtext; source/config/AOT/FIRST_STEP verified; plan13500.
+    # Extra98688/layer=.068533W_Q; params432115216, matched parent+1584; complete MLP ratio2.000453:1.
+    # Startup20-99 .671362step/s, -2.12% vs matched parent; health ON/internal+BAM OFF, single-layer scan.
+    # Pallas v8t/fused independent-key core, tuned Splash; V up cloned from O's corresponding12 heads.
+    model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1HybridV4KeepLocalOSeparateVOKeysTruePile'
+    bam_local_vo_independent_keys = True
+    base_mlp_dim = 2451
+    bam_memory_mlp_dim = 1098
+    bam_last_mlp_dim = 3831
+    compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1HybridV4KeepLocalOTruePile']
+
+
+class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1HybridV4DropLocalOSeparateVOKeysTruePile(
+    BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1HybridV4DropLocalOTruePile):
+    """Ledger only: independent V/O dynamic addresses on12 M-V heads; ordinary heads omit O."""
+    # code_commit: 4f3c59a; same implementation worktree/branch, health and single-layer scan as Keep.
+    # UE5a v5p16 xd-v5p-16-310369-maxtext; source/config/AOT/FIRST_STEP verified; plan13500.
+    # Params432114640, matched parent+1584; complete MLP ratio2.000452:1.
+    # Startup20-99 .672212step/s, -1.79% vs matched parent; Pallas v8t/fused, tuned Splash.
+    model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1HybridV4DropLocalOSeparateVOKeysTruePile'
+    bam_local_vo_independent_keys = True
+    base_mlp_dim = 2459
+    bam_memory_mlp_dim = 1102
+    bam_last_mlp_dim = 3840
+    compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1HybridV4DropLocalOTruePile']
+
+
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio3to1HybridV4KeepLocalOTruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1HybridV4KeepLocalOTruePile):
     """Ledger only: matching hybrid Keep-O arm with ordinary/complete M-update budget3:1."""

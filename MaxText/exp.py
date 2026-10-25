@@ -17599,6 +17599,39 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1TruePile(
     compare_runs = ['BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile']
 
 
+class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1HybridV4KeepLocalOTruePile(
+    BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1TruePile):
+    """Ledger only:4 residual W_V heads plus12 M-V heads in every layer; retain local O."""
+    # code_commit: b5e8b0e; implementation codex/mediumprop-hybrid-v-heads, /data0/xd/mediumprop-hybrid-v-heads.
+    # UE5a v5p16; real FIRST_STEP verified. Single-layer scan L0-16, explicit L17; plan13500.
+    # Params432113632 (independent2:1+352); health ON/internal+BAM OFF; Pallas+tuned Splash.
+    model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1HybridV4KeepLocalOTruePile'
+    bam_standard_value_heads = 4
+    bam_standard_value_keep_local_o = True
+    bam_attention_write_layers = list(range(17))
+    bam_pair_scan = False
+    bam_local_fetch_block_size = None
+    bam_final_local_layer_count = 1
+    base_mlp_dim = 2469
+    mlp_dim_by_block = None
+    bam_memory_mlp_dim = 1108
+    bam_final_local_mlp_dim = None
+    bam_last_mlp_dim = 3848
+    compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1TruePile']
+
+
+class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1HybridV4DropLocalOTruePile(
+    BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1HybridV4KeepLocalOTruePile):
+    """Ledger only: omit local O only on the4 residual-V heads; retain12 M-V/O heads."""
+    # code_commit: b5e8b0e; same implementation worktree/branch and single-layer scan as Keep.
+    # UE5a v5p16; real FIRST_STEP verified; params432113056 (independent2:1-224).
+    model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1HybridV4DropLocalOTruePile'
+    bam_standard_value_keep_local_o = False
+    base_mlp_dim = 2477
+    bam_memory_mlp_dim = 1112
+    bam_last_mlp_dim = 3857
+
+
 class BamMediumPropMShiftReadG050SharedHiddenMemoryMLPTruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1TruePile):
     """Share SwiGLU input/gate projections and hidden activation; separate vector/M heads."""

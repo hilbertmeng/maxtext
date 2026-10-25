@@ -102,6 +102,12 @@ def install():
    name='main'
    if measured.ndim==4:measured=measured[:,:,0,:]
   elif self.name=='mlp_address_down':name='address'
+  if len(path)>1 and path[-2]=='mlp' and self.name=='wo':
+   hidden=args[0].astype(jnp.float32)
+   square=jnp.mean(hidden**2,-1);fourth=jnp.mean(hidden**4,-1)
+   self.sow('intermediates','stream_ffn_hidden_square',square)
+   self.sow('intermediates','stream_ffn_hidden_energy_participation',square**2/jnp.maximum(fourth,1e-30))
+   self.sow('intermediates','stream_ffn_hidden_positive_ratio',jnp.mean(hidden>0,-1))
   if name:
    if measured.ndim!=3:raise ValueError((path,measured.shape))
    self.sow('intermediates','stream_ffn_'+name+'_positive_ratio',jnp.mean(measured>0,-1))

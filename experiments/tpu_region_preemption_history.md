@@ -2169,7 +2169,6 @@ active leases are censored, and manual migration releases are not preemptions.
 | `BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1` | 2 | `us-east5-a` | 2026-10-24 13:47:28 | 2026-10-24 16:28:37 | 2h41m09s | user pause21545; resumed18481 on retained Mudd trainer, assignment13:47:23; P0 cumulative; CP/fixed2k..20k committed, node/queue independently absent, TB SYNC_OK; LR28k unchanged |
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1StandardVEvery3KeepMemoryTruePile` | 1 | `us-east5-a` | 2026-10-24 15:02:53 | 2026-10-24 20:39:50 | 5h36m57s | clean completion13500; CP13500 committed, node/queue absent, TB SYNC_OK |
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1StandardVEvery3DropMemoryTruePile` | 2 | `us-east5-a` | 2026-10-24 16:05:39 | 2026-10-24 20:44:50 | 4h39m11s | clean completion13500; CP13500 committed, node/queue absent, TB SYNC_OK |
-
 | `HybridV4 KeepLocalO two-layer scan timing (a978db2)` | 1 | `us-east5-a` | 2026-10-25 05:08:49 (first observed READY) | 2026-10-25 05:20:00 (verified absent) | ≤11m11s | complete20-99 timing, manual release; P0; both worker processes gone, timing/logs secured, exact diagnostic node/queue absent; formal trainers and FLEX unchanged |
 
 ### 2026-10-14 user pause: resumed mixed R256/R384

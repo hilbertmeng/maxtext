@@ -34,10 +34,12 @@ be removed. Complete independent private write controls cost458000 per layer.
 | Keep local O |2469/1108|1.998830:1|3848|432113632|+352|
 | Drop local O |2477/1112|1.998834:1|3857|432113056|-224|
 
-Ordinary widths use only the existing two-layer repeated `mlp_dim_by_block`
-pattern and terminal `bam_last_mlp_dim` override. No `bam_mlp_dim_by_layer`
-mechanism or ordinary per-layer width list is used. Prefix16 layers scan as
-eight2-layer blocks; L16/L17 compile separately, as in the parent.
+All first17 layers have exactly the same ordinary/private widths. Ordinary
+widths use the uniform `base_mlp_dim` and terminal `bam_last_mlp_dim` override;
+`mlp_dim_by_block` and `bam_final_local_mlp_dim` are None. No
+`bam_mlp_dim_by_layer` mechanism or ordinary per-layer width list is used.
+Scan packaging is separate from widths: prefix16 layers scan as eight identical
+2-layer blocks; L16/L17 compile separately, as in the parent.
 
 The preceding whole-layer ordinary-V Every3 arms lost to independent2:1 by
 final5 gaps+.01118/+.00887 despite keeping Q/K/O reads. This experiment preserves

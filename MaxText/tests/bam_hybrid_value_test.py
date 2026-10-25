@@ -26,9 +26,9 @@ class HybridValueTest(MLPWriteTest, unittest.TestCase):
         max_prefill_predict_length=length, query_chunk_size=length,
         bam_standard_value_heads=1, bam_layer_modes=['local_qk+local_v+local_o']*6,
         bam_attention_write_layers=list(range(5)), bam_mlp_write_layers=list(range(5)),
-        mlp_dim_by_block=[32, 32], bam_memory_mlp_dim=16,
+        mlp_dim_by_block=None, bam_memory_mlp_dim=16,
         bam_memory_mlp_dim_by_layer=None, bam_memory_mlp_last_write_dim=0,
-        bam_final_local_layer_count=2, bam_final_local_mlp_dim=32, bam_last_mlp_dim=0,
+        bam_final_local_layer_count=2, bam_final_local_mlp_dim=None, bam_last_mlp_dim=0,
         emb_bam_num_head=2, bam_write_v_bottleneck_dim=8, emb_bam_v_bottleneck_dim=8,
         bam_mlp_write_address_rank=8, bam_local_full_m_read_bottleneck_dim=8)
     return c
@@ -44,7 +44,9 @@ class HybridValueTest(MLPWriteTest, unittest.TestCase):
       print('HYBRID_VALUE_PARAMS', keep, actual, flush=True)
       self.assertEqual(actual, total)
       self.assertNotIn('bam_mlp_dim_by_layer', c.get_keys())
-      self.assertEqual(c.mlp_dim_by_block, [2469, 2469] if keep else [2477, 2477])
+      self.assertIsNone(c.mlp_dim_by_block)
+      self.assertIsNone(c.bam_final_local_mlp_dim)
+      self.assertEqual(c.mlp_dim, 2469 if keep else 2477)
       self.assertEqual(c.bam_local_fetch_block_size, 2)
       self.assertEqual(c.bam_attention_write_layers, list(range(17)))
       self.assertIsNone(c.bam_mlp_write_layers)
@@ -52,7 +54,7 @@ class HybridValueTest(MLPWriteTest, unittest.TestCase):
       self.assertTrue(c.bam_skip_final_mlp_write)
       self.assertTrue(c.record_training_health_metrics and not c.record_internal_nn_metrics)
       self.assertTrue(c.bam_pallas_core and c.bam_pallas_fused_inputs and c.sa_use_fused_bwd_kernel)
-      ratio = 3600*c.mlp_dim_by_block[0]/(3600*c.bam_memory_mlp_dim+458000)
+      ratio = 3600*c.mlp_dim/(3600*c.bam_memory_mlp_dim+458000)
       self.assertLess(abs(ratio-2), .003)
       # The last explicit layer has unscanned shapes and no dead write parameters.
       tail = {p[p.index('self_attention')+1:]:v for p,v in flat.items()

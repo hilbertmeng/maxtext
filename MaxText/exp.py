@@ -17607,9 +17607,9 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1HybridV4KeepLocalOTr
     bam_standard_value_keep_local_o = True
     bam_attention_write_layers = list(range(17))
     base_mlp_dim = 2469
-    mlp_dim_by_block = [2469, 2469]
+    mlp_dim_by_block = None
     bam_memory_mlp_dim = 1108
-    bam_final_local_mlp_dim = 2469
+    bam_final_local_mlp_dim = None
     bam_last_mlp_dim = 3848
     compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1TruePile']
 
@@ -17620,9 +17620,7 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1HybridV4DropLocalOTr
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1HybridV4DropLocalOTruePile'
     bam_standard_value_keep_local_o = False
     base_mlp_dim = 2477
-    mlp_dim_by_block = [2477, 2477]
     bam_memory_mlp_dim = 1112
-    bam_final_local_mlp_dim = 2477
     bam_last_mlp_dim = 3857
 
 

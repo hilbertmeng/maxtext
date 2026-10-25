@@ -17722,6 +17722,12 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1HybridV4DropLocalOSe
     # UE5a v5p16 xd-v5p-16-310369-maxtext; source/config/AOT/FIRST_STEP verified; plan13500.
     # Params432114640, matched parent+1584; complete MLP ratio2.000452:1.
     # Startup20-99 .672212step/s, -1.79% vs matched parent; Pallas v8t/fused, tuned Splash.
+    # Completed 13500/P0; CP13500 committed, node/queue independently absent, TB SYNC_OK.
+    # vs hybrid Drop-O: sustained address-decoupling gain; final5(12600..13400) gap-.00550856/R1.03480786.
+    # vs pure independent VO: early lead faded, crossed near10k, ended near parity/slightly behind;
+    # final5 gap+.00013748/R.99915727, with3.91% slower matched startup throughput.
+    # Family interaction final5 Q.99170075/I-.00131884: VO benefit overlaps with ordinary-V benefit.
+    # Terminal1.015 bet vs hybrid parent was conservative; no extra net SOTA gain over pure VO at this allocation.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1HybridV4DropLocalOSeparateVOKeysTruePile'
     bam_local_vo_independent_keys = True
     base_mlp_dim = 2459

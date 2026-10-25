@@ -272,7 +272,7 @@ advantage), speed within~2% of its~.707 record, scan package differs.
 
 T4096/global128/per-device16/BF16/full remat/13500; checkpoints200/latest2,
 TB rotate500. Direct compare only independent2:1; common MHA reference
-BamMHAMediumPropC256TruePile. Report1000-step groups from600, loss gap
+BamMHAMediumPropC256TruePile. Report2000-step groups from600, loss gap
 and gain together. Standard Medium2800-step review;13500 remains the training
 endpoint so a review never triggers automatic resource deletion.
 Spot UE5a v5p16 ID310367; reverified READY/idle ACTIVE FLEX_START compiler
@@ -362,8 +362,8 @@ Each child compares both its matching hybrid parent and pure independent VO
 both direct gain ratios use BamMHAMediumPropC256TruePile as the common reference.
 The pure-VO comparison directly measures whether ordinary-V heads add net value
 after VO decoupling. Persist both triples in the native registry; this live
-monitoring override does not change the sealed training runtime. Remaining active
-runs report every2000 steps on the user's latest direction,
+monitoring override does not change the sealed training runtime. Reports used
+the user's latest2000-step cadence,
 curves from600; default Medium
 2800-step review,13500 endpoint. Pure independent VO versus pure2:1 supplies
 the other conditional effect for this family's secondary analysis:
@@ -412,14 +412,31 @@ VO it was mostly behind after the transient, with a persistent late deficit:
 final5 gap+.00113780/R.99385940, despite4.03% lower startup throughput. This rules
 it out as the current SOTA candidate; the positive address-decoupling effect itself
 remains supported. The original1.015 terminal bet was versus the hybrid parent;
-the full13500 endpoint was not measured. Pure VO and the Drop-O combination continue,
-now every2000 steps, with final13500 closeout.
+the full13500 endpoint was not measured for Keep-O.
 
 CP7677 commit marker independently verified; both node and queued resource
 independently NOT_FOUND, local TB SYNC_OK. Registered READY lease08:53:19–12:09:42
 UTC (3h16m23s), UE5a v5p16 only; first prequeue READY08:52:49 preceded registration.
 User stop, no preemption or lost committed steps. Proof under hybrid-separate-vo:
 closeout-keep-summary.json, closeout-keep-verification.json, report-keep-final.json.
+
+Drop-O combination completed13500 on2026-10-25 UTC, P0. Final five windows
+12600..13400 versus its matching hybrid Drop-O parent give gap-.00550856 and
+MHA-reference R1.03480786, exceeding the terminal1.015 prior. Against pure
+independent VO, the early lead faded, crossed near10k, and ended near parity:
+final5 gap+.00013748/R.99915727; four of five final gaps are positive.
+Matched startup throughput is3.91% lower than pure VO, so pure VO is preferred
+for the next baseline. At this allocation, ordinary-V heads add no extra net
+loss improvement after dynamic V/O address decoupling. Final5 Q.99170075 shows
+a smaller relative VO gain with hybrid; I-.00131884 is below the absolute
+additive prediction.
+Both final CP13500 markers and absent nodes/queues were independently checked;
+both local TensorBoards are SYNC_OK. All task-owned training resources are closed.
+Drop's only registered READY lease is UE5a v5p16,08:52:24–14:39:09 UTC,
+5h46m45s; first prequeue READY08:52:11, registry assignment08:52:21.
+Artifacts: hybrid-separate-vo/native-final-drop-loss.json, report-drop-final.json,
+final-drop-metrics.json, closeout-drop-verification.json and closeout-drop-local.log.
+The cumulative final figure is hybrid-independent-vo-final-13500-20261025-1436.png.
 
 Mainline integration validation:67 pinned-CPU checks passed (47 shared BAM,
 5 historical whole-layer standard-V,6 hybrid-V,8 independent-VO/combination,

@@ -17662,6 +17662,30 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio3to1HybridV4DropLocalOTr
     compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1HybridV4DropLocalOTruePile']
 
 
+class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysTruePile(
+    BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1TruePile):
+    """Ledger only: independent dynamic V/O read keys with shared R256 down."""
+    # code_commit: 5dea945; implementation codex/mediumprop-hybrid-v-heads, /data0/xd/mediumprop-hybrid-v-heads.
+    # UE5a v5p16 xd-v5p-16-310367-maxtext; actual source/config/AOT/FIRST_STEP verified; plan13500.
+    # V up cloned from O at init; independent pre-bias. Gates and static reads already independent.
+    # Extra131584/layer=.091378W_Q; remove unused458000-param L17 attention writer.
+    # Params432112192, parent-1088; ordinary/complete private branch ratio1.999646:1.
+    # Startup20-99 .699548step/s (~-1.1% vs parent~.707); scan packaging also differs.
+    # Health ON/internal+BAM OFF; Pallas v8t fused independent-key read, tuned Splash;59 CPU checks passed.
+    model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysTruePile'
+    bam_local_vo_independent_keys = True
+    bam_attention_write_layers = list(range(17))
+    bam_pair_scan = False
+    bam_local_fetch_block_size = None
+    bam_final_local_layer_count = 1
+    base_mlp_dim = 2510
+    mlp_dim_by_block = None
+    bam_memory_mlp_dim = 1128
+    bam_final_local_mlp_dim = None
+    bam_last_mlp_dim = 3904
+    compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1TruePile']
+
+
 class BamMediumPropMShiftReadG050SharedHiddenMemoryMLPTruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1TruePile):
     """Share SwiGLU input/gate projections and hidden activation; separate vector/M heads."""

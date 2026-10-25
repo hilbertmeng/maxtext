@@ -161,6 +161,9 @@ class DenseGeneral(nn.Module):
 
     contract_ind = tuple(range(0, len(axis)))
     output = compute_dot_general(inputs, kernel, axis, contract_ind)
+    # Read-only diagnostic callback; leaves the native forward value unchanged.
+    import residual_source_capture
+    residual_source_capture.observe_dense(self, output)
 
     if self.use_bias:
       bias_axes, bias_shape = (

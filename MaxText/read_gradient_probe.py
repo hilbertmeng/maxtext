@@ -63,6 +63,9 @@ def main():
   result=np.concatenate(values);assert result.shape==(a.sequences,a.length) and np.isfinite(result).all()
   return result
  key=a.label.removeprefix('read_gradient_');expected=reference['models'][key]
+ assert expected['experiment']==a.experiment and expected['checkpoint']==a.checkpoint
+ assert np.all(data['objective_all']==1) and int(data['objective_midcontent'].sum())==reference['objective_token_counts']['midcontent']
+ assert hashlib.sha256(data['objective_midcontent'].tobytes()).hexdigest()==reference['mask_sha256']
  assert cfg.bam_enabled and cfg.bam_local_full_m_read_share_down
  if cfg.get_keys().get('bam_share_read_attention_write_down',False):raise ValueError('This diagnostic needs independent attention write/read downs')
  assert sum(v.size for v in jax.tree.leaves(params))==expected['parameter_count']
@@ -70,11 +73,42 @@ def main():
  baseline=evaluate(params);native_error=float(np.max(np.abs(baseline.mean(1)-expected['native_losses'])))
  if native_error>.005:raise ValueError(('Native CE differs from reference',native_error))
  np.savez_compressed(out/'token_losses.npz',loss=baseline,inputs=inputs,targets=targets,mask=mask)
+ import prewo_observer as prewo
+ prewo.install();prewo.ACTIVE=True
+ def observed(weights,b):
+  value,raw=model.apply(weights,b['inputs'],b['positions'],decoder_target_tokens=b['targets'],decoder_segment_ids=b['segments'],decoder_target_mask=b['mask'],enable_dropout=False,rngs={'params':rng,'dropout':rng,'aqt':rng},mutable=['intermediates'])
+  return value[0],raw
+ observed_fn=jax.jit(observed);prewo_arrays={};prewo_drift=0.
+ for i,b in enumerate(batches):
+  with mesh,nn.partitioning.axis_rules(cfg.logical_axis_rules):value,raw=jax.device_get(observed_fn(params,b))
+  prewo_drift=max(prewo_drift,float(np.max(np.abs(np.asarray(value).mean(1)-baseline[i*a.batch_size:(i+1)*a.batch_size].mean(1)))))
+  if prewo_drift>.005:raise ValueError(('Readout observer changed CE',prewo_drift))
+  for path,entries in flatten_dict(raw['intermediates']).items():
+   if not path[-1].startswith('stream_prewo_'):continue
+   if not isinstance(entries,(tuple,list)):entries=[entries]
+   arr=np.maximum.reduce([np.asarray(v) for v in entries]) if path[-1].endswith('reconstruction') else np.sum([np.asarray(v,dtype=np.float64) for v in entries],axis=0)
+   prewo_arrays.setdefault('__'.join(path),[]).append(arr)
+ prewo.ACTIVE=False
+ if not prewo_arrays:raise ValueError('No native readout observations')
+ prewo_arrays={k:np.concatenate(values,axis=1 if 'layers' in k.split('__') else 0) for k,values in prewo_arrays.items()}
+ prewo_closure_max_relative_rms=0.
+ for name,values in prewo_arrays.items():
+  if not np.isfinite(values).all():raise ValueError(('Nonfinite native readout moments',name))
+  if name.endswith('stream_prewo_O_closure'):
+   source=prewo_arrays[name.removesuffix('stream_prewo_O_closure')+'stream_prewo_O_sources']
+   denominator=np.maximum(source[...,3],np.max(source[...,3])*1e-12+1e-30)
+   error=float(np.sqrt(np.maximum(values,0)/denominator).max())
+   prewo_closure_max_relative_rms=max(prewo_closure_max_relative_rms,error)
+ if prewo_closure_max_relative_rms>.02:raise ValueError(('Dynamic/static O closure failed',prewo_closure_max_relative_rms))
+ np.savez_compressed(out/'prewo_observations.npz',**prewo_arrays)
+ subprocess.run(['gsutil','-q','cp',str(out/'prewo_observations.npz'),a.gcs_output+'/prewo_observations.npz'],check=True)
+ print('NATIVE_PREWO_OBSERVED',a.label,prewo_drift,flush=True)
  import read_gradient_capture as capture
  import read_gradient_stats as statistics
  capture.install();L=int(cfg.num_decoder_layers);D=int(cfg.emb_dim);H=int(cfg.num_query_heads);V=int(cfg.bam_v);R=int(cfg.bam_local_full_m_read_bottleneck_dim)
- replicated=jax.sharding.NamedSharding(mesh,jax.sharding.PartitionSpec())
- zero=jax.tree.map(lambda x:jax.device_put(x,replicated),dict(up=jnp.zeros((L,2,R,H,1,V),jnp.float32),down=jnp.zeros((L,4,D,R),jnp.float32)))
+ assert cfg.bam_k==cfg.head_dim
+ P=jax.sharding.PartitionSpec;NS=lambda spec:jax.sharding.NamedSharding(mesh,spec)
+ zero=dict(up=jax.device_put(jnp.zeros((L,2,R,H,1,V),jnp.float32),NS(P(None,None,'fsdp',None,None,None))),down=jax.device_put(jnp.zeros((L,4,D,R),jnp.float32),NS(P(None,None,'fsdp',None))),out=jax.device_put(jnp.zeros((L,3,H,cfg.head_dim,D),jnp.float32),NS(P(None,None,None,None,'fsdp'))))
  def objective(weights,delta,b,objective_mask):
   capture.DELTA=delta
   try:loss=forward(weights,b)
@@ -90,10 +124,10 @@ def main():
    new[p]=v
   if not matched:raise ValueError('No V gate bias parameters')
   return unflatten_dict(new)
- weight_norms={'up':[None]*L,'down':[None]*L}
+ weight_norms={'up':[None]*L,'down':[None]*L,'out':[None]*L}
  import re,gc
  for p,v in flatten_dict(params).items():
-  path='/'.join(p);kind='up' if path.endswith('/self_attention/W_R_up/kernel') else 'down' if path.endswith('/self_attention/full_m_read_down/kernel') else None
+  path='/'.join(p);kind='up' if path.endswith('/self_attention/W_R_up/kernel') else 'down' if path.endswith('/self_attention/full_m_read_down/kernel') else 'out' if path.endswith('/self_attention/out/kernel') else None
   if kind is None:continue
   layer=re.search(r'/layers_(\d+)/',path);tail=re.search(r'/final_local_layer(?:_(\d+))?/',path)
   if layer:pairs=[(int(layer[1]),v)]
@@ -127,13 +161,14 @@ def main():
    assert all(np.isfinite(x).all() for x in grams.values())
    assert grams['up_gram'].shape==(L,H,2,2,len(batches),len(batches))
    assert grams['down_gram'].shape==(L,4,4,len(batches),len(batches))
+   assert grams['out_gram'].shape==(L,H,3,3,len(batches),len(batches))
    np.savez_compressed(out/(mode+'.npz'),**grams,batch_token_counts=np.asarray(counts),batch_objective_CE=np.asarray(values),per_sequence_CE=np.asarray(predictions))
    modes[mode]=dict(file=mode+'.npz',V_gate_offset=bias,objective=objective_name,total_objective_tokens=sum(counts),native_reference_max_CE_delta=drift,elapsed_seconds=time.time()-mode_start)
    (out/'progress.json').write_text(json.dumps(dict(label=a.label,completed=list(modes)),indent=2)+'\n')
    subprocess.run(['gsutil','-q','cp',str(out/(mode+'.npz')),a.gcs_output+'/'+mode+'.npz'],check=True)
    print('READ_GRADIENT_MODE_COMPLETE',a.label,mode,flush=True)
    del gradients,stacked,grams,g;gc.collect()
- meta=dict(label=a.label,experiment=a.experiment,checkpoint=a.checkpoint,source_commit=subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip(),parameter_count=expected['parameter_count'],sequence_hashes=hashes,sequences=a.sequences,length=a.length,batch_size=a.batch_size,config=dict(num_decoder_layers=L,emb_dim=D,num_query_heads=H,bam_v=V,read_hidden=R),native_losses=baseline.mean(1).tolist(),native_reference_max_CE_delta=native_error,reader_weight_norms=weight_norms,modes=modes,elapsed_seconds=time.time()-start,definition='Zero-delta parameter-path gradients, no parameter updates. Four down paths Q/K/V/O sum to native shared full_m_read_down gradient, two up paths V/O sum to native W_R_up gradient. Per-batch pairwise Gram matrices permit exact bootstrap of weighted pooled gradient cosines. FP32 CE statistics on native model/logits dtype. Raw gradients are not AdamW updates and do not establish training-gain attribution.')
+ meta=dict(label=a.label,experiment=a.experiment,checkpoint=a.checkpoint,source_commit=subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip(),parameter_count=expected['parameter_count'],sequence_hashes=hashes,sequences=a.sequences,length=a.length,batch_size=a.batch_size,config=dict(num_decoder_layers=L,emb_dim=D,num_query_heads=H,bam_v=V,read_hidden=R),native_losses=baseline.mean(1).tolist(),native_reference_max_CE_delta=native_error,prewo_observer_max_CE_delta=prewo_drift,prewo_O_closure_max_relative_rms=prewo_closure_max_relative_rms,reader_weight_norms=weight_norms,modes=modes,elapsed_seconds=time.time()-start,definition='Zero-delta parameter-path gradients, no parameter updates. Four down paths Q/K/V/O sum to native shared full_m_read_down gradient, two up paths V/O sum to native W_R_up gradient; output-projection paths MHA/directO/rounding sum to native W_o gradient in FP32 checks. BF16 rounding is explicitly separate. Per-batch pairwise Gram matrices permit exact bootstrap of weighted pooled gradient cosines. FP32 CE statistics on native model/logits dtype. Raw gradients are not AdamW updates and do not establish training-gain attribution.')
  (out/'metadata.json').write_text(json.dumps(meta,indent=2)+'\n')
  subprocess.run(['gsutil','-m','rsync','-r',str(out),a.gcs_output],check=True)
  (out/'complete.json').write_text(json.dumps(dict(label=a.label,modes=len(modes)))+'\n');subprocess.run(['gsutil','-q','cp',str(out/'complete.json'),a.gcs_output+'/complete.json'],check=True)

@@ -96,5 +96,40 @@ def install():
   va[6]=va[6]+jnp.squeeze(_extra(self,'W_R',2),axis=-2).astype(va[6].dtype)
   oa[6]=oa[6]+jnp.squeeze(_extra(self,'W_R',3),axis=-2).astype(oa[6].dtype)
   v=native_read(*va,**kwargs)[2];o=native_read(*oa,**kwargs)[3]
+  _context()['m']=o
   return original[:2]+(v,o)+original[4:]
  bam_pallas.read=read
+ native_splash=attentions._bam_splash_attention
+ @functools.wraps(native_splash)
+ def splash(*args,**kwargs):
+  value=native_splash(*args,**kwargs)
+  if DELTA is not None and _CONTEXT:_CONTEXT[-1]['mha']=value
+  return value
+ attentions._bam_splash_attention=splash
+ native_block=attentions.BamAttention._attention_block
+ @functools.wraps(native_block)
+ def block(self,*args,**kwargs):
+  value=native_block(self,*args,**kwargs)
+  if DELTA is not None and _CONTEXT:_CONTEXT[-1]['mha']=value[0]
+  return value
+ attentions.BamAttention._attention_block=block
+ native_amplitude=attentions.BamAttention._record_concat_amplitude
+ @functools.wraps(native_amplitude)
+ def amplitude(self,name,bam,standard):
+  if DELTA is not None and _CONTEXT and name=='local_o':_CONTEXT[-1].update(m=bam,mha=standard)
+  return native_amplitude(self,name,bam,standard)
+ attentions.BamAttention._record_concat_amplitude=amplitude
+ native_projection=attentions.BamAttention.out_projection
+ @functools.wraps(native_projection)
+ def projection(self,output_dim,out):
+  value=native_projection(self,output_dim,out)
+  if DELTA is None or self.is_initializing():return value
+  c=_context()
+  if any(k not in c for k in ['mha','m']):raise ValueError(('Missing native output-projection readouts',self.scope.path))
+  a,b,y=(v.astype(jnp.float32) for v in (c['mha'],c['m'],out));rounding=y-a-b
+  for i,piece in enumerate([a,b,rounding]):
+   delta=DELTA['out'][c['layer'],i].astype(out.dtype)
+   extra=jnp.einsum('bthk,hkd->btd',piece.astype(out.dtype),delta,precision=self.config.matmul_precision)
+   value=value+extra.astype(value.dtype)
+  return value
+ attentions.BamAttention.out_projection=projection

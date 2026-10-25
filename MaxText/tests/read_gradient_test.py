@@ -20,8 +20,24 @@ def main():
   params=jax.tree.map(lambda v:v.unbox(apply_constraint=False) if isinstance(v,nn.spmd.LogicallyPartitioned) else v,params,is_leaf=lambda v:isinstance(v,nn.spmd.LogicallyPartitioned))
   def loss(weights):return jnp.mean(model.apply(weights,tok,pos,rngs=rng,**kw)[0])
   with mesh,nn.partitioning.axis_rules(cfg.logical_axis_rules):native,native_grad=jax.jit(jax.value_and_grad(loss))(params)
-  native_grad=jax.device_get(native_grad);capture.install();R=int(cfg.bam_local_full_m_read_bottleneck_dim);D=cfg.emb_dim;H=cfg.num_query_heads;V=cfg.bam_v
-  zero=dict(up=jnp.zeros((n,2,R,H,1,V),jnp.float32),down=jnp.zeros((n,4,D,R),jnp.float32))
+  native_grad=jax.device_get(native_grad)
+  import prewo_observer as observer
+  observer.install();observer.ACTIVE=True
+  def observed():return model.apply(params,tok,pos,rngs=rng,mutable=['intermediates'],**kw)
+  with mesh,nn.partitioning.axis_rules(cfg.logical_axis_rules):observed_result,observations=jax.jit(observed)()
+  observer.ACTIVE=False
+  np.testing.assert_allclose(jnp.mean(observed_result[0]),native,atol=1e-7,rtol=1e-7)
+  observations=flatten_dict(jax.device_get(observations));observed_layers=0
+  for path,values in observations.items():
+   if path[-1]=='stream_prewo_reconstruction':
+    for value in values:np.testing.assert_allclose(value,0.,atol=1e-7)
+    observed_layers+=1
+   if path[-1]=='stream_prewo_O_closure':
+    for value in values:np.testing.assert_allclose(value,0.,atol=1e-9)
+  assert observed_layers>0
+  print('NATIVE_PREWO_OBSERVER_AND_DYNAMIC_STATIC_O_CLOSURE_VERIFIED',kind,flush=True)
+  capture.install();R=int(cfg.bam_local_full_m_read_bottleneck_dim);D=cfg.emb_dim;H=cfg.num_query_heads;V=cfg.bam_v
+  zero=dict(up=jnp.zeros((n,2,R,H,1,V),jnp.float32),down=jnp.zeros((n,4,D,R),jnp.float32),out=jnp.zeros((n,3,H,cfg.head_dim,D),jnp.float32))
   def probe(delta):
    capture.DELTA=delta
    try:return loss(params)
@@ -31,7 +47,7 @@ def main():
   grads=jax.device_get(grads);checked=0;errors=[];max_native=0.
   for path,g in flatten_dict(native_grad).items():
    text='/'.join(path)
-   which='up' if text.endswith('/self_attention/W_R_up/kernel') else 'down' if text.endswith('/self_attention/full_m_read_down/kernel') else None
+   which='up' if text.endswith('/self_attention/W_R_up/kernel') else 'down' if text.endswith('/self_attention/full_m_read_down/kernel') else 'out' if text.endswith('/self_attention/out/kernel') else None
    if which is None:continue
    layer=re.search(r'/layers_(\d+)/',text);tail=re.search(r'/final_local_layer(?:_(\d+))?/',text)
    if layer:pairs=[(int(layer[1]),g)]
@@ -44,6 +60,6 @@ def main():
     pairs=[(i*cfg.bam_local_fetch_block_size+int(role[2]),np.take(g,i,axis=1)) for i in range(g.shape[1])]
    for l,reference in pairs:
     total=grads[which][l].sum(0);err=float(np.max(np.abs(total-reference)));scale=float(np.max(np.abs(reference)));max_native=max(max_native,scale);errors.append(err/(scale+1e-12));np.testing.assert_allclose(total,reference,atol=2e-7,rtol=2e-4,err_msg=f'{kind} {which} layer{l}');checked+=1
-  assert checked==2*n,(checked,n)
+  assert checked==3*n,(checked,n)
   print('NATIVE_ZERO_DELTA_IDENTITY_AND_EXACT_PATH_GRADIENT_SUM_VERIFIED',kind,'layers',n,'matrices',checked,'max_relerr',max(errors),'max_native_gradient',max_native,flush=True)
 if __name__=='__main__':main()

@@ -17636,6 +17636,32 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1HybridV4DropLocalOTr
     bam_last_mlp_dim = 3857
 
 
+class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio3to1HybridV4KeepLocalOTruePile(
+    BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1HybridV4KeepLocalOTruePile):
+    """Ledger only: matching hybrid Keep-O arm with ordinary/complete M-update budget3:1."""
+    # code_commit: 2437dfe; implementation codex/mediumprop-hybrid-v-heads, /data0/xd/mediumprop-hybrid-v-heads.
+    # UE5a v5p16 xd-v5p-16-310365-maxtext; AOT/source/config/FIRST_STEP verified; plan13500.
+    # Params432113632, exactly matching Keep2:1; L17 remains3848; all17 productive widths2778/799.
+    # Startup20-99 .683735step/s, -.31% vs matched Keep2:1; same health/kernel/scan protocol.
+    model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio3to1HybridV4KeepLocalOTruePile'
+    base_mlp_dim = 2778
+    bam_memory_mlp_dim = 799
+    compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1HybridV4KeepLocalOTruePile']
+
+
+class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio3to1HybridV4DropLocalOTruePile(
+    BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1HybridV4DropLocalOTruePile):
+    """Ledger only: matching hybrid Drop-O arm with ordinary/complete M-update budget3:1."""
+    # code_commit: 2437dfe; same implementation worktree/branch, health/kernel/scan protocol as Keep3:1.
+    # UE5a v5p16 xd-v5p-16-310366-maxtext; AOT/source/config/FIRST_STEP verified; plan13500.
+    # Params432113056, exactly matching Drop2:1; L17 remains3857; all17 productive widths2787/802.
+    # Startup20-99 .679883step/s, -.67% vs matched Drop2:1.
+    model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio3to1HybridV4DropLocalOTruePile'
+    base_mlp_dim = 2787
+    bam_memory_mlp_dim = 802
+    compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1HybridV4DropLocalOTruePile']
+
+
 class BamMediumPropMShiftReadG050SharedHiddenMemoryMLPTruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1TruePile):
     """Share SwiGLU input/gate projections and hidden activation; separate vector/M heads."""

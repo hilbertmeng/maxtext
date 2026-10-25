@@ -130,3 +130,66 @@ READY-to-absence upper bound11m11s. Formal trainers and borrowed FLEX unchanged.
 Evidence: `pairscan-timing-summary.json`, `pairscan-config.txt`, `pairscan-train.log`,
 `pairscan-profile-release.log`, `pairscan-profile-absence.json` under the artifact root;
 GCS `gs://newproject-1-llm_projects_us-east5/log/diagnostics/hybrid_v4_pairscan_20261025`.
+
+## Matched3:1 capacity follow-up
+
+New RUNs in this same worktree/branch:
+- `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio3to1HybridV4KeepLocalOTruePile`
+- `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio3to1HybridV4DropLocalOTruePile`
+
+Each inherits the matching2:1 HybridV4 arm, changing only ordinary/private hidden
+widths and its RUN identity/comparison. Both retain4 ordinary-V heads,12 M-V heads,
+their original O policy, single-layer scan17+explicit L17, all17 productive
+attention/private writers, tuned Splash/Pallas, training health ON/internal+BAM OFF,
+and T4096/global128/per-device16/13500. No ordinary per-layer width mechanism.
+
+| Arm | Ordinary/private L0-16 | Complete branch ratio | L17 ordinary | Total parameters | Delta vs matching2:1 |
+|---|---|---:|---:|---:|---:|
+| Keep O3:1 |2778/799|2.999280:1|3848|432113632|0|
+| Drop O3:1 |2787/802|2.999283:1|3857|432113056|0|
+
+Complete private branch cost is3600H+458000, including address/gate projections.
+The two hidden widths sum to3577/3589 exactly as their respective2:1 parents,
+so every productive layer's total and the global total stay equal; terminal widths
+need no further correction. Normal hidden capacity rises~12.5%, private hidden
+capacity falls~28%. All four body pairs round to the same padded sum3712 at128
+alignment, a cost estimate rather than a measured throughput claim.
+
+Ordinary V makes vector-stream features available to attention and its M writes.
+This can change the best vector/private capacity allocation. Historical pure BAM
+3:1 lost to2:1 at13500 (final5 gap+.0014874, MHA-reference multiplier.990542),
+so the new experiment tests a changed optimum, not a claim that3:1 is universally
+better. In Drop, ordinary-head write data is SA(V); in Keep it also contains
+localO. I favor a larger3:1 benefit for Drop, where the extra ordinary capacity
+feeds that write without a localO term.
+
+Pre-run MHA-reference terminal multiplier bets versus each matching2:1 parent:
+Keep1.01 (range.99-1.03), Drop1.02 (.99-1.045). Throughput prior within~2% of
+each parent. Compare each new RUN only with its matching2:1 parent; use
+`BamMHAMediumPropC256TruePile` as the common reference. Historical pure3:1/2:1
+supplies the capacity-allocation prior. Group reports every1000 steps; no2800/5000
+stopping reviews, plan13500 for all four.
+
+Infrastructure audit versus latest main8832c269: no main-only changes in training,
+AOT, optimizer, checkpoint or summary-writer implementations since model parent
+b5e8b0e. Main's missing experimental head fields/script reflect ledger-only status,
+not infrastructure fixes to port. Core model code remains identical to the62-test
+verified parent. Targeted CPU gate checks both full parameter trees, inherited
+protocol and5 rotating-writer regressions; no repeated unrelated full BAM suite.
+
+Keep ID310365 and Drop310366, spot v5p-16 UE5a only. Borrow the reverified
+FLEX_START `llm-jax-v6e-1-0` EW4a worker0 for serialized AOT; never release it.
+Artifacts `/data0/xd/bam_diagnostics/mediumprop-hybrid-v-heads/ratio3`.
+
+Sealed runtime2437dfe778f2dc4f751424b3b853d32da5d367ad: targeted full-tree/protocol
+check plus5 rotating-writer regressions passed. Both exact AOTs verified; worker
+source hashes, Loaded-compiled markers, actual FIRST_STEP and resolved GCS configs
+match. Actual formal assignment Keep06:33:23, Drop06:32:50 UTC on2026-10-25;
+first prequeue READY06:30:27/06:30:09 respectively. Both trains passed100.
+20-99 harmonic throughput Keep.683735/Drop.679883step/s (80 samples each),
+-.31%/-.67% versus their matching2:1 arms; medians.687/.684.
+Both native live registries compare only their matching2:1 hybrid parent and
+persist the common MHA-reference gain multiplier. Main classes are ledger only.
+Startup proof: ratio3/resolved-config-audit.json, worker-keep/drop-audit.json,
+speed-keep/drop.json, step100-keep/drop.log and monitoring-registration.txt
+under the family artifact root. No interim loss diary entries in exp.py.

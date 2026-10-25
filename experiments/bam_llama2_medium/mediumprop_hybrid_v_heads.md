@@ -111,6 +111,20 @@ User-requested speed diagnostic: one standalone spot v5p-16 in UE5a,
 at `a978db2dff5475ad598d31a3a644499ea0203f35`, same class and exact model/batch/
 health/kernel settings; effective configuration differs from the live single-layer
 runtime only in pair-scan flag, block size2 and explicit-tail count2. Preserve the
-13500-step LR schedule; time20-99, stop after120, no checkpoints or XPlane.
+13500-step LR schedule; time20-99, collect through100 then stop, no checkpoints or XPlane.
 Keep generic health ON, internal/BAM OFF and GCS TensorBoard in its original
 central1 region; release the standalone TPU after artifacts are secured.
+
+Completed: two-layer scan .675798 step/s (median.680), versus live single-layer
+Keep .685872 (median.690), -1.47% in the same20-99 window. Both have80 samples,
+T4096/global128/per-device16/BF16/full remat, tuned Splash/Pallas, training health
+ON and internal/BAM OFF. Actual diagnostic configuration and AOT load were checked.
+No speed improvement was observed, so retain single-layer scan. This is one
+separate-v5p16 diagnostic arm versus the live arm, not a same-VM crossover matrix.
+Timing/raw log uploaded from worker to GCS, downloaded locally and verified;
+both diagnostic workers stopped. Node and queued resource independently NOT_FOUND
+at2026-10-25 05:20:00 UTC. P0, only UE5a; first observed READY05:08:49, observed
+READY-to-absence upper bound11m11s. Formal trainers and borrowed FLEX unchanged.
+Evidence: `pairscan-timing-summary.json`, `pairscan-config.txt`, `pairscan-train.log`,
+`pairscan-profile-release.log`, `pairscan-profile-absence.json` under the artifact root;
+GCS `gs://newproject-1-llm_projects_us-east5/log/diagnostics/hybrid_v4_pairscan_20261025`.

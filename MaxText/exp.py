@@ -17606,6 +17606,7 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1HybridV4KeepLocalOTr
     # UE5a v5p16; real FIRST_STEP verified. Single-layer scan L0-16, explicit L17; plan13500.
     # Params432113632 (independent2:1+352); health ON/internal+BAM OFF; Pallas+tuned Splash.
     # Startup20-99 .68587step/s (~-3.0% vs parent's approximate.707); single-layer scan.
+    # Same-arm two-layer scan timing a978db2 on separate UE5a v5p16: .67580 (-1.47%); no speed benefit.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1HybridV4KeepLocalOTruePile'
     bam_standard_value_heads = 4
     bam_standard_value_keep_local_o = True

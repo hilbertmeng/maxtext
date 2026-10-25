@@ -17643,6 +17643,10 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio3to1HybridV4KeepLocalOTr
     # UE5a v5p16 xd-v5p-16-310365-maxtext; AOT/source/config/FIRST_STEP verified; plan13500.
     # Params432113632, exactly matching Keep2:1; L17 remains3848; all17 productive widths2778/799.
     # Startup20-99 .683735step/s, -.31% vs matched Keep2:1; same health/kernel/scan protocol.
+    # User stopped4391; P0; CP4391 committed, node/queue absent, TB SYNC_OK; not full13500.
+    # vs matched Keep2:1: positive gaps from400 onward; final5(3400..4200)+.00436440/R.98092789.
+    # No sustained relative recovery; reallocating ordinary/private capacity3:1 did not help through stop.
+    # Initial terminal1.01 bet unsupported through stop; both O policies show a similar~2% gain deficit.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio3to1HybridV4KeepLocalOTruePile'
     base_mlp_dim = 2778
     bam_memory_mlp_dim = 799
@@ -17656,6 +17660,10 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio3to1HybridV4DropLocalOTr
     # UE5a v5p16 xd-v5p-16-310366-maxtext; AOT/source/config/FIRST_STEP verified; plan13500.
     # Params432113056, exactly matching Drop2:1; L17 remains3857; all17 productive widths2787/802.
     # Startup20-99 .679883step/s, -.67% vs matched Drop2:1.
+    # User stopped4374; P0; CP4374 committed, node/queue absent, TB SYNC_OK; not full13500.
+    # vs matched Drop2:1: positive gaps throughout; final5(3400..4200)+.00451892/R.98014726.
+    # Early smaller deficit versus Keep did not persist; no sustained relative recovery.
+    # Initial terminal1.02 bet unsupported through stop; O removal did not rescue the3:1 allocation.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio3to1HybridV4DropLocalOTruePile'
     base_mlp_dim = 2787
     bam_memory_mlp_dim = 802

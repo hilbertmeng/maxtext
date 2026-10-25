@@ -196,6 +196,19 @@ Startup proof: ratio3/resolved-config-audit.json, worker-keep/drop-audit.json,
 speed-keep/drop.json, step100-keep/drop.log and monitoring-registration.txt
 under the family artifact root. No interim loss diary entries in exp.py.
 
+3:1 pair closeout on user direction2026-10-25: Keep stopped4391, Drop4374;
+checkpoints committed with zero lost tail, P0, both nodes and queued resources
+independently absent by08:25:10 UTC, both local TB syncs SYNC_OK.
+Final complete comparison window4200. Final5(3400..4200) versus respective2:1
+parents: Keep gap+.00436440/MHA-reference gain.98092789; Drop+.00451892/
+.98014726. After the initial transient, both remained behind; shrinking absolute
+gaps did not produce relative recovery. The early difference between O policies
+faded. Through this stop, ordinary-MLP reallocation3:1 provided no net gain;
+terminal1.01/1.02 bets were unsupported, and full13500 outcomes were not measured.
+Artifacts ratio3/closeout-summary.json, report-final.json and the stopped PNG.
+Original2:1 pair and independent-VO RUN remain active; the borrowed FLEX compiler
+was untouched. No further3:1 reports or stopping reviews are pending.
+
 ## Independent2:1: separate dynamic V/O addresses
 
 User confirmed the original pure BAM dedicated2:1 parent, not either hybrid-V arm.

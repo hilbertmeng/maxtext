@@ -74,8 +74,109 @@ worker0; its queued-resource model is explicitly FLEX_START. AOTs serialize thro
 the worker lock; the compiler is never enrolled in cleanup. Preparation runs CPU,
 AOT and owned training prequeue concurrently, gates all three before formal launch.
 
-Both compare only `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1TruePile`;
-gain reference `BamMHAMediumPropC256TruePile`. Group plots start600 and combine
-loss gap and gain multiplier in two panels with each arm's latest complete horizon.
-Early reports around1k, then2k cadence; no interim diary entries in `exp.py`.
+Both compare `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1TruePile`
+and the stronger prior plain-V arm
+`BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1StandardVEvery3DropMemoryTruePile`.
+The latter was added on user direction; exclude the weaker KeepMemory arm.
+Gain reference `BamMHAMediumPropC256TruePile` for both comparisons. Group plots
+start600, with loss gaps above and gain multipliers below; one column per baseline
+and both new arms overlaid, retaining each arm's latest complete horizon.
+Report both arms together every1000 steps; no interim diary entries in `exp.py`.
+User direction: neither arm has a2800/5000 stopping review; continue the13500-step
+plan and retain grouped1k reporting.
 Artifacts `/data0/xd/bam_diagnostics/mediumprop-hybrid-v-heads`.
+
+Sealed runtime `b5e8b0eb675f251c39e77c1a41c9e6e9ffca3824`:62 CPU checks
+passed (47 shared BAM,5 historical plain-V,5 new hybrid-V,5 rotating writer).
+Single-layer-scan Pallas/JAX maximum relative gradient errors4.07e-6/3.80e-6.
+Both exact AOTs verified, both installers and actual FIRST_STEP gates passed.
+Formal assignment2026-10-25 04:44:21/04:44:24 UTC; the same training TPUs
+were first observed READY during prequeue at04:32:28/04:32:24 UTC. The initial
+two-layer preparation was superseded before any training on user direction;
+queues/compiler were retained, all gates repeated on the single-layer runtime.
+Main contains ledger-only classes; model implementation remains in the stated
+experimental worktree/branch.
+
+Worker source hashes, Loaded-compiled markers, actual GCS configs and both live
+registry baseline/gain specifications were verified. Resolved T4096/global128/
+per-device16, BF16/full remat, homogeneous17-layer single scan plus explicit L17,
+tuned Splash/Pallas, health and TB-rotation settings match the launch plan.
+Startup20-99 harmonic throughput Keep.685872/Drop.684498 step/s, about-3.0%/-3.2%
+versus the parent's approximate.707 startup record; Drop/Keep-.20%, effectively
+equal. This is a package comparison with different scan packaging, not a causal
+timing attribution to O removal. Detailed audits and80-step timing evidence are
+in `resolved-config-audit.json`, `registry-launch-audit.jsonl`, `startup-summary.json`
+under the artifact root. No further interim loss entries belong in this ledger.
+
+User-requested speed diagnostic: one standalone spot v5p-16 in UE5a,
+`xd-v5p-16-hybrid-v4-pairscan-prof-1025`. Reuse the verified two-layer Keep AOT
+at `a978db2dff5475ad598d31a3a644499ea0203f35`, same class and exact model/batch/
+health/kernel settings; effective configuration differs from the live single-layer
+runtime only in pair-scan flag, block size2 and explicit-tail count2. Preserve the
+13500-step LR schedule; time20-99, collect through100 then stop, no checkpoints or XPlane.
+Keep generic health ON, internal/BAM OFF and GCS TensorBoard in its original
+central1 region; release the standalone TPU after artifacts are secured.
+
+Completed: two-layer scan .675798 step/s (median.680), versus live single-layer
+Keep .685872 (median.690), -1.47% in the same20-99 window. Both have80 samples,
+T4096/global128/per-device16/BF16/full remat, tuned Splash/Pallas, training health
+ON and internal/BAM OFF. Actual diagnostic configuration and AOT load were checked.
+No speed improvement was observed, so retain single-layer scan. This is one
+separate-v5p16 diagnostic arm versus the live arm, not a same-VM crossover matrix.
+Timing/raw log uploaded from worker to GCS, downloaded locally and verified;
+both diagnostic workers stopped. Node and queued resource independently NOT_FOUND
+at2026-10-25 05:20:00 UTC. P0, only UE5a; first observed READY05:08:49, observed
+READY-to-absence upper bound11m11s. Formal trainers and borrowed FLEX unchanged.
+Evidence: `pairscan-timing-summary.json`, `pairscan-config.txt`, `pairscan-train.log`,
+`pairscan-profile-release.log`, `pairscan-profile-absence.json` under the artifact root;
+GCS `gs://newproject-1-llm_projects_us-east5/log/diagnostics/hybrid_v4_pairscan_20261025`.
+
+## Matched3:1 capacity follow-up
+
+New RUNs in this same worktree/branch:
+- `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio3to1HybridV4KeepLocalOTruePile`
+- `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio3to1HybridV4DropLocalOTruePile`
+
+Each inherits the matching2:1 HybridV4 arm, changing only ordinary/private hidden
+widths and its RUN identity/comparison. Both retain4 ordinary-V heads,12 M-V heads,
+their original O policy, single-layer scan17+explicit L17, all17 productive
+attention/private writers, tuned Splash/Pallas, training health ON/internal+BAM OFF,
+and T4096/global128/per-device16/13500. No ordinary per-layer width mechanism.
+
+| Arm | Ordinary/private L0-16 | Complete branch ratio | L17 ordinary | Total parameters | Delta vs matching2:1 |
+|---|---|---:|---:|---:|---:|
+| Keep O3:1 |2778/799|2.999280:1|3848|432113632|0|
+| Drop O3:1 |2787/802|2.999283:1|3857|432113056|0|
+
+Complete private branch cost is3600H+458000, including address/gate projections.
+The two hidden widths sum to3577/3589 exactly as their respective2:1 parents,
+so every productive layer's total and the global total stay equal; terminal widths
+need no further correction. Normal hidden capacity rises~12.5%, private hidden
+capacity falls~28%. All four body pairs round to the same padded sum3712 at128
+alignment, a cost estimate rather than a measured throughput claim.
+
+Ordinary V makes vector-stream features available to attention and its M writes.
+This can change the best vector/private capacity allocation. Historical pure BAM
+3:1 lost to2:1 at13500 (final5 gap+.0014874, MHA-reference multiplier.990542),
+so the new experiment tests a changed optimum, not a claim that3:1 is universally
+better. In Drop, ordinary-head write data is SA(V); in Keep it also contains
+localO. I favor a larger3:1 benefit for Drop, where the extra ordinary capacity
+feeds that write without a localO term.
+
+Pre-run MHA-reference terminal multiplier bets versus each matching2:1 parent:
+Keep1.01 (range.99-1.03), Drop1.02 (.99-1.045). Throughput prior within~2% of
+each parent. Compare each new RUN only with its matching2:1 parent; use
+`BamMHAMediumPropC256TruePile` as the common reference. Historical pure3:1/2:1
+supplies the capacity-allocation prior. Group reports every1000 steps; no2800/5000
+stopping reviews, plan13500 for all four.
+
+Infrastructure audit versus latest main8832c269: no main-only changes in training,
+AOT, optimizer, checkpoint or summary-writer implementations since model parent
+b5e8b0e. Main's missing experimental head fields/script reflect ledger-only status,
+not infrastructure fixes to port. Core model code remains identical to the62-test
+verified parent. Targeted CPU gate checks both full parameter trees, inherited
+protocol and5 rotating-writer regressions; no repeated unrelated full BAM suite.
+
+Keep ID310365 and Drop310366, spot v5p-16 UE5a only. Borrow the reverified
+FLEX_START `llm-jax-v6e-1-0` EW4a worker0 for serialized AOT; never release it.
+Artifacts `/data0/xd/bam_diagnostics/mediumprop-hybrid-v-heads/ratio3`.

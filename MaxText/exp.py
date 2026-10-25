@@ -17627,6 +17627,24 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1HybridV4DropLocalOTr
     bam_last_mlp_dim = 3857
 
 
+class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio3to1HybridV4KeepLocalOTruePile(
+    BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1HybridV4KeepLocalOTruePile):
+    """Reallocate the Keep-O arm's unchanged body budget to ordinary/private MLP3:1."""
+    model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio3to1HybridV4KeepLocalOTruePile'
+    base_mlp_dim = 2778
+    bam_memory_mlp_dim = 799
+    compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1HybridV4KeepLocalOTruePile']
+
+
+class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio3to1HybridV4DropLocalOTruePile(
+    BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1HybridV4DropLocalOTruePile):
+    """Reallocate the Drop-O arm's unchanged body budget to ordinary/private MLP3:1."""
+    model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio3to1HybridV4DropLocalOTruePile'
+    base_mlp_dim = 2787
+    bam_memory_mlp_dim = 802
+    compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1HybridV4DropLocalOTruePile']
+
+
 class BamMediumPropMShiftReadG050SharedHiddenMemoryMLPTruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1TruePile):
     """Share SwiGLU input/gate projections and hidden activation; separate vector/M heads."""

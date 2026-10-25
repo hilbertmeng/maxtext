@@ -14,6 +14,7 @@ from layers import fusion
 from layers.models import Transformer
 
 PREFIX = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1HybridV4'
+RATIO3_PREFIX = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio3to1HybridV4'
 
 
 class HybridValueTest(MLPWriteTest, unittest.TestCase):
@@ -76,6 +77,36 @@ class HybridValueTest(MLPWriteTest, unittest.TestCase):
       for p in flat:
         if 'final_local_layer' in p:
           self.assertFalse(set(p) & {'memory_mlp', 'P_loc_down', 'P_loc_up', 'W_gw', 'mlp_address_up'})
+
+  def test_ratio3_formal_budget_and_parent_protocol(self):
+    for keep, ordinary, memory, last, total, old_sum in [
+        (True, 2778, 799, 3848, 432113632, 3577),
+        (False, 2787, 802, 3857, 432113056, 3589)]:
+      suffix = ('Keep' if keep else 'Drop') + 'LocalOTruePile'
+      c = self.config(RATIO3_PREFIX + suffix)
+      c.get_keys().update(max_target_length=256, max_prefill_predict_length=256)
+      self.assertEqual(c.compare_runs, [PREFIX + suffix])
+      self.assertEqual((c.mlp_dim, c.bam_memory_mlp_dim, c.bam_last_mlp_dim), (ordinary, memory, last))
+      self.assertEqual(ordinary + memory, old_sum)
+      self.assertLess(abs(3600*ordinary/(3600*memory + 458000)-3), .001)
+      self.assertNotIn('bam_mlp_dim_by_layer', c.get_keys())
+      self.assertIsNone(c.mlp_dim_by_block)
+      self.assertIsNone(c.bam_final_local_mlp_dim)
+      self.assertFalse(c.bam_pair_scan)
+      self.assertEqual(c.bam_final_local_layer_count, 1)
+      self.assertEqual(c.bam_standard_value_heads, 4)
+      self.assertEqual(c.bam_standard_value_keep_local_o, keep)
+      self.assertEqual(c.bam_attention_write_layers, list(range(17)))
+      self.assertTrue(c.bam_skip_final_mlp_write)
+      self.assertTrue(c.record_training_health_metrics and not c.record_internal_nn_metrics)
+      self.assertTrue(c.bam_pallas_core and c.bam_pallas_fused_inputs and c.sa_use_fused_bwd_kernel)
+      self.assertEqual(c.tensorboard_gcs_rotate_period, 500)
+      mesh = jax.sharding.Mesh(max_utils.create_device_mesh(c), c.mesh_axes)
+      args, *_ = train_compile.get_shaped_inputs(mesh, c)
+      flat = flatten_dict(nn.unbox(args[0].params))
+      actual = sum(math.prod(v.shape) for v in flat.values())
+      print('HYBRID_RATIO3_PARAMS', keep, actual, flush=True)
+      self.assertEqual(actual, total)
 
   def test_native_head_sources_and_local_o_mask(self):
     for keep in (True, False):

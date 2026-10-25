@@ -121,5 +121,27 @@
       "All4models same32sequence hashes, actual model configs, checkpoint and source identities, all4objectives finite; per-sequence CE vs reference<=.005",
       "Gram feature sharding + original-buffer release fixed firstattemptOOM; all4arms locally verified before exact-resource release"
     ]
+  },
+  "branch_mediation_stage": {
+    "report_root": "/home/mengqy/Projects/Bam/training_reports/branch_mediation_20261025",
+    "manifest": "arms.json",
+    "results": "comparison.json",
+    "variants": 320,
+    "resource": "xd-v5p8-mqy-ffnmed-1025-ue5a",
+    "zone": "us-east5-a",
+    "resource_status": "node_and_queue_NOT_FOUND_independently_verified",
+    "source_commits": {
+      "maxtext-diag-cross-xl-bam": "18513a1b27687cea6149d9f14476e418ef937f34",
+      "maxtext-diag-cross-py2k": "e203325206cf4bb6ee947d714665afd4b2598c54",
+      "maxtext-diag-cross-py16k": "b563fadf07507c1102b6efd624d1795322a05a55"
+    },
+    "result": "Finite-dose response does not show stronger late-Pythia dynamicO FFN suppression; poor two-dose consistency prevents precise derivative/decisive causal claims.",
+    "invariants": [
+      "No optimizer updates or checkpoint writes",
+      "All4arms 80variants each downloaded and validated before resource release",
+      "Paired residual addition order, exact null FFN and zero-control tests",
+      "Primary four non-M-write layers; write-site mixed mediation reported separately",
+      "Same32text cohort, FP32 CE; BF16 model, numerical limitations prominent"
+    ]
   }
 }

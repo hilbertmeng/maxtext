@@ -149,5 +149,23 @@
       "cases": 4,
       "scope": "Production H32K80V64QK60; B1T128; fullrank/rank8 M; CPU interpretation FP32/BF16 all read/write input VJPs versus independent fused JAX formula. No training updates. Does not validate TPU code generation."
     }
+  },
+  "value_route_stage": {
+    "report_root": "/home/mengqy/Projects/Bam/training_reports/value_route_20261025",
+    "state": "state.json",
+    "manifest": "arms.json",
+    "source_commits": {
+      "xl-bam": "5bb4c412167352d384537d84b174bfc157cc4093",
+      "py2k": "5da98fe658a31a8b637f339e10eee2e0d07899c9",
+      "py16k": "1643e7059be64702eb49438aa077fc176a4704ee"
+    },
+    "resource": "xd-v5p8-mqy-valroute-1025-ue5a",
+    "zone": "us-east5-a",
+    "scope": "Four BAM frozen checkpoints; full-query self diagonal mass and16query value moments/head participation rank; no optimizer updates.",
+    "results": "pending; do not treat as measured mechanism"
+  },
+  "saved_long_run_self_mass_precheck": {
+    "source": "/home/mengqy/Projects/Bam/training_reports/cross_scale_20261025/saved_self_mass_comparison.json",
+    "result": "BAM13k→33k selfmass6.63→7.51%, SerialMudd3.22→3.11%; eight archivedqueries, differentQKnorm lineage fromShortTrain. No causal claim."
   }
 }

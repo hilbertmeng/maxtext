@@ -16840,6 +16840,8 @@ class Pythia2p8BShortTrainResidualMLP7552(Pythia2p8BShortTrain):
     Mechanism-control budget exception: no parameter refund elsewhere.
     Preserve the MHA parent's parallel residual and Pythia embedding/init.
     """
+    # code_commit:7b6aecb; UE5a v5p-128 B16/device; AOT/FIRST_STEP verified, ~.400step/s.
+    # Minimal remat; generic health ON/internal+BAM OFF, matching timing controls.
     model_name = 'Pythia2p8BShortTrainResidualMLP7552'
     base_mlp_dim = 7552
     pythia_last_mlp_dim = 7178
@@ -17129,6 +17131,8 @@ class BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1Residual
     the 2:1 parent. Total3,217,324,032, parent+442,403,190 (+67.50537 W_Q).
     User-approved mechanism-control exception to equal total parameters.
     """
+    # code_commit:7b6aecb; UE5a v5p-128 B16/device; AOT/FIRST_STEP verified, ~.294step/s.
+    # Minimal remat; generic health ON/internal+BAM OFF, matching the2:1 timing control.
     model_name = 'BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1ResidualMLP10240'
     base_mlp_dim = 10240
     mlp_dim_by_block = [10240, 10240, 10240]
@@ -17149,6 +17153,8 @@ class BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640(
     Ten3-layer blocks plus two explicit tails retain the parent's scan layout.
     Total2,774,883,968, parent-36,874 (-.001329%, nearest all128-aligned total).
     """
+    # code_commit:7b6aecb; UE5a v5p-128 B16/device; AOT/FIRST_STEP verified, ~.330step/s.
+    # Minimal remat; generic health ON/internal+BAM OFF, matching the2:1 timing control.
     model_name = 'BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640'
     bam_local_full_m_read_bottleneck_dim = 640
     bam_write_v_bottleneck_dim = 640

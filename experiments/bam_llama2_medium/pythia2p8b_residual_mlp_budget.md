@@ -119,3 +119,30 @@ does widening BAM with fixed memory weaken late erosion rather than simply
 shift the whole loss curve? Do not call an equal-budget tradeoff alone proof
 of the mechanism, or call21.5k a completed28k terminal result. Result comments
 belong to closeout; keep ordinary monitoring in task artifacts.
+
+## Sealed launch
+
+Runtime **7b6aecbc39184ea4edbb32c6a40e513f6c44c69b** on all three trainers;
+the later startup-metadata commit does not change this runtime. All65 CPU
+checks and sealed inherited-config checks passed. Three exact v5p-128/s28000
+AOTs passed manifest/size/CRC verification. The retained FLEX compiler was
+borrowed under its worker lock and remains user-owned. All trainers loaded
+their compiled function and passed FIRST_STEP and20-step speed gates.
+
+| Arm | First READY observation UTC | Formal registration UTC | Startup throughput |
+|---|---|---|---:|
+| narrow MHA |2026-10-25 02:31:04|2026-10-25 02:37:21|~.400step/s|
+| wide residual BAM |2026-10-25 02:31:05|2026-10-25 02:37:40|~.294step/s|
+| allR640 BAM |2026-10-25 02:31:07|2026-10-25 02:39:11|~.330step/s|
+
+All timings use minimal remat, generic health ON and internal/BAM health OFF.
+The parent2:1 startup control was.3294step/s; its later resumed speed~.325 is
+a different timing phase, not evidence of a measured2% rank-refund speedup.
+Ordinary MHA's corresponding minimal-remat control was.3603step/s.
+Checkpoint0 was observed committed; require1000/2000 at the first due reports
+to verify ongoing checkpointing and fixed-step preservation. Exact launch
+commands, AOT identities, worker HEAD/loading/step evidence, report cursors
+and task guards are in the task artifact directory, not interim loss diaries
+in `exp.py`. Runtime disables `save_config_to_gcs`; use sealed-source config
+verification plus the actual worker HEAD/AOT/batch-token/LR evidence instead
+of claiming a nonexistent GCS `config.yml` was inspected.

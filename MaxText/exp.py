@@ -306,6 +306,7 @@ class BamLlama2Medium(Llama2Medium):
     bam_static_write_gate_init = .01
     bam_local_vo_shared_read = 'none'  # none | local_o (C8 column donor)
     bam_local_vo_independent_gates = False
+    bam_local_vo_independent_keys = False
     bam_local_qk_share_basis = False  # effective_key Q/K share bases; gates and mixing remain independent.
     bam_local_gram_implementation = 'mul_reduce'  # effective_key Gram: dot | mul_reduce
     bam_local_gram_statistics_dtype = 'float32'  # float32 | activation
@@ -17643,6 +17644,23 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio3to1HybridV4DropLocalOTr
     base_mlp_dim = 2787
     bam_memory_mlp_dim = 802
     compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1HybridV4DropLocalOTruePile']
+
+
+class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysTruePile(
+    BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1TruePile):
+    """Separate dynamic V/O read addresses, retaining the shared R256 read down."""
+    model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysTruePile'
+    bam_local_vo_independent_keys = True
+    bam_attention_write_layers = list(range(17))
+    bam_pair_scan = False
+    bam_local_fetch_block_size = None
+    bam_final_local_layer_count = 1
+    base_mlp_dim = 2510
+    mlp_dim_by_block = None
+    bam_memory_mlp_dim = 1128
+    bam_final_local_mlp_dim = None
+    bam_last_mlp_dim = 3904
+    compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1TruePile']
 
 
 class BamMediumPropMShiftReadG050SharedHiddenMemoryMLPTruePile(

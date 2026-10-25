@@ -180,3 +180,51 @@ protocol and5 rotating-writer regressions; no repeated unrelated full BAM suite.
 Keep ID310365 and Drop310366, spot v5p-16 UE5a only. Borrow the reverified
 FLEX_START `llm-jax-v6e-1-0` EW4a worker0 for serialized AOT; never release it.
 Artifacts `/data0/xd/bam_diagnostics/mediumprop-hybrid-v-heads/ratio3`.
+
+
+## Independent2:1: separate dynamic V/O addresses
+
+User confirmed the original pure BAM dedicated2:1 parent, not either hybrid-V arm.
+RUN `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysTruePile`.
+Implementation stays in this family worktree/branch. Share the original readR256
+down/GELU across Q/K/V/O, but add a separate R256->16x32 V up and512-element
+V pre-RMS bias. The original VO up/bias now serves O. Dynamic gates, static read
+keys and static gates were already independent and are unchanged. Clone V's up
+initialization from O and start its bias at zero; no initial read-amplitude jump.
+The two addresses and their gradients then learn independently.
+
+The v8t kernel packs independent V/O keys into its existing key input, retains
+the same4N-row read matmul, and handles their RMS reverse independently. Native
+JAX uses two reads. No JAX-only fallback; fused inputs, Pallas v8t/48MiB, tuned
+Splash1024/fused, health ON/internal+BAM OFF remain enabled.
+
+Extra address parameters131584/layer=.0913778W_Q,2368512 total=1.6448W_Q.
+Remove the parent's unused458000-parameter final attention writer; the final
+private MLP writer is already absent. Reallocate the productive layers' remaining
+MLP budget at complete ordinary/private ratio1.999646:1: widths2510/1128,
+uniform forL0-16; terminal ordinary3904. Total432112192, parent-1088
+(-.0007556W_Q). No per-layer ordinary-width mechanism. Use the homogeneous
+17-layer single scan plus explicit L17, as directed for this family, rather than
+the historical independent2:1 parent's unnecessary two-layer packaging.
+Initialization distribution/layer math retained; scan packaging/RNG paths differ
+from that historical parent, so this is not a bitwise-parent startup claim.
+
+Historical prior: last-block separate-C8 VO at2867d2f ended near parent parity
+(last5 through2800 gap-.00000448); the older no-W_O/head-mix family also
+separated keys but differs substantially from this generalized full-M recipe.
+Before-run bet versus independent2:1: terminal MHA-reference gain1.02
+(working range.99-1.05; approximate gap-.0031 using the parent's terminal
+advantage), speed within~2% of its~.707 record, scan package differs.
+
+T4096/global128/per-device16/BF16/full remat/13500; checkpoints200/latest2,
+TB rotate500. Direct compare only independent2:1; common MHA reference
+BamMHAMediumPropC256TruePile. Report1000-step groups from600, loss gap
+and gain together. Standard Medium2800-step review;13500 remains the training
+endpoint so a review never triggers automatic resource deletion.
+Spot UE5a v5p16 ID310367; reverified READY/idle ACTIVE FLEX_START compiler
+llm-jax-v6e-1-0 EW4a worker0, borrowed only and never lifecycle-adopted.
+Infrastructure audit versus mainfcef789c found no main-only train/AOT/optimizer/
+checkpoint/summary-writer changes since2437dfe; no fixes needed.
+Full BAM regression plus independent-key native/Pallas forward/all-gradient,
+shared-key hybrid regressions, shifted-read reverse and summary-writer gates
+precede training. Artifacts: family root/separate-vo.

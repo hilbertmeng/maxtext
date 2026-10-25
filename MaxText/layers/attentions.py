@@ -2778,6 +2778,11 @@ class BamAttention(Attention):
     self._full_m_read_share_down = bool(getattr(cfg, 'bam_local_full_m_read_share_down', False))
     self._share_read_attention_down = bool(getattr(cfg, 'bam_share_read_attention_write_down', False))
     self._general_read = bool(getattr(cfg, 'bam_general_column_read', False))
+    self._vo_independent_keys = bool(getattr(cfg, 'bam_local_vo_independent_keys', False))
+    if self._vo_independent_keys:
+      assert (self._general_read and self._full_m_read_share_down
+              and self._vo_independent_gates and not self._standard_value_heads
+              and self._has_value_m_read), 'Independent VO keys require full-head generalized shared-down reads'
     self._m_shift_mode = getattr(cfg, 'bam_m_shift_mode', None) or 'none'
     if self._persistent_read and (
         not self._general_read or self._full_m_read_rank is None
@@ -3226,6 +3231,18 @@ class BamAttention(Attention):
                               self._read_head_count(arm))
 
 
+    if self._vo_independent_keys:
+      # O is evaluated first on both native and fused paths. Start V from the
+      # identical address, then allow its up projection and bias to learn freely.
+      def clone_vo_init(_key, shape, dtype, *unused, **unused_kwargs):
+        source = nn.meta.unbox(self.variables['params']['W_R_up']['kernel'])
+        return jnp.reshape(source, shape).astype(dtype)
+      self._add_full_m_key_projection(
+          'W_lv_c8', (self.num_query_heads, self._read_bam_v),
+          ('embed', 'q_heads', 'kv'), clone_vo_init)
+      self.general_v_pre_bias = self._constant_general_parameter(
+          'general_v_pre_bias', (self.num_query_heads, self._read_bam_v), ('q_heads', 'kv'))
+
   def _constant_general_parameter(self, name, shape, axes, value=0.):
     # Constants need no random key; keep the parent's init RNG counters intact.
     return nn.unbox(self.variable('params', name, nn.with_logical_partitioning(
@@ -3310,7 +3327,7 @@ class BamAttention(Attention):
       hidden = nn.gelu(getattr(self, f'{name}_down')(x))
     key = getattr(self, f'{name}_up')(hidden)
     if self._general_read:
-      arm = {'W_lq_c8': 'q', 'W_lk_c8': 'k', 'W_R': 'vo'}[name]
+      arm = {'W_lq_c8': 'q', 'W_lk_c8': 'k', 'W_R': 'vo', 'W_lv_c8': 'v'}[name]
       bias = jnp.asarray(getattr(self, 'general_' + arm + '_pre_bias'), key.dtype)
       self._record_concat_amplitude('general_' + arm + '_pre_bias', bias, key)
       self._record_general_key_norm(arm + '_before_bias', key)
@@ -3555,13 +3572,17 @@ class BamAttention(Attention):
     v_logits = self._project_read_gate_logits('W_lv_gate', x)
     self._record_concat_gate('local_v', v_logits)
     v_logits = self._pad_read_heads(v_logits, -2, -jnp.inf)
+    v_read = read
+    if self._vo_independent_keys:
+      v_key = self._project_column_read_key('W_lv_c8', x, shared_hidden)
+      v_read = bam_read(compressed_M, v_key, self._fetched_arm_ungated)
     if self._concat_health:
       v, o = (self._read_gate_activation(z.astype(jnp.float32)) for z in (v_logits, o_logits))
       vc, oc = v - jnp.mean(v), o - jnp.mean(o)
       correlation = jnp.mean(vc * oc) / jnp.maximum(jnp.sqrt(jnp.mean(vc * vc) * jnp.mean(oc * oc)), 1e-12)
       self.sow('intermediates', 'concat_vo_gate_pair', jnp.stack((
           jnp.mean(jnp.abs(v-o)), jnp.sqrt(jnp.mean((v-o)**2)), correlation)))
-    return self._gate_local_output(read, v_logits), self._gate_local_output(read, o_logits)
+    return self._gate_local_output(v_read, v_logits), self._gate_local_output(read, o_logits)
 
   def _matrix_for_read(self, M_in):
     """Select the configured read-side view without changing the raw matrix stream."""
@@ -3943,6 +3964,8 @@ class BamAttention(Attention):
     from layers import bam_pallas
     cfg = self.config
     self._check_pallas_core()
+    if self._vo_independent_keys and cfg.bam_pallas_body != 'v8t':
+      raise ValueError('Independent VO keys require the v8t fused read')
     b_, t_ = inputs_q.shape[:2]
     fused = bool(getattr(cfg, 'bam_pallas_fused_inputs', False)) and not self.is_initializing()
     full_m = self._full_m_read_rank is not None
@@ -4006,7 +4029,10 @@ class BamAttention(Attention):
       # [N,V] keys read M directly, i.e. an identity compression in the fused core.
       hidden = nn.gelu(raw['full_m_read_down'] if fused else self.full_m_read_down(inputs_q))
       if fused:
-        up = self._fused_input_projections(hidden, ('W_lq_c8_up', 'W_lk_c8_up', 'W_R_up'))
+        up_names = ('W_lq_c8_up', 'W_lk_c8_up', 'W_R_up')
+        if self._vo_independent_keys:
+          up_names += ('W_lv_c8_up',)
+        up = self._fused_input_projections(hidden, up_names)
         pre = lambda arm: (jnp.asarray(getattr(self, 'general_' + arm + '_pre_bias'), hidden.dtype)
                            if self._general_read else 0)
         q_key = up['W_lq_c8_up'] + pre('q')
@@ -4017,6 +4043,11 @@ class BamAttention(Attention):
         k_key = self._project_column_read_key('W_lk_c8', inputs_q, hidden)
         vo_key = self._project_column_read_key('W_R', inputs_q, hidden)
       vo_key = jnp.squeeze(vo_key, axis=-2)
+      if self._vo_independent_keys:
+        v_key = (up['W_lv_c8_up'] + pre('v') if fused else
+                 self._project_column_read_key('W_lv_c8', inputs_q, hidden))
+        # v8t accepts two key slabs, V then O, instead of a shared VO slab.
+        vo_key = jnp.concatenate((v_key, vo_key), axis=-2)
       compression = jnp.eye(self.bam_v, dtype=self.static_q_key.dtype)
     else:
       if fused:

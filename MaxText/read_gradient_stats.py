@@ -9,4 +9,9 @@ def grams(gradients):
  d=jnp.transpose(down,(1,2,0,3,4)).reshape(L,4*B,-1).astype(jnp.float32)
  ug=jnp.einsum('lhif,lhjf->lhij',u,u,precision=jax.lax.Precision.HIGHEST)
  dg=jnp.einsum('lif,ljf->lij',d,d,precision=jax.lax.Precision.HIGHEST)
- return dict(up_gram=ug.reshape(L,H,2,B,2,B).transpose(0,1,2,4,3,5),down_gram=dg.reshape(L,4,B,4,B).transpose(0,1,3,2,4))
+ result=dict(up_gram=ug.reshape(L,H,2,B,2,B).transpose(0,1,2,4,3,5),down_gram=dg.reshape(L,4,B,4,B).transpose(0,1,3,2,4))
+ if 'out' in gradients:
+  out=gradients['out'];S=out.shape[2];o=jnp.transpose(out,(1,3,2,0,4,5)).reshape(L,H,S*B,-1).astype(jnp.float32)
+  og=jnp.einsum('lhif,lhjf->lhij',o,o,precision=jax.lax.Precision.HIGHEST)
+  result['out_gram']=og.reshape(L,H,S,B,S,B).transpose(0,1,2,4,3,5)
+ return result

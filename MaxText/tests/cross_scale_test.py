@@ -8,6 +8,8 @@ from layers.models import Transformer
 import cross_scale_capture as capture
 class TestCrossScale(unittest.TestCase):
  def test_native_and_links(self):
+  import memory_geometry_capture as geometry
+  geometry.install();geometry.ACTIVE=True
   capture.install();kind=os.environ['TEST_KIND'];mudd=kind.endswith('mudd');py=kind.startswith('py')
   if mudd:
    parent=exp.MuddPythia3BSerialMLPShortTrain if py else exp.MuddLlama2XLProp

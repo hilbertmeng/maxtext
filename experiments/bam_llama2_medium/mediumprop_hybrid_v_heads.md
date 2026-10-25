@@ -184,7 +184,8 @@ Artifacts `/data0/xd/bam_diagnostics/mediumprop-hybrid-v-heads/ratio3`.
 Sealed runtime2437dfe778f2dc4f751424b3b853d32da5d367ad: targeted full-tree/protocol
 check plus5 rotating-writer regressions passed. Both exact AOTs verified; worker
 source hashes, Loaded-compiled markers, actual FIRST_STEP and resolved GCS configs
-match. Actual formal assignment Keep06:33:23, Drop06:32:50 UTC on2026-10-25;
+match. Registry assignment Keep06:30:44, Drop06:30:21 UTC on2026-10-25;
+worker training launches06:33:23/06:32:50;
 first prequeue READY06:30:27/06:30:09 respectively. Both trains passed100.
 20-99 harmonic throughput Keep.683735/Drop.679883step/s (80 samples each),
 -.31%/-.67% versus their matching2:1 arms; medians.687/.684.

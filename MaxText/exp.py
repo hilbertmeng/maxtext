@@ -17173,11 +17173,12 @@ class BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640S
         BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640):
     """Independent dynamic V/O addresses on all32 M-V heads; retain shared R640 read down.
 
-    Single-layer scan L0-L30: ordinary GELU7936 /M-only3072. Including the
-    3,033,120 write-control parameters, the per-layer branch ratio is2.166258:1.
-    The user-selected body width transfers capacity from explicit L31, now2048
-    with no attention/M-only write. Every hidden width is128-aligned.
-    Total2,775,185,632: AllR640 parent+301,664 (+.010871%), the nearest
+    Single-layer scan L0-L30: ordinary GELU7808 /M-only2944. Including the
+    3,033,120 write-control parameters, the per-layer branch ratio is2.208464:1.
+    The body allocation keeps ordinary width near the AllR640 parent without
+    exhausting explicit L31: ordinary9984, no attention/M-only write.
+    Every hidden width is128-aligned. Total2,775,189,600:
+    AllR640 parent+305,632 (+.011014%), the nearest
     128-aligned terminal match. All four read/write/embedding ranks remain640.
     """
     model_name = 'BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640SeparateVOKeys'
@@ -17186,11 +17187,11 @@ class BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640S
     bam_pair_scan = False
     bam_local_fetch_block_size = None
     bam_final_local_layer_count = 1
-    base_mlp_dim = 7936
+    base_mlp_dim = 7808
     mlp_dim_by_block = None
-    bam_memory_mlp_dim = 3072
+    bam_memory_mlp_dim = 2944
     bam_final_local_mlp_dim = None
-    bam_last_mlp_dim = 2048
+    bam_last_mlp_dim = 9984
     compare_runs = ['BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640']
 
 
@@ -17199,17 +17200,17 @@ class BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640H
     """Eight ordinary W_V heads plus24 independent-address M-V heads; omit O only on ordinary heads.
 
     Q/K retain M reads on all32 heads. The extra hybrid-V cost is899,680/layer;
-    deduct256 ordinary hidden channels per body layer on the128 grid.
-    L0-L30 ordinary7680 /M-only3072 gives a2.096383:1 complete branch ratio.
-    Explicit writer-free L31 ordinary4352 balances the total to2,775,133,920:
-    AllR640 parent+249,952 (+.009008%).
+    deduct128 ordinary hidden channels per body layer on the128 grid.
+    L0-L30 ordinary7680 /M-only2944 gives a2.172262:1 complete branch ratio.
+    Explicit writer-free L31 ordinary8320 balances the total to2,775,137,888:
+    AllR640 parent+253,920 (+.009151%).
     All hidden widths are128-aligned; single-layer scan and initialization inherit.
     """
     model_name = 'BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640HybridV8DropLocalOSeparateVOKeys'
     bam_standard_value_heads = 8
     bam_standard_value_keep_local_o = False
     base_mlp_dim = 7680
-    bam_last_mlp_dim = 4352
+    bam_last_mlp_dim = 8320
     compare_runs = ['BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640SeparateVOKeys',
                     'BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640']
 

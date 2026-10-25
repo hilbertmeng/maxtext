@@ -74,9 +74,13 @@ worker0; its queued-resource model is explicitly FLEX_START. AOTs serialize thro
 the worker lock; the compiler is never enrolled in cleanup. Preparation runs CPU,
 AOT and owned training prequeue concurrently, gates all three before formal launch.
 
-Both compare only `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1TruePile`;
-gain reference `BamMHAMediumPropC256TruePile`. Group plots start600 and combine
-loss gap and gain multiplier in two panels with each arm's latest complete horizon.
+Both compare `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1TruePile`
+and the stronger prior plain-V arm
+`BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1StandardVEvery3DropMemoryTruePile`.
+The latter was added on user direction; exclude the weaker KeepMemory arm.
+Gain reference `BamMHAMediumPropC256TruePile` for both comparisons. Group plots
+start600, with loss gaps above and gain multipliers below; one column per baseline
+and both new arms overlaid, retaining each arm's latest complete horizon.
 Early reports around1k, then2k cadence; no interim diary entries in `exp.py`.
 Artifacts `/data0/xd/bam_diagnostics/mediumprop-hybrid-v-heads`.
 
@@ -101,3 +105,12 @@ equal. This is a package comparison with different scan packaging, not a causal
 timing attribution to O removal. Detailed audits and80-step timing evidence are
 in `resolved-config-audit.json`, `registry-launch-audit.jsonl`, `startup-summary.json`
 under the artifact root. No further interim loss entries belong in this ledger.
+
+User-requested speed diagnostic: one standalone spot v5p-16 in UE5a,
+`xd-v5p-16-hybrid-v4-pairscan-prof-1025`. Reuse the verified two-layer Keep AOT
+at `a978db2dff5475ad598d31a3a644499ea0203f35`, same class and exact model/batch/
+health/kernel settings; effective configuration differs from the live single-layer
+runtime only in pair-scan flag, block size2 and explicit-tail count2. Preserve the
+13500-step LR schedule; time20-99, stop after120, no checkpoints or XPlane.
+Keep generic health ON, internal/BAM OFF and GCS TensorBoard in its original
+central1 region; release the standalone TPU after artifacts are secured.

@@ -17618,7 +17618,8 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1HybridV4KeepLocalOTr
     bam_memory_mlp_dim = 1108
     bam_final_local_mlp_dim = None
     bam_last_mlp_dim = 3848
-    compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1TruePile']
+    compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1TruePile',
+                    'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1StandardVEvery3DropMemoryTruePile']
 
 
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1HybridV4DropLocalOTruePile(

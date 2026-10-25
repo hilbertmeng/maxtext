@@ -90,3 +90,14 @@ two-layer preparation was superseded before any training on user direction;
 queues/compiler were retained, all gates repeated on the single-layer runtime.
 Main contains ledger-only classes; model implementation remains in the stated
 experimental worktree/branch.
+
+Worker source hashes, Loaded-compiled markers, actual GCS configs and both live
+registry baseline/gain specifications were verified. Resolved T4096/global128/
+per-device16, BF16/full remat, homogeneous17-layer single scan plus explicit L17,
+tuned Splash/Pallas, health and TB-rotation settings match the launch plan.
+Startup20-99 harmonic throughput Keep.685872/Drop.684498 step/s, about-3.0%/-3.2%
+versus the parent's approximate.707 startup record; Drop/Keep-.20%, effectively
+equal. This is a package comparison with different scan packaging, not a causal
+timing attribution to O removal. Detailed audits and80-step timing evidence are
+in `resolved-config-audit.json`, `registry-launch-audit.jsonl`, `startup-summary.json`
+under the artifact root. No further interim loss entries belong in this ledger.

@@ -181,10 +181,20 @@
       "py2k": "7dba06d6592ad730442127c8fbd8933b16265b8c",
       "py16k": "9ff2e63a13ca46efef5ec5f2db8ce87a0793797a"
     },
-    "resource": "xd-v5p8-mqy-selfbias-1025-ue5a",
+    "resource": "xd-v5p8-mqy-selfbias-1025-ue5a-b",
     "zone": "us-east5-a",
     "scope": "Four frozen BAM checkpoints; onlyq>=64; first/last quarter diagonal-logit bias symmetric grid; no LM training.",
     "selection_validation": "First16choose dose, last16validate chosen only; these32 participated in prior exploration. Any claimed improvement additionally requires freshtext and independentsoftmax replication.",
-    "status": "queued, CPU algebra/native zero/scanned scope checks passed; no measured counterfactual result yet"
+    "status": "4models_48nonzeroCFs_verified_and_published; node+queueindependentlyNOT_FOUND",
+    "resource_audit": "final_resource_audit.json",
+    "attempt1": "Original resource preempted duringXL; Py8k artifacts preserved; originalnode+queue released. Remaining3models resumed on-B.",
+    "results": "comparison.json",
+    "result": "No validated negative self-bias rescue. Py16k bothscopesselect0; other tiny dose candidates fail validation. Geometry hotspot is not demonstrated loss cause.",
+    "next": "Freshtext matched BAM/Mudd true self-exclusion/causaluniform controls, achievedexposure and W_o-projected attentioncontrast."
+  },
+  "capacity_controls_refresh": {
+    "source": "/home/mengqy/Projects/Bam/training_reports/cross_scale_20261025/capacity_control_refresh.json",
+    "scope": "Read existing training only. No jobs/configsmodified. Historical overlaplosses exact and live savedmodelconfigs matcharchived.",
+    "result": "Common9k R640loss-.00120vsMem2; +442MvectorFFNloss-.00874. Both gainratios stilldecline; not final28k evidence."
   }
 }

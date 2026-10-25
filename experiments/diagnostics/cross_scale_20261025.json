@@ -1,7 +1,7 @@
 {
   "date": "2026-10-25",
   "kind": "read_only_checkpoint_analysis",
-  "status": "six_stages_verified; probable_functional_mechanism_narrowed; full_root_cause_not_identified",
+  "status": "seven_stages_verified; shared_reader_gradient_conflict_not_supported; full_root_cause_not_identified",
   "objective": "Explain the stable XL versus eroding2.8B BAM/Mudd gain ratio with analysis evidence",
   "authorization": {
     "no_actual_training": true,
@@ -38,9 +38,12 @@
     "structural_candidate": "Exact restored FFN parameter advantage XL18.48% vsPy7.23%; read address R*heads*V cost4.915x versusD²1.778x; causal benefit not isolated.",
     "counterevidence": "FFN energy participation-count advantage is larger inPy; Mem2:1 narrows vector FFN but modestly improves loss. Parameter budget is not equivalent to effective predictive capacity.",
     "initialization": "Existing Medium controls show init repair restores late1.61, but current3B already contains repair. Embedding-scale and QKNorm remain confounds.",
-    "limits": "XL BAM33k vsMudd50k, no matched XL temporal weights. All32texts from training shard. Architecture/recipe changes confound pure scaling; source deletion penalties include coadaptation."
+    "limits": "XL BAM33k vsMudd50k, no matched XL temporal weights. All32texts from training shard. Architecture/recipe changes confound pure scaling; source deletion penalties include coadaptation.",
+    "shared_reader_gradients": "Matched Py8k/XL33k native-all V/O up cos+.1689/+.1682, down+.1954/+.1997; output-projection MHA/directO cos-.1565/-.3144. Positive reader directions at all layers for Py2k/8k/16k andXL; no2.8B-specific raw-gradient conflict. BF16 identity error~1%-2%; not Adam update measurement.",
+    "same_cohort_output_ratio": "Mo/MHA pooled RMS XL1.4138; Py2k1.4326/8k1.3878/16k1.4158. Dynamic/static O RMS Py6.6137→2.4702→2.1928 vsXL1.9090. Do not equate functional necessity with total amplitude.",
+    "nonself_heads": "Separating active-self and active-nonself does not restore temporal correspondence: PyBAM already has fewer active-nonself heads thanMudd at2k with largest loss edge; by16k has more despite smaller edge."
   },
-  "next_required": "Shared V/O dynamic-reader gradient attribution or selected-layer small-dose routing controls; no actual LM training authorized.",
+  "next_required": "Test directO versus MHA functional mediation through vector FFN and M writes with small branch-scaling interventions and normalization geometry controls; no actual LM training.",
   "resource": {
     "utc": 1792909633.3585522,
     "audit_file": "final_resource_audit.json",
@@ -95,5 +98,28 @@
       "arms": 4,
       "source_commits": "Exact per-arm training/diagnostic identities in referenced manifest"
     }
+  },
+  "read_gradient_stage": {
+    "report_root": "/home/mengqy/Projects/Bam/training_reports/read_gradient_20261025",
+    "manifest": "arms.json",
+    "results": "comparison.json",
+    "native_moments": "prewo_comparison.json",
+    "resource": "xd-v5p8-mqy-readgrad-1025-ue5a",
+    "zone": "us-east5-a",
+    "resource_status": "node_and_queue_NOT_FOUND_independently_verified",
+    "resource_audit": "final_resource_audit.json",
+    "source_commits": {
+      "maxtext-diag-cross-xl-bam": "7df7bff36e7a39befc0517ad1993d8925664d91c",
+      "maxtext-diag-cross-py2k": "7094ef3957cff749704f1b72bf78562484d5e34a",
+      "maxtext-diag-cross-py16k": "2f5572e56cb6fc01e3a95642c19f3d29d6cfee3a"
+    },
+    "invariants": [
+      "No optimizer updates or checkpoint writes",
+      "FP32 zero-delta forward and exact native-gradient-sum tests on XL/Pythia scanned models and interpretedPallas",
+      "BF16 test max gradient-sum L2relative error below2%",
+      "Four virtual CPU devices: feature-local Gram reduction equals full FP32 Grams",
+      "All4models same32sequence hashes, actual model configs, checkpoint and source identities, all4objectives finite; per-sequence CE vs reference<=.005",
+      "Gram feature sharding + original-buffer release fixed firstattemptOOM; all4arms locally verified before exact-resource release"
+    ]
   }
 }

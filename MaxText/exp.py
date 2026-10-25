@@ -17775,8 +17775,10 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MHAWriterEvery3DropM
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1StandardVEvery3KeepMemoryTruePile(
         BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MHAWriterEvery3KeepMemoryTruePile):
     """Periodic plain W_V with BAM Q/K/O, no Mudd; retain balanced private memory FFNs."""
-    # code_commit:45b3ce3; UE5a v5p16 retained310350; health ON/internal+BAM OFF.
-    # Exact AOT/FIRST_STEP/worker QKO+plain-V config verified;20-99 0.692718step/s (-4.68% vs Every3 MHA parent).
+    # code_commit:45b3ce3; completed 13500; UE5a v5p16 P0; CP13500 committed, node/queue absent, TB SYNC_OK.
+    # vs independent2:1: early lead reversed by1.2k; a ~+.011 loss deficit persisted from~3k to the finish.
+    # Final5(12600..13400): gap+0.01118124, MHA-reference gain0.928817; pre-run1.02 gain bet failed.
+    # Params vs independent2:1 -464; M-state shape unchanged; startup20-99 0.692718step/s (~-2.0% vs baseline~.707).
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1StandardVEvery3KeepMemoryTruePile'
     bam_mha_writer_layers = None
     bam_standard_value_layers = [2, 5, 8, 11, 14, 17]
@@ -17791,8 +17793,10 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1StandardVEvery3KeepM
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1StandardVEvery3DropMemoryTruePile(
         BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1StandardVEvery3KeepMemoryTruePile):
     """The same plain-V sites omit the private M FFN, refunding ordinary width."""
-    # code_commit:45b3ce3; UE5a v5p16 retained310351; health ON/internal+BAM OFF.
-    # Exact AOT/FIRST_STEP/worker QKO+plain-V config verified;20-99 0.711704step/s (-3.45% vs Every3 MHA parent).
+    # code_commit:45b3ce3; completed 13500; UE5a v5p16 P1; CP13500 committed, node/queue absent, TB SYNC_OK.
+    # vs independent2:1: early lead reversed by800; late deficit stayed~+.009, with no recovery to parity.
+    # Final5(12600..13400): gap+0.00886780, MHA-reference gain0.943541; pre-run1.015 gain bet failed.
+    # Params vs independent2:1 -864; M-state shape unchanged; startup20-99 0.711704step/s (~+0.7% vs baseline~.707).
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1StandardVEvery3DropMemoryTruePile'
     bam_mlp_write_layers = [i for i in range(17) if (i+1)%3!=0]
     bam_mlp_dim_by_layer = [3413 if (i+1)%3==0 else 2535 for i in range(17)] + [3544]

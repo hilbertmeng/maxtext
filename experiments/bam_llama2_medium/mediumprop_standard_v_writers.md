@@ -73,3 +73,45 @@ direction, original Every3 controls stopped5027/4505, node/queue verified
 absent, CP/TB preserved. Their complete comparison coverage is5000/4400;
 retain their data as historical evidence; the current comparison policy uses
 only the full13500 independent2:1 direction baseline.
+
+## Completion (2026-10-25 closeout)
+
+Both completed13500 on runtime45b3ce3. Every final CP13500 marker was checked
+independently; both nodes and queued resources are absent, both TB syncs SYNC_OK.
+Final native comparison series is complete at all67 centers200..13400; the
+published two-panel PNG excludes the initial transient and starts600. Do not
+invent a13500 window requiring post-plan samples. MHA remains the common gain
+reference; independent2:1 remains the sole registered comparison.
+
+| Selected-layer private MLP | Final5 gap vs2:1 | Final5 gain multiplier | Pre-run bet | Params vs2:1 |
+|---|---:|---:|---:|---:|
+| keep | +0.01118124 | 0.928817 | 1.02 | -464 |
+| drop | +0.00886780 | 0.943541 | 1.015 | -864 |
+
+The early convergence benefit reversed by800 (Drop) /1200 (Keep). After~3k,
+absolute loss deficits stayed near+.01; gain multipliers declined as the common
+MHA advantage narrowed, then settled near.929/.944. Neither arm recovered to
+independent2:1 at the endpoint. Both positive-gain terminal bets were wrong.
+
+Drop was lower-loss at every complete common window from2400 onward; its
+final5 gap is.00231344 better than Keep, with2.74% higher startup throughput.
+Refunding private-memory capacity to ordinary MLPs helped relative to Keep,
+but its modest late improvement did not repay the common plain-W_V replacement
+cost. The original preference for Keep was wrong. Preserve M-derived V as the
+default; these results do not support periodic full-depth replacement by W_V.
+The experiment changes V provenance and pays its projection cost from MLPs;
+it does not isolate those two causes. M-state dimensions are unchanged; no
+inference-cache-size measurement was performed.
+
+Startup20–99 Keep.692718 / Drop.711704 step/s, versus the documented approximate
+independent2:1 startup.707 (about-2.0% /+.7%). These are startup steady-window
+comparisons with training health ON, internal+BAM OFF, tuned Splash/Pallas;
+they are not full-run wall-time claims. No model code merged into main.
+
+UE5a v5p16 only. Keep P0 READY2026-10-24 15:02:53–20:39:50 (5h36m57s).
+Drop P1 READY15:02:49–15:58:54 (56m05s), then16:05:39–20:44:50 (4h39m11s).
+The preemption savedCP2139 and resumed2140; nextCP2200 verified, schedule13500
+retained. The borrowed FLEX compiler was not part of training lifecycle cleanup.
+Full assignments/leases are in the regional history. Proofs and all comparisons:
+`/data0/xd/bam_diagnostics/mediumprop-standard-v-writers/` (`final-summary.json`,
+`final-verification.json`, `report-final-13400.json`, `final-lease-*.json`).

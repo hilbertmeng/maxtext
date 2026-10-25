@@ -7,7 +7,7 @@ from flax import linen as nn
 from flax.traverse_util import flatten_dict,unflatten_dict
 import checkpointing,max_utils
 from layers.models import Transformer
-from cross_scale_probe import cohort,config_for,hash_sequence,variant
+from cross_scale_probe import cohort,config_for,hash_sequence,variant,save_capture
 
 def changed_params(params,name):
  if name.startswith('no_') and name!='no_M_shift':return variant(params,name)
@@ -77,6 +77,27 @@ def main():
    z=np.asarray(jax.device_get(v),np.float32)
    small['/'.join(key)]=dict(shape=list(z.shape),mean=float(z.mean()),rms=float(np.sqrt(np.mean(z*z))),min=float(z.min()),max=float(z.max()))
  meta['gate_parameter_statistics']=small
+ if cfg.bam_enabled:
+  import memory_geometry_capture as geometry
+  geometry.install();geometry.ACTIVE=True
+  def captured(weights,b):
+   value,raw=model.apply(weights,b['inputs'],b['positions'],decoder_target_tokens=b['targets'],decoder_segment_ids=b['segments'],decoder_target_mask=b['mask'],enable_dropout=False,rngs={'params':rng,'dropout':rng,'aqt':rng},mutable=['intermediates'])
+   return value[0],raw
+  memory_fn=jax.jit(captured);geometry_delta=0.
+  for i,b in enumerate(batches[:16//a.batch_size]):
+   with mesh,nn.partitioning.axis_rules(cfg.logical_axis_rules):loss,raw=jax.device_get(memory_fn(params,b))
+   geometry_delta=max(geometry_delta,float(np.max(np.abs(np.asarray(loss).mean(1)-baseline[i*a.batch_size:(i+1)*a.batch_size].mean(1)))))
+   if geometry_delta>.005:raise ValueError(('Memory observer changed loss',geometry_delta))
+   arrays={}
+   for path,v in flatten_dict(raw['intermediates']).items():
+    if not path[-1].startswith('stream_geometry_'):continue
+    while isinstance(v,(tuple,list)) and len(v)==1:v=v[0]
+    arrays['__'.join(path)]=np.asarray(v,np.float32)
+   for j in range(a.batch_size):
+    row={k:np.take(v,[j],axis=1 if 'layers' in k.split('__') else 0) for k,v in arrays.items()}
+    save_capture(out/f'memory_{i*a.batch_size+j:03d}.npz',row)
+  geometry.ACTIVE=False
+  meta['memory_geometry']=dict(sequences=16,positions=geometry.positions(a.length).tolist(),observer_native_max_loss_delta=geometry_delta,canonical_layout='batch,positions,data_K,address_V')
  effects={}
  if cfg.bam_enabled:
   for name in ['no_embedding_M_write','no_attention_M_write','no_mlp_M_write','no_M_read','no_M_shift','shift_bias_-0.5','shift_bias_0.5','qk_read_bias_-0.5','qk_read_bias_0.5','mlp_write_bias_-0.5','mlp_write_bias_0.5']:

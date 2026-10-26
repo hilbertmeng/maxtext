@@ -18404,3 +18404,17 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MuddL14VML17VML2NoL1
     bam_mudd_tail_l1_anchor = False
     compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MuddL14VML17VML2TruePile',
                     'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MuddL14VML17VML1L2NoL14MemoryMLPTruePile']
+
+
+class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysV5p8Profile(
+        TrainStepProfile, BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysTruePile):
+    """Timing/trace: QK57 parent at its formal batch16/device and health, on v5p-8."""
+    model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysV5p8Profile'
+    steps = 100
+
+
+class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysQK75V5p8Profile(
+        TrainStepProfile, BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysQK75TruePile):
+    """Timing/trace: widened QK93 (all75 M-derived NoPE + RoPE18) child, same batch/health/VM as its parent arm."""
+    model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysQK75V5p8Profile'
+    steps = 100

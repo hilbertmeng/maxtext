@@ -17258,6 +17258,9 @@ class BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640S
     No trainable parameter change:2,775,189,600. The60MiB scoped budget
     matches the sealed independent-VO parent (reverse needs58.13MiB).
     """
+    # code_commit:44141a7; UE5a v5p-128 global1024/B16; health ON/internal+BAM OFF, minimal remat.
+    # Exact AOT loaded, worker HEAD/FIRST_STEP/CP0 verified; steps20..39 .320341step/s, matched parents~.317.
+    # Explicit60MiB VMEM compiled and ran on physical64MiB; MLP/parameter tree unchanged vs matching parent.
     model_name = 'BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640SeparateVOKeysLogitDiagNegative'
     bam_attention_negative_diagonal = True
     bam_pallas_vmem_mib = 60
@@ -17273,6 +17276,9 @@ class BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640S
     2,775,190,880:only1280 additional norm scales vs the pre-only class;
     the negligible .0000461% cost leaves all MLP widths unchanged.
     """
+    # code_commit:44141a7; UE5a v5p-128 global1024/B16; health ON/internal+BAM OFF, minimal remat.
+    # Exact AOT loaded, worker HEAD/FIRST_STEP/CP0 verified; steps20..39 .316482step/s, matched parents~.317.
+    # Explicit60MiB VMEM compiled and ran on physical64MiB; MLP/parameter tree unchanged vs matching parent.
     model_name = 'BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640SeparateVOKeysLogitDiagNegativeQK80'
     bam_attention_negative_diagonal = True
     compare_runs = ['BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640SeparateVOKeysLogitDiagNegative']

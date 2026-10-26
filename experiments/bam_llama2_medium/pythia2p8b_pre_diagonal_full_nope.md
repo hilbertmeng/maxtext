@@ -57,3 +57,15 @@ Task artifacts, including exact AOT manifests, registry snapshots and ownership:
 `/data0/xd/bam_diagnostics/pythia2p8b-logit-negative-20261026/`.
 Routine monitoring stays in those artifacts; the ledger receives lifecycle and
 final conclusions rather than an interim training diary.
+
+## Startup verification
+
+Both exact v5p128/s28000 AOTs compiled on the retained compiler at44141a7.
+Both UE5a trainers loaded their artifacts, actual worker HEAD matched, first
+steps ran, and checkpoint0 commit markers were verified. Initial20-step timing
+(20..39, harmonic mean) is .320341step/s pre-only and .316482 combination,
+compared with matched SeparateVO/QK80 parents near .317step/s. Thus there is no
+material startup speed regression. VMEM60MiB passed both compile and real steps.
+The fixed-step keep list is2000,4000,...,26000 in addition to latest2; retention
+will be checked after the relevant checkpoints exist. Both21530 pause/release
+guards are armed; the original QK80 trainer and reserved compiler stay active.

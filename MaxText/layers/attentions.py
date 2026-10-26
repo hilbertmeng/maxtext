@@ -1757,7 +1757,8 @@ def _dynamic_bam_fetch_mix_weights(mix_logits, alpha_dtype, *, rms_epsilon, scal
 
 def _attention_op(
     query, key, value, valid, *, attn_logits_soft_cap=0.0,
-    float32_logits=False, additive_bias=None):
+    float32_logits=False, additive_bias=None, zero_diagonal_mask=None,
+    negative_diagonal_mask=None):
   """Apply masked QK/softmax/AV to one dense or query-chunk block."""
   with jax.named_scope("attention/qk_logits"):
     logits = jnp.einsum('bqnd,bsnd->bnqs', query, key)
@@ -1770,8 +1771,16 @@ def _attention_op(
     logits = logits.astype(jnp.float32)
   if additive_bias is not None:
     logits = logits + jnp.asarray(additive_bias, logits.dtype)
+  if negative_diagonal_mask is not None:
+    from layers.bam_attention_diagonal_zero import NEGATIVE_DIAGONAL_LOGIT
+    logits = jnp.where(negative_diagonal_mask, jnp.asarray(NEGATIVE_DIAGONAL_LOGIT, logits.dtype), logits)
   with jax.named_scope("attention/softmax"):
     alpha = jax.nn.softmax(logits, axis=-1)
+    if zero_diagonal_mask is not None:
+      alpha = jnp.where(zero_diagonal_mask, jnp.asarray(0, alpha.dtype), alpha)
+    if negative_diagonal_mask is not None:
+      off_valid = (valid[:, None] if valid is not None else jnp.ones_like(alpha, dtype=jnp.bool_)) & ~negative_diagonal_mask
+      alpha = jnp.where(jnp.any(off_valid, axis=-1, keepdims=True), alpha, jnp.asarray(0, alpha.dtype))
   with jax.named_scope("attention/av"):
     y_std = jnp.einsum('bnqs,bsnd->bqnd', alpha, value)
   return y_std, alpha
@@ -1817,13 +1826,20 @@ def _bam_splash_attention(query, key, value, decoder_segment_ids, cfg, mesh, win
         q_layout=splash_attention_kernel.QKVLayout['SEQ_MINOR' if seq_minor else cfg.sa_q_layout],
         k_layout=splash_attention_kernel.QKVLayout['SEQ_MINOR' if seq_minor else cfg.sa_k_layout],
         v_layout=splash_attention_kernel.QKVLayout['SEQ_MINOR' if seq_minor else cfg.sa_v_layout])
-    mask = splash_attention_mask.CausalMask(shape=(t, t))
+    negative_diagonal = bool(getattr(cfg, 'bam_attention_negative_diagonal', False))
+    mask = splash_attention_mask.CausalMask(shape=(t, t), offset=-1 if negative_diagonal else 0)
     if window is not None and window < t:     # C256: source > target - window
       mask &= splash_attention_mask.LocalMask(shape=(t, t), window_size=(window - 1, 0), offset=0)
     mask = splash_attention_mask.MultiHeadMask(masks=(mask,) * q.shape[1])
     kernel = splash_attention_kernel.make_splash_mha(
         mask=mask, head_shards=1, q_seq_shards=1, block_sizes=block_sizes,
         attn_logits_soft_cap=cfg.attn_logits_soft_cap)
+    if negative_diagonal:
+      from layers.bam_attention_diagonal_zero import make_negative_diagonal_splash
+      kernel = make_negative_diagonal_splash(kernel)
+    elif getattr(cfg, 'bam_attention_zero_diagonal', False):
+      from layers.bam_attention_diagonal_zero import make_zero_diagonal_splash
+      kernel = make_zero_diagonal_splash(kernel)
     return jax.vmap(kernel)(q, k, v, segment_ids=segments)
 
   if segments is None:
@@ -3837,7 +3853,9 @@ class BamAttention(Attention):
     y_std, alpha = _attention_op(
         query, key, value, valid,
         attn_logits_soft_cap=cfg.attn_logits_soft_cap,
-        float32_logits=cfg.float32_logits)
+        float32_logits=cfg.float32_logits,
+        zero_diagonal_mask=(source == target) if getattr(cfg, 'bam_attention_zero_diagonal', False) else None,
+        negative_diagonal_mask=(source == target) if getattr(cfg, 'bam_attention_negative_diagonal', False) else None)
     Mbar = None
     if fetch_state is not None:
       assert mix_weights is not None

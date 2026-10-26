@@ -303,6 +303,8 @@ class BamLlama2Medium(Llama2Medium):
     bam_general_column_read = False
     bam_general_matrix_write = False  # Historical write variants remain worktree-only.
     bam_pallas_write = True  # With bam_pallas_core=True, False keeps fused reads and uses native writes.
+    bam_attention_zero_diagonal = False  # Zero alpha_ii AFTER softmax, without renormalizing.
+    bam_attention_negative_diagonal = False  # Suppress diagonal logits BEFORE softmax; empty histories output zero.
     bam_static_read_gate_init = .99
     bam_static_write_gate_init = .01
     bam_local_vo_shared_read = 'none'  # none | local_o (C8 column donor)
@@ -17854,6 +17856,30 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysTruePi
     bam_final_local_mlp_dim = None
     bam_last_mlp_dim = 3904
     compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1TruePile']
+
+
+class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysAlphaDiagZeroTruePile(
+    BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysTruePile):
+    """Zero post-softmax alpha_ii; retain its logit in the normalization denominator.
+
+    Keep localO/residual paths and all writer/MLP parameters. Splash uses its
+    original denominator and a corrected VJP, with no extra attention pass.
+    """
+    model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysAlphaDiagZeroTruePile'
+    bam_attention_zero_diagonal = True
+    compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysTruePile']
+
+
+class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeTruePile(
+    BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysTruePile):
+    """Large negative diagonal logits before softmax; empty history rows output zero.
+
+    Historical V weights renormalize on nonempty rows. Keep all parent
+    localO/residual/write/MLP parameters; matched control for post-softmax zero.
+    """
+    model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeTruePile'
+    bam_attention_negative_diagonal = True
+    compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysTruePile']
 
 
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysGeneralWriteTruePile(

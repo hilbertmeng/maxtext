@@ -17831,6 +17831,13 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysTruePi
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysQK75TruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysTruePile):
     """Retain all75 M-derived NoPE coordinates and append18 RoPE; QK93/V75."""
+    # code_commit: f8d8866; claude/qk75-profile; /data0/xd/mediumprop-independent-vo-qk75-fast.
+    # Started c5ca75f; same-RUN/TPU hot resume CP3800 -> first3801 on f8d8866; plan13500.
+    # UE5a v5p16 xd-v5p-16-310370-maxtext; exact AOT/FIRST_STEP verified for both runtimes.
+    # Old post-anchor trace through3861 retained:61 paired losses mean|diff|3.18e-5/max1.05e-4; cursor/LR identical.
+    # Params432112192 unchanged; MLP2510/1128, terminal3904; noQKNorm, scale1/sqrt75; single-layer scan17+tail1.
+    # Pallasv8t48MiB/fused inputs+tuned Splash; healthON/internal+BAM OFF; c5 gate57, f8 target+47shared checks pass.
+    # c5 startup.643069 vs parent.699548 (-8.07%); f8 same-TPU80-step .690041 vs old.639658 (+7.88%), parent-1.36%.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysQK75TruePile'
     bam_local_qk_col_output_dim = 75
     bam_partial_rope_nope_dim = 75

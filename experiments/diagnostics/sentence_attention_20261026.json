@@ -1,0 +1,9 @@
+{
+  "task": "Full55x55 all32layer/head native attention for supplied literal prompt, SeparateVOKeys16k vs serialMudd16k",
+  "family": "separate",
+  "training_commit": "b79aae76d98bcf2afb467de82639e93908428ceb",
+  "canonical_report": "/home/mengqy/Projects/Bam/training_reports/sentence_attention_real_20261026",
+  "GCS": "gs://newproject-1-llm_projects_us-east5/log/diagnostics/mengqy/sentence_attention_20261026",
+  "owned_TPU": "xd-v5p8-mqy-sentence-1026-ue5a",
+  "scope": "Frozen forward; no optimizer/update/checkpointwrite; read native Q/K/V, verify AV, native loss parity and future prefix independence; preserve mainexp and ag2xd; no subagents"
+}

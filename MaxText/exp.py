@@ -17860,6 +17860,38 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysTruePi
     compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1TruePile']
 
 
+class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysAlphaDiagZeroTruePile(
+    BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysTruePile):
+    """Zero post-softmax alpha_ii; retain its logit in the normalization denominator.
+
+    Keep localO/residual paths and all writer/MLP parameters. Splash uses its
+    original denominator and a corrected VJP, with no extra attention pass.
+    """
+    # Ledger only: attention adapter implementation remains in the runtime worktree below.
+    # code_commit: 55ea52c; codex/mediumprop-attention-diagonal-zero; /data0/xd/mediumprop-attention-diagonal-zero.
+    # UE5a v5p16 xd-v5p-16-310373-maxtext; plan13500; sealed/AOT/FIRST_STEP verified.
+    # Identical432112192 params and MLP2510/1128/tail3904; healthON/internal+BAM OFF; tunedSplash/Pallasv8t.
+    model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysAlphaDiagZeroTruePile'
+    bam_attention_zero_diagonal = True
+    compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysTruePile']
+
+
+class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeTruePile(
+    BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysTruePile):
+    """Large negative diagonal logits before softmax; empty history rows output zero.
+
+    Historical V weights renormalize on nonempty rows. Keep all parent
+    localO/residual/write/MLP parameters; matched control for post-softmax zero.
+    """
+    # Ledger only: attention adapter implementation remains in the runtime worktree below.
+    # code_commit: 55ea52c; codex/mediumprop-attention-diagonal-zero; /data0/xd/mediumprop-attention-diagonal-zero.
+    # UE5a v5p16 xd-v5p-16-310374-maxtext; plan13500; sealed/AOT/FIRST_STEP verified.
+    # Identical432112192 params and MLP2510/1128/tail3904; healthON/internal+BAM OFF; tunedSplash/Pallasv8t.
+    model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeTruePile'
+    bam_attention_negative_diagonal = True
+    compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysTruePile']
+
+
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysGeneralWriteTruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysTruePile):
     """Generalized attention/private-MLP writes on completed2:1+independentVO SOTA.

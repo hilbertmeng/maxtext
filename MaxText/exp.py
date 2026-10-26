@@ -17963,6 +17963,20 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeTruePile']
 
 
+class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio1to1SeparateVOKeysLogitDiagNegativeQK75TruePile(
+    BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75TruePile):
+    """Equal vector/complete-M-branch budgets on negative-diagonal/full-NoPE."""
+    # code_commit: a184479; codex/mediumprop-attention-diagonal-zero,/data0/xd/mediumprop-attention-diagonal-zero.
+    # UE5a v5p16 xd-v5p-16-310377-maxtext; config/CPU/AOT/FIRST_STEP10 verified; plan13500.
+    # Exact432112192 params; ordinary6778800 / complete M branch6776000=1.000413:1 per body layer; tail3904 unchanged.
+    # Native/Pallas+Splash all-gradients maxrel2.26e-6; no kernel edit; healthON/internal+BAM OFF,tunedSplash.
+    # Startup20..99:0.682205step/s vs parent0.686768 (-0.66%); terminal R bet1.02.
+    model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio1to1SeparateVOKeysLogitDiagNegativeQK75TruePile'
+    base_mlp_dim = 1883
+    bam_memory_mlp_dim = 1755
+    compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75TruePile']
+
+
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysGeneralWriteTruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysTruePile):
     """Generalized attention/private-MLP writes on completed2:1+independentVO SOTA.

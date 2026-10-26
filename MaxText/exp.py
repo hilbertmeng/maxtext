@@ -17954,7 +17954,7 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     """Strict historical attention plus complete75-dimensional M-derived NoPE:QK93/V75."""
     # code_commit: 5a3d55b; codex/mediumprop-attention-diagonal-zero,/data0/xd/mediumprop-attention-diagonal-zero.
     # Pre-softmax/full-NoPE support merged main; UE5a v5p16 xd-v5p-16-310372-maxtext retained from GeneralWrite.
-    # Completed13500/P0; CP13500 committed, node+QR independently absent, TB SYNC_OK.
+    # Completed 13500/P0; CP13500 committed, node+QR independently absent, TB SYNC_OK.
     # vs pre-negative parent: sustained extra gain after2k, late R~1.025..1.03 with mild final retreat.
     # Final5(12600..13400) gap-.00434576/R1.02531941, matching terminal1.025 bet; symmetric additivity Q.96568478.
     # Combo absolute benefit.01202564 vs summed standalone.01246016: near-additive terminal gains, slight discount.
@@ -17970,7 +17970,7 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio1to1SeparateVOKeysLogitD
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75TruePile):
     """Equal vector/complete-M-branch budgets on negative-diagonal/full-NoPE."""
     # code_commit: a184479; codex/mediumprop-attention-diagonal-zero,/data0/xd/mediumprop-attention-diagonal-zero.
-    # UE5a v5p16 xd-v5p-16-310377-maxtext; stopped5122 at5k review; CP5122/TB secured, node+QR absent; P0.
+    # UE5a v5p16 xd-v5p-16-310377-maxtext; stopped 5122 at5k review; CP5122/TB secured, node+QR absent; P0.
     # Exact432112192 params; ordinary6778800 / complete M branch6776000=1.000413:1 per body layer; tail3904 unchanged.
     # Native/Pallas+Splash all-gradients maxrel2.26e-6; no kernel edit; healthON/internal+BAM OFF,tunedSplash.
     # vs direct2:1 combo: initial R~1.015 faded to parity3k..4k, then deficit; last5 through5k gap+.00103956/R.99539425.

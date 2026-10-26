@@ -56,35 +56,42 @@ per-device16,T4096. Worker confirms Loaded compiled function. Artifact root:
 new-registration-proof.json,handoff-journal.json,startup-speed.json and cpu.log.
 
 
-## Second-order NoPE transfer metric and routine report
+## Symmetric second-order additivity and routine report
 
-Use the same established four-run pairing as the QKNorm and dedicated-MLP/tail
-combinations. B=original independent2:1/separateVO, P=pre-softmax only,
-N=fullNoPE only, C=combination. The primary second-order quantity is
-S=(L_P-L_C)/(L_B-L_N):NoPE's incremental benefit on P divided by its standalone
-benefit on B. S=1 means additive benefit retained,0<S<1 discounted, S>1 enhanced,
-S<0 reversed. MHA is not a denominator in S. The original ordinary terminal gain
-bet1.025 implies roughly90% NoPE benefit retained, using the working pre-parent
-forecast~1.04 and standalone terminal gain1.0292; preserve that expectation for
-final assessment rather than replacing it with observed startup values.
+B=original independent2:1/separateVO,P=pre-softmax only,N=fullNoPE only,C=combination.
+The primary second-order metric is the user-proposed symmetric quantity:
+Q=(L_C-L_B)/[(L_P-L_B)+(L_N-L_B)], equivalently total combined gain divided by
+the sum of standalone gains. Q=1 means full additive benefit,0<Q<1 discounted,
+Q>1 enhanced,Q<0 reversal when the summed standalone benefit is positive.
+Exchanging P/N leaves Q unchanged:the code inheritance order does not privilege
+one architectural factor in the interaction assessment.
 
-Every combination report reads native registry caches and uses the same five raw
-steps s-20..s+20 by10 across all four RUNs, at200-step centers. Divide after each
-window's means; aggregate window ratios afterward. Missing windows are not filled;
-nonpositive/near-zero standalone benefit produces an undefined S, not an epsilon
-replacement. Ordinary MHA-reference gain ratios still use registry.gain_ratio_series.
-Both ordinary control curves are capped to exactly the four-way common horizon,
-so no future standalone endpoint leaks into a current comparison.
+The previous S_N=(L_P-L_C)/(L_B-L_N) remains only an auxiliary conditional
+NoPE-retention diagnostic in the JSON. It answers the directional question of
+what NoPE adds after P; it is not the symmetric headline metric. The original
+ordinary gain bet1.025 implies Q approximately .95..96 under working pre-parent
+terminal gain1.04..1.05 and standaloneNoPE1.0292; preserve the initial forecast
+rather than refitting it to startup observations.
 
-The experiment-only observer/render entrypoint is
-experiments/bam_llama2_medium/report_pre_diagonal_full_nope.py. It imports the
-existing interaction_series implementation from
-/data0/xd/bam_diagnostics/mediumprop-qknorm/report_qknorm_interaction.py and records
-its SHA256 in every result. No generic report formulas or compare_runs are changed.
-After the usual scoped report-all cache refresh, run it with --output JSON,
---through-step PUBLISHED_COMMON_STEP and --plot-dir ABSOLUTE_DIRECTORY. The PNG has
-three aligned panels from600:standalone/conditional NoPE loss effects,ordinary
-MHA gain multipliers,and S. All observations end at their actual shared horizon.
-The task's second-order-spec.json and monitor-state.json require this observer
-on every combination milestone. Three regression cases pass:additive/enhanced/
-reversed effect orientation,unequal/missing raw windows,and undefined denominators.
+Reuse interaction_series from the established QKNorm/dedicated-MLP four-run
+pairing. Four identical five-point raw windows:s-20..s+20 by10 at200-step centers;
+form each window's means,then ratios,then any multiwindow summary. The symmetric
+numerator/denominator come from those paired means. Missing windows stay blank;
+nonpositive/near-zero summed standalone benefit produces undefined Q. Individual
+NoPE gain can be nonpositive without automatically invalidating Q if the summed
+standalone benefit remains positive. The auxiliary S has its own denominator guard.
+Ordinary MHA-reference ratios still use registry.gain_ratio_series unchanged and
+are capped to the same exact four-run common horizon; MHA is not in Q.
+
+Experiment-only observer:experiments/bam_llama2_medium/report_pre_diagonal_full_nope.py;
+no generic-report formulas or compare_runs are changed. After scoped report-all
+cache refresh,pass --output JSON,--through-step PUBLISHED_COMMON_STEP and
+--plot-dir ABSOLUTE_DIRECTORY. One2x2 PNG from600 shows direct-parent loss gap,
+ordinary MHA gain,symmetric combined-vs-additive loss effects,and Q. S remains
+available in data without adding another plot. Existing pairing implementation
+/data0/xd/bam_diagnostics/mediumprop-qknorm/report_qknorm_interaction.py is reused
+and its SHA256 recorded. The saved second-order-spec.json requires this observer
+at each combination report. Five regression cases cover conditional orientation,
+missing/unequal windows,undefined single-factor denominator,exchange symmetry,
+and the distinct summed-benefit denominator. The example .010/.005 standalone
+and .012 combined yields Q=.8 under either ordering,while S changes .4 to .7.

@@ -17893,14 +17893,16 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysGenera
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysQK75TruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysTruePile):
     """Retain all75 M-derived NoPE coordinates and append18 RoPE; QK93/V75."""
-    # Model/Pallas support merged into main; the sealed runtime below remains this RUN's source.
-    # code_commit: f8d8866; claude/qk75-profile; /data0/xd/mediumprop-independent-vo-qk75-fast.
-    # Started c5ca75f; same-RUN/TPU hot resume CP3800 -> first3801 on f8d8866; plan13500.
-    # UE5a v5p16 xd-v5p-16-310370-maxtext; exact AOT/FIRST_STEP verified for both runtimes.
-    # Old post-anchor trace through3861 retained:61 paired losses mean|diff|3.18e-5/max1.05e-4; cursor/LR identical.
-    # Params432112192 unchanged; MLP2510/1128, terminal3904; noQKNorm, scale1/sqrt75; single-layer scan17+tail1.
-    # Pallasv8t48MiB/fused inputs+tuned Splash; healthON/internal+BAM OFF; c5 gate57, f8 target+47shared checks pass.
-    # c5 startup.643069 vs parent.699548 (-8.07%); f8 same-TPU80-step .690041 vs old.639658 (+7.88%), parent-1.36%.
+    # Complete13500; vs independentVO parent gap narrows from~-.0084 at2k to~-.005 late,
+    # while gain stays~1.025..1.035 after2k. Final5(12600..13400):gap-.004780/R1.029165.
+    # Terminal bet1.02 (1.00..1.04) slightly conservative; durable equal-parameter gain.
+    # UE5a v5p16 P0; READY04:32:51..10:21:16UTC2026-10-26 (5h48m25s); CP13500/TB secured, TPU+QR absent.
+    # f8 speed.690041 vs parent.699548 (-1.36%); original c5 startup-8.07%, optimized+7.88% sameTPU.
+    # Params432112192 unchanged; MLP2510/1128, tail3904; QK93/V75,scale1/sqrt75,noQKNorm.
+    # Single-layer scan17+tail1; Pallasv8t48MiB+tunedSplash; healthON/internal+BAM OFF.
+    # code_commit: f8d8866; source claude/qk75-profile,/data0/xd/mediumprop-independent-vo-qk75-fast.
+    # Model/Pallas support merged main; CP3800 c5->f8 replay max lossdiff1.05e-4, cursor/LR matched.
+    # Reproduction/evidence: experiments/bam_llama2_medium/mediumprop_independent_vo_qk75.md.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysQK75TruePile'
     bam_local_qk_col_output_dim = 75
     bam_partial_rope_nope_dim = 75

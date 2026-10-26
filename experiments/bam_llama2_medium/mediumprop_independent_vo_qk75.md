@@ -162,3 +162,25 @@ in the pinned CPU environment (60checks total). The production RUNs remain
 independently monitored; integration does not hot-switch their source.
 
 Main-merge validation logs:/data0/xd/bam_diagnostics/full-nope-main-merge/
+
+
+## Final result and closeout (2026-10-26)
+
+Completed13500, CP13500 committed; all13500 losses cached. Final common window13400:
+gap-.004407, MHA-normalized gain1.026919 vs independentVO parent. Final five
+12600..13400 average gap-.00478028, gain1.02916549. Early~-.0084 gap around2k
+narrows to~-.005 late; gain stays~1.025..1.035 after2k rather than vanishing.
+Terminal bet1.02 was slightly conservative, within1.00..1.04. Equal parameter
+budget and unchanged M-cache make this a durable improvement, with optimized
+throughput cost1.36% vs parent. Future diagonal-removal experiments remain on
+independentVO parent to isolate their intervention, rather than stacking changes.
+
+One UE5a v5p16 assignment04:32:49..10:21:16UTC; READY04:32:51..10:21:16UTC,
+5h48m25s, P0, no zone switch. Auto-training exited cleanly, independently verified
+node and queued-resource absent. TensorBoard incremental final sync exited0.
+Evidence:final-summary.json,final-native-report.json,final-status.json,
+final-resource-proof.json,final-lifecycle.txt,final-tb-sync.log in
+/data0/xd/bam_diagnostics/mediumprop-independent-vo-qk75/.
+Final cumulative figure:nope-final-general-write-4800-20261026-104328-438216.png
+under the task's Codex visualization directory. Registry acknowledged13400 only
+after delivering this final comparison.

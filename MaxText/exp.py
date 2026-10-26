@@ -303,6 +303,7 @@ class BamLlama2Medium(Llama2Medium):
     bam_general_column_read = False
     bam_general_matrix_write = False  # Historical write variants remain worktree-only.
     bam_pallas_write = True  # With bam_pallas_core=True, False keeps fused reads and uses native writes.
+    bam_attention_negative_diagonal = False  # Suppress self logits before softmax; empty-history weighted V is zero.
     bam_static_read_gate_init = .99
     bam_static_write_gate_init = .01
     bam_local_vo_shared_read = 'none'  # none | local_o (C8 column donor)
@@ -17248,6 +17249,35 @@ class BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640S
     compare_runs = ['BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640SeparateVOKeys']
 
 
+class BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640SeparateVOKeysLogitDiagNegative(
+        BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640SeparateVOKeys):
+    """Pre-softmax negative diagonal on independent VO: QK80/V80, M80x64.
+
+    Empty-history weighted V is zero. Keep R640, full-head QKNorm before
+    RoPE, GELU7808/2944 body and9984 tail, single-layer scan31+tail1.
+    No trainable parameter change:2,775,189,600. The60MiB scoped budget
+    matches the sealed independent-VO parent (reverse needs58.13MiB).
+    """
+    model_name = 'BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640SeparateVOKeysLogitDiagNegative'
+    bam_attention_negative_diagonal = True
+    bam_pallas_vmem_mib = 60
+    compare_runs = ['BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640SeparateVOKeys']
+
+
+class BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640SeparateVOKeysLogitDiagNegativeQK80(
+        BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640SeparateVOKeysQK80):
+    """Pre-softmax negative diagonal plus full NoPE: QK100/V80, M80x64.
+
+    Reuse the existing full-NoPE class and fused100-D QKNorm before RoPE.
+    Same128-aligned MLPs7808/2944/tail9984 and R640 projections. Total
+    2,775,190,880:only1280 additional norm scales vs the pre-only class;
+    the negligible .0000461% cost leaves all MLP widths unchanged.
+    """
+    model_name = 'BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640SeparateVOKeysLogitDiagNegativeQK80'
+    bam_attention_negative_diagonal = True
+    compare_runs = ['BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640SeparateVOKeysLogitDiagNegative']
+
+
 class BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640HybridV8DropLocalOSeparateVOKeys(
         BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640SeparateVOKeys):
     """Eight ordinary W_V heads plus24 independent-address M-V heads; omit O only on ordinary heads.
@@ -17887,7 +17917,7 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     Historical V weights renormalize on nonempty rows. Keep all parent
     localO/residual/write/MLP parameters; matched control for post-softmax zero.
     """
-    # Ledger only: attention adapter implementation remains in the runtime worktree below.
+    # Pre-softmax implementation merged into main; sealed RUN still uses the runtime below.
     # code_commit: 55ea52c; codex/mediumprop-attention-diagonal-zero; /data0/xd/mediumprop-attention-diagonal-zero.
     # UE5a v5p16 xd-v5p-16-310374-maxtext; plan13500; sealed/AOT/FIRST_STEP verified.
     # Identical432112192 params and MLP2510/1128/tail3904; healthON/internal+BAM OFF; tunedSplash/Pallasv8t.
@@ -17901,7 +17931,7 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeTruePile):
     """Strict historical attention plus complete75-dimensional M-derived NoPE:QK93/V75."""
     # code_commit: 5a3d55b; codex/mediumprop-attention-diagonal-zero,/data0/xd/mediumprop-attention-diagonal-zero.
-    # Main ledger only; retained UE5a v5p16 xd-v5p-16-310372-maxtext from completed GeneralWrite13500.
+    # Pre-softmax/full-NoPE support merged main; UE5a v5p16 xd-v5p-16-310372-maxtext retained from GeneralWrite.
     # Starts from0; FIRST_STEP1 verified; plan13500; formal tree432112192 unchanged, MLP2510/1128/tail3904.
     # Full QK93/V75 native/Pallas+Splash logits/all-gradients maxrel4.17e-6; exact AOT/config seal verified.
     # Startup20..99:.686768step/s vs pre parent.694718 (-1.14%); generic healthON/internal+BAM OFF.

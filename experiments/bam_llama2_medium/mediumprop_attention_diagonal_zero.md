@@ -54,6 +54,39 @@ WD, optimizer, data, scan and schedule retained. Shared attention path changes
 require full BAM suite, candidate all-gradient/model checks and summary tests
 before either RUN launches; sealed config and exact AOT/FIRST_STEP required.
 
+## Main support and 2.8B configurations
+
+Pre-softmax negative-diagonal support is merged into main; the post-softmax
+custom reverse remains in the runtime worktree. The new flag defaults false.
+Only native attention and the Splash caller/mask adapter change:strict causal
+mask offset=-1 plus the existing public fixed-sink interface. Neither BAM's
+Pallas read/write kernels nor Splash kernel source is modified.
+
+Based on the AllR640 independent-VO2:1 family, configuration-only ports are:
+
+- `BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640SeparateVOKeysLogitDiagNegative`:
+  QK80/V80,2,775,189,600 parameters, identical parameter tree to its parent.
+- `BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640SeparateVOKeysLogitDiagNegativeQK80`:
+  QK100/V80 (80NoPE+20RoPE),2,775,190,880 parameters, identical tree to the
+  existing full-NoPE class. The1280 extra full-head Q/K Norm scales relative to
+  pre-only are negligible (.0000461%); MLP widths are unchanged.
+
+Both keep M80x64,R640,full-head QKNorm before RoPE,GELU ordinary7808/private2944
+for31 layers and ordinary9984 at the tail,128-aligned widths,single scan31 plus
+tail1,no final writers,normal healthON/internal+BAM OFF,and tuned Splash.
+Scoped Pallas VMEM60MiB preserves the verified independent-VO compile budget;
+its reverse needs58.13MiB,so the56MiB ancestor budget is insufficient.
+No2.8B AOT or training resources are requested by this port.
+
+CPU regression entry:MaxText/tests/bam_negative_diagonal_test.py. Checks include
+formal parameter-tree equality,packed-document empty rows,global chunk indices,
+actual Splash/Pallas interpret-mode logits and all parameter/input gradients,
+and both2.8B QKNorm widths. Merge gate passed7 focused checks plus all47 shared
+BAM regressions. Full-model maximum relative parameter-gradient errors are
+5.29e-6/4.17e-6 (Medium pre/combination) and1.70e-5/1.54e-5 (2.8B pre/combination).
+Logs:/data0/xd/bam_diagnostics/mediumprop-attention-diagonal-zero/
+main-merge-negative-tests/ and main-merge-shared-tests/.
+
 ## Pre-run prediction
 
 MHA-normalized terminal gain multipliers vs direct parent:

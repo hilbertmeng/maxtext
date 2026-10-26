@@ -17828,6 +17828,15 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysTruePi
     compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1TruePile']
 
 
+class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysQK75TruePile(
+    BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysTruePile):
+    """Retain all75 M-derived NoPE coordinates and append18 RoPE; QK93/V75."""
+    model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysQK75TruePile'
+    bam_local_qk_col_output_dim = 75
+    bam_partial_rope_nope_dim = 75
+    compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysTruePile']
+
+
 class BamMediumPropMShiftReadG050SharedHiddenMemoryMLPTruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1TruePile):
     """Share SwiGLU input/gate projections and hidden activation; separate vector/M heads."""

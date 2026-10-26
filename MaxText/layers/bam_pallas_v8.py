@@ -157,8 +157,9 @@ def _tm_read_kernel(n, qk_cols, eps, scale, q_scale, gated, ch, shifted=False):
       for h in range(n):
         y = y_scr[pl.ds((a * np_ + h) * t, t), :]                        # [T, K] token rows
         if a < 2:     # columns >= qk_cols are the standard (rotated) Q/K coordinates
-          std = jnp.concatenate((zstd, (qs if a == 0 else ks)[h].astype(F32)), axis=0)
-          y = jnp.where(lane < qk_cols, y, _to_tokens(std))
+          if qk_cols < kdim:
+            std = jnp.concatenate((zstd, (qs if a == 0 else ks)[h].astype(F32)), axis=0)
+            y = jnp.where(lane < qk_cols, y, _to_tokens(std))
           if a == 0 and q_scale != 1.0:
             y = y * q_scale
         ref[h] = y.astype(ref.dtype)
@@ -203,7 +204,9 @@ def _tm_read_backward_kernel(n, qk_cols, eps, scale, q_scale, gated, ch, pass_m,
         if a == 0 and q_scale != 1.0:
           y = y * q_scale
         if a < 2:
-          (dqs if a == 0 else dks)[h] = _from_tokens(y)[qk_cols:].astype(dqs.dtype)
+          ds = dqs if a == 0 else dks
+          ds[h] = (_from_tokens(y)[qk_cols:].astype(ds.dtype) if qk_cols < kdim
+                   else jnp.zeros(ds.shape[1:], ds.dtype))
           y = jnp.where(lane < qk_cols, y, 0.)
         _put(dy_scr, rows, y)
     # Per-token matmuls: dX_t^T = M_t dY_t^T, dM_t = X_t^T dY_t; dS = sum_t sg * dX^T.
@@ -395,6 +398,17 @@ def read_tm(m, static_weight, q_key, q_logits, k_key, k_logits, vo_key, o_logits
   dots); the passthrough M stays unmixed. v5p XL kernel-only: read F/B +10%/+10% over the plain read."""
   b, t, n, cdim = q_key.shape
   assert cdim == m.shape[2], 'v8t supports full-M reads (identity compression) only'
+  external_standard = None
+  if qk_cols + q_standard.shape[-1] != m.shape[-1]:
+    # Contract M once at its data width, then append the standard branch outside
+    # the fused kernel. A one-coordinate dummy avoids zero-sized Pallas blocks
+    # when all M coordinates are retained; the kernel does not read that dummy.
+    assert 0 <= qk_cols <= m.shape[-1], (qk_cols, m.shape)
+    assert q_standard.shape == k_standard.shape
+    external_standard = (q_standard, k_standard, q_scale)
+    padding = jnp.zeros(q_standard.shape[:-1] + (max(1, m.shape[-1] - qk_cols),), q_standard.dtype)
+    q_standard = k_standard = padding
+    q_scale = 1.0
   np_ = _pad_rows(n) if pad_heads else n
   opts = _freeze(dict(heads=n, qk_cols=qk_cols, read_epsilon=read_epsilon, key_scale=key_scale,
                       tile=forward_tile, reverse_tile=reverse_tile, vmem_mib=vmem_mib, interpret=interpret,
@@ -424,7 +438,13 @@ def read_tm(m, static_weight, q_key, q_logits, k_key, k_logits, vo_key, o_logits
 
   outs = _map_batch(local, args, (True, False) + (True,) * (len(args) - 2), 5)
   outs = tuple(checkpoint_name(o, 'bam_read_out') for o in outs[:4]) + (outs[4],)
-  return tuple(jnp.transpose(o, (0, 2, 1, 3)) for o in outs[:4]) + (outs[4],)
+  outs = tuple(jnp.transpose(o, (0, 2, 1, 3)) for o in outs[:4]) + (outs[4],)
+  if external_standard is not None:
+    qs, ks, scale = external_standard
+    query = jnp.concatenate((outs[0][..., :qk_cols], qs), axis=-1)
+    key = jnp.concatenate((outs[1][..., :qk_cols], ks), axis=-1)
+    outs = (query * jnp.asarray(scale, query.dtype), key) + outs[2:]
+  return outs
 
 
 def _minor_t(x):

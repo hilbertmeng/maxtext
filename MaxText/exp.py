@@ -17865,10 +17865,14 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysAlphaD
     Keep localO/residual paths and all writer/MLP parameters. Splash uses its
     original denominator and a corrected VJP, with no extra attention pass.
     """
-    # code_commit: 55ea52c; codex/mediumprop-attention-diagonal-zero; /data0/xd/mediumprop-attention-diagonal-zero.
-    # UE5a v5p16 xd-v5p-16-310373-maxtext; plan13500; sealed/AOT/FIRST_STEP verified.
-    # Identical432112192 params and MLP2510/1128/tail3904; healthON/internal+BAM OFF; tunedSplash/Pallasv8t.
-    # Startup20..99:.669618step/s vs parent.699548 (-4.28%); slower than -1..3% speed bet.
+    # Stopped5209 at5k selection: positive vs independentVO parent, dominated by paired pre-softmax arm.
+    # Vs parent: gap~-.0156 at600 narrows to~-.0068 at5k; gain rises then plateaus~1.03.
+    # Last5(4200..5000):gap-.007203/R1.033654. Pre arm lower loss18 consecutive common windows1600..5000.
+    # Params/M-cache unchanged; speed.669618 vs parent.699548 (-4.28%), pre arm.694718.
+    # UE5a v5p16 P0; READY2026-10-26 10:49:48..13:04:08UTC (2h14m20s); CP5209/TB secured, TPU+QR absent.
+    # Terminal1.03 bet unmeasured: stopped at~39% of13500 plan; do not treat5k ratio as terminal.
+    # Implementation: codex/mediumprop-attention-diagonal-zero,/data0/xd/mediumprop-attention-diagonal-zero; main ledger only.
+    # code_commit: 55ea52c; reproduction: experiments/bam_llama2_medium/mediumprop_attention_diagonal_zero.md.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysAlphaDiagZeroTruePile'
     bam_attention_zero_diagonal = True
     compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysTruePile']

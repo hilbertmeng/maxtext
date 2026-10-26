@@ -89,3 +89,30 @@ The post adapter adds diagonal probability/subtraction and dense reverse correct
 no hardware profile was performed to attribute their exact time cost. Raw logs and
 startup-speed.json are in the task artifact directory. Subsequent monitoring stays
 in registry/artifacts until final conclusions, rather than an exp.py step diary.
+
+
+## Post-softmax arm closeout (2026-10-26)
+
+Stopped5209 after the5k review. It improves the original parent:gap~-.0156 at600
+narrows to~-.0068 at5000, while the gain multiplier rises then plateaus around1.03.
+Last five windows4200..5000 mean gap-.00720296, mean native gain1.03365357.
+The paired pre-softmax arm has lower loss for all18 matched windows1600..5000,
+with higher throughput and identical parameter/M-cache cost. Select pre-softmax
+for continuation. This supports normalized historical retrieval over the extra
+self-logit mass-control degree of freedom in this setup; it is a training result
+on this architecture, not a universal gate-expressivity claim. The original post
+terminal1.03 prediction remains untested:only~39% of the13500 plan was observed.
+
+Graceful exit committedCP5209; loss cache retained5208 logged points0..5207.
+Registry independently checked stopped/final_step5209; checkpoint commit marker
+and TPU/queued-resource absence independently verified. Local TB closeout log
+reportsSYNC_OK. The compiler and both other training resources were preserved.
+One v5p16 UE5a assignment10:49:45..13:04:08UTC, one observed READY lease
+10:49:48..13:04:08UTC (2h14m20s), P0, no zone switches. Physical resource teardown
+verified13:06:42UTC by closeout; the lease endpoint is the train-stop boundary.
+Evidence in /data0/xd/bam_diagnostics/mediumprop-attention-diagonal-zero/:
+post-closeout.log,post-registry-final.json,post-resource-proof.json,
+post-final-leases.json,post-final-native-report.json,post-final-figure.json.
+TB proof:/home/xd/.local/state/maxtext-tensorboard-sync/closeout-20261026T130403776927Z.log.
+Final paired figure:post-diagonal-final-20261026-131000-035328.png in the task's
+Codex visualization directory;pre arm shown through5400,post through5000.

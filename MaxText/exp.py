@@ -17841,7 +17841,7 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysGenera
     # Native backend preparation: codex/mediumprop-general-write-vo, /data0/xd/mediumprop-general-write-vo.
     # Generalized params34*(1200*16+16*32+16)=670752=.4658W_Q; repay in MLPs.
     # Full tree verified432113344: parent+1152=.0008W_Q; generalized parameters670752.
-    # L0-16 ordinary/private2507/1120, complete-branch ratio~2.0015:1; terminal3905, no writes.
+    # L0-16 ordinary/private2507/1120, complete-branch ratio~2.0013:1; terminal3905, no writes.
     # Parent read/M-shift/VO split, single-layer scan17+tail1, health and tuned Splash unchanged.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysGeneralWriteTruePile'
     bam_general_matrix_write = True

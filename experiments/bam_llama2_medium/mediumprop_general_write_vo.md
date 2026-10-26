@@ -25,7 +25,7 @@ independent V/O addresses and initialization/WD rules remain inherited.
 
 Per write arm:1200*16+16*32+16=19728 new parameters. Both productive writers in17layers
 add670752=.4658W_Q. Ordinary/private widths2507/1120; private count includes dynamic
-address/gate458000 and static address/gate19728; ordinary/private ratio2.001499:1.
+address/gate458000 and static address/gate19728; ordinary/private ratio2.001274:1.
 Terminal ordinary width3905; no terminal attention/private writes or static parameters.
 Full abstract tree verified432113344 versus parent432112192 (+1152=.0008W_Q).
 Body MLP repayment673200, terminal+3600, net repayment669600; remaining1152 from integers.

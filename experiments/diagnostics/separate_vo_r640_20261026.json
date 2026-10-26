@@ -11,5 +11,19 @@
   "length": 2048,
   "protected": "No ag2xd writes; no actual LM training; old crossscalegoal paused; no subagents",
   "resource": "xd-v5p8-mqy-sepvo-1026-ue5a",
-  "note": "Head active excludes firsttwo keypositions andIDs0/15/187; FFN wi>0 with vector/M-only roles separate. Changed FFN widths/scan in SeparateVOKeys are confounds."
+  "note": "Head active excludes firsttwo keypositions andIDs0/15/187; FFN wi>0 with vector/M-only roles separate. Changed FFN widths/scan in SeparateVOKeys are confounds.",
+  "status": "completed_verified_published_ownedresource_released",
+  "runtime_commits": {
+    "separate": "4897f76f5bfaac6aa761c17a74f0fc833222dc02",
+    "shared": "54c550e78b24afda18273a130720875cb516f94e"
+  },
+  "comparison": "/home/mengqy/Projects/Bam/training_reports/separate_vo_r640_20261026/comparison.json",
+  "publication": {
+    "url": "http://172.29.142.228:8873/shorttrain/separate-vo/",
+    "LAN": "http://192.168.50.3:8873/shorttrain/separate-vo/",
+    "models": 6,
+    "checkpoints": 12,
+    "figures": 3
+  },
+  "result": "Selfglobal\u22121.13pp vsdirectR640 butnonselfactiveunchangedCIcross0; strongdepthredistribution, latequarterselfunchanged~46.9%; vectorFFNsame,M-only+.31pp; architectureconfoundsretained."
 }

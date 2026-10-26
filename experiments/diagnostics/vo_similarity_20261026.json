@@ -6,5 +6,10 @@
   "GCS": "gs://newproject-1-llm_projects_us-east5/log/diagnostics/mengqy/vo_similarity_20261026",
   "owned_TPU": "xd-v5p8-mqy-vosim-1026-ue5a",
   "cohort": "same32seed20261021,T2048,64fixedqueries>=64",
-  "invariants": "No optimizer/training/checkpointwrites; no ag2xd writes; no subagents; priorcrossscalegoal remains paused"
+  "invariants": "No optimizer/training/checkpointwrites; no ag2xd writes; no subagents; priorcrossscalegoal remains paused",
+  "status": "complete; seven checkpoints locally verified; report published; exact owned node and queue independently NOT_FOUND",
+  "report_url": "http://172.29.142.228:8873/shorttrain/vo-similarity/",
+  "result_source": "/home/mengqy/Projects/Bam/training_reports/vo_similarity_20261026/comparison.json",
+  "validation": "CPU native parity on all5lineages; matched32texts; native CE maxdrift0.001968; dynamic+static closure max0.008094 relative RMS; exactrepeat firstbatch",
+  "resource_evidence": "/home/mengqy/Projects/Bam/training_reports/vo_similarity_20261026/independent_resource_audit.json"
 }

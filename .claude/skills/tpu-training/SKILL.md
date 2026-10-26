@@ -305,40 +305,83 @@ ssh -S /tmp/ssh-tpu-ag-xd.sock tpu-ag \
   '/home/lishengping/xd/projects/run_registry.py pending-report RUN'
 ```
 
-It samples `step % 10 == 0` inside each ±25-step window, preserving the historical reporting
-series across worker logs and 10-step TensorBoard records. Do not pass the milestone interval as
-`--sample-period`; the default is the window's raw-point stride. For each RUN−BASE,
-print one cumulative horizontal table with only `step`, `gap`, and `r200`; omit absolute losses
-and split after about 20 steps into another horizontal block. Label each RUN−BASE title with its
-verified steady-throughput change (`RUN steps/s / BASE steps/s - 1`); identify any matched timing
-control used instead of the loss BASE, or mark timing unavailable when conditions are incomparable.
-Report direct `compare_runs` entries when they have new common windows. Do not repeat
-unchanged comparisons against stopped/completed/paused BASEs on every report; retain their
-registration and history. `report-all` and `pending-report` filter already-reported pair horizons
-by default; `--include-unchanged` or manual `loss-report` retrieves the full history when requested.
-Also report gain multipliers for architecture comparisons. Unless the user specifies otherwise,
-use the matched MHA as the common reference, never silently substitute Mudd.
-`R = (L_REFERENCE - L_EXPERIMENT) / (L_REFERENCE - L_COMPARATOR)`; for an experiment versus
-the direction SOTA, COMPARATOR is that SOTA. Use the shared registry implementation, not a
-fresh per-report script. Both `loss-report` and `report-all` accept repeatable
-`--gain-ratio EXPERIMENT COMPARATOR REFERENCE` triples. Persist them once with
-`update-monitoring RUN --gain-ratio RUN SOTA MHA` so `emit-report`, `pending-report`,
-`report-all`, and `mark-reported` carry the ratios automatically without changing direct
-`compare_runs`. Keep the actual full configuration names in these commands; `SOTA` and `MHA`
-here are placeholders. Adding ratio monitoring preserves delivered loss cursors.
-The script uses complete three-way common windows, divides the window-mean gains, and then
-summarizes the latest window ratios with a mean/range. Missing reference data does not block
-available loss reports. Near-zero/nonpositive denominators are explicitly undefined; do not
-interpret them as gain multipliers. JSON `loss-report` retains its historical list format when
-no ratios are configured; with ratios it returns `reports` and `gain_ratios` fields.
-For a comparison with new points, retain its cumulative series. Here
-`r200 = (abs(gap[s]) - abs(gap[s-200])) / abs(gap[s-200])`: negative means the gap
-magnitude shrank from the preceding window, positive means it grew. Summarize the current gap
-level with the mean and range of the latest 5–8 reported points, but judge stability from the full
-cumulative series and long-window signed-gap trends; two or three local points never establish it.
-Use `r200` only for magnitude change, especially near zero.
-For cross-scale comparisons, also align relative progress (`step / planned_total_steps`);
-distinguish observed trends from uncertain extrapolations.
+### Routine report: brief judgment and cumulative plots
+
+Unless the user sets another cadence, report about every **2,000 training steps per RUN**.
+This public cadence is separate from the native comparison-window interval: keep Medium at 200
+and XL normally 500. Keep each RUN's delivered milestone/review state in the task's monitor
+artifacts; do not set `--loss-interval 2000` to reduce chat frequency. Check health between
+reports, and handle registered review points (for example 2800/5000), failures, reversals and
+completion when due rather than waiting for the next public report.
+
+Default delivery is a short interpretation plus **loss-gap and gain-multiplier plots together**.
+State what the cumulative trend implies and whether the RUN continues or needs a decision.
+The figure supplies the detailed series; do not also print long numerical tables or repeat
+all plotted points. Use tables when requested or when a compact multi-run decision comparison
+adds information. Same-group experiments should be checked/reported together using their latest
+available progress; do not hold a due report until a slower member catches up.
+
+Plot the cumulative native series from **step 600** unless the user chooses another transient
+cutoff; never crop the figure to just the newest reporting window. Use registered direct
+`compare_runs` and explicit user-requested contrasts, with the verified direction SOTA retained
+where appropriate. Do not add ancestors/siblings merely because their cached data exist.
+Label `gap = RUN - COMPARATOR` (negative favors RUN) and show reference lines gap 0/ratio 1.
+Display a uniquely named PNG with an absolute-path Markdown image so it is clickable/zoomable;
+retain the source JSON in artifacts and a provenance sidecar beside each figure. No HTML wrapper is needed.
+Include verified throughput deltas in the caption/note when relevant; identify a separate matched
+speed control or say timing is unavailable when health/hardware/batch settings are incomparable.
+
+### Native calculation and reusable plotting
+
+Registry samples `step % 10 == 0` inside each ±25-step window, preserving comparability with
+worker logs and 10-step TensorBoard records. Do not use the public report interval as
+`--sample-period`. Loss gaps use exact common windows. For gain multipliers, unless the user
+specifies otherwise, the common reference is the matched MHA, never silently Mudd:
+`R = (L_REFERENCE - L_EXPERIMENT) / (L_REFERENCE - L_COMPARATOR)`.
+Persist the three full configuration names once:
+
+```bash
+ssh -S /tmp/ssh-tpu-ag-xd.sock tpu-ag \
+  '/home/lishengping/xd/projects/run_registry.py update-monitoring RUN \
+   --gain-ratio RUN COMPARATOR MHA'
+```
+
+`RUN`, `COMPARATOR`, and `MHA` here are placeholders. The shared
+`/home/xd/projects/xd_tpu_scripts/run_registry.py` is the calculation authority:
+`emit-report`, `pending-report`, `report-all`, `loss-report`, and `mark-reported` carry the same
+registered triples. Adding a ratio preserves already-delivered loss cursors. Calculate ratios
+from the three window-mean losses, not by averaging pointwise ratios. Missing reference data
+must not block available loss-gap reporting; near-zero/nonpositive denominators are undefined.
+Do not replace missing ratios with 1 or calculate another version in a plotting/report script.
+
+Use this skill's local `scripts/plot_training_report.py` on the saved registry JSON. It accepts
+`report-all`, `pending-report`, and `loss-report` JSON; it only renders their native gap/ratio
+series. Multiple inputs/RUNs/baselines can share a figure; `--run`/`--base` select comparisons,
+and repeated `--label FULL_CLASS SHORT_LABEL` keep legends readable. Example:
+
+```bash
+ssh -S /tmp/ssh-tpu-ag-xd.sock tpu-ag \
+  '/home/lishengping/xd/projects/run_registry.py report-all --run RUN1 --run RUN2 --json' \
+  > /absolute/artifact-dir/report.json
+python3 /home/xd/projects/maxtext/.agents/skills/tpu-training/scripts/plot_training_report.py \
+  /absolute/artifact-dir/report.json --output-dir /absolute/visualization-dir \
+  --start-step 600 --label RUN1 'Variant1' --label RUN2 'Variant2' \
+  --label COMPARATOR 'Parent' --label MHA 'MHA' --title 'Group vs parent'
+```
+
+The renderer returns unique PNG/provenance paths and actual per-comparison plotted horizons.
+It leaves missing or undefined ratio windows blank, and performs no smoothing, extrapolation or gain arithmetic.
+Preserve native points when adding experiment-specific annotations; use the shared renderer
+for ordinary reports instead of rewriting the same plotting/calculation code for each RUN.
+
+For comparisons with new points, retain the complete cumulative series. `report-all` and
+`pending-report` omit already-delivered **comparisons**, not earlier points within a due series.
+Do not repeat an unchanged comparison on every report; its registry entry/history remains intact.
+Use `--include-unchanged` only when the figure needs the full comparison set again. Judge
+stability from the full signed-gap trend and several mature windows, rather than two local
+points. Registry `r200` (absolute-gap change) may aid analysis but need not be printed routinely,
+especially near a zero crossing. Across scales, compare gain multipliers at matched relative
+progress (`step / planned_total_steps`); do not compare absolute loss gaps across scales.
 
 Investigate every anomalous monitoring metric immediately and restore 200-step reporting until
 its root cause is resolved.
@@ -347,29 +390,27 @@ the transition explicitly and monitor it closely until its direction is clear.
 
 At every due milestone:
 
-1. Run one shared `run_registry.py report-all --run RUN1 --run RUN2` for this task's RUN list;
-   it pulls their pending cumulative
-   report and verifies the latest committed checkpoint. Use `status` for liveness and
-   `loss-report` only if event generation failed; investigate pending or rollback immediately.
-2. Report the cumulative horizontal rows; judge stability from signed-gap trends plus `r200`.
-   When a RUN enables BAM read-health `sow` metrics, also run
-   `scripts/sync_tensorboard_incremental.py RUN...`, then
-   `scripts/report_bam_read_health.py RUN --base-run BASE... --steps MILESTONES`. The sync verifies
-   a 1 MiB overlap and appends only the GCS event tail; the reporter incrementally caches scalar
-   records and scans each RUN/BASE once. Select health metrics with explanatory value or meaningful
-   changes/anomalies; omit the health section when there is nothing worth reporting. For selected
-   metrics, show compact multi-point RUN/BASE sequences at matching steps and layer bands.
-   For temporal M/KV-shift gates, use `scripts/report_bam_shift_health.py RUN... --steps 0 1000 2000
-   --output FILE.json` after sync. It reuses the same incremental scalar cache, reports actual tag
-   counts and aggregate layer statistics for all shift variants, skips column tables, and fails on
-   nonfinite selected metrics. Do not create another per-variant TB scanner.
-3. Mark the cursor:
+1. Run one shared `report-all --run RUN1 --run RUN2 --json` for this task's RUN list; save its
+   native JSON. It pulls pending cumulative reports and verifies committed checkpoints. Use
+   `status` for liveness and `loss-report` only if event generation failed; investigate stale
+   pending data or rollback rather than silently reporting an old horizon.
+2. Render the cumulative gap/ratio figure(s), inspect them, and deliver the short interpretation.
+   For a relevant health question, selectively sync/report enabled metrics using
+   `scripts/sync_tensorboard_incremental.py` plus `scripts/report_bam_read_health.py`, or
+   `scripts/report_bam_shift_health.py` for compact temporal gates. Routine loss plots do not
+   require a full TB sync. Omit unchanged/non-explanatory health tables and per-column gate dumps.
+3. Only after delivering a RUN's due comparisons, acknowledge its **actual published horizon**:
 
 ```bash
-RUN=BamLlama2Medium STEP=200
 ssh -S /tmp/ssh-tpu-ag-xd.sock tpu-ag \
-  "/home/lishengping/xd/projects/run_registry.py mark-reported $RUN $STEP"
+  '/home/lishengping/xd/projects/run_registry.py mark-reported RUN PUBLISHED_STEP'
 ```
+
+Do not acknowledge a slower RUN at another RUN's step, advance a cursor before delivery, or
+acknowledge comparisons omitted by plot filtering. Deliver remaining due comparisons first.
+Native per-baseline and per-gain-triple cursors preserve lagging horizons; retain them when
+changing comparison settings. Record the figure path and delivered public milestone in the
+monitor state so a resumed session knows what is due without repeating or skipping reports.
 
 Auto-train caches logs before clean/crash deletion. Before manually deleting a TPU, run
 `run_registry.py collect-loss RUN`. If an old completed BASE has no cache, export its already
@@ -391,10 +432,10 @@ Set the experiment's automatic `steps` endpoint to that possible full-training b
 review point as the clean-exit endpoint, because auto-train will immediately delete the TPU.
 
 For multiple runs, use one shared wake-up and batch-check all runs; use per-run wake-ups only
-for anomalies or imminent completion/decisions. Stable runs may accumulate about five 200-step
-windows per loss report. Independently, when preemptions are frequent, wake for a shared health
-check within ~10–12 minutes; an unchanged health check need not trigger a loss report. Estimate
-from steps/s and stay silent between wakes; modest overshoot is fine. If repeated preemption or
+for anomalies or imminent completion/decisions. Stable Medium runs normally accumulate about ten
+200-step windows per public report; retain the user's configured cadence for each group. When
+preemptions are frequent, wake for a shared health check within ~10–12 minutes; an unchanged
+health check need not trigger a loss report. Estimate from steps/s and stay silent between wakes; modest overshoot is fine. If repeated preemption or
 queueing prevents loss progress, periodically report the resource state and new lease history
 instead of going silent.
 

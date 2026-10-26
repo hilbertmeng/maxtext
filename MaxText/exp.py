@@ -17228,6 +17228,8 @@ class BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640S
     Configuration only; no training RUN or target-TPU AOT has been started.
     """
     model_name = 'BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640SeparateVOKeysQK80'
+    # v5p-128 B16 reverse read needs58.11MiB; physical VMEM is64MiB.
+    bam_pallas_vmem_mib = 60
     bam_local_qk_col_output_dim = 80
     bam_partial_rope_nope_dim = 80
     compare_runs = ['BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640SeparateVOKeys']

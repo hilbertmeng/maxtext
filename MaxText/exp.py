@@ -302,6 +302,7 @@ class BamLlama2Medium(Llama2Medium):
     bam_record_m_shift_health = False
     bam_general_column_read = False
     bam_general_matrix_write = False  # Historical write variants remain worktree-only.
+    bam_pallas_write = True  # With bam_pallas_core=True, False keeps fused reads and uses native writes.
     bam_static_read_gate_init = .99
     bam_static_write_gate_init = .01
     bam_local_vo_shared_read = 'none'  # none | local_o (C8 column donor)
@@ -17826,6 +17827,30 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysTruePi
     bam_final_local_mlp_dim = None
     bam_last_mlp_dim = 3904
     compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1TruePile']
+
+
+class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysGeneralWriteTruePile(
+    BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysTruePile):
+    """Generalized attention/private-MLP writes on completed2:1+independentVO SOTA.
+
+    Each productive write: RMS(U) @ [sigmoid(ld)*RMS(A+b) + 1.1*sigmoid(ls)*S]^T.
+    S=zeros[N,V], static gate kernel=zeros[D,N], bias=log(.01/(1.1-.01)).
+    Raw factor group contract: (content, dynamic_logits, raw_address, static_logits, static_address).
+    Initial backend uses Pallas reads/native writes; enable bam_pallas_write only after kernel parity.
+    """
+    # Native backend preparation: codex/mediumprop-general-write-vo, /data0/xd/mediumprop-general-write-vo.
+    # Generalized params34*(1200*16+16*32+16)=670752=.4658W_Q; repay in MLPs.
+    # Planned tree432113344: parent+1152=.0008W_Q; verify full tree before launch.
+    # L0-16 ordinary/private2507/1120, complete-branch ratio~2.0015:1; terminal3905, no writes.
+    # Parent read/M-shift/VO split, single-layer scan17+tail1, health and tuned Splash unchanged.
+    model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysGeneralWriteTruePile'
+    bam_general_matrix_write = True
+    bam_static_write_gate_init = .01
+    bam_pallas_write = False
+    base_mlp_dim = 2507
+    bam_memory_mlp_dim = 1120
+    bam_last_mlp_dim = 3905
+    compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysTruePile']
 
 
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysQK75TruePile(

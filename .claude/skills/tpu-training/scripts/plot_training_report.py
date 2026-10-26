@@ -53,7 +53,7 @@ def ratio_value(point):
 
 
 def render(payloads, output_dir, *, prefix='training-progress', start=600,
-           runs=(), bases=(), labels=None, title=None, notes=(), sources=()):
+           runs=(), bases=(), labels=None, title=None, notes=(), sources=(), run_colors=None):
   import matplotlib
   matplotlib.use('Agg')
   import matplotlib.pyplot as plt
@@ -68,7 +68,7 @@ def render(payloads, output_dir, *, prefix='training-progress', start=600,
   warnings, shown = [], []
   for index, pair in enumerate(pairs):
     run, base = pair
-    color = f'C{index % 10}'
+    color = (run_colors or {}).get(run, f'C{index % 10}')
     label = f'{labels.get(run, run)} vs {labels.get(base, base)}'
     gap = gaps.get(pair, {})
     steps = sorted(gap)
@@ -123,7 +123,7 @@ def render(payloads, output_dir, *, prefix='training-progress', start=600,
   plt.close(fig)
   # Keep exact native series and identities beside each unique PNG for reproducibility.
   provenance = dict(figure=str(path), generated_utc=stamp, sources=list(sources),
-      plot_start=start, title=title, labels=labels, notes=list(notes), shown=shown,
+      plot_start=start, title=title, labels=labels, run_colors=run_colors or {}, notes=list(notes), shown=shown,
       warnings=warnings,
       reports=[dict(run=key[0], base=key[1], series=[points[s] for s in sorted(points)])
                for key, points in gaps.items()],
@@ -144,6 +144,7 @@ def main():
   parser.add_argument('--run', action='append', default=[])
   parser.add_argument('--base', action='append', default=[])
   parser.add_argument('--label', nargs=2, action='append', default=[], metavar=('RUN', 'LABEL'))
+  parser.add_argument('--color', nargs=2, action='append', default=[], metavar=('RUN', 'COLOR'))
   parser.add_argument('--title')
   parser.add_argument('--note', action='append', default=[])
   args = parser.parse_args()
@@ -153,7 +154,7 @@ def main():
     texts = [path.read_bytes() for path in args.reports]
     result = render([json.loads(text) for text in texts], args.output_dir,
         prefix=args.prefix, start=args.start_step, runs=args.run, bases=args.base,
-        labels=dict(args.label), title=args.title, notes=args.note,
+        labels=dict(args.label), run_colors=dict(args.color), title=args.title, notes=args.note,
         sources=[dict(path=str(p.resolve()), sha256=hashlib.sha256(text).hexdigest())
                  for p, text in zip(args.reports, texts)])
   except (ValueError, KeyError, OSError) as error:

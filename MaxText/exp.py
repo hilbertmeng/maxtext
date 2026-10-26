@@ -17838,10 +17838,13 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysGenera
     Raw factor group contract: (content, dynamic_logits, raw_address, static_logits, static_address).
     Initial backend uses Pallas reads/native writes; enable bam_pallas_write only after kernel parity.
     """
-    # Native backend preparation: codex/mediumprop-general-write-vo, /data0/xd/mediumprop-general-write-vo.
+    # Ledger only: generalized native-write bridge is on the implementation branch, not main yet.
+    # code_commit: 9c0c820; codex/mediumprop-general-write-vo; /data0/xd/mediumprop-general-write-vo.
+    # UE5a v5p16 xd-v5p-16-310372-maxtext; exact s13500 AOT/FIRST_STEP verified; plan13500.
+    # Pallas reads/native writes; candidate3+summary5+shared47 checks pass; healthON/internal+BAM OFF.
     # Generalized params34*(1200*16+16*32+16)=670752=.4658W_Q; repay in MLPs.
-    # Planned tree432113344: parent+1152=.0008W_Q; verify full tree before launch.
-    # L0-16 ordinary/private2507/1120, complete-branch ratio~2.0015:1; terminal3905, no writes.
+    # Verified tree432113344: parent+1152=.0008W_Q, integer-width remainder.
+    # L0-16 ordinary/private2507/1120, complete-branch ratio~2.0013:1; terminal3905, no writes.
     # Parent read/M-shift/VO split, single-layer scan17+tail1, health and tuned Splash unchanged.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysGeneralWriteTruePile'
     bam_general_matrix_write = True

@@ -3994,6 +3994,7 @@ class BamAttention(Attention):
       query = self.query_projection(inputs_q, standard_qk_width)
       key = self.kv_projection(inputs_q, proj_name='key', projection_dim=standard_qk_width)
     full_qk_norm = cfg.qk_norm and cfg.bam_qk_norm_after_concat
+    full_qk_width = self._qk_col_width + standard_qk_width
     if not full_qk_norm:
       query, key = dc.QKNorm(cfg, name='qk_norm')(query, key)
       query = self.apply_rotary_embedding(query, inputs_positions, name='query_rotary',
@@ -4005,7 +4006,7 @@ class BamAttention(Attention):
       # scalar per token/head and RoPE is linear, so RoPE(s*x/r) = RoPE(s_tail*x_tail)/r. Scale and rotate
       # the narrow standard arm here; after the read only 1/r and the local scales remain (no post-read
       # RoPE on a 10-wide minor dimension, no relayout). r uses the unscaled, unrotated head.
-      head_scale = _QKNormMultipliers(cfg, self.head_dim, name='qk_norm')()
+      head_scale = _QKNormMultipliers(cfg, full_qk_width, name='qk_norm')()
       tail = slice(self._qk_col_width, None)
       standard_sumsq = tuple(jnp.sum(jnp.square(x.astype(jnp.float32)), axis=-1) for x in (query, key))
       query = self.apply_rotary_embedding(query * head_scale[0][tail], inputs_positions, name='query_rotary',
@@ -4147,8 +4148,8 @@ class BamAttention(Attention):
         # inside the reduction and apply 1/r and the local scales as one elementwise pass, so no f32
         # copy of the [B,T,N,K] output is materialized (that copy plus its relayout cost ~170 ms/step).
         local_ss = jnp.sum(jnp.square(x[..., local].astype(jnp.float32)), axis=-1)
-        inv_rms = lax.rsqrt((local_ss + standard_ss) / self.head_dim + eps).astype(x.dtype)
-        multiplier = jnp.concatenate((scale[local], jnp.ones((self.head_dim - self._qk_col_width,), scale.dtype)))
+        inv_rms = lax.rsqrt((local_ss + standard_ss) / full_qk_width + eps).astype(x.dtype)
+        multiplier = jnp.concatenate((scale[local], jnp.ones((standard_qk_width,), scale.dtype)))
         return x * inv_rms[..., None] * multiplier.astype(x.dtype)
 
       query = finish(query, head_scale[0], standard_sumsq[0])

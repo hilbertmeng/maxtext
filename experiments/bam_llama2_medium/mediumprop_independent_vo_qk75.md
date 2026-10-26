@@ -122,3 +122,43 @@ Task handoff source:/home/xd/projects/xd_tpu_scripts/qk75_kernel_handoff_2026102
 deployed matchingSHA256714c798d417e9b59f6eba2c9a4bcd1f165454b72e76067a4ed44fb5fbef11ad3.
 The original c5 runtime worktree is preserved for reproduction; regular loss reports
 stay in task artifacts and chat, not in this ledger.
+
+## Main implementation and configuration-only Pythia transfer
+
+User requested the verified complete-NoPE implementation in main. Ported the
+optimized f8d8866 reader (direct wider Q/K outputs and in-kernel cotangent split),
+not the superseded c5 external-concatenation implementation. Native model support
+was already present; the historical sealed Medium RUN continues on f8d8866.
+
+Added:
+BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640SeparateVOKeysQK80
+as a child of:
+BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640SeparateVOKeys.
+Only retained NoPE widths change60->80: QK100/V80, M80x64, RoPE20.
+All R640 projection ranks, single-layer scan31+tail1, serial GELU, private writes,
+initialization, health and training recipe inherit. Body ordinary/private MLPs
+7808/2944; terminal9984; all remain128-aligned. No new per-layer width mechanism.
+
+This parent uses complete-head QKNorm. The optimized pre-RoPE QKNorm path now
+creates scales and divides the RMS statistic using the actual concatenated width
+100 rather than the value-head width80. Its standard-branch scale/RoPE precomputation,
+local sum-of-squares reduction and post-read elementwise finish are retained.
+Attention scaling remains1/sqrt80 as in the parent; both NoPE and RoPE coordinates
+are normalized before RoPE. The fused reader handles both QK93/V75 and QK100/V80.
+
+Full abstract trees: parent2,775,189,600; child2,775,190,880. Exactly1,280 additional
+parameters (32layers*2arms*20norm coordinates), .0001953125W_Q or .0000461% of parent.
+All other parameter shapes/dtypes are identical. This negligible norm cost is not
+charged to MLPs. No formal2.8B training RUN, TPU allocation or target AOT requested.
+CPU Pallas interpretation verifies math/gradients, not target-TPU memory or throughput.
+
+Validation entry:scripts/check_independent_vo_qk75.sh. It checks Medium's exact
+parameter-tree equality and full-model/native-vs-Pallas gradients, direct QK93 kernel
+all-input gradients and tile boundaries, and Pythia's actual full-budget trees plus
+QK100/full-QKNorm model gradients. Worst full-model relative gradient discrepancy:
+Medium4.04e-6; Pythia5.27e-6. Five targeted checks, five summary-writer checks and
+47 shared regressions and3 existing Pallas QKNorm compatibility checks all passed
+in the pinned CPU environment (60checks total). The production RUNs remain
+independently monitored; integration does not hot-switch their source.
+
+Main-merge validation logs:/data0/xd/bam_diagnostics/full-nope-main-merge/

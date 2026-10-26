@@ -17217,6 +17217,24 @@ class BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640S
     compare_runs = ['BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640']
 
 
+class BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640SeparateVOKeysQK80(
+        BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640SeparateVOKeys):
+    """Full80-D M-derived NoPE plus20-D RoPE: QK100/V80, M80x64.
+
+    Retain the independent-VO parent's R640 projections, 7808/2944 body
+    MLPs, 9984 terminal MLP, and single-layer scan31+tail1. Full-head
+    QKNorm covers all100 coordinates before RoPE; attention scale remains
+    1/sqrt(80), matching the parent. Only Q/K norm scales grow:32*2*20=1280
+    parameters, total2,775,190,880 (parent+1280=0.0001953W_Q, +0.0000461%).
+    This negligible norm cost leaves all128-aligned MLP widths unchanged.
+    Configuration only; no training RUN or target-TPU AOT has been started.
+    """
+    model_name = 'BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640SeparateVOKeysQK80'
+    bam_local_qk_col_output_dim = 80
+    bam_partial_rope_nope_dim = 80
+    compare_runs = ['BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640SeparateVOKeys']
+
+
 class BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640HybridV8DropLocalOSeparateVOKeys(
         BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640SeparateVOKeys):
     """Eight ordinary W_V heads plus24 independent-address M-V heads; omit O only on ordinary heads.
@@ -17861,7 +17879,7 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysGenera
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysQK75TruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysTruePile):
     """Retain all75 M-derived NoPE coordinates and append18 RoPE; QK93/V75."""
-    # Ledger only: widened-QK Pallas support is on the implementation branch, not main yet.
+    # Model/Pallas support merged into main; the sealed runtime below remains this RUN's source.
     # code_commit: f8d8866; claude/qk75-profile; /data0/xd/mediumprop-independent-vo-qk75-fast.
     # Started c5ca75f; same-RUN/TPU hot resume CP3800 -> first3801 on f8d8866; plan13500.
     # UE5a v5p16 xd-v5p-16-310370-maxtext; exact AOT/FIRST_STEP verified for both runtimes.

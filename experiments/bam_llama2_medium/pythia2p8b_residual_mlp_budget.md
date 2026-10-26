@@ -272,7 +272,7 @@ Final gaps versus MHA/Mudd are-.0973706/-.0302426, MHA-reference R versus Mudd
 1.4505214 (final5 1.4552445). The direction improvement holds while the overall
 BAM/Mudd ratio continues its slowing decline. Later speed~.317 versus matched
 R640~.328step/s (~-3.4%). Added total parameters are only.0110%; memory/cache
-shapes and health settings remain matched. This is the strongest measured
+shapes and health settings remain matched. This is the strongest measured parameter-matched
 candidate in this local allocation family; restoring ordinary V heads did not
 add a net gain over it at the tested Hybrid allocation.
 
@@ -280,3 +280,48 @@ Original28k LR/AOT remains resumable. The separate calculated28k R640/Mudd
 forecast1.38 (model/window range1.35..1.40) is not validated by this21.5k pause.
 Its reproducible fits/backtests are task-local `R640-terminal-forecast/`;
 no interim loss diary or forecast is added to the configuration ledger.
+
+
+## Full NoPE QK80 / total QK100 followup
+
+User-authorized2026-10-26: run
+`BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640SeparateVOKeysQK80`
+on main, no new worktree. The class retains full80-D M-derived NoPE plus20-D
+RoPE, versus the SeparateVO parent's60+20. Value head80 and M80x64 stay fixed;
+complete-head QKNorm covers100 coordinates, attention scale remains1/sqrt80.
+Only1280 norm scalars are added, total2,775,190,880 (.0001953125W_Q, .0000461%
+above direct parent); the negligible cost leaves all128-aligned MLP widths intact.
+All ranks640, body ordinary7808/private2944, tail9984 and single31+tail1 scan remain.
+
+Runtime59ef09e04368599b143776f4f707ae2c86e2162f, refactor-bam. The verified optimized
+full-NoPE kernel was merged at96a57fc2; user-directed minimal CPU launch gate reuses
+its60 passed checks (including exact Pythia trees, full-QKNorm native/Pallas gradients
+and summary rotation) and reruns the exact effective-config seal. No differences in
+train/train_compile/optimizer/max_utils/maxtext_utils/checkpoint/summary/pyconfig/base
+infrastructure were found versus parent runtimeb79aae7. Other merged model features
+are dormant for this configuration. Source at83579c8 used the working-copy inherited
+56MiB budget and AOT failed at58.11MiB in read backward; candidate-only60MiB at59ef09e
+passes with physical64MiB and the same math/128 tiles. Keep the parent60MiB default
+runnable in committed source; preserve the separate unstaged working-copy removal.
+
+Borrowed verified guaranteed FLEX_START llm-jax-v6e-1-0/EW4a/worker0, under the shared
+worker lock; its lifecycle remains user-owned. Exact v5p-128/s28000 artifact:
+`gs://newproject-1-llm_base_models_us-central1/log/compiled_trainsteps/59ef09e/jax081-i0ae3f58-c17f538a/v5p-128/s28000/BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640SeparateVOKeysQK80.pickle`
+plus.manifest.json. Exact AOT manifest/CRC verified before requesting training hardware.
+Formal UE5a spot trainer xd-v5p-128-qk80-1026/ID310382 registered09:51:25UTC, no passive
+backup submitted; EW4b remains staged recovery policy. Actual worker HEAD59ef09e,
+Loaded compiled function, FIRST_STEP and checkpoint0 committed all verified. Window
+123..142,20 logged steps, harmonic mean.316706step/s/median.318 including a routine
+flush; matched parent~.317, approximately unchanged. Health ON/internal+BAM/shift OFF.
+Global batch1024,64 devices,16/device, T2048, minimal remat, no accumulation.
+
+Prerun common21.5k bet: candidate/SeparateVO MHA-reference R1.03 [1.00,1.06],
+expected speed.312 [.300,.320]. Prior evidence: cached Medium QK75 gain1.02717
+at10k; optimized paired same-TPU speed-1.359%. New model restores the previously
+truncated20 M-content coordinates for Q/K with negligible parameter cost.
+Direct baselines are SeparateVO, original MHA and Mudd; native triples use original
+MHA reference. Keep public2k/native500 cadence and skip first2k. Preserve requested
+original sparse-BAM/2:1/R640 references in cumulative MHA-gap/Mudd-ratio overlays.
+Original28000 LR/AOT retained, common21500 comparison checkpoint pause guard21530.
+Task state, commands, AOT failure, worker/speed/CP evidence and figure sources:
+`/data0/xd/bam_diagnostics/pythia2p8b-residual-mlp-budget-20261025/qk80-launch/`.

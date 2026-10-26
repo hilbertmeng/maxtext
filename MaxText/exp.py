@@ -17234,8 +17234,12 @@ class BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640S
     1/sqrt(80), matching the parent. Only Q/K norm scales grow:32*2*20=1280
     parameters, total2,775,190,880 (parent+1280=0.0001953W_Q, +0.0000461%).
     This negligible norm cost leaves all128-aligned MLP widths unchanged.
-    Configuration only; no training RUN or target-TPU AOT has been started.
     """
+    # code_commit:59ef09e; UE5a v5p-128 B16/device, global1024; health ON/internal+BAM OFF, minimal remat.
+    # Exact AOT loaded/FIRST_STEP and checkpoint0 committed; 20steps123..142 .316706step/s (median.318),
+    # approximately unchanged vs matched parent~.317; parent stays the direct loss/gain reference.
+    # QK100/V80: NoPE80+RoPE20; only1280 new norm scales (.0001953W_Q), MLP widths unchanged.
+    # AOT56MiB failed at58.11MiB; candidate limit60MiB passes on physical64MiB, identical model math/tiles.
     model_name = 'BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640SeparateVOKeysQK80'
     # v5p-128 B16 reverse read needs58.11MiB; physical VMEM is64MiB.
     bam_pallas_vmem_mib = 60

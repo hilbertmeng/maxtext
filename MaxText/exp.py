@@ -17897,6 +17897,11 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75TruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeTruePile):
     """Strict historical attention plus complete75-dimensional M-derived NoPE:QK93/V75."""
+    # code_commit: 5a3d55b; codex/mediumprop-attention-diagonal-zero,/data0/xd/mediumprop-attention-diagonal-zero.
+    # Main ledger only; retained UE5a v5p16 xd-v5p-16-310372-maxtext from completed GeneralWrite13500.
+    # Starts from0; FIRST_STEP1 verified; plan13500; formal tree432112192 unchanged, MLP2510/1128/tail3904.
+    # Full QK93/V75 native/Pallas+Splash logits/all-gradients maxrel4.17e-6; exact AOT/config seal verified.
+    # Startup20..99:.686768step/s vs pre parent.694718 (-1.14%); generic healthON/internal+BAM OFF.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75TruePile'
     bam_local_qk_col_output_dim = 75
     bam_partial_rope_nope_dim = 75
@@ -17912,17 +17917,14 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysGenera
     Raw factor group contract: (content, dynamic_logits, raw_address, static_logits, static_address).
     Native writes remain the reference; the live v8t backend supports the five-factor writer.
     """
-    # Ledger only: generalized-write frontend/kernel remain on the implementation branch, not main yet.
-    # code_commit: 2b86a59; claude/mediumprop-general-write-pallas; /data0/xd/general-write-pallas.
-    # UE5a v5p16 xd-v5p-16-310372-maxtext; plan13500; exact AOT/FIRST_STEP verified.
-    # Native9c0c820 ->fused2b86a59: same RUN/TPU, CP2800 ->first2801; old trace through2881 retained.
-    # 81 paired losses mean|diff|4.75e-5/max2.19e-4; LR/token counts match; CP3000+data cursor verified.
-    # Same-TPU80-step .632392 ->.688543 (+8.88%); matched parent.699548 (-1.57%).
-    # Pallas reads+writes; kernel/all-gradient/8-way shard and10 existing Pallas checks passed; healthON/internal+BAM OFF.
-    # Generalized params34*(1200*16+16*32+16)=670752=.4658W_Q; repay in MLPs.
-    # Verified tree432113344: parent+1152=.0008W_Q, integer-width remainder.
-    # L0-16 ordinary/private2507/1120, complete-branch ratio~2.0013:1; terminal3905, no writes.
-    # Parent read/M-shift/VO split, single-layer scan17+tail1, health and tuned Splash unchanged.
+    # Complete13500: small midrun advantage contracts toward parity; no meaningful SOTA improvement.
+    # Final5(12600..13400) vs independentVO parent:gap-.0003903/R1.002384; terminal1.015 bet fails.
+    # Fused speed.688543 vs parent.699548 (-1.57%); M-cache unchanged; params+1152=.0008W_Q integer residue.
+    # Body ordinary/private2507/1120,tail3905; new670752 writer params repaid in MLPs; complete-branch ratio2.0013:1.
+    # UE5a v5p16 P1,2 READY leases; CP13500/TB secured. TPU hot-transferred to pre-negative/fullNoPE combo.
+    # Native9c0c820->fused2b86a59 atCP2800;81 replay losses mean|diff|4.75e-5,max2.19e-4,LR/cursor matched.
+    # Ledger only: claude/mediumprop-general-write-pallas,/data0/xd/general-write-pallas.
+    # code_commit: 2b86a59; reproduction: experiments/bam_llama2_medium/mediumprop_general_write_vo.md.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysGeneralWriteTruePile'
     bam_general_matrix_write = True
     bam_static_write_gate_init = .01

@@ -35,3 +35,22 @@ compare_runs contains only direct pre parent; gain triple common reference is
 BamMHAMediumPropC256TruePile. Existing standalone fullNoPE evidence remains in
 its archived native reports for interaction analysis, without adding extra gap
 baselines to the routine figure. Report2k,cumulative plots from600.
+
+
+## Verified hot replacement
+
+Runtime5a3d55b4065e3a6fe49af095762a6a71ea834c7f. Parameter-tree and full-model
+QK93/V75 Pallas+Splash/native checks passed; max parameter-gradient error4.17e-6.
+Exact v5p16/s13500 AOT on the retained FLEX passed; manifest checked by hot-switch
+entrypoint. Held only old auto-controller to prevent horizon cleanup while its
+worker kept training; GeneralWrite completed13500. At14:18:09UTC handed the same
+READY xd-v5p-16-310372-maxtext to new controllerID310375, no node/queue deletion.
+OldCP13500 committed and old process absent on both workers before new launch.
+New FIRST_STEP1,loss10.851450:starts from scratch under new prefix. Direct parent
+and MHA gain reference registered; TruePile4096 UE5a path verified.
+
+Startup20..99 all80-step harmonic rate .686768 vs pre parent .694718 (-1.14%),
+median .691,matching speed prediction. Same generic-healthON/internal+BAM OFF,
+per-device16,T4096. Worker confirms Loaded compiled function. Artifact root:
+/data0/xd/bam_diagnostics/mediumprop-pre-diagonal-full-nope/;see first-step.log,
+new-registration-proof.json,handoff-journal.json,startup-speed.json and cpu.log.

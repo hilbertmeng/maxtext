@@ -24,19 +24,34 @@ def paired_implementation():
   return module.interaction_series
 
 
+
+def paired_metrics(row):
+  """Symmetric total-gain normalization of the established paired window means."""
+  pre_gain = row['mha_qknorm_gain']  # L_base - L_pre in this four-run orientation.
+  nope_gain = row['old_bam_gain']   # L_base - L_nope.
+  conditional_gain = row['new_bam_gain']  # L_pre - L_combo.
+  total_gain, additive_gain = pre_gain + conditional_gain, pre_gain + nope_gain
+  valid = additive_gain > 1e-8
+  return dict(step=row['step'], samples=row['samples'],
+      standalone_pre_gain=pre_gain, standalone_nope_gain=nope_gain,
+      conditional_nope_gain=conditional_gain, combo_total_gain=total_gain,
+      standalone_gain_sum=additive_gain, interaction_gain=row['interaction_gain'],
+      symmetric_additivity_ratio=total_gain/additive_gain if valid else None,
+      symmetric_status='ok' if valid else 'nonpositive_or_near_zero_total_standalone_gain',
+      conditional_retention_nope=row['second_order_ratio'], conditional_status=row['status'])
+
+
 def collect(through=None):
   # Same implementation already used by QKNorm and the dedicated-MLP/tail combinations.
   function = paired_implementation()
   code = ('import json,sys\nsys.path.insert(0,"/home/lishengping/xd/projects")\n'
-          'import run_registry as reg\n' + inspect.getsource(function) + '\n'
+          'import run_registry as reg\n' + inspect.getsource(function) + '\n' + inspect.getsource(paired_metrics) + '\n'
           + 'names='+repr(RUNS)+'\nthrough='+repr(through)+'\n' + '''
 for name in names.values():
  if any(reg.load_run(name).get('loss_step_offsets',{}).values()):raise ValueError('This four-way report requires zero registered step offsets')
 caches={role:reg.load_loss_points(name) for role,name in names.items()}
 raw=interaction_series([caches[r] for r in ('combo','pre','nope','base')],through)
-rows=[dict(step=r['step'],samples=r['samples'],standalone_nope_gain=r['old_bam_gain'],
-           conditional_nope_gain=r['new_bam_gain'],interaction_gain=r['interaction_gain'],
-           second_order_ratio=r['second_order_ratio'],status=r['status']) for r in raw]
+rows=[paired_metrics(r) for r in raw]
 paired_through=rows[-1]['step'] if rows else 0
 ordinary=[]
 for run,base in [('combo','pre'),('nope','base')]:
@@ -45,7 +60,8 @@ for run,base in [('combo','pre'),('nope','base')]:
 common_steps={r['step'] for r in rows}
 for report in ordinary:report['series']=[r for r in report['series'] if r['step'] in common_steps]
 print(json.dumps(dict(generated_utc=reg.now_utc(),runs=names,
- definition='S=(L_pre-L_combo)/(L_base-L_nope)',
+ definition='Q=(L_combo-L_base)/((L_pre-L_base)+(L_nope-L_base))',
+ conditional_definition='S_nope=(L_pre-L_combo)/(L_base-L_nope)',
  window='200-step centers; identical five raw samples s-20..s+20 by10 across four runs',
  series=rows,gain_ratios=ordinary,paired_through=paired_through,
  cache_horizons={k:max(v) if v else None for k,v in caches.items()}),indent=2))
@@ -71,29 +87,34 @@ def render(data, directory, start=600):
   actual_steps = [r['step'] for r in rows]
   xs = list(range(((start+199)//200)*200, actual_steps[-1]+1, 200))
   by_step = {r['step']:r for r in rows}
-  fig,axes = plt.subplots(3,1,figsize=(12.8,10.5),sharex=True)
-  for key,label,color in [('standalone_nope_gain','Full NoPE - original base','#7f7f7f'),
-                          ('conditional_nope_gain','Combination - pre-softmax parent','#9467bd')]:
-    y=[-by_step[x][key] if x in by_step else math.nan for x in xs]
-    axes[0].plot(xs,y,marker='o',markersize=2.5,color=color,label=label)
-  for report,color,label in zip(data['gain_ratios'],('#9467bd','#7f7f7f'),
-      ('Combination / pre-softmax parent','Full NoPE / original base')):
-    series={r['step']:r for r in report['series'] if r['step']>=start}
-    y=[ratio_value(series.get(x,{})) for x in xs]
-    axes[1].plot(xs,y,marker='o',markersize=2.5,color=color,label=label+'; reference=MHA')
-  vals=[by_step[x]['second_order_ratio'] if x in by_step and by_step[x]['status']=='ok' and by_step[x]['second_order_ratio'] is not None else math.nan for x in xs]
-  axes[2].plot(xs,vals,color='#111111',marker='o',markersize=2.5,label='NoPE incremental gain retained after pre-softmax masking')
-  for axis,center,label in zip(axes,(0,1,1),
-      ('NoPE loss effect (lower is better)','Ordinary MHA-reference gain multiplier','Second-order NoPE retention S')):
+  if any('symmetric_additivity_ratio' not in r for r in rows):
+    raise ValueError('Input predates symmetric Q; collect a fresh four-run report')
+  fig,axes = plt.subplots(2,2,figsize=(13.5,8.8),sharex=True)
+  purple,gray = '#9467bd','#7f7f7f'
+  conditional=[-by_step[x]['conditional_nope_gain'] if x in by_step else math.nan for x in xs]
+  axes[0,0].plot(xs,conditional,color=purple,marker='o',markersize=2.5,label='Combination - pre-softmax parent')
+  ordinary=next(r for r in data['gain_ratios'] if r['run']==data['runs']['combo'] and r['comparator']==data['runs']['pre'])
+  native={r['step']:r for r in ordinary['series']}
+  axes[1,0].plot(xs,[ratio_value(native.get(x,{})) for x in xs],color=purple,
+                 marker='o',markersize=2.5,label='Combination / pre-softmax parent; reference=MHA')
+  for key,label,color in [('combo_total_gain','Combination - original base',purple),
+                          ('standalone_gain_sum','Sum of both standalone loss effects',gray)]:
+    vals=[-by_step[x][key] if x in by_step else math.nan for x in xs]
+    axes[0,1].plot(xs,vals,color=color,marker='o',markersize=2.5,label=label)
+  q=[by_step[x]['symmetric_additivity_ratio'] if x in by_step and by_step[x]['symmetric_status']=='ok' else math.nan for x in xs]
+  axes[1,1].plot(xs,q,color='#111111',marker='o',markersize=2.5,label='Symmetric gain additivity Q')
+  for axis,center,label in zip(axes.flat,(0,0,1,1),
+      ('Loss gap vs pre-softmax parent','Loss effects vs original base',
+       'Ordinary MHA-reference gain multiplier','Symmetric additivity Q')):
     axis.axhline(center,color='#777',linestyle=':',linewidth=1)
-    axis.set_ylabel(label);axis.grid(alpha=.2);axis.legend(frameon=False,fontsize=8)
-  axes[2].set_xlabel('Training step')
-  fig.suptitle('Does full NoPE retain its benefit after pre-softmax diagonal suppression?')
-  fig.text(.04,.012,'S=(L_pre - L_combo)/(L_base - L_nope): 1=full additive retention; >1=enhanced; <1=discounted.\n'
-           'Same four-run raw windows; no MHA denominator in S. Missing/undefined values stay blank.',fontsize=8,color='#555')
-  fig.tight_layout(rect=(0,.05,1,.97))
+    axis.set_ylabel(label);axis.grid(alpha=.2);axis.legend(frameon=False,fontsize=7)
+  for axis in axes[1]:axis.set_xlabel('Training step')
+  fig.suptitle('Pre-softmax diagonal suppression + full NoPE: symmetric additivity')
+  fig.text(.04,.012,'Q=(L_combo - L_base)/[(L_pre - L_base)+(L_nope - L_base)]: 1=full additive benefit; >1=enhanced; <1=discounted.\n'
+           'Exact common four-run windows; missing/undefined values stay blank. MHA is only the ordinary-gain reference.',fontsize=8,color='#555')
+  fig.tight_layout(rect=(0,.055,1,.97))
   directory=Path(directory);directory.mkdir(parents=True,exist_ok=True)
-  name='pre-diagonal-full-nope-interaction-'+datetime.now(timezone.utc).strftime('%Y%m%d-%H%M%S-%f')
+  name='pre-diagonal-full-nope-symmetric-'+datetime.now(timezone.utc).strftime('%Y%m%d-%H%M%S-%f')
   path=directory/(name+'.png');fig.savefig(path,dpi=160,bbox_inches='tight');plt.close(fig)
   meta=dict(data,figure=str(path),plot_start=start,
             paired_through=xs[-1],renderer_source_sha256=hashlib.sha256(Path(__file__).read_bytes()).hexdigest())

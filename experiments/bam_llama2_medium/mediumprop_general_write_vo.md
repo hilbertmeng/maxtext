@@ -7,7 +7,9 @@ the separate in-flight QK93 experiment. Native gain ratio uses the registry's sh
 RUN/parent/BamMHAMediumPropC256TruePile implementation; compare_runs contains only parent.
 
 Worktree:/data0/xd/mediumprop-general-write-vo
-Branch:codex/mediumprop-general-write-vo
+Branch:codex/mediumprop-general-write-vo (original native bridge).
+Current runtime:2b86a59452bc7058c4893db65c912ebe72cb21d4,
+claude/mediumprop-general-write-pallas, /data0/xd/general-write-pallas.
 Training TPU:xd-v5p-16-310372-maxtext, us-east5-a. Recent same-size UE5a leases
 are stable. Independent ownership from active QK93 TPU310370; preserve its monitoring.
 
@@ -40,10 +42,10 @@ Legacy write groups remain3-tuples. Generalized raw groups have the exact contra
 Reference: attentions.native_bam_write; it supports native btkv / fused-read btvk M layouts.
 The attention and MLP create these factors independently. Existing read kernel/backend
 files are not modified by this bridge, allowing the writer author to work in parallel.
-A temporary _check_pallas_core guard rejects generalized writes with bam_pallas_write=True
-until the five-factor fused writer is implemented. Kernel author should extend the
-bam_pallas.write/v8t forward+VJP, remove that guard after parity, then enable the same
-RUN's write backend. The switch must not add/rename parameters or change math/config.
+The original9c0c820 bridge guarded unsupported fused writes. In2b86a59 the guard
+allows five-factor v8t writes; its forward/VJP accepts the same factors and sums
+replicated static-address gradients across batch shards. The live RUN now uses
+bam_pallas_write=True. Source parameters and model math retain the reference contract.
 
 Validation: exact budget/terminal tree; post-RMS reference and all input gradients;
 learned nonzero static/gate/pre-bias model logits and all gradients with native reads
@@ -81,3 +83,39 @@ Startup verification: CP200 committed. Matched20-99-step harmonic throughput.637
 (median.641) versus completed-parent.6995475, delta-8.82%; both v5p16/UE5a,
 T4096/per-device16, generic healthON/internal+BAMOFF. Different leases; native-write
 bridge only. Speed.json and retained worker log are in the artifact/monitor root.
+
+## Validated native-to-Pallas writer handoff
+
+Same RUN/TPU, new source2b86a59, branch claude/mediumprop-general-write-pallas;
+AOT state:tpu-ag:/home/lishengping/xd/projects/aot_runs/2b86a59-4f46c9ac.json.
+Exact v5p16,s13500 executable/manifest/CRC and installer/compiler hashes verified.
+Sealed effective-config comparison changes only bam_pallas_write False->True.
+No parameter/optimizer tree change. Kernel author's forward/all-gradient, mixed3/5
+factor, multi-tile, eight-device static-gradient and10 existing Pallas regressions
+passed; full-model max relative gradient error2.50e-6. Existing evidence was reused.
+
+Periodic CP2800 committed; native trace2801..2881 retained (81post-anchor steps).
+Old processes quiesced and graceful CP2883 committed. Original root cursor backed
+up, then the exact CP2800 cursor restored. New actual first step2801; strict
+wait-step bound beyond old2881 returned FIRST_STEP2891. Loaded2b86a59 AOT verified.
+Both sides use identical LR and supervised-token counts at every paired step.
+81-step mean absolute loss difference4.75062e-5, max2.19e-4, signed mean-7.77778e-6:
+consistent with the expected BF16/native versus FP32/fused factor arithmetic noise.
+New CP3000 committed; root cursor equals its saved cursor, seed/global batch/infeed
+host count preserved. Registry source, direct comparisons, gain triples, report
+cursor and the original READY TPU lease verified. No new trainer was allocated.
+
+Matched same-TPU80-step timing (formal batch/health unchanged):
+- Native9c0c820, steps2700..2779: harmonic.63239247, median.638step/s.
+- Pallas2b86a59, steps2821..2900: harmonic.68854315, median.693step/s.
+- Speed+8.8791%; versus completed parent's measured.69954752: -1.5731%.
+The completed-parent timing uses another lease, with matched topology/batch/health.
+These timing changes assess the backend, not the architecture's loss benefit.
+
+Proofs:/data0/xd/bam_diagnostics/mediumprop-general-write-vo/kernel-switch/.
+Remote journal:/home/lishengping/xd/projects/logs/hot-switch/general-write-9c0c820-2b86a59/journal.json
+(phase validated); same directory contains validation-summary.json.
+Task handoff source:/home/xd/projects/xd_tpu_scripts/general_write_kernel_handoff_20261026.py;
+deployed matchingSHA256095963a7c0f292eb6d14f1095948718386b914a1c339d77a51f2aa55c5fd2b3a.
+Original native-worktree cleanup8be14a4f removes six accidentally tracked CPU JAX
+cache files; this housekeeping commit is not the sealed live2b86a59 runtime.

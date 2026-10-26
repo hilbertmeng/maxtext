@@ -17854,14 +17854,15 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysGenera
     Each productive write: RMS(U) @ [sigmoid(ld)*RMS(A+b) + 1.1*sigmoid(ls)*S]^T.
     S=zeros[N,V], static gate kernel=zeros[D,N], bias=log(.01/(1.1-.01)).
     Raw factor group contract: (content, dynamic_logits, raw_address, static_logits, static_address).
-    Initial backend uses Pallas reads/native writes; enable bam_pallas_write only after kernel parity.
+    Native writes remain the reference; the live v8t backend supports the five-factor writer.
     """
-    # Ledger only: generalized native-write bridge is on the implementation branch, not main yet.
-    # code_commit: 9c0c820; codex/mediumprop-general-write-vo; /data0/xd/mediumprop-general-write-vo.
-    # UE5a v5p16 xd-v5p-16-310372-maxtext; exact s13500 AOT/FIRST_STEP verified; plan13500.
-    # Pallas reads/native writes; candidate3+summary5+shared47 checks pass; healthON/internal+BAM OFF.
-    # Bridge startup20-99 .637822step/s vs matched parent.699548 (-8.82%); fused writer timing pending.
-    # Hot-switch candidate 2b86a59 (claude/mediumprop-general-write-pallas, on 9c0c820): v8t 5-factor write kernel, bam_pallas_write=True; tree unchanged, sealed OK; AOT v5p-16 s13500 ready.
+    # Ledger only: generalized-write frontend/kernel remain on the implementation branch, not main yet.
+    # code_commit: 2b86a59; claude/mediumprop-general-write-pallas; /data0/xd/general-write-pallas.
+    # UE5a v5p16 xd-v5p-16-310372-maxtext; plan13500; exact AOT/FIRST_STEP verified.
+    # Native9c0c820 ->fused2b86a59: same RUN/TPU, CP2800 ->first2801; old trace through2881 retained.
+    # 81 paired losses mean|diff|4.75e-5/max2.19e-4; LR/token counts match; CP3000+data cursor verified.
+    # Same-TPU80-step .632392 ->.688543 (+8.88%); matched parent.699548 (-1.57%).
+    # Pallas reads+writes; kernel/all-gradient/8-way shard and10 existing Pallas checks passed; healthON/internal+BAM OFF.
     # Generalized params34*(1200*16+16*32+16)=670752=.4658W_Q; repay in MLPs.
     # Verified tree432113344: parent+1152=.0008W_Q, integer-width remainder.
     # L0-16 ordinary/private2507/1120, complete-branch ratio~2.0013:1; terminal3905, no writes.
@@ -17869,7 +17870,7 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysGenera
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysGeneralWriteTruePile'
     bam_general_matrix_write = True
     bam_static_write_gate_init = .01
-    bam_pallas_write = False
+    bam_pallas_write = True
     base_mlp_dim = 2507
     bam_memory_mlp_dim = 1120
     bam_last_mlp_dim = 3905

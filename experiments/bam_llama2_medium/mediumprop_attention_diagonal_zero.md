@@ -65,3 +65,17 @@ Evidence that would refute this: pre dominates post beyond startup and maintains
 that advantage, suggesting normalized history retrieval matters more than the
 extra mass-control degree of freedom. A result below parent in both would instead
 show useful self-V information missing from the remaining paths.
+
+
+## Launch verification
+
+Sealed runtime55ea52c92d825d4948f7c2a45189dfa57db2a543. Candidate6 + summary-writer5
++ sharedBAM47 CPU checks passed; both launchers reused that same source-bound gate.
+Full-model max relative parameter-gradient errors3.93e-6 (post),5.29e-6 (pre).
+Formal parameter tree identical to parent; BF16 segment-first AV outputs exactly0.
+Both exact v5p16/s13500 AOTs prepared serially with the retained FLEX worker lock.
+Both training-only spot queues succeeded in UE5a. ConfirmedFIRST_STEP:post step1,
+loss10.851565; pre step2,loss10.846076. Data path checked by launcher:
+`gs://newproject-1-common_datasets_us-east5/pythia_pile_idxmaps_tfrecord_4096`.
+Gain triples registered with the direct parent and common MHA reference.
+Task artifacts:/data0/xd/bam_diagnostics/mediumprop-attention-diagonal-zero/.

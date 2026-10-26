@@ -21,6 +21,7 @@ from layers.models import Transformer
 PARENT = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysTruePile'
 RUN = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysAlphaDiagZeroTruePile'
 PRE_RUN = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeTruePile'
+RATIO1_RUN = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio1to1SeparateVOKeysLogitDiagNegativeQK75TruePile'
 SHARED_PARENT = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1TruePile'
 SHARED_PRE_RUN = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1LogitDiagNegativeTruePile'
 COMBO_RUN = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75TruePile'
@@ -72,6 +73,31 @@ class AttentionDiagonalZeroTest(MLPWriteTest, unittest.TestCase):
 
   def test_shared_vo_pre_full_model_pallas_splash_gradients(self):
     self._model_case(SHARED_PRE_RUN)
+
+  def test_ratio1_full_nope_parameter_budget(self):
+    trees=[]
+    for run in (COMBO_RUN,RATIO1_RUN):
+      c=self.config(run)
+      c.get_keys().update(max_target_length=256,max_prefill_predict_length=256)
+      mesh=jax.sharding.Mesh(max_utils.create_device_mesh(c),c.mesh_axes)
+      args,*_=train_compile.get_shaped_inputs(mesh,c)
+      flat=flatten_dict(nn.unbox(args[0].params));trees.append(flat)
+      self.assertEqual(sum(math.prod(v.shape) for v in flat.values()),432112192)
+      dims=(1883,1755,3904) if run==RATIO1_RUN else (2510,1128,3904)
+      self.assertEqual((c.mlp_dim,c.bam_memory_mlp_dim,c.bam_last_mlp_dim),dims)
+      self.assertEqual((c.bam_local_qk_col_output_dim,c.bam_standard_qk_dim),(75,18))
+      self.assertTrue(c.bam_attention_negative_diagonal and c.bam_local_vo_independent_keys)
+      self.assertTrue(c.scan_layers and not c.bam_pair_scan)
+      self.assertEqual(c.bam_attention_write_layers,list(range(17)))
+      self.assertTrue(c.bam_skip_final_mlp_write)
+    self.assertEqual(trees[0].keys(),trees[1].keys())
+    for path in trees[0]:
+      if trees[0][path].shape!=trees[1][path].shape:self.assertIn('mlp','/'.join(path).lower())
+    self.assertAlmostEqual((1883*3600)/(1755*3600+458000),1.0004132231404959)
+    print('RATIO1_PRE_FULL_NOPE_BUDGET_OK 432112192 ratio1.000413',flush=True)
+
+  def test_ratio1_full_nope_pallas_splash_all_gradients(self):
+    self._model_case(RATIO1_RUN)
 
   def test_native_removes_diagonal_without_renormalization(self):
     q = jnp.zeros((1,4,1,2));v = jnp.arange(1,5,dtype=jnp.float32)[None,:,None,None]
@@ -167,7 +193,7 @@ class AttentionDiagonalZeroTest(MLPWriteTest, unittest.TestCase):
     layers=4 if shared_control else 3
     c = self.config(run,base_emb_dim=150,base_num_query_heads=2,base_num_kv_heads=2,
         base_num_decoder_layers=layers,base_mlp_dim=32,vocab_size=32,dtype='float32',weight_dtype='float32')
-    c.get_keys().update(bam_pallas_core=False,bam_splash_attention=False,bam_memory_mlp_dim=16,
+    c.get_keys().update(bam_pallas_core=False,bam_splash_attention=False,bam_memory_mlp_dim=32 if run==RATIO1_RUN else 16,
         bam_last_mlp_dim=32,bam_layer_modes=['local_qk+local_v+local_o']*layers,
         bam_attention_write_layers=list(range(layers)) if shared_control else [0,1],
         bam_mlp_write_layers=list(range(layers-1)),emb_bam_num_head=2,

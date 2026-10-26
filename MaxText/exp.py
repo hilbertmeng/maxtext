@@ -17915,7 +17915,7 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeTruePile):
     """Strict historical attention plus complete75-dimensional M-derived NoPE:QK93/V75."""
     # code_commit: 5a3d55b; codex/mediumprop-attention-diagonal-zero,/data0/xd/mediumprop-attention-diagonal-zero.
-    # Main ledger only; retained UE5a v5p16 xd-v5p-16-310372-maxtext from completed GeneralWrite13500.
+    # Pre-softmax/full-NoPE support merged main; retained UE5a v5p16 xd-v5p-16-310372-maxtext from GeneralWrite.
     # Starts from0; FIRST_STEP1 verified; plan13500; formal tree432112192 unchanged, MLP2510/1128/tail3904.
     # Full QK93/V75 native/Pallas+Splash logits/all-gradients maxrel4.17e-6; exact AOT/config seal verified.
     # Startup20..99:.686768step/s vs pre parent.694718 (-1.14%); generic healthON/internal+BAM OFF.
@@ -17923,6 +17923,15 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     bam_local_qk_col_output_dim = 75
     bam_partial_rope_nope_dim = 75
     compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeTruePile']
+
+
+class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio1to1SeparateVOKeysLogitDiagNegativeQK75TruePile(
+    BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75TruePile):
+    """Equal vector/complete-M-branch budgets on negative-diagonal/full-NoPE."""
+    model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio1to1SeparateVOKeysLogitDiagNegativeQK75TruePile'
+    base_mlp_dim = 1883
+    bam_memory_mlp_dim = 1755
+    compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75TruePile']
 
 
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysGeneralWriteTruePile(

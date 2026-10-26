@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""Render registry-computed cumulative loss gaps and gain ratios; never recalculate them."""
+"""Overlay selected RUNs in one cumulative gap/ratio figure from registry JSON.
+
+All selected RUNs/baselines share the two panels by default. Values are rendered
+from the registry's series, never recalculated here.
+"""
 import argparse
 from datetime import datetime, timezone
 import hashlib

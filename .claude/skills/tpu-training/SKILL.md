@@ -320,6 +320,10 @@ The figure supplies the detailed series; do not also print long numerical tables
 all plotted points. Use tables when requested or when a compact multi-run decision comparison
 adds information. Same-group experiments should be checked/reported together using their latest
 available progress; do not hold a due report until a slower member catches up.
+For multiple comparable RUNs, **overlay their curves in one shared gap/ratio figure by default**
+so their levels and trajectories can be compared directly. Do not default to one figure per RUN.
+Split figures/panels when distinct groups, baselines, scales or clutter make a shared plot
+misleading; keep same-group contrasts together and preserve each RUN's actual endpoint.
 
 Plot the cumulative native series from **step 600** unless the user chooses another transient
 cutoff; never crop the figure to just the newest reporting window. Use registered direct
@@ -356,7 +360,8 @@ Do not replace missing ratios with 1 or calculate another version in a plotting/
 
 Use this skill's local `scripts/plot_training_report.py` on the saved registry JSON. It accepts
 `report-all`, `pending-report`, and `loss-report` JSON; it only renders their native gap/ratio
-series. Multiple inputs/RUNs/baselines can share a figure; `--run`/`--base` select comparisons,
+series. All selected input RUNs/baselines are overlaid in one figure by default;
+`--run`/`--base` select comparisons,
 and repeated `--label FULL_CLASS SHORT_LABEL` keep legends readable. Example:
 
 ```bash

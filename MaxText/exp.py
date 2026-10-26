@@ -17916,9 +17916,12 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     """Strict historical attention plus complete75-dimensional M-derived NoPE:QK93/V75."""
     # code_commit: 5a3d55b; codex/mediumprop-attention-diagonal-zero,/data0/xd/mediumprop-attention-diagonal-zero.
     # Pre-softmax/full-NoPE support merged main; retained UE5a v5p16 xd-v5p-16-310372-maxtext from GeneralWrite.
-    # Starts from0; FIRST_STEP1 verified; plan13500; formal tree432112192 unchanged, MLP2510/1128/tail3904.
-    # Full QK93/V75 native/Pallas+Splash logits/all-gradients maxrel4.17e-6; exact AOT/config seal verified.
-    # Startup20..99:.686768step/s vs pre parent.694718 (-1.14%); generic healthON/internal+BAM OFF.
+    # Completed13500/P0; CP13500 committed, node+QR independently absent, TB SYNC_OK.
+    # vs pre-negative parent: sustained extra gain after2k, late R~1.025..1.03 with mild final retreat.
+    # Final5(12600..13400) gap-.00434576/R1.02531941, matching terminal1.025 bet; symmetric additivity Q.96568478.
+    # Combo absolute benefit.01202564 vs summed standalone.01246016: near-additive terminal gains, slight discount.
+    # Params432112192/cache unchanged, MLP2510/1128/tail3904; startup.686768 vs parent.694718 (-1.14%).
+    # Full QK93/V75 native/Pallas+Splash all-gradients maxrel4.17e-6; healthON/internal+BAM OFF; see family note.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75TruePile'
     bam_local_qk_col_output_dim = 75
     bam_partial_rope_nope_dim = 75

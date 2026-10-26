@@ -95,3 +95,27 @@ at each combination report. Five regression cases cover conditional orientation,
 missing/unequal windows,undefined single-factor denominator,exchange symmetry,
 and the distinct summed-benefit denominator. The example .010/.005 standalone
 and .012 combined yields Q=.8 under either ordering,while S changes .4 to .7.
+
+## Final result
+
+Completed13500 at runtime5a3d55b. The extra full-NoPE gain versus the direct
+pre-negative parent became clear after2k, then held aroundR1.025..1.03 late,
+with a mild retreat in the final windows. Last five common200-step windows
+12600..13400: gap-0.00434576 and MHA-reference gain1.02531941; the terminal1.025
+forecast matched. Parameters432112192 and inference M-cache remain unchanged;
+startup0.686768 versus parent0.694718step/s (-1.14%,observed training timing).
+
+The user's symmetric additivity Q averages0.96568478 over those five windows.
+Combined absolute benefit versus bare independent-VO2:1 is0.01202564, versus
+0.01246016 for the sum of standalone pre-negative and full-NoPE benefits.
+The two gains become almost additive late, with a small remaining discount;
+early Q~0.7 should not be extrapolated as a permanent interaction penalty.
+
+Checkpoint13500 marker committed2026-10-26T19:52:18Z; registry complete13500
+at19:54:35Z; node and queued resource independently absent; TensorBoard SYNC_OK.
+P0, one us-east5-a assignment14:18:28..19:54:35UTC. One registered READY lease
+14:18:30..19:54:35UTC,5h36m05s; the TPU had been hot-transferred from GeneralWrite.
+No compiler lifecycle action. Evidence in
+/data0/xd/bam_diagnostics/mediumprop-pre-diagonal-full-nope/:
+final-pending-native.json,second-order-final.json,figure-final.json,
+final-metrics.json,final-proof.json,closeout-final.log.

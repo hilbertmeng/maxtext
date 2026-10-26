@@ -289,7 +289,7 @@ class BamReadKeyTransformTest(absltest.TestCase):
     projection = lambda x: x.reshape(1, 2, 2, 3) + .1
     receiver = SimpleNamespace(
         config=SimpleNamespace(bam_sqrt_n_scale=False, bam_lambda_decay=1.),
-        _force_activation_dtype=False, bam_k=2, _write_v_bottleneck_dim=None,
+        _force_activation_dtype=False, _general_write=False, bam_k=2, _write_v_bottleneck_dim=None,
         P_loc=projection, gw_b0=jnp.zeros((2,)), W_gw=lambda x: jnp.zeros((1, 2, 2)),
         _write_data_rms=True, write_data_norm=norm, write_address_norm=norm)
     receiver._write_address = lambda x, shared_hidden=None: BamAttention._write_address.__wrapped__(receiver, x, shared_hidden)

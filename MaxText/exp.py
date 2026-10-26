@@ -17828,6 +17828,21 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysTruePi
     compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1TruePile']
 
 
+class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysQK75TruePile(
+    BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysTruePile):
+    """Retain all75 M-derived NoPE coordinates and append18 RoPE; QK93/V75."""
+    # Ledger only: widened-QK Pallas support is on the implementation branch, not main yet.
+    # code_commit: c5ca75f; codex/mediumprop-independent-vo-qk75, /data0/xd/mediumprop-independent-vo-qk75.
+    # UE5a v5p16 xd-v5p-16-310370-maxtext; exact AOT/FIRST_STEP verified, plan13500.
+    # Params432112192 unchanged; MLP2510/1128, terminal3904; noQKNorm, scale1/sqrt75.
+    # Pallasv8t48MiB/fused inputs + tuned Splash; healthON/internal+BAM OFF;57 CPU checks passed.
+    model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysQK75TruePile'
+    bam_local_qk_col_output_dim = 75
+    bam_partial_rope_nope_dim = 75
+    compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysTruePile']
+
+
+
 class BamMediumPropMShiftReadG050SharedHiddenMemoryMLPTruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1TruePile):
     """Share SwiGLU input/gate projections and hidden activation; separate vector/M heads."""

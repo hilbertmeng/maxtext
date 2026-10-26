@@ -21,12 +21,13 @@ from layers.models import Transformer
 PARENT = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysTruePile'
 RUN = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysAlphaDiagZeroTruePile'
 PRE_RUN = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeTruePile'
+COMBO_RUN = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75TruePile'
 
 
 class AttentionDiagonalZeroTest(MLPWriteTest, unittest.TestCase):
   def test_full_parameter_tree_and_runtime(self):
     trees = []
-    for name in (PARENT, RUN, PRE_RUN):
+    for name in (PARENT, RUN, PRE_RUN, COMBO_RUN):
       c = self.config(name)
       c.get_keys().update(max_target_length=256,max_prefill_predict_length=256)
       mesh = jax.sharding.Mesh(max_utils.create_device_mesh(c),c.mesh_axes)
@@ -36,14 +37,15 @@ class AttentionDiagonalZeroTest(MLPWriteTest, unittest.TestCase):
       trees.append({p:(v.shape,str(v.dtype)) for p,v in flat.items()})
       self.assertEqual((c.mlp_dim,c.bam_memory_mlp_dim,c.bam_last_mlp_dim),(2510,1128,3904))
       self.assertEqual(c.bam_attention_zero_diagonal,name==RUN)
-      self.assertEqual(c.bam_attention_negative_diagonal,name==PRE_RUN)
-      self.assertEqual((c.bam_local_qk_col_output_dim,c.bam_standard_qk_dim),(57,18))
+      self.assertEqual(c.bam_attention_negative_diagonal,name in (PRE_RUN,COMBO_RUN))
+      self.assertEqual((c.bam_local_qk_col_output_dim,c.bam_standard_qk_dim),(75 if name==COMBO_RUN else 57,18))
       self.assertTrue(c.bam_local_vo_independent_keys and c.bam_pallas_core)
       self.assertTrue(c.sa_use_fused_bwd_kernel and c.record_training_health_metrics)
       self.assertFalse(c.record_internal_nn_metrics)
       self.assertEqual(c.tensorboard_gcs_rotate_period,500)
     self.assertEqual(trees[0],trees[1])
     self.assertEqual(trees[0],trees[2])
+    self.assertEqual(trees[0],trees[3])
     print('DIAGONAL_ZERO_PARAMETER_TREE_IDENTICAL 432112192',flush=True)
 
   def test_native_removes_diagonal_without_renormalization(self):
@@ -131,6 +133,9 @@ class AttentionDiagonalZeroTest(MLPWriteTest, unittest.TestCase):
 
   def test_full_model_negative_logits_pallas_splash_all_gradients(self):
     self._model_case(PRE_RUN)
+
+  def test_full_nope_negative_logits_pallas_all_gradients(self):
+    self._model_case(COMBO_RUN)
 
   def _model_case(self,run):
     c = self.config(run,base_emb_dim=150,base_num_query_heads=2,base_num_kv_heads=2,

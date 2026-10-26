@@ -81,3 +81,44 @@ relative speed-8.0736%. Actual AOT load confirmed in the worker log. This exceed
 the pre-run1..3% slowdown prediction; retain the result as a failed speed prediction.
 Do not infer the hardware bottleneck from logical QK FLOPs alone. Raw proof:
 `/data0/xd/bam_diagnostics/mediumprop-independent-vo-qk75/speed.json`.
+
+## Kernel handoff at CP3800
+
+Current runtime:f8d886683827c744d20258c7c6dc22e67ac20dc1, source branch
+claude/qk75-profile; local worktree:/data0/xd/mediumprop-independent-vo-qk75-fast,
+metadata branch:codex/mediumprop-independent-vo-qk75-fast. User-provided optimization
+writes QK93 directly from the Pallas read kernel and splits its cotangent internally;
+removes the external concat/relayout, preserving model/configuration/parameter tree.
+Exact effective-config seal and AOT manifest/CRC validated for v5p16,s13500. The
+handoff-provided candidate checks passed;47 shared CPU regressions replayed here and passed.
+
+Same RUN, same retained xd-v5p-16-310370-maxtext/UE5a. The distinct-RUN hot-switch
+entrypoint refuses identical names, so used the Hot Retrain procedure with ownership
+checks and a task journal. Periodic CP3800 committed; old raw loss retained through3861
+(61 post-checkpoint steps), then controller stopped and both workers quiesced. Graceful
+exit committed CP3863; backed up its root data cursor and intentionally restored the
+CP3800 cursor so new state3801 and data replay the same old post-anchor batches.
+No permanent restore-step override; subsequent checkpoints advance the normal cursor.
+New source/AOT verified, FIRST_STEP bound beyond old last3861 returned new3863;
+actual first completed step3801. Registry commit/AOT updated; comparisons, ratio
+reference, report cursor2000 and original READY lease retained. No TPU deletion/creation.
+
+Paired3801..3820: mean absolute loss difference2.575e-5, max6.3e-5.
+Full61-step overlap3801..3861: mean absolute3.17705e-5, max1.05e-4, signed mean2.29508e-6;
+exact data-cursor and LR match. This verifies post-switch versus post-anchor old outputs,
+rather than comparing adjacent unrelated batches across the handoff.
+
+Same-TPU80-step timing: c5 steps3700..3779 harmonic mean.63965847 (median.646),
+f8 steps3821..3900 harmonic mean.69004099 (median.694):+7.8765% versus old kernel,
+-1.3590% versus parent's measured.69954752. Formal batch16/device and all health,
+scan/Splash/remat settings unchanged. Kernel optimization removes most of the initial
+8% timing deficit; do not attribute that original deficit solely to wider QK arithmetic.
+
+Proofs:/data0/xd/bam_diagnostics/mediumprop-independent-vo-qk75/kernel-switch/
+(overlap-validation.json,speed-comparison.json,old-final.log,new-worker0.log,cursors,
+FIRST_STEP and handoff journal). Remote journal:
+/home/lishengping/xd/projects/logs/hot-switch/qk75-c5ca75f-f8d8866/journal.json.
+Task handoff source:/home/xd/projects/xd_tpu_scripts/qk75_kernel_handoff_20261026.py,
+deployed matchingSHA256714c798d417e9b59f6eba2c9a4bcd1f165454b72e76067a4ed44fb5fbef11ad3.
+The original c5 runtime worktree is preserved for reproduction; regular loss reports
+stay in task artifacts and chat, not in this ledger.

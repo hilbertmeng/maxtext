@@ -17842,6 +17842,7 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysGenera
     # code_commit: 9c0c820; codex/mediumprop-general-write-vo; /data0/xd/mediumprop-general-write-vo.
     # UE5a v5p16 xd-v5p-16-310372-maxtext; exact s13500 AOT/FIRST_STEP verified; plan13500.
     # Pallas reads/native writes; candidate3+summary5+shared47 checks pass; healthON/internal+BAM OFF.
+    # Bridge startup20-99 .637822step/s vs matched parent.699548 (-8.82%); fused writer timing pending.
     # Generalized params34*(1200*16+16*32+16)=670752=.4658W_Q; repay in MLPs.
     # Verified tree432113344: parent+1152=.0008W_Q, integer-width remainder.
     # L0-16 ordinary/private2507/1120, complete-branch ratio~2.0013:1; terminal3905, no writes.

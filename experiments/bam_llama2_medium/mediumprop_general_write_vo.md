@@ -76,3 +76,8 @@ AOT:gs://newproject-1-llm_base_models_us-central1/log/compiled_trainsteps/9c0c82
 Borrowed AOT compiler:llm-jax-v6e-1-0, europe-west4-a, worker0; retain its lifecycle.
 Failed-preparation training prequeue310371 was deleted and verified absent; no training
 ran there. Live trainer310372 is independent of the active QK93 trainer310370.
+
+Startup verification: CP200 committed. Matched20-99-step harmonic throughput.6378215
+(median.641) versus completed-parent.6995475, delta-8.82%; both v5p16/UE5a,
+T4096/per-device16, generic healthON/internal+BAMOFF. Different leases; native-write
+bridge only. Speed.json and retained worker log are in the artifact/monitor root.

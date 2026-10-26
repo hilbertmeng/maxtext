@@ -17929,10 +17929,12 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio1to1SeparateVOKeysLogitD
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75TruePile):
     """Equal vector/complete-M-branch budgets on negative-diagonal/full-NoPE."""
     # code_commit: a184479; codex/mediumprop-attention-diagonal-zero,/data0/xd/mediumprop-attention-diagonal-zero.
-    # UE5a v5p16 xd-v5p-16-310377-maxtext; config/CPU/AOT/FIRST_STEP10 verified; plan13500.
+    # UE5a v5p16 xd-v5p-16-310377-maxtext; stopped5122 at5k review; CP5122/TB secured, node+QR absent; P0.
     # Exact432112192 params; ordinary6778800 / complete M branch6776000=1.000413:1 per body layer; tail3904 unchanged.
     # Native/Pallas+Splash all-gradients maxrel2.26e-6; no kernel edit; healthON/internal+BAM OFF,tunedSplash.
-    # Startup20..99:0.682205step/s vs parent0.686768 (-0.66%); terminal R bet1.02.
+    # vs direct2:1 combo: initial R~1.015 faded to parity3k..4k, then deficit; last5 through5k gap+.00103956/R.99539425.
+    # Same total params/cache, speed-.66%; larger M branch did not sustain early gain. Terminal1.02 bet unmeasured after early stop.
+    # Startup20..99:0.682205step/s vs parent0.686768; see mediumprop_ratio1_pre_full_nope.md for evidence.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio1to1SeparateVOKeysLogitDiagNegativeQK75TruePile'
     base_mlp_dim = 1883
     bam_memory_mlp_dim = 1755

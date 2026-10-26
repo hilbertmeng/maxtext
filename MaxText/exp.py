@@ -17201,7 +17201,16 @@ class BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640S
     # code_commit:b79aae7; UE5a v5p-128 B16/device, same health/minimal remat as R640 parent.
     # Exact AOT loaded/FIRST_STEP verified; early steady~.318-.320step/s vs R640~.328.
     # Sealed runtime requests60MiB scoped VMEM: reverse needs58.13MiB; v5p physical64MiB, tiles128 retained.
+    # Paused CP21554/28000 at common21.5k; CP/fixed2k..20k committed, resources absent, TB synced; P0.
+    # vs R640 gap-.009926@2k ->-.004459@8k ->-.004019@21.5k; final5mean-.004168/R1.044279, last R1.043050.
+    # Stable~4% late gain validates common-horizon R1.04 prior; params+305632 (+.0110%), same M/cache shapes.
+    # vs originalR7682:1 final gap-.005467/R1.059491; final5mean-.005362/R1.057700.
+    # vs MHA final gap-.097371 /Mudd-.030243; MHA-ref R vs Mudd1.6854@8k ->1.5175@14k ->1.450521@21.5k.
+    # Final5 R vs Mudd1.455245; decay slows but is not eliminated. Later~.317step/s vs R640~.328 (~-3.4%), matched health.
+    # Original28k LR/AOT retained; common21.5k result is provisional, not a measured28k terminal result.
     model_name = 'BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640SeparateVOKeys'
+    # Full32-head independent VO reverse needs58.13MiB on v5p; physical VMEM64MiB.
+    bam_pallas_vmem_mib = 60
     bam_local_vo_independent_keys = True
     bam_attention_write_layers = list(range(31))
     bam_pair_scan = False

@@ -254,3 +254,29 @@ all16 worker processes gone, node/queued resource independently verified
 absent, zero lost steps, TB SYNC_OK. One UE5a v5p-128 READY lease:
 2026-10-25 14:33:10 ->2026-10-26 01:06:29 UTC,10h33m19s, no preemptions.
 Authoritative summary: tpu-ag `/home/lishengping/xd/projects/logs/closeout-20261026T010916Z.json`.
+
+
+### SeparateVO common-horizon pause
+
+Paused at committed21554/28000, finishing the matched21500 window. The durable
+guard released the node and queued resource; both absence checks were repeated
+independently. Fixed checkpoints2000 and20000 remain committed. Local TB sync
+completed successfully. Zero preemptions; sole READY lease2026-10-25 14:23:32
+through2026-10-26 09:26:09 UTC (19h02m37s), followed by verified resource release.
+
+Versus R640: early gap-.009926 at2k shrinks to-.004459 at8k, then remains
+near-.004..-.0046 through21.5k. Final gap-.0040188/R1.0430501;
+final5 mean-.0041680/R1.0442794. This supports the original21.5k R1.04 prior.
+Versus originalR7682:1: final-.0054674/R1.0594909; final5-.00536168/R1.0576997.
+Final gaps versus MHA/Mudd are-.0973706/-.0302426, MHA-reference R versus Mudd
+1.4505214 (final5 1.4552445). The direction improvement holds while the overall
+BAM/Mudd ratio continues its slowing decline. Later speed~.317 versus matched
+R640~.328step/s (~-3.4%). Added total parameters are only.0110%; memory/cache
+shapes and health settings remain matched. This is the strongest measured
+candidate in this local allocation family; restoring ordinary V heads did not
+add a net gain over it at the tested Hybrid allocation.
+
+Original28k LR/AOT remains resumable. The separate calculated28k R640/Mudd
+forecast1.38 (model/window range1.35..1.40) is not validated by this21.5k pause.
+Its reproducible fits/backtests are task-local `R640-terminal-forecast/`;
+no interim loss diary or forecast is added to the configuration ledger.

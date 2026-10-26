@@ -25,6 +25,7 @@ RATIO1_RUN = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio1to1SeparateVOKe
 SHARED_PARENT = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1TruePile'
 SHARED_PRE_RUN = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1LogitDiagNegativeTruePile'
 COMBO_RUN = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75TruePile'
+V48_RUN = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75V48TruePile'
 
 
 class AttentionDiagonalZeroTest(MLPWriteTest, unittest.TestCase):
@@ -98,6 +99,32 @@ class AttentionDiagonalZeroTest(MLPWriteTest, unittest.TestCase):
 
   def test_ratio1_full_nope_pallas_splash_all_gradients(self):
     self._model_case(RATIO1_RUN)
+
+  def test_v48_full_nope_parameter_budget_and_runtime(self):
+    c=self.config(V48_RUN)
+    c.get_keys().update(max_target_length=256,max_prefill_predict_length=256)
+    mesh=jax.sharding.Mesh(max_utils.create_device_mesh(c),c.mesh_axes)
+    args,*_=train_compile.get_shaped_inputs(mesh,c)
+    flat=flatten_dict(nn.unbox(args[0].params))
+    self.assertEqual(sum(math.prod(v.shape) for v in flat.values()),432111056)
+    self.assertEqual((c.bam_k,c.bam_v,c.mlp_dim,c.bam_memory_mlp_dim,c.bam_last_mlp_dim),
+                     (75,48,2446,1077,3802))
+    for key in ('bam_local_full_m_read_bottleneck_dim','bam_write_v_bottleneck_dim',
+                'emb_bam_v_bottleneck_dim','bam_mlp_write_address_rank'):
+      self.assertEqual(getattr(c,key),256)
+    self.assertEqual((c.bam_local_qk_col_output_dim,c.bam_standard_qk_dim),(75,18))
+    self.assertTrue(c.bam_attention_negative_diagonal and c.bam_local_vo_independent_keys)
+    self.assertTrue(c.scan_layers and not c.bam_pair_scan)
+    self.assertEqual(c.bam_attention_write_layers,list(range(17)))
+    self.assertTrue(c.bam_skip_final_mlp_write and c.bam_pallas_core and c.bam_pallas_fused_inputs)
+    self.assertTrue(c.record_training_health_metrics and c.sa_use_fused_bwd_kernel)
+    self.assertFalse(c.record_internal_nn_metrics or c.qk_norm)
+    self.assertEqual(c.tensorboard_gcs_rotate_period,500)
+    self.assertAlmostEqual(2446*3600/(1077*3600+523792),2.0008216329409367)
+    print('V48_PRE_FULL_NOPE_BUDGET_OK 432111056 parent_delta-1136 ratio2.00082163',flush=True)
+
+  def test_v48_full_nope_pallas_splash_all_gradients(self):
+    self._model_case(V48_RUN)
 
   def test_native_removes_diagonal_without_renormalization(self):
     q = jnp.zeros((1,4,1,2));v = jnp.arange(1,5,dtype=jnp.float32)[None,:,None,None]

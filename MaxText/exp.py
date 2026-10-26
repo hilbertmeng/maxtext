@@ -17944,6 +17944,21 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio1to1SeparateVOKeysLogitD
     compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75TruePile']
 
 
+class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75V48TruePile(
+    BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75TruePile):
+    """Expand M75x32 to M75x48 on the strongest combo; keep all address ranks256."""
+    model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75V48TruePile'
+    bam_v = 48
+    bam_local_full_m_read_bottleneck_dim = 256
+    bam_write_v_bottleneck_dim = 256
+    emb_bam_v_bottleneck_dim = 256
+    bam_mlp_write_address_rank = 256
+    base_mlp_dim = 2446
+    bam_memory_mlp_dim = 1077
+    bam_last_mlp_dim = 3802
+    compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75TruePile']
+
+
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysGeneralWriteTruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysTruePile):
     """Generalized attention/private-MLP writes on completed2:1+independentVO SOTA.

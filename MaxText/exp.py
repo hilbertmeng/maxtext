@@ -16843,6 +16843,11 @@ class Pythia2p8BShortTrainResidualMLP7552(Pythia2p8BShortTrain):
     """
     # code_commit:7b6aecb; UE5a v5p-128 B16/device; AOT/FIRST_STEP verified, ~.400step/s.
     # Minimal remat; generic health ON/internal+BAM OFF, matching timing controls.
+    # User-stopped CP16668/28000; TPU hot-transferred to SeparateVO; CP committed/TB synced/P0.
+    # vs original MHA gap +.02233@2k ->+.01551@3k ->+.01708@8k ->+.019705@16.5k; final5mean+.019436.
+    # vs2:1 BAM final gap+.116139/final5mean+.117534. Narrowing gives a modest persistent penalty,
+    # not BAM-sized erosion through stop; late28k behavior and21.5k +.025 prior remain untested.
+    # Later~.397step/s vs matched MHA .3603 (+10.2%); original28k schedule unchanged.
     model_name = 'Pythia2p8BShortTrainResidualMLP7552'
     base_mlp_dim = 7552
     pythia_last_mlp_dim = 7178
@@ -17134,6 +17139,12 @@ class BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1Residual
     """
     # code_commit:7b6aecb; UE5a v5p-128 B16/device; AOT/FIRST_STEP verified, ~.294step/s.
     # Minimal remat; generic health ON/internal+BAM OFF, matching the2:1 timing control.
+    # User-stopped CP12308/28000; TPU hot-transferred to HybridV8; CP committed/TB synced/P0.
+    # vs2:1 gap-.004937@2k ->~-.0094@6k ->-.009671@12k; final5mean-.009272/R1.086569, last R1.093015.
+    # Final vs MHA gap-.113646 /Mudd-.043346; MHA-ref R vs Mudd2.1717@2k ->1.7277@8k ->1.6166@12k.
+    # Added ordinary FFNs shift loss lower but do not materially reduce6k..10k erosion versus MHA;
+    # original2:1 advantage shrinks .020889, widened .021159. Full28k/21.5k R1.16 prior untested.
+    # Later~.291step/s vs2:1~.325 (-10.5%); same health, memory3072 and28k LR schedule.
     model_name = 'BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1ResidualMLP10240'
     base_mlp_dim = 10240
     mlp_dim_by_block = [10240, 10240, 10240]
@@ -17156,6 +17167,11 @@ class BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640(
     """
     # code_commit:7b6aecb; UE5a v5p-128 B16/device; AOT/FIRST_STEP verified, ~.330step/s.
     # Minimal remat; generic health ON/internal+BAM OFF, matching the2:1 timing control.
+    # Paused CP21551/28000 at the common21.5k comparison horizon; CP committed, resources absent, TB synced/P0.
+    # vs R768 2:1: early lag ->cross6.5k ->small sustained lead; final gap-.001449/R1.015762,
+    # final5mean-.001194/R1.012852. Gain holds after8k without a material late widening; prior R1.03 optimistic.
+    # vs MHA final gap-.093352 /Mudd-.026224; MHA-ref R vs Mudd1.6250@8k ->1.4230@16k ->1.3907@21.5k.
+    # Later~.328-.330step/s vs2:1~.325; provisional common-horizon result, original28k LR/AOT retained.
     model_name = 'BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640'
     bam_local_full_m_read_bottleneck_dim = 640
     bam_write_v_bottleneck_dim = 640
@@ -17181,6 +17197,9 @@ class BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640S
     AllR640 parent+305,632 (+.011014%), the nearest
     128-aligned terminal match. All four read/write/embedding ranks remain640.
     """
+    # code_commit:b79aae7; UE5a v5p-128 B16/device, same health/minimal remat as R640 parent.
+    # Exact AOT loaded/FIRST_STEP verified; early steady~.318-.320step/s vs R640~.328.
+    # Sealed runtime requests60MiB scoped VMEM: reverse needs58.13MiB; v5p physical64MiB, tiles128 retained.
     model_name = 'BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640SeparateVOKeys'
     # Full32-head independent VO reverse needs58.13MiB on v5p; physical VMEM64MiB.
     bam_pallas_vmem_mib = 60
@@ -17208,6 +17227,14 @@ class BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640H
     AllR640 parent+257,888 (+.009294%).
     All hidden widths are128-aligned; single-layer scan and initialization inherit.
     """
+    # code_commit:b79aae7; UE5a v5p-128 B16/device, health ON/internal+BAM OFF, minimal remat.
+    # Exact AOT loaded/FIRST_STEP verified; early steady~.307-.310step/s, SeparateVO~.318-.320.
+    # Inherits sealed60MiB scoped VMEM; additional head cost is funded from memory MLP, ordinary7808 retained.
+    # User-stopped CP11550/28000; CP committed, node/queue absent, TB SYNC_OK; P0, zero lost steps.
+    # vs SeparateVO gap+.002836@2k ->-.000140@8k ->+.000814@11.5k/R.992763;
+    # final5mean+.000702/R.993861: brief near-tie gave way to a small growing deficit.
+    # Final vs R640 gap-.003650/R1.033779; vs originalR7682:1-.005362; vs MHA-.111692 /Mudd-.039817/R1.553965.
+    # No extra SOTA gain through user stop; common21.5k R1.02 vs VO prior remains untested.
     model_name = 'BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640HybridV8DropLocalOSeparateVOKeys'
     bam_standard_value_heads = 8
     bam_standard_value_keep_local_o = False

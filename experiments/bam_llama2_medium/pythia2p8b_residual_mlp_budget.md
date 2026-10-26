@@ -146,3 +146,111 @@ and task guards are in the task artifact directory, not interim loss diaries
 in `exp.py`. Runtime disables `save_config_to_gcs`; use sealed-source config
 verification plus the actual worker HEAD/AOT/batch-token/LR evidence instead
 of claiming a nonexistent GCS `config.yml` was inspected.
+
+## Capacity-control closeout and R640 comparison horizon
+
+The user hot-replaced narrow MHA at committed16668 and wide BAM at
+committed12308. Both stopped registries were checked separately after the
+replacement's FIRST_STEP. Their TPUs transferred to the new owners; closeout
+reported `already_closed=true` and skipped all resource operations. Both local
+TB syncs returned SYNC_OK. No preemptions or rollback occurred.
+
+Narrow MHA's original-MHA gap was +.022331 at2k, +.015511 at3k,
++.017079 at8k and +.019705 at16.5k; final5 mean+.019436. Its final gap
+against2:1 BAM was+.116139 (final5+.117534). Later throughput~.397step/s
+versus matched original MHA.3603. The narrowing penalty persists, but does
+not reproduce BAM's large declining advantage through the observed interval.
+Its21.5k +.025 prior and full28k result remain untested after the user stop.
+
+Wide BAM's gap against2:1 improved from-.004937 at2k to about-.0094 at6k,
+then held near-.009..-.010 through12k. Final gap-.009671/R1.093015;
+final5 gap-.009272/R1.086569. Final gaps against MHA/Mudd were
+-.113646/-.043346, with MHA-reference BAM/Mudd R1.616594. Later speed
+~.291 versus2:1~.325step/s, with matched health settings. Its added ordinary
+FFNs lower the loss level but do not materially change6k..10k erosion:
+the original2:1 MHA advantage shrinks.0208886 and wide BAM.0211590.
+That .0002704 endpoint difference changes sign when endpoints use five-window
+means (wide's lead grows.0002302); it is not evidence that widening worsens
+decay. The21.5k R1.16 prior remains untested.
+
+AllR640 reached its planned common comparison horizon and paused at21551,
+with committed checkpoint21551 and both node/queued resource verified absent.
+The local incremental TB sync completed successfully. Versus originalR768
+2:1, early lag crosses at6.5k and becomes a persistent small lead. At21.5k:
+gap-.0014486/R1.0157622; final5 mean-.00119368/R1.012852. Versus Mudd:
+gap-.0262238/R1.3906537, compared with2:1 R1.3690740. The rank refund gives
+a small net gain, without a material late widening; original R1.03 prior was
+optimistic at this horizon. This is a provisional21.5k comparison, not a
+completed28k run; the original LR/AOT schedule remains unchanged.
+
+Together these controls weaken ordinary-MLP shortage as the primary observed
+decay mechanism. They establish a capacity cost and loss-level benefit;
+the two unequal-budget arms did not run to the full endpoint, and the
+fixed-budget R640 tradeoff alone does not isolate its cause.
+
+## Independent VO addresses and hybrid-V followups
+
+Two user-supplied, checked configurations run on the retained training TPUs:
+
+| RUN suffix | ID / retained TPU | Runtime | Ordinary / memory GELU / final | Total parameters |
+|---|---|---|---|---:|
+| `MemoryMLPRatio2to1AllR640SeparateVOKeys` |310380 / `xd-v5p-128-mlp-small-1025`|b79aae76|7808 /2944 /9984|2,775,189,600|
+| `MemoryMLPRatio2to1AllR640HybridV8DropLocalOSeparateVOKeys` |310381 / `xd-v5p-128-mlp-wide-1025`|b79aae76|7808 /2816 /8320|2,775,141,856|
+
+Both names have the prefix `BamPythia2p8BSotaIndependentR768PallasShortTrain`.
+The full runtime is `b79aae76d98bcf2afb467de82639e93908428ceb`, on main
+`refactor-bam`. All four ranks remain640. L0..L30 use single-layer scan;
+L31 is an explicit writer-free tail. SeparateVO gives V/O independent
+dynamic addresses while retaining their shared read down. Hybrid adds eight
+ordinary W_V heads plus24 M-V heads, with M Q/K reads on all32 heads;
+it removes local O only for the ordinary heads and retains standard W_O.
+The hybrid cost is funded from private memory MLP, preserving ordinary7808;
+do not substitute the superseded ordinary7680/memory2944 draft.
+Parameter residues against R640 are respectively+305632/.011014% and
++257888/.009294%, with every hidden width128-aligned.
+
+The original56MiB VO AOT failed because reverse scoped VMEM needed58.13MiB.
+Runtimeb79aae76 increases only the scoped quota to60MiB (physical64MiB),
+keeping the128 tiles. Both exact v5p-128/s28000 AOTs and real training
+verified60MiB, `Loaded compiled function!`, FIRST_STEP and steady speed:
+SeparateVO~.318..320, Hybrid~.307..310step/s. Health/minimal remat match
+R640; no new internal/shift statistics. Later metadata commits do not change
+either registered runtime. Replay VMEM from the sealed runtime rather than inferring its
+quota from a later mutable working copy.
+
+The verified parent's targeted VO forward/backward equivalence check passed;
+existing main integration had67 CPU checks. Per user instruction, broad CPU
+gates were not repeated for these checked configurations. The borrowed
+FLEX_START compiler remained user-owned; exact AOT identity/startup/handoff
+evidence is in `separate-vo-hotswitch/` and `hybrid-v8-hotswitch/` under the
+task artifact root. Direct baselines retain R640, original2:1, MHA and Mudd;
+Hybrid additionally retains SeparateVO. Persistent native gain-ratio triples
+use the original MHA reference. Keep500-step windows and grouped2k reports,
+omit initial2k, and preserve the common21.5k pause guards and28k LR plan.
+
+Pre-run bets at21.5k: SeparateVO/R640 R~1.04; Hybrid/SeparateVO~1.02,
+equivalently Hybrid/R640~1.06. These are hypotheses, not measured endpoints.
+Independent VO is motivated by separating value selection from output routing;
+Hybrid tests a retained ordinary value path, but its memory-budget and tail
+changes mean it is not an isolated test of ordinary W_V causality.
+
+
+### Hybrid V8 closeout
+
+User-stopped at committed11550/28000, before the common21.5k horizon.
+Last complete11.5k window versus SeparateVO: gap+.0008142/R.9927631;
+last5 gap+.0007022/R.9938612. Its early deficit briefly closed around8k,
+then became positive again from9.5k and widened modestly. Final gaps against
+R640/original2:1/MHA/Mudd were-.0036496/-.0053618/-.1116922/-.0398166;
+MHA-reference R versus R640/Mudd was1.0337793/1.5539655.
+At this allocation the ordinary-V addition did not improve the direction SOTA;
+the21.5k R1.02 prior remains untested after the user stop. Medium's completed
+matching hybrid+VO arm likewise finished near pure VO (final5 R.99915727),
+supporting weak net additivity across the two scales, not proof about an
+isolated W_V mechanism. SeparateVO continues with its registered comparisons.
+
+Native closeout completed2026-10-26 01:09:16 UTC: checkpoint11550 committed,
+all16 worker processes gone, node/queued resource independently verified
+absent, zero lost steps, TB SYNC_OK. One UE5a v5p-128 READY lease:
+2026-10-25 14:33:10 ->2026-10-26 01:06:29 UTC,10h33m19s, no preemptions.
+Authoritative summary: tpu-ag `/home/lishengping/xd/projects/logs/closeout-20261026T010916Z.json`.

@@ -17982,6 +17982,28 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio1to1SeparateVOKeysLogitD
     compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75TruePile']
 
 
+class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75V48TruePile(
+    BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75TruePile):
+    """Expand M75x32 to M75x48 on the strongest combo; keep all address ranks256."""
+    # code_commit: c98a5b7; codex/mediumprop-attention-diagonal-zero,/data0/xd/mediumprop-attention-diagonal-zero.
+    # UE5a v5p16 xd-v5p-16-310378-maxtext; exact AOT at48MiB/config/CPU gates and FIRST_STEP0 verified; plan13500.
+    # Params432111056,parent-1136; MLP2446/1077/tail3802,ordinary/complete M branch2.00082163:1; M-state+50%.
+    # Native/Pallas+Splash actualV48 all-gradients maxrel1.03e-5; no kernel or VMEM change; healthON/internal+BAM OFF.
+    # Terminal MHA-reference R bet1.02(.99..1.05) versus direct strongest2:1 combo; speed bet-4%.
+    # Startup20..99 harmonic.656726step/s vs parent.686768 (-4.37%); same health/batch, different training TPUs.
+    model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75V48TruePile'
+    bam_v = 48
+    bam_attention_zero_diagonal = False  # Explicit historical-runtime default; pre-softmax only.
+    bam_local_full_m_read_bottleneck_dim = 256
+    bam_write_v_bottleneck_dim = 256
+    emb_bam_v_bottleneck_dim = 256
+    bam_mlp_write_address_rank = 256
+    base_mlp_dim = 2446
+    bam_memory_mlp_dim = 1077
+    bam_last_mlp_dim = 3802
+    compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75TruePile']
+
+
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysGeneralWriteTruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysTruePile):
     """Generalized attention/private-MLP writes on completed2:1+independentVO SOTA.

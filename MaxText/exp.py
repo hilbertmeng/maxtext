@@ -17747,9 +17747,12 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1LogitDiagNegativeTru
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1TruePile):
     """Pre-softmax negative diagonal on the original shared-VO2:1 control."""
     # code_commit: d7aae11; codex/mediumprop-attention-diagonal-zero,/data0/xd/mediumprop-attention-diagonal-zero.
-    # UE5a v5p16 xd-v5p-16-310376-maxtext; exact AOT/config/CPU gates and FIRST_STEP3 verified; plan13500.
-    # Identical shared-parent432113280 params, MLP2535/1140/tail3806 and paired scan; only negative-diagonal flag changes math.
-    # HealthON/internal+BAM OFF; Pallasv8t48/fused inputs and tunedSplash. Terminal R bet1.06 (1.04..1.08),K~1.2.
+    # Completed 13500/P0; UE5a v5p16; CP13500 committed,node+QR independently absent,TB SYNC_OK.
+    # vs shared2:1 parent: absolute gain contracts early,then R holds~1.03; final5 gap-.00436428/R1.02778696.
+    # K(shared/separate pre-negative absolute benefit)<1 continuously from2k; final5 K.57020895,Q1.29729148.
+    # VO separation and diagonal suppression are complementary; terminal R1.06/K1.2 forecast failed,including direction.
+    # Identical shared-parent432113280 params/cache,MLP2535/1140/tail3806 and paired scan; only mask changes math.
+    # HealthON/internal+BAM OFF; Pallasv8t48/fused inputs,tunedSplash; see mediumprop_shared_vo_pre_diagonal.md.
     # Startup20..99:0.701084step/s; near archived parent~.704 (approximate timing, same scan/health).
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1LogitDiagNegativeTruePile'
     bam_attention_negative_diagonal = True

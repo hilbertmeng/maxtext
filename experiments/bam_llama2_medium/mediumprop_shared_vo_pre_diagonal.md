@@ -84,3 +84,34 @@ xd-v5p-16-310376-maxtext READY16:35:53UTC; controller started16:36:05UTC.
 Artifacts:/data0/xd/bam_diagnostics/mediumprop-shared-vo-pre-diagonal/ and
 /data0/xd/bam_diagnostics/mediumprop-attention-diagonal-zero/shared-vo-pre-*;
 observer startup collection checks all five registered caches successfully.
+
+## Final interaction result
+
+Completed13500,d7aae119 runtime. Same432113280 parameters and M-cache as the
+original shared2:1 parent. Initial absolute advantage contracts,then relative
+benefit holds near1.03. Last five common windows12600..13400: mean gap
+-0.00436428 and MHA-reference gain1.02778696. Startup0.701084step/s versus
+archived parent~0.704 (-0.41%,approximate training comparison,same paired scan
+and health flags,not a same-worker profile).
+
+K remains below1 in every common200-step window from2000 to13400; finalfive
+meanK0.57020895 andQ1.29729148. Thus negative-diagonal benefit is substantially
+larger with separate V/O,contrary to the original shared-stronger hypothesis.
+TerminalR1.06 andK1.2 forecasts both failed. K andQ express the same interaction
+with different normalization;they are not independent confirmations.
+The source-supported interpretation is task specialization:strict historical
+attention makes V serve later positions,while local O serves the current one;
+independent dynamic read addresses can support these distinct consumers.
+This mechanism is an inference;the measured conclusion is positive
+complementarity of VO separation and diagonal suppression at matched budgets.
+Keep this RUN as an interaction test,not a direct SOTA race;compare_runs remains
+only original shared2:1,with separated controls confined to the factor observer.
+
+Registry complete13500,end2026-10-26T22:11:09Z. CP13500 marker committed
+22:07:40UTC; node and queued resource independently NOT_FOUND; local TB SYNC_OK.
+P0,one us-east5-a assignment16:36:05..22:11:09UTC;one registered READY lease
+16:36:08..22:11:09UTC,5h35m01s. Startup prequeue had observed READY16:35:53,
+15seconds before the registry lease start;these are the same physical resource.
+No compiler lifecycle operation. Evidence in artifact root:
+final-pending-native.json,second-order-final.json,figure-final.json,
+final-metrics.json,final-proof.json,closeout-final.log.

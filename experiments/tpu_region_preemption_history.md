@@ -27,6 +27,7 @@ active leases are censored, and manual migration releases are not preemptions.
 
 | RUN | TPU | Zone | Start UTC | End UTC | End reason | Passive candidates |
 |---|---|---|---|---|---|---|
+| `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1LogitDiagNegativeTruePile` | v5p-16 (`xd-v5p-16-310376-maxtext`) | `us-east5-a` | 2026-10-26 16:36:05 | 2026-10-26 22:11:09 | complete13500/P0; CP13500/TB secured,node+QR independently absent; runtimed7aae11 | none |
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75TruePile` | v5p-16 (`xd-v5p-16-310372-maxtext`) | `us-east5-a` | 2026-10-26 14:18:28 | 2026-10-26 19:54:35 | complete13500/P0; retained hot-transfer from GeneralWrite; CP13500/TB secured, node+QR independently absent; runtime5a3d55b | none |
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio1to1SeparateVOKeysLogitDiagNegativeQK75TruePile` | v5p-16 (`xd-v5p-16-310377-maxtext`) | `us-east5-a` | 2026-10-26 16:59:41 | 2026-10-26 19:10:06 | 5k selection stop5122/P0; CP5122/TB secured, node+QR independently absent; runtimea184479 | none |
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeTruePile` | v5p-16 (`xd-v5p-16-310374-maxtext`) | `us-east5-a` | 2026-10-26 10:49:44 | 2026-10-26 16:27:00 | complete13500/P0; CP13500/TB secured, node+QR independently absent; runtime55ea52c | none |
@@ -2203,6 +2204,7 @@ active leases are censored, and manual migration releases are not preemptions.
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeTruePile` | 1 | `us-east5-a` | 2026-10-26 10:49:48 | 2026-10-26 16:27:00 | 5h37m12s | complete13500/P0; CP13500 committed16:24:07, TB SYNC_OK, TPU+QR independently absent |
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio1to1SeparateVOKeysLogitDiagNegativeQK75TruePile` | 1 | `us-east5-a` | 2026-10-26 16:59:44 | 2026-10-26 19:10:06 | 2h10m22s | 5k selection stop5122/P0; CP5122 committed19:10:41, TB SYNC_OK, TPU+QR independently absent |
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75TruePile` | 1 | `us-east5-a` | 2026-10-26 14:18:30 | 2026-10-26 19:54:35 | 5h36m05s | complete13500/P0; CP13500 committed19:52:18, TB SYNC_OK, TPU+QR independently absent; inherited READY TPU |
+| `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1LogitDiagNegativeTruePile` | 1 | `us-east5-a` | 2026-10-26 16:36:08 | 2026-10-26 22:11:09 | 5h35m01s | complete13500/P0;CP13500 committed22:07:40,TB SYNC_OK,TPU+QR independently absent;registered lease start,prequeue READY observed16:35:53 |
 
 ### 2026-10-14 user pause: resumed mixed R256/R384
 

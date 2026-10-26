@@ -17202,8 +17202,6 @@ class BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640S
     # Exact AOT loaded/FIRST_STEP verified; early steady~.318-.320step/s vs R640~.328.
     # Sealed runtime requests60MiB scoped VMEM: reverse needs58.13MiB; v5p physical64MiB, tiles128 retained.
     model_name = 'BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640SeparateVOKeys'
-    # Full32-head independent VO reverse needs58.13MiB on v5p; physical VMEM64MiB.
-    bam_pallas_vmem_mib = 60
     bam_local_vo_independent_keys = True
     bam_attention_write_layers = list(range(31))
     bam_pair_scan = False

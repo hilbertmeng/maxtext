@@ -1,0 +1,22 @@
+{
+  "task": "SeparateVOKeys checkpoint trajectory of mean absolute V/O cosine",
+  "steps": [
+    2000,
+    4000,
+    6000,
+    8000,
+    10000,
+    12000,
+    14000,
+    16000,
+    18000,
+    20000,
+    21000,
+    21554
+  ],
+  "canonical_report": "/home/mengqy/Projects/Bam/training_reports/vo_trajectory_20261026",
+  "owned_TPU": "xd-v5p8-mqy-votrend-1026-ue5a",
+  "GCS": "gs://newproject-1-llm_projects_us-east5/log/diagnostics/mengqy/vo_trajectory_20261026",
+  "method": "Identical native readobserver; compile once for all11restores, 2kreplay control and existing16k reuse. Mean absolute cosine before averaging, masked zero norms, same32texts. Frozen only.",
+  "status": "prepared"
+}

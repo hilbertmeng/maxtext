@@ -9,7 +9,9 @@
   "invariants": "No optimizer/training/checkpointwrites; no ag2xd writes; no subagents; priorcrossscalegoal remains paused",
   "status": "complete; seven checkpoints locally verified; report published; exact owned node and queue independently NOT_FOUND",
   "report_url": "http://172.29.142.228:8873/shorttrain/vo-similarity/",
-  "result_source": "/home/mengqy/Projects/Bam/training_reports/vo_similarity_20261026/comparison.json",
+  "result_source": "/home/mengqy/Projects/Bam/training_reports/vo_similarity_20261026/absolute_comparison.json",
   "validation": "CPU native parity on all5lineages; matched32texts; native CE maxdrift0.001968; dynamic+static closure max0.008094 relative RMS; exactrepeat firstbatch",
-  "resource_evidence": "/home/mengqy/Projects/Bam/training_reports/vo_similarity_20261026/independent_resource_audit.json"
+  "resource_evidence": "/home/mengqy/Projects/Bam/training_reports/vo_similarity_20261026/independent_resource_audit.json",
+  "primary_metric": "E[abs(cos(V_token_head,O_token_head))], absolute before averaging; signed diagnostics auxiliary",
+  "self_comparison": "Compare selfargmax/nonself within same layer/head before averaging; 4000 text-cluster bootstrap; host-only derived statistics, no new TPU"
 }

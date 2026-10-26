@@ -60,3 +60,17 @@ CPU shared-core regression plus candidate budget/native/Pallas forward/all-gradi
 and writer tests must pass; sealed runtime config, exact v5p16 AOT and FIRST_STEP are
 required before reporting successful launch. This document will retain lifecycle
 milestones and final conclusions, not intermediate monitoring reports.
+
+## Launch verification
+
+Runtime:c5ca75f2d1b38e734c1a5f76f535dc1babfb0f4f (metadata commits do not change it).
+CPU:3 candidate checks,5 summary-writer checks,47 shared BAM checks and2 parent
+independent-VO regressions all passed. Full-model worst parameter-gradient relative
+error4.04e-6; full75x32 kernel check includes QK93,V75 and tile-boundary reset gates.
+Exact v5p16/13500 AOT compiled on retained FLEX; compiler lifecycle preserved.
+Training xd-v5p-16-310370-maxtext/UE5a FIRST_STEP confirmed atstep3, loss10.835516;
+this startup throughput is not the stable-speed estimate. RUN data path verified as
+`gs://newproject-1-common_datasets_us-east5/pythia_pile_idxmaps_tfrecord_4096`.
+Native gain-ratio monitoring registered for candidate/independent-VO parent/MHA;
+compare_runs contains only that direct parent. Task-local monitor state/artifacts:
+`/data0/xd/bam_diagnostics/mediumprop-independent-vo-qk75/`.

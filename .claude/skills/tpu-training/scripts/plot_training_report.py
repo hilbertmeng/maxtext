@@ -52,6 +52,21 @@ def ratio_value(point):
   return value if point.get('status', 'ok') == 'ok' and finite(value) else math.nan
 
 
+def break_missing_windows(xs, ys):
+  """Break lines across absent native windows without imputing any values."""
+  if len(xs) < 3:
+    return xs, ys
+  stride = min(b - a for a, b in zip(xs, xs[1:]))
+  plot_x, plot_y = [], []
+  for index, (x, y) in enumerate(zip(xs, ys)):
+    if index and x - xs[index - 1] > stride * 1.5:
+      plot_x.append((x + xs[index - 1]) / 2)
+      plot_y.append(math.nan)
+    plot_x.append(x)
+    plot_y.append(y)
+  return plot_x, plot_y
+
+
 def render(payloads, output_dir, *, prefix='training-progress', start=600,
            runs=(), bases=(), labels=None, title=None, notes=(), sources=(), run_colors=None):
   import matplotlib
@@ -73,8 +88,9 @@ def render(payloads, output_dir, *, prefix='training-progress', start=600,
     gap = gaps.get(pair, {})
     steps = sorted(gap)
     if steps:
-      axes[0].plot(steps, [gap[s]['gap'] if finite(gap[s].get('gap')) else math.nan
-                         for s in steps], color=color, marker='o', markersize=2.5,
+      gx, gy = break_missing_windows(steps, [gap[s]['gap'] if finite(gap[s].get('gap')) else math.nan
+                                          for s in steps])
+      axes[0].plot(gx, gy, color=color, marker='o', markersize=2.5,
                    linewidth=1.5, label=label)
     gain_horizons = {}
     own_ratios = [(key, points) for key, points in ratios.items() if key[:2] == pair]
@@ -84,6 +100,7 @@ def render(payloads, output_dir, *, prefix='training-progress', start=600,
       reference = key[2]
       xs = sorted(set(steps) | set(points))
       ys = [ratio_value(points.get(s, {})) for s in xs]
+      xs, ys = break_missing_windows(xs, ys)
       axes[1].plot(xs, ys, color=color, linestyle=('-', '--', ':')[ri % 3],
                    marker='o', markersize=2.5, linewidth=1.5,
                    label=f'{label}; ref={labels.get(reference, reference)}')

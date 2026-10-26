@@ -1,0 +1,15 @@
+{
+  "task": "Read-only matched-cohort head/self/FFN observations",
+  "report": "/home/mengqy/Projects/Bam/training_reports/separate_vo_r640_20261026",
+  "GCS": "gs://newproject-1-llm_projects_us-east5/log/diagnostics/mengqy/separate_vo_r640_20261026",
+  "steps": [
+    2000,
+    16000
+  ],
+  "sequence_seed": 20261021,
+  "sequences": 32,
+  "length": 2048,
+  "protected": "No ag2xd writes; no actual LM training; old crossscalegoal paused; no subagents",
+  "resource": "xd-v5p8-mqy-sepvo-1026-ue5a",
+  "note": "Head active excludes firsttwo keypositions andIDs0/15/187; FFN wi>0 with vector/M-only roles separate. Changed FFN widths/scan in SeparateVOKeys are confounds."
+}

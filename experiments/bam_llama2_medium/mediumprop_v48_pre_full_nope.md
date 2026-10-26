@@ -61,3 +61,24 @@ Cumulative gap/gain plots from600 at2k public cadence,native200-step windows;
 2800/5000 are reviews,full automatic bound13500. Keep monitoring the existing
 shared-VO negative-diagonal interaction run during preparation and training.
 Artifacts:/data0/xd/bam_diagnostics/mediumprop-v48-pre-full-nope/.
+
+## Verified startup
+
+Runtime c98a5b7c82590a0451356f43e724cd127d8af4f6. Exact v5p16/s13500 AOT and
+manifest verified; inherited48MiB VMEM fits without changing kernel code or
+raising the cap. ActualV48 native/Pallas+Splash logits and all-parameter
+gradients agree,maxrel1.02694e-5. Full tree432111056 and source-bound targeted
+CPU gate passed. Main configuration also matches the sealed effective runtime;
+explicit false post-softmax flag preserves the historical default while using
+only pre-softmax suppression.
+
+Training started from0,loss10.848301,worker Loaded compiled function verified;
+subsequent losses decrease,not only a zero-LR initial forward. Registry uses
+us-east5-a TruePile4096,the exact runtime above,only the direct strongest combo
+parent,and one explicit MHA-reference gain triple. Generic healthON,
+internal+BAM OFF,tunedSplash/Pallasv8t,fused inputs,per-device16/T4096.
+20..99 all80-step harmonic throughput0.656725860 versus parent0.686768097,
+-4.37%,close to the-4% bet. This is an observed training comparison on distinct
+TPUs,not a same-worker paired profile. Startup proof,exact AOT manifest and
+source-bound CPU proof are saved under the artifact directory above. Borrowed
+compiler retained. Continue monitoring alongside the shared-VO interaction run.

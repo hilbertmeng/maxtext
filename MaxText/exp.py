@@ -17743,6 +17743,19 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1TruePile(
     compare_runs = ['BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile']
 
 
+class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1LogitDiagNegativeTruePile(
+    BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1TruePile):
+    """Pre-softmax negative diagonal on the original shared-VO2:1 control."""
+    # code_commit: d7aae11; codex/mediumprop-attention-diagonal-zero,/data0/xd/mediumprop-attention-diagonal-zero.
+    # UE5a v5p16 xd-v5p-16-310376-maxtext; exact AOT/config/CPU gates and FIRST_STEP3 verified; plan13500.
+    # Identical shared-parent432113280 params, MLP2535/1140/tail3806 and paired scan; only negative-diagonal flag changes math.
+    # HealthON/internal+BAM OFF; Pallasv8t48/fused inputs and tunedSplash. Terminal R bet1.06 (1.04..1.08),K~1.2.
+    # Startup20..99:0.701084step/s; near archived parent~.704 (approximate timing, same scan/health).
+    model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1LogitDiagNegativeTruePile'
+    bam_attention_negative_diagonal = True
+    compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1TruePile']
+
+
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1HybridV4KeepLocalOTruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1TruePile):
     """Four residual W_V heads plus12 M-V heads in every layer; retain local O."""
@@ -17925,9 +17938,12 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     """
     # Pre-softmax implementation merged into main; sealed RUN still uses the runtime below.
     # code_commit: 55ea52c; codex/mediumprop-attention-diagonal-zero; /data0/xd/mediumprop-attention-diagonal-zero.
-    # UE5a v5p16 xd-v5p-16-310374-maxtext; plan13500; sealed/AOT/FIRST_STEP verified.
+    # Completed13500/P0; UE5a v5p16 xd-v5p-16-310374-maxtext; CP13500/TB secured, node+QR absent.
     # Identical432112192 params and MLP2510/1128/tail3904; healthON/internal+BAM OFF; tunedSplash/Pallasv8t.
     # Startup20..99:.694718step/s vs parent.699548 (-.69%); near-parity speed bet met.
+    # vs independentVO: early~-.013 gap narrows to~-.008; gain grows then holds~1.045..1.05 after4k.
+    # Final5(12600..13400):gap-.00767988/R1.04684284. Original terminal1.01 bet underestimated;4k forecast1.04 closer.
+    # Same params/M-cache; READY2026-10-26 10:49:48..16:27:00UTC (5h37m12s), no zone switch.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeTruePile'
     bam_attention_negative_diagonal = True
     compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysTruePile']

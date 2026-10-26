@@ -149,3 +149,23 @@ post-final-leases.json,post-final-native-report.json,post-final-figure.json.
 TB proof:/home/xd/.local/state/maxtext-tensorboard-sync/closeout-20261026T130403776927Z.log.
 Final paired figure:post-diagonal-final-20261026-131000-035328.png in the task's
 Codex visualization directory;pre arm shown through5400,post through5000.
+
+
+## Pre-softmax arm final result (2026-10-26)
+
+Completed13500; final common window13400. Early gap~-.013 narrows to~-.008;
+gain rises through4k then remains~1.045..1.05 for the rest of training. Last five
+12600..13400 mean gap-.00767988 and MHA-reference gain1.04684284 versus the
+independent-VO parent. The initial terminal1.01 bet underestimated the gain;
+the4k revision1.04 was closer. Same432112192 parameters and M-cache; matched
+startup speed.694718 versus parent.699548 (-.69%).
+
+Registry independently complete/final13500. CP13500 commit marker timestamp
+16:24:07UTC verified; TPU and queued-resource independently NOT_FOUND. Local TB
+closeout reportsSYNC_OK. One UE5a v5p16 assignment10:49:44..16:27:00UTC and one
+READY lease10:49:48..16:27:00UTC (5h37m12s),P0,no zone switches. Final evidence
+in /data0/xd/bam_diagnostics/mediumprop-attention-diagonal-zero/:
+pre-final-native-report.json,pre-final-proof.json,pre-final-leases.json,
+pre-final-checkpoint-proof.txt,pre-final-figure.json,pre-closeout.log.
+Final figure:pre-diagonal-final-20261026-162943-453184.png in the task's Codex
+visualization directory. The retained FLEX compiler and combo trainer are untouched.

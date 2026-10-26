@@ -49,6 +49,49 @@ import max_logging
 # pytype: disable=attribute-error
 
 
+def native_bam_write(m, groups, cfg, *, layout='btkv'):
+  """Reference write, also used while the generalized Pallas writer is prepared.
+
+  Groups are (content, dynamic_logits, raw_address), optionally followed by
+  (static_logits, static_address[N,V]). The static address is POST-RMS; never
+  normalize the combined address. Pallas v8t carries M as[B,T,V,K].
+  """
+  if not groups:
+    return m
+  if cfg.bam_write_factor_norm != 'rms' or cfg.bam_write_address_norm_bias:
+    raise ValueError('Native grouped write requires parameter-free RMS factors')
+  if layout not in ('btkv', 'btvk'):
+    raise ValueError('Native grouped write supports btkv/btvk layouts')
+  statistics = {'float32': jnp.float32, 'activation': None}[cfg.bam_write_rms_statistics_dtype]
+  norm = lambda x: normalizations.rms_norm(
+      x, dtype=cfg.dtype, epsilon=initializers.get_bam_write_epsilon(cfg), statistics_dtype=statistics)
+  delta = None
+  for group in groups:
+    content, logits, address = group[:3]
+    content = norm(content) if cfg.bam_write_data_rms else content
+    address = norm(address)
+    gate = jax.nn.sigmoid(logits)
+    if len(group) == 5:
+      static_logits, static_address = group[3:]
+      address = (gate[..., None] * address
+                 + (1.1 * jax.nn.sigmoid(static_logits))[..., None]
+                 * jnp.asarray(static_address, address.dtype))
+    elif len(group) == 3:
+      content = gate[..., None] * content
+    else:
+      raise ValueError('Write group must contain3 or5 factors')
+    if cfg.bam_sqrt_n_scale:
+      content = content / jnp.sqrt(cfg.num_query_heads).astype(content.dtype)
+    if cfg.bam_write_outer_implementation == 'dot':
+      term = jnp.einsum('btnk,btnv->btkv', content, address)
+    else:
+      term = jnp.sum(content[..., None] * address[..., None, :], axis=-3)
+    delta = term if delta is None else delta + term
+  if layout == 'btvk':
+    delta = jnp.swapaxes(delta, -1, -2)
+  return _update_bam_matrix(m, delta, cfg.bam_lambda_decay)
+
+
 class AttentionType(enum.Enum):
   GLOBAL = "global"
   LOCAL_SLIDING = "local_sliding"
@@ -2809,8 +2852,10 @@ class BamAttention(Attention):
               nn.initializers.constant(math.log(opening / (1 - opening))), ('v_factor',)),
           (self.bam_v,), self.weight_dtype)
 
-    if self._full_m_read_rank is not None:
-      assert not getattr(cfg, 'bam_general_matrix_write', False), 'Generalized writes remain worktree-only'
+    self._general_write = bool(getattr(cfg, 'bam_general_matrix_write', False))
+    if self._general_write:
+      assert not self._concat_health, 'Historical generalized-write health remains worktree-only'
+      assert cfg.bam_mlp_write_dynamic_address
     if self._general_read:
       # The fused core implements the generalized column read (bam_pallas_body v7/v7u/v8t).
       assert self._full_m_read_rank is not None
@@ -3244,6 +3289,11 @@ class BamAttention(Attention):
       self.general_v_pre_bias = self._constant_general_parameter(
           'general_v_pre_bias', (self._read_head_count('v'), self._read_bam_v), ('q_heads', 'kv'))
 
+    if self._general_write and self._has_write:
+      self.general_attention_static_address = self._constant_general_parameter(
+          'general_attention_static_address', (self.num_query_heads, self.bam_v), ('q_heads', 'v_factor'))
+      self._add_static_gate('general_attention_static_gate', cfg.bam_static_write_gate_init)
+
   def _constant_general_parameter(self, name, shape, axes, value=0.):
     # Constants need no random key; keep the parent's init RNG counters intact.
     return nn.unbox(self.variable('params', name, nn.with_logical_partitioning(
@@ -3645,7 +3695,11 @@ class BamAttention(Attention):
     write_gate_bias = self.gw_b0
     if self._force_activation_dtype:
       write_gate_bias = jnp.asarray(write_gate_bias, self.dtype)
-    gate = jax.nn.sigmoid(self.W_gw(x) + write_gate_bias)  # [b,t,n]
+    logits = self.W_gw(x) + write_gate_bias
+    gate = jax.nn.sigmoid(logits)  # [b,t,n]
+    if self._general_write:
+      factors = self._general_write_factors(u1, logits, u2, x)
+      return native_bam_write(M_in, [factors], cfg), gate
     g = gate
     if cfg.bam_sqrt_n_scale:
       # With per-record rms, each head's record is unit energy, so |M| ~ n * Σg. Scaling the
@@ -3674,10 +3728,18 @@ class BamAttention(Attention):
     u1 = o_head[..., :self.bam_k]
     u2 = self._write_address(x, shared_hidden)
     bias = jnp.asarray(self.gw_b0, self.dtype) if self._force_activation_dtype else self.gw_b0
-    gate = jax.nn.sigmoid(self.W_gw(x) + bias)
+    logits = self.W_gw(x) + bias
+    if self._general_write:
+      return self._general_write_factors(u1, logits, u2, x)
+    gate = jax.nn.sigmoid(logits)
     scale = 1.0 / jnp.sqrt(self.num_query_heads) if self.config.bam_sqrt_n_scale else 1.0
     content = self.write_data_norm(u1) if self._write_data_rms else u1
     return scale * gate[..., None] * content, self.write_address_norm(u2), gate
+
+  def _general_write_factors(self, content, logits, address, x):
+    static_logits = (self.general_attention_static_gate(x)
+                     + jnp.asarray(self.general_attention_static_gate_bias, self.dtype))
+    return content, logits, address, static_logits, self.general_attention_static_address
 
   def merge_mlp_write(self, mlp_head, mlp_gate, factors, M_in, independent_address=None):
     """Merge attention/MLP writes, then decay the carried matrix exactly once."""
@@ -3918,6 +3980,8 @@ class BamAttention(Attention):
         'raw W_O output': not getattr(cfg, 'bam_no_output_projection', False),
         'sigmoid gates': self._read_gate_activation is jax.nn.sigmoid,
         'health off': not self._concat_health and not self._record_fetched_read_health_metrics,
+        'generalized writer uses native backend until fused support lands': (
+            not self._general_write or not getattr(cfg, 'bam_pallas_write', True)),
         'no fused qkv / mha control': not cfg.fused_qkv and not self._mha_control,
         'single-gate read M shift on v8t only': self._m_shift_mode == 'none' or (
             self._m_shift_mode == 'read' and getattr(cfg, 'bam_pallas_body', None) == 'v8t'),
@@ -4183,7 +4247,9 @@ class BamAttention(Attention):
     else:
       write_logits = self.W_gw(inputs_q) + jnp.asarray(self.gw_b0, self.dtype)
     out = nn.with_logical_constraint(o_head, self.out_axis_names)
-    return self.out_projection(inputs_q.shape[-1], out), M_in, (o_head, write_logits, address)
+    factors = ((o_head, write_logits, address) if not self._general_write else
+               self._general_write_factors(o_head, write_logits, address, inputs_q))
+    return self.out_projection(inputs_q.shape[-1], out), M_in, factors
 
   @nn.compact
   def __call__(

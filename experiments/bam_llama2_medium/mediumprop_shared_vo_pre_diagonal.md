@@ -51,3 +51,36 @@ BamMHAMediumPropC256TruePile reference. Overlay both negative-diagonal arms'
 parent-relative gaps and native gains from600,and plot K/Q cumulative trends.
 Final judgment uses the last five common mature windows. Report every2k;
 review2800/5000. Do not treat one window K>1 as confirmation.
+
+
+Observer:experiments/bam_llama2_medium/report_shared_vo_pre_diagonal.py reuses
+the existing paired engine and official registry ordinary gains. Three checks
+verify denominator-only changes do not count as K gains,opposite K/Q interaction
+orientation,and undefined denominators/signed reversals. Figures overlay both
+parent-relative gap/R series and include K/Q in the same2x2 cumulative PNG.
+Use --output JSON,--through-step N,--plot-dir ABSOLUTE_DIRECTORY; routine loss
+reports refresh the registered caches first. Against the now-completed separate
+pre arm's terminal1.04684284,the1.06 shared forecast implies K roughly1.2 and
+Q roughly.9. K~1 would refute greater absolute improvement even if ordinary R
+is larger on the shared baseline. Keep this experiment-specific observer out of
+the generic report calculator.
+
+
+## Verified launch
+
+Runtime d7aae11928e9b9ce3a7ddc699324bfd62a32baa9, exact v5p16/s13500 AOT
+prepared on retained FLEX and reused by the gated launcher. Two targeted CPU
+checks passed,including the parent's actual paired scan and native/Pallas+Splash
+full-model gradients. Source-bound prior gate reused rather than rerunning it.
+FIRST_STEP3,loss10.834533; initial registry39 steps at.707step/s. Formal speed
+window20..99 passed:0.701084step/s,near the archived parent~.704
+(approximate timing,not a same-worker paired profile). Full-model gradient
+maxrel6.10e-6; normal healthON/internal+BAM OFF. Dataset resolves to UE5a TruePile4096.
+Only the original shared2:1 parent is a direct registry comparator,with the
+common MHA gain reference. Separate-VO controls are used only for the four-way
+interaction test,not an additional direct SOTA comparison. This RUN is for
+validating interaction/transfer,not SOTA competition. Resource
+xd-v5p-16-310376-maxtext READY16:35:53UTC; controller started16:36:05UTC.
+Artifacts:/data0/xd/bam_diagnostics/mediumprop-shared-vo-pre-diagonal/ and
+/data0/xd/bam_diagnostics/mediumprop-attention-diagonal-zero/shared-vo-pre-*;
+observer startup collection checks all five registered caches successfully.

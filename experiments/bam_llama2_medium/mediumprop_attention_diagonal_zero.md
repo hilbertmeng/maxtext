@@ -54,6 +54,39 @@ WD, optimizer, data, scan and schedule retained. Shared attention path changes
 require full BAM suite, candidate all-gradient/model checks and summary tests
 before either RUN launches; sealed config and exact AOT/FIRST_STEP required.
 
+## Main support and 2.8B configurations
+
+Pre-softmax negative-diagonal support is merged into main; the post-softmax
+custom reverse remains in the runtime worktree. The new flag defaults false.
+Only native attention and the Splash caller/mask adapter change:strict causal
+mask offset=-1 plus the existing public fixed-sink interface. Neither BAM's
+Pallas read/write kernels nor Splash kernel source is modified.
+
+Based on the AllR640 independent-VO2:1 family, configuration-only ports are:
+
+- `BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640SeparateVOKeysLogitDiagNegative`:
+  QK80/V80,2,775,189,600 parameters, identical parameter tree to its parent.
+- `BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640SeparateVOKeysLogitDiagNegativeQK80`:
+  QK100/V80 (80NoPE+20RoPE),2,775,190,880 parameters, identical tree to the
+  existing full-NoPE class. The1280 extra full-head Q/K Norm scales relative to
+  pre-only are negligible (.0000461%); MLP widths are unchanged.
+
+Both keep M80x64,R640,full-head QKNorm before RoPE,GELU ordinary7808/private2944
+for31 layers and ordinary9984 at the tail,128-aligned widths,single scan31 plus
+tail1,no final writers,normal healthON/internal+BAM OFF,and tuned Splash.
+Scoped Pallas VMEM60MiB preserves the verified independent-VO compile budget;
+its reverse needs58.13MiB,so the56MiB ancestor budget is insufficient.
+No2.8B AOT or training resources are requested by this port.
+
+CPU regression entry:MaxText/tests/bam_negative_diagonal_test.py. Checks include
+formal parameter-tree equality,packed-document empty rows,global chunk indices,
+actual Splash/Pallas interpret-mode logits and all parameter/input gradients,
+and both2.8B QKNorm widths. Merge gate passed7 focused checks plus all47 shared
+BAM regressions. Full-model maximum relative parameter-gradient errors are
+5.29e-6/4.17e-6 (Medium pre/combination) and1.70e-5/1.54e-5 (2.8B pre/combination).
+Logs:/data0/xd/bam_diagnostics/mediumprop-attention-diagonal-zero/
+main-merge-negative-tests/ and main-merge-shared-tests/.
+
 ## Pre-run prediction
 
 MHA-normalized terminal gain multipliers vs direct parent:
@@ -116,3 +149,23 @@ post-final-leases.json,post-final-native-report.json,post-final-figure.json.
 TB proof:/home/xd/.local/state/maxtext-tensorboard-sync/closeout-20261026T130403776927Z.log.
 Final paired figure:post-diagonal-final-20261026-131000-035328.png in the task's
 Codex visualization directory;pre arm shown through5400,post through5000.
+
+
+## Pre-softmax arm final result (2026-10-26)
+
+Completed13500; final common window13400. Early gap~-.013 narrows to~-.008;
+gain rises through4k then remains~1.045..1.05 for the rest of training. Last five
+12600..13400 mean gap-.00767988 and MHA-reference gain1.04684284 versus the
+independent-VO parent. The initial terminal1.01 bet underestimated the gain;
+the4k revision1.04 was closer. Same432112192 parameters and M-cache; matched
+startup speed.694718 versus parent.699548 (-.69%).
+
+Registry independently complete/final13500. CP13500 commit marker timestamp
+16:24:07UTC verified; TPU and queued-resource independently NOT_FOUND. Local TB
+closeout reportsSYNC_OK. One UE5a v5p16 assignment10:49:44..16:27:00UTC and one
+READY lease10:49:48..16:27:00UTC (5h37m12s),P0,no zone switches. Final evidence
+in /data0/xd/bam_diagnostics/mediumprop-attention-diagonal-zero/:
+pre-final-native-report.json,pre-final-proof.json,pre-final-leases.json,
+pre-final-checkpoint-proof.txt,pre-final-figure.json,pre-closeout.log.
+Final figure:pre-diagonal-final-20261026-162943-453184.png in the task's Codex
+visualization directory. The retained FLEX compiler and combo trainer are untouched.

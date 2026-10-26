@@ -41,28 +41,28 @@ def paired_metrics(row):
       conditional_retention_nope=row['second_order_ratio'], conditional_status=row['status'])
 
 
-def collect(through=None):
+def collect(through=None, interval=200, runs=None):
   # Same implementation already used by QKNorm and the dedicated-MLP/tail combinations.
   function = paired_implementation()
   code = ('import json,sys\nsys.path.insert(0,"/home/lishengping/xd/projects")\n'
           'import run_registry as reg\n' + inspect.getsource(function) + '\n' + inspect.getsource(paired_metrics) + '\n'
-          + 'names='+repr(RUNS)+'\nthrough='+repr(through)+'\n' + '''
+          + 'names='+repr(runs or RUNS)+'\nthrough='+repr(through)+'\ninterval='+repr(interval)+'\n' + '''
 for name in names.values():
  if any(reg.load_run(name).get('loss_step_offsets',{}).values()):raise ValueError('This four-way report requires zero registered step offsets')
 caches={role:reg.load_loss_points(name) for role,name in names.items()}
-raw=interaction_series([caches[r] for r in ('combo','pre','nope','base')],through)
+raw=interaction_series([caches[r] for r in ('combo','pre','nope','base')],through,interval)
 rows=[paired_metrics(r) for r in raw]
 paired_through=rows[-1]['step'] if rows else 0
 ordinary=[]
 for run,base in [('combo','pre'),('nope','base')]:
  ordinary.append(dict(run=names[run],comparator=names[base],reference=names['mha'],
-   series=reg.gain_ratio_series(caches[run],caches[base],caches['mha'],200,25,10,paired_through)))
+   series=reg.gain_ratio_series(caches[run],caches[base],caches['mha'],interval,25,10,paired_through)))
 common_steps={r['step'] for r in rows}
 for report in ordinary:report['series']=[r for r in report['series'] if r['step'] in common_steps]
 print(json.dumps(dict(generated_utc=reg.now_utc(),runs=names,
  definition='Q=(L_combo-L_base)/((L_pre-L_base)+(L_nope-L_base))',
  conditional_definition='S_nope=(L_pre-L_combo)/(L_base-L_nope)',
- window='200-step centers; identical five raw samples s-20..s+20 by10 across four runs',
+ interval=interval,window=f'{interval}-step centers; identical five raw samples s-20..s+20 by10 across four runs',
  series=rows,gain_ratios=ordinary,paired_through=paired_through,
  cache_horizons={k:max(v) if v else None for k,v in caches.items()}),indent=2))
 ''')
@@ -85,7 +85,8 @@ def render(data, directory, start=600):
   if not rows:
     return None
   actual_steps = [r['step'] for r in rows]
-  xs = list(range(((start+199)//200)*200, actual_steps[-1]+1, 200))
+  interval = data.get('interval', 200)
+  xs = list(range(((start+interval-1)//interval)*interval, actual_steps[-1]+1, interval))
   by_step = {r['step']:r for r in rows}
   if any('symmetric_additivity_ratio' not in r for r in rows):
     raise ValueError('Input predates symmetric Q; collect a fresh four-run report')
@@ -126,7 +127,13 @@ def main():
   p=argparse.ArgumentParser(description=__doc__)
   p.add_argument('--output',type=Path,required=True);p.add_argument('--through-step',type=int)
   p.add_argument('--input',type=Path);p.add_argument('--plot-dir',type=Path);p.add_argument('--start-step',type=int,default=600)
-  args=p.parse_args();data=json.loads(args.input.read_text()) if args.input else collect(args.through_step)
+  p.add_argument('--interval',type=int,default=200)
+  p.add_argument('--runs-json',type=Path,help='Experiment-specific role map: combo/pre/nope/base/mha')
+  args=p.parse_args()
+  if args.interval<=0:p.error('--interval must be positive')
+  runs=json.loads(args.runs_json.read_text()) if args.runs_json else None
+  if runs is not None and set(runs)!=set(RUNS):p.error('--runs-json requires combo/pre/nope/base/mha')
+  data=json.loads(args.input.read_text()) if args.input else collect(args.through_step,args.interval,runs)
   args.output.parent.mkdir(parents=True,exist_ok=True);args.output.write_text(json.dumps(data,indent=2)+'\n')
   figure=render(data,args.plot_dir,args.start_step) if args.plot_dir else None
   print(json.dumps(dict(data=str(args.output),through_step=data['series'][-1]['step'] if data['series'] else None,

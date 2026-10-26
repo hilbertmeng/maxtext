@@ -3980,8 +3980,9 @@ class BamAttention(Attention):
         'raw W_O output': not getattr(cfg, 'bam_no_output_projection', False),
         'sigmoid gates': self._read_gate_activation is jax.nn.sigmoid,
         'health off': not self._concat_health and not self._record_fetched_read_health_metrics,
-        'generalized writer uses native backend until fused support lands': (
-            not self._general_write or not getattr(cfg, 'bam_pallas_write', True)),
+        'generalized writer: native backend or the v8t write kernel': (
+            not self._general_write or not getattr(cfg, 'bam_pallas_write', True)
+            or getattr(cfg, 'bam_pallas_body', None) == 'v8t'),
         'no fused qkv / mha control': not cfg.fused_qkv and not self._mha_control,
         'single-gate read M shift on v8t only': self._m_shift_mode == 'none' or (
             self._m_shift_mode == 'read' and getattr(cfg, 'bam_pallas_body', None) == 'v8t'),

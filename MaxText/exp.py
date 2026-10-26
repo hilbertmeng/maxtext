@@ -17846,11 +17846,32 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysGenera
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysGeneralWriteTruePile'
     bam_general_matrix_write = True
     bam_static_write_gate_init = .01
-    bam_pallas_write = False
+    bam_pallas_write = True     # v8t 5-factor write kernel (claude/mediumprop-general-write-pallas)
     base_mlp_dim = 2507
     bam_memory_mlp_dim = 1120
     bam_last_mlp_dim = 3905
     compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysTruePile']
+
+
+class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysV5p8Profile(
+        TrainStepProfile, BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysTruePile):
+    """Timing/trace: completed 2:1 + independent VO parent at its formal batch16/device and health, on v5p-8."""
+    model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysV5p8Profile'
+    steps = 100
+
+
+class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysGeneralWriteV5p8Profile(
+        TrainStepProfile, BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysGeneralWriteTruePile):
+    """Timing/trace: generalized writes on the v8t 5-factor write kernel."""
+    model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysGeneralWriteV5p8Profile'
+    steps = 100
+
+
+class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysGeneralWriteNativeV5p8Profile(
+        BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysGeneralWriteV5p8Profile):
+    """Timing/trace: generalized writes on the native XLA backend (Pallas reads only)."""
+    model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysGeneralWriteNativeV5p8Profile'
+    bam_pallas_write = False
 
 
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysQK75TruePile(

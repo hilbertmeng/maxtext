@@ -529,6 +529,8 @@ class SubDecoderLayer(nn.Module):
           with jax.named_scope('bam/native_write'):
             M_out = attentions.native_bam_write(M_out, groups, cfg, layout='btvk')
         else:
+          assert all(len(g) == 3 for g in groups) or cfg.bam_pallas_body == 'v8t', \
+              'generalized (5-factor) Pallas writes need bam_pallas_body=v8t'
           with jax.named_scope('bam/pallas_write'):
             M_out = bam_pallas.write(
                 M_out, groups, epsilon=initializers.get_bam_write_epsilon(cfg),   # same as the XLA write norms

@@ -39,7 +39,7 @@ class GeneralWriteVOTest(MLPWriteTest,unittest.TestCase):
     added={p:v for p,v in flat.items() if set(p)&names}
     self.assertEqual(sum(math.prod(v.shape) for v in added.values()),670752)
     self.assertEqual((c.mlp_dim,c.bam_memory_mlp_dim,c.bam_last_mlp_dim),(2507,1120,3905))
-    self.assertTrue(c.bam_pallas_core and not c.bam_pallas_write)
+    self.assertTrue(c.bam_pallas_core and c.bam_pallas_write)
     self.assertTrue(c.scan_layers and not c.bam_pair_scan)
     self.assertEqual(c.bam_attention_write_layers,list(range(17)))
     self.assertTrue(c.bam_skip_final_mlp_write)
@@ -116,5 +116,72 @@ class GeneralWriteVOTest(MLPWriteTest,unittest.TestCase):
       selected=[v for path,v in flatten_dict(gp).items() if name in path]
       self.assertTrue(selected,name);self.assertGreater(sum(float(jnp.sum(v*v)) for v in selected),0,name)
     print('GENERAL_WRITE_READ_ONLY_PALLAS_ALL_GRADIENTS_OK',worst[:3],flush=True)
+
+  def _write_kernel_case(self,b,seed):
+    from layers import bam_pallas_v8, initializers
+    c=self.tiny();eps=initializers.get_bam_write_epsilon(c)
+    keys=iter(jax.random.split(jax.random.key(seed),40))
+    rand=lambda sh,s=1.:s*jax.random.normal(next(keys),sh,jnp.float32)
+    t,v,k=256,32,75
+    general=lambda n:(rand((b,t,n,k)),rand((b,t,n)),rand((b,t,n,v)),rand((b,t,n)),rand((n,v),.5))
+    plain=lambda n:(rand((b,t,n,k)),rand((b,t,n)),rand((b,t,n,v)))
+    ker=lambda m,g:bam_pallas_v8.write_tm(m,g,epsilon=eps,forward_tile=64,reverse_tile=128,interpret=True)
+    ref=lambda m,g:attentions.native_bam_write(m,g,c,layout='btvk')
+    cases=(('general',(general(2),general(3))),('mixed',(plain(2),general(3))),('one',(general(1),)))
+    return c,[(name,rand((b,t,v,k)),groups,rand((b,t,v,k))) for name,groups in cases],ker,ref
+
+  def _check_write_kernel(self,cases,ker,ref,wrap=lambda f:f):
+    for name,m,groups,ct in cases:
+      y=wrap(ker)(m,groups);np.testing.assert_allclose(y,ref(m,groups),rtol=2e-5,atol=2e-5,err_msg=name)
+      ga=wrap(jax.grad(lambda m,g:jnp.sum(ker(m,g)*ct),argnums=(0,1)))(m,groups)
+      gb=jax.grad(lambda m,g:jnp.sum(ref(m,g)*ct),argnums=(0,1))(m,groups)
+      for (path,a),bb in zip(jax.tree_util.tree_flatten_with_path(ga)[0],jax.tree.leaves(gb)):
+        np.testing.assert_allclose(a,bb,rtol=2e-4,atol=2e-4*float(jnp.max(jnp.abs(bb))),
+                                   err_msg=name+jax.tree_util.keystr(path))
+
+  def test_v8t_write_kernel_matches_native_all_gradients(self):
+    _,cases,ker,ref=self._write_kernel_case(2,31);self._check_write_kernel(cases,ker,ref)
+    print('GENERAL_WRITE_V8T_KERNEL_ALL_GRADIENTS_OK',flush=True)
+
+  def test_v8t_write_kernel_batch_sharded_static_gradients(self):
+    # Replicated static addresses inside shard_map: their gradients must sum over every batch shard.
+    if jax.device_count()<8:self.skipTest('needs XLA_FLAGS=--xla_force_host_platform_device_count=8')
+    c,cases,ker,ref=self._write_kernel_case(8,32)
+    mesh=jax.sharding.Mesh(max_utils.create_device_mesh(c),c.mesh_axes)
+    def wrap(f):
+      def run(*xs):
+        with mesh,nn.partitioning.axis_rules(c.logical_axis_rules):return jax.jit(f)(*xs)
+      return run
+    self._check_write_kernel(cases,ker,ref,wrap)
+    print('GENERAL_WRITE_V8T_KERNEL_SHARDED_OK',flush=True)
+
+  def test_full_pallas_matches_native_logits_and_all_gradients(self):
+    c=self.tiny();pc=pyconfig.HyperParameters(SimpleNamespace(keys=dict(c.get_keys(),
+        bam_pallas_core=True,bam_pallas_interpret=True,bam_pallas_write=True)))
+    mesh=jax.sharding.Mesh(max_utils.create_device_mesh(c),c.mesh_axes)
+    native=Transformer(c,mesh,quant=None);fused=Transformer(pc,mesh,quant=None)
+    tok=jax.random.randint(jax.random.key(40),(2,128),0,32)
+    seg=jnp.where(jnp.arange(128)<64,1,2)[None].repeat(2,0);pos=(jnp.arange(128)%64)[None].repeat(2,0)
+    with mesh,nn.partitioning.axis_rules(c.logical_axis_rules):
+      p=nn.unbox(native.init(jax.random.key(41),tok,pos,seg,tok))
+      pp=nn.unbox(fused.init(jax.random.key(41),tok,pos,seg,tok))
+      for a,b in zip(jax.tree.leaves(p),jax.tree.leaves(pp)):np.testing.assert_array_equal(a,b)
+      leaves,tree=jax.tree.flatten(p);ks=jax.random.split(jax.random.key(42),len(leaves))
+      p=jax.tree.unflatten(tree,[v+.01*jax.random.normal(k,v.shape,v.dtype) for v,k in zip(leaves,ks)])
+      call=lambda mod,q:mod.apply(q,tok,pos,seg,tok,enable_dropout=False)[0].astype(jnp.float32)
+      target=jax.random.normal(jax.random.key(43),call(native,p).shape)
+      def loss(mod,q):
+        y=call(mod,q);return jnp.mean(y*target),y
+      (ln,yn),gn=jax.value_and_grad(lambda q:loss(native,q),has_aux=True)(p)
+      (lp,yp),gp=jax.value_and_grad(lambda q:loss(fused,q),has_aux=True)(p)
+    np.testing.assert_allclose(yp,yn,rtol=1e-4,atol=1e-6)
+    worst=[]
+    for (path,a),b in zip(jax.tree_util.tree_flatten_with_path(gn)[0],jax.tree.leaves(gp)):
+      worst.append((float(jnp.max(jnp.abs(a-b))/(jnp.max(jnp.abs(a))+1e-12)),jax.tree_util.keystr(path)))
+    worst.sort(reverse=True);self.assertLess(worst[0][0],1e-3,worst[:5])
+    for name in ('general_attention_static_address','general_mlp_static_address','general_attention_static_gate','general_mlp_static_gate'):
+      selected=[v for path,v in flatten_dict(gp).items() if name in path]
+      self.assertTrue(selected,name);self.assertGreater(sum(float(jnp.sum(v*v)) for v in selected),0,name)
+    print('GENERAL_WRITE_FULL_PALLAS_ALL_GRADIENTS_OK',worst[:3],flush=True)
 
 if __name__=='__main__':unittest.main()

@@ -74,3 +74,10 @@ this startup throughput is not the stable-speed estimate. RUN data path verified
 Native gain-ratio monitoring registered for candidate/independent-VO parent/MHA;
 compare_runs contains only that direct parent. Task-local monitor state/artifacts:
 `/data0/xd/bam_diagnostics/mediumprop-independent-vo-qk75/`.
+
+Startup speed measured from all80 logged steps20..99 (harmonic mean of per-step
+rates):.6430688995step/s, median.647. Parent same window:.6995475194, median.704;
+relative speed-8.0736%. Actual AOT load confirmed in the worker log. This exceeds
+the pre-run1..3% slowdown prediction; retain the result as a failed speed prediction.
+Do not infer the hardware bottleneck from logical QK FLOPs alone. Raw proof:
+`/data0/xd/bam_diagnostics/mediumprop-independent-vo-qk75/speed.json`.

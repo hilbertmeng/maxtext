@@ -17835,6 +17835,7 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysQK75Tr
     # UE5a v5p16 xd-v5p-16-310370-maxtext; exact AOT/FIRST_STEP verified, plan13500.
     # Params432112192 unchanged; MLP2510/1128, terminal3904; noQKNorm, scale1/sqrt75.
     # Pallasv8t48MiB/fused inputs + tuned Splash; healthON/internal+BAM OFF;57 CPU checks passed.
+    # Startup20-99 .643069step/s vs matched parent.699548 (-8.07%); initial-2% speed bet too optimistic.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysQK75TruePile'
     bam_local_qk_col_output_dim = 75
     bam_partial_rope_nope_dim = 75

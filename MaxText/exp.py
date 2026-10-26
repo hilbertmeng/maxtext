@@ -17843,6 +17843,7 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysGenera
     # UE5a v5p16 xd-v5p-16-310372-maxtext; exact s13500 AOT/FIRST_STEP verified; plan13500.
     # Pallas reads/native writes; candidate3+summary5+shared47 checks pass; healthON/internal+BAM OFF.
     # Bridge startup20-99 .637822step/s vs matched parent.699548 (-8.82%); fused writer timing pending.
+    # Hot-switch candidate 2b86a59 (claude/mediumprop-general-write-pallas, on 9c0c820): v8t 5-factor write kernel, bam_pallas_write=True; tree unchanged, sealed OK; AOT v5p-16 s13500 ready.
     # Generalized params34*(1200*16+16*32+16)=670752=.4658W_Q; repay in MLPs.
     # Verified tree432113344: parent+1152=.0008W_Q, integer-width remainder.
     # L0-16 ordinary/private2507/1120, complete-branch ratio~2.0013:1; terminal3905, no writes.

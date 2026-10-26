@@ -58,3 +58,23 @@ per-device16,T4096. The FLEX compiler was borrowed and retained. Artifacts:
 /data0/xd/bam_diagnostics/mediumprop-ratio1-pre-full-nope/; preparation logs and
 CPU proof under /data0/xd/bam_diagnostics/mediumprop-attention-diagonal-zero/
 ratio1-pre-nope-*.
+
+## Final selection result
+
+Stopped5122 at the5k review. At fixed432112192 parameters and identical M-cache,
+the initial ordinary gain~1.015 faded to parity around3k..4k, then reversed.
+The last five common200-step windows through5000 averaged gap+0.00103956 and
+MHA-reference gain0.99539425 versus the direct2:1 pre-negative/full-NoPE parent.
+Startup speed was0.66% lower. The larger M-update branch did not retain its
+convergence lead; the trajectory and lack of any other efficiency gain justify
+selection against this allocation. This is not a terminal1:1 result: the
+terminal1.02 bet remains unmeasured after early stopping, and later reversal
+was not experimentally excluded.
+
+Committed checkpoint5122 marker verified19:10:41UTC; node and queued resource
+independently NOT_FOUND; local TensorBoard SYNC_OK. Registry stopped5122 at
+2026-10-26T19:10:06Z. P0, one us-east5-a assignment16:59:41..19:10:06UTC and
+one READY lease16:59:44..19:10:06UTC,2h10m22s. Compiler was retained.
+Evidence in /data0/xd/bam_diagnostics/mediumprop-ratio1-pre-full-nope/:
+review-5000-group-native.json,figure-5000.json,final-metrics.json,
+final-proof.json and closeout-5000.log.

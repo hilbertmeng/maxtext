@@ -18,5 +18,16 @@
   "owned_TPU": "xd-v5p8-mqy-votrend-1026-ue5a",
   "GCS": "gs://newproject-1-llm_projects_us-east5/log/diagnostics/mengqy/vo_trajectory_20261026",
   "method": "Identical native readobserver; compile once for all11restores, 2kreplay control and existing16k reuse. Mean absolute cosine before averaging, masked zero norms, same32texts. Frozen only.",
-  "status": "prepared"
+  "status": "complete",
+  "report_url": "http://172.29.142.228:8873/shorttrain/vo-similarity/trajectory/",
+  "result": "/home/mengqy/Projects/Bam/training_reports/vo_trajectory_20261026/trajectory.json",
+  "checks": "Prior2k and crosszone2k: all5meanabsmetrics and native losses exactly equal; all12CP locallyverified, native CEdrift<=.005, readclosure<=.02, exactrepeat",
+  "resource_history": "OwnedUS5v5p8preempted after6k, released; ownedUC1av5p8 completed remaining plus2kcontrol, released; both node+queue independentlyNOT_FOUND",
+  "resources": [
+    "xd-v5p8-mqy-votrend-1026-ue5a",
+    "xd-v5p8-mqy-votrend-1026-uc1a"
+  ],
+  "earliest_saved": 2000,
+  "initialization_not_measured": true,
+  "main_results": "2k->21554: dynamic abs .372691->.327333 (-12.17%), key abs .232725->.183903 (-20.98%), both11/11adjacent decreases; total .393338->.382571 (-2.74%),2localincreases"
 }

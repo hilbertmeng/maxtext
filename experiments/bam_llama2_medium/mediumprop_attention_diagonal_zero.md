@@ -79,3 +79,13 @@ loss10.851565; pre step2,loss10.846076. Data path checked by launcher:
 `gs://newproject-1-common_datasets_us-east5/pythia_pile_idxmaps_tfrecord_4096`.
 Gain triples registered with the direct parent and common MHA reference.
 Task artifacts:/data0/xd/bam_diagnostics/mediumprop-attention-diagonal-zero/.
+
+
+Startup timing, steps20..99, all80 steps (harmonic mean):post .669618step/s,
+pre .694718,parent .699548; deltas-4.28%/-.69%. Post is slower than predicted
+-1..3%; pre meets near-parity prediction. Generic health matchedON, internal/BAM
+OFF, per-device16,T4096. Both worker logs confirm Loaded compiled function.
+The post adapter adds diagonal probability/subtraction and dense reverse corrections;
+no hardware profile was performed to attribute their exact time cost. Raw logs and
+startup-speed.json are in the task artifact directory. Subsequent monitoring stays
+in registry/artifacts until final conclusions, rather than an exp.py step diary.

@@ -17871,6 +17871,7 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysAlphaD
     # code_commit: 55ea52c; codex/mediumprop-attention-diagonal-zero; /data0/xd/mediumprop-attention-diagonal-zero.
     # UE5a v5p16 xd-v5p-16-310373-maxtext; plan13500; sealed/AOT/FIRST_STEP verified.
     # Identical432112192 params and MLP2510/1128/tail3904; healthON/internal+BAM OFF; tunedSplash/Pallasv8t.
+    # Startup20..99:.669618step/s vs parent.699548 (-4.28%); slower than -1..3% speed bet.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysAlphaDiagZeroTruePile'
     bam_attention_zero_diagonal = True
     compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysTruePile']
@@ -17887,6 +17888,7 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     # code_commit: 55ea52c; codex/mediumprop-attention-diagonal-zero; /data0/xd/mediumprop-attention-diagonal-zero.
     # UE5a v5p16 xd-v5p-16-310374-maxtext; plan13500; sealed/AOT/FIRST_STEP verified.
     # Identical432112192 params and MLP2510/1128/tail3904; healthON/internal+BAM OFF; tunedSplash/Pallasv8t.
+    # Startup20..99:.694718step/s vs parent.699548 (-.69%); near-parity speed bet met.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeTruePile'
     bam_attention_negative_diagonal = True
     compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysTruePile']

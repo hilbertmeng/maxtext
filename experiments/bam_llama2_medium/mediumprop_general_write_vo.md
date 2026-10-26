@@ -119,3 +119,32 @@ Task handoff source:/home/xd/projects/xd_tpu_scripts/general_write_kernel_handof
 deployed matchingSHA256095963a7c0f292eb6d14f1095948718386b914a1c339d77a51f2aa55c5fd2b3a.
 Original native-worktree cleanup8be14a4f removes six accidentally tracked CPU JAX
 cache files; this housekeeping commit is not the sealed live2b86a59 runtime.
+
+
+## Final result and retained-resource transfer
+
+Completed13500 while preparing the user-requested replacement. Final common
+native window13400:gap-.0001548,gain1.00094555. Final five12600..13400 mean
+gap-.00039028,gain1.00238371 vs completed independentVO parent. The small midrun
+lead fades toward parity; terminal1.015 prediction was overoptimistic. Equal-budget
+five-factor generalized writes do not give a meaningful SOTA improvement here.
+Fused throughput cost1.57% remains, with unchanged M-cache; no useful efficiency
+advantage offsets this result. This conclusion applies to the tested2:1/separateVO
+architecture and initialization, not every possible generalized writer.
+
+P1,one active zoneUE5a throughout. Every observed READY lease UTC:
+1.08:16:52..10:23:10 on2026-10-26,2h06m18s,preemption; recovered from committedCP4487.
+2.10:30:21..14:18:09 on2026-10-26,3h47m48s,completed13500 then retained-TPU transfer.
+Assignment08:16:49..14:18:09. The9c->2b backend switch kept its first physical lease;
+no zone switch. Held auto-controller near horizon, worker finished, exactCP13500
+commit checked; data/TB/loss retained. After new FIRST_STEP, registry independently
+verified complete/final_step13500. Local TB closeout reportsSYNC_OK. Node/queue
+remain READY for the new RUN, deliberately retained rather than deleted:
+BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75TruePile,
+runtime5a3d55b,controllerID310375,same xd-v5p-16-310372-maxtext.
+
+Proof under /data0/xd/bam_diagnostics/mediumprop-general-write-vo/:
+final-native-report.json,final-registry-proof.json,final-cp-and-transfer-proof.json,
+final-bookkeeping.log,final-figure.json. TB log:
+/home/xd/.local/state/maxtext-tensorboard-sync/closeout-20261026T142305520329Z.log.
+Final figure:general-write-final-20261026-142309-609633.png in task visualization directory.

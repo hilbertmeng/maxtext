@@ -43,3 +43,18 @@ require matched1:1 controls on the other bases,which are not requested here.
 Only the direct2:1 parent in compare_runs; common MHA reference
 BamMHAMediumPropC256TruePile. Report cumulative gap/R from600 every2k;
 review2800/5000. No unrelated historical baselines or invented second-order ratio.
+
+
+## Verified launch
+
+Runtime a184479432fd2a1adac23b917fa9eb1c382b0acb. Formal432112192 budget and
+native/Pallas+Splash full-model gradient checks passed,maxrel2.26e-6. Exact
+v5p16/s13500 AOT,config seal,and source-bound CPU gate passed. FIRST_STEP10,
+loss10.417926;worker Loaded compiled function verified. UE5a TruePile4096
+registered; direct parent only,one MHA-reference gain triple. Startup20..99
+all80-step harmonic speed0.682205 vs parent0.686768
+(-0.66%),matching the within2% prediction. Generic healthON,internal+BAM OFF,
+per-device16,T4096. The FLEX compiler was borrowed and retained. Artifacts:
+/data0/xd/bam_diagnostics/mediumprop-ratio1-pre-full-nope/; preparation logs and
+CPU proof under /data0/xd/bam_diagnostics/mediumprop-attention-diagonal-zero/
+ratio1-pre-nope-*.

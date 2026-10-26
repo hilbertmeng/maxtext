@@ -17705,6 +17705,14 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1TruePile(
     compare_runs = ['BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile']
 
 
+class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1LogitDiagNegativeTruePile(
+    BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1TruePile):
+    """Pre-softmax negative diagonal on the original shared-VO2:1 control."""
+    model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1LogitDiagNegativeTruePile'
+    bam_attention_negative_diagonal = True
+    compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1TruePile']
+
+
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1HybridV4KeepLocalOTruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1TruePile):
     """Four residual W_V heads plus12 M-V heads in every layer; retain local O."""

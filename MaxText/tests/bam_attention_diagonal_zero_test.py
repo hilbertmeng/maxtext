@@ -21,6 +21,8 @@ from layers.models import Transformer
 PARENT = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysTruePile'
 RUN = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysAlphaDiagZeroTruePile'
 PRE_RUN = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeTruePile'
+SHARED_PARENT = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1TruePile'
+SHARED_PRE_RUN = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1LogitDiagNegativeTruePile'
 COMBO_RUN = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75TruePile'
 
 
@@ -47,6 +49,29 @@ class AttentionDiagonalZeroTest(MLPWriteTest, unittest.TestCase):
     self.assertEqual(trees[0],trees[2])
     self.assertEqual(trees[0],trees[3])
     print('DIAGONAL_ZERO_PARAMETER_TREE_IDENTICAL 432112192',flush=True)
+
+  def test_shared_vo_pre_parameter_tree_and_runtime(self):
+    trees=[]
+    for run in (SHARED_PARENT,SHARED_PRE_RUN):
+      c=self.config(run)
+      c.get_keys().update(max_target_length=256,max_prefill_predict_length=256)
+      mesh=jax.sharding.Mesh(max_utils.create_device_mesh(c),c.mesh_axes)
+      args,*_=train_compile.get_shaped_inputs(mesh,c)
+      flat=flatten_dict(nn.unbox(args[0].params))
+      self.assertEqual(sum(math.prod(v.shape) for v in flat.values()),432113280)
+      trees.append({p:(v.shape,str(v.dtype)) for p,v in flat.items()})
+      self.assertEqual((c.mlp_dim,c.bam_memory_mlp_dim,c.bam_last_mlp_dim),(2535,1140,3806))
+      self.assertEqual(c.bam_attention_negative_diagonal,run==SHARED_PRE_RUN)
+      self.assertFalse(c.bam_local_vo_independent_keys)
+      self.assertTrue(c.bam_pair_scan and c.scan_layers)
+      self.assertTrue(c.record_training_health_metrics and not c.record_internal_nn_metrics)
+      self.assertTrue(c.sa_use_fused_bwd_kernel)
+      self.assertEqual(c.tensorboard_gcs_rotate_period,500)
+    self.assertEqual(trees[0],trees[1])
+    print('SHARED_VO_PRE_TREE_IDENTICAL 432113280',flush=True)
+
+  def test_shared_vo_pre_full_model_pallas_splash_gradients(self):
+    self._model_case(SHARED_PRE_RUN)
 
   def test_native_removes_diagonal_without_renormalization(self):
     q = jnp.zeros((1,4,1,2));v = jnp.arange(1,5,dtype=jnp.float32)[None,:,None,None]
@@ -138,14 +163,18 @@ class AttentionDiagonalZeroTest(MLPWriteTest, unittest.TestCase):
     self._model_case(COMBO_RUN)
 
   def _model_case(self,run):
+    shared_control=run==SHARED_PRE_RUN
+    layers=4 if shared_control else 3
     c = self.config(run,base_emb_dim=150,base_num_query_heads=2,base_num_kv_heads=2,
-        base_num_decoder_layers=3,base_mlp_dim=32,vocab_size=32,dtype='float32',weight_dtype='float32')
+        base_num_decoder_layers=layers,base_mlp_dim=32,vocab_size=32,dtype='float32',weight_dtype='float32')
     c.get_keys().update(bam_pallas_core=False,bam_splash_attention=False,bam_memory_mlp_dim=16,
-        bam_last_mlp_dim=32,bam_layer_modes=['local_qk+local_v+local_o']*3,
-        bam_attention_write_layers=[0,1],bam_mlp_write_layers=[0,1],emb_bam_num_head=2,
+        bam_last_mlp_dim=32,bam_layer_modes=['local_qk+local_v+local_o']*layers,
+        bam_attention_write_layers=list(range(layers)) if shared_control else [0,1],
+        bam_mlp_write_layers=list(range(layers-1)),emb_bam_num_head=2,
         bam_write_v_bottleneck_dim=8,emb_bam_v_bottleneck_dim=8,bam_mlp_write_address_rank=8,
         bam_local_full_m_read_bottleneck_dim=8,max_target_length=128,max_prefill_predict_length=128,
         query_chunk_size=64)
+    if shared_control:c.get_keys().update(bam_final_local_mlp_dim=32,mlp_dim_by_block=[32,32])
     pc = pyconfig.HyperParameters(SimpleNamespace(keys=dict(c.get_keys(),bam_pallas_core=True,
         bam_pallas_interpret=True,bam_pallas_fused_inputs=True,bam_splash_attention=True)))
     mesh = jax.sharding.Mesh(max_utils.create_device_mesh(c),c.mesh_axes)

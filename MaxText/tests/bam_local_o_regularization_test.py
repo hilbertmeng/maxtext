@@ -21,6 +21,7 @@ from jax.experimental.pallas.ops.tpu.splash_attention import splash_attention_ke
 
 PARENT = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75TruePile'
 HEAD = PARENT.replace('TruePile', 'LocalODropHeadP020TruePile')
+HEAD4 = PARENT.replace('TruePile', 'LocalODropHeadP040TruePile')
 WEIGHT = PARENT.replace('TruePile', 'LocalOReadWeightDropoutP020TruePile')
 
 
@@ -45,7 +46,7 @@ class LocalORegularizationTest(MLPWriteTest, unittest.TestCase):
 
   def test_configs_parameter_shapes_and_budget(self):
     trees = []
-    for run in (PARENT, HEAD, WEIGHT):
+    for run in (PARENT, HEAD, WEIGHT, HEAD4):
       cfg = self.config(run)
       cfg.get_keys().update(max_target_length=256, max_prefill_predict_length=256)
       mesh = jax.sharding.Mesh(max_utils.create_device_mesh(cfg), cfg.mesh_axes)
@@ -57,11 +58,28 @@ class LocalORegularizationTest(MLPWriteTest, unittest.TestCase):
       self.assertTrue(cfg.enable_dropout and cfg.sa_use_fused_bwd_kernel and cfg.record_training_health_metrics)
       self.assertFalse(cfg.record_internal_nn_metrics)
       if run != PARENT:
-        self.assertFalse(cfg.bam_pallas_core)
+        self.assertEqual(cfg.bam_pallas_core, run != WEIGHT)
         self.assertEqual(cfg.compare_runs, [PARENT])
     self.assertEqual(trees[0], trees[1])
     self.assertEqual(trees[0], trees[2])
+    self.assertEqual(trees[0], trees[3])
     print('LOCAL_O_REGULARIZATION_IDENTICAL_BUDGET 432112192', flush=True)
+
+  def test_p040_resolved_runtime_and_mask(self):
+    cfg, mesh, module, variables, args, matrix = self.fixture(HEAD4)
+    self.assertEqual(cfg.bam_local_o_drop_head_rate, .4)
+    self.assertEqual(cfg.train_no_dropout_loss_interval, 200)
+    self.assertEqual(cfg.train_no_dropout_loss_window, 25)
+    self.assertEqual(cfg.train_no_dropout_loss_sample_period, 10)
+    with mesh, nn.partitioning.axis_rules(cfg.logical_axis_rules):
+      x = jnp.ones((128, 4, 2, 75))
+      y = module.apply(variables, x, False, method=module._regularize_local_o_heads,
+                       rngs={'dropout': jax.random.key(44)})
+      self.assertEqual(y.shape, x.shape)
+      np.testing.assert_array_equal(y[..., 0], y[..., -1])
+      self.assertLess(abs(float(jnp.mean(y == 0)) - .4), .05)
+      np.testing.assert_allclose(np.unique(y), [0., 1/.6], rtol=1e-6)
+      self.assertFalse(np.array_equal(y[:, 0], y[:, 1]))
 
   def test_validation(self):
     base = dict(bam_enabled=True, bam_layer_modes=['local_qk+local_v+local_o'])

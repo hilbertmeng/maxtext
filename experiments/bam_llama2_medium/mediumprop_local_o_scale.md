@@ -100,3 +100,23 @@ BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNeg
 Final exact common-step reports, teardown/CP proof and TB marker:
 `/data0/xd/bam_diagnostics/mediumprop-local-o-scale-050-100/final-three-{report,metrics,proof}.json`;
 TB log `/home/xd/.local/state/maxtext-tensorboard-sync/closeout-20261027T083012689716Z.log`.
+
+### Final learned coefficients
+
+The final retained signed-coefficient observations are at6750 (init.5) and6370
+(init1), slightly before the committed stop steps6756/6381.
+
+| Initial s | TB step | L0 | Layer median | L17 | L0 / initial | L17 / initial |
+|---|---:|---:|---:|---:|---:|---:|
+| .5 | 6750 | .389556 | .522707 | .567953 | .779112 | 1.135905 |
+| 1 | 6370 | .779131 | .997321 | 1.036957 | .779131 | 1.036957 |
+
+Both arms progressively suppress L0 by about22%, while increasing L17. The .5
+arm has15/18 coefficients above its initial value; init1 has8/18. All18 scalar
+raw gradients are finite and nonzero at the final observations. These are signed
+parameter values, not measured localO/context output amplitude ratios.
+The directed layer pattern establishes learned modulation, but did not produce
+a sustained fitting-loss advantage over the direct parent.
+
+Exact layer/time series and gradient snapshots:
+`/data0/xd/bam_diagnostics/mediumprop-dynamic-o-norm-init-050-100/scale-health-latest.json`.

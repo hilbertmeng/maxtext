@@ -17973,12 +17973,14 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75TruePile):
     """O-only inverted DropHead p=.2, [B,T,N,1]; preserve AV and all parent parameters."""
     # Native implementation on main; developed in codex/mediumprop-attention-diagonal-zero,/data0/xd/mediumprop-attention-diagonal-zero.
-    # code_commit: db290e9; UE5a v5p16 xd-v5p-16-310379-maxtext; plan13500, AOT/FIRST_STEP verified.
-    # Formal RUN uses verified post-read Pallas DropHead; native reference via bam_pallas_core=False.
-    # Hot-switch candidate code_commit: 3b70933 (claude/drophead-gate-fold): keep folded into O gates before v8t read; v5p16 s13500 AOT.
-    # MLP2510/1128/tail3904 and432112192 params unchanged; tunedSplash, generic healthON/internal+BAM OFF.
-    # Real eval_loss180..220 and native5-point report verified; train loss remains the optimization objective.
-    # Startup20..99 .677221step/s vsparent.686768 (-1.39%); this window excludes sparse eval overhead.
+    # code_commit: db290e9; UE5a v5p16 xd-v5p-16-310379-maxtext; stopped at 5115 after5000 review; P0.
+    # CP5115/TB secured,node+QR independently absent. Pallasv8t/tunedSplash, generic healthON/internal+BAM OFF.
+    # vs strongest combo: gap contracts early then stalls near+.010; gain~.975 at600->.953 at5k,4k rebound failed.
+    # Final5(4200..5000) eval_loss gap+.01035328/R.95460962; no fitting benefit in any of25 complete windows.
+    # Original positive-gain bet unsupported through stop;13.5k terminal unmeasured. Held-out generalization not measured.
+    # MLP2510/1128/tail3904,432112192 params/M-cache unchanged; dropout OFF at inference; no compensating budget gain.
+    # Startup20..99 .677221step/s vsparent.686768 (-1.39%); excludes sparse eval cost; native reference via core=False.
+    # Unused hot-switch candidate: 3b70933 (claude/drophead-gate-fold); RUN stopped on db290e9 without switching.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODropHeadP020TruePile'
     bam_pallas_core = True
     enable_dropout = True

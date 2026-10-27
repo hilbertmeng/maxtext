@@ -51,20 +51,43 @@ This sample excludes sparse probe steps; full-run overhead is not measured by th
 Both native windows have5 samples and MHA-reference gain reports. FLEX compiler preserved and worker lock released.
 Artifacts: `/data0/xd/bam_diagnostics/mediumprop-local-o-drophead-p020-p040/`.
 
-## Final result: p=.4
+## Results
 
-Stopped at2957 after the2800 review. Across all14 complete windows200..2800,
-p=.4 loses to both the parent and the p=.2 arm. The absolute gap contracts,
-but the MHA-reference gain deteriorates from.947 at600 to.917 at2800;
-last five windows2000..2800 average gap+.02502068 and R.92053119.
-The stronger head-level perturbation did not improve same-training-batch fitting.
-This does not measure held-out generalization. The terminal1.005 bet was not
-measured because the arm stopped early; no false terminal extrapolation is recorded.
+Both arms stopped after their reviews. Comparisons use dropout-disabled CE on
+the same training batches and pre-update parameters; all parent budgets match.
 
-Exact parent parameters/cache and inference behavior; startup speed-1.09% before
-sparse-probe cost. CP2957 commit and data cursor preserved; no lost tail. TB SYNC_OK,
-node and queued resource independently NOT_FOUND; deletion verified02:50:23UTC.
-Canonical READY lease: us-east5-a,2026-10-27 01:30:26..02:47:19UTC (1h16m53s),P0;
-prequeue first observed READY01:30:06. End is the manual-stop request boundary.
-Registry assignment01:30:22..02:47:19UTC. Evidence: p040-final-proof.json,
-p040-final-metrics.json,p040-closeout.log in the artifact directory.
+| p | Stop step | Last complete window | Last5 mean gap vs parent | Last5 mean MHA-reference gain |
+|---|---:|---:|---:|---:|
+| .2 | 5115 | 5000 | +.01035328 | .95460962 |
+| .4 | 2957 | 2800 | +.02502068 | .92053119 |
+
+p=.2 loses in all25 complete windows200..5000. Its absolute gap contracts early,
+then stalls near+.010; gain slips from.975 at600 to.953 at5k. The minor3.6k..4k
+rebound does not persist. p=.4 loses to the parent and p=.2 in every shared
+window; its gain deteriorates from.947 at600 to.917 at2800. Increasing the
+head-level perturbation consistently costs fitting quality. Neither arm has a
+parameter/cache/inference-compute benefit that offsets the worse trained model.
+The positive-gain forecasts were optimistic; their13.5k endpoints remain
+unmeasured after the early stops. No held-out generalization result is claimed.
+
+A same-batch check over60 paired samples580..2820 confirms dropout OFF lowers
+loss in every pair: mean OFF-minus-ON -.00832452 for p=.2 and-.00611467 for p=.4.
+The report uses this lower OFF loss. The fitting deficit persists after removing
+measurement-time dropout noise. Reproduction uses existing saved p=.4 TB plus
+p=.2 console pairs; analyze_train_eval_gap.py, both *-train-eval-pairs.json and
+train-eval-gap-summary.json are in the artifact directory. No checkpoint inference
+or extra TPU was used for this check.
+
+Both CP/data cursors preserved with no lost tail, TB SYNC_OK and exact node/queue
+NOT_FOUND independently verified. p=.2 resource absence verified03:44:41UTC;
+p=.4 verified02:50:23UTC. Registry READY leases (one each, us-east5-a/v5p16/P0):
+
+| p | READY start UTC | READY end UTC | Duration | Registry assignment start | First prequeue READY |
+|---|---|---|---|---|---|
+| .2 | 2026-10-27 01:30:43 | 2026-10-27 03:42:09 | 2h11m26s | 01:30:40 | 01:30:27 |
+| .4 | 2026-10-27 01:30:26 | 2026-10-27 02:47:19 | 1h16m53s | 01:30:22 | 01:30:06 |
+
+End times are manual-stop request boundaries; resource-deletion confirmation
+follows them. Both exact runtime hashes remain db290e9478f86e6e9544122684fa613061fe6c6c.
+Final evidence is in p020/p040-final-proof.json, p020/p040-final-metrics.json,
+p020/p040-closeout.log, and figure-5000.json. The retained FLEX compiler is preserved.

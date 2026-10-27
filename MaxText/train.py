@@ -253,6 +253,10 @@ def write_metrics_to_tensorboard(writer, metrics, step, config, is_training=True
     if hasattr(writer, "begin_step"):
       writer.begin_step(step)
     for metric_name in metrics.get("scalar", []):
+      if metric_name == 'learning/eval_loss_valid':
+        continue
+      if metric_name == 'learning/eval_loss' and not bool(metrics['scalar']['learning/eval_loss_valid']):
+        continue
       if step % config.upload_param_act_tb_period != 0 and any(['total_params' in metric_name, ]): # lsp
         continue
       scalar_value = np.array(metrics["scalar"][metric_name])
@@ -269,6 +273,10 @@ def write_metrics_to_tensorboard(writer, metrics, step, config, is_training=True
     accuracy_message = f"accuracy: {metrics['scalar']['learning/accuracy'] * 1e2:.3f}"
     lr_message = f"lr: {metrics['scalar']['learning/current_learning_rate'] * 1e5:.3f}e-5"
     print_messages = [step_message, flops_message,weight_message, loss_message, accuracy_message, lr_message]
+    if 'learning/eval_loss_valid' in metrics['scalar']:
+      comparison = (f"{metrics['scalar']['learning/eval_loss']:.6f}"
+                    if bool(metrics['scalar']['learning/eval_loss_valid']) else 'unmeasured')
+      print_messages.append(f'eval_loss: {comparison}')
 
     if config.mtp_num_layers > 0 and config.mtp_eval_target_module > 0:
       print_messages.append(f"mtp_loss: {metrics['scalar']['learning/mtp_loss']:.3f}")
@@ -816,7 +824,7 @@ def dpo_loss_fn(model, config, data, dropout_rng, params, reference_params, is_t
   return loss, aux
 
 
-def loss_fn(model, config, data, dropout_rng, params, is_train=True):
+def loss_fn(model, config, data, dropout_rng, params, is_train=True, *, enable_dropout=None):
   """loss_fn for both train and eval.
 
   Args:
@@ -850,7 +858,7 @@ def loss_fn(model, config, data, dropout_rng, params, is_train=True):
       decoder_segment_ids=data["inputs_segmentation"],
       decoder_target_mask=data["targets_segmentation"],
       decoder_target_tokens=data["targets"],
-      enable_dropout=config.enable_dropout if is_train else False,
+      enable_dropout=(config.enable_dropout if is_train else False) if enable_dropout is None else enable_dropout,
       rngs={"dropout": rng1, "params": aqt_rng},
       mutable=mutable_collections,
   )
@@ -898,6 +906,15 @@ def loss_fn(model, config, data, dropout_rng, params, is_train=True):
       "mtp_accept_rate": mtp_accept_rate,
   }
   return loss, aux
+
+
+def no_dropout_loss_sample_step(step, interval, window, sample_period):
+  """Exactly the registry's sampled training steps around positive window centers."""
+  if not interval:
+    return jnp.asarray(False)
+  phase = step % interval
+  return ((step >= interval - window) & (step % sample_period == 0)
+          & ((phase <= window) | (phase >= interval - window)))
 
 
 def compute_params_norm(params, config, prefix='total_params'): # lsp
@@ -990,6 +1007,23 @@ def train_step(model, config, state_mesh_shardings, state, data, dropout_rng):
       "learning/total_weights": aux["total_weights"], # sum
       "learning/accuracy": accuracy, # mean
   }
+  probe_interval = config.train_no_dropout_loss_interval
+  if probe_interval:
+    # state.params are PRE-update, exactly as used for the optimization loss.
+    # The conditional is outside value_and_grad: no extra backward or optimizer
+    # update, and the forward branch executes only at report-window samples.
+    measured = no_dropout_loss_sample_step(
+        state.step, probe_interval, config.train_no_dropout_loss_window,
+        config.train_no_dropout_loss_sample_period)
+
+    def probe(_):
+      _, probe_aux = loss_fn(model, config, dict(data), dropout_rng, state.params,
+                             is_train=True, enable_dropout=False)
+      return (probe_aux['total_loss'] / (probe_aux['total_weights'] + EPS)).astype(jnp.float32)
+
+    scalar_metrics['learning/eval_loss'] = jax.lax.cond(
+        measured, probe, lambda _: jnp.zeros((), jnp.float32), operand=None)
+    scalar_metrics['learning/eval_loss_valid'] = measured
   if config.record_training_health_metrics:
     # lsp: recored params before update, because loss realily is computed before param update. so use state.params,  not new_state.params
     params_scalar_values = compute_params_norm(state.params, config=config)

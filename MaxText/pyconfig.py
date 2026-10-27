@@ -123,6 +123,18 @@ def validate_rope_type(rope_type: str) -> None:
 
 
 def validate_keys(keys):
+  interval = keys['train_no_dropout_loss_interval']
+  window = keys['train_no_dropout_loss_window']
+  sample_period = keys['train_no_dropout_loss_sample_period']
+  if type(interval) is not int or interval < 0:
+    raise ValueError('train_no_dropout_loss_interval must be a nonnegative integer')
+  if type(window) is not int or window < 0 or type(sample_period) is not int or sample_period < 1:
+    raise ValueError('no-dropout loss window/sample period must be nonnegative/positive integers')
+  if interval:
+    if 2 * window >= interval:
+      raise ValueError('no-dropout loss windows must not overlap')
+    if keys['use_dpo'] or keys['gradient_accumulation_steps'] != 1:
+      raise ValueError('same-batch no-dropout loss currently requires non-DPO, gradient_accumulation_steps=1')
   validate_bam_config(keys)
   from pythia_config import validate_pythia_config
   validate_pythia_config(keys)

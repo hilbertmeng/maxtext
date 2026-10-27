@@ -3842,9 +3842,10 @@ class BamAttention(Attention):
       return self._expand_full_read((col * gates, row))
     return self._expand_full_read((col * gates[..., 1:2], row * gates[..., :1]))
 
-  def _o_dropout_multiplier(self, x, rate, width, deterministic):
-    """Inverted Bernoulli mask [B,1,N,width], shared along sequence.
+  def _o_dropout_multiplier(self, x, rate, width, deterministic, *, broadcast_sequence=True):
+    """Inverted Bernoulli mask [B,1 or T,N,width].
 
+    DropHead shares its mask along T; address dropout samples each token.
     width=1 drops O heads; width=V drops O address weights. Separate Flax
     dropout RNGs per layer/step replay correctly under remat. Initialization
     consumes no dropout RNG, preserving the parent's exact parameter values.
@@ -3853,7 +3854,7 @@ class BamAttention(Attention):
       return None
     keep = jax.random.bernoulli(
         self.make_rng('dropout'), 1.0 - rate,
-        (x.shape[0], 1, self.num_query_heads, width))
+        (x.shape[0], 1 if broadcast_sequence else x.shape[1], self.num_query_heads, width))
     return keep.astype(x.dtype) / jnp.asarray(1.0 - rate, x.dtype)
 
   def _regularize_local_o_heads(self, local_output, deterministic):
@@ -4380,7 +4381,7 @@ class BamAttention(Attention):
 
     o_column_weight_multiplier = self._o_dropout_multiplier(
         inputs_q, float(getattr(cfg, 'bam_local_o_read_weight_dropout_rate', 0.0)),
-        self._read_bam_v, deterministic)
+        self._read_bam_v, deterministic, broadcast_sequence=False)
     local_output = None
     if self._local_o and self._vo_shared_read != 'none':
       if Mh is None:

@@ -18057,9 +18057,11 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     # Adds18*16*32=9216 parameters (+.00213%); MLP2510/1128/tail3904 unchanged. Existing scale WD exclusion retained.
     # CPU reference/all-grad, BF16, initializer, budget and WD checks in bam_local_o_dynamic_norm_scale_test.py.
     # code_commit: 881f991; claude/o-dyn-norm-scale-pallas,/data0/xd/o-dyn-norm-scale-pallas; runtime Pallas read+write=True.
-    # UE5a v5p16 xd-v5p-16-310385-maxtext; plan13500; actual FIRST_STEP, exact AOT loaded; startup20..99 .691188step/s.
+    # UE5a v5p16 xd-v5p-16-310385-maxtext; user stopped at9025/P1; CP9025/TB secured, TPU retained for fresh gamma.1.
     # Generic health ON, internal+BAM stats OFF; tunedSplash; compare direct M32 parent; native below keeps Pallas disabled.
-    # Init1 terminal R bet1.005; see mediumprop_local_o_dynamic_norm_init.md for sealed launch evidence.
+    # vs direct M32 parent: near parity early, stable deficit after~2.6k; last5 through9k gap+.00193832/R.98970219.
+    # Original positive-gain1.005 bet unsupported through stop; generic gamma norms/gradients remained finite/active.
+    # Startup20..99 .691188step/s; reproduction/lifecycle in mediumprop_local_o_dynamic_norm_init.md.
     # v5p-8 paired trace vs parent: 881f991 read bwd57.4->65.1ms, step+7.7(-.50%); faster equivalent 7161995 (MXU dgamma
     # row sum) read bwd62.3, step+4.7ms(~-.38%); v5p16 s13500 AOT exists; not hot-switched (gain<restart cost).
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODynamicNormScaleTruePile'
@@ -18078,6 +18080,22 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     # Same432121408 params/MLP2510,1128,tail3904 as init1; only effective gamma initializer differs. Terminal R bet1.01.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODynamicNormScale050TruePile'
     bam_local_o_dynamic_norm_scale_init = 0.5
+
+
+class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODynamicNormScale010TruePile(
+    BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODynamicNormScale050TruePile):
+    """Native reference: dynamic O norm scale .1; static O remains untouched."""
+    # code_commit: 34d61c2; codex/local-o-dynamic-norm-init,/data0/xd/local-o-dynamic-norm-init; runtime Pallas read+write=True.
+    # UE5a v5p16 retained xd-v5p-16-310385-maxtext, logical310386; fresh step0/AOT verified; plan13500.
+    # Same432121408 params/MLP2510,1128,tail3904; only gamma initializer changes vs .5, no budget adjustment.
+    # Startup20..99 .687325step/s; terminal MHA-ref gain bet vs .5=1.005; generic healthON/internal+BAM OFF.
+    # Compare .5 for further suppression gain and original M32 parent for net benefit; native PallasFalse flags inherited.
+    model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODynamicNormScale010TruePile'
+    bam_local_o_dynamic_norm_scale_init = .1
+    compare_runs = [
+        'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODynamicNormScale050TruePile',
+        'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75TruePile',
+    ]
 
 
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio1to1SeparateVOKeysLogitDiagNegativeQK75TruePile(

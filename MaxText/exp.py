@@ -18448,6 +18448,34 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SharedWritePostAtten
     compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SharedWritePreAttentionOrdinaryRefundTruePile', 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1TruePile']
 
 
+class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75SharedWritePostAttentionGeneralWriteTruePile(
+    BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75TruePile):
+    """Shared post-attention R256 features, independent generalized attention/MLP addresses.
+
+    Both dynamic ups use GELU(MLPnorm(x+attention(x)) @ shared_down).
+    Each writer keeps its own pre-RMS bias, dynamic/static gates and post-RMS
+    static address. Reader and write content/gate inputs retain the parent.
+    Net saved writer budget is refunded to ordinary MLP; private width1128.
+    """
+    # Runtime implementation: codex/mediumprop-shared-write-general,/data0/xd/mediumprop-shared-write-general.
+    # Single-layer scan17 + explicit terminal; no terminal attention/private M writes.
+    # Exact abstract tree432110944, parent-1248 integer residue (-.000866667 W_Q).
+    model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75SharedWritePostAttentionGeneralWriteTruePile'
+    bam_share_attention_mlp_write_activation = True
+    bam_shared_write_activation_input = 'post_attention'
+    bam_general_matrix_write = True
+    bam_static_write_gate_init = .01
+    bam_pallas_core = True
+    bam_pallas_write = True
+    bam_pallas_body = 'v8t'
+    bam_pallas_vmem_mib = 48
+    bam_pallas_fused_inputs = True
+    base_mlp_dim = 2584
+    bam_memory_mlp_dim = 1128
+    bam_last_mlp_dim = 3910
+    compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75TruePile']
+
+
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MHAWriterEvery4KeepMemoryTruePile(
         BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1TruePile):
     """Every fourth layer uses standard attention, with a locally balanced M FFN."""

@@ -457,15 +457,38 @@ def _minor_t(x):
   return jnp.moveaxis(x, 1, -1)
 
 
+def _tm_split(refs, arity):
+  """Flat factor refs -> per-group tuples; 5-factor groups take their [N, V, 1] static address last."""
+  groups, i, j = [], 0, sum(min(a, 4) for a in arity)
+  for a in arity:
+    grp = tuple(refs[i:i + min(a, 4)])
+    i += min(a, 4)
+    if a == 5:
+      grp += (refs[j],)
+      j += 1
+    groups.append(grp)
+  return groups
+
+
 def _tm_fill_factors(groups, a_scr, c_scr, eps, t, npt):
-  """a_scr / c_scr rows t*NPT + i: normalized address [V] / gated normalized content [K] of row i."""
+  """a_scr / c_scr rows t*NPT + i: address [V] / content [K] of row i.
+
+  3-factor groups (content, logits, address): sigmoid(logits) RMS(content) x RMS(address).
+  5-factor groups (+ static_logits, static_address): RMS(content) x
+  [sigmoid(logits) RMS(address) + 1.1 sigmoid(static_logits) static_address] (static address post-RMS)."""
   off = 0
-  for g in range(0, len(groups), 3):
-    content, logits, address = groups[g:g + 3]
+  for grp in groups:
+    content, logits, address = grp[:3]
     for h in range(content.shape[0]):
       rows = pl.ds(off + h, t, stride=npt)        # token-major rows t*NPT + i
-      c_scr[rows, :] = _to_tokens(_sigmoid(logits[pl.ds(h, 1), :]) * _norm(content[h], eps, 0))
-      a_scr[rows, :] = _to_tokens(_norm(address[h], eps, 0))
+      sg = _sigmoid(logits[pl.ds(h, 1), :])
+      if len(grp) == 5:
+        c_scr[rows, :] = _to_tokens(_norm(content[h], eps, 0))
+        a = sg * _norm(address[h], eps, 0) + 1.1 * _sigmoid(grp[3][pl.ds(h, 1), :]) * grp[4][h].astype(F32)
+      else:
+        c_scr[rows, :] = _to_tokens(sg * _norm(content[h], eps, 0))
+        a = _norm(address[h], eps, 0)
+      a_scr[rows, :] = _to_tokens(a)
     off += content.shape[0]
   for i in range(off, npt):
     rows = pl.ds(i, t, stride=npt)
@@ -473,10 +496,12 @@ def _tm_fill_factors(groups, a_scr, c_scr, eps, t, npt):
     a_scr[rows, :] = jnp.zeros((t, a_scr.shape[1]), F32)
 
 
-def _tm_write_kernel(eps, n_groups, ch):
+def _tm_write_kernel(eps, arity, ch):
+  n_in = sum(arity)
+
   def kernel(m_ref, *refs):
-    groups = refs[:3 * n_groups]
-    out_ref, a_scr, c_scr = refs[3 * n_groups:]
+    groups = _tm_split(refs[:n_in], arity)
+    out_ref, a_scr, c_scr = refs[n_in:]
     t, vdim, kdim = m_ref.shape
     npt = a_scr.shape[0] // t
     dt = m_ref.dtype
@@ -488,11 +513,13 @@ def _tm_write_kernel(eps, n_groups, ch):
   return kernel
 
 
-def _tm_write_backward_kernel(eps, n_groups, ch):
+def _tm_write_backward_kernel(eps, arity, ch):
+  n_in = sum(arity)
+
   def kernel(g_ref, *refs):
-    groups = refs[:3 * n_groups]
-    outs = refs[3 * n_groups:6 * n_groups]
-    a_scr, c_scr, da_scr, dc_scr = refs[6 * n_groups:]
+    groups = _tm_split(refs[:n_in], arity)
+    outs = _tm_split(refs[n_in:2 * n_in], arity)
+    a_scr, c_scr, da_scr, dc_scr = refs[2 * n_in:]
     t, vdim, kdim = g_ref.shape
     npt = a_scr.shape[0] // t
     dt = g_ref.dtype
@@ -505,66 +532,98 @@ def _tm_write_backward_kernel(eps, n_groups, ch):
       da_scr[rows, :] = _bdot(c, gm, 2, 2).reshape(ch * npt, vdim)       # C_t G_t^T
       dc_scr[rows, :] = _bdot(a, gm, 2, 1).reshape(ch * npt, kdim)       # A_t G_t
     off = 0
-    for g in range(n_groups):
-      content, logits, address = groups[3 * g:3 * g + 3]
-      dcontent, dlogits, daddress = outs[3 * g:3 * g + 3]
+    for grp, dgrp in zip(groups, outs):
+      content, logits, address = grp[:3]
+      dcontent, dlogits, daddress = dgrp[:3]
       for h in range(content.shape[0]):
         rows = pl.ds(off + h, t, stride=npt)
         x = content[h]
         dci = _from_tokens(dc_scr[rows, :])
+        dai = _from_tokens(da_scr[rows, :])
         sg = _sigmoid(logits[pl.ds(h, 1), :])
-        dlogits[pl.ds(h, 1), :] = (sg * (1 - sg) * jnp.sum(dci * _norm(x, eps, 0), axis=0, keepdims=True)
-                                   ).astype(dlogits.dtype)
-        dcontent[h] = _norm_backward(x, sg * dci, eps, 0).astype(dcontent.dtype)
-        daddress[h] = _norm_backward(address[h], _from_tokens(da_scr[rows, :]), eps, 0).astype(daddress.dtype)
+        if len(grp) == 5:
+          na = _norm(address[h], eps, 0)
+          ss = _sigmoid(grp[3][pl.ds(h, 1), :])
+          sa = grp[4][h].astype(F32)                                       # [V, 1]
+          dlogits[pl.ds(h, 1), :] = (sg * (1 - sg) * jnp.sum(dai * na, axis=0, keepdims=True)
+                                     ).astype(dlogits.dtype)
+          dgrp[3][pl.ds(h, 1), :] = (1.1 * ss * (1 - ss) * jnp.sum(dai * sa, axis=0, keepdims=True)
+                                     ).astype(dgrp[3].dtype)
+          dgrp[4][h] = 1.1 * jnp.sum(ss * dai, axis=1, keepdims=True)    # this tile's partial [V, 1]
+          dcontent[h] = _norm_backward(x, dci, eps, 0).astype(dcontent.dtype)
+          daddress[h] = _norm_backward(address[h], sg * dai, eps, 0).astype(daddress.dtype)
+        else:
+          dlogits[pl.ds(h, 1), :] = (sg * (1 - sg) * jnp.sum(dci * _norm(x, eps, 0), axis=0, keepdims=True)
+                                     ).astype(dlogits.dtype)
+          dcontent[h] = _norm_backward(x, sg * dci, eps, 0).astype(dcontent.dtype)
+          daddress[h] = _norm_backward(address[h], dai, eps, 0).astype(daddress.dtype)
       off += content.shape[0]
   return kernel
 
 
 def _tm_write_scratch(groups, tile, vdim, kdim, flat=False):
-  npt = _pad_rows(sum(a.shape[1] for a in groups[2::3]))   # padded rows measured faster here
+  npt = _pad_rows(sum(g[2].shape[1] for g in groups))   # padded rows measured faster here
   del flat        # row-major [rows*T] factors and per-chunk token-major results share the shape
   return [pltpu.VMEM((tile * npt, vdim), F32), pltpu.VMEM((tile * npt, kdim), F32)]
 
 
-def _tm_write_forward_call(m, groups, opts):
+def _tm_flat(groups):
+  """Token-minor factors of every group, then the 5-factor groups' static addresses."""
+  return (tuple(x for g in groups for x in g[:4]), tuple(g[4] for g in groups if len(g) == 5))
+
+
+def _tm_write_forward_call(m, xs, opts):
   b, t, vdim, kdim = m.shape
+  arity = opts['arity']
+  groups = _tm_split(xs, arity)
   tile = min(opts['tile'], t)
   mspec = _token_spec((vdim, kdim), tile)
+  tokens, statics = _tm_flat(groups)
   return pl.pallas_call(
-      _tm_write_kernel(opts['epsilon'], len(groups) // 3, opts['chunk']),
-      grid=(b, t // tile), in_specs=[mspec] + [_spec(x.shape[1:-1], tile) for x in groups],
+      _tm_write_kernel(opts['epsilon'], arity, opts['chunk']),
+      grid=(b, t // tile),
+      in_specs=[mspec] + [_spec(x.shape[1:-1], tile) for x in tokens] + [_whole(s.shape) for s in statics],
       out_specs=mspec, out_shape=jax.ShapeDtypeStruct(m.shape, m.dtype),
       scratch_shapes=_tm_write_scratch(groups, tile, vdim, kdim), input_output_aliases={0: 0},
       interpret=opts['interpret'], compiler_params=_params(('parallel', 'parallel'), opts['vmem_mib']),
-      name='bam_core_write')(m, *groups)
+      name='bam_core_write')(m, *tokens, *statics)
 
 
-def _tm_write_backward_call(g, groups, opts):
+def _tm_write_backward_call(g, xs, opts):
   b, t, vdim, kdim = g.shape
+  arity = opts['arity']
+  groups = _tm_split(xs, arity)
   tile = min(opts['reverse_tile'], t)
-  specs = [_spec(x.shape[1:-1], tile) for x in groups]
-  return pl.pallas_call(
-      _tm_write_backward_kernel(opts['epsilon'], len(groups) // 3, opts['chunk']),
-      grid=(b, t // tile), in_specs=[_token_spec((vdim, kdim), tile)] + specs, out_specs=specs,
-      out_shape=tuple(jax.ShapeDtypeStruct(x.shape, x.dtype) for x in groups),
+  tokens, statics = _tm_flat(groups)
+  specs = [_spec(x.shape[1:-1], tile) for x in tokens]
+  partial_spec = lambda s: pl.BlockSpec((None, None) + s.shape, lambda bb, i, n=s.ndim: (bb, i) + (0,) * n)
+  outs = pl.pallas_call(
+      _tm_write_backward_kernel(opts['epsilon'], arity, opts['chunk']),
+      grid=(b, t // tile),
+      in_specs=[_token_spec((vdim, kdim), tile)] + specs + [_whole(s.shape) for s in statics],
+      out_specs=specs + [partial_spec(s) for s in statics],
+      out_shape=tuple(jax.ShapeDtypeStruct(x.shape, x.dtype) for x in tokens)
+      + tuple(jax.ShapeDtypeStruct((b, t // tile) + s.shape, F32) for s in statics),
       scratch_shapes=_tm_write_scratch(groups, tile, vdim, kdim) + _tm_write_scratch(groups, tile, vdim, kdim, True),
       interpret=opts['interpret'],
       compiler_params=_params(('parallel', 'parallel'), opts['vmem_mib']),
-      name='bam_core_write_backward')(g, *groups)
+      name='bam_core_write_backward')(g, *tokens, *statics)
+  dtok, dst = outs[:len(tokens)], outs[len(tokens):]
+  dst = tuple(jnp.sum(d, axis=(0, 1)).astype(s.dtype) for d, s in zip(dst, statics))
+  return dtok + dst      # same flat order as the kernel inputs: token factors, then static addresses
 
 
 @partial(jax.custom_vjp, nondiff_argnums=(1,))
-def _tm_write(m, opts, *groups):
-  return _tm_write_forward_call(m, groups, dict(opts))
+def _tm_write(m, opts, *xs):
+  return _tm_write_forward_call(m, xs, dict(opts))
 
 
-def _tm_write_fwd(m, opts, *groups):
-  return _tm_write_forward_call(m, groups, dict(opts)), groups
+def _tm_write_fwd(m, opts, *xs):
+  return _tm_write_forward_call(m, xs, dict(opts)), xs
 
 
-def _tm_write_bwd(opts, groups, g):
-  return (g,) + tuple(_tm_write_backward_call(g, groups, dict(opts)))
+def _tm_write_bwd(opts, xs, g):
+  return (g,) + tuple(_tm_write_backward_call(g, xs, dict(opts)))
 
 
 _tm_write.defvjp(_tm_write_fwd, _tm_write_bwd)
@@ -572,8 +631,16 @@ _tm_write.defvjp(_tm_write_fwd, _tm_write_bwd)
 
 def write_tm(m, groups, *, epsilon, forward_tile=128, reverse_tile=128, vmem_mib=None, interpret=False,
              chunk=8, **_):
-  """M [B,T,V,K] + sum over groups of (content [B,T,N,K], logits [B,T,N], address [B,T,N,V])."""
+  """M [B,T,V,K] + sum over groups of (content [B,T,N,K], logits [B,T,N], address [B,T,N,V]).
+
+  A group may append (static_logits [B,T,N], static_address [N,V]) for the generalized write;
+  its dynamic gate then scales the address instead of the content (see _tm_fill_factors)."""
+  groups = tuple(tuple(g) for g in groups)
+  arity = tuple(len(g) for g in groups)
+  assert all(a in (3, 5) for a in arity), arity
   opts = _freeze(dict(epsilon=epsilon, tile=forward_tile, reverse_tile=reverse_tile, vmem_mib=vmem_mib,
-                      interpret=interpret, chunk=chunk))
-  flat = tuple(_minor_t(x) for grp in groups for x in grp)
-  return _map_batch(lambda m, *xs: _tm_write(m, opts, *xs), (m,) + flat, (True,) * (1 + len(flat)), 1)
+                      interpret=interpret, chunk=chunk, arity=arity))
+  tokens = tuple(_minor_t(x) for g in groups for x in g[:4])
+  statics = tuple(g[4][..., None] for g in groups if len(g) == 5)        # [N, V, 1]: V on sublanes
+  return _map_batch(lambda m, *xs: _tm_write(m, opts, *xs), (m,) + tokens + statics,
+                    (True,) * (1 + len(tokens)) + (False,) * len(statics), 1)

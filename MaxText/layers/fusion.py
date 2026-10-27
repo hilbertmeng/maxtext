@@ -273,20 +273,46 @@ class SubDecoderLayer(nn.Module):
       raise ValueError('Static MLP write experiments require their recorded runtime')
     pallas_core = cfg.bam_enabled and bool(getattr(cfg, 'bam_pallas_core', False)) and not pallas_tail
     write_factors = None
+    share_write_activation = mlp_write and bool(getattr(
+        cfg, 'bam_share_attention_mlp_write_activation', False))
+    write_activation_input = getattr(cfg, 'bam_shared_write_activation_input', None) or 'pre_attention'
+    if share_write_activation and write_activation_input not in ('pre_attention', 'post_attention'):
+      raise ValueError('Unknown shared write activation input')
+    post_write_activation = share_write_activation and write_activation_input == 'post_attention'
+    shared_write_features = None
+    if share_write_activation:
+      if (getattr(cfg, 'bam_share_read_attention_write_down', False)
+          or cfg.bam_write_v_bottleneck_dim != cfg.bam_mlp_write_address_rank
+          or cfg.bam_write_v_bottleneck_activation != 'gelu'
+          or not cfg.bam_mlp_write_dynamic_address
+          or bam_mudd.skips_attention_write(cfg, self.layer_inx)):
+        raise ValueError('Shared write activation requires independent reader and matching GELU write downs')
+      if post_write_activation:
+        call_kwargs['defer_write_address'] = True
+      else:
+        call_kwargs['return_write_features'] = True
     attention_M = jnp.swapaxes(M_in, -1, -2) if pallas_tail else M_in
     if pallas_core:
         # Fused core: the attention returns its raw write factors; one kernel
         # applies the attention (and MLP) writes after the MLP.
-        attention_lnx, M_out, write_factors = attention_layer(
+        attention_result = attention_layer(
             **call_kwargs, M_in=attention_M, is_global=is_global, layer_index=layer_index)
+        if share_write_activation and not post_write_activation:
+          attention_lnx, M_out, write_factors, shared_write_features = attention_result
+        else:
+          attention_lnx, M_out, write_factors = attention_result
     elif cfg.bam_enabled:
         if mlp_write and not bam_mudd.skips_attention_write(cfg, self.layer_inx):
           assert cfg.shared_experts == 1 and cfg.num_experts == 1
           assert cfg.emb_dim == num_query_heads * cfg.bam_k == num_query_heads * head_dim
           assert 'full' not in layer_mode and not cfg.bam_mha_control
-          attention_lnx, M_out, write_factors = attention_layer(
+          attention_result = attention_layer(
               **call_kwargs, M_in=attention_M, is_global=is_global,
               layer_index=layer_index, defer_write=True)
+          if share_write_activation and not post_write_activation:
+            attention_lnx, M_out, write_factors, shared_write_features = attention_result
+          else:
+            attention_lnx, M_out, write_factors = attention_result
         else:
           attention_lnx, M_out = attention_layer(
               **call_kwargs, M_in=attention_M, is_global=is_global,
@@ -321,6 +347,19 @@ class SubDecoderLayer(nn.Module):
     hidden_states = nn.with_logical_constraint(
         hidden_states, ("activation_batch", "activation_norm_length", "activation_embed")
     )
+    if post_write_activation:
+      if parallel_mlp:
+        raise ValueError('Post-attention shared write activation requires a serial MLP')
+      # Both address ups share one existing post-attention MLP-normalized
+      # residual. The attention gate still uses its original pre-attention input.
+      attention_address, shared_write_features = attention_layer._write_address(
+          hidden_states, return_hidden=True)
+      if pallas_core or getattr(cfg, 'bam_general_matrix_write', False):
+        # Five-factor writers retain their independent static gate/address.
+        write_factors = write_factors[:2] + (attention_address,) + write_factors[3:]
+      else:
+        write_factors = (write_factors[0], attention_layer.write_address_norm(attention_address),
+                         write_factors[2])
     
     mlp_lnx = None
     memory_mlp_dim = int(getattr(cfg, 'bam_memory_mlp_dim', 0) or 0)
@@ -475,13 +514,18 @@ class SubDecoderLayer(nn.Module):
         independent_address = None
       if not compact_controls and getattr(cfg, 'bam_mlp_write_dynamic_address', False):
         rank = int(cfg.bam_mlp_write_address_rank)
-        address_hidden = linears.DenseGeneral(
-            features=rank, axis=-1, use_bias=False,
-            kernel_init=initializers.get_bam_init(
-              cfg, fallback=initializers.get_init_method(cfg.init_method)),
-            kernel_axes=('embed', None), dtype=cfg.dtype, weight_dtype=cfg.weight_dtype,
-            quant=self.quant, matmul_precision=cfg.matmul_precision,
-            name='mlp_address_down')(hidden_states)
+        if share_write_activation:
+          if compact_controls or shared_write_features is None or shared_write_features.shape[-1] != rank:
+            raise ValueError('Missing shared write features')
+          address_hidden = shared_write_features
+        else:
+          address_hidden = nn.gelu(linears.DenseGeneral(
+              features=rank, axis=-1, use_bias=False,
+              kernel_init=initializers.get_bam_init(
+                cfg, fallback=initializers.get_init_method(cfg.init_method)),
+              kernel_axes=('embed', None), dtype=cfg.dtype, weight_dtype=cfg.weight_dtype,
+              quant=self.quant, matmul_precision=cfg.matmul_precision,
+              name='mlp_address_down')(hidden_states))
         independent_address = linears.DenseGeneral(
             features=(write_heads, cfg.bam_v), axis=-1, use_bias=True,
             kernel_init=initializers.get_bam_init(
@@ -489,8 +533,30 @@ class SubDecoderLayer(nn.Module):
             kernel_axes=('embed', 'q_heads', 'v_factor'),
             dtype=cfg.dtype, weight_dtype=cfg.weight_dtype,
             quant=self.quant, matmul_precision=cfg.matmul_precision,
-            name='mlp_address_up')(nn.gelu(address_hidden))
-      if not pallas_core:
+            name='mlp_address_up')(address_hidden)
+      mlp_write_factors = (write_content.reshape(write_content.shape[:-1] + (write_heads, cfg.bam_k)),
+                           mlp_logits, independent_address)
+      if getattr(cfg, 'bam_general_matrix_write', False):
+        if independent_address is None:
+          raise ValueError('Generalized MLP write requires independent dynamic addresses')
+        static_address = nn.unbox(self.variable(
+            'params', 'general_mlp_static_address', nn.with_logical_partitioning(
+                lambda: jnp.zeros((write_heads, cfg.bam_v), cfg.weight_dtype), ('q_heads', 'v_factor'))).value)
+        static_logits = linears.DenseGeneral(
+            features=(write_heads,), axis=-1, use_bias=False,
+            kernel_init=initializers.contant_dense_init(0.0), kernel_axes=('embed', 'q_heads'),
+            dtype=cfg.dtype, weight_dtype=cfg.weight_dtype, quant=self.quant,
+            matmul_precision=cfg.matmul_precision, name='general_mlp_static_gate')(hidden_states)
+        opening = float(cfg.bam_static_write_gate_init)
+        static_bias = nn.unbox(self.variable(
+            'params', 'general_mlp_static_gate_bias', nn.with_logical_partitioning(
+                lambda: jnp.full((write_heads,), math.log(opening / (1.1 - opening)), cfg.weight_dtype),
+                ('q_heads',))).value)
+        mlp_write_factors += (static_logits + jnp.asarray(static_bias, cfg.dtype), static_address)
+      if not pallas_core and getattr(cfg, 'bam_general_matrix_write', False):
+        groups = ([] if write_factors is None else [write_factors]) + [mlp_write_factors]
+        M_out = attentions.native_bam_write(M_out, groups, cfg)
+      elif not pallas_core:
         M_out = attention_layer.merge_mlp_write(
             write_content.reshape(write_content.shape[:-1] + (write_heads, cfg.bam_k)),
             jax.nn.sigmoid(mlp_logits), write_factors, M_out, independent_address=independent_address)
@@ -499,19 +565,26 @@ class SubDecoderLayer(nn.Module):
       groups = [] if write_factors is None else [write_factors]
       if mlp_write:
         assert independent_address is not None, 'fused core supports independent MLP addresses only'
-        groups.append((write_content.reshape(write_content.shape[:-1] + (write_heads, cfg.bam_k)),
-                       mlp_logits, independent_address))
+        groups.append(mlp_write_factors)
       if groups:
-        with jax.named_scope('bam/pallas_write'):
-          M_out = bam_pallas.write(
-              M_out, groups, epsilon=initializers.get_bam_write_epsilon(cfg),   # same as the XLA write norms
-              forward_tile=int(getattr(cfg, 'bam_pallas_write_tile', None) or 128),
-              reverse_tile=int(getattr(cfg, 'bam_pallas_write_reverse_tile', None) or 128),
-              vmem_mib=getattr(cfg, 'bam_pallas_vmem_mib', None),
-              interpret=bool(getattr(cfg, 'bam_pallas_interpret', False)),
-              body=getattr(cfg, 'bam_pallas_body', None) or 'blocked',
-              **({'row_block': int(cfg.bam_pallas_write_block), 'head_block': int(cfg.bam_pallas_write_block)}
-                 if getattr(cfg, 'bam_pallas_write_block', None) else {}))
+        if not getattr(cfg, 'bam_pallas_write', True):
+          if cfg.bam_pallas_body != 'v8t':
+            raise ValueError('Independent native write backend requires v8t reads')
+          with jax.named_scope('bam/native_write'):
+            M_out = attentions.native_bam_write(M_out, groups, cfg, layout='btvk')
+        else:
+          assert all(len(g) == 3 for g in groups) or cfg.bam_pallas_body == 'v8t', \
+              'generalized (5-factor) Pallas writes need bam_pallas_body=v8t'
+          with jax.named_scope('bam/pallas_write'):
+            M_out = bam_pallas.write(
+                M_out, groups, epsilon=initializers.get_bam_write_epsilon(cfg),   # same as the XLA write norms
+                forward_tile=int(getattr(cfg, 'bam_pallas_write_tile', None) or 128),
+                reverse_tile=int(getattr(cfg, 'bam_pallas_write_reverse_tile', None) or 128),
+                vmem_mib=getattr(cfg, 'bam_pallas_vmem_mib', None),
+                interpret=bool(getattr(cfg, 'bam_pallas_interpret', False)),
+                body=getattr(cfg, 'bam_pallas_body', None) or 'blocked',
+                **({'row_block': int(cfg.bam_pallas_write_block), 'head_block': int(cfg.bam_pallas_write_block)}
+                   if getattr(cfg, 'bam_pallas_write_block', None) else {}))
 
     if mlp_lnx is not None and moe_lnx is not None:
       layer_output = mlp_lnx + intermediate_inputs + moe_lnx

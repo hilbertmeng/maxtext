@@ -1,6 +1,7 @@
 """Reject retired BAM experiments without changing their historical ledger."""
 
 from collections.abc import Mapping
+import math
 
 
 def validate_bam_config(config, *, layer_mode=None):
@@ -11,6 +12,10 @@ def validate_bam_config(config, *, layer_mode=None):
       lambda name, default=None: getattr(config, name, default))
   if not get('bam_enabled', False):
     return
+  if get('bam_local_o_learned_scale', False):
+    value = get('bam_local_o_scale_init', 1.0)
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
+      raise ValueError('bam_local_o_scale_init must be a finite scalar')
   for name in ('bam_local_o_drop_head_rate', 'bam_local_o_read_weight_dropout_rate'):
     rate = get(name, 0.0)
     if isinstance(rate, bool) or not isinstance(rate, (int, float)) or not 0 <= rate < 1:

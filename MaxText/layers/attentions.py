@@ -3264,6 +3264,12 @@ class BamAttention(Attention):
       self.general_v_pre_bias = self._constant_general_parameter(
           'general_v_pre_bias', (self._read_head_count('v'), self._read_bam_v), ('q_heads', 'kv'))
 
+    if self._local_o and getattr(cfg, 'bam_local_o_learned_scale', False):
+      # Shape [1] supports param_scan_axis=1. Do not consume an init RNG: all
+      # parent parameters must stay identical for the gain=1 control.
+      self.local_o_scale = self._constant_general_parameter(
+          'local_o_scale', (1,), (None,), cfg.bam_local_o_scale_init)
+
   def _constant_general_parameter(self, name, shape, axes, value=0.):
     # Constants need no random key; keep the parent's init RNG counters intact.
     return nn.unbox(self.variable('params', name, nn.with_logical_partitioning(
@@ -3865,7 +3871,11 @@ class BamAttention(Attention):
   def _regularize_local_o_heads(self, local_output, deterministic):
     rate = float(getattr(self.config, 'bam_local_o_drop_head_rate', 0.0))
     multiplier = self._o_dropout_multiplier(local_output, rate, 1, deterministic)
-    return local_output if multiplier is None else local_output * multiplier
+    if multiplier is not None:
+      local_output = local_output * multiplier
+    if getattr(self.config, 'bam_local_o_learned_scale', False):
+      local_output = local_output * self.local_o_scale.astype(local_output.dtype)
+    return local_output
 
   def _attention_block(
       self, query, key, value, decoder_segment_ids, *, q0, s0, window_size,

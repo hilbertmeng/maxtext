@@ -923,6 +923,7 @@ def compute_params_norm(params, config, prefix='total_params'): # lsp
   for k, v in flat_param_norms.items():
     k = '/'.join(k)
     newk = k.replace('params', prefix)
+    local_o_scale = prefix == 'total_params' and k.endswith('/local_o_scale')
     if config.scan_layers and 'layers' in k:
       axis = list(range(v.ndim))
       axis.pop(config.param_scan_axis)
@@ -930,8 +931,15 @@ def compute_params_norm(params, config, prefix='total_params'): # lsp
       for lyr in range(normv.shape[0]):
         newkj = newk.replace('layers', f'layers_{lyr}')
         scalar_vales[newkj] = normv[lyr]
+        if local_o_scale:
+          tag = newkj.removeprefix('total_params/').removesuffix('/local_o_scale')
+          scalar_vales[f'bam/local_o_scale/{tag}'] = jnp.take(
+              v, lyr, axis=config.param_scan_axis).reshape(())
     else:
       scalar_vales[newk] = jnp.sqrt(jnp.sum(jnp.square(v)))
+      if local_o_scale:
+        tag = newk.removeprefix('total_params/').removesuffix('/local_o_scale')
+        scalar_vales[f'bam/local_o_scale/{tag}'] = v.reshape(())
   return scalar_vales
 
 

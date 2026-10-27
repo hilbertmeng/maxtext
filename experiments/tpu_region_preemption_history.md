@@ -27,6 +27,7 @@ active leases are censored, and manual migration releases are not preemptions.
 
 | RUN | TPU | Zone | Start UTC | End UTC | End reason | Passive candidates |
 |---|---|---|---|---|---|---|
+| `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODropHeadP020TruePile` | v5p-16 (`xd-v5p-16-310379-maxtext`) | `us-east5-a` | 2026-10-27 01:30:40 | 2026-10-27 03:42:09 | 5k review stop5115/P0; CP5115/TB secured,node+QR independently absent03:44:41; runtimedb290e9 | none |
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75V48TruePile` | v5p-16 (`xd-v5p-16-310378-maxtext`) | `us-east5-a` | 2026-10-26 21:00:12 | 2026-10-27 02:54:32 | complete13500/P0; CP13500/TB secured,node+QR independently absent; runtimec98a5b7 | none |
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODropHeadP040TruePile` | v5p-16 (`xd-v5p-16-310380-maxtext`) | `us-east5-a` | 2026-10-27 01:30:22 | 2026-10-27 02:47:19 | review stop2957/P0; CP2957/TB secured,node+QR independently absent02:50:23; runtimedb290e9 | none |
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1LogitDiagNegativeTruePile` | v5p-16 (`xd-v5p-16-310376-maxtext`) | `us-east5-a` | 2026-10-26 16:36:05 | 2026-10-26 22:11:09 | complete13500/P0; CP13500/TB secured,node+QR independently absent; runtimed7aae11 | none |
@@ -2210,6 +2211,7 @@ active leases are censored, and manual migration releases are not preemptions.
 
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODropHeadP040TruePile` | 1 | `us-east5-a` | 2026-10-27 01:30:26 | 2026-10-27 02:47:19 | 1h16m53s | 2800 review stop2957/P0; CP/TB secured,node+QR absent02:50:23; prequeue READY01:30:06; end is stop-request boundary |
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75V48TruePile` | 1 | `us-east5-a` | 2026-10-26 21:00:15 | 2026-10-27 02:54:32 | 5h54m17s | complete13500/P0; CP13500/TB secured,node+QR absent; prequeue READY21:00:01; no zone switch |
+| `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODropHeadP020TruePile` | 1 | `us-east5-a` | 2026-10-27 01:30:43 | 2026-10-27 03:42:09 | 2h11m26s | 5k review stop5115/P0; CP5115/TB secured,node+QR absent03:44:41; prequeue READY01:30:27; end is stop-request boundary |
 
 ### 2026-10-14 user pause: resumed mixed R256/R384
 

@@ -17997,6 +17997,8 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     # Native implementation on main; developed in codex/mediumprop-attention-diagonal-zero,/data0/xd/mediumprop-attention-diagonal-zero.
     # Not launched. Pallas: v8t read applies the same sampled mask to the effective O weight in-kernel
     # (claude/o-read-dropout-pallas); native reference via bam_pallas_core=False. Tuned Splash retained.
+    # code_commit: 460ebc6 (no formal AOT yet). v5p-8 paired: parent.7953, DropHead p020.7801(-1.9%),
+    # this.7840(-1.4%; +17.5ms: read bwd mask scratch +11.6, RNG+relayout ~6); bet -4% was RNG-pessimistic.
     # No post-dropout RMSNorm. No new parameters or MLP budget changes. Eval disables dropout.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalOReadWeightDropoutP020TruePile'
     bam_pallas_core = True

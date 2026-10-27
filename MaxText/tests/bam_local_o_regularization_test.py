@@ -81,13 +81,12 @@ class LocalORegularizationTest(MLPWriteTest, unittest.TestCase):
     cfg, mesh, module, variables, args, matrix = self.fixture()
     with mesh, nn.partitioning.axis_rules(cfg.logical_axis_rules):
       def sample(m, x, width, deterministic=False):
-        return m._o_dropout_multiplier(x, .2, width, deterministic, broadcast_sequence=width==1)
+        return m._o_dropout_multiplier(x, .2, width, deterministic)
       x = jnp.ones((1024, 4, 150))
       for width in (1, 32):
         mask = module.apply(variables, x, width, method=sample, rngs={'dropout': jax.random.key(4)})
-        self.assertEqual(mask.shape, (1024, 1 if width==1 else 4, 2, width))
-        if width > 1:
-          self.assertFalse(np.array_equal(mask[:, 0], mask[:, 1]))
+        self.assertEqual(mask.shape, (1024, 4, 2, width))
+        self.assertFalse(np.array_equal(mask[:, 0], mask[:, 1]))
         self.assertTrue(set(np.unique(mask)).issubset({0., 1.25}))
         self.assertLess(abs(float(mask.mean()) - 1), .04)
         self.assertIsNone(module.apply(variables, x, width, True, method=sample))
@@ -149,7 +148,7 @@ class LocalORegularizationTest(MLPWriteTest, unittest.TestCase):
   def test_drop_head_vector_and_write_share_masked_o(self):
     cfg, mesh, module, variables, args, matrix = self.fixture()
     captured = []
-    mask = jnp.array([0., 1.25]).reshape(1, 1, 2, 1)
+    mask = jnp.tile(jnp.array([0., 1.25, 1.25, 0.]).reshape(1, 2, 2, 1), (4, 2, 1, 1))
     def capture_identity(m, o, deterministic):
       captured.append(o)
       return o

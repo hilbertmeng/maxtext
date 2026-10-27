@@ -108,76 +108,58 @@ No new kernel implementation; the retained FLEX compiler is borrowed and retaine
 Native registry stores each direct comparator plus its MHA-reference gain triple.
 Startup is recorded here once; routine monitoring belongs in registry/report artifacts.
 
-## Provisional first review and subsequent resumptions
+## Final review and closeout
 
-Current status: both dense three-site arms resumed, strict-history from2727 and
-self-allowed from3259. All four cells will reach at least common5000 before another
-elimination review. The initial stop evidence below is historical, not a terminal verdict.
+Both dense arms were initially stopped at2727/3259, then resumed at the same
+source/AOT/full13500 schedule to complete the2x2 design through common5000.
+Short-window slope signs did not persist; they were insufficient for the earlier
+layout judgment. The final decision uses the full trajectories and strongest-parent
+competitiveness, not only the early absolute ordering.
 
-Strict three-site arm stopped2727/P1 at its preserved preemption checkpoint. Its last5
-complete windows through2600 vs strongest parent have gap+.01125608/R.96603201.
-Restored-self arm stopped3259/P0; final5 through3200 gap+.01075508/R.96236301.
-Both exhibit a persistent~.01 deficit and a falling normalized gain ratio. The restored
-arm's small/unstable benefit vs its strict direct parent (last5 common2600
--.00051676/R1.00171048) did not erase the early dense-layout deficit.
-Both checkpoints, independent TPU/queue absence and final TB SYNC_OK verified.
-No13500 terminal result was measured at either provisional stop. Both dense arms and
-both spaced L14/L17 variants are now in training.
+| Layout | Self policy at VM sites | Stopped step | Final mature window | Last5 gap vs strongest parent | MHA-reference gain ratio |
+| --- | --- | ---: | ---: | ---: | ---: |
+| L14/L17 | masked | 8262 | 8200 | +.00528328 | .97283735 |
+| L15/L16/L17 | masked | 6592 | 6400 | +.01181912 | .94356513 |
+| L14/L17 | allowed | 7865 | 7800 | +.00611244 | .96901402 |
+| L15/L16/L17 | allowed | 5158 | 5000 | +.01051364 | .95391582 |
 
-At VM sites V no longer reads M, so shared versus independent VO read keys is moot.
-Restored-self controls also match the old VM-site diagonal policy. These are close
-transfers of the historical VM design; primary local changes are full NoPE57->75 and
-budget widths, with VO splitting/strict attention still changing unmodified layers.
-The early mask controls do not identify excluded self-attention as the main dense-layout
-cost. These provisional comparisons do not isolate site count from spacing, establish a
-general VM failure, or justify extrapolating a short-window slope to terminal training.
+These are stopped-run results, not measured13500 terminal values. All four positive
+terminal bets remain unsupported through their stops. Spaced variants' initial
+near-parity/gains became a persistent .005-.006 deficit and declining relative gain.
+Dense strict remained roughly .012 behind; dense self-allowed remained roughly .0105
+behind without sustained strongest-parent gain recovery.
 
-Closeout figure: `strong-vm-tail-3200-2600-2800-3200-20261027-130247-569173.png`.
-Native reports, complete lease/resource/checkpoint/TB proof: artifact root above.
+Keep the two axes separate. Within the spaced layout, allowing self attention gave
+last5 common7800 gap+.00062620/R.99676796. Within the dense layout, allowing it helped
+at common5000: gap-.00140088/R1.00651903. The policy therefore has a layout-dependent
+local effect, but neither form of the transferred VM design beat the strongest base.
+Dense self-allowed did gradually catch the spaced self-allowed arm over3200..5000:
+native direct gain .974950 -> .980774. This is a real relative recovery against a
+weakening comparator, not recovery against the strongest parent. Its strongest-parent
+ratio stayed around .954-.958 over the same interval. Do not claim that dense layouts
+are universally worse or that all VM-Mudd mechanisms fail from this experiment.
 
-| RUN suffix | READY start UTC | End UTC | Duration | Exit |
-| --- | --- | --- | --- | --- |
-| MuddL15L16L17VML2TruePile | 2026-10-27 11:34:08 | 2026-10-27 12:54:38 | 1h20m30s | preempted |
-| MuddL15L16L17VML2RestoreSelfTruePile | 2026-10-27 11:25:21 | 2026-10-27 12:58:07 | 1h32m46s | run_stop |
+Checkpoints8262/6592/7865/5158 committed and final TB SYNC_OK. TPUs310387/310389/310390
+and their queued resources independently verified absent. TPU310388 intentionally
+retained for the fresh shared-general writer RUN after its FIRST_STEP0, runtimef2a8f26,
+verified. B's hot-transfer boundary15:11:18UTC, checkpoint6592, no unsaved tail.
+All training assignments remained in us-east5-a, v5p16. Preemptions A0/B1/AR1/BR1;
+BR's additional preemption was before its resumed first step, during AOT staging.
 
-## Strict-history three-site resumption: compare trends at common steps
+Complete chronological READY leases (UTC; prior stop/resume leases retained):
 
-The two experimental axes are layout (spaced L14/L17 vs dense L15/L16/L17) and
-VM-site diagonal policy (strict history vs self allowed). Compare layouts within each
-fixed policy; compare the policy within each fixed layout. Do not mix those questions.
+| RUN suffix | # | READY start UTC | End UTC | Duration | Exit |
+| --- | ---: | --- | --- | --- | --- |
+| MuddL14L17VML2RestoreSelfTruePile | 1 | 2026-10-27 11:25:08 | 2026-10-27 12:20:05 | 54m57s | preempted |
+| MuddL15L16L17VML2RestoreSelfTruePile | 1 | 2026-10-27 11:25:21 | 2026-10-27 12:58:07 | 1h32m46s | run_stop |
+| MuddL14L17VML2TruePile | 1 | 2026-10-27 11:29:47 | 2026-10-27 15:12:41 | 3h42m54s | run_stop |
+| MuddL15L16L17VML2TruePile | 1 | 2026-10-27 11:34:08 | 2026-10-27 12:54:38 | 1h20m30s | preempted |
+| MuddL14L17VML2RestoreSelfTruePile | 2 | 2026-10-27 12:29:15 | 2026-10-27 15:12:44 | 2h43m29s | run_stop |
+| MuddL15L16L17VML2TruePile | 2 | 2026-10-27 13:23:02 | 2026-10-27 15:11:18 | 1h48m16s | hot_switch_run_boundary |
+| MuddL15L16L17VML2RestoreSelfTruePile | 2 | 2026-10-27 14:04:48 | 2026-10-27 14:08:50 | 04m02s | preempted |
+| MuddL15L16L17VML2RestoreSelfTruePile | 3 | 2026-10-27 14:18:04 | 2026-10-27 15:12:48 | 54m44s | run_stop |
 
-A read-only native registry comparison of dense versus spaced variants found that over
-common1600..2600, the strict dense arm's gap vs strongest parent was approximately flat
-(-.0000641/1k), whereas the strict spaced arm's gap rose(+.0032459/1k). Dense-minus-spaced
-gap narrowed at-.00331/1k and the direct MHA-reference gain ratio moved.972060->.974136
-(OLS+.0009093/1k). Thus the initial level-based stop was premature for the strict arm.
-For the self-allowed pair over common1600..3200, the raw gap also narrowed but its direct
-gain ratio moved.980544->.974950; it did not show the same relative-gain recovery.
-These short-window slopes describe observed trajectories and do not establish a terminal
-winner. Gain formulas remain in native run_registry; no new
-gain arithmetic is introduced in local plotting code.
-
-Strict three-site resumes the same RUN/source7d1b0fc/parameter tree/AOT/s13500 schedule
-from committed2727, on UE5a v5p16 xd-v5p-16-310388-maxtext. Actual worker first2728,
-AOT/source/data identity and next periodic CP2800 commit marker verified. Existing72-test
-source gate and sealed config remain valid; main-only later changes affect ledger/docs,
-not runtime infrastructure. Review at least5000 before judging its later recovery.
-Registry now retains native MHA-reference gain triples vs both strongest parent and
-strict spaced sibling; direct loss baseline remains the strongest parent.
-
-Analysis artifacts: `pair-trends-native.json`, `pair-trends-slopes.json`,
-`strong-vm-dense-vs-spaced-trend-20261027-131425-403174.png`; resumption proof in
-`strict-resumption.json`, `strict-resume-worker-proof.json`, and
-`strict-resume-cp2800-marker.txt` under the artifact root.
-
-## Self-allowed dense-arm resumption
-
-The earlier3259 stop is also withdrawn. Short-window recovery signs were unstable;
-complete the2x2 design through common5000 rather than select cells by those slopes.
-Self-allowed dense resumes the same RUN/source7d1b0fc/parameter tree/AOT/s13500 schedule
-from committed3259, on UE5a v5p16 xd-v5p-16-310390-maxtext. A provisioning-time
-preemption before its first resumed step was recovered by the existing auto-trainer.
-Actual worker first3260, AOT/source/data identity and next periodic CP3400 commit marker
-verified. No architecture, optimizer, data or schedule change accompanied either resume.
-Proof: `dense-self-resumption.json`, `dense-self-resume-worker-proof.json`,
-`dense-self-resume-cp3400-marker.txt` under the artifact root.
+Artifacts: `four-final-registry.json`, `four-final-leases.json`,
+`three-vm-independent-resource-proof.json`, native closeout summary20261027T151553Z,
+and `final-layout-self-allowed-native.json` under the artifact root. Final native
+trajectory: `strong-vm-tail-8200-6400-7800-5000-20261027-151828-203847.png`.

@@ -17986,9 +17986,12 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75TruePile):
     """L14/L17 native VM plus final Mudd on the completed strongest 2:1 combo."""
     # ledger only: codex/mediumprop-strong-vm-tail,/data0/xd/mediumprop-strong-vm-tail; see strong_vm_tail.md.
-    # code_commit: 7d1b0fc; UE5a v5p16 xd-v5p-16-310387-maxtext; plan13500, FIRST_STEP/AOT verified.
-    # Startup20..99 0.643912 step/s (-6.24% vs strongest parent); healthON/internal+BAM OFF.
-    # Params432343636, including231700 exempt native-router params; QK93/O M reads and live writes retained.
+    # code_commit: 7d1b0fc; UE5a v5p16 xd-v5p-16-310387-maxtext; stopped 8262/13500, P0.
+    # Early parity/brief gains reversed; persistent late~.005 loss deficit and falling relative gain.
+    # Final5(7400..8200) vs strongest parent gap+.00528328/R.97283735.
+    # Startup20..99 .643913step/s (-6.24% vs strongest parent); healthON/internal+BAM OFF.
+    # CP8262/TB SYNC_OK; TPU+queue independently absent.
+    # All gain ratios use MHA reference; original positive terminal bet unsupported through stop, no measured13500 result.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75MuddL14L17VML2TruePile'
     bam_pair_scan = True
     bam_local_fetch_block_size = 3
@@ -18016,11 +18019,12 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75MuddL14L17VML2TruePile):
     """Move native VM sites to all three final layers; preserve every live M writer."""
     # ledger only: codex/mediumprop-strong-vm-tail,/data0/xd/mediumprop-strong-vm-tail; see strong_vm_tail.md.
-    # code_commit: 7d1b0fc; UE5a v5p16 xd-v5p-16-310388-maxtext; resumed from committedCP2727.
-    # Same AOT/13500 schedule; firstnew2728/source/data verified, CP2800 committed.
-    # Early stop withdrawn; both dense arms resumed, all four VM arms observe at least common5000.
-    # Startup20..99 0.636088 step/s (-7.38% vs strongest parent); healthON/internal+BAM OFF.
-    # Params432420828, including309020 exempt native-router params; QK93/O M reads and live writes retained.
+    # code_commit: 7d1b0fc; UE5a v5p16 xd-v5p-16-310388-maxtext; stopped 6592/13500, P1.
+    # Early~.01 deficit persisted after resuming2727; tentative short-window recovery did not persist.
+    # Final5(5600..6400) vs strongest parent gap+.01181912/R.94356513; still below spaced strict sibling.
+    # Startup20..99 .636088step/s (-7.38% vs strongest parent); healthON/internal+BAM OFF.
+    # CP6592/TB SYNC_OK; READY TPU hot-transferred to shared-general RUN after verified FIRST_STEP.
+    # All gain ratios use MHA reference; original positive terminal bet unsupported through stop, no measured13500 result.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75MuddL15L16L17VML2TruePile'
     bam_mudd_pre_tail_vm = False
     bam_mudd_tail_qkvm_last_layers = 3
@@ -18032,9 +18036,12 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75MuddL14L17VML2TruePile):
     """Restore the attention diagonal only at L14/L17 VM sites; identical parameter tree."""
     # ledger only: codex/mediumprop-strong-vm-tail,/data0/xd/mediumprop-strong-vm-tail; see strong_vm_tail.md.
-    # code_commit: 7d1b0fc; UE5a v5p16 xd-v5p-16-310389-maxtext; plan13500, FIRST_STEP/AOT verified.
-    # Startup20..99 0.650050 step/s (-5.35% vs strongest parent); healthON/internal+BAM OFF.
-    # Params432343636, including231700 exempt native-router params; QK93/O M reads and live writes retained.
+    # code_commit: 7d1b0fc; UE5a v5p16 xd-v5p-16-310389-maxtext; stopped 7865/13500, P1.
+    # No net benefit from restoring VM-site self attention; strongest-parent relative gain declined.
+    # Final5(7000..7800) vs strongest parent +.00611244/R.96901402; vs strict spaced +.00062620/R.99676796.
+    # Startup20..99 .650050step/s (-5.35% vs strongest parent); healthON/internal+BAM OFF.
+    # CP7865/TB SYNC_OK; TPU+queue independently absent.
+    # All gain ratios use MHA reference; original positive terminal bet unsupported through stop, no measured13500 result.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75MuddL14L17VML2RestoreSelfTruePile'
     bam_mudd_tail_restore_self_attention = True
     compare_runs = [
@@ -18047,11 +18054,12 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75MuddL15L16L17VML2TruePile):
     """Restore the attention diagonal only at L15/L16/L17 VM sites."""
     # ledger only: codex/mediumprop-strong-vm-tail,/data0/xd/mediumprop-strong-vm-tail; see strong_vm_tail.md.
-    # code_commit: 7d1b0fc; UE5a v5p16 xd-v5p-16-310390-maxtext; resumed from committedCP3259.
-    # Same AOT/13500 schedule; firstnew3260/source/data verified, CP3400 committed.
-    # Early stop withdrawn; both dense arms resumed, all four VM arms observe at least common5000.
-    # Startup20..99 0.629175 step/s (-8.39% vs strongest parent); healthON/internal+BAM OFF.
-    # Params432420828, including309020 exempt native-router params; QK93/O M reads and live writes retained.
+    # code_commit: 7d1b0fc; UE5a v5p16 xd-v5p-16-310390-maxtext; stopped 5158/13500, P1.
+    # Resumed3259 to complete matched5k review; self attention helps strict dense arm but not strongest-parent recovery.
+    # Final5(4200..5000) vs strongest parent +.01051364/R.95391582; vs strict dense -.00140088/R1.00651903.
+    # Startup20..99 .629175step/s (-8.39% vs strongest parent); healthON/internal+BAM OFF.
+    # CP5158/TB SYNC_OK; TPU+queue independently absent.
+    # All gain ratios use MHA reference; original positive terminal bet unsupported through stop, no measured13500 result.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75MuddL15L16L17VML2RestoreSelfTruePile'
     bam_mudd_tail_restore_self_attention = True
     compare_runs = [
@@ -18446,6 +18454,38 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SharedWritePostAtten
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SharedWritePostAttentionOrdinaryRefundTruePile'
     bam_shared_write_activation_input = 'post_attention'
     compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SharedWritePreAttentionOrdinaryRefundTruePile', 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1TruePile']
+
+
+class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75SharedWritePostAttentionGeneralWriteTruePile(
+    BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75TruePile):
+    """Shared post-attention R256 features, independent generalized attention/MLP addresses.
+
+    Both dynamic ups use GELU(MLPnorm(x+attention(x)) @ shared_down).
+    Each writer keeps its own pre-RMS bias, dynamic/static gates and post-RMS
+    static address. Reader and write content/gate inputs retain the parent.
+    Net saved writer budget is refunded to ordinary MLP; private width1128.
+    """
+    # ledger only: codex/mediumprop-shared-write-general,/data0/xd/mediumprop-shared-write-general.
+    # code_commit: f2a8f26; UE5a v5p16 physical310388/logical310391; freshFIRST0/AOT/source/data verified, plan13500.
+    # Startup20..99 .677113step/s vs parent.686768 (-1.41%); healthON/internal+BAM OFF; Pallas read+write/tunedSplash.
+    # CPU62 PASS, full-model native/Pallas all-gradients maxrel2.53e-6; see mediumprop_shared_general_write.md.
+    # Terminal MHA-reference ratio bet1.01 (.995..1.025) vs direct strongest parent; no other routine baseline.
+    # Single-layer scan17 + explicit terminal; no terminal attention/private M writes.
+    # Exact abstract tree432110944, parent-1248 integer residue (-.000866667 W_Q).
+    model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75SharedWritePostAttentionGeneralWriteTruePile'
+    bam_share_attention_mlp_write_activation = True
+    bam_shared_write_activation_input = 'post_attention'
+    bam_general_matrix_write = True
+    bam_static_write_gate_init = .01
+    bam_pallas_core = True
+    bam_pallas_write = True
+    bam_pallas_body = 'v8t'
+    bam_pallas_vmem_mib = 48
+    bam_pallas_fused_inputs = True
+    base_mlp_dim = 2584
+    bam_memory_mlp_dim = 1128
+    bam_last_mlp_dim = 3910
+    compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75TruePile']
 
 
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MHAWriterEvery4KeepMemoryTruePile(

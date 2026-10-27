@@ -89,3 +89,38 @@ No extra kernel work is justified by this small startup difference.
 AOT state: tpu-ag:/home/lishengping/xd/projects/aot_runs/f2a8f26-8bf306c1.json.
 Proofs: `cpu-gate-pass.json`, `aot-state-f2a8f26.json`, `hot-switch-dry-run-f2a8f26.json`,
 `hot-switch.log`, `startup-worker-proof.json`, `startup-speed.json` in the artifact root.
+
+## Completed13500 and final assessment
+
+Runtimef2a8f26 completed the full13500 plan. Early deficit recovered by~1.6k;
+near-parity held to~6.6k, followed by a small persistent deficit. Final5 windows
+12600..13400 average gap+0.00099372, native MHA-reference R0.99435752 against
+the direct strongest parent. The terminal1.01 prior failed; the slightly-lenient
+5k continuation revealed no late rescue from the ordinaryMLP refund. Startup
+speed remains~1.41% slower, params parent-1248 integer residue, M-cache unchanged.
+This combination of generalized addressing, shared post-attention features and
+ordinaryMLP refund supplies no improvement on the current base.
+
+Native final series: loss-final-13400.json. The8400 window is absent near the
+preemption boundary; gap and ratio plots leave it blank rather than interpolate.
+The plot figure-final13400.json preserves all available points from600. The normal
+report-all excludes this completed RUN; final loss-report used the already-cached
+native console series, registered comparator and registered MHA ratio triple.
+
+Committed CP13500 marker independently verified, node and queued resource
+independently absent, final TensorBoard SYNC_OK. Already-closed local closeout
+performed only bookkeeping/TB, without repeating resource mutations. The borrowed
+FLEX compiler was preserved. Final proofs: final-independent-proof.json,
+final-registry.json, final-leases.json, final-closeout.log. Final TB receipt:
+/home/xd/.local/state/maxtext-tensorboard-sync/closeout-20261027T210920247377Z.log.
+
+v5p16, UE5a throughout, P1, no region switches/passive candidates. READY leasesUTC:
+
+| Start | End | Duration | Exit |
+| --- | --- | --- | --- |
+| 2026-10-27T15:12:16Z | 2026-10-27T18:46:41Z | 3h34m25s | preempted |
+| 2026-10-27T18:53:24Z | 2026-10-27T21:05:36Z | 2h12m12s | run_stop |
+
+The registered assignment15:12:14..21:05:36 includes recovery. Auto-recovery
+retained exactruntime/AOT; native gate confirmed fresh progress8434 after the
+preemption cached8398. No manual training restart or model hot switch occurred.

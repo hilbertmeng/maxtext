@@ -18469,12 +18469,13 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     Net saved writer budget is refunded to ordinary MLP; private width1128.
     """
     # ledger only: codex/mediumprop-shared-write-general,/data0/xd/mediumprop-shared-write-general.
-    # code_commit: f2a8f26; UE5a v5p16 physical310388/logical310391; freshFIRST0/AOT/source/data verified, plan13500.
-    # Startup20..99 .677113step/s vs parent.686768 (-1.41%); healthON/internal+BAM OFF; Pallas read+write/tunedSplash.
-    # CPU62 PASS, full-model native/Pallas all-gradients maxrel2.53e-6; see mediumprop_shared_general_write.md.
-    # Terminal MHA-reference ratio bet1.01 (.995..1.025) vs direct strongest parent; no other routine baseline.
-    # Single-layer scan17 + explicit terminal; no terminal attention/private M writes.
-    # Exact abstract tree432110944, parent-1248 integer residue (-.000866667 W_Q).
+    # code_commit: f2a8f26; UE5a v5p16 physical310388/logical310391; completed 13500/P1; isolated runtime above.
+    # vs direct parent: initial deficit recovered by~1.6k, nearparity until~6.6k, small persistent deficit thereafter.
+    # Final5(12600..13400) gap+0.00099372/MHA-reference R0.99435752; terminal1.01 prior missed; no net SOTA gain.
+    # Shared generalized writer + ordinaryMLP refund did not improve loss; params parent-1248 (-.000866667 W_Q), cache unchanged.
+    # MLP2584/1128/final3910; startup.677113 vs parent.686768step/s (-1.41%); healthON/internal+BAMOFF.
+    # CPU62 PASS/native-Pallas allgrad maxrel2.53e-6; Pallas read+write/tunedSplash; no terminal M writes.
+    # CP13500/TB secured, node+QR independently absent; both complete READY leases/history in mediumprop_shared_general_write.md.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75SharedWritePostAttentionGeneralWriteTruePile'
     bam_share_attention_mlp_write_activation = True
     bam_shared_write_activation_input = 'post_attention'

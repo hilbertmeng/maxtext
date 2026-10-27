@@ -18053,17 +18053,30 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODynamicNormScaleTruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75TruePile):
     """Native reference: per-head32-coordinate affine scale on dynamic O address RMSNorm."""
-    # Native implementation on main; not launched. Dynamic sigmoid max1; static gate is1.1*sigmoid.
+    # Native reference on main; formal Pallas run uses runtime below. Dynamic sigmoid max1; static gate is1.1*sigmoid.
     # Effective initializer is configurable, no +1 offset. Static O and V untouched; gamma=1 preserves parent init.
     # Adds18*16*32=9216 parameters (+.00213%); MLP2510/1128/tail3904 unchanged. Existing scale WD exclusion retained.
     # CPU reference/all-grad, BF16, initializer, budget and WD checks in bam_local_o_dynamic_norm_scale_test.py.
-    # Pallas launch code_commit: 881f991 (claude/o-dyn-norm-scale-pallas; read+write Pallas, gamma in v8t read); v5p16 s13500 AOT ready.
+    # code_commit: 881f991; claude/o-dyn-norm-scale-pallas,/data0/xd/o-dyn-norm-scale-pallas; runtime Pallas read+write=True.
+    # UE5a v5p16 xd-v5p-16-310385-maxtext; plan13500; actual FIRST_STEP, exact AOT loaded; startup20..99 .691188step/s.
+    # Generic health ON, internal+BAM stats OFF; tunedSplash; compare direct M32 parent; native below keeps Pallas disabled.
+    # Init1 terminal R bet1.005; see mediumprop_local_o_dynamic_norm_init.md for sealed launch evidence.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODynamicNormScaleTruePile'
     bam_local_o_dynamic_norm_scale = True
     bam_local_o_dynamic_norm_scale_init = 1.0
     bam_pallas_core = False
     bam_pallas_write = False
     compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75TruePile']
+
+
+class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODynamicNormScale050TruePile(
+    BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODynamicNormScaleTruePile):
+    """Native reference: dynamic local-O norm scale initialized to .5."""
+    # code_commit: 2662b39; codex/local-o-dynamic-norm-init,/data0/xd/local-o-dynamic-norm-init; runtime Pallas read+write=True.
+    # UE5a v5p16 xd-v5p-16-310384-maxtext; plan13500; actual FIRST_STEP, exact AOT loaded; startup20..99 .689788step/s.
+    # Same432121408 params/MLP2510,1128,tail3904 as init1; only effective gamma initializer differs. Terminal R bet1.01.
+    model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODynamicNormScale050TruePile'
+    bam_local_o_dynamic_norm_scale_init = 0.5
 
 
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio1to1SeparateVOKeysLogitDiagNegativeQK75TruePile(

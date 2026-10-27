@@ -4130,6 +4130,19 @@ class BamAttention(Attention):
                 if fused else self._static_gate(name, inputs_q))
         return self._pad_read_heads(gate / init, -1)
       static_gates = tuple(static_multiplier(arm) for arm in 'qkvo')
+    # DropHead [B,T,N,1] scales the O read linearly, so fold its 0/1 keep into the O gates
+    # (dynamic logit -> -inf, static gate * 0) and apply 1/(1-p) after the read: exact, no kernel change.
+    drop_head_rate = float(getattr(cfg, 'bam_local_o_drop_head_rate', 0.0))
+    o_keep = self._o_dropout_multiplier(inputs_q, drop_head_rate, 1, deterministic)
+    o_logits = logits('W_R_gate', True)
+    if o_keep is not None:
+      o_keep = o_keep[..., 0] > 0
+      o_logits = jnp.where(o_keep, o_logits, jnp.asarray(-jnp.inf, o_logits.dtype))
+      if static_gates is None:
+        static_gates = tuple(jnp.ones(inputs_q.shape[:2] + (self.num_query_heads,), self.dtype)
+                             for _ in 'qkv') + (o_keep.astype(self.dtype),)
+      else:
+        static_gates = static_gates[:3] + (jnp.where(o_keep, static_gates[3], 0),)
     weight = bam_pallas.static_weight(
         self.static_q_key, self.static_k_key,
         (jnp.zeros_like(self.static_o_key) if not self._has_value_m_read
@@ -4167,7 +4180,7 @@ class BamAttention(Attention):
     with jax.named_scope('bam/pallas_read'):
       outs = bam_pallas.read(
           M_in, weight, q_key, logits('W_lq_gate', False), k_key, logits('W_lk_gate', False),
-          vo_key, logits('W_R_gate', True), logits('W_lv_gate', False), query, key,
+          vo_key, o_logits, logits('W_lv_gate', False), query, key,
           qk_cols=self._qk_col_width, read_epsilon=self._read_key_epsilon,
           key_scale=self._read_key_scale,
           forward_tile=int(getattr(cfg, 'bam_pallas_read_tile', None) or 128),
@@ -4221,7 +4234,10 @@ class BamAttention(Attention):
     else:
       y_std, _ = self._attention_block(query, key, value, decoder_segment_ids,
                                        q0=0, s0=0, window_size=local_window)
-    local_output = self._regularize_local_o_heads(local_output, deterministic)
+    if o_keep is not None:
+      # Same kept-head factor as _o_dropout_multiplier.
+      local_output = local_output * (jnp.asarray(1, local_output.dtype)
+                                     / jnp.asarray(1.0 - drop_head_rate, local_output.dtype))
     o_head = y_std + local_output
     if not self._has_write:
       out = nn.with_logical_constraint(o_head, self.out_axis_names)

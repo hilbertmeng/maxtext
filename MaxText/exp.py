@@ -17936,6 +17936,7 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     """O-only inverted DropHead p=.2, [B,T,N,1]; preserve AV and all parent parameters."""
     # Native implementation on main; developed in codex/mediumprop-attention-diagonal-zero,/data0/xd/mediumprop-attention-diagonal-zero.
     # Formal RUN uses verified post-read Pallas DropHead; native reference via bam_pallas_core=False.
+    # Hot-switch candidate claude/drophead-gate-fold: keep folded into O dynamic/static gates before the v8t read.
     # MLP2510/1128/tail3904 and432112192 params unchanged; tunedSplash, generic healthON/internal+BAM OFF.
     # Evaluation disables dropout; training-objective CE must not be compared directly with the no-dropout parent.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODropHeadP020TruePile'
@@ -17951,6 +17952,18 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     """Same per-token O-only DropHead with stronger p=.4; all budgets unchanged."""
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODropHeadP040TruePile'
     bam_local_o_drop_head_rate = .4
+
+
+class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75V5p8Profile(TrainStepProfile, BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75TruePile):
+    """Timing/trace: Pallas parent without O dropout, formal batch16/device and health, on v5p-8."""
+    model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75V5p8Profile'
+    steps = 100
+
+
+class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODropHeadP020V5p8Profile(TrainStepProfile, BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODropHeadP020TruePile):
+    """Timing/trace: O DropHead p=.2, formal batch16/device and health, on v5p-8."""
+    model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODropHeadP020V5p8Profile'
+    steps = 100
 
 
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalOReadWeightDropoutP020TruePile(

@@ -18488,6 +18488,46 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75TruePile']
 
 
+class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75MLPInputMixG099WriteControlHTruePile(
+    BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75TruePile):
+    """Two residual-only input gates from existing MLPnorm(h); original h write controls.
+
+    Outer residual stays h=x+a. Ordinary/private MLPs receive separately
+    normalized g_x*x+a, sharing the existing MLP norm parameters.
+    The terminal layer has only the ordinary gate. New42035 parameters
+    (.00973%) are explicitly exempt from MLP repayment; widths stay2510/1128/3904.
+    """
+    model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75MLPInputMixG099WriteControlHTruePile'
+    bam_mlp_input_mix = True
+    bam_mlp_input_mix_gate_scale = 1.0
+    bam_mlp_input_mix_gate_init = .99
+    bam_mlp_input_mix_write_controls = False
+    bam_record_mlp_input_mix_health = True
+    compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75TruePile']
+
+
+class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75MLPInputMixG099WriteControlMixTruePile(
+    BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75MLPInputMixG099WriteControlHTruePile):
+    """Same sigmoid .99 mixtures; private write address/gate also use private mixture."""
+    model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75MLPInputMixG099WriteControlMixTruePile'
+    bam_mlp_input_mix_write_controls = True
+
+
+class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75MLPInputMixG100Scale2WriteControlHTruePile(
+    BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75MLPInputMixG099WriteControlHTruePile):
+    """2*sigmoid with zero kernel/bias, exact unit opening; original h write controls."""
+    model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75MLPInputMixG100Scale2WriteControlHTruePile'
+    bam_mlp_input_mix_gate_scale = 2.0
+    bam_mlp_input_mix_gate_init = 1.0
+
+
+class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75MLPInputMixG100Scale2WriteControlMixTruePile(
+    BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75MLPInputMixG100Scale2WriteControlHTruePile):
+    """Same exact-unit mixtures; private write address/gate also use private mixture."""
+    model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75MLPInputMixG100Scale2WriteControlMixTruePile'
+    bam_mlp_input_mix_write_controls = True
+
+
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MHAWriterEvery4KeepMemoryTruePile(
         BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1TruePile):
     """Every fourth layer uses standard attention, with a locally balanced M FFN."""

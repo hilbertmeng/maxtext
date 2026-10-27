@@ -317,7 +317,8 @@ class SubDecoderLayer(nn.Module):
     # Serial Pythia includes this layer's attention update before the MLP.
     parallel_mlp = cfg.decoder_block == 'pythia' and cfg.pythia_parallel_residual
     mlp_input = inputs if parallel_mlp else intermediate_inputs
-    hidden_states = normalizations.get_decoder_norm("post_self_attention_layer_norm", cfg)(mlp_input)
+    mlp_norm = normalizations.get_decoder_norm("post_self_attention_layer_norm", cfg)
+    hidden_states = mlp_norm(mlp_input)
     hidden_states = nn.with_logical_constraint(
         hidden_states, ("activation_batch", "activation_norm_length", "activation_embed")
     )
@@ -337,6 +338,43 @@ class SubDecoderLayer(nn.Module):
       raise ValueError('Compact writes require a memory MLP and unscaled per-head gates')
     if memory_write_heads and (cfg.bam_write_factor_norm != 'rms' or cfg.bam_write_address_norm_bias):
       raise ValueError('Compact writes require parameter-free factor RMS normalization')
+    ordinary_inputs = memory_inputs = write_control_inputs = hidden_states
+    if getattr(cfg, 'bam_mlp_input_mix', False):
+      if parallel_mlp or share_memory_hidden or cfg.shared_experts != 1 or cfg.num_experts != 1:
+        raise ValueError('MLP input mixing requires serial independent dense MLPs')
+      branches = 2 if mlp_write and memory_mlp_dim else 1
+      gate_scale = float(cfg.bam_mlp_input_mix_gate_scale)
+      opening = float(cfg.bam_mlp_input_mix_gate_init)
+      if not 0. < opening < gate_scale:
+        raise ValueError('MLP input mix opening must lie inside its gate range')
+      logits = linears.DenseGeneral(
+          features=branches, axis=-1, use_bias=False,
+          kernel_init=initializers.contant_dense_init(0.0), kernel_axes=('embed', None),
+          dtype=cfg.dtype, weight_dtype=cfg.weight_dtype,
+          quant=self.quant, matmul_precision=cfg.matmul_precision,
+          name='mlp_input_mix_gate')(hidden_states)
+      bias = self.param('mlp_input_mix_gate_bias', nn.with_logical_partitioning(
+          nn.initializers.constant(math.log(opening / (gate_scale - opening))),
+          (None,)), (branches,), cfg.weight_dtype)
+      gates = (gate_scale * jax.nn.sigmoid(
+          logits.astype(jnp.float32) + jnp.asarray(bias, jnp.float32))).astype(cfg.dtype)
+      ordinary_inputs = mlp_norm(gates[..., 0:1] * inputs + attention_lnx)
+      ordinary_inputs = nn.with_logical_constraint(
+          ordinary_inputs, ('activation_batch', 'activation_norm_length', 'activation_embed'))
+      if branches == 2:
+        memory_inputs = mlp_norm(gates[..., 1:2] * inputs + attention_lnx)
+        memory_inputs = nn.with_logical_constraint(
+            memory_inputs, ('activation_batch', 'activation_norm_length', 'activation_embed'))
+        if cfg.bam_mlp_input_mix_write_controls:
+          write_control_inputs = memory_inputs
+      if getattr(cfg, 'bam_record_mlp_input_mix_health', False) and not self.is_initializing():
+        # Effective mixture, not the common scale removed by the following RMSNorm.
+        applied = gates.astype(jnp.float32)
+        alpha = 1. / (1. + applied)
+        axes = tuple(range(alpha.ndim - 1))
+        mean = jnp.mean(alpha, axis=axes)
+        std = jnp.sqrt(jnp.mean(jnp.square(alpha - mean), axis=axes))
+        self.sow('intermediates', 'mlp_input_mix_stats', jnp.stack((mean, std), axis=-1).reshape(-1))
     memory_lnx = None
     if memory_mlp_dim:
       if not (cfg.bam_enabled and cfg.shared_experts == 1 and cfg.num_experts == 1):
@@ -362,7 +400,7 @@ class SubDecoderLayer(nn.Module):
             quant=self.quant, kernel_init=initializers.get_bam_init(
                 cfg, fallback=initializers.get_init_method(cfg.init_method)),
             use_bias=False)(
-                hidden_states, deep_embedding=deep_embedding,
+                memory_inputs, deep_embedding=deep_embedding,
                 decoder_input_tokens=decoder_input_tokens, deterministic=deterministic)
     if cfg.shared_experts == 1:
       # MLP block.
@@ -383,7 +421,7 @@ class SubDecoderLayer(nn.Module):
           bam_memory_controls_from_hidden=bool(
               getattr(cfg, 'bam_memory_controls_from_hidden', True)),
           use_bias=cfg.decoder_block == 'pythia',
-      )(hidden_states, deep_embedding=deep_embedding, decoder_input_tokens=decoder_input_tokens, deterministic=deterministic)
+      )(ordinary_inputs, deep_embedding=deep_embedding, decoder_input_tokens=decoder_input_tokens, deterministic=deterministic)
       if share_memory_hidden and mlp_write:
         if compact_controls:
           mlp_lnx, memory_lnx, memory_address, memory_logits = mlp_lnx
@@ -462,7 +500,7 @@ class SubDecoderLayer(nn.Module):
                 cfg, fallback=initializers.get_init_method(cfg.init_method)),
             kernel_axes=('embed', 'q_heads'), dtype=cfg.dtype, weight_dtype=cfg.weight_dtype,
             quant=self.quant, matmul_precision=cfg.matmul_precision,
-            name='mlp_write_gate')(hidden_states)
+            name='mlp_write_gate')(write_control_inputs)
       memory_write_eps = getattr(cfg, 'bam_memory_write_eps', None)
       if memory_write_eps is None:
         memory_write_eps = cfg.bam_write_eps
@@ -481,7 +519,7 @@ class SubDecoderLayer(nn.Module):
               cfg, fallback=initializers.get_init_method(cfg.init_method)),
             kernel_axes=('embed', None), dtype=cfg.dtype, weight_dtype=cfg.weight_dtype,
             quant=self.quant, matmul_precision=cfg.matmul_precision,
-            name='mlp_address_down')(hidden_states)
+            name='mlp_address_down')(write_control_inputs)
         independent_address = linears.DenseGeneral(
             features=(write_heads, cfg.bam_v), axis=-1, use_bias=True,
             kernel_init=initializers.get_bam_init(

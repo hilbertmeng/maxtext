@@ -3269,6 +3269,10 @@ class BamAttention(Attention):
       # parent parameters must stay identical for the gain=1 control.
       self.local_o_scale = self._constant_general_parameter(
           'local_o_scale', (1,), (None,), cfg.bam_local_o_scale_init)
+    if self._local_o and getattr(cfg, 'bam_local_o_dynamic_norm_scale', False):
+      self.local_o_dynamic_norm_scale = self._constant_general_parameter(
+          'local_o_dynamic_norm_scale', (self._read_head_count('o'), self._read_bam_v),
+          ('q_heads', 'kv'), cfg.bam_local_o_dynamic_norm_scale_init)
 
   def _constant_general_parameter(self, name, shape, axes, value=0.):
     # Constants need no random key; keep the parent's init RNG counters intact.
@@ -3604,7 +3608,7 @@ class BamAttention(Attention):
       compressed_M = self._compress_m(M)
     read, o_logits = self._read_fetched_m(
         compressed_M, x, ungated=True, shared_hidden=shared_hidden,
-        column_weight_multiplier=o_column_weight_multiplier)
+        column_weight_multiplier=self._dynamic_local_o_multiplier(o_column_weight_multiplier))
     v_logits = self._project_read_gate_logits('W_lv_gate', x)
     self._record_concat_gate('local_v', v_logits)
     v_logits = self._pad_read_heads(v_logits, -2, -jnp.inf)
@@ -3620,6 +3624,17 @@ class BamAttention(Attention):
       self.sow('intermediates', 'concat_vo_gate_pair', jnp.stack((
           jnp.mean(jnp.abs(v-o)), jnp.sqrt(jnp.mean((v-o)**2)), correlation)))
     return self._gate_local_output(v_read, v_logits), self._gate_local_output(read, o_logits)
+
+  def _dynamic_local_o_multiplier(self, multiplier=None):
+    """Post-RMS [N,V] affine scale, applied to dynamic O only; static O is separate.
+
+    Combine with a sampled address-dropout mask without detaching this learned
+    parameter. It must never be applied to the V read or before address RMSNorm.
+    """
+    if not getattr(self.config, 'bam_local_o_dynamic_norm_scale', False):
+      return multiplier
+    scale = self._pad_read_heads(self.local_o_dynamic_norm_scale, -2, 1.)
+    return scale if multiplier is None else multiplier * scale.astype(multiplier.dtype)
 
   def _matrix_for_read(self, M_in):
     """Select the configured read-side view without changing the raw matrix stream."""
@@ -4405,7 +4420,8 @@ class BamAttention(Attention):
       if not self._has_value_m_read:
         # O still needs the shared VO key/read. No V static read or dynamic gate survives.
         local_output = self._read_fetched_m(
-            self._compress_m(Mh), inputs_q, shared_hidden=full_m_shared_hidden)[0]
+            self._compress_m(Mh), inputs_q, shared_hidden=full_m_shared_hidden,
+            column_weight_multiplier=self._dynamic_local_o_multiplier(o_column_weight_multiplier))[0]
         if self._static_vo:
           local_output = local_output + self._static_column(Mh, 'o', inputs_q)
       elif self._vo_independent_gates:

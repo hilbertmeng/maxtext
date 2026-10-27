@@ -90,3 +90,36 @@ tb-sync-receipt JSON and tb-sync.log. Reserved FLEX compiler retained.
 New pre-mask arms continue with QK80 retained as the stronger reference.
 First figures show only the three variants versus SeparateVO; redundant
 combination-vs-component curves were removed at the user's request.
+
+## Paired common21.5k closeout
+
+Both44141a7 arms paused at committedCP21544 (pre-only) and21557 (combination),
+with original28k LR/AOT plans retained. Fixed2k/20k checkpoints, independent
+node/queue absence and local TB synchronization verified. Both P0. This is a
+common-window result, not a measured28k terminal outcome.
+
+| Arm | Absolute gain vs SeparateVO | MHA-ref R vs SeparateVO | MHA-ref R vs serial Mudd |
+|---|---:|---:|---:|
+| Pre-only | 0.0026438 | 1.0271519 | 1.4899059 |
+| QK80 | 0.0038426 | 1.0394637 | 1.5077643 |
+| Combination | 0.0054644 | 1.0561196 | 1.5319241 |
+
+Pre-only peaks mid-run, then narrows and finishes below QK80; retain it as the
+four-run control. Combination is the best arm:versus QK80 final gap-.0016218,
+ratio1.0160236, final5mean gap-.00178476/ratio1.01748689. It lifts the gain level
+while the overall BAM/Mudd gain-ratio decay remains visible. Use combination as
+this family's next baseline, with QK80 retained as its strong direct control.
+
+Symmetric additivity Q final0.8424396, final5mean0.8462997.
+At21.5k the standalone gains .0026438+.0038426=.0064864 yield combination
+.0054644. Late Q fluctuates around.85; it neither preserves early super-additivity
+nor keeps falling monotonically. The pre1.05/combination1.08 common-horizon
+predictions were optimistic versus observed1.02715/1.05612.
+
+Exact native packets, four-way common samples, frozen references, source hashes,
+figures and Q stage trends:task reports/*final-21500*.json and figures/.
+Resource/checkpoint/TB evidence:closeout/pre/ and closeout/combo/.
+
+pre:v5p128 UE5a, one READY lease UTC2026-10-26T16:19:18Z to2026-10-27T11:19:25Z (19h00m07s),P0. The end is the pause boundary followed by verified release.
+
+combo:v5p128 UE5a, one READY lease UTC2026-10-26T16:21:37Z to2026-10-27T11:32:08Z (19h10m31s),P0. The end is the pause boundary followed by verified release.

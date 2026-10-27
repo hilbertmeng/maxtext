@@ -17261,9 +17261,13 @@ class BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640S
     No trainable parameter change:2,775,189,600. The60MiB scoped budget
     matches the sealed independent-VO parent (reverse needs58.13MiB).
     """
-    # code_commit:44141a7; UE5a v5p-128 global1024/B16; health ON/internal+BAM OFF, minimal remat.
-    # Exact AOT loaded, worker HEAD/FIRST_STEP/CP0 verified; steps20..39 .320341step/s, matched parents~.317.
-    # Explicit60MiB VMEM compiled and ran on physical64MiB; MLP/parameter tree unchanged vs matching parent.
+    # code_commit:44141a7; UE5a v5p-128 global1024/B16, health ON/internal+BAM OFF, minimal remat.
+    # Paused CP21544/28000 at common21.5k; CP/fixed2k+20k committed, node+queue absent, TB synced; P0.
+    # Conclusion:positive versus SeparateVO, but mid-run benefit narrows later; QK80 remains the stronger standalone arm.
+    # vs SeparateVO gap-.002864@2k ->-.004956@8.5k ->-0.002644; final5 -0.002781/R1.028287, last R1.027152.
+    # vs MHA gap-0.100014, Mudd gap-0.032886/R1.489906 (final5 R1.496419).
+    # Matched startup20steps20..39 0.320341step/s versus parent~.317; no material speed regression or parameter change vs matching parent.
+    # VMEM60MiB verified on physical64MiB; M80x64/MLPs unchanged. Common21.5k prior R1.05 optimistic; full28k endpoint unmeasured.
     model_name = 'BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640SeparateVOKeysLogitDiagNegative'
     bam_attention_negative_diagonal = True
     bam_pallas_vmem_mib = 60
@@ -17279,9 +17283,15 @@ class BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640S
     2,775,190,880:only1280 additional norm scales vs the pre-only class;
     the negligible .0000461% cost leaves all MLP widths unchanged.
     """
-    # code_commit:44141a7; UE5a v5p-128 global1024/B16; health ON/internal+BAM OFF, minimal remat.
-    # Exact AOT loaded, worker HEAD/FIRST_STEP/CP0 verified; steps20..39 .316482step/s, matched parents~.317.
-    # Explicit60MiB VMEM compiled and ran on physical64MiB; MLP/parameter tree unchanged vs matching parent.
+    # code_commit:44141a7; UE5a v5p-128 global1024/B16, health ON/internal+BAM OFF, minimal remat.
+    # Paused CP21557/28000 at common21.5k; CP/fixed2k+20k committed, node+queue absent, TB synced; P0.
+    # Conclusion:best of the three; persistent added gain over QK80 with partial additivity, while BAM/Mudd decay remains.
+    # vs SeparateVO R1.0322@2k ->1.0578@8k ->1.056120; final gap-0.005464, final5 -0.005474/R1.055676.
+    # vs QK80 final gap-0.001622/R1.016024; final5 gap-0.001785/R1.017487; vs pre-only gap-0.002821.
+    # Symmetric Q final0.842440/final5 0.846300:late~.85, not full addition; native four-run common samples.
+    # vs MHA gap-0.102835, Mudd gap-0.035707/R1.531924 (final5 R1.536274).
+    # Matched startup20steps20..39 0.316482step/s versus parent~.317; no material speed regression or parameter change vs matching parent.
+    # VMEM60MiB verified on physical64MiB; M80x64/MLPs unchanged. Common21.5k prior R1.08 optimistic; full28k endpoint unmeasured.
     model_name = 'BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640SeparateVOKeysLogitDiagNegativeQK80'
     bam_attention_negative_diagonal = True
     compare_runs = ['BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640SeparateVOKeysLogitDiagNegative']

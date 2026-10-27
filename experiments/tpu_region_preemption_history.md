@@ -27,6 +27,8 @@ active leases are censored, and manual migration releases are not preemptions.
 
 | RUN | TPU | Zone | Start UTC | End UTC | End reason | Passive candidates |
 |---|---|---|---|---|---|---|
+| `BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640SeparateVOKeysLogitDiagNegativeQK80` | v5p-128 (`xd-v5p-128-logit-pre-qk80-1026`) | `us-east5-a` | 2026-10-26 16:16:45 | 2026-10-27 11:32:08 | common21.5k pause21557/P0; CP/fixed2k+20k committed, node+QR independently absent, TB synced; runtime44141a7; original28k schedule retained | EW4b backup policy; no active switch |
+| `BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640SeparateVOKeysLogitDiagNegative` | v5p-128 (`xd-v5p-128-logit-pre-1026`) | `us-east5-a` | 2026-10-26 16:14:08 | 2026-10-27 11:19:25 | common21.5k pause21544/P0; CP/fixed2k+20k committed, node+QR independently absent, TB synced; runtime44141a7; original28k schedule retained | EW4b backup policy; no active switch |
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODynamicNormScaleTruePile` | v5p-16 (`xd-v5p-16-310385-maxtext`) | `us-east5-a` | 2026-10-27 06:22:21 | 2026-10-27 10:24:29 | user stop9025/P1; CP9025/TB secured, TPU hot-transferred to gamma.1 after FIRST_STEP; runtime881f991 | none |
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalOReadWeightDropoutP020TruePile` | v5p-16 (`xd-v5p-16-310381-maxtext`) | `us-east5-a` | 2026-10-27 04:29:51 | 2026-10-27 08:30:15 | user stop8076/P2; CP committed,TB SYNC_OK,node+QR independently absent; runtime2655622 | none |
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalOScale050TruePile` | v5p-16 (`xd-v5p-16-310382-maxtext`) | `us-east5-a` | 2026-10-27 05:12:49 | 2026-10-27 08:30:18 | user stop6756/P2; CP committed,TB SYNC_OK,node+QR independently absent; runtimede9b370 | none |
@@ -2005,6 +2007,8 @@ active leases are censored, and manual migration releases are not preemptions.
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalOScale050TruePile` | 3 | `us-east5-a` | 2026-10-27 07:34:03 | 2026-10-27 08:30:18 | 56m15s | run_stop |
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalOScale100TruePile` | 4 | `us-east5-a` | 2026-10-27 08:18:48 | 2026-10-27 08:30:21 | 11m33s | run_stop |
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODynamicNormScaleTruePile` | 2 | `us-east5-a` | 2026-10-27 06:39:26 | 2026-10-27 10:24:29 | 3h45m03s | hot_switch_run_boundary |
+| `BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640SeparateVOKeysLogitDiagNegative` | 1 | `us-east5-a` | 2026-10-26 16:19:18 | 2026-10-27 11:19:25 | 19h00m07s | common21.5k pause21544/P0; CP/fixed2k+20k committed, node+QR absent, TB synced; end is pause boundary, followed by release |
+| `BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640SeparateVOKeysLogitDiagNegativeQK80` | 1 | `us-east5-a` | 2026-10-26 16:21:37 | 2026-10-27 11:32:08 | 19h10m31s | common21.5k pause21557/P0; CP/fixed2k+20k committed, node+QR absent, TB synced; end is pause boundary, followed by release |
 
 | `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadT8192` | 1 | `us-east5-a` | 2026-10-13 01:40:37 | 2026-10-13 06:51:38 | 5h11m01s | manual review stop7140; resources absent, TB SYNC_OK |
 

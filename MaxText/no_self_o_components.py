@@ -13,7 +13,8 @@ _INSTALLED=False
 
 def split(args,kw):
  m,st,qkey,_,_,_,vo,ol=args[:8];ids=base.positions(m.shape[1]);n=qkey.shape[2];dt=m.dtype
- assert vo.shape[2]==2*n and st.shape[0]==4*n
+ assert vo.shape[2]==2*n and st.shape[0]>=4*n, (vo.shape,st.shape,qkey.shape)
+ # Public bam_pallas.read carries compression rows after4N static rows; v8t ignores that tail.
  r=vo[:,ids,n:,:].astype(jnp.float32)
  # Sequential sum matches v8t _tm_slabs, including normalized generalized pre-bias.
  ss=r[...,0]*r[...,0]

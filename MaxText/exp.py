@@ -18006,10 +18006,13 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalOReadWeightDropoutP020TruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75TruePile):
     """O address dropout p=.2, [B,T,N,V]; one mask on static+dynamic effective weights."""
-    # Native implementation on main; developed in codex/mediumprop-attention-diagonal-zero,/data0/xd/mediumprop-attention-diagonal-zero.
-    # Not launched. Pure-JAX read reference for the separately developed Pallas adapter; tuned Splash retained.
-    # Pallas launch candidate code_commit: 2655622 (claude/o-read-dropout-pallas, bam_pallas_core=True); v5p16 s13500 AOT ready.
-    # No post-dropout RMSNorm. No new parameters or MLP budget changes. Eval disables dropout.
+    # Native reference on main; formal adapter in claude/o-read-dropout-pallas,/data0/xd/o-read-dropout-pallas.
+    # code_commit: 2655622; UE5a v5p16 xd-v5p-16-310381-maxtext; plan13500, no2800/5000 loss-based stopping reviews.
+    # Exact AOT/Loadedcompiled/FIRST_STEP0 verified. Sealed RUN bam_pallas_core=True; False below keeps main's native reference.
+    # MLP2510/1128/tail3904,432112192 params/M-cache unchanged; v8t48MiB/fusedinputs,tunedSplash,healthON/internal+BAM OFF.
+    # Startup20..99 .681282step/s vs parent.686768 (-.80%); excludes sparse eval cost. Bet terminal MHA-reference R1.01 [.98,1.04].
+    # Same-training-batch dropout-OFF eval_loss at native200 +/-20,10,0; compare only direct strongest combo parent.
+    # CPU18 checks passed; whole-model native/Pallas all-gradient maxrel6.52e-6. Details: mediumprop_local_o_read_weight_dropout.md.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalOReadWeightDropoutP020TruePile'
     bam_pallas_core = False
     enable_dropout = True

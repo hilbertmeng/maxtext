@@ -18061,6 +18061,8 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     # UE5a v5p16 xd-v5p-16-310385-maxtext; plan13500; actual FIRST_STEP, exact AOT loaded; startup20..99 .691188step/s.
     # Generic health ON, internal+BAM stats OFF; tunedSplash; compare direct M32 parent; native below keeps Pallas disabled.
     # Init1 terminal R bet1.005; see mediumprop_local_o_dynamic_norm_init.md for sealed launch evidence.
+    # v5p-8 paired trace vs parent: 881f991 read bwd57.4->65.1ms, step+7.7(-.50%); faster equivalent 7161995 (MXU dgamma
+    # row sum) read bwd62.3, step+4.7ms(~-.38%); v5p16 s13500 AOT exists; not hot-switched (gain<restart cost).
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODynamicNormScaleTruePile'
     bam_local_o_dynamic_norm_scale = True
     bam_local_o_dynamic_norm_scale_init = 1.0

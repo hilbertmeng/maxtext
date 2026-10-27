@@ -17975,6 +17975,7 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     # Native implementation on main; developed in codex/mediumprop-attention-diagonal-zero,/data0/xd/mediumprop-attention-diagonal-zero.
     # code_commit: db290e9; UE5a v5p16 xd-v5p-16-310379-maxtext; plan13500, AOT/FIRST_STEP verified.
     # Formal RUN uses verified post-read Pallas DropHead; native reference via bam_pallas_core=False.
+    # Hot-switch candidate code_commit: 3b70933 (claude/drophead-gate-fold): keep folded into O gates before v8t read; v5p16 s13500 AOT.
     # MLP2510/1128/tail3904 and432112192 params unchanged; tunedSplash, generic healthON/internal+BAM OFF.
     # Real eval_loss180..220 and native5-point report verified; train loss remains the optimization objective.
     # Startup20..99 .677221step/s vsparent.686768 (-1.39%); this window excludes sparse eval overhead.
@@ -18004,6 +18005,7 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     """O address dropout p=.2, [B,T,N,V]; one mask on static+dynamic effective weights."""
     # Native implementation on main; developed in codex/mediumprop-attention-diagonal-zero,/data0/xd/mediumprop-attention-diagonal-zero.
     # Not launched. Pure-JAX read reference for the separately developed Pallas adapter; tuned Splash retained.
+    # Pallas launch candidate code_commit: 2655622 (claude/o-read-dropout-pallas, bam_pallas_core=True); v5p16 s13500 AOT ready.
     # No post-dropout RMSNorm. No new parameters or MLP budget changes. Eval disables dropout.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalOReadWeightDropoutP020TruePile'
     bam_pallas_core = False

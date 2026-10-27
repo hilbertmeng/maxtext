@@ -108,7 +108,11 @@ No new kernel implementation; the retained FLEX compiler is borrowed and retaine
 Native registry stores each direct comparator plus its MHA-reference gain triple.
 Startup is recorded here once; routine monitoring belongs in registry/report artifacts.
 
-## First review: continuous L15-L17 VM closed
+## First review and subsequent strict-arm resumption
+
+Current status: strict-history three-site arm resumed from2727 after direct paired-trend
+reassessment; the restored-self three-site arm remains stopped3259. The initial stop
+evidence below is historical, not a terminal verdict for the resumed arm.
 
 Strict three-site arm stopped2727/P1 at its preserved preemption checkpoint. Its last5
 complete windows through2600 vs strongest parent have gap+.01125608/R.96603201.
@@ -135,3 +139,33 @@ Native reports, complete lease/resource/checkpoint/TB proof: artifact root above
 | --- | --- | --- | --- | --- |
 | MuddL15L16L17VML2TruePile | 2026-10-27 11:34:08 | 2026-10-27 12:54:38 | 1h20m30s | preempted |
 | MuddL15L16L17VML2RestoreSelfTruePile | 2026-10-27 11:25:21 | 2026-10-27 12:58:07 | 1h32m46s | run_stop |
+
+## Strict-history three-site resumption: compare trends at common steps
+
+The two experimental axes are layout (spaced L14/L17 vs dense L15/L16/L17) and
+VM-site diagonal policy (strict history vs self allowed). Compare layouts within each
+fixed policy; compare the policy within each fixed layout. Do not mix those questions.
+
+A read-only native registry comparison of dense versus spaced variants found that over
+common1600..2600, the strict dense arm's gap vs strongest parent was approximately flat
+(-.0000641/1k), whereas the strict spaced arm's gap rose(+.0032459/1k). Dense-minus-spaced
+gap narrowed at-.00331/1k and the direct MHA-reference gain ratio moved.972060->.974136
+(OLS+.0009093/1k). Thus the initial level-based stop was premature for the strict arm.
+For the self-allowed pair over common1600..3200, the raw gap also narrowed but its direct
+gain ratio moved.980544->.974950; it did not show the same relative-gain recovery.
+These short-window slopes describe observed trajectories and do not establish a terminal
+winner. Gain formulas remain in native run_registry; no new
+gain arithmetic is introduced in local plotting code.
+
+Strict three-site resumes the same RUN/source7d1b0fc/parameter tree/AOT/s13500 schedule
+from committed2727, on UE5a v5p16 xd-v5p-16-310388-maxtext. Actual worker first2728,
+AOT/source/data identity and next periodic CP2800 commit marker verified. Existing72-test
+source gate and sealed config remain valid; main-only later changes affect ledger/docs,
+not runtime infrastructure. Review at least5000 before judging its later recovery.
+Registry now retains native MHA-reference gain triples vs both strongest parent and
+strict spaced sibling; direct loss baseline remains the strongest parent.
+
+Analysis artifacts: `pair-trends-native.json`, `pair-trends-slopes.json`,
+`strong-vm-dense-vs-spaced-trend-20261027-131425-403174.png`; resumption proof in
+`strict-resumption.json`, `strict-resume-worker-proof.json`, and
+`strict-resume-cp2800-marker.txt` under the artifact root.

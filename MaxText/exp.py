@@ -18016,11 +18016,13 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75MuddL14L17VML2TruePile):
     """Move native VM sites to all three final layers; preserve every live M writer."""
     # ledger only: codex/mediumprop-strong-vm-tail,/data0/xd/mediumprop-strong-vm-tail; see strong_vm_tail.md.
-    # code_commit: 7d1b0fc; UE5a v5p16 xd-v5p-16-310388-maxtext; stopped 2727/P1.
-    # CP2727/TB SYNC_OK; node+QR independently absent; first VM review, not a measured13500 terminal result.
+    # code_commit: 7d1b0fc; UE5a v5p16 xd-v5p-16-310388-maxtext; resumed from CP2727 after paired trend review.
+    # Same AOT/13500 schedule; firstnew2728/source/data verified, CP2800 committed; observe at least5000.
+    # First stop2727/P1 was provisional; its checkpoint/TB and resource release were verified before resumption.
     # Startup20..99 0.636088 step/s (-7.38% vs strongest parent); healthON/internal+BAM OFF.
     # vs strongest parent: persistent~.01 loss deficit, gain ratio downtrend; last5 through2600 +.01125608/R.96603201.
-    # Preempted at CP2727; ended recovery because the three-site variant offered no competitive gain.
+    # Strict dense vs strict spaced: direct MHA-ref R .9721->.9741 over common1600..2600; late flattening/tentative recovery.
+    # Earlier level-based stop withdrawn for this arm; registered gain comparisons now include the spaced sibling.
     # Params432420828, including309020 exempt native-router params; QK93/O M reads and live writes retained.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75MuddL15L16L17VML2TruePile'
     bam_mudd_pre_tail_vm = False

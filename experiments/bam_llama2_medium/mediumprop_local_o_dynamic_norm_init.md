@@ -105,3 +105,34 @@ AOT on the verified idle FLEX_START llm-jax-v6e-1-0 EW4a worker0, retained.
 AOT state: tpu-ag `/home/lishengping/xd/projects/aot_runs/34d61c2-ce6479c6.json`.
 Fresh-source/AOT/FIRST_STEP, old closeout, ownership and report artifacts:
 `/data0/xd/bam_diagnostics/mediumprop-dynamic-o-norm-init-010-hot/`.
+
+## Init .5 completed 13500 (2026-10-27)
+
+Runtime2662b39, v5p-16 xd-v5p-16-310384-maxtext, UE5a throughout, P3.
+Committed CP13500, independent node/queue absence checks and final TensorBoard SYNC_OK verified.
+Final5(12600..13400) vs the registered strongest M32 parent: gap-.00169960,
+MHA-reference gain ratio1.00966719, matching the prelaunch1.01 bet. Initial deficit
+turned positive around1.6k; a small gain persisted over middle/late training to the end.
+Parameters432121408 and widths2510/1128/tail3904 unchanged; startup.689788step/s.
+
+Complete18-layer health profiles are retained, not only first/last/median summaries.
+At13450, parameter RMS spans 0.492544..0.516574; early layers often fall below.5 while
+deep layers rise, and the layer median remains.499830. All18 raw-gradient tags are
+finite and nonzero. These are RMS values, not signed means or actual O/context output ratios.
+Compared with the failed total-O scalar controls, this result is consistent with retaining
+the independently learned static-O contribution while moderating dynamic O. It does not
+establish a monotonic benefit from ever-smaller initial scales.
+
+Final loss/gain figure: `dynamic-o-norm-13400-5600-20261027-124910-848722.png`.
+Full layer-health figure: `dynamic-o-norm-full-layer-health-20261027-125158-512099.png`.
+Source snapshots/provenance and final resource/lease/TB proof live in
+`/data0/xd/bam_diagnostics/mediumprop-dynamic-o-norm-init-010-hot/`.
+
+All READY leases, UTC (final endpoint is clean completion):
+
+| Start | End | Duration | Exit |
+| --- | --- | --- | --- |
+| 2026-10-27 06:29:36 | 2026-10-27 06:35:51 | 6m15s | preempted |
+| 2026-10-27 06:42:35 | 2026-10-27 07:02:31 | 19m56s | preempted |
+| 2026-10-27 07:10:53 | 2026-10-27 07:26:47 | 15m54s | preempted |
+| 2026-10-27 07:34:04 | 2026-10-27 12:49:25 | 5h15m21s | run_stop |

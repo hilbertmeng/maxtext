@@ -703,6 +703,8 @@ active leases are censored, and manual migration releases are not preemptions.
 
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MuddL14VML17VML2TruePile` | v5p-16 (`xd-v5p-16-310329-maxtext`) | `us-east5-a` | 2026-10-23 16:07:40 | 2026-10-23 22:01:09 | completed13500; CP13500 committed, node/queue independently absent, TB SYNC_OK; P0; runtime607ee54; retained no-L1 hot-handoff trainer | none |
 
+| `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODynamicNormScale050TruePile` | v5p-16 (`xd-v5p-16-310384-maxtext`) | `us-east5-a` | 2026-10-27 06:29:32 | 2026-10-27 12:49:25 | complete13500/P3; CP13500/TB SYNC_OK; node+QR independently absent; runtime2662b39 | none |
+
 ## READY leases
 
 | RUN | # | Zone | Start UTC | End UTC | Duration | Exit |
@@ -1975,71 +1977,25 @@ active leases are censored, and manual migration releases are not preemptions.
 | `BamMediumPropSharedR256GeneralReadMShiftReadG005TruePile` | 1 | `us-east5-a` | 2026-10-13 05:33:55 | 2026-10-13 06:29:30 | 0h55m35s | preempted |
 | `BamMHAMediumPropT8192SplashTruePile` | 1 | `us-east5-a` | 2026-10-13 01:41:46 | 2026-10-13 06:51:29 | 5h09m43s | manual review stop9639; resources absent, TB SYNC_OK |
 | `MuddLlama2MediumPropT8192SplashTruePile` | 1 | `us-east5-a` | 2026-10-13 01:40:20 | 2026-10-13 06:51:34 | 5h11m14s | manual review stop8908; resources absent, TB SYNC_OK |
-| `BamPythiaMediumPropT2048SerialMLPPythiaEmbeddingScaledWrite` | 1 | `us-east5-a` | 2026-10-15 16:47:47 | 2026-10-15 20:00:09 | 3h12m22s | preempted |
-| `BamPythiaMediumPropT2048SerialMLPPythiaEmbeddingScaledWrite` | 2 | `us-east5-a` | 2026-10-15 20:07:17 | 2026-10-15 23:37:24 | 3h30m07s | preempted |
-| `BamPythiaMediumPropT2048SerialMLPPythiaEmbeddingScaledWrite` | 3 | `us-east5-a` | 2026-10-15 23:43:12 | 2026-10-16 00:35:27 | 52m15s | complete13500; CP13500 committed, resources absent, TB SYNC_OK |
-| `BamMediumPropMShiftReadG050MuddVMQKVMSharedRouterLastTwoBlocksL2AnchorTruePile` | 1 | `us-east5-a` | 2026-10-23 01:30:10 | 2026-10-23 04:55:38 | 3h25m28s | preempted; first prequeue READY; registry subinterval01:30:18–04:55:38=3h25m20s |
-| `BamMediumPropMShiftReadG050DedicatedMemoryMLPMHAWidthTruePile` | 1 | `us-east5-a` | 2026-10-23 05:28:56 | 2026-10-23 06:31:51 | 1h02m55s | preempted; first prequeue READY |
-| `BamMediumPropMShiftReadG050SharedHiddenMemoryMLPTruePile` | 1 | `us-east5-a` | 2026-10-23 06:12:03 | 2026-10-23 06:31:53 | 19m50s | preempted; first prequeue READY |
-| `BamMediumPropMShiftReadG050MuddVMQKVMSharedRouterLastTwoBlocksL2AnchorTruePile` | 2 | `us-east5-a` | 2026-10-23 05:01:22 | 2026-10-23 07:19:09 | 2h17m47s | clean completion13500 and automatic release; CP committed, node/queue absent, TB SYNC_OK |
-| `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio3to1TruePile` | 1 | `us-east5-a` | 2026-10-23 06:27:44 | 2026-10-23 08:28:16 | 2h00m32s | preempted; first prequeue READY |
-| `BamMediumPropMShiftReadG050HalfMemoryMLPTruePile` | 1 | `us-east5-a` | 2026-10-23 07:13:43 | 2026-10-23 08:29:47 | 1h16m04s | review stop2998; first prequeue READY; registry subinterval07:13:54–08:29:47=1h15m53s; CP committed, resources absent, TB SYNC_OK |
-| `BamMediumPropMShiftReadG050DedicatedMemoryMLPMHAWidthTruePile` | 2 | `us-east5-a` | 2026-10-23 06:37:36 | 2026-10-23 08:54:47 | 2h17m11s | user stop7849; CP committed, resources absent, TB SYNC_OK |
-| `BamMediumPropMShiftReadG050SharedHiddenMemoryMLPTruePile` | 2 | `us-east5-a` | 2026-10-23 06:37:29 | 2026-10-23 08:56:44 | 2h19m15s | user stop6264; CP committed, resources absent, TB SYNC_OK |
-| `BamMediumPropMShiftReadG050SharedHiddenRank8WriteTruePile` | 1 | `us-east5-a` | 2026-10-23 07:59:32 | 2026-10-23 09:13:44 | 1h14m12s | review stop3005; first prequeue READY; CP committed, resources absent, TB SYNC_OK |
-| `BamMediumPropMShiftReadG050SharedHiddenRank8InputControlsTruePile` | 1 | `us-east5-a` | 2026-10-23 07:59:37 | 2026-10-23 09:13:48 | 1h14m11s | review stop2983; first prequeue READY; CP committed, resources absent, TB SYNC_OK |
-| `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio3to1TruePile` | 2 | `us-east5-a` | 2026-10-23 08:35:31 | 2026-10-23 09:52:46 | 1h17m15s | review stop7795; CP committed, resources absent, TB SYNC_OK |
-| `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1TruePile` | 1 | `us-east5-a` | 2026-10-23 05:28:35 | 2026-10-23 11:02:11 | 5h33m36s | planned completion13500; first prequeue READY, registry begins74s later; resources absent/TB SYNC_OK |
-| `BamMediumPropMShiftReadG050DedicatedMemoryMLPRank8R128H768TruePile` | 1 | `us-east5-a` | 2026-10-23 10:39:31 | 2026-10-23 12:11:54 | 1h32m23s | preempted; same-zone recovered from CP3682; first prequeue READY11s before registry |
-| `BamMediumPropMShiftReadG050DedicatedMemoryMLPRank8R128H768TruePile` | 2 | `us-east5-a` | 2026-10-23 12:19:26 | 2026-10-23 14:03:54 | 1h44m28s | user hot-replace8001; committed; trainer transferred, no deletion; TB SYNC_OK |
-| `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MuddQKVML2TruePile` | 1 | `us-east5-a` | 2026-10-23 11:34:38 | 2026-10-23 14:11:08 | 2h36m30s | user stop6166; committed, resources absent/TB SYNC_OK; prequeue READY83s before registry |
-| `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MuddVML2TruePile` | 1 | `us-east5-a` | 2026-10-23 11:34:43 | 2026-10-23 14:54:59 | 3h20m16s | user stop7904; CP committed, resources absent/TB SYNC_OK; first prequeue READY9s before registry |
-| `BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640SeparateVOKeysQK80` | 1 | `us-east5-a` | 2026-10-26 09:56:26 | 2026-10-27 05:01:53 | 19h05m27s | common-horizon pause21543/P0; CP/fixed2k+20k committed, node+QR independently absent, TB synced; end is pause boundary, followed by release |
-| `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalOScale100TruePile` | 1 | `us-east5-a` | 2026-10-27 05:12:59 | 2026-10-27 05:33:17 | 20m18s | preempted |
-| `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalOScale050TruePile` | 1 | `us-east5-a` | 2026-10-27 05:12:51 | 2026-10-27 05:33:18 | 20m27s | preempted |
-| `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODynamicNormScaleTruePile` | 1 | `us-east5-a` | 2026-10-27 06:29:10 | 2026-10-27 06:34:12 | 5m02s | preempted |
-| `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalOScale050TruePile` | 2 | `us-east5-a` | 2026-10-27 05:41:09 | 2026-10-27 07:25:51 | 1h44m42s | preempted |
-| `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalOScale100TruePile` | 2 | `us-east5-a` | 2026-10-27 05:40:56 | 2026-10-27 07:26:11 | 1h45m15s | preempted |
-| `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalOReadWeightDropoutP020TruePile` | 1 | `us-east5-a` | 2026-10-27 04:37:15 | 2026-10-27 07:26:27 | 2h49m12s | preempted |
-| `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalOScale100TruePile` | 3 | `us-east5-a` | 2026-10-27 07:33:46 | 2026-10-27 08:13:26 | 39m40s | preempted |
-| `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalOReadWeightDropoutP020TruePile` | 2 | `us-east5-a` | 2026-10-27 07:33:58 | 2026-10-27 08:14:14 | 40m16s | preempted |
-| `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalOReadWeightDropoutP020TruePile` | 3 | `us-east5-a` | 2026-10-27 08:22:48 | 2026-10-27 08:30:15 | 7m27s | run_stop |
-| `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalOScale050TruePile` | 3 | `us-east5-a` | 2026-10-27 07:34:03 | 2026-10-27 08:30:18 | 56m15s | run_stop |
-| `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalOScale100TruePile` | 4 | `us-east5-a` | 2026-10-27 08:18:48 | 2026-10-27 08:30:21 | 11m33s | run_stop |
-| `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODynamicNormScaleTruePile` | 2 | `us-east5-a` | 2026-10-27 06:39:26 | 2026-10-27 10:24:29 | 3h45m03s | hot_switch_run_boundary |
-| `BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640SeparateVOKeysLogitDiagNegative` | 1 | `us-east5-a` | 2026-10-26 16:19:18 | 2026-10-27 11:19:25 | 19h00m07s | common21.5k pause21544/P0; CP/fixed2k+20k committed, node+QR absent, TB synced; end is pause boundary, followed by release |
-| `BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640SeparateVOKeysLogitDiagNegativeQK80` | 1 | `us-east5-a` | 2026-10-26 16:21:37 | 2026-10-27 11:32:08 | 19h10m31s | common21.5k pause21557/P0; CP/fixed2k+20k committed, node+QR absent, TB synced; end is pause boundary, followed by release |
-
 | `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadT8192` | 1 | `us-east5-a` | 2026-10-13 01:40:37 | 2026-10-13 06:51:38 | 5h11m01s | manual review stop7140; resources absent, TB SYNC_OK |
-
 | `BamMediumPropSharedR256GeneralReadMShiftPersistG050TruePile` | 1 | `us-east5-a` | 2026-10-13 05:36:45 | 2026-10-13 07:34:00 | 1h57m15s | hot_switch_run_boundary |
-
 | `BamMediumPropSharedR256GeneralReadMShiftPersistG005TruePile` | 2 | `us-east5-a` | 2026-10-13 06:16:21 | 2026-10-13 07:38:23 | 1h22m02s | run_stop |
-
 | `BamMediumPropSharedR256GeneralReadMShiftReadG005TruePile` | 2 | `us-east5-a` | 2026-10-13 06:37:19 | 2026-10-13 08:05:44 | 1h28m25s | run_stop |
-
 | `BamMediumPropSharedR256GeneralReadMShiftReadQKVoG050TruePile` | 1 | `us-east5-a` | 2026-10-13 07:34:49 | 2026-10-13 08:51:30 | 1h16m41s | preempted; same-zone recovery |
-
 | `BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile` | 2 | `us-east5-a` | 2026-10-13 06:24:44 | 2026-10-13 08:52:19 | 2h27m35s | preempted |
 | `BamMediumPropSharedR256GeneralReadMShiftReadQKVoG050TruePile` | 2 | `us-east5-a` | 2026-10-13 08:57:34 | 2026-10-13 13:36:10 | 4h38m36s | review stop9198; resources absent, TB SYNC_OK |
 | `BamMediumPropSharedR256GeneralReadMShiftReadTwoLag532TruePile` | 1 | `us-east5-a` | 2026-10-13 12:23:47 | 2026-10-13 14:20:23 | 1h56m36s | effects review stop3086; resources absent, TB SYNC_OK |
-
 | `BamMediumPropSharedR256GeneralReadMShiftReadG050TruePile` | 3 | `us-east5-a` | 2026-10-13 09:01:05 | 2026-10-13 14:26:39 | 5h25m34s | complete13500; resources absent, TB SYNC_OK |
 | `BamMediumPropSharedR256GeneralReadAddressSharedGatesTruePile` | 1 | `us-east5-a` | 2026-10-13 14:56:04 | 2026-10-13 16:51:31 | 1h55m27s | review stop3234; CP3234 committed, resources released; no preemption |
-
 | `BamMediumPropMShiftReadG050ReadAttentionSharedR384TruePile` | 1 | `us-east5-a` | 2026-10-13 17:03:36 | 2026-10-13 19:01:33 | 1h57m57s | review stop3140; checkpoint committed, resources released |
-
 | `BamMediumPropSharedR256GeneralReadMShiftReadKVShiftG050TruePile` | 1 | `us-east5-a` | 2026-10-13 12:29:19 | 2026-10-13 21:21:13 | 8h51m54s | preempted; same-zone recovery |
-
 | `BamMediumPropSharedR256GeneralReadKVShiftG050TruePile` | 1 | `us-east5-a` | 2026-10-13 12:22:28 | 2026-10-13 21:33:09 | 9h10m41s | complete13500; final checkpoint committed, node/queue absent |
 | `BamMediumPropSharedR256GeneralReadMShiftReadKVShiftG050TruePile` | 2 | `us-east5-a` | 2026-10-13 21:28:10 | 2026-10-13 22:26:28 | 58m18s | complete13500; final checkpoint committed, node/queue absent |
 | `BamMediumPropMShiftReadG050ReadAttentionMLPSharedR256TruePile` | 1 | `us-east5-a` | 2026-10-13 23:28:33 | 2026-10-14 01:15:10 | 1h46m37s | review stop2861; CP committed, resources absent, TB synced |
-
 | `BamMediumPropMShiftReadG050ReadAttentionMLPSharedR384TruePile` | 1 | `us-east5-a` | 2026-10-13 17:00:53 | 2026-10-14 01:15:22 | 8h14m29s | complete13500; final CP committed, resources absent |
 | `BamMediumPropMShiftReadG050SharedR256R384ByWriteTruePile` | 1 | `us-east5-a` | 2026-10-13 23:28:31 | 2026-10-14 01:15:49 | 1h47m18s | review stop2859; CP committed, resources absent, TB synced |
 | `BamMediumPropMShiftReadG050ReadAttentionSharedR256TruePile` | 1 | `us-east5-a` | 2026-10-13 17:03:17 | 2026-10-14 01:21:11 | 8h17m54s | complete13500; final CP committed, resources absent |
 | `BamMediumPropMShiftReadG050CrossReadAttnR384ConservativeThirdsTruePile` | 1 | `us-east5-a` | ? | 2026-10-14 05:05:13 | ? | preempted |
-
 | `BamMediumPropMShiftReadG050CrossReadAttnR384DirectThirdsTruePile` | 1 | `us-east5-a` | 2026-10-14 04:51:49 | 2026-10-14 05:05:52 | 14m03s | preempted |
 | `BamMediumPropMShiftReadG050CrossTripleR512DirectThirdsTruePile` | 1 | `us-east5-a` | 2026-10-14 04:56:54 | 2026-10-14 05:05:57 | 9m03s | preempted |
 | `BamMediumPropMShiftReadG050CrossReadAttnR384DirectBlockTruePile` | 1 | `us-east5-a` | 2026-10-14 04:59:28 | 2026-10-14 05:06:01 | 6m33s | preempted |
@@ -2049,47 +2005,53 @@ active leases are censored, and manual migration releases are not preemptions.
 | `BamMediumPropMShiftReadG050CrossTripleR512ConservativeBlockTruePile` | 1 | `us-east5-a` | 2026-10-14 04:47:42 | 2026-10-14 07:20:01 | 2h32m19s | review stop3561; node/queue absent, TB SYNC_OK |
 | `BamMediumPropMShiftReadG050CrossTripleR384ConservativeInner384ThirdsTruePile` | 1 | `us-east5-a` | 2026-10-14 05:12:11 | 2026-10-14 07:20:05 | 2h7m54s | temporary stop, subsequently resume requested; node/queue absent, TB SYNC_OK |
 | `BamMediumPropMShiftReadG050CrossReadAttnR384DirectThirdsTruePile` | 3 | `us-east5-a` | 2026-10-14 07:33:20 | 2026-10-14 08:14:49 | 0h41m29s | preempted |
-
 | `BamMediumPropMShiftReadG050CrossTripleR512ConservativeThirdsTruePile` | 2 | `us-east5-a` | 2026-10-14 05:20:13 | 2026-10-14 08:32:41 | 3h12m28s | user-confirmed review stop5198; resources absent, TB SYNC_OK |
 | `BamMediumPropMShiftReadG050CrossTripleR384ConservativeInner384ThirdsTruePile` | 2 | `us-east5-a` | 2026-10-14 07:33:42 | 2026-10-14 08:32:44 | 0h59m02s | user-confirmed review stop4960; resources absent, TB SYNC_OK |
 | `BamMediumPropMShiftReadG050CrossTripleR512DirectBlockTruePile` | 1 | `us-east5-a` | 2026-10-14 04:47:42 | 2026-10-14 08:34:51 | 3h47m09s | user-confirmed review stop6200; resources absent, TB SYNC_OK |
 | `BamMediumPropMShiftReadG050CrossReadAttnR384DirectThirdsTruePile` | 4 | `us-east5-a` | 2026-10-14 08:22:06 | 2026-10-14 08:47:05 | 0h24m59s | user-confirmed review stop5157; node/queue absent, TB SYNC_OK |
 | `BamMediumPropMShiftReadG050CrossReadAttnR384ConservativeThirdsTruePile` | 2 | `us-east5-a` | 2026-10-14 05:12:57 | 2026-10-14 09:52:05 | 4h39m08s | user-authorized stop7538; resources absent |
 | `BamMediumPropMShiftReadG050CrossTripleR512DirectThirdsTruePile` | 2 | `us-east5-a` | 2026-10-14 05:12:21 | 2026-10-14 09:52:08 | 4h39m47s | user-authorized stop7713; resources absent |
+
 | `BamMediumPropMShiftReadG050CrossReadAttnR384ConservativeBlockTruePile` | 1 | `us-east5-a` | 2026-10-14 04:48:58 | 2026-10-14 10:45:22 | 5h56m24s | user stop9248; node/queue absent, TB SYNC_OK |
+
 | `BamXLPropMShiftReadG050ReadAttentionSharedR384TruePile` | 1 | `us-east5-a` | 2026-10-14 09:16:00 | 2026-10-14 10:49:31 | 1h33m31s | preempted |
+
 | `BamMediumPropMShiftReadG050SharedR384ReuseActivationMLPWriteTruePile` | 1 | `us-east5-a` | 2026-10-14 09:25:07 | 2026-10-14 11:22:16 | 1h57m09s | hot-switch boundary; TPU retained by new RUN; TB SYNC_OK |
+
 | `BamMHAMediumPropC256QKNormTruePile` | 1 | `us-east5-a` | 2026-10-14 11:24:55 | 2026-10-14 12:48:14 | 1h23m19s | preempted |
+
 | `BamMediumPropMShiftReadG050SharedR256ReuseActivationMLPWriteTruePile` | 1 | `us-east5-a` | 2026-10-14 09:25:07 | 2026-10-14 13:54:24 | 4h29m17s | user stop7719; node/queue absent, TB SYNC_OK |
+
 | `BamMHAMediumPropC256QKNormTruePile` | 2 | `us-east5-a` | 2026-10-14 12:57:01 | 2026-10-14 17:08:36 | 4h11m35s | complete13500; CP13500; resources absent; TB SYNC_OK |
 | `BamXLPropSharedR400GeneralReadMShiftReadG050TruePile` | 1 | `us-east5-a` | 2026-10-13 17:17:15 | 2026-10-14 18:28:28 | 25h11m13s | user stop33009; CP33009; resources absent; TB SYNC_OK |
 | `BamMediumPropMShiftReadG050FullQKNormTruePile` | 1 | `us-east5-a` | 2026-10-14 11:23:03 | 2026-10-14 19:24:54 | 8h01m51s | complete13500; CP13500; resources absent; TB SYNC_OK |
+
 | `PythiaMediumPropT2048` | 1 | `us-east5-a` | 2026-10-14 16:42:18 | 2026-10-14 21:54:18 | 5h12m00s | complete13500; CP13500; resources absent; TB SYNC_OK |
 | `MuddPythiaMediumPropT2048` | 1 | `us-east5-a` | 2026-10-14 16:41:57 | 2026-10-14 23:10:14 | 6h28m17s | complete13500; CP13500; resources absent; TB SYNC_OK |
-| `Llama2XLPropTruePileMHA` | 1 | `us-east5-a` | 2026-09-28 09:44:22 | by 2026-09-29 00:16:16 | ≤14h31m54s | paused for distinct-data extension; TPU/queue verified absent, no preemption |
 
 | `BamPythiaMediumPropT2048MShiftReadG050ReadAttentionSharedR256` | 1 | `us-east5-a` | 2026-10-14 16:43:51 | 2026-10-15 00:03:48 | 7h19m57s | complete13500; CP13500; resources absent; TB SYNC_OK |
-| `BamXLPropMShiftReadG050ReadAttentionSharedR384TruePile` | 2 | `us-east5-a` | 2026-10-14 10:55:54 | 2026-10-15 01:22:30 | 14h26m36s | user stop22295; CP committed, resources absent, TB SYNC_OK |
-| `Llama2XLPropTruePileMHAQKNorm` | 1 | `us-east5-a` | 2026-10-14 11:31:06 | 2026-10-15 01:47:29 | 14h16m23s | user stop26843; CP committed, resources absent, TB SYNC_OK |
 
+| `BamXLPropMShiftReadG050ReadAttentionSharedR384TruePile` | 2 | `us-east5-a` | 2026-10-14 10:55:54 | 2026-10-15 01:22:30 | 14h26m36s | user stop22295; CP committed, resources absent, TB SYNC_OK |
+
+| `Llama2XLPropTruePileMHAQKNorm` | 1 | `us-east5-a` | 2026-10-14 11:31:06 | 2026-10-15 01:47:29 | 14h16m23s | user stop26843; CP committed, resources absent, TB SYNC_OK |
 | `BamPythiaMediumPropT2048MShiftReadG050ReadAttentionSharedR256SerialMLP` | 1 | `us-east5-a` | 2026-10-15 01:01:09 | 2026-10-15 03:59:57 | 2h58m48s | preempted |
 | `MuddPythiaMediumPropT2048SerialMLP` | 1 | `us-east5-a` | 2026-10-15 01:49:05 | 2026-10-15 04:14:22 | 2h25m17s | preempted |
+
 | `BamXLPropMShiftReadG050ReadAttentionSharedR400TruePile` | 1 | `us-east5-a` | 2026-10-15 01:30:47 | 2026-10-15 04:22:55 | 2h52m08s | preempted |
 | `BamXLPropMShiftReadG050FullQKNormTruePile` | 1 | `us-east5-a` | 2026-10-15 01:58:04 | 2026-10-15 04:25:32 | 2h27m28s | preempted |
 | `BamXLPropMShiftReadG050ReadAttentionSharedR400TruePile` | 2 | `us-east5-a` | 2026-10-15 04:28:37 | 2026-10-15 06:18:36 | 1h49m59s | user stop6407; CP committed; resources absent; TB SYNC_OK |
-
 | `PythiaMediumPropT2048SerialMLP` | 1 | `us-east5-a` | 2026-10-15 01:00:47 | 2026-10-15 06:32:41 | 5h31m54s | complete13500; CP13500; resources absent; TB SYNC_OK; P0 |
 
 | `BamMediumPropMShiftReadG050PostResidualWriteControlsTruePile` | 1 | `us-east5-a` | 2026-10-15 06:03:45 | 2026-10-15 06:36:28 | 32m43s | preempted |
 | `BamPythiaMediumPropT2048MShiftReadG050ReadAttentionSharedR256SwiGLU` | 1 | `us-east5-a` | 2026-10-15 06:23:51 | 2026-10-15 08:06:10 | 1h42m19s | user pause3174; P0; CP committed; READY TPU retained for hot switch; provisional |
 | `MuddPythiaMediumPropT2048SwiGLU` | 1 | `us-east5-a` | 2026-10-15 06:21:52 | 2026-10-15 08:06:11 | 1h44m19s | user pause3603; P0; CP committed; READY TPU retained for hot switch; provisional |
 | `PythiaMediumPropT2048SwiGLU` | 1 | `us-east5-a` | 2026-10-15 06:25:07 | 2026-10-15 08:06:17 | 1h41m10s | user pause4527; P0; CP committed; TPU/queue absent; provisional |
-
 | `BamPythiaMediumPropT2048MShiftReadG050ReadAttentionSharedR256SerialMLP` | 2 | `us-east5-a` | 2026-10-15 04:06:01 | 2026-10-15 08:40:46 | 4h34m45s | complete13500; CP13500 committed; resources absent; TB SYNC_OK |
 | `MuddPythiaMediumPropT2048SerialMLP` | 2 | `us-east5-a` | 2026-10-15 04:21:11 | 2026-10-15 08:42:14 | 4h21m03s | complete13500; CP13500 committed; resources absent; TB SYNC_OK |
 | `BamMediumPropMShiftReadG050ReadAttentionSharedR256T2048` | 1 | `us-east5-a` | 2026-10-15 03:48:42 | 2026-10-15 09:00:37 | 5h11m55s | user stop10160; P0; CP10160 committed; node/queue absent; TB SYNC_OK |
 | `BamXLPropMShiftReadG050FullQKNormTruePile` | 2 | `us-east5-a` | 2026-10-15 04:31:39 | 2026-10-15 09:45:21 | 5h13m42s | user pause10272; CP committed; resources absent; TB SYNC_OK; provisional |
 | `BamMediumPropMShiftReadG050PostResidualWriteControlsTruePile` | 2 | `us-east5-a` | 2026-10-15 06:44:38 | 2026-10-15 09:52:23 | 3h07m45s | user stop6167; CP committed; resources absent; TB SYNC_OK |
+
 | `BamMediumPropMShiftReadG050PostMLPWriteControlsTruePile` | 1 | `us-east5-a` | 2026-10-15 08:32:30 | 2026-10-15 09:52:26 | 1h19m56s | user stop2231; CP committed; resources absent; TB SYNC_OK |
 | `BamMediumPropMShiftReadG050MLPReadWriteLayersTruePile` | 1 | `us-east5-a` | 2026-10-15 09:35:09 | 2026-10-15 10:48:22 | 1h13m13s | user hot-replace2008; CP committed; TB SYNC_OK; TPU retained/reassigned |
 | `BamMediumPropMShiftReadG050MLPReadAllLayersNoReadGatesTruePile` | 1 | `us-east5-a` | 2026-10-15 10:49:26 | 2026-10-15 10:59:16 | 9m50s | user static-init correction; CP228/TB SYNC_OK; TPU retained/reassigned |
@@ -2106,17 +2068,25 @@ active leases are censored, and manual migration releases are not preemptions.
 | `BamMediumPropPostAttentionWriteSharedR256AttentionNormTruePile` | 3 | `us-east5-a` | 2026-10-15 13:31:52 | 2026-10-15 13:50:10 | 0h18m18s | user stop4673; CP committed, resources absent, TB SYNC_OK |
 | `BamMediumPropPostAttentionWriteSharedR256MLPNormTruePile` | 2 | `us-east5-a` | 2026-10-15 13:34:59 | 2026-10-15 14:04:56 | 0h29m57s | user stop5354; CP committed, resources absent, TB SYNC_OK |
 | `BamMediumPropMShiftReadG050MLPReadAllLayersNoReadGatesStaticZeroTruePile` | 1 | `us-east5-a` | 2026-10-15 11:00:10 | 2026-10-15 14:06:30 | 3h06m20s | user stop5117; CP committed, resources absent, TB SYNC_OK |
+| `Llama2XLPropTruePileMHA` | 1 | `us-east5-a` | 2026-09-28 09:44:22 | by 2026-09-29 00:16:16 | ≤14h31m54s | paused for distinct-data extension; TPU/queue verified absent, no preemption |
+
 | `BamMediumPropMShiftReadG050MLPReadNonWriteLayersNoReadGatesStaticZeroTruePile` | 3 | `us-east5-a` | 2026-10-15 13:35:09 | 2026-10-15 14:20:41 | 0h45m32s | user stop3149; CP committed, resources absent, TB SYNC_OK |
 | `BamPythiaMediumPropT2048SerialMLPBamInitFix` | 1 | `us-east5-a` | 2026-10-15 08:18:55 | 2026-10-15 15:40:23 | 7h21m28s | complete13500; P0; CP committed, resources absent, TB SYNC_OK |
 | `BamPythiaMediumPropT2048SerialMLPOriginalInit` | 3 | `us-east5-a` | 2026-10-15 13:35:04 | 2026-10-15 16:02:18 | 2h27m14s | complete13500; CP committed, resources absent, TB SYNC_OK |
+
 | `BamMediumPropMShiftReadG050PostAttentionWriteControlsTruePile` | 1 | `us-east5-a` | 2026-10-15 08:32:34 | 2026-10-15 16:25:52 | 7h53m18s | complete13500; P0; CP committed, resources absent, TB SYNC_OK |
+| `BamPythiaMediumPropT2048SerialMLPPythiaEmbeddingScaledWrite` | 1 | `us-east5-a` | 2026-10-15 16:47:47 | 2026-10-15 20:00:09 | 3h12m22s | preempted |
 | `BamMediumPropMShiftReadG050PostAttentionWriteMLPNormTruePile` | 2 | `us-east5-a` | 2026-10-15 13:34:42 | 2026-10-15 20:50:40 | 7h15m58s | complete13500; CP13500 committed, resources absent, TB SYNC_OK |
+| `BamPythiaMediumPropT2048SerialMLPPythiaEmbeddingScaledWrite` | 2 | `us-east5-a` | 2026-10-15 20:07:17 | 2026-10-15 23:37:24 | 3h30m07s | preempted |
+| `BamPythiaMediumPropT2048SerialMLPPythiaEmbeddingScaledWrite` | 3 | `us-east5-a` | 2026-10-15 23:43:12 | 2026-10-16 00:35:27 | 52m15s | complete13500; CP13500 committed, resources absent, TB SYNC_OK |
+
 | `BamXLPropMShiftReadG050PostAttentionWriteMLPNormTruePile` | 1 | `us-east5-a` | 2026-10-15 16:47:51 | 2026-10-16 03:43:03 | 10h55m12s | user stop15157; CP15157 committed, resources absent, TB SYNC_OK |
+
 | `PythiaMediumPropT2048SerialMLPSmallEmbedding` | 1 | `us-east5-a` | 2026-10-16 01:47:27 | 2026-10-16 06:26:41 | 4h39m14s | preempted; committed12048, same runtime restored and CP12200 verified |
 | `PythiaMediumPropT2048SerialMLPSmallEmbedding` | 2 | `us-east5-a` | 2026-10-16 06:36:23 | 2026-10-16 07:15:48 | 39m25s | complete13500; CP13500 committed, resources absent, TB SYNC_OK |
 | `MuddPythiaMediumPropT2048SerialMLPSmallEmbedding` | 1 | `us-east5-a` | 2026-10-16 01:48:00 | 2026-10-16 08:23:42 | 6h35m42s | complete13500; CP13500 committed, resources absent, TB SYNC_OK |
-
 | `BamPythia2p8BSotaIndependentR768Pallas` | 1 | `us-east5-a` | 2026-10-20 09:15:30 | 2026-10-21 03:32:13 | 18h16m43s | user pause37042; P0; CP committed, node/queue absent, TB SYNC_OK; provisional |
+
 | `BamMediumPropMShiftReadG050StandardQKNormTruePile` | 1 | `us-east5-a` | 2026-10-21 06:33:20 | 2026-10-21 13:05:36 | 6h32m16s | preempted; forcedCP12283 committed; same-zone resume12284 |
 | `BamMediumPropMShiftReadG050FullQKNormNoQKStaticGateTruePile` | 1 | `us-east5-a` | 2026-10-21 11:39:16 | 2026-10-21 13:09:13 | 1h29m57s | preempted; same-zone recovery |
 | `BamMediumPropMShiftReadG050StandardQKNormTruePile` | 2 | `us-east5-a` | 2026-10-21 13:12:03 | 2026-10-21 13:55:59 | 43m56s | complete13500; CP13500 committed, node/queue absent, TB SYNC_OK |
@@ -2138,17 +2108,16 @@ active leases are censored, and manual migration releases are not preemptions.
 | `BamMediumPropMShiftReadG050MuddValueLastBlockTruePile` | 2 | `us-east5-a` | 2026-10-22 05:15:31 | 2026-10-22 08:43:27 | 3h27m56s | complete13500; CP committed, node/queue absent, TB SYNC_OK |
 | `BamMediumPropMShiftReadG050MuddQKVLastBlockTruePile` | 1 | `us-east5-a` | 2026-10-22 01:42:03 | 2026-10-22 08:43:27 | 7h01m24s | complete13500; P0; CP committed, node/queue absent, TB SYNC_OK |
 | `BamMediumPropMShiftReadG050MuddQKVSharedRouterLastBlockTruePile` | 1 | `us-east5-a` | 2026-10-22 09:38:43 | 2026-10-22 12:16:23 | 2h37m40s | user stop6343, dominated by shared L17 QKVM; P0; CP6343 committed, node/queue absent12:19:05, TB SYNC_OK |
-
 | `BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastTwoLayersRebalanceMLPTruePile` | 1 | `us-east5-a` | 2026-10-22 11:17:16 | 2026-10-22 12:27:05 | 1h09m49s | preempted; same-zone recovery |
 | `BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastTwoLayersRebalanceMLPTruePile` | 2 | `us-east5-a` | 2026-10-22 12:32:51 | 2026-10-22 12:35:44 | 02m53s | preempted; same-zone recovery |
 | `BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastTwoLayersRebalanceMLPTruePile` | 3 | `us-east5-a` | 2026-10-22 12:41:47 | 2026-10-22 13:49:17 | 1h07m30s | user hot-replace5423; CP committed, TB SYNC_OK; trainer transferred |
 | `BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockSwapMLPTruePile` | 1 | `us-east5-a` | 2026-10-22 10:32:48 | 2026-10-22 13:51:32 | 3h18m44s | user hot-replace8309; CP committed, TB SYNC_OK; trainer transferred |
-
 | `BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockTruePile` | 1 | `us-east5-a` | 2026-10-22 09:40:51 | 2026-10-22 14:12:10 | 4h31m19s | user stop10789; CP committed, node/queue absent, TB SYNC_OK |
 | `BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastTwoLayersTruePile` | 1 | `us-east5-a` | 2026-10-22 09:41:09 | 2026-10-22 14:12:13 | 4h31m04s | user stop11093; CP committed, node/queue absent, TB SYNC_OK |
 | `BamMediumPropMShiftReadG050MuddVMDualValueSharedRouterLastBlockTruePile` | 1 | `us-east5-a` | 2026-10-22 13:52:49 | 2026-10-22 14:19:54 | 27m05s | preempted; same-zone recovery |
 | `BamMediumPropMShiftReadG050MuddVMSharedRouterLastTwoLayersTruePile` | 1 | `us-east5-a` | 2026-10-22 12:52:51 | 2026-10-22 15:21:20 | 2h28m29s | user hot-replace5977; P0; CP committed, TB SYNC_OK; physical310291 transferred, no deletion |
 | `BamMediumPropMShiftReadG050MuddVMSharedRouterLastBlockL2AnchorTruePile` | 1 | `us-east5-a` | 2026-10-22 13:14:22 | 2026-10-22 16:08:53 | 2h54m31s | preempted; same-zone recovery from committed7029 |
+
 | `BamMediumPropMShiftReadG050MuddVMDualValueSharedRouterLastBlockTruePile` | 2 | `us-east5-a` | 2026-10-22 14:25:42 | 2026-10-22 16:36:53 | 2h11m11s | post-2800 review stop6343; CP committed, node/queue absent16:39:45, TB SYNC_OK |
 | `BamMediumPropMShiftReadG050MuddVMQKVMSharedRouterLastTwoLayersL2AnchorTruePile` | 1 | `us-east5-a` | 2026-10-22 15:22:24 | 2026-10-22 17:03:12 | 1h40m48s | post-2800 review hot-replace4066; P0; CP committed/TB SYNC_OK, physical310291 retained and transferred to L2 QKVM dual V |
 | `BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockL2AnchorTruePile` | 1 | `us-east5-a` | 2026-10-22 12:09:43 | 2026-10-22 17:33:22 | 5h23m39s | complete13500; P0; CP13500 committed, node/queue absent, TB SYNC_OK |
@@ -2161,57 +2130,74 @@ active leases are censored, and manual migration releases are not preemptions.
 | `BamMediumPropMShiftReadG050MuddQKVMDualValueSharedRouterLastBlockTruePile` | 1 | `us-east5-a` | 2026-10-22 13:50:08 | 2026-10-22 19:14:54 | 5h24m46s | complete13500; P0; CP13500 committed, node/queue absent, TB SYNC_OK; inherited trainer |
 | `BamMediumPropMShiftReadG050MuddVMSharedRouterLastBlockTruePile` | 1 | `us-east5-a` | 2026-10-22 14:46:09 | 2026-10-22 20:12:28 | 5h26m19s | complete13500; P0; CP13500 committed, node/queue absent, TB SYNC_OK |
 | `BamMediumPropMShiftReadG050MuddQKVMSharedRouterLastBlockMLPWriteTruePile` | 1 | `us-east5-a` | 2026-10-22 14:48:55 | 2026-10-22 20:13:49 | 5h24m54s | complete13500; P0; CP13500 committed, node/queue absent, TB SYNC_OK |
-
-
 | `BamMediumPropMShiftReadG050MuddVMSharedRouterLastTwoBlocksL2AnchorTruePile` | 1 | `us-east5-a` | 2026-10-23 01:30:29 | 2026-10-23 03:42:00 | 2h11m31s | 5k review stop5157; P0; first prequeue READY observation; registry subinterval01:30:39–03:42:00=2h11m21s; CP committed, node/queue absent, TB SYNC_OK |
-
 | `BamMediumPropMShiftReadG050MuddVMSharedRouterL15L17L2AnchorTruePile` | 1 | `us-east5-a` | 2026-10-23 01:48:10 | 2026-10-23 03:58:44 | 2h10m34s | 5k review stop5172; P0; first prequeue READY; registry subinterval01:48:21–03:58:44=2h10m23s; CP committed, node/queue absent, TB SYNC_OK |
 | `BamMediumPropMShiftReadG050MuddVMQKVMSharedRouterL15L17L2AnchorTruePile` | 1 | `us-east5-a` | 2026-10-23 01:48:13 | 2026-10-23 03:58:46 | 2h10m33s | 5k review stop5192; P0; first prequeue READY; registry subinterval01:49:40–03:58:46=2h09m06s; CP committed, node/queue absent, TB SYNC_OK |
-
 | `BamMediumPropMShiftReadG050MuddQKVMSharedRouterL15L17L2AnchorTruePile` | 1 | `us-east5-a` | 2026-10-23 02:04:38 | 2026-10-23 04:11:16 | 2h06m38s | 5k review stop5122; P0; first prequeue READY; registry subinterval02:04:48–04:11:16=2h06m28s; CP committed, node/queue absent, TB SYNC_OK |
+| `BamMediumPropMShiftReadG050MuddVMQKVMSharedRouterLastTwoBlocksL2AnchorTruePile` | 1 | `us-east5-a` | 2026-10-23 01:30:10 | 2026-10-23 04:55:38 | 3h25m28s | preempted; first prequeue READY; registry subinterval01:30:18–04:55:38=3h25m20s |
+| `BamMediumPropMShiftReadG050DedicatedMemoryMLPMHAWidthTruePile` | 1 | `us-east5-a` | 2026-10-23 05:28:56 | 2026-10-23 06:31:51 | 1h02m55s | preempted; first prequeue READY |
+| `BamMediumPropMShiftReadG050SharedHiddenMemoryMLPTruePile` | 1 | `us-east5-a` | 2026-10-23 06:12:03 | 2026-10-23 06:31:53 | 19m50s | preempted; first prequeue READY |
+| `BamMediumPropMShiftReadG050MuddVMQKVMSharedRouterLastTwoBlocksL2AnchorTruePile` | 2 | `us-east5-a` | 2026-10-23 05:01:22 | 2026-10-23 07:19:09 | 2h17m47s | clean completion13500 and automatic release; CP committed, node/queue absent, TB SYNC_OK |
+| `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio3to1TruePile` | 1 | `us-east5-a` | 2026-10-23 06:27:44 | 2026-10-23 08:28:16 | 2h00m32s | preempted; first prequeue READY |
+| `BamMediumPropMShiftReadG050HalfMemoryMLPTruePile` | 1 | `us-east5-a` | 2026-10-23 07:13:43 | 2026-10-23 08:29:47 | 1h16m04s | review stop2998; first prequeue READY; registry subinterval07:13:54–08:29:47=1h15m53s; CP committed, resources absent, TB SYNC_OK |
 
+| `BamMediumPropMShiftReadG050DedicatedMemoryMLPMHAWidthTruePile` | 2 | `us-east5-a` | 2026-10-23 06:37:36 | 2026-10-23 08:54:47 | 2h17m11s | user stop7849; CP committed, resources absent, TB SYNC_OK |
+| `BamMediumPropMShiftReadG050SharedHiddenMemoryMLPTruePile` | 2 | `us-east5-a` | 2026-10-23 06:37:29 | 2026-10-23 08:56:44 | 2h19m15s | user stop6264; CP committed, resources absent, TB SYNC_OK |
+| `BamMediumPropMShiftReadG050SharedHiddenRank8WriteTruePile` | 1 | `us-east5-a` | 2026-10-23 07:59:32 | 2026-10-23 09:13:44 | 1h14m12s | review stop3005; first prequeue READY; CP committed, resources absent, TB SYNC_OK |
+| `BamMediumPropMShiftReadG050SharedHiddenRank8InputControlsTruePile` | 1 | `us-east5-a` | 2026-10-23 07:59:37 | 2026-10-23 09:13:48 | 1h14m11s | review stop2983; first prequeue READY; CP committed, resources absent, TB SYNC_OK |
+
+| `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio3to1TruePile` | 2 | `us-east5-a` | 2026-10-23 08:35:31 | 2026-10-23 09:52:46 | 1h17m15s | review stop7795; CP committed, resources absent, TB SYNC_OK |
+| `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1TruePile` | 1 | `us-east5-a` | 2026-10-23 05:28:35 | 2026-10-23 11:02:11 | 5h33m36s | planned completion13500; first prequeue READY, registry begins74s later; resources absent/TB SYNC_OK |
+| `BamMediumPropMShiftReadG050DedicatedMemoryMLPRank8R128H768TruePile` | 1 | `us-east5-a` | 2026-10-23 10:39:31 | 2026-10-23 12:11:54 | 1h32m23s | preempted; same-zone recovered from CP3682; first prequeue READY11s before registry |
+| `BamMediumPropMShiftReadG050DedicatedMemoryMLPRank8R128H768TruePile` | 2 | `us-east5-a` | 2026-10-23 12:19:26 | 2026-10-23 14:03:54 | 1h44m28s | user hot-replace8001; committed; trainer transferred, no deletion; TB SYNC_OK |
+| `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MuddQKVML2TruePile` | 1 | `us-east5-a` | 2026-10-23 11:34:38 | 2026-10-23 14:11:08 | 2h36m30s | user stop6166; committed, resources absent/TB SYNC_OK; prequeue READY83s before registry |
+| `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MuddVML2TruePile` | 1 | `us-east5-a` | 2026-10-23 11:34:43 | 2026-10-23 14:54:59 | 3h20m16s | user stop7904; CP committed, resources absent/TB SYNC_OK; first prequeue READY9s before registry |
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MuddL14VML17QKVML2TruePile` | 1 | `us-east5-a` | 2026-10-23 11:34:18 | 2026-10-23 15:53:45 | 4h19m27s | user stop9806; CP committed, resources absent, TB SYNC_OK; runtime82e5a73; P0; first prequeue READY; registry starts11:40:21 |
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MuddL14VML17VML1L2TruePile` | 1 | `us-east5-a` | 2026-10-23 14:23:55 | 2026-10-23 16:06:17 | 1h42m22s | user no-L1 hot-replace3670; CP committed, trainer transferred, TB SYNC_OK; runtimeafb2ee9; P0; first prequeue READY; registry starts14:26:47 |
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MuddL14VML17VML1L2NoL14MemoryMLPTruePile` | 1 | `us-east5-a` | 2026-10-23 14:51:06 | 2026-10-23 16:06:18 | 1h15m12s | user no-L1 hot-replace2720; CP committed, trainer transferred, TB SYNC_OK; runtime42f04a2; P0; first prequeue READY; registry starts14:51:19 |
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MuddL14VML17QKVML1L2TruePile` | 1 | `us-east5-a` | 2026-10-23 14:05:12 | 2026-10-23 16:25:06 | 2h19m54s | post5k review stop5349; CP committed, resources absent, TB SYNC_OK; runtimedde6851; P0; retained trainer after rank8 handoff; registry READY |
-
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MuddL14VML17VML2NoL14MemoryMLPTruePile` | 1 | `us-east5-a` | 2026-10-23 16:07:28 | 2026-10-23 18:21:49 | 2h14m21s | post5k review stop5195; P0; CP5195 committed, node/queue absent, TB SYNC_OK; registry READY after retained hot handoff |
-
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MuddL14VML17VML2TruePile` | 1 | `us-east5-a` | 2026-10-23 16:07:43 | 2026-10-23 22:01:09 | 5h53m26s | completed13500; P0; CP13500 committed, node/queue independently absent, TB SYNC_OK; no zone switch |
 | `BamPythia2p8BSotaIndependentR768PallasShortTrainMuddL27L31VML2` | 1 | `us-east5-a` | 2026-10-23 16:37:35 | 2026-10-24 04:09:46 | 11h32m11s | user hot-replace12695; P0; first prequeue READY observation, registry subinterval16:44:48–04:09:46=11h24m58s; CP committed, TB SYNC_OK, physical TPU retained/transferred to3:1 |
-
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRank8R128H768TruePile` | 3 | `us-east5-a` | 2026-10-24 02:18:00 | 2026-10-24 04:33:19 | 2h15m19s | complete13500; continuationP0/cumulativeP1; CP13500 committed, node/queue independently absent, TB SYNC_OK; retained original schedule/state |
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPMHAWidthTruePile` | 3 | `us-east5-a` | 2026-10-24 02:18:22 | 2026-10-24 04:43:01 | 2h24m39s | complete13500; continuationP0/cumulativeP1; CP13500 committed, node/queue independently absent, TB SYNC_OK; retained original schedule/state |
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio3to1TruePile` | 3 | `us-east5-a` | 2026-10-24 02:18:23 | 2026-10-24 04:43:49 | 2h25m26s | complete13500; continuationP0/cumulativeP1; CP13500 committed, node/queue independently absent, TB SYNC_OK; retained original schedule/state |
-
 | `BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1` | 1 | `us-east5-a` | 2026-10-23 16:37:37 | 2026-10-24 08:38:55 | 16h01m18s | user stop18481; P0; first prequeue READY observation; registry subinterval16:44:49–08:38:55=15h54m06s; Mudd comparisons capped17578; CP committed, node/queue independently absent, TB SYNC_OK |
+
 
 | `BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio3to1` | 1 | `us-east5-a` | 2026-10-24 04:11:04 | 2026-10-24 09:14:18 | 5h03m14s | user stop5720; P0; registry READY after retained hot handoff (assignment starts04:11:01); CP committed, node/queue independently absent, TB SYNC_OK |
 
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio3to1SharedWritePreAttentionOrdinaryRefundTruePile` | 1 | `us-east5-a` | 2026-10-24 07:56:11 | 2026-10-24 09:28:13 | 1h32m02s | user stop3483; P0; first prequeue READY; registry subinterval08:00:37–09:28:13=1h27m36s; CP3483 committed, node/queue independently absent09:32:02, TB SYNC_OK |
-
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SharedWritePreAttentionMemoryRefundTruePile` | 1 | `us-east5-a` | 2026-10-24 07:55:57 | 2026-10-24 09:51:58 | 1h56m01s | user hot-replace4377; P0; first prequeue READY; registry subinterval08:02:28-09:51:58=1h49m30s; CP4377 committed, TB SYNC_OK; physical310345 retained/transferred, no release |
 
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SharedWritePreAttentionOrdinaryRefundTruePile` | 1 | `us-east5-a` | 2026-10-24 07:56:01 | 2026-10-24 10:14:29 | 2h18m28s | user stop5419; P0; first prequeue READY; registry subinterval08:00:36-10:14:29=2h13m53s; CP committed, node/queue independently absent10:17:29, TB SYNC_OK |
 
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio3to1SharedWritePreAttentionMemoryRefundTruePile` | 1 | `us-east5-a` | 2026-10-24 07:56:14 | 2026-10-24 10:14:34 | 2h18m20s | user stop5341; P0; first prequeue READY; registry subinterval08:00:34-10:14:34=2h14m00s; CP committed, node/queue independently absent10:17:29, TB SYNC_OK |
-
 | `BamPythia2p8BSotaIndependentR768PallasShortTrain` | 2 | `us-east5-a` | 2026-10-24 09:50:15 | 2026-10-24 12:18:59 | 2h28m44s | resumed18941 -> user pause21751; P0 cumulative; target21726 polling/signal+25; fixed2k..20k/CP21751 committed, node/queue independently absent, TB SYNC_OK |
 | `MuddPythia3BSerialMLPShortTrain` | 2 | `us-east5-a` | 2026-10-24 09:50:17 | 2026-10-24 13:46:00 | 3h55m43s | resumed17578 -> user hot-resume boundary21666; P0 cumulative; fixed2k..20k/CP21666 committed, all workers gone, TB SYNC_OK; physical trainer retained/transferred to2:1, no deletion |
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MHAWriterEvery3DropMemoryTruePile` | 1 | `us-east5-a` | 2026-10-24 13:09:44 | 2026-10-24 13:47:29 | 0h37m45s | service preemption; committed1414 -> recovered1415; nextCP1600 committed; same-zone recovery; no lost committed progress |
+
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SharedWritePostAttentionOrdinaryRefundTruePile` | 1 | `us-east5-a` | 2026-10-24 09:52:58 | 2026-10-24 14:06:19 | 4h13m21s | user stop10413; P0; CP10413 committed, node/queue independently absent, TB SYNC_OK; assignment09:52:54, ownership handoff09:51:58; release complete14:08:56 |
+
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MHAWriterEvery4DropMemoryTruePile` | 1 | `us-east5-a` | 2026-10-24 13:06:55 | 2026-10-24 15:01:47 | 1h54m52s | hot_switch_run_boundary; user stop4847; P0; CP committed, zero lost tail, TB SYNC_OK; runtimead12938; retained/transferred to new plain-V RUN after FIRST_STEP |
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MHAWriterEvery4KeepMemoryTruePile` | 1 | `us-east5-a` | 2026-10-24 13:12:43 | 2026-10-24 15:01:47 | 1h49m04s | hot_switch_run_boundary; user stop4464; P0; CP committed, zero lost tail, TB SYNC_OK; runtimead12938; retained/transferred to new plain-V RUN after FIRST_STEP |
+
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MHAWriterEvery3KeepMemoryTruePile` | 1 | `us-east5-a` | 2026-10-24 13:06:13 | 2026-10-24 15:06:43 | 2h00m30s | run_stop; user stop5027; P0; CP committed, zero lost tail, TB SYNC_OK; runtimead12938; node/queue independently absent |
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MHAWriterEvery3DropMemoryTruePile` | 2 | `us-east5-a` | 2026-10-24 13:52:37 | 2026-10-24 15:06:47 | 1h14m10s | run_stop; user stop4505; P1; CP committed, zero lost tail, TB SYNC_OK; runtimead12938; node/queue independently absent |
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1StandardVEvery3DropMemoryTruePile` | 1 | `us-east5-a` | 2026-10-24 15:02:49 | 2026-10-24 15:58:54 | 0h56m05s | service preemption; CP2139 -> first2140; nextCP2200 committed; same-zone recovery |
+
 | `BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1` | 2 | `us-east5-a` | 2026-10-24 13:47:28 | 2026-10-24 16:28:37 | 2h41m09s | user pause21545; resumed18481 on retained Mudd trainer, assignment13:47:23; P0 cumulative; CP/fixed2k..20k committed, node/queue independently absent, TB SYNC_OK; LR28k unchanged |
+
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1StandardVEvery3KeepMemoryTruePile` | 1 | `us-east5-a` | 2026-10-24 15:02:53 | 2026-10-24 20:39:50 | 5h36m57s | clean completion13500; CP13500 committed, node/queue absent, TB SYNC_OK |
+
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1StandardVEvery3DropMemoryTruePile` | 2 | `us-east5-a` | 2026-10-24 16:05:39 | 2026-10-24 20:44:50 | 4h39m11s | clean completion13500; CP13500 committed, node/queue absent, TB SYNC_OK |
-| `HybridV4 KeepLocalO two-layer scan timing (a978db2)` | 1 | `us-east5-a` | 2026-10-25 05:08:49 (first observed READY) | 2026-10-25 05:20:00 (verified absent) | ≤11m11s | complete20-99 timing, manual release; P0; both worker processes gone, timing/logs secured, exact diagnostic node/queue absent; formal trainers and FLEX unchanged |
+
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio3to1HybridV4KeepLocalOTruePile` | 1 | `us-east5-a` | 2026-10-25 06:30:48 | 2026-10-25 08:22:14 | 1h51m26s | user stop4391; P0; CP4391 committed, node/queue independently absent, TB SYNC_OK; first prequeue READY06:30:27 |
+
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio3to1HybridV4DropLocalOTruePile` | 1 | `us-east5-a` | 2026-10-25 06:30:26 | 2026-10-25 08:22:17 | 1h51m51s | user stop4374; P0; CP4374 committed, node/queue independently absent, TB SYNC_OK; first prequeue READY06:30:09 |
+
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1HybridV4KeepLocalOTruePile` | 1 | `us-east5-a` | 2026-10-25 04:44:24 | 2026-10-25 10:21:49 | 5h37m25s | automatic clean completion13500; P0; CP13500 committed, node/queue independently absent, TB SYNC_OK; first prequeue READY04:32:28 |
+
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1HybridV4DropLocalOTruePile` | 1 | `us-east5-a` | 2026-10-25 04:44:28 | 2026-10-25 10:23:03 | 5h38m35s | automatic clean completion13500; P0; CP13500 committed, node/queue independently absent, TB SYNC_OK; first prequeue READY04:32:24 |
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1HybridV4KeepLocalOSeparateVOKeysTruePile` | 1 | `us-east5-a` | 2026-10-25 08:53:19 | 2026-10-25 12:09:42 | 3h16m23s | user stop7677; P0; CP7677 committed, node/queue independently absent by12:12:03, TB SYNC_OK; first prequeue READY08:52:49 |
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysTruePile` | 1 | `us-east5-a` | 2026-10-25 08:10:41 | 2026-10-25 13:43:15 | 5h32m34s | automatic clean completion13500; P0; CP13500 committed, node/queue independently absent, TB SYNC_OK; first prequeue READY08:05:24 |
@@ -2224,15 +2210,35 @@ active leases are censored, and manual migration releases are not preemptions.
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysQK75TruePile` | 1 | `us-east5-a` | 2026-10-26 04:32:51 | 2026-10-26 10:21:16 | 5h48m25s | complete13500; P0; committed CP13500, TB synced, node+QR absent; kernel switch retained same lease |
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysGeneralWriteTruePile` | 1 | `us-east5-a` | 2026-10-26 08:16:52 | 2026-10-26 10:23:10 | 2h06m18s | preemption; CP4487 committed, same-zone recovered; backend9c->2b atCP2800 retained same lease |
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysAlphaDiagZeroTruePile` | 1 | `us-east5-a` | 2026-10-26 10:49:48 | 2026-10-26 13:04:08 | 2h14m20s | 5k selection stop5209; P0; CP committed, TB SYNC_OK, TPU+QR independently absent13:06:42 |
+| `HybridV4 KeepLocalO two-layer scan timing (a978db2)` | 1 | `us-east5-a` | 2026-10-25 05:08:49 (first observed READY) | 2026-10-25 05:20:00 (verified absent) | ≤11m11s | complete20-99 timing, manual release; P0; both worker processes gone, timing/logs secured, exact diagnostic node/queue absent; formal trainers and FLEX unchanged |
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysGeneralWriteTruePile` | 2 | `us-east5-a` | 2026-10-26 10:30:21 | 2026-10-26 14:18:09 | 3h47m48s | complete13500; CP/TB secured, READY TPU hot-transferred to pre-negative/fullNoPE combo; no deletion |
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeTruePile` | 1 | `us-east5-a` | 2026-10-26 10:49:48 | 2026-10-26 16:27:00 | 5h37m12s | complete13500/P0; CP13500 committed16:24:07, TB SYNC_OK, TPU+QR independently absent |
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio1to1SeparateVOKeysLogitDiagNegativeQK75TruePile` | 1 | `us-east5-a` | 2026-10-26 16:59:44 | 2026-10-26 19:10:06 | 2h10m22s | 5k selection stop5122/P0; CP5122 committed19:10:41, TB SYNC_OK, TPU+QR independently absent |
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75TruePile` | 1 | `us-east5-a` | 2026-10-26 14:18:30 | 2026-10-26 19:54:35 | 5h36m05s | complete13500/P0; CP13500 committed19:52:18, TB SYNC_OK, TPU+QR independently absent; inherited READY TPU |
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1LogitDiagNegativeTruePile` | 1 | `us-east5-a` | 2026-10-26 16:36:08 | 2026-10-26 22:11:09 | 5h35m01s | complete13500/P0;CP13500 committed22:07:40,TB SYNC_OK,TPU+QR independently absent;registered lease start,prequeue READY observed16:35:53 |
-
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODropHeadP040TruePile` | 1 | `us-east5-a` | 2026-10-27 01:30:26 | 2026-10-27 02:47:19 | 1h16m53s | 2800 review stop2957/P0; CP/TB secured,node+QR absent02:50:23; prequeue READY01:30:06; end is stop-request boundary |
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75V48TruePile` | 1 | `us-east5-a` | 2026-10-26 21:00:15 | 2026-10-27 02:54:32 | 5h54m17s | complete13500/P0; CP13500/TB secured,node+QR absent; prequeue READY21:00:01; no zone switch |
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODropHeadP020TruePile` | 1 | `us-east5-a` | 2026-10-27 01:30:43 | 2026-10-27 03:42:09 | 2h11m26s | 5k review stop5115/P0; CP5115/TB secured,node+QR absent03:44:41; prequeue READY01:30:27; end is stop-request boundary |
+| `BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640SeparateVOKeysQK80` | 1 | `us-east5-a` | 2026-10-26 09:56:26 | 2026-10-27 05:01:53 | 19h05m27s | common-horizon pause21543/P0; CP/fixed2k+20k committed, node+QR independently absent, TB synced; end is pause boundary, followed by release |
+| `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalOScale100TruePile` | 1 | `us-east5-a` | 2026-10-27 05:12:59 | 2026-10-27 05:33:17 | 20m18s | preempted |
+| `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalOScale050TruePile` | 1 | `us-east5-a` | 2026-10-27 05:12:51 | 2026-10-27 05:33:18 | 20m27s | preempted |
+| `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODynamicNormScaleTruePile` | 1 | `us-east5-a` | 2026-10-27 06:29:10 | 2026-10-27 06:34:12 | 5m02s | preempted |
+| `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODynamicNormScale050TruePile` | 1 | `us-east5-a` | 2026-10-27 06:29:36 | 2026-10-27 06:35:51 | 6m15s | preempted; complete13500/P3, CP/TB secured, node+QR absent |
+| `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODynamicNormScale050TruePile` | 2 | `us-east5-a` | 2026-10-27 06:42:35 | 2026-10-27 07:02:31 | 19m56s | preempted; complete13500/P3, CP/TB secured, node+QR absent |
+| `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalOScale050TruePile` | 2 | `us-east5-a` | 2026-10-27 05:41:09 | 2026-10-27 07:25:51 | 1h44m42s | preempted |
+| `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalOScale100TruePile` | 2 | `us-east5-a` | 2026-10-27 05:40:56 | 2026-10-27 07:26:11 | 1h45m15s | preempted |
+| `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalOReadWeightDropoutP020TruePile` | 1 | `us-east5-a` | 2026-10-27 04:37:15 | 2026-10-27 07:26:27 | 2h49m12s | preempted |
+| `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODynamicNormScale050TruePile` | 3 | `us-east5-a` | 2026-10-27 07:10:53 | 2026-10-27 07:26:47 | 15m54s | preempted; complete13500/P3, CP/TB secured, node+QR absent |
+| `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalOScale100TruePile` | 3 | `us-east5-a` | 2026-10-27 07:33:46 | 2026-10-27 08:13:26 | 39m40s | preempted |
+| `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalOReadWeightDropoutP020TruePile` | 2 | `us-east5-a` | 2026-10-27 07:33:58 | 2026-10-27 08:14:14 | 40m16s | preempted |
+
+| `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalOReadWeightDropoutP020TruePile` | 3 | `us-east5-a` | 2026-10-27 08:22:48 | 2026-10-27 08:30:15 | 7m27s | run_stop |
+| `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalOScale050TruePile` | 3 | `us-east5-a` | 2026-10-27 07:34:03 | 2026-10-27 08:30:18 | 56m15s | run_stop |
+| `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalOScale100TruePile` | 4 | `us-east5-a` | 2026-10-27 08:18:48 | 2026-10-27 08:30:21 | 11m33s | run_stop |
+| `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODynamicNormScaleTruePile` | 2 | `us-east5-a` | 2026-10-27 06:39:26 | 2026-10-27 10:24:29 | 3h45m03s | hot_switch_run_boundary |
+| `BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640SeparateVOKeysLogitDiagNegative` | 1 | `us-east5-a` | 2026-10-26 16:19:18 | 2026-10-27 11:19:25 | 19h00m07s | common21.5k pause21544/P0; CP/fixed2k+20k committed, node+QR absent, TB synced; end is pause boundary, followed by release |
+| `BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640SeparateVOKeysLogitDiagNegativeQK80` | 1 | `us-east5-a` | 2026-10-26 16:21:37 | 2026-10-27 11:32:08 | 19h10m31s | common21.5k pause21557/P0; CP/fixed2k+20k committed, node+QR absent, TB synced; end is pause boundary, followed by release |
+| `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODynamicNormScale050TruePile` | 4 | `us-east5-a` | 2026-10-27 07:34:04 | 2026-10-27 12:49:25 | 5h15m21s | run_stop; complete13500/P3, CP/TB secured, node+QR absent |
 
 ### 2026-10-14 user pause: resumed mixed R256/R384
 

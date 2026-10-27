@@ -18160,7 +18160,10 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODynamicNormScaleTruePile):
     """Native reference: dynamic local-O norm scale initialized to .5."""
     # code_commit: 2662b39; codex/local-o-dynamic-norm-init,/data0/xd/local-o-dynamic-norm-init; runtime Pallas read+write=True.
-    # UE5a v5p16 xd-v5p-16-310384-maxtext; plan13500; actual FIRST_STEP, exact AOT loaded; startup20..99 .689788step/s.
+    # UE5a v5p16 xd-v5p-16-310384-maxtext; completed13500/P3; CP13500/TB SYNC_OK, node+QR independently absent.
+    # vs direct M32 parent: early deficit, positive after~1.6k; persistent small mid/late gain through terminal.
+    # Final5(12600..13400) gap-.00169960/R1.00966719; terminal1.01 bet matched. Startup20..99 .689788step/s.
+    # Final18-layer gamma RMS 0.4925..0.5166, early layers often lower/deep layers higher; finite/nonzero gradients.
     # Same432121408 params/MLP2510,1128,tail3904 as init1; only effective gamma initializer differs. Terminal R bet1.01.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODynamicNormScale050TruePile'
     bam_local_o_dynamic_norm_scale_init = 0.5

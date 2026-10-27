@@ -715,6 +715,11 @@ active leases are censored, and manual migration releases are not preemptions.
 
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODynamicNormScale010TruePile` | v5p-16 (`xd-v5p-16-310385-maxtext`) | `us-east5-a` | 2026-10-27 10:25:15 | 2026-10-27 16:01:54 | complete13500/P0; CP13500/TB SYNC_OK; node+QR independently absent; runtime34d61c2 | none |
 
+| `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75MLPInputMixG099WriteControlHTruePile` | v5p-16 (`xd-v5p-16-310392-maxtext`) | `us-east5-a` | 2026-10-27 16:16:20 | 2026-10-27 18:32:15 | common5k review stopped5279/13500,P0; CP/TB secured,node+QR independently absent; runtime33e6bc1 | none |
+| `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75MLPInputMixG099WriteControlMixTruePile` | v5p-16 (`xd-v5p-16-310393-maxtext`) | `us-east5-a` | 2026-10-27 16:17:15 | 2026-10-27 18:32:17 | common5k review stopped5160/13500,P0; CP/TB secured,node+QR independently absent; runtime33e6bc1 | none |
+| `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75MLPInputMixG100Scale2WriteControlHTruePile` | v5p-16 (`xd-v5p-16-310394-maxtext`) | `us-east5-a` | 2026-10-27 16:19:05 | 2026-10-27 18:32:20 | common5k review stopped5175/13500,P0; CP/TB secured,node+QR independently absent; runtime33e6bc1 | none |
+| `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75MLPInputMixG100Scale2WriteControlMixTruePile` | v5p-16 (`xd-v5p-16-310395-maxtext`) | `us-east5-a` | 2026-10-27 16:16:22 | 2026-10-27 18:32:23 | common5k review stopped5225/13500,P0; CP/TB secured,node+QR independently absent; runtime33e6bc1 | none |
+
 ## READY leases
 
 | RUN | # | Zone | Start UTC | End UTC | Duration | Exit |
@@ -2259,6 +2264,11 @@ active leases are censored, and manual migration releases are not preemptions.
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75MuddL15L16L17VML2RestoreSelfTruePile` | 3 | `us-east5-a` | 2026-10-27 14:18:04 | 2026-10-27 15:12:48 | 54m44s | run_stop |
 
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODynamicNormScale010TruePile` | 1 | `us-east5-a` | 2026-10-27 10:25:18 | 2026-10-27 16:01:54 | 5h36m36s | run_stop |
+
+| `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75MLPInputMixG099WriteControlHTruePile` | 1 | `us-east5-a` | 2026-10-27 16:16:22 | 2026-10-27 18:32:15 | 2h15m53s | run_stop |
+| `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75MLPInputMixG099WriteControlMixTruePile` | 1 | `us-east5-a` | 2026-10-27 16:17:19 | 2026-10-27 18:32:17 | 2h14m58s | run_stop |
+| `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75MLPInputMixG100Scale2WriteControlHTruePile` | 1 | `us-east5-a` | 2026-10-27 16:19:07 | 2026-10-27 18:32:20 | 2h13m13s | run_stop |
+| `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75MLPInputMixG100Scale2WriteControlMixTruePile` | 1 | `us-east5-a` | 2026-10-27 16:16:24 | 2026-10-27 18:32:23 | 2h15m59s | run_stop |
 
 ### 2026-10-14 user pause: resumed mixed R256/R384
 

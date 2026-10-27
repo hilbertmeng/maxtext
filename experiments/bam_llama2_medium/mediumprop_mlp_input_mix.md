@@ -106,3 +106,57 @@ Exact-unit parent equality is tested in F32; BF16 compiler reductions can give s
 first-step differences and do not establish bitwise trajectory equivalence.
 Launch/source/timing/CPU receipts: startup-registries.json, startup-ID.json,
 startup-summary.json, cpu-pass.json and launch-results.json under the artifact root.
+
+## Common5k review and closeout
+
+All four stopped after the authorized common5000 review. Every arm gained early,
+but reversed by~2.2k and developed a sustained deficit; no credible winner or
+recovering arm was discarded. Wider/faster2sigmoid did not help overall, contrary
+to the prior. All positive terminal bets lacked support through5k; a13500 result
+was not measured. Performance has no compensating parameter/cache gain and
+startup throughput is slower than parent. Sources and native5k report/figure are
+saved in the artifact root; no hand-computed gain definition is used.
+
+| Gate / write controls | Committed stop | 4200..5000 mean gap | Mean native R |
+| --- | ---: | ---: | ---: |
+| sigmoid.99 / H | 5279 | +0.00326460 | 0.98567077 |
+| sigmoid.99 / Mix | 5160 | +0.00440108 | 0.98068689 |
+| 2sigmoid1 / H | 5175 | +0.00840096 | 0.96318144 |
+| 2sigmoid1 / Mix | 5225 | +0.00418648 | 0.98164625 |
+
+The strongest interaction is within2sigmoid: feeding writer controls the same
+mixed private input reduces the deficit considerably; within sigmoid.99 it does
+not help. This supports content/control alignment when changing input strongly,
+not a universal benefit from mixed controls.
+
+Targeted health confirms gates learned, not stuck at zero kernels: at5k ordinary
+MLP coefficient-share alpha=1/(1+g_x) has layer medians.712/.737/.776/.786
+in the table order, with middle layers commonly.7..88. The private branch medians
+are.688/.635/.749/.709. These are normalized scalar coefficient fractions, NOT
+activation-energy ratios or causal attributions; a=the complete original attention
+output. The nominal unit parent corresponds to.5. All full layer mean/std snapshots
+at0/1k/2k/4k/5k are retained in gate-health-review5000.json,70 tags per RUN.
+
+A concrete follow-up hypothesis, not an executed experiment: preserve ordinary
+MLP inputN(h), and change only the dedicated M-MLP input together with its write
+controls. This preserves the residual-processing path while allowing the memory
+updater to specialize. The current four arms changed both, so they cannot identify
+which branch causes the shared deficit; middle-layer ordinary-input attention
+bias is evidence for prioritizing this distinction, not proof of causality.
+
+All four checkpoint commit markers independently verified. Node and queued-resource
+absence independently checked for all eight resources; final TB sync has four
+SYNC_OK entries. Each used v5p16/UE5a throughout with P0; no region switches or
+passive candidates. Full leases UTC, each ends with the manual review stop:
+
+| Gate / controls | READY start | End | Duration |
+| --- | --- | --- | --- |
+| sigmoid.99 / H | 2026-10-27T16:16:22Z | 2026-10-27T18:32:15Z | 2h15m53s |
+| sigmoid.99 / Mix | 2026-10-27T16:17:19Z | 2026-10-27T18:32:17Z | 2h14m58s |
+| 2sigmoid1 / H | 2026-10-27T16:19:07Z | 2026-10-27T18:32:20Z | 2h13m13s |
+| 2sigmoid1 / Mix | 2026-10-27T16:16:24Z | 2026-10-27T18:32:23Z | 2h15m59s |
+
+Proofs: final-registries.json, final-leases.json, final-resource_proofs.json,
+final-checkpoint-markers.json and final-closeout_summary.json. Final sync receipt:
+/home/xd/.local/state/maxtext-tensorboard-sync/closeout-20261027T183211876378Z.log.
+Implementation remains isolated; no merge of the failed architecture is implied.

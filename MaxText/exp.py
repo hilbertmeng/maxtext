@@ -18504,7 +18504,10 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     # code_commit: 33e6bc1; UE5a v5p16 xd-v5p-16-310392-maxtext; FIRST0/AOT/source/data verified, plan13500.
     # Startup20..99 0.669775step/s (-2.47% vs parent), includes70 targeted gate-health scalars absent in parent.
     # Generic healthON/internal+BAMOFF; two residual-only gates, +42035 exempt params; MLP2510/1128/tail3904 unchanged.
-    # Only5000 review; retain all credible baseline beaters, not winner-only. Terminal MHA-ref ratio bet1.005.
+    # Stopped 5279/13500 at common5k review, P0; CP/TB secured, node+QR independently absent.
+    # vs parent: early gain reversed by~2.2k; persistent late deficit, no recovery; 4200..5000 mean gap+0.00326460/R0.98567077.
+    # No compensating speed/parameter/cache gain; positive terminal bet was not supported through5k, full endpoint unmeasured.
+    # Full18/17-layer gate-health snapshot at5k in note; unchanged outer residual/MLP budget and runtime33e6bc1 verified.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75MLPInputMixG099WriteControlHTruePile'
     bam_mlp_input_mix = True
     bam_mlp_input_mix_gate_scale = 1.0
@@ -18521,7 +18524,10 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     # code_commit: 33e6bc1; UE5a v5p16 xd-v5p-16-310393-maxtext; FIRST0/AOT/source/data verified, plan13500.
     # Startup20..99 0.659025step/s (-4.04% vs parent), includes70 targeted gate-health scalars absent in parent.
     # Generic healthON/internal+BAMOFF; two residual-only gates, +42035 exempt params; MLP2510/1128/tail3904 unchanged.
-    # Only5000 review; retain all credible baseline beaters, not winner-only. Terminal MHA-ref ratio bet1.010.
+    # Stopped 5160/13500 at common5k review, P0; CP/TB secured, node+QR independently absent.
+    # vs parent: early gain reversed by~2.2k; persistent late deficit, no recovery; 4200..5000 mean gap+0.00440108/R0.98068689.
+    # No compensating speed/parameter/cache gain; positive terminal bet was not supported through5k, full endpoint unmeasured.
+    # Full18/17-layer gate-health snapshot at5k in note; unchanged outer residual/MLP budget and runtime33e6bc1 verified.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75MLPInputMixG099WriteControlMixTruePile'
     bam_mlp_input_mix_write_controls = True
 
@@ -18533,7 +18539,10 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     # code_commit: 33e6bc1; UE5a v5p16 xd-v5p-16-310394-maxtext; FIRST0/AOT/source/data verified, plan13500.
     # Startup20..99 0.668988step/s (-2.59% vs parent), includes70 targeted gate-health scalars absent in parent.
     # Generic healthON/internal+BAMOFF; two residual-only gates, +42035 exempt params; MLP2510/1128/tail3904 unchanged.
-    # Only5000 review; retain all credible baseline beaters, not winner-only. Terminal MHA-ref ratio bet1.020.
+    # Stopped 5175/13500 at common5k review, P0; CP/TB secured, node+QR independently absent.
+    # vs parent: early gain reversed by~2.2k; persistent late deficit, no recovery; 4200..5000 mean gap+0.00840096/R0.96318144.
+    # No compensating speed/parameter/cache gain; positive terminal bet was not supported through5k, full endpoint unmeasured.
+    # Full18/17-layer gate-health snapshot at5k in note; unchanged outer residual/MLP budget and runtime33e6bc1 verified.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75MLPInputMixG100Scale2WriteControlHTruePile'
     bam_mlp_input_mix_gate_scale = 2.0
     bam_mlp_input_mix_gate_init = 1.0
@@ -18546,7 +18555,10 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     # code_commit: 33e6bc1; UE5a v5p16 xd-v5p-16-310395-maxtext; FIRST0/AOT/source/data verified, plan13500.
     # Startup20..99 0.663125step/s (-3.44% vs parent), includes70 targeted gate-health scalars absent in parent.
     # Generic healthON/internal+BAMOFF; two residual-only gates, +42035 exempt params; MLP2510/1128/tail3904 unchanged.
-    # Only5000 review; retain all credible baseline beaters, not winner-only. Terminal MHA-ref ratio bet1.025.
+    # Stopped 5225/13500 at common5k review, P0; CP/TB secured, node+QR independently absent.
+    # vs parent: early gain reversed by~2.2k; persistent late deficit, no recovery; 4200..5000 mean gap+0.00418648/R0.98164625.
+    # No compensating speed/parameter/cache gain; positive terminal bet was not supported through5k, full endpoint unmeasured.
+    # Full18/17-layer gate-health snapshot at5k in note; unchanged outer residual/MLP budget and runtime33e6bc1 verified.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75MLPInputMixG100Scale2WriteControlMixTruePile'
     bam_mlp_input_mix_write_controls = True
 

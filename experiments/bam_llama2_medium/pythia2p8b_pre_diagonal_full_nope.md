@@ -69,3 +69,24 @@ material startup speed regression. VMEM60MiB passed both compile and real steps.
 The fixed-step keep list is2000,4000,...,26000 in addition to latest2; retention
 will be checked after the relevant checkpoints exist. Both21530 pause/release
 guards are armed; the original QK80 trainer and reserved compiler stay active.
+
+## Full-NoPE reference paused at common21.5k
+
+Existing QK80 (runtime59ef09e) paused at committedCP21543/28000. The~-.004
+loss lead over SeparateVO persists:final-.0038426, final5mean-.00368908;
+MHA-reference ratio1.03946366/final5mean1.03753508. The local1.03 prior was
+slightly conservative. Final gaps versus MHA/Mudd are-.1012132/-.0340852;
+MHA-reference ratio versus serial Mudd1.50776427/final5mean1.50986891.
+Matched throughput~.3167 versus~.317 is unchanged, only1280 norm scales added;
+M80x64 and MLP widths unchanged, QK100/V80 replaces80/80. Original28k schedule
+retained:the common-horizon pause does not establish the28k endpoint.
+
+UE5a v5p128,P0; assignment UTC2026-10-26 09:51:25 to2026-10-27 05:01:53.
+Single READY lease09:56:26 to05:01:53,19h05m27s; end is the pause boundary,
+followed by independently verified node/queue release. FinalCP and fixed2k/20k
+commit markers verified; local TB sync completed. Evidence under the task's
+closeout/qk80/:guard,registry,resource-absence,leases,native21500,frozen,
+tb-sync-receipt JSON and tb-sync.log. Reserved FLEX compiler retained.
+New pre-mask arms continue with QK80 retained as the stronger reference.
+First figures show only the three variants versus SeparateVO; redundant
+combination-vs-component curves were removed at the user's request.

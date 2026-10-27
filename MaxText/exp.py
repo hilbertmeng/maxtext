@@ -17236,11 +17236,14 @@ class BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640S
     parameters, total2,775,190,880 (parent+1280=0.0001953W_Q, +0.0000461%).
     This negligible norm cost leaves all128-aligned MLP widths unchanged.
     """
-    # code_commit:59ef09e; UE5a v5p-128 B16/device, global1024; health ON/internal+BAM OFF, minimal remat.
-    # Exact AOT loaded/FIRST_STEP and checkpoint0 committed; 20steps123..142 .316706step/s (median.318),
-    # approximately unchanged vs matched parent~.317; parent stays the direct loss/gain reference.
-    # QK100/V80: NoPE80+RoPE20; only1280 new norm scales (.0001953W_Q), MLP widths unchanged.
-    # AOT56MiB failed at58.11MiB; candidate limit60MiB passes on physical64MiB, identical model math/tiles.
+    # code_commit:59ef09e; UE5a v5p-128 global1024/B16, health ON/internal+BAM OFF, minimal remat.
+    # Exact AOT/workerHEAD/FIRST_STEP verified;20steps123..142 .316706step/s vs matched SeparateVO~.317 (unchanged).
+    # Paused CP21543/28000 at common21.5k; CP/fixed2k+20k committed, node+queue absent, TB synced; P0.
+    # vs SeparateVO: gap~-.004 from2k onward; final-.003843, final5mean-.003689/R1.037535, last R1.039464.
+    # MHA-ref R vs parent1.0156@2k ->1.0319@8k ->~1.036 platform after10k; local1.03 prior slightly conservative.
+    # vs MHA final gap-.101213 /Mudd-.034085; R vs Mudd2.2255@2k ->1.7392@8k ->1.507764@21.5k (final5 1.509869).
+    # Only1280 extra norm scales (.0001953W_Q), M80x64 unchanged; QK100/V80 vs parent80/80.
+    # Scoped60MiB passes58.11MiB reverse on physical64MiB. Original28k LR/AOT retained; not a measured28k terminal result.
     model_name = 'BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640SeparateVOKeysQK80'
     # v5p-128 B16 reverse read needs58.11MiB; physical VMEM is64MiB.
     bam_pallas_vmem_mib = 60

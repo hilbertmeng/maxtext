@@ -11,6 +11,16 @@ def validate_bam_config(config, *, layer_mode=None):
       lambda name, default=None: getattr(config, name, default))
   if not get('bam_enabled', False):
     return
+  for name in ('bam_local_o_drop_head_rate', 'bam_local_o_read_weight_dropout_rate'):
+    rate = get(name, 0.0)
+    if isinstance(rate, bool) or not isinstance(rate, (int, float)) or not 0 <= rate < 1:
+      raise ValueError(f'{name} must be a finite probability in [0, 1)')
+  if get('bam_local_o_read_weight_dropout_rate', 0.0):
+    if get('bam_pallas_core', False):
+      raise ValueError('O read-weight dropout requires the native JAX read; Pallas mask support is not implemented')
+    if not (get('bam_general_column_read', False) and get('bam_local_vo_independent_keys', False)
+            and get('bam_prune_all_row_reads', False) and not get('bam_local_o_compress_v', False)):
+      raise ValueError('O read-weight dropout requires uncompressed generalized column reads with independent VO keys')
   for name in ('bam_local_o_v_mode', 'bam_local_v_mode'):
     if get(name) is not None:
       raise ValueError(

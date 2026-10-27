@@ -17969,6 +17969,32 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeTruePile']
 
 
+class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODropHeadP020TruePile(
+    BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75TruePile):
+    """O-only inverted DropHead p=.2, [B,1,N,1]; preserve AV and all parent parameters."""
+    # Native implementation on main; developed in codex/mediumprop-attention-diagonal-zero,/data0/xd/mediumprop-attention-diagonal-zero.
+    # Not launched. Native JAX reference; tuned Splash remains enabled. MLP2510/1128/tail3904 unchanged.
+    # Evaluation disables dropout; training-objective CE must not be compared directly with the no-dropout parent.
+    model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODropHeadP020TruePile'
+    bam_pallas_core = False
+    enable_dropout = True
+    bam_local_o_drop_head_rate = .2
+    compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75TruePile']
+
+
+class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalOReadWeightDropoutP020TruePile(
+    BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75TruePile):
+    """O address dropout p=.2, [B,1,N,V]; one mask on static+dynamic effective weights."""
+    # Native implementation on main; developed in codex/mediumprop-attention-diagonal-zero,/data0/xd/mediumprop-attention-diagonal-zero.
+    # Not launched. Pure-JAX read reference for the separately developed Pallas adapter; tuned Splash retained.
+    # No post-dropout RMSNorm. No new parameters or MLP budget changes. Eval disables dropout.
+    model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalOReadWeightDropoutP020TruePile'
+    bam_pallas_core = False
+    enable_dropout = True
+    bam_local_o_read_weight_dropout_rate = .2
+    compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75TruePile']
+
+
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio1to1SeparateVOKeysLogitDiagNegativeQK75TruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75TruePile):
     """Equal vector/complete-M-branch budgets on negative-diagonal/full-NoPE."""

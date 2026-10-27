@@ -2052,7 +2052,7 @@ def _split_read_keys(key, arm, gate_logits=None):
             _transform_bam_read_key(raw_col, arm, col_gate))
 
 
-def bam_read(M, key, arm, *, gate_logits=None):
+def bam_read(M, key, arm, *, gate_logits=None, column_weight_multiplier=None):
   """Per-head keyed read: split row/col -> bilateral contraction -> (column/data, row/address).
 
   M: [b,{f},t,k,v]; the f axis appears iff M is 5-D (cross-token fetch) and is
@@ -2060,6 +2060,10 @@ def bam_read(M, key, arm, *, gate_logits=None):
   """
   Mc, Mr = M if isinstance(M, tuple) else (M, M)
   r_row, r_col = _split_read_keys(key, arm, gate_logits)
+  if column_weight_multiplier is not None:
+    # Apply AFTER key RMSNorm/gating, without renormalization. O's static
+    # address uses this same multiplier; no V/Q/K key is modified.
+    r_col = r_col * column_weight_multiplier.astype(r_col.dtype)
   with jax.named_scope("bam/read_m_contract"):
     return _contract_bam_read_sides(
         Mc, Mr, r_row, r_col, arm.implementation, arm.read_side)
@@ -3554,8 +3558,13 @@ class BamAttention(Attention):
       result = result + _pack_fetched_bam_heads(static, self.num_query_heads, self.head_dim)
     return result
 
-  def _static_column(self, M, arm, x=None):
-    read = jnp.einsum('btkv,vn->btnk', M, getattr(self, 'static_' + arm + '_key').astype(M.dtype))
+  def _static_column(self, M, arm, x=None, *, column_weight_multiplier=None):
+    key = getattr(self, 'static_' + arm + '_key').astype(M.dtype)
+    if column_weight_multiplier is None:
+      read = jnp.einsum('btkv,vn->btnk', M, key)
+    else:
+      assert arm == 'o'
+      read = jnp.einsum('btkv,btnv->btnk', M, key.T * column_weight_multiplier.astype(M.dtype))
     if self._general_read and (arm not in ('q', 'k') or self.config.bam_qk_static_read_gate):
       assert x is not None
       gate = self._static_gate('general_' + arm + '_static_gate', x)
@@ -3582,11 +3591,14 @@ class BamAttention(Attention):
     assert self._vo_shared_read == 'local_o'
     return self._read_fetched_m(self._compress_m(M), x)[0]
 
-  def _independent_local_vo(self, M, x, compressed_M=None, shared_hidden=None):
+  def _independent_local_vo(self, M, x, compressed_M=None, shared_hidden=None,
+                            *, o_column_weight_multiplier=None):
     """Contract one ungated C8 read, then apply destination-specific gates."""
     if compressed_M is None:
       compressed_M = self._compress_m(M)
-    read, o_logits = self._read_fetched_m(compressed_M, x, ungated=True, shared_hidden=shared_hidden)
+    read, o_logits = self._read_fetched_m(
+        compressed_M, x, ungated=True, shared_hidden=shared_hidden,
+        column_weight_multiplier=o_column_weight_multiplier)
     v_logits = self._project_read_gate_logits('W_lv_gate', x)
     self._record_concat_gate('local_v', v_logits)
     v_logits = self._pad_read_heads(v_logits, -2, -jnp.inf)
@@ -3788,7 +3800,8 @@ class BamAttention(Attention):
         jnp.concatenate((y_k, y_v), axis=-1),
         self.num_query_heads, self.head_dim)
 
-  def _read_fetched_m(self, Mbar, inputs_q, *, ungated=False, shared_hidden=None):
+  def _read_fetched_m(self, Mbar, inputs_q, *, ungated=False, shared_hidden=None,
+                      column_weight_multiplier=None):
     """Read fetched M; ungated sharing returns compact (col/u, row/v) sides."""
     with jax.named_scope("bam/read_fetched_m"):
       m_rms = None
@@ -3811,8 +3824,10 @@ class BamAttention(Attention):
         key = self._pad_read_heads(key, -2)
       # Ungated sharing contracts the normalized key, not one destination's gate.
       full_read = (
-          bam_read(Mbar, key, self._fetched_arm_ungated) if ungated
-          else bam_read(Mbar, key, self._fetched_arm, gate_logits=gate_logits))
+          bam_read(Mbar, key, self._fetched_arm_ungated,
+                   column_weight_multiplier=column_weight_multiplier) if ungated
+          else bam_read(Mbar, key, self._fetched_arm, gate_logits=gate_logits,
+                        column_weight_multiplier=column_weight_multiplier))
       if self._record_fetched_read_health_metrics:
         y_col, y_row = full_read
         self.sow(
@@ -3832,6 +3847,25 @@ class BamAttention(Attention):
     if self._fetched_arm.prune_row:
       return self._expand_full_read((col * gates, row))
     return self._expand_full_read((col * gates[..., 1:2], row * gates[..., :1]))
+
+  def _o_dropout_multiplier(self, x, rate, width, deterministic):
+    """Inverted Bernoulli mask [B,1,N,width], shared along sequence.
+
+    width=1 drops O heads; width=V drops O address weights. Separate Flax
+    dropout RNGs per layer/step replay correctly under remat. Initialization
+    consumes no dropout RNG, preserving the parent's exact parameter values.
+    """
+    if rate == 0 or deterministic or self.is_initializing():
+      return None
+    keep = jax.random.bernoulli(
+        self.make_rng('dropout'), 1.0 - rate,
+        (x.shape[0], 1, self.num_query_heads, width))
+    return keep.astype(x.dtype) / jnp.asarray(1.0 - rate, x.dtype)
+
+  def _regularize_local_o_heads(self, local_output, deterministic):
+    rate = float(getattr(self.config, 'bam_local_o_drop_head_rate', 0.0))
+    multiplier = self._o_dropout_multiplier(local_output, rate, 1, deterministic)
+    return local_output if multiplier is None else local_output * multiplier
 
   def _attention_block(
       self, query, key, value, decoder_segment_ids, *, q0, s0, window_size,
@@ -3978,7 +4012,7 @@ class BamAttention(Attention):
     return out
 
   def _pallas_core_call(self, inputs_q, inputs_positions, decoder_segment_ids, M_in, is_global,
-                        standard_qk_width):
+                        standard_qk_width, deterministic=False):
     """Fused-kernel forward; M_in is token-minor [B,V,K,T] (token-major [B,T,V,K] for v8t).
 
     Returns (out, M_in, write factors)."""
@@ -4187,6 +4221,7 @@ class BamAttention(Attention):
     else:
       y_std, _ = self._attention_block(query, key, value, decoder_segment_ids,
                                        q0=0, s0=0, window_size=local_window)
+    local_output = self._regularize_local_o_heads(local_output, deterministic)
     o_head = y_std + local_output
     if not self._has_write:
       out = nn.with_logical_constraint(o_head, self.out_axis_names)
@@ -4287,7 +4322,8 @@ class BamAttention(Attention):
     full_qk_norm = cfg.qk_norm and concat_qk and cfg.bam_qk_norm_after_concat
     if getattr(cfg, 'bam_pallas_core', False):
       return self._pallas_core_call(
-          inputs_q, inputs_positions, decoder_segment_ids, M_in, is_global, standard_qk_width)
+          inputs_q, inputs_positions, decoder_segment_ids, M_in, is_global,
+          standard_qk_width, deterministic=deterministic)
     # ---- QKV projection + QKNorm + RoPE ----
     if cfg.fused_qkv:
       query, key, value = self.qkv_projection(inputs_q, proj_name="qkv_proj")
@@ -4349,6 +4385,9 @@ class BamAttention(Attention):
     key = nn.with_logical_constraint(key, self.key_axis_names)
     value = nn.with_logical_constraint(value, self.value_axis_names)
 
+    o_column_weight_multiplier = self._o_dropout_multiplier(
+        inputs_q, float(getattr(cfg, 'bam_local_o_read_weight_dropout_rate', 0.0)),
+        self._read_bam_v, deterministic)
     local_output = None
     if self._local_o and self._vo_shared_read != 'none':
       if Mh is None:
@@ -4360,7 +4399,9 @@ class BamAttention(Attention):
         if self._static_vo:
           local_output = local_output + self._static_column(Mh, 'o', inputs_q)
       elif self._vo_independent_gates:
-        v_local, local_output = self._independent_local_vo(Mh, inputs_q, local_compressed_M, full_m_shared_hidden)
+        v_local, local_output = self._independent_local_vo(
+            Mh, inputs_q, local_compressed_M, full_m_shared_hidden,
+            o_column_weight_multiplier=o_column_weight_multiplier)
       else:
         local_output = self._shared_local_vo(Mh, inputs_q, local_inputs)
         v_local = local_output
@@ -4368,7 +4409,8 @@ class BamAttention(Attention):
         static_v = self._static_column(Mh, 'v', inputs_q)
         self._record_concat_amplitude('static_v', static_v, v_local)
         v_local = v_local + static_v
-        static_o = self._static_column(Mh, 'o', inputs_q)
+        static_o = self._static_column(
+            Mh, 'o', inputs_q, column_weight_multiplier=o_column_weight_multiplier)
         self._record_concat_amplitude('static_o', static_o, local_output)
         local_output = local_output + static_o
       if self._has_value_m_read and not self._local_v_replace:
@@ -4450,6 +4492,8 @@ class BamAttention(Attention):
     if local_output is not None:
       sl = slice(None, self.bam_k)
       self._record_concat_amplitude('local_o', local_output[..., sl], y_std[..., sl])
+    if local_output is not None:
+      local_output = self._regularize_local_o_heads(local_output, deterministic)
     o_head = y_std if local_output is None else y_std + local_output
     if Mbar is not None:
       y_bam, fetched_gate_logits = self._read_fetched_m(

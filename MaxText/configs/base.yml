@@ -503,6 +503,8 @@ bam_local_o_compress_v: False
 bam_abs_v_row_output: 'direct'
 bam_local_vo_shared_read: 'none'
 bam_local_vo_independent_keys: False
+bam_local_o_drop_head_rate: 0.0 # O-only [B,1,N,1] inverted DropHead; AV stays active.
+bam_local_o_read_weight_dropout_rate: 0.0 # O address [B,1,N,V], after RMSNorm; shared static/dynamic mask.
 bam_read_gate_activation: 'sigmoid'
 bam_local_packed_parameter_name: 'W_local_packed'   # = the setup attribute name used when unset
 rmt_dynamic_write_rows: 32

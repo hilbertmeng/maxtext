@@ -17935,14 +17935,22 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75TruePile):
     """O-only inverted DropHead p=.2, [B,T,N,1]; preserve AV and all parent parameters."""
     # Native implementation on main; developed in codex/mediumprop-attention-diagonal-zero,/data0/xd/mediumprop-attention-diagonal-zero.
-    # Not launched. Native JAX reference; tuned Splash remains enabled. MLP2510/1128/tail3904 unchanged.
+    # Formal RUN uses verified post-read Pallas DropHead; native reference via bam_pallas_core=False.
+    # MLP2510/1128/tail3904 and432112192 params unchanged; tunedSplash, generic healthON/internal+BAM OFF.
     # Evaluation disables dropout; training-objective CE must not be compared directly with the no-dropout parent.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODropHeadP020TruePile'
-    bam_pallas_core = False
+    bam_pallas_core = True
     enable_dropout = True
     bam_local_o_drop_head_rate = .2
     train_no_dropout_loss_interval = 200
     compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75TruePile']
+
+
+class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODropHeadP040TruePile(
+    BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODropHeadP020TruePile):
+    """Same per-token O-only DropHead with stronger p=.4; all budgets unchanged."""
+    model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODropHeadP040TruePile'
+    bam_local_o_drop_head_rate = .4
 
 
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalOReadWeightDropoutP020TruePile(

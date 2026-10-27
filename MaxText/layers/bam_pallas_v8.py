@@ -224,7 +224,8 @@ def _tm_read_backward_kernel(n, qk_cols, eps, scale, q_scale, gated, ch, pass_m,
       dos_ref, refs = refs[0], refs[1:]
     xt_scr, dy_scr, dxt_scr, dkey_scr = refs[:4]
     gb_scr = refs[4] if shifted else None
-    xm_scr = refs[-1] if masked else None
+    xm_scr = refs[5 if shifted else 4] if masked else None
+    dos_scr = refs[-1] if scaled else None
     t, _, kdim = m_ref.shape
     cdim = rq.shape[0]
     np_ = rq.shape[1]                 # heads, optionally padded to a multiple of 8 by the wrapper
@@ -318,10 +319,10 @@ def _tm_read_backward_kernel(n, qk_cols, eps, scale, q_scale, gated, ch, pass_m,
       rows = _tm_rows(rq, rk, rr, c)
       if gated:
         sacc = sacc + dx * st[:, c:c + 1]
-      if scaled:      # d osc_o[c] = sum_t dX_o * g inv r[c]; the dynamic key then sees osc * dX
-        do_ = dx[3 * np_:] * rows[3 * np_:] * gio
-        dos_ref[:, pl.ds(c, 1)] = jnp.sum(do_, axis=1, keepdims=True)
-        dx = dx * osc[:, c:c + 1]
+      if scaled:      # d osc_o[c] = sum_t dX_o * g inv r[c]; the dynamic O key then sees osc * dX
+        dxo = dx[3 * np_:]
+        dos_scr[pl.ds(c * np_, np_), :] = dxo * rows[3 * np_:] * gio
+        dx = jnp.concatenate((dx[:3 * np_], dxo * osc[3 * np_:, c:c + 1]), axis=0)
       gacc = gacc + dx * rows
       vo_u = ((gv * dx[2 * np_:3 * np_], go * dx[3 * np_:4 * np_]) if independent_vo else
               (gv * dx[2 * np_:3 * np_] + go * dx[3 * np_:4 * np_],))
@@ -341,6 +342,10 @@ def _tm_read_backward_kernel(n, qk_cols, eps, scale, q_scale, gated, ch, pass_m,
       drr[c] = dr[2 * np_:].astype(drr.dtype)
     if gated:
       dsg_ref[...] = sacc.reshape(4, np_, t).astype(dsg_ref.dtype)
+    if scaled:        # token sums of all C*NP rows as one lane-dense MXU row (no per-c XLU reduce)
+      dos_ref[...] = jax.lax.dot_general(
+          jnp.ones((8, t), F32), dos_scr[...], (((1,), (1,)), ((), ())),
+          precision=jax.lax.Precision.HIGHEST, preferred_element_type=F32)[:1]
   return kernel
 
 
@@ -412,11 +417,13 @@ def _tm_read_backward_call(args, cts, opts, sh=None, om=None, os=None):
     out_specs += [_spec(sh.shape[1:-1], tile), pl.BlockSpec((None, None, vdim, kdim), lambda bb, i: (bb, i, 0, 0))]
     out_shape += [jax.ShapeDtypeStruct(sh.shape, sh.dtype), jax.ShapeDtypeStruct((b, t // tile, vdim, kdim), F32)]
     scratch += [pltpu.VMEM((tile * cdim, kdim), F32)]     # gate g'[c, t] broadcast over lanes
-  if os is not None:  # per-tile partial O scale gradient, summed below
-    out_specs += [pl.BlockSpec((None, None) + os.shape, lambda bb, i: (bb, i, 0, 0))]
-    out_shape += [jax.ShapeDtypeStruct((b, t // tile) + os.shape, F32)]
+  if os is not None:  # per-tile partial O scale gradient [1, C*NP] (c-major), summed below
+    out_specs += [pl.BlockSpec((None, None, 1, cdim * np_), lambda bb, i: (bb, i, 0, 0))]
+    out_shape += [jax.ShapeDtypeStruct((b, t // tile, 1, cdim * np_), F32)]
   if om is not None:
     scratch += [pltpu.VMEM((tile * cdim, r), F32)]        # token-major O multiplier rows
+  if os is not None:
+    scratch += [pltpu.VMEM((cdim * np_, tile), F32)]      # per-c O scale gradient terms, T-minor
   outs = pl.pallas_call(
       _tm_read_backward_kernel(n, opts['qk_cols'], opts['read_epsilon'], opts['key_scale'], opts['q_scale'],
                                gated, opts['chunk'], pass_m, shifted, qdim, om is not None, os is not None),
@@ -427,7 +434,7 @@ def _tm_read_backward_call(args, cts, opts, sh=None, om=None, os=None):
       name='bam_core_read_backward')(*args, *extra, *cts)
   dos = None
   if os is not None:
-    outs, dos = outs[:-1], jnp.sum(outs[-1], axis=(0, 1)).astype(os.dtype)
+    outs, dos = outs[:-1], jnp.sum(outs[-1], axis=(0, 1, 2)).reshape(cdim, np_).T.astype(os.dtype)
   dm = outs[0]
   dsh = None
   if shifted:

@@ -1,0 +1,171 @@
+{
+  "status": "complete_analysis_and_resource_cleanup",
+  "runtime_commit": "d94ebf51a901605a0ab6eb02f5e33e130e64a258",
+  "worktree": "/home/mengqy/Projects/Bam/maxtext-diag-late-mha",
+  "branch": "mqy/diag-late-mha-20261027",
+  "resource": "xd-v5p8-mqy-latemha-1027-uc1a-r2",
+  "zone": "us-central1-a",
+  "checkpoint_steps": [
+    2000,
+    4000,
+    6000,
+    8000,
+    10000,
+    12000,
+    14000,
+    16000,
+    18000,
+    20000
+  ],
+  "models": {
+    "truncated": {
+      "experiment": "BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640SeparateVOKeysLogitDiagNegative",
+      "parameter_count": 2775189600,
+      "qk_total_width": 80,
+      "qk_memory_width": 60,
+      "bam": true,
+      "no_self": true,
+      "training_commit": "44141a7c22c395255a6d0d58fff8e103d9a3fe87",
+      "checkpoint_root": "gs://newproject-1-llm_projects_us-east5/log/BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640SeparateVOKeysLogitDiagNegative/checkpoints"
+    },
+    "full": {
+      "experiment": "BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640SeparateVOKeysLogitDiagNegativeQK80",
+      "parameter_count": 2775190880,
+      "qk_total_width": 100,
+      "qk_memory_width": 80,
+      "bam": true,
+      "no_self": true,
+      "training_commit": "44141a7c22c395255a6d0d58fff8e103d9a3fe87",
+      "checkpoint_root": "gs://newproject-1-llm_projects_us-east5/log/BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640SeparateVOKeysLogitDiagNegativeQK80/checkpoints"
+    },
+    "separate": {
+      "experiment": "BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640SeparateVOKeys",
+      "parameter_count": 2775189600,
+      "bam": true,
+      "no_self": false,
+      "training_commit": "b79aae76d98bcf2afb467de82639e93908428ceb",
+      "checkpoint_root": "gs://newproject-1-llm_projects_us-east5/log/BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640SeparateVOKeys/checkpoints"
+    },
+    "mudd": {
+      "experiment": "MuddPythia3BSerialMLPShortTrain",
+      "parameter_count": 2784307229,
+      "bam": false,
+      "no_self": false,
+      "training_commit": "2a108de923ed5ad2c2de8a7c0d200b76f4121373",
+      "checkpoint_root": "gs://newproject-1-llm_projects_us-east5/log/MuddPythia3BSerialMLPShortTrain/checkpoints"
+    }
+  },
+  "canonical_report": "/home/mengqy/Projects/Bam/training_reports/late_mha_20261027_uc1ar2",
+  "gcs": "gs://newproject-1-llm_projects_us-east5/log/diagnostics/mengqy/late_mha_20261027_uc1ar2",
+  "scopes": [
+    "Whole-layer MHA branch removal beforeWo anddirectattentionMwrite forBAM",
+    "Vector-exit-only control forBAM; noMwrite inMudd",
+    "SingleL28-L32 andL8reference; actual jointL28-L32"
+  ],
+  "cohort": "Same32Piletrainingsequences, T2048, CEallpositions, seed20261021",
+  "total_cases": 490,
+  "invariants": "Frozenforwardsonly,nooptimizer/checkpointwrites; userag2xd directoryread-only; preservemaindirtyexp; ownSpotresource releasedafterlocalverification",
+  "hypotheses": [
+    "IfMudd tailablation larger butallBAMsmall, this favors BAMroute specialization over genericlate-layer effect",
+    "IfselfallowedSeparate resembles noSelftruncated, suppressed selfattention is insufficient explanation",
+    "Ifallfour models similarlysmall, supports sharedlate-depth specialization oncohort",
+    "Jointlast5 can reveal distributed redundancy; layer deltas not additive"
+  ],
+  "raw_data": "/data0/mengqy/bam_diagnostics/late_mha_20261027_uc1ar2",
+  "report_url": "http://172.29.142.228:8873/shorttrain/no-self-readout/late-mha/",
+  "report_archive": "gs://newproject-1-llm_projects_us-east5/log/diagnostics/mengqy/late_mha_20261027_uc1ar2/report",
+  "checkpoint_count": 40,
+  "all_owned_resources_deleted": true,
+  "resource_audit": "/home/mengqy/Projects/Bam/training_reports/late_mha_20261027_uc1ar2/independent_resource_audit.json",
+  "results_primary_source": "/home/mengqy/Projects/Bam/training_reports/late_mha_20261027_uc1ar2/results.json",
+  "verification": "/home/mengqy/Projects/Bam/training_reports/late_mha_20261027_uc1ar2/local_artifacts_verified.json",
+  "browser_checks": "/home/mengqy/Projects/Bam/training_reports/late_mha_20261027_uc1ar2/page_checks.json",
+  "completed_utc": 1793103673.7954466,
+  "reproduction": {
+    "runner": "MaxText/late_mha_probe.py",
+    "manifest": "/home/mengqy/Projects/Bam/training_reports/late_mha_20261027_uc1ar2/arms.json",
+    "controller": "/home/mengqy/Projects/Bam/training_reports/late_mha_20261027_uc1ar2/run.py",
+    "host_analysis": "/home/mengqy/Projects/Bam/training_reports/late_mha_20261027_uc1ar2/analyze.py",
+    "publisher": "/home/mengqy/Projects/Bam/training_reports/late_mha_20261027_uc1ar2/publish.py",
+    "parameter_source_base": "44141a7c22c395255a6d0d58fff8e103d9a3fe87",
+    "source_audit": "Diagnostic adapters only; model files unchanged. SeparateVO and Mudd native CE replayed against historical runs; noSelf old 2k/12k single-layer deltas independently replayed."
+  },
+  "results_summary": {
+    "mudd": {
+      "mean_single_2k": 0.004986376850865781,
+      "mean_single_20k": 0.019912018114700912,
+      "joint_2k": 0.04423609096556902,
+      "joint_20k": 0.1359928697347641
+    },
+    "separate": {
+      "mean_single_2k": 0.004778445302508772,
+      "mean_single_20k": 0.004571874433895573,
+      "joint_2k": 0.05469566071406007,
+      "joint_20k": 0.03832503268495202
+    },
+    "truncated": {
+      "mean_single_2k": 0.002922941665747203,
+      "mean_single_20k": 0.003967968747019768,
+      "joint_2k": 0.048329603392630816,
+      "joint_20k": 0.04386297224300506
+    },
+    "full": {
+      "mean_single_2k": 0.002984863403253257,
+      "mean_single_20k": 0.003362838481552899,
+      "joint_2k": 0.038737240043701604,
+      "joint_20k": 0.028527657268568873
+    }
+  },
+  "conclusions": [
+    "Mudd mean tail MHA necessity rises ~4x, especially L32. SeparateVO stays near its early level; therefore low late marginal necessity does not require noSelf masking and is not universal across these architectures.",
+    "Truncated noSelf has modest average growth and L31 increases; fullQK stays comparatively flat. Smaller single-layer effects do not imply smaller joint-tail effects.",
+    "At20k joint-last5 delta exceeds sum of singles in all four runs. Do not interpret mean or sum as total contribution.",
+    "Combined and vector-only scopes differ, especially at L8. Even vector-only tail/L8 evolves oppositely in SeparateVO and Mudd. Scope changes part of the depth contrast, not the whole trajectory difference.",
+    "12k projected tail MHA RMS remains comparable. Prior matched-cohort L32 M_o ablations are larger than MHA ablations, supporting alternative readout specialization; this is not an isolated causal explanation for loss-gap shrinkage."
+  ],
+  "limits": [
+    "32 fixed Pile training-corpus sequences, not heldout validation or training-seed uncertainty.",
+    "Whole-layer all-head zeroing at frozen checkpoints; all downstream FFNs, gates, history/router computations live; not retraining benefit.",
+    "BAM/Mudd contrast whole architectures; fullQK also widens QK. L8 is only one middle-depth reference.",
+    "Native vs same-graph neutral numeric drift monitored; bootstrap does not cover compilation differences."
+  ],
+  "resource_history": [
+    {
+      "name": "xd-v5p8-mqy-latemha-1027-uc1a",
+      "zone": "us-central1-a",
+      "outcome": "preempted before usable data; deleted"
+    },
+    {
+      "name": "xd-v5p8-mqy-latemha-1027-ew4b",
+      "zone": "europe-west4-b",
+      "outcome": "superseded; deleted after US12k+2k exact native/case replay"
+    },
+    {
+      "name": "xd-v5p8-mqy-latemha-1027-uc1a-r2",
+      "zone": "us-central1-a",
+      "outcome": "all40 checkpoint matrix computed in this one zone; deleted after local verification"
+    }
+  ],
+  "delay_and_failure_audit": [
+    {
+      "kind": "recurring external failure mode",
+      "issue": "Spot preemption on first US lease",
+      "resolution": "Canonical exact node+queue cleanup, resume with unique owned lease"
+    },
+    {
+      "kind": "recurring locality issue",
+      "issue": "US checkpoint restoration from EW4 has high cross-continent latency",
+      "resolution": "Complete US replay selected; no cross-zone scientific row mixing; retire EW4 after exact two-checkpoint agreement"
+    },
+    {
+      "kind": "new preflight-detected template bug",
+      "issue": "Duplicated migration suffix made owner assertion inconsistent",
+      "resolution": "Caught before cloud creation; check_controller.py validates rendered owner/zone and rejects wrong owner/duplicated suffix"
+    },
+    {
+      "kind": "latent lifecycle race found in review",
+      "issue": "Job may exit successfully between state read and handle check",
+      "resolution": "finalize.py rereads atomic latest state before failure; five regression cases passed"
+    }
+  ]
+}

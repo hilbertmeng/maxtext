@@ -18016,7 +18016,7 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75MuddL14L17VML2TruePile):
     """Move native VM sites to all three final layers; preserve every live M writer."""
     # ledger only: codex/mediumprop-strong-vm-tail,/data0/xd/mediumprop-strong-vm-tail; see strong_vm_tail.md.
-    # code_commit: 7d1b0fc; UE5a v5p16 xd-v5p-16-310388-maxtext; stopped2727/P1.
+    # code_commit: 7d1b0fc; UE5a v5p16 xd-v5p-16-310388-maxtext; stopped 2727/P1.
     # CP2727/TB SYNC_OK; node+QR independently absent; first VM review, not a measured13500 terminal result.
     # Startup20..99 0.636088 step/s (-7.38% vs strongest parent); healthON/internal+BAM OFF.
     # vs strongest parent: persistent~.01 loss deficit, gain ratio downtrend; last5 through2600 +.01125608/R.96603201.
@@ -18048,7 +18048,7 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75MuddL15L16L17VML2TruePile):
     """Restore the attention diagonal only at L15/L16/L17 VM sites."""
     # ledger only: codex/mediumprop-strong-vm-tail,/data0/xd/mediumprop-strong-vm-tail; see strong_vm_tail.md.
-    # code_commit: 7d1b0fc; UE5a v5p16 xd-v5p-16-310390-maxtext; stopped3259/P0.
+    # code_commit: 7d1b0fc; UE5a v5p16 xd-v5p-16-310390-maxtext; stopped 3259/P0.
     # CP3259/TB SYNC_OK; node+QR independently absent; first VM review, not a measured13500 terminal result.
     # Startup20..99 0.629175 step/s (-8.39% vs strongest parent); healthON/internal+BAM OFF.
     # vs strongest parent: persistent~.01 loss deficit, gain downtrend; final5 through3200 +.01075508/R.96236301.
@@ -18166,7 +18166,7 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODynamicNormScaleTruePile):
     """Native reference: dynamic local-O norm scale initialized to .5."""
     # code_commit: 2662b39; codex/local-o-dynamic-norm-init,/data0/xd/local-o-dynamic-norm-init; runtime Pallas read+write=True.
-    # UE5a v5p16 xd-v5p-16-310384-maxtext; completed13500/P3; CP13500/TB SYNC_OK, node+QR independently absent.
+    # UE5a v5p16 xd-v5p-16-310384-maxtext; completed 13500/P3; CP13500/TB SYNC_OK, node+QR independently absent.
     # vs direct M32 parent: early deficit, positive after~1.6k; persistent small mid/late gain through terminal.
     # Final5(12600..13400) gap-.00169960/R1.00966719; terminal1.01 bet matched. Startup20..99 .689788step/s.
     # Final18-layer gamma RMS 0.4925..0.5166, early layers often lower/deep layers higher; finite/nonzero gradients.

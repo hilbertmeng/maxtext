@@ -88,8 +88,10 @@ class LocalORegularizationTest(MLPWriteTest, unittest.TestCase):
         with self.assertRaises(ValueError):
           validate_bam_config(dict(base, **{flag: value}))
     cfg = self.config(WEIGHT)
-    cfg.get_keys()['bam_pallas_core'] = True
-    with self.assertRaisesRegex(ValueError, 'Pallas mask support'):
+    cfg.get_keys().update(bam_pallas_core=True, bam_pallas_body='v8t')
+    validate_bam_config(cfg)
+    cfg.get_keys()['bam_pallas_body'] = 'v7'
+    with self.assertRaisesRegex(ValueError, 'mask support'):
       validate_bam_config(cfg)
     cfg.get_keys().update(bam_pallas_core=False, bam_local_vo_independent_keys=False)
     with self.assertRaisesRegex(ValueError, 'independent VO keys'):
@@ -221,7 +223,13 @@ class LocalORegularizationTest(MLPWriteTest, unittest.TestCase):
         self.assertTrue(all(bool(jnp.all(jnp.isfinite(x))) for x in jax.tree.leaves(grads)))
 
   def test_drop_head_scan_pallas_logits_and_all_gradients(self):
-    cfg = self.config(HEAD, base_emb_dim=150, base_num_query_heads=2, base_num_kv_heads=2,
+    self._scan_pallas_parity(HEAD, 'O_DROP_HEAD_SCAN_NATIVE_PALLAS_ALL_GRADIENTS_OK')
+
+  def test_read_weight_dropout_scan_pallas_logits_and_all_gradients(self):
+    self._scan_pallas_parity(WEIGHT, 'O_READ_WEIGHT_DROPOUT_SCAN_NATIVE_PALLAS_ALL_GRADIENTS_OK')
+
+  def _scan_pallas_parity(self, run, tag):
+    cfg = self.config(run, base_emb_dim=150, base_num_query_heads=2, base_num_kv_heads=2,
                       base_num_decoder_layers=3, base_mlp_dim=32, vocab_size=32,
                       dtype='float32', weight_dtype='float32')
     cfg.get_keys().update(
@@ -261,7 +269,7 @@ class LocalORegularizationTest(MLPWriteTest, unittest.TestCase):
     errors = [float(jnp.max(jnp.abs(a-b)) / (jnp.max(jnp.abs(a)) + 1e-12))
               for a, b in zip(jax.tree.leaves(ga), jax.tree.leaves(gb))]
     self.assertLess(max(errors), 1e-3)
-    print('O_DROP_HEAD_SCAN_NATIVE_PALLAS_ALL_GRADIENTS_OK', max(errors), flush=True)
+    print(tag, max(errors), flush=True)
 
 
 if __name__ == '__main__':

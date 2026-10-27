@@ -50,3 +50,21 @@ Startup harmonic20..99 speeds: p=.2 .677220885 (-1.3902%), p=.4 .679310556 (-1.0
 This sample excludes sparse probe steps; full-run overhead is not measured by these figures.
 Both native windows have5 samples and MHA-reference gain reports. FLEX compiler preserved and worker lock released.
 Artifacts: `/data0/xd/bam_diagnostics/mediumprop-local-o-drophead-p020-p040/`.
+
+## Final result: p=.4
+
+Stopped at2957 after the2800 review. Across all14 complete windows200..2800,
+p=.4 loses to both the parent and the p=.2 arm. The absolute gap contracts,
+but the MHA-reference gain deteriorates from.947 at600 to.917 at2800;
+last five windows2000..2800 average gap+.02502068 and R.92053119.
+The stronger head-level perturbation did not improve same-training-batch fitting.
+This does not measure held-out generalization. The terminal1.005 bet was not
+measured because the arm stopped early; no false terminal extrapolation is recorded.
+
+Exact parent parameters/cache and inference behavior; startup speed-1.09% before
+sparse-probe cost. CP2957 commit and data cursor preserved; no lost tail. TB SYNC_OK,
+node and queued resource independently NOT_FOUND; deletion verified02:50:23UTC.
+Canonical READY lease: us-east5-a,2026-10-27 01:30:26..02:47:19UTC (1h16m53s),P0;
+prequeue first observed READY01:30:06. End is the manual-stop request boundary.
+Registry assignment01:30:22..02:47:19UTC. Evidence: p040-final-proof.json,
+p040-final-metrics.json,p040-closeout.log in the artifact directory.

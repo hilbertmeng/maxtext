@@ -17951,8 +17951,12 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODropHeadP040TruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODropHeadP020TruePile):
     """Same per-token O-only DropHead with stronger p=.4; all budgets unchanged."""
-    # code_commit: db290e9; UE5a v5p16 xd-v5p-16-310380-maxtext; plan13500, AOT/FIRST_STEP verified.
-    # Startup20..99 .679311step/s vsparent.686768 (-1.09%); eval_loss first5-point window verified.
+    # code_commit: db290e9; UE5a v5p16 xd-v5p-16-310380-maxtext; stopped at 2957 after2800 review; P0.
+    # CP2957/TB secured, node+QR independently absent. Identical parent params/cache; no architecture cost refund.
+    # vs strongest combo: gap shrank from+.054 at600 to+.024 at2800, but gain fell~.947->.917; no recovery.
+    # Final5(2000..2800) eval_loss gap+.02502068/R.92053119; p=.4 lost to p=.2 in every shared window.
+    # No fitting benefit from stronger whole-head noise; full13.5k terminal1.005 bet remains unmeasured after early stop.
+    # Startup20..99 .679311step/s vsparent.686768 (-1.09%); excludes sparse eval cost. HealthON/internal+BAM OFF.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODropHeadP040TruePile'
     bam_local_o_drop_head_rate = .4
 
@@ -17991,7 +17995,10 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75TruePile):
     """Expand M75x32 to M75x48 on the strongest combo; keep all address ranks256."""
     # code_commit: c98a5b7; codex/mediumprop-attention-diagonal-zero,/data0/xd/mediumprop-attention-diagonal-zero.
-    # UE5a v5p16 xd-v5p-16-310378-maxtext; exact AOT at48MiB/config/CPU gates and FIRST_STEP0 verified; plan13500.
+    # UE5a v5p16 xd-v5p-16-310378-maxtext; completed 13500/P0; CP13500/TB secured, node+QR absent.
+    # vs strongest2:1 combo: positive gain in every window; early~1.025 narrows mid/late, then modest final rebound.
+    # Final5(12600..13400) gap-.00321056/R1.01827148; latest1.01906. Original1.02 bet close;12k1.015 forecast low.
+    # Modest sustained quality gain at fixed R256/parameter budget; pay4.37% training speed and50% more M-state.
     # Params432111056,parent-1136; MLP2446/1077/tail3802,ordinary/complete M branch2.00082163:1; M-state+50%.
     # Native/Pallas+Splash actualV48 all-gradients maxrel1.03e-5; no kernel or VMEM change; healthON/internal+BAM OFF.
     # Terminal MHA-reference R bet1.02(.99..1.05) versus direct strongest2:1 combo; speed bet-4%.

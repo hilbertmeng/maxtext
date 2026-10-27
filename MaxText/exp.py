@@ -17981,6 +17981,7 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     # MLP2510/1128/tail3904,432112192 params/M-cache unchanged; dropout OFF at inference; no compensating budget gain.
     # Startup20..99 .677221step/s vsparent.686768 (-1.39%); excludes sparse eval cost; native reference via core=False.
     # Unused hot-switch candidate: 3b70933 (claude/drophead-gate-fold); RUN stopped on db290e9 without switching.
+    # 3b70933 folds keep into O gates (exact, no kernel edit): v5p-8 parent.7939 vs fold.7945 (post-read.7801,-1.9%); v5p16 s13500 AOT exists.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODropHeadP020TruePile'
     bam_pallas_core = True
     enable_dropout = True

@@ -47,3 +47,27 @@ AOT state on tpu-ag: `/home/lishengping/xd/projects/aot_runs/2655622-016a0355.js
 Artifact: `gs://newproject-1-llm_base_models_us-central1/log/compiled_trainsteps/2655622/jax081-i0ae3f58-c17f538a/v5p-16/s13500/BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalOReadWeightDropoutP020TruePile.pickle`.
 Local launch/gate/speed evidence and live monitor state:
 `/data0/xd/bam_diagnostics/mediumprop-local-o-read-weight-dropout/`.
+
+## Final closeout, 2026-10-27
+
+Stopped at the user's request before the13500-step endpoint. Checkpoints and local
+TensorBoard copies are secured; all corresponding nodes and queued resources were
+independently verified absent. No zone switches or passive candidates.
+
+`BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalOReadWeightDropoutP020TruePile`: stopped8076, P2; last five complete windows through8000: gap+0.00715464, MHA-reference gain0.96351483.
+
+The brief2k recovery did not persist; the fitting deficit plateaued around+.006..008.
+There was no sustained late recovery by8k. Terminal1.01 bet remains unmeasured.
+
+Full chronological READY leases (UTC; manual stop distinguished from preemption):
+
+```text
+BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalOReadWeightDropoutP020TruePile: preemptions=2 ready_leases=3
+01    2h49m12s  us-east5-a  xd-v5p-16-310381-maxtext  2026-10-27T04:37:15Z -> 2026-10-27T07:26:27Z  preempted
+02      40m16s  us-east5-a  xd-v5p-16-310381-maxtext  2026-10-27T07:33:58Z -> 2026-10-27T08:14:14Z  preempted
+03       7m27s  us-east5-a  xd-v5p-16-310381-maxtext  2026-10-27T08:22:48Z -> 2026-10-27T08:30:15Z  run_stop
+```
+
+Final exact common-step reports, teardown/CP proof and TB marker:
+`/data0/xd/bam_diagnostics/mediumprop-local-o-scale-050-100/final-three-{report,metrics,proof}.json`;
+TB log `/home/xd/.local/state/maxtext-tensorboard-sync/closeout-20261027T083012689716Z.log`.

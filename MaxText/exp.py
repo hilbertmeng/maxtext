@@ -18009,13 +18009,12 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalOReadWeightDropoutP020TruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75TruePile):
     """O address dropout p=.2, [B,T,N,V]; one mask on static+dynamic effective weights."""
-    # Native reference on main; formal adapter in claude/o-read-dropout-pallas,/data0/xd/o-read-dropout-pallas.
-    # code_commit: 2655622; UE5a v5p16 xd-v5p-16-310381-maxtext; plan13500, no2800/5000 loss-based stopping reviews.
-    # Exact AOT/Loadedcompiled/FIRST_STEP0 verified. Sealed RUN bam_pallas_core=True; False below keeps main's native reference.
-    # MLP2510/1128/tail3904,432112192 params/M-cache unchanged; v8t48MiB/fusedinputs,tunedSplash,healthON/internal+BAM OFF.
-    # Startup20..99 .681282step/s vs parent.686768 (-.80%); excludes sparse eval cost. Bet terminal MHA-reference R1.01 [.98,1.04].
-    # Same-training-batch dropout-OFF eval_loss at native200 +/-20,10,0; compare only direct strongest combo parent.
-    # CPU18 checks passed; whole-model native/Pallas all-gradient maxrel6.52e-6. Details: mediumprop_local_o_read_weight_dropout.md.
+    # code_commit: 2655622; claude/o-read-dropout-pallas,/data0/xd/o-read-dropout-pallas; runtime Pallas=True, native reference below.
+    # UE5a v5p16 xd-v5p-16-310381-maxtext; user stopped at 8076/P2; CP8076/TB secured,node+QR independently absent.
+    # vs direct M32 parent: initial deficit, brief2k recovery then gap+.006..008 plateau; last5 through8k +.007155/R.963515.
+    # No late catch-up observed; same-batch dropout-OFF eval_loss measures fitting,not held-out generalization.
+    # Params/M-cache/MLP unchanged; startup speed-.80% (.681282 vs .686768),excluding sparse eval cost; terminal1.01 bet unmeasured.
+    # Native200 +/-20,10,0 probes; tunedSplash/v8t48MiB,fusedinputs,healthON/internal+BAM OFF; full reproduction/leases in mediumprop_local_o_read_weight_dropout.md.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalOReadWeightDropoutP020TruePile'
     bam_pallas_core = False
     enable_dropout = True
@@ -18028,12 +18027,11 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75TruePile):
     """Ledger only: per-layer complete local-O gain .5; no dropout."""
     # code_commit: de9b370; codex/mediumprop-attention-diagonal-zero,/data0/xd/mediumprop-attention-diagonal-zero.
-    # UE5a v5p16 xd-v5p-16-310382-maxtext; plan13500,no2800/5000 loss-stop reviews; AOT/FIRST_STEP0 verified.
-    # AV+s*O feeds W_O and attention M write.18 signed preupdate scale values in TB; no decay,unconstrained.
-    # Params432112210 (+18),MLP2510/1128/tail3904 and M-cache unchanged; tunedSplash/v8t48MiB,fusedinputs,healthON/internal+BAM OFF.
-    # Startup20..99 .685460step/s vs parent.686768 (-.19%); terminal MHA-reference gain bet1.01.
-    # CPU7 checks:gain1 parent identity,static/dynamic O+write coverage,scan/Pallas allgrad5.84e-6,BF16,signed health/WD/budget.
-    # See mediumprop_local_o_scale.md; implementation remains on recorded runtime branch,not main.
+    # UE5a v5p16 xd-v5p-16-310382-maxtext; user stopped at 6756/P2; CP6756/TB secured,node+QR independently absent.
+    # vs direct M32 parent: early deficit shrank to near parity by4k..6.6k; last5 +.000200/R.999083, no sustained net gain.
+    # AV+s*complete O feeds W_O and attention M write;18 unconstrained signed TB coefficients,scale WD exempt.
+    # Params+18/negligible; M-cache/MLP2510,1128,tail3904 unchanged; startup speed-.19%; terminal1.01 bet unmeasured.
+    # tunedSplash/v8t48MiB/fusedinputs,healthON/internal+BAM OFF; reproduction/leases in mediumprop_local_o_scale.md; implementation remains on runtime branch.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalOScale050TruePile'
     bam_local_o_learned_scale = True
     bam_local_o_scale_init = .5
@@ -18043,9 +18041,10 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalOScale100TruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalOScale050TruePile):
     """Ledger only: same learned O gain at1; exact parent initial function."""
-    # code_commit: de9b370; UE5a v5p16 xd-v5p-16-310383-maxtext; AOT/FIRST_STEP0 and18 initial TB values verified.
-    # Same13500/no2800/5000 review plan and budgets as .5. Startup20..99 .683030step/s vs parent.686768 (-.54%).
-    # Terminal MHA-reference gain bet1.005; direct parent only in compare_runs; no-dropout standard loss.
+    # code_commit: de9b370; same implementation branch/worktree as .5; initial parent function preserved.
+    # UE5a v5p16 xd-v5p-16-310383-maxtext; user stopped at 6381/P3; CP6381/TB secured,node+QR independently absent.
+    # vs same direct M32 parent: near parity early,small stable deficit after~3k; last5 through6.2k +.001477/R.993131.
+    # Same negligible +18 params/cache/MLP as .5; startup speed-.54%; terminal1.005 bet unmeasured.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalOScale100TruePile'
     bam_local_o_scale_init = 1.0
 

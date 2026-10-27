@@ -27,6 +27,9 @@ active leases are censored, and manual migration releases are not preemptions.
 
 | RUN | TPU | Zone | Start UTC | End UTC | End reason | Passive candidates |
 |---|---|---|---|---|---|---|
+| `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalOReadWeightDropoutP020TruePile` | v5p-16 (`xd-v5p-16-310381-maxtext`) | `us-east5-a` | 2026-10-27 04:29:51 | 2026-10-27 08:30:15 | user stop8076/P2; CP committed,TB SYNC_OK,node+QR independently absent; runtime2655622 | none |
+| `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalOScale050TruePile` | v5p-16 (`xd-v5p-16-310382-maxtext`) | `us-east5-a` | 2026-10-27 05:12:49 | 2026-10-27 08:30:18 | user stop6756/P2; CP committed,TB SYNC_OK,node+QR independently absent; runtimede9b370 | none |
+| `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalOScale100TruePile` | v5p-16 (`xd-v5p-16-310383-maxtext`) | `us-east5-a` | 2026-10-27 05:12:55 | 2026-10-27 08:30:21 | user stop6381/P3; CP committed,TB SYNC_OK,node+QR independently absent; runtimede9b370 | none |
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODropHeadP020TruePile` | v5p-16 (`xd-v5p-16-310379-maxtext`) | `us-east5-a` | 2026-10-27 01:30:40 | 2026-10-27 03:42:09 | 5k review stop5115/P0; CP5115/TB secured,node+QR independently absent03:44:41; runtimedb290e9 | none |
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75V48TruePile` | v5p-16 (`xd-v5p-16-310378-maxtext`) | `us-east5-a` | 2026-10-26 21:00:12 | 2026-10-27 02:54:32 | complete13500/P0; CP13500/TB secured,node+QR independently absent; runtimec98a5b7 | none |
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODropHeadP040TruePile` | v5p-16 (`xd-v5p-16-310380-maxtext`) | `us-east5-a` | 2026-10-27 01:30:22 | 2026-10-27 02:47:19 | review stop2957/P0; CP2957/TB secured,node+QR independently absent02:50:23; runtimedb290e9 | none |
@@ -1989,6 +1992,16 @@ active leases are censored, and manual migration releases are not preemptions.
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MuddQKVML2TruePile` | 1 | `us-east5-a` | 2026-10-23 11:34:38 | 2026-10-23 14:11:08 | 2h36m30s | user stop6166; committed, resources absent/TB SYNC_OK; prequeue READY83s before registry |
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MuddVML2TruePile` | 1 | `us-east5-a` | 2026-10-23 11:34:43 | 2026-10-23 14:54:59 | 3h20m16s | user stop7904; CP committed, resources absent/TB SYNC_OK; first prequeue READY9s before registry |
 | `BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640SeparateVOKeysQK80` | 1 | `us-east5-a` | 2026-10-26 09:56:26 | 2026-10-27 05:01:53 | 19h05m27s | common-horizon pause21543/P0; CP/fixed2k+20k committed, node+QR independently absent, TB synced; end is pause boundary, followed by release |
+| `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalOScale100TruePile` | 1 | `us-east5-a` | 2026-10-27 05:12:59 | 2026-10-27 05:33:17 | 20m18s | preempted |
+| `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalOScale050TruePile` | 1 | `us-east5-a` | 2026-10-27 05:12:51 | 2026-10-27 05:33:18 | 20m27s | preempted |
+| `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalOScale050TruePile` | 2 | `us-east5-a` | 2026-10-27 05:41:09 | 2026-10-27 07:25:51 | 1h44m42s | preempted |
+| `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalOScale100TruePile` | 2 | `us-east5-a` | 2026-10-27 05:40:56 | 2026-10-27 07:26:11 | 1h45m15s | preempted |
+| `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalOReadWeightDropoutP020TruePile` | 1 | `us-east5-a` | 2026-10-27 04:37:15 | 2026-10-27 07:26:27 | 2h49m12s | preempted |
+| `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalOScale100TruePile` | 3 | `us-east5-a` | 2026-10-27 07:33:46 | 2026-10-27 08:13:26 | 39m40s | preempted |
+| `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalOReadWeightDropoutP020TruePile` | 2 | `us-east5-a` | 2026-10-27 07:33:58 | 2026-10-27 08:14:14 | 40m16s | preempted |
+| `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalOReadWeightDropoutP020TruePile` | 3 | `us-east5-a` | 2026-10-27 08:22:48 | 2026-10-27 08:30:15 | 7m27s | run_stop |
+| `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalOScale050TruePile` | 3 | `us-east5-a` | 2026-10-27 07:34:03 | 2026-10-27 08:30:18 | 56m15s | run_stop |
+| `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalOScale100TruePile` | 4 | `us-east5-a` | 2026-10-27 08:18:48 | 2026-10-27 08:30:21 | 11m33s | run_stop |
 
 | `BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadT8192` | 1 | `us-east5-a` | 2026-10-13 01:40:37 | 2026-10-13 06:51:38 | 5h11m01s | manual review stop7140; resources absent, TB SYNC_OK |
 

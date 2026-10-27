@@ -67,3 +67,36 @@ Only new gain handling/health and its two defaults modify these runtime paths.
 AOTs under `gs://newproject-1-llm_base_models_us-central1/log/compiled_trainsteps/de9b370/jax081-i0ae3f58-c17f538a/v5p-16/s13500/`.
 Local immutable launch/CPU/speed/TB evidence and live monitor state:
 `/data0/xd/bam_diagnostics/mediumprop-local-o-scale-050-100/`.
+
+## Final closeout, 2026-10-27
+
+Stopped at the user's request before the13500-step endpoint. Checkpoints and local
+TensorBoard copies are secured; all corresponding nodes and queued resources were
+independently verified absent. No zone switches or passive candidates.
+
+`BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalOScale050TruePile`: stopped6756, P2; last five complete windows through6600: gap+0.00020040, MHA-reference gain0.99908253.
+
+`BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalOScale100TruePile`: stopped6381, P3; last five complete windows through6200: gap+0.00147692, MHA-reference gain0.99313084.
+
+Init.5 recovered from its early deficit to near parity; no sustained improvement
+over the direct parent. Init1 stayed slightly worse after~3k. Reducing complete
+localO initially was recoverable, but did not establish a net loss benefit.
+Terminal1.01/1.005 bets remain unmeasured.
+
+Full chronological READY leases (UTC; manual stop distinguished from preemption):
+
+```text
+BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalOScale050TruePile: preemptions=2 ready_leases=3
+01      20m27s  us-east5-a  xd-v5p-16-310382-maxtext  2026-10-27T05:12:51Z -> 2026-10-27T05:33:18Z  preempted
+02    1h44m42s  us-east5-a  xd-v5p-16-310382-maxtext  2026-10-27T05:41:09Z -> 2026-10-27T07:25:51Z  preempted
+03      56m15s  us-east5-a  xd-v5p-16-310382-maxtext  2026-10-27T07:34:03Z -> 2026-10-27T08:30:18Z  run_stop
+BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalOScale100TruePile: preemptions=3 ready_leases=4
+01      20m18s  us-east5-a  xd-v5p-16-310383-maxtext  2026-10-27T05:12:59Z -> 2026-10-27T05:33:17Z  preempted
+02    1h45m15s  us-east5-a  xd-v5p-16-310383-maxtext  2026-10-27T05:40:56Z -> 2026-10-27T07:26:11Z  preempted
+03      39m40s  us-east5-a  xd-v5p-16-310383-maxtext  2026-10-27T07:33:46Z -> 2026-10-27T08:13:26Z  preempted
+04      11m33s  us-east5-a  xd-v5p-16-310383-maxtext  2026-10-27T08:18:48Z -> 2026-10-27T08:30:21Z  run_stop
+```
+
+Final exact common-step reports, teardown/CP proof and TB marker:
+`/data0/xd/bam_diagnostics/mediumprop-local-o-scale-050-100/final-three-{report,metrics,proof}.json`;
+TB log `/home/xd/.local/state/maxtext-tensorboard-sync/closeout-20261027T083012689716Z.log`.

@@ -108,29 +108,29 @@ No new kernel implementation; the retained FLEX compiler is borrowed and retaine
 Native registry stores each direct comparator plus its MHA-reference gain triple.
 Startup is recorded here once; routine monitoring belongs in registry/report artifacts.
 
-## First review and subsequent strict-arm resumption
+## Provisional first review and subsequent resumptions
 
-Current status: strict-history three-site arm resumed from2727 after direct paired-trend
-reassessment; the restored-self three-site arm remains stopped3259. The initial stop
-evidence below is historical, not a terminal verdict for the resumed arm.
+Current status: both dense three-site arms resumed, strict-history from2727 and
+self-allowed from3259. All four cells will reach at least common5000 before another
+elimination review. The initial stop evidence below is historical, not a terminal verdict.
 
 Strict three-site arm stopped2727/P1 at its preserved preemption checkpoint. Its last5
 complete windows through2600 vs strongest parent have gap+.01125608/R.96603201.
 Restored-self arm stopped3259/P0; final5 through3200 gap+.01075508/R.96236301.
 Both exhibit a persistent~.01 deficit and a falling normalized gain ratio. The restored
 arm's small/unstable benefit vs its strict direct parent (last5 common2600
--.00051676/R1.00171048) does not make the dense VM layout competitive.
+-.00051676/R1.00171048) did not erase the early dense-layout deficit.
 Both checkpoints, independent TPU/queue absence and final TB SYNC_OK verified.
-Positive terminal bets are unsupported at these review stops; no13500 terminal result
-was measured for either arm. The spaced L14/L17 variants remain in training.
+No13500 terminal result was measured at either provisional stop. Both dense arms and
+both spaced L14/L17 variants are now in training.
 
 At VM sites V no longer reads M, so shared versus independent VO read keys is moot.
 Restored-self controls also match the old VM-site diagonal policy. These are close
 transfers of the historical VM design; primary local changes are full NoPE57->75 and
 budget widths, with VO splitting/strict attention still changing unmodified layers.
-Mask controls do not identify excluded self-attention as the main dense-layout cost.
-The result argues against simply adding adjacent VM sites while paying more MLP/V-read
-capacity; it does not isolate site count from spacing or establish a general VM failure.
+The early mask controls do not identify excluded self-attention as the main dense-layout
+cost. These provisional comparisons do not isolate site count from spacing, establish a
+general VM failure, or justify extrapolating a short-window slope to terminal training.
 
 Closeout figure: `strong-vm-tail-3200-2600-2800-3200-20261027-130247-569173.png`.
 Native reports, complete lease/resource/checkpoint/TB proof: artifact root above.
@@ -169,3 +169,15 @@ Analysis artifacts: `pair-trends-native.json`, `pair-trends-slopes.json`,
 `strong-vm-dense-vs-spaced-trend-20261027-131425-403174.png`; resumption proof in
 `strict-resumption.json`, `strict-resume-worker-proof.json`, and
 `strict-resume-cp2800-marker.txt` under the artifact root.
+
+## Self-allowed dense-arm resumption
+
+The earlier3259 stop is also withdrawn. Short-window recovery signs were unstable;
+complete the2x2 design through common5000 rather than select cells by those slopes.
+Self-allowed dense resumes the same RUN/source7d1b0fc/parameter tree/AOT/s13500 schedule
+from committed3259, on UE5a v5p16 xd-v5p-16-310390-maxtext. A provisioning-time
+preemption before its first resumed step was recovered by the existing auto-trainer.
+Actual worker first3260, AOT/source/data identity and next periodic CP3400 commit marker
+verified. No architecture, optimizer, data or schedule change accompanied either resume.
+Proof: `dense-self-resumption.json`, `dense-self-resume-worker-proof.json`,
+`dense-self-resume-cp3400-marker.txt` under the artifact root.

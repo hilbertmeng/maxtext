@@ -18,6 +18,253 @@
   ],
   "GCS": "gs://newproject-1-llm_projects_us-east5/log/diagnostics/mengqy/no_self_readout_20261027",
   "resource": "xd-v5p8-mqy-noself-1027-uc1a",
-  "status": "CPUvalidated_prepare_seal",
-  "scope": "Frozen only, independent vector/attentionwrite controls, samegraphneutral baseline, retain bias. Cohort32T2048. No subagents/ag2xd writes; preserve mainexp."
+  "status": "complete",
+  "scope": "Frozen only, independent vector/attentionwrite controls, samegraphneutral baseline, retain bias. Cohort32T2048. No subagents/ag2xd writes; preserve mainexp.",
+  "primary_runtime_commit": "34746e8700d4771e30c8123c18cb67e19e74e21a",
+  "components_runtime_commit": "06dafec3a7accbc760043ddcdcc2fa0dd5c93d0e",
+  "report_url": "http://172.29.142.228:8873/shorttrain/no-self-readout/",
+  "raw_local": "/data0/mengqy/bam_diagnostics/no_self_readout_20261027",
+  "loss_scope": "Combined removes branch before vectorW_o and directattentionMwrite; vector/write-only global auxiliaries. NativeMWrite normalization recomputed and downstreamcomputations live. Fixedcheckpoint forwards only.",
+  "source_names": [
+    "MHA_o",
+    "M_o_dynamic_including_prebias",
+    "M_o_static_gated_fixed_key",
+    "native_total_M_o"
+  ],
+  "checkpoints": 14,
+  "total_ablation_cases": 314,
+  "models": {
+    "truncated": {
+      "experiment": "BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640SeparateVOKeysLogitDiagNegative",
+      "parameter_count": 2775189600,
+      "qk_memory_width": 60,
+      "qk_total_width": 80,
+      "main_step": 12000,
+      "pre_RMS_relative_to_MHA": {
+        "dynamic": {
+          "mean": 1.3828110836506324,
+          "ci95": [
+            1.3147389368369355,
+            1.452342744685106
+          ],
+          "bootstrap_valid_fraction": 1.0
+        },
+        "static": {
+          "mean": 0.5114548423570175,
+          "ci95": [
+            0.5054776328300536,
+            0.5174046227194361
+          ],
+          "bootstrap_valid_fraction": 1.0
+        },
+        "total": {
+          "mean": 1.5688711767298487,
+          "ci95": [
+            1.5026320466098038,
+            1.6371121014339018
+          ],
+          "bootstrap_valid_fraction": 1.0
+        }
+      },
+      "post_RMS_relative_to_MHA": {
+        "dynamic": {
+          "mean": 1.3299535327271215,
+          "ci95": [
+            1.2581353801795896,
+            1.4032375786773128
+          ],
+          "bootstrap_valid_fraction": 1.0
+        },
+        "static": {
+          "mean": 0.47388039841785706,
+          "ci95": [
+            0.4672357277918942,
+            0.48033651381650955
+          ],
+          "bootstrap_valid_fraction": 1.0
+        },
+        "total": {
+          "mean": 1.527946138132052,
+          "ci95": [
+            1.455218028262051,
+            1.6033004532847377
+          ],
+          "bootstrap_valid_fraction": 1.0
+        }
+      },
+      "whole_remove_MHA_delta_CE": {
+        "mean": 3.0633634280384285,
+        "ci95": [
+          2.8903332276651783,
+          3.2425100960041164
+        ],
+        "bootstrap_valid_fraction": 1.0
+      },
+      "whole_remove_total_O_delta_CE": {
+        "mean": 5.76346702943556,
+        "ci95": [
+          5.574050720327068,
+          5.963667276850901
+        ],
+        "bootstrap_valid_fraction": 1.0
+      },
+      "gate_means": {
+        "v_dynamic_sigmoid": 0.21754933996627618,
+        "o_dynamic_sigmoid": 0.08438013388878657,
+        "v_static_sigmoid": 0.10595264945638555,
+        "o_static_sigmoid": 0.464008749493208,
+        "v_static_actual_multiplier": 0.11837538012165157,
+        "o_static_actual_multiplier": 0.5184184125092253
+      },
+      "early_late_component_ratios": {
+        "2000": {
+          "dynamic": 1.6659330725669805,
+          "static": 0.19755772682060582,
+          "total": 1.726925364636126
+        },
+        "14000": {
+          "dynamic": 1.40628638332401,
+          "static": 0.5226193557365141,
+          "total": 1.5958726633493643
+        }
+      }
+    },
+    "full": {
+      "experiment": "BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640SeparateVOKeysLogitDiagNegativeQK80",
+      "parameter_count": 2775190880,
+      "qk_memory_width": 80,
+      "qk_total_width": 100,
+      "main_step": 12000,
+      "pre_RMS_relative_to_MHA": {
+        "dynamic": {
+          "mean": 1.332594180517524,
+          "ci95": [
+            1.2711398328565058,
+            1.394660676802694
+          ],
+          "bootstrap_valid_fraction": 1.0
+        },
+        "static": {
+          "mean": 0.4916448724338457,
+          "ci95": [
+            0.4857613255743708,
+            0.4976543734574214
+          ],
+          "bootstrap_valid_fraction": 1.0
+        },
+        "total": {
+          "mean": 1.5044794201841847,
+          "ci95": [
+            1.4451907092623608,
+            1.5638927352069747
+          ],
+          "bootstrap_valid_fraction": 1.0
+        }
+      },
+      "post_RMS_relative_to_MHA": {
+        "dynamic": {
+          "mean": 1.2624628743360646,
+          "ci95": [
+            1.1983979491136305,
+            1.3267165374770926
+          ],
+          "bootstrap_valid_fraction": 1.0
+        },
+        "static": {
+          "mean": 0.46025541854645474,
+          "ci95": [
+            0.45370542620651994,
+            0.4664810765244567
+          ],
+          "bootstrap_valid_fraction": 1.0
+        },
+        "total": {
+          "mean": 1.4502522875942154,
+          "ci95": [
+            1.3849514027999823,
+            1.516325491503216
+          ],
+          "bootstrap_valid_fraction": 1.0
+        }
+      },
+      "whole_remove_MHA_delta_CE": {
+        "mean": 3.138745016127359,
+        "ci95": [
+          2.9678072016409716,
+          3.317919710505521
+        ],
+        "bootstrap_valid_fraction": 1.0
+      },
+      "whole_remove_total_O_delta_CE": {
+        "mean": 5.4560233656084165,
+        "ci95": [
+          5.243657796681509,
+          5.675749367719982
+        ],
+        "bootstrap_valid_fraction": 1.0
+      },
+      "gate_means": {
+        "v_dynamic_sigmoid": 0.22420771979080656,
+        "o_dynamic_sigmoid": 0.08372718812046334,
+        "v_static_sigmoid": 0.1134529276214116,
+        "o_static_sigmoid": 0.46880858366536926,
+        "v_static_actual_multiplier": 0.1267561278096743,
+        "o_static_actual_multiplier": 0.5237778171528977
+      },
+      "early_late_component_ratios": {
+        "2000": {
+          "dynamic": 1.5963086370804171,
+          "static": 0.1770250274271194,
+          "total": 1.6486609869140418
+        },
+        "14000": {
+          "dynamic": 1.35895001476734,
+          "static": 0.5027818765521357,
+          "total": 1.5331542383788233
+        }
+      }
+    }
+  },
+  "limitations": [
+    "Same32 Pile trainingcorpus sequences,T2048; bootstraptextcohort only, notheldout quality or trainingseeds",
+    "64query positions>=64 for norms/gates; lossalltokens",
+    "No12500checkpoint saved: main12k; full perlayerlossablation only2k/12k",
+    "Dynamic/static output decomposition usesFP32 nativeprebiasedkeys againstnativeBF16 shiftedM; nativefused keyrounding residual independentlymeasured",
+    "Dynamic/static magnitudes do not establish their separate causal lossimportance; only totalMo vsMHA was ablated"
+  ],
+  "recovery": "Initial component observer assertion incorrectly omitted unusedcompressiontail in publicstaticweight interface; fixedcontract and independentnativebranch-off test using actualstatic_weight builder withnonzero tail. Primaryresults unaffected. Firstownednode+queue verifiedabsent before replacement.",
+  "resources": [
+    {
+      "name": "xd-v5p8-mqy-noself-1027-uc1a",
+      "kind": "tpu-vm",
+      "zone": "us-central1-a",
+      "project": "newproject-1-451205",
+      "absent": true
+    },
+    {
+      "name": "xd-v5p8-mqy-noself-1027-uc1a",
+      "kind": "queued-resources",
+      "zone": "us-central1-a",
+      "project": "newproject-1-451205",
+      "absent": true
+    },
+    {
+      "name": "xd-v5p8-mqy-noselfparts-1027-uc1a",
+      "kind": "tpu-vm",
+      "zone": "us-central1-a",
+      "project": "newproject-1-451205",
+      "absent": true
+    },
+    {
+      "name": "xd-v5p8-mqy-noselfparts-1027-uc1a",
+      "kind": "queued-resources",
+      "zone": "us-central1-a",
+      "project": "newproject-1-451205",
+      "absent": true
+    }
+  ],
+  "artifact_archive": "gs://newproject-1-llm_projects_us-east5/log/diagnostics/mengqy/no_self_readout_20261027/report",
+  "host_analysis_code_archive": "gs://newproject-1-llm_projects_us-east5/log/diagnostics/mengqy/no_self_readout_20261027/report/code",
+  "report_validation": "Desktop1440/mobile390: allplotsload,noJS/HTTPerrors,nooverflow; actualstep/model/headselectors plusgate/scope tablecounts andmeasuredgatevalue assertions passed.",
+  "report_recovery": "Gate/scope placeholder names overlapped TABLE. Replacement order fixedlongestfirst; browserchecks verifygate row identity/value andscope rowcounts. Native results/figures unchanged."
 }

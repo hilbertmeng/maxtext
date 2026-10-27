@@ -8,7 +8,7 @@ from no_self_o_components import split,stats
 def main():
  dt=jnp.bfloat16 if os.environ.get('TEST_DTYPE','bfloat16')=='bfloat16' else jnp.float32;rng=np.random.default_rng(81027);B,T,H,C,K=1,128,8,8,16
  rand=lambda shape,scale=1:jnp.asarray(rng.normal(size=shape)*scale,dt)
- m=rand((B,T,C,K),.5);st=rand((4*H+C,C),.2).at[4*H:].multiply(1000);q=rand((B,T,H,C));k=rand(q.shape);vo=rand((B,T,2*H,C));ol=rand((B,T,H));vl=rand(ol.shape);qstd=rand((B,T,H,4));kstd=rand(qstd.shape);g=tuple(jax.nn.sigmoid(rand(ol.shape)).astype(dt) for _ in range(4));shift=jax.nn.sigmoid(rand((B,T,C))).astype(dt).at[:,0].set(0)
+ m=rand((B,T,C,K),.5);st=bam_pallas.static_weight(*(rand((C,H),.2) for _ in range(4)),jnp.eye(C,dtype=dt)*1000);q=rand((B,T,H,C));k=rand(q.shape);vo=rand((B,T,2*H,C));ol=rand((B,T,H));vl=rand(ol.shape);qstd=rand((B,T,H,4));kstd=rand(qstd.shape);g=tuple(jax.nn.sigmoid(rand(ol.shape)).astype(dt) for _ in range(4));shift=jax.nn.sigmoid(rand((B,T,C))).astype(dt).at[:,0].set(0)
  args=(m,st,q,ol,k,vl,vo,ol,vl,qstd,kstd);kw=dict(qk_cols=12,read_epsilon=1e-6,key_scale=.7,static_gates=g,shift=shift,body='v8t',interpret=True,forward_tile=128,reverse_tile=128,vmem_mib=60)
  def run(*a,**k):return bam_pallas.read(*a,**k)[3]
  native=jax.jit(lambda:run(*args,**kw))();d,s,recon=jax.jit(lambda:split(args,kw))();ids=np.unique(np.linspace(64,127,64,dtype=np.int32));target=np.asarray(native[:,ids],float)

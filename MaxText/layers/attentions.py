@@ -4176,6 +4176,11 @@ class BamAttention(Attention):
       multiplier = self._o_dropout_multiplier(inputs_q, o_weight_rate, self._read_bam_v, deterministic)
       if multiplier is not None:
         read_kwargs['o_weight_multiplier'] = multiplier
+    if getattr(cfg, 'bam_local_o_dynamic_norm_scale', False):
+      # Learned [N,V] scale of the dynamic O key after its RMS norm, as _dynamic_local_o_multiplier.
+      if body != 'v8t':
+        raise ValueError('O dynamic norm scale requires the v8t fused read')
+      read_kwargs['o_dynamic_scale'] = self._pad_read_heads(self.local_o_dynamic_norm_scale, -2, 1.)
     if getattr(cfg, 'bam_pallas_read_chunk', None):
       read_kwargs['chunk'] = int(cfg.bam_pallas_read_chunk)
     pass_m = body in ('v7', 'v7u', 'v8t')   # M passthrough: dM sum fused into the read reverse

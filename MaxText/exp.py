@@ -18057,11 +18057,13 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     # Effective initializer is configurable, no +1 offset. Static O and V untouched; gamma=1 preserves parent init.
     # Adds18*16*32=9216 parameters (+.00213%); MLP2510/1128/tail3904 unchanged. Existing scale WD exclusion retained.
     # CPU reference/all-grad, BF16, initializer, budget and WD checks in bam_local_o_dynamic_norm_scale_test.py.
+    # Pallas (claude/o-dyn-norm-scale-pallas): v8t read scales the dynamic O key rows by gamma in-kernel;
+    # dgamma is a per-tile partial. Read+write Pallas as parent; native reference via bam_pallas_core=False.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODynamicNormScaleTruePile'
     bam_local_o_dynamic_norm_scale = True
     bam_local_o_dynamic_norm_scale_init = 1.0
-    bam_pallas_core = False
-    bam_pallas_write = False
+    bam_pallas_core = True
+    bam_pallas_write = True
     compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75TruePile']
 
 
@@ -18082,6 +18084,12 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalOReadWeightDropoutP020V5p8Profile'
     steps = 100
     bam_pallas_core = True
+
+
+class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODynamicNormScaleV5p8Profile(TrainStepProfile, BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODynamicNormScaleTruePile):
+    """Timing/trace: dynamic O norm scale in the v8t read, formal batch16/device and health, on v5p-8."""
+    model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODynamicNormScaleV5p8Profile'
+    steps = 100
 
 
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio1to1SeparateVOKeysLogitDiagNegativeQK75TruePile(

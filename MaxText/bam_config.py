@@ -16,8 +16,8 @@ def validate_bam_config(config, *, layer_mode=None):
     value = get('bam_local_o_dynamic_norm_scale_init', 1.0)
     if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
       raise ValueError('bam_local_o_dynamic_norm_scale_init must be a finite scalar')
-    if get('bam_pallas_core', False):
-      raise ValueError('O dynamic norm scale requires native JAX read; Pallas scale gradients are not implemented')
+    if get('bam_pallas_core', False) and get('bam_pallas_body', None) != 'v8t':
+      raise ValueError('O dynamic norm scale with bam_pallas_core requires bam_pallas_body=v8t')
     if not (get('bam_general_column_read', False) and get('bam_local_vo_independent_keys', False)
             and get('bam_local_vo_independent_gates', False) and get('bam_prune_all_row_reads', False)
             and not get('bam_local_o_compress_v', False)):

@@ -17946,7 +17946,7 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
 
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalOReadWeightDropoutP020TruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75TruePile):
-    """O address dropout p=.2, [B,1,N,V]; one mask on static+dynamic effective weights."""
+    """O address dropout p=.2, [B,T,N,V]; one mask on static+dynamic effective weights."""
     # Native implementation on main; developed in codex/mediumprop-attention-diagonal-zero,/data0/xd/mediumprop-attention-diagonal-zero.
     # Not launched. Pure-JAX read reference for the separately developed Pallas adapter; tuned Splash retained.
     # No post-dropout RMSNorm. No new parameters or MLP budget changes. Eval disables dropout.

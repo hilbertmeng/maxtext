@@ -18024,6 +18024,32 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75TruePile']
 
 
+class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalOScale050TruePile(
+    BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75TruePile):
+    """Ledger only: per-layer complete local-O gain .5; no dropout."""
+    # code_commit: de9b370; codex/mediumprop-attention-diagonal-zero,/data0/xd/mediumprop-attention-diagonal-zero.
+    # UE5a v5p16 xd-v5p-16-310382-maxtext; plan13500,no2800/5000 loss-stop reviews; AOT/FIRST_STEP0 verified.
+    # AV+s*O feeds W_O and attention M write.18 signed preupdate scale values in TB; no decay,unconstrained.
+    # Params432112210 (+18),MLP2510/1128/tail3904 and M-cache unchanged; tunedSplash/v8t48MiB,fusedinputs,healthON/internal+BAM OFF.
+    # Startup20..99 .685460step/s vs parent.686768 (-.19%); terminal MHA-reference gain bet1.01.
+    # CPU7 checks:gain1 parent identity,static/dynamic O+write coverage,scan/Pallas allgrad5.84e-6,BF16,signed health/WD/budget.
+    # See mediumprop_local_o_scale.md; implementation remains on recorded runtime branch,not main.
+    model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalOScale050TruePile'
+    bam_local_o_learned_scale = True
+    bam_local_o_scale_init = .5
+    compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75TruePile']
+
+
+class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalOScale100TruePile(
+    BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalOScale050TruePile):
+    """Ledger only: same learned O gain at1; exact parent initial function."""
+    # code_commit: de9b370; UE5a v5p16 xd-v5p-16-310383-maxtext; AOT/FIRST_STEP0 and18 initial TB values verified.
+    # Same13500/no2800/5000 review plan and budgets as .5. Startup20..99 .683030step/s vs parent.686768 (-.54%).
+    # Terminal MHA-reference gain bet1.005; direct parent only in compare_runs; no-dropout standard loss.
+    model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalOScale100TruePile'
+    bam_local_o_scale_init = 1.0
+
+
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio1to1SeparateVOKeysLogitDiagNegativeQK75TruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75TruePile):
     """Equal vector/complete-M-branch budgets on negative-diagonal/full-NoPE."""

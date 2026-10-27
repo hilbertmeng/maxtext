@@ -107,3 +107,31 @@ No new kernel implementation; the retained FLEX compiler is borrowed and retaine
 
 Native registry stores each direct comparator plus its MHA-reference gain triple.
 Startup is recorded here once; routine monitoring belongs in registry/report artifacts.
+
+## First review: continuous L15-L17 VM closed
+
+Strict three-site arm stopped2727/P1 at its preserved preemption checkpoint. Its last5
+complete windows through2600 vs strongest parent have gap+.01125608/R.96603201.
+Restored-self arm stopped3259/P0; final5 through3200 gap+.01075508/R.96236301.
+Both exhibit a persistent~.01 deficit and a falling normalized gain ratio. The restored
+arm's small/unstable benefit vs its strict direct parent (last5 common2600
+-.00051676/R1.00171048) does not make the dense VM layout competitive.
+Both checkpoints, independent TPU/queue absence and final TB SYNC_OK verified.
+Positive terminal bets are unsupported at these review stops; no13500 terminal result
+was measured for either arm. The spaced L14/L17 variants remain in training.
+
+At VM sites V no longer reads M, so shared versus independent VO read keys is moot.
+Restored-self controls also match the old VM-site diagonal policy. These are close
+transfers of the historical VM design; primary local changes are full NoPE57->75 and
+budget widths, with VO splitting/strict attention still changing unmodified layers.
+Mask controls do not identify excluded self-attention as the main dense-layout cost.
+The result argues against simply adding adjacent VM sites while paying more MLP/V-read
+capacity; it does not isolate site count from spacing or establish a general VM failure.
+
+Closeout figure: `strong-vm-tail-3200-2600-2800-3200-20261027-130247-569173.png`.
+Native reports, complete lease/resource/checkpoint/TB proof: artifact root above.
+
+| RUN suffix | READY start UTC | End UTC | Duration | Exit |
+| --- | --- | --- | --- | --- |
+| MuddL15L16L17VML2TruePile | 2026-10-27 11:34:08 | 2026-10-27 12:54:38 | 1h20m30s | preempted |
+| MuddL15L16L17VML2RestoreSelfTruePile | 2026-10-27 11:25:21 | 2026-10-27 12:58:07 | 1h32m46s | run_stop |

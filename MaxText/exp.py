@@ -18016,8 +18016,11 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75MuddL14L17VML2TruePile):
     """Move native VM sites to all three final layers; preserve every live M writer."""
     # ledger only: codex/mediumprop-strong-vm-tail,/data0/xd/mediumprop-strong-vm-tail; see strong_vm_tail.md.
-    # code_commit: 7d1b0fc; UE5a v5p16 xd-v5p-16-310388-maxtext; plan13500, FIRST_STEP/AOT verified.
+    # code_commit: 7d1b0fc; UE5a v5p16 xd-v5p-16-310388-maxtext; stopped2727/P1.
+    # CP2727/TB SYNC_OK; node+QR independently absent; first VM review, not a measured13500 terminal result.
     # Startup20..99 0.636088 step/s (-7.38% vs strongest parent); healthON/internal+BAM OFF.
+    # vs strongest parent: persistent~.01 loss deficit, gain ratio downtrend; last5 through2600 +.01125608/R.96603201.
+    # Preempted at CP2727; ended recovery because the three-site variant offered no competitive gain.
     # Params432420828, including309020 exempt native-router params; QK93/O M reads and live writes retained.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75MuddL15L16L17VML2TruePile'
     bam_mudd_pre_tail_vm = False
@@ -18045,8 +18048,11 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75MuddL15L16L17VML2TruePile):
     """Restore the attention diagonal only at L15/L16/L17 VM sites."""
     # ledger only: codex/mediumprop-strong-vm-tail,/data0/xd/mediumprop-strong-vm-tail; see strong_vm_tail.md.
-    # code_commit: 7d1b0fc; UE5a v5p16 xd-v5p-16-310390-maxtext; plan13500, FIRST_STEP/AOT verified.
+    # code_commit: 7d1b0fc; UE5a v5p16 xd-v5p-16-310390-maxtext; stopped3259/P0.
+    # CP3259/TB SYNC_OK; node+QR independently absent; first VM review, not a measured13500 terminal result.
     # Startup20..99 0.629175 step/s (-8.39% vs strongest parent); healthON/internal+BAM OFF.
+    # vs strongest parent: persistent~.01 loss deficit, gain downtrend; final5 through3200 +.01075508/R.96236301.
+    # vs strict three-site parent: small/unstable self-attention help, last5 common2600 -.00051676/R1.00171048.
     # Params432420828, including309020 exempt native-router params; QK93/O M reads and live writes retained.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75MuddL15L16L17VML2RestoreSelfTruePile'
     bam_mudd_tail_restore_self_attention = True

@@ -705,6 +705,9 @@ active leases are censored, and manual migration releases are not preemptions.
 
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODynamicNormScale050TruePile` | v5p-16 (`xd-v5p-16-310384-maxtext`) | `us-east5-a` | 2026-10-27 06:29:32 | 2026-10-27 12:49:25 | complete13500/P3; CP13500/TB SYNC_OK; node+QR independently absent; runtime2662b39 | none |
 
+| `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75MuddL15L16L17VML2TruePile` | v5p-16 (`xd-v5p-16-310388-maxtext`) | `us-east5-a` | 2026-10-27 11:34:05 | 2026-10-27 12:58:03 | first VM review stop2727/P1; CP/TB SYNC_OK, node+QR independently absent; runtime7d1b0fc | none |
+| `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75MuddL15L16L17VML2RestoreSelfTruePile` | v5p-16 (`xd-v5p-16-310390-maxtext`) | `us-east5-a` | 2026-10-27 11:25:16 | 2026-10-27 12:58:07 | first VM review stop3259/P0; CP/TB SYNC_OK, node+QR independently absent; runtime7d1b0fc | none |
+
 ## READY leases
 
 | RUN | # | Zone | Start UTC | End UTC | Duration | Exit |
@@ -2239,6 +2242,8 @@ active leases are censored, and manual migration releases are not preemptions.
 | `BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640SeparateVOKeysLogitDiagNegative` | 1 | `us-east5-a` | 2026-10-26 16:19:18 | 2026-10-27 11:19:25 | 19h00m07s | common21.5k pause21544/P0; CP/fixed2k+20k committed, node+QR absent, TB synced; end is pause boundary, followed by release |
 | `BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640SeparateVOKeysLogitDiagNegativeQK80` | 1 | `us-east5-a` | 2026-10-26 16:21:37 | 2026-10-27 11:32:08 | 19h10m31s | common21.5k pause21557/P0; CP/fixed2k+20k committed, node+QR absent, TB synced; end is pause boundary, followed by release |
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODynamicNormScale050TruePile` | 4 | `us-east5-a` | 2026-10-27 07:34:04 | 2026-10-27 12:49:25 | 5h15m21s | run_stop; complete13500/P3, CP/TB secured, node+QR absent |
+| `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75MuddL15L16L17VML2TruePile` | 1 | `us-east5-a` | 2026-10-27 11:34:08 | 2026-10-27 12:54:38 | 1h20m30s | preempted; review stop2727, CP/TB secured, node+QR absent |
+| `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75MuddL15L16L17VML2RestoreSelfTruePile` | 1 | `us-east5-a` | 2026-10-27 11:25:21 | 2026-10-27 12:58:07 | 1h32m46s | run_stop; review stop3259, CP/TB secured, node+QR absent |
 
 ### 2026-10-14 user pause: resumed mixed R256/R384
 

@@ -1,0 +1,23 @@
+{
+  "task": "Truncated vs fullQK strict-history BAM: MHA_o/M_o magnitude, gates and frozen causal ablations over checkpoints",
+  "training_commit": "44141a7c22c395255a6d0d58fff8e103d9a3fe87",
+  "canonical_report": "/home/mengqy/Projects/Bam/training_reports/no_self_readout_20261027",
+  "main_step": 12000,
+  "steps": [
+    2000,
+    4000,
+    6000,
+    8000,
+    10000,
+    12000,
+    14000
+  ],
+  "layer_sweep_steps": [
+    2000,
+    12000
+  ],
+  "GCS": "gs://newproject-1-llm_projects_us-east5/log/diagnostics/mengqy/no_self_readout_20261027",
+  "resource": "xd-v5p8-mqy-noself-1027-uc1a",
+  "status": "CPUvalidated_prepare_seal",
+  "scope": "Frozen only, independent vector/attentionwrite controls, samegraphneutral baseline, retain bias. Cohort32T2048. No subagents/ag2xd writes; preserve mainexp."
+}

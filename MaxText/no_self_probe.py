@@ -153,6 +153,7 @@ def main():
         value=np.concatenate(result);assert value.shape==(32,2048) and np.isfinite(value).all();return value
     def validate(marker,common):
         for key in ['source_commit','checkpoint','sequence_hashes','plan_digest','experiment']:assert marker[key]==common[key],('Completed artifact mismatch',key)
+    previous_native=None
     for step in manifest['step_order']:
         cases=plan(step,manifest['main_step']);destination=a.gcs_output+'/'+a.family+'/'+str(step);folder=outroot/a.family/str(step);folder.mkdir(parents=True,exist_ok=True)
         checkpoint=manifest['checkpoint_roots'][a.family]+'/'+str(step)+'/items'
@@ -162,6 +163,8 @@ def main():
         with mesh,nn.partitioning.axis_rules(cfg.logical_axis_rules):params=checkpointing.load_params_from_path(checkpoint,abstract.params)
         assert sum(v.size for v in jax.tree.leaves(params))==a.expected_parameters
         native_loss=loss_batches(params)
+        if previous_native is not None:assert not np.array_equal(native_loss,previous_native),"Different checkpoints produced identical losses: inspect parameter reuse"
+        previous_native=native_loss.copy()
         if not installed:capture.install();installed=True
         neutral=loss_batches(params,ones);neutral_drift=float(np.max(np.abs(neutral.mean(1)-native_loss.mean(1))));assert neutral_drift<.005,('Neutral changed native CE',neutral_drift)
         common['neutral_native_CE_max_difference']=neutral_drift
@@ -183,7 +186,7 @@ def main():
             for key,value in raw.items():assert len(value)==1
             for key,value in first[1].items():np.testing.assert_array_equal(value[0],repeat[key][0])
             file=folder/'capture.npz';save_npz(file,**merged,inputs=data['tokens'][:,:2048],targets=data['tokens'][:,1:2049],native_loss=native_loss,neutral_loss=neutral,observed_loss=observed)
-            meta=dict(**common,observer_native_CE_max_difference=drift,projection_max_relative_RMS=post_error,repeat_exact=True,config={key:value for key,value in cfg.get_keys().items() if key in critical or key.startswith(('bam_','pythia_','mudd_'))},verified_config_keys=checked,jax_version=jax.__version__,devices=[str(x) for x in jax.devices()],gate_definition='First4 are native sigmoid outputs; last2 are actual1.1*static_sigmoid/.99 multipliers. Samples64queries>=64; not binary gating.',projection_definition='PreW_o head moments actual nativeA/Mo. Posthead energy uses per-head W_o Gram; aggregate post-W_o projects allheads together. FP32 linear decomposition from nativeBF16 operands/kernel; bias separate. Closure against native output checked.',ablation_scope='Combined: independent vector projection and attention-write content controls both0. Vector-only leaves directattentionwrite content native but downstream/MLP writes remain live; write-only leaves current attentionvector native. Outputbias retained once.')
+            meta=dict(**common,observer_native_CE_max_difference=drift,projection_max_relative_RMS=post_error,repeat_exact=True,config={key:value for key,value in cfg.get_keys().items() if key in critical or key.startswith(('bam_','pythia_','mudd_'))},verified_config_keys=checked,jax_version=jax.__version__,devices=[str(x) for x in jax.devices()],gate_definition='First4 are native sigmoid outputs; last2 are actual1.1*static_sigmoid/.99 multipliers. Samples64queries>=64; not binary gating.',projection_definition='PreW_o head moments actual nativeA/Mo. Posthead energy uses per-head W_o Gram; aggregate post-W_o projects allheads together. FP32 linear decomposition from nativeBF16 operands/kernel; bias separate. Closure against native output checked.',ablation_scope='Combined: independent vector projection and attention-write content controls both0. Vector-only preserves each current call computed directattentionwrite content, not the unperturbed whole-model trace; downstream/MLP writes remain live. Write-only preserves current attentionvector. Outputbias retained once.')
             publish_pair(file,folder/'capture.json',meta,destination);del merged,arrays,observed,first,raw,repeat
             print('NOSELF_CAPTURE_COMPLETE',a.family,step,'CEdrift',drift,'projection_relative_RMS',post_error,flush=True)
         else:validate(captured,common)

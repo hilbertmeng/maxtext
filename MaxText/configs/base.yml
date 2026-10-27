@@ -508,6 +508,8 @@ bam_local_vo_shared_read: 'none'
 bam_local_vo_independent_keys: False
 bam_local_o_drop_head_rate: 0.0 # O-only [B,T,N,1] inverted DropHead; AV stays active.
 bam_local_o_read_weight_dropout_rate: 0.0 # O address [B,T,N,V], after RMSNorm; shared static/dynamic mask.
+bam_local_o_dynamic_norm_scale: False # Learned [head,V] scale on normalized dynamic O address only.
+bam_local_o_dynamic_norm_scale_init: 1.0 # Effective initial scale; no implicit +1 offset.
 bam_read_gate_activation: 'sigmoid'
 bam_local_packed_parameter_name: 'W_local_packed'   # = the setup attribute name used when unset
 rmt_dynamic_write_rows: 32

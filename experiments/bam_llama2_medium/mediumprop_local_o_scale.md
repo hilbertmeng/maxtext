@@ -24,7 +24,7 @@ The existing .*scale$ rule excludes its decay. New shape[1] supports scan axis1;
 constant initialization consumes no RNG and preserves all parent parameter values.
 The gain1 control preserves the initial parent attention function and M writes.
 
-The dynamic read gate has bounded1.1*sigmoid output; s adds a learned amplitude
+The dynamic read gate has bounded sigmoid (maximum1) output; s adds a learned amplitude
 and a gradient path outside gate saturation. Static projection scaling alone cannot
 generally replace that conditional dynamic gain. Positive loss effects remain a
 hypothesis, not a consequence of this nonredundancy. Before-run terminal MHA-reference

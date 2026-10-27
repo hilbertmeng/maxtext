@@ -18050,6 +18050,21 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     bam_local_o_scale_init = 1.0
 
 
+class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODynamicNormScaleTruePile(
+    BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75TruePile):
+    """Native reference: per-head32-coordinate affine scale on dynamic O address RMSNorm."""
+    # Native implementation on main; not launched. Dynamic sigmoid max1; static gate is1.1*sigmoid.
+    # Effective initializer is configurable, no +1 offset. Static O and V untouched; gamma=1 preserves parent init.
+    # Adds18*16*32=9216 parameters (+.00213%); MLP2510/1128/tail3904 unchanged. Existing scale WD exclusion retained.
+    # CPU reference/all-grad, BF16, initializer, budget and WD checks in bam_local_o_dynamic_norm_scale_test.py.
+    model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODynamicNormScaleTruePile'
+    bam_local_o_dynamic_norm_scale = True
+    bam_local_o_dynamic_norm_scale_init = 1.0
+    bam_pallas_core = False
+    bam_pallas_write = False
+    compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75TruePile']
+
+
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio1to1SeparateVOKeysLogitDiagNegativeQK75TruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75TruePile):
     """Equal vector/complete-M-branch budgets on negative-diagonal/full-NoPE."""

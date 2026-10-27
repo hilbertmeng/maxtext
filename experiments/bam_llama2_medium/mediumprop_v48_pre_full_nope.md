@@ -4,7 +4,7 @@ RUN:BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDia
 Direct parent:BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75TruePile
 Parent runtime5a3d55b,completed13500; code location follows the same family:
 /data0/xd/mediumprop-attention-diagonal-zero,codex/mediumprop-attention-diagonal-zero.
-Planned trainer:xd-v5p-16-310378-maxtext,us-east5-a,v5p16,13500 steps.
+Trainer:xd-v5p-16-310378-maxtext,us-east5-a,v5p16; completed13500.
 Latest comparable ownedUE5a trainers completed5.5h leases atP0; retain this region.
 Borrow user-owned FLEX_START llm-jax-v6e-1-0/EW4a/worker0 only for AOT;
 ACTIVE FLEX_START queue verified, no train/profile process found, per-worker lock
@@ -58,8 +58,7 @@ A nonpositive terminal gain would reject this allocation at fixed ranks and
 budget,not prove arbitrary M expansion impossible.
 Only direct parent in compare_runs;common referenceBamMHAMediumPropC256TruePile.
 Cumulative gap/gain plots from600 at2k public cadence,native200-step windows;
-2800/5000 are reviews,full automatic bound13500. Keep monitoring the existing
-shared-VO negative-diagonal interaction run during preparation and training.
+2800/5000 are reviews,full automatic bound13500.
 Artifacts:/data0/xd/bam_diagnostics/mediumprop-v48-pre-full-nope/.
 
 ## Verified startup
@@ -81,4 +80,24 @@ internal+BAM OFF,tunedSplash/Pallasv8t,fused inputs,per-device16/T4096.
 -4.37%,close to the-4% bet. This is an observed training comparison on distinct
 TPUs,not a same-worker paired profile. Startup proof,exact AOT manifest and
 source-bound CPU proof are saved under the artifact directory above. Borrowed
-compiler retained. Continue monitoring alongside the shared-VO interaction run.
+compiler retained.
+
+## Final result
+
+Completed13500, with a positive same-window gain throughout200..13400. The early
+advantage contracts to a smaller sustained margin, with a late rebound after12k.
+Final five windows12600..13400: mean gap-.00321056 and MHA-reference R1.01827148;
+latest gap-.003335/R1.01906082. Original terminal1.02 bet is close; the conservative
+12k forecast1.015 undershot the finish. Fixed-R256 M expansion therefore adds
+useful capacity on the strongest combo, with a modest terminal improvement.
+
+432111056 parameters (parent-1136 integer remainder), unchanged temporal QK/V
+cache widths93/75, M-state+50%, observed training speed-4.3744%. The positive
+quality result comes with these state/compute costs.
+
+CP13500 commit verified, TB SYNC_OK, node and queued resource independently absent.
+P0; single active zone us-east5-a. READY lease2026-10-26 21:00:15 through
+2026-10-27 02:54:32UTC,5h54m17s. Prequeue first observed READY21:00:01;
+registry assignment21:00:12..02:54:32UTC. No region switch or backup candidate.
+Artifacts: final-proof.json,final-metrics.json,final-pending-native.json,
+figure-final.json and closeout-final.log in the artifact directory above.

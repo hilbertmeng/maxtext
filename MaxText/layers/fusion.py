@@ -205,14 +205,25 @@ class SubDecoderLayer(nn.Module):
             layer_inx=self.layer_inx)
     else:
         AttnCls = Attention
-    pallas_tail = bool(cfg.bam_pallas_core) and bam_mudd.is_value_layer(cfg, self.layer_inx)
+    value_layer = bam_mudd.is_value_layer(cfg, self.layer_inx)
+    pallas_tail = bool(cfg.bam_pallas_core) and value_layer
     if pallas_tail:
       # The existing fused QKVO kernel serves ordinary layers. Selective full
       # QKV/VM layers use JAX reads/writes and bridge the v8t M layout.
       if cfg.bam_pallas_body != 'v8t':
         raise ValueError('Pallas selective tail requires the v8t M layout')
+    restore_self = value_layer and bool(cfg.bam_mudd_tail_restore_self_attention)
+    residual_v_only = value_layer and not cfg.bam_mudd_tail_dual_value
+    if pallas_tail or restore_self or residual_v_only:
+      overrides = {'bam_pallas_core': False} if pallas_tail else {}
+      if residual_v_only:
+        # This layer has no M-derived V arm; retain O's existing key while
+        # removing only the now-unused independent V key and its parameters.
+        overrides['bam_local_vo_independent_keys'] = False
+      if restore_self:
+        overrides.update(bam_attention_negative_diagonal=False, bam_attention_zero_diagonal=False)
       attn_kwargs['config'] = pyconfig.HyperParameters(SimpleNamespace(
-          keys=dict(cfg.get_keys(), bam_pallas_core=False)))
+          keys=dict(cfg.get_keys(), **overrides)))
     attention_layer = AttnCls(**attn_kwargs)
 
     call_kwargs = dict(

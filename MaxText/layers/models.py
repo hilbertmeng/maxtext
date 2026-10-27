@@ -989,10 +989,14 @@ class Decoder(nn.Module):
             or (cfg.decoder_block == 'pythia' and cfg.pythia_parallel_residual)):
           raise ValueError('residual M route requires a single selective tail block and serial MLP')
         qkvm_count = cfg.bam_mudd_tail_qkvm_last_layers
-        if qkvm_count and (qkvm_count != 2 or blocks != 1 or persistent
+        if qkvm_count and (qkvm_count not in (2, 3) or blocks != 1 or persistent
             or not cfg.bam_mudd_tail_residual_mlp
-            or (not cfg.bam_mudd_tail_residual_qk and not cfg.bam_mudd_tail_native_shared_router)):
-          raise ValueError('last-two-layer routing requires one native VM or residual QKVM block')
+            or (not cfg.bam_mudd_tail_residual_qk and not cfg.bam_mudd_tail_native_shared_router)
+            or (qkvm_count == 3 and (cfg.bam_mudd_tail_residual_qk
+                                   or not cfg.bam_mudd_tail_native_shared_router))):
+          raise ValueError('tail routing requires native VM for three layers, or VM/QKVM for two')
+        if cfg.bam_mudd_tail_restore_self_attention and not cfg.bam_mudd_tail_native_shared_router:
+          raise ValueError('selective self-attention restoration requires native Mudd tail routing')
         qk_count = cfg.bam_mudd_tail_qk_last_layers
         if qk_count is not None and (type(qk_count) is not int
             or not 1 <= qk_count <= (qkvm_count or 1)
@@ -1053,9 +1057,9 @@ class Decoder(nn.Module):
         stages = ((0, prefix // 3, 'layers'),)
         if not explicit_tail:
           stages += ((prefix, blocks, 'tail_layers'),)
-        if pre_tail_vm and cfg.bam_mudd_pre_tail_vm_offset >= 4:
+        if (pre_tail_vm and cfg.bam_mudd_pre_tail_vm_offset >= 4) or qkvm_count == 3:
           if prefix < 6:
-            raise ValueError('pre-tail VM requires an ordinary prefix before the two modified blocks')
+            raise ValueError('split native VM stages require an ordinary prefix before the tail blocks')
           stages = ((0, prefix // 3 - 1, 'layers'),
                     (prefix - 3, 1, 'pre_tail_layers'))
           if not explicit_tail:

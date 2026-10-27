@@ -576,7 +576,8 @@ bam_mudd_tail_blocks: 0 # Selective WV/Mudd blocks, with a separate repeated tai
 bam_mudd_tail_mlp_dims: null # Three shared widths in the modified tail block.
 bam_mudd_tail_residual_qk: False # Also restore full Q/K from separate three-source residual routes.
 bam_mudd_tail_residual_mlp: False # Route final-layer residual M before its attention addition, as Mudd's m path.
-bam_mudd_tail_qkvm_last_layers: 0 # 2 extends the single-tail QKVM variant to L-2 as well as L-1; local O remains a matrix read.
+bam_mudd_tail_qkvm_last_layers: 0 # 2 extends native VM/QKVM routing; 3 selects a complete final VM block. Local O stays a matrix read.
+bam_mudd_tail_restore_self_attention: False # Only Mudd V layers restore causal self-attention; other layers keep the global diagonal policy.
 bam_mudd_tail_qk_last_layers: null # Optional QK subset of the routed tail: 1 keeps QK M reads in L-2 and uses Mudd QK only in L-1.
 bam_mudd_tail_skip_attention_write_last_layers: 0 # Omit both operations and parameters in the last 1/2 tail layers; retain local O reads.
 bam_mudd_tail_native_shared_router: False # Use native Mudd Compose once for joint QKV[/m] routing, and C1 final readout.

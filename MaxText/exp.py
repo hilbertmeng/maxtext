@@ -17972,6 +17972,64 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeTruePile']
 
 
+class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75MuddL14L17VML2TruePile(
+    BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75TruePile):
+    """L14/L17 native VM plus final Mudd on the completed strongest 2:1 combo."""
+    model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75MuddL14L17VML2TruePile'
+    bam_pair_scan = True
+    bam_local_fetch_block_size = 3
+    mlp_dim_by_block = [2510, 2510, 2510]
+    bam_final_local_layer_count = 0
+    bam_final_local_mlp_dim = None
+    bam_last_mlp_dim = 0
+    bam_mudd_tail_blocks = 1
+    bam_mudd_tail_mlp_dims = [2510, 2510, 3551]
+    bam_mudd_tail_native_shared_router = True
+    bam_mudd_tail_residual_mlp = True
+    bam_mudd_tail_residual_qk = False
+    bam_mudd_tail_l2_anchor = True
+    bam_mudd_tail_skip_mlp_write = False
+    bam_mudd_tail_skip_attention_write_last_layers = 1
+    bam_mudd_pre_tail_vm = True
+    bam_mudd_pre_tail_vm_offset = 4
+    bam_mudd_pre_tail_vm_mlp_dim = 2275
+    bam_memory_mlp_dim_by_layer = [1128] * 14 + [1010, 1128, 1128, 0]
+    bam_mudd_final_output = True
+    compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75TruePile']
+
+
+class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75MuddL15L16L17VML2TruePile(
+    BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75MuddL14L17VML2TruePile):
+    """Move native VM sites to all three final layers; preserve every live M writer."""
+    model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75MuddL15L16L17VML2TruePile'
+    bam_mudd_pre_tail_vm = False
+    bam_mudd_tail_qkvm_last_layers = 3
+    bam_mudd_tail_mlp_dims = [2275, 2275, 3551]
+    bam_memory_mlp_dim_by_layer = [1128] * 15 + [1010, 1010, 0]
+
+
+class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75MuddL14L17VML2RestoreSelfTruePile(
+    BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75MuddL14L17VML2TruePile):
+    """Restore the attention diagonal only at L14/L17 VM sites; identical parameter tree."""
+    model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75MuddL14L17VML2RestoreSelfTruePile'
+    bam_mudd_tail_restore_self_attention = True
+    compare_runs = [
+        'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75MuddL14L17VML2TruePile',
+        'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75TruePile',
+    ]
+
+
+class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75MuddL15L16L17VML2RestoreSelfTruePile(
+    BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75MuddL15L16L17VML2TruePile):
+    """Restore the attention diagonal only at L15/L16/L17 VM sites."""
+    model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75MuddL15L16L17VML2RestoreSelfTruePile'
+    bam_mudd_tail_restore_self_attention = True
+    compare_runs = [
+        'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75MuddL15L16L17VML2TruePile',
+        'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75TruePile',
+    ]
+
+
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODropHeadP020TruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75TruePile):
     """O-only inverted DropHead p=.2, [B,T,N,1]; preserve AV and all parent parameters."""

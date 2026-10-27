@@ -28,8 +28,8 @@ UE5a chosen from repeated recent5.5h uninterrupted comparable leases.
 CPU gate: new p=.4 sampling/config and four-way parameter budget, existing sparse
 train-probe tests and TB rotation tests. Existing per-token native/Pallas whole-model
 forward/all-gradient and BF16/remat checks remain applicable: model/helper source
-unchanged from main283bbb31, only class launch settings/probability changed.
-Infrastructure audit against main283bbb31: train/train_compile/checkpointing/max_utils/
+unchanged from verified runtimecb77a195, only class launch settings/probability changed.
+Infrastructure audit against main283bbb31 (launch classes later registered atc4446e70): train/train_compile/checkpointing/max_utils/
 optimizers/summary_writer match; current sparse eval_loss pipeline and rotation retained.
 
 Comparisons: only direct parent in compare_runs; common gain reference
@@ -43,3 +43,10 @@ Before-run terminal gain bets versus parent (MHA reference): p=.2 R1.015
 (range.99..1.04), p=.4 R1.005 (range.97..1.04); favor .2. Expected throughput
 ~.66-.68step/s versus parent's .686768, to be checked after startup.
 13.5k planned; standard2800/5000 trend reviews. No inference-cache or parameter cost.
+
+Startup verification: runtime `db290e9478f86e6e9544122684fa613061fe6c6c`; both exact AOT manifests and Loaded compiled function/FIRST_STEP verified.
+The real console-to-native pipeline reads precisely the five eval_loss samples180..220; no optimization-loss fallback.
+Startup harmonic20..99 speeds: p=.2 .677220885 (-1.3902%), p=.4 .679310556 (-1.0859%) versus parent.686768097.
+This sample excludes sparse probe steps; full-run overhead is not measured by these figures.
+Both native windows have5 samples and MHA-reference gain reports. FLEX compiler preserved and worker lock released.
+Artifacts: `/data0/xd/bam_diagnostics/mediumprop-local-o-drophead-p020-p040/`.

@@ -17935,9 +17935,11 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75TruePile):
     """O-only inverted DropHead p=.2, [B,T,N,1]; preserve AV and all parent parameters."""
     # Native implementation on main; developed in codex/mediumprop-attention-diagonal-zero,/data0/xd/mediumprop-attention-diagonal-zero.
+    # code_commit: db290e9; UE5a v5p16 xd-v5p-16-310379-maxtext; plan13500, AOT/FIRST_STEP verified.
     # Formal RUN uses verified post-read Pallas DropHead; native reference via bam_pallas_core=False.
     # MLP2510/1128/tail3904 and432112192 params unchanged; tunedSplash, generic healthON/internal+BAM OFF.
-    # Evaluation disables dropout; training-objective CE must not be compared directly with the no-dropout parent.
+    # Real eval_loss180..220 and native5-point report verified; train loss remains the optimization objective.
+    # Startup20..99 .677221step/s vsparent.686768 (-1.39%); this window excludes sparse eval overhead.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODropHeadP020TruePile'
     bam_pallas_core = True
     enable_dropout = True
@@ -17949,6 +17951,8 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODropHeadP040TruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODropHeadP020TruePile):
     """Same per-token O-only DropHead with stronger p=.4; all budgets unchanged."""
+    # code_commit: db290e9; UE5a v5p16 xd-v5p-16-310380-maxtext; plan13500, AOT/FIRST_STEP verified.
+    # Startup20..99 .679311step/s vsparent.686768 (-1.09%); eval_loss first5-point window verified.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODropHeadP040TruePile'
     bam_local_o_drop_head_rate = .4
 

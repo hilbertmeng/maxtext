@@ -136,3 +136,25 @@ All READY leases, UTC (final endpoint is clean completion):
 | 2026-10-27 06:42:35 | 2026-10-27 07:02:31 | 19m56s | preempted |
 | 2026-10-27 07:10:53 | 2026-10-27 07:26:47 | 15m54s | preempted |
 | 2026-10-27 07:34:04 | 2026-10-27 12:49:25 | 5h15m21s | run_stop |
+
+## Init .1 completed 13500 (2026-10-27)
+
+Runtime34d61c2, physical310385/logical310386 in UE5a, P0. CP13500 marker,
+independent node/queued-resource absence and final TensorBoard SYNC_OK verified.
+The large initial deficit versus init.5 disappeared around4k; final5(12600..13400)
+gap-.00002128 and MHA-reference ratio1.00012024 show terminal parity, missing the
+1.005 prior. Versus the original strongest M32 parent, final5 gap-.00172088 and
+ratio1.00978469 nearly match init.5's gain; reducing initialization further does
+not add meaningful terminal benefit here.
+
+At13450, the full18-layer gamma RMS range is.107835(L1)..153956(L16),
+median.123247, L0.118693 and L17.142541; every raw-gradient norm is finite/nonzero.
+The learned values remain far below init.5 despite tied loss. These parameter norms
+are not actual localO/context activation ratios. Params432121408 and MLP widths
+2510/1128/tail3904 remain unchanged; startup.687325step/s.
+
+One complete READY lease:2026-10-27 10:25:18..16:01:54UTC,5h36m36s, clean completion.
+The resource assignment started10:25:15. Final native reports, full-layer health,
+CP/TB and independent resource/lease proof: the010-hot artifact root above,
+`tenth-final-metrics.json`, `scale-health-13400-13400.json`,
+`tenth-final-resource-proof.json` and `tenth-final-leases.json`.

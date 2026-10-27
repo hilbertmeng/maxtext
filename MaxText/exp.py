@@ -18184,11 +18184,14 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODynamicNormScale010TruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODynamicNormScale050TruePile):
     """Native reference: dynamic O norm scale .1; static O remains untouched."""
-    # code_commit: 34d61c2; codex/local-o-dynamic-norm-init,/data0/xd/local-o-dynamic-norm-init; runtime Pallas read+write=True.
-    # UE5a v5p16 retained xd-v5p-16-310385-maxtext, logical310386; fresh step0/AOT verified; plan13500.
-    # Same432121408 params/MLP2510,1128,tail3904; only gamma initializer changes vs .5, no budget adjustment.
-    # Startup20..99 .687325step/s; terminal MHA-ref gain bet vs .5=1.005; generic healthON/internal+BAM OFF.
-    # Compare .5 for further suppression gain and original M32 parent for net benefit; native PallasFalse flags inherited.
+    # code_commit: 34d61c2; codex/local-o-dynamic-norm-init,/data0/xd/local-o-dynamic-norm-init; Pallas read+write runtime.
+    # UE5a v5p16 physical310385/logical310386; completed 13500/P0; CP13500/TB secured, node+QR independently absent.
+    # vs gamma.5: large early deficit erased by~4k; near parity thereafter, final5 gap-.00002128/R1.00012024.
+    # vs strongest parent: persistent small gain afterearly catch-up; final5 gap-.00172088/R1.00978469.
+    # Initial terminal R1.005 vs gamma.5 not met; no meaningful terminal advantage despite very different gamma values.
+    # At13450, full18-layer gamma RMS.107835..153956 (deep layers larger), median.123247; all raw gradients finite/nonzero.
+    # Params432121408, MLP2510/1128/tail3904 unchanged; startup.687325step/s; generic healthON/internal+BAMOFF.
+    # Complete one READY lease10:25:18..16:01:54UTC(5h36m36s); see mediumprop_local_o_dynamic_norm_init.md.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODynamicNormScale010TruePile'
     bam_local_o_dynamic_norm_scale_init = .1
     compare_runs = [
@@ -18486,6 +18489,66 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     bam_memory_mlp_dim = 1128
     bam_last_mlp_dim = 3910
     compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75TruePile']
+
+
+class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75MLPInputMixG099WriteControlHTruePile(
+    BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75TruePile):
+    """Two residual-only input gates from existing MLPnorm(h); original h write controls.
+
+    Outer residual stays h=x+a. Ordinary/private MLPs receive separately
+    normalized g_x*x+a, sharing the existing MLP norm parameters.
+    The terminal layer has only the ordinary gate. New42035 parameters
+    (.00973%) are explicitly exempt from MLP repayment; widths stay2510/1128/3904.
+    """
+    # ledger only: codex/mediumprop-mlp-input-mix,/data0/xd/mediumprop-mlp-input-mix; see mediumprop_mlp_input_mix.md.
+    # code_commit: 33e6bc1; UE5a v5p16 xd-v5p-16-310392-maxtext; FIRST0/AOT/source/data verified, plan13500.
+    # Startup20..99 0.669775step/s (-2.47% vs parent), includes70 targeted gate-health scalars absent in parent.
+    # Generic healthON/internal+BAMOFF; two residual-only gates, +42035 exempt params; MLP2510/1128/tail3904 unchanged.
+    # Only5000 review; retain all credible baseline beaters, not winner-only. Terminal MHA-ref ratio bet1.005.
+    model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75MLPInputMixG099WriteControlHTruePile'
+    bam_mlp_input_mix = True
+    bam_mlp_input_mix_gate_scale = 1.0
+    bam_mlp_input_mix_gate_init = .99
+    bam_mlp_input_mix_write_controls = False
+    bam_record_mlp_input_mix_health = True
+    compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75TruePile']
+
+
+class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75MLPInputMixG099WriteControlMixTruePile(
+    BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75MLPInputMixG099WriteControlHTruePile):
+    """Same sigmoid .99 mixtures; private write address/gate also use private mixture."""
+    # ledger only: codex/mediumprop-mlp-input-mix,/data0/xd/mediumprop-mlp-input-mix; see mediumprop_mlp_input_mix.md.
+    # code_commit: 33e6bc1; UE5a v5p16 xd-v5p-16-310393-maxtext; FIRST0/AOT/source/data verified, plan13500.
+    # Startup20..99 0.659025step/s (-4.04% vs parent), includes70 targeted gate-health scalars absent in parent.
+    # Generic healthON/internal+BAMOFF; two residual-only gates, +42035 exempt params; MLP2510/1128/tail3904 unchanged.
+    # Only5000 review; retain all credible baseline beaters, not winner-only. Terminal MHA-ref ratio bet1.010.
+    model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75MLPInputMixG099WriteControlMixTruePile'
+    bam_mlp_input_mix_write_controls = True
+
+
+class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75MLPInputMixG100Scale2WriteControlHTruePile(
+    BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75MLPInputMixG099WriteControlHTruePile):
+    """2*sigmoid with zero kernel/bias, exact unit opening; original h write controls."""
+    # ledger only: codex/mediumprop-mlp-input-mix,/data0/xd/mediumprop-mlp-input-mix; see mediumprop_mlp_input_mix.md.
+    # code_commit: 33e6bc1; UE5a v5p16 xd-v5p-16-310394-maxtext; FIRST0/AOT/source/data verified, plan13500.
+    # Startup20..99 0.668988step/s (-2.59% vs parent), includes70 targeted gate-health scalars absent in parent.
+    # Generic healthON/internal+BAMOFF; two residual-only gates, +42035 exempt params; MLP2510/1128/tail3904 unchanged.
+    # Only5000 review; retain all credible baseline beaters, not winner-only. Terminal MHA-ref ratio bet1.020.
+    model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75MLPInputMixG100Scale2WriteControlHTruePile'
+    bam_mlp_input_mix_gate_scale = 2.0
+    bam_mlp_input_mix_gate_init = 1.0
+
+
+class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75MLPInputMixG100Scale2WriteControlMixTruePile(
+    BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75MLPInputMixG100Scale2WriteControlHTruePile):
+    """Same exact-unit mixtures; private write address/gate also use private mixture."""
+    # ledger only: codex/mediumprop-mlp-input-mix,/data0/xd/mediumprop-mlp-input-mix; see mediumprop_mlp_input_mix.md.
+    # code_commit: 33e6bc1; UE5a v5p16 xd-v5p-16-310395-maxtext; FIRST0/AOT/source/data verified, plan13500.
+    # Startup20..99 0.663125step/s (-3.44% vs parent), includes70 targeted gate-health scalars absent in parent.
+    # Generic healthON/internal+BAMOFF; two residual-only gates, +42035 exempt params; MLP2510/1128/tail3904 unchanged.
+    # Only5000 review; retain all credible baseline beaters, not winner-only. Terminal MHA-ref ratio bet1.025.
+    model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75MLPInputMixG100Scale2WriteControlMixTruePile'
+    bam_mlp_input_mix_write_controls = True
 
 
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MHAWriterEvery4KeepMemoryTruePile(

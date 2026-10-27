@@ -69,6 +69,8 @@ class SubDecoderLayer(nn.Module):
 
   def setup(self):
     cfg = self.config
+    if getattr(cfg, 'bam_mlp_input_mix', False):
+      raise ValueError('MLP input-mix configurations require their recorded sealed worktree runtime')
     self.mudd_qkvnorm = mudd.Norm(cfg, self.mesh, self.quant)
 
     mlp_pattern = getattr(cfg, 'mlp_dim_by_block', None)

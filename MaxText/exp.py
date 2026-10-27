@@ -17995,14 +17995,33 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75TruePile):
     """O address dropout p=.2, [B,T,N,V]; one mask on static+dynamic effective weights."""
     # Native implementation on main; developed in codex/mediumprop-attention-diagonal-zero,/data0/xd/mediumprop-attention-diagonal-zero.
-    # Not launched. Pure-JAX read reference for the separately developed Pallas adapter; tuned Splash retained.
+    # Not launched. Pallas: v8t read applies the same sampled mask to the effective O weight in-kernel
+    # (claude/o-read-dropout-pallas); native reference via bam_pallas_core=False. Tuned Splash retained.
     # No post-dropout RMSNorm. No new parameters or MLP budget changes. Eval disables dropout.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalOReadWeightDropoutP020TruePile'
-    bam_pallas_core = False
+    bam_pallas_core = True
     enable_dropout = True
     bam_local_o_read_weight_dropout_rate = .2
     train_no_dropout_loss_interval = 200
     compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75TruePile']
+
+
+class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75V5p8Profile(TrainStepProfile, BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75TruePile):
+    """Timing/trace: Pallas parent without O dropout, formal batch16/device and health, on v5p-8."""
+    model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75V5p8Profile'
+    steps = 100
+
+
+class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODropHeadP020V5p8Profile(TrainStepProfile, BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODropHeadP020TruePile):
+    """Timing/trace: O DropHead p=.2, formal batch16/device and health, on v5p-8."""
+    model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODropHeadP020V5p8Profile'
+    steps = 100
+
+
+class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalOReadWeightDropoutP020V5p8Profile(TrainStepProfile, BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalOReadWeightDropoutP020TruePile):
+    """Timing/trace: O read-weight dropout p=.2 in the v8t read, formal batch16/device and health, on v5p-8."""
+    model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalOReadWeightDropoutP020V5p8Profile'
+    steps = 100
 
 
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio1to1SeparateVOKeysLogitDiagNegativeQK75TruePile(

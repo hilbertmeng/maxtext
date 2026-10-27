@@ -58,7 +58,7 @@ class LocalORegularizationTest(MLPWriteTest, unittest.TestCase):
       self.assertTrue(cfg.enable_dropout and cfg.sa_use_fused_bwd_kernel and cfg.record_training_health_metrics)
       self.assertFalse(cfg.record_internal_nn_metrics)
       if run != PARENT:
-        self.assertEqual(cfg.bam_pallas_core, run != WEIGHT)
+        self.assertTrue(cfg.bam_pallas_core)
         self.assertEqual(cfg.compare_runs, [PARENT])
     self.assertEqual(trees[0], trees[1])
     self.assertEqual(trees[0], trees[2])

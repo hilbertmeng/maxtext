@@ -58,7 +58,8 @@ class LocalORegularizationTest(MLPWriteTest, unittest.TestCase):
       self.assertTrue(cfg.enable_dropout and cfg.sa_use_fused_bwd_kernel and cfg.record_training_health_metrics)
       self.assertFalse(cfg.record_internal_nn_metrics)
       if run != PARENT:
-        self.assertTrue(cfg.bam_pallas_core)
+        # Main keeps the read-weight dropout class as the native reference (its RUN sealed core=True).
+        self.assertEqual(cfg.bam_pallas_core, run != WEIGHT)
         self.assertEqual(cfg.compare_runs, [PARENT])
     self.assertEqual(trees[0], trees[1])
     self.assertEqual(trees[0], trees[2])

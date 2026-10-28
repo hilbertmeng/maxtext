@@ -18245,14 +18245,14 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     """Independent sigmoid write gates for MHA/LocalO, shared original RMS/address.
 
     Both kernels use independent original BAM initialization, both biases logit(.1).
-    Residual output and gamma=.5 read unchanged. Fused read + native JAX write;
-    enable the Pallas writer only after it supports SplitAttentionWrite factors.
+    Residual output and gamma=.5 read unchanged. Fused read + fused v8t write: the
+    writer takes the 5-factor SplitAttentionWrite group in-kernel (shared-RMS reverse).
     """
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODynamicNormScale050DualWriteGatesTruePile'
     bam_local_o_separate_write_gate = True
     bam_record_dual_write_health = True
     bam_pallas_core = True
-    bam_pallas_write = False
+    bam_pallas_write = True
     bam_pallas_body = 'v8t'
     bam_pallas_fused_inputs = True
     bam_pallas_vmem_mib = 48

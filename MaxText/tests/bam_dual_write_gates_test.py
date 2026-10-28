@@ -66,7 +66,7 @@ class DualWriteGatesTest(MLPWriteTest, unittest.TestCase):
     self.assertEqual(sum(math.prod(v.shape) for v in extra.values()),17*(1200*16+16))
     self.assertFalse(any('final_local_layer' in p for p in extra))
     self.assertEqual((c.mlp_dim,c.bam_memory_mlp_dim,c.bam_last_mlp_dim),(2505,1128,3898))
-    self.assertTrue(c.bam_pallas_core and not c.bam_pallas_write)
+    self.assertTrue(c.bam_pallas_core and c.bam_pallas_write and c.bam_pallas_body=='v8t')
     self.assertTrue(c.scan_layers and not c.bam_pair_scan)
     self.assertTrue(c.record_training_health_metrics and not c.record_internal_nn_metrics)
     self.assertEqual(c.compare_runs,[PARENT])
@@ -87,6 +87,30 @@ class DualWriteGatesTest(MLPWriteTest, unittest.TestCase):
 
   def test_full_model_pallas_read_native_write_all_gradients(self):
     StandardValueTest.check_pallas(self,True)
+
+  def test_full_model_pallas_read_and_write_all_gradients(self):
+    tiny=self.tiny
+    def with_write(*a,**k):
+      c=tiny(*a,**k);c.get_keys().update(bam_pallas_write=True);return c
+    self.tiny=with_write
+    StandardValueTest.check_pallas(self,True)
+
+  def test_v8t_split_write_kernel_matches_native_all_gradients(self):
+    from layers import bam_pallas_v8
+    k=jax.random.split(jax.random.key(30),10);b,t,n,kd,v=2,128,3,16,8
+    args=(jax.random.normal(k[0],(b,t,v,kd)),jax.random.normal(k[1],(b,t,n,kd)),
+          2*jax.random.normal(k[2],(b,t,n,kd)),jax.random.normal(k[3],(b,t,n)),
+          jax.random.normal(k[4],(b,t,n)),jax.random.normal(k[5],(b,t,n,v)),
+          jax.random.normal(k[6],(b,t,2,kd)),jax.random.normal(k[7],(b,t,2)),jax.random.normal(k[8],(b,t,2,v)))
+    target=jax.random.normal(k[9],args[0].shape)
+    groups=lambda x:[bam_write.SplitAttentionWrite(*x[:5]),tuple(x[5:])]
+    native=lambda m,*x:bam_write.native_write(m,groups(x),epsilon=1e-6)[0]
+    kernel=lambda m,*x:bam_pallas_v8.write_tm(m,groups(x),epsilon=1e-6,interpret=True)
+    np.testing.assert_allclose(kernel(*args),native(*args),rtol=2e-5,atol=2e-5)
+    gn=jax.grad(lambda *x:jnp.sum(native(*x)*target),argnums=tuple(range(9)))(*args)
+    gk=jax.grad(lambda *x:jnp.sum(kernel(*x)*target),argnums=tuple(range(9)))(*args)
+    worst=max(float(jnp.max(jnp.abs(l-r))/jnp.max(jnp.abs(l))) for l,r in zip(gn,gk))
+    print('DUAL_WRITE_V8T_KERNEL_WORST_GRAD',worst,flush=True);self.assertLess(worst,1e-5)
 
   def test_actual_scan_health_only_live_writers(self):
     from layers.bam_write import record_health_metrics

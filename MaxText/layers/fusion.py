@@ -515,8 +515,14 @@ class SubDecoderLayer(nn.Module):
             self.sow('intermediates', 'dual_write_stats', dual_stats)
         else:
           from layers import bam_write
-          if any(isinstance(group, bam_write.SplitAttentionWrite) for group in groups):
-            raise ValueError('Split attention gates need bam_pallas_write=False until the write kernel is adapted')
+          split = [g for g in groups if isinstance(g, bam_write.SplitAttentionWrite)]
+          if split and cfg.bam_pallas_body != 'v8t':
+            raise ValueError('Split attention gates in the Pallas writer require body=v8t')
+          if split and cfg.bam_record_dual_write_health and not self.is_initializing():
+            # Health scalars only: XLA side, no gradient, same values as the native writer.
+            _, dual_stats = bam_write.split_content(
+                jax.tree.map(jax.lax.stop_gradient, split[0]), initializers.get_bam_write_epsilon(cfg))
+            self.sow('intermediates', 'dual_write_stats', dual_stats)
           with jax.named_scope('bam/pallas_write'):
             M_out = bam_pallas.write(
                 M_out, groups, epsilon=initializers.get_bam_write_epsilon(cfg),

@@ -18245,22 +18245,23 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     """Independent sigmoid write gates for MHA/LocalO, shared original RMS/address.
 
     Both kernels use independent original BAM initialization, both biases logit(.1).
-    Residual output and gamma=.5 read unchanged. Fused read + native JAX write;
-    enable the Pallas writer only after it supports SplitAttentionWrite factors.
+    Residual output and gamma=.5 read unchanged. Fused Pallas read/write;
+    runtime branch supplies the SplitAttentionWrite adapter.
     """
     # Ledger only: codex/mediumprop-local-o-dual-write; /data0/xd/mediumprop-local-o-dual-write.
-    # code_commit: 45467cd; UE5a v5p16 xd-v5p-16-310401-maxtext; FIRST0/step100/exactAOT/workerGit/data/s13500 verified.
+    # code_commit: 8e318c4; UE5a v5p16 xd-v5p-16-310401-maxtext; same-RUN hot resume1601 from CP1600, old retained through1644.
     # Native writer + Pallas read: startup20..99 .6329875step/s vs gamma.5 parent.689788, throughput-8.23%, step time+8.97%.
     # CPU58 PASS; healthON/internal+BAM broadstatsOFF except51 targeted write scalars; tunedSplash/v8t48MiB.
     # Params432120480 vs parent432121408(delta-928); ordinary2505/private1128/tail3898; no terminal write gates.
     # Initial preparation400 canceled on a legacy test fixture field, no training; node+QR absent, compiler preserved.
-    # Terminal native MHA-reference R bet1.01 vs gamma.5; grouped2k plots, review5k. Pallas write adapter pending.
-    # Pallas-write adapter: 8e318c4 claude/dual-write-pallas,/data0/xd/dual-write-pallas (=45467cd1+v8t split-write); v5p16 s13500 AOT ready; hot-switch target.
+    # Terminal native MHA-reference R bet1.01 vs gamma.5; grouped2k plots, review5k.
+    # Pallas-write adapter: 8e318c4 claude/dual-write-pallas,/data0/xd/dual-write-pallas (=45467cd1+v8t split-write); v5p16 s13500 AOT/workerGit/resume verified.
+    # Same-batch1601..1620 loss meanabs2.965e-5/max8.2e-5; Pallas80-step .660125 vs native late.62675 (+5.33%), parent.689788 (-4.30%).
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODynamicNormScale050DualWriteGatesTruePile'
     bam_local_o_separate_write_gate = True
     bam_record_dual_write_health = True
     bam_pallas_core = True
-    bam_pallas_write = False
+    bam_pallas_write = True
     bam_pallas_body = 'v8t'
     bam_pallas_fused_inputs = True
     bam_pallas_vmem_mib = 48

@@ -2,7 +2,8 @@
 
 Worktree: /data0/xd/mediumprop-local-o-dual-write
 Branch: codex/mediumprop-local-o-dual-write
-Runtime:45467cd1d7b4471a53d338467a4cb6098ac5d536
+Runtime:8e318c405e529b98d4545ef4a7008952a0f8b089
+Initial native-write runtime:45467cd1d7b4471a53d338467a4cb6098ac5d536
 Initial model/reference handoff:e0b1051ec5e32b45c659b648606458ec9f39e406
 Fork: latest main1a8099c0; complete operational infrastructure inherited.
 Artifacts: /data0/xd/bam_diagnostics/mediumprop-local-o-dual-write
@@ -93,11 +94,34 @@ startup-310401.json, startup-summary.json, startup-registries.json, cpu-pass.jso
 aot-v2.log, launch-v2.log; all under the artifact root. Training checkpoint output
 is gs://newproject-1-llm_projects_us-east5/log/RUN/checkpoints/, not the UC1 prefix.
 
-Claude reports a split-writer adapter based on454 in claude/dual-write-pallas,
-with kernel allgrad3.3e-7/model3.5e-6; final regressions/commit still pending.
-Keep the current native run training. This task owns the final AOT/hot switch;
-preserve post-checkpoint old-native losses before its worker log/cache is replaced,
-then compare both implementations at identical restored common steps/batches.
-Do not discard progress, duplicate a training TPU for validation, or compare
-unmatched before/after windows. Current runtime remains454 until the final adapter
-and exact AOT are verified. Health producer/names must survive the adapter.
+## Verified Pallas writer hot handoff
+
+Claude's8e318c4 on454 supports the split writer; all22 regression checks pass
+(dual-write8, dynamic norm6, mshift8). Exact v5p16/s13500 AOT and sealed config
+verified; only effective runtime attribute change is bam_pallas_write=False->True.
+Kernel retains FP32 RMS/gates before final cast, consistent with existing parent
+writer; BF16 reference checks find it closer to FP32 truth than native arithmetic.
+No parameter tree, optimizer, data, schedule or TPU change. Health producer remains
+XLA-side on stop-gradient inputs, with the same51 names. Formal post-switch TB
+checks at1700 verify all51 finite and gate means within[0,1].
+
+Same-RUN handoff on310401 preserves old native output through1644 and its final
+committed checkpoint1646, then restores committed checkpoint1600 using its saved
+input cursor. New worker Git8e318c4, exact AOT load, first completed1601, actual
+zone-local dataset and total/LR13500 verified. No extra TPU or compilation.
+The first attempt at anchor1200 was blocked before stopping any process because
+native had reached1330, exceeding the retention guard. Automatic wait1625 followed
+by handoff at1600 succeeded; source script is xd_tpu_scripts commit191d1fd.
+
+Identical steps/batches1601..1620: first loss difference+0.000055,
+mean signed+0.00000055, mean absolute0.00002965, maximum absolute0.000082.
+This verifies continuation within small BF16 rounding noise, rather than comparing
+unmatched pre/post windows. Old snapshots remain independently preserved so the
+latest-launch-wins loss cache cannot erase overlap evidence.
+
+New stable80 samples1620..1699 average.660125step/s versus late native1560..1639
+.62675: throughput+5.33%. Versus native startup.6329875:+4.29%; versus gamma.5
+parent.689788:-4.30%. Parent comparison includes51 extra targeted health scalars,
+so the remaining difference cannot be assigned solely to writer arithmetic.
+Receipts: kernel-handoff/{journal,anchor-cursor,old-final-cursor,old-final-steps,
+new-worker,new-registry,comparison}.json plus old-final.log under artifact root.

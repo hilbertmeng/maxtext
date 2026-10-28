@@ -17287,6 +17287,24 @@ class BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640S
     compare_runs = ['BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640SeparateVOKeysLogitDiagNegative']
 
 
+class BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640SeparateVOKeysLogitDiagNegativeQK80LocalODynamicNormScale020(
+        BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640SeparateVOKeysLogitDiagNegativeQK80):
+    """Scale only the dynamic local-O address with learned gamma initialized to .2.
+
+    Each of32 layers owns gamma[32,64], after dynamic address RMSNorm/gating
+    and before adding static O. Static O and Q/K/V retain the combination parent.
+    Adds65536 parameters (.00236%, .01 W_Q), exempt from MLP repayment:
+    GELU7808/2944, terminal9984, all R640 and full-head QKNorm remain unchanged.
+    Pallas v8t read/write, minimal remat and single-layer scan31+tail1 inherit.
+    Generic health exports32 gamma norms and32 raw-gradient norms; report RMS
+    by dividing per-layer L2 bysqrt(2048), not the Medium sqrt(512).
+    """
+    model_name = 'BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640SeparateVOKeysLogitDiagNegativeQK80LocalODynamicNormScale020'
+    bam_local_o_dynamic_norm_scale = True
+    bam_local_o_dynamic_norm_scale_init = .2
+    compare_runs = ['BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640SeparateVOKeysLogitDiagNegativeQK80']
+
+
 class BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640HybridV8DropLocalOSeparateVOKeys(
         BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640SeparateVOKeys):
     """Eight ordinary W_V heads plus24 independent-address M-V heads; omit O only on ordinary heads.

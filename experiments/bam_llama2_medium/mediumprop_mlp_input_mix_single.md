@@ -67,9 +67,10 @@ Shared commit/source-keyed CPU gate: focused6 including backward through private
 new full-model Pallas2, shared BAM47 and summary-writer5. Preparation failures release
 only newly owned training prequeues, never the retained compiler.
 
-After actual AOT/FIRST_STEP/data/source/step100 verification, only5000-step review,
-quiet intermediate waits; retain all credible baseline beaters. Surviving runs may
-continue through13500 and close out with cumulative native gap/ratio figures from600.
+After verified startup, report the two runs together every2000 steps, per the user
+updated cadence. Keep the5000-step decision review and all credible baseline beaters.
+Use native200-step windows and cumulative gap/ratio plots from600 against both
+registered comparators; no change to the full13500 training schedule.
 
 ## Verified startup
 

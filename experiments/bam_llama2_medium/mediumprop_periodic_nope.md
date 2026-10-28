@@ -53,3 +53,28 @@ RUNs/TPUs:
 
 Sealed runtime: c266c0d487192f405d0cedae5d7867944b131cb7. Both preparation drivers submitted; CPU checks,
 AOT compilation and training-only queues are gated before formal startup.
+
+## Verified startup
+
+All56 CPU checks pass: focused4 (both exact parameter trees, deleted projection
+reference, native/Pallas full-model gradients for both refunds), shared BAM47,
+rotating summary writers5. Worst relative full-model gradient errors7.09e-6 and
+3.51e-5. Native selected layer equals its parent with zeroed standard Q/K weights,
+while the pruned tree has no query/key leaves and M read gradients remain live.
+
+Both13500-step v5p16 AOTs ready with exact manifests; sealed configuration matches
+c266c0d487192f405d0cedae5d7867944b131cb7. Shared FLEX worker flock serialized them;
+training-only queues310402/310403 independently became READY. Actual workers both
+start at completed0, load the exact compiled function, run Gitc266c0d and correct
+zone-local TruePile4096 data. Resolved EXP steps and LR schedule both13500; the CLI
+inherits that schedule rather than overriding it. Both native gain triples and
+sole gamma=.5 direct baseline verified.
+
+All80 timing samples20..99: ordinary.680050step/s, ratio2to1.677550step/s versus
+parent.689788: -1.41%/-1.77%, within +/-3% bet. These are descriptive cross-lease
+training timings with matched health, topology, batch, remat and tuned kernels;
+new runs use three-layer block scan, parent single-layer scan. No kernel files
+changed, no extra diagnostic TPU or health metrics. Borrowed compiler preserved.
+Receipts under /data0/xd/bam_diagnostics/mediumprop-nope-layers:
+validation-summary.json, cpu-pass.json, startup-310402.json, startup-310403.json,
+startup-verification-pass.json, startup-summary.json and startup-registries.json.

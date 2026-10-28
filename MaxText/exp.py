@@ -18244,7 +18244,8 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODynamicNormScale050TruePile):
     """Every third layer uses pure-M Q/K; refund removed projections to its ordinary MLP."""
     # Ledger only: codex/mediumprop-nope-layers, /data0/xd/mediumprop-nope-layers.
-    # code_commit: c266c0d; UE5a v5p-16 xd-v5p-16-310402-maxtext, preparation submitted; plan 13500.
+    # code_commit: c266c0d; UE5a v5p-16 xd-v5p-16-310402-maxtext; FIRST0/step100/exact AOT/data/s13500 verified.
+    # Startup20..99 0.680050 step/s vs gamma=.5 parent .689788 (-1.41%); health matched, tuned Splash/Pallas read+write.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODynamicNormScale050NoPEEvery3RefundOrdinaryTruePile'
     bam_standard_qk_drop_every = 3
     bam_pair_scan = True
@@ -18263,7 +18264,8 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODynamicNormScale050NoPEEvery3RefundRatio2to1TruePile(BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODynamicNormScale050NoPEEvery3RefundOrdinaryTruePile):
     """Same NoPE layers; refund ordinary/complete memory branches at approximately 2:1."""
     # Ledger only: codex/mediumprop-nope-layers, /data0/xd/mediumprop-nope-layers.
-    # code_commit: c266c0d; UE5a v5p-16 xd-v5p-16-310403-maxtext, preparation submitted; plan 13500.
+    # code_commit: c266c0d; UE5a v5p-16 xd-v5p-16-310403-maxtext; FIRST0/step100/exact AOT/data/s13500 verified.
+    # Startup20..99 0.677550 step/s vs gamma=.5 parent .689788 (-1.77%); health matched, tuned Splash/Pallas read+write.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODynamicNormScale050NoPEEvery3RefundRatio2to1TruePile'
     mlp_dim_by_block = [2510, 2510, 2638]
     bam_memory_mlp_dim_by_layer = [1128, 1128, 1192] * 6

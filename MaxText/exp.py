@@ -18674,7 +18674,10 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     memory inputs/controls unchanged. Extra21618 parameters exempt from repayment.
     """
     # Ledger only: codex/mediumprop-mlp-input-mix; /data0/xd/mediumprop-mlp-input-mix.
-    # Prepared runtime0244976d; training startup not yet verified.
+    # code_commit: 0244976; UE5a v5p16 xd-v5p-16-310398-maxtext; FIRST0/AOT/step100/workerGit/data/s13500 verified.
+    # Startup20..99 0.677525step/s, vs corresponding sigmoid.99 +0.17%, vs no-gate SOTA -1.35%.
+    # Generic healthON/internal+BAMOFF except36 gate scalars; tunedSplash/Pallasv8t read+write; CPU8 PASS.
+    # Grouped2k reports, 5k review; terminal native MHA-reference R bet1.00 vs no-gate SOTA.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75MLPInputMixComplementaryOrdinaryOnlyTruePile'
     bam_mlp_input_mix_complementary = True
     bam_mlp_input_mix_gate_scale = 2.0
@@ -18693,7 +18696,10 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     Extra20417 parameters exempt from repayment; MLP widths unchanged.
     """
     # Ledger only: codex/mediumprop-mlp-input-mix; /data0/xd/mediumprop-mlp-input-mix.
-    # Prepared runtime0244976d; training startup not yet verified.
+    # code_commit: 0244976; UE5a v5p16 xd-v5p-16-310399-maxtext; FIRST0/AOT/step100/workerGit/data/s13500 verified.
+    # Startup20..99 0.669950step/s, vs corresponding sigmoid.99 -0.50%, vs no-gate SOTA -2.45%.
+    # Generic healthON/internal+BAMOFF except34 gate scalars; tunedSplash/Pallasv8t read+write; CPU8 PASS.
+    # Grouped2k reports, 5k review; terminal native MHA-reference R bet1.01 vs no-gate SOTA.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75MLPInputMixComplementaryMemoryOnlyWriteControlMixTruePile'
     bam_mlp_input_mix_complementary = True
     bam_mlp_input_mix_gate_scale = 2.0

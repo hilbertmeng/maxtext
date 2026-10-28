@@ -61,3 +61,24 @@ Report together every2000 steps with cumulative native loss-gap/gain plots from6
 Keep5000 as a decision review, not an automatic endpoint. Retain every credible
 baseline-beating arm rather than forcing winner-only selection. Existing memory-only
 .99 run continues on its own full13500 schedule.
+
+## Verified startup
+
+Both launchers exited0 after actual FIRST_STEP. Independent step100 verification
+confirmed first completed step0, exact0244976d worker Git, exact v5p16/s13500 AOT
+loaded, actual zone-local TruePile4096 data argument, total13500 training/LR schedule,
+and80 timing samples from steps20..99. Both native MHA-reference triples are
+registered against no-gate SOTA and the corresponding sigmoid.99 single-gate control.
+No compiler resource was created or deleted; retained-worker locking serialized AOTs.
+
+| Variant | TPU | Startup20..99 step/s | vs sigmoid.99 | vs no-gate SOTA |
+| --- | --- | ---: | ---: | ---: |
+| ordinary only | 310398 | 0.677525 | +0.17% | -1.35% |
+| memory only + mixed controls | 310399 | 0.669950 | -0.50% | -2.45% |
+
+These are descriptive formal-training startup windows from different leases, not
+paired operator timings. Corresponding sigmoid controls share36/34 targeted health
+scalars; no-gate SOTA lacks these extra summaries. The small timing differences do
+not justify another profiling TPU. Receipts: startup-ID.json, startup-registries.json,
+startup-summary.json, step100-ID.txt, cpu-pass.json, launch-results.json, and sealed
+runtime/source hashes. Main stores ledger classes; implementation remains isolated.

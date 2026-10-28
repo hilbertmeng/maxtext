@@ -18242,12 +18242,15 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
 
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODynamicNormScale050WriteContentNormScaleTruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODynamicNormScale050TruePile):
-    """Independent post-RMS content scales for embedding, attention and memory-MLP writes."""
+    """Independent post-RMS content scales for embedding, attention and memory-MLP writes.
+
+    Attention/MLP scales are fused into the v8t Pallas writer; the embedding write is XLA.
+    """
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODynamicNormScale050WriteContentNormScaleTruePile'
     bam_write_content_norm_scale = True
     bam_write_content_norm_scale_init = 1.0
     bam_pallas_core = True
-    bam_pallas_write = False
+    bam_pallas_write = True
     compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODynamicNormScale050TruePile']
 
 

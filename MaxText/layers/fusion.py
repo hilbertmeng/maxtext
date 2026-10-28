@@ -523,8 +523,8 @@ class SubDecoderLayer(nn.Module):
             M_out = bam_write.native_write(
                 M_out, groups, epsilon=initializers.get_bam_write_epsilon(cfg))
         else:
-          if getattr(cfg, 'bam_write_content_norm_scale', False):
-            raise ValueError('Content scales require native writes until the Pallas writer is adapted')
+          if getattr(cfg, 'bam_write_content_norm_scale', False) and cfg.bam_pallas_body != 'v8t':
+            raise ValueError('Post-RMS content scales in the Pallas writer require body=v8t')
           with jax.named_scope('bam/pallas_write'):
             M_out = bam_pallas.write(
                 M_out, groups, epsilon=initializers.get_bam_write_epsilon(cfg),   # same as the XLA write norms

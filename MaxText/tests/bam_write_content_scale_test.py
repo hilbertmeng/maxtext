@@ -43,7 +43,7 @@ class WriteContentScaleTest(MLPWriteTest,unittest.TestCase):
     self.assertNotIn('bam_record_write_content_scale_health',c.get_keys())
     self.assertFalse(c.record_internal_nn_metrics or c.bam_record_concat_health or c.bam_record_m_shift_health)
     self.assertTrue(c.bam_pallas_core and c.bam_pallas_fused_inputs)
-    self.assertFalse(c.bam_pallas_write)
+    self.assertTrue(c.bam_pallas_write and c.bam_pallas_body=='v8t')
     self.assertTrue(c.sa_use_fused_bwd_kernel)
     self.assertEqual(c.tensorboard_gcs_rotate_period,500)
     self.assertFalse(any('final_local_layer' in p for p in scales))
@@ -65,6 +65,29 @@ class WriteContentScaleTest(MLPWriteTest,unittest.TestCase):
     for x,y in zip(ga,gb):np.testing.assert_allclose(x,y,rtol=2e-5,atol=3e-6)
     np.testing.assert_array_equal(actual(m,u,z,p,jnp.zeros_like(gamma)),m)
     self.assertGreater(float(jnp.max(jnp.abs(norm(u)*gamma-norm(u*gamma)))),.1)
+
+  def test_v8t_scaled_write_kernel_matches_native_all_gradients(self):
+    from layers import bam_pallas_v8
+    k=jax.random.split(jax.random.key(30),9);b,t,n,kd,v=2,256,3,16,8
+    args=(jax.random.normal(k[0],(b,t,v,kd)),jax.random.normal(k[1],(b,t,n,kd)),jax.random.normal(k[2],(b,t,n)),
+          jax.random.normal(k[3],(b,t,n,v)),1+.5*jax.random.normal(k[4],(n,kd)),
+          jax.random.normal(k[5],(b,t,2,kd)),jax.random.normal(k[6],(b,t,2)),jax.random.normal(k[7],(b,t,2,v)))
+    target=jax.random.normal(k[8],args[0].shape)
+    groups=lambda x:[bam_write.ScaledWrite(*x[:4]),tuple(x[4:])]
+    native=lambda m,*x:bam_write.native_write(m,groups(x),epsilon=1e-6)
+    kernel=lambda m,*x:bam_pallas_v8.write_tm(m,groups(x),epsilon=1e-6,interpret=True)
+    np.testing.assert_allclose(kernel(*args),native(*args),rtol=2e-5,atol=2e-5)
+    gn=jax.grad(lambda *x:jnp.sum(native(*x)*target),argnums=tuple(range(8)))(*args)
+    gk=jax.grad(lambda *x:jnp.sum(kernel(*x)*target),argnums=tuple(range(8)))(*args)
+    worst=max(float(jnp.max(jnp.abs(l-r))/jnp.max(jnp.abs(l))) for l,r in zip(gn,gk))
+    print('CONTENT_SCALE_V8T_KERNEL_WORST_GRAD',worst,flush=True);self.assertLess(worst,1e-5)
+
+  def test_full_model_pallas_read_and_write_all_gradients(self):
+    tiny=self.tiny
+    def with_write(*a,**k):
+      c=tiny(*a,**k);c.get_keys().update(bam_pallas_write=True);return c
+    self.tiny=with_write
+    StandardValueTest.check_pallas(self,True)
 
   def test_init_one_preserves_parent_function_and_all_old_parameters(self):
     c=self.tiny();oldc=pyconfig.HyperParameters(SimpleNamespace(keys=dict(c.get_keys(),bam_write_content_norm_scale=False)))

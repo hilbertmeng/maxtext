@@ -18664,6 +18664,44 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
 
 
 
+class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75MLPInputMixComplementaryOrdinaryOnlyTruePile(
+    BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75MLPInputMixG099OrdinaryOnlyTruePile):
+    """Ordinary input Norm(g*x+(2-g)*a), g=2sigmoid(z), zero kernel/bias.
+
+    Initial function equals the ungated SOTA. Outer residual stays x+a;
+    memory inputs/controls unchanged. Extra21618 parameters exempt from repayment.
+    """
+    # Ledger only: codex/mediumprop-mlp-input-mix; /data0/xd/mediumprop-mlp-input-mix.
+    # Prepared runtime0244976d; training startup not yet verified.
+    model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75MLPInputMixComplementaryOrdinaryOnlyTruePile'
+    bam_mlp_input_mix_complementary = True
+    bam_mlp_input_mix_gate_scale = 2.0
+    bam_mlp_input_mix_gate_init = 1.0
+    compare_runs = [
+        'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75TruePile',
+        'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75MLPInputMixG099OrdinaryOnlyTruePile',
+    ]
+
+
+class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75MLPInputMixComplementaryMemoryOnlyWriteControlMixTruePile(
+    BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75MLPInputMixG099MemoryOnlyWriteControlMixTruePile):
+    """Memory input and controls Norm(g*x+(2-g)*a), exact unit initial gates.
+
+    Ordinary MLP/outer residual unchanged; terminal has no unused memory gate.
+    Extra20417 parameters exempt from repayment; MLP widths unchanged.
+    """
+    # Ledger only: codex/mediumprop-mlp-input-mix; /data0/xd/mediumprop-mlp-input-mix.
+    # Prepared runtime0244976d; training startup not yet verified.
+    model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75MLPInputMixComplementaryMemoryOnlyWriteControlMixTruePile'
+    bam_mlp_input_mix_complementary = True
+    bam_mlp_input_mix_gate_scale = 2.0
+    bam_mlp_input_mix_gate_init = 1.0
+    compare_runs = [
+        'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75TruePile',
+        'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75MLPInputMixG099MemoryOnlyWriteControlMixTruePile',
+    ]
+
+
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MHAWriterEvery4KeepMemoryTruePile(
         BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1TruePile):
     """Every fourth layer uses standard attention, with a locally balanced M FFN."""

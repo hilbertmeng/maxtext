@@ -728,6 +728,8 @@ active leases are censored, and manual migration releases are not preemptions.
 
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75MLPInputMixG099OrdinaryOnlyTruePile` | v5p-16 (`xd-v5p-16-310396-maxtext`) | `us-east5-a` | 2026-10-28 02:41:40 | 2026-10-28 05:06:49 | 5k review stopped5229/13500,P1; CP5229/TB secured,node+QR independently absent; runtime2f36e3a | none |
 
+| `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75MLPInputMixG099MemoryOnlyWriteControlMixTruePile` | v5p-16 (`xd-v5p-16-310397-maxtext`) | `us-east5-a` | 2026-10-28 02:40:59 | 2026-10-28 07:08:06 | user stopped10505/13500,P0; CP10505/TB secured,node+QR independently absent; runtime2f36e3a | none |
+
 ## READY leases
 
 | RUN | # | Zone | Start UTC | End UTC | Duration | Exit |
@@ -2287,6 +2289,7 @@ active leases are censored, and manual migration releases are not preemptions.
 | `BamPythia2p8BComboUnmaskResume500` | 1 | `us-east5-a` | 2026-10-28 02:30:07 | 2026-10-28 04:14:02 | 1h43m55s | user hot-switch boundary23453/28000,P0; CP committed, no observed lost steps; retained TPU transferred after new FIRST_STEP |
 
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75MLPInputMixG099OrdinaryOnlyTruePile` | 2 | `us-east5-a` | 2026-10-28 03:26:45 | 2026-10-28 05:06:49 | 1h40m04s | run_stop |
+| `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75MLPInputMixG099MemoryOnlyWriteControlMixTruePile` | 1 | `us-east5-a` | 2026-10-28 02:41:01 | 2026-10-28 07:08:06 | 4h27m05s | run_stop |
 ### 2026-10-14 user pause: resumed mixed R256/R384
 
 RUN `BamMediumPropMShiftReadG050SharedR256R384ByWriteTruePile`, v5p-16,

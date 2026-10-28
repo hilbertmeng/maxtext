@@ -133,3 +133,27 @@ zone switch. Complete READY leases UTC (final end is manual stop request):
 Proofs: ordinary-final-proof.json, ordinary-final-registry.json, ordinary-final-leases.json,
 ordinary-final-pending.json, ordinary-final-node.txt, ordinary-final-queue.txt,
 closeout-ordinary-summary.json; TB receipt closeout-20261028T050646163288Z.log.
+
+## Memory-only user closeout
+
+Memory-only stopped10505/13500 by the user, P0. The tiny lead around5k..9k
+faded to parity by10k; the final10200/10400 windows regained a small lead within
+the previous fluctuation range. Final native five-window9600..10400 average gap
+-0.00035624, MHA-reference R1.00196170 against no-gate SOTA. This does not
+establish a durable architectural gain, and there is no compensating speed, parameter
+or cache benefit. Terminal R bet1.01 was unsupported through stop; no13500
+endpoint was measured. Do not turn the latest slight lead into a false exact-parity claim.
+
+CP10505 committed, no observed lost tail, TB SYNC_OK, node and queued-resource
+absence independently checked. v5p16 remained UE5a, P0, no region switches or
+passive candidates. Full READY lease (UTC):
+
+| Start | End | Duration | Reason |
+| --- | --- | --- | --- |
+| 2026-10-28T02:41:01Z | 2026-10-28T07:08:06Z | 4h27m05s | run_stop |
+
+Proofs: memory-final-proof.json, memory-final-registry.json, memory-final-leases.json,
+memory-prestop-report.json, memory-final-node.txt, memory-final-queue.txt,
+closeout-memory-summary.json; TB receipt closeout-20261028T070800920628Z.log.
+Both sigmoid.99 single-gate experiments are now closed. Complementary-gate
+experiments are a separate active group; their running results are not recorded here.

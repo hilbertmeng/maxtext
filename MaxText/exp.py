@@ -17309,6 +17309,11 @@ class BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640S
     Generic health exports32 gamma norms and32 raw-gradient norms; report RMS
     by dividing per-layer L2 bysqrt(2048), not the Medium sqrt(512).
     """
+    # code_commit:5c3a995; main worktree/refactor-bam; fresh28000-step RUN on retained UE5a v5p128/B16.
+    # AOT/actual HEAD/firststep0 verified; steps20..39 mean.3175step/s, parent.316482 (same health/minimal, no material difference).
+    # Generic health ON/internal+BAM OFF. Exact target AOT uses7161995 MXU gamma-gradient reduction, tile128/VMEM60MiB.
+    # Source66f2d96 AOT exceeded physicalVMEM (67.05>63.94MiB); fixed kernel passed47 shared+32-head all-gradient checks.
+    # Launch/ownership/reproduction:experiments/bam_llama2_medium/pythia2p8_dynamic_o_scale020.md.
     model_name = 'BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640SeparateVOKeysLogitDiagNegativeQK80LocalODynamicNormScale020'
     bam_local_o_dynamic_norm_scale = True
     bam_local_o_dynamic_norm_scale_init = .2
@@ -17343,6 +17348,9 @@ class BamPythia2p8BComboUnmaskResume500(BamPythia2p8BComboKeepPreMaskResume500):
     # RUN_NAME=this alias; reuse original v5p128/s28000 AOT at its exact commit; full-state fork of combinationCP21557.
     # UE5a v5p128/B16, same health/minimal remat; AOT/HEAD/full restore/LR verified, startup10..24 ~0.317step/s.
     # First pre-update log21558;500 added updates is a review point, no stop condition. Normal28000 schedule retained.
+    # User hot-replaced at committedCP23453/28000; P0, no observed lost steps; TB SYNC_OK; TPU transferred to fresh gamma.2 RUN.
+    # Final paired horizon is added0..761 (control stopped earlier):initial gap+5.074742 ->+.008170@100 ->+.004026@500;
+    # final5 windows660..740 mean+.003644:adaptation slowed without net gain. No matched-control claim after that horizon.
     model_name = 'BamPythia2p8BComboUnmaskResume500'
     bam_attention_negative_diagonal = False
     compare_runs = ['BamPythia2p8BComboKeepPreMaskResume500']

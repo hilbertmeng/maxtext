@@ -74,3 +74,13 @@ Raw/window JSON:reports/paired-keep-final.json; lifecycle proof:closeout-keep.js
 in the artifact directory. The exact two runtime experiment configurations differ
 only in the negative-diagonal mask (apart from names/comparison metadata); the
 numerical-source diff is retained as runtime-numerical-diff.patch.
+
+On2026-10-28 the user hot-replaced the unmasked arm with fresh
+`BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640SeparateVOKeysLogitDiagNegativeQK80LocalODynamicNormScale020`.
+The unmasked arm stopped at committedCP23453, with all old workers confirmed gone
+and zero observed lost steps. The existingUE5a v5p128 was retained and transferred
+only after the new RUN producedFIRST_STEP; TB SYNC_OK, no node/queue deletion at this handoff.
+One READY lease02:30:07–04:14:02UTC (1h43m55s), P0. Its paired comparison still
+ends at added761 because the control had already stopped; further unmasked
+training has no synchronous keep-mask control. New ownership and artifacts:
+`/data0/xd/bam_diagnostics/pythia2p8b-dynamic-o020-train-20261028/`.

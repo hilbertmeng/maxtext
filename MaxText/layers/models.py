@@ -1136,6 +1136,11 @@ class Decoder(nn.Module):
               {'local_qk', 'local_o'}, {'local_qk', 'local_v', 'local_o'})
               for mode in cfg.bam_layer_modes[-final_local:])
         scan_length = cfg.num_decoder_layers - int(final_local)
+        qk_drop_every = int(getattr(cfg, 'bam_standard_qk_drop_every', 0) or 0)
+        if qk_drop_every > 1:
+          block_size = getattr(cfg, 'bam_local_fetch_block_size', None) or 2
+          if not pair_scan or block_size % qk_drop_every:
+            raise ValueError('Periodic standard-QK pruning must repeat within each scanned block')
         if final_local and not pair_scan:
           # A homogeneous prefix can scan one layer at a time; only the terminal
           # writer-free/width exception needs an explicit module.

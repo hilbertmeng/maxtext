@@ -18240,6 +18240,31 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     bam_local_o_dynamic_norm_scale_init = 0.5
 
 
+class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODynamicNormScale050NoPEEvery3RefundOrdinaryTruePile(
+    BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODynamicNormScale050TruePile):
+    """Every third layer uses pure-M Q/K; refund removed projections to its ordinary MLP."""
+    model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODynamicNormScale050NoPEEvery3RefundOrdinaryTruePile'
+    bam_standard_qk_drop_every = 3
+    bam_pair_scan = True
+    bam_local_fetch_block_size = 3
+    bam_final_local_layer_count = 3
+    bam_final_local_mlp_dim = None
+    mlp_dim_by_block = [2510, 2510, 2702]
+    bam_memory_mlp_dim = 1128
+    bam_memory_mlp_dim_by_layer = None
+    bam_last_mlp_dim = 4096
+    bam_pallas_core = True
+    bam_pallas_write = True
+    compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODynamicNormScale050TruePile']
+
+
+class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODynamicNormScale050NoPEEvery3RefundRatio2to1TruePile(BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODynamicNormScale050NoPEEvery3RefundOrdinaryTruePile):
+    """Same NoPE layers; refund ordinary/complete memory branches at approximately 2:1."""
+    model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODynamicNormScale050NoPEEvery3RefundRatio2to1TruePile'
+    mlp_dim_by_block = [2510, 2510, 2638]
+    bam_memory_mlp_dim_by_layer = [1128, 1128, 1192] * 6
+
+
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODynamicNormScale050DualWriteGatesTruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODynamicNormScale050TruePile):
     """Independent sigmoid write gates for MHA/LocalO, shared original RMS/address.

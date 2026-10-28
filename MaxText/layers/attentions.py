@@ -2610,6 +2610,12 @@ class BamAttention(Attention):
     self._local_v_replace = False
     self._static_vo = False
     self._standard_qk_width = getattr(cfg, 'bam_standard_qk_dim', None)
+    drop_every = int(getattr(cfg, 'bam_standard_qk_drop_every', 0) or 0)
+    if drop_every < 0:
+      raise ValueError('bam_standard_qk_drop_every must be nonnegative')
+    self._drop_standard_qk = bool(drop_every and (self.layer_inx + 1) % drop_every == 0)
+    if self._drop_standard_qk and (not cfg.bam_concat_qk or cfg.fused_qkv or cfg.qk_norm):
+      raise ValueError('Standard-QK pruning requires concat QK, separate projections and no QKNorm')
     if self._standard_qk_width is not None:
       assert cfg.bam_concat_qk and self._standard_qk_width > 0
     self._concat_health = bool(getattr(cfg, 'bam_record_concat_health', False))
@@ -4022,6 +4028,11 @@ class BamAttention(Attention):
       out[name] = part if bias is None else part + bias
     return out
 
+  def _zero_standard_qk(self, inputs_q, inputs_kv, width):
+    """Parameter-free tail preserves the QK93 kernel ABI for pure-M NoPE layers."""
+    return (jnp.zeros(inputs_q.shape[:-1] + (self.num_query_heads, width), self.dtype),
+            jnp.zeros(inputs_kv.shape[:-1] + (self.num_kv_heads, width), self.dtype))
+
   def _pallas_core_call(self, inputs_q, inputs_positions, decoder_segment_ids, M_in, is_global,
                         standard_qk_width, deterministic=False):
     """Fused-kernel forward; M_in is token-minor [B,V,K,T] (token-major [B,T,V,K] for v8t).
@@ -4048,11 +4059,17 @@ class BamAttention(Attention):
       if not self._has_write:
         write_names = ()
       raw = self._fused_input_projections(
-          inputs_q, ('query', 'key') + (('value',) if self._standard_value_heads else ())
+          inputs_q, (() if self._drop_standard_qk else ('query', 'key'))
+          + (('value',) if self._standard_value_heads else ())
           + key_names + gate_names + static_gate_names + shift_names
           + write_names)
-      query = raw['query'].reshape(b_, t_, self.num_query_heads, standard_qk_width)
-      key = raw['key'].reshape(b_, t_, self.num_kv_heads, standard_qk_width)
+      if self._drop_standard_qk:
+        query, key = self._zero_standard_qk(inputs_q, inputs_q, standard_qk_width)
+      else:
+        query = raw['query'].reshape(b_, t_, self.num_query_heads, standard_qk_width)
+        key = raw['key'].reshape(b_, t_, self.num_kv_heads, standard_qk_width)
+    elif self._drop_standard_qk:
+      query, key = self._zero_standard_qk(inputs_q, inputs_q, standard_qk_width)
     else:
       query = self.query_projection(inputs_q, standard_qk_width)
       key = self.kv_projection(inputs_q, proj_name='key', projection_dim=standard_qk_width)
@@ -4353,10 +4370,13 @@ class BamAttention(Attention):
     if cfg.fused_qkv:
       query, key, value = self.qkv_projection(inputs_q, proj_name="qkv_proj")
     else:
-      query = self.query_projection(inputs_q if inputs_q_route is None else inputs_q_route,
-                                    standard_qk_width if concat_qk else None)
-      key = self.kv_projection(inputs_kv if inputs_k_route is None else inputs_k_route, proj_name="key",
-                               projection_dim=standard_qk_width if concat_qk else None)
+      if self._drop_standard_qk:
+        query, key = self._zero_standard_qk(inputs_q, inputs_kv, standard_qk_width)
+      else:
+        query = self.query_projection(inputs_q if inputs_q_route is None else inputs_q_route,
+                                      standard_qk_width if concat_qk else None)
+        key = self.kv_projection(inputs_kv if inputs_k_route is None else inputs_k_route, proj_name="key",
+                                 projection_dim=standard_qk_width if concat_qk else None)
       if self._hybrid_value:
         value = self.kv_projection(inputs_kv, proj_name='value', num_heads=self._standard_value_heads)
         value = jnp.pad(value, ((0, 0), (0, 0), (0, self.num_kv_heads - self._standard_value_heads), (0, 0)))

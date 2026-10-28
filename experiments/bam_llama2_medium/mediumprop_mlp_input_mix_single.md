@@ -70,3 +70,38 @@ only newly owned training prequeues, never the retained compiler.
 After actual AOT/FIRST_STEP/data/source/step100 verification, only5000-step review,
 quiet intermediate waits; retain all credible baseline beaters. Surviving runs may
 continue through13500 and close out with cumulative native gap/ratio figures from600.
+
+## Verified startup
+
+Runtime2f36e3ac65837e5a16085c5b97095c0f2a682fa6, clean pushed worktree above.
+Both parallel launchers exited0 after actualFIRST_STEP0; exact v5p16/s13500 AOT,
+worker Git/data path and step100 gates independently verified. Actual worker
+configuration logs confirm steps and full LR schedule13500. Source/manifest and
+CPU gate did not change between preparation and launch.
+
+CPU60 PASS once, receipt reused across both launchers: focused6/newPallas2/fullBAM47/
+summary-writer5. The old missing branch selector falls back to both, with historical
+input-routing/shared-norm/outer-residual/initial-parent-function/health coverage.
+The two retained-worker AOTs serialized without adopting compiler lifecycle ownership.
+
+| Variant | TPU | Startup20..99 step/s | vs two-gate parent | vs no-gate SOTA |
+| --- | --- | ---: | ---: | ---: |
+| ordinary only | 310396 | 0.676375 | +2.63% | -1.51% |
+| memory only + mixed controls | 310397 | 0.673325 | +2.17% | -1.96% |
+
+Each timing uses80 training steps20..99, excluding the compilation/first-step period.
+Parent generic health matches; targeted gate statistics differ70 versus36/34, so
+these are descriptive startup comparisons, not isolated operator cost measurements.
+No unrelated timing/profile TPU was created. The slightly low memory-only startup
+relative to the.675 lower prior does not justify kernel profiling or a restart.
+
+Both native MHA-reference gain triples registered against both saved comparators.
+The two-gate parent's mature endpoint is5000, so it cannot supply comparisons beyond
+that point; the no-gate SOTA provides the full13500 reference. Do not interpolate it.
+Updated main infrastructure audit37d53edf confirms f3f52892/f06b0eb2 add only exp.py
+fork classes, with no later operational fixes to port. See infrastructure-audit.json.
+Main keeps ledger-only configurations and its existing unsupported-runtime guard;
+this is not a merge of the experimental routing implementation.
+
+Receipts: cpu-pass.json, startup-registries.json, startup-ID.json,
+startup-summary.json, launch-results.json and step100-ID.txt under the artifact root.

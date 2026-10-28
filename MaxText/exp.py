@@ -18601,7 +18601,10 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     original Norm(h). Extra21618 parameters are exempt; MLP widths unchanged.
     """
     # ledger only: codex/mediumprop-mlp-input-mix,/data0/xd/mediumprop-mlp-input-mix; runtime implementation isolated.
-    # Prepared sealed2f36e3a; sigmoid.99 with mixed private controls, only5000 review; see mediumprop_mlp_input_mix_single.md.
+    # code_commit: 2f36e3a; UE5a v5p16 xd-v5p-16-310396-maxtext; FIRST0/AOT/workerGit/data/s13500 verified.
+    # Startup20..99 0.676375step/s, vs two-gate parent+2.63%, vs no-gate SOTA-1.51%.
+    # Generic healthON/internal+BAMOFF except36 gate scalars; tunedSplash/Pallasv8t read+write; CPU60 PASS.
+    # Extra21618 exempt parameters, widths2510/1128/tail3904 unchanged; only5k review, quiet otherwise; terminal R bet.99 vs no-gate SOTA.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75MLPInputMixG099OrdinaryOnlyTruePile'
     bam_mlp_input_mix_branch = 'ordinary'
     compare_runs = [
@@ -18618,7 +18621,10 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     Extra20417 parameters are exempt; MLP widths unchanged.
     """
     # ledger only: codex/mediumprop-mlp-input-mix,/data0/xd/mediumprop-mlp-input-mix; runtime implementation isolated.
-    # Prepared sealed2f36e3a; sigmoid.99 with mixed private controls, only5000 review; see mediumprop_mlp_input_mix_single.md.
+    # code_commit: 2f36e3a; UE5a v5p16 xd-v5p-16-310397-maxtext; FIRST0/AOT/workerGit/data/s13500 verified.
+    # Startup20..99 0.673325step/s, vs two-gate parent+2.17%, vs no-gate SOTA-1.96%.
+    # Generic healthON/internal+BAMOFF except34 gate scalars; tunedSplash/Pallasv8t read+write; CPU60 PASS.
+    # Extra20417 exempt parameters, widths2510/1128/tail3904 unchanged; only5k review, quiet otherwise; terminal R bet1.01 vs no-gate SOTA.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75MLPInputMixG099MemoryOnlyWriteControlMixTruePile'
     bam_mlp_input_mix_branch = 'memory'
     compare_runs = [

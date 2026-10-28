@@ -4167,6 +4167,20 @@ class BamAttention(Attention):
                                                column_metrics=False)
           self.sow('intermediates', 'm_shift_m_summary',
                    jnp.stack((stats[0], stats[1], stats[4], stats[5], state[4])))
+    o_weight_rate = float(getattr(cfg, 'bam_local_o_read_weight_dropout_rate', 0.0))
+    if o_weight_rate:
+      # Same sampled [B,T,N,V] mask and RNG order as the XLA path (before O DropHead); the kernel
+      # applies it to the effective O weight (static + gated dynamic) after the key RMS norm.
+      if body != 'v8t':
+        raise ValueError('O read-weight dropout requires the v8t fused read')
+      multiplier = self._o_dropout_multiplier(inputs_q, o_weight_rate, self._read_bam_v, deterministic)
+      if multiplier is not None:
+        read_kwargs['o_weight_multiplier'] = multiplier
+    if getattr(cfg, 'bam_local_o_dynamic_norm_scale', False):
+      # Learned [N,V] scale of the dynamic O key after its RMS norm, as _dynamic_local_o_multiplier.
+      if body != 'v8t':
+        raise ValueError('O dynamic norm scale requires the v8t fused read')
+      read_kwargs['o_dynamic_scale'] = self._pad_read_heads(self.local_o_dynamic_norm_scale, -2, 1.)
     if getattr(cfg, 'bam_pallas_read_chunk', None):
       read_kwargs['chunk'] = int(cfg.bam_pallas_read_chunk)
     pass_m = body in ('v7', 'v7u', 'v8t')   # M passthrough: dM sum fused into the read reverse

@@ -76,6 +76,119 @@ class ShiftedReadTest(unittest.TestCase):
         self.assert_close(a, b, 1e-5, f'{body} tile {tile} grad {jax.tree_util.keystr(path)}')
 
 
+def reference_read(m, sw, xs, static_gates, shift, o_weight_multiplier, o_dynamic_scale=None):
+  """Independent pure-JAX v8t semantics: X = SCALE sigmoid(l) RMS(r) + S sg per arm; O rows * multiplier.
+
+  o_dynamic_scale [N,V] scales only the dynamic O term, SCALE sigmoid(l) RMS(r) * scale."""
+  rq, lq, rk, lk, rr, lo, lv, qs, ks = xs
+  m = mixed(m, shift)
+  rms = lambda x: x * jax.lax.rsqrt(jnp.mean(x * x, axis=-1, keepdims=True) + EPS)
+  rv, ro = (rr[:, :, :N], rr[:, :, N:]) if rr.shape[2] == 2 * N else (rr, rr)
+  st = sw.reshape(4, N, V)
+  arm = lambda i, raw, logit, d=1.: (SCALE * jax.nn.sigmoid(logit)[..., None] * rms(raw) * d
+                                     + st[i] * static_gates[i][..., None])
+  d_o = 1. if o_dynamic_scale is None else o_dynamic_scale
+  x = [arm(0, rq, lq), arm(1, rk, lk), arm(2, rv, lv), arm(3, ro, lo, d_o) * o_weight_multiplier]
+  y = [jnp.einsum('btvk,btnv->btnk', m, a) for a in x]
+  query = jnp.concatenate((y[0][..., :QKC], qs), axis=-1) * 0.125
+  key = jnp.concatenate((y[1][..., :QKC], ks), axis=-1)
+  return query, key, y[2], y[3]
+
+
+class OWeightMultiplierTest(ShiftedReadTest):
+  """O address-weight multiplier (read-weight dropout mask) inside the v8t read, vs an independent reference."""
+
+  def test_o_weight_multiplier_forward_and_gradients(self):
+    m, sw, xs, sgs, shift = inputs(3)
+    ks = iter(jax.random.split(jax.random.PRNGKey(30), 8))
+    mask = jax.random.bernoulli(next(ks), .8, (B, T, N, V)).astype(jnp.float32) / .8
+    cts = tuple(jax.random.normal(next(ks), (B, T, N, K)) for _ in range(4))
+    ct_m = jax.random.normal(next(ks), m.shape)
+    xs_ind = xs[:4] + (jax.random.normal(next(ks), (B, T, 2 * N, V)),) + xs[5:]
+    for name, args in (('shared VO', xs), ('independent VO', xs_ind)):
+      def kernel(m, sw, xs, sgs, shift, mask, tile):
+        return v8.read_tm(m, sw, *xs, qk_cols=QKC, read_epsilon=EPS, key_scale=SCALE, forward_tile=tile,
+                          reverse_tile=tile, interpret=True, q_scale=0.125, static_gates=sgs, shift=shift,
+                          o_weight_multiplier=mask)
+      ones = jnp.ones_like(mask)
+      for i, (a, b) in enumerate(zip(kernel(m, sw, args, sgs, shift, ones, 64)[:4],
+                                     reference_read(m, sw, args, sgs, shift, ones))):
+        self.assert_close(a, b, 1e-5, f'{name} reference check output {i}')
+      for i, (a, b) in enumerate(zip(kernel(m, sw, args, sgs, shift, ones, 64)[:4],
+                                     read(m, sw, args, sgs, shift, 64)[:4])):
+        self.assert_close(a, b, 1e-6, f'{name} ones == unmasked output {i}')
+      for tile in (64, 256):
+        outs = kernel(m, sw, args, sgs, shift, mask, tile)
+        ref = reference_read(m, sw, args, sgs, shift, mask)
+        for i, (a, b) in enumerate(zip(outs[:4], ref)):
+          self.assert_close(a, b, 1e-5, f'{name} tile {tile} output {i}')
+        np.testing.assert_array_equal(outs[4], m)
+        for i in range(3):     # Q/K/V untouched by the O multiplier
+          self.assert_close(outs[i], read(m, sw, args, sgs, shift, tile)[i], 1e-6, f'{name} unmasked arm {i}')
+        def loss(fn):
+          def f(m, sw, xs, sgs, shift):
+            outs = fn(m, sw, xs, sgs, shift)
+            extra = jnp.sum(outs[4] * ct_m) if len(outs) > 4 else jnp.sum(m * ct_m)
+            return sum(jnp.sum(o * c) for o, c in zip(outs[:4], cts)) + extra
+          return f
+        ga = jax.grad(loss(lambda *a, tile=tile: kernel(*a, mask, tile)), argnums=(0, 1, 2, 3, 4))(
+            m, sw, args, sgs, shift)
+        gb = jax.grad(loss(lambda *a: reference_read(*a, mask)), argnums=(0, 1, 2, 3, 4))(
+            m, sw, args, sgs, shift)
+        for (path, a), b in zip(jax.tree_util.tree_flatten_with_path(ga)[0], jax.tree.leaves(gb)):
+          self.assert_close(a, b, 2e-5, f'{name} tile {tile} grad {jax.tree_util.keystr(path)}')
+    print('V8T_O_WEIGHT_MULTIPLIER_ALL_GRADIENTS_OK', flush=True)
+
+  test_forward_and_gradients = None
+
+
+class ODynamicScaleTest(ShiftedReadTest):
+  """Learned [N,V] dynamic-O coordinate scale inside the v8t read (alone and with the O multiplier)."""
+
+  def test_o_dynamic_scale_forward_and_gradients(self):
+    m, sw, xs, sgs, shift = inputs(4)
+    ks = iter(jax.random.split(jax.random.PRNGKey(40), 8))
+    scale = 1 + .5 * jax.random.normal(next(ks), (N, V))
+    mask = jax.random.bernoulli(next(ks), .8, (B, T, N, V)).astype(jnp.float32) / .8
+    cts = tuple(jax.random.normal(next(ks), (B, T, N, K)) for _ in range(4))
+    ct_m = jax.random.normal(next(ks), m.shape)
+    xs_ind = xs[:4] + (jax.random.normal(next(ks), (B, T, 2 * N, V)),) + xs[5:]
+    def kernel(m, sw, xs, sgs, shift, scale, mask, tile):
+      return v8.read_tm(m, sw, *xs, qk_cols=QKC, read_epsilon=EPS, key_scale=SCALE, forward_tile=tile,
+                        reverse_tile=tile, interpret=True, q_scale=0.125, static_gates=sgs, shift=shift,
+                        o_weight_multiplier=mask, o_dynamic_scale=scale)
+    ones = jnp.ones((N, V))
+    for i, (a, b) in enumerate(zip(kernel(m, sw, xs_ind, sgs, shift, ones, None, 64)[:4],
+                                   read(m, sw, xs_ind, sgs, shift, 64)[:4])):
+      self.assert_close(a, b, 1e-6, f'unit scale == unscaled output {i}')
+    for name, args in (('shared VO', xs), ('independent VO', xs_ind)):
+      for masked in (None, mask):
+        ref_mask = 1. if masked is None else masked
+        for tile in (64, 256):
+          tag = f'{name} mask={masked is not None} tile {tile}'
+          outs = kernel(m, sw, args, sgs, shift, scale, masked, tile)
+          ref = reference_read(m, sw, args, sgs, shift, ref_mask, scale)
+          for i, (a, b) in enumerate(zip(outs[:4], ref)):
+            self.assert_close(a, b, 1e-5, f'{tag} output {i}')
+          def loss(fn):
+            def f(m, sw, xs, sgs, shift, scale):
+              outs = fn(m, sw, xs, sgs, shift, scale)
+              extra = jnp.sum(outs[4] * ct_m) if len(outs) > 4 else jnp.sum(m * ct_m)
+              return sum(jnp.sum(o * c) for o, c in zip(outs[:4], cts)) + extra
+            return f
+          argnums = (0, 1, 2, 3, 4, 5)
+          ga = jax.grad(loss(lambda *a, tile=tile, mk=masked: kernel(*a, mk, tile)), argnums=argnums)(
+              m, sw, args, sgs, shift, scale)
+          gb = jax.grad(loss(lambda *a, mk=ref_mask: reference_read(*a[:5], mk, a[5])), argnums=argnums)(
+              m, sw, args, sgs, shift, scale)
+          self.assertGreater(float(jnp.max(jnp.abs(ga[5]))), 0)
+          for (path, a), b in zip(jax.tree_util.tree_flatten_with_path(ga)[0], jax.tree.leaves(gb)):
+            self.assert_close(a, b, 2e-5, f'{tag} grad {jax.tree_util.keystr(path)}')
+    print('V8T_O_DYNAMIC_SCALE_ALL_GRADIENTS_OK', flush=True)
+
+  test_forward_and_gradients = None
+
+
 class ShiftedModelTest(unittest.TestCase):
   """Model-level: single-gate read M shift .5, pure JAX vs the v8t core (logits and all gradients).
 

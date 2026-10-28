@@ -88,8 +88,10 @@ class LocalORegularizationTest(MLPWriteTest, unittest.TestCase):
         with self.assertRaises(ValueError):
           validate_bam_config(dict(base, **{flag: value}))
     cfg = self.config(WEIGHT)
-    cfg.get_keys()['bam_pallas_core'] = True
-    with self.assertRaisesRegex(ValueError, 'Pallas mask support'):
+    cfg.get_keys().update(bam_pallas_core=True,bam_pallas_body='v8t')
+    validate_bam_config(cfg)
+    cfg.get_keys()['bam_pallas_body'] = 'v7'
+    with self.assertRaisesRegex(ValueError, 'mask support'):
       validate_bam_config(cfg)
     cfg.get_keys().update(bam_pallas_core=False, bam_local_vo_independent_keys=False)
     with self.assertRaisesRegex(ValueError, 'independent VO keys'):

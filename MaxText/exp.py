@@ -18255,6 +18255,7 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     # Params432120480 vs parent432121408(delta-928); ordinary2505/private1128/tail3898; no terminal write gates.
     # Initial preparation400 canceled on a legacy test fixture field, no training; node+QR absent, compiler preserved.
     # Terminal native MHA-reference R bet1.01 vs gamma.5; grouped2k plots, review5k. Pallas write adapter pending.
+    # Pallas-write adapter: 8e318c4 claude/dual-write-pallas,/data0/xd/dual-write-pallas (=45467cd1+v8t split-write); v5p16 s13500 AOT ready; hot-switch target.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODynamicNormScale050DualWriteGatesTruePile'
     bam_local_o_separate_write_gate = True
     bam_record_dual_write_health = True

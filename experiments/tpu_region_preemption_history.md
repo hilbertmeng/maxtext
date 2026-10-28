@@ -736,6 +736,8 @@ active leases are censored, and manual migration releases are not preemptions.
 
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODynamicNormScale050DualWriteGatesTruePile` | v5p-16 (`xd-v5p-16-310401-maxtext`) | `us-east5-a` | 2026-10-28 10:10:57 | 2026-10-28 13:47:19 | 8k review stopped8126/13500,P0; CP8126/TB secured,node+QR independently absent; runtime45467cd->8e318c4 same-RUN kernel hot switch atCP1600, one continuous physical lease; registry READY10:10:59 | none |
 
+| `BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640SeparateVOKeysLogitDiagNegativeQK80LocalODynamicNormScale020` | v5p-128 (`xd-v5p-128-unmask500-open-1028`) | `us-east5-a` | 2026-10-28 04:15:00 | 2026-10-28 18:31:01 | user16k pause atCP16040/28000,P0; CP16000+16040/cursor committed, TB SYNC_OK; node+QR independently absent; runtime5c3a995; hot-transferred trainer | none |
+
 ## READY leases
 
 | RUN | # | Zone | Start UTC | End UTC | Duration | Exit |
@@ -2301,6 +2303,8 @@ active leases are censored, and manual migration releases are not preemptions.
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODynamicNormScale050DualWriteGatesTruePile` | 1 | `us-east5-a` | 2026-10-28 10:10:59 | 2026-10-28 13:47:19 | 3h36m20s | run_stop after8k review; CP8126 committed, TB SYNC_OK, node+QR independently absent; kernel hot switch retained same lease |
 
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODynamicNormScale050NoPEEvery3RefundOrdinaryTruePile` | 1 | `us-east5-a` | 2026-10-28 14:40:02 | 2026-10-28 17:01:00 | 2h20m58s | run_stop after5k review; CP5503/TB secured, node+QR independently absent; P0 |
+
+| `BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640SeparateVOKeysLogitDiagNegativeQK80LocalODynamicNormScale020` | 1 | `us-east5-a` | 2026-10-28 04:15:03 | 2026-10-28 18:31:01 | 14h15m58s | user16k pause atCP16040/28000,P0; CP16000+16040/cursor secured, TB SYNC_OK; node+QR independently absent; end is pause boundary |
 
 ### 2026-10-14 user pause: resumed mixed R256/R384
 

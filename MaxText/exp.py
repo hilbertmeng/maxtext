@@ -17314,6 +17314,10 @@ class BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640S
     # Generic health ON/internal+BAM OFF. Exact target AOT uses7161995 MXU gamma-gradient reduction, tile128/VMEM60MiB.
     # Source66f2d96 AOT exceeded physicalVMEM (67.05>63.94MiB); fixed kernel passed47 shared+32-head all-gradient checks.
     # Launch/ownership/reproduction:experiments/bam_llama2_medium/pythia2p8_dynamic_o_scale020.md.
+    # User-paused CP16040/28000 after common16k; CP16000+16040/cursor secured, node+QR independently absent, TB SYNC_OK; P0.
+    # vs combo parent: early deficit erased~2.5k, then stable~-.003;16k gap-.003391/R1.031253,last5mean gap-.003192.
+    # vs originalMHA16k gap-.111879; vs Mudd-.042598/R1.614845: added gain persists, underlying multiplier downtrend remains.
+    # Provisional small-gain SOTA through16k; common21.5k R1.02 prior and28k terminal remain untested by this pause.
     model_name = 'BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640SeparateVOKeysLogitDiagNegativeQK80LocalODynamicNormScale020'
     bam_local_o_dynamic_norm_scale = True
     bam_local_o_dynamic_norm_scale_init = .2

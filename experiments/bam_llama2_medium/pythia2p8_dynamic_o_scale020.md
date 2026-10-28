@@ -95,3 +95,37 @@ Startup20..39 mean.3175step/s versus parent.316482 (about+.3%, no material
 regression). The new READY assignment began04:15:03UTC2026-10-28. Old RUN is
 stopped with TB SYNC_OK; its closeout reports already_closed and skips every
 resource operation so the new trainer remains protected.
+
+## User pause at16k
+
+Paused at committedCP16040 after collecting the full16k comparison window;
+the25-step guard slack preserves the native ±25/sample10 measurements.
+BothCP16000 andCP16040 commit markers and the data cursor were verified.
+The28k run/LR plan and exact5c3a995 AOT remain unchanged for a future resume.
+Node and queued resource independently verified absent; localTB sync returned
+SYNC_OK. No other task resource or borrowed FLEX was released.
+
+| Same16k comparator | Loss gap (new minus comparator) | Gain multiplier, common originalMHA |
+|---|---:|---:|
+| Combination parent | -.0033906 | 1.031252996 |
+| Serial Mudd | -.0425976 | 1.614845457 |
+| Original MHA | -.1118794 | — |
+
+The early deficit disappeared around2.5k; subsequent absolute gain over the
+combination parent remained around.003. Final five windows14k..16k average
+gap-.00319208, with gain multipliers1.02493..1.03429. This is a persistent small
+improvement of the direction SOTA with negligible parameter cost and matched
+speed. It has not removed the overall decline of BAM/Mudd gain multipliers.
+These are provisional16k results; the declared21.5k R1.02 bet and28k terminal
+were not tested because the user requested this pause.
+
+One v5p128 READY lease, UE5a, zero preemptions:
+2026-10-28T04:15:03Z–2026-10-28T18:31:01Z,14h15m58s. The end is the pause
+boundary; resource release was verified afterward. Assignment started04:15:00Z
+on the hot-transferred node. No zone switch or passive candidate.
+
+Final native/window data:`native-final-16000.json` and `report-16000.json`;
+the two required figures and their sources:`figures-16000.json`;
+lifecycle/lease evidence:`final-pause-evidence.json`;
+independent node/queue/checkpoint/cursor proof:`final-independent-verification.json`;
+localTB receipt:`final-tb-sync.log`, all under the training artifact directory.

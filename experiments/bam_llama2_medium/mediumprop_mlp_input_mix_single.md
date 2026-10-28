@@ -106,3 +106,30 @@ this is not a merge of the experimental routing implementation.
 
 Receipts: cpu-pass.json, startup-registries.json, startup-ID.json,
 startup-summary.json, launch-results.json and step100-ID.txt under the artifact root.
+
+## Ordinary-only closeout after5k review
+
+Ordinary-only stopped5229/13500, P1. The early advantage reversed by2.2k;
+subsequent loss deficits persisted without recovery. Final five native windows
+4400..5200 average gap+0.00413664, native MHA-reference R0.98163805 versus
+no-gate SOTA. No compensating throughput/parameter/cache benefit. Terminal
+R bet.99 was unsupported through the measured stop; no full endpoint was measured.
+
+The latest user report policy retains only the two experiment curves against
+no-gate SOTA; live registry comparators/triples were narrowed accordingly. Historical
+two-gate controls and all their cached losses remain available, but are not current
+published baselines. The memory-only experiment remains active under its full plan;
+its result will be recorded at closeout rather than adding live progress diaries.
+
+CP5229 committed, no observed lost tail, final TB SYNC_OK, node and queued-resource
+absence independently verified. v5p16 remained UE5a with no passive candidates or
+zone switch. Complete READY leases UTC (final end is manual stop request):
+
+| # | Start | End | Duration | Reason |
+| --- | --- | --- | --- | --- |
+| 1 | 2026-10-28T02:41:43Z | 2026-10-28T03:20:50Z | 0h39m07s | preempted |
+| 2 | 2026-10-28T03:26:45Z | 2026-10-28T05:06:49Z | 1h40m04s | run_stop |
+
+Proofs: ordinary-final-proof.json, ordinary-final-registry.json, ordinary-final-leases.json,
+ordinary-final-pending.json, ordinary-final-node.txt, ordinary-final-queue.txt,
+closeout-ordinary-summary.json; TB receipt closeout-20261028T050646163288Z.log.

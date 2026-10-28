@@ -18634,12 +18634,14 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     # code_commit: 2f36e3a; UE5a v5p16 xd-v5p-16-310396-maxtext; FIRST0/AOT/workerGit/data/s13500 verified.
     # Startup20..99 0.676375step/s, vs two-gate parent+2.63%, vs no-gate SOTA-1.51%.
     # Generic healthON/internal+BAMOFF except36 gate scalars; tunedSplash/Pallasv8t read+write; CPU60 PASS.
-    # Extra21618 exempt parameters, widths2510/1128/tail3904 unchanged; 5k review; grouped reports every2k; terminal R bet.99 vs no-gate SOTA.
+    # Stopped 5229/13500 after5k review, P1; CP5229/TB secured, node+QR independently absent.
+    # vs no-gate SOTA: early gain reversed by2.2k, persistent deficit without recovery; final5(4400..5200) gap+0.00413664/R0.98163805.
+    # No compensating speed/parameter/cache gain; terminal R bet.99 not supported through stop, full endpoint unmeasured.
+    # Extra21618 exempt parameters; widths2510/1128/tail3904 unchanged. Full leases/numerical ancestry in the single-gate note.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75MLPInputMixG099OrdinaryOnlyTruePile'
     bam_mlp_input_mix_branch = 'ordinary'
     compare_runs = [
         'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75TruePile',
-        'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75MLPInputMixG099WriteControlMixTruePile',
     ]
 
 

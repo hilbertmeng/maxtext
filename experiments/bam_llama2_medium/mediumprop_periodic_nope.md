@@ -44,8 +44,9 @@ two AOTs serialize using existing per-worker flock. Training prequeues are disti
 Prelaunch bets vs gamma=.5 parent, MHA-reference gain multiplier: ordinary1.02,
 ratio2to1 1.025; speed approximately parent +/-3%. Slight preference to balanced
 refund, since M quality may matter more once the direct standard Q/K route is gone.
-Report the two in one cumulative gap/gain plot every2k, native windows200 from600,
-review5k and retain credible baseline beaters; plan bound13500.
+User later changed reporting to5k review only, with no interim progress reports.
+Keep native windows200 from600; retain NoPE with sustained catchup even before
+crossing zero. Plan bound13500.
 
 RUNs/TPUs:
 - BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODynamicNormScale050NoPEEvery3RefundOrdinaryTruePile: xd-v5p-16-310402-maxtext, UE5a.
@@ -78,3 +79,25 @@ changed, no extra diagnostic TPU or health metrics. Borrowed compiler preserved.
 Receipts under /data0/xd/bam_diagnostics/mediumprop-nope-layers:
 validation-summary.json, cpu-pass.json, startup-310402.json, startup-310403.json,
 startup-verification-pass.json, startup-summary.json and startup-registries.json.
+
+## Ordinary-refund closeout
+
+Stopped at committed5503/13500 after5k review. From~1.6k onward, loss deficit
+versus gamma=.5 plateaued around+.006-.007 while MHA-reference gain multiplier
+fell; no sustained catchup or speed advantage. Published through5.4k, final five
+windows average gap+.00674816/R.96978198. Initial terminal1.02 bet is unsupported
+by this partial trajectory; no terminal result measured. Exact parameter count
+remains matched, so the smaller standard Q/K parameterization gave no measured
+parameter or throughput advantage in this implementation.
+
+Balanced refund retained: absolute deficit blocks1.6-2.6k/2.8-3.8k/4-5k
++.006335/+.005220/+.004520 show gradual catchup, although gain ratio stays near
+.981 and does not yet show a clear upward trend. This is a provisional review
+decision, not its conclusion; no intermediate progress reporting.
+
+Ordinary CP5503 commit_success verified independently; registry stopped5503;
+TPU node and queued-resource310402 independently absent; TB SYNC_OK.
+v5p-16, us-east5-a only, P0. Single chronological READY lease UTC2026-10-28
+14:40:02 ->17:01:00,2h20m58s; final manual stop, no zone switch or passive queue.
+Receipts: closeout-ordinary.log, ordinary-final-proof.txt, ordinary-final-registry.txt
+and review5k.json under the task artifact directory. Borrowed FLEX unchanged.

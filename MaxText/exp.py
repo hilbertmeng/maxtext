@@ -18263,6 +18263,9 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     # Ledger only: codex/mediumprop-nope-layers, /data0/xd/mediumprop-nope-layers.
     # code_commit: c266c0d; UE5a v5p-16 xd-v5p-16-310402-maxtext; FIRST0/step100/exact AOT/data/s13500 verified.
     # Startup20..99 0.680050 step/s vs gamma=.5 parent .689788 (-1.41%); health matched, tuned Splash/Pallas read+write.
+    # Stopped5503/13500 at5k review: vs gamma=.5, deficit plateaued~+.006-.007 after~1.6k; gain multiplier declined.
+    # Through5.4k last5 gap+.006748/R.969782 (MHA reference), no sustained catchup; initial terminal1.02 bet unsupported.
+    # Exact432121408 params; CP5503/TB secured, node+queue absent; UE5a P0, single READY lease2h20m58s.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODynamicNormScale050NoPEEvery3RefundOrdinaryTruePile'
     bam_standard_qk_drop_every = 3
     bam_pair_scan = True

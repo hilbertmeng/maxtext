@@ -68,11 +68,13 @@ def break_missing_windows(xs, ys):
 
 
 def render(payloads, output_dir, *, prefix='training-progress', start=600,
-           runs=(), bases=(), labels=None, title=None, notes=(), sources=(), run_colors=None):
+           runs=(), bases=(), labels=None, title=None, notes=(), sources=(), run_colors=None,
+           dpi=120):
   import matplotlib
   matplotlib.use('Agg')
   import matplotlib.pyplot as plt
   from matplotlib.ticker import MaxNLocator
+  from PIL import Image
 
   gaps, ratios = collect(payloads, start, runs, bases)
   pairs = sorted(set(gaps) | {key[:2] for key in ratios})
@@ -136,11 +138,20 @@ def render(payloads, output_dir, *, prefix='training-progress', start=600,
   output_dir.mkdir(parents=True, exist_ok=True)
   stamp = datetime.now(timezone.utc).strftime('%Y%m%d-%H%M%S-%f')
   path = output_dir / f'{prefix}-{stamp}.png'
-  fig.savefig(path, dpi=180, bbox_inches='tight')
+  fig.savefig(path, dpi=dpi, bbox_inches='tight')
   plt.close(fig)
+  # Flat-color charts compress well as indexed PNGs. Keep the plotted geometry
+  # and resolution; only antialias colors undergo small palette quantization.
+  with Image.open(path) as original:
+    compact = original.convert('RGB').quantize(
+        colors=256, method=Image.Quantize.MEDIANCUT, dither=Image.Dither.NONE)
+    image_size = original.size
+  compact.save(path, optimize=True, compress_level=9)
   # Keep exact native series and identities beside each unique PNG for reproducibility.
   provenance = dict(figure=str(path), generated_utc=stamp, sources=list(sources),
       plot_start=start, title=title, labels=labels, run_colors=run_colors or {}, notes=list(notes), shown=shown,
+      image=dict(dpi=dpi, width=image_size[0], height=image_size[1],
+                 format='PNG', palette_colors=256, bytes=path.stat().st_size),
       warnings=warnings,
       reports=[dict(run=key[0], base=key[1], series=[points[s] for s in sorted(points)])
                for key, points in gaps.items()],
@@ -158,6 +169,8 @@ def main():
   parser.add_argument('--output-dir', type=Path, required=True)
   parser.add_argument('--prefix', default='training-progress')
   parser.add_argument('--start-step', type=int, default=600)
+  parser.add_argument('--dpi', type=int, default=120,
+                      help='PNG rendering resolution (default:120; use180 for larger text detail)')
   parser.add_argument('--run', action='append', default=[])
   parser.add_argument('--base', action='append', default=[])
   parser.add_argument('--label', nargs=2, action='append', default=[], metavar=('RUN', 'LABEL'))
@@ -165,12 +178,13 @@ def main():
   parser.add_argument('--title')
   parser.add_argument('--note', action='append', default=[])
   args = parser.parse_args()
-  if Path(args.prefix).name != args.prefix or args.start_step < 0:
-    parser.error('--prefix must be a filename stem and --start-step must be nonnegative')
+  if Path(args.prefix).name != args.prefix or args.start_step < 0 or args.dpi <= 0:
+    parser.error('--prefix must be a filename stem, --start-step nonnegative, and --dpi positive')
   try:
     texts = [path.read_bytes() for path in args.reports]
     result = render([json.loads(text) for text in texts], args.output_dir,
         prefix=args.prefix, start=args.start_step, runs=args.run, bases=args.base,
+        dpi=args.dpi,
         labels=dict(args.label), run_colors=dict(args.color), title=args.title, notes=args.note,
         sources=[dict(path=str(p.resolve()), sha256=hashlib.sha256(text).hexdigest())
                  for p, text in zip(args.reports, texts)])

@@ -17299,14 +17299,14 @@ class BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640S
 
 class BamPythia2p8BComboKeepPreMaskResume500(
         BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640SeparateVOKeysLogitDiagNegativeQK80):
-    """Full-state fork of combination CP21557; keep pre-mask for exactly500 updates.
+    """Full-state fork of combination CP21557; review after500 added updates.
 
     Restore parameters, Adam state and Pile cursor into a new RUN prefix.
-    Stop at22057 while retaining the original28000-step learning-rate schedule.
+    Keep the original28000-step run/LR plan;22057 is a review point, not an endpoint.
     Global1024/T2048, v5p128/B16, minimal remat and60MiB VMEM inherit unchanged.
     """
     model_name = 'BamPythia2p8BComboKeepPreMaskResume500'
-    steps = 22057
+    steps = 28000
     learning_rate_schedule_steps = 28000
     compare_runs = []
 

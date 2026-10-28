@@ -722,6 +722,8 @@ active leases are censored, and manual migration releases are not preemptions.
 
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75SharedWritePostAttentionGeneralWriteTruePile` | v5p-16 (`xd-v5p-16-310388-maxtext`) | `us-east5-a` | 2026-10-27 15:12:14 | 2026-10-27 21:05:36 | complete13500/P1; CP13500/TB SYNC_OK,node+QR independently absent; runtimef2a8f26 | none |
 
+| `BamPythia2p8BComboKeepPreMaskResume500` | v5p-128 (`xd-v5p-128-unmask500-keep-1028`) | `us-east5-a` | 2026-10-28 02:24:17 | 2026-10-28 03:13:57 | user-stopped22321/28000,P0; CP committed, TB SYNC_OK; node+QR independently absent03:18; runtime44141a7; paired unmask arm retained for later hot switch | none |
+
 ## READY leases
 
 | RUN | # | Zone | Start UTC | End UTC | Duration | Exit |
@@ -2274,6 +2276,8 @@ active leases are censored, and manual migration releases are not preemptions.
 
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75SharedWritePostAttentionGeneralWriteTruePile` | 1 | `us-east5-a` | 2026-10-27 15:12:16 | 2026-10-27 18:46:41 | 3h34m25s | preempted |
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75SharedWritePostAttentionGeneralWriteTruePile` | 2 | `us-east5-a` | 2026-10-27 18:53:24 | 2026-10-27 21:05:36 | 2h12m12s | run_stop |
+
+| `BamPythia2p8BComboKeepPreMaskResume500` | 1 | `us-east5-a` | 2026-10-28 02:30:04 | 2026-10-28 03:13:57 | 43m53s | user stop22321/28000,P0; CP committed, TB SYNC_OK, node+QR independently absent03:18; end is stop-request boundary |
 
 ### 2026-10-14 user pause: resumed mixed R256/R384
 

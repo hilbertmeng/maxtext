@@ -14,8 +14,10 @@ def collect(state, through=None):
 sys.path.insert(0,"/home/lishengping/xd/projects")
 import run_registry as reg
 names=%r;through=%r
+registered={n:reg.load_run(n) for n in names}
+live=[n for n in names if registered[n].get('declared_status','running') == 'running']
 with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
- list(pool.map(lambda n:reg.collect_live_loss(reg.load_run(n)),names))
+ list(pool.map(lambda n:reg.collect_live_loss(registered[n]),live))
 caches={n:reg.load_loss_points(n) for n in names}
 if any(not p for p in caches.values()):
  print(json.dumps({'ready':False,'horizons':{n:max(p) if p else None for n,p in caches.items()}}));raise SystemExit(0)
@@ -58,13 +60,14 @@ def render(data, directory, source, checkpoint):
   axes[1].scatter([0],[raw[0]['gap']],color='#cd4646',s=30,zorder=4,label='首个 batch：更新前的干预')
   axes[1].axhline(0,color='#777777',ls=':',lw=1)
   if len(raw)>=15:
-    tail=[r for r in raw if r['step']>=10]
-    tail_means=[r for r in means if r['step']>=10]
+    zoom_start=max(10,(raw[-1]['step']//100-2)*100)
+    tail=[r for r in raw if r['step']>=zoom_start]
+    tail_means=[r for r in means if r['step']>=zoom_start]
     zoom=axes[1].inset_axes([.38,.35,.60,.57])
     zoom.plot([r['step'] for r in tail],[r['gap'] for r in tail],color='#888888',alpha=.5,lw=.9)
     zoom.plot([r['step'] for r in tail_means],[r['gap'] for r in tail_means],color='#111111',lw=1.5,marker='o',markersize=2)
     zoom.axhline(0,color='#777777',ls=':',lw=.8);zoom.grid(alpha=.15)
-    zoom.set_title('更新10以后放大',fontsize=8);zoom.tick_params(labelsize=7)
+    zoom.set_title(f'更新{zoom_start}以后放大',fontsize=8);zoom.tick_params(labelsize=7)
   axes[0].set_ylabel('同批训练 loss');axes[1].set_ylabel('解封 − 保留掩码（负值更好）');axes[1].set_xlabel('恢复后的更新数（0为首个更新前的loss）')
   for axis in axes:axis.grid(alpha=.2);axis.legend(frameon=False,fontsize=9)
   axes[1].get_legend().remove()

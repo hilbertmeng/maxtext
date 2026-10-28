@@ -17210,8 +17210,6 @@ class BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640S
     # Final5 R vs Mudd1.455245; decay slows but is not eliminated. Later~.317step/s vs R640~.328 (~-3.4%), matched health.
     # Original28k LR/AOT retained; common21.5k result is provisional, not a measured28k terminal result.
     model_name = 'BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640SeparateVOKeys'
-    # Full32-head independent VO reverse needs58.13MiB on v5p; physical VMEM64MiB.
-    bam_pallas_vmem_mib = 60
     bam_local_vo_independent_keys = True
     bam_attention_write_layers = list(range(31))
     bam_pair_scan = False
@@ -17309,6 +17307,9 @@ class BamPythia2p8BComboKeepPreMaskResume500(
     # RUN_NAME=this alias; reuse original v5p128/s28000 AOT at its exact commit; full-state fork of combinationCP21557.
     # UE5a v5p128/B16, same health/minimal remat; AOT/HEAD/full restore/LR verified, startup10..24 ~0.317step/s.
     # First pre-update log21558;500 added updates is a review point, no stop condition. Normal28000 schedule retained.
+    # User-stopped CP22321/28000; CP committed, node+queue absent, TB SYNC_OK; P0.
+    # Paired added0..761: unmask-minus-control gap+5.074742 initially ->+.008170@100 ->+.004026@500;
+    # final5 windows660..740 mean+.003644: late recovery slowed, no net unmask gain through this review.
     model_name = 'BamPythia2p8BComboKeepPreMaskResume500'
     steps = 28000
     learning_rate_schedule_steps = 28000

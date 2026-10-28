@@ -57,3 +57,20 @@ no automatic stop or premature convergence claim.
 
 Artifacts/current monitor:
 `/data0/xd/bam_diagnostics/pythia2p8b-unmask-resume500-20261028/`.
+
+On2026-10-28 the user stopped the keep-mask control at committedCP22321;
+its node and queued resource were independently verified absent, and TB sync
+returnedSYNC_OK. One UE5a v5p128 READY lease:02:30:04–03:13:57UTC (43m53s), P0.
+The unmasked arm stays running on its existing TPU for a later user-specified
+hot switch. Its final endpoint has not been evaluated.
+
+The final paired logs cover21558..22319 (added0..761). Unmask-minus-control
+loss gap fell from+5.074742 before the first update to+.008170 at100 and+.004026
+at500; the last five complete windows660..740 average+.003644. Adaptation slowed
+substantially and had not produced net benefit when the control was stopped.
+This is evidence against immediate profitable unmasking on this checkpoint,
+not a test of every unmasking schedule or of unlimited further training.
+Raw/window JSON:reports/paired-keep-final.json; lifecycle proof:closeout-keep.json
+in the artifact directory. The exact two runtime experiment configurations differ
+only in the negative-diagonal mask (apart from names/comparison metadata); the
+numerical-source diff is retained as runtime-numerical-diff.patch.

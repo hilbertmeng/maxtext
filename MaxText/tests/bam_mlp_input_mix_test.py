@@ -24,13 +24,15 @@ PREFIX = PARENT.removesuffix('TruePile')
 RUNS = [PREFIX + suffix + 'TruePile' for suffix in (
     'MLPInputMixG099WriteControlH', 'MLPInputMixG099WriteControlMix',
     'MLPInputMixG100Scale2WriteControlH', 'MLPInputMixG100Scale2WriteControlMix')]
+SINGLE_RUNS = [PREFIX + suffix + 'TruePile' for suffix in (
+    'MLPInputMixG099OrdinaryOnly', 'MLPInputMixG099MemoryOnlyWriteControlMix')]
 
 
 class MLPInputMixTest(MLPWriteTest, unittest.TestCase):
   variant = 0
 
   def tiny(self, period=3, keep=True, length=4):
-    c = self.config(RUNS[self.variant], base_emb_dim=150, base_num_query_heads=2,
+    c = self.config((RUNS + SINGLE_RUNS)[self.variant], base_emb_dim=150, base_num_query_heads=2,
         base_num_kv_heads=2, base_num_decoder_layers=3, base_mlp_dim=32,
         vocab_size=32, dtype='float32', weight_dtype='float32', bam_splash_attention=False)
     c.get_keys().update(bam_pallas_core=False, mlp_dim=32, bam_last_mlp_dim=32,
@@ -168,6 +170,103 @@ class MLPInputMixTest(MLPWriteTest, unittest.TestCase):
   def test_pallas_scale2_mixed_controls(self):
     self.variant = 3
     StandardValueTest.check_pallas(self, True)
+
+  def test_single_gate_formal_budget_and_terminal(self):
+    for i,run in enumerate(SINGLE_RUNS):
+      c = self.config(run)
+      c.get_keys().update(max_target_length=128, max_prefill_predict_length=128)
+      mesh = jax.sharding.Mesh(max_utils.create_device_mesh(c), c.mesh_axes)
+      args, *_ = train_compile.get_shaped_inputs(mesh, c)
+      flat = flatten_dict(nn.unbox(args[0].params))
+      extra = (21618, 20417)[i]
+      gates = {p:v for p,v in flat.items() if any('mlp_input_mix_gate' in x for x in p)}
+      self.assertEqual(sum(math.prod(v.shape) for v in flat.values()), 432112192+extra)
+      self.assertEqual(sum(math.prod(v.shape) for v in gates.values()), extra)
+      terminal = {p:v for p,v in gates.items() if 'final_local_layer' in p}
+      self.assertEqual(sum(math.prod(v.shape) for v in terminal.values()), 1201 if i == 0 else 0)
+      self.assertEqual((c.mlp_dim,c.bam_memory_mlp_dim,c.bam_last_mlp_dim),(2510,1128,3904))
+      self.assertEqual(c.bam_mlp_input_mix_branch,('ordinary','memory')[i])
+      self.assertTrue(c.bam_mlp_input_mix_write_controls)
+      self.assertTrue(c.scan_layers and not c.bam_pair_scan)
+      self.assertTrue(c.record_training_health_metrics and not c.record_internal_nn_metrics)
+      self.assertTrue(c.bam_pallas_core and c.bam_pallas_fused_inputs and c.sa_use_fused_bwd_kernel)
+      print('SINGLE_GATE_BUDGET',run,432112192+extra,'extra',extra,flush=True)
+
+  def test_single_gate_real_branch_inputs_controls_and_gradients(self):
+    for index in range(2):
+      self.variant = 4+index
+      c = self.tiny()
+      mesh = jax.sharding.Mesh(max_utils.create_device_mesh(c), c.mesh_axes)
+      block = fusion.SubDecoderLayer(c,mesh,quant=None,layer_inx=0)
+      x = jax.random.normal(jax.random.key(30),(1,4,150))
+      matrix = jax.random.normal(jax.random.key(31),(1,4,75,32))
+      seg = jnp.ones((1,4),jnp.int32)
+      args = (x,seg,jnp.arange(4)[None],seg,None,True,MODEL_MODE_TRAIN,None)
+      seen = {}
+      def capture(next_fun,args,kwargs,context):
+        out = next_fun(*args,**kwargs)
+        if context.method_name == '__call__' and context.module.name in (
+            'self_attention','post_self_attention_layer_norm','mlp_input_mix_gate',
+            'mlp','memory_mlp','mlp_address_down','mlp_write_gate'):
+          seen.setdefault(context.module.name,[]).append((args,kwargs,out))
+        return out
+      with mesh,nn.partitioning.axis_rules(c.logical_axis_rules):
+        p = nn.unbox(block.init(jax.random.key(32),*args,M_in=matrix))
+        np.testing.assert_array_equal(p['params']['mlp_input_mix_gate']['kernel'],0.)
+        np.testing.assert_allclose(p['params']['mlp_input_mix_gate_bias'],math.log(99.),rtol=1e-6)
+        gate = p['params']['mlp_input_mix_gate']['kernel']
+        p['params']['mlp_input_mix_gate']['kernel'] = .05*jax.random.normal(jax.random.key(33),gate.shape)
+        p['params']['mlp_input_mix_gate_bias'] = jnp.array([-.4])
+        with nn.intercept_methods(capture):out = block.apply(p,*args,M_in=matrix)
+        def objective(pp):
+          vector, memory = block.apply(pp,*args,M_in=matrix)
+          return jnp.mean(vector**2) + jnp.mean(memory**2)
+        grad = jax.grad(objective)(p)
+      norm = seen['post_self_attention_layer_norm']
+      self.assertEqual(len(norm),2)
+      a = seen['self_attention'][0][2][0]
+      np.testing.assert_allclose(norm[0][0][0],x+a,rtol=1e-6,atol=1e-6)
+      np.testing.assert_array_equal(seen['mlp_input_mix_gate'][0][0][0],norm[0][2])
+      g = jax.nn.sigmoid(norm[0][2]@p['params']['mlp_input_mix_gate']['kernel']-.4)
+      np.testing.assert_allclose(norm[1][0][0],g*x+a,rtol=1e-6,atol=1e-6)
+      ordinary = norm[1][2] if index == 0 else norm[0][2]
+      memory = norm[0][2] if index == 0 else norm[1][2]
+      np.testing.assert_array_equal(seen['mlp'][0][0][0],ordinary)
+      np.testing.assert_array_equal(seen['memory_mlp'][0][0][0],memory)
+      np.testing.assert_array_equal(seen['mlp_address_down'][0][0][0],memory)
+      np.testing.assert_array_equal(seen['mlp_write_gate'][0][0][0],memory)
+      np.testing.assert_allclose(out[0],x+a+seen['mlp'][0][2],rtol=1e-6,atol=1e-6)
+      for k in ['mlp_input_mix_gate','mlp_input_mix_gate_bias']:
+        for value in jax.tree.leaves(grad['params'][k]):
+          self.assertTrue(np.isfinite(value).all())
+          self.assertGreater(float(jnp.sum(value*value)),0.)
+
+  def test_single_gate_actual_health_export(self):
+    from train import record_bam_mlp_input_mix_health_metrics
+    for index in range(2):
+      self.variant = 4+index
+      c = self.tiny()
+      mesh = jax.sharding.Mesh(max_utils.create_device_mesh(c),c.mesh_axes)
+      model = Transformer(c,mesh,quant=None)
+      tok = jnp.array([[1,2,3,4]],jnp.int32);pos=jnp.arange(4)[None];seg=jnp.ones_like(tok)
+      with mesh,nn.partitioning.axis_rules(c.logical_axis_rules):
+        p = nn.unbox(model.init(jax.random.key(34),tok,pos,seg,tok))
+        _,health = model.apply(p,tok,pos,seg,tok,enable_dropout=False,mutable=['intermediates'])
+      metrics = {'scalar':{}}
+      record_bam_mlp_input_mix_health_metrics(metrics,health,c)
+      self.assertEqual(len(metrics['scalar']),6 if index == 0 else 4)
+      other = 'memory' if index == 0 else 'ordinary'
+      self.assertFalse(any('/'+other+'/' in k for k in metrics['scalar']))
+      for key,value in metrics['scalar'].items():
+        self.assertAlmostEqual(float(value),1/1.99 if key.endswith('mean') else 0.,places=6)
+
+  def test_pallas_single_ordinary(self):
+    self.variant = 4
+    StandardValueTest.check_pallas(self,True)
+
+  def test_pallas_single_memory(self):
+    self.variant = 5
+    StandardValueTest.check_pallas(self,True)
 
 
 if __name__ == '__main__':

@@ -35,7 +35,7 @@ experiments, not children of the separate shared-general writer RUN.
 
 The briefly proposed six-gate split of MHA/localO was cancelled by the user before
 implementation, because independently projecting those components adds W_O compute.
-All four final configurations use four gates and no extra attention projection.
+All four final configurations use two gates and no extra attention projection.
 
 No Pallas kernel/interface change: routing is outside the v8t read/write kernels.
 Verify all new backward paths by full-model native/Pallas logits/all-gradient tests

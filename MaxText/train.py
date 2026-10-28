@@ -401,9 +401,12 @@ def record_bam_mlp_input_mix_health_metrics(output_metrics, intermediate_outputs
   tails = int(getattr(config, 'bam_final_local_layer_count', 0) or 0)
   count = config.num_decoder_layers - tails
 
+  mix_branch = getattr(config, 'bam_mlp_input_mix_branch', None) or 'both'
+
   def emit(stats, layer):
+    branches = ('ordinary', 'memory') if mix_branch == 'both' else (mix_branch,)
     for index, value in enumerate(stats):
-      branch = ('ordinary', 'memory')[index // 2]
+      branch = branches[index // 2]
       metric = ('mean', 'std')[index % 2]
       output_metrics['scalar'][f'bam/mlp_input_mix/{branch}/layer_{layer:03d}/attention_share_{metric}'] = value
 
@@ -413,6 +416,8 @@ def record_bam_mlp_input_mix_health_metrics(output_metrics, intermediate_outputs
   for layer in range(count):
     emit(stats[layer], layer)
   for offset in range(tails):
+    if mix_branch == 'memory':
+      continue
     name = 'final_local_layer' if tails == 1 else f'final_local_layer_{offset}'
     emit(decoder[name]['block']['mlp_input_mix_stats'][0], count + offset)
 

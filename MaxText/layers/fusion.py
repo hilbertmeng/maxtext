@@ -342,7 +342,15 @@ class SubDecoderLayer(nn.Module):
     if getattr(cfg, 'bam_mlp_input_mix', False):
       if parallel_mlp or share_memory_hidden or cfg.shared_experts != 1 or cfg.num_experts != 1:
         raise ValueError('MLP input mixing requires serial independent dense MLPs')
-      branches = 2 if mlp_write and memory_mlp_dim else 1
+      mix_branch = getattr(cfg, 'bam_mlp_input_mix_branch', None) or 'both'
+      if mix_branch not in ('both', 'ordinary', 'memory'):
+        raise ValueError('MLP input mix branch must be both, ordinary, or memory')
+      active_branches = []
+      if mix_branch in ('both', 'ordinary'):
+        active_branches.append('ordinary')
+      if mix_branch in ('both', 'memory') and mlp_write and memory_mlp_dim:
+        active_branches.append('memory')
+      branches = len(active_branches)
       gate_scale = float(cfg.bam_mlp_input_mix_gate_scale)
       opening = float(cfg.bam_mlp_input_mix_gate_init)
       if not 0. < opening < gate_scale:
@@ -352,22 +360,24 @@ class SubDecoderLayer(nn.Module):
           kernel_init=initializers.contant_dense_init(0.0), kernel_axes=('embed', None),
           dtype=cfg.dtype, weight_dtype=cfg.weight_dtype,
           quant=self.quant, matmul_precision=cfg.matmul_precision,
-          name='mlp_input_mix_gate')(hidden_states)
-      bias = self.param('mlp_input_mix_gate_bias', nn.with_logical_partitioning(
-          nn.initializers.constant(math.log(opening / (gate_scale - opening))),
-          (None,)), (branches,), cfg.weight_dtype)
-      gates = (gate_scale * jax.nn.sigmoid(
-          logits.astype(jnp.float32) + jnp.asarray(bias, jnp.float32))).astype(cfg.dtype)
-      ordinary_inputs = mlp_norm(gates[..., 0:1] * inputs + attention_lnx)
-      ordinary_inputs = nn.with_logical_constraint(
-          ordinary_inputs, ('activation_batch', 'activation_norm_length', 'activation_embed'))
-      if branches == 2:
-        memory_inputs = mlp_norm(gates[..., 1:2] * inputs + attention_lnx)
-        memory_inputs = nn.with_logical_constraint(
-            memory_inputs, ('activation_batch', 'activation_norm_length', 'activation_embed'))
-        if cfg.bam_mlp_input_mix_write_controls:
-          write_control_inputs = memory_inputs
-      if getattr(cfg, 'bam_record_mlp_input_mix_health', False) and not self.is_initializing():
+          name='mlp_input_mix_gate')(hidden_states) if branches else None
+      if branches:
+        bias = self.param('mlp_input_mix_gate_bias', nn.with_logical_partitioning(
+            nn.initializers.constant(math.log(opening / (gate_scale - opening))),
+            (None,)), (branches,), cfg.weight_dtype)
+        gates = (gate_scale * jax.nn.sigmoid(
+            logits.astype(jnp.float32) + jnp.asarray(bias, jnp.float32))).astype(cfg.dtype)
+      for index, branch in enumerate(active_branches):
+        mixed = mlp_norm(gates[..., index:index+1] * inputs + attention_lnx)
+        mixed = nn.with_logical_constraint(
+            mixed, ('activation_batch', 'activation_norm_length', 'activation_embed'))
+        if branch == 'ordinary':
+          ordinary_inputs = mixed
+        else:
+          memory_inputs = mixed
+          if cfg.bam_mlp_input_mix_write_controls:
+            write_control_inputs = memory_inputs
+      if branches and getattr(cfg, 'bam_record_mlp_input_mix_health', False) and not self.is_initializing():
         # Effective mixture, not the common scale removed by the following RMSNorm.
         applied = gates.astype(jnp.float32)
         alpha = 1. / (1. + applied)

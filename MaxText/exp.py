@@ -18249,7 +18249,12 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     enable the Pallas writer only after it supports SplitAttentionWrite factors.
     """
     # Ledger only: codex/mediumprop-local-o-dual-write; /data0/xd/mediumprop-local-o-dual-write.
-    # Prepared runtime e0b1051e; startup pending, native writer with Pallas read.
+    # code_commit: 45467cd; UE5a v5p16 xd-v5p-16-310401-maxtext; FIRST0/step100/exactAOT/workerGit/data/s13500 verified.
+    # Native writer + Pallas read: startup20..99 .6329875step/s vs gamma.5 parent.689788, throughput-8.23%, step time+8.97%.
+    # CPU58 PASS; healthON/internal+BAM broadstatsOFF except51 targeted write scalars; tunedSplash/v8t48MiB.
+    # Params432120480 vs parent432121408(delta-928); ordinary2505/private1128/tail3898; no terminal write gates.
+    # Initial preparation400 canceled on a legacy test fixture field, no training; node+QR absent, compiler preserved.
+    # Terminal native MHA-reference R bet1.01 vs gamma.5; grouped2k plots, review5k. Pallas write adapter pending.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODynamicNormScale050DualWriteGatesTruePile'
     bam_local_o_separate_write_gate = True
     bam_record_dual_write_health = True

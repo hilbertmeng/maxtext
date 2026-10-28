@@ -2,11 +2,12 @@
 
 Worktree: /data0/xd/mediumprop-local-o-dual-write
 Branch: codex/mediumprop-local-o-dual-write
-Runtime:e0b1051ec5e32b45c659b648606458ec9f39e406
+Runtime:45467cd1d7b4471a53d338467a4cb6098ac5d536
+Initial model/reference handoff:e0b1051ec5e32b45c659b648606458ec9f39e406
 Fork: latest main1a8099c0; complete operational infrastructure inherited.
 Artifacts: /data0/xd/bam_diagnostics/mediumprop-local-o-dual-write
 RUN: BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODynamicNormScale050DualWriteGatesTruePile
-Intended training TPU: xd-v5p-16-310400-maxtext, UE5a v5p16.
+Training TPU: xd-v5p-16-310401-maxtext, UE5a v5p16.
 
 ## Exact intervention
 
@@ -67,3 +68,36 @@ Temporary JAX-writer speed prior .62..66step/s versus parent's.689788; final fus
 writer should recover most overhead, so judge this interim run mainly by loss.
 Report every2k using native200 windows/cumulative compactPNG from600, review5k,
 retain every credible baseline beater. ExactCPU/AOT/FIRST_STEP/startup checks required.
+
+## Verified native-write startup
+
+All58 checks pass: focused6 + sharedBAM47 + rotating-summary-writers5. Full model
+native versus Pallas-read/native-write logits and all gradients maxrel3.771e-6.
+Actual scan collection/export passed on both paths; formal startup TB also
+verified all51 scalars on17 live writers, finite with gate means in[0,1]. Legacy full-suite SimpleNamespace writer fixture lacked the new disabled
+flag;45467cd adds only that one test field versus e0b1051e, no model/config change.
+The failed first preparation never trained; launcher verified training prequeue
+xd-v5p-16-310400-maxtext node+QR absent. It never owned/deleted the retained compiler.
+
+Exact454 v5p16/s13500 AOT manifest ready, sealed effective config matches. Launcher
+returned FIRST_STEP; independent worker proof confirms first completed step0,
+Loaded compiled function, Git45467cd, actual zone-local4096 dataset argument,
+original13500 total/LR schedule and all80 timing samples20..99. Startup average
+.6329875step/s versus gamma.5 parent.689788: throughput-8.2345%, time+8.97%.
+This is a descriptive cross-lease formal-training comparison and includes51 new
+activation summaries; do not attribute the entire difference to native writes.
+
+Sole gamma.5 comparison and native MHA-reference triple are registered. One fresh
+UE5a RUN on310401, no restore or extra timing/profile TPU. Startup receipts:
+startup-310401.json, startup-summary.json, startup-registries.json, cpu-pass.json,
+aot-v2.log, launch-v2.log; all under the artifact root. Training checkpoint output
+is gs://newproject-1-llm_projects_us-east5/log/RUN/checkpoints/, not the UC1 prefix.
+
+Claude reports a split-writer adapter based on454 in claude/dual-write-pallas,
+with kernel allgrad3.3e-7/model3.5e-6; final regressions/commit still pending.
+Keep the current native run training. This task owns the final AOT/hot switch;
+preserve post-checkpoint old-native losses before its worker log/cache is replaced,
+then compare both implementations at identical restored common steps/batches.
+Do not discard progress, duplicate a training TPU for validation, or compare
+unmatched before/after windows. Current runtime remains454 until the final adapter
+and exact AOT are verified. Health producer/names must survive the adapter.

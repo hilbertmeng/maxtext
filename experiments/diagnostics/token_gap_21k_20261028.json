@@ -1,0 +1,130 @@
+{
+  "status": "complete",
+  "run": "token_gap_21k_20261028",
+  "worktree": "/home/mengqy/Projects/Bam/maxtext-diag-token-gap-21k",
+  "branch": "mqy/diag-token-gap-21k-20261028",
+  "runtime_commit": "fa77d54947c37959f82c065c7737fd20d470d8ba",
+  "resource": "xd-v5p8-mqy-gap21k-1028-ue5a-r4",
+  "zone": "us-east5-a",
+  "models": {
+    "pythia": {
+      "experiment": "Pythia2p8BShortTrain",
+      "parameter_count": 2775214080,
+      "bam": false,
+      "training_commit": "2a108de923ed5ad2c2de8a7c0d200b76f4121373",
+      "checkpoint": "gs://newproject-1-llm_projects_us-east5/log/Pythia2p8BShortTrain/checkpoints/21000/items",
+      "reference": {
+        "local": "/tmp/token_gap_inputs/pythia.reference.npz",
+        "gcs": "gs://newproject-1-llm_projects_us-east5/log/diagnostics/mengqy/token_gap_21k_20261028/inputs/pythia.reference.npz",
+        "sha256": "3e2ce0e94d59d095e2976c4022f8b5af162bf2fe1e3c5f4d2128408f3934ae8f",
+        "checkpoint": "gs://newproject-1-llm_projects_us-east5/log/Pythia2p8BShortTrain/checkpoints/16000/items"
+      }
+    },
+    "mudd": {
+      "experiment": "MuddPythia3BSerialMLPShortTrain",
+      "parameter_count": 2784307229,
+      "bam": false,
+      "training_commit": "2a108de923ed5ad2c2de8a7c0d200b76f4121373",
+      "checkpoint": "gs://newproject-1-llm_projects_us-east5/log/MuddPythia3BSerialMLPShortTrain/checkpoints/21000/items",
+      "reference": {
+        "local": "/tmp/token_gap_inputs/mudd.reference.npz",
+        "gcs": "gs://newproject-1-llm_projects_us-east5/log/diagnostics/mengqy/token_gap_21k_20261028/inputs/mudd.reference.npz",
+        "sha256": "b47c2973ca7f1eecd18903149c506879530262237b777a188fce7ccb87bf0137",
+        "checkpoint": "gs://newproject-1-llm_projects_us-east5/log/MuddPythia3BSerialMLPShortTrain/checkpoints/16000/items"
+      }
+    },
+    "bam": {
+      "experiment": "BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640SeparateVOKeysLogitDiagNegativeQK80",
+      "parameter_count": 2775190880,
+      "bam": true,
+      "training_commit": "44141a7c22c395255a6d0d58fff8e103d9a3fe87",
+      "checkpoint": "gs://newproject-1-llm_projects_us-east5/log/BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640SeparateVOKeysLogitDiagNegativeQK80/checkpoints/21000/items"
+    }
+  },
+  "cohorts": {
+    "pile": {
+      "sequences": 8319,
+      "valid_target_tokens": 17037312,
+      "sha256": "10a85b67bcda79dc73debd99eee7b1f825d75495e85ce1600194757395224b33",
+      "sampling": "exact floor(N_records/20), uniform without replacement over complete TFRecord index",
+      "source": "gs://newproject-1-common_datasets_us-east5/pythia_model_test/pile_test/val_with_eos.tfrecord",
+      "raw_documents": 214670,
+      "selected_documents_verified": 17237
+    },
+    "flan": {
+      "sequences": 8354,
+      "valid_target_tokens": 222370,
+      "sha256": "3bf7ea531ccf8d78bad358a6469b013ebf0835f70bf5867d71e52a2e42b4d46c",
+      "sampled_examples": 8319,
+      "long_answer_policy": "overlapping <=2048-input windows,512 new target positions each; every original labeled answer token scored exactly once",
+      "source": "gs://newproject-1-common_datasets_us-east5/pythia_model_test/flan_test3/flan_mini_filtered_v2.tfrecord",
+      "sampling": "fixed-seed uniform records, same sample count as Pile valid 1/20; only records with a scoreable answer",
+      "source_join": "exact input_ids SHA256 plus full array equality, not row order",
+      "raw_json_label_alignment_counts": {
+        "same": 0,
+        "json_left_shifted": 9649,
+        "other": 0
+      }
+    }
+  },
+  "canonical_report": "/home/mengqy/Projects/Bam/training_reports/token_gap_21k_20261028_ue5r4",
+  "raw_data": "/data0/mengqy/bam_diagnostics/token_gap_21k_20261028",
+  "gcs": "gs://newproject-1-llm_projects_us-east5/log/diagnostics/mengqy/token_gap_21k_20261028_r2",
+  "invariants": "Frozen eval only; all target shifts and TFRecord labels verified; noag2xd writes; noformalTPUs; preservemaindirtyexp; ownednode+queue must be deletedafterlocalverification",
+  "hypotheses": [
+    "BAM expectedloweroverall PileCE thanPythia, Mudd reference; directionnotassumed forFLAN",
+    "Context explanation predicts larger late-position differences and gap contraction under context removal; persistent128token differences insteadfavor localprediction/calibration",
+    "Bothsigned directions maybe heavytailed; reportgross BAMwins/Pythiawins andsignednet contributions so >100%net shares are not mistakenfor partitionofpositive mass"
+  ],
+  "evaluation_shape": [
+    8,
+    2048
+  ],
+  "first_lease_failure": "/home/mengqy/Projects/Bam/training_reports/token_gap_21k_20261028/lease1_shape_failure",
+  "same_source_resume": true,
+  "cross_zone_replay": {
+    "manifest_gcs": "gs://newproject-1-llm_projects_us-east5/log/diagnostics/mengqy/token_gap_21k_20261028_r2/leases/ue5ar4/replay.manifest.json",
+    "cohort_gcs": "gs://newproject-1-llm_projects_us-east5/log/diagnostics/mengqy/token_gap_21k_20261028_r2/leases/ue5ar4/flan.replay256.npz",
+    "output_gcs": "gs://newproject-1-llm_projects_us-east5/log/diagnostics/mengqy/token_gap_21k_20261028_r2/cross_zone_replay/ue5ar4",
+    "family": "mudd",
+    "dataset": "flan",
+    "rows": 256
+  },
+  "result_url": "http://172.29.142.228:8873/shorttrain/token-gap-21k/",
+  "all_own_resources_verified_absent": true,
+  "canonical_evidence": {
+    "statistics": "/home/mengqy/Projects/Bam/training_reports/token_gap_21k_20261028_ue5r4/pile.analysis.json",
+    "flan": "/home/mengqy/Projects/Bam/training_reports/token_gap_21k_20261028_ue5r4/flan.analysis.json",
+    "context": "/home/mengqy/Projects/Bam/training_reports/token_gap_21k_20261028_ue5r4/context.analysis.json",
+    "case_identity": "/home/mengqy/Projects/Bam/training_reports/token_gap_21k_20261028_ue5r4/cases_identity_verified.json",
+    "resources": "/home/mengqy/Projects/Bam/training_reports/token_gap_21k_20261028_ue5r4/all_resources_absent.json"
+  },
+  "archive": "gs://newproject-1-llm_projects_us-east5/log/diagnostics/mengqy/token_gap_21k_20261028_r2/report/",
+  "context_targets": 2557,
+  "random_context_targets_per_dataset": 1024,
+  "cases": 331,
+  "validation": "Five sealed-data/shift/mask/context tests and three statistical contracts passed; all native causal-prefix/padding/repeat smokes passed; cross-zone actual21k token replay exact; allraw SHA/identities/coverage verified; 331 cases and 22832 spans independently matched to raw; desktop/mobile real-case browser checks.",
+  "findings": {
+    "pile_pythia_minus_bam": 0.10200177450583141,
+    "flan_pythia_minus_bam": 0.23670031738203376,
+    "scope": "BAM lower across22Pile sources; top10percent absolute token differences explain65.3percentPile/64.1percentFLAN netgap. Random context1024to128 contractionpositivePile, uncertainFLAN; neither removes alladvantage."
+  },
+  "failures_and_root_fixes": [
+    {
+      "failure": "Shortshape BF16 CE drift in first pilot",
+      "repeated": false,
+      "fix": "fa77d549 preservesB8x2048 for everylength; native same-prefix exactchecks; discarded pilot before anybase output."
+    },
+    {
+      "failure": "Two consecutive UC1Spot maintenance preemptions",
+      "repeated": true,
+      "fix": "Identity/SHA checked perchunk commit/resume; exactowned cleanup; movedUE5 and required actual21k per-token cross-zone replay before gate."
+    },
+    {
+      "failure": "Host20token position bin NPint64 JSON serialization",
+      "repeated": false,
+      "fix": "NativePython int boundaries; resume-analysis gate reuses fullyverified GPU outputs; actualbothdatasets JSON generation nowpassed."
+    }
+  ],
+  "closed_utc": 1793178463.4381733
+}

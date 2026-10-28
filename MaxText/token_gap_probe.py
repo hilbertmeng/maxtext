@@ -78,14 +78,26 @@ def main():
     changed,_=run(weights,perturbed);future_error=float(np.max(np.abs(changed[:,:1024]-loss[:,:1024])))
     assert future_error<1e-5,('Future-token leak',future_error)
     quality['future_perturbation_prefix_max_difference']=future_error
-    d=data['flan'];quality['padding_and_bucket_checks']=[]
+    # Keep the exact same 2k compiled shape for all baselines and interventions.
+    # Short-shape bucketing changed BF16 forward rounding in the first pilot.
+    quality['fixed_shape_prefix_checks']=[]
+    d=data['pile']
     for length in [128,256,512,1024]:
-      rows=np.flatnonzero((d['lengths']-1<=length)&(d['lengths']>1))[:bsize];assert len(rows)==bsize
-      full,_=batch(d,rows,2048);short,_=batch(d,rows,length);original,_=run(weights,full);reduced,_=run(weights,short)
-      mask=short['mask'].astype(bool);diff=(reduced-original[:,:length])[mask]
-      q=dict(length=length,tokens=int(mask.sum()),mean_difference=float(diff.mean()),max_abs=float(np.max(np.abs(diff))),abs_p95=float(np.quantile(np.abs(diff),.95)))
-      assert abs(q['mean_difference'])<.005 and q['abs_p95']<.05 and q['max_abs']<.2,('Right-padding/shape sensitivity',q)
-      quality['padding_and_bucket_checks'].append(q)
+      items=[]
+      for row in range(bsize):
+        x,y,n,score,pos=context_window(d['tokens'][row],length,length,pad_to=2048)
+        active=np.arange(2048)<n
+        items.append(dict(inputs=x,targets=y,positions=pos,segments=active.astype(np.int32),mask=active.astype(np.int32)))
+      prefix={k:np.stack([v[k] for v in items]) for k in items[0]};reduced,_=run(weights,prefix)
+      error=float(np.max(np.abs(reduced[:,:length]-loss[:,:length])))
+      assert error<1e-5,('Fixed-shape prefix/right-padding parity',length,error)
+      quality['fixed_shape_prefix_checks'].append(dict(retained_prefix=length,max_difference=error))
+    d=data['flan'];rows=np.flatnonzero(d['lengths']<=129)[:bsize];assert len(rows)==bsize
+    flan,_=batch(d,rows,2048);original,_=run(weights,flan);changed={k:v.copy() for k,v in flan.items()}
+    pad=changed['segments']==0;changed['inputs'][pad]=39;changed['positions'][pad]=0
+    padded,_=run(weights,changed);error=float(np.max(np.abs((padded-original)[flan['mask'].astype(bool)])))
+    assert error<1e-5,('Padding token leaks into answer',error)
+    quality['flan_padding_perturbation_max_difference']=error
     d=data['pile'];timings=[]
     for start in [bsize,2*bsize,3*bsize]:
       b,_=batch(d,np.arange(start,start+bsize),2048);begin=time.monotonic();run(weights,b);timings.append(time.monotonic()-begin)
@@ -108,8 +120,7 @@ def main():
           all_chunks.append(previous);print('TOKEN_GAP_RESUME',a.family,name,start,flush=True);continue
         begin=time.monotonic();loss=np.zeros((stop-start,2048),np.float32);prediction=np.zeros((stop-start,2048),np.uint16)
         rows=np.arange(start,stop)
-        buckets=np.full(len(rows),2048,np.int32) if name=='pile' else np.maximum(128,2**np.ceil(np.log2(np.maximum(d['lengths'][rows]-1,1))).astype(np.int32))
-        assert buckets.max()<=2048
+        buckets=np.full(len(rows),2048,np.int32)
         for length in sorted(np.unique(buckets)):
           group=rows[buckets==length]
           for offset in range(0,len(group),bsize):
@@ -132,8 +143,8 @@ def main():
       for q in range(start,stop):
         dataset=str(queries['dataset'][q]);row=int(queries['row'][q]);j=int(queries['target_index'][q]);d=data[dataset]
         assert d['labels'][row,j]>=0 and d['tokens'][row,j]==queries['target_token'][q] and j>=1024
-        x,y,n,score,pos=context_window(d['tokens'][row,:d['lengths'][row]],j,c,pad_to=1024)
-        active=np.arange(1024)<n;batch_items.append(dict(inputs=x,targets=y,positions=pos,segments=active.astype(np.int32),mask=active.astype(np.int32)));scores.append(score)
+        x,y,n,score,pos=context_window(d['tokens'][row,:d['lengths'][row]],j,c,pad_to=2048)
+        active=np.arange(2048)<n;batch_items.append(dict(inputs=x,targets=y,positions=pos,segments=active.astype(np.int32),mask=active.astype(np.int32)));scores.append(score)
       real=len(batch_items)
       while len(batch_items)<bsize:batch_items.append(batch_items[0]);scores.append(scores[0])
       b={k:np.stack([v[k] for v in batch_items]) for k in batch_items[0]};z,pred=run(weights,b)

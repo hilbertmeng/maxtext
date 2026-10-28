@@ -74,15 +74,18 @@ class WriteContentScaleTest(MLPWriteTest,unittest.TestCase):
     with mesh,nn.partitioning.axis_rules(c.logical_axis_rules):
       p=nn.unbox(model.init(jax.random.key(7),tok,pos,seg,tok));q=nn.unbox(old.init(jax.random.key(7),tok,pos,seg,tok))
       a,b=flatten_dict(p),flatten_dict(q)
-      self.assertEqual(len(set(a)-set(b)),5)
+      self.assertEqual(len(set(a)-set(b)),3) # two stacked scan leaves plus embedding
       for key,value in b.items():np.testing.assert_array_equal(a[key],value,err_msg=str(key))
       for key in set(a)-set(b):np.testing.assert_array_equal(a[key],jnp.ones_like(a[key]))
       call=lambda model,p:model.apply(p,tok,pos,seg,tok,enable_dropout=False)[0]
       np.testing.assert_array_equal(call(model,p),call(old,q))
       g=jax.grad(lambda pp:jnp.mean(call(model,pp)**2))(p)
     added=[(k,v) for k,v in flatten_dict(g).items() if k[-1] in ('write_content_norm_scale','mlp_write_content_norm_scale')]
-    self.assertEqual(len(added),5)
-    for k,v in added:self.assertTrue(np.isfinite(v).all());self.assertGreater(float(jnp.sum(v*v)),0.,str(k))
+    self.assertEqual(len(added),3)
+    for k,v in added:
+      self.assertTrue(np.isfinite(v).all())
+      groups=jnp.moveaxis(v,c.param_scan_axis,0) if 'layers' in k else v[None]
+      for g in groups:self.assertGreater(float(jnp.sum(g*g)),0.,str(k))
     print('ALL_WRITE_SCALES_INIT1_PARENT_IDENTICAL_AND_ALL5_TOY_SCALE_GRADS_LIVE',flush=True)
 
   def test_pallas_read_native_write_all_gradients(self):

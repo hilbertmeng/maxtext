@@ -2581,6 +2581,8 @@ class BamAttention(Attention):
   def setup(self):
     super().setup()             # reuse attention_op / projections / rope / out_projection
     cfg = self.config
+    if getattr(cfg, 'bam_standard_qk_drop_every', 0):
+      raise ValueError('Periodic NoPE configurations require their recorded sealed worktree runtime')
     if getattr(cfg, 'bam_local_o_separate_write_gate', False):
       raise ValueError('Dual attention write gates require their recorded runtime: codex/mediumprop-local-o-dual-write')
     self._residual_value = bam_mudd.is_value_layer(cfg, self.layer_inx)

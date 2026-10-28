@@ -730,6 +730,9 @@ active leases are censored, and manual migration releases are not preemptions.
 
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75MLPInputMixG099MemoryOnlyWriteControlMixTruePile` | v5p-16 (`xd-v5p-16-310397-maxtext`) | `us-east5-a` | 2026-10-28 02:40:59 | 2026-10-28 07:08:06 | user stopped10505/13500,P0; CP10505/TB secured,node+QR independently absent; runtime2f36e3a | none |
 
+| `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75MLPInputMixComplementaryOrdinaryOnlyTruePile` | v5p-16 (`xd-v5p-16-310398-maxtext`) | `us-east5-a` | 2026-10-28 05:17:02 | 2026-10-28 07:31:46 | common5k review stopped5262/13500,P0; CP/TB secured,node+QR independently absent; runtime0244976 | none |
+| `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75MLPInputMixComplementaryMemoryOnlyWriteControlMixTruePile` | v5p-16 (`xd-v5p-16-310399-maxtext`) | `us-east5-a` | 2026-10-28 05:17:10 | 2026-10-28 07:31:49 | common5k review stopped5197/13500,P0; CP/TB secured,node+QR independently absent; runtime0244976 | none |
+
 ## READY leases
 
 | RUN | # | Zone | Start UTC | End UTC | Duration | Exit |
@@ -2290,6 +2293,8 @@ active leases are censored, and manual migration releases are not preemptions.
 
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75MLPInputMixG099OrdinaryOnlyTruePile` | 2 | `us-east5-a` | 2026-10-28 03:26:45 | 2026-10-28 05:06:49 | 1h40m04s | run_stop |
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75MLPInputMixG099MemoryOnlyWriteControlMixTruePile` | 1 | `us-east5-a` | 2026-10-28 02:41:01 | 2026-10-28 07:08:06 | 4h27m05s | run_stop |
+| `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75MLPInputMixComplementaryOrdinaryOnlyTruePile` | 1 | `us-east5-a` | 2026-10-28 05:17:09 | 2026-10-28 07:31:46 | 2h14m37s | run_stop |
+| `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75MLPInputMixComplementaryMemoryOnlyWriteControlMixTruePile` | 1 | `us-east5-a` | 2026-10-28 05:17:18 | 2026-10-28 07:31:49 | 2h14m31s | run_stop |
 ### 2026-10-14 user pause: resumed mixed R256/R384
 
 RUN `BamMediumPropMShiftReadG050SharedR256R384ByWriteTruePile`, v5p-16,

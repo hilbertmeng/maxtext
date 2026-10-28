@@ -82,3 +82,55 @@ scalars; no-gate SOTA lacks these extra summaries. The small timing differences 
 not justify another profiling TPU. Receipts: startup-ID.json, startup-registries.json,
 startup-summary.json, step100-ID.txt, cpu-pass.json, launch-results.json, and sealed
 runtime/source hashes. Main stores ledger classes; implementation remains isolated.
+
+## Common5k review and complete closeout
+
+Both stopped after their own mature5000-step windows. Neither was a credible
+baseline beater, so the policy of retaining every credible winner discards none.
+Ordinary-only's early gain reversed around2600; a temporary narrowing near3600
+failed to continue. Memory-only's much larger early gain reversed near1000 and
+remained a deficit. Wider/faster gates did not produce a net benefit on either
+branch. Both prelaunch terminal bets were unsupported through the measured stop;
+no full13500 endpoint is claimed. No compensating throughput, parameter or cache gain.
+
+| Variant | Committed stop | Common4200..5000 gap vs SOTA | Native R vs SOTA | Gap vs matching .99 | Native R vs matching .99 |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| ordinary only | 5262 | +0.00219096 | 0.99040172 | -0.00191280 | 1.00856538 |
+| memory only + mixed controls | 5197 | +0.00389480 | 0.98293116 | +0.00427836 | 0.98129450 |
+
+The useful partial result is branch-specific: complementary ordinary gating improves
+on the failed .99 ordinary gate, but cannot beat leaving the ordinary input alone.
+Complementary memory gating is worse than the more restrained .99 gate as well as
+no gate. Thus improving a weak gate formulation is not enough to claim an architecture
+improvement. Gate slope and available coefficient range changed together; these
+runs cannot separately attribute the result to one of them.
+
+Targeted health proves gates learned rather than remaining at initialization.
+At exact5000 the ordinary18-layer attention-coefficient share has median.67017,
+range.45772...78751, with L17 below.5. Memory17-layer share has median.60101,
+range.28096...69718, with L0/L1/L14 below.5. The new residual-favoring half-range
+was therefore used. These are normalized scalar coefficient fractions, not
+activation-energy fractions or causal attribution. Full layer mean/std arrays at
+1800 and5000 are in gate-health-first2k.json and gate-health-review5000.json.
+There are only36/34 targeted metrics; no extra head/coordinate health was added.
+
+Both final checkpoint commit markers independently stat-verified; all four node/
+queued-resource descriptions independently confirm absence. Both final TB syncs
+returned SYNC_OK. No observed lost tail; source remains isolated and clean on
+codex/mediumprop-mlp-input-mix at0244976d. No failed architecture merge is implied.
+Both v5p16 runs stayed inUE5a with P0, no zone switches/passive candidates.
+Complete chronological READY leases, UTC (end is manual review-stop boundary):
+
+| Variant | TPU | READY start | End | Duration | Exit |
+| --- | --- | --- | --- | --- | --- |
+| ordinary only | xd-v5p-16-310398-maxtext | 2026-10-28T05:17:09Z | 2026-10-28T07:31:46Z | 2h14m37s | run_stop |
+| memory only + mixed controls | xd-v5p-16-310399-maxtext | 2026-10-28T05:17:18Z | 2026-10-28T07:31:49Z | 2h14m31s | run_stop |
+
+Proofs: final-registries.json, final-leases.json, final-resource_proofs.json,
+final-checkpoint_markers.json, final-closeout-summary.json, report-review5000.json,
+render-review5000.json and final-review-summary.json. TB receipt:
+/home/xd/.local/state/maxtext-tensorboard-sync/closeout-20261028T073142923349Z.log.
+Retained FLEX compiler was only borrowed for AOT and remains user-owned/preserved.
+Only start/config/lifecycle/final conclusions are in main exp.py; interim2k/4k
+reports remain task artifacts. Plotting defaults now120DPI/compact indexedPNG;
+raw native window series remain intact in each figure's provenance JSON.

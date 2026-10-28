@@ -18679,7 +18679,11 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     # code_commit: 0244976; UE5a v5p16 xd-v5p-16-310398-maxtext; FIRST0/AOT/step100/workerGit/data/s13500 verified.
     # Startup20..99 0.677525step/s, vs corresponding sigmoid.99 +0.17%, vs no-gate SOTA -1.35%.
     # Generic healthON/internal+BAMOFF except36 gate scalars; tunedSplash/Pallasv8t read+write; CPU8 PASS.
-    # Grouped2k reports, 5k review; terminal native MHA-reference R bet1.00 vs no-gate SOTA.
+    # Stopped 5262/13500 at common5k review, P0; CP/TB secured, node+QR independently absent.
+    # vs no-gate SOTA: early gain reversed~2.6k; brief narrowing didnotpersist, sustained deficit; common4200..5000 mean gap+0.00219096/R0.99040172.
+    # vs matching sigmoid.99 single-gate parent: commonlast5 gap-0.00191280/R1.00856538; partial repair stillfailsSOTA.
+    # No compensating speed/parameter/cache gain; terminal R bet1.00 unsupported throughstop, full endpoint unmeasured.
+    # Learned gates/full18or17-layer health and complete UE5a leases in complementary experiment note.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75MLPInputMixComplementaryOrdinaryOnlyTruePile'
     bam_mlp_input_mix_complementary = True
     bam_mlp_input_mix_gate_scale = 2.0
@@ -18701,7 +18705,11 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     # code_commit: 0244976; UE5a v5p16 xd-v5p-16-310399-maxtext; FIRST0/AOT/step100/workerGit/data/s13500 verified.
     # Startup20..99 0.669950step/s, vs corresponding sigmoid.99 -0.50%, vs no-gate SOTA -2.45%.
     # Generic healthON/internal+BAMOFF except34 gate scalars; tunedSplash/Pallasv8t read+write; CPU8 PASS.
-    # Grouped2k reports, 5k review; terminal native MHA-reference R bet1.01 vs no-gate SOTA.
+    # Stopped 5197/13500 at common5k review, P0; CP/TB secured, node+QR independently absent.
+    # vs no-gate SOTA: large early gain reversed~1k; sustained deficit, no convincing recovery; common4200..5000 mean gap+0.00389480/R0.98293116.
+    # vs matching sigmoid.99 single-gate parent: commonlast5 gap+0.00427836/R0.98129450; also worsens matchingparent.
+    # No compensating speed/parameter/cache gain; terminal R bet1.01 unsupported throughstop, full endpoint unmeasured.
+    # Learned gates/full18or17-layer health and complete UE5a leases in complementary experiment note.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75MLPInputMixComplementaryMemoryOnlyWriteControlMixTruePile'
     bam_mlp_input_mix_complementary = True
     bam_mlp_input_mix_gate_scale = 2.0

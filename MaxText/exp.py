@@ -18253,6 +18253,10 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     # Startup20..99 .6827125 step/s vs gamma=.5 parent .689788 (-1.03%); matched health, cross-lease comparison.
     # Kernel vs native all-grad1.9e-7, 4-shard dscale3.3e-7, full model2.3e-6; CPU regressions 13+8+6 OK; AOT FLEX v6e.
     # Three independent post-RMS scales init1; +42000 params (+.00972%), MLP unchanged; generic health only.
+    # Stopped11143/13500: vs gamma=.5, persistent slight deficit with no sustained positive phase; initial R1.015 bet unsupported.
+    # Through11k last5 gap+.00085888/R.99528769 (MHA reference); planned5k review missed and handled late, not a planned extension.
+    # Scale RMS at11k .8802..1.0385, all35 raw grad norms finite/nonzero; learned reweighting gave no loss advantage.
+    # CP11143/TB secured, node+queue independently absent; UE5a P1, READY leases30m02s and4h17m25s.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODynamicNormScale050WriteContentNormScaleTruePile'
     bam_write_content_norm_scale = True
     bam_write_content_norm_scale_init = 1.0

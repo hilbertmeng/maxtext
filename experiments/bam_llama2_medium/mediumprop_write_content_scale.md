@@ -44,8 +44,9 @@ Prelaunch bet vs learned-read-gamma=.5 parent: terminal MHA-reference gain R1.01
 range1.00..1.04. Native writer speed .62..66step/s vs parent.689788; fused writer
 is a later equivalent kernel change, not a new experimental variable.
 Keep the two in-flight periodic NoPE RUNs training/monitoring. This separate RUN
-uses sole gamma=.5 comparator; cumulative gap/gain reporting every2k from600,
-native windows200, review5k and retain credible winners, total bound13500.
+uses sole gamma=.5 comparator. User later set5k review only with no interim
+progress reports; native windows200 from600, total bound13500. A user-requested
+3.8k report was delivered separately.
 
 Early CPU gates check exact budget, post-normalization formula/all gradients,
 scale WD exemption and generic-health coverage. Full-model init identity and
@@ -87,3 +88,29 @@ Receipts: pallas-aot-proof.json,pallas-config-diff.json,pallas-budget.log,
 pallas-sealed-config.txt,pallas-launch-environment.json,startup-310404.json,
 startup-summary.json,startup-registries.json,startup-controller-phases.txt under
 /data0/xd/bam_diagnostics/mediumprop-write-content-scale.
+
+## Closeout
+
+Stopped at committed11143/13500. Planned5k review was missed by the agent and
+only acted on around11k; this was disclosed, not a deliberate approved extension.
+Versus gamma=.5 parent, most windows after600 were slightly worse, with only
+isolated crossings and no sustained benefit. Through11k final five windows
+average gap+.00085888/R.99528769 (MHA reference). Prelaunch terminalR1.015
+expectation is unsupported by the11k trajectory; no13.5k terminal value measured.
+The initial ~1% slower startup offers no compensating speed result.
+
+All35 generic scale/gradient norms at11k finite, every raw-gradient norm positive.
+Offline parameter RMS range.8802095..1.0384821: the parameters learned rather
+than remaining inert, without translating into lower loss. Layerwise3.8k data
+showed shallow attention/embedding suppression and slight deep-write enhancement.
+Only existing generic metrics were used; no custom activation capture.
+
+CP11143 commit_success independently verified; registry stopped11143; TPU and
+queued-resource310404 independently absent; local TB SYNC_OK. v5p-16, UE5a only,
+one preemption, no zone switch/passive queue. Full chronological READY leases UTC:
+- 2026-10-28 15:22:51 ->15:52:53,30m02s, preempted.
+- 2026-10-28 15:58:50 ->20:16:15,4h17m25s, manual stop.
+
+Receipts: closeout.log, final-proof.txt, review5k.json (late actual horizon11k),
+generic-scale-health-11000.json and plot-final.json under the task artifact root.
+No model/kernel or infrastructure changes were made during this run.

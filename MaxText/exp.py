@@ -17302,9 +17302,13 @@ class BamPythia2p8BComboKeepPreMaskResume500(
     """Full-state fork of combination CP21557; review after500 added updates.
 
     Restore parameters, Adam state and Pile cursor into a new RUN prefix.
-    Keep the original28000-step run/LR plan;22057 is a review point, not an endpoint.
+    Keep the original28000-step run/LR plan;500 new updates is a review, not an endpoint.
     Global1024/T2048, v5p128/B16, minimal remat and60MiB VMEM inherit unchanged.
     """
+    # code_commit:44141a7; ledger only:actual runtime EXP=BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640SeparateVOKeysLogitDiagNegativeQK80.
+    # RUN_NAME=this alias; reuse original v5p128/s28000 AOT at its exact commit; full-state fork of combinationCP21557.
+    # UE5a v5p128/B16, same health/minimal remat; AOT/HEAD/full restore/LR verified, startup10..24 ~0.317step/s.
+    # First pre-update log21558;500 added updates is a review point, no stop condition. Normal28000 schedule retained.
     model_name = 'BamPythia2p8BComboKeepPreMaskResume500'
     steps = 28000
     learning_rate_schedule_steps = 28000
@@ -17313,6 +17317,10 @@ class BamPythia2p8BComboKeepPreMaskResume500(
 
 class BamPythia2p8BComboUnmaskResume500(BamPythia2p8BComboKeepPreMaskResume500):
     """Same CP21557/state/data as control; restore ordinary causal attention directly."""
+    # code_commit:59ef09e; ledger only:actual runtime EXP=BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640SeparateVOKeysQK80.
+    # RUN_NAME=this alias; reuse original v5p128/s28000 AOT at its exact commit; full-state fork of combinationCP21557.
+    # UE5a v5p128/B16, same health/minimal remat; AOT/HEAD/full restore/LR verified, startup10..24 ~0.317step/s.
+    # First pre-update log21558;500 added updates is a review point, no stop condition. Normal28000 schedule retained.
     model_name = 'BamPythia2p8BComboUnmaskResume500'
     bam_attention_negative_diagonal = False
     compare_runs = ['BamPythia2p8BComboKeepPreMaskResume500']

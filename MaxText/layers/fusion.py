@@ -353,6 +353,9 @@ class SubDecoderLayer(nn.Module):
       branches = len(active_branches)
       gate_scale = float(cfg.bam_mlp_input_mix_gate_scale)
       opening = float(cfg.bam_mlp_input_mix_gate_init)
+      complementary = bool(getattr(cfg, 'bam_mlp_input_mix_complementary', False))
+      if complementary and gate_scale != 2.:
+        raise ValueError('Complementary MLP input gates require range zero to two')
       if not 0. < opening < gate_scale:
         raise ValueError('MLP input mix opening must lie inside its gate range')
       logits = linears.DenseGeneral(
@@ -368,7 +371,9 @@ class SubDecoderLayer(nn.Module):
         gates = (gate_scale * jax.nn.sigmoid(
             logits.astype(jnp.float32) + jnp.asarray(bias, jnp.float32))).astype(cfg.dtype)
       for index, branch in enumerate(active_branches):
-        mixed = mlp_norm(gates[..., index:index+1] * inputs + attention_lnx)
+        residual_gate = gates[..., index:index+1]
+        attention_gate = 2. - residual_gate if complementary else 1.
+        mixed = mlp_norm(residual_gate * inputs + attention_gate * attention_lnx)
         mixed = nn.with_logical_constraint(
             mixed, ('activation_batch', 'activation_norm_length', 'activation_embed'))
         if branch == 'ordinary':
@@ -380,7 +385,7 @@ class SubDecoderLayer(nn.Module):
       if branches and getattr(cfg, 'bam_record_mlp_input_mix_health', False) and not self.is_initializing():
         # Effective mixture, not the common scale removed by the following RMSNorm.
         applied = gates.astype(jnp.float32)
-        alpha = 1. / (1. + applied)
+        alpha = (2. - applied) / 2. if complementary else 1. / (1. + applied)
         axes = tuple(range(alpha.ndim - 1))
         mean = jnp.mean(alpha, axis=axes)
         std = jnp.sqrt(jnp.mean(jnp.square(alpha - mean), axis=axes))

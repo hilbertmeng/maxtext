@@ -26,13 +26,15 @@ RUNS = [PREFIX + suffix + 'TruePile' for suffix in (
     'MLPInputMixG100Scale2WriteControlH', 'MLPInputMixG100Scale2WriteControlMix')]
 SINGLE_RUNS = [PREFIX + suffix + 'TruePile' for suffix in (
     'MLPInputMixG099OrdinaryOnly', 'MLPInputMixG099MemoryOnlyWriteControlMix')]
+COMPLEMENTARY_RUNS = [PREFIX + suffix + 'TruePile' for suffix in (
+    'MLPInputMixComplementaryOrdinaryOnly', 'MLPInputMixComplementaryMemoryOnlyWriteControlMix')]
 
 
 class MLPInputMixTest(MLPWriteTest, unittest.TestCase):
   variant = 0
 
   def tiny(self, period=3, keep=True, length=4):
-    c = self.config((RUNS + SINGLE_RUNS)[self.variant], base_emb_dim=150, base_num_query_heads=2,
+    c = self.config((RUNS + SINGLE_RUNS + COMPLEMENTARY_RUNS)[self.variant], base_emb_dim=150, base_num_query_heads=2,
         base_num_kv_heads=2, base_num_decoder_layers=3, base_mlp_dim=32,
         vocab_size=32, dtype='float32', weight_dtype='float32', bam_splash_attention=False)
     c.get_keys().update(bam_pallas_core=False, mlp_dim=32, bam_last_mlp_dim=32,
@@ -172,7 +174,8 @@ class MLPInputMixTest(MLPWriteTest, unittest.TestCase):
     StandardValueTest.check_pallas(self, True)
 
   def test_single_gate_formal_budget_and_terminal(self):
-    for i,run in enumerate(SINGLE_RUNS):
+    for variant,run in enumerate(SINGLE_RUNS + COMPLEMENTARY_RUNS):
+      i = variant % 2
       c = self.config(run)
       c.get_keys().update(max_target_length=128, max_prefill_predict_length=128)
       mesh = jax.sharding.Mesh(max_utils.create_device_mesh(c), c.mesh_axes)
@@ -193,8 +196,9 @@ class MLPInputMixTest(MLPWriteTest, unittest.TestCase):
       print('SINGLE_GATE_BUDGET',run,432112192+extra,'extra',extra,flush=True)
 
   def test_single_gate_real_branch_inputs_controls_and_gradients(self):
-    for index in range(2):
-      self.variant = 4+index
+    for variant in range(4):
+      index = variant % 2
+      self.variant = 4+variant
       c = self.tiny()
       mesh = jax.sharding.Mesh(max_utils.create_device_mesh(c), c.mesh_axes)
       block = fusion.SubDecoderLayer(c,mesh,quant=None,layer_inx=0)
@@ -213,7 +217,7 @@ class MLPInputMixTest(MLPWriteTest, unittest.TestCase):
       with mesh,nn.partitioning.axis_rules(c.logical_axis_rules):
         p = nn.unbox(block.init(jax.random.key(32),*args,M_in=matrix))
         np.testing.assert_array_equal(p['params']['mlp_input_mix_gate']['kernel'],0.)
-        np.testing.assert_allclose(p['params']['mlp_input_mix_gate_bias'],math.log(99.),rtol=1e-6)
+        np.testing.assert_allclose(p['params']['mlp_input_mix_gate_bias'],math.log(99.) if variant < 2 else 0.,rtol=1e-6)
         gate = p['params']['mlp_input_mix_gate']['kernel']
         p['params']['mlp_input_mix_gate']['kernel'] = .05*jax.random.normal(jax.random.key(33),gate.shape)
         p['params']['mlp_input_mix_gate_bias'] = jnp.array([-.4])
@@ -227,8 +231,9 @@ class MLPInputMixTest(MLPWriteTest, unittest.TestCase):
       a = seen['self_attention'][0][2][0]
       np.testing.assert_allclose(norm[0][0][0],x+a,rtol=1e-6,atol=1e-6)
       np.testing.assert_array_equal(seen['mlp_input_mix_gate'][0][0][0],norm[0][2])
-      g = jax.nn.sigmoid(norm[0][2]@p['params']['mlp_input_mix_gate']['kernel']-.4)
-      np.testing.assert_allclose(norm[1][0][0],g*x+a,rtol=1e-6,atol=1e-6)
+      g = c.bam_mlp_input_mix_gate_scale*jax.nn.sigmoid(norm[0][2]@p['params']['mlp_input_mix_gate']['kernel']-.4)
+      attention_gate = 1. if variant < 2 else 2.-g
+      np.testing.assert_allclose(norm[1][0][0],g*x+attention_gate*a,rtol=1e-6,atol=1e-6)
       ordinary = norm[1][2] if index == 0 else norm[0][2]
       memory = norm[0][2] if index == 0 else norm[1][2]
       np.testing.assert_array_equal(seen['mlp'][0][0][0],ordinary)
@@ -243,8 +248,9 @@ class MLPInputMixTest(MLPWriteTest, unittest.TestCase):
 
   def test_single_gate_actual_health_export(self):
     from train import record_bam_mlp_input_mix_health_metrics
-    for index in range(2):
-      self.variant = 4+index
+    for variant in range(4):
+      index = variant % 2
+      self.variant = 4+variant
       c = self.tiny()
       mesh = jax.sharding.Mesh(max_utils.create_device_mesh(c),c.mesh_axes)
       model = Transformer(c,mesh,quant=None)
@@ -258,7 +264,35 @@ class MLPInputMixTest(MLPWriteTest, unittest.TestCase):
       other = 'memory' if index == 0 else 'ordinary'
       self.assertFalse(any('/'+other+'/' in k for k in metrics['scalar']))
       for key,value in metrics['scalar'].items():
-        self.assertAlmostEqual(float(value),1/1.99 if key.endswith('mean') else 0.,places=6)
+        expected = (1/1.99 if variant < 2 else .5) if key.endswith('mean') else 0.
+        self.assertAlmostEqual(float(value),expected,places=6)
+
+  def test_complementary_initial_parent_function_and_parameters(self):
+    for variant in (6,7):
+      self.variant = variant
+      c = self.tiny()
+      old = pyconfig.HyperParameters(SimpleNamespace(keys=dict(c.get_keys(),
+          bam_mlp_input_mix=False,bam_record_mlp_input_mix_health=False)))
+      mesh = jax.sharding.Mesh(max_utils.create_device_mesh(c),c.mesh_axes)
+      parent = Transformer(old,mesh,quant=None)
+      model = Transformer(c,mesh,quant=None)
+      tok=jnp.array([[1,2,3,4]],jnp.int32);pos=jnp.arange(4)[None];seg=jnp.ones_like(tok)
+      with mesh,nn.partitioning.axis_rules(c.logical_axis_rules):
+        p0=nn.unbox(parent.init(jax.random.key(35),tok,pos,seg,tok))
+        p1=nn.unbox(model.init(jax.random.key(35),tok,pos,seg,tok))
+        left,right=flatten_dict(p0['params']),flatten_dict(p1['params'])
+        for path in left:np.testing.assert_array_equal(left[path],right[path],err_msg=str(path))
+        y0=parent.apply(p0,tok,pos,seg,tok,enable_dropout=False)[0]
+        y1=model.apply(p1,tok,pos,seg,tok,enable_dropout=False)[0]
+        np.testing.assert_allclose(y1,y0,rtol=1e-6,atol=1e-6)
+
+  def test_pallas_complementary_ordinary(self):
+    self.variant = 6
+    StandardValueTest.check_pallas(self,True)
+
+  def test_pallas_complementary_memory(self):
+    self.variant = 7
+    StandardValueTest.check_pallas(self,True)
 
   def test_pallas_single_ordinary(self):
     self.variant = 4

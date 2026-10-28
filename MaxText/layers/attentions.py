@@ -2903,6 +2903,9 @@ class BamAttention(Attention):
           'dynamic_rms_mix', 'dynamic_rms_scale_mix', 'dynamic_rms_gelu_mix')
       assert cfg.bam_n_f == 1
     self._write_data_rms = bool(cfg.bam_write_data_rms)
+    if getattr(cfg, 'bam_write_content_norm_scale', False):
+      if not self._write_data_rms or cfg.bam_write_factor_norm != 'rms':
+        raise ValueError('Content-scale experiment requires plain RMS-normalized writes')
     self._write_factor_norm = cfg.bam_write_factor_norm
     self._write_address_norm_bias = bool(cfg.bam_write_address_norm_bias)
     self._write_v_bottleneck_dim = cfg.bam_write_v_bottleneck_dim
@@ -3157,6 +3160,11 @@ class BamAttention(Attention):
               lambda key, shape, dtype: jnp.full(shape, math.log(eps / (1.0 - eps))),
               ("q_heads",)),
           (self.num_query_heads,), self.weight_dtype)
+    if self._has_write and getattr(cfg, 'bam_write_content_norm_scale', False):
+      from layers import bam_write
+      self.write_content_norm_scale = self._constant_general_parameter(
+          'write_content_norm_scale', (self.num_query_heads, self.bam_k),
+          ('q_heads', 'kv'), bam_write.scale_initializer(cfg))
     if self._has_write or bam_mudd.restores_mlp_write(cfg, self.layer_inx):
       learned_write_scale = self._write_factor_norm == 'grouped_rms'
       address_bias = self._write_address_norm_bias
@@ -3696,6 +3704,8 @@ class BamAttention(Attention):
       g = g * (1.0 / jnp.sqrt(self.num_query_heads))
     u1_norm = self.write_data_norm(u1) if self._write_data_rms else u1
     u2_norm = self.write_address_norm(u2)
+    if getattr(self.config, 'bam_write_content_norm_scale', False):
+      u1_norm = u1_norm * jnp.asarray(self.write_content_norm_scale, u1_norm.dtype)
     gated_u1 = g[..., None] * u1_norm
     with jax.named_scope("bam/write_outer"):
       if self._write_outer_implementation == 'dot':
@@ -3719,9 +3729,11 @@ class BamAttention(Attention):
     gate = jax.nn.sigmoid(self.W_gw(x) + bias)
     scale = 1.0 / jnp.sqrt(self.num_query_heads) if self.config.bam_sqrt_n_scale else 1.0
     content = self.write_data_norm(u1) if self._write_data_rms else u1
+    if getattr(self.config, 'bam_write_content_norm_scale', False):
+      content = content * jnp.asarray(self.write_content_norm_scale, content.dtype)
     return scale * gate[..., None] * content, self.write_address_norm(u2), gate
 
-  def merge_mlp_write(self, mlp_head, mlp_gate, factors, M_in, independent_address=None):
+  def merge_mlp_write(self, mlp_head, mlp_gate, factors, M_in, independent_address=None, content_scale=None):
     """Merge attention/MLP writes, then decay the carried matrix exactly once."""
     compact_write = bool(getattr(self.config, 'bam_memory_write_heads', 0))
     # The attention norm checks its head count even when it has no parameters.
@@ -3733,6 +3745,8 @@ class BamAttention(Attention):
     content = ((compact_norm(mlp_head) if compact_write else self.write_data_norm(mlp_head))
                if self._write_data_rms else mlp_head)
     scale = 1.0 / jnp.sqrt(self.num_query_heads) if self.config.bam_sqrt_n_scale else 1.0
+    if content_scale is not None:
+      content = content * jnp.asarray(content_scale, content.dtype)
     mlp_content = scale * mlp_gate[..., None] * content
     if factors is None:
       if independent_address is None:
@@ -4264,6 +4278,10 @@ class BamAttention(Attention):
     else:
       write_logits = self.W_gw(inputs_q) + jnp.asarray(self.gw_b0, self.dtype)
     out = nn.with_logical_constraint(o_head, self.out_axis_names)
+    if getattr(cfg, 'bam_write_content_norm_scale', False):
+      from layers.bam_write import ScaledWrite
+      return self.out_projection(inputs_q.shape[-1], out), M_in, ScaledWrite(
+          o_head, write_logits, address, self.write_content_norm_scale)
     return self.out_projection(inputs_q.shape[-1], out), M_in, (o_head, write_logits, address)
 
   @nn.compact

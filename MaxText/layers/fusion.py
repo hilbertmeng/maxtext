@@ -492,29 +492,49 @@ class SubDecoderLayer(nn.Module):
             dtype=cfg.dtype, weight_dtype=cfg.weight_dtype,
             quant=self.quant, matmul_precision=cfg.matmul_precision,
             name='mlp_address_up')(nn.gelu(address_hidden))
+      content_scale = None
+      if getattr(cfg, 'bam_write_content_norm_scale', False):
+        from layers import bam_write
+        content_scale = self.param(
+            'mlp_write_content_norm_scale', nn.with_logical_partitioning(
+                nn.initializers.constant(bam_write.scale_initializer(cfg)), ('q_heads', 'kv')),
+            (write_heads, cfg.bam_k), cfg.weight_dtype)
       if not pallas_core:
         M_out = attention_layer.merge_mlp_write(
             write_content.reshape(write_content.shape[:-1] + (write_heads, cfg.bam_k)),
-            jax.nn.sigmoid(mlp_logits), write_factors, M_out, independent_address=independent_address)
+            jax.nn.sigmoid(mlp_logits), write_factors, M_out, independent_address=independent_address, content_scale=content_scale)
     if pallas_core:
       from layers import bam_pallas
       groups = [] if write_factors is None else [write_factors]
       if mlp_write:
         assert independent_address is not None, 'fused core supports independent MLP addresses only'
-        groups.append((write_content.reshape(write_content.shape[:-1] + (write_heads, cfg.bam_k)),
-                       mlp_logits, independent_address))
+        group = (write_content.reshape(write_content.shape[:-1] + (write_heads, cfg.bam_k)),
+                 mlp_logits, independent_address)
+        if content_scale is not None:
+          from layers.bam_write import ScaledWrite
+          group = ScaledWrite(*group, content_scale)
+        groups.append(group)
       if groups:
-        with jax.named_scope('bam/pallas_write'):
-          M_out = bam_pallas.write(
-              M_out, groups, epsilon=initializers.get_bam_write_epsilon(cfg),   # same as the XLA write norms
-              forward_tile=int(getattr(cfg, 'bam_pallas_write_tile', None) or 128),
-              reverse_tile=int(getattr(cfg, 'bam_pallas_write_reverse_tile', None) or 128),
-              vmem_mib=getattr(cfg, 'bam_pallas_vmem_mib', None),
-              interpret=bool(getattr(cfg, 'bam_pallas_interpret', False)),
-              body=getattr(cfg, 'bam_pallas_body', None) or 'blocked',
-              **({'row_block': int(cfg.bam_pallas_write_block), 'head_block': int(cfg.bam_pallas_write_block)}
-                 if getattr(cfg, 'bam_pallas_write_block', None) else {}))
-
+        if not getattr(cfg, 'bam_pallas_write', True):
+          if cfg.bam_pallas_body != 'v8t':
+            raise ValueError('Native write fallback requires token-major v8t M')
+          from layers import bam_write
+          with jax.named_scope('bam/native_write'):
+            M_out = bam_write.native_write(
+                M_out, groups, epsilon=initializers.get_bam_write_epsilon(cfg))
+        else:
+          if getattr(cfg, 'bam_write_content_norm_scale', False):
+            raise ValueError('Content scales require native writes until the Pallas writer is adapted')
+          with jax.named_scope('bam/pallas_write'):
+            M_out = bam_pallas.write(
+                M_out, groups, epsilon=initializers.get_bam_write_epsilon(cfg),   # same as the XLA write norms
+                forward_tile=int(getattr(cfg, 'bam_pallas_write_tile', None) or 128),
+                reverse_tile=int(getattr(cfg, 'bam_pallas_write_reverse_tile', None) or 128),
+                vmem_mib=getattr(cfg, 'bam_pallas_vmem_mib', None),
+                interpret=bool(getattr(cfg, 'bam_pallas_interpret', False)),
+                body=getattr(cfg, 'bam_pallas_body', None) or 'blocked',
+                **({'row_block': int(cfg.bam_pallas_write_block), 'head_block': int(cfg.bam_pallas_write_block)}
+                   if getattr(cfg, 'bam_pallas_write_block', None) else {}))
     if mlp_lnx is not None and moe_lnx is not None:
       layer_output = mlp_lnx + intermediate_inputs + moe_lnx
     elif mlp_lnx is not None and moe_lnx is None:

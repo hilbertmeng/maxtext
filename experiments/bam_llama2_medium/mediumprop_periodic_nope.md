@@ -101,3 +101,27 @@ v5p-16, us-east5-a only, P0. Single chronological READY lease UTC2026-10-28
 14:40:02 ->17:01:00,2h20m58s; final manual stop, no zone switch or passive queue.
 Receipts: closeout-ordinary.log, ordinary-final-proof.txt, ordinary-final-registry.txt
 and review5k.json under the task artifact directory. Borrowed FLEX unchanged.
+
+## Balanced-refund completion
+
+Completed13500, P0. Absolute loss deficit versus gamma=.5 shrank gradually after
+5k but slowed near+.004, never crossing zero after the initial transient. Final
+five windows12600..13400 average gap+.00376048/R.97884314 (MHA reference). The
+last individual window+.0029476/R.9832891 is better than that mean, but does not
+erase the persistent deficit. Initial terminalR1.025 bet failed. Matched-5k
+comparison shows balanced refund helps relative to ordinary-only, without
+recovering the baseline's standard18-dimensional Q/K path.
+
+This experiment removes both rotation and the learned18-dimensional Q/K content
+route. Its failure therefore does not isolate positional encoding itself. A
+future attempt preserving those content projections without rotation would ask
+a different question; none is implemented or authorized here.
+
+CP13500 commit_success independently verified; registry complete13500; TPU and
+queued-resource310403 independently absent. v5p-16, UE5a only, no passive queues
+or zone switch. Single READY lease UTC2026-10-28 14:40:04 ->20:27:35,5h47m31s;
+clean completion, no preemption. Local TB synchronization finished SYNC_OK;
+bookkeeping-only closeout confirmed already_closed=true and skipped all resource
+operations. Receipt: balanced-closeout.log and its linked local sync log.
+Final-report.json and plot-final-group.json keep full cumulative native evidence;
+ordinary-only curve ends at its measured5.4k horizon rather than extrapolating.

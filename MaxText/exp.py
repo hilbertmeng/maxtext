@@ -18253,7 +18253,7 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     # Startup20..99 .6827125 step/s vs gamma=.5 parent .689788 (-1.03%); matched health, cross-lease comparison.
     # Kernel vs native all-grad1.9e-7, 4-shard dscale3.3e-7, full model2.3e-6; CPU regressions 13+8+6 OK; AOT FLEX v6e.
     # Three independent post-RMS scales init1; +42000 params (+.00972%), MLP unchanged; generic health only.
-    # Stopped11143/13500: vs gamma=.5, persistent slight deficit with no sustained positive phase; initial R1.015 bet unsupported.
+    # Stopped 11143/13500: vs gamma=.5, persistent slight deficit with no sustained positive phase; initial R1.015 bet unsupported.
     # Through11k last5 gap+.00085888/R.99528769 (MHA reference); planned5k review missed and handled late, not a planned extension.
     # Scale RMS at11k .8802..1.0385, all35 raw grad norms finite/nonzero; learned reweighting gave no loss advantage.
     # CP11143/TB secured, node+queue independently absent; UE5a P1, READY leases30m02s and4h17m25s.
@@ -18271,7 +18271,7 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     # Ledger only: codex/mediumprop-nope-layers, /data0/xd/mediumprop-nope-layers.
     # code_commit: c266c0d; UE5a v5p-16 xd-v5p-16-310402-maxtext; FIRST0/step100/exact AOT/data/s13500 verified.
     # Startup20..99 0.680050 step/s vs gamma=.5 parent .689788 (-1.41%); health matched, tuned Splash/Pallas read+write.
-    # Stopped5503/13500 at5k review: vs gamma=.5, deficit plateaued~+.006-.007 after~1.6k; gain multiplier declined.
+    # Stopped 5503/13500 at5k review: vs gamma=.5, deficit plateaued~+.006-.007 after~1.6k; gain multiplier declined.
     # Through5.4k last5 gap+.006748/R.969782 (MHA reference), no sustained catchup; initial terminal1.02 bet unsupported.
     # Exact432121408 params; CP5503/TB secured, node+queue absent; UE5a P0, single READY lease2h20m58s.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODynamicNormScale050NoPEEvery3RefundOrdinaryTruePile'
@@ -18294,6 +18294,10 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     # Ledger only: codex/mediumprop-nope-layers, /data0/xd/mediumprop-nope-layers.
     # code_commit: c266c0d; UE5a v5p-16 xd-v5p-16-310403-maxtext; FIRST0/step100/exact AOT/data/s13500 verified.
     # Startup20..99 0.677550 step/s vs gamma=.5 parent .689788 (-1.77%); health matched, tuned Splash/Pallas read+write.
+    # Completed 13500/P0: deficit narrowed from~+.0063 at1.6-2.6k to~+.0043 at4.2-5.2k, then slowed near+.004.
+    # Final5(12600..13400) gap+.00376048/R.97884314 vs gamma=.5 (MHA reference); no post-transient zero crossing.
+    # Initial terminalR1.025 bet failed; balanced refund helped vs ordinary-only at matched5k, but did not recover parent.
+    # CP13500/TB secured, node+queue absent; single UE5a READY lease5h47m31s; exact432121408 params.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODynamicNormScale050NoPEEvery3RefundRatio2to1TruePile'
     mlp_dim_by_block = [2510, 2510, 2638]
     bam_memory_mlp_dim_by_layer = [1128, 1128, 1192] * 6

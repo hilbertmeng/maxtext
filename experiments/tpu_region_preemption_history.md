@@ -27,6 +27,7 @@ active leases are censored, and manual migration releases are not preemptions.
 
 | RUN | TPU | Zone | Start UTC | End UTC | End reason | Passive candidates |
 |---|---|---|---|---|---|---|
+| `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODynamicNormScale050NoPEEvery3RefundRatio2to1TruePile` | v5p-16 (`xd-v5p-16-310403-maxtext`) | `us-east5-a` | 2026-10-28 14:40:01 | 2026-10-28 20:27:35 | complete13500/P0; gradual catchup slowed near+.004 vs gamma.5, final5 R.978843; CP13500 committed,node+QR independently absent; runtimec266c0d | none |
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODynamicNormScale050WriteContentNormScaleTruePile` | v5p-16 (`xd-v5p-16-310404-maxtext`) | `us-east5-a` | 2026-10-28 15:22:48 | 2026-10-28 20:16:15 | stopped11143/P1 after delayed5k review; persistent slightloss deficit vs gamma.5, no sustained benefit; CP11143/TB secured,node+QR independently absent; runtimecf663b3 | none |
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODynamicNormScale050NoPEEvery3RefundOrdinaryTruePile` | v5p-16 (`xd-v5p-16-310402-maxtext`) | `us-east5-a` | 2026-10-28 14:40:00 | 2026-10-28 17:01:00 | 5k review stop5503/P0; CP5503/TB secured, node+QR independently absent; runtimec266c0d; deficit~+.006-.007 and declining gain ratio, balanced sibling retained | none |
 | `BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640SeparateVOKeysLogitDiagNegativeQK80` | v5p-128 (`xd-v5p-128-logit-pre-qk80-1026`) | `us-east5-a` | 2026-10-26 16:16:45 | 2026-10-27 11:32:08 | common21.5k pause21557/P0; CP/fixed2k+20k committed, node+QR independently absent, TB synced; runtime44141a7; original28k schedule retained | EW4b backup policy; no active switch |
@@ -2309,6 +2310,8 @@ active leases are censored, and manual migration releases are not preemptions.
 | `BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640SeparateVOKeysLogitDiagNegativeQK80LocalODynamicNormScale020` | 1 | `us-east5-a` | 2026-10-28 04:15:03 | 2026-10-28 18:31:01 | 14h15m58s | user16k pause atCP16040/28000,P0; CP16000+16040/cursor secured, TB SYNC_OK; node+QR independently absent; end is pause boundary |
 
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODynamicNormScale050WriteContentNormScaleTruePile` | 2 | `us-east5-a` | 2026-10-28 15:58:50 | 2026-10-28 20:16:15 | 4h17m25s | manual stop11143 after delayedreview; CP/TB secured,node+QR independently absent |
+
+| `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODynamicNormScale050NoPEEvery3RefundRatio2to1TruePile` | 1 | `us-east5-a` | 2026-10-28 14:40:04 | 2026-10-28 20:27:35 | 5h47m31s | clean completion13500; CP committed,node+QR independently absent; P0 |
 
 ### 2026-10-14 user pause: resumed mixed R256/R384
 

@@ -1044,6 +1044,9 @@ def train_step(model, config, state_mesh_shardings, state, data, dropout_rng):
 
   if getattr(config, 'bam_record_concat_health', False) or getattr(config, 'bam_record_m_shift_health', False):
     record_bam_concat_health_metrics(metrics, intermediate_outputs, config)
+  if getattr(config, 'bam_record_dual_write_health', False):
+    from layers import bam_write
+    bam_write.record_health_metrics(metrics, intermediate_outputs, config)
   if getattr(config, 'rmt_record_dynamic_health', False):
     record_rmt_dynamic_health_metrics(metrics, intermediate_outputs, config)
   if config.record_internal_nn_metrics:

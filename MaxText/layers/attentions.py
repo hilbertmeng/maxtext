@@ -41,6 +41,7 @@ from layers import dc
 from layers import accelerator
 from layers import normalizations
 from layers import bam_mudd
+from layers import bam_write
 from layers import kv_shift
 
 import max_logging
@@ -2703,6 +2704,7 @@ class BamAttention(Attention):
           or len(set(attention_writers)) != len(attention_writers)):
         raise ValueError('bam_attention_write_layers requires unique valid layer indices')
       self._has_write = self._has_write and self.layer_inx in attention_writers
+    self._dual_write = bool(getattr(cfg, 'bam_local_o_separate_write_gate', False))
     assert self.read_side in ('both', 'row', 'col')
 
     # DenseGeneral passes in_axis/out_axis to its initializer in addition to
@@ -3263,6 +3265,18 @@ class BamAttention(Attention):
           'local_o_dynamic_norm_scale', (self._read_head_count('o'), self._read_bam_v),
           ('q_heads', 'kv'), cfg.bam_local_o_dynamic_norm_scale_init)
 
+    if self._dual_write and self._has_write:
+      if not (self._local_o and self._write_data_rms and self._write_factor_norm == 'rms'):
+        raise ValueError('Split attention writes require LocalO and plain shared RMS')
+      # Independent RNG/parameters; match the parent distribution and bias only.
+      self.W_gw_feedback = DenseGeneral(
+          features=(self.num_query_heads,), axis=-1, kernel_init=reg_init,
+          kernel_axes=('embed', 'q_heads'), dtype=self.dtype, weight_dtype=self.weight_dtype,
+          name='W_gw_feedback', quant=self.quant, matmul_precision=cfg.matmul_precision, use_bias=False)
+      self.feedback_gw_b0 = self._constant_general_parameter(
+          'feedback_gw_b0', (self.num_query_heads,), ('q_heads',),
+          math.log(float(cfg.bam_write_eps) / (1. - float(cfg.bam_write_eps))))
+
   def _constant_general_parameter(self, name, shape, axes, value=0.):
     # Constants need no random key; keep the parent's init RNG counters intact.
     return nn.unbox(self.variable('params', name, nn.with_logical_partitioning(
@@ -3666,7 +3680,7 @@ class BamAttention(Attention):
         hidden = nn.gelu(hidden)
     return self.P_loc_up(hidden)
 
-  def _write(self, o_head, x, M_in, shared_hidden=None):
+  def _write(self, o_head, x, M_in, shared_hidden=None, *, mha_output=None, local_output=None):
     """Write primitive (§4.2 safe write: aggregated U (outer) local V). o_head: [b,t,n,d] head output (pre W_O).
 
     Per-record factor normalization (§4.6.5 write-side per-record factor norm): the address
@@ -3693,6 +3707,8 @@ class BamAttention(Attention):
     u1_norm = self.write_data_norm(u1) if self._write_data_rms else u1
     u2_norm = self.write_address_norm(u2)
     gated_u1 = g[..., None] * u1_norm
+    if self._dual_write:
+      gated_u1, _ = self._split_write_content(mha_output, local_output, x, u2)
     with jax.named_scope("bam/write_outer"):
       if self._write_outer_implementation == 'dot':
         dM = jnp.einsum('btnk,btnv->btkv', gated_u1, u2_norm)
@@ -3707,7 +3723,17 @@ class BamAttention(Attention):
       assert M_out.dtype == self.dtype, (M_out.dtype, self.dtype)
     return M_out, gate
 
-  def _deferred_write_factors(self, o_head, x, shared_hidden=None):
+  def _split_write_content(self, mha_output, local_output, x, address):
+    group = bam_write.SplitAttentionWrite(
+        mha_output[..., :self.bam_k], local_output[..., :self.bam_k],
+        self.W_gw(x) + jnp.asarray(self.gw_b0, self.dtype),
+        self.W_gw_feedback(x) + jnp.asarray(self.feedback_gw_b0, self.dtype), address)
+    content, stats = bam_write.split_content(group, initializers.get_bam_write_epsilon(self.config))
+    if getattr(self.config, 'bam_record_dual_write_health', False) and not self.is_initializing():
+      self.sow('intermediates', 'dual_write_stats', stats)
+    return content, stats
+
+  def _deferred_write_factors(self, o_head, x, shared_hidden=None, *, mha_output=None, local_output=None):
     """Same factors as _write, without forming its outer product yet."""
     u1 = o_head[..., :self.bam_k]
     u2 = self._write_address(x, shared_hidden)
@@ -3715,6 +3741,9 @@ class BamAttention(Attention):
     gate = jax.nn.sigmoid(self.W_gw(x) + bias)
     scale = 1.0 / jnp.sqrt(self.num_query_heads) if self.config.bam_sqrt_n_scale else 1.0
     content = self.write_data_norm(u1) if self._write_data_rms else u1
+    if self._dual_write:
+      content, _ = self._split_write_content(mha_output, local_output, x, u2)
+      return scale * content, self.write_address_norm(u2), gate
     return scale * gate[..., None] * content, self.write_address_norm(u2), gate
 
   def merge_mlp_write(self, mlp_head, mlp_gate, factors, M_in, independent_address=None):
@@ -4045,6 +4074,8 @@ class BamAttention(Attention):
       write_names = ('W_gw',) if self._share_read_attention_down else ('P_loc_down', 'W_gw')
       if not self._has_write:
         write_names = ()
+      elif self._dual_write:
+        write_names += ('W_gw_feedback',)
       raw = self._fused_input_projections(
           inputs_q, ('query', 'key') + (('value',) if self._standard_value_heads else ())
           + key_names + gate_names + static_gate_names + shift_names
@@ -4260,6 +4291,12 @@ class BamAttention(Attention):
     else:
       write_logits = self.W_gw(inputs_q) + jnp.asarray(self.gw_b0, self.dtype)
     out = nn.with_logical_constraint(o_head, self.out_axis_names)
+    if self._dual_write:
+      feedback_logits = ((raw['W_gw_feedback'] if fused else self.W_gw_feedback(inputs_q))
+                         + jnp.asarray(self.feedback_gw_b0, self.dtype))
+      factors = bam_write.SplitAttentionWrite(
+          y_std, local_output, write_logits, feedback_logits, address)
+      return self.out_projection(inputs_q.shape[-1], out), M_in, factors
     return self.out_projection(inputs_q.shape[-1], out), M_in, (o_head, write_logits, address)
 
   @nn.compact
@@ -4541,7 +4578,8 @@ class BamAttention(Attention):
 
     if defer_write:
       assert self._has_write and not self._mha_control and M_in is not None
-      factors = self._deferred_write_factors(o_head, inputs_q, full_m_shared_hidden)
+      factors = self._deferred_write_factors(o_head, inputs_q, full_m_shared_hidden,
+                                           mha_output=y_std, local_output=local_output)
       out = nn.with_logical_constraint(o_head, self.out_axis_names)
       return self.out_projection(inputs_q.shape[-1], out), M_in, factors
     if self._mha_control:
@@ -4549,7 +4587,8 @@ class BamAttention(Attention):
     elif self._has_write:
       assert M_in is not None, "write primitive requires M_in"
       with jax.named_scope("bam/write_m"):
-        M_out, _ = self._write(o_head, inputs_q, M_in, full_m_shared_hidden)
+        M_out, _ = self._write(o_head, inputs_q, M_in, full_m_shared_hidden,
+                             mha_output=y_std, local_output=local_output)
     else:
       M_out = M_in
 

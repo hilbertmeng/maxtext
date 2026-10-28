@@ -504,16 +504,29 @@ class SubDecoderLayer(nn.Module):
         groups.append((write_content.reshape(write_content.shape[:-1] + (write_heads, cfg.bam_k)),
                        mlp_logits, independent_address))
       if groups:
-        with jax.named_scope('bam/pallas_write'):
-          M_out = bam_pallas.write(
-              M_out, groups, epsilon=initializers.get_bam_write_epsilon(cfg),   # same as the XLA write norms
-              forward_tile=int(getattr(cfg, 'bam_pallas_write_tile', None) or 128),
-              reverse_tile=int(getattr(cfg, 'bam_pallas_write_reverse_tile', None) or 128),
-              vmem_mib=getattr(cfg, 'bam_pallas_vmem_mib', None),
-              interpret=bool(getattr(cfg, 'bam_pallas_interpret', False)),
-              body=getattr(cfg, 'bam_pallas_body', None) or 'blocked',
-              **({'row_block': int(cfg.bam_pallas_write_block), 'head_block': int(cfg.bam_pallas_write_block)}
-                 if getattr(cfg, 'bam_pallas_write_block', None) else {}))
+        if not getattr(cfg, 'bam_pallas_write', True):
+          if cfg.bam_pallas_body != 'v8t':
+            raise ValueError('Native write fallback currently requires token-major v8t M')
+          from layers import bam_write
+          with jax.named_scope('bam/native_write'):
+            M_out, dual_stats = bam_write.native_write(
+                M_out, groups, epsilon=initializers.get_bam_write_epsilon(cfg))
+          if dual_stats is not None and cfg.bam_record_dual_write_health and not self.is_initializing():
+            self.sow('intermediates', 'dual_write_stats', dual_stats)
+        else:
+          from layers import bam_write
+          if any(isinstance(group, bam_write.SplitAttentionWrite) for group in groups):
+            raise ValueError('Split attention gates need bam_pallas_write=False until the write kernel is adapted')
+          with jax.named_scope('bam/pallas_write'):
+            M_out = bam_pallas.write(
+                M_out, groups, epsilon=initializers.get_bam_write_epsilon(cfg),
+                forward_tile=int(getattr(cfg, 'bam_pallas_write_tile', None) or 128),
+                reverse_tile=int(getattr(cfg, 'bam_pallas_write_reverse_tile', None) or 128),
+                vmem_mib=getattr(cfg, 'bam_pallas_vmem_mib', None),
+                interpret=bool(getattr(cfg, 'bam_pallas_interpret', False)),
+                body=getattr(cfg, 'bam_pallas_body', None) or 'blocked',
+                **({'row_block': int(cfg.bam_pallas_write_block), 'head_block': int(cfg.bam_pallas_write_block)}
+                   if getattr(cfg, 'bam_pallas_write_block', None) else {}))
 
     if mlp_lnx is not None and moe_lnx is not None:
       layer_output = mlp_lnx + intermediate_inputs + moe_lnx

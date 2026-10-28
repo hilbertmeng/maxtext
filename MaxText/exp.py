@@ -18240,6 +18240,27 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     bam_local_o_dynamic_norm_scale_init = 0.5
 
 
+class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODynamicNormScale050DualWriteGatesTruePile(
+    BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODynamicNormScale050TruePile):
+    """Independent sigmoid write gates for MHA/LocalO, shared original RMS/address.
+
+    Both kernels use independent original BAM initialization, both biases logit(.1).
+    Residual output and gamma=.5 read unchanged. Fused read + native JAX write;
+    enable the Pallas writer only after it supports SplitAttentionWrite factors.
+    """
+    model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODynamicNormScale050DualWriteGatesTruePile'
+    bam_local_o_separate_write_gate = True
+    bam_record_dual_write_health = True
+    bam_pallas_core = True
+    bam_pallas_write = False
+    bam_pallas_body = 'v8t'
+    bam_pallas_fused_inputs = True
+    bam_pallas_vmem_mib = 48
+    base_mlp_dim = 2505
+    bam_last_mlp_dim = 3898
+    compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODynamicNormScale050TruePile']
+
+
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODynamicNormScale010TruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODynamicNormScale050TruePile):
     """Native reference: dynamic O norm scale .1; static O remains untouched."""

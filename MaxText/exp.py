@@ -18245,7 +18245,8 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     """Independent post-RMS content scales for embedding, attention and memory-MLP writes."""
     # Ledger only: codex/mediumprop-write-content-scale, /data0/xd/mediumprop-write-content-scale.
     # code_commit: cf663b3; claude/write-content-scale-pallas,/data0/xd/write-content-scale-pallas (=50c737e+v8t ScaledWrite writer).
-    # UE5a v5p-16 xd-v5p-16-310404-maxtext; Pallas-write first launch (no native training), FIRST_STEP loss10.851; plan 13500.
+    # UE5a v5p-16 xd-v5p-16-310404-maxtext; Direct Pallas FIRST0/step100/exact AOT/data/s13500 verified; no native training.
+    # Startup20..99 .6827125 step/s vs gamma=.5 parent .689788 (-1.03%); matched health, cross-lease comparison.
     # Kernel vs native all-grad1.9e-7, 4-shard dscale3.3e-7, full model2.3e-6; CPU regressions 13+8+6 OK; AOT FLEX v6e.
     # Three independent post-RMS scales init1; +42000 params (+.00972%), MLP unchanged; generic health only.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODynamicNormScale050WriteContentNormScaleTruePile'

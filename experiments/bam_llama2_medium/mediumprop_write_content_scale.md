@@ -54,3 +54,36 @@ must pass before training. Runtime commit follows after sealing.
 
 Sealed/pushed runtime: 50c737ec5e624a445614570d49ab4701d259d07f. Configuration/commit sent to Claude;
 CPU full-model/regression gate and native-writer AOT/prequeue in progress.
+
+## Direct Pallas startup verified
+
+Native50c737ec passes58 CPU checks (focused6/BAM47/TB rotation5). Exact tree
+432163408 (+42000), initial1 full native outputs/common parameters identical to
+parent, all scale gradients live; native/Pallas-read/native-write maxrel2.38e-6.
+No custom health tags or train.py changes. Claude cf663b3 supplies the4-factor
+ScaledWrite writer: kernel1.9e-7,4-device dscale3.3e-7, full-model2.3e-6 checks
+pass, with final27 regressions also passing (content13/mshift8/readgamma6).
+Independent checks confirm exact manifest/artifact, SEALED_CONFIG_OK, same actual
+parameter count and only effective config delta bam_pallas_write False->True.
+Parameter-creating files, optimizer, train.py and native reference unchanged.
+
+Retained READY310404; retired only held local native launcher without its
+prequeue cleanup. Native never trained. User chose immediate direct Pallas
+startup after manifest/tree checks, with remaining author regressions subsequently
+passing. No checkpoint replay/hot switch or duplicate AOT was needed.
+Runtime cf663b3147cdff360ee1ed310afad4f5fbc089a2: actual completed0, exact Git/AOT
+load, actual UE5a TruePile4096 data and total/LR13500 independently verified.
+All80 samples20..99 average.6827125step/s vs gamma=.5 parent.689788 (-1.02575%).
+Author's -.3% bound is not met by this descriptive cross-lease startup comparison.
+
+Startup phases UTC: registration15:22:48, READY15:22:50, environment15:24:49,
+exact code15:24:56, train process15:25:14, controller observes step34 at15:26:51.
+New VM environment installation cost~2min and could have overlapped waiting for
+final kernel/AOT using the existing installer. No training recompile/failure.
+An immediate wait-step raced registry creation; awaiting registration resolved it
+without resubmitting controller or touching resources. Chat corrected an initial
+misreading of last_progress15:28:13 as first-progress time.
+Receipts: pallas-aot-proof.json,pallas-config-diff.json,pallas-budget.log,
+pallas-sealed-config.txt,pallas-launch-environment.json,startup-310404.json,
+startup-summary.json,startup-registries.json,startup-controller-phases.txt under
+/data0/xd/bam_diagnostics/mediumprop-write-content-scale.

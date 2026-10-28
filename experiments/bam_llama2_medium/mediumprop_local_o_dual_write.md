@@ -125,3 +125,32 @@ parent.689788:-4.30%. Parent comparison includes51 extra targeted health scalars
 so the remaining difference cannot be assigned solely to writer arithmetic.
 Receipts: kernel-handoff/{journal,anchor-cursor,old-final-cursor,old-final-steps,
 new-worker,new-registry,comparison}.json plus old-final.log under artifact root.
+
+## Final assessment and closeout
+
+Stopped at committed checkpoint8126/13500 after8k review. Versus the sole gamma=.5
+parent, there was no growing advantage: last-five-window R1.00181 at2k,
+1.00166 at4k, 1.00153 at5k and1.00233 at6k, then1.00093 at8k. Last ten through8k
+R1.000388, gap-0.00007408; last five R1.000934, gap-0.000186. This is practical
+parity, not the hoped-for breakthrough, and offers no speed/parameter/cache gain.
+The original terminal1.01 bet was optimistic relative to the stopped trajectory;
+this RUN did not reach its13500 planned terminal, so no terminal value is measured.
+
+The control circuit is active: full17-layer health at4800/4900/5000 shows MHA write
+gates increasing with depth to.5-.64 while most deep LocalO gates remain.14-.25.
+Gated normalized content RMS is LocalO-dominated in several shallow layers and
+MHA-dominated in most deeper layers. Independent source weighting is therefore
+used by the model, but does not by itself establish a useful loss improvement.
+These are content amplitudes, not causal attribution or matrix-update norms.
+A reasonable interpretation is that this extra freedom largely reallocates an
+existing shared-address write rather than adding memory information or capacity;
+the loss evidence does not justify further training of this configuration.
+
+Closeout has no failures. CP8126 commit marker independently verified; node and
+queued resource xd-v5p-16-310401-maxtext independently NOT_FOUND; local TB SYNC_OK.
+No borrowed compiler was deleted. Complete READY lease history: one UE5a v5p16
+lease, UTC2026-10-28 10:10:59 ->13:47:19, duration3h36m20s, manual run_stop,
+P0. The native-to-Pallas same-RUN hot switch preserved this physical lease.
+Artifacts: final-proof.json, closeout-summary.json, final-loss-report.json,
+health5k.json and plot5k/plot-health5k/plot8k.json. Region history records the same
+assignment/lease evidence. Other sessions' resources are outside this closeout.

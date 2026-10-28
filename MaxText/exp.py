@@ -18249,14 +18249,12 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     runtime branch supplies the SplitAttentionWrite adapter.
     """
     # Ledger only: codex/mediumprop-local-o-dual-write; /data0/xd/mediumprop-local-o-dual-write.
-    # code_commit: 8e318c4; UE5a v5p16 xd-v5p-16-310401-maxtext; same-RUN hot resume1601 from CP1600, old retained through1644.
-    # Native writer + Pallas read: startup20..99 .6329875step/s vs gamma.5 parent.689788, throughput-8.23%, step time+8.97%.
-    # CPU58 PASS; healthON/internal+BAM broadstatsOFF except51 targeted write scalars; tunedSplash/v8t48MiB.
-    # Params432120480 vs parent432121408(delta-928); ordinary2505/private1128/tail3898; no terminal write gates.
-    # Initial preparation400 canceled on a legacy test fixture field, no training; node+QR absent, compiler preserved.
-    # Terminal native MHA-reference R bet1.01 vs gamma.5; grouped2k plots, review5k.
-    # Pallas-write adapter: 8e318c4 claude/dual-write-pallas,/data0/xd/dual-write-pallas (=45467cd1+v8t split-write); v5p16 s13500 AOT/workerGit/resume verified.
-    # Same-batch1601..1620 loss meanabs2.965e-5/max8.2e-5; Pallas80-step .660125 vs native late.62675 (+5.33%), parent.689788 (-4.30%).
+    # code_commit: 8e318c4; UE5a v5p-16; stopped at 8126/13500 after 8k review; CP/TB secured, TPU/QR absent; P0.
+    # vs gamma=.5 parent: near parity throughout; small 6k lead faded. Last 10 windows through 8k: gap=-.000074, R=1.000388.
+    # Last 5: gap=-.000186, R=1.000934; no meaningful loss/cache gain. Terminal R=1.01 bet was optimistic at stop; no measured terminal result.
+    # Gates learn distinct depth profiles (deep MHA .5-.64 vs localO mostly .14-.25 at 5k), without clear corresponding loss gain.
+    # Pallas .660125 step/s vs parent .689788 (-4.30%); health ON, broad stats OFF, 51 extra targeted scalars; params delta=-928, same M-cache.
+    # Native 454->Claude 8e318c4 split writer at CP1600: same-batch 1601..1620 loss meanabs=2.965e-5/max=8.2e-5; +5.33% vs late native .62675.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODynamicNormScale050DualWriteGatesTruePile'
     bam_local_o_separate_write_gate = True
     bam_record_dual_write_health = True

@@ -733,6 +733,8 @@ active leases are censored, and manual migration releases are not preemptions.
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75MLPInputMixComplementaryOrdinaryOnlyTruePile` | v5p-16 (`xd-v5p-16-310398-maxtext`) | `us-east5-a` | 2026-10-28 05:17:02 | 2026-10-28 07:31:46 | common5k review stopped5262/13500,P0; CP/TB secured,node+QR independently absent; runtime0244976 | none |
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75MLPInputMixComplementaryMemoryOnlyWriteControlMixTruePile` | v5p-16 (`xd-v5p-16-310399-maxtext`) | `us-east5-a` | 2026-10-28 05:17:10 | 2026-10-28 07:31:49 | common5k review stopped5197/13500,P0; CP/TB secured,node+QR independently absent; runtime0244976 | none |
 
+| `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODynamicNormScale050DualWriteGatesTruePile` | v5p-16 (`xd-v5p-16-310401-maxtext`) | `us-east5-a` | 2026-10-28 10:10:57 | 2026-10-28 13:47:19 | 8k review stopped8126/13500,P0; CP8126/TB secured,node+QR independently absent; runtime45467cd->8e318c4 same-RUN kernel hot switch atCP1600, one continuous physical lease; registry READY10:10:59 | none |
+
 ## READY leases
 
 | RUN | # | Zone | Start UTC | End UTC | Duration | Exit |
@@ -2295,6 +2297,8 @@ active leases are censored, and manual migration releases are not preemptions.
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75MLPInputMixG099MemoryOnlyWriteControlMixTruePile` | 1 | `us-east5-a` | 2026-10-28 02:41:01 | 2026-10-28 07:08:06 | 4h27m05s | run_stop |
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75MLPInputMixComplementaryOrdinaryOnlyTruePile` | 1 | `us-east5-a` | 2026-10-28 05:17:09 | 2026-10-28 07:31:46 | 2h14m37s | run_stop |
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75MLPInputMixComplementaryMemoryOnlyWriteControlMixTruePile` | 1 | `us-east5-a` | 2026-10-28 05:17:18 | 2026-10-28 07:31:49 | 2h14m31s | run_stop |
+| `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODynamicNormScale050DualWriteGatesTruePile` | 1 | `us-east5-a` | 2026-10-28 10:10:59 | 2026-10-28 13:47:19 | 3h36m20s | run_stop after8k review; CP8126 committed, TB SYNC_OK, node+QR independently absent; kernel hot switch retained same lease |
+
 ### 2026-10-14 user pause: resumed mixed R256/R384
 
 RUN `BamMediumPropMShiftReadG050SharedR256R384ByWriteTruePile`, v5p-16,

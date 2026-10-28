@@ -18585,6 +18585,41 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     bam_mlp_input_mix_write_controls = True
 
 
+class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75MLPInputMixG099OrdinaryOnlyTruePile(
+    BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75MLPInputMixG099WriteControlMixTruePile):
+    """Only the ordinary MLP mixes residual x with complete attention output a.
+
+    One sigmoid .99 gate per token/layer; the memory MLP and its controls keep
+    original Norm(h). Extra21618 parameters are exempt; MLP widths unchanged.
+    """
+    # ledger only: codex/mediumprop-mlp-input-mix,/data0/xd/mediumprop-mlp-input-mix; runtime implementation isolated.
+    # Prepared sealed2f36e3a; sigmoid.99 with mixed private controls, only5000 review; see mediumprop_mlp_input_mix_single.md.
+    model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75MLPInputMixG099OrdinaryOnlyTruePile'
+    bam_mlp_input_mix_branch = 'ordinary'
+    compare_runs = [
+        'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75TruePile',
+        'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75MLPInputMixG099WriteControlMixTruePile',
+    ]
+
+
+class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75MLPInputMixG099MemoryOnlyWriteControlMixTruePile(
+    BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75MLPInputMixG099WriteControlMixTruePile):
+    """Only the dedicated memory MLP and its write controls use the mixed input.
+
+    Ordinary MLP stays on Norm(h). Terminal has no private MLP or unused gate.
+    Extra20417 parameters are exempt; MLP widths unchanged.
+    """
+    # ledger only: codex/mediumprop-mlp-input-mix,/data0/xd/mediumprop-mlp-input-mix; runtime implementation isolated.
+    # Prepared sealed2f36e3a; sigmoid.99 with mixed private controls, only5000 review; see mediumprop_mlp_input_mix_single.md.
+    model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75MLPInputMixG099MemoryOnlyWriteControlMixTruePile'
+    bam_mlp_input_mix_branch = 'memory'
+    compare_runs = [
+        'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75TruePile',
+        'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75MLPInputMixG099WriteControlMixTruePile',
+    ]
+
+
+
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MHAWriterEvery4KeepMemoryTruePile(
         BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1TruePile):
     """Every fourth layer uses standard attention, with a locally balanced M FFN."""

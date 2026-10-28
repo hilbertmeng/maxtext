@@ -17297,6 +17297,27 @@ class BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640S
     compare_runs = ['BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640SeparateVOKeysLogitDiagNegative']
 
 
+class BamPythia2p8BComboKeepPreMaskResume500(
+        BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640SeparateVOKeysLogitDiagNegativeQK80):
+    """Full-state fork of combination CP21557; keep pre-mask for exactly500 updates.
+
+    Restore parameters, Adam state and Pile cursor into a new RUN prefix.
+    Stop at22057 while retaining the original28000-step learning-rate schedule.
+    Global1024/T2048, v5p128/B16, minimal remat and60MiB VMEM inherit unchanged.
+    """
+    model_name = 'BamPythia2p8BComboKeepPreMaskResume500'
+    steps = 22057
+    learning_rate_schedule_steps = 28000
+    compare_runs = []
+
+
+class BamPythia2p8BComboUnmaskResume500(BamPythia2p8BComboKeepPreMaskResume500):
+    """Same CP21557/state/data as control; restore ordinary causal attention directly."""
+    model_name = 'BamPythia2p8BComboUnmaskResume500'
+    bam_attention_negative_diagonal = False
+    compare_runs = ['BamPythia2p8BComboKeepPreMaskResume500']
+
+
 class BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640HybridV8DropLocalOSeparateVOKeys(
         BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640SeparateVOKeys):
     """Eight ordinary W_V heads plus24 independent-address M-V heads; omit O only on ordinary heads.

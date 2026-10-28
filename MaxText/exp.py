@@ -18240,6 +18240,20 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     bam_local_o_dynamic_norm_scale_init = 0.5
 
 
+class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODynamicNormScale050WriteContentNormScaleTruePile(
+    BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODynamicNormScale050TruePile):
+    """Independent post-RMS content scales for embedding, attention and memory-MLP writes."""
+    # Ledger only: codex/mediumprop-write-content-scale, /data0/xd/mediumprop-write-content-scale.
+    # code_commit: 50c737e; UE5a v5p-16 xd-v5p-16-310404-maxtext, preparation submitted; plan 13500.
+    # Three independent post-RMS scales init1; +42000 params (+.00972%), MLP unchanged; generic health only.
+    model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODynamicNormScale050WriteContentNormScaleTruePile'
+    bam_write_content_norm_scale = True
+    bam_write_content_norm_scale_init = 1.0
+    bam_pallas_core = True
+    bam_pallas_write = False
+    compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODynamicNormScale050TruePile']
+
+
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODynamicNormScale050NoPEEvery3RefundOrdinaryTruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODynamicNormScale050TruePile):
     """Every third layer uses pure-M Q/K; refund removed projections to its ordinary MLP."""

@@ -141,3 +141,6 @@ dmypy.json
 # Intellij IDEA setting folder
 .idea
 .vscode/*
+
+# JAX persistent compilation cache written to ./None when the cache path resolves to the string 'None'
+None/

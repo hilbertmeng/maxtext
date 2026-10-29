@@ -19258,6 +19258,8 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     """Common learned V/O scale initialized1/sqrt(1+2layer); preserve content amplitudes in all writers."""
     # ledger only: codex/mediumprop-common-read-raw-write; /data0/xd/mediumprop-common-read-raw-write.
     # Sealed implementation ddbb5638; calibrated fixed divisors and18 directly learned common V/O scalars.
+    # code_commit: ddbb563; UE5a v5p16 xd-v5p-16-310408-maxtext; FIRST0/source/AOT/data/s13500 verified.
+    # Startup20..99 0.673725step/s vs bareparent.686768 (-1.90%); signed18coefficients/step0init verified.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleRawWriteTruePile'
     bam_common_vo_read_scale = True
     bam_embedding_write_content_divisor = 0.0016052833
@@ -19271,6 +19273,8 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleRawAttentionWriteTruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleRawWriteTruePile):
     """Embedding and attention use fixed content denominators; retain small-MLP content RMSNorm."""
+    # code_commit: ddbb563; UE5a v5p16 xd-v5p-16-310409-maxtext; FIRST0/source/AOT/data/s13500 verified.
+    # Startup20..99 0.671737step/s vs bareparent.686768 (-2.19%); signed18coefficients/step0init verified.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleRawAttentionWriteTruePile'
     bam_mlp_write_content_divisor = None
 
@@ -19278,5 +19282,17 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleRawMLPWriteTruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleRawWriteTruePile):
     """Embedding and small MLP use fixed content denominators; retain attention content RMSNorm."""
+    # code_commit: ddbb563; UE5a v5p16 xd-v5p-16-310410-maxtext; FIRST0/source/AOT/data/s13500 verified.
+    # Startup20..99 0.679300step/s vs bareparent.686768 (-1.09%); signed18coefficients/step0init verified.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleRawMLPWriteTruePile'
     bam_attention_write_content_divisor = None
+
+
+class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75AttentionWriteScaleRawWriteTruePile(
+    BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleRawWriteTruePile):
+    """Keep the parent's vector update at fixed M; apply depth scale only to attention M writes."""
+    # ledger only: codex/mediumprop-common-read-raw-write; /data0/xd/mediumprop-common-read-raw-write.
+    # Sealed implementation28eb60f1; only17live attention-write depth scalars; no L17 dead parameter.
+    model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75AttentionWriteScaleRawWriteTruePile'
+    bam_common_vo_read_scale = False
+    bam_attention_write_scale = True

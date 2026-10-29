@@ -19364,6 +19364,8 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     # Startup20..99 .6550125step/s vs parentE.671325 (-2.43%); kernel-external global RMSNorm.
     # First stint stopped3569 for slot reuse, not terminal failure: final5 vsE -.000971/R1.003606, recovering.
     # User-requested resume fromCP3569 to original13500 on310419, exact531d270 runtime/AOT; compare onlyG.
+    # User replaced again at7088/P0: vsG last5 through7000 gap+.006094/R.971035; slow absolute catchup, ratio near.97.
+    # Full13500 endpoint unmeasured; CP7088/TB secured, physical310419 transferred to H+gamma.5 after newFIRST.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleGlobalMLPContentNormTruePile'
     bam_mlp_write_content_global_rmsnorm = True
     bam_mlp_write_content_divisor = 1.0
@@ -19401,6 +19403,48 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     # code_commit: d0ed1c8; vector embedding init unchanged; onlyM-coldstart/write content changes.
     # Logical310418 on retained physical310413 UE5a/v5p16; FIRST0/source/AOT/data/s13500 verified.
     # Startup20..99 .67515step/s vsG.67405 (+.16%); genericON/internal+BAMOFF,18signed init/finite values verified.
+    # User replaced at3445/P2: vsG last5 through3400 gap+.036675/R.872846; gap shrank but relative benefit worsened.
+    # CP3445/TB secured; physical310413 transferred to H all-read scaling after newFIRST. No terminal13500 result.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingUnscaledTruePile'
     bam_embedding_write_content_divisor = 1.0
     compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentTruePile']
+
+
+class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedLocalODynamicNormScale050TruePile(
+    BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedTruePile):
+    """H plus per-head/address-coordinate dynamic local-O gamma, initialized to .5."""
+    # ledger only: codex/mediumprop-common-read-raw-write; /data0/xd/mediumprop-common-read-raw-write.
+    # Sealed runtime adf6afdb; H parent, qk_norm=False, MLP2510/1128/tail3904 unchanged.
+    # code_commit: adf6afd; logical310420/physical310419 UE5a v5p16; FIRST0/source/AOT/data/s13500 verified.
+    # Params432121426(+9216 negligible, no repayment); startup20..99 .67065step/s vsH.669875 (+.12%).
+    model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedLocalODynamicNormScale050TruePile'
+    bam_local_o_dynamic_norm_scale = True
+    bam_local_o_dynamic_norm_scale_init = .5
+    compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedTruePile']
+
+
+
+class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedAllMReadScaleTruePile(
+    BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedTruePile):
+    """H with its existing layer scalar applied to all M reads, including NoPE Q/K; no QKNorm."""
+    # ledger only: codex/mediumprop-common-read-raw-write; /data0/xd/mediumprop-common-read-raw-write.
+    # Sealed runtime adf6afdb; H parent, qk_norm=False, MLP2510/1128/tail3904 unchanged.
+    # code_commit: adf6afd; logical310421/physical310413 UE5a v5p16; FIRST0/source/AOT/data/s13500 verified.
+    # Params432112210 unchanged; startup20..99 .65915step/s vsH.669875 (-1.60%); existing v8t read/write retained.
+    model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedAllMReadScaleTruePile'
+    bam_common_read_scale_qk = True
+    compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedTruePile']
+
+
+
+class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedAllMReadScaleLocalODynamicNormScale050TruePile(
+    BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedAllMReadScaleTruePile):
+    """H with both unified QKVO read scaling and dynamic local-O gamma .5."""
+    # ledger only: codex/mediumprop-common-read-raw-write; /data0/xd/mediumprop-common-read-raw-write.
+    # Sealed runtime adf6afdb; H parent, qk_norm=False, MLP2510/1128/tail3904 unchanged.
+    # code_commit: adf6afd; logical/physical310422 UE5a v5p16; FIRST0/source/AOT/data/s13500 verified.
+    # Params432121426(+9216 negligible); startup20..99 .65755step/s vsH.669875 (-1.84%); genericON/internal+BAMOFF.
+    model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedAllMReadScaleLocalODynamicNormScale050TruePile'
+    bam_local_o_dynamic_norm_scale = True
+    bam_local_o_dynamic_norm_scale_init = .5
+

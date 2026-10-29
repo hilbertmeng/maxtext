@@ -19356,6 +19356,8 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     """RMS-normalize the complete private-MLP output before splitting write heads."""
     # ledger only: codex/mediumprop-common-read-raw-write; /data0/xd/mediumprop-common-read-raw-write.
     # code_commit: 531d270; params432112210/MLP2510/1128/tail3904 unchanged; existing Pallas read/write.
+    # UE5a v5p16 xd-v5p-16-310415-maxtext; FIRST0/source/AOT/data/s13500 verified; genericON/internal+BAMOFF.
+    # Startup20..99 .6550125step/s vs parentE.671325 (-2.43%); kernel-external global RMSNorm.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleGlobalMLPContentNormTruePile'
     bam_mlp_write_content_global_rmsnorm = True
     bam_mlp_write_content_divisor = 1.0
@@ -19367,6 +19369,8 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     """Write the private-MLP output directly, with neither content RMSNorm nor amplitude compensation."""
     # ledger only: codex/mediumprop-common-read-raw-write; /data0/xd/mediumprop-common-read-raw-write.
     # code_commit: 531d270; same parent/budget, initial private write amplitude~1/220; Pallas read/write.
+    # UE5a v5p16 xd-v5p-16-310416-maxtext; FIRST0/source/AOT/data/s13500 verified; genericON/internal+BAMOFF.
+    # Startup20..99 .67405step/s vs parentE.671325 (+.41%); no content normalization/compensation.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentTruePile'
     bam_mlp_write_content_divisor = 1.0
     compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleRawMLPWriteEmbeddingNormTruePile']

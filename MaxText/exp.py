@@ -19292,6 +19292,8 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     """Embedding and small MLP use fixed content denominators; retain attention content RMSNorm."""
     # code_commit: ddbb563; UE5a v5p16 xd-v5p-16-310410-maxtext; FIRST0/source/AOT/data/s13500 verified.
     # Startup20..99 0.679300step/s vs bareparent.686768 (-1.09%); signed18coefficients/step0init verified.
+    # Completed13500/P0: earlygain~1.004, later strengthened; final5 gap-.002077/R1.011831 vs bareparent (MHA ref).
+    # Readscale/raw-E+MLP bundle; cannot attribute finalgain to raw content alone before normalized-write control finishes.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleRawMLPWriteTruePile'
     bam_attention_write_content_divisor = None
 

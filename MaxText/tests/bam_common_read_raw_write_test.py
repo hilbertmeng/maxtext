@@ -20,6 +20,7 @@ ATTENTION=PREFIX+'RawAttentionWriteTruePile'
 WRITE_ONLY=PARENT.removesuffix('TruePile')+'AttentionWriteScaleRawWriteTruePile'
 MLP=PREFIX+'RawMLPWriteTruePile'
 NO_READ_SCALE=PARENT.removesuffix('TruePile')+'RawMLPWriteNoReadScaleTruePile'
+READ_SCALE_ONLY=PARENT.removesuffix('TruePile')+'CommonReadScaleOnlyTruePile'
 
 class CommonReadRawWriteTest(MLPWriteTest,unittest.TestCase):
   def tiny(self,period=3,keep=True,length=4):
@@ -232,5 +233,41 @@ class RawMLPNoReadScaleTest(MLPWriteTest,unittest.TestCase):
       gp=flatten_dict(jax.grad(lambda params:jnp.mean(call(new,params)**2))(p))
       gq=flatten_dict(jax.grad(lambda params:jnp.mean(call(old,params)**2))(q))
       for path,v in gp.items():np.testing.assert_allclose(v,gq[path],rtol=3e-5,atol=3e-6,err_msg=str(path))
+
+class ReadScaleOnlyTest(MLPWriteTest,unittest.TestCase):
+  def tiny(self,*args,**kwargs):
+    self.experiment=READ_SCALE_ONLY
+    return CommonReadRawWriteTest.tiny(self,*args,**kwargs)
+
+  def test_formal_budget_all_writer_norms_and_layer_scales(self):
+    c=self.config(READ_SCALE_ONLY);c.get_keys().update(max_target_length=128,max_prefill_predict_length=128)
+    mesh=jax.sharding.Mesh(max_utils.create_device_mesh(c),c.mesh_axes)
+    args,*_=train_compile.get_shaped_inputs(mesh,c);flat=flatten_dict(nn.unbox(args[0].params))
+    self.assertEqual(sum(math.prod(v.shape) for v in flat.values()),432112210)
+    self.assertEqual(sum(math.prod(v.shape) for p,v in flat.items() if p[-1]=='common_vo_read_scale'),18)
+    for attr in ['bam_embedding_write_content_divisor','bam_attention_write_content_divisor','bam_mlp_write_content_divisor']:self.assertIsNone(getattr(c,attr))
+    self.assertTrue(c.bam_common_vo_read_scale and not c.bam_attention_write_scale)
+    self.assertEqual((c.mlp_dim,c.bam_memory_mlp_dim,c.bam_last_mlp_dim),(2510,1128,3904))
+    self.assertTrue(c.bam_pallas_core and c.bam_pallas_write and c.sa_use_fused_bwd_kernel)
+    self.assertEqual(c.compare_runs,[MLP,PARENT])
+
+  def test_full_model_native_pallas_all_gradient_paths(self):
+    StandardValueTest.check_pallas(self,True)
+
+  def test_all_writer_restoration_matches_bare_network_with_unit_scales(self):
+    c=self.tiny();self.experiment=PARENT;barec=CommonReadRawWriteTest.tiny(self);self.experiment=READ_SCALE_ONLY
+    mesh=jax.sharding.Mesh(max_utils.create_device_mesh(c),c.mesh_axes)
+    new=Transformer(c,mesh,quant=None);bare=Transformer(barec,mesh,quant=None)
+    tok=jnp.array([[1,2,3,4]],jnp.int32);pos=jnp.arange(4)[None];seg=jnp.ones_like(tok)
+    with mesh,nn.partitioning.axis_rules(c.logical_axis_rules):
+      p=nn.unbox(new.init(jax.random.key(7),tok,pos,seg,tok));q=nn.unbox(bare.init(jax.random.key(7),tok,pos,seg,tok))
+      fp,fq=flatten_dict(p),flatten_dict(q)
+      for path,v in fq.items():np.testing.assert_array_equal(v,fp[path],err_msg=str(path))
+      missing=set(fp)-set(fq);self.assertEqual(sum(fp[path].size for path in missing),3)
+      for path in missing:self.assertEqual(path[-1],'common_vo_read_scale');fp[path]=jnp.ones_like(fp[path])
+      p=unflatten_dict(fp);call=lambda model,params:model.apply(params,tok,pos,seg,tok,enable_dropout=False)[0]
+      np.testing.assert_allclose(call(new,p),call(bare,q),rtol=2e-6,atol=2e-6)
+      gp=flatten_dict(jax.grad(lambda params:jnp.mean(call(new,params)**2))(p));gq=flatten_dict(jax.grad(lambda params:jnp.mean(call(bare,params)**2))(q))
+      for path,v in gq.items():np.testing.assert_allclose(v,gp[path],rtol=3e-5,atol=3e-6,err_msg=str(path))
 
 if __name__=='__main__':unittest.main()

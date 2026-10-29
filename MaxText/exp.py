@@ -19328,6 +19328,8 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     """Keep complete learned V/O read scaling; restore content RMSNorm at all three writers."""
     # ledger only: codex/mediumprop-common-read-raw-write; /data0/xd/mediumprop-common-read-raw-write.
     # Sealed runtime982fac18; parameters432112210, same18read scalars and MLP2510/1128/tail3904.
+    # code_commit: 982fac1; UE5a v5p16 xd-v5p-16-310413-maxtext; FIRST0/source/AOT/data/s13500 verified.
+    # Startup20..99 .6736375step/s vs directparent.6793 (-.83%); signed18step0initials/finite220 verified.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleOnlyTruePile'
     bam_embedding_write_content_divisor = None
     bam_mlp_write_content_divisor = None

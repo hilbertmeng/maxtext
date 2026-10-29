@@ -19293,7 +19293,8 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     # code_commit: ddbb563; UE5a v5p16 xd-v5p-16-310410-maxtext; FIRST0/source/AOT/data/s13500 verified.
     # Startup20..99 0.679300step/s vs bareparent.686768 (-1.09%); signed18coefficients/step0init verified.
     # Completed13500/P0: earlygain~1.004, later strengthened; final5 gap-.002077/R1.011831 vs bareparent (MHA ref).
-    # Readscale/raw-E+MLP bundle; cannot attribute finalgain to raw content alone before normalized-write control finishes.
+    # Matched all-normalized control C completed13500: D wins final5 by-.001647.
+    # Raw embedding+MLP helps conditional on learned readscale; no terminal proof that readscale is indispensable.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleRawMLPWriteTruePile'
     bam_attention_write_content_divisor = None
 
@@ -19333,6 +19334,9 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     # Sealed runtime982fac18; parameters432112210, same18read scalars and MLP2510/1128/tail3904.
     # code_commit: 982fac1; UE5a v5p16 xd-v5p-16-310413-maxtext; FIRST0/source/AOT/data/s13500 verified.
     # Startup20..99 .6736375step/s vs directparent.6793 (-.83%); signed18step0initials/finite220 verified.
+    # Completed13500/P1: early advantage over D vanished near6k; final5 gap+.001647/R.990744 vsD.
+    # Final5 vs bareparent -.000430/R1.002464: mainly faster early convergence, little terminal gain.
+    # CP13500 committed/TB SYNC_OK; retained physical310413 transferred to embedding-unscaled child.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleOnlyTruePile'
     bam_embedding_write_content_divisor = None
     bam_mlp_write_content_divisor = None
@@ -19358,10 +19362,12 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     # code_commit: 531d270; params432112210/MLP2510/1128/tail3904 unchanged; existing Pallas read/write.
     # UE5a v5p16 xd-v5p-16-310415-maxtext; FIRST0/source/AOT/data/s13500 verified; genericON/internal+BAMOFF.
     # Startup20..99 .6550125step/s vs parentE.671325 (-2.43%); kernel-external global RMSNorm.
+    # First stint stopped3569 for slot reuse, not terminal failure: final5 vsE -.000971/R1.003606, recovering.
+    # User-requested resume fromCP3569 to original13500 on310419, exact531d270 runtime/AOT; compare onlyG.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleGlobalMLPContentNormTruePile'
     bam_mlp_write_content_global_rmsnorm = True
     bam_mlp_write_content_divisor = 1.0
-    compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleRawMLPWriteEmbeddingNormTruePile']
+    compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentTruePile']
 
 
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentTruePile(
@@ -19381,6 +19387,8 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     """Raw embedding content with the original calibrated divisor; private MLP remains uncompensated."""
     # ledger only: codex/mediumprop-common-read-raw-write; /data0/xd/mediumprop-common-read-raw-write.
     # code_commit: d0ed1c8; same432112210params andMLP2510/1128/tail3904; existingPallasread/write.
+    # Logical310417 on retained physical310415 UE5a/v5p16; FIRST0/source/AOT/data/s13500 verified.
+    # Startup20..99 .669875step/s vsG.67405 (-.62%); genericON/internal+BAMOFF,18signed init/finite values verified.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedTruePile'
     bam_embedding_write_content_divisor = 0.0016052833
     compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentTruePile']
@@ -19391,6 +19399,8 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     """Raw embedding and private-MLP content, with no normalization or fixed amplitude compensation."""
     # ledger only: codex/mediumprop-common-read-raw-write; /data0/xd/mediumprop-common-read-raw-write.
     # code_commit: d0ed1c8; vector embedding init unchanged; onlyM-coldstart/write content changes.
+    # Logical310418 on retained physical310413 UE5a/v5p16; FIRST0/source/AOT/data/s13500 verified.
+    # Startup20..99 .67515step/s vsG.67405 (+.16%); genericON/internal+BAMOFF,18signed init/finite values verified.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingUnscaledTruePile'
     bam_embedding_write_content_divisor = 1.0
     compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentTruePile']

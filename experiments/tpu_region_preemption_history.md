@@ -27,6 +27,8 @@ active leases are censored, and manual migration releases are not preemptions.
 
 | RUN | TPU | Zone | Start UTC | End UTC | End reason | Passive candidates |
 |---|---|---|---|---|---|---|
+| `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleOnlyTruePile` | v5p-16 (`xd-v5p-16-310413-maxtext`) | `us-east5-a` | 2026-10-29 07:50:56 | 2026-10-29 13:48:47 | complete13500/P1; CP13500/TB secured, retained physical transferred I; runtime982fac1 | none |
+| `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleGlobalMLPContentNormTruePile` | v5p-16 (`xd-v5p-16-310415-maxtext`) | `us-east5-a` | 2026-10-29 12:14:23 | 2026-10-29 13:54:08 | first-stint stop3569/P0 for H slot; CP3569/TB secured, retained physical transferred H; later user resumes on310419, not terminal failure; runtime531d270 | none |
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODynamicNormScale050NoPEEvery3RefundRatio2to1TruePile` | v5p-16 (`xd-v5p-16-310403-maxtext`) | `us-east5-a` | 2026-10-28 14:40:01 | 2026-10-28 20:27:35 | complete13500/P0; gradual catchup slowed near+.004 vs gamma.5, final5 R.978843; CP13500 committed,node+QR independently absent; runtimec266c0d | none |
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODynamicNormScale050WriteContentNormScaleTruePile` | v5p-16 (`xd-v5p-16-310404-maxtext`) | `us-east5-a` | 2026-10-28 15:22:48 | 2026-10-28 20:16:15 | stopped11143/P1 after delayed5k review; persistent slightloss deficit vs gamma.5, no sustained benefit; CP11143/TB secured,node+QR independently absent; runtimecf663b3 | none |
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODynamicNormScale050NoPEEvery3RefundOrdinaryTruePile` | v5p-16 (`xd-v5p-16-310402-maxtext`) | `us-east5-a` | 2026-10-28 14:40:00 | 2026-10-28 17:01:00 | 5k review stop5503/P0; CP5503/TB secured, node+QR independently absent; runtimec266c0d; deficit~+.006-.007 and declining gain ratio, balanced sibling retained | none |
@@ -2334,6 +2336,10 @@ active leases are censored, and manual migration releases are not preemptions.
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODynamicNormScale050PerHeadTruePile` | 1 | `us-east5-a` | 2026-10-29 01:46:33 | 2026-10-29 07:25:09 | 5h38m36s | run_stop; clean completion13500; node+QR absent, TB SYNC_OK |
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75RawMLPWriteNoReadScaleTruePile` | 1 | `us-east5-a` | 2026-10-29 07:43:47 | 2026-10-29 10:01:40 | 2h17m53s | run_stop; review stop5514; node+QR absent, TB SYNC_OK |
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleRawMLPWriteTruePile` | 1 | `us-east5-a` | 2026-10-29 05:06:18 | 2026-10-29 10:49:31 | 5h43m13s | run_stop; clean completion13500; node+QR absent, TB SYNC_OK |
+
+| `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleOnlyTruePile` | 1 | `us-east5-a` | 2026-10-29 07:55:58 | 2026-10-29 11:24:08 | 3h28m10s | preempted |
+| `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleOnlyTruePile` | 2 | `us-east5-a` | 2026-10-29 11:29:45 | 2026-10-29 13:48:47 | 2h19m02s | clean completion13500; retained TPU transferred I, no deletion |
+| `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleGlobalMLPContentNormTruePile` | 1 | `us-east5-a` | 2026-10-29 12:19:05 | 2026-10-29 13:54:08 | 1h35m03s | slot-reuse stop3569; retained TPU transferred H; later resumes on310419 |
 
 ### 2026-10-14 user pause: resumed mixed R256/R384
 

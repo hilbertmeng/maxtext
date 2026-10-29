@@ -763,7 +763,7 @@ engram_ngram_layers: null # list: 2-gram和3-gram的层数
 engram_ngram_sizes: null # list: 2-gram和3-gram
 
 bam_common_vo_read_scale: False # One directly learned signed scalar per layer; V and localO, static+dynamic.
-bam_common_read_scale_qk: False # Apply that same coefficient to complete M-derived Q/K before full-head QKNorm.
+bam_common_read_scale_qk: False # Apply that same coefficient to complete M-derived Q/K before optional QKNorm.
 bam_embedding_write_content_divisor: null # Fixed positive denominator instead of content RMSNorm.
 bam_attention_write_content_divisor: null
 bam_mlp_write_content_divisor: null

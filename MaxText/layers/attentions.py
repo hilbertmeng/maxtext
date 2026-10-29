@@ -4240,6 +4240,13 @@ class BamAttention(Attention):
              if getattr(cfg, 'bam_pallas_rolled_passes', None) else {}),
           **read_kwargs)
     query, key, value, local_output = outs[:4]
+    if getattr(cfg, 'bam_common_read_scale_qk', False):
+      # One elementwise epilogue on the existing QK93 layout; leave its standard
+      # tail and the raw M passthrough unchanged. It precedes optional full QKNorm.
+      multiplier = jnp.where(jnp.arange(query.shape[-1]) < self._qk_col_width,
+                             common_vo_scale, jnp.float32(1.))
+      query = (query.astype(jnp.float32) * multiplier).astype(query.dtype)
+      key = (key.astype(jnp.float32) * multiplier).astype(key.dtype)
     if common_vo_scale is not None:
       value = (value.astype(jnp.float32) * common_vo_scale).astype(value.dtype)
       local_output = (local_output.astype(jnp.float32) * common_vo_scale).astype(local_output.dtype)
@@ -4259,19 +4266,8 @@ class BamAttention(Attention):
         # Keep the read output in its own dtype/layout: accumulate the local sum of squares in f32
         # inside the reduction and apply 1/r and the local scales as one elementwise pass, so no f32
         # copy of the [B,T,N,K] output is materialized (that copy plus its relayout cost ~170 ms/step).
-        local_values = x[..., local]
-        scale_qk = getattr(cfg, 'bam_common_read_scale_qk', False)
-        if scale_qk:
-          # Scale only the M-derived coordinates, before the full-head RMS statistic.
-          # Keep bf16 rounding identical to the native read-output scaling; no full
-          # f32 QK tensor or change to the raw M passthrough is needed.
-          local_values = (local_values.astype(jnp.float32) * common_vo_scale).astype(x.dtype)
-        local_ss = jnp.sum(jnp.square(local_values.astype(jnp.float32)), axis=-1)
+        local_ss = jnp.sum(jnp.square(x[..., local].astype(jnp.float32)), axis=-1)
         inv_rms = lax.rsqrt((local_ss + standard_ss) / full_qk_width + eps).astype(x.dtype)
-        if scale_qk:
-          local_result = local_values * inv_rms[..., None] * scale[local].astype(x.dtype)
-          standard_result = x[..., self._qk_col_width:] * inv_rms[..., None]
-          return jnp.concatenate((local_result, standard_result), axis=-1)
         multiplier = jnp.concatenate((scale[local], jnp.ones((standard_qk_width,), scale.dtype)))
         return x * inv_rms[..., None] * multiplier.astype(x.dtype)
 

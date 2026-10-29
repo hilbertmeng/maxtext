@@ -57,6 +57,7 @@ class CommonAllReadGammaTest(MLPWriteTest, unittest.TestCase):
       self.assertTrue(cfg.scan_layers and cfg.bam_pallas_core and cfg.bam_pallas_write)
       self.assertTrue(cfg.record_training_health_metrics and not cfg.record_internal_nn_metrics)
       self.assertTrue(cfg.sa_use_fused_bwd_kernel)
+      self.assertFalse(cfg.qk_norm)
       self.assertEqual(cfg.tensorboard_gcs_rotate_period, 500)
       cfg.get_keys().update(max_target_length=128, max_prefill_predict_length=128)
       mesh = jax.sharding.Mesh(max_utils.create_device_mesh(cfg), cfg.mesh_axes)
@@ -68,9 +69,8 @@ class CommonAllReadGammaTest(MLPWriteTest, unittest.TestCase):
 
   def test_validation_and_scale_weight_decay(self):
     cfg = self.config(ALL)
-    for flags in ({'bam_common_vo_read_scale': False}, {'qk_norm': False},
-                  {'bam_qk_norm_after_concat': False}, {'bam_concat_qk': False}):
-      with self.assertRaisesRegex(ValueError, 'full concatenated-head QKNorm'):
+    for flags in ({'bam_common_vo_read_scale': False}, {'bam_concat_qk': False}):
+      with self.assertRaisesRegex(ValueError, 'concatenated M-derived Q/K'):
         validate_bam_config(dict(cfg.get_keys(), **flags))
     cfg = self.config(BOTH)
     tree = {'params': {'common_vo_read_scale': jnp.ones(1),
@@ -117,9 +117,9 @@ class CommonAllReadGammaTest(MLPWriteTest, unittest.TestCase):
         for a, b in zip(jax.tree.leaves(ga), jax.tree.leaves(ge)):
           np.testing.assert_allclose(a, b, rtol=1e-3, atol=3e-6)
 
-  def check_model(self, run, dtype='float32'):
+  def check_model(self, run, dtype='float32', qknorm=False):
     cfg = self.tiny(run, length=128, dtype=dtype)
-    cfg.get_keys().update(query_chunk_size=64)
+    cfg.get_keys().update(query_chunk_size=64, qk_norm=qknorm)
     pcfg = pyconfig.HyperParameters(SimpleNamespace(keys=dict(
         cfg.get_keys(), bam_pallas_core=True, bam_pallas_write=True,
         bam_pallas_interpret=True, bam_splash_attention=True, bam_pallas_fused_inputs=True)))
@@ -166,6 +166,7 @@ class CommonAllReadGammaTest(MLPWriteTest, unittest.TestCase):
   def test_all_read_model_all_gradients(self): self.check_model(ALL)
   def test_combined_model_all_gradients(self): self.check_model(BOTH)
   def test_combined_bf16_model_all_gradients(self): self.check_model(BOTH, 'bfloat16')
+  def test_optional_full_head_qknorm_model_all_gradients(self): self.check_model(BOTH, qknorm=True)
 
 
 if __name__ == '__main__':

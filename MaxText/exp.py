@@ -19227,3 +19227,23 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MuddL14VML17VML2NoL1
     bam_mudd_tail_l1_anchor = False
     compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MuddL14VML17VML2TruePile',
                     'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1MuddL14VML17VML1L2NoL14MemoryMLPTruePile']
+
+
+class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75WriteAddressNormScaleTruePile(
+    BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75TruePile):
+    """Independent post-RMS address gamma on embedding and all live attention/private-MLP writes."""
+    # ledger only: codex/mediumprop-write-address-scale; /data0/xd/mediumprop-write-address-scale.
+    # Runtime implementation aeb23be0; initial1; see mediumprop_write_address_scale.md.
+    model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75WriteAddressNormScaleTruePile'
+    bam_write_address_norm_scale = True
+    bam_write_address_norm_scale_init = 1.0
+    bam_pallas_core = True
+    bam_pallas_write = True
+    compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75TruePile']
+
+
+class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75WriteAddressNormScalePerHeadTruePile(
+    BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75WriteAddressNormScaleTruePile):
+    """One address-scale scalar per write head, initialized to preserve the parent's function."""
+    model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75WriteAddressNormScalePerHeadTruePile'
+    bam_write_address_norm_scale_per_head = True

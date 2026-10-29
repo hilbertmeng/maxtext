@@ -19234,6 +19234,8 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     """Independent post-RMS address gamma on embedding and all live attention/private-MLP writes."""
     # ledger only: codex/mediumprop-write-address-scale; /data0/xd/mediumprop-write-address-scale.
     # Runtime implementation aeb23be0; initial1; see mediumprop_write_address_scale.md.
+    # code_commit: aeb23be; UE5a v5p16 xd-v5p-16-310406-maxtext; FIRST0/source/AOT/data/s13500 verified.
+    # Startup20..99 0.689087step/s vs barecombo parent.686768 (+0.34%); healthON/internal+BAM OFF.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75WriteAddressNormScaleTruePile'
     bam_write_address_norm_scale = True
     bam_write_address_norm_scale_init = 1.0
@@ -19245,5 +19247,7 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75WriteAddressNormScalePerHeadTruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75WriteAddressNormScaleTruePile):
     """One address-scale scalar per write head, initialized to preserve the parent's function."""
+    # code_commit: aeb23be; UE5a v5p16 xd-v5p-16-310407-maxtext; FIRST0/source/AOT/data/s13500 verified.
+    # Startup20..99 0.689600step/s vs barecombo parent.686768 (+0.41%); healthON/internal+BAM OFF.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75WriteAddressNormScalePerHeadTruePile'
     bam_write_address_norm_scale_per_head = True

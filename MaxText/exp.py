@@ -18244,6 +18244,23 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     bam_local_o_dynamic_norm_scale_init = 0.5
 
 
+class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODynamicNormScale050PerHeadTruePile(
+    BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODynamicNormScale050TruePile):
+    """One dynamic-O norm scale per head instead of per address coordinate; initial .5.
+
+    The scalar changes dynamic read amplitude, not the address direction. Static O
+    and all other reads remain separate. 18*16=288 scales instead of9216;
+    total432112480, parent-8928 (-.002066%, -.0062 W_Q). MLPs remain2510/1128/3904.
+    Broadcast to the existing [N,V] read interface; its VJP sums over V into each
+    head scalar. Both Pallas kernels and the parent's training-health settings remain.
+    """
+    model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODynamicNormScale050PerHeadTruePile'
+    bam_local_o_dynamic_norm_scale_per_head = True
+    bam_pallas_core = True
+    bam_pallas_write = True
+    compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODynamicNormScale050TruePile']
+
+
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODynamicNormScale050WriteContentNormScaleTruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODynamicNormScale050TruePile):
     """Independent post-RMS content scales for embedding, attention and memory-MLP writes."""

@@ -3265,9 +3265,15 @@ class BamAttention(Attention):
           'general_v_pre_bias', (self._read_head_count('v'), self._read_bam_v), ('q_heads', 'kv'))
 
     if self._local_o and getattr(cfg, 'bam_local_o_dynamic_norm_scale', False):
+      per_head = getattr(cfg, 'bam_local_o_dynamic_norm_scale_per_head', False)
+      scale_shape = (self._read_head_count('o'),)
+      scale_axes = ('q_heads',)
+      if not per_head:
+        scale_shape += (self._read_bam_v,)
+        scale_axes += ('kv',)
       self.local_o_dynamic_norm_scale = self._constant_general_parameter(
-          'local_o_dynamic_norm_scale', (self._read_head_count('o'), self._read_bam_v),
-          ('q_heads', 'kv'), cfg.bam_local_o_dynamic_norm_scale_init)
+          'local_o_dynamic_norm_scale', scale_shape, scale_axes,
+          cfg.bam_local_o_dynamic_norm_scale_init)
 
   def _constant_general_parameter(self, name, shape, axes, value=0.):
     # Constants need no random key; keep the parent's init RNG counters intact.
@@ -3620,6 +3626,13 @@ class BamAttention(Attention):
           jnp.mean(jnp.abs(v-o)), jnp.sqrt(jnp.mean((v-o)**2)), correlation)))
     return self._gate_local_output(v_read, v_logits), self._gate_local_output(read, o_logits)
 
+  def _dynamic_local_o_scale_for_read(self):
+    """Keep the native/Pallas [N,V] interface with either parameter granularity."""
+    scale = self.local_o_dynamic_norm_scale
+    if getattr(self.config, 'bam_local_o_dynamic_norm_scale_per_head', False):
+      scale = jnp.broadcast_to(scale[:, None], (scale.shape[0], self._read_bam_v))
+    return self._pad_read_heads(scale, -2, 1.)
+
   def _dynamic_local_o_multiplier(self, multiplier=None):
     """Post-RMS [N,V] affine scale, applied to dynamic O only; static O is separate.
 
@@ -3628,7 +3641,7 @@ class BamAttention(Attention):
     """
     if not getattr(self.config, 'bam_local_o_dynamic_norm_scale', False):
       return multiplier
-    scale = self._pad_read_heads(self.local_o_dynamic_norm_scale, -2, 1.)
+    scale = self._dynamic_local_o_scale_for_read()
     return scale if multiplier is None else multiplier * scale.astype(multiplier.dtype)
 
   def _matrix_for_read(self, M_in):
@@ -4186,7 +4199,7 @@ class BamAttention(Attention):
       # Learned [N,V] scale of the dynamic O key after its RMS norm, as _dynamic_local_o_multiplier.
       if body != 'v8t':
         raise ValueError('O dynamic norm scale requires the v8t fused read')
-      read_kwargs['o_dynamic_scale'] = self._pad_read_heads(self.local_o_dynamic_norm_scale, -2, 1.)
+      read_kwargs['o_dynamic_scale'] = self._dynamic_local_o_scale_for_read()
     if getattr(cfg, 'bam_pallas_read_chunk', None):
       read_kwargs['chunk'] = int(cfg.bam_pallas_read_chunk)
     pass_m = body in ('v7', 'v7u', 'v8t')   # M passthrough: dM sum fused into the read reverse

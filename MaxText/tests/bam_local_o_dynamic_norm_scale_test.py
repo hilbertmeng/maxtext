@@ -23,6 +23,7 @@ from layers.models import Transformer
 
 PARENT = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75TruePile'
 RUN = PARENT.replace('TruePile', 'LocalODynamicNormScaleTruePile')
+HEAD_RUN = PARENT.replace('TruePile', 'LocalODynamicNormScale050PerHeadTruePile')
 
 
 class LocalODynamicNormScaleTest(MLPWriteTest, unittest.TestCase):
@@ -159,11 +160,17 @@ class LocalODynamicNormScaleTest(MLPWriteTest, unittest.TestCase):
 
 
   def test_scan_pallas_matches_native_logits_and_all_gradients(self):
+    self._check_scan_pallas_matches_native_logits_and_all_gradients(RUN)
+
+  def test_per_head_scan_pallas_matches_native_logits_and_all_gradients(self):
+    self._check_scan_pallas_matches_native_logits_and_all_gradients(HEAD_RUN)
+
+  def _check_scan_pallas_matches_native_logits_and_all_gradients(self, run):
     """Whole scanned model, perturbed scales: native XLA read vs the v8t read (plus O read-weight dropout)."""
     for extra, tag in (({}, 'O_DYNAMIC_SCALE_SCAN_NATIVE_PALLAS_ALL_GRADIENTS_OK'),
                        (dict(enable_dropout=True, bam_local_o_read_weight_dropout_rate=.2),
                         'O_DYNAMIC_SCALE_WITH_O_WEIGHT_DROPOUT_SCAN_NATIVE_PALLAS_ALL_GRADIENTS_OK')):
-      cfg = self.config(RUN, base_emb_dim=150, base_num_query_heads=2, base_num_kv_heads=2,
+      cfg = self.config(run, base_emb_dim=150, base_num_query_heads=2, base_num_kv_heads=2,
                         base_num_decoder_layers=3, base_mlp_dim=32, vocab_size=32,
                         dtype='float32', weight_dtype='float32')
       cfg.get_keys().update(
@@ -212,6 +219,61 @@ class LocalODynamicNormScaleTest(MLPWriteTest, unittest.TestCase):
       worst = max(errors, key=errors.get)
       self.assertLess(errors[worst], 1e-3, worst)
       print(tag, errors[worst], max(errors[k] for k in names), flush=True)
+
+  def test_per_head_formal_budget(self):
+    cfg = self.config(HEAD_RUN)
+    cfg.get_keys().update(max_target_length=256, max_prefill_predict_length=256)
+    mesh = jax.sharding.Mesh(max_utils.create_device_mesh(cfg), cfg.mesh_axes)
+    args, *_ = train_compile.get_shaped_inputs(mesh, cfg)
+    flat = flatten_dict(nn.unbox(args[0].params))
+    scales = [v for k, v in flat.items() if k[-1] == 'local_o_dynamic_norm_scale']
+    self.assertEqual(sum(math.prod(v.shape) for v in scales), 18 * 16)
+    self.assertEqual(sum(math.prod(v.shape) for v in flat.values()), 432112480)
+    self.assertEqual((cfg.mlp_dim, cfg.bam_memory_mlp_dim, cfg.bam_last_mlp_dim), (2510, 1128, 3904))
+    self.assertTrue(cfg.bam_pallas_core and cfg.bam_pallas_write)
+    self.assertTrue(cfg.record_training_health_metrics and not cfg.record_internal_nn_metrics)
+    self.assertEqual(cfg.bam_local_o_dynamic_norm_scale_init, .5)
+    self.assertEqual(cfg.compare_runs, [HEAD_RUN.replace('PerHead', '')])
+
+  def test_per_head_matches_tied_coordinate_scales_and_gradient_sum(self):
+    """Coarsening ties V coordinates: same function, summed coordinate gradients."""
+    coord_run = HEAD_RUN.replace('PerHead', '')
+    cfg, mesh, coord, cp, args, matrix = self.fixture(coord_run, initial=.5)
+    hcfg, _, head, hp, _, _ = self.fixture(HEAD_RUN, initial=.5)
+    np.testing.assert_array_equal(hp['params']['local_o_dynamic_norm_scale'], [.5, .5])
+    cf, hf = flatten_dict(cp), flatten_dict(hp)
+    key = ('params', 'local_o_dynamic_norm_scale')
+    for k in cf:
+      if k != key:
+        np.testing.assert_array_equal(cf[k], hf[k])
+    gamma = jnp.array([.25, -.75], dtype=jnp.float32)
+    cf[key] = jnp.broadcast_to(gamma[:, None], (2, 32))
+    hf[key] = gamma
+    cp, hp = unflatten_dict(cf), unflatten_dict(hf)
+
+    def loss(module, p, matrix, x):
+      v, o = module.apply(p, matrix, x, method=module._independent_local_vo)
+      static = module.apply(p, matrix, 'o', x, method=module._static_column)
+      y = jnp.concatenate((v, o + static), axis=-1)
+      return jnp.mean(y ** 2), y
+
+    with mesh, nn.partitioning.axis_rules(cfg.logical_axis_rules):
+      (_, cy), cg = jax.value_and_grad(lambda p, m, x: loss(coord, p, m, x),
+          argnums=(0, 1, 2), has_aux=True)(cp, matrix, args[0])
+      (_, hy), hg = jax.value_and_grad(lambda p, m, x: loss(head, p, m, x),
+          argnums=(0, 1, 2), has_aux=True)(hp, matrix, args[0])
+    np.testing.assert_array_equal(cy, hy)
+    cgrad, hgrad = flatten_dict(cg[0]), flatten_dict(hg[0])
+    for k in cgrad:
+      expected = jnp.sum(cgrad[k], axis=-1) if k == key else cgrad[k]
+      np.testing.assert_allclose(hgrad[k], expected, rtol=3e-4, atol=2e-6)
+    for a, b in zip(cg[1:], hg[1:]):
+      np.testing.assert_allclose(a, b, rtol=3e-4, atol=2e-6)
+    self.assertTrue(bool(jnp.all(jnp.isfinite(hgrad[key]))))
+    self.assertGreater(float(jnp.max(jnp.abs(hgrad[key]))), 0.)
+    wd = train.get_wd_tree(SimpleNamespace(wd_mults=getattr(exp, HEAD_RUN).wd_mults,
+                                          adam_weight_decay=.1), hp)
+    self.assertEqual(wd['params']['local_o_dynamic_norm_scale'], 0.)
 
 
 if __name__=='__main__':

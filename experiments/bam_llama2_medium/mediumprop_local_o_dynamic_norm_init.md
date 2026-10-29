@@ -158,3 +158,33 @@ The resource assignment started10:25:15. Final native reports, full-layer health
 CP/TB and independent resource/lease proof: the010-hot artifact root above,
 `tenth-final-metrics.json`, `scale-health-13400-13400.json`,
 `tenth-final-resource-proof.json` and `tenth-final-leases.json`.
+
+## Per-head scale configuration
+
+Configuration-only addition on main `/home/xd/projects/maxtext`, `refactor-bam`:
+`BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODynamicNormScale050PerHeadTruePile`.
+Direct comparator is the completed coordinate-wise init.5 class above. The new
+`bam_local_o_dynamic_norm_scale_per_head=True` stores one scalar per layer/head,
+shape[16] instead of[16,32], initialized.5. It scales dynamic O only after address
+RMSNorm; static O, V and other reads are separate. Each head can change amplitude,
+not its relative address coordinates.
+
+18*16=288 scales versus9216: total432112480, comparator-8928 (-.002066%,
+-.0062 W_Q). This negligible difference leaves ordinary/private/tail MLP widths
+2510/1128/3904 unchanged. Existing scale WD exemption and generic parameter/
+raw-gradient norms remain; offline RMS uses sqrt16 per layer instead of sqrt512.
+
+Broadcast at the native/Pallas interface preserves the existing[N,V] kernel ABI.
+The existing coordinate-gradient VJP is summed over V for each scalar; no kernel
+source change or Claude handoff is required. Pallas read+write, tuned Splash and
+generic healthON/internal metricsOFF are enabled on the new class. The old
+coordinate classes retain their original parameter shapes and defaults.
+
+Pinned CPU verification: all56 checks pass (3 new granularity/actual-budget/
+full-model Pallas checks,6 existing coordinate-scale checks,47 shared BAM
+regressions). Perturbed per-head values match tied coordinate values exactly
+in native forward; scalar gradients equal the sum over coordinate gradients.
+Full scan native/Pallas worst relative parameter-gradient errors2.01e-6 plain
+and4.52e-5 with O read-weight dropout; head-scale errors5.94e-7/5.44e-7.
+Receipts: `/data0/xd/bam_diagnostics/local-o-head-scale/validation.json` and the
+focused/coordinate-regression/shared-regression subdirectories.

@@ -19236,6 +19236,8 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     # Runtime implementation aeb23be0; initial1; see mediumprop_write_address_scale.md.
     # code_commit: aeb23be; UE5a v5p16 xd-v5p-16-310406-maxtext; FIRST0/source/AOT/data/s13500 verified.
     # Startup20..99 0.689087step/s vs barecombo parent.686768 (+0.34%); healthON/internal+BAM OFF.
+    # 5k review: no sustained gain; latest gap -0.000038/R1.00017 vs bare parent (MHA ref).
+    # Stopped5200; last5-window mean gap -0.000065; MLP2510/1128/tail3904 unchanged.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75WriteAddressNormScaleTruePile'
     bam_write_address_norm_scale = True
     bam_write_address_norm_scale_init = 1.0
@@ -19249,6 +19251,8 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     """One address-scale scalar per write head, initialized to preserve the parent's function."""
     # code_commit: aeb23be; UE5a v5p16 xd-v5p-16-310407-maxtext; FIRST0/source/AOT/data/s13500 verified.
     # Startup20..99 0.689600step/s vs barecombo parent.686768 (+0.41%); healthON/internal+BAM OFF.
+    # 5k review: early advantage disappeared; latest gap +0.000237/R.99893 vs bare parent (MHA ref).
+    # Stopped5146; last5-window mean gap +0.000210; no persistent gain or speed/cache saving.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75WriteAddressNormScalePerHeadTruePile'
     bam_write_address_norm_scale_per_head = True
 

@@ -19315,6 +19315,20 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     """Remove the complete V/localO read scale; retain raw embedding/MLP and normalized attention writes."""
     # ledger only: codex/mediumprop-common-read-raw-write; /data0/xd/mediumprop-common-read-raw-write.
     # Sealed runtime6df2a153; parameters432112192 (directparent-18), MLP2510/1128/tail3904 unchanged.
+    # code_commit: 6df2a15; UE5a v5p16 xd-v5p-16-310412-maxtext; FIRST0/source/AOT/data/s13500 verified.
+    # Startup20..99 .6912625step/s vs directparent.6793 (+1.76%); generichealth finite through220.
+    # Added bareparent as live monitoring control after FIRST to complete read/write2x2; no model change.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75RawMLPWriteNoReadScaleTruePile'
     bam_common_vo_read_scale = False
-    compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleRawMLPWriteTruePile']
+    compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleRawMLPWriteTruePile', 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75TruePile']
+
+
+class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleOnlyTruePile(
+    BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleRawMLPWriteTruePile):
+    """Keep complete learned V/O read scaling; restore content RMSNorm at all three writers."""
+    # ledger only: codex/mediumprop-common-read-raw-write; /data0/xd/mediumprop-common-read-raw-write.
+    # Sealed runtime982fac18; parameters432112210, same18read scalars and MLP2510/1128/tail3904.
+    model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleOnlyTruePile'
+    bam_embedding_write_content_divisor = None
+    bam_mlp_write_content_divisor = None
+    compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleRawMLPWriteTruePile', 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75TruePile']

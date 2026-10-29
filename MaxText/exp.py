@@ -19293,6 +19293,8 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     """Keep the parent's vector update at fixed M; apply depth scale only to attention M writes."""
     # ledger only: codex/mediumprop-common-read-raw-write; /data0/xd/mediumprop-common-read-raw-write.
     # Sealed implementation28eb60f1; only17live attention-write depth scalars; no L17 dead parameter.
+    # code_commit: 28eb60f; UE5a v5p16 xd-v5p-16-310411-maxtext; FIRST0/source/AOT/data/s13500 verified.
+    # Startup20..99 0.687775step/s vs bareparent.686768 (+0.15%); signed17coefficients/step0init verified.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75AttentionWriteScaleRawWriteTruePile'
     bam_common_vo_read_scale = False
     bam_attention_write_scale = True

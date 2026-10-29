@@ -21,6 +21,7 @@ WRITE_ONLY=PARENT.removesuffix('TruePile')+'AttentionWriteScaleRawWriteTruePile'
 MLP=PREFIX+'RawMLPWriteTruePile'
 NO_READ_SCALE=PARENT.removesuffix('TruePile')+'RawMLPWriteNoReadScaleTruePile'
 READ_SCALE_ONLY=PARENT.removesuffix('TruePile')+'CommonReadScaleOnlyTruePile'
+EMBEDDING_NORM=PARENT.removesuffix('TruePile')+'CommonReadScaleRawMLPWriteEmbeddingNormTruePile'
 
 class CommonReadRawWriteTest(MLPWriteTest,unittest.TestCase):
   def tiny(self,period=3,keep=True,length=4):
@@ -269,5 +270,34 @@ class ReadScaleOnlyTest(MLPWriteTest,unittest.TestCase):
       np.testing.assert_allclose(call(new,p),call(bare,q),rtol=2e-6,atol=2e-6)
       gp=flatten_dict(jax.grad(lambda params:jnp.mean(call(new,params)**2))(p));gq=flatten_dict(jax.grad(lambda params:jnp.mean(call(bare,params)**2))(q))
       for path,v in gq.items():np.testing.assert_allclose(v,gp[path],rtol=3e-5,atol=3e-6,err_msg=str(path))
+
+class RawMLPEmbeddingNormTest(MLPWriteTest,unittest.TestCase):
+  def tiny(self,*args,**kwargs):
+    self.experiment=EMBEDDING_NORM
+    return CommonReadRawWriteTest.tiny(self,*args,**kwargs)
+
+  def test_formal_budget_and_isolated_embedding_restoration(self):
+    c=self.config(EMBEDDING_NORM);parent=self.config(MLP)
+    differences={k for k,v in c.get_keys().items() if v!=parent.get_keys()[k]}
+    self.assertEqual(differences,{'model_name','exp_class','bam_embedding_write_content_divisor','compare_runs'})
+    self.assertIsNone(c.bam_embedding_write_content_divisor)
+    self.assertIsNone(c.bam_attention_write_content_divisor)
+    self.assertEqual(c.bam_mlp_write_content_divisor,.0045444682)
+    self.assertTrue(c.bam_common_vo_read_scale and not c.bam_attention_write_scale)
+    self.assertEqual(c.compare_runs,[MLP,READ_SCALE_ONLY])
+    self.assertEqual((c.mlp_dim,c.bam_memory_mlp_dim,c.bam_last_mlp_dim),(2510,1128,3904))
+    self.assertEqual(c.bam_attention_write_layers,list(range(17)))
+    self.assertEqual(c.bam_mlp_write_layers,list(range(17)))
+    self.assertTrue(c.scan_layers and c.bam_pallas_core and c.bam_pallas_write and c.sa_use_fused_bwd_kernel)
+    self.assertTrue(c.record_training_health_metrics and not c.record_internal_nn_metrics)
+    self.assertEqual(c.tensorboard_gcs_rotate_period,500)
+    c.get_keys().update(max_target_length=128,max_prefill_predict_length=128)
+    mesh=jax.sharding.Mesh(max_utils.create_device_mesh(c),c.mesh_axes)
+    args,*_=train_compile.get_shaped_inputs(mesh,c);flat=flatten_dict(nn.unbox(args[0].params))
+    self.assertEqual(sum(math.prod(v.shape) for v in flat.values()),432112210)
+    self.assertEqual(sum(math.prod(v.shape) for p,v in flat.items() if p[-1]=='common_vo_read_scale'),18)
+
+  def test_full_model_native_pallas_all_gradient_paths(self):
+    StandardValueTest.check_pallas(self,True)
 
 if __name__=='__main__':unittest.main()

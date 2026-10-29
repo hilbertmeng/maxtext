@@ -55,21 +55,11 @@ def load_cohort(path, count):
   return batch, proof
 
 
-def run(a):
-  import jax
-  import jax.numpy as jnp
-  import orbax.checkpoint as ocp
-  from flax.linen import partitioning
-  from flax.traverse_util import flatten_dict, unflatten_dict
-  import max_utils
+def make_config(a):
   import pyconfig
-  from layers.models import Transformer
-
   a.output.mkdir(parents=True, exist_ok=True)
-  cohort, proof = load_cohort(a.cohort, a.sequences)
-  if a.sequences % a.batch_size:
-    raise ValueError('cohort size must be divisible by batch size')
-  cfg = pyconfig.initialize(
+  (a.output / 'gamma-head-diagnostic').mkdir(exist_ok=True)
+  return pyconfig.initialize(
       [None, str(REPO / 'MaxText/configs/base.yml')], exp_class=a.exp,
       run_name='gamma-head-diagnostic', only_eval=True, enable_checkpointing=False,
       dataset_type='synthetic', base_output_directory=str(a.output) + '/',
@@ -78,6 +68,22 @@ def run(a):
       max_target_length=2048, max_prefill_predict_length=2048,
       jax_cache_dir=str(a.output / 'jax-cache'), profiler='', log_config=False,
       record_training_health_metrics=False, record_internal_nn_metrics=False)
+
+
+def run(a):
+  import jax
+  import jax.numpy as jnp
+  import orbax.checkpoint as ocp
+  from flax.linen import partitioning
+  from flax.traverse_util import flatten_dict, unflatten_dict
+  import max_utils
+  from layers.models import Transformer
+
+  a.output.mkdir(parents=True, exist_ok=True)
+  cohort, proof = load_cohort(a.cohort, a.sequences)
+  if a.sequences % a.batch_size:
+    raise ValueError('cohort size must be divisible by batch size')
+  cfg = make_config(a)
   if not (cfg.pad_id == -1 and cfg.num_decoder_layers == 32 and cfg.num_query_heads == 32
           and cfg.bam_v == 64 and cfg.bam_local_o_dynamic_norm_scale_init == .2):
     raise ValueError('Unexpected checkpoint model geometry/recipe')

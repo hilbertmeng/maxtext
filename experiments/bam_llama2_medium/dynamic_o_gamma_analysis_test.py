@@ -56,6 +56,20 @@ class GammaAnalysisTest(unittest.TestCase):
     self.assertEqual(s['bootstrap95'], [0., 0.])
     self.assertEqual(s['mean'], 0.)
 
+  def test_real_config_creates_evaluation_output_directory(self):
+    from pathlib import Path
+    from types import SimpleNamespace
+    import tempfile
+    from probe_dynamic_o_gamma import make_config
+    exp = ('BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1'
+           'AllR640SeparateVOKeysLogitDiagNegativeQK80LocalODynamicNormScale020')
+    with tempfile.TemporaryDirectory() as td:
+      output = Path(td) / 'new-results'
+      cfg = make_config(SimpleNamespace(output=output, exp=exp, batch_size=4))
+      self.assertTrue((output/'gamma-head-diagnostic'/'only_eval.config.txt').exists())
+      self.assertEqual(cfg.pad_id, -1)
+      self.assertEqual(cfg.bam_local_o_dynamic_norm_scale_init, .2)
+
 
 if __name__ == '__main__':
   unittest.main()

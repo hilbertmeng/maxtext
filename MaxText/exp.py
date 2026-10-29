@@ -19397,6 +19397,9 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     # code_commit: d0ed1c8; same432112210params andMLP2510/1128/tail3904; existingPallasread/write.
     # Logical310417 on retained physical310415 UE5a/v5p16; FIRST0/source/AOT/data/s13500 verified.
     # Startup20..99 .669875step/s vsG.67405 (-.62%); genericON/internal+BAMOFF,18signed init/finite values verified.
+    # Completed13500/P1: early deficit crossed to a persistent lead; final5 vsG gap-.001616/R1.008936 (MHA ref).
+    # Original terminalR1.003, revised1.006: modest embedding raw/fixed benefit persisted to endpoint.
+    # CP13500 committed, node+queue verified absent, TB SYNC_OK; parameters/cache unchanged.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedTruePile'
     bam_embedding_write_content_divisor = 0.0016052833
     compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentTruePile']

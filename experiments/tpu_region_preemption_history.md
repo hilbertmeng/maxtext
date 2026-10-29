@@ -27,6 +27,7 @@ active leases are censored, and manual migration releases are not preemptions.
 
 | RUN | TPU | Zone | Start UTC | End UTC | End reason | Passive candidates |
 |---|---|---|---|---|---|---|
+| `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedTruePile` | v5p-16 (`xd-v5p-16-310415-maxtext`) | `us-east5-a` | 2026-10-29 13:54:50 | 2026-10-29 19:58:38 | complete13500/P1; CP13500/TB secured, node+queue absent; runtimed0ed1c8 | none |
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleRawMLPWriteEmbeddingNormTruePile` | v5p-16 (`xd-v5p-16-310414-maxtext`) | `us-east5-a` | 2026-10-29 11:26:45 | 2026-10-29 17:28:31 | complete13500; CP secured, node+queue absent; runtime8b1089f | none |
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentTruePile` | v5p-16 (`xd-v5p-16-310416-maxtext`) | `us-east5-a` | 2026-10-29 12:12:52 | 2026-10-29 18:02:17 | complete13500; CP secured, node+queue absent; runtime531d270 | none |
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedLocalODynamicNormScale050TruePile` | v5p-16 (`xd-v5p-16-310419-maxtext`) | `us-east5-a` | 2026-10-29 15:57:35 | 2026-10-29 18:14:06 | 5k review stop5350; CP secured, node+queue absent; runtimeadf6afd | none |
@@ -2349,16 +2350,19 @@ active leases are censored, and manual migration releases are not preemptions.
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleGlobalMLPContentNormTruePile` | 1 | `us-east5-a` | 2026-10-29 12:19:05 | 2026-10-29 13:54:08 | 1h35m03s | slot-reuse stop3569; retained TPU transferred H; later resumes on310419 |
 
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingUnscaledTruePile` | 1 | `us-east5-a` | 2026-10-29 13:58:44 | 2026-10-29 14:47:36 | 0h48m52s | preempted |
+| `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleRawMLPWriteEmbeddingNormTruePile` | 1 | `us-east5-a` | 2026-10-29 11:30:12 | 2026-10-29 14:56:29 | 3h26m17s | preempted |
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingUnscaledTruePile` | 2 | `us-east5-a` | 2026-10-29 14:53:24 | 2026-10-29 15:05:03 | 0h11m39s | preempted |
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleGlobalMLPContentNormTruePile` | 2 | `us-east5-a` | 2026-10-29 14:23:22 | 2026-10-29 15:56:49 | 1h33m27s | user replacement; CP/TB secured, retained TPU transferred after new FIRST, no deletion |
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingUnscaledTruePile` | 3 | `us-east5-a` | 2026-10-29 15:11:34 | 2026-10-29 15:56:53 | 0h45m19s | user replacement; CP/TB secured, retained TPU transferred after new FIRST, no deletion |
 
-| `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleRawMLPWriteEmbeddingNormTruePile` | 1 | `us-east5-a` | 2026-10-29 11:30:12 | 2026-10-29 14:56:29 | 3h26m17s | preempted |
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleRawMLPWriteEmbeddingNormTruePile` | 2 | `us-east5-a` | 2026-10-29 15:02:58 | 2026-10-29 17:28:31 | 2h25m33s | complete13500; stop/completion boundary, CP secured, resources verified absent |
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentTruePile` | 1 | `us-east5-a` | 2026-10-29 12:16:01 | 2026-10-29 18:02:17 | 5h46m16s | complete13500; stop/completion boundary, CP secured, resources verified absent |
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedLocalODynamicNormScale050TruePile` | 1 | `us-east5-a` | 2026-10-29 15:57:37 | 2026-10-29 18:14:06 | 2h16m29s | 5k review stop5350; stop/completion boundary, CP secured, resources verified absent |
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedAllMReadScaleTruePile` | 1 | `us-east5-a` | 2026-10-29 15:58:00 | 2026-10-29 18:14:09 | 2h16m09s | 5k review stop5223; stop/completion boundary, CP secured, resources verified absent |
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedAllMReadScaleLocalODynamicNormScale050TruePile` | 1 | `us-east5-a` | 2026-10-29 15:55:44 | 2026-10-29 18:14:12 | 2h18m28s | 5k review stop5255; stop/completion boundary, CP secured, resources verified absent |
+
+| `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedTruePile` | 1 | `us-east5-a` | 2026-10-29 13:54:53 | 2026-10-29 19:05:13 | 5h10m20s | preempted |
+| `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedTruePile` | 2 | `us-east5-a` | 2026-10-29 19:14:18 | 2026-10-29 19:58:38 | 0h44m20s | complete13500/P1; CP/TB secured, node+queue independently absent |
 
 ### 2026-10-14 user pause: resumed mixed R256/R384
 

@@ -450,6 +450,8 @@ class SubDecoderLayer(nn.Module):
 
     if mlp_write:
       write_content = memory_lnx if memory_mlp_dim else mlp_lnx
+      from layers.bam_write_content import prepare_mlp_content
+      write_content = prepare_mlp_content(write_content, cfg)
       write_heads = memory_write_heads or num_query_heads
       if compact_controls:
         address_bias = self.param(

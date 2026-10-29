@@ -766,5 +766,6 @@ bam_common_vo_read_scale: False # One directly learned signed scalar per layer; 
 bam_embedding_write_content_divisor: null # Fixed positive denominator instead of content RMSNorm.
 bam_attention_write_content_divisor: null
 bam_mlp_write_content_divisor: null
+bam_mlp_write_content_global_rmsnorm: False # Normalize the complete MLP write vector before splitting heads; divisor must be1.
 
 bam_attention_write_scale: False # Direct signed depth scalar only on live attention M writers.

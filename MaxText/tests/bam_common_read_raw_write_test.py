@@ -17,6 +17,7 @@ PARENT='BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogi
 PREFIX=PARENT.removesuffix('TruePile')+'CommonReadScale'
 RUN=PREFIX+'RawWriteTruePile'
 ATTENTION=PREFIX+'RawAttentionWriteTruePile'
+WRITE_ONLY=PARENT.removesuffix('TruePile')+'AttentionWriteScaleRawWriteTruePile'
 MLP=PREFIX+'RawMLPWriteTruePile'
 
 class CommonReadRawWriteTest(MLPWriteTest,unittest.TestCase):
@@ -154,5 +155,39 @@ class CommonReadRawWriteTest(MLPWriteTest,unittest.TestCase):
       selected=[v for k,v in flatten_dict(grad).items() if k[-1]=='common_vo_read_scale']
       self.assertEqual(sum(v.size for v in selected),3)
       for v in selected:self.assertTrue(bool(jnp.all(jnp.isfinite(v)&(v!=0))))
+
+class AttentionWriteOnlyScaleTest(MLPWriteTest,unittest.TestCase):
+  def tiny(self,*args,**kwargs):
+    self.experiment=WRITE_ONLY
+    return CommonReadRawWriteTest.tiny(self,*args,**kwargs)
+
+  def test_formal17_live_scalars_and_no_dead_tail(self):
+    c=self.config(WRITE_ONLY);c.get_keys().update(max_target_length=128,max_prefill_predict_length=128)
+    mesh=jax.sharding.Mesh(max_utils.create_device_mesh(c),c.mesh_axes)
+    args,*_=train_compile.get_shaped_inputs(mesh,c);flat=flatten_dict(nn.unbox(args[0].params))
+    scales={p:v for p,v in flat.items() if p[-1]=='attention_write_scale'}
+    self.assertEqual(sum(math.prod(v.shape) for v in flat.values()),432112209)
+    self.assertEqual(sum(math.prod(v.shape) for v in scales.values()),17)
+    self.assertFalse(any('final_local_layer' in p for p in scales))
+    self.assertFalse(any(p[-1]=='common_vo_read_scale' for p in flat))
+
+  def test_full_model_write_only_all_gradient_paths(self):StandardValueTest.check_pallas(self,True)
+
+  def test_write_only_does_not_scale_vector_update_at_fixed_m(self):
+    from bam_local_o_dynamic_norm_scale_test import LocalODynamicNormScaleTest
+    c,mesh,module,p,args,matrix=LocalODynamicNormScaleTest.fixture(self,run=WRITE_ONLY)
+    flat=flatten_dict(p);path=next(path for path in flat if path[-1]=='attention_write_scale')
+    def call(scale):
+      changed=dict(flat);changed[path]=jnp.reshape(scale,(1,));return module.apply(unflatten_dict(changed),*args,M_in=matrix,deterministic=True)
+    with mesh,nn.partitioning.axis_rules(c.logical_axis_rules):
+      baseline,mbase=call(jnp.float32(1.));delta=mbase-matrix
+      for scale in [0.,-.5,2.]:
+        actual,mout=call(jnp.float32(scale))
+        np.testing.assert_array_equal(actual,baseline)
+        np.testing.assert_allclose(mout-matrix,scale*delta,rtol=3e-5,atol=2e-6)
+      grad=jax.grad(lambda scale:jnp.sum(call(scale)[0]))(jnp.float32(.7));self.assertEqual(float(grad),0.)
+      target=jax.random.normal(jax.random.key(74),matrix.shape)
+      grad=jax.grad(lambda scale:jnp.sum((call(scale)[1]-matrix)*target))(jnp.float32(.7))
+      np.testing.assert_allclose(grad,jnp.sum(delta*target),rtol=2e-5,atol=3e-6)
 
 if __name__=='__main__':unittest.main()

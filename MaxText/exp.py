@@ -19278,3 +19278,11 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     """Embedding and small MLP use fixed content denominators; retain attention content RMSNorm."""
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleRawMLPWriteTruePile'
     bam_attention_write_content_divisor = None
+
+
+class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75AttentionWriteScaleRawWriteTruePile(
+    BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleRawWriteTruePile):
+    """Keep the parent's vector update at fixed M; apply depth scale only to attention M writes."""
+    model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75AttentionWriteScaleRawWriteTruePile'
+    bam_common_vo_read_scale = False
+    bam_attention_write_scale = True

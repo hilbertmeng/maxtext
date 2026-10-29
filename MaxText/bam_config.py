@@ -12,6 +12,9 @@ def validate_bam_config(config, *, layer_mode=None):
       lambda name, default=None: getattr(config, name, default))
   if not get('bam_enabled', False):
     return
+  if get('bam_attention_write_scale', False):
+    if get('bam_common_vo_read_scale', False) or get('bam_attention_write_content_divisor', None) is None:
+      raise ValueError('Write-only attention scale requires fixed-content attention writes and no common read scale')
   if get('bam_common_vo_read_scale', False):
     if not (get('bam_local_vo_independent_keys', False) and get('bam_local_vo_independent_gates', False)
             and get('bam_local_v_replace', False) and not get('bam_standard_value_layers', None)

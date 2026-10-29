@@ -4055,7 +4055,7 @@ class BamAttention(Attention):
     return out
 
   def _pallas_core_call(self, inputs_q, inputs_positions, decoder_segment_ids, M_in, is_global,
-                        standard_qk_width, deterministic=False, common_vo_scale=None):
+                        standard_qk_width, deterministic=False, common_vo_scale=None, attention_write_scale=None):
     """Fused-kernel forward; M_in is token-minor [B,V,K,T] (token-major [B,T,V,K] for v8t).
 
     Returns (out, M_in, write factors)."""
@@ -4297,7 +4297,9 @@ class BamAttention(Attention):
     else:
       write_logits = self.W_gw(inputs_q) + jnp.asarray(self.gw_b0, self.dtype)
     out = nn.with_logical_constraint(o_head, self.out_axis_names)
-    return self.out_projection(inputs_q.shape[-1], out), M_in, (o_head, write_logits, address)
+    write_head = (o_head if attention_write_scale is None else
+                  (o_head.astype(jnp.float32) * attention_write_scale).astype(o_head.dtype))
+    return self.out_projection(inputs_q.shape[-1], out), M_in, (write_head, write_logits, address)
 
   @nn.compact
   def __call__(
@@ -4380,16 +4382,23 @@ class BamAttention(Attention):
       assert self._share_qk_basis or self._direct_qk_c8
     standard_qk_width = self._standard_qk_width or (self.head_dim - self._qk_col_width)
     full_qk_norm = cfg.qk_norm and concat_qk and cfg.bam_qk_norm_after_concat
-    common_vo_scale = None
-    if getattr(cfg, 'bam_common_vo_read_scale', False):
+    common_vo_scale = attention_write_scale = None
+    common_read = getattr(cfg, 'bam_common_vo_read_scale', False)
+    scaled_write = getattr(cfg, 'bam_attention_write_scale', False) and self._has_write
+    if common_read or scaled_write:
       actual_layer = self.layer_inx if layer_index is None else layer_index
       initial_scale = jax.lax.rsqrt(1.0 + 2.0 * jnp.asarray(actual_layer, jnp.float32))
-      common_vo_scale = self._constant_general_parameter(
-          'common_vo_read_scale', (1,), (None,), initial_scale)[0]
+      if common_read:
+        common_vo_scale = self._constant_general_parameter(
+            'common_vo_read_scale', (1,), (None,), initial_scale)[0]
+      if scaled_write:
+        attention_write_scale = self._constant_general_parameter(
+            'attention_write_scale', (1,), (None,), initial_scale)[0]
     if getattr(cfg, 'bam_pallas_core', False):
       return self._pallas_core_call(
           inputs_q, inputs_positions, decoder_segment_ids, M_in, is_global,
-          standard_qk_width, deterministic=deterministic, common_vo_scale=common_vo_scale)
+          standard_qk_width, deterministic=deterministic, common_vo_scale=common_vo_scale,
+          attention_write_scale=attention_write_scale)
     # ---- QKV projection + QKNorm + RoPE ----
     if cfg.fused_qkv:
       query, key, value = self.qkv_projection(inputs_q, proj_name="qkv_proj")
@@ -4585,9 +4594,11 @@ class BamAttention(Attention):
                   self.num_query_heads, self.head_dim))
       o_head = o_head + y_bam
 
+    write_head = (o_head if attention_write_scale is None else
+                  (o_head.astype(jnp.float32) * attention_write_scale).astype(o_head.dtype))
     if defer_write:
       assert self._has_write and not self._mha_control and M_in is not None
-      factors = self._deferred_write_factors(o_head, inputs_q, full_m_shared_hidden)
+      factors = self._deferred_write_factors(write_head, inputs_q, full_m_shared_hidden)
       out = nn.with_logical_constraint(o_head, self.out_axis_names)
       return self.out_projection(inputs_q.shape[-1], out), M_in, factors
     if self._mha_control:
@@ -4595,7 +4606,7 @@ class BamAttention(Attention):
     elif self._has_write:
       assert M_in is not None, "write primitive requires M_in"
       with jax.named_scope("bam/write_m"):
-        M_out, _ = self._write(o_head, inputs_q, M_in, full_m_shared_hidden)
+        M_out, _ = self._write(write_head, inputs_q, M_in, full_m_shared_hidden)
     else:
       M_out = M_in
 

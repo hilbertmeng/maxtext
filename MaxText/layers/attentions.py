@@ -2582,6 +2582,7 @@ class BamAttention(Attention):
     super().setup()             # reuse attention_op / projections / rope / out_projection
     cfg = self.config
     if (getattr(cfg, 'bam_common_vo_read_scale', False) or getattr(cfg, 'bam_attention_write_scale', False)
+        or getattr(cfg, 'bam_mlp_write_content_global_rmsnorm', False)
         or any(getattr(cfg, name, None) is not None for name in (
             'bam_embedding_write_content_divisor', 'bam_attention_write_content_divisor',
             'bam_mlp_write_content_divisor'))):

@@ -2581,6 +2581,8 @@ class BamAttention(Attention):
   def setup(self):
     super().setup()             # reuse attention_op / projections / rope / out_projection
     cfg = self.config
+    if getattr(cfg, 'bam_common_vo_read_scale', False):
+      raise ValueError('Common-read/raw-write configurations require their recorded sealed worktree runtime')
     if getattr(cfg, 'bam_write_address_norm_scale', False):
       raise ValueError('Write-address-scale configurations require their recorded sealed worktree runtime')
     if getattr(cfg, 'bam_write_content_norm_scale', False):

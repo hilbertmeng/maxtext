@@ -19251,3 +19251,32 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     # Startup20..99 0.689600step/s vs barecombo parent.686768 (+0.41%); healthON/internal+BAM OFF.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75WriteAddressNormScalePerHeadTruePile'
     bam_write_address_norm_scale_per_head = True
+
+
+class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleRawWriteTruePile(
+    BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75TruePile):
+    """Common learned V/O scale initialized1/sqrt(1+2layer); preserve content amplitudes in all writers."""
+    # ledger only: codex/mediumprop-common-read-raw-write; /data0/xd/mediumprop-common-read-raw-write.
+    # Sealed implementation ddbb5638; calibrated fixed divisors and18 directly learned common V/O scalars.
+    model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleRawWriteTruePile'
+    bam_common_vo_read_scale = True
+    bam_embedding_write_content_divisor = 0.0016052833
+    bam_attention_write_content_divisor = 0.1946289063
+    bam_mlp_write_content_divisor = 0.0045444682
+    bam_pallas_core = True
+    bam_pallas_write = True
+    compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75TruePile']
+
+
+class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleRawAttentionWriteTruePile(
+    BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleRawWriteTruePile):
+    """Embedding and attention use fixed content denominators; retain small-MLP content RMSNorm."""
+    model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleRawAttentionWriteTruePile'
+    bam_mlp_write_content_divisor = None
+
+
+class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleRawMLPWriteTruePile(
+    BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleRawWriteTruePile):
+    """Embedding and small MLP use fixed content denominators; retain attention content RMSNorm."""
+    model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleRawMLPWriteTruePile'
+    bam_attention_write_content_divisor = None

@@ -16,6 +16,7 @@ Kernel I/O stays T-minor as in v7 (keys/gates/factors as [.., T] slabs, Splash-n
 the token-major operands are built in VMEM. Building keys / splitting Y in XLA instead (the
 experimental v8 body, branch claude/bam-pallas-fullm) cost +330 ms of pads/copies on [B,T,N,40/96].
 """
+import math
 from functools import partial
 
 import jax
@@ -550,14 +551,16 @@ def _minor_t(x):
   return jnp.moveaxis(x, 1, -1)
 
 
-def _tm_fill_factors(groups, a_scr, c_scr, eps, t, npt):
+def _tm_fill_factors(groups, a_scr, c_scr, eps, t, npt, divisors):
   """a_scr / c_scr rows t*NPT + i: normalized address [V] / gated normalized content [K] of row i."""
   off = 0
   for g in range(0, len(groups), 3):
     content, logits, address = groups[g:g + 3]
     for h in range(content.shape[0]):
       rows = pl.ds(off + h, t, stride=npt)        # token-major rows t*NPT + i
-      c_scr[rows, :] = _to_tokens(_sigmoid(logits[pl.ds(h, 1), :]) * _norm(content[h], eps, 0))
+      c = (_norm(content[h], eps, 0) if divisors[g // 3] is None
+           else content[h].astype(F32) / divisors[g // 3])
+      c_scr[rows, :] = _to_tokens(_sigmoid(logits[pl.ds(h, 1), :]) * c)
       a_scr[rows, :] = _to_tokens(_norm(address[h], eps, 0))
     off += content.shape[0]
   for i in range(off, npt):
@@ -566,14 +569,14 @@ def _tm_fill_factors(groups, a_scr, c_scr, eps, t, npt):
     a_scr[rows, :] = jnp.zeros((t, a_scr.shape[1]), F32)
 
 
-def _tm_write_kernel(eps, n_groups, ch):
+def _tm_write_kernel(eps, n_groups, ch, divisors):
   def kernel(m_ref, *refs):
     groups = refs[:3 * n_groups]
     out_ref, a_scr, c_scr = refs[3 * n_groups:]
     t, vdim, kdim = m_ref.shape
     npt = a_scr.shape[0] // t
     dt = m_ref.dtype
-    _tm_fill_factors(groups, a_scr, c_scr, eps, t, npt)
+    _tm_fill_factors(groups, a_scr, c_scr, eps, t, npt, divisors)
     for t0 in range(0, t, ch):
       a = _chunk(a_scr, t0, ch, npt).astype(dt)
       c = _chunk(c_scr, t0, ch, npt).astype(dt)
@@ -581,7 +584,7 @@ def _tm_write_kernel(eps, n_groups, ch):
   return kernel
 
 
-def _tm_write_backward_kernel(eps, n_groups, ch):
+def _tm_write_backward_kernel(eps, n_groups, ch, divisors):
   def kernel(g_ref, *refs):
     groups = refs[:3 * n_groups]
     outs = refs[3 * n_groups:6 * n_groups]
@@ -589,7 +592,7 @@ def _tm_write_backward_kernel(eps, n_groups, ch):
     t, vdim, kdim = g_ref.shape
     npt = a_scr.shape[0] // t
     dt = g_ref.dtype
-    _tm_fill_factors(groups, a_scr, c_scr, eps, t, npt)
+    _tm_fill_factors(groups, a_scr, c_scr, eps, t, npt, divisors)
     for t0 in range(0, t, ch):
       rows = pl.ds(t0 * npt, ch * npt)
       gm = g_ref[pl.ds(t0, ch)]
@@ -606,9 +609,11 @@ def _tm_write_backward_kernel(eps, n_groups, ch):
         x = content[h]
         dci = _from_tokens(dc_scr[rows, :])
         sg = _sigmoid(logits[pl.ds(h, 1), :])
-        dlogits[pl.ds(h, 1), :] = (sg * (1 - sg) * jnp.sum(dci * _norm(x, eps, 0), axis=0, keepdims=True)
+        normalized = _norm(x, eps, 0) if divisors[g] is None else x.astype(F32) / divisors[g]
+        dlogits[pl.ds(h, 1), :] = (sg * (1 - sg) * jnp.sum(dci * normalized, axis=0, keepdims=True)
                                    ).astype(dlogits.dtype)
-        dcontent[h] = _norm_backward(x, sg * dci, eps, 0).astype(dcontent.dtype)
+        dcontent[h] = (_norm_backward(x, sg * dci, eps, 0) if divisors[g] is None
+                       else sg * dci / divisors[g]).astype(dcontent.dtype)
         daddress[h] = _norm_backward(address[h], _from_tokens(da_scr[rows, :]), eps, 0).astype(daddress.dtype)
       off += content.shape[0]
   return kernel
@@ -625,7 +630,7 @@ def _tm_write_forward_call(m, groups, opts):
   tile = min(opts['tile'], t)
   mspec = _token_spec((vdim, kdim), tile)
   return pl.pallas_call(
-      _tm_write_kernel(opts['epsilon'], len(groups) // 3, opts['chunk']),
+      _tm_write_kernel(opts['epsilon'], len(groups) // 3, opts['chunk'], opts['content_divisors']),
       grid=(b, t // tile), in_specs=[mspec] + [_spec(x.shape[1:-1], tile) for x in groups],
       out_specs=mspec, out_shape=jax.ShapeDtypeStruct(m.shape, m.dtype),
       scratch_shapes=_tm_write_scratch(groups, tile, vdim, kdim), input_output_aliases={0: 0},
@@ -638,7 +643,7 @@ def _tm_write_backward_call(g, groups, opts):
   tile = min(opts['reverse_tile'], t)
   specs = [_spec(x.shape[1:-1], tile) for x in groups]
   return pl.pallas_call(
-      _tm_write_backward_kernel(opts['epsilon'], len(groups) // 3, opts['chunk']),
+      _tm_write_backward_kernel(opts['epsilon'], len(groups) // 3, opts['chunk'], opts['content_divisors']),
       grid=(b, t // tile), in_specs=[_token_spec((vdim, kdim), tile)] + specs, out_specs=specs,
       out_shape=tuple(jax.ShapeDtypeStruct(x.shape, x.dtype) for x in groups),
       scratch_shapes=_tm_write_scratch(groups, tile, vdim, kdim) + _tm_write_scratch(groups, tile, vdim, kdim, True),
@@ -664,9 +669,14 @@ _tm_write.defvjp(_tm_write_fwd, _tm_write_bwd)
 
 
 def write_tm(m, groups, *, epsilon, forward_tile=128, reverse_tile=128, vmem_mib=None, interpret=False,
-             chunk=8, **_):
+             chunk=8, content_divisors=None, **_):
   """M [B,T,V,K] + sum over groups of (content [B,T,N,K], logits [B,T,N], address [B,T,N,V])."""
+  content_divisors = tuple(content_divisors) if content_divisors is not None else (None,) * len(groups)
+  if len(content_divisors) != len(groups) or any(
+      x is not None and (not isinstance(x, (int, float)) or isinstance(x, bool) or not math.isfinite(x) or x <= 0)
+      for x in content_divisors):
+    raise ValueError('Each write group requires None (RMS) or a positive finite fixed divisor')
   opts = _freeze(dict(epsilon=epsilon, tile=forward_tile, reverse_tile=reverse_tile, vmem_mib=vmem_mib,
-                      interpret=interpret, chunk=chunk))
+                      interpret=interpret, chunk=chunk, content_divisors=content_divisors))
   flat = tuple(_minor_t(x) for grp in groups for x in grp)
   return _map_batch(lambda m, *xs: _tm_write(m, opts, *xs), (m,) + flat, (True,) * (1 + len(flat)), 1)

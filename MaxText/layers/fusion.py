@@ -499,14 +499,18 @@ class SubDecoderLayer(nn.Module):
     if pallas_core:
       from layers import bam_pallas
       groups = [] if write_factors is None else [write_factors]
+      from layers.bam_write_content import divisor
+      content_divisors = [] if write_factors is None else [divisor(cfg, 'attention')]
       if mlp_write:
         assert independent_address is not None, 'fused core supports independent MLP addresses only'
         groups.append((write_content.reshape(write_content.shape[:-1] + (write_heads, cfg.bam_k)),
                        mlp_logits, independent_address))
+        content_divisors.append(divisor(cfg, 'mlp'))
       if groups:
         with jax.named_scope('bam/pallas_write'):
           M_out = bam_pallas.write(
               M_out, groups, epsilon=initializers.get_bam_write_epsilon(cfg),   # same as the XLA write norms
+              content_divisors=tuple(content_divisors),
               forward_tile=int(getattr(cfg, 'bam_pallas_write_tile', None) or 128),
               reverse_tile=int(getattr(cfg, 'bam_pallas_write_reverse_tile', None) or 128),
               vmem_mib=getattr(cfg, 'bam_pallas_vmem_mib', None),

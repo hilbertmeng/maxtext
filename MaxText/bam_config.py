@@ -12,6 +12,20 @@ def validate_bam_config(config, *, layer_mode=None):
       lambda name, default=None: getattr(config, name, default))
   if not get('bam_enabled', False):
     return
+  if get('bam_common_vo_read_scale', False):
+    if not (get('bam_local_vo_independent_keys', False) and get('bam_local_vo_independent_gates', False)
+            and get('bam_local_v_replace', False) and not get('bam_standard_value_layers', None)
+            and not get('bam_hybrid_v_num_heads', 0)):
+      raise ValueError('Common V/O scale requires complete independent V/O M reads')
+  for kind in ('embedding', 'attention', 'mlp'):
+    value = get('bam_' + kind + '_write_content_divisor', None)
+    if value is not None:
+      if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or value <= 0:
+        raise ValueError('Write content divisor must be positive finite: ' + kind)
+      if get('bam_write_factor_norm', 'rms') != 'rms':
+        raise ValueError('Fixed-content writer requires plain RMS address normalization')
+      if get('bam_pallas_core', False) and get('bam_pallas_body', None) != 'v8t':
+        raise ValueError('Pallas fixed-content writer requires v8t')
   if get('bam_local_o_dynamic_norm_scale', False):
     value = get('bam_local_o_dynamic_norm_scale_init', 1.0)
     if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):

@@ -161,7 +161,7 @@ CP/TB and independent resource/lease proof: the010-hot artifact root above,
 
 ## Per-head scale configuration
 
-Configuration-only addition on main `/home/xd/projects/maxtext`, `refactor-bam`:
+Per-head addition on main `/home/xd/projects/maxtext`, `refactor-bam`:
 `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODynamicNormScale050PerHeadTruePile`.
 Direct comparator is the completed coordinate-wise init.5 class above. The new
 `bam_local_o_dynamic_norm_scale_per_head=True` stores one scalar per layer/head,
@@ -188,3 +188,32 @@ Full scan native/Pallas worst relative parameter-gradient errors2.01e-6 plain
 and4.52e-5 with O read-weight dropout; head-scale errors5.94e-7/5.44e-7.
 Receipts: `/data0/xd/bam_diagnostics/local-o-head-scale/validation.json` and the
 focused/coordinate-regression/shared-regression subdirectories.
+
+## Per-head training startup
+
+User authorized fresh training and monitoring. Isolated runtime worktree
+`/data0/xd/local-o-head-scale`, branch `codex/local-o-head-scale`, exact pushed
+runtime6e2a2464c4d275699cced15c9efac50ca662ccbe. Fresh latest main reviewed at
+6e2a2464; training/checkpoint/optimizer/compiler/TB infrastructure matches actual
+coordinate-parent2662b39, rotation500 construction+begin_step present. Only
+numerical/configuration change versus that parent is scale granularity; new RUN
+name and comparator metadata differ. Existing56 CPU checks reused at matching
+source hashes,5 summary-writer regressions also pass (61 total).
+
+TPU310405: `xd-v5p-16-310405-maxtext`, UE5a primary, EW4b backup; T4096,8chips,
+B16/device/global128,13500 total/full LR,CP200/latest2, single-layer scan17+tail1,
+full remat, tuned Splash and Pallasv8t read/write48MiB. Sole direct baseline is
+coordinate-wise gamma.5; MHA reference `BamMHAMediumPropC256TruePile`.
+
+Both retained FLEX compilers were verified SUSPENDED (the0 host expired at
+2026-10-28 19:33UTC). Auto-managed spot v6e compiled exact v5p16/s13500 AOT;
+artifact+manifest verified and compiler cleanup completed without touching FLEX.
+AOT prefix:`gs://newproject-1-llm_base_models_us-central1/log/compiled_trainsteps/6e2a246/jax081-i0ae3f58-c17f538a/v5p-16/s13500/`.
+Actualworker FIRST0/exactHEAD/AOT-loaded/data4096/schedule13500 and all80 timing
+samples20..99 verified. Startup.6877625step/s versus parent.689788 (-.294%),
+consistent with unchanged-speed expectation; cross-lease descriptive comparison.
+
+Pre-run terminal gain multiplier prior1.00 [.995,1.005] versus coordinate.5,
+speed within~1%. Standard2k reporting/cumulative plots from600,5k review,13500
+endpoint. Runtime/validation/startup receipts and monitor state:
+`/data0/xd/bam_diagnostics/local-o-head-scale/`.

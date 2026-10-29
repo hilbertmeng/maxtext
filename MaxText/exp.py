@@ -18254,6 +18254,10 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     Broadcast to the existing [N,V] read interface; its VJP sums over V into each
     head scalar. Both Pallas kernels and the parent's training-health settings remain.
     """
+    # code_commit: 6e2a246; codex/local-o-head-scale,/data0/xd/local-o-head-scale; UE5a v5p16 xd-v5p-16-310405-maxtext.
+    # FIRST0/exact source/AOT/data/s13500 verified;20..99 .6877625 step/s vs coordinate gamma.5 .689788 (-.294%).
+    # 61 CPU checks pass; generic health ON/internal+BAM OFF, full remat, tuned Splash/Pallas read+write.
+    # Prior: terminal MHA-reference R1.00 [.995,1.005] vs coordinate gamma.5, speed approximately matched.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODynamicNormScale050PerHeadTruePile'
     bam_local_o_dynamic_norm_scale_per_head = True
     bam_pallas_core = True

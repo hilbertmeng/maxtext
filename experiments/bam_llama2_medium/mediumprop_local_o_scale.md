@@ -120,3 +120,7 @@ a sustained fitting-loss advantage over the direct parent.
 
 Exact layer/time series and gradient snapshots:
 `/data0/xd/bam_diagnostics/mediumprop-dynamic-o-norm-init-050-100/scale-health-latest.json`.
+
+## Per-head dynamic-O scale, initial .5: completed Medium control
+
+RUN`BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODynamicNormScale050PerHeadTruePile`, runtime6e2a2464c4d275699cced15c9efac50ca662ccbe; worktree`/data0/xd/local-o-head-scale`, branch`codex/local-o-head-scale`, UE5a trainer310405. Complete13500 updates; checkpoint13500 committed, node AND queued resource independently verified absent, TB SYNC_OK. Relative to coordinate gamma=.5 parent, last complete13400 window gap−.000258/R1.001463, last5 native window-ratio mean.998736; essentially parity, no stable improvement. Initial terminalR1.00 [.995,1.005] bet consistent; the mid-training prior.995 was too pessimistic. Parameters432112480, parent−8928; MLP2510/1128/tail3904 unchanged. Startup.6877625step/s vs coordinateparent.689788(−.294%, parity), no preemptions. Final generic18-layer gamma RMS/grad profile finite and all gradients live; RMS does not determine signed head values. Artifacts`/data0/xd/bam_diagnostics/local-o-head-scale/`, final-report.json/final-resource-audit.json/final-health.json. This from-scratch Medium comparison does not contradict the loss damage from post-hoc2.8B checkpoint coarsening.

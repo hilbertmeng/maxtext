@@ -18258,6 +18258,8 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     # FIRST0/exact source/AOT/data/s13500 verified;20..99 .6877625 step/s vs coordinate gamma.5 .689788 (-.294%).
     # 61 CPU checks pass; generic health ON/internal+BAM OFF, full remat, tuned Splash/Pallas read+write.
     # Prior: terminal MHA-reference R1.00 [.995,1.005] vs coordinate gamma.5, speed approximately matched.
+    # Complete13500: last5 window-ratio mean.998736 vs coordinate gamma.5 (MHA reference), approximately equal.
+    # Lastfull13400 gap-.000258/R1.001463; no stable gain; finalCP13500, TPU+queue absent, TB SYNC_OK.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODynamicNormScale050PerHeadTruePile'
     bam_local_o_dynamic_norm_scale_per_head = True
     bam_pallas_core = True
@@ -19264,6 +19266,7 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     # Sealed implementation ddbb5638; calibrated fixed divisors and18 directly learned common V/O scalars.
     # code_commit: ddbb563; UE5a v5p16 xd-v5p-16-310408-maxtext; FIRST0/source/AOT/data/s13500 verified.
     # Startup20..99 0.673725step/s vs bareparent.686768 (-1.90%); signed18coefficients/step0init verified.
+    # Stopped5288 at5k review: gap+.007413/R.96660 vs bareparent; sustained deficit, no later catchup.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleRawWriteTruePile'
     bam_common_vo_read_scale = True
     bam_embedding_write_content_divisor = 0.0016052833
@@ -19279,6 +19282,7 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     """Embedding and attention use fixed content denominators; retain small-MLP content RMSNorm."""
     # code_commit: ddbb563; UE5a v5p16 xd-v5p-16-310409-maxtext; FIRST0/source/AOT/data/s13500 verified.
     # Startup20..99 0.671737step/s vs bareparent.686768 (-2.19%); signed18coefficients/step0init verified.
+    # Stopped5241 at5k review: gap+.006941/R.96873 vs bareparent; attention raw dominates the deficit.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleRawAttentionWriteTruePile'
     bam_mlp_write_content_divisor = None
 
@@ -19304,3 +19308,13 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75AttentionWriteScaleRawWriteTruePile'
     bam_common_vo_read_scale = False
     bam_attention_write_scale = True
+
+
+class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75RawMLPWriteNoReadScaleTruePile(
+    BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleRawMLPWriteTruePile):
+    """Remove the complete V/localO read scale; retain raw embedding/MLP and normalized attention writes."""
+    # ledger only: codex/mediumprop-common-read-raw-write; /data0/xd/mediumprop-common-read-raw-write.
+    # Sealed runtime6df2a153; parameters432112192 (directparent-18), MLP2510/1128/tail3904 unchanged.
+    model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75RawMLPWriteNoReadScaleTruePile'
+    bam_common_vo_read_scale = False
+    compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleRawMLPWriteTruePile']

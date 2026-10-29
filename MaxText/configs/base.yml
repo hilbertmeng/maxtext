@@ -761,3 +761,7 @@ engram_base_vocab_size: 160_000 # 5倍压缩前词表大小
 engram_tokenizer_vocab_size: 32_000 # 压缩后词表大小
 engram_ngram_layers: null # list: 2-gram和3-gram的层数
 engram_ngram_sizes: null # list: 2-gram和3-gram
+
+bam_write_address_norm_scale: False # Post-RMS write address scale: embedding, attention, private MLP.
+bam_write_address_norm_scale_init: 1.0
+bam_write_address_norm_scale_per_head: False # One scalar per head rather than per address coordinate.

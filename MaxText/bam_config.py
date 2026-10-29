@@ -12,6 +12,18 @@ def validate_bam_config(config, *, layer_mode=None):
       lambda name, default=None: getattr(config, name, default))
   if not get('bam_enabled', False):
     return
+  if get('bam_write_address_norm_scale', False):
+    value = get('bam_write_address_norm_scale_init', 1.0)
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
+      raise ValueError('bam_write_address_norm_scale_init must be a finite scalar')
+    if get('bam_write_factor_norm', 'rms') != 'rms' or not get('bam_write_data_rms', True):
+      raise ValueError('Write address scale requires plain RMS-normalized factors')
+    if not get('bam_mlp_write_dynamic_address', False):
+      raise ValueError('Write address scale requires independent dynamic MLP write addresses')
+    if get('bam_share_write_controls', False) or get('bam_local_o_separate_write_gate', False):
+      raise ValueError('Write address scale requires the independent three-factor writer')
+    if get('bam_pallas_core', False) and get('bam_pallas_body', None) != 'v8t':
+      raise ValueError('Write address scale with Pallas requires v8t')
   if get('bam_local_o_dynamic_norm_scale', False):
     value = get('bam_local_o_dynamic_norm_scale_init', 1.0)
     if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):

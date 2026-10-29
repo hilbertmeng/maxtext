@@ -494,6 +494,13 @@ class EmbeddingBamWrite(nn.Module):
     address = normalizations.rms_norm(
         address, dtype=address.dtype, epsilon=initializers.get_bam_write_epsilon(cfg),
         statistics_dtype=statistics_dtype)
+    if getattr(cfg, 'bam_write_address_norm_scale', False):
+      from layers import bam_write
+      address_scale = self.param(
+          'write_address_norm_scale', nn.with_logical_partitioning(
+              nn.initializers.constant(bam_write.scale_initializer(cfg)), bam_write.scale_axes(cfg)),
+          bam_write.scale_shape(cfg, heads, bam_v), self.weight_dtype)
+      address = address * bam_write.address_scale(cfg, address_scale, bam_v, address.dtype)
     with jax.named_scope("bam/embedding_write_outer"):
       if getattr(cfg, 'bam_pallas_core', False):
         # Fused core carries M token-minor: [B, V, K, T], k-major [B, K, V, T] for bodies v7/v7u,

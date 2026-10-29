@@ -19299,6 +19299,8 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     # Sealed implementation28eb60f1; only17live attention-write depth scalars; no L17 dead parameter.
     # code_commit: 28eb60f; UE5a v5p16 xd-v5p-16-310411-maxtext; FIRST0/source/AOT/data/s13500 verified.
     # Startup20..99 0.687775step/s vs bareparent.686768 (+0.15%); signed17coefficients/step0init verified.
+    # BackwardNaN at130 (finite loss7.842589), lossNaN from131; stopped1047, no valid resumed checkpoint.
+    # Scale values still finite~.170..993 at130; exact failing backward operator unresolved.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75AttentionWriteScaleRawWriteTruePile'
     bam_common_vo_read_scale = False
     bam_attention_write_scale = True

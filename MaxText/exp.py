@@ -19645,3 +19645,20 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     bam_last_mlp_dim = 3504
     compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedTruePile']
 
+class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalOReadScalePerHead050TruePile(
+    BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODynamicNormScale050TruePile):
+    """Replace dynamic-address gamma with a complete localO per-layer/head scalar.
+
+    Raw strongest combination, no H scale; V unchanged. Complete O includes
+    static and dynamic reads. 18*16=288 directly learned coefficients, init.5;
+    ordinary/small MLP2510/1128/tail3904 unchanged, negligible parameter delta.
+    """
+    # ledger only: codex/mediumprop-common-read-raw-write, /data0/xd/mediumprop-common-read-raw-write; runtime f7052d40.
+    model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalOReadScalePerHead050TruePile'
+    bam_pallas_core = True
+    bam_pallas_write = True
+    bam_local_o_dynamic_norm_scale = False
+    bam_complete_local_o_read_scale = True
+    bam_complete_local_o_read_scale_init = 0.5
+    compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODynamicNormScale050TruePile', 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODynamicNormScale050PerHeadTruePile']
+

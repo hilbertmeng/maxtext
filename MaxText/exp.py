@@ -19511,6 +19511,9 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     # code_commit: aa7d8ec; UE5a v5p16 xd-v5p-16-310423-maxtext; FIRST0/source/AOT/data/s13500 verified.
     # CPU native/Pallas all-gradients passed; startup20..99 0.676113step/s; genericON/internal+BAMOFF.
     # Same MLP2510/1128/tail3904; all18 V/localO read scalars init1, QK and writer rules unchanged.
+    # User-paused CP9341/13500, P0; checkpoint/cursor retained, node+queue absent, TB SYNC_OK.
+    # Provisional vsH through9200: last5 gap+0.00464388/R0.97621074; early catchup then plateau.
+    # Original13500 schedule/AOT retained; endpoint and terminal bet unmeasured; see mediumprop_common_read_raw_write.md.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneTruePile'
     bam_common_vo_read_scale_init = 1.0
     compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedTruePile']
@@ -19523,6 +19526,9 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     # code_commit: 789c00c; UE5a v5p16 xd-v5p-16-310424-maxtext; FIRST0/source/AOT/data/s13500 verified.
     # CPU native/Pallas all-gradients passed; startup20..99 0.673063step/s; genericON/internal+BAMOFF.
     # Same MLP2510/1128/tail3904; all18 V/localO read scalars init1, QK and writer rules unchanged.
+    # User-paused CP8976/13500, P0; checkpoint/cursor retained, node+queue absent, TB SYNC_OK.
+    # Provisional vsH through8800: last5 gap+0.00550944/R0.97215215; early catchup then plateau.
+    # Original13500 schedule/AOT retained; endpoint and terminal bet unmeasured; see mediumprop_common_read_raw_write.md.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneLocalODynamicNormScale050TruePile'
     bam_local_o_dynamic_norm_scale = True
     bam_local_o_dynamic_norm_scale_init = .5
@@ -19536,6 +19542,9 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     # code_commit: dcbeeb2; UE5a v5p16 xd-v5p-16-310425-maxtext; FIRST0/source/AOT/data/s13500 verified.
     # Initial loss10.852707 matches learned-unit control; no read-scale leaves/multiplies;432112192params (-18vsH).
     # Startup20..99 .694438step/s, +2.71%vs learned-unit control (different lease); healthON/internal+BAMOFF.
+    # User-paused CP8483/13500, P0; checkpoint/cursor retained, node+queue absent, TB SYNC_OK.
+    # Provisional vsH through8400: last5 gap+0.00570060/R0.97162315; early catchup then plateau.
+    # Original13500 schedule/AOT retained; endpoint and terminal bet unmeasured; see mediumprop_common_read_raw_write.md.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedNoReadScaleTruePile'
     bam_common_vo_read_scale = False
     compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedTruePile']

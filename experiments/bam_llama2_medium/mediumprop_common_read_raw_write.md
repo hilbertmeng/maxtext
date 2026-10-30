@@ -166,3 +166,23 @@ resource independently absent. UE5a v5p16 leases:15:57:37..18:14:06 UTC Oct29
 completion). Startup.67065step/s versus H.669875, +.12%, matched health settings.
 Final loss, parameter/TB health, resource and lease proofs:
 `/data0/xd/bam_diagnostics/mediumprop-common-read-raw-write/old-gamma-final/`.
+
+## Unit/fixed read-scale controls: user-requested resumable pause
+
+All three were paused to pursue integrated V/O norm gamma, not eliminated on a
+terminal-quality verdict. Original13500 schedules, runtime AOTs and full-state
+checkpoints remain reusable. All are UE5a v5p16/P0; node and queue deletion
+verified, local final TensorBoard SYNC_OK. Native cumulative curves and
+checkpoint/lease proof: `/data0/xd/bam_diagnostics/mediumprop-common-read-raw-write/new-three-user-pause/`.
+
+| RUN | Checkpoint | Mature horizon | Last5 gap vsH | MHA-reference gain vsH |
+|---|---:|---:|---:|---:|
+| `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneTruePile` | 9341 | 9200 | +0.00464388 | 0.97621074 |
+| `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneLocalODynamicNormScale050TruePile` | 8976 | 8800 | +0.00550944 | 0.97215215 |
+| `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedNoReadScaleTruePile` | 8483 | 8400 | +0.00570060 | 0.97162315 |
+
+All three close much of the early absolute deficit, but normalized gain mostly
+plateaus from~5k; none has overtaken H through its observed horizon. The
+learning-parameterization comparison favors unit-learned over fixed1 by a
+small margin; terminal outcomes remain unmeasured. Integrated V/O gamma is a
+discussion proposal only, not an authorized implementation or training RUN.

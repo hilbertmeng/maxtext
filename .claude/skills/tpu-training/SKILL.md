@@ -328,6 +328,10 @@ Keep the watcher running detached and read its refreshed JSON at shared wakes. I
 checking liveness while reports/decisions are pending; alerts persist until acknowledged.
 It does not wake an exited agent, so retain active monitoring ownership. Use scoped native
 `status` for an exceptional liveness check, not repeated worker-log tails between milestones.
+Set `group configure GROUP --cadence 0 --reason 'quiet training'` to silence routine
+reports while retaining scheduled reviews/liveness checks; add `--review-steps ''` when
+the user also disables pending intermediate reviews. Continue through the registered plan
+and closeout without unsolicited progress reports.
 For commands, member-specific review overrides and clock handoff, see the authoritative
 [run_groups.md](/home/xd/projects/xd_tpu_scripts/run_groups.md).
 

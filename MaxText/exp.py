@@ -19835,6 +19835,9 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     # code_commit: 8e15b74; UE5a v5p16 retained xd-v5p-16-310429-maxtext, RUNid310437, plan13500.
     # FIRST0/exact source/AOT/data/schedule verified; native/Pallas full-model F32/BF16 gradients and health export tested.
     # Startup20..99 .672875step/s, H +.448%, masked sibling -.0037%; genericON/internalOFF plus36 gate mean/std scalars.
+    # Stopped8347/13500 at8k review/P0; CP8347 andTB SYNC_OK, node+QR independently verified absent.
+    # vsH: early deficit reached~+.008, then narrowed;8k/8.2k rebound toR~.988, latest5 gap+.003049/R.984974.
+    # No observed advantage overH through8.2k; late rebound/full13500 endpoint untested, not proof of terminal failure.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedContextLocalOComplementSelfAttentionTruePile'
     bam_attention_negative_diagonal = False
     compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedTruePile']

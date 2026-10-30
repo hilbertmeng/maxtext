@@ -34,9 +34,7 @@ from the running per-address-coordinate gamma experiment, which scales only
 dynamic keys. Neither existing gamma arm is stopped for these preparations.
 
 Reuse H's native/XLA post-read scaling epilog on both the native and Pallas
-paths. Existing v8t read/write kernels stay unchanged. H's fused-kernel
-optimization is a separate proposal; no permission to message Claude or
-perform that optimization was given by this training request. Expected
+paths. Existing v8t read/write kernels stay unchanged. Fusing this epilog into the read kernel is a separate optimization proposal. Expected
 startup speed within~1% of H; record actual formal timings. No claimed
 same-VM speed comparison. Scoped48MiB, tuned Splash, full remat, scan17+tail1,
 T4096/B16 per device/global128, CP200/latest2 and TBrotate500 inherit.
@@ -61,3 +59,10 @@ Use retained ACTIVE/idle guaranteed FLEX `llm-jax-v6e-1-0`, EW4a, for serial
 AOTs under its worker lock; never delete it. Formal spot trainers use UE5a
 priority, EW4b backup. Artifacts:
 `/data0/xd/bam_diagnostics/mediumprop-common-read-raw-write/coarse-independent-vo-scale/`.
+
+Validation detail: F32 full-model Pallas/native max-gradient relative errors
+2.30e-6 (layer) and1.78e-6 (head). BF16's largest per-leaf relative error
+8.53% belongs to a tiny bias gradient (native max1.97e-7, absolute delta1.68e-8).
+The BF16 gate therefore uses the existing6% relative bound plus1e-7 absolute
+floor, requires global gradient relative L2 below3% (observed1.46%), and retains
+the pure6% bound for both new read-scale leaves. It changes no production math.

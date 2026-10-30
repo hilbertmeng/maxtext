@@ -114,7 +114,7 @@ class IndependentVOReadScaleTest(MLPWriteTest, unittest.TestCase):
     CommonAllReadGammaTest.check_model(self,HEAD)
 
   def test_head_bf16_native_pallas_all_gradients(self):
-    CommonAllReadGammaTest.check_model(self,HEAD,dtype='bfloat16')
+    CommonAllReadGammaTest.check_model(self,HEAD,dtype='bfloat16',bf16_atol=1e-7)
 
 
 if __name__=='__main__':unittest.main()

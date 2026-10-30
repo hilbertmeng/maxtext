@@ -19614,7 +19614,7 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     MLP: +5 hidden units. Total432091538, H-20672 (-.0048%); tail unchanged.
     Existing v8t write kernel consumes constant +inf logits, exact gain1.
     """
-    # Completed13500/P0; CP13500/TB SYNC_OK, node+QR independently absent; same ed83fad/AOT after resume8285.
+    # Completed 13500/P0; CP13500/TB SYNC_OK, node+QR independently absent; same ed83fad/AOT after resume8285.
     # vsH: brief early gain reversed~1k; partial recovery after3.2k continued late, but did not regain parity.
     # At13.4k gap+.001703/R.990660; latest5 gap+.001275/R.993012. No demonstrated loss/efficiency gain.
     # The8k stop was reversed byuser; preserve both READY epochs, no preemptions.
@@ -19631,7 +19631,7 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     Full H recipe, no new parameters or kernel ABI. Both vector residual and
     attention M write use the new context+localO sum. Static localO unchanged.
     """
-    # Completed13500/P0; CP13500/TB SYNC_OK, node+QR independently verified absent.
+    # Completed 13500/P0; CP13500/TB SYNC_OK, node+QR independently verified absent.
     # vsH: near parity~4k, then mostly small gains; at13.4k gap-.000632/R1.003465, latest5-.000668/R1.003645.
     # Small persistent benefit, no clear ceiling breakthrough; zero extra parameters/cache, throughput effectively unchanged.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedContextLocalOComplementTruePile'
@@ -19642,7 +19642,7 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedContextLocalOComplementSelfAttentionTruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedContextLocalOComplementTruePile):
     """Matched competition control: restore self-attention, keep shared g/1-g."""
-    # Stopped8347/13500 at8k review/P0; CP8347 andTB SYNC_OK, node+QR independently verified absent.
+    # Stopped 8347/13500 at8k review/P0; CP8347 andTB SYNC_OK, node+QR independently verified absent.
     # vsH: early deficit reached~+.008, then narrowed;8k/8.2k rebound toR~.988, latest5 gap+.003049/R.984974.
     # No observed advantage overH through8.2k; late rebound/full13500 endpoint untested, not proof of terminal failure.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedContextLocalOComplementSelfAttentionTruePile'
@@ -19657,7 +19657,7 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     Static O and its independent gate remain unchanged. Additional9216
     parameters are negligible: total432121426, unchanged2510/1128/tail3904.
     """
-    # Stopped8546/13500 at8k review/P0; CP8546/TB SYNC_OK and node+QR independently verified absent.
+    # Stopped 8546/13500 at8k review/P0; CP8546/TB SYNC_OK and node+QR independently verified absent.
     # vsH: large initial gap narrowed by4k, then R~.975 plateau through8.4k despite intermittent catch-up.
     # Final8.4k gap+.005592/R.971845; latest5 gap+.005040/R.974921; full13500 terminal untested.
     # At8k: gamma layerRMS .472-.521, dynamic gate layermeans .057-.439; no observed combination benefit.

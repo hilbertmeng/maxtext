@@ -17325,6 +17325,47 @@ class BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640S
 
 
 
+
+class BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640SeparateVOKeysLogitDiagNegativeQK80CommonReadScaleUnscaledMLPContentEmbeddingFixed(
+        BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640SeparateVOKeysLogitDiagNegativeQK80):
+    """H transfer: raw embedding/fixed divisor, raw memory-MLP writes, learned V/O scale.
+
+    Attention write content retains RMSNorm. One signed V+localO scalar per
+    layer starts at1/sqrt(1+2*layer); Q/K remain unscaled with full-head QKNorm.
+    Embedding divisor .0020825863 uses D2560, sigma_E=sigma_U=.006,
+    K80 and write epsilon1e-6; finite-head Gaussian energy calculation,
+    checked separately by the embedding-only probe in the experiment note.
+    Keep GELU7808/2944/tail9984, all R640, scan31+tail1 and original28k recipe.
+    Adds32 scalars (no MLP repayment); no terminal attention/memory-MLP writes.
+    """
+    # ledger only; implementation: codex/mediumprop-common-read-raw-write, /data0/xd/mediumprop-common-read-raw-write.
+    # Configuration only; no training RUN or AOT submitted. See pythia2p8_common_read_raw_write.md.
+    model_name = 'BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640SeparateVOKeysLogitDiagNegativeQK80CommonReadScaleUnscaledMLPContentEmbeddingFixed'
+    bam_common_vo_read_scale = True
+    bam_common_vo_read_scale_init = None
+    bam_embedding_write_content_divisor = 0.0020825863
+    bam_attention_write_content_divisor = None
+    bam_mlp_write_content_divisor = 1.0
+    bam_local_o_dynamic_norm_scale = False
+    bam_local_o_dynamic_norm_scale_init = .2
+    compare_runs = ['BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640SeparateVOKeysLogitDiagNegativeQK80LocalODynamicNormScale020']
+
+
+class BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640SeparateVOKeysLogitDiagNegativeQK80CommonReadScaleUnscaledMLPContentEmbeddingFixedLocalODynamicNormScale020(
+        BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640SeparateVOKeysLogitDiagNegativeQK80CommonReadScaleUnscaledMLPContentEmbeddingFixed):
+    """H transfer retaining the target SOTA's learned dynamic-O address gamma=.2."""
+    model_name = 'BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640SeparateVOKeysLogitDiagNegativeQK80CommonReadScaleUnscaledMLPContentEmbeddingFixedLocalODynamicNormScale020'
+    bam_local_o_dynamic_norm_scale = True
+    bam_local_o_dynamic_norm_scale_init = .2
+
+
+class BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640SeparateVOKeysLogitDiagNegativeQK80CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneLocalODynamicNormScale020(
+        BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640SeparateVOKeysLogitDiagNegativeQK80CommonReadScaleUnscaledMLPContentEmbeddingFixedLocalODynamicNormScale020):
+    """Priority transfer: all32 learned V/localO scalars start at1; retain gamma=.2."""
+    model_name = 'BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640SeparateVOKeysLogitDiagNegativeQK80CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneLocalODynamicNormScale020'
+    bam_common_vo_read_scale_init = 1.0
+
+
 class BamPythia2p8BComboKeepPreMaskResume500(
         BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640SeparateVOKeysLogitDiagNegativeQK80):
     """Full-state fork of combination CP21557; review after500 added updates.

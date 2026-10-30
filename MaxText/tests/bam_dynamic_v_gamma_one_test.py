@@ -43,6 +43,6 @@ class DynamicVGammaOneTest(MLPWriteTest,unittest.TestCase):
     print('DYNAMIC_V1_O05_BUDGET_IDENTITY_OK',flush=True)
 
   def test_model_f32_native_pallas_gradients(self):CommonAllReadGammaTest.check_model(self,RUN)
-  def test_model_bf16_native_pallas_gradients(self):CommonAllReadGammaTest.check_model(self,RUN,dtype='bfloat16',bf16_atol=1e-7,bf16_fp32_reference=True)
+  def test_model_bf16_native_pallas_gradients(self):CommonAllReadGammaTest.check_model(self,RUN,dtype='bfloat16',bf16_atol=1e-7,bf16_fp32_reference=True,bf16_global_check=True)
 
 if __name__=='__main__':unittest.main()

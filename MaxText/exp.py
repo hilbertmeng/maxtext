@@ -19573,6 +19573,9 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     total432130624, H+18414 (.00426%, negligible; no MLP repayment).
     """
     # ledger only: codex/mediumprop-common-read-raw-write; implementation and Pallas live in that worktree.
+    # code_commit: ddb498c; UE5a v5p16 xd-v5p-16-310427-maxtext; FIRST0/source/AOT/data/s13500 verified.
+    # Startup20..99 0.690925step/s vsH.669875 (+3.14%, separate leases); healthON/internal+BAMOFF.
+    # Actual step0 V/O gamma RMS verified against the depth formula at all18layers; O/V parameter-RMS ratio1.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75DynamicVONormScaleDepth2RawMLPEmbeddingFixedTruePile'
     bam_common_vo_read_scale = False
     bam_local_v_dynamic_norm_scale = True
@@ -19584,5 +19587,8 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75DynamicVONormScaleDepth1RawMLPEmbeddingFixedTruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75DynamicVONormScaleDepth2RawMLPEmbeddingFixedTruePile):
     """Only change V/O norm-gain initialization to1/sqrt(1+actual_layer)."""
+    # code_commit: ddb498c; UE5a v5p16 xd-v5p-16-310428-maxtext; FIRST0/source/AOT/data/s13500 verified.
+    # Startup20..99 0.686575step/s vsH.669875 (+2.49%, separate leases); healthON/internal+BAMOFF.
+    # Actual step0 V/O gamma RMS verified against the depth formula at all18layers; O/V parameter-RMS ratio1.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75DynamicVONormScaleDepth1RawMLPEmbeddingFixedTruePile'
     bam_local_vo_dynamic_norm_scale_depth_slope = 1.0

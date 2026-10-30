@@ -71,3 +71,27 @@ main6afebd86 contain no changes to train/checkpoint/optimizer/compile/default
 runtime infrastructure. Keep inherited TB writer rotation and generic health.
 Provenance, CPU and launch artifacts:
 `/data0/xd/bam_diagnostics/mediumprop-common-read-raw-write/integrated-vo-gamma/`.
+
+## Launch validation
+
+Sealed/pushed runtime `ddb498c451b37b4802178c9848e6b4afea7cb0e9`.
+Full47 BAM checks,2 new budget/scan/kernel checks,3 scanned F32/BF16 model
+checks and original O-only kernel regression passed. Kernel independent-reference
+maxrel~3e-7; complete-model F32 gradients <=4.54e-6. BF16 remains within the
+existing model-test tolerance; it is not bitwise native equivalence.
+Both v5p16/s13500 AOTs compiled serially on retained FLEX and loaded at the
+actual runtime source. FIRST0 verified for both, dataset truepile4096 and
+original13500 schedule confirmed. Actual step0 gamma parameter RMS follows
+the selected depth formula at all18 layers; O/V parameter-RMS ratio is1.
+Startup20..99: slope2 .690925step/s, slope1 .686575step/s versus H.669875,
++3.14%/+2.49% across separate UE5a leases with matching health/topology/batch.
+The direction agrees with removing the external full-read epilog and scalar
+reductions while calculating gamma gradients inside the read kernel. No new
+speed-only TPU was used. These are startup speed measurements, not matched
+same-VM profile claims. Reproduction: `runtime.json`, `startup-summary.json`,
+`depth*/startup-proof.json`, `initial-health-proof.json` under the artifact root.
+
+Monitor all18 layers' gammaV/gammaO parameter RMS and their ratio, initially1,
+using generic health. Later different growth rates can establish a learned O/V
+parameter amplitude balance; parameter RMS alone does not measure actual output
+or context/localO activation contribution.

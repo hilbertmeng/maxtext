@@ -16,6 +16,7 @@ Kernel I/O stays T-minor as in v7 (keys/gates/factors as [.., T] slabs, Splash-n
 the token-major operands are built in VMEM. Building keys / splitting Y in XLA instead (the
 experimental v8 body, branch claude/bam-pallas-fullm) cost +330 ms of pads/copies on [B,T,N,40/96].
 """
+import math
 from functools import partial
 
 import jax
@@ -72,8 +73,8 @@ def _tm_o_mask(om, c, rows):
   return jnp.concatenate((jnp.ones((rows - np_, om.shape[2]), F32), om[c].astype(F32)), axis=0)
 
 
-def _tm_o_scale(os_ref, rows):
-  """[R, C] dynamic-key coordinate scale: ones on the Q/K/V rows, the learned O scale [NP, C] on O."""
+def _tm_dynamic_scale(os_ref, rows):
+  """[R,C] scale on trailing read rows: O only [NP,C] or independent V/O [2NP,C]."""
   o = os_ref[...].astype(F32)
   return jnp.concatenate((jnp.ones((rows - o.shape[0], o.shape[1]), F32), o), axis=0)
 
@@ -166,7 +167,7 @@ def _tm_read_kernel(n, qk_cols, eps, scale, q_scale, gated, ch, shifted=False, q
     inv, g = _tm_slabs(eps, scale, rq, lq, rk, lk, rr, lo, lv)
     sg = sg_ref[...].astype(F32).reshape(r, t) if gated else None
     if scaled:
-      osc = _tm_o_scale(os_ref, r)
+      osc = _tm_dynamic_scale(os_ref, r)
     _tm_fill_keys(rq, rk, rr, inv, g, st_ref[...].astype(F32), sg, xt_scr, om, osc)
     for t0 in range(0, t, ch):
       if shifted:
@@ -235,7 +236,7 @@ def _tm_read_backward_kernel(n, qk_cols, eps, scale, q_scale, gated, ch, pass_m,
     st = st_ref[...].astype(F32)
     sg = sg_ref[...].astype(F32).reshape(r, t) if gated else None
     if scaled:
-      osc = _tm_o_scale(os_ref, r)
+      osc = _tm_dynamic_scale(os_ref, r)
     _tm_fill_keys(rq, rk, rr, inv, g, st, sg, xt_scr, om, osc)
     if masked:        # token-major O multiplier rows t*C + c, so the per-token dX picks it up
       for c in range(cdim):
@@ -313,16 +314,18 @@ def _tm_read_backward_kernel(n, qk_cols, eps, scale, q_scale, gated, ch, pass_m,
     key_rows = (4 if independent_vo else 3) * np_
     uacc = jnp.zeros((key_rows, t), F32)  # sum_c u * r (RMS-norm reverse)
     gq, gk, gv, go = (g[i * np_:(i + 1) * np_] for i in range(4))
-    gio = (g * inv)[3 * np_:] if scaled else None
+    scaled_rows = os_ref.shape[0] if scaled else 0
+    scale_start = r - scaled_rows
+    gi_scaled = (g * inv)[scale_start:] if scaled else None
     for c in range(cdim):
       dx = _from_tokens(dxt_scr[pl.ds(c, t, stride=cdim), :])            # [R, T]
       rows = _tm_rows(rq, rk, rr, c)
       if gated:
         sacc = sacc + dx * st[:, c:c + 1]
-      if scaled:      # d osc_o[c] = sum_t dX_o * g inv r[c]; the dynamic O key then sees osc * dX
-        dxo = dx[3 * np_:]
-        dos_scr[pl.ds(c * np_, np_), :] = dxo * rows[3 * np_:] * gio
-        dx = jnp.concatenate((dx[:3 * np_], dxo * osc[3 * np_:, c:c + 1]), axis=0)
+      if scaled:      # d gamma = sum_t dX * g inv r, for O alone or independent V/O.
+        dx_scaled = dx[scale_start:]
+        dos_scr[pl.ds(c * scaled_rows, scaled_rows), :] = dx_scaled * rows[scale_start:] * gi_scaled
+        dx = jnp.concatenate((dx[:scale_start], dx_scaled * osc[scale_start:, c:c + 1]), axis=0)
       gacc = gacc + dx * rows
       vo_u = ((gv * dx[2 * np_:3 * np_], go * dx[3 * np_:4 * np_]) if independent_vo else
               (gv * dx[2 * np_:3 * np_] + go * dx[3 * np_:4 * np_],))
@@ -417,13 +420,14 @@ def _tm_read_backward_call(args, cts, opts, sh=None, om=None, os=None):
     out_specs += [_spec(sh.shape[1:-1], tile), pl.BlockSpec((None, None, vdim, kdim), lambda bb, i: (bb, i, 0, 0))]
     out_shape += [jax.ShapeDtypeStruct(sh.shape, sh.dtype), jax.ShapeDtypeStruct((b, t // tile, vdim, kdim), F32)]
     scratch += [pltpu.VMEM((tile * cdim, kdim), F32)]     # gate g'[c, t] broadcast over lanes
-  if os is not None:  # per-tile partial O scale gradient [1, C*NP] (c-major), summed below
-    out_specs += [pl.BlockSpec((None, None, 1, cdim * np_), lambda bb, i: (bb, i, 0, 0))]
-    out_shape += [jax.ShapeDtypeStruct((b, t // tile, 1, cdim * np_), F32)]
+  scaled_rows = os.shape[0] if os is not None else 0
+  if os is not None:  # per-tile partial scale gradients [1,C*scaled_rows], c-major.
+    out_specs += [pl.BlockSpec((None, None, 1, cdim * scaled_rows), lambda bb, i: (bb, i, 0, 0))]
+    out_shape += [jax.ShapeDtypeStruct((b, t // tile, 1, cdim * scaled_rows), F32)]
   if om is not None:
     scratch += [pltpu.VMEM((tile * cdim, r), F32)]        # token-major O multiplier rows
   if os is not None:
-    scratch += [pltpu.VMEM((cdim * np_, tile), F32)]      # per-c O scale gradient terms, T-minor
+    scratch += [pltpu.VMEM((cdim * scaled_rows, tile), F32)]      # per-c O scale gradient terms, T-minor
   outs = pl.pallas_call(
       _tm_read_backward_kernel(n, opts['qk_cols'], opts['read_epsilon'], opts['key_scale'], opts['q_scale'],
                                gated, opts['chunk'], pass_m, shifted, qdim, om is not None, os is not None),
@@ -434,7 +438,7 @@ def _tm_read_backward_call(args, cts, opts, sh=None, om=None, os=None):
       name='bam_core_read_backward')(*args, *extra, *cts)
   dos = None
   if os is not None:
-    outs, dos = outs[:-1], jnp.sum(outs[-1], axis=(0, 1, 2)).reshape(cdim, np_).T.astype(os.dtype)
+    outs, dos = outs[:-1], jnp.sum(outs[-1], axis=(0, 1, 2)).reshape(cdim, scaled_rows).T.astype(os.dtype)
   dm = outs[0]
   dsh = None
   if shifted:
@@ -482,7 +486,7 @@ _tm_read.defvjp(_tm_read_fwd, _tm_read_bwd)
 def read_tm(m, static_weight, q_key, q_logits, k_key, k_logits, vo_key, o_logits, v_logits, q_standard,
             k_standard, *, qk_cols, read_epsilon, key_scale, forward_tile=128, reverse_tile=128,
             vmem_mib=None, interpret=False, q_scale=1.0, static_gates=None, chunk=8, pad_heads=False,
-            shift=None, o_weight_multiplier=None, o_dynamic_scale=None, **_):
+            shift=None, o_weight_multiplier=None, o_dynamic_scale=None, v_dynamic_scale=None, **_):
   """v7.read's interface (keys [B,T,N,C], logits [B,T,N], standard QK [B,T,N,Rs]) for M [B,T,V,K] and
   full-M reads (C == V, identity compression). Returns (query, key, value, local_o) [B,T,N,K] and M.
 
@@ -494,7 +498,9 @@ def read_tm(m, static_weight, q_key, q_logits, k_key, k_logits, vo_key, o_logits
   dots); the passthrough M stays unmixed. v5p XL kernel-only: read F/B +10%/+10% over the plain read.
 
   o_dynamic_scale [N,V]: optional learned per-head coordinate scale of the dynamic O key after its RMS
-  norm (static O and the V/Q/K keys untouched); its gradient is a per-tile partial summed here."""
+  norm (static O and Q/K untouched). v_dynamic_scale optionally applies the same
+  mechanism to dynamic V, with independent parameters and complete gradients.
+  Both scale gradients use the existing tiled MXU reduction."""
   b, t, n, cdim = q_key.shape
   assert cdim == m.shape[2], 'v8t supports full-M reads (identity compression) only'
   # Q/K width = retained M coordinates + standard (rotated) coordinates. It may exceed K (all K NoPE
@@ -526,11 +532,16 @@ def read_tm(m, static_weight, q_key, q_logits, k_key, k_logits, vo_key, o_logits
     # the effective O weight (static + gated dynamic, after the key RMS norm); V/Q/K keys untouched.
     assert o_weight_multiplier.shape == (b, t, n, cdim), o_weight_multiplier.shape
     args += (keys(o_weight_multiplier.astype(q_key.dtype)),)              # [B,C,NP,T]
-  scaled = o_dynamic_scale is not None
+  scaled = o_dynamic_scale is not None or v_dynamic_scale is not None
   if scaled:
-    assert o_dynamic_scale.shape == (n, cdim), o_dynamic_scale.shape
-    os_ = o_dynamic_scale.astype(F32)
-    args += (jnp.pad(os_, ((0, np_ - n), (0, 0)), constant_values=1.) if np_ > n else os_,)   # [NP,C]
+    for gamma in (v_dynamic_scale, o_dynamic_scale):
+      if gamma is not None:
+        assert gamma.shape == (n, cdim), gamma.shape
+    scales = ((v_dynamic_scale, jnp.ones((n, cdim), F32) if o_dynamic_scale is None else o_dynamic_scale)
+              if v_dynamic_scale is not None else (o_dynamic_scale,))
+    os_ = jnp.concatenate(tuple(jnp.pad(gamma.astype(F32), ((0, np_ - n), (0, 0)),
+        constant_values=1.) if np_ > n else gamma.astype(F32) for gamma in scales), axis=0)
+    args += (os_,)   # [NP,C] for O-only; [2NP,C] for independent V/O.
 
   def local(m, st, *xs):
     xs = list(xs)
@@ -550,14 +561,16 @@ def _minor_t(x):
   return jnp.moveaxis(x, 1, -1)
 
 
-def _tm_fill_factors(groups, a_scr, c_scr, eps, t, npt):
+def _tm_fill_factors(groups, a_scr, c_scr, eps, t, npt, divisors):
   """a_scr / c_scr rows t*NPT + i: normalized address [V] / gated normalized content [K] of row i."""
   off = 0
   for g in range(0, len(groups), 3):
     content, logits, address = groups[g:g + 3]
     for h in range(content.shape[0]):
       rows = pl.ds(off + h, t, stride=npt)        # token-major rows t*NPT + i
-      c_scr[rows, :] = _to_tokens(_sigmoid(logits[pl.ds(h, 1), :]) * _norm(content[h], eps, 0))
+      c = (_norm(content[h], eps, 0) if divisors[g // 3] is None
+           else content[h].astype(F32) / divisors[g // 3])
+      c_scr[rows, :] = _to_tokens(_sigmoid(logits[pl.ds(h, 1), :]) * c)
       a_scr[rows, :] = _to_tokens(_norm(address[h], eps, 0))
     off += content.shape[0]
   for i in range(off, npt):
@@ -566,14 +579,14 @@ def _tm_fill_factors(groups, a_scr, c_scr, eps, t, npt):
     a_scr[rows, :] = jnp.zeros((t, a_scr.shape[1]), F32)
 
 
-def _tm_write_kernel(eps, n_groups, ch):
+def _tm_write_kernel(eps, n_groups, ch, divisors):
   def kernel(m_ref, *refs):
     groups = refs[:3 * n_groups]
     out_ref, a_scr, c_scr = refs[3 * n_groups:]
     t, vdim, kdim = m_ref.shape
     npt = a_scr.shape[0] // t
     dt = m_ref.dtype
-    _tm_fill_factors(groups, a_scr, c_scr, eps, t, npt)
+    _tm_fill_factors(groups, a_scr, c_scr, eps, t, npt, divisors)
     for t0 in range(0, t, ch):
       a = _chunk(a_scr, t0, ch, npt).astype(dt)
       c = _chunk(c_scr, t0, ch, npt).astype(dt)
@@ -581,7 +594,7 @@ def _tm_write_kernel(eps, n_groups, ch):
   return kernel
 
 
-def _tm_write_backward_kernel(eps, n_groups, ch):
+def _tm_write_backward_kernel(eps, n_groups, ch, divisors):
   def kernel(g_ref, *refs):
     groups = refs[:3 * n_groups]
     outs = refs[3 * n_groups:6 * n_groups]
@@ -589,7 +602,7 @@ def _tm_write_backward_kernel(eps, n_groups, ch):
     t, vdim, kdim = g_ref.shape
     npt = a_scr.shape[0] // t
     dt = g_ref.dtype
-    _tm_fill_factors(groups, a_scr, c_scr, eps, t, npt)
+    _tm_fill_factors(groups, a_scr, c_scr, eps, t, npt, divisors)
     for t0 in range(0, t, ch):
       rows = pl.ds(t0 * npt, ch * npt)
       gm = g_ref[pl.ds(t0, ch)]
@@ -606,9 +619,11 @@ def _tm_write_backward_kernel(eps, n_groups, ch):
         x = content[h]
         dci = _from_tokens(dc_scr[rows, :])
         sg = _sigmoid(logits[pl.ds(h, 1), :])
-        dlogits[pl.ds(h, 1), :] = (sg * (1 - sg) * jnp.sum(dci * _norm(x, eps, 0), axis=0, keepdims=True)
+        normalized = _norm(x, eps, 0) if divisors[g] is None else x.astype(F32) / divisors[g]
+        dlogits[pl.ds(h, 1), :] = (sg * (1 - sg) * jnp.sum(dci * normalized, axis=0, keepdims=True)
                                    ).astype(dlogits.dtype)
-        dcontent[h] = _norm_backward(x, sg * dci, eps, 0).astype(dcontent.dtype)
+        dcontent[h] = (_norm_backward(x, sg * dci, eps, 0) if divisors[g] is None
+                       else sg * dci / divisors[g]).astype(dcontent.dtype)
         daddress[h] = _norm_backward(address[h], _from_tokens(da_scr[rows, :]), eps, 0).astype(daddress.dtype)
       off += content.shape[0]
   return kernel
@@ -625,7 +640,7 @@ def _tm_write_forward_call(m, groups, opts):
   tile = min(opts['tile'], t)
   mspec = _token_spec((vdim, kdim), tile)
   return pl.pallas_call(
-      _tm_write_kernel(opts['epsilon'], len(groups) // 3, opts['chunk']),
+      _tm_write_kernel(opts['epsilon'], len(groups) // 3, opts['chunk'], opts['content_divisors']),
       grid=(b, t // tile), in_specs=[mspec] + [_spec(x.shape[1:-1], tile) for x in groups],
       out_specs=mspec, out_shape=jax.ShapeDtypeStruct(m.shape, m.dtype),
       scratch_shapes=_tm_write_scratch(groups, tile, vdim, kdim), input_output_aliases={0: 0},
@@ -638,7 +653,7 @@ def _tm_write_backward_call(g, groups, opts):
   tile = min(opts['reverse_tile'], t)
   specs = [_spec(x.shape[1:-1], tile) for x in groups]
   return pl.pallas_call(
-      _tm_write_backward_kernel(opts['epsilon'], len(groups) // 3, opts['chunk']),
+      _tm_write_backward_kernel(opts['epsilon'], len(groups) // 3, opts['chunk'], opts['content_divisors']),
       grid=(b, t // tile), in_specs=[_token_spec((vdim, kdim), tile)] + specs, out_specs=specs,
       out_shape=tuple(jax.ShapeDtypeStruct(x.shape, x.dtype) for x in groups),
       scratch_shapes=_tm_write_scratch(groups, tile, vdim, kdim) + _tm_write_scratch(groups, tile, vdim, kdim, True),
@@ -664,9 +679,14 @@ _tm_write.defvjp(_tm_write_fwd, _tm_write_bwd)
 
 
 def write_tm(m, groups, *, epsilon, forward_tile=128, reverse_tile=128, vmem_mib=None, interpret=False,
-             chunk=8, **_):
+             chunk=8, content_divisors=None, **_):
   """M [B,T,V,K] + sum over groups of (content [B,T,N,K], logits [B,T,N], address [B,T,N,V])."""
+  content_divisors = tuple(content_divisors) if content_divisors is not None else (None,) * len(groups)
+  if len(content_divisors) != len(groups) or any(
+      x is not None and (not isinstance(x, (int, float)) or isinstance(x, bool) or not math.isfinite(x) or x <= 0)
+      for x in content_divisors):
+    raise ValueError('Each write group requires None (RMS) or a positive finite fixed divisor')
   opts = _freeze(dict(epsilon=epsilon, tile=forward_tile, reverse_tile=reverse_tile, vmem_mib=vmem_mib,
-                      interpret=interpret, chunk=chunk))
+                      interpret=interpret, chunk=chunk, content_divisors=content_divisors))
   flat = tuple(_minor_t(x) for grp in groups for x in grp)
   return _map_batch(lambda m, *xs: _tm_write(m, opts, *xs), (m,) + flat, (True,) * (1 + len(flat)), 1)

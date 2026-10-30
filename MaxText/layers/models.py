@@ -488,9 +488,12 @@ class EmbeddingBamWrite(nn.Module):
         jnp.float32
         if cfg.bam_write_rms_statistics_dtype == "float32"
         else self.dtype)
-    data = normalizations.rms_norm(
-        data, dtype=data.dtype, epsilon=initializers.get_bam_write_epsilon(cfg),
-        statistics_dtype=statistics_dtype)
+    from layers.bam_write_content import divisor, fixed_content
+    content_divisor = divisor(cfg, 'embedding')
+    data = (fixed_content(data, content_divisor) if content_divisor is not None
+            else normalizations.rms_norm(
+                data, dtype=data.dtype, epsilon=initializers.get_bam_write_epsilon(cfg),
+                statistics_dtype=statistics_dtype))
     address = normalizations.rms_norm(
         address, dtype=address.dtype, epsilon=initializers.get_bam_write_epsilon(cfg),
         statistics_dtype=statistics_dtype)

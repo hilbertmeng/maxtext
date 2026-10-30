@@ -2581,12 +2581,8 @@ class BamAttention(Attention):
   def setup(self):
     super().setup()             # reuse attention_op / projections / rope / out_projection
     cfg = self.config
-    if (getattr(cfg, 'bam_common_vo_read_scale', False) or getattr(cfg, 'bam_attention_write_scale', False)
-        or getattr(cfg, 'bam_common_read_scale_qk', False)
-        or getattr(cfg, 'bam_mlp_write_content_global_rmsnorm', False)
-        or any(getattr(cfg, name, None) is not None for name in (
-            'bam_embedding_write_content_divisor', 'bam_attention_write_content_divisor',
-            'bam_mlp_write_content_divisor'))):
+    if (getattr(cfg, 'bam_attention_write_scale', False) or getattr(cfg, 'bam_common_read_scale_qk', False)
+        or getattr(cfg, 'bam_mlp_write_content_global_rmsnorm', False)):
       raise ValueError('Common-read/raw-write configurations require their recorded sealed worktree runtime')
     if getattr(cfg, 'bam_write_address_norm_scale', False):
       raise ValueError('Write-address-scale configurations require their recorded sealed worktree runtime')
@@ -2914,6 +2910,9 @@ class BamAttention(Attention):
           'dynamic_rms_mix', 'dynamic_rms_scale_mix', 'dynamic_rms_gelu_mix')
       assert cfg.bam_n_f == 1
     self._write_data_rms = bool(cfg.bam_write_data_rms)
+    from layers.bam_write_content import divisor
+    self._attention_content_divisor = divisor(cfg, 'attention')
+    self._mlp_content_divisor = divisor(cfg, 'mlp')
     self._write_factor_norm = cfg.bam_write_factor_norm
     self._write_address_norm_bias = bool(cfg.bam_write_address_norm_bias)
     self._write_v_bottleneck_dim = cfg.bam_write_v_bottleneck_dim
@@ -3718,7 +3717,7 @@ class BamAttention(Attention):
       # gate by 1/sqrt(n) damps each head's write so |M| ~ sqrt(n) — head-count-invariant
       # dynamics, analogous to attention's 1/sqrt(d). No-op at n==1.
       g = g * (1.0 / jnp.sqrt(self.num_query_heads))
-    u1_norm = self.write_data_norm(u1) if self._write_data_rms else u1
+    u1_norm = self._attention_write_content(u1)
     u2_norm = self.write_address_norm(u2)
     gated_u1 = g[..., None] * u1_norm
     with jax.named_scope("bam/write_outer"):
@@ -3735,6 +3734,12 @@ class BamAttention(Attention):
       assert M_out.dtype == self.dtype, (M_out.dtype, self.dtype)
     return M_out, gate
 
+  def _attention_write_content(self, content):
+    if self._attention_content_divisor is not None:
+      from layers.bam_write_content import fixed_content
+      return fixed_content(content, self._attention_content_divisor)
+    return self.write_data_norm(content) if self._write_data_rms else content
+
   def _deferred_write_factors(self, o_head, x, shared_hidden=None):
     """Same factors as _write, without forming its outer product yet."""
     u1 = o_head[..., :self.bam_k]
@@ -3742,7 +3747,7 @@ class BamAttention(Attention):
     bias = jnp.asarray(self.gw_b0, self.dtype) if self._force_activation_dtype else self.gw_b0
     gate = jax.nn.sigmoid(self.W_gw(x) + bias)
     scale = 1.0 / jnp.sqrt(self.num_query_heads) if self.config.bam_sqrt_n_scale else 1.0
-    content = self.write_data_norm(u1) if self._write_data_rms else u1
+    content = self._attention_write_content(u1)
     return scale * gate[..., None] * content, self.write_address_norm(u2), gate
 
   def merge_mlp_write(self, mlp_head, mlp_gate, factors, M_in, independent_address=None):
@@ -3754,7 +3759,10 @@ class BamAttention(Attention):
       return normalizations.rms_norm(
           x, dtype=self.dtype, epsilon=initializers.get_bam_write_epsilon(self.config),
           statistics_dtype=self._write_rms_statistics_dtype)
-    content = ((compact_norm(mlp_head) if compact_write else self.write_data_norm(mlp_head))
+    from layers.bam_write_content import fixed_content
+    content = (fixed_content(mlp_head, self._mlp_content_divisor)
+               if self._mlp_content_divisor is not None else
+               (compact_norm(mlp_head) if compact_write else self.write_data_norm(mlp_head))
                if self._write_data_rms else mlp_head)
     scale = 1.0 / jnp.sqrt(self.num_query_heads) if self.config.bam_sqrt_n_scale else 1.0
     mlp_content = scale * mlp_gate[..., None] * content
@@ -4001,7 +4009,8 @@ class BamAttention(Attention):
             self._m_read_norm == 'none' and float(cfg.bam_lambda_decay) == 1.0
             and not cfg.bam_sqrt_n_scale),
         'plain RMS writes': (
-            self._write_data_rms and self._write_factor_norm == 'rms'
+            (self._write_data_rms or self._attention_content_divisor is not None)
+            and self._write_factor_norm == 'rms'
             and not self._write_address_norm_bias and self._write_v_bottleneck_dim is not None
             and self._write_v_bottleneck_activation == 'gelu'),
         'raw W_O output': not getattr(cfg, 'bam_no_output_projection', False),
@@ -4049,7 +4058,7 @@ class BamAttention(Attention):
     return out
 
   def _pallas_core_call(self, inputs_q, inputs_positions, decoder_segment_ids, M_in, is_global,
-                        standard_qk_width, deterministic=False):
+                        standard_qk_width, deterministic=False, common_vo_scale=None):
     """Fused-kernel forward; M_in is token-minor [B,V,K,T] (token-major [B,T,V,K] for v8t).
 
     Returns (out, M_in, write factors)."""
@@ -4167,12 +4176,16 @@ class BamAttention(Attention):
                 if fused else self._static_gate(name, inputs_q))
         return self._pad_read_heads(gate / init, -1)
       static_gates = tuple(static_multiplier(arm) for arm in 'qkvo')
+    body = getattr(cfg, 'bam_pallas_body', None) or 'blocked'
+    # The read is linear in each V/O weight (raw static key + post-RMS dynamic scale), so v8t folds the
+    # common scalar into both instead of a [B,T,N,V] epilogue that cannot fuse into Splash.
+    fold_vo = common_vo_scale is not None and body == 'v8t'
+    vo_static = (lambda x: x * common_vo_scale.astype(x.dtype)) if fold_vo else (lambda x: x)
     weight = bam_pallas.static_weight(
         self.static_q_key, self.static_k_key,
         (jnp.zeros_like(self.static_o_key) if not self._has_value_m_read
-         else self._pad_read_heads(self.static_v_key, 1)),
-        self._pad_read_heads(self.static_o_key, 1), compression)
-    body = getattr(cfg, 'bam_pallas_body', None) or 'blocked'
+         else vo_static(self._pad_read_heads(self.static_v_key, 1))),
+        vo_static(self._pad_read_heads(self.static_o_key, 1)), compression)
     read_kwargs = {}
     if self._m_shift_mode != 'none':
       # Same previous-token share as mix_bam_previous_token (cast to the M dtype, zero where invalid);
@@ -4209,6 +4222,11 @@ class BamAttention(Attention):
       if body != 'v8t':
         raise ValueError('O dynamic norm scale requires the v8t fused read')
       read_kwargs['o_dynamic_scale'] = self._dynamic_local_o_scale_for_read()
+    if fold_vo:
+      for arm in ('v', 'o'):
+        gamma = read_kwargs.get(arm + '_dynamic_scale')
+        read_kwargs[arm + '_dynamic_scale'] = common_vo_scale.astype(jnp.float32) * (
+            jnp.ones(q_key.shape[2:], jnp.float32) if gamma is None else gamma.astype(jnp.float32))
     if getattr(cfg, 'bam_pallas_read_chunk', None):
       read_kwargs['chunk'] = int(cfg.bam_pallas_read_chunk)
     pass_m = body in ('v7', 'v7u', 'v8t')   # M passthrough: dM sum fused into the read reverse
@@ -4234,6 +4252,9 @@ class BamAttention(Attention):
              if getattr(cfg, 'bam_pallas_rolled_passes', None) else {}),
           **read_kwargs)
     query, key, value, local_output = outs[:4]
+    if common_vo_scale is not None and not fold_vo:
+      value = (value.astype(jnp.float32) * common_vo_scale).astype(value.dtype)
+      local_output = (local_output.astype(jnp.float32) * common_vo_scale).astype(local_output.dtype)
     if self._standard_value_heads:
       # Leading heads use W_V; the remaining heads keep their M-derived V.
       # O is retained or pruned independently on those leading heads.
@@ -4371,10 +4392,18 @@ class BamAttention(Attention):
       assert self._share_qk_basis or self._direct_qk_c8
     standard_qk_width = self._standard_qk_width or (self.head_dim - self._qk_col_width)
     full_qk_norm = cfg.qk_norm and concat_qk and cfg.bam_qk_norm_after_concat
+    common_vo_scale = None
+    if getattr(cfg, 'bam_common_vo_read_scale', False):
+      actual_layer = self.layer_inx if layer_index is None else layer_index
+      initial_scale = getattr(cfg, 'bam_common_vo_read_scale_init', None)
+      if initial_scale is None:
+        initial_scale = jax.lax.rsqrt(1.0 + 2.0 * jnp.asarray(actual_layer, jnp.float32))
+      common_vo_scale = self._constant_general_parameter(
+          'common_vo_read_scale', (1,), (None,), initial_scale)[0]
     if getattr(cfg, 'bam_pallas_core', False):
       return self._pallas_core_call(
           inputs_q, inputs_positions, decoder_segment_ids, M_in, is_global,
-          standard_qk_width, deterministic=deterministic)
+          standard_qk_width, deterministic=deterministic, common_vo_scale=common_vo_scale)
     # ---- QKV projection + QKNorm + RoPE ----
     if cfg.fused_qkv:
       query, key, value = self.qkv_projection(inputs_q, proj_name="qkv_proj")
@@ -4495,6 +4524,9 @@ class BamAttention(Attention):
       with jax.named_scope("bam/read_local_m_for_v"):
         value = value + self._read_local('v', Mh, inputs_q, local_inputs)
 
+    if common_vo_scale is not None:
+      value = (value.astype(jnp.float32) * common_vo_scale).astype(value.dtype)
+      local_output = (local_output.astype(jnp.float32) * common_vo_scale).astype(local_output.dtype)
     query = query / jnp.sqrt(self.head_dim).astype(self.dtype)
     if cfg.float32_qk_product:
       query = query.astype(jnp.float32)

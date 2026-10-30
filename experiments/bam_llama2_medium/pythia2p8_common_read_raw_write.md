@@ -1,11 +1,11 @@
 # H write recipe and common V/O scaling on Pythia 2.8B
 
-Configuration-only preparation, requested 2026-10-30. No AOT, training RUN or
-TPU allocation was submitted. Implementation worktree:
-`/data0/xd/mediumprop-common-read-raw-write`, branch
-`codex/mediumprop-common-read-raw-write`. Main `MaxText/exp.py` records the
-classes as ledger entries; main's common-read/raw-write guard intentionally
-rejects execution until that implementation is merged.
+Prepared 2026-10-30 on codex branch `codex/mediumprop-common-read-raw-write`
+(worktree `/data0/xd/mediumprop-common-read-raw-write`). `refactor-bam` now carries
+only what these three classes need: the learned common V/O read scale (folded
+into the v8t read), fixed embedding/attention/MLP writer divisors, their config
+validation and signed-scale health. The branch's other controls stay there and
+remain guarded on main.
 
 Common comparator:
 `BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640SeparateVOKeysLogitDiagNegativeQK80LocalODynamicNormScale020`.
@@ -24,7 +24,8 @@ with divisor1, and use raw embedding-write content divided by .0020825863.
 Address RMSNorms and write gates remain. The directly learned signed scalar
 multiplies complete dynamic+static V and localO, all heads, before context
 attention and write-content construction. Q/K have no added scale; full100-D
-QKNorm remains before RoPE. The scalar is applied once, outside the read kernel.
+QKNorm remains before RoPE. The v8t read folds the scalar into its static V/O keys and
+post-RMS dynamic V/O scales, so no [B,T,N,V] epilogue follows the kernel.
 Generic health retains all32 signed values; internal/BAM activation metrics
 remain disabled. Existing scale weight-decay exemption applies.
 
@@ -62,11 +63,29 @@ Results: `/data0/xd/bam_diagnostics/pythia2p8-common-read-raw-write/embedding-ca
 
 ## Pallas and validation
 
-Reuse the family branch's existing v8t support: common read scaling in XLA,
-`content_divisors=(None,1.0)` for attention/private-MLP write groups, embedding
-write in XLA, and existing dynamic-O gamma read support. No kernel changes or
-new VMEM buffers. Keep the target's60MiB scoped budget. Exact target-topology
-AOT allocation/speed has not been compiled or measured for these new classes.
+v8t carries the read scale and writer divisors. The common scalar multiplies
+the static V/O keys and the dynamic V/O post-RMS scales (gamma or ones); the read
+core takes V and O dynamic scales together ([2N,V], from the family branch).
+The write core takes `content_divisors=(None,1.0)` for attention/private-MLP
+groups; the embedding write stays in XLA. No new VMEM buffers; keep the
+target's60MiB scoped budget.
+
+The first runtime multiplied complete V and localO in XLA after the read; Splash
+could not fuse it, costing24.3ms/step at32 layers. Paired v5p-8 UE5a timing,
+32 layers, 8/device, minimal remat, health ON (`claude/pythia-common-read-fold-b8`):
+
+| Arm | XLA epilogue b59a903 | Folded 1f9ec4f |
+|---|---|---|
+| `BamPythia2p8BCommonReadParentProfile` | .6380 step/s, 1516.2ms | .6390, 1516.2ms |
+| `BamPythia2p8BCommonReadHProfile` | .6280, 1538.1ms | .6350, 1520.8ms (+1.11%) |
+| `BamPythia2p8BCommonReadUnitGammaProfile` | .6280, 1542.0ms | .6360, 1521.6ms (+1.27%) |
+
+The folded read returns attention glue to the parent; +2.5ms remains in the read
+reverse's scale reduction. 16/device with minimal remat exceeds v5p-8 HBM by
+6.26GiB, so v5p-8 timing uses the V64-profile 8/device recipe. Versus F32 truth,
+folded BF16 full-model gradients have lower global relative L2 (.0098 vs .0105,
+family-branch Medium BOTH configuration), while single static Q/K key leaves move
+within BF16 noise (.055 -> .065 of native/fused parity).
 
 Focused checks are in `MaxText/tests/bam_pythia_common_read_raw_write_test.py`:
 actual2.8B abstract parameter trees/budgets and isolated config deltas; scanned

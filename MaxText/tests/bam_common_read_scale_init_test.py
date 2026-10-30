@@ -50,4 +50,28 @@ class ReadScaleInitTest(CommonAllReadGammaTest):
     self.assertEqual(cfg.bam_local_o_dynamic_norm_scale_init,.5)
     self.check_model(run)
 
+  def test_no_read_scale_configuration_and_all_gradients(self):
+    run=H.removesuffix('TruePile')+'NoReadScaleTruePile'
+    base=self.config(H);cfg=self.config(run)
+    changed={k for k,v in cfg.get_keys().items() if v!=base.get_keys()[k]}
+    self.assertEqual(changed,{'exp_class','model_name','compare_runs','bam_common_vo_read_scale'})
+    self.assertFalse(cfg.bam_common_vo_read_scale)
+    self.assertEqual(cfg.compare_runs,[H,RUN])
+    self.check_model(run)
+
+  def test_fixed_one_matches_learnable_one_initial_function(self):
+    fixed=H.removesuffix('TruePile')+'NoReadScaleTruePile'
+    results=[]
+    for run in [RUN,fixed]:
+      cfg=self.tiny(run);mesh=jax.sharding.Mesh(__import__('max_utils').create_device_mesh(cfg),cfg.mesh_axes)
+      model=Transformer(cfg,mesh,quant=None);tok=jnp.array([[1,2,3,4]],jnp.int32);pos=jnp.arange(4)[None];seg=jnp.ones_like(tok)
+      with mesh,nn.partitioning.axis_rules(cfg.logical_axis_rules):
+        params=nn.unbox(model.init(jax.random.key(32),tok,pos,seg,tok))
+        logits=model.apply(params,tok,pos,seg,tok,enable_dropout=False)[0]
+      results.append((flatten_dict(params),logits))
+    learned,pred=results[0];removed,actual=results[1]
+    self.assertEqual({p for p in learned if p not in removed},{p for p in learned if p[-1]=='common_vo_read_scale'})
+    for path,value in removed.items():np.testing.assert_array_equal(value,learned[path])
+    np.testing.assert_allclose(actual,pred,rtol=2e-6,atol=1e-7)
+
 if __name__=='__main__':unittest.main()

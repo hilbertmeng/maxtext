@@ -19429,6 +19429,7 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     # Stopped5350/P0 at5k review: vsH last5 through5000 gap+.002039/R.991469; no zero crossing.
     # Gain ratio near.99 since2k despite shrinking absolute gap; no clear prospect of net gain.
     # CP/TB secured, node+queue verified absent; planned13500 endpoint unmeasured.
+    # User resumed exact adf6afd/AOT from CP5350; original13500 schedule; prior5k verdict provisional.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedLocalODynamicNormScale050TruePile'
     bam_local_o_dynamic_norm_scale = True
     bam_local_o_dynamic_norm_scale_init = .5
@@ -19446,6 +19447,7 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     # Stopped5223/P0 at5k review: vsH last5 through5000 gap+.009254/R.961205; no zero crossing.
     # Slow catchup remained belowH; no parameter/cache gain and modest slowdown.
     # CP/TB secured, node+queue verified absent; planned13500 endpoint unmeasured.
+    # User resumed exact adf6afd/AOT from CP5223; original13500 schedule; prior5k verdict provisional.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedAllMReadScaleTruePile'
     bam_common_read_scale_qk = True
     compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedTruePile']
@@ -19462,6 +19464,32 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     # Stopped5255/P0 at5k review: vsH last5 through5000 gap+.012695/R.946789; no zero crossing.
     # Slow catchup remained belowH; no parameter/cache gain and modest slowdown.
     # CP/TB secured, node+queue verified absent; planned13500 endpoint unmeasured.
+    # User resumed exact adf6afd/AOT from CP5255; original13500 schedule; prior5k verdict provisional.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedAllMReadScaleLocalODynamicNormScale050TruePile'
     bam_local_o_dynamic_norm_scale = True
     bam_local_o_dynamic_norm_scale_init = .5
+
+
+class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneTruePile(
+    BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedTruePile):
+    """H with all eighteen learned V/localO read scalars initialized to one."""
+    # ledger only: codex/mediumprop-common-read-raw-write; /data0/xd/mediumprop-common-read-raw-write.
+    # code_commit: aa7d8ec; UE5a v5p16 xd-v5p-16-310423-maxtext; FIRST0/source/AOT/data/s13500 verified.
+    # CPU native/Pallas all-gradients passed; startup20..99 0.676113step/s; genericON/internal+BAMOFF.
+    # Same MLP2510/1128/tail3904; all18 V/localO read scalars init1, QK and writer rules unchanged.
+    model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneTruePile'
+    bam_common_vo_read_scale_init = 1.0
+    compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedTruePile']
+
+
+class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneLocalODynamicNormScale050TruePile(
+    BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneTruePile):
+    """Unit-initialized V/localO layer scalars plus learned dynamic-O gamma initialized to .5."""
+    # ledger only: codex/mediumprop-common-read-raw-write; /data0/xd/mediumprop-common-read-raw-write.
+    # code_commit: 789c00c; UE5a v5p16 xd-v5p-16-310424-maxtext; FIRST0/source/AOT/data/s13500 verified.
+    # CPU native/Pallas all-gradients passed; startup20..99 0.673063step/s; genericON/internal+BAMOFF.
+    # Same MLP2510/1128/tail3904; all18 V/localO read scalars init1, QK and writer rules unchanged.
+    model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneLocalODynamicNormScale050TruePile'
+    bam_local_o_dynamic_norm_scale = True
+    bam_local_o_dynamic_norm_scale_init = .5
+    compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneTruePile']

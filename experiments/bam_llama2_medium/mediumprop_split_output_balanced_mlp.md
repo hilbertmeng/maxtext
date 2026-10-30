@@ -12,9 +12,11 @@ The split-output model code is unchanged. Both W_O matrices have independent
 random initializations, context attention includes its diagonal and alone
 supplies attention M write content before W_O; localO updates the vector
 residual only directly. H's whole-V/O scalar and H's writer normalizations
-remain. Use H as the live strong comparator with matched MHA gain reference. The
-stopped all-ordinary repayment control remains archived early allocation
-evidence, excluded from routine comparisons under the user's no-failed-baseline preference.
+remain. Use H as the strong common anchor and retain the stopped original allocation
+as the direct matched control. Plot both allocation variants against H in
+one figure; the old curve ends at its last mature3200-step window. The old
+variant directly answers the allocation question despite not winning against H.
+
 
 Each front layer's extra W_O costs1,440,000 parameters. Pay approximately2/3
 from the ordinary MLP and1/3 from the complete private MLP branch, including

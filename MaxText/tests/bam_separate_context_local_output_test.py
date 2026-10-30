@@ -39,7 +39,7 @@ class SeparateContextLocalOutputTest(MLPWriteTest,unittest.TestCase):
     c=self.config(RUN.replace('OutputTruePile','OutputBalancedMLPTruePile'))
     parent=self.config(RUN)
     changed={k for k,v in c.get_keys().items() if v!=parent.get_keys()[k]}
-    self.assertEqual(changed,{'model_name','exp_class','compare_runs','base_mlp_dim','mlp_dim','bam_memory_mlp_dim'})
+    self.assertEqual(changed,{'model_name','exp_class','base_mlp_dim','mlp_dim','bam_memory_mlp_dim'})
     self.assertEqual((c.mlp_dim,c.bam_memory_mlp_dim,c.bam_last_mlp_dim),(2243,995,3504))
     self.assertTrue(c.bam_separate_context_local_output)
     self.assertFalse(c.bam_attention_negative_diagonal)

@@ -19467,3 +19467,27 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     """Only change V/O norm-gain initialization to1/sqrt(1+actual_layer)."""
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75DynamicVONormScaleDepth1RawMLPEmbeddingFixedTruePile'
     bam_local_vo_dynamic_norm_scale_depth_slope = 1.0
+
+class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75IndependentVOReadScaleRawMLPEmbeddingFixedTruePile(
+    BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedTruePile):
+    """One independent full-V and full-O scale per layer, same depth initialization.
+
+    Both start at1/sqrt(1+2*actual_layer), scaling complete dynamic+static reads.
+    H writers/MLP2510/1128/tail3904 unchanged;36 coefficients, total432112228
+    (H+18, negligible). Retain the H external scaling epilog and Pallas read/write.
+    """
+    model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75IndependentVOReadScaleRawMLPEmbeddingFixedTruePile'
+    bam_common_vo_read_scale = False
+    bam_independent_vo_read_scale = True
+    compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedTruePile']
+
+
+class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75IndependentVOReadScalePerHeadRawMLPEmbeddingFixedTruePile(
+    BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75IndependentVOReadScaleRawMLPEmbeddingFixedTruePile):
+    """Independent complete V/O coefficients per layer and head; same initial values.
+
+    18*16*2=576 coefficients;432112768 total, H+558, no MLP repayment.
+    Full-read scaling scope and all remaining H settings match the per-layer arm.
+    """
+    model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75IndependentVOReadScalePerHeadRawMLPEmbeddingFixedTruePile'
+    bam_independent_vo_read_scale_per_head = True

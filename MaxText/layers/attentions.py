@@ -3663,6 +3663,13 @@ class BamAttention(Attention):
     scale = self._dynamic_local_o_scale_for_read()
     return scale if multiplier is None else multiplier * scale.astype(multiplier.dtype)
 
+  @staticmethod
+  def _scale_complete_read(read, scale):
+    """A layer scalar or head vector multiplies the full [B,T,N,K] read."""
+    if scale.ndim:
+      scale = scale.reshape((1, 1, scale.shape[0], 1))
+    return (read.astype(jnp.float32) * scale).astype(read.dtype)
+
   def _matrix_for_read(self, M_in):
     """Select the configured read-side view without changing the raw matrix stream."""
     if M_in is None or self._m_read_norm == 'none':
@@ -4070,7 +4077,7 @@ class BamAttention(Attention):
 
   def _pallas_core_call(self, inputs_q, inputs_positions, decoder_segment_ids, M_in, is_global,
                         standard_qk_width, deterministic=False, common_vo_scale=None, attention_write_scale=None,
-                        q_read_scale=None, k_read_scale=None):
+                        q_read_scale=None, k_read_scale=None, v_read_scale=None, o_read_scale=None):
     """Fused-kernel forward; M_in is token-minor [B,V,K,T] (token-major [B,T,V,K] for v8t).
 
     Returns (out, M_in, write factors)."""
@@ -4268,6 +4275,9 @@ class BamAttention(Attention):
     if common_vo_scale is not None:
       value = (value.astype(jnp.float32) * common_vo_scale).astype(value.dtype)
       local_output = (local_output.astype(jnp.float32) * common_vo_scale).astype(local_output.dtype)
+    if v_read_scale is not None:
+      value = self._scale_complete_read(value, v_read_scale)
+      local_output = self._scale_complete_read(local_output, o_read_scale)
     if self._standard_value_heads:
       # Leading heads use W_V; the remaining heads keep their M-derived V.
       # O is retained or pruned independently on those leading heads.
@@ -4415,9 +4425,11 @@ class BamAttention(Attention):
         self._constant_general_parameter('local_' + arm + '_dynamic_norm_scale',
             (self._read_head_count(arm), self._read_bam_v), ('q_heads', 'kv'), gamma_initial)
     common_vo_scale = attention_write_scale = q_read_scale = k_read_scale = None
+    v_read_scale = o_read_scale = None
     common_read = getattr(cfg, 'bam_common_vo_read_scale', False)
+    independent_read = getattr(cfg, 'bam_independent_vo_read_scale', False)
     scaled_write = getattr(cfg, 'bam_attention_write_scale', False) and self._has_write
-    if common_read or scaled_write:
+    if common_read or independent_read or scaled_write:
       actual_layer = self.layer_inx if layer_index is None else layer_index
       initial_scale = jax.lax.rsqrt(1.0 + 2.0 * jnp.asarray(actual_layer, jnp.float32))
       if common_read:
@@ -4426,6 +4438,16 @@ class BamAttention(Attention):
           read_initial_scale = initial_scale
         common_vo_scale = self._constant_general_parameter(
             'common_vo_read_scale', (1,), (None,), read_initial_scale)[0]
+      if independent_read:
+        read_initial_scale = getattr(cfg, 'bam_common_vo_read_scale_init', None)
+        if read_initial_scale is None:
+          read_initial_scale = initial_scale
+        per_head = getattr(cfg, 'bam_independent_vo_read_scale_per_head', False)
+        shape, axes = ((self.num_query_heads,), ('q_heads',)) if per_head else ((1,), (None,))
+        v_read_scale, o_read_scale = (self._constant_general_parameter(
+            arm + '_read_scale', shape, axes, read_initial_scale) for arm in ('v', 'o'))
+        if not per_head:
+          v_read_scale, o_read_scale = v_read_scale[0], o_read_scale[0]
       if scaled_write:
         attention_write_scale = self._constant_general_parameter(
             'attention_write_scale', (1,), (None,), initial_scale)[0]
@@ -4440,7 +4462,8 @@ class BamAttention(Attention):
       return self._pallas_core_call(
           inputs_q, inputs_positions, decoder_segment_ids, M_in, is_global,
           standard_qk_width, deterministic=deterministic, common_vo_scale=common_vo_scale,
-          attention_write_scale=attention_write_scale, q_read_scale=q_read_scale, k_read_scale=k_read_scale)
+          attention_write_scale=attention_write_scale, q_read_scale=q_read_scale, k_read_scale=k_read_scale,
+          v_read_scale=v_read_scale, o_read_scale=o_read_scale)
     # ---- QKV projection + QKNorm + RoPE ----
     if cfg.fused_qkv:
       query, key, value = self.qkv_projection(inputs_q, proj_name="qkv_proj")
@@ -4567,6 +4590,9 @@ class BamAttention(Attention):
     if common_vo_scale is not None:
       value = (value.astype(jnp.float32) * common_vo_scale).astype(value.dtype)
       local_output = (local_output.astype(jnp.float32) * common_vo_scale).astype(local_output.dtype)
+    if v_read_scale is not None:
+      value = self._scale_complete_read(value, v_read_scale)
+      local_output = self._scale_complete_read(local_output, o_read_scale)
     query = query / jnp.sqrt(self.head_dim).astype(self.dtype)
     if cfg.float32_qk_product:
       query = query.astype(jnp.float32)

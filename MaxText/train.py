@@ -923,6 +923,17 @@ def compute_params_norm(params, config, prefix='total_params'): # lsp
   for k, v in flat_param_norms.items():
     k = '/'.join(k)
     newk = k.replace('params', prefix)
+    if prefix == 'total_params' and k.endswith(('/v_read_scale', '/o_read_scale')):
+      values = jax.lax.stop_gradient(v).astype(jnp.float32)
+      if config.scan_layers and 'layers' in k:
+        values = jnp.moveaxis(values, config.param_scan_axis, 0)
+        suffix = '' if values[0].size == 1 else '_head_mean'
+        for lyr in range(values.shape[0]):
+          tag = k.replace('params/', '', 1).replace('layers', f'layers_{lyr}')
+          scalar_vales['parameter_values/' + tag + suffix] = jnp.mean(values[lyr])
+      else:
+        suffix = '' if values.size == 1 else '_head_mean'
+        scalar_vales['parameter_values/' + k.replace('params/', '', 1) + suffix] = jnp.mean(values)
     if prefix == 'total_params' and k.endswith(('/common_vo_read_scale', '/local_q_read_scale', '/local_k_read_scale', '/attention_write_scale')):
       values = jax.lax.stop_gradient(v).astype(jnp.float32)
       if config.scan_layers and 'layers' in k:

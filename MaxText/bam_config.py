@@ -15,7 +15,12 @@ def validate_bam_config(config, *, layer_mode=None):
   if get('bam_attention_write_scale', False):
     if get('bam_common_vo_read_scale', False) or get('bam_attention_write_content_divisor', None) is None:
       raise ValueError('Write-only attention scale requires fixed-content attention writes and no common read scale')
-  if get('bam_common_vo_read_scale', False):
+  independent_vo_scale = get('bam_independent_vo_read_scale', False)
+  if independent_vo_scale and get('bam_common_vo_read_scale', False):
+    raise ValueError('Choose shared or independent full V/O read scales')
+  if get('bam_independent_vo_read_scale_per_head', False) and not independent_vo_scale:
+    raise ValueError('Per-head independent V/O scale requires independent read scales')
+  if get('bam_common_vo_read_scale', False) or independent_vo_scale:
     initial_scale = get('bam_common_vo_read_scale_init', None)
     if initial_scale is not None and (isinstance(initial_scale, bool)
         or not isinstance(initial_scale, (int, float)) or not math.isfinite(initial_scale)):

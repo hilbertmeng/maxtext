@@ -19691,6 +19691,11 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     # FIRST0/exact source/AOT/2243,995 widths/data/schedule/CP400 verified; all18 initial signed H scales checked.
     # Startup20..99 .665025step/s vs direct original split +.84%, H -.72%; matched health, cross-lease timing.
     # Original split stopped3322: direct matched comparisons end3200; H remains full terminal anchor. Direct terminalR1.02 bet is censored.
+    # User stop5377/13500/P0; CP5377/TB SYNC_OK, node+queued resource independently verified absent.
+    # vs H: gap narrows but R only~.94->.95; final5 through5200 gap+.01242588/R.94710857, no allocation rescue.
+    # vs original split at common3200: final5 gap+.00116520/R.99597008; both structurally trail H.
+    # Equal total parameters, startup +.84% vs original split / -.72% H; no demonstrated loss or speed win.
+    # UE5a READY09:07:54..11:27:35 UTC,2h19m41s; direct-terminalR1.02 bet unmeasurable after control stop3322.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedSeparateContextLocalOutputBalancedMLPTruePile'
     base_mlp_dim = 2243
     bam_memory_mlp_dim = 995

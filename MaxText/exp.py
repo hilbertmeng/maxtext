@@ -19858,6 +19858,10 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     # code_commit: 6355ba8; UE5a v5p16 xd-v5p-16-310438-maxtext, plan13500.
     # FIRST0/exact source/AOT/data/schedule/CP200 verified; all18 initial gamma RMS.5/H signed scales and actual36 gate TB scalars checked.
     # Startup20..99 .6695375step/s, masked sibling -.500%, H -.050%; genericON/internalOFF plus36 gate scalars, existing Pallas read/write.
+    # Stopped8546/13500 at8k review/P0; CP8546/TB SYNC_OK and node+QR independently verified absent.
+    # vsH: large initial gap narrowed by4k, then R~.975 plateau through8.4k despite intermittent catch-up.
+    # Final8.4k gap+.005592/R.971845; latest5 gap+.005040/R.974921; full13500 terminal untested.
+    # At8k: gamma layerRMS .472-.521, dynamic gate layermeans .057-.439; no observed combination benefit.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedContextLocalOComplementLocalODynamicNormScale050TruePile'
     bam_local_o_dynamic_norm_scale = True
     bam_local_o_dynamic_norm_scale_init = .5

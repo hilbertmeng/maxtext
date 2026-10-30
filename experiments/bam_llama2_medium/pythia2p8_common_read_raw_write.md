@@ -11,13 +11,13 @@ Common comparator:
 `BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640SeparateVOKeysLogitDiagNegativeQK80LocalODynamicNormScale020`.
 
 Let the class prefix be
-`BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640SeparateVOKeysLogitDiagNegativeQK80CommonReadScaleUnscaledMLPContentEmbeddingFixed`.
+`BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80CommonReadScaleUnscaledMLPContentEmbeddingFixed`.
 
 | Priority | Full class name | Learned V/localO scalar initialization | Dynamic-O gamma |
 |---|---|---|---|
-| 1 | `BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640SeparateVOKeysLogitDiagNegativeQK80CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneLocalODynamicNormScale020` | all32 start at1 | .2 |
-| 2 | `BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640SeparateVOKeysLogitDiagNegativeQK80CommonReadScaleUnscaledMLPContentEmbeddingFixedLocalODynamicNormScale020` | `1/sqrt(1+2*l)`, l=0..31 | .2 |
-| 3 | `BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640SeparateVOKeysLogitDiagNegativeQK80CommonReadScaleUnscaledMLPContentEmbeddingFixed` | `1/sqrt(1+2*l)`, l=0..31 | absent |
+| 1 | `BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneLocalODynamicNormScale020` | all32 start at1 | .2 |
+| 2 | `BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80CommonReadScaleUnscaledMLPContentEmbeddingFixedLocalODynamicNormScale020` | `1/sqrt(1+2*l)`, l=0..31 | .2 |
+| 3 | `BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80CommonReadScaleUnscaledMLPContentEmbeddingFixed` | `1/sqrt(1+2*l)`, l=0..31 | absent |
 
 All three retain attention-write content RMSNorm, use raw private-MLP content
 with divisor1, and use raw embedding-write content divided by .0020825863.

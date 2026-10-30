@@ -21,7 +21,8 @@ from layers.models import Transformer
 BASE = ('BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1'
         'AllR640SeparateVOKeysLogitDiagNegativeQK80')
 REFERENCE = BASE + 'LocalODynamicNormScale020'
-H = BASE + 'CommonReadScaleUnscaledMLPContentEmbeddingFixed'
+H = ('BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80'
+     'CommonReadScaleUnscaledMLPContentEmbeddingFixed')
 GAMMA = H + 'LocalODynamicNormScale020'
 UNIT = H + 'ReadScaleInitOneLocalODynamicNormScale020'
 

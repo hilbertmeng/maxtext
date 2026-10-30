@@ -19488,6 +19488,10 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     # code_commit: 35963e9; UE5a v5p16 xd-v5p-16-310429-maxtext, plan13500.
     # FIRST0/exact AOT/source/data/schedule verified;20..99 .679750step/s vs H +1.47%, cross-lease matched health.
     # Actual step0 signed means/RMS checked all18 V/O scales; CP200 committed; genericON/internal+BAMOFF.
+    # User hot-replacement stop10771/13500/P0; CP10771/TB SYNC_OK, physical310429 retained/transferred after new FIRST_STEP.
+    # vs H: small persistent deficit, no sustained catch-up; final5 through10600 gap+.00142044/R.99252891.
+    # Shared-depth H remains better; +18 params and startup +1.47%H do not establish a useful architectural tradeoff.
+    # TerminalR1.015 bet unmeasured and overoptimistic; UE5a READY07:43:37..12:14:27 UTC,4h30m50s.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75IndependentVOReadScaleRawMLPEmbeddingFixedTruePile'
     bam_common_vo_read_scale = False
     bam_independent_vo_read_scale = True

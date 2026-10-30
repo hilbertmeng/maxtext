@@ -66,3 +66,5 @@ Validation detail: F32 full-model Pallas/native max-gradient relative errors
 The BF16 gate therefore uses the existing6% relative bound plus1e-7 absolute
 floor, requires global gradient relative L2 below3% (observed1.46%), and retains
 the pure6% bound for both new read-scale leaves. It changes no production math.
+
+Layer-only arm user hot-replaced at committedCP10771, P0, TB SYNC_OK. Mature10600 final5 vsH gap+.00142044/R.99252891; no sustained catch-up, 1.015 terminal bet overoptimistic and unmeasured. Head arm continues. UE5a READY07:43:37..12:14:27 UTC,4h30m50s; physical310429 retained for self-attention complement control after FIRST_STEP.

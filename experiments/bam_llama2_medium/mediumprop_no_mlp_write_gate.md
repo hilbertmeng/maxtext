@@ -43,3 +43,5 @@ Prior: MHA-reference terminal gain relative H1.025 [.99,1.06], steady speed
 within1% of H (.669875step/s reference, separate matched-settings lease).
 Primary evidence is loss/gain trajectory vs H; learned read-scale and
 memory-MLP norm trajectories help interpret stronger ungated write feedback.
+
+Launch ed83fadb: exact AOT/source/data/13500 schedule, FIRST_STEP0, periodicCP200 verified. All18 actual initial H read scalars matched depth formula; memory SwiGLU W_g raw gradients finite and nonzero. Startup20..99 .6737875step/s, +.584%H (matched settings, separate leases). Full5 focused tests and47 BAM regressions passed; F32 all-gradient maxrelative1.93e-6, BF16 fused gradient relative L2 vs F32 1.445%.

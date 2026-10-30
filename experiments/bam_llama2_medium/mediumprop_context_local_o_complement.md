@@ -49,3 +49,5 @@ reference and full F32/BF16 native/Pallas gradient checks gate launch.
 Prior vs masked competition: terminal gain1.005 [.985,1.035], speed unchanged.
 This isolates restoring self attention under competition; there is no claim
 to a complete two-factor interaction estimate without an unmasked H control.
+
+Launches verified: masked runtime d123e5bf on310436, unmasked runtime8e15b747 on retained physical310429 with RUNid310437. Both FIRST_STEP0/exactAOT/source/data/13500 schedule and periodicCP200 verified. Startup20..99: masked.6729step/s (+.452%H), unmasked.672875step/s (-.0037%masked). No kernel edits. Masked4 focused tests+47 BAM regressions, unmasked3 targeted tests passed; full F32/BF16 model gradients included. Actual36-tag TensorBoard verification follows startup artifact collection.

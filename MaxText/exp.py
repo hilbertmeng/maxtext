@@ -19643,6 +19643,10 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     # ledger only: codex/mediumprop-common-read-raw-write, /data0/xd/mediumprop-common-read-raw-write; runtime fa0a53c9.
     # code_commit: fa0a53c; UE5a v5p16 retained xd-v5p-16-310428-maxtext, new RUN id310431.
     # FIRST0/exact AOT/source/data/schedule verified;20..99 .6595125step/s vs H -1.55%, cross-lease matched health.
+    # User-stopped3322/13500/P0; CP3322/TB SYNC_OK, physical310428 node+QR independently absent.
+    # vs H: gap shrank but R stayed~.95 from600 onward; final5 through3200 gap+.01558672/R.94807209.
+    # All-ordinary cost repayment shifted ordinary/complete-private ratio to1.681; balanced allocation remains a separate test.
+    # Original terminal R1.015 prior unmeasured. UE5a READY07:53:44..09:20:14 UTC,1h26m30s; sourcefa0a53c.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedSeparateContextLocalOutputTruePile'
     bam_separate_context_local_output = True
     bam_attention_negative_diagonal = False
@@ -19679,6 +19683,10 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     Tail3504 unchanged: no private branch exists there. Total432112210.
     """
     # ledger only: codex/mediumprop-common-read-raw-write, /data0/xd/mediumprop-common-read-raw-write; runtime 64248ed6.
+    # code_commit: 64248ed; UE5a v5p16 xd-v5p-16-310433-maxtext, plan13500.
+    # FIRST0/exact source/AOT/2243,995 widths/data/schedule/CP400 verified; all18 initial signed H scales checked.
+    # Startup20..99 .665025step/s vs direct original split +.84%, H -.72%; matched health, cross-lease timing.
+    # Original split stopped3322: direct matched comparisons end3200; H remains full terminal anchor. Direct terminalR1.02 bet is censored.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedSeparateContextLocalOutputBalancedMLPTruePile'
     base_mlp_dim = 2243
     bam_memory_mlp_dim = 995

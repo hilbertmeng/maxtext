@@ -27,6 +27,7 @@ active leases are censored, and manual migration releases are not preemptions.
 
 | RUN | TPU | Zone | Start UTC | End UTC | End reason | Passive candidates |
 |---|---|---|---|---|---|---|
+| `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedSeparateContextLocalOutputTruePile` | v5p-16 (`xd-v5p-16-310428-maxtext`) | `us-east5-a` | 2026-10-30 07:53:41 | 2026-10-30 09:20:14 | user stop3322/P0; CP3322/TB secured,node+QR verified absent; runtimefa0a53c; retained physical previously transferred from depth1 gamma | none |
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75DynamicVONormScaleDepth2RawMLPEmbeddingFixedTruePile` | v5p-16 (`xd-v5p-16-310427-maxtext`) | `us-east5-a` | 2026-10-30 04:34:38 | 2026-10-30 08:55:35 | user stop10519/P0; CP10519/TB secured, node+QR verified absent; runtimeddb498c | none |
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75DynamicVONormScaleDepth1RawMLPEmbeddingFixedTruePile` | v5p-16 (`xd-v5p-16-310428-maxtext`) | `us-east5-a` | 2026-10-30 04:34:18 | 2026-10-30 07:52:44 | stopped7943/P0; CP7943/TB secured, retained TPU transferred split-output RUN after FIRST_STEP; runtimeddb498c | none |
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneTruePile` | v5p-16 (`xd-v5p-16-310423-maxtext`) | `us-east5-a` | 2026-10-30 00:15:20 | 2026-10-30 04:11:56 | user resumable pause CP9341/13500/P0; checkpoint/TB secured, node+queue absent | none |
@@ -2386,6 +2387,8 @@ active leases are censored, and manual migration releases are not preemptions.
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75DynamicVONormScaleDepth1RawMLPEmbeddingFixedTruePile` | 1 | `us-east5-a` | 2026-10-30 04:34:20 | 2026-10-30 07:52:44 | 3h18m24s | stopped7943/P0; hot_switch_run boundary; checkpoint/TB secured, retained TPU transferred split-output RUN |
 
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75DynamicVONormScaleDepth2RawMLPEmbeddingFixedTruePile` | 1 | `us-east5-a` | 2026-10-30 04:34:40 | 2026-10-30 08:55:35 | 4h20m55s | user stop10519/P0; CP10519/TB secured, node+QR verified absent |
+
+| `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedSeparateContextLocalOutputTruePile` | 1 | `us-east5-a` | 2026-10-30 07:53:44 | 2026-10-30 09:20:14 | 1h26m30s | user stop3322/P0; CP3322/TB secured,node+QR verified absent |
 
 ### 2026-10-14 user pause: resumed mixed R256/R384
 

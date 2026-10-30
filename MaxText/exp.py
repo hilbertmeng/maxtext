@@ -19810,6 +19810,10 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     # code_commit: ed83fad; UE5a v5p16 xd-v5p-16-310435-maxtext, plan13500.
     # FIRST0/exact AOT/source/data/schedule/CP200 verified; initial signed H scales checked all18, memory SwiGLU W_g gradients nonzero.
     # Startup20..99 .6737875step/s, H +.584%; genericON/internal+BAMOFF, matched-settings separate leases.
+    # Completed13500/P0; CP13500/TB SYNC_OK, node+QR independently absent; same ed83fad/AOT after resume8285.
+    # vsH: brief early gain reversed~1k; partial recovery after3.2k continued late, but did not regain parity.
+    # At13.4k gap+.001703/R.990660; latest5 gap+.001275/R.993012. No demonstrated loss/efficiency gain.
+    # The8k stop was reversed byuser; preserve both READY epochs, no preemptions.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedNoMLPWriteGateTruePile'
     bam_mlp_write_gate = False
     base_mlp_dim = 2515
@@ -19827,6 +19831,9 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     # code_commit: d123e5b; UE5a v5p16 xd-v5p-16-310436-maxtext, plan13500.
     # FIRST0/exact source/AOT/data/schedule verified; native/Pallas full-model F32/BF16 gradients and health export tested.
     # Startup20..99 0.6729000step/s, direct parent +0.4516%; genericON/internalOFF plus36 gate mean/std scalars.
+    # Completed13500/P0; CP13500/TB SYNC_OK, node+QR independently verified absent.
+    # vsH: near parity~4k, then mostly small gains; at13.4k gap-.000632/R1.003465, latest5-.000668/R1.003645.
+    # Small persistent benefit, no clear ceiling breakthrough; zero extra parameters/cache, throughput effectively unchanged.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedContextLocalOComplementTruePile'
     bam_context_local_o_complement = True
     compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedTruePile']

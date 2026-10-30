@@ -19650,6 +19650,10 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     Static O and its independent gate remain unchanged. Additional9216
     parameters are negligible: total432121426, unchanged2510/1128/tail3904.
     """
+    # Stopped8546/13500 at8k review/P0; CP8546/TB SYNC_OK and node+QR independently verified absent.
+    # vsH: large initial gap narrowed by4k, then R~.975 plateau through8.4k despite intermittent catch-up.
+    # Final8.4k gap+.005592/R.971845; latest5 gap+.005040/R.974921; full13500 terminal untested.
+    # At8k: gamma layerRMS .472-.521, dynamic gate layermeans .057-.439; no observed combination benefit.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedContextLocalOComplementLocalODynamicNormScale050TruePile'
     bam_local_o_dynamic_norm_scale = True
     bam_local_o_dynamic_norm_scale_init = .5

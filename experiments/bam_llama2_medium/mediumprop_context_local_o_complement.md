@@ -83,3 +83,16 @@ Scientific result through this endpoint: restoring self attention did not beat H
 or the masked competition sibling; no material parameter/cache/speed benefit.
 Closeout artifacts: context-local-o-complement-self-attention/closeout under
 `/data0/xd/bam_diagnostics/mediumprop-common-read-raw-write/`.
+
+Masked competition plus gamma.5 closeout (2026-10-30): stopped8546/13500 at
+registered8k review. CP8546 committed, TB SYNC_OK, node+QR independently absent;
+P0. Assignment13:23:10UTC; READY13:23:13→17:02:59UTC (3h39m46s).
+Large initial deficit narrowed by4k, but relative gains then plateaued near.975
+through8.4k. Final gap+.005592/R.971845; latest5 mean+.00504008/R.97492135.
+Intermittent late catch-up was retained in the decision; full13500 outcome is
+unmeasured. No observed benefit from combining this gamma with H competition.
+Atmatched8k, gamma layerRMS.472-.521 and dynamic gate layermeans.057-.439;
+selected compact metrics finite, whole18-layer profiles saved in gamma-review8k
+artifacts. This is not evidence against the separately validated2.8B gamma.2.
+Artifacts: context-local-o-complement-gamma050/closeout and
+report-groups/gamma-review8k-20261030-165549 under the diagnostic family root.

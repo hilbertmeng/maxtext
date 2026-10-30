@@ -38,3 +38,14 @@ Prior: terminal gain vs H with MHA reference1.015 [.985,1.045]; speed within1%.
 Interpret gate evolution jointly with loss: parameter-free competition can
 reduce simultaneous dependence on context and direct M, but static O is an
 independent surviving path; this is not a convex mixture of full MHA/localO.
+
+Matched second RUNid310437: append `SelfAttention` before `TruePile`, inherit
+the competition class and set only `bam_attention_negative_diagonal=False`.
+Same432112210 parameters and widths; direct comparator is the masked
+competition RUN. Both export the same36 gate mean/std metrics. Existing
+ordinary causal Splash includes the diagonal, including segment-start self
+values; no kernel edit. Config/shape, explicit segmented Splash self-row
+reference and full F32/BF16 native/Pallas gradient checks gate launch.
+Prior vs masked competition: terminal gain1.005 [.985,1.035], speed unchanged.
+This isolates restoring self attention under competition; there is no claim
+to a complete two-factor interaction estimate without an unmasked H control.

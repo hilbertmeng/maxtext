@@ -19464,13 +19464,12 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedTruePile):
     """H plus per-head/address-coordinate dynamic local-O gamma, initialized to .5."""
     # ledger only: codex/mediumprop-common-read-raw-write; /data0/xd/mediumprop-common-read-raw-write.
-    # Sealed runtime adf6afdb; H parent, qk_norm=False, MLP2510/1128/tail3904 unchanged.
-    # code_commit: adf6afd; logical310420/physical310419 UE5a v5p16; FIRST0/source/AOT/data/s13500 verified.
-    # Params432121426(+9216 negligible, no repayment); startup20..99 .67065step/s vsH.669875 (+.12%).
-    # Stopped5350/P0 at5k review: vsH last5 through5000 gap+.002039/R.991469; no zero crossing.
-    # Gain ratio near.99 since2k despite shrinking absolute gap; no clear prospect of net gain.
-    # CP/TB secured, node+queue verified absent; planned13500 endpoint unmeasured.
-    # User resumed exact adf6afd/AOT from CP5350; original13500 schedule; prior5k verdict provisional.
+    # code_commit: adf6afd; completed13500/P0 on UE5a v5p16; CP13500 committed, node+queue absent, TB synced.
+    # vsH: persistent small deficit despite late narrowing; final5 gap+.00100016/R.99451653 (MHA ref).
+    # Latest13.4k gap+.0015638/R.991424; terminal prior1.008 was optimistic, gamma.5 did not add net gain.
+    # Gamma coordinates learned: final within-head CV median7.36%/P90 12.25%, range.26988..82963, allpositive.
+    # Startup.67065step/s vsH.669875 (+.12%); genericON/internal+BAMOFF, MLP2510/1128/tail3904 unchanged.
+    # Same sealed runtime resumed at5350 to original13500 schedule; final evidence in mediumprop_common_read_raw_write.md.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedLocalODynamicNormScale050TruePile'
     bam_local_o_dynamic_norm_scale = True
     bam_local_o_dynamic_norm_scale_init = .5

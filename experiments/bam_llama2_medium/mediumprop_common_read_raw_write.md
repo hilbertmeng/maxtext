@@ -146,3 +146,23 @@ After resuming the original H descendants, the all-read and combined arms were s
 The candidate `...EmbeddingFixedIndependentQKReadScaleTruePile` adds separate layerwise Q/K NoPE scalars (18each), init1, while retaining H's V/O coefficients. It was prepared atc86bd03ab761e29883251682dcfd653c386db79b: formal budget432112246, WD/health validation, exact NoPE-prefix/RoPE-tail/product semantics, complete native/Pallas gradients and old tied-all-read regression all pass; AOT is retained. Before FIRST_STEP validation the user cancelled it because the target2.8B has QKNorm and overlapping controls. No completed training step or checkpoint was observed; no efficacy conclusion is drawn. The registered controller had already started, so it was stopped and the owned310426 TPU/queue released using native ownership/deletion checks. An unstarted cancellation does not require inventing checkpoint0; proof records checkpointNone. Borrowed FLEX is retained.
 
 For full-head QKNorm, positive NoPE scaling before norm can approximately be reproduced by inverse RoPE projection scaling, epsilon aside. QKNorm's own learned per-coordinate gains also adjust relative NoPE/RoPE weighting, although post-norm gains do not reproduce the token-dependent pre-norm denominator exactly. Without QKNorm, the proposed Q/K scalars affect the NoPE logit term through their product; identical initial values/optimizers have a symmetry and must not be interpreted as independent functional roles. These facts informed cancellation, not a failed training comparison.
+
+## H plus dynamic-O gamma .5: completed endpoint
+
+`BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedLocalODynamicNormScale050TruePile`
+completed13500, P0, same adf6afd runtime and original schedule after resume5350.
+Compared with H, the deficit narrowed but remained positive: final five mature
+windows through13400 average gap+.00100016, MHA-referenced gain multiplier
+.99451653; latest gap+.0015638/R.991424. The terminal1.008 prior was wrong.
+Gamma parameters remain positive, .26988..82963; within-head coordinate CV
+median7.36%, P90 12.25%. Learning anisotropy did not produce net training gain
+in this Medium H recipe; parameter statistics alone do not establish the causal
+value of coordinate differentiation. This is not evidence against the separately
+validated target2.8B gamma.2 recipe.
+
+CP13500 commit verified; final TB incrementally synchronized; node and queued
+resource independently absent. UE5a v5p16 leases:15:57:37..18:14:06 UTC Oct29
+(2h16m29s, provisional5k stop),23:57:23 Oct29..03:30:11 Oct30 (3h32m48s,
+completion). Startup.67065step/s versus H.669875, +.12%, matched health settings.
+Final loss, parameter/TB health, resource and lease proofs:
+`/data0/xd/bam_diagnostics/mediumprop-common-read-raw-write/old-gamma-final/`.

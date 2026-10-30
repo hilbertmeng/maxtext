@@ -17370,6 +17370,7 @@ class BamPythia2p8BCommonReadParentProfile(
         TrainStepProfile,
         BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640SeparateVOKeysLogitDiagNegativeQK80LocalODynamicNormScale020):
     """v5p-8 timing arm: gamma020 comparator, formal health settings, 8/device as the V64 profiles."""
+    # v5p-8 UE5a 32L 8/device: b59a903 .6380 step/s, device1516.2ms; 1f9ec4f .6390, 1516.2ms (pair noise).
     model_name = 'BamPythia2p8BCommonReadParentProfile'
     target_train_batch_size = None
     per_device_batch_size = 8.0  # V64-profile recipe: minimal remat at16/device exceeds v5p-8 HBM by6.26GiB.
@@ -17380,6 +17381,8 @@ class BamPythia2p8BCommonReadHProfile(
         TrainStepProfile,
         BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640SeparateVOKeysLogitDiagNegativeQK80CommonReadScaleUnscaledMLPContentEmbeddingFixed):
     """v5p-8 timing arm: H without gamma (common V/O scalar alone on the read)."""
+    # XLA epilogue b59a903: .6280 (-1.57% vs parent), 1538.1ms; attention_other +24.3ms over parent.
+    # Folded 1f9ec4f: .6350, 1520.8ms (+1.11%, -17.3ms); attention_other back to parent, read bwd +2.5ms.
     model_name = 'BamPythia2p8BCommonReadHProfile'
     target_train_batch_size = None
     per_device_batch_size = 8.0  # V64-profile recipe: minimal remat at16/device exceeds v5p-8 HBM by6.26GiB.
@@ -17390,6 +17393,7 @@ class BamPythia2p8BCommonReadUnitGammaProfile(
         TrainStepProfile,
         BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640SeparateVOKeysLogitDiagNegativeQK80CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneLocalODynamicNormScale020):
     """v5p-8 timing arm: priority H, unit-initialized scalars plus gamma020."""
+    # XLA epilogue b59a903: .6280 (-1.57% vs parent), 1542.0ms. Folded 1f9ec4f: .6360, 1521.6ms (+1.27%, -20.4ms).
     model_name = 'BamPythia2p8BCommonReadUnitGammaProfile'
     target_train_batch_size = None
     per_device_batch_size = 8.0  # V64-profile recipe: minimal remat at16/device exceeds v5p-8 HBM by6.26GiB.

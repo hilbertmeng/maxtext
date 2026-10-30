@@ -4055,7 +4055,8 @@ class BamAttention(Attention):
     return out
 
   def _pallas_core_call(self, inputs_q, inputs_positions, decoder_segment_ids, M_in, is_global,
-                        standard_qk_width, deterministic=False, common_vo_scale=None, attention_write_scale=None):
+                        standard_qk_width, deterministic=False, common_vo_scale=None, attention_write_scale=None,
+                        q_read_scale=None, k_read_scale=None):
     """Fused-kernel forward; M_in is token-minor [B,V,K,T] (token-major [B,T,V,K] for v8t).
 
     Returns (out, M_in, write factors)."""
@@ -4240,13 +4241,14 @@ class BamAttention(Attention):
              if getattr(cfg, 'bam_pallas_rolled_passes', None) else {}),
           **read_kwargs)
     query, key, value, local_output = outs[:4]
-    if getattr(cfg, 'bam_common_read_scale_qk', False):
-      # One elementwise epilogue on the existing QK93 layout; leave its standard
+    if q_read_scale is not None:
+      # Elementwise epilogue on the existing QK93 layout; leave its standard
       # tail and the raw M passthrough unchanged. It precedes optional full QKNorm.
-      multiplier = jnp.where(jnp.arange(query.shape[-1]) < self._qk_col_width,
-                             common_vo_scale, jnp.float32(1.))
-      query = (query.astype(jnp.float32) * multiplier).astype(query.dtype)
-      key = (key.astype(jnp.float32) * multiplier).astype(key.dtype)
+      local = jnp.arange(query.shape[-1]) < self._qk_col_width
+      q_multiplier = jnp.where(local, q_read_scale, jnp.float32(1.))
+      k_multiplier = jnp.where(local, k_read_scale, jnp.float32(1.))
+      query = (query.astype(jnp.float32) * q_multiplier).astype(query.dtype)
+      key = (key.astype(jnp.float32) * k_multiplier).astype(key.dtype)
     if common_vo_scale is not None:
       value = (value.astype(jnp.float32) * common_vo_scale).astype(value.dtype)
       local_output = (local_output.astype(jnp.float32) * common_vo_scale).astype(local_output.dtype)
@@ -4389,7 +4391,7 @@ class BamAttention(Attention):
       assert self._share_qk_basis or self._direct_qk_c8
     standard_qk_width = self._standard_qk_width or (self.head_dim - self._qk_col_width)
     full_qk_norm = cfg.qk_norm and concat_qk and cfg.bam_qk_norm_after_concat
-    common_vo_scale = attention_write_scale = None
+    common_vo_scale = attention_write_scale = q_read_scale = k_read_scale = None
     common_read = getattr(cfg, 'bam_common_vo_read_scale', False)
     scaled_write = getattr(cfg, 'bam_attention_write_scale', False) and self._has_write
     if common_read or scaled_write:
@@ -4404,11 +4406,18 @@ class BamAttention(Attention):
       if scaled_write:
         attention_write_scale = self._constant_general_parameter(
             'attention_write_scale', (1,), (None,), initial_scale)[0]
+    if getattr(cfg, 'bam_independent_qk_read_scale', False):
+      q_read_scale = self._constant_general_parameter(
+          'local_q_read_scale', (1,), (None,), 1.0)[0]
+      k_read_scale = self._constant_general_parameter(
+          'local_k_read_scale', (1,), (None,), 1.0)[0]
+    elif getattr(cfg, 'bam_common_read_scale_qk', False):
+      q_read_scale = k_read_scale = common_vo_scale
     if getattr(cfg, 'bam_pallas_core', False):
       return self._pallas_core_call(
           inputs_q, inputs_positions, decoder_segment_ids, M_in, is_global,
           standard_qk_width, deterministic=deterministic, common_vo_scale=common_vo_scale,
-          attention_write_scale=attention_write_scale)
+          attention_write_scale=attention_write_scale, q_read_scale=q_read_scale, k_read_scale=k_read_scale)
     # ---- QKV projection + QKNorm + RoPE ----
     if cfg.fused_qkv:
       query, key, value = self.qkv_projection(inputs_q, proj_name="qkv_proj")
@@ -4459,9 +4468,9 @@ class BamAttention(Attention):
           basis_cache = self._shared_qk_basis(Mh, local_inputs) if self._share_qk_basis else None
           q_local = self._read_local('q', Mh, inputs_q, local_inputs, basis_cache)
           k_local = self._read_local('k', Mh, inputs_q, local_inputs, basis_cache)
-        if getattr(cfg, 'bam_common_read_scale_qk', False):
-          q_local = (q_local.astype(jnp.float32) * common_vo_scale).astype(q_local.dtype)
-          k_local = (k_local.astype(jnp.float32) * common_vo_scale).astype(k_local.dtype)
+        if q_read_scale is not None:
+          q_local = (q_local.astype(jnp.float32) * q_read_scale).astype(q_local.dtype)
+          k_local = (k_local.astype(jnp.float32) * k_read_scale).astype(k_local.dtype)
         query, key = self._add_local_qk(query, key, q_local, k_local, decoder_segment_ids)
 
     if full_qk_norm:

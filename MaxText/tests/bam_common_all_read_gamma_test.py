@@ -159,7 +159,7 @@ class CommonAllReadGammaTest(MLPWriteTest, unittest.TestCase):
     np.testing.assert_allclose(a, b, rtol=2e-4 if dtype == 'float32' else .025,
                                atol=2e-6 if dtype == 'float32' else 2e-4)
     for path, value in flatten_dict(ga).items():
-      if path[-1] in ('common_vo_read_scale', 'local_o_dynamic_norm_scale'):
+      if path[-1] in ('common_vo_read_scale', 'local_o_dynamic_norm_scale', 'local_q_read_scale', 'local_k_read_scale'):
         self.assertGreater(float(jnp.max(jnp.abs(value))), 0., str(path))
 
   def test_gamma_model_all_gradients(self): self.check_model(GAMMA)

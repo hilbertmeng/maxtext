@@ -27,6 +27,9 @@ def validate_bam_config(config, *, layer_mode=None):
   if get('bam_common_read_scale_qk', False):
     if not (get('bam_common_vo_read_scale', False) and get('bam_concat_qk', False)):
       raise ValueError('Common Q/K read scale requires common V/O scaling and concatenated M-derived Q/K')
+  if get('bam_independent_qk_read_scale', False):
+    if not get('bam_concat_qk', False) or get('bam_common_read_scale_qk', False):
+      raise ValueError('Independent Q/K read scale requires concatenated M-derived Q/K and excludes tied QKVO scaling')
   for kind in ('embedding', 'attention', 'mlp'):
     value = get('bam_' + kind + '_write_content_divisor', None)
     if value is not None:

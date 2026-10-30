@@ -4233,12 +4233,16 @@ class BamAttention(Attention):
                 if fused else self._static_gate(name, inputs_q))
         return self._pad_read_heads(gate / init, -1)
       static_gates = tuple(static_multiplier(arm) for arm in 'qkvo')
+    body = getattr(cfg, 'bam_pallas_body', None) or 'blocked'
+    # The read is linear in each V/O weight (raw static key + post-RMS dynamic scale), so v8t folds the
+    # common scalar into both instead of a [B,T,N,V] epilogue that cannot fuse into Splash.
+    fold_vo = common_vo_scale is not None and body == 'v8t'
+    vo_static = (lambda x: x * common_vo_scale.astype(x.dtype)) if fold_vo else (lambda x: x)
     weight = bam_pallas.static_weight(
         self.static_q_key, self.static_k_key,
         (jnp.zeros_like(self.static_o_key) if not self._has_value_m_read
-         else self._pad_read_heads(self.static_v_key, 1)),
-        self._pad_read_heads(self.static_o_key, 1), compression)
-    body = getattr(cfg, 'bam_pallas_body', None) or 'blocked'
+         else vo_static(self._pad_read_heads(self.static_v_key, 1))),
+        vo_static(self._pad_read_heads(self.static_o_key, 1)), compression)
     read_kwargs = {}
     if self._m_shift_mode != 'none':
       # Same previous-token share as mix_bam_previous_token (cast to the M dtype, zero where invalid);
@@ -4277,6 +4281,11 @@ class BamAttention(Attention):
       read_kwargs['o_dynamic_scale'] = self._dynamic_local_o_scale_for_read()
     if getattr(cfg, 'bam_local_v_dynamic_norm_scale', False):
       read_kwargs['v_dynamic_scale'] = self._dynamic_local_v_scale_for_read()
+    if fold_vo:
+      for arm in ('v', 'o'):
+        gamma = read_kwargs.get(arm + '_dynamic_scale')
+        read_kwargs[arm + '_dynamic_scale'] = common_vo_scale.astype(jnp.float32) * (
+            jnp.ones(q_key.shape[2:], jnp.float32) if gamma is None else gamma.astype(jnp.float32))
     if getattr(cfg, 'bam_pallas_read_chunk', None):
       read_kwargs['chunk'] = int(cfg.bam_pallas_read_chunk)
     pass_m = body in ('v7', 'v7u', 'v8t')   # M passthrough: dM sum fused into the read reverse
@@ -4311,7 +4320,7 @@ class BamAttention(Attention):
       k_multiplier = jnp.where(local, k_read_scale, jnp.float32(1.))
       query = (query.astype(jnp.float32) * q_multiplier).astype(query.dtype)
       key = (key.astype(jnp.float32) * k_multiplier).astype(key.dtype)
-    if common_vo_scale is not None:
+    if common_vo_scale is not None and not fold_vo:
       value = (value.astype(jnp.float32) * common_vo_scale).astype(value.dtype)
       local_output = (local_output.astype(jnp.float32) * common_vo_scale).astype(local_output.dtype)
     if v_read_scale is not None:

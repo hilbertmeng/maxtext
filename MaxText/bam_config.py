@@ -12,6 +12,11 @@ def validate_bam_config(config, *, layer_mode=None):
       lambda name, default=None: getattr(config, name, default))
   if not get('bam_enabled', False):
     return
+  if get('bam_context_local_o_complement', False):
+    if (get('bam_read_gate_activation', 'sigmoid') != 'sigmoid'
+        or not get('bam_local_vo_independent_gates', False)
+        or not get('bam_prune_all_row_reads', False)):
+      raise ValueError('Context/localO complement requires sigmoid independent column-read gates')
   if get('bam_separate_context_local_output', False):
     if get('opt_type', '') == 'muon':
       raise ValueError('Separate context/localO outputs currently use the Adam dense projection layout')

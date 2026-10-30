@@ -27,6 +27,7 @@ active leases are censored, and manual migration releases are not preemptions.
 
 | RUN | TPU | Zone | Start UTC | End UTC | End reason | Passive candidates |
 |---|---|---|---|---|---|---|
+| `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75DynamicVONormScaleDepth1RawMLPEmbeddingFixedTruePile` | v5p-16 (`xd-v5p-16-310428-maxtext`) | `us-east5-a` | 2026-10-30 04:34:18 | 2026-10-30 07:52:44 | stopped7943/P0; CP7943/TB secured, retained TPU transferred split-output RUN after FIRST_STEP; runtimeddb498c | none |
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneTruePile` | v5p-16 (`xd-v5p-16-310423-maxtext`) | `us-east5-a` | 2026-10-30 00:15:20 | 2026-10-30 04:11:56 | user resumable pause CP9341/13500/P0; checkpoint/TB secured, node+queue absent | none |
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneLocalODynamicNormScale050TruePile` | v5p-16 (`xd-v5p-16-310424-maxtext`) | `us-east5-a` | 2026-10-30 00:23:35 | 2026-10-30 04:11:59 | user resumable pause CP8976/13500/P0; checkpoint/TB secured, node+queue absent | none |
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedNoReadScaleTruePile` | v5p-16 (`xd-v5p-16-310425-maxtext`) | `us-east5-a` | 2026-10-30 00:42:37 | 2026-10-30 04:12:01 | user resumable pause CP8483/13500/P0; checkpoint/TB secured, node+queue absent | none |
@@ -2380,6 +2381,8 @@ active leases are censored, and manual migration releases are not preemptions.
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneTruePile` | 1 | `us-east5-a` | 2026-10-30 00:15:23 | 2026-10-30 04:11:56 | 3h56m33s | user pause CP9341/13500/P0; checkpoint/TB secured, resources absent |
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneLocalODynamicNormScale050TruePile` | 1 | `us-east5-a` | 2026-10-30 00:23:38 | 2026-10-30 04:11:59 | 3h48m21s | user pause CP8976/13500/P0; checkpoint/TB secured, resources absent |
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedNoReadScaleTruePile` | 1 | `us-east5-a` | 2026-10-30 00:42:40 | 2026-10-30 04:12:01 | 3h29m21s | user pause CP8483/13500/P0; checkpoint/TB secured, resources absent |
+
+| `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75DynamicVONormScaleDepth1RawMLPEmbeddingFixedTruePile` | 1 | `us-east5-a` | 2026-10-30 04:34:20 | 2026-10-30 07:52:44 | 3h18m24s | stopped7943/P0; hot_switch_run boundary; checkpoint/TB secured, retained TPU transferred split-output RUN |
 
 ### 2026-10-14 user pause: resumed mixed R256/R384
 

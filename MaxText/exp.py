@@ -17385,6 +17385,10 @@ class BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80CommonReadScaleU
     single-layer scan31+tail1 and GELU7808/2944/tail9984. No new parameters.
     Generic health exports gate mean/std for all32 layers (64 scalars only).
     """
+    # code_commit:39b6a4f; fresh28000/UE5a v5p128/global1024/B16; exact AOT/source/FIRST0 verified.
+    # Startup20..39 .31425step/s: H.31690 (-.84%), common gamma baseline.31750 (-1.02%); minimal remat.
+    # GenericON/internal+BAMOFF plus64 gate mean/std tags; common gamma comparator set in registry, MHA gain reference.
+    # Launch/reproduction: pythia2p8_context_local_o_complement.md; user requested exit after launch/speed validation.
     model_name = 'BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80CommonReadScaleUnscaledMLPContentEmbeddingFixedContextLocalOComplement'
     bam_context_local_o_complement = True
     compare_runs = ['BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80CommonReadScaleUnscaledMLPContentEmbeddingFixed']

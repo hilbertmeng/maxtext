@@ -35,6 +35,32 @@ class SeparateContextLocalOutputTest(MLPWriteTest,unittest.TestCase):
         self.assertFalse(any(n in path for n in ('W_gw','P_loc_down','P_loc_up','memory_mlp')))
     print('SEPARATE_OUTPUT_BUDGET_OK',flush=True)
 
+  def test_balanced_split_formal_local_mlp_budget(self):
+    c=self.config(RUN.replace('OutputTruePile','OutputBalancedMLPTruePile'))
+    parent=self.config(RUN)
+    changed={k for k,v in c.get_keys().items() if v!=parent.get_keys()[k]}
+    self.assertEqual(changed,{'model_name','exp_class','compare_runs','base_mlp_dim','mlp_dim','bam_memory_mlp_dim'})
+    self.assertEqual((c.mlp_dim,c.bam_memory_mlp_dim,c.bam_last_mlp_dim),(2243,995,3504))
+    self.assertTrue(c.bam_separate_context_local_output)
+    self.assertFalse(c.bam_attention_negative_diagonal)
+    c.get_keys().update(max_target_length=128,max_prefill_predict_length=128)
+    mesh=jax.sharding.Mesh(max_utils.create_device_mesh(c),c.mesh_axes)
+    args,*_=train_compile.get_shaped_inputs(mesh,c);f=flatten_dict(nn.unbox(args[0].params))
+    self.assertEqual(sum(math.prod(v.shape) for v in f.values()),432112210)
+    # Both regular branches use3*D parameters per hidden unit; fixed address/gate
+    # costs remain. Tail pays400 units entirely from the ordinary MLP.
+    self.assertEqual((2510-2243)+(1128-995),400)
+    ordinary=sum(math.prod(v.shape)//17 for k,v in f.items() if 'layers' in k and 'mlp' in k)
+    small=sum(math.prod(v.shape)//17 for k,v in f.items() if 'layers' in k and any(
+        n in k for n in ('memory_mlp','mlp_address_down','mlp_address_up','mlp_write_gate','mlp_write_gate_bias')))
+    self.assertEqual((ordinary,small),(8074800,4040000))
+    print('BALANCED_COMPLETE_BRANCH_RATIO',ordinary/small,flush=True)
+
+    for path,value in f.items():
+      if 'layers' in path and any('mlp' in n.lower() for n in path):
+        print('BALANCED_MLP_PARAM', '/'.join(path),value.shape,math.prod(value.shape),flush=True)
+    print('BALANCED_LOCAL_BUDGET_OK',flush=True)
+
   def test_output_reference_context_only_write_and_self_attention(self):
     c,mesh,module,p,args,matrix=LocalODynamicNormScaleTest.fixture(self,run=RUN)
     parts={};written=[]

@@ -4293,6 +4293,7 @@ class BamAttention(Attention):
       local_output = (local_output.astype(jnp.float32) * common_vo_scale).astype(local_output.dtype)
     if v_read_scale is not None:
       value = self._scale_complete_read(value, v_read_scale)
+    if o_read_scale is not None:
       local_output = self._scale_complete_read(local_output, o_read_scale)
     if self._standard_value_heads:
       # Leading heads use W_V; the remaining heads keep their M-derived V.
@@ -4468,6 +4469,10 @@ class BamAttention(Attention):
       if scaled_write:
         attention_write_scale = self._constant_general_parameter(
             'attention_write_scale', (1,), (None,), initial_scale)[0]
+    if getattr(cfg, 'bam_complete_local_o_read_scale', False):
+      o_read_scale = self._constant_general_parameter(
+          'o_read_scale', (self.num_query_heads,), ('q_heads',),
+          cfg.bam_complete_local_o_read_scale_init)
     if getattr(cfg, 'bam_independent_qk_read_scale', False):
       q_read_scale = self._constant_general_parameter(
           'local_q_read_scale', (1,), (None,), getattr(cfg, 'bam_local_q_read_scale_init', 1.0))[0]
@@ -4609,6 +4614,7 @@ class BamAttention(Attention):
       local_output = (local_output.astype(jnp.float32) * common_vo_scale).astype(local_output.dtype)
     if v_read_scale is not None:
       value = self._scale_complete_read(value, v_read_scale)
+    if o_read_scale is not None:
       local_output = self._scale_complete_read(local_output, o_read_scale)
     query = query / jnp.sqrt(self.head_dim).astype(self.dtype)
     if cfg.float32_qk_product:

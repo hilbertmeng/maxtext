@@ -19465,6 +19465,10 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75DynamicVONormScaleDepth1RawMLPEmbeddingFixedTruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75DynamicVONormScaleDepth2RawMLPEmbeddingFixedTruePile):
     """Only change V/O norm-gain initialization to1/sqrt(1+actual_layer)."""
+    # Stopped7943/13500/P0 after resource-priority review; CP7943/TB SYNC_OK.
+    # UE5a retained xd-v5p-16-310428-maxtext handed to fa0a53c split-output RUN after FIRST_STEP.
+    # vs H: early deficit shrank but stayed positive; late R plateau near.97; final5 through7800 gap+.00572892/R.97209928.
+    # Behind depth2 throughout middle/late; original terminal R1.015 remains unmeasured. Single READY lease04:34:20..07:52:44 UTC.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75DynamicVONormScaleDepth1RawMLPEmbeddingFixedTruePile'
     bam_local_vo_dynamic_norm_scale_depth_slope = 1.0
 
@@ -19476,6 +19480,9 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     H writers/MLP2510/1128/tail3904 unchanged;36 coefficients, total432112228
     (H+18, negligible). Retain the H external scaling epilog and Pallas read/write.
     """
+    # code_commit: 35963e9; UE5a v5p16 xd-v5p-16-310429-maxtext, plan13500.
+    # FIRST0/exact AOT/source/data/schedule verified;20..99 .679750step/s vs H +1.47%, cross-lease matched health.
+    # Actual step0 signed means/RMS checked all18 V/O scales; CP200 committed; genericON/internal+BAMOFF.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75IndependentVOReadScaleRawMLPEmbeddingFixedTruePile'
     bam_common_vo_read_scale = False
     bam_independent_vo_read_scale = True
@@ -19489,6 +19496,9 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     18*16*2=576 coefficients;432112768 total, H+558, no MLP repayment.
     Full-read scaling scope and all remaining H settings match the per-layer arm.
     """
+    # code_commit: 35963e9; UE5a v5p16 xd-v5p-16-310430-maxtext, plan13500.
+    # FIRST0/exact AOT/source/data/schedule verified;20..99 .6751875step/s vs H +.79%, cross-lease matched health.
+    # Actual step0 signed means/RMS checked all18 V/O scales; CP200 committed; genericON/internal+BAMOFF.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75IndependentVOReadScalePerHeadRawMLPEmbeddingFixedTruePile'
     bam_independent_vo_read_scale_per_head = True
 
@@ -19501,9 +19511,28 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     Each extra D^2 W_O is paid by400 ordinary SwiGLU hidden units locally.
     MLP2110/1128/tail3504; exact H parameter budget432112210, no extra gates.
     """
+    # code_commit: fa0a53c; UE5a v5p16 retained xd-v5p-16-310428-maxtext, new RUN id310431.
+    # FIRST0/exact AOT/source/data/schedule verified;20..99 .6595125step/s vs H -1.55%, cross-lease matched health.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedSeparateContextLocalOutputTruePile'
     bam_separate_context_local_output = True
     bam_attention_negative_diagonal = False
     base_mlp_dim = 2110
     bam_last_mlp_dim = 3504
     compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedTruePile']
+
+
+class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalOReadScalePerHead050TruePile(
+    BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODynamicNormScale050TruePile):
+    """Replace dynamic-address gamma with a complete localO per-layer/head scalar.
+
+    Raw strongest combination, no H scale; V unchanged. Complete O includes
+    static and dynamic reads. 18*16=288 directly learned coefficients, init.5;
+    ordinary/small MLP2510/1128/tail3904 unchanged, negligible parameter delta.
+    """
+    model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalOReadScalePerHead050TruePile'
+    bam_pallas_core = True
+    bam_pallas_write = True
+    bam_local_o_dynamic_norm_scale = False
+    bam_complete_local_o_read_scale = True
+    bam_complete_local_o_read_scale_init = 0.5
+    compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODynamicNormScale050TruePile', 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODynamicNormScale050PerHeadTruePile']

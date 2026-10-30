@@ -117,7 +117,7 @@ class CommonAllReadGammaTest(MLPWriteTest, unittest.TestCase):
         for a, b in zip(jax.tree.leaves(ga), jax.tree.leaves(ge)):
           np.testing.assert_allclose(a, b, rtol=1e-3, atol=3e-6)
 
-  def check_model(self, run, dtype='float32', qknorm=False, bf16_atol=0.):
+  def check_model(self, run, dtype='float32', qknorm=False, bf16_atol=0., bf16_fp32_reference=False):
     cfg = self.tiny(run, length=128, dtype=dtype)
     cfg.get_keys().update(query_chunk_size=64, qk_norm=qknorm)
     pcfg = pyconfig.HyperParameters(SimpleNamespace(keys=dict(
@@ -160,9 +160,26 @@ class CommonAllReadGammaTest(MLPWriteTest, unittest.TestCase):
       # gradients. Keep the existing relative tolerance and add an absolute
       # floor; separately bound the complete gradient's relative L2 error.
       fa, fb = flatten_dict(ga), flatten_dict(gb)
+      truth = None
+      if bf16_fp32_reference:
+        truth_cfg = pyconfig.HyperParameters(SimpleNamespace(keys=dict(cfg.get_keys(), dtype=jnp.float32)))
+        truth_model = Transformer(truth_cfg, mesh, quant=None)
+        with mesh, nn.partitioning.axis_rules(cfg.logical_axis_rules):
+          (_, _), truth = jax.value_and_grad(lambda p: loss(truth_model, p), has_aux=True)(params)
+        truth = flatten_dict(truth)
       for path, value in fa.items():
         bound = tolerance * float(jnp.max(jnp.abs(value))) + bf16_atol
-        self.assertLessEqual(float(jnp.max(jnp.abs(value - fb[path]))), bound, path)
+        delta = float(jnp.max(jnp.abs(value - fb[path])))
+        if truth is not None and delta > bound:
+          # Native BF16 RMS backward rounds differently from the existing
+          # fused F32 backward. Permit a failed parity bound only when the
+          # fused gradient is at least as close to same-parameter F32 truth.
+          native_error = float(jnp.max(jnp.abs(value.astype(jnp.float32) - truth[path])))
+          fused_error = float(jnp.max(jnp.abs(fb[path].astype(jnp.float32) - truth[path])))
+          self.assertLessEqual(fused_error, native_error + bf16_atol, path)
+          print('BF16_FP32_REFERENCE_CHECK', path, native_error, fused_error, flush=True)
+        else:
+          self.assertLessEqual(delta, bound, path)
       ref_ss = sum(float(jnp.sum(v.astype(jnp.float32)**2)) for v in fa.values())
       delta_ss = sum(float(jnp.sum((v.astype(jnp.float32)-fb[p].astype(jnp.float32))**2))
                      for p, v in fa.items())

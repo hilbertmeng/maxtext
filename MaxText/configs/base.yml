@@ -782,3 +782,7 @@ bam_attention_write_scale: False # Direct signed depth scalar only on live atten
 
 # Separate context/localO residual bases; only context participates in attention M write.
 bam_separate_context_local_output: False
+
+# Per-layer/head direct signed gain on complete static+dynamic localO read.
+bam_complete_local_o_read_scale: False
+bam_complete_local_o_read_scale_init: 0.5

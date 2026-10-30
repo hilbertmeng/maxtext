@@ -20,6 +20,14 @@ def validate_bam_config(config, *, layer_mode=None):
   if get('bam_attention_write_scale', False):
     if get('bam_common_vo_read_scale', False) or get('bam_attention_write_content_divisor', None) is None:
       raise ValueError('Write-only attention scale requires fixed-content attention writes and no common read scale')
+  if get('bam_complete_local_o_read_scale', False):
+    if get('bam_independent_vo_read_scale', False) or get('bam_common_vo_read_scale', False):
+      raise ValueError('Complete localO scale is independent of shared/paired V/O scales')
+    if get('bam_local_o_dynamic_norm_scale', False):
+      raise ValueError('Complete localO scale replaces the dynamic-address O norm scale')
+    initial = get('bam_complete_local_o_read_scale_init', .5)
+    if isinstance(initial, bool) or not isinstance(initial, (int, float)) or not math.isfinite(initial):
+      raise ValueError('Complete localO scale initial value must be finite')
   independent_vo_scale = get('bam_independent_vo_read_scale', False)
   if independent_vo_scale and get('bam_common_vo_read_scale', False):
     raise ValueError('Choose shared or independent full V/O read scales')

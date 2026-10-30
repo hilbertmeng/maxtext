@@ -19806,7 +19806,7 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     # ledger only: codex/mediumprop-common-read-raw-write, /data0/xd/mediumprop-common-read-raw-write.
     # code_commit: 8e15b74; UE5a v5p16 retained xd-v5p-16-310429-maxtext, RUNid310437, plan13500.
     # FIRST0/exact source/AOT/data/schedule verified; native/Pallas full-model F32/BF16 gradients and health export tested.
-    # Startup20..99 0.6728750step/s, direct parent -0.0037%; genericON/internalOFF plus36 gate mean/std scalars.
+    # Startup20..99 .672875step/s, H +.448%, masked sibling -.0037%; genericON/internalOFF plus36 gate mean/std scalars.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedContextLocalOComplementSelfAttentionTruePile'
     bam_attention_negative_diagonal = False
-    compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedContextLocalOComplementTruePile']
+    compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedTruePile']

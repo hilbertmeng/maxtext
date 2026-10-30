@@ -30,6 +30,10 @@ def validate_bam_config(config, *, layer_mode=None):
   if get('bam_independent_qk_read_scale', False):
     if not get('bam_concat_qk', False) or get('bam_common_read_scale_qk', False):
       raise ValueError('Independent Q/K read scale requires concatenated M-derived Q/K and excludes tied QKVO scaling')
+    for name in ('bam_local_q_read_scale_init', 'bam_local_k_read_scale_init'):
+      value = get(name, 1.0)
+      if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
+        raise ValueError(name + ' must be a finite scalar')
   for kind in ('embedding', 'attention', 'mlp'):
     value = get('bam_' + kind + '_write_content_divisor', None)
     if value is not None:

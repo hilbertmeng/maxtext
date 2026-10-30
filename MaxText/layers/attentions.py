@@ -4408,9 +4408,9 @@ class BamAttention(Attention):
             'attention_write_scale', (1,), (None,), initial_scale)[0]
     if getattr(cfg, 'bam_independent_qk_read_scale', False):
       q_read_scale = self._constant_general_parameter(
-          'local_q_read_scale', (1,), (None,), 1.0)[0]
+          'local_q_read_scale', (1,), (None,), getattr(cfg, 'bam_local_q_read_scale_init', 1.0))[0]
       k_read_scale = self._constant_general_parameter(
-          'local_k_read_scale', (1,), (None,), 1.0)[0]
+          'local_k_read_scale', (1,), (None,), getattr(cfg, 'bam_local_k_read_scale_init', 1.0))[0]
     elif getattr(cfg, 'bam_common_read_scale_qk', False):
       q_read_scale = k_read_scale = common_vo_scale
     if getattr(cfg, 'bam_pallas_core', False):

@@ -766,6 +766,8 @@ bam_common_vo_read_scale: False # One directly learned signed scalar per layer; 
 bam_common_vo_read_scale_init: null # None: 1/sqrt(1+2*layer); otherwise a common scalar initialization.
 bam_common_read_scale_qk: False # Apply that same coefficient to complete M-derived Q/K before optional QKNorm.
 bam_independent_qk_read_scale: False # Separate learned per-layer NoPE Q and K multipliers, each initialized to one.
+bam_local_q_read_scale_init: 1.0
+bam_local_k_read_scale_init: 1.0
 bam_embedding_write_content_divisor: null # Fixed positive denominator instead of content RMSNorm.
 bam_attention_write_content_divisor: null
 bam_mlp_write_content_divisor: null

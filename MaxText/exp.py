@@ -19666,6 +19666,10 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     # code_commit: f7052d4; UE5a v5p16 xd-v5p-16-310432-maxtext, plan13500.
     # FIRST0/exact AOT/source/data/schedule/CP200 verified;20..99 .6866125step/s vs coordinate gamma.5 -.46%, dynamic-head -.17%.
     # Actual all18 signed head means/RMS=.5; genericON/internal+BAMOFF, Pallas read+write, matched cross-lease timing.
+    # User hot-replacement stop6845/13500/P0; CP6845 and TB SYNC_OK, retained TPU transferred to dynamicV1/O.5.
+    # vs original coordinate gamma.5: consistently small deficit, no sustained crossing; final5 through6800 gap+.00181288/R.99126323.
+    # Complete-O head scale saves8928 params but offers no loss/speed gain; terminalR1.005 prior unmeasured.
+    # UE5a READY08:17:46..11:09:38 UTC,2h51m52s; no deletion because trainer reused after new FIRST_STEP.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalOReadScalePerHead050TruePile'
     bam_pallas_core = True
     bam_pallas_write = True
@@ -19692,3 +19696,23 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     bam_memory_mlp_dim = 995
     compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedTruePile', 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedSeparateContextLocalOutputTruePile']
 
+
+
+class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODynamicNormScale050LocalVDynamicNormScale100TruePile(
+    BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODynamicNormScale050TruePile):
+    """Add dynamic-V address gamma initialized1 to the original O-gamma.5 model.
+
+    Independent [head,M-column] V/O gains. Static reads unchanged; no H read
+    scalar or complete-O scalar. +9216 parameters,432130624 total; unchanged
+    MLP2510/1128/tail3904. Existing v8t dynamic V/O gamma kernels reused.
+    """
+    # ledger only: codex/mediumprop-common-read-raw-write, /data0/xd/mediumprop-common-read-raw-write.
+    # code_commit: a9dad36; UE5a v5p16 retained xd-v5p-16-310432-maxtext, RUNid310434, plan13500.
+    # FIRST0/exact source/AOT/data/schedule verified; startup20..99 .68995step/s, original dynamicO gamma.5 +.0235%.
+    # GenericON/internal+BAMOFF; all18 initial gamma RMS V1/O.5 checked; negligible+9216, no MLP repayment.
+    model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODynamicNormScale050LocalVDynamicNormScale100TruePile'
+    bam_local_v_dynamic_norm_scale = True
+    bam_local_v_dynamic_norm_scale_init = 1.0
+    bam_pallas_core = True
+    bam_pallas_write = True
+    compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODynamicNormScale050TruePile']

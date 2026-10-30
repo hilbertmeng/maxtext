@@ -17,6 +17,7 @@ import jax.numpy as jnp
 import numpy as np
 
 import checkpointing,exp,max_utils,pyconfig
+import norm020_ce
 from layers.models import Transformer
 import norm020_capture as capture
 from norm020_cases import plan,digest
@@ -134,16 +135,23 @@ def main():
     batches=[]
     for i in range(0,32,4):
         tokens=data['tokens'][i:i+4];shape=(4,2048);batches.append(dict(inputs=jnp.asarray(tokens[:,:2048]),targets=jnp.asarray(tokens[:,1:2049]),mask=jnp.ones(shape,jnp.int32),segments=jnp.ones(shape,jnp.int32),positions=jnp.broadcast_to(jnp.arange(2048),shape)))
-    def native(p,b):return model.apply(p,b['inputs'],b['positions'],decoder_target_tokens=b['targets'],decoder_target_mask=b['mask'],decoder_segment_ids=b['segments'],enable_dropout=False,rngs={'params':rng,'dropout':rng,'aqt':rng})[0]
-    native_fn=jax.jit(native)
+    original_ce=max_utils.cross_entropy_with_logits
+    def native(p,b,precise=True):
+        max_utils.cross_entropy_with_logits=norm020_ce.cross_entropy if precise else original_ce
+        try:return model.apply(p,b['inputs'],b['positions'],decoder_target_tokens=b['targets'],decoder_target_mask=b['mask'],decoder_segment_ids=b['segments'],enable_dropout=False,rngs={'params':rng,'dropout':rng,'aqt':rng})[0]
+        finally:max_utils.cross_entropy_with_logits=original_ce
+    native_fn=jax.jit(native);legacy_fn=jax.jit(lambda p,b:native(p,b,False))
     def controlled(p,b,controls,observe):
         capture.ACTIVE=True;capture.CONTROLS=controls;capture.OBSERVE=observe
+        max_utils.cross_entropy_with_logits=norm020_ce.cross_entropy
         try:
             result=model.apply(p,b['inputs'],b['positions'],decoder_target_tokens=b['targets'],decoder_target_mask=b['mask'],decoder_segment_ids=b['segments'],enable_dropout=False,rngs={'params':rng,'dropout':rng,'aqt':rng},**({'mutable':['intermediates']} if observe else {}))
             if not observe:return result[0]
             output,collections=result;raw={'/'.join(k):v for k,v in flatten_dict(collections['intermediates']).items() if k[-1].startswith('readout_')}
             return output[0],raw
-        finally:capture.ACTIVE=False;capture.OBSERVE=False;capture.CONTROLS=None
+        finally:
+            capture.ACTIVE=False;capture.OBSERVE=False;capture.CONTROLS=None
+            max_utils.cross_entropy_with_logits=original_ce
     ones=jnp.ones((32,4),jnp.float32);ablate_fn=jax.jit(lambda p,b,c:controlled(p,b,c,False));observe_fn=jax.jit(lambda p,b:controlled(p,b,ones,True));installed=False
     def loss_batches(p,controls=None):
         result=[]
@@ -164,15 +172,22 @@ def main():
         assert sum(v.size for v in jax.tree.leaves(params))==a.expected_parameters
         gamma_leaves=[v for k,v in flatten_dict(params).items() if k[-1]=='local_o_dynamic_norm_scale']
         assert sum(v.size for v in gamma_leaves)==(65536 if a.family=='norm020' else 0)
-        native_loss=loss_batches(params)
         if a.family=='full' and step==12000:
+            legacy=[]
+            for b in batches:
+                with mesh,nn.partitioning.axis_rules(cfg.logical_axis_rules):legacy.append(np.asarray(legacy_fn(params,b)))
+            legacy=np.concatenate(legacy)
             reference=Path('/tmp/bam_stream_probe/historical_full12k.npz')
             if not reference.exists():subprocess.run(['gsutil','-q','cp',manifest['historical_capture'],str(reference)],check=True)
             with np.load(reference) as z:
                 np.testing.assert_array_equal(z['inputs'],data['tokens'][:,:2048])
-                drift=float(np.max(np.abs(native_loss.mean(1)-z['native_loss'].mean(1))))
+                drift=float(np.max(np.abs(legacy.mean(1)-z['native_loss'].mean(1))))
                 assert drift<.005,('Historical Full12k runtime parity failed',drift)
                 common['historical_native_CE_max_sequence_difference']=drift
+        native_loss=loss_batches(params)
+        common['loss_statistics_dtype']='float32'
+        if a.family=='full' and step==12000:
+            common['FP32_minus_legacy_mean_CE']=float((native_loss-legacy).mean())
         if previous_native is not None:assert not np.array_equal(native_loss,previous_native),"Different checkpoints produced identical losses: inspect parameter reuse"
         previous_native=native_loss.copy()
         if not installed:capture.install();installed=True

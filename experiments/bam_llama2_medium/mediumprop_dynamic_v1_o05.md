@@ -35,7 +35,7 @@ formal parameter/config/initialV-neutrality, same shared initial weights
 without copying; scanned native/Pallas full F32/BF16 model gradients with
 perturbed V/O gammas, static paths and standard attention intact. Parent
 shared paths/full47 regressions already verified; no production math edit.
-BF16 uses the existing F32-reference parity gate. Full-shape exact sealed
+F32 native/Pallas all-gradient maxrelative2.95e-6. BF16 full-gradient L2 vs F32: native2.738%, Pallas1.713%; new gamma leaves1.51-2.44%. Tiny existing write-gate cancellation violates a strict per-leaf maxrelative test; retained in failed logs. A test-only BF16 global+gamma quality gate replaces that BF16 leaf criterion; no production/kernel changes. Full-shape exact sealed
 AOT required before retaining-TPU handoff.
 
 Prior: terminal MHA-reference gain vs original O gamma.5=1.015 [.995,1.04].
@@ -48,3 +48,5 @@ RMS (not activation contribution ratios), without per-column activation tags.
 Audit through main d667c525: only experiment metadata/docs changed since
 preceding runtime infrastructure audit; no omitted operational fixes.
 Artifacts `/data0/xd/bam_diagnostics/mediumprop-common-read-raw-write/dynamic-v1-o05/`.
+
+Launch verified at runtime a9dad369: FIRST_STEP0, exact AOT/source/data/13500 schedule; startup20..99 .68995step/s, +.0235% vs original O gamma.5 (matched settings, separate leases). All18 initial V gamma RMS1 and O gamma RMS.5, finite raw gradients. Old complete-O-head run stopped at committed CP6845, TB SYNC_OK; physical310432 retained/transferred, P0.

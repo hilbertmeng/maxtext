@@ -19541,6 +19541,10 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     # code_commit: f7052d4; UE5a v5p16 xd-v5p-16-310432-maxtext, plan13500.
     # FIRST0/exact AOT/source/data/schedule/CP200 verified;20..99 .6866125step/s vs coordinate gamma.5 -.46%, dynamic-head -.17%.
     # Actual all18 signed head means/RMS=.5; genericON/internal+BAMOFF, Pallas read+write, matched cross-lease timing.
+    # User hot-replacement stop6845/13500/P0; CP6845 and TB SYNC_OK, retained TPU transferred to dynamicV1/O.5.
+    # vs original coordinate gamma.5: consistently small deficit, no sustained crossing; final5 through6800 gap+.00181288/R.99126323.
+    # Complete-O head scale saves8928 params but offers no loss/speed gain; terminalR1.005 prior unmeasured.
+    # UE5a READY08:17:46..11:09:38 UTC,2h51m52s; no deletion because trainer reused after new FIRST_STEP.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalOReadScalePerHead050TruePile'
     bam_pallas_core = True
     bam_pallas_write = True

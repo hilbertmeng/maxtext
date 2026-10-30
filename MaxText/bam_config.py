@@ -12,6 +12,11 @@ def validate_bam_config(config, *, layer_mode=None):
       lambda name, default=None: getattr(config, name, default))
   if not get('bam_enabled', False):
     return
+  if get('bam_separate_context_local_output', False):
+    if get('opt_type', '') == 'muon':
+      raise ValueError('Separate context/localO outputs currently use the Adam dense projection layout')
+    if not get('bam_local_o', False) and layer_mode is not None and 'local_o' not in layer_mode:
+      raise ValueError('Separate context/localO output requires localO reads')
   if get('bam_attention_write_scale', False):
     if get('bam_common_vo_read_scale', False) or get('bam_attention_write_content_divisor', None) is None:
       raise ValueError('Write-only attention scale requires fixed-content attention writes and no common read scale')

@@ -779,3 +779,6 @@ bam_mlp_write_content_divisor: null
 bam_mlp_write_content_global_rmsnorm: False # Normalize the complete MLP write vector before splitting heads; divisor must be1.
 
 bam_attention_write_scale: False # Direct signed depth scalar only on live attention M writers.
+
+# Separate context/localO residual bases; only context participates in attention M write.
+bam_separate_context_local_output: False

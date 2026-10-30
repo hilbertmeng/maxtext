@@ -3670,6 +3670,22 @@ class BamAttention(Attention):
       scale = scale.reshape((1, 1, scale.shape[0], 1))
     return (read.astype(jnp.float32) * scale).astype(read.dtype)
 
+  def _project_context_and_local(self, output_dim, combined, context, local):
+    """Optionally give context and localO separate residual output bases."""
+    if not getattr(self.config, 'bam_separate_context_local_output', False):
+      return self.out_projection(output_dim, combined)
+    assert local is not None
+    context = nn.with_logical_constraint(context, self.out_axis_names)
+    local = nn.with_logical_constraint(local, self.out_axis_names)
+    local_out = DenseGeneral(
+        features=output_dim, axis=(-2, -1),
+        kernel_init=self.output_kernel_init or self.kernel_init,
+        kernel_axes=("heads", "kv", "embed"),
+        dtype=self.dtype, weight_dtype=self.weight_dtype,
+        name="out_local", use_bias=self.output_bias, quant=self.quant,
+        matmul_precision=self.config.matmul_precision)(local)
+    return self.out_projection(output_dim, context) + local_out
+
   def _matrix_for_read(self, M_in):
     """Select the configured read-side view without changing the raw matrix stream."""
     if M_in is None or self._m_read_norm == 'none':
@@ -4320,7 +4336,7 @@ class BamAttention(Attention):
     o_head = y_std + local_output
     if not self._has_write:
       out = nn.with_logical_constraint(o_head, self.out_axis_names)
-      return self.out_projection(inputs_q.shape[-1], out), M_in, None
+      return self._project_context_and_local(inputs_q.shape[-1], out, y_std, local_output), M_in, None
     if self._share_read_attention_down:
       address = self.P_loc_up(hidden)
     elif fused:
@@ -4332,9 +4348,10 @@ class BamAttention(Attention):
     else:
       write_logits = self.W_gw(inputs_q) + jnp.asarray(self.gw_b0, self.dtype)
     out = nn.with_logical_constraint(o_head, self.out_axis_names)
-    write_head = (o_head if attention_write_scale is None else
-                  (o_head.astype(jnp.float32) * attention_write_scale).astype(o_head.dtype))
-    return self.out_projection(inputs_q.shape[-1], out), M_in, (write_head, write_logits, address)
+    write_content = y_std if getattr(cfg, 'bam_separate_context_local_output', False) else o_head
+    write_head = (write_content if attention_write_scale is None else
+                  (write_content.astype(jnp.float32) * attention_write_scale).astype(write_content.dtype))
+    return self._project_context_and_local(inputs_q.shape[-1], out, y_std, local_output), M_in, (write_head, write_logits, address)
 
   @nn.compact
   def __call__(
@@ -4665,13 +4682,14 @@ class BamAttention(Attention):
                   self.num_query_heads, self.head_dim))
       o_head = o_head + y_bam
 
-    write_head = (o_head if attention_write_scale is None else
-                  (o_head.astype(jnp.float32) * attention_write_scale).astype(o_head.dtype))
+    write_content = y_std if getattr(self.config, 'bam_separate_context_local_output', False) else o_head
+    write_head = (write_content if attention_write_scale is None else
+                  (write_content.astype(jnp.float32) * attention_write_scale).astype(write_content.dtype))
     if defer_write:
       assert self._has_write and not self._mha_control and M_in is not None
       factors = self._deferred_write_factors(write_head, inputs_q, full_m_shared_hidden)
       out = nn.with_logical_constraint(o_head, self.out_axis_names)
-      return self.out_projection(inputs_q.shape[-1], out), M_in, factors
+      return self._project_context_and_local(inputs_q.shape[-1], out, y_std, local_output), M_in, factors
     if self._mha_control:
       M_out = M_in
     elif self._has_write:
@@ -4682,4 +4700,4 @@ class BamAttention(Attention):
       M_out = M_in
 
     out = nn.with_logical_constraint(o_head, self.out_axis_names)
-    return self.out_projection(inputs_q.shape[-1], out), M_out
+    return self._project_context_and_local(inputs_q.shape[-1], out, y_std, local_output), M_out

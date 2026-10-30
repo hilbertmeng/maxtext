@@ -3269,7 +3269,8 @@ class BamAttention(Attention):
       self.general_v_pre_bias = self._constant_general_parameter(
           'general_v_pre_bias', (self._read_head_count('v'), self._read_bam_v), ('q_heads', 'kv'))
 
-    if self._local_o and getattr(cfg, 'bam_local_o_dynamic_norm_scale', False):
+    if (self._local_o and getattr(cfg, 'bam_local_o_dynamic_norm_scale', False)
+        and getattr(cfg, 'bam_local_vo_dynamic_norm_scale_depth_slope', None) is None):
       per_head = getattr(cfg, 'bam_local_o_dynamic_norm_scale_per_head', False)
       scale_shape = (self._read_head_count('o'),)
       scale_axes = ('q_heads',)
@@ -3279,6 +3280,12 @@ class BamAttention(Attention):
       self.local_o_dynamic_norm_scale = self._constant_general_parameter(
           'local_o_dynamic_norm_scale', scale_shape, scale_axes,
           cfg.bam_local_o_dynamic_norm_scale_init)
+
+    if (getattr(cfg, 'bam_local_v_dynamic_norm_scale', False)
+        and getattr(cfg, 'bam_local_vo_dynamic_norm_scale_depth_slope', None) is None):
+      self._constant_general_parameter('local_v_dynamic_norm_scale',
+          (self._read_head_count('v'), self._read_bam_v), ('q_heads', 'kv'),
+          cfg.bam_local_v_dynamic_norm_scale_init)
 
   def _constant_general_parameter(self, name, shape, axes, value=0.):
     # Constants need no random key; keep the parent's init RNG counters intact.
@@ -3622,7 +3629,8 @@ class BamAttention(Attention):
     if self._vo_independent_keys:
       v_key = self._project_column_read_key('W_lv_c8', x, shared_hidden)
       v_key = self._pad_read_heads(v_key, -2)
-      v_read = bam_read(compressed_M, v_key, self._fetched_arm_ungated)
+      v_read = bam_read(compressed_M, v_key, self._fetched_arm_ungated,
+          column_weight_multiplier=self._dynamic_local_v_scale_for_read())
     if self._concat_health:
       v, o = (self._read_gate_activation(z.astype(jnp.float32)) for z in (v_logits, o_logits))
       vc, oc = v - jnp.mean(v), o - jnp.mean(o)
@@ -3633,9 +3641,15 @@ class BamAttention(Attention):
 
   def _dynamic_local_o_scale_for_read(self):
     """Keep the native/Pallas [N,V] interface with either parameter granularity."""
-    scale = self.local_o_dynamic_norm_scale
+    scale = nn.unbox(self.get_variable('params', 'local_o_dynamic_norm_scale'))
     if getattr(self.config, 'bam_local_o_dynamic_norm_scale_per_head', False):
       scale = jnp.broadcast_to(scale[:, None], (scale.shape[0], self._read_bam_v))
+    return self._pad_read_heads(scale, -2, 1.)
+
+  def _dynamic_local_v_scale_for_read(self):
+    if not getattr(self.config, 'bam_local_v_dynamic_norm_scale', False):
+      return None
+    scale = nn.unbox(self.get_variable('params', 'local_v_dynamic_norm_scale'))
     return self._pad_read_heads(scale, -2, 1.)
 
   def _dynamic_local_o_multiplier(self, multiplier=None):
@@ -4216,6 +4230,8 @@ class BamAttention(Attention):
       if body != 'v8t':
         raise ValueError('O dynamic norm scale requires the v8t fused read')
       read_kwargs['o_dynamic_scale'] = self._dynamic_local_o_scale_for_read()
+    if getattr(cfg, 'bam_local_v_dynamic_norm_scale', False):
+      read_kwargs['v_dynamic_scale'] = self._dynamic_local_v_scale_for_read()
     if getattr(cfg, 'bam_pallas_read_chunk', None):
       read_kwargs['chunk'] = int(cfg.bam_pallas_read_chunk)
     pass_m = body in ('v7', 'v7u', 'v8t')   # M passthrough: dM sum fused into the read reverse
@@ -4391,6 +4407,13 @@ class BamAttention(Attention):
       assert self._share_qk_basis or self._direct_qk_c8
     standard_qk_width = self._standard_qk_width or (self.head_dim - self._qk_col_width)
     full_qk_norm = cfg.qk_norm and concat_qk and cfg.bam_qk_norm_after_concat
+    gamma_depth_slope = getattr(cfg, 'bam_local_vo_dynamic_norm_scale_depth_slope', None)
+    if gamma_depth_slope is not None:
+      actual_layer = self.layer_inx if layer_index is None else layer_index
+      gamma_initial = jax.lax.rsqrt(1.0 + gamma_depth_slope * jnp.asarray(actual_layer, jnp.float32))
+      for arm in ('v', 'o'):
+        self._constant_general_parameter('local_' + arm + '_dynamic_norm_scale',
+            (self._read_head_count(arm), self._read_bam_v), ('q_heads', 'kv'), gamma_initial)
     common_vo_scale = attention_write_scale = q_read_scale = k_read_scale = None
     common_read = getattr(cfg, 'bam_common_vo_read_scale', False)
     scaled_write = getattr(cfg, 'bam_attention_write_scale', False) and self._has_write

@@ -508,6 +508,9 @@ bam_local_vo_shared_read: 'none'
 bam_local_vo_independent_keys: False
 bam_local_o_drop_head_rate: 0.0 # O-only [B,T,N,1] inverted DropHead; AV stays active.
 bam_local_o_read_weight_dropout_rate: 0.0 # O address [B,T,N,V], after RMSNorm; shared static/dynamic mask.
+bam_local_v_dynamic_norm_scale: False # Independent post-RMS dynamic V address scale [heads,address].
+bam_local_v_dynamic_norm_scale_init: 1.0
+bam_local_vo_dynamic_norm_scale_depth_slope: null # Both V/O gamma init rsqrt(1+slope*actual_layer).
 bam_local_o_dynamic_norm_scale: False # Learned [head,V] scale on normalized dynamic O address only.
 bam_local_o_dynamic_norm_scale_init: 1.0 # Effective initial scale; no implicit +1 offset.
 bam_local_o_dynamic_norm_scale_per_head: False # One scalar per head, broadcast over address coordinates.

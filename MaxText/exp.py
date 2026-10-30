@@ -19443,3 +19443,27 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedIndependentQKReadScaleTruePile'
     bam_independent_qk_read_scale = True
     compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedTruePile']
+
+class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75DynamicVONormScaleDepth2RawMLPEmbeddingFixedTruePile(
+    BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedTruePile):
+    """Replace the external V/O scalar with independent dynamic-address norm gains.
+
+    Both gammaV[16,32] and gammaO[16,32] start at1/sqrt(1+2*actual_layer).
+    Static reads keep their existing parameters/gates; Q/K are unchanged.
+    H embedding fixed divisor, raw private-MLP writes and normalized attention
+    writes remain. No scalar read multiplier. MLP2510/1128/tail3904 unchanged;
+    total432130624, H+18414 (.00426%, negligible; no MLP repayment).
+    """
+    model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75DynamicVONormScaleDepth2RawMLPEmbeddingFixedTruePile'
+    bam_common_vo_read_scale = False
+    bam_local_v_dynamic_norm_scale = True
+    bam_local_o_dynamic_norm_scale = True
+    bam_local_vo_dynamic_norm_scale_depth_slope = 2.0
+    compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedTruePile']
+
+
+class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75DynamicVONormScaleDepth1RawMLPEmbeddingFixedTruePile(
+    BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75DynamicVONormScaleDepth2RawMLPEmbeddingFixedTruePile):
+    """Only change V/O norm-gain initialization to1/sqrt(1+actual_layer)."""
+    model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75DynamicVONormScaleDepth1RawMLPEmbeddingFixedTruePile'
+    bam_local_vo_dynamic_norm_scale_depth_slope = 1.0

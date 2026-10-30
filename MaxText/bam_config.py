@@ -43,6 +43,24 @@ def validate_bam_config(config, *, layer_mode=None):
         raise ValueError('Fixed-content writer requires plain RMS address normalization')
       if get('bam_pallas_core', False) and get('bam_pallas_body', None) != 'v8t':
         raise ValueError('Pallas fixed-content writer requires v8t')
+  if get('bam_local_v_dynamic_norm_scale', False):
+    if not (get('bam_local_vo_independent_keys', False) and get('bam_general_column_read', False)
+            and get('bam_local_v_replace', False) and get('bam_local_vo_independent_gates', False)):
+      raise ValueError('Dynamic V norm scale requires independent generalized V/O reads')
+    value = get('bam_local_v_dynamic_norm_scale_init', 1.)
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
+      raise ValueError('Dynamic V norm scale initial value must be finite')
+    if get('bam_pallas_core', False) and get('bam_pallas_body', None) != 'v8t':
+      raise ValueError('Dynamic V norm scale on Pallas requires v8t')
+  depth_slope = get('bam_local_vo_dynamic_norm_scale_depth_slope', None)
+  if depth_slope is not None:
+    if (isinstance(depth_slope, bool) or not isinstance(depth_slope, (int, float))
+        or not math.isfinite(depth_slope) or depth_slope < 0):
+      raise ValueError('V/O gamma depth slope must be finite nonnegative')
+    if not (get('bam_local_v_dynamic_norm_scale', False) and get('bam_local_o_dynamic_norm_scale', False)):
+      raise ValueError('V/O gamma depth initialization requires both independent scales')
+    if get('bam_local_o_dynamic_norm_scale_per_head', False):
+      raise ValueError('V/O gamma depth initialization uses per-head coordinate scales')
   if get('bam_local_o_dynamic_norm_scale', False):
     value = get('bam_local_o_dynamic_norm_scale_init', 1.0)
     if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):

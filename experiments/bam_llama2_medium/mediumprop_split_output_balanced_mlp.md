@@ -12,8 +12,9 @@ The split-output model code is unchanged. Both W_O matrices have independent
 random initializations, context attention includes its diagonal and alone
 supplies attention M write content before W_O; localO updates the vector
 residual only directly. H's whole-V/O scalar and H's writer normalizations
-remain. Compare the all-ordinary repayment control directly and H as the
-strong common anchor, with matched MHA gain reference.
+remain. Use H as the live strong comparator with matched MHA gain reference. The
+stopped all-ordinary repayment control remains archived early allocation
+evidence, excluded from routine comparisons under the user's no-failed-baseline preference.
 
 Each front layer's extra W_O costs1,440,000 parameters. Pay approximately2/3
 from the ordinary MLP and1/3 from the complete private MLP branch, including
@@ -28,9 +29,9 @@ ordinary/private hidden width remains3238 in the first17 layers.
 
 Prior: terminal gain vs all-ordinary split-output control1.02 [1.00,1.04].
 Speed approximately matched (within~2%); actual timing may depend on shapes.
-Use grouped cumulative plots from600, retaining H to distinguish a better
-allocation from a true architectural gain. Direct-control gain triples are
-also registered natively; no duplicated custom gain arithmetic.
+Use cumulative plots from600 against H. Historical matched-control points
+remain available through3200 for allocation analysis; no duplicated custom
+gain arithmetic.
 
 Validation scope: new configuration-only widths/budget change, no new
 mathematical/model/kernel code. Exact formal parameter tree and all resolved

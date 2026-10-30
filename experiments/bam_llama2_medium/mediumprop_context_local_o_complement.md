@@ -39,6 +39,25 @@ Interpret gate evolution jointly with loss: parameter-free competition can
 reduce simultaneous dependence on context and direct M, but static O is an
 independent surviving path; this is not a convex mixture of full MHA/localO.
 
+Reporting correction requested by user: all competing RUN curves use the
+common H comparator and MHA gain reference. SelfAttention still inherits
+the masked competition architecture, but no longer plots that sibling as
+its comparator. Genealogy and the displayed common benchmark are distinct.
+
+Third authorized arm RUNid310438: masked competition plus original
+dynamic-O address gamma[16,32] initialized.5. Append
+`LocalODynamicNormScale050` before `TruePile`. This scales only the dynamic
+O normalized address, not static O, not V, and not the external 1-g context
+multiplier. +9216 parameters, total432121426; widths unchanged. Existing
+Pallas gamma ABI reused, no kernel edit. Keep the36 mean/std gate metrics
+and generic parameter/gradient norms for gamma. Test static O untouched,
+context suppression unchanged, uncopied shared initial weights, full-model
+F32/BF16 native/Pallas gradients with perturbed gamma. No production-code
+change since parent d123e5bf, so focused configuration-combination CPU gate.
+Terminal gain prior relative H1.01 [.99,1.04], speed within1% of masked
+competition. Read old completed H+gamma.5 as mechanistic context; ordinary
+group plots contain only these three RUNs against H.
+
 Matched second RUNid310437: append `SelfAttention` before `TruePile`, inherit
 the competition class and set only `bam_attention_negative_diagonal=False`.
 Same432112210 parameters and widths; direct comparator is the masked

@@ -19628,4 +19628,17 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     """Matched competition control: restore self-attention, keep shared g/1-g."""
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedContextLocalOComplementSelfAttentionTruePile'
     bam_attention_negative_diagonal = False
-    compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedContextLocalOComplementTruePile']
+    compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedTruePile']
+
+
+class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedContextLocalOComplementLocalODynamicNormScale050TruePile(
+    BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedContextLocalOComplementTruePile):
+    """Masked dynamic-g context competition plus learned dynamic-O address gamma=.5.
+
+    Static O and its independent gate remain unchanged. Additional9216
+    parameters are negligible: total432121426, unchanged2510/1128/tail3904.
+    """
+    model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedContextLocalOComplementLocalODynamicNormScale050TruePile'
+    bam_local_o_dynamic_norm_scale = True
+    bam_local_o_dynamic_norm_scale_init = .5
+    compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedTruePile']

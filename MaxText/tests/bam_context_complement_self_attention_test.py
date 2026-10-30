@@ -8,7 +8,7 @@ import numpy as np
 from flax import linen as nn
 from jax.experimental.pallas.ops.tpu.splash_attention import splash_attention_kernel as splash
 import max_utils,train_compile
-from bam_common_all_read_gamma_test import CommonAllReadGammaTest
+from bam_common_all_read_gamma_test import CommonAllReadGammaTest, H
 from bam_context_local_o_complement_test import RUN as PARENT
 from bam_prop_test_utils import MLPWriteTest
 from layers import attentions
@@ -21,10 +21,10 @@ class ContextComplementSelfAttentionTest(MLPWriteTest,unittest.TestCase):
     def test_config_and_splash_includes_self_at_segment_starts(self):
         parent=self.config(PARENT);c=self.config(RUN)
         changed={k for k,v in c.get_keys().items() if v!=parent.get_keys()[k]}
-        self.assertEqual(changed,{'model_name','exp_class','compare_runs','bam_attention_negative_diagonal'})
+        self.assertEqual(changed,{'model_name','exp_class','bam_attention_negative_diagonal'})
         self.assertFalse(c.bam_attention_negative_diagonal)
         self.assertTrue(c.bam_context_local_o_complement)
-        self.assertEqual(c.compare_runs,[PARENT])
+        self.assertEqual(c.compare_runs,[H])
         c.get_keys().update(max_target_length=128,max_prefill_predict_length=128)
         mesh=jax.sharding.Mesh(max_utils.create_device_mesh(c),c.mesh_axes)
         args,*_=train_compile.get_shaped_inputs(mesh,c)

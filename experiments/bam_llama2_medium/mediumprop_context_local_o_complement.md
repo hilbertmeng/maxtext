@@ -70,3 +70,5 @@ This isolates restoring self attention under competition; there is no claim
 to a complete two-factor interaction estimate without an unmasked H control.
 
 Launches verified: masked runtime d123e5bf on310436, unmasked runtime8e15b747 on retained physical310429 with RUNid310437. Both FIRST_STEP0/exactAOT/source/data/13500 schedule and periodicCP200 verified. Startup20..99: masked.6729step/s (+.452%H), unmasked.672875step/s (-.0037%masked). No kernel edits. Masked4 focused tests+47 BAM regressions, unmasked3 targeted tests passed; full F32/BF16 model gradients included. Actual TensorBoard verified36 finite gate mean/std tags per RUN across all18 layers; initial mean.0503309965. Both actual18 initial signed H depth scales verified. Evidence: context-local-o-complement/initial-health/proof.json under the diagnostic artifact root.
+
+Gamma masked arm6355ba82 startup verified: FIRST0/exact source/AOT/13500 schedule/data/CP200. Speed20..99 .6695375step/s, -.500%masked sibling / -.050%H. All18 gamma initial RMS.5 and signed H depth coefficients verified,36 actual gate TB tags and finite nonzero gamma gradients.

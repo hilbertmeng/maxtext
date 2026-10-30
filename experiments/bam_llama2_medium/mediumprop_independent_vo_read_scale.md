@@ -68,3 +68,5 @@ floor, requires global gradient relative L2 below3% (observed1.46%), and retains
 the pure6% bound for both new read-scale leaves. It changes no production math.
 
 Layer-only arm user hot-replaced at committedCP10771, P0, TB SYNC_OK. Mature10600 final5 vsH gap+.00142044/R.99252891; no sustained catch-up, 1.015 terminal bet overoptimistic and unmeasured. Head arm continues. UE5a READY07:43:37..12:14:27 UTC,4h30m50s; physical310429 retained for self-attention complement control after FIRST_STEP.
+
+Head arm complete13500/P0, CP13500/TB secured, node+QR independently absent. Final5 through13400 vsH gap-.00014332/R1.00078370; early deficit recovered, tiny late wins did not become material gain. Prior1.020 overestimated. Final head CV reaches34.1%V/21.8%O, learned variation without meaningful outcome gain. Keep simpler H. UE5a READY07:43:53..13:27:59 UTC,5h44m06s.

@@ -19591,3 +19591,17 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     bam_pallas_core = True
     bam_pallas_write = True
     compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODynamicNormScale050TruePile']
+
+
+class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedNoMLPWriteGateTruePile(
+    BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedTruePile):
+    """Keep memory SwiGLU gates; remove the additional per-head memory write gate.
+
+    Reimburse each live layer's saved D*16+16 gate parameters to its ordinary
+    MLP: +5 hidden units. Total432091538, H-20672 (-.0048%); tail unchanged.
+    Existing v8t write kernel consumes constant +inf logits, exact gain1.
+    """
+    model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedNoMLPWriteGateTruePile'
+    bam_mlp_write_gate = False
+    base_mlp_dim = 2515
+    compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedTruePile']

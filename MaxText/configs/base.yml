@@ -777,6 +777,7 @@ bam_embedding_write_content_divisor: null # Fixed positive denominator instead o
 bam_attention_write_content_divisor: null
 bam_mlp_write_content_divisor: null
 bam_mlp_write_content_global_rmsnorm: False # Normalize the complete MLP write vector before splitting heads; divisor must be1.
+bam_mlp_write_gate: True # Dedicated noncompact memory MLP only: False removes projection/bias and writes with gain1.
 
 bam_attention_write_scale: False # Direct signed depth scalar only on live attention M writers.
 

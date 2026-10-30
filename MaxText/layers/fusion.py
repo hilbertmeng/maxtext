@@ -453,13 +453,16 @@ class SubDecoderLayer(nn.Module):
       from layers.bam_write_content import prepare_mlp_content
       write_content = prepare_mlp_content(write_content, cfg)
       write_heads = memory_write_heads or num_query_heads
+      mlp_write_gate = bool(getattr(cfg, 'bam_mlp_write_gate', True))
+      if not mlp_write_gate and (not memory_mlp_dim or memory_write_heads):
+        raise ValueError('Ungated MLP writes require a dedicated noncompact memory MLP')
       if compact_controls:
         address_bias = self.param(
             'mlp_address_bias', nn.with_logical_partitioning(nn.initializers.zeros,
                 ('q_heads', 'v_factor')), (write_heads, cfg.bam_v), cfg.weight_dtype)
         independent_address = memory_address + jnp.asarray(address_bias, cfg.dtype)
         mlp_logits = memory_logits
-      else:
+      elif mlp_write_gate:
         mlp_logits = linears.DenseGeneral(
             features=(write_heads,), axis=-1, use_bias=False,
             kernel_init=initializers.get_bam_init(
@@ -467,14 +470,19 @@ class SubDecoderLayer(nn.Module):
             kernel_axes=('embed', 'q_heads'), dtype=cfg.dtype, weight_dtype=cfg.weight_dtype,
             quant=self.quant, matmul_precision=cfg.matmul_precision,
             name='mlp_write_gate')(hidden_states)
-      memory_write_eps = getattr(cfg, 'bam_memory_write_eps', None)
-      if memory_write_eps is None:
-        memory_write_eps = cfg.bam_write_eps
-      mlp_bias = self.param(
-          'mlp_write_gate_bias', nn.with_logical_partitioning(
-              nn.initializers.constant(math.log(memory_write_eps / (1.0 - memory_write_eps))),
-              ('q_heads',)), (write_heads,), cfg.weight_dtype)
-      mlp_logits = mlp_logits + jnp.asarray(mlp_bias, cfg.dtype)
+      if mlp_write_gate:
+        memory_write_eps = getattr(cfg, 'bam_memory_write_eps', None)
+        if memory_write_eps is None:
+          memory_write_eps = cfg.bam_write_eps
+        mlp_bias = self.param(
+            'mlp_write_gate_bias', nn.with_logical_partitioning(
+                nn.initializers.constant(math.log(memory_write_eps / (1.0 - memory_write_eps))),
+                ('q_heads',)), (write_heads,), cfg.weight_dtype)
+        mlp_logits = mlp_logits + jnp.asarray(mlp_bias, cfg.dtype)
+      else:
+        # Existing fused write ABI accepts logits. sigmoid(+inf)=1 exactly;
+        # its custom backward gives zero logit gradient without gate parameters.
+        mlp_logits = jnp.full(write_content.shape[:-1] + (write_heads,), jnp.inf, cfg.dtype)
       if not compact_controls:
         independent_address = None
       if not compact_controls and getattr(cfg, 'bam_mlp_write_dynamic_address', False):
@@ -497,7 +505,8 @@ class SubDecoderLayer(nn.Module):
       if not pallas_core:
         M_out = attention_layer.merge_mlp_write(
             write_content.reshape(write_content.shape[:-1] + (write_heads, cfg.bam_k)),
-            jax.nn.sigmoid(mlp_logits), write_factors, M_out, independent_address=independent_address)
+            (jax.nn.sigmoid(mlp_logits) if mlp_write_gate else jnp.ones_like(mlp_logits)),
+            write_factors, M_out, independent_address=independent_address)
     if pallas_core:
       from layers import bam_pallas
       groups = [] if write_factors is None else [write_factors]

@@ -19654,6 +19654,9 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     ordinary/small MLP2510/1128/tail3904 unchanged, negligible parameter delta.
     """
     # ledger only: codex/mediumprop-common-read-raw-write, /data0/xd/mediumprop-common-read-raw-write; runtime f7052d40.
+    # code_commit: f7052d4; UE5a v5p16 xd-v5p-16-310432-maxtext, plan13500.
+    # FIRST0/exact AOT/source/data/schedule/CP200 verified;20..99 .6866125step/s vs coordinate gamma.5 -.46%, dynamic-head -.17%.
+    # Actual all18 signed head means/RMS=.5; genericON/internal+BAMOFF, Pallas read+write, matched cross-lease timing.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalOReadScalePerHead050TruePile'
     bam_pallas_core = True
     bam_pallas_write = True

@@ -19441,13 +19441,10 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedTruePile):
     """H with its existing layer scalar applied to all M reads, including NoPE Q/K; no QKNorm."""
     # ledger only: codex/mediumprop-common-read-raw-write; /data0/xd/mediumprop-common-read-raw-write.
-    # Sealed runtime adf6afdb; H parent, qk_norm=False, MLP2510/1128/tail3904 unchanged.
-    # code_commit: adf6afd; logical310421/physical310413 UE5a v5p16; FIRST0/source/AOT/data/s13500 verified.
-    # Params432112210 unchanged; startup20..99 .65915step/s vsH.669875 (-1.60%); existing v8t read/write retained.
-    # Stopped5223/P0 at5k review: vsH last5 through5000 gap+.009254/R.961205; no zero crossing.
-    # Slow catchup remained belowH; no parameter/cache gain and modest slowdown.
-    # CP/TB secured, node+queue verified absent; planned13500 endpoint unmeasured.
-    # User resumed exact adf6afd/AOT from CP5223; original13500 schedule; prior5k verdict provisional.
+    # code_commit: adf6afd; UE5a v5p16 xd-v5p-16-310413-maxtext; stopped8366/P0 after resumed8k review.
+    # Persistent deficit with slow catchup; final5 through8200 vsH gap+0.007269/R0.964136 (MHA ref).
+    # Late-window linear/exp terminal estimates stayed belowH;13500 endpoint unmeasured; CP/TB secured, resources absent.
+    # Startup-1.60% vsH, healthON/internal+BAMOFF; same params/cache asH; MLP2510/1128/tail3904 unchanged.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedAllMReadScaleTruePile'
     bam_common_read_scale_qk = True
     compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedTruePile']
@@ -19458,13 +19455,10 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedAllMReadScaleTruePile):
     """H with both unified QKVO read scaling and dynamic local-O gamma .5."""
     # ledger only: codex/mediumprop-common-read-raw-write; /data0/xd/mediumprop-common-read-raw-write.
-    # Sealed runtime adf6afdb; H parent, qk_norm=False, MLP2510/1128/tail3904 unchanged.
-    # code_commit: adf6afd; logical/physical310422 UE5a v5p16; FIRST0/source/AOT/data/s13500 verified.
-    # Params432121426(+9216 negligible); startup20..99 .65755step/s vsH.669875 (-1.84%); genericON/internal+BAMOFF.
-    # Stopped5255/P0 at5k review: vsH last5 through5000 gap+.012695/R.946789; no zero crossing.
-    # Slow catchup remained belowH; no parameter/cache gain and modest slowdown.
-    # CP/TB secured, node+queue verified absent; planned13500 endpoint unmeasured.
-    # User resumed exact adf6afd/AOT from CP5255; original13500 schedule; prior5k verdict provisional.
+    # code_commit: adf6afd; UE5a v5p16 xd-v5p-16-310422-maxtext; stopped8434/P0 after resumed8k review.
+    # Persistent deficit with slow catchup; final5 through8400 vsH gap+0.010321/R0.948667 (MHA ref).
+    # Late-window linear/exp terminal estimates stayed belowH;13500 endpoint unmeasured; CP/TB secured, resources absent.
+    # Startup-1.84% vsH, healthON/internal+BAMOFF; +9216 negligible params vsH; samecache; MLP2510/1128/tail3904 unchanged.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedAllMReadScaleLocalODynamicNormScale050TruePile'
     bam_local_o_dynamic_norm_scale = True
     bam_local_o_dynamic_norm_scale_init = .5
@@ -19505,3 +19499,15 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedNoReadScaleTruePile'
     bam_common_vo_read_scale = False
     compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedTruePile', 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneTruePile']
+
+
+class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedIndependentQKReadScaleTruePile(
+    BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedTruePile):
+    """H plus separate learned NoPE-Q and NoPE-K layer scalars, both initialized to one."""
+    # ledger only: codex/mediumprop-common-read-raw-write; /data0/xd/mediumprop-common-read-raw-write.
+    # code_commit: c86bd03; CPU4checks/AOT passed, then user cancelled before FIRST_STEP validation.
+    # Target2p8 has QKNorm with overlapping controls; no training/loss conclusion; no checkpoint expected.
+    # UE5a v5p16 xd-v5p-16-310426-maxtext released: node+queue verified absent; borrowed FLEX retained.
+    model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedIndependentQKReadScaleTruePile'
+    bam_independent_qk_read_scale = True
+    compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedTruePile']

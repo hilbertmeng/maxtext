@@ -19672,6 +19672,11 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     # code_commit: 35963e9; UE5a v5p16 xd-v5p-16-310430-maxtext, plan13500.
     # FIRST0/exact AOT/source/data/schedule verified;20..99 .6751875step/s vs H +.79%, cross-lease matched health.
     # Actual step0 signed means/RMS checked all18 V/O scales; CP200 committed; genericON/internal+BAMOFF.
+    # Complete13500/P0; CP13500/TB SYNC_OK, node+QR independently absent.
+    # vs H: early deficit mostly recovered by7k; late tiny wins, final5 through13400 gap-.00014332/R1.00078370 (essentially tied).
+    # TerminalR1.020 prior substantially overestimated; +558 parameters vs H, no inference-cache change; startup+.79% cross-lease.
+    # Head CV at13400 reaches34.1%V/21.8%O but no material loss gain; retain simpler shared H scale.
+    # UE5a READY07:43:53..13:27:59 UTC,5h44m06s.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75IndependentVOReadScalePerHeadRawMLPEmbeddingFixedTruePile'
     bam_independent_vo_read_scale_per_head = True
 
@@ -19809,4 +19814,21 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     # Startup20..99 .672875step/s, H +.448%, masked sibling -.0037%; genericON/internalOFF plus36 gate mean/std scalars.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedContextLocalOComplementSelfAttentionTruePile'
     bam_attention_negative_diagonal = False
+    compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedTruePile']
+
+
+class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedContextLocalOComplementLocalODynamicNormScale050TruePile(
+    BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedContextLocalOComplementTruePile):
+    """Masked dynamic-g context competition plus learned dynamic-O address gamma=.5.
+
+    Static O and its independent gate remain unchanged. Additional9216
+    parameters are negligible: total432121426, unchanged2510/1128/tail3904.
+    """
+    # ledger only: codex/mediumprop-common-read-raw-write, /data0/xd/mediumprop-common-read-raw-write.
+    # code_commit: 6355ba8; UE5a v5p16 xd-v5p-16-310438-maxtext, plan13500.
+    # FIRST0/exact source/AOT/data/schedule/CP200 verified; all18 initial gamma RMS.5/H signed scales and actual36 gate TB scalars checked.
+    # Startup20..99 .6695375step/s, masked sibling -.500%, H -.050%; genericON/internalOFF plus36 gate scalars, existing Pallas read/write.
+    model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedContextLocalOComplementLocalODynamicNormScale050TruePile'
+    bam_local_o_dynamic_norm_scale = True
+    bam_local_o_dynamic_norm_scale_init = .5
     compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedTruePile']

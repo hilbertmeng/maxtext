@@ -19616,3 +19616,20 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     """
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75IndependentVOReadScalePerHeadRawMLPEmbeddingFixedTruePile'
     bam_independent_vo_read_scale_per_head = True
+
+class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedSeparateContextLocalOutputTruePile(
+    BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedTruePile):
+    """Independent context/localO W_O; context self-attends and alone writes M.
+
+    H full V/O read scale, embedding fixed divisor and raw small MLP retained.
+    Each extra D^2 W_O is paid by400 ordinary SwiGLU hidden units locally.
+    MLP2110/1128/tail3504; exact H parameter budget432112210, no extra gates.
+    """
+    # ledger only: codex/mediumprop-common-read-raw-write, /data0/xd/mediumprop-common-read-raw-write; runtime fa0a53c9.
+    model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedSeparateContextLocalOutputTruePile'
+    bam_separate_context_local_output = True
+    bam_attention_negative_diagonal = False
+    base_mlp_dim = 2110
+    bam_last_mlp_dim = 3504
+    compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedTruePile']
+

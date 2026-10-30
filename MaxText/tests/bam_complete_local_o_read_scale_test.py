@@ -26,7 +26,7 @@ class CompleteLocalOReadScaleTest(MLPWriteTest,unittest.TestCase):
 
   def test_formal_budget_initial_values_and_health(self):
     c=self.config(RUN)
-    self.assertEqual(c.compare_runs,[PARENT,PARENT.replace('050TruePile','050PerHeadTruePile')]);
+    self.assertEqual(c.compare_runs,[PARENT]);
     self.assertTrue(c.bam_pallas_core and c.bam_pallas_write); self.assertFalse(c.bam_common_vo_read_scale or c.bam_local_o_dynamic_norm_scale)
     self.assertEqual((c.mlp_dim,c.bam_memory_mlp_dim,c.bam_last_mlp_dim),(2510,1128,3904))
     c.get_keys().update(max_target_length=128,max_prefill_predict_length=128)

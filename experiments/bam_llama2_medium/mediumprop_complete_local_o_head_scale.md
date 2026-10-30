@@ -17,11 +17,11 @@ XLA post-read epilog. Ordinary/small/tail MLP2510/1128/3904 unchanged.
 432112480 parameters, versus432121408 coordinate-gamma parent: -8928,
 -.0062 W_Q total, negligible; no MLP reallocation.
 
-Compare the coordinate gamma.5 parent (direction reference) and historical
-dynamic-only per-head gamma.5 (matched granularity control). Those two had
-approximately equal final losses. New full-O scaling additionally controls
-the static read; do not attribute its effect solely to coarser granularity.
-Both native gain triples use BamMHAMediumPropC256TruePile as reference.
+Compare only the original coordinate gamma.5 parent, using
+BamMHAMediumPropC256TruePile as the gain reference. The unsuccessful historical
+dynamic-head gamma control is excluded from live comparisons and plots.
+Full-O scaling additionally controls the static read, so its effect differs
+from scaling only the dynamic address even at the same head granularity.
 Prior vs coordinate gamma.5: terminal R1.005 [.99,1.02], speed within~2%.
 No target2.8B training requested. This tests the simpler amplitude-control
 alternative before choosing a target architecture.

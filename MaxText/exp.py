@@ -19454,6 +19454,11 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     writes remain. No scalar read multiplier. MLP2510/1128/tail3904 unchanged;
     total432130624, H+18414 (.00426%, negligible; no MLP repayment).
     """
+    # User-stopped10519/13500/P0; CP10519/TB SYNC_OK, node+queued resource independently absent.
+    # vs H: early R~.95 recovered to~.985 at8k, then plateau/reversal; final5 through10400 gap+.00371008/R.98051346.
+    # Independent V/O dynamic gammas learned amplitude separation but did not replace H's full-read scaling successfully.
+    # Static reads were outside these gammas; this is not a clean rejection of fine-grained gamma. Terminal1.010 prior unmeasured.
+    # UE5a xd-v5p-16-310427-maxtext; single READY lease04:34:40..08:55:35 UTC,4h20m55s; manual user stop.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75DynamicVONormScaleDepth2RawMLPEmbeddingFixedTruePile'
     bam_common_vo_read_scale = False
     bam_local_v_dynamic_norm_scale = True
@@ -19513,6 +19518,10 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     """
     # code_commit: fa0a53c; UE5a v5p16 retained xd-v5p-16-310428-maxtext, new RUN id310431.
     # FIRST0/exact AOT/source/data/schedule verified;20..99 .6595125step/s vs H -1.55%, cross-lease matched health.
+    # User-stopped3322/13500/P0; CP3322/TB SYNC_OK, physical310428 node+QR independently absent.
+    # vs H: gap shrank but R stayed~.95 from600 onward; final5 through3200 gap+.01558672/R.94807209.
+    # All-ordinary cost repayment shifted ordinary/complete-private ratio to1.681; balanced allocation remains a separate test.
+    # Original terminal R1.015 prior unmeasured. UE5a READY07:53:44..09:20:14 UTC,1h26m30s; sourcefa0a53c.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedSeparateContextLocalOutputTruePile'
     bam_separate_context_local_output = True
     bam_attention_negative_diagonal = False
@@ -19538,7 +19547,7 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     bam_local_o_dynamic_norm_scale = False
     bam_complete_local_o_read_scale = True
     bam_complete_local_o_read_scale_init = 0.5
-    compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODynamicNormScale050TruePile', 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODynamicNormScale050PerHeadTruePile']
+    compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODynamicNormScale050TruePile']
 
 
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedSeparateContextLocalOutputBalancedMLPTruePile(
@@ -19549,6 +19558,10 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     Their sum pays exactly the same D^2 as the all-ordinary repayment control.
     Tail3504 unchanged: no private branch exists there. Total432112210.
     """
+    # code_commit: 64248ed; UE5a v5p16 xd-v5p-16-310433-maxtext, plan13500.
+    # FIRST0/exact source/AOT/2243,995 widths/data/schedule/CP400 verified; all18 initial signed H scales checked.
+    # Startup20..99 .665025step/s vs direct original split +.84%, H -.72%; matched health, cross-lease timing.
+    # Original split stopped3322: direct matched comparisons end3200; H remains full terminal anchor. Direct terminalR1.02 bet is censored.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedSeparateContextLocalOutputBalancedMLPTruePile'
     base_mlp_dim = 2243
     bam_memory_mlp_dim = 995

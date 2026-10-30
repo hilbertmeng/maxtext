@@ -43,3 +43,13 @@ T4096/B16 perdevice, CP200/latest2, TBrotate500, generic healthON/internal+BAMOF
 Operational infrastructure audited through main b2ac9ac5: only metadata
 changes since the preceding audit, no omitted fixes.
 Artifacts `/data0/xd/bam_diagnostics/mediumprop-common-read-raw-write/balanced-split-output/`.
+
+The user stopped the original split-output control at3322 (last mature
+window3200). Its complete early curve remains a matched allocation control;
+H supplies the full13500 terminal anchor. The direct-control terminalR1.02
+prior is now censored, not a measured success/failure.
+Inherited initializer distributions are unchanged. At identical normalized
+inputs, reducing private hidden1128->995 lowers its initial output/write RMS
+in expectation by sqrt(995/1128), about6.1%, because H writes private content
+without RMSNorm. This accompanies the capacity reallocation; no extra
+initial-amplitude compensation was introduced.

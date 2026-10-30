@@ -40,4 +40,14 @@ class ReadScaleInitTest(CommonAllReadGammaTest):
   def test_constant_init_native_pallas_all_gradients(self):
     self.check_model(RUN)
 
+  def test_unit_init_gamma_configuration_and_all_gradients(self):
+    run=RUN.removesuffix('TruePile')+'LocalODynamicNormScale050TruePile'
+    base=self.config(RUN);cfg=self.config(run)
+    changed={k for k,v in cfg.get_keys().items() if v!=base.get_keys()[k]}
+    self.assertEqual(changed,{'exp_class','model_name','compare_runs','bam_local_o_dynamic_norm_scale','bam_local_o_dynamic_norm_scale_init'})
+    self.assertEqual(cfg.bam_common_vo_read_scale_init,1.)
+    self.assertEqual(cfg.compare_runs,[RUN])
+    self.assertEqual(cfg.bam_local_o_dynamic_norm_scale_init,.5)
+    self.check_model(run)
+
 if __name__=='__main__':unittest.main()

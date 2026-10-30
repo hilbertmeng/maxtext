@@ -27,6 +27,7 @@ active leases are censored, and manual migration releases are not preemptions.
 
 | RUN | TPU | Zone | Start UTC | End UTC | End reason | Passive candidates |
 |---|---|---|---|---|---|---|
+| `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75IndependentVOReadScaleRawMLPEmbeddingFixedTruePile` | v5p-16 (`xd-v5p-16-310429-maxtext`) | `us-east5-a` | 2026-10-30 07:43:34 | 2026-10-30 12:14:27 | user hot-replace10771/P0; CP10771/TB secured, retained TPU transferred self-attention complement control after FIRST_STEP; runtime35963e9 | none |
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedSeparateContextLocalOutputBalancedMLPTruePile` | v5p-16 (`xd-v5p-16-310433-maxtext`) | `us-east5-a` | 2026-10-30 09:07:52 | 2026-10-30 11:27:35 | user stop5377/P0; CP5377/TB secured, node+QR independently absent; runtime64248ed | none |
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalOReadScalePerHead050TruePile` | v5p-16 (`xd-v5p-16-310432-maxtext`) | `us-east5-a` | 2026-10-30 08:17:42 | 2026-10-30 11:09:38 | user hot-replace6845/P0; CP/TB secured, retained TPU transferred dynamicV1/O.5 after FIRST_STEP; runtimef7052d4 | none |
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedSeparateContextLocalOutputTruePile` | v5p-16 (`xd-v5p-16-310428-maxtext`) | `us-east5-a` | 2026-10-30 07:53:41 | 2026-10-30 09:20:14 | user stop3322/P0; CP3322/TB secured,node+QR verified absent; runtimefa0a53c; retained physical previously transferred from depth1 gamma | none |
@@ -2395,6 +2396,8 @@ active leases are censored, and manual migration releases are not preemptions.
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalOReadScalePerHead050TruePile` | 1 | `us-east5-a` | 2026-10-30 08:17:46 | 2026-10-30 11:09:38 | 2h51m52s | user hot-replace6845/P0; CP6845/TB SYNC_OK; physical310432 retained/transferred after new FIRST_STEP, no deletion |
 
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedSeparateContextLocalOutputBalancedMLPTruePile` | 1 | `us-east5-a` | 2026-10-30 09:07:54 | 2026-10-30 11:27:35 | 2h19m41s | user stop5377/P0; CP5377/TB SYNC_OK, node+QR independently verified absent |
+
+| `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75IndependentVOReadScaleRawMLPEmbeddingFixedTruePile` | 1 | `us-east5-a` | 2026-10-30 07:43:37 | 2026-10-30 12:14:27 | 4h30m50s | user hot-replace10771/P0; CP10771/TB SYNC_OK, physical310429 retained/transferred after new FIRST_STEP |
 
 ### 2026-10-14 user pause: resumed mixed R256/R384
 

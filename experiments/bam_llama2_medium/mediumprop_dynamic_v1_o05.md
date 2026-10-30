@@ -50,3 +50,5 @@ preceding runtime infrastructure audit; no omitted operational fixes.
 Artifacts `/data0/xd/bam_diagnostics/mediumprop-common-read-raw-write/dynamic-v1-o05/`.
 
 Launch verified at runtime a9dad369: FIRST_STEP0, exact AOT/source/data/13500 schedule; startup20..99 .68995step/s, +.0235% vs original O gamma.5 (matched settings, separate leases). All18 initial V gamma RMS1 and O gamma RMS.5, finite raw gradients. Old complete-O-head run stopped at committed CP6845, TB SYNC_OK; physical310432 retained/transferred, P0.
+
+User stop5792/13500/P0; committedCP5792/TB SYNC_OK and node+QR independently absent. Final5 through5600 vs original O gamma.5 gap+.00095308/R.99566342; brief5200 crossing did not persist. Added9216 V gamma parameters did not establish benefit, speed unchanged. Terminal1.015 bet unmeasured and too optimistic. UE5a READY11:10:37..13:44:50 UTC,2h34m13s. Artifacts dynamic-v1-o05/closeout.

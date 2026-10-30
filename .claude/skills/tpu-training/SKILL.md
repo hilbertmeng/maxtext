@@ -297,8 +297,8 @@ logs and merge repeated steps
 (latest launch wins) into persistent `run_registry/loss_cache/`, then prints every
 `gap = RUN loss - BASE loss` (negative favors RUN) at exact common steps:
 
-Use `update-monitoring RUN --compare-runs ...` for live comparison/cadence changes; `register`
-is the launch/relaunch operation.
+Use `update-monitoring RUN --compare-runs ...` for live comparison/native-window changes;
+`group configure` controls public cadence and review points. `register` is the launch/relaunch operation.
 
 ```bash
 ssh -S /tmp/ssh-tpu-ag-xd.sock tpu-ag \
@@ -307,12 +307,42 @@ ssh -S /tmp/ssh-tpu-ag-xd.sock tpu-ag \
 
 ### Routine report: brief judgment and cumulative plots
 
-Unless the user sets another cadence, report about every **2,000 training steps per RUN**.
-This public cadence is separate from the native comparison-window interval: keep Medium at 200
-and XL normally 500. Keep each RUN's delivered milestone/review state in the task's monitor
-artifacts; do not set `--loss-interval 2000` to reduce chat frequency. Check health between
-reports, and handle registered review points (for example 2800/5000), failures, reversals and
-completion when due rather than waiting for the next public report.
+Use persistent registry **report groups**, including a one-member group, to schedule public
+reports and reviews. Membership is separate from `compare_runs`: grouping changes reporting,
+not scientific baselines. Creation accepts CLI defaults; pass flags when the user chooses
+another cadence or review schedule. Resolved group configuration controls monitoring;
+watchers must not embed experiment-specific trigger points. Example:
+
+```bash
+# Run on tpu-ag, from /home/lishengping/xd/projects:
+./run_registry.py group create GROUP --clock RUN1 --run RUN2 --owner TASK \
+  --cadence 2000 --review-steps 4000,8000
+./run_registry.py group add GROUP RUN3
+./run_registry.py group configure GROUP --cadence 2000 --review-steps 4000,8000 \
+  --reason 'user changed reporting/review policy'
+./run_registry.py group status GROUP
+./run_registry.py group watch GROUP --output /absolute/monitor-dir/group-watch.json
+```
+
+Keep the watcher running detached and read its refreshed JSON at shared wakes. It continues
+checking liveness while reports/decisions are pending; alerts persist until acknowledged.
+It does not wake an exited agent, so retain active monitoring ownership. Use scoped native
+`status` for an exceptional liveness check, not repeated worker-log tails between milestones.
+For commands, member-specific review overrides and clock handoff, see the authoritative
+[run_groups.md](/home/xd/projects/xd_tpu_scripts/run_groups.md).
+
+The clock RUN triggers fixed public milestones (e.g. 2k/4k/6k). Delivered data at 2.2k still
+belongs to the 2k report: next is 4k, never 4.2k. Late members neither reset nor block the
+calendar; report their latest available data alongside the rest. Reviews use each member's
+own registered training steps, so a late member is not reviewed early. Combine due reviews
+with a normal group report where possible. Extra/user-requested reports and review decisions
+do not move the public calendar. If the clock stops, explicitly choose a new member clock
+and calendar phase with `group set-clock`, or archive the inactive group.
+
+Keep native comparison windows separate (Medium 200, XL normally 500); do not change
+`--loss-interval` to implement a public report cadence. Persist group delivery/review state in
+the registry; task artifacts retain figures and reasoning. Handle anomalies, clear reversals
+and completion when needed rather than treating scheduled reviews as the only decision times.
 
 Default delivery is a short interpretation plus **loss-gap and gain-multiplier plots together**.
 State what the cumulative trend implies and whether the RUN continues or needs a decision.
@@ -414,31 +444,41 @@ ssh -S /tmp/ssh-tpu-ag-xd.sock tpu-ag \
 Do not acknowledge a slower RUN at another RUN's step, advance a cursor before delivery, or
 acknowledge comparisons omitted by plot filtering. Deliver remaining due comparisons first.
 Native per-baseline and per-gain-triple cursors preserve lagging horizons; retain them when
-changing comparison settings. Record the figure path and delivered public milestone in the
-monitor state so a resumed session knows what is due without repeating or skipping reports.
+changing comparison settings. After actual delivery, also acknowledge the group's **scheduled
+milestone**, with each member's actual plotted horizon. For example:
+
+```bash
+# After delivering the scheduled 4k report with data through 4.2k / 3.8k:
+./run_registry.py group acknowledge GROUP --milestone 4000 \
+  --through RUN1=4200 --through RUN2=3800
+# A review acknowledgement records the decision, not a new public-calendar phase:
+./run_registry.py group acknowledge-review GROUP RUN1 4000 --reason 'keep: recovering'
+```
+
+Use `group acknowledge --extra --through RUN=STEP` for on-demand reports. These group
+acknowledgements complement, not replace, native `mark-reported`. Never infer a stop decision
+from a delivered report: acknowledge a due review only after making its decision. Preserve
+past decisions when updating future policy; `group configure` archives superseded pending
+reviews and keeps completed assessments. Record the figure path in the task's artifacts.
 
 Auto-train caches logs before clean/crash deletion. Before manually deleting a TPU, run
 `run_registry.py collect-loss RUN`. If an old completed BASE has no cache, export its already
 synced TensorBoard once with `scripts/export_tensorboard_loss.py`, copy the small `STEP LOSS`
 file to tpu-ag, and run `run_registry.py import-loss BASE --file FILE`.
 
-Review points default to 2,800 steps for Medium and 10,000 for XL (about 1/5 of the plan);
-earlier stops require user permission. For Medium, at/after 2,800, use
-`MHA advantage = MHA loss - RUN loss`: an advantage below 0.08 and still shrinking rapidly
-likely finishes below 0.05 and may stop; an advantage above 0.05 with curves becoming parallel
-may merit continuing. Train a configuration with a credible loss, speed, parameter-efficiency,
-or inference-cache gain longer—possibly to completion—to verify that the gain persists; material parameter reduction
-with near-baseline loss counts even when wall-clock speed is unchanged. A configuration still
-unlikely to beat its direct baseline and offering no other gain may stop at its review point. Also stop a run
-clearly dominated by a prior failed configuration.
+Use the configured review points and the experiment's scientific purpose to decide whether
+to continue. Assess the cumulative signed gap, gain multiplier and recovery trend against its
+direct baseline; a positive gap alone does not show that catch-up has stopped. Retain credible
+loss, speed, parameter-efficiency or inference-cache gains long enough to test persistence.
+Scheduled reviews request a decision; group commands never stop training automatically.
 Treat a planned step as a review point, not a hard stop: if the long-term gap is still shrinking,
 extend the RUN, up to full training when needed to determine whether the gap persists or vanishes.
 Set the experiment's automatic `steps` endpoint to that possible full-training bound; never use a
 review point as the clean-exit endpoint, because auto-train will immediately delete the TPU.
 
 For multiple runs, use one shared wake-up and batch-check all runs; use per-run wake-ups only
-for anomalies or imminent completion/decisions. Stable Medium runs normally accumulate about ten
-200-step windows per public report; retain the user's configured cadence for each group. When
+for anomalies or imminent completion/decisions. Retain each group's configured
+cadence; native loss windows do not determine agent wake-up or public-report frequency. When
 preemptions are frequent, wake for a shared health check within ~10–12 minutes; an unchanged
 health check need not trigger a loss report. Estimate from steps/s and stay silent between wakes; modest overshoot is fine. If repeated preemption or
 queueing prevents loss progress, periodically report the resource state and new lease history

@@ -17341,7 +17341,9 @@ class BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80CommonReadScaleU
     # Implementation on refactor-bam: only the common V/O read scale and fixed writer divisors (codex
     # family branch codex/mediumprop-common-read-raw-write keeps its other controls). The v8t read folds the
     # scalar into its V/O weights: v5p-8 paired +1.11% vs the XLA epilogue (BamPythia2p8BCommonRead*Profile).
-    # code_commit:9c11469; exact v5p-128/s28000 AOT for all three H classes. No training RUN yet.
+    # code_commit:9c11469; fresh28000/UE5a v5p128, global1024/B16; exact AOT/source/FIRST0 verified.
+    # Startup20..39 .31690step/s vs common gamma baseline.31750 (-.19%); genericON/internal+BAMOFF/minimal.
+    # Launch/group/reproduction: pythia2p8_common_read_raw_write.md; common gamma comparator, originalMHA gain reference.
     # See pythia2p8_common_read_raw_write.md.
     model_name = 'BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80CommonReadScaleUnscaledMLPContentEmbeddingFixed'
     bam_common_vo_read_scale = True
@@ -17357,7 +17359,9 @@ class BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80CommonReadScaleU
 class BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80CommonReadScaleUnscaledMLPContentEmbeddingFixedLocalODynamicNormScale020(
         BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80CommonReadScaleUnscaledMLPContentEmbeddingFixed):
     """H transfer retaining the target SOTA's learned dynamic-O address gamma=.2."""
-    # code_commit:9c11469; exact v5p-128/s28000 AOT; no training RUN yet.
+    # code_commit:9c11469; fresh28000/UE5a v5p128, global1024/B16; exact AOT/source/FIRST0 verified.
+    # Startup20..39 .31575step/s vs common gamma baseline.31750 (-.55%); genericON/internal+BAMOFF/minimal.
+    # Same H reporting group and common gamma comparator; originalMHA gain reference.
     model_name = 'BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80CommonReadScaleUnscaledMLPContentEmbeddingFixedLocalODynamicNormScale020'
     bam_local_o_dynamic_norm_scale = True
     bam_local_o_dynamic_norm_scale_init = .2

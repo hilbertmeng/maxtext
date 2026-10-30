@@ -102,3 +102,40 @@ match, actual target abstract parameter counts pass, scan initialization/signed
 health/WD pass, and all three native/Pallas full-gradient checks pass. Worst
 relative gradient discrepancies: H3.42e-6, H+gamma4.13e-6, unit-init+gamma2.39e-6.
 Proof: `/data0/xd/bam_diagnostics/pythia2p8-common-read-raw-write/validation.json`.
+
+## Formal paired launch: H and H + dynamic-O .2
+
+User-selected two short-prefix classes (not the unit-init third class) started
+fresh on UE5a spot v5p-128; runtime
+`9c11469da97a0ade00530448736e55024bfd6e99`, exact existing s28000 AOTs.
+Main worktree `/home/xd/projects/maxtext`, branch `refactor-bam`; each RUN name
+is its full short-prefix class. Logical IDs310451/310452 own respectively
+`xd-v5p-128-pythia-hg020-1030` and `xd-v5p-128-pythia-h-1030`; no backup zones.
+The user-owned FLEX compiler was not used or adopted by this launch task.
+
+Before launch, sealed inherited configs, AOT manifests/object size+CRC and
+current orchestration hashes verified. Main39b6a4f4 infrastructure audit:
+only later train.py change is inactive complementary-gate health support;
+no missing operational fixes. GCS TB rotation500 includes writer/begin_step;
+five pinned CPU summary tests pass. Reused the reviewed H implementation
+shape/budget/initialization/WD/full-gradient receipts; no model edits.
+
+Worker0 actual HEAD and `Loaded compiled function!` verified in both; first
+logged step0 losses10.961605(gamma)/10.961342(H). Steps20..39 mean speeds
+.31575/.31690step/s against common gamma comparator.31750 (-.55%/-.19%),
+same healthON/internal+BAMOFF, minimal remat, global1024/B16 and28k schedule.
+All model dimensions/MLPs and original LR schedule remain as specified above.
+
+Scientific comparator is the existing long-prefix dynamic-O .2 RUN, still
+paused atCP16040. Additional context baselines are serial Mudd and original
+MHA; all gain ratios use original MHA as reference. Before-run bets at common
+16k: H+gamma1.04, H1.02 versus the common gamma comparator, broad range
+.99..1.09; speed approximately equal. These are not versus-Mudd bets and
+are not terminal28k predictions.
+
+Persistent reporting group `pythia28-h-pair-1030`:2k cadence,4k/8k review
+points (no automatic stop),500-stride native windows±25. Preserve both direct
+common-comparator and original-MHA/Mudd historical-family figures, skipping
+initial2k. This task owns only these two new RUNs. Artifacts, startup proof,
+source audit, plot helper and state are under
+`/data0/xd/bam_diagnostics/pythia2p8b-h-pair-20261030/`.

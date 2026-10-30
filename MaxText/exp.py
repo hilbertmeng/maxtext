@@ -17366,6 +17366,36 @@ class BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640S
     bam_common_vo_read_scale_init = 1.0
 
 
+class BamPythia2p8BCommonReadParentProfile(
+        TrainStepProfile,
+        BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640SeparateVOKeysLogitDiagNegativeQK80LocalODynamicNormScale020):
+    """v5p-8 timing arm: gamma020 comparator, formal16/device micro-batch and health settings."""
+    model_name = 'BamPythia2p8BCommonReadParentProfile'
+    target_train_batch_size = None
+    per_device_batch_size = 16.0
+    steps = 100
+
+
+class BamPythia2p8BCommonReadHProfile(
+        TrainStepProfile,
+        BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640SeparateVOKeysLogitDiagNegativeQK80CommonReadScaleUnscaledMLPContentEmbeddingFixed):
+    """v5p-8 timing arm: H without gamma (common V/O scalar alone on the read)."""
+    model_name = 'BamPythia2p8BCommonReadHProfile'
+    target_train_batch_size = None
+    per_device_batch_size = 16.0
+    steps = 100
+
+
+class BamPythia2p8BCommonReadUnitGammaProfile(
+        TrainStepProfile,
+        BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640SeparateVOKeysLogitDiagNegativeQK80CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneLocalODynamicNormScale020):
+    """v5p-8 timing arm: priority H, unit-initialized scalars plus gamma020."""
+    model_name = 'BamPythia2p8BCommonReadUnitGammaProfile'
+    target_train_batch_size = None
+    per_device_batch_size = 16.0
+    steps = 100
+
+
 class BamPythia2p8BComboKeepPreMaskResume500(
         BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640SeparateVOKeysLogitDiagNegativeQK80):
     """Full-state fork of combination CP21557; review after500 added updates.

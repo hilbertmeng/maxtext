@@ -45,3 +45,16 @@ Primary evidence is loss/gain trajectory vs H; learned read-scale and
 memory-MLP norm trajectories help interpret stronger ungated write feedback.
 
 Launch ed83fadb: exact AOT/source/data/13500 schedule, FIRST_STEP0, periodicCP200 verified. All18 actual initial H read scalars matched depth formula; memory SwiGLU W_g raw gradients finite and nonzero. Startup20..99 .6737875step/s, +.584%H (matched settings, separate leases). Full5 focused tests and47 BAM regressions passed; F32 all-gradient maxrelative1.93e-6, BF16 fused gradient relative L2 vs F32 1.445%.
+
+Full13500 endpoint (2026-10-30): complete, finalCP13500 committed, TB SYNC_OK,
+node and queued resource independently absent; P0. Thepremature8k stop was
+reversed byuser; sameRUN/sourceed83fad/AOT/schedule resumed fromCP8285, first
+8286 andnextCP8400 verified. READY epochs11:55:54→15:26:49 and
+15:35:31→17:52:51UTC; theinterruption wasmanual, notpreemption.
+The brief early gain reversed near1k; recovery after3.2k and later narrowing
+did not regain H parity. At13.4k gap+.0017032/R.99065973; latest5 mean
++.00127528/R.99301190 (nativeMHA reference). This does not demonstrate that
+the hidden SwiGLU gate can replace the output write gate losslessly at this
+budget. Speed essentiallyunchanged, parameters20672 fewer, inferencecache
+unchanged. OriginalterminalR1.025 prior overestimated the effect.
+Rawendpoint artifacts: completed-final-pair under diagnostic family root.

@@ -96,3 +96,17 @@ selected compact metrics finite, whole18-layer profiles saved in gamma-review8k
 artifacts. This is not evidence against the separately validated2.8B gamma.2.
 Artifacts: context-local-o-complement-gamma050/closeout and
 report-groups/gamma-review8k-20261030-165549 under the diagnostic family root.
+
+Masked, no-gamma full13500 endpoint (2026-10-30): complete, CP13500/TB secured,
+node+QR independently absent; P0. Assignment12:09:06UTC, READY12:09:09→
+17:53:23UTC (5h44m14s). Parity near4k gave way to mostlysmall late gains.
+At13.4k gap-.0006318/R1.00346476; latest5 mean-.00066752/R1.00364451.
+The direction of the originalR1.015 prior wasright, magnitude optimistic.
+Result: small persistent H-direction gain withzero newparameters/cache and
+no material throughput cost, rather than a substantial ceiling breakthrough.
+The relative-routing directgate gradient changes fromD toD-A; its conditional
+selection contribution hasnot been causally separated from average ratio changes.
+Pythia2.8B transfer wasimplemented/merged at39b6a4f4 withClaude's folded H
+read retained;53 CPUchecks passed. A later other-session launch is recorded
+in main9620a16d; that RUN is not owned/closed bythis task.
+All endpoints/native ratios/resource audits arein completed-final-pair artifacts.

@@ -19576,6 +19576,11 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     # code_commit: ddb498c; UE5a v5p16 xd-v5p-16-310427-maxtext; FIRST0/source/AOT/data/s13500 verified.
     # Startup20..99 0.690925step/s vsH.669875 (+3.14%, separate leases); healthON/internal+BAMOFF.
     # Actual step0 V/O gamma RMS verified against the depth formula at all18layers; O/V parameter-RMS ratio1.
+    # User-stopped10519/13500/P0; CP10519/TB SYNC_OK, node+queued resource independently absent.
+    # vs H: early R~.95 recovered to~.985 at8k, then plateau/reversal; final5 through10400 gap+.00371008/R.98051346.
+    # Independent V/O dynamic gammas learned amplitude separation but did not replace H's full-read scaling successfully.
+    # Static reads were outside these gammas; this is not a clean rejection of fine-grained gamma. Terminal1.010 prior unmeasured.
+    # UE5a xd-v5p-16-310427-maxtext; single READY lease04:34:40..08:55:35 UTC,4h20m55s; manual user stop.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75DynamicVONormScaleDepth2RawMLPEmbeddingFixedTruePile'
     bam_common_vo_read_scale = False
     bam_local_v_dynamic_norm_scale = True

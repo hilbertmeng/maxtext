@@ -404,6 +404,11 @@ def record_bam_concat_health_metrics(output_metrics, intermediate_outputs, confi
   size = config.bam_local_fetch_block_size
   def emit(attention, layer, index=None):
     for key, values in attention.items():
+      if key == 'context_local_o_competition':
+        value = values[0] if index is None else values[0][index]
+        for i, name in enumerate(('gate_mean', 'gate_std')):
+          output_metrics['scalar'][f'bam/context_local_o_competition/layer_{layer:03d}/{name}'] = value[i]
+        continue
       if key.startswith('m_shift_'):
         value = values[0] if index is None else values[0][index]
         prefix = f'bam/m_shift/layer_{layer:03d}'
@@ -444,8 +449,14 @@ def record_bam_concat_health_metrics(output_metrics, intermediate_outputs, confi
   if not getattr(config, 'bam_pair_scan', False):
     layers = decoder['layers']
     attention = layers.get('sub_0', layers)['block']['self_attention']
-    for layer in range(config.num_decoder_layers):
+    tails = getattr(config, 'bam_final_local_layer_count', None)
+    if tails is None:
+      tails = int(bool(getattr(config, 'bam_extra_final_local_layer', False)))
+    for layer in range(config.num_decoder_layers - tails):
       emit(attention, layer, layer)
+    for offset in range(tails):
+      name = 'final_local_layer' if tails == 1 else f'final_local_layer_{offset}'
+      emit(decoder[name]['block']['self_attention'], config.num_decoder_layers - tails + offset)
     return
   tails = getattr(config, 'bam_final_local_layer_count', None)
   if tails is None:
@@ -1051,7 +1062,8 @@ def train_step(model, config, state_mesh_shardings, state, data, dropout_rng):
       "scalars": {},
   }
 
-  if getattr(config, 'bam_record_concat_health', False) or getattr(config, 'bam_record_m_shift_health', False):
+  if (getattr(config, 'bam_record_concat_health', False) or getattr(config, 'bam_record_m_shift_health', False)
+      or (getattr(config, 'bam_context_local_o_complement', False) and config.record_training_health_metrics)):
     record_bam_concat_health_metrics(metrics, intermediate_outputs, config)
   if getattr(config, 'rmt_record_dynamic_health', False):
     record_rmt_dynamic_health_metrics(metrics, intermediate_outputs, config)

@@ -17371,6 +17371,21 @@ class BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80CommonReadScaleU
     bam_common_vo_read_scale_init = 1.0
 
 
+class BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80CommonReadScaleUnscaledMLPContentEmbeddingFixedContextLocalOComplement(
+        BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80CommonReadScaleUnscaledMLPContentEmbeddingFixed):
+    """H plus opposing same-token/head gates for context and dynamic localO.
+
+    Reuse the existing dynamic O gate g: context *= 1-g; dynamic O keeps g.
+    Static O/gate, full-head QKNorm and negative attention diagonal are unchanged.
+    Retain optimized v8t common-scale folding, read/write kernels, minimal remat,
+    single-layer scan31+tail1 and GELU7808/2944/tail9984. No new parameters.
+    Generic health exports gate mean/std for all32 layers (64 scalars only).
+    """
+    model_name = 'BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80CommonReadScaleUnscaledMLPContentEmbeddingFixedContextLocalOComplement'
+    bam_context_local_o_complement = True
+    compare_runs = ['BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80CommonReadScaleUnscaledMLPContentEmbeddingFixed']
+
+
 class BamPythia2p8BCommonReadParentProfile(
         TrainStepProfile,
         BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640SeparateVOKeysLogitDiagNegativeQK80LocalODynamicNormScale020):

@@ -2697,6 +2697,9 @@ class BamAttention(Attention):
     self._vo_shared_read = getattr(cfg, 'bam_local_vo_shared_read', 'none') if self._local_o and 'local_v' in self._mode else 'none'
     assert self._vo_shared_read in ('none', 'local_o')
     self._vo_independent_gates = self._local_o and 'local_v' in self._mode and bool(getattr(cfg, 'bam_local_vo_independent_gates', False))
+    if getattr(cfg, 'bam_context_local_o_complement', False) and not (
+        self._local_o and self._vo_independent_gates):
+      raise ValueError('Context/localO complement requires one independent localO gate per MHA head')
     if self._vo_independent_gates:
       assert self._vo_shared_read == 'local_o'
     if self._vo_shared_read != 'none':
@@ -2780,6 +2783,9 @@ class BamAttention(Attention):
     self._fetched_heads_per_query = (
         self._fetched_read_num_heads // self.num_query_heads)
     self._vo_read_num_heads = self._fetched_read_num_heads
+    if (getattr(cfg, 'bam_context_local_o_complement', False)
+        and self._fetched_read_num_heads != self.num_query_heads):
+      raise ValueError('Context/localO complement requires one independent localO gate per MHA head')
     if self._hybrid_value and not cfg.bam_standard_value_keep_local_o:
       self._vo_read_num_heads -= self._standard_value_heads
     self._fetch_mix_implementation = cfg.bam_fetch_mix_implementation
@@ -3611,7 +3617,7 @@ class BamAttention(Attention):
     return self._read_fetched_m(self._compress_m(M), x)[0]
 
   def _independent_local_vo(self, M, x, compressed_M=None, shared_hidden=None,
-                            *, o_column_weight_multiplier=None):
+                            *, o_column_weight_multiplier=None, return_o_logits=False):
     """Contract one ungated C8 read, then apply destination-specific gates."""
     if compressed_M is None:
       compressed_M = self._compress_m(M)
@@ -3632,7 +3638,23 @@ class BamAttention(Attention):
       correlation = jnp.mean(vc * oc) / jnp.maximum(jnp.sqrt(jnp.mean(vc * vc) * jnp.mean(oc * oc)), 1e-12)
       self.sow('intermediates', 'concat_vo_gate_pair', jnp.stack((
           jnp.mean(jnp.abs(v-o)), jnp.sqrt(jnp.mean((v-o)**2)), correlation)))
-    return self._gate_local_output(v_read, v_logits), self._gate_local_output(read, o_logits)
+    outputs = (self._gate_local_output(v_read, v_logits), self._gate_local_output(read, o_logits))
+    return outputs + (o_logits,) if return_o_logits else outputs
+
+  def _context_with_local_o_complement(self, context, o_logits):
+    """Reuse the dynamic O read gate; gradients from BOTH destinations add here."""
+    if not getattr(self.config, 'bam_context_local_o_complement', False):
+      return context
+    if o_logits is not None and o_logits.shape == context.shape[:-1] + (1,):
+      o_logits = jnp.squeeze(o_logits, axis=-1)
+    if o_logits is None or o_logits.shape != context.shape[:-1]:
+      raise ValueError(f'Context/localO complement needs matching token/head logits: '
+                       f'{None if o_logits is None else o_logits.shape} vs {context.shape}')
+    gate = jax.nn.sigmoid(o_logits.astype(jnp.float32))
+    if self.config.record_training_health_metrics and not self.is_initializing():
+      summary = jax.lax.stop_gradient(jnp.stack((jnp.mean(gate), jnp.std(gate))))
+      self.sow('intermediates', 'context_local_o_competition', summary)
+    return (context.astype(jnp.float32) * (1. - gate)[..., None]).astype(context.dtype)
 
   def _dynamic_local_o_scale_for_read(self):
     """Keep the native/Pallas [N,V] interface with either parameter granularity."""
@@ -4233,10 +4255,11 @@ class BamAttention(Attention):
     # Full-head norm needs the unscaled, unrotated concatenated Q/K. In that case
     # attention scaling must follow QKNorm, rather than being folded into the read.
     q_scale = 1.0 / math.sqrt(self.head_dim) if pass_m and not full_qk_norm else 1.0
+    o_read_logits = logits('W_R_gate', True)
     with jax.named_scope('bam/pallas_read'):
       outs = bam_pallas.read(
           M_in, weight, q_key, logits('W_lq_gate', False), k_key, logits('W_lk_gate', False),
-          vo_key, logits('W_R_gate', True), logits('W_lv_gate', False), query, key,
+          vo_key, o_read_logits, logits('W_lv_gate', False), query, key,
           qk_cols=self._qk_col_width, read_epsilon=self._read_key_epsilon,
           key_scale=self._read_key_scale,
           forward_tile=int(getattr(cfg, 'bam_pallas_read_tile', None) or 128),
@@ -4293,6 +4316,7 @@ class BamAttention(Attention):
     else:
       y_std, _ = self._attention_block(query, key, value, decoder_segment_ids,
                                        q0=0, s0=0, window_size=local_window)
+    y_std = self._context_with_local_o_complement(y_std, o_read_logits)
     local_output = self._regularize_local_o_heads(local_output, deterministic)
     o_head = y_std + local_output
     if not self._has_write:
@@ -4469,6 +4493,7 @@ class BamAttention(Attention):
         inputs_q, float(getattr(cfg, 'bam_local_o_read_weight_dropout_rate', 0.0)),
         self._read_bam_v, deterministic)
     local_output = None
+    local_o_logits = None
     if self._local_o and self._vo_shared_read != 'none':
       if Mh is None:
         Mh = self._matrix_for_read(M_read)
@@ -4480,9 +4505,13 @@ class BamAttention(Attention):
         if self._static_vo:
           local_output = local_output + self._static_column(Mh, 'o', inputs_q)
       elif self._vo_independent_gates:
-        v_local, local_output = self._independent_local_vo(
+        vo_outputs = self._independent_local_vo(
             Mh, inputs_q, local_compressed_M, full_m_shared_hidden,
-            o_column_weight_multiplier=o_column_weight_multiplier)
+            o_column_weight_multiplier=o_column_weight_multiplier,
+            return_o_logits=bool(getattr(cfg, 'bam_context_local_o_complement', False)))
+        v_local, local_output = vo_outputs[:2]
+        if len(vo_outputs) == 3:
+          local_o_logits = vo_outputs[2]
       else:
         local_output = self._shared_local_vo(Mh, inputs_q, local_inputs)
         v_local = local_output
@@ -4573,6 +4602,7 @@ class BamAttention(Attention):
           q0=0, s0=0, window_size=local_window,
           fetch_state=fetch_state, mix_weights=mix_weights)
 
+    y_std = self._context_with_local_o_complement(y_std, local_o_logits)
     if local_output is not None:
       sl = slice(None, self.bam_k)
       self._record_concat_amplitude('local_o', local_output[..., sl], y_std[..., sl])

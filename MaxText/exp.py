@@ -19721,3 +19721,21 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     bam_pallas_core = True
     bam_pallas_write = True
     compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODynamicNormScale050TruePile']
+
+
+class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedNoMLPWriteGateTruePile(
+    BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedTruePile):
+    """Keep memory SwiGLU gates; remove the additional per-head memory write gate.
+
+    Reimburse each live layer's saved D*16+16 gate parameters to its ordinary
+    MLP: +5 hidden units. Total432091538, H-20672 (-.0048%); tail unchanged.
+    Existing v8t write kernel consumes constant +inf logits, exact gain1.
+    """
+    # ledger only: codex/mediumprop-common-read-raw-write, /data0/xd/mediumprop-common-read-raw-write.
+    # code_commit: ed83fad; UE5a v5p16 xd-v5p-16-310435-maxtext, plan13500.
+    # FIRST0/exact AOT/source/data/schedule/CP200 verified; initial signed H scales checked all18, memory SwiGLU W_g gradients nonzero.
+    # Startup20..99 .6737875step/s, H +.584%; genericON/internal+BAMOFF, matched-settings separate leases.
+    model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedNoMLPWriteGateTruePile'
+    bam_mlp_write_gate = False
+    base_mlp_dim = 2515
+    compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedTruePile']

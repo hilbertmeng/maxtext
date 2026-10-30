@@ -16,6 +16,10 @@ def validate_bam_config(config, *, layer_mode=None):
     if get('bam_common_vo_read_scale', False) or get('bam_attention_write_content_divisor', None) is None:
       raise ValueError('Write-only attention scale requires fixed-content attention writes and no common read scale')
   if get('bam_common_vo_read_scale', False):
+    initial_scale = get('bam_common_vo_read_scale_init', None)
+    if initial_scale is not None and (isinstance(initial_scale, bool)
+        or not isinstance(initial_scale, (int, float)) or not math.isfinite(initial_scale)):
+      raise ValueError('bam_common_vo_read_scale_init must be a finite scalar or None')
     if not (get('bam_local_vo_independent_keys', False) and get('bam_local_vo_independent_gates', False)
             and get('bam_local_v_replace', False) and not get('bam_standard_value_layers', None)
             and not get('bam_hybrid_v_num_heads', 0)):

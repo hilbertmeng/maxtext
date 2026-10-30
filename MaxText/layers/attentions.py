@@ -4396,8 +4396,11 @@ class BamAttention(Attention):
       actual_layer = self.layer_inx if layer_index is None else layer_index
       initial_scale = jax.lax.rsqrt(1.0 + 2.0 * jnp.asarray(actual_layer, jnp.float32))
       if common_read:
+        read_initial_scale = getattr(cfg, 'bam_common_vo_read_scale_init', None)
+        if read_initial_scale is None:
+          read_initial_scale = initial_scale
         common_vo_scale = self._constant_general_parameter(
-            'common_vo_read_scale', (1,), (None,), initial_scale)[0]
+            'common_vo_read_scale', (1,), (None,), read_initial_scale)[0]
       if scaled_write:
         attention_write_scale = self._constant_general_parameter(
             'attention_write_scale', (1,), (None,), initial_scale)[0]

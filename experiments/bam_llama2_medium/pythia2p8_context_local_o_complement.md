@@ -41,3 +41,5 @@ config rejection, and real scan+tail health export (formal synthetic export64 ta
 FP32 worst leaf max-relative gradient error was3.124e-6. Against FP32 truth,
 BF16 global relative gradient L2 was2.168% native versus1.727% fused.
 The optimized common-scale folding path is exercised with perturbed learned scales.
+Shared BAM regression: all47 checks passed as well (53 checks total). No TPU
+resources or compilation jobs were requested for this configuration-only port.

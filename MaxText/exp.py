@@ -17366,8 +17366,18 @@ class BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640S
     bam_common_vo_read_scale_init = 1.0
 
 
+class Pythia2p8BSixLayerTiming:
+    """v5p-8 operator timing: scan5+tail1 with every per-layer shape and16/device kept.
+
+    The full32-layer arms exceed v5p-8 HBM by6.26GiB at the formal micro-batch.
+    """
+    base_num_decoder_layers = 6
+    bam_layer_modes = ['local_qk+local_v+local_o'] * 6
+    bam_attention_write_layers = list(range(5))
+
+
 class BamPythia2p8BCommonReadParentProfile(
-        TrainStepProfile,
+        Pythia2p8BSixLayerTiming, TrainStepProfile,
         BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640SeparateVOKeysLogitDiagNegativeQK80LocalODynamicNormScale020):
     """v5p-8 timing arm: gamma020 comparator, formal16/device micro-batch and health settings."""
     model_name = 'BamPythia2p8BCommonReadParentProfile'
@@ -17377,7 +17387,7 @@ class BamPythia2p8BCommonReadParentProfile(
 
 
 class BamPythia2p8BCommonReadHProfile(
-        TrainStepProfile,
+        Pythia2p8BSixLayerTiming, TrainStepProfile,
         BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640SeparateVOKeysLogitDiagNegativeQK80CommonReadScaleUnscaledMLPContentEmbeddingFixed):
     """v5p-8 timing arm: H without gamma (common V/O scalar alone on the read)."""
     model_name = 'BamPythia2p8BCommonReadHProfile'
@@ -17387,7 +17397,7 @@ class BamPythia2p8BCommonReadHProfile(
 
 
 class BamPythia2p8BCommonReadUnitGammaProfile(
-        TrainStepProfile,
+        Pythia2p8BSixLayerTiming, TrainStepProfile,
         BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640SeparateVOKeysLogitDiagNegativeQK80CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneLocalODynamicNormScale020):
     """v5p-8 timing arm: priority H, unit-initialized scalars plus gamma020."""
     model_name = 'BamPythia2p8BCommonReadUnitGammaProfile'

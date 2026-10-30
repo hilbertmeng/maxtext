@@ -19635,6 +19635,9 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedContextLocalOComplementSelfAttentionTruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedContextLocalOComplementTruePile):
     """Matched competition control: restore self-attention, keep shared g/1-g."""
+    # Stopped8347/13500 at8k review/P0; CP8347 andTB SYNC_OK, node+QR independently verified absent.
+    # vsH: early deficit reached~+.008, then narrowed;8k/8.2k rebound toR~.988, latest5 gap+.003049/R.984974.
+    # No observed advantage overH through8.2k; late rebound/full13500 endpoint untested, not proof of terminal failure.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedContextLocalOComplementSelfAttentionTruePile'
     bam_attention_negative_diagonal = False
     compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedTruePile']

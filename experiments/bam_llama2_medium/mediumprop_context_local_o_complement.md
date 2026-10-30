@@ -60,8 +60,8 @@ group plots contain only these three RUNs against H.
 
 Matched second RUNid310437: append `SelfAttention` before `TruePile`, inherit
 the competition class and set only `bam_attention_negative_diagonal=False`.
-Same432112210 parameters and widths; direct comparator is the masked
-competition RUN. Both export the same36 gate mean/std metrics. Existing
+Same432112210 parameters and widths; genealogical parent is the masked
+competition RUN; routine direct comparator was switched to H per user instruction. Both export the same36 gate mean/std metrics. Existing
 ordinary causal Splash includes the diagonal, including segment-start self
 values; no kernel edit. Config/shape, explicit segmented Splash self-row
 reference and full F32/BF16 native/Pallas gradient checks gate launch.
@@ -72,3 +72,14 @@ to a complete two-factor interaction estimate without an unmasked H control.
 Launches verified: masked runtime d123e5bf on310436, unmasked runtime8e15b747 on retained physical310429 with RUNid310437. Both FIRST_STEP0/exactAOT/source/data/13500 schedule and periodicCP200 verified. Startup20..99: masked.6729step/s (+.452%H), unmasked.672875step/s (-.0037%masked). No kernel edits. Masked4 focused tests+47 BAM regressions, unmasked3 targeted tests passed; full F32/BF16 model gradients included. Actual TensorBoard verified36 finite gate mean/std tags per RUN across all18 layers; initial mean.0503309965. Both actual18 initial signed H depth scales verified. Evidence: context-local-o-complement/initial-health/proof.json under the diagnostic artifact root.
 
 Gamma masked arm6355ba82 startup verified: FIRST0/exact source/AOT/13500 schedule/data/CP200. Speed20..99 .6695375step/s, -.500%masked sibling / -.050%H. All18 gamma initial RMS.5 and signed H depth coefficients verified,36 actual gate TB tags and finite nonzero gamma gradients.
+
+Self-attention control closeout (2026-10-30): stopped8347/13500 at8k review.
+CP8347 committed, all TensorBoard synced, node and queued resource independently
+absent; P0. READY12:15:19→15:46:02UTC (3h30m43s), assignment12:15:16UTC.
+Relative H, early positive gap grew to~.008 then narrowed. At8.2k gap+.0022998,
+R.988413; latest5 mean gap+.00304916/R.984974 (native MHA reference).
+The8k/8.2k rebound was retained in the conclusion; full13500 outcome is untested.
+Scientific result through this endpoint: restoring self attention did not beat H
+or the masked competition sibling; no material parameter/cache/speed benefit.
+Closeout artifacts: context-local-o-complement-self-attention/closeout under
+`/data0/xd/bam_diagnostics/mediumprop-common-read-raw-write/`.

@@ -77,3 +77,9 @@ a formal topology speed or memory test. Artifacts are in the diagnostic folder
 above. Before formal training, audit current main operational fixes and prepare
 the exact chosen training-topology AOT. No training-result prediction is sealed
 by this configuration-only task.
+
+Validated implementation snapshot `c385e8e9` (pushed). All three sealed configs
+match, actual target abstract parameter counts pass, scan initialization/signed
+health/WD pass, and all three native/Pallas full-gradient checks pass. Worst
+relative gradient discrepancies: H3.42e-6, H+gamma4.13e-6, unit-init+gamma2.39e-6.
+Proof: `/data0/xd/bam_diagnostics/pythia2p8-common-read-raw-write/validation.json`.

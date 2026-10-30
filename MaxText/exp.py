@@ -19763,6 +19763,10 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     # code_commit: a9dad36; UE5a v5p16 retained xd-v5p-16-310432-maxtext, RUNid310434, plan13500.
     # FIRST0/exact source/AOT/data/schedule verified; startup20..99 .68995step/s, original dynamicO gamma.5 +.0235%.
     # GenericON/internal+BAMOFF; all18 initial gamma RMS V1/O.5 checked; negligible+9216, no MLP repayment.
+    # User stop5792/13500/P0; CP5792/TB SYNC_OK, physical310432 node+QR independently absent.
+    # vs original O gamma.5: fluctuating small deficit, brief5200 crossing not sustained; final5 through5600 gap+.00095308/R.99566342.
+    # ExtraV gamma9216 params gives no demonstrated loss/speed gain; terminalR1.015 prior unmeasured and overoptimistic.
+    # UE5a READY11:10:37..13:44:50 UTC,2h34m13s; initially retained from complete-O-head RUN.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODynamicNormScale050LocalVDynamicNormScale100TruePile'
     bam_local_v_dynamic_norm_scale = True
     bam_local_v_dynamic_norm_scale_init = 1.0

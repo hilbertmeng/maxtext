@@ -19810,7 +19810,7 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     # code_commit: ed83fad; UE5a v5p16 xd-v5p-16-310435-maxtext, plan13500.
     # FIRST0/exact AOT/source/data/schedule/CP200 verified; initial signed H scales checked all18, memory SwiGLU W_g gradients nonzero.
     # Startup20..99 .6737875step/s, H +.584%; genericON/internal+BAMOFF, matched-settings separate leases.
-    # Completed13500/P0; CP13500/TB SYNC_OK, node+QR independently absent; same ed83fad/AOT after resume8285.
+    # Completed 13500/P0; CP13500/TB SYNC_OK, node+QR independently absent; same ed83fad/AOT after resume8285.
     # vsH: brief early gain reversed~1k; partial recovery after3.2k continued late, but did not regain parity.
     # At13.4k gap+.001703/R.990660; latest5 gap+.001275/R.993012. No demonstrated loss/efficiency gain.
     # The8k stop was reversed byuser; preserve both READY epochs, no preemptions.
@@ -19831,7 +19831,7 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     # code_commit: d123e5b; UE5a v5p16 xd-v5p-16-310436-maxtext, plan13500.
     # FIRST0/exact source/AOT/data/schedule verified; native/Pallas full-model F32/BF16 gradients and health export tested.
     # Startup20..99 0.6729000step/s, direct parent +0.4516%; genericON/internalOFF plus36 gate mean/std scalars.
-    # Completed13500/P0; CP13500/TB SYNC_OK, node+QR independently verified absent.
+    # Completed 13500/P0; CP13500/TB SYNC_OK, node+QR independently verified absent.
     # vsH: near parity~4k, then mostly small gains; at13.4k gap-.000632/R1.003465, latest5-.000668/R1.003645.
     # Small persistent benefit, no clear ceiling breakthrough; zero extra parameters/cache, throughput effectively unchanged.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedContextLocalOComplementTruePile'
@@ -19846,7 +19846,7 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     # code_commit: 8e15b74; UE5a v5p16 retained xd-v5p-16-310429-maxtext, RUNid310437, plan13500.
     # FIRST0/exact source/AOT/data/schedule verified; native/Pallas full-model F32/BF16 gradients and health export tested.
     # Startup20..99 .672875step/s, H +.448%, masked sibling -.0037%; genericON/internalOFF plus36 gate mean/std scalars.
-    # Stopped8347/13500 at8k review/P0; CP8347 andTB SYNC_OK, node+QR independently verified absent.
+    # Stopped 8347/13500 at8k review/P0; CP8347 andTB SYNC_OK, node+QR independently verified absent.
     # vsH: early deficit reached~+.008, then narrowed;8k/8.2k rebound toR~.988, latest5 gap+.003049/R.984974.
     # No observed advantage overH through8.2k; late rebound/full13500 endpoint untested, not proof of terminal failure.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedContextLocalOComplementSelfAttentionTruePile'
@@ -19865,7 +19865,7 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     # code_commit: 6355ba8; UE5a v5p16 xd-v5p-16-310438-maxtext, plan13500.
     # FIRST0/exact source/AOT/data/schedule/CP200 verified; all18 initial gamma RMS.5/H signed scales and actual36 gate TB scalars checked.
     # Startup20..99 .6695375step/s, masked sibling -.500%, H -.050%; genericON/internalOFF plus36 gate scalars, existing Pallas read/write.
-    # Stopped8546/13500 at8k review/P0; CP8546/TB SYNC_OK and node+QR independently verified absent.
+    # Stopped 8546/13500 at8k review/P0; CP8546/TB SYNC_OK and node+QR independently verified absent.
     # vsH: large initial gap narrowed by4k, then R~.975 plateau through8.4k despite intermittent catch-up.
     # Final8.4k gap+.005592/R.971845; latest5 gap+.005040/R.974921; full13500 terminal untested.
     # At8k: gamma layerRMS .472-.521, dynamic gate layermeans .057-.439; no observed combination benefit.

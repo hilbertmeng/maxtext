@@ -56,3 +56,5 @@ F32 scanned native/Pallas full-gradient maxrel1.68e-6; BF16 maxleaf5.85%, global
 relative gradient L2 1.15%. Full47 CPU BAM regressions passed. Same audited
 runtime infrastructure as H/coarse-scale arms, checked through main d007a1fd;
 no omitted logging/checkpoint/AOT/optimizer operational changes.
+
+Balanced repayment arm user-stopped5377/13500, committedCP/TB saved and node+queue independently absent, P0. Mature5200 final5 vsH gap+.01242588/R.94710857; common3200 vs original split gap+.00116520/R.99597008. Allocation change did not rescue structural deficit. Full terminal bet1.02 against original split cannot be evaluated because original stopped3322. UE5a READY09:07:54..11:27:35 UTC,2h19m41s.

@@ -131,7 +131,8 @@ def main():
   p.add_argument('--output', type=Path, required=True)
   p.add_argument('--length', type=int, default=2048)
   p.add_argument('--sequences', type=int, default=32)
-  p.add_argument('--vmem-mib', type=int, default=14)
+  p.add_argument('--vmem-mib', type=int, default=40,
+                 help='v6e scoped VMEM budget; N32/V64 requires more than14MiB. Medium can use14.')
   p.add_argument('--tile', type=int, default=128,
                  help='Pallas token tile; token-minor TPU blocks require 128 alignment')
   p.add_argument('--config-only', action='store_true',
@@ -145,6 +146,7 @@ def main():
   import jax.numpy as jnp
   import numpy as np
   from flax import linen as nn
+  from flax.core import unfreeze
   import max_utils
   import pyconfig
   from layers.models import Transformer
@@ -177,7 +179,12 @@ def main():
   pos = jnp.arange(args.length, dtype=jnp.int32)[None]
   seg = jnp.ones((1, args.length), jnp.int32)
 
+  forward_traces = 0
+
   def forward(params, tokens):
+    nonlocal forward_traces
+    forward_traces += 1
+    print('FORWARD_TRACE', forward_traces, flush=True)
     with capture_writes():
       result, collections = model.apply(params, tokens[:, :-1], pos,
           decoder_segment_ids=seg, decoder_target_mask=seg,
@@ -197,7 +204,17 @@ def main():
         # Reuse the runtime's exact training initializer and RNG dictionaries.
         params = nn.unbox(jax.jit(lambda rng: max_utils.init_initial_state(
             model, None, cfg, False, rng).params)(jax.random.PRNGKey(cfg.init_weights_seed)))
+      # Initialization and Orbax restoration must enter JIT with the same
+      # container and sharding representation; parameter values stay unchanged.
+      params = jax.device_put(unfreeze(nn.unbox(params)),
+                              jax.sharding.SingleDeviceSharding(jax.devices()[0]))
       jax.block_until_ready(params)
+      leaves, treedef = jax.tree.flatten(params)
+      signature = hashlib.sha256(repr((str(treedef), [
+          (x.shape, str(x.dtype), x.weak_type, str(x.sharding), x.committed)
+          for x in leaves])).encode()).hexdigest()
+      print('PARAM_SIGNATURE', step, signature, flush=True)
+      del leaves
       print('RESTORE_OK', step, round(time.monotonic()-start, 2), flush=True)
       rows = []
       for index, tokens in enumerate(cohort):
@@ -223,6 +240,7 @@ def main():
           semantics='Ratios of aggregate RMS across same sequences/tokens/heads. Stored marginal: full write minus actual BF16 leave-one-writer result; margins are conditional and not additive.',
           overrides=dict(only_eval=True, batch=1, length=args.length,
                          vmem_mib=args.vmem_mib, forward_tile=args.tile),
+          param_signature=signature, forward_traces=forward_traces,
           raw_file=str(path), devices=[str(x) for x in jax.devices()])
       (path.with_suffix('.json')).write_text(json.dumps(meta, indent=2)+'\n')
       print('STEP_DONE', step, round(meta['seconds'], 2), flush=True)

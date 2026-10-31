@@ -152,8 +152,11 @@ def main():
       target_train_batch_size=None, per_device_batch_size=1.,
       max_target_length=args.length, max_prefill_predict_length=args.length,
       record_internal_nn_metrics=False, record_training_health_metrics=False,
-      bam_pallas_vmem_mib=args.vmem_mib, jax_cache_dir='', log_config=False)
-  cfg.get_keys().update(bam_pallas_read_tile=args.tile, bam_pallas_write_tile=args.tile)
+      jax_cache_dir='', log_config=False)
+  # Historical runtimes carry these optional kernel knobs only on exp classes,
+  # so their CLI parser rejects them even though BamAttention consumes them.
+  cfg.get_keys().update(bam_pallas_read_tile=args.tile, bam_pallas_write_tile=args.tile,
+                        bam_pallas_vmem_mib=args.vmem_mib)
   assert cfg.bam_pallas_core and cfg.bam_pallas_body == 'v8t'
   assert not cfg.bam_sqrt_n_scale
   mesh = jax.sharding.Mesh(max_utils.create_device_mesh(cfg), cfg.mesh_axes)

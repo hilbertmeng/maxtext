@@ -19931,7 +19931,7 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedFinalLocalOLastMLPWriteTruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedFinalLocalOTruePile):
     """Final localO exit plus a restored L17 private MLP writer; tail-local budget."""
-    # Stopped at 174 for user configuration correction, not an experimental loss conclusion.
+    # Stopped at 174 for user configuration correction; no scientific loss-gap conclusion.
     # The extra final reader makes both terminal writers usable; replaced by FinalLocalOLastWritesTruePile.
     # CP174 and TB SYNC_OK; retained physical310471 transferred to the corrected arm after its FIRST_STEP.
     # code_commit: b5f6877; ledger only: codex/mediumprop-h-final-local-o, /data0/xd/mediumprop-h-final-local-o.

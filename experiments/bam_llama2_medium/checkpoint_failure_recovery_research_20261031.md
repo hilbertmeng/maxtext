@@ -178,9 +178,12 @@ Production defaults:
   `date -d ""` which incorrectly means midnight. Normal health
   polling defaults to30s (resource polling/I/O can add latency). Pending saves
   use this policy instead of the shorter ordinary stale-training watchdog.
-- `CHECKPOINT_RESCUE_TIMEOUT_SECONDS=1500`: graceful rescue budget, followed by
+- `CHECKPOINT_RESCUE_TIMEOUT_SECONDS=600`: graceful rescue budget, followed by
   bounded KILL/exit verification. This is an outer bound even when library
   callbacks or collectives do not return. An SSH failure is not an exit proof.
+  The user reduced this budget from1500 to600s; it intentionally permits the
+  outer controller to end rescue before a new save reaches its1200s library
+  timeout, then resume from verified persistent state.
 
 `MaxText/checkpoint_recovery.py` drains the previous save and exchanges status
 on all ranks before submitting a new one. The rank with no local exception must

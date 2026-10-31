@@ -65,7 +65,10 @@ def capture_writes():
       margins = []
       for writer in range(2):
         other = 1 - writer
-        leave_kw = dict(kw, content_divisors=(divisors[other],))
+        leave_kw = dict(kw)
+        # Older all-normalized runtimes predate the content_divisors API.
+        if 'content_divisors' in kw:
+          leave_kw['content_divisors'] = (divisors[other],)
         leave = original(matrix, (groups[other],), **leave_kw)
         marginal = out.astype(jnp.float32) - leave.astype(jnp.float32)
         axes = tuple(range(1, marginal.ndim))

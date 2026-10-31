@@ -20,6 +20,90 @@ import time
 FIELDS = ('content_ms', 'gated_content_ms', 'delta_ms', 'gate_mean',
           'gate_ms', 'raw_content_ms', 'both_normalized_content_ms',
           'stored_marginal_ms', 'stored_nonzero_fraction')
+READ_ARMS = ('q', 'k', 'v', 'o')
+READ_FIELDS = ('dynamic_gate_mean', 'dynamic_gate_ms',
+               'static_multiplier_mean', 'static_multiplier_ms', 'read_ms')
+
+
+def read_gate_statistics(logits, static_multipliers, outputs, qk_cols):
+  """Actual kernel gate inputs and outputs; per sequence/arm, no parameter proxies.
+
+  Static multipliers are 1.1*sigmoid(Wx+b)/initial_opening, not raw gate
+  openings. Q/K RMS includes only the M-derived prefix before full QKNorm.
+  """
+  import jax
+  import jax.numpy as jnp
+  result = []
+  for i, (logit, multiplier, output) in enumerate(zip(logits, static_multipliers, outputs)):
+    dynamic = jax.nn.sigmoid(logit.astype(jnp.float32))
+    static = multiplier.astype(jnp.float32)
+    value = output[..., :qk_cols] if i < 2 else output
+    mean = lambda x: jnp.mean(x, axis=tuple(range(1, x.ndim)))
+    result.append(jnp.stack((mean(dynamic), mean(dynamic**2), mean(static),
+                             mean(static**2), mean(value.astype(jnp.float32)**2)), axis=-1))
+  return jnp.stack(result, axis=1)
+
+
+@contextlib.contextmanager
+def capture_reads(enabled=True):
+  """Capture the fused read's real gates without changing its returned values."""
+  if not enabled:
+    yield
+    return
+  import jax.numpy as jnp
+  from flax import linen as nn
+  from layers import attentions, bam_pallas
+
+  def intercept(next_fun, args, kwargs, ctx):
+    module = ctx.module
+    if ctx.method_name != '__call__' or not isinstance(module, attentions.BamAttention):
+      return next_fun(*args, **kwargs)
+    original = bam_pallas.read
+
+    def measured(matrix, weight, q_key, q_logit, k_key, k_logit, vo_key,
+                 o_logit, v_logit, q_standard, k_standard, **kw):
+      out = original(matrix, weight, q_key, q_logit, k_key, k_logit, vo_key,
+                     o_logit, v_logit, q_standard, k_standard, **kw)
+      if not module.is_initializing():
+        multipliers = kw.get('static_gates')
+        if multipliers is None:
+          multipliers = tuple(jnp.ones_like(q_logit) for _ in READ_ARMS)
+        stats = read_gate_statistics((q_logit, k_logit, v_logit, o_logit),
+                                     multipliers, out[:4], kw['qk_cols'])
+        module.sow('intermediates', 'read_gate_probe', stats)
+      return out
+
+    bam_pallas.read = measured
+    try:
+      return next_fun(*args, **kwargs)
+    finally:
+      bam_pallas.read = original
+
+  with nn.intercept_methods(intercept):
+    yield
+
+
+def extract_read_stats(collection, final_layer):
+  import jax.numpy as jnp
+  from flax.traverse_util import flatten_dict
+  found = []
+  for path, value in flatten_dict(collection).items():
+    if path[-1] != 'read_gate_probe':
+      continue
+    while isinstance(value, (tuple, list)):
+      value = value[0]
+    if 'layers' in path:
+      found.append((0, value))
+    elif 'final_local_layer' in path:
+      found.append((final_layer, value[None]))
+    else:
+      match = next((re.fullmatch(r'layers_(\d+)', part) for part in path
+                    if re.fullmatch(r'layers_(\d+)', part)), None)
+      if match:
+        found.append((int(match[1]), value[None]))
+  if not found:
+    raise ValueError('No read_gate_probe values captured')
+  return jnp.concatenate([value for _, value in sorted(found)], axis=0)
 
 
 def factors_and_statistics(groups, divisors, epsilon, matrix_dtype):
@@ -140,6 +224,8 @@ def main():
                  help='Pallas token tile; token-minor TPU blocks require 128 alignment')
   p.add_argument('--config-only', action='store_true',
                  help='Verify exact historical configuration without weights/inference')
+  p.add_argument('--read-gates', action='store_true',
+                 help='Also capture all eight read gates and actual four-arm M read RMS')
   args = p.parse_args()
   if args.tile <= 0 or args.tile % 128 or args.length % args.tile:
     p.error('--tile must be a positive multiple of128 dividing sequence length')
@@ -188,12 +274,15 @@ def main():
     nonlocal forward_traces
     forward_traces += 1
     print('FORWARD_TRACE', forward_traces, flush=True)
-    with capture_writes():
+    with capture_writes(), capture_reads(args.read_gates):
       result, collections = model.apply(params, tokens[:, :-1], pos,
           decoder_segment_ids=seg, decoder_target_mask=seg,
           decoder_target_tokens=tokens[:, 1:], enable_dropout=False,
           mutable=['intermediates'])
-    return extract_stats(collections['intermediates'])
+    writes = extract_stats(collections['intermediates'])
+    if args.read_gates:
+      return writes, extract_read_stats(collections['intermediates'], cfg.num_decoder_layers-1)
+    return writes
 
   with mesh, nn.partitioning.axis_rules(cfg.logical_axis_rules):
     compiled = jax.jit(forward)
@@ -222,9 +311,15 @@ def main():
       print('WEAK_TYPE_PATHS', step, weak_type_paths, flush=True)
       del leaves
       print('RESTORE_OK', step, round(time.monotonic()-start, 2), flush=True)
-      rows = []
+      rows, read_rows = [], []
       for index, tokens in enumerate(cohort):
-        value = np.asarray(compiled(params, jnp.asarray(tokens[None])))
+        value = compiled(params, jnp.asarray(tokens[None]))
+        if args.read_gates:
+          value, read_value = value
+          read_value = np.asarray(read_value)
+          assert read_value.shape == (cfg.num_decoder_layers, 1, 4, len(READ_FIELDS)), read_value.shape
+          read_rows.append(read_value[:, 0])
+        value = np.asarray(value)
         assert value.shape == (cfg.num_decoder_layers-1, 1, 2, len(FIELDS)), value.shape
         rows.append(value[:, 0])
         if index in (0, 7, 15, 31):
@@ -232,7 +327,10 @@ def main():
       array = np.stack(rows)
       assert np.isfinite(array).all()
       path = args.output / f'step-{step}-T{args.length}.npz'
-      np.savez_compressed(path, statistics=array)
+      extra = dict(read_statistics=np.stack(read_rows)) if args.read_gates else {}
+      if extra:
+        assert np.isfinite(extra['read_statistics']).all()
+      np.savez_compressed(path, statistics=array, **extra)
       mean = array.mean(axis=0)
       ratio = lambda field: np.sqrt(mean[:, 1, FIELDS.index(field)] /
                                     np.maximum(mean[:, 0, FIELDS.index(field)], 1e-30)).tolist()
@@ -249,6 +347,11 @@ def main():
           param_signature=signature, weak_type_paths=weak_type_paths,
           forward_traces=forward_traces,
           raw_file=str(path), devices=[str(x) for x in jax.devices()])
+      if args.read_gates:
+        meta.update(read_arms=READ_ARMS, read_fields=READ_FIELDS,
+                    static_gate_init=float(cfg.bam_static_read_gate_init),
+                    read_key_scale=float(cfg.bam_read_key_scale),
+                    read_semantics='Dynamic gate=sigmoid(logit); static multiplier=1.1*sigmoid(Wx+b)/initial_opening. Both depend on token. M-derived Q/K prefix RMS is before full QKNorm; V/O RMS is the actual fused output including common scale and dynamic-O gamma.')
       (path.with_suffix('.json')).write_text(json.dumps(meta, indent=2)+'\n')
       print('STEP_DONE', step, round(meta['seconds'], 2), flush=True)
       del params, rows

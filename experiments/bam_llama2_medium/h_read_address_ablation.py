@@ -50,22 +50,29 @@ def address_intervention(controls=None, addresses=None, record=False,
     if layer is None:
       layer = module.layer_inx
     original = bam_pallas.read
-    original_context = attentions.BamAttention._context_with_local_o_complement
+    original_splash = attentions._bam_splash_attention
+    original_attention = attentions._attention_op
     original_local = attentions.BamAttention._regularize_local_o_heads
     original_projection = attentions.BamAttention.out_projection
     state = {}
 
-    def modified_context(self, context, logits):
-      output = original_context(self,context,logits)
-      if zero_mha is not None and not self.is_initializing():
+    def modified_context(output):
+      if zero_mha is not None and not module.is_initializing():
         # Mode1 removes context only at W_O input; mode2 removes it before M write too.
         changed = jnp.where(zero_mha[layer] == 2,jnp.zeros_like(output),output)
         if record_context:
-          self.sow('intermediates','mha_context_probe',jnp.stack((
+          module.sow('intermediates','mha_context_probe',jnp.stack((
               jnp.mean(output.astype(jnp.float32)**2),
               jnp.mean(changed.astype(jnp.float32)**2))))
         return changed
       return output
+
+    def modified_splash(*args,**kwargs):
+      return modified_context(original_splash(*args,**kwargs))
+
+    def modified_attention(*args,**kwargs):
+      context,weights=original_attention(*args,**kwargs)
+      return modified_context(context),weights
 
     def modified_local(self, local, deterministic):
       output = original_local(self,local,deterministic)
@@ -101,7 +108,8 @@ def address_intervention(controls=None, addresses=None, record=False,
                       o_logit,v_logit,q_standard,k_standard,**kw)
 
     bam_pallas.read=modified
-    attentions.BamAttention._context_with_local_o_complement=modified_context
+    attentions._bam_splash_attention=modified_splash
+    attentions._attention_op=modified_attention
     attentions.BamAttention._regularize_local_o_heads=modified_local
     attentions.BamAttention.out_projection=modified_projection
     try:
@@ -113,7 +121,8 @@ def address_intervention(controls=None, addresses=None, record=False,
       return result
     finally:
       bam_pallas.read=original
-      attentions.BamAttention._context_with_local_o_complement=original_context
+      attentions._bam_splash_attention=original_splash
+      attentions._attention_op=original_attention
       attentions.BamAttention._regularize_local_o_heads=original_local
       attentions.BamAttention.out_projection=original_projection
 
@@ -157,6 +166,7 @@ def main():
   import max_utils
   import pyconfig
   from layers.models import Transformer
+  from layers import attentions
   from h_write_balance_probe import restore_params
   assert jax.process_count()==1
   (args.output/'configuration'/'address-freeze').mkdir(parents=True,exist_ok=True)
@@ -169,6 +179,9 @@ def main():
   cfg.get_keys().update(bam_pallas_read_tile=128,bam_pallas_write_tile=128,
                         bam_pallas_vmem_mib=args.vmem_mib)
   assert cfg.bam_pallas_core and cfg.bam_pallas_body=='v8t'
+  assert all(hasattr(attentions,name) for name in ('_bam_splash_attention','_attention_op'))
+  assert all(hasattr(attentions.BamAttention,name) for name in ('_regularize_local_o_heads','out_projection'))
+  print('HISTORICAL_INTERVENTION_HOOKS_VERIFIED',flush=True)
   assert 0<=args.high_start<cfg.num_decoder_layers
   cohort=np.load(args.cohort)['tokens'][:32,:args.length+1];assert cohort.shape==(32,args.length+1)
   calibration,evaluation=cohort[:16],cohort[16:]

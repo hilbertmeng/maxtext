@@ -114,3 +114,33 @@ GCS extension prefix: `gs://newproject-1-llm_base_models_us-central1/diagnostics
 ### Why0k to restored weights retraced
 
 The supplementary CPU abstract-parameter comparison on the FLEX loaded no full checkpoint arrays: the initial model and saved metadata have identical parameter-tree structure, shapes and dtypes. It identified one weakly typed initial leaf, `params/decoder/layers/block/self_attention/gw_b0`. Initialization has `weak_type=True`, whereas restoration requests ordinary strongly typed FP32 arrays. This extra JAX signature component explains a possible cache miss despite identical printed shape/dtype. A focused pinned-CPU test confirmed that changing only weak typing triggers a second trace; a BF16-plus-bias example also changed the promoted output dtype from BF16 to FP32. Consequently weak typing is recorded, not forcibly removed: preserving the exact0k numerical semantics takes precedence over avoiding a single compile. Trained checkpoints still reuse their common signature. Evidence: `check-param-signatures-r3.log` and the runner's `PARAM_SIGNATURE`/`FORWARD_TRACE` output; later runner metadata also records weak-type paths.
+
+## Pythia unit-init / gamma follow-up at matched6k
+
+Artifacts: `/data0/xd/bam_diagnostics/h-unit-gamma-health-20261031`.
+GCS: `gs://newproject-1-llm_base_models_us-central1/diagnostics/h-unit-gamma-health-20261031`.
+Read-only probes reused the original32-sequence T2048 Pile cohort and cached H0/2k/4k/6k. No checkpoint was downloaded locally; only TensorBoard scalars and compact per-sequence probe results were collected. Borrowed `llm-jax-v6e-1-0` FLEX in europe-west4-a under the shared worker0 lock; no resource lifecycle ownership or deletion.
+
+| Arm | Full configuration class | Actual model runtime | New probe steps |
+|---|---|---|---|
+| H | `BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80CommonReadScaleUnscaledMLPContentEmbeddingFixed` | `9c11469da97a0ade00530448736e55024bfd6e99` | none, reuse cached0/2k/4k/6k |
+| Unit-init | `BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOne` | `6c5dbfe9df446b1c6f6421616f7af97156c7f9a5` | 6000 only |
+| Unit-init+gamma | `BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneLocalODynamicNormScale020` | `9c11469da97a0ade00530448736e55024bfd6e99` | 0,2000,4000,6000 |
+
+Runner file from Git commit4e702e94, SHA256 `02e6e8a7ad15fdf68267f52545aa1544d71676fcff615a8a6bb08dca9132cf48`; exact old model runtime directories remain separate. Compared the cached H runner53a3285 with this version: compatible historical-writer argument handling, explicit40MiB default and container/sharding/trace instrumentation; the H statistics and forward calculations are unchanged. All probes explicitly use tile128/VMEM40MiB, batch1, no dropout,32 calls/checkpoint. Verify all metadata sequence hashes and finite `[32,31,2,9]` arrays before comparison. The preliminary preflight caught an older runner in the reused worker directory; a separate exact Git-extracted file was verified before any forward.
+
+Parameter health, exact steps0/2k/4k/6k: signed common read scalar `s_l`; gamma RMS is TensorBoard parameter L2 divided by `sqrt(32*64)`. H has implicit dynamic-O address scale1, not a learned gamma. Unit-init+gamma6k has back-half mean s_l.945728 versus H.152766. Its back-half gamma RMS mean.200634 versus stopped depth-init H+gamma.217274. Parameters have not converged to H's depth-decayed scale profile. These are parameter amplitudes, not measured V/O activation RMS.
+
+For the following table, gate opening is **mean(sigmoid(logit))** over layers/sequences/tokens/heads. Write RMS pools mean squares across all31 writing layers and all32 sequences before taking the square root. It is neither a mean nor a median of per-layer RMS ratios.
+
+| Matched6k | Attention gate mean | MLP gate mean | Attention actual-write RMS | MLP actual-write RMS | Pooled MLP/attention write ratio |
+|---|---:|---:|---:|---:|---:|
+| H | .266666 | .715077 | 1.971145 | 1.778275 | .902153 |
+| Unit-init | .147725 | .476439 | 1.198034 | 1.114776 | .930504 |
+| Unit-init+gamma | .168714 | .523852 | 1.322890 | 1.225456 | .926348 |
+
+The single6k no-gamma control changes the interpretation: overall gate/write contraction accompanies unit initialization even without gamma. Adding gamma to unit-init reopens both gates and raises attention/MLP write amplitudes10.4%/9.9%; the relative writer ratio remains essentially unchanged(.9305->.9263). Thus gamma's additional loss benefit is not explained by allocating a greater relative write share to the memory MLP. Larger read-scale parameters, gamma-specific dynamic-O modulation and write-gate adaptation coexist; these magnitudes alone do not identify the loss mechanism.
+
+Compared with H, unit-init+gamma's pooled front-half MLP/attention write ratio rises.66484->.75350, whereas the back-half falls.98859->.95910. Its median per-layer ratio rises.79339->.86013, yet the median of **paired** ratio changes is.97753 and only14/31 layers rise. This illustrates why layer medians cannot establish a uniform MLP-write boost; retain full layer profiles and pooled amplitudes.
+
+Canonical outputs: `parameter-figures.json` (s_l and gamma profiles), `write-figures.json` (H/unit-gamma pre-gate and BF16 stored-marginal profiles plus absolute gates/writes), `control-figure.json` (three-arm6k mean gates and actual writes), `three-arm-pooled-summary-6000.json`, `probe-manifest.json` and `control-manifest.json`. Renderers and orchestration commands are saved beside them. Trained2k/4k/6k parameter signatures match and reuse one forward graph;0k may have a separate weak-typing signature, which is preserved. Unit-gamma4k/6k restores took~69s, all32 hot forwards~2.7s; the additional no-gamma6k point took89.15s restore plus14.17s first-graph/32 forwards.

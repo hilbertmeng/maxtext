@@ -769,3 +769,5 @@ bam_common_vo_read_scale_init: null # None: 1/sqrt(1+2*layer); otherwise shared 
 bam_embedding_write_content_divisor: null # Fixed positive denominator instead of content RMSNorm.
 bam_attention_write_content_divisor: null
 bam_mlp_write_content_divisor: null
+
+bam_memory_mlp_use_bias: False # Zero-initialized hidden/output biases in the dedicated memory MLP.

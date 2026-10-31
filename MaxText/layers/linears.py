@@ -106,6 +106,7 @@ class DenseGeneral(nn.Module):
   kernel_axes: Tuple[Optional[str], ...] = ()
   quant: Optional[Quant] = None
   use_bias: bool = False
+  zero_bias_without_rng: bool = False
   bias_norm: str = ""
   matmul_precision: str = "default"
   kernel_gradient_scale: float = 1.0
@@ -167,12 +168,21 @@ class DenseGeneral(nn.Module):
           self.kernel_axes[-len(features) :],
           kernel_shape[-len(features) :],
       )
-      bias = self.param(
-          "bias",
-          nn.with_logical_partitioning(bias_init, bias_axes),
-          bias_shape,
-          self.weight_dtype,
-      )
+      if self.zero_bias_without_rng:
+        # Controlled additions of zero biases must not advance the scanned
+        # parameter RNG stream and change the parent's random kernel draws.
+        init = nn.with_logical_partitioning(
+            lambda: jnp.zeros(bias_shape, self.weight_dtype), bias_axes)
+        bias = nn.unbox(self.variable("params", "bias", init).value)
+        if bias.shape != bias_shape:
+          raise ValueError(f"Bias shape {bias.shape} does not match {bias_shape}")
+      else:
+        bias = self.param(
+            "bias",
+            nn.with_logical_partitioning(bias_init, bias_axes),
+            bias_shape,
+            self.weight_dtype,
+        )
       bias = jnp.asarray(bias, self.dtype)
 
       if self.bias_norm:
@@ -276,6 +286,7 @@ class MlpBlock(nn.Module):
     dtype: computation data type for the dense layer.
     weight_dtype: weight data type for the dense layer.
     use_bias: whether to add bias in all feedforward layers.
+    zero_bias_without_rng: preserve parent kernel draws when adding zero biases.
     use_pre_norm: whether to add pre layer norm in mlp layers.
     quant: Optional quantization config, no quantization if None.
   """
@@ -294,6 +305,7 @@ class MlpBlock(nn.Module):
   dtype: Any = jnp.float32
   weight_dtype: Any = jnp.float32
   use_bias: bool = False
+  zero_bias_without_rng: bool = False
   use_pre_norm: bool = False
   quant: Optional[Quant] = None
 
@@ -343,6 +355,7 @@ class MlpBlock(nn.Module):
           name="wi",
           quant=self.quant,
           use_bias=self.use_bias,
+          zero_bias_without_rng=self.zero_bias_without_rng,
           matmul_precision=self.config.matmul_precision,
       )(inputs)
       x = checkpoint_name(x, "mlpwi")
@@ -361,6 +374,7 @@ class MlpBlock(nn.Module):
             name=dense_name,
             quant=self.quant,
             use_bias=self.use_bias,
+            zero_bias_without_rng=self.zero_bias_without_rng,
             matmul_precision=self.config.matmul_precision,
         )(inputs)
         x = checkpoint_name(x, "mlp" + dense_name)
@@ -404,6 +418,7 @@ class MlpBlock(nn.Module):
         name="wo",
         quant=self.quant,
         use_bias=self.use_bias,
+        zero_bias_without_rng=self.zero_bias_without_rng,
         matmul_precision=self.config.matmul_precision,
     )(x)
 

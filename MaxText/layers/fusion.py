@@ -363,7 +363,8 @@ class SubDecoderLayer(nn.Module):
             output_dim=memory_write_heads * cfg.bam_k if memory_write_heads else None,
             quant=self.quant, kernel_init=initializers.get_bam_init(
                 cfg, fallback=initializers.get_init_method(cfg.init_method)),
-            use_bias=False)(
+            use_bias=bool(getattr(cfg, 'bam_memory_mlp_use_bias', False)),
+            zero_bias_without_rng=True)(
                 hidden_states, deep_embedding=deep_embedding,
                 decoder_input_tokens=decoder_input_tokens, deterministic=deterministic)
     if cfg.shared_experts == 1:

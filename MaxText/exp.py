@@ -17356,6 +17356,24 @@ class BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80CommonReadScaleU
     compare_runs = ['BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640SeparateVOKeysLogitDiagNegativeQK80LocalODynamicNormScale020']
 
 
+class BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80CommonReadScaleUnscaledMLPContentEmbeddingFixedMemoryMLPBias(
+        BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80CommonReadScaleUnscaledMLPContentEmbeddingFixed):
+    """H with zero-initialized biases on both dedicated memory-MLP projections.
+
+    Match the ordinary Pythia GELU MLP's bias convention; BAM kernels retain
+    their original initialization. Adds31*(2944+2560)=170624 parameters
+    (.00615%, .02604 W_Q); user exempts this negligible cost from MLP repayment.
+    Keep ordinary7808/memory2944/tail9984, R640, scan31+tail1, health settings
+    and the original28000-step LR schedule. Biases inherit the no-decay rule.
+    """
+    model_name = 'BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80CommonReadScaleUnscaledMLPContentEmbeddingFixedMemoryMLPBias'
+    bam_memory_mlp_use_bias = True
+    compare_runs = ['BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80CommonReadScaleUnscaledMLPContentEmbeddingFixed',
+                    'BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640SeparateVOKeysQK80',
+                    'BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640SeparateVOKeysLogitDiagNegativeQK80',
+                    'MuddPythia3BSerialMLPShortTrain', 'Pythia2p8BShortTrain']
+
+
 class BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80CommonReadScaleUnscaledMLPContentEmbeddingFixedLocalODynamicNormScale020(
         BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80CommonReadScaleUnscaledMLPContentEmbeddingFixed):
     """H transfer retaining the target SOTA's learned dynamic-O address gamma=.2."""

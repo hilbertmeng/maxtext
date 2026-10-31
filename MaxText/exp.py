@@ -17393,6 +17393,10 @@ class BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80CommonReadScaleU
     # Startup20..39 .31425step/s: H.31690 (-.84%), common gamma baseline.31750 (-1.02%); minimal remat.
     # GenericON/internal+BAMOFF plus64 gate mean/std tags; common gamma comparator set in registry, MHA gain reference.
     # Launch/reproduction: pythia2p8_context_local_o_complement.md; user requested exit after launch/speed validation.
+    # User stopped12947/P0; CP12947 committed, TB SYNC_OK, node+QR verified absent; H continues.
+    # 2k..12k all21 common windows trail bare H; last5 +.001380 loss, no additive benefit.
+    # Still improves common old gamma baseline: final12.5k gap-.003442/R1.029158 (MHA ref).
+    # Prior16k R1.04 unmeasured; no new params/cache; excluded from historical family plots.
     model_name = 'BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80CommonReadScaleUnscaledMLPContentEmbeddingFixedContextLocalOComplement'
     bam_context_local_o_complement = True
     compare_runs = ['BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80CommonReadScaleUnscaledMLPContentEmbeddingFixed']

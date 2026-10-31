@@ -84,3 +84,36 @@ no active agent wake/report loop. Reporting configuration remains for a later
 request. Artifacts and all three task RUNs are listed in
 `/data0/xd/bam_diagnostics/pythia2p8b-h-pair-20261030/state.json`; exact new
 startup evidence is `complement-startup-proof.json` beside it.
+
+
+## User-requested stop and plot exclusion
+
+Stopped at committed checkpoint12947 on2026-10-31; no preemptions. All21 common
+500-step windows from2k through12k trail bare H. The last five common windows
+(10k..12k) average +.00137984 loss versus H; the12k gap is+.0016028. Thus this
+context/localO competition does not add to H, despite remaining better than the
+common old normalized dynamic-O .2 recipe: at12.5k gap-.0034418 and MHA-referenced
+gain multiplier1.0291577. The original16k multiplier1.04 bet was not observed at its
+specified horizon; this was a pre-terminal stop, not a completed28k experiment.
+Startup was.84% slower than H, parameters/cache unchanged.
+
+The shared closeout workflow stopped only this controller and all16 workers,
+waited for commit_success.txt, collected final loss, and independently verified
+both node and queued resource absent. TensorBoard sync returned SYNC_OK under
+`/data0/xd/tensorboard_logs/<FULL_CLASS>`. Bare H remained running on its distinct
+TPU. Retained FLEX diagnostics/compilation resources were untouched.
+
+One READY lease, UTC2026-10-30T16:00:52Z to2026-10-31T03:40:34Z, duration11h39m42s,
+UE5a v5p128 `xd-v5p-128-pythia-h-complement-1030`; end reason user stop, P0.
+
+The RUN is removed from report-group membership, bare H is the new clock, and
+`plot_excluded_runs` in task state permanently filters it from regenerated family
+and group figures. Raw losses, checkpoints and results are retained. Previous12k
+report horizons were acknowledged; the2k calendar continues at14k. No active
+monitoring loop was started by this stop request.
+
+Closeout/provenance artifacts:
+`/data0/xd/bam_diagnostics/pythia2p8b-h-pair-20261030/`:
+`complement-closeout.json`, `complement-independent-closeout-verification.log`,
+`complement-final-comparison.json`, `report-complement-stop-request.json`,
+`group-remove-complement.json`, `figures-12000.json`, and updated `state.json`.

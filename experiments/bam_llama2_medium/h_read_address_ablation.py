@@ -40,7 +40,7 @@ def frozen_inputs(key, logit, mean, epsilon):
 
 @contextlib.contextmanager
 def address_intervention(controls=None, addresses=None, record=False,
-                         zero_mha=None, record_context=False):
+                         zero_mha=None, record_context=False, dtype_debug=False):
   import jax.numpy as jnp
   from flax import linen as nn
   from layers import attentions, bam_pallas
@@ -83,6 +83,8 @@ def address_intervention(controls=None, addresses=None, record=False,
       return output
 
     def modified_projection(self, output_dim, output):
+      if dtype_debug:
+        print('PROJECTION_DTYPES',output.dtype,state['local_o'].dtype,flush=True)
       if zero_mha is not None and not self.is_initializing():
         local = state['local_o']
         changed = jnp.where(zero_mha[layer] == 1,local,output)
@@ -95,6 +97,8 @@ def address_intervention(controls=None, addresses=None, record=False,
 
     def modified(matrix, weight, q_key, q_logit, k_key, k_logit, vo_key,
                  o_logit, v_logit, q_standard, k_standard, **kw):
+      if dtype_debug:
+        print('READ_DTYPES',q_key.dtype,q_logit.dtype,k_key.dtype,k_logit.dtype,flush=True)
       if not module.is_initializing():
         if record:
           means = jnp.stack([normalized_address(x,kw['read_epsilon']).mean((0,1))
@@ -160,6 +164,7 @@ def main():
   p.add_argument('--high-start',type=int,default=24)
   p.add_argument('--length',type=int,default=2048)
   p.add_argument('--vmem-mib',type=int,default=40)
+  p.add_argument('--fidelity-only',action='store_true')
   args=p.parse_args();os.chdir(args.runtime_dir);sys.path.insert(0,str(args.runtime_dir/'MaxText'))
   import jax
   import jax.numpy as jnp
@@ -188,14 +193,17 @@ def main():
   assert 0<=args.high_start<cfg.num_decoder_layers
   cohort=np.load(args.cohort)['tokens'][:32,:args.length+1];assert cohort.shape==(32,args.length+1)
   calibration,evaluation=cohort[:16],cohort[16:]
-  names=['learned','upper_Q_constant_address','upper_K_constant_address',
-         'upper_QK_constant_address','upper_MHA_residual_off','upper_MHA_residual_and_write_off']
-  controls=np.zeros((6,cfg.num_decoder_layers,2),bool)
+  names=['learned','upper_Q_constant_address','upper_K_constant_address','upper_QK_constant_address']
+  regions=[('lower',0,8),('middle',12,20),('upper',24,32)]
+  for region,_,_ in regions:
+    names.extend([region+'_MHA_residual_off',region+'_MHA_residual_and_write_off'])
+  controls=np.zeros((len(names),cfg.num_decoder_layers,2),bool)
   controls[1,args.high_start:,0]=True;controls[2,args.high_start:,1]=True
   controls[3,args.high_start:]=True
-  mha_controls=np.zeros((6,cfg.num_decoder_layers),np.int32)
-  mha_controls[4,args.high_start:]=1
-  mha_controls[5,args.high_start:]=2
+  mha_controls=np.zeros((len(names),cfg.num_decoder_layers),np.int32)
+  for index,(_,begin,end) in enumerate(regions):
+    mha_controls[4+index*2,begin:end]=1
+    mha_controls[5+index*2,begin:end]=2
   mesh=jax.sharding.Mesh(max_utils.create_device_mesh(cfg),cfg.mesh_axes)
   model=Transformer(cfg,mesh,quant=None);positions=jnp.arange(args.length,dtype=jnp.int32)[None]
   segments=jnp.ones((1,args.length),jnp.int32);traces={'calibration':0,'evaluation':0}
@@ -223,6 +231,25 @@ def main():
     params=jax.device_put(unfreeze(nn.unbox(restore_params(args.checkpoint))),
                          jax.sharding.SingleDeviceSharding(jax.devices()[0]))
     jax.block_until_ready(params);print('RESTORE_OK',round(time.monotonic()-start,2),flush=True)
+    if args.fidelity_only:
+      dummy=jnp.zeros((cfg.num_decoder_layers,2,cfg.num_query_heads,cfg.bam_v),jnp.float32)
+      check={}
+      for case in ['original','wrappers','addresses_only','mha_only','combined']:
+        def check_forward(params,tokens,control,means,mha_control):
+          if case=='original':xent,_,_=apply(params,tokens)
+          else:
+            with address_intervention(
+                control if case in ('addresses_only','combined') else None,
+                means if case in ('addresses_only','combined') else None,
+                zero_mha=mha_control if case in ('mha_only','combined') else None,
+                dtype_debug=True):xent,_,_=apply(params,tokens)
+          return jnp.mean(xent.astype(jnp.float32))
+        check_compiled=jax.jit(check_forward)
+        check[case]=[float(check_compiled(params,jnp.asarray(evaluation[i:i+1]),
+            jnp.asarray(controls[0]),dummy,jnp.asarray(mha_controls[0]))) for i in range(2)]
+        print('FIDELITY_COMPONENT',case,check[case],flush=True)
+      (args.output/'fidelity-components.json').write_text(json.dumps(check,indent=2)+'\n')
+      return
     capture=jax.jit(calibrate);total=None
     for index,tokens in enumerate(calibration):
       value=np.asarray(capture(params,jnp.asarray(tokens[None])))
@@ -231,7 +258,7 @@ def main():
     means=(total/len(calibration)).astype(np.float32)
     assert np.isfinite(means).all();assert np.max(np.sqrt(np.mean(means**2,axis=-1)))<=1.00001
     print('CALIBRATION_DONE',round(time.monotonic()-start,2),flush=True)
-    forward=jax.jit(evaluate);losses=np.empty((6,16),np.float64)
+    forward=jax.jit(evaluate);losses=np.empty((len(names),16),np.float64)
     for variant,name in enumerate(names):
       before=time.monotonic()
       for index,tokens in enumerate(evaluation):

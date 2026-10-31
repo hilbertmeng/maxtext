@@ -55,6 +55,12 @@ class ReadAddressAblationTest(unittest.TestCase):
     actual=jax.nn.sigmoid(gate)[...,None]*probe.normalized_address(proxy,1e-6)
     np.testing.assert_allclose(actual,expected,rtol=1e-5,atol=1e-7)
     self.assertLess(float(jnp.sqrt(jnp.mean(mean**2))),.2)
+    proxy_b,gate_b=probe.frozen_inputs(key.astype(jnp.bfloat16),logit.astype(jnp.bfloat16),mean,1e-6)
+    self.assertEqual(proxy_b.dtype,jnp.bfloat16)
+    self.assertEqual(gate_b.dtype,jnp.bfloat16)
+    actual_b=jax.nn.sigmoid(gate_b.astype(jnp.float32))[...,None]*probe.normalized_address(proxy_b,1e-6)
+    expected_b=jax.nn.sigmoid(logit.astype(jnp.bfloat16).astype(jnp.float32))[...,None]*mean.astype(jnp.bfloat16).astype(jnp.float32)
+    np.testing.assert_allclose(actual_b,expected_b,rtol=.02,atol=.001)
 
   def test_scanned_addresses_and_noop_preserve_outputs(self):
     helper=common.PythiaCommonReadRawWriteTest();helper.setUp()

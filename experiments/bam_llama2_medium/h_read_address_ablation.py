@@ -28,11 +28,14 @@ def frozen_inputs(key, logit, mean, epsilon):
   """
   import jax
   import jax.numpy as jnp
-  mean = mean.astype(jnp.float32)
-  rms = jnp.sqrt(jnp.mean(mean*mean, axis=-1)+epsilon)
+  # Preserve the original Pallas input dtype and its rounding barrier. Promoting
+  # even an unmodified key to FP32 changes upstream fused BF16 rounding on TPU.
+  proxy = jnp.broadcast_to(mean.astype(key.dtype), key.shape)
+  rounded = proxy.astype(jnp.float32)
+  rms = jnp.sqrt(jnp.mean(rounded*rounded, axis=-1)+epsilon)
   gate = jax.nn.sigmoid(logit.astype(jnp.float32))*rms
   gate = jnp.clip(gate, 1e-30, 1-jnp.finfo(jnp.float32).eps)
-  return jnp.broadcast_to(mean, key.shape), jnp.log(gate)-jnp.log1p(-gate)
+  return proxy, (jnp.log(gate)-jnp.log1p(-gate)).astype(logit.dtype)
 
 
 @contextlib.contextmanager
@@ -101,8 +104,8 @@ def address_intervention(controls=None, addresses=None, record=False,
           changed=[]
           for arm,(key,logit) in enumerate(((q_key,q_logit),(k_key,k_logit))):
             proxy,proxy_logit = frozen_inputs(key,logit,addresses[layer,arm],kw['read_epsilon'])
-            changed.append((jnp.where(controls[layer,arm],proxy,key.astype(jnp.float32)),
-                            jnp.where(controls[layer,arm],proxy_logit,logit.astype(jnp.float32))))
+            changed.append((jnp.where(controls[layer,arm],proxy,key),
+                            jnp.where(controls[layer,arm],proxy_logit,logit)))
           (q_key,q_logit),(k_key,k_logit)=changed
       return original(matrix,weight,q_key,q_logit,k_key,k_logit,vo_key,
                       o_logit,v_logit,q_standard,k_standard,**kw)
@@ -236,9 +239,12 @@ def main():
             jnp.asarray(controls[variant]),jnp.asarray(means),jnp.asarray(mha_controls[variant])))
       assert np.isfinite(losses[variant]).all()
       print('VARIANT_DONE',name,float(losses[variant].mean()),'seconds',round(time.monotonic()-before,2),flush=True)
-    reference=jax.jit(lambda params,tokens:jnp.mean(apply(params,tokens)[0].astype(jnp.float32)))
-    no_op_deltas=[float(reference(params,jnp.asarray(evaluation[i:i+1])))-losses[0,i] for i in range(2)]
-    assert max(map(abs,no_op_deltas))<1e-5,no_op_deltas
+      if variant==0:
+        reference=jax.jit(lambda params,tokens:jnp.mean(apply(params,tokens)[0].astype(jnp.float32)))
+        no_op_deltas=[float(reference(params,jnp.asarray(evaluation[i:i+1])))-losses[0,i] for i in range(2)]
+        (args.output/'noop-check.json').write_text(json.dumps(dict(deltas=no_op_deltas))+'\n')
+        assert max(map(abs,no_op_deltas))<1e-5,no_op_deltas
+        print('EXACT_FORWARD_CHECK_OK',no_op_deltas,flush=True)
     repeated=float(forward(params,jnp.asarray(evaluation[:1]),jnp.asarray(controls[0]),
                           jnp.asarray(means),jnp.asarray(mha_controls[0])))
     assert repeated==losses[0,0]

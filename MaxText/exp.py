@@ -17379,6 +17379,17 @@ class BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80CommonReadScaleU
     bam_common_vo_read_scale_init = 1.0
 
 
+class BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOne(
+        BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80CommonReadScaleUnscaledMLPContentEmbeddingFixed):
+    """H with every learned V/localO scalar initialized to one; no dynamic-O gamma.
+
+    Completes the depth/unit initialization x no-gamma/gamma-.2 comparison.
+    All writer/MLP/embedding settings and the28000-step recipe remain unchanged.
+    """
+    model_name = 'BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOne'
+    bam_common_vo_read_scale_init = 1.0
+
+
 class BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80CommonReadScaleUnscaledMLPContentEmbeddingFixedContextLocalOComplement(
         BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80CommonReadScaleUnscaledMLPContentEmbeddingFixed):
     """H plus opposing same-token/head gates for context and dynamic localO.

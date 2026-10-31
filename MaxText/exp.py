@@ -17377,6 +17377,10 @@ class BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80CommonReadScaleU
     # Zero-init170624 biases exempt from MLP repayment; common weights and initial logits exactly preserve H.
     # Checkpoint rescue activated: worker Orbax1200s, external trigger1300s/budget600s (controller eeaa043).
     # Prior16k MHA-referenced gain vs H1.02 [.99,1.05]; launch/repro: pythia2p8_h_memory_mlp_bias.md.
+    # User stopped6126/28000/P0; CP6126/TB SYNC_OK, node+QR independently absent.
+    # vs H all mature2k..6k windows worse: gap+.00202 -> +.00154; R(MHA-ref).99251 -> .98993, no gain in tested prefix.
+    # Final6k vs QK80 gap-.009918/R1.07006; pre-mask+QK80 gap-.006432/R1.04434; vs Mudd-.075656/R1.99778.
+    # vs MHA gap-.151481;16k prior untested. Closeout/reproduction: pythia2p8_h_memory_mlp_bias.md.
     model_name = 'BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80CommonReadScaleUnscaledMLPContentEmbeddingFixedMemoryMLPBias'
     bam_memory_mlp_use_bias = True
     compare_runs = ['BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80CommonReadScaleUnscaledMLPContentEmbeddingFixed',

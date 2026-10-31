@@ -33,3 +33,12 @@ Old H stopped18331; final common native window18k. Versus QK80 gap-.0090044/R1.0
 Parent zero preemptions, UE5a only: assignment2026-10-30T15:30:10Z to2026-10-31T08:56:18Z; complete READY lease2026-10-30T15:36:02Z to2026-10-31T08:56:18Z,62416s=17h20m16s. New FIRST_STEP preceded old stopped-registry independent check and resource-free `already_closed=true` bookkeeping. Old TB SYNC_OK. Physical TPU/queue retained under the new RUN.
 
 Unified group remains `pythia28-h-unit2x2-1031`,2000-step clock from unit/no-gamma, next4000; remove stopped H active membership and add new bias H without moving calendar. Preserve both unit-init16k stop guards. New bias16k is a review, not an automatic stop. Pair2x2 plots still retain original H and stopped H+gamma references; bias is an additional intervention, not a replacement2x2 cell.
+
+
+## User closeout at6126
+
+User explicitly stopped this arm on2026-10-31. Final committed checkpoint6126/28000, observed progress6120, zero estimated unsaved steps. TPU `xd-v5p-128-pythia-h-1030` and queued resource independently verified absent; TB SYNC_OK. Both unit-init arms and read-only FLEX diagnostics remain active. Native last complete window6000: versus H gap+.0015412/R.989928, QK80 gap-.0099182/R1.070062, pre-mask+QK80 gap-.0064316/R1.044341, Mudd gap-.0756564/R1.997784, MHA gap-.1514808. Ratios use original MHA as shared reference.
+
+All2k..6k windows remain worse than the direct H parent. H-relative R4k/4.5k/5k/5.5k/6k=.990469/.992698/.991013/.988210/.989928; adding these biases did not improve the tested prefix. The16k prior1.02 was not evaluated because training stopped earlier. Do not infer a terminal28k verdict. Final cumulative plots omit<2k and are in `figures-6126.json` under the unified monitor artifact root; `final-native.json` and `closeout-result.json` under this task's artifact root preserve native numbers and lifecycle evidence.
+
+UE5a only, v5p-128, P0, one complete READY lease:2026-10-31T08:58:03Z to2026-10-31T14:30:35Z,19952s=5h32m32s; manual user stop, not preemption. Assignment began08:57:58Z. Closeout phases: SIGTERM4.934s, checkpoint43.994s, deletion121.541s; total181.333s. Remote summary `/home/lishengping/xd/projects/logs/closeout-20261031T143339Z.json`. The initial closeout CLI rejected an unqualified reason before any resource action; retry used canonical RUN=reason. No final fixed-step or checkpoint-rescue failure occurred.

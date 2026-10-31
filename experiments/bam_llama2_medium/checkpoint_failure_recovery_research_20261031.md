@@ -100,5 +100,60 @@ whole-job shutdown or recovery bound, and it does not make an external watchdog
 unnecessary. Source/patch reference: https://github.com/google/orbax/pull/2966/files.
 
 No production timeout, cancellation, SIGTERM or recovery policy was changed by
-this probe. Multi-worker timeout propagation, cancellation and retry still need
-explicit fault-injection validation before applying a process-preserving fix.
+this probe. A two-process CPU timeout/SIGTERM/retry probe was subsequently run as recorded
+below. Real TPU/GCS behavior, persistent storage failure, cancellation and
+worker-loss recovery still require validation before production changes.
+
+
+## Real SIGTERM after the timeout: two-process CPU experiment
+
+This explicitly tests the combination omitted from the earlier investigation:
+let a checkpoint exceed its library timeout, then send the real SIGTERM signal
+and let the existing JAX/Orbax preemption path try to save the current state.
+
+Reusable runner: `probe_orbax_sigterm_after_timeout.py` beside this note. Two
+CPU-only subprocesses on the same VM use actual JAX0.8.1 / Orbax0.12.4, distributed
+initialization, a shared temporary local checkpoint root and small NumPy state
+(step/parameters/optimizer). A process-affinity bound limits CPU use. The parent
+signals only its exact child PIDs and reaps them before temporary cleanup. It
+never signals a formal RUN or claims the worker's TPU backend. No Python mock
+signal handler, forced preemption predicate or mocked CheckpointManager.save is
+used. Save/should_save/preemption/wait ordering matches current MaxText.train.
+
+A valid2000 checkpoint is saved first. For the failing arm, rank0 prepends one
+future that raises TimeoutError after a1s budget to the3000 commit futures;
+rank1 experiences the corresponding write-completion barrier timeout. This
+simulates a transient save failure without waiting1200s. The settled variant
+waits until both ranks' async and finalize threads have exited with stored
+TimeoutError before signaling. A normal arm controls the signal mechanism.
+
+| Condition | Real signal targets | Outcome | Committed steps |
+|---|---|---|---|
+| Healthy save path | Both ranks | Both normal exit0 after preemption save |2000,3000,3118|
+| Past save deadline, no recovery catch | Both ranks | Both exit1 with old TimeoutError |2000 only|
+| Old async/finalize threads fully exited, no recovery catch | Both ranks | Both exit1 with old TimeoutError |2000 only|
+| Same settled failure, explicitly catch and coordinate one forced retry | Both ranks | Both exit0; current checkpoint saved and restored |2000,3102|
+| Healthy save path | Rank0 only | Signal notification propagates; both normal exit0 |2000,3000,3118|
+| Settled timeout, no recovery catch | Rank0 only | Signal notification propagates; both exit1 with old TimeoutError |2000 only|
+
+In the settled rank0-only failure, SIGTERM is received successfully and requests
+a preemption save at step3120. However save waits for the old finalizer, whose
+join rethrows the3000 failure before a new write begins. The signal does not
+clear failed-save state. Waiting until all old threads exit does not fix this.
+Thus simply placing SIGTERM after1200s rather than before1200s is insufficient
+for this observed failure path in the current training loop.
+
+The coordinated-retry arm is an additional, deliberately modified candidate:
+all ranks catch the old TimeoutError, agree at a recovery barrier, then force
+one save of the current simulated state and wait/restore. Its success shows a
+narrow process-preserving path on this pinned stack; it is not current production
+behavior. It assumes the injected fault has ended. It does not establish safety
+for persistent GCS outage, unfinished native I/O, a dead worker, a broken JAX
+coordination service or large fully sharded training state/data-cursor recovery.
+A production change must retain bounded retry/wait and verified rollback.
+
+Artifacts: local research root `probe-sigterm-after-timeout.log`,
+`probe-sigterm-after-timeout-settled.log`, `probe-sigterm-after-timeout-retry.log`,
+`probe-sigterm-after-timeout-rank0.log`, aggregated results JSON and audit JSON.
+All six recorded outcomes and settled-thread preconditions were checked. Formal
+training/recovery policies remain unchanged.

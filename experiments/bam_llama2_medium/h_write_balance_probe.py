@@ -181,10 +181,9 @@ def main():
       if step:
         params = restore_params(checkpoint)
       else:
-        params = nn.unbox(jax.jit(lambda rng: model.init(rng, jnp.asarray(cohort[:1, :-1]),
-            pos, decoder_segment_ids=seg, decoder_target_mask=seg,
-            decoder_target_tokens=jnp.asarray(cohort[:1, 1:]), enable_dropout=False))(
-                jax.random.PRNGKey(cfg.init_weights_seed)))
+        # Reuse the runtime's exact training initializer and RNG dictionaries.
+        params = nn.unbox(jax.jit(lambda rng: max_utils.init_initial_state(
+            model, None, cfg, False, rng).params)(jax.random.PRNGKey(cfg.init_weights_seed)))
       jax.block_until_ready(params)
       print('RESTORE_OK', step, round(time.monotonic()-start, 2), flush=True)
       rows = []

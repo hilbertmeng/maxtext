@@ -94,3 +94,14 @@ improve H by stop; full endpoint remains unmeasured. CP3259, TB SYNC_OK, node
 and queue independently NOT_FOUND. UE5a only/P0, READY14:39:40-16:03:07UTC
 2026-10-31,1h23m27s, manual stop. Borrowed FLEX retained. K-only remains active;
 clock transferred to K, routine cadence0, reviews4000/8000 per user.
+
+## K-only arm closeout
+
+At4k retained to8k because the4k window recovered; at8k stop8117/13500.
+Gain remained ~.98-.99 over4k-8k; final5 gap+.00344224/gain.98315480.
+Absolute gap shrank modestly without sustained proportional recovery. The
+ordinary MLP refund did not offset dynamicK loss by stop; full endpoint unmeasured.
+Prior1.02 is unsupported by the observed trajectory. CP8117, TB SYNC_OK, node
+and queue independently absent. Only UE5a/P0, READY14:38:50-18:02:46UTC
+2026-10-31,3h23m56s, manual stop. Group archived and own watcher terminated;
+borrowed FLEX left intact. Both runtime kernels/parameter trees verified at6052644.

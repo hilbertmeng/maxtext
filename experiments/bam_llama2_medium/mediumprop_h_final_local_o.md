@@ -75,3 +75,22 @@ a third scientific arm. Prepare the final two-writer variant before retaining
 its TPU for fresh replacement. No parameters/checkpoint carry across RUN names.
 The new ON test includes final attention-write parameters and full native/Pallas
 logits/all gradients with both writes in the terminal fused writer.
+
+## Launch verification
+
+OFF runtimeb5f6877 on physical310470; corrected BOTH runtime2629041 (logicalID310472)
+on retained physical310471. Original small-only arm savedCP174/TB SYNC_OK and is
+stopped, superseded for configuration correction, not an evaluated third arm.
+Both valid arms loaded their exact AOT, actual worker hashes match registries,
+first log step0 and UE5a truepile4096 dataset verified; original13500 schedule.
+Startup20..99: OFF.68695; BOTH.67270step/s (-2.074% vsOFF). HistoricalH.669875
+(+2.549%/+.422%), but current main folds the H read scalar into its Pallas kernel,
+so historical timing cannot isolate the architectural cost. No unexplained speed
+regression. CPU4 new tests +5 writer +47 BAM regressions passed; corrected BOTH
+variant repeated4 focused tests (formal budgets, native dependency, full-model
+Pallas outputs/all gradients).
+
+Monitoring group medium-h-final-local-o, fixed cadence2000 and reviews4000/8000.
+Both curves share H in routine plots; BOTH also registers OFF as the paired
+write-restoration contrast. Every gain multiplier uses BamMHAMediumPropC256TruePile
+as the common reference. No claim of benefit before mature comparison windows.

@@ -19886,6 +19886,9 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedFinalLocalOTruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedTruePile):
     """H plus a generalized localO exit from final M before ln_f; repay tail MLP."""
+    # code_commit: b5f6877; UE5a v5p16 xd-v5p-16-310470-maxtext; FIRST0/source/AOT/data/s13500 verified.
+    # Startup20..99 .68695step/s; historicalH .669875 (+2.55%), includes main read-fold optimization.
+    # Same H health: genericON/internal+BAMOFF; tail3371, paramsH+129; new signed read scalar also exported.
     # Implementation: codex/mediumprop-h-final-local-o, /data0/xd/mediumprop-h-final-local-o.
     # No extra temporal shift. New signed read scalar starts at1/sqrt37; fresh normal W_O.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedFinalLocalOTruePile'
@@ -19897,6 +19900,9 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedFinalLocalOLastMLPWriteTruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedFinalLocalOTruePile):
     """Final localO exit plus a restored L17 private MLP writer; tail-local budget."""
+    # code_commit: b5f6877; preliminary arm superseded at174 by user correction to restore attention writing too.
+    # CP174/TB SYNC_OK; retained physical310471 transferred to FinalLocalOLastWrites after verified FIRST_STEP.
+    # No scientific stopping verdict; startup-only configuration correction, not a third retained arm.
     # Attention L17 writing remains disabled. Private width1128, raw content divisor1, original controls.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedFinalLocalOLastMLPWriteTruePile'
     bam_skip_final_mlp_write = False
@@ -19907,6 +19913,9 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedFinalLocalOLastWritesTruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedFinalLocalOLastMLPWriteTruePile):
     """Final localO exit with BOTH L17 attention and private-MLP writes restored."""
+    # code_commit: 2629041; logical310472 on retained xd-v5p-16-310471-maxtext; FIRST0/source/AOT/data verified.
+    # Startup20..99 .67270step/s, -2.07% vs final-exit/no-writer arm; +.42% vs historicalH (optimized read code).
+    # Last attention+private MLP writes ON, ordinary tail1989/private1128; totalH+1729; same health and cache.
     # Replaces the preliminary small-MLP-only arm at user correction; both now have a final reader.
     # Tail W_O/read/address/gate and restored writers all repay only the final ordinary MLP.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedFinalLocalOLastWritesTruePile'

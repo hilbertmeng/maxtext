@@ -64,6 +64,8 @@ def main():
   p.add_argument('--runtime-dir',type=Path,required=True);p.add_argument('--exp',required=True)
   p.add_argument('--checkpoint',required=True);p.add_argument('--cohort',type=Path,required=True)
   p.add_argument('--output',type=Path,required=True);p.add_argument('--length',type=int,default=2048)
+  p.add_argument('--unit-mean',action='store_true',help='Match original unit address RMS using the mean direction')
+  p.add_argument('--reuse-calibration',type=Path,help='Reuse this checkpoint/cohort previous raw-mean NPZ')
   args=p.parse_args();os.chdir(args.runtime_dir);sys.path.insert(0,str(args.runtime_dir/'MaxText'))
   import jax
   import jax.numpy as jnp
@@ -115,11 +117,21 @@ def main():
     print('RESTORE_BEGIN',args.checkpoint,flush=True)
     params=jax.device_put(unfreeze(nn.unbox(restore_params(args.checkpoint))),jax.sharding.SingleDeviceSharding(jax.devices()[0]))
     jax.block_until_ready(params);print('RESTORE_OK',round(time.monotonic()-start,2),flush=True)
-    capture=jax.jit(calibrate);total=None
-    for index,tokens in enumerate(calibration):
-      value=np.asarray(capture(params,jnp.asarray(tokens[None])));assert value.shape==(32,2,cfg.num_query_heads,cfg.bam_v)
-      total=value.astype(np.float64) if total is None else total+value
-    means=(total/16).astype(np.float32);assert np.isfinite(means).all()
+    if args.reuse_calibration:
+      previous=json.loads(args.reuse_calibration.with_name('summary.json').read_text())
+      assert previous['exp']==args.exp and previous['checkpoint']==args.checkpoint
+      assert previous['calibration_sequence_hashes']==[hashlib.sha256(x.tobytes()).hexdigest() for x in calibration]
+      assert not previous.get('unit_mean',False)
+      means=np.load(args.reuse_calibration)['mean_normalized_addresses']
+    else:
+      capture=jax.jit(calibrate);total=None
+      for index,tokens in enumerate(calibration):
+        value=np.asarray(capture(params,jnp.asarray(tokens[None])));assert value.shape==(32,2,cfg.num_query_heads,cfg.bam_v)
+        total=value.astype(np.float64) if total is None else total+value
+      means=(total/16).astype(np.float32)
+    assert np.isfinite(means).all()
+    raw_means=means.copy()
+    if args.unit_mean:means=means/np.sqrt(np.maximum(np.mean(means**2,axis=-1,keepdims=True),1e-30))
     print('CALIBRATION_DONE',round(time.monotonic()-start,2),flush=True)
     forward=jax.jit(evaluate);reference=jax.jit(lambda p,t:jnp.mean(apply(p,t)[0].astype(jnp.float32)))
     losses=np.empty((len(names),16),np.float64);noop=[]
@@ -138,16 +150,18 @@ def main():
       print('VARIANT_DONE',name,float(losses[variant].mean()),'seconds',round(time.monotonic()-before,2),flush=True)
     repeat=float(forward(params,jnp.asarray(evaluation[:1]),jnp.asarray(controls[0]),jnp.asarray(means)))
     assert repeat==losses[0,0]
-  np.savez_compressed(args.output/'paired-losses.npz',losses=losses,controls=controls,mean_normalized_addresses=means)
+  np.savez_compressed(args.output/'paired-losses.npz',losses=losses,controls=controls,
+                      mean_normalized_addresses=means,raw_calibration_means=raw_means)
   result=dict(exp=args.exp,checkpoint=args.checkpoint,names=names,
       mean_loss=losses.mean(1).tolist(),mean_delta=(losses-losses[0]).mean(1).tolist(),
       calibration_sequence_hashes=[hashlib.sha256(x.tobytes()).hexdigest() for x in calibration],
       evaluation_sequence_hashes=[hashlib.sha256(x.tobytes()).hexdigest() for x in evaluation],
       calibration_sequences=16,evaluation_sequences=16,length=args.length,high_layers=list(range(24,32)),
+      unit_mean=args.unit_mean,reused_calibration=str(args.reuse_calibration) if args.reuse_calibration else None,
       noop_deltas=noop,baseline_repeat_exact=True,traces=traces,
       runtime_commit=__import__('subprocess').check_output(['git','-C',str(args.runtime_dir),'rev-parse','HEAD'],text=True).strip(),
       runner_sha256=hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),seconds=time.monotonic()-start,
-      semantics='Native JAX FP32/highest; parameters unchanged except selected Q/K up kernels zero and pre-biases replaced by disjoint-calibration mean normalized addresses. Gate compensation cancels fixed-key normalization: effective dynamic address is original sigmoid gate times stored mean address, not unit-normalized mean. Full MHA and original gate dependence retained.')
+      semantics='Native JAX FP32/highest; selected Q/K up kernels zero and pre-biases replaced by disjoint-calibration mean address, optionally unit-RMS direction. Gate compensation cancels fixed-key normalization: effective dynamic address is original sigmoid gate times stored constant. Full MHA and original gate dependence retained.')
   (args.output/'summary.json').write_text(json.dumps(result,indent=2)+'\n');print('NATIVE_STATIC_ADDRESS_COMPLETE',result['mean_delta'],flush=True)
 
 

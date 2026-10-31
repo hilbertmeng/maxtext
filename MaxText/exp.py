@@ -17362,6 +17362,10 @@ class BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80CommonReadScaleU
     # code_commit:9c11469; fresh28000/UE5a v5p128, global1024/B16; exact AOT/source/FIRST0 verified.
     # Startup20..39 .31575step/s vs common gamma baseline.31750 (-.55%); genericON/internal+BAMOFF/minimal.
     # Same H reporting group and common gamma comparator; originalMHA gain reference.
+    # User-stopped CP10248/28000; common10k vs gamma baseline gap+.002354/R.981291, last5 gap+.002645/R.979792.
+    # Initial deficit narrowed toward5k, never crossed, then widened7k+; common8.5k vs H gap+.007121.
+    # vs MHA10k gap-.123448; vs Mudd-.051758/R1.721966, underlying multiplier decline persists.
+    # 16k R1.04 prior unsupported at stop; no terminal28k claim. Node+QR absent, TB SYNC_OK; P0.
     model_name = 'BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80CommonReadScaleUnscaledMLPContentEmbeddingFixedLocalODynamicNormScale020'
     bam_local_o_dynamic_norm_scale = True
     bam_local_o_dynamic_norm_scale_init = .2

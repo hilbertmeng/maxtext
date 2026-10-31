@@ -139,3 +139,33 @@ common-comparator and original-MHA/Mudd historical-family figures, skipping
 initial2k. This task owns only these two new RUNs. Artifacts, startup proof,
 source audit, plot helper and state are under
 `/data0/xd/bam_diagnostics/pythia2p8b-h-pair-20261030/`.
+
+## H + dynamic-O .2: user stop at checkpoint10248
+
+The short-prefix H+gamma RUN (runtime9c11469) stopped on explicit user request
+at committed checkpoint10248/28000. Common10k is the final mature native
+comparison: versus the old dynamic-O .2 common comparator, gap+.0023536 and
+MHA-referenced multiplier.981291; final five windows8k..10k mean gap+.00264476,
+mean ratio.979792. Its initial deficit narrowed toward5k without crossing, then
+widened after7k. At matched8.5k it trails H by+.0071214. Versus originalMHA
+10k gap-.1234484; versus serialMudd gap-.051758/R1.721966. The H+gamma arm
+adds no net benefit here and does not fix the underlying BAM/Mudd ratio decay.
+The prior common16k multiplier1.04 was too optimistic at the stopping point;
+neither16k nor full28k was measured.
+
+TPU `xd-v5p-128-pythia-hg020-1030`, v5p128/UE5a, zero preemptions, one READY
+lease2026-10-30T15:36:06Z to2026-10-31T00:45:11Z (9h09m05s). Closeout saved
+CP10248; GCS marker, stopped registry and node+queued-resource absence were
+independently checked. Local TensorBoard sync returned SYNC_OK. Complete
+closeout evidence is `h-gamma-closeout.json` and
+`h-gamma-independent-verification.json` in the task artifact root.
+
+H and complementary-gate RUNs remain live; no changes to their runtime,
+checkpoints, common comparator or28k plan. The reporting clock moved to the
+complementary-gate member while preserving the10k delivered calendar phase;
+next scheduled report metadata is12k. Removed only this stopped short-prefix
+H+gamma RUN from group membership and future plots, preserving the older
+long-prefix gamma common comparator. Raw evidence and prior figures remain
+archived. Corrected direct/family figures retain the other two histories and
+each original historical endpoint, excluding the initial2k. No active agent
+monitor loop was started by this stop request.

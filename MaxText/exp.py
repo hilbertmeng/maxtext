@@ -17407,7 +17407,14 @@ class BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80CommonReadScaleU
 class BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneLocalODynamicNormScale020(
         BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80CommonReadScaleUnscaledMLPContentEmbeddingFixedLocalODynamicNormScale020):
     """Priority transfer: all32 learned V/localO scalars start at1; retain gamma=.2."""
-    # code_commit:9c11469; exact v5p-128/s28000 AOT; no training RUN yet.
+    # code_commit:9c11469; UE5a v5p128/global1024/B16, fresh28000; AOT/source/FIRST0/CP0 verified.
+    # Startup20..39 .315147step/s vs H.31690 (-.55%); genericON/internal+BAMOFF/minimal.
+    # RUN=this class; xd-v5p-128-h-unit-g020-1031 (ID310461); paired unit-init/no-gamma2x2.
+    # User-stopped11375/28000/P0; CP11375/TB SYNC_OK, node+QR independently absent.
+    # vs H: early deficit recovered;10k..11k gap-.000260 -> -.000463, R(MHA-ref)1.00200 -> 1.00366.
+    # Last5 gap-.000173;11k vs old gamma baseline-.005380, vs Mudd-.055894/R1.78637, vs MHA-.126974.
+    # Unit/no-gamma crossed again at11k; user stop, not a dominance/terminal verdict. Speed~.315step/s.
+    # READY06:02:50..16:16:26UTC2026-10-31(10h13m36s); final report/diagnostics: h_high_layer_read_interventions_20261031.md.
     model_name = 'BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneLocalODynamicNormScale020'
     bam_common_vo_read_scale_init = 1.0
 

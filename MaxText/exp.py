@@ -17430,7 +17430,9 @@ class BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80CommonReadScaleU
     # code_commit:6c5dbfe; UE5a v5p128/global1024/B16, fresh28000; AOT/source/FIRST0/CP0 verified.
     # Startup20..39 .316382step/s vs H.31690 (-.16%); genericON/internal+BAMOFF/minimal.
     # RUN=this class; xd-v5p-128-h-unit-plain-1031 (ID310462); same MLPs and initialization.
-    # User16k endpoint: stopped16047/28000/P0; CP16047/TB secured, node+QR independently absent.
+    # User16k endpoint paused16047/P0; subsequently resumed SAME RUN/6c5dbfe/AOT from16047 toward21.5k.
+    # Original28000-step schedule retained; AOT/restore/cursor/FIRST16064 verified, resumed~.316step/s.
+    # Resume control/provenance: /data0/xd/bam_diagnostics/pythia28-h-unit-resume21500-20261101.
     # vs H early deficit recovered~8k;12k/14k/16k gaps-.000378/-.000544/-.000793; R1.00307/1.00458/1.00684.
     # Final5 vs H gap-.000607; small late gain sustained, not a repair of the underlying Mudd-relative decay.
     # vs Mudd R12k1.75925 ->14k1.72247 ->16k1.68457;16k gap-.047428, vs MHA-.116710.

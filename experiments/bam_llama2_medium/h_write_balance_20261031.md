@@ -86,3 +86,31 @@ Pythia2k: params-only restore64.67s, first forward including compilation11.33s, 
 - `h-write-balance-profiles-20261031-024124.png` / `.svg`:0k plus checkpoint trajectories, pre-gate and actual matrix write ratios, both scales, old control10k.
 - `h-write-balance-gate-bridge-20261031-024124.png` / `.svg`: before gate → gated content → matrix increment → BF16 stored marginal, latest available stages.
 - Rendering script: local artifact root `plot_results.py`; summary and source hashes: `figures.json`.
+
+
+## Medium normalized-control extension
+
+User requested the missing right-column old-normalized references. Two exact historical models were probed at0 and13500, on the same32 T2048 sequences:
+
+| Label | Full configuration class | Training runtime | Diagnostic runtime | VMEM |
+|---|---|---|---|---|
+| medium-normalized-control | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75TruePile` | `5a3d55b4065e3a6fe49af095762a6a71ea834c7f` | `12014ba95bf66f3efa8c2bdc13ad86052bed9890` | 14MiB |
+| medium-normalized-gamma050 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODynamicNormScale050TruePile` | `2662b397ff307eb3792563e043c766fb5b1252aa` | `12014ba95bf66f3efa8c2bdc13ad86052bed9890` | 40MiB |
+
+The runner retains compatibility with these older normalized writers by only passing `content_divisors` to leave-one-writer calls when that API exists. Formal forward output remains the original write result. No training or checkpoint changes.
+
+| Model, step13500 | Pre-gate content ratio | Gated content ratio | Formal matrix ratio | Stored BF16 marginal ratio |
+|---|---:|---:|---:|---:|
+| H | 0.222737 | 0.522796 | 0.631294 | 0.631315 |
+| Old normalized | 0.999997 | 0.608859 | 0.743541 | 0.743573 |
+| Old normalized + dynamic O .5 | 0.999996 | 0.602827 | 0.703135 | 0.703186 |
+
+These are medians over writing layers, not global energy ratios or loss effects. Medium H's trained write ratio is moderately below both normalized recipes, much less than its pre-gate ratio suggests. The0k normalized pre-gate median is .9745 rather than exactly1 due to finite RMSNorm epsilon on small initial MLP contents; trained values are approximately1.
+
+The plain control succeeded at14MiB. Reusing14MiB for the historical dynamic-O kernel caused scoped VMEM allocation36.08M vs limit34.69M at first forward; rerun with40MiB succeeded. Use the runner's40MiB v6e default rather than infer budget adequacy from a different model/kernel. `medium-controls-jobs-attempt1.json` preserves the first settings, `medium-controls-jobs.json` the successful settings. Initial-source/configuration preparation is not per-checkpoint inference cost.
+
+GCS extension prefix: `gs://newproject-1-llm_base_models_us-central1/diagnostics/h-write-balance-20261031-4d0b199/medium-controls-12014ba`. Local `medium-controls-audit.json` verifies all four finite32-sequence result sets against the original cohort hashes. Plot source and figure paths are updated in local `plot_results.py` / `figures.json`. The same borrowed FLEX was released from the worker lock, retained ACTIVE, and never deleted; there were no other diagnostic resources.
+
+### Why0k to restored weights retraced
+
+The supplementary CPU abstract-parameter comparison on the FLEX loaded no full checkpoint arrays: the initial model and saved metadata have identical parameter-tree structure, shapes and dtypes. It identified one weakly typed initial leaf, `params/decoder/layers/block/self_attention/gw_b0`. Initialization has `weak_type=True`, whereas restoration requests ordinary strongly typed FP32 arrays. This extra JAX signature component explains a possible cache miss despite identical printed shape/dtype. A focused pinned-CPU test confirmed that changing only weak typing triggers a second trace; a BF16-plus-bias example also changed the promoted output dtype from BF16 to FP32. Consequently weak typing is recorded, not forcibly removed: preserving the exact0k numerical semantics takes precedence over avoiding a single compile. Trained checkpoints still reuse their common signature. Evidence: `check-param-signatures-r3.log` and the runner's `PARAM_SIGNATURE`/`FORWARD_TRACE` output; later runner metadata also records weak-type paths.

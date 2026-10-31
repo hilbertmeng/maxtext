@@ -216,7 +216,10 @@ def main():
       signature = hashlib.sha256(repr((str(treedef), [
           (x.shape, str(x.dtype), x.weak_type, str(x.sharding), x.committed)
           for x in leaves])).encode()).hexdigest()
+      weak_type_paths = [jax.tree_util.keystr(k) for k, v in
+                         jax.tree_util.tree_flatten_with_path(params)[0] if v.weak_type]
       print('PARAM_SIGNATURE', step, signature, flush=True)
+      print('WEAK_TYPE_PATHS', step, weak_type_paths, flush=True)
       del leaves
       print('RESTORE_OK', step, round(time.monotonic()-start, 2), flush=True)
       rows = []
@@ -243,7 +246,8 @@ def main():
           semantics='Ratios of aggregate RMS across same sequences/tokens/heads. Stored marginal: full write minus actual BF16 leave-one-writer result; margins are conditional and not additive.',
           overrides=dict(only_eval=True, batch=1, length=args.length,
                          vmem_mib=args.vmem_mib, forward_tile=args.tile),
-          param_signature=signature, forward_traces=forward_traces,
+          param_signature=signature, weak_type_paths=weak_type_paths,
+          forward_traces=forward_traces,
           raw_file=str(path), devices=[str(x) for x in jax.devices()])
       (path.with_suffix('.json')).write_text(json.dumps(meta, indent=2)+'\n')
       print('STEP_DONE', step, round(meta['seconds'], 2), flush=True)

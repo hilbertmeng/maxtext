@@ -1247,6 +1247,9 @@ class Decoder(nn.Module):
                     decoder_input_tokens, None, deterministic, model_mode,
                     eos_sum, None, None, None, jnp.asarray(index, jnp.int32))
         y = scan_carry[0] if full_bam else scan_carry
+        if cfg.bam_final_local_o:
+          from layers.bam_final_local_o import FinalLocalO
+          y = FinalLocalO(cfg, self.quant, name='final_local_o')(y, scan_carry[1])
 
       elif cfg.partial_scan_layers:
         assert not cfg.bam_enabled, "BAM v0.1 does not support partial_scan_layers"

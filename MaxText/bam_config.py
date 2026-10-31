@@ -12,6 +12,13 @@ def validate_bam_config(config, *, layer_mode=None):
       lambda name, default=None: getattr(config, name, default))
   if not get('bam_enabled', False):
     return
+  if get('bam_final_local_o', False):
+    if (not get('scan_layers', False) or get('bam_mha_control', False)
+        or get('dense_conn', False) or get('bam_mudd_tail_blocks', 0)
+        or not get('bam_common_vo_read_scale', False)
+        or not get('bam_general_column_read', False)
+        or not get('bam_local_full_m_read_bottleneck_dim', None)):
+      raise ValueError('Final localO requires the scanned generalized BAM H family')
   if get('bam_context_local_o_complement', False):
     if (get('bam_read_gate_activation', 'sigmoid') != 'sigmoid'
         or not get('bam_local_vo_independent_gates', False)

@@ -282,7 +282,9 @@ class SubDecoderLayer(nn.Module):
         attention_lnx, M_out, write_factors = attention_layer(
             **call_kwargs, M_in=attention_M, is_global=is_global, layer_index=layer_index)
     elif cfg.bam_enabled:
-        if mlp_write and not bam_mudd.skips_attention_write(cfg, self.layer_inx):
+        attention_writers = getattr(cfg, 'bam_attention_write_layers', None)
+        if (mlp_write and not bam_mudd.skips_attention_write(cfg, self.layer_inx)
+            and (attention_writers is None or self.layer_inx in attention_writers)):
           assert cfg.shared_experts == 1 and cfg.num_experts == 1
           assert cfg.emb_dim == num_query_heads * cfg.bam_k == num_query_heads * head_dim
           assert 'full' not in layer_mode and not cfg.bam_mha_control

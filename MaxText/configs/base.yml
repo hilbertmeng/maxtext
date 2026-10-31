@@ -764,6 +764,7 @@ engram_ngram_layers: null # list: 2-gram和3-gram的层数
 engram_ngram_sizes: null # list: 2-gram和3-gram
 
 bam_context_local_o_complement: False # Same-head context output *= 1-sigmoid(dynamic localO read logit).
+bam_final_local_o: False # Extra generalized localO from final M, own W_O, before ln_f.
 bam_common_vo_read_scale: False # One directly learned signed scalar per layer; V and localO, static+dynamic.
 bam_common_vo_read_scale_init: null # None: 1/sqrt(1+2*layer); otherwise shared V/O initialization.
 bam_embedding_write_content_divisor: null # Fixed positive denominator instead of content RMSNorm.

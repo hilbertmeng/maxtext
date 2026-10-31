@@ -3173,7 +3173,10 @@ class BamAttention(Attention):
               lambda key, shape, dtype: jnp.full(shape, math.log(eps / (1.0 - eps))),
               ("q_heads",)),
           (self.num_query_heads,), self.weight_dtype)
-    if self._has_write or bam_mudd.restores_mlp_write(cfg, self.layer_inx):
+    final_exit_mlp_write = (getattr(cfg, 'bam_final_local_o', False)
+                           and self.layer_inx == cfg.num_decoder_layers - 1
+                           and not cfg.bam_skip_final_mlp_write)
+    if self._has_write or bam_mudd.restores_mlp_write(cfg, self.layer_inx) or final_exit_mlp_write:
       learned_write_scale = self._write_factor_norm == 'grouped_rms'
       address_bias = self._write_address_norm_bias
       self.write_data_norm = GroupedRMSNorm(

@@ -74,6 +74,33 @@ def freeze_address_parameters(params, means, controls, scan_axis):
   return unflatten_dict(flat)
 
 
+def zero_mha_value_parameters(params, modes, scan_axis):
+  """For mode2, set the independent M-derived V to zero in the same graph."""
+  import numpy as np
+  import jax.numpy as jnp
+  from flax.traverse_util import flatten_dict,unflatten_dict
+  selected=np.asarray(modes)==2
+  if not selected.any():return params
+  flat=flatten_dict(params);count=0
+  for path,value in list(flat.items()):
+    gate_bias=path[-1]=='W_lv_gate_b0'
+    gate_kernel=path[-1]=='kernel' and path[-2]=='W_lv_gate'
+    static=path[-1]=='static_v_key'
+    if not (gate_bias or gate_kernel or static):continue
+    if 'layers' in path:layers=range(len(selected)-1);scanned=True
+    elif 'final_local_layer' in path:layers=[len(selected)-1];scanned=False
+    else:continue
+    for layer in layers:
+      if not selected[layer]:continue
+      index=[slice(None)]*value.ndim
+      if scanned:index[scan_axis]=layer
+      target=jnp.full_like(value[tuple(index)],-1000. if gate_bias else 0.)
+      value=value.at[tuple(index)].set(target);count+=1
+    flat[path]=value
+  assert count==3*int(selected.sum()),(count,int(selected.sum()))
+  return unflatten_dict(flat)
+
+
 @contextlib.contextmanager
 def address_intervention(controls=None, addresses=None, record=False,
                          zero_mha=None, record_context=False, dtype_debug=False):
@@ -97,8 +124,9 @@ def address_intervention(controls=None, addresses=None, record=False,
 
     def modified_context(output):
       if zero_mha is not None and not module.is_initializing():
-        # Mode1 removes context only at W_O input; mode2 removes it before M write too.
-        changed = output * (zero_mha[layer] != 2).astype(output.dtype)
+        # Mode2 is implemented with zero V parameter operands, leaving the
+        # original Splash output/fusion untouched in the no-op condition.
+        changed = output
         if record_context:
           module.sow('intermediates','mha_context_probe',jnp.stack((
               jnp.mean(output.astype(jnp.float32)**2),
@@ -162,8 +190,9 @@ def address_intervention(controls=None, addresses=None, record=False,
                       o_logit,v_logit,q_standard,k_standard,**kw)
 
     bam_pallas.read=modified
-    attentions._bam_splash_attention=modified_splash
-    attentions._attention_op=modified_attention
+    if record_context:
+      attentions._bam_splash_attention=modified_splash
+      attentions._attention_op=modified_attention
     attentions.BamAttention._regularize_local_o_heads=modified_local
     attentions.BamAttention.out_projection=modified_projection
     try:
@@ -234,6 +263,7 @@ def main():
   cfg.get_keys().update(bam_pallas_read_tile=128,bam_pallas_write_tile=128,
                         bam_pallas_vmem_mib=args.vmem_mib)
   assert cfg.bam_pallas_core and cfg.bam_pallas_body=='v8t'
+  assert not getattr(cfg,'bam_standard_value_heads',0)
   assert all(hasattr(attentions,name) for name in ('_bam_splash_attention','_attention_op'))
   assert all(hasattr(attentions.BamAttention,name) for name in ('_regularize_local_o_heads','out_projection'))
   print('HISTORICAL_INTERVENTION_HOOKS_VERIFIED',flush=True)
@@ -309,6 +339,7 @@ def main():
     for variant,name in enumerate(names):
       before=time.monotonic()
       variant_params=freeze_address_parameters(params,means,controls[variant],cfg.param_scan_axis)
+      variant_params=zero_mha_value_parameters(variant_params,mha_controls[variant],cfg.param_scan_axis)
       for index,tokens in enumerate(evaluation):
         losses[variant,index]=float(forward(variant_params,jnp.asarray(tokens[None]),
             jnp.asarray(controls[variant]),jnp.asarray(means),jnp.asarray(mha_controls[variant])))

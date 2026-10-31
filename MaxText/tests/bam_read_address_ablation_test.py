@@ -46,11 +46,12 @@ class ReadAddressAblationTest(unittest.TestCase):
       model=Transformer(cfg,mesh,quant=None);tokens=jnp.ones((1,4),jnp.int32)
       positions=jnp.arange(4)[None];segments=jnp.ones_like(tokens)
       with mesh,nn.partitioning.axis_rules(cfg.logical_axis_rules):
-        params=model.init(jax.random.key(7),tokens,positions,segments,tokens)
+        params=nn.unbox(model.init(jax.random.key(7),tokens,positions,segments,tokens))
+        both_params=probe.zero_mha_value_parameters(params,np.array([0,0,2]),cfg.param_scan_axis)
         with probe.address_intervention(zero_mha=jnp.array([0,0,2]),record_context=True):
-          result,aux=model.apply(params,tokens,positions,segments,tokens,mutable=['intermediates'])
+          result,aux=model.apply(both_params,tokens,positions,segments,tokens,mutable=['intermediates'])
         values=np.asarray(probe.extract_addresses(aux['intermediates'],2,'mha_context_probe'))
-        self.assertEqual(values.shape,(3,2));self.assertGreater(values[2,0],0.)
+        self.assertEqual(values.shape,(3,2));self.assertEqual(values[2,0],0.)
         self.assertEqual(values[2,1],0.)
         np.testing.assert_array_equal(values[:2,0],values[:2,1])
         self.assertTrue(np.isfinite(result[0]).all())

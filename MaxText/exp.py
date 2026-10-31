@@ -17374,7 +17374,10 @@ class BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80CommonReadScaleU
 class BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneLocalODynamicNormScale020(
         BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80CommonReadScaleUnscaledMLPContentEmbeddingFixedLocalODynamicNormScale020):
     """Priority transfer: all32 learned V/localO scalars start at1; retain gamma=.2."""
-    # code_commit:9c11469; exact v5p-128/s28000 AOT; no training RUN yet.
+    # code_commit:9c11469; UE5a v5p128/global1024/B16, fresh28000; AOT/source/FIRST0/CP0 verified.
+    # Startup20..39 .315147step/s vs H.31690 (-.55%); genericON/internal+BAMOFF/minimal.
+    # RUN=this class; xd-v5p-128-h-unit-g020-1031 (ID310461); paired unit-init/no-gamma2x2.
+    # Launch details: /data0/xd/bam_diagnostics/pythia28-h-unit2x2-20261031.
     model_name = 'BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneLocalODynamicNormScale020'
     bam_common_vo_read_scale_init = 1.0
 
@@ -17386,6 +17389,11 @@ class BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80CommonReadScaleU
     Completes the depth/unit initialization x no-gamma/gamma-.2 comparison.
     All writer/MLP/embedding settings and the28000-step recipe remain unchanged.
     """
+    # ledger/runtime: codex/pythia28-h-unit2x2-1031; /data0/xd/pythia28-h-unit2x2.
+    # code_commit:6c5dbfe; UE5a v5p128/global1024/B16, fresh28000; AOT/source/FIRST0/CP0 verified.
+    # Startup20..39 .316382step/s vs H.31690 (-.16%); genericON/internal+BAMOFF/minimal.
+    # RUN=this class; xd-v5p-128-h-unit-plain-1031 (ID310462); same MLPs and initialization.
+    # Launch details: /data0/xd/bam_diagnostics/pythia28-h-unit2x2-20261031.
     model_name = 'BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOne'
     bam_common_vo_read_scale_init = 1.0
 

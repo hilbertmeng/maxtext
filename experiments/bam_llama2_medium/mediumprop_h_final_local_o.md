@@ -94,3 +94,26 @@ Monitoring group medium-h-final-local-o, fixed cadence2000 and reviews4000/8000.
 Both curves share H in routine plots; BOTH also registers OFF as the paired
 write-restoration contrast. Every gain multiplier uses BamMHAMediumPropC256TruePile
 as the common reference. No claim of benefit before mature comparison windows.
+
+## BOTH writers: 8k closeout
+
+Stopped8141 (nonterminal13500), committedCP8141 independently verified. Both
+node and queued resource xd-v5p-16-310471-maxtext independently NOT_FOUND.
+Against H, early near-parity reversed near1k, then equal block gain multipliers
+5.2-6k .992601 /6.2-7k .993284 /7.2-8k .992436. Final5 gap+.00154276,
+R.99243571. Against OFF final5 gap-.00068196/R1.00336740, with early advantage
+shrinking throughout training. No parameter/cache/speed benefit justified the
+remaining plateau. Full13500 outcome is unmeasured; initial terminalR1.025 bet
+unsupported at the stopping point. OFF stays active because its equal blocks
+continue to narrow, with wider ordinary tail3371 vs1989 as a possible late benefit.
+
+Generic health: new signed exit coefficient .164399 -> OFF8k .214162 /
+BOTH7.75k .188125, W_O norms~21 (initial7.198), finite nonzero gradients.
+These establish parameter learning, not a measured forward contribution ratio.
+Source: health8k.json, report8k, review8k-on, both-writers-closeout/audit.json.
+
+Resource: one UE5a v5p16 assignment09:11:55..12:38:34 UTC; READY
+09:11:58..12:38:34 UTC =3h26m36s, P0, manual8k review stop. Old preparation
+assignment09:02:20..09:10:31, READY09:02:29..09:10:31=8m02s/P0,
+superseded174 and retained transfer. Both are separate RUNs on the same physical
+TPU, not a preemption or region migration.

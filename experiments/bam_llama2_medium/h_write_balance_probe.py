@@ -132,6 +132,8 @@ def main():
   p.add_argument('--length', type=int, default=2048)
   p.add_argument('--sequences', type=int, default=32)
   p.add_argument('--vmem-mib', type=int, default=14)
+  p.add_argument('--tile', type=int, default=64,
+                 help='Forward-only Pallas token tile, bounded for v6e VMEM')
   args = p.parse_args()
   os.chdir(args.runtime_dir)
   sys.path.insert(0, str(args.runtime_dir / 'MaxText'))
@@ -151,6 +153,7 @@ def main():
       max_target_length=args.length, max_prefill_predict_length=args.length,
       record_internal_nn_metrics=False, record_training_health_metrics=False,
       bam_pallas_vmem_mib=args.vmem_mib, jax_cache_dir='', log_config=False)
+  cfg.get_keys().update(bam_pallas_read_tile=args.tile, bam_pallas_write_tile=args.tile)
   assert cfg.bam_pallas_core and cfg.bam_pallas_body == 'v8t'
   assert not cfg.bam_sqrt_n_scale
   mesh = jax.sharding.Mesh(max_utils.create_device_mesh(cfg), cfg.mesh_axes)
@@ -206,7 +209,8 @@ def main():
           ratios={f: ratio(f) for f in ('content_ms','gated_content_ms','delta_ms','stored_marginal_ms')},
           means=mean.tolist(), seconds=time.monotonic()-start,
           semantics='Ratios of aggregate RMS across same sequences/tokens/heads. Stored marginal: full write minus actual BF16 leave-one-writer result; margins are conditional and not additive.',
-          overrides=dict(only_eval=True, batch=1, length=args.length, vmem_mib=args.vmem_mib),
+          overrides=dict(only_eval=True, batch=1, length=args.length,
+                         vmem_mib=args.vmem_mib, forward_tile=args.tile),
           raw_file=str(path), devices=[str(x) for x in jax.devices()])
       (path.with_suffix('.json')).write_text(json.dumps(meta, indent=2)+'\n')
       print('STEP_DONE', step, round(meta['seconds'], 2), flush=True)

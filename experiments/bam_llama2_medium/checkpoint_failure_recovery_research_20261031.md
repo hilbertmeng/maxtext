@@ -43,6 +43,62 @@ H3k controller log: at305s without commit_success, the outer controller collecte
 3. Exercise the existing SIGTERM path, check actual new commit_success plus matching cursor, then restore from the newest verified checkpoint. Cover a late successful original checkpoint as well as a newer rescue checkpoint; do not unconditionally restore to before the first pending step.
 4. Separately test cooperative cancel at each phase. Cancellation returning is insufficient: require old finalization to stop, all workers to agree, a new full checkpoint to commit, and restore to reproduce state/data continuation.
 
-Minimum failure cases: a slow but ultimately successful writer; one-worker directory/write exception; a worker stranded at a commit barrier; storage remaining unavailable. Each needs a strict timeout, verified fallback, and no infinite replay/restart cycle. Normal successful save and fixed-step retention must remain intact. These tests have not been executed by this research task.
+Minimum failure cases: a slow but ultimately successful writer; one-worker directory/write exception; a worker stranded at a commit barrier; storage remaining unavailable. Each needs a strict timeout, verified fallback, and no infinite replay/restart cycle. Normal successful save and fixed-step retention must remain intact. The multi-worker/real-storage fault matrix has not been executed. The isolated single-process propagation probe below has been executed.
 
 Raw GitHub searches, issue bodies/comments and PR patches, plus actual worker timeout source, are archived under `/data0/xd/bam_diagnostics/checkpoint-recovery-research-20261031/`.
+
+
+## Following the1200s failure path: source and actual-worker probe
+
+The earlier timeout finding was incomplete without examining its consumers.
+Actual worker source was captured in `worker-timeout-propagation-source.json`
+(Orbax0.12.4); this was not inferred from a different local installation.
+
+Error path for a commit-future timeout:
+
+1. The cumulative commit-future wait raises TimeoutError in `async_save`.
+2. `_AsyncManager._thread_func` logs and stores it in `_exception`; it does not
+   directly raise in the training thread or initiate a retry.
+3. The manager's `save_finalize` thread waits for that async work. The error is
+   raised there; `_FinalizeThread.run` catches and stores it in `exception`.
+   `_finalize` also performs its finally-stage save-progress synchronization,
+   which is an additional multi-worker failure boundary.
+4. A normal non-checkpoint step's `CheckpointManager.save` may return False
+   without joining the failed finalizer. The training loop can keep advancing.
+5. On the next accepted save (including preemption-requested save),
+   `CheckpointManager.save` calls `wait_until_finished` before starting a new
+   write. Joining the prior finalizer rethrows the old TimeoutError. Explicit
+   waits/close can also surface it.
+6. Current MaxText/train.py does not catch this as a recoverable save failure,
+   so an exception reaching this point exits the training loop. It does not
+   automatically preserve the newer in-memory state to a different checkpoint.
+   The existing auto-train crash/recovery path then has to use valid persisted
+   state. This makes blindly waiting until4k/5k an unsafe policy.
+
+A separate CPU process on worker0 used the exact installed library, a temporary
+local directory, four-element NumPy arrays, a1s timeout and one injected blocked
+commit future. No formal checkpoint, training object or TPU backend was used.
+Reusable probe: `probe_orbax_timeout_propagation.py` beside this note. Execution
+artifact/log/result JSON: `/data0/xd/bam_diagnostics/checkpoint-recovery-research-20261031/probe-timeout-propagation*`.
+
+Observed outcomes:
+
+| Probe event | Result |
+|---|---|
+|1.5s after a1s deadline | Both async and finalizer threads had exited; finalizer stored TimeoutError; no commit marker. |
+| Three subsequent non-checkpoint calls | Returned False; no error surfaced to caller. |
+| `CheckpointManager.check_for_errors()` after that | Returned without error: the finalizer had already consumed the underlying async error. It is not by itself a complete failed-finalizer detector. |
+| Next scheduled save | Rethrew the prior TimeoutError before beginning its own save. |
+| Explicitly catch, then force a later save | In this single-process injected case, saved and restored step1001 successfully. This is evidence for a possible recovery path, not a validated multi-worker remedy. |
+| Direct async-manager callback taking2.2s with1s timeout | Still alive at1.3s and completed without TimeoutError in the single-process case. |
+
+The callback result matters: the timeout patch applies timed waits to commit
+futures and remaining budgets to designated barriers; it is not a mechanism to
+interrupt arbitrary synchronous callback/native I/O. In multi-worker jobs there
+are further finalization/control barriers. Therefore1200s is not a guaranteed
+whole-job shutdown or recovery bound, and it does not make an external watchdog
+unnecessary. Source/patch reference: https://github.com/google/orbax/pull/2966/files.
+
+No production timeout, cancellation, SIGTERM or recovery policy was changed by
+this probe. Multi-worker timeout propagation, cancellation and retry still need
+explicit fault-injection validation before applying a process-preserving fix.

@@ -134,6 +134,8 @@ def main():
   p.add_argument('--vmem-mib', type=int, default=14)
   p.add_argument('--tile', type=int, default=64,
                  help='Forward-only Pallas token tile, bounded for v6e VMEM')
+  p.add_argument('--config-only', action='store_true',
+                 help='Verify exact historical configuration without weights/inference')
   args = p.parse_args()
   os.chdir(args.runtime_dir)
   sys.path.insert(0, str(args.runtime_dir / 'MaxText'))
@@ -145,9 +147,11 @@ def main():
   import pyconfig
   from layers.models import Transformer
   assert jax.process_count() == 1
+  config_output = args.output / 'configuration'
+  (config_output / 'write-balance-probe').mkdir(parents=True, exist_ok=True)
   cfg = pyconfig.initialize([None, 'MaxText/configs/base.yml'],
       exp_class=args.exp, run_name='write-balance-probe',
-      base_output_directory='/tmp/h-write-balance-output/',
+      base_output_directory=str(config_output) + '/',
       enable_checkpointing=False, only_eval=True, dataset_type='synthetic',
       target_train_batch_size=None, per_device_batch_size=1.,
       max_target_length=args.length, max_prefill_predict_length=args.length,
@@ -159,6 +163,10 @@ def main():
                         bam_pallas_vmem_mib=args.vmem_mib)
   assert cfg.bam_pallas_core and cfg.bam_pallas_body == 'v8t'
   assert not cfg.bam_sqrt_n_scale
+  if args.config_only:
+    print('HISTORICAL_CONFIG_OK', args.exp, cfg.num_decoder_layers, cfg.emb_dim,
+          cfg.bam_k, cfg.bam_v, cfg.mlp_dim, cfg.bam_memory_mlp_dim, flush=True)
+    return
   mesh = jax.sharding.Mesh(max_utils.create_device_mesh(cfg), cfg.mesh_axes)
   model = Transformer(cfg, mesh, quant=None)
   cohort = np.load(args.cohort)['tokens'][:args.sequences, :args.length + 1]

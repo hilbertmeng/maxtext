@@ -144,3 +144,31 @@ The single6k no-gamma control changes the interpretation: overall gate/write con
 Compared with H, unit-init+gamma's pooled front-half MLP/attention write ratio rises.66484->.75350, whereas the back-half falls.98859->.95910. Its median per-layer ratio rises.79339->.86013, yet the median of **paired** ratio changes is.97753 and only14/31 layers rise. This illustrates why layer medians cannot establish a uniform MLP-write boost; retain full layer profiles and pooled amplitudes.
 
 Canonical outputs: `parameter-figures.json` (s_l and gamma profiles), `write-figures.json` (H/unit-gamma pre-gate and BF16 stored-marginal profiles plus absolute gates/writes), `control-figure.json` (three-arm6k mean gates and actual writes), `three-arm-pooled-summary-6000.json`, `probe-manifest.json` and `control-manifest.json`. Renderers and orchestration commands are saved beside them. Trained2k/4k/6k parameter signatures match and reuse one forward graph;0k may have a separate weak-typing signature, which is preserved. Unit-gamma4k/6k restores took~69s, all32 hot forwards~2.7s; the additional no-gamma6k point took89.15s restore plus14.17s first-graph/32 forwards.
+
+
+## Actual read gates and upper-layer adaptation
+
+Read-gate extension runner commit `5e02d06003531b8efa9158565e02ee762c69e06b`, file SHA256 `0496f562f768a535ab67f320764fa7fc6da5f63d138a93657dbde9e5f270bca4`. Optional `--read-gates` captures actual Pallas inputs and unchanged outputs; production health flags and formal model runtimes remain unchanged. Two focused pinned-CPU checks verify statistic semantics and elementwise identical logits, including scan+tail capture. At matched6k the three new write arrays are bitwise identical to the previous write-only probes. NPZ read arrays are `[32 sequences,32 layers,4 arms,5 statistics]` with unchanged cohort hashes.
+
+Dynamic gate means are `mean(sigmoid(logit))`, excluding separate key scale `.1`, common read scale and gamma. Static-address branch multipliers are `1.1 sigmoid(Wx+b)/.99`; they are token dependent, despite the address being static. Actual Q/K RMS covers the M-derived80-coordinate prefix before full-head QKNorm, excluding the20-coordinate standard RoPE tail. V/O RMS is actual fused output including common scale/gamma, before attention aggregation or residual projection. These RMS values do not establish output-direction quality or causal loss value.
+
+Exact runtime and full H/unit identities are in the preceding table. Additional stopped H+gamma configuration: `BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80CommonReadScaleUnscaledMLPContentEmbeddingFixedLocalODynamicNormScale020`, runtime `9c11469da97a0ade00530448736e55024bfd6e99`. Read probes cover H and unit+gamma0/2k/4k/6k/8k, unit6k/8k, stopped H+gamma6k. Same32-sequence cohort, batch1/T2048/tile128/VMEM40MiB; exact old model worktrees, borrowed FLEX shared lock, no checkpoint download or TPU lifecycle operation. All driver jobs completed and released the worker lock; retained FLEX untouched.
+
+At6k, adding gamma reduces pooled O read RMS from `.62573` to `.45235` under depth-decayed initialization and from `.90214` to `.66978` under unit initialization. V RMS remains close within each initialization pair. The stopped depth+gamma arm opens O gate to `.6400` versus H `.2412`, but retains weaker actual O output; this is evidence of compensation, not proof of gate saturation. A smaller O amplitude is not universally beneficial, and a single O/V ratio does not explain loss ordering.
+
+Final-three-layer dynamic gate means:
+
+| Arm / gate | 0 | 2k | 4k | 6k | 8k |
+|---|---:|---:|---:|---:|---:|
+| H V | .0503 | .2595 | .2713 | .2891 | .3014 |
+| Unit+gamma V | .0503 | .1091 | .0858 | .0797 | .0764 |
+| H O | .0503 | .3759 | .3588 | .3706 | .3832 |
+| Unit+gamma O | .0503 | .5303 | .4216 | .4049 | .3990 |
+
+Unit+gamma's late V gate has opened and then contracted, rather than remaining unlearned. Its final-three-layer V RMS declines2.9165 at initialization to1.4624 at6k and1.4042 at8k; H increases.3419 to.9495 and.9090 respectively. High O opening has different plausible scale-compensation motives: H suppresses both V/O through its learned common scalar (final-four mean.11377 at6k), whereas unit+gamma keeps the common scalar near1(.96644) and separately suppresses dynamic O with gamma~.2.
+
+High Q/K means near initial opening do not show that the dynamic paths are unnecessary. At6k H final-three K mean is.0316, below initial.0503. Unit+gamma final-three Q/K means.0603/.0439 have token/head/layer standard deviations.0365/.0286; the initial gates are constant. Static-address M reads are still token dependent because M varies. The depth profile supports lower average dynamic-address correction in higher layers; a causal paired loss intervention would be needed before omitting those projections. Full-head QKNorm reduces value of common Q/K rescaling but preserves effects on address direction and dynamic/static balance.
+
+Before8k probes, the registered hypothesis was that no-gamma loss catch-up might coincide with its O/V read balance converging toward gamma. It is **not clearly supported**: all-layer O/V changes `.4998 -> .5042` for unit and `.3772 -> .3855` for unit+gamma; separation barely shrinks. Final-three ratios `.8114 -> .8418` versus `.8666 -> .9192` move farther apart. No-gamma absolute O RMS contracts, but V contracts similarly. Thus amplitude compensation helps explain gate openings, but O/V convergence alone does not explain the training crossing.
+
+Reproduction/artifacts: `/data0/xd/bam_diagnostics/h-read-gates-20261031`, GCS `gs://newproject-1-llm_base_models_us-central1/diagnostics/h-read-gates-20261031`. `manifest.json`, `stopped-gamma-manifest.json`, `manifest-8k.json` register exact EXP/runtime/checkpoint paths and cohort/runner hashes. `history-and-O-control.json`, `figures-6k.json`, `high-layer-6k-8k.json` register results/figures and raw-file hashes; local plotting sources are archived beside them. Upper-layer0/2k/4k/6k/8k data and full depth profiles should accompany any later architecture inference.

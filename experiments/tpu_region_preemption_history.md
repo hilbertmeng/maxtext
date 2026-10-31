@@ -27,6 +27,7 @@ active leases are censored, and manual migration releases are not preemptions.
 
 | RUN | TPU | Zone | Start UTC | End UTC | End reason | Passive candidates |
 |---|---|---|---|---|---|---|
+| `BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80CommonReadScaleUnscaledMLPContentEmbeddingFixed` | v5p-128 (`xd-v5p-128-pythia-h-1030`) | `us-east5-a` | 2026-10-30 15:30:10 | 2026-10-31 08:56:18 | user hot-replace18331/P0; CP/TB SYNC_OK; physical TPU retained/transferred to MemoryMLPBias after FIRST_STEP; runtime9c11469 | none |
 | `BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80CommonReadScaleUnscaledMLPContentEmbeddingFixedContextLocalOComplement` | v5p-128 (`xd-v5p-128-pythia-h-complement-1030`) | `us-east5-a` | 2026-10-30 15:56:30 | 2026-10-31 03:40:34 | user stop12947/P0; CP12947/TB SYNC_OK, node+QR independently absent; runtime39b6a4f; bare H continues | none |
 | `BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80CommonReadScaleUnscaledMLPContentEmbeddingFixedLocalODynamicNormScale020` | v5p-128 (`xd-v5p-128-pythia-hg020-1030`) | `us-east5-a` | 2026-10-30 15:30:10 | 2026-10-31 00:45:11 | user stop10248/P0; CP10248/TB SYNC_OK, node+QR independently absent; runtime9c11469; other H RUNs continue | none |
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedNoMLPWriteGateTruePile` | v5p-16 (`xd-v5p-16-310435-maxtext`) | `us-east5-a` | 2026-10-30 15:31:32 | 2026-10-30 17:52:51 | resumed CP8285; complete13500/P0, CP/TB secured, node+QR independently absent; originaled83fad/AOT/13500 plan unchanged | none |
@@ -2419,6 +2420,8 @@ active leases are censored, and manual migration releases are not preemptions.
 | `BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80CommonReadScaleUnscaledMLPContentEmbeddingFixedLocalODynamicNormScale020` | 1 | `us-east5-a` | 2026-10-30 15:36:06 | 2026-10-31 00:45:11 | 9h09m05s | user stop10248/P0; CP/TB secured, resources absent |
 
 | `BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80CommonReadScaleUnscaledMLPContentEmbeddingFixedContextLocalOComplement` | 1 | `us-east5-a` | 2026-10-30 16:00:52 | 2026-10-31 03:40:34 | 11h39m42s | user stop12947/P0; CP/TB secured, node+QR independently absent |
+
+| `BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80CommonReadScaleUnscaledMLPContentEmbeddingFixed` | 1 | `us-east5-a` | 2026-10-30 15:36:02 | 2026-10-31 08:56:18 | 17h20m16s | user hot-replace18331/P0; CP/TB SYNC_OK; TPU transferred to new bias RUN |
 
 ### 2026-10-14 user pause: resumed mixed R256/R384
 

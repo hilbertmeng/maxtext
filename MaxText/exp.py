@@ -17345,6 +17345,12 @@ class BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80CommonReadScaleU
     # Startup20..39 .31690step/s vs common gamma baseline.31750 (-.19%); genericON/internal+BAMOFF/minimal.
     # Launch/group/reproduction: pythia2p8_common_read_raw_write.md; common gamma comparator, originalMHA gain reference.
     # See pythia2p8_common_read_raw_write.md.
+    # User hot-replaced by MemoryMLPBias at committed18331/28000 (P0); not a loss-based stop.
+    # Active direct references QK80 and pre-mask+QK80: 8k..18k gap -.01053->-.00900 / -.00731->-.00714;
+    # MHA-referenced ratios1.0820->1.0876 /1.0556->1.0682, final5 means1.0893/1.0704: persistent extra gain.
+    # vs MHA18k gap-.111787; vs serialMudd gap-.044524/R1.661949 (12k1.7539->16k1.6731->18k1.6619).
+    # Original common-gamma comparator16k R1.03609 exceeded1.02 prior; terminal28k untested.
+    # CP/TB SYNC_OK; retained UE5a TPU transferred after new FIRST_STEP. Repro: pythia2p8_h_memory_mlp_bias.md.
     model_name = 'BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80CommonReadScaleUnscaledMLPContentEmbeddingFixed'
     bam_common_vo_read_scale = True
     bam_common_vo_read_scale_init = None
@@ -17366,6 +17372,11 @@ class BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80CommonReadScaleU
     Keep ordinary7808/memory2944/tail9984, R640, scan31+tail1, health settings
     and the original28000-step LR schedule. Biases inherit the no-decay rule.
     """
+    # code_commit:95a57d3; UE5a v5p128/global1024/B16, fresh28000; exact AOT/all16 workers/FIRST0/CP0 verified.
+    # Startup20..39 .31465step/s vs H .31690 (-.71%); genericON/internal+BAMOFF/minimal/VMEM60MiB.
+    # Zero-init170624 biases exempt from MLP repayment; common weights and initial logits exactly preserve H.
+    # Checkpoint rescue activated: worker Orbax1200s, external trigger1300s/budget600s (controller eeaa043).
+    # Prior16k MHA-referenced gain vs H1.02 [.99,1.05]; launch/repro: pythia2p8_h_memory_mlp_bias.md.
     model_name = 'BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80CommonReadScaleUnscaledMLPContentEmbeddingFixedMemoryMLPBias'
     bam_memory_mlp_use_bias = True
     compare_runs = ['BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80CommonReadScaleUnscaledMLPContentEmbeddingFixed',

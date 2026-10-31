@@ -27,6 +27,7 @@ active leases are censored, and manual migration releases are not preemptions.
 
 | RUN | TPU | Zone | Start UTC | End UTC | End reason | Passive candidates |
 |---|---|---|---|---|---|---|
+| `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedFinalLocalOLastMLPWriteTruePile` | v5p-16 (`xd-v5p-16-310471-maxtext`) | `us-east5-a` | 2026-10-31 09:02:20 | 2026-10-31 09:10:31 | configuration correction at174/P0; CP174/TB SYNC_OK; retained TPU transferred to BOTH-final-writers after FIRST_STEP; runtimeb5f6877; no scientific verdict | none |
 | `BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80CommonReadScaleUnscaledMLPContentEmbeddingFixed` | v5p-128 (`xd-v5p-128-pythia-h-1030`) | `us-east5-a` | 2026-10-30 15:30:10 | 2026-10-31 08:56:18 | user hot-replace18331/P0; CP/TB SYNC_OK; physical TPU retained/transferred to MemoryMLPBias after FIRST_STEP; runtime9c11469 | none |
 | `BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80CommonReadScaleUnscaledMLPContentEmbeddingFixedContextLocalOComplement` | v5p-128 (`xd-v5p-128-pythia-h-complement-1030`) | `us-east5-a` | 2026-10-30 15:56:30 | 2026-10-31 03:40:34 | user stop12947/P0; CP12947/TB SYNC_OK, node+QR independently absent; runtime39b6a4f; bare H continues | none |
 | `BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80CommonReadScaleUnscaledMLPContentEmbeddingFixedLocalODynamicNormScale020` | v5p-128 (`xd-v5p-128-pythia-hg020-1030`) | `us-east5-a` | 2026-10-30 15:30:10 | 2026-10-31 00:45:11 | user stop10248/P0; CP10248/TB SYNC_OK, node+QR independently absent; runtime9c11469; other H RUNs continue | none |
@@ -2088,6 +2089,7 @@ active leases are censored, and manual migration releases are not preemptions.
 | `BamMediumPropMShiftReadG050CrossReadAttnR384DirectThirdsTruePile` | 4 | `us-east5-a` | 2026-10-14 08:22:06 | 2026-10-14 08:47:05 | 0h24m59s | user-confirmed review stop5157; node/queue absent, TB SYNC_OK |
 | `BamMediumPropMShiftReadG050CrossReadAttnR384ConservativeThirdsTruePile` | 2 | `us-east5-a` | 2026-10-14 05:12:57 | 2026-10-14 09:52:05 | 4h39m08s | user-authorized stop7538; resources absent |
 | `BamMediumPropMShiftReadG050CrossTripleR512DirectThirdsTruePile` | 2 | `us-east5-a` | 2026-10-14 05:12:21 | 2026-10-14 09:52:08 | 4h39m47s | user-authorized stop7713; resources absent |
+| `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedFinalLocalOLastMLPWriteTruePile` | 1 | `us-east5-a` | 2026-10-31 09:02:29 | 2026-10-31 09:10:31 | 8m02s | configuration correction174/P0; hot-switch, not preemption; CP174/TB SYNC_OK; shared TPU retained for corrected RUN |
 
 | `BamMediumPropMShiftReadG050CrossReadAttnR384ConservativeBlockTruePile` | 1 | `us-east5-a` | 2026-10-14 04:48:58 | 2026-10-14 10:45:22 | 5h56m24s | user stop9248; node/queue absent, TB SYNC_OK |
 

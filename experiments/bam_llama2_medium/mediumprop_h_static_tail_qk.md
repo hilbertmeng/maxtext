@@ -83,3 +83,14 @@ UE5a v5p16. Startup20-99 aggregate throughput .690877/.686490 step/s
 speed difference is mixed runtime/architecture evidence. Worker full parameter
 counts432111810/432113810 match budget exactly. Groupmedium-h-static-tail-qk
 cadence2000/reviews4000,8000; compare H only, gain reference MHA.
+
+## QK arm closeout
+
+User-endorsed early review: stop3259/13500, final common window3200.
+Loss gap600 +.0231 ->2000 +.01198 ->3200 +.01140; gain .9776 ->.9670 ->.9589.
+Final5 windows2.4k-3.2k gap+0.0104330/gain0.9651994; absolute gap narrowing
+did not imply proportional catch-up. Both deleted arms plus refund failed to
+improve H by stop; full endpoint remains unmeasured. CP3259, TB SYNC_OK, node
+and queue independently NOT_FOUND. UE5a only/P0, READY14:39:40-16:03:07UTC
+2026-10-31,1h23m27s, manual stop. Borrowed FLEX retained. K-only remains active;
+clock transferred to K, routine cadence0, reviews4000/8000 per user.

@@ -27,6 +27,7 @@ active leases are censored, and manual migration releases are not preemptions.
 
 | RUN | TPU | Zone | Start UTC | End UTC | End reason | Passive candidates |
 |---|---|---|---|---|---|---|
+| `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedStaticQKLast4TruePile` | v5p-16 (`xd-v5p-16-310480-maxtext`) | `us-east5-a` | 2026-10-31 14:39:37 | 2026-10-31 16:03:07 | early3.2k review stop3259/P0; CP/TB SYNC_OK, node+QR independently absent; runtime6052644 | none |
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedFinalLocalOTruePile` | v5p-16 (`xd-v5p-16-310470-maxtext`) | `us-east5-a` | 2026-10-31 09:01:57 | 2026-10-31 13:23:06 | additional10k review stop10455/P0; CP10455/TB SYNC_OK, node+QR independently absent; final5 vsH+.001978/R.989607, recovery plateau; runtimeb5f6877 | none |
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedFinalLocalOLastWritesTruePile` | v5p-16 (`xd-v5p-16-310471-maxtext`) | `us-east5-a` | 2026-10-31 09:11:55 | 2026-10-31 12:38:34 | 8k review stop8141/P0; CP8141 verified, node+QR independently absent; final5 vsH+.001543/R.992436, normalized plateau; runtime2629041 | none |
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedFinalLocalOLastMLPWriteTruePile` | v5p-16 (`xd-v5p-16-310471-maxtext`) | `us-east5-a` | 2026-10-31 09:02:20 | 2026-10-31 09:10:31 | configuration correction at174/P0; CP174/TB SYNC_OK; retained TPU transferred to BOTH-final-writers after FIRST_STEP; runtimeb5f6877; no scientific verdict | none |
@@ -2428,6 +2429,8 @@ active leases are censored, and manual migration releases are not preemptions.
 | `BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80CommonReadScaleUnscaledMLPContentEmbeddingFixedContextLocalOComplement` | 1 | `us-east5-a` | 2026-10-30 16:00:52 | 2026-10-31 03:40:34 | 11h39m42s | user stop12947/P0; CP/TB secured, node+QR independently absent |
 
 | `BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80CommonReadScaleUnscaledMLPContentEmbeddingFixed` | 1 | `us-east5-a` | 2026-10-30 15:36:02 | 2026-10-31 08:56:18 | 17h20m16s | user hot-replace18331/P0; CP/TB SYNC_OK; TPU transferred to new bias RUN |
+
+| `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedStaticQKLast4TruePile` | 1 | `us-east5-a` | 2026-10-31 14:39:40 | 2026-10-31 16:03:07 | 1h23m27s | early3.2k review stop3259/P0; CP/TB secured, node+QR independently absent; user-endorsed manual stop |
 
 ### 2026-10-14 user pause: resumed mixed R256/R384
 

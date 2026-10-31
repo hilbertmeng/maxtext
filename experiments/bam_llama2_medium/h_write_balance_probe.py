@@ -132,11 +132,13 @@ def main():
   p.add_argument('--length', type=int, default=2048)
   p.add_argument('--sequences', type=int, default=32)
   p.add_argument('--vmem-mib', type=int, default=14)
-  p.add_argument('--tile', type=int, default=64,
-                 help='Forward-only Pallas token tile, bounded for v6e VMEM')
+  p.add_argument('--tile', type=int, default=128,
+                 help='Pallas token tile; token-minor TPU blocks require 128 alignment')
   p.add_argument('--config-only', action='store_true',
                  help='Verify exact historical configuration without weights/inference')
   args = p.parse_args()
+  if args.tile <= 0 or args.tile % 128 or args.length % args.tile:
+    p.error('--tile must be a positive multiple of128 dividing sequence length')
   os.chdir(args.runtime_dir)
   sys.path.insert(0, str(args.runtime_dir / 'MaxText'))
   import jax

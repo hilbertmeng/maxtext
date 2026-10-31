@@ -24,7 +24,7 @@ from layers.models import Transformer
 PREFIX='BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixed'
 H=PREFIX+'TruePile'
 OFF=PREFIX+'FinalLocalOTruePile'
-ON=PREFIX+'FinalLocalOLastMLPWriteTruePile'
+ON=PREFIX+'FinalLocalOLastWritesTruePile'
 
 class FinalLocalOTest(MLPWriteTest, unittest.TestCase):
   def tiny(self, run=OFF, length=4, dtype='float32'):
@@ -32,14 +32,14 @@ class FinalLocalOTest(MLPWriteTest, unittest.TestCase):
       base_num_decoder_layers=3,base_mlp_dim=32,vocab_size=32,dtype=dtype,weight_dtype='float32')
     c.get_keys().update(bam_pallas_core=False,bam_pallas_write=False,bam_splash_attention=False,
       bam_memory_mlp_dim=16,bam_last_mlp_dim=32,bam_layer_modes=['local_qk+local_v+local_o']*3,
-      bam_attention_write_layers=[0,1],bam_mlp_write_layers=None,emb_bam_num_head=2,
+      bam_attention_write_layers=([0,1,2] if run==ON else [0,1]),bam_mlp_write_layers=None,emb_bam_num_head=2,
       bam_write_v_bottleneck_dim=8,emb_bam_v_bottleneck_dim=8,bam_mlp_write_address_rank=8,
       bam_local_full_m_read_bottleneck_dim=8,max_target_length=length,max_prefill_predict_length=length,
       query_chunk_size=length)
     return c
 
   def test_formal_budget_and_scope(self):
-    for run,width,expected in ((H,3904,432112210),(OFF,3371,432112339),(ON,2116,432113139)):
+    for run,width,expected in ((H,3904,432112210),(OFF,3371,432112339),(ON,1989,432113939)):
       c=self.config(run);c.get_keys().update(max_target_length=128,max_prefill_predict_length=128)
       mesh=jax.sharding.Mesh(max_utils.create_device_mesh(c),c.mesh_axes)
       args,*_=train_compile.get_shaped_inputs(mesh,c);flat=flatten_dict(nn.unbox(args[0].params))
@@ -50,7 +50,7 @@ class FinalLocalOTest(MLPWriteTest, unittest.TestCase):
       self.assertTrue(c.bam_pallas_core and c.bam_pallas_write and c.sa_use_fused_bwd_kernel)
       self.assertTrue(c.record_training_health_metrics and not c.record_internal_nn_metrics)
       self.assertEqual(c.tensorboard_gcs_rotate_period,500)
-      self.assertNotIn(17,c.bam_attention_write_layers)
+      self.assertEqual(17 in c.bam_attention_write_layers,run==ON)
       tail_memory=[p for p in flat if 'final_local_layer' in p and 'memory_mlp' in p]
       self.assertEqual(bool(tail_memory),run==ON)
       exits=[v for p,v in flat.items() if 'final_local_o' in p]
@@ -110,7 +110,7 @@ class FinalLocalOTest(MLPWriteTest, unittest.TestCase):
       last=[(k,v) for k,v in flat.items() if 'final_local_layer' in k and 'memory_mlp' in k]
       self.assertEqual(bool(last),run==ON)
       for path,value in last:self.assertGreater(float(jnp.sum(value**2)),0,str(path))
-      self.assertFalse(any('final_local_layer' in k and 'self_attention' in k and ('P_loc_down' in k or 'W_gw' in k) for k in flat))
+      self.assertEqual(any('final_local_layer' in k and 'self_attention' in k and ('P_loc_down' in k or 'W_gw' in k) for k in flat),run==ON)
       self.assertGreater(float(jnp.sum(g['params']['decoder']['final_local_o']['out']['kernel']**2)),0)
 
   def test_pallas_scan_full_model_logits_and_all_gradients(self):

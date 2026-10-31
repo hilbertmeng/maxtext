@@ -2,7 +2,7 @@
 
 Two from-scratch MediumProp T4096/global128, 13500-step arms. Runtime worktree
 `/data0/xd/mediumprop-h-final-local-o`, branch `codex/mediumprop-h-final-local-o`.
-Only training IDs310470/310471 are owned here. Reserved FLEX compiler
+Only training IDs310470/310471 and the retained replacement ID310472 are owned here. Reserved FLEX compiler
 `llm-jax-v6e-1-0`/europe-west4-a is borrowed, never released. Primary training
 zone us-east5-a: recent comparable Medium leases completed13500 with P0/P1.
 No passive backup zones requested. Other-session 2.8B TPUs are untouched.
@@ -12,9 +12,8 @@ Parent H:
 
 Suffixes replace `TruePile`:
 - `FinalLocalOTruePile`: final writer remains off; ordinary tail3371.
-- `FinalLocalOLastMLPWriteTruePile`: L17 private MLP1128 restores its independent
-  R256 address and original write gate; ordinary tail2116. L17 attention writing
-  stays off. Compare with H and the otherwise matched exit without final writing.
+- `FinalLocalOLastWritesTruePile`: BOTH L17 attention and private MLP1128 writers
+  restore their original independent R256 addresses and gates; ordinary tail1989. Compare with H and the otherwise matched exit without final writing.
 
 Exit reads the final M carry itself (no extra M-shift). Final vector residual
 passes an independent RMSNorm into R256/GELU/address-up plus the original dynamic
@@ -29,8 +28,8 @@ all19 signed read coefficients; internal activation/BAM bulk metrics stay off.
 Budget, obtained from full formal-shape parameter trees (sequence128 probe):
 H432112210; new exit1918929=1.332590W_Q, of which W_O1440000=1W_Q.
 Tail ordinary width3904 ->3371 (refund1918800), total432112339, H+129.
-Restored last private writer4518800=3.138056W_Q; tail3371 ->2116
-(refund4518000), total432113139, H+929. Front17 widths2510/1128 unchanged.
+Restored last private writer4518800=3.138056W_Q plus attention writer458000=.318056W_Q;
+tail3371 ->1989 (refund4975200), total432113939, H+1729. Front17 widths2510/1128 unchanged.
 No new M-cache entries.
 
 Both arms preserve17 single-layer scan +1 explicit tail. Ordinary layers and
@@ -65,3 +64,14 @@ The old worktree-only flags retired on main are all disabled in H. Startup must
 verify exact formal configuration, Loaded compiled function, FIRST_STEP, correct
 4096 dataset path, and matched health settings. Compiler AOTs serialize with the
 existing per-worker lock; CPU checks and training-only prequeues run concurrently.
+
+## User correction before the pair starts scientific comparison
+
+The preliminary small-MLP-only variant (ID310471, runtimeb5f6877, tail2116,
+H+929) was submitted before the user pointed out that L17 attention writing
+should also be restored. This was a missed architectural implication: the
+new final reader makes BOTH writers live. It is superseded, not retained as
+a third scientific arm. Prepare the final two-writer variant before retaining
+its TPU for fresh replacement. No parameters/checkpoint carry across RUN names.
+The new ON test includes final attention-write parameters and full native/Pallas
+logits/all gradients with both writes in the terminal fused writer.

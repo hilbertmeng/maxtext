@@ -19943,6 +19943,10 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedFinalLocalOLastWritesTruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedFinalLocalOLastMLPWriteTruePile):
     """Final localO exit with BOTH L17 attention and private-MLP writes restored."""
+    # Stopped8141 at own8k review; CP8141 verified, node+queued-resource independently absent; UE5a/P0.
+    # vsH: early near-parity reversed around1k; R stayed~.992-.993 over5.2k..8k; final5 gap+.001543/R.992436.
+    # vs no-final-writers: consistent early advantage faded; final5 gap-.000682/R1.003367, last8k gap-.000295.
+    # Full13500 endpoint unmeasured; no net gain vsH by stop, no parameter/cache benefit; terminal1.025 prior unsupported.
     # code_commit: 2629041; logical310472 on retained xd-v5p-16-310471-maxtext; FIRST0/source/AOT/data verified.
     # Startup20..99 .67270step/s, -2.07% vs final-exit/no-writer arm; +.42% vs historicalH (optimized read code).
     # Last attention+private MLP writes ON, ordinary tail1989/private1128; totalH+1729; same health and cache.

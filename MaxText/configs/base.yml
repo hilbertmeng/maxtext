@@ -771,3 +771,6 @@ bam_attention_write_content_divisor: null
 bam_mlp_write_content_divisor: null
 
 bam_memory_mlp_use_bias: False # Zero-initialized hidden/output biases in the dedicated memory MLP.
+
+bam_qk_static_only_last_layers: 0 # Retain static Q/K M reads, remove selected dynamic address and gate parameters.
+bam_qk_static_only_arms: qk # qk or k; both paired arms initialize tail static K with BAM normal to avoid a dead QK product.

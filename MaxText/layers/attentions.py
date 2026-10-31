@@ -2680,6 +2680,9 @@ class BamAttention(Attention):
     assert 0 < self.bam_k <= self.head_dim, (
         f'bam_k({self.bam_k}) must fit inside head_dim({self.head_dim})')
     assert self.bam_k < self.head_dim or cfg.bam_prune_all_row_reads
+    static_tail = int(getattr(cfg, 'bam_qk_static_only_last_layers', 0) or 0)
+    self._static_only_qk = (set(cfg.bam_qk_static_only_arms)
+        if static_tail and self.layer_inx >= cfg.num_decoder_layers - static_tail else set())
     self._mode = (
         set() if self.layer_mode == 'none'
         else set(self.layer_mode.replace('+', ' ').split()))
@@ -3075,7 +3078,9 @@ class BamAttention(Attention):
       assert cfg.bam_concat_qk and cfg.bam_prune_all_row_reads
       for arm in ('q', 'k'):
         setattr(self, 'static_' + arm + '_key', self.param(
-            'static_' + arm + '_key', nn.with_logical_partitioning(zeros_init, ('v_factor', 'q_heads')),
+            'static_' + arm + '_key', nn.with_logical_partitioning(
+                reg_init if arm == 'k' and self._static_only_qk else zeros_init,
+                ('v_factor', 'q_heads')),
             (self._read_bam_v, self.num_query_heads), self.weight_dtype))
 
     # Static VO reads precede packed-arm parameters, preserving Prop init order.
@@ -3197,6 +3202,8 @@ class BamAttention(Attention):
 
     if self._direct_qk_c8 and not self._residual_qk:
       for name in ('q', 'k'):
+        if name in self._static_only_qk:
+          continue
         # Nonzero keys are essential for concatenated QK: two zero arms have
         # no attention-score cross term to awaken their dynamic read keys.
         if self._full_m_read_rank is not None:
@@ -3250,7 +3257,7 @@ class BamAttention(Attention):
           ('q', (self.num_query_heads, self._read_bam_v), ('q_heads', 'kv')),
           ('k', (self.num_query_heads, self._read_bam_v), ('q_heads', 'kv')),
           ('vo', (self._read_head_count('o'), cfg.bam_n_f, self._read_bam_v), ('q_heads', 'fetch', 'kv'))):
-        if arm in ('q', 'k') and self._residual_qk:
+        if arm in ('q', 'k') and (self._residual_qk or arm in self._static_only_qk):
           continue
         setattr(self, 'general_' + arm + '_pre_bias', self._constant_general_parameter(
             'general_' + arm + '_pre_bias', shape, axes))
@@ -3599,7 +3606,11 @@ class BamAttention(Attention):
     return self._pad_read_heads(read, -2)
 
   def _read_direct_qk_c8(self, name, M, compressed_M, x, shared_hidden=None):
-    """Independent per-head compressed read plus the original full-M static read."""
+    """Independent dynamic read (when retained) plus the full-M static read."""
+    if name in self._static_only_qk:
+      return _pack_fetched_bam_heads(
+          self._static_column(M[..., :self._qk_col_width, :], name, x),
+          self.num_query_heads, self.head_dim)
     key = self._project_column_read_key(f'W_l{name}_c8', x, shared_hidden)
     logits = self._project_read_gate_logits(f'W_l{name}_gate', x)
     self._record_concat_gate('local_' + name, logits)
@@ -4096,7 +4107,8 @@ class BamAttention(Attention):
                               if (a not in 'qk' or cfg.bam_qk_static_read_gate)
                               and (a != 'v' or self._has_value_m_read)) if self._general_read else ()
     if fused:
-      gate_names = ('W_lq_gate', 'W_lk_gate', 'W_R_gate', 'W_lv_gate')
+      gate_names = tuple('W_l' + arm + '_gate' for arm in 'qk'
+                         if arm not in self._static_only_qk) + ('W_R_gate', 'W_lv_gate')
       if not self._has_value_m_read:
         gate_names = gate_names[:-1]
       key_names = ('full_m_read_down',) if full_m else ('W_lq_c8', 'W_lk_c8', 'W_R')
@@ -4135,6 +4147,8 @@ class BamAttention(Attention):
                                         embedding_dims=standard_qk_width)
 
     def logits(name, squeeze):
+      if name in {'W_l' + a + '_gate' for a in self._static_only_qk}:
+        return jnp.full(inputs_q.shape[:2] + (self.num_query_heads,), -jnp.inf, self.dtype)
       if name == 'W_lv_gate' and not self._has_value_m_read:
         return jnp.full(inputs_q.shape[:2] + (self.num_query_heads,), -jnp.inf, self.dtype)
       if fused:     # same bias handling as _project_read_gate_logits
@@ -4153,18 +4167,21 @@ class BamAttention(Attention):
       # [N,V] keys read M directly, i.e. an identity compression in the fused core.
       hidden = nn.gelu(raw['full_m_read_down'] if fused else self.full_m_read_down(inputs_q))
       if fused:
-        up_names = ('W_lq_c8_up', 'W_lk_c8_up', 'W_R_up')
+        up_names = tuple('W_l' + arm + '_c8_up' for arm in 'qk'
+                         if arm not in self._static_only_qk) + ('W_R_up',)
         if self._vo_independent_keys:
           up_names += ('W_lv_c8_up',)
         up = self._fused_input_projections(hidden, up_names)
         pre = lambda arm: (jnp.asarray(getattr(self, 'general_' + arm + '_pre_bias'), hidden.dtype)
                            if self._general_read else 0)
-        q_key = up['W_lq_c8_up'] + pre('q')
-        k_key = up['W_lk_c8_up'] + pre('k')
+        absent = jnp.zeros(inputs_q.shape[:2] + (self.num_query_heads, self._read_bam_v), self.dtype)
+        q_key = absent if 'q' in self._static_only_qk else up['W_lq_c8_up'] + pre('q')
+        k_key = absent if 'k' in self._static_only_qk else up['W_lk_c8_up'] + pre('k')
         vo_key = up['W_R_up'] + pre('vo')
       else:
-        q_key = self._project_column_read_key('W_lq_c8', inputs_q, hidden)
-        k_key = self._project_column_read_key('W_lk_c8', inputs_q, hidden)
+        absent = jnp.zeros(inputs_q.shape[:2] + (self.num_query_heads, self._read_bam_v), self.dtype)
+        q_key = absent if 'q' in self._static_only_qk else self._project_column_read_key('W_lq_c8', inputs_q, hidden)
+        k_key = absent if 'k' in self._static_only_qk else self._project_column_read_key('W_lk_c8', inputs_q, hidden)
         vo_key = self._project_column_read_key('W_R', inputs_q, hidden)
       vo_key = jnp.squeeze(vo_key, axis=-2)
       if self._vo_independent_keys:

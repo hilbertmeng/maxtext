@@ -12,6 +12,20 @@ def validate_bam_config(config, *, layer_mode=None):
       lambda name, default=None: getattr(config, name, default))
   if not get('bam_enabled', False):
     return
+  static_tail = get('bam_qk_static_only_last_layers', 0)
+  if (type(static_tail) is not int or static_tail < 0
+      or (static_tail and static_tail >= get('num_decoder_layers', 0))):
+    raise ValueError('bam_qk_static_only_last_layers must be an integer below the model depth')
+  if static_tail:
+    if get('bam_qk_static_only_arms', 'qk') not in ('qk', 'k'):
+      raise ValueError('bam_qk_static_only_arms must be qk or k')
+    if not (get('bam_general_column_read', False) and get('bam_local_full_m_read_share_down', False)
+            and get('bam_local_full_m_read_bottleneck_dim', None) and get('bam_concat_static_qk', False)
+            and get('bam_local_qk_direct_c8', False) and get('bam_prune_all_row_reads', False)):
+      raise ValueError('Static-only tail QK requires generalized full-M shared-down column reads')
+    if get('scan_layers', False) and (get('bam_pair_scan', False)
+        or (get('bam_final_local_layer_count', 0) or 0) < static_tail):
+      raise ValueError('Static-only QK layers must be outside the homogeneous single-layer scan')
   if get('bam_memory_mlp_use_bias', False) and (
       get('bam_memory_mlp_share_hidden', False) or get('bam_memory_mlp_half', False)):
     raise ValueError('Memory MLP bias requires separate hidden and output projections')

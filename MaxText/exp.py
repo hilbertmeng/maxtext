@@ -19956,3 +19956,27 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     bam_attention_write_layers = list(range(18))
     bam_last_mlp_dim = 1989
     compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedTruePile', 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedFinalLocalOTruePile']
+
+
+class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedStaticQKLast4TruePile(
+    BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedTruePile):
+    """H: static-only Q/K matrix reads in L14-L17; refund ordinary MLPs."""
+    # Implementation: codex/mediumprop-h-static-tail-qk, /data0/xd/mediumprop-h-static-tail-qk.
+    # Both arms initialize only tail static K with BAM normal (.006), keeping static Q zero.
+    # Prefix14 single-layer scan; four explicit tails, preserving ordinary layer/writer semantics.
+    model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedStaticQKLast4TruePile'
+    bam_qk_static_only_last_layers = 4
+    bam_qk_static_only_arms = 'qk'
+    bam_final_local_layer_count = 4
+    bam_final_local_mlp_dim = 2594
+    bam_last_mlp_dim = 3987
+    compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedTruePile']
+
+
+class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedStaticKLast4TruePile(
+    BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedStaticQKLast4TruePile):
+    """H: retain dynamic Q, remove only dynamic K in L14-L17; ordinary MLP refund."""
+    model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedStaticKLast4TruePile'
+    bam_qk_static_only_arms = 'k'
+    bam_final_local_mlp_dim = 2552
+    bam_last_mlp_dim = 3946

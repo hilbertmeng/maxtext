@@ -19915,12 +19915,13 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedFinalLocalOTruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedTruePile):
     """H plus a generalized localO exit from final M before ln_f; repay tail MLP."""
-    # code_commit: b5f6877; UE5a v5p16 xd-v5p-16-310470-maxtext; FIRST0/source/AOT/data/s13500 verified.
-    # Startup20..99 .68695step/s; historicalH .669875 (+2.55%), includes main read-fold optimization.
-    # Same H health: genericON/internal+BAMOFF; tail3371, paramsH+129; new signed read scalar also exported.
-    # Implementation: codex/mediumprop-h-final-local-o, /data0/xd/mediumprop-h-final-local-o.
-    # ledger only; sealed runtime b5f6877.
-    # No extra temporal shift. New signed read scalar starts at1/sqrt37; fresh normal W_O.
+    # Stopped at 10,455 / 13,500 after an additional 10k review; full-schedule endpoint unmeasured.
+    # vs H: initial gap near +.006 narrowed toward +.002 by 8k, then repeated near that level without sustained gain.
+    # Final five windows 9.6k-10.4k: gap +.001978 / gain 0.989607 (MHA reference); no net improvement by stop.
+    # UE5a v5p-16, P0; startup 20-99: .68695 step/s. Historical H used older read code, so +2.55% is not an isolated architecture gain.
+    # MLP body2510/private1128/tail3371; parameters H+129, unchanged M-cache; generic health ON, internal/BAM OFF.
+    # CP10455 and TB SYNC_OK; node and queued resource independently absent.
+    # code_commit: b5f6877; ledger only: codex/mediumprop-h-final-local-o, /data0/xd/mediumprop-h-final-local-o.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedFinalLocalOTruePile'
     bam_final_local_o = True
     bam_last_mlp_dim = 3371
@@ -19930,10 +19931,10 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedFinalLocalOLastMLPWriteTruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedFinalLocalOTruePile):
     """Final localO exit plus a restored L17 private MLP writer; tail-local budget."""
-    # code_commit: b5f6877; preliminary arm superseded at174 by user correction to restore attention writing too.
-    # CP174/TB SYNC_OK; retained physical310471 transferred to FinalLocalOLastWrites after verified FIRST_STEP.
-    # No scientific stopping verdict; startup-only configuration correction, not a third retained arm.
-    # Attention L17 writing remains disabled. Private width1128, raw content divisor1, original controls.
+    # Stopped at 174 for user configuration correction, not an experimental loss conclusion.
+    # The extra final reader makes both terminal writers usable; replaced by FinalLocalOLastWritesTruePile.
+    # CP174 and TB SYNC_OK; retained physical310471 transferred to the corrected arm after its FIRST_STEP.
+    # code_commit: b5f6877; ledger only: codex/mediumprop-h-final-local-o, /data0/xd/mediumprop-h-final-local-o.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedFinalLocalOLastMLPWriteTruePile'
     bam_skip_final_mlp_write = False
     bam_last_mlp_dim = 2116
@@ -19943,16 +19944,14 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedFinalLocalOLastWritesTruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedFinalLocalOLastMLPWriteTruePile):
     """Final localO exit with BOTH L17 attention and private-MLP writes restored."""
-    # Stopped8141 at own8k review; CP8141 verified, node+queued-resource independently absent; UE5a/P0.
-    # vsH: early near-parity reversed around1k; R stayed~.992-.993 over5.2k..8k; final5 gap+.001543/R.992436.
-    # vs no-final-writers: consistent early advantage faded; final5 gap-.000682/R1.003367, last8k gap-.000295.
-    # Full13500 endpoint unmeasured; no net gain vsH by stop, no parameter/cache benefit; terminal1.025 prior unsupported.
-    # code_commit: 2629041; logical310472 on retained xd-v5p-16-310471-maxtext; FIRST0/source/AOT/data verified.
-    # Startup20..99 .67270step/s, -2.07% vs final-exit/no-writer arm; +.42% vs historicalH (optimized read code).
-    # Last attention+private MLP writes ON, ordinary tail1989/private1128; totalH+1729; same health and cache.
-    # ledger only: codex/mediumprop-h-final-local-o; sealed runtime2629041.
-    # Replaces the preliminary small-MLP-only arm at user correction; both now have a final reader.
-    # Tail W_O/read/address/gate and restored writers all repay only the final ordinary MLP.
+    # Stopped at 8,141 / 13,500 after its 8k review; full-schedule endpoint unmeasured.
+    # vs H: early near-parity reversed near 1k; equal-block gain stayed .992-.993 over 5.2k-8k.
+    # Final five windows through 8k: gap +.001543 / gain .992436 vs H; -.000682 / 1.003367 vs the no-final-writers arm.
+    # Write restoration helped early, but its matched-budget advantage shrank; no net H improvement by stop.
+    # UE5a v5p-16, P0; startup .67270 step/s, -2.07% vs no-final-writers; same health and M-cache.
+    # Last attention and private MLP writes ON; tail ordinary1989/private1128, parameters H+1729.
+    # CP8141 and TB SYNC_OK; node and queued resource independently absent.
+    # code_commit: 2629041; ledger only: codex/mediumprop-h-final-local-o, /data0/xd/mediumprop-h-final-local-o.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedFinalLocalOLastWritesTruePile'
     bam_attention_write_layers = list(range(18))
     bam_last_mlp_dim = 1989

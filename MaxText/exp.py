@@ -19995,7 +19995,11 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedStaticQKLast4TruePile):
     """H: retain dynamic Q, remove only dynamic K in L14-L17; ordinary MLP refund."""
     # code_commit: 6052644; ledger only: codex/mediumprop-h-static-tail-qk.
-    # Started UE5a v5p-16 xd-v5p-16-310481-maxtext, plan13500; generic health ON, internal/BAM OFF.
+    # Stopped8117/13500 at8k review; vsH gap600 +.01027 ->2k +.00329, then ~+.003-.005 through8k.
+    # Gain ~.98-.99 plateau4k-8k; final5 gap+.0034422/gain.9831548 (MHA reference); no net improvement by stop.
+    # Terminal prior1.02 not supported by8k; full endpoint unmeasured. DynamicK removal plus MLP refund did not pay off.
+    # UE5a v5p-16 xd-v5p-16-310481-maxtext, P0; CP8117/TB SYNC_OK, node+queue independently absent.
+    # Generic health ON, internal/BAM OFF; total parameters H+1600, unchanged M-cache.
     # Startup20-99 aggregate 0.68649 step/s (median 0.691); historical H .669875 uses older read kernel.
     # Formal worker parameters 432113810; full native/Pallas gradients and 47 BAM regressions passed.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedStaticKLast4TruePile'

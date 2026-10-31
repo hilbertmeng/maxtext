@@ -19969,7 +19969,10 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     # Both arms initialize only tail static K with BAM normal (.006), keeping static Q zero.
     # Prefix14 single-layer scan; four explicit tails, preserving ordinary layer/writer semantics.
     # code_commit: 6052644; ledger only: codex/mediumprop-h-static-tail-qk.
-    # Started UE5a v5p-16 xd-v5p-16-310480-maxtext, plan13500; generic health ON, internal/BAM OFF.
+    # Stopped3259/13500 after early3.2k review; vsH gap narrowed from +.023 at600 to ~+.01, while gain declined.
+    # Final5 2.4k-3.2k vsH: gap +0.0104330/gain 0.9651994 (MHA reference); terminal prior1.01 not supported by stop.
+    # UE5a v5p-16 xd-v5p-16-310480-maxtext, P0; CP3259/TB SYNC_OK, node+queue independently absent.
+    # Generic health ON, internal/BAM OFF; full-schedule endpoint unmeasured, M-cache unchanged, total parameters H-400.
     # Startup20-99 aggregate 0.69088 step/s (median 0.695); historical H .669875 uses older read kernel.
     # Formal worker parameters 432111810; full native/Pallas gradients and 47 BAM regressions passed.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedStaticQKLast4TruePile'

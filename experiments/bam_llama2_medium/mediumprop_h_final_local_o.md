@@ -117,3 +117,27 @@ Resource: one UE5a v5p16 assignment09:11:55..12:38:34 UTC; READY
 assignment09:02:20..09:10:31, READY09:02:29..09:10:31=8m02s/P0,
 superseded174 and retained transfer. Both are separate RUNs on the same physical
 TPU, not a preemption or region migration.
+
+## OFF: additional 10k review and final closeout
+
+Stopped10455 (not full13500). Narrowing from about+.006 to+.002 before8k
+then slowed into repeated+.002 windows; final five9600..10400 gap+.00197796,
+MHA-ref gain.98960740 vsH. Extra review after8k avoided treating the prior
+recovery as a flat failure, but the additional2k did not show a route to parity.
+CP10455 independently committed, TB SYNC_OK; node and queued resource310470
+independently absent. One UE5a v5p16 assignment09:01:57..13:23:06 UTC, READY
+09:02:02..13:23:06=4h21m04s, P0. No other-session TPU or reserved FLEX was released.
+
+Both variants fail to beat H by their stopping points; full13500 outcomes are
+unmeasured. Original terminal priors1.015/1.025 were optimistic. The exit's
+parameters learn (signed scale increases, nonzero W_O gradients), which does
+not establish that the read benefit covers its displaced ordinary-MLP capacity.
+The cleanest next architecture, if pursued, is to reuse L17 W_O for the extra
+read: M data/head coordinates match the existing localO decoder. It would save
+1W_Q and return exactly400 SwiGLU hidden dimensions to the last ordinary MLP
+(OFF3371->3771, BOTH1989->2389), directly testing the capacity-cost hypothesis.
+This is a proposal only; no additional configuration or training was launched.
+
+Final native series, gain calculations, plots and independent cleanup proofs:
+/data0/xd/bam_diagnostics/mediumprop-h-final-local-o/{final-results.json,
+final-plot.json,no-writers-closeout/audit.json,both-writers-closeout/audit.json}.

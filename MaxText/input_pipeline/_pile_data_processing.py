@@ -249,16 +249,14 @@ def record_file_and_step(step, config, train_input):  # lsp
       print(k, type(v))
 
     if jax.process_index() == 0:
-      try:
-        with save_newest_path.open('w') as f1:
-            json.dump(meta_dict, f1)
+      # Publish the step-local cursor first. Recovery must never accept a model
+      # checkpoint with a missing/stale cursor, even if Orbax already committed.
+      with save_path.open('w') as f:
+        json.dump(meta_dict, f)
+      with save_newest_path.open('w') as f:
+        json.dump(meta_dict, f)
 
-        with save_path.open('w') as f2:
-            json.dump(meta_dict, f2)
-      except Exception as error:
-        print(f'Write meta dict error: {error}')
-
-    print(f'Save skip_file_and_step successful... file_in_data: {meta_dict["file_in_data"]} || step_in_file: {meta_dict["step_in_file"]}')  # XD
+    print(f'Save skip_file_and_step successful... file_in_data: {meta_dict["file_in_data"]} || step_in_file: {meta_dict["step_in_file"]}')
 
 
 def extract_pythia_datapath(dataset_path, eval_split):  # lsp

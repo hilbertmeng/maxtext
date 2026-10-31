@@ -43,6 +43,7 @@ import orbax.checkpoint.experimental.emergency.checkpoint_manager as emergency_c
 import orbax.checkpoint.experimental.emergency.replicator_checkpoint_manager as emergency_replicator_checkpoint_manager
 
 import checkpointing
+from checkpoint_recovery import CoordinatedCheckpointSaver, CheckpointRecoveryError, RECOVERY_FAILED_EXIT_CODE
 import max_utils
 import maxtext_utils
 import max_logging
@@ -1293,6 +1294,16 @@ def train_loop(config, state=None):
       state,
   ) = setup_train_loop(config)
 
+  # A rescue at the final update may already contain the complete schedule.
+  # Resume must then exit cleanly without touching an uninitialized metrics/batch
+  # variable or executing an extra update.
+  if not config.only_eval and get_first_step(state) >= config.steps:
+    max_logging.log("Restored checkpoint already covers the full training schedule.")
+    if checkpoint_manager is not None:
+      checkpoint_manager.wait_until_finished()
+    max_utils.close_summary_writer(writer)
+    return state
+
   if config.use_dpo:
     if "reference_params" not in state.params:
       reference_params = jax.tree.map(jnp.copy, state.params["params"])
@@ -1382,6 +1393,33 @@ def train_loop(config, state=None):
       performance_metric_queue = queue.Queue()
       gcp_workload_monitor.start_performance_reporting_thread(performance_metric_queue)
       
+  checkpoint_saver = None
+  if checkpoint_manager is not None and not config.enable_emergency_checkpoint:
+    def verify_checkpoint_cursor(saved_step):
+      if jax.process_index() != 0 or not hasattr(data_iterator, "meta_dict"):
+        return
+      directory = epath.Path(config.checkpoint_dir) / str(saved_step)
+      with (directory / "skip_file_and_step.json").open() as cursor_file:
+        cursor = json.load(cursor_file)
+      if cursor.get("checkpoint_step") != saved_step:
+        raise ValueError(f"Checkpoint {saved_step} has a mismatched data cursor")
+      if str(directory).startswith("gs://") and not (directory / "commit_success.txt").exists():
+        raise OSError(f"Checkpoint {saved_step} has no commit marker")
+
+    checkpoint_saver = CoordinatedCheckpointSaver(
+        checkpoint_manager, log=max_logging.log, verify=verify_checkpoint_cursor)
+
+  def save_current_checkpoint(target, force=False):
+    state_to_save = state if not config.use_dpo else _split_dpo_state(state)[0]
+    saved = save_checkpoint(
+        checkpoint_manager, target, state_to_save, config.dataset_type, data_iterator, config, force=force)
+    if saved:
+      checkpointing.print_save_message(target, config.async_checkpointing)
+    return saved
+
+  def save_current_cursor(target):
+    record_file_and_step(target, config, data_iterator)
+
   for step in np.arange(start_step, config.steps):
     if not config.only_eval: # lsp
       if step == first_profiling_step or prof.should_activate_periodic_profile(step):
@@ -1400,16 +1438,17 @@ def train_loop(config, state=None):
       if performance_metric_queue:
         performance_metric_queue.put(step_time_delta.total_seconds())
 
-      if checkpoint_manager is not None:
-        state_to_save = state if not config.use_dpo else _split_dpo_state(state)[0]
-        if save_checkpoint(checkpoint_manager, int(step), state_to_save, config.dataset_type, data_iterator, config):
-          checkpointing.print_save_message(step, config.async_checkpointing)
-          record_file_and_step(step, config, data_iterator) # lsp
-
-        # Upon preemption, exit when and only when all ongoing saves are complete.
+      if checkpoint_saver is not None:
+        if checkpoint_saver.save(int(step), save_current_checkpoint, save_current_cursor):
+          sys.exit(0)
+      elif checkpoint_manager is not None:
+        # Preserve the emergency-manager path; its storage/coordination protocol
+        # is distinct from the ordinary persistent CheckpointManager.
+        if save_current_checkpoint(int(step)):
+          save_current_cursor(int(step))
         if checkpoint_manager.reached_preemption(step):
           checkpoint_manager.wait_until_finished()
-          sys.exit()
+          sys.exit(0)
       write_metrics(writer, local_metrics_file, running_gcs_metrics, metrics, step, config)
      
       if config.dump_hlo and step == start_step:
@@ -1540,20 +1579,14 @@ def train_loop(config, state=None):
       and get_first_step(state) == config.steps
   ):
     final_step = get_first_step(state)
-    state_to_save = state if not config.use_dpo else _split_dpo_state(state)[0]
-    if save_checkpoint(
-        checkpoint_manager,
-        final_step,
-        state_to_save,
-        config.dataset_type,
-        data_iterator,
-        config,
-        force=True,
-    ):
-      checkpointing.print_save_message(final_step, config.async_checkpointing)
-      record_file_and_step(final_step, config, data_iterator)
+    if checkpoint_saver is not None:
+      checkpoint_saver.save(final_step, save_current_checkpoint, save_current_cursor, force=True, finish=True)
+    elif save_current_checkpoint(final_step, force=True):
+      save_current_cursor(final_step)
 
-  if checkpoint_manager is not None:
+  if checkpoint_saver is not None:
+    checkpoint_saver.finish(int(get_first_step(state)), save_current_checkpoint, save_current_cursor)
+  elif checkpoint_manager is not None:
     checkpoint_manager.wait_until_finished()
   write_metrics(writer, local_metrics_file, running_gcs_metrics, metrics, config.steps - 1, config)  # final step metrics
   max_utils.close_summary_writer(writer)
@@ -1635,4 +1668,9 @@ def main(argv: Sequence[str]) -> None:
 
 
 if __name__ == "__main__":
-  app.run(main)
+  try:
+    app.run(main)
+  except CheckpointRecoveryError:
+    import traceback
+    traceback.print_exc()
+    sys.exit(RECOVERY_FAILED_EXIT_CODE)

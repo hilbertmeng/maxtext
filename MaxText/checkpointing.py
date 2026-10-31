@@ -99,7 +99,10 @@ def create_orbax_checkpoint_manager(
           # Pile writes its cursor into the step directory immediately after save().
           # On GCS that must wait for Orbax to create the directory, while array I/O
           # can remain asynchronous. Otherwise the cursor pre-creates the prefix.
-          async_options=ocp.options.AsyncOptions(create_directories_asynchronously=False),
+          async_options=ocp.options.AsyncOptions(
+              timeout_secs=getattr(config, "checkpoint_save_timeout_seconds", 1200),
+              create_directories_asynchronously=False,
+          ),
           **_checkpoint_retention_options(config),
       ),
       logger=orbax_logger,

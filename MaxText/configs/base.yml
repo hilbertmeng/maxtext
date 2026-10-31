@@ -685,6 +685,7 @@ load_parameters_path: ""
 load_full_state_path: ""
 enable_checkpointing: True
 async_checkpointing: True
+checkpoint_save_timeout_seconds: 1200 # External watchdog requests SIGTERM rescue after 1300s without a commit.
 keep_period: 1000 # step / keep_period would not be deleted
 checkpoint_period: 10_000
 checkpoint_keep_steps: [] # Save and permanently retain these exact steps in addition to rolling/periodic checkpoints.

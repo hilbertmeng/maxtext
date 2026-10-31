@@ -123,6 +123,9 @@ def validate_rope_type(rope_type: str) -> None:
 
 
 def validate_keys(keys):
+  if keys["checkpoint_save_timeout_seconds"] <= 0:
+    raise ValueError("checkpoint_save_timeout_seconds must be positive")
+
   interval = keys['train_no_dropout_loss_interval']
   window = keys['train_no_dropout_loss_window']
   sample_period = keys['train_no_dropout_loss_sample_period']

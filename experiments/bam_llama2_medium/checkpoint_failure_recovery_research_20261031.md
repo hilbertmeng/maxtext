@@ -2,7 +2,7 @@
 
 ## Scope and judgment
 
-Question: can a stuck asynchronous checkpoint be abandoned while retaining the current distributed training state, or can SIGTERM rescue a newer checkpoint before restart? This is code/documentation/issue research, not a fault-injection validation. No training process, package, runtime commit, checkpoint or orchestration policy was changed by this investigation.
+Question: can a stuck asynchronous checkpoint be abandoned while retaining the current distributed training state, or can SIGTERM rescue a newer checkpoint before restart? The initial sections record code/documentation/issue research. Later sections record isolated fault-injection tests and the paired implementation. Formal RUN processes, runtime commits and checkpoint paths were not changed during this work.
 
 The earlier reasoning narrowed too quickly to local API behavior. A completed training step does not demonstrate a healthy save path; an API named cancel does not demonstrate that every manager/future/barrier can resume. No universal, maintainer-endorsed recipe for killing an async save thread and then reliably continuing the same CheckpointManager was found in this search. That is a search limitation, not proof that no such recovery is possible.
 
@@ -157,3 +157,91 @@ Artifacts: local research root `probe-sigterm-after-timeout.log`,
 `probe-sigterm-after-timeout-rank0.log`, aggregated results JSON and audit JSON.
 All six recorded outcomes and settled-thread preconditions were checked. Formal
 training/recovery policies remain unchanged.
+
+
+## Implemented coordinated rescue (2026-10-31)
+
+Two repositories carry the paired change: MaxText `refactor-bam` (training code)
+and `/home/xd/projects/xd_tpu_scripts` `main` (external controller, commit25025b2). This is host-side
+checkpoint infrastructure; no model, optimizer update, data recipe or parameter
+tree changes. Merge does not inject this logic into an already-running process.
+Activate with the new trainer runtime and corresponding controller together.
+
+Production defaults:
+
+- `checkpoint_save_timeout_seconds=1200`, passed explicitly to Orbax AsyncOptions;
+  synchronized directory creation and exact-step retention remain unchanged.
+- `CHECKPOINT_PENDING_WARN_SECONDS=1300`: request SIGTERM rescue at the next
+  controller check after the per-checkpoint pending age reaches the threshold.
+  Later training/saving does not reset the old step's timestamp. Missing timestamp
+  metadata falls back to a stable first observation (including step0), not
+  `date -d ""` which incorrectly means midnight. Normal health
+  polling defaults to30s (resource polling/I/O can add latency). Pending saves
+  use this policy instead of the shorter ordinary stale-training watchdog.
+- `CHECKPOINT_RESCUE_TIMEOUT_SECONDS=1500`: graceful rescue budget, followed by
+  bounded KILL/exit verification. This is an outer bound even when library
+  callbacks or collectives do not return. An SSH failure is not an exit proof.
+
+`MaxText/checkpoint_recovery.py` drains the previous save and exchanges status
+on all ranks before submitting a new one. The rank with no local exception must
+participate too. Timeout/OSError follows one coordinated rescue attempt;
+programming/unrecognized failures abort rather than being silently suppressed.
+Normal saves remain asynchronous; no new collective is added to ordinary
+non-checkpoint training steps. Save and cursor failures are coordinated, including
+failure observed at final training drain or at preemption. A completed rescue
+resumed at the schedule endpoint exits cleanly without another training update.
+
+Rescue freezes the current training state/data position by not executing another
+training iteration. It writes to step+1 (a fresh prefix), using the same live
+parameters, optimizer and iterator position, and verifies the committed save and
+matching cursor. The fresh directory index does not represent another update.
+Exit75 means a committed rescue that should resume the same RUN; the trainer's
+entry point maps failed recovery to76. The external controller distinguishes both
+from clean training completion, and persists rescue intent across controller/VM
+restarts. It must not mark the RUN complete or release its TPU just because a
+SIGTERM-driven exit was clean.
+
+Cursor publication writes step-local metadata before the global pointer and
+propagates errors instead of only printing them. Repair is allowed only after
+all workers are verified absent. It selects the newest committed checkpoint with
+a matching cursor (including a newer rescue checkpoint), resets the global
+pointer to that snapshot, and removes only confirmed uncommitted numeric paths.
+Committed checkpoints are preserved even if their cursor is unusable. This is
+safe for the repository's Pile restore path: `load_state_if_possible` explicitly
+uses `data_iterator.meta_dict['checkpoint_step']`, not manager.latest_step().
+Unknown storage errors must not be mistaken for missing objects. A RUN that
+never committed step0 can restart initialization; positive-step evidence without
+any valid state must not silently become a fresh model.
+
+Validation artifacts:
+`/data0/xd/bam_diagnostics/checkpoint-recovery-implementation-20261031/`.
+
+- Production protocol unit tests: healthy async/preemption, asymmetric rank
+  status, cursor failure, final drain, persistent failure, fatal errors and
+  mismatched ranks; real cursor-writer success/failure tests.
+- Existing checkpoint retention/cursor regression tests and full BAM CPU suite.
+- Full orchestration test suite, including real controller-loop execution against
+  an offline cloud emulator: timeout rescue and autonomous exit75 both relaunch
+  the same RUN without closeout/deletion; repair chooses a newer rescue and
+  preserves delayed successful commits and committed-but-cursorless evidence.
+- Actual worker JAX0.8.1/Orbax0.12.4, two independent CPU ranks, real SIGTERM to
+  rank0 only, production recovery module. Five arms run both with temporary
+  local storage (1s timeout) and real GCS storage (10s timeout): healthy,
+  expired-save signal, early signal while the old async save is alive,
+  persistent timeout, and rank0-only cursor write failure.
+- Healthy exits0/0; all transient failure arms exit75/75 and restore/compare the
+  parameters, optimizer, state step and data cursor; persistent failure exits
+  nonzero after one attempt, preserving the old committed checkpoint. Both
+  early-signal ranks had live old async threads when the signal was sent.
+  All owned GCS test prefixes were deleted after collection.
+
+Limits: two ranks on one VM with small CPU state and real GCS do not reproduce
+16-host TPU sharding, a dead coordinator, full-size bandwidth or every native
+I/O stall. External deadlines and verified fallback remain necessary. No formal
+trainer/controller was restarted or hot-modified during implementation/testing.
+
+Final validation totals:15 focused protocol/cursor/resume tests,4 existing
+checkpoint tests,47 BAM regression tests,158 orchestration tests; all passed.
+The10 actual-library two-rank arms (5local+5GCS) passed and their restored
+state/optimizer/cursor, early-signal preconditions and GCS cleanup were audited
+in `validation-audit.json`.

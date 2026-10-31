@@ -101,4 +101,19 @@ RUN `BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80CommonReadScaleUn
 
 Last complete native window11000 (500 stride, ±25, ten-step samples), all gain ratios use original MHA as reference. Against H,10k→10.5k→11k gaps−.0002604→−.0003332→−.0004626, ratios1.001998→1.002589→1.003657. Last5 mean gap−.00017332. Against old non-H dynamic-O.2 common baseline at11k: gap−.0053804, last5−.00493752. Against Mudd: gap−.0558944/R1.786368; against MHA gap−.1269736. Early deficit was recovered and the two unit arms crossed again at11k; this was a user stop, not a demonstrated dominance verdict or final28k conclusion.
 
-Unit/no-gamma remains training; it is not closed by this note. Its original28000-step LR/AOT remains intact, with the independently running16025-step guard allowing the complete16000±25 report window. The stopped gamma curve remains in dedicated/historical plots. The group report and plots are archived under the unified root; monitoring agent exits on user instruction after completing diagnostics.
+Unit/no-gamma subsequently reached its user-authorized16k endpoint and stopped at committed16047/28000 on2026-10-31. The original28000 LR/AOT was retained throughout; the16025-step guard allowed the complete16000±25 window. This is not a full28000-step terminal result. All owned H-group trainers are now closed. Stopped histories remain in plots except the bias and earlier gamma/complement curves explicitly excluded by the user from the family overview.
+
+## Final16k unit/no-gamma report
+
+RUN is the Unit class above, exact runtime6c5dbfe9df446b1c6f6421616f7af97156c7f9a5. TPU `xd-v5p-128-h-unit-plain-1031`/UE5a; P0, zero lost steps. READY2026-10-31 06:06:34→20:26:42UTC (14h20m08s). Committed final checkpoint16047; closeout finished20:29:42UTC; node/queued resource independently verified absent. Local closeout TB sync completed. Startup20..39 speed.316382step/s versus H.31690 (-.16%); late logs~.315step/s.
+
+| Comparator | 12k gap / R | 14k gap / R | 16k gap / R |
+|---|---|---|---|
+| H | −.000378 /1.003066 | −.000544 /1.004575 | −.000793 /1.006838 |
+| QK80 | −.010228 /1.090157 | −.010248 /1.093931 | −.010073 /1.094463 |
+| Pre-mask+QK80 combination | −.007619 /1.065648 | −.008170 /1.073481 | −.008221 /1.075779 |
+| Mudd | −.053375 /1.759251 | −.050061 /1.722467 | −.047428 /1.684569 |
+
+All ratios use Pythia2p8BShortTrain (original MHA) as the common reference. Lastfive native windows14k–16k mean gap−.00060708 versus H. Unit-init recovered its initial deficit and sustains a small late advantage. It improves the H recipe modestly but does not cure declining Mudd-relative gain: H itself falls1.753874→1.714622→1.673129 at the same12k/14k/16k. Do not infer later dominance over Unit+gamma, which stopped at11375 and has no matching16k evidence.
+
+Native source and final closeout/independent resource verification live under `/data0/xd/bam_diagnostics/pythia28-h-unified-16k-20261031/`: `unit-final-native.json`, `unit-final-registry-closeout.json`, `unit-final-resource-verification.json`, `sync-unit-final.log`. Five final cumulative gap/R figures (from2k, original endpoints preserved, bias excluded) and provenance: `final-20261101/figures-16000.json`. Main report retains both QK80 and pre-mask+QK80 direct contrasts for H and Unit, plus Unit-vs-H, full2×2, and MHA/Mudd family plots.

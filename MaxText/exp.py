@@ -17419,6 +17419,27 @@ class BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80CommonReadScaleU
     bam_common_vo_read_scale_init = 1.0
 
 
+class BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOne(
+        BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80CommonReadScaleUnscaledMLPContentEmbeddingFixed):
+    """H with every learned V/localO scalar initialized to one; no dynamic-O gamma.
+
+    Completes the depth/unit initialization x no-gamma/gamma-.2 comparison.
+    All writer/MLP/embedding settings and the28000-step recipe remain unchanged.
+    """
+    # ledger/runtime: codex/pythia28-h-unit2x2-1031; /data0/xd/pythia28-h-unit2x2.
+    # code_commit:6c5dbfe; UE5a v5p128/global1024/B16, fresh28000; AOT/source/FIRST0/CP0 verified.
+    # Startup20..39 .316382step/s vs H.31690 (-.16%); genericON/internal+BAMOFF/minimal.
+    # RUN=this class; xd-v5p-128-h-unit-plain-1031 (ID310462); same MLPs and initialization.
+    # User16k endpoint: stopped16047/28000/P0; CP16047/TB secured, node+QR independently absent.
+    # vs H early deficit recovered~8k;12k/14k/16k gaps-.000378/-.000544/-.000793; R1.00307/1.00458/1.00684.
+    # Final5 vs H gap-.000607; small late gain sustained, not a repair of the underlying Mudd-relative decay.
+    # vs Mudd R12k1.75925 ->14k1.72247 ->16k1.68457;16k gap-.047428, vs MHA-.116710.
+    # Final16k vs QK80 gap-.010073/R1.09446; pre-mask+QK80-.008221/R1.07578 (all MHA-ref).
+    # Original28000 LR unchanged;14h20m08s single UE5a READY lease. Reproduction: h_high_layer_read_interventions_20261031.md.
+    model_name = 'BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOne'
+    bam_common_vo_read_scale_init = 1.0
+
+
 class BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80CommonReadScaleUnscaledMLPContentEmbeddingFixedContextLocalOComplement(
         BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80CommonReadScaleUnscaledMLPContentEmbeddingFixed):
     """H plus opposing same-token/head gates for context and dynamic localO.

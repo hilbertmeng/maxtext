@@ -19964,6 +19964,10 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     # Implementation: codex/mediumprop-h-static-tail-qk, /data0/xd/mediumprop-h-static-tail-qk.
     # Both arms initialize only tail static K with BAM normal (.006), keeping static Q zero.
     # Prefix14 single-layer scan; four explicit tails, preserving ordinary layer/writer semantics.
+    # code_commit: 6052644; ledger only: codex/mediumprop-h-static-tail-qk.
+    # Started UE5a v5p-16 xd-v5p-16-310480-maxtext, plan13500; generic health ON, internal/BAM OFF.
+    # Startup20-99 aggregate 0.69088 step/s (median 0.695); historical H .669875 uses older read kernel.
+    # Formal worker parameters 432111810; full native/Pallas gradients and 47 BAM regressions passed.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedStaticQKLast4TruePile'
     bam_qk_static_only_last_layers = 4
     bam_qk_static_only_arms = 'qk'
@@ -19976,6 +19980,10 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedStaticKLast4TruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedStaticQKLast4TruePile):
     """H: retain dynamic Q, remove only dynamic K in L14-L17; ordinary MLP refund."""
+    # code_commit: 6052644; ledger only: codex/mediumprop-h-static-tail-qk.
+    # Started UE5a v5p-16 xd-v5p-16-310481-maxtext, plan13500; generic health ON, internal/BAM OFF.
+    # Startup20-99 aggregate 0.68649 step/s (median 0.691); historical H .669875 uses older read kernel.
+    # Formal worker parameters 432113810; full native/Pallas gradients and 47 BAM regressions passed.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedStaticKLast4TruePile'
     bam_qk_static_only_arms = 'k'
     bam_final_local_mlp_dim = 2552

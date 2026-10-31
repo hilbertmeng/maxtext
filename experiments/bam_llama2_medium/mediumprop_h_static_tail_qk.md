@@ -73,3 +73,13 @@ normalization, schedules or other-session experiments. Sealed config check,
 exact target-topology AOT, Loaded compiled function/FIRST_STEP and real worker
 commit/dataset verification are mandatory. Only startup metadata and final
 conclusions go into main exp.py; monitoring data/plots stay in task artifacts.
+
+## Verified launch
+
+Runtime6052644, both FIRST_STEP and step14 verified; actual worker hash matches,
+compiled function loaded and real Pile4096 path confirmed. Training TPUs310480/310481
+UE5a v5p16. Startup20-99 aggregate throughput .690877/.686490 step/s
+(medians .695/.691), historical H .669875 used older common-read kernel, so this
+speed difference is mixed runtime/architecture evidence. Worker full parameter
+counts432111810/432113810 match budget exactly. Groupmedium-h-static-tail-qk
+cadence2000/reviews4000,8000; compare H only, gain reference MHA.

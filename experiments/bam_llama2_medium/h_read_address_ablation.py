@@ -38,6 +38,42 @@ def frozen_inputs(key, logit, mean, epsilon):
   return proxy, (jnp.log(gate)-jnp.log1p(-gate)).astype(logit.dtype)
 
 
+def freeze_address_parameters(params, means, controls, scan_axis):
+  """Zero selected address-up kernels and use calibrated means as pre-biases.
+
+  Same parameter tree/dtypes and original projection/rounding graph. The
+  read interceptor compensates only the gate for the fixed key's RMS norm.
+  """
+  import numpy as np
+  import jax.numpy as jnp
+  from flax.traverse_util import flatten_dict,unflatten_dict
+  controls=np.asarray(controls)
+  if not controls.any():return params
+  flat=flatten_dict(params);counts={'kernel':0,'bias':0}
+  for path,value in list(flat.items()):
+    arm=None;kind=None
+    for index,name in enumerate(('q','k')):
+      if path[-1]=='kernel' and path[-2]==f'W_l{name}_c8_up':arm=index;kind='kernel'
+      if path[-1]==f'general_{name}_pre_bias':arm=index;kind='bias'
+    if arm is None:continue
+    if 'layers' in path:
+      layers=range(controls.shape[0]-1);scanned=True
+    elif 'final_local_layer' in path:
+      layers=[controls.shape[0]-1];scanned=False
+    else:continue
+    for layer in layers:
+      if not controls[layer,arm]:continue
+      selected=[slice(None)]*value.ndim
+      if scanned:selected[scan_axis]=layer
+      target=(jnp.zeros_like(value[tuple(selected)]) if kind=='kernel' else
+              jnp.asarray(means[layer,arm],value.dtype))
+      value=value.at[tuple(selected)].set(target);counts[kind]+=1
+    flat[path]=value
+  expected=int(controls.sum())
+  assert counts==dict(kernel=expected,bias=expected),counts
+  return unflatten_dict(flat)
+
+
 @contextlib.contextmanager
 def address_intervention(controls=None, addresses=None, record=False,
                          zero_mha=None, record_context=False, dtype_debug=False):
@@ -62,7 +98,7 @@ def address_intervention(controls=None, addresses=None, record=False,
     def modified_context(output):
       if zero_mha is not None and not module.is_initializing():
         # Mode1 removes context only at W_O input; mode2 removes it before M write too.
-        changed = jnp.where(zero_mha[layer] == 2,jnp.zeros_like(output),output)
+        changed = output * (zero_mha[layer] != 2).astype(output.dtype)
         if record_context:
           module.sow('intermediates','mha_context_probe',jnp.stack((
               jnp.mean(output.astype(jnp.float32)**2),
@@ -87,12 +123,21 @@ def address_intervention(controls=None, addresses=None, record=False,
         print('PROJECTION_DTYPES',output.dtype,state['local_o'].dtype,flush=True)
       if zero_mha is not None and not self.is_initializing():
         local = state['local_o']
-        changed = jnp.where(zero_mha[layer] == 1,local,output)
+        # Keep the original combined-head W_O computation intact. Selecting its
+        # input changes TPU BF16 fusion/rounding even in the no-op condition.
+        projected = original_projection(self,output_dim,output)
+        local_projected = attentions.DenseGeneral(
+            features=output_dim,axis=(-2,-1),kernel_init=self.output_kernel_init or self.kernel_init,
+            kernel_axes=('heads','kv','embed'),dtype=self.dtype,weight_dtype=self.weight_dtype,
+            use_bias=self.output_bias,quant=self.quant,
+            matmul_precision=self.config.matmul_precision,parent=None).apply(
+                {'params':self.variables['params']['out']},local)
         if record_context:
+          changed = jnp.where(zero_mha[layer] == 1,local,output)
           ms = lambda x:jnp.mean(x.astype(jnp.float32)**2)
           self.sow('intermediates','mha_output_probe',jnp.stack((
               ms(output),ms(changed),ms(changed-local),ms(local))))
-        output = changed
+        return jnp.where(zero_mha[layer] == 1,local_projected,projected)
       return original_projection(self,output_dim,output)
 
     def modified(matrix, weight, q_key, q_logit, k_key, k_logit, vo_key,
@@ -108,7 +153,9 @@ def address_intervention(controls=None, addresses=None, record=False,
           changed=[]
           for arm,(key,logit) in enumerate(((q_key,q_logit),(k_key,k_logit))):
             proxy,proxy_logit = frozen_inputs(key,logit,addresses[layer,arm],kw['read_epsilon'])
-            changed.append((jnp.where(controls[layer,arm],proxy,key),
+            # Keys are frozen by changing parameter operands, avoiding an extra
+            # select on the BF16 up-projection output and its rounding boundary.
+            changed.append((key,
                             jnp.where(controls[layer,arm],proxy_logit,logit)))
           (q_key,q_logit),(k_key,k_logit)=changed
       return original(matrix,weight,q_key,q_logit,k_key,k_logit,vo_key,
@@ -261,8 +308,9 @@ def main():
     forward=jax.jit(evaluate);losses=np.empty((len(names),16),np.float64)
     for variant,name in enumerate(names):
       before=time.monotonic()
+      variant_params=freeze_address_parameters(params,means,controls[variant],cfg.param_scan_axis)
       for index,tokens in enumerate(evaluation):
-        losses[variant,index]=float(forward(params,jnp.asarray(tokens[None]),
+        losses[variant,index]=float(forward(variant_params,jnp.asarray(tokens[None]),
             jnp.asarray(controls[variant]),jnp.asarray(means),jnp.asarray(mha_controls[variant])))
       assert np.isfinite(losses[variant]).all()
       print('VARIANT_DONE',name,float(losses[variant].mean()),'seconds',round(time.monotonic()-before,2),flush=True)

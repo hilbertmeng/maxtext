@@ -14,6 +14,30 @@ import h_read_address_ablation as probe
 
 
 class ReadAddressAblationTest(unittest.TestCase):
+  def test_parameter_freeze_preserves_tree_and_only_selected_layers(self):
+    from flax.traverse_util import flatten_dict
+    p={'params':{'decoder':{}}}
+    for scope,count in [('layers',31),('final_local_layer',None)]:
+      kernel_shape=(3,31,2,4) if count else (3,2,4)
+      bias_shape=(2,31,4) if count else (2,4)
+      block={f'W_l{arm}_c8_up':{'kernel':jnp.ones(kernel_shape,jnp.bfloat16)} for arm in ['q','k']}
+      block.update({f'general_{arm}_pre_bias':jnp.zeros(bias_shape,jnp.bfloat16) for arm in ['q','k']})
+      p['params']['decoder'][scope]={'block':{'self_attention':block}}
+    means=np.full((32,2,2,4),.125,np.float32);controls=np.zeros((32,2),bool);controls[24:,0]=True
+    frozen=probe.freeze_address_parameters(p,means,controls,1)
+    before,after=flatten_dict(p),flatten_dict(frozen);self.assertEqual(before.keys(),after.keys())
+    for path,value in after.items():
+      self.assertEqual(value.dtype,before[path].dtype);self.assertEqual(value.shape,before[path].shape)
+      if 'W_lk_c8_up' in path or path[-1]=='general_k_pre_bias':np.testing.assert_array_equal(value,before[path])
+    body=frozen['params']['decoder']['layers']['block']['self_attention']
+    np.testing.assert_array_equal(body['W_lq_c8_up']['kernel'][:,:24],1)
+    np.testing.assert_array_equal(body['W_lq_c8_up']['kernel'][:,24:],0)
+    np.testing.assert_array_equal(body['general_q_pre_bias'][:,24:],.125)
+    tail=frozen['params']['decoder']['final_local_layer']['block']['self_attention']
+    np.testing.assert_array_equal(tail['W_lq_c8_up']['kernel'],0)
+    np.testing.assert_array_equal(tail['general_q_pre_bias'],.125)
+    self.assertIs(probe.freeze_address_parameters(p,means,np.zeros_like(controls),1),p)
+
   def test_context_zero_targets_only_selected_layer(self):
     helper=common.PythiaCommonReadRawWriteTest();helper.setUp()
     try:

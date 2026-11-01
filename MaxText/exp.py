@@ -17421,26 +17421,23 @@ class BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80CommonReadScaleU
 
 class BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOne(
         BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80CommonReadScaleUnscaledMLPContentEmbeddingFixed):
-    """H with every learned V/localO scalar initialized to one; no dynamic-O gamma.
+    """每层 V/local O 公共读 scale 均以 1 初始化，其余配方同父类 H。
 
-    Completes the depth/unit initialization x no-gamma/gamma-.2 comparison.
-    All writer/MLP/embedding settings and the28000-step recipe remain unchanged.
+    结论：在与 H 的共同观测范围内，这是小幅、无额外成本的有效改进；
+    但未改变本架构相对 Mudd 收益倍数随训练收缩的走势。
     """
-    # ledger/runtime: codex/pythia28-h-unit2x2-1031; /data0/xd/pythia28-h-unit2x2.
-    # code_commit:6c5dbfe; UE5a v5p128/global1024/B16, fresh28000; AOT/source/FIRST0/CP0 verified.
-    # Startup20..39 .316382step/s vs H.31690 (-.16%); genericON/internal+BAMOFF/minimal.
-    # RUN=this class; xd-v5p-128-h-unit-plain-1031 (ID310462); same MLPs and initialization.
-    # User21.5k endpoint stopped21549/P0; CP committed, node+QR independently absent; TB closeout sync.
-    # Paused16047 then resumed SAME RUN/6c5dbfe/AOT; original28000 LR plan retained, not a full28k result.
-    # vs H early deficit recovered~8k;12/14/16/18k gaps-.000378/-.000544/-.000793/-.000966.
-    # Last5 common H windows mean-.000690; H ends18331, so no synthetic21.5k H comparison.
-    # vs QK80 gap12/16/20/21.5k -.010228/-.010073/-.010044/-.009649; R1.09016/1.09446/1.09799/1.09533.
-    # vs pre-mask+QK80 gap-.007619/-.008221/-.007939/-.008027; R1.06565/1.07578/1.07590/1.07806.
-    # MHA-reference Mudd R12/16/18/20/21.5k 1.75925/1.68457/1.67631/1.64967/1.65151.
-    # Absolute MHA gain18/19.5/20/21.5k .112753/.112916/.112548/.110862: rebound not sustained.
-    # Final21.5k gaps vs Mudd-.043734, MHA-.110862; no reversal of the long Mudd-relative decay.
-    # UE5a READY leases14h20m08s +4h58m27s, both manual endpoints/P0; resumed~.316, late~.315step/s.
-    # Reproduction/closeout: h_high_layer_read_interventions_20261031.md; health: h_unit_late_health_20261101.md.
+    # gap = 本路 loss - 对照 loss；收益倍数均以 Pythia2p8BShortTrain（原 MHA）为共同参照。
+    # 对父路 H：早期落后，约 8k 追回，之后保持小幅领先；最后共同 18k gap -0.00097、倍数 1.0086。
+    # 共同基线为父类 compare_runs[0] 的旧动态 O gamma=.2 路：8–16k gap 稳定约 -0.0049，16k 倍数 1.0432。
+    # 对纯 QK80 / 预掩码+QK80 底座：后期优势维持约 0.010 / 0.008，21.5k 倍数 1.0953 / 1.0781。
+    # 上述底座总收益包含 H 父路已有改动；仅相对 H 的差异可归因于本次全 1 初始化。
+    # 对串行 Mudd 的倍数从 12k 的 1.759 降至 21.5k 的 1.652，末期 gap -0.04373。
+    # 对原 MHA 的绝对优势总体收缩，后期的小幅回升未持续；21.5k gap -0.11086。
+    # 参数量、计算量、MLP 宽度和 M-cache 不变；UE5a v5p-128 约 0.315 step/s，启动测速与 H 基本持平（-0.16%）。
+    # 按用户指定的 21.5k 收尾，最终 checkpoint 21549；保留原 28000 步学习率计划，未观测完整终局。
+    # code_commit:6c5dbfe; 实现分支 codex/pythia28-h-unit2x2-1031，worktree /data0/xd/pythia28-h-unit2x2。
+    # 对照全名、完整走势及收尾证据：h_high_layer_read_interventions_20261031.md 的 21.5k 收尾节。
+    # 逐层 context 诊断及解释边界：h_all_layer_context_evolution_20261101.md。
     model_name = 'BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOne'
     bam_common_vo_read_scale_init = 1.0
 

@@ -132,6 +132,18 @@ Resume ownership, AOT manifest, installer/wrapper hashes, source checkpoint, lau
 
 ## Final21.5k continuation closeout
 
+本节及主台账中的对照简称对应如下。相对 H 的差异用于判断全 1 初始化本身；相对旧底座的总收益同时包含 H 父路已有改动。
+
+| 对照简称 | 完整配置类 / RUN |
+|---|---|
+| H（直接父路） | `BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80CommonReadScaleUnscaledMLPContentEmbeddingFixed` |
+| 旧动态 O gamma=.2（共同基线） | `BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640SeparateVOKeysLogitDiagNegativeQK80LocalODynamicNormScale020` |
+| 纯 QK80 底座 | `BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640SeparateVOKeysQK80` |
+| 预掩码+QK80 组合底座 | `BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640SeparateVOKeysLogitDiagNegativeQK80` |
+| 串行 Mudd | `MuddPythia3BSerialMLPShortTrain` |
+| 原 MHA（所有收益倍数的共同参照） | `Pythia2p8BShortTrain` |
+
+
 Same Unit/no-gamma RUN and runtime6c5dbfe above stopped at committed **21549/28000**, zero preemptions/lost steps. The full21500±25 native window is present. Final checkpoint21549 commit marker and cursor verified; TPU/node and queued resource independently absent; local TB synced. User endpoint does not change the original28000-step LR schedule or establish a full28k terminal result. No owned H-group trainer remains active.
 
 | Comparator |16k gap / R|18k gap / R|20k gap / R|21.5k gap / R|
@@ -140,6 +152,8 @@ Same Unit/no-gamma RUN and runtime6c5dbfe above stopped at committed **21549/280
 | QK80 |−.010073 /1.09446|−.009971 /1.09701|−.010044 /1.09799|−.009649 /1.09533|
 | Pre-mask+QK80 |−.008221 /1.07578|−.008108 /1.07748|−.007939 /1.07590|−.008027 /1.07806|
 | Mudd |−.047428 /1.68457|−.045491 /1.67631|−.044323 /1.64967|−.043734 /1.65151|
+
+相对原共同基线（旧动态 O gamma=.2），8–16k 的 loss 优势稳定约 .0049；最后共同16k gap−.0048306，收益倍数1.043177，末五窗口均值gap−.00491292。该对照没有更晚的完整共同窗口。
 
 Ratios use original MHA as reference. H has no complete window beyond18k. Unit's small H improvement persisted through their last common window; its direct QK80/combination advantages remain broadly stable through21.5k. Mudd-relative gain still declines overall. The17→17.5→18k ratio rises are not a sustained reversal: absolute gain over MHA at18/19.5/20/20.5/21/21.5k is .112753/.112916/.112548/.110809/.111377/.110862. The18–21.5k signed OLS slope is−.00063277 per1k and net−.001891. Upward amplitude would be beneficial; small range alone is not a success criterion. Historical1k/2k windows can recover at other positions, so compare sliding signed trends, not only synchronous ranges.
 

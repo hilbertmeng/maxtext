@@ -278,15 +278,17 @@ def _tm_read_backward_kernel(n, qk_cols, eps, scale, q_scale, gated, ch, pass_m,
           continue
         y = ref[h].astype(F32)
         if a < 2 and qk_norm:
-          # Reverse of u = xhat * m, xhat = x / r (r over read + standard coordinates):
-          # dx = (m g - xhat mean(m g xhat)) / r;  d ss_std = -mean(m g xhat) / (2 r^2);  dm = sum_t g xhat.
+          # Reverse of u = xhat * m, xhat = x / r, r^2 = (|x_local|^2 + ss_std) / W + eps. The rotated,
+          # scaled standard rows enter r only through ss_std, so they keep the direct term alone:
+          # dx_local = (m g - xhat mean(m g xhat)) / r;  dx_std = m g / r;
+          # d ss_std = -mean(m g xhat) / (2 r^2);  dm = sum_t g xhat.
           q_eps, width = qk_norm
           gct = _from_tokens(y)                                                  # [qdim, T]
           xhat = _from_tokens((xq_ref if a == 0 else xk_ref)[h].astype(F32))
           iv = inv_ref[a, pl.ds(h, 1), :]
           gm = gct * mm_ref[:, a:a + 1]
           s_ = jnp.sum(gm * xhat, axis=0, keepdims=True) / width               # [1, T]
-          ys = iv * (gm - xhat * s_)
+          ys = iv * (gm - jnp.concatenate((xhat[:qk_cols] * s_, jnp.zeros_like(xhat[qk_cols:])), axis=0))
           dss_ref[a, pl.ds(h, 1), :] = -.5 * iv * iv * s_
           dmm[a] = dmm[a] + jnp.sum(gct * xhat, axis=1, keepdims=True)
           ds = dqs if a == 0 else dks

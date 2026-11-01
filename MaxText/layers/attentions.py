@@ -2815,6 +2815,7 @@ class BamAttention(Attention):
               and self._vo_independent_gates and not self._standard_value
               and self._has_value_m_read), 'Independent VO keys require generalized shared-down M-V reads'
     self._m_shift_mode = getattr(cfg, 'bam_m_shift_mode', None) or 'none'
+    self._independent_o_shift = bool(getattr(cfg, 'bam_local_o_independent_m_shift', False))
     if self._persistent_read and (
         not self._general_read or self._full_m_read_rank is None
         or self._m_shift_mode != 'read' or self._abs_v_dim is not None
@@ -2839,6 +2840,15 @@ class BamAttention(Attention):
           'M_shift_gate_b0', nn.with_logical_partitioning(
               nn.initializers.constant(math.log(opening / (1 - opening))), ('v_factor',)),
           (self.bam_v,), self.weight_dtype)
+      if self._independent_o_shift:
+        self.o_m_shift_gate = linears.DenseGeneral(
+            features=self.bam_v, axis=-1, use_bias=False, kernel_init=zeros_init,
+            kernel_axes=('embed', 'v_factor'), dtype=self.dtype, weight_dtype=self.weight_dtype,
+            quant=self.quant, matmul_precision=cfg.matmul_precision, name='O_M_shift_gate')
+        self.o_m_shift_bias = self.param(
+            'O_M_shift_gate_b0', nn.with_logical_partitioning(
+                nn.initializers.constant(math.log(opening / (1 - opening))), ('v_factor',)),
+            (self.bam_v,), self.weight_dtype)
 
     if self._full_m_read_rank is not None:
       assert not getattr(cfg, 'bam_general_matrix_write', False), 'Generalized writes remain worktree-only'
@@ -3617,12 +3627,13 @@ class BamAttention(Attention):
     return self._read_fetched_m(self._compress_m(M), x)[0]
 
   def _independent_local_vo(self, M, x, compressed_M=None, shared_hidden=None,
-                            *, o_column_weight_multiplier=None, return_o_logits=False):
+                            *, o_column_weight_multiplier=None, return_o_logits=False, o_matrix=None):
     """Contract one ungated C8 read, then apply destination-specific gates."""
     if compressed_M is None:
       compressed_M = self._compress_m(M)
     read, o_logits = self._read_fetched_m(
-        compressed_M, x, ungated=True, shared_hidden=shared_hidden,
+        compressed_M if o_matrix is None else self._compress_m(o_matrix),
+        x, ungated=True, shared_hidden=shared_hidden,
         column_weight_multiplier=self._dynamic_local_o_multiplier(o_column_weight_multiplier))
     v_logits = self._project_read_gate_logits('W_lv_gate', x)
     self._record_concat_gate('local_v', v_logits)
@@ -4101,6 +4112,8 @@ class BamAttention(Attention):
         gate_names = gate_names[:-1]
       key_names = ('full_m_read_down',) if full_m else ('W_lq_c8', 'W_lk_c8', 'W_R')
       shift_names = ('M_shift_gate',) if self._m_shift_mode != 'none' else ()
+      if self._independent_o_shift:
+        shift_names += ('O_M_shift_gate',)
       write_names = ('W_gw',) if self._share_read_attention_down else ('P_loc_down', 'W_gw')
       if not self._has_write:
         write_names = ()
@@ -4218,6 +4231,10 @@ class BamAttention(Attention):
         valid = bam_m_shift_valid_mask(inputs_q.shape, decoder_segment_ids, inputs_positions)
         shift = jax.nn.sigmoid(shift_logits).astype(M_in.dtype)
         read_kwargs['shift'] = jnp.where(valid[..., None], shift, jnp.zeros_like(shift))
+        if self._independent_o_shift:
+          o_logits = raw['O_M_shift_gate'] if fused else self.o_m_shift_gate(inputs_q)
+          o_share = jax.nn.sigmoid(o_logits.astype(jnp.float32) + self.o_m_shift_bias.astype(jnp.float32)).astype(M_in.dtype)
+          read_kwargs['o_shift'] = jnp.where(valid[..., None], o_share, jnp.zeros_like(o_share))
         if getattr(cfg, 'bam_record_m_shift_health', False):
           # Compact summary as the XLA path records it; M is token-major [B,T,V,K], so the
           # (masked) share broadcasts over K and the mix is built only at the sampled positions.
@@ -4372,6 +4389,7 @@ class BamAttention(Attention):
     inputs_q = nn.with_logical_constraint(inputs_q, self.input_axis_names)
     inputs_kv = nn.with_logical_constraint(inputs_kv, self.input_axis_names)
     M_read = M_in
+    M_o_read = None
     # The fused core (v8t) computes the same gate and mixes inside its read kernel.
     if getattr(self, '_m_shift_mode', 'none') != 'none' and not getattr(cfg, 'bam_pallas_core', False):
       assert M_in is not None
@@ -4379,6 +4397,10 @@ class BamAttention(Attention):
         logits = self.m_shift_gate(inputs_q).astype(jnp.float32) + self.m_shift_bias.astype(jnp.float32)
         gate = jax.nn.sigmoid(logits)  # Gate is the previous-token share.
         M_read = mix_bam_previous_token(M_in, gate, decoder_segment_ids, inputs_positions)
+        if self._independent_o_shift:
+          o_logits = self.o_m_shift_gate(inputs_q).astype(jnp.float32) + self.o_m_shift_bias.astype(jnp.float32)
+          M_o_read = mix_bam_previous_token(
+              M_in, jax.nn.sigmoid(o_logits), decoder_segment_ids, inputs_positions)
         if getattr(cfg, 'bam_record_m_shift_health', False):
           compact = bool(getattr(cfg, 'bam_m_shift_compact_health', False))
           stats, columns, state = bam_m_shift_health(M_in, M_read, gate, decoder_segment_ids,
@@ -4497,6 +4519,7 @@ class BamAttention(Attention):
     if self._local_o and self._vo_shared_read != 'none':
       if Mh is None:
         Mh = self._matrix_for_read(M_read)
+      Mo = Mh if M_o_read is None else self._matrix_for_read(M_o_read)
       if not self._has_value_m_read:
         # O still needs the shared VO key/read. No V static read or dynamic gate survives.
         local_output = self._read_fetched_m(
@@ -4508,7 +4531,8 @@ class BamAttention(Attention):
         vo_outputs = self._independent_local_vo(
             Mh, inputs_q, local_compressed_M, full_m_shared_hidden,
             o_column_weight_multiplier=o_column_weight_multiplier,
-            return_o_logits=bool(getattr(cfg, 'bam_context_local_o_complement', False)))
+            return_o_logits=bool(getattr(cfg, 'bam_context_local_o_complement', False)),
+            o_matrix=Mo if self._independent_o_shift else None)
         v_local, local_output = vo_outputs[:2]
         if len(vo_outputs) == 3:
           local_o_logits = vo_outputs[2]
@@ -4520,7 +4544,7 @@ class BamAttention(Attention):
         self._record_concat_amplitude('static_v', static_v, v_local)
         v_local = v_local + static_v
         static_o = self._static_column(
-            Mh, 'o', inputs_q, column_weight_multiplier=o_column_weight_multiplier)
+            Mo, 'o', inputs_q, column_weight_multiplier=o_column_weight_multiplier)
         self._record_concat_amplitude('static_o', static_o, local_output)
         local_output = local_output + static_o
       if self._has_value_m_read and not self._local_v_replace:

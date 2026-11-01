@@ -147,12 +147,14 @@ def _prev_from(m_ref, mh_ref, t0, mt):
 
 
 def _tm_read_kernel(n, qk_cols, eps, scale, q_scale, gated, ch, shifted=False, qdim=None, masked=False,
-                    scaled=False):
+                    scaled=False, o_shifted=False):
   def kernel(m_ref, st_ref, rq, lq, rk, lk, rr, lo, lv, qs, ks, *refs):
     if gated:
       sg_ref, refs = refs[0], refs[1:]
     if shifted:
       (sh_ref, mh_ref), refs = refs[:2], refs[2:]
+    if o_shifted:
+      sho_ref, refs = refs[0], refs[1:]
     om = osc = None
     if masked:
       om, refs = refs[0], refs[1:]
@@ -176,7 +178,12 @@ def _tm_read_kernel(n, qk_cols, eps, scale, q_scale, gated, ch, shifted=False, q
         xt = _chunk(xt_scr, t0, ch, cdim).astype(dt)
         mt = m_ref[pl.ds(t0, ch)].astype(F32)
         mr = mt + _shift_gate(sh_ref, t0, ch, kdim) * (_prev_from(m_ref, mh_ref, t0, mt) - mt)
-        y = _bdot(xt, mr.astype(dt), 1, 1)
+        if o_shifted:
+          mo = mt + _shift_gate(sho_ref, t0, ch, kdim) * (_prev_from(m_ref, mh_ref, t0, mt) - mt)
+          y = jnp.concatenate((_bdot(xt[:, :, :3*np_], mr.astype(dt), 1, 1),
+                               _bdot(xt[:, :, 3*np_:], mo.astype(dt), 1, 1)), axis=1)
+        else:
+          y = _bdot(xt, mr.astype(dt), 1, 1)
       else:
         xt = _chunk(xt_scr, t0, ch, cdim).astype(dt)
         y = _bdot(xt, m_ref[pl.ds(t0, ch)], 1, 1)
@@ -202,12 +209,14 @@ def _tm_read_kernel(n, qk_cols, eps, scale, q_scale, gated, ch, shifted=False, q
 
 
 def _tm_read_backward_kernel(n, qk_cols, eps, scale, q_scale, gated, ch, pass_m, shifted=False, qdim=None,
-                             masked=False, scaled=False):
+                             masked=False, scaled=False, o_shifted=False):
   def kernel(m_ref, st_ref, rq, lq, rk, lk, rr, lo, lv, qs, ks, *refs):
     if gated:
       sg_ref, refs = refs[0], refs[1:]
     if shifted:
       (sh_ref, mh_ref), refs = refs[:2], refs[2:]
+    if o_shifted:
+      sho_ref, refs = refs[0], refs[1:]
     om = osc = None
     if masked:
       om, refs = refs[0], refs[1:]
@@ -221,6 +230,8 @@ def _tm_read_backward_kernel(n, qk_cols, eps, scale, q_scale, gated, ch, pass_m,
       dsg_ref, refs = refs[0], refs[1:]
     if shifted:
       (dsh_ref, bnd_ref), refs = refs[:2], refs[2:]
+    if o_shifted:
+      dsho_ref, refs = refs[0], refs[1:]
     if scaled:
       dos_ref, refs = refs[0], refs[1:]
     xt_scr, dy_scr, dxt_scr, dkey_scr = refs[:4]
@@ -284,12 +295,26 @@ def _tm_read_backward_kernel(n, qk_cols, eps, scale, q_scale, gated, ch, pass_m,
         mt = m_ref[pl.ds(t0, ch)].astype(F32)
         d = _prev_from(m_ref, mh_ref, t0, mt) - mt
         gk = _chunk(gb_scr, t0, ch, cdim)
-        dxt = _bdot((mt + gk * d).astype(dt), dy, 2, 2)                   # [ch, C, R]
-        dmr = _bdot(xt, dy, 2, 1)                                         # [ch, C, K]
-        col = jnp.sum(dmr * d, axis=-1, keepdims=True)
+        if o_shifted:
+          go = _shift_gate(sho_ref, t0, ch, kdim)
+          dxt = jnp.concatenate((
+              _bdot((mt + gk * d).astype(dt), dy[:, :3*np_], 2, 2),
+              _bdot((mt + go * d).astype(dt), dy[:, 3*np_:], 2, 2)), axis=2)
+          dmc = _bdot(xt[:, :, :3*np_], dy[:, :3*np_], 2, 1)
+          dmo = _bdot(xt[:, :, 3*np_:], dy[:, 3*np_:], 2, 1)
+          dmr = dmc + dmo
+          col = jnp.sum(dmc * d, axis=-1, keepdims=True)
+          colo = jnp.sum(dmo * d, axis=-1, keepdims=True)
+          e = gk * dmc + go * dmo
+        else:
+          dxt = _bdot((mt + gk * d).astype(dt), dy, 2, 2)                 # [ch, C, R]
+          dmr = _bdot(xt, dy, 2, 1)                                     # [ch, C, K]
+          col = jnp.sum(dmr * d, axis=-1, keepdims=True)
+          e = gk * dmr
         for i in range(ch):
           dsh_ref[:, pl.ds(t0 + i, 1)] = col[i].astype(dsh_ref.dtype)
-        e = gk * dmr
+          if o_shifted:
+            dsho_ref[:, pl.ds(t0 + i, 1)] = colo[i].astype(dsho_ref.dtype)
         tail = jnp.zeros_like(e[:1]) if nxt is None else nxt
         dmv = dmr - e + jnp.concatenate((e[1:], tail), axis=0)
         nxt = e[:1]
@@ -370,7 +395,7 @@ def _tm_out_spec(n, tile, kdim):
   return pl.BlockSpec((None, n, tile, kdim), lambda bb, i: (bb, 0, i, 0))
 
 
-def _tm_read_forward_call(args, opts, sh=None, om=None, os=None):
+def _tm_read_forward_call(args, opts, sh=None, om=None, os=None, sho=None):
   m = args[0]
   b, t, vdim, kdim = m.shape
   cdim = args[2].shape[1]
@@ -382,19 +407,20 @@ def _tm_read_forward_call(args, opts, sh=None, om=None, os=None):
   out = jax.ShapeDtypeStruct((b, n, t, kdim), m.dtype)
   return pl.pallas_call(
       _tm_read_kernel(n, opts['qk_cols'], opts['read_epsilon'], opts['key_scale'], opts['q_scale'],
-                      len(args) == 12, opts['chunk'], sh is not None, qdim, om is not None, os is not None),
+                      len(args) == 12, opts['chunk'], sh is not None, qdim, om is not None, os is not None, sho is not None),
       grid=(b, t // tile),
-      in_specs=(_tm_read_specs(args, tile) + _shift_specs(m, sh, tile) + _mask_specs(om, tile)
+      in_specs=(_tm_read_specs(args, tile) + _shift_specs(m, sh, tile) + _mask_specs(sho, tile) + _mask_specs(om, tile)
                 + _scale_specs(os)),
       out_specs=[_tm_out_spec(n, tile, qdim)] * 2 + [_tm_out_spec(n, tile, kdim)] * 2,
       out_shape=(qk_out,) * 2 + (out,) * 2,
       scratch_shapes=[pltpu.VMEM((cdim * tile, r), F32), pltpu.VMEM((tile * r, kdim), F32)],
       interpret=opts['interpret'], compiler_params=_params(('parallel', 'parallel'), opts['vmem_mib']),
-      name='bam_core_read')(*args, *(() if sh is None else (sh, m)), *(() if om is None else (om,)),
+      name='bam_core_read')(*args, *(() if sh is None else (sh, m)), *(() if sho is None else (sho,)),
+                            *(() if om is None else (om,)),
                             *(() if os is None else (os,)))
 
 
-def _tm_read_backward_call(args, cts, opts, sh=None, om=None, os=None):
+def _tm_read_backward_call(args, cts, opts, sh=None, om=None, os=None, sho=None):
   m, st = args[0], args[1]
   b, t, vdim, kdim = m.shape
   cdim, np_ = args[2].shape[1:3]
@@ -404,9 +430,9 @@ def _tm_read_backward_call(args, cts, opts, sh=None, om=None, os=None):
   pass_m = len(cts) == 5
   gated = len(args) == 12
   shifted = sh is not None
-  extra = (() if sh is None else (sh, m)) + (() if om is None else (om,)) + (() if os is None else (os,))
+  extra = (() if sh is None else (sh, m)) + (() if sho is None else (sho,)) + (() if om is None else (om,)) + (() if os is None else (os,))
   qdim = opts.get('qdim') or kdim
-  in_specs = (_tm_read_specs(args, tile) + _shift_specs(m, sh, tile) + _mask_specs(om, tile) + _scale_specs(os)
+  in_specs = (_tm_read_specs(args, tile) + _shift_specs(m, sh, tile) + _mask_specs(sho, tile) + _mask_specs(om, tile) + _scale_specs(os)
               + [_tm_out_spec(n, tile, qdim)] * 2 + [_tm_out_spec(n, tile, kdim)] * 2
               + [_token_spec((vdim, kdim), tile)] * pass_m)
   out_specs = ([_token_spec((vdim, kdim), tile), pl.BlockSpec((None, None, cdim, r), lambda bb, i: (bb, i, 0, 0))]
@@ -420,6 +446,9 @@ def _tm_read_backward_call(args, cts, opts, sh=None, om=None, os=None):
     out_specs += [_spec(sh.shape[1:-1], tile), pl.BlockSpec((None, None, vdim, kdim), lambda bb, i: (bb, i, 0, 0))]
     out_shape += [jax.ShapeDtypeStruct(sh.shape, sh.dtype), jax.ShapeDtypeStruct((b, t // tile, vdim, kdim), F32)]
     scratch += [pltpu.VMEM((tile * cdim, kdim), F32)]     # gate g'[c, t] broadcast over lanes
+  if sho is not None:
+    out_specs += [_spec(sho.shape[1:-1], tile)]
+    out_shape += [jax.ShapeDtypeStruct(sho.shape, sho.dtype)]
   scaled_rows = os.shape[0] if os is not None else 0
   if os is not None:  # per-tile partial scale gradients [1,C*scaled_rows], c-major.
     out_specs += [pl.BlockSpec((None, None, 1, cdim * scaled_rows), lambda bb, i: (bb, i, 0, 0))]
@@ -430,7 +459,7 @@ def _tm_read_backward_call(args, cts, opts, sh=None, om=None, os=None):
     scratch += [pltpu.VMEM((cdim * scaled_rows, tile), F32)]      # per-c O scale gradient terms, T-minor
   outs = pl.pallas_call(
       _tm_read_backward_kernel(n, opts['qk_cols'], opts['read_epsilon'], opts['key_scale'], opts['q_scale'],
-                               gated, opts['chunk'], pass_m, shifted, qdim, om is not None, os is not None),
+                               gated, opts['chunk'], pass_m, shifted, qdim, om is not None, os is not None, sho is not None),
       grid=(b, t // tile), in_specs=in_specs, out_specs=out_specs, out_shape=tuple(out_shape),
       scratch_shapes=scratch,
       input_output_aliases={len(args) + len(extra) + 4: 0} if pass_m else {},
@@ -439,6 +468,9 @@ def _tm_read_backward_call(args, cts, opts, sh=None, om=None, os=None):
   dos = None
   if os is not None:
     outs, dos = outs[:-1], jnp.sum(outs[-1], axis=(0, 1, 2)).reshape(cdim, scaled_rows).T.astype(os.dtype)
+  dsho = None
+  if sho is not None:
+    outs, dsho = outs[:-1], outs[-1]
   dm = outs[0]
   dsh = None
   if shifted:
@@ -446,7 +478,7 @@ def _tm_read_backward_call(args, cts, opts, sh=None, om=None, os=None):
     if t > tile:    # each tile's first-token M_{t-1} cotangent belongs to the previous tile's last token
       idx = slice(tile - 1, t - 1, tile)
       dm = dm.at[:, idx].set((dm[:, idx].astype(F32) + bnd[:, 1:]).astype(dm.dtype))
-  return (dm, jnp.sum(outs[1], axis=(0, 1)).T.astype(st.dtype)) + tuple(outs[2:]), dsh, dos
+  return (dm, jnp.sum(outs[1], axis=(0, 1)).T.astype(st.dtype)) + tuple(outs[2:]), dsh, dos, dsho
 
 
 def _mask_specs(om, tile):
@@ -461,23 +493,23 @@ def _tm_args(m, st, rq, lq, rk, lk, rr, lo, lv, qs, ks, sg):
   return (m, st, rq, lq, rk, lk, rr, lo, lv, qs, ks) + (() if sg is None else (sg,))
 
 
-@partial(jax.custom_vjp, nondiff_argnums=(15,))
-def _tm_read(m, st, rq, lq, rk, lk, rr, lo, lv, qs, ks, sg, sh, om, os, opts):
-  outs = _tm_read_forward_call(_tm_args(m, st, rq, lq, rk, lk, rr, lo, lv, qs, ks, sg), dict(opts), sh, om, os)
+@partial(jax.custom_vjp, nondiff_argnums=(16,))
+def _tm_read(m, st, rq, lq, rk, lk, rr, lo, lv, qs, ks, sg, sh, om, os, sho, opts):
+  outs = _tm_read_forward_call(_tm_args(m, st, rq, lq, rk, lk, rr, lo, lv, qs, ks, sg), dict(opts), sh, om, os, sho)
   return outs + (m,)
 
 
-def _tm_read_fwd(m, st, rq, lq, rk, lk, rr, lo, lv, qs, ks, sg, sh, om, os, opts):
+def _tm_read_fwd(m, st, rq, lq, rk, lk, rr, lo, lv, qs, ks, sg, sh, om, os, sho, opts):
   args = _tm_args(m, st, rq, lq, rk, lk, rr, lo, lv, qs, ks, sg)
-  return _tm_read_forward_call(args, dict(opts), sh, om, os) + (m,), (args, sh, om, os)
+  return _tm_read_forward_call(args, dict(opts), sh, om, os, sho) + (m,), (args, sh, om, os, sho)
 
 
 def _tm_read_bwd(opts, res, cts):
-  args, sh, om, os = res
-  grads, dsh, dos = _tm_read_backward_call(args, cts, dict(opts), sh, om, os)
+  args, sh, om, os, sho = res
+  grads, dsh, dos, dsho = _tm_read_backward_call(args, cts, dict(opts), sh, om, os, sho)
   # The O multiplier is a sampled constant (dropout mask): zero cotangent.
   return ((grads if len(args) == 12 else grads + (None,)) + (dsh,)
-          + (None if om is None else jnp.zeros_like(om),) + (dos,))
+          + (None if om is None else jnp.zeros_like(om),) + (dos, dsho))
 
 
 _tm_read.defvjp(_tm_read_fwd, _tm_read_bwd)
@@ -486,7 +518,7 @@ _tm_read.defvjp(_tm_read_fwd, _tm_read_bwd)
 def read_tm(m, static_weight, q_key, q_logits, k_key, k_logits, vo_key, o_logits, v_logits, q_standard,
             k_standard, *, qk_cols, read_epsilon, key_scale, forward_tile=128, reverse_tile=128,
             vmem_mib=None, interpret=False, q_scale=1.0, static_gates=None, chunk=8, pad_heads=False,
-            shift=None, o_weight_multiplier=None, o_dynamic_scale=None, v_dynamic_scale=None, **_):
+            shift=None, o_weight_multiplier=None, o_dynamic_scale=None, v_dynamic_scale=None, o_shift=None, **_):
   """v7.read's interface (keys [B,T,N,C], logits [B,T,N], standard QK [B,T,N,Rs]) for M [B,T,V,K] and
   full-M reads (C == V, identity compression). Returns (query, key, value, local_o) [B,T,N,K] and M.
 
@@ -496,6 +528,9 @@ def read_tm(m, static_weight, q_key, q_logits, k_key, k_logits, vo_key, o_logits
   shift [B,T,V]: optional previous-token share g' (zero at invalid tokens); every read then sees
   M_t + g'_t (M_{t-1} - M_t), mixed per V row on the VPU inside the kernel (one read dot, two reverse
   dots); the passthrough M stays unmixed. v5p XL kernel-only: read F/B +10%/+10% over the plain read.
+
+  o_shift [B,T,V]: optional independent O-only previous-token shares. Q/K/V keep shift;
+  static and dynamic O both read with o_shift. The M passthrough is unchanged.
 
   o_dynamic_scale [N,V]: optional learned per-head coordinate scale of the dynamic O key after its RMS
   norm (static O and Q/K untouched). v_dynamic_scale optionally applies the same
@@ -532,6 +567,10 @@ def read_tm(m, static_weight, q_key, q_logits, k_key, k_logits, vo_key, o_logits
     # the effective O weight (static + gated dynamic, after the key RMS norm); V/Q/K keys untouched.
     assert o_weight_multiplier.shape == (b, t, n, cdim), o_weight_multiplier.shape
     args += (keys(o_weight_multiplier.astype(q_key.dtype)),)              # [B,C,NP,T]
+  if o_shift is not None:
+    if shift is None or o_shift.shape != (b, t, cdim):
+      raise ValueError('Independent O shift requires common shift and matching [B,T,V] gates')
+    args += (_minor_t(o_shift),)
   scaled = o_dynamic_scale is not None or v_dynamic_scale is not None
   if scaled:
     for gamma in (v_dynamic_scale, o_dynamic_scale):
@@ -546,10 +585,11 @@ def read_tm(m, static_weight, q_key, q_logits, k_key, k_logits, vo_key, o_logits
   def local(m, st, *xs):
     xs = list(xs)
     os = xs.pop() if scaled else None
+    sho = xs.pop() if o_shift is not None else None
     om = xs.pop() if o_weight_multiplier is not None else None
     sh = xs.pop() if shift is not None else None
     sg = xs.pop() if gated else None
-    return _tm_read(m, st, *xs, sg, sh, om, os, opts)
+    return _tm_read(m, st, *xs, sg, sh, om, os, sho, opts)
 
   outs = _map_batch(local, args, (True, False) + (True,) * (len(args) - 2 - scaled) + (False,) * scaled, 5)
   outs = tuple(checkpoint_name(o, 'bam_read_out') for o in outs[:4]) + (outs[4],)

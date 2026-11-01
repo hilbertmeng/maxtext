@@ -15,6 +15,16 @@ def validate_bam_config(config, *, layer_mode=None):
   if get('bam_memory_mlp_use_bias', False) and (
       get('bam_memory_mlp_share_hidden', False) or get('bam_memory_mlp_half', False)):
     raise ValueError('Memory MLP bias requires separate hidden and output projections')
+  if get('bam_local_o_independent_m_shift', False):
+    if (get('bam_m_shift_mode', None) != 'read'
+        or not get('bam_local_vo_independent_keys', False)
+        or not get('bam_local_vo_independent_gates', False)
+        or not get('bam_local_full_m_read_bottleneck_dim', None)
+        or get('bam_standard_value_layers', None) or get('bam_hybrid_v_num_heads', 0)
+        or get('bam_persistent_embedding_m', False)):
+      raise ValueError('Independent O shift requires uncompressed independent-VO read-only M-shift')
+    if get('bam_pallas_core', False) and get('bam_pallas_body', None) != 'v8t':
+      raise ValueError('Independent O shift Pallas support requires v8t')
   if get('bam_context_local_o_complement', False):
     if (get('bam_read_gate_activation', 'sigmoid') != 'sigmoid'
         or not get('bam_local_vo_independent_gates', False)

@@ -771,3 +771,5 @@ bam_attention_write_content_divisor: null
 bam_mlp_write_content_divisor: null
 
 bam_memory_mlp_use_bias: False # Zero-initialized hidden/output biases in the dedicated memory MLP.
+
+bam_local_o_independent_m_shift: False # Own per-column O shift; Q/K/V keep the original shared shift.

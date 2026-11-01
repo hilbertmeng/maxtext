@@ -19951,6 +19951,7 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     # Started UE5a v5p-16 xd-v5p-16-310491-maxtext, plan13500; generic health ON, internal/BAM OFF.
     # Startup20-99 aggregate 0.67436 step/s; historical H .669875 has an older read kernel.
     # Actual worker parameters 432111443 (H-767); AOT/source/data/full-model gradients verified.
+    # Inference: extra final-written previous-M slot, 2400 BF16 elements/sequence.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedFinalLocalORelocatedLastWritesShiftTruePile'
     bam_final_local_o_relocate = True
     bam_final_local_o_shift = True
@@ -19981,6 +19982,7 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     # Started UE5a v5p-16 xd-v5p-16-310493-maxtext, plan13500; generic health ON, internal/BAM OFF.
     # Startup20-99 aggregate 0.68335 step/s; historical H .669875 has an older read kernel.
     # Actual worker parameters 432111443 (H-767); AOT/source/data/full-model gradients verified.
+    # Inference: extra final-written previous-M slot, 2400 BF16 elements/sequence.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedFinalLocalORelocatedLastWritesShiftSelfAttentionTruePile'
     bam_final_local_o_relocate = True
     bam_final_local_o_shift = True

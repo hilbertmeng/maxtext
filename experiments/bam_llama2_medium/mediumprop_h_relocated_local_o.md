@@ -28,7 +28,10 @@ IDs310490 masked/raw,310491 masked/shift,310492 restored/raw,310493 restored/shi
 All repay only the last ordinary MLP: raw2036, shift2025; private1128. Formal
 worker-shape trees432112611 (H+401) and432111443 (H-767), H432112210. Old extra-exit
 writers-ON comparator had last ordinary1989. Removing its original O saves170528
-parameters; new exit shift costs38432. No new M-cache.
+parameters; new exit shift costs38432. Raw exit adds no temporal M-cache.
+With final writes ON, shifted exit adds one final-written previous-M slot per
+sequence (75x32=2400 elements=4.6875KiB BF16); it cannot reuse pre-write L17 M.
+This corrects the earlier blanket cache-unchanged statement. Fifth arm is unchanged.
 
 ## Fifth arm
 

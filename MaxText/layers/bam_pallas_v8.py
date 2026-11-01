@@ -263,7 +263,8 @@ def _tm_read_kernel(n, qk_cols, eps, scale, q_scale, gated, ch, shifted=False, q
           xhat = row * iv
           if 'no_xhat' not in ablate:
             (xq_ref if a == 0 else xk_ref)[h] = xhat.astype(xq_ref.dtype)
-          col_scr[:, pl.ds(h, 1)] = iv[:, :1]
+          if 'no_colstore' not in ablate:
+            col_scr[:, pl.ds(h, 1)] = iv[:, :1]
           ref[h] = (xhat * mm_ref[pl.ds(a, 1), :]).astype(ref.dtype)
           continue
         if a < 2:     # columns >= qk_cols are the standard (rotated) Q/K coordinates

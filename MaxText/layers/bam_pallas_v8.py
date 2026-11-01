@@ -202,7 +202,8 @@ def _tm_read_kernel(n, qk_cols, eps, scale, q_scale, gated, ch, shifted=False, q
           # logit scale) for attention, plus xhat and 1/r as reverse residuals.
           q_eps, width = qk_norm
           local = y[:, :qk_cols]
-          row = jnp.concatenate((local, (qs if a == 0 else ks)[h].astype(F32)), axis=1)
+          rs = qdim - qk_cols
+          row = jnp.concatenate((local, (qs if a == 0 else ks)[:, pl.ds(h * rs, rs)].astype(F32)), axis=1)
           local_ss = jnp.sum(local * local, axis=1, keepdims=True)                 # [T, 1]
           iv = jax.lax.rsqrt((local_ss + ss_cols[:, h:h + 1]) / width + q_eps)
           xhat = row * iv
@@ -283,12 +284,14 @@ def _tm_read_backward_kernel(n, qk_cols, eps, scale, q_scale, gated, ch, pass_m,
     for a, ref in enumerate((dq, dk, dv, do)):
       if a < 2 and qk_norm:
         inv_cols = _to_tokens(inv_ref[a])                                  # [T, NP]
+        std_parts = []
       for h in range(np_):
         rows = a * np_ + h
         if h >= n:
           _put(dy_scr, rows, zrow)
           if a < 2 and qk_norm:
             col_scr[:, pl.ds(h, 1)] = jnp.zeros((t, 1), F32)
+            std_parts.append(jnp.zeros((t, qdim - qk_cols), F32))
           continue
         y = ref[h].astype(F32)
         if a < 2 and qk_norm:
@@ -302,8 +305,7 @@ def _tm_read_backward_kernel(n, qk_cols, eps, scale, q_scale, gated, ch, pass_m,
           gm = y * mm_ref[pl.ds(a, 1), :]
           s_ = jnp.sum(gm * xhat, axis=1, keepdims=True) / width               # [T, 1]
           local = iv * (gm[:, :qk_cols] - xhat[:, :qk_cols] * s_)
-          ds = dqs if a == 0 else dks
-          ds[h] = (iv * gm[:, qk_cols:]).astype(ds.dtype)                       # token-major [T, Rs]
+          std_parts.append(iv * gm[:, qk_cols:])                               # token-major [T, Rs]
           col_scr[:, pl.ds(h, 1)] = -.5 * iv * iv * s_
           dmm[a] = dmm[a] + jnp.sum(y * xhat, axis=0, keepdims=True)
           if qk_cols < kdim:
@@ -328,6 +330,8 @@ def _tm_read_backward_kernel(n, qk_cols, eps, scale, q_scale, gated, ch, pass_m,
         _put(dy_scr, rows, y)
       if a < 2 and qk_norm:
         dss_ref[a] = _from_tokens(col_scr[...])                          # [NP, T]
+        ds = dqs if a == 0 else dks
+        ds[...] = jnp.concatenate(std_parts, axis=1).astype(ds.dtype)    # [T, NP*Rs]
     # Per-token matmuls: dX_t^T = M_t dY_t^T, dM_t = X_t^T dY_t; dS = sum_t sg * dX^T.
     sgt = _to_tokens(sg) if gated else None                                # [T, R]
     dst = jnp.zeros((cdim, r), F32)
@@ -416,8 +420,8 @@ def _tm_read_backward_kernel(n, qk_cols, eps, scale, q_scale, gated, ch, pass_m,
 
 
 def _std_tok_spec(shape, tile):
-  """Token-major standard Q/K [B,N,T,Rs] (fused QKNorm) in [N, tile, Rs] blocks."""
-  return pl.BlockSpec((None, shape[1], tile, shape[3]), lambda bb, i: (bb, 0, i, 0))
+  """Token-major standard Q/K [B,T,NP*Rs] (fused QKNorm): lane-dense [tile, NP*Rs] blocks."""
+  return pl.BlockSpec((None, tile, shape[2]), lambda bb, i: (bb, i, 0))
 
 
 def _tm_read_specs(args, tile, packed=False, std_tok=False):
@@ -655,7 +659,7 @@ def read_tm(m, static_weight, q_key, q_logits, k_key, k_logits, vo_key, o_logits
                       q_scale=float(q_scale), chunk=chunk, **({'qdim': qdim} if qdim > m.shape[-1] else {}),
                       **({} if qk_norm is None else {'qk_norm': (float(qk_norm[4]), float(qdim))})))
   padn = lambda x: jnp.pad(x, [(0, 0)] * (x.ndim - 2) + [(0, np_ - n), (0, 0)]) if np_ > n else x
-  padn_tok = lambda x: jnp.pad(x, [(0, 0), (0, np_ - n), (0, 0), (0, 0)]) if np_ > n else x   # [B,N,T,Rs]
+  padn_tok = lambda x: jnp.pad(x, [(0, 0), (0, 0), (0, np_ - n), (0, 0)]) if np_ > n else x   # [B,T,NP,Rs]
   keys = lambda x: padn(jnp.transpose(x, (0, 3, 2, 1)))                  # [B,T,N,C] -> [B,C,NP,T]
   gate = lambda x: padn(_minor_t(x))                                      # [B,T,N] -> [B,NP,T]
   sw = static_weight.astype(F32)
@@ -668,7 +672,7 @@ def read_tm(m, static_weight, q_key, q_logits, k_key, k_logits, vo_key, o_logits
     rr_ = (keys(vo_key) if vo_key.shape[2] == n else
            jnp.concatenate(tuple(keys(x) for x in jnp.split(vo_key, 2, axis=2)), axis=2))
     rq_, rk_ = keys(q_key), keys(k_key)
-  std = ((lambda x: padn_tok(jnp.transpose(x, (0, 2, 1, 3)))) if qk_norm is not None else _minor_t)
+  std = ((lambda x: padn_tok(x).reshape(b, t, -1)) if qk_norm is not None else _minor_t)
   args = (m, st, rq_, gate(q_logits), rk_, gate(k_logits), rr_, gate(o_logits),
           gate(v_logits), std(q_standard), std(k_standard))
   gated = bool(static_gates)

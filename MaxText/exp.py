@@ -17653,6 +17653,20 @@ class BamPythia2p8BHSpeedHUnit300BSaveSplashProfile(BamPythia2p8BHSpeedHUnit300B
     remat_policy = 'minimal_save_splash'
 
 
+class BamPythia2p8BHSpeedHUnit300BFusedSaveSplashProfile(BamPythia2p8BHSpeedHUnit300BFusedQKNormProfile):
+    """Fused QKNorm H keeping Splash residuals."""
+    model_name = 'BamPythia2p8BHSpeedHUnit300BFusedSaveSplashProfile'
+    bam_splash_residual_name = 'bam_splash_residual'
+    remat_policy = 'minimal_save_splash'
+
+
+class BamPythia2p8BHSpeedHUnit300BFusedSaveSplashReadProfile(BamPythia2p8BHSpeedHUnit300BFusedQKNormProfile):
+    """Fused QKNorm H keeping Splash residuals and the fused read outputs (Splash Q/K/V)."""
+    model_name = 'BamPythia2p8BHSpeedHUnit300BFusedSaveSplashReadProfile'
+    bam_splash_residual_name = 'bam_splash_residual'
+    remat_policy = 'minimal_save_splash_read'
+
+
 class BamPythia2p8BHSpeedHUnit300BFusedPackedSaveSplashProfile(BamPythia2p8BHSpeedHUnit300BFusedPackedProfile):
     """Fused/packed H keeping Splash residuals."""
     model_name = 'BamPythia2p8BHSpeedHUnit300BFusedPackedSaveSplashProfile'

@@ -169,3 +169,35 @@ long-prefix gamma common comparator. Raw evidence and prior figures remain
 archived. Corrected direct/family figures retain the other two histories and
 each original historical endpoint, excluding the initial2k. No active agent
 monitor loop was started by this stop request.
+
+
+## 2026-11-01: CommonRead 18k tail MHA necessity
+
+Read-only inference compared the two actual committed checkpoints:
+
+- Depth-init: `BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80CommonReadScaleUnscaledMLPContentEmbeddingFixed` @18000, training source `9c11469da97a0ade00530448736e55024bfd6e99`.
+- InitOne: the same class plus `ReadScaleInitOne` @18000, training source `6c5dbfe9df446b1c6f6421616f7af97156c7f9a5`.
+- Original long-prefix `LocalODynamicNormScale020` @16000, source `5c3a995444897bd8a148a2e888a8c0e1d6721c6b`, and original Full QK80+20 @18000, source `44141a7c22c395255a6d0d58fff8e103d9a3fe87`. The former is the original comparator, not the later CommonRead+gamma variant. Old Full12k/16k data are retained as historical references, without claiming they were rerun.
+
+Diagnostic source is frozen at `e9e03842d5287a10a2157ef8d797e3a0f4911530` on `mqy/diag-common-read-18k-20261101`. The actual resolved configs and abstract parameter counts were verified against each training RUN before inference. Both new models have 2,775,190,912 parameters. CommonRead is a learned signed scalar per layer, initialized as `1/sqrt(1+2*l)` or one; it scales both V and full static+dynamic direct O, not O alone. The embedding writer uses fixed divisor .0020825863 and the memory-MLP writer has no content RMSNorm; attention writes retain content RMSNorm.
+
+Reused the original32 fixed Pile training-source texts, each2048 targets (not held-out valid). Native BF16 forward, explicit FP32 CE, batch4; RMS uses64 fixed query positions>=64. Whole-layer interventions remove all32 heads. `combined` changes vector output and the current attention M-write; `vector` changes only the vector output while retaining that attention call's write. Downstream computation, including FFN writes, remains live. There are163 interventions per new checkpoint,652 total, with genuine joint-band deletion rather than sums of single-layer effects. Paired4000 whole-text bootstraps use the same weights across models; intervals do not cover training-seed variation or numerical errors.
+
+Last4 layers L29–32, **vector-only** deletion, Delta CE in nats/token:
+
+| Model | Native CE | Mean single-layer MHA deletion | Joint MHA deletion | Joint M_o deletion | Post-Wo pooled M_o/MHA RMS |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Original Norm020 @16k | 2.27390 | .002876 | .016805 | .294780 | 3.070 |
+| Original Full @18k | 2.25502 | .002893 | .016289 | .303732 | 4.170 |
+| Depth-init @18k | 2.24076 | .004729 | .032137 | .208699 | 3.602 |
+| InitOne @18k | 2.24572 | .006360 | .032417 | .451763 | 6.339 |
+
+Both new models show increased tail MHA necessity even against the matched18k Full. Paired joint-MHA differences vs Full are +.015848 [95% CI .006579,.028707] and +.016129 [.013369,.019178]. Depth-init reduces joint direct-O dependence vs Full by -.095033 [-.134478,-.061567], while InitOne increases it by +.148031 [.108381,.199020]. Thus the lower CE is not evidence that both models shifted away from direct O. InitOne vs depth-init joint direct-vector MHA differs by only +.000281 [-.010977,.008848]; the larger InitOne single-layer mean does not establish greater joint tail necessity.
+
+The recovery is partial and layer-dependent. Against Norm020, depth-init combined changes concentrate in L30/31, with vector-only L31 the clearest. L32 MHA deletion is .004465 (depth-init), .007924 (InitOne), versus .004022 Norm020 and .004625 Full18k. Depth-init L25–28 vector joint MHA is only .014000 vs Norm020 .037706, so this is not uniform upper-layer recovery. At L32 post-Wo M_o/MHA RMS is4.006/5.532/5.527/11.473 for Norm/Full/depth-init/InitOne. InitOne raises both branch amplitudes, especially O; it does not make their amplitudes equal. Deletion sensitivity measures frozen-network necessity, not additive loss attribution, attention quality, contextual use, or retraining benefit.
+
+Quality: signed-negative common-scale and raw-writer CPU parity/projection/route-scope tests passed; per-text native-neutral drift <=.001764 across the four runs, projection closure <.002424. Norm16 native replay is exactly equal to the previous per-text CE, with independent gamma-restore and pooled-energy checks. Chunk inputs/targets, source, checkpoint step/identity, case-plan digest and finite FP32 scores were verified locally for all652 cases. L32 combined/vector raw arrays are exactly equal as required by no attention write at that layer. Dropping the first64 target positions preserves the main new-model tail pattern.
+
+One owned EW4a Spot v6e-1 was active at a time. A preemption was recovered by resuming committed eight-case chunks on a new owned v6e-1; no training or checkpoint modification occurred. Final node/queue absence and local browser checks are recorded with the report. Other training workflows and ag2 `/home/lishengping/xd` were untouched.
+
+Artifacts: `/data0/mengqy/bam_diagnostics/common_read_18k_20261101/`; protocol, verified metadata, controller and report under `/home/mengqy/Projects/Bam/training_reports/common_read_18k_20261101/`. GCS root: `gs://newproject-1-llm_projects_us-east5/log/diagnostics/mengqy/common_read_18k_20261101`. Reproduction: `MaxText/readscale_probe.py`, `MaxText/readscale_capture.py`, `MaxText/readscale_cases.py`, `MaxText/readscale_ce.py` at the frozen diagnostic commit; sealed arguments/config/checkpoint identities are in `arms.json` and `protocol.json` in that root's scripts archive. Live HTML: http://172.29.142.228:8873/shorttrain/no-self-readout/common-read-18k/ .

@@ -69,7 +69,7 @@ def break_missing_windows(xs, ys):
 
 def render(payloads, output_dir, *, prefix='training-progress', start=600,
            runs=(), bases=(), labels=None, title=None, notes=(), sources=(), run_colors=None,
-           dpi=120):
+           dpi=120, facet_by_base=False):
   import matplotlib
   matplotlib.use('Agg')
   import matplotlib.pyplot as plt
@@ -81,12 +81,19 @@ def render(payloads, output_dir, *, prefix='training-progress', start=600,
   if not pairs:
     raise ValueError(f'No selected cumulative points at/after step {start}')
   labels = labels or {}
-  fig, axes = plt.subplots(2, 1, figsize=(12.8, 8), sharex=True)
+  columns = ([base for base in bases if any(pair[1] == base for pair in pairs)]
+             if bases else sorted({base for _, base in pairs})) if facet_by_base else [None]
+  fig, grid = plt.subplots(2, len(columns), squeeze=False,
+      figsize=(max(12.8, 6.8 * len(columns)), 8), sharex=True, sharey='row')
+  if facet_by_base:
+    for column, base in enumerate(columns):
+      grid[0, column].set_title(labels.get(base, base), fontsize=11)
   warnings, shown = [], []
   for index, pair in enumerate(pairs):
     run, base = pair
+    axes = grid[:, columns.index(base) if facet_by_base else 0]
     color = (run_colors or {}).get(run, f'C{index % 10}')
-    label = f'{labels.get(run, run)} vs {labels.get(base, base)}'
+    label = labels.get(run, run) if facet_by_base else f'{labels.get(run, run)} vs {labels.get(base, base)}'
     gap = gaps.get(pair, {})
     steps = sorted(gap)
     if steps:
@@ -112,27 +119,30 @@ def render(payloads, output_dir, *, prefix='training-progress', start=600,
         warnings.append(f'Missing/undefined gain windows remain blank: {run}|{base}|{reference}')
     shown.append(dict(run=run, base=base, gap_through=max(steps) if steps else None,
                       gain_through=gain_horizons))
-  for axis, center, ylabel in zip(axes, (0, 1),
-      ('Loss gap: experiment - comparator\n(lower is better)',
-       'Gain multiplier\n(higher is better)')):
-    axis.axhline(center, color='#777', linestyle=':', linewidth=1)
-    axis.set_ylabel(ylabel)
-    axis.grid(alpha=.2)
-    if axis.lines and axis.get_legend_handles_labels()[1]:
-      axis.legend(frameon=False, fontsize=8, loc='best')
+  for column in range(len(columns)):
+    for axis, center, ylabel in zip(grid[:, column], (0, 1),
+        ('Loss gap: experiment - comparator\n(lower is better)',
+         'Gain multiplier\n(higher is better)')):
+      axis.axhline(center, color='#777', linestyle=':', linewidth=1)
+      if column == 0:
+        axis.set_ylabel(ylabel)
+      axis.grid(alpha=.2)
+      if axis.lines and axis.get_legend_handles_labels()[1]:
+        axis.legend(frameon=False, fontsize=8, loc='best')
   end = max(point['step'] for table in (gaps, ratios) for points in table.values()
             for point in points.values())
   ticks = MaxNLocator(nbins=6, integer=True).tick_values(start, max(start + 1, end))
-  axes[1].set_xticks(sorted({start, end} | {int(x) for x in ticks if start < x < end}))
-  axes[1].set_xlim(max(0, start - 20), end + max(20, (end - start) * .01))
-  axes[1].set_xlabel('Training step')
+  for axis in grid[1]:
+    axis.set_xticks(sorted({start, end} | {int(x) for x in ticks if start < x < end}))
+    axis.set_xlim(max(0, start - 20), end + max(20, (end - start) * .01))
+    axis.set_xlabel('Training step')
   fig.suptitle(title or 'Cumulative loss gaps and gain multipliers', fontsize=14)
   footer = [f'Registry window means; cumulative from step {start}; no smoothing or extrapolation.',
             *notes]
   if warnings:
     footer.append('Missing/undefined ratios are blank; see provenance JSON for details.')
   bottom = min(.35, .12 + .012 * len(footer))
-  fig.subplots_adjust(left=.105, right=.985, bottom=bottom, top=.90, hspace=.15)
+  fig.subplots_adjust(left=.105, right=.985, bottom=bottom, top=.90, hspace=.15, wspace=.10)
   fig.text(.06, .025, '\n'.join(footer), fontsize=8, color='#444')
   output_dir = Path(output_dir).expanduser().resolve()
   output_dir.mkdir(parents=True, exist_ok=True)
@@ -150,6 +160,7 @@ def render(payloads, output_dir, *, prefix='training-progress', start=600,
   # Keep exact native series and identities beside each unique PNG for reproducibility.
   provenance = dict(figure=str(path), generated_utc=stamp, sources=list(sources),
       plot_start=start, title=title, labels=labels, run_colors=run_colors or {}, notes=list(notes), shown=shown,
+      facet_by_base=facet_by_base, column_bases=columns,
       image=dict(dpi=dpi, width=image_size[0], height=image_size[1],
                  format='PNG', palette_colors=256, bytes=path.stat().st_size),
       warnings=warnings,
@@ -173,6 +184,8 @@ def main():
                       help='PNG rendering resolution (default:120; use180 for larger text detail)')
   parser.add_argument('--run', action='append', default=[])
   parser.add_argument('--base', action='append', default=[])
+  parser.add_argument('--facet-by-base', action='store_true',
+                      help='One comparator per column; share loss/gain y limits across columns')
   parser.add_argument('--label', nargs=2, action='append', default=[], metavar=('RUN', 'LABEL'))
   parser.add_argument('--color', nargs=2, action='append', default=[], metavar=('RUN', 'COLOR'))
   parser.add_argument('--title')
@@ -184,7 +197,7 @@ def main():
     texts = [path.read_bytes() for path in args.reports]
     result = render([json.loads(text) for text in texts], args.output_dir,
         prefix=args.prefix, start=args.start_step, runs=args.run, bases=args.base,
-        dpi=args.dpi,
+        dpi=args.dpi, facet_by_base=args.facet_by_base,
         labels=dict(args.label), run_colors=dict(args.color), title=args.title, notes=args.note,
         sources=[dict(path=str(p.resolve()), sha256=hashlib.sha256(text).hexdigest())
                  for p, text in zip(args.reports, texts)])

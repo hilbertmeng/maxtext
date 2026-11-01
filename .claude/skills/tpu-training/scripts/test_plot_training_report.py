@@ -4,6 +4,7 @@ import math
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
 
 import plot_training_report as plot
 
@@ -64,6 +65,34 @@ class PlotRegistryReportTest(unittest.TestCase):
       with self.assertRaisesRegex(ValueError, 'No selected cumulative points'):
         plot.render([example()], directory, start=2000)
       self.assertEqual(list(Path(directory).iterdir()), [])
+
+  def test_comparator_columns_keep_curves_and_limits_matched(self):
+    import matplotlib.pyplot as plt
+    payload = example()
+    other = {'reports': [{'run': 'OtherRun', 'base': 'OtherParent',
+                         'series': [{'step': 600, 'gap': -.07}]}],
+             'gain_ratios': [{'run': 'OtherRun', 'comparator': 'OtherParent',
+                             'reference': 'MHA',
+                             'series': [{'step': 600, 'ratio': 1.23}]}]}
+    real_subplots = plt.subplots
+    captured = {}
+    def capture(*args, **kwargs):
+      fig, grid = real_subplots(*args, **kwargs)
+      captured['grid'] = grid
+      return fig, grid
+    with tempfile.TemporaryDirectory() as directory, patch.object(plt, 'subplots', capture):
+      result = plot.render([payload, other], directory, facet_by_base=True,
+                           bases=['OtherParent', 'Parent'])
+      meta = json.loads(Path(result['provenance']).read_text())
+    grid = captured['grid']
+    self.assertEqual(grid.shape, (2, 2))
+    self.assertEqual(grid[0, 0].get_legend_handles_labels()[1], ['OtherRun'])
+    self.assertEqual(grid[0, 1].get_legend_handles_labels()[1], ['Run', 'Slow'])
+    self.assertEqual(grid[0, 0].get_ylim(), grid[0, 1].get_ylim())
+    self.assertEqual(grid[1, 0].get_ylim(), grid[1, 1].get_ylim())
+    self.assertEqual(list(grid[1, 0].lines[0].get_ydata()), [1.23])
+    self.assertEqual(len(meta['shown']), 3)
+    self.assertEqual(meta['column_bases'], ['OtherParent', 'Parent'])
 
 
 if __name__ == '__main__':

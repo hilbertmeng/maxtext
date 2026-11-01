@@ -20032,3 +20032,68 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     bam_qk_static_only_arms = 'k'
     bam_final_local_mlp_dim = 2552
     bam_last_mlp_dim = 3946
+
+
+class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedFinalLocalORelocatedLastWritesTruePile(
+    BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedFinalLocalOLastWritesTruePile):
+    """Move L17 localO after its MLP; final writers ON, paired shift/self mask."""
+    # ledger only; sealed runtime4083fd1, codex/mediumprop-h-final-local-o.
+    # Implementation: /data0/xd/mediumprop-h-final-local-o; relocated-O2x2 plus last-only split W_O.
+    model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedFinalLocalORelocatedLastWritesTruePile'
+    bam_final_local_o_relocate = True
+    bam_final_local_o_shift = False
+    bam_final_local_o_restore_self_attention = False
+    bam_last_mlp_dim = 2036
+    compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedTruePile', 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedFinalLocalOLastWritesTruePile']
+
+
+class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedFinalLocalORelocatedLastWritesShiftTruePile(
+    BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedFinalLocalOLastWritesTruePile):
+    """Move L17 localO after its MLP; final writers ON, paired shift/self mask."""
+    # ledger only; sealed runtime4083fd1, codex/mediumprop-h-final-local-o.
+    # Implementation: /data0/xd/mediumprop-h-final-local-o; relocated-O2x2 plus last-only split W_O.
+    model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedFinalLocalORelocatedLastWritesShiftTruePile'
+    bam_final_local_o_relocate = True
+    bam_final_local_o_shift = True
+    bam_final_local_o_restore_self_attention = False
+    bam_last_mlp_dim = 2025
+    compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedTruePile', 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedFinalLocalOLastWritesTruePile']
+
+
+class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedFinalLocalORelocatedLastWritesSelfAttentionTruePile(
+    BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedFinalLocalOLastWritesTruePile):
+    """Move L17 localO after its MLP; final writers ON, paired shift/self mask."""
+    # ledger only; sealed runtime4083fd1, codex/mediumprop-h-final-local-o.
+    # Implementation: /data0/xd/mediumprop-h-final-local-o; relocated-O2x2 plus last-only split W_O.
+    model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedFinalLocalORelocatedLastWritesSelfAttentionTruePile'
+    bam_final_local_o_relocate = True
+    bam_final_local_o_shift = False
+    bam_final_local_o_restore_self_attention = True
+    bam_last_mlp_dim = 2036
+    compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedTruePile', 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedFinalLocalOLastWritesTruePile']
+
+
+class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedFinalLocalORelocatedLastWritesShiftSelfAttentionTruePile(
+    BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedFinalLocalOLastWritesTruePile):
+    """Move L17 localO after its MLP; final writers ON, paired shift/self mask."""
+    # ledger only; sealed runtime4083fd1, codex/mediumprop-h-final-local-o.
+    # Implementation: /data0/xd/mediumprop-h-final-local-o; relocated-O2x2 plus last-only split W_O.
+    model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedFinalLocalORelocatedLastWritesShiftSelfAttentionTruePile'
+    bam_final_local_o_relocate = True
+    bam_final_local_o_shift = True
+    bam_final_local_o_restore_self_attention = True
+    bam_last_mlp_dim = 2025
+    compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedTruePile', 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedFinalLocalOLastWritesTruePile']
+
+
+
+
+class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedSplitLastOutputProjectionsTruePile(
+    BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedTruePile):
+    """H: independent context/localO W_O only at L17, before its MLP."""
+    # ledger only; sealed runtime4083fd1, codex/mediumprop-h-final-local-o.
+    # Implementation: /data0/xd/mediumprop-h-final-local-o; relocated-O2x2 plus last-only split W_O.
+    model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedSplitLastOutputProjectionsTruePile'
+    bam_split_last_output_projections = True
+    bam_last_mlp_dim = 3504
+    compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedTruePile']

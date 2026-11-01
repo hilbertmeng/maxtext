@@ -20102,6 +20102,11 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedIndependentOMShiftTruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedTruePile):
     """H: O gets its own columnwise previous-token mix; Q/K/V keep common M-shift."""
+    # code_commit: 10366ac; ledger only, codex/mediumprop-h-o-mshift.
+    # Started UE5a v5p-16 xd-v5p-16-310495-maxtext, plan13500; generic health ON, internal/BAM OFF.
+    # Startup20-99 aggregate 0.66760 step/s; historical H .669875 uses older read kernel.
+    # Actual parameters432091186=H-21024; widths2499/private1128/tail3893, unchanged M-cache.
+    # Kernel/reference and full-model all gradients, original shift/summary/BAM regressions passed.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedIndependentOMShiftTruePile'
     bam_local_o_independent_m_shift = True
     base_mlp_dim = 2499

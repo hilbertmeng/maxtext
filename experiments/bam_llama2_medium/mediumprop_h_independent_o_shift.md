@@ -63,3 +63,23 @@ recent same-model P0 leases; no passive backup probes. All earlier five O-placem
 runs remain runtime4083fd1 in their separate worktree, actively monitored. H is
 the only direct baseline; common gain reference MHA. This is a separate report
 group, default2000 cadence/reviews4000,8000; do not delay the earlier group.
+
+## Verified launch and compiler handoff
+
+Runtime10366ac, actual first0 and99 verified; worker full hash, Loaded compiled
+function, real truepile4096 path and432091186 parameters match. Startup20-99
+aggregate.667602/median.671 step/s, -0.339% vs historicalH.669875 (mixed runtime/
+architecture comparison). Five new CPU checks, original8 shift checks, five
+summary-writer tests and47 BAM tests passed. Exact target AOT also compiled.
+
+The retained FLEX0 was occupied by another session's full-layer context probe.
+On user's instruction, stopped only our waiting coordinator/AOT waiter,
+preserved CPU checks and the already-READY310495 trainer; used managed spotv6e
+compiler instead of waiting. UC1a primary then EW4a/UE5a staged backups. EW4a
+xd-v6e-aot-10366ac-e44fa-ewa4a compiled the225506979-byte artifact. Its node and
+queue, plus both backup/primary candidates, independently NOT_FOUND after cleanup.
+Original FLEX/other diagnostic untouched. Started trainer as soon as verified
+AOT_READY appeared, while compiler cleanup continued asynchronously; no duplicate
+training controller and no teardown of the retained training prequeue.
+Groupmedium-h-independent-o-mshift, cadence2000/reviews4000,8000, H only/MHA
+reference. Other five experiments remain separately monitored at runtime4083fd1.

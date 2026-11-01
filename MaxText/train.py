@@ -935,7 +935,7 @@ def compute_params_norm(params, config, prefix='total_params'): # lsp
   for k, v in flat_param_norms.items():
     k = '/'.join(k)
     newk = k.replace('params', prefix)
-    if prefix == 'total_params' and k.endswith('/common_vo_read_scale'):
+    if prefix == 'total_params' and k.endswith(('/common_vo_read_scale', '/common_qk_read_scale')):
       # Signed per-layer values; the norm below would discard the sign.
       values = jax.lax.stop_gradient(v).astype(jnp.float32)
       if config.scan_layers and 'layers' in k:

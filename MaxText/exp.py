@@ -17434,6 +17434,20 @@ class BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80CommonReadScaleU
     bam_common_vo_read_scale_init = 1.0
 
 
+class BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneCommonQKScale(
+        BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOne):
+    """Add one learned scalar per layer, shared by complete local Q/K reads.
+
+    Initialize to 1 before concatenation and full-head QKNorm. Keep the
+    parent's independent unit-initialized V/local O scale and disable dynamic
+    O gamma. Add 32 parameters (0.00000488 W_Q total), exempt from MLP repayment;
+    GELU widths 7808/2944/tail 9984, M-cache and the 28000-step plan are unchanged.
+    """
+    model_name = 'BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneCommonQKScale'
+    bam_common_qk_read_scale = True
+    compare_runs = ['BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOne']
+
+
 class BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80CommonReadScaleUnscaledMLPContentEmbeddingFixedContextLocalOComplement(
         BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80CommonReadScaleUnscaledMLPContentEmbeddingFixed):
     """Use opposing same-token/head gates for context and dynamic local O in H.

@@ -123,8 +123,11 @@ class PythiaCommonReadRawWriteTest(MLPWriteTest, unittest.TestCase):
         np.testing.assert_array_equal(a, b)
       flat = flatten_dict(params)
       for i, path in enumerate(flat):   # break the unit/layer-constant initial scales
-        if path[-1] in ('local_o_dynamic_norm_scale', 'common_vo_read_scale'):
+        if path[-1] in ('local_o_dynamic_norm_scale', 'common_vo_read_scale', 'common_qk_read_scale'):
           flat[path] = flat[path] * (1 + .3 * jax.random.normal(jax.random.key(70 + i), flat[path].shape))
+          if path[-1] == 'common_qk_read_scale':
+            # Exercise the pre-norm denominator at zero, fractional and negative scales.
+            flat[path] = jnp.asarray([0., .6] if flat[path].size == 2 else [-1.4], flat[path].dtype).reshape(flat[path].shape)
       params = unflatten_dict(flat)
       def call(model, p):
         return model.apply(p, tok, pos, seg, tok, enable_dropout=False)[0].astype(jnp.float32)
@@ -138,7 +141,7 @@ class PythiaCommonReadRawWriteTest(MLPWriteTest, unittest.TestCase):
     fa, fb = flatten_dict(ga), flatten_dict(gb)
     self.assertTrue(all(bool(jnp.all(jnp.isfinite(v))) for v in jax.tree.leaves((a, b, ga, gb))))
     for path, value in fa.items():
-      if path[-1] in ('common_vo_read_scale', 'local_o_dynamic_norm_scale'):
+      if path[-1] in ('common_vo_read_scale', 'local_o_dynamic_norm_scale', 'common_qk_read_scale'):
         self.assertGreater(float(jnp.max(jnp.abs(value))), 0., str(path))
     if dtype == 'float32':
       errors = {k: float(jnp.max(jnp.abs(v - fb[k])) / (jnp.max(jnp.abs(v)) + 1e-12)) for k, v in fa.items()}

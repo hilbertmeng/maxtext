@@ -4080,7 +4080,7 @@ class BamAttention(Attention):
     return out
 
   def _pallas_core_call(self, inputs_q, inputs_positions, decoder_segment_ids, M_in, is_global,
-                        standard_qk_width, deterministic=False, common_vo_scale=None):
+                        standard_qk_width, deterministic=False, common_vo_scale=None, common_qk_scale=None):
     """Fused-kernel forward; M_in is token-minor [B,V,K,T] (token-major [B,T,V,K] for v8t).
 
     Returns (out, M_in, write factors)."""
@@ -4295,8 +4295,14 @@ class BamAttention(Attention):
         # inside the reduction and apply 1/r and the local scales as one elementwise pass, so no f32
         # copy of the [B,T,N,K] output is materialized (that copy plus its relayout cost ~170 ms/step).
         local_ss = jnp.sum(jnp.square(x[..., local].astype(jnp.float32)), axis=-1)
+        local_scale = scale[local]
+        if common_qk_scale is not None:
+          # Scale complete local Q/K before the full-head RMS statistic. Fuse with
+          # the existing norm epilogue; the narrow standard/RoPE arm stays unscaled.
+          local_ss = local_ss * jnp.square(common_qk_scale.astype(jnp.float32))
+          local_scale = local_scale * common_qk_scale.astype(local_scale.dtype)
         inv_rms = lax.rsqrt((local_ss + standard_ss) / full_qk_width + eps).astype(x.dtype)
-        multiplier = jnp.concatenate((scale[local], jnp.ones((standard_qk_width,), scale.dtype)))
+        multiplier = jnp.concatenate((local_scale, jnp.ones((standard_qk_width,), scale.dtype)))
         return x * inv_rms[..., None] * multiplier.astype(x.dtype)
 
       query = finish(query, head_scale[0], standard_sumsq[0])
@@ -4424,10 +4430,17 @@ class BamAttention(Attention):
         initial_scale = jax.lax.rsqrt(1.0 + 2.0 * jnp.asarray(actual_layer, jnp.float32))
       common_vo_scale = self._constant_general_parameter(
           'common_vo_read_scale', (1,), (None,), initial_scale)[0]
+    common_qk_scale = None
+    if getattr(cfg, 'bam_common_qk_read_scale', False):
+      if not full_qk_norm:
+        raise ValueError('Common Q/K scale requires concatenated local Q/K and full-head QKNorm')
+      common_qk_scale = self._constant_general_parameter(
+          'common_qk_read_scale', (1,), (None,), 1.0)[0]
     if getattr(cfg, 'bam_pallas_core', False):
       return self._pallas_core_call(
           inputs_q, inputs_positions, decoder_segment_ids, M_in, is_global,
-          standard_qk_width, deterministic=deterministic, common_vo_scale=common_vo_scale)
+          standard_qk_width, deterministic=deterministic, common_vo_scale=common_vo_scale,
+          common_qk_scale=common_qk_scale)
     # ---- QKV projection + QKNorm + RoPE ----
     if cfg.fused_qkv:
       query, key, value = self.qkv_projection(inputs_q, proj_name="qkv_proj")
@@ -4478,6 +4491,9 @@ class BamAttention(Attention):
           basis_cache = self._shared_qk_basis(Mh, local_inputs) if self._share_qk_basis else None
           q_local = self._read_local('q', Mh, inputs_q, local_inputs, basis_cache)
           k_local = self._read_local('k', Mh, inputs_q, local_inputs, basis_cache)
+        if common_qk_scale is not None:
+          q_local = (q_local.astype(jnp.float32) * common_qk_scale).astype(q_local.dtype)
+          k_local = (k_local.astype(jnp.float32) * common_qk_scale).astype(k_local.dtype)
         query, key = self._add_local_qk(query, key, q_local, k_local, decoder_segment_ids)
 
     if full_qk_norm:

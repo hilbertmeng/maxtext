@@ -209,17 +209,26 @@ missed this available historical evidence; a wide range does not explain or
 excuse the architecture's efficiency cost. These are separate historical leases,
 not a paired causal benchmark, but do not indicate an extra long-plan regression.
 
-Leading implementation hypotheses are MLP fragmentation and more frequent M
-writes. Logical forward MLP matmuls rise from 64 to 126 (32 MLPs versus 31 ordinary/
-private pairs plus the final MLP), even though summed hidden width falls from
-351360 to 343296 (-2.30%). MLP writes rise from 10 to 31. Q/K width, independent
-V/O reads and scan layout also differ. Logical counts are not executed-kernel
-counts or a measured time attribution. Profile data is needed before assigning
-the 5.31% to individual operations. The logits-scale change substitutes one
-compile-time constant in the existing operation; it introduces no extra tensor
-pass. The generic Transformer TFLOP estimate omits BAM-specific/small-MLP work,
-so its displayed TFLOP/s cannot adjudicate the actual cost. Reproduction numbers
-and sources are in `speed-review.json` in the launch artifact directory.
+Historical direct-parent experiments contradict attributing the deficit to MLP
+fragmentation or full NoPE QK80 merely from logical operation counts. The 2:1
+allocation arm started at .3294-.3295 versus parent about .326 (+1%); later
+records show about .325 versus .329 (-1.2%). Its increased MLP/write counts did
+not establish a large net cost. QK80 ran at .316706 versus SeparateVO about .317,
+essentially unchanged. These are matched-setting historical leases, not paired
+causal benchmarks; nevertheless they do not support either change explaining
+a 5-6% deficit.
+
+The clearest local slowdown is the SeparateVO transition: about .328 to .317
+(-3.4%). That transition bundles independent V/O addresses, three-layer-block
+to single-layer scan, retuned MLP widths and a VMEM-budget change. Another
+unresolved stage is the old long recipe to the complete-QKNorm ShortTrain/kernel
+lineage. These stages, rather than generic MLP-count or Q/K-width arguments,
+are the appropriate next attribution targets. The logits denominator change
+substitutes a compile-time constant in the existing operation and adds no tensor
+pass. The generic Transformer TFLOP estimator omits BAM-specific/small-MLP work,
+so its displayed TFLOP/s cannot establish the actual compute difference.
+Historical counterexamples and source links are preserved in `speed-review.json`.
+
 
 Group state confirms the next normal report is 3000, followed by 8000/13000/...,
 with all three gain triples and both BAM +1 offsets persisted. No native/group

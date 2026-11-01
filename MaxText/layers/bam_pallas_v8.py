@@ -399,9 +399,22 @@ def _tm_read_backward_kernel(n, qk_cols, eps, scale, q_scale, gated, ch, pass_m,
   return kernel
 
 
-def _tm_read_specs(args, tile):
+def _tm_read_specs(args, tile, packed=False):
   m, st = args[0], args[1]
-  return [_token_spec(m.shape[2:], tile), _whole(st.shape)] + [_spec(x.shape[1:-1], tile) for x in args[2:]]
+  specs = [_token_spec(m.shape[2:], tile), _whole(st.shape)] + [_spec(x.shape[1:-1], tile) for x in args[2:]]
+  if packed:          # one [B,C,4N,T] key array (q, k, v, o) read as Q, K and the packed V/O slab
+    cdim, np_ = args[2].shape[1], args[2].shape[2] // 4
+    block = lambda rows, idx: pl.BlockSpec((None, cdim, rows, tile), lambda bb, i: (bb, 0, idx, i))
+    specs[2], specs[4], specs[6] = block(np_, 0), block(np_, 1), block(2 * np_, 1)
+  return specs
+
+
+def _key_shapes(args, packed):
+  """(rq, rk, rr) shapes as the kernel sees them (packed: slices of the one key array)."""
+  if not packed:
+    return args[2].shape, args[4].shape, args[6].shape
+  b, cdim, rows, t = args[2].shape
+  return (b, cdim, rows // 4, t), (b, cdim, rows // 4, t), (b, cdim, rows // 2, t)
 
 
 def _halo_spec(m, tile):
@@ -424,9 +437,10 @@ def _qk_norm_specs(qn, tile):
 def _tm_read_forward_call(args, opts, sh=None, om=None, os=None, qn=None):
   m = args[0]
   b, t, vdim, kdim = m.shape
+  packed = bool(opts.get('packed'))
   cdim = args[2].shape[1]
   n = opts['heads']
-  r = 4 * args[2].shape[2]
+  r = 4 * _key_shapes(args, packed)[0][2]
   tile = min(opts['tile'], t)
   qdim = opts.get('qdim') or kdim
   qk_out = jax.ShapeDtypeStruct((b, n, t, qdim), m.dtype)
@@ -442,7 +456,7 @@ def _tm_read_forward_call(args, opts, sh=None, om=None, os=None, qn=None):
                       len(args) == 12, opts['chunk'], sh is not None, qdim, om is not None, os is not None,
                       qk_norm),
       grid=(b, t // tile),
-      in_specs=(_tm_read_specs(args, tile) + _shift_specs(m, sh, tile) + _mask_specs(om, tile)
+      in_specs=(_tm_read_specs(args, tile, packed) + _shift_specs(m, sh, tile) + _mask_specs(om, tile)
                 + _scale_specs(os) + _qk_norm_specs(qn, tile)),
       out_specs=out_specs,
       out_shape=out_shape,
@@ -455,7 +469,9 @@ def _tm_read_forward_call(args, opts, sh=None, om=None, os=None, qn=None):
 def _tm_read_backward_call(args, cts, opts, sh=None, om=None, os=None, qn=None, qn_res=()):
   m, st = args[0], args[1]
   b, t, vdim, kdim = m.shape
-  cdim, np_ = args[2].shape[1:3]
+  packed = bool(opts.get('packed'))
+  key_shapes = _key_shapes(args, packed)
+  cdim, np_ = key_shapes[0][1:3]
   n = opts['heads']
   r = 4 * np_
   tile = min(opts['reverse_tile'], t)
@@ -466,18 +482,21 @@ def _tm_read_backward_call(args, cts, opts, sh=None, om=None, os=None, qn=None, 
            + (() if qn is None else tuple(qn)))
   qdim = opts.get('qdim') or kdim
   qk_norm = opts.get('qk_norm')
-  in_specs = (_tm_read_specs(args, tile) + _shift_specs(m, sh, tile) + _mask_specs(om, tile) + _scale_specs(os)
+  in_specs = (_tm_read_specs(args, tile, packed) + _shift_specs(m, sh, tile) + _mask_specs(om, tile) + _scale_specs(os)
               + _qk_norm_specs(qn, tile)
               + [_tm_out_spec(n, tile, qdim)] * 2 + [_tm_out_spec(n, tile, kdim)] * 2
               + [_token_spec((vdim, kdim), tile)] * pass_m
               + ([_tm_out_spec(n, tile, qdim)] * 2 + [_spec(qn[0].shape[1:-1], tile)] if qk_norm else []))
+  grad_shapes = [x.shape for x in args[2:]]
+  if packed:          # separate dQ/dK/dVO key cotangents; the wrapper concatenates them back
+    grad_shapes[0], grad_shapes[2], grad_shapes[4] = key_shapes
   out_specs = ([_token_spec((vdim, kdim), tile), pl.BlockSpec((None, None, cdim, r), lambda bb, i: (bb, i, 0, 0))]
-               + [_spec(x.shape[1:-1], tile) for x in args[2:]])
+               + [_spec(shape[1:-1], tile) for shape in grad_shapes])
   out_shape = ([jax.ShapeDtypeStruct(m.shape, m.dtype), jax.ShapeDtypeStruct((b, t // tile, cdim, r), F32)]
-               + [jax.ShapeDtypeStruct(x.shape, x.dtype) for x in args[2:]])
+               + [jax.ShapeDtypeStruct(shape, x.dtype) for shape, x in zip(grad_shapes, args[2:])])
   scratch = [pltpu.VMEM((cdim * tile, r), F32), pltpu.VMEM((r * tile, kdim), F32),
              pltpu.VMEM((tile * cdim, r), F32),
-             pltpu.VMEM((cdim, 2 * np_ + args[6].shape[2], tile), F32)]
+             pltpu.VMEM((cdim, 2 * np_ + key_shapes[2][2], tile), F32)]
   if shifted:
     out_specs += [_spec(sh.shape[1:-1], tile), pl.BlockSpec((None, None, vdim, kdim), lambda bb, i: (bb, i, 0, 0))]
     out_shape += [jax.ShapeDtypeStruct(sh.shape, sh.dtype), jax.ShapeDtypeStruct((b, t // tile, vdim, kdim), F32)]
@@ -517,7 +536,11 @@ def _tm_read_backward_call(args, cts, opts, sh=None, om=None, os=None, qn=None, 
     if t > tile:    # each tile's first-token M_{t-1} cotangent belongs to the previous tile's last token
       idx = slice(tile - 1, t - 1, tile)
       dm = dm.at[:, idx].set((dm[:, idx].astype(F32) + bnd[:, 1:]).astype(dm.dtype))
-  return (dm, jnp.sum(outs[1], axis=(0, 1)).T.astype(st.dtype)) + tuple(outs[2:]), dsh, dos, dqn
+  grads = list(outs[2:])
+  if packed:          # all three kernel views alias one array: one concatenated cotangent
+    grads[0] = jnp.concatenate((grads[0], grads[2], grads[4]), axis=2)
+    grads[2] = grads[4] = jnp.zeros_like(grads[0])
+  return (dm, jnp.sum(outs[1], axis=(0, 1)).T.astype(st.dtype)) + tuple(grads), dsh, dos, dqn
 
 
 def _mask_specs(om, tile):
@@ -558,7 +581,8 @@ _tm_read.defvjp(_tm_read_fwd, _tm_read_bwd)
 def read_tm(m, static_weight, q_key, q_logits, k_key, k_logits, vo_key, o_logits, v_logits, q_standard,
             k_standard, *, qk_cols, read_epsilon, key_scale, forward_tile=128, reverse_tile=128,
             vmem_mib=None, interpret=False, q_scale=1.0, static_gates=None, chunk=8, pad_heads=False,
-            shift=None, o_weight_multiplier=None, o_dynamic_scale=None, v_dynamic_scale=None, qk_norm=None, **_):
+            shift=None, o_weight_multiplier=None, o_dynamic_scale=None, v_dynamic_scale=None, qk_norm=None,
+            qkvo_key=None, **_):
   """v7.read's interface (keys [B,T,N,C], logits [B,T,N], standard QK [B,T,N,Rs]) for M [B,T,V,K] and
   full-M reads (C == V, identity compression). Returns (query, key, value, local_o) [B,T,N,K] and M.
 
@@ -576,7 +600,10 @@ def read_tm(m, static_weight, q_key, q_logits, k_key, k_logits, vo_key, o_logits
 
   qk_norm (ss_q, ss_k, m_q, m_k, epsilon): full-head QKNorm inside the read epilogue. ss_* [B,T,N] are
   the standard (unscaled, unrotated) Q/K sums of squares; m_* [qdim] multiply the normalized row and
-  carry the norm scales and any logit scale (q_scale must then be 1). Returns normalized Q/K."""
+  carry the norm scales and any logit scale (q_scale must then be 1). Returns normalized Q/K.
+
+  qkvo_key [B,T,4N,V] (q, k, independent v, o): replaces q_key/k_key/vo_key with one array that is
+  transposed once and read by the kernel through three block views (no split/concat copies)."""
   b, t, n, cdim = q_key.shape
   assert cdim == m.shape[2], 'v8t supports full-M reads (identity compression) only'
   # Q/K width = retained M coordinates + standard (rotated) coordinates. It may exceed K (all K NoPE
@@ -586,7 +613,10 @@ def read_tm(m, static_weight, q_key, q_logits, k_key, k_logits, vo_key, o_logits
   np_ = _pad_rows(n) if pad_heads else n
   if qk_norm is not None:
     assert q_scale == 1.0, 'fold the logit scale into m_q'
-  opts = _freeze(dict(heads=n, qk_cols=qk_cols, read_epsilon=read_epsilon, key_scale=key_scale,
+  packed = qkvo_key is not None
+  if packed:
+    assert qkvo_key.shape == (b, t, 4 * n, cdim) and not pad_heads and n % 8 == 0, qkvo_key.shape
+  opts = _freeze(dict(heads=n, qk_cols=qk_cols, read_epsilon=read_epsilon, key_scale=key_scale, packed=packed,
                       tile=forward_tile, reverse_tile=reverse_tile, vmem_mib=vmem_mib, interpret=interpret,
                       q_scale=float(q_scale), chunk=chunk, **({'qdim': qdim} if qdim > m.shape[-1] else {}),
                       **({} if qk_norm is None else {'qk_norm': (float(qk_norm[4]), float(qdim))})))
@@ -595,10 +625,15 @@ def read_tm(m, static_weight, q_key, q_logits, k_key, k_logits, vo_key, o_logits
   gate = lambda x: padn(_minor_t(x))                                      # [B,T,N] -> [B,NP,T]
   sw = static_weight.astype(F32)
   st = jnp.concatenate([jnp.pad(sw[a * n:(a + 1) * n], ((0, np_ - n), (0, 0))) for a in range(4)], axis=0)
-  assert vo_key.shape[2] in (n, 2 * n), vo_key.shape
-  vo_keys = (keys(vo_key) if vo_key.shape[2] == n else
-             jnp.concatenate(tuple(keys(x) for x in jnp.split(vo_key, 2, axis=2)), axis=2))
-  args = (m, st, keys(q_key), gate(q_logits), keys(k_key), gate(k_logits), vo_keys, gate(o_logits),
+  if packed:
+    all_keys = keys(qkvo_key)                                             # [B,C,4N,T]
+    rq_, rk_, rr_ = all_keys, all_keys, all_keys
+  else:
+    assert vo_key.shape[2] in (n, 2 * n), vo_key.shape
+    rr_ = (keys(vo_key) if vo_key.shape[2] == n else
+           jnp.concatenate(tuple(keys(x) for x in jnp.split(vo_key, 2, axis=2)), axis=2))
+    rq_, rk_ = keys(q_key), keys(k_key)
+  args = (m, st, rq_, gate(q_logits), rk_, gate(k_logits), rr_, gate(o_logits),
           gate(v_logits), _minor_t(q_standard), _minor_t(k_standard))
   gated = bool(static_gates)
   if gated:

@@ -4156,6 +4156,7 @@ class BamAttention(Attention):
       gate = self._pad_read_heads(gate, -2, -jnp.inf)
       return jnp.reshape(gate, inputs_q.shape[:2] + (self.num_query_heads,))
 
+    packed_qkvo = None
     if full_m:
       # Shared GELU bottleneck -> per-arm up projections (+ generalized pre-biases); the full
       # [N,V] keys read M directly, i.e. an identity compression in the fused core.
@@ -4178,6 +4179,10 @@ class BamAttention(Attention):
       if self._vo_independent_keys:
         v_key = (up['W_lv_c8_up'] + pre('v') if fused else
                  self._project_column_read_key('W_lv_c8', inputs_q, hidden))
+        if fused and getattr(cfg, 'bam_pallas_packed_read_keys', False) and not self._hybrid_value:
+          # One [B,T,4N,V] array (q, k, v, o): the bias adds and concat fuse into the single
+          # transpose that v8t reads through three block views (no split/concat copies).
+          packed_qkvo = jnp.concatenate((q_key, k_key, v_key, vo_key), axis=-2)
         # v8t accepts two key slabs, V then O, instead of a shared VO slab.
         vo_key = jnp.concatenate((self._pad_read_heads(v_key, -2),
                                   self._pad_read_heads(vo_key, -2)), axis=-2)
@@ -4259,6 +4264,10 @@ class BamAttention(Attention):
             jnp.ones(q_key.shape[2:], jnp.float32) if gamma is None else gamma.astype(jnp.float32))
     if getattr(cfg, 'bam_pallas_read_chunk', None):
       read_kwargs['chunk'] = int(cfg.bam_pallas_read_chunk)
+    if packed_qkvo is not None:
+      if body != 'v8t':
+        raise ValueError('bam_pallas_packed_read_keys requires v8t')
+      read_kwargs['qkvo_key'] = packed_qkvo
     fused_qk_norm = full_qk_norm and bool(getattr(cfg, 'bam_pallas_fused_qk_norm', False))
     if fused_qk_norm:
       # Same full-head QKNorm, computed in the read epilogue: the kernel normalizes the complete

@@ -14,10 +14,11 @@ R768 = 'BamPythia2p8BSotaIndependentR768PallasShortTrain'
 
 
 class FusedQKNormTest(base.HUnit300BTest):
+  flags = dict(bam_pallas_fused_qk_norm=True)
 
   def tiny(self, run, length=128, dtype='float32'):
     c = base.HUnit300BTest.tiny(self, run, length=length, dtype=dtype)
-    c.get_keys().update(bam_pallas_fused_qk_norm=True)
+    c.get_keys().update(self.flags)
     return c
 
   def check_model(self, run, dtype='float32'):
@@ -44,6 +45,18 @@ class FusedQKNormTest(base.HUnit300BTest):
 
   def test_partial_nope_r768(self):
     self.check_model(R768)
+
+  def test_packed_keys(self):
+    self.flags = dict(bam_pallas_packed_read_keys=True)
+    self.check_model(RUN)
+
+  def test_packed_keys_fused_norm(self):
+    self.flags = dict(bam_pallas_packed_read_keys=True, bam_pallas_fused_qk_norm=True)
+    self.check_model(RUN)
+
+  def test_packed_keys_fused_norm_bf16(self):
+    self.flags = dict(bam_pallas_packed_read_keys=True, bam_pallas_fused_qk_norm=True)
+    self.check_model(RUN, 'bfloat16')
 
 
 if __name__ == '__main__':

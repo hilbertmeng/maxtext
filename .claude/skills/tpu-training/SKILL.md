@@ -526,6 +526,10 @@ Do not continue into closeout when a preceding handoff check fails.
 Uses auto-train's verified cleanup and automatic TensorBoard sync, final `run_registry` state,
 and `exp.py` result comments.
 
+Write experiment ledger prose in English, regardless of the conversation language.
+Review number/word spacing in each passage in context; never apply broad automatic
+spacing replacements to ledger prose or identifiers.
+
 On clean exit, auto-train must verify node and queued-resource deletion through
 `delete_tpu_xd.sh`, then mark the registry complete.
 

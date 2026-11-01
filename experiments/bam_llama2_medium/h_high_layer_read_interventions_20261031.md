@@ -119,44 +119,42 @@ All ratios use Pythia2p8BShortTrain (original MHA) as the common reference. Last
 Native source and final closeout/independent resource verification live under `/data0/xd/bam_diagnostics/pythia28-h-unified-16k-20261031/`: `unit-final-native.json`, `unit-final-registry-closeout.json`, `unit-final-resource-verification.json`, `sync-unit-final.log`. Five final cumulative gap/R figures (from2k, original endpoints preserved, bias excluded) and provenance: `final-20261101/figures-16000.json`. Main report retains both QK80 and pre-mask+QK80 direct contrasts for H and Unit, plus Unit-vs-H, full2×2, and MHA/Mudd family plots.
 
 
-## User continuation to21.5k
+## User continuation to 21.5k
 
-After the16k report, the user authorized resuming Unit/no-gamma to21.5k. Same RUN/GCS, branch `codex/pythia28-h-unit2x2-1031`, exact model runtime6c5dbfe9df446b1c6f6421616f7af97156c7f9a5 and existing v5p128/s28000 AOT remain unchanged. Full model/optimizer restored from committed16047 and data cursor `file_in_data=16,step_in_file=48,checkpoint_step=16047,global_batch_size=1024,num_infeed_hosts=16` verified. Loaded compiled function and actual step16064 verified; resumed throughput~.316step/s, matching the original .31638 startup and late~.315. No fresh model or data reset.
+After the 16k report, the user authorized resuming Unit/no-gamma to 21.5k. The RUN/GCS prefix, branch `codex/pythia28-h-unit2x2-1031`, model runtime `6c5dbfe9df446b1c6f6421616f7af97156c7f9a5` and existing v5p-128/s28000 AOT remain unchanged. The full model/optimizer restored from committed checkpoint 16047. The verified data cursor was `file_in_data=16,step_in_file=48,checkpoint_step=16047,global_batch_size=1024,num_infeed_hosts=16`. AOT loading and actual step 16064 were verified. Resumed throughput was about .316 step/s, matching the original .31638 startup and late .315 step/s. Neither the model nor data cursor was reset.
 
-Only Unit/no-gamma resumed, using the same `xd-v5p-128-h-unit-plain-1031` identity in UE5a, chosen for its preceding14h20m/P0 lease. The old16k group remains archived. New group `pythia28-h-unit-to21500-1101` continues at18k/20k with native500±25 ten-step samples; all ratios keep original MHA reference. User endpoint guard targets21525 to include the21500±25 window, without shortening the original28000 LR/AOT schedule. Future comparisons retain actual baseline endpoints; H itself ends18331, so a new direct H gap cannot be synthesized above the last common window.
+Only Unit/no-gamma resumed, using `xd-v5p-128-h-unit-plain-1031` in UE5a, chosen for its preceding 14h 20m lease without preemption. The old 16k group remains archived. Group `pythia28-h-unit-to21500-1101` continued at 18k/20k with native 500±25 windows sampled every ten steps; all gain ratios retain original MHA as reference. The endpoint guard targeted 21525 to include the 21500±25 window without shortening the original 28000-step LR/AOT schedule. Baseline endpoints remain unchanged: H ends at checkpoint 18331, so no direct H gap is available beyond its last complete common window.
 
-Operational audit found the deployed outer checkpoint monitor still predated the1300s rescue implementation. Canonical `/home/xd/projects/xd_tpu_scripts` versions of `auto_train_xd_maxtext.sh`, `checkpoint_rescue.py` and `repair_incomplete_checkpoint_xd.sh` were hash-verified and deployed. The outer controller was replaced with MODE=attach, preserving the already-running worker training processes. Outer pending threshold1300s, rescue budget600s. The historical training runtime itself remains unchanged; do not claim it gained the newer training-side coordinated exception-recovery code.
+The deployed outer checkpoint monitor predated the 1300-second rescue implementation. Canonical `/home/xd/projects/xd_tpu_scripts` versions of `auto_train_xd_maxtext.sh`, `checkpoint_rescue.py` and `repair_incomplete_checkpoint_xd.sh` were hash-verified and deployed. The outer controller was replaced with `MODE=attach`, preserving the running worker training processes. The pending threshold is 1300 seconds and the rescue budget is 600 seconds. The historical training runtime remains unchanged; it did not acquire the newer training-side coordinated exception-recovery code.
 
-Resume ownership, AOT manifest, installer/wrapper hashes, source checkpoint, launch environment, controller handoff and startup evidence: `/data0/xd/bam_diagnostics/pythia28-h-unit-resume21500-20261101`. Main exp.py records this lifecycle event, not periodic training progress. The preceding16k tables remain a frozen interim endpoint, not a full28000-step conclusion.
+Resume ownership, AOT manifest, installer/wrapper hashes, source checkpoint, launch environment, controller handoff and startup evidence: `/data0/xd/bam_diagnostics/pythia28-h-unit-resume21500-20261101`. The main `exp.py` entry records the completed lifecycle and research conclusion. The preceding 16k tables remain an interim observation, not a full 28000-step result.
 
+## Final 21.5k continuation closeout
 
-## Final21.5k continuation closeout
+The aliases below identify comparators in this section and the main ledger. The H comparison isolates unit initialization; gains over older bases also include H's inherited changes.
 
-本节及主台账中的对照简称对应如下。相对 H 的差异用于判断全 1 初始化本身；相对旧底座的总收益同时包含 H 父路已有改动。
-
-| 对照简称 | 完整配置类 / RUN |
+| Comparator alias | Full configuration class / RUN |
 |---|---|
-| H（直接父路） | `BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80CommonReadScaleUnscaledMLPContentEmbeddingFixed` |
-| 旧动态 O gamma=.2（共同基线） | `BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640SeparateVOKeysLogitDiagNegativeQK80LocalODynamicNormScale020` |
-| 纯 QK80 底座 | `BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640SeparateVOKeysQK80` |
-| 预掩码+QK80 组合底座 | `BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640SeparateVOKeysLogitDiagNegativeQK80` |
-| 串行 Mudd | `MuddPythia3BSerialMLPShortTrain` |
-| 原 MHA（所有收益倍数的共同参照） | `Pythia2p8BShortTrain` |
+| H (direct parent) | `BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80CommonReadScaleUnscaledMLPContentEmbeddingFixed` |
+| Old dynamic-O gamma=.2 (common control) | `BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640SeparateVOKeysLogitDiagNegativeQK80LocalODynamicNormScale020` |
+| QK80 base | `BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640SeparateVOKeysQK80` |
+| Pre-mask+QK80 combination base | `BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640SeparateVOKeysLogitDiagNegativeQK80` |
+| Serial Mudd | `MuddPythia3BSerialMLPShortTrain` |
+| Original MHA (reference for every gain ratio) | `Pythia2p8BShortTrain` |
 
+The same Unit/no-gamma RUN and runtime stopped at committed checkpoint **21549/28000**, with no preemptions or lost steps. The full 21500±25 native window is present. The checkpoint commit marker and cursor were verified; the TPU/node and queued resource are independently absent; local TB is synced. The user endpoint preserves the original 28000-step LR schedule and does not establish a full-schedule result. No owned H-group trainer remains active.
 
-Same Unit/no-gamma RUN and runtime6c5dbfe above stopped at committed **21549/28000**, zero preemptions/lost steps. The full21500±25 native window is present. Final checkpoint21549 commit marker and cursor verified; TPU/node and queued resource independently absent; local TB synced. User endpoint does not change the original28000-step LR schedule or establish a full28k terminal result. No owned H-group trainer remains active.
-
-| Comparator |16k gap / R|18k gap / R|20k gap / R|21.5k gap / R|
+| Comparator | 16k gap / R | 18k gap / R | 20k gap / R | 21.5k gap / R |
 |---|---|---|---|---|
-| H |−.000793 /1.00684|−.000966 /1.00864|unavailable|unavailable|
-| QK80 |−.010073 /1.09446|−.009971 /1.09701|−.010044 /1.09799|−.009649 /1.09533|
-| Pre-mask+QK80 |−.008221 /1.07578|−.008108 /1.07748|−.007939 /1.07590|−.008027 /1.07806|
-| Mudd |−.047428 /1.68457|−.045491 /1.67631|−.044323 /1.64967|−.043734 /1.65151|
+| H | −.000793 / 1.00684 | −.000966 / 1.00864 | unavailable | unavailable |
+| QK80 | −.010073 / 1.09446 | −.009971 / 1.09701 | −.010044 / 1.09799 | −.009649 / 1.09533 |
+| Pre-mask+QK80 | −.008221 / 1.07578 | −.008108 / 1.07748 | −.007939 / 1.07590 | −.008027 / 1.07806 |
+| Mudd | −.047428 / 1.68457 | −.045491 / 1.67631 | −.044323 / 1.64967 | −.043734 / 1.65151 |
 
-相对原共同基线（旧动态 O gamma=.2），8–16k 的 loss 优势稳定约 .0049；最后共同16k gap−.0048306，收益倍数1.043177，末五窗口均值gap−.00491292。该对照没有更晚的完整共同窗口。
+Versus the old dynamic-O gamma=.2 control, the 8k–16k loss advantage holds near .0049. The last common 16k gap is −.0048306, with gain ratio 1.043177 and last-five mean gap −.00491292. This control has no later complete common window.
 
-Ratios use original MHA as reference. H has no complete window beyond18k. Unit's small H improvement persisted through their last common window; its direct QK80/combination advantages remain broadly stable through21.5k. Mudd-relative gain still declines overall. The17→17.5→18k ratio rises are not a sustained reversal: absolute gain over MHA at18/19.5/20/20.5/21/21.5k is .112753/.112916/.112548/.110809/.111377/.110862. The18–21.5k signed OLS slope is−.00063277 per1k and net−.001891. Upward amplitude would be beneficial; small range alone is not a success criterion. Historical1k/2k windows can recover at other positions, so compare sliding signed trends, not only synchronous ranges.
+Gap means experiment loss minus comparator loss; every gain ratio uses original MHA as reference. H has no complete window beyond 18k. Unit's small improvement over H persists through their last common window; its QK80/combination advantages remain broadly stable through 21.5k. Mudd-relative gain still declines overall. The 17k→17.5k→18k ratio increases are not a sustained reversal: absolute gain over MHA at 18k/19.5k/20k/20.5k/21k/21.5k is .112753/.112916/.112548/.110809/.111377/.110862. The 18k–21.5k signed OLS slope is −.00063277 per 1k steps, with net change −.001891. Upward amplitude would be beneficial; a small range alone is not evidence of improvement. Historical 1k/2k windows can recover at different positions, so compare sliding signed trends as well as synchronous windows.
 
-Two chronological READY leases, both UE5a/v5p128 on `xd-v5p-128-h-unit-plain-1031`:2026-10-31 06:06:34→20:26:42UTC(14h20m08s), then2026-10-31 21:21:15→2026-11-01 02:19:42UTC(4h58m27s). Both ended by user endpoint, not preemption. Resume throughput~.316step/s and late~.315, consistent with original startup. Closeout completed02:22:44UTC.
+There were two chronological READY leases, both UE5a/v5p-128 on `xd-v5p-128-h-unit-plain-1031`: 2026-10-31 06:06:34→20:26:42 UTC (14h 20m 08s), then 2026-10-31 21:21:15→2026-11-01 02:19:42 UTC (4h 58m 27s). Both ended at user-requested endpoints, not preemption. Resumed throughput was about .316 step/s and late throughput about .315 step/s, consistent with startup. Closeout completed at 02:22:44 UTC.
 
-Final evidence: `/data0/xd/bam_diagnostics/pythia28-h-unit-resume21500-20261101/{closeout-final.json,registry-final.json,checkpoint-final-verification.log,resource-final-verification.log,sync-final.log,final-native.json,absolute-gain-review21500.json}`. Native cumulative figures from2k: `reports/figures-21500.json`; separate positive MHA-gain figure from `absolute-mha-analysis21500.log`. Final checkpoint root remains registered UE5a GCS RUN/checkpoints/21549/items. Late health/context results, historical gamma reference, scope limits and reproducible manifests are in [the late-health note](h_unit_late_health_20261101.md).
+Final evidence: `/data0/xd/bam_diagnostics/pythia28-h-unit-resume21500-20261101/{closeout-final.json,registry-final.json,checkpoint-final-verification.log,resource-final-verification.log,sync-final.log,final-native.json,absolute-gain-review21500.json}`. Native cumulative figures start at 2k: `reports/figures-21500.json`; the separate positive MHA-gain figure is recorded in `absolute-mha-analysis21500.log`. The final checkpoint root remains the registered UE5a GCS RUN/checkpoints/21549/items. Late health/context results, the historical gamma reference, scope limits and reproducible manifests are in [the late-health note](h_unit_late_health_20261101.md).

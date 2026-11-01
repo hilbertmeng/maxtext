@@ -17328,29 +17328,24 @@ BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80 = BamPythia2p8BSotaIn
 
 class BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80CommonReadScaleUnscaledMLPContentEmbeddingFixed(
         BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80):
-    """H transfer: raw embedding/fixed divisor, raw memory-MLP writes, learned V/O scale.
+    """Raw embedding/private-MLP writes with a learned common V/local O read scale.
 
-    Attention write content retains RMSNorm. One signed V+localO scalar per
-    layer starts at1/sqrt(1+2*layer); Q/K remain unscaled with full-head QKNorm.
-    Embedding divisor .0020825863 uses D2560, sigma_E=sigma_U=.006,
-    K80 and write epsilon1e-6; finite-head Gaussian energy calculation,
-    checked separately by the embedding-only probe in the experiment note.
-    Keep GELU7808/2944/tail9984, all R640, scan31+tail1 and original28k recipe.
-    Adds32 scalars (no MLP repayment); no terminal attention/memory-MLP writes.
+    Attention writes retain RMSNorm. Each layer's signed V/local O scale starts
+    at 1/sqrt(1+2*layer); Q/K retain full-head QKNorm without this scale.
+    The embedding divisor 0.0020825863 uses D=2560, sigma_E=sigma_U=0.006,
+    K=80 and write epsilon 1e-6, checked by an embedding-only probe.
+    Keep GELU widths 7808/2944/tail 9984, R640 and scan 31+tail 1.
+    Add 32 scalars without MLP repayment; terminal M writers remain disabled.
     """
-    # Implementation on refactor-bam: only the common V/O read scale and fixed writer divisors (codex
-    # family branch codex/mediumprop-common-read-raw-write keeps its other controls). The v8t read folds the
-    # scalar into its V/O weights: v5p-8 paired +1.11% vs the XLA epilogue (BamPythia2p8BCommonRead*Profile).
-    # code_commit:9c11469; fresh28000/UE5a v5p128, global1024/B16; exact AOT/source/FIRST0 verified.
-    # Startup20..39 .31690step/s vs common gamma baseline.31750 (-.19%); genericON/internal+BAMOFF/minimal.
-    # Launch/group/reproduction: pythia2p8_common_read_raw_write.md; common gamma comparator, originalMHA gain reference.
-    # See pythia2p8_common_read_raw_write.md.
-    # User hot-replaced by MemoryMLPBias at committed18331/28000 (P0); not a loss-based stop.
-    # Active direct references QK80 and pre-mask+QK80: 8k..18k gap -.01053->-.00900 / -.00731->-.00714;
-    # MHA-referenced ratios1.0820->1.0876 /1.0556->1.0682, final5 means1.0893/1.0704: persistent extra gain.
-    # vs MHA18k gap-.111787; vs serialMudd gap-.044524/R1.661949 (12k1.7539->16k1.6731->18k1.6619).
-    # Original common-gamma comparator16k R1.03609 exceeded1.02 prior; terminal28k untested.
-    # CP/TB SYNC_OK; retained UE5a TPU transferred after new FIRST_STEP. Repro: pythia2p8_h_memory_mlp_bias.md.
+    # Conclusion: H adds persistent gain over the QK80/combination bases, but BAM/Mudd gain still contracts.
+    # Family labels: H is this class; the old gamma=.2 control is compare_runs[0]. Ratios use original MHA.
+    # Versus QK80/combination, the 8k-18k gaps remain about -0.010/-0.007; final-five ratios are 1.0893/1.0704.
+    # Versus the old gamma control, the last common 16k ratio is 1.03609, above the 1.02 prior.
+    # At 18k, gaps versus original MHA/serial Mudd are -0.111787/-0.044524; the Mudd ratio falls from 1.7539 at 12k to 1.6619.
+    # UE5a v5p-128: 0.31690 step/s, effectively tied with the old gamma control (-0.19%); matched health/minimal remat.
+    # User hot-replaced at checkpoint 18331/28000, not for a loss-based verdict; the full schedule is unmeasured.
+    # code_commit:9c11469; implementation on refactor-bam. See pythia2p8_common_read_raw_write.md.
+    # Common-scale folding/profile evidence is separate from architecture gain; handoff: pythia2p8_h_memory_mlp_bias.md.
     model_name = 'BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80CommonReadScaleUnscaledMLPContentEmbeddingFixed'
     bam_common_vo_read_scale = True
     bam_common_vo_read_scale_init = None
@@ -17364,23 +17359,20 @@ class BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80CommonReadScaleU
 
 class BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80CommonReadScaleUnscaledMLPContentEmbeddingFixedMemoryMLPBias(
         BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80CommonReadScaleUnscaledMLPContentEmbeddingFixed):
-    """H with zero-initialized biases on both dedicated memory-MLP projections.
+    """Add zero-initialized biases to both dedicated memory-MLP projections.
 
-    Match the ordinary Pythia GELU MLP's bias convention; BAM kernels retain
-    their original initialization. Adds31*(2944+2560)=170624 parameters
-    (.00615%, .02604 W_Q); user exempts this negligible cost from MLP repayment.
-    Keep ordinary7808/memory2944/tail9984, R640, scan31+tail1, health settings
-    and the original28000-step LR schedule. Biases inherit the no-decay rule.
+    Match the ordinary Pythia GELU MLP bias convention; retain BAM initialization.
+    The 170624 added parameters (0.00615%, 0.02604 W_Q) are exempt from repayment.
+    Keep widths 7808/2944/tail 9984, R640, scan 31+tail 1 and the 28k schedule.
+    Biases inherit the no-weight-decay rule; initial common weights/logits match H.
     """
-    # code_commit:95a57d3; UE5a v5p128/global1024/B16, fresh28000; exact AOT/all16 workers/FIRST0/CP0 verified.
-    # Startup20..39 .31465step/s vs H .31690 (-.71%); genericON/internal+BAMOFF/minimal/VMEM60MiB.
-    # Zero-init170624 biases exempt from MLP repayment; common weights and initial logits exactly preserve H.
-    # Checkpoint rescue activated: worker Orbax1200s, external trigger1300s/budget600s (controller eeaa043).
-    # Prior16k MHA-referenced gain vs H1.02 [.99,1.05]; launch/repro: pythia2p8_h_memory_mlp_bias.md.
-    # User stopped6126/28000/P0; CP6126/TB SYNC_OK, node+QR independently absent.
-    # vs H all mature2k..6k windows worse: gap+.00202 -> +.00154; R(MHA-ref).99251 -> .98993, no gain in tested prefix.
-    # Final6k vs QK80 gap-.009918/R1.07006; pre-mask+QK80 gap-.006432/R1.04434; vs Mudd-.075656/R1.99778.
-    # vs MHA gap-.151481;16k prior untested. Closeout/reproduction: pythia2p8_h_memory_mlp_bias.md.
+    # Conclusion: adding private-MLP biases did not improve H in the observed prefix.
+    # Every mature 2k-6k comparison trails H: gap +0.00202 to +0.00154, while the MHA-ref ratio slips from 0.99251 to 0.98993.
+    # At 6k, inherited QK80/combination advantages remain: gaps -0.009918/-0.006432, ratios 1.07006/1.04434.
+    # The serial-Mudd/MHA gaps are -0.075656/-0.151481; Mudd gain ratio 1.99778 does not isolate the bias change.
+    # UE5a v5p-128: 0.31465 step/s (-0.71% versus H), matched health/minimal remat; M-cache unchanged.
+    # User stopped at checkpoint 6126/28000; the 16k ratio prior of 1.02 remains untested.
+    # code_commit:95a57d3; main implementation and complete evidence: pythia2p8_h_memory_mlp_bias.md.
     model_name = 'BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80CommonReadScaleUnscaledMLPContentEmbeddingFixedMemoryMLPBias'
     bam_memory_mlp_use_bias = True
     compare_runs = ['BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80CommonReadScaleUnscaledMLPContentEmbeddingFixed',
@@ -17391,14 +17383,14 @@ class BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80CommonReadScaleU
 
 class BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80CommonReadScaleUnscaledMLPContentEmbeddingFixedLocalODynamicNormScale020(
         BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80CommonReadScaleUnscaledMLPContentEmbeddingFixed):
-    """H transfer retaining the target SOTA's learned dynamic-O address gamma=.2."""
-    # code_commit:9c11469; fresh28000/UE5a v5p128, global1024/B16; exact AOT/source/FIRST0 verified.
-    # Startup20..39 .31575step/s vs common gamma baseline.31750 (-.55%); genericON/internal+BAMOFF/minimal.
-    # Same H reporting group and common gamma comparator; originalMHA gain reference.
-    # User-stopped CP10248/28000; common10k vs gamma baseline gap+.002354/R.981291, last5 gap+.002645/R.979792.
-    # Initial deficit narrowed toward5k, never crossed, then widened7k+; common8.5k vs H gap+.007121.
-    # vs MHA10k gap-.123448; vs Mudd-.051758/R1.721966, underlying multiplier decline persists.
-    # 16k R1.04 prior unsupported at stop; no terminal28k claim. Node+QR absent, TB SYNC_OK; P0.
+    """Retain learned dynamic-O address gamma initialized to 0.2 in H."""
+    # Conclusion: restoring gamma weakens H; initial catch-up reverses after about 7k.
+    # The deficit versus the old gamma control never crosses zero; at 10k, gap +0.002354 and MHA-ref ratio 0.981291.
+    # The last five such windows average +0.002645; the last common 8.5k gap versus H is +0.007121.
+    # At 10k, original-MHA/serial-Mudd gaps are -0.123448/-0.051758; Mudd ratio 1.721966 still trends down.
+    # UE5a v5p-128: 0.31575 step/s (-0.55% versus the old gamma control), matched health/minimal remat.
+    # User stopped at checkpoint 10248/28000; the 16k ratio prior of 1.04 is untested.
+    # code_commit:9c11469; main implementation. See pythia2p8_common_read_raw_write.md.
     model_name = 'BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80CommonReadScaleUnscaledMLPContentEmbeddingFixedLocalODynamicNormScale020'
     bam_local_o_dynamic_norm_scale = True
     bam_local_o_dynamic_norm_scale_init = .2
@@ -17406,60 +17398,57 @@ class BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80CommonReadScaleU
 
 class BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneLocalODynamicNormScale020(
         BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80CommonReadScaleUnscaledMLPContentEmbeddingFixedLocalODynamicNormScale020):
-    """Priority transfer: all32 learned V/localO scalars start at1; retain gamma=.2."""
-    # code_commit:9c11469; UE5a v5p128/global1024/B16, fresh28000; AOT/source/FIRST0/CP0 verified.
-    # Startup20..39 .315147step/s vs H.31690 (-.55%); genericON/internal+BAMOFF/minimal.
-    # RUN=this class; xd-v5p-128-h-unit-g020-1031 (ID310461); paired unit-init/no-gamma2x2.
-    # User-stopped11375/28000/P0; CP11375/TB SYNC_OK, node+QR independently absent.
-    # vs H: early deficit recovered;10k..11k gap-.000260 -> -.000463, R(MHA-ref)1.00200 -> 1.00366.
-    # Last5 gap-.000173;11k vs old gamma baseline-.005380, vs Mudd-.055894/R1.78637, vs MHA-.126974.
-    # Unit/no-gamma crossed again at11k; user stop, not a dominance/terminal verdict. Speed~.315step/s.
-    # READY06:02:50..16:16:26UTC2026-10-31(10h13m36s); final report/diagnostics: h_high_layer_read_interventions_20261031.md.
+    """Initialize each learned V/local O read scale to 1 and retain gamma=0.2."""
+    # Conclusion: unit initialization recovers the early deficit, with only a small gain over H by 11k.
+    # Versus H, the 10k-11k gap improves from -0.000260 to -0.000463; MHA-ref ratios are 1.00200 to 1.00366.
+    # The last-five gap is -0.000173; at 11k, the old gamma control gap is -0.005380.
+    # At 11k, serial-Mudd/original-MHA gaps are -0.055894/-0.126974; the Mudd ratio is 1.78637.
+    # The unit/no-gamma arm crosses this arm again near 11k; this user stop does not establish dominance.
+    # UE5a v5p-128: about 0.315 step/s (-0.55% versus H), matched health/minimal remat; no material added cost.
+    # User stopped at checkpoint 11375/28000. code_commit:9c11469; main implementation.
+    # Full comparisons and closeout: h_high_layer_read_interventions_20261031.md.
     model_name = 'BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneLocalODynamicNormScale020'
     bam_common_vo_read_scale_init = 1.0
 
 
 class BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOne(
         BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80CommonReadScaleUnscaledMLPContentEmbeddingFixed):
-    """每层 V/local O 公共读 scale 均以 1 初始化，其余配方同父类 H。
+    """Initialize each layer's common V/local O read scale to 1; otherwise retain H.
 
-    结论：在与 H 的共同观测范围内，这是小幅、无额外成本的有效改进；
-    但未改变本架构相对 Mudd 收益倍数随训练收缩的走势。
+    Conclusion: a small improvement over H at their common observed steps,
+    without added cost; it does not reverse the declining BAM/Mudd gain ratio.
     """
-    # gap = 本路 loss - 对照 loss；收益倍数均以 Pythia2p8BShortTrain（原 MHA）为共同参照。
-    # 对父路 H：早期落后，约 8k 追回，之后保持小幅领先；最后共同 18k gap -0.00097、倍数 1.0086。
-    # 共同基线为父类 compare_runs[0] 的旧动态 O gamma=.2 路：8–16k gap 稳定约 -0.0049，16k 倍数 1.0432。
-    # 对纯 QK80 / 预掩码+QK80 底座：后期优势维持约 0.010 / 0.008，21.5k 倍数 1.0953 / 1.0781。
-    # 上述底座总收益包含 H 父路已有改动；仅相对 H 的差异可归因于本次全 1 初始化。
-    # 对串行 Mudd 的倍数从 12k 的 1.759 降至 21.5k 的 1.652，末期 gap -0.04373。
-    # 对原 MHA 的绝对优势总体收缩，后期的小幅回升未持续；21.5k gap -0.11086。
-    # 参数量、计算量、MLP 宽度和 M-cache 不变；UE5a v5p-128 约 0.315 step/s，启动测速与 H 基本持平（-0.16%）。
-    # 按用户指定的 21.5k 收尾，最终 checkpoint 21549；保留原 28000 步学习率计划，未观测完整终局。
-    # code_commit:6c5dbfe; 实现分支 codex/pythia28-h-unit2x2-1031，worktree /data0/xd/pythia28-h-unit2x2。
-    # 对照全名、完整走势及收尾证据：h_high_layer_read_interventions_20261031.md 的 21.5k 收尾节。
-    # 逐层 context 诊断及解释边界：h_all_layer_context_evolution_20261101.md。
+    # Gap = this loss - comparator loss; all gain ratios use Pythia2p8BShortTrain (original MHA) as reference.
+    # Versus H: early deficit recovers near 8k, followed by a small lead; last common 18k gap -0.00097, ratio 1.0086.
+    # Versus the old gamma=.2 control (parent compare_runs[0]): the 8k-16k gap holds near -0.0049; 16k ratio 1.0432.
+    # Versus QK80/combination bases: late gaps hold near -0.010/-0.008; 21.5k ratios are 1.0953/1.0781.
+    # Those base-relative gains include H's inherited changes; the H comparison isolates unit initialization.
+    # The serial-Mudd ratio falls from 1.759 at 12k to 1.652 at 21.5k, with final gap -0.04373.
+    # Absolute gain over original MHA also contracts; the brief late recovery does not persist. Final gap -0.11086.
+    # Parameters, compute, MLP widths and M-cache are unchanged; UE5a v5p-128 about 0.315 step/s, startup -0.16% versus H.
+    # User stopped at checkpoint 21549 after the 21.5k report; original 28000-step LR plan retained, full endpoint unmeasured.
+    # code_commit:6c5dbfe; branch codex/pythia28-h-unit2x2-1031, worktree /data0/xd/pythia28-h-unit2x2.
+    # Baseline identities/complete trends: h_high_layer_read_interventions_20261031.md, final 21.5k section.
+    # Layerwise diagnostics and interpretation limits: h_all_layer_context_evolution_20261101.md.
     model_name = 'BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOne'
     bam_common_vo_read_scale_init = 1.0
 
 
 class BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80CommonReadScaleUnscaledMLPContentEmbeddingFixedContextLocalOComplement(
         BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80CommonReadScaleUnscaledMLPContentEmbeddingFixed):
-    """H plus opposing same-token/head gates for context and dynamic localO.
+    """Use opposing same-token/head gates for context and dynamic local O in H.
 
-    Reuse the existing dynamic O gate g: context *= 1-g; dynamic O keeps g.
-    Static O/gate, full-head QKNorm and negative attention diagonal are unchanged.
-    Retain optimized v8t common-scale folding, read/write kernels, minimal remat,
-    single-layer scan31+tail1 and GELU7808/2944/tail9984. No new parameters.
-    Generic health exports gate mean/std for all32 layers (64 scalars only).
+    Reuse the dynamic O gate g: context *= 1-g; dynamic O retains g.
+    Static O, full-head QKNorm and the negative attention diagonal are unchanged.
+    Keep v8t kernels, minimal remat, scan 31+tail 1 and GELU 7808/2944/tail 9984.
+    No new parameters. Generic health adds gate mean/std for 32 layers (64 scalars).
     """
-    # code_commit:39b6a4f; fresh28000/UE5a v5p128/global1024/B16; exact AOT/source/FIRST0 verified.
-    # Startup20..39 .31425step/s: H.31690 (-.84%), common gamma baseline.31750 (-1.02%); minimal remat.
-    # GenericON/internal+BAMOFF plus64 gate mean/std tags; common gamma comparator set in registry, MHA gain reference.
-    # Launch/reproduction: pythia2p8_context_local_o_complement.md; user requested exit after launch/speed validation.
-    # User stopped12947/P0; CP12947 committed, TB SYNC_OK, node+QR verified absent; H continues.
-    # 2k..12k all21 common windows trail bare H; last5 +.001380 loss, no additive benefit.
-    # Still improves common old gamma baseline: final12.5k gap-.003442/R1.029158 (MHA ref).
-    # Prior16k R1.04 unmeasured; no new params/cache; excluded from historical family plots.
+    # Conclusion: the complementary context gate adds no benefit over H in the observed prefix.
+    # All 21 common windows from 2k to 12k trail H; the last-five gap is +0.001380.
+    # At 12.5k it still beats the older gamma control by -0.003442 (MHA-ref ratio 1.029158), an inherited advantage.
+    # UE5a v5p-128: 0.31425 step/s (-0.84% versus H); no added parameters or M-cache.
+    # User stopped at checkpoint 12947/28000; no full-schedule conclusion. Excluded from family plots as requested.
+    # code_commit:39b6a4f; main implementation. Evidence: pythia2p8_context_local_o_complement.md.
     model_name = 'BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80CommonReadScaleUnscaledMLPContentEmbeddingFixedContextLocalOComplement'
     bam_context_local_o_complement = True
     compare_runs = ['BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80CommonReadScaleUnscaledMLPContentEmbeddingFixed']
@@ -17468,34 +17457,37 @@ class BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80CommonReadScaleU
 class BamPythia2p8BCommonReadParentProfile(
         TrainStepProfile,
         BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640SeparateVOKeysLogitDiagNegativeQK80LocalODynamicNormScale020):
-    """v5p-8 timing arm: gamma020 comparator, formal health settings, 8/device as the V64 profiles."""
-    # v5p-8 UE5a 32L 8/device: b59a903 .6380 step/s, device1516.2ms; 1f9ec4f .6390, 1516.2ms (pair noise).
+    """v5p-8 timing control for the old gamma=.2 baseline, with 8 examples/device."""
+    # UE5a, 32 layers, matched formal health: b59a903 gives 0.6380 step/s and 1516.2 ms device time.
+    # At 1f9ec4f: 0.6390 step/s, the same 1516.2 ms; the difference is timing noise.
     model_name = 'BamPythia2p8BCommonReadParentProfile'
     target_train_batch_size = None
-    per_device_batch_size = 8.0  # V64-profile recipe: minimal remat at16/device exceeds v5p-8 HBM by6.26GiB.
+    per_device_batch_size = 8.0  # V64 profile: minimal remat at 16/device exceeds v5p-8 HBM by 6.26 GiB.
     steps = 100
 
 
 class BamPythia2p8BCommonReadHProfile(
         TrainStepProfile,
         BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80CommonReadScaleUnscaledMLPContentEmbeddingFixed):
-    """v5p-8 timing arm: H without gamma (common V/O scalar alone on the read)."""
-    # XLA epilogue b59a903: .6280 (-1.57% vs parent), 1538.1ms; attention_other +24.3ms over parent.
-    # Folded 1f9ec4f: .6350, 1520.8ms (+1.11%, -17.3ms); attention_other back to parent, read bwd +2.5ms.
+    """v5p-8 timing control for H without dynamic-O gamma."""
+    # Folding the common scale into v8t weights restores the extra epilogue cost.
+    # XLA epilogue b59a903: 0.6280 step/s, 1538.1 ms, 1.57% slower than the old gamma baseline.
+    # Folded 1f9ec4f: 0.6350 step/s, 1520.8 ms (+1.11%, -17.3 ms versus epilogue); read backward adds 2.5 ms.
     model_name = 'BamPythia2p8BCommonReadHProfile'
     target_train_batch_size = None
-    per_device_batch_size = 8.0  # V64-profile recipe: minimal remat at16/device exceeds v5p-8 HBM by6.26GiB.
+    per_device_batch_size = 8.0  # V64 profile: minimal remat at 16/device exceeds v5p-8 HBM by 6.26 GiB.
     steps = 100
 
 
 class BamPythia2p8BCommonReadUnitGammaProfile(
         TrainStepProfile,
         BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneLocalODynamicNormScale020):
-    """v5p-8 timing arm: priority H, unit-initialized scalars plus gamma020."""
-    # XLA epilogue b59a903: .6280 (-1.57% vs parent), 1542.0ms. Folded 1f9ec4f: .6360, 1521.6ms (+1.27%, -20.4ms).
+    """v5p-8 timing control for unit-initialized H with dynamic-O gamma=0.2."""
+    # XLA epilogue b59a903: 0.6280 step/s, 1542.0 ms, 1.57% slower than the old gamma baseline.
+    # Folded 1f9ec4f: 0.6360 step/s, 1521.6 ms (+1.27%, -20.4 ms versus epilogue).
     model_name = 'BamPythia2p8BCommonReadUnitGammaProfile'
     target_train_batch_size = None
-    per_device_batch_size = 8.0  # V64-profile recipe: minimal remat at16/device exceeds v5p-8 HBM by6.26GiB.
+    per_device_batch_size = 8.0  # V64 profile: minimal remat at 16/device exceeds v5p-8 HBM by 6.26 GiB.
     steps = 100
 
 
@@ -19519,14 +19511,14 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
 
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleRawMLPWriteEmbeddingNormTruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleRawMLPWriteTruePile):
-    """Restore embedding content RMSNorm; keep learned reads and raw small-MLP content writes."""
-    # ledger only: codex/mediumprop-common-read-raw-write; /data0/xd/mediumprop-common-read-raw-write.
-    # code_commit: 8b1089f; params432112210 unchanged, MLP2510/1128/tail3904; Pallasread+write unchanged.
-    # UE5a v5p16 xd-v5p-16-310414-maxtext; FIRST0/source/AOT/data/s13500 and18signed initial/finite220 values verified.
-    # Startup20..99 .671325step/s vsD.679300 (-1.17%), vsC.673638 (-.34%); genericON/internal+BAMOFF.
-    # Completed13500/P1: early lead overD reversed near4k; persistent late deficit, final5 gap+.001563/R.991211 vsD.
-    # Final5 vsC -.000084/R1.000471, essentially parity; raw fixed-divisor MLP alone gave no clear terminal gain.
-    # FinalCP13500 independently verified; node+queue absent. Same432112210params and cache.
+    """Restore embedding content RMSNorm; retain raw small-MLP writes and read scaling."""
+    # Conclusion: embedding normalization loses to the direct parent and is essentially tied with read-scale-only control.
+    # The early lead over the parent reverses near 4k; final-five gap +0.001563, MHA-ref ratio 0.991211.
+    # Versus the read-scale-only control (compare_runs[1]), final-five gap -0.000084, ratio 1.000471.
+    # Completed 13500; UE5a v5p-16, 0.671325 step/s (-1.17% versus parent, -0.34% versus read-scale-only).
+    # Parameters 432112210, widths 2510/1128/tail 3904 and M-cache unchanged; matched health settings.
+    # code_commit:8b1089f; ledger only: codex/mediumprop-common-read-raw-write, /data0/xd/mediumprop-common-read-raw-write.
+    # Baseline identities and full evidence: mediumprop_common_read_raw_write.md.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleRawMLPWriteEmbeddingNormTruePile'
     bam_embedding_write_content_divisor = None
     compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleRawMLPWriteTruePile', 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleOnlyTruePile']
@@ -19534,15 +19526,14 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
 
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleGlobalMLPContentNormTruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleRawMLPWriteEmbeddingNormTruePile):
-    """RMS-normalize the complete private-MLP output before splitting write heads."""
-    # ledger only: codex/mediumprop-common-read-raw-write; /data0/xd/mediumprop-common-read-raw-write.
-    # code_commit: 531d270; params432112210/MLP2510/1128/tail3904 unchanged; existing Pallas read/write.
-    # UE5a v5p16 xd-v5p-16-310415-maxtext; FIRST0/source/AOT/data/s13500 verified; genericON/internal+BAMOFF.
-    # Startup20..99 .6550125step/s vs parentE.671325 (-2.43%); kernel-external global RMSNorm.
-    # First stint stopped3569 for slot reuse, not terminal failure: final5 vsE -.000971/R1.003606, recovering.
-    # User-requested resume fromCP3569 to original13500 on310419, exact531d270 runtime/AOT; compare onlyG.
-    # User replaced again at7088/P0: vsG last5 through7000 gap+.006094/R.971035; slow absolute catchup, ratio near.97.
-    # Full13500 endpoint unmeasured; CP7088/TB secured, physical310419 transferred to H+gamma.5 after newFIRST.
+    """Globally RMS-normalize the private-MLP output before splitting its write heads."""
+    # Conclusion: global normalization does not improve the stronger uncompensated-write control (compare_runs[0]).
+    # Initial recovery versus the normalized parent did not transfer to that control; later ratios plateau near 0.97.
+    # Final five windows through 7k: gap +0.006094, MHA-ref ratio 0.971035 versus uncompensated writes.
+    # User stopped at checkpoint 7088/13500 after resuming the same runtime; full endpoint unmeasured.
+    # UE5a v5p-16: 0.655013 step/s (-2.43% versus the normalized parent); widths 2510/1128/tail 3904 and cache unchanged.
+    # code_commit:531d270; ledger only: codex/mediumprop-common-read-raw-write, /data0/xd/mediumprop-common-read-raw-write.
+    # Stint/handoff details and complete comparisons: mediumprop_common_read_raw_write.md.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleGlobalMLPContentNormTruePile'
     bam_mlp_write_content_global_rmsnorm = True
     bam_mlp_write_content_divisor = 1.0
@@ -19551,14 +19542,14 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
 
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentTruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleRawMLPWriteEmbeddingNormTruePile):
-    """Write the private-MLP output directly, with neither content RMSNorm nor amplitude compensation."""
-    # ledger only: codex/mediumprop-common-read-raw-write; /data0/xd/mediumprop-common-read-raw-write.
-    # code_commit: 531d270; same parent/budget, initial private write amplitude~1/220; Pallas read/write.
-    # UE5a v5p16 xd-v5p-16-310416-maxtext; FIRST0/source/AOT/data/s13500 verified; genericON/internal+BAMOFF.
-    # Startup20..99 .67405step/s vs parentE.671325 (+.41%); no content normalization/compensation.
-    # Completed13500/P0: early gain strengthened then mildly retreated; final5 vsE gap-.004699/R1.026647 (MHA ref).
-    # Original terminalR.990 bet underestimated this uncompensated-write change; initial~220x weaker writes did not prevent learning.
-    # FinalCP13500 independently verified; node+queue absent. Same432112210params/cache; startup+.41% vsE.
+    """Write raw private-MLP content without RMSNorm or amplitude compensation."""
+    # Conclusion: uncompensated private-MLP writes improve the normalized parent despite much weaker initial writes.
+    # The gain strengthens early, then retreats slightly; final-five gap -0.004699, MHA-ref ratio 1.026647.
+    # Initial write amplitude is about 1/220 of the parent's; the 0.990 terminal-ratio prior was pessimistic.
+    # Completed 13500; UE5a v5p-16, 0.67405 step/s (+0.41% versus parent), matched health settings.
+    # Parameters 432112210, MLP widths and M-cache unchanged.
+    # code_commit:531d270; ledger only: codex/mediumprop-common-read-raw-write, /data0/xd/mediumprop-common-read-raw-write.
+    # Full evidence: mediumprop_common_read_raw_write.md.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentTruePile'
     bam_mlp_write_content_divisor = 1.0
     compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleRawMLPWriteEmbeddingNormTruePile']
@@ -19566,14 +19557,14 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
 
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedTruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentTruePile):
-    """Raw embedding content with the original calibrated divisor; private MLP remains uncompensated."""
-    # ledger only: codex/mediumprop-common-read-raw-write; /data0/xd/mediumprop-common-read-raw-write.
-    # code_commit: d0ed1c8; same432112210params andMLP2510/1128/tail3904; existingPallasread/write.
-    # Logical310417 on retained physical310415 UE5a/v5p16; FIRST0/source/AOT/data/s13500 verified.
-    # Startup20..99 .669875step/s vsG.67405 (-.62%); genericON/internal+BAMOFF,18signed init/finite values verified.
-    # Completed13500/P1: early deficit crossed to a persistent lead; final5 vsG gap-.001616/R1.008936 (MHA ref).
-    # Original terminalR1.003, revised1.006: modest embedding raw/fixed benefit persisted to endpoint.
-    # CP13500 committed, node+queue verified absent, TB SYNC_OK; parameters/cache unchanged.
+    """Use raw embedding content with a fixed divisor; retain uncompensated private-MLP writes."""
+    # Conclusion: the calibrated raw embedding write adds a small persistent gain over the raw-MLP parent.
+    # An early deficit crosses to a lasting lead; final-five gap -0.001616, MHA-ref ratio 1.008936.
+    # Completed 13500; the original ratio prior 1.003 and revised 1.006 both underestimated the observed gain.
+    # H denotes this class in its descendants; all Medium-family gain ratios use BamMHAMediumPropC256TruePile as reference.
+    # UE5a v5p-16: 0.669875 step/s (-0.62% versus parent), matched health; 432112210 parameters and M-cache unchanged.
+    # code_commit:d0ed1c8; ledger only: codex/mediumprop-common-read-raw-write, /data0/xd/mediumprop-common-read-raw-write.
+    # Baseline mapping, matched curves and closeout: mediumprop_common_read_raw_write.md.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedTruePile'
     bam_embedding_write_content_divisor = 0.0016052833
     compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentTruePile']
@@ -19581,13 +19572,13 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
 
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingUnscaledTruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentTruePile):
-    """Raw embedding and private-MLP content, with no normalization or fixed amplitude compensation."""
-    # ledger only: codex/mediumprop-common-read-raw-write; /data0/xd/mediumprop-common-read-raw-write.
-    # code_commit: d0ed1c8; vector embedding init unchanged; onlyM-coldstart/write content changes.
-    # Logical310418 on retained physical310413 UE5a/v5p16; FIRST0/source/AOT/data/s13500 verified.
-    # Startup20..99 .67515step/s vsG.67405 (+.16%); genericON/internal+BAMOFF,18signed init/finite values verified.
-    # User replaced at3445/P2: vsG last5 through3400 gap+.036675/R.872846; gap shrank but relative benefit worsened.
-    # CP3445/TB secured; physical310413 transferred to H all-read scaling after newFIRST. No terminal13500 result.
+    """Remove embedding-write compensation without changing the vector embedding initialization."""
+    # Conclusion: an uncompensated embedding write does not improve the raw-MLP parent in the observed prefix.
+    # The absolute deficit narrows, but relative gain deteriorates; final-five windows through 3.4k give +0.036675 / 0.872846.
+    # User hot-replaced at checkpoint 3445/13500; the full endpoint is unmeasured.
+    # UE5a v5p-16: 0.67515 step/s (+0.16% versus parent), matched health; parameters and M-cache unchanged.
+    # code_commit:d0ed1c8; ledger only: codex/mediumprop-common-read-raw-write, /data0/xd/mediumprop-common-read-raw-write.
+    # Evidence and two preemptions: mediumprop_common_read_raw_write.md.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingUnscaledTruePile'
     bam_embedding_write_content_divisor = 1.0
     compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentTruePile']
@@ -19595,14 +19586,14 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
 
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedLocalODynamicNormScale050TruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedTruePile):
-    """H plus per-head/address-coordinate dynamic local-O gamma, initialized to .5."""
-    # ledger only: codex/mediumprop-common-read-raw-write; /data0/xd/mediumprop-common-read-raw-write.
-    # code_commit: adf6afd; completed13500/P0 on UE5a v5p16; CP13500 committed, node+queue absent, TB synced.
-    # vsH: persistent small deficit despite late narrowing; final5 gap+.00100016/R.99451653 (MHA ref).
-    # Latest13.4k gap+.0015638/R.991424; terminal prior1.008 was optimistic, gamma.5 did not add net gain.
-    # Gamma coordinates learned: final within-head CV median7.36%/P90 12.25%, range.26988..82963, allpositive.
-    # Startup.67065step/s vsH.669875 (+.12%); genericON/internal+BAMOFF, MLP2510/1128/tail3904 unchanged.
-    # Same sealed runtime resumed at5350 to original13500 schedule; final evidence in mediumprop_common_read_raw_write.md.
+    """Add dynamic-O address gamma initialized to 0.5 to H."""
+    # Conclusion: gamma=0.5 leaves a small persistent deficit versus H despite late catch-up.
+    # Final-five gap +0.001000, MHA-ref ratio 0.994517; the last 13.4k window is +0.001564 / 0.991424.
+    # Completed 13500 after same-runtime continuation; the terminal-ratio prior 1.008 was optimistic.
+    # Gamma coordinates learn nonuniform values, but that alone is not a loss benefit.
+    # UE5a v5p-16: 0.67065 step/s (+0.12% versus H), matched health; MLP widths 2510/1128/tail 3904 unchanged.
+    # code_commit:adf6afd; ledger only: codex/mediumprop-common-read-raw-write, /data0/xd/mediumprop-common-read-raw-write.
+    # Health profiles, continuation and full evidence: mediumprop_common_read_raw_write.md.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedLocalODynamicNormScale050TruePile'
     bam_local_o_dynamic_norm_scale = True
     bam_local_o_dynamic_norm_scale_init = .5
@@ -19612,12 +19603,13 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
 
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedAllMReadScaleTruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedTruePile):
-    """H with its existing layer scalar applied to all M reads, including NoPE Q/K; no QKNorm."""
-    # ledger only: codex/mediumprop-common-read-raw-write; /data0/xd/mediumprop-common-read-raw-write.
-    # code_commit: adf6afd; UE5a v5p16 xd-v5p-16-310413-maxtext; stopped8366/P0 after resumed8k review.
-    # Persistent deficit with slow catchup; final5 through8200 vsH gap+0.007269/R0.964136 (MHA ref).
-    # Late-window linear/exp terminal estimates stayed belowH;13500 endpoint unmeasured; CP/TB secured, resources absent.
-    # Startup-1.60% vsH, healthON/internal+BAMOFF; same params/cache asH; MLP2510/1128/tail3904 unchanged.
+    """Extend H's common read scale to Q/K as well as V/local O."""
+    # Conclusion: scaling all M reads trails H, with slow catch-up but no observed recovery to parity.
+    # Final-five windows through 8.2k: gap +0.007269, MHA-ref ratio 0.964136.
+    # Late linear/exponential extrapolations remain below H; stopped at checkpoint 8366/13500, not a measured terminal result.
+    # UE5a v5p-16: startup -1.60% versus H, matched health; parameters, widths and M-cache unchanged.
+    # code_commit:adf6afd; ledger only: codex/mediumprop-common-read-raw-write, /data0/xd/mediumprop-common-read-raw-write.
+    # Complete curves and extrapolation: mediumprop_common_read_raw_write.md.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedAllMReadScaleTruePile'
     bam_common_read_scale_qk = True
     compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedTruePile']
@@ -19626,12 +19618,13 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
 
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedAllMReadScaleLocalODynamicNormScale050TruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedAllMReadScaleTruePile):
-    """H with both unified QKVO read scaling and dynamic local-O gamma .5."""
-    # ledger only: codex/mediumprop-common-read-raw-write; /data0/xd/mediumprop-common-read-raw-write.
-    # code_commit: adf6afd; UE5a v5p16 xd-v5p-16-310422-maxtext; stopped8434/P0 after resumed8k review.
-    # Persistent deficit with slow catchup; final5 through8400 vsH gap+0.010321/R0.948667 (MHA ref).
-    # Late-window linear/exp terminal estimates stayed belowH;13500 endpoint unmeasured; CP/TB secured, resources absent.
-    # Startup-1.84% vsH, healthON/internal+BAMOFF; +9216 negligible params vsH; samecache; MLP2510/1128/tail3904 unchanged.
+    """Combine all-M-read scaling with dynamic-O address gamma initialized to 0.5."""
+    # Conclusion: adding gamma does not rescue all-read scaling; a persistent deficit remains versus H.
+    # Final-five windows through 8.4k: gap +0.010321, MHA-ref ratio 0.948667 despite slow absolute catch-up.
+    # Late extrapolations stay below H; stopped at checkpoint 8434/13500, full endpoint unmeasured.
+    # UE5a v5p-16: startup -1.84% versus H, matched health; +9216 negligible parameters, unchanged MLP widths/cache.
+    # code_commit:adf6afd; ledger only: codex/mediumprop-common-read-raw-write, /data0/xd/mediumprop-common-read-raw-write.
+    # Complete curves and extrapolation: mediumprop_common_read_raw_write.md.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedAllMReadScaleLocalODynamicNormScale050TruePile'
     bam_local_o_dynamic_norm_scale = True
     bam_local_o_dynamic_norm_scale_init = .5
@@ -19639,14 +19632,13 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
 
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneTruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedTruePile):
-    """H with all eighteen learned V/localO read scalars initialized to one."""
-    # ledger only: codex/mediumprop-common-read-raw-write; /data0/xd/mediumprop-common-read-raw-write.
-    # code_commit: aa7d8ec; UE5a v5p16 xd-v5p-16-310423-maxtext; FIRST0/source/AOT/data/s13500 verified.
-    # CPU native/Pallas all-gradients passed; startup20..99 0.676113step/s; genericON/internal+BAMOFF.
-    # Same MLP2510/1128/tail3904; all18 V/localO read scalars init1, QK and writer rules unchanged.
-    # User-paused CP9341/13500, P0; checkpoint/cursor retained, node+queue absent, TB SYNC_OK.
-    # Provisional vsH through9200: last5 gap+0.00464388/R0.97621074; early catchup then plateau.
-    # Original13500 schedule/AOT retained; endpoint and terminal bet unmeasured; see mediumprop_common_read_raw_write.md.
+    """Initialize all 18 V/local O read scales to 1; preserve H's Q/K and writers."""
+    # Provisional conclusion: early catch-up stalls with a remaining deficit versus H.
+    # Last five windows through 9.2k: gap +0.004644, MHA-ref ratio 0.976211.
+    # User paused at checkpoint 9341/13500; the original schedule is retained and the endpoint remains unmeasured.
+    # UE5a v5p-16: 0.676113 step/s; matched health, widths 2510/1128/tail 3904 and M-cache unchanged.
+    # code_commit:aa7d8ec; ledger only: codex/mediumprop-common-read-raw-write, /data0/xd/mediumprop-common-read-raw-write.
+    # Complete evidence: mediumprop_common_read_raw_write.md.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneTruePile'
     bam_common_vo_read_scale_init = 1.0
     compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedTruePile']
@@ -19654,14 +19646,13 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
 
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneLocalODynamicNormScale050TruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneTruePile):
-    """Unit-initialized V/localO layer scalars plus learned dynamic-O gamma initialized to .5."""
-    # ledger only: codex/mediumprop-common-read-raw-write; /data0/xd/mediumprop-common-read-raw-write.
-    # code_commit: 789c00c; UE5a v5p16 xd-v5p-16-310424-maxtext; FIRST0/source/AOT/data/s13500 verified.
-    # CPU native/Pallas all-gradients passed; startup20..99 0.673063step/s; genericON/internal+BAMOFF.
-    # Same MLP2510/1128/tail3904; all18 V/localO read scalars init1, QK and writer rules unchanged.
-    # User-paused CP8976/13500, P0; checkpoint/cursor retained, node+queue absent, TB SYNC_OK.
-    # Provisional vsH through8800: last5 gap+0.00550944/R0.97215215; early catchup then plateau.
-    # Original13500 schedule/AOT retained; endpoint and terminal bet unmeasured; see mediumprop_common_read_raw_write.md.
+    """Combine unit-initialized common V/local O scales with dynamic-O gamma=0.5."""
+    # Provisional conclusion: the combination catches up initially, then plateaus below H.
+    # Last five windows through 8.8k: gap +0.005509, MHA-ref ratio 0.972152.
+    # User paused at checkpoint 8976/13500; the original schedule and full-endpoint question remain open.
+    # UE5a v5p-16: 0.673063 step/s, matched health; widths 2510/1128/tail 3904 unchanged.
+    # code_commit:789c00c; ledger only: codex/mediumprop-common-read-raw-write, /data0/xd/mediumprop-common-read-raw-write.
+    # Complete evidence: mediumprop_common_read_raw_write.md.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneLocalODynamicNormScale050TruePile'
     bam_local_o_dynamic_norm_scale = True
     bam_local_o_dynamic_norm_scale_init = .5
@@ -19670,14 +19661,14 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
 
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedNoReadScaleTruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedTruePile):
-    """H without read-scaling parameters or multiplies: implicit V/localO scale one."""
-    # ledger only: codex/mediumprop-common-read-raw-write; /data0/xd/mediumprop-common-read-raw-write.
-    # code_commit: dcbeeb2; UE5a v5p16 xd-v5p-16-310425-maxtext; FIRST0/source/AOT/data/s13500 verified.
-    # Initial loss10.852707 matches learned-unit control; no read-scale leaves/multiplies;432112192params (-18vsH).
-    # Startup20..99 .694438step/s, +2.71%vs learned-unit control (different lease); healthON/internal+BAMOFF.
-    # User-paused CP8483/13500, P0; checkpoint/cursor retained, node+queue absent, TB SYNC_OK.
-    # Provisional vsH through8400: last5 gap+0.00570060/R0.97162315; early catchup then plateau.
-    # Original13500 schedule/AOT retained; endpoint and terminal bet unmeasured; see mediumprop_common_read_raw_write.md.
+    """Remove common read-scale parameters/multiplications; preserve the unit-scale initial function."""
+    # Provisional conclusion: removing read scaling does not recover H's loss in the observed prefix.
+    # Early catch-up stalls; last five windows through 8.4k give gap +0.005701 and MHA-ref ratio 0.971623.
+    # User paused at checkpoint 8483/13500; the original full schedule remains unmeasured.
+    # UE5a v5p-16: 0.694438 step/s, +2.71% versus learned-unit control on a different lease with matched health.
+    # Parameters 432112192 (H -18); identical initial loss to learned-unit control, unchanged MLP widths/cache.
+    # code_commit:dcbeeb2; ledger only: codex/mediumprop-common-read-raw-write, /data0/xd/mediumprop-common-read-raw-write.
+    # Complete evidence: mediumprop_common_read_raw_write.md.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedNoReadScaleTruePile'
     bam_common_vo_read_scale = False
     compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedTruePile']
@@ -19685,11 +19676,11 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
 
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedIndependentQKReadScaleTruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedTruePile):
-    """H plus separate learned NoPE-Q and NoPE-K layer scalars, both initialized to one."""
-    # ledger only: codex/mediumprop-common-read-raw-write; /data0/xd/mediumprop-common-read-raw-write.
-    # code_commit: c86bd03; CPU4checks/AOT passed, then user cancelled before FIRST_STEP validation.
-    # Target2p8 has QKNorm with overlapping controls; no training/loss conclusion; no checkpoint expected.
-    # UE5a v5p16 xd-v5p-16-310426-maxtext released: node+queue verified absent; borrowed FLEX retained.
+    """Add independent learned Q/K read scalars to H."""
+    # Cancelled before FIRST_STEP validation; there is no measured training/loss conclusion.
+    # The intended 2.8B transfer already has QKNorm controls; do not treat preparation checks as experimental success.
+    # code_commit:c86bd03; ledger only: codex/mediumprop-common-read-raw-write, /data0/xd/mediumprop-common-read-raw-write.
+    # UE5a v5p-16 preparation/cleanup evidence: mediumprop_common_read_raw_write.md.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedIndependentQKReadScaleTruePile'
     bam_independent_qk_read_scale = True
     compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedTruePile']
@@ -19697,23 +19688,21 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
 
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75DynamicVONormScaleDepth2RawMLPEmbeddingFixedTruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedTruePile):
-    """Replace the external V/O scalar with independent dynamic-address norm gains.
+    """Replace H's full-read scale with independent dynamic V/O address-norm gains.
 
-    Both gammaV[16,32] and gammaO[16,32] start at1/sqrt(1+2*actual_layer).
-    Static reads keep their existing parameters/gates; Q/K are unchanged.
-    H embedding fixed divisor, raw private-MLP writes and normalized attention
-    writes remain. No scalar read multiplier. MLP2510/1128/tail3904 unchanged;
-    total432130624, H+18414 (.00426%, negligible; no MLP repayment).
+    Both gamma_V[16,32] and gamma_O[16,32] start at 1/sqrt(1+2*layer).
+    Static reads retain their existing parameters/gates; Q/K are unchanged.
+    Keep the fixed embedding divisor, raw private-MLP writes and normalized
+    attention writes. Widths 2510/1128/tail 3904; total 432130624 parameters
+    (H +18414, 0.00426%, exempt from MLP repayment).
     """
-    # ledger only: codex/mediumprop-common-read-raw-write; implementation and Pallas live in that worktree.
-    # code_commit: ddb498c; UE5a v5p16 xd-v5p-16-310427-maxtext; FIRST0/source/AOT/data/s13500 verified.
-    # Startup20..99 0.690925step/s vsH.669875 (+3.14%, separate leases); healthON/internal+BAMOFF.
-    # Actual step0 V/O gamma RMS verified against the depth formula at all18layers; O/V parameter-RMS ratio1.
-    # User-stopped10519/13500/P0; CP10519/TB SYNC_OK, node+queued resource independently absent.
-    # vs H: early R~.95 recovered to~.985 at8k, then plateau/reversal; final5 through10400 gap+.00371008/R.98051346.
-    # Independent V/O dynamic gammas learned amplitude separation but did not replace H's full-read scaling successfully.
-    # Static reads were outside these gammas; this is not a clean rejection of fine-grained gamma. Terminal1.010 prior unmeasured.
-    # UE5a xd-v5p-16-310427-maxtext; single READY lease04:34:40..08:55:35 UTC,4h20m55s; manual user stop.
+    # Conclusion: independent dynamic gains learn different amplitudes but do not replace H's complete-read scaling successfully.
+    # The early ratio near 0.95 recovers to about 0.985 by 8k, then stalls/reverses; last-five gap +0.003710, ratio 0.980513.
+    # Static reads are outside these gains, so this does not reject every finer-grained scaling design.
+    # User stopped at checkpoint 10519/13500; the terminal-ratio prior 1.010 is untested.
+    # UE5a v5p-16: 0.690925 step/s (+3.14% versus H, matched health on separate leases); M-cache unchanged.
+    # code_commit:ddb498c; ledger only: codex/mediumprop-common-read-raw-write, /data0/xd/mediumprop-common-read-raw-write.
+    # Complete evidence: mediumprop_common_read_raw_write.md.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75DynamicVONormScaleDepth2RawMLPEmbeddingFixedTruePile'
     bam_common_vo_read_scale = False
     bam_local_v_dynamic_norm_scale = True
@@ -19724,32 +19713,30 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
 
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75DynamicVONormScaleDepth1RawMLPEmbeddingFixedTruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75DynamicVONormScaleDepth2RawMLPEmbeddingFixedTruePile):
-    """Only change V/O norm-gain initialization to1/sqrt(1+actual_layer)."""
-    # code_commit: ddb498c; UE5a v5p16 xd-v5p-16-310428-maxtext; FIRST0/source/AOT/data/s13500 verified.
-    # Startup20..99 0.686575step/s vsH.669875 (+2.49%, separate leases); healthON/internal+BAMOFF.
-    # Actual step0 V/O gamma RMS verified against the depth formula at all18layers; O/V parameter-RMS ratio1.
-    # Stopped7943/13500/P0 after resource-priority review; CP7943/TB SYNC_OK.
-    # UE5a retained xd-v5p-16-310428-maxtext handed to fa0a53c split-output RUN after FIRST_STEP.
-    # vs H: early deficit shrank but stayed positive; late R plateau near.97; final5 through7800 gap+.00572892/R.97209928.
-    # Behind depth2 throughout middle/late; original terminal R1.015 remains unmeasured. Single READY lease04:34:20..07:52:44 UTC.
+    """Change dynamic V/O gain initialization to 1/sqrt(1+layer), retaining the depth-2 design."""
+    # Conclusion: the shallower initialization trails H and the depth-2 variant over the observed middle/late prefix.
+    # An early deficit narrows, then the ratio plateaus near 0.97; final-five windows through 7.8k give +0.005729 / 0.972099.
+    # Stopped at checkpoint 7943/13500 for resource priority; the 1.015 terminal-ratio prior remains unmeasured.
+    # UE5a v5p-16: 0.686575 step/s (+2.49% versus H, matched health on separate leases); inherited parameter/cache budget.
+    # code_commit:ddb498c; ledger only: codex/mediumprop-common-read-raw-write, /data0/xd/mediumprop-common-read-raw-write.
+    # Complete evidence and retained-trainer handoff: mediumprop_common_read_raw_write.md.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75DynamicVONormScaleDepth1RawMLPEmbeddingFixedTruePile'
     bam_local_vo_dynamic_norm_scale_depth_slope = 1.0
 
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75IndependentVOReadScaleRawMLPEmbeddingFixedTruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedTruePile):
-    """One independent full-V and full-O scale per layer, same depth initialization.
+    """Use independent full V and full local O read scales, with H's depth initialization.
 
-    Both start at1/sqrt(1+2*actual_layer), scaling complete dynamic+static reads.
-    H writers/MLP2510/1128/tail3904 unchanged;36 coefficients, total432112228
-    (H+18, negligible). Retain the H external scaling epilog and Pallas read/write.
+    Both start at 1/sqrt(1+2*layer), covering dynamic and static reads.
+    Keep H's writers and widths 2510/1128/tail 3904. There are 36 coefficients,
+    432112228 total parameters (H +18); retain H's scaling epilogue/kernels.
     """
-    # code_commit: 35963e9; UE5a v5p16 xd-v5p-16-310429-maxtext, plan13500.
-    # FIRST0/exact AOT/source/data/schedule verified;20..99 .679750step/s vs H +1.47%, cross-lease matched health.
-    # Actual step0 signed means/RMS checked all18 V/O scales; CP200 committed; genericON/internal+BAMOFF.
-    # User hot-replacement stop10771/13500/P0; CP10771/TB SYNC_OK, physical310429 retained/transferred after new FIRST_STEP.
-    # vs H: small persistent deficit, no sustained catch-up; final5 through10600 gap+.00142044/R.99252891.
-    # Shared-depth H remains better; +18 params and startup +1.47%H do not establish a useful architectural tradeoff.
-    # TerminalR1.015 bet unmeasured and overoptimistic; UE5a READY07:43:37..12:14:27 UTC,4h30m50s.
+    # Conclusion: separating the complete V/O scales leaves a small persistent deficit versus H.
+    # There is no sustained catch-up; final-five windows through 10.6k give gap +0.001420 and ratio 0.992529.
+    # User hot-replaced at checkpoint 10771/13500; the 1.015 terminal-ratio prior remains unmeasured.
+    # UE5a v5p-16: 0.679750 step/s (+1.47% versus H, matched health on separate leases); +18 parameters, no added cache.
+    # code_commit:35963e9; ledger only: codex/mediumprop-common-read-raw-write, /data0/xd/mediumprop-common-read-raw-write.
+    # Complete evidence: mediumprop_independent_vo_read_scale.md and mediumprop_common_read_raw_write.md.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75IndependentVOReadScaleRawMLPEmbeddingFixedTruePile'
     bam_common_vo_read_scale = False
     bam_independent_vo_read_scale = True
@@ -19758,37 +19745,35 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
 
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75IndependentVOReadScalePerHeadRawMLPEmbeddingFixedTruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75IndependentVOReadScaleRawMLPEmbeddingFixedTruePile):
-    """Independent complete V/O coefficients per layer and head; same initial values.
+    """Use independent complete V/O read scales for each layer and head.
 
-    18*16*2=576 coefficients;432112768 total, H+558, no MLP repayment.
-    Full-read scaling scope and all remaining H settings match the per-layer arm.
+    Keep the per-layer arm's initialization and full-read scope. The 576
+    coefficients give 432112768 total parameters (H +558), without MLP repayment.
     """
-    # code_commit: 35963e9; UE5a v5p16 xd-v5p-16-310430-maxtext, plan13500.
-    # FIRST0/exact AOT/source/data/schedule verified;20..99 .6751875step/s vs H +.79%, cross-lease matched health.
-    # Actual step0 signed means/RMS checked all18 V/O scales; CP200 committed; genericON/internal+BAMOFF.
-    # Complete13500/P0; CP13500/TB SYNC_OK, node+QR independently absent.
-    # vs H: early deficit mostly recovered by7k; late tiny wins, final5 through13400 gap-.00014332/R1.00078370 (essentially tied).
-    # TerminalR1.020 prior substantially overestimated; +558 parameters vs H, no inference-cache change; startup+.79% cross-lease.
-    # Head CV at13400 reaches34.1%V/21.8%O but no material loss gain; retain simpler shared H scale.
-    # UE5a READY07:43:53..13:27:59 UTC,5h44m06s.
+    # Conclusion: per-head scales essentially tie H; learned head variation does not produce a material loss gain.
+    # The early deficit mostly recovers by 7k; final-five windows through 13.4k give gap -0.000143 and ratio 1.000784.
+    # Completed 13500; the 1.020 terminal-ratio prior substantially overestimated the observed gain.
+    # UE5a v5p-16: 0.675188 step/s (+0.79% versus H, matched health on separate leases); no M-cache change.
+    # code_commit:35963e9; ledger only: codex/mediumprop-common-read-raw-write, /data0/xd/mediumprop-common-read-raw-write.
+    # Complete evidence: mediumprop_independent_vo_read_scale.md and mediumprop_common_read_raw_write.md.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75IndependentVOReadScalePerHeadRawMLPEmbeddingFixedTruePile'
     bam_independent_vo_read_scale_per_head = True
 
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedSeparateContextLocalOutputTruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedTruePile):
-    """Independent context/localO W_O; context self-attends and alone writes M.
+    """Separate context/local O output matrices; permit self-attention and let context alone write M.
 
-    H full V/O read scale, embedding fixed divisor and raw small MLP retained.
-    Each extra D^2 W_O is paid by400 ordinary SwiGLU hidden units locally.
-    MLP2110/1128/tail3504; exact H parameter budget432112210, no extra gates.
+    Keep H's full V/O scale, fixed embedding divisor and raw private-MLP writes.
+    Fund each added D^2 matrix with 400 ordinary SwiGLU hidden units locally.
+    Widths 2110/1128/tail 3504 match H's 432112210-parameter budget; no new gates.
     """
-    # ledger only: codex/mediumprop-common-read-raw-write, /data0/xd/mediumprop-common-read-raw-write; runtime fa0a53c9.
-    # code_commit: fa0a53c; UE5a v5p16 retained xd-v5p-16-310428-maxtext, new RUN id310431.
-    # FIRST0/exact AOT/source/data/schedule verified;20..99 .6595125step/s vs H -1.55%, cross-lease matched health.
-    # User-stopped3322/13500/P0; CP3322/TB SYNC_OK, physical310428 node+QR independently absent.
-    # vs H: gap shrank but R stayed~.95 from600 onward; final5 through3200 gap+.01558672/R.94807209.
-    # All-ordinary cost repayment shifted ordinary/complete-private ratio to1.681; balanced allocation remains a separate test.
-    # Original terminal R1.015 prior unmeasured. UE5a READY07:53:44..09:20:14 UTC,1h26m30s; sourcefa0a53c.
+    # Conclusion: separate output projections do not improve H in the tested prefix.
+    # The gap narrows but the ratio stays near 0.95 from 600 steps onward; final-five through 3.2k give +0.015587 / 0.948072.
+    # Paying entirely from ordinary MLP changes the ordinary/full-memory budget ratio to 1.681; balanced repayment is a distinct control.
+    # User stopped at checkpoint 3322/13500; the full-schedule ratio prior 1.015 is unmeasured.
+    # UE5a v5p-16: 0.659513 step/s (-1.55% versus H), matched health on separate leases; parameters/cache unchanged.
+    # code_commit:fa0a53c; ledger only: codex/mediumprop-common-read-raw-write, /data0/xd/mediumprop-common-read-raw-write.
+    # Complete evidence: mediumprop_separate_context_local_output.md.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedSeparateContextLocalOutputTruePile'
     bam_separate_context_local_output = True
     bam_attention_negative_diagonal = False
@@ -19798,20 +19783,19 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
 
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalOReadScalePerHead050TruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODynamicNormScale050TruePile):
-    """Replace dynamic-address gamma with a complete localO per-layer/head scalar.
+    """Replace dynamic-only O gamma with a per-layer/head scale on complete local O.
 
-    Raw strongest combination, no H scale; V unchanged. Complete O includes
-    static and dynamic reads. 18*16=288 directly learned coefficients, init.5;
-    ordinary/small MLP2510/1128/tail3904 unchanged, negligible parameter delta.
+    Keep the original gamma=.5 model's V branch and writer recipe, without H's
+    common read scale. Complete O includes static/dynamic reads. Initialize
+    288 coefficients to 0.5; retain widths 2510/1128/tail 3904.
     """
-    # ledger only: codex/mediumprop-common-read-raw-write, /data0/xd/mediumprop-common-read-raw-write; runtime f7052d40.
-    # code_commit: f7052d4; UE5a v5p16 xd-v5p-16-310432-maxtext, plan13500.
-    # FIRST0/exact AOT/source/data/schedule/CP200 verified;20..99 .6866125step/s vs coordinate gamma.5 -.46%, dynamic-head -.17%.
-    # Actual all18 signed head means/RMS=.5; genericON/internal+BAMOFF, Pallas read+write, matched cross-lease timing.
-    # User hot-replacement stop6845/13500/P0; CP6845 and TB SYNC_OK, retained TPU transferred to dynamicV1/O.5.
-    # vs original coordinate gamma.5: consistently small deficit, no sustained crossing; final5 through6800 gap+.00181288/R.99126323.
-    # Complete-O head scale saves8928 params but offers no loss/speed gain; terminalR1.005 prior unmeasured.
-    # UE5a READY08:17:46..11:09:38 UTC,2h51m52s; no deletion because trainer reused after new FIRST_STEP.
+    # Conclusion: scaling complete O per head does not improve the original coordinate-gamma=.5 baseline.
+    # A small deficit persists without sustained crossing; final-five through 6.8k give +0.001813 / 0.991263.
+    # User hot-replaced at checkpoint 6845/13500; the 1.005 terminal-ratio prior remains unmeasured.
+    # UE5a v5p-16: 0.686613 step/s (-0.46% versus coordinate gamma, -0.17% versus dynamic-head control), matched health.
+    # Saves 8928 parameters without a demonstrated loss/speed gain; MLP widths unchanged.
+    # code_commit:f7052d4; ledger only: codex/mediumprop-common-read-raw-write, /data0/xd/mediumprop-common-read-raw-write.
+    # Complete evidence: mediumprop_common_read_raw_write.md and mediumprop_local_o_scale.md.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalOReadScalePerHead050TruePile'
     bam_pallas_core = True
     bam_pallas_write = True
@@ -19822,22 +19806,20 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
 
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedSeparateContextLocalOutputBalancedMLPTruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedSeparateContextLocalOutputTruePile):
-    """Pay the extra output matrix from ordinary/full memory MLPs in about2:1.
+    """Fund separate output matrices from ordinary/full-memory MLPs in approximately a 2:1 ratio.
 
-    First17 ordinary/private widths2243/995: relative to H, -267/-133.
-    Their sum pays exactly the same D^2 as the all-ordinary repayment control.
-    Tail3504 unchanged: no private branch exists there. Total432112210.
+    First 17 layers use ordinary/private widths 2243/995 (H -267/-133).
+    The total reduction pays the same D^2 per layer as the ordinary-only control.
+    Keep tail width 3504; total parameters remain 432112210.
     """
-    # ledger only: codex/mediumprop-common-read-raw-write, /data0/xd/mediumprop-common-read-raw-write; runtime 64248ed6.
-    # code_commit: 64248ed; UE5a v5p16 xd-v5p-16-310433-maxtext, plan13500.
-    # FIRST0/exact source/AOT/2243,995 widths/data/schedule/CP400 verified; all18 initial signed H scales checked.
-    # Startup20..99 .665025step/s vs direct original split +.84%, H -.72%; matched health, cross-lease timing.
-    # Original split stopped3322: direct matched comparisons end3200; H remains full terminal anchor. Direct terminalR1.02 bet is censored.
-    # User stop5377/13500/P0; CP5377/TB SYNC_OK, node+queued resource independently verified absent.
-    # vs H: gap narrows but R only~.94->.95; final5 through5200 gap+.01242588/R.94710857, no allocation rescue.
-    # vs original split at common3200: final5 gap+.00116520/R.99597008; both structurally trail H.
-    # Equal total parameters, startup +.84% vs original split / -.72% H; no demonstrated loss or speed win.
-    # UE5a READY09:07:54..11:27:35 UTC,2h19m41s; direct-terminalR1.02 bet unmeasurable after control stop3322.
+    # Conclusion: balancing MLP repayment does not rescue separate output projections versus H.
+    # The H-relative ratio only improves from about 0.94 to 0.95; final-five through 5.2k give +0.012426 / 0.947109.
+    # At the last common 3.2k window versus the original split control, final-five gap +0.001165 / ratio 0.995970.
+    # User stopped at checkpoint 5377/13500; the direct control ended earlier, so no later matched-control claim is available.
+    # UE5a v5p-16: 0.665025 step/s (+0.84% versus original split, -0.72% versus H), matched health on separate leases.
+    # Equal total parameters; no demonstrated loss/efficiency win. code_commit:64248ed.
+    # ledger only: codex/mediumprop-common-read-raw-write, /data0/xd/mediumprop-common-read-raw-write.
+    # Complete evidence: mediumprop_split_output_balanced_mlp.md.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedSeparateContextLocalOutputBalancedMLPTruePile'
     base_mlp_dim = 2243
     bam_memory_mlp_dim = 995
@@ -19847,20 +19829,18 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
 
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODynamicNormScale050LocalVDynamicNormScale100TruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODynamicNormScale050TruePile):
-    """Add dynamic-V address gamma initialized1 to the original O-gamma.5 model.
+    """Add dynamic-V address gamma initialized to 1 to the original O-gamma=.5 model.
 
-    Independent [head,M-column] V/O gains. Static reads unchanged; no H read
-    scalar or complete-O scalar. +9216 parameters,432130624 total; unchanged
-    MLP2510/1128/tail3904. Existing v8t dynamic V/O gamma kernels reused.
+    Use independent V/O gains by head/address coordinate; keep static reads.
+    No H/common-read or complete-O scalar. Add 9216 parameters: 432130624 total,
+    with unchanged widths 2510/1128/tail 3904 and existing v8t kernels.
     """
-    # ledger only: codex/mediumprop-common-read-raw-write, /data0/xd/mediumprop-common-read-raw-write.
-    # code_commit: a9dad36; UE5a v5p16 retained xd-v5p-16-310432-maxtext, RUNid310434, plan13500.
-    # FIRST0/exact source/AOT/data/schedule verified; startup20..99 .68995step/s, original dynamicO gamma.5 +.0235%.
-    # GenericON/internal+BAMOFF; all18 initial gamma RMS V1/O.5 checked; negligible+9216, no MLP repayment.
-    # User stop5792/13500/P0; CP5792/TB SYNC_OK, physical310432 node+QR independently absent.
-    # vs original O gamma.5: fluctuating small deficit, brief5200 crossing not sustained; final5 through5600 gap+.00095308/R.99566342.
-    # ExtraV gamma9216 params gives no demonstrated loss/speed gain; terminalR1.015 prior unmeasured and overoptimistic.
-    # UE5a READY11:10:37..13:44:50 UTC,2h34m13s; initially retained from complete-O-head RUN.
+    # Conclusion: adding V gamma gives no observed gain over the original O-gamma=.5 baseline.
+    # A brief crossing near 5.2k does not persist; final-five through 5.6k give gap +0.000953 and ratio 0.995663.
+    # User stopped at checkpoint 5792/13500; the terminal-ratio prior 1.015 is unmeasured.
+    # UE5a v5p-16: 0.68995 step/s (+0.0235% versus the O-gamma baseline), matched health; M-cache unchanged.
+    # code_commit:a9dad36; ledger only: codex/mediumprop-common-read-raw-write, /data0/xd/mediumprop-common-read-raw-write.
+    # Complete evidence: mediumprop_common_read_raw_write.md.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75LocalODynamicNormScale050LocalVDynamicNormScale100TruePile'
     bam_local_v_dynamic_norm_scale = True
     bam_local_v_dynamic_norm_scale_init = 1.0
@@ -19871,20 +19851,14 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
 
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedNoMLPWriteGateTruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedTruePile):
-    """Keep memory SwiGLU gates; remove the additional per-head memory write gate.
-
-    Reimburse each live layer's saved D*16+16 gate parameters to its ordinary
-    MLP: +5 hidden units. Total432091538, H-20672 (-.0048%); tail unchanged.
-    Existing v8t write kernel consumes constant +inf logits, exact gain1.
-    """
-    # ledger only: codex/mediumprop-common-read-raw-write, /data0/xd/mediumprop-common-read-raw-write.
-    # code_commit: ed83fad; UE5a v5p16 xd-v5p-16-310435-maxtext, plan13500.
-    # FIRST0/exact AOT/source/data/schedule/CP200 verified; initial signed H scales checked all18, memory SwiGLU W_g gradients nonzero.
-    # Startup20..99 .6737875step/s, H +.584%; genericON/internal+BAMOFF, matched-settings separate leases.
-    # Completed 13500/P0; CP13500/TB SYNC_OK, node+QR independently absent; same ed83fad/AOT after resume8285.
-    # vsH: brief early gain reversed~1k; partial recovery after3.2k continued late, but did not regain parity.
-    # At13.4k gap+.001703/R.990660; latest5 gap+.001275/R.993012. No demonstrated loss/efficiency gain.
-    # The8k stop was reversed byuser; preserve both READY epochs, no preemptions.
+    """Remove the private-MLP write gate from H, retaining its other writer/read settings."""
+    # Conclusion: removing the write gate does not improve H after the full schedule.
+    # A brief early gain reverses near 1k; later catch-up continues but does not regain parity.
+    # At 13.4k, gap +0.001703 / ratio 0.990660; last-five mean +0.001275 / 0.993012.
+    # Completed 13500 after same-runtime continuation; this is not merely the earlier 8k review outcome.
+    # UE5a v5p-16: 0.673788 step/s (+0.584% versus H), matched health on separate leases; no demonstrated efficiency gain.
+    # code_commit:ed83fad; ledger only: codex/mediumprop-common-read-raw-write, /data0/xd/mediumprop-common-read-raw-write.
+    # Complete curves, both leases and accounting: mediumprop_common_read_raw_write.md.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedNoMLPWriteGateTruePile'
     bam_mlp_write_gate = False
     base_mlp_dim = 2515
@@ -19893,18 +19867,17 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
 
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedContextLocalOComplementTruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedTruePile):
-    """Existing O read gate g competes with same-head context output via 1-g.
+    """Apply an opposing context gate 1-g alongside H's existing dynamic-O gate g.
 
-    Full H recipe, no new parameters or kernel ABI. Both vector residual and
-    attention M write use the new context+localO sum. Static localO unchanged.
+    Keep the negative attention diagonal and existing static O branch.
+    No additional parameters or M-cache; generic health records 36 gate scalars.
     """
-    # ledger only: codex/mediumprop-common-read-raw-write, /data0/xd/mediumprop-common-read-raw-write.
-    # code_commit: d123e5b; UE5a v5p16 xd-v5p-16-310436-maxtext, plan13500.
-    # FIRST0/exact source/AOT/data/schedule verified; native/Pallas full-model F32/BF16 gradients and health export tested.
-    # Startup20..99 0.6729000step/s, direct parent +0.4516%; genericON/internalOFF plus36 gate mean/std scalars.
-    # Completed 13500/P0; CP13500/TB SYNC_OK, node+QR independently verified absent.
-    # vsH: near parity~4k, then mostly small gains; at13.4k gap-.000632/R1.003465, latest5-.000668/R1.003645.
-    # Small persistent benefit, no clear ceiling breakthrough; zero extra parameters/cache, throughput effectively unchanged.
+    # Conclusion: complementary gating gives a small persistent Medium gain, without a clear ceiling breakthrough.
+    # Near parity around 4k becomes mostly small gains; final 13.4k gap -0.000632 / ratio 1.003465.
+    # The last-five mean is -0.000668 / 1.003645; completed 13500.
+    # UE5a v5p-16: 0.67290 step/s (+0.4516% versus H), effectively unchanged; matched health plus 36 gate scalars.
+    # code_commit:d123e5b; ledger only: codex/mediumprop-common-read-raw-write, /data0/xd/mediumprop-common-read-raw-write.
+    # Complete evidence: mediumprop_common_read_raw_write.md.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedContextLocalOComplementTruePile'
     bam_context_local_o_complement = True
     compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedTruePile']
@@ -19912,14 +19885,14 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
 
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedContextLocalOComplementSelfAttentionTruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedContextLocalOComplementTruePile):
-    """Matched competition control: restore self-attention, keep shared g/1-g."""
-    # ledger only: codex/mediumprop-common-read-raw-write, /data0/xd/mediumprop-common-read-raw-write.
-    # code_commit: 8e15b74; UE5a v5p16 retained xd-v5p-16-310429-maxtext, RUNid310437, plan13500.
-    # FIRST0/exact source/AOT/data/schedule verified; native/Pallas full-model F32/BF16 gradients and health export tested.
-    # Startup20..99 .672875step/s, H +.448%, masked sibling -.0037%; genericON/internalOFF plus36 gate mean/std scalars.
-    # Stopped 8347/13500 at8k review/P0; CP8347 andTB SYNC_OK, node+QR independently verified absent.
-    # vsH: early deficit reached~+.008, then narrowed;8k/8.2k rebound toR~.988, latest5 gap+.003049/R.984974.
-    # No observed advantage overH through8.2k; late rebound/full13500 endpoint untested, not proof of terminal failure.
+    """Restore self-attention in H's complementary context/local O gate variant."""
+    # Conclusion: restoring self-attention does not beat H in the observed prefix, despite late catch-up.
+    # An early deficit near +0.008 narrows; late ratios rebound toward 0.988 without crossing H.
+    # Last-five windows through 8.2k: gap +0.003049, MHA-ref ratio 0.984974.
+    # Stopped at checkpoint 8347/13500 after the 8k review; full-endpoint recovery is unmeasured.
+    # UE5a v5p-16: 0.672875 step/s (+0.448% versus H, -0.0037% versus masked sibling), matched health/gate metrics.
+    # code_commit:8e15b74; ledger only: codex/mediumprop-common-read-raw-write, /data0/xd/mediumprop-common-read-raw-write.
+    # Complete evidence: mediumprop_common_read_raw_write.md.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedContextLocalOComplementSelfAttentionTruePile'
     bam_attention_negative_diagonal = False
     compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedTruePile']
@@ -19927,19 +19900,14 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
 
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedContextLocalOComplementLocalODynamicNormScale050TruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedContextLocalOComplementTruePile):
-    """Masked dynamic-g context competition plus learned dynamic-O address gamma=.5.
-
-    Static O and its independent gate remain unchanged. Additional9216
-    parameters are negligible: total432121426, unchanged2510/1128/tail3904.
-    """
-    # ledger only: codex/mediumprop-common-read-raw-write, /data0/xd/mediumprop-common-read-raw-write.
-    # code_commit: 6355ba8; UE5a v5p16 xd-v5p-16-310438-maxtext, plan13500.
-    # FIRST0/exact source/AOT/data/schedule/CP200 verified; all18 initial gamma RMS.5/H signed scales and actual36 gate TB scalars checked.
-    # Startup20..99 .6695375step/s, masked sibling -.500%, H -.050%; genericON/internalOFF plus36 gate scalars, existing Pallas read/write.
-    # Stopped 8546/13500 at8k review/P0; CP8546/TB SYNC_OK and node+QR independently verified absent.
-    # vsH: large initial gap narrowed by4k, then R~.975 plateau through8.4k despite intermittent catch-up.
-    # Final8.4k gap+.005592/R.971845; latest5 gap+.005040/R.974921; full13500 terminal untested.
-    # At8k: gamma layerRMS .472-.521, dynamic gate layermeans .057-.439; no observed combination benefit.
+    """Add dynamic-O address gamma=0.5 to the masked complementary-gate variant."""
+    # Conclusion: gamma does not improve the complementary-gate combination versus H in the tested prefix.
+    # A large initial deficit narrows by 4k, then the ratio plateaus near 0.975 despite intermittent catch-up.
+    # Last-five gap +0.005040 / ratio 0.974921; the last 8.4k window is +0.005592 / 0.971845.
+    # Stopped at checkpoint 8546/13500 after the 8k review; full endpoint unmeasured.
+    # UE5a v5p-16: 0.669538 step/s (-0.500% versus masked sibling, -0.050% versus H), matched health/gate metrics.
+    # code_commit:6355ba8; ledger only: codex/mediumprop-common-read-raw-write, /data0/xd/mediumprop-common-read-raw-write.
+    # Complete evidence: mediumprop_common_read_raw_write.md.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedContextLocalOComplementLocalODynamicNormScale050TruePile'
     bam_local_o_dynamic_norm_scale = True
     bam_local_o_dynamic_norm_scale_init = .5
@@ -19948,14 +19916,14 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
 
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedFinalLocalOTruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedTruePile):
-    """H plus a generalized localO exit from final M before ln_f; repay tail MLP."""
-    # Stopped at 10,455 / 13,500 after an additional 10k review; full-schedule endpoint unmeasured.
-    # vs H: initial gap near +.006 narrowed toward +.002 by 8k, then repeated near that level without sustained gain.
-    # Final five windows 9.6k-10.4k: gap +.001978 / gain 0.989607 (MHA reference); no net improvement by stop.
-    # UE5a v5p-16, P0; startup 20-99: .68695 step/s. Historical H used older read code, so +2.55% is not an isolated architecture gain.
-    # MLP body2510/private1128/tail3371; parameters H+129, unchanged M-cache; generic health ON, internal/BAM OFF.
-    # CP10455 and TB SYNC_OK; node and queued resource independently absent.
-    # code_commit: b5f6877; ledger only: codex/mediumprop-h-final-local-o, /data0/xd/mediumprop-h-final-local-o.
+    """Add a generalized local O exit from final M before ln_f; repay the tail MLP."""
+    # Conclusion: the extra final reader does not improve H over the observed 10.4k prefix.
+    # An initial deficit near +0.006 narrows toward +0.002 by 8k, then stalls; final-five gap +0.001978 / ratio 0.989607.
+    # User stopped at checkpoint 10455/13500 after an additional 10k review; the full endpoint is unmeasured.
+    # UE5a v5p-16: 0.68695 step/s; historical H uses an older read kernel, so +2.55% is not an isolated architecture gain.
+    # Ordinary/private/tail widths 2510/1128/3371; parameters H +129, unchanged M-cache and health settings.
+    # code_commit:b5f6877; ledger only: codex/mediumprop-h-final-local-o, /data0/xd/mediumprop-h-final-local-o.
+    # Full comparisons and ownership: mediumprop_h_final_local_o.md in that worktree.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedFinalLocalOTruePile'
     bam_final_local_o = True
     bam_last_mlp_dim = 3371
@@ -19964,11 +19932,12 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
 
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedFinalLocalOLastMLPWriteTruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedFinalLocalOTruePile):
-    """Final localO exit plus a restored L17 private MLP writer; tail-local budget."""
-    # Stopped at 174 for user configuration correction; no scientific loss-gap conclusion.
-    # The extra final reader makes both terminal writers usable; replaced by FinalLocalOLastWritesTruePile.
-    # CP174 and TB SYNC_OK; retained physical310471 transferred to the corrected arm after its FIRST_STEP.
-    # code_commit: b5f6877; ledger only: codex/mediumprop-h-final-local-o, /data0/xd/mediumprop-h-final-local-o.
+    """Add the final local O exit and restore only the last private-MLP writer."""
+    # Superseded at checkpoint 174 for a user configuration correction; no scientific loss-gap verdict.
+    # The final reader makes both terminal writers usable; the replacement restores attention writing as well.
+    # Replacement: FinalLocalOLastWritesTruePile; the retained trainer was handed over after its FIRST_STEP.
+    # code_commit:b5f6877; ledger only: codex/mediumprop-h-final-local-o, /data0/xd/mediumprop-h-final-local-o.
+    # Ownership/closeout evidence: mediumprop_h_final_local_o.md in that worktree.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedFinalLocalOLastMLPWriteTruePile'
     bam_skip_final_mlp_write = False
     bam_last_mlp_dim = 2116
@@ -19977,15 +19946,14 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
 
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedFinalLocalOLastWritesTruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedFinalLocalOLastMLPWriteTruePile):
-    """Final localO exit with BOTH L17 attention and private-MLP writes restored."""
-    # Stopped at 8,141 / 13,500 after its 8k review; full-schedule endpoint unmeasured.
-    # vs H: early near-parity reversed near 1k; equal-block gain stayed .992-.993 over 5.2k-8k.
-    # Final five windows through 8k: gap +.001543 / gain .992436 vs H; -.000682 / 1.003367 vs the no-final-writers arm.
-    # Write restoration helped early, but its matched-budget advantage shrank; no net H improvement by stop.
-    # UE5a v5p-16, P0; startup .67270 step/s, -2.07% vs no-final-writers; same health and M-cache.
-    # Last attention and private MLP writes ON; tail ordinary1989/private1128, parameters H+1729.
-    # CP8141 and TB SYNC_OK; node and queued resource independently absent.
-    # code_commit: 2629041; ledger only: codex/mediumprop-h-final-local-o, /data0/xd/mediumprop-h-final-local-o.
+    """Add a final local O exit and restore both terminal attention/private-MLP writers."""
+    # Conclusion: restoring terminal writes helps the extra-reader control slightly, but neither beats H by the stop.
+    # Early near-parity versus H reverses near 1k; gain ratios stay near 0.992-0.993 over 5.2k-8k.
+    # Final-five gap +0.001543 / ratio 0.992436 versus H; -0.000682 / 1.003367 versus the reader without final writers.
+    # Stopped at checkpoint 8141/13500 after the 8k review; the full endpoint is unmeasured.
+    # UE5a v5p-16: 0.67270 step/s (-2.07% versus the no-final-writers control), matched health; unchanged M-cache.
+    # Tail ordinary/private widths 1989/1128; parameters H +1729. code_commit:2629041.
+    # ledger only: codex/mediumprop-h-final-local-o, /data0/xd/mediumprop-h-final-local-o; see mediumprop_h_final_local_o.md.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedFinalLocalOLastWritesTruePile'
     bam_attention_write_layers = list(range(18))
     bam_last_mlp_dim = 1989
@@ -19994,17 +19962,14 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
 
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedStaticQKLast4TruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedTruePile):
-    """H: static-only Q/K matrix reads in L14-L17; refund ordinary MLPs."""
-    # Implementation: codex/mediumprop-h-static-tail-qk, /data0/xd/mediumprop-h-static-tail-qk.
-    # Both arms initialize only tail static K with BAM normal (.006), keeping static Q zero.
-    # Prefix14 single-layer scan; four explicit tails, preserving ordinary layer/writer semantics.
-    # code_commit: 6052644; ledger only: codex/mediumprop-h-static-tail-qk.
-    # Stopped3259/13500 after early3.2k review; vsH gap narrowed from +.023 at600 to ~+.01, while gain declined.
-    # Final5 2.4k-3.2k vsH: gap +0.0104330/gain 0.9651994 (MHA reference); terminal prior1.01 not supported by stop.
-    # UE5a v5p-16 xd-v5p-16-310480-maxtext, P0; CP3259/TB SYNC_OK, node+queue independently absent.
-    # Generic health ON, internal/BAM OFF; full-schedule endpoint unmeasured, M-cache unchanged, total parameters H-400.
-    # Startup20-99 aggregate 0.69088 step/s (median 0.695); historical H .669875 uses older read kernel.
-    # Formal worker parameters 432111810; full native/Pallas gradients and 47 BAM regressions passed.
+    """Use static-only Q/K addresses in L14-L17 and refund their cost to ordinary MLPs."""
+    # Conclusion: static tail Q/K plus the MLP refund does not improve H in the tested prefix.
+    # The early gap narrows from about +0.023 to +0.010, while the gain ratio deteriorates.
+    # Last-five windows through 3.2k: gap +0.010433 / MHA-ref ratio 0.965199; stopped at checkpoint 3259/13500.
+    # The 1.01 full-schedule ratio prior is untested. Static K uses BAM normal initialization (0.006), static Q remains zero.
+    # UE5a v5p-16: 0.69088 step/s; historical H uses an older read kernel, so this is not an isolated speed comparison.
+    # Parameters 432111810 (H -400), unchanged M-cache; matched health. code_commit:6052644.
+    # ledger only: codex/mediumprop-h-static-tail-qk, /data0/xd/mediumprop-h-static-tail-qk; evidence in that worktree.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedStaticQKLast4TruePile'
     bam_qk_static_only_last_layers = 4
     bam_qk_static_only_arms = 'qk'
@@ -20016,15 +19981,13 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
 
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedStaticKLast4TruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedStaticQKLast4TruePile):
-    """H: retain dynamic Q, remove only dynamic K in L14-L17; ordinary MLP refund."""
-    # code_commit: 6052644; ledger only: codex/mediumprop-h-static-tail-qk.
-    # Stopped8117/13500 at8k review; vsH gap600 +.01027 ->2k +.00329, then ~+.003-.005 through8k.
-    # Gain ~.98-.99 plateau4k-8k; final5 gap+.0034422/gain.9831548 (MHA reference); no net improvement by stop.
-    # Terminal prior1.02 not supported by8k; full endpoint unmeasured. DynamicK removal plus MLP refund did not pay off.
-    # UE5a v5p-16 xd-v5p-16-310481-maxtext, P0; CP8117/TB SYNC_OK, node+queue independently absent.
-    # Generic health ON, internal/BAM OFF; total parameters H+1600, unchanged M-cache.
-    # Startup20-99 aggregate 0.68649 step/s (median 0.691); historical H .669875 uses older read kernel.
-    # Formal worker parameters 432113810; full native/Pallas gradients and 47 BAM regressions passed.
+    """Use static-only K addresses in L14-L17; retain dynamic Q and refund ordinary MLPs."""
+    # Conclusion: dropping dynamic tail K does not pay for itself through the 8k review.
+    # The gap narrows from +0.01027 to +0.00329 by 2k, then stays near +0.003-0.005; ratios plateau near 0.98-0.99.
+    # Final-five gap +0.003442 / MHA-ref ratio 0.983155; stopped at checkpoint 8117/13500, full endpoint unmeasured.
+    # UE5a v5p-16: 0.68649 step/s; historical H uses an older read kernel, so this is not an isolated speed comparison.
+    # Parameters 432113810 (H +1600), unchanged M-cache; matched health. code_commit:6052644.
+    # ledger only: codex/mediumprop-h-static-tail-qk, /data0/xd/mediumprop-h-static-tail-qk; evidence in that worktree.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedStaticKLast4TruePile'
     bam_qk_static_only_arms = 'k'
     bam_final_local_mlp_dim = 2552
@@ -20033,17 +19996,14 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
 
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedFinalLocalORelocatedLastWritesTruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedFinalLocalOLastWritesTruePile):
-    """Move L17 localO after its MLP; final writers ON, paired shift/self mask."""
-    # Implementation: /data0/xd/mediumprop-h-final-local-o; relocated-O2x2 plus last-only split W_O.
-    # code_commit: 4083fd1; ledger only, codex/mediumprop-h-final-local-o.
-    # Stopped4473/13500 after user-confirmed4k review; full-schedule endpoint unmeasured.
-    # vsH initial gap~+.013 narrowed then stalled near+.005; gain stayed~.98 through4.4k.
-    # Final5 through4400 vsH: gap+0.0047032/MHA-ref gain0.9813896; no net improvement by stop.
-    # vs old extra-exit writersON: final5 gap+0.0032517/gain0.9870668; moving O did not pay off by stop.
-    # UE5a v5p-16 xd-v5p-16-310490-maxtext, P0; CP4473/TB SYNC_OK; node+queue independently absent.
-    # Generic health ON/internal+BAM OFF; exit scalar .1644->~.189 and W_O norm7.2->18.6, finite live gradients.
-    # Startup20-99 aggregate 0.67804 step/s; historical H .669875 has an older read kernel.
-    # Actual worker parameters 432112611 (H+401); AOT/source/data/full-model gradients verified.
+    """Move L17 local O after its MLP; enable final writers, mask self-attention, omit exit shift."""
+    # Conclusion: relocating O does not beat H or the existing extra-exit/writers-on control by the stop.
+    # The initial H gap near +0.013 narrows, then stalls near +0.005; ratios stay near 0.98.
+    # Final-five through 4.4k: +0.004703 / 0.981390 versus H, +0.003252 / 0.987067 versus the existing exit control.
+    # User-confirmed stop at checkpoint 4473/13500; full endpoint unmeasured.
+    # UE5a v5p-16: 0.67804 step/s; H uses an older read kernel, so apparent speed differences do not isolate architecture.
+    # Parameters 432112611 (H +401), matched health; no shifted-exit M-cache slot. code_commit:4083fd1.
+    # ledger only: codex/mediumprop-h-final-local-o, /data0/xd/mediumprop-h-final-local-o; see mediumprop_h_final_local_o.md.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedFinalLocalORelocatedLastWritesTruePile'
     bam_final_local_o_relocate = True
     bam_final_local_o_shift = False
@@ -20054,18 +20014,15 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
 
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedFinalLocalORelocatedLastWritesShiftTruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedFinalLocalOLastWritesTruePile):
-    """Move L17 localO after its MLP; final writers ON, paired shift/self mask."""
-    # Implementation: /data0/xd/mediumprop-h-final-local-o; relocated-O2x2 plus last-only split W_O.
-    # code_commit: 4083fd1; ledger only, codex/mediumprop-h-final-local-o.
-    # User-stopped6676/13500; full-schedule endpoint unmeasured.
-    # Early gap~+.009 fell toward+.004 by4k, then plateaued through6.6k; gain did not recover.
-    # Final5 through6600 vsH: gap+0.0039554/MHA-ref gain0.9817203.
-    # vs old extra-exit writersON: final5 gap+0.0023862/gain0.9888757; relocation did not improve it by stop.
-    # UE5a v5p-16 xd-v5p-16-310491-maxtext, P0; CP6676/TB SYNC_OK; node+queue independently absent.
-    # Generic health ON/internal+BAM OFF; startup speed below is not an isolated architecture comparison.
-    # Startup20-99 aggregate 0.67436 step/s; historical H .669875 has an older read kernel.
-    # Actual worker parameters 432111443 (H-767); AOT/source/data/full-model gradients verified.
-    # Inference: extra final-written previous-M slot, 2400 BF16 elements/sequence.
+    """Relocate L17 local O after the MLP with a previous-M exit shift; keep the diagonal masked."""
+    # Conclusion: shifted O relocation does not improve H or the existing extra-exit/writers-on control.
+    # The early H gap near +0.009 falls toward +0.004 by 4k, then plateaus through 6.6k.
+    # Final-five: +0.003955 / 0.981720 versus H, +0.002386 / 0.988876 versus the existing exit control.
+    # User stopped at checkpoint 6676/13500; full endpoint unmeasured.
+    # UE5a v5p-16: 0.67436 step/s; H uses an older read kernel, so apparent speed differences do not isolate architecture.
+    # Parameters 432111443 (H -767); shifted exit adds one previous-M slot of 2400 BF16 elements per sequence.
+    # code_commit:4083fd1; ledger only: codex/mediumprop-h-final-local-o, /data0/xd/mediumprop-h-final-local-o.
+    # Matched health, full curves and ownership: mediumprop_h_final_local_o.md in that worktree.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedFinalLocalORelocatedLastWritesShiftTruePile'
     bam_final_local_o_relocate = True
     bam_final_local_o_shift = True
@@ -20076,17 +20033,14 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
 
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedFinalLocalORelocatedLastWritesSelfAttentionTruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedFinalLocalOLastWritesTruePile):
-    """Move L17 localO after its MLP; final writers ON, paired shift/self mask."""
-    # Implementation: /data0/xd/mediumprop-h-final-local-o; relocated-O2x2 plus last-only split W_O.
-    # code_commit: 4083fd1; ledger only, codex/mediumprop-h-final-local-o.
-    # User-stopped6970/13500; full-schedule endpoint unmeasured.
-    # Early gap~+.015 narrowed to~+.004 by4k, then plateaued through6.8k; restoring self did not pay off.
-    # Final5 through6800 vsH: gap+0.0038957/MHA-ref gain0.9817477.
-    # vs old extra-exit writersON: final5 gap+0.0024297/gain0.9885280; relocation did not improve it by stop.
-    # UE5a v5p-16 xd-v5p-16-310492-maxtext, P0; CP6970/TB SYNC_OK; node+queue independently absent.
-    # Generic health ON/internal+BAM OFF; startup speed below is not an isolated architecture comparison.
-    # Startup20-99 aggregate 0.68335 step/s; historical H .669875 has an older read kernel.
-    # Actual worker parameters 432112611 (H+401); AOT/source/data/full-model gradients verified.
+    """Relocate L17 local O after the MLP and restore causal self-attention; omit exit shift."""
+    # Conclusion: restoring self-attention does not make O relocation beat H or the existing extra-exit control.
+    # The early H gap near +0.015 narrows toward +0.004 by 4k, then plateaus through 6.8k.
+    # Final-five: +0.003896 / 0.981748 versus H, +0.002430 / 0.988528 versus the existing exit/writers-on control.
+    # User stopped at checkpoint 6970/13500; full endpoint unmeasured.
+    # UE5a v5p-16: 0.68335 step/s; H uses an older read kernel, so apparent speed differences do not isolate architecture.
+    # Parameters 432112611 (H +401), matched health; no shifted-exit M-cache slot. code_commit:4083fd1.
+    # ledger only: codex/mediumprop-h-final-local-o, /data0/xd/mediumprop-h-final-local-o; see mediumprop_h_final_local_o.md.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedFinalLocalORelocatedLastWritesSelfAttentionTruePile'
     bam_final_local_o_relocate = True
     bam_final_local_o_shift = False
@@ -20097,18 +20051,15 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
 
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedFinalLocalORelocatedLastWritesShiftSelfAttentionTruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedFinalLocalOLastWritesTruePile):
-    """Move L17 localO after its MLP; final writers ON, paired shift/self mask."""
-    # Implementation: /data0/xd/mediumprop-h-final-local-o; relocated-O2x2 plus last-only split W_O.
-    # code_commit: 4083fd1; ledger only, codex/mediumprop-h-final-local-o.
-    # Stopped4391/13500 after user-confirmed4k review; full-schedule endpoint unmeasured.
-    # Early best within2x2 reversed; gap+.00369@800 grew to~+.005-.006 by3k-4.2k.
-    # Final5 through4200 vsH: gap+0.0055830/MHA-ref gain0.9784768; no net improvement by stop.
-    # vs old extra-exit writersON: final5 gap+0.0041094/gain0.9840490; moving O did not pay off by stop.
-    # UE5a v5p-16 xd-v5p-16-310493-maxtext, P0; CP4391/TB SYNC_OK; node+queue independently absent.
-    # Generic health ON/internal+BAM OFF; exit scalar .1644->~.189 and W_O norm7.2->18.6, finite live gradients.
-    # Startup20-99 aggregate 0.68335 step/s; historical H .669875 has an older read kernel.
-    # Actual worker parameters 432111443 (H-767); AOT/source/data/full-model gradients verified.
-    # Inference: extra final-written previous-M slot, 2400 BF16 elements/sequence.
+    """Relocate L17 local O after the MLP, shift the exit M and restore causal self-attention."""
+    # Conclusion: the combined relocation/shift/self variant loses its early within-family advantage and does not beat H.
+    # The H gap grows from +0.00369 near 800 steps to about +0.005-0.006 by 3k-4.2k.
+    # Final-five: +0.005583 / 0.978477 versus H, +0.004109 / 0.984049 versus the existing exit/writers-on control.
+    # User-confirmed stop at checkpoint 4391/13500; full endpoint unmeasured.
+    # UE5a v5p-16: 0.68335 step/s; H uses an older read kernel, so apparent speed differences do not isolate architecture.
+    # Parameters 432111443 (H -767); shifted exit adds one previous-M slot of 2400 BF16 elements per sequence.
+    # code_commit:4083fd1; ledger only: codex/mediumprop-h-final-local-o, /data0/xd/mediumprop-h-final-local-o.
+    # Matched health and full comparisons: mediumprop_h_final_local_o.md in that worktree.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedFinalLocalORelocatedLastWritesShiftSelfAttentionTruePile'
     bam_final_local_o_relocate = True
     bam_final_local_o_shift = True
@@ -20121,16 +20072,13 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
 
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedSplitLastOutputProjectionsTruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedTruePile):
-    """H: independent context/localO W_O only at L17, before its MLP."""
-    # Implementation: /data0/xd/mediumprop-h-final-local-o; relocated-O2x2 plus last-only split W_O.
-    # code_commit: 4083fd1; ledger only, codex/mediumprop-h-final-local-o.
-    # User-stopped7026/13500; full-schedule endpoint unmeasured.
-    # Early gap~+.012 narrowed to~+.004 by4k; late isolated improvement did not establish sustained recovery.
-    # Final5 through7000 vsH: gap+0.0034867/MHA-ref gain0.9835824.
-    # UE5a v5p-16 xd-v5p-16-310494-maxtext, P0; CP7026/TB SYNC_OK; node+queue independently absent.
-    # Generic health ON/internal+BAM OFF; startup speed below is not an isolated architecture comparison.
-    # Startup20-99 aggregate 0.68993 step/s; historical H .669875 has an older read kernel.
-    # Actual worker parameters 432112210 (H+0); AOT/source/data/full-model gradients verified.
+    """Use independent context/local O output matrices only in L17, before its MLP."""
+    # Conclusion: a final-layer-only output split does not beat H through the observed prefix.
+    # The initial gap near +0.012 narrows toward +0.004 by 4k; late isolated improvement does not establish sustained recovery.
+    # Final-five through 7k: gap +0.003487, MHA-ref ratio 0.983582; user stopped at checkpoint 7026/13500.
+    # UE5a v5p-16: 0.68993 step/s; H uses an older read kernel, so apparent speed differences do not isolate architecture.
+    # Parameters equal H at 432112210; matched health, full endpoint unmeasured. code_commit:4083fd1.
+    # ledger only: codex/mediumprop-h-final-local-o, /data0/xd/mediumprop-h-final-local-o; see mediumprop_h_final_local_o.md.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedSplitLastOutputProjectionsTruePile'
     bam_split_last_output_projections = True
     bam_last_mlp_dim = 3504
@@ -20139,18 +20087,14 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
 
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedIndependentOMShiftTruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedTruePile):
-    """H: O gets its own columnwise previous-token mix; Q/K/V keep common M-shift."""
-    # Implementation: /data0/xd/mediumprop-h-o-mshift; QKV common shift plus independent O shift.
-    # code_commit: 10366ac; ledger only, codex/mediumprop-h-o-mshift.
-    # User-confirmed8k stop at8960/13500; full-schedule endpoint unmeasured.
-    # Gap+.0248@600 narrowed to~+.005 by4k, then plateaued through8.8k; gain stayed~.97-.98.
-    # Final5 through8800 vsH: gap+0.0048665/MHA-ref gain0.9753970; independent O shift did not pay off.
-    # Prior terminal gain1.015 unsupported at stop; this is not a measured full-schedule endpoint.
-    # UE5a v5p-16 xd-v5p-16-310495-maxtext, P0; CP8960/TB SYNC_OK; node+queue independently absent.
-    # Generic health ON/internal+BAM OFF; no M-cache increase.
-    # Startup20-99 aggregate 0.66760 step/s; historical H .669875 uses older read kernel.
-    # Actual parameters432091186=H-21024; widths2499/private1128/tail3893, unchanged M-cache.
-    # Kernel/reference and full-model all gradients, original shift/summary/BAM regressions passed.
+    """Give local O its own M-shift gate; retain the shared Q/K/V M-shift."""
+    # Conclusion: an independent O shift does not improve H over the observed prefix.
+    # The gap narrows from +0.0248 near 600 steps to about +0.005 by 4k, then plateaus through 8.8k.
+    # Final-five through 8.8k: gap +0.004867, MHA-ref ratio 0.975397; the full-schedule prior 1.015 is unmeasured.
+    # User-confirmed stop at checkpoint 8960/13500; UE5a v5p-16, 0.66760 step/s.
+    # H uses an older read kernel, so this is not an isolated speed comparison; matched health, no M-cache increase.
+    # Parameters 432091186 (H -21024), widths 2499/1128/tail 3893. code_commit:10366ac.
+    # ledger only: codex/mediumprop-h-o-mshift, /data0/xd/mediumprop-h-o-mshift; full evidence in that worktree.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedIndependentOMShiftTruePile'
     bam_local_o_independent_m_shift = True
     base_mlp_dim = 2499

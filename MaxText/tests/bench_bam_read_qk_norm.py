@@ -42,6 +42,8 @@ def make(variant, data):
                 static_gates=gates, v_dynamic_scale=vsc, o_dynamic_scale=osc, vmem_mib=63)
 
   def f(m, qs, ks_, mq, mk):
+    if variant == 'plain':      # the read alone (logit scale folded), no QKNorm anywhere
+      return bam_pallas.read(m, sw, qk, ql, kk, kl, vok, ol, vl, qs, ks_, q_scale=.1, **common)
     if variant == 'xla_norm':
       outs = bam_pallas.read(m, sw, qk, ql, kk, kl, vok, ol, vl, qs, ks_, q_scale=1.0, **common)
       q, k = outs[0], outs[1]
@@ -79,6 +81,6 @@ def timeit(fn, args, n=20):
 
 if __name__ == '__main__':
   data = inputs(jax.random.key(0))
-  for variant in sys.argv[1:] or ['xla_norm', 'fused', 'fused_mxu']:
+  for variant in sys.argv[1:] or ['plain', 'xla_norm', 'fused', 'fused_mxu']:
     fwd, bwd, args = make(variant, data)
     print(f'BENCH {variant:10s} fwd {timeit(fwd, args):7.3f} ms  fwd+bwd {timeit(bwd, args):7.3f} ms', flush=True)

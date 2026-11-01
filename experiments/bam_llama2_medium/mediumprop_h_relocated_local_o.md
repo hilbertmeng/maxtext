@@ -130,3 +130,27 @@ Three remaining arms masked/shift, restored/raw, split-last continue under user
 confirmed4k decisions. Clock restored/raw remains active; next cadence6k and
 next review8k. Independent O-shift310495 is separate and retains its own4k
 approval requirement. No main exp.py progress log was added for retained arms.
+
+
+## User-requested closeout of remaining three
+
+User stopped every final-O variant and retained only independent O-shift310495.
+Masked/shift CP6676, mature6600 final5 vsH gap+.0039554/R.9817203;
+restored/raw CP6970, mature6800 +.0038957/R.9817477;
+split-last W_O CP7026, mature7000 +.0034867/R.9835824.
+The two relocated exits also lose old extra-exit writersON by+.0023862/.0024297
+(final5 ratios.9888757/.9885280). Early absolute recovery flattened around4k;
+no sustained relative recovery or positive benefit by their stops. The
+full13500 outcomes remain unmeasured; positive priors were not supported.
+The three different final-O designs converged to similar loss costs; this does
+not isolate capacity repayment from read placement or writer settings.
+
+All three CPs committed, TB SYNC_OK, each node and queue independently NOT_FOUND.
+UE5a v5p16, no switches or preemptions. Complete READY leases UTC2026-11-01:
+31049103:19:48-06:09:53=2h50m05s;
+31049203:14:59-06:09:55=2h54m56s;
+31049403:15:43-06:09:58=2h54m15s; all manual stops.
+Groupmedium-h-relocated-local-o archived; owned watcher2341600 stopped.
+Main closeout8eb1538a. Final native JSONs/figures/resource proofs:
+/data0/xd/bam_diagnostics/mediumprop-h-relocated-local-o/remaining-three-*.
+Independent O-shift retains its own cadence2000/reviews4000,8000 and is untouched.

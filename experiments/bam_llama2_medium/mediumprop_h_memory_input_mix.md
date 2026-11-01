@@ -116,3 +116,23 @@ stopped members retired with history, watcher continues for310500/310502 only.
 Matched5k extra delivery leaves next normal milestone6000, then own8k reviews.
 The latest user permits no resumption of the paused unit parent, so its native
 comparison coverage remains9200. No additional formal experiments were started.
+
+
+## Unit-initialized sigmoid closeout
+
+User confirmed stopping310502 at the final matched9200 stage. CP9389/13500
+committed; final mature comparison9200 vs its own ungated unit-init parent:
+last5 gap+.00133840/MHA-ref ratio.99297536. The short early near-parity did not
+persist; the deficit remains~.001-.002 later without sustained ratio recovery.
+No full13500 endpoint measured; the original1.010 terminal prior is unsupported
+by the available prefix. Parent CP9341 was explicitly not resumed; no mature
+comparisons after9200 are fabricated. Existing9200 PNG already contains every
+available comparison, so closeout did not redraw an unchanged series.
+
+TB SYNC_OK; node and queued resource independently NOT_FOUND. v5p16 stayedUE5a,
+P0, no passive candidates or zone switches. One complete READY lease UTC:
+2026-11-01 10:56:09-14:57:35=4h01m26s, manual user stop; assignment began10:56:06.
+Main closeout9f129dee. Evidence unit-sigmoid-{closeout-summary,resource-proof,
+final-report,final-stats,leases}.json under task artifacts. Member retired from
+medium-h-memory-input-mix, clock310500 and existing8k->10k phase preserved.
+Only original-H sigmoid310500 remains active; the task has no other trainers.

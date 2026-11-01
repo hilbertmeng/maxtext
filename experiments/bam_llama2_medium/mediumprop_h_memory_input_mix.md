@@ -91,7 +91,7 @@ Startup proof files and all manifests in the task artifact root.
 ## User-confirmed complementary closeout
 
 User selected both complementary arms for stopping after the delivered4k review;
-the two sigmoid.99 arms continue. H-depth complementary CP5075, unit-init
+the two sigmoid.99 arms continued after this decision. H-depth complementary CP5075, unit-init
 complementary CP5077. Mature native horizon5000 for both: final5 vs each own
 ungated parent are+.00182804/R.99232395 and+.00239396/R.98975212 respectively.
 The H-depth arm did improve further after4k; do not repeat the older assertion
@@ -135,4 +135,51 @@ P0, no passive candidates or zone switches. One complete READY lease UTC:
 Main closeout9f129dee. Evidence unit-sigmoid-{closeout-summary,resource-proof,
 final-report,final-stats,leases}.json under task artifacts. Member retired from
 medium-h-memory-input-mix, clock310500 and existing8k->10k phase preserved.
-Only original-H sigmoid310500 remains active; the task has no other trainers.
+After that stop, original-H sigmoid310500 was the only remaining trainer.
+
+
+## Final conclusions: all four closed
+
+Original H + memory-only sigmoid.99 completed13500. Final five mature native
+windows12600..13400 give gap+.00048852/MHA-ref gain.99732053 versus ungated H;
+last13400+.00033900/.99814094. Large early deficits contracted, but isolated
+5k/10.4k/11k/13k crossings did not persist. The terminal1.005 prior was optimistic.
+The H raw-write/read-scale changes did not turn input mixing into a durable gain.
+Retain the original N(x+a) private input as the supported default; these Medium
+results do not justify prioritizing this extra input gate for2.8B migration.
+
+Canonical result table (each own ungated parent, common MHA reference):
+
+| ID | Read init | Gate | Lifecycle | Mature horizon | Last5 gap | Last5 gain |
+|---:|---|---|---|---:|---:|---:|
+|310500|depth|sigmoid.99|complete13500|13400|+.00048852|.99732053|
+|310501|depth|complementary|user stop5075|5000|+.00182804|.99232395|
+|310502|one|sigmoid.99|user stop9389|9200|+.00133840|.99297536|
+|310503|one|complementary|user stop5077|5000|+.00239396|.98975212|
+
+The stopped arms have no measured full13500 endpoint; their figures end at actual
+native comparison horizons. Unit parent coverage remains9200 per user decision.
+All RUN full names and parent identities are listed in RUN ownership above.
+No interim loss diaries were inserted into exp.py; final conclusions are there.
+
+Gate health: actual13400 full17-layer mean attention coefficient shares range
+.506518-.630620 (median.556612), versus initial.502513 and3400 median.570296.
+Gates learned and partly moderated their earlier attention preference; these are
+scalar coefficient fractions, not activation-energy attribution. Full layer
+profiles: h-sigmoid-final-gate-health.json and h-sigmoid-final-gate-plot.json.
+
+CP13500 committed, TB SYNC_OK, node and queue independently NOT_FOUND. Sole final
+READY lease, v5p16 UE5a, UTC2026-11-01 10:58:05-16:43:08=5h45m03s, clean
+completion, P0; assignment began10:58:02. Combined with the three earlier
+closeouts, all four used one UE5a READY lease each, with zero preemptions/switches.
+Groupmedium-h-memory-input-mix archived and owned watcher3240629 stopped. Every
+registered controller independently checked absent; statuses are complete/stopped
+with final steps13500/5075/9389/5077. All task-owned training resources released;
+borrowed retained FLEX was never deleted. Main final closeoutdae9156a.
+
+Reproduction/final receipts in /data0/xd/bam_diagnostics/mediumprop-h-mlp-input-mix:
+all-four-final-reports.json, all-four-final-plot.json, all-four-final-registries.json,
+h-sigmoid-final-{resource-checkpoint-proof,report,stats,leases,gate-health}.json,
+h-sigmoid-final-tb-sync.log. Runtime remains sealed88aa48c298c0760d44f9e12112ad02ac0938a8d7;
+later note/ledger commits are not training hashes. Eight focused +47 BAM +5 summary
+checks passed, including all four full-model native/Pallas gradient comparisons.

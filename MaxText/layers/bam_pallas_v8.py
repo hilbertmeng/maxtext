@@ -615,7 +615,8 @@ def read_tm(m, static_weight, q_key, q_logits, k_key, k_logits, vo_key, o_logits
     assert q_scale == 1.0, 'fold the logit scale into m_q'
   packed = qkvo_key is not None
   if packed:
-    assert qkvo_key.shape == (b, t, 4 * n, cdim) and not pad_heads and n % 8 == 0, qkvo_key.shape
+    # Mosaic block views need the head count to be a sublane multiple; interpret mode does not.
+    assert qkvo_key.shape == (b, t, 4 * n, cdim) and not pad_heads and (n % 8 == 0 or interpret), qkvo_key.shape
   opts = _freeze(dict(heads=n, qk_cols=qk_cols, read_epsilon=read_epsilon, key_scale=key_scale, packed=packed,
                       tile=forward_tile, reverse_tile=reverse_tile, vmem_mib=vmem_mib, interpret=interpret,
                       q_scale=float(q_scale), chunk=chunk, **({'qdim': qdim} if qdim > m.shape[-1] else {}),

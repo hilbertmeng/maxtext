@@ -61,7 +61,38 @@
     "notes": "Report at 3k, 8k, 13k, ...; permanent checkpoints and midpoints alternate. Verify the 3k checkpoint on first report and retention after later rolling cleanup. Keep complete raw caches for longer-window analysis.",
     "plot_min_step": 2000,
     "cadence_offset": 3000,
-    "group": "pythia28-h-unit-300b-1101"
+    "group": "pythia28-h-unit-300b-1101",
+    "plot_loss_gaps": [
+      [
+        "BamPythia2p8BHUnit300B",
+        "Pythia_2.8B_2022"
+      ],
+      [
+        "BamPythia2p8BSotaIndependentR768Pallas",
+        "Pythia_2.8B_2022"
+      ],
+      [
+        "PileMUDDPythia3BPlusOcdbtv6e",
+        "Pythia_2.8B_2022"
+      ]
+    ],
+    "plot_gain_ratios": [
+      [
+        "BamPythia2p8BHUnit300B",
+        "PileMUDDPythia3BPlusOcdbtv6e",
+        "Pythia_2.8B_2022"
+      ],
+      [
+        "BamPythia2p8BSotaIndependentR768Pallas",
+        "PileMUDDPythia3BPlusOcdbtv6e",
+        "Pythia_2.8B_2022"
+      ]
+    ],
+    "plot_history": "Full actual history of all selected curves, starting at 2k; no extrapolation.",
+    "plot_independent_panel_x_axes": true,
+    "plot_excluded_runs": [
+      "Pythia_6.9B_2022_Decay"
+    ]
   },
   "checkpoint_rescue": {
     "save_timeout_seconds": 1200,

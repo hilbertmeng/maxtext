@@ -1,8 +1,8 @@
-# Unit H: 300B-token preparation
+# Unit H: 300B-token training
 
 Configuration: `BamPythia2p8BHUnit300B`.
 Implementation worktree `/home/xd/projects/maxtext`, branch `refactor-bam`.
-This is configuration preparation only; no RUN, TPU or AOT job has been created.
+The user authorized launch on 2026-11-01; the runtime is sealed on current main.
 The durable orchestration settings are in
 [the launch/report plan](pythia2p8_h_unit_300b_plan.json).
 
@@ -79,13 +79,13 @@ in the new-versus-old BAM comparison. Keep native caches/checkpoint labels
 unchanged. Register all three gain triples from the JSON plan at launch;
 use the shared registry calculations, not a separate gain formula.
 
-Retain the old normal long-run cadence: reports at 8k, 13k, 18k, ... (every 5k).
-Check the first permanent 3k checkpoint separately. Routine reports show the
+User-confirmed long-run cadence: reports at 3k, 8k, 13k, 18k, ... (every 5k).
+The first normal report also verifies the permanent 3k checkpoint. Routine reports show the
 latest 5k, excluding the initial <2k transient, and retain complete raw caches
 for longer-window investigation. Permanent-checkpoint and midpoint reports
 alternate. Report final 143k without waiting for nonexistent 143025 samples.
-Reporting lives in the registry/group, not in model math; the plan is prepared
-but is not registered as an active RUN at this stage.
+Reporting lives in registry group `pythia28-h-unit-300b-1101`, not in model math.
+The group starts at 3k without advancing any undelivered report cursor.
 
 ## Checkpoint rescue audit
 
@@ -137,3 +137,71 @@ The preparation artifact directory retains the resolved configuration, exact
 class diff, partition specs, LR samples, rescue audit, and individual test logs.
 TPU memory fit, actual loaded AOT, first-step execution and throughput remain
 launch-time checks; they are not claimed by this CPU-only preparation.
+
+
+## Launch identity and pre-run prior
+
+RUN `BamPythia2p8BHUnit300B`, runtime
+`fb915b61c7326cd5c680e740c2ff9e4409abd142`, main `refactor-bam`.
+Owned training TPU `xd-v5p-256-311101-maxtext`, ID 311101, primary UE5a
+(`us-east5-a`), no submitted backup resources. Use the zone-local legacy T2048
+Pile replica. The retained `llm-jax-v6e-1-0` compiler in `europe-west4-a`, worker 0,
+was verified FLEX_START/guaranteed and idle; this task does not own its lifecycle.
+The exact v5p-256/s143000 AOT and manifest verified, SHA256
+`966c5ae9aded84306ee61209e26ffdd181e0de8095da7beceb9af26b77d2aa92`,
+220926061 bytes. Full runtime config matches the sealed Git class. Prior CPU
+validation remains valid; only the reporting plan changed after sealing.
+
+Pre-run gain-multiplier bets (common reference: original MHA 2.8B):
+
+| Horizon / comparator | Central prior | Expected range |
+|---|---:|---:|
+| 143k / historical parallel Mudd | 1.80 | 1.45-2.15 |
+| 143k / Pythia 6.9B | 1.14 | .92-1.36 |
+| Common 36.5k / old BAM long run | 1.40 | 1.20-1.60 |
+| Matched-health v5p-256 throughput | .60 step/s | .50-.70 step/s |
+
+The historical terminal Mudd/6.9B gain ratio is .63240268, so the first two
+central bets are consistent (1.80 times .63240268 is about 1.14). Unit H's
+short-schedule 21.5k ratio versus serial Mudd is 1.65151, with MHA gain .110862;
+it supports a useful architectural improvement but is not the long-run parallel
+Mudd comparator. The long schedule, comparator architecture, WD and LR differences
+preclude direct transfer of that short-run ratio. Expect an initial contraction,
+with possible late recovery, rather than a monotonic ratio increase. Old BAM
+stopped near 37k; its observed trajectory cannot test a terminal comparison.
+
+The canonical/deployed controller, rescue and AOT wrapper hashes match. Reporting
+uses configurable calendar phase 3000 with cadence 5000; generic phase support
+passed 17 group/step-offset tests and was deployed from the scripts repository.
+No fabricated delivered milestone is used to shift the calendar. The normal 3k
+report also checks the first permanent checkpoint; later reports verify retention
+through rolling cleanup. The report-plan configuration test passes.
+
+Launch artifacts: `/data0/xd/bam_diagnostics/h-unit-300b-launch-20261101/`.
+
+
+## Startup verified
+
+All 32 workers check out the sealed runtime and log `Loaded compiled function!`.
+Actual step 0 and finite subsequent updates are verified; the registry first-step
+waiter reached step 26. Checkpoint 0 has both outer and items commit markers.
+Its cursor records seed 9876, global batch 1024, 32 infeed hosts, checkpoint step 0
+and step-in-file 1 on the intended UE5a Pile replica. Runtime config confirms
+8 examples/device, T2048, Q/K scale policy `qk_dim`, all 143k LR/retention settings,
+async saving and Orbax timeout 1200. The controller confirms rescue trigger 1300
+and budget 600; the new process has not needed a timeout rescue.
+
+All 20 samples in steps 20-39 give harmonic-mean throughput .561686 step/s,
+median .565. This is inside the .50-.70 pre-run range and approximately 4.0%
+slower than the old long BAM's historical .585 step/s, with matched generic
+health ON/internal NN and BAM health OFF but different architecture and leases.
+The private-MLP layout, QKNorm/read path and scan layout differ; this observation
+is not a paired kernel timing attribution. It does not establish a throughput
+regression versus the identical H architecture, which has no v5p-256 timing control.
+
+Group state confirms the next normal report is 3000, followed by 8000/13000/...,
+with all three gain triples and both BAM +1 offsets persisted. No native/group
+report cursor has been advanced. Fixed-checkpoint retention after rolling cleanup
+remains a later runtime check. `startup-worker.log`, `all-worker-runtime.log`,
+`runtime.config.txt`, `checkpoint-0-cursor.json`, `checkpoint-0-markers.txt` and
+`startup-speed.json` retain the startup proof in the launch artifact directory.

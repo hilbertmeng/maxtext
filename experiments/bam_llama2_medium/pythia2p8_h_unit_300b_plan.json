@@ -1,10 +1,11 @@
 {
   "schema_version": 1,
-  "status": "prepared_not_launched",
+  "status": "running",
   "exp": "BamPythia2p8BHUnit300B",
   "implementation": {
     "worktree": "/home/xd/projects/maxtext",
-    "branch": "refactor-bam"
+    "branch": "refactor-bam",
+    "runtime_commit": "fb915b61c7326cd5c680e740c2ff9e4409abd142"
   },
   "launch": {
     "TPU_TYPE": "v5p-256",
@@ -14,7 +15,13 @@
     "per_device_batch_size": 8,
     "gradient_accumulation_steps": 1,
     "CHECKPOINT_PENDING_WARN_SECONDS": 1300,
-    "CHECKPOINT_RESCUE_TIMEOUT_SECONDS": 600
+    "CHECKPOINT_RESCUE_TIMEOUT_SECONDS": 600,
+    "ID": "311101",
+    "TPU_NAME": "xd-v5p-256-311101-maxtext",
+    "PRIMARY_ZONE": "us-east5-a",
+    "BACKUP_ZONES": "",
+    "CODE_COMMIT": "fb915b61c7326cd5c680e740c2ff9e4409abd142",
+    "COMPILED_TRAINSTEP_GCS": "gs://newproject-1-llm_base_models_us-central1/log/compiled_trainsteps/fb915b6/jax081-i0ae3f58-c17f538a/v5p-256/s143000/BamPythia2p8BHUnit300B.pickle"
   },
   "compare_runs": [
     "Pythia_2.8B_2022",
@@ -24,7 +31,7 @@
   ],
   "reporting": {
     "cadence_steps": 5000,
-    "first_normal_report_step": 8000,
+    "first_normal_report_step": 3000,
     "report_window_steps": 5000,
     "loss_interval": 500,
     "loss_window": 25,
@@ -51,8 +58,10 @@
       "BamPythia2p8BHUnit300B": 1,
       "BamPythia2p8BSotaIndependentR768Pallas": 1
     },
-    "notes": "Preserve the old long-run 8k + 5k*n phase; check the first permanent 3k checkpoint separately. Keep complete raw caches for longer-window analysis.",
-    "plot_min_step": 2000
+    "notes": "Report at 3k, 8k, 13k, ...; permanent checkpoints and midpoints alternate. Verify the 3k checkpoint on first report and retention after later rolling cleanup. Keep complete raw caches for longer-window analysis.",
+    "plot_min_step": 2000,
+    "cadence_offset": 3000,
+    "group": "pythia28-h-unit-300b-1101"
   },
   "checkpoint_rescue": {
     "save_timeout_seconds": 1200,

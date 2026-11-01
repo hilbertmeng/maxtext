@@ -17442,8 +17442,10 @@ class BamPythia2p8BHUnit300B(
     the Q/K logit multiplier from 1/sqrt(80) to 1/sqrt(100). The V/output head
     width remains 80. No extra Q/K read scalar or memory-MLP bias is introduced.
     Intended topology: v5p-256, global batch 1024, 8 examples/device, T2048.
-    Preparation only; reporting/alignment plan: pythia2p8_h_unit_300b.md.
+    Reporting/alignment and launch provenance: pythia2p8_h_unit_300b.md.
     """
+    # code_commit:fb915b6; UE5a v5p-256: 0.56169 step/s (20-39), about -4% versus old BAM long-run timing.
+    # Generic health ON, internal NN/BAM health OFF; AOT, all 32 workers, first step and checkpoint 0 verified.
     model_name = 'BamPythia2p8BHUnit300B'
     bam_qk_logit_scale_dim = 'qk_dim'  # Actual Q/K width: 80 local + 20 RoPE = 100.
     steps = TrainPythia.steps

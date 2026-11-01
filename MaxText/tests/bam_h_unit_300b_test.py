@@ -67,7 +67,7 @@ class HUnit300BTest(MLPWriteTest, unittest.TestCase):
     self.assertEqual(plan['compare_runs'],cfg.compare_runs)
     self.assertEqual(plan['launch']['TPU_TYPE'],'v5p-256')
     self.assertEqual(plan['reporting']['cadence_steps'],5000)
-    self.assertEqual(plan['reporting']['first_normal_report_step'],8000)
+    self.assertEqual(plan['reporting']['first_normal_report_step'],3000)
     self.assertEqual(plan['reporting']['loss_step_offsets'],{RUN:1,OLD:1})
     self.assertEqual(plan['reporting']['gain_ratios'],[[RUN,b,'Pythia_2.8B_2022'] for b in cfg.compare_runs[1:]])
 

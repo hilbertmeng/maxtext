@@ -68,22 +68,46 @@
 - **MLP 隐宽未按 128 对齐：已排除。**运行时配置与完整参数形状均确认：普通 7808=61×128、小 MLP 2944=23×128、末层 9984=78×128。
 - **global batch 或累积不同：已排除。**v5p-256 为 128 个 JAX device、32 个 worker、B8/device，无梯度累积；每步 2,097,152 个 token。
 - **忘记加载 AOT／误用源码：已排除。**32 个 worker 均是指定 runtime，均有 `Loaded compiled function!`，实际首步与 checkpoint 0 已验证。
-- **多开了激活健康统计：已排除。**运行配置确认通用健康 ON，内部 NN/BAM/shift 健康 OFF。
+- **多开了激活健康统计：已排除，但通用统计的实际负担尚未排除。**运行配置确认通用健康 ON，内部 NN/BAM/shift 健康 OFF；同一开关不代表不同参数树产生相同数量的统计。详见下一节。
 - **新 logit scale 多加了一个计算阶段：源码不支持此解释。**此次把已有 query 缩放运算的编译期常数改为 1/sqrt(100)，没有新参数或额外 tensor pass。策略为 `bam_qk_logit_scale_dim='qk_dim'`，自动取实际 Q/K 宽度；旧配置默认 None 保留旧分母。原生/Pallas 实际 attention 输入及所有参数梯度一致性检查已通过。
 - **FSDP 大矩阵没有分片：已排除。**完整分片审计通过；每 device 22,968,832 参数，相对理想分片开销 5.939%，是小参数复制造成的，所有大矩阵均正常分片。
 - 日志里的 Transformer TFLOP/s 估算没有完整计入 BAM／小 MLP，不能拿新旧打印的 TFLOP/s 直接判断真实 FLOPs 或硬件利用率。
 
-## 5. 建议调查／调优顺序
+## 5. 补充发现：健康统计开关相同，实际工作量不同
 
-1. 优先复查 SeparateVO 前后的实际 runtime 和参数形状，构造保持数学不变的 scan 布局对照；同时检查 read/reverse 的 HLO、layout、copy、collective、HBM/VMEM 成本。
-2. 拿到同机、同 batch／健康／remat 的 profile，以实际耗时决定先调哪里。不要为证明猜测而重新跑已被历史结果否定的大矩阵。
-3. 若热点确在双 MLP，可检验共用输入的第一投影能否合并，或减少 layout／通信碎片；这是待 profile 支持的优化方向，不是已经确认的根因。
-4. 性能实现改动应保持 H 全1数学、初始化、参数量、精度与完整 QKNorm 修复。先验证 forward／梯度，再报告配对速度及适用范围；改变 scan 参数树时应明确映射／兼容性，不能直接拿不兼容 AOT 续跑。
-5. 小拓扑可用于算子归因，最终需在 B8/device 的 v5p-256 路径确认。小拓扑不应为保持 global batch 而擅自改变每设备 batch。
+已从 GCS 取回新旧实际 `train.config.txt`，并对照实际 runtime 的 `train.py`：
+
+- `record_training_health_metrics=True`、`record_internal_nn_metrics=False`，所有 BAM/shift 专用激活健康开关均为 False。
+- 两路均为 `upload_loss_tb_period=10`、`upload_param_act_tb_period=25`、`log_period=25`、TB rotation 1000。参数范数写入还受外层 10 步周期约束，不能把配置 25 误读成每 25 步必写。
+- `compute_params_norm` 对每个参数张量分别输出参数范数与 raw gradient 范数；scan 参数沿层轴展开。这些统计在每次 train step 内计算，并非到 TB 写入步才计算。
+- 新版函数还为 H 的每层 `common_vo_read_scale` 导出有符号参数值，共 32 项；旧路没有对应参数。
+
+依据完整参数形状与统计函数逐项展开，健康统计标量输出数（不含两路共有的 loss/perf 等）为：
+
+| 项目 | 旧长训 | H 全1 |
+|---|---:|---:|
+| 参数范数 | 1660 | 1918 |
+| raw gradient 参数范数 | 1660 | 1918 |
+| 有符号读 scale | 0 | 32 |
+| 全局 grad/raw-grad/param norm | 3 | 3 |
+| 合计 | **3323** | **3871** |
+
+H 多 548 项（**+16.49%**）。这不是每步实际写入 TB 的条数，也不是已经测得的额外耗时比例；计算、通信／取回、写日志的成本需要分别测。不能因为开关相同就宣布这项排除，也不能反过来直接把 16.49% 的条数增幅等同于吞吐损失。
+
+证据：启动目录 `old-runtime.config.txt`、`runtime.config.txt`、`health-config-comparison.json`；参数形状分别见旧路 `sharding-audit.json` 和 `/data0/xd/bam_diagnostics/h-unit-300b-prep-20261101/sharding-audit.json`。旧 runtime 到新 runtime 的健康函数差异可用 `git diff 1ac1183 fb915b6 -- MaxText/train.py` 查看。
+
+## 6. 建议调查／调优顺序
+
+1. **优先补一组新旧架构 × 通用健康统计 ON/OFF 的配对测速**，判断移除统计后新旧速度差是否收窄。分别看参数／梯度范数计算、统计输出通信／取回与 TB 写入，不要只关掉文件写入就认为统计计算消失。OFF 仅用于独立测速，不直接关闭正式训练的 raw_grad_norm。
+2. 复查 SeparateVO 前后的实际 runtime 和参数形状，构造保持数学不变的 scan 布局对照；同时检查 read/reverse 的 HLO、layout、copy、collective、HBM/VMEM 成本。
+3. 拿到同机、同 batch／健康／remat 的 profile，以实际耗时决定先调哪里。不要为证明猜测而重新跑已被历史结果否定的大矩阵。
+4. 若热点确在双 MLP，可检验共用输入的第一投影能否合并，或减少 layout／通信碎片；这是待 profile 支持的优化方向，不是已经确认的根因。
+5. 性能实现改动应保持 H 全1数学、初始化、参数量、精度与完整 QKNorm 修复。先验证 forward／梯度，再报告配对速度及适用范围；改变 scan 参数树时应明确映射／兼容性，不能直接拿不兼容 AOT 续跑。
+6. 小拓扑可用于算子归因，最终需在 B8/device 的 v5p-256 路径确认。小拓扑不应为保持 global batch 而擅自改变每设备 batch。
 
 希望交付：能解释多少耗时的 profile 证据、具体热点、保持数学不变的优化 patch、配对测速和必要的数值验证，而不是只给笼统的架构成本解释。
 
-## 6. 当前训练与复现入口
+## 7. 当前训练与复现入口
 
 当前正式训练继续运行，由本会话负责监控；诊断请使用独立资源，不要直接停训、热切换或改其 runtime。
 

@@ -20145,7 +20145,11 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     """Only private MLP content and controls consume the residual-attention mixture."""
     # ledger only: runtime implementation remains in the worktree below.
     # Implementation: /data0/xd/mediumprop-h-mlp-input-mix; codex/mediumprop-h-mlp-input-mix.
-    # Four-way test: depth/unit read-scale initialization x sigmoid.99/complementary gate.
+    # User-confirmed stop5075/13500 after4k review; full-schedule endpoint unmeasured.
+    # A persistent3k-4k deficit narrowed further after4k, but stayed behind the matching sigmoid.99 arm.
+    # Final5 through5000 vs own ungated parent: gap+0.0018280/MHA-ref gain0.9923239.
+    # UE5a v5p16/P0; CP5075/TB SYNC_OK; node+queue independently absent.
+    # Learned coefficient shares changed across layers; this does not establish a loss benefit.
     # code_commit: 88aa48c; UE5a v5p16 xd-v5p-16-310501-maxtext, plan13500.
     # FIRST0/source/AOT/TruePile4096/432132627 parameters verified;20..99 0.676969step/s.
     # Parent historical kernel and extra gate-health exports differ; descriptive timing only.
@@ -20189,7 +20193,11 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     """Only private MLP content and controls consume the residual-attention mixture."""
     # ledger only: runtime implementation remains in the worktree below.
     # Implementation: /data0/xd/mediumprop-h-mlp-input-mix; codex/mediumprop-h-mlp-input-mix.
-    # Four-way test: depth/unit read-scale initialization x sigmoid.99/complementary gate.
+    # User-confirmed stop5077/13500 after4k review; full-schedule endpoint unmeasured.
+    # Early near-parity/brief leads vanished after2k; later windows remained below its own unit-init parent.
+    # Final5 through5000 vs own ungated parent: gap+0.0023940/MHA-ref gain0.9897521.
+    # UE5a v5p16/P0; CP5077/TB SYNC_OK; node+queue independently absent.
+    # Learned coefficient shares changed across layers; this does not establish a loss benefit.
     # code_commit: 88aa48c; UE5a v5p16 xd-v5p-16-310503-maxtext, plan13500.
     # FIRST0/source/AOT/TruePile4096/432132627 parameters verified;20..99 0.676336step/s.
     # Parent historical kernel and extra gate-health exports differ; descriptive timing only.

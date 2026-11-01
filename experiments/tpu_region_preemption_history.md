@@ -27,6 +27,8 @@ active leases are censored, and manual migration releases are not preemptions.
 
 | RUN | TPU | Zone | Start UTC | End UTC | End reason | Passive candidates |
 |---|---|---|---|---|---|---|
+| `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedMLPInputMixComplementaryMemoryOnlyWriteControlMixTruePile` | v5p-16 (`xd-v5p-16-310501-maxtext`) | `us-east5-a` | 2026-11-01 10:55:18 | 2026-11-01 13:04:41 | user-confirmed stop5075/P0; CP/TB SYNC_OK, node+QR independently absent; runtime88aa48c | none |
+| `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneMLPInputMixComplementaryMemoryOnlyWriteControlMixTruePile` | v5p-16 (`xd-v5p-16-310503-maxtext`) | `us-east5-a` | 2026-11-01 10:55:09 | 2026-11-01 13:04:43 | user-confirmed stop5077/P0; CP/TB SYNC_OK, node+QR independently absent; runtime88aa48c | none |
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedIndependentOMShiftTruePile` | v5p-16 (`xd-v5p-16-310495-maxtext`) | `us-east5-a` | 2026-11-01 04:02:56 | 2026-11-01 07:52:56 | user-confirmed8k stop8960/P0; CP/TB SYNC_OK, node+QR independently absent; runtime10366ac | none |
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedFinalLocalORelocatedLastWritesShiftTruePile` | v5p-16 (`xd-v5p-16-310491-maxtext`) | `us-east5-a` | 2026-11-01 03:19:44 | 2026-11-01 06:09:53 | user stop6676/P0; CP/TB SYNC_OK, node+QR independently absent; runtime4083fd1 | none |
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedFinalLocalORelocatedLastWritesSelfAttentionTruePile` | v5p-16 (`xd-v5p-16-310492-maxtext`) | `us-east5-a` | 2026-11-01 03:14:56 | 2026-11-01 06:09:55 | user stop6970/P0; CP/TB SYNC_OK, node+QR independently absent; runtime4083fd1 | none |
@@ -2460,6 +2462,9 @@ active leases are censored, and manual migration releases are not preemptions.
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedSplitLastOutputProjectionsTruePile` | 1 | `us-east5-a` | 2026-11-01 03:15:43 | 2026-11-01 06:09:58 | 2h54m15s | user stop7026/P0; CP/TB SYNC_OK, node+QR independently absent; manual stop |
 
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedIndependentOMShiftTruePile` | 1 | `us-east5-a` | 2026-11-01 04:02:59 | 2026-11-01 07:52:56 | 3h49m57s | user-confirmed8k stop8960/P0; CP/TB SYNC_OK, node+QR independently absent; manual stop |
+
+| `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedMLPInputMixComplementaryMemoryOnlyWriteControlMixTruePile` | 1 | `us-east5-a` | 2026-11-01 10:55:21 | 2026-11-01 13:04:41 | 2h09m20s | user-confirmed stop5075/P0; CP/TB SYNC_OK, node+QR independently absent; manual stop |
+| `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneMLPInputMixComplementaryMemoryOnlyWriteControlMixTruePile` | 1 | `us-east5-a` | 2026-11-01 10:55:12 | 2026-11-01 13:04:43 | 2h09m31s | user-confirmed stop5077/P0; CP/TB SYNC_OK, node+QR independently absent; manual stop |
 
 ### 2026-10-14 user pause: resumed mixed R256/R384
 

@@ -20124,6 +20124,9 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     # ledger only: runtime implementation remains in the worktree below.
     # Implementation: /data0/xd/mediumprop-h-mlp-input-mix; codex/mediumprop-h-mlp-input-mix.
     # Four-way test: depth/unit read-scale initialization x sigmoid.99/complementary gate.
+    # code_commit: 88aa48c; UE5a v5p16 xd-v5p-16-310500-maxtext, plan13500.
+    # FIRST0/source/AOT/TruePile4096/432132627 parameters verified;20..99 0.673545step/s.
+    # Parent historical kernel and extra gate-health exports differ; descriptive timing only.
     # Extra17*(1200+1)=20417 (.0141785 W_Q); exempt, widths2510/1128/tail3904 unchanged.
     # Generic health ON/internal+BAM OFF;34 targeted mixture coefficient-share metrics.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedMLPInputMixG099MemoryOnlyWriteControlMixTruePile'
@@ -20143,6 +20146,9 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     # ledger only: runtime implementation remains in the worktree below.
     # Implementation: /data0/xd/mediumprop-h-mlp-input-mix; codex/mediumprop-h-mlp-input-mix.
     # Four-way test: depth/unit read-scale initialization x sigmoid.99/complementary gate.
+    # code_commit: 88aa48c; UE5a v5p16 xd-v5p-16-310501-maxtext, plan13500.
+    # FIRST0/source/AOT/TruePile4096/432132627 parameters verified;20..99 0.676969step/s.
+    # Parent historical kernel and extra gate-health exports differ; descriptive timing only.
     # Extra17*(1200+1)=20417 (.0141785 W_Q); exempt, widths2510/1128/tail3904 unchanged.
     # Generic health ON/internal+BAM OFF;34 targeted mixture coefficient-share metrics.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedMLPInputMixComplementaryMemoryOnlyWriteControlMixTruePile'
@@ -20162,6 +20168,9 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     # ledger only: runtime implementation remains in the worktree below.
     # Implementation: /data0/xd/mediumprop-h-mlp-input-mix; codex/mediumprop-h-mlp-input-mix.
     # Four-way test: depth/unit read-scale initialization x sigmoid.99/complementary gate.
+    # code_commit: 88aa48c; UE5a v5p16 xd-v5p-16-310502-maxtext, plan13500.
+    # FIRST0/source/AOT/TruePile4096/432132627 parameters verified;20..99 0.667294step/s.
+    # Parent historical kernel and extra gate-health exports differ; descriptive timing only.
     # Extra17*(1200+1)=20417 (.0141785 W_Q); exempt, widths2510/1128/tail3904 unchanged.
     # Generic health ON/internal+BAM OFF;34 targeted mixture coefficient-share metrics.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneMLPInputMixG099MemoryOnlyWriteControlMixTruePile'
@@ -20181,6 +20190,9 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     # ledger only: runtime implementation remains in the worktree below.
     # Implementation: /data0/xd/mediumprop-h-mlp-input-mix; codex/mediumprop-h-mlp-input-mix.
     # Four-way test: depth/unit read-scale initialization x sigmoid.99/complementary gate.
+    # code_commit: 88aa48c; UE5a v5p16 xd-v5p-16-310503-maxtext, plan13500.
+    # FIRST0/source/AOT/TruePile4096/432132627 parameters verified;20..99 0.676336step/s.
+    # Parent historical kernel and extra gate-health exports differ; descriptive timing only.
     # Extra17*(1200+1)=20417 (.0141785 W_Q); exempt, widths2510/1128/tail3904 unchanged.
     # Generic health ON/internal+BAM OFF;34 targeted mixture coefficient-share metrics.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneMLPInputMixComplementaryMemoryOnlyWriteControlMixTruePile'

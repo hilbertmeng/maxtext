@@ -19932,6 +19932,10 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedFinalLocalORelocatedLastWritesTruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedFinalLocalOLastWritesTruePile):
     """Move L17 localO after its MLP; final writers ON, paired shift/self mask."""
+    # code_commit: 4083fd1; ledger only, codex/mediumprop-h-final-local-o.
+    # Started UE5a v5p-16 xd-v5p-16-310490-maxtext, plan13500; generic health ON, internal/BAM OFF.
+    # Startup20-99 aggregate 0.67804 step/s; historical H .669875 has an older read kernel.
+    # Actual worker parameters 432112611 (H+401); AOT/source/data/full-model gradients verified.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedFinalLocalORelocatedLastWritesTruePile'
     bam_final_local_o_relocate = True
     bam_final_local_o_shift = False
@@ -19943,6 +19947,10 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedFinalLocalORelocatedLastWritesShiftTruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedFinalLocalOLastWritesTruePile):
     """Move L17 localO after its MLP; final writers ON, paired shift/self mask."""
+    # code_commit: 4083fd1; ledger only, codex/mediumprop-h-final-local-o.
+    # Started UE5a v5p-16 xd-v5p-16-310491-maxtext, plan13500; generic health ON, internal/BAM OFF.
+    # Startup20-99 aggregate 0.67436 step/s; historical H .669875 has an older read kernel.
+    # Actual worker parameters 432111443 (H-767); AOT/source/data/full-model gradients verified.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedFinalLocalORelocatedLastWritesShiftTruePile'
     bam_final_local_o_relocate = True
     bam_final_local_o_shift = True
@@ -19954,6 +19962,10 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedFinalLocalORelocatedLastWritesSelfAttentionTruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedFinalLocalOLastWritesTruePile):
     """Move L17 localO after its MLP; final writers ON, paired shift/self mask."""
+    # code_commit: 4083fd1; ledger only, codex/mediumprop-h-final-local-o.
+    # Started UE5a v5p-16 xd-v5p-16-310492-maxtext, plan13500; generic health ON, internal/BAM OFF.
+    # Startup20-99 aggregate 0.68335 step/s; historical H .669875 has an older read kernel.
+    # Actual worker parameters 432112611 (H+401); AOT/source/data/full-model gradients verified.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedFinalLocalORelocatedLastWritesSelfAttentionTruePile'
     bam_final_local_o_relocate = True
     bam_final_local_o_shift = False
@@ -19965,6 +19977,10 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedFinalLocalORelocatedLastWritesShiftSelfAttentionTruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedFinalLocalOLastWritesTruePile):
     """Move L17 localO after its MLP; final writers ON, paired shift/self mask."""
+    # code_commit: 4083fd1; ledger only, codex/mediumprop-h-final-local-o.
+    # Started UE5a v5p-16 xd-v5p-16-310493-maxtext, plan13500; generic health ON, internal/BAM OFF.
+    # Startup20-99 aggregate 0.68335 step/s; historical H .669875 has an older read kernel.
+    # Actual worker parameters 432111443 (H-767); AOT/source/data/full-model gradients verified.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedFinalLocalORelocatedLastWritesShiftSelfAttentionTruePile'
     bam_final_local_o_relocate = True
     bam_final_local_o_shift = True
@@ -19978,6 +19994,10 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedSplitLastOutputProjectionsTruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedTruePile):
     """H: independent context/localO W_O only at L17, before its MLP."""
+    # code_commit: 4083fd1; ledger only, codex/mediumprop-h-final-local-o.
+    # Started UE5a v5p-16 xd-v5p-16-310494-maxtext, plan13500; generic health ON, internal/BAM OFF.
+    # Startup20-99 aggregate 0.68993 step/s; historical H .669875 has an older read kernel.
+    # Actual worker parameters 432112210 (H+0); AOT/source/data/full-model gradients verified.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedSplitLastOutputProjectionsTruePile'
     bam_split_last_output_projections = True
     bam_last_mlp_dim = 3504

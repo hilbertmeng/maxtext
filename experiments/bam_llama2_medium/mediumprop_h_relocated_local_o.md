@@ -86,3 +86,17 @@ resources belong to this task. FLEX llm-jax-v6e-1-0/EW4a is borrowed/verified id
 never release it. CPU, serialized AOT and training prequeues prepare concurrently.
 Launch requires sealed config, exact manifest, Loaded compiled function, actual
 FIRST_STEP, worker hash, real4096 path and full worker parameter counts.
+
+## Verified startup
+
+All five runs reached actual FIRST_STEP/99, runtime4083fd1 on each worker,
+Loaded compiled function and real truepile4096 path verified. Formal counts
+match the worker exactly. Generic healthON/internal+BAM bulkOFF unchanged.
+20-99 aggregate step/s by ID310490..494: .678039/.674357/.683347/.683348/.689926.
+Compare historical H .669875 only as mixed kernel/architecture timing; the new
+four-arm relocation is near/faster than old writers-ON exit .67270. All five
+CPU logits/all-gradients, exact scope/budgets, shifts/causality, old final-exit
+reference, five rotating-writer tests and47 BAM regressions passed. Borrowed
+FLEX AOTs serialized safely; runtime and manifests sealed at4083fd1.
+Groupmedium-h-relocated-local-o: clock restored/raw310492, cadence2000,
+reviews4000/8000, all gain triples MHA referenced.

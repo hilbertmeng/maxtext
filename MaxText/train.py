@@ -394,6 +394,35 @@ def record_rmt_dynamic_health_metrics(output_metrics, intermediate_outputs, conf
       output_metrics['scalar'][f'rmt/dynamic/layer_{layer:03d}/{name}'] = health[layer, index]
 
 
+def record_bam_mlp_input_mix_health_metrics(output_metrics, intermediate_outputs, config):
+  """Export only ordinary/private attention-share mean/std from single-layer scan."""
+  if not config.scan_layers or getattr(config, 'bam_pair_scan', False):
+    raise ValueError('MLP input mix health requires single-layer scan')
+  decoder = intermediate_outputs['intermediates']['decoder']
+  tails = int(getattr(config, 'bam_final_local_layer_count', 0) or 0)
+  count = config.num_decoder_layers - tails
+
+  mix_branch = getattr(config, 'bam_mlp_input_mix_branch', None) or 'both'
+
+  def emit(stats, layer):
+    branches = ('ordinary', 'memory') if mix_branch == 'both' else (mix_branch,)
+    for index, value in enumerate(stats):
+      branch = branches[index // 2]
+      metric = ('mean', 'std')[index % 2]
+      output_metrics['scalar'][f'bam/mlp_input_mix/{branch}/layer_{layer:03d}/attention_share_{metric}'] = value
+
+  layers = decoder['layers']
+  block = layers.get('sub_0', layers)['block']
+  stats = block['mlp_input_mix_stats'][0]
+  for layer in range(count):
+    emit(stats[layer], layer)
+  for offset in range(tails):
+    if mix_branch == 'memory':
+      continue
+    name = 'final_local_layer' if tails == 1 else f'final_local_layer_{offset}'
+    emit(decoder[name]['block']['mlp_input_mix_stats'][0], count + offset)
+
+
 def record_bam_concat_health_metrics(output_metrics, intermediate_outputs, config):
   """Decode compact read metrics from LLF block scan and an optional final L."""
   decoder = intermediate_outputs['intermediates']['decoder']
@@ -1062,6 +1091,9 @@ def train_step(model, config, state_mesh_shardings, state, data, dropout_rng):
       "scalar": scalar_metrics,
       "scalars": {},
   }
+
+  if getattr(config, 'bam_record_mlp_input_mix_health', False):
+    record_bam_mlp_input_mix_health_metrics(metrics, intermediate_outputs, config)
 
   if (getattr(config, 'bam_record_concat_health', False) or getattr(config, 'bam_record_m_shift_health', False)
       or (getattr(config, 'bam_context_local_o_complement', False) and config.record_training_health_metrics)):

@@ -164,6 +164,7 @@ def _tm_read_kernel(n, qk_cols, eps, scale, q_scale, gated, ch, shifted=False, q
     if qk_norm:
       (xq_ref, xk_ref, inv_ref), refs = refs[4:7], refs[3:]
     xt_scr, y_scr = refs[4:6]
+    col_scr = refs[6] if qk_norm else None
     t, _, kdim = m_ref.shape
     cdim = rq.shape[0]
     np_ = rq.shape[1]                 # heads, optionally padded to a multiple of 8 by the wrapper
@@ -189,21 +190,25 @@ def _tm_read_kernel(n, qk_cols, eps, scale, q_scale, gated, ch, shifted=False, q
     lane = jax.lax.broadcasted_iota(jnp.int32, (t, kdim), 1)
     zstd = jnp.zeros((qk_cols, t), F32)
     for a, ref in enumerate((q_ref, k_ref, v_ref, o_ref)):
+      if a < 2 and qk_norm:
+        # The standard sums of squares as token columns: one small transpose per arm and tile.
+        ss_cols = _to_tokens(ss_ref[a])                                   # [T, NP]
       for h in range(n):
         y = y_scr[pl.ds((a * np_ + h) * t, t), :]                        # [T, K] token rows
         if a < 2 and qk_norm:
-          # Full-head QKNorm in the epilogue: rows [qdim, T] = read rows + standard rows; the
-          # statistic adds the unscaled, unrotated standard sum of squares (RoPE preserves no
-          # per-coordinate scale). Emit u = xhat * m (m carries norm scales and the logit scale)
-          # for attention, plus xhat and 1/r as reverse residuals.
+          # Full-head QKNorm in the epilogue, token-major (no per-head XLU transposes): the row
+          # [T, qdim] = read lanes + token-major standard lanes; the statistic adds the unscaled,
+          # unrotated standard sum of squares. Emit u = xhat * m (m carries the norm scales and the
+          # logit scale) for attention, plus xhat and 1/r as reverse residuals.
           q_eps, width = qk_norm
-          rows = jnp.concatenate((_from_tokens(y)[:qk_cols], (qs if a == 0 else ks)[h].astype(F32)), axis=0)
-          local_ss = jnp.sum(jnp.square(rows[:qk_cols]), axis=0, keepdims=True)
-          iv = jax.lax.rsqrt((local_ss + ss_ref[a, pl.ds(h, 1), :]) / width + q_eps)     # [1, T]
-          xhat = rows * iv
-          (xq_ref if a == 0 else xk_ref)[h] = _to_tokens(xhat).astype(xq_ref.dtype)
-          inv_ref[a, pl.ds(h, 1), :] = iv
-          ref[h] = _to_tokens(xhat * mm_ref[:, a:a + 1]).astype(ref.dtype)
+          local = y[:, :qk_cols]
+          row = jnp.concatenate((local, (qs if a == 0 else ks)[h].astype(F32)), axis=1)
+          local_ss = jnp.sum(local * local, axis=1, keepdims=True)                 # [T, 1]
+          iv = jax.lax.rsqrt((local_ss + ss_cols[:, h:h + 1]) / width + q_eps)
+          xhat = row * iv
+          (xq_ref if a == 0 else xk_ref)[h] = xhat.astype(xq_ref.dtype)
+          col_scr[:, pl.ds(h, 1)] = iv
+          ref[h] = (xhat * mm_ref[pl.ds(a, 1), :]).astype(ref.dtype)
           continue
         if a < 2:     # columns >= qk_cols are the standard (rotated) Q/K coordinates
           if qdim is not None and qdim > kdim:
@@ -217,6 +222,10 @@ def _tm_read_kernel(n, qk_cols, eps, scale, q_scale, gated, ch, shifted=False, q
           if a == 0 and q_scale != 1.0:
             y = y * q_scale
         ref[h] = y.astype(ref.dtype)
+      if a < 2 and qk_norm:
+        if n < np_:
+          col_scr[:, pl.ds(n, np_ - n)] = jnp.ones((t, np_ - n), F32)
+        inv_ref[a] = _from_tokens(col_scr[...])                          # [NP, T]
   return kernel
 
 
@@ -248,7 +257,8 @@ def _tm_read_backward_kernel(n, qk_cols, eps, scale, q_scale, gated, ch, pass_m,
       dos_ref, refs = refs[0], refs[1:]
     if qk_norm:
       (dss_ref, dmm_ref), refs = refs[:2], refs[2:]
-      dmm = [jnp.zeros((qdim, 1), F32), jnp.zeros((qdim, 1), F32)]
+      dmm = [jnp.zeros((1, qdim), F32), jnp.zeros((1, qdim), F32)]
+      col_scr, refs = refs[-1], refs[:-1]
     xt_scr, dy_scr, dxt_scr, dkey_scr = refs[:4]
     gb_scr = refs[4] if shifted else None
     xm_scr = refs[5 if shifted else 4] if masked else None
@@ -271,32 +281,34 @@ def _tm_read_backward_kernel(n, qk_cols, eps, scale, q_scale, gated, ch, pass_m,
     lane = jax.lax.broadcasted_iota(jnp.int32, (t, kdim), 1)
     zrow = jnp.zeros((t, kdim), F32)
     for a, ref in enumerate((dq, dk, dv, do)):
+      if a < 2 and qk_norm:
+        inv_cols = _to_tokens(inv_ref[a])                                  # [T, NP]
       for h in range(np_):
         rows = a * np_ + h
         if h >= n:
           _put(dy_scr, rows, zrow)
+          if a < 2 and qk_norm:
+            col_scr[:, pl.ds(h, 1)] = jnp.zeros((t, 1), F32)
           continue
         y = ref[h].astype(F32)
         if a < 2 and qk_norm:
-          # Reverse of u = xhat * m, xhat = x / r, r^2 = (|x_local|^2 + ss_std) / W + eps. The rotated,
-          # scaled standard rows enter r only through ss_std, so they keep the direct term alone:
+          # Reverse of u = xhat * m, xhat = x / r, r^2 = (|x_local|^2 + ss_std) / W + eps, token-major.
+          # The rotated, scaled standard lanes enter r only through ss_std, so they keep the direct term:
           # dx_local = (m g - xhat mean(m g xhat)) / r;  dx_std = m g / r;
           # d ss_std = -mean(m g xhat) / (2 r^2);  dm = sum_t g xhat.
           q_eps, width = qk_norm
-          gct = _from_tokens(y)                                                  # [qdim, T]
-          xhat = _from_tokens((xq_ref if a == 0 else xk_ref)[h].astype(F32))
-          iv = inv_ref[a, pl.ds(h, 1), :]
-          gm = gct * mm_ref[:, a:a + 1]
-          s_ = jnp.sum(gm * xhat, axis=0, keepdims=True) / width               # [1, T]
-          ys = iv * (gm - jnp.concatenate((xhat[:qk_cols] * s_, jnp.zeros_like(xhat[qk_cols:])), axis=0))
-          dss_ref[a, pl.ds(h, 1), :] = -.5 * iv * iv * s_
-          dmm[a] = dmm[a] + jnp.sum(gct * xhat, axis=1, keepdims=True)
+          xhat = (xq_ref if a == 0 else xk_ref)[h].astype(F32)                  # [T, qdim]
+          iv = inv_cols[:, h:h + 1]
+          gm = y * mm_ref[pl.ds(a, 1), :]
+          s_ = jnp.sum(gm * xhat, axis=1, keepdims=True) / width               # [T, 1]
+          local = iv * (gm[:, :qk_cols] - xhat[:, :qk_cols] * s_)
           ds = dqs if a == 0 else dks
-          ds[h] = ys[qk_cols:].astype(ds.dtype)
-          local = ys[:qk_cols]
+          ds[h] = (iv * gm[:, qk_cols:]).astype(ds.dtype)                       # token-major [T, Rs]
+          col_scr[:, pl.ds(h, 1)] = -.5 * iv * iv * s_
+          dmm[a] = dmm[a] + jnp.sum(y * xhat, axis=0, keepdims=True)
           if qk_cols < kdim:
-            local = jnp.concatenate((local, jnp.zeros((kdim - qk_cols, local.shape[1]), F32)), axis=0)
-          _put(dy_scr, rows, _to_tokens(local))
+            local = jnp.concatenate((local, jnp.zeros((t, kdim - qk_cols), F32)), axis=1)
+          _put(dy_scr, rows, local)
           continue
         if a == 0 and q_scale != 1.0:
           y = y * q_scale
@@ -314,6 +326,8 @@ def _tm_read_backward_kernel(n, qk_cols, eps, scale, q_scale, gated, ch, pass_m,
                      else jnp.zeros(ds.shape[1:], ds.dtype))
             y = jnp.where(lane < qk_cols, y, 0.)
         _put(dy_scr, rows, y)
+      if a < 2 and qk_norm:
+        dss_ref[a] = _from_tokens(col_scr[...])                          # [NP, T]
     # Per-token matmuls: dX_t^T = M_t dY_t^T, dM_t = X_t^T dY_t; dS = sum_t sg * dX^T.
     sgt = _to_tokens(sg) if gated else None                                # [T, R]
     dst = jnp.zeros((cdim, r), F32)
@@ -393,7 +407,7 @@ def _tm_read_backward_kernel(n, qk_cols, eps, scale, q_scale, gated, ch, pass_m,
     if gated:
       dsg_ref[...] = sacc.reshape(4, np_, t).astype(dsg_ref.dtype)
     if qk_norm:
-      dmm_ref[...] = jnp.concatenate(dmm, axis=1)
+      dmm_ref[...] = jnp.concatenate(dmm, axis=0)
     if scaled:        # token sums of all C*NP rows as one lane-dense MXU row (no per-c XLU reduce)
       dos_ref[...] = jax.lax.dot_general(
           jnp.ones((8, t), F32), dos_scr[...], (((1,), (1,)), ((), ())),
@@ -401,9 +415,16 @@ def _tm_read_backward_kernel(n, qk_cols, eps, scale, q_scale, gated, ch, pass_m,
   return kernel
 
 
-def _tm_read_specs(args, tile, packed=False):
+def _std_tok_spec(shape, tile):
+  """Token-major standard Q/K [B,N,T,Rs] (fused QKNorm) in [N, tile, Rs] blocks."""
+  return pl.BlockSpec((None, shape[1], tile, shape[3]), lambda bb, i: (bb, 0, i, 0))
+
+
+def _tm_read_specs(args, tile, packed=False, std_tok=False):
   m, st = args[0], args[1]
   specs = [_token_spec(m.shape[2:], tile), _whole(st.shape)] + [_spec(x.shape[1:-1], tile) for x in args[2:]]
+  if std_tok:
+    specs[9], specs[10] = _std_tok_spec(args[9].shape, tile), _std_tok_spec(args[10].shape, tile)
   if packed:          # one [B,C,4N,T] key array (q, k, v, o) read as Q, K and the packed V/O slab
     cdim, np_ = args[2].shape[1], args[2].shape[2] // 4
     block = lambda rows, idx: pl.BlockSpec((None, cdim, rows, tile), lambda bb, i: (bb, 0, idx, i))
@@ -458,11 +479,12 @@ def _tm_read_forward_call(args, opts, sh=None, om=None, os=None, qn=None):
                       len(args) == 12, opts['chunk'], sh is not None, qdim, om is not None, os is not None,
                       qk_norm),
       grid=(b, t // tile),
-      in_specs=(_tm_read_specs(args, tile, packed) + _shift_specs(m, sh, tile) + _mask_specs(om, tile)
-                + _scale_specs(os) + _qk_norm_specs(qn, tile)),
+      in_specs=(_tm_read_specs(args, tile, packed, bool(qk_norm)) + _shift_specs(m, sh, tile)
+                + _mask_specs(om, tile) + _scale_specs(os) + _qk_norm_specs(qn, tile)),
       out_specs=out_specs,
       out_shape=out_shape,
-      scratch_shapes=[pltpu.VMEM((cdim * tile, r), F32), pltpu.VMEM((tile * r, kdim), F32)],
+      scratch_shapes=([pltpu.VMEM((cdim * tile, r), F32), pltpu.VMEM((tile * r, kdim), F32)]
+                      + ([pltpu.VMEM((tile, r // 4), F32)] if qk_norm else [])),
       interpret=opts['interpret'], compiler_params=_params(('parallel', 'parallel'), opts['vmem_mib']),
       name='bam_core_read')(*args, *(() if sh is None else (sh, m)), *(() if om is None else (om,)),
                             *(() if os is None else (os,)), *(() if qn is None else qn))
@@ -484,7 +506,8 @@ def _tm_read_backward_call(args, cts, opts, sh=None, om=None, os=None, qn=None, 
            + (() if qn is None else tuple(qn)))
   qdim = opts.get('qdim') or kdim
   qk_norm = opts.get('qk_norm')
-  in_specs = (_tm_read_specs(args, tile, packed) + _shift_specs(m, sh, tile) + _mask_specs(om, tile) + _scale_specs(os)
+  in_specs = (_tm_read_specs(args, tile, packed, bool(qk_norm)) + _shift_specs(m, sh, tile) + _mask_specs(om, tile)
+              + _scale_specs(os)
               + _qk_norm_specs(qn, tile)
               + [_tm_out_spec(n, tile, qdim)] * 2 + [_tm_out_spec(n, tile, kdim)] * 2
               + [_token_spec((vdim, kdim), tile)] * pass_m
@@ -498,6 +521,8 @@ def _tm_read_backward_call(args, cts, opts, sh=None, om=None, os=None, qn=None, 
     grad_shapes[0], grad_shapes[2], grad_shapes[4] = key_shapes
   out_specs = ([_token_spec((vdim, kdim), tile), pl.BlockSpec((None, None, cdim, r), lambda bb, i: (bb, i, 0, 0))]
                + [_spec(shape[1:-1], tile) for shape in grad_shapes])
+  if qk_norm:         # token-major standard Q/K cotangents
+    out_specs[2 + 7], out_specs[2 + 8] = _std_tok_spec(args[9].shape, tile), _std_tok_spec(args[10].shape, tile)
   out_shape = ([jax.ShapeDtypeStruct(m.shape, m.dtype), jax.ShapeDtypeStruct((b, t // tile, cdim, r), F32)]
                + [jax.ShapeDtypeStruct(shape, x.dtype) for shape, x in zip(grad_shapes, args[2:])])
   scratch = [pltpu.VMEM((cdim * tile, r), F32), pltpu.VMEM((r * tile, kdim), F32),
@@ -511,14 +536,16 @@ def _tm_read_backward_call(args, cts, opts, sh=None, om=None, os=None, qn=None, 
   if os is not None:  # per-tile partial scale gradients [1,C*scaled_rows], c-major.
     out_specs += [pl.BlockSpec((None, None, 1, cdim * scaled_rows), lambda bb, i: (bb, i, 0, 0))]
     out_shape += [jax.ShapeDtypeStruct((b, t // tile, 1, cdim * scaled_rows), F32)]
-  if qk_norm:         # d ss_std [B,2,NP,T] and per-tile partial dm [qdim, 2]
+  if qk_norm:         # d ss_std [B,2,NP,T] and per-tile partial dm [2, qdim]
     out_specs += [_spec(qn[0].shape[1:-1], tile),
-                  pl.BlockSpec((None, None, qdim, 2), lambda bb, i: (bb, i, 0, 0))]
-    out_shape += [jax.ShapeDtypeStruct(qn[0].shape, F32), jax.ShapeDtypeStruct((b, t // tile, qdim, 2), F32)]
+                  pl.BlockSpec((None, None, 2, qdim), lambda bb, i: (bb, i, 0, 0))]
+    out_shape += [jax.ShapeDtypeStruct(qn[0].shape, F32), jax.ShapeDtypeStruct((b, t // tile, 2, qdim), F32)]
   if om is not None:
     scratch += [pltpu.VMEM((tile * cdim, r), F32)]        # token-major O multiplier rows
   if os is not None:
     scratch += [pltpu.VMEM((cdim * scaled_rows, tile), F32)]      # per-c O scale gradient terms, T-minor
+  if qk_norm:
+    scratch += [pltpu.VMEM((tile, np_), F32)]                     # per-head d ss_std token columns
   outs = pl.pallas_call(
       _tm_read_backward_kernel(n, opts['qk_cols'], opts['read_epsilon'], opts['key_scale'], opts['q_scale'],
                                gated, opts['chunk'], pass_m, shifted, qdim, om is not None, os is not None,
@@ -628,6 +655,7 @@ def read_tm(m, static_weight, q_key, q_logits, k_key, k_logits, vo_key, o_logits
                       q_scale=float(q_scale), chunk=chunk, **({'qdim': qdim} if qdim > m.shape[-1] else {}),
                       **({} if qk_norm is None else {'qk_norm': (float(qk_norm[4]), float(qdim))})))
   padn = lambda x: jnp.pad(x, [(0, 0)] * (x.ndim - 2) + [(0, np_ - n), (0, 0)]) if np_ > n else x
+  padn_tok = lambda x: jnp.pad(x, [(0, 0), (0, np_ - n), (0, 0), (0, 0)]) if np_ > n else x   # [B,N,T,Rs]
   keys = lambda x: padn(jnp.transpose(x, (0, 3, 2, 1)))                  # [B,T,N,C] -> [B,C,NP,T]
   gate = lambda x: padn(_minor_t(x))                                      # [B,T,N] -> [B,NP,T]
   sw = static_weight.astype(F32)
@@ -640,8 +668,9 @@ def read_tm(m, static_weight, q_key, q_logits, k_key, k_logits, vo_key, o_logits
     rr_ = (keys(vo_key) if vo_key.shape[2] == n else
            jnp.concatenate(tuple(keys(x) for x in jnp.split(vo_key, 2, axis=2)), axis=2))
     rq_, rk_ = keys(q_key), keys(k_key)
+  std = ((lambda x: padn_tok(jnp.transpose(x, (0, 2, 1, 3)))) if qk_norm is not None else _minor_t)
   args = (m, st, rq_, gate(q_logits), rk_, gate(k_logits), rr_, gate(o_logits),
-          gate(v_logits), _minor_t(q_standard), _minor_t(k_standard))
+          gate(v_logits), std(q_standard), std(k_standard))
   gated = bool(static_gates)
   if gated:
     args += (jnp.stack([gate(x) for x in static_gates], axis=1),)       # [B,4,NP,T]
@@ -668,7 +697,7 @@ def read_tm(m, static_weight, q_key, q_logits, k_key, k_logits, vo_key, o_logits
     ss_q, ss_k, m_q, m_k = qk_norm[:4]
     assert ss_q.shape == ss_k.shape == (b, t, n) and m_q.shape == m_k.shape == (qdim,), (ss_q.shape, m_q.shape)
     args += (jnp.stack((gate(ss_q.astype(F32)), gate(ss_k.astype(F32))), axis=1),   # [B,2,NP,T]
-             jnp.stack((m_q, m_k), axis=1).astype(F32))                          # [qdim,2]
+             jnp.stack((m_q, m_k), axis=0).astype(F32))                          # [2,qdim]
 
   def local(m, st, *xs):
     xs = list(xs)

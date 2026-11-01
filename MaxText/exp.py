@@ -17646,6 +17646,13 @@ class BamPythia2p8BHSpeedHUnit300BFusedPackedProfile(BamPythia2p8BHSpeedHUnit300
     bam_pallas_packed_read_keys = True
 
 
+class BamPythia2p8BHSpeedHUnit300BSaveSplashProfile(BamPythia2p8BHSpeedHUnit300BProfile):
+    """H keeping Splash residuals (output, logsumexp)."""
+    model_name = 'BamPythia2p8BHSpeedHUnit300BSaveSplashProfile'
+    bam_splash_residual_name = 'bam_splash_residual'
+    remat_policy = 'minimal_save_splash'
+
+
 class BamPythia2p8BHSpeedHUnit300BFusedPackedSaveSplashProfile(BamPythia2p8BHSpeedHUnit300BFusedPackedProfile):
     """Fused/packed H keeping Splash residuals."""
     model_name = 'BamPythia2p8BHSpeedHUnit300BFusedPackedSaveSplashProfile'

@@ -20154,7 +20154,11 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     """Only private MLP content and controls consume the residual-attention mixture."""
     # ledger only: runtime implementation remains in the worktree below.
     # Implementation: /data0/xd/mediumprop-h-mlp-input-mix; codex/mediumprop-h-mlp-input-mix.
-    # Four-way test: depth/unit read-scale initialization x sigmoid.99/complementary gate.
+    # Completed13500/P0; input gating does not improve ungated H at the full endpoint.
+    # Early+.011@600 deficit narrowed; brief5k/10.4k/11k/13k leads did not persist.
+    # Final5(12600..13400) vsH: gap+0.00048852/MHA-ref gain0.99732053; terminal1.005 prior was optimistic.
+    # CP13500 committed/TB SYNC_OK; node+queue independently absent; all four arms now closed.
+    # Gates learned: final17 layer-mean attention coefficient shares0.5065-0.6306, not activation-energy attribution.
     # code_commit: 88aa48c; UE5a v5p16 xd-v5p-16-310500-maxtext, plan13500.
     # FIRST0/source/AOT/TruePile4096/432132627 parameters verified;20..99 0.673545step/s.
     # Parent historical kernel and extra gate-health exports differ; descriptive timing only.

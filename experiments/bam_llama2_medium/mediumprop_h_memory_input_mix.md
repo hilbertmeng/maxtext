@@ -86,3 +86,33 @@ Publication: one2x2 figure, H-depth/unit columns, gap/gain rows; two gate curves
 per column, shared row limits, cumulative native windows from600. Right column
 ends at9200 baseline coverage. User explicitly declined resuming that control.
 Startup proof files and all manifests in the task artifact root.
+
+
+## User-confirmed complementary closeout
+
+User selected both complementary arms for stopping after the delivered4k review;
+the two sigmoid.99 arms continue. H-depth complementary CP5075, unit-init
+complementary CP5077. Mature native horizon5000 for both: final5 vs each own
+ungated parent are+.00182804/R.99232395 and+.00239396/R.98975212 respectively.
+The H-depth arm did improve further after4k; do not repeat the older assertion
+of no catch-up. However its sigmoid.99 sibling improved more: matched4200..5000
++.00081840/R.99656137. Unit sigmoid+.00201688/R.99137296, also slightly ahead
+of matching complementary. These comparisons use own-parent native means and
+MHA gain references, not cross-base absolute-loss claims. Full13500 endpoints
+of stopped arms are unmeasured. Snapshot3400 shows live learned gates; range
+flexibility was used by some layers but did not establish a net loss benefit.
+
+Both CPs committed; TB SYNC_OK after one automatic changing-file retry on310501.
+Each node and queued resource independently NOT_FOUND. Complete READY leases
+UTC2026-11-01, v5p16 UE5a/P0, no region switches or passive candidates:
+31050110:55:21-13:04:41=2h09m20s;
+31050310:55:12-13:04:43=2h09m31s; both manual user-confirmed stops.
+Main closeout731ddfc8. Evidence: complementary-closeout-summary.json,
+complementary-resource-proof.json, *-leases.json, complementary-final-stats.json,
+all-four-matched-5k.json and all-four-matched-5k-plot.json in task artifacts.
+
+Group clock handed from310503 to310500 while preserving the4k public phase;
+stopped members retired with history, watcher continues for310500/310502 only.
+Matched5k extra delivery leaves next normal milestone6000, then own8k reviews.
+The latest user permits no resumption of the paused unit parent, so its native
+comparison coverage remains9200. No additional formal experiments were started.

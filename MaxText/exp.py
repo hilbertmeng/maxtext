@@ -20060,7 +20060,12 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     """Move L17 localO after its MLP; final writers ON, paired shift/self mask."""
     # Implementation: /data0/xd/mediumprop-h-final-local-o; relocated-O2x2 plus last-only split W_O.
     # code_commit: 4083fd1; ledger only, codex/mediumprop-h-final-local-o.
-    # Started UE5a v5p-16 xd-v5p-16-310491-maxtext, plan13500; generic health ON, internal/BAM OFF.
+    # User-stopped6676/13500; full-schedule endpoint unmeasured.
+    # Early gap~+.009 fell toward+.004 by4k, then plateaued through6.6k; gain did not recover.
+    # Final5 through6600 vsH: gap+0.0039554/MHA-ref gain0.9817203.
+    # vs old extra-exit writersON: final5 gap+0.0023862/gain0.9888757; relocation did not improve it by stop.
+    # UE5a v5p-16 xd-v5p-16-310491-maxtext, P0; CP6676/TB SYNC_OK; node+queue independently absent.
+    # Generic health ON/internal+BAM OFF; startup speed below is not an isolated architecture comparison.
     # Startup20-99 aggregate 0.67436 step/s; historical H .669875 has an older read kernel.
     # Actual worker parameters 432111443 (H-767); AOT/source/data/full-model gradients verified.
     # Inference: extra final-written previous-M slot, 2400 BF16 elements/sequence.
@@ -20077,7 +20082,12 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     """Move L17 localO after its MLP; final writers ON, paired shift/self mask."""
     # Implementation: /data0/xd/mediumprop-h-final-local-o; relocated-O2x2 plus last-only split W_O.
     # code_commit: 4083fd1; ledger only, codex/mediumprop-h-final-local-o.
-    # Started UE5a v5p-16 xd-v5p-16-310492-maxtext, plan13500; generic health ON, internal/BAM OFF.
+    # User-stopped6970/13500; full-schedule endpoint unmeasured.
+    # Early gap~+.015 narrowed to~+.004 by4k, then plateaued through6.8k; restoring self did not pay off.
+    # Final5 through6800 vsH: gap+0.0038957/MHA-ref gain0.9817477.
+    # vs old extra-exit writersON: final5 gap+0.0024297/gain0.9885280; relocation did not improve it by stop.
+    # UE5a v5p-16 xd-v5p-16-310492-maxtext, P0; CP6970/TB SYNC_OK; node+queue independently absent.
+    # Generic health ON/internal+BAM OFF; startup speed below is not an isolated architecture comparison.
     # Startup20-99 aggregate 0.68335 step/s; historical H .669875 has an older read kernel.
     # Actual worker parameters 432112611 (H+401); AOT/source/data/full-model gradients verified.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedFinalLocalORelocatedLastWritesSelfAttentionTruePile'
@@ -20117,7 +20127,11 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     """H: independent context/localO W_O only at L17, before its MLP."""
     # Implementation: /data0/xd/mediumprop-h-final-local-o; relocated-O2x2 plus last-only split W_O.
     # code_commit: 4083fd1; ledger only, codex/mediumprop-h-final-local-o.
-    # Started UE5a v5p-16 xd-v5p-16-310494-maxtext, plan13500; generic health ON, internal/BAM OFF.
+    # User-stopped7026/13500; full-schedule endpoint unmeasured.
+    # Early gap~+.012 narrowed to~+.004 by4k; late isolated improvement did not establish sustained recovery.
+    # Final5 through7000 vsH: gap+0.0034867/MHA-ref gain0.9835824.
+    # UE5a v5p-16 xd-v5p-16-310494-maxtext, P0; CP7026/TB SYNC_OK; node+queue independently absent.
+    # Generic health ON/internal+BAM OFF; startup speed below is not an isolated architecture comparison.
     # Startup20-99 aggregate 0.68993 step/s; historical H .669875 has an older read kernel.
     # Actual worker parameters 432112210 (H+0); AOT/source/data/full-model gradients verified.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedSplitLastOutputProjectionsTruePile'

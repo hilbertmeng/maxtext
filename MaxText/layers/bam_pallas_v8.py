@@ -146,6 +146,21 @@ def _prev_from(m_ref, mh_ref, t0, mt):
   return jnp.concatenate((first.astype(mt.dtype), mt[:-1]), axis=0)
 
 
+def _bcast_dot(x, w):
+  """x @ w on the MXU (exact FP32): row reductions and per-head selections arrive lane-broadcast."""
+  return jax.lax.dot_general(x, w, (((1,), (0,)), ((), ())), precision=jax.lax.Precision.HIGHEST,
+                             preferred_element_type=F32)
+
+
+def _qk_norm_mats(np_, qk_cols, qdim):
+  """[qdim,qdim] local-lane ones, [qdim,qdim] ones, and per-head [NP,qdim] one-hot row selector."""
+  r = jax.lax.broadcasted_iota(jnp.int32, (qdim, qdim), 0)
+  ones_loc = jnp.where(r < qk_cols, 1., 0.).astype(F32)
+  ones_all = jnp.ones((qdim, qdim), F32)
+  hrow = jax.lax.broadcasted_iota(jnp.int32, (np_, qdim), 0)
+  return ones_loc, ones_all, lambda h: jnp.where(hrow == h, 1., 0.).astype(F32)
+
+
 def _tm_read_kernel(n, qk_cols, eps, scale, q_scale, gated, ch, shifted=False, qdim=None, masked=False,
                     scaled=False, qk_norm=None):
   def kernel(m_ref, st_ref, rq, lq, rk, lk, rr, lo, lv, qs, ks, *refs):
@@ -193,6 +208,8 @@ def _tm_read_kernel(n, qk_cols, eps, scale, q_scale, gated, ch, shifted=False, q
       if a < 2 and qk_norm:
         # The standard sums of squares as token columns: one small transpose per arm and tile.
         ss_cols = _to_tokens(ss_ref[a])                                   # [T, NP]
+        if len(qk_norm) > 2 and qk_norm[2]:
+          ones_loc, _, onehot = _qk_norm_mats(np_, qk_cols, qdim)
       for h in range(n):
         y = y_scr[pl.ds((a * np_ + h) * t, t), :]                        # [T, K] token rows
         if a < 2 and qk_norm:
@@ -200,15 +217,19 @@ def _tm_read_kernel(n, qk_cols, eps, scale, q_scale, gated, ch, shifted=False, q
           # [T, qdim] = read lanes + token-major standard lanes; the statistic adds the unscaled,
           # unrotated standard sum of squares. Emit u = xhat * m (m carries the norm scales and the
           # logit scale) for attention, plus xhat and 1/r as reverse residuals.
-          q_eps, width = qk_norm
+          q_eps, width = qk_norm[:2]
           local = y[:, :qk_cols]
           rs = qdim - qk_cols
           row = jnp.concatenate((local, (qs if a == 0 else ks)[:, pl.ds(h * rs, rs)].astype(F32)), axis=1)
-          local_ss = jnp.sum(local * local, axis=1, keepdims=True)                 # [T, 1]
-          iv = jax.lax.rsqrt((local_ss + ss_cols[:, h:h + 1]) / width + q_eps)
+          if len(qk_norm) > 2 and qk_norm[2]:   # MXU reductions/selections, lane-broadcast [T, qdim]
+            iv = jax.lax.rsqrt((_bcast_dot(row * row, ones_loc) + _bcast_dot(ss_cols, onehot(h))) / width
+                               + q_eps)
+          else:
+            local_ss = jnp.sum(local * local, axis=1, keepdims=True)               # [T, 1]
+            iv = jax.lax.rsqrt((local_ss + ss_cols[:, h:h + 1]) / width + q_eps)
           xhat = row * iv
           (xq_ref if a == 0 else xk_ref)[h] = xhat.astype(xq_ref.dtype)
-          col_scr[:, pl.ds(h, 1)] = iv
+          col_scr[:, pl.ds(h, 1)] = iv[:, :1]
           ref[h] = (xhat * mm_ref[pl.ds(a, 1), :]).astype(ref.dtype)
           continue
         if a < 2:     # columns >= qk_cols are the standard (rotated) Q/K coordinates
@@ -285,6 +306,9 @@ def _tm_read_backward_kernel(n, qk_cols, eps, scale, q_scale, gated, ch, pass_m,
       if a < 2 and qk_norm:
         inv_cols = _to_tokens(inv_ref[a])                                  # [T, NP]
         std_parts = []
+        mxu = len(qk_norm) > 2 and qk_norm[2]
+        if mxu:
+          _, ones_all, onehot = _qk_norm_mats(np_, qk_cols, qdim)
       for h in range(np_):
         rows = a * np_ + h
         if h >= n:
@@ -299,14 +323,18 @@ def _tm_read_backward_kernel(n, qk_cols, eps, scale, q_scale, gated, ch, pass_m,
           # The rotated, scaled standard lanes enter r only through ss_std, so they keep the direct term:
           # dx_local = (m g - xhat mean(m g xhat)) / r;  dx_std = m g / r;
           # d ss_std = -mean(m g xhat) / (2 r^2);  dm = sum_t g xhat.
-          q_eps, width = qk_norm
+          q_eps, width = qk_norm[:2]
           xhat = (xq_ref if a == 0 else xk_ref)[h].astype(F32)                  # [T, qdim]
-          iv = inv_cols[:, h:h + 1]
           gm = y * mm_ref[pl.ds(a, 1), :]
-          s_ = jnp.sum(gm * xhat, axis=1, keepdims=True) / width               # [T, 1]
-          local = iv * (gm[:, :qk_cols] - xhat[:, :qk_cols] * s_)
-          std_parts.append(iv * gm[:, qk_cols:])                               # token-major [T, Rs]
-          col_scr[:, pl.ds(h, 1)] = -.5 * iv * iv * s_
+          if mxu:     # lane-broadcast [T, qdim] statistics from the MXU
+            iv = _bcast_dot(inv_cols, onehot(h))
+            s_ = _bcast_dot(gm * xhat, ones_all) / width
+          else:
+            iv = inv_cols[:, h:h + 1]
+            s_ = jnp.sum(gm * xhat, axis=1, keepdims=True) / width             # [T, 1]
+          local = (iv * (gm - xhat * s_))[:, :qk_cols]
+          std_parts.append((iv * gm)[:, qk_cols:])                             # token-major [T, Rs]
+          col_scr[:, pl.ds(h, 1)] = (-.5 * iv * iv * s_)[:, :1]
           dmm[a] = dmm[a] + jnp.sum(y * xhat, axis=0, keepdims=True)
           if qk_cols < kdim:
             local = jnp.concatenate((local, jnp.zeros((t, kdim - qk_cols), F32)), axis=1)
@@ -619,7 +647,7 @@ def read_tm(m, static_weight, q_key, q_logits, k_key, k_logits, vo_key, o_logits
             k_standard, *, qk_cols, read_epsilon, key_scale, forward_tile=128, reverse_tile=128,
             vmem_mib=None, interpret=False, q_scale=1.0, static_gates=None, chunk=8, pad_heads=False,
             shift=None, o_weight_multiplier=None, o_dynamic_scale=None, v_dynamic_scale=None, qk_norm=None,
-            qkvo_key=None, **_):
+            qkvo_key=None, qk_norm_mxu=False, **_):
   """v7.read's interface (keys [B,T,N,C], logits [B,T,N], standard QK [B,T,N,Rs]) for M [B,T,V,K] and
   full-M reads (C == V, identity compression). Returns (query, key, value, local_o) [B,T,N,K] and M.
 
@@ -657,7 +685,8 @@ def read_tm(m, static_weight, q_key, q_logits, k_key, k_logits, vo_key, o_logits
   opts = _freeze(dict(heads=n, qk_cols=qk_cols, read_epsilon=read_epsilon, key_scale=key_scale, packed=packed,
                       tile=forward_tile, reverse_tile=reverse_tile, vmem_mib=vmem_mib, interpret=interpret,
                       q_scale=float(q_scale), chunk=chunk, **({'qdim': qdim} if qdim > m.shape[-1] else {}),
-                      **({} if qk_norm is None else {'qk_norm': (float(qk_norm[4]), float(qdim))})))
+                      **({} if qk_norm is None else
+                         {'qk_norm': (float(qk_norm[4]), float(qdim), bool(qk_norm_mxu))})))
   padn = lambda x: jnp.pad(x, [(0, 0)] * (x.ndim - 2) + [(0, np_ - n), (0, 0)]) if np_ > n else x
   padn_tok = lambda x: jnp.pad(x, [(0, 0), (0, 0), (0, np_ - n), (0, 0)]) if np_ > n else x   # [B,T,NP,Rs]
   keys = lambda x: padn(jnp.transpose(x, (0, 3, 2, 1)))                  # [B,T,N,C] -> [B,C,NP,T]

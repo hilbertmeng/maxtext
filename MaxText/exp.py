@@ -20202,7 +20202,11 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     """Only private MLP content and controls consume the residual-attention mixture."""
     # ledger only: runtime implementation remains in the worktree below.
     # Implementation: /data0/xd/mediumprop-h-mlp-input-mix; codex/mediumprop-h-mlp-input-mix.
-    # Four-way test: depth/unit read-scale initialization x sigmoid.99/complementary gate.
+    # User-stopped9389/13500 at final matched-parent stage; full endpoint unmeasured.
+    # Early near-parity reversed after600;~+.001-.002 deficit persisted across later stages.
+    # Final5 through9200 vs own ungated unit-init parent: gap+0.0013384/MHA-ref gain0.9929754.
+    # Parent paused9341; mature baseline ends9200 and user declined resumption; no interpolation after9200.
+    # UE5a v5p16/P0; CP9389/TB SYNC_OK; node+queue independently absent.
     # code_commit: 88aa48c; UE5a v5p16 xd-v5p-16-310502-maxtext, plan13500.
     # FIRST0/source/AOT/TruePile4096/432132627 parameters verified;20..99 0.667294step/s.
     # Parent historical kernel and extra gate-health exports differ; descriptive timing only.

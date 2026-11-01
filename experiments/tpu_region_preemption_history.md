@@ -27,6 +27,7 @@ active leases are censored, and manual migration releases are not preemptions.
 
 | RUN | TPU | Zone | Start UTC | End UTC | End reason | Passive candidates |
 |---|---|---|---|---|---|---|
+| `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneMLPInputMixG099MemoryOnlyWriteControlMixTruePile` | v5p-16 (`xd-v5p-16-310502-maxtext`) | `us-east5-a` | 2026-11-01 10:56:06 | 2026-11-01 14:57:35 | user-confirmed stop9389/P0; CP/TB SYNC_OK, node+QR independently absent; runtime88aa48c | none |
 | `BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneCommonQKScale` | v5p-128 (`xd-v5p-128-310496-maxtext`) | `us-east5-a` | 2026-11-01 08:54:47 | 2026-11-01 13:08:31 | user stop at 4633; P0; checkpoint/TB secured, node and queue independently absent; runtime bcdf299 | none |
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedMLPInputMixComplementaryMemoryOnlyWriteControlMixTruePile` | v5p-16 (`xd-v5p-16-310501-maxtext`) | `us-east5-a` | 2026-11-01 10:55:18 | 2026-11-01 13:04:41 | user-confirmed stop5075/P0; CP/TB SYNC_OK, node+QR independently absent; runtime88aa48c | none |
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneMLPInputMixComplementaryMemoryOnlyWriteControlMixTruePile` | v5p-16 (`xd-v5p-16-310503-maxtext`) | `us-east5-a` | 2026-11-01 10:55:09 | 2026-11-01 13:04:43 | user-confirmed stop5077/P0; CP/TB SYNC_OK, node+QR independently absent; runtime88aa48c | none |
@@ -2467,6 +2468,8 @@ active leases are censored, and manual migration releases are not preemptions.
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedMLPInputMixComplementaryMemoryOnlyWriteControlMixTruePile` | 1 | `us-east5-a` | 2026-11-01 10:55:21 | 2026-11-01 13:04:41 | 2h09m20s | user-confirmed stop5075/P0; CP/TB SYNC_OK, node+QR independently absent; manual stop |
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneMLPInputMixComplementaryMemoryOnlyWriteControlMixTruePile` | 1 | `us-east5-a` | 2026-11-01 10:55:12 | 2026-11-01 13:04:43 | 2h09m31s | user-confirmed stop5077/P0; CP/TB SYNC_OK, node+QR independently absent; manual stop |
 | `BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneCommonQKScale` | 1 | `us-east5-a` | 2026-11-01 08:59:02 | 2026-11-01 13:08:31 | 4h 09m 29s | user stop at 4633; P0; checkpoint committed, TB SYNC_OK; node and queue independently absent |
+
+| `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneMLPInputMixG099MemoryOnlyWriteControlMixTruePile` | 1 | `us-east5-a` | 2026-11-01 10:56:09 | 2026-11-01 14:57:35 | 4h01m26s | user-confirmed stop9389/P0; CP/TB SYNC_OK, node+QR independently absent; manual stop |
 
 ### 2026-10-14 user pause: resumed mixed R256/R384
 

@@ -553,6 +553,7 @@ qk_norm: False
 bam_qk_norm_after_concat: True # BAM concat-QK: normalize the complete head before partial RoPE; False reproduces standard-arm-only QKNorm.
 bam_pallas_fused_qk_norm: False # v8t: compute full-head QKNorm (and the Q logit scale) inside the read epilogue; same math.
 bam_pallas_packed_read_keys: False # v8t independent V/O: one [B,T,4N,V] key array read through block views; same math.
+bam_splash_residual_name: '' # name Splash's output/logsumexp residuals for remat policies (e.g. bam_splash_residual).
 query_chunk_size: 512
 query_wise: True
 key_wise: True

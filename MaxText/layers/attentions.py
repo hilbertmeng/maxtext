@@ -1828,9 +1828,13 @@ def _bam_splash_attention(query, key, value, decoder_segment_ids, cfg, mesh, win
     if window is not None and window < t:     # C256: source > target - window
       mask &= splash_attention_mask.LocalMask(shape=(t, t), window_size=(window - 1, 0), offset=0)
     mask = splash_attention_mask.MultiHeadMask(masks=(mask,) * q.shape[1])
+    # Optional name on Splash's own residuals (output and logsumexp) so a remat policy can keep
+    # them instead of re-running the forward kernel inside the backward.
+    residual_name = getattr(cfg, 'bam_splash_residual_name', None) or None
     kernel = splash_attention_kernel.make_splash_mha(
         mask=mask, head_shards=1, q_seq_shards=1, block_sizes=block_sizes,
-        attn_logits_soft_cap=cfg.attn_logits_soft_cap)
+        attn_logits_soft_cap=cfg.attn_logits_soft_cap,
+        **({'residual_checkpoint_name': residual_name} if residual_name else {}))
     if negative_diagonal:
       from layers.bam_attention_diagonal_zero import make_negative_diagonal_splash
       kernel = make_negative_diagonal_splash(kernel)

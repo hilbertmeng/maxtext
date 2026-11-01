@@ -17571,6 +17571,20 @@ class BamPythia2p8BHSpeedR768NoConcatNormSaveEverythingProfile(BamPythia2p8BHSpe
     remat_policy = 'everything'
 
 
+class BamPythia2p8BHSpeedR768NoConcatNormSaveSplashProfile(BamPythia2p8BHSpeedR768NoConcatNormProfile):
+    """Old-QKNorm reference keeping Splash residuals."""
+    model_name = 'BamPythia2p8BHSpeedR768NoConcatNormSaveSplashProfile'
+    bam_splash_residual_name = 'bam_splash_residual'
+    remat_policy = 'minimal_save_splash'
+
+
+class BamPythia2p8BHSpeedR768NoConcatNormSaveSplashReadProfile(BamPythia2p8BHSpeedR768NoConcatNormProfile):
+    """Old-QKNorm reference keeping Splash residuals and fused read outputs."""
+    model_name = 'BamPythia2p8BHSpeedR768NoConcatNormSaveSplashReadProfile'
+    bam_splash_residual_name = 'bam_splash_residual'
+    remat_policy = 'minimal_save_splash_read'
+
+
 class BamPythia2p8BHSpeedR768Profile(
         _HSpeedProfile, BamPythia2p8BSotaIndependentR768PallasShortTrain):
     """R768 ShortTrain, complete-head QKNorm."""
@@ -17630,6 +17644,26 @@ class BamPythia2p8BHSpeedHUnit300BFusedPackedProfile(BamPythia2p8BHSpeedHUnit300
     bam_pallas_fused_qk_norm = True
     bam_pallas_vmem_mib = 63  # fused reverse with single-buffered xhat needs 62.62 MiB (physical 63.94).
     bam_pallas_packed_read_keys = True
+
+
+class BamPythia2p8BHSpeedHUnit300BFusedPackedSaveSplashProfile(BamPythia2p8BHSpeedHUnit300BFusedPackedProfile):
+    """Fused/packed H keeping Splash residuals."""
+    model_name = 'BamPythia2p8BHSpeedHUnit300BFusedPackedSaveSplashProfile'
+    bam_splash_residual_name = 'bam_splash_residual'
+    remat_policy = 'minimal_save_splash'
+
+
+class BamPythia2p8BHSpeedHUnit300BFusedPackedSaveSplashReadProfile(BamPythia2p8BHSpeedHUnit300BFusedPackedProfile):
+    """Fused/packed H keeping Splash residuals and the fused read outputs (Splash Q/K/V)."""
+    model_name = 'BamPythia2p8BHSpeedHUnit300BFusedPackedSaveSplashReadProfile'
+    bam_splash_residual_name = 'bam_splash_residual'
+    remat_policy = 'minimal_save_splash_read'
+
+
+class BamPythia2p8BHSpeedHUnit300BFusedPackedSaveEverythingProfile(BamPythia2p8BHSpeedHUnit300BFusedPackedProfile):
+    """Fused/packed H without rematerialization."""
+    model_name = 'BamPythia2p8BHSpeedHUnit300BFusedPackedSaveEverythingProfile'
+    remat_policy = 'everything'
 
 
 class BamPythia2p8BHSpeedHUnit300BSaveEverythingProfile(BamPythia2p8BHSpeedHUnit300BProfile):

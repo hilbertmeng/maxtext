@@ -698,7 +698,9 @@ def read_tm(m, static_weight, q_key, q_logits, k_key, k_logits, vo_key, o_logits
     rq_, rk_, rr_ = all_keys, all_keys, all_keys
   else:
     assert vo_key.shape[2] in (n, 2 * n), vo_key.shape
-    rr_ = (keys(vo_key) if vo_key.shape[2] == n else
+    # Packed V then O [B,T,2N,C]: without head padding one transpose already yields [B,C,2N,T]
+    # (V rows then O rows); splitting, transposing each half and concatenating copies twice.
+    rr_ = (keys(vo_key) if vo_key.shape[2] == n or np_ == n else
            jnp.concatenate(tuple(keys(x) for x in jnp.split(vo_key, 2, axis=2)), axis=2))
     rq_, rk_ = keys(q_key), keys(k_key)
   std = ((lambda x: padn_tok(x).reshape(b, t, -1)) if qk_norm is not None else _minor_t)

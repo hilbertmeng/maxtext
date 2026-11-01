@@ -82,5 +82,9 @@ def timeit(fn, args, n=20):
 if __name__ == '__main__':
   data = inputs(jax.random.key(0))
   for variant in sys.argv[1:] or ['plain', 'xla_norm', 'fused', 'fused_mxu']:
+    # fused:no_xhat,no_concat -> fused kernel with benchmark-only ablations
+    variant, _, ablate = variant.partition(':')
+    os.environ['BAM_QKN_ABLATE'] = ablate
     fwd, bwd, args = make(variant, data)
+    variant = variant + (':' + ablate if ablate else '')
     print(f'BENCH {variant:10s} fwd {timeit(fwd, args):7.3f} ms  fwd+bwd {timeit(bwd, args):7.3f} ms', flush=True)

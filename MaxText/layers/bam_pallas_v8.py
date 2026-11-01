@@ -17,6 +17,7 @@ the token-major operands are built in VMEM. Building keys / splitting Y in XLA i
 experimental v8 body, branch claude/bam-pallas-fullm) cost +330 ms of pads/copies on [B,T,N,40/96].
 """
 import math
+import os
 from functools import partial
 
 import jax
@@ -218,17 +219,24 @@ def _tm_read_kernel(n, qk_cols, eps, scale, q_scale, gated, ch, shifted=False, q
           # unrotated standard sum of squares. Emit u = xhat * m (m carries the norm scales and the
           # logit scale) for attention, plus xhat and 1/r as reverse residuals.
           q_eps, width = qk_norm[:2]
+          ablate = qk_norm[3] if len(qk_norm) > 3 else ''   # benchmark-only ablations (wrong math)
           local = y[:, :qk_cols]
           rs = qdim - qk_cols
-          row = jnp.concatenate((local, (qs if a == 0 else ks)[:, pl.ds(h * rs, rs)].astype(F32)), axis=1)
+          if 'no_concat' in ablate:
+            row = jnp.concatenate((local, jnp.zeros((t, rs), F32)), axis=1)
+          else:
+            row = jnp.concatenate((local, (qs if a == 0 else ks)[:, pl.ds(h * rs, rs)].astype(F32)), axis=1)
           if len(qk_norm) > 2 and qk_norm[2]:   # MXU reductions/selections, lane-broadcast [T, qdim]
             iv = jax.lax.rsqrt((_bcast_dot(row * row, ones_loc) + _bcast_dot(ss_cols, onehot(h))) / width
                                + q_eps)
           else:
             local_ss = jnp.sum(local * local, axis=1, keepdims=True)               # [T, 1]
             iv = jax.lax.rsqrt((local_ss + ss_cols[:, h:h + 1]) / width + q_eps)
+          if 'no_stat' in ablate:
+            iv = jnp.ones_like(iv)
           xhat = row * iv
-          (xq_ref if a == 0 else xk_ref)[h] = xhat.astype(xq_ref.dtype)
+          if 'no_xhat' not in ablate:
+            (xq_ref if a == 0 else xk_ref)[h] = xhat.astype(xq_ref.dtype)
           col_scr[:, pl.ds(h, 1)] = iv[:, :1]
           ref[h] = (xhat * mm_ref[pl.ds(a, 1), :]).astype(ref.dtype)
           continue
@@ -686,7 +694,8 @@ def read_tm(m, static_weight, q_key, q_logits, k_key, k_logits, vo_key, o_logits
                       tile=forward_tile, reverse_tile=reverse_tile, vmem_mib=vmem_mib, interpret=interpret,
                       q_scale=float(q_scale), chunk=chunk, **({'qdim': qdim} if qdim > m.shape[-1] else {}),
                       **({} if qk_norm is None else
-                         {'qk_norm': (float(qk_norm[4]), float(qdim), bool(qk_norm_mxu))})))
+                         {'qk_norm': (float(qk_norm[4]), float(qdim), bool(qk_norm_mxu),
+                                      os.environ.get('BAM_QKN_ABLATE', ''))})))
   padn = lambda x: jnp.pad(x, [(0, 0)] * (x.ndim - 2) + [(0, np_ - n), (0, 0)]) if np_ > n else x
   padn_tok = lambda x: jnp.pad(x, [(0, 0), (0, 0), (0, np_ - n), (0, 0)]) if np_ > n else x   # [B,T,NP,Rs]
   keys = lambda x: padn(jnp.transpose(x, (0, 3, 2, 1)))                  # [B,T,N,C] -> [B,C,NP,T]

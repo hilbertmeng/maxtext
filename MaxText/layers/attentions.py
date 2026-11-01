@@ -4320,11 +4320,13 @@ class BamAttention(Attention):
     value = nn.with_logical_constraint(value, self.value_axis_names)
     if q_scale == 1.0:
       query = query / jnp.sqrt(self._attention_logit_scale_dim(query.shape[-1])).astype(self.dtype)
+    query, key, value = (checkpoint_name(x, 'bam_attn_qkv') for x in (query, key, value))
     t = query.shape[1]
     local_window = t if (is_global or self.sliding_window_size is None) else min(t, int(self.sliding_window_size))
     if _bam_splash_enabled(cfg, t):
       y_std = _bam_splash_attention(query, key, value, decoder_segment_ids, cfg, self.mesh,
                                     window=local_window, seq_minor=_bam_splash_seq_minor(cfg, False))
+      y_std = checkpoint_name(y_std, 'bam_splash_out')
     elif self._query_chunk_size is not None:
       y_std, _ = self._query_chunk_op(query, key, value, decoder_segment_ids, local_window)
     else:

@@ -17584,6 +17584,24 @@ class BamPythia2p8BHSpeedHUnit300BProfile(_HSpeedProfile, BamPythia2p8BHUnit300B
     steps = 100
     checkpoint_keep_steps = []
 
+
+class BamPythia2p8BHSpeedHUnit300BSaveEverythingProfile(BamPythia2p8BHSpeedHUnit300BProfile):
+    """Upper bound: no rematerialization at all."""
+    model_name = 'BamPythia2p8BHSpeedHUnit300BSaveEverythingProfile'
+    remat_policy = 'everything'
+
+
+class BamPythia2p8BHSpeedHUnit300BSaveBamReadProfile(BamPythia2p8BHSpeedHUnit300BProfile):
+    """Minimal plus fused BAM read outputs."""
+    model_name = 'BamPythia2p8BHSpeedHUnit300BSaveBamReadProfile'
+    remat_policy = 'minimal_save_bam_read'
+
+
+class BamPythia2p8BHSpeedHUnit300BSaveBamAttnProfile(BamPythia2p8BHSpeedHUnit300BProfile):
+    """Minimal plus fused read outputs, final Splash Q/K/V and Splash output."""
+    model_name = 'BamPythia2p8BHSpeedHUnit300BSaveBamAttnProfile'
+    remat_policy = 'minimal_save_bam_attn'
+
 class BamPythia2p8BComboKeepPreMaskResume500(
         BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640SeparateVOKeysLogitDiagNegativeQK80):
     """Full-state fork of combination CP21557; review after500 added updates.

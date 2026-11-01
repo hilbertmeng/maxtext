@@ -152,6 +152,13 @@ def get_remat_policy(cfg):
       policy = jax.checkpoint_policies.save_from_both_policies(
           jax.checkpoint_policies.checkpoint_dots_with_no_batch_dims,
           jax.checkpoint_policies.save_only_these_names("bam_read_out", "bam_read_y"))
+    elif cfg.remat_policy == "everything":   # true no-remat: keep every forward residual
+      policy = jax.checkpoint_policies.everything_saveable
+    elif cfg.remat_policy == "minimal_save_bam_attn":   # minimal plus fused read, Splash inputs and output
+      policy = jax.checkpoint_policies.save_from_both_policies(
+          jax.checkpoint_policies.checkpoint_dots_with_no_batch_dims,
+          jax.checkpoint_policies.save_only_these_names(
+              "bam_read_out", "bam_read_y", "bam_attn_qkv", "bam_splash_out"))
     elif cfg.remat_policy == "save_qkv_proj":
       policy = jax.checkpoint_policies.save_only_these_names(
           "query_proj",

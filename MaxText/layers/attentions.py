@@ -4259,6 +4259,19 @@ class BamAttention(Attention):
             jnp.ones(q_key.shape[2:], jnp.float32) if gamma is None else gamma.astype(jnp.float32))
     if getattr(cfg, 'bam_pallas_read_chunk', None):
       read_kwargs['chunk'] = int(cfg.bam_pallas_read_chunk)
+    fused_qk_norm = full_qk_norm and bool(getattr(cfg, 'bam_pallas_fused_qk_norm', False))
+    if fused_qk_norm:
+      # Same full-head QKNorm, computed in the read epilogue: the kernel normalizes the complete
+      # row and multiplies by [local scales, ones] (Q also by the logit scale), so neither the
+      # norm epilogue nor the query division runs in XLA between the read and attention.
+      if body != 'v8t' or common_qk_scale is not None:
+        raise ValueError('bam_pallas_fused_qk_norm requires v8t without the common Q/K read scale')
+      cols = self._qk_col_width
+      ones = jnp.ones((standard_qk_width,), jnp.float32)
+      m_q, m_k = (jnp.concatenate((x[:cols].astype(jnp.float32), ones)) for x in head_scale)
+      m_q = m_q / math.sqrt(self._attention_logit_scale_dim(full_qk_width))
+      read_kwargs['qk_norm'] = (standard_sumsq[0], standard_sumsq[1], m_q, m_k,
+                                float(cfg.normalization_layer_epsilon))
     pass_m = body in ('v7', 'v7u', 'v8t')   # M passthrough: dM sum fused into the read reverse
     # Full-head norm needs the unscaled, unrotated concatenated Q/K. In that case
     # attention scaling must follow QKNorm, rather than being folded into the read.
@@ -4294,7 +4307,7 @@ class BamAttention(Attention):
       value = jnp.concatenate((standard_value, value[..., self._standard_value_heads:, :]), axis=-2)
     if pass_m:
       M_in = outs[4]
-    if full_qk_norm:
+    if full_qk_norm and not fused_qk_norm:
       local = slice(None, self._qk_col_width)
       eps = float(cfg.normalization_layer_epsilon)
 
@@ -4318,7 +4331,7 @@ class BamAttention(Attention):
     query = nn.with_logical_constraint(query, self.query_axis_names)
     key = nn.with_logical_constraint(key, self.key_axis_names)
     value = nn.with_logical_constraint(value, self.value_axis_names)
-    if q_scale == 1.0:
+    if q_scale == 1.0 and not fused_qk_norm:
       query = query / jnp.sqrt(self._attention_logit_scale_dim(query.shape[-1])).astype(self.dtype)
     query, key, value = (checkpoint_name(x, 'bam_attn_qkv') for x in (query, key, value))
     t = query.shape[1]

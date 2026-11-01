@@ -13,6 +13,18 @@ import h_last_layer_probe as probe
 from h_mha_native_probe import extract
 
 class LastLayerProbeTest(unittest.TestCase):
+  def test_all_layer_context_grid_matches_existing_controls(self):
+    names,grid=probe.context_intervention_grid(32)
+    self.assertEqual(len(names),33);self.assertEqual(grid.shape,(33,32,2))
+    np.testing.assert_array_equal(grid[0],np.ones((32,2)))
+    _,old=probe.intervention_grid(32)
+    for layer in range(32):
+      self.assertEqual(names[layer+1],f'layer_{layer:02d}_context_off')
+      self.assertEqual(np.count_nonzero(grid[layer+1,:,0]==0),1)
+      self.assertEqual(grid[layer+1,layer,0],0)
+      np.testing.assert_array_equal(grid[layer+1,:,1],np.ones(32))
+    for layer,index in [(16,4),(30,5),(31,1)]:np.testing.assert_array_equal(grid[layer+1],old[index])
+
   def test_noop_context_local_and_writer_preservation(self):
     h=common.PythiaCommonReadRawWriteTest();h.setUp()
     try:

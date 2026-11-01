@@ -23,6 +23,14 @@ def intervention_grid(layers):
   return names,controls
 
 
+def context_intervention_grid(layers):
+  """One baseline and one residual-context cut for every layer."""
+  import numpy as np
+  controls=np.ones((layers+1,layers,2),np.float32)
+  controls[1+np.arange(layers),np.arange(layers),0]=0
+  return ['learned']+[f'layer_{i:02d}_context_off' for i in range(layers)],controls
+
+
 @contextlib.contextmanager
 def intervene(scales,record=False):
   import jax.numpy as jnp
@@ -70,7 +78,10 @@ def main():
   p=argparse.ArgumentParser(description=__doc__)
   for name in ['runtime-dir','output']:p.add_argument('--'+name,type=Path,required=True)
   for name in ['exp','checkpoint-root','steps','cohort']:p.add_argument('--'+name,required=True)
-  args=p.parse_args();os.chdir(args.runtime_dir);sys.path.insert(0,str(args.runtime_dir/'MaxText'))
+  p.add_argument('--all-context-layers',action='store_true')
+  p.add_argument('--reuse-result-dir',type=Path)
+  args=p.parse_args();assert args.reuse_result_dir is None or args.all_context_layers
+  os.chdir(args.runtime_dir);sys.path.insert(0,str(args.runtime_dir/'MaxText'))
   import jax
   import jax.numpy as jnp
   import numpy as np
@@ -93,7 +104,7 @@ def main():
   mesh=jax.sharding.Mesh(max_utils.create_device_mesh(cfg),cfg.mesh_axes);model=Transformer(cfg,mesh,quant=None)
   cohort=np.load(args.cohort)['tokens'][:32,:2049];assert cohort.shape==(32,2049)
   positions=jnp.arange(2048,dtype=jnp.int32)[None];segments=jnp.ones((1,2048),jnp.int32)
-  names,controls=intervention_grid(32);traces=0
+  names,controls=(context_intervention_grid(32) if args.all_context_layers else intervention_grid(32));traces=0
   def apply(params,tokens):
     return model.apply(params,tokens[:,:-1],positions,decoder_segment_ids=segments,
         decoder_target_mask=segments,decoder_target_tokens=tokens[:,1:],enable_dropout=False)
@@ -109,8 +120,18 @@ def main():
       print('RESTORE_BEGIN',step,checkpoint,flush=True)
       params=jax.device_put(unfreeze(nn.unbox(restore_params(checkpoint))),jax.sharding.SingleDeviceSharding(jax.devices()[0]));jax.block_until_ready(params)
       print('RESTORE_OK',step,round(time.monotonic()-start,2),flush=True)
-      losses=np.empty((len(names),32),np.float64);noop=[]
+      losses=np.empty((len(names),32),np.float64);noop=[];reused={};reuse_losses=None;reuse_meta=None
+      if args.reuse_result_dir is not None:
+        reuse_path=args.reuse_result_dir/f'step-{step}.npz'
+        reuse_losses=np.load(reuse_path)['losses'];reuse_meta=json.loads(reuse_path.with_suffix('.json').read_text())
+        assert reuse_losses.shape==(8,32) and np.isfinite(reuse_losses).all()
+        assert reuse_meta['exp']==args.exp and reuse_meta['checkpoint']==checkpoint
+        assert reuse_meta['runtime_commit']==subprocess.check_output(['git','-C',str(args.runtime_dir),'rev-parse','HEAD'],text=True).strip()
+        assert reuse_meta['sequence_hashes']==[hashlib.sha256(x.tobytes()).hexdigest() for x in cohort]
+        reused={f'layer_{layer:02d}_context_off':reuse_meta['names'].index(label) for layer,label in [(16,'middle_context_off'),(30,'penultimate_context_off'),(31,'last_context_off')]}
       for variant,name in enumerate(names):
+        if name in reused:
+          losses[variant]=reuse_losses[reused[name]];print('VARIANT_REUSED',step,name,flush=True);continue
         before=time.monotonic()
         for index,tokens in enumerate(cohort):
           losses[variant,index]=float(compiled(params,jnp.asarray(tokens[None]),jnp.asarray(controls[variant])))
@@ -119,6 +140,9 @@ def main():
             noop.append(delta);assert abs(delta)<1e-6,(step,index,delta)
             print('NOOP_CHECK_OK',step,index,delta,flush=True)
         assert np.isfinite(losses[variant]).all()
+        if variant==0 and reuse_losses is not None:
+          np.testing.assert_allclose(losses[0],reuse_losses[0],rtol=0,atol=1e-6)
+          print('PREVIOUS_BASELINE_MATCH_OK',step,float(np.max(np.abs(losses[0]-reuse_losses[0]))),flush=True)
         print('VARIANT_DONE',step,name,float(losses[variant].mean()),'seconds',round(time.monotonic()-before,2),flush=True)
       assert float(compiled(params,jnp.asarray(cohort[:1]),jnp.asarray(controls[0])))==losses[0,0]
       np.savez_compressed(args.output/f'step-{step}.npz',losses=losses,controls=controls)
@@ -128,6 +152,8 @@ def main():
           runtime_commit=subprocess.check_output(['git','-C',str(args.runtime_dir),'rev-parse','HEAD'],text=True).strip(),
           runner_sha256=hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),seconds=time.monotonic()-start,
           backend='Native JAX FP32/highest; unchanged checkpoint values, Pallas/Splash OFF.',
-          semantics='Residual-path intervention at W_O input, bias preserved. Last31 has no M writes. Middle16/penultimate30 keep original attention M-write content, while downstream paths react normally. Half-O includes complete static+dynamic localO. Frozen-checkpoint necessity/interaction, not retraining benefit.')
+          reused_variants=list(reused),reuse_result_dir=str(args.reuse_result_dir) if args.reuse_result_dir else None,
+          reuse_baseline_max_error=float(np.max(np.abs(losses[0]-reuse_losses[0]))) if reuse_losses is not None else None,
+          semantics='Residual-path intervention at W_O input, bias preserved. General sweep cuts one layer at a time. Last31 has no M writes. Original attention M-write content is preserved at the cut layer; current private MLP and downstream paths react normally. Half-O includes complete static+dynamic localO. Frozen-checkpoint necessity/interaction, not retraining benefit.')
       (args.output/f'step-{step}.json').write_text(json.dumps(result,indent=2)+'\n');print('STEP_DONE',step,result['mean_delta'],flush=True)
 if __name__=='__main__':main()

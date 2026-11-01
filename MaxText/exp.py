@@ -20058,6 +20058,7 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     # Started UE5a v5p-16 xd-v5p-16-310491-maxtext, plan13500; generic health ON, internal/BAM OFF.
     # Startup20-99 aggregate 0.67436 step/s; historical H .669875 has an older read kernel.
     # Actual worker parameters 432111443 (H-767); AOT/source/data/full-model gradients verified.
+    # Inference: extra final-written previous-M slot, 2400 BF16 elements/sequence.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedFinalLocalORelocatedLastWritesShiftTruePile'
     bam_final_local_o_relocate = True
     bam_final_local_o_shift = True
@@ -20090,6 +20091,7 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     # Started UE5a v5p-16 xd-v5p-16-310493-maxtext, plan13500; generic health ON, internal/BAM OFF.
     # Startup20-99 aggregate 0.68335 step/s; historical H .669875 has an older read kernel.
     # Actual worker parameters 432111443 (H-767); AOT/source/data/full-model gradients verified.
+    # Inference: extra final-written previous-M slot, 2400 BF16 elements/sequence.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedFinalLocalORelocatedLastWritesShiftSelfAttentionTruePile'
     bam_final_local_o_relocate = True
     bam_final_local_o_shift = True
@@ -20117,8 +20119,12 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedIndependentOMShiftTruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedTruePile):
     """H: O gets its own columnwise previous-token mix; Q/K/V keep common M-shift."""
-    # ledger only; sealed runtime10366ac, codex/mediumprop-h-o-mshift.
     # Implementation: /data0/xd/mediumprop-h-o-mshift; QKV common shift plus independent O shift.
+    # code_commit: 10366ac; ledger only, codex/mediumprop-h-o-mshift.
+    # Started UE5a v5p-16 xd-v5p-16-310495-maxtext, plan13500; generic health ON, internal/BAM OFF.
+    # Startup20-99 aggregate 0.66760 step/s; historical H .669875 uses older read kernel.
+    # Actual parameters432091186=H-21024; widths2499/private1128/tail3893, unchanged M-cache.
+    # Kernel/reference and full-model all gradients, original shift/summary/BAM regressions passed.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedIndependentOMShiftTruePile'
     bam_local_o_independent_m_shift = True
     base_mlp_dim = 2499

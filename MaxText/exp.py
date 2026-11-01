@@ -17615,6 +17615,7 @@ class BamPythia2p8BHSpeedHUnit300BFusedQKNormProfile(BamPythia2p8BHSpeedHUnit300
     """Full-head QKNorm and the Q logit scale inside the v8t read epilogue."""
     model_name = 'BamPythia2p8BHSpeedHUnit300BFusedQKNormProfile'
     bam_pallas_fused_qk_norm = True
+    bam_pallas_vmem_mib = 63  # fused reverse with single-buffered xhat needs 62.62 MiB (physical 63.94).
 
 
 class BamPythia2p8BHSpeedHUnit300BPackedKeysProfile(BamPythia2p8BHSpeedHUnit300BProfile):
@@ -17627,6 +17628,7 @@ class BamPythia2p8BHSpeedHUnit300BFusedPackedProfile(BamPythia2p8BHSpeedHUnit300
     """Fused QKNorm plus packed read keys."""
     model_name = 'BamPythia2p8BHSpeedHUnit300BFusedPackedProfile'
     bam_pallas_fused_qk_norm = True
+    bam_pallas_vmem_mib = 63  # fused reverse with single-buffered xhat needs 62.62 MiB (physical 63.94).
     bam_pallas_packed_read_keys = True
 
 

@@ -86,3 +86,25 @@ target, gives 1.507% native and 2.542% Pallas. The new path does not worsen the
 parent's fused-normalization numerical error. Retain the 5% absolute bound and
 compare against the matched parent's error as well as the native path; no
 runtime code, precision or compiled executable changed during this check.
+
+## Startup verified
+
+All 16 workers run the sealed runtime `bcdf29931b5949a0244fd822a5431d585c088e6e`.
+`Loaded compiled function!`, actual step 0 and finite subsequent losses are
+verified. Checkpoint 0 has its GCS commit marker and data cursor: seed 9876,
+global batch 1024, 16 infeed hosts, checkpoint step 0. Each update contains
+2097152 token weights (1024 x 2048); on 64 v5p devices, the resolved per-device
+batch is 16. The early `[EXP] per_device_batch_size: 1.0` line is printed before
+the target-global-batch resolution and is not the effective training batch.
+
+The 20–39 window averages 0.3164245 step/s (harmonic mean of all 20 logged
+samples, including the slower step 28), versus the parent's 0.316382: +0.0134%,
+effectively tied. Both use generic training health ON, internal/BAM health OFF
+and minimal remat; these are separate leases, not a paired hardware benchmark.
+There is no observed speed regression. Startup proof, all-worker hashes,
+checkpoint cursor and timing samples are retained in the artifact directory.
+
+Registry group `pythia28-h-unit-qk-scale-1101` owns this RUN only, with 2k public
+cadence and native 500±25 windows. The gain triple is experiment/direct
+parent/original MHA. The 4k, 8k, 16k and 21.5k reviews do not automatically stop
+the run. No existing group's cursor or baseline training state was changed.

@@ -27,6 +27,8 @@ active leases are censored, and manual migration releases are not preemptions.
 
 | RUN | TPU | Zone | Start UTC | End UTC | End reason | Passive candidates |
 |---|---|---|---|---|---|---|
+| `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedFinalLocalORelocatedLastWritesTruePile` | v5p-16 (`xd-v5p-16-310490-maxtext`) | `us-east5-a` | 2026-11-01 03:14:58 | 2026-11-01 05:09:20 | user-confirmed4k stop4473/P0; CP/TB SYNC_OK, node+QR independently absent; runtime4083fd1 | none |
+| `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedFinalLocalORelocatedLastWritesShiftSelfAttentionTruePile` | v5p-16 (`xd-v5p-16-310493-maxtext`) | `us-east5-a` | 2026-11-01 03:17:42 | 2026-11-01 05:09:22 | user-confirmed4k stop4391/P0; CP/TB SYNC_OK, node+QR independently absent; runtime4083fd1 | none |
 | `BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80CommonReadScaleUnscaledMLPContentEmbeddingFixedContextLocalOComplement` | v5p-128 (`xd-v5p-128-pythia-h-complement-1030`) | `us-east5-a` | 2026-10-30 15:56:30 | 2026-10-31 03:40:34 | user stop12947/P0; CP12947/TB SYNC_OK, node+QR independently absent; runtime39b6a4f; bare H continues | none |
 | `BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80CommonReadScaleUnscaledMLPContentEmbeddingFixedLocalODynamicNormScale020` | v5p-128 (`xd-v5p-128-pythia-hg020-1030`) | `us-east5-a` | 2026-10-30 15:30:10 | 2026-10-31 00:45:11 | user stop10248/P0; CP10248/TB SYNC_OK, node+QR independently absent; runtime9c11469; other H RUNs continue | none |
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedNoMLPWriteGateTruePile` | v5p-16 (`xd-v5p-16-310435-maxtext`) | `us-east5-a` | 2026-10-30 15:31:32 | 2026-10-30 17:52:51 | resumed CP8285; complete13500/P0, CP/TB secured, node+QR independently absent; originaled83fad/AOT/13500 plan unchanged | none |
@@ -2419,6 +2421,9 @@ active leases are censored, and manual migration releases are not preemptions.
 | `BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80CommonReadScaleUnscaledMLPContentEmbeddingFixedLocalODynamicNormScale020` | 1 | `us-east5-a` | 2026-10-30 15:36:06 | 2026-10-31 00:45:11 | 9h09m05s | user stop10248/P0; CP/TB secured, resources absent |
 
 | `BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80CommonReadScaleUnscaledMLPContentEmbeddingFixedContextLocalOComplement` | 1 | `us-east5-a` | 2026-10-30 16:00:52 | 2026-10-31 03:40:34 | 11h39m42s | user stop12947/P0; CP/TB secured, node+QR independently absent |
+
+| `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedFinalLocalORelocatedLastWritesTruePile` | 1 | `us-east5-a` | 2026-11-01 03:15:00 | 2026-11-01 05:09:20 | 1h54m20s | user-confirmed4k stop4473/P0; CP/TB secured, node+QR independently absent; manual stop |
+| `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedFinalLocalORelocatedLastWritesShiftSelfAttentionTruePile` | 1 | `us-east5-a` | 2026-11-01 03:17:44 | 2026-11-01 05:09:22 | 1h51m38s | user-confirmed4k stop4391/P0; CP/TB secured, node+QR independently absent; manual stop |
 
 ### 2026-10-14 user pause: resumed mixed R256/R384
 

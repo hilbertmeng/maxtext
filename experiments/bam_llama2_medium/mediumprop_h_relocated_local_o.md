@@ -103,3 +103,30 @@ reference, five rotating-writer tests and47 BAM regressions passed. Borrowed
 FLEX AOTs serialized safely; runtime and manifests sealed at4083fd1.
 Groupmedium-h-relocated-local-o: clock restored/raw310492, cadence2000,
 reviews4000/8000, all gain triples MHA referenced.
+
+## User-confirmed4k closeout: masked/raw and restored/shift
+
+Four-arm interaction changed sign after the early stage. Common3k-3.8k last5:
+restoring self improves raw exit by.00037248 on average, but hurts shifted exit
+by.00126476; difference-of-differences+.00163724, all five windows positive.
+User confirmed the proposed two stops; no operation preceded that confirmation.
+Masked/raw stopsCP4473, mature4400 final5 gap+.00470324/R.98138961 vsH,
++.00325172/R.98706675 vs old extra-exit. Absolute narrowing did not become a
+sustained proportional recovery. Restored/shift stopsCP4391, mature4200 final5
++.005583/R.97847677 vsH, +.0041094/R.98404903 vs old extra-exit; early best
+within group reversed, no combined benefit by stop. Full13500 endpoints remain
+unmeasured. Original neutral1.00/optimistic1.02 priors unsupported at stop.
+
+Both exits learn: signed s_exit .164399 ->.189616/.188468, W_O norm7.2->
+18.631/18.611, finite nonzero gradients. These reject an entirely dead output
+branch explanation but do not measure its forward contribution or prove a
+capacity-cost cause. Raw adds no temporal cache; shifted adds final-M2400 BF16
+elements per sequence. Parameter deltas remain H+401/H-767, respectively.
+
+CP4473/4391 committed, TB SYNC_OK and nodes/queues310490/310493 independently
+NOT_FOUND. Both UE5a v5p16/P0. All READY leases UTC2026-11-01:
+31049003:15:00-05:09:20=1h54m20;31049303:17:44-05:09:22=1h51m38, manual stops.
+Three remaining arms masked/shift, restored/raw, split-last continue under user
+confirmed4k decisions. Clock restored/raw remains active; next cadence6k and
+next review8k. Independent O-shift310495 is separate and retains its own4k
+approval requirement. No main exp.py progress log was added for retained arms.

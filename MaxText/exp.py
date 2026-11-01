@@ -19933,7 +19933,12 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedFinalLocalOLastWritesTruePile):
     """Move L17 localO after its MLP; final writers ON, paired shift/self mask."""
     # code_commit: 4083fd1; ledger only, codex/mediumprop-h-final-local-o.
-    # Started UE5a v5p-16 xd-v5p-16-310490-maxtext, plan13500; generic health ON, internal/BAM OFF.
+    # Stopped4473/13500 after user-confirmed4k review; full-schedule endpoint unmeasured.
+    # vsH initial gap~+.013 narrowed then stalled near+.005; gain stayed~.98 through4.4k.
+    # Final5 through4400 vsH: gap+0.0047032/MHA-ref gain0.9813896; no net improvement by stop.
+    # vs old extra-exit writersON: final5 gap+0.0032517/gain0.9870668; moving O did not pay off by stop.
+    # UE5a v5p-16 xd-v5p-16-310490-maxtext, P0; CP4473/TB SYNC_OK; node+queue independently absent.
+    # Generic health ON/internal+BAM OFF; exit scalar .1644->~.189 and W_O norm7.2->18.6, finite live gradients.
     # Startup20-99 aggregate 0.67804 step/s; historical H .669875 has an older read kernel.
     # Actual worker parameters 432112611 (H+401); AOT/source/data/full-model gradients verified.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedFinalLocalORelocatedLastWritesTruePile'
@@ -19979,7 +19984,12 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedFinalLocalOLastWritesTruePile):
     """Move L17 localO after its MLP; final writers ON, paired shift/self mask."""
     # code_commit: 4083fd1; ledger only, codex/mediumprop-h-final-local-o.
-    # Started UE5a v5p-16 xd-v5p-16-310493-maxtext, plan13500; generic health ON, internal/BAM OFF.
+    # Stopped4391/13500 after user-confirmed4k review; full-schedule endpoint unmeasured.
+    # Early best within2x2 reversed; gap+.00369@800 grew to~+.005-.006 by3k-4.2k.
+    # Final5 through4200 vsH: gap+0.0055830/MHA-ref gain0.9784768; no net improvement by stop.
+    # vs old extra-exit writersON: final5 gap+0.0041094/gain0.9840490; moving O did not pay off by stop.
+    # UE5a v5p-16 xd-v5p-16-310493-maxtext, P0; CP4391/TB SYNC_OK; node+queue independently absent.
+    # Generic health ON/internal+BAM OFF; exit scalar .1644->~.189 and W_O norm7.2->18.6, finite live gradients.
     # Startup20-99 aggregate 0.68335 step/s; historical H .669875 has an older read kernel.
     # Actual worker parameters 432111443 (H-767); AOT/source/data/full-model gradients verified.
     # Inference: extra final-written previous-M slot, 2400 BF16 elements/sequence.

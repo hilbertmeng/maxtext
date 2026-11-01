@@ -20145,7 +20145,12 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     """H: O gets its own columnwise previous-token mix; Q/K/V keep common M-shift."""
     # Implementation: /data0/xd/mediumprop-h-o-mshift; QKV common shift plus independent O shift.
     # code_commit: 10366ac; ledger only, codex/mediumprop-h-o-mshift.
-    # Started UE5a v5p-16 xd-v5p-16-310495-maxtext, plan13500; generic health ON, internal/BAM OFF.
+    # User-confirmed8k stop at8960/13500; full-schedule endpoint unmeasured.
+    # Gap+.0248@600 narrowed to~+.005 by4k, then plateaued through8.8k; gain stayed~.97-.98.
+    # Final5 through8800 vsH: gap+0.0048665/MHA-ref gain0.9753970; independent O shift did not pay off.
+    # Prior terminal gain1.015 unsupported at stop; this is not a measured full-schedule endpoint.
+    # UE5a v5p-16 xd-v5p-16-310495-maxtext, P0; CP8960/TB SYNC_OK; node+queue independently absent.
+    # Generic health ON/internal+BAM OFF; no M-cache increase.
     # Startup20-99 aggregate 0.66760 step/s; historical H .669875 uses older read kernel.
     # Actual parameters432091186=H-21024; widths2499/private1128/tail3893, unchanged M-cache.
     # Kernel/reference and full-model all gradients, original shift/summary/BAM regressions passed.

@@ -68,3 +68,21 @@ audit, CPU gates, AOT state/manifest, registry and startup evidence). Reports us
 native 500±25 windows, every 2k steps, with cumulative gap/gain plots starting at
 2k. Use the direct parent and original MHA for the gain triple. No automatic
 16k or 21.5k stop is installed; those are potential reviews, not schedule changes.
+
+## Validation
+
+Runtime `bcdf29931b5949a0244fd822a5431d585c088e6e`, exact v5p-128/s28000
+AOT and manifest verified. The 47 shared BAM regressions, five summary-writer
+tests and 15 checkpoint-recovery tests pass. Targeted checks cover the full
+parameter budget, signed scalar health and WD exemption, initial equivalence
+to the parent (including every old parameter gradient), configuration guards,
+and native/Pallas logits and gradients with zero, fractional and negative Q/K
+scales. The FP32 worst relative leaf-gradient error is 6.124e-6.
+
+BF16 global gradient L2 errors against FP32 are 1.483% native and 2.421% Pallas.
+The original native-relative bound rejected the Pallas value. A matched control
+that removes only the Q/K scalar, preserving every common parameter, sample and
+target, gives 1.507% native and 2.542% Pallas. The new path does not worsen the
+parent's fused-normalization numerical error. Retain the 5% absolute bound and
+compare against the matched parent's error as well as the native path; no
+runtime code, precision or compiled executable changed during this check.

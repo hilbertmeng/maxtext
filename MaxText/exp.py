@@ -20116,3 +20116,81 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     base_mlp_dim = 2499
     bam_last_mlp_dim = 3893
     compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedTruePile']
+
+
+class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedMLPInputMixG099MemoryOnlyWriteControlMixTruePile(
+    BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedTruePile):
+    """Only private MLP content and controls consume the residual-attention mixture."""
+    # ledger only: runtime implementation remains in the worktree below.
+    # Implementation: /data0/xd/mediumprop-h-mlp-input-mix; codex/mediumprop-h-mlp-input-mix.
+    # Four-way test: depth/unit read-scale initialization x sigmoid.99/complementary gate.
+    # Extra17*(1200+1)=20417 (.0141785 W_Q); exempt, widths2510/1128/tail3904 unchanged.
+    # Generic health ON/internal+BAM OFF;34 targeted mixture coefficient-share metrics.
+    model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedMLPInputMixG099MemoryOnlyWriteControlMixTruePile'
+    bam_mlp_input_mix = True
+    bam_mlp_input_mix_branch = 'memory'
+    bam_mlp_input_mix_gate_scale = 1.0
+    bam_mlp_input_mix_gate_init = 0.99
+    bam_mlp_input_mix_complementary = False
+    bam_mlp_input_mix_write_controls = True
+    bam_record_mlp_input_mix_health = True
+    compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedTruePile']
+
+
+class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedMLPInputMixComplementaryMemoryOnlyWriteControlMixTruePile(
+    BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedTruePile):
+    """Only private MLP content and controls consume the residual-attention mixture."""
+    # ledger only: runtime implementation remains in the worktree below.
+    # Implementation: /data0/xd/mediumprop-h-mlp-input-mix; codex/mediumprop-h-mlp-input-mix.
+    # Four-way test: depth/unit read-scale initialization x sigmoid.99/complementary gate.
+    # Extra17*(1200+1)=20417 (.0141785 W_Q); exempt, widths2510/1128/tail3904 unchanged.
+    # Generic health ON/internal+BAM OFF;34 targeted mixture coefficient-share metrics.
+    model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedMLPInputMixComplementaryMemoryOnlyWriteControlMixTruePile'
+    bam_mlp_input_mix = True
+    bam_mlp_input_mix_branch = 'memory'
+    bam_mlp_input_mix_gate_scale = 2.0
+    bam_mlp_input_mix_gate_init = 1.0
+    bam_mlp_input_mix_complementary = True
+    bam_mlp_input_mix_write_controls = True
+    bam_record_mlp_input_mix_health = True
+    compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedTruePile']
+
+
+class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneMLPInputMixG099MemoryOnlyWriteControlMixTruePile(
+    BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneTruePile):
+    """Only private MLP content and controls consume the residual-attention mixture."""
+    # ledger only: runtime implementation remains in the worktree below.
+    # Implementation: /data0/xd/mediumprop-h-mlp-input-mix; codex/mediumprop-h-mlp-input-mix.
+    # Four-way test: depth/unit read-scale initialization x sigmoid.99/complementary gate.
+    # Extra17*(1200+1)=20417 (.0141785 W_Q); exempt, widths2510/1128/tail3904 unchanged.
+    # Generic health ON/internal+BAM OFF;34 targeted mixture coefficient-share metrics.
+    model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneMLPInputMixG099MemoryOnlyWriteControlMixTruePile'
+    bam_mlp_input_mix = True
+    bam_mlp_input_mix_branch = 'memory'
+    bam_mlp_input_mix_gate_scale = 1.0
+    bam_mlp_input_mix_gate_init = 0.99
+    bam_mlp_input_mix_complementary = False
+    bam_mlp_input_mix_write_controls = True
+    bam_record_mlp_input_mix_health = True
+    compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneTruePile']
+
+
+class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneMLPInputMixComplementaryMemoryOnlyWriteControlMixTruePile(
+    BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneTruePile):
+    """Only private MLP content and controls consume the residual-attention mixture."""
+    # ledger only: runtime implementation remains in the worktree below.
+    # Implementation: /data0/xd/mediumprop-h-mlp-input-mix; codex/mediumprop-h-mlp-input-mix.
+    # Four-way test: depth/unit read-scale initialization x sigmoid.99/complementary gate.
+    # Extra17*(1200+1)=20417 (.0141785 W_Q); exempt, widths2510/1128/tail3904 unchanged.
+    # Generic health ON/internal+BAM OFF;34 targeted mixture coefficient-share metrics.
+    model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneMLPInputMixComplementaryMemoryOnlyWriteControlMixTruePile'
+    bam_mlp_input_mix = True
+    bam_mlp_input_mix_branch = 'memory'
+    bam_mlp_input_mix_gate_scale = 2.0
+    bam_mlp_input_mix_gate_init = 1.0
+    bam_mlp_input_mix_complementary = True
+    bam_mlp_input_mix_write_controls = True
+    bam_record_mlp_input_mix_health = True
+    compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneTruePile']
+
+

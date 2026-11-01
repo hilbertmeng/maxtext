@@ -230,18 +230,24 @@ def _tm_read_kernel(n, qk_cols, eps, scale, q_scale, gated, ch, shifted=False, q
             iv = jax.lax.rsqrt((_bcast_dot(row * row, ones_loc) + _bcast_dot(ss_cols, onehot(h))) / width
                                + q_eps)
           else:
-            if 'mxu_high' in ablate:      # bf16x3 MXU row sums against a [K, 128] ones block
-              local_ss = jax.lax.dot_general(
-                  local * local, jnp.ones((qk_cols, 128), F32), (((1,), (0,)), ((), ())),
-                  precision=jax.lax.Precision.HIGH, preferred_element_type=F32)[:, :1]
-            elif 'tminor' in ablate:      # one transpose, sublane sum, column back
-              local_ss = _to_tokens(jnp.sum(jnp.square(_from_tokens(local)), axis=0, keepdims=True))
-            elif 'no_local' in ablate:
-              local_ss = jnp.zeros((t, 1), F32)
+            if 'tminor' in ablate:        # T-minor statistic: one transpose, sublane sum, [1,T] ss row
+              row_ss = jnp.sum(jnp.square(_from_tokens(local)), axis=0, keepdims=True) + ss_ref[a, pl.ds(h, 1), :]
+              iv = _to_tokens(jax.lax.rsqrt(row_ss / width + q_eps))                   # [T, 1]
             else:
-              local_ss = jnp.sum(local * local, axis=1, keepdims=True)             # [T, 1]
-            ss_h = jnp.zeros((t, 1), F32) if 'no_ss' in ablate else ss_cols[:, h:h + 1]
-            iv = jax.lax.rsqrt((local_ss + ss_h) / width + q_eps)
+              if 'mxu_bf16x2' in ablate:  # hi/lo bf16 split: two DEFAULT MXU row sums (~1e-5 relative)
+                sq = local * local
+                hi = sq.astype(jnp.bfloat16)
+                lo = (sq - hi.astype(F32)).astype(jnp.bfloat16)
+                ones_b = jnp.ones((qk_cols, 128), jnp.bfloat16)
+                dot = lambda x: jax.lax.dot_general(x, ones_b, (((1,), (0,)), ((), ())),
+                                                    preferred_element_type=F32)
+                local_ss = (dot(hi) + dot(lo))[:, :1]
+              elif 'no_local' in ablate:
+                local_ss = jnp.zeros((t, 1), F32)
+              else:
+                local_ss = jnp.sum(local * local, axis=1, keepdims=True)           # [T, 1]
+              ss_h = jnp.zeros((t, 1), F32) if 'no_ss' in ablate else ss_cols[:, h:h + 1]
+              iv = jax.lax.rsqrt((local_ss + ss_h) / width + q_eps)
           if 'no_stat' in ablate:
             iv = jnp.ones_like(iv)
           xhat = row * iv

@@ -230,7 +230,17 @@ def _tm_read_kernel(n, qk_cols, eps, scale, q_scale, gated, ch, shifted=False, q
             iv = jax.lax.rsqrt((_bcast_dot(row * row, ones_loc) + _bcast_dot(ss_cols, onehot(h))) / width
                                + q_eps)
           else:
-            if 'tminor' in ablate:        # T-minor statistic: one transpose, sublane sum, [1,T] ss row
+            if 'mxu2' in ablate:          # lane-broadcast [T, qdim] statistics, bf16 hi/lo split (no column ops)
+              def dot2(x, w):
+                hi = x.astype(jnp.bfloat16)
+                lo = (x - hi.astype(F32)).astype(jnp.bfloat16)
+                d = lambda v: jax.lax.dot_general(v, w, (((1,), (0,)), ((), ())), preferred_element_type=F32)
+                return d(hi) + d(lo)
+              ones_b = jnp.ones((qk_cols, qdim), jnp.bfloat16)
+              hrow = jax.lax.broadcasted_iota(jnp.int32, (np_, qdim), 0)
+              sel = jnp.where(hrow == h, 1., 0.).astype(jnp.bfloat16)
+              iv = jax.lax.rsqrt((dot2(local * local, ones_b) + dot2(ss_cols, sel)) / width + q_eps)
+            elif 'tminor' in ablate:      # T-minor statistic: one transpose, sublane sum, [1,T] ss row
               row_ss = jnp.sum(jnp.square(_from_tokens(local)), axis=0, keepdims=True) + ss_ref[a, pl.ds(h, 1), :]
               iv = _to_tokens(jax.lax.rsqrt(row_ss / width + q_eps))                   # [T, 1]
             else:

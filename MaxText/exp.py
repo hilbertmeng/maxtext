@@ -17611,6 +17611,25 @@ class BamPythia2p8BHSpeedHUnit300BBlock3ScanProfile(BamPythia2p8BHSpeedHUnit300B
     bam_final_local_layer_count = 2
 
 
+class BamPythia2p8BHSpeedHUnit300BFusedQKNormProfile(BamPythia2p8BHSpeedHUnit300BProfile):
+    """Full-head QKNorm and the Q logit scale inside the v8t read epilogue."""
+    model_name = 'BamPythia2p8BHSpeedHUnit300BFusedQKNormProfile'
+    bam_pallas_fused_qk_norm = True
+
+
+class BamPythia2p8BHSpeedHUnit300BPackedKeysProfile(BamPythia2p8BHSpeedHUnit300BProfile):
+    """Independent V/O keys read from one packed [B,T,4N,V] array."""
+    model_name = 'BamPythia2p8BHSpeedHUnit300BPackedKeysProfile'
+    bam_pallas_packed_read_keys = True
+
+
+class BamPythia2p8BHSpeedHUnit300BFusedPackedProfile(BamPythia2p8BHSpeedHUnit300BProfile):
+    """Fused QKNorm plus packed read keys."""
+    model_name = 'BamPythia2p8BHSpeedHUnit300BFusedPackedProfile'
+    bam_pallas_fused_qk_norm = True
+    bam_pallas_packed_read_keys = True
+
+
 class BamPythia2p8BHSpeedHUnit300BSaveEverythingProfile(BamPythia2p8BHSpeedHUnit300BProfile):
     """Upper bound: no rematerialization at all."""
     model_name = 'BamPythia2p8BHSpeedHUnit300BSaveEverythingProfile'

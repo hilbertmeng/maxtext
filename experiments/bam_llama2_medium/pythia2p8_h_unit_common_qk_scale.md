@@ -108,3 +108,46 @@ Registry group `pythia28-h-unit-qk-scale-1101` owns this RUN only, with 2k publi
 cadence and native 500±25 windows. The gain triple is experiment/direct
 parent/original MHA. The 4k, 8k, 16k and 21.5k reviews do not automatically stop
 the run. No existing group's cursor or baseline training state was changed.
+
+## Closeout and conclusion
+
+The user stopped this experiment at committed checkpoint **4633/28000**. The
+small advantage around 2k–2.5k fades to parity by 4k–4.5k. There is no meaningful
+persistent incremental gain over the direct unit/no-gamma H parent in this
+observed prefix. The MHA-reference ratio prior of 1.01 at 21.5k remains untested;
+this is not a measured full-schedule result.
+
+| Common window | Loss gap versus parent | Gain ratio (original MHA reference) |
+|---|---:|---:|
+| 2k | −0.0006428 | 1.002422 |
+| 2.5k | −0.0006454 | 1.002825 |
+| 3k | −0.0002574 | 1.001232 |
+| 3.5k | −0.0002160 | 1.001122 |
+| 4k | +0.0000480 | 0.999735 |
+| 4.5k | −0.0000476 | 1.000278 |
+
+The last-five mean parent gap is −0.00022368. At 4.5k, absolute gain over original
+MHA is 0.1713592, nearly the parent's 0.1713116. These base-relative gains are
+largely inherited from H; they do not establish a benefit from the new Q/K scale.
+Startup throughput is tied with the parent, with only 32 extra parameters and no
+MLP/cache change, so there is no observed loss/speed improvement to prioritize.
+
+The scalar is trainable and does learn: at 4k all Q/K scales are finite and range
+from 1.00139 to 1.09353. Means in layers 0–7/8–15/16–23/24–31 are
+1.04395/1.03082/1.01549/1.00428. High layers remain close to initialization.
+These parameter observations do not measure actual read amplitudes or establish
+that high-layer local Q/K is unnecessary. No new checkpoint intervention was run.
+
+There was one UE5a v5p-128 READY lease: **2026-11-01 08:59:02→13:08:31 UTC**,
+4h 09m 29s, ending by user stop, with zero preemptions or estimated lost steps.
+The assignment began at 08:54:47 UTC. Final checkpoint 4633 has a GCS commit
+marker; the node and queued resource are independently verified absent. Local
+TensorBoard closeout reports `SYNC_OK`. The retained FLEX compiler was never
+lifecycle-owned or deleted. Registry group `pythia28-h-unit-qk-scale-1101` is
+closed after delivery of the final 4.5k comparison.
+
+Closeout proof and native final data: `closeout-final.json`, `registry-final.json`,
+`resource-final-verification.json`, `lease-final.json`, `report-final.json` and
+`figure-final.json` under the artifact root. Final cumulative plot starts at 2k,
+ends at the actual complete 4.5k window and uses registry-native gap/gain values:
+`figures/qk-scale-vs-unit-h-final-20261101-131138-396495.png` (provenance alongside).

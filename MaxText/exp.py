@@ -17443,8 +17443,11 @@ class BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80CommonReadScaleU
     O gamma. Add 32 parameters (0.00000488 W_Q total), exempt from MLP repayment;
     GELU widths 7808/2944/tail 9984, M-cache and the 28000-step plan are unchanged.
     """
+    # Conclusion: the tiny 2k-2.5k gain fades to parity with the unit/no-gamma H parent by 4k-4.5k.
+    # At the last common 4.5k window: gap -0.000048, MHA-ref ratio 1.000278; last-five mean gap -0.000224.
+    # User stopped at checkpoint 4633/28000; the 21.5k ratio prior of 1.01 remains untested.
     # code_commit:bcdf299; UE5a v5p-128: 0.31642 step/s, tied with parent (+0.01%, matched health/minimal).
-    # Reproduction and launch evidence: pythia2p8_h_unit_common_qk_scale.md.
+    # Only 32 added parameters; unchanged MLP/M-cache. Full evidence: pythia2p8_h_unit_common_qk_scale.md.
     model_name = 'BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneCommonQKScale'
     bam_common_qk_read_scale = True
     compare_runs = ['BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOne']

@@ -17553,6 +17553,24 @@ class BamPythia2p8BHSpeedR768NoConcatNormProfile(
     bam_qk_norm_after_concat = False
 
 
+class BamPythia2p8BHSpeedR768NoConcatNormSaveBamReadProfile(BamPythia2p8BHSpeedR768NoConcatNormProfile):
+    """Old-QKNorm reference under minimal_save_bam_read."""
+    model_name = 'BamPythia2p8BHSpeedR768NoConcatNormSaveBamReadProfile'
+    remat_policy = 'minimal_save_bam_read'
+
+
+class BamPythia2p8BHSpeedR768NoConcatNormSaveBamAttnProfile(BamPythia2p8BHSpeedR768NoConcatNormProfile):
+    """Old-QKNorm reference under minimal_save_bam_attn."""
+    model_name = 'BamPythia2p8BHSpeedR768NoConcatNormSaveBamAttnProfile'
+    remat_policy = 'minimal_save_bam_attn'
+
+
+class BamPythia2p8BHSpeedR768NoConcatNormSaveEverythingProfile(BamPythia2p8BHSpeedR768NoConcatNormProfile):
+    """Old-QKNorm reference without rematerialization."""
+    model_name = 'BamPythia2p8BHSpeedR768NoConcatNormSaveEverythingProfile'
+    remat_policy = 'everything'
+
+
 class BamPythia2p8BHSpeedR768Profile(
         _HSpeedProfile, BamPythia2p8BSotaIndependentR768PallasShortTrain):
     """R768 ShortTrain, complete-head QKNorm."""

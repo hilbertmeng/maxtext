@@ -17430,14 +17430,17 @@ class BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80CommonReadScaleU
     # code_commit:6c5dbfe; UE5a v5p128/global1024/B16, fresh28000; AOT/source/FIRST0/CP0 verified.
     # Startup20..39 .316382step/s vs H.31690 (-.16%); genericON/internal+BAMOFF/minimal.
     # RUN=this class; xd-v5p-128-h-unit-plain-1031 (ID310462); same MLPs and initialization.
-    # User16k endpoint paused16047/P0; subsequently resumed SAME RUN/6c5dbfe/AOT from16047 toward21.5k.
-    # Original28000-step schedule retained; AOT/restore/cursor/FIRST16064 verified, resumed~.316step/s.
-    # Resume control/provenance: /data0/xd/bam_diagnostics/pythia28-h-unit-resume21500-20261101.
-    # vs H early deficit recovered~8k;12k/14k/16k gaps-.000378/-.000544/-.000793; R1.00307/1.00458/1.00684.
-    # Final5 vs H gap-.000607; small late gain sustained, not a repair of the underlying Mudd-relative decay.
-    # vs Mudd R12k1.75925 ->14k1.72247 ->16k1.68457;16k gap-.047428, vs MHA-.116710.
-    # Final16k vs QK80 gap-.010073/R1.09446; pre-mask+QK80-.008221/R1.07578 (all MHA-ref).
-    # Original28000 LR unchanged;14h20m08s single UE5a READY lease. Reproduction: h_high_layer_read_interventions_20261031.md.
+    # User21.5k endpoint stopped21549/P0; CP committed, node+QR independently absent; TB closeout sync.
+    # Paused16047 then resumed SAME RUN/6c5dbfe/AOT; original28000 LR plan retained, not a full28k result.
+    # vs H early deficit recovered~8k;12/14/16/18k gaps-.000378/-.000544/-.000793/-.000966.
+    # Last5 common H windows mean-.000690; H ends18331, so no synthetic21.5k H comparison.
+    # vs QK80 gap12/16/20/21.5k -.010228/-.010073/-.010044/-.009649; R1.09016/1.09446/1.09799/1.09533.
+    # vs pre-mask+QK80 gap-.007619/-.008221/-.007939/-.008027; R1.06565/1.07578/1.07590/1.07806.
+    # MHA-reference Mudd R12/16/18/20/21.5k 1.75925/1.68457/1.67631/1.64967/1.65151.
+    # Absolute MHA gain18/19.5/20/21.5k .112753/.112916/.112548/.110862: rebound not sustained.
+    # Final21.5k gaps vs Mudd-.043734, MHA-.110862; no reversal of the long Mudd-relative decay.
+    # UE5a READY leases14h20m08s +4h58m27s, both manual endpoints/P0; resumed~.316, late~.315step/s.
+    # Reproduction/closeout: h_high_layer_read_interventions_20261031.md; health: h_unit_late_health_20261101.md.
     model_name = 'BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOne'
     bam_common_vo_read_scale_init = 1.0
 

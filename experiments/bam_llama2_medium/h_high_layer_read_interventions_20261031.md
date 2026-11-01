@@ -128,3 +128,21 @@ Only Unit/no-gamma resumed, using the same `xd-v5p-128-h-unit-plain-1031` identi
 Operational audit found the deployed outer checkpoint monitor still predated the1300s rescue implementation. Canonical `/home/xd/projects/xd_tpu_scripts` versions of `auto_train_xd_maxtext.sh`, `checkpoint_rescue.py` and `repair_incomplete_checkpoint_xd.sh` were hash-verified and deployed. The outer controller was replaced with MODE=attach, preserving the already-running worker training processes. Outer pending threshold1300s, rescue budget600s. The historical training runtime itself remains unchanged; do not claim it gained the newer training-side coordinated exception-recovery code.
 
 Resume ownership, AOT manifest, installer/wrapper hashes, source checkpoint, launch environment, controller handoff and startup evidence: `/data0/xd/bam_diagnostics/pythia28-h-unit-resume21500-20261101`. Main exp.py records this lifecycle event, not periodic training progress. The preceding16k tables remain a frozen interim endpoint, not a full28000-step conclusion.
+
+
+## Final21.5k continuation closeout
+
+Same Unit/no-gamma RUN and runtime6c5dbfe above stopped at committed **21549/28000**, zero preemptions/lost steps. The full21500±25 native window is present. Final checkpoint21549 commit marker and cursor verified; TPU/node and queued resource independently absent; local TB synced. User endpoint does not change the original28000-step LR schedule or establish a full28k terminal result. No owned H-group trainer remains active.
+
+| Comparator |16k gap / R|18k gap / R|20k gap / R|21.5k gap / R|
+|---|---|---|---|---|
+| H |−.000793 /1.00684|−.000966 /1.00864|unavailable|unavailable|
+| QK80 |−.010073 /1.09446|−.009971 /1.09701|−.010044 /1.09799|−.009649 /1.09533|
+| Pre-mask+QK80 |−.008221 /1.07578|−.008108 /1.07748|−.007939 /1.07590|−.008027 /1.07806|
+| Mudd |−.047428 /1.68457|−.045491 /1.67631|−.044323 /1.64967|−.043734 /1.65151|
+
+Ratios use original MHA as reference. H has no complete window beyond18k. Unit's small H improvement persisted through their last common window; its direct QK80/combination advantages remain broadly stable through21.5k. Mudd-relative gain still declines overall. The17→17.5→18k ratio rises are not a sustained reversal: absolute gain over MHA at18/19.5/20/20.5/21/21.5k is .112753/.112916/.112548/.110809/.111377/.110862. The18–21.5k signed OLS slope is−.00063277 per1k and net−.001891. Upward amplitude would be beneficial; small range alone is not a success criterion. Historical1k/2k windows can recover at other positions, so compare sliding signed trends, not only synchronous ranges.
+
+Two chronological READY leases, both UE5a/v5p128 on `xd-v5p-128-h-unit-plain-1031`:2026-10-31 06:06:34→20:26:42UTC(14h20m08s), then2026-10-31 21:21:15→2026-11-01 02:19:42UTC(4h58m27s). Both ended by user endpoint, not preemption. Resume throughput~.316step/s and late~.315, consistent with original startup. Closeout completed02:22:44UTC.
+
+Final evidence: `/data0/xd/bam_diagnostics/pythia28-h-unit-resume21500-20261101/{closeout-final.json,registry-final.json,checkpoint-final-verification.log,resource-final-verification.log,sync-final.log,final-native.json,absolute-gain-review21500.json}`. Native cumulative figures from2k: `reports/figures-21500.json`; separate positive MHA-gain figure from `absolute-mha-analysis21500.log`. Final checkpoint root remains registered UE5a GCS RUN/checkpoints/21549/items. Late health/context results, historical gamma reference, scope limits and reproducible manifests are in [the late-health note](h_unit_late_health_20261101.md).

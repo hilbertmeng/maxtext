@@ -28,6 +28,7 @@ active leases are censored, and manual migration releases are not preemptions.
 | RUN | TPU | Zone | Start UTC | End UTC | End reason | Passive candidates |
 |---|---|---|---|---|---|---|
 | `BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOne` | v5p-128 (`xd-v5p-128-h-unit-plain-1031`) | `us-east5-a` | 2026-10-31 05:58:53 | 2026-10-31 20:26:42 | user16k endpoint stop16047/P0; CP/TB secured, node+QR independently absent; runtime6c5dbfe | none |
+| `BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOne` | v5p-128 (`xd-v5p-128-h-unit-plain-1031`) | `us-east5-a` | 2026-10-31 21:16:36 | 2026-11-01 02:19:42 | user21.5k endpoint stop21549/P0; CP/TB secured, node+QR independently absent; same runtime6c5dbfe | none |
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedStaticKLast4TruePile` | v5p-16 (`xd-v5p-16-310481-maxtext`) | `us-east5-a` | 2026-10-31 14:38:48 | 2026-10-31 18:02:46 | 8k review stop8117/P0; CP/TB SYNC_OK, node+QR independently absent; runtime6052644 | none |
 | `BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneLocalODynamicNormScale020` | v5p-128 (`xd-v5p-128-h-unit-g020-1031`) | `us-east5-a` | 2026-10-31 05:57:48 | 2026-10-31 16:16:26 | user stop11375/P0; CP11375/TB SYNC_OK, node+QR independently absent; runtime9c11469 | none |
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedStaticQKLast4TruePile` | v5p-16 (`xd-v5p-16-310480-maxtext`) | `us-east5-a` | 2026-10-31 14:39:37 | 2026-10-31 16:03:07 | early3.2k review stop3259/P0; CP/TB SYNC_OK, node+QR independently absent; runtime6052644 | none |
@@ -2443,6 +2444,7 @@ active leases are censored, and manual migration releases are not preemptions.
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedStaticKLast4TruePile` | 1 | `us-east5-a` | 2026-10-31 14:38:50 | 2026-10-31 18:02:46 | 3h23m56s | 8k review stop8117/P0; CP/TB SYNC_OK, node+QR independently absent; manual stop |
 
 | `BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOne` | 1 | `us-east5-a` | 2026-10-31 06:06:34 | 2026-10-31 20:26:42 | 14h20m08s | user16k endpoint stop16047/P0; CP/TB secured, node+QR independently absent |
+| `BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOne` | 2 | `us-east5-a` | 2026-10-31 21:21:15 | 2026-11-01 02:19:42 | 4h58m27s | user21.5k endpoint stop21549/P0; CP/TB secured, node+QR independently absent |
 
 ### 2026-10-14 user pause: resumed mixed R256/R384
 

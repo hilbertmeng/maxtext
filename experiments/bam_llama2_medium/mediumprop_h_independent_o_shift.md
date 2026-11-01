@@ -83,3 +83,25 @@ AOT_READY appeared, while compiler cleanup continued asynchronously; no duplicat
 training controller and no teardown of the retained training prequeue.
 Groupmedium-h-independent-o-mshift, cadence2000/reviews4000,8000, H only/MHA
 reference. Other five experiments remain separately monitored at runtime4083fd1.
+
+
+## User-confirmed8k closeout
+
+Stopped at committed CP8960/13500 after the delivered8k recommendation and
+explicit user confirmation. Mature native windows through8800: final5 vsH
+gap+.00486652/MHA-ref gain.97539704. The initial+.0248@600 deficit shrank to
+about+.005 by4k, then plateaued through8.8k. The4k local gain recovery did not
+persist; no positive benefit by stop. Terminal prior1.015 was unsupported at
+stop; the full13500 endpoint was not measured. QKV and O sharing the temporal
+view remains the simpler supported design; the loss alone does not prove the
+causal mechanism of the independent-view penalty.
+
+CP8960 committed, TB SYNC_OK, node and queued resource independently NOT_FOUND.
+One UE5a v5p16 READY lease UTC2026-11-01 04:02:59-07:52:56=3h49m57s, P0,
+manual stop; assignment started04:02:56. No region switches or passive trainers.
+Managed AOT compiler candidates already independently absent; borrowed FLEX
+untouched. Groupmedium-h-independent-o-mshift archived; watcher2520035 stopped.
+All six task-owned formal runs now stopped. Source runtime10366ac remains
+sealed; later ledger commits do not change the training hash. Full evidence:
+/data0/xd/bam_diagnostics/mediumprop-h-o-mshift/{closeout-summary,resource-closeout-proof,
+leases,final-loss-report,final-stats,final-plot}.json.

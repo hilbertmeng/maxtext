@@ -12,6 +12,9 @@ def validate_bam_config(config, *, layer_mode=None):
       lambda name, default=None: getattr(config, name, default))
   if not get('bam_enabled', False):
     return
+  logit_dim = get('bam_qk_logit_scale_dim', None)
+  if logit_dim is not None and (type(logit_dim) is not int or logit_dim <= 0):
+    raise ValueError('bam_qk_logit_scale_dim must be a positive integer or None')
   if get('bam_memory_mlp_use_bias', False) and (
       get('bam_memory_mlp_share_hidden', False) or get('bam_memory_mlp_half', False)):
     raise ValueError('Memory MLP bias requires separate hidden and output projections')

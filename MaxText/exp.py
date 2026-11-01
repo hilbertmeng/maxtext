@@ -17434,6 +17434,32 @@ class BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80CommonReadScaleU
     bam_common_vo_read_scale_init = 1.0
 
 
+class BamPythia2p8BHUnit300B(
+        BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOne):
+    """Unit/no-gamma H for 300B tokens, using the original long-training plan.
+
+    Preserve H's architecture, parameter shapes and initialization; only change
+    the Q/K logit multiplier from 1/sqrt(80) to 1/sqrt(100). The V/output head
+    width remains 80. No extra Q/K read scalar or memory-MLP bias is introduced.
+    Intended topology: v5p-256, global batch 1024, 8 examples/device, T2048.
+    Preparation only; reporting/alignment plan: pythia2p8_h_unit_300b.md.
+    """
+    model_name = 'BamPythia2p8BHUnit300B'
+    bam_qk_logit_scale_dim = 100
+    steps = TrainPythia.steps
+    learning_rate_schedule_steps = TrainPythia.learning_rate_schedule_steps
+    learning_rate = Pythia2p8B.learning_rate
+    warmup_steps_fraction = TrainPythia.warmup_steps_fraction
+    checkpoint_period = TrainPythia.checkpoint_period
+    checkpoint_keep_steps = list(TrainPythia.checkpoint_keep_steps)
+    max_to_keep = TrainPythia.max_to_keep
+    keep_period = TrainPythia.keep_period
+    force_final_checkpoint = TrainPythia.force_final_checkpoint
+    sharding_tolerance = .06
+    compare_runs = ['Pythia_2.8B_2022', 'Pythia_6.9B_2022_Decay',
+                    'PileMUDDPythia3BPlusOcdbtv6e', 'BamPythia2p8BSotaIndependentR768Pallas']
+
+
 class BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneCommonQKScale(
         BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOne):
     """Add one learned scalar per layer, shared by complete local Q/K reads.

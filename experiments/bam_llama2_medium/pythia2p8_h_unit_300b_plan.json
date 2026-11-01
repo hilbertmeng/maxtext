@@ -1,0 +1,63 @@
+{
+  "schema_version": 1,
+  "status": "prepared_not_launched",
+  "exp": "BamPythia2p8BHUnit300B",
+  "implementation": {
+    "worktree": "/home/xd/projects/maxtext",
+    "branch": "refactor-bam"
+  },
+  "launch": {
+    "TPU_TYPE": "v5p-256",
+    "PLANNED_STEPS": 143000,
+    "MODE": "install+train",
+    "global_batch_size": 1024,
+    "per_device_batch_size": 8,
+    "gradient_accumulation_steps": 1,
+    "CHECKPOINT_PENDING_WARN_SECONDS": 1300,
+    "CHECKPOINT_RESCUE_TIMEOUT_SECONDS": 600
+  },
+  "compare_runs": [
+    "Pythia_2.8B_2022",
+    "Pythia_6.9B_2022_Decay",
+    "PileMUDDPythia3BPlusOcdbtv6e",
+    "BamPythia2p8BSotaIndependentR768Pallas"
+  ],
+  "reporting": {
+    "cadence_steps": 5000,
+    "first_normal_report_step": 8000,
+    "report_window_steps": 5000,
+    "loss_interval": 500,
+    "loss_window": 25,
+    "sample_period": 10,
+    "gain_reference": "Pythia_2.8B_2022",
+    "gain_ratios": [
+      [
+        "BamPythia2p8BHUnit300B",
+        "Pythia_6.9B_2022_Decay",
+        "Pythia_2.8B_2022"
+      ],
+      [
+        "BamPythia2p8BHUnit300B",
+        "PileMUDDPythia3BPlusOcdbtv6e",
+        "Pythia_2.8B_2022"
+      ],
+      [
+        "BamPythia2p8BHUnit300B",
+        "BamPythia2p8BSotaIndependentR768Pallas",
+        "Pythia_2.8B_2022"
+      ]
+    ],
+    "loss_step_offsets": {
+      "BamPythia2p8BHUnit300B": 1,
+      "BamPythia2p8BSotaIndependentR768Pallas": 1
+    },
+    "notes": "Preserve the old long-run 8k + 5k*n phase; check the first permanent 3k checkpoint separately. Keep complete raw caches for longer-window analysis.",
+    "plot_min_step": 2000
+  },
+  "checkpoint_rescue": {
+    "save_timeout_seconds": 1200,
+    "pending_warn_seconds": 1300,
+    "rescue_budget_seconds": 600
+  },
+  "resume": false
+}

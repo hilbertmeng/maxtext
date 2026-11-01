@@ -767,6 +767,7 @@ bam_context_local_o_complement: False # Same-head context output *= 1-sigmoid(dy
 bam_common_vo_read_scale: False # One directly learned signed scalar per layer; V and localO, static+dynamic.
 bam_common_vo_read_scale_init: null # None: 1/sqrt(1+2*layer); otherwise shared V/O initialization.
 bam_common_qk_read_scale: False # Independent unit-initialized layer scalar on complete local Q/K, before full-head QKNorm.
+bam_qk_logit_scale_dim: null # Optional denominator dimension for 1/sqrt(dim); None preserves head_dim.
 bam_embedding_write_content_divisor: null # Fixed positive denominator instead of content RMSNorm.
 bam_attention_write_content_divisor: null
 bam_mlp_write_content_divisor: null

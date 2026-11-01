@@ -488,7 +488,11 @@ def _tm_read_backward_call(args, cts, opts, sh=None, om=None, os=None, qn=None, 
               + _qk_norm_specs(qn, tile)
               + [_tm_out_spec(n, tile, qdim)] * 2 + [_tm_out_spec(n, tile, kdim)] * 2
               + [_token_spec((vdim, kdim), tile)] * pass_m
-              + ([_tm_out_spec(n, tile, qdim)] * 2 + [_spec(qn[0].shape[1:-1], tile)] if qk_norm else []))
+              # xhat residuals single-buffered: the reverse already sits at the v5p VMEM limit, and
+              # their DMA is small next to the per-token matmuls.
+              + ([pl.BlockSpec((None, n, tile, qdim), lambda bb, i: (bb, 0, i, 0),
+                               pipeline_mode=pl.Buffered(1))] * 2
+                 + [_spec(qn[0].shape[1:-1], tile)] if qk_norm else []))
   grad_shapes = [x.shape for x in args[2:]]
   if packed:          # separate dQ/dK/dVO key cotangents; the wrapper concatenates them back
     grad_shapes[0], grad_shapes[2], grad_shapes[4] = key_shapes

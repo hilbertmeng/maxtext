@@ -20112,3 +20112,15 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     bam_split_last_output_projections = True
     bam_last_mlp_dim = 3504
     compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedTruePile']
+
+
+class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedIndependentOMShiftTruePile(
+    BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedTruePile):
+    """H: O gets its own columnwise previous-token mix; Q/K/V keep common M-shift."""
+    # ledger only; sealed runtime10366ac, codex/mediumprop-h-o-mshift.
+    # Implementation: /data0/xd/mediumprop-h-o-mshift; QKV common shift plus independent O shift.
+    model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedIndependentOMShiftTruePile'
+    bam_local_o_independent_m_shift = True
+    base_mlp_dim = 2499
+    bam_last_mlp_dim = 3893
+    compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedTruePile']

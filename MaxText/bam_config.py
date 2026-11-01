@@ -19,6 +19,20 @@ def validate_bam_config(config, *, layer_mode=None):
         or not get('bam_general_column_read', False)
         or not get('bam_local_full_m_read_bottleneck_dim', None)):
       raise ValueError('Final localO requires the scanned generalized BAM H family')
+  if get('bam_split_last_output_projections', False):
+    if (get('bam_final_local_o', False) or not get('bam_final_local_layer_count', 0)
+        or not get('bam_common_vo_read_scale', False)
+        or get('bam_context_local_o_complement', False)):
+      raise ValueError('Last-layer split W_O requires an explicit H tail without final extra O')
+  if get('bam_final_local_o_relocate', False):
+    if (not get('bam_final_local_o', False) or get('bam_context_local_o_complement', False)
+        or not get('bam_local_vo_independent_keys', False)
+        or not get('bam_final_local_layer_count', 0)
+        or get('bam_m_shift_mode', None) != 'read'
+        or get('bam_local_o_dynamic_norm_scale', False)):
+      raise ValueError('Relocated O requires an explicit H tail, independent VO and original read shift')
+  if (get('bam_final_local_o_shift', False) or get('bam_final_local_o_restore_self_attention', False)) and not get('bam_final_local_o_relocate', False):
+    raise ValueError('Final exit shift/self-attention variants require relocated localO')
   if get('bam_context_local_o_complement', False):
     if (get('bam_read_gate_activation', 'sigmoid') != 'sigmoid'
         or not get('bam_local_vo_independent_gates', False)

@@ -215,6 +215,12 @@ class SubDecoderLayer(nn.Module):
         raise ValueError('Pallas selective tail requires the v8t M layout')
       attn_kwargs['config'] = pyconfig.HyperParameters(SimpleNamespace(
           keys=dict(cfg.get_keys(), bam_pallas_core=False)))
+    if (getattr(cfg, 'bam_final_local_o_relocate', False)
+        and self.layer_inx == cfg.num_decoder_layers - 1
+        and cfg.bam_final_local_o_restore_self_attention):
+      # Only L17 changes its Splash/native mask; prefix layers keep the parent mask.
+      attn_kwargs['config'] = pyconfig.HyperParameters(SimpleNamespace(
+          keys=dict(attn_kwargs['config'].get_keys(), bam_attention_negative_diagonal=False)))
     attention_layer = AttnCls(**attn_kwargs)
 
     call_kwargs = dict(

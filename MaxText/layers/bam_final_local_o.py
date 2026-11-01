@@ -22,7 +22,7 @@ class FinalLocalO(nn.Module):
   quant: Any = None
 
   @nn.compact
-  def __call__(self, residual, matrix):
+  def __call__(self, residual, matrix, segment_ids=None, positions=None):
     cfg = self.config
     n, k, v = cfg.num_query_heads, cfg.bam_k, cfg.bam_v
     if cfg.emb_dim != n * k or cfg.head_dim != k:
@@ -47,6 +47,13 @@ class FinalLocalO(nn.Module):
           quant=self.quant, matmul_precision=cfg.matmul_precision, name=name)(x)
 
     x = normalizations.get_decoder_norm('input_norm', cfg)(residual)
+    if cfg.bam_final_local_o_shift:
+      logits = dense('m_shift_gate', x, v, ('embed', 'v_factor'), zero)
+      logits += parameter('m_shift_bias', (v,), ('v_factor',),
+                          math.log(cfg.bam_m_shift_init / (1. - cfg.bam_m_shift_init))).astype(cfg.dtype)
+      # Shift the fully updated final carry exactly once; boundaries keep current M.
+      matrix = attentions.mix_bam_previous_token(
+          matrix, jax.nn.sigmoid(logits.astype(jnp.float32)), segment_ids, positions)
     hidden = nn.gelu(dense('read_down', x,
                           cfg.bam_local_full_m_read_bottleneck_dim, ('embed', None)))
     raw_key = dense('read_up', hidden, (n, v), ('embed', 'q_heads', 'kv'))

@@ -770,3 +770,8 @@ bam_common_vo_read_scale_init: null # None: 1/sqrt(1+2*layer); otherwise shared 
 bam_embedding_write_content_divisor: null # Fixed positive denominator instead of content RMSNorm.
 bam_attention_write_content_divisor: null
 bam_mlp_write_content_divisor: null
+
+bam_final_local_o_relocate: False # Remove L17 O read and decode M after its MLP.
+bam_final_local_o_shift: False # Independently gate-mix updated final M with previous token.
+bam_final_local_o_restore_self_attention: False # Restore only L17 causal diagonal.
+bam_split_last_output_projections: False # Independent context/O W_O in L17, original location.

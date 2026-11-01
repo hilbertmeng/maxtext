@@ -3,6 +3,7 @@ import json
 import math
 import os
 from pathlib import Path
+from types import SimpleNamespace
 import unittest
 from unittest import mock
 
@@ -52,7 +53,7 @@ class HUnit300BTest(MLPWriteTest, unittest.TestCase):
     self.assertEqual(pyconfig.resolve_per_device_batch_size(1., 128, cfg.gradient_accumulation_steps,
                                                            cfg.target_train_batch_size), 8.)
     self.assertEqual((cfg.head_dim, cfg.bam_local_qk_col_output_dim, cfg.bam_standard_qk_dim,
-                      cfg.bam_qk_logit_scale_dim), (80, 80, 20, 100))
+                      cfg.bam_qk_logit_scale_dim), (80, 80, 20, 'qk_dim'))
     self.assertTrue(cfg.qk_norm and cfg.bam_qk_norm_after_concat)
     self.assertEqual(cfg.bam_common_vo_read_scale_init, 1.)
     self.assertFalse(cfg.bam_common_qk_read_scale or cfg.bam_local_o_dynamic_norm_scale
@@ -113,7 +114,12 @@ class HUnit300BTest(MLPWriteTest, unittest.TestCase):
   def test_scale_validation_preserves_legacy_default(self):
     cfg=self.config(RUN).get_keys()
     validate_bam_config(cfg)
-    validate_bam_config(dict(cfg,bam_qk_logit_scale_dim=None))
+    for setting in (None, 'qk_dim', 100):
+      validate_bam_config(dict(cfg,bam_qk_logit_scale_dim=setting))
+      layer = SimpleNamespace(config=SimpleNamespace(bam_qk_logit_scale_dim=setting), head_dim=80)
+      for width in (80, 100, 120):
+        expected = width if setting == 'qk_dim' else 80 if setting is None else setting
+        self.assertEqual(attentions.BamAttention._attention_logit_scale_dim(layer, width), expected)
     for invalid in (0,-1,True,100.,float('nan'),'100'):
       with self.assertRaisesRegex(ValueError,'bam_qk_logit_scale_dim'):
         validate_bam_config(dict(cfg,bam_qk_logit_scale_dim=invalid))

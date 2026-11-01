@@ -2567,9 +2567,11 @@ class BamAttention(Attention):
   bam_k: int = 32
   bam_v: int = 32
 
-  def _attention_logit_scale_dim(self):
+  def _attention_logit_scale_dim(self, qk_width):
     """Keep the Q/K temperature independent of the V/output head width."""
     dim = getattr(self.config, 'bam_qk_logit_scale_dim', None)
+    if dim == 'qk_dim':
+      return qk_width
     return self.head_dim if dim is None else dim
 
   def _local_read_setting(self, name, key):
@@ -3434,9 +3436,10 @@ class BamAttention(Attention):
       segments = segment_ids[0, ix]
       mask &= (segments[:, None] == segments[None, :])[None]
     counts = jnp.sum(mask, axis=-1, keepdims=True)
+    scale_dim = self._attention_logit_scale_dim(query.shape[-1] + q_bam.shape[-1])
     def score_rms(q, k):
       q, k = q[0, ix].astype(jnp.float32), k[0, ix].astype(jnp.float32)
-      score = jnp.einsum('thd,shd->hts', q, k) / math.sqrt(self._attention_logit_scale_dim())
+      score = jnp.einsum('thd,shd->hts', q, k) / math.sqrt(scale_dim)
       mean = jnp.sum(jnp.where(mask, score, 0.), axis=-1, keepdims=True) / counts
       return jnp.sqrt(jnp.sum(jnp.where(mask, (score-mean)**2, 0.)) /
                       (jnp.sum(mask) * score.shape[0]))
@@ -4259,7 +4262,7 @@ class BamAttention(Attention):
     pass_m = body in ('v7', 'v7u', 'v8t')   # M passthrough: dM sum fused into the read reverse
     # Full-head norm needs the unscaled, unrotated concatenated Q/K. In that case
     # attention scaling must follow QKNorm, rather than being folded into the read.
-    q_scale = 1.0 / math.sqrt(self._attention_logit_scale_dim()) if pass_m and not full_qk_norm else 1.0
+    q_scale = 1.0 / math.sqrt(self._attention_logit_scale_dim(full_qk_width)) if pass_m and not full_qk_norm else 1.0
     o_read_logits = logits('W_R_gate', True)
     with jax.named_scope('bam/pallas_read'):
       outs = bam_pallas.read(
@@ -4316,7 +4319,7 @@ class BamAttention(Attention):
     key = nn.with_logical_constraint(key, self.key_axis_names)
     value = nn.with_logical_constraint(value, self.value_axis_names)
     if q_scale == 1.0:
-      query = query / jnp.sqrt(self._attention_logit_scale_dim()).astype(self.dtype)
+      query = query / jnp.sqrt(self._attention_logit_scale_dim(query.shape[-1])).astype(self.dtype)
     t = query.shape[1]
     local_window = t if (is_global or self.sliding_window_size is None) else min(t, int(self.sliding_window_size))
     if _bam_splash_enabled(cfg, t):
@@ -4577,7 +4580,7 @@ class BamAttention(Attention):
     if common_vo_scale is not None:
       value = (value.astype(jnp.float32) * common_vo_scale).astype(value.dtype)
       local_output = (local_output.astype(jnp.float32) * common_vo_scale).astype(local_output.dtype)
-    query = query / jnp.sqrt(self._attention_logit_scale_dim()).astype(self.dtype)
+    query = query / jnp.sqrt(self._attention_logit_scale_dim(query.shape[-1])).astype(self.dtype)
     if cfg.float32_qk_product:
       query = query.astype(jnp.float32)
       key = key.astype(jnp.float32)

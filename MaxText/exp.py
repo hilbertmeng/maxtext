@@ -17445,7 +17445,7 @@ class BamPythia2p8BHUnit300B(
     Preparation only; reporting/alignment plan: pythia2p8_h_unit_300b.md.
     """
     model_name = 'BamPythia2p8BHUnit300B'
-    bam_qk_logit_scale_dim = 100
+    bam_qk_logit_scale_dim = 'qk_dim'  # Actual Q/K width: 80 local + 20 RoPE = 100.
     steps = TrainPythia.steps
     learning_rate_schedule_steps = TrainPythia.learning_rate_schedule_steps
     learning_rate = Pythia2p8B.learning_rate

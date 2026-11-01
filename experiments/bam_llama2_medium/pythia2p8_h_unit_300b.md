@@ -24,7 +24,9 @@ unchanged. Total parameters remain 2775190912, exactly equal to the parent;
 MLP budgets and inference M-cache are unchanged.
 
 The sole numerical model change is the attention logit multiplier:
-`bam_qk_logit_scale_dim=100` selects 1/sqrt(100)=0.1 instead of 1/sqrt(80).
+`bam_qk_logit_scale_dim='qk_dim'` selects the actual concatenated Q/K width,
+currently 1/sqrt(100)=0.1 instead of 1/sqrt(80). Derived architectures follow
+their actual Q/K width automatically; no inherited hardcoded 100 remains.
 The V/output `head_dim` remains 80; concatenated Q/K width remains 100.
 The multiplier is applied after full-head QKNorm, once, in both native JAX
 and Pallas paths. Legacy classes keep `None`, preserving their existing scale.

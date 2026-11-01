@@ -17444,7 +17444,7 @@ class BamPythia2p8BHUnit300B(
     Intended topology: v5p-256, global batch 1024, 8 examples/device, T2048.
     Reporting/alignment and launch provenance: pythia2p8_h_unit_300b.md.
     """
-    # code_commit:fb915b6; UE5a v5p-256: 0.56169 step/s (20-39), about -4% versus old BAM long-run timing.
+    # code_commit:fb915b6; UE5a v5p-256: 0.56232 step/s (20-49), -5.31% versus old BAM in the same window.
     # Generic health ON, internal NN/BAM health OFF; AOT, all 32 workers, first step and checkpoint 0 verified.
     model_name = 'BamPythia2p8BHUnit300B'
     bam_qk_logit_scale_dim = 'qk_dim'  # Actual Q/K width: 80 local + 20 RoPE = 100.

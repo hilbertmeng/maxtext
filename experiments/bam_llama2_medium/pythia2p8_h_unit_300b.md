@@ -195,9 +195,31 @@ All 20 samples in steps 20-39 give harmonic-mean throughput .561686 step/s,
 median .565. This is inside the .50-.70 pre-run range and approximately 4.0%
 slower than the old long BAM's historical .585 step/s, with matched generic
 health ON/internal NN and BAM health OFF but different architecture and leases.
-The private-MLP layout, QKNorm/read path and scan layout differ; this observation
-is not a paired kernel timing attribution. It does not establish a throughput
-regression versus the identical H architecture, which has no v5p-256 timing control.
+A better comparison uses the same 20-49 window: old BAM .5938465, new H
+.5623226 step/s, a 5.31% speed deficit. The initial comparison to the old late-run
+.585 reference understated this matched-window deficit. Later new-run 100-199
+steps average .55822 with median .562, so the deficit is not an isolated startup
+outlier.
+
+Existing v5p-128 evidence already shows the inherited H recipe cost: old BAM
+.337699 versus unit H .316382, a 6.31% deficit with the same batch/remat/health.
+Transferring that relative speed to old v5p-256 predicts .556360; observed
+.562323 is 1.07% above that estimate. The original .60 central throughput bet
+missed this available historical evidence; a wide range does not explain or
+excuse the architecture's efficiency cost. These are separate historical leases,
+not a paired causal benchmark, but do not indicate an extra long-plan regression.
+
+Leading implementation hypotheses are MLP fragmentation and more frequent M
+writes. Logical forward MLP matmuls rise from 64 to 126 (32 MLPs versus 31 ordinary/
+private pairs plus the final MLP), even though summed hidden width falls from
+351360 to 343296 (-2.30%). MLP writes rise from 10 to 31. Q/K width, independent
+V/O reads and scan layout also differ. Logical counts are not executed-kernel
+counts or a measured time attribution. Profile data is needed before assigning
+the 5.31% to individual operations. The logits-scale change substitutes one
+compile-time constant in the existing operation; it introduces no extra tensor
+pass. The generic Transformer TFLOP estimate omits BAM-specific/small-MLP work,
+so its displayed TFLOP/s cannot adjudicate the actual cost. Reproduction numbers
+and sources are in `speed-review.json` in the launch artifact directory.
 
 Group state confirms the next normal report is 3000, followed by 8000/13000/...,
 with all three gain triples and both BAM +1 offsets persisted. No native/group

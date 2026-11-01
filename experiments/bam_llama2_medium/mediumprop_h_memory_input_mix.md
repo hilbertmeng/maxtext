@@ -59,3 +59,30 @@ feedback so this is a genuine replication, not replaying an identical model.
 - `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedMLPInputMixComplementaryMemoryOnlyWriteControlMixTruePile`; `xd-v5p-16-310501-maxtext`; direct parent `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedTruePile`.
 - `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneMLPInputMixG099MemoryOnlyWriteControlMixTruePile`; `xd-v5p-16-310502-maxtext`; direct parent `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneTruePile`.
 - `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneMLPInputMixComplementaryMemoryOnlyWriteControlMixTruePile`; `xd-v5p-16-310503-maxtext`; direct parent `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneTruePile`.
+
+## Verified startup
+
+Runtime88aa48c on all four workers, exact target AOT loaded, actualFIRST0,
+TruePile4096 dataset and432132627 parameter counts independently verified.
+Eight focused tests (four full-model native/Pallas all-gradient comparisons),
+47 BAM regressions and5 rotating-writer tests passed; exact source receipt reused
+by all four launchers, not four duplicate CPU suites. Four retained-worker AOTs
+serialized safely; borrowed FLEX never adopted or deleted. No auxiliary compilers.
+All four trainer nodes inUE5a; no alternative-zone candidate acquired.
+
+| ID | Read init | Gate | Startup20..99 aggregate step/s |
+|---:|---|---|---:|
+|310500|depth|sigmoid|0.673545|
+|310501|depth|complementary|0.676969|
+|310502|one|sigmoid|0.667294|
+|310503|one|complementary|0.676336|
+
+Historical H .669875 and unitH .676113 have older runtime/kernel paths and
+lack the34 new targeted gate statistics; these are descriptive training timings,
+not paired operator deltas. Keep all generic training healthON.
+Groupmedium-h-memory-input-mix: clock310503, cadence2000/reviews4000,8000.
+Four native gain triples each use their own ungated parent and the common MHA.
+Publication: one2x2 figure, H-depth/unit columns, gap/gain rows; two gate curves
+per column, shared row limits, cumulative native windows from600. Right column
+ends at9200 baseline coverage. User explicitly declined resuming that control.
+Startup proof files and all manifests in the task artifact root.

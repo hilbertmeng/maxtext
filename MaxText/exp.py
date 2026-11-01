@@ -17585,6 +17585,14 @@ class BamPythia2p8BHSpeedHUnit300BProfile(_HSpeedProfile, BamPythia2p8BHUnit300B
     checkpoint_keep_steps = []
 
 
+class BamPythia2p8BHSpeedHUnit300BBlock3ScanProfile(BamPythia2p8BHSpeedHUnit300BProfile):
+    """Same H math and widths; ten 3-layer scan blocks plus explicit L30/L31 instead of scan31+tail1."""
+    model_name = 'BamPythia2p8BHSpeedHUnit300BBlock3ScanProfile'
+    bam_pair_scan = True
+    bam_local_fetch_block_size = 3
+    bam_final_local_layer_count = 2
+
+
 class BamPythia2p8BHSpeedHUnit300BSaveEverythingProfile(BamPythia2p8BHSpeedHUnit300BProfile):
     """Upper bound: no rematerialization at all."""
     model_name = 'BamPythia2p8BHSpeedHUnit300BSaveEverythingProfile'

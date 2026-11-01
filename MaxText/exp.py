@@ -17538,6 +17538,52 @@ class BamPythia2p8BCommonReadUnitGammaProfile(
     steps = 100
 
 
+
+class _HSpeedProfile(TrainStepProfile):
+    """v5p-8 H-speed lineage arm: 32 layers, 8/device, inherited minimal remat/health."""
+    target_train_batch_size = None
+    per_device_batch_size = 8.0  # V64 profile: minimal remat at 16/device exceeds v5p-8 HBM.
+    steps = 100
+
+
+class BamPythia2p8BHSpeedR768NoConcatNormProfile(
+        _HSpeedProfile, BamPythia2p8BSotaIndependentR768PallasShortTrain):
+    """R768 ShortTrain with the old standard-arm-only QKNorm (1ac1183 math)."""
+    model_name = 'BamPythia2p8BHSpeedR768NoConcatNormProfile'
+    bam_qk_norm_after_concat = False
+
+
+class BamPythia2p8BHSpeedR768Profile(
+        _HSpeedProfile, BamPythia2p8BSotaIndependentR768PallasShortTrain):
+    """R768 ShortTrain, complete-head QKNorm."""
+    model_name = 'BamPythia2p8BHSpeedR768Profile'
+
+
+class BamPythia2p8BHSpeedAllR640Profile(
+        _HSpeedProfile, BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640):
+    """Direct SeparateVO parent: pair scan, shared V/O keys."""
+    model_name = 'BamPythia2p8BHSpeedAllR640Profile'
+
+
+class BamPythia2p8BHSpeedSeparateVOLayoutSharedKeysProfile(
+        _HSpeedProfile, BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640SeparateVOKeys):
+    """SeparateVO scan/widths/VMEM with shared V/O keys: isolates the independent-key cost."""
+    model_name = 'BamPythia2p8BHSpeedSeparateVOLayoutSharedKeysProfile'
+    bam_local_vo_independent_keys = False
+
+
+class BamPythia2p8BHSpeedSeparateVOProfile(
+        _HSpeedProfile, BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640SeparateVOKeys):
+    """SeparateVO as trained."""
+    model_name = 'BamPythia2p8BHSpeedSeparateVOProfile'
+
+
+class BamPythia2p8BHSpeedHUnit300BProfile(_HSpeedProfile, BamPythia2p8BHUnit300B):
+    """Current 300B H unit run."""
+    model_name = 'BamPythia2p8BHSpeedHUnit300BProfile'
+    steps = 100
+    checkpoint_keep_steps = []
+
 class BamPythia2p8BComboKeepPreMaskResume500(
         BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1AllR640SeparateVOKeysLogitDiagNegativeQK80):
     """Full-state fork of combination CP21557; review after500 added updates.

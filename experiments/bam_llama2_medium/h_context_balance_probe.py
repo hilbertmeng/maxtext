@@ -10,7 +10,7 @@ import re
 import sys
 import time
 
-FIELDS=('context_ms','local_o_ms','sum_ms','context_local_cross')
+FIELDS=('context_ms','local_o_ms','sum_ms','context_local_cross','projected_context_ms','projected_local_o_ms','projected_sum_ms','projected_cross','output_bias_ms')
 
 @contextlib.contextmanager
 def capture_context():
@@ -30,12 +30,21 @@ def capture_context():
     def local_call(self,value,deterministic):
       result=local(self,value,deterministic);state['local']=result;return result
     def projection_call(self,output_dim,value):
+      result=projection(self,output_dim,value)
       if not self.is_initializing():
         c=state['context'].astype(jnp.float32);o=state['local'].astype(jnp.float32);s=value.astype(jnp.float32)
         assert c.shape==o.shape==s.shape,(c.shape,o.shape,s.shape)
         mean=lambda x:jnp.mean(x,axis=tuple(range(1,x.ndim)))
-        self.sow('intermediates','context_balance_probe',jnp.stack((mean(c*c),mean(o*o),mean(s*s),mean(c*o)),axis=-1))
-      return projection(self,output_dim,value)
+        weights=nn.unbox(self.variables['params']['out'])
+        kernel=weights['kernel'].astype(jnp.float32)
+        assert kernel.shape[:2]==c.shape[-2:] and kernel.shape[2]==output_dim
+        pc=jnp.einsum('btnh,nhd->btd',c,kernel)
+        po=jnp.einsum('btnh,nhd->btd',o,kernel)
+        bias=weights.get('bias',jnp.zeros((output_dim,),jnp.float32)).astype(jnp.float32)
+        bias_ms=jnp.full((c.shape[0],),jnp.mean(bias*bias))
+        self.sow('intermediates','context_balance_probe',jnp.stack((mean(c*c),mean(o*o),mean(s*s),mean(c*o),mean(pc*pc),mean(po*po),mean(result.astype(jnp.float32)**2),mean(pc*po),bias_ms),axis=-1))
+      return result
+
     attentions._attention_op=attention_call
     attentions.BamAttention._regularize_local_o_heads=local_call
     attentions.BamAttention.out_projection=projection_call
@@ -101,11 +110,11 @@ def main():
       params=initial if step==0 else restore_params(checkpoint);params=jax.device_put(unfreeze(nn.unbox(params)),jax.sharding.SingleDeviceSharding(jax.devices()[0]));jax.block_until_ready(params)
       rows=[];losses=[];noop=[]
       for index,tokens in enumerate(cohort):
-        loss,stats=compiled(params,jnp.asarray(tokens[None]));stats=np.asarray(stats);assert stats.shape==(32,1,4) and np.isfinite(stats).all();rows.append(stats[:,0]);losses.append(float(loss))
+        loss,stats=compiled(params,jnp.asarray(tokens[None]));stats=np.asarray(stats);assert stats.shape==(32,1,len(FIELDS)) and np.isfinite(stats).all();rows.append(stats[:,0]);losses.append(float(loss))
         if index<2:
           delta=float(reference(params,jnp.asarray(tokens[None])))-losses[-1];noop.append(delta);assert abs(delta)<1e-5,('No-op mismatch',delta)
         if index in (0,7,31):print('FORWARD_OK',step,index+1,round(time.monotonic()-start,2),flush=True)
       np.savez_compressed(args.output/f'step-{step}.npz',statistics=np.stack(rows),losses=np.array(losses))
-      summary=dict(exp=args.exp,step=step,checkpoint=checkpoint,fields=FIELDS,sequence_hashes=[hashlib.sha256(x.tobytes()).hexdigest() for x in cohort],noop_deltas=noop,forward_traces=traces,seconds=time.monotonic()-start,backend='Native JAX FP32/highest, Pallas/Splash disabled; checkpoint parameter values retained.0k parameters initialized with original formal runtime config before forward overrides.',scope='Context and local O immediately before shared W_O. Amplitudes/correlation, not causal attribution.',runner_sha256=hashlib.sha256(Path(__file__).read_bytes()).hexdigest())
+      summary=dict(exp=args.exp,step=step,checkpoint=checkpoint,fields=FIELDS,sequence_hashes=[hashlib.sha256(x.tobytes()).hexdigest() for x in cohort],noop_deltas=noop,forward_traces=traces,seconds=time.monotonic()-start,backend='Native JAX FP32/highest, Pallas/Splash disabled; checkpoint parameter values retained.0k parameters initialized with original formal runtime config before forward overrides.',scope='Context/local O immediately before and separately after shared W_O; separate projected branches exclude output bias, reported independently. Native FP32 amplitudes/correlation, not causal attribution.',runner_sha256=hashlib.sha256(Path(__file__).read_bytes()).hexdigest())
       (args.output/f'step-{step}.json').write_text(json.dumps(summary,indent=2)+'\n');print('STEP_DONE',step,flush=True)
 if __name__=='__main__':main()

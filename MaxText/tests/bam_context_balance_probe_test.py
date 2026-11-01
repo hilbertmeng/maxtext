@@ -15,7 +15,8 @@ class FakeAttention(nn.Module):
     context,_=attentions._attention_op(x);local=self._regularize_local_o_heads(x,True)
     return self.out_projection(3,context+local)
   def _regularize_local_o_heads(self,x,deterministic):return x*3
-  def out_projection(self,output_dim,x):return x*5+.2
+  def out_projection(self,output_dim,x):
+    return nn.DenseGeneral(output_dim,axis=(-2,-1),kernel_init=nn.initializers.constant(.5),bias_init=nn.initializers.constant(.2),name='out')(x)
 class ContextBalanceTest(unittest.TestCase):
   def test_observer_does_not_change_output(self):
     x=jnp.arange(12,dtype=jnp.float32).reshape(1,2,2,3)/10
@@ -23,5 +24,5 @@ class ContextBalanceTest(unittest.TestCase):
       model=FakeAttention();params=model.init(jax.random.PRNGKey(0),x);expected=model.apply(params,x)
       with probe.capture_context():actual,collections=model.apply(params,x,mutable=['intermediates'])
       np.testing.assert_array_equal(actual,expected)
-      stats=np.asarray(collections['intermediates']['context_balance_probe'][0]);m=float(jnp.mean(x*x));np.testing.assert_allclose(stats,[[4*m,9*m,25*m,6*m]],rtol=1e-6)
+      stats=np.asarray(collections['intermediates']['context_balance_probe'][0]);m=float(jnp.mean(x*x));kernel=params['params']['out']['kernel'];pc=jnp.einsum('btnh,nhd->btd',x*2,kernel);po=jnp.einsum('btnh,nhd->btd',x*3,kernel);want=[[4*m,9*m,25*m,6*m,float(jnp.mean(pc*pc)),float(jnp.mean(po*po)),float(jnp.mean(actual*actual)),float(jnp.mean(pc*po)),.04]];np.testing.assert_allclose(stats,want,rtol=1e-6)
 if __name__=='__main__':unittest.main()

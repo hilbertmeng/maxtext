@@ -147,19 +147,19 @@ def _prev_from(m_ref, mh_ref, t0, mt):
   return jnp.concatenate((first.astype(mt.dtype), mt[:-1]), axis=0)
 
 
-def _bcast_dot(x, w):
-  """x @ w on the MXU (exact FP32): row reductions and per-head selections arrive lane-broadcast."""
-  return jax.lax.dot_general(x, w, (((1,), (0,)), ((), ())), precision=jax.lax.Precision.HIGHEST,
-                             preferred_element_type=F32)
+def _dot2(x, w):
+  """FP32 x @ bf16 0/1 matrix w on the MXU via a bf16 hi/lo split (~1e-5 relative): row sums and
+  per-head selections arrive lane-broadcast, avoiding [T, 1] column reductions and broadcasts."""
+  hi = x.astype(jnp.bfloat16)
+  lo = (x - hi.astype(F32)).astype(jnp.bfloat16)
+  dot = lambda v: jax.lax.dot_general(v, w, (((1,), (0,)), ((), ())), preferred_element_type=F32)
+  return dot(hi) + dot(lo)
 
 
-def _qk_norm_mats(np_, qk_cols, qdim):
-  """[qdim,qdim] local-lane ones, [qdim,qdim] ones, and per-head [NP,qdim] one-hot row selector."""
-  r = jax.lax.broadcasted_iota(jnp.int32, (qdim, qdim), 0)
-  ones_loc = jnp.where(r < qk_cols, 1., 0.).astype(F32)
-  ones_all = jnp.ones((qdim, qdim), F32)
-  hrow = jax.lax.broadcasted_iota(jnp.int32, (np_, qdim), 0)
-  return ones_loc, ones_all, lambda h: jnp.where(hrow == h, 1., 0.).astype(F32)
+def _head_selector(np_, qdim, h):
+  """[NP, qdim] bf16 rows: ones in row h, so [T, NP] @ it broadcasts column h over qdim lanes."""
+  rows = jax.lax.broadcasted_iota(jnp.int32, (np_, qdim), 0)
+  return jnp.where(rows == h, 1., 0.).astype(jnp.bfloat16)
 
 
 def _tm_read_kernel(n, qk_cols, eps, scale, q_scale, gated, ch, shifted=False, qdim=None, masked=False,
@@ -210,7 +210,7 @@ def _tm_read_kernel(n, qk_cols, eps, scale, q_scale, gated, ch, shifted=False, q
         # The standard sums of squares as token columns: one small transpose per arm and tile.
         ss_cols = _to_tokens(ss_ref[a])                                   # [T, NP]
         if len(qk_norm) > 2 and qk_norm[2]:
-          ones_loc, _, onehot = _qk_norm_mats(np_, qk_cols, qdim)
+          ones_loc = jnp.ones((qk_cols, qdim), jnp.bfloat16)
       for h in range(n):
         y = y_scr[pl.ds((a * np_ + h) * t, t), :]                        # [T, K] token rows
         if a < 2 and qk_norm:
@@ -226,21 +226,11 @@ def _tm_read_kernel(n, qk_cols, eps, scale, q_scale, gated, ch, shifted=False, q
             row = jnp.concatenate((local, jnp.zeros((t, rs), F32)), axis=1)
           else:
             row = jnp.concatenate((local, (qs if a == 0 else ks)[:, pl.ds(h * rs, rs)].astype(F32)), axis=1)
-          if len(qk_norm) > 2 and qk_norm[2]:   # MXU reductions/selections, lane-broadcast [T, qdim]
-            iv = jax.lax.rsqrt((_bcast_dot(row * row, ones_loc) + _bcast_dot(ss_cols, onehot(h))) / width
-                               + q_eps)
+          if len(qk_norm) > 2 and qk_norm[2]:   # MXU statistics, lane-broadcast [T, qdim]
+            iv = jax.lax.rsqrt((_dot2(local * local, ones_loc) + _dot2(ss_cols, _head_selector(np_, qdim, h)))
+                               / width + q_eps)
           else:
-            if 'mxu2' in ablate:          # lane-broadcast [T, qdim] statistics, bf16 hi/lo split (no column ops)
-              def dot2(x, w):
-                hi = x.astype(jnp.bfloat16)
-                lo = (x - hi.astype(F32)).astype(jnp.bfloat16)
-                d = lambda v: jax.lax.dot_general(v, w, (((1,), (0,)), ((), ())), preferred_element_type=F32)
-                return d(hi) + d(lo)
-              ones_b = jnp.ones((qk_cols, qdim), jnp.bfloat16)
-              hrow = jax.lax.broadcasted_iota(jnp.int32, (np_, qdim), 0)
-              sel = jnp.where(hrow == h, 1., 0.).astype(jnp.bfloat16)
-              iv = jax.lax.rsqrt((dot2(local * local, ones_b) + dot2(ss_cols, sel)) / width + q_eps)
-            elif 'tminor' in ablate:      # T-minor statistic: one transpose, sublane sum, [1,T] ss row
+            if 'tminor' in ablate:      # T-minor statistic: one transpose, sublane sum, [1,T] ss row
               row_ss = jnp.sum(jnp.square(_from_tokens(local)), axis=0, keepdims=True) + ss_ref[a, pl.ds(h, 1), :]
               iv = _to_tokens(jax.lax.rsqrt(row_ss / width + q_eps))                   # [T, 1]
             else:
@@ -343,7 +333,7 @@ def _tm_read_backward_kernel(n, qk_cols, eps, scale, q_scale, gated, ch, pass_m,
         std_parts = []
         mxu = len(qk_norm) > 2 and qk_norm[2]
         if mxu:
-          _, ones_all, onehot = _qk_norm_mats(np_, qk_cols, qdim)
+          ones_all = jnp.ones((qdim, qdim), jnp.bfloat16)
       for h in range(np_):
         rows = a * np_ + h
         if h >= n:
@@ -362,8 +352,8 @@ def _tm_read_backward_kernel(n, qk_cols, eps, scale, q_scale, gated, ch, pass_m,
           xhat = (xq_ref if a == 0 else xk_ref)[h].astype(F32)                  # [T, qdim]
           gm = y * mm_ref[pl.ds(a, 1), :]
           if mxu:     # lane-broadcast [T, qdim] statistics from the MXU
-            iv = _bcast_dot(inv_cols, onehot(h))
-            s_ = _bcast_dot(gm * xhat, ones_all) / width
+            iv = _dot2(inv_cols, _head_selector(np_, qdim, h))
+            s_ = _dot2(gm * xhat, ones_all) / width
           else:
             iv = inv_cols[:, h:h + 1]
             s_ = jnp.sum(gm * xhat, axis=1, keepdims=True) / width             # [T, 1]

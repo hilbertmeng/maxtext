@@ -44,6 +44,10 @@ class FusedQKNormTest(base.HUnit300BTest):
     self.flags = dict(bam_pallas_fused_qk_norm=True, bam_pallas_fused_qk_norm_mxu=True)
     self.check_model(RUN)
 
+  def test_mxu_statistics_bf16(self):
+    self.flags = dict(bam_pallas_fused_qk_norm=True, bam_pallas_fused_qk_norm_mxu=True)
+    self.check_model(RUN, 'bfloat16')
+
   def test_bf16_gradients_against_f32_truth(self):
     self.check_model(RUN, 'bfloat16')
 

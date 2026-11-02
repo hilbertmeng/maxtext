@@ -874,12 +874,15 @@ def _tm_write_backward_kernel(eps, n_groups, ch, divisors, adapter_spec=()):
           if before:          # written = norm(x + delta^T x)
             y = _adapt(d, xf, cd)
             dy = norm_back(y, u)
-            ddelta[h] = outer(xf, dy)
+            part = outer(xf, dy)
             dx = back(dy)
           else:               # written = n + delta^T n, n = norm(x)
             n = _norm(xf, eps, 0) if divisors[g] is None else xf / divisors[g]
-            ddelta[h] = outer(n, u)
+            part = outer(n, u)
             dx = norm_back(xf, back(u))
+          # Token tiles run sequentially per batch row: accumulate d(delta) in its resident output block.
+          first = pl.program_id(1) == 0
+          ddelta[h] = jnp.where(first, part, ddelta[h] + part)
         dcontent[h] = dx.astype(dcontent.dtype)
         daddress[h] = _norm_backward(address[h], _from_tokens(da_scr[rows, :]), eps, 0).astype(daddress.dtype)
       off += content.shape[0]
@@ -911,9 +914,10 @@ def _tm_write_backward_call(g, groups, opts, deltas=()):
   b, t, vdim, kdim = g.shape
   tile = min(opts['reverse_tile'], t)
   specs = [_spec(x.shape[1:-1], tile) for x in groups]
-  # Content-adapter weight gradients: one [N,K,K] partial per (batch, tile), summed below.
-  dspecs = [pl.BlockSpec((None, None) + x.shape, lambda bb, i, r=x.ndim: (bb, i) + (0,) * r) for x in deltas]
-  dshapes = [jax.ShapeDtypeStruct((b, t // tile) + x.shape, F32) for x in deltas]
+  # Content-adapter weight gradients: one [N,K,K] block per batch row, accumulated across its token
+  # tiles (sequential grid axis), then summed over the batch below.
+  dspecs = [pl.BlockSpec((None,) + x.shape, lambda bb, i, r=x.ndim: (bb,) + (0,) * r) for x in deltas]
+  dshapes = [jax.ShapeDtypeStruct((b,) + x.shape, F32) for x in deltas]
   outs = pl.pallas_call(
       _tm_write_backward_kernel(opts['epsilon'], len(groups) // 3, opts['chunk'], opts['content_divisors'],
                                 opts['adapter_spec']),
@@ -923,10 +927,10 @@ def _tm_write_backward_call(g, groups, opts, deltas=()):
       out_shape=tuple(jax.ShapeDtypeStruct(x.shape, x.dtype) for x in groups) + tuple(dshapes),
       scratch_shapes=_tm_write_scratch(groups, tile, vdim, kdim) + _tm_write_scratch(groups, tile, vdim, kdim, True),
       interpret=opts['interpret'],
-      compiler_params=_params(('parallel', 'parallel'), opts['vmem_mib']),
+      compiler_params=_params(('parallel', 'arbitrary' if deltas else 'parallel'), opts['vmem_mib']),
       name='bam_core_write_backward')(g, *groups, *deltas)
   n = len(groups)
-  return tuple(outs[:n]), tuple(jnp.sum(d, axis=(0, 1)).astype(x.dtype) for d, x in zip(outs[n:], deltas))
+  return tuple(outs[:n]), tuple(jnp.sum(d, axis=0).astype(x.dtype) for d, x in zip(outs[n:], deltas))
 
 
 @partial(jax.custom_vjp, nondiff_argnums=(1,))

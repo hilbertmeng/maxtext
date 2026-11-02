@@ -11,6 +11,13 @@ import mudd_spectral_io as io
 from mudd_spectral_model import serial_setup
 from mudd_spectral_probe import save_npz,gs_json,publish
 
+_BLOB_STORES={}
+def write_blob(path,uri):
+ """Synchronous bytes, persistent GCS client; no subprocess for each frame."""
+ prefix,key=uri.rsplit('/',1)
+ if prefix not in _BLOB_STORES:_BLOB_STORES[prefix]=io.ts.KvStore.open(prefix+'/',context=io._IO_CONTEXT).result()
+ _BLOB_STORES[prefix].write(key,Path(path).read_bytes()).result()
+
 def reset_m_routes(params,targets,layers=32):
  """New pytree: targeted M route current-only; Q/K/V and every other leaf unchanged."""
  flat=flatten_dict(params['params']);result=dict(flat)
@@ -30,10 +37,12 @@ def main():
  info=m['models']['serial'];checkpoint=info['checkpoints']['53000'];root=Path(a.output);root.mkdir(parents=True,exist_ok=True);dest=m['gcs_root']+'/serial/53000'
  local_only=m.get('backend')=='cuda_math_reference'
  def finish_json(path,uri):
-  if not local_only:subprocess.run(['gsutil','-q','cp',str(path),uri],check=True)
+  if not local_only:write_blob(path,uri)
  def publish_frame(path,meta,uri):
   if local_only:path.with_suffix('.json').write_text(json.dumps(meta,indent=2)+'\n')
-  else:publish(path,meta,uri)
+  else:
+   write_blob(path,uri+'/'+path.name)
+   marker=path.with_suffix('.json');marker.write_text(json.dumps(meta,indent=2)+'\n');write_blob(marker,uri+'/'+marker.name)
  done=json.loads((root/'complete.json').read_text()) if local_only and (root/'complete.json').exists() else (None if local_only else gs_json(dest+'/complete.json'))
  if done:assert done['source_commit']==commit;print('ORIGIN_REUSED_COMPLETE',flush=True);return
  parent=root/'parent';parent.mkdir(exist_ok=True)

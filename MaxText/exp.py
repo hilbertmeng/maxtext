@@ -20536,6 +20536,8 @@ class BamPythia2p8BHUnitShortTrainFastKernelContentWriteAdapterFull(
     """
     model_name = 'BamPythia2p8BHUnitShortTrainFastKernelContentWriteAdapterFull'
     bam_pallas_fused_content_adapter = True  # adapter inside the v8t write kernel; same math.
+    # code_commit:f694be4; exact v5p-128/s28000 AOT (FLEX, AOT_COMPILE_OK):
+    # gs://newproject-1-llm_base_models_us-central1/log/compiled_trainsteps/f694be4/jax081-i0ae3f58-c17f538a/v5p-128/s28000/
     bam_content_adapter_write = True
     bam_content_adapter_o = False
     bam_content_adapter_v = False
@@ -20564,4 +20566,6 @@ class BamPythia2p8BHUnitShortTrainFastKernelContentWriteAdapterFullPreRms(
     """
     model_name = 'BamPythia2p8BHUnitShortTrainFastKernelContentWriteAdapterFullPreRms'
     bam_pallas_fused_content_adapter = True  # adapter inside the v8t write kernel; same math.
+    # code_commit:f694be4; exact v5p-128/s28000 AOT (FLEX, AOT_COMPILE_OK):
+    # gs://newproject-1-llm_base_models_us-central1/log/compiled_trainsteps/f694be4/jax081-i0ae3f58-c17f538a/v5p-128/s28000/
     bam_content_adapter_write_before_rms = True

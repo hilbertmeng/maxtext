@@ -20280,7 +20280,11 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneContentWriteAdapterFullTruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneTruePile):
     """Per-head identity content adapters; UnitH parent, matched ordinary/private MLP budget."""
-    # ledger only: runtime a59892a; codex/mediumprop-unit-h-content-adapters.
+    # ledger only: runtime ddcc67a; codex/mediumprop-unit-h-content-adapters.
+    # UE5a v5p16 xd-v5p-16-310510-maxtext, s13500; FIRST0/source/AOT/TruePile4096/params verified.
+    # Startup20..99 0.671954step/s (-0.62% vs historical UnitH).
+    # Parameter-FSDP layout fixed before any training;63 CPU checks, including formal8-device layouts.
+    # Parent kernel and extra adapter-health exports differ; descriptive speed comparison only.
     # Worktree: /data0/xd/mediumprop-unit-h-content-adapters; see mediumprop_unit_h_content_adapters.md.
     # Adapter parameters 1530000; MLP widths 2494/1119/tail3904; total 432112210.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneContentWriteAdapterFullTruePile'
@@ -20299,7 +20303,11 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneContentWriteAdapterR16TruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneTruePile):
     """Per-head identity content adapters; UnitH parent, matched ordinary/private MLP budget."""
-    # ledger only: runtime a59892a; codex/mediumprop-unit-h-content-adapters.
+    # ledger only: runtime ddcc67a; codex/mediumprop-unit-h-content-adapters.
+    # UE5a v5p16 xd-v5p-16-310511-maxtext, s13500; FIRST0/source/AOT/TruePile4096/params verified.
+    # Startup20..99 0.664169step/s (-1.77% vs historical UnitH).
+    # Parameter-FSDP layout fixed before any training;63 CPU checks, including formal8-device layouts.
+    # Parent kernel and extra adapter-health exports differ; descriptive speed comparison only.
     # Worktree: /data0/xd/mediumprop-unit-h-content-adapters; see mediumprop_unit_h_content_adapters.md.
     # Adapter parameters 652800; MLP widths 2503/1124/tail3910; total 432113410.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneContentWriteAdapterR16TruePile'
@@ -20318,7 +20326,11 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneContentWriteOAdapterFullTruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneTruePile):
     """Per-head identity content adapters; UnitH parent, matched ordinary/private MLP budget."""
-    # ledger only: runtime a59892a; codex/mediumprop-unit-h-content-adapters.
+    # ledger only: runtime ddcc67a; codex/mediumprop-unit-h-content-adapters.
+    # UE5a v5p16 xd-v5p-16-310512-maxtext, s13500; FIRST0/source/AOT/TruePile4096/params verified.
+    # Startup20..99 0.652595step/s (-3.48% vs historical UnitH).
+    # Parameter-FSDP layout fixed before any training;63 CPU checks, including formal8-device layouts.
+    # Parent kernel and extra adapter-health exports differ; descriptive speed comparison only.
     # Worktree: /data0/xd/mediumprop-unit-h-content-adapters; see mediumprop_unit_h_content_adapters.md.
     # Adapter parameters 3150000; MLP widths 2477/1111/tail3879; total 432112210.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneContentWriteOAdapterFullTruePile'
@@ -20337,7 +20349,11 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneContentWriteOAdapterR16TruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneTruePile):
     """Per-head identity content adapters; UnitH parent, matched ordinary/private MLP budget."""
-    # ledger only: runtime a59892a; codex/mediumprop-unit-h-content-adapters.
+    # ledger only: runtime ddcc67a; codex/mediumprop-unit-h-content-adapters.
+    # UE5a v5p16 xd-v5p-16-310513-maxtext, s13500; FIRST0/source/AOT/TruePile4096/params verified.
+    # Startup20..99 0.647808step/s (-4.19% vs historical UnitH).
+    # Parameter-FSDP layout fixed before any training;63 CPU checks, including formal8-device layouts.
+    # Parent kernel and extra adapter-health exports differ; descriptive speed comparison only.
     # Worktree: /data0/xd/mediumprop-unit-h-content-adapters; see mediumprop_unit_h_content_adapters.md.
     # Adapter parameters 1344000; MLP widths 2496/1121/tail3888; total 432113410.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneContentWriteOAdapterR16TruePile'
@@ -20356,7 +20372,11 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneContentWriteVAdapterR16TruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneTruePile):
     """Per-head identity content adapters; UnitH parent, matched ordinary/private MLP budget."""
-    # ledger only: runtime a59892a; codex/mediumprop-unit-h-content-adapters.
+    # ledger only: runtime ddcc67a; codex/mediumprop-unit-h-content-adapters.
+    # UE5a v5p16 xd-v5p-16-310514-maxtext, s13500; FIRST0/source/AOT/TruePile4096/params verified.
+    # Startup20..99 0.648231step/s (-4.12% vs historical UnitH).
+    # Parameter-FSDP layout fixed before any training;63 CPU checks, including formal8-device layouts.
+    # Parent kernel and extra adapter-health exports differ; descriptive speed comparison only.
     # Worktree: /data0/xd/mediumprop-unit-h-content-adapters; see mediumprop_unit_h_content_adapters.md.
     # Adapter parameters 1344000; MLP widths 2496/1121/tail3888; total 432113410.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneContentWriteVAdapterR16TruePile'
@@ -20375,7 +20395,11 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneContentWriteVOAdapterR16TruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneTruePile):
     """Per-head identity content adapters; UnitH parent, matched ordinary/private MLP budget."""
-    # ledger only: runtime a59892a; codex/mediumprop-unit-h-content-adapters.
+    # ledger only: runtime ddcc67a; codex/mediumprop-unit-h-content-adapters.
+    # UE5a v5p16 xd-v5p-16-310515-maxtext, s13500; FIRST0/source/AOT/TruePile4096/params verified.
+    # Startup20..99 0.630704step/s (-6.72% vs historical UnitH).
+    # Parameter-FSDP layout fixed before any training;63 CPU checks, including formal8-device layouts.
+    # Parent kernel and extra adapter-health exports differ; descriptive speed comparison only.
     # Worktree: /data0/xd/mediumprop-unit-h-content-adapters; see mediumprop_unit_h_content_adapters.md.
     # Adapter parameters 2035200; MLP widths 2489/1117/tail3883; total 432113410.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneContentWriteVOAdapterR16TruePile'

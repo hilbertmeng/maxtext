@@ -83,6 +83,7 @@ class PlotRegistryReportTest(unittest.TestCase):
     self.assertTrue(math.isnan(grid[0, 0].lines[0].get_ydata()[1]))
     self.assertEqual(meta['panels'], ['gain'])
     self.assertEqual(meta['panel_end_steps'], [800])
+    self.assertIsNone(meta['shown'][0]['gap_through'])
 
   def test_comparator_columns_keep_curves_and_limits_matched(self):
     import matplotlib.pyplot as plt

@@ -121,8 +121,9 @@ def render(payloads, output_dir, *, prefix='training-progress', start=600,
       gain_horizons[reference] = max(valid) if valid else None
       if any(not finite(y) for y in ys):
         warnings.append(f'Missing/undefined gain windows remain blank: {run}|{base}|{reference}')
-    shown.append(dict(run=run, base=base, gap_through=max(steps) if steps else None,
-                      gain_through=gain_horizons))
+    shown.append(dict(run=run, base=base,
+                      gap_through=max(steps) if steps and 'gap' in panel_rows else None,
+                      gain_through=gain_horizons if 'gain' in panel_rows else {}))
   for column in range(len(columns)):
     for name, axis in zip(panels, grid[:, column]):
       center, ylabel = ((0, 'Loss gap: experiment - comparator\n(lower is better)')

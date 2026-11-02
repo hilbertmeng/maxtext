@@ -87,7 +87,7 @@ def render(payloads, output_dir, *, prefix='training-progress', start=600,
   columns = ([base for base in bases if any(pair[1] == base for pair in pairs)]
              if bases else sorted({base for _, base in pairs})) if facet_by_base else [None]
   fig, grid = plt.subplots(len(panels), len(columns), squeeze=False,
-      figsize=(max(12.8, 6.8 * len(columns)), 4 * len(panels)), sharex=not independent_x, sharey='row')
+      figsize=(max(12.8, 6.8 * len(columns)), max(8, 4 * len(panels))), sharex=not independent_x, sharey='row')
   if facet_by_base:
     for column, base in enumerate(columns):
       grid[0, column].set_title(labels.get(base, base), fontsize=11)
@@ -152,7 +152,7 @@ def render(payloads, output_dir, *, prefix='training-progress', start=600,
     footer.append('Missing/undefined ratios are blank; see provenance JSON for details.')
   bottom = min(.35, .12 + .012 * len(footer))
   if len(panels) == 1:
-    bottom = max(bottom, .27)
+    bottom = max(bottom, .19)
   fig.subplots_adjust(left=.105, right=.985, bottom=bottom, top=.90, hspace=.25 if independent_x else .15, wspace=.10)
   fig.text(.06, .025, '\n'.join(footer), fontsize=8, color='#444')
   output_dir = Path(output_dir).expanduser().resolve()

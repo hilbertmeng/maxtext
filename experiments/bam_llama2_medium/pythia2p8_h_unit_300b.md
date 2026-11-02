@@ -90,18 +90,18 @@ latest 5k, excluding the initial <2k transient, and retain complete raw caches
 for longer-window investigation. Permanent-checkpoint and midpoint reports
 alternate. Report final 143k without waiting for nonexistent 143025 samples.
 Text/table summaries retain the latest 5k window. The user-selected figure view
-instead plots full histories from 2k: H/old BAM/both Mudds loss minus common MHA in the
-upper panel; H and old BAM gain over Mudd, common MHA reference, in the lower
-panel. Each panel has one shared coordinate system for all its curves; its
-horizontal extent follows its own complete data (Mudd 143k above, old BAM about
-37k below). H ends at its actual progress. Omit 6.9B from figures while retaining
+instead plots three separate figures, each about 16:10: H/old BAM/both Mudds
+loss minus common MHA; H and old BAM gain over parallel Mudd; and H and old BAM
+gain over serial Mudd. Both gain figures use the common MHA reference. Each
+figure has one shared coordinate system for all its curves; its horizontal
+extent follows its own complete data (parallel Mudd 143k in the loss figure,
+old BAM about 37k in the gain figures). H ends at its actual progress. Start
+all three at 2k. Omit 6.9B from figures while retaining
 its registered numerical comparisons. Preserve historical figures; this view
 starts with the 18k report. The read-only exporter is `export_full_context.py`
 in the launch artifact directory and uses registry arithmetic without changing
 any baseline registration/cursor. Mudd's 143k terminal point uses the shared
 window helper on the final three real samples, explicitly marked in provenance.
-An additional gain-only figure compares H and old BAM against serial Mudd, still
-using the original MHA as the common reference. Keep the parallel-Mudd figure.
 Serial Mudd's all-step snapshot is used directly: its sampled native TB has no
 observations at the +1-aligned common grid and must not be interpolated. A
 10k-20k alignment check gives loss correlation .99934 at offset +1 versus .68690

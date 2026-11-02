@@ -125,7 +125,17 @@
       "parallel_mlp": false,
       "native_step_offset": 1,
       "notes": "Imported original every-step loss snapshot; verified against native TensorBoard to six-digit worker-log precision. Plot all observed history, no extrapolation."
-    }
+    },
+    "plot_separate_figures": true,
+    "plot_figure_aspect_ratio": [
+      16,
+      10
+    ],
+    "plot_figure_order": [
+      "loss gaps vs MHA",
+      "gain over parallel Mudd",
+      "gain over serial Mudd"
+    ]
   },
   "checkpoint_rescue": {
     "save_timeout_seconds": 1200,

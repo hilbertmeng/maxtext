@@ -211,7 +211,19 @@ def _tm_read_kernel(n, qk_cols, eps, scale, q_scale, gated, ch, shifted=False, q
         ss_cols = _to_tokens(ss_ref[a])                                   # [T, NP]
         if len(qk_norm) > 2 and qk_norm[2]:
           ones_loc = jnp.ones((qk_cols, qdim), jnp.bfloat16)
+          ones_ss = jnp.ones((np_, qdim), jnp.bfloat16)
+      hb = 8                                   # heads per batched statistic (one MXU weight load each)
       for h in range(n):
+        if a < 2 and qk_norm and len(qk_norm) > 2 and qk_norm[2] and h % hb == 0:
+          # Statistics of heads h..h+nb-1 at once: their token rows are contiguous in y_scr, so one
+          # [nb*T, K] @ ones and one masked ss replica @ ones give lane-broadcast [nb*T, qdim] 1/r.
+          nb = min(hb, n - h)
+          ys = y_scr[pl.ds((a * np_ + h) * t, nb * t), :][:, :qk_cols]
+          blk = jax.lax.broadcasted_iota(jnp.int32, (nb * t, np_), 0) // t + h
+          col = jax.lax.broadcasted_iota(jnp.int32, (nb * t, np_), 1)
+          ss_rep = jnp.where(blk == col, jnp.concatenate([ss_cols] * nb, axis=0), 0.)
+          iv_blk = jax.lax.rsqrt((_dot2(ys * ys, ones_loc) + _dot2(ss_rep, ones_ss)) / qk_norm[1] + qk_norm[0])
+          h0 = h
         y = y_scr[pl.ds((a * np_ + h) * t, t), :]                        # [T, K] token rows
         if a < 2 and qk_norm:
           # Full-head QKNorm in the epilogue, token-major (no per-head XLU transposes): the row
@@ -227,9 +239,8 @@ def _tm_read_kernel(n, qk_cols, eps, scale, q_scale, gated, ch, shifted=False, q
             row = jnp.concatenate([local, jnp.zeros((t, rs), F32)] + pad, axis=1)
           else:
             row = jnp.concatenate([local, (qs if a == 0 else ks)[:, pl.ds(h * rs, rs)].astype(F32)] + pad, axis=1)
-          if len(qk_norm) > 2 and qk_norm[2]:   # MXU statistics, lane-broadcast [T, qdim]
-            iv = jax.lax.rsqrt((_dot2(local * local, ones_loc) + _dot2(ss_cols, _head_selector(np_, qdim, h)))
-                               / width + q_eps)
+          if len(qk_norm) > 2 and qk_norm[2]:   # batched MXU statistics, lane-broadcast [T, qdim]
+            iv = iv_blk[(h - h0) * t:(h - h0 + 1) * t]
           else:
             if 'tminor' in ablate:      # T-minor statistic: one transpose, sublane sum, [1,T] ss row
               row_ss = jnp.sum(jnp.square(_from_tokens(local)), axis=0, keepdims=True) + ss_ref[a, pl.ds(h, 1), :]

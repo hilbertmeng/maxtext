@@ -69,7 +69,7 @@ def break_missing_windows(xs, ys):
 
 def render(payloads, output_dir, *, prefix='training-progress', start=600,
            runs=(), bases=(), labels=None, title=None, notes=(), sources=(), run_colors=None,
-           dpi=120, facet_by_base=False, independent_x=False):
+           dpi=120, facet_by_base=False, independent_x=False, panels=('gap', 'gain')):
   import matplotlib
   matplotlib.use('Agg')
   import matplotlib.pyplot as plt
@@ -77,14 +77,17 @@ def render(payloads, output_dir, *, prefix='training-progress', start=600,
   from PIL import Image
 
   gaps, ratios = collect(payloads, start, runs, bases)
+  if not panels or len(set(panels)) != len(panels) or any(p not in ('gap', 'gain') for p in panels):
+    raise ValueError('panels must select gap and/or gain once each')
+  panel_rows = {name: row for row, name in enumerate(panels)}
   pairs = sorted(set(gaps) | {key[:2] for key in ratios})
   if not pairs:
     raise ValueError(f'No selected cumulative points at/after step {start}')
   labels = labels or {}
   columns = ([base for base in bases if any(pair[1] == base for pair in pairs)]
              if bases else sorted({base for _, base in pairs})) if facet_by_base else [None]
-  fig, grid = plt.subplots(2, len(columns), squeeze=False,
-      figsize=(max(12.8, 6.8 * len(columns)), 8), sharex=not independent_x, sharey='row')
+  fig, grid = plt.subplots(len(panels), len(columns), squeeze=False,
+      figsize=(max(12.8, 6.8 * len(columns)), 4 * len(panels)), sharex=not independent_x, sharey='row')
   if facet_by_base:
     for column, base in enumerate(columns):
       grid[0, column].set_title(labels.get(base, base), fontsize=11)
@@ -96,10 +99,10 @@ def render(payloads, output_dir, *, prefix='training-progress', start=600,
     label = labels.get(run, run) if facet_by_base else f'{labels.get(run, run)} vs {labels.get(base, base)}'
     gap = gaps.get(pair, {})
     steps = sorted(gap)
-    if steps:
+    if steps and 'gap' in panel_rows:
       gx, gy = break_missing_windows(steps, [gap[s]['gap'] if finite(gap[s].get('gap')) else math.nan
                                           for s in steps])
-      axes[0].plot(gx, gy, color=color, marker='o', markersize=2.5,
+      axes[panel_rows['gap']].plot(gx, gy, color=color, marker='o', markersize=2.5,
                    linewidth=1.5, label=label)
     gain_horizons = {}
     own_ratios = [(key, points) for key, points in ratios.items() if key[:2] == pair]
@@ -110,9 +113,10 @@ def render(payloads, output_dir, *, prefix='training-progress', start=600,
       xs = sorted(set(steps) | set(points))
       ys = [ratio_value(points.get(s, {})) for s in xs]
       xs, ys = break_missing_windows(xs, ys)
-      axes[1].plot(xs, ys, color=color, linestyle=('-', '--', ':')[ri % 3],
-                   marker='o', markersize=2.5, linewidth=1.5,
-                   label=f'{label}; ref={labels.get(reference, reference)}')
+      if 'gain' in panel_rows:
+        axes[panel_rows['gain']].plot(xs, ys, color=color, linestyle=('-', '--', ':')[ri % 3],
+                     marker='o', markersize=2.5, linewidth=1.5,
+                     label=f'{label}; ref={labels.get(reference, reference)}')
       valid = [s for s in sorted(points) if finite(ratio_value(points[s]))]
       gain_horizons[reference] = max(valid) if valid else None
       if any(not finite(y) for y in ys):
@@ -120,9 +124,9 @@ def render(payloads, output_dir, *, prefix='training-progress', start=600,
     shown.append(dict(run=run, base=base, gap_through=max(steps) if steps else None,
                       gain_through=gain_horizons))
   for column in range(len(columns)):
-    for axis, center, ylabel in zip(grid[:, column], (0, 1),
-        ('Loss gap: experiment - comparator\n(lower is better)',
-         'Gain multiplier\n(higher is better)')):
+    for name, axis in zip(panels, grid[:, column]):
+      center, ylabel = ((0, 'Loss gap: experiment - comparator\n(lower is better)')
+                        if name == 'gap' else (1, 'Gain multiplier\n(higher is better)'))
       axis.axhline(center, color='#777', linestyle=':', linewidth=1)
       if column == 0:
         axis.set_ylabel(ylabel)
@@ -132,8 +136,8 @@ def render(payloads, output_dir, *, prefix='training-progress', start=600,
   end = max(point['step'] for table in (gaps, ratios) for points in table.values()
             for point in points.values())
   row_ends = [max((point['step'] for points in table.values() for point in points.values()),
-                  default=end) for table in (gaps, ratios)]
-  for row in (range(2) if independent_x else (1,)):
+                  default=end) for table in ({'gap': gaps, 'gain': ratios}[p] for p in panels)]
+  for row in (range(len(panels)) if independent_x else (len(panels) - 1,)):
     row_end = row_ends[row] if independent_x else end
     ticks = MaxNLocator(nbins=6, integer=True).tick_values(start, max(start + 1, row_end))
     for axis in grid[row]:
@@ -146,6 +150,8 @@ def render(payloads, output_dir, *, prefix='training-progress', start=600,
   if any('Missing/undefined' in warning for warning in warnings):
     footer.append('Missing/undefined ratios are blank; see provenance JSON for details.')
   bottom = min(.35, .12 + .012 * len(footer))
+  if len(panels) == 1:
+    bottom = max(bottom, .27)
   fig.subplots_adjust(left=.105, right=.985, bottom=bottom, top=.90, hspace=.25 if independent_x else .15, wspace=.10)
   fig.text(.06, .025, '\n'.join(footer), fontsize=8, color='#444')
   output_dir = Path(output_dir).expanduser().resolve()
@@ -164,7 +170,7 @@ def render(payloads, output_dir, *, prefix='training-progress', start=600,
   # Keep exact native series and identities beside each unique PNG for reproducibility.
   provenance = dict(figure=str(path), generated_utc=stamp, sources=list(sources),
       plot_start=start, title=title, labels=labels, run_colors=run_colors or {}, notes=list(notes), shown=shown,
-      facet_by_base=facet_by_base, independent_x=independent_x, panel_end_steps=row_ends, column_bases=columns,
+      facet_by_base=facet_by_base, independent_x=independent_x, panels=list(panels), panel_end_steps=row_ends, column_bases=columns,
       image=dict(dpi=dpi, width=image_size[0], height=image_size[1],
                  format='PNG', palette_colors=256, bytes=path.stat().st_size),
       warnings=warnings,
@@ -194,6 +200,8 @@ def main():
   parser.add_argument('--color', nargs=2, action='append', default=[], metavar=('RUN', 'COLOR'))
   parser.add_argument('--independent-x', action='store_true',
                       help='Separate gap/gain panel horizons; curves within each panel share one axis')
+  parser.add_argument('--panels', nargs='+', choices=('gap', 'gain'), default=['gap', 'gain'],
+                      help='Select loss-gap and/or gain panels; default draws both')
   parser.add_argument('--title')
   parser.add_argument('--note', action='append', default=[])
   args = parser.parse_args()
@@ -203,7 +211,7 @@ def main():
     texts = [path.read_bytes() for path in args.reports]
     result = render([json.loads(text) for text in texts], args.output_dir,
         prefix=args.prefix, start=args.start_step, runs=args.run, bases=args.base,
-        dpi=args.dpi, facet_by_base=args.facet_by_base, independent_x=args.independent_x,
+        dpi=args.dpi, facet_by_base=args.facet_by_base, independent_x=args.independent_x, panels=args.panels,
         labels=dict(args.label), run_colors=dict(args.color), title=args.title, notes=args.note,
         sources=[dict(path=str(p.resolve()), sha256=hashlib.sha256(text).hexdigest())
                  for p, text in zip(args.reports, texts)])

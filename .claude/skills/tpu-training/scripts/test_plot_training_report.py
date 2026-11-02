@@ -66,6 +66,24 @@ class PlotRegistryReportTest(unittest.TestCase):
         plot.render([example()], directory, start=2000)
       self.assertEqual(list(Path(directory).iterdir()), [])
 
+  def test_gain_only_preserves_native_ratio_and_its_own_horizon(self):
+    import matplotlib.pyplot as plt
+    captured = {}
+    real_subplots = plt.subplots
+    def capture(*args, **kwargs):
+      fig, grid = real_subplots(*args, **kwargs)
+      captured['grid'] = grid
+      return fig, grid
+    with tempfile.TemporaryDirectory() as directory, patch.object(plt, 'subplots', capture):
+      result = plot.render([example()], directory, runs=['Run'], panels=('gain',), independent_x=True)
+      meta = json.loads(Path(result['provenance']).read_text())
+    grid = captured['grid']
+    self.assertEqual(grid.shape, (1, 1))
+    self.assertEqual(grid[0, 0].lines[0].get_ydata()[0], 7.25)
+    self.assertTrue(math.isnan(grid[0, 0].lines[0].get_ydata()[1]))
+    self.assertEqual(meta['panels'], ['gain'])
+    self.assertEqual(meta['panel_end_steps'], [800])
+
   def test_comparator_columns_keep_curves_and_limits_matched(self):
     import matplotlib.pyplot as plt
     payload = example()

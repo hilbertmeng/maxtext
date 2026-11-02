@@ -64,19 +64,24 @@ for metadata inspection; it does not claim target-TPU memory/AOT verification.
 
 ## Baselines, coordinates and reporting
 
-Keep exactly these four comparisons:
+Keep these five comparisons:
 
 - `Pythia_2.8B_2022`: common reference for all gain multipliers.
 - `Pythia_6.9B_2022_Decay`.
 - `PileMUDDPythia3BPlusOcdbtv6e`: historical parallel-MLP Mudd, WD .01.
 - `BamPythia2p8BSotaIndependentR768Pallas`: old 300B-plan BAM, runtime 1ac1183,
   paused at checkpoint 37042. Never extend its observed curve past its data.
+- `MuddPythia3BSerialMLPKeepActivations`: serial-MLP Mudd, WD .1; actual RUN
+  `MuddPythia3BSerialMLP`, runtime 9cdcbd0. Its original every-step snapshot
+  reaches native 57669, with mature 500-step windows through 57500.
 
-Use completed-update comparison coordinates. Both the new RUN and the old
-MaxText BAM baseline need offset +1; external Pythia/PaxML histories stay at 0.
+Use common training-step comparison coordinates. The new RUN, old MaxText BAM,
+and serial MaxText Mudd baseline need offset +1; external Pythia/PaxML histories
+stay at 0. Official FP16 Pythia iteration counts include overflow-skipped updates,
+so the common axis is not strictly a count of successful optimizer updates.
 Applying the offset only to the new RUN would recreate the old one-step error
 in the new-versus-old BAM comparison. Keep native caches/checkpoint labels
-unchanged. Register all three gain triples from the JSON plan at launch;
+unchanged. Register the gain triples from the JSON plan;
 use the shared registry calculations, not a separate gain formula.
 
 User-confirmed long-run cadence: reports at 3k, 8k, 13k, 18k, ... (every 5k).
@@ -85,7 +90,7 @@ latest 5k, excluding the initial <2k transient, and retain complete raw caches
 for longer-window investigation. Permanent-checkpoint and midpoint reports
 alternate. Report final 143k without waiting for nonexistent 143025 samples.
 Text/table summaries retain the latest 5k window. The user-selected figure view
-instead plots full histories from 2k: H/old BAM/Mudd loss minus common MHA in the
+instead plots full histories from 2k: H/old BAM/both Mudds loss minus common MHA in the
 upper panel; H and old BAM gain over Mudd, common MHA reference, in the lower
 panel. Each panel has one shared coordinate system for all its curves; its
 horizontal extent follows its own complete data (Mudd 143k above, old BAM about
@@ -95,6 +100,12 @@ starts with the 18k report. The read-only exporter is `export_full_context.py`
 in the launch artifact directory and uses registry arithmetic without changing
 any baseline registration/cursor. Mudd's 143k terminal point uses the shared
 window helper on the final three real samples, explicitly marked in provenance.
+An additional gain-only figure compares H and old BAM against serial Mudd, still
+using the original MHA as the common reference. Keep the parallel-Mudd figure.
+Serial Mudd's all-step snapshot is used directly: its sampled native TB has no
+observations at the +1-aligned common grid and must not be interpolated. A
+10k-20k alignment check gives loss correlation .99934 at offset +1 versus .68690
+at offset 0. Native snapshot/TB agreement is within 5e-7 worker-log rounding.
 
 Reporting lives in registry group `pythia28-h-unit-300b-1101`, not in model math.
 The group starts at 3k without advancing any undelivered report cursor.

@@ -27,7 +27,8 @@
     "Pythia_2.8B_2022",
     "Pythia_6.9B_2022_Decay",
     "PileMUDDPythia3BPlusOcdbtv6e",
-    "BamPythia2p8BSotaIndependentR768Pallas"
+    "BamPythia2p8BSotaIndependentR768Pallas",
+    "MuddPythia3BSerialMLPKeepActivations"
   ],
   "reporting": {
     "cadence_steps": 5000,
@@ -52,11 +53,17 @@
         "BamPythia2p8BHUnit300B",
         "BamPythia2p8BSotaIndependentR768Pallas",
         "Pythia_2.8B_2022"
+      ],
+      [
+        "BamPythia2p8BHUnit300B",
+        "MuddPythia3BSerialMLPKeepActivations",
+        "Pythia_2.8B_2022"
       ]
     ],
     "loss_step_offsets": {
       "BamPythia2p8BHUnit300B": 1,
-      "BamPythia2p8BSotaIndependentR768Pallas": 1
+      "BamPythia2p8BSotaIndependentR768Pallas": 1,
+      "MuddPythia3BSerialMLPKeepActivations": 1
     },
     "notes": "Report at 3k, 8k, 13k, ...; permanent checkpoints and midpoints alternate. Verify the 3k checkpoint on first report and retention after later rolling cleanup. Keep complete raw caches for longer-window analysis.",
     "plot_min_step": 2000,
@@ -73,6 +80,10 @@
       ],
       [
         "PileMUDDPythia3BPlusOcdbtv6e",
+        "Pythia_2.8B_2022"
+      ],
+      [
+        "MuddPythia3BSerialMLPKeepActivations",
         "Pythia_2.8B_2022"
       ]
     ],
@@ -92,7 +103,29 @@
     "plot_independent_panel_x_axes": true,
     "plot_excluded_runs": [
       "Pythia_6.9B_2022_Decay"
-    ]
+    ],
+    "plot_serial_mudd_gain_ratios": [
+      [
+        "BamPythia2p8BHUnit300B",
+        "MuddPythia3BSerialMLPKeepActivations",
+        "Pythia_2.8B_2022"
+      ],
+      [
+        "BamPythia2p8BSotaIndependentR768Pallas",
+        "MuddPythia3BSerialMLPKeepActivations",
+        "Pythia_2.8B_2022"
+      ]
+    ],
+    "serial_mudd_source": {
+      "actual_run": "MuddPythia3BSerialMLP",
+      "runtime_commit": "9cdcbd02d93437b3e795a93cb787e608e39a9fff",
+      "native_last_step": 57669,
+      "last_mature_plot_step": 57500,
+      "weight_decay": 0.1,
+      "parallel_mlp": false,
+      "native_step_offset": 1,
+      "notes": "Imported original every-step loss snapshot; verified against native TensorBoard to six-digit worker-log precision. Plot all observed history, no extrapolation."
+    }
   },
   "checkpoint_rescue": {
     "save_timeout_seconds": 1200,

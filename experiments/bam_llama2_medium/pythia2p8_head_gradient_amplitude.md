@@ -1,5 +1,9 @@
 # Pythia 2.8B output-head gradient and precision diagnostics
 
+Follow-up: [cross-checkpoint CE backward and logit-offset diagnostics](pythia2p8_h_ce_precision.md)
+isolate CE precision from growing output-rounding sensitivity and relate both
+to the loss/gradient change around 30k. Production H remains paused.
+
 Implementation: `/home/xd/projects/maxtext`, `refactor-bam`. These are read-only
 checkpoint probes, not changes to the training RUN. The existing FLEX compiler
 `llm-jax-v6e-1-0`, `europe-west4-a`, worker 0 was borrowed under its AOT worker

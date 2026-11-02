@@ -26,7 +26,12 @@ def offset_metrics(h, w, y, runtime):
   return dict(losses=losses,logit_mean=mean[...,0],logit_min=high.min(-1),logit_max=high.max(-1),
               logit_std=jnp.sqrt(jnp.mean(centered*centered,-1)),
               output_rounding_rms=jnp.sqrt(jnp.mean((high-low)**2,-1)),
-              native_vs_rounded_accumulator_mismatch=jnp.mean(low!=high.astype(jnp.bfloat16).astype(jnp.float32)))
+              # Compare representations: an in-graph FP32 comparison across a
+              # BF16 round-trip can retain excess precision on TPU. A separate
+              # host-materialization control confirmed native == rounded high.
+              native_vs_rounded_accumulator_mismatch=jnp.mean(
+                  jax.lax.bitcast_convert_type(low.astype(jnp.bfloat16),jnp.uint16) !=
+                  jax.lax.bitcast_convert_type(high.astype(jnp.bfloat16),jnp.uint16)))
 
 
 def main():

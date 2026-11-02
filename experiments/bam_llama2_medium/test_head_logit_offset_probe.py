@@ -17,6 +17,7 @@ class LogitOffsetTest(unittest.TestCase):
     # The first input feature produces an uninformative common +256 offset.
     w=jnp.array([[256.,256.,256.],[.1,.2,.3]])
     result=probe.offset_metrics(h,w,jnp.array([[2]]),max_utils)
+    self.assertEqual(float(result['native_vs_rounded_accumulator_mismatch']),0.)
     losses=result['losses']
     np.testing.assert_allclose(losses['accumulator_fp32'],losses['center_fp32_control'],atol=2e-5,rtol=0)
     self.assertGreater(abs(float(losses['bf16_logits'][0,0]-losses['accumulator_fp32'][0,0])),.01)

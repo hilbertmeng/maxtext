@@ -6,6 +6,32 @@ The user authorized launch on 2026-11-01; the runtime is sealed on current main.
 The durable orchestration settings are in
 [the launch/report plan](pythia2p8_h_unit_300b_plan.json).
 
+## Current state: user-requested resumable pause
+
+The logical RUN `BamPythia2p8BHUnit300B`, now using
+`BamPythia2p8BHUnit300BFastKernel` at runtime `16ee238`, paused at committed
+checkpoint 44221 of the unchanged 143000-step schedule. The native data cursor
+also records checkpoint_step 44221, global batch 1024 and 32 infeed hosts.
+All 32 training processes exited; the training node and queued resource
+`xd-v5p-256-311101-maxtext` are independently verified absent. RUN registration
+and GCS checkpoints remain available for resume. The report watcher was stopped;
+report cursors and the original 3k-plus-5k calendar remain intact.
+
+Results remain provisional. At the latest mature 44k window, loss minus MHA
+is -.08945; MHA-referenced gain ratios versus parallel/serial Mudd are
+1.3218/1.3801. H still leads, but its absolute MHA gain has declined after
+30k while parallel Mudd approaches its historical 43k-45k gain peak. At the
+last old-BAM common 37k window, H minus old BAM is -.03421 and the multiplier
+is 1.5595. The terminal priors remain untested; neither old BAM history nor
+H's observed trend is extrapolated as a measured terminal outcome.
+
+One UE5a READY lease, no preemptions: 2026-11-01 14:16:06 to 2026-11-02
+12:03:03 UTC, 21h 46m 57s. This is a manual pause, not preemption. Native
+pause/checkpoint/resource journals and final incremental TB synchronization
+are retained in `/data0/xd/bam_diagnostics/h-unit-300b-launch-20261101`.
+The borrowed FLEX compiler is retained, with diagnostics finished and lock released.
+See [head amplitude and precision measurements](pythia2p8_head_gradient_amplitude.md).
+
 ## Model identity
 
 Direct architecture parent:

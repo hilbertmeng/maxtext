@@ -17480,6 +17480,10 @@ class BamPythia2p8BHUnit300BFastKernel(BamPythia2p8BHUnit300B):
     # UE5a v5p-256, health ON: matched 26021..26040 speed .55940 -> .61327 step/s (+9.63%).
     # Paired 26001..26040 loss: mean delta -0.00004415, max abs 0.000218; all 32 workers loaded AOT.
     # Handoff/overlap evidence: pythia2p8_h_unit_300b.md, kernel runtime handoff section.
+    # User paused the same RUN at committed checkpoint 44221/143000; TPU/queue released, original schedule resumable.
+    # Provisional: MHA gain contracts after 30k; 44k gap -.08945, MHA-ref ratios 1.3218/1.3801 versus parallel/serial Mudd.
+    # Versus old BAM: last common 37k gap -.03421, ratio 1.5595; old history ends there, full endpoint remains unmeasured.
+    # Head-gradient/amplitude and 43k precision diagnostics: pythia2p8_head_gradient_amplitude.md.
     model_name = 'BamPythia2p8BHUnit300BFastKernel'
     bam_pallas_packed_read_keys = True
     bam_pallas_fused_qk_norm = True

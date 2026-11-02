@@ -27,6 +27,7 @@ active leases are censored, and manual migration releases are not preemptions.
 
 | RUN | TPU | Zone | Start UTC | End UTC | End reason | Passive candidates |
 |---|---|---|---|---|---|---|
+| `BamPythia2p8BHUnit300B` | v5p-256 (`xd-v5p-256-311101-maxtext`) | `us-east5-a` | 2026-11-01 14:11:25 | 2026-11-02 12:03:03 | user resumable pause at CP44221/143000; P0; checkpoint/cursor verified, TB synced, node and queue independently absent; runtime16ee238 after CP26000 handoff | none |
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneContentWriteAdapterFullPreRmsTruePile` | v5p-16 (`xd-v5p-16-310518-maxtext`) | `us-east5-a` | 2026-11-02 07:32:58 | active | runtime37cf812/P0; FIRST/source/AOT/data/budget verified; backup EW4b | none |
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneContentWriteOAdapterR16PreRmsTruePile` | v5p-16 (`xd-v5p-16-310519-maxtext`) | `us-east5-a` | 2026-11-02 07:33:25 | 2026-11-02 09:58:30 | user stop5498/P0; CP/TB SYNC_OK, node+QR independently absent | none |
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneContentWriteAdapterFullSharedHeadsTruePile` | v5p-16 (`xd-v5p-16-310517-maxtext`) | `us-east5-a` | 2026-11-02 05:59:04 | 2026-11-02 08:48:51 | user stop6611/P0; CP/TB SYNC_OK, node+QR independently absent; runtime3e3e1e0; FIRST/source/AOT/data/budget verified; backup EW4b | none |
@@ -2498,6 +2499,7 @@ active leases are censored, and manual migration releases are not preemptions.
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneContentWriteOAdapterR16TruePile` | 1 | `us-east5-a` | 2026-11-02 03:09:15 | 2026-11-02 09:21:48 | 6h12m33s | complete13500/P0; CP/TB SYNC_OK, node+QR independently absent |
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneTruePile` | 2 | `us-east5-a` | 2026-11-02 07:58:26 | 2026-11-02 09:47:10 | 1h48m44s | complete13500/P0; CP/TB SYNC_OK, node+QR independently absent |
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneContentWriteOAdapterR16PreRmsTruePile` | 1 | `us-east5-a` | 2026-11-02 07:33:31 | 2026-11-02 09:58:30 | 2h24m59s | user stop5498/P0; CP/TB SYNC_OK, node+QR independently absent |
+| `BamPythia2p8BHUnit300B` | 1 | `us-east5-a` | 2026-11-01 14:16:06 | 2026-11-02 12:03:03 | 21h 46m 57s | user resumable pause at CP44221; P0; checkpoint/cursor and TB secured; node and queue independently absent |
 
 ### 2026-10-14 user pause: resumed mixed R256/R384
 

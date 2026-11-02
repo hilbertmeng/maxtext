@@ -16,18 +16,20 @@ from bam_fast_kernel_test import FastKernelTest
 BASE='BamPythia2p8BHUnitShortTrainFastKernel'
 FULL=BASE+'ContentWriteAdapterFull'
 WO=BASE+'ContentWriteOAdapterR16'
-CASES=[(FULL,0,8704,6348800,2774984832,31),(WO,16,8960,5160960,2775107968,63)]
+PRE=BASE+'ContentWriteAdapterFullPreRms'
+CASES=[(FULL,0,8704,6348800,2774984832,31),(WO,16,8960,5160960,2775107968,63),(PRE,0,8704,6348800,2774984832,31)]
 
 class PythiaAdapterTest(FastKernelTest):
   def test_formal_parameters_and_sharding(self):
     for name,rank,tail,extra,total,metrics in CASES:
       c=self.config(name);parent=self.config(BASE)
       changed={k for k,v in c.get_keys().items() if v!=parent.get_keys().get(k)}
-      allowed={'exp_class','model_name','compare_runs','bam_content_adapter_write','bam_content_adapter_o','bam_content_adapter_v','bam_content_adapter_rank','bam_content_adapter_flatten_params','bam_last_mlp_dim'}
+      allowed={'exp_class','model_name','compare_runs','bam_content_adapter_write','bam_content_adapter_o','bam_content_adapter_v','bam_content_adapter_rank','bam_content_adapter_flatten_params','bam_last_mlp_dim','bam_content_adapter_write_before_rms'}
       self.assertLessEqual(changed,allowed)
       self.assertEqual((c.mlp_dim,c.bam_memory_mlp_dim,c.bam_last_mlp_dim),(7808,2944,tail));self.assertTrue(all(x%128==0 for x in (c.mlp_dim,c.bam_memory_mlp_dim,c.bam_last_mlp_dim)))
       self.assertEqual((c.steps,c.learning_rate_schedule_steps,c.learning_rate,c.warmup_steps_fraction),(28000,28000,.0002,.02));self.assertIsNone(c.bam_qk_logit_scale_dim)
       self.assertTrue(c.bam_pallas_packed_read_keys and c.bam_pallas_fused_qk_norm and c.bam_pallas_core and c.bam_pallas_write)
+      self.assertEqual(bool(c.bam_content_adapter_write_before_rms),name==PRE)
       self.assertEqual((c.bam_pallas_vmem_mib,c.remat_policy),(63,'minimal_save_splash'));self.assertEqual(c.compare_runs,[BASE]);self.assertTrue(c.record_training_health_metrics and not c.record_internal_nn_metrics)
       c.get_keys().update(max_target_length=8,max_prefill_predict_length=8,bam_pallas_core=False,bam_pallas_write=False,bam_splash_attention=False)
       mesh=jax.sharding.Mesh(max_utils.create_device_mesh(c),c.mesh_axes);tokens=jnp.ones((1,8),jnp.int32)
@@ -75,8 +77,10 @@ class PythiaAdapterTest(FastKernelTest):
       for i,path in enumerate(flat):
         if any(str(t).startswith('content_') and str(t).endswith('_adapter') for t in path):flat[path]=flat[path]+.03*jax.random.normal(jax.random.key(400+i),flat[path].shape)
       return unflatten_dict(flat)
-    self.bf16_training_objective = dtype == 'bfloat16' and name == WO
+    self.bf16_training_objective = dtype == 'bfloat16' and name in (WO, PRE)
     with mock.patch.object(nn.Module,'init',init):self.check_model(name,dtype)
+  def test_pre_rms_full_all_gradients(self):self.check_adapter(PRE)
+  def test_pre_rms_full_bf16_training_loss(self):self.check_adapter(PRE,'bfloat16')
   def test_full_all_gradients(self):self.check_adapter(FULL)
   def test_write_o_r16_all_gradients(self):self.check_adapter(WO)
   def test_full_bf16_against_truth(self):self.check_adapter(FULL,'bfloat16')

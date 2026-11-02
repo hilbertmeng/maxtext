@@ -55,3 +55,17 @@ Runtime `ddcc67af56b4dd37b223e8f4454bb8405035bf0b`. All six AOT manifests/config
 | 310515 | ContentWriteVOAdapterR16 | 0.630704 | -6.72% |
 
 These startup timings are descriptive: newer parent read-kernel infrastructure and adapter-specific health differ from historical UnitH. Rank16 is slower than dense at both matched route sets despite fewer adapter parameters; the speed priors were optimistic for the low-rank routes. Loss/capacity judgments remain open. Group clock is write-rank16 (310511), fixed2k cadence/4k+8k reviews, stop only after user confirmation. Main exp.py records only config/provenance/startup/final conclusions, not routine loss reports.
+
+## Nonlinear write+O rank16 replacement
+
+User authorized replacing write+V rank16 with write+O rank16 GELU, from scratch on its existing READY trainer. New RUN suffix ContentWriteOAdapterR16GeluTruePile (controllerID310516), actualTPU xd-v5p-16-310514-maxtext/UE5a retained. Direct comparator is the linear write+O rank16 RUN, not an ancestor substitute. Both attention-write and complete-localO adapters become x+GELU(x down)up; each layer/head has its own weights. No V adapter. Up stays zero; down fan-in normal. No added parameters; widths2496/1121/tail3888, total432113410 remain exact matches to the linear comparator. Embedding/private writers, norms, gates, common read scale initialization1, scan, Splash and both Pallas kernels stay unchanged.
+
+GELU cannot commute through context attention; nonlinear V adapters are deliberately rejected. A nonlinear adapter has no global Delta matrix: compact health reports ||.5 down up||_F/||I||_F as the zero-input adapter Jacobian update, tagged jacobian0_update_over_identity. Generic parameter health remains available. This is not the activation-dependent effective output change.
+
+Prior: MHA-reference new/linear-parent gain1.020 (rough range0.99-1.05); speed-.5% versus linear write+O. Unlike the linear r16 cases, its two projections cannot be collapsed to a fixed matrix at each optimizer step.
+
+Infrastructure audit against main9aa2dd5: post-fb9e8689 change16ee2385 adds three default-OFF optional packed-key/fused-QKNorm/Splash-remat flags and corresponding model paths. No later train/checkpoint/summary/optimizer operational repair is missing. Preserve the verified linear-parent runtime behavior; do not introduce those optional optimizations into this GELU comparison. TBrotation500, construction/begin_step and5 summary regressions retained. CPU gate covers identity/learning, independent nonlinear forward+all-grad oracle, zero-input Jacobian health, exact formal-parent parameter trees/budget,8-device FSDP layout, full native/Pallas model logits+all-gradients, unchanged linear adapter cases, and writer rotation. Existing five RUNs retain sealed ddcc67a.
+
+Finish new CPU/config/AOT gates before checkpointing the old write+V and handing over. Collect the old terminal native report once at handoff. Confirm new source/AOT/data/parameter count/FIRST_STEP before transferring ownership; then finalize old RUN with resource deletion disabled and remove it from active group. New RUN cadence2k/reviews4k+8k; review recommendations require user confirmation. Original-group4k calendar remains fixed during preparation.
+
+Sealed GELU runtime b84abc2;12 focused CPU checks passed, config seal passed; AOT/handoff in progress.

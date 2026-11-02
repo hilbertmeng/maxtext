@@ -17474,6 +17474,8 @@ class BamPythia2p8BHUnit300BFastKernel(BamPythia2p8BHUnit300B):
     # v5p-8 paired profiles (8/device, 32 layers, health ON): versus the unit H implementation
     # .6356 -> .6958 step/s (+9.5%); same-remat versus the old long-training implementation +0.3..0.8%.
     # Evidence and ablations: branch claude/pythia-h-speed, pythia2p8_h_unit_speed_kernel.md.
+    # code_commit:16ee238; exact v5p-256/s143000 AOT (FLEX, AOT_COMPILE_OK):
+    # gs://newproject-1-llm_base_models_us-central1/log/compiled_trainsteps/16ee238/jax081-i0ae3f58-c17f538a/v5p-256/s143000/
     model_name = 'BamPythia2p8BHUnit300BFastKernel'
     bam_pallas_packed_read_keys = True
     bam_pallas_fused_qk_norm = True

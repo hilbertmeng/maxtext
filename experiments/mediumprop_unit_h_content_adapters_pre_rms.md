@@ -24,3 +24,7 @@ Infrastructure audit against main d2ecc0c078e7a0847b4026a40898c083ae8a7248: prev
 ## Verified startup
 
 Sealed runtime37cf812170a3136b8a08b5f5c26b645c6fece98d;57 CPU checks/config seals and both topology/schedule AOT manifests passed. Both FIRST_STEP0, source/data/parameter counts and startup20..99 verified. Write-full pre-RMS0.680404step/s (+1.26% vs its post-RMS parent); write+O-r16 pre-RMS0.655931step/s (+1.25%). Health settings match the timing parents. Both belong to the original unified group; six active RUNs, no extra child group. Retained FLEX preserved. No mature loss conclusion.
+
+## Completed control coverage and confirmed r16 stop
+
+The common UnitH comparator was subsequently resumed to13500; mature comparison now extends13400. Both matched post-RMS controls completed13500. User confirmed stopping pre-RMS write+O-r16 at5498 after the4k recommendation; final5 native windows through5400 gap-0.0006086/R1.0026985 vs UnitH, while remaining behind matched post-RMS. CP/TB SYNC_OK, node+queue absent; full endpoint unmeasured. Pre-RMS full-write remains active. All belong to the original unified reporting group; completed positive controls remain plotted, and the stopped r16 prefix is shown once at final closeout.

@@ -1,8 +1,8 @@
 # UnitH per-head content adapters
 
-Status: six trainers passed FIRST_STEP and startup20..99 audits on repaired runtime ddcc67a.63 unique CPU checks covered, including8-device sharding. No loss conclusion is claimed here. User authorized these six experiments on the learnable common-read-scale H initialized to one. All Medium experiments prepare transfer to 2.8B.
+Status: write-full, write+O-r16 and the resumed UnitH comparator completed13500. Six adapter prefixes were stopped earlier; pre-RMS write+O subsequently stopped5498 after user confirmation. Only pre-RMS write-full remains in training. All new2.8B transfers are config-only; no2.8B trainer was launched. All Medium experiments prepare transfer to2.8B.
 
-Worktree `/data0/xd/mediumprop-unit-h-content-adapters`; branch `codex/mediumprop-unit-h-content-adapters`. Main source/fresh infrastructure audit: `fb9e8689`. Runtime manifest: `/data0/xd/bam_diagnostics/mediumprop-unit-h-content-adapters/runtime.json`. Direct parent `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneTruePile` (runtime aa7d8ec), paused checkpoint9341; mature direct comparison ends9200. User previously declined resuming this parent. No extrapolated baseline after9200. MHA reference `BamMHAMediumPropC256TruePile`.
+Worktree `/data0/xd/mediumprop-unit-h-content-adapters`; branch `codex/mediumprop-unit-h-content-adapters`. Main source/fresh infrastructure audit: `fb9e8689`. Runtime manifest: `/data0/xd/bam_diagnostics/mediumprop-unit-h-content-adapters/runtime.json`. Direct parent `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneTruePile` (runtime aa7d8ec), initially paused at9341, then resumed on2026-11-02 at the user's request and completed13500; final mature comparison ends13400. No baseline extrapolation. MHA reference `BamMHAMediumPropC256TruePile`.
 
 ## Design and prior
 
@@ -113,3 +113,27 @@ At the user's request the common UnitH comparator resumes from9341 to13500 using
 User stopped shared-head full write at6611/13500. Versus common UnitH, mature6.4k gap-.0009236/R1.0044663, last5mean gap-.0015143/R1.0070493. Early near-parity with independent-head full write does not persist: sharing retains gain but the gap to the independent route widens. Adapter parameters fall1530000->95625, saving1434375 and refunding to ordinary/private MLPs, while startup speed stays flat(-.08%); no M-cache change. The extra MLP capacity has not compensated the lost head-specific transform freedom over this prefix. Full endpoint unmeasured;1.015 new/full-parent prior unsupported.
 
 P0, single UE5a/v5p16 READY lease2026-11-02T05:59:07Z..08:48:51Z,10184s (2h49m44s), manual stop. CP6611 committed, localTB SYNC_OK, node+queue independently absent. Four adapter RUNs plus the resumed original UnitH comparator remain active. The shared-head RUN is removed from the unified group with history. After the original clock finishes, transfer clock to pre-RMS full-write; its published native2.4k means reported milestone2k/next4k, not the old clock's12k. Keep the single group and native4k/8k recommendations requiring user confirmation.
+
+## Completed matched endpoint
+
+Both original surviving adapters and the resumed common UnitH comparator completed13500. All final checkpoints/TensorBoards are saved and all three TPU nodes and queues independently absent. UnitH keeps its original aa7d8ec source, optimizer/LR plan and data cursor across the9341 pause/resume. Final five common windows are12600..13400; ratios use the original matched MHA.
+
+| Route | Comparator | Final5 gap | Final5 MHA-ref ratio | Outcome |
+|---|---|---:|---:|---|
+| full | UnitH | -0.0031152 | 1.0175027 | Completed13500;1.020 prior close |
+| wo | UnitH | -0.0021474 | 1.0120523 | Completed13500;1.040 prior optimistic |
+| unit | Original H | +0.0047828 | 0.9738255 | Completed13500 after9341 resume |
+
+Full-write-only is the strongest completed adapter recipe on this chosen transfer base. Its independent full matrices outperform the more elaborate write+O-r16 option; a capacity-only explanation is not isolated from factorized optimization. This comparison is internal to UnitH: unit initialization itself still trails original H on Medium. The stopped write-r16/GELU/head-shared variants do not establish full-schedule endpoints. Required2.8B configurations are documented separately in pythia2p8_h_unit_content_adapters.md.
+
+Pre-RMS write+O was user-stopped5498 after the4k recommendation. A brief4.8k improvement does not persist against the matched post-RMS route; final5 vs UnitH gap-0.0006086/R1.0026985. CP5498/TB SYNC_OK, node+queue independently absent. Pre-RMS write-full continues in the same group; the next review remains native8k, recommendations pending user confirmation.
+
+All below are v5p16/UE5a, P0. Complete chronological READY lease history for these closeouts (UTC):
+
+| Route/stint | READY start | End | Duration | End reason |
+|---|---|---|---|---|
+| unit/1 | 2026-10-30T00:15:23Z | 2026-10-30T04:11:56Z | 3h56m33s | Manual pause9341 |
+| full/1 | 2026-11-02T03:11:04Z | 2026-11-02T09:17:44Z | 6h06m40s | Completed13500 |
+| wo/1 | 2026-11-02T03:09:15Z | 2026-11-02T09:21:48Z | 6h12m33s | Completed13500 |
+| unit/2 | 2026-11-02T07:58:26Z | 2026-11-02T09:47:10Z | 1h48m44s | Completed13500 |
+| prewo/1 | 2026-11-02T07:33:31Z | 2026-11-02T09:58:30Z | 2h24m59s | User stop5498 |

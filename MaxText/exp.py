@@ -19723,13 +19723,13 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneTruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedTruePile):
     """Initialize all 18 V/local O read scales to 1; preserve H's Q/K and writers."""
-    # Provisional conclusion: early catch-up stalls with a remaining deficit versus H.
-    # Last five windows through 9.2k: gap +0.004644, MHA-ref ratio 0.976211.
-    # Initially paused9341/13500; user resumed2026-11-02 on retained TPU310514 with original aa7d8ec/AOT/schedule.
-    # Restore9341, source/all-workers/FIRST9342 and committed9400 verified; continue to13500 as adapter comparator.
-    # UE5a v5p-16: 0.676113 step/s; matched health, widths 2510/1128/tail 3904 and M-cache unchanged.
-    # code_commit:aa7d8ec; ledger only: codex/mediumprop-common-read-raw-write, /data0/xd/mediumprop-common-read-raw-write.
-    # Complete evidence: mediumprop_common_read_raw_write.md.
+    # Conclusion: unit initialization does not catch the original depth-initialized H on Medium over the full plan.
+    # The9.2k deficit persists: final5 through13.4k vs H gap+0.0047828, MHA-ref ratio0.9738255.
+    # Completed13500 after user pause9341 and same-runtime resume; original13500-step LR plan/data cursor retained, P0 across both stints.
+    # CP13500/TB SYNC_OK; both original/resumed nodes and queued resources verified absent.
+    # UE5a v5p16 .676113step/s; widths2510/1128/tail3904, total432112210 and M-cache unchanged.
+    # code_commit: aa7d8ec; historical runtime, codex/mediumprop-common-read-raw-write, /data0/xd/mediumprop-common-read-raw-write.
+    # Initial study: mediumprop_common_read_raw_write.md; resume/final comparisons: mediumprop_unit_h_content_adapters.md.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneTruePile'
     bam_common_vo_read_scale_init = 1.0
     compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedTruePile']
@@ -20302,13 +20302,14 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneContentWriteAdapterFullTruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneTruePile):
     """Per-head identity content adapters; UnitH parent, matched ordinary/private MLP budget."""
-    # Historical runtime: runtime ddcc67a; codex/mediumprop-unit-h-content-adapters.
-    # UE5a v5p16 xd-v5p-16-310510-maxtext, s13500; FIRST0/source/AOT/TruePile4096/params verified.
-    # Startup20..99 0.671954step/s (-0.62% vs historical UnitH).
-    # Parameter-FSDP layout fixed before any training;63 CPU checks, including formal8-device layouts.
-    # Parent kernel and extra adapter-health exports differ; descriptive speed comparison only.
-    # Worktree: /data0/xd/mediumprop-unit-h-content-adapters; see mediumprop_unit_h_content_adapters.md.
-    # Adapter parameters 1530000; MLP widths 2494/1119/tail3904; total 432112210.
+    # Conclusion: the simplest independent-head full-write adapter gives the strongest completed gain in this UnitH family.
+    # Positive early gain survives mid-course dips; final5 windows through13.4k: gap-0.0031152, MHA-ref ratio1.0175027.
+    # Final5 beats write+O-r16 by-0.0009678; the1.020 UnitH-relative prior was close.
+    # Completed13500/P0; CP13500/TB SYNC_OK, node+queue independently absent.
+    # UE5a v5p16 startup20..99 .671954step/s; historical UnitH-.62%, kernel/adapter-health differences make this descriptive.
+    # Adapter1530000; widths2494/1119/tail3904, total432112210, unchanged M-cache.
+    # code_commit: ddcc67a; historical runtime, codex/mediumprop-unit-h-content-adapters; worktree /data0/xd/mediumprop-unit-h-content-adapters.
+    # Full trajectories, FSDP repair and every READY lease: mediumprop_unit_h_content_adapters.md.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneContentWriteAdapterFullTruePile'
     bam_content_adapter_write = True
     bam_content_adapter_o = False
@@ -20379,13 +20380,13 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneContentWriteOAdapterR16TruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneTruePile):
     """Per-head identity content adapters; UnitH parent, matched ordinary/private MLP budget."""
-    # Historical runtime: runtime ddcc67a; codex/mediumprop-unit-h-content-adapters.
-    # UE5a v5p16 xd-v5p-16-310513-maxtext, s13500; FIRST0/source/AOT/TruePile4096/params verified.
-    # Startup20..99 0.647808step/s (-4.19% vs historical UnitH).
-    # Parameter-FSDP layout fixed before any training;63 CPU checks, including formal8-device layouts.
-    # Parent kernel and extra adapter-health exports differ; descriptive speed comparison only.
-    # Worktree: /data0/xd/mediumprop-unit-h-content-adapters; see mediumprop_unit_h_content_adapters.md.
-    # Adapter parameters 1344000; MLP widths 2496/1121/tail3888; total 432113410.
+    # Conclusion: linear write+O-r16 retains a smaller gain than full-write-only; late recovery does not overturn that ranking.
+    # Final5 through13.4k vs UnitH: gap-0.0021474, MHA-ref ratio1.0120523; the1.040 prior was too optimistic.
+    # Completed13500/P0; CP13500/TB SYNC_OK, node+queue independently absent.
+    # UE5a v5p16 startup20..99 .647808step/s (-3.59% vs write-full, descriptive architecture+health timing).
+    # Adapter1344000; widths2496/1121/tail3888, total432113410 (parent+1200 integer remainder), unchanged M-cache.
+    # code_commit: ddcc67a; historical runtime, codex/mediumprop-unit-h-content-adapters; worktree /data0/xd/mediumprop-unit-h-content-adapters.
+    # Full trajectories and every READY lease: mediumprop_unit_h_content_adapters.md.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneContentWriteOAdapterR16TruePile'
     bam_content_adapter_write = True
     bam_content_adapter_o = True
@@ -20510,12 +20511,13 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneContentWriteOAdapterR16PreRmsTruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneContentWriteOAdapterR16TruePile):
     """Normalize attention-write content after its linear adapter; read adapters stay unchanged."""
-    # Historical runtime; runtime/worktree codex/mediumprop-unit-h-content-adapters, code_commit: 37cf812.
-    # UE5a TPU310519, plan13500; FIRST/source/AOT/data/params verified; CPU57 passed.
-    # Startup20..99 0.655931step/s (+1.25% vs post-RMS parent); health matched.
-    # Same parameter tree and widths2496/1121/tail3888 as the post-RMS parent; total432113410.
-    # Native norm follows the adapter; Pallas receives raw adapted content and normalizes in its existing write kernel.
-    # Unified reporting comparator is UnitH, as requested; no additional low-level kernel path.
+    # Conclusion: moving the r16 write adapter before RMSNorm loses most of the matched post-RMS route's gain.
+    # Small positive gain vs UnitH remains: final5 through5.4k gap-0.0006086, MHA-ref ratio1.0026985.
+    # A4.8k recovery is transient; the route remains behind its matched post-RMS control. Full endpoint unmeasured.
+    # User confirmed4k stop recommendation; stopped5498/13500/P0, CP5498/TB SYNC_OK, node+queue independently absent.
+    # UE5a v5p16 startup .655931step/s (+1.25% vs post-RMS); identical widths2496/1121/tail3888 and432113410 params.
+    # code_commit: 37cf812; historical runtime, codex/mediumprop-unit-h-content-adapters; /data0/xd/mediumprop-unit-h-content-adapters.
+    # Reproduction and precise normalization order: mediumprop_unit_h_content_adapters_pre_rms.md.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneContentWriteOAdapterR16PreRmsTruePile'
     bam_content_adapter_write_before_rms = True
     compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneTruePile']

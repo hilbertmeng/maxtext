@@ -19744,11 +19744,11 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneTruePile):
     """Unit-init H plus per-token whole-M RMSNorm after read-only M-shift."""
     # Ledger only; native reference /data0/xd/mediumprop-unit-h-m-prenorm, codex/mediumprop-unit-h-m-prenorm.
-    # Fused runtime branch claude/mediumprop-m-prenorm-pallas; Pallas read/write, minimal_save_splash, tuned Splash.
+    # Fused runtime branch claude/mediumprop-m-prenorm-pallas; packed Pallas read/write, full remat, tuned Splash.
     # Q/K/V/localO share the normalized read view; the raw matrix carry and all writers stay unchanged.
     # Widths2510/1128/tail3904;432112210 parameters; existing18 signed V/O scales initialize1.
-    # code_commit: fe49cc5; native ee4fa9d through replay anchor2000; same-checkpoint overlap/all-worker source/AOT/FIRST verified.
-    # UE5a v5p-16 TPU310530: Pallas .626105step/s (-7.40% vs UnitH .676113, matched health); native full-remat .484319.
+    # code_commit: f8d07cd; prior ee4fa9d->fe49cc5; full-remat replay at3200, overlap/all-worker source/AOT/FIRST verified.
+    # UE5a v5p-16 TPU310530: packed/full .680525step/s (+.65% vs UnitH .676113, matched health); prior minimal_save_splash .626105.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneMPreNormTruePile'
     bam_m_read_norm = 'rms'
     bam_pallas_core = False
@@ -19763,8 +19763,8 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     # Ledger only: native codex/mediumprop-unit-h-m-prenorm; fused runtime claude/mediumprop-m-prenorm-pallas.
     # Native reference on the retained-V/O M pre-norm arm only; standard RoPE Q/K is not scaled.
     # +18 parameters (432112228 total), same widths2510/1128/tail3904; no MLP repayment for this negligible addition.
-    # code_commit: 18966e4; native0ec940c through replay anchor1400; overlap/all-worker source/AOT/FIRST verified.
-    # UE5a v5p-16 TPU310532: Pallas 0.624149step/s; native .481833; matched health, same432112228 params and full13500-step schedule.
+    # code_commit: f8d07cd; prior0ec940c->18966e4; full-remat replay at2600, overlap/all-worker source/AOT/FIRST verified.
+    # UE5a v5p-16 TPU310532: packed/full .677145step/s (-.50% vs retained-V/O .680525, matched health); prior minimal_save_splash .624149.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneMPreNormQKScaleTruePile'
     bam_common_qk_read_scale = True
     compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneMPreNormTruePile']
@@ -19773,8 +19773,8 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneMPreNormTruePile):
     """Same whole-M pre-norm, removing all18 common V/O read-scale parameters."""
     # Same MLP widths;432112192 parameters,18 fewer than UnitH (negligible; no MLP refund).
-    # code_commit: fe49cc5; native ee4fa9d through replay anchor2000; same-checkpoint overlap/all-worker source/AOT/FIRST verified.
-    # UE5a v5p-16 TPU310531: Pallas .628259step/s (-7.08% vs UnitH .676113, matched health); native full-remat .489683.
+    # code_commit: f8d07cd; prior ee4fa9d->fe49cc5; full-remat replay at3600, overlap/all-worker source/AOT/FIRST verified.
+    # UE5a v5p-16 TPU310531: packed/full .683427step/s (+1.08% vs UnitH .676113, matched health); prior minimal_save_splash .628259.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneMPreNormNoReadScaleTruePile'
     bam_common_vo_read_scale = False
 

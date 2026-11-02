@@ -65,3 +65,32 @@ Operational proofs are under `/data0/xd/bam_diagnostics/mediumprop-unit-h-m-pren
 Claude's second handoff f8d07cd3c441fbb15e2cd01572a6fb24e617e6b9 changes only effective remat/saved-Splash-residual settings for these RUNs: `minimal_save_splash` becomes inherited `full`, residual name is cleared. Packed pre-norm/QK-fold core, math, parameters, data and13500-step schedule remain unchanged. Effective inherited-config delta, exact AOT manifests/checksums and pushed commit verified before stopping. Same-RUN/same-TPU overlap anchors: retained3200, dropped3600, QK2600. Old runs retained at least30 post-anchor steps; first new steps3201/3601/2601 and each data cursor verified. All-worker Git sources and AOT loads match f8d07cd.
 
 Matched post-anchor30-step loss max absolute differences are.000061/.000058/.000126 (retained/dropped/QK). Checkpoint-free80-step harmonic speeds.680525/.683427/.677145step/s; all pass the new.66 floor. Relative to historical matched-health UnitH.676113, retained/dropped are+.65%/+1.08% on separate training TPUs; QK is-.50% against the retained arm. These descriptive formal timings are consistent with Claude's paired v5p-16 remat profile. Do not extrapolate the opposite v5p-8 remat ranking to the formal topology. Proofs: `/data0/xd/bam_diagnostics/mediumprop-unit-h-m-prenorm/kernel-switch-full-remat/`. Continue quiet training; only4k/8k interim reports, no effect-based early stopping.
+
+
+## Terminal result: all three completed13500
+
+All final checkpoints/data cursors13500 and node+queued-resource absence independently verified. TensorBoard synchronized for all three (`final/tensorboard-sync.log`); the local fallback timer had not triggered, so this task performed the explicit repair sync. Final runtimef8d07cd; no4k/8k effect-based stop was executed. All native loss/gain windows extend through13400; final5 means use12600,12800,13000,13200,13400.
+
+| RUN alias | Direct comparator | Final5 gap | Final5 MHA-ref multiplier | Pre-training prior |
+|---|---|---:|---:|---:|
+| Pre-norm + V/O scale | UnitH | -0.00048112 | 1.00271179 | 1.010 |
+| Pre-norm, no V/O scale | UnitH | -0.00024528 | 1.00137702 | .990 |
+| Pre-norm + V/O + Q/K scale | Pre-norm + V/O scale | -0.00057508 | 1.00321137 | 1.015 |
+
+Interpretation: M pre-norm produces a clear early advantage, but most of it disappears by the middle of training and does not develop into a material late advantage. Keeping/removing the18 V/O scales ends near parity; deleting them does not establish a useful improvement. Q/K scale has a small mostly persistent incremental benefit over the kept arm, including the terminal windows. Both positive priors were too optimistic; the negative prior for the dropped arm was also wrong, although its small positive result does not support a breakthrough claim. On this evidence, do not prioritize M pre-norm as a2.8B default. The target2.8B has full-head QKNorm, so the small Q/K-scale result is not directly portable evidence. No new experiment is started by this conclusion.
+
+The remaining Q/K benefit is consistent with correcting the changed NoPE/RoPE amplitude balance after normalizing M, but this is a mechanism hypothesis rather than a causal diagnosis. The reliable observation is strong early benefit versus very small terminal benefit; initial loss alone overstated the architectural gain.
+
+Final cumulative plot: `/home/xd/.codex/visualizations/2026/10/12/01a12f6f-6eac-7373-9064-16a8d4349af6/m-prenorm-three-final-20261102-215716-009346.png`. Native reports, exact parameter-tree/source handoffs, resource-absence checks and checkpoints: `/data0/xd/bam_diagnostics/mediumprop-unit-h-m-prenorm/final/`.
+
+Complete READY leases (all v5p-16 in UE5a; no zone switches):
+
+| RUN alias / TPU | Start UTC | End UTC | Duration | End reason |
+|---|---|---|---:|---|
+| Pre-norm + V/O scale / xd-v5p-16-310530-maxtext | 2026-11-02 15:10:40 | 2026-11-02 16:43:51 | 1h33m11s | service preemption |
+| Pre-norm + V/O scale / xd-v5p-16-310530-maxtext | 2026-11-02 16:49:51 | 2026-11-02 18:15:46 | 1h25m55s | service preemption |
+| Pre-norm, no V/O scale / xd-v5p-16-310531-maxtext | 2026-11-02 15:11:05 | 2026-11-02 21:25:34 | 6h14m29s | clean completion |
+| Pre-norm + V/O scale / xd-v5p-16-310530-maxtext | 2026-11-02 18:21:52 | 2026-11-02 21:48:35 | 3h26m43s | clean completion |
+| Pre-norm + V/O + Q/K scale / xd-v5p-16-310532-maxtext | 2026-11-02 15:44:51 | 2026-11-02 21:53:53 | 6h09m02s | clean completion |
+
+Kernel handoffs and the revoked speed pause retained the same physical TPU leases; neither counts as a preemption. Retained arm P2, dropped P0, QK P0. User-owned FLEX compiler remains outside this task's lifecycle ownership and is retained.

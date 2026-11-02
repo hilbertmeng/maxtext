@@ -19743,12 +19743,14 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneMPreNormTruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneTruePile):
     """Unit-init H plus per-token whole-M RMSNorm after read-only M-shift."""
-    # Ledger only; native reference /data0/xd/mediumprop-unit-h-m-prenorm, codex/mediumprop-unit-h-m-prenorm.
-    # Fused runtime branch claude/mediumprop-m-prenorm-pallas; packed Pallas read/write, full remat, tuned Splash.
-    # Q/K/V/localO share the normalized read view; the raw matrix carry and all writers stay unchanged.
-    # Widths2510/1128/tail3904;432112210 parameters; existing18 signed V/O scales initialize1.
-    # code_commit: f8d07cd; prior ee4fa9d->fe49cc5; full-remat replay at3200, overlap/all-worker source/AOT/FIRST verified.
-    # UE5a v5p-16 TPU310530: packed/full .680525step/s (+.65% vs UnitH .676113, matched health); prior minimal_save_splash .626105.
+    # Conclusion: Early advantage fades to near parity with UnitH; only a tiny terminal gain remains.
+    # Completed13500; vs UnitH, final5 windows12600..13400: gap-0.00048112, MHA-ref gain1.00271179.
+    # UE5a v5p-16 TPU310530: packed/full 0.680525step/s (+0.65% vs UnitH); P2, no zone switch; matched training health.
+    # Widths2510/1128/tail3904 unchanged; 432112210 parameters (no parameter change vs UnitH); unchanged inference M-cache.
+    # CP13500 committed, TensorBoard SYNC_OK, node and queued resource independently absent.
+    # code_commit: f8d07cd; ledger only; fused runtime branch claude/mediumprop-m-prenorm-pallas.
+    # Native config reference in /data0/xd/mediumprop-unit-h-m-prenorm (codex/mediumprop-unit-h-m-prenorm).
+    # Full trajectory, source transitions and leases: experiments/mediumprop_unit_h_m_prenorm.md.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneMPreNormTruePile'
     bam_m_read_norm = 'rms'
     bam_pallas_core = False
@@ -19760,11 +19762,14 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneMPreNormQKScaleTruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneMPreNormTruePile):
     """Keep V/O read scales and add one independent unit-initialized scalar shared by local Q/K per layer."""
-    # Ledger only: native codex/mediumprop-unit-h-m-prenorm; fused runtime claude/mediumprop-m-prenorm-pallas.
-    # Native reference on the retained-V/O M pre-norm arm only; standard RoPE Q/K is not scaled.
-    # +18 parameters (432112228 total), same widths2510/1128/tail3904; no MLP repayment for this negligible addition.
-    # code_commit: f8d07cd; prior0ec940c->18966e4; full-remat replay at2600, overlap/all-worker source/AOT/FIRST verified.
-    # UE5a v5p-16 TPU310532: packed/full .677145step/s (-.50% vs retained-V/O .680525, matched health); prior minimal_save_splash .624149.
+    # Conclusion: Q/K scaling retains a small extra gain over the retained-V/O pre-norm parent, below the prior.
+    # Completed13500; vs retained-V/O M pre-norm parent, final5 windows12600..13400: gap-0.00057508, MHA-ref gain1.00321137.
+    # UE5a v5p-16 TPU310532: packed/full 0.677145step/s (-0.50% vs retained-V/O parent); P0, no zone switch; matched training health.
+    # Widths2510/1128/tail3904 unchanged; 432112228 parameters (18 extra parameters vs retained-V/O parent); unchanged inference M-cache.
+    # CP13500 committed, TensorBoard SYNC_OK, node and queued resource independently absent.
+    # code_commit: f8d07cd; ledger only; fused runtime branch claude/mediumprop-m-prenorm-pallas.
+    # Native config reference in /data0/xd/mediumprop-unit-h-m-prenorm (codex/mediumprop-unit-h-m-prenorm).
+    # Full trajectory, source transitions and leases: experiments/mediumprop_unit_h_m_prenorm.md.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneMPreNormQKScaleTruePile'
     bam_common_qk_read_scale = True
     compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneMPreNormTruePile']
@@ -19772,9 +19777,14 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneMPreNormNoReadScaleTruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneMPreNormTruePile):
     """Same whole-M pre-norm, removing all18 common V/O read-scale parameters."""
-    # Same MLP widths;432112192 parameters,18 fewer than UnitH (negligible; no MLP refund).
-    # code_commit: f8d07cd; prior ee4fa9d->fe49cc5; full-remat replay at3600, overlap/all-worker source/AOT/FIRST verified.
-    # UE5a v5p-16 TPU310531: packed/full .683427step/s (+1.08% vs UnitH .676113, matched health); prior minimal_save_splash .628259.
+    # Conclusion: Larger early lead also fades; removing V/O scales has no clear terminal advantage.
+    # Completed13500; vs UnitH, final5 windows12600..13400: gap-0.00024528, MHA-ref gain1.00137702.
+    # UE5a v5p-16 TPU310531: packed/full 0.683427step/s (+1.08% vs UnitH); P0, no zone switch; matched training health.
+    # Widths2510/1128/tail3904 unchanged; 432112192 parameters (18 fewer parameters vs UnitH); unchanged inference M-cache.
+    # CP13500 committed, TensorBoard SYNC_OK, node and queued resource independently absent.
+    # code_commit: f8d07cd; ledger only; fused runtime branch claude/mediumprop-m-prenorm-pallas.
+    # Native config reference in /data0/xd/mediumprop-unit-h-m-prenorm (codex/mediumprop-unit-h-m-prenorm).
+    # Full trajectory, source transitions and leases: experiments/mediumprop_unit_h_m_prenorm.md.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneMPreNormNoReadScaleTruePile'
     bam_common_vo_read_scale = False
 

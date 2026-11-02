@@ -4379,6 +4379,13 @@ class BamAttention(Attention):
              if getattr(cfg, 'bam_pallas_rolled_passes', None) else {}),
           **read_kwargs)
     query, key, value, local_output = outs[:4]
+    if common_qk_scale is not None and not full_qk_norm:
+      # Complete local/no-position prefix only; standard RoPE Q/K is untouched.
+      # Full-head QKNorm already incorporates this scale in its norm epilogue.
+      def scale_local(x):
+        prefix = (x[..., :self._qk_col_width].astype(jnp.float32) * common_qk_scale).astype(x.dtype)
+        return jnp.concatenate((prefix, x[..., self._qk_col_width:]), axis=-1)
+      query, key = scale_local(query), scale_local(key)
     if common_vo_scale is not None and not fold_vo:
       value = (value.astype(jnp.float32) * common_vo_scale).astype(value.dtype)
       local_output = (local_output.astype(jnp.float32) * common_vo_scale).astype(local_output.dtype)
@@ -4551,8 +4558,8 @@ class BamAttention(Attention):
           'common_vo_read_scale', (1,), (None,), initial_scale)[0]
     common_qk_scale = None
     if getattr(cfg, 'bam_common_qk_read_scale', False):
-      if not full_qk_norm:
-        raise ValueError('Common Q/K scale requires concatenated local Q/K and full-head QKNorm')
+      if not concat_qk or (cfg.qk_norm and not full_qk_norm):
+        raise ValueError('Common Q/K scale requires concatenated local Q/K; enabled QKNorm must cover the full head')
       common_qk_scale = self._constant_general_parameter(
           'common_qk_read_scale', (1,), (None,), 1.0)[0]
     if getattr(cfg, 'bam_pallas_core', False):

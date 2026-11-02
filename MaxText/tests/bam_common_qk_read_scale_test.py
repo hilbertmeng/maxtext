@@ -79,12 +79,13 @@ class CommonQKReadScaleTest(MLPWriteTest, unittest.TestCase):
       np.testing.assert_allclose(flatten_dict(cg)[p], value, rtol=2e-5, atol=2e-7)
     self.assertTrue(any(float(jnp.max(jnp.abs(flatten_dict(cg)[p]))) > 0 for p in new))
 
-  def test_requires_concat_and_full_head_qknorm(self):
+  def test_requires_concat_and_full_head_when_qknorm_enabled(self):
     cfg = self.config(RUN).get_keys()
     validate_bam_config(cfg)
-    for flag in ('bam_concat_qk', 'qk_norm', 'bam_qk_norm_after_concat'):
+    for flag in ('bam_concat_qk', 'bam_qk_norm_after_concat'):
       with self.assertRaisesRegex(ValueError, 'Common Q/K scale'):
         validate_bam_config(dict(cfg, **{flag: False}))
+    validate_bam_config(dict(cfg, qk_norm=False))
 
   def test_native_pallas_logits_and_every_gradient(self):
     self.check_model(RUN)

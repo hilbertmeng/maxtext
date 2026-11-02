@@ -1,6 +1,6 @@
 # UnitH per-head content adapters
 
-Status: write-full, write+O-r16 and the resumed UnitH comparator completed13500. Six adapter prefixes were stopped earlier; pre-RMS write+O subsequently stopped5498 after user confirmation. Only pre-RMS write-full remains in training. All new2.8B transfers are config-only; no2.8B trainer was launched. All Medium experiments prepare transfer to2.8B.
+Status: write-full, write+O-r16 and the resumed UnitH comparator completed13500. Six adapter prefixes were stopped earlier; pre-RMS write+O subsequently stopped5498 after user confirmation. Pre-RMS write-full also completed13500; all owned Medium training is closed. All new2.8B transfers are config-only; no2.8B trainer was launched. All Medium experiments prepare transfer to2.8B.
 
 Worktree `/data0/xd/mediumprop-unit-h-content-adapters`; branch `codex/mediumprop-unit-h-content-adapters`. Main source/fresh infrastructure audit: `fb9e8689`. Runtime manifest: `/data0/xd/bam_diagnostics/mediumprop-unit-h-content-adapters/runtime.json`. Direct parent `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneTruePile` (runtime aa7d8ec), initially paused at9341, then resumed on2026-11-02 at the user's request and completed13500; final mature comparison ends13400. No baseline extrapolation. MHA reference `BamMHAMediumPropC256TruePile`.
 
@@ -137,3 +137,8 @@ All below are v5p16/UE5a, P0. Complete chronological READY lease history for the
 | wo/1 | 2026-11-02T03:09:15Z | 2026-11-02T09:21:48Z | 6h12m33s | Completed13500 |
 | unit/2 | 2026-11-02T07:58:26Z | 2026-11-02T09:47:10Z | 1h48m44s | Completed13500 |
 | prewo/1 | 2026-11-02T07:33:31Z | 2026-11-02T09:58:30Z | 2h24m59s | User stop5498 |
+
+
+## Complete family closeout
+
+Final pre-RMS write-full and placement comparison: see `mediumprop_unit_h_content_adapters_pre_rms.md`. All owned adapter RUNs and resumed UnitH are closed, with checkpoint/TB and resource proofs. The completed positive controls remain in the final common-baseline figure; native windows end13400. Final ranking: post-RMS write-full > post-RMS write+O-r16 approximately pre-RMS write-full. The configured2.8B ports have different MLP repayment from Medium:128-aligned first31 widths remain7808/2944 and adapters are repaid from the final MLP (8704 full/pre,8960 write+O-r16 vs9984). This10%-13% tail shrink is a confound, not a requirement; local nonaligned alternatives were calculated but not applied. Another session's subsequent2.8B launches are outside this task's monitoring ownership.

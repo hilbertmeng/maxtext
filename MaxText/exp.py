@@ -20502,8 +20502,10 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneContentWriteAdapterFullTruePile):
     """Normalize attention-write content after its linear adapter; read adapters stay unchanged."""
     # Historical runtime; runtime/worktree codex/mediumprop-unit-h-content-adapters, code_commit: 37cf812.
-    # UE5a TPU310518, plan13500; FIRST/source/AOT/data/params verified; CPU57 passed.
-    # Startup20..99 0.680404step/s (+1.26% vs post-RMS parent); health matched.
+    # UE5a v5p-16/P0, completed13500; CP13500/TB secured, node+queue independently absent.
+    # vs UnitH: early fluctuations settled into sustained gains; final5 through13400 gap-.00207432/R1.0116434 (MHA reference).
+    # Matched post-RMS write-full remained better: final5 loss+.00104084; pre-RMS did not improve the endpoint.
+    # Startup20..99 0.680404step/s (+1.26% vs post-RMS parent); matched health; CPU57 passed.
     # Same parameter tree and widths2494/1119/tail3904 as the post-RMS parent; total432112210.
     # Native norm follows the adapter; Pallas receives raw adapted content and normalizes in its existing write kernel.
     # Unified reporting comparator is UnitH, as requested; no additional low-level kernel path.

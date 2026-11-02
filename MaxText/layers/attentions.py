@@ -4201,10 +4201,18 @@ class BamAttention(Attention):
             b_ = jnp.asarray(pre(arm), hidden.dtype)
             return b_.reshape(-1, self.bam_v) if b_.ndim else jnp.broadcast_to(b_, (self.num_query_heads, self.bam_v))
           bias = jnp.concatenate([arm_bias(arm) for arm in ('q', 'k', 'v', 'vo')], axis=0)   # [4N, V]
-          packed_qkvo = jnp.einsum('btd,drc->bcrt', hidden, jnp.concatenate(kernels, axis=1),
-                                   precision=jax.lax.Precision(cfg.matmul_precision))
+          if getattr(cfg, 'bam_pallas_packed_key_bias_in_kernel', False):
+            packed_qkvo = jnp.einsum('btd,drc->bcrt', hidden, jnp.concatenate(kernels, axis=1),
+                                     precision=jax.lax.Precision(cfg.matmul_precision))
+            packed_key_bias = bias         # added inside the read kernel
+          else:
+            # Bias as an extra contraction row against a constant-one feature: added and differentiated
+            # inside the matmul, with no separate [B,C,4N,T] add or token reduction.
+            ones = jnp.ones(hidden.shape[:-1] + (1,), hidden.dtype)
+            weight = jnp.concatenate((jnp.concatenate(kernels, axis=1), bias[None].astype(self.dtype)), axis=0)
+            packed_qkvo = jnp.einsum('btd,drc->bcrt', jnp.concatenate((hidden, ones), axis=-1), weight,
+                                     precision=jax.lax.Precision(cfg.matmul_precision))
           packed_qkvo = checkpoint_name(packed_qkvo, 'bam_read_keys')
-          packed_key_bias = bias           # added inside the read kernel (no separate [B,C,4N,T] pass)
         # v8t accepts two key slabs, V then O, instead of a shared VO slab.
         vo_key = jnp.concatenate((self._pad_read_heads(v_key, -2),
                                   self._pad_read_heads(vo_key, -2)), axis=-2)

@@ -108,6 +108,56 @@ class KernelPreNormTest(unittest.TestCase):
     print('V8T_M_PRENORM_BF16_OK', flush=True)
 
 
+class KernelQKScaleTest(KernelPreNormTest):
+  """Common local Q/K scale folded into the static Q/K rows and the dynamic Q/K scale, vs scaling the
+  local Q/K prefix of the unscaled read (the XLA epilogue), with pre-norm, shift and V/O scales."""
+
+  def test_folded_qk_scale_forward_and_gradients(self):
+    m, sw, xs, sgs, shift = shift_test.inputs(7)
+    ks = iter(jax.random.split(jax.random.PRNGKey(70), 8))
+    xs_ind = xs[:4] + (jax.random.normal(next(ks), (B, T, 2 * N, V)),) + xs[5:]
+    cts = tuple(jax.random.normal(next(ks), (B, T, N, K)) for _ in range(4))
+    vo = 1 + .3 * jax.random.normal(next(ks), ())
+    qkc = shift_test.QKC
+    row = lambda s: jnp.repeat(jnp.asarray([s, s, 1., 1.]), N)[:, None]        # [4N, 1] over q,k,v,o
+
+    def kernel(m, sw, xs, sgs, shift, s, tile):
+      ones = jnp.ones((N, V))
+      return read(m, sw * row(s), xs, sgs, shift, tile, 8, M_EPS) if s is None else v8.read_tm(
+          m, sw * row(s), *xs, qk_cols=qkc, read_epsilon=shift_test.EPS, key_scale=shift_test.SCALE,
+          forward_tile=tile, reverse_tile=tile, interpret=True, q_scale=0.125, static_gates=sgs, shift=shift,
+          chunk=8, m_norm=M_EPS, q_dynamic_scale=s * ones, k_dynamic_scale=s * ones,
+          v_dynamic_scale=vo * ones, o_dynamic_scale=vo * ones)
+
+    def ref(m, sw, xs, sgs, shift, s, tile):
+      ones = jnp.ones((N, V))
+      outs = v8.read_tm(m, sw, *xs, qk_cols=qkc, read_epsilon=shift_test.EPS, key_scale=shift_test.SCALE,
+                        forward_tile=tile, reverse_tile=tile, interpret=True, q_scale=0.125, static_gates=sgs,
+                        shift=shift, chunk=8, m_norm=M_EPS, v_dynamic_scale=vo * ones, o_dynamic_scale=vo * ones)
+      local = lambda x: jnp.concatenate((x[..., :qkc] * s, x[..., qkc:]), axis=-1)
+      return (local(outs[0]), local(outs[1])) + tuple(outs[2:])
+
+    s0 = jnp.asarray(-1.7)
+    for name, args in (('shared VO', xs), ('independent VO', xs_ind)):
+      for tile in (64, 256):
+        tag = f'{name} tile {tile}'
+        a_out, b_out = kernel(m, sw, args, sgs, shift, s0, tile), ref(m, sw, args, sgs, shift, s0, tile)
+        for i, (a, b) in enumerate(zip(a_out, b_out)):
+          self.assert_close(a, b, 1e-5, f'{tag} output {i}')
+        def loss(fn):
+          return lambda m, sw, xs, sgs, shift, s: sum(
+              jnp.sum(o * c) for o, c in zip(fn(m, sw, xs, sgs, shift, s, tile)[:4], cts))
+        ga = jax.grad(loss(kernel), argnums=(0, 1, 2, 3, 4, 5))(m, sw, args, sgs, shift, s0)
+        gb = jax.grad(loss(ref), argnums=(0, 1, 2, 3, 4, 5))(m, sw, args, sgs, shift, s0)
+        self.assertGreater(abs(float(ga[5])), 0)
+        for (path, a), b in zip(jax.tree_util.tree_flatten_with_path(ga)[0], jax.tree.leaves(gb)):
+          self.assert_close(a, b, 2e-5, f'{tag} grad {jax.tree_util.keystr(path)}')
+    print('V8T_FOLDED_QK_SCALE_ALL_GRADIENTS_OK', flush=True)
+
+  test_forward_and_gradients_with_and_without_shift = None
+  test_bfloat16_matches_float32_truth = None
+
+
 class ModelPreNormTest(MLPWriteTest, unittest.TestCase):
   """Complete scanned model, native _matrix_for_read vs the v8t core: logits and every gradient."""
 

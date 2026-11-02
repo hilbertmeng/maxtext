@@ -23,8 +23,10 @@ class MatrixQKScaleTest(MLPWriteTest,unittest.TestCase):
 
   def test_formal_budget_and_initial_unit_equivalence(self):
     cfg=self.config(RUN);self.assertTrue(cfg.bam_common_vo_read_scale and cfg.bam_common_qk_read_scale)
-    self.assertFalse(cfg.qk_norm or cfg.bam_pallas_core)
+    self.assertFalse(cfg.qk_norm)
+    self.assertTrue(cfg.bam_pallas_core and cfg.bam_pallas_write and cfg.bam_pallas_packed_read_keys)
     self.assertEqual(cfg.compare_runs,[KEEP])
+    cfg.get_keys().update(max_target_length=128,max_prefill_predict_length=128)  # kernel tiles need T>=chunk
     mesh=jax.sharding.Mesh(max_utils.create_device_mesh(cfg),cfg.mesh_axes)
     shaped,*_=train_compile.get_shaped_inputs(mesh,cfg)
     flat=flatten_dict(nn.unbox(shaped[0].params))

@@ -74,8 +74,10 @@ def _tm_o_mask(om, c, rows):
 
 
 def _tm_dynamic_scale(os_ref, rows):
-  """[R,C] scale on trailing read rows: O only [NP,C] or independent V/O [2NP,C]."""
+  """[R,C] scale on trailing read rows: O only [NP,C], independent V/O [2NP,C], or Q/K/V/O [4NP,C]."""
   o = os_ref[...].astype(F32)
+  if o.shape[0] == rows:          # every arm scaled (common local Q/K scale folded in)
+    return o
   return jnp.concatenate((jnp.ones((rows - o.shape[0], o.shape[1]), F32), o), axis=0)
 
 
@@ -444,7 +446,8 @@ def _tm_read_backward_kernel(n, qk_cols, eps, scale, q_scale, gated, ch, pass_m,
       if scaled:      # d gamma = sum_t dX * g inv r, for O alone or independent V/O.
         dx_scaled = dx[scale_start:]
         dos_scr[pl.ds(c * scaled_rows, scaled_rows), :] = dx_scaled * rows[scale_start:] * gi_scaled
-        dx = jnp.concatenate((dx[:scale_start], dx_scaled * osc[scale_start:, c:c + 1]), axis=0)
+        dx = (jnp.concatenate((dx[:scale_start], dx_scaled * osc[scale_start:, c:c + 1]), axis=0)
+              if scale_start else dx_scaled * osc[:, c:c + 1])
       gacc = gacc + dx * rows
       vo_u = ((gv * dx[2 * np_:3 * np_], go * dx[3 * np_:4 * np_]) if independent_vo else
               (gv * dx[2 * np_:3 * np_] + go * dx[3 * np_:4 * np_],))
@@ -676,6 +679,7 @@ def read_tm(m, static_weight, q_key, q_logits, k_key, k_logits, vo_key, o_logits
             k_standard, *, qk_cols, read_epsilon, key_scale, forward_tile=128, reverse_tile=128,
             vmem_mib=None, interpret=False, q_scale=1.0, static_gates=None, chunk=8, pad_heads=False,
             shift=None, o_weight_multiplier=None, o_dynamic_scale=None, v_dynamic_scale=None, qk_norm=None,
+            q_dynamic_scale=None, k_dynamic_scale=None,
             keys_cnt=None, m_norm=None, **_):
   """v7.read's interface (keys [B,T,N,C], logits [B,T,N], standard QK [B,T,N,Rs]) for M [B,T,V,K] and
   full-M reads (C == V, identity compression). Returns (query, key, value, local_o) [B,T,N,K] and M.
@@ -695,6 +699,8 @@ def read_tm(m, static_weight, q_key, q_logits, k_key, k_logits, vo_key, o_logits
   norm (static O and Q/K untouched). v_dynamic_scale optionally applies the same
   mechanism to dynamic V, with independent parameters and complete gradients.
   Both scale gradients use the existing tiled MXU reduction.
+  q_dynamic_scale / k_dynamic_scale [N,V] extend the same per-row scale to every arm (then all four
+  [4NP,C] rows are scaled; unset arms use ones); they scale only the dynamic Q/K read, not the standard arm.
 
   qk_norm (ss_q, ss_k, m_q, m_k, epsilon): full-head QKNorm inside the read epilogue. ss_* [B,T,N] are
   the standard (unscaled, unrotated) Q/K sums of squares; m_* [qdim] multiply the normalized row and
@@ -749,13 +755,17 @@ def read_tm(m, static_weight, q_key, q_logits, k_key, k_logits, vo_key, o_logits
     # the effective O weight (static + gated dynamic, after the key RMS norm); V/Q/K keys untouched.
     assert o_weight_multiplier.shape == (b, t, n, cdim), o_weight_multiplier.shape
     args += (keys(o_weight_multiplier.astype(q_key.dtype)),)              # [B,C,NP,T]
-  scaled = o_dynamic_scale is not None or v_dynamic_scale is not None
+  all_arms = q_dynamic_scale is not None or k_dynamic_scale is not None
+  scaled = o_dynamic_scale is not None or v_dynamic_scale is not None or all_arms
   if scaled:
-    for gamma in (v_dynamic_scale, o_dynamic_scale):
+    for gamma in (q_dynamic_scale, k_dynamic_scale, v_dynamic_scale, o_dynamic_scale):
       if gamma is not None:
         assert gamma.shape == (n, cdim), gamma.shape
-    scales = ((v_dynamic_scale, jnp.ones((n, cdim), F32) if o_dynamic_scale is None else o_dynamic_scale)
-              if v_dynamic_scale is not None else (o_dynamic_scale,))
+    ones = lambda g: jnp.ones((n, cdim), F32) if g is None else g
+    if all_arms:
+      scales = tuple(ones(g) for g in (q_dynamic_scale, k_dynamic_scale, v_dynamic_scale, o_dynamic_scale))
+    else:
+      scales = ((v_dynamic_scale, ones(o_dynamic_scale)) if v_dynamic_scale is not None else (o_dynamic_scale,))
     os_ = jnp.concatenate(tuple(jnp.pad(gamma.astype(F32), ((0, np_ - n), (0, 0)),
         constant_values=1.) if np_ > n else gamma.astype(F32) for gamma in scales), axis=0)
     args += (os_,)   # [NP,C] for O-only; [2NP,C] for independent V/O.

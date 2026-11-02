@@ -19762,7 +19762,8 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneMPreNormQKScaleTruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneMPreNormTruePile):
     """Keep V/O read scales and add one independent unit-initialized scalar shared by local Q/K per layer."""
-    # Native reference on the retained-V/O M pre-norm arm only; standard RoPE Q/K is not scaled.
+    # Retained-V/O M pre-norm arm only; standard RoPE Q/K is not scaled. Fused v8t core inherited from the parent:
+    # the scalar folds into the static Q/K rows and the dynamic Q/K key scale (no XLA prefix epilogue).
     # +18 parameters (432112228 total), same widths2510/1128/tail3904; no MLP repayment for this negligible addition.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneMPreNormQKScaleTruePile'
     bam_common_qk_read_scale = True

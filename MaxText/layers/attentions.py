@@ -4287,8 +4287,12 @@ class BamAttention(Attention):
     # common scalar into both instead of a [B,T,N,V] epilogue that cannot fuse into Splash.
     fold_vo = common_vo_scale is not None and body == 'v8t'
     vo_static = (lambda x: x * common_vo_scale.astype(x.dtype)) if fold_vo else (lambda x: x)
+    # Likewise the common local Q/K scalar (no QKNorm): the complete local Q/K prefix is the read, and the
+    # standard RoPE arm is appended after it inside the kernel, so no prefix slice/concat runs in XLA.
+    fold_qk = common_qk_scale is not None and body == 'v8t' and not full_qk_norm
+    qk_static = (lambda x: x * common_qk_scale.astype(x.dtype)) if fold_qk else (lambda x: x)
     weight = bam_pallas.static_weight(
-        self.static_q_key, self.static_k_key,
+        qk_static(self.static_q_key), qk_static(self.static_k_key),
         (jnp.zeros_like(self.static_o_key) if not self._has_value_m_read
          else vo_static(self._pad_read_heads(self.static_v_key, 1))),
         vo_static(self._pad_read_heads(self.static_o_key, 1)), compression)
@@ -4336,6 +4340,9 @@ class BamAttention(Attention):
         gamma = read_kwargs.get(arm + '_dynamic_scale')
         read_kwargs[arm + '_dynamic_scale'] = common_vo_scale.astype(jnp.float32) * (
             jnp.ones(q_key.shape[2:], jnp.float32) if gamma is None else gamma.astype(jnp.float32))
+    if fold_qk:
+      for arm in ('q', 'k'):
+        read_kwargs[arm + '_dynamic_scale'] = common_qk_scale.astype(jnp.float32) * jnp.ones(q_key.shape[2:], jnp.float32)
     if getattr(cfg, 'bam_pallas_read_chunk', None):
       read_kwargs['chunk'] = int(cfg.bam_pallas_read_chunk)
     if packed_qkvo is not None:
@@ -4379,7 +4386,7 @@ class BamAttention(Attention):
              if getattr(cfg, 'bam_pallas_rolled_passes', None) else {}),
           **read_kwargs)
     query, key, value, local_output = outs[:4]
-    if common_qk_scale is not None and not full_qk_norm:
+    if common_qk_scale is not None and not full_qk_norm and not fold_qk:
       # Complete local/no-position prefix only; standard RoPE Q/K is untouched.
       # Full-head QKNorm already incorporates this scale in its norm epilogue.
       def scale_local(x):

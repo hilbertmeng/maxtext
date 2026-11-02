@@ -13,6 +13,16 @@ probe=importlib.util.module_from_spec(spec);spec.loader.exec_module(probe)
 
 
 class CEPrecisionTest(unittest.TestCase):
+  def test_accumulator_output_has_same_backward_as_native_for_same_cotangent(self):
+    h=jax.random.normal(jax.random.PRNGKey(3),(2,7,6)).astype(jnp.bfloat16)
+    w=jax.random.normal(jax.random.PRNGKey(4),(6,11)).astype(jnp.bfloat16)
+    cotangent=jax.random.normal(jax.random.PRNGKey(5),(2,7,11)).astype(jnp.bfloat16)
+    native,native_pull=jax.vjp(lambda h,w:jnp.matmul(h,w,precision=jax.lax.Precision.HIGHEST),h,w)
+    output,pull=jax.vjp(probe.accumulator_dot_bf16_backward,h,w)
+    self.assertEqual(output.dtype,jnp.float32)
+    for a,b in zip(native_pull(cotangent),pull(cotangent.astype(jnp.float32))):
+      np.testing.assert_array_equal(a,b)
+
   def test_confident_target_can_zero_while_tail_survives(self):
     z=jnp.array([[0.,-8.]],dtype=jnp.bfloat16); y=jnp.array([0])
     native,reference=probe.logit_derivatives(z,y,max_utils)

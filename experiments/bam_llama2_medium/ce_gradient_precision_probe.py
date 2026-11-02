@@ -19,7 +19,31 @@ import jax.numpy as jnp
 import numpy as np
 
 
-MODES = ('native_bf16', 'ce_fp32', 'accumulator_fp32_ce_fp32')
+MODES = ('native_bf16', 'ce_fp32', 'accumulator_fp32_ce_fp32',
+         'accumulator_fp32_ce_fp32_bf16_backward')
+
+
+@jax.custom_vjp
+def accumulator_dot_bf16_backward(hidden, weights):
+  """FP32 accumulator output; preserve native BF16 backward dot boundaries."""
+  return jnp.matmul(hidden, weights, preferred_element_type=jnp.float32,
+                    precision=jax.lax.Precision.HIGHEST)
+
+
+def _accumulator_fwd(hidden, weights):
+  return accumulator_dot_bf16_backward(hidden, weights), (hidden, weights)
+
+
+def _accumulator_bwd(residual, gradient):
+  hidden, weights = residual
+  gradient = gradient.astype(jnp.bfloat16)
+  dh = jnp.tensordot(gradient, weights, axes=((-1,),(-1,)), precision=jax.lax.Precision.HIGHEST)
+  axes = tuple(range(hidden.ndim-1))
+  dw = jnp.tensordot(gradient, hidden, axes=(axes,axes), precision=jax.lax.Precision.HIGHEST).T
+  return dh, dw
+
+
+accumulator_dot_bf16_backward.defvjp(_accumulator_fwd, _accumulator_bwd)
 
 
 def loss(hidden, weights, targets, mode, runtime):
@@ -29,7 +53,9 @@ def loss(hidden, weights, targets, mode, runtime):
   total = jnp.float32(0)
   for lo in range(0, hidden.shape[1], 1024):
     h = hidden[:, lo:lo+1024]
-    if mode == 'accumulator_fp32_ce_fp32':
+    if mode == 'accumulator_fp32_ce_fp32_bf16_backward':
+      logits = accumulator_dot_bf16_backward(h, weights)
+    elif mode == 'accumulator_fp32_ce_fp32':
       logits = jnp.matmul(h, weights, preferred_element_type=jnp.float32,
                           precision=jax.lax.Precision.HIGHEST)
     else:
@@ -143,7 +169,7 @@ def main():
       h=jnp.asarray(np.concatenate(hs)); y=jnp.asarray(np.concatenate(ys))
       out = {mode: native[mode](h, weights, y) for mode in MODES}
       row=dict(batch_start=lo, losses={m:float(out[m][0]) for m in MODES}, comparisons={})
-      for mode in ('native_bf16','accumulator_fp32_ce_fp32'):
+      for mode in (m for m in MODES if m != 'ce_fp32'):
         row['comparisons'][mode]={name:np.asarray(compare(out[mode][1][idx], out['ce_fp32'][1][idx])).tolist()
             for name,idx in [('hidden',0),('weights',1)]}
       for mode in MODES:
@@ -161,7 +187,7 @@ def main():
     assert all(np.isfinite(v).all() for v in tokens.values())
     arrays={mode:float(jnp.linalg.norm(g)) for mode,g in grads.items()}
     comparisons={mode:np.asarray(compare(grads[mode],grads['ce_fp32'])).tolist()
-                 for mode in ('native_bf16','accumulator_fp32_ce_fp32')}
+                 for mode in MODES if mode != 'ce_fp32'}
     result=dict(job=job,source_capture=source,weight_sha256=weight_hash,
                 runtime_commit=subprocess.check_output(['git','-C',str(a.runtime_dir),'rev-parse','HEAD'],text=True).strip(),
                 runner_sha256=hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),

@@ -20418,6 +20418,10 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     # Parent kernel and extra adapter-health exports differ; descriptive speed comparison only.
     # Worktree: /data0/xd/mediumprop-unit-h-content-adapters; see mediumprop_unit_h_content_adapters.md.
     # Adapter parameters 2035200; MLP widths 2489/1117/tail3883; total 432113410.
+    # Conclusion: a small positive prefix gain remained, but it was weaker than the retained write-full and write+O-r16 routes.
+    # User stop5857/13500, P1; full-schedule endpoint unmeasured.
+    # Final mature5800 vs UnitH: gap-0.0007858, MHA-ref gain1.0036158; late windows mildly positive again.
+    # CP5857 committed/TB SYNC_OK; node+queue independently absent; same-zone preemption recovered automatically.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneContentWriteVOAdapterR16TruePile'
     bam_content_adapter_write = True
     bam_content_adapter_o = True

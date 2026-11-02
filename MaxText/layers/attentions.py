@@ -4286,6 +4286,8 @@ class BamAttention(Attention):
       read_kwargs['qk_norm'] = (standard_sumsq[0], standard_sumsq[1], m_q, m_k,
                                 float(cfg.normalization_layer_epsilon))
       read_kwargs['qk_norm_mxu'] = bool(getattr(cfg, 'bam_pallas_fused_qk_norm_mxu', False))
+      # Lane-dense Q/K: zero lanes up to 128 (Splash pads the head dim to the MXU width anyway).
+      read_kwargs['qk_out_pad'] = bool(getattr(cfg, 'bam_pallas_qk_out_pad', False))
     pass_m = body in ('v7', 'v7u', 'v8t')   # M passthrough: dM sum fused into the read reverse
     # Full-head norm needs the unscaled, unrotated concatenated Q/K. In that case
     # attention scaling must follow QKNorm, rather than being folded into the read.

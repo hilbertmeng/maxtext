@@ -221,11 +221,12 @@ def _tm_read_kernel(n, qk_cols, eps, scale, q_scale, gated, ch, shifted=False, q
           q_eps, width = qk_norm[:2]
           ablate = qk_norm[3] if len(qk_norm) > 3 else ''   # benchmark-only ablations (wrong math)
           local = y[:, :qk_cols]
-          rs = qdim - qk_cols
+          rs = qs.shape[-1] // np_                                       # standard width
+          pad = [jnp.zeros((t, qdim - qk_cols - rs), F32)] if qdim > qk_cols + rs else []   # lane-dense rows
           if 'no_concat' in ablate:
-            row = jnp.concatenate((local, jnp.zeros((t, rs), F32)), axis=1)
+            row = jnp.concatenate([local, jnp.zeros((t, rs), F32)] + pad, axis=1)
           else:
-            row = jnp.concatenate((local, (qs if a == 0 else ks)[:, pl.ds(h * rs, rs)].astype(F32)), axis=1)
+            row = jnp.concatenate([local, (qs if a == 0 else ks)[:, pl.ds(h * rs, rs)].astype(F32)] + pad, axis=1)
           if len(qk_norm) > 2 and qk_norm[2]:   # MXU statistics, lane-broadcast [T, qdim]
             iv = jax.lax.rsqrt((_dot2(local * local, ones_loc) + _dot2(ss_cols, _head_selector(np_, qdim, h)))
                                / width + q_eps)
@@ -340,7 +341,7 @@ def _tm_read_backward_kernel(n, qk_cols, eps, scale, q_scale, gated, ch, pass_m,
           _put(dy_scr, rows, zrow)
           if a < 2 and qk_norm:
             col_scr[:, pl.ds(h, 1)] = jnp.zeros((t, 1), F32)
-            std_parts.append(jnp.zeros((t, qdim - qk_cols), F32))
+            std_parts.append(jnp.zeros((t, qs.shape[-1] // np_), F32))
           continue
         y = ref[h].astype(F32)
         if a < 2 and qk_norm:
@@ -358,7 +359,7 @@ def _tm_read_backward_kernel(n, qk_cols, eps, scale, q_scale, gated, ch, pass_m,
             iv = inv_cols[:, h:h + 1]
             s_ = jnp.sum(gm * xhat, axis=1, keepdims=True) / width             # [T, 1]
           local = (iv * (gm - xhat * s_))[:, :qk_cols]
-          std_parts.append((iv * gm)[:, qk_cols:])                             # token-major [T, Rs]
+          std_parts.append((iv * gm)[:, qk_cols:qk_cols + qs.shape[-1] // np_])  # token-major [T, Rs]
           col_scr[:, pl.ds(h, 1)] = (-.5 * iv * iv * s_)[:, :1]
           dmm[a] = dmm[a] + jnp.sum(y * xhat, axis=0, keepdims=True)
           if qk_cols < kdim:
@@ -672,7 +673,7 @@ def read_tm(m, static_weight, q_key, q_logits, k_key, k_logits, vo_key, o_logits
             k_standard, *, qk_cols, read_epsilon, key_scale, forward_tile=128, reverse_tile=128,
             vmem_mib=None, interpret=False, q_scale=1.0, static_gates=None, chunk=8, pad_heads=False,
             shift=None, o_weight_multiplier=None, o_dynamic_scale=None, v_dynamic_scale=None, qk_norm=None,
-            qkvo_key=None, qk_norm_mxu=False, **_):
+            qkvo_key=None, qk_norm_mxu=False, qk_out_pad=False, **_):
   """v7.read's interface (keys [B,T,N,C], logits [B,T,N], standard QK [B,T,N,Rs]) for M [B,T,V,K] and
   full-M reads (C == V, identity compression). Returns (query, key, value, local_o) [B,T,N,K] and M.
 
@@ -701,8 +702,11 @@ def read_tm(m, static_weight, q_key, q_logits, k_key, k_logits, vo_key, o_logits
   qdim = qk_cols + q_standard.shape[-1]
   assert q_standard.shape == k_standard.shape and 0 <= qk_cols <= m.shape[-1] <= qdim, (qk_cols, qdim, m.shape)
   np_ = _pad_rows(n) if pad_heads else n
+  qdim_true = qdim
   if qk_norm is not None:
     assert q_scale == 1.0, 'fold the logit scale into m_q'
+    if qk_out_pad:      # lane-dense Q/K rows: zero lanes up to a multiple of 128 (q.k unchanged)
+      qdim = -(-qdim // 128) * 128
   packed = qkvo_key is not None
   if packed:
     # Mosaic block views need the head count to be a sublane multiple; interpret mode does not.
@@ -711,7 +715,7 @@ def read_tm(m, static_weight, q_key, q_logits, k_key, k_logits, vo_key, o_logits
                       tile=forward_tile, reverse_tile=reverse_tile, vmem_mib=vmem_mib, interpret=interpret,
                       q_scale=float(q_scale), chunk=chunk, **({'qdim': qdim} if qdim > m.shape[-1] else {}),
                       **({} if qk_norm is None else
-                         {'qk_norm': (float(qk_norm[4]), float(qdim), bool(qk_norm_mxu),
+                         {'qk_norm': (float(qk_norm[4]), float(qdim_true), bool(qk_norm_mxu),
                                       os.environ.get('BAM_QKN_ABLATE', ''))})))
   padn = lambda x: jnp.pad(x, [(0, 0)] * (x.ndim - 2) + [(0, np_ - n), (0, 0)]) if np_ > n else x
   padn_tok = lambda x: jnp.pad(x, [(0, 0), (0, 0), (0, np_ - n), (0, 0)]) if np_ > n else x   # [B,T,NP,Rs]
@@ -756,7 +760,8 @@ def read_tm(m, static_weight, q_key, q_logits, k_key, k_logits, vo_key, o_logits
   normed = qk_norm is not None
   if normed:
     ss_q, ss_k, m_q, m_k = qk_norm[:4]
-    assert ss_q.shape == ss_k.shape == (b, t, n) and m_q.shape == m_k.shape == (qdim,), (ss_q.shape, m_q.shape)
+    assert ss_q.shape == ss_k.shape == (b, t, n) and m_q.shape == m_k.shape == (qdim_true,), (ss_q.shape, m_q.shape)
+    m_q, m_k = (jnp.pad(x, (0, qdim - qdim_true)) for x in (m_q, m_k))
     args += (jnp.stack((gate(ss_q.astype(F32)), gate(ss_k.astype(F32))), axis=1),   # [B,2,NP,T]
              jnp.stack((m_q, m_k), axis=0).astype(F32))                          # [2,qdim]
 

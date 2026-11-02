@@ -56,7 +56,8 @@ def make(variant, data):
       return (q, k) + tuple(outs[2:])
     ssq, ssk = (jnp.sum(jnp.square(x.astype(jnp.float32)), -1) for x in (qs, ks_))
     return bam_pallas.read(m, sw, qk, ql, kk, kl, vok, ol, vl, qs, ks_, q_scale=1.0,
-                           qk_norm=(ssq, ssk, mq / 10., mk, 1e-6), qk_norm_mxu=variant == 'fused_mxu', **common)
+                           qk_norm=(ssq, ssk, mq / 10., mk, 1e-6), qk_norm_mxu=variant.startswith('fused_mxu'),
+                           qk_out_pad=variant.endswith('_pad'), **common)
 
   fwd = jax.jit(f)
 

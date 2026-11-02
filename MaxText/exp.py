@@ -20536,6 +20536,8 @@ class BamPythia2p8BHUnitShortTrainFastKernelContentWriteAdapterFull(
     Keep front31 GELU ordinary/private widths7808/2944; pay the adapter budget
     from the final ordinary MLP, retaining128-wide alignment throughout.
     """
+    # UE5a v5p-128 startup: 0.33107 step/s, +4.64% vs historical UnitH (different kernel/remat).
+    # Launch/baseline identities and timing scope: pythia2p8_h_unit_full_write_adapter_training.md.
     model_name = 'BamPythia2p8BHUnitShortTrainFastKernelContentWriteAdapterFull'
     bam_pallas_fused_content_adapter = True  # adapter inside the v8t write kernel; same math.
     # code_commit:f694be4; exact v5p-128/s28000 AOT (FLEX, AOT_COMPILE_OK):

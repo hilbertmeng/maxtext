@@ -1,5 +1,9 @@
 # Unit H ShortTrain: attention-write and localO content adapters
 
+Formal full-write training was requested on 2026-11-02; see the
+[training record](pythia2p8_h_unit_full_write_adapter_training.md). The transfer-only
+scope below describes the earlier configuration implementation and validation.
+
 Parent `BamPythia2p8BHUnitShortTrainFastKernel`, derived from the trained unit-initialized/no-gamma ShortTrain H. These are configuration/code transfers only; no new2.8B training RUN, TPU or AOT is requested. Runtime implementation worktree `/data0/xd/pythia28-unit-h-content-adapters`, branch `codex/pythia28-unit-h-content-adapters`, based on main37e6475c. Original Medium implementation is on `codex/mediumprop-unit-h-content-adapters` at37cf8121; its running experiments retain their sealed runtimes.
 
 All three configurations retain the parent's28000-step schedule, LR0.0002/warmup2%, batch1024/T2048, full-head QKNorm before RoPE and legacy1/sqrt80 logit multiplier. All BAM initialization, embedding0.006,31+tail single-layer scan, ordinary/private GELU MLPs, raw embedding/private writes and learned common V/O scale initialized1 remain unchanged. Terminal attention/private writers stay off. Generic training health ON, internal/BAM activation statistics OFF;31 or63 compact per-layer adapter update-over-identity metrics remain visible.

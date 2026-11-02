@@ -64,7 +64,8 @@ class FusedQKNormTest(base.HUnit300BTest):
 
   def test_packed_keys_shared_vo(self):
     # Shared VO key (old-architecture read): three [B,C,3N,T] slabs through the packed einsum path.
-    self.flags = dict(bam_pallas_packed_read_keys=True, bam_local_vo_independent_keys=False)
+    self.flags = dict(bam_pallas_packed_read_keys=True, bam_local_vo_independent_keys=False,
+                      bam_common_vo_read_scale=False)
     self.check_model(RUN)
 
   def test_packed_keys_fused_norm(self):

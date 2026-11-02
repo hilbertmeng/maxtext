@@ -11,3 +11,6 @@ Implementation branch `codex/mediumprop-unit-h-m-prenorm`; exact handoff commit 
 
 
 Third arm added afterward: suffix `ReadScaleInitOneMPreNormQKScaleTruePile`, on retained V/O only. It reuses `bam_common_qk_read_scale=True`: one signed layer scalar, init1, shared by complete local Q/K (dynamic+static), not the standard18-dimensional RoPE arms. Without QKNorm, the XLA `_pallas_core_call` epilogue now scales just these prefixes; preserve it or fold it into the new read epilogue. With full-head QKNorm, the existing norm-epilogue handling remains unchanged. New parameter tree differs only by18 scalars; two original RUNs remain frozen at ee4fa9d.
+
+
+Adaptation delivered on `claude/mediumprop-m-prenorm-pallas`: fe49cc5 for kept/dropped,18966e4 for QK-scale. All three target-v5p-16 AOTs loaded; same-checkpoint native/Pallas overlap and all-worker sources verified on the retained trainers. Whole-M normalization and optional Q/K scale are fused into read; raw M carry/writes remain separate. Runtime remat is `minimal_save_splash`. See `../mediumprop_unit_h_m_prenorm.md` for handoff provenance and measured speed; the user revoked the speed-stop rule and requests continued training.

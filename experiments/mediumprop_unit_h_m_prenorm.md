@@ -47,3 +47,14 @@ Third-arm pre-training bet: terminal MHA-referenced gain1.015 relative to its di
 
 
 Third-arm startup verified: runtime0ec940cc4070cecd041ba2feaaf856b8c849a75a, FIRST0 and all2 worker hashes, exact AOT/data/432112228 parameters match. Native20..99 harmonic speed.481833step/s, -.51% against retained-parent.484319 (separate TPUs, descriptive timing). Third native group member compares to retained pre-norm+V/O, not the no-V/O arm. All3 native RUNs now train; original2 remainee4fa9d. No parameter-tree or optimizer change is applied to those controls.
+
+
+## Verified Pallas runtime handoffs
+
+First two RUNs switched on their same UE5a v5p-16 TPUs from native ee4fa9d to fe49cc5ba0d3ff3cff3f7daccdf85f6befb620d1 (branch `claude/mediumprop-m-prenorm-pallas`), replaying checkpoint2000. Native continued through2050/2057 before stopping; complete loss/cache and committed final checkpoints were preserved. Restore used the anchor checkpoint's own data cursor, not a latest-step approximation. Same post-checkpoint steps2001..2030 have mean absolute loss deltas.00003697/.00011807 and maxima.000108/.000484. Both passed; parameter trees and original13500-step LR schedule remain unchanged.
+
+All worker sources and AOT loads verified. Fused runtime enables Pallas core/write/packed keys, named Splash residual and `minimal_save_splash` remat; reference configs above remain native ledger records. At checkpoint-free steps2220..2299, kept/dropped harmonic speeds.626105/.628259step/s, respectively7.40%/7.08% below matched-health UnitH.676113. Separate training TPUs; this combines kernel/remat changes and pre-norm, not an isolated normalization timing. Initial.72-.75 extrapolation from v5p-8 did not hold on v5p-16. The initial<.70 speed-stop directive briefly paused both; user explicitly revoked it. Resumed the same READY TPUs at checkpoints2151/2150, first completed steps2152/2151; neither lease was deleted or counted as a preemption. Continue training despite this speed difference; no repeated mechanical speed stop.
+
+QK-scale RUN switched native0ec940c to18966e45620ff1aa67e10d8d4e04a44cd454e2a5 on its same TPU310532, replaying checkpoint1400 after preserving native post-checkpoint steps. Complete source/AOT/cursor and 30-step overlap proof: `kernel-switch/310532/validation-summary.json` in the task diagnostic directory. Pallas math folds its local Q/K scalar into the read path. All three continue with their existing scientific comparators. Latest user direction: only4k/8k interim reports, no early-stop decisions at either point, otherwise quiet training through the13500-step plan. Claude may provide another optimized AOT; apply any such handed-off hot switch with the same overlap validation.
+
+Operational proofs are under `/data0/xd/bam_diagnostics/mediumprop-unit-h-m-prenorm/kernel-switch/`. Routine plots/loss trends stay in report artifacts/chat rather than intermediate exp.py conclusions.

@@ -19743,12 +19743,12 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneMPreNormTruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneTruePile):
     """Unit-init H plus per-token whole-M RMSNorm after read-only M-shift."""
-    # Ledger only; runtime worktree /data0/xd/mediumprop-unit-h-m-prenorm; branch codex/mediumprop-unit-h-m-prenorm.
-    # Native BAM reference; tuned Splash remains enabled. Pallas read adaptation pending.
+    # Ledger only; native reference /data0/xd/mediumprop-unit-h-m-prenorm, codex/mediumprop-unit-h-m-prenorm.
+    # Fused runtime branch claude/mediumprop-m-prenorm-pallas; Pallas read/write, minimal_save_splash, tuned Splash.
     # Q/K/V/localO share the normalized read view; the raw matrix carry and all writers stay unchanged.
     # Widths2510/1128/tail3904;432112210 parameters; existing18 signed V/O scales initialize1.
-    # code_commit: ee4fa9d; UE5a v5p-16 TPU310530, FIRST/source/AOT/data/params verified.
-    # Native startup20..99 0.484319step/s (-28.37% vs Pallas UnitH); !? slower than native speed prior; not an isolated norm cost.
+    # code_commit: fe49cc5; native ee4fa9d through replay anchor2000; same-checkpoint overlap/all-worker source/AOT/FIRST verified.
+    # UE5a v5p-16 TPU310530: Pallas .626105step/s (-7.40% vs UnitH .676113, matched health); native full-remat .484319.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneMPreNormTruePile'
     bam_m_read_norm = 'rms'
     bam_pallas_core = False
@@ -19760,11 +19760,11 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneMPreNormQKScaleTruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneMPreNormTruePile):
     """Keep V/O read scales and add one independent unit-initialized scalar shared by local Q/K per layer."""
-    # Ledger only: codex/mediumprop-unit-h-m-prenorm, runtime0ec940c; implementation in that worktree.
+    # Ledger only: native codex/mediumprop-unit-h-m-prenorm; fused runtime claude/mediumprop-m-prenorm-pallas.
     # Native reference on the retained-V/O M pre-norm arm only; standard RoPE Q/K is not scaled.
     # +18 parameters (432112228 total), same widths2510/1128/tail3904; no MLP repayment for this negligible addition.
-    # code_commit: 0ec940c; UE5a v5p-16 TPU310532, FIRST/all-worker source/AOT/data/432112228 params verified.
-    # Native startup20..99 .481833step/s (-.51% vs retained-V/O pre-norm parent, separate TPUs); matched health.
+    # code_commit: 18966e4; native0ec940c through replay anchor1400; overlap/all-worker source/AOT/FIRST verified.
+    # UE5a v5p-16 TPU310532: Pallas 0.624149step/s; native .481833; matched health, same432112228 params and full13500-step schedule.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneMPreNormQKScaleTruePile'
     bam_common_qk_read_scale = True
     compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneMPreNormTruePile']
@@ -19773,8 +19773,8 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneMPreNormTruePile):
     """Same whole-M pre-norm, removing all18 common V/O read-scale parameters."""
     # Same MLP widths;432112192 parameters,18 fewer than UnitH (negligible; no MLP refund).
-    # code_commit: ee4fa9d; UE5a v5p-16 TPU310531, FIRST/source/AOT/data/params verified.
-    # Native startup20..99 0.489683step/s (-27.57% vs Pallas UnitH); !? slower than native speed prior; not an isolated norm cost.
+    # code_commit: fe49cc5; native ee4fa9d through replay anchor2000; same-checkpoint overlap/all-worker source/AOT/FIRST verified.
+    # UE5a v5p-16 TPU310531: Pallas .628259step/s (-7.08% vs UnitH .676113, matched health); native full-remat .489683.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneMPreNormNoReadScaleTruePile'
     bam_common_vo_read_scale = False
 

@@ -76,7 +76,7 @@ User-confirmed4k decisions stopped write-r16 at4426 and write+O-full at4179. Bot
 
 Four active RUNs: write-full310510, write+O-r16310513, write+V+O-r16310515, GELU write+O310516 on physicalTPU310514. Group clock transferred to linear write+O before removing the former clock; reported4k calendar phase preserved, next regular report6k. Stop requires user confirmation. Relevant3.2k effective-update health is saved as adapter-health-3200.json with full layer-distribution figure; it measures matrix change, not activation-energy change.
 
-The proposed head-sharing study is deferred by the user. Select its parent after GELU has a mature2k-4k prefix and the existing write-full/write+O-r16 later trends are clearer. No head-sharing configuration, AOT or trainer has been launched. Current provisional primary parent is write+O-r16 or its GELU successor, not automatically the earlier-leading write-full.
+The remaining head-sharing proposals await mature GELU/linear-parent trends. The user subsequently authorized only the shared-full-write route1, described below; it is active, while the other sharing configurations remain unimplemented and unlaunched.
 
 ## Shared full-write adapter: user-authorized route1
 
@@ -92,4 +92,4 @@ Prior versus direct full-write parent: MHA-ref gain1.015 (rough range.98-1.04), 
 
 Focused gate: exact head tying and summed-parameter/input gradients, identity initialization, shared/unshared effective-norm equality, formal parameter budget and unchanged controls,8-device replicated-small-matrix tolerance, full native/Pallas logits+all-gradients, unaffected linear/GELU adapter checks,5 writer-rotation regressions. No standalone diagnostic TPU required. Infrastructure audit: branch began fresh-mainfb9e8689; later16ee2385 adds optional default-OFF math-preserving model optimizations, no missing operational checkpoint/log/optimizer fix; preserve parent lineage. Main reviewed at the hash recorded in headshare-runtime.json. New RUN must pass config seal/AOT/actualFIRST_STEP before registration as launched.
 
-Sealed3e3e1e0;13 focused CPU checks passed; parallel AOT/trainer preparation started.
+Sealed3e3e1e0;13 focused CPU checks passed; FIRST0/source/AOT/data/432110635 params and steps20..99 verified. Startup0.671414step/s (-0.08% vs direct full-write parent), effectively flat. Five active trainers now; new shared-head route has no mature loss conclusion.

@@ -20451,6 +20451,9 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     # ledger only: runtime3e3e1e0; codex/mediumprop-unit-h-content-adapters; no cross-layer sharing.
     # Adapter95625 versus1530000; repay1434375 to ordinary/private MLPs.
     # Widths2510/1128/tail3877; total432110635, parent-1575 integer-width remainder.
+    # code_commit:3e3e1e0; UE5a v5p16 xd-v5p-16-310517-maxtext, s13500; FIRST0/source/AOT/data/params verified.
+    # Startup20..99 0.671414step/s (-0.08% vs direct full-write parent), effectively flat.
+    #13 focused CPU checks, including full gradients and formal8-device small-matrix replication tolerance.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneContentWriteAdapterFullSharedHeadsTruePile'
     bam_content_adapter_write_shared_heads = True
     base_mlp_dim = 2510

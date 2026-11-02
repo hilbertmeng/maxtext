@@ -4160,7 +4160,7 @@ class BamAttention(Attention):
       gate = self._pad_read_heads(gate, -2, -jnp.inf)
       return jnp.reshape(gate, inputs_q.shape[:2] + (self.num_query_heads,))
 
-    packed_qkvo = None
+    packed_qkvo = packed_key_bias = None
     if full_m:
       # Shared GELU bottleneck -> per-arm up projections (+ generalized pre-biases); the full
       # [N,V] keys read M directly, i.e. an identity compression in the fused core.
@@ -4203,7 +4203,7 @@ class BamAttention(Attention):
           bias = jnp.concatenate([arm_bias(arm) for arm in ('q', 'k', 'v', 'vo')], axis=0)   # [4N, V]
           packed_qkvo = jnp.einsum('btd,drc->bcrt', hidden, jnp.concatenate(kernels, axis=1),
                                    precision=jax.lax.Precision(cfg.matmul_precision))
-          packed_qkvo = packed_qkvo + jnp.transpose(bias)[None, :, :, None].astype(packed_qkvo.dtype)
+          packed_key_bias = bias           # added inside the read kernel (no separate [B,C,4N,T] pass)
         # v8t accepts two key slabs, V then O, instead of a shared VO slab.
         vo_key = jnp.concatenate((self._pad_read_heads(v_key, -2),
                                   self._pad_read_heads(vo_key, -2)), axis=-2)
@@ -4289,6 +4289,7 @@ class BamAttention(Attention):
       if body != 'v8t':
         raise ValueError('bam_pallas_packed_read_keys requires v8t')
       read_kwargs['keys_cnt'] = packed_qkvo
+      read_kwargs['key_bias'] = packed_key_bias
     fused_qk_norm = full_qk_norm and bool(getattr(cfg, 'bam_pallas_fused_qk_norm', False))
     if fused_qk_norm:
       # Same full-head QKNorm, computed in the read epilogue: the kernel normalizes the complete

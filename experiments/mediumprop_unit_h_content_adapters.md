@@ -142,3 +142,8 @@ All below are v5p16/UE5a, P0. Complete chronological READY lease history for the
 ## Complete family closeout
 
 Final pre-RMS write-full and placement comparison: see `mediumprop_unit_h_content_adapters_pre_rms.md`. All owned adapter RUNs and resumed UnitH are closed, with checkpoint/TB and resource proofs. The completed positive controls remain in the final common-baseline figure; native windows end13400. Final ranking: post-RMS write-full > post-RMS write+O-r16 approximately pre-RMS write-full. The configured2.8B ports have different MLP repayment from Medium:128-aligned first31 widths remain7808/2944 and adapters are repaid from the final MLP (8704 full/pre,8960 write+O-r16 vs9984). This10%-13% tail shrink is a confound, not a requirement; local nonaligned alternatives were calculated but not applied. Another session's subsequent2.8B launches are outside this task's monitoring ownership.
+
+
+## Post-RMS dense amplitude diagnostic
+
+Final13500 checkpoint,32 Pile sequences/T4096: actual per-layer content gains0.97584-1.05075, with wider early head-specific changes. Thus no large aggregate write amplification; mean cosine0.9481-0.9834 and spectral/content comparisons indicate substantial direction recoding plus selective amplitude adjustment. Detailed complete layer table, precision controls and reproduction: `bam_llama2_medium/write_adapter_amplitude_diagnostic.md`. This observation does not identify the causal source of its loss gain.

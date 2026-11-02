@@ -66,7 +66,7 @@
       "MuddPythia3BSerialMLPKeepActivations": 1
     },
     "notes": "Report at 3k, 8k, 13k, ...; permanent checkpoints and midpoints alternate. Verify the 3k checkpoint on first report and retention after later rolling cleanup. Keep complete raw caches for longer-window analysis.",
-    "plot_min_step": 2000,
+    "plot_min_step": 4000,
     "cadence_offset": 3000,
     "group": "pythia28-h-unit-300b-1101",
     "plot_loss_gaps": [
@@ -99,7 +99,7 @@
         "Pythia_2.8B_2022"
       ]
     ],
-    "plot_history": "Full actual history of all selected curves, starting at 2k; no extrapolation.",
+    "plot_history": "Full actual history of all selected curves, starting at 4k; no extrapolation.",
     "plot_independent_panel_x_axes": true,
     "plot_excluded_runs": [
       "Pythia_6.9B_2022_Decay"

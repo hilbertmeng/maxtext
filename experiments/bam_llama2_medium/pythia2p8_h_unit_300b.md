@@ -96,7 +96,7 @@ gain over serial Mudd; and H gain over old BAM. All gain figures use the common 
 figure has one shared coordinate system for all its curves; its horizontal
 extent follows its own complete data (parallel Mudd 143k in the loss figure,
 old BAM about 37k in the gain figures). H ends at its actual progress. Start
-all four at 2k. Omit 6.9B from figures while retaining
+all four at 4k. Omit 6.9B from figures while retaining
 its registered numerical comparisons. Preserve historical figures; this view
 starts with the 18k report. The read-only exporter is `export_full_context.py`
 in the launch artifact directory and uses registry arithmetic without changing

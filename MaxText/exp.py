@@ -20573,11 +20573,16 @@ class BamPythia2p8BHUnitShortTrainFastKernelContentWriteAdapterFull(
         BamPythia2p8BHUnitShortTrainFastKernel):
     """Per-head identity-initialized attention-write adapter after content RMSNorm.
 
-    Keep front31 GELU ordinary/private widths7808/2944; pay the adapter budget
-    from the final ordinary MLP, retaining128-wide alignment throughout.
+    Keep ordinary/private GELU widths 7808/2944 in the first 31 layers;
+    repay the adapter from the final ordinary MLP, preserving 128-unit alignment.
     """
-    # UE5a v5p-128 startup: 0.33107 step/s, +4.64% vs historical UnitH (different kernel/remat).
-    # Launch/baseline identities and timing scope: pythia2p8_h_unit_full_write_adapter_training.md.
+    # Conclusion: no sustained incremental gain over trained unit H in the observed 2k-6k prefix.
+    # Early transient benefit fades; 6k gap -0.000104, MHA-ref ratio 1.000683; last-five mean gap +0.000111.
+    # Stopped at checkpoint 6069/28000 under the user's conditional 6k rule; the 21.5k ratio prior 1.02 is untested.
+    # UE5a v5p-128: 0.33107 step/s, +4.64% vs historical H; this includes kernel/remat changes, not isolated adapter gain.
+    # Loss control is trained unit-H ShortTrain; FastKernel has no independent RUN.
+    # Tail MLP 9984 -> 8704 funds the adapter; total parameters are parent -206080, M-cache unchanged.
+    # Full comparisons, identities and reproduction: pythia2p8_h_unit_full_write_adapter_training.md.
     model_name = 'BamPythia2p8BHUnitShortTrainFastKernelContentWriteAdapterFull'
     bam_pallas_fused_content_adapter = True  # adapter inside the v8t write kernel; same math.
     # code_commit:f694be4; exact v5p-128/s28000 AOT (FLEX, AOT_COMPILE_OK):

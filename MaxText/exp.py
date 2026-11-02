@@ -20253,3 +20253,117 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneTruePile']
 
 
+
+
+class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneContentWriteAdapterFullTruePile(
+    BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneTruePile):
+    """Per-head identity content adapters; UnitH parent, matched ordinary/private MLP budget."""
+    # ledger only: runtime a59892a; codex/mediumprop-unit-h-content-adapters.
+    # Worktree: /data0/xd/mediumprop-unit-h-content-adapters; see mediumprop_unit_h_content_adapters.md.
+    # Adapter parameters 1530000; MLP widths 2494/1119/tail3904; total 432112210.
+    model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneContentWriteAdapterFullTruePile'
+    bam_content_adapter_write = True
+    bam_content_adapter_o = False
+    bam_content_adapter_v = False
+    bam_content_adapter_rank = 0
+    base_mlp_dim = 2494
+    bam_memory_mlp_dim = 1119
+    bam_last_mlp_dim = 3904
+    record_training_health_metrics = True
+    record_internal_nn_metrics = False
+    compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneTruePile']
+
+
+class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneContentWriteAdapterR16TruePile(
+    BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneTruePile):
+    """Per-head identity content adapters; UnitH parent, matched ordinary/private MLP budget."""
+    # ledger only: runtime a59892a; codex/mediumprop-unit-h-content-adapters.
+    # Worktree: /data0/xd/mediumprop-unit-h-content-adapters; see mediumprop_unit_h_content_adapters.md.
+    # Adapter parameters 652800; MLP widths 2503/1124/tail3910; total 432113410.
+    model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneContentWriteAdapterR16TruePile'
+    bam_content_adapter_write = True
+    bam_content_adapter_o = False
+    bam_content_adapter_v = False
+    bam_content_adapter_rank = 16
+    base_mlp_dim = 2503
+    bam_memory_mlp_dim = 1124
+    bam_last_mlp_dim = 3910
+    record_training_health_metrics = True
+    record_internal_nn_metrics = False
+    compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneTruePile']
+
+
+class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneContentWriteOAdapterFullTruePile(
+    BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneTruePile):
+    """Per-head identity content adapters; UnitH parent, matched ordinary/private MLP budget."""
+    # ledger only: runtime a59892a; codex/mediumprop-unit-h-content-adapters.
+    # Worktree: /data0/xd/mediumprop-unit-h-content-adapters; see mediumprop_unit_h_content_adapters.md.
+    # Adapter parameters 3150000; MLP widths 2477/1111/tail3879; total 432112210.
+    model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneContentWriteOAdapterFullTruePile'
+    bam_content_adapter_write = True
+    bam_content_adapter_o = True
+    bam_content_adapter_v = False
+    bam_content_adapter_rank = 0
+    base_mlp_dim = 2477
+    bam_memory_mlp_dim = 1111
+    bam_last_mlp_dim = 3879
+    record_training_health_metrics = True
+    record_internal_nn_metrics = False
+    compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneTruePile']
+
+
+class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneContentWriteOAdapterR16TruePile(
+    BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneTruePile):
+    """Per-head identity content adapters; UnitH parent, matched ordinary/private MLP budget."""
+    # ledger only: runtime a59892a; codex/mediumprop-unit-h-content-adapters.
+    # Worktree: /data0/xd/mediumprop-unit-h-content-adapters; see mediumprop_unit_h_content_adapters.md.
+    # Adapter parameters 1344000; MLP widths 2496/1121/tail3888; total 432113410.
+    model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneContentWriteOAdapterR16TruePile'
+    bam_content_adapter_write = True
+    bam_content_adapter_o = True
+    bam_content_adapter_v = False
+    bam_content_adapter_rank = 16
+    base_mlp_dim = 2496
+    bam_memory_mlp_dim = 1121
+    bam_last_mlp_dim = 3888
+    record_training_health_metrics = True
+    record_internal_nn_metrics = False
+    compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneTruePile']
+
+
+class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneContentWriteVAdapterR16TruePile(
+    BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneTruePile):
+    """Per-head identity content adapters; UnitH parent, matched ordinary/private MLP budget."""
+    # ledger only: runtime a59892a; codex/mediumprop-unit-h-content-adapters.
+    # Worktree: /data0/xd/mediumprop-unit-h-content-adapters; see mediumprop_unit_h_content_adapters.md.
+    # Adapter parameters 1344000; MLP widths 2496/1121/tail3888; total 432113410.
+    model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneContentWriteVAdapterR16TruePile'
+    bam_content_adapter_write = True
+    bam_content_adapter_o = False
+    bam_content_adapter_v = True
+    bam_content_adapter_rank = 16
+    base_mlp_dim = 2496
+    bam_memory_mlp_dim = 1121
+    bam_last_mlp_dim = 3888
+    record_training_health_metrics = True
+    record_internal_nn_metrics = False
+    compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneTruePile']
+
+
+class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneContentWriteVOAdapterR16TruePile(
+    BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneTruePile):
+    """Per-head identity content adapters; UnitH parent, matched ordinary/private MLP budget."""
+    # ledger only: runtime a59892a; codex/mediumprop-unit-h-content-adapters.
+    # Worktree: /data0/xd/mediumprop-unit-h-content-adapters; see mediumprop_unit_h_content_adapters.md.
+    # Adapter parameters 2035200; MLP widths 2489/1117/tail3883; total 432113410.
+    model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneContentWriteVOAdapterR16TruePile'
+    bam_content_adapter_write = True
+    bam_content_adapter_o = True
+    bam_content_adapter_v = True
+    bam_content_adapter_rank = 16
+    base_mlp_dim = 2489
+    bam_memory_mlp_dim = 1117
+    bam_last_mlp_dim = 3883
+    record_training_health_metrics = True
+    record_internal_nn_metrics = False
+    compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneTruePile']

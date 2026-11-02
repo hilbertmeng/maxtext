@@ -19760,9 +19760,11 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneMPreNormQKScaleTruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneMPreNormTruePile):
     """Keep V/O read scales and add one independent unit-initialized scalar shared by local Q/K per layer."""
-    # Ledger only: codex/mediumprop-unit-h-m-prenorm, candidate runtime0ec940c; implementation in that worktree.
+    # Ledger only: codex/mediumprop-unit-h-m-prenorm, runtime0ec940c; implementation in that worktree.
     # Native reference on the retained-V/O M pre-norm arm only; standard RoPE Q/K is not scaled.
     # +18 parameters (432112228 total), same widths2510/1128/tail3904; no MLP repayment for this negligible addition.
+    # code_commit: 0ec940c; UE5a v5p-16 TPU310532, FIRST/all-worker source/AOT/data/432112228 params verified.
+    # Native startup20..99 .481833step/s (-.51% vs retained-V/O pre-norm parent, separate TPUs); matched health.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneMPreNormQKScaleTruePile'
     bam_common_qk_read_scale = True
     compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneMPreNormTruePile']

@@ -134,7 +134,15 @@
     "plot_figure_order": [
       "loss gaps vs MHA",
       "gain over parallel Mudd",
-      "gain over serial Mudd"
+      "gain over serial Mudd",
+      "H gain over old BAM"
+    ],
+    "plot_old_bam_gain_ratios": [
+      [
+        "BamPythia2p8BHUnit300B",
+        "BamPythia2p8BSotaIndependentR768Pallas",
+        "Pythia_2.8B_2022"
+      ]
     ]
   },
   "checkpoint_rescue": {

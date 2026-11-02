@@ -90,13 +90,13 @@ latest 5k, excluding the initial <2k transient, and retain complete raw caches
 for longer-window investigation. Permanent-checkpoint and midpoint reports
 alternate. Report final 143k without waiting for nonexistent 143025 samples.
 Text/table summaries retain the latest 5k window. The user-selected figure view
-instead plots three separate figures, each about 16:10: H/old BAM/both Mudds
+instead plots four separate figures, each about 16:10: H/old BAM/both Mudds
 loss minus common MHA; H and old BAM gain over parallel Mudd; and H and old BAM
-gain over serial Mudd. Both gain figures use the common MHA reference. Each
+gain over serial Mudd; and H gain over old BAM. All gain figures use the common MHA reference. Each
 figure has one shared coordinate system for all its curves; its horizontal
 extent follows its own complete data (parallel Mudd 143k in the loss figure,
 old BAM about 37k in the gain figures). H ends at its actual progress. Start
-all three at 2k. Omit 6.9B from figures while retaining
+all four at 2k. Omit 6.9B from figures while retaining
 its registered numerical comparisons. Preserve historical figures; this view
 starts with the 18k report. The read-only exporter is `export_full_context.py`
 in the launch artifact directory and uses registry arithmetic without changing

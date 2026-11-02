@@ -6,7 +6,7 @@ from flax import linen as nn
 import exp,max_utils,pyconfig
 from layers.models import Transformer
 
-def serial_setup(training_config,length=2048,label='mudd_spectral'):
+def serial_setup(training_config,length=2048,label='mudd_spectral',backend='native_tpu'):
     Path('/tmp/mudd_spectral',label).mkdir(parents=True,exist_ok=True)
     attrs=dict(model_name='MuddPythia3BSerialMLPKeepActivations',only_eval=True,enable_checkpointing=False,
         per_device_batch_size=1.,eval_per_device_batch_size=1.,target_global_batch_size=1,
@@ -14,6 +14,7 @@ def serial_setup(training_config,length=2048,label='mudd_spectral'):
         log_config=False,jax_cache_dir='',enable_goodput_recording=False,monitor_goodput=False,
         record_training_health_metrics=False,record_internal_nn_metrics=False,remat_policy='none',
         tensorboard_dir='/tmp/mudd_spectral/tensorboard/',base_output_directory='/tmp/mudd_spectral/')
+    if backend=='cuda_math_reference':attrs['attention']='dot_product'
     exp.SpectralSerialInference=type('SpectralSerialInference',(exp.MuddPythia3BSerialMLPKeepActivations,),attrs)
     cfg=pyconfig.initialize(['mudd_spectral','MaxText/configs/base.yml'],exp_class='SpectralSerialInference',run_name=label,
         base_output_directory='/tmp/mudd_spectral/',enable_checkpointing=False,only_eval=True)
@@ -28,7 +29,8 @@ def serial_setup(training_config,length=2048,label='mudd_spectral'):
         if isinstance(value,type):value=value.__name__
         if isinstance(value,tuple):value=list(value)
         if isinstance(want,tuple):want=list(want)
-        assert value==want,('Actual serial model config differs',key,want,str(value))
+        if backend=='cuda_math_reference' and key=='attention':assert value=='dot_product' and want=='flash'
+        else:assert value==want,('Actual serial model config differs',key,want,str(value))
         checked.append(key)
     mesh=jax.sharding.Mesh(max_utils.create_device_mesh(cfg),cfg.mesh_axes);model=Transformer(cfg,mesh,quant=None);rng=jax.random.PRNGKey(20261021)
     with mesh,nn.partitioning.axis_rules(cfg.logical_axis_rules):

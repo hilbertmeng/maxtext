@@ -17667,6 +17667,18 @@ class BamPythia2p8BHSpeedHUnit300BFusedSaveSplashReadProfile(BamPythia2p8BHSpeed
     remat_policy = 'minimal_save_splash_read'
 
 
+class BamPythia2p8BHSpeedHUnit300BFusedMxuProfile(BamPythia2p8BHSpeedHUnit300BFusedQKNormProfile):
+    """Fused QKNorm with lane-broadcast MXU statistics."""
+    model_name = 'BamPythia2p8BHSpeedHUnit300BFusedMxuProfile'
+    bam_pallas_fused_qk_norm_mxu = True
+
+
+class BamPythia2p8BHSpeedHUnit300BFusedMxuSaveSplashProfile(BamPythia2p8BHSpeedHUnit300BFusedSaveSplashProfile):
+    """Fused QKNorm (MXU statistics) keeping Splash residuals."""
+    model_name = 'BamPythia2p8BHSpeedHUnit300BFusedMxuSaveSplashProfile'
+    bam_pallas_fused_qk_norm_mxu = True
+
+
 class BamPythia2p8BHSpeedHUnit300BFusedPackedSaveSplashProfile(BamPythia2p8BHSpeedHUnit300BFusedPackedProfile):
     """Fused/packed H keeping Splash residuals."""
     model_name = 'BamPythia2p8BHSpeedHUnit300BFusedPackedSaveSplashProfile'

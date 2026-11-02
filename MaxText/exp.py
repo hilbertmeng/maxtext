@@ -17585,6 +17585,18 @@ class BamPythia2p8BHSpeedR768NoConcatNormSaveSplashReadProfile(BamPythia2p8BHSpe
     remat_policy = 'minimal_save_splash_read'
 
 
+class BamPythia2p8BHSpeedR768NoConcatNormPackedProfile(BamPythia2p8BHSpeedR768NoConcatNormProfile):
+    """Old-QKNorm reference with einsum-packed [B,C,3N,T] read keys (fair implementation match)."""
+    model_name = 'BamPythia2p8BHSpeedR768NoConcatNormPackedProfile'
+    bam_pallas_packed_read_keys = True
+
+
+class BamPythia2p8BHSpeedR768NoConcatNormPackedSaveSplashProfile(BamPythia2p8BHSpeedR768NoConcatNormSaveSplashProfile):
+    """Old-QKNorm reference with einsum-packed keys and Splash residuals."""
+    model_name = 'BamPythia2p8BHSpeedR768NoConcatNormPackedSaveSplashProfile'
+    bam_pallas_packed_read_keys = True
+
+
 class BamPythia2p8BHSpeedR768Profile(
         _HSpeedProfile, BamPythia2p8BSotaIndependentR768PallasShortTrain):
     """R768 ShortTrain, complete-head QKNorm."""

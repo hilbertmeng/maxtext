@@ -306,7 +306,7 @@ def _tm_read_backward_kernel(n, qk_cols, eps, scale, q_scale, gated, ch, pass_m,
       gp_ref, refs = refs[0], refs[1:]
     if qk_norm:
       (xq_ref, xk_ref, inv_ref), refs = refs[:3], refs[3:]
-    if packed:        # one [C, 4N, tile] key cotangent block (q, k, v, o rows), written once per c
+    if packed:        # one [C, S*N, tile] key cotangent block (q, k, [v,] o rows), written once per c
       (dm_ref, dst_ref, drq, dlq, dlk, dlo, dlv, dqs, dks), refs = refs[:9], refs[9:]
       drk = drr = None
     else:
@@ -511,19 +511,22 @@ def _tm_read_specs(args, tile, packed=False, std_tok=False):
   specs = [_token_spec(m.shape[2:], tile), _whole(st.shape)] + [_spec(x.shape[1:-1], tile) for x in args[2:]]
   if std_tok:
     specs[9], specs[10] = _std_tok_spec(args[9].shape, tile), _std_tok_spec(args[10].shape, tile)
-  if packed:          # one [B,C,4N,T] key array (q, k, v, o) read as Q, K and the packed V/O slab
-    cdim, np_ = args[2].shape[1], args[2].shape[2] // 4
+  if packed:          # one key array read as Q, K and the V/O slab: [B,C,4N,T] (q,k,v,o) or [B,C,3N,T] (q,k,vo)
+    cdim, slabs = args[2].shape[1], int(packed)
+    np_ = args[2].shape[2] // slabs
     block = lambda rows, idx: pl.BlockSpec((None, cdim, rows, tile), lambda bb, i: (bb, 0, idx, i))
-    specs[2], specs[4], specs[6] = block(np_, 0), block(np_, 1), block(2 * np_, 1)
+    specs[2], specs[4] = block(np_, 0), block(np_, 1)
+    specs[6] = block(2 * np_, 1) if slabs == 4 else block(np_, 2)
   return specs
 
 
 def _key_shapes(args, packed):
-  """(rq, rk, rr) shapes as the kernel sees them (packed: slices of the one key array)."""
+  """(rq, rk, rr) shapes as the kernel sees them; packed = key slabs (4: q,k,v,o; 3: q,k,vo; 0: none)."""
   if not packed:
     return args[2].shape, args[4].shape, args[6].shape
   b, cdim, rows, t = args[2].shape
-  return (b, cdim, rows // 4, t), (b, cdim, rows // 4, t), (b, cdim, rows // 2, t)
+  n = rows // int(packed)
+  return (b, cdim, n, t), (b, cdim, n, t), (b, cdim, rows - 2 * n, t)
 
 
 def _halo_spec(m, tile):
@@ -546,7 +549,7 @@ def _qk_norm_specs(qn, tile):
 def _tm_read_forward_call(args, opts, sh=None, om=None, os=None, qn=None, kb=None):
   m = args[0]
   b, t, vdim, kdim = m.shape
-  packed = bool(opts.get('packed'))
+  packed = int(opts.get('packed') or 0)        # key slabs: 4, 3 or 0 (unpacked)
   cdim = args[2].shape[1]
   n = opts['heads']
   r = 4 * _key_shapes(args, packed)[0][2]
@@ -581,7 +584,7 @@ def _tm_read_forward_call(args, opts, sh=None, om=None, os=None, qn=None, kb=Non
 def _tm_read_backward_call(args, cts, opts, sh=None, om=None, os=None, qn=None, qn_res=(), kb=None):
   m, st = args[0], args[1]
   b, t, vdim, kdim = m.shape
-  packed = bool(opts.get('packed'))
+  packed = int(opts.get('packed') or 0)        # key slabs: 4, 3 or 0 (unpacked)
   key_shapes = _key_shapes(args, packed)
   cdim, np_ = key_shapes[0][1:3]
   n = opts['heads']
@@ -740,9 +743,11 @@ def read_tm(m, static_weight, q_key, q_logits, k_key, k_logits, vo_key, o_logits
     assert q_scale == 1.0, 'fold the logit scale into m_q'
     if qk_out_pad:      # lane-dense Q/K rows: zero lanes up to a multiple of 128 (q.k unchanged)
       qdim = -(-qdim // 128) * 128
-  packed = qkvo_key is not None or keys_cnt is not None
-  if keys_cnt is not None:   # keys already in kernel layout [B,C,4N,T] (q, k, v, o)
-    assert keys_cnt.shape == (b, cdim, 4 * n, t) and not pad_heads and (n % 8 == 0 or interpret), keys_cnt.shape
+  packed = 4 if qkvo_key is not None else 0
+  if keys_cnt is not None:   # keys already in kernel layout: [B,C,4N,T] (q, k, v, o) or [B,C,3N,T] (q, k, vo)
+    packed = keys_cnt.shape[2] // n
+    assert (keys_cnt.shape in ((b, cdim, 4 * n, t), (b, cdim, 3 * n, t)) and not pad_heads
+            and (n % 8 == 0 or interpret)), keys_cnt.shape
   elif packed:
     # Mosaic block views need the head count to be a sublane multiple; interpret mode does not.
     assert qkvo_key.shape == (b, t, 4 * n, cdim) and not pad_heads and (n % 8 == 0 or interpret), qkvo_key.shape
@@ -802,7 +807,7 @@ def read_tm(m, static_weight, q_key, q_logits, k_key, k_logits, vo_key, o_logits
 
   biased = key_bias is not None
   if biased:          # [4N, C] key pre-bias (q, k, v, o rows), added inside the kernel
-    assert packed and key_bias.shape == (4 * n, cdim) and np_ == n, key_bias.shape
+    assert packed and key_bias.shape == (packed * n, cdim) and np_ == n, key_bias.shape
     args += (key_bias.astype(F32),)
 
   def local(m, st, *xs):

@@ -4183,39 +4183,42 @@ class BamAttention(Attention):
       if self._vo_independent_keys:
         v_key = (up['W_lv_c8_up'] + pre('v') if fused else
                  self._project_column_read_key('W_lv_c8', inputs_q, hidden))
-        if fused and getattr(cfg, 'bam_pallas_packed_read_keys', False) and not self._hybrid_value:
-          # The four up projections as one einsum straight into v8t's [B,C,4N,T] key layout (q, k, v, o),
-          # pre-biases in its epilogue: no split, concat or transpose copies in either direction. Same
-          # kernels, casts, precision and kernel-gradient scales as _fused_input_projections.
-          params = self.variables['params']
-          kernels = []
-          for name in ('W_lq_c8_up', 'W_lk_c8_up', 'W_lv_c8_up', 'W_R_up'):
-            kernel = jnp.asarray(nn.meta.unbox(params[name]['kernel']), self.dtype)
-            scale = getattr(getattr(self, name, None), 'kernel_gradient_scale', 1.0)
-            if scale != 1.0:
-              kernel_sg = jax.lax.stop_gradient(kernel)
-              kernel = kernel_sg + scale * (kernel - kernel_sg)
-            assert params[name].get('bias') is None if hasattr(params[name], 'get') else True, name
-            kernels.append(kernel.reshape(kernel.shape[0], -1, kernel.shape[-1]))      # [D', N, V]
-          def arm_bias(arm):   # [N, V] (the O pre-bias carries a singleton fetch axis; 0 without general reads)
-            b_ = jnp.asarray(pre(arm), hidden.dtype)
-            return b_.reshape(-1, self.bam_v) if b_.ndim else jnp.broadcast_to(b_, (self.num_query_heads, self.bam_v))
-          bias = jnp.concatenate([arm_bias(arm) for arm in ('q', 'k', 'v', 'vo')], axis=0)   # [4N, V]
-          if getattr(cfg, 'bam_pallas_packed_key_bias_in_kernel', False):
-            packed_qkvo = jnp.einsum('btd,drc->bcrt', hidden, jnp.concatenate(kernels, axis=1),
-                                     precision=jax.lax.Precision(cfg.matmul_precision))
-            packed_key_bias = bias         # added inside the read kernel
-          else:
-            # Bias as an extra contraction row against a constant-one feature: added and differentiated
-            # inside the matmul, with no separate [B,C,4N,T] add or token reduction.
-            ones = jnp.ones(hidden.shape[:-1] + (1,), hidden.dtype)
-            weight = jnp.concatenate((jnp.concatenate(kernels, axis=1), bias[None].astype(self.dtype)), axis=0)
-            packed_qkvo = jnp.einsum('btd,drc->bcrt', jnp.concatenate((hidden, ones), axis=-1), weight,
-                                     precision=jax.lax.Precision(cfg.matmul_precision))
-          packed_qkvo = checkpoint_name(packed_qkvo, 'bam_read_keys')
         # v8t accepts two key slabs, V then O, instead of a shared VO slab.
         vo_key = jnp.concatenate((self._pad_read_heads(v_key, -2),
                                   self._pad_read_heads(vo_key, -2)), axis=-2)
+      if fused and getattr(cfg, 'bam_pallas_packed_read_keys', False) and not self._hybrid_value:
+        # The up projections as one einsum straight into v8t's key layout: [B,C,4N,T] (q, k, v, o) with
+        # independent V/O keys, [B,C,3N,T] (q, k, vo) with a shared VO key. No split, concat or transpose
+        # copies in either direction. Same kernels, casts, precision and kernel-gradient scales as
+        # _fused_input_projections.
+        params = self.variables['params']
+        kernels = []
+        arms = ('q', 'k', 'v', 'vo') if self._vo_independent_keys else ('q', 'k', 'vo')
+        names = {'q': 'W_lq_c8_up', 'k': 'W_lk_c8_up', 'v': 'W_lv_c8_up', 'vo': 'W_R_up'}
+        for name in (names[arm] for arm in arms):
+          kernel = jnp.asarray(nn.meta.unbox(params[name]['kernel']), self.dtype)
+          scale = getattr(getattr(self, name, None), 'kernel_gradient_scale', 1.0)
+          if scale != 1.0:
+            kernel_sg = jax.lax.stop_gradient(kernel)
+            kernel = kernel_sg + scale * (kernel - kernel_sg)
+          assert params[name].get('bias') is None if hasattr(params[name], 'get') else True, name
+          kernels.append(kernel.reshape(kernel.shape[0], -1, kernel.shape[-1]))      # [D', N, V]
+        def arm_bias(arm):   # [N, V] (the O pre-bias carries a singleton fetch axis; 0 without general reads)
+          b_ = jnp.asarray(pre(arm), hidden.dtype)
+          return b_.reshape(-1, self.bam_v) if b_.ndim else jnp.broadcast_to(b_, (self.num_query_heads, self.bam_v))
+        bias = jnp.concatenate([arm_bias(arm) for arm in arms], axis=0)               # [S*N, V]
+        if getattr(cfg, 'bam_pallas_packed_key_bias_in_kernel', False):
+          packed_qkvo = jnp.einsum('btd,drc->bcrt', hidden, jnp.concatenate(kernels, axis=1),
+                                   precision=jax.lax.Precision(cfg.matmul_precision))
+          packed_key_bias = bias         # added inside the read kernel
+        else:
+          # Bias as an extra contraction row against a constant-one feature: added and differentiated
+          # inside the matmul, with no separate [B,C,4N,T] add or token reduction.
+          ones = jnp.ones(hidden.shape[:-1] + (1,), hidden.dtype)
+          weight = jnp.concatenate((jnp.concatenate(kernels, axis=1), bias[None].astype(self.dtype)), axis=0)
+          packed_qkvo = jnp.einsum('btd,drc->bcrt', jnp.concatenate((hidden, ones), axis=-1), weight,
+                                   precision=jax.lax.Precision(cfg.matmul_precision))
+        packed_qkvo = checkpoint_name(packed_qkvo, 'bam_read_keys')
       compression = jnp.eye(self.bam_v, dtype=self.static_q_key.dtype)
     else:
       if fused:

@@ -56,7 +56,10 @@ def native_ce(h,w,y):
  return precise_cross_entropy(z,jax.nn.one_hot(y,w.shape[-1]))[0]
 
 def FP32_readout(h,w,y):
- hf=h[0].astype(jnp.float32);wf=w.astype(jnp.bfloat16).astype(jnp.float32)
+ hf=h[0].astype(jnp.float32)
+ # CUDA may eliminate BF16->FP32 conversion chains on an FP32 input.
+ # Integer RNE/masking fixes effective forward weights before FP32 GEMM.
+ wf=BF16_round(w)
  z=jnp.einsum('td,dv->tv',hf,wf,precision=jax.lax.Precision.HIGHEST);e=jax.nn.softmax(z).at[jnp.arange(y.shape[1]),y[0]].add(-1)
  g=jnp.einsum('td,tv->dv',hf,e,precision=jax.lax.Precision.HIGHEST)/y.shape[1]
  ce=-jnp.take_along_axis(jax.nn.log_softmax(z),y[0,:,None],-1)[:,0]

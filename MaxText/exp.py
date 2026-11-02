@@ -17691,6 +17691,26 @@ class BamPythia2p8BHSpeedR768NoConcatNormShardGradsProfile(BamPythia2p8BHSpeedR7
     shard_raw_grads = True
 
 
+V5P_ASYNC_COLLECTIVE_FLAGS = (
+    '--xla_tpu_enable_async_collective_fusion_fuse_all_gather=true --xla_tpu_megacore_fusion_allow_ags=false '
+    '--xla_enable_async_collective_permute=true --xla_tpu_enable_ag_backward_pipelining=true '
+    '--xla_tpu_enable_data_parallel_all_reduce_opt=true --xla_tpu_data_parallel_opt_different_sized_ops=true '
+    '--xla_tpu_enable_async_collective_fusion=true --xla_tpu_enable_async_collective_fusion_multiple_steps=true '
+    '--xla_tpu_overlap_compute_collective_tc=true --xla_enable_async_all_gather=true')
+
+
+class BamPythia2p8BHSpeedHUnit300BAsyncCollectivesProfile(BamPythia2p8BHSpeedHUnit300BProfile):
+    """H with the v5p async-collective / compute-overlap XLA flags of the earlier v5p train script."""
+    model_name = 'BamPythia2p8BHSpeedHUnit300BAsyncCollectivesProfile'
+    libtpu_extra_flags = V5P_ASYNC_COLLECTIVE_FLAGS
+
+
+class BamPythia2p8BHSpeedR768NoConcatNormAsyncCollectivesProfile(BamPythia2p8BHSpeedR768NoConcatNormProfile):
+    """Old-QKNorm reference with the same async-collective flags."""
+    model_name = 'BamPythia2p8BHSpeedR768NoConcatNormAsyncCollectivesProfile'
+    libtpu_extra_flags = V5P_ASYNC_COLLECTIVE_FLAGS
+
+
 class BamPythia2p8BHSpeedHUnit300BFusedPackedSaveSplashProfile(BamPythia2p8BHSpeedHUnit300BFusedPackedProfile):
     """Fused/packed H keeping Splash residuals."""
     model_name = 'BamPythia2p8BHSpeedHUnit300BFusedPackedSaveSplashProfile'

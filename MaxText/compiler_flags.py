@@ -15,6 +15,11 @@ def configure_from_argv(argv=None):
   if not name:return
   import exp
   experiment=getattr(exp,name)
+  extra=getattr(experiment,'libtpu_extra_flags','') or ''
+  if extra:   # experiment-owned XLA/TPU flags (e.g. async collectives), identical for AOT and training
+    value=os.environ.get('LIBTPU_INIT_ARGS','')
+    missing=[f for f in extra.split() if f.split('=')[0] not in value]
+    if missing:os.environ['LIBTPU_INIT_ARGS']=(value+' '+' '.join(missing)).strip()
   budget=int(options.get('rmt_scoped_vmem_limit_kib',getattr(experiment,'rmt_scoped_vmem_limit_kib',0)))
   if not budget:return
   if budget<0:raise ValueError('Scoped VMEM budget must be positive')

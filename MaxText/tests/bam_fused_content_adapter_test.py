@@ -34,6 +34,14 @@ class FusedContentAdapterTest(base.HUnit300BTest):
     with mock.patch.object(nn.Module, 'init', init):
       base.HUnit300BTest.check_model(self, run, dtype)
 
+  def test_control_unfused_post_rms(self):
+    self.flags = {}
+    self.check_model(FULL)
+
+  def test_control_unfused_pre_rms(self):
+    self.flags = {}
+    self.check_model(PRE_RMS)
+
   def test_full_post_rms(self):
     self.check_model(FULL)
 

@@ -755,21 +755,28 @@ def _minor_t(x):
   return jnp.moveaxis(x, 1, -1)
 
 
-def _adapt(delta, x):
-  """Per-head content adapter on a T-minor [K, T] slab: x + delta^T x (bf16 MXU inputs, FP32 sum)."""
-  return x + jax.lax.dot_general(delta.astype(jnp.bfloat16), x.astype(jnp.bfloat16), (((0,), (0,)), ((), ())),
-                                 preferred_element_type=F32)
+def _adapter_dot(a, b, dims, dtype):
+  """MXU dot in the model's content dtype (bf16 inputs as the XLA einsum; FP32 at HIGHEST), FP32 sum."""
+  precision = jax.lax.Precision.HIGHEST if dtype == F32 else None
+  return jax.lax.dot_general(a.astype(dtype), b.astype(dtype), (dims, ((), ())), precision=precision,
+                             preferred_element_type=F32)
+
+
+def _adapt(delta, x, dtype):
+  """Per-head content adapter on a T-minor [K, T] slab: x + delta^T x."""
+  return x + _adapter_dot(delta, x, ((0,), (0,)), dtype)
 
 
 def _write_content(x, eps, divisor, delta=None, before=False):
   """Written content [K, T] before gating: optional identity-plus-delta adapter before or after the
   RMS (or fixed-divisor) content normalization, exactly as the XLA adapter path orders them."""
+  dtype = x.dtype
   x = x.astype(F32)
   if delta is not None and before:
-    x = _adapt(delta, x)
+    x = _adapt(delta, x, dtype)
   c = _norm(x, eps, 0) if divisor is None else x / divisor
   if delta is not None and not before:
-    c = _adapt(delta, c)
+    c = _adapt(delta, c, dtype)
   return c
 
 
@@ -860,14 +867,12 @@ def _tm_write_backward_kernel(eps, n_groups, ch, divisors, adapter_spec=()):
           dx = norm_back(x, u)
         else:
           # Adapter reverse on [K, T]: d(in) = u + delta u; d(delta) = in u^T (summed over this tile).
-          db = d.astype(jnp.bfloat16)
-          back = lambda v: v + jax.lax.dot_general(db, v.astype(jnp.bfloat16), (((1,), (0,)), ((), ())),
-                                                   preferred_element_type=F32)
-          outer = lambda a, b: jax.lax.dot_general(a.astype(jnp.bfloat16), b.astype(jnp.bfloat16),
-                                                   (((1,), (1,)), ((), ())), preferred_element_type=F32)
+          cd = x.dtype
+          back = lambda v: v + _adapter_dot(d, v, ((1,), (0,)), cd)
+          outer = lambda a, b: _adapter_dot(a, b, ((1,), (1,)), cd)
           xf = x.astype(F32)
           if before:          # written = norm(x + delta^T x)
-            y = _adapt(d, xf)
+            y = _adapt(d, xf, cd)
             dy = norm_back(y, u)
             ddelta[h] = outer(xf, dy)
             dx = back(dy)

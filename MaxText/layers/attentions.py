@@ -3722,8 +3722,12 @@ class BamAttention(Attention):
     """Select the configured read-side view without changing the raw matrix stream."""
     if M_in is None or self._m_read_norm == 'none':
       return M_in
-    return M_in * jax.lax.rsqrt(
-        jnp.mean(M_in ** 2, axis=(-2, -1), keepdims=True) + self._rms_epsilon)
+    # M-shift is applied before this read-only view. Keep statistics in FP32
+    # and preserve the raw matrix stream for attention/private-MLP writes.
+    matrix = M_in.astype(jnp.float32)
+    normalized = matrix * jax.lax.rsqrt(
+        jnp.mean(jnp.square(matrix), axis=(-2, -1), keepdims=True) + self._rms_epsilon)
+    return normalized.astype(M_in.dtype)
 
   def _add_local_qk(self, query, key, q_local, k_local, segment_ids=None):
     """Inject LocalQK into the standard Q/K arm."""

@@ -75,7 +75,7 @@ class MatrixPreNormTest(MLPWriteTest, unittest.TestCase):
       totals.append(sum(np.prod(v.shape,dtype=np.int64) for v in flat.values()))
       if c is not configs[0]:
         self.assertEqual(c.bam_m_read_norm,'rms')
-        self.assertFalse(c.bam_pallas_core or c.bam_pallas_write)
+        self.assertTrue(c.bam_pallas_core and c.bam_pallas_write and c.bam_pallas_packed_read_keys)
         self.assertTrue(c.bam_splash_attention and c.record_training_health_metrics)
         self.assertFalse(c.record_internal_nn_metrics or c.bam_record_m_shift_health)
         self.assertEqual((c.mlp_dim,c.bam_memory_mlp_dim,c.bam_last_mlp_dim),(2510,1128,3904))

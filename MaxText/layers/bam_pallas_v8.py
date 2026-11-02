@@ -146,6 +146,18 @@ def _prev_from(m_ref, mh_ref, t0, mt):
   return jnp.concatenate((first.astype(mt.dtype), mt[:-1]), axis=0)
 
 
+def _m_inv_rms(x, eps):
+  """Per-token 1/RMS of whole read matrices x [ch, V, K] (FP32), [ch, 1, 1]: M pre-norm."""
+  ss = jnp.sum(jnp.sum(x * x, axis=2, keepdims=True), axis=1, keepdims=True)
+  return jax.lax.rsqrt(ss / (x.shape[1] * x.shape[2]) + eps)
+
+
+def _m_norm_backward(x, s, g):
+  """Cotangent of x from g = d(x s), s = 1/RMS(x): s g - x s^3 sum(g x) / N per token."""
+  gx = jnp.sum(jnp.sum(g * x, axis=2, keepdims=True), axis=1, keepdims=True)
+  return s * g - x * (s * s * s * gx / (x.shape[1] * x.shape[2]))
+
+
 def _dot2(x, w):
   """FP32 x @ bf16 0/1 matrix w on the MXU via a bf16 hi/lo split (~1e-5 relative): row sums and
   per-head selections arrive lane-broadcast, avoiding [T, 1] column reductions and broadcasts."""
@@ -162,7 +174,7 @@ def _head_selector(np_, qdim, h):
 
 
 def _tm_read_kernel(n, qk_cols, eps, scale, q_scale, gated, ch, shifted=False, qdim=None, masked=False,
-                    scaled=False, qk_norm=None):
+                    scaled=False, qk_norm=None, m_norm=None):
   def kernel(m_ref, st_ref, rq, lq, rk, lk, rr, lo, lv, qs, ks, *refs):
     if gated:
       sg_ref, refs = refs[0], refs[1:]
@@ -191,12 +203,17 @@ def _tm_read_kernel(n, qk_cols, eps, scale, q_scale, gated, ch, shifted=False, q
       osc = _tm_dynamic_scale(os_ref, r)
     _tm_fill_keys(rq, rk, rr, inv, g, st_ref[...].astype(F32), sg, xt_scr, om, osc)
     for t0 in range(0, t, ch):
-      if shifted:
+      if shifted or m_norm is not None:
         # Y_t = X_t M_read_t, M_read_t = M_t + g'(M_{t-1} - M_t) mixed on the VPU. Per-token gate
         # broadcasts beat a gate scratch here; the dot form (X_t g') M_{t-1} costs a second matmul.
+        # M pre-norm then scales the mixed FP32 matrix by its own 1/RMS before the model-dtype cast.
         xt = _chunk(xt_scr, t0, ch, cdim).astype(dt)
         mt = m_ref[pl.ds(t0, ch)].astype(F32)
-        mr = mt + _shift_gate(sh_ref, t0, ch, kdim) * (_prev_from(m_ref, mh_ref, t0, mt) - mt)
+        mr = mt
+        if shifted:
+          mr = mt + _shift_gate(sh_ref, t0, ch, kdim) * (_prev_from(m_ref, mh_ref, t0, mt) - mt)
+        if m_norm is not None:
+          mr = mr * _m_inv_rms(mr, m_norm)
         y = _bdot(xt, mr.astype(dt), 1, 1)
       else:
         xt = _chunk(xt_scr, t0, ch, cdim).astype(dt)
@@ -249,7 +266,7 @@ def _tm_read_kernel(n, qk_cols, eps, scale, q_scale, gated, ch, shifted=False, q
 
 
 def _tm_read_backward_kernel(n, qk_cols, eps, scale, q_scale, gated, ch, pass_m, shifted=False, qdim=None,
-                             masked=False, scaled=False, qk_norm=None, packed=False):
+                             masked=False, scaled=False, qk_norm=None, packed=False, m_norm=None):
   def kernel(m_ref, st_ref, rq, lq, rk, lk, rr, lo, lv, qs, ks, *refs):
     if gated:
       sg_ref, refs = refs[0], refs[1:]
@@ -374,8 +391,14 @@ def _tm_read_backward_kernel(n, qk_cols, eps, scale, q_scale, gated, ch, pass_m,
         mt = m_ref[pl.ds(t0, ch)].astype(F32)
         d = _prev_from(m_ref, mh_ref, t0, mt) - mt
         gk = _chunk(gb_scr, t0, ch, cdim)
-        dxt = _bdot((mt + gk * d).astype(dt), dy, 2, 2)                   # [ch, C, R]
-        dmr = _bdot(xt, dy, 2, 1)                                         # [ch, C, K]
+        mr = mt + gk * d
+        if m_norm is not None:     # dM_read through the per-token pre-norm of the mixed matrix
+          s = _m_inv_rms(mr, m_norm)
+          dxt = _bdot((mr * s).astype(dt), dy, 2, 2)                      # [ch, C, R]
+          dmr = _m_norm_backward(mr, s, _bdot(xt, dy, 2, 1))              # [ch, C, K]
+        else:
+          dxt = _bdot(mr.astype(dt), dy, 2, 2)                            # [ch, C, R]
+          dmr = _bdot(xt, dy, 2, 1)                                       # [ch, C, K]
         col = jnp.sum(dmr * d, axis=-1, keepdims=True)
         for i in range(ch):
           dsh_ref[:, pl.ds(t0 + i, 1)] = col[i].astype(dsh_ref.dtype)
@@ -383,6 +406,12 @@ def _tm_read_backward_kernel(n, qk_cols, eps, scale, q_scale, gated, ch, pass_m,
         tail = jnp.zeros_like(e[:1]) if nxt is None else nxt
         dmv = dmr - e + jnp.concatenate((e[1:], tail), axis=0)
         nxt = e[:1]
+      elif m_norm is not None:
+        xt = _chunk(xt_scr, t0, ch, cdim).astype(dt)
+        mt = m_ref[pl.ds(t0, ch)].astype(F32)
+        s = _m_inv_rms(mt, m_norm)
+        dxt = _bdot((mt * s).astype(dt), dy, 2, 2)                        # [ch, C, R]
+        dmv = _m_norm_backward(mt, s, _bdot(xt, dy, 2, 1))                # [ch, C, K]
       else:
         xt = _chunk(xt_scr, t0, ch, cdim).astype(dt)
         dxt = _bdot(m_ref[pl.ds(t0, ch)], dy, 2, 2)                       # [ch, C, R]
@@ -512,7 +541,7 @@ def _tm_read_forward_call(args, opts, sh=None, om=None, os=None, qn=None):
   return pl.pallas_call(
       _tm_read_kernel(n, opts['qk_cols'], opts['read_epsilon'], opts['key_scale'], opts['q_scale'],
                       len(args) == 12, opts['chunk'], sh is not None, qdim, om is not None, os is not None,
-                      qk_norm),
+                      qk_norm, opts.get('m_norm')),
       grid=(b, t // tile),
       in_specs=(_tm_read_specs(args, tile, packed, bool(qk_norm)) + _shift_specs(m, sh, tile)
                 + _mask_specs(om, tile) + _scale_specs(os) + _qk_norm_specs(qn, tile)),
@@ -582,7 +611,7 @@ def _tm_read_backward_call(args, cts, opts, sh=None, om=None, os=None, qn=None, 
   outs = pl.pallas_call(
       _tm_read_backward_kernel(n, opts['qk_cols'], opts['read_epsilon'], opts['key_scale'], opts['q_scale'],
                                gated, opts['chunk'], pass_m, shifted, qdim, om is not None, os is not None,
-                               qk_norm, packed),
+                               qk_norm, packed, opts.get('m_norm')),
       grid=(b, t // tile), in_specs=in_specs, out_specs=out_specs, out_shape=tuple(out_shape),
       scratch_shapes=scratch,
       input_output_aliases={len(args) + len(extra) + 4: 0} if pass_m else {},
@@ -647,7 +676,7 @@ def read_tm(m, static_weight, q_key, q_logits, k_key, k_logits, vo_key, o_logits
             k_standard, *, qk_cols, read_epsilon, key_scale, forward_tile=128, reverse_tile=128,
             vmem_mib=None, interpret=False, q_scale=1.0, static_gates=None, chunk=8, pad_heads=False,
             shift=None, o_weight_multiplier=None, o_dynamic_scale=None, v_dynamic_scale=None, qk_norm=None,
-            keys_cnt=None, **_):
+            keys_cnt=None, m_norm=None, **_):
   """v7.read's interface (keys [B,T,N,C], logits [B,T,N], standard QK [B,T,N,Rs]) for M [B,T,V,K] and
   full-M reads (C == V, identity compression). Returns (query, key, value, local_o) [B,T,N,K] and M.
 
@@ -657,6 +686,10 @@ def read_tm(m, static_weight, q_key, q_logits, k_key, k_logits, vo_key, o_logits
   shift [B,T,V]: optional previous-token share g' (zero at invalid tokens); every read then sees
   M_t + g'_t (M_{t-1} - M_t), mixed per V row on the VPU inside the kernel (one read dot, two reverse
   dots); the passthrough M stays unmixed. v5p XL kernel-only: read F/B +10%/+10% over the plain read.
+
+  m_norm (epsilon): optional whole-matrix pre-norm of the read view. Every read sees
+  M_read_t * rsqrt(mean(M_read_t^2) + epsilon), one FP32 statistic per token over all V x K entries
+  of the (shifted) matrix, cast to the model dtype; the passthrough M and its cotangent stay raw.
 
   o_dynamic_scale [N,V]: optional learned per-head coordinate scale of the dynamic O key after its RMS
   norm (static O and Q/K untouched). v_dynamic_scale optionally applies the same
@@ -687,6 +720,7 @@ def read_tm(m, static_weight, q_key, q_logits, k_key, k_logits, vo_key, o_logits
   opts = _freeze(dict(heads=n, qk_cols=qk_cols, read_epsilon=read_epsilon, key_scale=key_scale, packed=packed,
                       tile=forward_tile, reverse_tile=reverse_tile, vmem_mib=vmem_mib, interpret=interpret,
                       q_scale=float(q_scale), chunk=chunk, **({'qdim': qdim} if qdim > m.shape[-1] else {}),
+                      **({} if m_norm is None else {'m_norm': float(m_norm)}),
                       **({} if qk_norm is None else {'qk_norm': (float(qk_norm[4]), float(qdim))})))
   padn = lambda x: jnp.pad(x, [(0, 0)] * (x.ndim - 2) + [(0, np_ - n), (0, 0)]) if np_ > n else x
   padn_tok = lambda x: jnp.pad(x, [(0, 0), (0, 0), (0, np_ - n), (0, 0)]) if np_ > n else x   # [B,T,NP,Rs]

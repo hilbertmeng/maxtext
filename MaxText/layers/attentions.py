@@ -4082,9 +4082,10 @@ class BamAttention(Attention):
         'compressed V cache or full-M reads': (
             (self._abs_v_dim is not None or self._full_m_read_rank is not None)
             and self.bam_k == self.head_dim),
-        'no M read norm / decay / sqrt-n': (
-            self._m_read_norm == 'none' and float(cfg.bam_lambda_decay) == 1.0
-            and not cfg.bam_sqrt_n_scale),
+        'no M read norm (except whole-M RMS on v8t) / decay / sqrt-n': (
+            (self._m_read_norm == 'none'
+             or (self._m_read_norm == 'rms' and getattr(cfg, 'bam_pallas_body', None) == 'v8t'))
+            and float(cfg.bam_lambda_decay) == 1.0 and not cfg.bam_sqrt_n_scale),
         'plain RMS writes': (
             (self._write_data_rms or self._attention_content_divisor is not None)
             and self._write_factor_norm == 'rms'
@@ -4313,6 +4314,9 @@ class BamAttention(Attention):
                                                column_metrics=False)
           self.sow('intermediates', 'm_shift_m_summary',
                    jnp.stack((stats[0], stats[1], stats[4], stats[5], state[4])))
+    if self._m_read_norm == 'rms':
+      # _matrix_for_read inside the v8t read: one FP32 RMS per token over the (shifted) matrix.
+      read_kwargs['m_norm'] = self._rms_epsilon
     o_weight_rate = float(getattr(cfg, 'bam_local_o_read_weight_dropout_rate', 0.0))
     if o_weight_rate:
       # Same sampled [B,T,N,V] mask and RNG order as the XLA path (before O DropHead); the kernel

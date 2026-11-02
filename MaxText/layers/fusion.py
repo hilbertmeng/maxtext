@@ -502,7 +502,9 @@ class SubDecoderLayer(nn.Module):
       groups = [] if write_factors is None else [write_factors]
       from layers.bam_write_content import divisor
       # Adapted attention factors already passed the original content RMSNorm in XLA.
-      attention_divisor = 1.0 if getattr(cfg, 'bam_content_adapter_write', False) else divisor(cfg, 'attention')
+      pre_rms = bool(getattr(cfg, 'bam_content_adapter_write_before_rms', False))
+      attention_divisor = (1.0 if getattr(cfg, 'bam_content_adapter_write', False) and not pre_rms
+                           else divisor(cfg, 'attention'))
       content_divisors = [] if write_factors is None else [attention_divisor]
       if mlp_write:
         assert independent_address is not None, 'fused core supports independent MLP addresses only'

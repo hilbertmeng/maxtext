@@ -3299,6 +3299,11 @@ class BamAttention(Attention):
     # Content adapters preserve the identity as a fixed term, with WD only on Delta.
     from layers.bam_content_adapter import HeadContentAdapter
     adapter_activation = getattr(cfg, 'bam_content_adapter_activation', None) or 'linear'
+    self._content_write_before_rms = bool(getattr(cfg, 'bam_content_adapter_write_before_rms', False))
+    if self._content_write_before_rms:
+      if (not getattr(cfg, 'bam_content_adapter_write', False) or adapter_activation != 'linear'
+          or self._attention_content_divisor is not None or not self._write_data_rms):
+        raise ValueError('Pre-RMS placement requires a linear adapter and normalized attention writes')
     if adapter_activation != 'linear' and getattr(cfg, 'bam_content_adapter_v', False):
       raise ValueError('Nonlinear V adapters cannot commute through context attention')
     for route, enabled in (
@@ -3791,12 +3796,15 @@ class BamAttention(Attention):
     return M_out, gate
 
   def _attention_write_content(self, content):
+    adapter = bool(getattr(self.config, 'bam_content_adapter_write', False))
+    if adapter and self._content_write_before_rms:
+      content = self.content_write_adapter(content)
     if self._attention_content_divisor is not None:
       from layers.bam_write_content import fixed_content
       content = fixed_content(content, self._attention_content_divisor)
     elif self._write_data_rms:
       content = self.write_data_norm(content)
-    if getattr(self.config, 'bam_content_adapter_write', False):
+    if adapter and not self._content_write_before_rms:
       content = self.content_write_adapter(content)
     return content
 
@@ -4378,8 +4386,12 @@ class BamAttention(Attention):
     else:
       write_logits = self.W_gw(inputs_q) + jnp.asarray(self.gw_b0, self.dtype)
     out = nn.with_logical_constraint(o_head, self.out_axis_names)
-    write_content = (self._attention_write_content(o_head)
-                     if getattr(cfg, 'bam_content_adapter_write', False) else o_head)
+    write_content = o_head
+    if getattr(cfg, 'bam_content_adapter_write', False):
+      # Pre-RMS adapters return raw transformed content; the write kernel owns
+      # its normalization. Post-RMS adapters already normalized in XLA.
+      write_content = (self.content_write_adapter(o_head) if self._content_write_before_rms
+                       else self._attention_write_content(o_head))
     return self.out_projection(inputs_q.shape[-1], out), M_in, (write_content, write_logits, address)
 
   @nn.compact

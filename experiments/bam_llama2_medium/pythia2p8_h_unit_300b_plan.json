@@ -5,7 +5,10 @@
   "implementation": {
     "worktree": "/home/xd/projects/maxtext",
     "branch": "refactor-bam",
-    "runtime_commit": "fb915b61c7326cd5c680e740c2ff9e4409abd142"
+    "runtime_commit": "16ee2385da477c6967c09545dd8bbaa32e0eed66",
+    "initial_runtime_commit": "fb915b61c7326cd5c680e740c2ff9e4409abd142",
+    "runtime_exp_class": "BamPythia2p8BHUnit300BFastKernel",
+    "kernel_replay_anchor": 26000
   },
   "launch": {
     "TPU_TYPE": "v5p-256",
@@ -20,8 +23,10 @@
     "TPU_NAME": "xd-v5p-256-311101-maxtext",
     "PRIMARY_ZONE": "us-east5-a",
     "BACKUP_ZONES": "",
-    "CODE_COMMIT": "fb915b61c7326cd5c680e740c2ff9e4409abd142",
-    "COMPILED_TRAINSTEP_GCS": "gs://newproject-1-llm_base_models_us-central1/log/compiled_trainsteps/fb915b6/jax081-i0ae3f58-c17f538a/v5p-256/s143000/BamPythia2p8BHUnit300B.pickle"
+    "CODE_COMMIT": "16ee2385da477c6967c09545dd8bbaa32e0eed66",
+    "COMPILED_TRAINSTEP_GCS": "gs://newproject-1-llm_base_models_us-central1/log/compiled_trainsteps/16ee238/jax081-i0ae3f58-c17f538a/v5p-256/s143000/BamPythia2p8BHUnit300BFastKernel.pickle",
+    "EXP": "BamPythia2p8BHUnit300BFastKernel",
+    "RUN_NAME": "BamPythia2p8BHUnit300B"
   },
   "compare_runs": [
     "Pythia_2.8B_2022",

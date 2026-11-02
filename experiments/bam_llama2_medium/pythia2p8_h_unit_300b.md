@@ -170,6 +170,39 @@ Owned training TPU `xd-v5p-256-311101-maxtext`, ID 311101, primary UE5a
 (`us-east5-a`), no submitted backup resources. Use the zone-local legacy T2048
 Pile replica. The retained `llm-jax-v6e-1-0` compiler in `europe-west4-a`, worker 0,
 was verified FLEX_START/guaranteed and idle; this task does not own its lifecycle.
+
+### Kernel runtime handoff at 26k
+
+The logical RUN remains `BamPythia2p8BHUnit300B`. It now uses configuration
+`BamPythia2p8BHUnit300BFastKernel` at sealed runtime
+`16ee2385da477c6967c09545dd8bbaa32e0eed66`, replacing `fb915b6` on the same
+UE5a v5p-256 trainer. Parameters, optimizer, batch, dataset and the original
+143000-step LR/checkpoint plan are unchanged. The new AOT manifest identifies
+v5p-256/s143000, 206769653 bytes, CRC32C `FlSL4w==`.
+
+An initial handoff restored the SIGTERM checkpoint 26140, which provided no
+post-checkpoint overlap with the old implementation. That attempt was stopped
+before acceptance. Following the earlier generalized-write kernel handoff,
+all training workers were verified absent, the newer committed checkpoint was
+retained, and the checkpoint-root cursor was explicitly rewound to the verified
+26000 checkpoint's own cursor. The new first step is 26001. Original old-runtime
+loss records 26001..26040 were frozen before the registry could replace replayed
+steps; no interpolation or neighboring-batch loss comparison is used.
+
+Across those 40 training losses on identical steps and batches, new-minus-old mean is
+-0.00004415, RMS difference 0.00009971, maximum absolute difference 0.000218,
+and correlation 0.99998850. Matched steps 26021..26040 give harmonic mean speed
+0.559396 old versus 0.613275 new step/s, +9.63%, with generic health ON in both.
+All 32 workers were independently verified at 16ee238 with `Loaded compiled function!`.
+The external checkpoint-rescue trigger/budget remain 1300/600 seconds. Report
+cursors remain 23k, next public report 28k; the four-figure plotting policy is unchanged.
+
+Evidence is under `/data0/xd/bam_diagnostics/h-unit-300b-launch-20261101/`:
+`fast-kernel-paired-audit.json`, `fast-kernel-overlap-source.json`,
+`fast-kernel-all-workers.json`, `fast-kernel-controller-env.json`,
+`fast-kernel-handoff-journal.json`, and `fast-kernel-aot-manifest.json`.
+The historical method is
+`/home/xd/projects/xd_tpu_scripts/general_write_kernel_handoff_20261026.py`.
 The exact v5p-256/s143000 AOT and manifest verified, SHA256
 `966c5ae9aded84306ee61209e26ffdd181e0de8095da7beceb9af26b77d2aa92`,
 220926061 bytes. Full runtime config matches the sealed Git class. Prior CPU

@@ -17476,6 +17476,10 @@ class BamPythia2p8BHUnit300BFastKernel(BamPythia2p8BHUnit300B):
     # Evidence and ablations: branch claude/pythia-h-speed, pythia2p8_h_unit_speed_kernel.md.
     # code_commit:16ee238; exact v5p-256/s143000 AOT (FLEX, AOT_COMPILE_OK):
     # gs://newproject-1-llm_base_models_us-central1/log/compiled_trainsteps/16ee238/jax081-i0ae3f58-c17f538a/v5p-256/s143000/
+    # Same RUN=BamPythia2p8BHUnit300B resumed checkpoint 26000 from fb915b6; original 143000-step schedule retained.
+    # UE5a v5p-256, health ON: matched 26021..26040 speed .55940 -> .61327 step/s (+9.63%).
+    # Paired 26001..26040 loss: mean delta -0.00004415, max abs 0.000218; all 32 workers loaded AOT.
+    # Handoff/overlap evidence: pythia2p8_h_unit_300b.md, kernel runtime handoff section.
     model_name = 'BamPythia2p8BHUnit300BFastKernel'
     bam_pallas_packed_read_keys = True
     bam_pallas_fused_qk_norm = True

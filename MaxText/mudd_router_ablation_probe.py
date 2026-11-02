@@ -1,5 +1,5 @@
 """Parameter-only M-route ablation with the original verified capture graph."""
-import argparse,gc,hashlib,json,subprocess,time,shutil
+import argparse,concurrent.futures,gc,hashlib,json,subprocess,time,shutil
 from pathlib import Path
 import numpy as np
 import jax,jax.numpy as jnp
@@ -12,11 +12,23 @@ from mudd_spectral_model import serial_setup
 from mudd_spectral_probe import save_npz,gs_json,publish
 
 _BLOB_STORES={}
+def blob_store(prefix):
+ if prefix not in _BLOB_STORES:_BLOB_STORES[prefix]=io.ts.KvStore.open(prefix+'/',context=io._IO_CONTEXT).result()
+ return _BLOB_STORES[prefix]
 def write_blob(path,uri):
  """Synchronous bytes, persistent GCS client; no subprocess for each frame."""
  prefix,key=uri.rsplit('/',1)
- if prefix not in _BLOB_STORES:_BLOB_STORES[prefix]=io.ts.KvStore.open(prefix+'/',context=io._IO_CONTEXT).result()
- _BLOB_STORES[prefix].write(key,Path(path).read_bytes()).result()
+ blob_store(prefix).write(key,Path(path).read_bytes()).result()
+def read_blob(uri,missing_ok=False):
+ prefix,key=uri.rsplit('/',1);r=blob_store(prefix).read(key).result()
+ if r.state=='missing':
+  if missing_ok:return None
+  raise FileNotFoundError(uri)
+ assert r.state=='value';return r.value
+def json_blob(uri):
+ value=read_blob(uri,True);return None if value is None else json.loads(value)
+def download_blob(uri,path):
+ path=Path(path);value=read_blob(uri);temp=path.with_suffix(path.suffix+'.tmp');temp.write_bytes(value);temp.replace(path)
 
 def reset_m_routes(params,targets,layers=32):
  """New pytree: targeted M route current-only; Q/K/V and every other leaf unchanged."""
@@ -43,21 +55,23 @@ def main():
   else:
    write_blob(path,uri+'/'+path.name)
    marker=path.with_suffix('.json');marker.write_text(json.dumps(meta,indent=2)+'\n');write_blob(marker,uri+'/'+marker.name)
- done=json.loads((root/'complete.json').read_text()) if local_only and (root/'complete.json').exists() else (None if local_only else gs_json(dest+'/complete.json'))
+ done=json.loads((root/'complete.json').read_text()) if local_only and (root/'complete.json').exists() else (None if local_only else json_blob(dest+'/complete.json'))
  if done:assert done['source_commit']==commit;print('ORIGIN_REUSED_COMPLETE',flush=True);return
  parent=root/'parent';parent.mkdir(exist_ok=True)
  if local_only:
   for source in Path(m['local_parent_data'],'results/serial/53000').glob('*'):
    target=parent/source.name
    if not target.exists():target.symlink_to(source)
- else:subprocess.run(['gsutil','-q','-m','rsync','-r',m['parent_artifact_root']+'/53000',str(parent)],check=True)
+ else:
+  def fetch_parent(i):download_blob(m['parent_artifact_root']+f'/53000/sequence_{i:03d}.npz',parent/f'sequence_{i:03d}.npz')
+  with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:list(pool.map(fetch_parent,range(32)))
  ref_path=root/'reference.json'
  if local_only:shutil.copyfile(Path(m['local_parent_data'])/'softmax/serial/53000/complete.json',ref_path)
- else:subprocess.run(['gsutil','-q','cp',m['parent_gcs_root']+'/softmax/serial/53000/complete.json',str(ref_path)],check=True)
+ else:download_blob(m['parent_gcs_root']+'/softmax/serial/53000/complete.json',ref_path)
  reference=json.loads(ref_path.read_text())['global_head_gradients'][0]
  for fname,remote in [('raw_spectrum.npz','/head_spectra/serial_53000.npz'),('centered_spectrum.npz','/head_spectra/serial_53000_vocabulary_centered.npz')]:
   if local_only:shutil.copyfile(Path(m['local_parent_data'])/remote.lstrip('/'),root/fname)
-  else:subprocess.run(['gsutil','-q','cp',m['parent_gcs_root']+remote,str(root/fname)],check=True)
+  else:download_blob(m['parent_gcs_root']+remote,root/fname)
  with np.load(root/'raw_spectrum.npz') as z:effective=jnp.asarray(z['effective_basis'][:,:128])
  with np.load(root/'centered_spectrum.npz') as z:dark=jnp.asarray(z['basis'][:,:128])
  cfg,checked,mesh,model,rng,abstract=serial_setup(a.training_config,label='mudd_router_ablation_gpu' if local_only else 'mudd_router_ablation',backend=m.get('backend','native_tpu'));assert cfg.mudd_full_history and not cfg.mudd_prenorm and not cfg.mudd_postnorm
@@ -85,14 +99,20 @@ def main():
  initial=[('keep',[]),('all_m',list(range(1,33))),('all_body',list(range(1,32))),('body_02_08',list(range(1,8))),('body_09_16',list(range(8,16))),('body_17_24',list(range(16,24))),('body_25_32',list(range(24,32))),('final_only',[32])]
  results={};original_dark=None
  def arm(name,targets):
-  directory=root/name;directory.mkdir(exist_ok=True);uri=dest+'/'+name;done=json.loads((directory/'complete.json').read_text()) if local_only and (directory/'complete.json').exists() else (None if local_only else gs_json(uri+'/complete.json'))
+  directory=root/name;directory.mkdir(exist_ok=True);uri=dest+'/'+name;done=json.loads((directory/'complete.json').read_text()) if local_only and (directory/'complete.json').exists() else (None if local_only else json_blob(uri+'/complete.json'))
   if done:
    assert done['source_commit']==commit and done['targets']==targets
-   if not local_only:subprocess.run(['gsutil','-q','-m','rsync','-r',uri,str(directory)],check=True)
    results[name]=done;print('ORIGIN_REUSED_ARM',name,flush=True);return done
   if not local_only:
-   listed=subprocess.run(['gsutil','ls',uri+'/'],capture_output=True,text=True)
-   if not listed.returncode:subprocess.run(['gsutil','-q','-m','rsync','-r',uri,str(directory)],check=True)
+   # Completed arms need only their committed summary here. For a partial arm,
+   # restore complete per-text pairs only; the collector verifies all payloads.
+   if blob_store(uri).list().result():
+    def fetch_partial(i):
+     stem=f'sequence_{i:03d}';marker=read_blob(uri+'/'+stem+'.json',True)
+     if marker is None:return
+     download_blob(uri+'/'+stem+'.npz',directory/(stem+'.npz'))
+     path=directory/(stem+'.json');tmp=path.with_suffix('.json.tmp');tmp.write_bytes(marker);tmp.replace(path)
+    with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:list(pool.map(fetch_partial,range(32)))
   variant=reset_m_routes(params,targets);full=np.zeros((2560,50432),np.float64);fixed=np.zeros((128,50432),np.float64);ref=np.zeros_like(fixed);power=[];d_power=[];losses=[];seq=[]
   for i in range(32):
    fpath=directory/f'sequence_{i:03d}.npz'

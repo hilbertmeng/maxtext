@@ -19725,7 +19725,8 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     """Initialize all 18 V/local O read scales to 1; preserve H's Q/K and writers."""
     # Provisional conclusion: early catch-up stalls with a remaining deficit versus H.
     # Last five windows through 9.2k: gap +0.004644, MHA-ref ratio 0.976211.
-    # User paused at checkpoint 9341/13500; the original schedule is retained and the endpoint remains unmeasured.
+    # Initially paused9341/13500; user resumed2026-11-02 on retained TPU310514 with original aa7d8ec/AOT/schedule.
+    # Restore9341, source/all-workers/FIRST9342 and committed9400 verified; continue to13500 as adapter comparator.
     # UE5a v5p-16: 0.676113 step/s; matched health, widths 2510/1128/tail 3904 and M-cache unchanged.
     # code_commit:aa7d8ec; ledger only: codex/mediumprop-common-read-raw-write, /data0/xd/mediumprop-common-read-raw-write.
     # Complete evidence: mediumprop_common_read_raw_write.md.
@@ -20461,6 +20462,11 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     # code_commit:b84abc2; UE5a v5p16 xd-v5p-16-310514-maxtext retained from write+V, controller310516.
     # FIRST0/source/AOT/TruePile4096/432113410 params verified; startup20..99 0.646145step/s.
     # Descriptive speed-0.26% vs linear write+O;12 focused CPU checks, including full gradients and8-device sharding.
+    # Conclusion: GELU at fixed r16 loses the useful linear-adapter gain; catch-up stalls after4.4k.
+    # Mature2k..6.2k always trails linear write+O by+.00059..+.00368; final6.2k deficit+.0021166.
+    # vs common UnitH, last5mean gap-.0003465/R1.0016015; final6.2k gap-.0004324/R1.0020156.
+    # User stop6406/13500/P0; CP6406/TB SYNC_OK; full endpoint unmeasured,1.02 new/linear prior unsupported.
+    # PhysicalTPU310514 transferred to resumed UnitH; metadata-only closeout verified, no resource deletion.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneContentWriteOAdapterR16GeluTruePile'
     bam_content_adapter_activation = 'gelu'
     compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneTruePile']

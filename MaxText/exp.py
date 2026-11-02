@@ -20470,7 +20470,8 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneContentWriteAdapterFullTruePile):
     """Normalize attention-write content after its linear adapter; read adapters stay unchanged."""
     # ledger only; runtime/worktree codex/mediumprop-unit-h-content-adapters, code_commit: 37cf812.
-    # CPU57 passed; two preparations submitted on UE5a, borrowed FLEX retained.
+    # UE5a TPU310518, plan13500; FIRST/source/AOT/data/params verified; CPU57 passed.
+    # Startup20..99 0.680404step/s (+1.26% vs post-RMS parent); health matched.
     # Same parameter tree and widths2494/1119/tail3904 as the post-RMS parent; total432112210.
     # Native norm follows the adapter; Pallas receives raw adapted content and normalizes in its existing write kernel.
     # Unified reporting comparator is UnitH, as requested; no additional low-level kernel path.
@@ -20483,7 +20484,8 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneContentWriteOAdapterR16TruePile):
     """Normalize attention-write content after its linear adapter; read adapters stay unchanged."""
     # ledger only; runtime/worktree codex/mediumprop-unit-h-content-adapters, code_commit: 37cf812.
-    # CPU57 passed; two preparations submitted on UE5a, borrowed FLEX retained.
+    # UE5a TPU310519, plan13500; FIRST/source/AOT/data/params verified; CPU57 passed.
+    # Startup20..99 0.655931step/s (+1.25% vs post-RMS parent); health matched.
     # Same parameter tree and widths2496/1121/tail3888 as the post-RMS parent; total432113410.
     # Native norm follows the adapter; Pallas receives raw adapted content and normalizes in its existing write kernel.
     # Unified reporting comparator is UnitH, as requested; no additional low-level kernel path.

@@ -3298,6 +3298,9 @@ class BamAttention(Attention):
 
     # Content adapters preserve the identity as a fixed term, with WD only on Delta.
     from layers.bam_content_adapter import HeadContentAdapter
+    adapter_activation = getattr(cfg, 'bam_content_adapter_activation', None) or 'linear'
+    if adapter_activation != 'linear' and getattr(cfg, 'bam_content_adapter_v', False):
+      raise ValueError('Nonlinear V adapters cannot commute through context attention')
     for route, enabled in (
         ('write', self._has_write and getattr(cfg, 'bam_content_adapter_write', False)),
         ('o', getattr(cfg, 'bam_content_adapter_o', False)),
@@ -3307,7 +3310,8 @@ class BamAttention(Attention):
             self.num_query_heads, self.bam_k,
             rank=int(getattr(cfg, 'bam_content_adapter_rank', 0)),
             dtype=self.dtype, weight_dtype=self.weight_dtype,
-            precision=cfg.matmul_precision, name='content_' + route + '_adapter'))
+            precision=cfg.matmul_precision, activation=adapter_activation,
+            name='content_' + route + '_adapter'))
 
   def _adapt_content_reads(self, context, local_o):
     # Per-head linear V adapters commute with context aggregation. Keep Splash unchanged.

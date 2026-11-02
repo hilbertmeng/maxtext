@@ -12,9 +12,12 @@ class HeadContentAdapter(nn.Module):
   dtype: object = jnp.bfloat16
   weight_dtype: object = jnp.float32
   precision: object = None
+  activation: str = "linear"
 
   @nn.compact
   def __call__(self, x):
+    if self.activation not in ('linear', 'gelu') or (self.activation != 'linear' and self.rank == 0):
+      raise ValueError(f'Unsupported content adapter activation={self.activation!r}, rank={self.rank}')
     if x.shape[-2:] != (self.num_heads, self.head_dim):
       raise ValueError(f'Content adapter expects heads/data, got {x.shape}')
     # Shard independent heads over the existing parameter-FSDP (embed) axis.
@@ -35,6 +38,8 @@ class HeadContentAdapter(nn.Module):
           nn.initializers.zeros, ('embed', None, None)),
           (self.num_heads, self.rank, self.head_dim), self.weight_dtype)
       hidden = jnp.einsum('...nd,ndr->...nr', x, down.astype(self.dtype), precision=self.precision)
+      if self.activation == 'gelu':
+        hidden = nn.gelu(hidden)
       update = jnp.einsum('...nr,nrk->...nk', hidden, up.astype(self.dtype), precision=self.precision)
     return x + update.astype(x.dtype)
 
@@ -63,6 +68,10 @@ def parameter_health(params, config):
     if len(path) > 1 and path[-2] in ('content_write_adapter', 'content_o_adapter', 'content_v_adapter'):
       groups.setdefault(path[:-1], {})[path[-1]] = value
   metrics = {}
+  nonlinear = getattr(config, 'bam_content_adapter_activation', 'linear') == 'gelu'
+  # GELU'(0)=1/2: this is the local adapter Jacobian, not a global linear Delta.
+  metric = 'jacobian0_update_over_identity' if nonlinear else 'update_over_identity'
+  derivative = .5 if nonlinear else 1.
   for path, p in groups.items():
     route = path[-1].removeprefix('content_').removesuffix('_adapter')
     scanned = 'layers' in path
@@ -71,8 +80,8 @@ def parameter_health(params, config):
       count = next(iter(p.values())).shape[0]
       values = jax.vmap(relative_update_norm)(p)
       for i in range(count):
-        metrics[f'bam/content_adapter/{route}/layer_{i:03d}/update_over_identity'] = values[i]
+        metrics[f'bam/content_adapter/{route}/layer_{i:03d}/{metric}'] = derivative * values[i]
     else:
       layer = config.num_decoder_layers - 1
-      metrics[f'bam/content_adapter/{route}/layer_{layer:03d}/update_over_identity'] = relative_update_norm(p)
+      metrics[f'bam/content_adapter/{route}/layer_{layer:03d}/{metric}'] = derivative * relative_update_norm(p)
   return metrics

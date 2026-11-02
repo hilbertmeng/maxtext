@@ -1,5 +1,5 @@
 """Exact HUnit FastKernel source, same fixed32 texts at33k/43k, no training."""
-import argparse,ast,gc,hashlib,json,subprocess,zipfile
+import argparse,ast,gc,hashlib,json,subprocess,zipfile,time
 from pathlib import Path
 import numpy as np
 import jax,jax.numpy as jnp
@@ -26,10 +26,12 @@ def main():
  a=p.parse_args();m=json.loads(Path(a.manifest).read_text());commit=subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip();assert commit==m['commit']
  root=Path(a.output);root.mkdir(parents=True,exist_ok=True)
  attrs=dict(model_name=m['experiment'],only_eval=True,enable_checkpointing=False,per_device_batch_size=1.,eval_per_device_batch_size=1.,target_global_batch_size=1,max_target_length=2048,max_prefill_predict_length=2048,dataset_type='synthetic',log_config=False,jax_cache_dir='',enable_goodput_recording=False,monitor_goodput=False,record_training_health_metrics=False,record_internal_nn_metrics=False,remat_policy='none',tensorboard_dir='/tmp/hunit_spectral/tensorboard/',base_output_directory='/tmp/hunit_spectral/')
+ overrides={'attention':'dot_product','bam_pallas_core':False,'bam_pallas_packed_read_keys':False,'bam_pallas_fused_qk_norm':False} if m.get('backend')=='cuda_math_reference' else {}
+ attrs.update(overrides)
  exp.SpectralHUnitInference=type('SpectralHUnitInference',(getattr(exp,m['experiment']),),attrs)
  cfg=pyconfig.initialize(['hunit_spectral','MaxText/configs/base.yml'],exp_class='SpectralHUnitInference',run_name='hunit_spectral',base_output_directory='/tmp/hunit_spectral/',enable_checkpointing=False,only_eval=True)
  critical={'decoder_block','vocab_size','head_dim','num_decoder_layers','emb_dim','num_query_heads','num_kv_heads','mlp_dim','mlp_activations','dynamic_mlp_dim','scan_layers','scan_use_mudd','partial_scan_layers','dtype','weight_dtype','attention','attention_type','logits_via_embedding','normalize_embedding_logits','normalization_layer_epsilon','qk_norm'}
- checked=[]
+ checked=[];recorded_overrides={}
  for line in Path(a.training_config).read_text().splitlines():
   k,sep,raw=line.partition(': ')
   if not sep or k not in cfg.get_keys() or not (k in critical or k.startswith(('bam_','pythia_'))):continue
@@ -39,7 +41,9 @@ def main():
   if isinstance(have,type):have=have.__name__
   if isinstance(have,tuple):have=list(have)
   if isinstance(want,tuple):want=list(want)
-  assert have==want,('Saved configuration mismatch',k,str(want),str(have));checked.append(k)
+  if k in overrides:assert have==overrides[k];recorded_overrides[k]=dict(training=want,inference=have)
+  else:assert have==want,('Saved configuration mismatch',k,str(want),str(have))
+  checked.append(k)
  assert cfg.vocab_size==50304 and cfg.emb_dim==2560
  mesh=jax.sharding.Mesh(max_utils.create_device_mesh(cfg),cfg.mesh_axes);model=Transformer(cfg,mesh,quant=None);rng=jax.random.PRNGKey(20261021)
  max_utils.cross_entropy_with_logits=hd.precise_cross_entropy
@@ -66,9 +70,11 @@ def main():
   listed=subprocess.run(['gsutil','ls',dest+'/'],capture_output=True,text=True)
   if not listed.returncode:subprocess.run(['gsutil','-q','-m','rsync','-r',dest,str(folder)],check=True)
   elif not any(s in listed.stderr for s in ['No URLs matched','matched no objects','404','NotFound']):raise RuntimeError(listed.stderr[-500:])
-  spectrum=folder/'spectrum.npz';subprocess.run(['gsutil','-q','cp',m['gcs_root']+f'/head_spectra/{step}.npz',str(spectrum)],check=True)
+  spectrum=folder/'spectrum.npz';subprocess.run(['gsutil','-q','cp',m.get('head_spectra_gcs_root',m['gcs_root'])+f'/head_spectra/{step}.npz',str(spectrum)],check=True)
   with np.load(spectrum) as z:u=jnp.asarray(z['basis']);uc=jnp.asarray(z['centered_basis']);mu=jnp.asarray(z['vocabulary_mean'])
+  print('HUNIT_RESTORE_START',step,flush=True)
   all_captured=all((folder/f'sequence_{i:03d}.json').exists() for i in range(32));flat,identity=hd.restore(m['checkpoints'][str(step)],all_captured)
+  print('HUNIT_RESTORE_COMPLETE',step,identity,flush=True)
   assert identity['state_step']==m['checkpoint_state_steps'][str(step)]
   w=jnp.asarray(flat[('decoder','lm_head','logits_dense')]);scale=jnp.asarray(flat[('decoder','lm_head','decoder_norm','scale')]);bias=jnp.asarray(flat[('decoder','lm_head','decoder_norm','bias')])
   if not all_captured:
@@ -81,7 +87,12 @@ def main():
     path=folder/f'sequence_{i:03d}.npz'
     if path.with_suffix('.json').exists():continue
     assert hashlib.sha256(tokens[i].astype(np.int32).tobytes()).hexdigest()==m['cohort_hashes'][i]
-    x=jnp.asarray(tokens[i:i+1,:2048]);y=jnp.asarray(tokens[i:i+1,1:2049]);raw,h,loss=feature(params,x,y)
+    tick=time.time();x=jnp.asarray(tokens[i:i+1,:2048]);y=jnp.asarray(tokens[i:i+1,1:2049]);raw,h,loss=feature(params,x,y)
+    h.block_until_ready();elapsed=time.time()-tick
+    if i==0:
+     raw2,h2,loss2=feature(params,x,y)
+     np.testing.assert_array_equal(np.asarray(h),np.asarray(h2));np.testing.assert_array_equal(np.asarray(loss),np.asarray(loss2))
+    if i<2:print('HUNIT_PILOT_CASE',step,i,'seconds',elapsed,'native_CE',float(loss.mean()),flush=True)
     replay=native_ce(h,w,y);drift=float(abs(loss.mean()-replay.mean()));assert drift<.005,(step,i,drift)
     rc=raw.astype(jnp.float32)-raw.astype(jnp.float32).mean(-1,keepdims=True);norm=((rc*jax.lax.rsqrt((rc*rc).mean(-1,keepdims=True)+1e-5))*scale+bias).astype(jnp.bfloat16)
     relative=float(jnp.sqrt(jnp.mean((norm.astype(jnp.float32)-h.astype(jnp.float32))**2)/jnp.mean(h.astype(jnp.float32)**2)));assert relative<.015
@@ -98,6 +109,6 @@ def main():
    save(folder/f'head_{i:03d}.npz',**arrays);publish(folder/f'head_{i:03d}.npz',dict(source_commit=commit,checkpoint=identity['checkpoint'],label_step=step,sequence=i,input_hash=m['cohort_hashes'][i]),dest)
    sequence_stats.append(dict(index=i,native_CE=native,FP32_CE=float(ce.mean())));print('HUNIT_HEAD_CASE',step,i,flush=True)
   g2=float(np.sum(total**2));gd=np.asarray(u[:,:128],np.float64).T@total;gc_=np.asarray(uc[:,:128],np.float64).T@total;axis=np.asarray(mu,np.float64);axis/=np.linalg.norm(axis);ga=axis@total
-  result=dict(source_commit=commit,training_commit=m['training_commit'],experiment=m['experiment'],run_name=m['run_name'],checkpoint=identity['checkpoint'],state_step=identity['state_step'],label_step=step,sequences=32,sequence_hashes=m['cohort_hashes'],checked_configuration_keys=checked,global_head_gradient_norm=float(np.sqrt(g2)),raw_dark_gradient_energy=float(np.sum(gd*gd)),centered_dark_gradient_energy=float(np.sum(gc_*gc_)),common_axis_gradient_energy=float(np.sum(ga*ga)),sequence=sequence_stats,scope='Native BF16 network and FP32 diagnostic CE, frozen-head FP32 conditional gradient of identical32x2048 texts. Raw-W and vocabulary-centered-W bottom5% distinct; not formal training batch1024 backward or validation ranking.')
+  result=dict(source_commit=commit,training_commit=m['training_commit'],experiment=m['experiment'],run_name=m['run_name'],checkpoint=identity['checkpoint'],state_step=identity['state_step'],label_step=step,sequences=32,sequence_hashes=m['cohort_hashes'],checked_configuration_keys=checked,backend=m.get('backend','native_tpu'),backend_overrides=recorded_overrides,jax_version=jax.__version__,device_kind=jax.devices()[0].device_kind,global_head_gradient_norm=float(np.sqrt(g2)),raw_dark_gradient_energy=float(np.sum(gd*gd)),centered_dark_gradient_energy=float(np.sum(gc_*gc_)),common_axis_gradient_energy=float(np.sum(ga*ga)),sequence=sequence_stats,scope='Native BF16 network and FP32 diagnostic CE, frozen-head FP32 conditional gradient of identical32x2048 texts. Raw-W and vocabulary-centered-W bottom5% distinct; not formal training batch1024 backward or validation ranking.')
   p=folder/'complete.json';p.write_text(json.dumps(result,indent=2)+'\n');subprocess.run(['gsutil','-q','cp',str(p),dest+'/complete.json'],check=True);print('HUNIT_CHECKPOINT_COMPLETE',step,flush=True)
 if __name__=='__main__':main()

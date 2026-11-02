@@ -19747,10 +19747,14 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     # Q/K/V/localO share the normalized read view; the raw matrix carry and all writers stay unchanged.
     # Widths2510/1128/tail3904;432112210 parameters; existing18 signed V/O scales initialize1.
     # Fused v8t core: the read kernel normalizes each token's shifted matrix (FP32 RMS) before its matmul;
-    # packed read keys as in the Pythia FastKernel. Native reference: bam_pallas_core/write=False.
+    # packed read keys and saved Splash residuals as in the Pythia FastKernel. Native reference: bam_pallas_core/write=False.
+    # v5p-8 paired profile (16/device): UnitH .7887; pre-norm unpacked/full .7672, packed/full .7844,
+    # packed/minimal .8189, packed/minimal_save_splash .8697 step/s (+10.3% vs UnitH full remat).
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneMPreNormTruePile'
     bam_m_read_norm = 'rms'
     bam_pallas_packed_read_keys = True
+    bam_splash_residual_name = 'bam_splash_residual'
+    remat_policy = 'minimal_save_splash'
     compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneTruePile']
 
 
@@ -19766,11 +19770,14 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     """Profile only: the pre-norm v8t core without packed read keys."""
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneMPreNormTruePileUnpackedProfile'
     bam_pallas_packed_read_keys = False
+    bam_splash_residual_name = ''
+    remat_policy = 'full'
 
 
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneMPreNormTruePileMinimalProfile(BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneMPreNormTruePile):
     """Profile only: minimal remat instead of full."""
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneMPreNormTruePileMinimalProfile'
+    bam_splash_residual_name = ''
     remat_policy = 'minimal'
 
 

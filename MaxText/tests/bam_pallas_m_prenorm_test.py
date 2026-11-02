@@ -167,7 +167,7 @@ class ModelPreNormTest(MLPWriteTest, unittest.TestCase):
     self.assertEqual(fa.keys(), fb.keys())
     for k in scales:
       self.assertGreater(float(jnp.max(jnp.abs(fa[k]))), 0)
-    self.assertTrue([k for k in fa if 'm_shift' in '/'.join(map(str, k))])
+    self.assertTrue([k for k in fa if 'm_shift' in '/'.join(map(str, k)).lower()])
     errors = self.errors(fa, fb)
     worst = max(errors, key=errors.get)
     self.assertLess(errors[worst], 1e-3, worst)

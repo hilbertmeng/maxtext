@@ -17679,6 +17679,18 @@ class BamPythia2p8BHSpeedHUnit300BFusedMxuSaveSplashProfile(BamPythia2p8BHSpeedH
     bam_pallas_fused_qk_norm_mxu = True
 
 
+class BamPythia2p8BHSpeedHUnit300BShardGradsProfile(BamPythia2p8BHSpeedHUnit300BProfile):
+    """H with raw gradients constrained to the parameter sharding."""
+    model_name = 'BamPythia2p8BHSpeedHUnit300BShardGradsProfile'
+    shard_raw_grads = True
+
+
+class BamPythia2p8BHSpeedR768NoConcatNormShardGradsProfile(BamPythia2p8BHSpeedR768NoConcatNormProfile):
+    """Old-QKNorm reference with raw gradients constrained to the parameter sharding."""
+    model_name = 'BamPythia2p8BHSpeedR768NoConcatNormShardGradsProfile'
+    shard_raw_grads = True
+
+
 class BamPythia2p8BHSpeedHUnit300BFusedPackedSaveSplashProfile(BamPythia2p8BHSpeedHUnit300BFusedPackedProfile):
     """Fused/packed H keeping Splash residuals."""
     model_name = 'BamPythia2p8BHSpeedHUnit300BFusedPackedSaveSplashProfile'

@@ -554,6 +554,7 @@ bam_qk_norm_after_concat: True # BAM concat-QK: normalize the complete head befo
 bam_pallas_fused_qk_norm: False # v8t: compute full-head QKNorm (and the Q logit scale) inside the read epilogue; same math.
 bam_pallas_fused_qk_norm_mxu: False # fused QKNorm: row statistics and per-head selections on the MXU instead of XLU.
 bam_pallas_qk_out_pad: False # fused QKNorm: emit Q/K zero-padded to 128 lanes (q.k unchanged).
+shard_raw_grads: False # constrain raw gradients to the parameter sharding (reduce-scatter instead of all-reduce).
 bam_pallas_packed_read_keys: False # v8t independent V/O: one [B,T,4N,V] key array read through block views; same math.
 bam_splash_residual_name: '' # name Splash's output/logsumexp residuals for remat policies (e.g. bam_splash_residual).
 query_chunk_size: 512

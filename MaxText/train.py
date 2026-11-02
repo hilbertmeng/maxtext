@@ -998,6 +998,11 @@ def train_step(model, config, state_mesh_shardings, state, data, dropout_rng):
         extra_dpo_args = [reference_params]
     grad_func = jax.value_and_grad(_loss_fn, argnums=4, has_aux=True)
     (loss, aux), raw_grads = grad_func(model, config, data, dropout_rng, state.params, *extra_dpo_args, is_train=True)
+  if getattr(config, 'shard_raw_grads', False):
+    # Give the gradients the parameter sharding. Otherwise the global-norm clip and health norms
+    # consume replicated gradients, so XLA all-reduces every full weight gradient (FSDP128 included)
+    # instead of reduce-scattering it, and reduces norms over the whole replicated tensor.
+    raw_grads = jax.lax.with_sharding_constraint(raw_grads, state_mesh_shardings.params)
   intermediate_outputs = aux["intermediate_outputs"]
   if config.debug:
     print_tree_struct(name='intermediate_outputs', tree=intermediate_outputs, shape=False) # lsp

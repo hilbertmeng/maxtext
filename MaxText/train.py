@@ -953,6 +953,9 @@ def compute_params_norm(params, config, prefix='total_params'): # lsp
         scalar_vales[newkj] = normv[lyr]
     else:
       scalar_vales[newk] = jnp.sqrt(jnp.sum(jnp.square(v)))
+  if prefix == 'total_params' and getattr(config, 'bam_content_adapter_write', False):
+    from layers.bam_content_adapter import parameter_health
+    scalar_vales.update(parameter_health(params, config))
   return scalar_vales
 
 

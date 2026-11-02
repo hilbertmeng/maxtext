@@ -3300,6 +3300,38 @@ class BamAttention(Attention):
           'local_o_dynamic_norm_scale', scale_shape, scale_axes,
           cfg.bam_local_o_dynamic_norm_scale_init)
 
+    # Content adapters preserve the identity as a fixed term, with WD only on Delta.
+    from layers.bam_content_adapter import HeadContentAdapter
+    adapter_activation = getattr(cfg, 'bam_content_adapter_activation', None) or 'linear'
+    self._content_write_before_rms = bool(getattr(cfg, 'bam_content_adapter_write_before_rms', False))
+    if self._content_write_before_rms:
+      if (not getattr(cfg, 'bam_content_adapter_write', False) or adapter_activation != 'linear'
+          or self._attention_content_divisor is not None or not self._write_data_rms):
+        raise ValueError('Pre-RMS placement requires a linear adapter and normalized attention writes')
+    if adapter_activation != 'linear' and getattr(cfg, 'bam_content_adapter_v', False):
+      raise ValueError('Nonlinear V adapters cannot commute through context attention')
+    for route, enabled in (
+        ('write', self._has_write and getattr(cfg, 'bam_content_adapter_write', False)),
+        ('o', getattr(cfg, 'bam_content_adapter_o', False)),
+        ('v', getattr(cfg, 'bam_content_adapter_v', False))):
+      if enabled:
+        setattr(self, 'content_' + route + '_adapter', HeadContentAdapter(
+            self.num_query_heads, self.bam_k,
+            rank=int(getattr(cfg, 'bam_content_adapter_rank', 0)),
+            dtype=self.dtype, weight_dtype=self.weight_dtype,
+            precision=cfg.matmul_precision, activation=adapter_activation,
+            shared_heads=(route == 'write' and bool(getattr(cfg, 'bam_content_adapter_write_shared_heads', False))),
+            flatten_params=bool(getattr(cfg, 'bam_content_adapter_flatten_params', False)),
+            name='content_' + route + '_adapter'))
+
+  def _adapt_content_reads(self, context, local_o):
+    # Per-head linear V adapters commute with context aggregation. Keep Splash unchanged.
+    if getattr(self.config, 'bam_content_adapter_v', False):
+      context = self.content_v_adapter(context)
+    if getattr(self.config, 'bam_content_adapter_o', False):
+      local_o = self.content_o_adapter(local_o)
+    return context, local_o
+
   def _constant_general_parameter(self, name, shape, axes, value=0.):
     # Constants need no random key; keep the parent's init RNG counters intact.
     return nn.unbox(self.variable('params', name, nn.with_logical_partitioning(
@@ -3769,10 +3801,17 @@ class BamAttention(Attention):
     return M_out, gate
 
   def _attention_write_content(self, content):
+    adapter = bool(getattr(self.config, 'bam_content_adapter_write', False))
+    if adapter and self._content_write_before_rms:
+      content = self.content_write_adapter(content)
     if self._attention_content_divisor is not None:
       from layers.bam_write_content import fixed_content
-      return fixed_content(content, self._attention_content_divisor)
-    return self.write_data_norm(content) if self._write_data_rms else content
+      content = fixed_content(content, self._attention_content_divisor)
+    elif self._write_data_rms:
+      content = self.write_data_norm(content)
+    if adapter and not self._content_write_before_rms:
+      content = self.content_write_adapter(content)
+    return content
 
   def _deferred_write_factors(self, o_head, x, shared_hidden=None):
     """Same factors as _write, without forming its outer product yet."""
@@ -4381,6 +4420,7 @@ class BamAttention(Attention):
                                        q0=0, s0=0, window_size=local_window)
     y_std = self._context_with_local_o_complement(y_std, o_read_logits)
     local_output = self._regularize_local_o_heads(local_output, deterministic)
+    y_std, local_output = self._adapt_content_reads(y_std, local_output)
     o_head = y_std + local_output
     if not self._has_write:
       out = nn.with_logical_constraint(o_head, self.out_axis_names)
@@ -4396,7 +4436,13 @@ class BamAttention(Attention):
     else:
       write_logits = self.W_gw(inputs_q) + jnp.asarray(self.gw_b0, self.dtype)
     out = nn.with_logical_constraint(o_head, self.out_axis_names)
-    return self.out_projection(inputs_q.shape[-1], out), M_in, (o_head, write_logits, address)
+    write_content = o_head
+    if getattr(cfg, 'bam_content_adapter_write', False):
+      # Pre-RMS adapters return raw transformed content; the write kernel owns
+      # its normalization. Post-RMS adapters already normalized in XLA.
+      write_content = (self.content_write_adapter(o_head) if self._content_write_before_rms
+                       else self._attention_write_content(o_head))
+    return self.out_projection(inputs_q.shape[-1], out), M_in, (write_content, write_logits, address)
 
   @nn.compact
   def __call__(
@@ -4681,6 +4727,7 @@ class BamAttention(Attention):
       self._record_concat_amplitude('local_o', local_output[..., sl], y_std[..., sl])
     if local_output is not None:
       local_output = self._regularize_local_o_heads(local_output, deterministic)
+    y_std, local_output = self._adapt_content_reads(y_std, local_output)
     o_head = y_std if local_output is None else y_std + local_output
     if Mbar is not None:
       y_bam, fetched_gate_logits = self._read_fetched_m(

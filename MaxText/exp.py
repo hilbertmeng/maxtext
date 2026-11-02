@@ -20302,7 +20302,7 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneContentWriteAdapterFullTruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneTruePile):
     """Per-head identity content adapters; UnitH parent, matched ordinary/private MLP budget."""
-    # ledger only: runtime ddcc67a; codex/mediumprop-unit-h-content-adapters.
+    # Historical runtime: runtime ddcc67a; codex/mediumprop-unit-h-content-adapters.
     # UE5a v5p16 xd-v5p-16-310510-maxtext, s13500; FIRST0/source/AOT/TruePile4096/params verified.
     # Startup20..99 0.671954step/s (-0.62% vs historical UnitH).
     # Parameter-FSDP layout fixed before any training;63 CPU checks, including formal8-device layouts.
@@ -20325,7 +20325,7 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneContentWriteAdapterR16TruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneTruePile):
     """Per-head identity content adapters; UnitH parent, matched ordinary/private MLP budget."""
-    # ledger only: runtime ddcc67a; codex/mediumprop-unit-h-content-adapters.
+    # Historical runtime: runtime ddcc67a; codex/mediumprop-unit-h-content-adapters.
     # UE5a v5p16 xd-v5p-16-310511-maxtext, s13500; FIRST0/source/AOT/TruePile4096/params verified.
     # Startup20..99 0.664169step/s (-1.77% vs historical UnitH).
     # Parameter-FSDP layout fixed before any training;63 CPU checks, including formal8-device layouts.
@@ -20352,7 +20352,7 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneContentWriteOAdapterFullTruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneTruePile):
     """Per-head identity content adapters; UnitH parent, matched ordinary/private MLP budget."""
-    # ledger only: runtime ddcc67a; codex/mediumprop-unit-h-content-adapters.
+    # Historical runtime: runtime ddcc67a; codex/mediumprop-unit-h-content-adapters.
     # UE5a v5p16 xd-v5p-16-310512-maxtext, s13500; FIRST0/source/AOT/TruePile4096/params verified.
     # Startup20..99 0.652595step/s (-3.48% vs historical UnitH).
     # Parameter-FSDP layout fixed before any training;63 CPU checks, including formal8-device layouts.
@@ -20379,7 +20379,7 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneContentWriteOAdapterR16TruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneTruePile):
     """Per-head identity content adapters; UnitH parent, matched ordinary/private MLP budget."""
-    # ledger only: runtime ddcc67a; codex/mediumprop-unit-h-content-adapters.
+    # Historical runtime: runtime ddcc67a; codex/mediumprop-unit-h-content-adapters.
     # UE5a v5p16 xd-v5p-16-310513-maxtext, s13500; FIRST0/source/AOT/TruePile4096/params verified.
     # Startup20..99 0.647808step/s (-4.19% vs historical UnitH).
     # Parameter-FSDP layout fixed before any training;63 CPU checks, including formal8-device layouts.
@@ -20402,7 +20402,7 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneContentWriteVAdapterR16TruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneTruePile):
     """Per-head identity content adapters; UnitH parent, matched ordinary/private MLP budget."""
-    # ledger only: runtime ddcc67a; codex/mediumprop-unit-h-content-adapters.
+    # Historical runtime: runtime ddcc67a; codex/mediumprop-unit-h-content-adapters.
     # UE5a v5p16 xd-v5p-16-310514-maxtext, s13500; FIRST0/source/AOT/TruePile4096/params verified.
     # Startup20..99 0.648231step/s (-4.12% vs historical UnitH).
     # Parameter-FSDP layout fixed before any training;63 CPU checks, including formal8-device layouts.
@@ -20429,7 +20429,7 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneContentWriteVOAdapterR16TruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneTruePile):
     """Per-head identity content adapters; UnitH parent, matched ordinary/private MLP budget."""
-    # ledger only: runtime ddcc67a; codex/mediumprop-unit-h-content-adapters.
+    # Historical runtime: runtime ddcc67a; codex/mediumprop-unit-h-content-adapters.
     # UE5a v5p16 xd-v5p-16-310515-maxtext, s13500; FIRST0/source/AOT/TruePile4096/params verified.
     # Startup20..99 0.630704step/s (-6.72% vs historical UnitH).
     # Parameter-FSDP layout fixed before any training;63 CPU checks, including formal8-device layouts.
@@ -20456,7 +20456,7 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneContentWriteOAdapterR16GeluTruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneContentWriteOAdapterR16TruePile):
     """Add GELU inside both rank16 attention-write and complete-localO adapters."""
-    # ledger only: runtime b84abc2; codex/mediumprop-unit-h-content-adapters; same1344000 adapter parameters.
+    # Historical runtime: runtime b84abc2; codex/mediumprop-unit-h-content-adapters; same1344000 adapter parameters.
     # Widths2496/1121/tail3888 and total432113410 unchanged; up=0 preserves identity init.
     # Effective-Delta health becomes the zero-input Jacobian norm; GELU is nonlinear.
     # code_commit:b84abc2; UE5a v5p16 xd-v5p-16-310514-maxtext retained from write+V, controller310516.
@@ -20475,7 +20475,7 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneContentWriteAdapterFullSharedHeadsTruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneContentWriteAdapterFullTruePile):
     """Share each layer's full attention-write content adapter over all16 heads."""
-    # ledger only: runtime3e3e1e0; codex/mediumprop-unit-h-content-adapters; no cross-layer sharing.
+    # Historical runtime: runtime3e3e1e0; codex/mediumprop-unit-h-content-adapters; no cross-layer sharing.
     # Adapter95625 versus1530000; repay1434375 to ordinary/private MLPs.
     # Widths2510/1128/tail3877; total432110635, parent-1575 integer-width remainder.
     # code_commit:3e3e1e0; UE5a v5p16 xd-v5p-16-310517-maxtext, s13500; FIRST0/source/AOT/data/params verified.
@@ -20492,7 +20492,7 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneContentWriteAdapterFullPreRmsTruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneContentWriteAdapterFullTruePile):
     """Normalize attention-write content after its linear adapter; read adapters stay unchanged."""
-    # ledger only; runtime/worktree codex/mediumprop-unit-h-content-adapters, code_commit: 37cf812.
+    # Historical runtime; runtime/worktree codex/mediumprop-unit-h-content-adapters, code_commit: 37cf812.
     # UE5a TPU310518, plan13500; FIRST/source/AOT/data/params verified; CPU57 passed.
     # Startup20..99 0.680404step/s (+1.26% vs post-RMS parent); health matched.
     # Same parameter tree and widths2494/1119/tail3904 as the post-RMS parent; total432112210.
@@ -20506,7 +20506,7 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneContentWriteOAdapterR16PreRmsTruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneContentWriteOAdapterR16TruePile):
     """Normalize attention-write content after its linear adapter; read adapters stay unchanged."""
-    # ledger only; runtime/worktree codex/mediumprop-unit-h-content-adapters, code_commit: 37cf812.
+    # Historical runtime; runtime/worktree codex/mediumprop-unit-h-content-adapters, code_commit: 37cf812.
     # UE5a TPU310519, plan13500; FIRST/source/AOT/data/params verified; CPU57 passed.
     # Startup20..99 0.655931step/s (+1.25% vs post-RMS parent); health matched.
     # Same parameter tree and widths2496/1121/tail3888 as the post-RMS parent; total432113410.
@@ -20515,3 +20515,29 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneContentWriteOAdapterR16PreRmsTruePile'
     bam_content_adapter_write_before_rms = True
     compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneTruePile']
+
+
+class BamPythia2p8BHUnitShortTrainFastKernelContentWriteAdapterFull(
+        BamPythia2p8BHUnitShortTrainFastKernel):
+    """Per-head identity-initialized attention-write adapter after content RMSNorm.
+
+    Keep front31 GELU ordinary/private widths7808/2944; pay the adapter budget
+    from the final ordinary MLP, retaining128-wide alignment throughout.
+    """
+    model_name = 'BamPythia2p8BHUnitShortTrainFastKernelContentWriteAdapterFull'
+    bam_content_adapter_write = True
+    bam_content_adapter_o = False
+    bam_content_adapter_v = False
+    bam_content_adapter_rank = 0
+    bam_content_adapter_flatten_params = True
+    bam_last_mlp_dim = 8704
+    compare_runs = ['BamPythia2p8BHUnitShortTrainFastKernel']
+
+
+class BamPythia2p8BHUnitShortTrainFastKernelContentWriteOAdapterR16(
+        BamPythia2p8BHUnitShortTrainFastKernelContentWriteAdapterFull):
+    """Independent rank16 attention-write and complete-localO identity adapters."""
+    model_name = 'BamPythia2p8BHUnitShortTrainFastKernelContentWriteOAdapterR16'
+    bam_content_adapter_o = True
+    bam_content_adapter_rank = 16
+    bam_last_mlp_dim = 8960

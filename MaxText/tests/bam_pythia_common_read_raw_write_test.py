@@ -132,8 +132,19 @@ class PythiaCommonReadRawWriteTest(MLPWriteTest, unittest.TestCase):
       def call(model, p):
         return model.apply(p, tok, pos, seg, tok, enable_dropout=False)[0].astype(jnp.float32)
       target = jax.random.normal(jax.random.key(23), call(native, params).shape)
+      if getattr(self, 'bf16_training_objective', False):
+        # A training-loss probe complements the cancellation-sensitive random
+        # linear VJP. Exclude segment endpoints from next-token labels.
+        labels = jnp.roll(tok, -1, axis=1).reshape(-1)
+        mask = (pos % 64 != 63).reshape(-1)
+        def objective(y):
+          logits = y.reshape(-1, y.shape[-1])
+          losses = -jnp.take_along_axis(jax.nn.log_softmax(logits), labels[:, None], axis=-1)[:, 0]
+          return jnp.sum(losses * mask) / jnp.sum(mask)
+      else:
+        objective = lambda y: jnp.mean(y * target)
       def grads(model):
-        return jax.value_and_grad(lambda p: (lambda y: (jnp.mean(y * target), y))(call(model, p)),
+        return jax.value_and_grad(lambda p: (lambda y: (objective(y), y))(call(model, p)),
                                   has_aux=True)(params)
       (_, a), ga = grads(native)
       (_, b), gb = grads(fused)
@@ -171,7 +182,7 @@ class PythiaCommonReadRawWriteTest(MLPWriteTest, unittest.TestCase):
         control_model = Transformer(control_cfg, mesh, quant=None)
         with mesh, nn.partitioning.axis_rules(cfg.logical_axis_rules), mock.patch.object(
             splash, 'make_splash_mha', side_effect=interpret):
-          return flatten_dict(jax.grad(lambda p: jnp.mean(call(control_model, p) * target))(control_params))
+          return flatten_dict(jax.grad(lambda p: objective(call(control_model, p)))(control_params))
       parent_truth, parent_native, parent_fused = (control_grad(c) for c in (tcfg, cfg, pcfg))
       def parent_rel_l2(g):
         num = sum(float(jnp.sum((g[p].astype(jnp.float32) - parent_truth[p].astype(jnp.float32))**2))

@@ -1,23 +1,49 @@
 """Read-only vocabulary-head spectra and native BF16 checkpoint probes."""
-import ast,concurrent.futures,json,subprocess
+import ast,concurrent.futures,hashlib,json,subprocess
+from pathlib import Path
 import numpy as np
 import tensorstore as ts
 import jax,jax.numpy as jnp
 
-def restore(root,head_only=False):
+def restore(root,head_only=False,cache_dir=None):
  meta=json.loads(subprocess.check_output(['gsutil','cat',root+'/_METADATA'],text=True));wanted={}
  for k,v in meta['tree_metadata'].items():
   path=ast.literal_eval(k)
   if path[:2]!=('params','params') or v['value_metadata'].get('skip_deserialize',False):continue
   key=path[2:]
   if not head_only or key[:2]==('decoder','lm_head'):wanted[key]=path
+ cache=Path(cache_dir) if cache_dir else None
+ if cache:
+  cache.mkdir(parents=True,exist_ok=True)
+  identity=dict(checkpoint=root,metadata_sha256=hashlib.sha256(json.dumps(meta,sort_keys=True).encode()).hexdigest())
+  marker=cache/'identity.json'
+  if marker.exists():assert json.loads(marker.read_text())==identity
+  else:marker.write_text(json.dumps(identity,indent=2)+'\n')
  def read(p):
+  path=cache/(hashlib.sha256(repr(p).encode()).hexdigest()+'.npy') if cache else None
+  if path is not None and path.exists():return np.load(path,mmap_mode='r',allow_pickle=False)
   a=ts.open({'driver':'zarr3' if meta.get('use_zarr3') else 'zarr','kvstore':{'driver':'ocdbt','base':root+'/'},'path':'.'.join(p)},open=True).result()
-  return np.asarray(a.read().result())
+  value=np.asarray(a.read().result())
+  if path is not None:
+   temp=path.with_suffix('.tmp')
+   with temp.open('wb') as f:np.save(f,value,allow_pickle=False)
+   temp.replace(path)
+  return value
  step=int(read(('step',)))
  with concurrent.futures.ThreadPoolExecutor(max_workers=16) as pool:flat=dict(zip(wanted,pool.map(read,wanted.values())))
  if head_only:assert len(flat)==3
  return flat,dict(checkpoint=root,state_step=step,parameter_count=sum(v.size for v in flat.values()),leaves=len(flat))
+
+def abstract_params(root):
+ """Read global array metadata only, for real-shape backend compile preflight."""
+ meta=json.loads(subprocess.check_output(['gsutil','cat',root+'/_METADATA'],text=True));wanted=[]
+ for key,value in meta['tree_metadata'].items():
+  p=ast.literal_eval(key)
+  if p[:2]==('params','params') and not value['value_metadata'].get('skip_deserialize',False):wanted.append(p)
+ def shape(p):
+  a=ts.open({'driver':'zarr3' if meta.get('use_zarr3') else 'zarr','kvstore':{'driver':'ocdbt','base':root+'/'},'path':'.'.join(p)},open=True).result()
+  return p[2:],jax.ShapeDtypeStruct(a.shape,a.dtype.numpy_dtype)
+ with concurrent.futures.ThreadPoolExecutor(max_workers=16) as pool:return dict(pool.map(shape,wanted))
 
 def precise_cross_entropy(logits,targets,z_loss=0.):
  z=logits.astype(jnp.float32);ce=-jnp.sum(targets.astype(jnp.float32)*jax.nn.log_softmax(z),-1)

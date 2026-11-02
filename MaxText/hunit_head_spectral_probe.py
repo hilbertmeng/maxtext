@@ -26,7 +26,7 @@ def main():
  a=p.parse_args();m=json.loads(Path(a.manifest).read_text());commit=subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip();assert commit==m['commit']
  root=Path(a.output);root.mkdir(parents=True,exist_ok=True)
  attrs=dict(model_name=m['experiment'],only_eval=True,enable_checkpointing=False,per_device_batch_size=1.,eval_per_device_batch_size=1.,target_global_batch_size=1,max_target_length=2048,max_prefill_predict_length=2048,dataset_type='synthetic',log_config=False,jax_cache_dir='',enable_goodput_recording=False,monitor_goodput=False,record_training_health_metrics=False,record_internal_nn_metrics=False,remat_policy='none',tensorboard_dir='/tmp/hunit_spectral/tensorboard/',base_output_directory='/tmp/hunit_spectral/')
- overrides={'attention':'dot_product','bam_pallas_core':False,'bam_pallas_packed_read_keys':False,'bam_pallas_fused_qk_norm':False} if m.get('backend')=='cuda_math_reference' else {}
+ overrides={'attention':'dot_product','bam_pallas_core':False,'bam_pallas_packed_read_keys':False,'bam_pallas_fused_qk_norm':False,'bam_pallas_fused_inputs':False,'bam_pallas_write':False,'bam_splash_attention':False} if m.get('backend')=='cuda_math_reference' else {}
  attrs.update(overrides)
  exp.SpectralHUnitInference=type('SpectralHUnitInference',(getattr(exp,m['experiment']),),attrs)
  cfg=pyconfig.initialize(['hunit_spectral','MaxText/configs/base.yml'],exp_class='SpectralHUnitInference',run_name='hunit_spectral',base_output_directory='/tmp/hunit_spectral/',enable_checkpointing=False,only_eval=True)
@@ -54,6 +54,12 @@ def main():
    native=model.apply(params,x,jnp.broadcast_to(jnp.arange(2048),x.shape),decoder_target_tokens=y,decoder_target_mask=jnp.ones_like(x),decoder_segment_ids=jnp.ones_like(x),enable_dropout=False,rngs={'params':rng,'dropout':rng,'aqt':rng})
   assert observer.h is not None
   return observer.raw,observer.h,native[0]
+ if overrides:
+  abstract=hd.abstract_params(m['checkpoints'][str(m['steps'][0])])
+  assert sum(np.prod(a.shape) for a in abstract.values())==m['parameter_count']
+  print('HUNIT_PREFLIGHT_COMPILE_START',flush=True)
+  feature=feature.lower({'params':unflatten_dict(abstract)},jax.ShapeDtypeStruct((1,2048),jnp.int32),jax.ShapeDtypeStruct((1,2048),jnp.int32)).compile()
+  print('HUNIT_PREFLIGHT_COMPILE_COMPLETE',flush=True)
  readout=jax.jit(hd.FP32_readout);native_ce=jax.jit(hd.native_ce)
  @jax.jit
  def stats(h,w,y,u,uc,mu,z):
@@ -73,7 +79,7 @@ def main():
   spectrum=folder/'spectrum.npz';subprocess.run(['gsutil','-q','cp',m.get('head_spectra_gcs_root',m['gcs_root'])+f'/head_spectra/{step}.npz',str(spectrum)],check=True)
   with np.load(spectrum) as z:u=jnp.asarray(z['basis']);uc=jnp.asarray(z['centered_basis']);mu=jnp.asarray(z['vocabulary_mean'])
   print('HUNIT_RESTORE_START',step,flush=True)
-  all_captured=all((folder/f'sequence_{i:03d}.json').exists() for i in range(32));flat,identity=hd.restore(m['checkpoints'][str(step)],all_captured)
+  all_captured=all((folder/f'sequence_{i:03d}.json').exists() for i in range(32));flat,identity=hd.restore(m['checkpoints'][str(step)],all_captured,cache_dir=str(Path(m['weight_cache'])/str(step)) if m.get('weight_cache') else None)
   print('HUNIT_RESTORE_COMPLETE',step,identity,flush=True)
   assert identity['state_step']==m['checkpoint_state_steps'][str(step)]
   w=jnp.asarray(flat[('decoder','lm_head','logits_dense')]);scale=jnp.asarray(flat[('decoder','lm_head','decoder_norm','scale')]);bias=jnp.asarray(flat[('decoder','lm_head','decoder_norm','bias')])

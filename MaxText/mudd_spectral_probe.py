@@ -72,15 +72,17 @@ def main():
         def observed(params,x,y,dark):
             observer=cap.Capture('serial',dark,length,layers)
             with mesh,nn.partitioning.axis_rules(cfg.logical_axis_rules),nn.intercept_methods(observer.interceptor):
-                _,collection=model.apply(params,x,jnp.broadcast_to(jnp.arange(length),x.shape),decoder_target_tokens=y,decoder_target_mask=jnp.ones_like(x),decoder_segment_ids=jnp.ones_like(x),enable_dropout=False,rngs={'params':rng,'dropout':rng,'aqt':rng},mutable=['intermediates'])
-            return observer.result(collection['intermediates'])
+                native_out,collection=model.apply(params,x,jnp.broadcast_to(jnp.arange(length),x.shape),decoder_target_tokens=y,decoder_target_mask=jnp.ones_like(x),decoder_segment_ids=jnp.ones_like(x),enable_dropout=False,rngs={'params':rng,'dropout':rng,'aqt':rng},mutable=['intermediates'])
+            features=observer.result(collection['intermediates'])
+            features['same_graph_native_loss']=native_out[0]
+            return features
     native_fn=jax.jit(native);feature_fn=jax.jit(observed);native_ce=jax.jit(cap.native_head_ce)
     grad_fn=jax.jit(cap.readout_gradient);stage_fn=jax.jit(cap.stage_stats)
     norm_fn=jax.jit(lambda x,s,b:cap.final_norm(x,s,b,a.family))
     random_basis=jnp.asarray(np.linalg.qr(np.random.default_rng(20261102).normal(size=(2560,128)))[0],jnp.float32)
     project=jax.jit(lambda x,v:jnp.einsum('btd,dk,ek->bte',x.astype(jnp.float32),v,v,precision=jax.lax.Precision.HIGHEST))
     for step in info['steps']:
-        destination=manifest['gcs_root']+f'/{a.family}/{step}';folder=out/a.family/str(step);folder.mkdir(parents=True,exist_ok=True)
+        destination=info.get('artifact_root',manifest['gcs_root']+'/'+a.family)+'/'+str(step);folder=out/a.family/str(step);folder.mkdir(parents=True,exist_ok=True)
         checkpoint=info['checkpoints'][str(step)]
         common=dict(source_commit=source,praxis_commit=manifest['praxis_commit'],family=a.family,experiment=info['experiment'],checkpoint=checkpoint,label_step=step,sequence_hashes=hashes,sequence_count=count,length=length,variants=VARIANTS,head_summary_fields=SUMMARY,pair_metric_fields=cap.PAIR_METRICS,stage_names=cap.STAGES,composition_channels=['q','k','v','m'],composition_sites='1..31 before block2..32; site32 is final readout, m channel only')
         complete=gs_json(destination+'/complete.json')
@@ -109,10 +111,15 @@ def main():
                 path=folder/f'sequence_{i:03d}.npz';marker=path.with_suffix('.json')
                 if marker.exists():validate(json.loads(marker.read_text()),common);continue
                 x=jnp.asarray(tokens[i:i+1,:length]);y=jnp.asarray(tokens[i:i+1,1:length+1])
-                native_loss=native_fn(params,x,y)
                 features=feature_fn(params,x,y,dark_eff)
+                native_loss=features.pop('same_graph_native_loss') if a.family=='serial' else native_fn(params,x,y)
                 replay=native_ce(features['h'],w,y)
-                drift=float(jnp.max(jnp.abs(native_loss.mean(1)-replay.mean(1))));assert drift<.005,('Native vs captured readout CE',a.family,step,i,drift)
+                drift=float(jnp.max(jnp.abs(native_loss.mean(1)-replay.mean(1))))
+                if drift>=.005:
+                    failed=folder/f'failed_capture_{i:03d}.npz'
+                    save_npz(failed,**{k:np.asarray(v,dtype=np.float32) for k,v in features.items()},inputs=np.asarray(x),targets=np.asarray(y),native_loss=np.asarray(native_loss),captured_native_loss=np.asarray(replay))
+                    publish(failed,dict(common,sequence=i,input_hash=hashes[i],native_CE_mean_difference=drift,rejected=True),destination+'/rejected')
+                    raise AssertionError(('Native vs captured readout CE',a.family,step,i,drift))
                 norm_h=norm_fn(features['raw'],scale,bias_affine)
                 relative=float(jnp.sqrt(jnp.mean((norm_h.astype(jnp.float32)-features['h'].astype(jnp.float32))**2)/jnp.mean(features['h'].astype(jnp.float32)**2)))
                 assert relative<.015,('Native final norm replay',relative)

@@ -57,13 +57,15 @@ class Capture:
                 out=next_fun(*args,**kwargs);path='/'.join(m.scope.path)
                 i=self.layers if m.name=='compose_final' else int(re.search(r'layers_(\d+)',path).group(1))
                 self.site(i,base,out[0],module=m);return out
+            if name=='LayerNorm' and m.name=='decoder_norm' and 'lm_head' in m.scope.path:
+                out=next_fun(*args,**kwargs);self.h=out;return out
             if name=='OutputHead':
-                x=args[0];self.h=m.norm(x) if m.norm is not None else x
-                self.h=m.dropout(self.h,deterministic=True)
-                # Feature-only extraction: the original vocabulary head is checked
-                # separately against full native model CE before interpreting data.
-                shape=x.shape[:-1]
-                return jnp.zeros(shape,jnp.float32),jnp.asarray(0,jnp.int32),jnp.zeros(shape,jnp.int32)
+                # Call the real head. Capture its actual LayerNorm output above
+                # and return native CE in this same graph. A feature-only graph
+                # changes BF16 compiler fusion upstream and is not an adequate
+                # substitute for the head input of a separate loss-only graph.
+                assert m.norm is not None
+                return next_fun(*args,**kwargs)
         return next_fun(*args,**kwargs)
     def result(self,collection=None):
         assert set(self.sites)==set(range(1,self.layers+1)),sorted(self.sites)

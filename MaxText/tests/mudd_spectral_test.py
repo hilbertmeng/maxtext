@@ -71,13 +71,24 @@ def test_serial():
   with mesh,nn.partitioning.axis_rules(c.logical_axis_rules):
    native=m.apply({'params':p},*args,enable_dropout=False)[0]
    observer=cap.Capture('serial',basis,8,3)
-   with nn.intercept_methods(observer.interceptor):_,col=m.apply({'params':p},*args,enable_dropout=False,mutable=['intermediates'])
+   with nn.intercept_methods(observer.interceptor):observed_native,col=m.apply({'params':p},*args,enable_dropout=False,mutable=['intermediates'])
    r=observer.result(col['intermediates'])
   ln=p['decoder']['lm_head']['decoder_norm'];np.testing.assert_array_equal(r['h'],cap.final_norm(r['raw'],ln['scale'],ln['bias'],'serial'))
   w=p['decoder']['lm_head']['logits_dense'];replay=cap.native_head_ce(r['h'],w,args[2]);np.testing.assert_allclose(replay,native,atol=1e-6,rtol=1e-6)
+  np.testing.assert_array_equal(observed_native[0],native)
   e=np.asarray(r['composition']);np.testing.assert_allclose(e[...,2],e[...,0]+e[...,1]+2*e[...,3],rtol=1e-5,atol=1e-6)
   assert e[...,1].max()>0
   print('SERIAL_NATIVE_HEAD_CAPTURE_AND_LEARNED_EXTRA_PASS',flush=True)
  finally:t.tearDown()
 
-if __name__=='__main__':test_old();test_gradient();test_serial()
+def test_common_shift_rounding():
+ # Softmax translation invariance holds before rounding; large common offsets
+ # can destroy logit differences if BF16 rounding happens first.
+ z=jnp.array([[[1024.,1024.25,1024.5]]],jnp.float32);y=jnp.array([[2]])
+ c=z-z.mean(-1,keepdims=True)
+ np.testing.assert_allclose(cap.cross_entropy(z,y),cap.cross_entropy(c,y),atol=1e-4)
+ raw=cap.cross_entropy(z.astype(jnp.bfloat16),y);cent=cap.cross_entropy(c.astype(jnp.bfloat16),y)
+ assert float(raw[0,0])>float(cent[0,0])+.1
+ print('SOFTMAX_COMMON_SHIFT_AND_BF16_ROUNDING_PASS',flush=True)
+
+if __name__=='__main__':test_old();test_gradient();test_serial();test_common_shift_rounding()

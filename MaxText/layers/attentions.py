@@ -4203,6 +4203,7 @@ class BamAttention(Attention):
           bias = jnp.concatenate([arm_bias(arm) for arm in ('q', 'k', 'v', 'vo')], axis=0)   # [4N, V]
           packed_qkvo = jnp.einsum('btd,drc->bcrt', hidden, jnp.concatenate(kernels, axis=1),
                                    precision=jax.lax.Precision(cfg.matmul_precision))
+          packed_qkvo = checkpoint_name(packed_qkvo, 'bam_read_keys')
           packed_key_bias = bias           # added inside the read kernel (no separate [B,C,4N,T] pass)
         # v8t accepts two key slabs, V then O, instead of a shared VO slab.
         vo_key = jnp.concatenate((self._pad_read_heads(v_key, -2),

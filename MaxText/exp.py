@@ -17747,6 +17747,18 @@ class BamPythia2p8BHSpeedHUnit300BFusedMxuWChunk4Profile(BamPythia2p8BHSpeedHUni
     bam_pallas_write_chunk = 4
 
 
+class BamPythia2p8BHSpeedHUnit300BFusedMxuPackedSaveSplashReadProfile(BamPythia2p8BHSpeedHUnit300BFusedMxuPackedSaveSplashProfile):
+    """Also keep the fused read outputs (Splash Q/K/V)."""
+    model_name = 'BamPythia2p8BHSpeedHUnit300BFusedMxuPackedSaveSplashReadProfile'
+    remat_policy = 'minimal_save_splash_read'
+
+
+class BamPythia2p8BHSpeedHUnit300BFusedMxuPackedSaveSplashKeysProfile(BamPythia2p8BHSpeedHUnit300BFusedMxuPackedSaveSplashProfile):
+    """Also keep the einsum-packed read keys."""
+    model_name = 'BamPythia2p8BHSpeedHUnit300BFusedMxuPackedSaveSplashKeysProfile'
+    remat_policy = 'minimal_save_splash_keys'
+
+
 class BamPythia2p8BHSpeedHUnit300BFusedPackedSaveSplashProfile(BamPythia2p8BHSpeedHUnit300BFusedPackedProfile):
     """Fused/packed H keeping Splash residuals."""
     model_name = 'BamPythia2p8BHSpeedHUnit300BFusedPackedSaveSplashProfile'

@@ -167,6 +167,10 @@ def get_remat_policy(cfg):
       policy = jax.checkpoint_policies.save_from_both_policies(
           jax.checkpoint_policies.checkpoint_dots_with_no_batch_dims,
           jax.checkpoint_policies.save_only_these_names("bam_splash_residual", "bam_read_out"))
+    elif cfg.remat_policy == "minimal_save_splash_keys":   # plus the packed read keys (einsum output)
+      policy = jax.checkpoint_policies.save_from_both_policies(
+          jax.checkpoint_policies.checkpoint_dots_with_no_batch_dims,
+          jax.checkpoint_policies.save_only_these_names("bam_splash_residual", "bam_read_keys"))
     elif cfg.remat_policy == "save_qkv_proj":
       policy = jax.checkpoint_policies.save_only_these_names(
           "query_proj",

@@ -4,6 +4,9 @@ from pathlib import Path
 import numpy as np
 import tensorstore as ts
 
+def analysis_commit(info,step,default):
+    return info.get('analysis_commits',{}).get(str(step),info.get('diagnostic_commit',default))
+
 def metadata(root):
     return json.loads(subprocess.check_output(['gsutil','cat',root.rstrip('/')+'/_METADATA'],text=True))
 

@@ -63,10 +63,18 @@ def test_serial():
    pythia_rotary_dim=4,mudd_router_hidden_expand=[1,1,4],scan_layers=False,dtype='bfloat16',remat_policy='none')
   m,mesh,p=t.init(c)
   p=jax.tree.map(lambda v:v.unbox(apply_constraint=False) if isinstance(v,nn.spmd.LogicallyPartitioned) else v,p,is_leaf=lambda v:isinstance(v,nn.spmd.LogicallyPartitioned))
+  args=t.inputs();basis=jnp.asarray(np.linalg.qr(np.random.default_rng(1).normal(size=(32,4)))[0],jnp.float32)
+  max_utils.cross_entropy_with_logits=cap.precise_cross_entropy
+  with mesh,nn.partitioning.axis_rules(c.logical_axis_rules):
+   initial=cap.Capture('serial',basis,8,3)
+   with nn.intercept_methods(initial.interceptor):_,col=m.apply({'params':p},*args,enable_dropout=False,mutable=['intermediates'])
+   init_features=initial.result(col['intermediates'])
+  assert float(jnp.max(init_features['composition'][...,1]))==0.
+  np.testing.assert_array_equal(init_features['raw'],init_features['base'])
   f=flatten_dict(p)
   for key,a in f.items():
    if key[-2:]==('dynamic_dense_conn2','kernel'):f[key]=jnp.asarray(np.random.default_rng(a.size).normal(0,.12,a.shape),a.dtype)
-  p=unflatten_dict(f);args=t.inputs();basis=jnp.asarray(np.linalg.qr(np.random.default_rng(1).normal(size=(32,4)))[0],jnp.float32)
+  p=unflatten_dict(f)
   max_utils.cross_entropy_with_logits=cap.precise_cross_entropy
   with mesh,nn.partitioning.axis_rules(c.logical_axis_rules):
    native=m.apply({'params':p},*args,enable_dropout=False)[0]

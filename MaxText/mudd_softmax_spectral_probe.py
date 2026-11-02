@@ -37,7 +37,8 @@ def main():
     print('SOFTMAX_REUSED_COMPLETE',family,step,flush=True);continue
    origin=info.get('artifact_root',m['gcs_root']+'/'+family)+'/'+str(step)
    subprocess.run(['gsutil','-q','-m','rsync','-r',origin,str(folder)],check=True)
-   source=json.loads((folder/'complete.json').read_text());assert source['source_commit']==info['diagnostic_commit'] and source['sequence_hashes']==m['sequence_hashes']
+   source=json.loads((folder/'complete.json').read_text());assert source['source_commit']==io.analysis_commit(info,step,commit) and source['sequence_hashes']==m['sequence_hashes']
+   capture_commit=source.get('capture_commit',source['source_commit'])
    spectrum=folder/'vocabulary_centered.npz';subprocess.run(['gsutil','-q','cp',m['gcs_root']+f'/head_spectra/{family}_{step}_vocabulary_centered.npz',str(spectrum)],check=True)
    raw_spectrum=folder/'raw_spectrum.npz';subprocess.run(['gsutil','-q','cp',m['gcs_root']+f'/head_spectra/{family}_{step}.npz',str(raw_spectrum)],check=True)
    with np.load(raw_spectrum) as z:raw_dark=jnp.asarray(z['basis'][:,:128]);effective_dark=jnp.asarray(z['effective_basis'][:,:128])
@@ -52,7 +53,7 @@ def main():
    names=source['variants']+['remove_vocabulary_centered_dark5']
    bands=[];totals=[];commons=[];ces=[];native=[];summaries=[];precision_losses=[];precision_geometry=[];sums=[None]*6
    for i in range(32):
-    marker=json.loads((folder/f'sequence_{i:03d}.json').read_text());assert marker['source_commit']==info['diagnostic_commit'] and marker['input_hash']==m['sequence_hashes'][i]
+    marker=json.loads((folder/f'sequence_{i:03d}.json').read_text());assert marker['source_commit']==capture_commit and marker['input_hash']==m['sequence_hashes'][i]
     with np.load(folder/f'sequence_{i:03d}.npz') as z:
      h=jnp.asarray(z['h'],jnp.bfloat16);y=jnp.asarray(z['targets']);raw=jnp.asarray(z['raw'],jnp.bfloat16);base=jnp.asarray(z['base'],jnp.bfloat16);tokens=np.concatenate([z['inputs'][0],z['targets'][0,-1:]])
      assert np.all((z['targets']>=0)&(z['targets']<50432))
@@ -76,7 +77,7 @@ def main():
     global_stats.append(dict(gradient_norm=float(np.sqrt(g2)),dark_gradient_energy=d2,dark_gradient_fraction=d2/g2,common_axis_gradient_energy=a2,common_axis_gradient_fraction=a2/g2))
    for i,name in enumerate(source['variants']):assert abs(global_stats[i]['gradient_norm']/source['global_head_gradients'][name]['gradient_norm']-1)<1e-5,(family,step,name)
    f=folder/'softmax_stats.npz';save_npz(f,spectral_energy=np.stack(bands)[:,0],head_power=np.stack(totals)[:,0],common_axis_power=np.stack(commons)[:,0],native_CE=np.asarray(native),FP32_CE=np.asarray(ces),head_summary=np.asarray(summaries),precision_losses=np.asarray(precision_losses),precision_geometry=np.asarray(precision_geometry))
-   result=dict(source_commit=commit,capture_commit=source['source_commit'],family=family,label_step=step,state_step=identity['step'],checkpoint=identity['checkpoint'],capture_root=origin,sequence_hashes=m['sequence_hashes'],sequences=32,variants=names,global_head_gradients=global_stats,scope='Exploratory softmax-centered W spectrum. All six arms use the same native-style conditional readout for the five original interventions plus centered-dark removal. Explicit finite BF16 bit rounding controls prevent compiler cast elision.')
+   result=dict(source_commit=commit,primary_analysis_commit=source['source_commit'],capture_commit=capture_commit,family=family,label_step=step,state_step=identity['step'],checkpoint=identity['checkpoint'],capture_root=origin,sequence_hashes=m['sequence_hashes'],sequences=32,variants=names,global_head_gradients=global_stats,scope='Exploratory softmax-centered W spectrum. All six arms use the same native-style conditional readout for the five original interventions plus centered-dark removal. Explicit finite BF16 bit rounding controls prevent compiler cast elision.')
    marker=folder/'softmax_complete.json';marker.write_text(json.dumps(result,indent=2)+'\n')
    subprocess.run(['gsutil','-q','cp',str(f),dest+'/softmax_stats.npz'],check=True);subprocess.run(['gsutil','-q','cp',str(marker),dest+'/complete.json'],check=True)
    print('SOFTMAX_CHECKPOINT_COMPLETE',family,step,json.dumps(global_stats),flush=True)

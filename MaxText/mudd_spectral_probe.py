@@ -42,6 +42,7 @@ def main():
     with np.load(cohort) as z:tokens=z['tokens'][:,:2049].copy()
     hashes=[hashlib.sha256(np.asarray(x,np.int32).tobytes()).hexdigest() for x in tokens]
     assert hashes==manifest['sequence_hashes'] and tokens.shape==(32,2049)
+    assert tokens.min()>=0 and tokens.max()<50432,'Invalid cohort token IDs'
     layers=32;length=2048;count=32;mesh=None;cfg=None
     if a.family=='old':
         import mudd_spectral_praxis as old
@@ -107,7 +108,9 @@ def main():
         trace=float(jnp.sum(w.astype(jnp.bfloat16).astype(jnp.float32)**2));assert abs(trace/np.sum(svals*svals)-1)<1e-5
         if not captures:
             tree=unflatten_dict(flat);params=jax.device_put({'params':tree});del tree,flat;gc.collect()
-            for i in range(count):
+            # Exercise the previously failing fixed text first; file IDs and
+            # the cohort order for aggregation remain unchanged.
+            for i in [count-1]+list(range(count-1)):
                 path=folder/f'sequence_{i:03d}.npz';marker=path.with_suffix('.json')
                 if marker.exists():validate(json.loads(marker.read_text()),common);continue
                 x=jnp.asarray(tokens[i:i+1,:length]);y=jnp.asarray(tokens[i:i+1,1:length+1])

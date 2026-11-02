@@ -15,7 +15,7 @@ def main():
  @jax.jit
  def precision_stats(h,w,y):
   z=jnp.einsum('btd,dv->btv',h.astype(jnp.float32),w.astype(jnp.bfloat16).astype(jnp.float32),precision=jax.lax.Precision.HIGHEST)
-  zc=cap.centered(z);q=z.astype(jnp.bfloat16).astype(jnp.float32);qc=zc.astype(jnp.bfloat16).astype(jnp.float32)
+  zc=cap.centered(z);q=cap.explicit_bf16_round(z);qc=cap.explicit_bf16_round(zc)
   # Same exact FP32 logits, translated before the final BF16 rounding. This
   # isolates common-shift quantization from changing W or upstream activations.
   losses=jnp.stack([cap.cross_entropy(x,y) for x in [z,q,qc]])
@@ -39,20 +39,31 @@ def main():
    subprocess.run(['gsutil','-q','-m','rsync','-r',origin,str(folder)],check=True)
    source=json.loads((folder/'complete.json').read_text());assert source['source_commit']==info['diagnostic_commit'] and source['sequence_hashes']==m['sequence_hashes']
    spectrum=folder/'vocabulary_centered.npz';subprocess.run(['gsutil','-q','cp',m['gcs_root']+f'/head_spectra/{family}_{step}_vocabulary_centered.npz',str(spectrum)],check=True)
+   raw_spectrum=folder/'raw_spectrum.npz';subprocess.run(['gsutil','-q','cp',m['gcs_root']+f'/head_spectra/{family}_{step}.npz',str(raw_spectrum)],check=True)
+   with np.load(raw_spectrum) as z:raw_dark=jnp.asarray(z['basis'][:,:128]);effective_dark=jnp.asarray(z['effective_basis'][:,:128])
    with np.load(spectrum) as z:
     u=jnp.asarray(z['basis']);mu=z['vocabulary_mean'];axis=jnp.asarray(mu/np.linalg.norm(mu))
    flat,identity=io.params(info['checkpoints'][str(step)],family,True,workers=3)
-   w,_,_=io.flatten_head(flat,family);w=jnp.asarray(w);del flat
-   bands=[];totals=[];commons=[];ces=[];native=[];summaries=[];precision_losses=[];precision_geometry=[];sums=[None,None]
+   w,_,bias=io.flatten_head(flat,family);w=jnp.asarray(w);bias=jnp.asarray(bias)
+   scale=jnp.asarray(flat[('final_ln','scale')] if family=='old' else flat[('decoder','lm_head','decoder_norm','scale')]);del flat
+   norm_fn=jax.jit(lambda x,s,b:cap.final_norm(x,s,b,family))
+   project=jax.jit(lambda x,v:jnp.einsum('btd,dk,ek->bte',x.astype(jnp.float32),v,v,precision=jax.lax.Precision.HIGHEST))
+   random_basis=jnp.asarray(np.linalg.qr(np.random.default_rng(20261102).normal(size=(2560,128)))[0],jnp.float32)
+   names=source['variants']+['remove_vocabulary_centered_dark5']
+   bands=[];totals=[];commons=[];ces=[];native=[];summaries=[];precision_losses=[];precision_geometry=[];sums=[None]*6
    for i in range(32):
     marker=json.loads((folder/f'sequence_{i:03d}.json').read_text());assert marker['source_commit']==info['diagnostic_commit'] and marker['input_hash']==m['sequence_hashes'][i]
     with np.load(folder/f'sequence_{i:03d}.npz') as z:
-     h=jnp.asarray(z['h'],jnp.bfloat16);y=jnp.asarray(z['targets']);tokens=np.concatenate([z['inputs'][0],z['targets'][0,-1:]])
+     h=jnp.asarray(z['h'],jnp.bfloat16);y=jnp.asarray(z['targets']);raw=jnp.asarray(z['raw'],jnp.bfloat16);base=jnp.asarray(z['base'],jnp.bfloat16);tokens=np.concatenate([z['inputs'][0],z['targets'][0,-1:]])
+     assert np.all((z['targets']>=0)&(z['targets']<50432))
      assert hashlib.sha256(tokens.astype(np.int32).tobytes()).hexdigest()==m['sequence_hashes'][i]
     band,total,common,filtered=geometry(h,u,axis);bands.append(np.asarray(band));totals.append(np.asarray(total));commons.append(np.asarray(common))
     pl,pg=precision_stats(h,w,y);precision_losses.append(np.asarray(pl));precision_geometry.append(np.asarray(pg))
     ci=[];ni=[];si=[]
-    for v,hv in enumerate([h,filtered]):
+    hf=h.astype(jnp.float32);extra=raw.astype(jnp.float32)-base.astype(jnp.float32)
+    remove_extra_dark=(raw.astype(jnp.float32)-project(extra,effective_dark)).astype(jnp.bfloat16)
+    hs=[h,(hf-project(hf,raw_dark)).astype(jnp.bfloat16),(hf-project(hf,random_basis)).astype(jnp.bfloat16),norm_fn(base,scale,bias),norm_fn(remove_extra_dark,scale,bias),filtered]
+    for v,hv in enumerate(hs):
      g,ce,summary=grad_fn(hv,w,y,u[:,:128]);sums[v]=g/32 if sums[v] is None else sums[v]+g/32
      ci.append(np.asarray(ce));ni.append(np.asarray(native_ce(hv,w,y)));si.append(np.asarray(summary))
     ces.append(ci);native.append(ni);summaries.append(si)
@@ -63,9 +74,9 @@ def main():
     ga=jnp.einsum('d,dv->v',axis,g,precision=jax.lax.Precision.HIGHEST)
     g2=float(jnp.sum(g*g));d2=float(jnp.sum(gd*gd));a2=float(jnp.sum(ga*ga))
     global_stats.append(dict(gradient_norm=float(np.sqrt(g2)),dark_gradient_energy=d2,dark_gradient_fraction=d2/g2,common_axis_gradient_energy=a2,common_axis_gradient_fraction=a2/g2))
-   assert abs(global_stats[0]['gradient_norm']/source['global_head_gradients']['keep']['gradient_norm']-1)<1e-5
+   for i,name in enumerate(source['variants']):assert abs(global_stats[i]['gradient_norm']/source['global_head_gradients'][name]['gradient_norm']-1)<1e-5,(family,step,name)
    f=folder/'softmax_stats.npz';save_npz(f,spectral_energy=np.stack(bands)[:,0],head_power=np.stack(totals)[:,0],common_axis_power=np.stack(commons)[:,0],native_CE=np.asarray(native),FP32_CE=np.asarray(ces),head_summary=np.asarray(summaries),precision_losses=np.asarray(precision_losses),precision_geometry=np.asarray(precision_geometry))
-   result=dict(source_commit=commit,capture_commit=source['source_commit'],family=family,label_step=step,state_step=identity['step'],checkpoint=identity['checkpoint'],capture_root=origin,sequence_hashes=m['sequence_hashes'],sequences=32,variants=['keep','remove_vocabulary_centered_dark5'],global_head_gradients=global_stats,scope='Exploratory softmax-centered W spectrum, separate from original paper uncentered W spectrum.')
+   result=dict(source_commit=commit,capture_commit=source['source_commit'],family=family,label_step=step,state_step=identity['step'],checkpoint=identity['checkpoint'],capture_root=origin,sequence_hashes=m['sequence_hashes'],sequences=32,variants=names,global_head_gradients=global_stats,scope='Exploratory softmax-centered W spectrum. All six arms use the same native-style conditional readout for the five original interventions plus centered-dark removal. Explicit finite BF16 bit rounding controls prevent compiler cast elision.')
    marker=folder/'softmax_complete.json';marker.write_text(json.dumps(result,indent=2)+'\n')
    subprocess.run(['gsutil','-q','cp',str(f),dest+'/softmax_stats.npz'],check=True);subprocess.run(['gsutil','-q','cp',str(marker),dest+'/complete.json'],check=True)
    print('SOFTMAX_CHECKPOINT_COMPLETE',family,step,json.dumps(global_stats),flush=True)

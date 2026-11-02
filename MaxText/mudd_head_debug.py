@@ -22,9 +22,13 @@ with open('/tmp/mudspec_job/job.lock','a+b') as lock:
  def fp32(h,w,y):return cap.cross_entropy(jnp.einsum('btd,dv->btv',h.astype(jnp.float32),w.astype(jnp.bfloat16).astype(jnp.float32),precision=jax.lax.Precision.HIGHEST),y)
  def full_w(h,w,y):return cap.cross_entropy(jnp.einsum('btd,dv->btv',h.astype(jnp.float32),w,precision=jax.lax.Precision.HIGHEST),y)
  r=dict(actual_native_CE=actual,standalone_replay_CE=old,source_commit=subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip())
- for name,fn in [('native_style',native_style),('einsum_logsoftmax',einsum_style),('lse_gather',lambda h,w,y:cap.native_head_ce(h,w,y)),('FP32_dot_BF16_W',fp32),('FP32_dot_original_W',full_w)]:
+ r['target_min']=int(y.min());r['target_max']=int(y.max());assert int(y.min())>=0 and int(y.max())<50432
+ for name,fn in [('native_style',native_style),('einsum_logsoftmax',einsum_style),('lse_gather',lambda h,w,y:cap.cross_entropy(jnp.einsum('btd,dv->btv',h,w.astype(jnp.bfloat16)),y)),('FP32_dot_BF16_W',fp32),('FP32_dot_original_W',full_w)]:
   v=jax.jit(fn)(h,w,y);r[name]=float(v.mean());print(name,r[name],flush=True)
  v,z=jax.jit(explicit_logits)(h,w,y);r['native_style_with_logits_output']=float(v.mean());r['logits_dtype']=str(z.dtype);r['logit_mean_RMS']=float(jnp.sqrt(jnp.mean(jnp.mean(z.astype(jnp.float32),axis=-1)**2)))
+ materialized=jnp.asarray(np.array(z))
+ r['materialized_logits_logsoftmax']=float(jax.jit(lambda z,y:cap.precise_cross_entropy(z,jax.nn.one_hot(y,50432))[0])(materialized,y).mean())
+ r['materialized_logits_lse_gather']=float(jax.jit(cap.cross_entropy)(materialized,y).mean())
  norm=raw-raw.mean(-1,keepdims=True);norm=norm*jax.lax.rsqrt(jnp.mean(norm*norm,axis=-1,keepdims=True)+1e-5);hf=norm*g+b
  r['FP32_unrounded_norm_BF16_W']=float(jax.jit(fp32)(hf,w,y).mean());r['FP32_unrounded_norm_original_W']=float(jax.jit(full_w)(hf,w,y).mean())
  out=Path('/tmp/mudspec_job/head_debug.json');out.write_text(json.dumps(r,indent=2)+'\n');print(json.dumps(r,indent=2),flush=True)

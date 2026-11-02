@@ -104,7 +104,16 @@ def precise_cross_entropy(logits,targets,z_loss=0.):
     return loss+aux,aux
 
 def native_head_ce(h,w,y):
-    return cross_entropy(jnp.einsum('btd,dv->btv',h,w.astype(jnp.bfloat16)),y)
+    # Match native OutputHead algebra. On TPU, mathematically equivalent
+    # logsumexp-minus-gather can materialize BF16 logits at a different point.
+    logits=jnp.tensordot(h,w.astype(jnp.bfloat16),axes=((-1,),(0,)))
+    return precise_cross_entropy(logits,jax.nn.one_hot(y,w.shape[-1]))[0]
+
+def explicit_bf16_round(x):
+    """Finite FP32 -> BF16 RNE -> FP32, using bits to prevent cast elision."""
+    bits=jax.lax.bitcast_convert_type(x.astype(jnp.float32),jnp.uint32)
+    bits=(bits+jnp.uint32(0x7fff)+((bits>>jnp.uint32(16))&jnp.uint32(1)))&jnp.uint32(0xffff0000)
+    return jax.lax.bitcast_convert_type(bits,jnp.float32)
 
 STAGES=['head_input','pre_final_norm_centered','last_block_centered','mudd_extra_centered']
 def stage_stats(raw,base,h,basis,effective_basis):

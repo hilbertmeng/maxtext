@@ -89,6 +89,8 @@ def test_common_shift_rounding():
  np.testing.assert_allclose(cap.cross_entropy(z,y),cap.cross_entropy(c,y),atol=1e-4)
  raw=cap.cross_entropy(z.astype(jnp.bfloat16),y);cent=cap.cross_entropy(c.astype(jnp.bfloat16),y)
  assert float(raw[0,0])>float(cent[0,0])+.1
+ a=jnp.asarray(np.random.default_rng(37).normal(size=1024)*100,jnp.float32)
+ np.testing.assert_array_equal(cap.explicit_bf16_round(a),a.astype(jnp.bfloat16).astype(jnp.float32))
  print('SOFTMAX_COMMON_SHIFT_AND_BF16_ROUNDING_PASS',flush=True)
 
 if __name__=='__main__':test_old();test_gradient();test_serial();test_common_shift_rounding()

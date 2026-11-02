@@ -334,7 +334,10 @@ def _tm_read_backward_kernel(n, qk_cols, eps, scale, q_scale, gated, ch, pass_m,
         std_parts = []
         mxu = len(qk_norm) > 2 and qk_norm[2]
         if mxu:
-          ones_all = jnp.ones((qdim, qdim), jnp.bfloat16)
+          # One reduction matrix per head: lanes [0, NP) select column h (column-form s for d ss_std,
+          # accumulated over heads, so no per-head [T, 1] stores); lanes [128, 128+qdim) broadcast s.
+          r_ = jax.lax.broadcasted_iota(jnp.int32, (qdim, 128 + qdim), 1)
+          s_cols = jnp.zeros((t, np_), F32)
       for h in range(np_):
         rows = a * np_ + h
         if h >= n:
@@ -355,13 +358,15 @@ def _tm_read_backward_kernel(n, qk_cols, eps, scale, q_scale, gated, ch, pass_m,
           gm = y * mm_ref[pl.ds(a, 1), :]
           if mxu:     # lane-broadcast [T, qdim] statistics from the MXU
             iv = (jnp.ones_like(gm) if 'b_no_iv' in ablate else _dot2(inv_cols, _head_selector(np_, qdim, h)))
-            s_ = jnp.zeros_like(gm) if 'b_no_s' in ablate else _dot2(gm * xhat, ones_all) / width
+            red = _dot2(gm * xhat, jnp.where((r_ == h) | (r_ >= 128), 1., 0.).astype(jnp.bfloat16)) / width
+            s_cols = s_cols + red[:, :np_]
+            s_ = red[:, 128:]
           else:
             iv = inv_cols[:, h:h + 1]
             s_ = jnp.sum(gm * xhat, axis=1, keepdims=True) / width             # [T, 1]
           local = (iv * (gm - xhat * s_))[:, :qk_cols]
           std_parts.append((iv * gm)[:, qk_cols:qk_cols + qs.shape[-1] // np_])  # token-major [T, Rs]
-          if 'b_no_col' not in ablate:
+          if not mxu and 'b_no_col' not in ablate:
             col_scr[:, pl.ds(h, 1)] = (-.5 * iv * iv * s_)[:, :1]
           if 'b_no_dmm' not in ablate:
             dmm[a] = dmm[a] + jnp.sum(y * xhat, axis=0, keepdims=True)
@@ -386,7 +391,10 @@ def _tm_read_backward_kernel(n, qk_cols, eps, scale, q_scale, gated, ch, pass_m,
             y = jnp.where(lane < qk_cols, y, 0.)
         _put(dy_scr, rows, y)
       if a < 2 and qk_norm:
-        dss_ref[a] = _from_tokens(col_scr[...])                          # [NP, T]
+        if mxu:     # d ss_std = -mean(m g xhat) / (2 r^2), all heads at once in column form
+          dss_ref[a] = _from_tokens(-.5 * inv_cols * inv_cols * s_cols)          # [NP, T]
+        else:
+          dss_ref[a] = _from_tokens(col_scr[...])                        # [NP, T]
         ds = dqs if a == 0 else dks
         ds[...] = jnp.concatenate(std_parts, axis=1).astype(ds.dtype)    # [T, NP*Rs]
     # Per-token matmuls: dX_t^T = M_t dY_t^T, dM_t = X_t^T dY_t; dS = sum_t sg * dX^T.

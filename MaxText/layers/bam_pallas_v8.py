@@ -350,18 +350,21 @@ def _tm_read_backward_kernel(n, qk_cols, eps, scale, q_scale, gated, ch, pass_m,
           # dx_local = (m g - xhat mean(m g xhat)) / r;  dx_std = m g / r;
           # d ss_std = -mean(m g xhat) / (2 r^2);  dm = sum_t g xhat.
           q_eps, width = qk_norm[:2]
+          ablate = qk_norm[3] if len(qk_norm) > 3 else ''   # benchmark-only ablations (wrong math)
           xhat = (xq_ref if a == 0 else xk_ref)[h].astype(F32)                  # [T, qdim]
           gm = y * mm_ref[pl.ds(a, 1), :]
           if mxu:     # lane-broadcast [T, qdim] statistics from the MXU
-            iv = _dot2(inv_cols, _head_selector(np_, qdim, h))
-            s_ = _dot2(gm * xhat, ones_all) / width
+            iv = (jnp.ones_like(gm) if 'b_no_iv' in ablate else _dot2(inv_cols, _head_selector(np_, qdim, h)))
+            s_ = jnp.zeros_like(gm) if 'b_no_s' in ablate else _dot2(gm * xhat, ones_all) / width
           else:
             iv = inv_cols[:, h:h + 1]
             s_ = jnp.sum(gm * xhat, axis=1, keepdims=True) / width             # [T, 1]
           local = (iv * (gm - xhat * s_))[:, :qk_cols]
           std_parts.append((iv * gm)[:, qk_cols:qk_cols + qs.shape[-1] // np_])  # token-major [T, Rs]
-          col_scr[:, pl.ds(h, 1)] = (-.5 * iv * iv * s_)[:, :1]
-          dmm[a] = dmm[a] + jnp.sum(y * xhat, axis=0, keepdims=True)
+          if 'b_no_col' not in ablate:
+            col_scr[:, pl.ds(h, 1)] = (-.5 * iv * iv * s_)[:, :1]
+          if 'b_no_dmm' not in ablate:
+            dmm[a] = dmm[a] + jnp.sum(y * xhat, axis=0, keepdims=True)
           if qk_cols < kdim:
             local = jnp.concatenate((local, jnp.zeros((t, kdim - qk_cols), F32)), axis=1)
           _put(dy_scr, rows, local)

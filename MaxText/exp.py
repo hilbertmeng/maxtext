@@ -19747,6 +19747,8 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     # Native BAM reference; tuned Splash remains enabled. Pallas read adaptation pending.
     # Q/K/V/localO share the normalized read view; the raw matrix carry and all writers stay unchanged.
     # Widths2510/1128/tail3904;432112210 parameters; existing18 signed V/O scales initialize1.
+    # code_commit: ee4fa9d; UE5a v5p-16 TPU310530, FIRST/source/AOT/data/params verified.
+    # Native startup20..99 0.484319step/s (-28.37% vs Pallas UnitH); !? slower than native speed prior; not an isolated norm cost.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneMPreNormTruePile'
     bam_m_read_norm = 'rms'
     bam_pallas_core = False
@@ -19758,6 +19760,8 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneMPreNormTruePile):
     """Same whole-M pre-norm, removing all18 common V/O read-scale parameters."""
     # Same MLP widths;432112192 parameters,18 fewer than UnitH (negligible; no MLP refund).
+    # code_commit: ee4fa9d; UE5a v5p-16 TPU310531, FIRST/source/AOT/data/params verified.
+    # Native startup20..99 0.489683step/s (-27.57% vs Pallas UnitH); !? slower than native speed prior; not an isolated norm cost.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneMPreNormNoReadScaleTruePile'
     bam_common_vo_read_scale = False
 

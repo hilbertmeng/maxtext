@@ -27,7 +27,7 @@ Most favored: write+O rank16; simplest candidate: write rank16. Write+O vs write
 
 ## Training and validation contract
 
-Six new v5p16 RUNs,13500 steps,T4096,global128/per-device16, checkpoint200/latest2, TBrotation500. UE5a selected from the latest matching5-6h P0 Medium leases recorded in main regional history; backup UC1a/EW4b during recovery. Borrow retained FLEX llm-jax-v6e-1-0/EW4a, never delete it. Single shared CPU proof by exact sealed hash; serialize AOT through its worker lock while training queues provision independently.
+Six new v5p16 RUNs,13500 steps,T4096,global128/per-device16, checkpoint200/latest2, TBrotation500. UE5a selected from the latest matching5-6h P0 Medium leases recorded in main regional history; backup EW4b during recovery. Borrow retained FLEX llm-jax-v6e-1-0/EW4a, never delete it. Single shared CPU proof by exact sealed hash; serialize AOT through its worker lock while training queues provision independently.
 
 Generic training health ON, internal NN/BAM activations OFF. Existing common-read-scale signed values remain visible. Add exactly one effective Delta Frobenius-over-identity metric per layer and active route (17,17,35,35,35,53 per arm); for LoRA measure down@up with rank-sized Gram matrices. Do not substitute the separate factor norms for effective adaptation.
 
@@ -68,4 +68,12 @@ Infrastructure audit against main9aa2dd5: post-fb9e8689 change16ee2385 adds thre
 
 Finish new CPU/config/AOT gates before checkpointing the old write+V and handing over. Collect the old terminal native report once at handoff. Confirm new source/AOT/data/parameter count/FIRST_STEP before transferring ownership; then finalize old RUN with resource deletion disabled and remove it from active group. New RUN cadence2k/reviews4k+8k; review recommendations require user confirmation. Original-group4k calendar remains fixed during preparation.
 
-Sealed GELU runtime b84abc2;12 focused CPU checks passed, config seal passed; AOT/handoff in progress.
+Sealed GELU runtime b84abc2;12 focused CPU checks and config seal passed; FIRST_STEP/source/data/AOT/parameter audit passed. Startup20..99 0.646145step/s (-0.26% vs linear write+O).
+
+## Closed prefixes and current ownership
+
+User-confirmed4k decisions stopped write-r16 at4426 and write+O-full at4179. Both final checkpoints committed, local TB SYNC_OK, and node/queue independently absent. Write+V-r16 stopped3648 under the user's explicit hot-replacement instruction; its TPU310514 is retained by GELU write+O, so its closeout correctly skipped resource actions after independent stopped-registry verification. Full13.5k endpoints are unmeasured for all three. Final native loss-report JSON and closure audit are retained in the artifact directory.
+
+Four active RUNs: write-full310510, write+O-r16310513, write+V+O-r16310515, GELU write+O310516 on physicalTPU310514. Group clock transferred to linear write+O before removing the former clock; reported4k calendar phase preserved, next regular report6k. Stop requires user confirmation. Relevant3.2k effective-update health is saved as adapter-health-3200.json with full layer-distribution figure; it measures matrix change, not activation-energy change.
+
+The proposed head-sharing study is deferred by the user. Select its parent after GELU has a mature2k-4k prefix and the existing write-full/write+O-r16 later trends are clearer. No head-sharing configuration, AOT or trainer has been launched. Current provisional primary parent is write+O-r16 or its GELU successor, not automatically the earlier-leading write-full.

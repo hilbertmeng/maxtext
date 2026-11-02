@@ -20314,6 +20314,10 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     # Parent kernel and extra adapter-health exports differ; descriptive speed comparison only.
     # Worktree: /data0/xd/mediumprop-unit-h-content-adapters; see mediumprop_unit_h_content_adapters.md.
     # Adapter parameters 652800; MLP widths 2503/1124/tail3910; total 432113410.
+    # Conclusion: No persistent benefit over UnitH; hovered near parity and remained slower than dense write.
+    # User stop4426/13500, P0; full-schedule endpoint unmeasured.
+    # Final mature4400 vs UnitH: gap+0.0009102, MHA-ref gain0.9961617.
+    # CP4426 committed/TB SYNC_OK; TPU node and queued resource independently confirmed absent.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneContentWriteAdapterR16TruePile'
     bam_content_adapter_write = True
     bam_content_adapter_o = False
@@ -20337,6 +20341,10 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     # Parent kernel and extra adapter-health exports differ; descriptive speed comparison only.
     # Worktree: /data0/xd/mediumprop-unit-h-content-adapters; see mediumprop_unit_h_content_adapters.md.
     # Adapter parameters 3150000; MLP widths 2477/1111/tail3879; total 432112210.
+    # Conclusion: Adding full localO adaptation did not preserve the positive full-write-only result over this prefix.
+    # User stop4179/13500, P0; full-schedule endpoint unmeasured.
+    # Final mature4000 vs UnitH: gap+0.0010254, MHA-ref gain0.9958199.
+    # CP4179 committed/TB SYNC_OK; TPU node and queued resource independently confirmed absent.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneContentWriteOAdapterFullTruePile'
     bam_content_adapter_write = True
     bam_content_adapter_o = True
@@ -20383,6 +20391,10 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     # Parent kernel and extra adapter-health exports differ; descriptive speed comparison only.
     # Worktree: /data0/xd/mediumprop-unit-h-content-adapters; see mediumprop_unit_h_content_adapters.md.
     # Adapter parameters 1344000; MLP widths 2496/1121/tail3888; total 432113410.
+    # Conclusion: Early deficit narrowed, but the later positive loss gap persisted; no observed net benefit.
+    # User stop3648/13500, P0; full-schedule endpoint unmeasured.
+    # Final mature3600 vs UnitH: gap+0.0023952, MHA-ref gain0.9907212.
+    # CP3648 committed/TB SYNC_OK; TPU retained and transferred to GELU write+O; old registry independently stopped.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneContentWriteVAdapterR16TruePile'
     bam_content_adapter_write = True
     bam_content_adapter_o = False
@@ -20425,6 +20437,9 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     # ledger only: runtime b84abc2; codex/mediumprop-unit-h-content-adapters; same1344000 adapter parameters.
     # Widths2496/1121/tail3888 and total432113410 unchanged; up=0 preserves identity init.
     # Effective-Delta health becomes the zero-input Jacobian norm; GELU is nonlinear.
+    # code_commit:b84abc2; UE5a v5p16 xd-v5p-16-310514-maxtext retained from write+V, controller310516.
+    # FIRST0/source/AOT/TruePile4096/432113410 params verified; startup20..99 0.646145step/s.
+    # Descriptive speed-0.26% vs linear write+O;12 focused CPU checks, including full gradients and8-device sharding.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneContentWriteOAdapterR16GeluTruePile'
     bam_content_adapter_activation = 'gelu'
     compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneContentWriteOAdapterR16TruePile']

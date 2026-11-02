@@ -1,17 +1,19 @@
 #!/usr/bin/env python3
 """Incrementally mirror TensorBoard event objects from GCS.
 
-GCS objects are immutable snapshots, so ``gsutil rsync`` recopies a growing
-event file in full.  This tool fetches one overlap-plus-tail range, verifies
-that the remote snapshot extends the local prefix, and appends only new bytes.
-It falls back to an atomic full copy whenever the prefix check fails.
+One metadata listing supplies object generations and CRC32C hashes. Verified,
+unchanged local snapshots require no payload reads; an existing mirror can
+bootstrap this cache by hashing local bytes. Growing files retain the original
+overlap-plus-tail verification, with atomic full-copy repair on mismatches.
 """
 
 from __future__ import annotations
 
 import argparse
+import base64
 from concurrent.futures import ThreadPoolExecutor
 import fcntl
+import json
 import os
 from pathlib import Path
 import re
@@ -20,6 +22,14 @@ import subprocess
 import sys
 import tempfile
 import time
+import warnings
+
+with warnings.catch_warnings():
+  warnings.simplefilter("ignore")
+  try:
+    import google_crc32c
+  except ImportError:
+    google_crc32c = None
 
 
 DEFAULT_GCS_ROOT = (
@@ -60,6 +70,84 @@ def _list_events(gsutil: str, remote_dir: str) -> list[tuple[int, str]]:
   if not events:
     raise FileNotFoundError(f"no TensorBoard events under {remote_dir}")
   return events
+
+
+def _list_snapshots(gsutil: str, remote_dir: str) -> list[dict]:
+  """One object listing supplies version/hash metadata without reading payloads."""
+  output = _run(
+      [gsutil, "ls", "-L", remote_dir.rstrip("/") + "/events.out.tfevents.*"],
+      stdout=subprocess.PIPE, text=True,
+  ).stdout
+  snapshots = []
+  current = None
+  for line in output.splitlines():
+    if line.startswith("gs://") and line.endswith(":"):
+      current = {"uri": line[:-1]}
+      snapshots.append(current)
+    elif current is not None:
+      for label, key in (("Content-Length", "size"), ("Generation", "generation"),
+                         ("Hash (crc32c)", "crc32c")):
+        match = re.match(r"\s*" + re.escape(label) + r":\s+(\S+)\s*$", line)
+        if match:
+          current[key] = int(match.group(1)) if key == "size" else match.group(1)
+  if not snapshots:
+    raise FileNotFoundError(f"no TensorBoard events under {remote_dir}")
+  for snapshot in snapshots:
+    if not all(k in snapshot for k in ("size", "generation", "crc32c")):
+      raise ValueError(f"incomplete GCS object metadata: {snapshot}")
+  return snapshots
+
+
+def _local_stamp(local: Path):
+  if not local.exists():
+    return None
+  stat = local.stat()
+  return {"size": stat.st_size, "mtime_ns": stat.st_mtime_ns, "inode": stat.st_ino}
+
+
+def _file_crc32c(local: Path):
+  if google_crc32c is None:
+    return None
+  checksum = google_crc32c.Checksum()
+  with local.open("rb") as source:
+    for chunk in iter(lambda: source.read(1 << 20), b""):
+      checksum.update(chunk)
+  return base64.b64encode(checksum.digest()).decode("ascii")
+
+
+def _sync_snapshot(gsutil: str, snapshot: dict, local: Path, previous: dict):
+  """Skip only verified bytes; generation changes with identical CRC are safe too."""
+  size, remote = snapshot["size"], snapshot["uri"]
+  stamp = _local_stamp(local)
+  if (stamp is not None and stamp["size"] == size and
+      previous.get("local_stamp") == stamp and previous.get("size") == size and
+      previous.get("crc32c") == snapshot["crc32c"]):
+    return f"unchanged generation={snapshot['generation']} transferred=0", dict(snapshot, local_stamp=stamp)
+
+  crc = _file_crc32c(local) if stamp is not None and stamp["size"] == size else None
+  if crc is not None and crc == snapshot["crc32c"]:
+    return f"verified-local generation={snapshot['generation']} transferred=0", dict(snapshot, local_stamp=stamp)
+
+  if crc is not None:
+    # A same-size rewrite or local corruption can lie outside the old tail overlap.
+    copied = _full_copy(gsutil, remote, local)
+    outcome = f"full crc-mismatch new={copied} transferred={copied}"
+  else:
+    outcome = _sync_one(gsutil, remote, size, local)
+  stamp = _local_stamp(local)
+  crc = _file_crc32c(local)
+  if crc is not None and stamp["size"] == size and crc == snapshot["crc32c"]:
+    return outcome, dict(snapshot, local_stamp=stamp)
+  if outcome.startswith("append") and crc is not None:
+    # Growth may also rewrite earlier bytes; repair a prefix that passed the tail check.
+    copied = _full_copy(gsutil, remote, local)
+    outcome += f"; full-after-crc-mismatch transferred={copied}"
+    stamp = _local_stamp(local)
+    if stamp["size"] == size and _file_crc32c(local) == snapshot["crc32c"]:
+      return outcome, dict(snapshot, local_stamp=stamp)
+  # A growing object may advance after the listing. Keep the downloaded snapshot,
+  # but never cache a generation whose full checksum was not actually verified.
+  return outcome, None
 
 
 def _full_copy(gsutil: str, remote: str, local: Path) -> int:
@@ -128,10 +216,28 @@ def _sync_run(args, run: str) -> list[str]:
   local_dir.mkdir(parents=True, exist_ok=True)
   with (local_dir / ".sync.lock").open("a+b") as lock:
     fcntl.flock(lock, fcntl.LOCK_EX)
+    manifest_path = local_dir / ".sync_versions.json"
+    try:
+      manifest = json.loads(manifest_path.read_text())
+    except (FileNotFoundError, ValueError):
+      manifest = {}
+    if not isinstance(manifest, dict):
+      manifest = {}
+    records = manifest.get("objects", {}) if manifest.get("schema_version") == 1 else {}
+    if not isinstance(records, dict):
+      records = {}
     outcomes = []
-    for remote_size, remote in _list_events(args.gsutil, remote_dir):
+    for snapshot in _list_snapshots(args.gsutil, remote_dir):
+      remote = snapshot["uri"]
       local = local_dir / remote.rsplit("/", 1)[-1]
-      outcome = _sync_one(args.gsutil, remote, remote_size, local)
+      outcome, verified = _sync_snapshot(args.gsutil, snapshot, local, records.get(remote, {}))
+      if verified is None:
+        records.pop(remote, None)
+      else:
+        records[remote] = verified
+      temporary = manifest_path.with_suffix(".tmp")
+      temporary.write_text(json.dumps({"schema_version": 1, "objects": records}, indent=2) + "\n")
+      os.replace(temporary, manifest_path)
       outcomes.append(f"RUN={run} file={local.name} {outcome}")
     return outcomes
 

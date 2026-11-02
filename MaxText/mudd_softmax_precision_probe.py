@@ -48,9 +48,13 @@ def main():
   for i in range(32):
    stem=f'sequence_{i:03d}';marker=json_blob(uri+'/'+stem+'.json')
    if marker:assert marker['source_commit']==commit and marker['input_hash']==m['cohort_hashes'][i];rows.append(marker);continue
-   source=m['capture_root']+f'/{step}/{stem}';meta=json.loads(read_blob(source+'.json'));assert meta['source_commit']==m['capture_commit'] and meta['checkpoint']==m['checkpoints'][str(step)] and meta['input_hash']==m['cohort_hashes'][i]
+   source=m['capture_root']+f'/{step}/{stem}'
+   def capture_bytes(ext):
+    if m.get('local_capture_root'):return Path(m['local_capture_root'],str(step),stem+ext).read_bytes()
+    return read_blob(source+ext)
+   meta=json.loads(capture_bytes('.json'));assert meta['source_commit']==m['capture_commit'] and meta['checkpoint']==m['checkpoints'][str(step)] and meta['input_hash']==m['cohort_hashes'][i]
    import io as pyio
-   with np.load(pyio.BytesIO(read_blob(source+'.npz'))) as z:
+   with np.load(pyio.BytesIO(capture_bytes('.npz'))) as z:
     h=jnp.asarray(z['h'],jnp.bfloat16);x=z['inputs'].copy();y0=z['targets'].copy();native=z['native_loss'].reshape(-1).copy()
    tokens=np.concatenate([x[0],y0[0,-1:]]).astype(np.int32);assert hashlib.sha256(tokens.tobytes()).hexdigest()==m['cohort_hashes'][i];y=jnp.asarray(y0)
    logits=project(h,w);logits.block_until_ready();assert logits.dtype==jnp.bfloat16

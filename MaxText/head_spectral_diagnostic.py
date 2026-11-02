@@ -4,6 +4,7 @@ from pathlib import Path
 import numpy as np
 import tensorstore as ts
 import jax,jax.numpy as jnp
+_IO_CONTEXT=ts.Context({'cache_pool#ocdbt':{'total_bytes_limit':268435456}})
 
 def restore(root,head_only=False,cache_dir=None):
  meta=json.loads(subprocess.check_output(['gsutil','cat',root+'/_METADATA'],text=True));wanted={}
@@ -22,7 +23,7 @@ def restore(root,head_only=False,cache_dir=None):
  def read(p):
   path=cache/(hashlib.sha256(repr(p).encode()).hexdigest()+'.npy') if cache else None
   if path is not None and path.exists():return np.load(path,mmap_mode='r',allow_pickle=False)
-  a=ts.open({'driver':'zarr3' if meta.get('use_zarr3') else 'zarr','kvstore':{'driver':'ocdbt','base':root+'/'},'path':'.'.join(p)},open=True).result()
+  a=ts.open({'driver':'zarr3' if meta.get('use_zarr3') else 'zarr','kvstore':{'driver':'ocdbt','base':root+'/','cache_pool':'cache_pool#ocdbt'},'path':'.'.join(p)},open=True,read=True,context=_IO_CONTEXT).result()
   value=np.asarray(a.read().result())
   if path is not None:
    temp=path.with_suffix('.tmp')
@@ -41,7 +42,7 @@ def abstract_params(root):
   p=ast.literal_eval(key)
   if p[:2]==('params','params') and not value['value_metadata'].get('skip_deserialize',False):wanted.append(p)
  def shape(p):
-  a=ts.open({'driver':'zarr3' if meta.get('use_zarr3') else 'zarr','kvstore':{'driver':'ocdbt','base':root+'/'},'path':'.'.join(p)},open=True).result()
+  a=ts.open({'driver':'zarr3' if meta.get('use_zarr3') else 'zarr','kvstore':{'driver':'ocdbt','base':root+'/','cache_pool':'cache_pool#ocdbt'},'path':'.'.join(p)},open=True,read=True,context=_IO_CONTEXT).result()
   return p[2:],jax.ShapeDtypeStruct(a.shape,a.dtype.numpy_dtype)
  with concurrent.futures.ThreadPoolExecutor(max_workers=16) as pool:return dict(pool.map(shape,wanted))
 

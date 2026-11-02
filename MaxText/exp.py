@@ -17488,6 +17488,23 @@ class BamPythia2p8BHUnit300BFastKernel(BamPythia2p8BHUnit300B):
     remat_policy = 'minimal_save_splash'
 
 
+class BamPythia2p8BHUnitShortTrainFastKernel(
+        BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOne):
+    """ShortTrain unit H with the math-preserving HUnit300BFastKernel optimizations.
+
+    Retain the parent's 28000-step schedule, initialization, parameter/optimizer
+    trees and legacy1/sqrt(80) logit multiplier. Packed keys, fused full-head
+    QKNorm and saved Splash residuals change only the implementation.
+    """
+    model_name = 'BamPythia2p8BHUnitShortTrainFastKernel'
+    bam_pallas_packed_read_keys = True
+    bam_pallas_fused_qk_norm = True
+    bam_pallas_vmem_mib = 63
+    bam_splash_residual_name = 'bam_splash_residual'
+    remat_policy = 'minimal_save_splash'
+    compare_runs = ['BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOne']
+
+
 class BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneCommonQKScale(
         BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOne):
     """Add one learned scalar per layer, shared by complete local Q/K reads.

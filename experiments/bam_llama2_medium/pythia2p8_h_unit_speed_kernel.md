@@ -51,3 +51,9 @@ Training predictions scale from v5p-8 and are not yet measured on the formal v5p
   - BF16 vs. F32 truth (fused 0.0194 vs. native 0.0358 global L2);
   - the shared-VO packed path;
   - parameter-tree identity with `BamPythia2p8BHUnit300B`.
+
+## ShortTrain transfer
+
+`BamPythia2p8BHUnitShortTrainFastKernel` inherits the existing long-named ShortTrain unit-H/no-gamma configuration. It enables the same packed read keys, fused full-head QKNorm,63MiB VMEM and `minimal_save_splash` policy. Preserve ShortTrain's28000-step schedule, LR0.0002/warmup2%, batch1024/T2048 and legacy1/sqrt80 logit multiplier; do not inherit the300B plan's1/sqrt100 temperature. Ordinary/private/tail widths7808/2944/9984 and all2775190912 parameters are unchanged. Existing checkpoints remain parameter-tree compatible; a training handoff still requires the exact topology/schedule AOT.
+
+Validated using the pinned CPU runner: effective config differs only in the five implementation settings and model/comparison metadata; full-size parameter shapes/count match the ShortTrain parent; reused fast-kernel whole-model tests pass native/Pallas logits and every F32 gradient plus BF16 gradients against F32 truth, including non-unit QKNorm scales. Evidence: `/data0/xd/bam_diagnostics/pythia2p8-h-unit-shorttrain-fastkernel/cpu-fixed/`. No new training RUN or ShortTrain speed measurement was requested or launched.

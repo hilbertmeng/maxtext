@@ -20515,3 +20515,29 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneContentWriteOAdapterR16PreRmsTruePile'
     bam_content_adapter_write_before_rms = True
     compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneTruePile']
+
+
+class BamPythia2p8BHUnitShortTrainFastKernelContentWriteAdapterFull(
+        BamPythia2p8BHUnitShortTrainFastKernel):
+    """Per-head identity-initialized attention-write adapter after content RMSNorm.
+
+    Keep front31 GELU ordinary/private widths7808/2944; pay the adapter budget
+    from the final ordinary MLP, retaining128-wide alignment throughout.
+    """
+    model_name = 'BamPythia2p8BHUnitShortTrainFastKernelContentWriteAdapterFull'
+    bam_content_adapter_write = True
+    bam_content_adapter_o = False
+    bam_content_adapter_v = False
+    bam_content_adapter_rank = 0
+    bam_content_adapter_flatten_params = True
+    bam_last_mlp_dim = 8704
+    compare_runs = ['BamPythia2p8BHUnitShortTrainFastKernel']
+
+
+class BamPythia2p8BHUnitShortTrainFastKernelContentWriteOAdapterR16(
+        BamPythia2p8BHUnitShortTrainFastKernelContentWriteAdapterFull):
+    """Independent rank16 attention-write and complete-localO identity adapters."""
+    model_name = 'BamPythia2p8BHUnitShortTrainFastKernelContentWriteOAdapterR16'
+    bam_content_adapter_o = True
+    bam_content_adapter_rank = 16
+    bam_last_mlp_dim = 8960

@@ -1,0 +1,23 @@
+# Unit-init H: whole-M read pre-norm, with/without common V/O scale
+
+Worktree `/data0/xd/mediumprop-unit-h-m-prenorm`, branch `codex/mediumprop-unit-h-m-prenorm`, forked from latest main43f3ea5c. Model parent is the completed UnitH RUN (runtime aa7d8ec), not an adapter descendant:
+`BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneTruePile`.
+Its full13500-step same-stage reference is available through13400. MHA denominator `BamMHAMediumPropC256TruePile`; both new RUNs compare to UnitH on one plot/report group. Original depth-initialized H remains distinct.
+
+New configurations:
+- `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneMPreNormTruePile`
+- `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneMPreNormNoReadScaleTruePile`
+
+Apply read-only M-shift first. The mixed matrix [B,T,75,32] is converted to FP32, normalized by one per-token RMS over the75x32 real matrix entries with epsilon1e-6, and cast back to the activation dtype. All dynamic/static Q/K/V/localO consumers share this view. Raw M remains the carried state and writer accumulation base; M-shift remains read-only. Existing layer attention content RMSNorm, raw small-MLP content (divisor1), calibrated embedding content (divisor.0016052833), gates and addresses remain unchanged. L17 still has no attention/private-MLP writer.
+
+Retained arm keeps18 independent signed common V/O scales initialized1, still applied after the complete V/localO reads. Dropped arm removes those parameters entirely, not fixing them in the optimizer tree. No extra norm gain/bias. Ordinary/private/tail widths remain2510/1128/3904. Retained432112210 params; dropped432112192 (18 fewer, negligible, no MLP refund). Added parameters0 W_Q, unchanged inference M-cache. Whole-M RMS normalization adds a reduction and elementwise scaling; the initial unfused runtime timing also includes disabling the parent's Pallas read/write core, so it is not the intrinsic cost of pre-norm.
+
+Pure-JAX BAM read/write reference uses `bam_pallas_core=False`, `bam_pallas_write=False`; tuned Splash remains enabled. Existing core dispatch couples fused read/write; no temporary split-dispatch mechanism is introduced. Pallas adaptation is delegated to Claude by the user; existing write math can be retained. See `bam_llama2_medium/m_prenorm_pallas_handoff.md` for the compact contract.
+
+Both use single-layer scan first17 plus explicit tail, remat full, T4096/global128/per-device16, normal Adam/LR13500 plan, Medium checkpoint200/latest2, force-final checkpoint and TB rotation500. Generic training health ON, internal NN and BAM activation health OFF. Retained signed read-scale health remains available; no new per-column metrics. Existing eval settings are inherited from UnitH, not silently changed.
+
+Infrastructure audit: branch is directly from current main43f3ea5c; inherited rotating writer construction/begin_step, checkpoint and optimizer/AOT fixes. CPU summary-writer rotation/resume5 tests passed. Current shared47 BAM tests passed. Targeted checks cover full formal budgets; kept/dropped initial-function/all-common-gradient equivalence with active s_l gradients; flattened-vector oracle for logits/all parameter gradients; shift/segment-boundary ordering plus raw-carry preservation; BF16 forward/backward and zero-matrix finite norm/Jacobian. CPU artifacts under `/data0/xd/bam_diagnostics/mediumprop-unit-h-m-prenorm/`.
+
+Pre-training bets (not results), relative to UnitH with MHA gain reference: retained terminal multiplier1.010, dropped.990; uncertain broad ranges.97-1.04 and.95-1.03, respectively. Favor retained because unit-norm M need not supply optimal V/O strength at every depth, while token-adaptive magnitude control may help the raw-write feedback. Old BAM/RMT normalization losses are a negative prior, not a verdict on this architecture. Unfused startup expected.55-.60step/s versus UnitH.6761 (roughly11%-19% slower); later fused speed must be assessed independently.
+
+Planned formal slots310530/310531, v5p-16, primaryUE5a/backupEW4b selected from this cohort's long completed P0 leases. No training is claimed until source/config/AOT/data/parameter/FIRST_STEP validation. Fixed2k reporting,4k/8k review recommendations require user confirmation before a stop; full training plan13500, native windows200. No intermediate loss diary in exp.py.

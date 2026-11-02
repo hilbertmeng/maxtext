@@ -20535,6 +20535,7 @@ class BamPythia2p8BHUnitShortTrainFastKernelContentWriteAdapterFull(
     from the final ordinary MLP, retaining128-wide alignment throughout.
     """
     model_name = 'BamPythia2p8BHUnitShortTrainFastKernelContentWriteAdapterFull'
+    bam_pallas_fused_content_adapter = True  # adapter inside the v8t write kernel; same math.
     bam_content_adapter_write = True
     bam_content_adapter_o = False
     bam_content_adapter_v = False
@@ -20548,6 +20549,7 @@ class BamPythia2p8BHUnitShortTrainFastKernelContentWriteOAdapterR16(
         BamPythia2p8BHUnitShortTrainFastKernelContentWriteAdapterFull):
     """Independent rank16 attention-write and complete-localO identity adapters."""
     model_name = 'BamPythia2p8BHUnitShortTrainFastKernelContentWriteOAdapterR16'
+    bam_pallas_fused_content_adapter = False  # rank-16 adapters keep the XLA path (fused kernel is full-rank).
     bam_content_adapter_o = True
     bam_content_adapter_rank = 16
     bam_last_mlp_dim = 8960
@@ -20561,4 +20563,5 @@ class BamPythia2p8BHUnitShortTrainFastKernelContentWriteAdapterFullPreRms(
     Widths7808/2944/tail8704 and2774984832 parameters match the post-RMS class.
     """
     model_name = 'BamPythia2p8BHUnitShortTrainFastKernelContentWriteAdapterFullPreRms'
+    bam_pallas_fused_content_adapter = True  # adapter inside the v8t write kernel; same math.
     bam_content_adapter_write_before_rms = True

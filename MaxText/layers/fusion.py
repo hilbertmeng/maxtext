@@ -499,23 +499,34 @@ class SubDecoderLayer(nn.Module):
             jax.nn.sigmoid(mlp_logits), write_factors, M_out, independent_address=independent_address)
     if pallas_core:
       from layers import bam_pallas
-      groups = [] if write_factors is None else [write_factors]
       from layers.bam_write_content import divisor
-      # Adapted attention factors already passed the original content RMSNorm in XLA.
-      pre_rms = bool(getattr(cfg, 'bam_content_adapter_write_before_rms', False))
-      attention_divisor = (1.0 if getattr(cfg, 'bam_content_adapter_write', False) and not pre_rms
-                           else divisor(cfg, 'attention'))
+      content_adapters = []
+      if write_factors is not None and len(write_factors) == 4:
+        # Fused content adapter: raw content; the kernel normalizes and adapts in the original order.
+        write_factors, adapter = write_factors[:3], write_factors[3]
+        attention_divisor = divisor(cfg, 'attention')
+      else:
+        adapter = None
+        # Adapted attention factors already passed the original content RMSNorm in XLA.
+        pre_rms = bool(getattr(cfg, 'bam_content_adapter_write_before_rms', False))
+        attention_divisor = (1.0 if getattr(cfg, 'bam_content_adapter_write', False) and not pre_rms
+                             else divisor(cfg, 'attention'))
+      groups = [] if write_factors is None else [write_factors]
       content_divisors = [] if write_factors is None else [attention_divisor]
+      content_adapters = [] if write_factors is None else [adapter]
       if mlp_write:
         assert independent_address is not None, 'fused core supports independent MLP addresses only'
         groups.append((write_content.reshape(write_content.shape[:-1] + (write_heads, cfg.bam_k)),
                        mlp_logits, independent_address))
         content_divisors.append(divisor(cfg, 'mlp'))
+        content_adapters.append(None)
       if groups:
         with jax.named_scope('bam/pallas_write'):
           M_out = bam_pallas.write(
               M_out, groups, epsilon=initializers.get_bam_write_epsilon(cfg),   # same as the XLA write norms
               content_divisors=tuple(content_divisors),
+              **({'content_adapters': tuple(content_adapters)} if any(a is not None for a in content_adapters)
+                 else {}),
               forward_tile=int(getattr(cfg, 'bam_pallas_write_tile', None) or 128),
               reverse_tile=int(getattr(cfg, 'bam_pallas_write_reverse_tile', None) or 128),
               vmem_mib=getattr(cfg, 'bam_pallas_vmem_mib', None),

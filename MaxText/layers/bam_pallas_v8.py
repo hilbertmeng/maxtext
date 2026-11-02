@@ -755,15 +755,40 @@ def _minor_t(x):
   return jnp.moveaxis(x, 1, -1)
 
 
-def _tm_fill_factors(groups, a_scr, c_scr, eps, t, npt, divisors):
+def _adapter_dot(a, b, dims, dtype):
+  """MXU dot in the model's content dtype (bf16 inputs as the XLA einsum; FP32 at HIGHEST), FP32 sum."""
+  precision = jax.lax.Precision.HIGHEST if dtype == F32 else None
+  return jax.lax.dot_general(a.astype(dtype), b.astype(dtype), (dims, ((), ())), precision=precision,
+                             preferred_element_type=F32)
+
+
+def _adapt(delta, x, dtype):
+  """Per-head content adapter on a T-minor [K, T] slab: x + delta^T x."""
+  return x + _adapter_dot(delta, x, ((0,), (0,)), dtype)
+
+
+def _write_content(x, eps, divisor, delta=None, before=False):
+  """Written content [K, T] before gating: optional identity-plus-delta adapter before or after the
+  RMS (or fixed-divisor) content normalization, exactly as the XLA adapter path orders them."""
+  dtype = x.dtype
+  x = x.astype(F32)
+  if delta is not None and before:
+    x = _adapt(delta, x, dtype)
+  c = _norm(x, eps, 0) if divisor is None else x / divisor
+  if delta is not None and not before:
+    c = _adapt(delta, c, dtype)
+  return c
+
+
+def _tm_fill_factors(groups, a_scr, c_scr, eps, t, npt, divisors, adapters=()):
   """a_scr / c_scr rows t*NPT + i: normalized address [V] / gated normalized content [K] of row i."""
   off = 0
   for g in range(0, len(groups), 3):
     content, logits, address = groups[g:g + 3]
+    delta, before = adapters[g // 3] if adapters else (None, False)
     for h in range(content.shape[0]):
       rows = pl.ds(off + h, t, stride=npt)        # token-major rows t*NPT + i
-      c = (_norm(content[h], eps, 0) if divisors[g // 3] is None
-           else content[h].astype(F32) / divisors[g // 3])
+      c = _write_content(content[h], eps, divisors[g // 3], None if delta is None else delta[h], before)
       c_scr[rows, :] = _to_tokens(_sigmoid(logits[pl.ds(h, 1), :]) * c)
       a_scr[rows, :] = _to_tokens(_norm(address[h], eps, 0))
     off += content.shape[0]
@@ -773,14 +798,27 @@ def _tm_fill_factors(groups, a_scr, c_scr, eps, t, npt, divisors):
     a_scr[rows, :] = jnp.zeros((t, a_scr.shape[1]), F32)
 
 
-def _tm_write_kernel(eps, n_groups, ch, divisors):
+def _adapter_refs(refs, adapter_spec):
+  """Pair each group's optional [N,K,K] delta ref with its before-norm flag; return (adapters, rest)."""
+  adapters = []
+  for present, before in adapter_spec:
+    if present:
+      adapters.append((refs[0], before))
+      refs = refs[1:]
+    else:
+      adapters.append((None, False))
+  return tuple(adapters), refs
+
+
+def _tm_write_kernel(eps, n_groups, ch, divisors, adapter_spec=()):
   def kernel(m_ref, *refs):
     groups = refs[:3 * n_groups]
-    out_ref, a_scr, c_scr = refs[3 * n_groups:]
+    adapters, refs = _adapter_refs(refs[3 * n_groups:], adapter_spec)
+    out_ref, a_scr, c_scr = refs
     t, vdim, kdim = m_ref.shape
     npt = a_scr.shape[0] // t
     dt = m_ref.dtype
-    _tm_fill_factors(groups, a_scr, c_scr, eps, t, npt, divisors)
+    _tm_fill_factors(groups, a_scr, c_scr, eps, t, npt, divisors, adapters)
     for t0 in range(0, t, ch):
       a = _chunk(a_scr, t0, ch, npt).astype(dt)
       c = _chunk(c_scr, t0, ch, npt).astype(dt)
@@ -788,15 +826,18 @@ def _tm_write_kernel(eps, n_groups, ch, divisors):
   return kernel
 
 
-def _tm_write_backward_kernel(eps, n_groups, ch, divisors):
+def _tm_write_backward_kernel(eps, n_groups, ch, divisors, adapter_spec=()):
   def kernel(g_ref, *refs):
     groups = refs[:3 * n_groups]
-    outs = refs[3 * n_groups:6 * n_groups]
-    a_scr, c_scr, da_scr, dc_scr = refs[6 * n_groups:]
+    adapters, refs = _adapter_refs(refs[3 * n_groups:], adapter_spec)
+    outs = refs[:3 * n_groups]
+    n_delta = sum(present for present, _ in adapter_spec)
+    ddeltas = list(refs[3 * n_groups:3 * n_groups + n_delta])     # per-tile [N, K, K] partials
+    a_scr, c_scr, da_scr, dc_scr = refs[3 * n_groups + n_delta:]
     t, vdim, kdim = g_ref.shape
     npt = a_scr.shape[0] // t
     dt = g_ref.dtype
-    _tm_fill_factors(groups, a_scr, c_scr, eps, t, npt, divisors)
+    _tm_fill_factors(groups, a_scr, c_scr, eps, t, npt, divisors, adapters)
     for t0 in range(0, t, ch):
       rows = pl.ds(t0 * npt, ch * npt)
       gm = g_ref[pl.ds(t0, ch)]
@@ -808,16 +849,41 @@ def _tm_write_backward_kernel(eps, n_groups, ch, divisors):
     for g in range(n_groups):
       content, logits, address = groups[3 * g:3 * g + 3]
       dcontent, dlogits, daddress = outs[3 * g:3 * g + 3]
+      delta, before = adapters[g]
+      ddelta = ddeltas.pop(0) if delta is not None else None
+      norm_back = ((lambda x, u: _norm_backward(x, u, eps, 0)) if divisors[g] is None
+                   else (lambda x, u, d=divisors[g]: u / d))
       for h in range(content.shape[0]):
         rows = pl.ds(off + h, t, stride=npt)
         x = content[h]
         dci = _from_tokens(dc_scr[rows, :])
         sg = _sigmoid(logits[pl.ds(h, 1), :])
-        normalized = _norm(x, eps, 0) if divisors[g] is None else x.astype(F32) / divisors[g]
-        dlogits[pl.ds(h, 1), :] = (sg * (1 - sg) * jnp.sum(dci * normalized, axis=0, keepdims=True)
+        d = None if delta is None else delta[h]
+        written = _write_content(x, eps, divisors[g], d, before)
+        dlogits[pl.ds(h, 1), :] = (sg * (1 - sg) * jnp.sum(dci * written, axis=0, keepdims=True)
                                    ).astype(dlogits.dtype)
-        dcontent[h] = (_norm_backward(x, sg * dci, eps, 0) if divisors[g] is None
-                       else sg * dci / divisors[g]).astype(dcontent.dtype)
+        u = sg * dci                                  # cotangent of the written content
+        if d is None:
+          dx = norm_back(x, u)
+        else:
+          # Adapter reverse on [K, T]: d(in) = u + delta u; d(delta) = in u^T (summed over this tile).
+          cd = x.dtype
+          back = lambda v: v + _adapter_dot(d, v, ((1,), (0,)), cd)
+          outer = lambda a, b: _adapter_dot(a, b, ((1,), (1,)), cd)
+          xf = x.astype(F32)
+          if before:          # written = norm(x + delta^T x)
+            y = _adapt(d, xf, cd)
+            dy = norm_back(y, u)
+            part = outer(xf, dy)
+            dx = back(dy)
+          else:               # written = n + delta^T n, n = norm(x)
+            n = _norm(xf, eps, 0) if divisors[g] is None else xf / divisors[g]
+            part = outer(n, u)
+            dx = norm_back(xf, back(u))
+          # Token tiles run sequentially per batch row: accumulate d(delta) in its resident output block.
+          first = pl.program_id(1) == 0
+          ddelta[h] = jnp.where(first, part, ddelta[h] + part)
+        dcontent[h] = dx.astype(dcontent.dtype)
         daddress[h] = _norm_backward(address[h], _from_tokens(da_scr[rows, :]), eps, 0).astype(daddress.dtype)
       off += content.shape[0]
   return kernel
@@ -829,58 +895,83 @@ def _tm_write_scratch(groups, tile, vdim, kdim, flat=False):
   return [pltpu.VMEM((tile * npt, vdim), F32), pltpu.VMEM((tile * npt, kdim), F32)]
 
 
-def _tm_write_forward_call(m, groups, opts):
+def _tm_write_forward_call(m, groups, opts, deltas=()):
   b, t, vdim, kdim = m.shape
   tile = min(opts['tile'], t)
   mspec = _token_spec((vdim, kdim), tile)
   return pl.pallas_call(
-      _tm_write_kernel(opts['epsilon'], len(groups) // 3, opts['chunk'], opts['content_divisors']),
-      grid=(b, t // tile), in_specs=[mspec] + [_spec(x.shape[1:-1], tile) for x in groups],
+      _tm_write_kernel(opts['epsilon'], len(groups) // 3, opts['chunk'], opts['content_divisors'],
+                       opts['adapter_spec']),
+      grid=(b, t // tile),
+      in_specs=[mspec] + [_spec(x.shape[1:-1], tile) for x in groups] + [_whole(x.shape) for x in deltas],
       out_specs=mspec, out_shape=jax.ShapeDtypeStruct(m.shape, m.dtype),
       scratch_shapes=_tm_write_scratch(groups, tile, vdim, kdim), input_output_aliases={0: 0},
       interpret=opts['interpret'], compiler_params=_params(('parallel', 'parallel'), opts['vmem_mib']),
-      name='bam_core_write')(m, *groups)
+      name='bam_core_write')(m, *groups, *deltas)
 
 
-def _tm_write_backward_call(g, groups, opts):
+def _tm_write_backward_call(g, groups, opts, deltas=()):
   b, t, vdim, kdim = g.shape
   tile = min(opts['reverse_tile'], t)
   specs = [_spec(x.shape[1:-1], tile) for x in groups]
-  return pl.pallas_call(
-      _tm_write_backward_kernel(opts['epsilon'], len(groups) // 3, opts['chunk'], opts['content_divisors']),
-      grid=(b, t // tile), in_specs=[_token_spec((vdim, kdim), tile)] + specs, out_specs=specs,
-      out_shape=tuple(jax.ShapeDtypeStruct(x.shape, x.dtype) for x in groups),
+  # Content-adapter weight gradients: one [N,K,K] block per batch row, accumulated across its token
+  # tiles (sequential grid axis), then summed over the batch below.
+  dspecs = [pl.BlockSpec((None,) + x.shape, lambda bb, i, r=x.ndim: (bb,) + (0,) * r) for x in deltas]
+  dshapes = [jax.ShapeDtypeStruct((b,) + x.shape, F32) for x in deltas]
+  outs = pl.pallas_call(
+      _tm_write_backward_kernel(opts['epsilon'], len(groups) // 3, opts['chunk'], opts['content_divisors'],
+                                opts['adapter_spec']),
+      grid=(b, t // tile),
+      in_specs=[_token_spec((vdim, kdim), tile)] + specs + [_whole(x.shape) for x in deltas],
+      out_specs=specs + dspecs,
+      out_shape=tuple(jax.ShapeDtypeStruct(x.shape, x.dtype) for x in groups) + tuple(dshapes),
       scratch_shapes=_tm_write_scratch(groups, tile, vdim, kdim) + _tm_write_scratch(groups, tile, vdim, kdim, True),
       interpret=opts['interpret'],
-      compiler_params=_params(('parallel', 'parallel'), opts['vmem_mib']),
-      name='bam_core_write_backward')(g, *groups)
+      compiler_params=_params(('parallel', 'arbitrary' if deltas else 'parallel'), opts['vmem_mib']),
+      name='bam_core_write_backward')(g, *groups, *deltas)
+  n = len(groups)
+  return tuple(outs[:n]), tuple(jnp.sum(d, axis=0).astype(x.dtype) for d, x in zip(outs[n:], deltas))
 
 
 @partial(jax.custom_vjp, nondiff_argnums=(1,))
-def _tm_write(m, opts, *groups):
-  return _tm_write_forward_call(m, groups, dict(opts))
+def _tm_write(m, opts, groups, deltas):
+  return _tm_write_forward_call(m, groups, dict(opts), deltas)
 
 
-def _tm_write_fwd(m, opts, *groups):
-  return _tm_write_forward_call(m, groups, dict(opts)), groups
+def _tm_write_fwd(m, opts, groups, deltas):
+  return _tm_write_forward_call(m, groups, dict(opts), deltas), (groups, deltas)
 
 
-def _tm_write_bwd(opts, groups, g):
-  return (g,) + tuple(_tm_write_backward_call(g, groups, dict(opts)))
+def _tm_write_bwd(opts, res, g):
+  groups, deltas = res
+  dgroups, ddeltas = _tm_write_backward_call(g, groups, dict(opts), deltas)
+  return g, dgroups, ddeltas
 
 
 _tm_write.defvjp(_tm_write_fwd, _tm_write_bwd)
 
 
 def write_tm(m, groups, *, epsilon, forward_tile=128, reverse_tile=128, vmem_mib=None, interpret=False,
-             chunk=8, content_divisors=None, **_):
-  """M [B,T,V,K] + sum over groups of (content [B,T,N,K], logits [B,T,N], address [B,T,N,V])."""
+             chunk=8, content_divisors=None, content_adapters=None, **_):
+  """M [B,T,V,K] + sum over groups of (content [B,T,N,K], logits [B,T,N], address [B,T,N,V]).
+
+  content_adapters: per group None or (delta [N,K,K], before_norm): content becomes c + delta^T c
+  per head, before or after the group's content normalization, inside the kernel."""
   content_divisors = tuple(content_divisors) if content_divisors is not None else (None,) * len(groups)
   if len(content_divisors) != len(groups) or any(
       x is not None and (not isinstance(x, (int, float)) or isinstance(x, bool) or not math.isfinite(x) or x <= 0)
       for x in content_divisors):
     raise ValueError('Each write group requires None (RMS) or a positive finite fixed divisor')
+  content_adapters = tuple(content_adapters) if content_adapters is not None else (None,) * len(groups)
+  assert len(content_adapters) == len(groups), content_adapters
+  adapter_spec = tuple((a is not None, bool(a[1]) if a is not None else False) for a in content_adapters)
+  deltas = tuple(a[0].astype(F32) for a in content_adapters if a is not None)
+  for d, grp in zip(deltas, (g for g, a in zip(groups, content_adapters) if a is not None)):
+    assert d.shape == grp[0].shape[2:3] + 2 * grp[0].shape[3:], (d.shape, grp[0].shape)
   opts = _freeze(dict(epsilon=epsilon, tile=forward_tile, reverse_tile=reverse_tile, vmem_mib=vmem_mib,
-                      interpret=interpret, chunk=chunk, content_divisors=content_divisors))
+                      interpret=interpret, chunk=chunk, content_divisors=content_divisors,
+                      adapter_spec=adapter_spec))
   flat = tuple(_minor_t(x) for grp in groups for x in grp)
-  return _map_batch(lambda m, *xs: _tm_write(m, opts, *xs), (m,) + flat, (True,) * (1 + len(flat)), 1)
+  nd = len(deltas)
+  return _map_batch(lambda m, *xs: _tm_write(m, opts, xs[:len(xs) - nd], xs[len(xs) - nd:]),
+                    (m,) + flat + deltas, (True,) * (1 + len(flat)) + (False,) * nd, 1)

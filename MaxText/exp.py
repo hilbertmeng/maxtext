@@ -20481,6 +20481,10 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     # code_commit:3e3e1e0; UE5a v5p16 xd-v5p-16-310517-maxtext, s13500; FIRST0/source/AOT/data/params verified.
     # Startup20..99 0.671414step/s (-0.08% vs direct full-write parent), effectively flat.
     #13 focused CPU checks, including full gradients and formal8-device small-matrix replication tolerance.
+    # Conclusion: head tying keeps early gain but loses much of the independent-head write adapter's later benefit.
+    # User stop6611/13500/P0; mature6.4k gap-.0009236/R1.0044663 vs common UnitH, last5mean gap-0.0015143/R1.0070493.
+    # Adapter params1530000->95625, refund to ordinary/private MLPs; startup speed tied(-.08%), M-cache unchanged.
+    # CP6611/TB SYNC_OK; node and queued resource independently absent. Full endpoint unmeasured.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneContentWriteAdapterFullSharedHeadsTruePile'
     bam_content_adapter_write_shared_heads = True
     base_mlp_dim = 2510

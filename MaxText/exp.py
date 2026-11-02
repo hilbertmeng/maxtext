@@ -20541,3 +20541,14 @@ class BamPythia2p8BHUnitShortTrainFastKernelContentWriteOAdapterR16(
     bam_content_adapter_o = True
     bam_content_adapter_rank = 16
     bam_last_mlp_dim = 8960
+
+
+class BamPythia2p8BHUnitShortTrainFastKernelContentWriteAdapterFullPreRms(
+        BamPythia2p8BHUnitShortTrainFastKernelContentWriteAdapterFull):
+    """Apply the full write-content adapter before RMSNorm, retaining the matched budget.
+
+    Raw adapted content is normalized by the existing Pallas write kernel.
+    Widths7808/2944/tail8704 and2774984832 parameters match the post-RMS class.
+    """
+    model_name = 'BamPythia2p8BHUnitShortTrainFastKernelContentWriteAdapterFullPreRms'
+    bam_content_adapter_write_before_rms = True

@@ -59,6 +59,23 @@ class AdapterTest(MLPWriteTest, unittest.TestCase):
     np.testing.assert_allclose(health['bam/content_adapter/write/layer_001/update_over_identity'],4*relative_update_norm(p))
     self.assertIn('bam/content_adapter/o/layer_017/update_over_identity',health)
 
+  @unittest.skipUnless(jax.device_count() == 8, 'launch separately with 8 virtual CPU devices')
+  def test_formal_eight_device_sharding(self):
+    for suffix, *_ in CASES:
+      c=self.config(PREFIX+suffix+'TruePile')
+      c.get_keys().update(max_target_length=256,max_prefill_predict_length=256)
+      mesh=jax.sharding.Mesh(max_utils.create_device_mesh(c),c.mesh_axes)
+      args,_,shards,_=train_compile.get_shaped_inputs(mesh,c)
+      flat=flatten_dict(nn.unbox(args[0].params));partitions=flatten_dict(nn.unbox(shards.params))
+      total=sum(math.prod(x.shape) for x in flat.values())
+      per_chip=sum(math.prod(partitions[p].shard_shape(x.shape)) for p,x in flat.items())
+      overhead=per_chip/(total/8)-1
+      print('ADAPTER_EIGHT_DEVICE_SHARDING',suffix,per_chip,total/8,overhead,flush=True)
+      self.assertLess(overhead,c.sharding_tolerance)
+      for path,x in flat.items():
+        if any(str(a).startswith('content_') and str(a).endswith('_adapter') for a in path):
+          self.assertEqual(math.prod(partitions[path].shard_shape(x.shape)),math.prod(x.shape)//8,path)
+
   def test_formal_budgets_and_parent_settings(self):
     for suffix,rank,o,v,w,m,t,extra in CASES:
       c=self.config(PREFIX+suffix+'TruePile');c.get_keys().update(max_target_length=256,max_prefill_predict_length=256)

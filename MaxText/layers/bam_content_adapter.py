@@ -17,19 +17,22 @@ class HeadContentAdapter(nn.Module):
   def __call__(self, x):
     if x.shape[-2:] != (self.num_heads, self.head_dim):
       raise ValueError(f'Content adapter expects heads/data, got {x.shape}')
+    # Shard independent heads over the existing parameter-FSDP (embed) axis.
+    # Data width75 is not divisible by the8-device Medium mesh; q_heads alone
+    # maps only to tensor parallelism and would replicate these parameters.
     if self.rank == 0:
       delta = self.param('delta', nn.with_logical_partitioning(
-          nn.initializers.zeros, ('q_heads', None, None)),
+          nn.initializers.zeros, ('embed', None, None)),
           (self.num_heads, self.head_dim, self.head_dim), self.weight_dtype)
       update = jnp.einsum('...nd,ndk->...nk', x, delta.astype(self.dtype), precision=self.precision)
     else:
       if not 0 < self.rank <= self.head_dim:
         raise ValueError('Content adapter rank must lie in [1, head_dim]')
       down = self.param('down', nn.with_logical_partitioning(
-          nn.initializers.normal(1. / math.sqrt(self.head_dim)), ('q_heads', None, None)),
+          nn.initializers.normal(1. / math.sqrt(self.head_dim)), ('embed', None, None)),
           (self.num_heads, self.head_dim, self.rank), self.weight_dtype)
       up = self.param('up', nn.with_logical_partitioning(
-          nn.initializers.zeros, ('q_heads', None, None)),
+          nn.initializers.zeros, ('embed', None, None)),
           (self.num_heads, self.rank, self.head_dim), self.weight_dtype)
       hidden = jnp.einsum('...nd,ndr->...nr', x, down.astype(self.dtype), precision=self.precision)
       update = jnp.einsum('...nr,nrk->...nk', hidden, up.astype(self.dtype), precision=self.precision)

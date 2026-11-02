@@ -20576,3 +20576,13 @@ class BamPythia2p8BAdapterSpeedFullProfile(_AdapterSpeedProfile, BamPythia2p8BHU
 class BamPythia2p8BAdapterSpeedPreRmsProfile(_AdapterSpeedProfile, BamPythia2p8BHUnitShortTrainFastKernelContentWriteAdapterFullPreRms):
     model_name = 'BamPythia2p8BAdapterSpeedPreRmsProfile'
 
+
+class BamPythia2p8BAdapterSpeedFullFusedProfile(BamPythia2p8BAdapterSpeedFullProfile):
+    model_name = 'BamPythia2p8BAdapterSpeedFullFusedProfile'
+    bam_pallas_fused_content_adapter = True
+
+
+class BamPythia2p8BAdapterSpeedPreRmsFusedProfile(BamPythia2p8BAdapterSpeedPreRmsProfile):
+    model_name = 'BamPythia2p8BAdapterSpeedPreRmsFusedProfile'
+    bam_pallas_fused_content_adapter = True
+

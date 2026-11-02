@@ -57,4 +57,28 @@ def test_LN_integral_against_autodiff():
  np.testing.assert_allclose(ig,np.stack(oracle),rtol=3e-5,atol=2e-6)
  np.testing.assert_allclose(ig.sum(0),expected,rtol=3e-5,atol=2e-6)
  print('LN_SOURCE_INTEGRAL_INDEPENDENT_JVP_PASS',flush=True)
+
+def test_router_M_reset():
+ from mudd_router_ablation_probe import reset_m_routes
+ t=reference.PythiaTest();t.setUp()
+ try:
+  c=t.config(exp_class='MuddPythiaMediumPropT2048SerialMLP',base_num_decoder_layers=3,base_mlp_dim=256,pythia_rotary_dim=4,mudd_router_hidden_expand=[1,1,4],scan_layers=False,dtype='bfloat16',remat_policy='none')
+  m,mesh,p=t.init(c);p=nn.unbox(p);f=flatten_dict(p)
+  for k,a in f.items():
+   if k[-2:]==('dynamic_dense_conn2','kernel'):f[k]=jnp.asarray(np.random.default_rng(a.size).normal(0,.12,a.shape),a.dtype)
+  p=unflatten_dict(f);original={'params':p};changed=reset_m_routes(original,[1,2,3],layers=3);cf=flatten_dict(changed['params'])
+  for k,a in f.items():
+   if k[-2:]==('dynamic_dense_conn2','kernel'):
+    np.testing.assert_array_equal(cf[k][:,:-1],a[:,:-1]);np.testing.assert_array_equal(cf[k][:,-1],0)
+   elif k[-1]=='dense_proj2.bias':
+    np.testing.assert_array_equal(cf[k][:-1],a[:-1]);np.testing.assert_array_equal(cf[k][-1],np.eye(a.shape[-1])[-1])
+   else:np.testing.assert_array_equal(cf[k],a)
+  basis=jnp.asarray(np.linalg.qr(np.random.default_rng(45).normal(size=(32,4)))[0],jnp.float32)
+  with mesh,nn.partitioning.axis_rules(c.logical_axis_rules):
+   observer=cap.Capture('serial',basis,8,3)
+   with nn.intercept_methods(observer.interceptor):_,col=m.apply(changed,*t.inputs(),enable_dropout=False,mutable=['intermediates'])
+   r=observer.result(col['intermediates'])
+  e=np.asarray(r['composition']);np.testing.assert_array_equal(e[:,:,3,1],0);assert e[:,:2,:3,1].max()>0
+  print('M_ONLY_CURRENT_ROUTE_RESET_PRESERVES_QKV_AND_OTHER_LEAVES_PASS',flush=True)
+ finally:t.tearDown()
 if __name__=='__main__':test_native_origin();test_signed_gradient_allocation();test_LN_integral_against_autodiff()

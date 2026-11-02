@@ -4184,9 +4184,26 @@ class BamAttention(Attention):
         v_key = (up['W_lv_c8_up'] + pre('v') if fused else
                  self._project_column_read_key('W_lv_c8', inputs_q, hidden))
         if fused and getattr(cfg, 'bam_pallas_packed_read_keys', False) and not self._hybrid_value:
-          # One [B,T,4N,V] array (q, k, v, o): the bias adds and concat fuse into the single
-          # transpose that v8t reads through three block views (no split/concat copies).
-          packed_qkvo = jnp.concatenate((q_key, k_key, v_key, vo_key), axis=-2)
+          # The four up projections as one einsum straight into v8t's [B,C,4N,T] key layout (q, k, v, o),
+          # pre-biases in its epilogue: no split, concat or transpose copies in either direction. Same
+          # kernels, casts, precision and kernel-gradient scales as _fused_input_projections.
+          params = self.variables['params']
+          kernels = []
+          for name in ('W_lq_c8_up', 'W_lk_c8_up', 'W_lv_c8_up', 'W_R_up'):
+            kernel = jnp.asarray(nn.meta.unbox(params[name]['kernel']), self.dtype)
+            scale = getattr(getattr(self, name, None), 'kernel_gradient_scale', 1.0)
+            if scale != 1.0:
+              kernel_sg = jax.lax.stop_gradient(kernel)
+              kernel = kernel_sg + scale * (kernel - kernel_sg)
+            assert params[name].get('bias') is None if hasattr(params[name], 'get') else True, name
+            kernels.append(kernel.reshape(kernel.shape[0], -1, kernel.shape[-1]))      # [D', N, V]
+          def arm_bias(arm):   # [N, V] (the O pre-bias carries a singleton fetch axis; 0 without general reads)
+            b_ = jnp.asarray(pre(arm), hidden.dtype)
+            return b_.reshape(-1, self.bam_v) if b_.ndim else jnp.broadcast_to(b_, (self.num_query_heads, self.bam_v))
+          bias = jnp.concatenate([arm_bias(arm) for arm in ('q', 'k', 'v', 'vo')], axis=0)   # [4N, V]
+          packed_qkvo = jnp.einsum('btd,drc->bcrt', hidden, jnp.concatenate(kernels, axis=1),
+                                   precision=jax.lax.Precision(cfg.matmul_precision))
+          packed_qkvo = packed_qkvo + jnp.transpose(bias)[None, :, :, None].astype(packed_qkvo.dtype)
         # v8t accepts two key slabs, V then O, instead of a shared VO slab.
         vo_key = jnp.concatenate((self._pad_read_heads(v_key, -2),
                                   self._pad_read_heads(vo_key, -2)), axis=-2)
@@ -4271,7 +4288,7 @@ class BamAttention(Attention):
     if packed_qkvo is not None:
       if body != 'v8t':
         raise ValueError('bam_pallas_packed_read_keys requires v8t')
-      read_kwargs['qkvo_key'] = packed_qkvo
+      read_kwargs['keys_cnt'] = packed_qkvo
     fused_qk_norm = full_qk_norm and bool(getattr(cfg, 'bam_pallas_fused_qk_norm', False))
     if fused_qk_norm:
       # Same full-head QKNorm, computed in the read epilogue: the kernel normalizes the complete

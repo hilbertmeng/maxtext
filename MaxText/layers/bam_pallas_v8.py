@@ -684,7 +684,7 @@ def read_tm(m, static_weight, q_key, q_logits, k_key, k_logits, vo_key, o_logits
             k_standard, *, qk_cols, read_epsilon, key_scale, forward_tile=128, reverse_tile=128,
             vmem_mib=None, interpret=False, q_scale=1.0, static_gates=None, chunk=8, pad_heads=False,
             shift=None, o_weight_multiplier=None, o_dynamic_scale=None, v_dynamic_scale=None, qk_norm=None,
-            qkvo_key=None, qk_norm_mxu=False, qk_out_pad=False, **_):
+            qkvo_key=None, qk_norm_mxu=False, qk_out_pad=False, keys_cnt=None, **_):
   """v7.read's interface (keys [B,T,N,C], logits [B,T,N], standard QK [B,T,N,Rs]) for M [B,T,V,K] and
   full-M reads (C == V, identity compression). Returns (query, key, value, local_o) [B,T,N,K] and M.
 
@@ -718,8 +718,10 @@ def read_tm(m, static_weight, q_key, q_logits, k_key, k_logits, vo_key, o_logits
     assert q_scale == 1.0, 'fold the logit scale into m_q'
     if qk_out_pad:      # lane-dense Q/K rows: zero lanes up to a multiple of 128 (q.k unchanged)
       qdim = -(-qdim // 128) * 128
-  packed = qkvo_key is not None
-  if packed:
+  packed = qkvo_key is not None or keys_cnt is not None
+  if keys_cnt is not None:   # keys already in kernel layout [B,C,4N,T] (q, k, v, o)
+    assert keys_cnt.shape == (b, cdim, 4 * n, t) and not pad_heads and (n % 8 == 0 or interpret), keys_cnt.shape
+  elif packed:
     # Mosaic block views need the head count to be a sublane multiple; interpret mode does not.
     assert qkvo_key.shape == (b, t, 4 * n, cdim) and not pad_heads and (n % 8 == 0 or interpret), qkvo_key.shape
   opts = _freeze(dict(heads=n, qk_cols=qk_cols, read_epsilon=read_epsilon, key_scale=key_scale, packed=packed,
@@ -735,7 +737,7 @@ def read_tm(m, static_weight, q_key, q_logits, k_key, k_logits, vo_key, o_logits
   sw = static_weight.astype(F32)
   st = jnp.concatenate([jnp.pad(sw[a * n:(a + 1) * n], ((0, np_ - n), (0, 0))) for a in range(4)], axis=0)
   if packed:
-    all_keys = keys(qkvo_key)                                             # [B,C,4N,T]
+    all_keys = keys_cnt if keys_cnt is not None else keys(qkvo_key)      # [B,C,4N,T]
     rq_, rk_, rr_ = all_keys, all_keys, all_keys
   else:
     assert vo_key.shape[2] in (n, 2 * n), vo_key.shape

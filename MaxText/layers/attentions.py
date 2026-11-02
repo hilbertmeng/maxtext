@@ -4437,6 +4437,14 @@ class BamAttention(Attention):
       write_logits = self.W_gw(inputs_q) + jnp.asarray(self.gw_b0, self.dtype)
     out = nn.with_logical_constraint(o_head, self.out_axis_names)
     write_content = o_head
+    if getattr(cfg, 'bam_content_adapter_write', False) and getattr(cfg, 'bam_pallas_fused_content_adapter', False):
+      # The write kernel applies the identical per-head adapter around its own content RMSNorm,
+      # in the configured order; pass the raw content and the adapter delta [N, K, K].
+      if self._write_factor_norm == 'grouped_rms' or self._attention_content_divisor is not None:
+        raise ValueError('bam_pallas_fused_content_adapter requires the plain RMS attention write content')
+      delta = self.content_write_adapter(o_head, apply=False)
+      return (self.out_projection(inputs_q.shape[-1], out), M_in,
+              (write_content, write_logits, address, (delta, self._content_write_before_rms)))
     if getattr(cfg, 'bam_content_adapter_write', False):
       # Pre-RMS adapters return raw transformed content; the write kernel owns
       # its normalization. Post-RMS adapters already normalized in XLA.

@@ -17,7 +17,8 @@ class HeadContentAdapter(nn.Module):
   flatten_params: bool = False
 
   @nn.compact
-  def __call__(self, x):
+  def __call__(self, x, apply=True):
+    """Return x + adapter(x); with apply=False, the full per-head delta [N, D, D] (same parameter)."""
     if self.activation not in ('linear', 'gelu') or (self.activation != 'linear' and self.rank == 0):
       raise ValueError(f'Unsupported content adapter activation={self.activation!r}, rank={self.rank}')
     if self.shared_heads and (self.rank or self.flatten_params):
@@ -40,9 +41,13 @@ class HeadContentAdapter(nn.Module):
           nn.initializers.zeros, axes), shape, self.weight_dtype)
       if self.flatten_params:
         delta = delta.reshape(self.num_heads, self.head_dim, self.head_dim)
+      if not apply:   # a fused kernel applies the identical map itself
+        assert not self.shared_heads
+        return delta
       contraction = '...nd,dk->...nk' if self.shared_heads else '...nd,ndk->...nk'
       update = jnp.einsum(contraction, x, delta.astype(self.dtype), precision=self.precision)
     else:
+      assert apply, 'only the full-rank adapter exposes its delta'
       if not 0 < self.rank <= self.head_dim:
         raise ValueError('Content adapter rank must lie in [1, head_dim]')
       down_shape = (self.num_heads, self.head_dim, self.rank)

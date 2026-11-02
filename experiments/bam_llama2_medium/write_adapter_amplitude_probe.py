@@ -119,7 +119,9 @@ def main():
   assert cfg.scan_layers and cfg.num_decoder_layers == 18
   mesh = jax.sharding.Mesh(max_utils.create_device_mesh(cfg), cfg.mesh_axes)
   model = Transformer(cfg, mesh, quant=None)
-  tokens = np.load(args.cohort)['tokens'][:args.sequences, :args.length+1]
+  cohort = np.load(args.cohort)
+  cohort_key = 'tokens' if 'tokens' in cohort.files else 'inputs'
+  tokens = cohort[cohort_key][:args.sequences, :args.length+1]
   padded_target = tokens.shape[1] == args.length
   if padded_target:
     # Existing calibration cohort preserves all input tokens but no next-token suffix.
@@ -182,7 +184,7 @@ def main():
         runner_sha256=hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
         cohort_sha256=hashlib.sha256(args.cohort.read_bytes()).hexdigest(),
         sequence_hashes=[hashlib.sha256(x[:args.length].tobytes()).hexdigest() for x in tokens],
-        final_target_repeated_for_noop_only=padded_target,
+        cohort_field=cohort_key, final_target_repeated_for_noop_only=padded_target,
         sequences=args.sequences, length=args.length, stride=args.stride,
         moments=MOMENTS, no_op_loss_deltas=noops, per_layer=per_layer,
         seconds=time.monotonic()-start, scope='Actual BF16 pre/post-adapter content on unchanged full forward. Aggregate gain=sqrt(sum||after||^2/sum||before||^2); head/token ratios and cosine measured separately. Spectral gains are FP32 parameter analysis, not actual activation gains. L17 has no writer/adapter.',

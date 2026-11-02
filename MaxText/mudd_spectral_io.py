@@ -1,8 +1,9 @@
 """Read only selected parameter arrays from committed historical OCDBT checkpoints."""
-import ast,concurrent.futures,json,os,subprocess
+import ast,concurrent.futures,hashlib,json,os,subprocess
 from pathlib import Path
 import numpy as np
 import tensorstore as ts
+_IO_CONTEXT=ts.Context({'cache_pool#ocdbt':{'total_bytes_limit':268435456}})
 
 def analysis_commit(info,step,default):
     return info.get('analysis_commits',{}).get(str(step),info.get('diagnostic_commit',default))
@@ -17,20 +18,32 @@ def entries(meta,prefix):
         if path[:len(prefix)]==tuple(prefix) and not value['value_metadata'].get('skip_deserialize',False):result[path[len(prefix):]]=path
     return result
 
-def read(root,meta,path):
+def read(root,meta,path,cache_dir=None):
+    cache=Path(cache_dir)/(hashlib.sha256(repr(path).encode()).hexdigest()+'.npy') if cache_dir else None
+    if cache is not None and cache.exists():return np.load(cache,mmap_mode='r',allow_pickle=False)
     driver='zarr3' if meta.get('use_zarr3',False) else 'zarr'
-    a=ts.open({'driver':driver,'kvstore':{'driver':'ocdbt','base':root.rstrip('/')+'/'},'path':'.'.join(path)},open=True).result()
-    return np.asarray(a.read().result())
+    a=ts.open({'driver':driver,'kvstore':{'driver':'ocdbt','base':root.rstrip('/')+'/','cache_pool':'cache_pool#ocdbt'},'path':'.'.join(path)},open=True,read=True,context=_IO_CONTEXT).result()
+    value=np.asarray(a.read().result())
+    if cache is not None:
+        temp=cache.with_suffix('.tmp')
+        with temp.open('wb') as f:np.save(f,value,allow_pickle=False)
+        temp.replace(cache)
+    return value
 
-def params(root,family,head_only=False,workers=8):
+def params(root,family,head_only=False,workers=8,cache_dir=None):
     meta=metadata(root);prefix=('mdl_vars','params','lm') if family=='old' else ('params','params')
+    if cache_dir:
+        folder=Path(cache_dir);folder.mkdir(parents=True,exist_ok=True);marker=folder/'identity.json'
+        identity=dict(checkpoint=root,metadata_sha256=hashlib.sha256(json.dumps(meta,sort_keys=True).encode()).hexdigest())
+        if marker.exists():assert json.loads(marker.read_text())==identity
+        else:marker.write_text(json.dumps(identity,indent=2)+'\n')
     wanted=entries(meta,prefix)
     if head_only:
         wanted={k:v for k,v in wanted.items() if k[:1] in [('final_ln',),('softmax',)]} if family=='old' else {k:v for k,v in wanted.items() if k[:2]==('decoder','lm_head')}
     assert len(wanted)==(3 if head_only else 800),(family,len(wanted))
-    actual_step=int(read(root,meta,('step',)))
+    actual_step=int(read(root,meta,('step',),cache_dir))
     with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as pool:
-        arrays=dict(zip(wanted,pool.map(lambda p:read(root,meta,p),wanted.values())))
+        arrays=dict(zip(wanted,pool.map(lambda p:read(root,meta,p,cache_dir),wanted.values())))
     return arrays,dict(checkpoint=root,step=actual_step,keys=len(arrays),parameter_count=sum(x.size for x in arrays.values()),driver='zarr3' if meta.get('use_zarr3') else 'zarr')
 
 def flatten_head(flat,family):

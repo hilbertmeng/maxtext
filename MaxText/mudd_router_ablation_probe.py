@@ -54,7 +54,7 @@ def main():
  cfg,checked,mesh,model,rng,abstract=serial_setup(a.training_config,label='mudd_router_ablation_gpu' if local_only else 'mudd_router_ablation',backend=m.get('backend','native_tpu'));assert cfg.mudd_full_history and not cfg.mudd_prenorm and not cfg.mudd_postnorm
  max_utils.cross_entropy_with_logits=cap.precise_cross_entropy
  print('ORIGIN_RESTORE_START',flush=True)
- flat,identity=io.params(checkpoint,'serial',False,workers=16);assert identity['step']==53001 and identity['parameter_count']==2784962589
+ flat,identity=io.params(checkpoint,'serial',False,workers=16,cache_dir=m.get('weight_cache'));assert identity['step']==53001 and identity['parameter_count']==2784962589
  print('ORIGIN_RESTORE_COMPLETE',identity,flush=True)
  w=jnp.asarray(flat[('decoder','lm_head','logits_dense')]);params=jax.device_put({'params':unflatten_dict(flat)});del flat;gc.collect()
  # Copy the original a03 native capture graph, including its unchanged outputs.

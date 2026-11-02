@@ -19747,14 +19747,13 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     # Q/K/V/localO share the normalized read view; the raw matrix carry and all writers stay unchanged.
     # Widths2510/1128/tail3904;432112210 parameters; existing18 signed V/O scales initialize1.
     # Fused v8t core: the read kernel normalizes each token's shifted matrix (FP32 RMS) before its matmul;
-    # packed read keys and saved Splash residuals as in the Pythia FastKernel. Native reference: bam_pallas_core/write=False.
+    # packed read keys as in the Pythia FastKernel; full remat kept. Native reference: bam_pallas_core/write=False.
     # v5p-8 paired profile (16/device): UnitH .7887; pre-norm unpacked/full .7672, packed/full .7844,
-    # packed/minimal .8189, packed/minimal_save_splash .8697 step/s (+10.3% vs UnitH full remat).
+    # packed/minimal .8189, packed/minimal_save_splash .8697 step/s. Remat ranking reverses on v5p-16:
+    # UnitH .6961; packed full .6904, minimal .6067, minimal_save_splash .6362 (trained .630 at fe49cc5).
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneMPreNormTruePile'
     bam_m_read_norm = 'rms'
     bam_pallas_packed_read_keys = True
-    bam_splash_residual_name = 'bam_splash_residual'
-    remat_policy = 'minimal_save_splash'
     compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneTruePile']
 
 
@@ -19793,7 +19792,7 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
 
 
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneMPreNormTruePileFullRematProfile(BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneMPreNormTruePile):
-    """Profile only: packed read keys with the parent's full remat (no saved Splash residuals)."""
+    """Profile only: packed read keys with full remat (the formal setting since cf1355c)."""
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneMPreNormTruePileFullRematProfile'
     bam_splash_residual_name = ''
     remat_policy = 'full'

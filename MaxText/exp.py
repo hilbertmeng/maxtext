@@ -20556,3 +20556,23 @@ class BamPythia2p8BHUnitShortTrainFastKernelContentWriteAdapterFullPreRms(
     """
     model_name = 'BamPythia2p8BHUnitShortTrainFastKernelContentWriteAdapterFullPreRms'
     bam_content_adapter_write_before_rms = True
+
+
+class _AdapterSpeedProfile(TrainStepProfile):
+    """v5p-8 adapter-speed arm: 32 layers, 8/device, inherited minimal+Splash remat/health."""
+    target_train_batch_size = None
+    per_device_batch_size = 8.0
+    steps = 100
+
+
+class BamPythia2p8BAdapterSpeedBaseProfile(_AdapterSpeedProfile, BamPythia2p8BHUnitShortTrainFastKernel):
+    model_name = 'BamPythia2p8BAdapterSpeedBaseProfile'
+
+
+class BamPythia2p8BAdapterSpeedFullProfile(_AdapterSpeedProfile, BamPythia2p8BHUnitShortTrainFastKernelContentWriteAdapterFull):
+    model_name = 'BamPythia2p8BAdapterSpeedFullProfile'
+
+
+class BamPythia2p8BAdapterSpeedPreRmsProfile(_AdapterSpeedProfile, BamPythia2p8BHUnitShortTrainFastKernelContentWriteAdapterFullPreRms):
+    model_name = 'BamPythia2p8BAdapterSpeedPreRmsProfile'
+

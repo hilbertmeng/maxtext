@@ -40,6 +40,10 @@ def make(variant, data):
   m, sw, (qk, kk, vok), (ql, kl, ol, vl), (qs, ks_), gates, (vsc, osc), mq, mk = data
   common = dict(qk_cols=QK, read_epsilon=1e-6, key_scale=1.0, body='v8t', pass_m=True,
                 static_gates=gates, v_dynamic_scale=vsc, o_dynamic_scale=osc, vmem_mib=63)
+  # BENCH_READ_OPTS="chunk=16,tile=256,rtile=128": read kernel tiling sweep.
+  for kv in filter(None, os.environ.get('BENCH_READ_OPTS', '').split(',')):
+    key, val = kv.split('=')
+    common[{'chunk': 'chunk', 'tile': 'forward_tile', 'rtile': 'reverse_tile'}[key]] = int(val)
 
   def f(m, qs, ks_, mq, mk):
     if variant == 'plain':      # the read alone (logit scale folded), no QKNorm anywhere

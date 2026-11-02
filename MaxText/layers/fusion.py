@@ -514,6 +514,7 @@ class SubDecoderLayer(nn.Module):
               content_divisors=tuple(content_divisors),
               forward_tile=int(getattr(cfg, 'bam_pallas_write_tile', None) or 128),
               reverse_tile=int(getattr(cfg, 'bam_pallas_write_reverse_tile', None) or 128),
+              **({'chunk': int(cfg.bam_pallas_write_chunk)} if getattr(cfg, 'bam_pallas_write_chunk', None) else {}),
               vmem_mib=getattr(cfg, 'bam_pallas_vmem_mib', None),
               interpret=bool(getattr(cfg, 'bam_pallas_interpret', False)),
               body=getattr(cfg, 'bam_pallas_body', None) or 'blocked',

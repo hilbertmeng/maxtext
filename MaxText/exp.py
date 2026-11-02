@@ -17723,6 +17723,30 @@ class BamPythia2p8BHSpeedHUnit300BFusedMxuPackedSaveSplashProfile(BamPythia2p8BH
     bam_pallas_packed_read_keys = True
 
 
+class BamPythia2p8BHSpeedHUnit300BFusedMxuWTile256Profile(BamPythia2p8BHSpeedHUnit300BFusedMxuProfile):
+    """Write-kernel tiling sweep arm: bam_pallas_write_tile = 256."""
+    model_name = 'BamPythia2p8BHSpeedHUnit300BFusedMxuWTile256Profile'
+    bam_pallas_write_tile = 256
+
+
+class BamPythia2p8BHSpeedHUnit300BFusedMxuWRTile256Profile(BamPythia2p8BHSpeedHUnit300BFusedMxuProfile):
+    """Write-kernel tiling sweep arm: bam_pallas_write_reverse_tile = 256."""
+    model_name = 'BamPythia2p8BHSpeedHUnit300BFusedMxuWRTile256Profile'
+    bam_pallas_write_reverse_tile = 256
+
+
+class BamPythia2p8BHSpeedHUnit300BFusedMxuWChunk16Profile(BamPythia2p8BHSpeedHUnit300BFusedMxuProfile):
+    """Write-kernel tiling sweep arm: bam_pallas_write_chunk = 16."""
+    model_name = 'BamPythia2p8BHSpeedHUnit300BFusedMxuWChunk16Profile'
+    bam_pallas_write_chunk = 16
+
+
+class BamPythia2p8BHSpeedHUnit300BFusedMxuWChunk4Profile(BamPythia2p8BHSpeedHUnit300BFusedMxuProfile):
+    """Write-kernel tiling sweep arm: bam_pallas_write_chunk = 4."""
+    model_name = 'BamPythia2p8BHSpeedHUnit300BFusedMxuWChunk4Profile'
+    bam_pallas_write_chunk = 4
+
+
 class BamPythia2p8BHSpeedHUnit300BFusedPackedSaveSplashProfile(BamPythia2p8BHSpeedHUnit300BFusedPackedProfile):
     """Fused/packed H keeping Splash residuals."""
     model_name = 'BamPythia2p8BHSpeedHUnit300BFusedPackedSaveSplashProfile'

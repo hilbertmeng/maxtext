@@ -13,21 +13,28 @@ class HeadContentAdapter(nn.Module):
   weight_dtype: object = jnp.float32
   precision: object = None
   activation: str = "linear"
+  shared_heads: bool = False
 
   @nn.compact
   def __call__(self, x):
     if self.activation not in ('linear', 'gelu') or (self.activation != 'linear' and self.rank == 0):
       raise ValueError(f'Unsupported content adapter activation={self.activation!r}, rank={self.rank}')
+    if self.shared_heads and self.rank:
+      raise ValueError('Shared-head support currently covers full adapters only')
     if x.shape[-2:] != (self.num_heads, self.head_dim):
       raise ValueError(f'Content adapter expects heads/data, got {x.shape}')
     # Shard independent heads over the existing parameter-FSDP (embed) axis.
     # Data width75 is not divisible by the8-device Medium mesh; q_heads alone
     # maps only to tensor parallelism and would replicate these parameters.
     if self.rank == 0:
+      # A single small shared matrix is replicated. Independent head matrices
+      # retain the verified FSDP layout; width75 itself cannot shard across8.
+      shape = (self.head_dim, self.head_dim) if self.shared_heads else (self.num_heads, self.head_dim, self.head_dim)
+      axes = (None, None) if self.shared_heads else ('embed', None, None)
       delta = self.param('delta', nn.with_logical_partitioning(
-          nn.initializers.zeros, ('embed', None, None)),
-          (self.num_heads, self.head_dim, self.head_dim), self.weight_dtype)
-      update = jnp.einsum('...nd,ndk->...nk', x, delta.astype(self.dtype), precision=self.precision)
+          nn.initializers.zeros, axes), shape, self.weight_dtype)
+      contraction = '...nd,dk->...nk' if self.shared_heads else '...nd,ndk->...nk'
+      update = jnp.einsum(contraction, x, delta.astype(self.dtype), precision=self.precision)
     else:
       if not 0 < self.rank <= self.head_dim:
         raise ValueError('Content adapter rank must lie in [1, head_dim]')

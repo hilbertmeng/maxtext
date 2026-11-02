@@ -3311,6 +3311,7 @@ class BamAttention(Attention):
             rank=int(getattr(cfg, 'bam_content_adapter_rank', 0)),
             dtype=self.dtype, weight_dtype=self.weight_dtype,
             precision=cfg.matmul_precision, activation=adapter_activation,
+            shared_heads=(route == 'write' and bool(getattr(cfg, 'bam_content_adapter_write_shared_heads', False))),
             name='content_' + route + '_adapter'))
 
   def _adapt_content_reads(self, context, local_o):

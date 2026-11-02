@@ -278,7 +278,7 @@ def _tm_read_kernel(n, qk_cols, eps, scale, q_scale, gated, ch, shifted=False, q
 
 
 def _tm_read_backward_kernel(n, qk_cols, eps, scale, q_scale, gated, ch, pass_m, shifted=False, qdim=None,
-                             masked=False, scaled=False, qk_norm=None):
+                             masked=False, scaled=False, qk_norm=None, packed=False):
   def kernel(m_ref, st_ref, rq, lq, rk, lk, rr, lo, lv, qs, ks, *refs):
     if gated:
       sg_ref, refs = refs[0], refs[1:]
@@ -296,7 +296,11 @@ def _tm_read_backward_kernel(n, qk_cols, eps, scale, q_scale, gated, ch, pass_m,
       gp_ref, refs = refs[0], refs[1:]
     if qk_norm:
       (xq_ref, xk_ref, inv_ref), refs = refs[:3], refs[3:]
-    (dm_ref, dst_ref, drq, dlq, drk, dlk, drr, dlo, dlv, dqs, dks), refs = refs[:11], refs[11:]
+    if packed:        # one [C, 4N, tile] key cotangent block (q, k, v, o rows), written once per c
+      (dm_ref, dst_ref, drq, dlq, dlk, dlo, dlv, dqs, dks), refs = refs[:9], refs[9:]
+      drk = drr = None
+    else:
+      (dm_ref, dst_ref, drq, dlq, drk, dlk, drr, dlo, dlv, dqs, dks), refs = refs[:11], refs[11:]
     if gated:
       dsg_ref, refs = refs[0], refs[1:]
     if shifted:
@@ -470,9 +474,12 @@ def _tm_read_backward_kernel(n, qk_cols, eps, scale, q_scale, gated, ch, pass_m,
     coef = uacc / cdim * key_inv * key_inv
     for c in range(cdim):     # d r[c] = (u[c] - r[c] * mean_c(u r) inv^2) inv
       dr = (dkey_scr[c] - _tm_rows(rq, rk, rr, c)[:key_rows] * coef) * key_inv
-      for i, ref in enumerate((drq, drk)):
-        ref[c] = dr[i * np_:(i + 1) * np_].astype(ref.dtype)
-      drr[c] = dr[2 * np_:].astype(drr.dtype)
+      if packed:
+        drq[c] = dr.astype(drq.dtype)
+      else:
+        for i, ref in enumerate((drq, drk)):
+          ref[c] = dr[i * np_:(i + 1) * np_].astype(ref.dtype)
+        drr[c] = dr[2 * np_:].astype(drr.dtype)
     if gated:
       dsg_ref[...] = sacc.reshape(4, np_, t).astype(dsg_ref.dtype)
     if qk_norm:
@@ -585,15 +592,15 @@ def _tm_read_backward_call(args, cts, opts, sh=None, om=None, os=None, qn=None, 
               + ([pl.BlockSpec((None, n, tile, qdim), lambda bb, i: (bb, 0, i, 0),
                                pipeline_mode=pl.Buffered(1))] * 2
                  + [_spec(qn[0].shape[1:-1], tile)] if qk_norm else []))
-  grad_shapes = [x.shape for x in args[2:]]
-  if packed:          # separate dQ/dK/dVO key cotangents; the wrapper concatenates them back
-    grad_shapes[0], grad_shapes[2], grad_shapes[4] = key_shapes
+  # Packed keys: the full [B,C,4N,T] cotangent is one output; the K and V/O views get none.
+  grad_args = [x for i, x in enumerate(args[2:]) if not (packed and i in (2, 4))]
   out_specs = ([_token_spec((vdim, kdim), tile), pl.BlockSpec((None, None, cdim, r), lambda bb, i: (bb, i, 0, 0))]
-               + [_spec(shape[1:-1], tile) for shape in grad_shapes])
-  if qk_norm:         # token-major standard Q/K cotangents
-    out_specs[2 + 7], out_specs[2 + 8] = _std_tok_spec(args[9].shape, tile), _std_tok_spec(args[10].shape, tile)
+               + [_spec(x.shape[1:-1], tile) for x in grad_args])
+  if qk_norm:         # token-major standard Q/K cotangents (shifted by the two dropped views when packed)
+    q_at = 2 + (5 if packed else 7)
+    out_specs[q_at], out_specs[q_at + 1] = _std_tok_spec(args[9].shape, tile), _std_tok_spec(args[10].shape, tile)
   out_shape = ([jax.ShapeDtypeStruct(m.shape, m.dtype), jax.ShapeDtypeStruct((b, t // tile, cdim, r), F32)]
-               + [jax.ShapeDtypeStruct(shape, x.dtype) for shape, x in zip(grad_shapes, args[2:])])
+               + [jax.ShapeDtypeStruct(x.shape, x.dtype) for x in grad_args])
   scratch = [pltpu.VMEM((cdim * tile, r), F32), pltpu.VMEM((r * tile, kdim), F32),
              pltpu.VMEM((tile * cdim, r), F32),
              pltpu.VMEM((cdim, 2 * np_ + key_shapes[2][2], tile), F32)]
@@ -618,7 +625,7 @@ def _tm_read_backward_call(args, cts, opts, sh=None, om=None, os=None, qn=None, 
   outs = pl.pallas_call(
       _tm_read_backward_kernel(n, opts['qk_cols'], opts['read_epsilon'], opts['key_scale'], opts['q_scale'],
                                gated, opts['chunk'], pass_m, shifted, qdim, om is not None, os is not None,
-                               qk_norm),
+                               qk_norm, packed),
       grid=(b, t // tile), in_specs=in_specs, out_specs=out_specs, out_shape=tuple(out_shape),
       scratch_shapes=scratch,
       input_output_aliases={len(args) + len(extra) + 4: 0} if pass_m else {},
@@ -639,9 +646,8 @@ def _tm_read_backward_call(args, cts, opts, sh=None, om=None, os=None, qn=None, 
       idx = slice(tile - 1, t - 1, tile)
       dm = dm.at[:, idx].set((dm[:, idx].astype(F32) + bnd[:, 1:]).astype(dm.dtype))
   grads = list(outs[2:])
-  if packed:          # all three kernel views alias one array: one concatenated cotangent
-    grads[0] = jnp.concatenate((grads[0], grads[2], grads[4]), axis=2)
-    grads[2] = grads[4] = jnp.zeros_like(grads[0])
+  if packed:          # the K and V/O views alias the one key array: zero (None) cotangents there
+    grads = grads[:2] + [None] + grads[2:3] + [None] + grads[3:]
   return (dm, jnp.sum(outs[1], axis=(0, 1)).T.astype(st.dtype)) + tuple(grads), dsh, dos, dqn
 
 

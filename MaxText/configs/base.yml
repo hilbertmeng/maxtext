@@ -551,6 +551,9 @@ pythia_rotary_fraction: 0.25
 pythia_rotary_dim: -1  # -1 derives an exact even width; explicit override for odd head dimensions.
 qk_norm: False
 bam_qk_norm_after_concat: True # BAM concat-QK: normalize the complete head before partial RoPE; False reproduces standard-arm-only QKNorm.
+bam_pallas_fused_qk_norm: False # v8t: full-head QKNorm (and the Q logit scale) inside the read epilogue; same math.
+bam_pallas_packed_read_keys: False # v8t full-M read: one einsum into the kernel key layout (no split/concat/transpose copies).
+bam_splash_residual_name: '' # name Splash's output/logsumexp residuals so remat_policy=minimal_save_splash keeps them.
 query_chunk_size: 512
 query_wise: True
 key_wise: True

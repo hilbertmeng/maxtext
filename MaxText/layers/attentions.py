@@ -1828,9 +1828,13 @@ def _bam_splash_attention(query, key, value, decoder_segment_ids, cfg, mesh, win
     if window is not None and window < t:     # C256: source > target - window
       mask &= splash_attention_mask.LocalMask(shape=(t, t), window_size=(window - 1, 0), offset=0)
     mask = splash_attention_mask.MultiHeadMask(masks=(mask,) * q.shape[1])
+    # Optional name on Splash's own residuals (output and logsumexp) so a remat policy can keep
+    # them instead of re-running the forward kernel inside the backward.
+    residual_name = getattr(cfg, 'bam_splash_residual_name', None) or None
     kernel = splash_attention_kernel.make_splash_mha(
         mask=mask, head_shards=1, q_seq_shards=1, block_sizes=block_sizes,
-        attn_logits_soft_cap=cfg.attn_logits_soft_cap)
+        attn_logits_soft_cap=cfg.attn_logits_soft_cap,
+        **({'residual_checkpoint_name': residual_name} if residual_name else {}))
     if negative_diagonal:
       from layers.bam_attention_diagonal_zero import make_negative_diagonal_splash
       kernel = make_negative_diagonal_splash(kernel)
@@ -4156,6 +4160,7 @@ class BamAttention(Attention):
       gate = self._pad_read_heads(gate, -2, -jnp.inf)
       return jnp.reshape(gate, inputs_q.shape[:2] + (self.num_query_heads,))
 
+    packed_qkvo = None
     if full_m:
       # Shared GELU bottleneck -> per-arm up projections (+ generalized pre-biases); the full
       # [N,V] keys read M directly, i.e. an identity compression in the fused core.
@@ -4181,6 +4186,33 @@ class BamAttention(Attention):
         # v8t accepts two key slabs, V then O, instead of a shared VO slab.
         vo_key = jnp.concatenate((self._pad_read_heads(v_key, -2),
                                   self._pad_read_heads(vo_key, -2)), axis=-2)
+      if fused and getattr(cfg, 'bam_pallas_packed_read_keys', False) and not self._hybrid_value:
+        # The up projections as one einsum straight into v8t's key layout: [B,C,4N,T] (q, k, v, o) with
+        # independent V/O keys, [B,C,3N,T] (q, k, vo) with a shared VO key. No split, concat or transpose
+        # copies in either direction. Same kernels, casts, precision and kernel-gradient scales as
+        # _fused_input_projections.
+        params = self.variables['params']
+        kernels = []
+        arms = ('q', 'k', 'v', 'vo') if self._vo_independent_keys else ('q', 'k', 'vo')
+        names = {'q': 'W_lq_c8_up', 'k': 'W_lk_c8_up', 'v': 'W_lv_c8_up', 'vo': 'W_R_up'}
+        for name in (names[arm] for arm in arms):
+          kernel = jnp.asarray(nn.meta.unbox(params[name]['kernel']), self.dtype)
+          scale = getattr(getattr(self, name, None), 'kernel_gradient_scale', 1.0)
+          if scale != 1.0:
+            kernel_sg = jax.lax.stop_gradient(kernel)
+            kernel = kernel_sg + scale * (kernel - kernel_sg)
+          assert params[name].get('bias') is None if hasattr(params[name], 'get') else True, name
+          kernels.append(kernel.reshape(kernel.shape[0], -1, kernel.shape[-1]))      # [D', N, V]
+        def arm_bias(arm):   # [N, V] (the O pre-bias carries a singleton fetch axis; 0 without general reads)
+          b_ = jnp.asarray(pre(arm), hidden.dtype)
+          return b_.reshape(-1, self.bam_v) if b_.ndim else jnp.broadcast_to(b_, (self.num_query_heads, self.bam_v))
+        bias = jnp.concatenate([arm_bias(arm) for arm in arms], axis=0)               # [S*N, V]
+        # The pre-biases as an extra contraction row against a constant-one feature: added and
+        # differentiated inside the matmul, with no separate [B,C,S*N,T] add or token reduction.
+        ones = jnp.ones(hidden.shape[:-1] + (1,), hidden.dtype)
+        weight = jnp.concatenate((jnp.concatenate(kernels, axis=1), bias[None].astype(self.dtype)), axis=0)
+        packed_qkvo = jnp.einsum('btd,drc->bcrt', jnp.concatenate((hidden, ones), axis=-1), weight,
+                                 precision=jax.lax.Precision(cfg.matmul_precision))
       compression = jnp.eye(self.bam_v, dtype=self.static_q_key.dtype)
     else:
       if fused:
@@ -4259,6 +4291,23 @@ class BamAttention(Attention):
             jnp.ones(q_key.shape[2:], jnp.float32) if gamma is None else gamma.astype(jnp.float32))
     if getattr(cfg, 'bam_pallas_read_chunk', None):
       read_kwargs['chunk'] = int(cfg.bam_pallas_read_chunk)
+    if packed_qkvo is not None:
+      if body != 'v8t':
+        raise ValueError('bam_pallas_packed_read_keys requires v8t')
+      read_kwargs['keys_cnt'] = packed_qkvo
+    fused_qk_norm = full_qk_norm and bool(getattr(cfg, 'bam_pallas_fused_qk_norm', False))
+    if fused_qk_norm:
+      # Same full-head QKNorm, computed in the read epilogue: the kernel normalizes the complete
+      # row and multiplies by [local scales, ones] (Q also by the logit scale), so neither the
+      # norm epilogue nor the query division runs in XLA between the read and attention.
+      if body != 'v8t' or common_qk_scale is not None:
+        raise ValueError('bam_pallas_fused_qk_norm requires v8t without the common Q/K read scale')
+      cols = self._qk_col_width
+      ones = jnp.ones((standard_qk_width,), jnp.float32)
+      m_q, m_k = (jnp.concatenate((x[:cols].astype(jnp.float32), ones)) for x in head_scale)
+      m_q = m_q / math.sqrt(self._attention_logit_scale_dim(full_qk_width))
+      read_kwargs['qk_norm'] = (standard_sumsq[0], standard_sumsq[1], m_q, m_k,
+                                float(cfg.normalization_layer_epsilon))
     pass_m = body in ('v7', 'v7u', 'v8t')   # M passthrough: dM sum fused into the read reverse
     # Full-head norm needs the unscaled, unrotated concatenated Q/K. In that case
     # attention scaling must follow QKNorm, rather than being folded into the read.
@@ -4294,7 +4343,7 @@ class BamAttention(Attention):
       value = jnp.concatenate((standard_value, value[..., self._standard_value_heads:, :]), axis=-2)
     if pass_m:
       M_in = outs[4]
-    if full_qk_norm:
+    if full_qk_norm and not fused_qk_norm:
       local = slice(None, self._qk_col_width)
       eps = float(cfg.normalization_layer_epsilon)
 
@@ -4318,7 +4367,7 @@ class BamAttention(Attention):
     query = nn.with_logical_constraint(query, self.query_axis_names)
     key = nn.with_logical_constraint(key, self.key_axis_names)
     value = nn.with_logical_constraint(value, self.value_axis_names)
-    if q_scale == 1.0:
+    if q_scale == 1.0 and not fused_qk_norm:
       query = query / jnp.sqrt(self._attention_logit_scale_dim(query.shape[-1])).astype(self.dtype)
     t = query.shape[1]
     local_window = t if (is_global or self.sliding_window_size is None) else min(t, int(self.sliding_window_size))

@@ -17462,6 +17462,26 @@ class BamPythia2p8BHUnit300B(
                     'PileMUDDPythia3BPlusOcdbtv6e', 'BamPythia2p8BSotaIndependentR768Pallas']
 
 
+
+class BamPythia2p8BHUnit300BFastKernel(BamPythia2p8BHUnit300B):
+    """Unit H 300B with the same math, parameters and initialization; faster read/attention implementation.
+
+    One einsum writes the read keys straight into v8t's [B,C,4N,T] layout (pre-biases as a constant-one
+    contraction row); full-head QKNorm and the logit scale run in the read epilogue with MXU row
+    statistics; Splash keeps its output/logsumexp residuals instead of recomputing its forward.
+    The parameter and optimizer trees equal BamPythia2p8BHUnit300B, so its checkpoints resume directly.
+    """
+    # v5p-8 paired profiles (8/device, 32 layers, health ON): versus the unit H implementation
+    # .6356 -> .6958 step/s (+9.5%); same-remat versus the old long-training implementation +0.3..0.8%.
+    # Evidence and ablations: branch claude/pythia-h-speed, pythia2p8_h_unit_speed_kernel.md.
+    model_name = 'BamPythia2p8BHUnit300BFastKernel'
+    bam_pallas_packed_read_keys = True
+    bam_pallas_fused_qk_norm = True
+    bam_pallas_vmem_mib = 63  # fused reverse with single-buffered xhat needs 62.62 MiB (physical 63.94).
+    bam_splash_residual_name = 'bam_splash_residual'
+    remat_policy = 'minimal_save_splash'
+
+
 class BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneCommonQKScale(
         BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOne):
     """Add one learned scalar per layer, shared by complete local Q/K reads.

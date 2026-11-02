@@ -17711,6 +17711,18 @@ class BamPythia2p8BHSpeedR768NoConcatNormAsyncCollectivesProfile(BamPythia2p8BHS
     libtpu_extra_flags = V5P_ASYNC_COLLECTIVE_FLAGS
 
 
+class BamPythia2p8BHSpeedHUnit300BFusedMxuPackedProfile(BamPythia2p8BHSpeedHUnit300BFusedMxuProfile):
+    """MXU-statistics fused QKNorm plus einsum-packed read keys."""
+    model_name = 'BamPythia2p8BHSpeedHUnit300BFusedMxuPackedProfile'
+    bam_pallas_packed_read_keys = True
+
+
+class BamPythia2p8BHSpeedHUnit300BFusedMxuPackedSaveSplashProfile(BamPythia2p8BHSpeedHUnit300BFusedMxuSaveSplashProfile):
+    """MXU-statistics fused QKNorm, einsum-packed keys and Splash residuals."""
+    model_name = 'BamPythia2p8BHSpeedHUnit300BFusedMxuPackedSaveSplashProfile'
+    bam_pallas_packed_read_keys = True
+
+
 class BamPythia2p8BHSpeedHUnit300BFusedPackedSaveSplashProfile(BamPythia2p8BHSpeedHUnit300BFusedPackedProfile):
     """Fused/packed H keeping Splash residuals."""
     model_name = 'BamPythia2p8BHSpeedHUnit300BFusedPackedSaveSplashProfile'

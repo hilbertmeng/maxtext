@@ -19824,6 +19824,36 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
 
 
 
+class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneRawWritesTruePile(
+    BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneTruePile):
+    """UnitH: raw embedding/attention/private-MLP write contents; address norms and gates retained."""
+    # Implementation: codex/mediumprop-unit-h-raw-content; /data0/xd/mediumprop-unit-h-raw-content.
+    # code_commit:94c0fa1; UE5a v5p16 xd-v5p-16-310540-maxtext; FIRST/source/AOT/data/s13500 verified.
+    # Startup20..99 0.681537step/s vs UnitH.676113 (+0.80%, separate leases); generic healthON/internalOFF.
+    model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneRawWritesTruePile'
+    bam_embedding_write_content_divisor = 1.0
+    bam_attention_write_content_divisor = 1.0
+    compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneTruePile']
+
+
+class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneRawWritesEmbeddingFixedTruePile(
+    BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneRawWritesTruePile):
+    """Raw attention/private-MLP writes, with the original UnitH embedding-write amplitude."""
+    # code_commit:94c0fa1; UE5a v5p16 xd-v5p-16-310541-maxtext; FIRST/source/AOT/data/s13500 verified.
+    # Startup20..99 0.684309step/s vs UnitH.676113 (+1.21%, separate leases); generic healthON/internalOFF.
+    model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneRawWritesEmbeddingFixedTruePile'
+    bam_embedding_write_content_divisor = 0.0016052833
+
+
+class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneRawWritesEmbeddingSmall20TruePile(
+    BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneRawWritesTruePile):
+    """Raw attention/private-MLP writes, with embedding-write amplitude reduced 20-fold from UnitH."""
+    # code_commit:94c0fa1; UE5a v5p16 xd-v5p-16-310542-maxtext; FIRST/source/AOT/data/s13500 verified.
+    # Startup20..99 0.690536step/s vs UnitH.676113 (+2.13%, separate leases); generic healthON/internalOFF.
+    model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneRawWritesEmbeddingSmall20TruePile'
+    bam_embedding_write_content_divisor = 0.032105666
+
+
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneMPreNormTruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneTruePile):
     """Unit-init H plus per-token whole-M RMSNorm after read-only M-shift."""

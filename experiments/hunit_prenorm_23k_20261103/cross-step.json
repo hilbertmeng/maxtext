@@ -1,0 +1,91 @@
+{
+  "series": {
+    "baseline": {
+      "13000": {
+        "own_head_fraction": {
+          "mean": 0.20581072366568118,
+          "ci95": [
+            0.1827432112510899,
+            0.23153636537965927
+          ]
+        },
+        "own_raw_weak_RMS": 6.7887381156799105,
+        "fixed43k_final_dynamicMo_weak_RMS": 1.4023742884974058,
+        "fixed43k_final_FFN_weak_RMS": 2.8704370591034576,
+        "fixed43k_dynamicMo_effective_weak_gain": 0.6303396479528502,
+        "physical_M_RMS": 13.466552833193425
+      },
+      "23000": {
+        "own_head_fraction": {
+          "mean": 0.3477375417249261,
+          "ci95": [
+            0.3019066197032498,
+            0.39713627722150624
+          ]
+        },
+        "own_raw_weak_RMS": 10.881112515667203,
+        "fixed43k_final_dynamicMo_weak_RMS": 3.2752742277492,
+        "fixed43k_final_FFN_weak_RMS": 5.415792760517876,
+        "fixed43k_dynamicMo_effective_weak_gain": 1.3897272053141203,
+        "physical_M_RMS": 12.297386168365042
+      }
+    },
+    "prenorm": {
+      "13000": {
+        "own_head_fraction": {
+          "mean": 0.14428463745131032,
+          "ci95": [
+            0.13779461697470588,
+            0.1507058921295655
+          ]
+        },
+        "own_raw_weak_RMS": 3.4548228629416244,
+        "fixed43k_final_dynamicMo_weak_RMS": 0.26100637436540236,
+        "fixed43k_final_FFN_weak_RMS": 0.360725596709383,
+        "fixed43k_dynamicMo_effective_weak_gain": 0.39443826715830466,
+        "physical_M_RMS": 19.2594935578556
+      },
+      "23000": {
+        "own_head_fraction": {
+          "mean": 0.1431963942118447,
+          "ci95": [
+            0.1374463728269283,
+            0.14892710467777956
+          ]
+        },
+        "own_raw_weak_RMS": 4.26687994511766,
+        "fixed43k_final_dynamicMo_weak_RMS": 0.3293884004355416,
+        "fixed43k_final_FFN_weak_RMS": 0.37685069269948285,
+        "fixed43k_dynamicMo_effective_weak_gain": 0.5610320230435651,
+        "physical_M_RMS": 19.167723017362817
+      }
+    }
+  },
+  "paired_temporal": {
+    "baseline": {
+      "head_fraction_delta_pp": 14.192681805924492,
+      "head_fraction_delta_pp_ci95": [
+        11.843801297592984,
+        16.675263601856365
+      ],
+      "fixed43k_dynamicMo_effective_weak_gain_ratio": 2.204727598658256,
+      "effective_weak_gain_ratio_ci95": [
+        2.1293454095861595,
+        2.2943865807002997
+      ]
+    },
+    "prenorm": {
+      "head_fraction_delta_pp": -0.10882432394656028,
+      "head_fraction_delta_pp_ci95": [
+        -0.3290214518769571,
+        0.0984610295054381
+      ],
+      "fixed43k_dynamicMo_effective_weak_gain_ratio": 1.422356985803372,
+      "effective_weak_gain_ratio_ci95": [
+        1.403568790319712,
+        1.4414711181515028
+      ]
+    }
+  },
+  "scope": "Same32 texts, own contemporaneous centered effective BF16 Wc bottom128; fixed old43k basis is a common retrospective geometric control. Effective weak gain=postWo raw weak RMS/preWo dynamic read total RMS, combining learned Wo and activation direction; not an operator singular value or an isolated causal effect."
+}

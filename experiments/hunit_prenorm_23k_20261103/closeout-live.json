@@ -1,0 +1,14 @@
+{
+  "analysis": {
+    "tpu-vm": "ABSENT",
+    "queued-resources": "ABSENT"
+  },
+  "training": {
+    "last_progress_step": 23794,
+    "last_progress_utc": "2026-11-03T15:21:05Z",
+    "declared_status": "running",
+    "observed_node_state": "READY",
+    "tpu": "xd-v5p-256-311103-maxtext",
+    "zone": "us-east5-a"
+  }
+}

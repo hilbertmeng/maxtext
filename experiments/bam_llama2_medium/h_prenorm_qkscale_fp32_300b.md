@@ -45,3 +45,17 @@ internal BAM activation statistics stay off. New logits statistics are on.
 Compile a new exact-commit AOT; previous bb7cedf AOT predates the precision flags.
 Verify Loaded compiled function, first step, all workers, checkpoint cursor,
 and steady throughput before marking launch complete. Old H remains paused.
+
+## Verified startup
+
+Runtime `5a48faaa36989deb1c24747c6314b49b0d8b649f`, exact new v5p-256 /
+s143000 AOT and manifest verified. All 32 workers use that source and logged
+`Loaded compiled function!`; first training steps are finite and CP0 committed.
+Median worker harmonic throughput over steps 20–39: .60353 step/s, 1.59%
+below old H FastKernel .61327 on a historical lease. This includes requested
+logits health; it is not a paired attribution of any individual change.
+Eight focused CPU checks passed (three model/gradient, five summary writer).
+Report group `pythia28-h-prenorm-qkscale-fp32-1103` is registered at 3k + 5k
+intervals; loss offsets and all three MHA-reference gain triples are persisted.
+External controller and checkpoint-rescue scripts match local authoritative
+source by SHA256; worker Orbax logs confirm the 1200-second timeout.

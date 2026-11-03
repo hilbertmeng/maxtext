@@ -17510,6 +17510,9 @@ class BamPythia2p8BHUnit300BFastKernelMPreNormQKScale(BamPythia2p8BHUnit300BFast
     # v5p-8 paired (8/device, 32 layers): FastKernel .7040, +pre-norm .6900 (-2.0%), this .6880 (-2.3%);
     # V/O scale cost ~0 (no-V/O arm .7030). The fold also sped the parent from .687 (per-c V/O rows).
     # AOT_READY v5p-256/s143000: gs://newproject-1-llm_base_models_us-central1/log/compiled_trainsteps/bb7cedf/jax081-i0ae3f58-c17f538a/v5p-256/s143000/
+    # RUN: same class name; runtime code_commit:5a48faa; UE5a v5p-256, global batch 1024.
+    # All 32 workers loaded exact AOT; CP0 committed. Steps 20-39: .60353 step/s
+    # (-1.59% versus old H FastKernel .61327, historical leases; training/logits health on).
     model_name = 'BamPythia2p8BHUnit300BFastKernelMPreNormQKScale'
     bam_m_read_norm = 'rms'
     bam_common_qk_read_scale = True

@@ -7,7 +7,7 @@ from flax import linen as nn
 from flax.traverse_util import unflatten_dict
 import exp,max_utils,pyconfig,head_spectral_diagnostic as hd
 from layers.models import Transformer
-from hunit_write_origin import WriteObserver,aggregate,NAMES
+from hunit_write_origin import WriteObserver,LastReadAblation,aggregate,NAMES
 _STORES={}
 def blob(uri,value=None,missing=False):
  prefix,key=uri.rsplit('/',1)
@@ -49,6 +49,12 @@ def main():
   g=params['params']['decoder']['lm_head']['decoder_norm']['scale'];b=params['params']['decoder']['lm_head']['decoder_norm']['bias'];observer=WriteObserver(u,g)
   with mesh,nn.partitioning.axis_rules(cfg.logical_axis_rules),observer.observe():out,coll=model.apply(params,x,jnp.broadcast_to(jnp.arange(2048),x.shape),decoder_target_tokens=y,decoder_target_mask=jnp.ones_like(x),decoder_segment_ids=jnp.ones_like(x),enable_dropout=False,rngs={'params':rng,'dropout':rng,'aqt':rng},mutable=['intermediates'])
   result=aggregate(observer,coll,g,b,cfg.normalization_layer_epsilon);return out[0],result
+ @jax.jit
+ def causal(params,x,y,mode,reference_h):
+  observer=LastReadAblation(mode)
+  with mesh,nn.partitioning.axis_rules(cfg.logical_axis_rules),observer.observe():out=model.apply(params,x,jnp.broadcast_to(jnp.arange(2048),x.shape),decoder_target_tokens=y,decoder_target_mask=jnp.ones_like(x),decoder_segment_ids=jnp.ones_like(x),enable_dropout=False,rngs={'params':rng,'dropout':rng,'aqt':rng})
+  h=hd.BF16_round(observer.h);raw=hd.BF16_round(observer.raw);pc=jnp.matmul(h,u,precision=jax.lax.Precision.HIGHEST)
+  return out[0],jnp.mean(jnp.sum(pc*pc,-1)/2560),jnp.sqrt(jnp.mean(h*h)),jnp.sqrt(jnp.mean(raw*raw)),jnp.sqrt(jnp.mean((h-reference_h)**2)/jnp.mean(reference_h**2))
  all_results={}
  for step in m['steps']:
   uri=m['gcs_root']+f'/{step}';folder=root/str(step);folder.mkdir(exist_ok=True);done=jblob(uri+'/complete.json')
@@ -64,6 +70,9 @@ def main():
    h=s.pop('h');raw=s.pop('raw');relative=float(np.linalg.norm(h-goldh)/np.linalg.norm(goldh));raw_relative=float(np.linalg.norm(raw-goldraw)/np.linalg.norm(goldraw));drift=float(loss.mean()-goldloss.mean());assert relative<.015 and abs(drift)<.005,('Observation graph failed archival replay gate',step,i,relative,drift)
    assert s['head_allocation'].shape==(32,7);assert abs(s['head_allocation_closure'])<2e-4 and abs(s['raw_allocation_closure'])<2e-4 and s['projection_ledger_relative_error']<1e-4 and s['layer_continuity_max']==0,(step,i,'Attribution ledger does not close')
    assert all(np.isfinite(v).all() for v in s.values())
+   cf=[jax.device_get(causal(params,jnp.asarray(x),jnp.asarray(y),jnp.asarray(mode,jnp.int32),jnp.asarray(h))) for mode in range(3)]
+   assert float(cf[0][4])<.015 and abs(float(cf[0][0].mean()-loss.mean()))<.005,('Causal keep mismatch',step,i)
+   s.update(causal_CE=np.stack([q[0].reshape(-1) for q in cf]),causal_head_weak_power=np.array([q[1] for q in cf]),causal_head_RMS=np.array([q[2] for q in cf]),causal_raw_RMS=np.array([q[3] for q in cf]),causal_head_relative_to_observed=np.array([q[4] for q in cf]))
    path=folder/(stem+'.npz');np.savez_compressed(path,**s);emit(path,uri+'/'+path.name)
    marker=dict(source_commit=commit,training_commit=m['training_commit'],checkpoint=identity['checkpoint'],state_step=identity['state_step'],label_step=step,sequence=i,input_hash=m['cohort_hashes'][i],native_CE=float(loss.mean()),archival_CE=float(goldloss.mean()),CE_replay_difference=drift,head_relative_RMS=relative,raw_relative_RMS=raw_relative,head_allocation_closure=float(s['head_allocation_closure']),raw_allocation_closure=float(s['raw_allocation_closure']),projection_ledger_relative_error=float(s['projection_ledger_relative_error']),layer_continuity_max=float(s['layer_continuity_max']),seconds=seconds)
    path=folder/(stem+'.json');path.write_text(json.dumps(marker,indent=2)+'\n');emit(path,uri+'/'+path.name);rows.append(marker);print('WRITE_ORIGIN_CASE_COMPLETE',step,i,'CE',marker['native_CE'],'Hrel',relative,'seconds',seconds,flush=True)

@@ -79,3 +79,27 @@ def aggregate(observer,collection,gamma,bias,epsilon=1e-5):
  extra=jnp.stack([inner(embed_h,target_h),inner(beta,target_h),inner(head_round,target_h)])
  continuity=after[:-1]-before[1:];closure=embed+parts.sum((0,1))-after[-1]
  return dict(head_allocation=allocation,raw_allocation=raw_allocation,head_self_power=power(head_parts),raw_self_power=power(raw_parts),extra_head_allocation=extra,extra_raw_embedding_allocation=inner(embed[...,:rank],target_raw),head_total_power=total_head,raw_total_power=total_raw,head_allocation_closure=(allocation.sum()+extra.sum())/total_head-1,raw_allocation_closure=(raw_allocation.sum()+inner(embed[...,:rank],target_raw))/total_raw-1,projection_ledger_relative_error=jnp.sqrt(jnp.sum(closure**2)/jnp.sum(after[-1]**2)),layer_continuity_max=jnp.max(jnp.abs(continuity)),read_head_power=layers(collection,'write_origin_read_power'),raw=raw,h=h)
+
+class LastReadAblation:
+ """Only final attention's input to native Wo changes; MHA/V/keys stay original."""
+ def __init__(self,mode):self.mode=mode;self.active=None;self.raw=self.h=None;self.original_read=bam_pallas.read;self.original_splash=attentions._bam_splash_attention
+ def read(self,*a,**kw):
+  out=self.original_read(*a,**kw)
+  if self.active is not None:self.active['mo']=out[3]
+  return out
+ def splash(self,*a,**kw):
+  out=self.original_splash(*a,**kw)
+  if self.active is not None:self.active['mha']=out
+  return out
+ def interceptor(self,next_fun,args,kw,ctx):
+  mod=ctx.module
+  if mod.__class__.__name__=='BamAttention' and ctx.method_name=='__call__' and any('final_local_layer' in p for p in mod.scope.path):
+   self.active={};out=next_fun(*args,**kw);self.active=None;return out
+  if mod.__class__.__name__=='BamAttention' and ctx.method_name=='out_projection' and self.active is not None:
+   out=args[1];s=self.active;changed=jnp.where(self.mode==1,s['mha'],jnp.where(self.mode==2,s['mo'],out));return next_fun(args[0],changed,**kw)
+  if mod.__class__.__name__=='LayerNorm' and ctx.method_name=='__call__' and mod.name=='decoder_norm' and 'lm_head' in mod.scope.path:
+   self.raw=args[0];out=next_fun(*args,**kw);self.h=out;return out
+  return next_fun(*args,**kw)
+ @contextmanager
+ def observe(self):
+  with mock.patch.object(bam_pallas,'read',self.read),mock.patch.object(attentions,'_bam_splash_attention',self.splash),nn.intercept_methods(self.interceptor):yield self

@@ -6,7 +6,7 @@ from jax.experimental.pallas.ops.tpu.splash_attention import splash_attention_ke
 from layers.models import Transformer
 import max_utils
 from bam_fast_kernel_test import FastKernelTest,FAST
-from hunit_write_origin import WriteObserver,aggregate
+from hunit_write_origin import WriteObserver,LastReadAblation,aggregate
 from head_spectral_diagnostic import precise_cross_entropy
 
 def main():
@@ -28,6 +28,14 @@ def main():
    print('LEDGER_CHECK', {k:np.asarray(s[k]).tolist() for k in ['head_allocation_closure','raw_allocation_closure','projection_ledger_relative_error','layer_continuity_max','head_total_power','raw_total_power']},flush=True)
    assert abs(float(s['head_allocation_closure']))<2e-5 and abs(float(s['raw_allocation_closure']))<2e-5
    assert float(s['projection_ledger_relative_error'])<1e-5 and float(s['layer_continuity_max'])==0
+   @jax.jit
+   def controlled(p,mode):
+    observer=LastReadAblation(mode)
+    with observer.observe():out=model.apply(p,x,pos,y,seg,enable_dropout=False)
+    return out[0],observer.h
+   keep,kh=controlled(v,jnp.asarray(0));np.testing.assert_array_equal(keep,native)
+   for mode in [1,2]:
+    loss,hh=controlled(v,jnp.asarray(mode));assert np.isfinite(loss).all() and np.isfinite(hh).all()
    print('NATIVE_INTERPRETED_OUTPUT_EQUAL_SCAN_LEDGER_AND_LN_ALLOCATION_PASS',flush=True)
  finally:t.tearDown()
 if __name__=='__main__':main()

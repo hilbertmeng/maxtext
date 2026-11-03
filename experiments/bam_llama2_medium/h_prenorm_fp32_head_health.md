@@ -17,6 +17,14 @@ Previous logical RUN: `BamPythia2p8BHUnit300B`; diagnostic configuration
 the parameter tree and architecture; the diagnostic disables Pallas/Splash
 and uses the same native JAX BF16 backbone protocol for both arms.
 
+Official `Pythia_2.8B_2022` has no recorded training-gradient history, globally
+or per head. Both W&B segments (`1c9jr6vp`, steps 1–48000; `12vuw5ef`,
+47001–143000) set `log_grad_norm=False`. Their full history-key inventories
+contain only training loss, learning rate and loss scale among training
+metrics; gradient-related timer names are not gradient magnitudes. The local
+`official-mha-gradient-availability.json` retains the audited source hashes.
+Do not fill the MHA line with another run or checkpoint-probe gradients.
+
 ## Frozen-cohort protocol
 
 Reuse the established 32 Pile texts, T2048, seed 20261021, all 65536 token

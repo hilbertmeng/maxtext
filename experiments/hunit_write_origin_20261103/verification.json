@@ -1,0 +1,28 @@
+{
+  "complete": true,
+  "source_commit": "251e5f95f5915fe978129d34aba7bbabeef43564",
+  "checks": [
+    {
+      "step": 33000,
+      "sequences": 32,
+      "max_head_allocation_closure": 3.5762786865234375e-07,
+      "max_raw_allocation_closure": 3.5762786865234375e-07,
+      "max_projection_ledger_error": 1.1580204528627291e-07,
+      "max_continuity_error": 0.000244140625,
+      "max_relative_continuity_error": 4.071057446708437e-08,
+      "max_focused_head_relative_RMS": 0.0003857651900034398,
+      "boundary_accepted": true
+    },
+    {
+      "step": 43000,
+      "sequences": 32,
+      "max_head_allocation_closure": 2.384185791015625e-07,
+      "max_raw_allocation_closure": 3.5762786865234375e-07,
+      "max_projection_ledger_error": 8.170933796236568e-08,
+      "max_continuity_error": 0.000244140625,
+      "max_relative_continuity_error": 3.962201944318622e-08,
+      "max_focused_head_relative_RMS": 0.00036723632365465164,
+      "boundary_accepted": true
+    }
+  ]
+}

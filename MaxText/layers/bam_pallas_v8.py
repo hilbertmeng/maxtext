@@ -268,7 +268,7 @@ def _tm_read_kernel(n, qk_cols, eps, scale, q_scale, gated, ch, shifted=False, q
 
 
 def _tm_read_backward_kernel(n, qk_cols, eps, scale, q_scale, gated, ch, pass_m, shifted=False, qdim=None,
-                             masked=False, scaled=False, qk_norm=None, packed=False, m_norm=None):
+                             masked=False, scaled=False, qk_norm=None, packed=False, m_norm=None, const_rows=0):
   def kernel(m_ref, st_ref, rq, lq, rk, lk, rr, lo, lv, qs, ks, *refs):
     if gated:
       sg_ref, refs = refs[0], refs[1:]
@@ -437,7 +437,11 @@ def _tm_read_backward_kernel(n, qk_cols, eps, scale, q_scale, gated, ch, pass_m,
     gq, gk, gv, go = (g[i * np_:(i + 1) * np_] for i in range(4))
     scaled_rows = os_ref.shape[0] if scaled else 0
     scale_start = r - scaled_rows
+    per_c_rows = scaled_rows - const_rows
     gi_scaled = (g * inv)[scale_start:] if scaled else None
+    # Leading scale rows constant over c (per-head scalars, e.g. common Q/K and V/O layer scales)
+    # only need their c-summed gradient: a [rows, T] accumulator instead of C per-c scratch rows.
+    cacc = jnp.zeros((const_rows, t), F32) if const_rows else None
     for c in range(cdim):
       dx = _from_tokens(dxt_scr[pl.ds(c, t, stride=cdim), :])            # [R, T]
       rows = _tm_rows(rq, rk, rr, c)
@@ -445,7 +449,11 @@ def _tm_read_backward_kernel(n, qk_cols, eps, scale, q_scale, gated, ch, pass_m,
         sacc = sacc + dx * st[:, c:c + 1]
       if scaled:      # d gamma = sum_t dX * g inv r, for O alone or independent V/O.
         dx_scaled = dx[scale_start:]
-        dos_scr[pl.ds(c * scaled_rows, scaled_rows), :] = dx_scaled * rows[scale_start:] * gi_scaled
+        term = dx_scaled * rows[scale_start:] * gi_scaled
+        if const_rows:
+          cacc = cacc + term[:const_rows]
+        if per_c_rows:
+          dos_scr[pl.ds(c * per_c_rows, per_c_rows), :] = term[const_rows:]
         dx = (jnp.concatenate((dx[:scale_start], dx_scaled * osc[scale_start:, c:c + 1]), axis=0)
               if scale_start else dx_scaled * osc[:, c:c + 1])
       gacc = gacc + dx * rows
@@ -473,9 +481,11 @@ def _tm_read_backward_kernel(n, qk_cols, eps, scale, q_scale, gated, ch, pass_m,
     if qk_norm:
       dmm_ref[...] = jnp.concatenate(dmm, axis=0)
     if scaled:        # token sums of all C*NP rows as one lane-dense MXU row (no per-c XLU reduce)
-      dos_ref[...] = jax.lax.dot_general(
-          jnp.ones((8, t), F32), dos_scr[...], (((1,), (1,)), ((), ())),
+      tsum = lambda x: jax.lax.dot_general(
+          jnp.ones((8, t), F32), x, (((1,), (1,)), ((), ())),
           precision=jax.lax.Precision.HIGHEST, preferred_element_type=F32)[:1]
+      parts = (([tsum(dos_scr[...])] if per_c_rows else []) + ([tsum(cacc)] if const_rows else []))
+      dos_ref[...] = jnp.concatenate(parts, axis=1) if len(parts) > 1 else parts[0]
   return kernel
 
 
@@ -600,21 +610,24 @@ def _tm_read_backward_call(args, cts, opts, sh=None, om=None, os=None, qn=None, 
     out_shape += [jax.ShapeDtypeStruct(sh.shape, sh.dtype), jax.ShapeDtypeStruct((b, t // tile, vdim, kdim), F32)]
     scratch += [pltpu.VMEM((tile * cdim, kdim), F32)]     # gate g'[c, t] broadcast over lanes
   scaled_rows = os.shape[0] if os is not None else 0
-  if os is not None:  # per-tile partial scale gradients [1,C*scaled_rows], c-major.
-    out_specs += [pl.BlockSpec((None, None, 1, cdim * scaled_rows), lambda bb, i: (bb, i, 0, 0))]
-    out_shape += [jax.ShapeDtypeStruct((b, t // tile, 1, cdim * scaled_rows), F32)]
+  const_rows = int(opts.get('scale_const_rows') or 0)
+  per_c_rows = scaled_rows - const_rows
+  dos_width = cdim * per_c_rows + const_rows
+  if os is not None:  # per-tile partial scale gradients [1, C*per-c rows (c-major) + constant rows].
+    out_specs += [pl.BlockSpec((None, None, 1, dos_width), lambda bb, i: (bb, i, 0, 0))]
+    out_shape += [jax.ShapeDtypeStruct((b, t // tile, 1, dos_width), F32)]
   if qk_norm:         # d ss_std [B,2,NP,T] and per-tile partial dm [2, qdim]
     out_specs += [_spec(qn[0].shape[1:-1], tile),
                   pl.BlockSpec((None, None, 2, qdim), lambda bb, i: (bb, i, 0, 0))]
     out_shape += [jax.ShapeDtypeStruct(qn[0].shape, F32), jax.ShapeDtypeStruct((b, t // tile, 2, qdim), F32)]
   if om is not None:
     scratch += [pltpu.VMEM((tile * cdim, r), F32)]        # token-major O multiplier rows
-  if os is not None:
-    scratch += [pltpu.VMEM((cdim * scaled_rows, tile), F32)]      # per-c O scale gradient terms, T-minor
+  if per_c_rows:
+    scratch += [pltpu.VMEM((cdim * per_c_rows, tile), F32)]       # per-c scale gradient terms, T-minor
   outs = pl.pallas_call(
       _tm_read_backward_kernel(n, opts['qk_cols'], opts['read_epsilon'], opts['key_scale'], opts['q_scale'],
                                gated, opts['chunk'], pass_m, shifted, qdim, om is not None, os is not None,
-                               qk_norm, packed, opts.get('m_norm')),
+                               qk_norm, packed, opts.get('m_norm'), const_rows),
       grid=(b, t // tile), in_specs=in_specs, out_specs=out_specs, out_shape=tuple(out_shape),
       scratch_shapes=scratch,
       input_output_aliases={len(args) + len(extra) + 4: 0} if pass_m else {},
@@ -626,7 +639,10 @@ def _tm_read_backward_call(args, cts, opts, sh=None, om=None, os=None, qn=None, 
     dqn = (dss.astype(qn[0].dtype), jnp.sum(dmm, axis=(0, 1)).astype(qn[1].dtype))
   dos = None
   if os is not None:
-    outs, dos = outs[:-1], jnp.sum(outs[-1], axis=(0, 1, 2)).reshape(cdim, scaled_rows).T.astype(os.dtype)
+    outs, tot = outs[:-1], jnp.sum(outs[-1], axis=(0, 1, 2))
+    # Constant rows carry their c-summed gradient in column 0 (exact under the caller's broadcast).
+    dconst = jnp.zeros((const_rows, cdim), F32).at[:, 0].set(tot[cdim * per_c_rows:])
+    dos = jnp.concatenate((dconst, tot[:cdim * per_c_rows].reshape(cdim, per_c_rows).T), axis=0).astype(os.dtype)
   dm = outs[0]
   dsh = None
   if shifted:
@@ -701,6 +717,8 @@ def read_tm(m, static_weight, q_key, q_logits, k_key, k_logits, vo_key, o_logits
   Both scale gradients use the existing tiled MXU reduction.
   q_dynamic_scale / k_dynamic_scale [N,V] extend the same per-row scale to every arm (then all four
   [4NP,C] rows are scaled; unset arms use ones); they scale only the dynamic Q/K read, not the standard arm.
+  Any of the four may instead be a per-head [N] scale (constant over V): leading such arms keep only a
+  c-summed [rows, T] gradient accumulator in the reverse, not C per-c scratch rows (2 MiB at C=64, NP=32).
 
   qk_norm (ss_q, ss_k, m_q, m_k, epsilon): full-head QKNorm inside the read epilogue. ss_* [B,T,N] are
   the standard (unscaled, unrotated) Q/K sums of squares; m_* [qdim] multiply the normalized row and
@@ -760,15 +778,23 @@ def read_tm(m, static_weight, q_key, q_logits, k_key, k_logits, vo_key, o_logits
   if scaled:
     for gamma in (q_dynamic_scale, k_dynamic_scale, v_dynamic_scale, o_dynamic_scale):
       if gamma is not None:
-        assert gamma.shape == (n, cdim), gamma.shape
-    ones = lambda g: jnp.ones((n, cdim), F32) if g is None else g
+        assert gamma.shape in ((n, cdim), (n,)), gamma.shape
     if all_arms:
-      scales = tuple(ones(g) for g in (q_dynamic_scale, k_dynamic_scale, v_dynamic_scale, o_dynamic_scale))
+      scales = (q_dynamic_scale, k_dynamic_scale, v_dynamic_scale, o_dynamic_scale)
     else:
-      scales = ((v_dynamic_scale, ones(o_dynamic_scale)) if v_dynamic_scale is not None else (o_dynamic_scale,))
-    os_ = jnp.concatenate(tuple(jnp.pad(gamma.astype(F32), ((0, np_ - n), (0, 0)),
-        constant_values=1.) if np_ > n else gamma.astype(F32) for gamma in scales), axis=0)
-    args += (os_,)   # [NP,C] for O-only; [2NP,C] for independent V/O.
+      scales = (v_dynamic_scale, o_dynamic_scale) if v_dynamic_scale is not None else (o_dynamic_scale,)
+    # Leading arms that are constant over c (unset or per-head [N]) skip per-c gradient scratch.
+    const_arms = 0
+    while const_arms < len(scales) and (scales[const_arms] is None or scales[const_arms].ndim == 1):
+      const_arms += 1
+    if const_arms:
+      opts = _freeze(dict(opts, scale_const_rows=const_arms * np_))
+    def widen(g):
+      g = jnp.ones((n, cdim), F32) if g is None else g.astype(F32)
+      g = jnp.broadcast_to(g[:, None], (n, cdim)) if g.ndim == 1 else g
+      return jnp.pad(g, ((0, np_ - n), (0, 0)), constant_values=1.) if np_ > n else g
+    os_ = jnp.concatenate(tuple(widen(g) for g in scales), axis=0)
+    args += (os_,)   # [NP,C] for O-only; [2NP,C] for independent V/O; [4NP,C] with Q/K.
   normed = qk_norm is not None
   if normed:
     ss_q, ss_k, m_q, m_k = qk_norm[:4]

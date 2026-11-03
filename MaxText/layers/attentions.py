@@ -4337,14 +4337,16 @@ class BamAttention(Attention):
       if body != 'v8t':
         raise ValueError('O dynamic norm scale requires the v8t fused read')
       read_kwargs['o_dynamic_scale'] = self._dynamic_local_o_scale_for_read()
+    # Common scalars are passed per head ([N], constant over V): the reverse then keeps only a
+    # c-summed gradient instead of per-c scratch (the 2.8B fused reverse sits at the VMEM limit).
     if fold_vo:
       for arm in ('v', 'o'):
         gamma = read_kwargs.get(arm + '_dynamic_scale')
         read_kwargs[arm + '_dynamic_scale'] = common_vo_scale.astype(jnp.float32) * (
-            jnp.ones(q_key.shape[2:], jnp.float32) if gamma is None else gamma.astype(jnp.float32))
+            jnp.ones(q_key.shape[2:3], jnp.float32) if gamma is None else gamma.astype(jnp.float32))
     if fold_qk:
       for arm in ('q', 'k'):
-        read_kwargs[arm + '_dynamic_scale'] = common_qk_scale.astype(jnp.float32) * jnp.ones(q_key.shape[2:], jnp.float32)
+        read_kwargs[arm + '_dynamic_scale'] = common_qk_scale.astype(jnp.float32) * jnp.ones(q_key.shape[2:3], jnp.float32)
     if getattr(cfg, 'bam_pallas_read_chunk', None):
       read_kwargs['chunk'] = int(cfg.bam_pallas_read_chunk)
     if packed_qkvo is not None:

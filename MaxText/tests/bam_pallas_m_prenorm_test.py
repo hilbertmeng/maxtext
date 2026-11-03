@@ -158,6 +158,54 @@ class KernelQKScaleTest(KernelPreNormTest):
   test_bfloat16_matches_float32_truth = None
 
 
+class KernelPerHeadScaleTest(KernelPreNormTest):
+  """Per-head [N] dynamic scales (constant over V; reverse keeps only c-summed gradients) equal the
+  same scales broadcast to [N,V] (per-c reverse scratch): outputs and every gradient, incl. the scales."""
+
+  def test_per_head_scales_match_broadcast(self):
+    m, sw, xs, sgs, shift = shift_test.inputs(8)
+    ks = iter(jax.random.split(jax.random.PRNGKey(80), 8))
+    xs_ind = xs[:4] + (jax.random.normal(next(ks), (B, T, 2 * N, V)),) + xs[5:]
+    cts = tuple(jax.random.normal(next(ks), (B, T, N, K)) for _ in range(4))
+    gamma = 1 + .3 * jax.random.normal(next(ks), (N, V))         # per-coordinate O scale (stays [N,V])
+    s0, vo0 = jnp.asarray(-1.7), jnp.asarray(.6)
+
+    def call(m, sw, xs, sgs, shift, s, vo, tile, case, wide):
+      head = lambda x: jnp.broadcast_to(x[:, None], (N, V)) if wide else x
+      kw = dict(q_dynamic_scale=head(s * jnp.ones(N)), k_dynamic_scale=head(s * jnp.ones(N)),
+                v_dynamic_scale=head(vo * jnp.ones(N)), o_dynamic_scale=head(vo * jnp.ones(N)))
+      if case == 'qk + v per-head, O per-coordinate':
+        kw['o_dynamic_scale'] = vo * gamma
+      elif case == 'V/O only':
+        del kw['q_dynamic_scale'], kw['k_dynamic_scale']
+      elif case == 'O only':
+        kw = dict(o_dynamic_scale=kw['o_dynamic_scale'])
+      return v8.read_tm(m, sw, *xs, qk_cols=shift_test.QKC, read_epsilon=shift_test.EPS,
+                        key_scale=shift_test.SCALE, forward_tile=tile, reverse_tile=tile, interpret=True,
+                        q_scale=0.125, static_gates=sgs, shift=shift, chunk=8, m_norm=M_EPS, **kw)
+
+    cases = (('all per-head', xs_ind), ('all per-head', xs), ('qk + v per-head, O per-coordinate', xs_ind),
+             ('V/O only', xs_ind), ('O only', xs))
+    for case, args in cases:
+      for tile in (64, 256):
+        tag = f'{case} vo={args[4].shape[2] // N} tile {tile}'
+        fn = lambda wide: lambda m, sw, xs, s, vo: sum(jnp.sum(o * c) for o, c in zip(
+            call(m, sw, xs, sgs, shift, s, vo, tile, case, wide)[:4], cts))
+        outs = [call(m, sw, args, sgs, shift, s0, vo0, tile, case, w) for w in (False, True)]
+        for i, (a, b) in enumerate(zip(*outs)):
+          self.assert_close(a, b, 1e-6, f'{tag} output {i}')
+        ga, gb = (jax.grad(fn(w), argnums=(0, 1, 2, 3, 4))(m, sw, args, s0, vo0) for w in (False, True))
+        self.assertGreater(abs(float(ga[4])), 0)
+        if case != 'V/O only' and case != 'O only':
+          self.assertGreater(abs(float(ga[3])), 0)
+        for (path, a), b in zip(jax.tree_util.tree_flatten_with_path(ga)[0], jax.tree.leaves(gb)):
+          self.assert_close(a, b, 1e-5, f'{tag} grad {jax.tree_util.keystr(path)}')
+    print('V8T_PER_HEAD_SCALE_ALL_GRADIENTS_OK', flush=True)
+
+  test_forward_and_gradients_with_and_without_shift = None
+  test_bfloat16_matches_float32_truth = None
+
+
 class ModelPreNormTest(MLPWriteTest, unittest.TestCase):
   """Complete scanned model, native _matrix_for_read vs the v8t core: logits and every gradient."""
 

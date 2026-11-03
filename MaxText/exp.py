@@ -17554,6 +17554,12 @@ class BamPythia2p8BMPreNormSpeedParentProfile(_PythiaMPreNormSpeedProfile, BamPy
     model_name = 'BamPythia2p8BMPreNormSpeedParentProfile'
 
 
+class BamPythia2p8BMPreNormSpeedNoVOScaleProfile(BamPythia2p8BMPreNormSpeedParentProfile):
+    """Parent without the common V/O scale: isolates the folded V/O scale cost."""
+    model_name = 'BamPythia2p8BMPreNormSpeedNoVOScaleProfile'
+    bam_common_vo_read_scale = False
+
+
 class BamPythia2p8BMPreNormSpeedPreNormProfile(BamPythia2p8BMPreNormSpeedParentProfile):
     """Whole-M read pre-norm only (no common Q/K scale): isolates the in-kernel RMS cost."""
     model_name = 'BamPythia2p8BMPreNormSpeedPreNormProfile'

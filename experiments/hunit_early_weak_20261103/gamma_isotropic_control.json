@@ -1,0 +1,32 @@
+{
+  "3000": {
+    "centered_isotropic_input_expected_weak_fraction": 0.04969351038708238,
+    "gamma_max": 1.2394390106201172,
+    "gamma_min": 1.0541092157363892,
+    "gamma_RMS": 1.1861786764231341
+  },
+  "13000": {
+    "centered_isotropic_input_expected_weak_fraction": 0.04916071344249102,
+    "gamma_max": 1.774728775024414,
+    "gamma_min": 0.9306694269180298,
+    "gamma_RMS": 1.4497975566024224
+  },
+  "23000": {
+    "centered_isotropic_input_expected_weak_fraction": 0.05312077986037604,
+    "gamma_max": 2.8769564628601074,
+    "gamma_min": 0.882104218006134,
+    "gamma_RMS": 1.7558072012475985
+  },
+  "33000": {
+    "centered_isotropic_input_expected_weak_fraction": 0.07377546049874188,
+    "gamma_max": 4.183058261871338,
+    "gamma_min": 0.8436356782913208,
+    "gamma_RMS": 2.1708342958360074
+  },
+  "43000": {
+    "centered_isotropic_input_expected_weak_fraction": 0.10640579441224447,
+    "gamma_max": 5.495471954345703,
+    "gamma_min": 0.8249688744544983,
+    "gamma_RMS": 2.585799299058917
+  }
+}

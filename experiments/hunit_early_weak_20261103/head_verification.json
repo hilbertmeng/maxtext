@@ -1,0 +1,26 @@
+[
+  {
+    "step": 3000,
+    "max_orthonormality_error": 3.5762786865234375e-07
+  },
+  {
+    "step": 13000,
+    "max_orthonormality_error": 3.5762786865234375e-07
+  },
+  {
+    "step": 23000,
+    "max_orthonormality_error": 4.76837158203125e-07
+  },
+  {
+    "step": 33000,
+    "max_orthonormality_error": 4.76837158203125e-07,
+    "old_basis_subspace_overlap": 1.0,
+    "old_spectrum_max_relative_error": 0.0
+  },
+  {
+    "step": 43000,
+    "max_orthonormality_error": 4.76837158203125e-07,
+    "old_basis_subspace_overlap": 1.0,
+    "old_spectrum_max_relative_error": 0.0
+  }
+]

@@ -17459,7 +17459,8 @@ class BamPythia2p8BHUnit300B(
     force_final_checkpoint = TrainPythia.force_final_checkpoint
     sharding_tolerance = .06
     compare_runs = ['Pythia_2.8B_2022', 'Pythia_6.9B_2022_Decay',
-                    'PileMUDDPythia3BPlusOcdbtv6e', 'BamPythia2p8BSotaIndependentR768Pallas']
+                    'PileMUDDPythia3BPlusOcdbtv6e', 'BamPythia2p8BSotaIndependentR768Pallas',
+                    'MuddPythia3BSerialMLPKeepActivations']
 
 
 

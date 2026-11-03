@@ -17503,6 +17503,11 @@ class BamPythia2p8BHUnit300BFastKernelMPreNormQKScale(BamPythia2p8BHUnit300BFast
     settings and GELU widths7808/2944/tail9984. Only32 parameters are added
     (2775190944 total,0.00000488 W_Q), with no MLP repayment or new M-cache.
     """
+    # 1675b1b (per-c Q/K scale rows) exceeds the fused reverse VMEM on v5p-256: 63.71M vs 63.00M limit.
+    # code_commit: bb7cedf; per-head Q/K and V/O scales fold into the read gate (no per-c work).
+    # v5p-8 paired (8/device, 32 layers): FastKernel .7040, +pre-norm .6900 (-2.0%), this .6880 (-2.3%);
+    # V/O scale cost ~0 (no-V/O arm .7030). The fold also sped the parent from .687 (per-c V/O rows).
+    # AOT_READY v5p-256/s143000: gs://newproject-1-llm_base_models_us-central1/log/compiled_trainsteps/bb7cedf/jax081-i0ae3f58-c17f538a/v5p-256/s143000/
     model_name = 'BamPythia2p8BHUnit300BFastKernelMPreNormQKScale'
     bam_m_read_norm = 'rms'
     bam_common_qk_read_scale = True
@@ -17534,6 +17539,8 @@ class BamPythia2p8BHUnitShortTrainFastKernelMPreNormQKScale(BamPythia2p8BHUnitSh
     plan and1/sqrt(80) logit multiplier. Full100-dimensional QKNorm, FastKernel,
     widths7808/2944/tail9984 and M-cache remain unchanged; add32 parameters only.
     """
+    # code_commit: bb7cedf; same kernel/speed as the 300B variant (see above).
+    # AOT_READY v5p-256/s28000: gs://newproject-1-llm_base_models_us-central1/log/compiled_trainsteps/bb7cedf/jax081-i0ae3f58-c17f538a/v5p-256/s28000/
     model_name = 'BamPythia2p8BHUnitShortTrainFastKernelMPreNormQKScale'
     bam_m_read_norm = 'rms'
     bam_common_qk_read_scale = True
@@ -17543,6 +17550,10 @@ class BamPythia2p8BHUnitShortTrainFastKernelMPreNormQKScale(BamPythia2p8BHUnitSh
 
 class _PythiaMPreNormSpeedProfile(TrainStepProfile):
     """v5p-8 paired speed arm: 32 layers, 8/device, inherited minimal_save_splash remat and health."""
+    # UC1a 2cecc14 (per-c Q/K rows): parent .6870, pre-norm .6760, QK scale .6700 (read fwd +4.7, bwd +3.7 ms).
+    # UE5a bb7cedf (gate fold): parent .7040, no-V/O .7030, pre-norm .6900, QK scale .6880.
+    # Pre-norm cost is in the read kernels: fwd 74.0 -> 93.3 ms, bwd 69.4 -> 78.5 ms per step.
+    # Traces: /data0/xd/bam_diagnostics/pythia-prenorm-qkscale/prof8{,b}.
     target_train_batch_size = None
     per_device_batch_size = 8.0  # V64 profile: minimal remat at 16/device exceeds v5p-8 HBM.
     steps = 100

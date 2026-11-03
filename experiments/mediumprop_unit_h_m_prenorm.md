@@ -125,3 +125,22 @@ The old BF16 training-objective fixture mistakenly treated Transformer's returne
 For the2.8B pre-norm combination's deliberately zero/negative Q/K-scale stress case: complete-gradient relativeL2 versus F32 is native.27263005 / Pallas.07068237; the same Pallas model without the new Q/K scalar is.06889777. Thus the new scalar increases relative-L2 error by.00178460 (0.17846 percentage points, about2.6% relative) over its same-kernel control, and remains within the pre-existing25% relative-control allowance. A fixed5% cap calibrated on a different reduced model would reject the matched control itself, so real-training probes accept the larger of the ordinary5% allowance and1.25 times measured same-kernel control error; the measured values remain explicit. Mean native/Pallas training-CE difference.00455213, full token-loss relativeL2.01084635; F32 outputs/all gradients satisfy the existing tight oracle bounds. These are stress-fixture results, not a training-trajectory or TPU-throughput claim.
 
 Validation manifest and exact metrics: `/data0/xd/bam_diagnostics/mediumprop-unit-h-m-prenorm/merge-main-20261103/validation.json`. No new AOT or training RUN was launched.
+
+
+## 2.8B Q/K-scale VMEM fix and speed (claude, branch claude/pythia-prenorm-qkscale-vmem)
+
+The per-arm [N,V] Q/K scale port at 1675b1b doubled the fused reverse's per-c scale-gradient scratch (2NP to 4NP rows, 2 MiB); the v5p-256 AOT failed with `Scoped allocation with size 63.71M and limit 63.00M`. CPU interpret checks cannot detect this.
+
+Fix: common Q/K and V/O scalars are passed per head ([N], constant over V). Both v8t kernels fold such scales into the [R,T] gate once; the gate, key and scale gradients follow from the c-summed accumulator after the loop. There is no per-c scratch or multiply. Per-coordinate scales (for example a dynamic-O gamma) keep the per-c path. Math is unchanged: kernel per-head vs broadcast outputs and all gradients agree to 1e-5. The formal 2.8B BF16 probe is unchanged (Pallas .0707, native .2726, CE delta .00455).
+
+v5p-8 paired profiles (8/device, 32 layers):
+
+| arm | 2cecc14 (per-c rows) | bb7cedf (gate fold) |
+|---|---:|---:|
+| FastKernel parent | .6870 | .7040 |
+| parent without V/O scale | | .7030 |
+| + whole-M pre-norm | .6760 | .6900 |
+| + pre-norm + Q/K scale (formal) | .6700 | .6880 |
+
+The formal class runs 2.3% slower than FastKernel. Pre-norm accounts for 2.0% (read fwd 74.0 to 93.3 ms, bwd 69.4 to 78.5 ms), Q/K scale for 0.3%, and the V/O scale for about 0. Folding the existing V/O scale into the gate also makes the parent configuration faster than its per-c implementation. v5p-256 AOT_READY at bb7cedf for s143000 and s28000.
+

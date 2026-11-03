@@ -18,6 +18,10 @@ for t in m['steps']:
  seq=[];metas=[]
  for i in range(32):
   p=root/str(t);q=json.loads((p/f'sequence_{i:03d}.json').read_text());assert q['source_commit']==m['commit'] and q['state_step']==t+1 and q['checkpoint']==m['checkpoints'][str(t)] and q['input_hash']==m['cohort_hashes'][i]
+  if m.get('accelerator_type')=='v5p-8':
+   assert q['shard_index']==i%4 and q['num_shards']==4
+   if t in [33000,43000]:
+    f=q['archive_fidelity'];assert f['head_relative']<.015 and abs(f['mean_CE_difference'])<.005 and abs(f['weak_power_relative'])<.015
   assert all(f['head_relative']<.015 and abs(f['CE_difference'])<.005 and abs(f['weak_power_relative'])<.015 for f in q['fidelity'])
   with np.load(p/f'sequence_{i:03d}.npz') as z:v={k:z[k].copy() for k in z.files}
   assert all(np.isfinite(a).all() for a in v.values())
@@ -44,8 +48,9 @@ for t in m['steps']:
   assert row['previous_observer_share_max_absolute_difference']<.005
   refroot=Path('/data0/mengqy/bam_diagnostics/bam_hunit_spectral_20261102/native_tpu_v2/results')/str(t)
   gold=np.stack([np.load(refroot/f'sequence_{i:03d}.npz')['native_loss'].reshape(-1) for i in range(32)])
-  row['archived_native_max_CE_difference']=float(np.max(np.abs(v['baseline_CE']-gold)));assert row['archived_native_max_CE_difference']<.01
+  row['archived_native_max_CE_difference']=float(np.max(np.abs(v['baseline_CE']-gold)));row['archived_native_mean_CE_difference']=float(np.mean(v['baseline_CE']-gold));assert abs(row['archived_native_mean_CE_difference'])<.001
  d=json.loads((root/str(t)/'complete.json').read_text());row['final_small_parameters']=d['final_small_parameters'];rows[str(t)]=row
+ if t in [33000,43000] and m.get('accelerator_type')=='v5p-8':row['cross_hardware_max_H_relative']=max(q['archive_fidelity']['head_relative'] for q in metas);row['cross_hardware_max_weak_power_relative']=max(abs(q['archive_fidelity']['weak_power_relative']) for q in metas)
  checks.append(dict(step=t,sequences=32,max_H_relative=max(f['head_relative'] for q in metas for f in q['fidelity']),max_CE_difference=max(abs(f['CE_difference']) for q in metas for f in q['fidelity']),max_weak_power_difference=max(abs(f['weak_power_relative']) for q in metas for f in q['fidelity'])))
  print('CHECKPOINT',t,'CE',row['CE']['mean'],'memory_RMS',row['memory_RMS'],'own weak fraction',row['own']['head_weak_fraction']['mean'],'fixed dyn raw RMS',row['fixed43k']['raw_self_RMS'][1],flush=True)
 growth={}

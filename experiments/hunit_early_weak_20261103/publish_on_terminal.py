@@ -1,10 +1,12 @@
 """Publish only independently verified inference, or mark the real terminal failure."""
 from pathlib import Path
+from run_identity import same_attempt
 import json,os,subprocess,time,tarfile
-R=Path(__file__).resolve().parent;env=dict(os.environ,OPENBLAS_NUM_THREADS='4');end=time.time()+100*60
+R=Path(__file__).resolve().parent;manifest=json.loads((R/'arms.json').read_text());env=dict(os.environ,OPENBLAS_NUM_THREADS='4');end=time.time()+100*60
 while time.time()<end:
  try:s=json.loads((R/'state.json').read_text())
  except (FileNotFoundError,json.JSONDecodeError):time.sleep(20);continue
+ if not same_attempt(s,manifest):time.sleep(5);continue
  if s.get('resources_released') and s['phase'] in ['verified_resources_released','failed_resources_released']:break
  time.sleep(20)
 else:raise TimeoutError('No verified resource closeout; refusing to claim success')
@@ -19,13 +21,13 @@ if s['phase']=='verified_resources_released':
  subprocess.run(['python3',str(R/'publish.py')],env=env,check=True)
 else:subprocess.run(['python3',str(R/'publish_head_progress.py')],env=env,check=True)
 subprocess.run(['node',str(R/'check_page.cjs')],env=env,check=True)
-m=json.loads((R/'arms.json').read_text());D=R.parents[1]/'sites/bam-mudd-head-activation-20261023/dist/shorttrain/no-self-readout/hunit-spectral/write-origin/early-trajectory'
+m=manifest;D=R.parents[1]/'sites/bam-mudd-head-activation-20261023/dist/shorttrain/no-self-readout/hunit-spectral/write-origin/early-trajectory'
 for p in [R/'state.json',R/'resource-audit.json']:
  if p.exists():(D/'assets'/p.name).write_bytes(p.read_bytes())
 archive=R/'report_bundle.tar.gz'
 with tarfile.open(archive,'w:gz') as tar:
  tar.add(D,arcname='early-trajectory')
- for name in ['arms.json','head_inventory.py','collect_analyze.py','publish.py','publish_head_progress.py','publish_on_terminal.py','head_verification.json','gamma_isotropic_control.json','resource-audit.json','state.json','page_checks.json']:
+ for name in ['arms.json','head_inventory.py','collect_analyze.py','publish.py','publish_head_progress.py','publish_on_terminal.py','head_verification.json','gamma_isotropic_control.json','resource-audit.json','state.json','page_checks.json','run_identity.py','test_run_identity.py','worker_jobs.py']:
   if (R/name).exists():tar.add(R/name,arcname='run/'+name)
 subprocess.run(['/home/mengqy/google-cloud-sdk/bin/gsutil','-q','cp',str(archive),m['gcs_root']+'/report_bundle.tar.gz'],check=True)
 (R/'publication_state.json').write_text(json.dumps(dict(utc=time.time(),phase=s['phase'],native_analysis_complete=s['phase']=='verified_resources_released',page=str(D/'index.html'),url='http://172.29.142.228:8873/shorttrain/no-self-readout/hunit-spectral/write-origin/early-trajectory/',checks_passed=True),indent=2)+'\n');print('TERMINAL_REPORT_PUBLISHED',s['phase'],flush=True)

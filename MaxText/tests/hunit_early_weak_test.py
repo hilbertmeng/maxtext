@@ -9,7 +9,7 @@ from bam_fast_kernel_test import FastKernelTest,FAST
 from hunit_write_origin import WriteObserver,LastReadAblation,BoundaryObserver,aggregate,aggregate_boundaries
 from head_spectral_diagnostic import precise_cross_entropy
 
-from hunit_early_weak_probe import MemoryObserver
+from hunit_early_weak_probe import MemoryObserver,memory_values
 
 def main():
  t=FastKernelTest();t.setUp()
@@ -25,7 +25,7 @@ def main():
    def observed(p):
     observer=MemoryObserver(u,gamma)
     with observer.observe():out,collection=model.apply(p,x,pos,y,seg,enable_dropout=False,mutable=['intermediates'])
-    r=aggregate(observer,collection,gamma,bias);r.update(observer.memory_stats);return out[0],r
+    r=aggregate(observer,collection,gamma,bias);r.update(memory_values(collection));return out[0],r
    loss,s=observed(v);np.testing.assert_array_equal(loss,native);assert s['head_allocation'].shape==(3,7);assert s['memory_token_power'].shape==(1,128);assert np.isfinite(s['memory_token_power']).all();assert np.all(s['memory_data_centered_power']<=s['memory_token_power']+1e-5)
    print('LEDGER_CHECK', {k:np.asarray(s[k]).tolist() for k in ['head_allocation_closure','raw_allocation_closure','projection_ledger_relative_error','layer_continuity_max','head_total_power','raw_total_power']},flush=True)
    assert abs(float(s['head_allocation_closure']))<2e-5 and abs(float(s['raw_allocation_closure']))<2e-5
@@ -34,7 +34,7 @@ def main():
    def final_only(p):
     observer=MemoryObserver(u,gamma,last_only=True)
     with observer.observe():out,collection=model.apply(p,x,pos,y,seg,enable_dropout=False,mutable=['intermediates'])
-    r=aggregate(observer,collection,gamma,bias);r.update(observer.memory_stats);return out[0],r
+    r=aggregate(observer,collection,gamma,bias);r.update(memory_values(collection));return out[0],r
    fl,fs=final_only(v);np.testing.assert_array_equal(fl,native);assert fs['head_allocation'].shape==(1,7) and abs(float(fs['head_allocation_closure']))<2e-5
    @jax.jit
    def boundary_only(p):

@@ -7,7 +7,7 @@ from flax import linen as nn
 from flax.traverse_util import unflatten_dict
 import exp,max_utils,pyconfig,head_spectral_diagnostic as hd
 from layers.models import Transformer
-from hunit_write_origin import WriteObserver,LastReadAblation,BoundaryObserver,aggregate,aggregate_boundaries,NAMES
+from hunit_write_origin import WriteObserver,LastReadAblation,BoundaryObserver,aggregate,aggregate_boundaries,NAMES,layers
 _STORES={}
 def blob(uri,value=None,missing=False):
  prefix,key=uri.rsplit('/',1)
@@ -28,10 +28,24 @@ class MemoryObserver(WriteObserver):
   if self.active is not None:
    memory=hd.BF16_round(args[0]);assert memory.ndim==4
    # v8t memory is B,T,address,data; keep the token dimension for quantiles.
-   self.memory_stats=dict(memory_token_power=jnp.mean(memory*memory,(-2,-1)),memory_token_mean=jnp.mean(memory,(-2,-1)),memory_data_centered_power=jnp.mean((memory-memory.mean(-1,keepdims=True))**2,(-2,-1)))
+   self.active['memory_stats']=dict(memory_token_power=jnp.mean(memory*memory,(-2,-1)),memory_token_mean=jnp.mean(memory,(-2,-1)),memory_data_centered_power=jnp.mean((memory-memory.mean(-1,keepdims=True))**2,(-2,-1)))
    static=self.active['mo_static'].astype(jnp.float32);total=out[3].astype(jnp.float32);dyn=total-static
-   self.memory_stats['read_three_power']=jnp.stack([jnp.mean(a*a,(0,1,3)) for a in [dyn,static,total]])
+   self.active['memory_stats']['read_three_power']=jnp.stack([jnp.mean(a*a,(0,1,3)) for a in [dyn,static,total]])
   return out
+
+ def interceptor(self,next_fun,args,kw,ctx):
+  mod=ctx.module
+  if mod.__class__.__name__=='SubDecoderLayer' and ctx.method_name=='__call__' and (not self.last_only or any('final_local_layer' in p for p in mod.scope.path)):
+   def captured(*a,**k):
+    out=next_fun(*a,**k)
+    for name,value in self.active['memory_stats'].items():mod.sow('intermediates','memory_'+name,value)
+    return out
+   return super().interceptor(captured,args,kw,ctx)
+  return super().interceptor(next_fun,args,kw,ctx)
+
+MEMORY_NAMES=['memory_token_power','memory_token_mean','memory_data_centered_power','read_three_power']
+def memory_values(collection):
+ return {name:layers(collection,'memory_'+name)[-1] for name in MEMORY_NAMES}
 
 def main():
  p=argparse.ArgumentParser()
@@ -67,7 +81,7 @@ def main():
  def focused(params,x,y,basis):
   g=params['params']['decoder']['lm_head']['decoder_norm']['scale'];b=params['params']['decoder']['lm_head']['decoder_norm']['bias'];observer=MemoryObserver(basis,g,last_only=True)
   with mesh,nn.partitioning.axis_rules(cfg.logical_axis_rules),observer.observe():out,coll=model.apply(params,x,jnp.broadcast_to(jnp.arange(2048),x.shape),decoder_target_tokens=y,decoder_target_mask=jnp.ones_like(x),decoder_segment_ids=jnp.ones_like(x),enable_dropout=False,rngs={'params':rng,'dropout':rng,'aqt':rng},mutable=['intermediates'])
-  result=aggregate(observer,coll,g,b,cfg.normalization_layer_epsilon);result.update(observer.memory_stats)
+  result=aggregate(observer,coll,g,b,cfg.normalization_layer_epsilon);result.update(memory_values(coll))
   return out[0],result
  @jax.jit
  def causal(params,x,y,mode,reference_h):

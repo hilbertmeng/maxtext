@@ -105,3 +105,22 @@ class LastReadAblation:
  @contextmanager
  def observe(self):
   with mock.patch.object(bam_pallas,'read',self.read),mock.patch.object(attentions,'_bam_splash_attention',self.splash),nn.intercept_methods(self.interceptor):yield self
+
+class BoundaryObserver(WriteObserver):
+ """Observe only physical layer carry boundaries; no internal attention/FFN consumers."""
+ def interceptor(self,next_fun,args,kw,ctx):
+  m=ctx.module
+  if m.__class__.__name__=='SubDecoderLayer' and ctx.method_name=='__call__':
+   before=args[0];out=next_fun(*args,**kw);m.sow('intermediates','boundary_before',self.project(before));m.sow('intermediates','boundary_after',self.project(out[0]));return out
+  if m.__class__.__name__=='LayerNorm' and ctx.method_name=='__call__' and m.name=='decoder_norm' and 'lm_head' in m.scope.path:
+   self.raw=args[0];out=next_fun(*args,**kw);self.h=out;return out
+  return next_fun(*args,**kw)
+
+def aggregate_boundaries(observer,collection,gamma,bias,epsilon=1e-5):
+ u=observer.u;r=u.shape[1];raw=BF16_round(observer.raw);h=BF16_round(observer.h);d=raw.shape[-1];xc=raw-raw.mean(-1,keepdims=True);inv=jax.lax.rsqrt(jnp.mean(xc*xc,-1)+epsilon);mm=lambda a,b:jnp.matmul(a,b,precision=jax.lax.Precision.HIGHEST)
+ before=layers(collection,'boundary_before');after=layers(collection,'boundary_after');delta=after-before;zraw=mm(xc,u);zh=mm(h,u);hp=delta[...,r:]*inv[None,...,None];rp=delta[...,:r]
+ inner=lambda a,b:jnp.mean(jnp.sum(a*b,-1),axis=(-2,-1))/d
+ power=lambda a:jnp.mean(jnp.sum(a*a,-1),axis=(-2,-1))/d
+ beta=jnp.broadcast_to(mm(bias,u),zh.shape);rounding=zh-mm(xc*gamma,u)*inv[...,None]-beta;extra=jnp.stack([inner(before[0,...,r:]*inv[...,None],zh),inner(beta,zh),inner(rounding,zh)])
+ alloc=inner(hp,zh);raw_alloc=inner(rp,zraw);continuity=after[:-1]-before[1:]
+ return dict(head_allocation=alloc,raw_allocation=raw_alloc,head_self_power=power(hp),raw_self_power=power(rp),head_total_power=power(zh),raw_total_power=power(zraw),extra_head_allocation=extra,embedding_raw_allocation=inner(before[0,...,:r],zraw),head_allocation_closure=(alloc.sum()+extra.sum())/power(zh)-1,raw_allocation_closure=(raw_alloc.sum()+inner(before[0,...,:r],zraw))/power(zraw)-1,layer_continuity_relative_error=jnp.sqrt(jnp.sum(continuity**2)/jnp.maximum(jnp.sum(before[1:]**2),1e-30)),raw=raw,h=h)

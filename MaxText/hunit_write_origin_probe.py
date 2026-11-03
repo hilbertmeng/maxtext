@@ -7,7 +7,7 @@ from flax import linen as nn
 from flax.traverse_util import unflatten_dict
 import exp,max_utils,pyconfig,head_spectral_diagnostic as hd
 from layers.models import Transformer
-from hunit_write_origin import WriteObserver,LastReadAblation,aggregate,NAMES
+from hunit_write_origin import WriteObserver,LastReadAblation,BoundaryObserver,aggregate,aggregate_boundaries,NAMES
 _STORES={}
 def blob(uri,value=None,missing=False):
  prefix,key=uri.rsplit('/',1)
@@ -56,6 +56,11 @@ def main():
   with mesh,nn.partitioning.axis_rules(cfg.logical_axis_rules),observer.observe():out,coll=model.apply(params,x,jnp.broadcast_to(jnp.arange(2048),x.shape),decoder_target_tokens=y,decoder_target_mask=jnp.ones_like(x),decoder_segment_ids=jnp.ones_like(x),enable_dropout=False,rngs={'params':rng,'dropout':rng,'aqt':rng},mutable=['intermediates'])
   return out[0],aggregate(observer,coll,g,b,cfg.normalization_layer_epsilon)
  @jax.jit
+ def boundaries(params,x,y):
+  g=params['params']['decoder']['lm_head']['decoder_norm']['scale'];b=params['params']['decoder']['lm_head']['decoder_norm']['bias'];observer=BoundaryObserver(u,g)
+  with mesh,nn.partitioning.axis_rules(cfg.logical_axis_rules),observer.observe():out,coll=model.apply(params,x,jnp.broadcast_to(jnp.arange(2048),x.shape),decoder_target_tokens=y,decoder_target_mask=jnp.ones_like(x),decoder_segment_ids=jnp.ones_like(x),enable_dropout=False,rngs={'params':rng,'dropout':rng,'aqt':rng},mutable=['intermediates'])
+  return out[0],aggregate_boundaries(observer,coll,g,b,cfg.normalization_layer_epsilon)
+ @jax.jit
  def causal(params,x,y,mode,reference_h):
   observer=LastReadAblation(mode)
   with mesh,nn.partitioning.axis_rules(cfg.logical_axis_rules),observer.observe():out=model.apply(params,x,jnp.broadcast_to(jnp.arange(2048),x.shape),decoder_target_tokens=y,decoder_target_mask=jnp.ones_like(x),decoder_segment_ids=jnp.ones_like(x),enable_dropout=False,rngs={'params':rng,'dropout':rng,'aqt':rng})
@@ -73,7 +78,7 @@ def main():
    with np.load(io.BytesIO(blob(source+'.npz'))) as z:x=z['inputs'].copy();y=z['targets'].copy();goldh=z['h'].copy();goldloss=z['native_loss'].copy();goldraw=z['raw'].copy()
    tokens=np.concatenate([x[0],y[0,-1:]]).astype(np.int32);assert hashlib.sha256(tokens.tobytes()).hexdigest()==m['cohort_hashes'][i]
    tick=time.time();loss,s=feature(params,jnp.asarray(x),jnp.asarray(y));loss,s=jax.device_get((loss,s));seconds=time.time()-tick
-   h=s.pop('h');raw=s.pop('raw');relative=float(np.linalg.norm(h-goldh)/np.linalg.norm(goldh));raw_relative=float(np.linalg.norm(raw-goldraw)/np.linalg.norm(goldraw));drift=float(loss.mean()-goldloss.mean());assert relative<.03 and abs(drift)<.005,('Full-depth diagnostic variant exceeds3% replay gate',step,i,relative,drift)
+   h=s.pop('h');raw=s.pop('raw');relative=float(np.linalg.norm(h-goldh)/np.linalg.norm(goldh));raw_relative=float(np.linalg.norm(raw-goldraw)/np.linalg.norm(goldraw));drift=float(loss.mean()-goldloss.mean());full_depth_accepted=relative<.03 and abs(drift)<.005
    metrics={k:float(s[k]) for k in ['head_allocation_closure','raw_allocation_closure','projection_ledger_relative_error','layer_continuity_max','layer_continuity_relative_error']};print('WRITE_ORIGIN_LEDGER',step,i,metrics,flush=True)
    assert s['head_allocation'].shape==(32,7);assert abs(s['head_allocation_closure'])<2e-4 and abs(s['raw_allocation_closure'])<2e-4 and s['projection_ledger_relative_error']<1e-4 and s['layer_continuity_relative_error']<2e-6,(step,i,'Attribution ledger does not close',metrics)
    assert all(np.isfinite(v).all() for v in s.values())
@@ -81,11 +86,16 @@ def main():
    assert frel<.015 and abs(fdrift)<.005,('Independent final-only observation failed original strict gate',step,i,frel,fdrift)
    assert f['head_allocation'].shape==(1,7) and abs(f['head_allocation_closure'])<2e-4 and f['projection_ledger_relative_error']<1e-4
    s.update({'focus_'+k:v for k,v in f.items()});s['focus_native_CE']=np.asarray(focused_loss).reshape(-1)
+   boundary_loss,bs=jax.device_get(boundaries(params,jnp.asarray(x),jnp.asarray(y)));bh=bs.pop('h');br=bs.pop('raw');brel=float(np.linalg.norm(bh-goldh)/np.linalg.norm(goldh));bdrift=float(boundary_loss.mean()-goldloss.mean())
+   print('WRITE_ORIGIN_BOUNDARY_FIDELITY',step,i,brel,bdrift,flush=True)
+   assert brel<.015 and abs(bdrift)<.005 and abs(bs['head_allocation_closure'])<2e-4 and bs['layer_continuity_relative_error']<2e-6,('Strict layer-boundary observation failed',step,i,brel,bdrift)
+   s.update({'boundary_'+k:v for k,v in bs.items()});s['boundary_native_CE']=np.asarray(boundary_loss).reshape(-1)
    cf=[jax.device_get(causal(params,jnp.asarray(x),jnp.asarray(y),jnp.asarray(mode,jnp.int32),jnp.asarray(fh))) for mode in range(3)]
    assert float(cf[0][4])<.015 and abs(float(cf[0][0].mean()-loss.mean()))<.005,('Causal keep mismatch',step,i)
    s.update(causal_CE=np.stack([q[0].reshape(-1) for q in cf]),causal_head_weak_power=np.array([q[1] for q in cf]),causal_head_RMS=np.array([q[2] for q in cf]),causal_raw_RMS=np.array([q[3] for q in cf]),causal_head_relative_to_observed=np.array([q[4] for q in cf]))
    path=folder/(stem+'.npz');np.savez_compressed(path,**s);emit(path,uri+'/'+path.name)
    marker=dict(source_commit=commit,training_commit=m['training_commit'],checkpoint=identity['checkpoint'],state_step=identity['state_step'],label_step=step,sequence=i,input_hash=m['cohort_hashes'][i],native_CE=float(loss.mean()),archival_CE=float(goldloss.mean()),CE_replay_difference=drift,head_relative_RMS=relative,raw_relative_RMS=raw_relative,focused_head_relative_RMS=frel,focused_CE_replay_difference=fdrift,head_allocation_closure=float(s['head_allocation_closure']),raw_allocation_closure=float(s['raw_allocation_closure']),projection_ledger_relative_error=float(s['projection_ledger_relative_error']),layer_continuity_max=float(s['layer_continuity_max']),seconds=seconds)
+   marker.update(full_depth_fidelity_accepted=bool(full_depth_accepted),boundary_head_relative_RMS=brel,boundary_CE_replay_difference=bdrift)
    path=folder/(stem+'.json');path.write_text(json.dumps(marker,indent=2)+'\n');emit(path,uri+'/'+path.name);rows.append(marker);print('WRITE_ORIGIN_CASE_COMPLETE',step,i,'CE',marker['native_CE'],'Hrel',relative,'seconds',seconds,flush=True)
   result=dict(source_commit=commit,checkpoint=identity['checkpoint'],state_step=identity['state_step'],sequences=32,sequence_hashes=m['cohort_hashes'],components=NAMES,fixed_basis_checkpoint=43000,checked_configuration_keys=checked,sequence=rows);path=folder/'complete.json';path.write_text(json.dumps(result,indent=2)+'\n');emit(path,uri+'/complete.json');all_results[str(step)]=result;del params;gc.collect();print('WRITE_ORIGIN_CHECKPOINT_COMPLETE',step,flush=True)
  result=dict(source_commit=commit,device_kind=jax.devices()[0].device_kind,jax_version=jax.__version__,steps=m['steps'],cases=64,checkpoints=all_results,scope='Native Pallas/Splash inference only. Fixed43k Wc bottom128 basis. Signed inner-product allocation of actual residual writes, both centered pre-LN and frozen final-LN denominator mapping. Static Mo uses same native read with dynamic O scale zero; dynamic is total minus static. Full FP32 Wo linear decomposition, native bias and rounding accounted separately. Direct write consumers, not upstream memory writer causality or retraining benefit.')

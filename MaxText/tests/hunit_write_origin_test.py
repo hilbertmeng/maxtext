@@ -6,7 +6,7 @@ from jax.experimental.pallas.ops.tpu.splash_attention import splash_attention_ke
 from layers.models import Transformer
 import max_utils
 from bam_fast_kernel_test import FastKernelTest,FAST
-from hunit_write_origin import WriteObserver,LastReadAblation,aggregate
+from hunit_write_origin import WriteObserver,LastReadAblation,BoundaryObserver,aggregate,aggregate_boundaries
 from head_spectral_diagnostic import precise_cross_entropy
 
 def main():
@@ -34,6 +34,12 @@ def main():
     with observer.observe():out,collection=model.apply(p,x,pos,y,seg,enable_dropout=False,mutable=['intermediates'])
     return out[0],aggregate(observer,collection,gamma,bias)
    fl,fs=final_only(v);np.testing.assert_array_equal(fl,native);assert fs['head_allocation'].shape==(1,7) and abs(float(fs['head_allocation_closure']))<2e-5
+   @jax.jit
+   def boundary_only(p):
+    observer=BoundaryObserver(u,gamma)
+    with observer.observe():out,collection=model.apply(p,x,pos,y,seg,enable_dropout=False,mutable=['intermediates'])
+    return out[0],aggregate_boundaries(observer,collection,gamma,bias)
+   bl,bs=boundary_only(v);np.testing.assert_array_equal(bl,native);assert bs['head_allocation'].shape==(3,) and abs(float(bs['head_allocation_closure']))<2e-5
    @jax.jit
    def controlled(p,mode):
     observer=LastReadAblation(mode)

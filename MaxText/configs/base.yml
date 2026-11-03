@@ -81,6 +81,9 @@ logits_via_embedding: False
 normalize_embedding_logits: True  # whether to normlize pre-softmax logits if logits_via_embedding is true
 logits_dot_in_fp32: False  # whether to use fp32 in logits_dense or shared_embedding dot product for stability
 cast_logits_to_fp32: True # whether to cast the logits to fp32. The higher precision is generally beneficial, but it can vary slightly.
+logits_fp32_output_bf16_backward: False # BF16 head operands, FP32 accumulator output/CE, BF16 backward dot operands; independent of the final upcast switch.
+record_logits_health_metrics: False # Only main-head common-offset P95 and centered-std median; independent of internal/generic health switches.
+logits_health_sample_size: 128 # Fixed stratified logical-global token samples per microbatch, pooled across loss chunks and gradient accumulation; padding excluded.
 float32_qk_product: False # in dot_product attention, whether to cast to fp32 the inputs to qk product
 float32_logits: True # in dot_product attention, whether to cast to fp32 the inputs to softmax
 

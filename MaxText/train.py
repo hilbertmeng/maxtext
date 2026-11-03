@@ -376,6 +376,17 @@ def save_checkpoint(
 # lsp
 
 
+def record_logits_health_metrics(output_metrics, intermediate_outputs, prefix=''):
+  """Export two global quantiles from pooled main-head samples, never MTP."""
+  from layers import logits as logits_utils
+  head = intermediate_outputs.get('intermediates', {}).get('decoder', {}).get('lm_head', {})
+  values = head.get(logits_utils.HEALTH_SAMPLE_KEY)
+  if values is not None:
+    summary = logits_utils.summarize_health(values[0])
+    output_metrics['scalar'].update((prefix + name, value)
+                                    for name, value in zip(logits_utils.HEALTH_METRIC_NAMES, summary))
+
+
 def record_rmt_dynamic_health_metrics(output_metrics, intermediate_outputs, config):
   """Export per-layer dynamic RMT read/write amplitudes and gate openings."""
   from layers import rmt
@@ -1066,6 +1077,9 @@ def train_step(model, config, state_mesh_shardings, state, data, dropout_rng):
       "scalars": {},
   }
 
+  if getattr(config, 'record_logits_health_metrics', False):
+    record_logits_health_metrics(metrics, intermediate_outputs)
+
   if (getattr(config, 'bam_record_concat_health', False) or getattr(config, 'bam_record_m_shift_health', False)
       or (getattr(config, 'bam_context_local_o_complement', False) and config.record_training_health_metrics)):
     record_bam_concat_health_metrics(metrics, intermediate_outputs, config)
@@ -1121,6 +1135,9 @@ def eval_step(model, config, state, data, dropout_rng):
   }
   if config.use_dpo:
     metrics["scalar"]["evaluation/dpo_reward_accuracy"] = aux["reward_accuracy"]
+
+  if getattr(config, 'record_logits_health_metrics', False):
+    record_logits_health_metrics(metrics, aux['intermediate_outputs'], prefix='evaluation/')
 
   return metrics
 

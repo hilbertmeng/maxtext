@@ -33,6 +33,7 @@ from layers import linears
 from layers import normalizations, quantizations
 from layers import pipeline
 from layers import initializers
+from layers import logits as logits_utils
 import max_logging
 import re
 import max_utils
@@ -370,7 +371,12 @@ class OutputHead(nn.Module):
         logits = logits / cfg.final_logits_soft_cap
         logits = jnp.tanh(logits) * cfg.final_logits_soft_cap
     else:
-      logits = jnp.tensordot(inputs, dense_kernel, axes=((-1,), (0,)))
+      if getattr(cfg, 'logits_fp32_output_bf16_backward', False):
+        logits = logits_utils.bf16_dot_fp32_output(inputs, dense_kernel)
+      else:
+        logits = jnp.tensordot(inputs, dense_kernel, axes=((-1,), (0,)))
+    if cfg.cast_logits_to_fp32:
+      logits = logits.astype(jnp.float32)
     return logits
 
   def logits_from_hidden_states(
@@ -402,6 +408,10 @@ class OutputHead(nn.Module):
     xents = []
     correct = 0
     preds = []
+    record_logit_health = (getattr(cfg, 'record_logits_health_metrics', False)
+                           and not mtp_layer and not self.is_initializing()
+                           and self.is_mutable_collection('intermediates'))
+    health_samples = []
     # chunk_size = cfg.loss_chunk_size  # manual shard to speed up, about 1%
     if not mtp_layer:
       if self.norm is not None:
@@ -415,6 +425,9 @@ class OutputHead(nn.Module):
       logits_chunk = self.project_logits(inputs[:, chunk_slice])
       preds_chunk = jnp.argmax(logits_chunk, axis=-1)
       mask_chunk = target_mask[:, chunk_slice]
+      if record_logit_health:
+        health_samples.append(logits_utils.chunk_health_samples(
+            logits_chunk, mask_chunk, start_idx, seq_len, cfg.logits_health_sample_size))
       targets_chunk = target_tokens[:, chunk_slice]
       one_hot_targets_chunk = jax.nn.one_hot(targets_chunk, cfg.vocab_size) # must chunk
       predictions_match = jnp.argmax(logits_chunk, axis=-1) == targets_chunk
@@ -426,6 +439,9 @@ class OutputHead(nn.Module):
       )
       xents.append(xent)
       preds.append(preds_chunk)
+    if record_logit_health:
+      self.sow('intermediates', logits_utils.HEALTH_SAMPLE_KEY,
+               jnp.concatenate(health_samples, axis=0))
     xents = jnp.concatenate(xents, axis=1)
     preds = jnp.concatenate(preds, axis=1)
     return xents, correct, preds

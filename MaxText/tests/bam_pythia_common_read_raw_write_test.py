@@ -63,7 +63,9 @@ class PythiaCommonReadRawWriteTest(MLPWriteTest, unittest.TestCase):
       print('TARGET_CONFIG_BUDGET_OK', run, flush=True)
 
   def tiny(self, run, length=128, dtype='float32'):
-    c = self.config(run, dtype=dtype, weight_dtype='float32')
+    # A float32 oracle must use float32 backward, not the BF16-only head VJP.
+    overrides = {} if dtype == 'bfloat16' else {'logits_fp32_output_bf16_backward': False}
+    c = self.config(run, dtype=dtype, weight_dtype='float32', **overrides)
     c.get_keys().update(emb_dim=160, num_query_heads=2, num_kv_heads=2,
         num_decoder_layers=3, mlp_dim=32, vocab_size=32,
         bam_pallas_core=False, bam_pallas_write=False, bam_splash_attention=False,
@@ -107,10 +109,12 @@ class PythiaCommonReadRawWriteTest(MLPWriteTest, unittest.TestCase):
     pcfg = pyconfig.HyperParameters(SimpleNamespace(keys=dict(
         cfg.get_keys(), bam_pallas_core=True, bam_pallas_write=True,
         bam_pallas_interpret=True, bam_splash_attention=True, bam_pallas_fused_inputs=True)))
-    tcfg = pyconfig.HyperParameters(SimpleNamespace(keys=dict(cfg.get_keys(), dtype=jnp.float32)))
-    for c in (pcfg, tcfg):
-      for key in ('cast_logits_to_fp32', 'logits_fp32_output_bf16_backward'):
-        self.assertEqual(getattr(c, key), getattr(cfg, key), key)
+    tcfg = pyconfig.HyperParameters(SimpleNamespace(keys=dict(
+        cfg.get_keys(), dtype=jnp.float32, logits_fp32_output_bf16_backward=False)))
+    for key in ('cast_logits_to_fp32', 'logits_fp32_output_bf16_backward'):
+      self.assertEqual(getattr(pcfg, key), getattr(cfg, key), key)
+    self.assertEqual(tcfg.cast_logits_to_fp32, cfg.cast_logits_to_fp32)
+    self.assertFalse(tcfg.logits_fp32_output_bf16_backward)
     mesh = jax.sharding.Mesh(max_utils.create_device_mesh(cfg), cfg.mesh_axes)
     native, fused, truth = (Transformer(c, mesh, quant=None) for c in (cfg, pcfg, tcfg))
     tok = jax.random.randint(jax.random.key(20), (1, 128), 0, 32)

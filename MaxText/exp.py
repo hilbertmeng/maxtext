@@ -17496,14 +17496,15 @@ class BamPythia2p8BHUnit300BFastKernel(BamPythia2p8BHUnit300B):
 class BamPythia2p8BHUnit300BFastKernelMPreNormQKScale(BamPythia2p8BHUnit300BFastKernel):
     """Unit H 300B FastKernel with whole-M read pre-norm and learned V/O plus Q/K layer scales.
 
-    RMS-normalize the shifted read view in FP32 over all80x64 entries; retain
-    raw M for carry/writes. Keep the parent's32 unit-initialized V/O scales,
-    and add32 unit-initialized scalars shared by complete local Q/K before
-    full100-dimensional QKNorm. The20-dimensional standard/RoPE arms are unscaled.
-    Preserve the143000-step plan,1/sqrt(100) logits, saved-Splash FastKernel
-    settings and GELU widths7808/2944/tail9984. Only32 parameters are added
-    (2775190944 total,0.00000488 W_Q), with no MLP repayment or new M-cache.
+    RMS-normalize the shifted read view in FP32 over all 80x64 entries; retain
+    raw M for carry/writes. Keep the parent's 32 unit-initialized V/O scales,
+    and add 32 unit-initialized scalars shared by complete local Q/K before
+    full 100-dimensional QKNorm. The 20-dimensional standard/RoPE arms are unscaled.
+    Preserve the 143000-step plan, 1/sqrt(100) logits, saved-Splash FastKernel
+    settings and GELU widths 7808/2944/tail9984. Only 32 parameters are added
+    (2775190944 total, 0.00000488 W_Q), with no MLP repayment or new M-cache.
     """
+    # FP32 logits accumulator/CE with BF16 backward; monitor common offset and centered spread.
     # 1675b1b (per-c Q/K scale rows) exceeds the fused reverse VMEM on v5p-256: 63.71M vs 63.00M limit.
     # code_commit: bb7cedf; per-head Q/K and V/O scales fold into the read gate (no per-c work).
     # v5p-8 paired (8/device, 32 layers): FastKernel .7040, +pre-norm .6900 (-2.0%), this .6880 (-2.3%);
@@ -17512,8 +17513,13 @@ class BamPythia2p8BHUnit300BFastKernelMPreNormQKScale(BamPythia2p8BHUnit300BFast
     model_name = 'BamPythia2p8BHUnit300BFastKernelMPreNormQKScale'
     bam_m_read_norm = 'rms'
     bam_common_qk_read_scale = True
+    cast_logits_to_fp32 = True
+    logits_fp32_output_bf16_backward = True
+    record_logits_health_metrics = True
     # FastKernel ran under the original HUnit300B RUN; use its recorded history.
-    compare_runs = ['BamPythia2p8BHUnit300B']
+    compare_runs = ['BamPythia2p8BHUnit300B', 'Pythia_2.8B_2022',
+                    'PileMUDDPythia3BPlusOcdbtv6e',
+                    'MuddPythia3BSerialMLPKeepActivations']
 
 
 class BamPythia2p8BHUnitShortTrainFastKernel(

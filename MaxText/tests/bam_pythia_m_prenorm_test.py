@@ -21,8 +21,13 @@ class PythiaMPreNormTest(FastKernelTest):
     parent, cfg = self.config(PARENT), self.config(RUN)
     changed = {k for k, v in cfg.get_keys().items() if v != parent.get_keys().get(k)}
     self.assertEqual(changed, {'exp_class', 'model_name', 'compare_runs',
-                               'bam_m_read_norm', 'bam_common_qk_read_scale'})
-    self.assertEqual(cfg.compare_runs, ['BamPythia2p8BHUnit300B'])
+                               'bam_m_read_norm', 'bam_common_qk_read_scale',
+                               'logits_fp32_output_bf16_backward', 'record_logits_health_metrics'})
+    self.assertEqual(cfg.compare_runs, ['BamPythia2p8BHUnit300B', 'Pythia_2.8B_2022',
+                                      'PileMUDDPythia3BPlusOcdbtv6e',
+                                      'MuddPythia3BSerialMLPKeepActivations'])
+    self.assertTrue(cfg.cast_logits_to_fp32 and cfg.logits_fp32_output_bf16_backward)
+    self.assertTrue(cfg.record_logits_health_metrics)
     self.assertEqual((cfg.steps, cfg.learning_rate_schedule_steps), (143000, 143000))
     self.assertEqual(cfg.bam_qk_logit_scale_dim, 'qk_dim')
     self.assertTrue(cfg.qk_norm and cfg.bam_qk_norm_after_concat)

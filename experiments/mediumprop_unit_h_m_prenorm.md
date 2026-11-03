@@ -94,3 +94,34 @@ Complete READY leases (all v5p-16 in UE5a; no zone switches):
 | Pre-norm + V/O + Q/K scale / xd-v5p-16-310532-maxtext | 2026-11-02 15:44:51 | 2026-11-02 21:53:53 | 6h09m02s | clean completion |
 
 Kernel handoffs and the revoked speed pause retained the same physical TPU leases; neither counts as a preemption. Retained arm P2, dropped P0, QK P0. User-owned FLEX compiler remains outside this task's lifecycle ownership and is retained.
+
+
+## Main integration and2.8B FastKernel ports
+
+Integration worktree `/home/xd/projects/maxtext`, branch `refactor-bam`; no new RUN or TPU assignment.
+
+Integrated the trained f8d07cd native/Pallas whole-M read pre-norm and local-Q/K scale implementation into main, including the forward and backward kernels, zero-matrix/shift-boundary behavior and raw-M carry. The three Medium classes now resolve exactly to their trained f8d07cd effective attributes instead of native-only ledger stubs. Existing training outcomes/hashes are retained.
+
+| New configuration | Configuration parent | Actual history used by compare_runs | Plan | Q/K logit multiplier |
+|---|---|---|---:|---|
+| `BamPythia2p8BHUnit300BFastKernelMPreNormQKScale` | `BamPythia2p8BHUnit300BFastKernel` | `BamPythia2p8BHUnit300B` |143000|1/sqrt(100)|
+| `BamPythia2p8BHUnitShortTrainFastKernelMPreNormQKScale` | `BamPythia2p8BHUnitShortTrainFastKernel` | `BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOne` |28000|1/sqrt(80)|
+
+The FastKernel names are configuration names without independent training registries; the long plan previously ran under its original UnitH RUN and the short plan has the recorded original UnitH history. These are the corresponding same-math baselines, not unrelated ancestors. All other recipe attributes inherit from the selected configuration parent.
+
+Both new classes keep32 unit-initialized signed common V/O scales and add32 unit-initialized signed common Q/K scales (one per layer shared by Q and K). Whole-M read RMS is computed in FP32 over the80x64 logical entries **after** M-shift; all dynamic/static M reads use this normalized view. Carry/writes still use raw M. Epsilon inherits the parent's normalization epsilon1e-5 (the Medium runs use1e-6); no new epsilon mechanism is introduced. The Q/K scalar multiplies only the local80-dimensional read before the complete100-dimensional QKNorm; the standard20-dimensional projections do not receive this multiplier. V/O scaling still multiplies the complete V/localO reads.
+
+Added parameters32, total2775190944 versus parent2775190912 (0.00000488 W_Q total). Ordinary/private/tail GELU widths7808/2944/9984 remain unchanged and128-aligned; no MLP repayment is needed for32 scalars. First31 layers retain single-layer scan and the explicit final layer. Inference M-cache, original initialization, all existing write settings, optimizer/LR plan, health defaults and matched FastKernel controls remain inherited. Signed values and raw-gradient norms for both scale families remain available through generic health; scale WD remains zero.
+
+The existing fused-QKNorm path rejected a common Q/K scalar. Preserve fusion by using v8t's existing per-arm dynamic scales and scaled static Q/K weights, so the read's Q/K outputs already include the scalar when the fused norm computes its full-head RMS. This includes the scalar's square in the denominator and its complete gradient, including zero/negative coefficients; standard/RoPE inputs remain unchanged. No separate XLA norm pass or further kernel ABI change beyond the imported pre-norm/per-arm-scale support is required. Keep2.8B's packed keys, fused full-head QKNorm, saved Splash residuals, minimal_save_splash remat and63MiB VMEM setting; do not transplant Medium's full-remat preference to this different model.
+
+This task writes/merges code only: no2.8B RUN is started and no new target AOT is prepared. CPU interpret checks validate numerical paths; target-topology TPU compilation/VMEM confirmation remains part of the normal future AOT launch gate. Source/config comparison and CPU artifacts are under `/data0/xd/bam_diagnostics/mediumprop-unit-h-m-prenorm/merge-main-*20261103/`.
+
+
+Integration validation:72 unique pinned-CPU checks passed:47 shared BAM,5 native pre-norm,3 local-Q/K scale,6 Pallas pre-norm,5 existing Pythia Q/K-scale regressions,4 new2.8B checks (both recipes/budget/health, F32 full gradients and BF16 training loss), plus2 existing adapter BF16 training-loss checks after repairing their shared fixture.
+
+The old BF16 training-objective fixture mistakenly treated Transformer's returned per-token cross entropies as logits and applied softmax again. Its training-mode probe now uses actual next-token targets/masks and averages those cross entropies once. BF16 and F32 references use the same representable parameter point. The precision probe is one unpacked sequence; packed integer segment cotangents expose a separate CPU Splash-interpret issue, while kernel boundary/pre-norm tests cover read-shift behavior independently. Existing random-VJP regression behavior/strict bounds are retained.
+
+For the2.8B pre-norm combination's deliberately zero/negative Q/K-scale stress case: complete-gradient relativeL2 versus F32 is native.27263005 / Pallas.07068237; the same Pallas model without the new Q/K scalar is.06889777. Thus the new scalar increases relative-L2 error by.00178460 (0.17846 percentage points, about2.6% relative) over its same-kernel control, and remains within the pre-existing25% relative-control allowance. A fixed5% cap calibrated on a different reduced model would reject the matched control itself, so real-training probes accept the larger of the ordinary5% allowance and1.25 times measured same-kernel control error; the measured values remain explicit. Mean native/Pallas training-CE difference.00455213, full token-loss relativeL2.01084635; F32 outputs/all gradients satisfy the existing tight oracle bounds. These are stress-fixture results, not a training-trajectory or TPU-throughput claim.
+
+Validation manifest and exact metrics: `/data0/xd/bam_diagnostics/mediumprop-unit-h-m-prenorm/merge-main-20261103/validation.json`. No new AOT or training RUN was launched.

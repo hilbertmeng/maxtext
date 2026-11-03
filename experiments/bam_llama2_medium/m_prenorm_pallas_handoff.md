@@ -14,3 +14,6 @@ Third arm added afterward: suffix `ReadScaleInitOneMPreNormQKScaleTruePile`, on 
 
 
 Adaptation delivered on `claude/mediumprop-m-prenorm-pallas`: fe49cc5 for kept/dropped,18966e4 for QK-scale. All three target-v5p-16 AOTs loaded; same-checkpoint native/Pallas overlap and all-worker sources verified on the retained trainers. Whole-M normalization and optional Q/K scale are fused into read; raw M carry/writes remain separate. Initial fused runtime remat was `minimal_save_splash`; all three subsequently switched to f8d07cd with full remat after target-v5p-16 paired profiling. See `../mediumprop_unit_h_m_prenorm.md` for handoff provenance and measured speed; the user revoked the speed-stop rule and requests continued training.
+
+
+Main integration now includes the native and v8t read pre-norm, its complete backward, and the no-QKNorm shared Q/K fold from f8d07cd. The2.8B FastKernel ports additionally compose the same static/dynamic Q/K fold with fused full-head QKNorm, retaining packed keys and the fused norm. See `../mediumprop_unit_h_m_prenorm.md`, main integration section, for both300B/ShortTrain classes and their actual recorded baselines. No additional adaptation handoff is pending; target AOT compilation is not claimed by the CPU checks.

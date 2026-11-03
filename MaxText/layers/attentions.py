@@ -3722,8 +3722,12 @@ class BamAttention(Attention):
     """Select the configured read-side view without changing the raw matrix stream."""
     if M_in is None or self._m_read_norm == 'none':
       return M_in
-    return M_in * jax.lax.rsqrt(
-        jnp.mean(M_in ** 2, axis=(-2, -1), keepdims=True) + self._rms_epsilon)
+    # M-shift is applied before this read-only view. Keep statistics in FP32
+    # and preserve the raw matrix stream for attention/private-MLP writes.
+    matrix = M_in.astype(jnp.float32)
+    normalized = matrix * jax.lax.rsqrt(
+        jnp.mean(jnp.square(matrix), axis=(-2, -1), keepdims=True) + self._rms_epsilon)
+    return normalized.astype(M_in.dtype)
 
   def _add_local_qk(self, query, key, q_local, k_local, segment_ids=None):
     """Inject LocalQK into the standard Q/K arm."""
@@ -4078,9 +4082,10 @@ class BamAttention(Attention):
         'compressed V cache or full-M reads': (
             (self._abs_v_dim is not None or self._full_m_read_rank is not None)
             and self.bam_k == self.head_dim),
-        'no M read norm / decay / sqrt-n': (
-            self._m_read_norm == 'none' and float(cfg.bam_lambda_decay) == 1.0
-            and not cfg.bam_sqrt_n_scale),
+        'no M read norm (except whole-M RMS on v8t) / decay / sqrt-n': (
+            (self._m_read_norm == 'none'
+             or (self._m_read_norm == 'rms' and getattr(cfg, 'bam_pallas_body', None) == 'v8t'))
+            and float(cfg.bam_lambda_decay) == 1.0 and not cfg.bam_sqrt_n_scale),
         'plain RMS writes': (
             (self._write_data_rms or self._attention_content_divisor is not None)
             and self._write_factor_norm == 'rms'
@@ -4278,12 +4283,18 @@ class BamAttention(Attention):
         return self._pad_read_heads(gate / init, -1)
       static_gates = tuple(static_multiplier(arm) for arm in 'qkvo')
     body = getattr(cfg, 'bam_pallas_body', None) or 'blocked'
+    fused_qk_norm = full_qk_norm and bool(getattr(cfg, 'bam_pallas_fused_qk_norm', False))
     # The read is linear in each V/O weight (raw static key + post-RMS dynamic scale), so v8t folds the
     # common scalar into both instead of a [B,T,N,V] epilogue that cannot fuse into Splash.
     fold_vo = common_vo_scale is not None and body == 'v8t'
     vo_static = (lambda x: x * common_vo_scale.astype(x.dtype)) if fold_vo else (lambda x: x)
+    # Fold the common local Q/K scalar into both static and post-RMS dynamic read weights.
+    # With fused full-head QKNorm, the resulting local rows enter its RMS statistic already scaled;
+    # the standard/RoPE arm stays unchanged. This also keeps zero/negative scalar gradients intact.
+    fold_qk = common_qk_scale is not None and body == 'v8t' and (not full_qk_norm or fused_qk_norm)
+    qk_static = (lambda x: x * common_qk_scale.astype(x.dtype)) if fold_qk else (lambda x: x)
     weight = bam_pallas.static_weight(
-        self.static_q_key, self.static_k_key,
+        qk_static(self.static_q_key), qk_static(self.static_k_key),
         (jnp.zeros_like(self.static_o_key) if not self._has_value_m_read
          else vo_static(self._pad_read_heads(self.static_v_key, 1))),
         vo_static(self._pad_read_heads(self.static_o_key, 1)), compression)
@@ -4309,6 +4320,9 @@ class BamAttention(Attention):
                                                column_metrics=False)
           self.sow('intermediates', 'm_shift_m_summary',
                    jnp.stack((stats[0], stats[1], stats[4], stats[5], state[4])))
+    if self._m_read_norm == 'rms':
+      # _matrix_for_read inside the v8t read: one FP32 RMS per token over the (shifted) matrix.
+      read_kwargs['m_norm'] = self._rms_epsilon
     o_weight_rate = float(getattr(cfg, 'bam_local_o_read_weight_dropout_rate', 0.0))
     if o_weight_rate:
       # Same sampled [B,T,N,V] mask and RNG order as the XLA path (before O DropHead); the kernel
@@ -4328,19 +4342,21 @@ class BamAttention(Attention):
         gamma = read_kwargs.get(arm + '_dynamic_scale')
         read_kwargs[arm + '_dynamic_scale'] = common_vo_scale.astype(jnp.float32) * (
             jnp.ones(q_key.shape[2:], jnp.float32) if gamma is None else gamma.astype(jnp.float32))
+    if fold_qk:
+      for arm in ('q', 'k'):
+        read_kwargs[arm + '_dynamic_scale'] = common_qk_scale.astype(jnp.float32) * jnp.ones(q_key.shape[2:], jnp.float32)
     if getattr(cfg, 'bam_pallas_read_chunk', None):
       read_kwargs['chunk'] = int(cfg.bam_pallas_read_chunk)
     if packed_qkvo is not None:
       if body != 'v8t':
         raise ValueError('bam_pallas_packed_read_keys requires v8t')
       read_kwargs['keys_cnt'] = packed_qkvo
-    fused_qk_norm = full_qk_norm and bool(getattr(cfg, 'bam_pallas_fused_qk_norm', False))
     if fused_qk_norm:
       # Same full-head QKNorm, computed in the read epilogue: the kernel normalizes the complete
       # row and multiplies by [local scales, ones] (Q also by the logit scale), so neither the
       # norm epilogue nor the query division runs in XLA between the read and attention.
-      if body != 'v8t' or common_qk_scale is not None:
-        raise ValueError('bam_pallas_fused_qk_norm requires v8t without the common Q/K read scale')
+      if body != 'v8t':
+        raise ValueError('bam_pallas_fused_qk_norm requires v8t')
       cols = self._qk_col_width
       ones = jnp.ones((standard_qk_width,), jnp.float32)
       m_q, m_k = (jnp.concatenate((x[:cols].astype(jnp.float32), ones)) for x in head_scale)
@@ -4371,6 +4387,13 @@ class BamAttention(Attention):
              if getattr(cfg, 'bam_pallas_rolled_passes', None) else {}),
           **read_kwargs)
     query, key, value, local_output = outs[:4]
+    if common_qk_scale is not None and not full_qk_norm and not fold_qk:
+      # Complete local/no-position prefix only; standard RoPE Q/K is untouched.
+      # Full-head QKNorm already incorporates this scale in its norm epilogue.
+      def scale_local(x):
+        prefix = (x[..., :self._qk_col_width].astype(jnp.float32) * common_qk_scale).astype(x.dtype)
+        return jnp.concatenate((prefix, x[..., self._qk_col_width:]), axis=-1)
+      query, key = scale_local(query), scale_local(key)
     if common_vo_scale is not None and not fold_vo:
       value = (value.astype(jnp.float32) * common_vo_scale).astype(value.dtype)
       local_output = (local_output.astype(jnp.float32) * common_vo_scale).astype(local_output.dtype)
@@ -4543,8 +4566,8 @@ class BamAttention(Attention):
           'common_vo_read_scale', (1,), (None,), initial_scale)[0]
     common_qk_scale = None
     if getattr(cfg, 'bam_common_qk_read_scale', False):
-      if not full_qk_norm:
-        raise ValueError('Common Q/K scale requires concatenated local Q/K and full-head QKNorm')
+      if not concat_qk or (cfg.qk_norm and not full_qk_norm):
+        raise ValueError('Common Q/K scale requires concatenated local Q/K; enabled QKNorm must cover the full head')
       common_qk_scale = self._constant_general_parameter(
           'common_qk_read_scale', (1,), (None,), 1.0)[0]
     if getattr(cfg, 'bam_pallas_core', False):

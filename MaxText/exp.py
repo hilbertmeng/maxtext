@@ -17492,6 +17492,24 @@ class BamPythia2p8BHUnit300BFastKernel(BamPythia2p8BHUnit300B):
     remat_policy = 'minimal_save_splash'
 
 
+class BamPythia2p8BHUnit300BFastKernelMPreNormQKScale(BamPythia2p8BHUnit300BFastKernel):
+    """Unit H 300B FastKernel with whole-M read pre-norm and learned V/O plus Q/K layer scales.
+
+    RMS-normalize the shifted read view in FP32 over all80x64 entries; retain
+    raw M for carry/writes. Keep the parent's32 unit-initialized V/O scales,
+    and add32 unit-initialized scalars shared by complete local Q/K before
+    full100-dimensional QKNorm. The20-dimensional standard/RoPE arms are unscaled.
+    Preserve the143000-step plan,1/sqrt(100) logits, saved-Splash FastKernel
+    settings and GELU widths7808/2944/tail9984. Only32 parameters are added
+    (2775190944 total,0.00000488 W_Q), with no MLP repayment or new M-cache.
+    """
+    model_name = 'BamPythia2p8BHUnit300BFastKernelMPreNormQKScale'
+    bam_m_read_norm = 'rms'
+    bam_common_qk_read_scale = True
+    # FastKernel ran under the original HUnit300B RUN; use its recorded history.
+    compare_runs = ['BamPythia2p8BHUnit300B']
+
+
 class BamPythia2p8BHUnitShortTrainFastKernel(
         BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOne):
     """ShortTrain unit H with the math-preserving HUnit300BFastKernel optimizations.
@@ -17506,6 +17524,20 @@ class BamPythia2p8BHUnitShortTrainFastKernel(
     bam_pallas_vmem_mib = 63
     bam_splash_residual_name = 'bam_splash_residual'
     remat_policy = 'minimal_save_splash'
+    compare_runs = ['BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOne']
+
+
+class BamPythia2p8BHUnitShortTrainFastKernelMPreNormQKScale(BamPythia2p8BHUnitShortTrainFastKernel):
+    """ShortTrain UnitH FastKernel with whole-M read pre-norm and V/O plus Q/K layer scales.
+
+    Same read-side change as the300B variant, retaining this parent's28000-step
+    plan and1/sqrt(80) logit multiplier. Full100-dimensional QKNorm, FastKernel,
+    widths7808/2944/tail9984 and M-cache remain unchanged; add32 parameters only.
+    """
+    model_name = 'BamPythia2p8BHUnitShortTrainFastKernelMPreNormQKScale'
+    bam_m_read_norm = 'rms'
+    bam_common_qk_read_scale = True
+    # The FastKernel parent is math-preserving; its recorded UnitH RUN uses this name.
     compare_runs = ['BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOne']
 
 
@@ -19748,13 +19780,12 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     # UE5a v5p-16 TPU310530: packed/full 0.680525step/s (+0.65% vs UnitH); P2, no zone switch; matched training health.
     # Widths2510/1128/tail3904 unchanged; 432112210 parameters (no parameter change vs UnitH); unchanged inference M-cache.
     # CP13500 committed, TensorBoard SYNC_OK, node and queued resource independently absent.
-    # code_commit: f8d07cd; ledger only; fused runtime branch claude/mediumprop-m-prenorm-pallas.
-    # Native config reference in /data0/xd/mediumprop-unit-h-m-prenorm (codex/mediumprop-unit-h-m-prenorm).
+    # code_commit: f8d07cd; trained runtime branch claude/mediumprop-m-prenorm-pallas; implementation merged to main.
+    # Native and Pallas references retained in /data0/xd/mediumprop-unit-h-m-prenorm and the trained runtime.
     # Full trajectory, source transitions and leases: experiments/mediumprop_unit_h_m_prenorm.md.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneMPreNormTruePile'
     bam_m_read_norm = 'rms'
-    bam_pallas_core = False
-    bam_pallas_write = False
+    bam_pallas_packed_read_keys = True
     compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneTruePile']
 
 
@@ -19767,8 +19798,8 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     # UE5a v5p-16 TPU310532: packed/full 0.677145step/s (-0.50% vs retained-V/O parent); P0, no zone switch; matched training health.
     # Widths2510/1128/tail3904 unchanged; 432112228 parameters (18 extra parameters vs retained-V/O parent); unchanged inference M-cache.
     # CP13500 committed, TensorBoard SYNC_OK, node and queued resource independently absent.
-    # code_commit: f8d07cd; ledger only; fused runtime branch claude/mediumprop-m-prenorm-pallas.
-    # Native config reference in /data0/xd/mediumprop-unit-h-m-prenorm (codex/mediumprop-unit-h-m-prenorm).
+    # code_commit: f8d07cd; trained runtime branch claude/mediumprop-m-prenorm-pallas; implementation merged to main.
+    # Native and Pallas references retained in /data0/xd/mediumprop-unit-h-m-prenorm and the trained runtime.
     # Full trajectory, source transitions and leases: experiments/mediumprop_unit_h_m_prenorm.md.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneMPreNormQKScaleTruePile'
     bam_common_qk_read_scale = True
@@ -19782,8 +19813,8 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     # UE5a v5p-16 TPU310531: packed/full 0.683427step/s (+1.08% vs UnitH); P0, no zone switch; matched training health.
     # Widths2510/1128/tail3904 unchanged; 432112192 parameters (18 fewer parameters vs UnitH); unchanged inference M-cache.
     # CP13500 committed, TensorBoard SYNC_OK, node and queued resource independently absent.
-    # code_commit: f8d07cd; ledger only; fused runtime branch claude/mediumprop-m-prenorm-pallas.
-    # Native config reference in /data0/xd/mediumprop-unit-h-m-prenorm (codex/mediumprop-unit-h-m-prenorm).
+    # code_commit: f8d07cd; trained runtime branch claude/mediumprop-m-prenorm-pallas; implementation merged to main.
+    # Native and Pallas references retained in /data0/xd/mediumprop-unit-h-m-prenorm and the trained runtime.
     # Full trajectory, source transitions and leases: experiments/mediumprop_unit_h_m_prenorm.md.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneMPreNormNoReadScaleTruePile'
     bam_common_vo_read_scale = False

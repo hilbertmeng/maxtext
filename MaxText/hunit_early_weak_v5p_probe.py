@@ -115,6 +115,8 @@ def main():
     with np.load(io.BytesIO(blob(source+'.npz'))) as old:
      oldh=old['h'];oldce=old['native_loss'];oldraw=old['raw']
     archive_fidelity=dict(head_relative=float(np.linalg.norm(goldh-oldh)/np.linalg.norm(oldh)),raw_relative=float(np.linalg.norm(goldraw-oldraw)/np.linalg.norm(oldraw)),mean_CE_difference=float(goldloss.mean()-oldce.mean()))
+    basis=np.asarray(u);native_wp=np.mean(np.sum(np.matmul(goldh,basis)**2,-1));archived_wp=np.mean(np.sum(np.matmul(oldh,basis)**2,-1));archive_fidelity['weak_power_relative']=float(native_wp/archived_wp-1)
+    assert abs(archive_fidelity['weak_power_relative'])<.015,('Cross-hardware weak power fidelity failed',step,i,archive_fidelity)
     assert archive_fidelity['head_relative']<.015 and abs(archive_fidelity['mean_CE_difference'])<.005,('Cross-hardware native fidelity failed',step,i,archive_fidelity)
     print('V5P_V6E_ANCHOR_FIDELITY',step,i,archive_fidelity,flush=True)
    for label,basis in [('fixed43k',u),('own',own)]:

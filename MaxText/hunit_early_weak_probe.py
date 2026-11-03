@@ -1,6 +1,7 @@
 """Native same-cohort attribution of HUnit residual writes to fixed43k Wc weak basis."""
 import argparse,ast,gc,hashlib,io,json,subprocess,time
 from pathlib import Path
+from diagnostic_json import dumps as diagnostic_dumps
 import numpy as np
 import jax,jax.numpy as jnp
 from flax import linen as nn
@@ -116,8 +117,8 @@ def main():
    assert all(np.isfinite(v).all() for v in stats.values())
    path=folder/(stem+'.npz');np.savez_compressed(path,**stats);emit(path,uri+'/'+path.name)
    marker=dict(source_commit=commit,checkpoint=identity['checkpoint'],state_step=identity['state_step'],label_step=step,sequence=i,input_hash=m['cohort_hashes'][i],baseline_CE=float(goldloss.mean()),fidelity=fidelities,seconds=time.time()-tick)
-   path=folder/(stem+'.json');path.write_text(json.dumps(marker,indent=2)+'\n');emit(path,uri+'/'+path.name);rows.append(marker);print('WRITE_ORIGIN_CASE_COMPLETE',step,i,'CE',marker['baseline_CE'],'seconds',marker['seconds'],flush=True)
-  result=dict(source_commit=commit,checkpoint=identity['checkpoint'],state_step=identity['state_step'],sequences=32,sequence_hashes=m['cohort_hashes'],components=NAMES,final_small_parameters=scalars,checked_configuration_keys=checked,sequence=rows);path=folder/'complete.json';path.write_text(json.dumps(result,indent=2)+'\n');emit(path,uri+'/complete.json');all_results[str(step)]=result;del params;gc.collect();print('WRITE_ORIGIN_CHECKPOINT_COMPLETE',step,flush=True)
+   path=folder/(stem+'.json');path.write_text(diagnostic_dumps(marker,indent=2)+'\n');emit(path,uri+'/'+path.name);rows.append(marker);print('WRITE_ORIGIN_CASE_COMPLETE',step,i,'CE',marker['baseline_CE'],'seconds',marker['seconds'],flush=True)
+  result=dict(source_commit=commit,checkpoint=identity['checkpoint'],state_step=identity['state_step'],sequences=32,sequence_hashes=m['cohort_hashes'],components=NAMES,final_small_parameters=scalars,checked_configuration_keys=checked,sequence=rows);path=folder/'complete.json';path.write_text(diagnostic_dumps(result,indent=2)+'\n');emit(path,uri+'/complete.json');all_results[str(step)]=result;del params;gc.collect();print('WRITE_ORIGIN_CHECKPOINT_COMPLETE',step,flush=True)
  result=dict(source_commit=commit,device_kind=jax.devices()[0].device_kind,jax_version=jax.__version__,steps=m['steps'],cases=32*len(m['steps']),checkpoints=all_results,scope=m['scope'])
- path=root/'complete.json';path.write_text(json.dumps(result,indent=2)+'\n');emit(path,m['gcs_root']+'/complete.json');print('WRITE_ORIGIN_ALL_COMPLETE',flush=True)
+ path=root/'complete.json';path.write_text(diagnostic_dumps(result,indent=2)+'\n');emit(path,m['gcs_root']+'/complete.json');print('WRITE_ORIGIN_ALL_COMPLETE',flush=True)
 if __name__=='__main__':main()

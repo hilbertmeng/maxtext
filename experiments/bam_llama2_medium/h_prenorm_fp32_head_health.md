@@ -39,7 +39,10 @@ Primary statistics use BF16-effective post-final-LayerNorm features and head
 weights, with FP32 matrix-accumulator output in both arms: P95 absolute
 per-token vocabulary-mean logit, and median within-token vocabulary std.
 This measures representation geometry at a common precision; it is not a
-comparison of each runtime's differently rounded training losses. It must not
+comparison of each runtime's differently rounded training losses. Online
+runs using the same sampling and window definitions can be compared across
+training batches; identical batches are not a prerequisite. The fixed cohort
+reduces comparison noise and supplies the missing old-run measurements here. It must not
 be equated with online 128-token-sample quantiles over different training batches.
 
 Runner: `head_health_checkpoint_probe.py`, initial measurement source `5ff4499`.
@@ -64,7 +67,7 @@ the coordinator log records intentional scope reduction, not a failed 3k result.
 | Frozen checkpoint | Previous H offset P95 | New H offset P95 | Previous H class std median | New H class std median |
 |---|---:|---:|---:|---:|
 | 3000 | 4.16691 | 4.04348 | 2.46848 | 2.44954 |
-| 13000 | 19.61511 | pending | 2.66868 | pending |
+| 13000 | 19.61511 | 4.70240 | 2.66868 | 2.61735 |
 | 23000 | 54.10717 | pending | 2.71214 | pending |
 | 33000 | 120.76044 | pending | 2.75896 | pending |
 | 43000 | 207.72593 | pending | 2.77637 | pending |
@@ -74,6 +77,16 @@ Old 13k–43k rows reuse the same-cohort full-token data in
 ratio is .97038, class-spread ratio .99233. Actual post-final-LN RMS is
 1.18859 versus 1.18653. These early differences are small; they do not
 establish improvement in the old run's late offset/gradient-growth regime.
+
+At 13k the common-offset ratio is .23973 (-76.03%), while the class-spread
+ratio is .98077 (-1.92%). Actual post-final-LN RMS is 1.28927 versus old
+1.32817 (-2.93%). Overall amplitude reduction cannot explain the much larger
+offset suppression. The offset/class-spread ratio is 1.80 versus old 7.35.
+This establishes early common-mode improvement for the combined recipe; it
+does not yet establish improved post-30k loss convergence. The 13k probe
+(`7252f22`) took 89.42 seconds, traced the forward once, and released the FLEX
+worker lock. Its explicit BF16 rounding control differs from the accumulator
+as expected; primary results remain on the common FP32-accumulation path.
 
 Formal training head-gradient medians, four consecutive 500-step windows
 starting at 1k: new .12971/.09613/.08220/.07400; previous H

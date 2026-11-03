@@ -73,12 +73,17 @@ def _tm_o_mask(om, c, rows):
   return jnp.concatenate((jnp.ones((rows - np_, om.shape[2]), F32), om[c].astype(F32)), axis=0)
 
 
-def _tm_dynamic_scale(os_ref, rows):
-  """[R,C] scale on trailing read rows: O only [NP,C], independent V/O [2NP,C], or Q/K/V/O [4NP,C]."""
+def _tm_split_scale(os_ref, rows, const_rows):
+  """Trailing dynamic-key scale rows os [S,C] split into a per-row [R,1] scale for the leading const_rows
+  (constant over C: folded once into the [R,T] gate) and a per-c [R,C] scale for the rest (ones elsewhere)."""
   o = os_ref[...].astype(F32)
-  if o.shape[0] == rows:          # every arm scaled (common local Q/K scale folded in)
-    return o
-  return jnp.concatenate((jnp.ones((rows - o.shape[0], o.shape[1]), F32), o), axis=0)
+  start, cdim = rows - o.shape[0], o.shape[1]
+  ones = lambda n, w: [jnp.ones((n, w), F32)] if n else []
+  per_c = o.shape[0] - const_rows
+  rs = (jnp.concatenate(ones(start, 1) + [o[:const_rows, :1]] + ones(per_c, 1), axis=0)
+        if const_rows else None)
+  osc = jnp.concatenate(ones(rows - per_c, cdim) + [o[const_rows:]], axis=0) if per_c else None
+  return osc, rs
 
 
 def _tm_fill_keys(rq, rk, rr, inv, g, st, sg, xt_scr, om=None, osc=None):
@@ -176,7 +181,7 @@ def _head_selector(np_, qdim, h):
 
 
 def _tm_read_kernel(n, qk_cols, eps, scale, q_scale, gated, ch, shifted=False, qdim=None, masked=False,
-                    scaled=False, qk_norm=None, m_norm=None):
+                    scaled=False, qk_norm=None, m_norm=None, const_rows=0):
   def kernel(m_ref, st_ref, rq, lq, rk, lk, rr, lo, lv, qs, ks, *refs):
     if gated:
       sg_ref, refs = refs[0], refs[1:]
@@ -201,8 +206,9 @@ def _tm_read_kernel(n, qk_cols, eps, scale, q_scale, gated, ch, shifted=False, q
     dt = m_ref.dtype
     inv, g = _tm_slabs(eps, scale, rq, lq, rk, lk, rr, lo, lv)
     sg = sg_ref[...].astype(F32).reshape(r, t) if gated else None
-    if scaled:
-      osc = _tm_dynamic_scale(os_ref, r)
+    if scaled:        # per-head scales constant over C fold into the gate once, not per c
+      osc, rs = _tm_split_scale(os_ref, r, const_rows)
+      g = g if rs is None else g * rs
     _tm_fill_keys(rq, rk, rr, inv, g, st_ref[...].astype(F32), sg, xt_scr, om, osc)
     for t0 in range(0, t, ch):
       if shifted or m_norm is not None:
@@ -312,9 +318,11 @@ def _tm_read_backward_kernel(n, qk_cols, eps, scale, q_scale, gated, ch, pass_m,
     inv, g = _tm_slabs(eps, scale, rq, lq, rk, lk, rr, lo, lv)
     st = st_ref[...].astype(F32)
     sg = sg_ref[...].astype(F32).reshape(r, t) if gated else None
+    rs = None
     if scaled:
-      osc = _tm_dynamic_scale(os_ref, r)
-    _tm_fill_keys(rq, rk, rr, inv, g, st, sg, xt_scr, om, osc)
+      osc, rs = _tm_split_scale(os_ref, r, const_rows)
+    g_key = g if rs is None else g * rs      # effective gate of the dynamic key
+    _tm_fill_keys(rq, rk, rr, inv, g_key, st, sg, xt_scr, om, osc)
     if masked:        # token-major O multiplier rows t*C + c, so the per-token dX picks it up
       for c in range(cdim):
         xm_scr[pl.ds(c, t, stride=cdim), :] = _to_tokens(_tm_o_mask(om, c, r))
@@ -434,28 +442,24 @@ def _tm_read_backward_kernel(n, qk_cols, eps, scale, q_scale, gated, ch, pass_m,
     independent_vo = rr.shape[1] == 2 * np_
     key_rows = (4 if independent_vo else 3) * np_
     uacc = jnp.zeros((key_rows, t), F32)  # sum_c u * r (RMS-norm reverse)
-    gq, gk, gv, go = (g[i * np_:(i + 1) * np_] for i in range(4))
+    gq, gk, gv, go = (g_key[i * np_:(i + 1) * np_] for i in range(4))
     scaled_rows = os_ref.shape[0] if scaled else 0
     scale_start = r - scaled_rows
+    # Leading scale rows constant over c (per-head scalars, e.g. common Q/K and V/O layer scales) need
+    # no per-c work: their gate, key and scale gradients all follow from gacc after the loop.
     per_c_rows = scaled_rows - const_rows
-    gi_scaled = (g * inv)[scale_start:] if scaled else None
-    # Leading scale rows constant over c (per-head scalars, e.g. common Q/K and V/O layer scales)
-    # only need their c-summed gradient: a [rows, T] accumulator instead of C per-c scratch rows.
-    cacc = jnp.zeros((const_rows, t), F32) if const_rows else None
+    per_start = r - per_c_rows
+    gi_per = (g * inv)[per_start:] if per_c_rows else None
     for c in range(cdim):
       dx = _from_tokens(dxt_scr[pl.ds(c, t, stride=cdim), :])            # [R, T]
       rows = _tm_rows(rq, rk, rr, c)
       if gated:
         sacc = sacc + dx * st[:, c:c + 1]
-      if scaled:      # d gamma = sum_t dX * g inv r, for O alone or independent V/O.
-        dx_scaled = dx[scale_start:]
-        term = dx_scaled * rows[scale_start:] * gi_scaled
-        if const_rows:
-          cacc = cacc + term[:const_rows]
-        if per_c_rows:
-          dos_scr[pl.ds(c * per_c_rows, per_c_rows), :] = term[const_rows:]
-        dx = (jnp.concatenate((dx[:scale_start], dx_scaled * osc[scale_start:, c:c + 1]), axis=0)
-              if scale_start else dx_scaled * osc[:, c:c + 1])
+      if per_c_rows:  # d gamma = sum_t dX * g inv r, for per-coordinate scales.
+        dx_scaled = dx[per_start:]
+        dos_scr[pl.ds(c * per_c_rows, per_c_rows), :] = dx_scaled * rows[per_start:] * gi_per
+        dx = (jnp.concatenate((dx[:per_start], dx_scaled * osc[per_start:, c:c + 1]), axis=0)
+              if per_start else dx_scaled * osc[:, c:c + 1])
       gacc = gacc + dx * rows
       vo_u = ((gv * dx[2 * np_:3 * np_], go * dx[3 * np_:4 * np_]) if independent_vo else
               (gv * dx[2 * np_:3 * np_] + go * dx[3 * np_:4 * np_],))
@@ -463,6 +467,9 @@ def _tm_read_backward_kernel(n, qk_cols, eps, scale, q_scale, gated, ch, pass_m,
       dkey_scr[c] = u
       uacc = uacc + u * rows[:key_rows]
     gacc = gacc * inv
+    if const_rows:    # d s = sum_c dX g inv r for per-head scales; the gate gradient then carries s
+      cacc = (gacc * g)[scale_start:scale_start + const_rows]
+      gacc = gacc * rs
     sig = lambda l: _sigmoid(l[...]) * (1 - _sigmoid(l[...]))
     for i, (l, dl) in enumerate(((lq, dlq), (lk, dlk), (lv, dlv), (lo, dlo))):
       dl[...] = (scale * sig(l) * gacc[i * np_:(i + 1) * np_]).astype(dl.dtype)
@@ -554,7 +561,7 @@ def _tm_read_forward_call(args, opts, sh=None, om=None, os=None, qn=None):
   return pl.pallas_call(
       _tm_read_kernel(n, opts['qk_cols'], opts['read_epsilon'], opts['key_scale'], opts['q_scale'],
                       len(args) == 12, opts['chunk'], sh is not None, qdim, om is not None, os is not None,
-                      qk_norm, opts.get('m_norm')),
+                      qk_norm, opts.get('m_norm'), int(opts.get('scale_const_rows') or 0)),
       grid=(b, t // tile),
       in_specs=(_tm_read_specs(args, tile, packed, bool(qk_norm)) + _shift_specs(m, sh, tile)
                 + _mask_specs(om, tile) + _scale_specs(os) + _qk_norm_specs(qn, tile)),

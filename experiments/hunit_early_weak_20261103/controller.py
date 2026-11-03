@@ -95,8 +95,7 @@ with (R/'.controller.lock').open('a+b') as lock:
       failure_since=None
       if d['status']=='complete':assert complete(m);break
       if not backups_released and any(v in d.get('tail','') for v in ['WRITE_ORIGIN_CASE_COMPLETE','WRITE_ORIGIN_CHECKPOINT_COMPLETE']):
-       for other in candidates:
-        if other['name']!=x['name']:release(other)
+       with concurrent.futures.ThreadPoolExecutor(max_workers=4) as pool:list(pool.map(release,[other for other in candidates if other['name']!=x['name']]))
        backups_released=True
      else:
       unknown+=1

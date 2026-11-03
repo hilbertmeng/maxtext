@@ -19842,6 +19842,10 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneRawWritesEmbeddingFixedTruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneRawWritesTruePile):
     """Raw attention/private-MLP writes, with the original UnitH embedding-write amplitude."""
+    # Conclusion: Removing only attention content RMSNorm persistently harms UnitH; relative gain stalls below parity.
+    # User stopped7813; final5 through7600 vs UnitH gap+0.04507084, MHA-ref ratio0.77732788.
+    # Slowly narrowing absolute gap does not become relative recovery; parameters/cache unchanged; full13500 endpoint unmeasured.
+    # CP7813 committed, TB SYNC_OK, TPU and queued resource independently absent; P0.
     # code_commit:94c0fa1; UE5a v5p16 xd-v5p-16-310541-maxtext; FIRST/source/AOT/data/s13500 verified.
     # Startup20..99 0.684309step/s vs UnitH.676113 (+1.21%, separate leases); generic healthON/internalOFF.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneRawWritesEmbeddingFixedTruePile'
@@ -19851,6 +19855,10 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneRawWritesEmbeddingSmall20TruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneRawWritesTruePile):
     """Raw attention/private-MLP writes, with embedding-write amplitude reduced 20-fold from UnitH."""
+    # Conclusion: Reducing the embedding seed does not rescue raw attention writes; the relative deficit persists.
+    # User stopped7951; final5 through7800 vs UnitH gap+0.05543088, MHA-ref ratio0.72373672.
+    # Slowly narrowing absolute gap does not become relative recovery; parameters/cache unchanged; full13500 endpoint unmeasured.
+    # CP7951 committed, TB SYNC_OK, TPU and queued resource independently absent; P0.
     # code_commit:94c0fa1; UE5a v5p16 xd-v5p-16-310542-maxtext; FIRST/source/AOT/data/s13500 verified.
     # Startup20..99 0.690536step/s vs UnitH.676113 (+2.13%, separate leases); generic healthON/internalOFF.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneRawWritesEmbeddingSmall20TruePile'

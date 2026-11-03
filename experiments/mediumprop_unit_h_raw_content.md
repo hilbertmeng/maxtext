@@ -27,3 +27,16 @@ Stopped at committed checkpoint4578 on2026-11-03 after the user first retained a
 UE5a v5p16/P0; no migration or passive candidates. Registered active stint05:22:24..07:18:37UTC; complete READY lease05:22:27..07:18:37UTC (1h56m10s), ending at user-stop request. Node and queued resource independently absent after native closeout finished07:21:20UTC. CP4578 committed; local TensorBoard SYNC_OK. Raw-loss/lease/closeout proofs under the task artifact root.
 
 Other two arms remain in training to8k. Group clock transferred to the parent-amplitude arm at the already-published4k phase; normal6k/8k reports preserved. Stopped arm removed from active membership.
+
+## Remaining two arms: user stop near8k
+
+Both were stopped at the user's explicit instruction, after continuing past the4k keep decision. All final checkpoint commits, native loss caches, independent node+queue absence and local TB SYNC_OK are verified. Both are UE5a v5p16/P0, no migration or passive candidates. READY intervals below are UTC and end at stop requests; native resource cleanup finished08:41:41UTC.
+
+| ID | Checkpoint | Mature horizon | Final5 gap vs UnitH | MHA-reference gain | Entire READY lease UTC |
+|---|---:|---:|---:|---:|---|
+| 310541 | 7813 | 7600 | +0.04507084 | 0.77732788 | 2026-11-03 05:23:36 to 2026-11-03 08:38:53 (3h15m17s) |
+| 310542 | 7951 | 7800 | +0.05543088 | 0.72373672 | 2026-11-03 05:22:22 to 2026-11-03 08:38:55 (3h16m33s) |
+
+The parent-amplitude arm remains best among the three raw-attention-write variants. Absolute deficits slowly narrow, while relative gains settle near.78/.72; neither shows sustained recovery toward UnitH. Removing only attention content RMSNorm at the parent's embedding amplitude is already harmful. Decreasing the embedding seed adds a persistent deficit. The terminal.99/1.01 bets were overoptimistic relative to these prefixes; no13500 endpoint was measured. This tests direct RMS removal, including its amplitude change, rather than an energy-matched test of retaining token/head amplitude information.
+
+All three retain432112210 parameters, unchanged widths2510/1128/3904 and unchanged M-cache. Small startup speed improvements do not offset the observed loss deficits. The implementation remains on the sealed runtime branch; no kernel adaptation was needed. Native complete final curves/statistics, lease histories, closeout summaries and the combined final PNG provenance are under `/data0/xd/bam_diagnostics/mediumprop-unit-h-raw-content/`.

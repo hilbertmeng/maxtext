@@ -22,8 +22,11 @@ def main():
     parser.add_argument('--' + name, type=Path, required=True)
   for name in ('runtime-commit', 'exp', 'checkpoint-root', 'steps'):
     parser.add_argument('--' + name, required=True)
-  parser.add_argument('--sample-size', type=int, default=128)
+  parser.add_argument('--sample-size', type=int, default=65536)
+  parser.add_argument('--gcs-output', help='Publish each compact result as soon as its checkpoint finishes.')
   args = parser.parse_args()
+  if args.sample_size <= 0 or args.sample_size > 65536 or args.sample_size % 32:
+    parser.error('--sample-size must be a positive multiple of 32, at most 65536')
   actual = subprocess.check_output(
       ['git', '-C', str(args.runtime_dir), 'rev-parse', 'HEAD'], text=True).strip()
   assert actual == args.runtime_commit
@@ -62,8 +65,8 @@ def main():
   tokens = np.load(args.cohort)['tokens'][:32, :2049]
   assert tokens.shape == (32, 2049)
   selected = metrics.health_sample_positions(32, 2048, args.sample_size)
-  # Four uniformly stratified, jittered positions in each sequence, for 128
-  # pooled samples. Equal shape permits exactly one forward compilation/arm.
+  # Equal stratified coverage/shape permits one forward compilation per arm.
+  # The default includes every token, matching the earlier frozen-head probes.
   positions_by_sequence = np.array([
       [p % 2048 for p in selected if p // 2048 == i] for i in range(32)], np.int32)
   assert positions_by_sequence.shape == (32, args.sample_size // 32)
@@ -144,9 +147,14 @@ def main():
           backend='Native JAX BF16 backbone, Pallas/Splash OFF; shared FP32 accumulator metric and BF16-output control.',
           restore_seconds=restore_seconds, seconds=time.monotonic()-start,
           forward_traces=trace_count, parameter_count=sum(a.size for a in jax.tree.leaves(params)))
-      np.savez_compressed(args.output / f'samples-{step}.npz',
+      sample_path = args.output / f'samples-{step}.npz'
+      summary_path = args.output / f'health-{step}.json'
+      np.savez_compressed(sample_path,
           **{name: np.concatenate([r[name] for r in records]) for name in ('accumulator', 'bf16_output')})
-      (args.output / f'health-{step}.json').write_text(json.dumps(result, indent=2)+'\n')
+      summary_path.write_text(json.dumps(result, indent=2)+'\n')
+      if args.gcs_output:
+        subprocess.run(['gsutil', '-q', 'cp', str(summary_path), str(sample_path),
+                        args.gcs_output.rstrip('/') + '/'], check=True)
       print('CHECKPOINT_COMPLETE', step, json.dumps(summaries), flush=True)
       del params
       gc.collect()

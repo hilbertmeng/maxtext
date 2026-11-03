@@ -15,6 +15,8 @@ if s['phase']=='verified_resources_released':
  if not (R/'conclusion.html').exists():
   a,b=rows[0],rows[-1]
   text='<h2>五个checkpoint的原生分析已完成</h2><p>相同32条2048-token文本；当期与固定43k弱基底均核验，160条全部保留。以下是已测量的轨迹，不是M归一化训练实验。</p>'
+  if not j['manifest'].get('require_cross_hardware_identity',True):
+   rejected=sum(j['rows'][str(t)].get('cross_hardware_failed_texts',0) for t in [33000,43000]);text+=f'<p>本页五点全部在v5p重算；跨硬件H/CE/弱功率联合门槛有{rejected}/64条未通过，原标记与阈值保留。这些跨硬件记录不用于宣称替代旧v6e结果；v5p内部观测一致性检查全部通过后才发布本页。</p>'
   text+=f"<p>3k→43k：末层动态M_o在固定43k坐标中的LN前弱投影RMS从{a['fixed43k']['raw_self_RMS'][1]:.3f}变为{b['fixed43k']['raw_self_RMS'][1]:.3f}；当期弱方向的head能量占比从{a['own']['head_weak_fraction']['mean']:.1%}变为{b['own']['head_weak_fraction']['mean']:.1%}。读前物理M RMS从{a['memory_RMS']:.3f}变为{b['memory_RMS']:.3f}。完整五点曲线和各路贡献见下方。</p>"
   text+='<p>判断M读前归一化是否更早击中机制，应对照3k/13k/23k的当期弱方向占比、动态M_o的W_o后弱写入，以及相同文本的loss和MHA功能贡献。固定43k方向属于事后追踪。仅M RMS或梯度norm变小还不足以证明有益：读scale、W_o和最终LN可能补偿，整路Mo本身也可能仍有降loss价值。这里没有运行归一化训练，所以尚不能证明该改动有效。</p>'
   (R/'conclusion.html').write_text(text)

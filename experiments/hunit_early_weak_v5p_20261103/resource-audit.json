@@ -1,0 +1,12 @@
+{
+  "utc": 1793691671.1364038,
+  "resources": [
+    {
+      "name": "xd-v5p8-mqy-hunearlyrt-1103-ue5a-r1",
+      "zone": "us-east5-a",
+      "tpu-vm": "ABSENT",
+      "queued-resources": "ABSENT"
+    }
+  ],
+  "all_absent": true
+}

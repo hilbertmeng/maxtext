@@ -1,0 +1,41 @@
+{
+  "complete": true,
+  "source_commit": "43b34723a80d5eacf61302664bb1398e724d716c",
+  "checks": [
+    {
+      "step": 3000,
+      "sequences": 32,
+      "max_H_relative": 0.00035365147050470114,
+      "max_CE_difference": 0.00013399124145507812,
+      "max_weak_power_difference": 3.5762786865234375e-06
+    },
+    {
+      "step": 13000,
+      "sequences": 32,
+      "max_H_relative": 0.0003554400464054197,
+      "max_CE_difference": 0.00017976760864257812,
+      "max_weak_power_difference": 6.318092346191406e-06
+    },
+    {
+      "step": 23000,
+      "sequences": 32,
+      "max_H_relative": 0.0003733167250175029,
+      "max_CE_difference": 0.00035953521728515625,
+      "max_weak_power_difference": 3.337860107421875e-06
+    },
+    {
+      "step": 33000,
+      "sequences": 32,
+      "max_H_relative": 0.00039315654430538416,
+      "max_CE_difference": 0.00028443336486816406,
+      "max_weak_power_difference": 3.635883331298828e-06
+    },
+    {
+      "step": 43000,
+      "sequences": 32,
+      "max_H_relative": 0.00038381171179935336,
+      "max_CE_difference": 0.0006008148193359375,
+      "max_weak_power_difference": 2.2649765014648438e-06
+    }
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "phase": "verified_resources_released",
+  "utc": 1793691671.2646525,
+  "attempt_id": "v5p-runtime-1793690088975246380",
+  "source_commit": "43b34723a80d5eacf61302664bb1398e724d716c",
+  "error": null,
+  "resources_released": true,
+  "resource_count": 1
+}

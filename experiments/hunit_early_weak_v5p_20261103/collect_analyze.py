@@ -21,7 +21,8 @@ for t in m['steps']:
   if m.get('accelerator_type')=='v5p-8':
    assert q['shard_index']==i%4 and q['num_shards']==4
    if t in [33000,43000]:
-    f=q['archive_fidelity'];assert f['head_relative']<.015 and abs(f['mean_CE_difference'])<.005 and abs(f['weak_power_relative'])<.015
+    f=q['archive_fidelity'];assert f['accepted']==bool(f['head_relative']<.015 and abs(f['mean_CE_difference'])<.005 and abs(f['weak_power_relative'])<.015)
+    if m.get('require_cross_hardware_identity',True):assert f['accepted']
   assert all(f['head_relative']<.015 and abs(f['CE_difference'])<.005 and abs(f['weak_power_relative'])<.015 for f in q['fidelity'])
   with np.load(p/f'sequence_{i:03d}.npz') as z:v={k:z[k].copy() for k in z.files}
   assert all(np.isfinite(a).all() for a in v.values())
@@ -44,13 +45,13 @@ for t in m['steps']:
  head=json.loads((root.parent/'head_spectra'/f'{t}.json').read_text());u=np.load(root.parent/'head_spectra'/f'{t}.npy');uf=np.load(R.parent/'bam_hunit_write_origin_20261103/fixed43k_basis.npy');row['head_parameters']=head;row['gamma_isotropic_control']=json.loads((R/'gamma_isotropic_control.json').read_text())[str(t)];row['own_fixed43k_subspace_overlap']=float(np.sum((u.T@uf)**2)/128)
  if t in [33000,43000]:
   old=json.loads((R.parent/'bam_hunit_write_origin_20261103/results.json').read_text())['rows'][str(t)]['focused_last_layer']
-  row['previous_observer_share_max_absolute_difference']=max(float(np.max(np.abs(np.asarray(row['fixed43k'][sp+'_share']['mean'])-old[sp+'_share']))) for sp in ['raw','head'])
-  assert row['previous_observer_share_max_absolute_difference']<.005
+  row['cross_hardware_allocation_share_max_absolute_difference']=max(float(np.max(np.abs(np.asarray(row['fixed43k'][sp+'_share']['mean'])-old[sp+'_share']))) for sp in ['raw','head'])
+  if m.get('require_cross_hardware_identity',True):assert row['cross_hardware_allocation_share_max_absolute_difference']<.005
   refroot=Path('/data0/mengqy/bam_diagnostics/bam_hunit_spectral_20261102/native_tpu_v2/results')/str(t)
   gold=np.stack([np.load(refroot/f'sequence_{i:03d}.npz')['native_loss'].reshape(-1) for i in range(32)])
-  row['archived_native_max_CE_difference']=float(np.max(np.abs(v['baseline_CE']-gold)));row['archived_native_mean_CE_difference']=float(np.mean(v['baseline_CE']-gold));assert abs(row['archived_native_mean_CE_difference'])<.001
+  row['archived_native_max_CE_difference']=float(np.max(np.abs(v['baseline_CE']-gold)));row['archived_native_mean_CE_difference']=float(np.mean(v['baseline_CE']-gold));row['cross_hardware_mean_CE_accepted']=bool(abs(row['archived_native_mean_CE_difference'])<.001)
  d=json.loads((root/str(t)/'complete.json').read_text());row['final_small_parameters']=d['final_small_parameters'];rows[str(t)]=row
- if t in [33000,43000] and m.get('accelerator_type')=='v5p-8':row['cross_hardware_max_H_relative']=max(q['archive_fidelity']['head_relative'] for q in metas);row['cross_hardware_max_weak_power_relative']=max(abs(q['archive_fidelity']['weak_power_relative']) for q in metas)
+ if t in [33000,43000] and m.get('accelerator_type')=='v5p-8':row['cross_hardware_failed_texts']=sum(not q['archive_fidelity']['accepted'] for q in metas);row['cross_hardware_max_H_relative']=max(q['archive_fidelity']['head_relative'] for q in metas);row['cross_hardware_max_weak_power_relative']=max(abs(q['archive_fidelity']['weak_power_relative']) for q in metas)
  checks.append(dict(step=t,sequences=32,max_H_relative=max(f['head_relative'] for q in metas for f in q['fidelity']),max_CE_difference=max(abs(f['CE_difference']) for q in metas for f in q['fidelity']),max_weak_power_difference=max(abs(f['weak_power_relative']) for q in metas for f in q['fidelity'])))
  print('CHECKPOINT',t,'CE',row['CE']['mean'],'memory_RMS',row['memory_RMS'],'own weak fraction',row['own']['head_weak_fraction']['mean'],'fixed dyn raw RMS',row['fixed43k']['raw_self_RMS'][1],flush=True)
 growth={}

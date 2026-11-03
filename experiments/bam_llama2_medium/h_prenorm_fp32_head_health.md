@@ -69,7 +69,7 @@ the coordinator log records intentional scope reduction, not a failed 3k result.
 | 3000 | 4.16691 | 4.04348 | 2.46848 | 2.44954 |
 | 13000 | 19.61511 | 4.70240 | 2.66868 | 2.61735 |
 | 23000 | 54.10717 | 4.94314 | 2.71214 | 2.61908 |
-| 33000 | 120.76044 | pending | 2.75896 | pending |
+| 33000 | 120.76044 | 5.12062 | 2.75896 | 2.64078 |
 | 43000 | 207.72593 | pending | 2.77637 | pending |
 
 Old 13k–43k rows reuse the same-cohort full-token data in
@@ -96,10 +96,20 @@ match, and the probe traced once and completed in 89.56 seconds.
 Same-stage formal head-gradient median is .05010 versus .05775. Its roughly
 13% reduction is close in scale to the roughly 12% cohort-RMS reduction; this
 is a clue about amplitude, not a same-batch gradient factorization or proof
-of lower gradient noise. Reported loss-gain advantage over old H remains
-about 3%, so the health improvement has not yet established a widening loss
-advantage. The checkpoint-health comparison is now rendered as one figure
-with three side-by-side subplots, preserving the measured 3k anchor.
+of lower gradient noise. The checkpoint-health comparison is rendered as
+one figure with three side-by-side subplots, preserving the measured 3k anchor.
+
+At 33k, common offset is 5.12062 versus old 120.76044 (-95.76%); class spread
+is 2.64078 versus 2.75896 (-4.28%). Actual post-final-LN RMS is 1.33077
+versus 1.84153 (-27.74%). New 23k–33k RMS grows 2.47%, versus 24.75% for
+old H. Same-stage formal head-gradient median/P95 is .04899/.05813 versus
+old .06303/.08020; the new head gradient remains nearly flat while the old
+head rises. This extends the evidence into the old run's post-30k drift
+regime. These measurements establish suppression of common-mode growth and
+much slower feature-amplitude growth for the combined recipe, not an
+isolated causal attribution to FP32 logits. The probe used all 65536 tokens,
+matched all 32 sequence hashes, traced its forward once, completed in 94.85
+seconds, and released the reserved FLEX worker lock.
 
 Formal training head-gradient medians, four consecutive 500-step windows
 starting at 1k: new .12971/.09613/.08220/.07400; previous H

@@ -94,12 +94,15 @@ for i in range(32):
 verification['baseline_legacy_replay']=dict(mean_CE_delta=float(np.mean([x['CE_delta'] for x in legacy])),
     max_abs_sequence_CE_delta=max(abs(x['CE_delta']) for x in legacy),
     max_abs_own_head_weak_power_relative=max(abs(x['own_head_weak_power_relative']) for x in legacy))
+verification['baseline_legacy_replay']['accepted']=bool(verification['baseline_legacy_replay']['max_abs_sequence_CE_delta']<.005 and verification['baseline_legacy_replay']['max_abs_own_head_weak_power_relative']<.015)
+assert verification['baseline_legacy_replay']['accepted'],('Historical baseline replay failed',verification['baseline_legacy_replay'])
 uold=np.load(Path(manifests['baseline']['local_DATA'])/'head_spectra/13000.npy')
 unew=np.load(Path(manifests['prenorm']['local_DATA'])/'head_spectra/13000.npy')
 out=dict(complete=True,models=manifests,rows=rows,paired=paired,verification=verification,
     own_subspace_overlap=float(np.sum((uold.T@unew)**2)/128),
     components=['mha','mo_dynamic','mo_static','attn_bias','attn_rounding','ffn','residual_add_rounding'],
     scope='Same32 Pile-source2048 texts, both native v5p at13k. Own centered effective-BF16 Wc bottom128 and old fixed43k directions. Head energy is activation energy, not gradient energy. Signed allocations include cross terms. No training; configs differ in pre-norm, QK read scale, FP32 output logits.')
+out['training_health_window_12901_13000']=json.loads((R/'tb_health.json').read_text())
 (R/'results.json').write_text(json.dumps(out,indent=2)+'\n')
 (R/'verification.json').write_text(json.dumps(verification,indent=2)+'\n')
 print('ALL64_PAIRED_CASES_VERIFIED',flush=True)

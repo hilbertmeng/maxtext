@@ -1,0 +1,20 @@
+{
+  "baseline": {
+    "sequences": 32,
+    "max_H_relative": 0.0003577689058147371,
+    "max_CE_difference": 0.0002486705780029297,
+    "max_weak_power_relative": 5.7220458984375e-06
+  },
+  "prenorm": {
+    "sequences": 32,
+    "max_H_relative": 0.00035852118162438273,
+    "max_CE_difference": 1.9073486328125e-05,
+    "max_weak_power_relative": 7.152557373046875e-06
+  },
+  "baseline_legacy_replay": {
+    "mean_CE_delta": -0.00014151583521352512,
+    "max_abs_sequence_CE_delta": 0.0010840846338595611,
+    "max_abs_own_head_weak_power_relative": 0.00039563926067276434,
+    "accepted": true
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "all_absent": true,
+  "resources": [
+    {
+      "name": "xd-v5p8-mqy-hunpre13-1103-ue5a-r1",
+      "zone": "us-east5-a",
+      "owner_task": "bam_hunit_prenorm_13k_20261103",
+      "created_utc": 1793702416.0662029,
+      "type": "v5p-8",
+      "provisioning": "spot",
+      "node_state": "ABSENT",
+      "queue_state": "ABSENT"
+    }
+  ],
+  "errors": []
+}

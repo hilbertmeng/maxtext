@@ -37,6 +37,7 @@ with (R/'job.lock').open('a+b') as lock:
         root=Path('/home/lishengping/mengqy/hunit_prenorm_13k_diag')
         work=root/'xd/projects/maxtext';py=str(root/'miniconda3/bin/python')
         assert subprocess.check_output(['git','-C',str(work),'rev-parse','HEAD'],text=True).strip()==m['commit']
+        Path('/tmp/hunit_origin/hunit_origin').mkdir(parents=True,exist_ok=True)
         base=dict(os.environ,TENSORSTORE_GCS_REQUEST_CONCURRENCY='128',JAX_PLATFORMS='tpu',
             PYTHONPATH='MaxText:'+str(root/'native_deps')+':'+str(root/'xd/projects/praxis'),
             OMP_NUM_THREADS='4',OPENBLAS_NUM_THREADS='4',TF_NUM_INTEROP_THREADS='2',TF_NUM_INTRAOP_THREADS='2',

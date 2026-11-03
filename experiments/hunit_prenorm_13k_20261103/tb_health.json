@@ -1,0 +1,98 @@
+{
+  "BamPythia2p8BHUnit300B": {
+    "files": [
+      "events.out.tfevents.1793564576.t1v-n-a9b02c91-w-12.part-8aaacf91cc114cb98d1b9aeb559d9e51-00012",
+      "events.out.tfevents.1793566387.t1v-n-a9b02c91-w-12.part-8aaacf91cc114cb98d1b9aeb559d9e51-00013"
+    ],
+    "metrics": {
+      "learning/raw_grad_norm": {
+        "count": 10,
+        "first": 12910,
+        "last": 13000,
+        "mean": 0.16821239218115808,
+        "min": 0.12119456380605698,
+        "max": 0.21802127361297607
+      },
+      "learning/grad_norm": {
+        "count": 10,
+        "first": 12910,
+        "last": 13000,
+        "mean": 0.1682124115526676,
+        "min": 0.12119459360837936,
+        "max": 0.21802127361297607
+      },
+      "learning/loss": {
+        "count": 10,
+        "first": 12910,
+        "last": 13000,
+        "mean": 2.0304950952529905,
+        "min": 2.0138840675354004,
+        "max": 2.0565919876098633
+      },
+      "raw_grads/decoder/lm_head/logits_dense": {
+        "count": 10,
+        "first": 12910,
+        "last": 13000,
+        "mean": 0.06002150140702724,
+        "min": 0.04981981962919235,
+        "max": 0.06567138433456421
+      }
+    }
+  },
+  "BamPythia2p8BHUnit300BFastKernelMPreNormQKScale": {
+    "files": [
+      "events.out.tfevents.1793699405.t1v-n-5486f092-w-25.part-3cc4fc11ae7549259c9a03fc51533c67-00012",
+      "events.out.tfevents.1793701090.t1v-n-5486f092-w-25.part-3cc4fc11ae7549259c9a03fc51533c67-00013"
+    ],
+    "metrics": {
+      "learning/raw_grad_norm": {
+        "count": 10,
+        "first": 12910,
+        "last": 13000,
+        "mean": 0.12979788854718208,
+        "min": 0.1086767241358757,
+        "max": 0.19163550436496735
+      },
+      "learning/grad_norm": {
+        "count": 10,
+        "first": 12910,
+        "last": 13000,
+        "mean": 0.12979791164398194,
+        "min": 0.10867675393819809,
+        "max": 0.19163551926612854
+      },
+      "learning/loss": {
+        "count": 10,
+        "first": 12910,
+        "last": 13000,
+        "mean": 2.027151656150818,
+        "min": 2.011314868927002,
+        "max": 2.052607536315918
+      },
+      "raw_grads/decoder/lm_head/logits_dense": {
+        "count": 10,
+        "first": 12910,
+        "last": 13000,
+        "mean": 0.05189094878733158,
+        "min": 0.04560287669301033,
+        "max": 0.056840550154447556
+      },
+      "logits/common_offset_abs_p95": {
+        "count": 10,
+        "first": 12910,
+        "last": 13000,
+        "mean": 4.660023736953735,
+        "min": 4.559967994689941,
+        "max": 4.786149024963379
+      },
+      "logits/centered_std_median": {
+        "count": 10,
+        "first": 12910,
+        "last": 13000,
+        "mean": 2.5462965250015257,
+        "min": 2.4927024841308594,
+        "max": 2.6032185554504395
+      }
+    }
+  }
+}

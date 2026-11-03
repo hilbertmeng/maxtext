@@ -99,8 +99,11 @@ def main():
       std = jnp.sqrt(jnp.mean((logits - mean[:, None]) ** 2, axis=-1))
       return jnp.stack((mean, std, jnp.ones_like(mean)), axis=-1)
 
+    # A BF16/F32 cast round-trip can retain excess precision inside TPU fusion.
+    # Explicitly reduce mantissa precision for the diagnostic rounding control.
+    rounded = jax.lax.reduce_precision(high, exponent_bits=8, mantissa_bits=7)
     return dict(accumulator=moments(high),
-                bf16_output=moments(high.astype(jnp.bfloat16).astype(jnp.float32)),
+                bf16_output=moments(rounded),
                 hidden_mean_square=jnp.mean(hidden.astype(jnp.float32) ** 2))
 
   with mesh, nn.partitioning.axis_rules(cfg.logical_axis_rules):
@@ -133,9 +136,12 @@ def main():
       summaries = {}
       for name in ('accumulator', 'bf16_output'):
         samples = np.concatenate([r[name] for r in records])
-        values = np.asarray(metrics.summarize_health(jnp.asarray(samples)))
-        summaries[name] = dict(common_offset_abs_p95=float(values[0]),
-                               centered_std_median=float(values[1]))
+        # All compact samples are already on the host. Pool once with the same
+        # linear quantile definition, without compiling a TPU sort of 65k rows.
+        valid = samples[:, 2] > 0
+        summaries[name] = dict(
+            common_offset_abs_p95=float(np.quantile(np.abs(samples[valid, 0]), .95)),
+            centered_std_median=float(np.median(samples[valid, 1])))
       result = dict(exp=args.exp, checkpoint=checkpoint, runtime_commit=actual,
           runner_sha256=hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
           metrics_source_sha256=hashlib.sha256(args.metrics_source.read_bytes()).hexdigest(),

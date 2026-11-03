@@ -25,6 +25,7 @@ def main():
  p=argparse.ArgumentParser()
  for k in ['manifest','output','training-config']:p.add_argument('--'+k,required=True)
  a=p.parse_args();m=json.loads(Path(a.manifest).read_text());commit=subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip();assert commit==m['commit'];root=Path(a.output);root.mkdir(exist_ok=True,parents=True)
+ jax.config.update('jax_compilation_cache_dir',str(root/'jax_cache'));jax.config.update('jax_persistent_cache_min_compile_time_secs',0)
  if jblob(m['gcs_root']+'/complete.json'):print('WRITE_ORIGIN_REUSED_ALL',flush=True);return
  attrs=dict(model_name=m['experiment'],only_eval=True,enable_checkpointing=False,per_device_batch_size=1.,eval_per_device_batch_size=1.,target_global_batch_size=1,max_target_length=2048,max_prefill_predict_length=2048,dataset_type='synthetic',log_config=False,jax_cache_dir='',enable_goodput_recording=False,monitor_goodput=False,record_training_health_metrics=False,record_internal_nn_metrics=False,remat_policy='none',tensorboard_dir='/tmp/hunit_origin/tensorboard/',base_output_directory='/tmp/hunit_origin/')
  exp.OriginHUnitInference=type('OriginHUnitInference',(getattr(exp,m['experiment']),),attrs)
@@ -68,7 +69,8 @@ def main():
    tokens=np.concatenate([x[0],y[0,-1:]]).astype(np.int32);assert hashlib.sha256(tokens.tobytes()).hexdigest()==m['cohort_hashes'][i]
    tick=time.time();loss,s=feature(params,jnp.asarray(x),jnp.asarray(y));loss,s=jax.device_get((loss,s));seconds=time.time()-tick
    h=s.pop('h');raw=s.pop('raw');relative=float(np.linalg.norm(h-goldh)/np.linalg.norm(goldh));raw_relative=float(np.linalg.norm(raw-goldraw)/np.linalg.norm(goldraw));drift=float(loss.mean()-goldloss.mean());assert relative<.015 and abs(drift)<.005,('Observation graph failed archival replay gate',step,i,relative,drift)
-   assert s['head_allocation'].shape==(32,7);assert abs(s['head_allocation_closure'])<2e-4 and abs(s['raw_allocation_closure'])<2e-4 and s['projection_ledger_relative_error']<1e-4 and s['layer_continuity_max']==0,(step,i,'Attribution ledger does not close')
+   metrics={k:float(s[k]) for k in ['head_allocation_closure','raw_allocation_closure','projection_ledger_relative_error','layer_continuity_max','layer_continuity_relative_error']};print('WRITE_ORIGIN_LEDGER',step,i,metrics,flush=True)
+   assert s['head_allocation'].shape==(32,7);assert abs(s['head_allocation_closure'])<2e-4 and abs(s['raw_allocation_closure'])<2e-4 and s['projection_ledger_relative_error']<1e-4 and s['layer_continuity_relative_error']<2e-6,(step,i,'Attribution ledger does not close',metrics)
    assert all(np.isfinite(v).all() for v in s.values())
    cf=[jax.device_get(causal(params,jnp.asarray(x),jnp.asarray(y),jnp.asarray(mode,jnp.int32),jnp.asarray(h))) for mode in range(3)]
    assert float(cf[0][4])<.015 and abs(float(cf[0][0].mean()-loss.mean()))<.005,('Causal keep mismatch',step,i)

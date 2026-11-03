@@ -17541,6 +17541,31 @@ class BamPythia2p8BHUnitShortTrainFastKernelMPreNormQKScale(BamPythia2p8BHUnitSh
     compare_runs = ['BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOne']
 
 
+class _PythiaMPreNormSpeedProfile(TrainStepProfile):
+    """v5p-8 paired speed arm: 32 layers, 8/device, inherited minimal_save_splash remat and health."""
+    target_train_batch_size = None
+    per_device_batch_size = 8.0  # V64 profile: minimal remat at 16/device exceeds v5p-8 HBM.
+    steps = 100
+    checkpoint_keep_steps = []
+
+
+class BamPythia2p8BMPreNormSpeedParentProfile(_PythiaMPreNormSpeedProfile, BamPythia2p8BHUnit300BFastKernel):
+    """FastKernel parent control."""
+    model_name = 'BamPythia2p8BMPreNormSpeedParentProfile'
+
+
+class BamPythia2p8BMPreNormSpeedPreNormProfile(BamPythia2p8BMPreNormSpeedParentProfile):
+    """Whole-M read pre-norm only (no common Q/K scale): isolates the in-kernel RMS cost."""
+    model_name = 'BamPythia2p8BMPreNormSpeedPreNormProfile'
+    bam_m_read_norm = 'rms'
+
+
+class BamPythia2p8BMPreNormSpeedQKScaleProfile(
+        _PythiaMPreNormSpeedProfile, BamPythia2p8BHUnit300BFastKernelMPreNormQKScale):
+    """Formal pre-norm + common Q/K scale (per-head scales, c-summed reverse)."""
+    model_name = 'BamPythia2p8BMPreNormSpeedQKScaleProfile'
+
+
 class BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneCommonQKScale(
         BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOne):
     """Add one learned scalar per layer, shared by complete local Q/K reads.

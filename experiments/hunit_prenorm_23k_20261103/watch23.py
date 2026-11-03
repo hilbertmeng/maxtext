@@ -84,12 +84,17 @@ def main():
                     state['consecutive_errors']=state.get('consecutive_errors',0)+1
                     state.update(last_check_utc=tick,next_check_utc=next_check,last_error=str(e)[:1000]);save(state)
                     if state['consecutive_errors']>=3:notify(state,'monitor-error',f'23k监测连续3次未能取得可靠状态：{str(e)[:350]}。这不代表训练停止，正在保留原训练并继续检查。')
+            # A transient Feishu failure must not silently lose the required checkpoint
+            # notice or let a final result close the watcher before that notice is confirmed.
+            cached=state.get('snapshot',{})
+            if cached.get('checkpoint_committed') and 'checkpoint-ready' not in state.get('delivered',{}):
+                notify(state,'checkpoint-ready',f'检测到{RUN}已完成23k，checkpoint完整提交到bucket。\n{cached["checkpoint"]}\n正在执行与原FastKernel @23k的配对弱能量分析，后续同步进展和结果。')
             progress=R/'goal-progress.json'
             if progress.exists():
                 d=json.loads(progress.read_text());phase=d.get('phase')
                 if phase in PHASES:notify(state,'analysis-'+phase,PHASES[phase])
                 if phase=='complete':
-                    if notify(state,'analysis-final',d['feishu_text']):
+                    if 'checkpoint-ready' in state.get('delivered',{}) and notify(state,'analysis-final',d['feishu_text']):
                         state.update(status='complete',completed_utc=time.time(),result=d);save(state);return
                 elif phase=='failed':
                     notify(state,'analysis-failed','23k分析遇到问题，需要继续排查：'+d.get('error','')[:600]+'\n已保留原始结果；分析TPU回收状态见任务记录。')

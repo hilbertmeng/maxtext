@@ -19,3 +19,11 @@ Registry group `mediumprop-unit-h-raw-content`, default public cadence2000 and r
 Runtime94c0fa1a87ab96126836e0f1bd10fd53965b773c. All three FIRST_STEP, exact source on both workers, loaded AOT, TruePile4096 regional path and original13500 plan verified. Five focused experiment checks (all three full-model CE/all-gradient native/Pallas plus budget and exact seed-M dose), five summary-writer rotation regressions passed; maximum leaf gradient relative discrepancies6.76e-6/3.58e-6/2.24e-6. Parameters432112210 each.
 
 Startup harmonic throughput, steps20..99 (80 points, worker0): raw embedding .681537, parent-amplitude .684309, small20 .690536 step/s. Relative to UnitH .6761125: +.80%/+1.21%/+2.13%; same hardware/batch/health, separate leases, no claim these small between-arm differences are causal. All logged startup losses finite. All three AOTs borrowed the same retained FLEX worker through its serial lock; compiler preserved. Monitor watcher4111317 owns group metadata, routine2000/reviews4000,8000; loss-based stops await user confirmation.
+
+## Uncompensated embedding arm: user stop
+
+Stopped at committed checkpoint4578 on2026-11-03 after the user first retained all three at4k, then explicitly stopped only this arm. The absolute deficit remains near+.10; MHA-reference relative gain continues falling. Final five mature windows3600..4400 average gap+0.09874924, ratio0.59917621 versus UnitH; latest4400 +0.09823820/0.58573265. The terminal.98 bet was overoptimistic relative to this observed prefix;13500 endpoint was not measured. No parameter/cache savings; startup+.80% on a separate matched-health lease.
+
+UE5a v5p16/P0; no migration or passive candidates. Registered active stint05:22:24..07:18:37UTC; complete READY lease05:22:27..07:18:37UTC (1h56m10s), ending at user-stop request. Node and queued resource independently absent after native closeout finished07:21:20UTC. CP4578 committed; local TensorBoard SYNC_OK. Raw-loss/lease/closeout proofs under the task artifact root.
+
+Other two arms remain in training to8k. Group clock transferred to the parent-amplitude arm at the already-published4k phase; normal6k/8k reports preserved. Stopped arm removed from active membership.

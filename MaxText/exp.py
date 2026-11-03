@@ -19827,6 +19827,9 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneRawWritesTruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneTruePile):
     """UnitH: raw embedding/attention/private-MLP write contents; address norms and gates retained."""
+    # Conclusion: no useful recovery from raw writes; the gap stays near +.10 while relative gain deteriorates.
+    # User stopped4578; final5 through4400 vs UnitH gap+0.09874924, MHA-ref ratio0.59917621; full13500 endpoint unmeasured.
+    # Parameters/cache unchanged; CP4578 committed, TB SYNC_OK, TPU and queued resource independently absent; P0.
     # Implementation: codex/mediumprop-unit-h-raw-content; /data0/xd/mediumprop-unit-h-raw-content.
     # code_commit:94c0fa1; UE5a v5p16 xd-v5p-16-310540-maxtext; FIRST/source/AOT/data/s13500 verified.
     # Startup20..99 0.681537step/s vs UnitH.676113 (+0.80%, separate leases); generic healthON/internalOFF.

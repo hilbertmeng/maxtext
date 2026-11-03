@@ -25,6 +25,7 @@ from layers.models import Transformer
 PARENT = H + 'ReadScaleInitOne'
 RUN = 'BamPythia2p8BHUnit300B'
 OLD = 'BamPythia2p8BSotaIndependentR768Pallas'
+SERIAL = 'MuddPythia3BSerialMLPKeepActivations'
 
 
 class HUnit300BTest(MLPWriteTest, unittest.TestCase):
@@ -49,7 +50,7 @@ class HUnit300BTest(MLPWriteTest, unittest.TestCase):
     self.assertEqual(cfg.learning_rate, 1.6e-4)
     self.assertEqual(cfg.checkpoint_keep_steps, list(range(3000, 143001, 10000)))
     self.assertEqual(cfg.compare_runs, ['Pythia_2.8B_2022', 'Pythia_6.9B_2022_Decay',
-                                     'PileMUDDPythia3BPlusOcdbtv6e', OLD])
+                                     'PileMUDDPythia3BPlusOcdbtv6e', OLD, SERIAL])
     self.assertEqual(pyconfig.resolve_per_device_batch_size(1., 128, cfg.gradient_accumulation_steps,
                                                            cfg.target_train_batch_size), 8.)
     self.assertEqual((cfg.head_dim, cfg.bam_local_qk_col_output_dim, cfg.bam_standard_qk_dim,
@@ -68,7 +69,7 @@ class HUnit300BTest(MLPWriteTest, unittest.TestCase):
     self.assertEqual(plan['launch']['TPU_TYPE'],'v5p-256')
     self.assertEqual(plan['reporting']['cadence_steps'],5000)
     self.assertEqual(plan['reporting']['first_normal_report_step'],3000)
-    self.assertEqual(plan['reporting']['loss_step_offsets'],{RUN:1,OLD:1})
+    self.assertEqual(plan['reporting']['loss_step_offsets'],{RUN:1,OLD:1,SERIAL:1})
     self.assertEqual(plan['reporting']['gain_ratios'],[[RUN,b,'Pythia_2.8B_2022'] for b in cfg.compare_runs[1:]])
 
   def test_full_parameter_shapes_and_v5p256_sharding_budget(self):

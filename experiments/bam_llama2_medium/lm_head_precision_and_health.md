@@ -99,7 +99,8 @@ CPU artifacts:
 - `MaxText/tests/logits_training_test.py`: two real Pythia Transformer train-step
   tests, ordinary and accumulated. Health exports work with both generic/internal
   health OFF; toggling health leaves loss and updated parameters exactly equal.
-- Full BAM CPU suite: 47 tests in four bounded groups, all passed.
+- BAM attention CPU suite (`bam_attention_test.py`): 47 tests in four bounded
+  groups, all passed. This does not include every end-to-end Pythia fixture.
 
 The exact pushed runtime `2826e91b69ec208389ad8d585b689fa12a95720a` also passed
 all 11 output-head tests and both real train-step tests on the retained
@@ -126,3 +127,47 @@ env JAX_PLATFORMS=cpu PYTHONPATH=MaxText \
 
 Research motivation and frozen-checkpoint evidence:
 [H unit CE/logit-offset diagnostics](pythia2p8_h_ce_precision.md).
+
+## End-to-end Pythia fixture follow-up
+
+Restoring FP32 CE exposed a failure in the historical unit-gamma random VJP
+fixture. Runtime interception confirms that native/fused both use
+`cast_logits_to_fp32=True`, accumulator mode OFF, and FP32 projection outputs.
+Their configuration and actual output dtypes now have explicit assertions in
+the fixture. No kernel or production precision behavior was changed to fix it.
+
+This test differentiates random-weighted per-token cross entropies, despite
+the historical "logits" names. Before the repair, only its real-training-loss
+branch put the BF16 models and FP32 oracle at a BF16-representable parameter
+point. Its random-VJP branch also included master-weight quantization error.
+Changing CE precision can remove or reinforce cancellation between that error
+and kernel arithmetic error; identical CE code does not require both error
+norms to change in the same direction.
+
+| Random CE VJP diagnostic | Native relative L2 | Fused relative L2 |
+|---|---:|---:|
+| Original master point, historical BF16 CE | .029323 | .032831 |
+| Original master point, restored FP32 CE | .021914 | .035131 |
+| Matched BF16-representable point, FP32 CE | .020453 | .020124 |
+
+Apply the same representable-point rule to every strict BF16 arithmetic
+comparison. Keep the original 1.25x relative and 5% absolute random-VJP limits
+unchanged. A separate production-style next-token CE test retains original
+FP32 master weights, covering their quantization rather than relying solely on
+the representable-point probe: native/fused errors are .024495/.018892, with
+mean training-loss difference .000394. The FastKernel BF16 arithmetic check also passes
+at .041423 native / .029930 fused. Actual loss checks use the pre-existing
+training-objective bounds, not a relaxed version of the random-VJP criterion.
+
+The independently confirmed registry includes serial Mudd as a direct baseline,
+with +1 step alignment. `BamPythia2p8BHUnit300B.compare_runs` and its inherited
+plan tests now match the existing plan JSON, including that offset and gain
+triple. The three plan tests (base, FastKernel, M-pre-norm) pass.
+
+Audit and verification artifacts:
+`/data0/xd/bam_diagnostics/logits-regression-audit-20261103/`.
+The four initial audits are diagnostic variants; they include the deliberately
+reproduced original failure. The `fixed-*`, `training-ce`, `master-training-ce`
+and `plan-tests` logs are the final verification set. The external actual-logits
+VJP control met the gradient-ratio bound but failed its elementwise forward
+criterion near zero logits, so it was not adopted as a fixture rewrite.

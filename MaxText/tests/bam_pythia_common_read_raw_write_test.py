@@ -16,7 +16,7 @@ import pyconfig
 import train
 import train_compile
 from bam_prop_test_utils import MLPWriteTest
-from layers.models import Transformer
+from layers.models import OutputHead, Transformer
 
 BASE = ('BamPythia2p8BSotaIndependentR768PallasShortTrainMemoryMLPRatio2to1'
         'AllR640SeparateVOKeysLogitDiagNegativeQK80')
@@ -108,6 +108,9 @@ class PythiaCommonReadRawWriteTest(MLPWriteTest, unittest.TestCase):
         cfg.get_keys(), bam_pallas_core=True, bam_pallas_write=True,
         bam_pallas_interpret=True, bam_splash_attention=True, bam_pallas_fused_inputs=True)))
     tcfg = pyconfig.HyperParameters(SimpleNamespace(keys=dict(cfg.get_keys(), dtype=jnp.float32)))
+    for c in (pcfg, tcfg):
+      for key in ('cast_logits_to_fp32', 'logits_fp32_output_bf16_backward'):
+        self.assertEqual(getattr(c, key), getattr(cfg, key), key)
     mesh = jax.sharding.Mesh(max_utils.create_device_mesh(cfg), cfg.mesh_axes)
     native, fused, truth = (Transformer(c, mesh, quant=None) for c in (cfg, pcfg, tcfg))
     tok = jax.random.randint(jax.random.key(20), (1, 128), 0, 32)
@@ -139,12 +142,28 @@ class PythiaCommonReadRawWriteTest(MLPWriteTest, unittest.TestCase):
             # Exercise the pre-norm denominator at zero, fractional and negative scales.
             flat[path] = jnp.asarray([0., .6] if flat[path].size == 2 else [-1.4], flat[path].dtype).reshape(flat[path].shape)
       params = unflatten_dict(flat)
-      if dtype == 'bfloat16' and training_objective:
+      if dtype == 'bfloat16' and getattr(self, 'bf16_representable_parameter_point', True):
         # Compare arithmetic at exactly the same representable parameter point;
         # otherwise the F32 oracle also changes every weight before the first dot.
+        # This applies to random CE VJPs too: changing CE precision changes how
+        # weight-quantization and kernel-rounding errors cancel in their gradients.
         params = jax.tree.map(lambda x: x.astype(jnp.bfloat16).astype(x.dtype), params)
       def call(model, p):
-        return model.apply(p, *call_args, enable_dropout=False, **call_kwargs)[0].astype(jnp.float32)
+        head_dtypes = []
+        def observe_head(next_fun, args, kwargs, context):
+          out = next_fun(*args, **kwargs)
+          if isinstance(context.module, OutputHead) and context.method_name == 'project_logits':
+            expected = (jnp.float32 if model.config.cast_logits_to_fp32
+                        or model.config.logits_fp32_output_bf16_backward else model.config.dtype)
+            self.assertEqual(out.dtype, expected)
+            head_dtypes.append(out.dtype)
+          return out
+        # Transformer returns per-token CE here; observe the projection itself
+        # so a precision-path mismatch cannot hide behind the CE's FP32 result.
+        with nn.intercept_methods(observe_head):
+          out = model.apply(p, *call_args, enable_dropout=False, **call_kwargs)[0]
+        self.assertTrue(head_dtypes, 'OutputHead.project_logits was not exercised')
+        return out.astype(jnp.float32)
       target = jax.random.normal(jax.random.key(23), call(native, params).shape)
       if training_objective:
         # Transformer returns per-token cross entropies, not logits. Apply the
@@ -233,6 +252,14 @@ class PythiaCommonReadRawWriteTest(MLPWriteTest, unittest.TestCase):
     self.check_model(UNIT)
 
   def test_unit_gamma_bf16_gradients_against_f32_truth(self):
+    self.check_model(UNIT, 'bfloat16')
+
+  def test_unit_gamma_bf16_training_loss_from_master_weights(self):
+    # Keep a production-style, FP32-master-weight CE check in addition to the
+    # stricter matched-point arithmetic probe. Do not hide weight quantization
+    # by using only BF16-representable parameters throughout the test suite.
+    self.bf16_training_objective = True
+    self.bf16_representable_parameter_point = False
     self.check_model(UNIT, 'bfloat16')
 
 

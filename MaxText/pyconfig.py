@@ -123,6 +123,8 @@ def validate_rope_type(rope_type: str) -> None:
 
 
 def validate_keys(keys):
+  from layers.logits import validate_config as validate_logits_config
+  validate_logits_config(keys)
   if keys["checkpoint_save_timeout_seconds"] <= 0:
     raise ValueError("checkpoint_save_timeout_seconds must be positive")
 

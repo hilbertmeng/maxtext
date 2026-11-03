@@ -16,6 +16,7 @@
 
 import jax
 import jax.numpy as jnp
+from layers.logits import reduce_microbatch_aux
 from jax.sharding import NamedSharding
 
 import enum
@@ -132,7 +133,7 @@ def gradient_accumulation_loss_and_grad(
 #   raw_grads = jax.tree.map(_maybe_shard_with_name, raw_grads, params_shardings)
   # lsp: raw_grads means the gradient of total_loss, so it needs to be divided by total_weights.
 #   raw_grads = jax.tree_util.tree_map(lambda arr: arr / grad_and_loss["total_weights"], raw_grads)
-  aux = jax.tree.map(lambda x: jnp.sum(x, axis=0), aux)  # pytype: disable=module-attr
+  aux = reduce_microbatch_aux(aux)
 
   return loss, aux, grad_and_loss["grad"]
 

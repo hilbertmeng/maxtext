@@ -101,6 +101,14 @@ CPU artifacts:
   health OFF; toggling health leaves loss and updated parameters exactly equal.
 - Full BAM CPU suite: 47 tests in four bounded groups, all passed.
 
+The exact pushed runtime `2826e91b69ec208389ad8d585b689fa12a95720a` also passed
+all 11 output-head tests and both real train-step tests on the retained
+FLEX_START `llm-jax-v6e-1-0`, EW4a, worker 0, with `JAX_PLATFORMS=tpu`.
+The compiler was borrowed under its existing AOT worker lock; the lock was
+released and the compiler retained. No training RUN was started or resumed.
+TPU logs/results are mirrored under the local artifact root's `tpu/` directory;
+GCS source: `gs://newproject-1-llm_projects_us-east5/log/diagnostics/xd/logits_precision_implementation_20261103/`.
+
 The separate whole-repository config-default lint still finds two pre-existing
 undeclared defaults: `bam_content_adapter_activation` in `bam_content_adapter.py`
 and `bam_memory_controls_from_hidden` in `fusion.py`. Both source references and

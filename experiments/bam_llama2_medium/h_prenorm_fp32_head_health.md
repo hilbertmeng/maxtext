@@ -68,7 +68,7 @@ the coordinator log records intentional scope reduction, not a failed 3k result.
 |---|---:|---:|---:|---:|
 | 3000 | 4.16691 | 4.04348 | 2.46848 | 2.44954 |
 | 13000 | 19.61511 | 4.70240 | 2.66868 | 2.61735 |
-| 23000 | 54.10717 | pending | 2.71214 | pending |
+| 23000 | 54.10717 | 4.94314 | 2.71214 | 2.61908 |
 | 33000 | 120.76044 | pending | 2.75896 | pending |
 | 43000 | 207.72593 | pending | 2.77637 | pending |
 
@@ -87,6 +87,19 @@ does not yet establish improved post-30k loss convergence. The 13k probe
 (`7252f22`) took 89.42 seconds, traced the forward once, and released the FLEX
 worker lock. Its explicit BF16 rounding control differs from the accumulator
 as expected; primary results remain on the common FP32-accumulation path.
+
+At 23k, common offset is 4.94314 versus old 54.10717 (-90.86%); class spread
+is 2.61908 versus 2.71214 (-3.43%). Actual post-final-LN RMS is 1.29873
+versus 1.47613 (-12.02%). New 13k–23k RMS grows only .73%, while old grows
+11.14%; new class spread is nearly unchanged. The same-cohort sample hashes
+match, and the probe traced once and completed in 89.56 seconds.
+Same-stage formal head-gradient median is .05010 versus .05775. Its roughly
+13% reduction is close in scale to the roughly 12% cohort-RMS reduction; this
+is a clue about amplitude, not a same-batch gradient factorization or proof
+of lower gradient noise. Reported loss-gain advantage over old H remains
+about 3%, so the health improvement has not yet established a widening loss
+advantage. The checkpoint-health comparison is now rendered as one figure
+with three side-by-side subplots, preserving the measured 3k anchor.
 
 Formal training head-gradient medians, four consecutive 500-step windows
 starting at 1k: new .12971/.09613/.08220/.07400; previous H

@@ -29,6 +29,12 @@ def main():
    assert abs(float(s['head_allocation_closure']))<2e-5 and abs(float(s['raw_allocation_closure']))<2e-5
    assert float(s['projection_ledger_relative_error'])<1e-5 and float(s['layer_continuity_max'])==0
    @jax.jit
+   def final_only(p):
+    observer=WriteObserver(u,gamma,last_only=True)
+    with observer.observe():out,collection=model.apply(p,x,pos,y,seg,enable_dropout=False,mutable=['intermediates'])
+    return out[0],aggregate(observer,collection,gamma,bias)
+   fl,fs=final_only(v);np.testing.assert_array_equal(fl,native);assert fs['head_allocation'].shape==(1,7) and abs(float(fs['head_allocation_closure']))<2e-5
+   @jax.jit
    def controlled(p,mode):
     observer=LastReadAblation(mode)
     with observer.observe():out=model.apply(p,x,pos,y,seg,enable_dropout=False)

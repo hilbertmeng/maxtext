@@ -9,7 +9,8 @@ from head_spectral_diagnostic import BF16_round
 
 NAMES=['mha','mo_dynamic','mo_static','attn_bias','attn_rounding','ffn','residual_add_rounding']
 class WriteObserver:
- def __init__(self,u,gamma):
+ def __init__(self,u,gamma,last_only=False):
+  self.last_only=last_only
   self.u=u;self.rank=u.shape[1];b=gamma[:,None]*u
   self.transform=jnp.concatenate((u-u.mean(0),b-b.mean(0)),axis=1)
   self.active=None;self.raw=self.h=None;self.original_read=bam_pallas.read;self.original_splash=attentions._bam_splash_attention
@@ -31,7 +32,7 @@ class WriteObserver:
   return out
  def interceptor(self,next_fun,args,kw,ctx):
   mod=ctx.module;cls=mod.__class__.__name__;method=ctx.method_name
-  if cls=='SubDecoderLayer' and method=='__call__':
+  if cls=='SubDecoderLayer' and method=='__call__' and (not self.last_only or any('final_local_layer' in p for p in mod.scope.path)):
    previous=self.active;s={};self.active=s;before=args[0];out=next_fun(*args,**kw);after=out[0]
    assert all(k in s for k in ['mha','mo_dynamic','mo_static','attn_bias','attn_rounding','ffn'])
    bp=self.project(before);ap=self.project(after);s['residual_add_rounding']=ap-bp-s['attn_projected']-s['ffn']
@@ -63,7 +64,7 @@ def layers(collection,name):
   assert isinstance(v,tuple) and len(v)==1;ptext='/'.join(p);a=v[0]
   if 'final_local_layer' in ptext:values.append((1,a[None]))
   else:values.append((0,a))
- assert len(values)==2,[(k,v.shape) for k,v in values]
+ assert 1<=len(values)<=2,[(k,v.shape) for k,v in values]
  return jnp.concatenate([v for _,v in sorted(values,key=lambda x:x[0])],axis=0)
 
 def aggregate(observer,collection,gamma,bias,epsilon=1e-5):
@@ -79,7 +80,7 @@ def aggregate(observer,collection,gamma,bias,epsilon=1e-5):
  allocation=inner(head_parts,target_h);raw_allocation=inner(raw_parts,target_raw)
  extra=jnp.stack([inner(embed_h,target_h),inner(beta,target_h),inner(head_round,target_h)])
  continuity=after[:-1]-before[1:];closure=embed+parts.sum((0,1))-after[-1]
- return dict(head_allocation=allocation,raw_allocation=raw_allocation,head_self_power=power(head_parts),raw_self_power=power(raw_parts),extra_head_allocation=extra,extra_raw_embedding_allocation=inner(embed[...,:rank],target_raw),head_total_power=total_head,raw_total_power=total_raw,head_allocation_closure=(allocation.sum()+extra.sum())/total_head-1,raw_allocation_closure=(raw_allocation.sum()+inner(embed[...,:rank],target_raw))/total_raw-1,projection_ledger_relative_error=jnp.sqrt(jnp.sum(closure**2)/jnp.sum(after[-1]**2)),layer_continuity_max=jnp.max(jnp.abs(continuity)),layer_continuity_relative_error=jnp.sqrt(jnp.sum(continuity**2)/jnp.maximum(jnp.sum(before[1:]**2),1e-30)),read_head_power=layers(collection,'write_origin_read_power'),raw=raw,h=h)
+ return dict(head_allocation=allocation,raw_allocation=raw_allocation,head_self_power=power(head_parts),raw_self_power=power(raw_parts),extra_head_allocation=extra,extra_raw_embedding_allocation=inner(embed[...,:rank],target_raw),head_total_power=total_head,raw_total_power=total_raw,head_allocation_closure=(allocation.sum()+extra.sum())/total_head-1,raw_allocation_closure=(raw_allocation.sum()+inner(embed[...,:rank],target_raw))/total_raw-1,projection_ledger_relative_error=jnp.sqrt(jnp.sum(closure**2)/jnp.sum(after[-1]**2)),layer_continuity_max=jnp.max(jnp.abs(continuity)) if parts.shape[0]>1 else jnp.asarray(0.),layer_continuity_relative_error=jnp.sqrt(jnp.sum(continuity**2)/jnp.maximum(jnp.sum(before[1:]**2),1e-30)),read_head_power=layers(collection,'write_origin_read_power'),raw=raw,h=h)
 
 class LastReadAblation:
  """Only final attention's input to native Wo changes; MHA/V/keys stay original."""

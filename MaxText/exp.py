@@ -17768,6 +17768,55 @@ class BamPythia2p8BV6eTuneSplash512Profile(BamPythia2p8BV6eSpeedFullSaveSplashPr
     sa_block_q_dkv = sa_block_kv_dkv = sa_block_kv_dkv_compute = 512
 
 
+# Round 1 (533ef34, step/s vs base 2.3402): ReadChunk16 +.93%, WriteTile +.52%, ReadTile +.22%,
+# Vmem110 +.10%, SplashKvc1024 -.12%, ReadChunk4 -2.4%, Splash512 -3.5%; ReadRevTile256 (110 MiB)
+# and Splash2048 dkv blocks exceed VMEM.
+class BamPythia2p8BV6eTuneReadChunk32Profile(BamPythia2p8BV6eTuneVmemProfile):
+    model_name = 'BamPythia2p8BV6eTuneReadChunk32Profile'
+    bam_pallas_read_chunk = 32
+
+
+class BamPythia2p8BV6eTuneWriteChunk16Profile(BamPythia2p8BV6eTuneVmemProfile):
+    model_name = 'BamPythia2p8BV6eTuneWriteChunk16Profile'
+    bam_pallas_write_chunk = 16
+
+
+class BamPythia2p8BV6eTuneWriteChunk32Profile(BamPythia2p8BV6eTuneVmemProfile):
+    model_name = 'BamPythia2p8BV6eTuneWriteChunk32Profile'
+    bam_pallas_write_chunk = 32
+
+
+class BamPythia2p8BV6eTuneXhatDBProfile(BamPythia2p8BV6eTuneVmemProfile):
+    model_name = 'BamPythia2p8BV6eTuneXhatDBProfile'
+    bam_pallas_read_xhat_double_buffer = True
+
+
+class BamPythia2p8BV6eTuneReadRevTile256Profile(BamPythia2p8BV6eSpeedFullSaveSplashProfile):
+    model_name = 'BamPythia2p8BV6eTuneReadRevTile256Profile'
+    bam_pallas_vmem_mib = 125
+    bam_pallas_read_reverse_tile = 256
+
+
+class BamPythia2p8BV6eTuneSplashFwd2048Profile(BamPythia2p8BV6eSpeedFullSaveSplashProfile):
+    model_name = 'BamPythia2p8BV6eTuneSplashFwd2048Profile'
+    sa_block_q = sa_block_kv = sa_block_kv_compute = 2048
+
+
+class BamPythia2p8BV6eTuneCombo16Profile(BamPythia2p8BV6eSpeedFullSaveSplashProfile):
+    model_name = 'BamPythia2p8BV6eTuneCombo16Profile'
+    bam_pallas_vmem_mib = 120
+    bam_pallas_read_tile = 256
+    bam_pallas_write_tile = 256
+    bam_pallas_write_reverse_tile = 256
+    bam_pallas_read_xhat_double_buffer = True
+    bam_pallas_read_chunk = 16
+
+
+class BamPythia2p8BV6eTuneCombo32Profile(BamPythia2p8BV6eTuneCombo16Profile):
+    model_name = 'BamPythia2p8BV6eTuneCombo32Profile'
+    bam_pallas_read_chunk = 32
+
+
 class BamPythia2p8BV6eSpeedMinimalOffloadedProfile(BamPythia2p8BV6eSpeedB8Profile):
     model_name = 'BamPythia2p8BV6eSpeedMinimalOffloadedProfile'
     remat_policy = 'minimal_offloaded'

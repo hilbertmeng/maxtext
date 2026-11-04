@@ -4349,6 +4349,8 @@ class BamAttention(Attention):
         read_kwargs[arm + '_dynamic_scale'] = common_qk_scale.astype(jnp.float32) * jnp.ones(q_key.shape[2:3], jnp.float32)
     if getattr(cfg, 'bam_pallas_read_chunk', None):
       read_kwargs['chunk'] = int(cfg.bam_pallas_read_chunk)
+    if getattr(cfg, 'bam_pallas_read_xhat_double_buffer', False):
+      read_kwargs['xhat_double_buffer'] = True
     if packed_qkvo is not None:
       if body != 'v8t':
         raise ValueError('bam_pallas_packed_read_keys requires v8t')

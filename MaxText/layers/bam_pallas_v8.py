@@ -17,6 +17,7 @@ the token-major operands are built in VMEM. Building keys / splitting Y in XLA i
 experimental v8 body, branch claude/bam-pallas-fullm) cost +330 ms of pads/copies on [B,T,N,40/96].
 """
 import math
+import os
 from functools import partial
 
 import jax
@@ -219,14 +220,25 @@ def _tm_read_kernel(n, qk_cols, eps, scale, q_scale, gated, ch, shifted=False, q
         # broadcasts beat a gate scratch here; the dot form (X_t g') M_{t-1} costs a second matmul.
         # M pre-norm then scales the mixed FP32 matrix by its own 1/RMS before the model-dtype cast.
         xt = _chunk(xt_scr, t0, ch, cdim).astype(dt)
-        mt = m_ref[pl.ds(t0, ch)].astype(F32)
-        mr = mt
-        if shifted:
-          gate = _shift_gate(sh_ref, t0, ch, kdim) if gb_scr is None else _chunk(gb_scr, t0, ch, cdim)
-          mr = mt + gate * (_prev_from(m_ref, mh_ref, t0, mt) - mt)
-        if m_norm is not None:
-          mr = mr * _m_inv_rms(mr, m_norm)
-        y = _bdot(xt, mr.astype(dt), 1, 1)
+        if 'f_bf16' in set(os.environ.get('BAM_V8_ABL', '').split(',')) and shifted and m_norm is not None:
+          # EXPERIMENT: bf16 VPU mix and scale; f32 sum of squares on the MXU (ones matrix).
+          mt = m_ref[pl.ds(t0, ch)]
+          gate = jnp.stack([jnp.broadcast_to(sh_ref[:, pl.ds(t0 + i, 1)], (cdim, kdim)) for i in range(ch)], axis=0)
+          mr = mt + gate.astype(dt) * (_prev_from(m_ref, mh_ref, t0, mt) - mt)
+          sq = (mr * mr).reshape(ch * cdim, kdim)
+          rows = jax.lax.dot_general(sq, jnp.ones((kdim, 128), dt), (((1,), (0,)), ((), ())),
+                                     preferred_element_type=F32).reshape(ch, cdim, 128)
+          s = jax.lax.rsqrt(jnp.sum(rows, axis=1, keepdims=True)[:, :, :1] / (cdim * kdim) + m_norm)
+          y = _bdot(xt, mr * s.astype(dt), 1, 1)
+        else:
+          mt = m_ref[pl.ds(t0, ch)].astype(F32)
+          mr = mt
+          if shifted:
+            gate = _shift_gate(sh_ref, t0, ch, kdim) if gb_scr is None else _chunk(gb_scr, t0, ch, cdim)
+            mr = mt + gate * (_prev_from(m_ref, mh_ref, t0, mt) - mt)
+          if m_norm is not None:
+            mr = mr * _m_inv_rms(mr, m_norm)
+          y = _bdot(xt, mr.astype(dt), 1, 1)
       else:
         xt = _chunk(xt_scr, t0, ch, cdim).astype(dt)
         y = _bdot(xt, m_ref[pl.ds(t0, ch)], 1, 1)

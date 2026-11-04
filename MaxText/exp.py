@@ -17718,6 +17718,56 @@ class BamPythia2p8BV6eSpeedFullSaveSplashL12Profile(BamPythia2p8BV6eSpeedFullSav
     bam_attention_write_layers = list(range(11))
 
 
+# v6e kernel tuning round 1 (8 layers, FullSaveSplash): v6e has 128 MiB VMEM and 256x256 MXUs;
+# the read/write/Splash tiles and the 63 MiB VMEM limit were tuned for v5p.
+class BamPythia2p8BV6eTuneVmemProfile(BamPythia2p8BV6eSpeedFullSaveSplashProfile):
+    model_name = 'BamPythia2p8BV6eTuneVmemProfile'
+    bam_pallas_vmem_mib = 110
+
+
+class BamPythia2p8BV6eTuneReadTileProfile(BamPythia2p8BV6eTuneVmemProfile):
+    model_name = 'BamPythia2p8BV6eTuneReadTileProfile'
+    bam_pallas_read_tile = 256
+
+
+class BamPythia2p8BV6eTuneReadRevTileProfile(BamPythia2p8BV6eTuneVmemProfile):
+    model_name = 'BamPythia2p8BV6eTuneReadRevTileProfile'
+    bam_pallas_read_reverse_tile = 256
+
+
+class BamPythia2p8BV6eTuneWriteTileProfile(BamPythia2p8BV6eTuneVmemProfile):
+    model_name = 'BamPythia2p8BV6eTuneWriteTileProfile'
+    bam_pallas_write_tile = 256
+    bam_pallas_write_reverse_tile = 256
+
+
+class BamPythia2p8BV6eTuneReadChunk16Profile(BamPythia2p8BV6eTuneVmemProfile):
+    model_name = 'BamPythia2p8BV6eTuneReadChunk16Profile'
+    bam_pallas_read_chunk = 16
+
+
+class BamPythia2p8BV6eTuneReadChunk4Profile(BamPythia2p8BV6eTuneVmemProfile):
+    model_name = 'BamPythia2p8BV6eTuneReadChunk4Profile'
+    bam_pallas_read_chunk = 4
+
+
+class BamPythia2p8BV6eTuneSplash2048Profile(BamPythia2p8BV6eSpeedFullSaveSplashProfile):
+    model_name = 'BamPythia2p8BV6eTuneSplash2048Profile'
+    sa_block_q = sa_block_kv = sa_block_kv_compute = 2048
+    sa_block_q_dkv = sa_block_kv_dkv = sa_block_kv_dkv_compute = 2048
+
+
+class BamPythia2p8BV6eTuneSplashKvc1024Profile(BamPythia2p8BV6eSpeedFullSaveSplashProfile):
+    model_name = 'BamPythia2p8BV6eTuneSplashKvc1024Profile'
+    sa_block_kv_compute = 1024
+
+
+class BamPythia2p8BV6eTuneSplash512Profile(BamPythia2p8BV6eSpeedFullSaveSplashProfile):
+    model_name = 'BamPythia2p8BV6eTuneSplash512Profile'
+    sa_block_q = sa_block_kv = sa_block_kv_compute = 512
+    sa_block_q_dkv = sa_block_kv_dkv = sa_block_kv_dkv_compute = 512
+
+
 class BamPythia2p8BV6eSpeedMinimalOffloadedProfile(BamPythia2p8BV6eSpeedB8Profile):
     model_name = 'BamPythia2p8BV6eSpeedMinimalOffloadedProfile'
     remat_policy = 'minimal_offloaded'

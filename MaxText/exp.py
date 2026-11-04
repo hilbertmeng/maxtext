@@ -17653,6 +17653,19 @@ class BamPythia2p8BHUnit300BFastKernelMPreNormQKScaleV6e(BamPythia2p8BHUnit300BF
     remat_policy = 'full_save_splash'
 
 
+# v5p-128 (64 chips, 16/device) at 3cc250d: the formal class needs 97.67G of 95.74G HBM and the FastKernel
+# parent 95.74G (136K over). Largest buffer: scan-stacked M bf16[31,16,2048,64,80], 9.69G padded to 15.5G.
+# Memory screen: chunk the FP32 output head (loss_chunk_size; default 4096 is one chunk at T2048).
+class BamPythia2p8BHUnit300BFastKernelMPreNormQKScaleV5p128Chunk1024(BamPythia2p8BHUnit300BFastKernelMPreNormQKScale):
+    model_name = 'BamPythia2p8BHUnit300BFastKernelMPreNormQKScaleV5p128Chunk1024'
+    loss_chunk_size = 1024
+
+
+class BamPythia2p8BHUnit300BFastKernelMPreNormQKScaleV5p128Chunk512(BamPythia2p8BHUnit300BFastKernelMPreNormQKScale):
+    model_name = 'BamPythia2p8BHUnit300BFastKernelMPreNormQKScaleV5p128Chunk512'
+    loss_chunk_size = 512
+
+
 class _PythiaV6eSpeedProfile(TrainStepProfile):
     """v6e-1 paired speed arm: 8 layers (a full-depth state exceeds one chip), formal per-chip shapes and health."""
     # EW4a FLEX llm-jax-v6e-1-0, step/s over 20-49 (50-89 within .1%); 02710d4 round, then 313cea2 interleaved re-pair:

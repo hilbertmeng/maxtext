@@ -17817,6 +17817,30 @@ class BamPythia2p8BV6eTuneCombo32Profile(BamPythia2p8BV6eTuneCombo16Profile):
     bam_pallas_read_chunk = 32
 
 
+# Round 2 (e69137d, vs base 2.3408): Combo32 2.3846 (+1.87%), Combo16 +1.83%, XhatDB +1.0%,
+# ReadChunk32 +.93%, WriteChunk16/32 ~0, SplashFwd2048 -.8%, ReadRevTile256 (125 MiB) -1.4%.
+# Round 3 ablations on Combo32 (not math-preserving): locate the remaining read/write kernel cost.
+class BamPythia2p8BV6eAblNoPreNormProfile(BamPythia2p8BV6eTuneCombo32Profile):
+    model_name = 'BamPythia2p8BV6eAblNoPreNormProfile'
+    bam_m_read_norm = 'none'
+
+
+class BamPythia2p8BV6eAblNoShiftProfile(BamPythia2p8BV6eTuneCombo32Profile):
+    model_name = 'BamPythia2p8BV6eAblNoShiftProfile'
+    bam_m_shift_mode = 'none'
+
+
+class BamPythia2p8BV6eAblNoPreNormNoShiftProfile(BamPythia2p8BV6eAblNoPreNormProfile):
+    model_name = 'BamPythia2p8BV6eAblNoPreNormNoShiftProfile'
+    bam_m_shift_mode = 'none'
+
+
+class BamPythia2p8BV6eAblNoScalesProfile(BamPythia2p8BV6eTuneCombo32Profile):
+    model_name = 'BamPythia2p8BV6eAblNoScalesProfile'
+    bam_common_qk_read_scale = False
+    bam_common_vo_read_scale = False
+
+
 class BamPythia2p8BV6eSpeedMinimalOffloadedProfile(BamPythia2p8BV6eSpeedB8Profile):
     model_name = 'BamPythia2p8BV6eSpeedMinimalOffloadedProfile'
     remat_policy = 'minimal_offloaded'

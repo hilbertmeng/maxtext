@@ -17950,6 +17950,14 @@ class BamPythia2p8BV6eBestChunk128Profile(BamPythia2p8BV6eBestProfile):
     bam_pallas_read_chunk = 128
 
 
+# Chunk128 (8a4822f, FLEX): 2.4086 vs Chunk64 2.4242/2.4239 (-.64%); chunk 64 kept (V6eFast).
+# Traced read kernel (fwd 2.092 / bwd 3.472 ms per call): no forward pre-norm -.36, no forward per-token
+# shift-gate broadcast -.19, no reverse pre-norm -.27, no dsh column stores -.04 (abl branch 54ae6e7).
+class BamPythia2p8BV6eBestGateScratchProfile(BamPythia2p8BV6eBestChunk64Profile):
+    model_name = 'BamPythia2p8BV6eBestGateScratchProfile'
+    bam_pallas_read_fwd_gate_scratch = True
+
+
 class BamPythia2p8BV6eSpeedMinimalOffloadedProfile(BamPythia2p8BV6eSpeedB8Profile):
     model_name = 'BamPythia2p8BV6eSpeedMinimalOffloadedProfile'
     remat_policy = 'minimal_offloaded'

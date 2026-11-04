@@ -4354,6 +4354,8 @@ class BamAttention(Attention):
       read_kwargs['chunk'] = int(cfg.bam_pallas_read_chunk)
     if getattr(cfg, 'bam_pallas_read_xhat_double_buffer', False):
       read_kwargs['xhat_double_buffer'] = True
+    if getattr(cfg, 'bam_pallas_read_fwd_gate_scratch', False):
+      read_kwargs['fwd_gate_scratch'] = True
     if packed_qkvo is not None:
       if body != 'v8t':
         raise ValueError('bam_pallas_packed_read_keys requires v8t')

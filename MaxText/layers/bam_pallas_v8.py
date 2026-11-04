@@ -181,7 +181,7 @@ def _head_selector(np_, qdim, h):
 
 
 def _tm_read_kernel(n, qk_cols, eps, scale, q_scale, gated, ch, shifted=False, qdim=None, masked=False,
-                    scaled=False, qk_norm=None, m_norm=None, const_rows=0):
+                    scaled=False, qk_norm=None, m_norm=None, const_rows=0, gate_scratch=False):
   def kernel(m_ref, st_ref, rq, lq, rk, lk, rr, lo, lv, qs, ks, *refs):
     if gated:
       sg_ref, refs = refs[0], refs[1:]
@@ -199,6 +199,7 @@ def _tm_read_kernel(n, qk_cols, eps, scale, q_scale, gated, ch, shifted=False, q
       (xq_ref, xk_ref, inv_ref), refs = refs[4:7], refs[3:]
     xt_scr, y_scr = refs[4:6]
     col_scr = refs[6] if qk_norm else None
+    gb_scr = refs[-1] if gate_scratch else None
     t, _, kdim = m_ref.shape
     cdim = rq.shape[0]
     np_ = rq.shape[1]                 # heads, optionally padded to a multiple of 8 by the wrapper
@@ -210,6 +211,8 @@ def _tm_read_kernel(n, qk_cols, eps, scale, q_scale, gated, ch, shifted=False, q
       osc, rs = _tm_split_scale(os_ref, r, const_rows)
       g = g if rs is None else g * rs
     _tm_fill_keys(rq, rk, rr, inv, g, st_ref[...].astype(F32), sg, xt_scr, om, osc)
+    if gb_scr is not None:     # v6e: one lane-broadcast gate fill per tile (as in the reverse)
+      _fill_shift_gate(sh_ref, gb_scr)
     for t0 in range(0, t, ch):
       if shifted or m_norm is not None:
         # Y_t = X_t M_read_t, M_read_t = M_t + g'(M_{t-1} - M_t) mixed on the VPU. Per-token gate
@@ -219,7 +222,8 @@ def _tm_read_kernel(n, qk_cols, eps, scale, q_scale, gated, ch, shifted=False, q
         mt = m_ref[pl.ds(t0, ch)].astype(F32)
         mr = mt
         if shifted:
-          mr = mt + _shift_gate(sh_ref, t0, ch, kdim) * (_prev_from(m_ref, mh_ref, t0, mt) - mt)
+          gate = _shift_gate(sh_ref, t0, ch, kdim) if gb_scr is None else _chunk(gb_scr, t0, ch, cdim)
+          mr = mt + gate * (_prev_from(m_ref, mh_ref, t0, mt) - mt)
         if m_norm is not None:
           mr = mr * _m_inv_rms(mr, m_norm)
         y = _bdot(xt, mr.astype(dt), 1, 1)
@@ -561,14 +565,17 @@ def _tm_read_forward_call(args, opts, sh=None, om=None, os=None, qn=None):
   return pl.pallas_call(
       _tm_read_kernel(n, opts['qk_cols'], opts['read_epsilon'], opts['key_scale'], opts['q_scale'],
                       len(args) == 12, opts['chunk'], sh is not None, qdim, om is not None, os is not None,
-                      qk_norm, opts.get('m_norm'), int(opts.get('scale_const_rows') or 0)),
+                      qk_norm, opts.get('m_norm'), int(opts.get('scale_const_rows') or 0),
+                      bool(opts.get('fwd_gate_scratch')) and sh is not None),
       grid=(b, t // tile),
       in_specs=(_tm_read_specs(args, tile, packed, bool(qk_norm)) + _shift_specs(m, sh, tile)
                 + _mask_specs(om, tile) + _scale_specs(os) + _qk_norm_specs(qn, tile)),
       out_specs=out_specs,
       out_shape=out_shape,
       scratch_shapes=([pltpu.VMEM((cdim * tile, r), F32), pltpu.VMEM((tile * r, kdim), F32)]
-                      + ([pltpu.VMEM((tile, r // 4), F32)] if qk_norm else [])),
+                      + ([pltpu.VMEM((tile, r // 4), F32)] if qk_norm else [])
+                      + ([pltpu.VMEM((tile * cdim, kdim), F32)] if opts.get('fwd_gate_scratch') and sh is not None
+                         else [])),
       interpret=opts['interpret'], compiler_params=_params(('parallel', 'parallel'), opts['vmem_mib']),
       name='bam_core_read')(*args, *(() if sh is None else (sh, m)), *(() if om is None else (om,)),
                             *(() if os is None else (os,)), *(() if qn is None else qn))
@@ -703,7 +710,7 @@ def read_tm(m, static_weight, q_key, q_logits, k_key, k_logits, vo_key, o_logits
             vmem_mib=None, interpret=False, q_scale=1.0, static_gates=None, chunk=8, pad_heads=False,
             shift=None, o_weight_multiplier=None, o_dynamic_scale=None, v_dynamic_scale=None, qk_norm=None,
             q_dynamic_scale=None, k_dynamic_scale=None,
-            keys_cnt=None, m_norm=None, xhat_double_buffer=False, **_):
+            keys_cnt=None, m_norm=None, xhat_double_buffer=False, fwd_gate_scratch=False, **_):
   """v7.read's interface (keys [B,T,N,C], logits [B,T,N], standard QK [B,T,N,Rs]) for M [B,T,V,K] and
   full-M reads (C == V, identity compression). Returns (query, key, value, local_o) [B,T,N,K] and M.
 
@@ -752,6 +759,7 @@ def read_tm(m, static_weight, q_key, q_logits, k_key, k_logits, vo_key, o_logits
                       tile=forward_tile, reverse_tile=reverse_tile, vmem_mib=vmem_mib, interpret=interpret,
                       q_scale=float(q_scale), chunk=chunk, **({'qdim': qdim} if qdim > m.shape[-1] else {}),
                       **({'xhat_double_buffer': True} if xhat_double_buffer else {}),
+                      **({'fwd_gate_scratch': True} if fwd_gate_scratch else {}),
                       **({} if m_norm is None else {'m_norm': float(m_norm)}),
                       **({} if qk_norm is None else {'qk_norm': (float(qk_norm[4]), float(qdim))})))
   padn = lambda x: jnp.pad(x, [(0, 0)] * (x.ndim - 2) + [(0, np_ - n), (0, 0)]) if np_ > n else x

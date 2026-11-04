@@ -19,6 +19,7 @@ import bam_pallas_mshift_test as shift_test  # pylint: disable=wrong-import-posi
 B, T, V, K, N, QKC, RS = shift_test.B, shift_test.T, shift_test.V, shift_test.K, shift_test.N, shift_test.QKC, shift_test.RS
 V5P = dict(forward_tile=128, reverse_tile=128, chunk=8)
 V6E = dict(forward_tile=256, reverse_tile=128, chunk=64, xhat_double_buffer=True)
+V6E_GATE = dict(V6E, fwd_gate_scratch=True)
 
 
 def rel(a, b):
@@ -45,6 +46,9 @@ class V6eKernelKnobTest(unittest.TestCase):
                         o_dynamic_scale=head(3), **knobs)
 
     outs = [call(m, sw, xs, scales, k) for k in (V5P, V6E)]
+    gate = call(m, sw, xs, scales, V6E_GATE)
+    for i, (a, b) in enumerate(zip(outs[1], gate)):
+      self.assertLess(rel(b, a), 1e-6, f'gate scratch output {i}')
     for i, (a, b) in enumerate(zip(*outs)):
       self.assertLess(rel(b, a), 1e-5, f'output {i}')
     loss = lambda knobs: lambda m, sw, xs, s: sum(jnp.sum(o * c) for o, c in zip(call(m, sw, xs, s, knobs)[:4], cts))

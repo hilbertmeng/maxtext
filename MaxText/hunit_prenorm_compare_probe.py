@@ -116,7 +116,7 @@ def main():
    if marker:assert marker['source_commit']==commit and marker['input_hash']==m['cohort_hashes'][i];rows.append(marker);continue
    x=jnp.asarray(tokens[None,:-1]);y=jnp.asarray(tokens[None,1:]);tick=time.time()
    goldloss,goldh,goldraw=jax.device_get(native(params,x,y));fp32ce,bf16ce=jax.device_get(common_readout(jnp.asarray(goldh),params['params']['decoder']['lm_head']['logits_dense'],y));stats=dict(common_fp32_CE=fp32ce.reshape(-1),common_bf16_logits_CE=bf16ce.reshape(-1));fidelities=[];archive_fidelity=None
-   if step in [33000,43000]:
+   if step in [33000,43000] and m.get('compare_historical_baseline',m.get('arm')!='prenorm'):
     source=m['reference_gcs']+f'/results/{step}/{stem}';oldmeta=json.loads(blob(source+'.json'));assert oldmeta['checkpoint']==identity['checkpoint'] and oldmeta['input_hash']==m['cohort_hashes'][i]
     with np.load(io.BytesIO(blob(source+'.npz'))) as old:
      oldh=old['h'];oldce=old['native_loss'];oldraw=old['raw']

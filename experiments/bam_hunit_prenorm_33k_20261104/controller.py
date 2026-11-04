@@ -7,7 +7,7 @@ SSH=['ssh','-S','/tmp/ssh-tpu-ag-mengqy-readscale.sock','tpu-ag']
 REMOTE='/home/lishengping/mengqy/projects/bam_tpu/'+R.name
 GCS='gs://newproject-1-llm_projects_us-east5/log/diagnostics/mengqy/'+R.name+'/native_v1'
 PROJECT='newproject-1-451205'
-PREFIX='xd-v5p8-mqy-hunpre33-1104d-'
+PREFIX='xd-v5p8-mqy-hunpre33-r11040259-1-'
 resources=[]
 started=time.time()
 def save(phase,**kw):
@@ -56,14 +56,14 @@ with (R/'.controller.lock').open('a+b') as lock:
         subprocess.run(['scp','-o','ControlPath=/tmp/ssh-tpu-ag-mengqy-readscale.sock',
             str(R/'install_stream_diag.sh'),str(R/'delete_tpu_xd.sh'),'tpu-ag:'+REMOTE+'/'],check=True)
         candidates=[submit('europe-west4-b','ew4b'),submit('us-central1-a','uc1a'),submit('us-east5-a','ue5a')];chosen=None
-        while time.time()-started<21600:
+        while time.time()-started<18192:
             if time.time()-started>300 and len(candidates)==1:
                 candidates.extend([submit('us-central1-a','uc1a'),submit('us-east5-a','ue5a')])
             states=[node(x) for x in candidates];save('acquiring',candidates=[dict(x,state=s) for x,s in zip(candidates,states)])
             ready=[x for x,s in zip(candidates,states) if s=='READY']
             if ready:chosen=ready[0];break
             time.sleep(15)
-        assert chosen,'No spot v5p-8 ready within 6 hours'
+        assert chosen,'No spot v5p-8 ready before original acquisition deadline'
         save('installing',resource=chosen)
         worker(chosen,'mkdir -p /home/lishengping/mengqy')
         remote(['gcloud','compute','tpus','tpu-vm','scp',REMOTE+'/install_stream_diag.sh',

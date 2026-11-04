@@ -66,5 +66,6 @@
   "scope": "Same32x2048 Pile-source cohort, both33k on native spot v5p-8; own Wc bottom128 and fixed old43k; final writes and whole-branch ablations; compare completed13k and23k; no training.",
   "commit": "3bfb05938b8f427f07f5783e0faaec0a3d25f142",
   "compare_historical_baseline": false,
-  "execution_note": "Bounded6h spot acquisition across EW4b/UC1a/UE5a after unavailable v5p8/16 short queues; unchanged isolated single-v5p-chip arithmetic and fidelity gates."
+  "execution_note": "Resume after spot preemption: retain all32 verified baseline cases and any completed prenorm cases at same immutable GCS prefix; match native v5p single-chip backend, JAX0.8.1/source3bfb059, cohort and fidelity gates across VM attempts. This is not a same-VM comparison.",
+  "expected_device_kind": "TPU v5"
 }

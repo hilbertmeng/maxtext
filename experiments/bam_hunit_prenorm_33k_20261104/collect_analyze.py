@@ -30,6 +30,7 @@ for arm in ['baseline','prenorm']:
     for i in range(32):
         p=root/'33000';q=json.loads((p/f'sequence_{i:03d}.json').read_text())
         assert q['source_commit']==m['commit'] and q['checkpoint']==m['checkpoints']['33000'] and q['state_step']==33001
+        assert q['device_kind']==m['expected_device_kind']
         assert q['input_hash']==m['cohort_hashes'][i] and q['sequence']==i and q['shard_index']==i%4
         assert all(f['head_relative']<.015 and abs(f['CE_difference'])<.005 and abs(f['weak_power_relative'])<.015 for f in q['fidelity'])
         with np.load(p/f'sequence_{i:03d}.npz') as z:v={k:z[k].copy() for k in z.files}

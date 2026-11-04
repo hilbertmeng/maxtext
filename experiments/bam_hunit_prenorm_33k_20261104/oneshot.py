@@ -71,39 +71,40 @@ def await_cleanup():
  q=json.loads((R/'resource-audit.json').read_text())
  return q.get('all_absent') is True and not alive(EXTERNAL_CONTROLLER,'bam_hunit_prenorm_33k_20261104/controller.py') and (not child or child.poll() is not None)
 
-with (R/'oneshot.lock').open('a+b') as lock:
- fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
- try:
-  save('attached_to_spot_v5p16',driver_pid=EXTERNAL_DRIVER)
-  while alive(EXTERNAL_DRIVER,'retry_slice.py'):progress();time.sleep(20)
-  checkpoint();state=json.loads((R/'state.json').read_text())
-  if state.get('phase')!='complete':
-   assert state.get('error')=='No spot v5p-16 ready within 15 minutes',state
-   assert regional_wait()==0,'Long spot acquisition/inference failed; see controller state'
-  checkpoint();state=json.loads((R/'state.json').read_text());assert state['verified'] and state['resources_released']
-  save('publishing')
-  if not (R/'completion.json').exists():
-   subprocess.run([sys.executable,str(R/'finalize.py')],check=True)
-  else:
-   assert json.loads((R/'completion.json').read_text())['complete'] and json.loads((R/'resource-audit.json').read_text())['all_absent']
-  for attempt in range(3):
-   try:notify('final',(R/'final-message.txt').read_text());break
-   except Exception:
-    if attempt==2:raise
-    time.sleep(10)
-  m=json.loads((R/'prenorm.json').read_text());gcs=m['gcs_root'].rsplit('/',1)[0]+'/report/'
-  subprocess.run(['gsutil','-q','cp']+[str(R/n) for n in ['results.json','verification.json','cross-step.json','resource-audit.json','completion.json','pipeline-receipts.json']]+[gcs],check=True,timeout=180)
-  exp=Path(m['worktree'])/'experiments'/R.name;exp.mkdir(exist_ok=True)
-  for n in ['results.json','verification.json','cross-step.json','resource-audit.json','completion.json','pipeline-receipts.json']:
-   p=exp/n
-   if p.exists():assert p.read_bytes()==(R/n).read_bytes(),('Refuse overwrite of existing result',p)
-   else:shutil.copy2(R/n,p)
-  save('complete',url=json.loads((R/'completion.json').read_text())['url'],resources_released=True)
- except BaseException as e:
-  if child and child.poll() is None:interrupt_once(child.pid)
-  interrupt_once(EXTERNAL_CONTROLLER)
-  absent=await_cleanup()
-  save('failed',error=str(e),resources_released=absent)
-  try:notify('failed','33k弱能量分析尚未完成：'+str(e)[:500]+'。分析资源回收核验：'+('已确认删除' if absent else '尚未确认，需检查resource-audit.json')+'。已有谱分解/训练梯度结果仍保留；未将不完整前传写成结论。')
-  except Exception:pass
-  raise
+if __name__=='__main__':
+ with (R/'oneshot.lock').open('a+b') as lock:
+  fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
+  try:
+   save('attached_to_spot_v5p16',driver_pid=EXTERNAL_DRIVER)
+   while alive(EXTERNAL_DRIVER,'retry_slice.py'):progress();time.sleep(20)
+   checkpoint();state=json.loads((R/'state.json').read_text())
+   if state.get('phase')!='complete':
+    assert state.get('error')=='No spot v5p-16 ready within 15 minutes',state
+    assert regional_wait()==0,'Long spot acquisition/inference failed; see controller state'
+   checkpoint();state=json.loads((R/'state.json').read_text());assert state['verified'] and state['resources_released']
+   save('publishing')
+   if not (R/'completion.json').exists():
+    subprocess.run([sys.executable,str(R/'finalize.py')],check=True)
+   else:
+    assert json.loads((R/'completion.json').read_text())['complete'] and json.loads((R/'resource-audit.json').read_text())['all_absent']
+   for attempt in range(3):
+    try:notify('final',(R/'final-message.txt').read_text());break
+    except Exception:
+     if attempt==2:raise
+     time.sleep(10)
+   m=json.loads((R/'prenorm.json').read_text());gcs=m['gcs_root'].rsplit('/',1)[0]+'/report/'
+   subprocess.run(['gsutil','-q','cp']+[str(R/n) for n in ['results.json','verification.json','cross-step.json','resource-audit.json','completion.json','pipeline-receipts.json']]+[gcs],check=True,timeout=180)
+   exp=Path(m['worktree'])/'experiments'/R.name;exp.mkdir(exist_ok=True)
+   for n in ['results.json','verification.json','cross-step.json','resource-audit.json','completion.json','pipeline-receipts.json']:
+    p=exp/n
+    if p.exists():assert p.read_bytes()==(R/n).read_bytes(),('Refuse overwrite of existing result',p)
+    else:shutil.copy2(R/n,p)
+   save('complete',url=json.loads((R/'completion.json').read_text())['url'],resources_released=True)
+  except BaseException as e:
+   if child and child.poll() is None:interrupt_once(child.pid)
+   interrupt_once(EXTERNAL_CONTROLLER)
+   absent=await_cleanup()
+   save('failed',error=str(e),resources_released=absent)
+   try:notify('failed','33k弱能量分析尚未完成：'+str(e)[:500]+'。分析资源回收核验：'+('已确认删除' if absent else '尚未确认，需检查resource-audit.json')+'。已有谱分解/训练梯度结果仍保留；未将不完整前传写成结论。')
+   except Exception:pass
+   raise

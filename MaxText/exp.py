@@ -17880,6 +17880,13 @@ class BamPythia2p8BV6eSplashFwdKv2048Profile(BamPythia2p8BV6eTuneCombo32Profile)
     sa_block_kv = 2048
 
 
+# Round 4 (b86918c, vs Combo32 2.3873): every Splash block/layout change is slower: SeqMinor 2.3428,
+# UnfusedBwd 2.3128, DkvQ512 2.3658, DkvKvc512 2.3826, Kvc256 2.3751, FwdQ512 2.3704, FwdKv2048 2.3789.
+class BamPythia2p8BV6eSplashNoSegmentsProfile(BamPythia2p8BV6eTuneCombo32Profile):
+    model_name = 'BamPythia2p8BV6eSplashNoSegmentsProfile'
+    bam_splash_ignore_segments = True
+
+
 class BamPythia2p8BV6eSpeedMinimalOffloadedProfile(BamPythia2p8BV6eSpeedB8Profile):
     model_name = 'BamPythia2p8BV6eSpeedMinimalOffloadedProfile'
     remat_policy = 'minimal_offloaded'

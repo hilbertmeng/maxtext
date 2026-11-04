@@ -1807,7 +1807,10 @@ def _bam_splash_attention(query, key, value, decoder_segment_ids, cfg, mesh, win
   t = q.shape[2]
   axis_names = out_names = nn.logical_to_mesh_axes((BATCH, HEAD, LENGTH, D_KV))
   segment_names = nn.logical_to_mesh_axes((BATCH, "activation_length_no_heads"))
-  segments = (None if decoder_segment_ids is None
+  # bam_splash_ignore_segments: Pile inputs_segmentation is all ones without mix_attn, so the segment
+  # mask is a no-op; the unsegmented kernel skips its per-block segment comparisons.
+  ignore = bool(getattr(cfg, 'bam_splash_ignore_segments', False))
+  segments = (None if decoder_segment_ids is None or ignore
               else splash_attention_kernel.SegmentIds(decoder_segment_ids, decoder_segment_ids))
 
   def body(q, k, v, segments=None):

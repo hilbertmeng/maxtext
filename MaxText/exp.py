@@ -17596,6 +17596,9 @@ class BamPythia2p8BMPreNormSpeedQKScaleProfile(
 # v6e-128 = 128 single-TC chips (v5p-256 = 128 dual-TC chips): same 8/device, 31.25 GiB HBM, 128 MiB VMEM.
 # Formal minimal_save_splash at 5a48faa needs 49.30G HBM on v6e-128 (AOT RESOURCE_EXHAUSTED); VMEM fits.
 # Full-layer v6e-128 memory screen: formal shapes and schedule, only remat or accumulation changed.
+# All six (GA2/GA4/Full/FullSaveBamRead/MinimalOffloaded at 02710d4, FullSaveSplash at 313cea2) AOT_COMPILE_OK:
+# gs://newproject-1-llm_base_models_us-central1/log/compiled_trainsteps/{02710d4,313cea2}/jax081-i0ae3f58-c17f538a/v6e-128/s143000/
+# Fastest on v6e: FullSaveSplash (see _PythiaV6eSpeedProfile). Not multi-chip validated: no v6e-128 run yet.
 class BamPythia2p8BHUnit300BFastKernelMPreNormQKScaleV6eGA2(BamPythia2p8BHUnit300BFastKernelMPreNormQKScale):
     """Same global batch 1024 as two 4/device microbatches under the formal remat."""
     model_name = 'BamPythia2p8BHUnit300BFastKernelMPreNormQKScaleV6eGA2'
@@ -17634,6 +17637,12 @@ class BamPythia2p8BHUnit300BFastKernelMPreNormQKScaleV6eFullSaveSplash(BamPythia
 
 class _PythiaV6eSpeedProfile(TrainStepProfile):
     """v6e-1 paired speed arm: 8 layers (a full-depth state exceeds one chip), formal per-chip shapes and health."""
+    # EW4a FLEX llm-jax-v6e-1-0, step/s over 20-49 (50-89 within .1%); 02710d4 round, then 313cea2 interleaved re-pair:
+    # B8 minimal_save_splash 2.2809/2.2780 (reference only, OOM at 32 layers); Full 2.2767/2.2752/2.2745;
+    # FullSaveSplash 2.3395/2.3376 (+2.8% vs Full, fastest); GA2 2.2417/2.2387 (-1.6%); FullSaveBamRead 2.2029;
+    # GA4 2.1179; MinimalOffloaded 1.1079. MFU ~18%: the step is BAM-kernel/HBM bound, so saving weight-dot
+    # outputs costs HBM traffic about equal to recomputing them; only Splash's forward is worth saving.
+    # Traces: gs://newproject-1-llm_base_models_us-central1/log/diagnostics/profile_matrix/{02710d4/pyv6e,313cea2/pyv6e2}/
     target_train_batch_size = None
     per_device_batch_size = 8.0
     steps = 100

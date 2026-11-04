@@ -12,8 +12,9 @@ def validate_bam_config(config, *, layer_mode=None):
       lambda name, default=None: getattr(config, name, default))
   if not get('bam_enabled', False):
     return
-  if get('bam_splash_ignore_segments', False) and (get('mix_attn', False) or get('dataset_type', 'pile') != 'pile'):
-    raise ValueError('bam_splash_ignore_segments requires all-ones Pile inputs_segmentation (mix_attn=False)')
+  if get('bam_splash_ignore_segments', False) and (
+      get('mix_attn', False) or get('dataset_type', 'pile') not in ('pile', 'synthetic')):
+    raise ValueError('bam_splash_ignore_segments requires all-ones inputs_segmentation (Pile without mix_attn, or synthetic)')
   logit_dim = get('bam_qk_logit_scale_dim', None)
   if logit_dim is not None and logit_dim != 'qk_dim' and (type(logit_dim) is not int or logit_dim <= 0):
     raise ValueError('bam_qk_logit_scale_dim must be qk_dim, a positive integer or None')

@@ -17666,6 +17666,24 @@ class BamPythia2p8BHUnit300BFastKernelMPreNormQKScaleV5p128Chunk512(BamPythia2p8
     loss_chunk_size = 512
 
 
+class BamPythia2p8BHUnit300BFastKernelMPreNormQKScaleV6eFast(BamPythia2p8BHUnit300BFastKernelMPreNormQKScaleV6e):
+    """V6e with v6e-tuned kernel settings: same math, parameters, remat and schedule.
+
+    v6e has 128 MiB VMEM (v5p ~64): 256-token read-forward and write tiles, a 64-token read chunk and
+    double-buffered QKNorm xhat residuals; Splash skips its segment mask, a no-op for the all-ones Pile
+    segmentation. v6e-1 8-layer paired profiles: +3.6% step/s over V6e (2.3402 -> 2.4240), step-49 loss
+    within 1e-4 (accumulation order); kernel equivalence: bam_v6e_kernel_knobs_test.
+    """
+    model_name = 'BamPythia2p8BHUnit300BFastKernelMPreNormQKScaleV6eFast'
+    bam_pallas_vmem_mib = 120
+    bam_pallas_read_tile = 256
+    bam_pallas_write_tile = 256
+    bam_pallas_write_reverse_tile = 256
+    bam_pallas_read_xhat_double_buffer = True
+    bam_pallas_read_chunk = 64
+    bam_splash_ignore_segments = True
+
+
 class _PythiaV6eSpeedProfile(TrainStepProfile):
     """v6e-1 paired speed arm: 8 layers (a full-depth state exceeds one chip), formal per-chip shapes and health."""
     # EW4a FLEX llm-jax-v6e-1-0, step/s over 20-49 (50-89 within .1%); 02710d4 round, then 313cea2 interleaved re-pair:

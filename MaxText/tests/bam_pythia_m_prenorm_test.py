@@ -17,6 +17,25 @@ RUN = PARENT + 'MPreNormQKScale'
 
 
 class PythiaMPreNormTest(FastKernelTest):
+  def test_v6e_config_only_changes_remat_and_saves_only_splash(self):
+    v5p, v6e = self.config(RUN), self.config(RUN + 'V6e')
+    changed = {k for k, v in v6e.get_keys().items() if v != v5p.get_keys().get(k)}
+    self.assertEqual(changed, {'exp_class', 'model_name', 'remat_policy'})
+    self.assertEqual(v6e.remat_policy, 'full_save_splash')
+
+    from jax._src.ad_checkpoint import saved_residuals
+    from jax.ad_checkpoint import checkpoint_name
+    from layers.models import get_remat_policy
+    def f(x, w):
+      h = checkpoint_name(jnp.tanh(x @ w), 'bam_splash_residual')
+      return jnp.sum(jnp.sin(h @ w) @ w)
+    x, w = jnp.ones((4, 8)), jnp.ones((8, 8))
+    def kept(cfg):  # residuals other than the inputs
+      return [why for _, why in saved_residuals(jax.checkpoint(f, policy=get_remat_policy(cfg)), x, w)
+              if not why.startswith('from the argument')]
+    self.assertEqual(len(kept(v6e)), 1)  # only the named Splash residual
+    self.assertEqual(len(kept(v5p)), 3)  # minimal also keeps the two weight dots
+
   def test_formal_recipe_parameter_tree_and_health(self):
     parent, cfg = self.config(PARENT), self.config(RUN)
     changed = {k for k, v in cfg.get_keys().items() if v != parent.get_keys().get(k)}

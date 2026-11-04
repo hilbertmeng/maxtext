@@ -17635,6 +17635,18 @@ class BamPythia2p8BHUnit300BFastKernelMPreNormQKScaleV6eFullSaveSplash(BamPythia
     remat_policy = 'full_save_splash'
 
 
+class BamPythia2p8BHUnit300BFastKernelMPreNormQKScaleV6e(BamPythia2p8BHUnit300BFastKernelMPreNormQKScale):
+    """v6e-128 continuation of the pre-norm Q/K-scale RUN: same math, parameters and schedule.
+
+    v6e-128 has the same 128 chips and 8/device as v5p-256 but 31.25 GiB HBM per chip, where
+    minimal_save_splash needs 49.3G. Full remat that keeps only Splash's output/logsumexp residuals
+    fits and was fastest on v6e (see _PythiaV6eSpeedProfile). The parameter and optimizer trees are
+    unchanged, so the same RUN resumes from its v5p checkpoints.
+    """
+    model_name = 'BamPythia2p8BHUnit300BFastKernelMPreNormQKScaleV6e'
+    remat_policy = 'full_save_splash'
+
+
 class _PythiaV6eSpeedProfile(TrainStepProfile):
     """v6e-1 paired speed arm: 8 layers (a full-depth state exceeds one chip), formal per-chip shapes and health."""
     # EW4a FLEX llm-jax-v6e-1-0, step/s over 20-49 (50-89 within .1%); 02710d4 round, then 313cea2 interleaved re-pair:
@@ -17682,6 +17694,22 @@ class BamPythia2p8BV6eSpeedFullSaveBamReadProfile(BamPythia2p8BV6eSpeedB8Profile
 class BamPythia2p8BV6eSpeedFullSaveSplashProfile(BamPythia2p8BV6eSpeedB8Profile):
     model_name = 'BamPythia2p8BV6eSpeedFullSaveSplashProfile'
     remat_policy = 'full_save_splash'
+
+
+class BamPythia2p8BV6eSpeedFullSaveSplashL4Profile(BamPythia2p8BV6eSpeedFullSaveSplashProfile):
+    """Layer-scaling point for the per-layer/fixed step-time fit."""
+    model_name = 'BamPythia2p8BV6eSpeedFullSaveSplashL4Profile'
+    base_num_decoder_layers = 4
+    bam_layer_modes = ['local_qk+local_v+local_o'] * 4
+    bam_attention_write_layers = list(range(3))
+
+
+class BamPythia2p8BV6eSpeedFullSaveSplashL12Profile(BamPythia2p8BV6eSpeedFullSaveSplashProfile):
+    """Layer-scaling point for the per-layer/fixed step-time fit."""
+    model_name = 'BamPythia2p8BV6eSpeedFullSaveSplashL12Profile'
+    base_num_decoder_layers = 12
+    bam_layer_modes = ['local_qk+local_v+local_o'] * 12
+    bam_attention_write_layers = list(range(11))
 
 
 class BamPythia2p8BV6eSpeedMinimalOffloadedProfile(BamPythia2p8BV6eSpeedB8Profile):

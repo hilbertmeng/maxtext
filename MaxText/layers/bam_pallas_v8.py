@@ -17,7 +17,6 @@ the token-major operands are built in VMEM. Building keys / splitting Y in XLA i
 experimental v8 body, branch claude/bam-pallas-fullm) cost +330 ms of pads/copies on [B,T,N,40/96].
 """
 import math
-import os
 from functools import partial
 
 import jax
@@ -354,20 +353,13 @@ def _tm_read_backward_kernel(n, qk_cols, eps, scale, q_scale, gated, ch, pass_m,
           q_eps, width = qk_norm
           xhat = (xq_ref if a == 0 else xk_ref)[h].astype(F32)                  # [T, qdim]
           gm = y * mm_ref[pl.ds(a, 1), :]
-          ABL = set(os.environ.get('BAM_V8_ABL', '').split(','))   # EXPERIMENT ONLY: timing ablations
-          d2 = (lambda x, w: jax.lax.dot_general(x.astype(jnp.bfloat16), w, (((1,), (0,)), ((), ())),
-                                                 preferred_element_type=F32)) if 'q_hi' in ABL else _dot2
-          iv = (jnp.ones((t, qdim), F32) if 'q_iv1' in ABL else
-                d2(inv_cols, _head_selector(np_, qdim, h)))                    # lane-broadcast 1/r
-          red = (jnp.zeros((t, 128 + qdim), F32) if 'q_red0' in ABL else
-                 d2(gm * xhat, jnp.where((r_ == h) | (r_ >= 128), 1., 0.).astype(jnp.bfloat16)) / width)
+          iv = _dot2(inv_cols, _head_selector(np_, qdim, h))                    # lane-broadcast 1/r
+          red = _dot2(gm * xhat, jnp.where((r_ == h) | (r_ >= 128), 1., 0.).astype(jnp.bfloat16)) / width
           s_cols = s_cols + red[:, :np_]
           s_ = red[:, 128:]
           local = (iv * (gm - xhat * s_))[:, :qk_cols]
-          std_parts.append(jnp.zeros((t, qdim - qk_cols), F32) if 'q_std0' in ABL else
-                           (iv * gm)[:, qk_cols:])                               # token-major [T, Rs]
-          if 'q_dmm0' not in ABL:
-            dmm[a] = dmm[a] + jnp.sum(y * xhat, axis=0, keepdims=True)
+          std_parts.append((iv * gm)[:, qk_cols:])                               # token-major [T, Rs]
+          dmm[a] = dmm[a] + jnp.sum(y * xhat, axis=0, keepdims=True)
           if qk_cols < kdim:
             local = jnp.concatenate((local, jnp.zeros((t, kdim - qk_cols), F32)), axis=1)
           _put(dy_scr, rows, local)

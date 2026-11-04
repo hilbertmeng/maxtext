@@ -18,7 +18,7 @@ from jax.experimental import pallas as pl
 from jax.experimental.pallas import tpu as pltpu
 
 B, T, C, K, R = 8, 2048, 64, 80, 128
-TILE, CH = 128, 64
+TILE, CH = 512, 64     # 8 chunks per tile: repeat r pairs chunk i with dY chunk (i + r) % 8
 F32, BF = jnp.float32, jnp.bfloat16
 
 
@@ -30,9 +30,11 @@ def kernel(variant, rep):
   def k(m_ref, xt_ref, dy_ref, dxt_ref, dm_ref):
     acc_x = jnp.zeros((C, R), F32)
     acc_m = jnp.zeros((C, K), F32)
-    for _ in range(rep):          # repeat on VMEM-resident data: the REP slope is pure compute
-      for t0 in range(0, TILE, CH):
-        m, xt, dy = m_ref[pl.ds(t0, CH)], xt_ref[pl.ds(t0, CH)], dy_ref[pl.ds(t0, CH)]
+    nch = TILE // CH
+    for r in range(rep):          # distinct matmuls on VMEM-resident data: the REP slope is pure compute
+      for i in range(nch):
+        t0, t1 = i * CH, ((i + r) % nch) * CH
+        m, xt, dy = m_ref[pl.ds(t0, CH)], xt_ref[pl.ds(t0, CH)], dy_ref[pl.ds(t1, CH)]
         if variant == 'v0':
           dxt = bdot(m, dy, 2, 2)                                     # [ch, C, R]
           dm = bdot(xt, dy, 2, 1)                                     # [ch, C, K]

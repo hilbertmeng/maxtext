@@ -6,6 +6,7 @@ Each arm times read and write forward and forward+reverse (ms per call, median o
 random inputs of the captured shapes; overrides replace captured kwargs (null drops an array kwarg).
 """
 import json
+import os
 import pickle
 import sys
 import time
@@ -75,7 +76,14 @@ def bench(fn, args):
                for o, c in zip(jax.tree_util.tree_leaves(fn(*a)), jax.tree_util.tree_leaves(cts)))
   diff = [i for i, a in enumerate(args) if hasattr(a, 'dtype') and jnp.issubdtype(a.dtype, jnp.floating)]
   both = jax.jit(jax.grad(loss, argnums=tuple(diff)))
-  return timeit(fwd, *args), timeit(both, *args)
+  res = timeit(fwd, *args), timeit(both, *args)
+  trace = os.environ.get('KBENCH_TRACE')
+  if trace:      # XPlane of a few fwd+bwd calls, to split kernel time from wrapper glue
+    with jax.profiler.trace(trace):
+      for _ in range(3):
+        out = both(*args)
+      jax.block_until_ready(out)
+  return res
 
 
 def main(spec_path, arms_path):

@@ -17898,6 +17898,12 @@ class BamPythia2p8BV6eBestChunk64Profile(BamPythia2p8BV6eBestProfile):
     bam_pallas_read_chunk = 64
 
 
+# Chunk64 (ba6242a, spot EW4a): 2.4210 vs Best 2.4032/2.4014 (+.78%).
+class BamPythia2p8BV6eBestChunk128Profile(BamPythia2p8BV6eBestProfile):
+    model_name = 'BamPythia2p8BV6eBestChunk128Profile'
+    bam_pallas_read_chunk = 128
+
+
 class BamPythia2p8BV6eSpeedMinimalOffloadedProfile(BamPythia2p8BV6eSpeedB8Profile):
     model_name = 'BamPythia2p8BV6eSpeedMinimalOffloadedProfile'
     remat_policy = 'minimal_offloaded'

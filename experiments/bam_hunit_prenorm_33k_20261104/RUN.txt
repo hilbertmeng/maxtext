@@ -12,7 +12,7 @@ Read-only full native inference, final direct-write accounting, entire-final-Mo/
 Only own task-prefixed xd-* spot diagnostic nodes/queues, never formal training. All remote writes under /home/lishengping/mengqy.
 Spot8 queues in UE5a/UC1a andEW4b unavailable; cleaned before bounded spot16 fallback. Both topologies use the same isolated single-v5p-chip arithmetic, with strict historical v5p replay validation.
 If short16 queues exhaust, oneshot rewrites controller for up to6h spot8 acquisition across EW4b/UC1a/UE5a. Inference bounded90min, installer30min, finally cleanup of exact resource ledger; stop via systemctl --user stop hunit-prenorm-33k-complete (SIGINT propagated to controller cleanup).
-Current committed controller is the short16 template; final actual accelerator/checkpoint/native source metadata reside in results.models and resource-audit, generated only on completed inference.
+Current committed controller is the active6h spot8 version after all six short8/16 candidate resources were confirmed absent. Three queues EW4b/UC1a/UE5a are owned by the systemd service, not an interactive exec session. Final actual accelerator/checkpoint/native source metadata reside in results.models and resource-audit, generated only on completed inference.
 Weight-only measurements and health logs are valid independently of TPU availability. wo-geometry uses Wo C_D U (fixed43k), g_iso=Fro/sqrt(Dout). g_actual/g_iso is joint read/Wo alignment, not read-only or causal attribution.
 Final report: http://172.29.142.228:8873/shorttrain/no-self-readout/hunit-spectral/write-origin/prenorm-33k/ ; pending page explicitly labels missing activation results.
 One-shot sends confirmed bot receipts to previously authorized group oc_42bfd5b59295381ff58efd811fe73317.

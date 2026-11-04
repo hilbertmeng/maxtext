@@ -7,7 +7,7 @@ SSH=['ssh','-S','/tmp/ssh-tpu-ag-mengqy-readscale.sock','tpu-ag']
 REMOTE='/home/lishengping/mengqy/projects/bam_tpu/'+R.name
 GCS='gs://newproject-1-llm_projects_us-east5/log/diagnostics/mengqy/'+R.name+'/native_v1'
 PROJECT='newproject-1-451205'
-PREFIX='xd-v5p16-mqy-hunpre33-1104c-'
+PREFIX='xd-v5p8-mqy-hunpre33-1104d-'
 resources=[]
 started=time.time()
 def save(phase,**kw):
@@ -25,10 +25,10 @@ def node(x):
     raise RuntimeError(p.stderr[-1000:])
 def submit(zone,suffix):
     x=dict(name=PREFIX+suffix+'-r1',zone=zone,owner_task=R.name,created_utc=time.time(),
-           type='v5p-16',provisioning='spot')
+           type='v5p-8',provisioning='spot')
     resources.append(x);(R/'resources.json').write_text(json.dumps(resources,indent=2)+'\n')
     remote(['gcloud','compute','tpus','queued-resources','create',x['name'],'--node-id='+x['name'],
-            '--project='+PROJECT,'--zone='+zone,'--accelerator-type=v5p-16','--runtime-version=v2-alpha-tpuv5',
+            '--project='+PROJECT,'--zone='+zone,'--accelerator-type=v5p-8','--runtime-version=v2-alpha-tpuv5',
             '--service-account=626151558586-compute@developer.gserviceaccount.com','--spot','--async'])
     return x
 def release(x):
@@ -56,14 +56,14 @@ with (R/'.controller.lock').open('a+b') as lock:
         subprocess.run(['scp','-o','ControlPath=/tmp/ssh-tpu-ag-mengqy-readscale.sock',
             str(R/'install_stream_diag.sh'),str(R/'delete_tpu_xd.sh'),'tpu-ag:'+REMOTE+'/'],check=True)
         candidates=[submit('europe-west4-b','ew4b'),submit('us-central1-a','uc1a'),submit('us-east5-a','ue5a')];chosen=None
-        while time.time()-started<900:
+        while time.time()-started<21600:
             if time.time()-started>300 and len(candidates)==1:
                 candidates.extend([submit('us-central1-a','uc1a'),submit('us-east5-a','ue5a')])
             states=[node(x) for x in candidates];save('acquiring',candidates=[dict(x,state=s) for x,s in zip(candidates,states)])
             ready=[x for x,s in zip(candidates,states) if s=='READY']
             if ready:chosen=ready[0];break
             time.sleep(15)
-        assert chosen,'No spot v5p-16 ready within 15 minutes'
+        assert chosen,'No spot v5p-8 ready within 6 hours'
         save('installing',resource=chosen)
         worker(chosen,'mkdir -p /home/lishengping/mengqy')
         remote(['gcloud','compute','tpus','tpu-vm','scp',REMOTE+'/install_stream_diag.sh',

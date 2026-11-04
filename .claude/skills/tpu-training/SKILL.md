@@ -116,9 +116,20 @@ auto-train still owns subsequent preemption recovery and training closeout.
 1. Choose `EXP`, TPU `ID`, `MODE`, and direct experimental baselines in `COMPARE_RUNS`.
    For formal spot `v5p`, set `PRIMARY_ZONE` and the user-directed `BACKUP_ZONES`; `ZONE` defaults
    to `PRIMARY_ZONE` for the active assignment.
-   Queue in `PRIMARY_ZONE` first; after 5 minutes without capacity, add candidates in
-   `BACKUP_ZONES` while retaining the primary queue. Prefer `PRIMARY_ZONE` when both are
-   available; retain alternates until the selected trainer produces `FIRST_STEP`, then release them.
+   Auto-train queues `PRIMARY_ZONE` first. With nonempty `BACKUP_ZONES`, its
+   `regional_recovery.py` helper adds backups after `PRIMARY_QUEUE_WAIT_SECONDS`
+   (default 300 seconds) if the primary has no CREATING/READY node. PROVISIONING alone does
+   not count, and a vanished CREATING node does not reset the accepted queue's age.
+   Keep candidates through installation; the first allocation has priority, with
+   takeover if it disappears. After verified resumed `FIRST_STEP`, release owned
+   losers. This changes zones only: TPU type, EXP, commit and AOT stay fixed.
+   The helper verifies old writers stopped, copies committed checkpoint/cursor,
+   routes regional data and preserves report cursors. `PRIMARY_ZONE` remains the
+   next recovery's primary even when the active `ZONE` is a backup. Manual stop
+   through `closeout_runs.py` also releases pending candidates. To change policy
+   on healthy training, use `MODE=attach` with its current active `ZONE`; verify
+   existing workers are adopted and continue stepping. Empty backups retain
+   single-zone recovery. Details: `/home/xd/projects/xd_tpu_scripts/REGIONAL_RECOVERY.md`.
    Use `install+train` for a new/reprovisioned VM and `train` for an installed READY VM.
    Use `attach` to replace only the auto-train controller while leaving a healthy worker RUN alive.
    New experiments use the tuned Splash configuration by default: q/kv1024,

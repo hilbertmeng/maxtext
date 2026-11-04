@@ -7,7 +7,7 @@ EXTERNAL_DRIVER=4145011
 EXTERNAL_CONTROLLER=4145071
 GROUP='oc_42bfd5b59295381ff58efd811fe73317'
 CLI='/home/mengqy/Projects/weather/radarbot/node_modules/.bin/lark-cli'
-child=None;cancel=False
+child=None;cancel=False;interrupted=set()
 
 def save(phase,**kw):
  p=R/'pipeline-status.tmp';p.write_text(json.dumps(dict(phase=phase,utc=time.time(),pid=os.getpid(),**kw),indent=2)+'\n');p.replace(R/'pipeline-status.json')
@@ -22,11 +22,14 @@ def notify(key,text):
  assert q.returncode==0,'Feishu CLI failed; see service log'
  x=json.loads(q.stdout);assert x.get('ok') is True and x['data']['message_id']
  d[key]=dict(message_id=x['data']['message_id'],utc=time.time());p.write_text(json.dumps(d,indent=2)+'\n')
+def interrupt_once(pid):
+ if pid not in interrupted and alive(pid,'bam_hunit_prenorm_33k_20261104/controller.py'):
+  interrupted.add(pid);os.kill(pid,signal.SIGINT)
 def handle(sig,frame):
  global cancel
  cancel=True
  for pid in [child.pid if child else EXTERNAL_CONTROLLER]:
-  if alive(pid,'bam_hunit_prenorm_33k_20261104/controller.py'):os.kill(pid,signal.SIGINT)
+  interrupt_once(pid)
 for sig in [signal.SIGINT,signal.SIGTERM]:signal.signal(sig,handle)
 def checkpoint():
  if cancel:raise InterruptedError('Analysis canceled; waiting for owned-resource cleanup')
@@ -62,7 +65,7 @@ def regional_wait():
 
 def await_cleanup():
  deadline=time.time()+1800
- while time.time()<deadline and (alive(EXTERNAL_DRIVER,'retry_slice.py') or (child and child.poll() is None)):
+ while time.time()<deadline and (alive(EXTERNAL_DRIVER,'retry_slice.py') or alive(EXTERNAL_CONTROLLER,'bam_hunit_prenorm_33k_20261104/controller.py') or (child and child.poll() is None)):
   time.sleep(5)
  # Controller finally owns deletion. If it has exited, require its actual audit.
  q=json.loads((R/'resource-audit.json').read_text())
@@ -97,7 +100,8 @@ with (R/'oneshot.lock').open('a+b') as lock:
    else:shutil.copy2(R/n,p)
   save('complete',url=json.loads((R/'completion.json').read_text())['url'],resources_released=True)
  except BaseException as e:
-  if child and child.poll() is None:os.kill(child.pid,signal.SIGINT)
+  if child and child.poll() is None:interrupt_once(child.pid)
+  interrupt_once(EXTERNAL_CONTROLLER)
   absent=await_cleanup()
   save('failed',error=str(e),resources_released=absent)
   try:notify('failed','33k弱能量分析尚未完成：'+str(e)[:500]+'。分析资源回收核验：'+('已确认删除' if absent else '尚未确认，需检查resource-audit.json')+'。已有谱分解/训练梯度结果仍保留；未将不完整前传写成结论。')

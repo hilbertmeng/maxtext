@@ -17643,6 +17643,12 @@ class BamPythia2p8BHUnit300BFastKernelMPreNormQKScaleV6e(BamPythia2p8BHUnit300BF
     fits and was fastest on v6e (see _PythiaV6eSpeedProfile). The parameter and optimizer trees are
     unchanged, so the same RUN resumes from its v5p checkpoints.
     """
+    # code_commit: fcd08df. AOT_READY v6e-128/s143000 (FLEX, AOT_COMPILE_OK):
+    # gs://newproject-1-llm_base_models_us-central1/log/compiled_trainsteps/fcd08df/jax081-i0ae3f58-c17f538a/v6e-128/s143000/
+    # Estimate (not yet run on v6e-128): v6e-1 FullSaveSplash 4/8/12 layers .2312/.4273/.6289 s -> 49.7 ms/layer
+    # + 32 ms; 32 layers ~1.62 s, ~1.57 s/chip after sharding the per-layer optimizer update. v5p-8 32-layer
+    # .688 step/s (1.45 s) vs v5p-256 RUN ~.60 (1.66 s): +.21 s multi-chip cost; scaled by v5p/v6e ICI
+    # (4800/3584 Gbps) -> ~.28 s. Bet v6e-128 ~.54 step/s (1.85 s), -10% vs v5p-256 (range -5..-15%).
     model_name = 'BamPythia2p8BHUnit300BFastKernelMPreNormQKScaleV6e'
     remat_policy = 'full_save_splash'
 
@@ -17654,7 +17660,7 @@ class _PythiaV6eSpeedProfile(TrainStepProfile):
     # FullSaveSplash 2.3395/2.3376 (+2.8% vs Full, fastest); GA2 2.2417/2.2387 (-1.6%); FullSaveBamRead 2.2029;
     # GA4 2.1179; MinimalOffloaded 1.1079. MFU ~18%: the step is BAM-kernel/HBM bound, so saving weight-dot
     # outputs costs HBM traffic about equal to recomputing them; only Splash's forward is worth saving.
-    # Traces: gs://newproject-1-llm_base_models_us-central1/log/diagnostics/profile_matrix/{02710d4/pyv6e,313cea2/pyv6e2}/
+    # Traces: gs://newproject-1-llm_base_models_us-central1/log/diagnostics/profile_matrix/{02710d4/pyv6e,313cea2/pyv6e2,fcd08df/pyv6e3}/
     target_train_batch_size = None
     per_device_batch_size = 8.0
     steps = 100

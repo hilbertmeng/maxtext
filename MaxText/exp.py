@@ -17841,6 +17841,45 @@ class BamPythia2p8BV6eAblNoScalesProfile(BamPythia2p8BV6eTuneCombo32Profile):
     bam_common_vo_read_scale = False
 
 
+# Round 3 (730302a, vs Combo32 2.3869): no pre-norm 2.4295, no shift 2.4430, neither 2.4743 (-14.8 ms of
+# 419), no Q/K,V/O scales 2.3939. Kernel ms/step (8 layers): read bwd 27.8, read fwd 16.5 (+16.5 remat),
+# write bwd 13.8 / fwd 9.5, Splash fwd 17.8 / dkv 26.9. Round 4: Splash on Combo32.
+class BamPythia2p8BV6eSplashSeqMinorProfile(BamPythia2p8BV6eTuneCombo32Profile):
+    model_name = 'BamPythia2p8BV6eSplashSeqMinorProfile'
+    bam_splash_seq_minor = True
+
+
+class BamPythia2p8BV6eSplashUnfusedBwdProfile(BamPythia2p8BV6eTuneCombo32Profile):
+    model_name = 'BamPythia2p8BV6eSplashUnfusedBwdProfile'
+    sa_use_fused_bwd_kernel = False
+    sa_block_q_dq = sa_block_kv_dq = 1024
+
+
+class BamPythia2p8BV6eSplashDkvQ512Profile(BamPythia2p8BV6eTuneCombo32Profile):
+    model_name = 'BamPythia2p8BV6eSplashDkvQ512Profile'
+    sa_block_q_dkv = 512
+
+
+class BamPythia2p8BV6eSplashDkvKvc512Profile(BamPythia2p8BV6eTuneCombo32Profile):
+    model_name = 'BamPythia2p8BV6eSplashDkvKvc512Profile'
+    sa_block_kv_dkv_compute = 512
+
+
+class BamPythia2p8BV6eSplashKvc256Profile(BamPythia2p8BV6eTuneCombo32Profile):
+    model_name = 'BamPythia2p8BV6eSplashKvc256Profile'
+    sa_block_kv_compute = 256
+
+
+class BamPythia2p8BV6eSplashFwdQ512Profile(BamPythia2p8BV6eTuneCombo32Profile):
+    model_name = 'BamPythia2p8BV6eSplashFwdQ512Profile'
+    sa_block_q = 512
+
+
+class BamPythia2p8BV6eSplashFwdKv2048Profile(BamPythia2p8BV6eTuneCombo32Profile):
+    model_name = 'BamPythia2p8BV6eSplashFwdKv2048Profile'
+    sa_block_kv = 2048
+
+
 class BamPythia2p8BV6eSpeedMinimalOffloadedProfile(BamPythia2p8BV6eSpeedB8Profile):
     model_name = 'BamPythia2p8BV6eSpeedMinimalOffloadedProfile'
     remat_policy = 'minimal_offloaded'

@@ -17954,6 +17954,9 @@ class BamPythia2p8BV6eBestChunk128Profile(BamPythia2p8BV6eBestProfile):
 # Traced read kernel (fwd 2.092 / bwd 3.472 ms per call): no forward pre-norm -.36, no forward per-token
 # shift-gate broadcast -.19, no reverse pre-norm -.27, no dsh column stores -.04 (abl branch 54ae6e7).
 class BamPythia2p8BV6eBestGateScratchProfile(BamPythia2p8BV6eBestChunk64Profile):
+    # 1d9f7d8 FLEX: 2.3774 vs Chunk64 2.4252/2.4249 (-2.0%), loss bit-identical; per-token gate broadcasts stay.
+    # Microbenches (bam_v6e_tokmm_bench / bam_v6e_dylayout_bench): per-token matmuls are ~.32 ms of the 3.47 ms
+    # reverse (dM NN .05, dX NT .27); token-major dY stores are 1.9x slower than the current gather.
     model_name = 'BamPythia2p8BV6eBestGateScratchProfile'
     bam_pallas_read_fwd_gate_scratch = True
 

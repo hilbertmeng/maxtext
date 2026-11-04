@@ -17662,6 +17662,8 @@ class BamPythia2p8BHUnit300BFastKernelMPreNormQKScaleV5p128(BamPythia2p8BHUnit30
     and optimizer trees are unchanged, so the same RUN resumes from its v5p-256 checkpoints.
     """
     # Memory screen (branch claude/pythia-v6e-speed c1da72f): loss_chunk_size 512 AOT_COMPILE_OK on v5p-128.
+    # code_commit: b3db6cc. AOT_READY v5p-128/s143000 (FLEX, AOT_COMPILE_OK):
+    # gs://newproject-1-llm_base_models_us-central1/log/compiled_trainsteps/b3db6cc/jax081-i0ae3f58-c17f538a/v5p-128/s143000/
     model_name = 'BamPythia2p8BHUnit300BFastKernelMPreNormQKScaleV5p128'
     loss_chunk_size = 512
 

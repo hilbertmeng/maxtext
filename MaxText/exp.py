@@ -17653,6 +17653,19 @@ class BamPythia2p8BHUnit300BFastKernelMPreNormQKScaleV6e(BamPythia2p8BHUnit300BF
     remat_policy = 'full_save_splash'
 
 
+class BamPythia2p8BHUnit300BFastKernelMPreNormQKScaleV5p128(BamPythia2p8BHUnit300BFastKernelMPreNormQKScale):
+    """v5p-128 continuation of the pre-norm Q/K-scale RUN: same math, parameters, remat and schedule.
+
+    v5p-128 has 64 chips, so global batch 1024 is 16/device. At 3cc250d the formal class needs 97.67G of
+    95.74G HBM (FastKernel parent 95.74G, 136K over; output-head chunk 1024 still 95.81G). Splitting the
+    FP32 output head into 512-token chunks fits; the per-token logits and CE are unchanged. The parameter
+    and optimizer trees are unchanged, so the same RUN resumes from its v5p-256 checkpoints.
+    """
+    # Memory screen (branch claude/pythia-v6e-speed c1da72f): loss_chunk_size 512 AOT_COMPILE_OK on v5p-128.
+    model_name = 'BamPythia2p8BHUnit300BFastKernelMPreNormQKScaleV5p128'
+    loss_chunk_size = 512
+
+
 class _PythiaV6eSpeedProfile(TrainStepProfile):
     """v6e-1 paired speed arm: 8 layers (a full-depth state exceeds one chip), formal per-chip shapes and health."""
     # EW4a FLEX llm-jax-v6e-1-0, step/s over 20-49 (50-89 within .1%); 02710d4 round, then 313cea2 interleaved re-pair:

@@ -17,6 +17,12 @@ RUN = PARENT + 'MPreNormQKScale'
 
 
 class PythiaMPreNormTest(FastKernelTest):
+  def test_v5p128_config_only_chunks_the_output_head(self):
+    v5p, v5p128 = self.config(RUN), self.config(RUN + 'V5p128')
+    changed = {k for k, v in v5p128.get_keys().items() if v != v5p.get_keys().get(k)}
+    self.assertEqual(changed, {'exp_class', 'model_name', 'loss_chunk_size'})
+    self.assertEqual(v5p128.loss_chunk_size, 512)   # four chunks of the formal T2048 output head
+
   def test_v6e_config_only_changes_remat_and_saves_only_splash(self):
     v5p, v6e = self.config(RUN), self.config(RUN + 'V6e')
     changed = {k for k, v in v6e.get_keys().items() if v != v5p.get_keys().get(k)}

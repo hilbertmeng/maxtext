@@ -17593,6 +17593,82 @@ class BamPythia2p8BMPreNormSpeedQKScaleProfile(
     model_name = 'BamPythia2p8BMPreNormSpeedQKScaleProfile'
 
 
+# v6e-128 = 128 single-TC chips (v5p-256 = 128 dual-TC chips): same 8/device, 31.25 GiB HBM, 128 MiB VMEM.
+# Formal minimal_save_splash at 5a48faa needs 49.30G HBM on v6e-128 (AOT RESOURCE_EXHAUSTED); VMEM fits.
+# Full-layer v6e-128 memory screen: formal shapes and schedule, only remat or accumulation changed.
+class BamPythia2p8BHUnit300BFastKernelMPreNormQKScaleV6eGA2(BamPythia2p8BHUnit300BFastKernelMPreNormQKScale):
+    """Same global batch 1024 as two 4/device microbatches under the formal remat."""
+    model_name = 'BamPythia2p8BHUnit300BFastKernelMPreNormQKScaleV6eGA2'
+    gradient_accumulation_steps = 2
+
+
+class BamPythia2p8BHUnit300BFastKernelMPreNormQKScaleV6eGA4(BamPythia2p8BHUnit300BFastKernelMPreNormQKScale):
+    """Same global batch 1024 as four 2/device microbatches under the formal remat."""
+    model_name = 'BamPythia2p8BHUnit300BFastKernelMPreNormQKScaleV6eGA4'
+    gradient_accumulation_steps = 4
+
+
+class BamPythia2p8BHUnit300BFastKernelMPreNormQKScaleV6eFull(BamPythia2p8BHUnit300BFastKernelMPreNormQKScale):
+    """8/device with full remat."""
+    model_name = 'BamPythia2p8BHUnit300BFastKernelMPreNormQKScaleV6eFull'
+    remat_policy = 'full'
+
+
+class BamPythia2p8BHUnit300BFastKernelMPreNormQKScaleV6eFullSaveBamRead(BamPythia2p8BHUnit300BFastKernelMPreNormQKScale):
+    """8/device with full remat except the fused BAM read results."""
+    model_name = 'BamPythia2p8BHUnit300BFastKernelMPreNormQKScaleV6eFullSaveBamRead'
+    remat_policy = 'full_save_bam_read'
+
+
+class BamPythia2p8BHUnit300BFastKernelMPreNormQKScaleV6eMinimalOffloaded(BamPythia2p8BHUnit300BFastKernelMPreNormQKScale):
+    """8/device with minimal remat residuals offloaded to pinned host memory."""
+    model_name = 'BamPythia2p8BHUnit300BFastKernelMPreNormQKScaleV6eMinimalOffloaded'
+    remat_policy = 'minimal_offloaded'
+
+
+class _PythiaV6eSpeedProfile(TrainStepProfile):
+    """v6e-1 paired speed arm: 8 layers (a full-depth state exceeds one chip), formal per-chip shapes and health."""
+    target_train_batch_size = None
+    per_device_batch_size = 8.0
+    steps = 100
+    checkpoint_keep_steps = []
+    base_num_decoder_layers = 8
+    bam_layer_modes = ['local_qk+local_v+local_o'] * 8
+    bam_attention_write_layers = list(range(7))
+
+
+class BamPythia2p8BV6eSpeedB8Profile(_PythiaV6eSpeedProfile, BamPythia2p8BHUnit300BFastKernelMPreNormQKScale):
+    """Formal minimal_save_splash at 8/device: the no-extra-recompute reference."""
+    model_name = 'BamPythia2p8BV6eSpeedB8Profile'
+
+
+class BamPythia2p8BV6eSpeedGA2Profile(BamPythia2p8BV6eSpeedB8Profile):
+    model_name = 'BamPythia2p8BV6eSpeedGA2Profile'
+    per_device_batch_size = 4.0
+    gradient_accumulation_steps = 2
+
+
+class BamPythia2p8BV6eSpeedGA4Profile(BamPythia2p8BV6eSpeedB8Profile):
+    model_name = 'BamPythia2p8BV6eSpeedGA4Profile'
+    per_device_batch_size = 2.0
+    gradient_accumulation_steps = 4
+
+
+class BamPythia2p8BV6eSpeedFullProfile(BamPythia2p8BV6eSpeedB8Profile):
+    model_name = 'BamPythia2p8BV6eSpeedFullProfile'
+    remat_policy = 'full'
+
+
+class BamPythia2p8BV6eSpeedFullSaveBamReadProfile(BamPythia2p8BV6eSpeedB8Profile):
+    model_name = 'BamPythia2p8BV6eSpeedFullSaveBamReadProfile'
+    remat_policy = 'full_save_bam_read'
+
+
+class BamPythia2p8BV6eSpeedMinimalOffloadedProfile(BamPythia2p8BV6eSpeedB8Profile):
+    model_name = 'BamPythia2p8BV6eSpeedMinimalOffloadedProfile'
+    remat_policy = 'minimal_offloaded'
+
+
 class BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneCommonQKScale(
         BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOne):
     """Add one learned scalar per layer, shared by complete local Q/K reads.

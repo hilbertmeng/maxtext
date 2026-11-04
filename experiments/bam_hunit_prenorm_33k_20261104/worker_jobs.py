@@ -1,6 +1,44 @@
 """One spot v5p-8, four isolated inference chips, two read-only 33k arms."""
 from pathlib import Path
-import concurrent.futures, fcntl, json, os, subprocess, sys, time
+import concurrent.futures, fcntl, json, os, subprocess, sys, time, threading, shutil
+
+
+class CacheMirror:
+    """Persist completed JAX cache entries; JAX retains key/version/topology checks."""
+    def __init__(self, paths, uri):
+        self.paths=paths;self.uri=uri;self.stop=threading.Event();self.sent={}
+        for path in paths:path.mkdir(exist_ok=True,parents=True)
+        # Empty GCS prefixes are a normal first-use miss; no numeric cache is invented.
+        q=subprocess.run(['gsutil','-q','-m','rsync','-r',uri,str(paths[0])],capture_output=True,text=True,timeout=120)
+        print('JAX_CACHE_RESTORE',q.returncode,uri,flush=True)
+        for path in paths[1:]:shutil.copytree(paths[0],path,dirs_exist_ok=True)
+        self.thread=threading.Thread(target=self.loop,daemon=True);self.thread.start()
+    def sync(self):
+        # Each rank writes privately. Mirror rank0 only, then seed all ranks next VM.
+        stable=[]
+        for path in self.paths[0].glob('*-cache'):
+            try:
+                st=path.stat();fingerprint=(st.st_size,st.st_mtime_ns)
+                if st.st_size and time.time()-st.st_mtime>=5 and self.sent.get(path.name)!=fingerprint:stable.append((path,fingerprint))
+            except FileNotFoundError:pass
+        if not stable:return
+        stable.sort(key=lambda p:p[1][0],reverse=True)
+        q=subprocess.run(['gsutil','-q','-m','cp']+[str(p) for p,_ in stable]+[self.uri+'/'],capture_output=True,text=True,timeout=120)
+        if q.returncode:print('JAX_CACHE_UPLOAD_RETRY',q.returncode,flush=True);return
+        for path,fingerprint in stable:
+            try:
+                st=path.stat()
+                if (st.st_size,st.st_mtime_ns)==fingerprint:self.sent[path.name]=fingerprint
+            except FileNotFoundError:pass
+        print('JAX_CACHE_PERSISTED',len(self.sent),'entries',flush=True)
+    def loop(self):
+        while not self.stop.wait(10):
+            try:self.sync()
+            except Exception as e:print('JAX_CACHE_SYNC_RETRY',type(e).__name__,flush=True)
+    def close(self):
+        self.stop.set();self.thread.join(timeout=130)
+        try:self.sync()
+        except Exception as e:print('JAX_CACHE_FINAL_SYNC_RETRY',type(e).__name__,flush=True)
 
 R = Path('/tmp/hunit_prenorm_33k_job')
 R.mkdir(exist_ok=True)
@@ -30,7 +68,7 @@ if sys.argv[1]=='start':
 
 with (R/'job.lock').open('a+b') as lock:
     fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
-    pid=os.getpid();children=[];files=[];m=None;save(status='starting',pid=pid)
+    pid=os.getpid();children=[];files=[];m=None;cache=None;save(status='starting',pid=pid)
     try:
         subprocess.run(['gsutil','-q','cp',sys.argv[2],str(R/'job.json')],check=True)
         m=json.loads((R/'job.json').read_text())
@@ -53,6 +91,7 @@ with (R/'job.lock').open('a+b') as lock:
             subprocess.run(['gsutil','-q','cp',m['gcs_root']+'/'+arm+'.json',str(manifest)],check=True)
             subprocess.run(['gsutil','-q','cp',m['gcs_root']+'/'+arm+'.train.config.txt',str(config)],check=True)
             save(status='running',pid=pid,arm=arm,commit=m['commit'])
+            cache=CacheMirror([Path(f'/tmp/hunit_prenorm_33k/{arm}/rank{i}/jax_cache') for i in range(4)],m['gcs_root']+'/compiled_cache/'+arm)
             children=[]
             for i in range(4):
                 f=(R/f'{arm}_rank_{i}.log').open('a');files.append(f)
@@ -66,6 +105,7 @@ with (R/'job.lock').open('a+b') as lock:
                 if failed:raise RuntimeError('Inference rank failed '+str(failed))
                 time.sleep(5)
             assert all(p.wait()==0 for p in children)
+            cache.close();cache=None
             merge='''
 import json,sys
 from pathlib import Path
@@ -91,6 +131,7 @@ print('ARM_COMPLETE',m['arm'],flush=True)
             except subprocess.TimeoutExpired:p.kill();p.wait()
         save(status='failed',pid=pid,error=str(e));raise
     finally:
+        if cache:cache.close()
         for f in files:f.close()
         if m:
             for p in R.glob('*.log'):

@@ -6,6 +6,9 @@ R=Path(__file__).resolve().parent
 MAX_ATTEMPTS=3
 acquisition_deadline=json.loads((R/'pipeline-receipts.json').read_text())['capacity-wait']['utc']+21600
 
+def transient_spot_loss(error):
+ return error=='Diagnostic spot TPU lost; complete per-text GCS chunks retained' or bool(re.search(r'This TPU has state "(?:DELETING|PREEMPTED|STOPPED|TERMINATED)"',error or ''))
+
 def run_attempt(attempt):
  oldaudit=json.loads((R/'resource-audit.json').read_text());assert oldaudit['all_absent']
  folder=R/f'resume-before-{attempt}';folder.mkdir(exist_ok=False)
@@ -33,13 +36,15 @@ with (R/'oneshot.lock').open('a+b') as lock:
  try:
   assert json.loads((R/'resource-audit.json').read_text())['all_absent']
   done=False
-  for attempt in range(1,MAX_ATTEMPTS+1):
+  start=max([int(p.name.rsplit('-',1)[1]) for p in R.glob('resume-before-*')]+[0])+1
+  assert start<=MAX_ATTEMPTS,'Preemption retry limit reached'
+  for attempt in range(start,MAX_ATTEMPTS+1):
    o.checkpoint()
    rc,state=run_attempt(attempt)
    if rc==0:
     assert state['verified'] and state['resources_released'];done=True;break
    assert state.get('resources_released'),('Cleanup failed',state)
-   if state.get('error')!='Diagnostic spot TPU lost; complete per-text GCS chunks retained':raise RuntimeError(state.get('error') or 'Controller failure; see logs')
+   if not transient_spot_loss(state.get('error')):raise RuntimeError(state.get('error') or 'Controller failure; see logs')
    o.notify('resume-preempt-'+str(attempt),'33k续算再次遇到Spot抢占，已确认清理本次资源；GCS中已完成的固定样本保留，'+('继续自动续算。' if attempt<MAX_ATTEMPTS else '达到本轮重试上限，尚未得到完整结果。'))
   assert done,'Preemption retry limit reached'
   o.save('publishing')

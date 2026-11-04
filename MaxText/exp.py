@@ -17689,6 +17689,8 @@ class BamPythia2p8BHUnit300BFastKernelMPreNormQKScaleV6eFast(BamPythia2p8BHUnit3
     segmentation. v6e-1 8-layer paired profiles: +3.6% step/s over V6e (2.3402 -> 2.4240), step-49 loss
     within 1e-4 (accumulation order); kernel equivalence: bam_v6e_kernel_knobs_test.
     """
+    # code_commit: d236e9e. AOT_READY v6e-128/s143000 (FLEX, AOT_COMPILE_OK):
+    # gs://newproject-1-llm_base_models_us-central1/log/compiled_trainsteps/d236e9e/jax081-i0ae3f58-c17f538a/v6e-128/s143000/
     model_name = 'BamPythia2p8BHUnit300BFastKernelMPreNormQKScaleV6eFast'
     bam_pallas_vmem_mib = 120
     bam_pallas_read_tile = 256

@@ -17,6 +17,7 @@ the token-major operands are built in VMEM. Building keys / splitting Y in XLA i
 experimental v8 body, branch claude/bam-pallas-fullm) cost +330 ms of pads/copies on [B,T,N,40/96].
 """
 import math
+import os
 from functools import partial
 
 import jax
@@ -219,9 +220,10 @@ def _tm_read_kernel(n, qk_cols, eps, scale, q_scale, gated, ch, shifted=False, q
         mt = m_ref[pl.ds(t0, ch)].astype(F32)
         mr = mt
         if shifted:
-          mr = mt + _shift_gate(sh_ref, t0, ch, kdim) * (_prev_from(m_ref, mh_ref, t0, mt) - mt)
+          mr = (mt + .5 * (_prev_from(m_ref, mh_ref, t0, mt) - mt) if 'f_shg0' in set(os.environ.get('BAM_V8_ABL', '').split(',')) else
+                mt + _shift_gate(sh_ref, t0, ch, kdim) * (_prev_from(m_ref, mh_ref, t0, mt) - mt))
         if m_norm is not None:
-          mr = mr * _m_inv_rms(mr, m_norm)
+          mr = mr if 'f_mn0' in set(os.environ.get('BAM_V8_ABL', '').split(',')) else mr * _m_inv_rms(mr, m_norm)
         y = _bdot(xt, mr.astype(dt), 1, 1)
       else:
         xt = _chunk(xt_scr, t0, ch, cdim).astype(dt)
@@ -403,14 +405,18 @@ def _tm_read_backward_kernel(n, qk_cols, eps, scale, q_scale, gated, ch, pass_m,
         gk = _chunk(gb_scr, t0, ch, cdim)
         mr = mt + gk * d
         if m_norm is not None:     # dM_read through the per-token pre-norm of the mixed matrix
-          s = _m_inv_rms(mr, m_norm)
-          dxt = _bdot((mr * s).astype(dt), dy, 2, 2)                      # [ch, C, R]
-          dmr = _m_norm_backward(mr, s, _bdot(xt, dy, 2, 1))              # [ch, C, K]
+          if 'b_mn0' in set(os.environ.get('BAM_V8_ABL', '').split(',')):
+            dxt = _bdot(mr.astype(dt), dy, 2, 2)
+            dmr = _bdot(xt, dy, 2, 1)
+          else:
+            s = _m_inv_rms(mr, m_norm)
+            dxt = _bdot((mr * s).astype(dt), dy, 2, 2)                      # [ch, C, R]
+            dmr = _m_norm_backward(mr, s, _bdot(xt, dy, 2, 1))              # [ch, C, K]
         else:
           dxt = _bdot(mr.astype(dt), dy, 2, 2)                            # [ch, C, R]
           dmr = _bdot(xt, dy, 2, 1)                                       # [ch, C, K]
         col = jnp.sum(dmr * d, axis=-1, keepdims=True)
-        for i in range(ch):
+        for i in (() if 'b_dsh0' in set(os.environ.get('BAM_V8_ABL', '').split(',')) else range(ch)):
           dsh_ref[:, pl.ds(t0 + i, 1)] = col[i].astype(dsh_ref.dtype)
         e = gk * dmr
         tail = jnp.zeros_like(e[:1]) if nxt is None else nxt

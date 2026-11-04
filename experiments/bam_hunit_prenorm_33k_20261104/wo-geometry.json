@@ -1,0 +1,101 @@
+{
+  "rows": [
+    {
+      "arm": "baseline",
+      "step": 13000,
+      "checkpoint": "gs://newproject-1-llm_projects_us-east5/log/BamPythia2p8BHUnit300B/checkpoints/13000/items",
+      "parameter_path": "decoder/final_local_layer/block/self_attention/out/kernel",
+      "shape": [
+        32,
+        80,
+        2560
+      ],
+      "fixed43k_isotropic_weak_gain": 0.15898828634913692,
+      "full_isotropic_gain": 0.7209476045522635,
+      "fixed43k_weak_operator_fraction": 0.04863208062158448,
+      "fixed43k_projected_operator_top_singular": 2.8157600316075593,
+      "fixed43k_projected_stable_rank": 8.161668325796454
+    },
+    {
+      "arm": "baseline",
+      "step": 23000,
+      "checkpoint": "gs://newproject-1-llm_projects_us-east5/log/BamPythia2p8BHUnit300B/checkpoints/23000/items",
+      "parameter_path": "decoder/final_local_layer/block/self_attention/out/kernel",
+      "shape": [
+        32,
+        80,
+        2560
+      ],
+      "fixed43k_isotropic_weak_gain": 0.2029727656217411,
+      "full_isotropic_gain": 0.9156596733535317,
+      "fixed43k_weak_operator_fraction": 0.049136855778425276,
+      "fixed43k_projected_operator_top_singular": 4.016004112501348,
+      "fixed43k_projected_stable_rank": 6.539238934060056
+    },
+    {
+      "arm": "baseline",
+      "step": 33000,
+      "checkpoint": "gs://newproject-1-llm_projects_us-east5/log/BamPythia2p8BHUnit300B/checkpoints/33000/items",
+      "parameter_path": "decoder/final_local_layer/block/self_attention/out/kernel",
+      "shape": [
+        32,
+        80,
+        2560
+      ],
+      "fixed43k_isotropic_weak_gain": 0.2342349818853951,
+      "full_isotropic_gain": 1.0225964620022039,
+      "fixed43k_weak_operator_fraction": 0.05246805186594624,
+      "fixed43k_projected_operator_top_singular": 4.993002316619566,
+      "fixed43k_projected_stable_rank": 5.634040194420748
+    },
+    {
+      "arm": "prenorm",
+      "step": 13000,
+      "checkpoint": "gs://newproject-1-llm_projects_us-east5/log/BamPythia2p8BHUnit300BFastKernelMPreNormQKScale/checkpoints/13000/items",
+      "parameter_path": "decoder/final_local_layer/block/self_attention/out/kernel",
+      "shape": [
+        32,
+        80,
+        2560
+      ],
+      "fixed43k_isotropic_weak_gain": 0.18757514830837793,
+      "full_isotropic_gain": 0.7072436572990499,
+      "fixed43k_weak_operator_fraction": 0.07034163753949477,
+      "fixed43k_projected_operator_top_singular": 1.7992530763816195,
+      "fixed43k_projected_stable_rank": 27.823134454693417
+    },
+    {
+      "arm": "prenorm",
+      "step": 23000,
+      "checkpoint": "gs://newproject-1-llm_projects_us-east5/log/BamPythia2p8BHUnit300BFastKernelMPreNormQKScale/checkpoints/23000/items",
+      "parameter_path": "decoder/final_local_layer/block/self_attention/out/kernel",
+      "shape": [
+        32,
+        80,
+        2560
+      ],
+      "fixed43k_isotropic_weak_gain": 0.2401949676143227,
+      "full_isotropic_gain": 0.8999518565384026,
+      "fixed43k_weak_operator_fraction": 0.07123431523688291,
+      "fixed43k_projected_operator_top_singular": 2.3815940224619685,
+      "fixed43k_projected_stable_rank": 26.039480187586737
+    },
+    {
+      "arm": "prenorm",
+      "step": 33000,
+      "checkpoint": "gs://newproject-1-llm_projects_us-east5/log/BamPythia2p8BHUnit300BFastKernelMPreNormQKScale/checkpoints/33000/items",
+      "parameter_path": "decoder/final_local_layer/block/self_attention/out/kernel",
+      "shape": [
+        32,
+        80,
+        2560
+      ],
+      "fixed43k_isotropic_weak_gain": 0.27071636917387437,
+      "full_isotropic_gain": 1.007649258208047,
+      "fixed43k_weak_operator_fraction": 0.07217889919399122,
+      "fixed43k_projected_operator_top_singular": 2.80773994656736,
+      "fixed43k_projected_stable_rank": 23.79880973230291
+    }
+  ],
+  "scope": "BF16-effective final attention Wo, flatten heads to Din2560 by Dout2560. U is the shared old43k head basis, centered over output D to match existing raw-write projection. Isotropic input unit-RMS expected post-Wo weak RMS=||Wo C U||F/sqrt(Dout). Actual gain/isotropic gain measures readout-Wo joint alignment relative to isotropic input; it depends on read covariance and Wo spectral shape/orientation, not read-activation change alone or causal attribution. All checkpoints read-only; no forward, loss or gradient computed here."
+}

@@ -1,0 +1,98 @@
+{
+  "BamPythia2p8BHUnit300B": {
+    "files": [
+      "events.out.tfevents.1793600739.t1v-n-a9b02c91-w-12.part-96d3f51c83c9459e8aa584203a0861e4-00006",
+      "events.out.tfevents.1793602392.t1v-n-a9b02c91-w-12.part-96d3f51c83c9459e8aa584203a0861e4-00007"
+    ],
+    "metrics": {
+      "learning/raw_grad_norm": {
+        "count": 10,
+        "first": 32910,
+        "last": 33000,
+        "mean": 0.1629598245024681,
+        "min": 0.1283625215291977,
+        "max": 0.2278895080089569
+      },
+      "learning/grad_norm": {
+        "count": 10,
+        "first": 32910,
+        "last": 33000,
+        "mean": 0.16295983642339706,
+        "min": 0.1283625364303589,
+        "max": 0.2278895229101181
+      },
+      "learning/loss": {
+        "count": 10,
+        "first": 32910,
+        "last": 33000,
+        "mean": 1.9437347531318665,
+        "min": 1.925032138824463,
+        "max": 1.9735734462738037
+      },
+      "raw_grads/decoder/lm_head/logits_dense": {
+        "count": 10,
+        "first": 32910,
+        "last": 33000,
+        "mean": 0.062493030726909635,
+        "min": 0.05481146275997162,
+        "max": 0.07759254425764084
+      }
+    }
+  },
+  "BamPythia2p8BHUnit300BFastKernelMPreNormQKScale": {
+    "files": [
+      "events.out.tfevents.1793734185.t1v-n-2538b637-w-24.part-42fd2b0efdfc4852bf033f1d08163ac8-00004",
+      "events.out.tfevents.1793735868.t1v-n-2538b637-w-24.part-42fd2b0efdfc4852bf033f1d08163ac8-00005"
+    ],
+    "metrics": {
+      "learning/raw_grad_norm": {
+        "count": 10,
+        "first": 32910,
+        "last": 33000,
+        "mean": 0.11117999851703644,
+        "min": 0.0979185476899147,
+        "max": 0.12621426582336426
+      },
+      "learning/grad_norm": {
+        "count": 10,
+        "first": 32910,
+        "last": 33000,
+        "mean": 0.1111800141632557,
+        "min": 0.09791853278875351,
+        "max": 0.12621428072452545
+      },
+      "learning/loss": {
+        "count": 10,
+        "first": 32910,
+        "last": 33000,
+        "mean": 1.9393407225608825,
+        "min": 1.9208213090896606,
+        "max": 1.9685579538345337
+      },
+      "raw_grads/decoder/lm_head/logits_dense": {
+        "count": 10,
+        "first": 32910,
+        "last": 33000,
+        "mean": 0.04816968478262425,
+        "min": 0.043507225811481476,
+        "max": 0.055111318826675415
+      },
+      "logits/common_offset_abs_p95": {
+        "count": 10,
+        "first": 32910,
+        "last": 33000,
+        "mean": 5.042708063125611,
+        "min": 4.876090049743652,
+        "max": 5.1846818923950195
+      },
+      "logits/centered_std_median": {
+        "count": 10,
+        "first": 32910,
+        "last": 33000,
+        "mean": 2.552404451370239,
+        "min": 2.452841281890869,
+        "max": 2.620999336242676
+      }
+    }
+  }
+}

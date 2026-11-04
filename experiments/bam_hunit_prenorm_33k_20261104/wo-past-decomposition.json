@@ -1,0 +1,38 @@
+{
+  "baseline": {
+    "13000": {
+      "actual_gain": 0.6303396479528502,
+      "isotropic_gain": 0.15898828634913692,
+      "alignment_factor": 3.9646923834918866
+    },
+    "23000": {
+      "actual_gain": 1.3897272053141203,
+      "isotropic_gain": 0.2029727656217411,
+      "alignment_factor": 6.846865396237484
+    },
+    "13k_to_23k_ratio": {
+      "actual_gain": 2.2047275779455218,
+      "isotropic_gain": 1.2766523262978924,
+      "alignment_factor": 1.7269600599396655
+    },
+    "23k_to_33k_weight_gain_ratio": 1.1540217288161412
+  },
+  "prenorm": {
+    "13000": {
+      "actual_gain": 0.39443826715830466,
+      "isotropic_gain": 0.18757514830837793,
+      "alignment_factor": 2.102827963701454
+    },
+    "23000": {
+      "actual_gain": 0.5610320230435651,
+      "isotropic_gain": 0.2401949676143227,
+      "alignment_factor": 2.335735959066409
+    },
+    "13k_to_23k_ratio": {
+      "actual_gain": 1.4223569814497725,
+      "isotropic_gain": 1.2805266037664893,
+      "alignment_factor": 1.1107594151235196
+    },
+    "23k_to_33k_weight_gain_ratio": 1.1270692798550193
+  }
+}

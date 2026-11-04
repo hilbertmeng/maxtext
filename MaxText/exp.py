@@ -17887,6 +17887,17 @@ class BamPythia2p8BV6eSplashNoSegmentsProfile(BamPythia2p8BV6eTuneCombo32Profile
     bam_splash_ignore_segments = True
 
 
+# NoSegments (9920cdc, spot EW4a): 2.4026 vs Combo32 2.3846/2.3825 (+.80%), step-49 loss bit-identical.
+class BamPythia2p8BV6eBestProfile(BamPythia2p8BV6eSplashNoSegmentsProfile):
+    """Current best v6e kernel settings: Combo32 + unsegmented Splash."""
+    model_name = 'BamPythia2p8BV6eBestProfile'
+
+
+class BamPythia2p8BV6eBestChunk64Profile(BamPythia2p8BV6eBestProfile):
+    model_name = 'BamPythia2p8BV6eBestChunk64Profile'
+    bam_pallas_read_chunk = 64
+
+
 class BamPythia2p8BV6eSpeedMinimalOffloadedProfile(BamPythia2p8BV6eSpeedB8Profile):
     model_name = 'BamPythia2p8BV6eSpeedMinimalOffloadedProfile'
     remat_policy = 'minimal_offloaded'

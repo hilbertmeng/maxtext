@@ -1807,7 +1807,10 @@ def _bam_splash_attention(query, key, value, decoder_segment_ids, cfg, mesh, win
   t = q.shape[2]
   axis_names = out_names = nn.logical_to_mesh_axes((BATCH, HEAD, LENGTH, D_KV))
   segment_names = nn.logical_to_mesh_axes((BATCH, "activation_length_no_heads"))
-  segments = (None if decoder_segment_ids is None
+  # bam_splash_ignore_segments: Pile inputs_segmentation is all ones without mix_attn, so the segment
+  # mask is a no-op; the unsegmented kernel skips its per-block segment comparisons.
+  ignore = bool(getattr(cfg, 'bam_splash_ignore_segments', False))
+  segments = (None if decoder_segment_ids is None or ignore
               else splash_attention_kernel.SegmentIds(decoder_segment_ids, decoder_segment_ids))
 
   def body(q, k, v, segments=None):
@@ -4349,6 +4352,8 @@ class BamAttention(Attention):
         read_kwargs[arm + '_dynamic_scale'] = common_qk_scale.astype(jnp.float32) * jnp.ones(q_key.shape[2:3], jnp.float32)
     if getattr(cfg, 'bam_pallas_read_chunk', None):
       read_kwargs['chunk'] = int(cfg.bam_pallas_read_chunk)
+    if getattr(cfg, 'bam_pallas_read_xhat_double_buffer', False):
+      read_kwargs['xhat_double_buffer'] = True
     if packed_qkvo is not None:
       if body != 'v8t':
         raise ValueError('bam_pallas_packed_read_keys requires v8t')

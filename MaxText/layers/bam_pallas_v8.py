@@ -595,10 +595,10 @@ def _tm_read_backward_call(args, cts, opts, sh=None, om=None, os=None, qn=None, 
               + _qk_norm_specs(qn, tile)
               + [_tm_out_spec(n, tile, qdim)] * 2 + [_tm_out_spec(n, tile, kdim)] * 2
               + [_token_spec((vdim, kdim), tile)] * pass_m
-              # xhat residuals single-buffered: the reverse already sits at the v5p VMEM limit, and
-              # their DMA is small next to the per-token matmuls.
+              # xhat residuals single-buffered by default: the reverse already sits at the v5p VMEM
+              # limit, and their DMA is small next to the per-token matmuls. v6e can double-buffer.
               + ([pl.BlockSpec((None, n, tile, qdim), lambda bb, i: (bb, 0, i, 0),
-                               pipeline_mode=pl.Buffered(1))] * 2
+                               **({} if opts.get('xhat_double_buffer') else {'pipeline_mode': pl.Buffered(1)}))] * 2
                  + [_spec(qn[0].shape[1:-1], tile)] if qk_norm else []))
   # Packed keys: the full [B,C,4N,T] cotangent is one output; the K and V/O views get none.
   grad_args = [x for i, x in enumerate(args[2:]) if not (packed and i in (2, 4))]
@@ -703,7 +703,7 @@ def read_tm(m, static_weight, q_key, q_logits, k_key, k_logits, vo_key, o_logits
             vmem_mib=None, interpret=False, q_scale=1.0, static_gates=None, chunk=8, pad_heads=False,
             shift=None, o_weight_multiplier=None, o_dynamic_scale=None, v_dynamic_scale=None, qk_norm=None,
             q_dynamic_scale=None, k_dynamic_scale=None,
-            keys_cnt=None, m_norm=None, **_):
+            keys_cnt=None, m_norm=None, xhat_double_buffer=False, **_):
   """v7.read's interface (keys [B,T,N,C], logits [B,T,N], standard QK [B,T,N,Rs]) for M [B,T,V,K] and
   full-M reads (C == V, identity compression). Returns (query, key, value, local_o) [B,T,N,K] and M.
 
@@ -751,6 +751,7 @@ def read_tm(m, static_weight, q_key, q_logits, k_key, k_logits, vo_key, o_logits
   opts = _freeze(dict(heads=n, qk_cols=qk_cols, read_epsilon=read_epsilon, key_scale=key_scale, packed=packed,
                       tile=forward_tile, reverse_tile=reverse_tile, vmem_mib=vmem_mib, interpret=interpret,
                       q_scale=float(q_scale), chunk=chunk, **({'qdim': qdim} if qdim > m.shape[-1] else {}),
+                      **({'xhat_double_buffer': True} if xhat_double_buffer else {}),
                       **({} if m_norm is None else {'m_norm': float(m_norm)}),
                       **({} if qk_norm is None else {'qk_norm': (float(qk_norm[4]), float(qdim))})))
   padn = lambda x: jnp.pad(x, [(0, 0)] * (x.ndim - 2) + [(0, np_ - n), (0, 0)]) if np_ > n else x

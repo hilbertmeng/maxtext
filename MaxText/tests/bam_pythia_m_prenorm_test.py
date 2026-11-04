@@ -23,6 +23,15 @@ class PythiaMPreNormTest(FastKernelTest):
     self.assertEqual(changed, {'exp_class', 'model_name', 'loss_chunk_size'})
     self.assertEqual(v5p128.loss_chunk_size, 512)   # four chunks of the formal T2048 output head
 
+  def test_v6e_fast_config_only_changes_kernel_settings(self):
+    v6e, fast = self.config(RUN + 'V6e'), self.config(RUN + 'V6eFast')
+    changed = {k for k, v in fast.get_keys().items() if v != v6e.get_keys().get(k)}
+    self.assertEqual(changed, {'exp_class', 'model_name', 'bam_pallas_vmem_mib', 'bam_pallas_read_tile',
+                               'bam_pallas_write_tile', 'bam_pallas_write_reverse_tile',
+                               'bam_pallas_read_xhat_double_buffer', 'bam_pallas_read_chunk',
+                               'bam_splash_ignore_segments'})
+    self.assertFalse(fast.mix_attn)
+
   def test_v6e_config_only_changes_remat_and_saves_only_splash(self):
     v5p, v6e = self.config(RUN), self.config(RUN + 'V6e')
     changed = {k for k, v in v6e.get_keys().items() if v != v5p.get_keys().get(k)}

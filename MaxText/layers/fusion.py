@@ -533,7 +533,8 @@ class SubDecoderLayer(nn.Module):
               interpret=bool(getattr(cfg, 'bam_pallas_interpret', False)),
               body=getattr(cfg, 'bam_pallas_body', None) or 'blocked',
               **({'row_block': int(cfg.bam_pallas_write_block), 'head_block': int(cfg.bam_pallas_write_block)}
-                 if getattr(cfg, 'bam_pallas_write_block', None) else {}))
+                 if getattr(cfg, 'bam_pallas_write_block', None) else {}),
+              **({'chunk': int(cfg.bam_pallas_write_chunk)} if getattr(cfg, 'bam_pallas_write_chunk', None) else {}))
 
     if mlp_lnx is not None and moe_lnx is not None:
       layer_output = mlp_lnx + intermediate_inputs + moe_lnx

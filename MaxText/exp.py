@@ -17668,6 +17668,37 @@ class BamPythia2p8BHUnit300BFastKernelMPreNormQKScaleV5p128(BamPythia2p8BHUnit30
     loss_chunk_size = 512
 
 
+# v5p-128 (64 chips, 16/device) at 3cc250d: the formal class needs 97.67G of 95.74G HBM and the FastKernel
+# parent 95.74G (136K over). Largest buffer: scan-stacked M bf16[31,16,2048,64,80], 9.69G padded to 15.5G.
+# Memory screen: chunk the FP32 output head (loss_chunk_size; default 4096 is one chunk at T2048).
+class BamPythia2p8BHUnit300BFastKernelMPreNormQKScaleV5p128Chunk1024(BamPythia2p8BHUnit300BFastKernelMPreNormQKScale):
+    model_name = 'BamPythia2p8BHUnit300BFastKernelMPreNormQKScaleV5p128Chunk1024'
+    loss_chunk_size = 1024
+
+
+class BamPythia2p8BHUnit300BFastKernelMPreNormQKScaleV5p128Chunk512(BamPythia2p8BHUnit300BFastKernelMPreNormQKScale):
+    model_name = 'BamPythia2p8BHUnit300BFastKernelMPreNormQKScaleV5p128Chunk512'
+    loss_chunk_size = 512
+
+
+class BamPythia2p8BHUnit300BFastKernelMPreNormQKScaleV6eFast(BamPythia2p8BHUnit300BFastKernelMPreNormQKScaleV6e):
+    """V6e with v6e-tuned kernel settings: same math, parameters, remat and schedule.
+
+    v6e has 128 MiB VMEM (v5p ~64): 256-token read-forward and write tiles, a 64-token read chunk and
+    double-buffered QKNorm xhat residuals; Splash skips its segment mask, a no-op for the all-ones Pile
+    segmentation. v6e-1 8-layer paired profiles: +3.6% step/s over V6e (2.3402 -> 2.4240), step-49 loss
+    within 1e-4 (accumulation order); kernel equivalence: bam_v6e_kernel_knobs_test.
+    """
+    model_name = 'BamPythia2p8BHUnit300BFastKernelMPreNormQKScaleV6eFast'
+    bam_pallas_vmem_mib = 120
+    bam_pallas_read_tile = 256
+    bam_pallas_write_tile = 256
+    bam_pallas_write_reverse_tile = 256
+    bam_pallas_read_xhat_double_buffer = True
+    bam_pallas_read_chunk = 64
+    bam_splash_ignore_segments = True
+
+
 class _PythiaV6eSpeedProfile(TrainStepProfile):
     """v6e-1 paired speed arm: 8 layers (a full-depth state exceeds one chip), formal per-chip shapes and health."""
     # EW4a FLEX llm-jax-v6e-1-0, step/s over 20-49 (50-89 within .1%); 02710d4 round, then 313cea2 interleaved re-pair:
@@ -17731,6 +17762,192 @@ class BamPythia2p8BV6eSpeedFullSaveSplashL12Profile(BamPythia2p8BV6eSpeedFullSav
     base_num_decoder_layers = 12
     bam_layer_modes = ['local_qk+local_v+local_o'] * 12
     bam_attention_write_layers = list(range(11))
+
+
+# v6e kernel tuning round 1 (8 layers, FullSaveSplash): v6e has 128 MiB VMEM and 256x256 MXUs;
+# the read/write/Splash tiles and the 63 MiB VMEM limit were tuned for v5p.
+class BamPythia2p8BV6eTuneVmemProfile(BamPythia2p8BV6eSpeedFullSaveSplashProfile):
+    model_name = 'BamPythia2p8BV6eTuneVmemProfile'
+    bam_pallas_vmem_mib = 110
+
+
+class BamPythia2p8BV6eTuneReadTileProfile(BamPythia2p8BV6eTuneVmemProfile):
+    model_name = 'BamPythia2p8BV6eTuneReadTileProfile'
+    bam_pallas_read_tile = 256
+
+
+class BamPythia2p8BV6eTuneReadRevTileProfile(BamPythia2p8BV6eTuneVmemProfile):
+    model_name = 'BamPythia2p8BV6eTuneReadRevTileProfile'
+    bam_pallas_read_reverse_tile = 256
+
+
+class BamPythia2p8BV6eTuneWriteTileProfile(BamPythia2p8BV6eTuneVmemProfile):
+    model_name = 'BamPythia2p8BV6eTuneWriteTileProfile'
+    bam_pallas_write_tile = 256
+    bam_pallas_write_reverse_tile = 256
+
+
+class BamPythia2p8BV6eTuneReadChunk16Profile(BamPythia2p8BV6eTuneVmemProfile):
+    model_name = 'BamPythia2p8BV6eTuneReadChunk16Profile'
+    bam_pallas_read_chunk = 16
+
+
+class BamPythia2p8BV6eTuneReadChunk4Profile(BamPythia2p8BV6eTuneVmemProfile):
+    model_name = 'BamPythia2p8BV6eTuneReadChunk4Profile'
+    bam_pallas_read_chunk = 4
+
+
+class BamPythia2p8BV6eTuneSplash2048Profile(BamPythia2p8BV6eSpeedFullSaveSplashProfile):
+    model_name = 'BamPythia2p8BV6eTuneSplash2048Profile'
+    sa_block_q = sa_block_kv = sa_block_kv_compute = 2048
+    sa_block_q_dkv = sa_block_kv_dkv = sa_block_kv_dkv_compute = 2048
+
+
+class BamPythia2p8BV6eTuneSplashKvc1024Profile(BamPythia2p8BV6eSpeedFullSaveSplashProfile):
+    model_name = 'BamPythia2p8BV6eTuneSplashKvc1024Profile'
+    sa_block_kv_compute = 1024
+
+
+class BamPythia2p8BV6eTuneSplash512Profile(BamPythia2p8BV6eSpeedFullSaveSplashProfile):
+    model_name = 'BamPythia2p8BV6eTuneSplash512Profile'
+    sa_block_q = sa_block_kv = sa_block_kv_compute = 512
+    sa_block_q_dkv = sa_block_kv_dkv = sa_block_kv_dkv_compute = 512
+
+
+# Round 1 (533ef34, step/s vs base 2.3402): ReadChunk16 +.93%, WriteTile +.52%, ReadTile +.22%,
+# Vmem110 +.10%, SplashKvc1024 -.12%, ReadChunk4 -2.4%, Splash512 -3.5%; ReadRevTile256 (110 MiB)
+# and Splash2048 dkv blocks exceed VMEM.
+class BamPythia2p8BV6eTuneReadChunk32Profile(BamPythia2p8BV6eTuneVmemProfile):
+    model_name = 'BamPythia2p8BV6eTuneReadChunk32Profile'
+    bam_pallas_read_chunk = 32
+
+
+class BamPythia2p8BV6eTuneWriteChunk16Profile(BamPythia2p8BV6eTuneVmemProfile):
+    model_name = 'BamPythia2p8BV6eTuneWriteChunk16Profile'
+    bam_pallas_write_chunk = 16
+
+
+class BamPythia2p8BV6eTuneWriteChunk32Profile(BamPythia2p8BV6eTuneVmemProfile):
+    model_name = 'BamPythia2p8BV6eTuneWriteChunk32Profile'
+    bam_pallas_write_chunk = 32
+
+
+class BamPythia2p8BV6eTuneXhatDBProfile(BamPythia2p8BV6eTuneVmemProfile):
+    model_name = 'BamPythia2p8BV6eTuneXhatDBProfile'
+    bam_pallas_read_xhat_double_buffer = True
+
+
+class BamPythia2p8BV6eTuneReadRevTile256Profile(BamPythia2p8BV6eSpeedFullSaveSplashProfile):
+    model_name = 'BamPythia2p8BV6eTuneReadRevTile256Profile'
+    bam_pallas_vmem_mib = 125
+    bam_pallas_read_reverse_tile = 256
+
+
+class BamPythia2p8BV6eTuneSplashFwd2048Profile(BamPythia2p8BV6eSpeedFullSaveSplashProfile):
+    model_name = 'BamPythia2p8BV6eTuneSplashFwd2048Profile'
+    sa_block_q = sa_block_kv = sa_block_kv_compute = 2048
+
+
+class BamPythia2p8BV6eTuneCombo16Profile(BamPythia2p8BV6eSpeedFullSaveSplashProfile):
+    model_name = 'BamPythia2p8BV6eTuneCombo16Profile'
+    bam_pallas_vmem_mib = 120
+    bam_pallas_read_tile = 256
+    bam_pallas_write_tile = 256
+    bam_pallas_write_reverse_tile = 256
+    bam_pallas_read_xhat_double_buffer = True
+    bam_pallas_read_chunk = 16
+
+
+class BamPythia2p8BV6eTuneCombo32Profile(BamPythia2p8BV6eTuneCombo16Profile):
+    model_name = 'BamPythia2p8BV6eTuneCombo32Profile'
+    bam_pallas_read_chunk = 32
+
+
+# Round 2 (e69137d, vs base 2.3408): Combo32 2.3846 (+1.87%), Combo16 +1.83%, XhatDB +1.0%,
+# ReadChunk32 +.93%, WriteChunk16/32 ~0, SplashFwd2048 -.8%, ReadRevTile256 (125 MiB) -1.4%.
+# Round 3 ablations on Combo32 (not math-preserving): locate the remaining read/write kernel cost.
+class BamPythia2p8BV6eAblNoPreNormProfile(BamPythia2p8BV6eTuneCombo32Profile):
+    model_name = 'BamPythia2p8BV6eAblNoPreNormProfile'
+    bam_m_read_norm = 'none'
+
+
+class BamPythia2p8BV6eAblNoShiftProfile(BamPythia2p8BV6eTuneCombo32Profile):
+    model_name = 'BamPythia2p8BV6eAblNoShiftProfile'
+    bam_m_shift_mode = 'none'
+
+
+class BamPythia2p8BV6eAblNoPreNormNoShiftProfile(BamPythia2p8BV6eAblNoPreNormProfile):
+    model_name = 'BamPythia2p8BV6eAblNoPreNormNoShiftProfile'
+    bam_m_shift_mode = 'none'
+
+
+class BamPythia2p8BV6eAblNoScalesProfile(BamPythia2p8BV6eTuneCombo32Profile):
+    model_name = 'BamPythia2p8BV6eAblNoScalesProfile'
+    bam_common_qk_read_scale = False
+    bam_common_vo_read_scale = False
+
+
+# Round 3 (730302a, vs Combo32 2.3869): no pre-norm 2.4295, no shift 2.4430, neither 2.4743 (-14.8 ms of
+# 419), no Q/K,V/O scales 2.3939. Kernel ms/step (8 layers): read bwd 27.8, read fwd 16.5 (+16.5 remat),
+# write bwd 13.8 / fwd 9.5, Splash fwd 17.8 / dkv 26.9. Round 4: Splash on Combo32.
+class BamPythia2p8BV6eSplashSeqMinorProfile(BamPythia2p8BV6eTuneCombo32Profile):
+    model_name = 'BamPythia2p8BV6eSplashSeqMinorProfile'
+    bam_splash_seq_minor = True
+
+
+class BamPythia2p8BV6eSplashUnfusedBwdProfile(BamPythia2p8BV6eTuneCombo32Profile):
+    model_name = 'BamPythia2p8BV6eSplashUnfusedBwdProfile'
+    sa_use_fused_bwd_kernel = False
+    sa_block_q_dq = sa_block_kv_dq = 1024
+
+
+class BamPythia2p8BV6eSplashDkvQ512Profile(BamPythia2p8BV6eTuneCombo32Profile):
+    model_name = 'BamPythia2p8BV6eSplashDkvQ512Profile'
+    sa_block_q_dkv = 512
+
+
+class BamPythia2p8BV6eSplashDkvKvc512Profile(BamPythia2p8BV6eTuneCombo32Profile):
+    model_name = 'BamPythia2p8BV6eSplashDkvKvc512Profile'
+    sa_block_kv_dkv_compute = 512
+
+
+class BamPythia2p8BV6eSplashKvc256Profile(BamPythia2p8BV6eTuneCombo32Profile):
+    model_name = 'BamPythia2p8BV6eSplashKvc256Profile'
+    sa_block_kv_compute = 256
+
+
+class BamPythia2p8BV6eSplashFwdQ512Profile(BamPythia2p8BV6eTuneCombo32Profile):
+    model_name = 'BamPythia2p8BV6eSplashFwdQ512Profile'
+    sa_block_q = 512
+
+
+class BamPythia2p8BV6eSplashFwdKv2048Profile(BamPythia2p8BV6eTuneCombo32Profile):
+    model_name = 'BamPythia2p8BV6eSplashFwdKv2048Profile'
+    sa_block_kv = 2048
+
+
+# Round 4 (b86918c, vs Combo32 2.3873): every Splash block/layout change is slower: SeqMinor 2.3428,
+# UnfusedBwd 2.3128, DkvQ512 2.3658, DkvKvc512 2.3826, Kvc256 2.3751, FwdQ512 2.3704, FwdKv2048 2.3789.
+class BamPythia2p8BV6eSplashNoSegmentsProfile(BamPythia2p8BV6eTuneCombo32Profile):
+    model_name = 'BamPythia2p8BV6eSplashNoSegmentsProfile'
+    bam_splash_ignore_segments = True
+
+
+# NoSegments (9920cdc, spot EW4a): 2.4026 vs Combo32 2.3846/2.3825 (+.80%), step-49 loss bit-identical.
+class BamPythia2p8BV6eBestProfile(BamPythia2p8BV6eSplashNoSegmentsProfile):
+    """Current best v6e kernel settings: Combo32 + unsegmented Splash."""
+    model_name = 'BamPythia2p8BV6eBestProfile'
+
+
+class BamPythia2p8BV6eBestChunk64Profile(BamPythia2p8BV6eBestProfile):
+    model_name = 'BamPythia2p8BV6eBestChunk64Profile'
+    bam_pallas_read_chunk = 64
+
+
+# Chunk64 (ba6242a, spot EW4a): 2.4210 vs Best 2.4032/2.4014 (+.78%).
+class BamPythia2p8BV6eBestChunk128Profile(BamPythia2p8BV6eBestProfile):
+    model_name = 'BamPythia2p8BV6eBestChunk128Profile'
+    bam_pallas_read_chunk = 128
 
 
 class BamPythia2p8BV6eSpeedMinimalOffloadedProfile(BamPythia2p8BV6eSpeedB8Profile):

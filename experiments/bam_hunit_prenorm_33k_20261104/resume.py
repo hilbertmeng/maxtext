@@ -9,6 +9,19 @@ acquisition_deadline=json.loads((R/'pipeline-receipts.json').read_text())['capac
 def transient_spot_loss(error):
  return error=='Diagnostic spot TPU lost; complete per-text GCS chunks retained' or bool(re.search(r'This TPU has state "(?:DELETING|PREEMPTED|STOPPED|TERMINATED)"',error or ''))
 
+def collect_if_ready():
+ # The worker can finish uploading during preemption grace even if SSH is gone.
+ markers=[]
+ for arm in ['baseline','prenorm']:
+  manifest=json.loads((R/(arm+'.json')).read_text());markers.append(manifest['gcs_root']+'/complete.json')
+ q=subprocess.run(['gsutil','-q','stat']+markers,capture_output=True,text=True,timeout=90)
+ if q.returncode:return False
+ env=dict(os.environ,JAX_PLATFORMS='cpu',CUDA_VISIBLE_DEVICES='',OPENBLAS_NUM_THREADS='4',OMP_NUM_THREADS='4')
+ subprocess.run(['/home/mengqy/.cache/bam-diag-cpu-py312/bin/python',str(R/'collect_analyze.py')],env=env,check=True)
+ result=json.loads((R/'results.json').read_text())
+ assert result['complete'] and all(result['verification'][arm]['sequences']==32 for arm in ['baseline','prenorm'])
+ return True
+
 def run_attempt(attempt):
  oldaudit=json.loads((R/'resource-audit.json').read_text());assert oldaudit['all_absent']
  folder=R/f'resume-before-{attempt}';folder.mkdir(exist_ok=False)
@@ -35,15 +48,16 @@ with (R/'oneshot.lock').open('a+b') as lock:
  fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
  try:
   assert json.loads((R/'resource-audit.json').read_text())['all_absent']
-  done=False
+  done=collect_if_ready()
   start=max([int(p.name.rsplit('-',1)[1]) for p in R.glob('resume-before-*')]+[0])+1
-  assert start<=MAX_ATTEMPTS,'Preemption retry limit reached'
-  for attempt in range(start,MAX_ATTEMPTS+1):
+  assert done or start<=MAX_ATTEMPTS,'Preemption retry limit reached'
+  for attempt in ([] if done else range(start,MAX_ATTEMPTS+1)):
    o.checkpoint()
    rc,state=run_attempt(attempt)
    if rc==0:
     assert state['verified'] and state['resources_released'];done=True;break
    assert state.get('resources_released'),('Cleanup failed',state)
+   if transient_spot_loss(state.get('error')) and collect_if_ready():done=True;break
    if not transient_spot_loss(state.get('error')):raise RuntimeError(state.get('error') or 'Controller failure; see logs')
    o.notify('resume-preempt-'+str(attempt),'33k续算再次遇到Spot抢占，已确认清理本次资源；GCS中已完成的固定样本保留，'+('继续自动续算。' if attempt<MAX_ATTEMPTS else '达到本轮重试上限，尚未得到完整结果。'))
   assert done,'Preemption retry limit reached'

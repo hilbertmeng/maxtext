@@ -1,0 +1,14 @@
+{
+  "complete": true,
+  "checked_utc": "2026-11-04T03:41:56.584742+00:00",
+  "cohort_pairs": 32,
+  "model_text_evaluations": 64,
+  "checkpoints": [
+    "gs://newproject-1-llm_projects_us-east5/log/BamPythia2p8BHUnit300B/checkpoints/33000/items",
+    "gs://newproject-1-llm_projects_us-east5/log/BamPythia2p8BHUnit300BFastKernelMPreNormQKScale/checkpoints/33000/items"
+  ],
+  "url": "http://172.29.142.228:8873/shorttrain/no-self-readout/hunit-spectral/write-origin/prenorm-33k/",
+  "resources_released": true,
+  "numerical_evidence": "results.json; verification.json; cross-step.json",
+  "plot_evidence": "page_checks.json"
+}

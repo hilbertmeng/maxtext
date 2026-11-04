@@ -1,0 +1,513 @@
+{
+  "all_absent": true,
+  "resources": [
+    {
+      "name": "xd-v5p8-mqy-hunpre33-1104-ue5a-r1",
+      "zone": "us-east5-a",
+      "owner_task": "bam_hunit_prenorm_33k_20261104",
+      "created_utc": 1793755596.420065,
+      "type": "v5p-8",
+      "provisioning": "spot",
+      "node_state": "ABSENT",
+      "queue_state": "ABSENT"
+    },
+    {
+      "name": "xd-v5p8-mqy-hunpre33-1104-uc1a-r1",
+      "zone": "us-central1-a",
+      "owner_task": "bam_hunit_prenorm_33k_20261104",
+      "created_utc": 1793755876.3359175,
+      "type": "v5p-8",
+      "provisioning": "spot",
+      "node_state": "ABSENT",
+      "queue_state": "ABSENT"
+    },
+    {
+      "name": "xd-v5p8-mqy-hunpre33-1104b-ew4b-r1",
+      "zone": "europe-west4-b",
+      "owner_task": "bam_hunit_prenorm_33k_20261104",
+      "created_utc": 1793756567.3095663,
+      "type": "v5p-8",
+      "provisioning": "spot",
+      "node_state": "ABSENT",
+      "queue_state": "ABSENT"
+    },
+    {
+      "name": "xd-v5p16-mqy-hunpre33-1104c-ew4b-r1",
+      "zone": "europe-west4-b",
+      "owner_task": "bam_hunit_prenorm_33k_20261104",
+      "created_utc": 1793756787.9699728,
+      "type": "v5p-16",
+      "provisioning": "spot",
+      "node_state": "ABSENT",
+      "queue_state": "ABSENT"
+    },
+    {
+      "name": "xd-v5p16-mqy-hunpre33-1104c-uc1a-r1",
+      "zone": "us-central1-a",
+      "owner_task": "bam_hunit_prenorm_33k_20261104",
+      "created_utc": 1793756797.6481988,
+      "type": "v5p-16",
+      "provisioning": "spot",
+      "node_state": "ABSENT",
+      "queue_state": "ABSENT"
+    },
+    {
+      "name": "xd-v5p16-mqy-hunpre33-1104c-ue5a-r1",
+      "zone": "us-east5-a",
+      "owner_task": "bam_hunit_prenorm_33k_20261104",
+      "created_utc": 1793756807.198668,
+      "type": "v5p-16",
+      "provisioning": "spot",
+      "node_state": "ABSENT",
+      "queue_state": "ABSENT"
+    },
+    {
+      "name": "xd-v5p8-mqy-hunpre33-1104d-ew4b-r1",
+      "zone": "europe-west4-b",
+      "owner_task": "bam_hunit_prenorm_33k_20261104",
+      "created_utc": 1793757821.9101658,
+      "type": "v5p-8",
+      "provisioning": "spot",
+      "node_state": "ABSENT",
+      "queue_state": "ABSENT"
+    },
+    {
+      "name": "xd-v5p8-mqy-hunpre33-1104d-uc1a-r1",
+      "zone": "us-central1-a",
+      "owner_task": "bam_hunit_prenorm_33k_20261104",
+      "created_utc": 1793757832.295469,
+      "type": "v5p-8",
+      "provisioning": "spot",
+      "node_state": "ABSENT",
+      "queue_state": "ABSENT"
+    },
+    {
+      "name": "xd-v5p8-mqy-hunpre33-1104d-ue5a-r1",
+      "zone": "us-east5-a",
+      "owner_task": "bam_hunit_prenorm_33k_20261104",
+      "created_utc": 1793757842.4486039,
+      "type": "v5p-8",
+      "provisioning": "spot",
+      "node_state": "ABSENT",
+      "queue_state": "ABSENT"
+    },
+    {
+      "name": "xd-v5p8-mqy-hunpre33-r11040259-1-ew4b-r1",
+      "zone": "europe-west4-b",
+      "owner_task": "bam_hunit_prenorm_33k_20261104",
+      "created_utc": 1793761231.761657,
+      "type": "v5p-8",
+      "provisioning": "spot",
+      "node_state": "ABSENT",
+      "queue_state": "ABSENT"
+    },
+    {
+      "name": "xd-v5p8-mqy-hunpre33-r11040259-1-uc1a-r1",
+      "zone": "us-central1-a",
+      "owner_task": "bam_hunit_prenorm_33k_20261104",
+      "created_utc": 1793761242.0620644,
+      "type": "v5p-8",
+      "provisioning": "spot",
+      "node_state": "ABSENT",
+      "queue_state": "ABSENT"
+    },
+    {
+      "name": "xd-v5p8-mqy-hunpre33-r11040259-1-ue5a-r1",
+      "zone": "us-east5-a",
+      "owner_task": "bam_hunit_prenorm_33k_20261104",
+      "created_utc": 1793761250.2799966,
+      "type": "v5p-8",
+      "provisioning": "spot",
+      "node_state": "ABSENT",
+      "queue_state": "ABSENT"
+    },
+    {
+      "name": "xd-v5p8-mqy-hunpre33-r11040315-2-ew4b-r1",
+      "zone": "europe-west4-b",
+      "owner_task": "bam_hunit_prenorm_33k_20261104",
+      "created_utc": 1793762139.6986504,
+      "type": "v5p-8",
+      "provisioning": "spot",
+      "node_state": "ABSENT",
+      "queue_state": "ABSENT"
+    },
+    {
+      "name": "xd-v5p8-mqy-hunpre33-r11040315-2-uc1a-r1",
+      "zone": "us-central1-a",
+      "owner_task": "bam_hunit_prenorm_33k_20261104",
+      "created_utc": 1793762150.6829333,
+      "type": "v5p-8",
+      "provisioning": "spot",
+      "node_state": "ABSENT",
+      "queue_state": "ABSENT"
+    },
+    {
+      "name": "xd-v5p8-mqy-hunpre33-r11040315-2-ue5a-r1",
+      "zone": "us-east5-a",
+      "owner_task": "bam_hunit_prenorm_33k_20261104",
+      "created_utc": 1793762159.0139375,
+      "type": "v5p-8",
+      "provisioning": "spot",
+      "node_state": "ABSENT",
+      "queue_state": "ABSENT"
+    }
+  ],
+  "errors": [],
+  "previous_attempts": {
+    "all_absent": true,
+    "resources": [
+      {
+        "name": "xd-v5p8-mqy-hunpre33-1104-ue5a-r1",
+        "zone": "us-east5-a",
+        "owner_task": "bam_hunit_prenorm_33k_20261104",
+        "created_utc": 1793755596.420065,
+        "type": "v5p-8",
+        "provisioning": "spot",
+        "node_state": "ABSENT",
+        "queue_state": "ABSENT"
+      },
+      {
+        "name": "xd-v5p8-mqy-hunpre33-1104-uc1a-r1",
+        "zone": "us-central1-a",
+        "owner_task": "bam_hunit_prenorm_33k_20261104",
+        "created_utc": 1793755876.3359175,
+        "type": "v5p-8",
+        "provisioning": "spot",
+        "node_state": "ABSENT",
+        "queue_state": "ABSENT"
+      },
+      {
+        "name": "xd-v5p8-mqy-hunpre33-1104b-ew4b-r1",
+        "zone": "europe-west4-b",
+        "owner_task": "bam_hunit_prenorm_33k_20261104",
+        "created_utc": 1793756567.3095663,
+        "type": "v5p-8",
+        "provisioning": "spot",
+        "node_state": "ABSENT",
+        "queue_state": "ABSENT"
+      },
+      {
+        "name": "xd-v5p16-mqy-hunpre33-1104c-ew4b-r1",
+        "zone": "europe-west4-b",
+        "owner_task": "bam_hunit_prenorm_33k_20261104",
+        "created_utc": 1793756787.9699728,
+        "type": "v5p-16",
+        "provisioning": "spot",
+        "node_state": "ABSENT",
+        "queue_state": "ABSENT"
+      },
+      {
+        "name": "xd-v5p16-mqy-hunpre33-1104c-uc1a-r1",
+        "zone": "us-central1-a",
+        "owner_task": "bam_hunit_prenorm_33k_20261104",
+        "created_utc": 1793756797.6481988,
+        "type": "v5p-16",
+        "provisioning": "spot",
+        "node_state": "ABSENT",
+        "queue_state": "ABSENT"
+      },
+      {
+        "name": "xd-v5p16-mqy-hunpre33-1104c-ue5a-r1",
+        "zone": "us-east5-a",
+        "owner_task": "bam_hunit_prenorm_33k_20261104",
+        "created_utc": 1793756807.198668,
+        "type": "v5p-16",
+        "provisioning": "spot",
+        "node_state": "ABSENT",
+        "queue_state": "ABSENT"
+      },
+      {
+        "name": "xd-v5p8-mqy-hunpre33-1104d-ew4b-r1",
+        "zone": "europe-west4-b",
+        "owner_task": "bam_hunit_prenorm_33k_20261104",
+        "created_utc": 1793757821.9101658,
+        "type": "v5p-8",
+        "provisioning": "spot",
+        "node_state": "ABSENT",
+        "queue_state": "ABSENT"
+      },
+      {
+        "name": "xd-v5p8-mqy-hunpre33-1104d-uc1a-r1",
+        "zone": "us-central1-a",
+        "owner_task": "bam_hunit_prenorm_33k_20261104",
+        "created_utc": 1793757832.295469,
+        "type": "v5p-8",
+        "provisioning": "spot",
+        "node_state": "ABSENT",
+        "queue_state": "ABSENT"
+      },
+      {
+        "name": "xd-v5p8-mqy-hunpre33-1104d-ue5a-r1",
+        "zone": "us-east5-a",
+        "owner_task": "bam_hunit_prenorm_33k_20261104",
+        "created_utc": 1793757842.4486039,
+        "type": "v5p-8",
+        "provisioning": "spot",
+        "node_state": "ABSENT",
+        "queue_state": "ABSENT"
+      },
+      {
+        "name": "xd-v5p8-mqy-hunpre33-r11040259-1-ew4b-r1",
+        "zone": "europe-west4-b",
+        "owner_task": "bam_hunit_prenorm_33k_20261104",
+        "created_utc": 1793761231.761657,
+        "type": "v5p-8",
+        "provisioning": "spot",
+        "node_state": "ABSENT",
+        "queue_state": "ABSENT"
+      },
+      {
+        "name": "xd-v5p8-mqy-hunpre33-r11040259-1-uc1a-r1",
+        "zone": "us-central1-a",
+        "owner_task": "bam_hunit_prenorm_33k_20261104",
+        "created_utc": 1793761242.0620644,
+        "type": "v5p-8",
+        "provisioning": "spot",
+        "node_state": "ABSENT",
+        "queue_state": "ABSENT"
+      },
+      {
+        "name": "xd-v5p8-mqy-hunpre33-r11040259-1-ue5a-r1",
+        "zone": "us-east5-a",
+        "owner_task": "bam_hunit_prenorm_33k_20261104",
+        "created_utc": 1793761250.2799966,
+        "type": "v5p-8",
+        "provisioning": "spot",
+        "node_state": "ABSENT",
+        "queue_state": "ABSENT"
+      }
+    ],
+    "errors": [],
+    "previous_attempts": {
+      "all_absent": true,
+      "resources": [
+        {
+          "name": "xd-v5p8-mqy-hunpre33-1104-ue5a-r1",
+          "zone": "us-east5-a",
+          "owner_task": "bam_hunit_prenorm_33k_20261104",
+          "created_utc": 1793755596.420065,
+          "type": "v5p-8",
+          "provisioning": "spot",
+          "node_state": "ABSENT",
+          "queue_state": "ABSENT"
+        },
+        {
+          "name": "xd-v5p8-mqy-hunpre33-1104-uc1a-r1",
+          "zone": "us-central1-a",
+          "owner_task": "bam_hunit_prenorm_33k_20261104",
+          "created_utc": 1793755876.3359175,
+          "type": "v5p-8",
+          "provisioning": "spot",
+          "node_state": "ABSENT",
+          "queue_state": "ABSENT"
+        },
+        {
+          "name": "xd-v5p8-mqy-hunpre33-1104b-ew4b-r1",
+          "zone": "europe-west4-b",
+          "owner_task": "bam_hunit_prenorm_33k_20261104",
+          "created_utc": 1793756567.3095663,
+          "type": "v5p-8",
+          "provisioning": "spot",
+          "node_state": "ABSENT",
+          "queue_state": "ABSENT"
+        },
+        {
+          "name": "xd-v5p16-mqy-hunpre33-1104c-ew4b-r1",
+          "zone": "europe-west4-b",
+          "owner_task": "bam_hunit_prenorm_33k_20261104",
+          "created_utc": 1793756787.9699728,
+          "type": "v5p-16",
+          "provisioning": "spot",
+          "node_state": "ABSENT",
+          "queue_state": "ABSENT"
+        },
+        {
+          "name": "xd-v5p16-mqy-hunpre33-1104c-uc1a-r1",
+          "zone": "us-central1-a",
+          "owner_task": "bam_hunit_prenorm_33k_20261104",
+          "created_utc": 1793756797.6481988,
+          "type": "v5p-16",
+          "provisioning": "spot",
+          "node_state": "ABSENT",
+          "queue_state": "ABSENT"
+        },
+        {
+          "name": "xd-v5p16-mqy-hunpre33-1104c-ue5a-r1",
+          "zone": "us-east5-a",
+          "owner_task": "bam_hunit_prenorm_33k_20261104",
+          "created_utc": 1793756807.198668,
+          "type": "v5p-16",
+          "provisioning": "spot",
+          "node_state": "ABSENT",
+          "queue_state": "ABSENT"
+        },
+        {
+          "name": "xd-v5p8-mqy-hunpre33-1104d-ew4b-r1",
+          "zone": "europe-west4-b",
+          "owner_task": "bam_hunit_prenorm_33k_20261104",
+          "created_utc": 1793757821.9101658,
+          "type": "v5p-8",
+          "provisioning": "spot",
+          "node_state": "ABSENT",
+          "queue_state": "ABSENT"
+        },
+        {
+          "name": "xd-v5p8-mqy-hunpre33-1104d-uc1a-r1",
+          "zone": "us-central1-a",
+          "owner_task": "bam_hunit_prenorm_33k_20261104",
+          "created_utc": 1793757832.295469,
+          "type": "v5p-8",
+          "provisioning": "spot",
+          "node_state": "ABSENT",
+          "queue_state": "ABSENT"
+        },
+        {
+          "name": "xd-v5p8-mqy-hunpre33-1104d-ue5a-r1",
+          "zone": "us-east5-a",
+          "owner_task": "bam_hunit_prenorm_33k_20261104",
+          "created_utc": 1793757842.4486039,
+          "type": "v5p-8",
+          "provisioning": "spot",
+          "node_state": "ABSENT",
+          "queue_state": "ABSENT"
+        }
+      ],
+      "errors": [],
+      "previous_attempts": {
+        "all_absent": true,
+        "resources": [
+          {
+            "name": "xd-v5p8-mqy-hunpre33-1104-ue5a-r1",
+            "zone": "us-east5-a",
+            "owner_task": "bam_hunit_prenorm_33k_20261104",
+            "created_utc": 1793755596.420065,
+            "type": "v5p-8",
+            "provisioning": "spot",
+            "node_state": "ABSENT",
+            "queue_state": "ABSENT"
+          },
+          {
+            "name": "xd-v5p8-mqy-hunpre33-1104-uc1a-r1",
+            "zone": "us-central1-a",
+            "owner_task": "bam_hunit_prenorm_33k_20261104",
+            "created_utc": 1793755876.3359175,
+            "type": "v5p-8",
+            "provisioning": "spot",
+            "node_state": "ABSENT",
+            "queue_state": "ABSENT"
+          },
+          {
+            "name": "xd-v5p8-mqy-hunpre33-1104b-ew4b-r1",
+            "zone": "europe-west4-b",
+            "owner_task": "bam_hunit_prenorm_33k_20261104",
+            "created_utc": 1793756567.3095663,
+            "type": "v5p-8",
+            "provisioning": "spot",
+            "node_state": "ABSENT",
+            "queue_state": "ABSENT"
+          },
+          {
+            "name": "xd-v5p16-mqy-hunpre33-1104c-ew4b-r1",
+            "zone": "europe-west4-b",
+            "owner_task": "bam_hunit_prenorm_33k_20261104",
+            "created_utc": 1793756787.9699728,
+            "type": "v5p-16",
+            "provisioning": "spot",
+            "node_state": "ABSENT",
+            "queue_state": "ABSENT"
+          },
+          {
+            "name": "xd-v5p16-mqy-hunpre33-1104c-uc1a-r1",
+            "zone": "us-central1-a",
+            "owner_task": "bam_hunit_prenorm_33k_20261104",
+            "created_utc": 1793756797.6481988,
+            "type": "v5p-16",
+            "provisioning": "spot",
+            "node_state": "ABSENT",
+            "queue_state": "ABSENT"
+          },
+          {
+            "name": "xd-v5p16-mqy-hunpre33-1104c-ue5a-r1",
+            "zone": "us-east5-a",
+            "owner_task": "bam_hunit_prenorm_33k_20261104",
+            "created_utc": 1793756807.198668,
+            "type": "v5p-16",
+            "provisioning": "spot",
+            "node_state": "ABSENT",
+            "queue_state": "ABSENT"
+          }
+        ],
+        "errors": [],
+        "previous_attempts": {
+          "all_absent": true,
+          "resources": [
+            {
+              "name": "xd-v5p8-mqy-hunpre33-1104-ue5a-r1",
+              "zone": "us-east5-a",
+              "owner_task": "bam_hunit_prenorm_33k_20261104",
+              "created_utc": 1793755596.420065,
+              "type": "v5p-8",
+              "provisioning": "spot",
+              "node_state": "ABSENT",
+              "queue_state": "ABSENT"
+            },
+            {
+              "name": "xd-v5p8-mqy-hunpre33-1104-uc1a-r1",
+              "zone": "us-central1-a",
+              "owner_task": "bam_hunit_prenorm_33k_20261104",
+              "created_utc": 1793755876.3359175,
+              "type": "v5p-8",
+              "provisioning": "spot",
+              "node_state": "ABSENT",
+              "queue_state": "ABSENT"
+            },
+            {
+              "name": "xd-v5p8-mqy-hunpre33-1104b-ew4b-r1",
+              "zone": "europe-west4-b",
+              "owner_task": "bam_hunit_prenorm_33k_20261104",
+              "created_utc": 1793756567.3095663,
+              "type": "v5p-8",
+              "provisioning": "spot",
+              "node_state": "ABSENT",
+              "queue_state": "ABSENT"
+            }
+          ],
+          "errors": [],
+          "previous_attempt": {
+            "state": {
+              "phase": "failed",
+              "utc": 1793756538.9263492,
+              "verified": false,
+              "resources_released": true,
+              "error": "No spot v5p-8 ready within 15 minutes",
+              "release_errors": []
+            },
+            "resources": [
+              {
+                "name": "xd-v5p8-mqy-hunpre33-1104-ue5a-r1",
+                "zone": "us-east5-a",
+                "owner_task": "bam_hunit_prenorm_33k_20261104",
+                "created_utc": 1793755596.420065,
+                "type": "v5p-8",
+                "provisioning": "spot",
+                "node_state": "ABSENT",
+                "queue_state": "ABSENT"
+              },
+              {
+                "name": "xd-v5p8-mqy-hunpre33-1104-uc1a-r1",
+                "zone": "us-central1-a",
+                "owner_task": "bam_hunit_prenorm_33k_20261104",
+                "created_utc": 1793755876.3359175,
+                "type": "v5p-8",
+                "provisioning": "spot",
+                "node_state": "ABSENT",
+                "queue_state": "ABSENT"
+              }
+            ]
+          }
+        }
+      }
+    }
+  },
+  "recovery_note": "All64 native per-text results were already durable in GCS after preemption; local strict collection passed. Canceled unused queued retry and verified its cleanup before publication."
+}

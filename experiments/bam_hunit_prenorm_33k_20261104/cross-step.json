@@ -1,0 +1,237 @@
+{
+  "series": {
+    "baseline": {
+      "13000": {
+        "own_head_fraction": {
+          "mean": 0.20581072366568118,
+          "ci95": [
+            0.1827432112510899,
+            0.23153636537965927
+          ]
+        },
+        "own_raw_weak_RMS": 6.7887381156799105,
+        "fixed43k_final_dynamicMo_weak_RMS": 1.4023742884974058,
+        "fixed43k_final_FFN_weak_RMS": 2.8704370591034576,
+        "fixed43k_dynamicMo_effective_weak_gain": 0.6303396479528502,
+        "physical_M_RMS": 13.466552833193425,
+        "dynamicMo_preWo_RMS": 2.224791496222532,
+        "Wo_isotropic_weak_gain": 0.15898828634913692,
+        "read_Wo_alignment_factor": 3.9646923834918866,
+        "Wo_weak_projected_top_singular": 2.8157600316075593,
+        "Wo_weak_projected_stable_rank": 8.161668325796454
+      },
+      "23000": {
+        "own_head_fraction": {
+          "mean": 0.3477375417249261,
+          "ci95": [
+            0.3019066197032498,
+            0.39713627722150624
+          ]
+        },
+        "own_raw_weak_RMS": 10.881112515667203,
+        "fixed43k_final_dynamicMo_weak_RMS": 3.2752742277492,
+        "fixed43k_final_FFN_weak_RMS": 5.415792760517876,
+        "fixed43k_dynamicMo_effective_weak_gain": 1.3897272053141203,
+        "physical_M_RMS": 12.297386168365042,
+        "dynamicMo_preWo_RMS": 2.356774923326689,
+        "Wo_isotropic_weak_gain": 0.2029727656217411,
+        "read_Wo_alignment_factor": 6.846865396237484,
+        "Wo_weak_projected_top_singular": 4.016004112501348,
+        "Wo_weak_projected_stable_rank": 6.539238934060056
+      },
+      "33000": {
+        "own_head_fraction": {
+          "mean": 0.5447444811362906,
+          "ci95": [
+            0.48528435896789796,
+            0.601536374217162
+          ]
+        },
+        "own_raw_weak_RMS": 15.926231013017928,
+        "fixed43k_final_dynamicMo_weak_RMS": 8.821155494612873,
+        "fixed43k_final_FFN_weak_RMS": 5.502704149987644,
+        "fixed43k_dynamicMo_effective_weak_gain": 2.5349238288565634,
+        "physical_M_RMS": 12.167766232501293,
+        "dynamicMo_preWo_RMS": 3.479850319049571,
+        "Wo_isotropic_weak_gain": 0.2342349818853951,
+        "read_Wo_alignment_factor": 10.822140264671626,
+        "Wo_weak_projected_top_singular": 4.993002316619566,
+        "Wo_weak_projected_stable_rank": 5.634040194420748
+      }
+    },
+    "prenorm": {
+      "13000": {
+        "own_head_fraction": {
+          "mean": 0.14428463745131032,
+          "ci95": [
+            0.13779461697470588,
+            0.1507058921295655
+          ]
+        },
+        "own_raw_weak_RMS": 3.4548228629416244,
+        "fixed43k_final_dynamicMo_weak_RMS": 0.26100637436540236,
+        "fixed43k_final_FFN_weak_RMS": 0.360725596709383,
+        "fixed43k_dynamicMo_effective_weak_gain": 0.39443826715830466,
+        "physical_M_RMS": 19.2594935578556,
+        "dynamicMo_preWo_RMS": 0.6617166641710489,
+        "Wo_isotropic_weak_gain": 0.18757514830837793,
+        "read_Wo_alignment_factor": 2.102827963701454,
+        "Wo_weak_projected_top_singular": 1.7992530763816195,
+        "Wo_weak_projected_stable_rank": 27.823134454693417
+      },
+      "23000": {
+        "own_head_fraction": {
+          "mean": 0.1431963942118447,
+          "ci95": [
+            0.1374463728269283,
+            0.14892710467777956
+          ]
+        },
+        "own_raw_weak_RMS": 4.26687994511766,
+        "fixed43k_final_dynamicMo_weak_RMS": 0.3293884004355416,
+        "fixed43k_final_FFN_weak_RMS": 0.37685069269948285,
+        "fixed43k_dynamicMo_effective_weak_gain": 0.5610320230435651,
+        "physical_M_RMS": 19.167723017362817,
+        "dynamicMo_preWo_RMS": 0.5871115852685721,
+        "Wo_isotropic_weak_gain": 0.2401949676143227,
+        "read_Wo_alignment_factor": 2.335735959066409,
+        "Wo_weak_projected_top_singular": 2.3815940224619685,
+        "Wo_weak_projected_stable_rank": 26.039480187586737
+      },
+      "33000": {
+        "own_head_fraction": {
+          "mean": 0.12412346253386394,
+          "ci95": [
+            0.11942099756970363,
+            0.12881055266186112
+          ]
+        },
+        "own_raw_weak_RMS": 4.358587689557044,
+        "fixed43k_final_dynamicMo_weak_RMS": 0.38677232544591733,
+        "fixed43k_final_FFN_weak_RMS": 0.40333662969911954,
+        "fixed43k_dynamicMo_effective_weak_gain": 0.6842553666831533,
+        "physical_M_RMS": 19.102332009504646,
+        "dynamicMo_preWo_RMS": 0.5652455856075346,
+        "Wo_isotropic_weak_gain": 0.27071636917387437,
+        "read_Wo_alignment_factor": 2.5275729309285806,
+        "Wo_weak_projected_top_singular": 2.80773994656736,
+        "Wo_weak_projected_stable_rank": 23.79880973230291
+      }
+    }
+  },
+  "paired_temporal": {
+    "baseline": {
+      "13000-23000": {
+        "head_fraction_delta_pp": 14.192681805924492,
+        "head_fraction_delta_pp_ci95": [
+          11.843801297592984,
+          16.675263601856365
+        ],
+        "fixed43k_dynamicMo_effective_weak_gain_ratio": 2.204727598658256,
+        "effective_weak_gain_ratio_ci95": [
+          2.1293454095861595,
+          2.2943865807002997
+        ],
+        "Wo_isotropic_weak_gain_ratio": 1.2766523262978924,
+        "read_Wo_alignment_factor_ratio": 1.7269600761639217,
+        "read_Wo_alignment_factor_ratio_ci95": [
+          1.6679133118105491,
+          1.7971898326881914
+        ]
+      },
+      "23000-33000": {
+        "head_fraction_delta_pp": 19.70069394113645,
+        "head_fraction_delta_pp_ci95": [
+          18.294395720731572,
+          20.569045491371483
+        ],
+        "fixed43k_dynamicMo_effective_weak_gain_ratio": 1.8240441510375958,
+        "effective_weak_gain_ratio_ci95": [
+          1.7860781809179398,
+          1.875850207362446
+        ],
+        "Wo_isotropic_weak_gain_ratio": 1.1540217288161412,
+        "read_Wo_alignment_factor_ratio": 1.580597752616669,
+        "read_Wo_alignment_factor_ratio_ci95": [
+          1.5476989178966298,
+          1.6254895038127193
+        ]
+      },
+      "13000-33000": {
+        "head_fraction_delta_pp": 33.89337574706094,
+        "head_fraction_delta_pp_ci95": [
+          30.191613255936716,
+          37.19268081698942
+        ],
+        "fixed43k_dynamicMo_effective_weak_gain_ratio": 4.021520480963756,
+        "effective_weak_gain_ratio_ci95": [
+          3.8161079697322586,
+          4.292172903620991
+        ],
+        "Wo_isotropic_weak_gain_ratio": 1.4732845246914423,
+        "read_Wo_alignment_factor_ratio": 2.729629215243406,
+        "read_Wo_alignment_factor_ratio_ci95": [
+          2.5902043398789423,
+          2.9133360404501114
+        ]
+      }
+    },
+    "prenorm": {
+      "13000-23000": {
+        "head_fraction_delta_pp": -0.10882432394656028,
+        "head_fraction_delta_pp_ci95": [
+          -0.3290214518769571,
+          0.0984610295054381
+        ],
+        "fixed43k_dynamicMo_effective_weak_gain_ratio": 1.422356985803372,
+        "effective_weak_gain_ratio_ci95": [
+          1.403568790319712,
+          1.4414711181515028
+        ],
+        "Wo_isotropic_weak_gain_ratio": 1.2805266037664893,
+        "read_Wo_alignment_factor_ratio": 1.1107594185233705,
+        "read_Wo_alignment_factor_ratio_ci95": [
+          1.0960871770967595,
+          1.1256861934079447
+        ]
+      },
+      "23000-33000": {
+        "head_fraction_delta_pp": -1.907293167798077,
+        "head_fraction_delta_pp_ci95": [
+          -2.111479386402514,
+          -1.7035150713876113
+        ],
+        "fixed43k_dynamicMo_effective_weak_gain_ratio": 1.2196369177158513,
+        "effective_weak_gain_ratio_ci95": [
+          1.208511466086683,
+          1.2299015597392986
+        ],
+        "Wo_isotropic_weak_gain_ratio": 1.1270692798550193,
+        "read_Wo_alignment_factor_ratio": 1.082131275792327,
+        "read_Wo_alignment_factor_ratio_ci95": [
+          1.072260142022627,
+          1.0912386502961975
+        ]
+      },
+      "13000-33000": {
+        "head_fraction_delta_pp": -2.0161174917446374,
+        "head_fraction_delta_pp_ci95": [
+          -2.3502517689363245,
+          -1.6833337003938558
+        ],
+        "fixed43k_dynamicMo_effective_weak_gain_ratio": 1.7347590900568335,
+        "effective_weak_gain_ratio_ci95": [
+          1.6998291891734028,
+          1.7704041721257042
+        ],
+        "Wo_isotropic_weak_gain_ratio": 1.4432421971422906,
+        "read_Wo_alignment_factor_ratio": 1.2019875066650383,
+        "read_Wo_alignment_factor_ratio_ci95": [
+          1.177785123341855,
+          1.2266854278728925
+        ]
+      }
+    }
+  },
+  "scope": "Same32x2048 texts. Own contemporaneous Wc bottom128 primary. Old43k fixed basis is retrospective common geometry. Gain=postWo raw weak RMS/preWo dynamic read total RMS; combines Wo and activation direction, not operator singular value or isolated causal effect."
+}

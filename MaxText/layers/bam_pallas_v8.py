@@ -323,14 +323,16 @@ def _tm_read_backward_kernel(n, qk_cols, eps, scale, q_scale, gated, ch, pass_m,
     if scaled:
       osc, rs = _tm_split_scale(os_ref, r, const_rows)
     g_key = g if rs is None else g * rs      # effective gate of the dynamic key
-    _tm_fill_keys(rq, rk, rr, inv, g_key, st, sg, xt_scr, om, osc)
+    ABLB = set(os.environ.get('BAM_V8_ABL', '').split(','))   # EXPERIMENT ONLY: timing ablations
+    if 'b_fill0' not in ABLB:
+      _tm_fill_keys(rq, rk, rr, inv, g_key, st, sg, xt_scr, om, osc)
     if masked:        # token-major O multiplier rows t*C + c, so the per-token dX picks it up
       for c in range(cdim):
         xm_scr[pl.ds(c, t, stride=cdim), :] = _to_tokens(_tm_o_mask(om, c, r))
     # Token-major cotangent rows dY_t [R, K]; the standard Q/K columns leave the matmuls.
     lane = jax.lax.broadcasted_iota(jnp.int32, (t, kdim), 1)
     zrow = jnp.zeros((t, kdim), F32)
-    for a, ref in enumerate((dq, dk, dv, do)):
+    for a, ref in (() if 'b_dy0' in ABLB else enumerate((dq, dk, dv, do))):
       if a < 2 and qk_norm:
         inv_cols = _to_tokens(inv_ref[a])                                  # [T, NP]
         std_parts = []
@@ -398,7 +400,7 @@ def _tm_read_backward_kernel(n, qk_cols, eps, scale, q_scale, gated, ch, pass_m,
     if shifted:
       _fill_shift_gate(sh_ref, gb_scr)
     nxt = None        # shifted: dM_{t-1} share of the first token of the chunk after this one
-    for t0 in (range(0, t, ch)[::-1] if shifted else range(0, t, ch)):
+    for t0 in (() if 'b_mm0' in ABLB else (range(0, t, ch)[::-1] if shifted else range(0, t, ch))):
       dy = _gather(dy_scr, t0, ch, t).astype(dt)
       if shifted:
         # dX = M_read dY^T, dM_read = X^T dY; dM_t = (1-g'_t) dM_read_t + g'_{t+1} dM_read_{t+1};
@@ -443,7 +445,7 @@ def _tm_read_backward_kernel(n, qk_cols, eps, scale, q_scale, gated, ch, pass_m,
       dm_ref[pl.ds(t0, ch)] = dmv.astype(dm_ref.dtype)
     dst_ref[...] = dst
     if shifted:
-      bnd_ref[...] = nxt[0]
+      bnd_ref[...] = jnp.zeros(bnd_ref.shape, bnd_ref.dtype) if nxt is None else nxt[0]
     # T-minor key reverse: X^T[c] = g * inv * r[c] + S[:, c] * sg; u = d(normalized key) per arm.
     gacc = jnp.zeros((r, t), F32)      # sum_c dX * r   (gate gradient before * inv)
     sacc = jnp.zeros((r, t), F32)
@@ -458,7 +460,7 @@ def _tm_read_backward_kernel(n, qk_cols, eps, scale, q_scale, gated, ch, pass_m,
     per_c_rows = scaled_rows - const_rows
     per_start = r - per_c_rows
     gi_per = (g * inv)[per_start:] if per_c_rows else None
-    for c in range(cdim):
+    for c in (() if 'b_keyrev0' in ABLB else range(cdim)):
       dx = _from_tokens(dxt_scr[pl.ds(c, t, stride=cdim), :])            # [R, T]
       rows = _tm_rows(rq, rk, rr, c)
       if gated:
@@ -483,7 +485,7 @@ def _tm_read_backward_kernel(n, qk_cols, eps, scale, q_scale, gated, ch, pass_m,
       dl[...] = (scale * sig(l) * gacc[i * np_:(i + 1) * np_]).astype(dl.dtype)
     key_inv = inv[:key_rows]
     coef = uacc / cdim * key_inv * key_inv
-    for c in range(cdim):     # d r[c] = (u[c] - r[c] * mean_c(u r) inv^2) inv
+    for c in (() if 'b_keyrev0' in ABLB else range(cdim)):     # d r[c] = (u[c] - r[c] * mean_c(u r) inv^2) inv
       dr = (dkey_scr[c] - _tm_rows(rq, rk, rr, c)[:key_rows] * coef) * key_inv
       if packed:
         drq[c] = dr.astype(drq.dtype)

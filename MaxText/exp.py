@@ -17626,6 +17626,12 @@ class BamPythia2p8BHUnit300BFastKernelMPreNormQKScaleV6eMinimalOffloaded(BamPyth
     remat_policy = 'minimal_offloaded'
 
 
+class BamPythia2p8BHUnit300BFastKernelMPreNormQKScaleV6eFullSaveSplash(BamPythia2p8BHUnit300BFastKernelMPreNormQKScale):
+    """8/device with full remat except Splash's saved output/logsumexp residuals."""
+    model_name = 'BamPythia2p8BHUnit300BFastKernelMPreNormQKScaleV6eFullSaveSplash'
+    remat_policy = 'full_save_splash'
+
+
 class _PythiaV6eSpeedProfile(TrainStepProfile):
     """v6e-1 paired speed arm: 8 layers (a full-depth state exceeds one chip), formal per-chip shapes and health."""
     target_train_batch_size = None
@@ -17662,6 +17668,11 @@ class BamPythia2p8BV6eSpeedFullProfile(BamPythia2p8BV6eSpeedB8Profile):
 class BamPythia2p8BV6eSpeedFullSaveBamReadProfile(BamPythia2p8BV6eSpeedB8Profile):
     model_name = 'BamPythia2p8BV6eSpeedFullSaveBamReadProfile'
     remat_policy = 'full_save_bam_read'
+
+
+class BamPythia2p8BV6eSpeedFullSaveSplashProfile(BamPythia2p8BV6eSpeedB8Profile):
+    model_name = 'BamPythia2p8BV6eSpeedFullSaveSplashProfile'
+    remat_policy = 'full_save_splash'
 
 
 class BamPythia2p8BV6eSpeedMinimalOffloadedProfile(BamPythia2p8BV6eSpeedB8Profile):

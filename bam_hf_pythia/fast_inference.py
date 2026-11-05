@@ -77,6 +77,8 @@ class State(nn.Module):
     kshape = kt_cache_shape(batch, heads, max_len, dqk) if layout == 'kt' else (batch, heads, max_len, dqk)
     for i in range(layers):
       self.register_buffer(f'k{i}', torch.zeros(kshape, dtype=dtype, device=device))
+      if layout == 'kt':      # the block being filled, in rows layout (decode_attention._partial_kt)
+        self.register_buffer(f'kt{i}', torch.zeros(batch, heads, 2, kshape[-1], dqk, dtype=dtype, device=device))
       self.register_buffer(f'v{i}', torch.zeros(batch, heads, max_len, dv, dtype=dtype, device=device))
       if m_shape is not None:     # the last token's layer-input M (BAM M-shift)
         self.register_buffer(f'm{i}', torch.zeros(batch, *m_shape, dtype=dtype, device=device))
@@ -91,6 +93,9 @@ class State(nn.Module):
   def m(self, i):
     return getattr(self, f'm{i}')
 
+  def tail(self, i):
+    return getattr(self, f'kt{i}', None)
+
   def reset(self, pos=0):
     self.pos.fill_(pos)
 
@@ -100,6 +105,11 @@ class State(nn.Module):
     if self.layout == 'kt':
       kb = kt_from_rows(k)
       self.k(i)[:, :, :kb.shape[2]] = kb
+      blk = self.tail(i).shape[3]
+      last = (t - 1) // blk                  # the tail slots hold the last two blocks
+      for j in range(max(last - 1, 0), last + 1):
+        piece = k[:, :, j * blk:(j + 1) * blk]
+        self.tail(i)[:, :, j % 2, :piece.shape[2]] = piece
     else:
       self.k(i)[:, :, :t] = k
     self.v(i)[:, :, :t] = v
@@ -299,7 +309,9 @@ class FastBamPythia(nn.Module):
         setattr(p, name + '_b', _p(ln.bias.float()))
       self.layers.append(p)
 
-  def new_state(self, batch, max_len, layout='kt'):
+  def new_state(self, batch, max_len, layout=None):
+    if layout is None:      # the Triton path writes keys through the 'kt' tail block; the torch path uses rows
+      layout = 'kt' if self.kernels else 'rows'
     return State(len(self.layers), batch, self.n, max_len, self.kd + self.s, self.kd, (self.kd, self.vd),
                  device=self.embed.device, layout=layout)
 
@@ -452,7 +464,7 @@ class FastBamPythia(nn.Module):
           z[:, o['gates'][0]:o['gates'][1]], p.static_key_rows, p.norm_w, self.rope_cos, self.rope_sin,
           b, pending is not None, decode, self.write_eps, self.eps, self.key_eps, self.key_scale,
           self.static_scale, p.qk_scale, p.vo_scale, 1.0 / math.sqrt(kd + self.s), 1 if decode else 8,
-          state.k(i) if decode else None, state.v(i) if decode else None)
+          state.k(i) if decode else None, state.v(i) if decode else None, state.tail(i) if decode else None)
       if pending is not None:
         M = m_new
       if state is not None:
@@ -461,7 +473,8 @@ class FastBamPythia(nn.Module):
       value, local_o = vo[:, 0].view(b, t, n, kd), vo[:, 1].view(b, t, n, kd)
       if decode:
         # the read kernel already wrote this token's key and value to the caches
-        y = decode_attention(q[:, 0, :, None], state.k(i), state.v(i), lengths, state.layout)[:, None, :, 0]
+        y = decode_attention(q[:, 0, :, None], state.k(i), state.v(i), lengths, state.layout,
+                             state.tail(i))[:, None, :, 0]
       else:
         if state is not None:
           state.store_prefill(i, k.transpose(1, 2), value.transpose(1, 2))

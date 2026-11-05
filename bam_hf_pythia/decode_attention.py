@@ -7,6 +7,7 @@ Q/K and V widths may differ (BAM: 100 / 80); a zero length returns zeros (BAM's 
 first token). Shared by BAM and the Pythia baseline.
 """
 import math
+from typing import Optional
 import os
 
 import torch
@@ -115,12 +116,28 @@ def _partial_chunked(Q, K, V, LEN, OUT, MAX, SUM,
 
 
 @triton.jit
+def _kt_update(acc, l, m, k, q, vp, svs, offs, length, e, emask):
+  """Online-softmax update with one [DQ, BLOCK_N] key tile (log2-scaled q)."""
+  valid = offs < length
+  s = tl.sum(k * q[:, None], axis=0)
+  s = tl.where(valid, s, -1e30)
+  m_new = tl.maximum(m, tl.max(s, axis=0))
+  p = tl.where(valid, tl.math.exp2(s - m_new), 0.)
+  alpha = tl.math.exp2(m - m_new)
+  v = tl.load(vp + offs[:, None] * svs + e[None, :], mask=valid[:, None] & emask[None, :], other=0.).to(tl.float32)
+  return acc * alpha + tl.sum(p[:, None] * v, axis=0), l * alpha + tl.sum(p, axis=0), m_new
+
+
+@triton.jit
 def _partial_kt(Q, K, V, LEN, OUT, MAX, SUM,
-                sqb, sqh, skb, skh, skblk, svb, svh, svs, sob, soh, sos, N,
+                sqb, sqh, skb, skh, skblk, svb, svh, svs, sob, soh, sos, N, TAIL, stb, sth,
                 DQ: tl.constexpr, BLOCK_DQ: tl.constexpr, DV: tl.constexpr, BLOCK_DV: tl.constexpr,
-                BLOCK_N: tl.constexpr, SPLIT: tl.constexpr):
+                BLOCK_N: tl.constexpr, SPLIT: tl.constexpr, HAS_TAIL: tl.constexpr):
   """Like _partial, for a key cache in blocks of BLOCK_N positions stored transposed: K[b, h, blk, d, j]
-  (each tile of BLOCK_N keys is one contiguous [DQ, BLOCK_N] block: fully coalesced loads)."""
+  (each tile of BLOCK_N keys is one contiguous [DQ, BLOCK_N] block: fully coalesced loads). With
+  HAS_TAIL, the block holding position `length` (the one being filled) and the one before it are read
+  from TAIL [B, N, 2, BLOCK_N, DQ] slots (block % 2) in rows layout (decoding writes a key there contiguously; the scattered single-position write
+  into a transposed block costs ~7-15 us per layer)."""
   bh = tl.program_id(0)
   split = tl.program_id(1)
   b = bh // N
@@ -137,22 +154,27 @@ def _partial_kt(Q, K, V, LEN, OUT, MAX, SUM,
   l = tl.zeros((), tl.float32)
   acc = tl.zeros((BLOCK_DV,), tl.float32)
   kp = K + b * skb + h * skh
+  vp = V + b * svb + h * svh
+  # with a tail, the main loop (constant trip count: keeps its loads pipelined) covers the blocks before the
+  # last two; the block being filled and the previous one (moved into K during the current block) are read
+  # from their tail slots after it
+  cb = length // BLOCK_N
+  lim = tl.maximum(cb - 1, 0) * BLOCK_N if HAS_TAIL else length
   for n0 in range(0, SPLIT, BLOCK_N):
-    blk = (start + n0) // BLOCK_N
     offs = start + n0 + j
-    valid = offs < length
-    k = tl.load(kp + blk * skblk + d[:, None] * BLOCK_N + j[None, :], mask=dmask[:, None] & valid[None, :],
-                other=0.).to(tl.float32)                                     # [DQ, BLOCK_N]
-    s = tl.sum(k * q[:, None], axis=0)
-    s = tl.where(valid, s, -1e30)
-    m_new = tl.maximum(m, tl.max(s, axis=0))
-    p = tl.where(valid, tl.math.exp2(s - m_new), 0.)
-    alpha = tl.math.exp2(m - m_new)
-    v = tl.load(V + b * svb + h * svh + offs[:, None] * svs + e[None, :], mask=valid[:, None] & emask[None, :],
+    blk = (start + n0) // BLOCK_N
+    k = tl.load(kp + blk * skblk + d[:, None] * BLOCK_N + j[None, :], mask=dmask[:, None] & (offs < lim)[None, :],
                 other=0.).to(tl.float32)
-    acc = acc * alpha + tl.sum(p[:, None] * v, axis=0)
-    l = l * alpha + tl.sum(p, axis=0)
-    m = m_new
+    acc, l, m = _kt_update(acc, l, m, k, q, vp, svs, offs, lim, e, emask)
+  if HAS_TAIL:
+    for back in range(2):
+      tb = cb - 1 + back
+      p0 = tb * BLOCK_N
+      if tb >= 0 and p0 >= start and p0 < start + SPLIT:
+        offs = p0 + j
+        k = tl.load(TAIL + b * stb + h * sth + (tb % 2) * (BLOCK_N * DQ) + j[None, :] * DQ + d[:, None],
+                    mask=dmask[:, None] & (offs < length)[None, :], other=0.).to(tl.float32)
+        acc, l, m = _kt_update(acc, l, m, k, q, vp, svs, offs, length, e, emask)
   base = OUT + b * sob + h * soh + split * sos
   tl.store(base + e, acc, mask=emask)
   tl.store(MAX + bh * tl.num_programs(1) + split, m * 0.6931471805599453)
@@ -217,7 +239,7 @@ def kt_from_rows(k):
 #   Dq 80 / Dv 80 (Pythia):   rows 14.5 / 216 / 951;  chunked 12.4 / 283 / 1000;  kt 15.2 / 243 / 911
 @torch.library.custom_op('bam_pythia::decode_attention', mutates_args=())
 def decode_attention(q: torch.Tensor, k: torch.Tensor, v: torch.Tensor, lengths: torch.Tensor,
-                     layout: str = 'rows') -> torch.Tensor:
+                     layout: str = 'rows', k_tail: Optional[torch.Tensor] = None) -> torch.Tensor:
   """q [B,N,1,Dq] (pre-scaled); k cache in `layout`, v [B,N,S,Dv]; lengths [B] int (valid entries).
   Returns [B,N,1,Dv]."""
   b, n, _, dim = q.shape
@@ -226,7 +248,7 @@ def decode_attention(q: torch.Tensor, k: torch.Tensor, v: torch.Tensor, lengths:
   lengths = lengths.contiguous()
   assert q.stride(-1) == 1 and k.stride(-1) == 1 and v.stride(-1) == 1
   if layout == 'kt':
-    block_n, waves, warps = KT_BLOCK, 16, 4
+    block_n, waves, warps = 64, 16, 4
   else:   # A800 sweep (N=20, D=96, 4k cache): 74-83% of HBM bandwidth at B=16/64, 0.021 ms/layer at B=1.
     block_n, waves = (64, 16) if b * n < 160 else (32, 8)
     warps = 2
@@ -238,8 +260,10 @@ def decode_attention(q: torch.Tensor, k: torch.Tensor, v: torch.Tensor, lengths:
   common = (q, k, v, lengths, part, mx, sm, q.stride(0), q.stride(1), k.stride(0), k.stride(1), k.stride(2),
             v.stride(0), v.stride(1), v.stride(2), part.stride(0), part.stride(1), part.stride(2), n)
   if layout == 'kt':
-    _partial_kt[(b * n, splits)](*common, DQ=dim, BLOCK_DQ=block_d, DV=dv, BLOCK_DV=block_dv, BLOCK_N=block_n,
-                                 SPLIT=split, num_warps=warps, num_stages=2)
+    tail = k_tail if k_tail is not None else k
+    _partial_kt[(b * n, splits)](*common, tail, tail.stride(0), tail.stride(1), DQ=dim, BLOCK_DQ=block_d, DV=dv,
+                                 BLOCK_DV=block_dv, BLOCK_N=block_n, SPLIT=split, HAS_TAIL=k_tail is not None,
+                                 num_warps=warps, num_stages=2)
   elif layout == 'chunked':
     q1, q2 = {100: (32, 4), 80: (16, 0), 96: (32, 0), 64: (0, 0)}[dim]
     _partial_chunked[(b * n, splits)](*common, Q1=q1, Q2=q2, V1=dv - 64, BLOCK_N=block_n, SPLIT=split,
@@ -254,7 +278,7 @@ def decode_attention(q: torch.Tensor, k: torch.Tensor, v: torch.Tensor, lengths:
 
 
 @decode_attention.register_fake
-def _(q, k, v, lengths, layout='rows'):
+def _(q, k, v, lengths, layout='rows', k_tail=None):
   return q.new_empty((*q.shape[:-1], v.shape[-1]))
 
 

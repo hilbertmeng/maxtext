@@ -27,7 +27,10 @@ QK_WIDTH = 112     # stored Q/K row width (100 used): aligned rows make the atte
 import os
 READ_WARPS = int(os.environ.get("BAM_READ_WARPS", 4))
 WRITE_WARPS = int(os.environ.get("BAM_WRITE_WARPS", 2))
+WRITE_TW = int(os.environ.get("BAM_WRITE_TW", 1))
 READ_GROUPS = int(os.environ.get("BAM_READ_GROUPS", 1))
+DEC_GROUPS = int(os.environ.get("BAM_DEC_GROUPS", 1))
+DEC_WARPS = int(os.environ.get("BAM_DEC_WARPS", 4))
 READ_TOK = int(os.environ.get("BAM_READ_TOK", 1))
 READ_SUB_DECODE = int(os.environ.get("BAM_READ_SUB", 4))
 READ_SUB_PREFILL = int(os.environ.get("BAM_READ_SUB_PREFILL", 1))
@@ -88,7 +91,7 @@ def _group_key(group, row, sk, UP, s_up, GATES, s_gt, key_eps, key_scale, static
 @triton.jit
 def _group_read(group, row, t, pos0, f0, f1, inv, r, NORMW, STD, s_std, COS, SIN,
                 QK, s_qk, VO, s_vo, eps, qk_scale, vo_scale, q_mult, c_start,
-                KC, skb, skh, skblk, VC, svb, svh, svs, seq,
+                KC, skb, skh, skblk, VC, svb, svh, svs, seq, TAIL, stb, sth,
                 N: tl.constexpr, QW: tl.constexpr, CR: tl.constexpr, CACHE: tl.constexpr, KTB: tl.constexpr):
   """Read of one arm group (0: q, k with QKNorm + RoPE tail; 1: v, local o) for one token, rows
   c_start .. c_start + CR of the group's 2N (arm, head) rows, with keys r from _group_key."""
@@ -129,13 +132,13 @@ def _group_read(group, row, t, pos0, f0, f1, inv, r, NORMW, STD, s_std, COS, SIN
     tl.store(base + k1[None, :], y1.to(tl.bfloat16))
     tl.store(base + 80 + j[None, :], ra.to(tl.bfloat16), mask=jm[None, :])
     tl.store(base + 90 + j[None, :], rb.to(tl.bfloat16), mask=jm[None, :])
-    if CACHE:     # decode: the key rows also go to the transposed-block key cache at position pos0
+    if CACHE:     # decode: the key rows go to the tail block (rows layout, slot (pos0 // KTB) % 2)
       isk = (arm == 1)[:, None]
-      kb = KC + seq * skb + (c % N)[:, None] * skh + (pos0 // KTB) * skblk + pos0 % KTB
-      tl.store(kb + k0[None, :] * KTB, y0.to(tl.bfloat16), mask=isk)
-      tl.store(kb + k1[None, :] * KTB, y1.to(tl.bfloat16), mask=isk)
-      tl.store(kb + (80 + j[None, :]) * KTB, ra.to(tl.bfloat16), mask=isk & jm[None, :])
-      tl.store(kb + (90 + j[None, :]) * KTB, rb.to(tl.bfloat16), mask=isk & jm[None, :])
+      kb = TAIL + seq * stb + (c % N)[:, None] * sth + ((pos0 // KTB) % 2) * (KTB * 100) + (pos0 % KTB) * 100
+      tl.store(kb + k0[None, :], y0.to(tl.bfloat16), mask=isk)
+      tl.store(kb + k1[None, :], y1.to(tl.bfloat16), mask=isk)
+      tl.store(kb + 80 + j[None, :], ra.to(tl.bfloat16), mask=isk & jm[None, :])
+      tl.store(kb + 90 + j[None, :], rb.to(tl.bfloat16), mask=isk & jm[None, :])
   else:
     sc = inv * vo_scale
     base = VO + row * s_vo + c[:, None] * 80
@@ -152,7 +155,7 @@ def _group_read(group, row, t, pos0, f0, f1, inv, r, NORMW, STD, s_std, COS, SIN
 def _read_kernel(
     M, s_m, MW, C1, s_c1, G1, s_g1, A1, s_a1, C2, s_c2, G2, s_g2, A2, s_a2, write_eps, MPREV, s_mp, PREV_VALID, POS,
     SHIFT, s_sh, STD, s_std, UP, s_up, GATES, s_gt, SKEY, NORMW, COS, SIN,
-    QK, s_qk, VO, s_vo, KC, skb, skh, skblk, VC, svb, svh, svs,
+    QK, s_qk, VO, s_vo, KC, skb, skh, skblk, VC, svb, svh, svs, TAIL, stb, sth,
     T, ROWS, eps, key_eps, key_scale, static_scale, qk_scale, vo_scale, q_mult,
     HAS_PREV: tl.constexpr, N: tl.constexpr, QW: tl.constexpr, GROUPS: tl.constexpr, TOK: tl.constexpr,
     FUSE_WRITE: tl.constexpr, SUB: tl.constexpr, CACHE: tl.constexpr, KTB: tl.constexpr):
@@ -213,18 +216,30 @@ def _read_kernel(
       inv = tl.rsqrt((tl.sum(tl.sum(f0 * f0, 1), 0) + tl.sum(tl.sum(f1 * f1, 1), 0)) / 5120 + eps)
       f0 = f0.to(tl.bfloat16)
       f1 = f1.to(tl.bfloat16)
+      if CACHE and tl.program_id(0) == 0:
+        # amortized block move: at step r of block j the previous block's head r moves from its tail slot into
+        # the transposed cache (done by r = N - 1 < 64, before step 0 of block j + 1 reuses the slot; until
+        # then attention reads the previous block from the tail too)
+        r_step = pos0 % KTB
+        if pos0 >= KTB and r_step < N:
+          pj = tl.arange(0, KTB)
+          dd = tl.arange(0, 128)
+          src = ((pos0 // KTB - 1) % 2) * (KTB * 100)
+          blk = tl.load(TAIL + seq * stb + r_step * sth + src + pj[:, None] * 100 + dd[None, :], mask=dd[None, :] < 100)
+          tl.store(KC + seq * skb + r_step * skh + (pos0 // KTB - 1) * skblk + dd[None, :] * KTB + pj[:, None], blk,
+                   mask=dd[None, :] < 100)
       if GROUPS == 2:
         _group_read(0, row, t, pos0, f0, f1, inv, r_a, NORMW, STD, s_std, COS, SIN, QK,
-                    s_qk, VO, s_vo, eps, qk_scale, vo_scale, q_mult, c_start, KC, skb, skh, skblk, VC, svb, svh, svs, seq, N, QW, CR, CACHE, KTB)
+                    s_qk, VO, s_vo, eps, qk_scale, vo_scale, q_mult, c_start, KC, skb, skh, skblk, VC, svb, svh, svs, seq, TAIL, stb, sth, N, QW, CR, CACHE, KTB)
         _group_read(1, row, t, pos0, f0, f1, inv, r_b, NORMW, STD, s_std, COS, SIN, QK,
-                    s_qk, VO, s_vo, eps, qk_scale, vo_scale, q_mult, c_start, KC, skb, skh, skblk, VC, svb, svh, svs, seq, N, QW, CR, CACHE, KTB)
+                    s_qk, VO, s_vo, eps, qk_scale, vo_scale, q_mult, c_start, KC, skb, skh, skblk, VC, svb, svh, svs, seq, TAIL, stb, sth, N, QW, CR, CACHE, KTB)
       else:
         if g0 == 0:
           _group_read(0, row, t, pos0, f0, f1, inv, r_a, NORMW, STD, s_std, COS, SIN, QK,
-                      s_qk, VO, s_vo, eps, qk_scale, vo_scale, q_mult, c_start, KC, skb, skh, skblk, VC, svb, svh, svs, seq, N, QW, CR, CACHE, KTB)
+                      s_qk, VO, s_vo, eps, qk_scale, vo_scale, q_mult, c_start, KC, skb, skh, skblk, VC, svb, svh, svs, seq, TAIL, stb, sth, N, QW, CR, CACHE, KTB)
         else:
           _group_read(1, row, t, pos0, f0, f1, inv, r_a, NORMW, STD, s_std, COS, SIN, QK,
-                      s_qk, VO, s_vo, eps, qk_scale, vo_scale, q_mult, c_start, KC, skb, skh, skblk, VC, svb, svh, svs, seq, N, QW, CR, CACHE, KTB)
+                      s_qk, VO, s_vo, eps, qk_scale, vo_scale, q_mult, c_start, KC, skb, skh, skblk, VC, svb, svh, svs, seq, TAIL, stb, sth, N, QW, CR, CACHE, KTB)
 
 
 @triton.jit
@@ -249,13 +264,14 @@ def fused_read(m_old: torch.Tensor, c1: torch.Tensor, g1: torch.Tensor, a1: torc
                static_key: torch.Tensor, norm_w: torch.Tensor, cos: torch.Tensor, sin: torch.Tensor,
                batch: int, has_write: bool, has_prev: bool, write_eps: float, eps: float, key_eps: float,
                key_scale: float, static_scale: float, qk_scale: float, vo_scale: float, q_mult: float,
-               tok: int, k_cache: Optional[torch.Tensor] = None,
-               v_cache: Optional[torch.Tensor] = None) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+               tok: int, k_cache: Optional[torch.Tensor] = None, v_cache: Optional[torch.Tensor] = None,
+               k_tail: Optional[torch.Tensor] = None) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
   """Token rows r = b * T + t (all 2-D [rows, features], unit inner stride). Returns
   (m_new [rows, K*V] (empty when not has_write), qk [rows, 2, N, 112] (100 used), vo [rows, 2, N, 80]).
 
-  k_cache [B,N,S/64,100,64] ('kt' layout) / v_cache [B,N,S,80] (one-token decode): the token's key and
-  value are also written at position pos. Not declared as a mutation (see decode_attention.
+  k_cache [B,N,S/64,100,64] ('kt' layout), k_tail [B,N,2,64,100], v_cache [B,N,S,80] (one-token decode):
+  the token's key goes to tail slot (pos // 64) % 2 (moved into k_cache one head per step during the next
+  block) and its value to v_cache. Not declared as a mutation (see decode_attention.
   attend_and_append): within a decode step only this op writes a layer's caches, and the strictly causal
   attention that follows (it consumes this op's output) reads positions < pos only."""
   rows = m_old.shape[0]
@@ -267,7 +283,7 @@ def fused_read(m_old: torch.Tensor, c1: torch.Tensor, g1: torch.Tensor, a1: torc
   dummy = m_old
   fuse = has_write and t == 1 and rows <= FUSE_MAX_ROWS   # decode: the write in the read kernel
   if has_write and not fuse:   # separate pass: fused with the read, the kernel needs 255 registers (low occupancy)
-    tw = 1
+    tw = WRITE_TW
     _write_kernel[(triton.cdiv(rows, tw),)](
         m_old, m_old.stride(0), m_new, 80 * 64, c1, c1.stride(0), g1, g1.stride(0), a1, a1.stride(0), c2,
         c2.stride(0), g2, g2.stride(0), a2, a2.stride(0), rows, write_eps, N=n, TW=tw, num_warps=WRITE_WARPS)
@@ -276,30 +292,45 @@ def fused_read(m_old: torch.Tensor, c1: torch.Tensor, g1: torch.Tensor, a1: torc
     c1 = g1 = a1 = c2 = g2 = a2 = dummy
   if not has_prev:
     m_prev = dummy
-  groups = READ_GROUPS
+  if t > 1:
+    groups, warps = READ_GROUPS, READ_WARPS
+  elif 'BAM_DEC_GROUPS' in os.environ:
+    groups, warps = DEC_GROUPS, DEC_WARPS
+  else:   # one-token decode, A800 sweep (us per layer at B = 1 / 16 / 64: 9.1 / 10.1 / 13.5): latency-bound
+    # small batches spread a token over more programs; large ones compute the write once per token
+    groups, warps = (1, 4) if rows <= 16 else (2, 8)
   tok = READ_TOK
-  sub = (READ_SUB_DECODE if t == 1 else READ_SUB_PREFILL) if groups == 1 else 1
+  if groups == 2:
+    sub = 1
+  elif t > 1:
+    sub = READ_SUB_PREFILL
+  elif 'BAM_READ_SUB' in os.environ:
+    sub = READ_SUB_DECODE
+  else:
+    sub = 4 if rows <= 4 else 2
   cache = k_cache is not None
-  assert not cache or (t == 1 and k_cache.shape[-1] == 64)
+  assert not cache or t == 1
   kc = k_cache if cache else dummy
   vc = v_cache if cache else dummy
+  tl_tail = k_tail if cache else dummy
+  assert not cache or (k_tail.shape[-3:] == (2, kc.shape[-1], 100) and k_tail.is_contiguous())
   _read_kernel[((3 - groups) * sub, triton.cdiv(rows, tok))](
       m_old, m_old.stride(0), m_new if fuse else dummy, c1, c1.stride(0), g1, g1.stride(0), a1, a1.stride(0), c2,
       c2.stride(0), g2, g2.stride(0), a2, a2.stride(0), write_eps, m_prev, m_prev.stride(0), prev_valid, pos,
       shift, shift.stride(0), std, std.stride(0), up, up.stride(0), gates, gates.stride(0), static_key, norm_w,
       cos, sin, qk, qk.stride(0), vo, vo.stride(0),
       kc, kc.stride(0), kc.stride(1), kc.stride(2) if cache else 0, vc, vc.stride(0), vc.stride(1),
-      vc.stride(2) if cache else 0,
+      vc.stride(2) if cache else 0, tl_tail, tl_tail.stride(0), tl_tail.stride(1),
       t, rows, eps, key_eps, key_scale, static_scale, qk_scale, vo_scale, q_mult,
       HAS_PREV=has_prev, N=n, QW=QK_WIDTH, GROUPS=groups, TOK=tok, FUSE_WRITE=fuse, SUB=sub,
-      CACHE=cache, KTB=64, num_warps=READ_WARPS)
+      CACHE=cache, KTB=kc.shape[-1] if cache else 64, num_warps=warps)
   return m_new, qk, vo
 
 
 @fused_read.register_fake
 def _(m_old, c1, g1, a1, c2, g2, a2, m_prev, prev_valid, pos, shift, std, up, gates, static_key, norm_w, cos, sin,
       batch, has_write, has_prev, write_eps, eps, key_eps, key_scale, static_scale, qk_scale, vo_scale, q_mult,
-      tok, k_cache=None, v_cache=None):
+      tok, k_cache=None, v_cache=None, k_tail=None):
   rows = m_old.shape[0]
   n = static_key.shape[0] // 4
   return (m_old.new_empty((rows if has_write else 0, 80 * 64)), m_old.new_empty((rows, 2, n, QK_WIDTH)),

@@ -1,0 +1,8 @@
+Only new BamPythia2p8BHUnit300BFastKernelMPreNormQKScale43k is measured. Prior13k/23k/33k and baseline43k all use cached verified outputs.
+Live work directory: /home/mengqy/Projects/Bam/training_reports/bam_hunit_prenorm_43k_20261105
+Service: hunit-prenorm-43k-analysis.service (one-time, source run.py).
+Native diagnostic source3bfb05938b8f427f07f5783e0faaec0a3d25f142, training5a48faaa36989deb1c24747c6314b49b0d8b649f. Actual43k checkpoint is in migrated gs://newproject-1-llm_base_models_us-central1/log/RUN/checkpoints/43000/items, state43001.
+Same32x2048 fixed Pile-source texts, effective BF16 Wc centered over vocab, own bottom128 primary and fixed old43k control. Original native/observer/ledger/finite/cohort/version gates unchanged.
+CPU head/Wo/tb helpers only load new43k. Archived baseline43k summary/source43b3472 and per-text recorded powers are reused on CPU; no old model or old spectra are executed/restored. No common-FP32 old43k CE exists in archive, so no matched-precision cross-model CE claim is made.
+Own task-prefixed spotv5p8 resources only; all remote writes /home/lishengping/mengqy, no formal training intervention. Max3 spot attempts and6h acquisition deadline; artifacts checked before resource provisioning and before node-status polling, strict collection after GCS completion; exact owned-resource cleanup in finally. CacheMirror uses stable completed JAX cache files, automatic JAX compatibility keys unchanged.
+Authoritative outcome is completion/results/pipeline-status; a preempted controller status alone does not imply missing results. Resource-audit proves cleanup only at terminal state.

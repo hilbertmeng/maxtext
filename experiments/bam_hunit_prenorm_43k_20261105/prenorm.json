@@ -1,0 +1,71 @@
+{
+  "cohort_gcs": "gs://newproject-1-llm_projects_us-east5/log/diagnostics/mengqy/bam_hunit_early_weak_20261103/native_v1/cohort.npz",
+  "cohort_hashes": [
+    "3fb4f6f06294f0e955180f662f18c0abd05c73d20adfa70102aa606b66dec5ae",
+    "0f02c75f16cda9c5c5a3d92a45e68f78a42579f16f496469af4d28c2fd3a598e",
+    "008541777823ed501b393559cb214782cd93c7a197e5552099ed1af48015222e",
+    "184695b50c6cf3b1bf4421c719ed699a79327c67bd5cfca46fd071665d2a872a",
+    "7235ac4a4afc2cc8ec5215d869485ddb66b3b50093ac2f6b633eb539b83ecac8",
+    "e96048aef778748d6f77db89158a4eb999a0dbc45bf4ec99c00d7a794b5980ff",
+    "0bf59991ec4797926743506fa7718d81494cb8c7d2496a89640de48f2253369c",
+    "1fa38d3de017f4dd92e7de5cda8528b69154de9c652c1d02765dc6bf6c7c1d31",
+    "ccca2d153aae58c3f899458e746f186055d47699ebe9739fd1c06af4ef8362c2",
+    "71adb335c166a0cf001921c09895ec2f6ae6552475609c5ffae791e13ae4cea9",
+    "55a0e9537058e4c3c336b74d0f1d43960862f03c8157602c14fad0d0548e6218",
+    "0442c93717ed44b96e1115e806228d2b057a2c60b4d1a2b851e3c2c763aa8356",
+    "6fe0eb94889354ec5822810bc901d7cad36ee7e66a21559a3b55d734397c2dcf",
+    "52003c8158d55348eb8e15620ac1c08632e67760bd8fdb90fe7dc904a18e8548",
+    "bf95f054268992b449da6123646122855ab5e6ddb87b3d479b74c28bd25c4f29",
+    "10b2293fc3cb8bd7457b8e589deddb1f3be7260c753b18e4d9f98575f5c58daa",
+    "2ee17afb41a8232ecd20b93ff88005131f5dac6a1d47613ed7439dec0cd141b6",
+    "e8fe11e40ffecf751d590f0dc10096e77531f113241bb63ec3534aba7fad654c",
+    "3498201b7d2af448af7772caa10a71ebe5086d8d984e57c4a189250fc03276de",
+    "42b8bef942b9569c2a7e2a4137e509964873e6947567f8ac2f523159f4152bba",
+    "04d3678bb057e7f7d6b061716bc275c98ec8af3df83db47385bacb96f6a9c5c3",
+    "764f237879008c9b74142ea1dedc09d2c99f62ff0b4df3c6b3c59d6cf7a385f3",
+    "7019b5618bf813ed6c5509b7784dda44c32716b5d8738dd9c4d820f98bc13039",
+    "a9737da945f5b156364253da930616d3c6e6b2b2f580937b0b52c049f271cd99",
+    "92f78b7c86b3a9f4bc22bcc63ac37967df0f45c2eaa69ec38cef15182be335ae",
+    "53378beecf9682522841b04c0579271b9d88013176c3782d910042b51c55125e",
+    "66f6ba26a38624caa04e7738ab8eff49c043109109f0c85d6276bfcd36b9d3c6",
+    "a50d507e3417cdacb63317737d5f0660e2c513b2bb9757fa88cf761b5fac76c9",
+    "6e25cec5f0885e6c3f23a0bfb495672b76c4a84b24ef03d9c6a3df80979d5c15",
+    "a699d6f403c5fbd69586093179724e3c88eea81757138732070cc8c65d0b7e59",
+    "323dc2543e7bf4a248466244e68e6f44bd5dd5cd48e2c8264d3cf62b5e74a6d8",
+    "c61a6d3c1e1871e1debb6c8f9c73efaa6a8a74b894856c6ca5f47c148f85fc99"
+  ],
+  "basis_gcs": "gs://newproject-1-llm_projects_us-east5/log/diagnostics/mengqy/bam_hunit_write_origin_20261103/fixed43k_basis.npy",
+  "reference_gcs": "gs://newproject-1-llm_projects_us-east5/log/diagnostics/mengqy/bam_hunit_spectral_20261102/native_tpu_v2",
+  "arm": "prenorm",
+  "task": "bam_hunit_prenorm_43k_20261105",
+  "experiment": "BamPythia2p8BHUnit300BFastKernelMPreNormQKScale",
+  "run_name": "BamPythia2p8BHUnit300BFastKernelMPreNormQKScale",
+  "training_commit": "5a48faaa36989deb1c24747c6314b49b0d8b649f",
+  "parameter_count": 2775190944,
+  "checkpoints": {
+    "43000": "gs://newproject-1-llm_base_models_us-central1/log/BamPythia2p8BHUnit300BFastKernelMPreNormQKScale/checkpoints/43000/items"
+  },
+  "steps": [
+    43000
+  ],
+  "execution_order": [
+    43000
+  ],
+  "checkpoint_state_steps": {
+    "43000": 43001
+  },
+  "gcs_root": "gs://newproject-1-llm_projects_us-east5/log/diagnostics/mengqy/bam_hunit_prenorm_43k_20261105/native_v1/prenorm",
+  "own_basis_root": "gs://newproject-1-llm_projects_us-east5/log/diagnostics/mengqy/bam_hunit_prenorm_43k_20261105/native_v1/prenorm/head_spectra",
+  "local_DATA": "/data0/mengqy/bam_diagnostics/bam_hunit_prenorm_43k_20261105/prenorm",
+  "worktree": "/home/mengqy/Projects/Bam/maxtext-diag-hunit-prenorm-13k",
+  "provisioning": "spot",
+  "accelerator_type": "v5p-8",
+  "num_shards": 4,
+  "readonly": true,
+  "require_cross_hardware_identity": false,
+  "scope": "Only new MPreNormQKScale43k on fixed32x2048 cohort; own Wc bottom128 and fixed old43k. All previous steps and baseline43k are reused, no baseline forward or restore.",
+  "commit": "3bfb05938b8f427f07f5783e0faaec0a3d25f142",
+  "compare_historical_baseline": false,
+  "execution_note": "Only43k prenorm is dispatched; cached baseline and previous-step data are loaded on CPU. Exact native source3bfb059 and JAX0.8.1/v5p single-chip semantics unchanged.",
+  "expected_device_kind": "TPU v5"
+}

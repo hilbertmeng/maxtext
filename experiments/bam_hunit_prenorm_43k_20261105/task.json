@@ -1,0 +1,14 @@
+{
+  "created_utc": 1793850606.458428,
+  "acquisition_deadline": 1793872206.4584284,
+  "arms": [
+    "prenorm"
+  ],
+  "steps": [
+    43000
+  ],
+  "previous": "/home/mengqy/Projects/Bam/training_reports/bam_hunit_prenorm_33k_20261104",
+  "baseline_archive": "/home/mengqy/Projects/Bam/training_reports/bam_hunit_early_weak_v5p_20261103/results.json",
+  "max_attempts": 3,
+  "report_url": "http://172.29.142.228:8873/shorttrain/no-self-readout/hunit-spectral/write-origin/prenorm-43k/"
+}

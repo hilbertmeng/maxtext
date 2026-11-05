@@ -1,0 +1,75 @@
+# PyTorch (HuggingFace) port of Pythia unit-H BAM with M pre-norm and Q/K scale
+
+Reference port of the executed **pure-JAX** path of `BamPythia2p8BHUnit300BFastKernelMPreNormQKScale`
+(runtime `5a48faa`, Pallas core / Pallas write / Splash off). FastKernel only changes the TPU
+implementation: the parameter tree and equations are the same (MaxText `bam_pythia_m_prenorm_test`
+checks native vs Pallas logits and gradients). Optimized inference kernels are future work; the
+older XLProp port in `bam_hf/` holds reusable pieces (split-KV decode attention, Triton M kernels).
+
+| | |
+|---|---|
+| checkpoint | step 43000, `gs://newproject-1-llm_base_models_us-central1/log/BamPythia2p8BHUnit300BFastKernelMPreNormQKScale/checkpoints/43000` |
+| HF directories | `/data0/xd/bam_diagnostics/pythia-h-prenorm-qkscale-hf/hf/bam-pythia-h-prenorm-qkscale-43000-{bfloat16,float32}` |
+| parameters | 2,775,190,944 (equal to MaxText) |
+| tokenizer | GPT-NeoX-20B (Pythia), vocab padded to 50304 |
+
+## Use
+
+```python
+import torch
+from transformers import AutoModelForCausalLM, AutoTokenizer
+d = '/data0/xd/bam_diagnostics/pythia-h-prenorm-qkscale-hf/hf/bam-pythia-h-prenorm-qkscale-43000-bfloat16'
+tok = AutoTokenizer.from_pretrained(d, trust_remote_code=True)
+model = AutoModelForCausalLM.from_pretrained(d, trust_remote_code=True, dtype=torch.bfloat16).cuda().eval()
+out = model.generate(**tok('The capital of France is', return_tensors='pt').to('cuda'), max_new_tokens=32)
+```
+
+Logits are FP32 (BF16 operands, FP32 output, as MaxText `logits_fp32_output_bf16_backward`).
+
+## Model (per token: M [K=80 data, V=64 address], N=32 heads, D=2560, 32 layers)
+
+- Embedding write seeds M: gated outer product of `U e / 0.00208` and an RMS-normalized GELU address.
+- Read view: **M-shift** blends each V column with the previous token's layer-input M
+  (`sigmoid(W_s x)`, invalid at sequence start / position breaks), then **whole-M RMS** over 80x64.
+  The carried M and writes use raw M.
+- Reads (one shared `gelu(down x)` bottleneck, per-arm up + pre-bias, key RMS eps 1e-4):
+  Q/K local 80 = `c_qk (Mh 0.1 sigmoid(g) rms(r) + static)`, V and local O likewise with
+  `c_vo`; static reads use `1.1 sigmoid(.)/0.99`. Q/K = [local 80 | projected 20], full 100-dim
+  QKNorm, RoPE (half split) on the last 20, logits / sqrt(100). No V projection.
+- Attention is **strictly causal**: no token attends to itself, so the first token's context is 0
+  (MaxText negative-diagonal attention).
+- Writes (layers 0..30): `sigmoid(gw) rms(o_head) (x) rms(P x)` + `sigmoid(gm) memory_mlp(h) (x) rms(A h)`.
+  Memory MLP 2944 (no bias), main MLP 7808 (bias), terminal layer 9984 with no write.
+- Pythia serial residual, NeoX LayerNorms. Bottleneck GELUs are tanh-approximate (flax `nn.gelu`),
+  MLP GELUs exact.
+
+Decoding caches K/V (Q/K width 100, V width 80) plus each layer's last raw input M (80x64 per layer,
+for the M-shift), stored on the HF cache object (`bam_m`, `bam_pos`).
+
+## Alignment (4 x 512 Pile eval tokens, cohort `pile-eval-t2048-seed9876-n128-v1`)
+
+| | rel RMS | mean / max KL | top-1 |
+|---|---:|---:|---:|
+| FP32 port vs JAX FP32 | 8.9e-7 | 2.0e-11 / 1.8e-10 | 100% |
+| FP32 incremental decode vs full forward | 8.4e-7 | 1.8e-11 / 1.0e-10 | 100% |
+| FP32 chunked prefill vs full / left padding vs plain | 8.7e-7 / 3.8e-7 | | 100% |
+| BF16 port vs JAX FP32 | 4.8e-3 | 1.66e-4 / 2.6e-2 | 99.4% |
+| (JAX BF16 vs JAX FP32, for scale) | 5.0e-3 | 2.18e-4 / 6.3e-2 | 99.5% |
+
+Next-token loss on these tokens: JAX FP32 2.553288, port FP32 2.553288, port BF16 2.5526.
+A random-weight 3-layer fixture (writer, writer, terminal; every parameter nonzero) agrees to 9e-7.
+Greedy generation equals the no-cache argmax token for token in FP32 (BF16: 62/64, near ties).
+BF16 loss over 32 x 2048 Pile eval sequences: 2.022 (last 1024 positions 1.911).
+
+## Reproduce
+
+```bash
+# MaxText side (pinned CPU env, worktree at 5a48faa)
+JAX_PLATFORMS=cpu PYTHONPATH=MaxText python bam_hf_pythia/jax_reference.py \
+    --ckpt .../checkpoints/43000/items --tokens tok.npy --params-out params.npz --reference-out ref.npz
+# shallow random fixture: --random-seed 0 --layers 3 ; BF16 reference: --params-in params.npz --dtype bfloat16
+python bam_hf_pythia/convert_maxtext_to_hf.py params.npz OUT_DIR --dtype bfloat16 --tokenizer TOKENIZER_DIR
+python bam_hf_pythia/compare.py OUT_DIR ref.npz --dtype float32
+```
+
+Torch env: `/home/xd/venvs/bam-infer` (torch 2.14, transformers 5.19); TF32 off for FP32 checks.

@@ -30,6 +30,7 @@
 | BAM前传与投影/归一化/门控 | [attentions.py](MaxText/layers/attentions.py)：`BamAttention`、`bam_read`、`factorized_head_bam_read`、`_attention_op`、`_bam_fetch_op` |
 | M跨层携带、layer scan、标准Transformer部分 | [fusion.py](MaxText/layers/fusion.py)、[models.py](MaxText/layers/models.py)、[accelerator.py](MaxText/layers/accelerator.py)；配置解析见 `pyconfig.py` |
 | 训练/AOT一致性、优化器、TB指标 | `MaxText/train.py`、`train_compile.py`、`optimizers.py`、`maxtext_utils.py` |
+| PyTorch/HF推理移植、GPU推理加速与对Pythia测速 | [bam_hf_pythia/README.md](bam_hf_pythia/README.md)（用法、环境、对齐、速度表）、[DESIGN.md](bam_hf_pythia/DESIGN.md)（kernel/cache设计、剩余差距、负面结果）；XLProp移植见 [bam_hf/README.md](bam_hf/README.md) |
 | 归因/因果诊断复用 | [readout attribution](experiments/bam_llama2_medium/bam_readout_attribution.md)；[残差IG](/data0/xd/bam-row-mediation/experiments/bam_llama2_medium/bam_residual_attribution.md)、[row消费者定位](/data0/xd/bam-row-mediation/experiments/bam_llama2_medium/bam_row_consumer_positions.md) 的 Reproduction 节给出脚本、分支、checkpoint及数据 |
 
 常用锚点而非可互换基线：`BamLlama2MediumV2`（历史milestone）、

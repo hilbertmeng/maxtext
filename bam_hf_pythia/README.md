@@ -88,15 +88,21 @@ prefill). Only BAM-specific parts get BAM-specific kernels. A generic one-token 
 shared linears (`SHARED_GEMV=1`) speeds up both but Pythia more (bs1 BAM/Pythia 0.891 -> 0.843), so it
 is off.
 
-A800 80GB PCIe, BF16, torch 2.14 / Triton 3.8, real weights, decode at a 1984-token context:
+A800 80GB PCIe, BF16, torch 2.14 / Triton 3.8, real weights, decode at a 1984-token context (prefill:
+mean of 2 runs; decode: median of 3 runs alternating BAM / Pythia processes, since a max-autotune run of
+Pythia occasionally picks slower GEMMs, e.g. bs16 12.55 vs 11.1-11.3 ms):
 
 | | BAM | Pythia-2.8B | BAM / Pythia (throughput) |
 |---|---:|---:|---:|
-| prefill 1 x 2048 | 67.1 ms | 58.2 ms | 0.868 |
-| prefill 8 x 2048 | 490.4 ms | 443.8 ms | 0.905 |
-| decode bs1 | 5.87 ms/token | 5.19 ms | 0.884 |
-| decode bs16 | 13.57 ms/step | 11.27 ms | 0.830 |
-| decode bs64 | 37.62 ms/step | 30.91 ms | 0.822 |
+| prefill 1 x 2048 | 67.1 ms | 58.7 ms | 0.875 |
+| prefill 8 x 2048 | 492.7 ms | 444.5 ms | 0.902 |
+| decode bs1 | 5.89 ms/token | 5.18 ms | 0.880 |
+| decode bs16 | 12.84 ms/step | 11.29 ms | 0.879 |
+| decode bs64 | 34.88 ms/step | 30.84 ms | 0.884 |
+
+RTX PRO 6000 Blackwell (kernels tuned on A800, single run): BAM / Pythia 0.888 / 0.876 prefill,
+0.899 / 0.963 / 0.880 decode bs1 / 16 / 64 (Pythia's bs16 is slow on this GPU: its decode attention
+layout was chosen on A800).
 
 Start (HF eager, same GPU): BAM reference 395 ms prefill 1x2048, 124 ms/token decode bs1 (Pythia stock
 HF eager 66 ms, 13.8 ms). Accuracy of the BAM fast path vs JAX FP32 (4 x 512 Pile tokens): mean KL
@@ -112,15 +118,22 @@ BAM-specific kernels (`bam_kernels.py`, `prefill_attention.py`, `decode_attentio
   the previous token's M comes from the cache). Decode also writes K/V into the caches from the read.
 - Prefill attention: strictly causal flash attention in Triton for Q/K 100 / V 80 (Q/K stored 112 wide:
   200-byte rows do not vectorize), local O added in the epilogue. Faster than SDPA flash padded to 128.
-- Decode attention: K cache in transposed 64-position blocks ('kt'): 255 vs 300 us per layer at bs16
-  (rows layout). Pythia keeps rows (fastest for it in the full step).
+- Decode attention: K cache in transposed 64-position blocks ('kt'), plus a double-buffered rows-layout
+  tail [B, N, 2, 64, 100] holding the last two blocks: the decode read writes the new key contiguously
+  into slot (pos // 64) % 2 and, at step r of a block, moves head r of the previous block into kt
+  (scattered single-position writes into kt cost 7-15 us per layer; a whole-block move in one step is a
+  latency spike). Attention runs a constant-trip-count main loop masked to the full kt blocks, then the
+  two tail tiles; a tl.where pointer select or a runtime loop bound / branch inside the loop kills the
+  pipelining (bs16 +30%). Pythia keeps rows (fastest for it in the full step).
+- Decode read config per batch: rows <= 16 one arm group per program, 4 (rows <= 4) or 2 programs per
+  token; bs64 both groups in one program (M write once). Read kernel per layer 12.1 / 14.4 / 38 us ->
+  9.2 / 10.1 / 13.6 us at bs1 / 16 / 64.
 - One-token decode: the BAM-only small linears (read keys + write address; memory-MLP output + MLP write
   address) as grouped Triton GEMVs; multi-token decode: one GELU pass + a grouped small-M GEMM
   (an activation inside the GEMM prologue breaks the operand pipeline: 5x slower).
 
 Where the remaining gap is (per step): decode bs16/64 attention reads 12.5% more K/V (Q/K width 100
-+ V 80 vs 80 + 80: +0.7 / +1.0 ms, inherent); the read kernel (0.5 / 1.2 ms, latency of one program's
-dependent chain); BAM-only small GEMMs (~1 ms). Prefill: read + write kernels (~38 ms at 8 x 2048,
++ V 80 vs 80 + 80: +0.7 / +1.0 ms, inherent); the read kernel (~0.3 / 0.45 ms); BAM-only small GEMMs (~1 ms). Prefill: read + write kernels (~38 ms at 8 x 2048,
 floor ~28) and the lower efficiency of BAM's small-K GEMMs (~9 ms) for equal FLOPs.
 
 Negative results: fusing the write into the prefill read (register spills, 3.2 vs 1.4 ms); the M write

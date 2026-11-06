@@ -78,15 +78,45 @@ Torch env: `/home/xd/venvs/bam-infer` (torch 2.14, transformers 5.19); TF32 off 
 
 `fast_inference.build(hf_model)` wraps either model (BAM or HF `GPTNeoXForCausalLM`) with the same interface:
 `new_state(batch, max_len)` (static caches), `prefill(ids, state)`, `decode(ids, state)` (fixed shapes,
-CUDA-graph safe under `torch.compile(mode='max-autotune')`). `bench.py` runs both; `check_fast.py`
-checks the fast path (BAM against the JAX FP32 logits, Pythia against stock HF).
+CUDA-graph safe under `torch.compile(mode='max-autotune')`). `bench.py` times both; `check_fast.py`
+checks the fast path (BAM against the JAX FP32 logits, Pythia against stock HF). Design, cost analysis
+and negative results: [DESIGN.md](DESIGN.md).
 
-Policy: the goal is BAM/Pythia relative speed. Components both models have (QKV/x and h
-projections, out/dense, MLP fc_in/fc_out, LayerNorms, decode attention kernel, RoPE table) use the
-same implementation in both (inductor GEMMs, the split-KV Triton decode kernel, SDPA flash for Pythia
-prefill). Only BAM-specific parts get BAM-specific kernels. A generic one-token Triton GEMV for the
-shared linears (`SHARED_GEMV=1`) speeds up both but Pythia more (bs1 BAM/Pythia 0.891 -> 0.843), so it
-is off.
+Greedy generation with the fast path (run from the repository root; batch rows must have equal length):
+
+```python
+import sys
+sys.path.insert(0, 'bam_hf_pythia')
+import torch
+from transformers import AutoModelForCausalLM, AutoTokenizer
+import fast_inference
+
+d = '/data0/xd/bam_diagnostics/pythia-h-prenorm-qkscale-hf/hf/bam-pythia-h-prenorm-qkscale-43000-bfloat16'
+tok = AutoTokenizer.from_pretrained(d, trust_remote_code=True)
+hf = AutoModelForCausalLM.from_pretrained(d, trust_remote_code=True, dtype=torch.bfloat16).cuda().eval()
+model = fast_inference.build(hf)          # also accepts a stock GPTNeoXForCausalLM (Pythia)
+
+ids = tok(['The capital of France is'], return_tensors='pt').input_ids.cuda()
+new = 32
+state = model.new_state(ids.shape[0], ids.shape[1] + new)       # static K/V/M caches
+step = torch.compile(lambda x: model.decode(x, state), mode='max-autotune', fullgraph=True, dynamic=False)
+with torch.no_grad():
+  nxt = model.prefill(ids, state)[:, -1].argmax(-1, keepdim=True)   # logits of the last position
+  out = [nxt]
+  for _ in range(new - 1):
+    nxt = step(nxt)[:, -1].argmax(-1, keepdim=True)                  # one CUDA-graph decode step
+    out.append(nxt)
+print(tok.decode(torch.cat(out, 1)[0]))
+```
+
+The first `step` call compiles and autotunes (a few minutes; cached under `/tmp/torchinductor_$USER`).
+Output matches `hf.generate(ids, do_sample=False)` up to BF16 near-ties (here the first 22 tokens).
+For a new prompt of the same shape, call `state.reset()` and prefill again (the compiled step is reused).
+
+Environment: Python 3.11, CUDA GPU (sm80+; tuned on A800), `torch==2.14.1` (cu130),
+`triton==3.8.0`, `transformers==5.19.0`, `safetensors`, `tokenizers`, `numpy`; ready-made venv on this
+machine: `/home/xd/venvs/bam-infer` (`source /home/xd/venvs/bam-infer/bin/activate`). Select GPUs with
+`CUDA_DEVICE_ORDER=PCI_BUS_ID CUDA_VISIBLE_DEVICES=<id>` (GPUs 0 / 4 are the A800s).
 
 A800 80GB PCIe, BF16, torch 2.14 / Triton 3.8, real weights, decode at a 1984-token context (prefill:
 mean of 2 runs; decode: median of 3 runs alternating BAM / Pythia processes, since a max-autotune run of
@@ -107,40 +137,6 @@ layout was chosen on A800).
 Start (HF eager, same GPU): BAM reference 395 ms prefill 1x2048, 124 ms/token decode bs1 (Pythia stock
 HF eager 66 ms, 13.8 ms). Accuracy of the BAM fast path vs JAX FP32 (4 x 512 Pile tokens): mean KL
 ~1e-4 prefill, ~5e-5 decode, top-1 99.4% / 100%; the reference port in BF16 is 1.5e-4.
-
-BAM-specific kernels (`bam_kernels.py`, `prefill_attention.py`, `decode_attention.py`):
-- Read: per token one program per arm group ((q, k) / (v, local o)): M-shift blend with the previous
-  token's M, whole-M RMS (applied to the outputs), keys R = gated rms(up) + gated static key (all four
-  arms' dynamic + static reads are one matmul R @ M~^T), QKNorm + RoPE tail + 1/sqrt(100) for q/k.
-  Prefill 0.75 ms per layer at 16k tokens (bandwidth floor ~0.52). Keys are computed before the M work.
-- Write: M_new = M + attention write + MLP write as one matmul [K, 2N] @ [2N, V] per token (separate
-  kernel in prefill: fused into the read it needs 255 registers; fused into the read for decode, where
-  the previous token's M comes from the cache). Decode also writes K/V into the caches from the read.
-- Prefill attention: strictly causal flash attention in Triton for Q/K 100 / V 80 (Q/K stored 112 wide:
-  200-byte rows do not vectorize), local O added in the epilogue. Faster than SDPA flash padded to 128.
-- Decode attention: K cache in transposed 64-position blocks ('kt'), plus a double-buffered rows-layout
-  tail [B, N, 2, 64, 100] holding the last two blocks: the decode read writes the new key contiguously
-  into slot (pos // 64) % 2 and, at step r of a block, moves head r of the previous block into kt
-  (scattered single-position writes into kt cost 7-15 us per layer; a whole-block move in one step is a
-  latency spike). Attention runs a constant-trip-count main loop masked to the full kt blocks, then the
-  two tail tiles; a tl.where pointer select or a runtime loop bound / branch inside the loop kills the
-  pipelining (bs16 +30%). Pythia keeps rows (fastest for it in the full step).
-- Decode read config per batch: rows <= 16 one arm group per program, 4 (rows <= 4) or 2 programs per
-  token; bs64 both groups in one program (M write once). Read kernel per layer 12.1 / 14.4 / 38 us ->
-  9.2 / 10.1 / 13.6 us at bs1 / 16 / 64.
-- One-token decode: the BAM-only small linears (read keys + write address; memory-MLP output + MLP write
-  address) as grouped Triton GEMVs; multi-token decode: one GELU pass + a grouped small-M GEMM
-  (an activation inside the GEMM prologue breaks the operand pipeline: 5x slower).
-
-Where the remaining gap is (per step): decode bs16/64 attention reads 12.5% more K/V (Q/K width 100
-+ V 80 vs 80 + 80: +0.7 / +1.0 ms, inherent); the read kernel (~0.3 / 0.45 ms); BAM-only small GEMMs (~1 ms). Prefill: read + write kernels (~38 ms at 8 x 2048,
-floor ~28) and the lower efficiency of BAM's small-K GEMMs (~9 ms) for equal FLOPs.
-
-Negative results: fusing the write into the prefill read (register spills, 3.2 vs 1.4 ms); the M write
-as extra programs inside a GEMV launch (raises the GEMV's registers: no gain); k-split write programs;
-splitting the read over more programs in prefill; 128-wide masked Q/K tiles in the prefill attention;
-chunked (64 + 32 + 4) decode K loads; padding Pythia's heads to 96 for flash; a separate GEMM for the
-exact-GELU columns of the h projection (inductor still runs the GELU as its own kernel).
 
 Reproduce: `CUDA_DEVICE_ORDER=PCI_BUS_ID CUDA_VISIBLE_DEVICES=0 python bam_hf_pythia/bench.py --impl fast
 --compile max-autotune`; per-kernel profiles: `profile_fast.py --model bam --decode 16`.

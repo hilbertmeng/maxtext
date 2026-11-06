@@ -1,5 +1,23 @@
 import math
 
+class SplashTunedBlocks1024:
+    """Shared Splash tile tuning used by MediumProp, XL and Pythia-2.8B.
+
+    Forward q/kv 1024 (compute 512); fused backward dkv 1024/1024/1024.
+    Pythia-2.8B per device (B16 N32 T2048 D80, causal + segment ids, v5p,
+    MaxText/tests/splash_block_benchmark.py): forward 4.66 -> 3.66 ms,
+    forward+backward 15.42 -> ~10.4 ms; forward and dk/dv bitwise, dq 8e-4.
+    The same blocks won at XL (B8 N20 T4096 D96); 2048-size blocks exhaust VMEM.
+    """
+    sa_block_q = 1024
+    sa_block_kv = 1024
+    sa_block_kv_compute = 512
+    sa_block_q_dkv = 1024
+    sa_block_kv_dkv = 1024
+    sa_block_kv_dkv_compute = 1024
+    sa_use_fused_bwd_kernel = True
+
+
 class Common:
     enable_goodput_recording = False # true is slower then false, decend 15%
     monitor_goodput = False
@@ -16149,7 +16167,7 @@ class PythiaArchitecture(Common):
     sliding_window_size = None
 
 
-class PythiaMediumPropT2048(PythiaArchitecture, Llama2MediumProp):
+class PythiaMediumPropT2048(SplashTunedBlocks1024, PythiaArchitecture, Llama2MediumProp):
     """Pythia MediumProp; T2048 x global batch256, 524288 tokens/step."""
     # 结论：整套Pythia迁移后的MHA终局loss弱于旧配方，不是与旧MHA等效的架构替换。
     # 完成13500；末五12600–13400对旧T2048 MHA gap+.047280，不能误记成+.4728。
@@ -16164,7 +16182,6 @@ class PythiaMediumPropT2048(PythiaArchitecture, Llama2MediumProp):
     steps = 13500
     learning_rate_schedule_steps = 13500
     attention = 'flash'
-    query_chunk_size = 256
     qk_norm = False
     checkpoint_period = 200
     keep_period = 0
@@ -16233,6 +16250,35 @@ class PythiaMediumPropT2048SerialMLP(PythiaMediumPropT2048):
     model_name = 'PythiaMediumPropT2048SerialMLP'
     pythia_parallel_residual = False
     compare_runs = ['PythiaMediumPropT2048', 'BamMHAMediumPropC256T2048Matched']
+
+
+class PythiaXLPropT2048SerialMLP(SplashTunedBlocks1024, PythiaArchitecture, Llama2XLProp):
+    """Serial Pythia on XLProp: 28 layers, D1920, 20x96 heads, GELU FFN7680.
+
+    T2048 x global batch256 on v5p-32; retain XLProp's 50k-step/2e-4 schedule.
+    """
+    model_name = 'PythiaXLPropT2048SerialMLP'
+    DATASET_VARIANT = 'legacy2048'
+    base_mlp_dim = 7680
+    pythia_rotary_dim = 24
+    pythia_parallel_residual = False
+    max_target_length = 2048
+    per_device_batch_size = 16.0
+    attention = 'flash'
+    tensorboard_gcs_rotate_period = 500
+    jax_cache_dir = ''
+
+
+class MuddPythiaXLPropT2048SerialMLP(Mudd, PythiaXLPropT2048SerialMLP):
+    """Full-history QKVM Mudd on serial Pythia XLProp; routers are extra budget."""
+    model_name = 'MuddPythiaXLPropT2048SerialMLP'
+    pythia_use_fusion = True
+    mudd_full_history = True
+    scan_layers = False  # The residual history grows at each layer.
+    dynamic_mlp_dim = True  # Preserve Mudd's layerwise FFN schedule, without router deductions.
+    # Index by completed layer: only the final pre-lm-head router uses expand4.
+    mudd_router_hidden_expand = [1] * 27 + [4]
+    compare_runs = ['PythiaXLPropT2048SerialMLP']
 
 
 class BamPythiaMediumPropT2048MShiftReadG050ReadAttentionSharedR256SerialMLP(
@@ -18261,21 +18307,6 @@ class BamPythia2p8BSotaPallasProfile(BamPythia2p8BSotaProfile):
     bam_pallas_body = 'v8t'
     bam_pallas_vmem_mib = 48
     bam_pallas_fused_inputs = True
-
-
-class SplashTunedBlocks1024:
-    """Splash blocks q/kv 1024 (compute 512) and fused backward dkv 1024/1024/1024.
-
-    Pythia-2.8B per device (B16 N32 T2048 D80, causal + segment ids, v5p, MaxText/tests/splash_block_benchmark.py):
-    forward 4.66 -> 3.66 ms, forward+backward 15.42 -> ~10.4 ms; forward and dk/dv bitwise, dq 8e-4.
-    The same blocks won at XL (B8 N20 T4096 D96); 2048-size blocks exhaust VMEM."""
-    sa_block_q = 1024
-    sa_block_kv = 1024
-    sa_block_kv_compute = 512
-    sa_block_q_dkv = 1024
-    sa_block_kv_dkv = 1024
-    sa_block_kv_dkv_compute = 1024
-    sa_use_fused_bwd_kernel = True
 
 
 class Pythia2p8BSplashProfile(SplashTunedBlocks1024, Pythia2p8BProfile):
@@ -20318,7 +20349,6 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     bam_independent_qk_read_scale = True
     compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedTruePile']
 
-
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75DynamicVONormScaleDepth2RawMLPEmbeddingFixedTruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedTruePile):
     """Replace H's full-read scale with independent dynamic V/O address-norm gains.
@@ -20370,6 +20400,7 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     # UE5a v5p-16: 0.679750 step/s (+1.47% versus H, matched health on separate leases); +18 parameters, no added cache.
     # code_commit:35963e9; ledger only: codex/mediumprop-common-read-raw-write, /data0/xd/mediumprop-common-read-raw-write.
     # Complete evidence: mediumprop_independent_vo_read_scale.md and mediumprop_common_read_raw_write.md.
+    # ledger only: codex/mediumprop-common-read-raw-write; implementation in /data0/xd/mediumprop-common-read-raw-write.
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75IndependentVOReadScaleRawMLPEmbeddingFixedTruePile'
     bam_common_vo_read_scale = False
     bam_independent_vo_read_scale = True

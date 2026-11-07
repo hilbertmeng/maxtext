@@ -242,4 +242,19 @@ MAXTEXT_CPU_TEST_JOBS=4 MAXTEXT_CPU_TEST_CORES=4 \
 - 基线 loss cache：`training_reports/cross_scale_20261025/loss_cache/`（Bam 项目根目录）。
 - ag2 编排使用用户目录 `/home/lishengping/mengqy/tpu_mhc_20261107` 的脚本副本；
   不修改 ag2 `/home/lishengping/xd/`。
-- 当前状态：CPU 已通过，待封存 runtime、AOT 和正式训练首步；尚无 mHC loss 结果。
+- runtime `695c28d` 已提交并推送；sealed-config gate通过；v5p-16 AOT已完成并验证。
+- 2026-11-07 04:14 UTC 开始 Spot v5p-16 排队，主区UE5a、候补EW4b；
+  TPU `xd-v5p-16-6110701-maxtext`。尚未验证 FIRST_STEP，不宣称训练已成功启动。
+- 权威 RUN registry 在 ag2 用户目录 `tpu_mhc_20261107/run_registry/`；checkpoint区域跟随该记录，
+  初始计划 `gs://newproject-1-llm_projects_us-east5/log/PythiaMediumPropT2048SerialMLPmHC/checkpoints/`。
+- `mqy-pythia-mhc` report group每2k更新；本地只读观察服务
+  `mqy-pythia-mhc-monitor.service` 每10分钟检查，报告loss/gap和速度，4k/8k提醒复核，
+  不自动做loss驱动的停训决策。服务代码及状态：
+  `/home/mengqy/Projects/Bam/training_reports/mhc_pythia_medium_20261107/`。
+- TensorBoard复用6008端口，本地镜像`/data0/mengqy/tensorboard_logs/`，
+  两个基线已通过HTTP核验存在`learning/loss`；新mHC按2k报告同步，结束再同步。
+  `./tensorboards/`有对应入口。当前用户对`/data0/xd/tensorboard_logs`无写权限，
+  未改其权限或共享服务。新训练TB仍写中央区GCS的原生轮换目录。
+- 速度先报告稳定步的step/s、token/s及训练时间；历史值为Pythia0.72949、Mudd0.57875 step/s。
+  当前Splash1024/fused配置不同于历史控制，health也不同；历史速度仅作实际运行参考。
+  仓库`perf/step_time_seconds`实际记录step/s，不能将其当秒/step取反解释。

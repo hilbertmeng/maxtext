@@ -459,3 +459,21 @@ isolated architecture penalty. Dataset manifests agree across all three regions:
 TruePile4096/global128/seed9876, extended50,000 steps, original13,500 prefix retained.
 Target training stays13,500 steps. Formal training starts only after CPU gates,
 sealed-config verification and the exact v5p-16 AOT; actual FIRST_STEP is required.
+
+Preparation passed at runtime `de3d1b1f04229e075af2c4fd409f44f234dcdf28`:
+19 model/formula checks (`~/.local/state/maxtext-cpu-tests/20261107T091016Z-1797055`),
+both configurations' FSDP placement (`20261107T091017Z-1797072`), and5 writer checks
+(`20261107T091102Z-1797947`). All100 regional training-shard size/CRC records agree;
+the audit is `tpu-ag:ROOT/truepile_mhc_data_audit.json` with ROOT as specified above.
+Original TensorBoard configs also confirm the inherited data/optimizer/init/attention
+settings against both historical baselines; their full native loss histories are
+imported into ROOT's isolated registry cache.
+
+The borrowed-compiler AOT became ready at09:19:07 UTC, with artifact
+`gs://newproject-1-llm_base_models_us-central1/log/compiled_trainsteps/de3d1b1/jax081-i0ae3f58-c17f538a/v5p-16/s13500/BamMHAMediumPropC256TruePilemHC.pickle`.
+The AOT-ready guard started the separate native controller, whose registration
+matches the full runtime hash and UE5a TruePile4096 path. Group `mqy-truepile-mhc`
+was created at09:19:36 UTC with2k public cadence and4k/8k reviews. The shared ChatServer
+wake now checks both independent mHC RUNs every10 minutes; the old standalone bot
+monitor remains stopped to avoid duplicate public delivery. FIRST_STEP and speed
+remain pending allocation; declared_status=running alone is not training evidence.

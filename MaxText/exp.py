@@ -16302,6 +16302,12 @@ class PythiaMediumPropT2048SerialMLPmHC(MHCConfig, PythiaMediumPropT2048SerialML
     compare_runs = ['PythiaMediumPropT2048SerialMLP', 'MuddPythiaMediumPropT2048SerialMLP']
 
 
+class PythiaMediumPropT2048SerialMLPmHCV6e16(PythiaMediumPropT2048SerialMLPmHC):
+    """Same mHC experiment on 16 v6e chips; preserve global batch256."""
+    model_name = 'PythiaMediumPropT2048SerialMLPmHCV6e16'
+    per_device_batch_size = 16.0
+
+
 class PythiaXLPropT2048SerialMLP(SplashTunedBlocks1024, PythiaArchitecture, Llama2XLProp):
     """Serial Pythia on XLProp: 28 layers, D1920, 20x96 heads, GELU FFN7680.
 

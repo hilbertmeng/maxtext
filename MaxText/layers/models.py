@@ -861,7 +861,11 @@ class Decoder(nn.Module):
       max_logging.log(f'Outside layers use remat', debug=cfg.debug)
       RemattedBlockLayers = self.set_remat_policy(self.decoder_layer, get_remat_policy(cfg)) 
 
-    if cfg.using_pipeline_parallelism:
+    if cfg.residual_connection != 'none':
+      from layers.residual_connections import ResidualDecoderStack
+      y = ResidualDecoderStack(cfg, mesh, self.quant, name='residual_stack')(
+          y, decoder_segment_ids, decoder_positions, decoder_input_tokens, deterministic, model_mode)
+    elif cfg.using_pipeline_parallelism:
       assert not cfg.bam_enabled, "BAM v0.1 does not support pipeline parallelism"
       if cfg.pipeline_fsdp_ag_once:
         partition_spec = self.pipeline_module.get_weight_sharding(

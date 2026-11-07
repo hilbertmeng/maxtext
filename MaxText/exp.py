@@ -227,6 +227,44 @@ class Llama2Medium(GWindow, PileDataset, Optimizer, Common):
     keep_period = 0
 
 
+class AttnResConfig:
+    """Full AttnRes: zero pseudo-queries, affine RMS-normalized keys only."""
+    residual_connection = 'attnres'
+    scan_layers = False
+    record_internal_nn_metrics = 0
+    attnres_norm_epsilon = 1e-6
+
+
+class MHCConfig:
+    """ICML mHC A.6 controller initialization plus a V4-style learned head.
+
+    Keep the Llama norm epsilon; the learned final read is an explicit V4
+    adaptation rather than a requirement of the original mHC algorithm.
+    """
+    residual_connection = 'mhc'
+    scan_layers = False
+    record_internal_nn_metrics = 0
+    mhc_num_streams = 4
+    mhc_sinkhorn_iters = 20
+    mhc_sinkhorn_epsilon = 1e-6
+    mhc_norm_epsilon = 1e-6
+    mhc_norm_affine = True
+    mhc_router_init_std = 0.0
+    mhc_alpha_init = 0.01
+    mhc_pre_bias_init = -3.0
+    mhc_pre_selected_bias_init = 3.0
+    mhc_pre_epsilon = 1e-6
+    mhc_post_bias_init = 0.0
+    mhc_residual_identity_bias = 3.0
+    mhc_residual_offdiag_bias = -3.0
+    mhc_learned_head = True
+    mhc_head_norm_epsilon = 1e-6
+    mhc_head_init_std = 0.02
+    mhc_head_alpha_init = 0.01
+    mhc_head_bias_init = 0.0
+    mhc_match_parameter_budget = True
+
+
 class Llama2MediumProp(Llama2Medium):
     """Proportional Medium backbone: 18 layers, 16x75 heads, T4096."""
     # Architecture base: head_dim=75 requires an even rotary subspace in
@@ -16250,6 +16288,18 @@ class PythiaMediumPropT2048SerialMLP(PythiaMediumPropT2048):
     model_name = 'PythiaMediumPropT2048SerialMLP'
     pythia_parallel_residual = False
     compare_runs = ['PythiaMediumPropT2048', 'BamMHAMediumPropC256T2048Matched']
+
+
+class PythiaMediumPropT2048SerialMLPmHC(MHCConfig, PythiaMediumPropT2048SerialMLP):
+    """Four-stream mHC on serial Pythia, with a matched total parameter budget.
+
+    Retain Pythia LayerNorm, biases, GELU, partial RoPE and initialization;
+    use the already verified fusion implementation of its serial decoder.
+    """
+    model_name = 'PythiaMediumPropT2048SerialMLPmHC'
+    pythia_use_fusion = True
+    record_training_health_metrics = True
+    compare_runs = ['PythiaMediumPropT2048SerialMLP', 'MuddPythiaMediumPropT2048SerialMLP']
 
 
 class PythiaXLPropT2048SerialMLP(SplashTunedBlocks1024, PythiaArchitecture, Llama2XLProp):

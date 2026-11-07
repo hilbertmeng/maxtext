@@ -130,6 +130,15 @@ class SubDecoderLayer(nn.Module):
   ):
     cfg = self.config
     mesh = self.mesh
+    connection = cfg.residual_connection
+    if connection != 'none':
+      from layers.residual_connections import FullAttentionResidual, ManifoldHyperConnection, mhc_update
+      residual_state = inputs
+      if connection == 'attnres':
+        inputs = FullAttentionResidual(cfg, name='attn_connection')(residual_state)
+      else:
+        inputs, attn_post, attn_mix = ManifoldHyperConnection(
+            cfg, layer_index=2 * self.layer_inx, name='attn_connection')(residual_state)
     if cfg.dense_conn and cfg.dynamic_dense_type == 'qkvm' and isinstance(inputs, tuple|list): # lsp
       if cfg.scan_use_mudd and len(inputs) == 2: # scan use mudd
         lnx = normalizations.get_rmsnorm("muddnorm", cfg)(inputs[0])
@@ -313,6 +322,16 @@ class SubDecoderLayer(nn.Module):
       residual_input = shared_routes['m'] if shared_routes is not None else bam_mudd.ThreeSourceRouter(
           cfg, mesh, self.quant, hidden_expand=1, name='m_compose')(inputs, early_residuals)
     intermediate_inputs = residual_input + attention_lnx
+    if connection != 'none':
+      attention_lnx = nn.Dropout(rate=cfg.dropout_rate, name='attn_connection_dropout')(
+          attention_lnx, deterministic=deterministic)
+      if connection == 'attnres':
+        residual_state = (*residual_state, attention_lnx)
+        intermediate_inputs = FullAttentionResidual(cfg, name='mlp_connection')(residual_state)
+      else:
+        residual_state = mhc_update(residual_state, attention_lnx, attn_post, attn_mix)
+        intermediate_inputs, mlp_post, mlp_mix = ManifoldHyperConnection(
+            cfg, layer_index=2 * self.layer_inx + 1, name='mlp_connection')(residual_state)
 
     # Fully Connected
     # Parallel Pythia uses the layer input (Mudd's composed M route).
@@ -535,6 +554,13 @@ class SubDecoderLayer(nn.Module):
               **({'row_block': int(cfg.bam_pallas_write_block), 'head_block': int(cfg.bam_pallas_write_block)}
                  if getattr(cfg, 'bam_pallas_write_block', None) else {}),
               **({'chunk': int(cfg.bam_pallas_write_chunk)} if getattr(cfg, 'bam_pallas_write_chunk', None) else {}))
+
+    if connection != 'none':
+      mlp_lnx = nn.Dropout(rate=cfg.dropout_rate, name='mlp_connection_dropout')(
+          mlp_lnx, deterministic=deterministic)
+      if connection == 'attnres':
+        return (*residual_state, mlp_lnx), M_out
+      return mhc_update(residual_state, mlp_lnx, mlp_post, mlp_mix), M_out
 
     if mlp_lnx is not None and moe_lnx is not None:
       layer_output = mlp_lnx + intermediate_inputs + moe_lnx

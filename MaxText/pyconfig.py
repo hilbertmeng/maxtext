@@ -141,6 +141,8 @@ def validate_keys(keys):
     if keys['use_dpo'] or keys['gradient_accumulation_steps'] != 1:
       raise ValueError('same-batch no-dropout loss currently requires non-DPO, gradient_accumulation_steps=1')
   validate_bam_config(keys)
+  from residual_config import validate_residual_config
+  validate_residual_config(keys)
   from pythia_config import validate_pythia_config
   validate_pythia_config(keys)
   validate_attention_kernel(keys["attention"])
@@ -478,6 +480,9 @@ class _HyperParameters:
     raw_keys["num_decoder_layers"] = 2**layer_scale * raw_keys["base_num_decoder_layers"]
     if raw_keys["decoder_block"] == "pythia" and raw_keys["base_mlp_dim"] == -1:
       raw_keys["mlp_dim"] = 4 * raw_keys["emb_dim"]
+
+    from residual_config import apply_residual_parameter_budget
+    apply_residual_parameter_budget(raw_keys)
 
     # This is the first command that initializes the backend - it calls
     # jax.devices()

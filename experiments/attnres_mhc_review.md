@@ -1,0 +1,245 @@
+# Full AttnRes / mHC：实现与论文对照
+
+工作树 `/home/mengqy/Projects/Bam/maxtext`，分支 `mqy/refactor-bam-hc`，
+当前基于 `origin/refactor-bam` 的 `0c7e097`（2026-11-07 rebase；初始实现基线为 `17a78b3`）。
+初版仅做 CPU 验证；2026-11-07 按用户要求撤销两个 Llama 正式实验，改为串行 Pythia mHC，训练状态见下文。
+
+## 入口与范围
+
+- `MaxText/exp.py`：可复用的 `AttnResConfig`、`MHCConfig`；
+  正式实验 `PythiaMediumPropT2048SerialMLPmHC(MHCConfig, PythiaMediumPropT2048SerialMLP)`；
+  两个原 Llama 正式实验已删除，测试仅用 mixin 临时组合 Llama 基线。
+- `MaxText/layers/residual_connections.py`：深度聚合、mHC 路由/更新、跨层状态。
+- `MaxText/layers/fusion.py::SubDecoderLayer`：在已有 ATTN、MLP 前后接入新连接。
+  复用原来的 RoPE、因果/packing mask、KV cache、Attention、SwiGLU、分支 RMSNorm 和权重初始化。
+- `MaxText/layers/models.py::Decoder`：仅在 `residual_connection != 'none'` 时走新 stack；
+  使用原来的 embedding 和最终 RMSNorm / LM head / loss。
+- `MaxText/residual_config.py`：兼容性检查和 mHC 参数预算；`base.yml` 提供解析器字段。
+
+只实现 **Full AttnRes**，没有 Block 模式。连接使用 unscanned 层循环，
+支持 remat、训练、prefill 和逐 token decode。显式拒绝 scan、pipeline、BAM/Mudd、MoE、
+MTP、deep embedding、变宽 MLP 等未经组合验证的配置。配置 mixin 可被其他兼容的 dense fusion 或串行 Pythia 类继承；Pythia 必须使用 fusion 路径。
+
+## 官方来源
+
+- [AttnRes 论文](https://arxiv.org/abs/2603.15031)：Full 公式、embedding source、最终聚合、
+  §5 中 pseudo-query 必须零初始化的说明。
+- [MoonshotAI 官方仓库](https://github.com/MoonshotAI/Attention-Residuals)：
+  检查时公开论文、图和 README 中的 Block 伪代码，没有完整训练源码。
+  本实现按论文的 Full 定义编写，没有把 Block 的组内累加当作 Full。
+- [DeepSeek mHC 原论文](https://arxiv.org/html/2512.24880v1)：§4.2 的路由约束和 Appendix A.1 的
+  n=4、alpha 初值 0.01、Sinkhorn 20 次。
+- [mHC ICML 正式版](https://raw.githubusercontent.com/mlresearch/v306/main/assets/xie26aa/xie26aa.pdf)：
+  第 17 页 Appendix A.6 / Algorithm 1 明确给出零投影、循环选路的 pre bias、
+  residual 对角/非对角 bias、post bias 和 pre epsilon。controller 初始化现按此版本实现。
+- [DeepSeek 官方 TileKernels 参考](https://github.com/deepseek-ai/TileKernels/blob/main/tile_kernels/torch/mhc.py)：
+  `mhc_pre_norm_fn_ref`、`mhc_pre_split_mixes_ref`、`sinkhorn_normalize_ref`、`mhc_post_ref`。
+  [DeepInfer 接入](https://github.com/deepseek-ai/DeepInfer/blob/main/deepinfer/model_executor/models/v4_modules/mhc_ops.py)
+  可作为官方推理调用路径参考。
+- [Depth Memory 固定版本 `9a6865f`](https://github.com/davidgonmar/depth-memory/blob/9a6865feeb43a153a4501cc9a6457e047ffef3c3/pretrain/OLMo-core/src/olmo_core/nn/hyper_connections.py)：
+  `MHCController.reset_parameters` 对照 A.6；`MHCLearnedStreamReduce` 提供 V4 风格的
+  最终读出及其初始化。后者是独立适配，不是原始 mHC Algorithm 1 的必需部分。
+
+## Full AttnRes 前传
+
+每个 token 独立在深度轴上聚合。记 source 列表 `S=[e, a0, f0, a1, f1, ...]`：
+
+```text
+k_i = RMSNorm_key(v_i)                 # 带可学习 gain，只归一化 key
+p_i = softmax_over_sources(q_l · k_i)   # 不除 sqrt(D)，不跨 token 做 softmax
+h   = sum_i p_i * v_i                  # value 是原始 source
+a_l = Attention(RMSNorm_attn(h))
+S.append(a_l)
+h   = AttnRes_mlp_l(S)                 # 与 ATTN 的 query/norm 独立
+f_l = MLP(RMSNorm_mlp(h))
+S.append(f_l)
+```
+
+每层 ATTN 前、MLP 前各聚合一次；最后再用独立 `output_connection` 聚合所有 source，
+随后进入原来的最终 RMSNorm 和 LM head。保存的是各分支输出，**不是累计 residual state**。
+第一个 ATTN 只有 embedding 一个 source，直接返回 embedding，不创建数学上无效的 query/norm 参数。
+
+初始化：所有 pseudo-query **严格为 0**，key gain 为 1，因此初始权重是 source 的均匀平均。
+query=0 时 key gain 的首步梯度为 0 是公式自然结果；query 本身仍可学习。
+RMS epsilon 使用 `attnres_norm_epsilon=1e-6`；分支 norm 仍用 Llama2Medium 的 epsilon。
+路由的 RMS 统计、score、softmax 和加权求和用 FP32，再转回模型 dtype；source 持久保存为模型 dtype。
+
+## mHC 前传
+
+状态 `X` 为 `[B,T,n,D]`，embedding 复制成 n 路。ATTN、MLP **分别有独立 router**。
+每个 router 归一化整个 `n*D`，不逐 stream 分别归一化：
+
+```text
+z = RMSNorm_affine(flatten(X))
+u = z @ Phi                           # Phi: [nD, n²+2n]
+pre_logits, post_logits, res_logits = split(alpha * u + bias)
+pre  = sigmoid(pre_logits) + mhc_pre_epsilon
+post = 2 * sigmoid(post_logits)
+R    = Sinkhorn(res_logits.reshape(n,n))
+h    = sum_i pre_i * X_i
+y    = F(RMSNorm_branch(h))            # F 为已有 ATTN 或 MLP
+X'_j = sum_i R_ij * X_i + post_j * y
+```
+
+`R[source,destination]` 的存储方向与官方 `mhc_post_ref` 一致。
+如果按论文列向量写法表示，所乘矩阵是这里存储的 R 的转置；测试使用非对称循环矩阵，
+避免双随机矩阵行列和都为 1 掩盖转置错误。
+ATTN 后的完整 n 路状态直接供同层 MLP 路由；MLP 后完整传到下一层，过程中不压成单路。
+
+Sinkhorn 与官方稳定化参考顺序对应：
+
+```text
+A = softmax_rows(logits) + eps
+A /= column_sum(A) + eps
+重复 19 次：A /= row_sum(A)+eps；A /= column_sum(A)+eps
+```
+
+有限迭代与 epsilon 下是近似双随机，而非数学上的精确投影。
+router、Sinkhorn、pre 加权读和 residual/post 更新用 FP32；读出 h 和更新后的 X 转回模型 dtype。
+这对应官方 BF16 参考在 pre-read / post-update 的转换边界；实现也允许 FP32 用于核验。
+
+最后读出默认使用 `MHCLearnedStreamReduce`，不是四路平均：
+
+```text
+z = RMSNorm_affine(flatten(X))           # head 独立的 norm gain，长度 nD
+g = sigmoid(alpha_h * (z @ Phi_h) + b_h) + mhc_pre_epsilon
+h = sum_i g_i * X_i                     # 独立 sigmoid gate，不做 softmax
+logits = original_lm_head(original_final_RMSNorm(h))
+```
+
+`Phi_h` 为 `[nD,n]`，`alpha_h` 为 `[1]`，`b_h` 为 `[n]`。head 使用 FP32 归一化、
+投影和加权求和，输出转回 residual dtype；默认参数 dtype 仍是 FP32。
+`mhc_learned_head=False` 可切回无参数 mean adapter，便于独立比较 head 的作用。
+数学和初始化对照 Depth Memory 的 V4 风格 head，没有复制其 CUDA kernel 的 TF32 舍入。
+
+## mHC 初始化：A.6 controller 与 V4 风格 head
+
+| 项目 | 默认值 | 来源 / 含义 |
+|---|---|---|
+| stream 数 n | 4 | 原论文 Appendix A.1 |
+| 三组 alpha | 各 0.01，可学习 | 原论文 Appendix A.1 |
+| Sinkhorn 次数 | 20 | 原论文 Appendix A.1 |
+| pre / post 非线性 | sigmoid / 2×sigmoid | 原论文 §4.2，官方参考一致 |
+| controller Phi | 严格为 0 | ICML Appendix A.6；`mhc_router_init_std=0.0` |
+| affine norm gain | 全 1，长度 nD | 本次启用；官方 forward 支持可选 norm weight |
+| pre 静态 bias | 选中一路 +3，其余 −3 | A.6；ATTN 为 `(2*l)%n`，MLP 为 `(2*l+1)%n` |
+| post 静态 bias | 全 0 | A.6；零投影下 post 严格为 1 |
+| residual 静态 bias | 对角 +3，非对角 −3 | A.6；经 Sinkhorn 后接近单位阵，非严格 identity |
+| router RMS epsilon | 1e-6 | Llama 适配选择；原论文训练表的 norm epsilon 为 1e-20 |
+| Sinkhorn epsilon | 1e-6 | 官方 TileKernels 稳定化参考；原论文理想公式无此数值项 |
+| pre 额外 epsilon | 1e-6 | ICML A.6 / Algorithm 1 明确包含；head sigmoid 也使用此 epsilon |
+| head Phi | Normal(0, 0.02²)，`[nD,n]` | Depth Memory 的 V4 风格适配 |
+| head alpha / bias | 0.01 / 全 0 | 同上，与 controller 的三组 alpha 独立 |
+| head RMS | 独立 affine gain 全 1，epsilon=1e-6 | 同上；head 始终带 affine，`mhc_norm_affine` 仅控制 controller |
+| 最终 n 路到单路 | 默认 learned sigmoid read | `mhc_learned_head=False` 则使用 mean adapter |
+
+因此本实验复现的是 **mHC 的连接方程和约束**，不是复刻 DeepSeek 的全部训练配置。
+controller 的初始动态项严格为零，因此 pre 选中一路约 0.952575，其余约 0.047427，post 为 1。
+四路 embedding 相同时，首个 pre 读出约为 `1.094856 * e`，随后分支 RMSNorm 处理其尺度。
+这不表示有限 epsilon、BF16 舍入下与普通残差逐元素相同。
+零 Phi 下 controller alpha 和 norm gain 的首步梯度为零是公式的结果；Phi 仍可获得梯度。
+head 的 Phi 随机初始化，因此 head 的初始 gate 通常只是接近 0.5。
+Llama 组合测试使用 `init_method='006normal'`；正式 Pythia 实验使用继承的 Pythia 初始化，
+包括小初始化 embedding、按深度缩放的 Attention/MLP 输出投影和零偏置。没有套用论文 MoE/MLA 参数。
+
+新增参数继续遵循基线的 weight-decay 规则：`*scale`、`*bias` 不 decay；
+controller/head 的 Phi 和 AttnRes query 会 decay。
+两个正式配置 dropout=0；若显式开启，新连接对 ATTN / MLP 的写入分支分别 dropout，
+MLP 内部的 dropout 仍由现有 MlpBlock 控制。
+分支参数路径增加了 `residual_stack`，Flax 按路径折叠随机种子；因此保留的是初始化分布和顶层 seed，
+不保证 ATTN/MLP 的每个初始权重与基线逐元素相同。新结构也不能直接按旧模型的参数树恢复 checkpoint。
+
+## 参数预算与训练配置
+
+仓库要求非微小额外参数从 MLP 抵扣，因此 mHC 按实际 D、n、L、激活分支数计算抵扣，
+不是在实验中硬编码一个只适合 Medium 的宽度。可用 `mhc_match_parameter_budget=False` 取消抵扣。
+
+| 实验 | 有效 MLP 宽度 | 完整参数量 | 对 Llama2Medium 的差值 |
+|---|---:|---:|---:|
+| Llama2Medium | 2816 | 411,616,256 | 0 |
+| Llama2MediumAttnRes | 2816 | 411,714,560 | +98,304（约 0.024%） |
+| Llama2MediummHC | 2749 | 411,613,461 | −2,795（约 −0.0007%） |
+| Llama2MediummHC，`mhc_learned_head=False` | 2749 | 411,592,976 | −23,280（约 −0.006%） |
+
+mHC 每 router 参数量为 `nD(n²+2n) + nD + (n²+2n) + 3`，共 48 个 router，
+新增 4,916,496；learned head 的 `nD*n + nD + n + 1` 另加 20,485，合计 4,936,981。
+MLP 减少 67 个 hidden unit，抵扣 4,939,776，仍是最接近预算的整数宽度。
+关闭 learned head 时也会从预算中移除其开销；不同尺寸下的 MLP 抵扣重新计算，不硬编码 67。
+AttnRes 有 48 个非平凡读出，每个 query+gain 共 2D 参数。首个 ATTN 读出不创建参数，末端独立读出计入。
+表中参数由完整 D=1024、L=24、vocab=50432 的 `jax.eval_shape(model.init)` 核验，没有实际分配大权重。
+
+除残差架构和上述预算调整外，两实验保留基线数据、RoPE、学习率、WD、初始化 seed、步数、checkpoint 等配置。
+2749 未按 TPU 矩阵 tile 对齐；这里优先严格匹配参数，实际吞吐需要 TPU 测量。
+目前是可微的 JAX 参考实现，没有移植官方 GPU 融合 kernel；Full AttnRes 保留全历史，深度聚合计算随层数平方增长。
+
+## 验证与复现
+
+固定 CPU Python：`/home/mengqy/.cache/bam-diag-cpu-py312/bin/python`（JAX 0.8.1 / Flax 0.12.1）。
+2026-11-07 对齐 A.6 初始化并加入 learned head 后，相关测试 **15/15** 通过（85.46 秒），
+包含新增 head 的公式/梯度、默认零投影的循环选路、mean 开关及更新后的完整参数计数；
+日志：`~/.local/state/maxtext-cpu-tests/20261107T033758Z-1442517`。
+2026-11-07 rebase 至 `0c7e097` 后，新增测试 **12/12** 再次通过（90.26 秒）；
+日志：`~/.local/state/maxtext-cpu-tests/20261107T031415Z-1404934`。
+2026-11-05 验证结果：新增 **12/12** 通过，已有 BAM **47/47** 通过；
+完整尺寸、默认 full-remat 初始化的抽象参数计数另行复核通过。
+日志目录分别为 `~/.local/state/maxtext-cpu-tests/20261105T101729Z-2473167`、
+`20261105T101150Z-2461955` 和 `20261105T101807Z-2473961`（后两者在同一父目录）。
+新增 `MaxText/tests/residual_connections_test.py` 覆盖：
+
+- 零 query 均匀平均、仅 key 归一化、深度 softmax、value/各 source 的梯度。
+- mHC 与官方前传公式的独立 NumPy 对照、参数有限差分梯度、非对称矩阵方向、极值有限性和行列和。
+- A.6 零投影/循环 bias、首步梯度、learned head 的独立 NumPy 对照/有限差分和初始化。
+- 默认参数初始化、MLP 预算、非法组合报错、完整参数量。
+- 两模型真实前向/反向、因果性、跨层 source / stream 持续性、末层 ATTN/MLP 梯度。
+- remat 开关的 loss/gradient 一致性、BF16 前向有限、prefill + 两个 decode token 与整段计算一致。
+- learned/mean head 开关、浅层尺寸下 head 预算对 MLP 抵扣的影响、完整模型参数计数。
+
+运行新增测试：
+
+```bash
+python3 /home/xd/projects/xd_tpu_scripts/run_cpu_tests_parallel.py "$PWD" \
+  --test-file MaxText/tests/residual_connections_test.py \
+  --python /home/mengqy/.cache/bam-diag-cpu-py312/bin/python --jobs 2 --cores-per-job 4
+```
+
+现有 BAM 回归：
+
+```bash
+MAXTEXT_CPU_PYTHON=/home/mengqy/.cache/bam-diag-cpu-py312/bin/python \
+MAXTEXT_CPU_TEST_JOBS=4 MAXTEXT_CPU_TEST_CORES=4 \
+  .agents/skills/tpu-diagnostics/scripts/run_bam_unit_tests.sh "$PWD"
+```
+
+未测 TPU 编译、速度、峰值内存、训练收敛；CPU 检查不能替代这些验证。
+
+
+## 串行 Pythia mHC 实验（2026-11-07）
+
+- Worktree `/home/mengqy/Projects/Bam/maxtext`，分支 `mqy/refactor-bam-hc`。
+- RUN / 配置 `PythiaMediumPropT2048SerialMLPmHC`，计划 13,500 step。
+- 直接基线：已完成的 `PythiaMediumPropT2048SerialMLP`（d434e69）和
+  `MuddPythiaMediumPropT2048SerialMLP`（3538f6c），不重复训练。
+- D1200 / L18 / 16x75 heads / RoPE18 / GELU；T2048、global batch256、
+  legacy2048 数据、优化器/LR/seed/schedule/checkpoint 策略继承原串行 Pythia。
+- 4 streams、36 个 router、20 次可微 Sinkhorn、零 Phi / 循环 pre-bias、learned head。
+  不加入 Mudd 或 BAM。原 Pythia LayerNorm 和 attention/MLP 偏置全部保留。
+- `pythia_use_fusion=True`：复用已验证的串行 Pythia fusion；`decoder_block='pythia'`
+  保证归一化/初始化语义不变。显式拒绝并行 Pythia 组合。
+- `scan_layers=False` 是当前新连接 stack 的执行要求；generic training health 开，
+  internal NN/BAM health 关，TB GCS 每500步轮换。
+- 4,344,977 新参数 = 3.017 W_Q；按包含 hidden bias 的每单位 FFN 成本43,218抵扣101。
+  有效 FFN4800→4699。完整 abstract model.init 核验：基线432,360,000，
+  mHC432,339,959，余差−20,041（−0.00464%）。
+- 旧 Mudd 的 router 为额外参数且采用逐层变宽 FFN，因此它是历史效果参考，
+  不是严格匹配总参数的连接单因素对照。
+- CPU：连接公式/初始化/Sinkhorn正常反传/整模型remat/bf16/因果性/缓存/Pythia预算
+  17/17 通过；Pythia fusion 前向和梯度对齐回归4/4；summary writer5/5。
+  日志目录：`~/.local/state/maxtext-cpu-tests/20261107T040349Z-1473147`、
+  `20261107T040519Z-1474942`、`20261107T040511Z-1474493`。
+- 跑前判断：预期优于串行 Pythia，对 Mudd 胜负无强先验；未经 TPU 优化的四流路由
+  预期慢于原 Pythia，先验证实际吞吐/内存再解释曲线。
+  历史健康指标全关，不能把新 health-on 速度差全部归因于 mHC。
+- 基线 loss cache：`training_reports/cross_scale_20261025/loss_cache/`（Bam 项目根目录）。
+- ag2 编排使用用户目录 `/home/lishengping/mengqy/tpu_mhc_20261107` 的脚本副本；
+  不修改 ag2 `/home/lishengping/xd/`。
+- 当前状态：CPU 已通过，待封存 runtime、AOT 和正式训练首步；尚无 mHC loss 结果。

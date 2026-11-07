@@ -70,6 +70,28 @@ model_call_mode: ""
 quantization_local_shard_count: -1
 
 decoder_block: "llama2" # which style of DecoderBlock to use.
+# Opt-in residual architectures; experiment defaults live in exp.py mixins.
+residual_connection: "none" # none, attnres (Full only), mhc
+attnres_norm_epsilon: 1.0e-6
+mhc_num_streams: 4
+mhc_sinkhorn_iters: 20
+mhc_sinkhorn_epsilon: 1.0e-6
+mhc_norm_epsilon: 1.0e-6
+mhc_norm_affine: True
+mhc_router_init_std: 0.0
+mhc_alpha_init: 0.01
+mhc_pre_bias_init: -3.0
+mhc_pre_selected_bias_init: 3.0
+mhc_pre_epsilon: 1.0e-6
+mhc_post_bias_init: 0.0
+mhc_residual_identity_bias: 3.0
+mhc_residual_offdiag_bias: -3.0
+mhc_learned_head: True # V4-style gated reduction; False selects the mean adapter.
+mhc_head_norm_epsilon: 1.0e-6
+mhc_head_init_std: 0.02
+mhc_head_alpha_init: 0.01
+mhc_head_bias_init: 0.0
+mhc_match_parameter_budget: True
 # Global parameter scale needs to be a power of 2. If you want finer grained control of the model sizes
 # then you should explicitly set base_embed_dim, base_num_query_heads, base_num_kv_heads,
 # base_mlp_dim, base_num_decoder_layers and/or head_dim.

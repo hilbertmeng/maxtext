@@ -477,3 +477,16 @@ was created at09:19:36 UTC with2k public cadence and4k/8k reviews. The shared Ch
 wake now checks both independent mHC RUNs every10 minutes; the old standalone bot
 monitor remains stopped to avoid duplicate public delivery. FIRST_STEP and speed
 remain pending allocation; declared_status=running alone is not training evidence.
+
+The first TruePile mHC UC1a lease ran before SERVICE preemption at09:50:54 UTC.
+Although the last registry observation was step13, synchronized native TensorBoard
+contains finite scalar records through60, with loss10.847729→7.829008 and raw
+gradient norm4.441007→0.580306. Independent GCS listing confirms committed
+checkpoints0 and62, so recovery need not restart from scratch. Sparse throughput
+samples at10/20/30/40/50/60 are0.510/0.511/0.511/0.511/0.511/0.510 step/s: provisional,
+about28.5% below historical MHA0.714 and19.0% below Mudd0.630. Repeat with a longer
+live log after recovery before assigning a stable speed conclusion. The native
+recovery controller remains active; UC1a replacement was provisioning at09:56.
+The Pythia mHC lease was also SERVICE-reclaimed (09:50:43); its synchronized loss
+reaches1040 and committed checkpoints1000/1050 were independently listed, ahead
+of stale registry981/972. Preserve actual storage as recovery evidence.

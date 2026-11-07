@@ -10386,7 +10386,8 @@ class BamMHAMediumPropC256TruePilemHC(MHCConfig, BamMHAMediumPropC256TruePile):
     Repay the controller/learned-head budget through the uniform FFN width.
     """
     # Worktree /home/mengqy/Projects/Bam/maxtext, branch mqy/refactor-bam-hc.
-    # Pending FIRST_STEP; separate Spot v5p-16 RUN, plan13,500, UE5a/EW4b/UC1a.
+    # code_commit: de3d1b1; separate Spot v5p-16 RUN, plan13,500, UE5a/EW4b/UC1a.
+    # UC1a ~.511 steps/s (six TB samples10–60, provisional); first lease CP62, then SERVICE-preempted.
     model_name = 'BamMHAMediumPropC256TruePilemHC'
     jax_cache_dir = ''
     compare_runs = ['BamMHAMediumPropC256TruePile', 'MuddLlama2MediumPropTruePile']

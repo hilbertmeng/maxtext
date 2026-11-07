@@ -245,6 +245,12 @@ MAXTEXT_CPU_TEST_JOBS=4 MAXTEXT_CPU_TEST_CORES=4 \
 - runtime `695c28d` 已提交并推送；sealed-config gate通过；v5p-16 AOT已完成并验证。
 - 2026-11-07 04:14 UTC 开始 Spot v5p-16 排队，主区UE5a、候补EW4b；
   TPU `xd-v5p-16-6110701-maxtext`。尚未验证 FIRST_STEP，不宣称训练已成功启动。
+- 2026-11-07 05:23 UTC 按用户要求扩展候补至`us-central1-a`；通过MODE=attach替换
+  外层控制器，保留UE5a 04:14:40、EW4b 04:20:06原队列身份和时间，新增UC1a
+  05:23:34 Spot队列。三地仍为同一v5p-16 RUN/runtime/AOT，不并行训练多个副本。
+  UC1 legacy2048的286个TFRecord与UE5副本按相对名称、size、CRC32C全部一致；
+  该旧数据集不使用TruePile的manifest.json检查。启动脚本副本及本地launch.sh均已更新候补策略。
+  v5p公开区域参考：https://docs.cloud.google.com/tpu/docs/regions-zones 。
 - 权威 RUN registry 在 ag2 用户目录 `tpu_mhc_20261107/run_registry/`；checkpoint区域跟随该记录，
   初始计划 `gs://newproject-1-llm_projects_us-east5/log/PythiaMediumPropT2048SerialMLPmHC/checkpoints/`。
 - `mqy-pythia-mhc` report group每2k更新；本地只读观察服务

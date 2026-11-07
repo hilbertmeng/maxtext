@@ -16296,6 +16296,7 @@ class PythiaMediumPropT2048SerialMLPmHC(MHCConfig, PythiaMediumPropT2048SerialML
     Retain Pythia LayerNorm, biases, GELU, partial RoPE and initialization;
     use the already verified fusion implementation of its serial decoder.
     """
+    # Queued runtime: 695c28d; Spot v5p-16 UE5a/EW4b/UC1a; FIRST_STEP not yet verified.
     model_name = 'PythiaMediumPropT2048SerialMLPmHC'
     pythia_use_fusion = True
     record_training_health_metrics = True
@@ -16304,6 +16305,7 @@ class PythiaMediumPropT2048SerialMLPmHC(MHCConfig, PythiaMediumPropT2048SerialML
 
 class PythiaMediumPropT2048SerialMLPmHCV6e16(PythiaMediumPropT2048SerialMLPmHC):
     """Same mHC experiment on 16 v6e chips; preserve global batch256."""
+    # User stopped before FIRST_STEP; runtime 717ce4a; no measured loss or speed.
     model_name = 'PythiaMediumPropT2048SerialMLPmHCV6e16'
     per_device_batch_size = 16.0
 

@@ -286,3 +286,16 @@ MAXTEXT_CPU_TEST_JOBS=4 MAXTEXT_CPU_TEST_CORES=4 \
 - 预期：同global batch下v6e速度应不低于v5p，但四流路由的带宽操作可能限制收益；
   以去掉启动阶段后的实测为准。历史Pythia/Mudd是v5p-16且旧Splash/health OFF，
   速度差不能归因于mHC一项。
+
+
+## Return to v5p-16 (2026-11-07)
+
+The user requested a return to v5p-16. The v6e controller was stopped and all three
+candidate zones were verified quiescent. No completed training step, loss history,
+or committed checkpoint was found for the v6e RUN. All three v6e candidate queues and nodes have been independently verified absent;
+compiled artifacts and storage prefixes are retained.
+The v5p-candidate release watcher was terminated before resuming the original RUN,
+so it cannot delete resumed v5p resources. The original `PythiaMediumPropT2048SerialMLPmHC`
+RUN resumes with runtime `695c28d`, its existing v5p-16 AOT, batch32 per chip/global256,
+UE5a primary, and EW4b/UC1a backups. No model or optimizer change is introduced.
+Monitoring returns to `mqy-pythia-mhc-monitor.service`; the v6e monitoring service is stopped.

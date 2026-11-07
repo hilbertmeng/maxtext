@@ -346,4 +346,18 @@ manual recycle. With the controller stopped, the native ownership check and
 `Recovery.refresh` rebound the exact 06:53:03.719643199Z queue generation under the
 recovery lock. The controller then restarted with the new runtime/AOT; UE5a/EW4b
 accepted queues retain their original creation times. Local ten-minute monitoring
-is active again. FIRST_STEP, loss, and throughput remain unverified.
+is active again.
+
+At the 08:34 UTC status check, the patched RUN had completed cached step709 and
+had a verified committed checkpoint at648. The recovery journal records a resumed
+first step661 after checkpoint648. It was reclaimed again at08:26:35 UTC and is
+requesting Spot capacity in UE5a/EW4b/UC1a; no worker is currently training.
+The first steady 40-step sample (steps10–49) has harmonic throughput0.535489 step/s,
+median0.536, or280.75k tokens/s. At that rate13,500 steps take7.00 active hours;
+remaining work from checkpoint648 takes6.67 hours, excluding queue/preemption
+overhead. Historical Pythia/Mudd speeds are0.729488/0.578750 step/s, with older
+Splash settings and health OFF, so these are practical runtime comparisons rather
+than isolated mHC overhead. The only complete native comparison window currently
+available is step200: mHC5.383141, Pythia5.406488, Mudd5.203690. Later windows are
+omitted because preemption left missing log points; do not infer a trajectory from
+that single early window. TensorBoard files were synchronized locally.

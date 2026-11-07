@@ -16297,7 +16297,9 @@ class PythiaMediumPropT2048SerialMLPmHC(MHCConfig, PythiaMediumPropT2048SerialML
     use the already verified fusion implementation of its serial decoder.
     """
     # Initial runtime 695c28d failed the startup FSDP guard; controller sharding is now fixed.
-    # Spot v5p-16 UE5a/EW4b/UC1a; FIRST_STEP must be verified on the patched runtime.
+    # code_commit: c1c4683; UC1a Spot v5p-16, verified stepping and checkpoint resume.
+    # ~0.535 steps/s (health ON; historical Pythia/Mudd use old Splash and health OFF).
+    # Provisional: last cached step709, committed checkpoint648; recovering after Spot preemption.
     model_name = 'PythiaMediumPropT2048SerialMLPmHC'
     pythia_use_fusion = True
     record_training_health_metrics = True

@@ -357,7 +357,11 @@ median0.536, or280.75k tokens/s. At that rate13,500 steps take7.00 active hours;
 remaining work from checkpoint648 takes6.67 hours, excluding queue/preemption
 overhead. Historical Pythia/Mudd speeds are0.729488/0.578750 step/s, with older
 Splash settings and health OFF, so these are practical runtime comparisons rather
-than isolated mHC overhead. The only complete native comparison window currently
-available is step200: mHC5.383141, Pythia5.406488, Mudd5.203690. Later windows are
-omitted because preemption left missing log points; do not infer a trajectory from
-that single early window. TensorBoard files were synchronized locally.
+than isolated mHC overhead. TensorBoard files were synchronized locally. To fill
+preemption gaps,23 missing period10 points through the native-log horizon709 were
+imported from TensorBoard without replacing any native-log values. The48 overlapping
+points agreed within4.9e-7. Complete native comparison windows at200/400/600 now show
+mHC minus Pythia gaps−0.02335/−0.10271/−0.10370 and mHC minus Mudd gaps
++0.17945/+0.20779/+0.02520. At600 the respective losses are3.641464,3.745159 and
+3.616268 (±25, period10, five paired samples). mHC improves on Pythia and nearly
+matches Mudd in this early window; longer-term ordering remains unmeasured.

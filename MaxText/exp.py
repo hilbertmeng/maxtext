@@ -16296,7 +16296,8 @@ class PythiaMediumPropT2048SerialMLPmHC(MHCConfig, PythiaMediumPropT2048SerialML
     Retain Pythia LayerNorm, biases, GELU, partial RoPE and initialization;
     use the already verified fusion implementation of its serial decoder.
     """
-    # Queued runtime: 695c28d; Spot v5p-16 UE5a/EW4b/UC1a; FIRST_STEP not yet verified.
+    # Initial runtime 695c28d failed the startup FSDP guard; controller sharding is now fixed.
+    # Spot v5p-16 UE5a/EW4b/UC1a; FIRST_STEP must be verified on the patched runtime.
     model_name = 'PythiaMediumPropT2048SerialMLPmHC'
     pythia_use_fusion = True
     record_training_health_metrics = True

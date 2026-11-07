@@ -95,7 +95,7 @@ class ResidualFormulaTest(unittest.TestCase):
     cfg = connection_config()
     module = ManifoldHyperConnection(cfg)
     state = jnp.asarray(np.random.default_rng(2).normal(size=(1, 2, 4, 3)), jnp.float32)
-    params = module.init(jax.random.key(3), state)['params']
+    params = nn.unbox(module.init(jax.random.key(3), state)['params'])
     # Probe a learned controller, not the zero-projection initialization where
     # alpha and norm-weight gradients are deliberately zero on the first step.
     params['router_kernel'] = jnp.asarray(np.random.default_rng(5).normal(scale=.2, size=(12, 24)), jnp.float32)
@@ -147,7 +147,7 @@ class ResidualFormulaTest(unittest.TestCase):
     np.fill_diagonal(residual_bias, 3.)
     for index in range(8):
       module = ManifoldHyperConnection(cfg, layer_index=index)
-      params = module.init(jax.random.key(7), state)['params']
+      params = nn.unbox(module.init(jax.random.key(7), state)['params'])
       expected_pre_bias = np.full(4, -3., np.float32)
       expected_pre_bias[index % 4] = 3.
       np.testing.assert_array_equal(params['router_kernel'], jnp.zeros((32, 24)))
@@ -169,7 +169,7 @@ class ResidualFormulaTest(unittest.TestCase):
   def test_mhc_learned_head_initialization(self):
     module = MHCLearnedStreamReduce(connection_config())
     state = jnp.zeros((1, 2, 4, 8))
-    params = module.init(jax.random.key(9), state)['params']
+    params = nn.unbox(module.init(jax.random.key(9), state)['params'])
     self.assertEqual(params['head_kernel'].shape, (32, 4))
     self.assertTrue(.01 < float(params['head_kernel'].std()) < .03)
     np.testing.assert_array_equal(params['norm_scale'], jnp.ones(32))
@@ -181,7 +181,7 @@ class ResidualFormulaTest(unittest.TestCase):
     cfg = connection_config()
     module = MHCLearnedStreamReduce(cfg)
     state = jnp.asarray(np.random.default_rng(3).normal(size=(1, 2, 4, 3)), jnp.float32)
-    params = module.init(jax.random.key(9), state)['params']
+    params = nn.unbox(module.init(jax.random.key(9), state)['params'])
     params['head_kernel'] = jnp.asarray(np.random.default_rng(4).normal(scale=.3, size=(12, 4)), jnp.float32)
     params['head_scale'] = jnp.array([.7])
     params['head_bias'] = jnp.array([1.5, -.8, .3, -1.])

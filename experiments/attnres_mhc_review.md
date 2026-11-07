@@ -315,3 +315,25 @@ restarted. UE5a/EW4b retain their accepted queues; UC1a is requested again. The
 replacement still uses runtime `695c28d` and its original AOT.
 The local monitor now alerts once per lease when a READY host has no first step
 and SSH errors after ten minutes. That alert never deletes resources automatically.
+
+
+### FSDP controller placement fix
+
+A usable UC1a allocation launched the train process at 07:03:46 UTC. Startup then
+failed before FIRST_STEP: the model had 432,339,959 global parameters but 58,052,759
+parameters per chip, 7.4206% above ideal eight-way sharding, exceeding the unchanged
+2% startup guard. The mHC controller and learned-head parameters had no logical
+partition annotations, so every FSDP rank replicated them. AOT compilation and the
+single-device functional tests did not exercise this runtime guard.
+
+Router/head kernels now use logical axes `('embed', None)` and their affine RMS
+scales use `('embed',)`. Routing formulas, initializers, parameter names/shapes,
+optimizer settings and global batch are unchanged. The 17 formula/model tests pass.
+A new isolated virtual-device test checks the formal full-width model on FSDP8/16:
+54,251,759 parameters per chip / 0.3872% overhead on eight devices, and 27,245,459 /
+0.8298% on sixteen. Its counterfactual replicated-controller placement reproduces
+the actual 58,052,759 / 7.4206% failure exactly. The sharding tolerance remains 2%.
+CPU logs: `~/.local/state/maxtext-cpu-tests/20261107T070805Z-1662419` and
+`20261107T071046Z-1665147`. The healthy training TPU is retained with the controller
+paused while preparing a new immutable runtime and v5p-16 AOT. The old 695c28d/717ce4a
+artifacts predate this fix and must not be used with the patched parameter placement.

@@ -59,11 +59,14 @@ class ManifoldHyperConnection(nn.Module):
     flat = state.astype(jnp.float32).reshape(*state.shape[:-2], n * d)
     normalized = flat * jax.lax.rsqrt(jnp.mean(flat**2, axis=-1, keepdims=True) + cfg.mhc_norm_epsilon)
     if cfg.mhc_norm_affine:
-      scale = self.param('norm_scale', nn.initializers.ones, (n * d,), cfg.weight_dtype)
+      scale = self.param('norm_scale', nn.with_logical_partitioning(nn.initializers.ones, ('embed',)),
+                         (n * d,), cfg.weight_dtype)
       normalized *= scale.astype(jnp.float32)
     kernel_init = (nn.initializers.zeros if cfg.mhc_router_init_std == 0
                    else nn.initializers.normal(cfg.mhc_router_init_std))
-    phi = self.param('router_kernel', kernel_init,
+    # The flattened stream/embedding axis is still a model-weight axis.
+    # Without this annotation every FSDP rank replicates the full controller.
+    phi = self.param('router_kernel', nn.with_logical_partitioning(kernel_init, ('embed', None)),
                      (n * d, outputs), cfg.weight_dtype)
     alpha = self.param('router_scale', nn.initializers.constant(cfg.mhc_alpha_init), (3,), cfg.weight_dtype)
 
@@ -102,8 +105,10 @@ class MHCLearnedStreamReduce(nn.Module):
     if n != cfg.mhc_num_streams:
       raise ValueError('mHC head state has an incorrect stream count')
     flat = state.astype(jnp.float32).reshape(*state.shape[:-2], n * d)
-    scale = self.param('norm_scale', nn.initializers.ones, (n * d,), cfg.weight_dtype)
-    kernel = self.param('head_kernel', nn.initializers.normal(cfg.mhc_head_init_std),
+    scale = self.param('norm_scale', nn.with_logical_partitioning(nn.initializers.ones, ('embed',)),
+                         (n * d,), cfg.weight_dtype)
+    kernel = self.param('head_kernel', nn.with_logical_partitioning(
+        nn.initializers.normal(cfg.mhc_head_init_std), ('embed', None)),
                         (n * d, n), cfg.weight_dtype)
     alpha = self.param('head_scale', nn.initializers.constant(cfg.mhc_head_alpha_init), (1,), cfg.weight_dtype)
     bias = self.param('head_bias', nn.initializers.constant(cfg.mhc_head_bias_init), (n,), cfg.weight_dtype)

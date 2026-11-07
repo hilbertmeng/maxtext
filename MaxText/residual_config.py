@@ -14,9 +14,26 @@ def validate_residual_config(keys):
   elif keys['decoder_block'] != 'fusion':
     raise ValueError('AttnRes/mHC require fusion or serial Pythia')
   for key in ('scan_layers', 'partial_scan_layers', 'using_pipeline_parallelism',
-              'bam_enabled', 'dense_conn', 'dynamic_mlp_dim', 'rmt_enabled'):
+              'dense_conn', 'dynamic_mlp_dim', 'rmt_enabled'):
     if keys.get(key):
       raise ValueError(f'AttnRes/mHC do not support {key}')
+  if keys.get('bam_enabled'):
+    # BAM's MHA control uses its RoPE/chunked-attention implementation but
+    # creates no matrix stream. Preserve that exact branch for mHC controls;
+    # genuine BAM read/write configurations remain unsupported.
+    modes = keys.get('bam_layer_modes')
+    pure_modes = modes == 'none' or (
+        isinstance(modes, (list, tuple)) and len(modes) == keys['num_decoder_layers']
+        and all(m == 'none' for m in modes))
+    if mode != 'mhc' or keys.get('bam_mha_control') is not True or not pure_modes:
+      raise ValueError('AttnRes/mHC do not support bam_enabled except the pure mHC MHA control')
+    for key in ('bam_pair_scan', 'bam_pallas_core', 'bam_mlp_write_every',
+                'bam_mlp_write_layers', 'bam_persistent_embedding_m',
+                'bam_mudd_tail_blocks', 'bam_mudd_pre_tail_vm', 'bam_final_local_layer_count'):
+      if keys.get(key):
+        raise ValueError(f'mHC MHA control does not support {key}')
+    if keys.get('bam_m_shift_mode', 'none') != 'none':
+      raise ValueError('mHC MHA control requires no matrix shift')
   if keys['mtp_num_layers'] or keys['deep_embed_type'] != 'none':
     raise ValueError('AttnRes/mHC require no MTP or deep embedding')
   if keys['shared_experts'] != 1 or keys['num_experts'] != 1 or keys['insert_moe_indexes']:

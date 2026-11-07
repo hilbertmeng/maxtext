@@ -10379,6 +10379,19 @@ class BamMHAMediumPropC256TruePile(BamMHAMediumPropC256):
     jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/bam-mha-mediumprop-true-pile'
 
 
+class BamMHAMediumPropC256TruePilemHC(MHCConfig, BamMHAMediumPropC256TruePile):
+    """Four-stream mHC on the exact TruePile4096 RoPE74/C256 MHA branch.
+
+    Keep RMSNorm, SwiGLU, initialization, data and optimizer from the parent.
+    Repay the controller/learned-head budget through the uniform FFN width.
+    """
+    # Worktree /home/mengqy/Projects/Bam/maxtext, branch mqy/refactor-bam-hc.
+    # Pending FIRST_STEP; separate Spot v5p-16 RUN, plan13,500, UE5a/EW4b/UC1a.
+    model_name = 'BamMHAMediumPropC256TruePilemHC'
+    jax_cache_dir = ''
+    compare_runs = ['BamMHAMediumPropC256TruePile', 'MuddLlama2MediumPropTruePile']
+
+
 class MuddLlama2MediumPropTruePile(Mudd, BamMHAMediumPropC256TruePile):
     """MediumProp TruePile4096 Mudd, matched RoPE74/C256 MHA backbone."""
     # Ledger only: codex/mudd-xlprop-truepile, /data0/xd/mudd-xlprop-truepile.

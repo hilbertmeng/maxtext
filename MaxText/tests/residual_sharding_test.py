@@ -8,6 +8,7 @@ import unittest
 
 
 PROGRAM = r'''
+import os
 import unittest
 import jax
 import jax.numpy as jnp
@@ -24,8 +25,11 @@ h = Harness()
 h.setUp()
 try:
   assert len(jax.devices()) == 16
+  name = os.environ['MHC_PLACEMENT_EXPERIMENT']
+  expected_total = {'PythiaMediumPropT2048SerialMLPmHC': 432339959,
+                    'BamMHAMediumPropC256TruePilemHC': 432124577}[name]
   for devices in (8, 16):
-    cfg = h.config('PythiaMediumPropT2048SerialMLPmHC', attention='dot_product')
+    cfg = h.config(name, attention='dot_product')
     dims = tuple(devices if axis == 'fsdp' else 1 for axis in cfg.mesh_axes)
     mesh = jax.sharding.Mesh(np.asarray(jax.devices()[:devices]).reshape(dims), cfg.mesh_axes)
     tokens = jnp.ones((devices, 4), jnp.int32)
@@ -40,7 +44,7 @@ try:
     total = sum(p.size for p in params.values())
     per_chip = sum(int(np.prod(shardings[path].shard_shape(p.shape))) for path, p in params.items())
     overhead = per_chip / (total / devices) - 1
-    assert total == 432339959, total
+    assert total == expected_total, total
     assert cfg.sharding_tolerance == .02
     assert overhead < cfg.sharding_tolerance, (devices, overhead)
     controllers = ('attn_connection', 'mlp_connection', 'output_connection')
@@ -56,9 +60,9 @@ try:
                           for path, p in params.items())
     legacy_overhead = legacy_per_chip / (total / devices) - 1
     assert legacy_overhead > cfg.sharding_tolerance
-    if devices == 8:
+    if devices == 8 and name == 'PythiaMediumPropT2048SerialMLPmHC':
       assert legacy_per_chip == 58052759, legacy_per_chip
-    print('MHC_FSDP_PLACEMENT', devices, total, per_chip, overhead, 'legacy', legacy_overhead, flush=True)
+    print('MHC_FSDP_PLACEMENT', name, devices, total, per_chip, overhead, 'legacy', legacy_overhead, flush=True)
 finally:
   h.tearDown()
 '''
@@ -72,10 +76,13 @@ class ResidualShardingTest(unittest.TestCase):
     env['XLA_FLAGS'] = flags + ' --xla_force_host_platform_device_count=16'
     env['JAX_PLATFORMS'] = 'cpu'
     env['PYTHONPATH'] = os.pathsep.join([str(root / 'MaxText'), str(root / 'MaxText/tests'), env.get('PYTHONPATH', '')])
-    result = subprocess.run([sys.executable, '-c', PROGRAM], cwd=root, env=env,
-                            text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=180)
-    self.assertEqual(result.returncode, 0, result.stdout[-14000:])
-    print('\n'.join(line for line in result.stdout.splitlines() if 'MHC_FSDP_PLACEMENT' in line), flush=True)
+    for name in ('PythiaMediumPropT2048SerialMLPmHC', 'BamMHAMediumPropC256TruePilemHC'):
+      with self.subTest(experiment=name):
+        env['MHC_PLACEMENT_EXPERIMENT'] = name
+        result = subprocess.run([sys.executable, '-c', PROGRAM], cwd=root, env=env,
+                                text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=180)
+        self.assertEqual(result.returncode, 0, result.stdout[-14000:])
+        print('\n'.join(line for line in result.stdout.splitlines() if 'MHC_FSDP_PLACEMENT' in line), flush=True)
 
 
 if __name__ == '__main__':

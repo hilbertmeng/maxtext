@@ -229,6 +229,8 @@ class ResidualModelTest(MLPWriteTest, unittest.TestCase):
         dtype=jnp.float32, attention='dot_product', remat_policy='none')
     if cfg.decoder_block == 'pythia':
       cfg.get_keys()['pythia_rotary_dim'] = 2
+    if cfg.bam_enabled and cfg.bam_mha_control:
+      cfg.get_keys()['bam_partial_rope_nope_dim'] = 2  # Tiny head8 must retain even RoPE6.
     return cfg
 
   def test_configs_and_budget(self):
@@ -427,6 +429,46 @@ class ResidualModelTest(MLPWriteTest, unittest.TestCase):
 
   def test_pythia_mhc_forward_backward_remat_bf16(self):
     self.check_model('PythiaMediumPropT2048SerialMLPmHC')
+
+  def test_truepile_mha_mhc_config_and_parameter_budget(self):
+    baseline = self.config('BamMHAMediumPropC256TruePile')
+    cfg = self.config('BamMHAMediumPropC256TruePilemHC')
+    self.assertEqual(cfg.mlp_dim, 3133)
+    self.assertEqual(cfg.residual_connection, 'mhc')
+    self.assertTrue(cfg.bam_enabled and cfg.bam_mha_control)
+    self.assertFalse(cfg.scan_layers)
+    for key in ('emb_dim', 'num_decoder_layers', 'head_dim', 'num_query_heads',
+                'num_kv_heads', 'mlp_activations', 'decoder_block', 'init_method',
+                'qkv_bias', 'normalization_layer_epsilon', 'bam_partial_rope',
+                'bam_partial_rope_nope_dim', 'attention', 'query_chunk_size',
+                'DATASET_VARIANT', 'adam_weight_decay', 'learning_rate', 'steps',
+                'init_weights_seed', 'data_shuffle_seed', 'float32_logits', 'wd_mults'):
+      self.assertEqual(getattr(cfg, key), getattr(baseline, key), key)
+    for key, value in [('bam_mha_control', False), ('bam_layer_modes', ['write'] * 18),
+                       ('bam_mlp_write_every', 3), ('bam_pair_scan', True),
+                       ('bam_pallas_core', True), ('bam_m_shift_mode', 'read'),
+                       ('bam_persistent_embedding_m', True)]:
+      with self.assertRaises(ValueError, msg=key):
+        validate_residual_config(dict(cfg.get_keys(), **{key: value}))
+    counts = []
+    for c in (baseline, cfg):
+      mesh = jax.sharding.Mesh(max_utils.create_device_mesh(c), c.mesh_axes)
+      model = Transformer(c, mesh, quant=None)
+      tokens = jnp.ones((1, 4), jnp.int32)
+      with mesh, nn.partitioning.axis_rules(c.logical_axis_rules):
+        shaped = jax.eval_shape(lambda: model.init(jax.random.key(1), tokens,
+            jnp.arange(4)[None, :], tokens, tokens,
+            decoder_segment_ids=tokens, enable_dropout=False))
+      leaves = flatten_dict(nn.unbox(shaped['params']))
+      counts.append(sum(x.size for x in leaves.values()))
+      # Retain the pure MHA branch: no BAM matrix-read/write parameters.
+      self.assertFalse(any('W_R' in '/'.join(path) or 'W_W' in '/'.join(path) for path in leaves))
+    self.assertEqual(counts, [432121200, 432124577])
+    print('TRUEPILE_MHA_MHC_PARAMETER_COUNTS', counts, flush=True)
+
+  def test_truepile_mha_mhc_forward_backward_remat_bf16(self):
+    # The formal head75 uses RoPE74; tiny() uses an even rotary prefix too.
+    self.check_model('BamMHAMediumPropC256TruePilemHC')
 
   def test_prefill_and_autoregressive_cache(self):
     for name in ('Llama2MediumAttnRes', 'Llama2MediummHC'):

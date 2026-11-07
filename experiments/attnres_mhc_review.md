@@ -407,3 +407,55 @@ Activation RMS, route-weight distributions, optimizer-state/update norms and
 Sinkhorn constraint errors are not recorded, so those cannot be assessed from
 these TensorBoard records. Continue watching gradient groups and parameter growth
 as training resumes; no training change is justified by this early check.
+
+## TruePile4096 MHA mHC experiment (2026-11-07)
+
+User request: add mHC to `BamMHAMediumPropC256TruePile` and train a separate RUN.
+Class/RUN: `BamMHAMediumPropC256TruePilemHC`, same feature worktree/branch
+`/home/mengqy/Projects/Bam/maxtext` / `mqy/refactor-bam-hc`.
+Training TPU ID6110703: `xd-v5p-16-6110703-maxtext`, Spot, UE5a primary and EW4b/UC1a
+backups. Preserve the independent Pythia mHC RUN and borrowed compiler.
+Use tpu-ag's copied scripts under `/home/lishengping/mengqy/tpu_mhc_20261107`;
+do not modify its `/home/lishengping/xd/` tree. Local run artifacts are under
+`training_reports/mhc_truepile_medium_20261107` in the Bam project root.
+
+Parent recipe: D1200/L18/H16x75, RoPE74, RMSNorm, SwiGLU3200, normal0.006
+initialization, bf16 logits, AdamPax3e-4/WD0.1, seeds9876, full remat, global
+batch128 x4096, TruePile4097-token records, original13,500-step schedule.
+Keep `bam_enabled=True` and `bam_mha_control=True`: this selects the parent's exact
+BamAttention MHA-control implementation, with every layer mode `none` and no M
+read/write parameters. Do not substitute generic Attention. Validation now permits
+only this pure mHC MHA-control combination; real BAM streams, matrix writes, shifts,
+Pallas, tail routes and other incompatible connection modes remain rejected.
+The existing SubDecoderLayer already implements that branch; no attention forward
+formula changes are required.
+
+mHC inherits the same four-stream,36-controller,20-Sinkhorn, learned-final-head
+configuration as the existing Pythia experiment. Unrolled execution is required
+by the connection stack (`scan_layers=False`); full remat and health capture remain
+enabled, with internal NN metrics disabled and TensorBoard rotation500.
+New controller/head parameters4,344,977 =3.017345 W_Q are repaid by67 SwiGLU units
+at64,800 parameters/unit. Effective FFN3200→3133. Actual full abstract init counts:
+parent432,121,200, mHC432,124,577, difference+3,377 (+0.0007815%).
+The FSDP virtual-mesh startup check gives54,055,277 parameters/chip on8 devices
+(+0.073506% over ideal) and27,050,327 on16 (+0.157514%), within unchanged2% guard.
+
+The main worktree is still0c7e097, already an ancestor of this feature branch;
+no additional main-only train/AOT/optimizer/checkpoint/summary-writer fixes need
+porting. The active Pythia mHC runtime has already demonstrated AOT restore and
+committed checkpoints on this operational lineage. Relevant launch gates include
+the expanded19 formula/model/config regressions, both formal FSDP configurations,
+and5 summary-writer tests. New end-to-end coverage includes the real BAM-MHA-control
+branch, finite forward/backward, causal mask, full remat gradient equivalence and
+bf16, plus full-width parameter counting and rejection of incompatible matrix modes.
+
+Direct comparison runs: `BamMHAMediumPropC256TruePile` (historical0d31a3d,
+UE5a~0.714 step/s) and `MuddLlama2MediumPropTruePile` (historical4fee490,
+~0.630 step/s, extra router budget). Both native histories are retained as baselines.
+Pre-run expectation: mHC should improve on pure MHA; uncertain relative to Mudd.
+Expect routing overhead to reduce speed versus pure MHA, subject to the separate
+scan/kernel/runtime differences; use measured post-warmup timing, not a claimed
+isolated architecture penalty. Dataset manifests agree across all three regions:
+TruePile4096/global128/seed9876, extended50,000 steps, original13,500 prefix retained.
+Target training stays13,500 steps. Formal training starts only after CPU gates,
+sealed-config verification and the exact v5p-16 AOT; actual FIRST_STEP is required.

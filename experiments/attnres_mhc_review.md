@@ -238,7 +238,7 @@ MAXTEXT_CPU_TEST_JOBS=4 MAXTEXT_CPU_TEST_CORES=4 \
   `20261107T040519Z-1474942`、`20261107T040511Z-1474493`。
 - 跑前判断：预期优于串行 Pythia，对 Mudd 胜负无强先验；未经 TPU 优化的四流路由
   预期慢于原 Pythia，先验证实际吞吐/内存再解释曲线。
-  历史健康指标全关，不能把新 health-on 速度差全部归因于 mHC。
+  初始误以为历史health=False代表健康指标未计算；实际旧runtime无条件计算，见下文核验。
 - 基线 loss cache：`training_reports/cross_scale_20261025/loss_cache/`（Bam 项目根目录）。
 - ag2 编排使用用户目录 `/home/lishengping/mengqy/tpu_mhc_20261107` 的脚本副本；
   不修改 ag2 `/home/lishengping/xd/`。
@@ -262,7 +262,7 @@ MAXTEXT_CPU_TEST_JOBS=4 MAXTEXT_CPU_TEST_CORES=4 \
   `./tensorboards/`有对应入口。当前用户对`/data0/xd/tensorboard_logs`无写权限，
   未改其权限或共享服务。新训练TB仍写中央区GCS的原生轮换目录。
 - 速度先报告稳定步的step/s、token/s及训练时间；历史值为Pythia0.72949、Mudd0.57875 step/s。
-  当前Splash1024/fused配置不同于历史控制，health也不同；历史速度仅作实际运行参考。
+  当前Splash1024/fused配置不同于历史控制；两条旧runtime也实际计算了健康指标。
   仓库`perf/step_time_seconds`实际记录step/s，不能将其当秒/step取反解释。
 
 
@@ -284,7 +284,7 @@ MAXTEXT_CPU_TEST_JOBS=4 MAXTEXT_CPU_TEST_CORES=4 \
   本地`/data0/mengqy/tensorboard_logs/PythiaMediumPropT2048SerialMLPmHCV6e16/`。
   本地启动/监控/状态：`/home/mengqy/Projects/Bam/training_reports/mhc_pythia_medium_v6e_20261107/`。
 - 预期：同global batch下v6e速度应不低于v5p，但四流路由的带宽操作可能限制收益；
-  以去掉启动阶段后的实测为准。历史Pythia/Mudd是v5p-16且旧Splash/health OFF，
+  以去掉启动阶段后的实测为准。历史Pythia/Mudd是v5p-16且旧Splash，实际也计算健康指标，
   速度差不能归因于mHC一项。
 
 
@@ -356,7 +356,8 @@ The first steady 40-step sample (steps10–49) has harmonic throughput0.535489 s
 median0.536, or280.75k tokens/s. At that rate13,500 steps take7.00 active hours;
 remaining work from checkpoint648 takes6.67 hours, excluding queue/preemption
 overhead. Historical Pythia/Mudd speeds are0.729488/0.578750 step/s, with older
-Splash settings and health OFF, so these are practical runtime comparisons rather
+Splash settings; their old train.py computed health metrics despite health=False.
+These are practical runtime comparisons rather
 than isolated mHC overhead. TensorBoard files were synchronized locally. To fill
 preemption gaps,23 missing period10 points through the native-log horizon709 were
 imported from TensorBoard without replacing any native-log values. The48 overlapping
@@ -365,3 +366,44 @@ mHC minus Pythia gaps−0.02335/−0.10271/−0.10370 and mHC minus Mudd gaps
 +0.17945/+0.20779/+0.02520. At600 the respective losses are3.641464,3.745159 and
 3.616268 (±25, period10, five paired samples). mHC improves on Pythia and nearly
 matches Mudd in this early window; longer-term ordering remains unmeasured.
+
+### Same-step training-health check (2026-11-07)
+
+Local artifacts: `training_reports/mhc_pythia_medium_20261107/health/` in the Bam
+project root. Native TensorBoard has mHC scalar samples0–740 at period10. Neither
+mHC nor the controls has a nonfinite recorded scalar in this inspected early span.
+All75 common samples have exactly identical learning rates and valid-token counts.
+Both historical controls actually recorded global/per-leaf gradient and parameter
+norms. Their train.py at d434e69/3538f6c computes these unconditionally, despite
+record_training_health_metrics=False in the saved configurations. Earlier claims
+of health-OFF runtime comparisons were incorrect; the correction does not change
+the measured speed values or remove differences in Splash/execution paths.
+
+At the native600 window (580/590/600/610/620), mean raw gradient norms are
+mHC0.479192, Pythia0.475473, Mudd3.744961. From140 through740, none of mHC's61
+recorded raw norms exceeds clipping threshold1; the maximum is0.935374. Initial
+raw norms22.493/21.897/23.331 all undergo clipping. Recent650–740 mean mHC raw norm
+is0.446398, versus Pythia0.464919 and Mudd2.041242. Thus mHC does not show a sustained
+early gradient increase or clipping saturation. Sampled gradients cannot rule out
+unrecorded single-step spikes or later-training changes.
+
+The large mHC param_norm is an initialization/parameterization effect: initial
+global norms are574.364 versus Pythia382.841. New mHC controller/head leaves have
+norm429.054, dominated by one-initialized affine normalization scales and +/-3
+routing biases. Removing those added leaves gives pre-update backbone norms
+381.846 at0 and409.263 at600, versus Pythia382.841 and410.262. The remaining small
+difference includes the deliberately narrower FFN; there is no evidence here of
+abnormal backbone norm inflation. Global param_norm is post-update, whereas the
+per-leaf total_params values used for this subtraction are pre-update.
+
+At the600 window, squared gradient norms summed over disjoint leaf groups give
+mHC18.44% in added controllers/head,44.89% in attention,23.76% in FFN, and8.88% in
+the vocabulary projection. Pythia's vocabulary projection accounts for8.63%.
+The leaf sums reproduce global gradient norms within7.5e-7 relative error.
+Mudd's larger norm is primarily its dynamic router leaves (97.71% of that window's
+gradient energy), not evidence of an mHC failure. Token accuracy at600 is
+39.126%/38.025%/39.511% for mHC/Pythia/Mudd, consistent with their loss ordering.
+Activation RMS, route-weight distributions, optimizer-state/update norms and
+Sinkhorn constraint errors are not recorded, so those cannot be assessed from
+these TensorBoard records. Continue watching gradient groups and parameter growth
+as training resumes; no training change is justified by this early check.

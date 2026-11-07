@@ -16298,7 +16298,7 @@ class PythiaMediumPropT2048SerialMLPmHC(MHCConfig, PythiaMediumPropT2048SerialML
     """
     # Initial runtime 695c28d failed the startup FSDP guard; controller sharding is now fixed.
     # code_commit: c1c4683; UC1a Spot v5p-16, verified stepping and checkpoint resume.
-    # ~0.535 steps/s (health ON; historical Pythia/Mudd use old Splash and health OFF).
+    # ~0.535 steps/s; old Pythia/Mudd runtimes also computed health metrics despite the False flag.
     # Provisional: last cached step709, committed checkpoint648; recovering after Spot preemption.
     model_name = 'PythiaMediumPropT2048SerialMLPmHC'
     pythia_use_fusion = True

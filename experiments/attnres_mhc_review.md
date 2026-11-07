@@ -299,3 +299,19 @@ so it cannot delete resumed v5p resources. The original `PythiaMediumPropT2048Se
 RUN resumes with runtime `695c28d`, its existing v5p-16 AOT, batch32 per chip/global256,
 UE5a primary, and EW4b/UC1a backups. No model or optimizer change is introduced.
 Monitoring returns to `mqy-pythia-mhc-monitor.service`; the v6e monitoring service is stopped.
+
+
+### Unreachable READY allocation before FIRST_STEP
+
+The UC1a node created at 2026-11-07 06:33:42 UTC reported READY, but both workers'
+TCP22 connections timed out over private and public IPs from tpu-ag, and public
+connections also failed from the local host. The retained compiler accepted SSH
+from tpu-ag. The inspected project VPC rules allow SSH; no firewall rules or keys
+were changed. This is an unusable allocation, not a measured model/compile slowdown.
+Before recycling, the controller was fenced and the launcher log proved no train
+process had been launched; loss history and committed checkpoints were absent.
+That UC1a node/queue generation was verified released, and the v5p controller was
+restarted. UE5a/EW4b retain their accepted queues; UC1a is requested again. The
+replacement still uses runtime `695c28d` and its original AOT.
+The local monitor now alerts once per lease when a READY host has no first step
+and SSH errors after ten minutes. That alert never deletes resources automatically.

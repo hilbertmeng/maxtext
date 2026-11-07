@@ -264,3 +264,25 @@ MAXTEXT_CPU_TEST_JOBS=4 MAXTEXT_CPU_TEST_CORES=4 \
 - 速度先报告稳定步的step/s、token/s及训练时间；历史值为Pythia0.72949、Mudd0.57875 step/s。
   当前Splash1024/fused配置不同于历史控制，health也不同；历史速度仅作实际运行参考。
   仓库`perf/step_time_seconds`实际记录step/s，不能将其当秒/step取反解释。
+
+
+## v6e-16 备选（2026-11-07）
+
+- 用户授权尝试v6e-16；新配置/RUN `PythiaMediumPropT2048SerialMLPmHCV6e16`。
+  继承原mHC配置，仅改model_name及per_device_batch_size=16；16个v6e chip对应global batch256，
+  与8个v5p chip×32一致。模型/优化器/13500步schedule/数据不变，参数量仍为432,339,959。
+- runtime `717ce4a` 已推送并通过sealed-config检查；v6e-16 AOT在保留FLEX_START编译机完成、
+  上传并验证manifest。原v5p图不能用于v6e，二者独立封存。
+- 原v5p两次分配均在首步验证前被SERVICE回收，第二次发生在安装阶段；未采集到loss，
+  且独立确认无committed checkpoint。暂停旧控制器并验证无旧writer，才启动v6e控制器。
+  原监控服务已停；旧候补暂留，v6e AOT首步通过后释放。期间若旧候补READY闲置超过10分钟，
+  只释放该任务的闲置实例，避免无限待机；清理脚本有registry身份、paused状态及queue identity检查。
+- `xd-v6e-16-6110702-maxtext`：UE5a主区，EW4a/UC1b候补，Spot，1秒后扩区。
+  2026-11-07 06:03 UTC三地队列均已接受，尚未验证FIRST_STEP。
+- 新report group `mqy-pythia-mhc-v6e`；本地服务`mqy-pythia-mhc-v6e-monitor.service`，
+  每10分钟检查、每2k同步同step的Pythia/Mudd loss gap与速度。日志仍在TensorBoard6008，
+  本地`/data0/mengqy/tensorboard_logs/PythiaMediumPropT2048SerialMLPmHCV6e16/`。
+  本地启动/监控/状态：`/home/mengqy/Projects/Bam/training_reports/mhc_pythia_medium_v6e_20261107/`。
+- 预期：同global batch下v6e速度应不低于v5p，但四流路由的带宽操作可能限制收益；
+  以去掉启动阶段后的实测为准。历史Pythia/Mudd是v5p-16且旧Splash/health OFF，
+  速度差不能归因于mHC一项。

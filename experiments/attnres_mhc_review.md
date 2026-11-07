@@ -334,6 +334,16 @@ A new isolated virtual-device test checks the formal full-width model on FSDP8/1
 0.8298% on sixteen. Its counterfactual replicated-controller placement reproduces
 the actual 58,052,759 / 7.4206% failure exactly. The sharding tolerance remains 2%.
 CPU logs: `~/.local/state/maxtext-cpu-tests/20261107T070805Z-1662419` and
-`20261107T071046Z-1665147`. The healthy training TPU is retained with the controller
-paused while preparing a new immutable runtime and v5p-16 AOT. The old 695c28d/717ce4a
-artifacts predate this fix and must not be used with the patched parameter placement.
+`20261107T071046Z-1665147`. Runtime `c1c46834d54f2f0d4f921495b01bf59e18910806`
+passed the sealed-config gate and its v5p-16 AOT was published at 07:18:33 UTC.
+The old 695c28d/717ce4a artifacts predate this fix and must not be used with the
+patched parameter placement.
+
+The retained training allocation was reclaimed during compilation: its queue
+reported `SUSPENDED` with `stateInitiator=SERVICE`, and its node was verified absent.
+On restart, regional recovery refused the unjournaled UC1a queue left by the earlier
+manual recycle. With the controller stopped, the native ownership check and
+`Recovery.refresh` rebound the exact 06:53:03.719643199Z queue generation under the
+recovery lock. The controller then restarted with the new runtime/AOT; UE5a/EW4b
+accepted queues retain their original creation times. Local ten-minute monitoring
+is active again. FIRST_STEP, loss, and throughput remain unverified.

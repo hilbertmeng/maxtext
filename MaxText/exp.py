@@ -20365,6 +20365,21 @@ class BamXLPropV5FastKernel(BamXLPropV5):
     remat_policy = 'full_save_splash'
 
 
+class BamXLPropV5FastKernelFullRemat(BamXLPropV5FastKernel):
+    """FastKernel with full remat again (packed read keys kept): no saved Splash residuals.
+
+    Suspected B-type spike mechanism (L1 Q/K/V cotangents up to 1e17 while L1 local-O/W_O stay normal,
+    only after the FastKernel switch): the saved forward logsumexp meets backward logits from
+    rematerialized Q/K whose v5p-32 collective-matmul schedule differs from the forward; L1 logits reach
+    |s|~4.5e3 (no QKNorm), where bf16 rounding moves logits by several units, so P=exp(s-lse) exceeds 1.
+    Full remat recomputes the Splash forward from the same Q/K, so its lse is self-consistent.
+    Same math, parameter and optimizer trees and schedule; v5p-32 speed packed-only .5280 (+1.7%).
+    """
+    model_name = 'BamXLPropV5FastKernelFullRemat'
+    bam_splash_residual_name = ''
+    remat_policy = 'full'
+
+
 class _XLPropV5SpeedProfile(TrainStepProfile):
     """Paired speed arm: full 28 layers, formal 8/device, T4096, schedule and health."""
     # code_commit:fad395a (v5p-8), 708dcd2 (v5p-32); results in experiments/xlprop_v5.md.

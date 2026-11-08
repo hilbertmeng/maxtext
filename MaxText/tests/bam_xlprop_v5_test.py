@@ -124,7 +124,45 @@ class XLPropV5Test(MLPWriteTest, unittest.TestCase):
     self.assertGreater(abs(float(ga[-1])), 0.)
     self.assertGreater(abs(float(ga[-2])), 0.)
 
-  def test_native_pallas_model_loss_and_all_gradients(self):
+  def test_whole_block_packed_keys_match_unpacked_at_20_heads(self):
+    # 20 heads are not a sublane multiple: packed keys are read as one [C, 4N, T] block.
+    b, t, n, v, k, rs = 1, 128, 20, 40, 96, 24
+    keys = iter(jax.random.split(jax.random.key(71), 16))
+    rand = lambda shape: jax.random.normal(next(keys), shape)
+    matrix, static = rand((b, t, v, k)), rand((4 * n, v)) * .3
+    rq, rk, rvo = rand((b, t, n, v)), rand((b, t, n, v)), rand((b, t, 2 * n, v))
+    logits = tuple(rand((b, t, n)) for _ in range(4))
+    sq, sk = rand((b, t, n, rs)), rand((b, t, n, rs))
+    gates = tuple(jax.nn.sigmoid(rand((b, t, n))) for _ in range(4))
+    shift = jax.nn.sigmoid(rand((b, t, v))).at[:, 0].set(0.)
+    common = dict(qk_cols=k, read_epsilon=1e-4, key_scale=.1, forward_tile=64, reverse_tile=64,
+                  interpret=True, q_scale=1 / math.sqrt(k), static_gates=gates, shift=shift, chunk=8,
+                  m_norm=1e-6, q_dynamic_scale=jnp.full((n,), -.6), k_dynamic_scale=jnp.full((n,), -.6),
+                  v_dynamic_scale=jnp.full((n,), .8), o_dynamic_scale=jnp.full((n,), .8))
+    lq, lk, lo, lv = logits
+
+    def unpacked(m, a, b_, c):
+      return v8.read_tm(m, static, a, lq, b_, lk, c, lo, lv, sq, sk, **common)
+
+    def packed(m, a, b_, c):
+      cnt = jnp.transpose(jnp.concatenate((a, b_, c), axis=2), (0, 3, 2, 1))   # [B,C,4N,T]
+      return v8.read_tm(m, static, a, lq, b_, lk, c, lo, lv, sq, sk, keys_cnt=cnt, **common)
+
+    args = (matrix, rq, rk, rvo)
+    ya, ye = jax.jit(packed)(*args), jax.jit(unpacked)(*args)
+    for a, e in zip(ya, ye):
+      np.testing.assert_allclose(a, e, rtol=1e-5, atol=1e-6)
+    cot = tuple(jax.random.normal(jax.random.key(95 + i), e.shape) for i, e in enumerate(ye))
+    loss = lambda fn: lambda *x: sum(jnp.sum(o * c) for o, c in zip(fn(*x), cot))
+    ga, ge = (jax.jit(jax.grad(loss(fn), argnums=(0, 1, 2, 3)))(*args) for fn in (packed, unpacked))
+    for a, e in zip(ga, ge):
+      self.assertGreater(float(jnp.max(jnp.abs(e))), 0.)
+      np.testing.assert_allclose(a, e, rtol=1e-5, atol=1e-6)
+
+  def test_native_pallas_model_loss_and_all_gradients_packed_keys(self):
+    self.test_native_pallas_model_loss_and_all_gradients(packed=True)
+
+  def test_native_pallas_model_loss_and_all_gradients(self, packed=False):
     cfg = self.config('BamXLPropV5', dtype='float32', weight_dtype='float32')
     cfg.get_keys().update(emb_dim=192, num_query_heads=2, num_kv_heads=2,
         num_decoder_layers=2, mlp_dim=24, vocab_size=32, emb_bam_num_head=2,
@@ -136,7 +174,8 @@ class XLPropV5Test(MLPWriteTest, unittest.TestCase):
         bam_pallas_core=False, bam_pallas_write=False, max_target_length=128,
         max_prefill_predict_length=128, query_chunk_size=64)
     pcfg = pyconfig.HyperParameters(SimpleNamespace(keys=dict(cfg.get_keys(),
-        bam_pallas_core=True, bam_pallas_write=True, bam_pallas_interpret=True)))
+        bam_pallas_core=True, bam_pallas_write=True, bam_pallas_interpret=True,
+        bam_pallas_packed_read_keys=packed)))
     mesh = jax.sharding.Mesh(max_utils.create_device_mesh(cfg), cfg.mesh_axes)
     native, fused = (Transformer(c, mesh, quant=None) for c in (cfg, pcfg))
     tokens = jax.random.randint(jax.random.key(31), (1, 128), 0, 32)

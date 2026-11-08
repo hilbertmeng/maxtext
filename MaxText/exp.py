@@ -20346,6 +20346,63 @@ class BamXLPropV5(BamMediumPropV5):
                     'Llama2XLPropTruePileMHA', 'MuddLlama2XLProp']
 
 
+
+class BamXLPropV5FastKernel(BamXLPropV5):
+    """BamXLPropV5 with packed read keys (one [C,4N,T] block for 20 heads) and full_save_splash remat.
+
+    Same math, parameter and optimizer trees and schedule, so the V5 RUN resumes from its checkpoints.
+    v5p-32 paired (708dcd2, UE5a, formal shapes): control .5190, packed .5280 (+1.7%),
+    packed+full_save_splash .5490 (+5.8%), packed+minimal_save_splash .5280 (+1.7%; on v5p-8 it was +15.2%:
+    its saved dot outputs change the v5p-32 collective-matmul schedule and the gain vanishes).
+    Steps 1-20 losses match the control within bf16 accumulation noise.
+    """
+    # code_commit:7c90924; AOT_READY v5p-32/s50000 (FLEX llm-jax-v6e-1-0):
+    # gs://newproject-1-llm_base_models_us-central1/log/compiled_trainsteps/7c90924/jax081-i0ae3f58-c17f538a/v5p-32/s50000/BamXLPropV5FastKernel.pickle
+    # Bet for the hot-switched v5p-32 RUN: ~.54 step/s (+5.5% over .5126 startup; range +4..+7%).
+    model_name = 'BamXLPropV5FastKernel'
+    bam_pallas_packed_read_keys = True
+    bam_splash_residual_name = 'bam_splash_residual'
+    remat_policy = 'full_save_splash'
+
+
+class _XLPropV5SpeedProfile(TrainStepProfile):
+    """Paired speed arm: full 28 layers, formal 8/device, T4096, schedule and health."""
+    # code_commit:fad395a (v5p-8), 708dcd2 (v5p-32); results in experiments/xlprop_v5.md.
+    target_train_batch_size = None
+    per_device_batch_size = 8.0
+    steps = 100
+    checkpoint_keep_steps = []
+
+
+class BamXLPropV5SpeedProfile(_XLPropV5SpeedProfile, BamXLPropV5):
+    """Formal runtime control: unpacked read keys, full remat."""
+    model_name = 'BamXLPropV5SpeedProfile'
+
+
+class BamXLPropV5PackedSpeedProfile(BamXLPropV5SpeedProfile):
+    """Packed read keys read as one [C, 4N, T] block (20 heads are not a sublane multiple)."""
+    model_name = 'BamXLPropV5PackedSpeedProfile'
+    bam_pallas_packed_read_keys = True
+
+
+class BamXLPropV5FullSaveSplashSpeedProfile(BamXLPropV5SpeedProfile):
+    """Full remat except Splash's named output/logsumexp residuals."""
+    model_name = 'BamXLPropV5FullSaveSplashSpeedProfile'
+    bam_splash_residual_name = 'bam_splash_residual'
+    remat_policy = 'full_save_splash'
+
+
+class BamXLPropV5PackedFullSaveSplashSpeedProfile(BamXLPropV5FullSaveSplashSpeedProfile):
+    model_name = 'BamXLPropV5PackedFullSaveSplashSpeedProfile'
+    bam_pallas_packed_read_keys = True
+
+
+class BamXLPropV5PackedMinimalSaveSplashSpeedProfile(BamXLPropV5PackedFullSaveSplashSpeedProfile):
+    """2.8B's v5p policy: minimal remat plus Splash residuals."""
+    model_name = 'BamXLPropV5PackedMinimalSaveSplashSpeedProfile'
+    remat_policy = 'minimal_save_splash'
+
+
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneMPreNormNoReadScaleTruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneMPreNormTruePile):
     """Same whole-M pre-norm, removing all18 common V/O read-scale parameters."""

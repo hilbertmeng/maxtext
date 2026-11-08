@@ -202,3 +202,31 @@ Preemptions2. Every READY lease (UTC):
 Closeout summary: tpu-ag`logs/closeout-20261108T135700Z.json`. Root-cause evidence,
 checkpoint/cohort and reproduction are in
 [bam_llama2_medium/xlprop_v5_gradient_spikes_handoff.md](bam_llama2_medium/xlprop_v5_gradient_spikes_handoff.md).
+
+## Full-remat recovery after the isolated numerical failure
+
+Exact target-topology replay established the FSS reverse numerical failure; see
+[b_spike_replay](bam_llama2_medium/xlprop_v5_b_spike_replay.md) and the
+[diagnostic handoff](bam_llama2_medium/xlprop_v5_gradient_spikes_handoff.md).
+The originally stopped RUN and its13007 checkpoint remain intact.
+
+User-authorized new RUN/EXP`BamXLPropV5FastKernelFullRemat`, immutable runtime
+`d54c4c5f1339b01e406932ec28be0e398722b918`, resumes full8750 TrainState and
+original data cursor. Its own GCS prefix holds a size/CRC-verified30-object copy
+(15,676,906,451bytes). Original50000-step schedule/LR/optimizer retained; only
+remat becomesfull and saved Splash residual naming is removed. Packed keys stay.
+TPU`xd-v5p-32-311002-maxtext`, UC1a primary, UE5a/EW4b backups after300s.
+All4 worker source hashes, AOT loads, restore8750 and global128/per-device8
+verified. FIRST_STEP8754, .523step/s; at8782 .521. Same-batch8751--8770 loss
+meanabs2.92e-5/max7.4e-5, first8751 exactly2.343012 in both console histories.
+Expected stable.52step/s (~-3.7% vs prior.54) is supported by startup.
+
+Scoped monitor group`xlprop-v5-full-remat`: fixed2000-step public cadence,
+next10000; watcherPID137311. Comparison anchors stay old XL single.5 and Mudd,
+MHA remains gain reference only. Include raw/clipped gradient plot. Check the
+formerly unstable8890--9340 region before treating the corrected trajectory as
+stable. Do not use the FSS-damaged tail to infer V5's attainable loss.
+
+The redundant diagnostic queue`xd-v5p-32-xlprop-spike-replay-1108` was cancelled;
+node and queue verified absent. Claude owns and has released the actual replay
+TPUs. Borrowed FLEX compiler is preserved.

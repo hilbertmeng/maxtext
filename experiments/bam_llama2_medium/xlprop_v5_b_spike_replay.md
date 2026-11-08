@@ -14,8 +14,11 @@ keys are not involved. `full` remat with packed keys (`BamXLPropV5FastKernelFull
 ## Spike classification (formal TB, every 10 steps)
 
 The discriminator is the L1 ratio max(query, key, `W_lv_c8_up`) / max(`W_R_up`, `out`)
-of parameter-gradient norms. When the ratio is far above 1, the attention cotangent G
-(seen through local O and W_O) is normal, yet dQ/dK/dV break the dV <= sqrt(T)·G bound.
+of parameter-gradient norms. A large ratio localizes the anomalous branch to
+context-attention and its upstream read path. These are parameter norms, not
+measured tensor cotangents: normal localO/W_O norms alone do not establish the
+actual G norm or prove a violation of dV <= sqrt(T)·G. The decisive evidence below
+is the same-state, same-batch remat intervention.
 
 | Type | Steps | L1 ratio | Notes |
 |---|---|---:|---|

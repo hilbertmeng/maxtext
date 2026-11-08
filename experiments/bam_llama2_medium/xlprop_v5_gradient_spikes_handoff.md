@@ -157,7 +157,70 @@ env JAX_PLATFORMS=tpu XLA_PYTHON_CLIENT_PREALLOCATE=false \
 
 追加`--empty-row-check-only`并使用另一个output目录，可复跑已通过的不变量测试。单v6e诊断使用JIT；不能加载v5p-32正式AOT。
 
-## 7. 优先判别实验
+## 7. Target-topology replay: FSS reverse numerical failure confirmed
+
+Claude replayed the full9250 TrainState and exact data cursor onv5p-32 with the
+formal AOTs. This task independently downloaded both TB artifacts and checked
+9251--9350 FSS loss against the original console cache: all100 points match
+within4.94e-7, the console's six-decimal rounding. Full currently has75 recorded
+points through9325 in the downloaded artifact.
+
+At9251 the two arms have the same pre-update state/batch and exactly equal
+recorded loss10.654891014099121. Parameter-gradient L2 norms:
+
+| Metric | FSS7c90924 | Fulld54c4c5 |
+|---|---:|---:|
+| Global raw |10903.9238|19.06523|
+| L1 query/kernel |14.43092|.176303|
+| L1 key/kernel |21.29503|.065320|
+| L1 W_lv_c8_up/kernel |201.97667|.220419|
+| L1 W_R_up/kernel |.369236|.369555|
+| L1 out/kernel |.319405|.319146|
+
+Changing only remat/residual retention removes the isolated Q/K/V-parameter
+amplification, while localO/W_O remain within.1%. At9275 full has loss2.361958
+and raw.389161; FSS has loss3.844815 and raw32.5158. Full's75-step maximum raw
+is32.7276; FSS includes norms above1e18 and2 nonfinite norm samples (the latter
+may be FP32 norm-square overflow, not necessarily nonfinite gradient leaves).
+
+**Conclusion:** B-type instability is a reverse numerical problem introduced by
+`full_save_splash`, not evidence of the V5 architecture's training ceiling.
+Both arms retain packed keys. The proposed mechanism is saved Splash output/lse
+combined with differently rematerialized Q/K. Code inspection confirms backward
+uses `p=exp(qk-logsumexp)` directly. The downloaded TB contains parameter norms,
+not actual Q/K/V/G cotangents: it does not itself measure the activation-norm
+inequality or directly capture an lse mismatch. Keep that narrower distinction
+when explaining the exact mechanism. A-type spikes predating FSS remain outside
+this fix's demonstrated scope.
+
+Evidence:
+
+- GCS:`gs://newproject-1-llm_base_models_us-central1/log/diagnostics/xlprop-v5-replay-20261108/{tb-fss,tb-full}/`.
+- Local:`/data0/xd/bam_diagnostics/xlprop-v5-config-20261108/claude-replay/`;
+  `selected-metrics.json`, `summary.json`, `analyze.py`, original console loss
+  subset, TB files and plot provenance retained.
+
+The duplicate standalone request`xd-v5p-32-xlprop-spike-replay-1108` inUC1a was
+cancelled; its node and queued resource are verified absent. Claude owns the
+paired replay resource and its cleanup.
+
+The user authorized restarting from8750 with
+`BamXLPropV5FastKernelFullRemat`, runtime
+`d54c4c5f1339b01e406932ec28be0e398722b918`. Original RUN remains stopped at13007.
+Separate RUN named for the new EXP is submitted for50000 steps, TPU
+`xd-v5p-32-311002-maxtext`, UC1a primary and UE5a/EW4b backups. Recovered8750 was
+copied into the new RUN and verified by size/CRC across30 files
+(15,676,906,451bytes); original global128/4-host cursor restored. Verification:
+tpu-ag`logs/xlprop-v5-restore-8750/copy-verification.json`.
+Expected throughput .52step/s (about-3.7% vs priorFastKernel .54).
+Startup verified: all4 worker source hashes matchd54c4c5, all loaded the AOT
+and restored8750 with global128/per-device8. FIRST_STEP8754 at.523step/s;
+subsequent8782 at.521. Same-batch8751--8770 mean absolute loss difference
+2.92e-5, maximum7.4e-5; first8751 loss exactly2.343012 in both console histories.
+The formal RUN is now genuinely training. Group`xlprop-v5-full-remat`, fixed2k
+cadence, next public milestone10000; scoped watcherPID137311 on tpu-ag.
+
+## 8. 优先判别实验
 
 1. 直接测L1的context输出cotangent G及dQ/dK/dV，检查dV的64倍界，并记录前向Q/K/V范围、logits范围；不要从参数梯度替代推断。
 2. 同一捕获Q/K/V/G，对比FP32参考、fused/non-fused Splash。再对比模型中观察到的梯度与独立算子的梯度，以区分局部算法问题与整图remat/残差保存/布局问题。
@@ -167,7 +230,7 @@ env JAX_PLATFORMS=tpu XLA_PYTHON_CLIENT_PREALLOCATE=false \
 
 希望反馈：**第几层、哪个算子的输入/输出cotangent发生多少倍跃迁；同张量参考误差；最小修复或最有判别力的下一步**。无需先写大规模健康指标或启动新训练。
 
-## 8. 已有数据和日志
+## 9. 已有数据和日志
 
 本机：
 

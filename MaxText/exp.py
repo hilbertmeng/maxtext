@@ -20376,13 +20376,15 @@ class BamXLPropV5FastKernelFullRemat(BamXLPropV5FastKernel):
     """FastKernel with full remat again (packed read keys kept): no saved Splash residuals.
 
     Confirmed B-type spike cause (exact v5p-32 replay from 9250, experiments/bam_llama2_medium/xlprop_v5_b_spike_replay.md;
-    L1 Q/K/V cotangents up to 1e17 while L1 local-O/W_O stay normal, only after the FastKernel switch): the saved forward logsumexp meets backward logits from
+    L1 Q/K/V projection-parameter gradients up to 1e17 while L1 local-O/W_O stay normal, only after the FastKernel switch): the saved forward logsumexp meets backward logits from
     rematerialized Q/K whose v5p-32 collective-matmul schedule differs from the forward; L1 logits reach
     |s|~4.5e3 (no QKNorm), where bf16 rounding moves logits by several units, so P=exp(s-lse) exceeds 1.
     Full remat recomputes the Splash forward from the same Q/K, so its lse is self-consistent.
     Same math, parameter and optimizer trees and schedule; v5p-32 speed packed-only .5280 (+1.7%).
     """
     # code_commit:d54c4c5; AOT_READY v5p-32/s50000:
+    # RUN BamXLPropV5FastKernelFullRemat resumes8750 on UC1a v5p-32 (~.523step/s); original FSS RUN stopped13007.
+    # All4 worker hashes/AOT/restore verified; same-batch8751--8770 loss meanabs2.92e-5/max7.4e-5.
     # gs://newproject-1-llm_base_models_us-central1/log/compiled_trainsteps/d54c4c5/jax081-i0ae3f58-c17f538a/v5p-32/s50000/BamXLPropV5FastKernelFullRemat.pickle
     # Replay 9251-9325 from 9250: no B-type step; loss 10.65 -> 2.19 (fss arm: 56/100 steps raw>1e3).
     model_name = 'BamXLPropV5FastKernelFullRemat'

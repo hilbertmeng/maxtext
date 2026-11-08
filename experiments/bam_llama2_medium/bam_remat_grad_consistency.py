@@ -44,7 +44,10 @@ def main():
   def config(remat, packed, tag):
     return pyconfig.initialize(
         [None, 'MaxText/configs/base.yml'], exp_class=args.exp, run_name=f'gradconsistency-{tag}',
-        base_output_directory=args.output_base, dataset_path=args.dataset_path, enable_checkpointing=False,
+        base_output_directory=args.output_base, dataset_path=args.dataset_path,
+        # Required by pyconfig with load_parameters_path; the empty diagnostic run directory has no
+        # cursor, so setup restores parameters only and nothing is ever saved.
+        enable_checkpointing=True, async_checkpointing=False, checkpoint_period=10**9,
         load_parameters_path=args.items, record_internal_nn_metrics=False, log_config=False,
         remat_policy=remat, bam_pallas_packed_read_keys=packed)
 

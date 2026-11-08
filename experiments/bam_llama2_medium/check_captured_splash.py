@@ -56,7 +56,9 @@ def main():
     maximum = jnp.max(jnp.abs(x))
     return maximum * jnp.sqrt(jnp.mean((x / jnp.maximum(maximum, 1e-30)) ** 2))
 
-  def check(q, k, v, dy, observed_q, observed_k, observed_v, observed_context):
+  def check(q, k, v, dy, observed_q, observed_k, observed_v, observed_context, *, fused):
+    # A mutable config closure alone is not a JIT cache key.
+    cfg.get_keys()['sa_use_fused_bwd_kernel'] = fused
     segments = jnp.ones(q.shape[:2], jnp.int32)
     call = lambda q, k, v: attentions._bam_splash_attention(q, k, v, segments, cfg, mesh,
         window=q.shape[1], seq_minor=attentions._bam_splash_seq_minor(cfg, False))
@@ -82,9 +84,9 @@ def main():
   inputs = [arrays[x] for x in ('forward-q', 'forward-k', 'forward-v', 'backward-context',
                                 'backward-q', 'backward-k', 'backward-v', 'forward-context')]
   with mesh, nn.partitioning.axis_rules(cfg.logical_axis_rules):
+    compiled_check = jax.jit(check, static_argnames=('fused',))
     for fused in (True, False):
-      cfg.get_keys()['sa_use_fused_bwd_kernel'] = fused
-      measured = jax.device_get(jax.jit(check)(*inputs))
+      measured = jax.device_get(compiled_check(*inputs, fused=fused))
       measured = jax.tree.map(float, measured)
       measured['fused_backward'] = fused
       results['arms'].append(measured)

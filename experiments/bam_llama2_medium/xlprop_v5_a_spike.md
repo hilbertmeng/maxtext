@@ -228,3 +228,41 @@ Figure and source are archived under the diagnostic GCS root's `figures/` and
 `runner/plot_localization.py`. The figure plots complete L0--L27 component
 cotangents and entry/next-entry ratios for the selected loss, not the formal
 training's batch-averaged raw/clipped history.
+
+
+## Comparison with the15460 recurrence
+
+The same formal full-remat RUN has another diffuse spike at15460:
+raw131.4176, clipped1.00000036, loss2.089097, versus raw.260724 at15440.
+L1 Q/K/V-projection maximum3.44177, localO/W_O maximum10.31813, ratio.33357;
+there is no isolated L1 Q/K/V split characteristic of B-type.
+
+We compared all recorded per-layer parameter-gradient norms with each event's
+nearest pre-spike control (10100/10080 and15460/15440). The following are
+**parameter-gradient amplification ratios**, not local tensor VJP gains:
+
+| Layer |10100 attention W_O spike/control|15460 attention W_O spike/control|
+|---|---:|---:|
+|L26|2.97|1.09|
+|L15|139.00|1.27|
+|L12|1645.37|9.48|
+|L10|3760.77|38.49|
+|L5|171490.48|1705.78|
+|L1|112963.04|1446.30|
+
+The log layer-profile correlations are.951 for attention W_O and.950 for
+ordinary-MLP W2. Both have normal/modestly changed late-layer parameter
+gradients and progressive amplification toward shallow layers. Thus15460 fits
+the same **diffuse A-type phenotype**, with a weaker and more shallowly
+visible amplified region. A monotone profile correlation is not a proof of the
+same local cause. In particular, L15's ordinary W2/Wg/W1 gradients at15460 are
+only1.11/1.12/1.15 times control; the21.8-fold L15 directional VJP established
+at10100 cannot be assigned to15460 from these statistics. A small aggregate
+parameter gradient also does not rule out a strongly amplified isolated token
+hidden under the healthy batch contribution.
+
+No15460 frozen-state/token isolation or local VJP has been performed, so the
+specific layer/branch source remains unconfirmed. Full raw selected-step
+parameter statistics and the extraction script are archived as
+`a-spike-comparison-10100-15460.json` and `runner/compare_spikes.py` under the
+same GCS diagnostic root; local copies are in `a-spike-replay/`.

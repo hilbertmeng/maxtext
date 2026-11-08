@@ -108,3 +108,62 @@ Every diagnostic TPU (`xd-v6e-1-spikeab-*`, `xd-v5p-32-replay-*`) is released.
   forward and remat can share a schedule on a single host.
 - A consistent alternative would also save the Q/K/V that Splash consumed, at the cost of
   memory. It has not been tested.
+
+## Follow-up: logit ranges and 2.8B gradient consistency
+
+### Logit ranges
+
+Runner: [bam_logit_ranges.py](bam_logit_ranges.py). Read-only forward on a v6e-1, using the
+same 4 sequences of the 9251 cohort (2.8B truncated to T2048). The table reports the maximum
+|causal logit|, taken as the median over the 4 sequences. The Chinchilla fraction is
+tokens / (20 × parameters).
+
+| Checkpoint | Chinchilla | L1 | Other layers | Notes |
+|---|---:|---:|---:|---|
+| XL V5 8750 | 16.0% | **755-844** | 16-35 | healthy (loss 2.1-2.6), just before the first B at 8890 |
+| XL V5 9250 | 17.0% | 942-4509 | 19-80 | B regime |
+| Medium V5 13500 (final) | 82% | 42-49 | 19-35 | `minimal_save_splash`, no QKNorm, v5p-16; never B |
+| 2.8B 3000 | 11% | 12.0 | ~10.8 | QKNorm, `minimal_save_splash`, v5p-256 |
+| 2.8B 4000 | 15% | 12.7 | ~11.1 | |
+| 2.8B 13000 | 49% | 15.3 | ~13.1 | |
+| 2.8B 123000 | 443% | ~22 (L1/L3) | ~17 | |
+
+XL's L1 alone grows about 30× above its other layers. Medium has the same B prerequisites
+(saved Splash residuals, no QKNorm) and is five times further along in Chinchilla terms,
+yet its L1 never exceeds 50. B therefore needs saved residuals together with an L1 whose
+logits have run away. The B error scales roughly as |logit| × the forward/remat relative
+mismatch. QKNorm keeps 2.8B logits at 12-22 throughout.
+
+Why XL's L1 logits run away is a separate, open question (it may also underlie the A type).
+
+### 2.8B gradient consistency
+
+Runner: [bam_remat_grad_consistency.py](bam_remat_grad_consistency.py). Setup:
+
+- v5p-32 UC1a.
+- Checkpoint 123000, parameters only.
+- One real batch at the formal 8/device (global 128, T2048).
+- Gradients reduced on device.
+
+| Pair | Relative difference \|\|a-b\|\|/\|\|b\|\| | Cosine | Norms a / b |
+|---|---:|---:|---:|
+| `minimal_save_splash` vs `full` (both packed) | 2.08% | 0.99982 | .3012 / .3039 |
+| `full` packed vs `full` unpacked (implementation noise floor) | 4.40% | 0.99903 | .3039 / .3040 |
+| `minimal_save_splash` vs `full` unpacked | 4.70% | 0.99893 | |
+
+- The remat mismatch is about half the bf16 implementation noise floor. The worst leaves
+  (embedding write gate, key/value up projections, about 3%) have no B structure.
+- The only systematic sign is a gradient norm 0.9% smaller, against about 0.02% expected
+  for random error. Adam's per-element normalization makes this immaterial.
+- Conclusion: the running 2.8B `minimal_save_splash` has no measurable training effect.
+- Pre-run bet: below 1% and comparable to the floor. The absolute number exceeded the bet,
+  but it is below the floor.
+
+### Results and cleanup
+
+Results are in `gs://newproject-1-llm_base_models_us-central1/log/diagnostics/xlprop-v5-replay-20261108/{logits,gradcons}/`.
+
+- The us-east5 2.8B checkpoint 4000 was restored from soft delete only for this
+  measurement, then deleted again.
+- Checkpoint 126000 rotated out during the run, so 123000 was used instead.
+- Every `xd-v6e-1-logits*` and `xd-v5p-32-gradcons*` TPU is released.

@@ -53,6 +53,11 @@ def main():
   parser.add_argument('--output', type=Path, required=True)
   parser.add_argument('--target-layer', type=int, default=1)
   parser.add_argument('--max-samples', type=int, default=32)
+  parser.add_argument('--cohort', help='Reuse an explicit local/GCS cohort instead of advancing the saved cursor')
+  parser.add_argument('--loss-token', type=int, help='Keep only this target position in the loss mask')
+  parser.add_argument('--loss-denominator', type=float,
+                      help='Normalize selected-token loss contributions by this original global weight count')
+  parser.add_argument('--retain-captured-tensors', action='store_true')
   parser.add_argument('--empty-row-check-only', action='store_true',
                       help='Check the exact zero-gradient invariant for an empty-history query')
   args = parser.parse_args()
@@ -151,6 +156,9 @@ def main():
   # Retain the process-independent global stream/skip count; one diagnostic host
   # receives all128 sequences, then forwards only one sequence at a time.
   cohort_path = args.output / 'cohort.npz'
+  if args.cohort:
+    with tf.io.gfile.GFile(args.cohort, 'rb') as handle:
+      cohort_path.write_bytes(handle.read())
   if cohort_path.exists():
     with np.load(cohort_path) as saved:
       batch = {key: saved[key] for key in saved.files}
@@ -163,11 +171,19 @@ def main():
         only_eval=False, mix_attn=cfg.mix_attn)
     batch = jax.device_get(next(iterator))
     np.savez_compressed(cohort_path, **batch)
+  if args.loss_token is not None:
+    assert 0 <= args.loss_token < cfg.max_target_length
+    mask = np.arange(cfg.max_target_length)[None, :] == args.loss_token
+    batch['targets_segmentation'] = np.where(mask, batch['targets_segmentation'], 0)
+    np.savez_compressed(cohort_path, **batch)
+  if args.loss_denominator is not None:
+    assert args.loss_denominator > 0
   order = np.random.default_rng(0).permutation(batch['inputs'].shape[0])[:args.max_samples]
   metadata = dict(exp=args.exp, runtime_commit=actual, checkpoint=checkpoint,
       cursor=cursor, sequence_order=order.tolist(), length=cfg.max_target_length,
       diagnostic_batch=1, formal_global_batch=cursor['global_batch_size'],
-      scope='Frozen checkpoint; single-sequence mean CE, not a training/global-batch replay.',
+      scope='Frozen checkpoint; selected CE optionally scaled to an explicit global denominator, not a training replay.',
+      loss_token=args.loss_token, loss_denominator=args.loss_denominator,
       runner_sha256=hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
       backend=jax.default_backend(), scan_layers=cfg.scan_layers)
   (args.output / 'metadata.json').write_text(json.dumps(metadata, indent=2) + '\n')
@@ -206,7 +222,10 @@ def main():
       if local_kwargs.get('M_in') is not None:
         local_kwargs['M_in'] = local_kwargs['M_in'] + current_probes['M'][layer]
         context.module.sow('intermediates', 'gradient_probe_M_rms', stable_rms(local_kwargs['M_in']))
+        context.module.sow('intermediates', 'gradient_probe_M_token_rms',
+                           token_rms(local_kwargs['M_in'], (-2, -1)))
       context.module.sow('intermediates', 'gradient_probe_residual_rms', stable_rms(local_args[0]))
+      context.module.sow('intermediates', 'gradient_probe_residual_token_rms', token_rms(local_args[0], (-1,)))
       layer_stack.append(layer)
       try:
         return next_fun(*local_args, **local_kwargs)
@@ -232,11 +251,24 @@ def main():
       key = 'gradient_probe_' + name + '_rms'
       captured[name + '_rms'] = jnp.concatenate((body[key][0],
           jnp.reshape(decoder['final_local_layer']['block'][key][0], (1,))))
+      key = 'gradient_probe_' + name + '_token_rms'
+      captured[name + '_token_rms'] = jnp.concatenate((body[key][0],
+          decoder['final_local_layer']['block'][key][0][None]), axis=0)
+    captured['mean_ce'] = loss
+    captured['selected_weights'] = jnp.sum(data['targets_segmentation'] != 0)
+    if args.loss_denominator is not None:
+      loss *= captured['selected_weights'] / args.loss_denominator
     return loss, captured
 
   def stable_rms(x):
     maximum = jnp.max(jnp.abs(x.astype(jnp.float32)))
     return maximum * jnp.sqrt(jnp.mean(jnp.square(x.astype(jnp.float32) / jnp.maximum(maximum, 1e-30))))
+
+  def token_rms(x, axes):
+    x = x.astype(jnp.float32)
+    maximum = jnp.max(jnp.abs(x), axis=axes, keepdims=True)
+    return jnp.squeeze(maximum, axis=axes) * jnp.sqrt(jnp.mean(
+        jnp.square(x / jnp.maximum(maximum, 1e-30)), axis=axes))
 
   def operator_stats(q, k, v, dy, observed_q, observed_k, observed_v, *, fused):
     cfg.get_keys()['sa_use_fused_bwd_kernel'] = fused
@@ -269,7 +301,16 @@ def main():
     (loss, captured), gradients = jax.value_and_grad(objective, argnums=1, has_aux=True)(p, probes, data)
     norms = {name: jax.vmap(stable_rms)(gradients[name]) for name in ('M', 'residual')}
     selected_gradients = {name: gradients[name] for name in ('q', 'k', 'v', 'context', 'bias')}
-    return loss, captured, selected_gradients, norms
+    token_stats = {}
+    for name, axes in [('M', (-2, -1)), ('residual', (-1,))]:
+      grad_tokens = jax.vmap(lambda g: token_rms(g, axes))(gradients[name]).reshape(cfg.num_decoder_layers, -1)
+      forward_tokens = captured.pop(name + '_token_rms').reshape(cfg.num_decoder_layers, -1)
+      peaks = jnp.argmax(grad_tokens, axis=1)
+      token_stats[name] = dict(peak_rms=jnp.max(grad_tokens, axis=1), peak_flat_index=peaks,
+          forward_rms_at_grad_peak=jnp.take_along_axis(forward_tokens, peaks[:, None], axis=1)[:, 0],
+          forward_min_rms=jnp.min(forward_tokens, axis=1),
+          forward_median_rms=jnp.median(forward_tokens, axis=1))
+    return loss, captured, selected_gradients, norms, token_stats
 
   with mesh, nn.partitioning.axis_rules(cfg.logical_axis_rules):
     compiled = jax.jit(measure)
@@ -279,7 +320,7 @@ def main():
       folder.mkdir(exist_ok=True)
       data = {k: jnp.asarray(v[sequence:sequence + 1]) for k, v in batch.items()}
       started = time.monotonic()
-      loss, captured, gradients, norms = jax.device_get(
+      loss, captured, gradients, norms, token_stats = jax.device_get(
           jax.block_until_ready(compiled(params, probes, data)))
       grad_bias = float(np.linalg.norm(gradients['bias'].astype(np.float64)))
       print('BACKWARD_OK', ordinal, int(sequence), float(loss), grad_bias, flush=True)
@@ -288,7 +329,9 @@ def main():
           np.save(folder / f'{direction}-{name}.npy', np.asarray(values[name], np.float32))
       layer_rows = [dict(layer=i, M_forward_rms=float(captured['M_rms'][i]),
           residual_forward_rms=float(captured['residual_rms'][i]),
-          M_cotangent_rms=float(norms['M'][i]), residual_cotangent_rms=float(norms['residual'][i]))
+          M_cotangent_rms=float(norms['M'][i]), residual_cotangent_rms=float(norms['residual'][i]),
+          **{name + '_' + field: int(values[i]) if field.endswith('index') else float(values[i])
+             for name, fields in token_stats.items() for field, values in fields.items()})
           for i in range(cfg.num_decoder_layers)]
       (folder / 'layer-cotangents.json').write_text(json.dumps(layer_rows, indent=2) + '\n')
       arrays = [jnp.asarray(captured[name], jnp.bfloat16) for name in ('q', 'k', 'v')]
@@ -305,6 +348,8 @@ def main():
         results[str(fused)] = dict(fused_backward=fused, forward_error_rms=float(stats[0]),
                                   forward_reference_rms=float(stats[1]), gradients=checks_for_arm)
       record = dict(sequence=int(sequence), ordinal=ordinal, loss=float(loss),
+          selected_mean_ce=float(captured['mean_ce']), selected_weights=int(captured['selected_weights']),
+          loss_denominator=args.loss_denominator,
           embedding_address_bias_grad_norm=grad_bias,
           input_sha256=hashlib.sha256(np.asarray(data['inputs']).tobytes()).hexdigest(),
           seconds=time.monotonic() - started, operators=results)
@@ -315,8 +360,9 @@ def main():
       if catastrophic:
         print('CATASTROPHIC_OPERATOR_MISMATCH_CAPTURED', flush=True)
         break
-      for path in folder.glob('*.npy'):
-        path.unlink()
+      if not args.retain_captured_tensors:
+        for path in folder.glob('*.npy'):
+          path.unlink()
   print('GRADIENT_LOCALIZATION_COMPLETE', flush=True)
 
 

@@ -149,6 +149,9 @@ v5p-32 run: packed+FSS about +6% and above minimal. Confirmed.
 
 Hot-switch class `BamXLPropV5FastKernel`: packed keys, `full_save_splash`, named
 Splash residuals. The minimal-remat class at `708dcd2` is superseded.
+AOT_READY v5p-32/s50000 at `7c90924` (FLEX `llm-jax-v6e-1-0`):
+`gs://newproject-1-llm_base_models_us-central1/log/compiled_trainsteps/7c90924/jax081-i0ae3f58-c17f538a/v5p-32/s50000/BamXLPropV5FastKernel.pickle`.
+All `xd-v5p-{8,32}-xlv5pk*` profile TPUs are released.
 
 Traces:
 

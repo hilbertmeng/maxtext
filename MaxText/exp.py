@@ -20356,6 +20356,9 @@ class BamXLPropV5FastKernel(BamXLPropV5):
     its saved dot outputs change the v5p-32 collective-matmul schedule and the gain vanishes).
     Steps 1-20 losses match the control within bf16 accumulation noise.
     """
+    # code_commit:7c90924; AOT_READY v5p-32/s50000 (FLEX llm-jax-v6e-1-0):
+    # gs://newproject-1-llm_base_models_us-central1/log/compiled_trainsteps/7c90924/jax081-i0ae3f58-c17f538a/v5p-32/s50000/BamXLPropV5FastKernel.pickle
+    # Bet for the hot-switched v5p-32 RUN: ~.54 step/s (+5.5% over .5126 startup; range +4..+7%).
     model_name = 'BamXLPropV5FastKernel'
     bam_pallas_packed_read_keys = True
     bam_splash_residual_name = 'bam_splash_residual'
@@ -20363,7 +20366,8 @@ class BamXLPropV5FastKernel(BamXLPropV5):
 
 
 class _XLPropV5SpeedProfile(TrainStepProfile):
-    """v5p-8 paired speed arm: full 28 layers, formal 8/device, T4096, schedule and health."""
+    """Paired speed arm: full 28 layers, formal 8/device, T4096, schedule and health."""
+    # code_commit:fad395a (v5p-8), 708dcd2 (v5p-32); results in experiments/xlprop_v5.md.
     target_train_batch_size = None
     per_device_batch_size = 8.0
     steps = 100

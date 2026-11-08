@@ -44,8 +44,8 @@ class XLPropV5Test(MLPWriteTest, unittest.TestCase):
       self.assertEqual(cfg.bam_attention_write_layers, list(range(27)))
       self.assertEqual(cfg.bam_mlp_write_layers, list(range(27)))
       self.assertTrue(cfg.scan_layers and not cfg.bam_pair_scan)
-      self.assertTrue(cfg.bam_pallas_core and cfg.bam_pallas_write
-                      and cfg.bam_pallas_packed_read_keys and cfg.bam_pallas_fused_inputs)
+      self.assertTrue(cfg.bam_pallas_core and cfg.bam_pallas_write and cfg.bam_pallas_fused_inputs)
+      self.assertFalse(cfg.bam_pallas_packed_read_keys)  # TPU packed views require N % 8 == 0.
       self.assertEqual((cfg.bam_pallas_body, cfg.bam_pallas_vmem_mib), ('v8t', 63))
       self.assertEqual(cfg.bam_m_read_norm, 'rms')
       self.assertTrue(cfg.bam_common_qk_read_scale and cfg.bam_common_vo_read_scale)

@@ -20328,6 +20328,8 @@ class BamXLPropV5(BamMediumPropV5):
     base_mlp_dim = 4048
     bam_memory_mlp_dim = 1827
     bam_last_mlp_dim = 6277
+    # Packed key block views require N divisible by8 on TPU; XLProp has20 heads.
+    bam_pallas_packed_read_keys = False
     # The wider V40/head20 read pads to larger tiles than Medium's V32/head16.
     bam_pallas_vmem_mib = 63
     # W_emb_u content RMS grows as sqrt(D) under the unchanged .006 recipe.

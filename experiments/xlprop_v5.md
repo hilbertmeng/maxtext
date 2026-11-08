@@ -28,7 +28,7 @@ ratio23,316,480/11,650,740=2.00128747. Body44,066,482 parameters, tail44,127,562
 no large terminal-layer budget bottleneck. Full BAM1,432,396,996 versus MHA
 1,432,398,720, difference-1724 (-0.00046766 W_Q, D^2=3,686,400). L27 attention
 and private-MLP writers are both absent. Scan27 single layers plus explicit tail.
-Existing v8t read/write kernels, packed read keys, fused input projections,
+Existing v8t read/write kernels, unpacked read keys, fused input projections,
 63MiB VMEM allowance, tuned Splash1024/fused backward, full remat.
 
 ## Validation and infrastructure
@@ -54,3 +54,8 @@ Pre-run bet: final MHA-referenced gain relative to Mudd1.8 [1.6,2.1], versus
 Medium V5's completed2.0601. Expected throughput .42--.48step/s on v5p-32,
 roughly15--32% faster than old single.5's .3647; historical kernel/health settings
 make that a descriptive expectation, not a matched speed measurement.
+
+AOT attempt a506cd5 exposed the packed-key TPU block-view requirement N%8==0.
+XL has20 heads, so the launch configuration disables packed keys only; the
+parameter tree and math remain unchanged. The prequeue was released by the
+failed-preparation gate; the retained compiler was preserved.

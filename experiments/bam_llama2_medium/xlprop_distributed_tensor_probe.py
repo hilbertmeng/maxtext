@@ -14,7 +14,7 @@ def run_probe(train, captured, reference, output, sequence, target_layer):
   import jax.numpy as jnp
   import numpy as np
   from flax import linen as nn
-  from layers import attentions, fusion
+  from layers import attentions, fusion, linears, normalizations
 
   config, mesh = captured['config'], captured['mesh']
   model, _, state_shardings = captured['functional_train'].args
@@ -57,6 +57,23 @@ def run_probe(train, captured, reference, output, sequence, target_layer):
     return inject(result, jnp.where(selected, active_probes['context'], 0))
 
   def intercept(next_fun, call_args, kwargs, context):
+    block_probe = None
+    if layer_stack and context.method_name == '__call__':
+      if isinstance(context.module, normalizations.RMSNorm) and context.module.name == 'post_self_attention_layer_norm':
+        block_probe = 'mlp_norm'
+      elif isinstance(context.module, linears.MlpBlock) and context.module.name in ('mlp', 'memory_mlp'):
+        block_probe = context.module.name
+    if block_probe is not None:
+      layer = layer_stack[-1]
+      local_args = list(call_args)
+      local_args[0] = inject(local_args[0], active_probes[block_probe + '_input'][layer])
+      context.module.sow('intermediates', 'formal_probe_input_token_rms',
+                         stable_rms(local_args[0][sequence, token]))
+      result = next_fun(*local_args, **kwargs)
+      assert hasattr(result, 'shape'), 'This probe requires ordinary independent dense MLP branches'
+      result = inject(result, active_probes[block_probe + '_output'][layer])
+      context.module.sow('intermediates', 'formal_probe_output_token_rms', stable_rms(result[sequence, token]))
+      return result
     if isinstance(context.module, attentions.BamAttention) and context.method_name == '__call__':
       attention_stack.append(context.module)
       try:
@@ -72,8 +89,10 @@ def run_probe(train, captured, reference, output, sequence, target_layer):
         local_kwargs['M_in'] = inject(local_kwargs['M_in'], active_probes['M'][layer])
         value = local_kwargs['M_in'][sequence:sequence + 1]
         context.module.sow('intermediates', 'formal_probe_M_rms', stable_rms(value))
+        context.module.sow('intermediates', 'formal_probe_M_target_rms', stable_rms(value[:, token]))
       value = local_args[0][sequence:sequence + 1]
       context.module.sow('intermediates', 'formal_probe_residual_rms', stable_rms(value))
+      context.module.sow('intermediates', 'formal_probe_residual_target_rms', stable_rms(value[:, token]))
       layer_stack.append(layer)
       try:
         return next_fun(*local_args, **local_kwargs)
@@ -94,15 +113,22 @@ def run_probe(train, captured, reference, output, sequence, target_layer):
     values = {name: body['self_attention']['formal_probe_' + name][0][target_layer]
               for name in ('q', 'k', 'v', 'context')}
     for name in ('M', 'residual'):
-      key = 'formal_probe_' + name + '_rms'
-      values[name + '_rms'] = jnp.concatenate((body[key][0],
-          jnp.reshape(decoder['final_local_layer']['block'][key][0], (1,))))
+      for suffix in ('rms', 'target_rms'):
+        key = 'formal_probe_' + name + '_' + suffix
+        values[name + '_' + suffix] = jnp.concatenate((body[key][0],
+            jnp.reshape(decoder['final_local_layer']['block'][key][0], (1,))))
+    for tag, module_name in [('mlp_norm', 'post_self_attention_layer_norm'), ('mlp', 'mlp'), ('memory_mlp', 'memory_mlp')]:
+      for side in ('input', 'output'):
+        key = 'formal_probe_' + side + '_token_rms'
+        final = decoder['final_local_layer']['block'].get(module_name, {})
+        tail = jnp.reshape(final[key][0], (1,)) if key in final else jnp.full((1,), jnp.nan)
+        values[tag + '_' + side + '_target_rms'] = jnp.concatenate((body[module_name][key][0], tail))
     return loss, values
 
   def measure(params, probes, batch, rng):
     (loss, values), (parameter_grads, probe_grads) = jax.value_and_grad(
         objective, argnums=(0, 1), has_aux=True)(params, probes, batch, rng)
-    norms = {name: jax.vmap(stable_rms)(probe_grads[name]) for name in ('M', 'residual')}
+    norms = {name: jax.vmap(stable_rms)(probe_grads[name]) for name in probe_grads if name not in ('q', 'k', 'v', 'context')}
     peaks = {}
     for name, axes in [('M', (-2, -1)), ('residual', (-1,))]:
       token_rms = jnp.sqrt(jnp.mean(probe_grads[name].astype(jnp.float32) ** 2, axis=axes))
@@ -117,6 +143,9 @@ def run_probe(train, captured, reference, output, sequence, target_layer):
   l, t = config.num_decoder_layers, config.max_target_length
   probes = dict(M=np.zeros((l, 1, t, config.bam_v, config.bam_k), config.dtype),
                 residual=np.zeros((l, 1, t, config.emb_dim), config.dtype))
+  for name in ('mlp_norm', 'mlp', 'memory_mlp'):
+    for side in ('input', 'output'):
+      probes[name + '_' + side] = np.zeros((l, 1, t, config.emb_dim), config.dtype)
   for name, width in [('q', config.bam_partial_rope_nope_dim + config.bam_standard_qk_dim),
                       ('k', config.bam_partial_rope_nope_dim + config.bam_standard_qk_dim),
                       ('v', config.head_dim), ('context', config.head_dim)]:
@@ -147,7 +176,8 @@ def run_probe(train, captured, reference, output, sequence, target_layer):
   if jax.process_index() == 0:
     (output / 'tensor-fidelity.json').write_text(json.dumps(fidelity, indent=2) + '\n')
     rows = [dict(layer=i, **{name + '_forward_rms': float(values[name + '_rms'][i]) for name in ('M', 'residual')},
-                 **{name + '_cotangent_rms': float(summary['norms'][name][i]) for name in ('M', 'residual')},
+                 **{name + '_cotangent_rms': float(value[i]) for name, value in summary['norms'].items()},
+                 **{name: float(value[i]) for name, value in values.items() if name.endswith('_target_rms')},
                  **{name + '_' + key: float(value[i]) for name, fields in summary['peaks'].items()
                     for key, value in fields.items()}) for i in range(l)]
     (output / 'layer-cotangents.json').write_text(json.dumps(rows, indent=2) + '\n')

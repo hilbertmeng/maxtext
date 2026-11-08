@@ -5,8 +5,11 @@ Runtime worktree `/home/xd/projects/maxtext`, branch `refactor-bam`.
 This configuration-only port reuses the main implementations. The temporary
 preparation worktree was not used to allocate a TPU or start AOT/training.
 RUN `BamXLPropV5`; owned training TPU `xd-v5p-32-311001-maxtext`.
-Primary region `us-east5-a`, recovery backups `us-central1-a,europe-west4-b`.
-The primary follows the long, mostly uninterrupted historical XL v5p-32 leases.
+Primary region `us-central1-a`, recovery backups `us-east5-a,europe-west4-b`,
+with a 300-second primary-only queue window. The user selected UC1a for its lower
+rental price, retaining primary-first recovery. The initial launch used UE5a
+based on historical XL leases; the policy was updated with `MODE=attach` while
+training in UC1a, preserving existing worker processes and the runtime/AOT.
 Borrowed compiler `llm-jax-v6e-1-0`, `europe-west4-a`, worker0: STANDARD/guaranteed,
 ACTIVE queued resource and idle worker verified; its lifecycle is never adopted.
 
@@ -46,9 +49,10 @@ signed scale values; summary-writer rotation regressions. Initial model gradient
 max relative error2.18e-6. Launcher repeats the sealed branch checks while AOT
 compilation and training-only resource prequeue proceed concurrently.
 
-Direct comparisons: historical XL single-read-.5 direction anchor,
-`Llama2XLPropTruePileMHA` and `MuddLlama2XLProp`. The anchor ends at33k; MHA/Mudd
-cover50k. Gain reference is MHA. Public cadence2000, native windows500,
+Plotted direct comparisons: historical XL single-read-.5 direction anchor and
+`MuddLlama2XLProp`. The anchor ends at33k; MHA/Mudd cover50k. MHA remains the
+common gain reference but is omitted from loss-gap plots. Public cadence2000,
+native windows500,
 reviews4000/8000 require user confirmation before any effect-based stop.
 Pre-run bet: final MHA-referenced gain relative to Mudd1.8 [1.6,2.1], versus
 Medium V5's completed2.0601. Expected throughput .42--.48step/s on v5p-32,

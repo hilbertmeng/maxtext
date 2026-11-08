@@ -219,6 +219,10 @@ subsequent8782 at.521. Same-batch8751--8770 mean absolute loss difference
 2.92e-5, maximum7.4e-5; first8751 loss exactly2.343012 in both console histories.
 The formal RUN is now genuinely training. Group`xlprop-v5-full-remat`, fixed2k
 cadence, next public milestone10000; scoped watcherPID137311 on tpu-ag.
+Startup acceptance also crosses the original B onset: at9079 throughput.520;
+25 recorded raw norms over8751--9000 have maximum.291019, no clipping. This
+is a recorded-sample statement, not an upper bound on unlogged steps. Evidence:
+local`claude-replay/full-resume-through9000-health.json`.
 
 ## 8. 优先判别实验
 

@@ -49,6 +49,8 @@ def main():
         # cursor, so setup restores parameters only and nothing is ever saved.
         enable_checkpointing=True, async_checkpointing=False, checkpoint_period=10**9,
         load_parameters_path=args.items, record_internal_nn_metrics=False, log_config=False,
+        # Formal per-device load (8/device); a fixed target_train_batch_size would put 1024 rows on few chips.
+        target_train_batch_size=None, per_device_batch_size=8.,
         remat_policy=remat, bam_pallas_packed_read_keys=packed)
 
   base_cfg = config(*arms[0], 'base')

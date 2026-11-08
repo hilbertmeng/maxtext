@@ -20305,6 +20305,7 @@ class BamXLPropV5(BamMediumPropV5):
     Ordinary/private widths4048/1827 give complete-branch ratio2.001287:1;
     tail6277 closes the MHA budget at1,432,396,996 parameters (MHA-1724).
     """
+    # code_commit:862cadd; UE5a v5p-32, steps20--99 .512557 step/s, generic health ON/internal OFF.
     model_name = 'BamXLPropV5'
     DATASET_VARIANT = 'truepile4096'  # Explicit for launchers resolving the V5 alias.
     base_emb_dim = 1920

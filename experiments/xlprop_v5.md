@@ -59,3 +59,20 @@ AOT attempt a506cd5 exposed the packed-key TPU block-view requirement N%8==0.
 XL has20 heads, so the launch configuration disables packed keys only; the
 parameter tree and math remain unchanged. The prequeue was released by the
 failed-preparation gate; the retained compiler was preserved.
+
+## Verified startup
+
+Runtime862caddd9be22c2d4d87fadc5c0dabecb270546f; all4 worker source hashes and
+AOT loads match. Dataset resolves the UE5a `_4096` replica; T4096, global128,
+8/device verified on every worker. FIRST_STEP step3, CP0 committed. Checkpoint-free
+steps20--99 harmonic throughput .512557step/s, +40.56% against the historical
+old single.5 .3646625 (different kernels/BAM sow settings; descriptive only).
+The .42--.48step/s prior underestimated the observed startup speed.
+Report group `xlprop-v5`, watch PID3359480 on tpu-ag; fixed2k cadence and4k/8k
+confirmation reviews. Artifacts: `/data0/xd/bam_diagnostics/xlprop-v5-config-20261108`.
+
+Packed-key follow-up: the 2.8B32-head implementation is naturally aligned. XL20
+heads trigger only the current per-arm block-view restriction. Unpacked is the
+verified runtime fallback, not evidence of an optimal implementation. A whole
+4N=80-row packed load is a promising way to avoid20-to24 head padding; it needs
+correctness validation and a paired v5p-8 speed comparison before any hot switch.

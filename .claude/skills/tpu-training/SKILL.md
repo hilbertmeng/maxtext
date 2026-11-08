@@ -368,6 +368,9 @@ Incrementally sync that RUN's TensorBoard first. The script reuses the
 health cache, plots from step600 on a log axis without smoothing/clipping, overlays requested
 RUNs, and preserves exact samples in a provenance sidecar. Keep its horizon aligned with the
 published loss report; report missing health coverage rather than inventing values.
+For a checkpoint fork under a new RUN, use `--history-prefix RUN PARENT LAST_SHARED_STEP`
+to retain the actual common history and then the resumed records; the parent tail beyond that
+checkpoint is excluded, and the sidecar records each sample's source RUN.
 State what the cumulative trend implies and whether the RUN continues or needs a decision.
 The figure supplies the detailed series; do not also print long numerical tables or repeat
 all plotted points. Use tables when requested or when a compact multi-run decision comparison

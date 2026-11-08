@@ -24,6 +24,9 @@ def main():
   parser.add_argument('--title', default='Raw gradient norm')
   parser.add_argument('--include-clipped', action='store_true',
                       help='Also plot recorded learning/grad_norm after gradient clipping')
+  parser.add_argument('--history-prefix', nargs=3, action='append', default=[],
+                      metavar=('RUN', 'PARENT_RUN', 'LAST_SHARED_STEP'),
+                      help='Use actual parent history through the branch checkpoint, then child records')
   args = parser.parse_args()
   if (Path(args.prefix).name != args.prefix or args.start_step < 0
       or args.through_step < args.start_step or args.dpi <= 0):
@@ -35,6 +38,15 @@ def main():
   from PIL import Image
 
   directories, labels = dict(args.event_dir), dict(args.label)
+  histories = {}
+  for run, parent, raw_step in args.history_prefix:
+    try:
+      anchor = int(raw_step)
+    except ValueError:
+      parser.error('History checkpoint step must be an integer')
+    if anchor < 0 or parent == run or run in histories or run not in args.runs:
+      parser.error('History prefixes require one distinct parent per plotted RUN and a nonnegative step')
+    histories[run] = (parent, anchor)
   fig, axis = plt.subplots(figsize=(12.8, 4.8))
   series, warnings = [], []
   tags = ['learning/raw_grad_norm']
@@ -48,9 +60,28 @@ def main():
       sources = [dict(path=str(p.resolve()), bytes=p.stat().st_size,
                       mtime_ns=p.stat().st_mtime_ns)
                  for p in sorted(Path(directory).glob('events.out.tfevents.*'))]
+    history = None
+    if run in histories:
+      parent, anchor = histories[run]
+      parent_directory = directories.get(parent, str(DEFAULT_LOCAL_TB_ROOT / parent))
+      parent_scalars = Scalars(parent_directory, [min(anchor, args.through_step)])
+      history = dict(run=parent, through_step=anchor, event_dir=str(parent_directory))
+      if not str(parent_directory).startswith('gs://'):
+        sources += [dict(path=str(p.resolve()), bytes=p.stat().st_size,
+                         mtime_ns=p.stat().st_mtime_ns, source_run=parent)
+                    for p in sorted(Path(parent_directory).glob('events.out.tfevents.*'))]
+      if args.start_step <= anchor <= args.through_step:
+        axis.axvline(anchor, color='.5', linewidth=.8, linestyle=':',
+                     label=f'{labels.get(run, run)}: restart at {anchor}')
     for tag in tags:
       points = [p for p in scalars.values(tag)
                 if args.start_step <= p.step <= args.through_step]
+      if history is not None:
+        prefix = [p for p in parent_scalars.values(tag)
+                  if args.start_step <= p.step <= min(anchor, args.through_step)]
+        if args.start_step <= anchor and not prefix:
+          parser.error(f'No parent {tag} samples in the requested history prefix for {run}')
+        points = prefix + [p for p in points if p.step > anchor]
       if not points:
         parser.error(f'No {tag} samples in the selected interval for {run}')
       invalid = [p.step for p in points if not math.isfinite(p.value) or p.value <= 0]
@@ -63,8 +94,10 @@ def main():
       axis.plot(xs, ys, linewidth=1.1, linestyle='-' if metric == 'raw_grad_norm' else '--',
                 label=f'{labels.get(run, run)}: {metric}')
       series.append(dict(run=run, tag=tag, event_dir=str(directory), sources=sources,
+                         history_prefix=history,
                          through_step=points[-1].step,
-                         points=[dict(step=p.step, value=p.value if math.isfinite(p.value) else None)
+                         points=[dict(step=p.step, value=p.value if math.isfinite(p.value) else None,
+                                      source_run=parent if history is not None and p.step <= anchor else run)
                                  for p in points]))
 
   axis.set_yscale('log')

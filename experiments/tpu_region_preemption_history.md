@@ -27,6 +27,27 @@ active leases are censored, and manual migration releases are not preemptions.
 
 | RUN | TPU | Zone | Start UTC | End UTC | End reason | Passive candidates |
 |---|---|---|---|---|---|---|
+| `BamPythia2p8BHUnit300BFastKernelMPreNormQKScale` | v5p-256 (`xd-v5p-256-311103-maxtext`) | `us-east5-a` | 2026-11-03 04:08:39 | 2026-11-04 09:09:25 | resource_switch; runtime 5a48faa (256) / b3db6cc (128) | owned losers released; user FLEX retained |
+| `BamPythia2p8BHUnit300BFastKernelMPreNormQKScale` | v5p-256 (`xd-v5p-256-311103-maxtext`) | `us-central1-a` | 2026-11-04 09:09:25 | 2026-11-04 14:55:30 | resource_switch; runtime 5a48faa (256) / b3db6cc (128) | owned losers released; user FLEX retained |
+| `BamPythia2p8BHUnit300BFastKernelMPreNormQKScale` | v5p-256 (`xd-v5p-256-311103-maxtext`) | `us-east5-a` | 2026-11-04 14:55:30 | 2026-11-04 20:02:07 | resource_switch; runtime 5a48faa (256) / b3db6cc (128) | owned losers released; user FLEX retained |
+| `BamPythia2p8BHUnit300BFastKernelMPreNormQKScale` | v5p-256 (`xd-v5p-256-311103-maxtext`) | `us-east5-a` | 2026-11-05 09:55:07 | 2026-11-05 11:10:51 | resource_switch; runtime 5a48faa (256) / b3db6cc (128) | owned losers released; user FLEX retained |
+| `BamPythia2p8BHUnit300BFastKernelMPreNormQKScale` | v5p-256 (`xd-v5p-256-311103-maxtext`) | `us-central1-a` | 2026-11-05 11:10:51 | 2026-11-05 16:23:55 | resource_switch; runtime 5a48faa (256) / b3db6cc (128) | owned losers released; user FLEX retained |
+| `BamPythia2p8BHUnit300BFastKernelMPreNormQKScale` | v5p-128 (`xd-v5p-128-h1104b-uc1a`) | `us-central1-a` | 2026-11-05 16:23:55 | 2026-11-05 18:57:29 | resource_switch; runtime 5a48faa (256) / b3db6cc (128) | owned losers released; user FLEX retained |
+| `BamPythia2p8BHUnit300BFastKernelMPreNormQKScale` | v5p-128 (`xd-v5p-128-h1104b-ue5a`) | `us-east5-a` | 2026-11-05 18:57:29 | 2026-11-05 19:37:50 | resource_switch; runtime 5a48faa (256) / b3db6cc (128) | owned losers released; user FLEX retained |
+| `BamPythia2p8BHUnit300BFastKernelMPreNormQKScale` | v5p-256 (`xd-v5p-256-311103-maxtext`) | `us-east5-a` | 2026-11-05 19:47:10 | 2026-11-05 19:57:20 | resource_switch; runtime 5a48faa (256) / b3db6cc (128) | owned losers released; user FLEX retained |
+| `BamPythia2p8BHUnit300BFastKernelMPreNormQKScale` | v5p-128 (`xd-v5p-128-h1104b-uc1a`) | `us-east5-a` | 2026-11-05 19:57:20 | 2026-11-06 00:52:15 | resource_switch; runtime 5a48faa (256) / b3db6cc (128) | owned losers released; user FLEX retained |
+| `BamPythia2p8BHUnit300BFastKernelMPreNormQKScale` | v5p-256 (`xd-v5p-256-311103-maxtext`) | `us-central1-a` | 2026-11-06 00:52:15 | 2026-11-07 01:12:56 | resource_switch; runtime 5a48faa (256) / b3db6cc (128) | owned losers released; user FLEX retained |
+| `BamPythia2p8BHUnit300BFastKernelMPreNormQKScale` | v5p-256 (`xd-v5p-256-311103-maxtext`) | `us-east5-a` | 2026-11-07 01:12:56 | 2026-11-07 03:39:50 | resource_switch; runtime 5a48faa (256) / b3db6cc (128) | owned losers released; user FLEX retained |
+| `BamPythia2p8BHUnit300BFastKernelMPreNormQKScale` | v5p-256 (`xd-v5p-256-311103-maxtext`) | `us-central1-a` | 2026-11-07 03:39:50 | 2026-11-07 11:50:16 | resource_switch; runtime 5a48faa (256) / b3db6cc (128) | owned losers released; user FLEX retained |
+| `BamPythia2p8BHUnit300BFastKernelMPreNormQKScale` | v5p-128 (`xd-v5p-128-h1104b-uc1a`) | `us-central1-a` | 2026-11-07 11:50:16 | 2026-11-08 06:25:19 | resource_switch; runtime 5a48faa (256) / b3db6cc (128) | owned losers released; user FLEX retained |
+| `BamPythia2p8BHUnit300BFastKernelMPreNormQKScale` | v5p-128 (`xd-v5p-128-h1104b-ue5a`) | `us-east5-a` | 2026-11-08 06:25:19 | 2026-11-08 07:15:18 | resource_switch; runtime 5a48faa (256) / b3db6cc (128) | owned losers released; user FLEX retained |
+| `BamPythia2p8BHUnit300BFastKernelMPreNormQKScale` | v5p-128 (`xd-v5p-128-h1104b-uc1a`) | `us-central1-a` | 2026-11-08 07:15:18 | 2026-11-08 07:23:52 | resource_switch; runtime 5a48faa (256) / b3db6cc (128) | owned losers released; user FLEX retained |
+| `BamPythia2p8BHUnit300BFastKernelMPreNormQKScale` | v5p-256 (`xd-v5p-256-311103-maxtext`) | `us-central1-a` | 2026-11-08 07:23:52 | 2026-11-08 18:35:47 | resource_switch; runtime 5a48faa (256) / b3db6cc (128) | owned losers released; user FLEX retained |
+| `BamPythia2p8BHUnit300BFastKernelMPreNormQKScale` | v5p-128 (`xd-v5p-128-h1104b-uc1a`) | `us-central1-a` | 2026-11-08 18:35:47 | 2026-11-08 18:45:15 | resource_switch; runtime 5a48faa (256) / b3db6cc (128) | owned losers released; user FLEX retained |
+| `BamPythia2p8BHUnit300BFastKernelMPreNormQKScale` | v5p-256 (`xd-v5p-256-311103-maxtext`) | `us-east5-a` | 2026-11-08 18:45:15 | 2026-11-08 20:51:12 | resource_switch; runtime 5a48faa (256) / b3db6cc (128) | owned losers released; user FLEX retained |
+| `BamPythia2p8BHUnit300BFastKernelMPreNormQKScale` | v5p-128 (`xd-v5p-128-h1104b-ue5a`) | `us-east5-a` | 2026-11-08 20:51:12 | 2026-11-08 20:59:58 | resource_switch; runtime 5a48faa (256) / b3db6cc (128) | owned losers released; user FLEX retained |
+| `BamPythia2p8BHUnit300BFastKernelMPreNormQKScale` | v5p-256 (`xd-v5p-256-311103-maxtext`) | `us-east5-a` | 2026-11-08 20:59:58 | 2026-11-08 21:41:09 | resource_switch; runtime 5a48faa (256) / b3db6cc (128) | owned losers released; user FLEX retained |
+| `BamPythia2p8BHUnit300BFastKernelMPreNormQKScale` | v5p-256 (`xd-v5p-256-311103-maxtext`) | `us-central1-a` | 2026-11-08 21:41:09 | 2026-11-08 23:01:00 | complete 143000; CP/cursor/TB and task resource release verified; runtime 5a48faa (256) / b3db6cc (128) | owned losers released; user FLEX retained |
 | `BamXLPropV5` | v5p-32 (`xd-v5p-32-311001-maxtext`) | `us-east5-a` | 2026-11-08 06:18:37 | 2026-11-08 07:11:57 | preempted; recovered in UC1a | none recorded |
 | `BamXLPropV5` | v5p-32 (`xd-v5p-32-311001-maxtext`) | `us-central1-a` | 2026-11-08 07:24:52 | 2026-11-08 13:54:09 | P2 overall; second lease interrupted07:39:06, resumed07:49:33; user stop13007; CP/TB secured, node+QR absent; runtime7c90924 | recovery candidates released |
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneRawWritesEmbeddingFixedTruePile` | v5p-16 (`xd-v5p-16-310541-maxtext`) | `us-east5-a` | 2026-11-03 05:23:34 | 2026-11-03 08:38:53 | user stop7813/P0; CP/TB SYNC_OK, node+QR independently absent; runtime94c0fa1; no zone switch; raw-write amplitude study | none |
@@ -2521,10 +2542,34 @@ active leases are censored, and manual migration releases are not preemptions.
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneRawWritesEmbeddingFixedTruePile` | 1 | `us-east5-a` | 2026-11-03 05:23:36 | 2026-11-03 08:38:53 | 3h15m17s | user stop7813/P0; CP/TB SYNC_OK, node+QR independently absent; stop-request boundary, deletion verified08:41:41 |
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneRawWritesEmbeddingSmall20TruePile` | 1 | `us-east5-a` | 2026-11-03 05:22:22 | 2026-11-03 08:38:55 | 3h16m33s | user stop7951/P0; CP/TB SYNC_OK, node+QR independently absent; stop-request boundary, deletion verified08:41:41 |
 
+| `BamPythia2p8BHUnit300BFastKernelMPreNormQKScale` | 1 | `us-east5-a` | 2026-11-03 04:09:26 | 2026-11-03 17:35:55 | 13h 26m 29s | preempted |
+| `BamPythia2p8BHUnit300BFastKernelMPreNormQKScale` | 2 | `us-east5-a` | 2026-11-03 17:41:53 | 2026-11-03 20:53:48 | 3h 11m 55s | preempted |
+| `BamPythia2p8BHUnit300BFastKernelMPreNormQKScale` | 3 | `us-central1-a` | 2026-11-04 09:09:29 | 2026-11-04 14:41:00 | 5h 31m 31s | preempted |
+| `BamPythia2p8BHUnit300BFastKernelMPreNormQKScale` | 4 | `us-east5-a` | 2026-11-04 14:55:34 | 2026-11-04 15:11:32 | 0h 15m 58s | preempted |
+| `BamPythia2p8BHUnit300BFastKernelMPreNormQKScale` | 5 | `us-east5-a` | 2026-11-05 09:55:10 | 2026-11-05 10:43:50 | 0h 48m 40s | preempted |
+| `BamPythia2p8BHUnit300BFastKernelMPreNormQKScale` | 6 | `us-central1-a` | 2026-11-05 11:10:53 | 2026-11-05 15:52:02 | 4h 41m 09s | preempted |
+| `BamPythia2p8BHUnit300BFastKernelMPreNormQKScale` | 7 | `us-central1-a` | 2026-11-05 16:23:58 | 2026-11-05 16:45:44 | 0h 21m 46s | preempted |
+| `BamPythia2p8BHUnit300BFastKernelMPreNormQKScale` | 8 | `us-east5-a` | 2026-11-05 18:57:33 | 2026-11-05 19:08:52 | 0h 11m 19s | preempted |
+| `BamPythia2p8BHUnit300BFastKernelMPreNormQKScale` | 9 | `us-east5-a` | 2026-11-05 19:47:14 | 2026-11-05 19:51:05 | 0h 03m 51s | preempted |
+| `BamPythia2p8BHUnit300BFastKernelMPreNormQKScale` | 10 | `us-east5-a` | 2026-11-05 19:57:22 | 2026-11-05 20:19:36 | 0h 22m 14s | preempted |
+| `BamPythia2p8BHUnit300BFastKernelMPreNormQKScale` | 11 | `us-central1-a` | 2026-11-06 00:52:18 | 2026-11-06 22:40:51 | 21h 48m 33s | preempted |
+| `BamPythia2p8BHUnit300BFastKernelMPreNormQKScale` | 12 | `us-east5-a` | 2026-11-07 01:12:59 | 2026-11-07 01:30:49 | 0h 17m 50s | preempted |
+| `BamPythia2p8BHUnit300BFastKernelMPreNormQKScale` | 13 | `us-central1-a` | 2026-11-07 03:39:52 | 2026-11-07 03:49:45 | 0h 09m 53s | preempted |
+| `BamPythia2p8BHUnit300BFastKernelMPreNormQKScale` | 14 | `us-central1-a` | 2026-11-07 11:50:19 | 2026-11-07 15:41:47 | 3h 51m 28s | preempted |
+| `BamPythia2p8BHUnit300BFastKernelMPreNormQKScale` | 15 | `us-central1-a` | 2026-11-07 20:48:38 | 2026-11-07 20:49:50 | 0h 01m 12s | preempted; failed preparation, no training step |
+| `BamPythia2p8BHUnit300BFastKernelMPreNormQKScale` | 16 | `us-central1-a` | 2026-11-08 02:14:44 | 2026-11-08 02:15:56 | 0h 01m 12s | preempted; failed preparation, no training step |
 | `BamXLPropV5` | 1 | `us-east5-a` | 2026-11-08 06:18:37 | 2026-11-08 07:11:57 | 53m20s | preempted; recovered in UC1a |
+| `BamPythia2p8BHUnit300BFastKernelMPreNormQKScale` | 17 | `us-east5-a` | 2026-11-08 06:25:27 | 2026-11-08 07:12:06 | 0h 46m 39s | preempted |
+| `BamPythia2p8BHUnit300BFastKernelMPreNormQKScale` | 18 | `us-central1-a` | 2026-11-08 07:15:20 | 2026-11-08 07:23:52 | 0h 08m 32s | manual_handoff_CP111530; supplemented from handoff/event evidence |
 | `BamXLPropV5` | 2 | `us-central1-a` | 2026-11-08 07:24:52 | 2026-11-08 07:39:06 | 14m14s | preempted; same-zone recovery |
 | `BamXLPropV5` | 3 | `us-central1-a` | 2026-11-08 07:49:33 | 2026-11-08 13:54:09 | 6h04m36s | user stop13007/P2 for gradient-spike investigation; CP/TB secured, node+QR verified absent13:57:00 |
 
+| `BamPythia2p8BHUnit300BFastKernelMPreNormQKScale` | 19 | `us-central1-a` | 2026-11-08 07:23:55 | 2026-11-08 18:25:05 | 11h 01m 10s | preempted |
+| `BamPythia2p8BHUnit300BFastKernelMPreNormQKScale` | 20 | `us-central1-a` | 2026-11-08 18:35:50 | 2026-11-08 18:43:00 | 0h 07m 10s | service_preemption_CP135074; supplemented from handoff/event evidence |
+| `BamPythia2p8BHUnit300BFastKernelMPreNormQKScale` | 21 | `us-east5-a` | 2026-11-08 18:45:18 | 2026-11-08 20:42:01 | 1h 56m 43s | preempted |
+| `BamPythia2p8BHUnit300BFastKernelMPreNormQKScale` | 22 | `us-east5-a` | 2026-11-08 20:51:14 | 2026-11-08 20:59:58 | 0h 08m 44s | manual_handoff_CP139300; supplemented from handoff/event evidence |
+| `BamPythia2p8BHUnit300BFastKernelMPreNormQKScale` | 23 | `us-east5-a` | 2026-11-08 21:00:02 | 2026-11-08 21:33:00 | 0h 32m 58s | preempted |
+| `BamPythia2p8BHUnit300BFastKernelMPreNormQKScale` | 24 | `us-central1-a` | 2026-11-08 21:41:11 | 2026-11-08 23:01:00 | 1h 19m 49s | run_stop |
 ### 2026-10-14 user pause: resumed mixed R256/R384
 
 RUN `BamMediumPropMShiftReadG050SharedR256R384ByWriteTruePile`, v5p-16,
@@ -2543,3 +2588,20 @@ was installed then PREEMPTED before inference on 2026-10-14. Creator log retaine
 on tpu-ag; exact READY lease timestamps not recorded. Its node/queue were both
 verified absent after cleanup. This did not affect formal training. Retained
 user-owned FLEX `llm-jax-v6e-1-0` completed the displaced probe and is preserved.
+
+### H pre-norm/QK-scale 300B resource closeout (2026-11-08)
+
+RUN `BamPythia2p8BHUnit300BFastKernelMPreNormQKScale` completed 143000 updates. Registry P20 omits one
+service interruption during the CP135074 handoff; its event receipt supplies
+the additional observed interval. The table includes all 21 registry READY
+leases plus three source intervals recovered from handoff journals. Two
+72-second intervals failed during preparation. Manual handoff ends are RUN
+ownership boundaries, not physical TPU deletion times.
+
+Queue-only assignments in EW4b and UC1a, and an unsuccessful 128 preparation
+assignment, are retained in `resource-closeout.json` under the experiment
+artifact root; they are not counted as active training-zone switches. Passive
+READY candidate observations are preserved separately in that artifact.
+Actual training used UE5a and UC1a, v5p-256 with v5p-128 bridges. Borrowed
+FLEX compiler/diagnostic workers and the three user FLEX v6e-128 queues were
+retained. Complete evidence and switch points: [experiment closeout](bam_llama2_medium/h_prenorm_qkscale_fp32_300b.md).

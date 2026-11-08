@@ -17550,15 +17550,19 @@ class BamPythia2p8BHUnit300BFastKernelMPreNormQKScale(BamPythia2p8BHUnit300BFast
     settings and GELU widths 7808/2944/tail9984. Only 32 parameters are added
     (2775190944 total, 0.00000488 W_Q), with no MLP repayment or new M-cache.
     """
-    # FP32 logits accumulator/CE with BF16 backward; monitor common offset and centered spread.
-    # 1675b1b (per-c Q/K scale rows) exceeds the fused reverse VMEM on v5p-256: 63.71M vs 63.00M limit.
-    # code_commit: bb7cedf; per-head Q/K and V/O scales fold into the read gate (no per-c work).
-    # v5p-8 paired (8/device, 32 layers): FastKernel .7040, +pre-norm .6900 (-2.0%), this .6880 (-2.3%);
-    # V/O scale cost ~0 (no-V/O arm .7030). The fold also sped the parent from .687 (per-c V/O rows).
-    # AOT_READY v5p-256/s143000: gs://newproject-1-llm_base_models_us-central1/log/compiled_trainsteps/bb7cedf/jax081-i0ae3f58-c17f538a/v5p-256/s143000/
-    # RUN: same class name; runtime code_commit:5a48faa; UE5a v5p-256, global batch 1024.
-    # All 32 workers loaded exact AOT; CP0 committed. Steps 20-39: .60353 step/s
-    # (-1.59% versus old H FastKernel .61327, historical leases; training/logits health on).
+    # code_commit: 5a48faa; RUN: same class name; completed 143000 updates (~300B tokens).
+    # Main worktree/refactor-bam. UE5a/UC1a v5p-256 ~.604-.613 step/s; v5p-128 fallback
+    # b3db6cc ~.317 step/s, same RUN/global batch 1024; training/logits health on throughout.
+    # Startup .60353 versus old H FastKernel .61327 (-1.59%, historical leases, not paired).
+    # At common 44k: loss -.01148 versus old H; its later checkpoints are unavailable.
+    # Versus MHA, the gain narrowed to ~.083 near 115k, then recovered to .09184 (last 5k).
+    # MHA-reference gain versus parallel Mudd fell to ~1.46 before recovering; last-5k means
+    # at 118k/128k/138k/143k: 1.8488/1.8563/1.8669/1.8610; final loss -.04249 versus Mudd.
+    # Final loss -.01397 versus Pythia 6.9B; MHA-reference gain ratio 1.1794.
+    # Common logit offset stabilized; final same-cohort ln_f RMS 2.05662, offset P95 5.80668.
+    # Combined pre-norm/scales/precision result, not an isolated FP32 or WD attribution.
+    # CP143000/cursor, all 15 keep steps across regional buckets, TB sync and TPU release verified.
+    # Reproduction, kernel lineage, forecasts and complete leases: h_prenorm_qkscale_fp32_300b.md.
     model_name = 'BamPythia2p8BHUnit300BFastKernelMPreNormQKScale'
     bam_m_read_norm = 'rms'
     bam_common_qk_read_scale = True

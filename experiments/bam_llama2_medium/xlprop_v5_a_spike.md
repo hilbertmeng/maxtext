@@ -129,7 +129,102 @@ Artifacts: `tensor-probe-l15/` and `baseline-forward/` under
 Local diagnosis root:
 `/data0/xd/bam_diagnostics/xlprop-v5-config-20261108/a-spike-replay/`.
 
-Next discriminating check: retain formal device/batch sharding while measuring
-intermediate cotangents, and require agreement of the selected forward CE and
-parameter-gradient controls before using those tensors for localization.
-Distinguish attribution from any retraining benefit of QKNorm.
+## Formal-mesh tensor localization and local VJP validation
+
+Runner commitsc96fb7d3/6dffd0a2 add a formal-mesh extension to the bounded
+replay and save boundary states/cotangents. Diagnostic node
+`xd-v5p-32-xlprop-a-tensors-1109`, UC1a, original global128/per-device8,
+16 devices/4 processes. It is now released (node and queue verified absent).
+The original parameter sharding, full parameter differentiation and loss mask
+are retained. Probe inputs are zero-valued additions for sequence98 only;
+recompilation can change BF16 lowering, so loss and parameter-gradient controls
+must agree before interpreting the tensors.
+
+| Frozen target2725 | Original AOT | Formal-mesh probe |
+|---|---:|---:|
+| Selected CE |3.397380352|3.397630930|
+| Parameter-gradient norm |7,997,614,080|8,015,838,720|
+
+Forward error.00025058, gradient-norm error.2279%. Saving the boundary tensors
+without adding more differentiation paths preserves these exact probe controls.
+Adding six whole-network MLP/norm additive probes instead fails the controls
+(CE.12919, norm1187.85); those tensors are explicitly rejected for attribution.
+
+### Backward amplification is cumulative
+
+Selected-token residual-state cotangent RMS at layer entry (no batch-mean scaling):
+
+| Entry |L27|L24|L20|L17|L16|L15|L14|L12|L10|L5|L1|L0|
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| RMS |.00019027|.00246148|.0188863|.125474|.214111|2.18644|9.84360|90.0344|385.370|29,039.2|68,879.5|123,698|
+
+L27→L0 grows about6.50e8-fold; L15 alone has an entry-to-next-entry ratio
+10.21. This is not one isolated L1 parameter-gradient explosion. Because the
+state contains both residual and M, ratios between state-component norms are
+not standalone module operator norms.
+
+### L15: ordinary SwiGLU, not a numerical read/write-kernel explosion
+
+Saved L15 input and L16 input supply the exact layer boundary values; saved L16
+cotangents are held fixed as upstream gradients. The standalone layer runner
+[xlprop_single_layer_vjp.py](xlprop_single_layer_vjp.py) restores the scanned
+weights from10099 and slices layer15. Only this one layer is reevaluated, avoiding
+whole-network forward divergence. It compares Pallas/no probes, Pallas/local
+MLP probes and native-JAX/local probes. In all three arms, forward relative
+errors are below.42% and input-cotangent errors below.56% against the captured
+formal-mesh point. Native and Pallas input cotangents differ by.285% (residual)
+and.577% (M).
+
+For the Pallas/local-probe arm, directional VJP norm gains are:
+
+| Path |Input/output cotangent RMS ratio|
+|---|---:|
+| Ordinary SwiGLU MLP |21.782|
+| Post-attention input RMSNorm |.51562|
+| Dedicated memory MLP |.46905|
+
+The normalized-h gradient RMS is4.663777: ordinary-MLP contribution4.663771,
+small-MLP contribution.007408, small-write controls.003192. These are component
+norms, not additive scalar energies; the total vector is their sum. Native JAX
+repeats the result (ordinary21.801, norm.51562, memory.46910). The product of the
+ordinary-MLP and norm gains is about11.23, consistent with the layer's observed
+10.21-fold residual-state amplification after the other paths are included.
+The ordinary MLP has a large directional Jacobian at this operating point.
+This does not claim that every amplifying layer is dominated by the same path.
+
+For completeness, [check_captured_splash.py](check_captured_splash.py) checks the
+actual saved L15 Q/K/V and upstream context cotangent against standalone Splash
+and an FP32 strict-causal reference. Original-model dQ/dK/dV relative errors are
+.297%/.643%/.427%; actual dV is only.000353 of its valid64||G|| Frobenius bound.
+Fused and unfused standalone backward both agree with the reference. The final
+comparison makes the fused flag a static JIT argument; a mutable config closure
+alone does not create a distinct compilation. Use `captured-splash-check-v2/`;
+the earlier artifact is superseded.
+
+### Interpretation and next decision
+
+B-type is a confirmed FSS numerical reverse error. At the measured L15 point,
+A-type has genuine strong backward amplification through the ordinary MLP,
+reproduced by native and Pallas; RMSNorm damps it and the small MLP is not the
+main source. This narrows the explanation beyond a generic M feedback story.
+It does not establish the cause of the large ordinary-MLP Jacobian, or prove
+all other layers numerically correct.
+
+Do not attribute the lack of 2.8B spikes solely to QKNorm: Prop uses SwiGLU and
+a different initialization/normalization recipe from Pythia GELU. QKNorm could
+still change the learned weights or upstream directions. Nor does the current
+large Jacobian prove it arose independently of earlier FSS training: the8750
+resume inherits that weight history. No new formal experiment or architecture
+change is implied by this read-only diagnosis.
+
+Artifacts under the same diagnostic root: `formal-tensor-probe/`,
+`formal-tensor-states/`, `formal-tensor-paths/` (failed fidelity gate),
+`captured-splash-check-v2/`, `single-layer-vjp/`. Boundary-state upload and local
+copy:27 objects,660,866,086 bytes, all sizes match, four worker exits0. Source
+workers→GCS→local; tpu-ag only orchestrated. Borrowed FLEX was retained and its
+lock released after each probe. Formal training was never paused or rewound.
+
+Figure and source are archived under the diagnostic GCS root's `figures/` and
+`runner/plot_localization.py`. The figure plots complete L0--L27 component
+cotangents and entry/next-entry ratios for the selected loss, not the formal
+training's batch-averaged raw/clipped history.

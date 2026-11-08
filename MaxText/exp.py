@@ -20346,6 +20346,43 @@ class BamXLPropV5(BamMediumPropV5):
                     'Llama2XLPropTruePileMHA', 'MuddLlama2XLProp']
 
 
+class _XLPropV5SpeedProfile(TrainStepProfile):
+    """v5p-8 paired speed arm: full 28 layers, formal 8/device, T4096, schedule and health."""
+    target_train_batch_size = None
+    per_device_batch_size = 8.0
+    steps = 100
+    checkpoint_keep_steps = []
+
+
+class BamXLPropV5SpeedProfile(_XLPropV5SpeedProfile, BamXLPropV5):
+    """Formal runtime control: unpacked read keys, full remat."""
+    model_name = 'BamXLPropV5SpeedProfile'
+
+
+class BamXLPropV5PackedSpeedProfile(BamXLPropV5SpeedProfile):
+    """Packed read keys read as one [C, 4N, T] block (20 heads are not a sublane multiple)."""
+    model_name = 'BamXLPropV5PackedSpeedProfile'
+    bam_pallas_packed_read_keys = True
+
+
+class BamXLPropV5FullSaveSplashSpeedProfile(BamXLPropV5SpeedProfile):
+    """Full remat except Splash's named output/logsumexp residuals."""
+    model_name = 'BamXLPropV5FullSaveSplashSpeedProfile'
+    bam_splash_residual_name = 'bam_splash_residual'
+    remat_policy = 'full_save_splash'
+
+
+class BamXLPropV5PackedFullSaveSplashSpeedProfile(BamXLPropV5FullSaveSplashSpeedProfile):
+    model_name = 'BamXLPropV5PackedFullSaveSplashSpeedProfile'
+    bam_pallas_packed_read_keys = True
+
+
+class BamXLPropV5PackedMinimalSaveSplashSpeedProfile(BamXLPropV5PackedFullSaveSplashSpeedProfile):
+    """2.8B's v5p policy: minimal remat plus Splash residuals."""
+    model_name = 'BamXLPropV5PackedMinimalSaveSplashSpeedProfile'
+    remat_policy = 'minimal_save_splash'
+
+
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneMPreNormNoReadScaleTruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneMPreNormTruePile):
     """Same whole-M pre-norm, removing all18 common V/O read-scale parameters."""

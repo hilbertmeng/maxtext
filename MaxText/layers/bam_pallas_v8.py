@@ -48,8 +48,30 @@ from layers.bam_pallas import _norm, _norm_backward, _pad_rows, _sigmoid, _spec,
 from layers.bam_pallas_v7 import _from_tokens, _to_tokens   # noqa: E402
 
 
+class _WholeKeys:
+  """Packed keys read as one [C, S*N, T] block (S*N rows: q, k, v, o or q, k, vo) when N is not a
+  sublane multiple, so per-arm block views are illegal. Stands in for rq, rk and rr: shape is a
+  per-arm view's, rows(c) the four arms' [4N, T] rows (a shared VO slab repeated)."""
+
+  def __init__(self, ref, n):
+    self.ref, self.n = ref, n
+    self.slabs = ref.shape[1] // n
+    self.shape = (ref.shape[0], n, ref.shape[2])
+    self.vo_rows = (self.slabs - 2) * n
+
+  def rows(self, c):
+    x = self.ref[c].astype(F32)
+    return x if self.slabs == 4 else jnp.concatenate((x, x[2 * self.n:]), axis=0)
+
+
+def _vo_rows(rr):
+  return rr.vo_rows if isinstance(rr, _WholeKeys) else rr.shape[1]
+
+
 def _tm_rows(rq, rk, rr, c):
   """Raw Q/K/V/O rows; rr holds a shared VO key or packed independent V/O keys."""
+  if isinstance(rq, _WholeKeys):
+    return rq.rows(c)
   if rr.shape[1] == 2 * rq.shape[1]:
     return jnp.concatenate((rq[c].astype(F32), rk[c].astype(F32), rr[c].astype(F32)), axis=0)
   return jnp.concatenate([x[c].astype(F32) for x in (rq, rk, rr, rr)], axis=0)
@@ -181,8 +203,10 @@ def _head_selector(np_, qdim, h):
 
 
 def _tm_read_kernel(n, qk_cols, eps, scale, q_scale, gated, ch, shifted=False, qdim=None, masked=False,
-                    scaled=False, qk_norm=None, m_norm=None, const_rows=0):
+                    scaled=False, qk_norm=None, m_norm=None, const_rows=0, whole=False):
   def kernel(m_ref, st_ref, rq, lq, rk, lk, rr, lo, lv, qs, ks, *refs):
+    if whole:
+      rq = rk = rr = _WholeKeys(rq, n)
     if gated:
       sg_ref, refs = refs[0], refs[1:]
     if shifted:
@@ -274,8 +298,11 @@ def _tm_read_kernel(n, qk_cols, eps, scale, q_scale, gated, ch, shifted=False, q
 
 
 def _tm_read_backward_kernel(n, qk_cols, eps, scale, q_scale, gated, ch, pass_m, shifted=False, qdim=None,
-                             masked=False, scaled=False, qk_norm=None, packed=False, m_norm=None, const_rows=0):
+                             masked=False, scaled=False, qk_norm=None, packed=False, m_norm=None, const_rows=0,
+                             whole=False):
   def kernel(m_ref, st_ref, rq, lq, rk, lk, rr, lo, lv, qs, ks, *refs):
+    if whole:
+      rq = rk = rr = _WholeKeys(rq, n)
     if gated:
       sg_ref, refs = refs[0], refs[1:]
     if shifted:
@@ -439,7 +466,7 @@ def _tm_read_backward_kernel(n, qk_cols, eps, scale, q_scale, gated, ch, pass_m,
     # T-minor key reverse: X^T[c] = g * inv * r[c] + S[:, c] * sg; u = d(normalized key) per arm.
     gacc = jnp.zeros((r, t), F32)      # sum_c dX * r   (gate gradient before * inv)
     sacc = jnp.zeros((r, t), F32)
-    independent_vo = rr.shape[1] == 2 * np_
+    independent_vo = _vo_rows(rr) == 2 * np_
     key_rows = (4 if independent_vo else 3) * np_
     uacc = jnp.zeros((key_rows, t), F32)  # sum_c u * r (RMS-norm reverse)
     gq, gk, gv, go = (g_key[i * np_:(i + 1) * np_] for i in range(4))
@@ -510,9 +537,22 @@ def _tm_read_specs(args, tile, packed=False, std_tok=False):
     cdim, slabs = args[2].shape[1], int(packed)
     np_ = args[2].shape[2] // slabs
     block = lambda rows, idx: pl.BlockSpec((None, cdim, rows, tile), lambda bb, i: (bb, 0, idx, i))
-    specs[2], specs[4] = block(np_, 0), block(np_, 1)
-    specs[6] = block(2 * np_, 1) if slabs == 4 else block(np_, 2)
+    if _whole_keys(np_, packed):
+      # Per-arm views need N % 8 == 0: read all S*N rows as one block; the K and V/O views stay in
+      # HBM untouched (no DMA).
+      specs[2], specs[4], specs[6] = block(slabs * np_, 0), _hbm(), _hbm()
+    else:
+      specs[2], specs[4] = block(np_, 0), block(np_, 1)
+      specs[6] = block(2 * np_, 1) if slabs == 4 else block(np_, 2)
   return specs
+
+
+def _whole_keys(n, packed):
+  return bool(packed) and n % 8 != 0
+
+
+def _hbm():
+  return pl.BlockSpec(memory_space=pltpu.ANY)
 
 
 def _key_shapes(args, packed):
@@ -561,7 +601,8 @@ def _tm_read_forward_call(args, opts, sh=None, om=None, os=None, qn=None):
   return pl.pallas_call(
       _tm_read_kernel(n, opts['qk_cols'], opts['read_epsilon'], opts['key_scale'], opts['q_scale'],
                       len(args) == 12, opts['chunk'], sh is not None, qdim, om is not None, os is not None,
-                      qk_norm, opts.get('m_norm'), int(opts.get('scale_const_rows') or 0)),
+                      qk_norm, opts.get('m_norm'), int(opts.get('scale_const_rows') or 0),
+                      _whole_keys(n, packed)),
       grid=(b, t // tile),
       in_specs=(_tm_read_specs(args, tile, packed, bool(qk_norm)) + _shift_specs(m, sh, tile)
                 + _mask_specs(om, tile) + _scale_specs(os) + _qk_norm_specs(qn, tile)),
@@ -634,7 +675,7 @@ def _tm_read_backward_call(args, cts, opts, sh=None, om=None, os=None, qn=None, 
   outs = pl.pallas_call(
       _tm_read_backward_kernel(n, opts['qk_cols'], opts['read_epsilon'], opts['key_scale'], opts['q_scale'],
                                gated, opts['chunk'], pass_m, shifted, qdim, om is not None, os is not None,
-                               qk_norm, packed, opts.get('m_norm'), const_rows),
+                               qk_norm, packed, opts.get('m_norm'), const_rows, _whole_keys(n, packed)),
       grid=(b, t // tile), in_specs=in_specs, out_specs=out_specs, out_shape=tuple(out_shape),
       scratch_shapes=scratch,
       input_output_aliases={len(args) + len(extra) + 4: 0} if pass_m else {},
@@ -745,9 +786,8 @@ def read_tm(m, static_weight, q_key, q_logits, k_key, k_logits, vo_key, o_logits
   packed = 0          # key slabs read from one kernel-layout array: 4 (q, k, v, o), 3 (q, k, vo) or 0
   if keys_cnt is not None:
     packed = keys_cnt.shape[2] // n
-    # Mosaic block views need the head count to be a sublane multiple; interpret mode does not.
-    assert (keys_cnt.shape in ((b, cdim, 4 * n, t), (b, cdim, 3 * n, t)) and not pad_heads
-            and (n % 8 == 0 or interpret)), keys_cnt.shape
+    # Head counts that are not sublane multiples read the S*N rows as one block (_WholeKeys).
+    assert keys_cnt.shape in ((b, cdim, 4 * n, t), (b, cdim, 3 * n, t)) and not pad_heads, keys_cnt.shape
   opts = _freeze(dict(heads=n, qk_cols=qk_cols, read_epsilon=read_epsilon, key_scale=key_scale, packed=packed,
                       tile=forward_tile, reverse_tile=reverse_tile, vmem_mib=vmem_mib, interpret=interpret,
                       q_scale=float(q_scale), chunk=chunk, **({'qdim': qdim} if qdim > m.shape[-1] else {}),

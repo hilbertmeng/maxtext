@@ -20348,17 +20348,18 @@ class BamXLPropV5(BamMediumPropV5):
 
 
 class BamXLPropV5FastKernel(BamXLPropV5):
-    """BamXLPropV5 with packed read keys (one [C,4N,T] block for 20 heads) and minimal_save_splash remat.
+    """BamXLPropV5 with packed read keys (one [C,4N,T] block for 20 heads) and full_save_splash remat.
 
     Same math, parameter and optimizer trees and schedule, so the V5 RUN resumes from its checkpoints.
-    v5p-8 paired (fad395a, UC1a, full 28 layers, 8/device): control .6100, packed .6290 (+3.1%),
-    full_save_splash .6340 (+3.9%), packed+full_save_splash .6540 (+7.2%), packed+minimal_save_splash
-    .7030 (+15.2%); steps 1-20 losses match within bf16 accumulation noise.
+    v5p-32 paired (708dcd2, UE5a, formal shapes): control .5190, packed .5280 (+1.7%),
+    packed+full_save_splash .5490 (+5.8%), packed+minimal_save_splash .5280 (+1.7%; on v5p-8 it was +15.2%:
+    its saved dot outputs change the v5p-32 collective-matmul schedule and the gain vanishes).
+    Steps 1-20 losses match the control within bf16 accumulation noise.
     """
     model_name = 'BamXLPropV5FastKernel'
     bam_pallas_packed_read_keys = True
     bam_splash_residual_name = 'bam_splash_residual'
-    remat_policy = 'minimal_save_splash'
+    remat_policy = 'full_save_splash'
 
 
 class _XLPropV5SpeedProfile(TrainStepProfile):

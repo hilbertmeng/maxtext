@@ -76,3 +76,81 @@ heads trigger only the current per-arm block-view restriction. Unpacked is the
 verified runtime fallback, not evidence of an optimal implementation. A whole
 4N=80-row packed load is a promising way to avoid20-to24 head padding; it needs
 correctness validation and a paired v5p-8 speed comparison before any hot switch.
+
+## Implementation speed: packed keys and Splash-residual remat
+
+Branch `claude/xlprop-v5-packed-keys`, worktree
+`/home/xd/projects/maxtext/.claude/worktrees/xlprop-v5-packed`. The math and the
+parameter, optimizer and schedule trees are unchanged.
+
+- Packed read keys for 20 heads (`fad395a`): when N is not a sublane multiple,
+  v8t reads all S*N key rows as one `[C,S*N,T]` block. The K and V/O views stay in
+  HBM untouched (`memory_space=ANY`). The forward and reverse already consumed the
+  concatenated rows, so no unaligned in-kernel slicing is needed.
+- Correctness (pinned CPU, interpret): at 20 heads, packed and unpacked agree to 1e-5
+  on outputs and all gradients. The native-vs-Pallas model test with packed keys
+  gives max gradient error 2.2e-6. The 2.8B fast-kernel suite (aligned 32 heads,
+  shared-VO) passes 8/8.
+
+v5p-8 paired results: full 28 layers, 8/device, T4096, formal schedule and health
+(generic ON, internal OFF), harmonic step/s over steps 16-99 excluding trace steps.
+Rounds 1 and 2 were cut short by spot preemption. Every ratio below is against the
+control on the same VM.
+
+| Configuration | R1 UE5a | R2 UC1a | R3 UC1a | vs control |
+|---|---:|---:|---:|---:|
+| `BamXLPropV5SpeedProfile` (formal: unpacked, full) | .6120 | .6100 | .6100 | — |
+| `BamXLPropV5PackedSpeedProfile` | .6310 | .6290 | | +3.1% |
+| `BamXLPropV5FullSaveSplashSpeedProfile` | | .6360 | .6340 | +3.9 to +4.3% |
+| `BamXLPropV5PackedFullSaveSplashSpeedProfile` | | | .6540 | +7.2% |
+| `BamXLPropV5PackedMinimalSaveSplashSpeedProfile` | | | .7030 | **+15.2%** |
+
+Pre-run bets were packed +2.5%, FSS +2.5%, packed+FSS +5%, and minimal no faster
+than packed+FSS (or OOM). The minimal bet was wrong. It transferred Medium's and
+2.8B-on-v6e's full-remat preference, but on 95 GB v5p the 1.43B XL saves its
+weight-dot outputs instead of recomputing the whole layer forward.
+
+XPlane step time (ms/step), control vs packed+minimal: 1601.5 to 1382.0. Savings:
+
+- Splash 84: the forward is no longer recomputed.
+- MLP 55 and out projection 19: saved dot outputs.
+- Fused input projections 67 and read glue 28: packed keys remove the
+  transpose/concat/pad copies; minimal remat also stops recomputing them.
+
+Packed alone saves 47 ms: fusion -20, copy -11, concatenate -6, pad -5, slice -3.
+FSS alone saves 65 ms: Splash forward 167 to 84, against +12 ms of
+residual-related fusion.
+
+Steps 1-20 losses agree across arms within bf16 accumulation order (step 20
+10.36913 control, 10.36995 minimal).
+
+v5p-32 target-topology check: runtime `708dcd2`, UE5a, formal 8/device, global 128.
+Median step/s over steps 16-36:
+
+| Configuration | v5p-32 A | v5p-32 B | vs control | v5p-8 |
+|---|---:|---:|---:|---:|
+| `BamXLPropV5SpeedProfile` (formal) | .5170 | .5190 | — | — |
+| `BamXLPropV5PackedSpeedProfile` | | .5280 | +1.7% | +3.1% |
+| `BamXLPropV5PackedFullSaveSplashSpeedProfile` | | .5490 | **+5.8%** | +7.2% |
+| `BamXLPropV5PackedMinimalSaveSplashSpeedProfile` | .5260 | .5280 | +1.7% | +15.2% |
+
+The v5p-8 ranking reverses for minimal remat. On v5p-32 the XPlane step is
+1889.9 ms for the control and 1856.9 ms for minimal. The local savings remain:
+Splash -77, fused inputs -116, MLP -46 and read glue -28 ms. The new costs are:
+
+- Forward weight dots become collective-matmul `bitcast_add_fusion` windows,
+  totalling 258 ms.
+- More dynamic-slice/update-slice residual traffic: about +100 ms.
+- More collective-permute traffic: about +25 ms.
+
+There is no idle time (1.4 ms) on either topology. Packed and full_save_splash
+change local work only and keep most of their gain. Bet before the four-arm
+v5p-32 run: packed+FSS about +6% and above minimal. Confirmed.
+
+Hot-switch class `BamXLPropV5FastKernel`: packed keys, `full_save_splash`, named
+Splash residuals. The minimal-remat class at `708dcd2` is superseded.
+
+Traces:
+
+- `gs://newproject-1-llm_base_models_us-central1/log/diagnostics/profile_matrix/fad395a/{xlv5pk,xlv5pk2,xlv5pk3}/`
+- Local: `/data0/xd/bam_diagnostics/xlprop-v5-packed-speed-20261108/`

@@ -54,6 +54,9 @@ Plotted direct comparisons: historical XL single-read-.5 direction anchor and
 common gain reference but is omitted from loss-gap plots. Public cadence2000,
 native windows500,
 reviews4000/8000 require user confirmation before any effect-based stop.
+Each public report also includes the recorded raw gradient norm from step600,
+on a log axis, using the training skill's incremental TB sync and
+`plot_raw_grad_norm.py`. Only V5 is needed for this companion health figure.
 Pre-run bet: final MHA-referenced gain relative to Mudd1.8 [1.6,2.1], versus
 Medium V5's completed2.0601. Expected throughput .42--.48step/s on v5p-32,
 roughly15--32% faster than old single.5's .3647; historical kernel/health settings

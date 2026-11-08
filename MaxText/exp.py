@@ -20293,6 +20293,55 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     bam_common_qk_read_scale = True
     compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneMPreNormTruePile']
 
+BamMediumPropV5 = BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneMPreNormQKScaleTruePile
+
+
+class BamXLPropV5(BamMediumPropV5):
+    """Original-recipe XLProp V5: whole-M pre-norm and unit V/O plus Q/K scales.
+
+    M96x40, independent R400 read/attention-write/memory-write projections,
+    full NoPE96 + RoPE24, SwiGLU ordinary/private FFNs, no QKNorm.
+    Single-layer scan over L0--26 and a separate terminal L27 without M writes.
+    Ordinary/private widths4048/1827 give complete-branch ratio2.001287:1;
+    tail6277 closes the MHA budget at1,432,396,996 parameters (MHA-1724).
+    """
+    model_name = 'BamXLPropV5'
+    base_emb_dim = 1920
+    base_num_decoder_layers = 28
+    base_num_query_heads = 20
+    base_num_kv_heads = 20
+    head_dim = 96
+    bam_k = 96
+    bam_v = 40
+    bam_standard_qk_dim = 24
+    bam_partial_rope_nope_dim = 96
+    bam_local_qk_col_output_dim = 96
+    bam_layer_modes = ['local_qk+local_v+local_o'] * 28
+    emb_bam_num_head = 20
+    emb_bam_v_bottleneck_dim = 400
+    bam_local_full_m_read_bottleneck_dim = 400
+    bam_write_v_bottleneck_dim = 400
+    bam_mlp_write_address_rank = 400
+    bam_attention_write_layers = list(range(27))
+    bam_mlp_write_layers = list(range(27))
+    base_mlp_dim = 4048
+    bam_memory_mlp_dim = 1827
+    bam_last_mlp_dim = 6277
+    # The wider V40/head20 read pads to larger tiles than Medium's V32/head16.
+    bam_pallas_vmem_mib = 63
+    # W_emb_u content RMS grows as sqrt(D) under the unchanged .006 recipe.
+    bam_embedding_write_content_divisor = 0.0016052833 * math.sqrt(1920 / 1200)
+    max_target_length = 4096
+    per_device_batch_size = 8.0
+    learning_rate = 2e-4
+    learning_rate_schedule_steps = 50000
+    steps = 50000
+    eval_interval = 50000
+    checkpoint_period = 250
+    compare_runs = ['BamXLPropSharedR400GeneralReadMShiftReadG050TruePile',
+                    'Llama2XLPropTruePileMHA', 'MuddLlama2XLProp']
+
+
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneMPreNormNoReadScaleTruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneMPreNormTruePile):
     """Same whole-M pre-norm, removing all18 common V/O read-scale parameters."""

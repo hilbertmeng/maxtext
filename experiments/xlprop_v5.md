@@ -157,6 +157,16 @@ AOT_READY v5p-32/s50000 at `7c90924` (FLEX `llm-jax-v6e-1-0`):
 `gs://newproject-1-llm_base_models_us-central1/log/compiled_trainsteps/7c90924/jax081-i0ae3f58-c17f538a/v5p-32/s50000/BamXLPropV5FastKernel.pickle`.
 All `xd-v5p-{8,32}-xlv5pk*` profile TPUs are released.
 
+Verified hot switch of the existing `BamXLPropV5` RUN on the retained UC1a
+`xd-v5p-32-311001-maxtext`: runtime `7c90924`, EXP `BamXLPropV5FastKernel`.
+Preserved the old post-checkpoint tail, then restored committed step4750 and its
+exact data cursor. All4 workers verified the new source, AOT load and restore.
+Same-batch replay4751--4770: mean absolute loss difference3.24e-5, maximum1.05e-4.
+Same-machine paired steps4760--4795: harmonic .506625 to .539945step/s (+6.58%);
+versus the original startup .512557, +5.34%. UC1a-primary recovery and the existing
+report group/cursors are preserved. Evidence:
+`/data0/xd/bam_diagnostics/xlprop-v5-config-20261108/fast-kernel-switch/`.
+
 Traces:
 
 - `gs://newproject-1-llm_base_models_us-central1/log/diagnostics/profile_matrix/fad395a/{xlv5pk,xlv5pk2,xlv5pk3}/`

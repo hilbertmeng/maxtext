@@ -27,6 +27,8 @@ active leases are censored, and manual migration releases are not preemptions.
 
 | RUN | TPU | Zone | Start UTC | End UTC | End reason | Passive candidates |
 |---|---|---|---|---|---|---|
+| `BamXLPropV5` | v5p-32 (`xd-v5p-32-311001-maxtext`) | `us-east5-a` | 2026-11-08 06:18:37 | 2026-11-08 07:11:57 | preempted; recovered in UC1a | none recorded |
+| `BamXLPropV5` | v5p-32 (`xd-v5p-32-311001-maxtext`) | `us-central1-a` | 2026-11-08 07:24:52 | 2026-11-08 13:54:09 | P2 overall; second lease interrupted07:39:06, resumed07:49:33; user stop13007; CP/TB secured, node+QR absent; runtime7c90924 | recovery candidates released |
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneRawWritesEmbeddingFixedTruePile` | v5p-16 (`xd-v5p-16-310541-maxtext`) | `us-east5-a` | 2026-11-03 05:23:34 | 2026-11-03 08:38:53 | user stop7813/P0; CP/TB SYNC_OK, node+QR independently absent; runtime94c0fa1; no zone switch; raw-write amplitude study | none |
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneRawWritesEmbeddingSmall20TruePile` | v5p-16 (`xd-v5p-16-310542-maxtext`) | `us-east5-a` | 2026-11-03 05:22:20 | 2026-11-03 08:38:55 | user stop7951/P0; CP/TB SYNC_OK, node+QR independently absent; runtime94c0fa1; no zone switch; raw-write amplitude study | none |
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneRawWritesTruePile` | v5p-16 (`xd-v5p-16-310540-maxtext`) | `us-east5-a` | 2026-11-03 05:22:24 | 2026-11-03 07:18:37 | user stop4578/P0; CP4578/TB SYNC_OK, node+QR independently absent; runtime94c0fa1; no zone switch; raw-write amplitude study | none |
@@ -2518,6 +2520,10 @@ active leases are censored, and manual migration releases are not preemptions.
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneRawWritesTruePile` | 1 | `us-east5-a` | 2026-11-03 05:22:27 | 2026-11-03 07:18:37 | 1h56m10s | user stop4578/P0; CP4578/TB SYNC_OK, node+QR independently absent; stop-request boundary, deletion verified07:21:20 |
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneRawWritesEmbeddingFixedTruePile` | 1 | `us-east5-a` | 2026-11-03 05:23:36 | 2026-11-03 08:38:53 | 3h15m17s | user stop7813/P0; CP/TB SYNC_OK, node+QR independently absent; stop-request boundary, deletion verified08:41:41 |
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneRawWritesEmbeddingSmall20TruePile` | 1 | `us-east5-a` | 2026-11-03 05:22:22 | 2026-11-03 08:38:55 | 3h16m33s | user stop7951/P0; CP/TB SYNC_OK, node+QR independently absent; stop-request boundary, deletion verified08:41:41 |
+
+| `BamXLPropV5` | 1 | `us-east5-a` | 2026-11-08 06:18:37 | 2026-11-08 07:11:57 | 53m20s | preempted; recovered in UC1a |
+| `BamXLPropV5` | 2 | `us-central1-a` | 2026-11-08 07:24:52 | 2026-11-08 07:39:06 | 14m14s | preempted; same-zone recovery |
+| `BamXLPropV5` | 3 | `us-central1-a` | 2026-11-08 07:49:33 | 2026-11-08 13:54:09 | 6h04m36s | user stop13007/P2 for gradient-spike investigation; CP/TB secured, node+QR verified absent13:57:00 |
 
 ### 2026-10-14 user pause: resumed mixed R256/R384
 

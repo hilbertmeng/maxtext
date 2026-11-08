@@ -176,3 +176,29 @@ Traces:
 
 - `gs://newproject-1-llm_base_models_us-central1/log/diagnostics/profile_matrix/fad395a/{xlv5pk,xlv5pk2,xlv5pk3}/`
 - Local: `/data0/xd/bam_diagnostics/xlprop-v5-packed-speed-20261108/`
+
+## User-requested stop and preserved diagnosis
+
+Stopped at committed checkpoint13007 on2026-11-08 13:54:09 UTC to limit further
+training cost while investigating extreme intermittent gradient spikes. Node and
+queued resource verified absent by13:57:00 UTC; TensorBoard SYNC_OK. The scoped
+group watcher is stopped. Checkpoint/cursor and independent9250 diagnostic copy
+remain available; no automatic restart is authorized.
+
+Latest complete native window12.5k: gap-.0074176 and MHA-referenced gain1.05071
+against old XL single.5; gap-.0669396/gain1.77150 against Mudd. Before spikes,
+corresponding gains were about1.13/1.88. Loss recovered substantially after the9k
+collapse, but this run cannot establish stable full-training benefit. Final-gain
+bet1.8 is untested because the run stopped at26% of its schedule.
+
+Preemptions2. Every READY lease (UTC):
+
+| Zone | Start | End | Duration | End reason |
+|---|---|---|---|---|
+| us-east5-a |2026-11-08 06:18:37|2026-11-08 07:11:57|53m20s|preempted|
+| us-central1-a |2026-11-08 07:24:52|2026-11-08 07:39:06|14m14s|preempted|
+| us-central1-a |2026-11-08 07:49:33|2026-11-08 13:54:09|6h04m36s|user stop|
+
+Closeout summary: tpu-ag`logs/closeout-20261108T135700Z.json`. Root-cause evidence,
+checkpoint/cohort and reproduction are in
+[bam_llama2_medium/xlprop_v5_gradient_spikes_handoff.md](bam_llama2_medium/xlprop_v5_gradient_spikes_handoff.md).

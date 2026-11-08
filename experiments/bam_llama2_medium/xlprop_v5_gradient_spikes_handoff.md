@@ -5,11 +5,12 @@
 ## 1. 现象与正式训练
 
 - RUN：`BamXLPropV5`，当前 EXP：`BamXLPropV5FastKernel`。
-- 正式 TPU：`xd-v5p-32-311001-maxtext`，当前 `us-central1-a`。保持训练；不要占用或重启这台机器做诊断。
+- 正式训练于2026-11-08按用户要求停止止损；TPU `xd-v5p-32-311001-maxtext`（`us-central1-a`）已释放，node和queued resource均确认不存在。最终checkpoint **13007**；TB已同步。不得自行恢复训练。checkpoint及独立诊断副本保留。
 - 当前 runtime：`7c90924b87ec446ab81ac57eadcda42219230e2a`。
 - 初始 runtime：`862caddd9be22c2d4d87fadc5c0dabecb270546f`。
 - T4096、global batch128、8/device；计划50000步；BF16运算、FP32参数；原 Prop 配方。
 - D1920、28层、20头×96维；M96×40；地址低秩R400；独立VO；完整NoPE96＋RoPE24，QK实际120维，打分缩放仍为`1/sqrt(96)`。
+- 概念M尺寸是96×40；正式carry的实际布局是`[B,T,V,K]=[B,T,40,96]`，加性probe应匹配这个布局。
 - M pre-norm；V/O共用逐层scale、Q/K共用逐层scale，都从1初始化；**没有QKNorm**。
 - 串行SwiGLU、RMSNorm epsilon1e-6、原`.006`初始化。普通/小MLP4048/1827、末层6277；末层两项M写关闭。attention写内容保留RMSNorm，小MLP原幅度写，embedding固定除以`.00203054060713255`。
 - AdamW：LR2e-4，beta=.9/.95，epsilon1e-8，WD=.1，warmup1%，cosine下限.1；global clipping阈值1。
@@ -119,7 +120,13 @@ gs://newproject-1-llm_base_models_us-central1/log/diagnostics/xlprop-v5-gradient
 
 完整模型首版探针：参数restore和cohort导出成功；host callback在TPU编译/执行时报`Unknown send channel 28 for host callbacks`，未产生可信的完整模型cotangent。失败worker进程217717已清理；这不是模型训练失败。
 
-当前runner已改成**零值加性probe求导＋Flax intermediates**，保留原scan和参数，不使用host callback。它要提取各层M/residual cotangent，并捕获L1实际Q/K/V、context及其梯度，再进行同张量Splash／FP32参考VJP对拍。**这个改写后的完整模型路径尚待实际验证。** 不要把计划输出当成已有结果。
+当前runner采用**零值加性probe求导＋Flax intermediates**，保留原scan和参数，不使用host callback。9250 checkpoint的32条单序列探针已完成：
+
+- 平均loss `10.5562334`；embedding写地址bias梯度L2最大 `17.2684`，未复现灾难性放大。
+- 捕获L1实际Q/K/V及context cotangent，同张量Splash／FP32参考反向对拍未出现数量级偏差；各case及Q/K/V中最大相对RMS误差 `.09403`。模型内梯度相对独立Splash最大相对RMS误差 `.19119`；部分参考梯度很小，完整逐case绝对误差见结果文件。
+- 最高embedding梯度的sequence66中，M输入cotangent RMS为L0 `8.30e-6`、L1 `1.17e-6`、L2 `1.03e-6`；没有9340所见的L1灾难性分叉。
+
+**此结果不能排除核或网络问题**：探针使用B1，正式每核B8；权重冻结于9250，尚未重放9251–9340的优化器更新。后续如继续排查，应优先匹配B8／正式拓扑或重放原TrainState，不能将本次未复现写成根因已排除。
 
 Runner：[`xlprop_gradient_localization.py`](xlprop_gradient_localization.py)。`--empty-row-check-only`是已通过的合成不变量入口。
 
@@ -185,7 +192,7 @@ GCS诊断根：
 gs://newproject-1-llm_base_models_us-central1/log/diagnostics/xlprop-v5-gradient-localization-20261108/
   checkpoints/9250/
   results/cohort.npz
-  results/probe.log                 # 首版host-callback失败日志；不是对拍成功日志
+  results/probe.log                 # 最近一次探针日志；请检查是否真正完成对拍
   empty-row/empty-row-check.json
   empty-row/probe.log
 ```

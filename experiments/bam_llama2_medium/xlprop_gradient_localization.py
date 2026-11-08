@@ -58,6 +58,8 @@ def main():
   parser.add_argument('--loss-denominator', type=float,
                       help='Normalize selected-token loss contributions by this original global weight count')
   parser.add_argument('--retain-captured-tensors', action='store_true')
+  parser.add_argument('--baseline-forward-check', action='store_true',
+                      help='Check uninstrumented B1 forward/backward and fixed-B8 batch independence')
   parser.add_argument('--empty-row-check-only', action='store_true',
                       help='Check the exact zero-gradient invariant for an empty-history query')
   args = parser.parse_args()
@@ -188,6 +190,50 @@ def main():
       backend=jax.default_backend(), scan_layers=cfg.scan_layers)
   (args.output / 'metadata.json').write_text(json.dumps(metadata, indent=2) + '\n')
   print('COHORT_READY', len(order), flush=True)
+  if args.baseline_forward_check:
+    assert batch['inputs'].shape[0] == 1
+    source = {k: np.asarray(v[:1]) for k, v in batch.items()}
+    checks = []
+
+    def forward(p, data):
+      return train.loss_fn(model, cfg, dict(data), jax.random.PRNGKey(0), p, is_train=True)[0]
+
+    def bias_loss(bias, p, data):
+      effective = unfreeze(p)
+      effective['params']['decoder']['embedding_bam_write']['W_emb_v_up']['bias'] = bias
+      return forward(effective, data)
+
+    def plain_backward(p, data):
+      loss, grad = jax.value_and_grad(bias_loss)(bias, p, data)
+      return loss, jnp.linalg.norm(grad.astype(jnp.float32))
+
+    with mesh, nn.partitioning.axis_rules(cfg.logical_axis_rules):
+      compiled_forward = jax.jit(forward)
+      one = {k: jnp.asarray(v) for k, v in source.items()}
+      started = time.monotonic()
+      checks.append(dict(case='B1_unmodified_forward', mean_ce=float(compiled_forward(params, one)),
+                         seconds=time.monotonic() - started))
+      started = time.monotonic()
+      loss, norm = jax.device_get(jax.jit(plain_backward)(params, one))
+      checks.append(dict(case='B1_unmodified_bias_backward', mean_ce=float(loss),
+                         bias_grad_l2=float(norm), seconds=time.monotonic() - started))
+      cfg.get_keys().update(per_device_batch_size=8., global_batch_size_to_train_on=8,
+          global_batch_size_to_load=8, micro_batch_size_to_train_on=8)
+      eight = {k: np.repeat(v, 8, axis=0) for k, v in source.items()}
+      eight['targets_segmentation'][1:] = 0
+      repeated = {k: jnp.asarray(v) for k, v in eight.items()}
+      # Same executable for both B8 cases: only other sequences' content changes.
+      started = time.monotonic()
+      checks.append(dict(case='B8_repeat_other_sequences', mean_ce=float(compiled_forward(params, repeated)),
+                         seconds=time.monotonic() - started))
+      eight['inputs'][1:] = 0
+      zeroed = {k: jnp.asarray(v) for k, v in eight.items()}
+      started = time.monotonic()
+      checks.append(dict(case='B8_zero_other_sequences', mean_ce=float(compiled_forward(params, zeroed)),
+                         seconds=time.monotonic() - started))
+    (args.output / 'baseline-forward.json').write_text(json.dumps(checks, indent=2) + '\n')
+    print('BASELINE_FORWARD_CHECK', json.dumps(checks), flush=True)
+    return
 
   current_probes = None
   layer_stack, attention_stack = [], []

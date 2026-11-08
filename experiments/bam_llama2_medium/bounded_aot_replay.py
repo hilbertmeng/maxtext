@@ -32,7 +32,15 @@ def main():
   parser.add_argument('--output', type=Path, required=True)
   parser.add_argument('--isolate-step', type=int,
                       help='Keep this pre-update state/batch, then binary-search loss contributors with the same AOT')
+  parser.add_argument('--tensor-probe-script', type=Path,
+                      help='Instead of binary search, run this read-only probe on the captured formal state/mesh')
+  parser.add_argument('--probe-sequence', type=int)
+  parser.add_argument('--probe-token', type=int)
+  parser.add_argument('--probe-layer', type=int, default=15)
   args, overrides = parser.parse_known_args()
+  if args.tensor_probe_script:
+    assert args.isolate_step is not None
+    assert args.probe_sequence is not None and args.probe_token is not None
   assert 0 < args.end_step - args.start_step <= 200, 'Diagnostic replay must be bounded to at most200 updates'
   assert overrides and all('=' in x for x in overrides)
   values = dict(x.split('=', 1) for x in overrides)
@@ -86,6 +94,7 @@ def main():
       compiled = original_load(config, *a, **kw)
       counter = args.start_step
       captured['compiled'] = compiled
+      captured.update(config=config, functional_train=a[0], mesh=a[2])
 
       def call(state, data, rng):
         nonlocal counter
@@ -151,6 +160,15 @@ def main():
     control = probe(0, batch)
     expected = captured['observed']['learning/raw_grad_norm']
     assert abs(control - expected) <= 1e-5 * max(1., abs(expected)), (control, expected)
+    if args.tensor_probe_script:
+      assert 0 <= args.probe_sequence < batch and 0 <= args.probe_token < length
+      probe(args.probe_sequence, args.probe_sequence + 1, args.probe_token, args.probe_token + 1)
+      captured['probe_token'] = args.probe_token
+      import runpy
+      namespace = runpy.run_path(str(args.tensor_probe_script.resolve()))
+      namespace['run_probe'](train, captured, records[-1]['metrics'], args.output,
+                             args.probe_sequence, args.probe_layer)
+      return
     lo, hi = 0, batch
     while hi - lo > 1:
       mid = (lo + hi) // 2

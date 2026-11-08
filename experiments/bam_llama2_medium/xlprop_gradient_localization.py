@@ -256,7 +256,8 @@ def main():
     return jnp.stack(values)
 
   probes = dict(
-      M=jnp.zeros((cfg.num_decoder_layers, 1, cfg.max_target_length, cfg.bam_k, cfg.bam_v), cfg.dtype),
+      # The formal carried matrix is value-major: [B,T,V,K].
+      M=jnp.zeros((cfg.num_decoder_layers, 1, cfg.max_target_length, cfg.bam_v, cfg.bam_k), cfg.dtype),
       residual=jnp.zeros((cfg.num_decoder_layers, 1, cfg.max_target_length, cfg.emb_dim), cfg.dtype),
       bias=jnp.zeros_like(bias))
   for name, width in [('q', cfg.bam_partial_rope_nope_dim + cfg.bam_standard_qk_dim),

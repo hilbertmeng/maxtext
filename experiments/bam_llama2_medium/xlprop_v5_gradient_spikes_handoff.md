@@ -217,12 +217,20 @@ Startup verified: all4 worker source hashes matchd54c4c5, all loaded the AOT
 and restored8750 with global128/per-device8. FIRST_STEP8754 at.523step/s;
 subsequent8782 at.521. Same-batch8751--8770 mean absolute loss difference
 2.92e-5, maximum7.4e-5; first8751 loss exactly2.343012 in both console histories.
-The formal RUN is now genuinely training. Group`xlprop-v5-full-remat`, fixed2k
-cadence, next public milestone10000; scoped watcherPID137311 on tpu-ag.
+The formal RUN is now genuinely training. Group`xlprop-v5-full-remat`, user-updated
+5000-step cadence phased at9500 (offset4500):9500 delivered, next14500. Scoped
+watcherPID137311 on tpu-ag; mechanical health polling remains unchanged.
 Startup acceptance also crosses the original B onset: at9079 throughput.520;
 25 recorded raw norms over8751--9000 have maximum.291019, no clipping. This
 is a recorded-sample statement, not an upper bound on unlogged steps. Evidence:
 local`claude-replay/full-resume-through9000-health.json`.
+The follow-up through9350 has60 samples, maxraw.381264; at9340 raw.197039
+and loss2.206448, with normal L1 projection norms. New9250 checkpoint/cursor
+committed. Source:`claude-replay/full-resume-through9350-health.json`.
+For cumulative reports, the original actual loss history through8750 is imported
+into the child cache as its common prefix; full remat applies only from8751.
+Provenance:tpu-ag`logs/xlprop-v5-restore-8750/shared-prefix-provenance.json`.
+The corrupted original post8750 branch is not imported.
 
 ## 8. 优先判别实验
 

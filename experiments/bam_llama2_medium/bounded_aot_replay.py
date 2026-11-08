@@ -100,7 +100,14 @@ def main():
           print('ISOLATION_STATE_CAPTURED', step, captured['observed']['learning/raw_grad_norm'], flush=True)
         return result, metrics
 
-      return call
+      class CapturingCompiled:
+        def __call__(self, state, data, rng):
+          return call(state, data, rng)
+
+        def __getattr__(self, name):
+          return getattr(compiled, name)
+
+      return CapturingCompiled()
 
     train.maxtext_utils.load_compiled = load
   args.output.mkdir(parents=True, exist_ok=True)

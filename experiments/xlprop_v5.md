@@ -222,7 +222,7 @@ meanabs2.92e-5/max7.4e-5, first8751 exactly2.343012 in both console histories.
 Expected stable.52step/s (~-3.7% vs prior.54) is supported by startup.
 
 Scoped monitor group`xlprop-v5-full-remat`: user-updated5000-step public cadence
-phased at9500;9500 delivered, next14500, then19500. WatcherPID137311; mechanical
+phased at10000;10000 delivered, next15000, then20000. WatcherPID137311; mechanical
 health polling unchanged. Comparison anchors stay old XL single.5 and Mudd,
 MHA remains gain reference only. Include raw/clipped gradient plot. Check the
 formerly unstable8890--9340 region before treating the corrected trajectory as

@@ -218,7 +218,7 @@ and restored8750 with global128/per-device8. FIRST_STEP8754 at.523step/s;
 subsequent8782 at.521. Same-batch8751--8770 mean absolute loss difference
 2.92e-5, maximum7.4e-5; first8751 loss exactly2.343012 in both console histories.
 The formal RUN is now genuinely training. Group`xlprop-v5-full-remat`, user-updated
-5000-step cadence phased at9500 (offset4500):9500 delivered, next14500. Scoped
+5000-step cadence phased at10000 (offset0):10000 delivered, next15000. Scoped
 watcherPID137311 on tpu-ag; mechanical health polling remains unchanged.
 Startup acceptance also crosses the original B onset: at9079 throughput.520;
 25 recorded raw norms over8751--9000 have maximum.291019, no clipping. This

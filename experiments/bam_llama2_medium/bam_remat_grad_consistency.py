@@ -67,7 +67,10 @@ def main():
       return loss
 
     with mesh, nn.partitioning.axis_rules(cfg.logical_axis_rules):
-      fn = jax.jit(jax.value_and_grad(objective), out_shardings=(None, param_shardings))
+      # Same batch sharding as train_loop: without it the host batch is replicated per device.
+      data_sharding = jax.sharding.NamedSharding(mesh, jax.sharding.PartitionSpec(*cfg.data_sharding))
+      fn = jax.jit(jax.value_and_grad(objective), in_shardings=(param_shardings, data_sharding),
+                   out_shardings=(None, param_shardings))
       loss, g = fn(params, data)
       jax.block_until_ready(g)
     return float(loss), g

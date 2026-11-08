@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Plot recorded raw gradient norms using the incremental TensorBoard health cache."""
+"""Plot recorded gradient norms using the incremental TensorBoard health cache."""
 import argparse
 from datetime import datetime, timezone
 import json
@@ -22,6 +22,8 @@ def main():
   parser.add_argument('--prefix', default='raw-grad-norm')
   parser.add_argument('--dpi', type=int, default=100)
   parser.add_argument('--title', default='Raw gradient norm')
+  parser.add_argument('--include-clipped', action='store_true',
+                      help='Also plot recorded learning/grad_norm after gradient clipping')
   args = parser.parse_args()
   if (Path(args.prefix).name != args.prefix or args.start_step < 0
       or args.through_step < args.start_step or args.dpi <= 0):
@@ -35,39 +37,44 @@ def main():
   directories, labels = dict(args.event_dir), dict(args.label)
   fig, axis = plt.subplots(figsize=(12.8, 4.8))
   series, warnings = [], []
-  tag = 'learning/raw_grad_norm'
+  tags = ['learning/raw_grad_norm']
+  if args.include_clipped:
+    tags.append('learning/grad_norm')
   for run in dict.fromkeys(args.runs):
     directory = directories.get(run, str(DEFAULT_LOCAL_TB_ROOT / run))
     scalars = Scalars(directory, [args.through_step])
-    points = [p for p in scalars.values(tag)
-              if args.start_step <= p.step <= args.through_step]
-    if not points:
-      parser.error(f'No {tag} samples in the selected interval for {run}')
-    invalid = [p.step for p in points if not math.isfinite(p.value) or p.value <= 0]
-    if invalid:
-      warnings.append(f'{run}: nonpositive/nonfinite samples cannot appear on a log axis: {invalid}')
-    xs, ys = break_missing_windows(
-        [p.step for p in points],
-        [p.value if math.isfinite(p.value) and p.value > 0 else math.nan for p in points])
-    axis.plot(xs, ys, linewidth=1.1, label=labels.get(run, run))
     sources = []
     if not str(directory).startswith('gs://'):
       sources = [dict(path=str(p.resolve()), bytes=p.stat().st_size,
                       mtime_ns=p.stat().st_mtime_ns)
                  for p in sorted(Path(directory).glob('events.out.tfevents.*'))]
-    series.append(dict(run=run, event_dir=str(directory), sources=sources,
-                       through_step=points[-1].step,
-                       points=[dict(step=p.step, value=p.value if math.isfinite(p.value) else None)
-                               for p in points]))
+    for tag in tags:
+      points = [p for p in scalars.values(tag)
+                if args.start_step <= p.step <= args.through_step]
+      if not points:
+        parser.error(f'No {tag} samples in the selected interval for {run}')
+      invalid = [p.step for p in points if not math.isfinite(p.value) or p.value <= 0]
+      if invalid:
+        warnings.append(f'{run} {tag}: nonpositive/nonfinite samples cannot appear on a log axis: {invalid}')
+      xs, ys = break_missing_windows(
+          [p.step for p in points],
+          [p.value if math.isfinite(p.value) and p.value > 0 else math.nan for p in points])
+      metric = 'raw_grad_norm' if tag.endswith('/raw_grad_norm') else 'clipped_grad_norm'
+      axis.plot(xs, ys, linewidth=1.1, linestyle='-' if metric == 'raw_grad_norm' else '--',
+                label=f'{labels.get(run, run)}: {metric}')
+      series.append(dict(run=run, tag=tag, event_dir=str(directory), sources=sources,
+                         through_step=points[-1].step,
+                         points=[dict(step=p.step, value=p.value if math.isfinite(p.value) else None)
+                                 for p in points]))
 
   axis.set_yscale('log')
   axis.set_xlabel('Training step')
-  axis.set_ylabel('Raw gradient norm (log scale)')
+  axis.set_ylabel('Gradient norm (log scale)')
   axis.set_xlim(args.start_step, args.through_step)
   axis.grid(True, alpha=.22)
   axis.legend(fontsize=9)
   axis.set_title(args.title)
-  fig.text(.035, .015, 'Recorded TensorBoard samples; no averaging, smoothing or clipping.', fontsize=8)
+  fig.text(.035, .015, 'Recorded TensorBoard samples; no plotting-time averaging, smoothing or clipping.', fontsize=8)
   fig.tight_layout(rect=(0, .045, 1, 1))
   args.output_dir.mkdir(parents=True, exist_ok=True)
   stamp = datetime.now(timezone.utc).strftime('%Y%m%d-%H%M%S-%f')
@@ -81,12 +88,12 @@ def main():
   compact.save(path, optimize=True, compress_level=9)
   sidecar = path.with_suffix('.json')
   sidecar.write_text(json.dumps(dict(
-      figure=str(path), generated_utc=stamp, tag=tag, start_step=args.start_step,
+      figure=str(path), generated_utc=stamp, tags=tags, start_step=args.start_step,
       requested_through_step=args.through_step, log_y=True, series=series, warnings=warnings,
       image=dict(width=size[0], height=size[1], dpi=args.dpi, bytes=path.stat().st_size)),
       indent=2, allow_nan=False) + '\n')
   print(json.dumps(dict(figure=str(path), provenance=str(sidecar),
-                        shown=[dict(run=s['run'], through_step=s['through_step']) for s in series],
+                        shown=[dict(run=s['run'], tag=s['tag'], through_step=s['through_step']) for s in series],
                         warnings=warnings), indent=2))
 
 

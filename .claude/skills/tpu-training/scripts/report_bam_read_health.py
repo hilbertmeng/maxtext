@@ -29,7 +29,7 @@ from tensorboard.util import tensor_util
 
 DEFAULT_LOCAL_TB_ROOT = Path("/data0/xd/tensorboard_logs")
 CACHE_ROOT = DEFAULT_LOCAL_TB_ROOT / ".bam_health_cache"
-CACHE_SCHEMA = 2
+CACHE_SCHEMA = 3
 ROUTE_METRICS = (
     "mix_scale_over_init", "preclip_negative_fraction", "zero_fraction",
     "cross_mass_per_query", "cross_l2_rms_per_query")
@@ -57,7 +57,7 @@ def _scalar_value(value) -> float | None:
 
 def _retain_tag(tag: str) -> bool:
   return (
-      tag == "learning/raw_grad_norm"
+      tag in ("learning/raw_grad_norm", "learning/grad_norm")
       or tag.startswith("bam/")
       or (
           tag.startswith("raw_grads/decoder/layers_")
@@ -183,8 +183,8 @@ def _cached_local_points(event_dir: Path, target_steps: list[int]):
         )
       connection.commit()
 
-      clauses = ["step = 0", "(tag = ? AND step <= ?)"]
-      parameters: list[object] = ["learning/raw_grad_norm", cutoff]
+      clauses = ["step = 0", "(tag IN (?, ?) AND step <= ?)"]
+      parameters: list[object] = ["learning/raw_grad_norm", "learning/grad_norm", cutoff]
       for step in target_steps:
         clauses.append("step BETWEEN ? AND ?")
         parameters.extend((step - 25, step + 25))
@@ -235,7 +235,7 @@ class Scalars:
       raise FileNotFoundError(f"no TensorBoard event files under {event_dir}")
     target_steps = sorted(set(target_steps))
     max_target = max(target_steps, default=0)
-    raw_grad_tag = "learning/raw_grad_norm"
+    grad_tags = {"learning/raw_grad_norm", "learning/grad_norm"}
     points: dict[str, dict[int, float]] = {}
     self.tags: set[str] = set()
     for event_file in event_files:
@@ -248,7 +248,7 @@ class Scalars:
         for value in event.summary.value:
           tag = value.tag
           self.tags.add(tag)
-          if not near_target and not (tag == raw_grad_tag and step <= max_target):
+          if not near_target and not (tag in grad_tags and step <= max_target):
             continue
           scalar = _scalar_value(value)
           if scalar is not None:

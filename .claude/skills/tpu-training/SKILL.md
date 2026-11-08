@@ -362,7 +362,9 @@ and completion when needed rather than treating scheduled reviews as the only de
 Default delivery is a short interpretation plus **loss-gap and gain-multiplier plots together**.
 When the user requests regular gradient-health plots, also include recorded raw gradient norms
 at every report milestone using `scripts/plot_raw_grad_norm.py RUN --through-step PUBLISHED_STEP
---output-dir FIGURE_DIR`. Incrementally sync that RUN's TensorBoard first. The script reuses the
+--output-dir FIGURE_DIR`. Add `--include-clipped` to overlay the actual recorded
+`learning/grad_norm` as `clipped_grad_norm`; never infer it by capping the raw norm.
+Incrementally sync that RUN's TensorBoard first. The script reuses the
 health cache, plots from step600 on a log axis without smoothing/clipping, overlays requested
 RUNs, and preserves exact samples in a provenance sidecar. Keep its horizon aligned with the
 published loss report; report missing health coverage rather than inventing values.

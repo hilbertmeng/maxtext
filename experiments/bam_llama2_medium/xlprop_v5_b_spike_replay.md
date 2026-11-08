@@ -167,3 +167,66 @@ Results are in `gs://newproject-1-llm_base_models_us-central1/log/diagnostics/xl
   measurement, then deleted again.
 - Checkpoint 126000 rotated out during the run, so 123000 was used instead.
 - Every `xd-v6e-1-logits*` and `xd-v5p-32-gradcons*` TPU is released.
+
+## Why XL's L1 logits ran away: `full_save_splash` itself (counterfactual from 4750)
+
+### Locating the growth (formal TB)
+
+Of all Q/K parameters, only L1's standard (RoPE24) query projection `query/kernel` grows
+apart from the other layers. L1 key, the local read projections and `common_qk_read_scale`
+stay normal. The table gives L1 norm / median of the other layers:
+
+| Step | 3500-5050 | 5300 | 5500 | 6000 | 6500 | 8000 | 9000 |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| Formal ratio | 0.973-0.982 | 0.995 | 1.037 | 1.145 | 1.229 | 1.264 | 1.356 |
+
+The ratio is flat across the 4750 hot switch and starts rising at about 5100, roughly 350
+steps after it.
+
+### Counterfactual
+
+- Run `XLV5CF4750Full`, `BamXLPropV5FastKernelFullRemat` (`d54c4c5` AOT), v5p-32 UC1a.
+- Restored from formal checkpoint 4750 with its own data cursor, so the batches match the
+  formal run. Loss agreement: 4760 2.379655 vs formal 2.379649; 4800 equal.
+- Only remat differs from the formal fss trajectory (packed keys in both).
+
+L1 query / median other layers:
+
+| Step | Formal (fss) | Counterfactual (full) |
+|---|---:|---:|
+| 5000 | 11.862 / 0.982 | 11.858 / 0.982 |
+| 5250 | 12.144 / 0.991 | 12.058 / 0.984 |
+| 5500 | 12.878 / 1.037 | 12.271 / 0.988 |
+| 5750 | 13.852 / 1.101 | 12.507 / 0.994 |
+| 6000 | 14.609 / 1.145 | 12.713 / 0.996 |
+
+Under full remat, L1 query grows at the same pace as the other layers. So the L1 runaway,
+and the B spikes that follow it, are driven by `full_save_splash`. A plausible loop: the
+saved-lse/recomputed-Q/K mismatch biases L1's dQ, which raises |q|, which raises the logits
+and therefore the mismatch.
+
+Mean loss over 250-step windows (paired batches), full minus fss:
+
+| Window | Difference |
+|---|---:|
+| 4750-5000 | +0.002 |
+| 5000-5250 | +0.033 (includes an A-type spike in the full arm at 5040-5050: raw 29/57, L1 ratio 0.3) |
+| 5250-5500 | +0.006 |
+| 5500-5750 | +0.004 |
+| 5750-6000 | +0.003 |
+
+With only 1250 steps, these numbers do not show whether the early L1 growth helps or hurts
+loss. A-type spikes occur under full remat as well and are outside this scope.
+
+### Implication for recovery
+
+Resuming the formal RUN from 8750 with FullRemat stops the driver but inherits L1 query at
+1.33× the other layers (logits about 800). The counterfactual checkpoints
+`gs://newproject-1-llm_base_models_us-central1/log/diagnostics/xlprop-v5-cf4750-20261109/XLV5CF4750Full/checkpoints/{5500,6000}`
+(commit markers and cursors, same formal data stream) carry a clean L1 and are a resume
+option.
+
+Bookkeeping:
+
+- The formal 4750 was restored only to copy it; it is soft-deleted again.
+- `xd-v5p-32-cffull-uc1a` is released.

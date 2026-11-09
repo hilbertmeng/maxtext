@@ -20450,7 +20450,8 @@ class BamXLPropV5(BamMediumPropV5):
     # UE5a -> UC1a, P2; switched at4750 to FastKernel7c90924 (~.540step/s, paired+6.58%).
     # vs old XL single.5: gain~1.13 before spikes, recovered to1.0507@12.5k (gap-.00742);
     # vs Mudd: gain~1.88 before spikes, recovered to1.7715@12.5k (gap-.06694), MHA-referenced.
-    # Root cause unresolved; see experiments/bam_llama2_medium/xlprop_v5_gradient_spikes_handoff.md.
+    # A-type recurrent spikes: ordinary SwiGLU amplifies residual cotangents; localV/W_O updates help trigger them.
+    # Exact replay/local FP32 evidence and bounded-activation proposals: experiments/bam_llama2_medium/xlprop_v5_a_spike.md.
     # B-type (L1 Q/K/V-only) spikes confirmed by exact v5p-32 replay from 9250: full_save_splash backward error
     # (9251 raw 1.09e4 vs full remat 19.1, same params/batch); fix FastKernelFullRemat. xlprop_v5_b_spike_replay.md.
     model_name = 'BamXLPropV5'
@@ -20520,11 +20521,12 @@ class BamXLPropV5FastKernelFullRemat(BamXLPropV5FastKernel):
     Full remat recomputes the Splash forward from the same Q/K, so its lse is self-consistent.
     Same math, parameter and optimizer trees and schedule; v5p-32 speed packed-only .5280 (+1.7%).
     """
-    # code_commit:d54c4c5; AOT_READY v5p-32/s50000:
-    # RUN BamXLPropV5FastKernelFullRemat resumes8750 on UC1a v5p-32 (~.523step/s); original FSS RUN stopped13007.
-    # All4 worker hashes/AOT/restore verified; same-batch8751--8770 loss meanabs2.92e-5/max7.4e-5.
-    # gs://newproject-1-llm_base_models_us-central1/log/compiled_trainsteps/d54c4c5/jax081-i0ae3f58-c17f538a/v5p-32/s50000/BamXLPropV5FastKernelFullRemat.pickle
-    # Replay 9251-9325 from 9250: no B-type step; loss 10.65 -> 2.19 (fss arm: 56/100 steps raw>1e3).
+    # code_commit:d54c4c5; completed50000 from8750; UC1a v5p-32 ~.518step/s (startup.523), P1.
+    # No B-type failure after full-remat fix; A-type SwiGLU spikes remain, notably35.65--36.95k.
+    # vs Mudd: MHA-referenced gain~1.83 before that wave ->~1.78 afterward ->1.79035 final5 windows;
+    # final same-step47.5--49.5k mean gap-.0542076. vs old XL single.5 at its32.5k endpoint: gap-.0112926/gain1.09287.
+    # Final45--50k raw max.253836; CP50000+cursor committed, TB synced, TPU/queues released.
+    # Full trajectory/leases: experiments/xlprop_v5.md; mechanism/SiTU probes: bam_llama2_medium/xlprop_v5_a_spike.md.
     model_name = 'BamXLPropV5FastKernelFullRemat'
     bam_splash_residual_name = ''
     remat_policy = 'full'

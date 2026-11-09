@@ -48,6 +48,9 @@ active leases are censored, and manual migration releases are not preemptions.
 | `BamPythia2p8BHUnit300BFastKernelMPreNormQKScale` | v5p-128 (`xd-v5p-128-h1104b-ue5a`) | `us-east5-a` | 2026-11-08 20:51:12 | 2026-11-08 20:59:58 | resource_switch; runtime 5a48faa (256) / b3db6cc (128) | owned losers released; user FLEX retained |
 | `BamPythia2p8BHUnit300BFastKernelMPreNormQKScale` | v5p-256 (`xd-v5p-256-311103-maxtext`) | `us-east5-a` | 2026-11-08 20:59:58 | 2026-11-08 21:41:09 | resource_switch; runtime 5a48faa (256) / b3db6cc (128) | owned losers released; user FLEX retained |
 | `BamPythia2p8BHUnit300BFastKernelMPreNormQKScale` | v5p-256 (`xd-v5p-256-311103-maxtext`) | `us-central1-a` | 2026-11-08 21:41:09 | 2026-11-08 23:01:00 | complete 143000; CP/cursor/TB and task resource release verified; runtime 5a48faa (256) / b3db6cc (128) | owned losers released; user FLEX retained |
+| `BamXLPropV5FastKernelFullRemat` | v5p-32 (`xd-v5p-32-311002-maxtext`) | `us-central1-a` | 2026-11-08 14:06:26 | 2026-11-08 20:44:32 | preemption P1 at20:30:05; UC1a lease ends20:30:05; runtime d54c4c5 | UC1a primary; UE5a/EW4b backups300s |
+| `BamXLPropV5FastKernelFullRemat` | v5p-32 (`xd-v5p-32-311002-maxtext`) | `us-east5-a` | 2026-11-08 20:44:32 | 2026-11-08 20:53:22 | recovery assignment only; no READY lease/FIRST_STEP, no training progress | retained in assignment journal; not an active training-zone switch |
+| `BamXLPropV5FastKernelFullRemat` | v5p-32 (`xd-v5p-32-311002-maxtext`) | `us-central1-a` | 2026-11-08 20:53:22 | 2026-11-09 13:06:16 | complete50000; CP/cursor committed, TB synced, node+queue independently absent; runtime d54c4c5 | resumed20224 -> FIRST_STEP20238; all recovery candidates released |
 | `BamXLPropV5` | v5p-32 (`xd-v5p-32-311001-maxtext`) | `us-east5-a` | 2026-11-08 06:18:37 | 2026-11-08 07:11:57 | preempted; recovered in UC1a | none recorded |
 | `BamXLPropV5` | v5p-32 (`xd-v5p-32-311001-maxtext`) | `us-central1-a` | 2026-11-08 07:24:52 | 2026-11-08 13:54:09 | P2 overall; second lease interrupted07:39:06, resumed07:49:33; user stop13007; CP/TB secured, node+QR absent; runtime7c90924 | recovery candidates released |
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneRawWritesEmbeddingFixedTruePile` | v5p-16 (`xd-v5p-16-310541-maxtext`) | `us-east5-a` | 2026-11-03 05:23:34 | 2026-11-03 08:38:53 | user stop7813/P0; CP/TB SYNC_OK, node+QR independently absent; runtime94c0fa1; no zone switch; raw-write amplitude study | none |
@@ -2566,10 +2569,12 @@ active leases are censored, and manual migration releases are not preemptions.
 
 | `BamPythia2p8BHUnit300BFastKernelMPreNormQKScale` | 19 | `us-central1-a` | 2026-11-08 07:23:55 | 2026-11-08 18:25:05 | 11h 01m 10s | preempted |
 | `BamPythia2p8BHUnit300BFastKernelMPreNormQKScale` | 20 | `us-central1-a` | 2026-11-08 18:35:50 | 2026-11-08 18:43:00 | 0h 07m 10s | service_preemption_CP135074; supplemented from handoff/event evidence |
+| `BamXLPropV5FastKernelFullRemat` | 1 | `us-central1-a` | 2026-11-08 14:12:51 | 2026-11-08 20:30:05 | 6h17m14s | preempted |
 | `BamPythia2p8BHUnit300BFastKernelMPreNormQKScale` | 21 | `us-east5-a` | 2026-11-08 18:45:18 | 2026-11-08 20:42:01 | 1h 56m 43s | preempted |
 | `BamPythia2p8BHUnit300BFastKernelMPreNormQKScale` | 22 | `us-east5-a` | 2026-11-08 20:51:14 | 2026-11-08 20:59:58 | 0h 08m 44s | manual_handoff_CP139300; supplemented from handoff/event evidence |
 | `BamPythia2p8BHUnit300BFastKernelMPreNormQKScale` | 23 | `us-east5-a` | 2026-11-08 21:00:02 | 2026-11-08 21:33:00 | 0h 32m 58s | preempted |
 | `BamPythia2p8BHUnit300BFastKernelMPreNormQKScale` | 24 | `us-central1-a` | 2026-11-08 21:41:11 | 2026-11-08 23:01:00 | 1h 19m 49s | run_stop |
+| `BamXLPropV5FastKernelFullRemat` | 2 | `us-central1-a` | 2026-11-08 20:53:24 | 2026-11-09 13:06:16 | 16h12m52s | scheduled completion50000; CP/cursor/TB secured; node+queue absent |
 ### 2026-10-14 user pause: resumed mixed R256/R384
 
 RUN `BamMediumPropMShiftReadG050SharedR256R384ByWriteTruePile`, v5p-16,

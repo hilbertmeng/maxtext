@@ -4,7 +4,7 @@ Scope: isolate the diffuse amplification that remains after the FSS reverse
 numerical failure was removed. Validated frozen points at10100 and at the onset,
 peak and tail of the36k wave identify genuine ordinary-SwiGLU amplification;
 layer and subpath vary with the operating point. The corrected formal RUN
-continues; this diagnosis uses independent checkpoint copies/resources.
+completed50000; this diagnosis uses independent checkpoint copies/resources.
 
 ## Current conclusion: the35.6--36.9k wave
 
@@ -669,14 +669,13 @@ Thus the same ordinary-MLP amplification pattern occurs in onset, peak and
 tail, but its strongest layer changes. These sampled local checks do not
 claim an exhaustive individual attribution for all671 clipped updates.
 
-If extending the research, prioritize an **equal-parameter change of only the
-ordinary MLP from SwiGLU to plain GELU**, preserving BAM/small-MLP paths and
-treating QKNorm as a separate factor. This tests a relevant difference of the
-target2.8B recipe without prematurely dismantling M writes/localO or assuming
-a precision change can remove a genuine FP32 local derivative. Coherent
-weight directions could still form in GELU, so disappearance of spikes is a
-testable prediction, not established by this diagnosis. No new formal training
-experiment has been launched.
+The next intervention should preserve the ordinary MLP's gated structure and
+smoothly bound both factors (SiTU-GLU), rather than first replacing the entire
+activation with GELU. The earlier GELU-first recommendation was premature:
+bounded SwiGLU is a smaller change that directly addresses both identified
+derivative multipliers. QKNorm remains a separate factor. No new formal
+training experiment has been launched; the following local checks inform its
+design, not its eventual training result.
 
 Tail artifacts: `tail-isolation/`, `tensor-tail/`, `mlp-detail-tail/`.
 Plot runner:[plot_xlprop_spike_replay.py](plot_xlprop_spike_replay.py).
@@ -686,3 +685,91 @@ Before releasing the primary node, all44 tail tensor/metadata objects
 (1793733409 bytes) and all11 primary-node jobs' four-worker exit codes were
 verified locally. Reserved FLEX is retained; its diagnostic jobs have finished
 and the borrowed lock is returned. Source checkpoints and evidence remain in GCS.
+
+## Bounded activation research and fixed-boundary comparison
+
+Priority is **SiTU-GLU**. Hard clipping is a published magnitude/reference
+comparison, not a change of the research objective. With gate preactivation
+`u=W_g x` and up preactivation `v=W_u x`, use
+
+```
+h = [beta_g * tanh(u / beta_g) * sigmoid(u)]
+    * [beta_u * tanh(v / beta_u)]
+```
+
+[Kimi K3, Appendix B](https://arxiv.org/html/2607.24653v1) uses
+`beta_g=4, beta_u=25`; both factors are smoothly bounded, with the original
+sigmoid and first-order behavior near zero retained. Its claim of better
+training behavior than hard clamping is qualitative, not an isolated
+quantitative ablation of our architecture. Candidate `2/2` is a stronger
+diagnostic contrast selected for the measured operating amplitudes, not a
+known optimal training setting.
+
+Published hard bounds differ in location and coverage:
+
+| Released model | Gate factor | Up factor | Coverage/detail |
+|---|---|---|---|
+| [GPT-OSS](https://github.com/openai/gpt-oss/blob/main/gpt_oss/torch/model.py) | pre-SiLU upper7 | pre-product +/-7 | sigmoid slope1.702 and up+1 are additional differences; do not silently import these into vanilla SwiGLU |
+| [Step-3.5-Flash code](https://huggingface.co/stepfun-ai/Step-3.5-Flash/blob/main/modeling_step3p5.py) / [config](https://huggingface.co/stepfun-ai/Step-3.5-Flash/blob/main/config.json) | post-SiLU upper7 | +/-7 | routed experts L43/L44 only; L44 shared expert uses16; other published layers disable clipping |
+| [DeepSeek V4 code](https://huggingface.co/deepseek-ai/DeepSeek-V4-Flash/blob/main/inference/model.py) / [paper4.2.3](https://arxiv.org/html/2606.19348v1#S4.SS2.SSS3) | pre-SiLU upper10 | +/-10 | Flash/Pro published configs use10; paper reports improved training stability without performance degradation |
+
+On user-authorized reserved FLEX `llm-jax-v6e-1-0`, worker0, under its shared
+worker lock, the unchanged d54c4c5 model restores and boundary fidelity gates
+were reused for onset L6 and peak L13/L14. Diagnostic helper commit
+`ccf3f013`, source SHA256
+`1c6a41b8120c4d5f5bbf67c03d38da175fdf21bd57294ff87bc1a8b7b350b941`.
+Only the activation's local FP32 formula is replaced, with **captured inputs
+and upstream cotangents fixed**. Effective BF16-rounded weights and original
+FP32 weights agree closely; original local VJP errors against captured BF16
+are .2622%/.2152%/.1721%. This is not a modified full forward or a loss replay.
+
+Directional input-VJP gain at the selected token:
+
+| Activation | onset35636 L6 | peak35676 L13 | peak35676 L14 |
+|---|---:|---:|---:|
+| original SwiGLU |7.48515|27.51450|11.84788|
+| Step-style post-SiLU/up hard7 |6.76528|27.51450|11.84788|
+| DeepSeek-style pre-SiLU/up hard10 |7.48515|27.51450|11.84788|
+| vanilla SwiGLU, both preactivation factors hard2 |1.68710|18.35451|11.82301|
+| **SiTU4/25** |**3.64992**|**24.27499**|**11.69174**|
+| **SiTU2/2** |**1.87312**|**15.49364**|**9.78018**|
+| post-product hard2 |7.48515|23.25406|11.89708|
+
+Captured full-sequence layer-output relative changes (L2 delta / original L2)
+for SiTU4/25 are2.76%/23.85%/10.87%; SiTU2/2 gives13.53%/48.50%/33.72%.
+These sequences come from the spike operating points, **not a healthy
+holdout calibration dataset**. Larger changes cannot be interpreted directly
+as a training-loss penalty. GPT-OSS's exact activation changes these outputs
+by166%/92%/106%, largely a different-function comparison due to its up+1 and
+sigmoid slope; its result should not select our threshold.
+
+The smooth cap suppresses all three selected gains; hard7/10 does not affect
+the peak's selected points, and hard2 scarcely affects L14. This supports
+SiTU as the next minimal architecture trial. Neither tested SiTU setting
+removes every local expansive direction. The reasonable initial training
+comparison is original SwiGLU versus SiTU4/25 and a stronger SiTU2/2, changing
+**only the ordinary MLP**, with unchanged parameters/widths/BAM kernels. A
+checkpoint replacement can test immediate suppression; from-scratch or
+pre-trigger continuation tests prevention, which a failed immediate hard10
+replacement cannot disprove. Do not multiply these isolated layer-gain
+ratios to predict a new whole-network raw norm.
+
+For standard SwiGLU, `dh/du=SiLU'(u)*v`, `dh/dv=SiLU(u)`. Bounding both
+factors directly controls both multipliers. Bounding only the product does
+not: at `u=0, v->infinity`, the product remains0 while `dh/du=v/2` diverges.
+Output caps alone therefore do not address the identified mechanism.
+
+[Smooth-SwiGLU](https://arxiv.org/html/2409.12517v1) is related outlier work,
+but its function-preserving rescaling targets FP8 quantization and does not
+change the exact FP32 Jacobian. Its same-neuron gate/up alignment also must
+not be confused with our earlier **across-neuron** column alignment:
+top4 same-unit gate/up cosines at onset are .5898--.6191; peak L14 are
+-.5078-- -.4289. It is not a matching explanation for every observed point.
+
+All9 activation references and both partial derivatives were checked against
+independent CPU JAX autodiff, including hard-clip boundary ties. Each of the
+three FLEX jobs exited0. Artifacts (5 files per case) and metadata are under
+`bounded-activation-probes/{onset-06,peak-13,peak-14}/`; reproducible worker
+protocol is `protocols/flex-bounded-worker.sh`. Source remains
+[swiglu_local_jacobian.py](swiglu_local_jacobian.py). FLEX is retained and its
+borrowed worker lock returned; no new formal RUN or diagnostic TPU was created.

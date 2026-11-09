@@ -221,13 +221,48 @@ verified. FIRST_STEP8754, .523step/s; at8782 .521. Same-batch8751--8770 loss
 meanabs2.92e-5/max7.4e-5, first8751 exactly2.343012 in both console histories.
 Expected stable.52step/s (~-3.7% vs prior.54) is supported by startup.
 
-Scoped monitor group`xlprop-v5-full-remat`: user-updated5000-step public cadence
-phased at10000;10000 delivered, next15000, then20000. WatcherPID137311; mechanical
-health polling unchanged. Comparison anchors stay old XL single.5 and Mudd,
-MHA remains gain reference only. Include raw/clipped gradient plot. Check the
-formerly unstable8890--9340 region before treating the corrected trajectory as
-stable. Do not use the FSS-damaged tail to infer V5's attainable loss.
+Completed50000 on2026-11-09 (runtime remains d54c4c5). Exit0, checkpoint50000
+and data cursor committed (`global_batch_size=128`,4 infeed hosts); local TB
+sync completed through49990, cloud completion marker published. TPU and queued
+resource `xd-v5p-32-311002-maxtext` independently verified absent. No active
+recovery candidate remains; monitor group archived after delivering scheduled50k
+with actual complete native window49500. Full-remat speed~.518step/s, about+1%
+versus the original V5 startup. It removes the B-type numerical failure but
+**does not remove A-type ordinary-SwiGLU amplification**.
 
-The redundant diagnostic queue`xd-v5p-32-xlprop-spike-replay-1108` was cancelled;
-node and queue verified absent. Claude owns and has released the actual replay
-TPUs. Borrowed FLEX compiler is preserved.
+Against `MuddLlama2XLProp`, MHA-referenced gain was~1.83 before35.65k, fell
+to~1.78 after the long spike wave and finished at1.790352 (last5 windows47.5--49.5k),
+with mean same-step gap-.05420756. The approximate1.8 final-gain prediction
+is close (within.6%), but the instability cost remains relevant. Against
+`BamXLPropSharedR400GeneralReadMShiftReadG050TruePile`, comparison ends at its
+32.5k endpoint: last5 mean gap-.0112926/gain1.0928686. Never extend that curve
+through50k. Final45--49.99k raw-gradient max.253836 at47720, no clipped sample.
+Full history includes the original RUN only through8750, excluding its later
+FSS-corrupted tail. See [A-spike diagnosis](bam_llama2_medium/xlprop_v5_a_spike.md)
+for exact replay, parameter transplants and SiTU-GLU solution probes.
+
+One preemption. Every READY lease (UTC):
+
+| Zone | Start | End | Duration | End reason |
+|---|---|---|---|---|
+| us-central1-a |2026-11-08 14:12:51|2026-11-08 20:30:05|6h17m14s|preempted|
+| us-central1-a |2026-11-08 20:53:24|2026-11-09 13:06:16|16h12m52s|scheduled completion|
+
+The recovery registry temporarily assigned UE5a20:44:32--20:53:22, but no
+UE5a READY lease or FIRST_STEP occurred; actual resumed training used UC1a,
+checkpoint20224 -> FIRST_STEP20238. This assignment is not evidence of
+training progress in UE5a. Primary UC1a, backups UE5a/EW4b after300s.
+
+Final native report, incremental TB logs and lease/closeout evidence:
+`/data0/xd/bam_diagnostics/xlprop-v5-config-20261108/`, files
+`report-full-remat-50000.json`, `sync-full-remat-final.log`,
+`closeout-full-remat-final.txt`. Cumulative figures and provenance:
+`xlprop-v5-full-remat-50000-20261109-130131-513286.{png,json}` and
+`xlprop-v5-full-remat-50000-grad-norms-final-20261109-130709-234943.{png,json}`
+in the task visualization directory. Loss/gain:600--49500; raw/clipped:600--49990.
+The last50000 comparison window cannot mature because the train loop ends49999;
+no extrapolated final sample is reported.
+
+The redundant diagnostic queue`xd-v5p-32-xlprop-spike-replay-1108` and both
+owned A-spike replay TPU nodes/queues were released after artifact checks.
+Borrowed reserved FLEX is preserved and the worker lock returned.

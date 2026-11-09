@@ -12,6 +12,25 @@ def ordinary_mlp(path):
   return 'mlp' in names and any(name in names for name in ('wi_0', 'wi_1', 'wo'))
 
 
+def parameter_family(path):
+  names = tuple(getattr(key, 'key', None) for key in path)
+  if ordinary_mlp(path):
+    return 'ordinary_mlp'
+  if 'self_attention' in names:
+    return 'read_scales' if any(n in names for n in ('common_qk_read_scale', 'common_vo_read_scale')) else 'attention'
+  if 'embedding_bam_write' in names:
+    return 'embedding_write'
+  if 'token_embedder' in names:
+    return 'embedding'
+  if 'memory_mlp' in names or any(isinstance(n, str) and n.startswith(('mlp_address_', 'mlp_write_gate')) for n in names):
+    return 'memory_writer'
+  if any(isinstance(n, str) and ('layer_norm' in n or n == 'decoder_norm') for n in names):
+    return 'layer_norms'
+  if 'lm_head' in names and 'logits_dense' in names:
+    return 'unembedding'
+  return 'other'
+
+
 def run_probe(train, captured, reference, output, sequence, target_layer):
   import json
   import os
@@ -35,6 +54,8 @@ def run_probe(train, captured, reference, output, sequence, target_layer):
   assert jax.tree.structure(old) == jax.tree.structure(state.params)
   copy = lambda tree: jax.tree.map(lambda x: x.copy(), tree)
   flags = jax.tree.map_with_path(lambda path, _: ordinary_mlp(path), state.params)
+  families = jax.tree.map_with_path(lambda path, _: parameter_family(path), state.params)
+  family_names = sorted(set(jax.tree.leaves(families)))
   leaves = jax.tree.leaves(flags)
   assert any(leaves) and not all(leaves)
 
@@ -61,10 +82,22 @@ def run_probe(train, captured, reference, output, sequence, target_layer):
   results = dict(reference_checkpoint=checkpoint, model_runtime='d54c4c5f1339b01e406932ec28be0e398722b918',
       scope='Original AOT; replace parameter families only, preserve peak optimizer/RNG/data; discard updates',
       parameter_distances=dict(ordinary_mlp=parameter_distances[0], rest=parameter_distances[1]), cases=[])
+  results['parameter_families'] = {name: sum(x.size for x, f in zip(jax.tree.leaves(state.params),
+      jax.tree.leaves(families)) if f == name) for name in family_names}
   new = state.params
+  plans = []
   for mlp_new, rest_new in ((True, True), (False, False), (True, False), (False, True)):
-    params = jax.tree.map(lambda a, b, flag: (b if (mlp_new if flag else rest_new) else a).copy(), old, new, flags)
-    case = dict(ordinary_mlp_from_peak=mlp_new, rest_from_peak=rest_new)
+    plans.append((dict(ordinary_mlp_from_peak=mlp_new, rest_from_peak=rest_new),
+                  lambda f, m=mlp_new, r=rest_new: m if f == 'ordinary_mlp' else r))
+  if os.environ.get('BAM_DIAG_EXPAND_PARAMETER_FAMILIES') == '1':
+    for family in family_names:
+      if family == 'ordinary_mlp':
+        continue
+      for only in (True, False):
+        plans.append((dict(family=family, intervention='only_family_from_peak' if only else 'revert_family_to_old'),
+                      lambda f, name=family, only=only: (f == name) if only else (f != name)))
+  for case, choose_new in plans:
+    params = jax.tree.map(lambda a, b, family: (b if choose_new(family) else a).copy(), old, new, families)
     for label, batch in (('full_batch', original_batch), ('isolated_target', selected_batch)):
       updated, metrics = captured['compiled'](copy(state).replace(params=copy(params)),
                                                batch, captured['rng'])
@@ -73,11 +106,12 @@ def run_probe(train, captured, reference, output, sequence, target_layer):
       values = {key: float(np.asarray(value)) for key, value in jax.device_get(selected).items()}
       del updated
       case[label] = values
-      if mlp_new and rest_new:
+      if case.get('ordinary_mlp_from_peak') is True and case.get('rest_from_peak') is True:
         expected = captured['observed'] if label == 'full_batch' else reference
         for key in ('learning/loss', 'learning/raw_grad_norm'):
           assert abs(values[key] - expected[key]) <= 1e-5 * max(1., abs(expected[key])), (label, key, values[key], expected[key])
     results['cases'].append(case)
     if jax.process_index() == 0:
       (output / 'parameter-family-comparison.json').write_text(json.dumps(results, indent=2) + '\n')
-      print('PARAMETER_FAMILY_CHECK', mlp_new, rest_new, case['full_batch']['learning/raw_grad_norm'], flush=True)
+      print('PARAMETER_FAMILY_CHECK', {k: v for k, v in case.items() if k not in ('full_batch', 'isolated_target')},
+            case['full_batch']['learning/raw_grad_norm'], flush=True)

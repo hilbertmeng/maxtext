@@ -1,9 +1,51 @@
 # XLProp V5 A-type gradient amplification
 
-Scope: isolate the diffuse amplification that remains after the FSS
-reverse numerical failure was removed; a genuine large Jacobian and another
-numerical reverse error remain competing explanations. The corrected formal RUN continues;
-this diagnosis uses independent copies/resources.
+Scope: isolate the diffuse amplification that remains after the FSS reverse
+numerical failure was removed. Validated frozen points at10100 and at the onset,
+peak and tail of the36k wave identify genuine ordinary-SwiGLU amplification;
+layer and subpath vary with the operating point. The corrected formal RUN
+continues; this diagnosis uses independent checkpoint copies/resources.
+
+## Current conclusion: the35.6--36.9k wave
+
+**The main reverse amplifier is the ordinary SwiGLU MLP's aligned, input-dependent
+high-gain directions. Parameter updates, especially on the value/readout side,
+move subsequent inputs into these directions. This is not the earlier FSS
+saved-residual failure, and no single bad update or localO-only cause explains it.**
+
+- Original-AOT replay35636--36950 covers1315 updates: all1315 console losses
+  match within six-decimal rounding (maximum4.9913e-7), and all132 common TB raw
+  norms match exactly. Within the replay,671 updates have raw>1; last36946.
+  Per-update peak809414.5625 at35676 exceeds the10-step sampled345624.90625.
+- With pre35636 parameters frozen, all11 selected future batches have raw
+  .1969--.2160, including the809k peak batch. Repeated events are parameter-state
+  conditioning, not unavoidable bad future batches. M is rebuilt each forward;
+  cross-update persistence is carried by parameter/optimizer trajectories.
+- At onset, peak and tail, original-mesh loss/gradient controls pass, frozen
+  native/Pallas layers agree, and explicit FP32 SwiGLU chain rules reproduce the
+  local derivatives. Small memory-MLP gains remain about.29--.43 at tested points.
+- One-update rejection is not a cure. Discarding35636 reduces the next84-step
+  maximum to200.93 but leaves30 clipped updates; discarding healthy35635 removes
+  the35636 spike yet still yields2635.81 and32 clipped updates. Original has74
+  clipped updates and maximum809414.56 over the same35637--35720 interval.
+- On the frozen peak batch, replacing just localV with its40-update-newer values
+  on the otherwise old model raises raw.215→22.10; localO alone gives.436.
+  W_O alone gives18.65. Q/K, shared read down, M-shift and attention-write updates
+  alone stay below1. These are local parameter-transplant effects, not evidence
+  that freezing a family improves a full training run.
+
+Selected local evidence (ordinary MLP / post-attention norm / memory MLP VJP gains):
+
+| Frozen event |Validated layers and directional gains|
+|---|---|
+|35636 onset|L5:4.077/1.269/.304; L6:7.463/1.001/.292; L7:2.330/.786/.382|
+|35676 peak|L10:17.746/.566/.368; L13:27.503/.362/.426; L14:11.840/.323/.327|
+|36920 tail|L8:7.894/1.011/.361; L10:2.705/.803/.392; L11:9.905/.755/.382|
+
+New-case artifacts:
+`gs://newproject-1-llm_base_models_us-central1/log/diagnostics/xlprop-v5-a35650-20261109/`;
+local `/data0/xd/bam_diagnostics/xlprop-v5-config-20261108/a35650-replay/`.
+The exact controls, interventions and reproducible runners are detailed below.
 
 ## Observed event
 
@@ -345,10 +387,9 @@ New artifacts (separate from the10100 investigation):
 - Source control points: `official35500-35700.json`.
 - Orchestration/ownership: tpu-ag `logs/xlprop-v5-a35650-1109/`.
 
-Current next tests are formal-mesh tensor localization with fidelity gating,
-then frozen local VJP comparisons and a long original-AOT replay with future
-batches evaluated at pre-onset parameters. No layer/branch attribution is yet
-established for this recurrence. The10100 L15 result remains specific to10100.
+The subsequent sections report completed formal-mesh tensor localization,
+local VJP/FP32 checks and future-batch controls. The10100 L15 attribution remains
+specific to10100; the new points have independent controls and layer selections.
 
 
 ###35636: validated local source and FP32 chain rule
@@ -358,7 +399,8 @@ original-AOT value) and parameter-gradient norm1045872.375 versus1035932.625
 (error.9595%). The saved residual cotangent grows from L27 RMS.00011632 to
 L0 RMS23.849, about205022-fold. Strong boundary gains are in L5--7, unlike
 the10100 L15 example. At the selected token, M input RMS at L5/L6/L7 is
-1.263/1.327/1.460, not an epsilon-scale normalization singularity.
+1.263/1.327/1.460. These saved layer-entry values are not epsilon-scale;
+they alone do not measure the later shifted-M/address normalization denominators.
 
 Fixed-boundary local checks on reserved FLEX, diagnostic runnersd5a2ef7a /
 b58244aa (model stilld54c4c5):
@@ -418,7 +460,7 @@ Formal-mesh peak tensors pass the original controls: selected CE4.354121208
 from L27.0000789071 to L0 5194782.5, about6.5834e10-fold. Largest boundary gains
 include L10 residual11.02, L13 residual9.09 and L14 M9.19; L6 is also retained
 for comparison. The saved peak point is therefore not assumed to share the
-onset's exact layer attribution. Local checks are in progress.
+onset's exact layer attribution. The completed local checks are below.
 
 Artifacts: `peak-isolation/t1v-n-664a732b-w-0/`,
 `tensor-peak/t1v-n-664a732b-w-0/` and subsequent `mlp-detail-peak/` under the
@@ -479,3 +521,168 @@ Additional artifacts: `mlp-detail-onset-geometry/layer-06/`, `mlp-detail-peak/`
 and`splash-peak/`. The peak diagnostic TPU/node and queue have now both been
 verified absent; its44 tensor/metadata objects (1793722630 bytes) were verified
 locally first. Reserved FLEX was borrowed through its lock and retained.
+
+
+## Recurrence controls and the causal limits of a single trigger
+
+Original-AOT long replay35636--36950 has1315 loss matches against registry
+console data (absolute error<=4.9913e-7, six-decimal console rounding) and132
+exact raw-norm matches against formal TensorBoard. It reproduces the full
+wave, including671 raw>1 updates and a final within-replay threshold crossing
+at36946. The maximum remains809414.5625 at35676. The initial135 updates
+35501--35635 are uniformly quiet: their maximum raw is.238209.
+
+Future-batch test: save each actual future TrainState/batch/RNG during the
+unchanged replay, then rerun it with **only parameters** replaced by the frozen
+pre35636 values. Future optimizer state/counters/data/RNG remain unchanged;
+returned updates are discarded. Actual-state repeat controls match first.
+
+| Step |Actual raw|Frozen-pre35636 raw|
+|---|---:|---:|
+|35650|18.8538|.21234|
+|35676|809414.5625|.21527|
+|35680|345624.9063|.21407|
+|35750|1533.8752|.20212|
+|35800|716.4374|.20232|
+|35900|24.9549|.20431|
+|36000|15.1950|.21602|
+|36200|.61917|.19693|
+|36580|8.25201|.21298|
+|36920|4.36222|.21143|
+|36930|1.11555|.20649|
+
+Two bounded diagnostic branches replay the exact35599 checkpoint/data/AOT:
+discard one step's parameter and floating optimizer-moment updates, while
+preserving the original advanced Adam/schedule integer counters and state.step.
+Counter preservation is tested with actual Optax Adam/schedule states. These
+are independent diagnostic copies, not changes to the formal RUN. Prefix loss
+and raw norms match exactly through the intervened update (37/36 points).
+
+| Branch |Raw at35636|Max raw35637--35720|Clipped updates in those84 steps|Mean loss in those84 steps|
+|---|---:|---:|---:|---:|
+|Original|2.19787|809414.5625|74|2.473013|
+|Discard35636|2.19787 (computed before rejection)|200.9313|30|1.987817|
+|Discard healthy35635|.21080|2635.8091|32|1.992270|
+
+Discarding the first clipped update greatly mitigates this realization but
+does not prevent recurrence. A one-step healthy perturbation removes the first
+spike yet permits later large spikes. Thus the first selected token/update is
+not a unique necessary cause; the trained function is already sensitive to
+parameter perturbations and contains latent high-gain directions. Short branch
+loss improvements do not establish a final-training-loss benefit.
+
+Artifacts: `long-replay/`, `discard-35636/`, `discard-35635/` and the local
+`long-replay-summary.json` / `paired-discard-summary.json`. Diagnostic helper
+a0f5237c implements the explicit counter-preserving intervention.
+
+## Parameter families: amplifier location versus trajectory driver
+
+Runner[xlprop_parameter_family_probe.py](xlprop_parameter_family_probe.py),
+commits6af6f32a /7f6dc79e /ba811660 /c9ea5bd6. Restore only parameter values
+from35635 into the frozen35676 TrainState; the original AOT, optimizer/RNG,
+full batch and isolated sequence104/target1220 masks remain fixed. Every test
+discards the returned update. The original peak full/isolated controls match
+exactly before interpreting transplants. This changes a network's operating
+point deliberately; it is not a fidelity-preserving reimplementation test.
+
+Over40 updates, ordinary-MLP parameters change by L2 6.9410 relative to542.509
+(1.2794%); the rest changes7.1364 relative to618.156 (1.1545%).
+
+| Ordinary MLP source |Rest source|Full-batch raw|Original target's raw|
+|---|---|---:|---:|
+|Old35635|Old35635|.21527|9.9217|
+|New35675|Old35635|5.08449|9.8432|
+|Old35635|New35675|10882.6826|4745.4224|
+|New35675|New35675|809414.5625|398608236544|
+
+The old MLP already contains sharp directions. Updating the rest can activate
+large gradients without changing those MLP weights. The original selected
+peak token becomes healthy in both mixed cases while other tokens dominate
+the full-batch gradient. Therefore ordinary-MLP attribution does not imply
+that its own recent weight update is the sole cause of the episode.
+
+Only one family moved to its newer values, all other parameters old:
+
+| Family |Parameter elements|Full-batch raw|
+|---|---:|---:|
+|Attention except common read scales|253544540|4337.1064|
+|Ordinary MLP|665700480|5.08449|
+|Memory MLP plus address/gate|314569980|.50841|
+|Embedding M write|4813620|.37496|
+|Common QK/V-O read scales|56|.32878|
+|Unembedding|96829440|.22560|
+|Layer/final norms|109440|.22136|
+|Token embedding|96829440|.20538|
+
+Finer attention transplants (again newer family only, others old):
+
+| Attention subset |Full-batch raw|
+|---|---:|
+|localV+localO read parameters|37.77321|
+|W_O|18.64953|
+|localQ/K read parameters|.34132|
+|Attention M-write addresses/gates|.29237|
+|Standard/RoPE W_Q,K|.22481|
+|Shared read down|.22387|
+|M-shift|.20534|
+
+Splitting V/O identifies **localV** as the stronger isolated driver:
+localV newer alone22.10190, localO alone.43606. This agrees with the emphasis
+on the context/value path rather than an automatic localO-only explanation.
+It does not make localO irrelevant: reverting only localO on the complete
+peak model reduces raw to22474.55; reverting only localV leaves97316.62.
+Ranking causes simply by which reversion reduces the peak most would give a
+different and misleading answer. Both sufficiency and the changed token
+identity must be considered.
+
+The strongest supported interpretation is **latent ordinary-MLP amplification
+plus value/readout-driven changes of its input and downstream direction**.
+These counterfactuals do not establish a universal single-parameter trigger,
+nor that QKNorm would or would not fix retraining. In particular, QK updates
+alone do not reproduce this episode's instability in the tested old network.
+Unembedding changes alone stay healthy and reverting unembedding leaves
+raw807770, so the classifier head is not the main cause here.
+
+At L6, onset and peak have the same four leading units (1291,1751,301,51);
+their gate-column norms barely change across the40 updates. Large gradient
+changes therefore cannot be inferred from weight-norm growth alone. The
+embedding write-address bias receives a large amplified gradient but is not
+identified as the originating local amplification operation.
+
+Artifacts: `parameter-families-peak/`, `parameter-families-expanded-peak/`,
+`parameter-families-fine-peak/`, `parameter-families-vo-peak/`. Full losses,
+isolated-target controls, parameter counts and both transplant directions are
+in each master worker's `parameter-family-comparison.json`.
+
+## Tail validation and next discriminating experiment
+
+At36920 original raw4.362222 and isolated sequence88,target1186 CE6.391760349,
+selected gradient1562735.375. The full-mesh probe CE differs by1.43e-6 and
+parameter-gradient norm by.2638%. Saved residual cotangent grows1.3311e6-fold
+from L27 toL0. Selected input SHA256:
+`2302092765cf48ecf535a1b1c3ca1096b31efb82821c159b72c2d57a81ec0b4c`.
+
+Frozen local L8/L10/L11 ordinary-MLP gains are7.89358/2.70458/9.90496;
+post-attention norm1.01059/.80281/.75513; memory MLP.36086/.39198/.38213.
+Native/Pallas agree; explicit FP32 input-VJP errors are.334%/.211%/.232%.
+Thus the same ordinary-MLP amplification pattern occurs in onset, peak and
+tail, but its strongest layer changes. These sampled local checks do not
+claim an exhaustive individual attribution for all671 clipped updates.
+
+If extending the research, prioritize an **equal-parameter change of only the
+ordinary MLP from SwiGLU to plain GELU**, preserving BAM/small-MLP paths and
+treating QKNorm as a separate factor. This tests a relevant difference of the
+target2.8B recipe without prematurely dismantling M writes/localO or assuming
+a precision change can remove a genuine FP32 local derivative. Coherent
+weight directions could still form in GELU, so disappearance of spikes is a
+testable prediction, not established by this diagnosis. No new formal training
+experiment has been launched.
+
+Tail artifacts: `tail-isolation/`, `tensor-tail/`, `mlp-detail-tail/`.
+Plot runner:[plot_xlprop_spike_replay.py](plot_xlprop_spike_replay.py).
+Figure/provenance are backed up under the diagnostic GCS root's `figures/`.
+Both owned diagnostic TPU nodes and queued resources are verified absent.
+Before releasing the primary node, all44 tail tensor/metadata objects
+(1793733409 bytes) and all11 primary-node jobs' four-worker exit codes were
+verified locally. Reserved FLEX is retained; its diagnostic jobs have finished
+and the borrowed lock is returned. Source checkpoints and evidence remain in GCS.

@@ -57,7 +57,10 @@ def main():
       values = np.asarray([r['residual_cotangent_rms'] for r in rows])
       axes[1, 0].semilogy([r['layer'] for r in rows], values / values[-1],
                           '.-', color=color, lw=1, ms=3, label=f'{step}')
-    for path in sorted((root / f'mlp-detail-{stem}').glob('layer-*/comparison.json')):
+    layer_sources = list((root / 'single-layer-onset').glob('layer-*/comparison.json')) if name == 'onset' else []
+    layer_sources += sorted((root / f'mlp-detail-{stem}').glob('layer-*/comparison.json'))
+    layer_paths = {json.loads(path.read_text())['layer']: path for path in layer_sources}
+    for path in layer_paths.values():
       data = json.loads(path.read_text())
       checks = [r for r in data['arms'] if r['pallas'] and r['block_probes']]
       assert len(checks) == 1

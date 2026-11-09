@@ -74,8 +74,8 @@ roughly a-.0025 final loss gap at the father's gain magnitude. Expected speed
 ~.50step/s (range.49--.52) against the father's~.518 with matched health.
 Expect shorter persistent abnormal episodes; not zero isolated spikes.
 
-Public reports2k/4k/6k/8k/10k, then15k/20k/.../50k; native loss windows500±25.
-Keep fixed milestones and change cadence after delivering10k. Combine cumulative
+Public reports every2k through20k, then25k/30k/.../50k; native loss windows500±25.
+Keep fixed milestones and change cadence after delivering20k. Combine cumulative
 loss gap/gain curves with full raw/clipped gradient curves. Do not stop for small
 early loss deficits: the main question requires the8k and35--37k risk regions.
 Any early stop suggestion requires user confirmation; schedule is50k.

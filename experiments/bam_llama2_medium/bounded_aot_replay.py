@@ -35,6 +35,8 @@ def main():
   parser.add_argument('--runtime-commit', required=True)
   parser.add_argument('--start-step', type=int, required=True)
   parser.add_argument('--end-step', type=int, required=True, help='Exclusive host-loop endpoint')
+  parser.add_argument('--max-updates', type=int, default=200,
+                      help='Explicit bounded replay budget; at most2000, default200')
   parser.add_argument('--output', type=Path, required=True)
   parser.add_argument('--isolate-step', type=int,
                       help='Keep this pre-update state/batch, then binary-search loss contributors with the same AOT')
@@ -46,6 +48,10 @@ def main():
   parser.add_argument('--all-parameter-metrics', action='store_true')
   parser.add_argument('--force-save-steps', default='',
                       help='Comma-separated extra host checkpoint saves; model/AOT/schedule stay unchanged')
+  parser.add_argument('--frozen-batch-steps', default='',
+                      help='Retain these original future states/batches for frozen-pre-onset-parameter comparisons')
+  parser.add_argument('--skip-loss-isolation', action='store_true',
+                      help='After frozen controls, omit the already-completed binary loss-mask search')
   parser.add_argument('--tensor-probe-script', type=Path,
                       help='Instead of binary search, run this read-only probe on the captured formal state/mesh')
   parser.add_argument('--probe-sequence', type=int)
@@ -57,12 +63,16 @@ def main():
     assert args.capture_first_raw_above > 0
   force_save_steps = tuple(sorted({int(x) for x in args.force_save_steps.split(',') if x}))
   assert all(args.start_step <= x < args.end_step for x in force_save_steps)
+  frozen_batch_steps = tuple(sorted({int(x) for x in args.frozen_batch_steps.split(',') if x}))
+  assert len(frozen_batch_steps) <= 12, 'Bound retained full states and device memory'
+  assert all(args.start_step <= x < args.end_step for x in frozen_batch_steps)
+  assert not frozen_batch_steps or args.isolate_step is not None or args.capture_first_raw_above is not None
   capture_from = args.start_step if args.capture_from_step is None else args.capture_from_step
   assert args.start_step <= capture_from < args.end_step
   if args.tensor_probe_script:
     assert args.isolate_step is not None
     assert args.probe_sequence is not None and args.probe_token is not None
-  assert 0 < args.end_step - args.start_step <= 200, 'Diagnostic replay must be bounded to at most200 updates'
+  assert 0 < args.end_step - args.start_step <= args.max_updates <= 2000, 'Replay exceeds explicit bounded budget'
   assert overrides and all('=' in x for x in overrides)
   values = dict(x.split('=', 1) for x in overrides)
   assert '/diagnostics/' in values['base_output_directory']
@@ -130,6 +140,9 @@ def main():
         if eligible:
           assert original_get_first_step(state) == step
           candidate = dict(state=copy_tree(state), data=copy_tree(data), rng=rng.copy())
+        frozen_batch = None
+        if step in frozen_batch_steps:
+          frozen_batch = dict(state=copy_tree(state), data=copy_tree(data), rng=rng.copy(), step=step)
         result, metrics = compiled(state, data, rng)
         raw_norm = float(np.asarray(jax.device_get(metrics['scalar']['learning/raw_grad_norm'])))
         if args.record_step_metrics and jax.process_index() == 0:
@@ -142,6 +155,9 @@ def main():
           captured.update(candidate, step=step)
           captured['observed'] = select_metrics(metrics)
           print('ISOLATION_STATE_CAPTURED', step, captured['observed']['learning/raw_grad_norm'], flush=True)
+        if frozen_batch is not None:
+          frozen_batch['observed'] = select_metrics(metrics)
+          captured.setdefault('frozen_batches', []).append(frozen_batch)
         del candidate
         return result, metrics
 
@@ -163,6 +179,7 @@ def main():
       bounded_loop_sha256=hashlib.sha256(bounded.encode()).hexdigest(),
       isolate_step=args.isolate_step, capture_first_raw_above=args.capture_first_raw_above,
       capture_from_step=capture_from, force_save_steps=force_save_steps,
+      frozen_batch_steps=frozen_batch_steps, max_updates=args.max_updates,
       scope='Diagnostic checkpoint copy; original serialized train-step and schedule unchanged.')
   (args.output / 'invocation.json').write_text(json.dumps(metadata, indent=2) + '\n')
   train.main([None, 'MaxText/configs/base.yml', *overrides])
@@ -203,6 +220,31 @@ def main():
     control = probe(0, batch)
     expected = captured['observed']['learning/raw_grad_norm']
     assert abs(control - expected) <= 1e-5 * max(1., abs(expected)), (control, expected)
+    if frozen_batch_steps:
+      comparisons = []
+      assert len(captured.get('frozen_batches', [])) == len(frozen_batch_steps)
+      for sample in captured['frozen_batches']:
+        repeated, metrics = captured['compiled'](copy_tree(sample['state']), sample['data'], sample['rng'])
+        actual = select_metrics(metrics)
+        del repeated
+        for key in ('learning/raw_grad_norm', 'learning/loss'):
+          ref = sample['observed'][key]
+          assert abs(actual[key] - ref) <= 1e-5 * max(1., abs(ref)), (sample['step'], key, actual[key], ref)
+        # Keep the original future optimizer moments, counters and RNG; only
+        # replace parameters. Ignore the returned update: this is read-only.
+        frozen = copy_tree(sample['state']).replace(params=copy_tree(captured['state'].params))
+        updated, metrics = captured['compiled'](frozen, sample['data'], sample['rng'])
+        counterfactual = select_metrics(metrics)
+        del updated
+        comparisons.append(dict(step=sample['step'], frozen_parameters_before_step=captured_step,
+            actual=actual, frozen_parameters=counterfactual,
+            raw_ratio=counterfactual['learning/raw_grad_norm'] / max(actual['learning/raw_grad_norm'], 1e-30),
+            loss_difference=counterfactual['learning/loss'] - actual['learning/loss']))
+        if jax.process_index() == 0:
+          (args.output / 'frozen-batch-comparison.json').write_text(json.dumps(comparisons, indent=2) + '\n')
+          print('FROZEN_PARAMETER_BATCH_CHECK', sample['step'], comparisons[-1]['raw_ratio'], flush=True)
+    if args.skip_loss_isolation:
+      return
     if args.tensor_probe_script:
       assert 0 <= args.probe_sequence < batch and 0 <= args.probe_token < length
       probe(args.probe_sequence, args.probe_sequence + 1, args.probe_token, args.probe_token + 1)

@@ -17,6 +17,8 @@ def run_probe(train, captured, reference, output, sequence, target_layer):
   from layers import attentions, fusion
 
   config, mesh = captured['config'], captured['mesh']
+  gain_count = int(captured.get('probe_state_gain_count', 0))
+  assert 0 <= gain_count <= 4
   model, _, state_shardings = captured['functional_train'].args
   assert jax.device_count() == 16 and jax.process_count() == 4
   assert config.global_batch_size_to_train_on == 128
@@ -101,7 +103,12 @@ def run_probe(train, captured, reference, output, sequence, target_layer):
           jnp.reshape(decoder['final_local_layer']['block'][key][0], (1,))))
     assert target_layer + 1 < config.num_decoder_layers - 1
     for name in ('M', 'residual'):
-      values['state_' + name] = body['formal_probe_state_' + name][0][jnp.asarray([target_layer, target_layer + 1])]
+      key = 'formal_probe_state_' + name
+      if gain_count:
+        values['state_' + name] = jnp.concatenate((body[key][0],
+            decoder['final_local_layer']['block'][key][0][None]), axis=0)
+      else:
+        values['state_' + name] = body[key][0][jnp.asarray([target_layer, target_layer + 1])]
     return loss, values
 
   def measure(params, probes, batch, rng):
@@ -118,8 +125,20 @@ def run_probe(train, captured, reference, output, sequence, target_layer):
     bias_grad = parameter_grads['params']['decoder']['embedding_bam_write']['W_emb_v_up']['bias']
     summary['embedding_address_bias_l2'] = jnp.linalg.norm(bias_grad.astype(jnp.float32))
     selected_gradients = {name: probe_grads[name] for name in ('q', 'k', 'v', 'context')}
-    selected_gradients.update({name: probe_grads[name][jnp.asarray([target_layer, target_layer + 1])]
-                               for name in ('M', 'residual')})
+    if gain_count:
+      scores = jnp.maximum(norms['M'][:-1] / jnp.maximum(norms['M'][1:], 1e-30),
+                           norms['residual'][:-1] / jnp.maximum(norms['residual'][1:], 1e-30))
+      _, selected = jax.lax.top_k(scores, gain_count)
+      selected = jnp.sort(jnp.concatenate((selected, jnp.asarray([target_layer]))))
+      boundaries = jnp.stack((selected, selected + 1), axis=1).reshape(-1)
+      summary['selected_state_layers'] = selected
+      for name in ('M', 'residual'):
+        values['state_' + name] = values['state_' + name][boundaries]
+        selected_gradients[name] = probe_grads[name][boundaries]
+    else:
+      summary['selected_state_layers'] = jnp.asarray([target_layer])
+      selected_gradients.update({name: probe_grads[name][jnp.asarray([target_layer, target_layer + 1])]
+                                 for name in ('M', 'residual')})
     return summary, values, selected_gradients
 
   l, t = config.num_decoder_layers, config.max_target_length
@@ -150,6 +169,7 @@ def run_probe(train, captured, reference, output, sequence, target_layer):
       gradient_relative_error=abs(observed_norm / expected_norm - 1),
       seconds=time.monotonic() - started, global_sequence=sequence, target_token=token,
       target_layer=target_layer, devices=jax.device_count(), processes=jax.process_count(),
+      selected_state_layers=list(map(int, summary['selected_state_layers'])),
       embedding_address_bias_l2=float(summary['embedding_address_bias_l2']))
   fidelity['passed'] = fidelity['forward_abs_error'] < 1e-3 and fidelity['gradient_relative_error'] < .05
   if jax.process_index() == 0:
@@ -164,7 +184,17 @@ def run_probe(train, captured, reference, output, sequence, target_layer):
     for name in ('q', 'k', 'v', 'context'):
       np.save(output / ('forward-' + name + '.npy'), np.asarray(values[name], np.float32))
       np.save(output / ('backward-' + name + '.npy'), np.asarray(gradients[name], np.float32))
-    for name in ('M', 'residual'):
-      np.save(output / ('forward-state-' + name + '.npy'), np.asarray(values['state_' + name], np.float32))
-      np.save(output / ('backward-state-' + name + '.npy'), np.asarray(gradients[name], np.float32))
+    seen = set()
+    for rank, layer in enumerate(fidelity['selected_state_layers']):
+      if layer in seen:
+        continue
+      seen.add(layer)
+      folder = output if layer == target_layer else output / f'layer-{layer:02d}'
+      folder.mkdir(exist_ok=True)
+      if layer != target_layer:
+        local_fidelity = dict(fidelity, target_layer=layer, qkv_probe_layer=target_layer)
+        (folder / 'tensor-fidelity.json').write_text(json.dumps(local_fidelity, indent=2) + '\n')
+      for name in ('M', 'residual'):
+        np.save(folder / ('forward-state-' + name + '.npy'), np.asarray(values['state_' + name][2 * rank:2 * rank + 2], np.float32))
+        np.save(folder / ('backward-state-' + name + '.npy'), np.asarray(gradients[name][2 * rank:2 * rank + 2], np.float32))
     print('FORMAL_TENSOR_PROBE_COMPLETE', json.dumps(fidelity), flush=True)

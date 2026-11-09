@@ -57,6 +57,8 @@ def main():
   parser.add_argument('--probe-sequence', type=int)
   parser.add_argument('--probe-token', type=int)
   parser.add_argument('--probe-layer', type=int, default=15)
+  parser.add_argument('--probe-state-gain-count', type=int, default=0,
+                      help='Also save boundary tensors at the largest coupled-state cotangent gains')
   args, overrides = parser.parse_known_args()
   assert not (args.isolate_step is not None and args.capture_first_raw_above is not None)
   if args.capture_first_raw_above is not None:
@@ -249,6 +251,7 @@ def main():
       assert 0 <= args.probe_sequence < batch and 0 <= args.probe_token < length
       probe(args.probe_sequence, args.probe_sequence + 1, args.probe_token, args.probe_token + 1)
       captured['probe_token'] = args.probe_token
+      captured['probe_state_gain_count'] = args.probe_state_gain_count
       import runpy
       namespace = runpy.run_path(str(args.tensor_probe_script.resolve()))
       namespace['run_probe'](train, captured, records[-1]['metrics'], args.output,

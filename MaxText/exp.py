@@ -10379,6 +10379,21 @@ class BamMHAMediumPropC256TruePile(BamMHAMediumPropC256):
     jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/bam-mha-mediumprop-true-pile'
 
 
+class BamMHAMediumPropC256TruePileAttnRes(AttnResConfig, BamMHAMediumPropC256TruePile):
+    """Full Attention Residuals on the matched Llama Medium TruePile backbone."""
+    # Worktree /home/mengqy/Projects/Bam/maxtext, branch mqy/refactor-bam-hc.
+    # Keep original 0.006 initialization, RMSNorm/SwiGLU, RoPE74 and C256 attention.
+    # Full growing history: embedding and each raw attention/FFN output.
+    # 36 learned reads, each with D query + D RMS scale: +86,400 parameters.
+    # Repay one FFN unit per layer: -64,800; net +21,600 (+0.0050%) vs MHA.
+    # Unrolled stack is required by the growing source history; scan is unsupported.
+    model_name = 'BamMHAMediumPropC256TruePileAttnRes'
+    base_mlp_dim = 3199
+    jax_cache_dir = ''
+    compare_runs = ['BamMHAMediumPropC256TruePile',
+                    'BamMHAMediumPropC256TruePilemHC', 'MuddLlama2MediumPropTruePile']
+
+
 class BamMHAMediumPropC256TruePilemHC(MHCConfig, BamMHAMediumPropC256TruePile):
     """Four-stream mHC on the exact TruePile4096 RoPE74/C256 MHA branch.
 
@@ -10404,6 +10419,7 @@ class BamMHAMediumPropC256TruePilemHCPythiaInit(BamMHAMediumPropC256TruePilemHC)
     # Same RMSNorm/SwiGLU, RoPE74, TruePile4096, LR and mHC initialization as parent.
     # Small init for embeddings, QKV, both SwiGLU inputs and LM head; Wang for O/down.
     # Review 400 and 1,000 steps; continue the normal 13,500-step schedule by default.
+    # code_commit: 118cc2d; UC1a Spot v5p-16 start verified 2026-11-09; steps10-14 ~0.511/s.
     model_name = 'BamMHAMediumPropC256TruePilemHCPythiaInit'
     init_method = 'pythia'
     compare_runs = ['BamMHAMediumPropC256TruePilemHC',

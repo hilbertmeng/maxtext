@@ -19,14 +19,14 @@ def validate_residual_config(keys):
       raise ValueError(f'AttnRes/mHC do not support {key}')
   if keys.get('bam_enabled'):
     # BAM's MHA control uses its RoPE/chunked-attention implementation but
-    # creates no matrix stream. Preserve that exact branch for mHC controls;
+    # creates no matrix stream. Preserve that exact branch for residual controls;
     # genuine BAM read/write configurations remain unsupported.
     modes = keys.get('bam_layer_modes')
     pure_modes = modes == 'none' or (
         isinstance(modes, (list, tuple)) and len(modes) == keys['num_decoder_layers']
         and all(m == 'none' for m in modes))
-    if mode != 'mhc' or keys.get('bam_mha_control') is not True or not pure_modes:
-      raise ValueError('AttnRes/mHC do not support bam_enabled except the pure mHC MHA control')
+    if keys.get('bam_mha_control') is not True or not pure_modes:
+      raise ValueError('AttnRes/mHC do not support bam_enabled except the pure MHA control')
     for key in ('bam_pair_scan', 'bam_pallas_core', 'bam_mlp_write_every',
                 'bam_mlp_write_layers', 'bam_persistent_embedding_m',
                 'bam_mudd_tail_blocks', 'bam_mudd_pre_tail_vm', 'bam_final_local_layer_count'):

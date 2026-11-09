@@ -38,7 +38,8 @@ def analyze(params, x, dy, actual_dx, actual_y, target):
     token_dx = jnp.linalg.norm(r['dx'], axis=-1)
     token_dy = jnp.linalg.norm(dy, axis=-1)
     peak = jnp.argmax(token_dx)
-    indexes = jnp.stack((jnp.int32(target), peak))
+    indexes = jnp.stack((jnp.int32(target), peak, jnp.int32(max(0, target - 1)),
+                         jnp.int32(min(x.shape[0] - 1, target + 1))))
     rows = []
     for index in indexes:
       z = {k: v[index] for k, v in r.items()}
@@ -63,6 +64,7 @@ def analyze(params, x, dy, actual_dx, actual_y, target):
       rows.append(dict(token=index, input_gradient_l2=token_dx[index],
           upstream_gradient_l2=token_dy[index],
           directional_gain=token_dx[index] / jnp.maximum(token_dy[index], 1e-30),
+          gain_with_target_upstream=l2(mm(jacobian, dy[target])) / jnp.maximum(token_dy[target], 1e-30),
           random_direction_rms_gain=l2(jacobian) / jnp.sqrt(jnp.float32(jacobian.shape[1])),
           spectral_gain_lower_estimates=jnp.stack([power(seed) for seed in range(3)]),
           gate_branch_gradient_l2=l2(z['dx_gate']), value_branch_gradient_l2=l2(z['dx_value']),

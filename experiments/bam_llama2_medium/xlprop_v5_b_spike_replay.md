@@ -134,7 +134,8 @@ yet its L1 never exceeds 50. B therefore needs saved residuals together with an 
 logits have run away. The B error scales roughly as |logit| × the forward/remat relative
 mismatch. QKNorm keeps 2.8B logits at 12-22 throughout.
 
-Why XL's L1 logits run away is a separate, open question (it may also underlie the A type).
+Why XL's L1 logits run away is answered in the counterfactual section below. That L1 runaway
+also underlies the A type was a conjecture; it is refuted there.
 
 ### 2.8B gradient consistency
 
@@ -216,7 +217,27 @@ Mean loss over 250-step windows (paired batches), full minus fss:
 | 5750-6000 | +0.003 |
 
 With only 1250 steps, these numbers do not show whether the early L1 growth helps or hurts
-loss. A-type spikes occur under full remat as well and are outside this scope.
+loss.
+
+### A-type spikes do not come from `full_save_splash`
+
+A-type spikes (diffuse, L1 ratio 0.3-0.5) appear with and without fss, and with a clean or
+a runaway L1. So neither fss nor L1 runaway is their cause.
+
+| Period | Remat | L1 query ratio | A-type events (raw norm) |
+|---|---|---:|---|
+| formal before 4750 (`BamXLPropV5`, old kernel) | full | ~0.97 | 4140: 354; 4330: 18 |
+| formal 4750-8750 (`BamXLPropV5FastKernel`) | fss | 0.98-1.33 | 7910: 3.4e3 |
+| counterfactual from 4750 (`XLV5CF4750Full`) | full | ~0.98 | 5040-5050: 57 |
+| formal from 8750 (`BamXLPropV5FastKernelFullRemat`) | full | inherited 1.33 | 10100: 1.36e4; 15460: 131 (ratio 0.33) |
+
+The localization in [xlprop_v5_a_spike.md](xlprop_v5_a_spike.md) fits this: backward
+amplification accumulates from the deep layers toward L0, mainly through the ordinary SwiGLU
+MLP. L1's large A-type gradients come from its place near the end of that chain, not from
+the isolated L1 Q/K/V branch seen in B. The FullRemat run's 15460 event recovered within
+about 20 steps. Its mean loss over the next 100-1000 steps is within ±0.011 of the 500 steps
+before it, so it left no lasting loss damage. Four events cannot tell whether fss-era weights
+made later A spikes larger: A magnitudes already span about two orders.
 
 ### Implication for recovery
 

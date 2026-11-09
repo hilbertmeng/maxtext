@@ -21,6 +21,8 @@ def main():
   parser.add_argument('--checkpoint', required=True, help='Checkpoint items directory')
   parser.add_argument('--cohort', required=True)
   parser.add_argument('--output', type=Path, required=True)
+  parser.add_argument('--inspect-mlp-jacobian', action='store_true',
+                      help='Check FP32 ordinary SwiGLU chain rule at captured local inputs/cotangents')
   args = parser.parse_args()
   assert subprocess.check_output(['git', '-C', str(args.runtime_dir), 'rev-parse', 'HEAD'], text=True).strip() == args.runtime_commit
   os.chdir(args.runtime_dir)
@@ -97,8 +99,12 @@ def main():
     a = list(call_args)
     a[0] = a[0] + active[tag + '_input']
     forward_stats[tag + '_input_target_rms'] = rms(a[0][:, token])
+    if args.inspect_mlp_jacobian and tag == 'mlp':
+      forward_stats['mlp_input_array'] = a[0]
     out = next_fun(*a, **kwargs) + active[tag + '_output']
     forward_stats[tag + '_output_target_rms'] = rms(out[:, token])
+    if args.inspect_mlp_jacobian and tag == 'mlp':
+      forward_stats['mlp_output_array'] = out
     return out
 
   def layer_call(params, x, matrix, probes, gx, gm, *, pallas, block_probes):
@@ -149,7 +155,7 @@ def main():
           output_relative_error=dict(residual=relative(y, states['residual'][1]), M=relative(m, states['M'][1])),
           cotangent_relative_error=dict(residual=relative(dx, cotangents['residual'][0]), M=relative(dm, cotangents['M'][0])),
           gradient_rms=dict(residual_in=host_rms(dx), residual_out=host_rms(gx), M_in=host_rms(dm), M_out=host_rms(gm)),
-          forward_target_rms=jax.tree.map(float, stats))
+          forward_target_rms={k: float(v) for k, v in stats.items() if not k.endswith('_array')})
       if block_probes:
         result['block_vjp_gains'] = {name: host_rms(dp[name + '_input']) / max(host_rms(dp[name + '_output']), 1e-30)
                                     for name in ('mlp_norm', 'mlp', 'memory_mlp')}
@@ -164,6 +170,15 @@ def main():
       results['arms'].append(result)
       print('SINGLE_LAYER_VJP', json.dumps(result), flush=True)
       (args.output / 'comparison.json').write_text(json.dumps(results, indent=2) + '\n')
+      if args.inspect_mlp_jacobian and block_probes and pallas:
+        assert tuple(cfg.mlp_activations) == ('silu', 'linear') and cfg.mgate_dim < 2
+        assert cfg.dropout_rate == 0 and not cfg.fused_mlp
+        from swiglu_local_jacobian import analyze
+        detail = analyze(params['mlp'], stats['mlp_input_array'], dp['mlp_output'],
+                         dp['mlp_input'], stats['mlp_output_array'], token)
+        detail.update(layer=layer, boundary_fidelity=result, model_fidelity=fidelity)
+        (args.output / 'mlp-jacobian.json').write_text(json.dumps(detail, indent=2) + '\n')
+        print('MLP_JACOBIAN_COMPLETE', layer, flush=True)
 
 
 if __name__ == '__main__':

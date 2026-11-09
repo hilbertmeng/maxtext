@@ -1,0 +1,83 @@
+"""Original-AOT parameter transplants on one frozen full-topology batch.
+
+Called through bounded_aot_replay.py's probe interface. Compare ordinary-MLP
+weights and the remaining parameter family independently between checkpoints;
+optimizer state, RNG and batch remain the captured peak's. Returned updates are
+discarded. This does not measure the quality of a retrained intervention.
+"""
+
+
+def ordinary_mlp(path):
+  names = tuple(getattr(key, 'key', None) for key in path)
+  return 'mlp' in names and any(name in names for name in ('wi_0', 'wi_1', 'wo'))
+
+
+def run_probe(train, captured, reference, output, sequence, target_layer):
+  import json
+  import os
+  import jax
+  import jax.numpy as jnp
+  import numpy as np
+  import orbax.checkpoint as ocp
+  from flax import serialization
+
+  checkpoint = os.environ['BAM_DIAG_REFERENCE_CHECKPOINT']
+  assert '/diagnostics/' in checkpoint and checkpoint.endswith('/items')
+  state = captured['state']
+  abstract = jax.tree.map(lambda x: jax.ShapeDtypeStruct(x.shape, x.dtype, sharding=x.sharding), state.params)
+  target = {'params': abstract}
+  cp = ocp.PyTreeCheckpointer()
+  restored = cp.restore(checkpoint, item=target, transforms={},
+      restore_args=ocp.checkpoint_utils.construct_restore_args(target))
+  cp.close()
+  old = serialization.from_state_dict(state.params, serialization.to_state_dict(restored['params']))
+  del restored, abstract, target
+  assert jax.tree.structure(old) == jax.tree.structure(state.params)
+  copy = lambda tree: jax.tree.map(lambda x: x.copy(), tree)
+  flags = jax.tree.map_with_path(lambda path, _: ordinary_mlp(path), state.params)
+  leaves = jax.tree.leaves(flags)
+  assert any(leaves) and not all(leaves)
+
+  @jax.jit
+  def distances(old, new):
+    result = []
+    for is_mlp in (True, False):
+      a = jax.tree.leaves(old)
+      b = jax.tree.leaves(new)
+      base = sum(jnp.sum(x.astype(jnp.float32) ** 2) for x, flag in zip(a, leaves) if flag == is_mlp)
+      delta = sum(jnp.sum((x.astype(jnp.float32) - y.astype(jnp.float32)) ** 2)
+                  for x, y, flag in zip(a, b, leaves) if flag == is_mlp)
+      result.append(dict(parameter_l2=jnp.sqrt(base), delta_l2=jnp.sqrt(delta), relative_delta=jnp.sqrt(delta / base)))
+    return result
+
+  parameter_distances = jax.tree.map(float, jax.device_get(distances(old, state.params)))
+  original_batch = dict(captured['data'])
+  @jax.jit
+  def mask(segments):
+    selected = ((jnp.arange(segments.shape[0])[:, None] == sequence)
+                & (jnp.arange(segments.shape[1])[None, :] == captured['probe_token']))
+    return jnp.where(selected, segments, 0)
+  selected_batch = dict(original_batch, targets_segmentation=mask(original_batch['targets_segmentation']))
+  results = dict(reference_checkpoint=checkpoint, model_runtime='d54c4c5f1339b01e406932ec28be0e398722b918',
+      scope='Original AOT; replace parameter families only, preserve peak optimizer/RNG/data; discard updates',
+      parameter_distances=dict(ordinary_mlp=parameter_distances[0], rest=parameter_distances[1]), cases=[])
+  new = state.params
+  for mlp_new, rest_new in ((True, True), (False, False), (True, False), (False, True)):
+    params = jax.tree.map(lambda a, b, flag: (b if (mlp_new if flag else rest_new) else a).copy(), old, new, flags)
+    case = dict(ordinary_mlp_from_peak=mlp_new, rest_from_peak=rest_new)
+    for label, batch in (('full_batch', original_batch), ('isolated_target', selected_batch)):
+      updated, metrics = captured['compiled'](copy(state).replace(params=copy(params)),
+                                               batch, captured['rng'])
+      selected = {key: value for key, value in metrics['scalar'].items()
+                  if key in ('learning/loss', 'learning/raw_grad_norm', 'learning/grad_norm', 'learning/total_weights')}
+      values = {key: float(np.asarray(value)) for key, value in jax.device_get(selected).items()}
+      del updated
+      case[label] = values
+      if mlp_new and rest_new:
+        expected = captured['observed'] if label == 'full_batch' else reference
+        for key in ('learning/loss', 'learning/raw_grad_norm'):
+          assert abs(values[key] - expected[key]) <= 1e-5 * max(1., abs(expected[key])), (label, key, values[key], expected[key])
+    results['cases'].append(case)
+    if jax.process_index() == 0:
+      (output / 'parameter-family-comparison.json').write_text(json.dumps(results, indent=2) + '\n')
+      print('PARAMETER_FAMILY_CHECK', mlp_new, rest_new, case['full_batch']['learning/raw_grad_norm'], flush=True)

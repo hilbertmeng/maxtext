@@ -14,13 +14,19 @@ import subprocess
 import sys
 
 
-def bound_host_loop(source, end_step):
+def bound_host_loop(source, end_step, force_save_steps=()):
   original = 'for step in np.arange(start_step, config.steps):'
   assert source.count(original) == 1, 'Unexpected runtime loop; refusing unbounded replay'
   source = source.replace(original, f'for step in np.arange(start_step, min(config.steps, {end_step})):')
   final = 'metrics, config.steps - 1, config)  # final step metrics'
   assert source.count(final) == 1
-  return source.replace(final, 'metrics, int(get_first_step(state)) - 1, config)  # final diagnostic metrics')
+  source = source.replace(final, 'metrics, int(get_first_step(state)) - 1, config)  # final diagnostic metrics')
+  if force_save_steps:
+    original = 'if checkpoint_saver.save(int(step), save_current_checkpoint, save_current_cursor):'
+    assert source.count(original) == 1, 'Unexpected checkpoint host protocol'
+    source = source.replace(original, 'if checkpoint_saver.save(int(step), save_current_checkpoint, '
+        f'save_current_cursor, force=int(step) in {tuple(force_save_steps)!r}):')
+  return source
 
 
 def main():
@@ -32,12 +38,27 @@ def main():
   parser.add_argument('--output', type=Path, required=True)
   parser.add_argument('--isolate-step', type=int,
                       help='Keep this pre-update state/batch, then binary-search loss contributors with the same AOT')
+  parser.add_argument('--capture-first-raw-above', type=float,
+                      help='Capture the first pre-update state whose original AOT raw norm exceeds this threshold')
+  parser.add_argument('--capture-from-step', type=int,
+                      help='Earliest eligible onset capture; defaults to the replay start')
+  parser.add_argument('--record-step-metrics', action='store_true')
+  parser.add_argument('--all-parameter-metrics', action='store_true')
+  parser.add_argument('--force-save-steps', default='',
+                      help='Comma-separated extra host checkpoint saves; model/AOT/schedule stay unchanged')
   parser.add_argument('--tensor-probe-script', type=Path,
                       help='Instead of binary search, run this read-only probe on the captured formal state/mesh')
   parser.add_argument('--probe-sequence', type=int)
   parser.add_argument('--probe-token', type=int)
   parser.add_argument('--probe-layer', type=int, default=15)
   args, overrides = parser.parse_known_args()
+  assert not (args.isolate_step is not None and args.capture_first_raw_above is not None)
+  if args.capture_first_raw_above is not None:
+    assert args.capture_first_raw_above > 0
+  force_save_steps = tuple(sorted({int(x) for x in args.force_save_steps.split(',') if x}))
+  assert all(args.start_step <= x < args.end_step for x in force_save_steps)
+  capture_from = args.start_step if args.capture_from_step is None else args.capture_from_step
+  assert args.start_step <= capture_from < args.end_step
   if args.tensor_probe_script:
     assert args.isolate_step is not None
     assert args.probe_sequence is not None and args.probe_token is not None
@@ -58,7 +79,7 @@ def main():
   import numpy as np
 
   source = inspect.getsource(train.train_loop)
-  bounded = bound_host_loop(source, args.end_step)
+  bounded = bound_host_loop(source, args.end_step, force_save_steps)
   exec(compile(bounded, str(Path(__file__)), 'exec'), train.__dict__)
   original_get_first_step = train.get_first_step
   verified = False
@@ -74,8 +95,10 @@ def main():
 
   train.get_first_step = checked_first_step
   captured = {}
-  if args.isolate_step is not None:
-    assert args.start_step <= args.isolate_step < args.end_step
+  needs_capture = args.isolate_step is not None or args.capture_first_raw_above is not None
+  if needs_capture or args.record_step_metrics:
+    if args.isolate_step is not None:
+      assert args.start_step <= args.isolate_step < args.end_step
     original_load = train.maxtext_utils.load_compiled
 
     def copy_tree(tree):
@@ -83,7 +106,8 @@ def main():
 
     def select_metrics(metrics):
       keep = {k: v for k, v in metrics['scalar'].items()
-              if k in ('learning/loss', 'learning/raw_grad_norm', 'learning/total_weights')
+              if k in ('learning/loss', 'learning/raw_grad_norm', 'learning/grad_norm', 'learning/total_weights')
+              or (args.all_parameter_metrics and k.startswith('raw_grads/'))
               or (k.startswith('raw_grads/decoder/') and '/block/self_attention/' in k
                   and any('/' + x + '/' in k for x in
                           ('query', 'key', 'W_lv_c8_up', 'W_R_up', 'out')))}
@@ -100,13 +124,25 @@ def main():
         nonlocal counter
         step = counter
         counter += 1
-        if step == args.isolate_step:
+        eligible = (step == args.isolate_step or (args.capture_first_raw_above is not None
+                    and step >= capture_from and 'observed' not in captured))
+        candidate = None
+        if eligible:
           assert original_get_first_step(state) == step
-          captured.update(state=copy_tree(state), data=copy_tree(data), rng=rng.copy())
+          candidate = dict(state=copy_tree(state), data=copy_tree(data), rng=rng.copy())
         result, metrics = compiled(state, data, rng)
-        if step == args.isolate_step:
+        raw_norm = float(np.asarray(jax.device_get(metrics['scalar']['learning/raw_grad_norm'])))
+        if args.record_step_metrics and jax.process_index() == 0:
+          row = dict(step=step, **{k: float(np.asarray(v)) for k, v in jax.device_get(
+              {k: v for k, v in metrics['scalar'].items() if k in (
+                  'learning/loss', 'learning/raw_grad_norm', 'learning/grad_norm', 'learning/total_weights')}).items()})
+          with (args.output / 'replay-metrics.jsonl').open('a') as handle:
+            handle.write(json.dumps(row) + '\n')
+        if candidate is not None and (step == args.isolate_step or raw_norm > args.capture_first_raw_above):
+          captured.update(candidate, step=step)
           captured['observed'] = select_metrics(metrics)
           print('ISOLATION_STATE_CAPTURED', step, captured['observed']['learning/raw_grad_norm'], flush=True)
+        del candidate
         return result, metrics
 
       class CapturingCompiled:
@@ -125,12 +161,19 @@ def main():
       runner_sha256=hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
       original_loop_sha256=hashlib.sha256(source.encode()).hexdigest(),
       bounded_loop_sha256=hashlib.sha256(bounded.encode()).hexdigest(),
+      isolate_step=args.isolate_step, capture_first_raw_above=args.capture_first_raw_above,
+      capture_from_step=capture_from, force_save_steps=force_save_steps,
       scope='Diagnostic checkpoint copy; original serialized train-step and schedule unchanged.')
   (args.output / 'invocation.json').write_text(json.dumps(metadata, indent=2) + '\n')
   train.main([None, 'MaxText/configs/base.yml', *overrides])
   print('BOUNDED_AOT_REPLAY_COMPLETE', flush=True)
-  if args.isolate_step is not None:
-    assert 'observed' in captured
+  if needs_capture:
+    assert 'observed' in captured, 'Expected onset was not reproduced; inspect replay metrics before interpreting'
+    captured_step = captured['step']
+    if jax.process_index() == 0:
+      (args.output / 'captured-step.json').write_text(json.dumps(dict(
+          step=captured_step, trigger_threshold=args.capture_first_raw_above,
+          metrics=captured['observed']), indent=2) + '\n')
     data = captured['data']
     batch, length = data['targets_segmentation'].shape
     records = []
@@ -195,7 +238,7 @@ def main():
     if jax.process_index() == 0:
       np.savez_compressed(args.output / 'isolated-sequence.npz', **sample)
       (args.output / 'isolation-result.json').write_text(json.dumps(dict(
-          pre_update_step=args.isolate_step, batch_sequence_index=bad_sequence,
+          pre_update_step=captured_step, batch_sequence_index=bad_sequence,
           target_position=token_lo, selection='greedy largest mean-CE gradient in each binary split',
           note='Target-loss masks only; model inputs and original AOT unchanged. Each case restores the frozen state.',
           input_sha256=hashlib.sha256(sample['inputs'].tobytes()).hexdigest()), indent=2) + '\n')

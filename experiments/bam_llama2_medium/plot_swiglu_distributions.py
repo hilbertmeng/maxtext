@@ -104,8 +104,15 @@ def main():
       ax.set_xticks([0,6,13,20,27]);ax.grid(alpha=.15)
     for ax in axs.ravel()[len(rows):]:ax.set_visible(False)
     handles, labels = axs[0,0].get_legend_handles_labels()
-    fig.legend(handles,labels,fontsize=7,ncol=4,loc='outside lower center')
-    fig.supxlabel('Ordinary MLP layer');fig.supylabel(f'Original {label} (symlog; linear within +/-1)')
+    if len(rows) < axs.size:
+      legend_ax=axs.ravel()[len(rows)];legend_ax.set_visible(True);legend_ax.axis('off')
+      legend_ax.legend(handles,labels,fontsize=9,ncol=2,loc='center')
+    else:
+      fig.legend(handles,labels,fontsize=7,ncol=4,loc='outside lower center')
+    for col in range(min(columns,len(rows))):
+      last=(len(rows)-1-col)//columns
+      axs[last,col].tick_params(labelbottom=True);axs[last,col].set_xlabel('Ordinary MLP layer')
+    fig.supylabel(f'Original {label} (symlog; linear within +/-1)')
     fig.suptitle(f'XL V5: original {label} distribution; no activation clipping',fontsize=11)
     path=args.output_dir/f'xlprop-v5-original-{label}-distributions.png';fig.savefig(path,dpi=100);plt.close(fig)
     with Image.open(path) as im:im.convert('RGB').quantize(colors=128).save(path,optimize=True)

@@ -746,9 +746,14 @@ sigmoid slope; its result should not select our threshold.
 The smooth cap suppresses all three selected gains; hard7/10 does not affect
 the peak's selected points, and hard2 scarcely affects L14. This supports
 SiTU as the next minimal architecture trial. Neither tested SiTU setting
-removes every local expansive direction. The reasonable initial training
-comparison is original SwiGLU versus SiTU4/25 and a stronger SiTU2/2, changing
-**only the ordinary MLP**, with unchanged parameters/widths/BAM kernels. A
+removes every local expansive direction. Before selecting a training setting,
+inspect the [original u/v distributions across stages and layers](xlprop_v5_swiglu_distributions.md).
+Current user direction is distribution first, with4/7/10 as amplitude references
+and independent gate/up bounds;2/2 remains a strong diagnostic contrast, not a
+default recommendation. The objective is to shorten prolonged spike episodes
+while preserving training quality, not eliminate every spike. A future minimal
+activation change would affect **only the ordinary MLP**, keeping parameters,
+widths and BAM kernels unchanged. A
 checkpoint replacement can test immediate suppression; from-scratch or
 pre-trigger continuation tests prevention, which a failed immediate hard10
 replacement cannot disprove. Do not multiply these isolated layer-gain

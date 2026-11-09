@@ -301,11 +301,51 @@ counterfactual.
 All selected-step raw parameter norms are in `full-35680-gradient-health.json`
 under the same diagnostic GCS root. `checkpoint35500-object-metadata.json`
 records the source35500 checkpoint's soft-deleted generations, CRC/size metadata
-and commit/cursor marker objects. The listing was read-only: no checkpoint was
-restored and no extra diagnostic TPU was allocated for this recurrence. Its
+and commit/cursor marker objects. At the40k report the listing was read-only; the subsequent investigation
+restores a verified independent copy as described below. Its
 listed hard-delete time is2026-11-16 (UTC); verify live/soft-deleted generations
 again before restoring. Source:
 `gs://newproject-1-llm_base_models_us-central1/log/BamXLPropV5FastKernelFullRemat/checkpoints/35500/`.
 The known bounded original-AOT runner can replay from35500 to the onset/peak
 within its200-update bound, with the50000-step schedule and full topology;
 choose a pre-update capture before inferring a local cause.
+
+
+## Exact onset replay of the35.65--36.93k wave
+
+Source35500 is recovered into a separate diagnostic prefix, with30 objects,
+15,651,280,232 bytes and matching CRC/size. Formal checkpoint/data state is not
+rewound. Owned diagnostic TPU `xd-v5p-32-xlprop-a35650-1109`, UC1a, four workers,
+formal global128/per-device8, immutable model/AOTd54c4c5. Host helper commits
+`a52f8741`, `a8e758e8`, `d7b11bb9` add bounded first-threshold capture, per-update
+metrics, sparse host checkpoints and frozen-parameter future-batch controls;
+they do not modify the model/optimizer executable.
+
+Replay35501--35700 has20 common10-step records with formal TB: loss **and**
+raw gradient norm match exactly at all20 (maximum absolute error0). The first
+update with raw norm>1 is **35636**, raw2.197865486, loss1.924464226. Per-update
+peak within this first200-update replay is **35676:809414.5625**, larger than
+the10-step sampled35680 peak345624.90625. It is not yet a verified maximum
+of the complete recurrence through36930.
+
+Original-AOT loss-mask control at35636 matches exactly. Greedy binary mask
+isolation selects global sequence9,target1211 (zero based), selected CE
+3.699650288 and selected-token parameter-gradient norm1035932.625. The global
+mean denominator523956 gives contribution norm1.97714, already close to the
+full-batch2.19787; this alone does not establish exclusivity or its local source.
+Sequence input SHA256:
+`016b7b77bd3077fdb262121600f62db91ff6c239592e78eabc20e307f5c73b04`.
+
+New artifacts (separate from the10100 investigation):
+
+- GCS: `gs://newproject-1-llm_base_models_us-central1/log/diagnostics/xlprop-v5-a35650-20261109/`.
+- Local: `/data0/xd/bam_diagnostics/xlprop-v5-config-20261108/a35650-replay/`.
+- Original-AOT replay/isolation: `onset/t1v-n-efa3d921-w-1/` (`replay-metrics.jsonl`,
+  `captured-step.json`, `isolation.json`, `isolated-sequence.npz`).
+- Source control points: `official35500-35700.json`.
+- Orchestration/ownership: tpu-ag `logs/xlprop-v5-a35650-1109/`.
+
+Current next tests are formal-mesh tensor localization with fidelity gating,
+then frozen local VJP comparisons and a long original-AOT replay with future
+batches evaluated at pre-onset parameters. No layer/branch attribution is yet
+established for this recurrence. The10100 L15 result remains specific to10100.

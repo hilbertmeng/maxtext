@@ -37,12 +37,21 @@ class FullAttentionResidual(nn.Module):
     width = sources[0].shape[-1]
     query = self.param('query', nn.initializers.zeros, (width,), cfg.weight_dtype)
     scale = self.param('key_scale', nn.initializers.ones, (width,), cfg.weight_dtype)
-    values = jnp.stack(sources, axis=-2).astype(jnp.float32)
-    keys = values * jax.lax.rsqrt(jnp.mean(values**2, axis=-1, keepdims=True) + cfg.attnres_norm_epsilon)
-    keys *= scale.astype(jnp.float32)
-    scores = jnp.einsum('...sd,d->...s', keys, query.astype(jnp.float32))
+    # Keep the large history as separate buffers. Stacking [B,T,S,D] at every
+    # read made XLA retain many growing, multi-GiB history copies under remat.
+    # Only the scalar depth scores need a new source axis.
+    scores = []
+    for source in sources:
+      value = source.astype(jnp.float32)
+      key = value * jax.lax.rsqrt(jnp.mean(value**2, axis=-1, keepdims=True) + cfg.attnres_norm_epsilon)
+      key *= scale.astype(jnp.float32)
+      scores.append(jnp.einsum('...d,d->...', key, query.astype(jnp.float32)))
+    scores = jnp.stack(scores, axis=-1)
     weights = jax.nn.softmax(scores, axis=-1)  # Depth axis; no sqrt(D).
-    return jnp.sum(weights[..., None] * values, axis=-2).astype(sources[0].dtype)
+    result = jnp.zeros_like(sources[0], dtype=jnp.float32)
+    for index, source in enumerate(sources):
+      result += weights[..., index, None] * source.astype(jnp.float32)
+    return result.astype(sources[0].dtype)
 
 
 class ManifoldHyperConnection(nn.Module):

@@ -10,6 +10,7 @@ from flax.traverse_util import flatten_dict
 
 import residual_connections_test as ref
 import train_compile
+from layers.residual_connections import FullAttentionResidual
 
 BASE = 'BamMHAMediumPropC256TruePile'
 RUN = BASE + 'AttnRes'
@@ -20,6 +21,26 @@ class LlamaAttnResTest(unittest.TestCase):
   tearDown = ref.ResidualModelTest.tearDown
   config = ref.MLPWriteTest.config
   tiny = ref.ResidualModelTest.tiny
+
+  def test_separate_history_matches_stacked_forward_and_gradients(self):
+    cfg = ref.connection_config()
+    module = FullAttentionResidual(cfg)
+    rng = np.random.default_rng(91)
+    sources = tuple(jnp.asarray(rng.normal(size=(2, 3, 16)), jnp.float32) for _ in range(7))
+    params = {'query': jnp.asarray(rng.normal(size=16), jnp.float32),
+              'key_scale': jnp.asarray(rng.uniform(.5, 1.5, size=16), jnp.float32)}
+    def stacked(p, s):
+      values = jnp.stack(s, axis=-2).astype(jnp.float32)
+      keys = values * jax.lax.rsqrt(jnp.mean(values**2, axis=-1, keepdims=True) + cfg.attnres_norm_epsilon)
+      scores = jnp.einsum('...sd,d->...s', keys * p['key_scale'], p['query'])
+      return jnp.sum(jax.nn.softmax(scores, axis=-1)[..., None] * values, axis=-2)
+    def actual(p, s):
+      return module.apply({'params': p}, s)
+    np.testing.assert_allclose(actual(params, sources), stacked(params, sources), rtol=2e-5, atol=2e-6)
+    a = jax.grad(lambda p, s: jnp.square(actual(p, s)).sum(), argnums=(0, 1))(params, sources)
+    b = jax.grad(lambda p, s: jnp.square(stacked(p, s)).sum(), argnums=(0, 1))(params, sources)
+    for x, y in zip(jax.tree.leaves(a), jax.tree.leaves(b)):
+      np.testing.assert_allclose(x, y, rtol=3e-5, atol=2e-5)
 
   def test_formal_recipe_and_full_parameter_tree(self):
     base, cfg = self.config(BASE), self.config(RUN)

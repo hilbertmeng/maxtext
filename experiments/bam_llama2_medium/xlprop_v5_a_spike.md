@@ -349,3 +349,133 @@ Current next tests are formal-mesh tensor localization with fidelity gating,
 then frozen local VJP comparisons and a long original-AOT replay with future
 batches evaluated at pre-onset parameters. No layer/branch attribution is yet
 established for this recurrence. The10100 L15 result remains specific to10100.
+
+
+###35636: validated local source and FP32 chain rule
+
+The formal-mesh instrumented point has selected CE3.699650288 (exactly the
+original-AOT value) and parameter-gradient norm1045872.375 versus1035932.625
+(error.9595%). The saved residual cotangent grows from L27 RMS.00011632 to
+L0 RMS23.849, about205022-fold. Strong boundary gains are in L5--7, unlike
+the10100 L15 example. At the selected token, M input RMS at L5/L6/L7 is
+1.263/1.327/1.460, not an epsilon-scale normalization singularity.
+
+Fixed-boundary local checks on reserved FLEX, diagnostic runnersd5a2ef7a /
+b58244aa (model stilld54c4c5):
+
+| Layer |Ordinary MLP directional gain|Post-attention norm gain|Memory MLP gain|Native/Pallas agreement|
+|---|---:|---:|---:|---|
+|L5|4.07692|1.26864|.30391|Ordinary MLP4.07497 in native|
+|L6|7.46277|1.00136|.29180|Ordinary MLP7.46116 in native|
+|L7|2.33040|.78558|.38226|Ordinary MLP2.33006 in native|
+
+Local input-cotangent relative errors against the captured formal point are
+below1.2%; normalized-h gradient norms are dominated by the ordinary MLP.
+These ratios describe the actual upstream direction, not worst-case spectral
+norms, and do not by themselves explain every layer of the full network.
+
+Runner[swiglu_local_jacobian.py](swiglu_local_jacobian.py) further evaluates the
+explicit SwiGLU chain rule in FP32 at the captured MLP inputs and output
+cotangents. It uses both effective BF16-rounded weights and full FP32 weights;
+this is a **local** check, not a whole-network FP32 reproduction. The chain
+rule and cap/detach counterfactual derivatives are checked against CPU autodiff,
+and the power-iteration estimate against an exact small-matrix SVD.
+
+For L6 with effective BF16 weights, FP32 output error is.271%, input-VJP error
+.262%, and global directional gain7.47186. At target1211, the gain is7.48515;
+its Jacobian spectral lower estimate is11.6896, versus random-direction RMS
+gain.57929. Holding the same target upstream gradient fixed but using adjacent
+tokens1210/1212 gives gains.76646/.82845. Thus a steep, input-dependent local
+direction exists even when typical directions contract.
+
+Four hidden units1291/1751/301/51 contribute respectively.26668/.26459/
+.25662/.24041 of the input-gradient projection on its own amplified direction
+(sum1.02831; remaining units net-cancel.02831). Their gate preactivations are
+7.4436/7.2412/7.0713/7.0748; linear-content preactivations only.2259/.2702/
+.2330/.2670. At this point the linear-content derivative branch has gradient
+norm1382.23, versus154.19 for differentiation through the gate. A bounded
+SiLU derivative does not bound the other branch, which is multiplied by the
+unbounded SiLU **value**. Forward output can remain moderate while this
+Jacobian is large. No training fix is claimed from this local calculation.
+
+Artifacts: `single-layer-onset/layer-{05,06,07}/` and
+`mlp-detail-onset/layer-{05,06}/` under the new35650 diagnostic root.
+
+###35676 peak: a separate fidelity-checked point
+
+A second owned full-topology diagnostic TPU
+`xd-v5p-32-xlprop-a35676-1109`, UC1a, reads a CRC-verified independent copy of
+checkpoint35675 produced by the exact replay. Original AOT reproduces full
+raw809414.5625 and loss2.595792532. Greedy loss-mask isolation selects sequence104,
+target1220, CE4.354687691, single-token gradient norm398608236544. Its contribution
+to the global mean is760730.325, with denominator523981. Input SHA256:
+`492eddc2d58fba0bd32faf217ae270a5f3c6168970cd97f927314167774efd7d`.
+The onset sequence is a project XML file; the peak sequence is legal prose.
+They are different inputs, not a repeated copy of the same isolated sequence.
+
+Formal-mesh peak tensors pass the original controls: selected CE4.354121208
+(error.00056648), norm400494592000 (error.4732%). Residual cotangent RMS grows
+from L27.0000789071 to L0 5194782.5, about6.5834e10-fold. Largest boundary gains
+include L10 residual11.02, L13 residual9.09 and L14 M9.19; L6 is also retained
+for comparison. The saved peak point is therefore not assumed to share the
+onset's exact layer attribution. Local checks are in progress.
+
+Artifacts: `peak-isolation/t1v-n-664a732b-w-0/`,
+`tensor-peak/t1v-n-664a732b-w-0/` and subsequent `mlp-detail-peak/` under the
+same new GCS root. Host ownership/launch files remain in
+`tpu-ag:logs/xlprop-v5-a35650-1109/`.
+
+
+### Peak local validation: ordinary SwiGLU again, different subpaths
+
+| Peak35676 layer |Ordinary MLP VJP gain|Input norm gain|Memory MLP VJP gain|FP32 input-VJP error|
+|---|---:|---:|---:|---:|
+|L6|2.26168|1.21687|.32471|.242%|
+|L10|17.74639|.56591|.36837|.248%|
+|L13|27.50281|.36183|.42553|.215%|
+|L14|11.83983|.32334|.32739|.172%|
+
+Native/Pallas local checks agree, and the captured full-mesh boundaries are
+reproduced within about1.2% in input cotangents. This repeats the ordinary-MLP
+source across onset and peak, while excluding a fixed single-layer explanation.
+FP32 local Jacobian spectral estimates at L10/L13/L14 are28.146/32.303/13.990.
+For L13, the estimated stable rank is only2.264, and the actual upstream
+direction receives about85.2% of the maximum estimated gain. These local
+Jacobians have a few strong directions; an average/forward RMS misses them.
+
+The microscopic subpath differs. Onset L6 is dominated by the derivative
+through the linear-content input multiplied by the SiLU gate **value**. At
+peak L14, differentiation through the gate dominates instead: its gradient
+norm14375 versus1520 for the linear-content branch. Stopping the gate derivative
+reduces the L14 fixed-input gain11.848→1.146 without changing its forward
+output; capping SiLU at1 leaves gain11.898. Thus a universal explanation or fix
+based only on large SiLU output values is falsified by this second point.
+At peak L13 both branches contribute (59883 and124769); capping SiLU at1 lowers
+gain27.515→8.498, but detaching the gate still leaves18.950.
+
+At onset L6, removing the identified four units reduces gain7.485→.864;
+removing four seeded-random units leaves7.485. The identified gate columns
+have pairwise cosine.976--.980, content columns.759--.795, output rows
+.926--.938. They are the four largest gate-column norms and four smallest
+content/output norms: this is an aligned channel group, not simply unusually
+large norms on every weight. Removing units changes the local forward too
+(relative change34.5%); this is a mechanistic intervention, not a validated
+training recipe. Their actual fixed-input FP32 projection fractions establish
+their gradient contribution independently of that forward change.
+
+At peak L14 the top16 units account for73.0% of the gradient projection; the
+four leading gate columns have cosine.872--.897 and output rows.698--.744.
+Removing those four lowers gain11.848→8.693, while random-four removal leaves
+11.848. The peak involves a broader coherent group than onset L6's four units.
+
+Actual captured L6 Splash Q/K/V reverse is also checked against FP32 at the
+peak, using identical saved tensors and upstream cotangent. Observed dQ/dK/dV
+relative errors are1.195%/1.316%/.883%; actual dV is.0012254 of its64||G||
+Frobenius bound. Fused and unfused backward give the same conclusion. This
+contrasts with the previous FSS B-type violation; it does not establish that
+every attention operation in the full network has been individually tested.
+
+Additional artifacts: `mlp-detail-onset-geometry/layer-06/`, `mlp-detail-peak/`
+and`splash-peak/`. The peak diagnostic TPU/node and queue have now both been
+verified absent; its44 tensor/metadata objects (1793722630 bytes) were verified
+locally first. Reserved FLEX was borrowed through its lock and retained.

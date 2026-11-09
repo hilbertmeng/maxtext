@@ -29,6 +29,23 @@ def bound_host_loop(source, end_step, force_save_steps=()):
   return source
 
 
+def discard_parameter_and_moment_update(previous, updated):
+  """Retain one step's optimizer counters but discard its weights/moments."""
+  import jax
+  import jax.numpy as jnp
+  counter_paths = []
+  def keep_counter(path, before, after):
+    if jnp.issubdtype(after.dtype, jnp.integer):
+      assert after.shape == (), (path, after.shape)
+      counter_paths.append(str(path))
+      return after.copy()
+    assert jnp.issubdtype(after.dtype, jnp.floating), (path, after.dtype)
+    return before.copy()
+  optimizer = jax.tree.map_with_path(keep_counter, previous.opt_state, updated.opt_state)
+  assert counter_paths, 'Expected explicit Adam/schedule counters'
+  return updated.replace(params=previous.params, opt_state=optimizer), counter_paths
+
+
 def main():
   parser = argparse.ArgumentParser(description=__doc__)
   parser.add_argument('--runtime-dir', type=Path, required=True)
@@ -45,6 +62,8 @@ def main():
   parser.add_argument('--capture-from-step', type=int,
                       help='Earliest eligible onset capture; defaults to the replay start')
   parser.add_argument('--record-step-metrics', action='store_true')
+  parser.add_argument('--discard-update-step', type=int,
+                      help='Diagnostic branch: discard one parameter/moment update, preserving optimizer counters and schedule')
   parser.add_argument('--all-parameter-metrics', action='store_true')
   parser.add_argument('--force-save-steps', default='',
                       help='Comma-separated extra host checkpoint saves; model/AOT/schedule stay unchanged')
@@ -75,6 +94,8 @@ def main():
     assert args.isolate_step is not None
     assert args.probe_sequence is not None and args.probe_token is not None
   assert 0 < args.end_step - args.start_step <= args.max_updates <= 2000, 'Replay exceeds explicit bounded budget'
+  if args.discard_update_step is not None:
+    assert args.start_step <= args.discard_update_step < args.end_step
   assert overrides and all('=' in x for x in overrides)
   values = dict(x.split('=', 1) for x in overrides)
   assert '/diagnostics/' in values['base_output_directory']
@@ -108,7 +129,7 @@ def main():
   train.get_first_step = checked_first_step
   captured = {}
   needs_capture = args.isolate_step is not None or args.capture_first_raw_above is not None
-  if needs_capture or args.record_step_metrics:
+  if needs_capture or args.record_step_metrics or args.discard_update_step is not None:
     if args.isolate_step is not None:
       assert args.start_step <= args.isolate_step < args.end_step
     original_load = train.maxtext_utils.load_compiled
@@ -145,7 +166,17 @@ def main():
         frozen_batch = None
         if step in frozen_batch_steps:
           frozen_batch = dict(state=copy_tree(state), data=copy_tree(data), rng=rng.copy(), step=step)
+        discarded = copy_tree(state) if step == args.discard_update_step else None
         result, metrics = compiled(state, data, rng)
+        if discarded is not None:
+          # Optax Adam/schedule counters advance exactly as in the original
+          # executable. Discard parameters and floating optimizer moments only.
+          result, counter_paths = discard_parameter_and_moment_update(discarded, result)
+          if jax.process_index() == 0:
+            (args.output / 'discarded-update.json').write_text(json.dumps(dict(
+                step=step, intervention='Discard parameter and floating-moment updates; preserve all integer counters',
+                preserved_counter_paths=counter_paths), indent=2) + '\n')
+            print('DIAGNOSTIC_DISCARDED_UPDATE', step, flush=True)
         raw_norm = float(np.asarray(jax.device_get(metrics['scalar']['learning/raw_grad_norm'])))
         if args.record_step_metrics and jax.process_index() == 0:
           row = dict(step=step, **{k: float(np.asarray(v)) for k, v in jax.device_get(
@@ -182,6 +213,7 @@ def main():
       isolate_step=args.isolate_step, capture_first_raw_above=args.capture_first_raw_above,
       capture_from_step=capture_from, force_save_steps=force_save_steps,
       frozen_batch_steps=frozen_batch_steps, max_updates=args.max_updates,
+      discard_update_step=args.discard_update_step,
       scope='Diagnostic checkpoint copy; original serialized train-step and schedule unchanged.')
   (args.output / 'invocation.json').write_text(json.dumps(metadata, indent=2) + '\n')
   train.main([None, 'MaxText/configs/base.yml', *overrides])

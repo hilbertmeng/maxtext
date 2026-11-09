@@ -244,6 +244,7 @@ class MHCConfig:
     residual_connection = 'mhc'
     scan_layers = False
     record_internal_nn_metrics = 0
+    mhc_identity_mixing = False
     mhc_num_streams = 4
     mhc_sinkhorn_iters = 20
     mhc_sinkhorn_epsilon = 1e-6
@@ -10411,6 +10412,19 @@ class BamMHAMediumPropC256TruePilemHC(MHCConfig, BamMHAMediumPropC256TruePile):
     model_name = 'BamMHAMediumPropC256TruePilemHC'
     jax_cache_dir = ''
     compare_runs = ['BamMHAMediumPropC256TruePile', 'MuddLlama2MediumPropTruePile']
+
+
+class BamMHAMediumPropC256TruePileiHC(BamMHAMediumPropC256TruePilemHC):
+    """Identity-mixing ablation of Llama mHC, retaining its exact initialization."""
+    # Sealed worktree .auto-agent/worktrees/llama-ihc, mqy/llama-ihc-sealed.
+    # Keep the entire parameter tree and FFN width: dormant mixing columns are
+    # deliberate controls, not active capacity; no Sinkhorn is evaluated.
+    # This isolates learned mixing, not unconstrained HC vs manifold projection.
+    model_name = 'BamMHAMediumPropC256TruePileiHC'
+    mhc_identity_mixing = True
+    compare_runs = ['BamMHAMediumPropC256TruePilemHC',
+                    'BamMHAMediumPropC256TruePile', 'MuddLlama2MediumPropTruePile',
+                    'BamMHAMediumPropC256TruePileAttnRes']
 
 
 class BamMHAMediumPropC256TruePilemHCPythiaInit(BamMHAMediumPropC256TruePilemHC):

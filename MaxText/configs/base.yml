@@ -73,6 +73,7 @@ decoder_block: "llama2" # which style of DecoderBlock to use.
 # Opt-in residual architectures; experiment defaults live in exp.py mixins.
 residual_connection: "none" # none, attnres (Full only), mhc
 attnres_norm_epsilon: 1.0e-6
+mhc_identity_mixing: False # iHC ablation: fixed identity residual transport.
 mhc_num_streams: 4
 mhc_sinkhorn_iters: 20
 mhc_sinkhorn_epsilon: 1.0e-6

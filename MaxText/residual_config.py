@@ -64,7 +64,7 @@ def validate_residual_config(keys):
                 'mhc_residual_offdiag_bias', 'mhc_head_bias_init'):
       if isinstance(keys[key], bool) or not isinstance(keys[key], (int, float)) or not math.isfinite(keys[key]):
         raise ValueError(f'{key} must be finite')
-    for key in ('mhc_norm_affine', 'mhc_match_parameter_budget', 'mhc_learned_head'):
+    for key in ('mhc_identity_mixing', 'mhc_norm_affine', 'mhc_match_parameter_budget', 'mhc_learned_head'):
       if type(keys[key]) is not bool:
         raise ValueError(f'{key} must be boolean')
 

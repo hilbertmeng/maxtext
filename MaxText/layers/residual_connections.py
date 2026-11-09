@@ -93,8 +93,13 @@ class ManifoldHyperConnection(nn.Module):
     logits = (normalized @ phi.astype(jnp.float32)) * alphas.astype(jnp.float32) + bias.astype(jnp.float32)
     pre = jax.nn.sigmoid(logits[..., :n]) + cfg.mhc_pre_epsilon
     post = 2 * jax.nn.sigmoid(logits[..., n:2*n])
-    mixing = sinkhorn(logits[..., 2*n:].reshape(*state.shape[:-2], n, n),
-                     cfg.mhc_sinkhorn_iters, cfg.mhc_sinkhorn_epsilon)
+    if cfg.mhc_identity_mixing:
+      # Controlled iHC ablation: preserve the complete initialization/tree and
+      # FFN budget; mixing-only parameters are retained but never used.
+      mixing = jnp.broadcast_to(jnp.eye(n, dtype=jnp.float32), (*state.shape[:-2], n, n))
+    else:
+      mixing = sinkhorn(logits[..., 2*n:].reshape(*state.shape[:-2], n, n),
+                       cfg.mhc_sinkhorn_iters, cfg.mhc_sinkhorn_epsilon)
     read = jnp.sum(pre[..., :, None] * state.astype(jnp.float32), axis=-2).astype(state.dtype)
     return read, post, mixing
 

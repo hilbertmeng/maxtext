@@ -20380,6 +20380,19 @@ class BamXLPropV5FastKernelFullRemat(BamXLPropV5FastKernel):
     remat_policy = 'full'
 
 
+class BamXLPropV5FastKernelFullRematSiTU47(BamXLPropV5FastKernelFullRemat):
+    """From-scratch XL V5, ordinary MLP SiTU gate/up soft bounds4/7.
+
+    Private M-writing MLPs retain SwiGLU. No new parameters; widths4048/1827,
+    tail6277, initialization, full remat, Pallas kernels and50k schedule match
+    the d54c4c5 parent. Intended to shorten persistent spikes, not remove all spikes.
+    """
+    model_name = 'BamXLPropV5FastKernelFullRematSiTU47'
+    ordinary_mlp_situ_gate_limit = 4.0
+    ordinary_mlp_situ_up_limit = 7.0
+    compare_runs = ['BamXLPropV5FastKernelFullRemat']
+
+
 class _XLPropV5SpeedProfile(TrainStepProfile):
     """Paired speed arm: full 28 layers, formal 8/device, T4096, schedule and health."""
     # code_commit:fad395a (v5p-8), 708dcd2 (v5p-32); results in experiments/xlprop_v5.md.

@@ -71,6 +71,15 @@ def _convert_to_activation_function(fn_or_string: Union[str, Callable[..., Any]]
     )
 
 
+def _situ_activation(x, index, gate_limit, up_limit):
+  """SiTU factors: cap the linear gate factor, retaining sigmoid(raw gate)."""
+  if index == 0:
+    return gate_limit * jnp.tanh(x / gate_limit) * jax.nn.sigmoid(x)
+  if index == 1:
+    return up_limit * jnp.tanh(x / up_limit)
+  raise ValueError('SiTU requires exactly the gate/up factors')
+
+
 def _normalize_axes(axes: Iterable[int], ndim: int) -> Tuple[int]:
   # A tuple by convention. len(axes_tuple) then also gives the rank efficiently.
   return tuple(ax if ax >= 0 else ndim + ax for ax in axes)
@@ -308,6 +317,8 @@ class MlpBlock(nn.Module):
   zero_bias_without_rng: bool = False
   use_pre_norm: bool = False
   quant: Optional[Quant] = None
+  situ_gate_limit: float = 0.0
+  situ_up_limit: float = 0.0
 
   def setup(self):
     cfg = self.config
@@ -338,6 +349,17 @@ class MlpBlock(nn.Module):
   def __call__(self, inputs, deep_embedding=None, decoder_input_tokens=None, decode: bool = False, deterministic: bool = False):
     """Applies Transformer MlpBlock module."""
     cfg = self.config
+    situ = self.situ_gate_limit != 0 or self.situ_up_limit != 0
+    if situ and (tuple(self.activations) != ('silu', 'linear')
+                 or not all(math.isfinite(v) and v > 0 for v in (self.situ_gate_limit, self.situ_up_limit))):
+      raise ValueError('SiTU requires silu/linear and two finite positive limits')
+
+    def activate(x, index, function):
+      if not situ:
+        return _convert_to_activation_function(function)(x)
+      if cfg.activations_in_float32:
+        x = x.astype(jnp.float32)
+      return _situ_activation(x, index, self.situ_gate_limit, self.situ_up_limit)
 
     if self.use_pre_norm:
       inputs = normalizations.get_rmsnorm("mlp_layer_norm", cfg)(inputs)
@@ -360,7 +382,7 @@ class MlpBlock(nn.Module):
       )(inputs)
       x = checkpoint_name(x, "mlpwi")
       for idx, act_fn in enumerate(self.activations):
-        y = _convert_to_activation_function(act_fn)(x[:, :, idx, ...])
+        y = activate(x[:, :, idx, ...], idx, act_fn)
         activations.append(y)
     else:
       for idx, act_fn in enumerate(self.activations): # wi_0 is mlp gate
@@ -380,7 +402,7 @@ class MlpBlock(nn.Module):
         x = checkpoint_name(x, "mlp" + dense_name)
         if cfg.activations_in_float32:
           x = x.astype(jnp.float32)
-        x = _convert_to_activation_function(act_fn)(x)
+        x = activate(x, idx, act_fn)
         activations.append(x)
 
     # Take elementwise product of above intermediate activations.

@@ -266,3 +266,46 @@ specific layer/branch source remains unconfirmed. Full raw selected-step
 parameter statistics and the extraction script are archived as
 `a-spike-comparison-10100-15460.json` and `runner/compare_spikes.py` under the
 same GCS diagnostic root; local copies are in `a-spike-replay/`.
+
+
+## Severe recurrence around35680
+
+At the40k reporting milestone, full raw/clipped history identifies a stronger
+A-like event in the same immutable full-remat RUN. Recorded raw norm first
+exceeds1 at35650 (18.85), peaks35680 at345,624.90625, and has intermittent
+above-threshold samples through36930. There are63 recorded points above1 in
+35--40k; these are10-step samples, not a count of affected training updates.
+The current40000 raw/clipped norms are about.202896.
+
+| Step |Raw norm|Loss|L1 max Q/K/V projection|L1 max localO/W_O|
+|---|---:|---:|---:|---:|
+|35600|.19006|1.95895|.00356|.00702|
+|35650|18.8538|2.05746|1.08903|1.66585|
+|35670|84,167.66|2.23076|2555.863|4144.099|
+|35680|345,624.91|3.27189|8613.380|6322.173|
+|35750|1533.875|2.06499|64.581|105.092|
+|36000|15.1950|2.08763|.70910|1.18119|
+|36200|.61917|1.87814|.04408|.04852|
+|36500|.20231|2.07135|.00447|.00810|
+
+The35680 L1 Q/K/V-to-O parameter-gradient norm ratio is1.362, and both paths
+are large, unlike B-type's isolated Q/K/V error. Some of the largest parameter
+gradients are the embedding address bias and shallow BAM read gates/keys.
+This is an A-type **pattern**; no frozen-point local VJP has established its
+specific source. Do not transfer the10100 L15 ordinary-MLP attribution to it.
+The loss/gain trajectory has a large temporary deterioration near36k and is
+still somewhat below its pre-event gain ratio near40k. The difference from
+Mudd's normal late-training catch-up cannot be causally separated without a
+counterfactual.
+
+All selected-step raw parameter norms are in `full-35680-gradient-health.json`
+under the same diagnostic GCS root. `checkpoint35500-object-metadata.json`
+records the source35500 checkpoint's soft-deleted generations, CRC/size metadata
+and commit/cursor marker objects. The listing was read-only: no checkpoint was
+restored and no extra diagnostic TPU was allocated for this recurrence. Its
+listed hard-delete time is2026-11-16 (UTC); verify live/soft-deleted generations
+again before restoring. Source:
+`gs://newproject-1-llm_base_models_us-central1/log/BamXLPropV5FastKernelFullRemat/checkpoints/35500/`.
+The known bounded original-AOT runner can replay from35500 to the onset/peak
+within its200-update bound, with the50000-step schedule and full topology;
+choose a pre-update capture before inferring a local cause.

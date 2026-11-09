@@ -33,17 +33,30 @@ def main():
   rows = sorted((json.loads(f.read_text()) for f in args.results.glob('*/summary.json')),
                 key=lambda j:j['checkpoint']['step'])
   assert rows
-  phase, up99, vp99, umax, vmax, entries = [],[],[],[],[],[]
+  phase, up99, vp99, umax, vmax, entries, phase_summaries = [],[],[],[],[],[],[]
   for row in rows:
     step = row['checkpoint']['step']; phase.append(str(step))
     stats=row['all_sequences']
-    with np.load(args.results/str(step)/'statistics.npz') as raw:edges=raw['edges']
+    with np.load(args.results/str(step)/'statistics.npz') as raw:
+      edges=raw['edges'];counts=raw['moments'][...,0].sum(0)
     qlo,qhi=absolute_quantile(stats['histogram'],edges,.999)
     u99=np.asarray(stats['signed_quantile_intervals']['0.999']).mean(-1)
     # Use interval midpoint; quantile bins, not exact order statistics.
     up99.append(u99[:,0]); vp99.append((qlo[:,1]+qhi[:,1])/2)
     umax.append(np.asarray(stats['maximum'])[:,0])
     vmax.append(np.maximum(np.abs(stats['minimum']),np.abs(stats['maximum']))[:,1])
+    tails=np.asarray(stats['tails'])
+    phase_summaries.append(dict(step=step,mean_ce=row['mean_ce'],
+        median_layer_rms=np.median(stats['rms'],axis=0).tolist(),
+        min_over_all_layers=np.min(stats['minimum'],axis=0).tolist(),
+        max_over_all_layers=np.max(stats['maximum'],axis=0).tolist(),
+        entries_per_branch=counts.sum(0).tolist(),
+        positive_u_tail_fractions=(tails[:,0]*counts[:,0,None]).sum(0).tolist(),
+        abs_v_tail_fractions=(tails[:,2]*counts[:,1,None]).sum(0).tolist(),
+        thresholds=row['thresholds'],
+        max_noop_ce_error=max(abs(c['delta']) for c in row['no_op_controls'])))
+    for key,branch in (('positive_u_tail_fractions',0),('abs_v_tail_fractions',1)):
+      phase_summaries[-1][key]=(np.asarray(phase_summaries[-1][key])/counts[:,branch].sum()).tolist()
     for layer in range(28):
       e=dict(step=step,layer=layer,u_rms=stats['rms'][layer][0],v_rms=stats['rms'][layer][1],
              u_positive_q999=up99[-1][layer],v_abs_q999=vp99[-1][layer],
@@ -90,13 +103,15 @@ def main():
       ax.set_yscale('symlog',linthresh=1.);ax.set_ylim(-maximum*1.15,maximum*1.15)
       ax.set_xticks([0,6,13,20,27]);ax.grid(alpha=.15)
     for ax in axs.ravel()[len(rows):]:ax.set_visible(False)
-    axs[0,0].legend(fontsize=6,ncol=2,loc='lower left')
-    fig.supxlabel('Ordinary MLP layer');fig.supylabel(f'Original {label}, symmetric-log axis (linear between -1 and 1)')
+    handles, labels = axs[0,0].get_legend_handles_labels()
+    fig.legend(handles,labels,fontsize=7,ncol=4,loc='outside lower center')
+    fig.supxlabel('Ordinary MLP layer');fig.supylabel(f'Original {label} (symlog; linear within +/-1)')
     fig.suptitle(f'XL V5: original {label} distribution; no activation clipping',fontsize=11)
     path=args.output_dir/f'xlprop-v5-original-{label}-distributions.png';fig.savefig(path,dpi=100);plt.close(fig)
     with Image.open(path) as im:im.convert('RGB').quantize(colors=128).save(path,optimize=True)
     raw_figures.append(str(path))
   summary=dict(checkpoint_steps=[r['checkpoint']['step'] for r in rows],
+               phase_summaries=phase_summaries,
                source_summaries=[str(args.results/str(r['checkpoint']['step'])/'summary.json') for r in rows],
                distribution_figure=str(distribution),raw_figures=raw_figures,csv=str(csv_path))
   if not args.sensitivity:

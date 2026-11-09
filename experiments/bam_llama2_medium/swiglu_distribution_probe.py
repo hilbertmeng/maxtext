@@ -29,7 +29,7 @@ def histogram_edges():
   return np.concatenate(([-np.inf], -positive[::-1], [0.], positive, [np.inf])).astype(np.float32)
 
 
-def activation_statistics(u, v, valid, phase, sample_count=16384):
+def activation_statistics(u, v, valid, phase, sample_count=16384, include_soft=True):
   import jax
   import jax.numpy as jnp
   u, v = u.astype(jnp.float32), v.astype(jnp.float32)
@@ -55,6 +55,10 @@ def activation_statistics(u, v, valid, phase, sample_count=16384):
     units.append(jnp.stack((indexes, top, rms[indexes]), axis=-1))
   tails = jnp.stack([jnp.stack([mean(a > c) for c in THRESHOLDS])
                     for a in (u, jnp.abs(u), jnp.abs(v))])
+  raw = dict(moments=jnp.stack(rows), histogram=jnp.stack(histograms),
+             tails=tails, top_units=jnp.stack(units))
+  if not include_soft:
+    return raw
   s = jax.nn.sigmoid(u)
   old_gate, old_up = u*s, v
   old_h = old_gate*v
@@ -76,12 +80,11 @@ def activation_statistics(u, v, valid, phase, sample_count=16384):
     hidden = gate*up
     soft.append(jnp.stack([squares(x) for x in
         (hidden-old_h, hidden, dg*up, gate*dv, gate, up)] + old))
-  return dict(moments=jnp.stack(rows), histogram=jnp.stack(histograms),
-              tails=tails, soft_sums=jnp.stack(soft), top_units=jnp.stack(units))
+  return dict(**raw, soft_sums=jnp.stack(soft))
 
 
 @contextlib.contextmanager
-def capture(valid, phase, sample_count):
+def capture(valid, phase, sample_count, include_soft):
   from flax import linen as nn
   from layers import linears
   stack = []
@@ -99,7 +102,7 @@ def capture(valid, phase, sample_count):
         stack.pop()
       if not module.is_initializing():
         assert set(bank) == {'wi_0', 'wi_1'}, (module.scope.path, bank.keys())
-        for name, value in activation_statistics(bank['wi_0'], bank['wi_1'], valid, phase, sample_count).items():
+        for name, value in activation_statistics(bank['wi_0'], bank['wi_1'], valid, phase, sample_count, include_soft).items():
           module.sow('intermediates', 'swiglu_uv_' + name, value)
       return out
     out = next_fun(*args, **kwargs)
@@ -156,11 +159,12 @@ def summarize(arrays):
                  minimum=m[..., 3].min(0), maximum=m[..., 4].max(0),
                  negative_fraction=weight(m[..., 5]), nonfinite_fraction=weight(m[..., 6]),
                  histogram=arrays['histogram'].sum(0), tails=arrays['tails'].mean(0))
-  soft = arrays['soft_sums'].sum(0)
-  ratio = lambda n, d: np.sqrt(soft[..., n] / np.maximum(soft[..., d], 1e-30))
-  summary['soft'] = dict(hidden_relative_change=ratio(0, 6), hidden_rms_ratio=ratio(1, 6),
-      du_multiplier_rms_ratio=ratio(2, 7), dv_multiplier_rms_ratio=ratio(3, 8),
-      gate_rms_ratio=ratio(4, 9), up_rms_ratio=ratio(5, 10))
+  if 'soft_sums' in arrays:
+    soft = arrays['soft_sums'].sum(0)
+    ratio = lambda n, d: np.sqrt(soft[..., n] / np.maximum(soft[..., d], 1e-30))
+    summary['soft'] = dict(hidden_relative_change=ratio(0, 6), hidden_rms_ratio=ratio(1, 6),
+        du_multiplier_rms_ratio=ratio(2, 7), dv_multiplier_rms_ratio=ratio(3, 8),
+        gate_rms_ratio=ratio(4, 9), up_rms_ratio=ratio(5, 10))
   # Histogram quantiles are estimates; raw extrema/tail fractions use all entries.
   hist, edges = summary['histogram'], histogram_edges()
   cumulative = np.cumsum(hist, axis=-1)
@@ -184,6 +188,7 @@ def main():
   p.add_argument('--output', type=Path, required=True)
   p.add_argument('--sequences', type=int, default=32)
   p.add_argument('--sample-count', type=int, default=16384)
+  p.add_argument('--soft-sensitivity', action='store_true', help='Optional secondary counterfactuals; raw distributions are the default')
   p.add_argument('--upload-root', help='Upload each complete phase immediately (worker -> GCS)')
   args = p.parse_args()
   assert subprocess.check_output(['git','-C',str(args.runtime_dir),'rev-parse','HEAD'],text=True).strip() == args.runtime_commit
@@ -209,14 +214,14 @@ def main():
   cfg.get_keys().update(bam_pallas_read_tile=128, bam_pallas_write_tile=128, bam_pallas_vmem_mib=63)
   mesh = jax.sharding.Mesh(max_utils.create_device_mesh(cfg), cfg.mesh_axes)
   model = Transformer(cfg, mesh, quant=None)
-  names = ('moments','histogram','tails','soft_sums','top_units')
+  names = ('moments','histogram','tails','top_units') + (('soft_sums',) if args.soft_sensitivity else ())
   data = np.load(args.cohort)
   batch = {k:data[k][:args.sequences] for k in data.files if k != 'source_indices'}
   n = len(batch['inputs'])
   assert n == args.sequences and batch['inputs'].shape[1] == cfg.max_target_length
 
   def apply(params, d, phase, measured):
-    with capture(d['inputs_segmentation'] != 0, phase, args.sample_count) if measured else contextlib.nullcontext():
+    with capture(d['inputs_segmentation'] != 0, phase, args.sample_count, args.soft_sensitivity) if measured else contextlib.nullcontext():
       result, collections = model.apply(params, d['inputs'], d['inputs_position'],
           decoder_segment_ids=d['inputs_segmentation'], decoder_target_mask=d['targets_segmentation'],
           decoder_target_tokens=d['targets'], enable_dropout=False,
@@ -265,7 +270,7 @@ def main():
           sequences=n,length=cfg.max_target_length,sample_count_per_sequence_layer_branch=args.sample_count,
           histogram_is_sampled=True, extrema_moments_and_tails_use_all_valid_entries=True,
           moments=MOMENTS,tail_branches=('positive_u','abs_u','abs_v'),thresholds=THRESHOLDS,
-          candidates=CANDIDATES,soft_sum_fields=SOFT_SUMS,no_op_controls=fidelity,
+          candidates=CANDIDATES if args.soft_sensitivity else [],soft_sum_fields=SOFT_SUMS if args.soft_sensitivity else [],no_op_controls=fidelity,
           precision='Formal BF16 forward, FP32 reductions; one-device probe, not formal-mesh spike reproduction',
           config=dict(scan_layers=cfg.scan_layers,read_tile=128,write_tile=128,vmem_mib=63),
           calibration=summarize({k:v[:n//2] for k,v in arrays.items()}),

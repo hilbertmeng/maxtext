@@ -12,7 +12,7 @@ def ordinary_mlp(path):
   return 'mlp' in names and any(name in names for name in ('wi_0', 'wi_1', 'wo'))
 
 
-def parameter_family(path, fine_attention=False):
+def parameter_family(path, fine_attention=False, split_vo=False):
   names = tuple(getattr(key, 'key', None) for key in path)
   if ordinary_mlp(path):
     return 'ordinary_mlp'
@@ -29,6 +29,9 @@ def parameter_family(path, fine_attention=False):
     if part.startswith(('W_lq_', 'W_lk_', 'general_q_', 'general_k_')) or part in ('static_q_key', 'static_k_key'):
       return 'attention_local_qk'
     if part.startswith(('W_lv_', 'W_R_', 'general_v_', 'general_vo_', 'general_o_')) or part in ('static_v_key', 'static_o_key'):
+      if split_vo:
+        is_v = part.startswith(('W_lv_', 'general_v_')) or part == 'static_v_key'
+        return 'attention_local_v' if is_v else 'attention_local_o'
       return 'attention_local_vo'
     if part.startswith(('P_loc_', 'W_gw')) or part == 'gw_b0':
       return 'attention_write'
@@ -74,7 +77,9 @@ def run_probe(train, captured, reference, output, sequence, target_layer):
   copy = lambda tree: jax.tree.map(lambda x: x.copy(), tree)
   flags = jax.tree.map_with_path(lambda path, _: ordinary_mlp(path), state.params)
   fine_attention = os.environ.get('BAM_DIAG_FINE_ATTENTION') == '1'
-  families = jax.tree.map_with_path(lambda path, _: parameter_family(path, fine_attention), state.params)
+  split_vo = os.environ.get('BAM_DIAG_SPLIT_VO') == '1'
+  assert not split_vo or fine_attention
+  families = jax.tree.map_with_path(lambda path, _: parameter_family(path, fine_attention, split_vo), state.params)
   family_names = sorted(set(jax.tree.leaves(families)))
   leaves = jax.tree.leaves(flags)
   assert any(leaves) and not all(leaves)
@@ -114,6 +119,8 @@ def run_probe(train, captured, reference, output, sequence, target_layer):
       if family == 'ordinary_mlp':
         continue
       if fine_attention and not (family.startswith('attention_') or family == 'read_scales'):
+        continue
+      if split_vo and family not in ('attention_local_v', 'attention_local_o'):
         continue
       for only in (True, False):
         plans.append((dict(family=family, intervention='only_family_from_peak' if only else 'revert_family_to_old'),

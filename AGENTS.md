@@ -27,7 +27,7 @@
 | 为什么设计 BAM、原始电路动机 | [/home/xd/projects/bam_attention/DESIGN.md](/home/xd/projects/bam_attention/DESIGN.md)；概念设计不代表当前实现全部具备 |
 | 某实验到底改了什么、结果怎样、如何复现 | [MaxText/exp.py](MaxText/exp.py)：完整配置类名、继承链、7位 runtime hash、速度/区域、停止或暂停步数、相对结论 |
 | 已有速度瓶颈、FLOPs、scaling与优化经验 | [bam_exp_memo.md](experiments/bam_llama2_medium/bam_exp_memo.md) |
-| BAM前传与投影/归一化/门控 | [attentions.py](MaxText/layers/attentions.py)：`BamAttention`、`bam_read`、`factorized_head_bam_read`、`_attention_op`、`_bam_fetch_op` |
+| BAM前传与投影/归一化/门控 | [attentions.py](MaxText/layers/attentions.py)：`BamAttention`、`bam_read`、`_attention_op`；共用 V5 配置与 legacy 边界见 [bam_v5.md](MaxText/layers/bam_v5.md) |
 | M跨层携带、layer scan、标准Transformer部分 | [fusion.py](MaxText/layers/fusion.py)、[models.py](MaxText/layers/models.py)、[accelerator.py](MaxText/layers/accelerator.py)；配置解析见 `pyconfig.py` |
 | 训练/AOT一致性、优化器、TB指标 | `MaxText/train.py`、`train_compile.py`、`optimizers.py`、`maxtext_utils.py` |
 | PyTorch/HF推理移植、GPU推理加速与对Pythia测速 | [bam_hf_pythia/README.md](bam_hf_pythia/README.md)（用法、环境、对齐、速度表）、[DESIGN.md](bam_hf_pythia/DESIGN.md)（kernel/cache设计、剩余差距、负面结果）；XLProp移植见 [bam_hf/README.md](bam_hf/README.md) |

@@ -48,6 +48,71 @@ class Common:
     me_dilation = None
     me_nums = None
 
+
+class BamV5Architecture:
+  """Generalized Q/K/V/O column reads and separate attention/memory writers."""
+  bam_attention_negative_diagonal = True
+  bam_attention_write_content_divisor = None
+  bam_mlp_write_content_divisor = 1.0
+  bam_common_qk_read_scale = True
+  bam_common_vo_read_scale = True
+  bam_common_vo_read_scale_init = 1.0
+  bam_concat_qk = True
+  bam_concat_static_qk = True
+  bam_embedding_write = True
+  bam_embedding_write_eps = 0.1
+  bam_enabled = True
+  bam_fetched_read_gate_init = None
+  bam_fetched_read_key_epsilon = None
+  bam_fetched_read_side = 'col'
+  bam_final_local_layer_count = 1
+  bam_force_activation_dtype = True
+  bam_general_column_read = True
+  bam_lambda_decay = 1.0
+  bam_local_full_m_read_share_down = True
+  bam_local_qk_direct_c8 = True
+  bam_local_v_replace = True
+  bam_local_vo_independent_gates = True
+  bam_local_vo_independent_keys = True
+  bam_local_vo_shared_read = 'local_o'
+  bam_local_vo_static = True
+  bam_m_read_norm = 'rms'
+  bam_m_shift_init = 0.5
+  bam_m_shift_mode = 'read'
+  bam_memory_mlp_last_write_dim = 0
+  bam_mlp_write_dynamic_address = True
+  bam_mlp_write_every = 1
+  bam_mlp_write_offset = 0
+  bam_n_f = 1
+  bam_pallas_body = 'v8t'
+  bam_pallas_core = True
+  bam_pallas_fused_inputs = True
+  bam_pallas_packed_read_keys = True
+  bam_pallas_write = True
+  bam_partial_rope = True
+  bam_prune_all_row_reads = True
+  bam_read_gate_activation = 'sigmoid'
+  bam_read_gate_init = 0.05
+  bam_read_implementation = 'mul_reduce_btn'
+  bam_read_key_epsilon = 0.0001
+  bam_read_key_scale = 0.1
+  bam_read_rms_statistics_dtype = 'float32'
+  bam_read_sides = 'col'
+  bam_record_concat_health = False
+  bam_record_m_shift_health = False
+  bam_replicate_ploc_up = False
+  bam_skip_final_mlp_write = True
+  bam_splash_attention = True
+  bam_static_read_gate_init = 0.99
+  bam_write_data_rms = True
+  bam_write_eps = 0.1
+  bam_write_factor_norm = 'rms'
+  bam_write_outer_implementation = 'mul_reduce'
+  bam_write_rms_statistics_dtype = 'float32'
+  bam_write_v_bottleneck_activation = 'gelu'
+  wd_mults = [('.*scale$', 0.0), ('.*bias$', 0.0), ('.*_gate_b0$', 0.0), ('.*gw_b0$', 0.0)]
+
+
 class Optimizer:
     learning_rate_schedule_steps = 13500
     warmup_steps_fraction = 0.01
@@ -17539,7 +17604,53 @@ class BamPythia2p8BHUnit300BFastKernel(BamPythia2p8BHUnit300B):
     remat_policy = 'minimal_save_splash'
 
 
-class BamPythia2p8BHUnit300BFastKernelMPreNormQKScale(BamPythia2p8BHUnit300BFastKernel):
+class BamPythia2p8BV5(BamV5Architecture, Pythia2p8B):
+    """Serial Pythia V5 with original BAM/embedding initialization and independent R640.
+
+    GELU widths 7808/2944/tail9984 preserve the completed 300B model. The default
+    execution profile matches v5p-256; hardware subclasses override only execution.
+    """
+    model_name = 'BamPythia2p8BV5'
+    bam_embedding_write_content_divisor = 0.0020825863
+    bam_attention_write_layers = list(range(31))
+    bam_init_method = '006normal'
+    bam_k = 80
+    bam_last_mlp_dim = 9984
+    bam_layer_modes = ['local_qk+local_v+local_o'] * 32
+    bam_local_full_m_read_bottleneck_dim = 640
+    bam_local_qk_col_output_dim = 80
+    bam_memory_mlp_dim = 2944
+    bam_mlp_write_address_rank = 640
+    bam_pallas_fused_qk_norm = True
+    bam_pallas_vmem_mib = 63
+    bam_partial_rope_nope_dim = 80
+    bam_qk_logit_scale_dim = 'qk_dim'
+    bam_qk_norm_after_concat = True
+    bam_read_implementation = 'dot_btn'
+    bam_splash_residual_name = 'bam_splash_residual'
+    bam_standard_qk_dim = 20
+    bam_v = 64
+    bam_write_outer_implementation = 'dot'
+    bam_write_rms_epsilon = 1e-06
+    bam_write_v_bottleneck_dim = 640
+    base_mlp_dim = 7808
+    cast_logits_to_fp32 = True
+    emb_bam_num_head = 32
+    emb_bam_v_bottleneck_dim = 640
+    float32_logits = False
+    jax_cache_explain_misses = True
+    logits_fp32_output_bf16_backward = True
+    mlp_dim_by_block = None
+    pythia_parallel_residual = False
+    pythia_use_fusion = True
+    qk_norm = True
+    record_logits_health_metrics = True
+    remat_policy = 'minimal_save_splash'
+    sharding_tolerance = 0.06
+    token_embedding_init_method = '006normal'
+
+
+class BamPythia2p8BHUnit300BFastKernelMPreNormQKScale(BamPythia2p8BV5):
     """Unit H 300B FastKernel with whole-M read pre-norm and learned V/O plus Q/K layer scales.
 
     RMS-normalize the shifted read view in FP32 over all 80x64 entries; retain
@@ -20297,7 +20408,45 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     bam_common_qk_read_scale = True
     compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneMPreNormTruePile']
 
-BamMediumPropV5 = BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneMPreNormQKScaleTruePile
+class BamMediumPropV5(BamV5Architecture, SplashTunedBlocks1024, Llama2MediumProp):
+    """Original RMSNorm/SwiGLU MediumProp V5; no historical BAM parents."""
+    bam_embedding_write_content_divisor = 0.0016052833
+    DATASET_VARIANT = 'truepile4096'
+    attention = 'dot_product_chunk'
+    bam_attention_write_layers = list(range(17))
+    bam_k = 75
+    bam_last_mlp_dim = 3904
+    bam_layer_modes = ['local_qk+local_v+local_o'] * 18
+    bam_local_full_m_read_bottleneck_dim = 256
+    bam_local_qk_col_output_dim = 75
+    bam_memory_mlp_dim = 1128
+    bam_mlp_write_address_rank = 256
+    bam_pallas_vmem_mib = 48
+    bam_partial_rope_nope_dim = 75
+    bam_standard_qk_dim = 18
+    bam_v = 32
+    bam_write_v_bottleneck_dim = 256
+    base_mlp_dim = 2510
+    compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneMPreNormTruePile']
+    emb_bam_num_head = 16
+    emb_bam_v_bottleneck_dim = 256
+    float32_logits = False
+    force_final_checkpoint = True
+    jax_cache_dir = ''
+    jax_cache_explain_misses = True
+    mlp_dim_by_block = None
+    model_name = 'BamMediumPropV5'
+    query_chunk_size = 256
+    record_training_health_metrics = True
+    sa_block_kv = 1024
+    sa_block_kv_compute = 512
+    sa_block_kv_dkv = 1024
+    sa_block_kv_dkv_compute = 1024
+    sa_block_q = 1024
+    sa_block_q_dkv = 1024
+    sa_use_fused_bwd_kernel = True
+    steps = 13500
+    tensorboard_gcs_rotate_period = 500
 
 
 class BamXLPropV5(BamMediumPropV5):

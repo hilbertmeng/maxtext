@@ -387,40 +387,18 @@ def record_logits_health_metrics(output_metrics, intermediate_outputs, prefix=''
                                     for name, value in zip(logits_utils.HEALTH_METRIC_NAMES, summary))
 
 
-def record_rmt_dynamic_health_metrics(output_metrics, intermediate_outputs, config):
-  """Export per-layer dynamic RMT read/write amplitudes and gate openings."""
-  from layers import rmt
-  decoder = intermediate_outputs['intermediates']['decoder']
-  for arm in ('embedding', 'unembedding'):
-    key = f'rmt_{arm}_health'
-    if key in decoder:
-      for index, name in enumerate(rmt.RMT_BOUNDARY_HEALTH_NAMES):
-        output_metrics['scalar'][f'rmt/{arm}/{name}'] = decoder[key][0][index]
-  health = intermediate_outputs['intermediates']['decoder']['layers']['rmt_dynamic_health'][0]
-  if config.get_keys().get('rmt_block_scan', False):
-    health = health.reshape((config.num_decoder_layers, health.shape[-1]))
-  for layer in range(config.num_decoder_layers):
-    for index, name in enumerate(rmt.dynamic_health_names(
-        config.get_keys().get('rmt_record_write_health', True))):
-      output_metrics['scalar'][f'rmt/dynamic/layer_{layer:03d}/{name}'] = health[layer, index]
 
 
 def record_bam_concat_health_metrics(output_metrics, intermediate_outputs, config):
-  """Decode compact read metrics from LLF block scan and an optional final L."""
+  """Decode V5 read/M-shift metrics from the scanned prefix and explicit tail."""
   decoder = intermediate_outputs['intermediates']['decoder']
   # M-shift health alone (e.g. the fused core, which rejects concat health) carries only m_shift_* keys.
   if getattr(config, 'bam_embedding_write', False) and getattr(config, 'bam_record_concat_health', False):
     gate = decoder['embedding_bam_write']['seed_gate'][0]
     for i, name in enumerate(('mean', 'std')):
       output_metrics['scalar'][f'bam/embedding_write/gate_{name}'] = gate[i]
-  size = config.bam_local_fetch_block_size
   def emit(attention, layer, index=None):
     for key, values in attention.items():
-      if key == 'context_local_o_competition':
-        value = values[0] if index is None else values[0][index]
-        for i, name in enumerate(('gate_mean', 'gate_std')):
-          output_metrics['scalar'][f'bam/context_local_o_competition/layer_{layer:03d}/{name}'] = value[i]
-        continue
       if key.startswith('m_shift_'):
         value = values[0] if index is None else values[0][index]
         prefix = f'bam/m_shift/layer_{layer:03d}'
@@ -458,146 +436,14 @@ def record_bam_concat_health_metrics(output_metrics, intermediate_outputs, confi
         names = ('bam_rms', 'standard_rms', 'bam_over_standard')
       for i, name in enumerate(names):
         output_metrics['scalar'][f'bam/concat/{key[7:]}/layer_{layer:03d}/{name}'] = value[i]
-  if not getattr(config, 'bam_pair_scan', False):
-    layers = decoder['layers']
-    attention = layers.get('sub_0', layers)['block']['self_attention']
-    tails = getattr(config, 'bam_final_local_layer_count', None)
-    if tails is None:
-      tails = int(bool(getattr(config, 'bam_extra_final_local_layer', False)))
-    for layer in range(config.num_decoder_layers - tails):
-      emit(attention, layer, layer)
-    for offset in range(tails):
-      name = 'final_local_layer' if tails == 1 else f'final_local_layer_{offset}'
-      emit(decoder[name]['block']['self_attention'], config.num_decoder_layers - tails + offset)
-    return
-  tails = getattr(config, 'bam_final_local_layer_count', None)
-  if tails is None:
-    tails = int(bool(getattr(config, 'bam_extra_final_local_layer', False)))
-  blocks = (config.num_decoder_layers - tails) // size
-  for offset in range(size):
-    name = f'local_{offset}' if offset < size - 1 else f'fetch_{offset}'
-    attention = decoder['layers'][name]['block']['self_attention']
-    for block in range(blocks):
-      emit(attention, block*size + offset, block)
+  layers = decoder['layers']
+  attention = layers.get('sub_0', layers)['block']['self_attention']
+  tails = config.bam_final_local_layer_count or 0
+  for layer in range(config.num_decoder_layers - tails):
+    emit(attention, layer, layer)
   for offset in range(tails):
     name = 'final_local_layer' if tails == 1 else f'final_local_layer_{offset}'
     emit(decoder[name]['block']['self_attention'], config.num_decoder_layers - tails + offset)
-
-
-def record_bam_fetched_read_health_metrics(
-    output_metrics, intermediate_outputs, config):
-  """Adds compact per-layer fetched-read health summaries."""
-  layers_metrics = intermediate_outputs["intermediates"]["decoder"]["layers"]
-  metrics_dict = layers_metrics.get('sub_0', layers_metrics)
-  attention = metrics_dict['block']['self_attention']
-  gate_stats = attention['fetched_read_gate_stats'][0]
-  m_rms = attention['fetched_read_m_rms'][0]
-  pre_gate_rms = attention['fetched_read_pre_gate_effective_rms'][0]
-  output_rms = attention['fetched_read_output_rms'][0]
-  total_rms = attention['fetched_read_to_std_rms'][0]
-  gate_bin_stats = (
-      attention['fetched_read_gate_bin_stats'][0]
-      if 'fetched_read_gate_bin_stats' in attention else None)
-  gate_stat_names = ('mean', 'std', 'frac_lt_005', 'frac_gt_095')
-  diagonal_sums = (sum(attention['fetch_diagonal_sums'])
-                   if 'fetch_diagonal_sums' in attention else None)
-  route_sums = (sum(attention['fetch_route_sums'])
-                if 'fetch_route_sums' in attention else None)
-  mix_stats = (attention['fetch_mix_weight_stats'][0]
-               if 'fetch_mix_weight_stats' in attention else None)
-  mix_scale = (attention['fetch_mix_scale'][0]
-               if 'fetch_mix_scale' in attention else None)
-  for layer_num in range(config.base_num_decoder_layers):
-    if route_sums is not None:
-      negative, zero, mass, square, edges, queries = route_sums[layer_num]
-      prefix = f'bam/fetch_route/layer_{layer_num:03d}'
-      output_metrics['scalar'].update({
-          f'{prefix}/preclip_negative_fraction': negative / jnp.maximum(edges, 1),
-          f'{prefix}/zero_fraction': zero / jnp.maximum(edges, 1),
-          f'{prefix}/cross_mass_per_query': mass / jnp.maximum(queries, 1),
-          f'{prefix}/cross_l2_rms_per_query': jnp.sqrt(square / jnp.maximum(queries, 1)),
-          f'{prefix}/mix_weight_mean': mix_stats[layer_num, 0],
-          f'{prefix}/mix_weight_rms': mix_stats[layer_num, 1],
-          f'{prefix}/mix_weight_negative_fraction': mix_stats[layer_num, 2],
-      })
-      if mix_scale is not None:
-        mix_heads = config.bam_fetch_mix_num_heads or config.num_query_heads
-        output_metrics['scalar'].update({
-            f'{prefix}/mix_scale': mix_scale[layer_num],
-            f'{prefix}/mix_scale_over_init': mix_scale[layer_num] * mix_heads ** 0.5,
-        })
-    if diagonal_sums is not None:
-      diag, diag_sq, diag_neg, count, cross, queries = diagonal_sums[layer_num]
-      count, queries = jnp.maximum(count, 1), jnp.maximum(queries, 1)
-      prefix = f'bam/fetch_route/layer_{layer_num:03d}'
-      output_metrics['scalar'].update({
-          f'{prefix}/diagonal_mean': diag / count,
-          f'{prefix}/diagonal_rms': jnp.sqrt(diag_sq / count),
-          f'{prefix}/diagonal_negative_fraction': diag_neg / count,
-          f'{prefix}/cross_mass_per_query': cross / queries,
-      })
-    for side_num, side in enumerate(('row', 'col')):
-      prefix = f'bam/fetched_read_gate/{side}/layer_{layer_num:03d}'
-      for stat_num, stat in enumerate(gate_stat_names):
-        output_metrics['scalar'][f'{prefix}/{stat}'] = (
-            gate_stats[layer_num, side_num, stat_num])
-      if gate_bin_stats is not None:
-        for bin_num, lo in enumerate(range(0, 100, 20)):
-          bin_prefix = f'{prefix}/bin_{lo:02d}_{lo + 20:02d}'
-          output_metrics['scalar'].update({
-              f'{bin_prefix}/population_fraction': (
-                  gate_bin_stats[layer_num, side_num, bin_num, 0]),
-              f'{bin_prefix}/y_bam_over_y_std': (
-                  gate_bin_stats[layer_num, side_num, bin_num, 1]),
-              f'{bin_prefix}/y_bam_energy_fraction': (
-                  gate_bin_stats[layer_num, side_num, bin_num, 2]),
-          })
-      output_metrics['scalar'][
-          f'bam/fetched_read_output/{side}/layer_{layer_num:03d}/rms'] = (
-              output_rms[layer_num, side_num])
-      output_metrics['scalar'][
-          f'bam/fetched_read_pre_gate/{side}/layer_{layer_num:03d}/rms'] = (
-              pre_gate_rms[layer_num, side_num])
-    prefix = f'bam/fetched_read_health/layer_{layer_num:03d}'
-    output_metrics['scalar'].update({
-        f'{prefix}/m_rms': m_rms[layer_num],
-        f'{prefix}/y_bam_rms': total_rms[layer_num, 0],
-        f'{prefix}/y_std_rms': total_rms[layer_num, 1],
-        f'{prefix}/y_bam_over_y_std': total_rms[layer_num, 2],
-    })
-
-
-def record_bam_local_qk_routing_metrics(
-    output_metrics, intermediate_outputs, config):
-  """Adds per-layer LocalQK rank-gate distributions and read-strength ratios."""
-  layers_metrics = intermediate_outputs["intermediates"]["decoder"]["layers"]
-  metrics_dict = layers_metrics.get('sub_0', layers_metrics)
-  attention = metrics_dict['block']['self_attention']
-  stat_names = (
-      'edge_mean', 'edge_std', 'edge_min', 'edge_max',
-      'edge_frac_lt_005', 'edge_frac_gt_095',
-      'rank_sum_mean', 'rank_sum_std', 'rank_sum_min', 'rank_sum_max',
-      'rank_mean_mean', 'rank_mean_std',
-      *(f'rank_mean_bin_{lo:02d}_{lo + 10:02d}' for lo in range(0, 100, 10)),
-      'rank_sum_head_std', 'dominant_rank_share')
-  for use_point in ('local_q', 'local_k'):
-    gate_stats = attention[f'{use_point}_rank_gate_stats'][0]
-    for layer_num in range(config.base_num_decoder_layers):
-      for side_num, side in enumerate(('row', 'col')):
-        prefix = f'bam/local_qk/{use_point}/{side}/layer_{layer_num:03d}'
-        for stat_num, stat in enumerate(stat_names):
-          output_metrics['scalar'][f'{prefix}/{stat}'] = (
-              gate_stats[layer_num, side_num, stat_num])
-
-  read_health = attention['local_qk_read_health'][0]
-  health_names = (
-      'q_bam_rms', 'q_std_rms', 'q_bam_over_std',
-      'k_bam_rms', 'k_std_rms', 'k_bam_over_std')
-  for layer_num in range(config.base_num_decoder_layers):
-    prefix = f'bam/local_qk/health/layer_{layer_num:03d}'
-    for stat_num, stat in enumerate(health_names):
-      output_metrics['scalar'][f'{prefix}/{stat}'] = (
-          read_health[layer_num, stat_num])
 
 
 def record_scanned_layer_norms(output_metrics, decoder, config, stride):
@@ -610,23 +456,8 @@ def record_scanned_layer_norms(output_metrics, decoder, config, stride):
       if layer % stride == 0 and not isinstance(value, dict):
         output_metrics["scalar"][f"block/{key}/layer_{layer:03d}"] = value
   layers = decoder.get("layers", {})
-  if getattr(config, 'bam_pair_scan', False):
-    size = config.bam_local_fetch_block_size
-    tails = getattr(config, 'bam_final_local_layer_count', None)
-    tails = int(bool(getattr(config, 'bam_extra_final_local_layer', False))) if tails is None else tails
-    blocks = (config.num_decoder_layers - tails) // size
-    for offset in range(size):
-      name = f'local_{offset}' if offset < size - 1 else f'fetch_{offset}'
-      block = layers.get(name, {}).get('block', {})
-      for i in range(blocks):
-        emit({k: v[0][i] for k, v in block.items() if not isinstance(v, dict)}, i * size + offset)
-    for offset in range(tails):
-      name = 'final_local_layer' if tails == 1 else f'final_local_layer_{offset}'
-      block = decoder.get(name, {}).get('block', {})
-      emit({k: v[0] for k, v in block.items() if not isinstance(v, dict)}, config.num_decoder_layers - tails + offset)
-  else:
-    for i in range(config.num_decoder_layers):
-      emit({k: v[0][i] for k, v in layers.items() if not isinstance(v, dict)}, i)
+  for i in range(config.num_decoder_layers):
+    emit({k: v[0][i] for k, v in layers.items() if not isinstance(v, dict)}, i)
 
 
 def record_activation_metrics(output_metrics, intermediate_outputs, config):
@@ -964,9 +795,6 @@ def compute_params_norm(params, config, prefix='total_params'): # lsp
         scalar_vales[newkj] = normv[lyr]
     else:
       scalar_vales[newk] = jnp.sqrt(jnp.sum(jnp.square(v)))
-  if prefix == 'total_params' and getattr(config, 'bam_content_adapter_write', False):
-    from layers.bam_content_adapter import parameter_health
-    scalar_vales.update(parameter_health(params, config))
   return scalar_vales
 
 
@@ -1081,18 +909,10 @@ def train_step(model, config, state_mesh_shardings, state, data, dropout_rng):
     record_logits_health_metrics(metrics, intermediate_outputs)
 
   if (getattr(config, 'bam_record_concat_health', False) or getattr(config, 'bam_record_m_shift_health', False)
-      or (getattr(config, 'bam_context_local_o_complement', False) and config.record_training_health_metrics)):
+):
     record_bam_concat_health_metrics(metrics, intermediate_outputs, config)
-  if getattr(config, 'rmt_record_dynamic_health', False):
-    record_rmt_dynamic_health_metrics(metrics, intermediate_outputs, config)
   if config.record_internal_nn_metrics:
     record_activation_metrics(metrics, intermediate_outputs, config)
-  if getattr(config, 'bam_record_fetched_read_health_metrics', False):
-    record_bam_fetched_read_health_metrics(
-        metrics, intermediate_outputs, config)
-  if getattr(config, 'bam_record_local_routing_metrics', False):
-    record_bam_local_qk_routing_metrics(metrics, intermediate_outputs, config)
-
   if config.use_dpo:
     new_state = _merge_dpo_state(new_state, reference_params)
 

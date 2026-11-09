@@ -21,6 +21,7 @@ def main():
   p = argparse.ArgumentParser(description=__doc__)
   p.add_argument('results', type=Path)
   p.add_argument('--output-dir', type=Path, required=True)
+  p.add_argument('--sensitivity', action='store_true', help='Opt in to secondary SiTU counterfactual plots')
   args = p.parse_args()
   import numpy as np
   import matplotlib
@@ -67,6 +68,40 @@ def main():
   fig.savefig(distribution,dpi=100);plt.close(fig)
   for path in [distribution]:
     with Image.open(path) as image:image.convert('RGB').quantize(colors=128).save(path,optimize=True)
+  raw_figures=[]
+  for branch,label in ((0,'u'),(1,'v')):
+    columns=2;row_count=(len(rows)+1)//2
+    fig,axs=plt.subplots(row_count,columns,figsize=(10,2.05*row_count),sharex=True,sharey=True,
+                         squeeze=False,layout='constrained')
+    maximum=max(max(abs(x['all_sequences']['minimum'][l][branch]),abs(x['all_sequences']['maximum'][l][branch]))
+                for x in rows for l in range(28))
+    for ax,row in zip(axs.ravel(),rows):
+      s=row['all_sequences'];q=lambda key:np.asarray(s['signed_quantile_intervals'][str(key)])[:,branch].mean(-1)
+      x=np.arange(28)
+      ax.fill_between(x,q(.001),q(.999),color='C0',alpha=.14,label='p0.1--p99.9')
+      ax.fill_between(x,q(.01),q(.99),color='C0',alpha=.35,label='p1--p99')
+      ax.plot(x,q(.5),color='black',lw=1,label='median')
+      ax.plot(x,np.asarray(s['maximum'])[:,branch],color='.45',lw=.8,label='exact min/max')
+      ax.plot(x,np.asarray(s['minimum'])[:,branch],color='.45',lw=.8)
+      for amplitude,color in ((4.,'C1'),(7.,'C2'),(10.,'C3')):
+        ax.axhline(amplitude,color=color,ls='--',lw=.6,alpha=.75,label=f'{amplitude:g} reference')
+        if branch==1:ax.axhline(-amplitude,color=color,ls='--',lw=.6,alpha=.75)
+      ax.set_title('Step '+str(row['checkpoint']['step']),fontsize=9)
+      ax.set_yscale('symlog',linthresh=1.);ax.set_ylim(-maximum*1.15,maximum*1.15)
+      ax.set_xticks([0,6,13,20,27]);ax.grid(alpha=.15)
+    for ax in axs.ravel()[len(rows):]:ax.set_visible(False)
+    axs[0,0].legend(fontsize=6,ncol=2,loc='lower left')
+    fig.supxlabel('Ordinary MLP layer');fig.supylabel(f'Original {label}, symmetric-log axis (linear between -1 and 1)')
+    fig.suptitle(f'XL V5: original {label} distribution; no activation clipping',fontsize=11)
+    path=args.output_dir/f'xlprop-v5-original-{label}-distributions.png';fig.savefig(path,dpi=100);plt.close(fig)
+    with Image.open(path) as im:im.convert('RGB').quantize(colors=128).save(path,optimize=True)
+    raw_figures.append(str(path))
+  summary=dict(checkpoint_steps=[r['checkpoint']['step'] for r in rows],
+               source_summaries=[str(args.results/str(r['checkpoint']['step'])/'summary.json') for r in rows],
+               distribution_figure=str(distribution),raw_figures=raw_figures,csv=str(csv_path))
+  if not args.sensitivity:
+    (args.output_dir/'xlprop-v5-uv-figures.json').write_text(json.dumps(summary,indent=2)+'\n')
+    print(json.dumps(summary,indent=2));return
   latest=rows[-1]; soft=latest['all_sequences']['soft']; candidates=latest['candidates']
   fig,axes=plt.subplots(3,1,figsize=(9.5,7),sharex=True,layout='constrained')
   selection=((4.,25.),(4.,8.),(4.,4.),(8.,4.),(2.,2.))
@@ -81,9 +116,7 @@ def main():
   sensitivity=args.output_dir/'xlprop-v5-situ-sensitivity.png'
   fig.savefig(sensitivity,dpi=100);plt.close(fig)
   with Image.open(sensitivity) as image:image.convert('RGB').quantize(colors=128).save(sensitivity,optimize=True)
-  summary=dict(checkpoint_steps=[r['checkpoint']['step'] for r in rows],
-               source_summaries=[str(args.results/str(r['checkpoint']['step'])/'summary.json') for r in rows],
-               distribution_figure=str(distribution),sensitivity_figure=str(sensitivity),csv=str(csv_path))
+  summary['sensitivity_figure']=str(sensitivity)
   (args.output_dir/'xlprop-v5-uv-figures.json').write_text(json.dumps(summary,indent=2)+'\n')
   print(json.dumps(summary,indent=2))
 

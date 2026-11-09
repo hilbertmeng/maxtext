@@ -20532,6 +20532,22 @@ class BamXLPropV5FastKernelFullRemat(BamXLPropV5FastKernel):
     remat_policy = 'full'
 
 
+class BamXLPropV5FastKernelFullRematSiTU47(BamXLPropV5FastKernelFullRemat):
+    """Ledger only: XL V5 ordinary-MLP SiTU gate/up4/7; private writer remains SwiGLU.
+
+    Implementation: codex/xlprop-v5-situ47, based on the actual d54c4c5 parent;
+    /home/xd/.codex/worktrees/xl-v5-situ47/maxtext. Use the recorded runtime,
+    not the later main BAM refactor. Widths4048/1827/tail6277; no parameter delta.
+    See experiments/bam_llama2_medium/xlprop_v5_situ47.md.
+    """
+    # code_commit:bd181bc; UC1a v5p-32, fresh50k RUN; FIRST_STEP4, by94 ~.521step/s vs father~.518.
+    # Generic health ON/internal OFF; ordinary/private/tail4048/1827/6277, parameter delta0.
+    model_name = 'BamXLPropV5FastKernelFullRematSiTU47'
+    ordinary_mlp_situ_gate_limit = 4.0
+    ordinary_mlp_situ_up_limit = 7.0
+    compare_runs = ['BamXLPropV5FastKernelFullRemat']
+
+
 class _XLPropV5SpeedProfile(TrainStepProfile):
     """Paired speed arm: full 28 layers, formal 8/device, T4096, schedule and health."""
     # code_commit:fad395a (v5p-8), 708dcd2 (v5p-32); results in experiments/xlprop_v5.md.

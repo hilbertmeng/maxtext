@@ -16926,7 +16926,6 @@ class Pythia2p8B(TrainPythia, PythiaArchitecture, Llama2Medium):
     base_mlp_dim = 10240
     pythia_rotary_dim = 20
     learning_rate = 1.6e-4
-    checkpoint_keep_steps = list(range(3000, 143001, 10000))  # TODO
     # Splash tuning for this model; retain the full tile specification here.
     sa_block_q = 1024
     sa_block_kv = 1024
@@ -17675,11 +17674,6 @@ class BamPythia2p8BHUnit300BFastKernelMPreNormQKScale(BamPythia2p8BV5):
     # CP143000/cursor, all 15 keep steps across regional buckets, TB sync and TPU release verified.
     # Reproduction, kernel lineage, forecasts and complete leases: h_prenorm_qkscale_fp32_300b.md.
     model_name = 'BamPythia2p8BHUnit300BFastKernelMPreNormQKScale'
-    bam_m_read_norm = 'rms'
-    bam_common_qk_read_scale = True
-    cast_logits_to_fp32 = True
-    logits_fp32_output_bf16_backward = True
-    record_logits_health_metrics = True
     # FastKernel ran under the original HUnit300B RUN; use its recorded history.
     compare_runs = ['BamPythia2p8BHUnit300B', 'Pythia_2.8B_2022',
                     'PileMUDDPythia3BPlusOcdbtv6e',
@@ -20438,13 +20432,6 @@ class BamMediumPropV5(BamV5Architecture, SplashTunedBlocks1024, Llama2MediumProp
     model_name = 'BamMediumPropV5'
     query_chunk_size = 256
     record_training_health_metrics = True
-    sa_block_kv = 1024
-    sa_block_kv_compute = 512
-    sa_block_kv_dkv = 1024
-    sa_block_kv_dkv_compute = 1024
-    sa_block_q = 1024
-    sa_block_q_dkv = 1024
-    sa_use_fused_bwd_kernel = True
     steps = 13500
     tensorboard_gcs_rotate_period = 500
 
@@ -20467,7 +20454,6 @@ class BamXLPropV5(BamMediumPropV5):
     # B-type (L1 Q/K/V-only) spikes confirmed by exact v5p-32 replay from 9250: full_save_splash backward error
     # (9251 raw 1.09e4 vs full remat 19.1, same params/batch); fix FastKernelFullRemat. xlprop_v5_b_spike_replay.md.
     model_name = 'BamXLPropV5'
-    DATASET_VARIANT = 'truepile4096'  # Explicit for launchers resolving the V5 alias.
     base_emb_dim = 1920
     base_num_decoder_layers = 28
     base_num_query_heads = 20
@@ -20495,7 +20481,6 @@ class BamXLPropV5(BamMediumPropV5):
     bam_pallas_vmem_mib = 63
     # W_emb_u content RMS grows as sqrt(D) under the unchanged .006 recipe.
     bam_embedding_write_content_divisor = 0.0016052833 * math.sqrt(1920 / 1200)
-    max_target_length = 4096
     per_device_batch_size = 8.0
     learning_rate = 2e-4
     learning_rate_schedule_steps = 50000

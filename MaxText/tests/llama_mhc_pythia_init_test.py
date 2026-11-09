@@ -50,8 +50,9 @@ class LlamaMHCPythiaInitTest(unittest.TestCase):
     c,m,mesh,p,args=self.init_model(VARIANT)
     with mesh,nn.partitioning.axis_rules(c.logical_axis_rules):
       def loss(params):
-        logits=m.apply({'params':params},*args,enable_dropout=False)[0]
-        return -jnp.take_along_axis(jax.nn.log_softmax(logits),args[0][...,None],-1).mean()
+        # Training model returns chunked per-token cross-entropy, not logits.
+        token_loss=m.apply({'params':params},*args,enable_dropout=False)[0]
+        return token_loss.mean()
       value,grad=jax.value_and_grad(loss)(p)
     self.assertTrue(np.isfinite(value))
     self.assertTrue(all(np.isfinite(x).all() for x in jax.tree.leaves(nn.unbox(grad))))

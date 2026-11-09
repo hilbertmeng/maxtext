@@ -23,7 +23,9 @@ def rotary_width(head_dim, fraction=0.25, explicit=-1):
 
 def validate_pythia_config(keys):
   if keys['decoder_block'] != 'pythia':
-    if keys.get('init_method') == 'pythia':
+    if keys.get('init_method') == 'pythia' and not (
+        keys['decoder_block'] == 'fusion' and keys.get('residual_connection') == 'mhc'
+        and keys.get('bam_enabled') and keys.get('bam_mha_control')):
       raise ValueError("init_method=pythia requires decoder_block=pythia (role-specific output initialization)")
     return
   rotary_width(keys['head_dim'], keys['pythia_rotary_fraction'], keys['pythia_rotary_dim'])

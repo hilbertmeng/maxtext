@@ -10386,11 +10386,28 @@ class BamMHAMediumPropC256TruePilemHC(MHCConfig, BamMHAMediumPropC256TruePile):
     Repay the controller/learned-head budget through the uniform FFN width.
     """
     # Worktree /home/mengqy/Projects/Bam/maxtext, branch mqy/refactor-bam-hc.
-    # code_commit: de3d1b1; separate Spot v5p-16 RUN, plan13,500, UE5a/EW4b/UC1a.
-    # UC1a ~.511 steps/s (six TB samples10–60, provisional); first lease CP62, then SERVICE-preempted.
+    # code_commit: de3d1b1; completed 13,500 on Spot v5p-16, UC1a; all regional nodes/queues released.
+    # UC1a ~0.509 steps/s: -28.7% vs MHA ~0.714, -19.2% vs Mudd ~0.630 (historical runtimes).
+    # vs MHA: early gain peaked near -0.056, then shrank to final-five mean -0.0251744;
+    # vs Mudd: final-five mean +0.0617370. Mudd-gain fraction held ~0.28-0.30 after 3k.
+    # Last window 13,400: gaps -0.0254730 / +0.0611178; Mudd-gain fraction 0.29418.
+    # Params +3,377 (+0.0007815%) vs parent after FFN repayment; native 3 preemptions / 4 READY leases.
+    # Final checkpoint 13,500 committed; completion/cleanup 2026-11-07 18:10/18:12 UTC.
     model_name = 'BamMHAMediumPropC256TruePilemHC'
     jax_cache_dir = ''
     compare_runs = ['BamMHAMediumPropC256TruePile', 'MuddLlama2MediumPropTruePile']
+
+
+class BamMHAMediumPropC256TruePilemHCPythiaInit(BamMHAMediumPropC256TruePilemHC):
+    """Initialization-only ablation: NeoX small/Wang on the Llama mHC backbone."""
+    # Worktree /home/mengqy/Projects/Bam/maxtext, branch mqy/refactor-bam-hc.
+    # Same RMSNorm/SwiGLU, RoPE74, TruePile4096, LR and mHC initialization as parent.
+    # Small init for embeddings, QKV, both SwiGLU inputs and LM head; Wang for O/down.
+    # Review 400 and 1,000 steps; continue the normal 13,500-step schedule by default.
+    model_name = 'BamMHAMediumPropC256TruePilemHCPythiaInit'
+    init_method = 'pythia'
+    compare_runs = ['BamMHAMediumPropC256TruePilemHC',
+                    'BamMHAMediumPropC256TruePile', 'MuddLlama2MediumPropTruePile']
 
 
 class MuddLlama2MediumPropTruePile(Mudd, BamMHAMediumPropC256TruePile):
@@ -16312,8 +16329,13 @@ class PythiaMediumPropT2048SerialMLPmHC(MHCConfig, PythiaMediumPropT2048SerialML
     """
     # Initial runtime 695c28d failed the startup FSDP guard; controller sharding is now fixed.
     # code_commit: c1c4683; UC1a Spot v5p-16, verified stepping and checkpoint resume.
-    # ~0.535 steps/s; old Pythia/Mudd runtimes also computed health metrics despite the False flag.
-    # Provisional: last cached step709, committed checkpoint648; recovering after Spot preemption.
+    # Completed13,500 on UC1a Spot v5p-16; final checkpoint committed, owned nodes/queues released.
+    # ~0.534 steps/s: -26.8% vs Pythia .72949, -7.7% vs Mudd .57875 (historical kernels differ).
+    # Last5 windows12600–13400: vs Pythia -.050362, vs Mudd +.026055; MHA-referenced gain~.66x Mudd.
+    # Gains stabilized around.62–.67x Mudd after~1k; no late loss reversal. Final13400 ratio.6684.
+    # Parameters432,339,959: -20,041 vs Pythia (-.00464%); Mudd has additional router parameters.
+    # Native ledger records6 preemptions/7 READY leases,7h31m52 total; earliest manual leases may be omitted.
+    # Old Pythia/Mudd runtimes also computed health metrics despite the False flag.
     model_name = 'PythiaMediumPropT2048SerialMLPmHC'
     pythia_use_fusion = True
     record_training_health_metrics = True

@@ -199,6 +199,8 @@ class SubDecoderLayer(nn.Module):
         sliding_window_size=self.sliding_window_size,
         use_kv_shift=cfg.use_kv_shift,
     )
+    if cfg.init_method == 'pythia':
+        attn_kwargs['output_kernel_init'] = initializers.get_model_init(cfg, residual_output=True)
     if cfg.decoder_block == 'pythia':
         from pythia_config import rotary_width
         attn_kwargs.update(
@@ -399,7 +401,7 @@ class SubDecoderLayer(nn.Module):
           quant=self.quant,
           kernel_init=initializers.get_model_init(cfg), # lsp
           output_kernel_init=(initializers.get_model_init(cfg, residual_output=True)
-                              if cfg.decoder_block == 'pythia' else None),
+                              if cfg.init_method == 'pythia' else None),
           bam_memory_output=share_memory_hidden and mlp_write,
           bam_memory_write_heads=memory_write_heads if compact_controls and mlp_write else 0,
           bam_memory_controls_from_hidden=bool(

@@ -51,6 +51,40 @@ def analyze(params, x, dy, actual_dx, actual_y, target):
       projection = (z['gate_cotangent'] * mm(wg.T, z['dx'])
                     + z['value_cotangent'] * mm(wu.T, z['dx'])) / jnp.maximum(norm2, 1e-30)
       top_projection, top_units = jax.lax.top_k(projection, 16)
+      geometry = {}
+      for name, matrix in (('gate', wg), ('value', wu), ('output', wo.T)):
+        norms = jnp.linalg.norm(matrix, axis=0)
+        selected_weights = matrix[:, top_units[:4]]
+        selected_norms = norms[top_units[:4]]
+        geometry[name] = dict(norms=selected_norms,
+            norm_percentile=jnp.mean(norms[None, :] <= selected_norms[:, None], axis=1),
+            cosine=mm(selected_weights.T, selected_weights)
+                / jnp.maximum(selected_norms[:, None] * selected_norms[None, :], 1e-30),
+            all_norm_quantiles=jnp.quantile(norms, jnp.asarray([.5, .95, .99, 1.])))
+
+      interventions = []
+      random_units = jax.random.choice(jax.random.PRNGKey(91), wg.shape[1], (4,), replace=False)
+      for name, units, cap, detach in (
+          ('remove_top4_hidden_units', top_units[:4], None, False),
+          ('remove_random4_hidden_units', random_units, None, False),
+          ('cap_silu_at_1', None, 1., False),
+          ('cap_silu_at_2', None, 2., False),
+          ('detach_gate_derivative', None, None, True)):
+        act, derivative = z['activation'], z['derivative']
+        if units is not None:
+          act, derivative = act.at[units].set(0), derivative.at[units].set(0)
+        if cap is not None:
+          derivative = jnp.where(jnp.abs(act) < cap, derivative, 0)
+          act = jnp.clip(act, -cap, cap)
+        if detach:
+          derivative = jnp.zeros_like(derivative)
+        hidden_g = mm(dy[index], wo.T)
+        changed_dx = (mm(hidden_g * derivative * z['v'], wg.T)
+                      + mm(hidden_g * act, wu.T))
+        changed_y = mm(act * z['v'], wo)
+        interventions.append(dict(
+            input_vjp_gain=l2(changed_dx) / jnp.maximum(token_dy[index], 1e-30),
+            output_relative_change=l2(changed_y - z['y']) / jnp.maximum(l2(z['y']), 1e-30)))
 
       def power(seed):
         q = jax.random.normal(jax.random.PRNGKey(seed), (jacobian.shape[1],))
@@ -75,6 +109,7 @@ def analyze(params, x, dy, actual_dx, actual_y, target):
           projected_fraction_sum=jnp.sum(projection),
           positive_projected_fraction=jnp.sum(jnp.maximum(projection, 0)),
           negative_projected_fraction=jnp.sum(jnp.minimum(projection, 0)),
+          top4_weight_geometry=geometry, local_hidden_interventions=interventions,
           top16_projected_fractions=top_projection, top16_hidden_units=top_units,
           top16_gate_preactivations=z['u'][top_units],
           top16_value_preactivations=z['v'][top_units]))
@@ -90,6 +125,11 @@ def analyze(params, x, dy, actual_dx, actual_y, target):
          for a in weights]
     result = jax.device_get(compiled(x, dy, actual_dx, actual_y, *w))
     result = jax.tree.map(lambda a: np.asarray(a).tolist(), result)
+    for row in result['selected_tokens']:
+      for entry, name in zip(row['local_hidden_interventions'],
+          ('remove_top4_hidden_units', 'remove_random4_hidden_units', 'cap_silu_at_1',
+           'cap_silu_at_2', 'detach_gate_derivative')):
+        entry['name'] = name
     results.append(dict(effective_bf16_weights=quantized, **result))
   return dict(scope='Fixed captured MLP inputs/upstream cotangents; FP32 chain rule, no network reevaluation',
               arms=results)

@@ -60,7 +60,7 @@ class SiTUMLPTest(MLPWriteTest, unittest.TestCase):
     for name in (PARENT,RUN):
       c=pyconfig.initialize([None,'MaxText/configs/base.yml'],exp_class=name,run_name='audit',
           enable_checkpointing=False,base_output_directory=self.tmp.name+'/',jax_cache_dir='',
-          log_config=False,dataset_type='synthetic',max_target_length=128,max_prefill_predict_length=128)
+          log_config=False,dataset_type='synthetic',max_target_length=256,max_prefill_predict_length=256)
       mesh=jax.sharding.Mesh(max_utils.create_device_mesh(c),c.mesh_axes)
       shaped,*_=train_compile.get_shaped_inputs(mesh,c)
       totals.append(sum(np.prod(v.shape,dtype=np.int64) for v in flatten_dict(nn.unbox(shaped[0].params)).values()))

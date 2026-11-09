@@ -131,6 +131,34 @@ because the notifier observed intentional node deletion before registry close;
 exit 0 and CP 143000 were checked before any recovery/resource submission. The
 RUN's notifier was then stopped. Borrowed FLEX resources remained untouched.
 
+## Elapsed time and actual training time
+
+Formal RUN registration to verified closeout took 138.8725 hours (5 days,
+18 hours, 52 minutes), excluding pre-launch AOT preparation. Across 22 distinct
+training writers, first-to-last training-event timestamps sum to 69.2953 hours:
+63.8206 on v5p-256 and 5.4747 on v5p-128. This is about 49.9% of elapsed time;
+the remaining approximately 69.58 hours covered waiting and recovery/preparation.
+The registry's READY intervals sum to 71.1125 hours and must not be substituted
+for training time. Queue waiting is not equivalent to allocated TPU idle time.
+
+Training time includes in-process checkpoint/I/O stalls and any recomputation,
+but excludes installation and checkpoint restore before the first recorded
+training step. All rotations were grouped by writer UUID; restarts were not
+deduplicated away. Ten-step logging leaves short unobserved edges, so 69.3 hours
+is an approximate training-time figure, not exact kernel time or a billing total.
+One-time local extraction: `training-time-accounting.json` and
+`account_training_time.py` in the artifact root.
+
+The 24 RUN-related READY intervals comprise 19 interruptions after training
+started, two preparation-only preemptions, two manual handoffs and final clean
+completion. Eight of the 21 preempted intervals lasted less than 20 minutes;
+their median was 32 minutes 58 seconds. Two lasted only 72 seconds. The longest
+READY interval lasted 21 hours 48 minutes 33 seconds in UC1a; the three longest
+actual training intervals supplied 66.4% of recorded training time. The longest
+gap between training records was about 18 hours 48 minutes; another was about
+14 hours 50 minutes. Additional passive candidate failures are recorded
+separately and are not included in those 21 interruptions.
+
 ## Complete READY intervals (UTC)
 
 Registry intervals are supplemented by three missing source intervals from

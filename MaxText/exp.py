@@ -10414,6 +10414,16 @@ class BamMHAMediumPropC256TruePilemHC(MHCConfig, BamMHAMediumPropC256TruePile):
     compare_runs = ['BamMHAMediumPropC256TruePile', 'MuddLlama2MediumPropTruePile']
 
 
+class BamMHAMediumPropC256TruePilemHCSK3(BamMHAMediumPropC256TruePilemHC):
+    """Llama mHC with three Sinkhorn iterations; all initialization unchanged."""
+    # Single intervention versus original mHC: Sinkhorn iterations 20 -> 3.
+    model_name = 'BamMHAMediumPropC256TruePilemHCSK3'
+    mhc_sinkhorn_iters = 3
+    compare_runs = ['BamMHAMediumPropC256TruePilemHC',
+                    'BamMHAMediumPropC256TruePile', 'MuddLlama2MediumPropTruePile',
+                    'BamMHAMediumPropC256TruePileAttnRes']
+
+
 class BamMHAMediumPropC256TruePileiHC(BamMHAMediumPropC256TruePilemHC):
     """Identity-mixing ablation of Llama mHC, retaining its exact initialization."""
     # Sealed worktree .auto-agent/worktrees/llama-ihc, mqy/llama-ihc-sealed.

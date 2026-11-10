@@ -170,6 +170,35 @@ fixes. Next separate ordinary/private-MLP input adjoints using the same strict
 all-one gate, retaining their local weight derivatives.
 Artifacts: `flex-5000-path-vjp/attention-path-vjp.json`, runner5a318501.
 
+The extension that gates ordinary/private MLP **inputs** also completes.
+Its CE is bitwise unchanged; its all-one raw4776.70166 differs from original
+4751.14014 by0.538%, within the predeclared1% fidelity gate. These results use
+that4776.70 wrapped reference; do not describe this extension as bitwise
+gradient-equivalent. Input gating retains each MLP's local weight derivatives;
+it changes the derivatives propagated to its inputs. The final all-one repeat
+matches exactly.
+
+| Reverse intervention |Raw norm|
+|---|---:|
+|Ordinary MLP input, L6 only, cut|2408.7881|
+|Ordinary MLP inputs, L6--L13, cut|11.02444|
+|All ordinary MLP inputs, cut|3.76217|
+|All private memory MLP inputs, cut|4559.9575|
+|All ordinary MLP input cotangents multiplied by .9|1188.5385|
+|Same, multiplied by .75|119.48910|
+|Same, multiplied by .5|5.86099|
+
+Combined with the FP32 local derivative checks, this supports cumulative
+ordinary-MLP reverse amplification rather than attributing the point to a
+private writer or extreme preactivations alone. Uniform attenuation is a
+mechanism probe, not a recommended training rule: it also alters healthy
+token gradients. If testing mitigation next, a selective local-gain cap is
+more targeted than another blanket reduction of the4/7 activation thresholds.
+Any such training intervention requires loss, sustained-spike duration and
+unmodified-gradient controls; a clipped raw norm is not independent evidence
+of improved stability. No formal optimizer/model change has been launched.
+Artifacts: `flex-5000-path-mlp-vjp/attention-path-vjp.json`, runner2dc0c90f.
+
 ## Question and scope
 
 Formal RUN `BamXLPropV5FastKernelFullRematSiTU47`, runtime

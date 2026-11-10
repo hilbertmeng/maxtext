@@ -21,7 +21,7 @@ def make_norm_tap(shape):
   return tap
 
 
-def run(train,model,config,mesh,params,batch,output):
+def run(train,model,config,mesh,params,batch,output,*,full_gradient_check=False):
   import jax
   import jax.numpy as jnp
   import numpy as np
@@ -60,21 +60,39 @@ def run(train,model,config,mesh,params,batch,output):
         finally:probes.pop()
       return train.loss_fn(model,config,dict(data),jax.random.PRNGKey(0),p,is_train=True)[0]
     ce,(g,stats)=jax.value_and_grad(loss,argnums=(0,1))(p,probe)
-    return ce,train.max_utils.l2norm_pytree(g),stats
+    values=ce,train.max_utils.l2norm_pytree(g),stats
+    return values+(g,) if full_gradient_check else values
 
   output.mkdir(exist_ok=True,parents=True)
   data={k:jnp.asarray(v[:1]) for k,v in batch.items()}
   probe=jnp.zeros(shape,jnp.float32)
   compiled=jax.jit(measure,static_argnames=('instrument',))
   with mesh,nn.partitioning.axis_rules(config.logical_axis_rules):
-    a=jax.device_get(compiled(params,data,probe,instrument=False))
-    b=jax.device_get(compiled(params,data,probe,instrument=True))
+    device_a=compiled(params,data,probe,instrument=False)
+    a=jax.device_get(device_a[:3])
+    device_b=compiled(params,data,probe,instrument=True)
+    b=jax.device_get(device_b[:3])
     error=abs(float(b[1])-float(a[1]))/max(float(a[1]),1e-30)
     result=dict(scope='Frozen post-update5000 B1; identity param VJP; auxiliary gradient transports cotangent norms',
                 sites=['ordinary_mlp_input','ordinary_mlp_output'],statistics=['l2','rms','absmax'],
                 plain_ce=float(a[0]),plain_raw=float(a[1]),tapped_ce=float(b[0]),tapped_raw=float(b[1]),
                 raw_relative_error=error,passed=bool(hits) and abs(float(a[0])-float(b[0]))<=.001 and error<=.01,
                 intercepted_sites=sorted(set(hits)),layers=np.asarray(b[2]).tolist())
+    if full_gradient_check:
+      @jax.jit
+      def compare(a,b):
+        xs,ys=jax.tree.leaves(a),jax.tree.leaves(b)
+        dot=lambda x,y:jnp.sum(x.astype(jnp.float32)*y.astype(jnp.float32))
+        aa=sum(dot(x,x) for x in xs);bb=sum(dot(y,y) for y in ys)
+        ab=sum(dot(x,y) for x,y in zip(xs,ys))
+        delta=sum(jnp.sum((x.astype(jnp.float32)-y.astype(jnp.float32))**2) for x,y in zip(xs,ys))
+        return jnp.sqrt(delta/aa),ab/jnp.sqrt(aa*bb)
+      relative,cosine=map(float,jax.device_get(compare(device_a[3],device_b[3])))
+      result['full_gradient_relative_l2']=relative;result['full_gradient_cosine']=cosine
+      result['passed']=result['passed'] and relative<=.01
+      del device_a,device_b
+    result['original_reference_matches']=abs(float(a[1])-4751.140137)<=1e-5*4751.140137
+    result['passed']=result['passed'] and result['original_reference_matches']
     (output/'cotangent-norm-taps.json').write_text(json.dumps(result,indent=2)+'\n')
     print('COTANGENT_NORM_TAP_FIDELITY',json.dumps({k:v for k,v in result.items() if k!='layers'}),flush=True)
     assert abs(float(a[1])-4751.140137)<=1e-5*4751.140137

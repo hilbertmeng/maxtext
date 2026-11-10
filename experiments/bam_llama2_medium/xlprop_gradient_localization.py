@@ -76,6 +76,8 @@ def main():
                       help='Gate unchanged forward, then cut vector/write-content cotangents')
   parser.add_argument('--cotangent-norm-taps', action='store_true',
                       help='Record ordinary-MLP cotangent norms without forward additions/callbacks')
+  parser.add_argument('--cotangent-full-grad-check', action='store_true',
+                      help='Also compare complete unmodified/tapped parameter gradient vectors on device')
   parser.add_argument('--cursor-rewind-batches', type=int, default=0,
                       help='Frozen-state counterfactual: reread earlier batches; does not rewind parameters')
   parser.add_argument('--empty-row-check-only', action='store_true',
@@ -213,7 +215,8 @@ def main():
   print('COHORT_READY', len(order), flush=True)
   if args.cotangent_norm_taps:
     from xlprop_cotangent_norm_taps import run
-    run(train,model,cfg,mesh,params,batch,args.output)
+    run(train,model,cfg,mesh,params,batch,args.output,
+        full_gradient_check=args.cotangent_full_grad_check)
     return
   if args.attention_path_vjp:
     from xlprop_attention_path_vjp import run

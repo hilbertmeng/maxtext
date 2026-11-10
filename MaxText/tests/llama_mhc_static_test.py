@@ -32,7 +32,7 @@ class StaticRouterTest(unittest.TestCase):
       g = jax.grad(lambda pp: m.apply({'params': pp}, h)[0].sum())(p)
       np.testing.assert_array_equal(g['router_bias'][:4], np.ones(4))
       norm = np.asarray(h).reshape(1,1,16)
-      norm /= np.sqrt(np.mean(norm**2, axis=-1, keepdims=True) + cfg.mhc_norm_epsilon)
+      norm = norm / np.sqrt(np.mean(norm**2, axis=-1, keepdims=True) + cfg.mhc_norm_epsilon)
       np.testing.assert_allclose(g['router_kernel'][:,:4], np.broadcast_to(norm[0,0,:,None]*.01*.25,(16,4)), atol=1e-8)
       np.testing.assert_array_equal(g['router_bias'][4:], np.zeros(20))
 

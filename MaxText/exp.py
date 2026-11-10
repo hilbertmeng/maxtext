@@ -5709,6 +5709,7 @@ class Llama2XL(Llama2Medium):
 
 class Llama2LargeProp(SplashTunedBlocks1024, Llama2Large):
     """Original Prop recipe, L22/D1536/16x96, TruePile4096; 777,850,368 params."""
+    # code_commit:649f024; UC1a v5p-32/311010, full remat, ~1.023step/s; plan29000.
     model_name = 'Llama2LargeProp'
     DATASET_VARIANT = 'truepile4096'
     base_num_decoder_layers = 22
@@ -5750,6 +5751,7 @@ class Llama2LargePropMinimalRemat(Llama2LargeProp):
 
 class MuddLlama2LargePropMinimalRemat(MuddLlama2LargeProp):
     """Minimal-remat execution profile of the full-history Mudd reference."""
+    # code_commit:649f024; UC1a v5p-32/311012, ~.882step/s; plan29000.
     model_name = 'MuddLlama2LargePropMinimalRemat'
     remat_policy = 'minimal'
 
@@ -20491,6 +20493,8 @@ class BamLargePropV5(BamV5Architecture, Llama2LargeProp):
     Ordinary/private widths3317/1539 give complete-branch ratio2.000331:1;
     tail5083 closes the MHA budget at777,849,500 parameters (MHA-868).
     """
+    # code_commit:649f024; UC1a v5p-32/311011, full remat, ~.835step/s; plan29000.
+    # Paired policy measurements, budgets and launch gates: experiments/bam_llama2_medium/largeprop_v5_mha_mudd.md.
     model_name = 'BamLargePropV5'
     attention = 'dot_product_chunk'
     bam_k = 96
@@ -20513,7 +20517,7 @@ class BamLargePropV5(BamV5Architecture, Llama2LargeProp):
     bam_pallas_vmem_mib = 48
     mlp_dim_by_block = None
     query_chunk_size = 256
-    compare_runs = ['Llama2LargeProp', 'MuddLlama2LargeProp']
+    compare_runs = ['MuddLlama2LargePropMinimalRemat']
 
 
 class BamLargePropV5MinimalRemat(BamLargePropV5):

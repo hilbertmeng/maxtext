@@ -139,6 +139,37 @@ This is a sharply conditional operating-point effect, not a monotone ranking
 of parameter families or evidence that each changed layer is intrinsically
 unstable. All original controls, including raw4751.14014, repeat exactly.
 
+### Backward-path separation with bitwise matching full controls
+
+`xlprop_attention_path_vjp.py` inserts identity-primal custom VJPs at the fused
+attention's projected vector output and deferred write-content factor. It
+does not change the write address/gate or the matrix carry. Gate multipliers
+are dynamic diagnostic inputs, never model/optimizer parameters. Unlike the
+earlier callback captures, the all-one control reproduces BOTH original CE
+1.70501708984375 and raw4751.14013671875 bitwise; the final repeat also matches.
+Every cut has exactly the same CE. CPU independent controls verify the gate's
+unchanged primal, multiplied input cotangent and zero multiplier derivative.
+
+| Reverse path disabled |Raw norm|
+|---|---:|
+|L6 projected vector output|2784.5601|
+|L6 attention write content|4639.8584|
+|Both at L6|2704.4995|
+|Projected vector output, L0--L6|1485.8221|
+|Attention write content, L0--L6|4458.1479|
+|Projected vector output, all layers|636.0532|
+|Attention write content, all layers|3656.1475|
+
+The vector-residual reverse route matters much more at this point than the
+attention-content feedback route alone. Cutting the latter does not remove
+the large gradient. Raw norms are norms of sums, so these differences are not
+additive path-contribution percentages. The matrix/address/control paths
+remain present, and cutting a projected vector also removes its W_O gradient.
+These are read-only derivative interventions, not demonstrated retraining
+fixes. Next separate ordinary/private-MLP input adjoints using the same strict
+all-one gate, retaining their local weight derivatives.
+Artifacts: `flex-5000-path-vjp/attention-path-vjp.json`, runner5a318501.
+
 ## Question and scope
 
 Formal RUN `BamXLPropV5FastKernelFullRematSiTU47`, runtime

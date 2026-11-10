@@ -1,5 +1,9 @@
 # LargeProp: MHA, Mudd and V5
 
+**Current training uses the fresh27k RUNs described below.** The original29k
+trial was stopped for a budget error; its measurements remain reproducible at
+their recorded runtime and are not the new RUNs' comparison baselines.
+
 Runtime `649f024e06ff1687e876fa8aeffd4a178c86057d`, branch `refactor-bam`,
 worktree `/home/xd/projects/maxtext`. These are configuration additions to the
 current main implementation, with no new model or Pallas code.
@@ -110,5 +114,54 @@ Unused regional v5p backup queues were released and verified absent.
 Compiler acquisition's PROVISIONING-without-node fallback was corrected in
 `xd_tpu_scripts` commit `ba58397` (13 regression tests).
 
-Training conclusions belong here at review/closeout; routine monitoring
-windows do not become experiment conclusions in `exp.py`.
+## Corrected27k budget and fresh restart
+
+The29k plan had been copied from the old L24 `Llama2Large`, whose historical
+commit `ec546c3e` changed27k to29k without recording a derivation. That was not
+a calibrated budget for L22 LargeProp. The original RUNs stopped at:
+`Llama2LargeProp`7463, `MuddLlama2LargePropMinimalRemat`7748,
+`BamLargePropV5`6743. All workers exited and committed checkpoints were
+retained; their three READY v5p-32s were handed to fresh RUN names.
+
+The replacement budget matches MediumProp's actual tokens per parameter
+**excluding token embedding and unembedding**:
+
+```
+Medium reference: N=311084400, steps=13500, tokens/step=128*4096=524288
+Large MHA reference: N=622923264
+Equal-density steps = 13500 * 622923264 / 311084400 = 27032.7412
+Rounded budget = 27000 steps = 14155776000 nominal tokens
+LR endpoint = 27000; warmup = 270 steps
+```
+
+This preserves the family's actual density, about22.7 tokens/non-embedding
+parameter, within its approximate20N convention. The user explicitly selected
+27k. All three start from new parameters, new Adam state and the beginning of
+the data stream; none restores the29k trial's checkpoint.
+
+| Fresh RUN / configuration | Policy | Retained TPU |
+|---|---|---|
+| `Llama2LargeProp27k` | full | `xd-v5p-32-311010-maxtext` |
+| `MuddLlama2LargeProp27k` | minimal | `xd-v5p-32-311012-maxtext` |
+| `BamLargePropV5Train27k` | full | `xd-v5p-32-311011-maxtext` |
+
+Runtime `9a8ee1eadc7a2c35bc60062bee90596b5576964d`, branch `refactor-bam`,
+main worktree. Exact v5p-32/s27000 AOTs are under
+`gs://newproject-1-llm_base_models_us-central1/log/compiled_trainsteps/9a8ee1e/jax081-i0ae3f58-c17f538a/v5p-32/s27000/`.
+All three passed FIRST_STEP, observed step0 and stable step14 checks. The
+new checkpoint prefixes were verified empty before launch; initial losses
+match their selected execution profiles' original initial losses.
+
+Canonical LargeProp classes now inherit the explicit `TrainLargeProp` budget
+rather than the old L24 training plan. The CPU density regression checks the
+reference model size and tokens/step, requires consistent stop/LR endpoints,
+and rejects a density mismatch above1%;29k would fail by over7%. Eight focused
+configuration, parameter-tree, density and TensorBoard checks passed. The
+canonical-parent cleanup in `4db2e0ed` resolves identical attributes for the
+three sealed27k classes, so their runtime remains `9a8ee1e`.
+
+Group `largeprop-v5-threeway-27k` starts its own2k cadence and4k/8k reviews from
+zero; the old group is archived. BAM compares only with the new Mudd RUN,
+and its native multiplier uses the new MHA RUN as reference. Stop decisions
+still require user confirmation. Artifacts and gates:
+`/data0/xd/bam_diagnostics/largeprop-27k-20261110/`.

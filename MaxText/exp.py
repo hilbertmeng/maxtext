@@ -244,6 +244,7 @@ class MHCConfig:
     residual_connection = 'mhc'
     scan_layers = False
     record_internal_nn_metrics = 0
+    mhc_pre_static = False
     mhc_identity_mixing = False
     mhc_num_streams = 4
     mhc_sinkhorn_iters = 20
@@ -10412,6 +10413,22 @@ class BamMHAMediumPropC256TruePilemHC(MHCConfig, BamMHAMediumPropC256TruePile):
     model_name = 'BamMHAMediumPropC256TruePilemHC'
     jax_cache_dir = ''
     compare_runs = ['BamMHAMediumPropC256TruePile', 'MuddLlama2MediumPropTruePile']
+
+
+class BamMHAMediumPropC256TruePilemHCstatic(BamMHAMediumPropC256TruePilemHC):
+    """Centered dynamic pre gate plus trainable static one-hot read; post/SK20 unchanged."""
+    # Worktree .auto-agent/worktrees/llama-mhc-static, mqy/llama-mhc-static-sealed.
+    # Pre = b + sigmoid(alpha * RMS(H) @ Phi_pre) - .5, without pre epsilon.
+    # b cycles one-hot; identical parameter budget/tree and FFN3133 to original mHC.
+    # Planned13500; original mHC primary, DHC4-tanh direction SOTA and external controls.
+    model_name = 'BamMHAMediumPropC256TruePilemHCstatic'
+    mhc_pre_static = True
+    mhc_pre_bias_init = 0.0
+    mhc_pre_selected_bias_init = 1.0
+    compare_runs = ['BamMHAMediumPropC256TruePilemHC',
+                    'BamMHAMediumPropC256TruePileDHC4Tanh',
+                    'BamMHAMediumPropC256TruePile', 'MuddLlama2MediumPropTruePile',
+                    'BamMHAMediumPropC256TruePileAttnRes']
 
 
 class BamMHAMediumPropC256TruePileDHC4Tanh(MHCConfig, BamMHAMediumPropC256TruePile):

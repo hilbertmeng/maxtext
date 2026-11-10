@@ -128,8 +128,13 @@ class ManifoldHyperConnection(nn.Module):
 
     bias = self.param('router_bias', bias_init, (outputs,), cfg.weight_dtype)
     alphas = jnp.concatenate((jnp.repeat(alpha[0], n), jnp.repeat(alpha[1], n), jnp.repeat(alpha[2], n*n)))
-    logits = (normalized @ phi.astype(jnp.float32)) * alphas.astype(jnp.float32) + bias.astype(jnp.float32)
-    pre = jax.nn.sigmoid(logits[..., :n]) + cfg.mhc_pre_epsilon
+    dynamic = (normalized @ phi.astype(jnp.float32)) * alphas.astype(jnp.float32)
+    logits = dynamic + bias.astype(jnp.float32)
+    if cfg.mhc_pre_static:
+      # Center the dynamic gate; the trainable static read bypasses sigmoid.
+      pre = bias[:n].astype(jnp.float32) + (jax.nn.sigmoid(dynamic[..., :n]) - 0.5)
+    else:
+      pre = jax.nn.sigmoid(logits[..., :n]) + cfg.mhc_pre_epsilon
     post = 2 * jax.nn.sigmoid(logits[..., n:2*n])
     if cfg.mhc_identity_mixing:
       # Controlled iHC ablation: preserve the complete initialization/tree and

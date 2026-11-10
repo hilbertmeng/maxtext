@@ -1,5 +1,40 @@
 # XL V5 SiTU4/7 spike follow-up
 
+## Training-loss impact takes priority
+
+Raw spikes alone are not the failure criterion. The goal is to mitigate
+large/persistent loss disturbances while retaining quality. The initial
+follow-up spent too much attention on raw-gradient mechanisms without first
+quantifying this outcome.
+
+Recorded SiTU loss still has brief spikes: the5470 event peaks at3.563802 on
+5475, versus pre-event median2.2968, and its trailing10-step mean first returns
+within baseline+.1 at5494 (19 steps after the peak). The5000 event peaks at
+2.93074 on4998 and recovers by5010. The largest sampled SiTU raw spike,
+167.824 at6120, has loss2.42518 on that step and a nearby maximum2.55943;
+the7320 and8190 raw spikes likewise do not produce comparable loss eruptions.
+
+In the matched early SwiGLU history, the4140 event peaks at3.681609 and first
+recovers after25 steps; the7910 event peaks at4.607975 on7917 and first
+recovers after84 steps. Across6055 commonly recorded steps in2000--8500,
+loss>3 occurs9 times for SiTU and24 for SwiGLU. Missing console samples are
+not counted as healthy observations; raw norms are sampled every10 steps.
+Recovery uses the median loss over [raw-peak-100,raw-peak-30), with a+.1
+threshold on the trailing10-step mean. It is a first-recovery measure, not
+a proof that no later relapse occurs.
+
+This supports lighter/shorter observed loss impact so far, not a claim that
+late35k-type episodes are cured: SiTU has reached only checkpoint8765.
+The6120 original-mesh replay queue was released after this priority review;
+its exact replay remains unperformed. All formal-training recovery queues
+are retained. Further costly diagnosis should be driven by consequential
+loss episodes, not isolated raw excursions alone.
+
+Reproduction/data: local `loss_spike_review.py`, `loss-raw-series.json`,
+`loss-impact-summary.json`, and frozen console caches under the protocol root;
+GCS `loss-impact/`. Figure `xlprop-situ47-loss-raw-aligned-20261110.png`
+aligns both models' recorded loss and raw norms on one shared training-step axis.
+
 ## Current evidence
 
 Reserved FLEX has completed a useful local diagnosis while full-topology
@@ -34,7 +69,7 @@ These support coherent moderate-activation amplification and do not justify
 assuming tighter caps preserve training quality. They are local derivative
 tests, not retraining results.
 
-Artifacts: `flex-5000-cotangent-boundary14/` (four boundary arrays,128MB),
+Artifacts: `flex-5000-cotangent-boundary14/` (four boundary arrays,about120MiB),
 `flex-local-mlp14/local-mlp-vjp.json`; helper34a1f9c9 with the existing independent
 local validator. Capture and analysis ran on reserved FLEX; raw arrays stay in
 GCS and were not pulled to the workstation. Plot:
@@ -306,9 +341,10 @@ Local evidence/protocol root:
 This includes raw-health.json, layer-grad-groups.json, soft-deleted-6000.json,
 restored-objects.json, copy-verification.json and replay-worker.sh.
 
-## Execution plan and owned resources
+## Original replay protocol and resource closeout
 
-Use the exact formal v5p-32, global128/device8, T4096, immutable bd181bc model
+The prepared but unexecuted replay protocol uses exact formal v5p-32,
+global128/device8, T4096, immutable bd181bc model
 and existing formal AOT. Replay6001--6120; save6119; capture the original6120
 TrainState/batch before donation. Match loss and raw gradients to the formal
 RUN, then use the original AOT's frozen loss-mask isolation. All diagnostic
@@ -329,17 +365,19 @@ Two owned diagnostic candidates submitted on2026-11-10UTC:
 
 The UC1a candidate was allocated then reclaimed during installation; its
 creator exited, leaving a SERVICE-suspended queue. The exact owned resource
-was released and requeued, creator3506867. EW4b remains queued.
-Keep candidates until a validated replay first
-step; release the exact loser. They are separate from formal TPU311003 and
+was released and requeued, creator3506867. These resources are separate from formal TPU311003 and
 its recovery queues. Reserved FLEX has completed the scoped diagnostics above
 under its shared lock and remains retained; full-mesh capture is not a
 prerequisite for such local checks.
 
 The requeued UC1a diagnostic candidate was again reclaimed during installation
 before replay FIRST_STEP. Its creator exited and its exact terminal node/queue
-were verified absent (`logs/situ47-uc1diag-terminal-release-1110.log`). EW4b
-remains the pending diagnostic candidate; formal UC1a recovery is separate.
+were verified absent (`logs/situ47-uc1diag-terminal-release-1110.log`). The
+remaining EW4b queue was cancelled after the loss-impact review at06:03UTC;
+its original queue creation identity was verified first, creator3412037 stopped,
+and both node/queue were verified absent. Audit:
+`logs/situ47-release-low-priority-replay-1110.json`. No diagnostic v5p-32
+resource remains. Formal recovery's three queues are retained.
 
 After loss-mask isolation, `xlprop_distributed_tensor_probe.py` captures
 full-mesh residual/M boundary cotangents with forward AND parameter-gradient
@@ -349,8 +387,8 @@ its FP32 reference accepts the gate/up bounds rather than silently analyzing
 SwiGLU. Original u/v remain raw in its summaries. Independent autodiff controls
 for ordinary SwiGLU and SiTU4/7,4/25 check forward and both derivative paths
 (including zero and saturated inputs); passed in the pinned CPU environment.
-The original-mesh6120 replay remains pending resource allocation. The scoped
-FLEX results above do not depend on obtaining that resource first.
+The original-mesh6120 replay was not executed and is no longer queued.
+The scoped FLEX results above do not depend on that resource.
 
 ## Reserved-FLEX first pass
 

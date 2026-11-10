@@ -40,6 +40,7 @@ def run(train, model, config, mesh, old, new, data, output, old_checkpoint, *, p
                   {v:[i for i in whole if i not in region], wo:[i for i in whole if i not in region]}))
   plans += [('v_early_wo_late', {v:list(range(14)),wo:list(range(14,28))}),
             ('v_late_wo_early', {v:list(range(14,28)),wo:list(range(14))})]
+  bases={}
   if plans_uri:
     import tensorflow as tf
     with tf.io.gfile.GFile(plans_uri) as handle:
@@ -49,6 +50,9 @@ def run(train, model, config, mesh, old, new, data, output, old_checkpoint, *, p
     for row in requested:
       assert row['label'] not in {label for label,_ in plans}
       selected = row['selected_layers']
+      base=row.get('base','old')
+      assert base in ('old','new')
+      bases[row['label']]=base
       assert isinstance(selected,dict) and set(selected) <= {v,o,wo}
       for layers in selected.values():
         assert isinstance(layers,list) and len(layers)==len(set(layers))
@@ -67,10 +71,13 @@ def run(train, model, config, mesh, old, new, data, output, old_checkpoint, *, p
                 input_sha256=hashlib.sha256(np.asarray(data['inputs']).tobytes()).hexdigest())
   with mesh, nn.partitioning.axis_rules(config.logical_axis_rules):
     for label, plan in [('all_new_control',None)] + plans + [('all_new_repeat',None)]:
+      a,b=(new,old) if bases.get(label)=='new' else (old,new)
       params = new if plan is None else jax.tree.map_with_path(
-          lambda path,a,b:select_leaf(path,a,b,plan,config.num_decoder_layers), old,new)
+          lambda path,a,b:select_leaf(path,a,b,plan,config.num_decoder_layers), a,b)
       ce, raw = map(float,jax.device_get(measure(params,data)))
-      row = dict(label=label, selected_layers=plan, mean_ce=ce, raw_grad_norm=raw)
+      row = dict(label=label, base=bases.get(label,'old'), selected_layers=plan,
+                 selected_source='old' if bases.get(label)=='new' else 'new',
+                 mean_ce=ce, raw_grad_norm=raw)
       result['cases'].append(row)
       (output/'vo-layer-screen.json').write_text(json.dumps(result,indent=2)+'\n')
       print('VO_LAYER_SCREEN',json.dumps(row),flush=True)

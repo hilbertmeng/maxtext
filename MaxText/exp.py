@@ -251,6 +251,17 @@ class TrainMedium:
     cosine_learning_rate_final_fraction = 0.1
     eval_interval = 13500
 
+class TrainLargeProp:
+    """Match MediumProp's actual tokens/non-embedding-parameter budget.
+
+    Medium:311,084,400 non-embedding params at13500 steps; Large:622,923,264.
+    Equal524288-token steps imply27032.74 steps; round to27000.
+    This budget is explicit and does not inherit the old L24 Large's29000.
+    """
+    steps = 27000
+    learning_rate_schedule_steps = 27000
+    eval_interval = 27000
+
 class TrainSmall:
     learning_rate = 6e-4
     learning_rate_schedule_steps = 4800
@@ -5754,6 +5765,17 @@ class MuddLlama2LargePropMinimalRemat(MuddLlama2LargeProp):
     # code_commit:649f024; UC1a v5p-32/311012, ~.882step/s; plan29000.
     model_name = 'MuddLlama2LargePropMinimalRemat'
     remat_policy = 'minimal'
+
+
+class Llama2LargeProp27k(TrainLargeProp, Llama2LargeProp):
+    """Fresh27k MHA run; same model and full-remat profile as the29k trial."""
+    model_name = 'Llama2LargeProp27k'
+
+
+class MuddLlama2LargeProp27k(TrainLargeProp, MuddLlama2LargePropMinimalRemat):
+    """Fresh27k full-history Mudd, retaining the measured faster minimal remat."""
+    model_name = 'MuddLlama2LargeProp27k'
+    compare_runs = ['Llama2LargeProp27k']
 
 
 class Llama2XLProp(Llama2XL):
@@ -20524,6 +20546,12 @@ class BamLargePropV5MinimalRemat(BamLargePropV5):
     """Minimal-remat execution profile; same V5 model, budget and training plan."""
     model_name = 'BamLargePropV5MinimalRemat'
     remat_policy = 'minimal'
+
+
+class BamLargePropV5Train27k(TrainLargeProp, BamLargePropV5):
+    """Fresh27k V5 run; unchanged model, budget and faster full-remat profile."""
+    model_name = 'BamLargePropV5Train27k'
+    compare_runs = ['MuddLlama2LargeProp27k']
 
 
 class BamXLPropV5(BamMediumPropV5):

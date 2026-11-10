@@ -34,6 +34,7 @@ class V5Test(MLPWriteTest, unittest.TestCase):
     expected = {
         'BamMediumPropV5': (1200, 18, 16, 75, 32, 256, 2510, 1128, 3904),
         'BamLargePropV5': (1536, 22, 16, 96, 32, 256, 3317, 1539, 5083),
+        'BamLargePropV5Train27k': (1536, 22, 16, 96, 32, 256, 3317, 1539, 5083),
         'BamXLPropV5': (1920, 28, 20, 96, 40, 400, 4048, 1827, 6277),
         PYTHIA: (2560, 32, 32, 80, 64, 640, 7808, 2944, 9984),
     }
@@ -88,6 +89,7 @@ class V5Test(MLPWriteTest, unittest.TestCase):
 
   def test_complete_checkpoint_parameter_trees_and_budgets(self):
     expected = {'BamMediumPropV5': 432112228, 'BamLargePropV5': 777849500,
+                'BamLargePropV5Train27k': 777849500,
                 'BamXLPropV5': 1432396996,
                 PYTHIA: 2775190944}
     for name, count in expected.items():
@@ -104,6 +106,29 @@ class V5Test(MLPWriteTest, unittest.TestCase):
       tail = {p: x for p, x in flat.items() if 'final_local_layer' in p}
       self.assertTrue(tail)
       self.assertFalse(any('memory_mlp' in p or 'P_loc_down' in p for p in tail))
+
+  def test_largeprop_training_density_matches_mediumprop(self):
+    # Original bias-free SwiGLU MHA reference sizes, including every RMS scale.
+    def non_embedding(cls):
+      d, h, layers = cls.base_emb_dim, cls.base_mlp_dim, cls.base_num_decoder_layers
+      return layers * (4*d*d + 3*d*h + 2*d) + d
+
+    medium, large = exp.Llama2MediumProp, exp.Llama2LargeProp27k
+    reference_tokens_per_step = 8 * medium.per_device_batch_size * medium.max_target_length
+    target_tokens_per_step = 16 * large.per_device_batch_size * large.max_target_length
+    reference_density = (medium.learning_rate_schedule_steps * reference_tokens_per_step
+                         / non_embedding(medium))
+    for name in ('Llama2LargeProp27k', 'MuddLlama2LargeProp27k', 'BamLargePropV5Train27k'):
+      cls = getattr(exp, name)
+      cfg = self.config(name)
+      self.assertEqual(cfg.steps, cfg.learning_rate_schedule_steps)
+      self.assertEqual(cfg.eval_interval, cfg.steps)
+      self.assertEqual(16 * cls.per_device_batch_size * cls.max_target_length,
+                       reference_tokens_per_step)
+      density = cfg.steps * target_tokens_per_step / non_embedding(large)
+      # Inheriting the old L24 model's29k would miss this budget by >7%.
+      self.assertLess(abs(density / reference_density - 1), .01)
+      self.assertFalse(cfg.load_full_state_path or cfg.load_parameters_path)
 
   def test_retired_options_fail_before_model_creation(self):
     c = dict(self.config('BamMediumPropV5').get_keys())

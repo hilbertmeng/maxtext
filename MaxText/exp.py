@@ -5769,11 +5769,13 @@ class MuddLlama2LargePropMinimalRemat(MuddLlama2LargeProp):
 
 class Llama2LargeProp27k(Llama2LargeProp):
     """Fresh27k MHA run; same model and full-remat profile as the29k trial."""
+    # code_commit:9a8ee1e; UC1a v5p-32/311010, full remat, ~1.018step/s; freshstep0 verified.
     model_name = 'Llama2LargeProp27k'
 
 
 class MuddLlama2LargeProp27k(MuddLlama2LargePropMinimalRemat):
     """Fresh27k full-history Mudd, retaining the measured faster minimal remat."""
+    # code_commit:9a8ee1e; UC1a v5p-32/311012, minimal remat, ~.880step/s; freshstep0 verified.
     model_name = 'MuddLlama2LargeProp27k'
     compare_runs = ['Llama2LargeProp27k']
 
@@ -20551,6 +20553,7 @@ class BamLargePropV5MinimalRemat(BamLargePropV5):
 
 class BamLargePropV5Train27k(BamLargePropV5):
     """Fresh27k V5 run; unchanged model, budget and faster full-remat profile."""
+    # code_commit:9a8ee1e; UC1a v5p-32/311011, full remat, ~.834step/s; freshstep0 verified.
     model_name = 'BamLargePropV5Train27k'
     compare_runs = ['MuddLlama2LargeProp27k']
 

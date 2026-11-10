@@ -42,6 +42,16 @@ use `run_exp_xd.sh` only for a RUN intended to train through its registered plan
 
 Uses `run_exp_xd.sh` → `auto_train_xd_maxtext.sh` and `run_registry.py`.
 
+For a new model size or changed global batch/sequence length, resolve the training
+budget before formal launch: parameter count excluding token embedding and unembedding,
+tokens per step, total tokens/steps, and LR-schedule endpoint. Use the user's budget or an
+already-authorized scaling rule; an inherited schedule alone is not a budget decision.
+Original Prop scaling uses roughly20 tokens per non-embedding parameter; matching a
+confirmed family's actual density preserves its cross-scale comparison. State the
+reference and rounding. If neither target nor rule is established, clarify while
+continuing parameter audits/CPU checks. Same-size, same-budget derivatives inherit
+the confirmed plan without asking again.
+
 Choose the code location first: large, uncertain architectural changes start in an isolated
 worktree; keep an inheritance-related experiment family in the same branch/worktree. Main
 `exp.py` remains the shared ledger. Before deriving a RUN, verify its parent's implementation

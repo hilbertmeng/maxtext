@@ -5718,9 +5718,10 @@ class Llama2XL(Llama2Medium):
     learning_rate_schedule_steps = 50000
     eval_interval = 5000
 
-class Llama2LargeProp(SplashTunedBlocks1024, Llama2Large):
+class Llama2LargeProp(TrainLargeProp, SplashTunedBlocks1024, Llama2Large):
     """Original Prop recipe, L22/D1536/16x96, TruePile4096; 777,850,368 params."""
-    # code_commit:649f024; UC1a v5p-32/311010, full remat, ~1.023step/s; plan29000.
+    # Legacy29k trial: code_commit649f024; UC1a v5p-32/311010, full remat, ~1.023step/s.
+    # Stopped7463 to correct the inherited training budget; fresh27k RUN below.
     model_name = 'Llama2LargeProp'
     DATASET_VARIANT = 'truepile4096'
     base_num_decoder_layers = 22
@@ -5732,8 +5733,6 @@ class Llama2LargeProp(SplashTunedBlocks1024, Llama2Large):
     scan_layers = True
     record_training_health_metrics = True
     float32_logits = False
-    steps = 29000
-    eval_interval = 29000
     force_final_checkpoint = True
     tensorboard_gcs_rotate_period = 500
     jax_cache_dir = ''
@@ -5763,16 +5762,17 @@ class Llama2LargePropMinimalRemat(Llama2LargeProp):
 class MuddLlama2LargePropMinimalRemat(MuddLlama2LargeProp):
     """Minimal-remat execution profile of the full-history Mudd reference."""
     # code_commit:649f024; UC1a v5p-32/311012, ~.882step/s; plan29000.
+    # Stopped7748 for budget correction; this is not an architectural failure.
     model_name = 'MuddLlama2LargePropMinimalRemat'
     remat_policy = 'minimal'
 
 
-class Llama2LargeProp27k(TrainLargeProp, Llama2LargeProp):
+class Llama2LargeProp27k(Llama2LargeProp):
     """Fresh27k MHA run; same model and full-remat profile as the29k trial."""
     model_name = 'Llama2LargeProp27k'
 
 
-class MuddLlama2LargeProp27k(TrainLargeProp, MuddLlama2LargePropMinimalRemat):
+class MuddLlama2LargeProp27k(MuddLlama2LargePropMinimalRemat):
     """Fresh27k full-history Mudd, retaining the measured faster minimal remat."""
     model_name = 'MuddLlama2LargeProp27k'
     compare_runs = ['Llama2LargeProp27k']
@@ -20516,6 +20516,7 @@ class BamLargePropV5(BamV5Architecture, Llama2LargeProp):
     tail5083 closes the MHA budget at777,849,500 parameters (MHA-868).
     """
     # code_commit:649f024; UC1a v5p-32/311011, full remat, ~.835step/s; plan29000.
+    # Stopped6743 for budget correction; fresh27k RUN below preserves this model.
     # Paired policy measurements, budgets and launch gates: experiments/bam_llama2_medium/largeprop_v5_mha_mudd.md.
     model_name = 'BamLargePropV5'
     attention = 'dot_product_chunk'
@@ -20548,7 +20549,7 @@ class BamLargePropV5MinimalRemat(BamLargePropV5):
     remat_policy = 'minimal'
 
 
-class BamLargePropV5Train27k(TrainLargeProp, BamLargePropV5):
+class BamLargePropV5Train27k(BamLargePropV5):
     """Fresh27k V5 run; unchanged model, budget and faster full-remat profile."""
     model_name = 'BamLargePropV5Train27k'
     compare_runs = ['MuddLlama2LargeProp27k']

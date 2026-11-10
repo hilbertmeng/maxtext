@@ -28,9 +28,10 @@ def run(train, model, config, mesh, new, batch, output, old_checkpoint, *, fine_
   data = {k:jnp.asarray(v[:1]) for k,v in batch.items()}
 
   if layer_screen:
-    assert fine_attention and not plans_uri
+    assert fine_attention
     from xlprop_vo_layer_screen import run as run_layers
-    return run_layers(train, model, config, mesh, old, new, data, output, old_checkpoint)
+    return run_layers(train, model, config, mesh, old, new, data, output, old_checkpoint,
+                      plans_uri=plans_uri)
 
   @jax.jit
   def measure(params, data):

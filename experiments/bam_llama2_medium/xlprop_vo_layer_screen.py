@@ -23,7 +23,7 @@ def select_leaf(path, old, new, selected, num_layers):
   return new if num_layers - 1 in layers else old
 
 
-def run(train, model, config, mesh, old, new, data, output, old_checkpoint):
+def run(train, model, config, mesh, old, new, data, output, old_checkpoint, *, plans_uri=None):
   import jax
   import numpy as np
   from flax import linen as nn
@@ -40,6 +40,20 @@ def run(train, model, config, mesh, old, new, data, output, old_checkpoint):
                   {v:[i for i in whole if i not in region], wo:[i for i in whole if i not in region]}))
   plans += [('v_early_wo_late', {v:list(range(14)),wo:list(range(14,28))}),
             ('v_late_wo_early', {v:list(range(14,28)),wo:list(range(14))})]
+  if plans_uri:
+    import tensorflow as tf
+    with tf.io.gfile.GFile(plans_uri) as handle:
+      requested = json.load(handle)
+    assert isinstance(requested,list) and 0 < len(requested) <= 60
+    plans = plans[:3]
+    for row in requested:
+      assert row['label'] not in {label for label,_ in plans}
+      selected = row['selected_layers']
+      assert isinstance(selected,dict) and set(selected) <= {v,o,wo}
+      for layers in selected.values():
+        assert isinstance(layers,list) and len(layers)==len(set(layers))
+        assert all(type(i) is int and 0 <= i < 28 for i in layers)
+      plans.append((row['label'],selected))
 
   @jax.jit
   def measure(params, batch):
@@ -49,7 +63,7 @@ def run(train, model, config, mesh, old, new, data, output, old_checkpoint):
     return value, train.max_utils.l2norm_pytree(grads)
 
   result = dict(scope='Frozen post-update5000 B1; parameter-value transplants only; no optimizer updates',
-                old_checkpoint=old_checkpoint, cases=[],
+                old_checkpoint=old_checkpoint, plans_uri=plans_uri, cases=[],
                 input_sha256=hashlib.sha256(np.asarray(data['inputs']).tobytes()).hexdigest())
   with mesh, nn.partitioning.axis_rules(config.logical_axis_rules):
     for label, plan in [('all_new_control',None)] + plans + [('all_new_repeat',None)]:

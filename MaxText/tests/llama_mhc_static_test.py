@@ -11,13 +11,13 @@ from layers.models import Transformer
 import max_utils
 
 BASE = 'BamMHAMediumPropC256TruePilemHC'
-RUN = 'BamMHAMediumPropC256TruePilemHCstatic'
+RUN = 'BamMHAMediumPropC256TruePilemHCstaticPrePost'
 
 class StaticRouterTest(unittest.TestCase):
   def test_initial_selection_and_local_gradients(self):
     # Orthogonal streams let the read expose each of the four pre coefficients.
     h = jnp.eye(4).reshape(1, 1, 4, 4)
-    cfg = ref.connection_config(mhc_pre_static=True, mhc_pre_bias_init=0., mhc_pre_selected_bias_init=1.)
+    cfg = ref.connection_config(mhc_pre_static=True, mhc_post_static=True, mhc_post_bias_init=1., mhc_pre_bias_init=0., mhc_pre_selected_bias_init=1.)
     old = ManifoldHyperConnection(ref.connection_config(), 1)
     for index in range(4):
       m = ManifoldHyperConnection(cfg, index)
@@ -25,8 +25,9 @@ class StaticRouterTest(unittest.TestCase):
       read, post, mix = m.apply({'params': p}, h)
       np.testing.assert_array_equal(read, np.eye(4)[index].reshape(1,1,4))
       np.testing.assert_array_equal(post, np.ones((1,1,4)))
-      # All unchanged output paths are numerically identical, including SK20.
-      _, old_post, old_mix = old.apply({'params': p}, h)
+      # Residual transport is untouched. Original zero-logit post also starts at1.
+      old_p = dict(p, router_bias=p['router_bias'].at[4:8].set(0.))
+      _, old_post, old_mix = old.apply({'params': old_p}, h)
       np.testing.assert_array_equal(post, old_post)
       np.testing.assert_array_equal(mix, old_mix)
       g = jax.grad(lambda pp: m.apply({'params': pp}, h)[0].sum())(p)
@@ -35,15 +36,19 @@ class StaticRouterTest(unittest.TestCase):
       norm = norm / np.sqrt(np.mean(norm**2, axis=-1, keepdims=True) + cfg.mhc_norm_epsilon)
       np.testing.assert_allclose(g['router_kernel'][:,:4], np.broadcast_to(norm[0,0,:,None]*.01*.25,(16,4)), atol=1e-8)
       np.testing.assert_array_equal(g['router_bias'][4:], np.zeros(20))
+      gp = jax.grad(lambda pp: m.apply({'params': pp}, h)[1].sum())(p)
+      np.testing.assert_array_equal(gp['router_bias'][4:8], np.ones(4))
+      np.testing.assert_allclose(gp['router_kernel'][:,4:8], np.broadcast_to(norm[0,0,:,None]*.01*.5,(16,4)),atol=1e-8)
+      np.testing.assert_array_equal(gp['router_bias'][:4], np.zeros(4))
 
   def test_learned_signed_formula_and_gradients(self):
-    cfg = ref.connection_config(mhc_pre_static=True, mhc_pre_bias_init=0., mhc_pre_selected_bias_init=1.)
+    cfg = ref.connection_config(mhc_pre_static=True, mhc_post_static=True, mhc_post_bias_init=1., mhc_pre_bias_init=0., mhc_pre_selected_bias_init=1.)
     h = jax.random.normal(jax.random.key(2), (2,3,4,8))
     m = ManifoldHyperConnection(cfg, 2)
     p = nn.unbox(m.init(jax.random.key(3), h)['params'])
     p['router_kernel'] = jax.random.normal(jax.random.key(4),(32,24))*.3
     p['router_scale'] = jnp.array([.7,.4,.2])
-    p['router_bias'] = p['router_bias'].at[:4].set(jnp.array([-.4,.2,1.2,-.1]))
+    p['router_bias'] = p['router_bias'].at[:4].set(jnp.array([-.4,.2,1.2,-.1])).at[4:8].set(jnp.array([-.3,.4,1.1,2.]))
     flat = np.asarray(h).reshape(2,3,32)
     norm = flat / np.sqrt(np.mean(flat**2, axis=-1,keepdims=True)+cfg.mhc_norm_epsilon)
     raw = norm @ np.asarray(p['router_kernel'])
@@ -53,8 +58,10 @@ class StaticRouterTest(unittest.TestCase):
     np.testing.assert_allclose(r,(pre[...,None]*np.asarray(h)).sum(-2),rtol=2e-6,atol=1e-6)
     old = ManifoldHyperConnection(ref.connection_config(),2)
     _,op,om=old.apply({'params':p},h)
-    np.testing.assert_array_equal(post,op);np.testing.assert_array_equal(mix,om)
-    g=jax.grad(lambda pp: jnp.square(m.apply({'params':pp},h)[0]).sum())(p)
+    expected_post = np.asarray(p['router_bias'][4:8]) + 2/(1+np.exp(-raw[...,4:8]*.4))-1
+    np.testing.assert_allclose(post,expected_post,atol=2e-7,rtol=2e-6)
+    np.testing.assert_array_equal(mix,om)
+    g=jax.grad(lambda pp: jnp.square(m.apply({'params':pp},h)[0]).sum() + jnp.square(m.apply({'params':pp},h)[1]).sum())(p)
     self.assertTrue(all(np.isfinite(x).all() for x in jax.tree.leaves(g)))
     for key in ('router_kernel','router_bias','router_scale','norm_scale'):
       self.assertGreater(np.linalg.norm(g[key]),0)
@@ -68,7 +75,7 @@ class StaticModelTest(unittest.TestCase):
 
   def test_recipe_parameter_budget_and_backbone_parity(self):
     a,b=self.config(BASE),self.config(RUN)
-    allowed={'exp_class','model_name','compare_runs','mhc_pre_static','mhc_pre_bias_init','mhc_pre_selected_bias_init'}
+    allowed={'exp_class','model_name','compare_runs','mhc_pre_static','mhc_pre_bias_init','mhc_pre_selected_bias_init','mhc_post_static','mhc_post_bias_init'}
     diff={k for k in a.get_keys() if str(a.get_keys()[k])!=str(b.get_keys()[k])}
     self.assertFalse(diff-allowed,diff)
     self.assertEqual(b.mlp_dim,3133);self.assertEqual(b.mhc_sinkhorn_iters,20)
@@ -85,7 +92,9 @@ class StaticModelTest(unittest.TestCase):
     pa,pb=map(flatten_dict,(initialize(self.tiny(BASE)),initialize(self.tiny(RUN))))
     for key in pa:
       if key[-1]=='router_bias':
-        np.testing.assert_array_equal(pa[key][4:],pb[key][4:])
+        np.testing.assert_array_equal(pa[key][8:],pb[key][8:])
+        np.testing.assert_array_equal(pa[key][4:8],np.zeros(4))
+        np.testing.assert_array_equal(pb[key][4:8],np.ones(4))
         self.assertEqual(float(pb[key][:4].sum()),1.)
       else: np.testing.assert_array_equal(pa[key],pb[key])
 

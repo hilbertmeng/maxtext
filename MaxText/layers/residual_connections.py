@@ -135,7 +135,10 @@ class ManifoldHyperConnection(nn.Module):
       pre = bias[:n].astype(jnp.float32) + (jax.nn.sigmoid(dynamic[..., :n]) - 0.5)
     else:
       pre = jax.nn.sigmoid(logits[..., :n]) + cfg.mhc_pre_epsilon
-    post = 2 * jax.nn.sigmoid(logits[..., n:2*n])
+    if cfg.mhc_post_static:
+      post = bias[n:2*n].astype(jnp.float32) + (2 * jax.nn.sigmoid(dynamic[..., n:2*n]) - 1)
+    else:
+      post = 2 * jax.nn.sigmoid(logits[..., n:2*n])
     if cfg.mhc_identity_mixing:
       # Controlled iHC ablation: preserve the complete initialization/tree and
       # FFN budget; mixing-only parameters are retained but never used.

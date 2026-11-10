@@ -244,6 +244,7 @@ class MHCConfig:
     residual_connection = 'mhc'
     scan_layers = False
     record_internal_nn_metrics = 0
+    mhc_post_static = False
     mhc_pre_static = False
     mhc_identity_mixing = False
     mhc_num_streams = 4
@@ -10416,7 +10417,7 @@ class BamMHAMediumPropC256TruePilemHC(MHCConfig, BamMHAMediumPropC256TruePile):
 
 
 class BamMHAMediumPropC256TruePilemHCstatic(BamMHAMediumPropC256TruePilemHC):
-    """Centered dynamic pre gate plus trainable static one-hot read; post/SK20 unchanged."""
+    """Superseded pre-only preparation; use mHCstaticPrePost for the owner design."""
     # Worktree .auto-agent/worktrees/llama-mhc-static, mqy/llama-mhc-static-sealed.
     # Pre = b + sigmoid(alpha * RMS(H) @ Phi_pre) - .5, without pre epsilon.
     # b cycles one-hot; identical parameter budget/tree and FFN3133 to original mHC.
@@ -10429,6 +10430,16 @@ class BamMHAMediumPropC256TruePilemHCstatic(BamMHAMediumPropC256TruePilemHC):
                     'BamMHAMediumPropC256TruePileDHC4Tanh',
                     'BamMHAMediumPropC256TruePile', 'MuddLlama2MediumPropTruePile',
                     'BamMHAMediumPropC256TruePileAttnRes']
+
+
+class BamMHAMediumPropC256TruePilemHCstaticPrePost(BamMHAMediumPropC256TruePilemHCstatic):
+    """mHCstatic: both pre and post have trainable static paths outside sigmoid."""
+    # Owner clarified scope msg_d494328400d2400fb4859498ecf606e9.
+    # post = b_post + 2*sigmoid(z_post) - 1; b_post starts at1, pre starts one-hot.
+    # Fresh RUN, seed/data/optimizer/budget match original mHC; SK20/head unchanged.
+    model_name = 'BamMHAMediumPropC256TruePilemHCstaticPrePost'
+    mhc_post_static = True
+    mhc_post_bias_init = 1.0
 
 
 class BamMHAMediumPropC256TruePileDHC4Tanh(MHCConfig, BamMHAMediumPropC256TruePile):

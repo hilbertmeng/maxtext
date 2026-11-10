@@ -1,14 +1,18 @@
 # Llama Medium mHCstatic
 
 Owner msg_be9e175eabb74386a3f51ee3ae7e6b93 authorizes implementation and retraining.
-RUN BamMHAMediumPropC256TruePilemHCstatic; branch mqy/llama-mhc-static-sealed;
+RUN BamMHAMediumPropC256TruePilemHCstaticPrePost; branch mqy/llama-mhc-static-sealed;
 worktree .auto-agent/worktrees/llama-mhc-static. Parent5ffce36 retains original mHC lineage.
 
-Only pre changes: b + sigmoid(alpha_pre * RMS(flat(H)) @ Phi_pre) - .5.
+Owner clarification msg_d494328400d2400fb4859498ecf606e9 includes post.
+Both pre and post change. Pre: b + sigmoid(alpha_pre * RMS(flat(H)) @ Phi_pre) - .5.
 Trainable b initializes cycling one-hot (connector index2*l/2*l+1 mod4).
 The static branch bypasses sigmoid; dynamic initial logits zero. No epsilon in this pre,
 so initial selection is exact. Existing mhc_pre_epsilon remains1e-6 for the learned head;
-post, SK20 residual transport, learned head and all their initialization remain unchanged.
+post = b_post + 2*sigmoid(z_post) - 1, with trainable b_post initialized1.
+Initial post is exactly1; dpost/db_post=1 (old .5 at zero), dpost/dz=.5
+(same as old zero-logit post), still multiplied by alpha_post=.01.
+SK20 residual transport, learned head and their initialization remain unchanged.
 The flag defaults false; original mHC follows its old numerical path.
 No parameter added/removed;432124577 total, FFN3133, delta0 W_Q vs original mHC.
 Identical backbone/data/optimizer/seed9876/LR3e-4/batch128x4096/scanFalse/13500steps.
@@ -39,8 +43,13 @@ full abstract parameter tree/count, full-model causal gradients/remat/BF16; resi
 summary-writer regressions. Exact sealed config check then lifecycle-free borrowed
 compiler AOT v5p16/13500; formal training requires both CPU and AOT receipts.
 
-Owned new Spot v5p16 xd-v5p-16-6111004-maxtext primaryUC1a, stagedEW4b/UE5a
+Owned new Spot v5p16 xd-v5p-16-6111005-maxtext primaryUC1a, stagedEW4b/UE5a
 (follow ongoingDHC successful zero-preemption UC1a lease). Root both envs
 /home/lishengping/mengqy/tpu_mhc_20261107, plainssh. Borrow only idle retained
 llm-jax-v6e-1-0 EW4a; do not delete compiler. No other experiment modified.
 Closeout commits/TB sync/owned node+queue absence/all READY leases/English family ledger.
+
+Historicalpre-only8ae27a68 launched resource preparation08:30:15UTC; owner correction
+08:35UTC supersedes it. Oldcontrollerstopped08:35:53UTC beforeFIRST_STEP;
+no valid training/checkpoint observed. OldRUN mHCstatic retained only as superseded
+pre-only record. FreshPrePostRUN must never resume any old weights.

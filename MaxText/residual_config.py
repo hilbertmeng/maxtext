@@ -8,8 +8,8 @@ def validate_residual_config(keys):
     raise ValueError('residual_connection must be none, attnres, mhc or dhc')
   if mode == 'none':
     return
-  if keys.get('mhc_pre_static', False) and mode != 'mhc':
-    raise ValueError('mhc_pre_static requires mHC')
+  if (keys.get('mhc_pre_static', False) or keys.get('mhc_post_static', False)) and mode != 'mhc':
+    raise ValueError('Static pre/post requires mHC')
   if mode == 'dhc':
     value = keys['dhc_norm_epsilon']
     if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or value <= 0:
@@ -72,7 +72,7 @@ def validate_residual_config(keys):
                 'mhc_residual_offdiag_bias', 'mhc_head_bias_init'):
       if isinstance(keys[key], bool) or not isinstance(keys[key], (int, float)) or not math.isfinite(keys[key]):
         raise ValueError(f'{key} must be finite')
-    for key in ('mhc_pre_static', 'mhc_identity_mixing', 'mhc_norm_affine', 'mhc_match_parameter_budget', 'mhc_learned_head'):
+    for key in ('mhc_pre_static', 'mhc_post_static', 'mhc_identity_mixing', 'mhc_norm_affine', 'mhc_match_parameter_budget', 'mhc_learned_head'):
       if type(keys[key]) is not bool:
         raise ValueError(f'{key} must be boolean')
 

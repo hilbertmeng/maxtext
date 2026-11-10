@@ -62,6 +62,8 @@ def main():
                       help='Check uninstrumented B1 forward/backward and fixed-B8 batch independence')
   parser.add_argument('--plain-screen-only', action='store_true',
                       help='Screen sequences with plain forward/bias backward, without additive probes')
+  parser.add_argument('--capture-layer-boundaries', action='store_true',
+                      help='Gate B1 probes against plain full-parameter backward, then save a local VJP boundary')
   parser.add_argument('--cursor-rewind-batches', type=int, default=0,
                       help='Frozen-state counterfactual: reread earlier batches; does not rewind parameters')
   parser.add_argument('--empty-row-check-only', action='store_true',
@@ -274,6 +276,8 @@ def main():
   splash = attentions._bam_splash_attention
 
   def captured_splash(q, k, v, segments, config, mesh, window=None, seq_minor=False):
+    if current_probes is None:
+      return splash(q, k, v, segments, config, mesh, window=window, seq_minor=seq_minor)
     layer = layer_stack[-1]
     module = attention_stack[-1]
     selected = jnp.asarray(layer) == args.target_layer
@@ -301,10 +305,14 @@ def main():
       local_args[0] = local_args[0] + current_probes['residual'][layer]
       if local_kwargs.get('M_in') is not None:
         local_kwargs['M_in'] = local_kwargs['M_in'] + current_probes['M'][layer]
+        if args.capture_layer_boundaries:
+          context.module.sow('intermediates', 'gradient_probe_state_M', local_kwargs['M_in'])
         context.module.sow('intermediates', 'gradient_probe_M_rms', stable_rms(local_kwargs['M_in']))
         context.module.sow('intermediates', 'gradient_probe_M_token_rms',
                            token_rms(local_kwargs['M_in'], (-2, -1)))
       context.module.sow('intermediates', 'gradient_probe_residual_rms', stable_rms(local_args[0]))
+      if args.capture_layer_boundaries:
+        context.module.sow('intermediates', 'gradient_probe_state_residual', local_args[0])
       context.module.sow('intermediates', 'gradient_probe_residual_token_rms', token_rms(local_args[0], (-1,)))
       layer_stack.append(layer)
       try:
@@ -317,7 +325,8 @@ def main():
     nonlocal current_probes
     current_probes = probes
     effective = unfreeze(p)
-    effective['params']['decoder']['embedding_bam_write']['W_emb_v_up']['bias'] = bias + probes['bias']
+    effective['params']['decoder']['embedding_bam_write']['W_emb_v_up']['bias'] = (
+        p['params']['decoder']['embedding_bam_write']['W_emb_v_up']['bias'] + probes['bias'])
     try:
       with nn.intercept_methods(intercept):
         loss, aux = train.loss_fn(model, cfg, dict(data), jax.random.PRNGKey(0), effective, is_train=True)
@@ -334,6 +343,10 @@ def main():
       key = 'gradient_probe_' + name + '_token_rms'
       captured[name + '_token_rms'] = jnp.concatenate((body[key][0],
           decoder['final_local_layer']['block'][key][0][None]), axis=0)
+      if args.capture_layer_boundaries:
+        assert args.target_layer + 1 < cfg.num_decoder_layers - 1
+        captured['state_' + name] = body['gradient_probe_state_' + name][0][
+            jnp.asarray([args.target_layer, args.target_layer + 1])]
     captured['mean_ce'] = loss
     captured['selected_weights'] = jnp.sum(data['targets_segmentation'] != 0)
     if args.loss_denominator is not None:
@@ -378,9 +391,18 @@ def main():
     probes[name] = jnp.zeros((1, cfg.max_target_length, cfg.num_query_heads, width), cfg.dtype)
 
   def measure(p, probes, data):
-    (loss, captured), gradients = jax.value_and_grad(objective, argnums=1, has_aux=True)(p, probes, data)
+    if args.capture_layer_boundaries:
+      (loss, captured), (parameter_grads, gradients) = jax.value_and_grad(
+          objective, argnums=(0, 1), has_aux=True)(p, probes, data)
+      captured['parameter_grad_norm'] = max_utils.l2norm_pytree(parameter_grads)
+    else:
+      (loss, captured), gradients = jax.value_and_grad(objective, argnums=1, has_aux=True)(p, probes, data)
     norms = {name: jax.vmap(stable_rms)(gradients[name]) for name in ('M', 'residual')}
     selected_gradients = {name: gradients[name] for name in ('q', 'k', 'v', 'context', 'bias')}
+    if args.capture_layer_boundaries:
+      for name in ('M', 'residual'):
+        selected_gradients['state_' + name] = gradients[name][
+            jnp.asarray([args.target_layer, args.target_layer + 1])]
     token_stats = {}
     for name, axes in [('M', (-2, -1)), ('residual', (-1,))]:
       grad_tokens = jax.vmap(lambda g: token_rms(g, axes))(gradients[name]).reshape(cfg.num_decoder_layers, -1)
@@ -393,6 +415,12 @@ def main():
     return loss, captured, selected_gradients, norms, token_stats
 
   with mesh, nn.partitioning.axis_rules(cfg.logical_axis_rules):
+    def plain_full_control(p, data):
+      def loss(p):
+        return train.loss_fn(model, cfg, dict(data), jax.random.PRNGKey(0), p, is_train=True)[0]
+      value, grads = jax.value_and_grad(loss)(p)
+      return value, max_utils.l2norm_pytree(grads)
+    plain_full = jax.jit(plain_full_control)
     compiled = jax.jit(measure)
     checks = {fused: jax.jit(partial(operator_stats, fused=fused)) for fused in (True, False)}
     for ordinal, sequence in enumerate(order):
@@ -400,10 +428,32 @@ def main():
       folder.mkdir(exist_ok=True)
       data = {k: jnp.asarray(v[sequence:sequence + 1]) for k, v in batch.items()}
       started = time.monotonic()
+      if args.capture_layer_boundaries:
+        plain_ce, plain_norm = map(float, jax.device_get(plain_full(params, data)))
       loss, captured, gradients, norms, token_stats = jax.device_get(
           jax.block_until_ready(compiled(params, probes, data)))
       grad_bias = float(np.linalg.norm(gradients['bias'].astype(np.float64)))
       print('BACKWARD_OK', ordinal, int(sequence), float(loss), grad_bias, flush=True)
+      if args.capture_layer_boundaries:
+        norm_error = abs(float(captured['parameter_grad_norm']) - plain_norm) / max(plain_norm, 1e-30)
+        ce_error = abs(float(captured['mean_ce']) - plain_ce)
+        boundary = folder / f'layer-{args.target_layer:02d}'
+        boundary.mkdir(exist_ok=True)
+        fidelity = dict(passed=ce_error <= .001 and norm_error <= .01,
+            scope='B1 frozen adjacent-state probe; not an exact formal-topology spike replay',
+            target_layer=args.target_layer,
+            target_token=int(token_stats['residual']['peak_flat_index'][args.target_layer]),
+            plain_ce=plain_ce, probe_ce=float(captured['mean_ce']), ce_error=ce_error,
+            plain_raw_grad_norm=plain_norm, probe_raw_grad_norm=float(captured['parameter_grad_norm']),
+            raw_grad_relative_error=norm_error, checkpoint=checkpoint,
+            input_sha256=hashlib.sha256(np.asarray(data['inputs']).tobytes()).hexdigest())
+        (boundary / 'tensor-fidelity.json').write_text(json.dumps(fidelity, indent=2) + '\n')
+        print('FLEX_BOUNDARY_FIDELITY', json.dumps(fidelity), flush=True)
+        if not fidelity['passed']:
+          raise RuntimeError('Inserted probes changed the B1 operating point; refusing local attribution')
+        for name in ('M', 'residual'):
+          np.save(boundary / ('forward-state-' + name + '.npy'), captured['state_' + name])
+          np.save(boundary / ('backward-state-' + name + '.npy'), gradients['state_' + name])
       for direction, values in [('forward', captured), ('backward', gradients)]:
         for name in ('q', 'k', 'v', 'context'):
           np.save(folder / f'{direction}-{name}.npy', np.asarray(values[name], np.float32))

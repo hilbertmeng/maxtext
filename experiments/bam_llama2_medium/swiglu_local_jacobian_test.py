@@ -12,6 +12,35 @@ from swiglu_local_jacobian import chain_rule
 
 
 class ChainRuleTest(unittest.TestCase):
+  def test_identity_tap_has_identity_primal_and_vjp(self):
+    from xlprop_identity_taps import make_identity_tap
+    calls = []
+    def record(direction, layer, site, value):
+      calls.append((direction, int(layer), site, np.asarray(value).copy()))
+    tap = make_identity_tap(record)
+    x = jnp.arange(12, dtype=jnp.float32).reshape(3, 4) / 10
+    plain = jax.jit(jax.value_and_grad(lambda z: jnp.sum(jnp.sin(z))))(x)
+    changed = jax.jit(jax.value_and_grad(
+        lambda z: jnp.sum(jnp.sin(tap(z, jnp.int32(6), 'input')))))(x)
+    jax.effects_barrier()
+    for a, b in zip(plain, changed):
+      np.testing.assert_array_equal(a, b)
+    self.assertEqual({c[0] for c in calls}, {'forward', 'backward'})
+    for direction, layer, site, value in calls:
+      self.assertEqual((layer, site), (6, 'input'))
+      np.testing.assert_array_equal(value, x if direction == 'forward' else jnp.cos(x))
+    def scanned(z, capture):
+      def block(value, layer):
+        if capture:
+          value = tap(value, layer, 'scan')
+        return jnp.tanh(value), None
+      return jnp.sum(jax.lax.scan(jax.checkpoint(block), z, jnp.arange(3))[0])
+    plain = jax.jit(jax.value_and_grad(lambda z: scanned(z, False)))(x)
+    changed = jax.jit(jax.value_and_grad(lambda z: scanned(z, True)))(x)
+    jax.effects_barrier()
+    for a, b in zip(plain, changed):
+      np.testing.assert_array_equal(a, b)
+
   def test_forward_and_both_derivative_paths(self):
     keys = jax.random.split(jax.random.PRNGKey(83), 5)
     x, dy, wg, wu, wo = [jax.random.normal(k, shape) for k, shape in zip(

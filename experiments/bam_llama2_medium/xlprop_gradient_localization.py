@@ -64,6 +64,8 @@ def main():
                       help='Screen sequences with plain forward/bias backward, without additive probes')
   parser.add_argument('--capture-layer-boundaries', action='store_true',
                       help='Gate B1 probes against plain full-parameter backward, then save a local VJP boundary')
+  parser.add_argument('--identity-tap-blocks', action='store_true',
+                      help='Capture MLP/norm boundaries with identity-VJP taps instead of zero additions')
   parser.add_argument('--cursor-rewind-batches', type=int, default=0,
                       help='Frozen-state counterfactual: reread earlier batches; does not rewind parameters')
   parser.add_argument('--empty-row-check-only', action='store_true',
@@ -199,6 +201,10 @@ def main():
       backend=jax.default_backend(), scan_layers=cfg.scan_layers)
   (args.output / 'metadata.json').write_text(json.dumps(metadata, indent=2) + '\n')
   print('COHORT_READY', len(order), flush=True)
+  if args.identity_tap_blocks:
+    from xlprop_identity_taps import run
+    run(train, model, cfg, mesh, params, batch, args.output, args.target_layer)
+    return
   if args.plain_screen_only:
     def plain(bias_value, p, data):
       effective = unfreeze(p)

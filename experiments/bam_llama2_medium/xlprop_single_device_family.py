@@ -3,7 +3,7 @@ import hashlib
 import json
 
 
-def run(train, model, config, mesh, new, batch, output, old_checkpoint):
+def run(train, model, config, mesh, new, batch, output, old_checkpoint, *, fine_attention=False):
   import jax
   import jax.numpy as jnp
   import numpy as np
@@ -21,7 +21,8 @@ def run(train, model, config, mesh, new, batch, output, old_checkpoint):
   old = unfreeze(nn.unbox(restored['params']))
   del restored, abstract
   assert jax.tree.structure(old) == jax.tree.structure(new)
-  families = jax.tree.map_with_path(lambda path, _: parameter_family(path), new)
+  families = jax.tree.map_with_path(lambda path, _: parameter_family(
+      path, fine_attention=fine_attention, split_vo=fine_attention), new)
   names = sorted(set(jax.tree.leaves(families)))
   data = {k:jnp.asarray(v[:1]) for k,v in batch.items()}
 
@@ -33,11 +34,13 @@ def run(train, model, config, mesh, new, batch, output, old_checkpoint):
     return value, train.max_utils.l2norm_pytree(grads)
 
   plans = [tuple(names), (), ('ordinary_mlp',), tuple(n for n in names if n != 'ordinary_mlp')]
-  plans += [(n,) for n in names]
-  plans += [tuple(n for n in names if n != removed) for removed in names]
+  eligible = [n for n in names if n.startswith('attention_') or n == 'read_scales'] if fine_attention else names
+  plans += [(n,) for n in eligible]
+  plans += [tuple(n for n in names if n != removed) for removed in eligible]
   plans = list(dict.fromkeys(plans))
   result = dict(scope='Frozen adjacent-state B1 function; change parameter values only, no training updates',
       old_checkpoint=old_checkpoint,
+      fine_attention=fine_attention,
       input_sha256=hashlib.sha256(np.asarray(batch['inputs'][:1]).tobytes()).hexdigest(),
       families={n:sum(x.size for x,f in zip(jax.tree.leaves(new),jax.tree.leaves(families)) if f==n) for n in names},
       cases=[])

@@ -1,5 +1,106 @@
 # XL V5 SiTU4/7 spike follow-up
 
+## Current evidence
+
+Reserved FLEX has completed a useful local diagnosis while full-topology
+candidates wait. Ordinary SiTU MLPs still have coherent, input-dependent
+expansive directions. This is **not** an exact attribution of the formal6120
+event: the validated local point uses post-update5000 parameters and a
+reconstructed sequence from batch5000. Keep those scopes distinct.
+
+On sequence80 (input SHA256
+`021203d5ca3ef8d0b326b757b201bffca0d88851b34aa1a8243a918a1819d4e3`),
+plain B1 full-parameter backward gives CE1.70501709/raw4751.14014. Adding
+zero probes changes raw to187.89928; identity-VJP boundary taps give
+CE1.70300925/raw1513.34595. Both fail equivalence to the untapped graph;
+neither may be presented as its exact reverse trace. The identity-tap graph
+is repeatable: changing the host-side saved layer6 to11 preserves its CE and
+raw norm exactly. Its own frozen boundaries can therefore be checked locally.
+
+| L11 local control |Measured result|
+|---|---|
+|Captured ordinary-MLP directional gain over the sequence|5.02432|
+|Independent FP32 chain rule, BF16-effective weights|5.03531; VJP error .29236%, output error .35694%|
+|Independent FP32 weights|5.03589; VJP error .30332%|
+|Target token3151 directional / spectral gain|5.20911 /5.62825|
+|Top16 channel projection on actual input-gradient direction|90.439%|
+|Remove top4 / random4 channels, frozen input and upstream|gain3.67074 /5.20896|
+|Replace activation locally by SiTU2/2|gain4.38767; full-sequence output L2 change25.529%|
+
+The main16 channels have gate preactivations .54--1.39 and absolute up
+preactivations at most1.14, well below4/7. Their leading gate columns have
+cosines .827--.839; up/output columns align after sign accounting. Thus
+activation magnitude bounds leave a sum of coherent, moderate channel
+derivatives. Tightening thresholds is not automatically a good quality/stability
+tradeoff. The top target's directional gain is about93% of the estimated
+spectral gain. With the same target upstream vector, neighboring-token
+Jacobians give only .888/.850, versus5.209: the input operating point matters,
+not just the upstream direction. These are fixed-boundary interventions,
+not estimates of retraining loss or evidence to prune useful channels.
+
+Captured MLP gains at L7/L10/L11 are3.627/3.589/5.024. Memory-MLP gains there
+are .226/.200/.223; post-attention RMSNorm gains are1.524/1.148/1.117.
+Shallow RMSNorm gains can be larger (L0 6.326), while its ordinary MLP contracts
+(.0613). Do not multiply these ratios naively: the normalized residual also
+feeds the memory writer and its controls. Only L11's ordinary MLP has so far
+received the independent FP32 check described above.
+
+### Frozen parameter-family controls
+
+Restore independent4750 and5000 parameter trees, freeze sequence80, and change
+only parameter values in one unchanged B1 full-backward executable. No probes,
+optimizer updates, masks, or topology changes between cases. All-new controls
+repeat CE1.70501709/raw4751.14014 exactly at both ends and across broad/fine jobs.
+
+| New5000 values inserted into old4750 model |Raw norm|
+|---|---:|
+|None|1.45145|
+|Ordinary MLP only|1.40147|
+|All attention parameters, read scales excluded|175.44330|
+|Memory writer only|1.43525|
+|All parameters|4751.14014|
+
+Each fine attention subset alone remains near the old1.45: localV1.44385,
+localO1.45385, W_O1.43220, localQK1.46161, standardQK1.46441, shared read
+down1.43276, M-shift1.44485, attention write1.47321. Unlike the earlier36k
+SwiGLU example, localV alone is not sufficient here. Attention changes jointly
+move the model into its latent high-gain directions. Reverting individual
+families from the new model often also removes this particular point
+(standardQK20.89, read scales33.14, localV108.78), but that does not identify
+the reverted family as the unique driver. Parameter changes and their
+operating-point effects must be distinguished from the local amplifier.
+
+The completed16-case follow-up freezes old/new non-attention parameters and
+varies three physical groups: address/shift (standardQK, localQK, shared down,
+M-shift), V/O reads plus attention W_O, and attention-write parameters. With
+all other parameters old, new V/O/W_O alone gives raw3588.412; adding new
+write parameters gives8300.562. All attention new gives175.443. Updates can
+therefore both expose and compensate the high-gain operating point. Masks
+are saved in `runner/attention-group-plans.json`; full results are in
+`flex-5000-groups/single-device-families.json`
+(local copy `single-device-groups.json`).
+
+A subsequent V/O/attention-W_O factorization, again with all other parameters
+old, narrows the sufficient change:
+
+| New5000 subsets |Raw norm|
+|---|---:|
+|None|1.45145|
+|V only / O only / W_O only|1.44385 /1.45385 /1.43220|
+|V + W_O|67.95383|
+|O + W_O|1.64003|
+|V + O|2.66949|
+|V + O + W_O|3588.41211|
+
+V plus attention W_O is the smallest tested strongly amplifying pair; O has
+a large conditional contribution once that pair is present. This is not
+evidence that localO is irrelevant, nor that M-write feedback has been
+excluded: old write parameters still operate on the changed V/O content.
+These frozen, off-trajectory parameter transplants identify sufficient
+combinations at one sequence, not the unique cause of the formal6120 event.
+Full controls repeat raw4751.14014 exactly. Pair artifacts are under
+`flex-5000-vo-output/`; local `single-device-vo-output.json`.
+
 ## Question and scope
 
 Formal RUN `BamXLPropV5FastKernelFullRematSiTU47`, runtime
@@ -62,10 +163,13 @@ Two owned diagnostic candidates submitted on2026-11-10UTC:
 |xd-v5p-32-situ-spike-uc1a-1110|us-central1-a|3411270|
 |xd-v5p-32-situ-spike-ew4b-1110|europe-west4-b|3412037|
 
-Both are queued at this writing. Keep candidates until a validated replay first
+The UC1a candidate was allocated then reclaimed during installation; its
+creator exited, leaving a SERVICE-suspended queue. EW4b remains queued.
+Keep candidates until a validated replay first
 step; release the exact loser. They are separate from formal TPU311003 and
-its recovery queues. Reserved FLEX is untouched; borrow it through its lock
-only for fixed-boundary local VJPs after formal-mesh capture.
+its recovery queues. Reserved FLEX has completed the scoped diagnostics above
+under its shared lock and remains retained; full-mesh capture is not a
+prerequisite for such local checks.
 
 After loss-mask isolation, `xlprop_distributed_tensor_probe.py` captures
 full-mesh residual/M boundary cotangents with forward AND parameter-gradient
@@ -75,7 +179,8 @@ its FP32 reference accepts the gate/up bounds rather than silently analyzing
 SwiGLU. Original u/v remain raw in its summaries. Independent autodiff controls
 for ordinary SwiGLU and SiTU4/7,4/25 check forward and both derivative paths
 (including zero and saturated inputs); passed in the pinned CPU environment.
-No TPU-derived causal result is available yet.
+The original-mesh6120 replay remains pending resource allocation. The scoped
+FLEX results above do not depend on obtaining that resource first.
 
 ## Reserved-FLEX first pass
 
@@ -101,3 +206,14 @@ Runner `xlprop_gradient_localization.py` adds `--plain-screen-only` and
 FLEX runtime uses the existing immutable bd181bc AOT source checkout through
 a separate detached worktree. The formal RUN and its recovery queues remain
 untouched.
+
+FLEX phase artifacts under the diagnostic GCS root:
+`flex-5000-screen/`, `flex-5000-boundary/`, `flex-5000-taps2/`,
+`flex-5000-taps3/`, `flex-local-mlp11/`, `flex-5000-families/`, and
+`flex-5000-fine/`, `flex-5000-groups/`, and `flex-5000-vo-output/`.
+The first identity-tap attempt (`flex-5000-taps/`) failed
+because a debug callback also requires the CPU backend; the working wrapper
+sets `JAX_PLATFORMS=tpu,cpu`. Model execution still defaults to TPU.
+All worker wrappers and immutable runner hashes are in `runner/` and the
+local protocol directory. Identity primal/VJP and scan/remat behavior pass
+pinned-CPU independent controls; local SiTU chain-rule controls also pass.

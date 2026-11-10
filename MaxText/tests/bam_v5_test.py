@@ -33,6 +33,7 @@ class V5Test(MLPWriteTest, unittest.TestCase):
   def test_thin_model_configuration_contracts(self):
     expected = {
         'BamMediumPropV5': (1200, 18, 16, 75, 32, 256, 2510, 1128, 3904),
+        'BamLargePropV5': (1536, 22, 16, 96, 32, 256, 3317, 1539, 5083),
         'BamXLPropV5': (1920, 28, 20, 96, 40, 400, 4048, 1827, 6277),
         PYTHIA: (2560, 32, 32, 80, 64, 640, 7808, 2944, 9984),
     }
@@ -86,7 +87,8 @@ class V5Test(MLPWriteTest, unittest.TestCase):
       self.assertEqual(bool(c.dense_conn), name.startswith('Mudd'))
 
   def test_complete_checkpoint_parameter_trees_and_budgets(self):
-    expected = {'BamMediumPropV5': 432112228, 'BamXLPropV5': 1432396996,
+    expected = {'BamMediumPropV5': 432112228, 'BamLargePropV5': 777849500,
+                'BamXLPropV5': 1432396996,
                 PYTHIA: 2775190944}
     for name, count in expected.items():
       c = self.config(name)

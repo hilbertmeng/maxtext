@@ -5707,6 +5707,41 @@ class Llama2XL(Llama2Medium):
     learning_rate_schedule_steps = 50000
     eval_interval = 5000
 
+class Llama2LargeProp(SplashTunedBlocks1024, Llama2Large):
+    """Original Prop recipe, L22/D1536/16x96, TruePile4096; 777,850,368 params."""
+    model_name = 'Llama2LargeProp'
+    DATASET_VARIANT = 'truepile4096'
+    base_num_decoder_layers = 22
+    base_num_query_heads = 16
+    base_num_kv_heads = 16
+    head_dim = 96
+    max_target_length = 4096
+    per_device_batch_size = 16.0
+    scan_layers = True
+    record_training_health_metrics = True
+    float32_logits = False
+    steps = 29000
+    eval_interval = 29000
+    force_final_checkpoint = True
+    tensorboard_gcs_rotate_period = 500
+    jax_cache_dir = ''
+    compare_runs = []
+
+
+class MuddLlama2LargeProp(Mudd, Llama2LargeProp):
+    """Full-history QKVM Mudd; 780,966,535 params (MHA+3,116,167).
+
+    Preserve the original depth-varying FFN schedule, whose summed width equals
+    the MHA budget; router parameters are extra and do not reduce that budget.
+    """
+    model_name = 'MuddLlama2LargeProp'
+    mudd_full_history = True
+    scan_layers = False
+    # One router per completed layer; expand4 belongs to the final readout only.
+    mudd_router_hidden_expand = [1] * 21 + [4]
+    compare_runs = ['Llama2LargeProp']
+
+
 class Llama2XLProp(Llama2XL):
     """Proportional XL backbone: 28 layers, 20x96 heads, T4096."""
     model_name = 'Llama2XLProp'
@@ -20434,6 +20469,39 @@ class BamMediumPropV5(BamV5Architecture, SplashTunedBlocks1024, Llama2MediumProp
     record_training_health_metrics = True
     steps = 13500
     tensorboard_gcs_rotate_period = 500
+
+
+class BamLargePropV5(BamV5Architecture, Llama2LargeProp):
+    """L22/D1536 V5, M96x32 and independent R256 read/write projections.
+
+    Original SwiGLU FFNs, whole-M pre-norm, unit-initialized QK/VO scales.
+    Single-layer scan over L0--20; terminal L21 has neither M writer.
+    Ordinary/private widths3317/1539 give complete-branch ratio2.000331:1;
+    tail5083 closes the MHA budget at777,849,500 parameters (MHA-868).
+    """
+    model_name = 'BamLargePropV5'
+    attention = 'dot_product_chunk'
+    bam_k = 96
+    bam_v = 32
+    bam_standard_qk_dim = 24
+    bam_partial_rope_nope_dim = 96
+    bam_local_qk_col_output_dim = 96
+    bam_layer_modes = ['local_qk+local_v+local_o'] * 22
+    bam_local_full_m_read_bottleneck_dim = 256
+    bam_write_v_bottleneck_dim = 256
+    bam_mlp_write_address_rank = 256
+    emb_bam_v_bottleneck_dim = 256
+    emb_bam_num_head = 16
+    bam_attention_write_layers = list(range(21))
+    bam_mlp_write_layers = list(range(21))
+    base_mlp_dim = 3317
+    bam_memory_mlp_dim = 1539
+    bam_last_mlp_dim = 5083
+    bam_embedding_write_content_divisor = .0016052833 * math.sqrt(1536 / 1200)
+    bam_pallas_vmem_mib = 48
+    mlp_dim_by_block = None
+    query_chunk_size = 256
+    compare_runs = ['Llama2LargeProp', 'MuddLlama2LargeProp']
 
 
 class BamXLPropV5(BamMediumPropV5):

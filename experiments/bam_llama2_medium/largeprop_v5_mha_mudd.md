@@ -81,6 +81,27 @@ BAM's direct loss comparator is the actual minimal-remat Mudd RUN, with
 and4k/8k review events; stopping requires user confirmation.
 Pre-run terminal multiplier bet:1.8, range1.5–2.1.
 
+### Historical XL speed comparison
+
+| Scale | MHA step/s | Mudd step/s (vs MHA) | BAM step/s (vs MHA) |
+|---|---:|---:|---:|
+| XLProp | .543 | .461 (−15.1%) | .520 (−4.2%) |
+| LargeProp | 1.023 | .882 (−13.8%) | .835 (−18.4%) |
+
+XL uses `Llama2XLPropTruePileMHA` at `e30c1b8`,
+`MuddLlama2XLProp` at `9f86f0e`, and the numerically repaired
+`BamXLPropV5FastKernelFullRemat` at `d54c4c5`. They share v5p-32,
+B8/T4096 and generic-health-on/internal-off settings, but are historical
+timings from different machines/regions. Critically, the XL MHA/Mudd runtimes
+still use512 Splash tiles and **non-fused** backward; XL BAM already uses the
+1024/fused tuning now shared by all three Large models. Large Mudd also gains
+1.38% from minimal remat. Thus BAM goes from12.8% faster than Mudd at XL to
+5.3% slower at Large, but this is **not an isolated scale effect**: the old
+XL relative speed advantage includes unequal tuning. The discriminating
+follow-up is paired XL MHA/Mudd timing with tuning aligned, without retraining.
+Exact resolved runtime attributes are preserved locally in
+`xl-large-runtime-audit.json` beside the profile results.
+
 CPU launch checks: complete model parameter trees/config contracts and
 summary-writer rotation (7 tests), plus all six sealed configuration checks.
 The borrowed FLEX was left intact after another workflow concurrently used

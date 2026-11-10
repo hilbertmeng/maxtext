@@ -30,6 +30,11 @@ its exact replay remains unperformed. All formal-training recovery queues
 are retained. Further costly diagnosis should be driven by consequential
 loss episodes, not isolated raw excursions alone.
 
+Accordingly, the earlier suggestion to prioritize a local backward-gain
+protection rule is withdrawn for now. Demonstrating a remaining amplifier
+does not establish a need for a more intrusive gradient rule. Continue the
+unchanged4/7 formal run and assess late loss stability and final quality.
+
 Reproduction/data: local `loss_spike_review.py`, `loss-raw-series.json`,
 `loss-impact-summary.json`, and frozen console caches under the protocol root;
 GCS `loss-impact/`. Figure `xlprop-situ47-loss-raw-aligned-20261110.png`
@@ -37,8 +42,8 @@ aligns both models' recorded loss and raw norms on one shared training-step axis
 
 ## Current evidence
 
-Reserved FLEX has completed a useful local diagnosis while full-topology
-candidates wait. Ordinary SiTU MLPs still have coherent, input-dependent
+Reserved FLEX completed the local diagnosis while full-topology candidates
+were waiting. Ordinary SiTU MLPs still have coherent, input-dependent
 expansive directions. This is **not** an exact attribution of the formal6120
 event: the validated local point uses post-update5000 parameters and a
 reconstructed sequence from batch5000. Keep those scopes distinct.

@@ -199,6 +199,40 @@ unmodified-gradient controls; a clipped raw norm is not independent evidence
 of improved stability. No formal optimizer/model change has been launched.
 Artifacts: `flex-5000-path-mlp-vjp/attention-path-vjp.json`, runner2dc0c90f.
 
+### Check layer reversion conclusions in the full new-state context
+
+Do not generalize L6's necessity in the pair-only/old-background construction
+to a unique faulty layer in the actual new model. The same unmodified B1
+executable, now reverting old layer values into the complete5000 parameter
+tree, gives raw57.62 when reverting L6 V+W_O,54.88 when reverting L6 O alone,
+and26.98 when reverting L8 V+W_O (original4751.14). Several other individual
+layer reversions also remove most of this point. The last quarter reversion
+barely changes it (4728.48). This is a jointly supported, sensitive operating
+point, not a causal ranking obtained by sorting ablations. Full all-new
+controls still repeat exactly. Artifact: `flex-5000-layer-revert/vo-layer-screen.json`.
+
+### Cotangent norms without forward probes or callbacks
+
+`xlprop_cotangent_norm_taps.py` transports cotangent statistics through an
+auxiliary synthetic VJP; the model-parameter VJP remains the identity. It
+adds no forward zero and no host callback. CPU independent scan/remat controls
+verify unchanged primals/parameter derivatives and correct recorded gains.
+The scalar-output probe gives original CE1.70501709, raw4756.37598 versus
+4751.14014 (0.1102% norm error). Its strongest ordinary-MLP branch gains are
+L14=5.7119,L10=3.9325,L7=3.3998,L11=3.1204,L12=2.8202. These are ratios across
+the MLP branch, not the complete residual block; do not multiply them naively.
+Artifact: `flex-5000-cotangent-norm-taps/cotangent-norm-taps.json`.
+
+A stricter full-gradient-vector comparison materializes both gradient trees
+on the FLEX device. That changes the plain executable's raw to4756.32129;
+the tapped version is4799.67871. Full gradient relative L2 error is1.06025%,
+cosine .99998534. This **fails** the preset1% vector gate and strict original
+raw-reference gate, despite a very close direction. Preserve this limitation:
+it does not turn earlier scalar-norm matches into bitwise full-vector proof.
+The discrepancy is too small to account for the hundreds-fold intervention
+effects, but exact channel-level claims still need a matched boundary check.
+Artifact: `flex-5000-cotangent-full-grad/cotangent-norm-taps.json`.
+
 ## Question and scope
 
 Formal RUN `BamXLPropV5FastKernelFullRematSiTU47`, runtime
@@ -269,6 +303,11 @@ step; release the exact loser. They are separate from formal TPU311003 and
 its recovery queues. Reserved FLEX has completed the scoped diagnostics above
 under its shared lock and remains retained; full-mesh capture is not a
 prerequisite for such local checks.
+
+The requeued UC1a diagnostic candidate was again reclaimed during installation
+before replay FIRST_STEP. Its creator exited and its exact terminal node/queue
+were verified absent (`logs/situ47-uc1diag-terminal-release-1110.log`). EW4b
+remains the pending diagnostic candidate; formal UC1a recovery is separate.
 
 After loss-mask isolation, `xlprop_distributed_tensor_probe.py` captures
 full-mesh residual/M boundary cotangents with forward AND parameter-gradient

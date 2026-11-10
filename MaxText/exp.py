@@ -5716,7 +5716,7 @@ class Llama2LargeProp(SplashTunedBlocks1024, Llama2Large):
     base_num_kv_heads = 16
     head_dim = 96
     max_target_length = 4096
-    per_device_batch_size = 16.0
+    per_device_batch_size = 8.0  # v5p-32: 16 devices, global batch128.
     scan_layers = True
     record_training_health_metrics = True
     float32_logits = False
@@ -5740,6 +5740,18 @@ class MuddLlama2LargeProp(Mudd, Llama2LargeProp):
     # One router per completed layer; expand4 belongs to the final readout only.
     mudd_router_hidden_expand = [1] * 21 + [4]
     compare_runs = ['Llama2LargeProp']
+
+
+class Llama2LargePropMinimalRemat(Llama2LargeProp):
+    """Same model and training plan; recompute only the minimal remat set."""
+    model_name = 'Llama2LargePropMinimalRemat'
+    remat_policy = 'minimal'
+
+
+class MuddLlama2LargePropMinimalRemat(MuddLlama2LargeProp):
+    """Minimal-remat execution profile of the full-history Mudd reference."""
+    model_name = 'MuddLlama2LargePropMinimalRemat'
+    remat_policy = 'minimal'
 
 
 class Llama2XLProp(Llama2XL):
@@ -20502,6 +20514,12 @@ class BamLargePropV5(BamV5Architecture, Llama2LargeProp):
     mlp_dim_by_block = None
     query_chunk_size = 256
     compare_runs = ['Llama2LargeProp', 'MuddLlama2LargeProp']
+
+
+class BamLargePropV5MinimalRemat(BamLargePropV5):
+    """Minimal-remat execution profile; same V5 model, budget and training plan."""
+    model_name = 'BamLargePropV5MinimalRemat'
+    remat_policy = 'minimal'
 
 
 class BamXLPropV5(BamMediumPropV5):

@@ -17,6 +17,7 @@ def main():
   parser = argparse.ArgumentParser(description=__doc__)
   parser.add_argument('--runtime-dir', type=Path, required=True)
   parser.add_argument('--runtime-commit', required=True)
+  parser.add_argument('--exp', default='BamXLPropV5FastKernelFullRemat')
   parser.add_argument('--tensor-root', required=True)
   parser.add_argument('--checkpoint', required=True, help='Checkpoint items directory')
   parser.add_argument('--cohort', required=True)
@@ -44,7 +45,7 @@ def main():
     fidelity = json.load(f)
   assert fidelity['passed'], 'Boundary tensors must pass the formal model fidelity gate'
   layer, token = fidelity['target_layer'], fidelity['target_token']
-  cfg = pyconfig.initialize([None, 'MaxText/configs/base.yml'], exp_class='BamXLPropV5FastKernelFullRemat',
+  cfg = pyconfig.initialize([None, 'MaxText/configs/base.yml'], exp_class=args.exp,
       run_name='single-layer-vjp', base_output_directory=str(args.output) + '/',
       enable_checkpointing=False, only_eval=True, dataset_type='synthetic',
       target_train_batch_size=None, per_device_batch_size=1.,
@@ -175,7 +176,9 @@ def main():
         assert cfg.dropout_rate == 0 and not cfg.fused_mlp
         from swiglu_local_jacobian import analyze
         detail = analyze(params['mlp'], stats['mlp_input_array'], dp['mlp_output'],
-                         dp['mlp_input'], stats['mlp_output_array'], token)
+                         dp['mlp_input'], stats['mlp_output_array'], token,
+                         gate_limit=float(getattr(cfg, 'ordinary_mlp_situ_gate_limit', 0.) or 0.),
+                         value_limit=float(getattr(cfg, 'ordinary_mlp_situ_up_limit', 0.) or 0.))
         detail.update(layer=layer, boundary_fidelity=result, model_fidelity=fidelity)
         (args.output / 'mlp-jacobian.json').write_text(json.dumps(detail, indent=2) + '\n')
         print('MLP_JACOBIAN_COMPLETE', layer, flush=True)

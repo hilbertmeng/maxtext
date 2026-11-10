@@ -12,6 +12,7 @@ BOUNDED_CANDIDATES = (
     ('dual_hard_2', 'pre_hard', 2., 2., 1., 0.),
     ('dual_hard_1', 'pre_hard', 1., 1., 1., 0.),
     ('situ_4_25', 'situ', 4., 25., 1., 0.),
+    ('situ_4_7', 'situ', 4., 7., 1., 0.),
     ('situ_2_2', 'situ', 2., 2., 1., 0.),
     ('product_hard_2', 'product_hard', 2., 2., 1., 0.),
     ('product_tanh_2', 'product_tanh', 2., 2., 1., 0.),
@@ -54,7 +55,7 @@ def bounded_activation_terms(u, v, kind, gate_limit, value_limit, alpha=1., offs
   raise ValueError(kind)
 
 
-def chain_rule(x, dy, wg, wu, wo):
+def chain_rule(x, dy, wg, wu, wo, gate_limit=0., value_limit=0.):
   import jax
   import jax.numpy as jnp
   mm = lambda a, b: jnp.matmul(a, b, precision=jax.lax.Precision.HIGHEST)
@@ -62,17 +63,26 @@ def chain_rule(x, dy, wg, wu, wo):
   sigmoid = jax.nn.sigmoid(u)
   activation = u * sigmoid
   derivative = sigmoid + u * sigmoid * (1 - sigmoid)
+  value_activation, value_derivative = v, jnp.ones_like(v)
+  if gate_limit > 0:
+    t = jnp.tanh(u / gate_limit)
+    activation = gate_limit * t * sigmoid
+    derivative = (1 - t * t) * sigmoid + gate_limit * t * sigmoid * (1 - sigmoid)
+  if value_limit > 0:
+    t = jnp.tanh(v / value_limit)
+    value_activation, value_derivative = value_limit * t, 1 - t * t
   hidden_cotangent = mm(dy, wo.T)
-  gate_cotangent = hidden_cotangent * derivative * v
-  value_cotangent = hidden_cotangent * activation
+  gate_cotangent = hidden_cotangent * derivative * value_activation
+  value_cotangent = hidden_cotangent * activation * value_derivative
   dx_gate, dx_value = mm(gate_cotangent, wg.T), mm(value_cotangent, wu.T)
-  return dict(y=mm(activation * v, wo), dx=dx_gate + dx_value,
+  return dict(y=mm(activation * value_activation, wo), dx=dx_gate + dx_value,
               dx_gate=dx_gate, dx_value=dx_value, u=u, v=v,
               activation=activation, derivative=derivative,
+              value_activation=value_activation, value_derivative=value_derivative,
               gate_cotangent=gate_cotangent, value_cotangent=value_cotangent)
 
 
-def analyze(params, x, dy, actual_dx, actual_y, target):
+def analyze(params, x, dy, actual_dx, actual_y, target, *, gate_limit=0., value_limit=0.):
   import jax
   import jax.numpy as jnp
   import numpy as np
@@ -82,7 +92,7 @@ def analyze(params, x, dy, actual_dx, actual_y, target):
 
   def summary(x, dy, dx_ref, y_ref, wg, wu, wo):
     mm = lambda a, b: jnp.matmul(a, b, precision=jax.lax.Precision.HIGHEST)
-    r = chain_rule(x, dy, wg, wu, wo)
+    r = chain_rule(x, dy, wg, wu, wo, gate_limit, value_limit)
     l2 = lambda a: jnp.sqrt(jnp.sum(a * a))
     token_dx = jnp.linalg.norm(r['dx'], axis=-1)
     token_dy = jnp.linalg.norm(dy, axis=-1)
@@ -109,8 +119,8 @@ def analyze(params, x, dy, actual_dx, actual_y, target):
     for index in indexes:
       z = {k: v[index] for k, v in r.items()}
       # J[input, output]; no finite-difference step size or perturbed network.
-      j_gate = mm(wg * (z['derivative'] * z['v'])[None, :], wo)
-      j_value = mm(wu * z['activation'][None, :], wo)
+      j_gate = mm(wg * (z['derivative'] * z['value_activation'])[None, :], wo)
+      j_value = mm(wu * (z['activation'] * z['value_derivative'])[None, :], wo)
       jacobian = j_gate + j_value
       norm2 = jnp.sum(z['dx'] ** 2)
       projection = (z['gate_cotangent'] * mm(wg.T, z['dx'])
@@ -144,9 +154,9 @@ def analyze(params, x, dy, actual_dx, actual_y, target):
         if detach:
           derivative = jnp.zeros_like(derivative)
         hidden_g = mm(dy[index], wo.T)
-        changed_dx = (mm(hidden_g * derivative * z['v'], wg.T)
-                      + mm(hidden_g * act, wu.T))
-        changed_y = mm(act * z['v'], wo)
+        changed_dx = (mm(hidden_g * derivative * z['value_activation'], wg.T)
+                      + mm(hidden_g * act * z['value_derivative'], wu.T))
+        changed_y = mm(act * z['value_activation'], wo)
         interventions.append(dict(
             input_vjp_gain=l2(changed_dx) / jnp.maximum(token_dy[index], 1e-30),
             output_relative_change=l2(changed_y - z['y']) / jnp.maximum(l2(z['y']), 1e-30)))
@@ -201,4 +211,5 @@ def analyze(params, x, dy, actual_dx, actual_y, target):
         entry['name'] = name
     results.append(dict(effective_bf16_weights=quantized, **result))
   return dict(scope='Fixed captured MLP inputs/upstream cotangents; FP32 chain rule, no network reevaluation',
+              gate_limit=gate_limit, value_limit=value_limit,
               arms=results)

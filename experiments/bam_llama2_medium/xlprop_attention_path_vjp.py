@@ -20,7 +20,7 @@ def run(train, model, config, mesh, params, batch, output):
   import jax.numpy as jnp
   import numpy as np
   from flax import linen as nn
-  from layers import attentions, fusion
+  from layers import attentions, fusion, linears
 
   gate = make_cotangent_gate()
   layers, gates, hits = [], [], []
@@ -34,6 +34,13 @@ def run(train, model, config, mesh, params, batch, output):
         return next_fun(*args,**kwargs)
       finally:
         layers.pop()
+    if (context.method_name=='__call__' and isinstance(module,linears.MlpBlock)
+        and module.name in ('mlp','memory_mlp')):
+      assert layers
+      column=2 if module.name=='mlp' else 3
+      positional=list(args)
+      positional[0]=gate(positional[0],gates[-1][layers[-1],column])
+      return next_fun(*positional,**kwargs)
     result=next_fun(*args,**kwargs)
     if isinstance(module,attentions.BamAttention) and context.method_name=='_pallas_core_call':
       assert layers
@@ -62,9 +69,10 @@ def run(train, model, config, mesh, params, batch, output):
 
   data={k:jnp.asarray(v[:1]) for k,v in batch.items()}
   compiled=jax.jit(measure,static_argnames=('instrument',))
-  ones=jnp.ones((config.num_decoder_layers,2),jnp.float32)
+  ones=jnp.ones((config.num_decoder_layers,4),jnp.float32)
   result=dict(scope='Frozen B1; identical primals; cut cotangents only, not a training intervention',
-              columns=['vector_residual_output','attention_write_content'],cases=[])
+              columns=['vector_residual_output','attention_write_content',
+                       'ordinary_mlp_input','memory_mlp_input'],cases=[])
   output.mkdir(exist_ok=True,parents=True)
 
   def save():
@@ -86,13 +94,24 @@ def run(train, model, config, mesh, params, batch, output):
                                   ('shallow_vector_cut',list(range(7)),0),
                                   ('shallow_write_content_cut',list(range(7)),1),
                                   ('all_vector_cut',list(range(config.num_decoder_layers)),0),
-                                  ('all_write_content_cut',list(range(config.num_decoder_layers)),1)]:
-      values=np.ones((config.num_decoder_layers,2),np.float32)
-      if column is None:values[selected,:]=0
+                                  ('all_write_content_cut',list(range(config.num_decoder_layers)),1),
+                                  ('L6_ordinary_input_cut',[6],2),
+                                  ('middle_ordinary_input_cut',list(range(6,14)),2),
+                                  ('all_ordinary_input_cut',list(range(config.num_decoder_layers)),2),
+                                  ('all_memory_input_cut',list(range(config.num_decoder_layers)),3)]:
+      values=np.ones((config.num_decoder_layers,4),np.float32)
+      if column is None:values[selected,:2]=0
       else:values[selected,column]=0
       ce,raw=map(float,jax.device_get(compiled(params,data,jnp.asarray(values),instrument=True)))
       assert ce==active[0], (label,ce,active[0])
       row=dict(label=label,mean_ce=ce,raw_grad_norm=raw)
+      result['cases'].append(row);save();print('ATTENTION_PATH_CUT',json.dumps(row),flush=True)
+    for coefficient in (.9,.75,.5):
+      values=np.ones((config.num_decoder_layers,4),np.float32)
+      values[:,2]=coefficient
+      ce,raw=map(float,jax.device_get(compiled(params,data,jnp.asarray(values),instrument=True)))
+      assert ce==active[0]
+      row=dict(label='ordinary_input_attenuation',coefficient=coefficient,mean_ce=ce,raw_grad_norm=raw)
       result['cases'].append(row);save();print('ATTENTION_PATH_CUT',json.dumps(row),flush=True)
     repeated=tuple(map(float,jax.device_get(compiled(params,data,ones,instrument=True))))
     assert repeated==active, (repeated,active)

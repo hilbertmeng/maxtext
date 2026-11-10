@@ -8,6 +8,38 @@ expansive directions. This is **not** an exact attribution of the formal6120
 event: the validated local point uses post-update5000 parameters and a
 reconstructed sequence from batch5000. Keep those scopes distinct.
 
+The latest L14 capture replaces callback/forward-addition probes with auxiliary
+VJP data transport. Original CE1.7050170898 versus captured1.7050168514;
+raw4751.14014 versus4752.12891 (0.02081% error). Its independent local FP32 VJP
+matches captured input cotangents within0.1990%, with sequence gain5.71468 and
+output error0.3472%. FP32 master weights give gain5.71548. This greatly improves
+on the moved L11 graph documented below; retain the full-vector caveat later
+in this note rather than claiming bitwise original-gradient equivalence.
+
+At L14 token3151, actual directional gain6.49389 is about93% of the converged
+spectral lower estimate7.00169, versus random-direction RMS gain .30895.
+The main16 gate preactivations are .314--1.383, absolute up preactivations at
+most1.419, and together contribute52.862% of the actual input-gradient
+projection. The whole token's maxima are only2.772/2.622, below4/7.
+Neighbor3152 has larger maxima4.194/4.379 yet directional gain .3151 (neighbor
+3150 .4480); holding the target upstream vector still gives only1.173/1.148.
+Leading gate columns have cosines .796--.827, and paired up/output directions
+align after sign accounting. Leading output-row norms are around the bottom
+0.4--1.0% of the layer, not large-norm outliers.
+
+Frozen interventions: remove top4 units gain5.4376 versus random4 gain6.4938;
+detach only the gate derivative gain3.7440 without changing the primal.
+SiTU2/2 gives gain5.6721 but changes full-sequence MLP output L2 by27.6026%.
+These support coherent moderate-activation amplification and do not justify
+assuming tighter caps preserve training quality. They are local derivative
+tests, not retraining results.
+
+Artifacts: `flex-5000-cotangent-boundary14/` (four boundary arrays,128MB),
+`flex-local-mlp14/local-mlp-vjp.json`; helper34a1f9c9 with the existing independent
+local validator. Capture and analysis ran on reserved FLEX; raw arrays stay in
+GCS and were not pulled to the workstation. Plot:
+`health/xlprop-situ47-mlp-cotangent-gains-20261110.png`.
+
 On sequence80 (input SHA256
 `021203d5ca3ef8d0b326b757b201bffca0d88851b34aa1a8243a918a1819d4e3`),
 plain B1 full-parameter backward gives CE1.70501709/raw4751.14014. Adding

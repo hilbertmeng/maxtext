@@ -52,7 +52,9 @@ def main():
   tags = ['learning/raw_grad_norm']
   if args.include_clipped:
     tags.append('learning/grad_norm')
-  for run in dict.fromkeys(args.runs):
+  colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
+  for run_index, run in enumerate(dict.fromkeys(args.runs)):
+    color = colors[run_index % len(colors)]
     directory = directories.get(run, str(DEFAULT_LOCAL_TB_ROOT / run))
     scalars = Scalars(directory, [args.through_step])
     sources = []
@@ -91,9 +93,11 @@ def main():
           [p.step for p in points],
           [p.value if math.isfinite(p.value) and p.value > 0 else math.nan for p in points])
       metric = 'raw_grad_norm' if tag.endswith('/raw_grad_norm') else 'clipped_grad_norm'
-      axis.plot(xs, ys, linewidth=1.1, linestyle='-' if metric == 'raw_grad_norm' else '--',
+      linestyle = '-' if metric == 'raw_grad_norm' else '--'
+      axis.plot(xs, ys, color=color, linewidth=1.1, linestyle=linestyle,
                 label=f'{labels.get(run, run)}: {metric}')
       series.append(dict(run=run, tag=tag, event_dir=str(directory), sources=sources,
+                         color=color, linestyle=linestyle,
                          history_prefix=history,
                          through_step=points[-1].step,
                          points=[dict(step=p.step, value=p.value if math.isfinite(p.value) else None,

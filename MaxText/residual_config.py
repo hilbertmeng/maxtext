@@ -4,10 +4,16 @@ import math
 
 def validate_residual_config(keys):
   mode = keys['residual_connection']
-  if mode not in ('none', 'attnres', 'mhc'):
-    raise ValueError('residual_connection must be none, attnres or mhc')
+  if mode not in ('none', 'attnres', 'mhc', 'dhc'):
+    raise ValueError('residual_connection must be none, attnres, mhc or dhc')
   if mode == 'none':
     return
+  if mode == 'dhc':
+    value = keys['dhc_norm_epsilon']
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or value <= 0:
+      raise ValueError('dhc_norm_epsilon must be finite and positive')
+    if keys['mhc_learned_head'] or keys['mhc_identity_mixing']:
+      raise ValueError('Paper DHC requires sum head and learned transport')
   if keys['decoder_block'] == 'pythia':
     if not keys.get('pythia_use_fusion') or keys.get('pythia_parallel_residual', True):
       raise ValueError('AttnRes/mHC require serial Pythia with pythia_use_fusion=True')
@@ -54,7 +60,7 @@ def validate_residual_config(keys):
   norm_key = 'attnres_norm_epsilon' if mode == 'attnres' else 'mhc_norm_epsilon'
   if keys[norm_key] == 0:
     raise ValueError(f'{norm_key} must be positive')
-  if mode == 'mhc':
+  if mode in ('mhc', 'dhc'):
     for key in ('mhc_num_streams', 'mhc_sinkhorn_iters'):
       if type(keys[key]) is not int or keys[key] < 1:
         raise ValueError(f'{key} must be a positive integer')
@@ -78,11 +84,14 @@ def apply_residual_parameter_budget(keys):
   an nD-to-n projection, affine nD RMS weight, n biases and one alpha scalar.
   """
   validate_residual_config(keys)
-  if keys['residual_connection'] != 'mhc' or not keys['mhc_match_parameter_budget']:
+  if keys['residual_connection'] not in ('mhc', 'dhc') or not keys['mhc_match_parameter_budget']:
     return
   d, n, layers = keys['emb_dim'], keys['mhc_num_streams'], keys['num_decoder_layers']
   outputs = n * n + 2 * n
   extra = 2 * layers * (n * d * outputs + int(keys['mhc_norm_affine']) * n * d + outputs + 3)
+  if keys['residual_connection'] == 'dhc':
+    # Shared per-stream D->(n+1) width, D->1 depth, affine LayerNorm, static weights, two scalars.
+    extra = 2 * layers * (d * (n + 4) + n * (n + 1) + n + 2)
   if keys['mhc_learned_head']:
     extra += n * d * n + n * d + n + 1
   # Pythia has a hidden bias for every input projection (the output bias

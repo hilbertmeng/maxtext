@@ -71,7 +71,8 @@ quantization_local_shard_count: -1
 
 decoder_block: "llama2" # which style of DecoderBlock to use.
 # Opt-in residual architectures; experiment defaults live in exp.py mixins.
-residual_connection: "none" # none, attnres (Full only), mhc
+residual_connection: "none" # none, attnres (Full only), mhc, dhc
+dhc_norm_epsilon: 1.0e-5 # HC Appendix J per-stream affine LayerNorm.
 attnres_norm_epsilon: 1.0e-6
 mhc_identity_mixing: False # iHC ablation: fixed identity residual transport.
 mhc_num_streams: 4

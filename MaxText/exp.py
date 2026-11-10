@@ -10414,6 +10414,19 @@ class BamMHAMediumPropC256TruePilemHC(MHCConfig, BamMHAMediumPropC256TruePile):
     compare_runs = ['BamMHAMediumPropC256TruePile', 'MuddLlama2MediumPropTruePile']
 
 
+class BamMHAMediumPropC256TruePileDHC4Tanh(MHCConfig, BamMHAMediumPropC256TruePile):
+    """HC paper Appendix J DHC x4-tanh with sum output, matched parameter budget."""
+    residual_connection = 'dhc'
+    model_name = 'BamMHAMediumPropC256TruePileDHC4Tanh'
+    mhc_learned_head = False
+    mhc_identity_mixing = False
+    dhc_norm_epsilon = 1e-5
+    jax_cache_dir = ''
+    compare_runs = ['BamMHAMediumPropC256TruePilemHC',
+                    'BamMHAMediumPropC256TruePile', 'MuddLlama2MediumPropTruePile',
+                    'BamMHAMediumPropC256TruePileAttnRes', 'BamMHAMediumPropC256TruePilemHCSK3']
+
+
 class BamMHAMediumPropC256TruePilemHCSK3(BamMHAMediumPropC256TruePilemHC):
     """Llama mHC with three Sinkhorn iterations; all initialization unchanged."""
     # Single intervention versus original mHC: Sinkhorn iterations 20 -> 3.

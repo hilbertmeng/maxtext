@@ -101,6 +101,33 @@ combinations at one sequence, not the unique cause of the formal6120 event.
 Full controls repeat raw4751.14014 exactly. Pair artifacts are under
 `flex-5000-vo-output/`; local `single-device-vo-output.json`.
 
+### Physical-layer controls, without modifying the differentiated graph
+
+The same compiled B1 loss/backward accepts layer-masked parameter values.
+Scanned parameters use their verified physical layer axis1 (27 layers), with
+the explicit final layer treated separately. CPU toy controls check both
+layouts. Old, pair-all, V/O/W_O-all and repeated all-new results reproduce the
+preceding phases within1e-5 relative error; all-new is again bitwise identical.
+
+| New V + attention W_O layer subset; all other parameters old |Raw norm|
+|---|---:|
+|L0--L6 only|9.53597|
+|All except L0--L6|1.43831|
+|L7--L13 only|1.46554|
+|L14--L20 only|1.44443|
+|L21--L27 only|1.42068|
+|L0--L13 only / L14--L27 only|17.90233 /1.41966|
+|V from first half, W_O from second half|1.42496|
+|V from second half, W_O from first half|1.44083|
+
+Thus the shallow parameter changes are required for the strong pair trigger
+in this transplant setting; disjoint early/late V and W_O do not reproduce it.
+The downstream ordinary MLP amplification and the parameter changes that
+excite it need not be in the same layer. Do not mistake this for a proof that
+one same-layer V/W_O pair suffices; the finer layer screen tests that next.
+Artifacts: `flex-5000-layer-screen/vo-layer-screen.json`, independent runner
+`xlprop_vo_layer_screen.py`; source commit abbed449.
+
 ## Question and scope
 
 Formal RUN `BamXLPropV5FastKernelFullRematSiTU47`, runtime
@@ -164,7 +191,8 @@ Two owned diagnostic candidates submitted on2026-11-10UTC:
 |xd-v5p-32-situ-spike-ew4b-1110|europe-west4-b|3412037|
 
 The UC1a candidate was allocated then reclaimed during installation; its
-creator exited, leaving a SERVICE-suspended queue. EW4b remains queued.
+creator exited, leaving a SERVICE-suspended queue. The exact owned resource
+was released and requeued, creator3506867. EW4b remains queued.
 Keep candidates until a validated replay first
 step; release the exact loser. They are separate from formal TPU311003 and
 its recovery queues. Reserved FLEX has completed the scoped diagnostics above
@@ -217,3 +245,22 @@ sets `JAX_PLATFORMS=tpu,cpu`. Model execution still defaults to TPU.
 All worker wrappers and immutable runner hashes are in `runner/` and the
 local protocol directory. Identity primal/VJP and scan/remat behavior pass
 pinned-CPU independent controls; local SiTU chain-rule controls also pass.
+
+## Capacity and recovery audit, 2026-11-10 UTC
+
+Formal training stopped advancing after the21:51UTC preemption, checkpoint8765
+preserved. UC1a assignments at02:53 and03:43 were reclaimed before a resumed
+first step. A new04:02 allocation was READY and all guest agents reported boot,
+but all four internal and external SSH endpoints repeatedly timed out for more
+than ten minutes. No environment-ready or resumed FIRST_STEP was recorded.
+At04:20 the controller was briefly suspended, only this exact journaled owned
+UC1a candidate released, and the controller resumed. The UE5a/EW4b accepted
+queue identities and their21:59 submission ages were retained. UC1a requeued
+at04:21:57. Record: tpu-ag `logs/situ47-recycle-unreachable-1110.json`.
+
+Additional-zone audit finds advertised v5p-32 support in us-east1-d, but an
+actual spot submission is rejected with TPUV5PPreemptiblePerProjectPerZoneForTPUAPI
+limit0 despite a quota consumerOverride of-1. Subsequent queue AND node queries
+return NOT_FOUND. Do not infer admission from that override. No data replica,
+resource, or training routing change was made there. Full local evidence:
+`zone-quota-audit.json`.

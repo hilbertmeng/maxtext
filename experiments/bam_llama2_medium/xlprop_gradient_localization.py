@@ -69,6 +69,7 @@ def main():
   parser.add_argument('--family-reference-checkpoint',
                       help='Frozen B1 family transplants against this older independent checkpoint')
   parser.add_argument('--family-fine-attention', action='store_true')
+  parser.add_argument('--family-plans-uri')
   parser.add_argument('--cursor-rewind-batches', type=int, default=0,
                       help='Frozen-state counterfactual: reread earlier batches; does not rewind parameters')
   parser.add_argument('--empty-row-check-only', action='store_true',
@@ -207,7 +208,7 @@ def main():
   if args.family_reference_checkpoint:
     from xlprop_single_device_family import run
     run(train, model, cfg, mesh, params, batch, args.output, args.family_reference_checkpoint,
-        fine_attention=args.family_fine_attention)
+        fine_attention=args.family_fine_attention, plans_uri=args.family_plans_uri)
     return
   if args.identity_tap_blocks:
     from xlprop_identity_taps import run

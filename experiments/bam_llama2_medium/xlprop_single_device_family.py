@@ -3,7 +3,7 @@ import hashlib
 import json
 
 
-def run(train, model, config, mesh, new, batch, output, old_checkpoint, *, fine_attention=False):
+def run(train, model, config, mesh, new, batch, output, old_checkpoint, *, fine_attention=False, plans_uri=None):
   import jax
   import jax.numpy as jnp
   import numpy as np
@@ -38,9 +38,23 @@ def run(train, model, config, mesh, new, batch, output, old_checkpoint, *, fine_
   plans += [(n,) for n in eligible]
   plans += [tuple(n for n in names if n != removed) for removed in eligible]
   plans = list(dict.fromkeys(plans))
+  labels = {}
+  if plans_uri:
+    import tensorflow as tf
+    with tf.io.gfile.GFile(plans_uri) as f:
+      requested = json.load(f)
+    assert isinstance(requested, list) and 0 < len(requested) <= 64
+    plans = []
+    for row in requested:
+      selected = tuple(sorted(row['new_families']))
+      assert len(set(selected)) == len(selected) and set(selected) <= set(names), row
+      assert selected not in labels, 'Duplicate parameter intervention'
+      plans.append(selected); labels[selected] = row['label']
+    plans = [tuple(names)] + [selected for selected in plans if set(selected) != set(names)]
   result = dict(scope='Frozen adjacent-state B1 function; change parameter values only, no training updates',
       old_checkpoint=old_checkpoint,
       fine_attention=fine_attention,
+      plans_uri=plans_uri,
       input_sha256=hashlib.sha256(np.asarray(batch['inputs'][:1]).tobytes()).hexdigest(),
       families={n:sum(x.size for x,f in zip(jax.tree.leaves(new),jax.tree.leaves(families)) if f==n) for n in names},
       cases=[])
@@ -49,10 +63,12 @@ def run(train, model, config, mesh, new, batch, output, old_checkpoint, *, fine_
     for selected in plans + [tuple(names)]:
       params = jax.tree.map(lambda a,b,f:b if f in selected else a, old, new, families)
       ce, raw = map(float, jax.device_get(measure(params, data)))
-      row = dict(new_families=selected, mean_ce=ce, raw_grad_norm=raw)
+      row = dict(new_families=selected, mean_ce=ce, raw_grad_norm=raw,
+                 label=labels.get(tuple(sorted(selected))))
       result['cases'].append(row)
       (output/'single-device-families.json').write_text(json.dumps(result, indent=2)+'\n')
       print('SINGLE_DEVICE_FAMILY', json.dumps(row), flush=True)
-  first, last = result['cases'][0], result['cases'][-1]
+  first = next(r for r in result['cases'] if set(r['new_families']) == set(names))
+  last = result['cases'][-1]
   assert (first['mean_ce'], first['raw_grad_norm']) == (last['mean_ce'],last['raw_grad_norm']), 'Frozen repeat control moved'
   print('SINGLE_DEVICE_FAMILY_REPEAT_EXACT', flush=True)

@@ -72,6 +72,8 @@ def main():
   parser.add_argument('--family-plans-uri')
   parser.add_argument('--family-layer-screen', action='store_true',
                       help='Localize frozen V/attention-W_O joint parameter changes by layer ranges')
+  parser.add_argument('--attention-path-vjp', action='store_true',
+                      help='Gate unchanged forward, then cut vector/write-content cotangents')
   parser.add_argument('--cursor-rewind-batches', type=int, default=0,
                       help='Frozen-state counterfactual: reread earlier batches; does not rewind parameters')
   parser.add_argument('--empty-row-check-only', action='store_true',
@@ -207,6 +209,10 @@ def main():
       backend=jax.default_backend(), scan_layers=cfg.scan_layers)
   (args.output / 'metadata.json').write_text(json.dumps(metadata, indent=2) + '\n')
   print('COHORT_READY', len(order), flush=True)
+  if args.attention_path_vjp:
+    from xlprop_attention_path_vjp import run
+    run(train,model,cfg,mesh,params,batch,args.output)
+    return
   if args.family_reference_checkpoint:
     from xlprop_single_device_family import run
     run(train, model, cfg, mesh, params, batch, args.output, args.family_reference_checkpoint,

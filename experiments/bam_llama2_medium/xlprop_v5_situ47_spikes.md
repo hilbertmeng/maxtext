@@ -128,6 +128,17 @@ one same-layer V/W_O pair suffices; the finer layer screen tests that next.
 Artifacts: `flex-5000-layer-screen/vo-layer-screen.json`, independent runner
 `xlprop_vo_layer_screen.py`; source commit abbed449.
 
+The finer L0--L6 screen is complete (`flex-5000-layer-fine/vo-layer-screen.json`,
+runner e08cf68a). Every individual layer's V+W_O transplant stays near1.45;
+no tested single layer suffices. In the all-layer pair, reverting L6 alone
+reduces raw67.954 to1.449, while reverting L5 gives8.823. Thus the shallow
+combination needs L6 but also upstream or downstream support. Keeping the
+all-layer pair and adding only L6's new O parameters raises raw to11283.45;
+O at L1 or L5 also raises it (2560.99/1195.78), while O at L2 reduces it22.74.
+This is a sharply conditional operating-point effect, not a monotone ranking
+of parameter families or evidence that each changed layer is intrinsically
+unstable. All original controls, including raw4751.14014, repeat exactly.
+
 ## Question and scope
 
 Formal RUN `BamXLPropV5FastKernelFullRematSiTU47`, runtime

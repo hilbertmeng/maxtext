@@ -3,7 +3,8 @@ import hashlib
 import json
 
 
-def run(train, model, config, mesh, new, batch, output, old_checkpoint, *, fine_attention=False, plans_uri=None):
+def run(train, model, config, mesh, new, batch, output, old_checkpoint, *, fine_attention=False, plans_uri=None,
+        layer_screen=False):
   import jax
   import jax.numpy as jnp
   import numpy as np
@@ -25,6 +26,11 @@ def run(train, model, config, mesh, new, batch, output, old_checkpoint, *, fine_
       path, fine_attention=fine_attention, split_vo=fine_attention), new)
   names = sorted(set(jax.tree.leaves(families)))
   data = {k:jnp.asarray(v[:1]) for k,v in batch.items()}
+
+  if layer_screen:
+    assert fine_attention and not plans_uri
+    from xlprop_vo_layer_screen import run as run_layers
+    return run_layers(train, model, config, mesh, old, new, data, output, old_checkpoint)
 
   @jax.jit
   def measure(params, data):

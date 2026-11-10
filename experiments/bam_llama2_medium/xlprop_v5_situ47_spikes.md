@@ -76,3 +76,28 @@ SwiGLU. Original u/v remain raw in its summaries. Independent autodiff controls
 for ordinary SwiGLU and SiTU4/7,4/25 check forward and both derivative paths
 (including zero and saturated inputs); passed in the pinned CPU environment.
 No TPU-derived causal result is available yet.
+
+## Reserved-FLEX first pass
+
+Do not make full-topology replay a prerequisite for all useful work. The user
+requested using the available reserved FLEX while both diagnostic candidates
+wait. `llm-jax-v6e-1-0` is confirmed FLEX_START/ACTIVE and idle; borrow worker0
+under the shared compiler-worker lock and retain its node/queue afterwards.
+
+Checkpoint5000 was independently recovered and verified (29 objects). A first
+plain B1 forward/address-bias-backward screen rereads batch5000 using its saved
+cursor minus one consumed batch, with the checkpoint's actual **post-update**
+parameters. This is an explicitly frozen adjacent-state counterfactual, not an
+exact replay of the pre-update5000 spike. Record that distinction in metadata.
+Screen all128 sequences before adding probes; save per-sequence inputs/hashes,
+CE, bias gradients and the strongest sequence. Then use identical checkpoint,
+inputs and differentiated bias to gate any instrumented B1 graph. If the
+adjacent state is quiet or inserted probes move its operating point, report
+that limitation and continue original-AOT replay; do not label a different
+single-device function as the formal spike.
+
+Runner `xlprop_gradient_localization.py` adds `--plain-screen-only` and
+`--cursor-rewind-batches 1`; normal diagnostic defaults remain unchanged.
+FLEX runtime uses the existing immutable bd181bc AOT source checkout through
+a separate detached worktree. The formal RUN and its recovery queues remain
+untouched.

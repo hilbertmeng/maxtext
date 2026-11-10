@@ -60,6 +60,10 @@ def main():
   parser.add_argument('--retain-captured-tensors', action='store_true')
   parser.add_argument('--baseline-forward-check', action='store_true',
                       help='Check uninstrumented B1 forward/backward and fixed-B8 batch independence')
+  parser.add_argument('--plain-screen-only', action='store_true',
+                      help='Screen sequences with plain forward/bias backward, without additive probes')
+  parser.add_argument('--cursor-rewind-batches', type=int, default=0,
+                      help='Frozen-state counterfactual: reread earlier batches; does not rewind parameters')
   parser.add_argument('--empty-row-check-only', action='store_true',
                       help='Check the exact zero-gradient invariant for an empty-history query')
   args = parser.parse_args()
@@ -155,6 +159,8 @@ def main():
     cursor = json.load(handle)
   assert cursor['checkpoint_step'] == args.step
   local_cursor = dict(cursor, file_in_data=0, num_infeed_hosts=1)
+  assert 0 <= args.cursor_rewind_batches <= local_cursor['step_in_file']
+  local_cursor['step_in_file'] -= args.cursor_rewind_batches
   # Retain the process-independent global stream/skip count; one diagnostic host
   # receives all128 sequences, then forwards only one sequence at a time.
   cohort_path = args.output / 'cohort.npz'
@@ -184,12 +190,40 @@ def main():
   metadata = dict(exp=args.exp, runtime_commit=actual, checkpoint=checkpoint,
       cursor=cursor, sequence_order=order.tolist(), length=cfg.max_target_length,
       diagnostic_batch=1, formal_global_batch=cursor['global_batch_size'],
+      cursor_rewind_batches=args.cursor_rewind_batches,
       scope='Frozen checkpoint; selected CE optionally scaled to an explicit global denominator, not a training replay.',
       loss_token=args.loss_token, loss_denominator=args.loss_denominator,
       runner_sha256=hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
       backend=jax.default_backend(), scan_layers=cfg.scan_layers)
   (args.output / 'metadata.json').write_text(json.dumps(metadata, indent=2) + '\n')
   print('COHORT_READY', len(order), flush=True)
+  if args.plain_screen_only:
+    def plain(bias_value, p, data):
+      effective = unfreeze(p)
+      effective['params']['decoder']['embedding_bam_write']['W_emb_v_up']['bias'] = bias_value
+      return train.loss_fn(model, cfg, dict(data), jax.random.PRNGKey(0), effective, is_train=True)[0]
+    records, grads = [], []
+    with mesh, nn.partitioning.axis_rules(cfg.logical_axis_rules):
+      compiled = jax.jit(jax.value_and_grad(plain))
+      for ordinal, sequence in enumerate(order):
+        sample = {k: jnp.asarray(v[sequence:sequence + 1]) for k, v in batch.items()}
+        started = time.monotonic()
+        loss, grad = jax.device_get(compiled(bias, params, sample))
+        record = dict(sequence=int(sequence), mean_ce=float(loss),
+            selected_weights=int(np.count_nonzero(batch['targets_segmentation'][sequence])),
+            bias_grad_l2=float(np.linalg.norm(grad.astype(np.float64))),
+            input_sha256=hashlib.sha256(batch['inputs'][sequence].tobytes()).hexdigest(),
+            seconds=time.monotonic() - started)
+        records.append(record); grads.append(grad)
+        (args.output / 'plain-screen.json').write_text(json.dumps(records, indent=2) + '\n')
+        print('PLAIN_SEQUENCE', json.dumps(record), flush=True)
+    np.savez_compressed(args.output / 'plain-bias-gradients.npz',
+        sequences=np.asarray(order), gradients=np.stack(grads))
+    strongest = max(records, key=lambda r:r['bias_grad_l2'])['sequence']
+    np.savez_compressed(args.output / 'strongest-sequence.npz',
+        **{k:v[strongest:strongest + 1] for k,v in batch.items()})
+    print('PLAIN_SCREEN_COMPLETE', strongest, flush=True)
+    return
   if args.baseline_forward_check:
     assert batch['inputs'].shape[0] == 1
     source = {k: np.asarray(v[:1]) for k, v in batch.items()}

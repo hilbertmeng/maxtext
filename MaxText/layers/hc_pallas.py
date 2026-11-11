@@ -439,3 +439,100 @@ def dhc_connector_pallas(state, gained, gained_sum, bias_proj, width_scale, read
 
   return _batch_shard_multi(local, (state, gained, gained_sum, bias_proj, width_scale, read_static),
                             (1, None, None, None, None, None), ((0, 3), (1, 4), (1, 4)))
+
+
+# ---------------------------------------------------------------------------
+# Sinkhorn on [source, destination, M] blocks: all iterations in one kernel; the
+# reverse recomputes the iterates in VMEM and sweeps them backwards. XLA emitted
+# ~40 tiny fusions per connector per pass for the unrolled iterations.
+# ---------------------------------------------------------------------------
+def _sinkhorn_steps(n, logits, iterations, eps):
+  """Returns softmax probabilities, the inputs of every normalization and the result."""
+  rows = [logits[i] for i in range(n)]                                    # each [destination, tile]
+  probs = []
+  for i in range(n):
+    e = jnp.exp(rows[i] - jnp.max(rows[i], axis=0, keepdims=True))
+    probs.append(e / jnp.sum(e, axis=0, keepdims=True))
+  x = [p + eps for p in probs]
+  inputs = []
+  for step in range(2 * iterations - 1):
+    inputs.append(x)
+    if step % 2 == 0:   # normalize over sources (axis 0 in [i, j])
+      s = x[0]
+      for i in range(1, n):
+        s = s + x[i]
+      x = [v / (s + eps) for v in x]
+    else:               # normalize over destinations
+      x = [v / (jnp.sum(v, axis=0, keepdims=True) + eps) for v in x]
+  return probs, inputs, x
+
+
+def _sinkhorn_kernel(n, iterations, eps, l_ref, o_ref):
+  _, _, out = _sinkhorn_steps(n, l_ref[...], iterations, eps)
+  for i in range(n):
+    o_ref[i] = out[i]
+
+
+def _sinkhorn_bwd_kernel(n, iterations, eps, l_ref, g_ref, dl_ref):
+  probs, inputs, _ = _sinkhorn_steps(n, l_ref[...], iterations, eps)
+  g = [g_ref[i] for i in range(n)]
+  for step in reversed(range(2 * iterations - 1)):
+    x = inputs[step]
+    if step % 2 == 0:
+      s = x[0]
+      for i in range(1, n):
+        s = s + x[i]
+      inv = 1 / (s + eps)
+      dot = g[0] * x[0]
+      for i in range(1, n):
+        dot = dot + g[i] * x[i]
+      g = [(g[i] - dot * inv) * inv for i in range(n)]
+    else:
+      new = []
+      for i in range(n):
+        inv = 1 / (jnp.sum(x[i], axis=0, keepdims=True) + eps)
+        new.append((g[i] - jnp.sum(g[i] * x[i], axis=0, keepdims=True) * inv) * inv)
+      g = new
+  for i in range(n):   # softmax over destinations; the +eps has unit derivative
+    dl_ref[i] = probs[i] * (g[i] - jnp.sum(g[i] * probs[i], axis=0, keepdims=True))
+
+
+@functools.partial(jax.custom_vjp, nondiff_argnums=(1, 2, 3, 4))
+def _sinkhorn(logits, iterations, eps, tile, interpret):
+  return _sinkhorn_call(logits, iterations, eps, tile, interpret)
+
+
+def _sinkhorn_call(logits, iterations, eps, tile, interpret):
+  n, _, m = logits.shape
+  spec = pl.BlockSpec((n, n, tile), lambda t: (0, 0, t))
+  return pl.pallas_call(functools.partial(_sinkhorn_kernel, n, iterations, eps), grid=(m // tile,),
+                        in_specs=[spec], out_specs=spec, out_shape=jax.ShapeDtypeStruct(logits.shape, F32),
+                        compiler_params=_params(), interpret=interpret)(logits)
+
+
+def _sinkhorn_fwd(logits, iterations, eps, tile, interpret):
+  return _sinkhorn_call(logits, iterations, eps, tile, interpret), logits
+
+
+def _sinkhorn_bwd(iterations, eps, tile, interpret, logits, g):
+  n, _, m = logits.shape
+  spec = pl.BlockSpec((n, n, tile), lambda t: (0, 0, t))
+  return (pl.pallas_call(functools.partial(_sinkhorn_bwd_kernel, n, iterations, eps), grid=(m // tile,),
+                         in_specs=[spec, spec], out_specs=spec, out_shape=jax.ShapeDtypeStruct(logits.shape, F32),
+                         compiler_params=_params(), interpret=interpret)(logits, g.astype(F32)),)
+
+
+_sinkhorn.defvjp(_sinkhorn_fwd, _sinkhorn_bwd)
+
+
+def sinkhorn_pallas(logits, iterations, epsilon, *, tile=512, interpret=False):
+  """residual_connections.sinkhorn_major for logits [source, destination, B, T]."""
+  n, _, b, t = logits.shape
+
+  def local(l):
+    nb = l.shape[2]
+    m = nb * t
+    return _sinkhorn(l.astype(F32).reshape(n, n, m), int(iterations), float(epsilon),
+                     _tile(m, tile), interpret).reshape(l.shape)
+
+  return _batch_shard_multi(local, (logits,), (2,), ((2, 4),))

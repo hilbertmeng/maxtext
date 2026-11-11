@@ -477,12 +477,15 @@ class ResidualModelTest(MLPWriteTest, unittest.TestCase):
     for name in ('Llama2XLPropTruePileMHAmHC', 'Llama2XLPropTruePileMHADHC4Tanh'):
       for remat in ('none', 'minimal'):
         results = []
-        arms = [(False, False, False), (True, False, False), (True, True, False), (True, True, True)]
-        for major, pallas, connector in arms:
+        arms = [(False, False, False, False), (True, False, False, False), (True, True, False, False),
+                (True, True, True, False)]
+        if name.endswith('mHC'):
+          arms.append((True, True, True, True))
+        for major, pallas, connector, sinkhorn in arms:
           cfg = self.tiny(name)
           cfg.get_keys().update(mhc_stream_major_layout=major, mhc_pallas_update=pallas,
-                                mhc_pallas_connector=connector, mhc_pallas_interpret=pallas,
-                                remat_policy=remat, mhc_alpha_init=1.0)
+                                mhc_pallas_connector=connector, mhc_pallas_sinkhorn=sinkhorn,
+                                mhc_pallas_interpret=pallas, remat_policy=remat, mhc_alpha_init=1.0)
           mesh = jax.sharding.Mesh(max_utils.create_device_mesh(cfg), cfg.mesh_axes)
           model = Transformer(cfg, mesh, quant=None)
           tokens = jnp.array([[1, 2, 3, 4, 5, 6]], jnp.int32)
@@ -505,7 +508,7 @@ class ResidualModelTest(MLPWriteTest, unittest.TestCase):
             grads = jax.jit(jax.grad(lambda p: jnp.mean(jnp.sin(forward(p)))))(shared)
           results.append((logits, grads))
         (l0, g0), *others = results
-        for arm, (l1, g1) in zip(('major', 'pallas', 'pallas_connector'), others):
+        for arm, (l1, g1) in zip(('major', 'pallas', 'pallas_connector', 'pallas_sinkhorn'), others):
           np.testing.assert_allclose(l1, l0, atol=2e-5, rtol=2e-5, err_msg=f'{name} {remat} {arm}')
           for (path, a), b in zip(flatten_dict(g0).items(), jax.tree.leaves(g1)):
             np.testing.assert_allclose(b, a, atol=2e-5, rtol=2e-4, err_msg=f'{name} {remat} {arm} {path}')

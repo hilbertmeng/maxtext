@@ -280,6 +280,11 @@ class ManifoldHyperConnection(nn.Module):
       post = 2 * jax.nn.sigmoid(logits[n:2*n])
     if cfg.mhc_identity_mixing:
       mixing = jnp.broadcast_to(jnp.eye(n, dtype=f32)[:, :, None, None], (n, n) + state.shape[1:3])
+    elif getattr(cfg, 'mhc_pallas_sinkhorn', False):
+      from layers.hc_pallas import sinkhorn_pallas
+      mixing = sinkhorn_pallas(logits[2*n:].reshape((n, n) + state.shape[1:3]),
+                               cfg.mhc_sinkhorn_iters, cfg.mhc_sinkhorn_epsilon,
+                               interpret=bool(getattr(cfg, 'mhc_pallas_interpret', False)))
     else:
       mixing = sinkhorn_major(logits[2*n:].reshape((n, n) + state.shape[1:3]),
                               cfg.mhc_sinkhorn_iters, cfg.mhc_sinkhorn_epsilon)

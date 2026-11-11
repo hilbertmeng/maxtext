@@ -81,6 +81,7 @@ mhc_num_streams: 4
 mhc_stream_major_layout: False # Store mHC/DHC state as [n,B,T,D] and fold router norms into the router dot (TPU speed).
 mhc_pallas_update: False # Fused Pallas TPU residual update with one-pass VJP; requires mhc_stream_major_layout.
 mhc_pallas_connector: False # Fused Pallas mHC read (router dot, RMS, pre, read) with one-pass VJP; requires the stream-major layout.
+mhc_pallas_sinkhorn: False # mHC Sinkhorn as one Pallas kernel with a recomputing reverse; requires mhc_pallas_connector.
 mhc_pallas_interpret: False # CPU tests only; AOT compiles under JAX_PLATFORMS=cpu, so never infer this from the backend.
 mhc_sinkhorn_iters: 20
 mhc_sinkhorn_epsilon: 1.0e-6

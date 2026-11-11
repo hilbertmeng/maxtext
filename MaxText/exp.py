@@ -9781,6 +9781,11 @@ class Llama2XLPropTruePileMHADHC4TanhSplashMinimalPallasConnectorSpeedProfile(Ll
     mhc_pallas_connector = True
 
 
+class Llama2XLPropTruePileMHAmHCSplashMinimalPallasSinkhornSpeedProfile(Llama2XLPropTruePileMHAmHCSplashMinimalPallasConnectorSpeedProfile):
+    model_name = 'Llama2XLPropTruePileMHAmHCSplashMinimalPallasSinkhornSpeedProfile'
+    mhc_pallas_sinkhorn = True
+
+
 class BamLlama2XLPropK72SharedRank4MLPPerLayerTrain(BamLlama2XLPropK72SharedRank4MLPPerLayer):
     """Formal batch8 RUN; independent data/checkpoint prefix, starts from zero."""
     # code_commit: 859bd7e

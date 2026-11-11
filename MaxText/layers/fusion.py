@@ -144,8 +144,10 @@ class SubDecoderLayer(nn.Module):
       if connection == 'attnres':
         inputs = FullAttentionResidual(cfg, name='attn_connection')(residual_state)
       else:
-        inputs, attn_post, attn_mix = HyperConnection(
+        inputs, attn_post, attn_mix, *passthrough = HyperConnection(
             cfg, layer_index=2 * self.layer_inx, name='attn_connection')(residual_state)
+        if passthrough:   # fused Pallas connector: the update consumes its state output
+          residual_state, = passthrough
     if cfg.dense_conn and cfg.dynamic_dense_type == 'qkvm' and isinstance(inputs, tuple|list): # lsp
       if cfg.scan_use_mudd and len(inputs) == 2: # scan use mudd
         lnx = normalizations.get_rmsnorm("muddnorm", cfg)(inputs[0])
@@ -339,8 +341,10 @@ class SubDecoderLayer(nn.Module):
         intermediate_inputs = FullAttentionResidual(cfg, name='mlp_connection')(residual_state)
       else:
         residual_state = mhc_update(residual_state, attention_lnx, attn_post, attn_mix)
-        intermediate_inputs, mlp_post, mlp_mix = HyperConnection(
+        intermediate_inputs, mlp_post, mlp_mix, *passthrough = HyperConnection(
             cfg, layer_index=2 * self.layer_inx + 1, name='mlp_connection')(residual_state)
+        if passthrough:
+          residual_state, = passthrough
 
     # Fully Connected
     # Parallel Pythia uses the layer input (Mudd's composed M route).

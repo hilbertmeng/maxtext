@@ -209,6 +209,8 @@ class ManifoldHyperConnection(nn.Module):
 
     bias = self.param('router_bias', bias_init, (outputs,), cfg.weight_dtype)
     alphas = jnp.concatenate((jnp.repeat(alpha[0], n), jnp.repeat(alpha[1], n), jnp.repeat(alpha[2], n*n)))
+    if major and getattr(cfg, 'mhc_pallas_connector', False):
+      return self._pallas(state, scale, phi, alpha, alphas, bias)
     if major:
       return self._stream_major(x, state.dtype, rms, scale, phi, alphas, bias)
     dynamic = (normalized @ phi.astype(jnp.float32)) * alphas.astype(jnp.float32)
@@ -231,6 +233,34 @@ class ManifoldHyperConnection(nn.Module):
                        cfg.mhc_sinkhorn_iters, cfg.mhc_sinkhorn_epsilon)
     read = jnp.sum(pre[..., :, None] * state.astype(jnp.float32), axis=-2).astype(state.dtype)
     return read, post, mixing
+
+  def _pallas(self, state, scale, phi, alpha, alphas, bias):
+    """Fused Pallas read (router dot, flat RMS, pre, read); also returns the state to update."""
+    from layers.hc_pallas import mhc_connector_pallas
+    cfg = self.config
+    if cfg.mhc_pre_static:
+      raise ValueError('mhc_pallas_connector implements the sigmoid pre gate only')
+    n, d = state.shape[0], state.shape[-1]
+    f32 = jnp.float32
+    kernel = phi.astype(f32)
+    if scale is not None:
+      kernel = scale.astype(f32)[:, None] * kernel
+    read, projected, rms, passthrough = mhc_connector_pallas(
+        state, kernel.reshape(n, d, -1), alpha[0].astype(f32), bias[:n].astype(f32),
+        cfg.mhc_norm_epsilon, cfg.mhc_pre_epsilon,
+        interpret=bool(getattr(cfg, 'mhc_pallas_interpret', False)))
+    dynamic = rms[None] * projected * alphas.astype(f32)[:, None, None]
+    logits = dynamic + bias.astype(f32)[:, None, None]
+    if cfg.mhc_post_static:
+      post = bias[n:2*n].astype(f32)[:, None, None] + (2 * jax.nn.sigmoid(dynamic[n:2*n]) - 1)
+    else:
+      post = 2 * jax.nn.sigmoid(logits[n:2*n])
+    if cfg.mhc_identity_mixing:
+      mixing = jnp.broadcast_to(jnp.eye(n, dtype=f32)[:, :, None, None], (n, n) + state.shape[1:3])
+    else:
+      mixing = sinkhorn_major(logits[2*n:].reshape((n, n) + state.shape[1:3]),
+                              cfg.mhc_sinkhorn_iters, cfg.mhc_sinkhorn_epsilon)
+    return read, post, mixing, passthrough
 
   def _stream_major(self, x, dtype, rms, scale, phi, alphas, bias):
     """RMS(flat x) * s @ phi = rms * (x @ (s * phi)); x is [n,B,T,D], coefficients [k,B,T]."""

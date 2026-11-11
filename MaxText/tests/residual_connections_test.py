@@ -471,14 +471,16 @@ class ResidualModelTest(MLPWriteTest, unittest.TestCase):
     self.check_model('BamMHAMediumPropC256TruePilemHC')
 
   def test_stream_major_layout_matches_default(self):
-    # The [n,B,T,D] TPU layout with norms folded into the router dot is a pure
-    # re-implementation: identical parameter tree/initialization, same logits and gradients.
+    # The [n,B,T,D] TPU layout with norms folded into the router dot, and the fused Pallas
+    # update (interpreted on CPU), are pure re-implementations: identical parameter
+    # tree/initialization, same logits and gradients.
     for name in ('Llama2XLPropTruePileMHAmHC', 'Llama2XLPropTruePileMHADHC4Tanh'):
       for remat in ('none', 'minimal'):
         results = []
-        for major in (False, True):
+        for major, pallas in ((False, False), (True, False), (True, True)):
           cfg = self.tiny(name)
-          cfg.get_keys().update(mhc_stream_major_layout=major, remat_policy=remat, mhc_alpha_init=1.0)
+          cfg.get_keys().update(mhc_stream_major_layout=major, mhc_pallas_update=pallas,
+                                remat_policy=remat, mhc_alpha_init=1.0)
           mesh = jax.sharding.Mesh(max_utils.create_device_mesh(cfg), cfg.mesh_axes)
           model = Transformer(cfg, mesh, quant=None)
           tokens = jnp.array([[1, 2, 3, 4, 5, 6]], jnp.int32)
@@ -500,10 +502,11 @@ class ResidualModelTest(MLPWriteTest, unittest.TestCase):
             logits = forward(shared)
             grads = jax.jit(jax.grad(lambda p: jnp.mean(jnp.sin(forward(p)))))(shared)
           results.append((logits, grads))
-        (l0, g0), (l1, g1) = results
-        np.testing.assert_allclose(l1, l0, atol=2e-5, rtol=2e-5, err_msg=f'{name} {remat}')
-        for (path, a), b in zip(flatten_dict(g0).items(), jax.tree.leaves(g1)):
-          np.testing.assert_allclose(b, a, atol=2e-5, rtol=2e-4, err_msg=f'{name} {remat} {path}')
+        (l0, g0), *others = results
+        for arm, (l1, g1) in zip(('major', 'pallas'), others):
+          np.testing.assert_allclose(l1, l0, atol=2e-5, rtol=2e-5, err_msg=f'{name} {remat} {arm}')
+          for (path, a), b in zip(flatten_dict(g0).items(), jax.tree.leaves(g1)):
+            np.testing.assert_allclose(b, a, atol=2e-5, rtol=2e-4, err_msg=f'{name} {remat} {arm} {path}')
 
   def test_prefill_and_autoregressive_cache(self):
     for name in ('Llama2MediumAttnRes', 'Llama2MediummHC'):

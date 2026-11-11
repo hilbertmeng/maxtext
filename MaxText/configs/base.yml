@@ -79,6 +79,7 @@ mhc_pre_static: False # Trainable pre bias outside centered sigmoid; no pre epsi
 mhc_identity_mixing: False # iHC ablation: fixed identity residual transport.
 mhc_num_streams: 4
 mhc_stream_major_layout: False # Store mHC/DHC state as [n,B,T,D] and fold router norms into the router dot (TPU speed).
+mhc_pallas_update: False # Fused Pallas TPU residual update with one-pass VJP; requires mhc_stream_major_layout.
 mhc_sinkhorn_iters: 20
 mhc_sinkhorn_epsilon: 1.0e-6
 mhc_norm_epsilon: 1.0e-6

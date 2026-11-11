@@ -9759,6 +9759,17 @@ class Llama2XLPropTruePileMHADHC4TanhSplashMajorSpeedProfile(Llama2XLPropTruePil
     mhc_stream_major_layout = True
 
 
+class Llama2XLPropTruePileMHAmHCSplashMinimalPallasSpeedProfile(Llama2XLPropTruePileMHAmHCSplashMinimalMajorSpeedProfile):
+    """Stream-major plus the fused Pallas residual update (one-pass VJP)."""
+    model_name = 'Llama2XLPropTruePileMHAmHCSplashMinimalPallasSpeedProfile'
+    mhc_pallas_update = True
+
+
+class Llama2XLPropTruePileMHADHC4TanhSplashMinimalPallasSpeedProfile(Llama2XLPropTruePileMHADHC4TanhSplashMinimalMajorSpeedProfile):
+    model_name = 'Llama2XLPropTruePileMHADHC4TanhSplashMinimalPallasSpeedProfile'
+    mhc_pallas_update = True
+
+
 class BamLlama2XLPropK72SharedRank4MLPPerLayerTrain(BamLlama2XLPropK72SharedRank4MLPPerLayer):
     """Formal batch8 RUN; independent data/checkpoint prefix, starts from zero."""
     # code_commit: 859bd7e

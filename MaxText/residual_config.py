@@ -8,6 +8,10 @@ def validate_residual_config(keys):
     raise ValueError('residual_connection must be none, attnres, mhc or dhc')
   if mode == 'none':
     return
+  if keys.get('mhc_pallas_update') and not keys.get('mhc_stream_major_layout'):
+    raise ValueError('mhc_pallas_update requires mhc_stream_major_layout')
+  if (keys.get('mhc_stream_major_layout') or keys.get('mhc_pallas_update')) and mode not in ('mhc', 'dhc'):
+    raise ValueError('Stream-major layout / Pallas update apply to mHC and DHC only')
   if (keys.get('mhc_pre_static', False) or keys.get('mhc_post_static', False)) and mode != 'mhc':
     raise ValueError('Static pre/post requires mHC')
   if mode == 'dhc':

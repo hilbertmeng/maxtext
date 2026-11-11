@@ -135,6 +135,8 @@ class SubDecoderLayer(nn.Module):
       from layers.residual_connections import FullAttentionResidual, ManifoldHyperConnection, DynamicHyperConnection, mhc_update, mhc_update_major
       if getattr(cfg, 'mhc_stream_major_layout', False):
         mhc_update = mhc_update_major
+        if getattr(cfg, 'mhc_pallas_update', False):
+          from layers.hc_pallas import mhc_update_pallas as mhc_update
       HyperConnection = DynamicHyperConnection if connection == 'dhc' else ManifoldHyperConnection
       residual_state = inputs
       if connection == 'attnres':

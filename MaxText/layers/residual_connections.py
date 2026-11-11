@@ -47,6 +47,16 @@ def stream_major_constraint(state):
       state, (None, 'activation_batch', 'activation_norm_length', 'activation_embed'))
 
 
+def _stream_mean_square(x):
+  """mean over streams and D of x**2 for [n,B,T,D]; reduce D per stream first (TPU-friendly)."""
+  return jnp.mean(jnp.mean(jnp.square(x), axis=-1), axis=0)
+
+
+def _stream_dot(x, kernel):
+  """sum_n x[n] @ kernel[n] as n standard [B,T,D]@[D,E] matmuls -> [B,T,E]."""
+  return sum(jnp.einsum('btd,de->bte', x[i], kernel[i]) for i in range(x.shape[0]))
+
+
 def _rows(x):
   """Broadcast a leading [k] coefficient vector against [k, ...stream-major dims]."""
   return x.reshape(x.shape + (1,) * 3)
@@ -150,7 +160,7 @@ class DynamicHyperConnection(nn.Module):
     mean = jnp.mean(x, axis=-1)                                            # [n,B,T]
     var = jnp.maximum(jnp.mean(jnp.square(x), axis=-1) - jnp.square(mean), 0.)
     rsig = jax.lax.rsqrt(var + cfg.dhc_norm_epsilon)
-    projected = jnp.einsum('nbtd,de->enbt', x, gained)                     # [n+2, n, B, T]
+    projected = jnp.moveaxis(jnp.einsum('nbtd,de->nbte', x, gained), -1, 0)  # [n+2, n, B, T]
     logits = (rsig[None] * (projected - mean[None] * _rows(gained.sum(axis=0)))
               + _rows(norm_bias.astype(f32) @ kernel))
     dynamic = jnp.tanh(logits)
@@ -180,7 +190,7 @@ class ManifoldHyperConnection(nn.Module):
     outputs = n * n + 2 * n
     if major:
       x = state.astype(jnp.float32)
-      rms = jax.lax.rsqrt(jnp.mean(jnp.square(x), axis=(0, 3)) + cfg.mhc_norm_epsilon)   # [B,T]
+      rms = jax.lax.rsqrt(_stream_mean_square(x) + cfg.mhc_norm_epsilon)   # [B,T]
     else:
       flat = state.astype(jnp.float32).reshape(*state.shape[:-2], n * d)
       normalized = flat * jax.lax.rsqrt(jnp.mean(flat**2, axis=-1, keepdims=True) + cfg.mhc_norm_epsilon)
@@ -240,7 +250,7 @@ class ManifoldHyperConnection(nn.Module):
     kernel = phi.astype(f32)
     if scale is not None:
       kernel = scale.astype(f32)[:, None] * kernel
-    projected = jnp.einsum('nbtd,nde->ebt', x, kernel.reshape(n, d, -1))  # [outputs, B, T]
+    projected = jnp.moveaxis(_stream_dot(x, kernel.reshape(n, d, -1)), -1, 0)  # [outputs, B, T]
     dynamic = rms[None] * projected * alphas.astype(f32)[:, None, None]
     logits = dynamic + bias.astype(f32)[:, None, None]
     if cfg.mhc_pre_static:
@@ -285,9 +295,9 @@ class MHCLearnedStreamReduce(nn.Module):
     f32 = jnp.float32
     if major:
       x = state.astype(f32)
-      rms = jax.lax.rsqrt(jnp.mean(jnp.square(x), axis=(0, 3)) + cfg.mhc_head_norm_epsilon)
+      rms = jax.lax.rsqrt(_stream_mean_square(x) + cfg.mhc_head_norm_epsilon)
       gained = (scale.astype(f32)[:, None] * kernel.astype(f32)).reshape(n, d, n)
-      logits = rms[None] * jnp.einsum('nbtd,nde->ebt', x, gained)                    # [n,B,T]
+      logits = rms[None] * jnp.moveaxis(_stream_dot(x, gained), -1, 0)               # [n,B,T]
       gates = jax.nn.sigmoid(logits * alpha.astype(f32) + bias.astype(f32)[:, None, None]) + cfg.mhc_pre_epsilon
       return jnp.einsum('nbt,nbtd->btd', gates, x).astype(state.dtype)
     flat = state.astype(f32).reshape(*state.shape[:-2], n * d)

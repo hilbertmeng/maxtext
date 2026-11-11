@@ -532,7 +532,7 @@ def sinkhorn_pallas(logits, iterations, epsilon, *, tile=512, interpret=False):
   def local(l):
     nb = l.shape[2]
     m = nb * t
-    return _sinkhorn(l.astype(F32).reshape(n, n, m), int(iterations), float(epsilon),
-                     _tile(m, tile), interpret).reshape(l.shape)
+    return (_sinkhorn(l.astype(F32).reshape(n, n, m), int(iterations), float(epsilon),
+                      _tile(m, tile), interpret).reshape(l.shape),)
 
-  return _batch_shard_multi(local, (logits,), (2,), ((2, 4),))
+  return _batch_shard_multi(local, (logits,), (2,), ((2, 4),))[0]

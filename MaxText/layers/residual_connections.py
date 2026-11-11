@@ -105,7 +105,7 @@ class DynamicHyperConnection(nn.Module):
   @nn.compact
   def __call__(self, state):
     cfg = self.config
-    major = cfg.mhc_stream_major_layout
+    major = getattr(cfg, 'mhc_stream_major_layout', False)
     n, d = (state.shape[0], state.shape[-1]) if major else state.shape[-2:]
     if n != cfg.mhc_num_streams:
       raise ValueError('DHC state has an incorrect stream count')
@@ -173,7 +173,7 @@ class ManifoldHyperConnection(nn.Module):
   @nn.compact
   def __call__(self, state):
     cfg = self.config
-    major = cfg.mhc_stream_major_layout
+    major = getattr(cfg, 'mhc_stream_major_layout', False)
     n, d = (state.shape[0], state.shape[-1]) if major else state.shape[-2:]
     if n != cfg.mhc_num_streams:
       raise ValueError('mHC state has an incorrect stream count')
@@ -271,7 +271,7 @@ class MHCLearnedStreamReduce(nn.Module):
   @nn.compact
   def __call__(self, state):
     cfg = self.config
-    major = cfg.mhc_stream_major_layout
+    major = getattr(cfg, 'mhc_stream_major_layout', False)
     n, d = (state.shape[0], state.shape[-1]) if major else state.shape[-2:]
     if n != cfg.mhc_num_streams:
       raise ValueError('mHC head state has an incorrect stream count')
@@ -316,7 +316,7 @@ class ResidualDecoderStack(nn.Module):
                        policy=get_remat_policy(cfg), static_argnums=(6, 7))
     if cfg.residual_connection == 'attnres':
       state = (embedding,)
-    elif cfg.mhc_stream_major_layout:
+    elif getattr(cfg, 'mhc_stream_major_layout', False):
       state = stream_major_constraint(jnp.broadcast_to(embedding[None], (cfg.mhc_num_streams, *embedding.shape)))
     else:
       state = jnp.broadcast_to(embedding[..., None, :], (*embedding.shape[:-1], cfg.mhc_num_streams, embedding.shape[-1]))
@@ -327,11 +327,11 @@ class ResidualDecoderStack(nn.Module):
       window = cfg.max_target_length if window is None else window
       state, _ = Layer(cfg, self.mesh, self.quant, window, index, name=f'layers_{index}')(
           state, segment_ids, positions, tokens, None, deterministic, model_mode, None)
-      if cfg.residual_connection != 'attnres' and cfg.mhc_stream_major_layout:
+      if cfg.residual_connection != 'attnres' and getattr(cfg, 'mhc_stream_major_layout', False):
         state = stream_major_constraint(state)
     if cfg.residual_connection == 'attnres':
       return FullAttentionResidual(cfg, name='output_connection')(state)
-    stream_axis = 0 if cfg.mhc_stream_major_layout else -2
+    stream_axis = 0 if getattr(cfg, 'mhc_stream_major_layout', False) else -2
     if cfg.residual_connection == 'dhc':
       return jnp.sum(state.astype(jnp.float32), axis=stream_axis).astype(embedding.dtype)
     if cfg.mhc_learned_head:

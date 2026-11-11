@@ -54,6 +54,46 @@ class FullAttentionResidual(nn.Module):
     return result.astype(sources[0].dtype)
 
 
+class DynamicHyperConnection(nn.Module):
+  """HC paper Appendix J DHC x4-tanh, per-stream D-wide LayerNorm.
+
+  Width weights use source,destination order. All routing math is FP32.
+  No positivity, sigmoid, softmax, or Sinkhorn constraint is applied.
+  """
+  config: Any
+  layer_index: int
+
+  @nn.compact
+  def __call__(self, state):
+    cfg = self.config
+    n, d = state.shape[-2:]
+    if n != cfg.mhc_num_streams:
+      raise ValueError('DHC state has an incorrect stream count')
+    x = state.astype(jnp.float32)
+    normalized = nn.LayerNorm(epsilon=cfg.dhc_norm_epsilon, dtype=jnp.float32,
+        param_dtype=cfg.weight_dtype, use_bias=True, use_scale=True,
+        use_fast_variance=False, name='router_norm')(x)
+    width_kernel = self.param('dynamic_alpha_fn', nn.with_logical_partitioning(
+        nn.initializers.zeros, ('embed', None)), (d, n + 1), cfg.weight_dtype)
+    depth_kernel = self.param('dynamic_beta_fn', nn.with_logical_partitioning(
+        nn.initializers.zeros, ('embed',)), (d,), cfg.weight_dtype)
+    width_scale = self.param('dynamic_alpha_scale', nn.initializers.constant(.01), (1,), cfg.weight_dtype)
+    depth_scale = self.param('dynamic_beta_scale', nn.initializers.constant(.01), (1,), cfg.weight_dtype)
+    def width_init(key, shape, dtype):
+      selected = jax.nn.one_hot(self.layer_index % n, n, dtype=dtype)[:, None]
+      return jnp.concatenate((selected, jnp.eye(n, dtype=dtype)), axis=-1)
+    static_width = self.param('static_alpha', width_init, (n, n + 1), cfg.weight_dtype)
+    static_depth = self.param('static_beta', nn.initializers.ones, (n,), cfg.weight_dtype)
+    width = static_width.astype(jnp.float32) + width_scale.astype(jnp.float32) * jnp.tanh(
+        normalized @ width_kernel.astype(jnp.float32))
+    post = static_depth.astype(jnp.float32) + depth_scale.astype(jnp.float32) * jnp.tanh(
+        normalized @ depth_kernel.astype(jnp.float32))
+    read = jnp.einsum('...n,...nd->...d', width[..., 0], x).astype(state.dtype)
+    mixing = (jnp.broadcast_to(jnp.eye(n, dtype=jnp.float32), state.shape[:-2] + (n, n))
+              if cfg.mhc_identity_mixing else width[..., 1:])
+    return read, post, mixing
+
+
 class ManifoldHyperConnection(nn.Module):
   config: Any
   layer_index: int = 0  # Connector index: ATTN=2*l, MLP=2*l+1.
@@ -90,11 +130,24 @@ class ManifoldHyperConnection(nn.Module):
 
     bias = self.param('router_bias', bias_init, (outputs,), cfg.weight_dtype)
     alphas = jnp.concatenate((jnp.repeat(alpha[0], n), jnp.repeat(alpha[1], n), jnp.repeat(alpha[2], n*n)))
-    logits = (normalized @ phi.astype(jnp.float32)) * alphas.astype(jnp.float32) + bias.astype(jnp.float32)
-    pre = jax.nn.sigmoid(logits[..., :n]) + cfg.mhc_pre_epsilon
-    post = 2 * jax.nn.sigmoid(logits[..., n:2*n])
-    mixing = sinkhorn(logits[..., 2*n:].reshape(*state.shape[:-2], n, n),
-                     cfg.mhc_sinkhorn_iters, cfg.mhc_sinkhorn_epsilon)
+    dynamic = (normalized @ phi.astype(jnp.float32)) * alphas.astype(jnp.float32)
+    logits = dynamic + bias.astype(jnp.float32)
+    if cfg.mhc_pre_static:
+      # Center the dynamic gate; the trainable static read bypasses sigmoid.
+      pre = bias[:n].astype(jnp.float32) + (jax.nn.sigmoid(dynamic[..., :n]) - 0.5)
+    else:
+      pre = jax.nn.sigmoid(logits[..., :n]) + cfg.mhc_pre_epsilon
+    if cfg.mhc_post_static:
+      post = bias[n:2*n].astype(jnp.float32) + (2 * jax.nn.sigmoid(dynamic[..., n:2*n]) - 1)
+    else:
+      post = 2 * jax.nn.sigmoid(logits[..., n:2*n])
+    if cfg.mhc_identity_mixing:
+      # Controlled iHC ablation: preserve the complete initialization/tree and
+      # FFN budget; mixing-only parameters are retained but never used.
+      mixing = jnp.broadcast_to(jnp.eye(n, dtype=jnp.float32), (*state.shape[:-2], n, n))
+    else:
+      mixing = sinkhorn(logits[..., 2*n:].reshape(*state.shape[:-2], n, n),
+                       cfg.mhc_sinkhorn_iters, cfg.mhc_sinkhorn_epsilon)
     read = jnp.sum(pre[..., :, None] * state.astype(jnp.float32), axis=-2).astype(state.dtype)
     return read, post, mixing
 
@@ -157,6 +210,8 @@ class ResidualDecoderStack(nn.Module):
           state, segment_ids, positions, tokens, None, deterministic, model_mode, None)
     if cfg.residual_connection == 'attnres':
       return FullAttentionResidual(cfg, name='output_connection')(state)
+    if cfg.residual_connection == 'dhc':
+      return jnp.sum(state.astype(jnp.float32), axis=-2).astype(embedding.dtype)
     if cfg.mhc_learned_head:
       return MHCLearnedStreamReduce(cfg, name='output_connection')(state)
     # Explicit mean-adapter ablation. The normal output RMSNorm still follows.

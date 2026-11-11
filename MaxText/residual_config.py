@@ -4,10 +4,18 @@ import math
 
 def validate_residual_config(keys):
   mode = keys['residual_connection']
-  if mode not in ('none', 'attnres', 'mhc'):
-    raise ValueError('residual_connection must be none, attnres or mhc')
+  if mode not in ('none', 'attnres', 'mhc', 'dhc'):
+    raise ValueError('residual_connection must be none, attnres, mhc or dhc')
   if mode == 'none':
     return
+  if (keys.get('mhc_pre_static', False) or keys.get('mhc_post_static', False)) and mode != 'mhc':
+    raise ValueError('Static pre/post requires mHC')
+  if mode == 'dhc':
+    value = keys['dhc_norm_epsilon']
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or value <= 0:
+      raise ValueError('dhc_norm_epsilon must be finite and positive')
+    if keys['mhc_learned_head']:
+      raise ValueError('DHC requires sum head')
   if keys['decoder_block'] == 'pythia':
     if not keys.get('pythia_use_fusion') or keys.get('pythia_parallel_residual', True):
       raise ValueError('AttnRes/mHC require serial Pythia with pythia_use_fusion=True')
@@ -54,7 +62,7 @@ def validate_residual_config(keys):
   norm_key = 'attnres_norm_epsilon' if mode == 'attnres' else 'mhc_norm_epsilon'
   if keys[norm_key] == 0:
     raise ValueError(f'{norm_key} must be positive')
-  if mode == 'mhc':
+  if mode in ('mhc', 'dhc'):
     for key in ('mhc_num_streams', 'mhc_sinkhorn_iters'):
       if type(keys[key]) is not int or keys[key] < 1:
         raise ValueError(f'{key} must be a positive integer')
@@ -64,7 +72,7 @@ def validate_residual_config(keys):
                 'mhc_residual_offdiag_bias', 'mhc_head_bias_init'):
       if isinstance(keys[key], bool) or not isinstance(keys[key], (int, float)) or not math.isfinite(keys[key]):
         raise ValueError(f'{key} must be finite')
-    for key in ('mhc_norm_affine', 'mhc_match_parameter_budget', 'mhc_learned_head'):
+    for key in ('mhc_pre_static', 'mhc_post_static', 'mhc_identity_mixing', 'mhc_norm_affine', 'mhc_match_parameter_budget', 'mhc_learned_head'):
       if type(keys[key]) is not bool:
         raise ValueError(f'{key} must be boolean')
 
@@ -78,11 +86,14 @@ def apply_residual_parameter_budget(keys):
   an nD-to-n projection, affine nD RMS weight, n biases and one alpha scalar.
   """
   validate_residual_config(keys)
-  if keys['residual_connection'] != 'mhc' or not keys['mhc_match_parameter_budget']:
+  if keys['residual_connection'] not in ('mhc', 'dhc') or not keys['mhc_match_parameter_budget']:
     return
   d, n, layers = keys['emb_dim'], keys['mhc_num_streams'], keys['num_decoder_layers']
   outputs = n * n + 2 * n
   extra = 2 * layers * (n * d * outputs + int(keys['mhc_norm_affine']) * n * d + outputs + 3)
+  if keys['residual_connection'] == 'dhc':
+    # Shared per-stream D->(n+1) width, D->1 depth, affine LayerNorm, static weights, two scalars.
+    extra = 2 * layers * (d * (n + 4) + n * (n + 1) + n + 2)
   if keys['mhc_learned_head']:
     extra += n * d * n + n * d + n + 1
   # Pythia has a hidden bias for every input projection (the output bias

@@ -132,12 +132,13 @@ class SubDecoderLayer(nn.Module):
     mesh = self.mesh
     connection = cfg.residual_connection
     if connection != 'none':
-      from layers.residual_connections import FullAttentionResidual, ManifoldHyperConnection, mhc_update
+      from layers.residual_connections import FullAttentionResidual, ManifoldHyperConnection, DynamicHyperConnection, mhc_update
+      HyperConnection = DynamicHyperConnection if connection == 'dhc' else ManifoldHyperConnection
       residual_state = inputs
       if connection == 'attnres':
         inputs = FullAttentionResidual(cfg, name='attn_connection')(residual_state)
       else:
-        inputs, attn_post, attn_mix = ManifoldHyperConnection(
+        inputs, attn_post, attn_mix = HyperConnection(
             cfg, layer_index=2 * self.layer_inx, name='attn_connection')(residual_state)
     if cfg.dense_conn and cfg.dynamic_dense_type == 'qkvm' and isinstance(inputs, tuple|list): # lsp
       if cfg.scan_use_mudd and len(inputs) == 2: # scan use mudd
@@ -332,7 +333,7 @@ class SubDecoderLayer(nn.Module):
         intermediate_inputs = FullAttentionResidual(cfg, name='mlp_connection')(residual_state)
       else:
         residual_state = mhc_update(residual_state, attention_lnx, attn_post, attn_mix)
-        intermediate_inputs, mlp_post, mlp_mix = ManifoldHyperConnection(
+        intermediate_inputs, mlp_post, mlp_mix = HyperConnection(
             cfg, layer_index=2 * self.layer_inx + 1, name='mlp_connection')(residual_state)
 
     # Fully Connected

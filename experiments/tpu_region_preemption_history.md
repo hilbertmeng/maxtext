@@ -820,6 +820,10 @@ active leases are censored, and manual migration releases are not preemptions.
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleRawMLPWriteTruePile` | v5p-16 (`xd-v5p-16-310410-maxtext`) | `us-east5-a` | 2026-10-29 05:03:01 | 2026-10-29 10:49:31 | clean completion13500; CP13500 committed, TB SYNC_OK, node+QR absent; P0; runtimeddbb563 | EW4b backup policy; no active switch |
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75AttentionWriteScaleRawWriteTruePile` | v5p-16 (`xd-v5p-16-310411-maxtext`) | `us-east5-a` | 2026-10-29 05:17:41 | 2026-10-29 05:49:23 | numerical-failure stop1047; first backwardNaN130/lossNaN131; savedCPinvalid; TB SYNC_OK; saved CP invalid, node+QR absent; P0; runtime28eb60f | EW4b backup policy; no active switch |
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75RawMLPWriteNoReadScaleTruePile` | v5p-16 (`xd-v5p-16-310412-maxtext`) | `us-east5-a` | 2026-10-29 07:40:16 | 2026-10-29 10:01:40 | review stop5514; CP5514 committed, TB SYNC_OK, node+QR absent; P0; runtime6df2a15 | EW4b backup policy; no active switch |
+| `BamMHAMediumPropC256TruePileDHC4Tanh` | v5p-16 (`xd-v5p-16-6111003-maxtext`) | `us-central1-a` | 2026-11-10 06:59:24 | 2026-11-10 15:16:49 | complete13500/P0; CP13500 committed, exit0 at15:14:41, closeout15:16:54; node+queue independently absent in all three regions; runtime5ffce36b | EW4b/UE5a staged backups absent after FIRST_STEP; no active zone switch |
+| `BamMHAMediumPropC256TruePileDHC4TanhIdentity` | v5p-16 (`xd-v5p-16-6111101-maxtext`) | `us-central1-a` | 2026-11-11 02:30:31 | 2026-11-11 02:31:18 | SERVICE preemption during installation; zero training steps; resource assignment only, no actual training stint | EW4b/UE5a queues retained; UC1a requeued02:38:01; not a zone switch |
+| `BamMHAMediumPropC256TruePileDHC4TanhIdentity` | v5p-16 (`xd-v5p-16-6111101-maxtext`) | `europe-west4-b` | ? | 2026-11-11 03:08:11 | failed allocation before FIRST_STEP; READY observation already coincided with SERVICE SUSPENDING, actual READY start unknown; no training stint | UC1a/UE5a waiting queues retained |
+| `BamMHAMediumPropC256TruePileDHC4TanhIdentity` | v5p-16 (`xd-v5p-16-6111101-maxtext`) | `us-central1-a` | 2026-11-11 03:33:38 | 2026-11-11 04:26:00 | first actual training stint; SERVICE preemption, CP1288 committed, automatic same-RUN recovery; resource count3 includes2 before training | backups released after FIRST_STEP; primary requeued04:27:51 with stagedEW4b/UE5a |
 
 ## READY leases
 
@@ -2518,6 +2522,10 @@ active leases are censored, and manual migration releases are not preemptions.
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneRawWritesTruePile` | 1 | `us-east5-a` | 2026-11-03 05:22:27 | 2026-11-03 07:18:37 | 1h56m10s | user stop4578/P0; CP4578/TB SYNC_OK, node+QR independently absent; stop-request boundary, deletion verified07:21:20 |
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneRawWritesEmbeddingFixedTruePile` | 1 | `us-east5-a` | 2026-11-03 05:23:36 | 2026-11-03 08:38:53 | 3h15m17s | user stop7813/P0; CP/TB SYNC_OK, node+QR independently absent; stop-request boundary, deletion verified08:41:41 |
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneRawWritesEmbeddingSmall20TruePile` | 1 | `us-east5-a` | 2026-11-03 05:22:22 | 2026-11-03 08:38:55 | 3h16m33s | user stop7951/P0; CP/TB SYNC_OK, node+QR independently absent; stop-request boundary, deletion verified08:41:41 |
+| `BamMHAMediumPropC256TruePileDHC4Tanh` | 1 | `us-central1-a` | 2026-11-10 06:59:24 | 2026-11-10 15:16:49 | 8h17m25s | normal completion release; zero preemptions; CP13500 secured; all regional resources independently absent |
+| `BamMHAMediumPropC256TruePileDHC4TanhIdentity` | 1 | `us-central1-a` | 2026-11-11 02:30:31 | 2026-11-11 02:31:18 | 47s | SERVICE preemption during install, before FIRST_STEP; resource READY lease, not a training lease; native count reconciled once |
+| `BamMHAMediumPropC256TruePileDHC4TanhIdentity` | 2 | `europe-west4-b` | ? | 2026-11-11 03:08:11 | ? | SERVICE preemption before FIRST_STEP; READY observed only alongside SUSPENDING; actual start/duration unknown, not a training lease |
+| `BamMHAMediumPropC256TruePileDHC4TanhIdentity` | 3 | `us-central1-a` | 2026-11-11 03:33:38 | 2026-11-11 04:26:00 | 52m22s | SERVICE preemption during first actual training lease; CP1288 commit and metadata independently verified, same-RUN recovery |
 
 ### 2026-10-14 user pause: resumed mixed R256/R384
 
@@ -2537,3 +2545,162 @@ was installed then PREEMPTED before inference on 2026-10-14. Creator log retaine
 on tpu-ag; exact READY lease timestamps not recorded. Its node/queue were both
 verified absent after cleanup. This did not affect formal training. Retained
 user-owned FLEX `llm-jax-v6e-1-0` completed the displaced probe and is preserved.
+
+
+## 2026-11-07 Pythia Medium mHC completion
+
+RUN `PythiaMediumPropT2048SerialMLPmHC`, runtime `c1c46834`, owned Spot v5p-16
+`xd-v5p-16-6110701-maxtext`, completed13,500. Final checkpoint committed; all
+training nodes/queues in UE5a/EW4b/UC1a independently verified absent. Retained
+compiler was not deleted. Native count6 preemptions;7 recorded READY leases total
+7h31m52. Early manual/unreachable allocations are not fully represented by this count.
+
+Active assignments (UTC; assignment is not necessarily READY):
+
+| Zone | Start | End | Reason |
+|---|---|---|---|
+| us-east5-a | 2026-11-07T04:14:31Z | 2026-11-07T05:40:10Z | resource_switch |
+| us-central1-a | 2026-11-07T05:40:10Z | 2026-11-07T17:25:05Z | run_stop |
+
+EW4b and pending UE5a candidates were passive capacity requests, not additional active-zone switches.
+
+TruePile RUN `BamMHAMediumPropC256TruePilemHC`, runtime `de3d1b1`, owned Spot
+v5p-16 `xd-v5p-16-6110703-maxtext`, completed 13,500. Final checkpoint committed;
+UE5a/EW4b/UC1a nodes and queues independently verified absent. Native count:
+3 preemptions, 4 READY leases, total 7h40m38s. Compiler retained.
+
+TruePile active assignments (UTC):
+
+| Zone | Start | End | Reason |
+|---|---|---|---|
+| us-east5-a | 2026-11-07T09:19:18Z | 2026-11-07T09:45:58Z | resource_switch |
+| us-central1-a | 2026-11-07T09:45:58Z | 2026-11-07T18:12:18Z | run_stop |
+
+Initial UE5a was queued; all recorded READY leases were UC1a. EW4b and subsequent
+UE5a candidates were passive requests, not active-zone switches.
+
+Recorded READY leases for both mHC RUNs, globally sorted by UTC end time:
+
+| RUN | Zone | Start | End | Duration | End reason |
+|---|---|---|---|---|---|
+| Pythia | us-central1-a | 2026-11-07T05:40:12Z | 2026-11-07T05:43:05Z | 0h02m53s | preempted |
+| Pythia | us-central1-a | 2026-11-07T07:27:11Z | 2026-11-07T07:44:35Z | 0h17m24s | preempted |
+| Pythia | us-central1-a | 2026-11-07T07:55:47Z | 2026-11-07T08:05:08Z | 0h09m21s | preempted |
+| Pythia | us-central1-a | 2026-11-07T08:20:24Z | 2026-11-07T08:26:35Z | 0h06m11s | preempted |
+| Pythia | us-central1-a | 2026-11-07T09:00:02Z | 2026-11-07T09:10:26Z | 0h10m24s | preempted |
+| Pythia | us-central1-a | 2026-11-07T09:45:35Z | 2026-11-07T09:50:43Z | 0h05m08s | preempted |
+| TruePile | us-central1-a | 2026-11-07T09:46:01Z | 2026-11-07T09:50:54Z | 0h04m53s | preempted |
+| TruePile | us-central1-a | 2026-11-07T10:00:08Z | 2026-11-07T10:04:19Z | 0h04m11s | preempted |
+| TruePile | us-central1-a | 2026-11-07T10:16:05Z | 2026-11-07T10:20:28Z | 0h04m23s | preempted |
+| Pythia | us-central1-a | 2026-11-07T10:44:34Z | 2026-11-07T17:25:05Z | 6h40m31s | run_stop |
+| TruePile | us-central1-a | 2026-11-07T10:45:07Z | 2026-11-07T18:12:18Z | 7h27m11s | run_stop |
+
+Final run_stop events are clean completion/automatic release, not preemptions.
+
+## Llama mHC Pythia initialization ablation — owner stop, 2026-11-09
+
+Assignment: BamMHAMediumPropC256TruePilemHCPythiaInit, Spot v5p-16,
+`xd-v5p-16-6110901-maxtext`, us-central1-a only. Runtime `118cc2d`.
+Registered 2026-11-09T05:46:26Z; stopped by owner at checkpoint 6,835.
+No preemptions or zone switches. EW4b/UE5a had no retained resources at closeout.
+All training nodes and queues were independently verified absent in UC1a/EW4b/UE5a.
+The borrowed EW4a compiler was outside closeout scope.
+
+| RUN | Zone | READY start UTC | End UTC | Duration | Event |
+|---|---|---|---|---|---|
+| BamMHAMediumPropC256TruePilemHCPythiaInit | us-central1-a | 2026-11-09T05:49:13Z | 2026-11-09T09:38:11Z | 3h48m58s | owner stop |
+
+The lease end is the manual stop boundary; deletion verification finished at
+2026-11-09T09:41:23Z. This is not a preemption.
+
+## Llama Medium Full AttnRes — completed 2026-11-09
+
+BamMHAMediumPropC256TruePileAttnRes, runtime83476b9, ownedSpotv5p-16
+xd-v5p-16-6110902-maxtext. Zone path us-central1-a -> us-central1-a; no regional
+switch. One preemption; final committed checkpoint13500. Normal training ended
+2026-11-09T16:22:25Z, automatic release/closeout completed16:24:35Z.
+Independent node+queue absence verified inUC1a/EW4b/UE5a.
+
+| Zone | READY start UTC | End UTC | Duration | End reason |
+|---|---|---|---|---|
+| us-central1-a | 2026-11-09T09:08:21Z | 2026-11-09T12:18:07Z | 3h09m46s | preempted |
+| us-central1-a | 2026-11-09T12:23:51Z | 2026-11-09T16:24:30Z | 4h00m39s | normal completion release |
+
+Second lease includes release time after training end; normal run_stop is not
+a second preemption. READY total7h10m25s. Protected retainedEW4a compiler
+llm-jax-v6e-1-0 is outside training cleanup scope. iHC6111001 remains active.
+
+
+## Llama Medium iHC — owner stopped 2026-11-10
+
+BamMHAMediumPropC256TruePileiHC, runtime a9edfaf8, committed checkpoint 7967.
+Owner stop boundary 2026-11-10T01:30:30Z; closeout finished 01:31:51Z.
+Four training preemptions; all six node/queue checks independently NOT_FOUND
+in UC1a/EW4b/UE5a. Protected compiler excluded.
+
+| Zone | READY start UTC | End UTC | Duration | End reason |
+|---|---|---|---|---|
+| us-central1-a | 2026-11-09T15:24:30Z | 2026-11-09T17:48:06Z | 2h23m36s | preempted |
+| us-central1-a | 2026-11-09T18:24:26Z | 2026-11-09T18:42:25Z | 17m59s | preempted |
+| us-central1-a | 2026-11-09T19:38:58Z | 2026-11-09T21:19:46Z | 1h40m48s | preempted |
+| us-east5-a | 2026-11-09T21:41:51Z | 2026-11-09T21:51:42Z | 9m51s | preempted |
+
+Transient EW4b provisioning/storage assignments produced no validated training steps;
+actual training path was UC1a -> UE5a. The second preemption counter was reconciled
+against its recorded terminal event; final native count and four leases agree.
+Stopped while waiting for capacity; owner stop adds no READY lease or preemption.
+
+
+## Llama Medium mHC SK3 — owner stopped 2026-11-10
+
+RUN BamMHAMediumPropC256TruePilemHCSK3, runtime b53a7b9c, owned Spotv5p16
+xd-v5p-16-6111002-maxtext. Assignment path us-central1-a only, no regional switch.
+Zero preemptions; owner stop at committed checkpoint1325, stop boundary07:46:01UTC,
+cleanup completed07:48:53UTC. All regional nodes/queues released; compiler excluded.
+
+| Zone | READY start UTC | End UTC | Duration | End reason |
+|---|---|---|---|---|
+| us-central1-a | 2026-11-10T06:59:23Z | 2026-11-10T07:46:01Z | 46m38s | owner stop |
+
+EW4b/UE5a passive waiting candidates were cleaned after initial FIRST_STEP; they
+were not active-zone switches or READY leases. DHC6111003 remains active.
+
+
+## Superseded Llama mHCstatic pre-only preparation — cancelled 2026-11-10
+
+RUN BamMHAMediumPropC256TruePilemHCstatic, runtime8ae27a68, ownedSpotv5p16
+xd-v5p-16-6111004-maxtext. UC1a acquisition began08:30:15UTC; owner clarified
+pre+post scope08:35UTC, controller stopped08:35:53UTC before FIRST_STEP.
+Zero training steps, no checkpoint, zero training READY leases and zero preemptions.
+The UC1a node briefly existed in CREATING, not an actual training lease.
+Passive EW4b/UE5a queues were cancelled and verified absent. UC1a deletion was
+asynchronous (DELETING/SUSPENDING USER); reconciler completed and independent
+node/queue NOT_FOUND verified at08:57UTC. All owned regional resources released;
+protected compiler excluded. No quality conclusion from this preparation.
+Corrected mHCstaticPrePost uses distinct6111005 and starts from scratch.
+
+
+## Llama Medium mHCstatic (pre + post) — owner stopped 2026-11-10
+
+RUN BamMHAMediumPropC256TruePilemHCstaticPrePost, runtime f12414eb, owned Spot v5p-16
+xd-v5p-16-6111005-maxtext. Training assignment path us-central1-a only; zero preemptions
+and no regional switch. Owner stop boundary 10:09:22 UTC; final checkpoint 2,361 committed.
+Closeout completed 10:12:33 UTC without failures. Node/queue absence independently checked
+in UC1a/EW4b/UE5a. Protected compiler excluded; checkpoint/logs retained and TB synced.
+
+| Zone | READY start UTC | End UTC | Duration | End reason |
+|---|---|---|---|---|
+| us-central1-a | 2026-11-10T08:46:53Z | 2026-11-10T10:09:22Z | 1h22m29s | owner stop |
+
+EW4b/UE5a backup nodes/queues were absent after FIRST_STEP; no passive READY leases.
+The earlier superseded pre-only 6111004 preparation is a separate cancelled record.
+
+DHC4TanhIdentity provisioning note (2026-11-11): EW4b backup node created02:55:21UTC, selected02:57:51UTC, but by03:00UTC observed DELETING with queue SUSPENDING/SERVICE before FIRST_STEP. No verified READY interval or training lease for this attempt; do not infer a training zone switch or lease duration. UC1a/UE5a waiting queues retained.
+
+
+DHC4TanhIdentity owner stop (2026-11-11): training assignment remains UC1a only.
+After CP1288 rescue and SERVICE preemption at04:26UTC, owner cancelled recovery at04:44:46UTC.
+Closeout completed04:46:01UTC; all regional6111101 nodes/queues independently absent, TB synced.
+The three chronological READY records above remain unchanged: UC1a02:30:31-02:31:18(47s),
+EW4b unknown start-03:08:11(unknown duration), UC1a03:33:38-04:26:00(52m22s).
+Resource preemptions3 include2 before training; no new READY lease or training zone switch during final queueing.

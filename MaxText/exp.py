@@ -244,6 +244,9 @@ class MHCConfig:
     residual_connection = 'mhc'
     scan_layers = False
     record_internal_nn_metrics = 0
+    mhc_post_static = False
+    mhc_pre_static = False
+    mhc_identity_mixing = False
     mhc_num_streams = 4
     mhc_sinkhorn_iters = 20
     mhc_sinkhorn_epsilon = 1e-6
@@ -9659,6 +9662,33 @@ class Llama2XLPropTruePileMHA(Llama2XLPropTrain):
     jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/xlprop-truepile-mha'
 
 
+class Llama2XLPropTruePileMHAmHC(MHCConfig, Llama2XLPropTruePileMHA):
+    """Four-stream mHC on XLProp TruePile MHA, with matched total parameters."""
+    # Not launched. Original mHC recipe: SK20, A.6 initialization, learned final head.
+    # Keep the XL backbone/data/optimizer/50k schedule; unroll residual streams.
+    # Routing/head overhead is repaid automatically: FFN5120 ->5053.
+    # Added routing/head: 0.10455 W_Q per layer; integer-width remainder -13,843 params.
+    model_name = 'Llama2XLPropTruePileMHAmHC'
+    compare_runs = ['Llama2XLPropTruePileMHA']
+    jax_cache_dir = ''
+
+
+class Llama2XLPropTruePileMHADHC4Tanh(MHCConfig, Llama2XLPropTruePileMHA):
+    """DHC x4-tanh with sum output on the matched XLProp TruePile MHA backbone."""
+    # Not launched. Same DHC recipe as the Medium run: per-stream affine LN,
+    # zero dynamic kernels/scales .01, static one-hot/I/ones and learned transport.
+    # Preserve XL data/optimizer/50k schedule and initialization; final stream SUM.
+    # Routing overhead is repaid automatically: FFN5120 ->5115.
+    # Added routing: 0.00835 W_Q per layer; integer-width remainder +55,216 params.
+    model_name = 'Llama2XLPropTruePileMHADHC4Tanh'
+    residual_connection = 'dhc'
+    mhc_learned_head = False
+    mhc_identity_mixing = False
+    dhc_norm_epsilon = 1e-5
+    compare_runs = ['Llama2XLPropTruePileMHA', 'Llama2XLPropTruePileMHAmHC']
+    jax_cache_dir = ''
+
+
 class BamLlama2XLPropK72SharedRank4MLPPerLayerTrain(BamLlama2XLPropK72SharedRank4MLPPerLayer):
     """Formal batch8 RUN; independent data/checkpoint prefix, starts from zero."""
     # code_commit: 859bd7e
@@ -10387,6 +10417,10 @@ class BamMHAMediumPropC256TruePileAttnRes(AttnResConfig, BamMHAMediumPropC256Tru
     # 36 learned reads, each with D query + D RMS scale: +86,400 parameters.
     # Repay one FFN unit per layer: -64,800; net +21,600 (+0.0050%) vs MHA.
     # Unrolled stack is required by the growing source history; scan is unsupported.
+    # code_commit: 83476b9; completed13500 on UC1a Spot v5p-16, 2026-11-09.
+    # Stable ~0.543/s; final5 native windows12600..13400: vs MHA -.0506626,
+    # vs original mHC -.0254882, vs Mudd +.0362488; native Mudd-gain fraction58.30%.
+    # Final committedCP13500; one preemption/two READY leases; all regional resources released.
     model_name = 'BamMHAMediumPropC256TruePileAttnRes'
     base_mlp_dim = 3199
     jax_cache_dir = ''
@@ -10413,13 +10447,144 @@ class BamMHAMediumPropC256TruePilemHC(MHCConfig, BamMHAMediumPropC256TruePile):
     compare_runs = ['BamMHAMediumPropC256TruePile', 'MuddLlama2MediumPropTruePile']
 
 
+class BamMHAMediumPropC256TruePilemHCstatic(BamMHAMediumPropC256TruePilemHC):
+    """Superseded pre-only preparation; use mHCstaticPrePost for the owner design."""
+    # Worktree .auto-agent/worktrees/llama-mhc-static, mqy/llama-mhc-static-sealed.
+    # code_commit: 8ae27a68; superseded before FIRST_STEP on2026-11-10; no quality result.
+    # Old6111004 acquisition cancelled; all regional nodes/queues released.
+    # Zero training steps/READY leases/preemptions; no checkpoint or loss result. Do not restart.
+    # Pre = b + sigmoid(alpha * RMS(H) @ Phi_pre) - .5, without pre epsilon.
+    # b cycles one-hot; identical parameter budget/tree and FFN3133 to original mHC.
+    # Planned13500; original mHC primary, DHC4-tanh direction SOTA and external controls.
+    model_name = 'BamMHAMediumPropC256TruePilemHCstatic'
+    mhc_pre_static = True
+    mhc_pre_bias_init = 0.0
+    mhc_pre_selected_bias_init = 1.0
+    compare_runs = ['BamMHAMediumPropC256TruePilemHC',
+                    'BamMHAMediumPropC256TruePileDHC4Tanh',
+                    'BamMHAMediumPropC256TruePile', 'MuddLlama2MediumPropTruePile',
+                    'BamMHAMediumPropC256TruePileAttnRes']
+
+
+class BamMHAMediumPropC256TruePilemHCstaticPrePost(BamMHAMediumPropC256TruePilemHCstatic):
+    """mHCstatic: pre/post biases outside sigmoid; owner stopped at step 2,361."""
+    # Worktree .auto-agent/worktrees/llama-mhc-static; mqy/llama-mhc-static-sealed.
+    # code_commit: f12414eb; CPU 28 PASS and exact AOT; no parameter/budget delta vs original mHC.
+    # Pre = b_pre + sigmoid(z_pre) - .5; cycling one-hot b_pre. Post = b_post + 2*sigmoid(z_post) - 1; b_post starts at 1.
+    # UC1a Spot v5p-16, steps 10-14 mean .5026/s (~1.3% slower than historical mHC .509/s).
+    # Tiny mHC lead -.001485 at 600 reversed at 800; deficit held around +.02 through 2,200.
+    # Last complete window 2,200: vs mHC +.0199504 / MHA -.0279419 / DHC +.0708830,
+    # Full AttnRes +.0904820 / Mudd +.1586401; native Mudd-gain fraction 14.98% (MHA reference).
+    # Owner stopped 2026-11-10 at committed checkpoint 2,361; early stop, no durable mHC benefit established.
+    # One READY lease 08:46:53-10:09:22 UTC (1h22m29s), zero preemptions. All regional resources released; TB synced.
+    # Logs/checkpoints retained, group archived. Do not restart.
+    model_name = 'BamMHAMediumPropC256TruePilemHCstaticPrePost'
+    mhc_post_static = True
+    mhc_post_bias_init = 1.0
+
+
+class BamMHAMediumPropC256TruePileDHC4Tanh(MHCConfig, BamMHAMediumPropC256TruePile):
+    """HC paper Appendix J DHC x4-tanh with sum output, matched parameter budget."""
+    # Worktree .auto-agent/worktrees/llama-dhc4-tanh, mqy/llama-dhc4-tanh-sealed.
+    # code_commit: 5ffce36; Spotv5p16 UC1a actual training verified2026-11-10, CP200.
+    # Per-stream affine LayerNorm, zero dynamic kernels/scales.01, static onehot/I/ones.
+    # Matched total432143736 (+.0044% vs mHC), FFN3195; original Llama backbone init.
+    # Planned13500, reviews400/1000; steps10-14 mean.4662/s, ~8.4% slower than historical mHC.509/s.
+    # Completed 13,500 on 2026-11-10; CP13500 committed, exit 0; runtime unchanged.
+    # Final five windows 12600..13400: loss gaps vs mHC -0.0287405, MHA -0.0539149,
+    # Mudd +0.0329965, Full AttnRes -0.0032523. Native Mudd-gain fraction at13400:62.38% (MHA reference).
+    # Early mHC advantage shrank from -0.2077 at400 to a persistent ~-0.029 late plateau.
+    # Mudd deficit narrowed but persisted; tiny AttnRes lead from4400; no late catch-up.
+    # SK3 was owner-stopped: cached1200 comparison only, DHC gap -0.0978776 there.
+    # Steady ~0.463/s, ~9% slower than historical mHC; faster-router prediction failed.
+    # Whole DHC recipe comparison (norm/init/head/FFN also differ), not a constraint-only ablation.
+    # UC1a Spot v5p-16; one READY lease 06:59:24-15:16:49 UTC (8h17m25s), zero preemptions.
+    # All owned regional nodes/queues released; protected compiler excluded. Local TB SYNC_OK.
+    residual_connection = 'dhc'
+    model_name = 'BamMHAMediumPropC256TruePileDHC4Tanh'
+    mhc_learned_head = False
+    mhc_identity_mixing = False
+    dhc_norm_epsilon = 1e-5
+    jax_cache_dir = ''
+    compare_runs = ['BamMHAMediumPropC256TruePilemHC',
+                    'BamMHAMediumPropC256TruePile', 'MuddLlama2MediumPropTruePile',
+                    'BamMHAMediumPropC256TruePileAttnRes', 'BamMHAMediumPropC256TruePilemHCSK3']
+
+
+class BamMHAMediumPropC256TruePileDHC4TanhIdentity(BamMHAMediumPropC256TruePileDHC4Tanh):
+    """DHC transport-only identity ablation; all other recipe/tree/budget settings retained."""
+    # Worktree .auto-agent/worktrees/llama-dhc4-tanh, branch mqy/llama-dhc4-tanh-identity-sealed.
+    # code_commit: 23fb92b; CPU30/exactAOT/loaded FIRST_STEP14 verified. Spot v5p-16 UC1a.
+    # Steps10-14 mean0.4718/s (+1.2% vs DHC0.4662); early steady0.470 vs DHC0.463 (~+1.5%).
+    # One installation preemption before training: READY02:30:31-02:31:18 UTC2026-11-11 (47s); requeued.
+    # Only h_res -> I; preserve exact initialization/tree, FFN3195 and432143736 total (+0 vs DHC).
+    # Transport-only173376 parameters (0.1204 W_Q total) retained but loss-gradient dormant.
+    # Parent h_res starts at I too: exact initial full-model parameter/output parity verified.
+    # Original DHC primary: identity loss gap +0.2364594 at400 and +0.2568188 at600.
+    # At600 vs mHC +0.0379908/MHA +0.0227858/Mudd +0.6501586/AttnRes +0.4989872.
+    # DHC's early advantage disappears with fixed I, supporting learned transport's role in this recipe.
+    # At1000 gap vs DHC +0.172727/mHC +0.0418152/MHA -0.0101152/Mudd +0.3771234/AttnRes +0.27583.
+    # Deficit vs DHC shrinks after600; first small MHA gain at1000, retaining5.53% of DHC's MHA-relative gain.
+    # At1200 DHC gap +0.1727554/mHC +0.0732478/MHA +0.0177229: MHA gain at1000 did not persist.
+    # First training preemption04:26UTC, CP1288 committed; owner then stopped during recovery queueing.
+    # Resource count3 includes2 before training; first training READY lease52m22s (03:33:38-04:26:00UTC).
+    # Owner stopped at CP1288 on2026-11-11; closeout04:46UTC, all regional nodes/queues absent; TB synced.
+    # Watch/group archived, wake disabled. Early optimization penalty; do not restart.
+    model_name = 'BamMHAMediumPropC256TruePileDHC4TanhIdentity'
+    mhc_identity_mixing = True
+    compare_runs = ['BamMHAMediumPropC256TruePileDHC4Tanh',
+                    'BamMHAMediumPropC256TruePilemHC', 'BamMHAMediumPropC256TruePile',
+                    'MuddLlama2MediumPropTruePile', 'BamMHAMediumPropC256TruePileAttnRes']
+
+
+class BamMHAMediumPropC256TruePilemHCSK3(BamMHAMediumPropC256TruePilemHC):
+    """Llama mHC with three Sinkhorn iterations; all initialization unchanged."""
+    # Single intervention versus original mHC: Sinkhorn iterations 20 -> 3.
+    # Sealed worktree .auto-agent/worktrees/llama-mhc-sk3, mqy/llama-mhc-sk3-sealed.
+    # code_commit: b53a7b9c; owner stopped at committed checkpoint1325 on2026-11-10.
+    # UC1a Spotv5p16, one46m38s READY lease, zero preemptions; resources released.
+    # Steps10-14 mean.5124/s, essentially original mHC historical.509/s; steady~.510/s.
+    # Original initialization/budget retained. Early mHC advantage shrank from-.06164@400
+    # to-.01008@1000 and-.00163@1200; no persistent SK3 benefit established before owner stop.
+    # At1200 vsMHA-.0571549/Mudd+.2550612/AttnRes+.1685832; early stop, not13500 endpoint.
+    # TB synced; do not restart.
+    model_name = 'BamMHAMediumPropC256TruePilemHCSK3'
+    mhc_sinkhorn_iters = 3
+    compare_runs = ['BamMHAMediumPropC256TruePilemHC',
+                    'BamMHAMediumPropC256TruePile', 'MuddLlama2MediumPropTruePile',
+                    'BamMHAMediumPropC256TruePileAttnRes']
+
+
+class BamMHAMediumPropC256TruePileiHC(BamMHAMediumPropC256TruePilemHC):
+    """Identity-mixing ablation of Llama mHC, retaining its exact initialization."""
+    # Sealed worktree .auto-agent/worktrees/llama-ihc, mqy/llama-ihc-sealed.
+    # code_commit: a9edfaf8; owner stopped at committed checkpoint 7,967 on 2026-11-10.
+    # Four Spot preemptions; UC1a -> UE5a training, all regional nodes/queues released.
+    # At 7,600, loss gaps: original mHC +0.0052744, MHA -0.0224588,
+    # Mudd +0.0731235, Full AttnRes +0.031358; no persistent gain over mHC.
+    # Early stop, not a completed 13,500-step comparison; TB synced. Do not restart.
+    # Loaded exact AOT; steps10-14 ~0.526/s, +3.3% vs original mHC historical ~0.509/s.
+    # Keep the entire parameter tree and FFN width: dormant mixing columns are
+    # deliberate controls, not active capacity; no Sinkhorn is evaluated.
+    # This isolates learned mixing, not unconstrained HC vs manifold projection.
+    model_name = 'BamMHAMediumPropC256TruePileiHC'
+    mhc_identity_mixing = True
+    compare_runs = ['BamMHAMediumPropC256TruePilemHC',
+                    'BamMHAMediumPropC256TruePile', 'MuddLlama2MediumPropTruePile',
+                    'BamMHAMediumPropC256TruePileAttnRes']
+
+
 class BamMHAMediumPropC256TruePilemHCPythiaInit(BamMHAMediumPropC256TruePilemHC):
     """Initialization-only ablation: NeoX small/Wang on the Llama mHC backbone."""
     # Worktree /home/mengqy/Projects/Bam/maxtext, branch mqy/refactor-bam-hc.
     # Same RMSNorm/SwiGLU, RoPE74, TruePile4096, LR and mHC initialization as parent.
     # Small init for embeddings, QKV, both SwiGLU inputs and LM head; Wang for O/down.
-    # Review 400 and 1,000 steps; continue the normal 13,500-step schedule by default.
-    # code_commit: 118cc2d; UC1a Spot v5p-16 start verified 2026-11-09; steps10-14 ~0.511/s.
+    # code_commit: 118cc2d; owner stopped at committed checkpoint 6,835 on 2026-11-09.
+    # UC1a Spot v5p-16 ~0.509 steps/s; one READY lease, zero preemptions; all resources released.
+    # vs original mHC: early -0.9368 at 400 vanished, crossed zero at 4,400, +0.0106022 at 6,800.
+    # At 6,800: vs MHA -0.0181342, vs Mudd +0.0815570; Mudd-gain fraction 18.19%.
+    # Initialization accelerates early training but showed no persistent gain before the owner stop.
+    # This was an early stop, not a completed 13,500-step endpoint comparison. TB synced.
     model_name = 'BamMHAMediumPropC256TruePilemHCPythiaInit'
     init_method = 'pythia'
     compare_runs = ['BamMHAMediumPropC256TruePilemHC',

@@ -123,10 +123,12 @@ def _batch_shard(fn, args, specs, out_spec):
                    out_specs=spec(*out_spec), check_rep=False)(*args)
 
 
-def mhc_update_pallas(state, branch, post, mixing, *, tile=256, interpret=None):
-  """Drop-in for residual_connections.mhc_update_major (interpreted on CPU backends)."""
-  if interpret is None:
-    interpret = jax.default_backend() == 'cpu'
+def mhc_update_pallas(state, branch, post, mixing, *, tile=256, interpret=False):
+  """Drop-in for residual_connections.mhc_update_major.
+
+  interpret must be explicit: AOT compiles TPU executables under JAX_PLATFORMS=cpu,
+  so a backend check would silently select the interpreter in real training.
+  """
   n, b, t, d = state.shape
   coef = jnp.concatenate((mixing.astype(F32).reshape((n * n, b, t)), post.astype(F32)), axis=0)
   coef = jnp.moveaxis(coef, 0, -1)                                        # [B, T, (n+1)n]

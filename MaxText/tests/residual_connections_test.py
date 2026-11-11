@@ -479,7 +479,7 @@ class ResidualModelTest(MLPWriteTest, unittest.TestCase):
         results = []
         for major, pallas in ((False, False), (True, False), (True, True)):
           cfg = self.tiny(name)
-          cfg.get_keys().update(mhc_stream_major_layout=major, mhc_pallas_update=pallas,
+          cfg.get_keys().update(mhc_stream_major_layout=major, mhc_pallas_update=pallas, mhc_pallas_interpret=pallas,
                                 remat_policy=remat, mhc_alpha_init=1.0)
           mesh = jax.sharding.Mesh(max_utils.create_device_mesh(cfg), cfg.mesh_axes)
           model = Transformer(cfg, mesh, quant=None)

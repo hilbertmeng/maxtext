@@ -9662,8 +9662,12 @@ class Llama2XLPropTruePileMHA(Llama2XLPropTrain):
     jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/xlprop-truepile-mha'
 
 
-class Llama2XLPropTruePileMHAmHC(MHCConfig, Llama2XLPropTruePileMHA):
-    """Four-stream mHC on XLProp TruePile MHA, with matched total parameters."""
+class Llama2XLPropTruePileMHAmHC(SplashTunedBlocks1024, MHCConfig, Llama2XLPropTruePileMHA):
+    """Four-stream mHC on XLProp TruePile MHA, with matched total parameters.
+
+    TPU runtime: Splash 1024 blocks, minimal remat, stream-major [n,B,T,D] state and
+    fused Pallas update/connector/Sinkhorn (layers/hc_pallas.py); math unchanged.
+    """
     # Not launched. Original mHC recipe: SK20, A.6 initialization, learned final head.
     # Keep the XL backbone/data/optimizer/50k schedule; unroll residual streams.
     # Routing/head overhead is repaid automatically: FFN5120 ->5053.
@@ -9671,10 +9675,19 @@ class Llama2XLPropTruePileMHAmHC(MHCConfig, Llama2XLPropTruePileMHA):
     model_name = 'Llama2XLPropTruePileMHAmHC'
     compare_runs = ['Llama2XLPropTruePileMHA']
     jax_cache_dir = ''
+    remat_policy = 'minimal'
+    mhc_stream_major_layout = True
+    mhc_pallas_update = True
+    mhc_pallas_connector = True
+    mhc_pallas_sinkhorn = True
 
 
-class Llama2XLPropTruePileMHADHC4Tanh(MHCConfig, Llama2XLPropTruePileMHA):
-    """DHC x4-tanh with sum output on the matched XLProp TruePile MHA backbone."""
+class Llama2XLPropTruePileMHADHC4Tanh(SplashTunedBlocks1024, MHCConfig, Llama2XLPropTruePileMHA):
+    """DHC x4-tanh with sum output on the matched XLProp TruePile MHA backbone.
+
+    TPU runtime: Splash 1024 blocks, minimal remat, stream-major [n,B,T,D] state and
+    fused Pallas update/connector (layers/hc_pallas.py); math unchanged.
+    """
     # Not launched. Same DHC recipe as the Medium run: per-stream affine LN,
     # zero dynamic kernels/scales .01, static one-hot/I/ones and learned transport.
     # Preserve XL data/optimizer/50k schedule and initialization; final stream SUM.
@@ -9687,15 +9700,37 @@ class Llama2XLPropTruePileMHADHC4Tanh(MHCConfig, Llama2XLPropTruePileMHA):
     dhc_norm_epsilon = 1e-5
     compare_runs = ['Llama2XLPropTruePileMHA', 'Llama2XLPropTruePileMHAmHC']
     jax_cache_dir = ''
+    remat_policy = 'minimal'
+    mhc_stream_major_layout = True
+    mhc_pallas_update = True
+    mhc_pallas_connector = True
 
 
 class _XLPropHCSpeedProfile(TrainStepProfile):
-    """Paired speed arm: full 28 layers, formal 8/device, T4096, schedule and health."""
+    """Paired speed arm: full 28 layers, formal 8/device, T4096, schedule and health.
+
+    Pins the original runtime (base.yml Splash 512 blocks, full remat, XLA residual
+    path) so each arm stays fixed when the formal mHC/DHC classes adopt the speedups.
+    """
     target_train_batch_size = None
     per_device_batch_size = 8.0
     steps = 100
     checkpoint_keep_steps = []
     jax_cache_dir = ''
+    remat_policy = 'full'
+    sa_block_q = sa_block_kv = sa_block_kv_compute = 512
+    sa_block_q_dkv = sa_block_kv_dkv = sa_block_kv_dkv_compute = 512
+    sa_block_q_dq = sa_block_kv_dq = 512
+    sa_use_fused_bwd_kernel = False
+    mhc_stream_major_layout = False
+    mhc_pallas_update = False
+    mhc_pallas_connector = False
+    mhc_pallas_sinkhorn = False
+
+
+class _XLPropHCSplashArm:
+    """SplashTunedBlocks1024's values without inheriting it (the formal mHC/DHC classes do)."""
+    locals().update({k: v for k, v in vars(SplashTunedBlocks1024).items() if k.startswith('sa_')})
 
 
 class Llama2XLPropTruePileMHASpeedProfile(_XLPropHCSpeedProfile, Llama2XLPropTruePileMHA):
@@ -9703,7 +9738,7 @@ class Llama2XLPropTruePileMHASpeedProfile(_XLPropHCSpeedProfile, Llama2XLPropTru
     model_name = 'Llama2XLPropTruePileMHASpeedProfile'
 
 
-class Llama2XLPropTruePileMHASplashSpeedProfile(SplashTunedBlocks1024, Llama2XLPropTruePileMHASpeedProfile):
+class Llama2XLPropTruePileMHASplashSpeedProfile(_XLPropHCSplashArm, Llama2XLPropTruePileMHASpeedProfile):
     model_name = 'Llama2XLPropTruePileMHASplashSpeedProfile'
 
 
@@ -9716,7 +9751,7 @@ class Llama2XLPropTruePileMHAmHCSpeedProfile(_XLPropHCSpeedProfile, Llama2XLProp
     model_name = 'Llama2XLPropTruePileMHAmHCSpeedProfile'
 
 
-class Llama2XLPropTruePileMHAmHCSplashSpeedProfile(SplashTunedBlocks1024, Llama2XLPropTruePileMHAmHCSpeedProfile):
+class Llama2XLPropTruePileMHAmHCSplashSpeedProfile(_XLPropHCSplashArm, Llama2XLPropTruePileMHAmHCSpeedProfile):
     model_name = 'Llama2XLPropTruePileMHAmHCSplashSpeedProfile'
 
 
@@ -9729,7 +9764,7 @@ class Llama2XLPropTruePileMHADHC4TanhSpeedProfile(_XLPropHCSpeedProfile, Llama2X
     model_name = 'Llama2XLPropTruePileMHADHC4TanhSpeedProfile'
 
 
-class Llama2XLPropTruePileMHADHC4TanhSplashSpeedProfile(SplashTunedBlocks1024, Llama2XLPropTruePileMHADHC4TanhSpeedProfile):
+class Llama2XLPropTruePileMHADHC4TanhSplashSpeedProfile(_XLPropHCSplashArm, Llama2XLPropTruePileMHADHC4TanhSpeedProfile):
     model_name = 'Llama2XLPropTruePileMHADHC4TanhSplashSpeedProfile'
 
 
@@ -9784,6 +9819,17 @@ class Llama2XLPropTruePileMHADHC4TanhSplashMinimalPallasConnectorSpeedProfile(Ll
 class Llama2XLPropTruePileMHAmHCSplashMinimalPallasSinkhornSpeedProfile(Llama2XLPropTruePileMHAmHCSplashMinimalPallasConnectorSpeedProfile):
     model_name = 'Llama2XLPropTruePileMHAmHCSplashMinimalPallasSinkhornSpeedProfile'
     mhc_pallas_sinkhorn = True
+
+
+class Llama2XLPropTruePileMHAmHCSplashFullPallasSinkhornSpeedProfile(Llama2XLPropTruePileMHAmHCSplashMinimalPallasSinkhornSpeedProfile):
+    """Final mHC kernels with full remat (v5p-32 remat check)."""
+    model_name = 'Llama2XLPropTruePileMHAmHCSplashFullPallasSinkhornSpeedProfile'
+    remat_policy = 'full'
+
+
+class Llama2XLPropTruePileMHADHC4TanhSplashFullPallasConnectorSpeedProfile(Llama2XLPropTruePileMHADHC4TanhSplashMinimalPallasConnectorSpeedProfile):
+    model_name = 'Llama2XLPropTruePileMHADHC4TanhSplashFullPallasConnectorSpeedProfile'
+    remat_policy = 'full'
 
 
 class BamLlama2XLPropK72SharedRank4MLPPerLayerTrain(BamLlama2XLPropK72SharedRank4MLPPerLayer):

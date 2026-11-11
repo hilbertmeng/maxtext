@@ -9689,6 +9689,55 @@ class Llama2XLPropTruePileMHADHC4Tanh(MHCConfig, Llama2XLPropTruePileMHA):
     jax_cache_dir = ''
 
 
+class _XLPropHCSpeedProfile(TrainStepProfile):
+    """Paired speed arm: full 28 layers, formal 8/device, T4096, schedule and health."""
+    target_train_batch_size = None
+    per_device_batch_size = 8.0
+    steps = 100
+    checkpoint_keep_steps = []
+    jax_cache_dir = ''
+
+
+class Llama2XLPropTruePileMHASpeedProfile(_XLPropHCSpeedProfile, Llama2XLPropTruePileMHA):
+    """Formal MHA runtime control: base.yml Splash 512 blocks, full remat."""
+    model_name = 'Llama2XLPropTruePileMHASpeedProfile'
+
+
+class Llama2XLPropTruePileMHASplashSpeedProfile(SplashTunedBlocks1024, Llama2XLPropTruePileMHASpeedProfile):
+    model_name = 'Llama2XLPropTruePileMHASplashSpeedProfile'
+
+
+class Llama2XLPropTruePileMHASplashMinimalSpeedProfile(Llama2XLPropTruePileMHASplashSpeedProfile):
+    model_name = 'Llama2XLPropTruePileMHASplashMinimalSpeedProfile'
+    remat_policy = 'minimal'
+
+
+class Llama2XLPropTruePileMHAmHCSpeedProfile(_XLPropHCSpeedProfile, Llama2XLPropTruePileMHAmHC):
+    model_name = 'Llama2XLPropTruePileMHAmHCSpeedProfile'
+
+
+class Llama2XLPropTruePileMHAmHCSplashSpeedProfile(SplashTunedBlocks1024, Llama2XLPropTruePileMHAmHCSpeedProfile):
+    model_name = 'Llama2XLPropTruePileMHAmHCSplashSpeedProfile'
+
+
+class Llama2XLPropTruePileMHAmHCSplashMinimalSpeedProfile(Llama2XLPropTruePileMHAmHCSplashSpeedProfile):
+    model_name = 'Llama2XLPropTruePileMHAmHCSplashMinimalSpeedProfile'
+    remat_policy = 'minimal'
+
+
+class Llama2XLPropTruePileMHADHC4TanhSpeedProfile(_XLPropHCSpeedProfile, Llama2XLPropTruePileMHADHC4Tanh):
+    model_name = 'Llama2XLPropTruePileMHADHC4TanhSpeedProfile'
+
+
+class Llama2XLPropTruePileMHADHC4TanhSplashSpeedProfile(SplashTunedBlocks1024, Llama2XLPropTruePileMHADHC4TanhSpeedProfile):
+    model_name = 'Llama2XLPropTruePileMHADHC4TanhSplashSpeedProfile'
+
+
+class Llama2XLPropTruePileMHADHC4TanhSplashMinimalSpeedProfile(Llama2XLPropTruePileMHADHC4TanhSplashSpeedProfile):
+    model_name = 'Llama2XLPropTruePileMHADHC4TanhSplashMinimalSpeedProfile'
+    remat_policy = 'minimal'
+
+
 class BamLlama2XLPropK72SharedRank4MLPPerLayerTrain(BamLlama2XLPropK72SharedRank4MLPPerLayer):
     """Formal batch8 RUN; independent data/checkpoint prefix, starts from zero."""
     # code_commit: 859bd7e

@@ -89,7 +89,9 @@ class DynamicHyperConnection(nn.Module):
     post = static_depth.astype(jnp.float32) + depth_scale.astype(jnp.float32) * jnp.tanh(
         normalized @ depth_kernel.astype(jnp.float32))
     read = jnp.einsum('...n,...nd->...d', width[..., 0], x).astype(state.dtype)
-    return read, post, width[..., 1:]
+    mixing = (jnp.broadcast_to(jnp.eye(n, dtype=jnp.float32), state.shape[:-2] + (n, n))
+              if cfg.mhc_identity_mixing else width[..., 1:])
+    return read, post, mixing
 
 
 class ManifoldHyperConnection(nn.Module):

@@ -10427,6 +10427,15 @@ class BamMHAMediumPropC256TruePileDHC4Tanh(MHCConfig, BamMHAMediumPropC256TruePi
                     'BamMHAMediumPropC256TruePileAttnRes', 'BamMHAMediumPropC256TruePilemHCSK3']
 
 
+class BamMHAMediumPropC256TruePileDHC4TanhIdentity(BamMHAMediumPropC256TruePileDHC4Tanh):
+    """DHC transport-only identity ablation; all other recipe/tree/budget settings retained."""
+    model_name = 'BamMHAMediumPropC256TruePileDHC4TanhIdentity'
+    mhc_identity_mixing = True
+    compare_runs = ['BamMHAMediumPropC256TruePileDHC4Tanh',
+                    'BamMHAMediumPropC256TruePilemHC', 'BamMHAMediumPropC256TruePile',
+                    'MuddLlama2MediumPropTruePile', 'BamMHAMediumPropC256TruePileAttnRes']
+
+
 class BamMHAMediumPropC256TruePilemHCSK3(BamMHAMediumPropC256TruePilemHC):
     """Llama mHC with three Sinkhorn iterations; all initialization unchanged."""
     # Single intervention versus original mHC: Sinkhorn iterations 20 -> 3.

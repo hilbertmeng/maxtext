@@ -12,8 +12,8 @@ def validate_residual_config(keys):
     value = keys['dhc_norm_epsilon']
     if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or value <= 0:
       raise ValueError('dhc_norm_epsilon must be finite and positive')
-    if keys['mhc_learned_head'] or keys['mhc_identity_mixing']:
-      raise ValueError('Paper DHC requires sum head and learned transport')
+    if keys['mhc_learned_head']:
+      raise ValueError('DHC requires sum head')
   if keys['decoder_block'] == 'pythia':
     if not keys.get('pythia_use_fusion') or keys.get('pythia_parallel_residual', True):
       raise ValueError('AttnRes/mHC require serial Pythia with pythia_use_fusion=True')

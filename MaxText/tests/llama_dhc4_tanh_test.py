@@ -74,7 +74,7 @@ class DHCTest(unittest.TestCase):
     self.assertEqual(count,432143736)
     print('DHC_FULL_PARAMETER_COUNT',count,'MLP_DIM',cfg.mlp_dim,flush=True)
     from residual_config import validate_residual_config
-    for key,value in [('mhc_learned_head',True),('mhc_identity_mixing',True),('dhc_norm_epsilon',0),('dhc_norm_epsilon',float('nan'))]:
+    for key,value in [('mhc_learned_head',True),('dhc_norm_epsilon',0),('dhc_norm_epsilon',float('nan'))]:
       with self.assertRaises(ValueError):validate_residual_config(dict(cfg.get_keys(),**{key:value}))
 
   def test_full_model_gradient_causality_remat_bf16(self):

@@ -477,9 +477,7 @@ class ResidualModelTest(MLPWriteTest, unittest.TestCase):
     for name in ('Llama2XLPropTruePileMHAmHC', 'Llama2XLPropTruePileMHADHC4Tanh'):
       for remat in ('none', 'minimal'):
         results = []
-        arms = [(False, False, False), (True, False, False), (True, True, False)]
-        if name.endswith('mHC'):
-          arms.append((True, True, True))
+        arms = [(False, False, False), (True, False, False), (True, True, False), (True, True, True)]
         for major, pallas, connector in arms:
           cfg = self.tiny(name)
           cfg.get_keys().update(mhc_stream_major_layout=major, mhc_pallas_update=pallas,

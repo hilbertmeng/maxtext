@@ -8,8 +8,8 @@ def validate_residual_config(keys):
     raise ValueError('residual_connection must be none, attnres, mhc or dhc')
   if mode == 'none':
     return
-  if keys.get('mhc_pallas_connector') and (mode != 'mhc' or keys.get('mhc_pre_static')):
-    raise ValueError('mhc_pallas_connector supports the mHC sigmoid pre gate only')
+  if keys.get('mhc_pallas_connector') and (mode not in ('mhc', 'dhc') or keys.get('mhc_pre_static')):
+    raise ValueError('mhc_pallas_connector supports DHC and the mHC sigmoid pre gate only')
   if (keys.get('mhc_pallas_update') or keys.get('mhc_pallas_connector')) and not keys.get('mhc_stream_major_layout'):
     raise ValueError('mhc_pallas_update/connector require mhc_stream_major_layout')
   if (keys.get('mhc_stream_major_layout') or keys.get('mhc_pallas_update')) and mode not in ('mhc', 'dhc'):

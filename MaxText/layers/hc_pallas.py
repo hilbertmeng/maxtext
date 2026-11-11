@@ -303,3 +303,139 @@ def _batch_shard_multi(fn, args, batch_dims, out_specs):
   spec = lambda dim, rank: P(*[axes if i == dim else None for i in range(rank)])
   return shard_map(fn, mesh=mesh, in_specs=tuple(spec(dim, a.ndim) for a, dim in zip(args, batch_dims)),
                    out_specs=tuple(spec(*o) for o in out_specs), check_rep=False)(*args)
+
+
+# ---------------------------------------------------------------------------
+# Fused DHC connector: per-stream LayerNorm folded into the router dot, tanh,
+# the read weight sw0 + ws * tanh(logit_0) and the weighted read, in one pass.
+# Outputs tanh(logits) [n, M, E] for XLA's post/mixing, plus the state passthrough.
+# ---------------------------------------------------------------------------
+def _dhc_values(n, d, x, g_ref, p_ref, eps):
+  p = p_ref[...]                                       # rows: 0 sG, 1 cB, 2 [ws, sw0_0..sw0_{n-1}]
+  sg, cb = p[0:1], p[1:2]
+  mean = jnp.sum(x, axis=-1, keepdims=True) / d
+  var = jnp.maximum(jnp.sum(x * x, axis=-1, keepdims=True) / d - mean * mean, 0.)
+  rsig = jax.lax.rsqrt(var + eps)
+  z = jnp.dot(x, g_ref[...], preferred_element_type=F32)
+  dyn = jnp.tanh(rsig * (z - mean * sg) + cb)
+  return p, sg, mean, rsig, z, dyn
+
+
+def _dhc_kernel(n, d, eps, x_ref, g_ref, p_ref, read_ref, dyn_ref):
+  read = None
+  for i in range(n):
+    x = x_ref[i].astype(F32)
+    p, _, _, _, _, dyn = _dhc_values(n, d, x, g_ref, p_ref, eps)
+    dyn_ref[i] = dyn
+    w = p[2:3, 1 + i:2 + i] + p[2:3, 0:1] * dyn[:, 0:1]
+    read = w * x if read is None else read + w * x
+  read_ref[...] = read.astype(read_ref.dtype)
+
+
+def _dhc_bwd_kernel(n, d, eps, x_ref, g_ref, gt_ref, p_ref, dread_ref, ddyn_ref, dxo_ref,
+                    dx_ref, dwr_ref, dws_ref, dsg_ref, dcb_ref, dgt_ref):
+  @pl.when(pl.program_id(1) == 0)
+  def _():
+    dgt_ref[...] = jnp.zeros_like(dgt_ref)
+
+  dread = dread_ref[...].astype(F32)
+  dwrs, dws, dsg, dcb = [], 0., 0., 0.
+  for i in range(n):
+    x = x_ref[i].astype(F32)
+    p, sg, mean, rsig, z, dyn = _dhc_values(n, d, x, g_ref, p_ref, eps)
+    ws = p[2:3, 0:1]
+    w = p[2:3, 1 + i:2 + i] + ws * dyn[:, 0:1]
+    dwr = jnp.sum(x * dread, axis=-1, keepdims=True)
+    dwrs.append(dwr)
+    dws = dws + dwr * dyn[:, 0:1]
+    lane = jax.lax.broadcasted_iota(jnp.int32, dyn.shape, 1)
+    ddyn = ddyn_ref[i] + jnp.where(lane == 0, ws * dwr, 0.)
+    dlogit = ddyn * (1 - dyn * dyn)
+    dz = rsig * dlogit
+    dmean = -rsig * jnp.sum(dlogit * sg, axis=-1, keepdims=True)
+    drsig = jnp.sum(dlogit * (z - mean * sg), axis=-1, keepdims=True)
+    dvar = drsig * (-0.5) * rsig * rsig * rsig
+    dx = (dxo_ref[i].astype(F32) + w * dread + jnp.dot(dz, gt_ref[...], preferred_element_type=F32)
+          + (dmean - 2 * mean * dvar) / d + (2 / d) * dvar * x)
+    dx_ref[i] = dx.astype(dx_ref.dtype)
+    dgt_ref[0] += jnp.dot(dz.T, x, preferred_element_type=F32)
+    dsg = dsg - rsig * mean * dlogit
+    dcb = dcb + dlogit
+  dwr_ref[...] = jnp.concatenate(dwrs, axis=-1)
+  dws_ref[...] = dws
+  dsg_ref[...] = dsg
+  dcb_ref[...] = dcb
+
+
+def _dhc_pack(sg, cb, ws, sw0):
+  e, n = sg.shape[0], sw0.shape[0]
+  p = jnp.zeros((8, LANES), F32).at[0, :e].set(sg.astype(F32)).at[1, :e].set(cb.astype(F32))
+  return p.at[2, 0].set(ws.astype(F32).reshape(())).at[2, 1:1 + n].set(sw0.astype(F32))
+
+
+@functools.partial(jax.custom_vjp, nondiff_argnums=(6, 7, 8))
+def _dhc(x, g, sg, cb, ws, sw0, eps, tile, interpret):
+  return _dhc_fwd(x, g, sg, cb, ws, sw0, eps, tile, interpret)[0]
+
+
+def _dhc_fwd(x, g, sg, cb, ws, sw0, eps, tile, interpret):
+  n, m, d = x.shape
+  e = g.shape[-1]
+  gp = jnp.zeros((d, LANES), F32).at[:, :e].set(g.astype(F32))
+  state = pl.BlockSpec((n, tile, d), lambda t: (0, t, 0))
+  read, dyn = pl.pallas_call(
+      functools.partial(_dhc_kernel, n, d, eps), grid=(m // tile,),
+      in_specs=[state, pl.BlockSpec((d, LANES), lambda t: (0, 0)), pl.BlockSpec((8, LANES), lambda t: (0, 0))],
+      out_specs=[pl.BlockSpec((tile, d), lambda t: (t, 0)), pl.BlockSpec((n, tile, LANES), lambda t: (0, t, 0))],
+      out_shape=[jax.ShapeDtypeStruct((m, d), x.dtype), jax.ShapeDtypeStruct((n, m, LANES), F32)],
+      compiler_params=_params(), interpret=interpret)(x, gp, _dhc_pack(sg, cb, ws, sw0))
+  return (read, dyn[..., :e], x), (x, g, sg, cb, ws, sw0)
+
+
+def _dhc_bwd(eps, tile, interpret, residuals, cotangents):
+  x, g, sg, cb, ws, sw0 = residuals
+  dread, ddyn, dxo = cotangents
+  n, m, d = x.shape
+  e = g.shape[-1]
+  gp = jnp.zeros((d, LANES), F32).at[:, :e].set(g.astype(F32))
+  tile = min(tile, m // 2)
+  half = m // tile // 2
+  idx = lambda c, t: c * half + t
+  state = pl.BlockSpec((n, tile, d), lambda c, t: (0, idx(c, t), 0))
+  token = lambda width: pl.BlockSpec((tile, width), lambda c, t: (idx(c, t), 0))
+  ddynp = jnp.zeros((n, m, LANES), F32).at[..., :e].set(ddyn.astype(F32))
+  dx, dwr, dws, dsg, dcb, dgt = pl.pallas_call(
+      functools.partial(_dhc_bwd_kernel, n, d, eps), grid=(2, half),
+      in_specs=[state, pl.BlockSpec((d, LANES), lambda c, t: (0, 0)), pl.BlockSpec((LANES, d), lambda c, t: (0, 0)),
+                pl.BlockSpec((8, LANES), lambda c, t: (0, 0)), token(d),
+                pl.BlockSpec((n, tile, LANES), lambda c, t: (0, idx(c, t), 0)), state],
+      out_specs=[state, token(n), token(1), token(LANES), token(LANES),
+                 pl.BlockSpec((1, LANES, d), lambda c, t: (c, 0, 0))],
+      out_shape=[jax.ShapeDtypeStruct(x.shape, x.dtype), jax.ShapeDtypeStruct((m, n), F32),
+                 jax.ShapeDtypeStruct((m, 1), F32), jax.ShapeDtypeStruct((m, LANES), F32),
+                 jax.ShapeDtypeStruct((m, LANES), F32), jax.ShapeDtypeStruct((2, LANES, d), F32)],
+      compiler_params=pltpu.CompilerParams(dimension_semantics=('parallel', 'arbitrary'),
+                                           vmem_limit_bytes=96 * 1024 * 1024),
+      interpret=interpret)(x, gp, gp.T, _dhc_pack(sg, cb, ws, sw0), dread.astype(x.dtype), ddynp, dxo.astype(x.dtype))
+  dg = jnp.sum(dgt, axis=0)[:e].T.astype(g.dtype)
+  return (dx, dg, jnp.sum(dsg, axis=0)[:e].astype(sg.dtype), jnp.sum(dcb, axis=0)[:e].astype(cb.dtype),
+          jnp.sum(dws).reshape(ws.shape).astype(ws.dtype), jnp.sum(dwr, axis=0).astype(sw0.dtype))
+
+
+_dhc.defvjp(_dhc_fwd, _dhc_bwd)
+
+
+def dhc_connector_pallas(state, gained, gained_sum, bias_proj, width_scale, read_static, eps, *,
+                         tile=256, interpret=False):
+  """Stream-major DHC read. gained = g*[W_alpha, w_beta] (D, n+2); returns read [B,T,D],
+  tanh(logits) [n,B,T,n+2] and the state passthrough."""
+  n, b, t, d = state.shape
+
+  def local(x, g, sg, cb, ws, sw0):
+    nb = x.shape[1]
+    m = nb * t
+    read, dyn, xo = _dhc(x.reshape(n, m, d), g, sg, cb, ws, sw0, float(eps), _tile(m, tile), interpret)
+    return read.reshape(nb, t, d), dyn.reshape(n, nb, t, -1), xo.reshape(x.shape)
+
+  return _batch_shard_multi(local, (state, gained, gained_sum, bias_proj, width_scale, read_static),
+                            (1, None, None, None, None, None), ((0, 3), (1, 4), (1, 4)))

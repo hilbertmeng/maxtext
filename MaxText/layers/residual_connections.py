@@ -127,6 +127,9 @@ class DynamicHyperConnection(nn.Module):
       return jnp.concatenate((selected, jnp.eye(n, dtype=dtype)), axis=-1)
     static_width = self.param('static_alpha', width_init, (n, n + 1), cfg.weight_dtype)
     static_depth = self.param('static_beta', nn.initializers.ones, (n,), cfg.weight_dtype)
+    if major and getattr(cfg, 'mhc_pallas_connector', False):
+      return self._pallas(state, norm_scale, norm_bias, width_kernel, depth_kernel,
+                          width_scale, depth_scale, static_width, static_depth)
     if major:
       return self._stream_major(x, state.dtype, norm_scale, norm_bias, width_kernel, depth_kernel,
                                 width_scale, depth_scale, static_width, static_depth)
@@ -138,6 +141,26 @@ class DynamicHyperConnection(nn.Module):
     mixing = (jnp.broadcast_to(jnp.eye(n, dtype=jnp.float32), state.shape[:-2] + (n, n))
               if cfg.mhc_identity_mixing else width[..., 1:])
     return read, post, mixing
+
+  def _pallas(self, state, norm_scale, norm_bias, width_kernel, depth_kernel,
+              width_scale, depth_scale, static_width, static_depth):
+    """Fused Pallas read (per-stream LN folded into the router dot, tanh, read weight, read)."""
+    from layers.hc_pallas import dhc_connector_pallas
+    cfg = self.config
+    n = state.shape[0]
+    f32 = jnp.float32
+    kernel = jnp.concatenate((width_kernel.astype(f32), depth_kernel.astype(f32)[:, None]), axis=-1)
+    gained = norm_scale.astype(f32)[:, None] * kernel                      # [D, n+2]
+    static_width = static_width.astype(f32)
+    read, dynamic, passthrough = dhc_connector_pallas(
+        state, gained, gained.sum(axis=0), norm_bias.astype(f32) @ kernel, width_scale.astype(f32),
+        static_width[:, 0], cfg.dhc_norm_epsilon, interpret=bool(getattr(cfg, 'mhc_pallas_interpret', False)))
+    post = static_depth.astype(f32)[:, None, None] + depth_scale.astype(f32) * dynamic[..., n + 1]
+    if cfg.mhc_identity_mixing:
+      mixing = jnp.broadcast_to(jnp.eye(n, dtype=f32)[:, :, None, None], (n, n) + state.shape[1:3])
+    else:   # dynamic[source, b, t, 1 + destination]
+      mixing = static_width[:, 1:, None, None] + width_scale.astype(f32) * jnp.moveaxis(dynamic[..., 1:n + 1], -1, 1)
+    return read, post, mixing, passthrough
 
   def _stream_major(self, x, dtype, norm_scale, norm_bias, width_kernel, depth_kernel,
                     width_scale, depth_scale, static_width, static_depth):

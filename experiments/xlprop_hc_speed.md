@@ -9,10 +9,16 @@ and `xd-v5p-32-hcfin-*`, all released.
 ## Conclusion
 
 The routing math is unchanged; only its TPU implementation changed. The final mHC/DHC
-runtimes are faster than the formal MHA run, and 11% slower than MHA with the same
+runtimes match or beat the formal MHA run, and are 11.6-12.8% slower than MHA with the same
 Splash blocks and remat, which is the theoretical memory-traffic floor.
 
-V5P32_SUMMARY
+| v5p-32 UE5a, steps/s | Original | Final | Speedup | vs MHA formal 0.550 | vs MHA Splash1024+minimal 0.632 |
+|---|---:|---:|---:|---:|---:|
+| `Llama2XLPropTruePileMHAmHC` | 0.398 | **0.559** | +40.5% | **+1.6%** | -11.6% |
+| `Llama2XLPropTruePileMHADHC4Tanh` | 0.386 | **0.551** | +42.7% | **+0.2%** | -12.8% |
+
+Original overhead vs the formal MHA was -27.6% (mHC) and -29.8% (DHC). The remaining
+-11.6% / -12.8% vs equally configured MHA matches the ~12% memory-traffic estimate below.
 
 ## Theoretical overhead (reference)
 
@@ -89,7 +95,24 @@ bd1f705 (original arms), ead6a1e (stream-major), deb2e6f (update), bd166c9 (conn
 
 ## v5p-32 confirmation (formal topology)
 
-V5P32_TABLE
+Spot `xd-v5p-32-hcfin-ue5a` (us-east5-a), one VM for both matrices, AOT for v5p-32,
+16 chips, global batch 128, steps 16-99 median.
+
+| Arm | Profile class | Commit | step/s |
+|---|---|---|---:|
+| MHA formal (Splash 512, full) | `Llama2XLPropTruePileMHASpeedProfile` | 8e1a712 | 0.550 |
+| MHA + Splash1024 + full | `Llama2XLPropTruePileMHASplashSpeedProfile` | 6752818 | 0.623 |
+| MHA + Splash1024 + minimal | `Llama2XLPropTruePileMHASplashMinimalSpeedProfile` | 8e1a712 / 6752818 | 0.632 / 0.632 |
+| mHC original | `Llama2XLPropTruePileMHAmHCSpeedProfile` | 8e1a712 | 0.398 |
+| mHC + update + connector | `...mHCSplashMinimalPallasConnectorSpeedProfile` | 8e1a712 | 0.537 |
+| mHC final, minimal | `...mHCSplashMinimalPallasSinkhornSpeedProfile` | 6752818 | **0.559** |
+| mHC final, full remat | `...mHCSplashFullPallasSinkhornSpeedProfile` | 6752818 | 0.548 |
+| DHC original | `Llama2XLPropTruePileMHADHC4TanhSpeedProfile` | 8e1a712 | 0.386 |
+| DHC final, minimal | `...DHC4TanhSplashMinimalPallasConnectorSpeedProfile` | 8e1a712 | **0.551** |
+| DHC final, full remat | `...DHC4TanhSplashFullPallasConnectorSpeedProfile` | 6752818 | 0.545 |
+
+Minimal remat stays faster than full on v5p-32 for all three models, so the formal classes
+use it. The MHA formal speed matches its historical UE5a run (~0.543).
 
 Artifacts: `/data0/xd/bam_diagnostics/xlprop-hc-speed-20261111/` (orchestration logs, XPlane,
 analysis tools `tools/xpscope.py`, `tools/xpdetail.py`); GCS

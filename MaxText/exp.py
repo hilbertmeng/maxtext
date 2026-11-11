@@ -9668,7 +9668,10 @@ class Llama2XLPropTruePileMHAmHC(SplashTunedBlocks1024, MHCConfig, Llama2XLPropT
     TPU runtime: Splash 1024 blocks, minimal remat, stream-major [n,B,T,D] state and
     fused Pallas update/connector/Sinkhorn (layers/hc_pallas.py); math unchanged.
     """
-    # Not launched. Original mHC recipe: SK20, A.6 initialization, learned final head.
+    # code_commit: 6752818 (TPU runtime; math unchanged). Not launched.
+    # v5p-32 UE5a paired: 0.559 step/s vs MHA formal 0.550 (+1.6%), MHA Splash1024+minimal 0.632 (-11.6%);
+    # original runtime 0.398 (-27.6%). experiments/xlprop_hc_speed.md.
+    # Original mHC recipe: SK20, A.6 initialization, learned final head.
     # Keep the XL backbone/data/optimizer/50k schedule; unroll residual streams.
     # Routing/head overhead is repaid automatically: FFN5120 ->5053.
     # Added routing/head: 0.10455 W_Q per layer; integer-width remainder -13,843 params.
@@ -9688,7 +9691,10 @@ class Llama2XLPropTruePileMHADHC4Tanh(SplashTunedBlocks1024, MHCConfig, Llama2XL
     TPU runtime: Splash 1024 blocks, minimal remat, stream-major [n,B,T,D] state and
     fused Pallas update/connector (layers/hc_pallas.py); math unchanged.
     """
-    # Not launched. Same DHC recipe as the Medium run: per-stream affine LN,
+    # code_commit: 6752818 (TPU runtime; math unchanged). Not launched.
+    # v5p-32 UE5a paired: 0.551 step/s vs MHA formal 0.550 (+0.2%), MHA Splash1024+minimal 0.632 (-12.8%);
+    # original runtime 0.386 (-29.8%). experiments/xlprop_hc_speed.md.
+    # Same DHC recipe as the Medium run: per-stream affine LN,
     # zero dynamic kernels/scales .01, static one-hot/I/ones and learned transport.
     # Preserve XL data/optimizer/50k schedule and initialization; final stream SUM.
     # Routing overhead is repaid automatically: FFN5120 ->5115.
@@ -9708,6 +9714,8 @@ class Llama2XLPropTruePileMHADHC4Tanh(SplashTunedBlocks1024, MHCConfig, Llama2XL
 
 class _XLPropHCSpeedProfile(TrainStepProfile):
     """Paired speed arm: full 28 layers, formal 8/device, T4096, schedule and health.
+
+    Results (v5p-8 ablation, v5p-32 confirmation): experiments/xlprop_hc_speed.md.
 
     Pins the original runtime (base.yml Splash 512 blocks, full remat, XLA residual
     path) so each arm stays fixed when the formal mHC/DHC classes adopt the speedups.

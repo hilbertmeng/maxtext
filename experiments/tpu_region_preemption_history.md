@@ -27,6 +27,9 @@ active leases are censored, and manual migration releases are not preemptions.
 
 | RUN | TPU | Zone | Start UTC | End UTC | End reason | Passive candidates |
 |---|---|---|---|---|---|---|
+| `Llama2LargeProp27k` | v5p-32 (`xd-v5p-32-311010-maxtext`) | `us-central1-a` | 2026-11-10 11:51:37 | 2026-11-10 19:25:28 | completed 27000, P0; final checkpoint committed, node/queue absent | UC1a primary; no training-zone switch |
+| `MuddLlama2LargeProp27k` | v5p-32 (`xd-v5p-32-311012-maxtext`) | `us-central1-a` | 2026-11-10 11:51:38 | 2026-11-10 20:39:54 | completed 27000, P0; final checkpoint committed, node/queue absent | UC1a primary; no training-zone switch |
+| `BamLargePropV5Train27k` | v5p-32 (`xd-v5p-32-311011-maxtext`) | `us-central1-a` | 2026-11-10 11:52:18 | 2026-11-10 21:24:01 | completed 27000, P1; same-zone recovery from CP12232; final checkpoint committed, node/queue absent | UC1a primary; no training-zone switch |
 | `BamPythia2p8BHUnit300BFastKernelMPreNormQKScale` | v5p-256 (`xd-v5p-256-311103-maxtext`) | `us-east5-a` | 2026-11-03 04:08:39 | 2026-11-04 09:09:25 | resource_switch; runtime 5a48faa (256) / b3db6cc (128) | owned losers released; user FLEX retained |
 | `BamPythia2p8BHUnit300BFastKernelMPreNormQKScale` | v5p-256 (`xd-v5p-256-311103-maxtext`) | `us-central1-a` | 2026-11-04 09:09:25 | 2026-11-04 14:55:30 | resource_switch; runtime 5a48faa (256) / b3db6cc (128) | owned losers released; user FLEX retained |
 | `BamPythia2p8BHUnit300BFastKernelMPreNormQKScale` | v5p-256 (`xd-v5p-256-311103-maxtext`) | `us-east5-a` | 2026-11-04 14:55:30 | 2026-11-04 20:02:07 | resource_switch; runtime 5a48faa (256) / b3db6cc (128) | owned losers released; user FLEX retained |
@@ -2575,6 +2578,11 @@ active leases are censored, and manual migration releases are not preemptions.
 | `BamPythia2p8BHUnit300BFastKernelMPreNormQKScale` | 23 | `us-east5-a` | 2026-11-08 21:00:02 | 2026-11-08 21:33:00 | 0h 32m 58s | preempted |
 | `BamPythia2p8BHUnit300BFastKernelMPreNormQKScale` | 24 | `us-central1-a` | 2026-11-08 21:41:11 | 2026-11-08 23:01:00 | 1h 19m 49s | run_stop |
 | `BamXLPropV5FastKernelFullRemat` | 2 | `us-central1-a` | 2026-11-08 20:53:24 | 2026-11-09 13:06:16 | 16h12m52s | scheduled completion50000; CP/cursor/TB secured; node+queue absent |
+| `BamLargePropV5Train27k` | 1 | `us-central1-a` | 2026-11-10 11:52:23 | 2026-11-10 16:07:03 | 4h14m40s | preempted; same-zone recovery |
+| `Llama2LargeProp27k` | 1 | `us-central1-a` | 2026-11-10 11:51:40 | 2026-11-10 19:25:28 | 7h33m48s | scheduled completion 27000; node/queue absent |
+| `MuddLlama2LargeProp27k` | 1 | `us-central1-a` | 2026-11-10 11:51:41 | 2026-11-10 20:39:54 | 8h48m13s | scheduled completion 27000; node/queue absent |
+| `BamLargePropV5Train27k` | 2 | `us-central1-a` | 2026-11-10 16:13:45 | 2026-11-10 21:24:01 | 5h10m16s | scheduled completion 27000; node/queue absent |
+
 ### 2026-10-14 user pause: resumed mixed R256/R384
 
 RUN `BamMediumPropMShiftReadG050SharedR256R384ByWriteTruePile`, v5p-16,

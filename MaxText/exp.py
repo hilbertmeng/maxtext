@@ -5770,12 +5770,17 @@ class MuddLlama2LargePropMinimalRemat(MuddLlama2LargeProp):
 class Llama2LargeProp27k(Llama2LargeProp):
     """Fresh27k MHA run; same model and full-remat profile as the29k trial."""
     # code_commit:9a8ee1e; UC1a v5p-32/311010, full remat, ~1.018step/s; freshstep0 verified.
+    # Completed 27,000; MHA reference for the matched-density LargeProp three-way comparison.
+    # UC1a, P0; final checkpoint committed and node/queue released.
     model_name = 'Llama2LargeProp27k'
 
 
 class MuddLlama2LargeProp27k(MuddLlama2LargePropMinimalRemat):
     """Fresh27k full-history Mudd, retaining the measured faster minimal remat."""
     # code_commit:9a8ee1e; UC1a v5p-32/311012, minimal remat, ~.880step/s; freshstep0 verified.
+    # Completed 27,000. vs matched MHA: gap narrowed from -.3550 at 1k to -.08063 at 26.5k.
+    # Steady ~.876 step/s, ~13.8% slower than MHA; router parameters were not deducted from the MLP budget.
+    # UC1a, P0; final checkpoint committed and node/queue released.
     model_name = 'MuddLlama2LargeProp27k'
     compare_runs = ['Llama2LargeProp27k']
 
@@ -20554,6 +20559,9 @@ class BamLargePropV5MinimalRemat(BamLargePropV5):
 class BamLargePropV5Train27k(BamLargePropV5):
     """Fresh27k V5 run; unchanged model, budget and faster full-remat profile."""
     # code_commit:9a8ee1e; UC1a v5p-32/311011, full remat, ~.834step/s; freshstep0 verified.
+    # Completed 27,000. vs Mudd: MHA-referenced gain rose from 1.599 at 1k to ~1.8 at 6--12k,
+    # then eased to 1.746--1.766 over the final five windows; mean gap -.06183, final 26.5k gap -.06114.
+    # Steady ~.828 step/s, ~5.5% slower than Mudd; UC1a throughout, P1. Final checkpoint committed; node/queue released.
     model_name = 'BamLargePropV5Train27k'
     compare_runs = ['MuddLlama2LargeProp27k']
 

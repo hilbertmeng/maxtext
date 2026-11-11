@@ -160,8 +160,46 @@ configuration, parameter-tree, density and TensorBoard checks passed. The
 canonical-parent cleanup in `4db2e0ed` resolves identical attributes for the
 three sealed27k classes, so their runtime remains `9a8ee1e`.
 
-Group `largeprop-v5-threeway-27k` starts its own2k cadence and4k/8k reviews from
-zero; the old group is archived. BAM compares only with the new Mudd RUN,
-and its native multiplier uses the new MHA RUN as reference. Stop decisions
-still require user confirmation. Artifacts and gates:
+Group `largeprop-v5-threeway-27k` started a fresh reporting calendar. The user
+subsequently selected a 4k cadence with no early stopping; all three completed
+27,000 updates. BAM compares only with the new Mudd RUN, and its native
+multiplier uses the new MHA RUN as reference. The invalid-budget trial is not
+pooled into this comparison. Artifacts and gates:
 `/data0/xd/bam_diagnostics/largeprop-27k-20261110/`.
+
+## Completed 27k comparison
+
+The last complete common window is 26.5k: the training loop ends at step 26999,
+so a centered 27k window is unavailable. BAM's MHA-referenced gain over Mudd
+rose from 1.599 at 1k to about 1.8 at 6--12k, then eased modestly. The final five
+native windows, 24.5--26.5k, are 1.746--1.766; the last is 1.75836. Their mean
+loss gap is -.06183348, with final gap -.0611444. Mudd remains ahead of MHA
+by -.0806276 at 26.5k. The early extra BAM advantage persists through the
+matched token budget; it does not keep strengthening throughout late training.
+
+Steady throughput was about 1.016/.876/.828 step/s for MHA/Mudd/BAM on
+v5p-32: BAM is about 5.5% slower than Mudd and 18.5% slower than MHA under
+the selected full/minimal/full policies. Model counts remain matched for BAM;
+Mudd retains its historical extra router parameters.
+
+All three final checkpoint 27000 commit markers exist. Independent GCP checks
+confirmed their TPU nodes and queued resources absent. All training remained
+in UC1a; MHA and Mudd had no preemptions, BAM had one and resumed the same
+RUN from checkpoint 12232. Complete READY leases, UTC:
+
+| RUN | Start | End | Duration | Boundary |
+|---|---|---|---|---|
+| MHA | 2026-11-10 11:51:40 | 2026-11-10 19:25:28 | 7h33m48s | clean completion |
+| Mudd | 2026-11-10 11:51:41 | 2026-11-10 20:39:54 | 8h48m13s | clean completion |
+| BAM, lease1 | 2026-11-10 11:52:23 | 2026-11-10 16:07:03 | 4h14m40s | preemption |
+| BAM, lease2 | 2026-11-10 16:13:45 | 2026-11-10 21:24:01 | 5h10m16s | clean completion |
+
+Native evidence: `report-final-bam.json`, `report-final-mudd.json`,
+`leases-final.txt`, and `final-resource-checks.jsonl` in the artifact directory.
+
+TensorBoard sync completed successfully. Recorded gradients cover through 26990;
+all three stay below the clip threshold after 12k, with BAM maximum .40291 in
+that interval. The native gradient plot uses one color per RUN and solid/raw,
+dashed/clipped lines. Figure metadata and underlying recorded series are in
+`plot-final.json` and `plot-grad-final.json`; no clipping or averaging is
+performed by the gradient renderer.

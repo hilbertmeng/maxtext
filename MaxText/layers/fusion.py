@@ -132,7 +132,9 @@ class SubDecoderLayer(nn.Module):
     mesh = self.mesh
     connection = cfg.residual_connection
     if connection != 'none':
-      from layers.residual_connections import FullAttentionResidual, ManifoldHyperConnection, DynamicHyperConnection, mhc_update
+      from layers.residual_connections import FullAttentionResidual, ManifoldHyperConnection, DynamicHyperConnection, mhc_update, mhc_update_major
+      if cfg.mhc_stream_major_layout:
+        mhc_update = mhc_update_major
       HyperConnection = DynamicHyperConnection if connection == 'dhc' else ManifoldHyperConnection
       residual_state = inputs
       if connection == 'attnres':

@@ -9738,6 +9738,27 @@ class Llama2XLPropTruePileMHADHC4TanhSplashMinimalSpeedProfile(Llama2XLPropTrueP
     remat_policy = 'minimal'
 
 
+class Llama2XLPropTruePileMHAmHCSplashMinimalMajorSpeedProfile(Llama2XLPropTruePileMHAmHCSplashMinimalSpeedProfile):
+    """Stream-major [n,B,T,D] state with router norms folded into the router dot."""
+    model_name = 'Llama2XLPropTruePileMHAmHCSplashMinimalMajorSpeedProfile'
+    mhc_stream_major_layout = True
+
+
+class Llama2XLPropTruePileMHAmHCSplashMajorSpeedProfile(Llama2XLPropTruePileMHAmHCSplashSpeedProfile):
+    model_name = 'Llama2XLPropTruePileMHAmHCSplashMajorSpeedProfile'
+    mhc_stream_major_layout = True
+
+
+class Llama2XLPropTruePileMHADHC4TanhSplashMinimalMajorSpeedProfile(Llama2XLPropTruePileMHADHC4TanhSplashMinimalSpeedProfile):
+    model_name = 'Llama2XLPropTruePileMHADHC4TanhSplashMinimalMajorSpeedProfile'
+    mhc_stream_major_layout = True
+
+
+class Llama2XLPropTruePileMHADHC4TanhSplashMajorSpeedProfile(Llama2XLPropTruePileMHADHC4TanhSplashSpeedProfile):
+    model_name = 'Llama2XLPropTruePileMHADHC4TanhSplashMajorSpeedProfile'
+    mhc_stream_major_layout = True
+
+
 class BamLlama2XLPropK72SharedRank4MLPPerLayerTrain(BamLlama2XLPropK72SharedRank4MLPPerLayer):
     """Formal batch8 RUN; independent data/checkpoint prefix, starts from zero."""
     # code_commit: 859bd7e

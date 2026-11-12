@@ -9858,6 +9858,12 @@ class Llama2XLPropTruePileMHADHC4TanhSplashFullPallasConnectorSpeedProfile(Llama
     remat_policy = 'full'
 
 
+class Llama2XLPropTruePileMHAAttnResSpeedProfile(_XLPropHCSplashArm, _XLPropHCSpeedProfile, Llama2XLPropTruePileMHAAttnRes):
+    """Formal AttnRes runtime as configured (Splash1024, minimal remat, XLA reads)."""
+    model_name = 'Llama2XLPropTruePileMHAAttnResSpeedProfile'
+    remat_policy = 'minimal'
+
+
 class BamLlama2XLPropK72SharedRank4MLPPerLayerTrain(BamLlama2XLPropK72SharedRank4MLPPerLayer):
     """Formal batch8 RUN; independent data/checkpoint prefix, starts from zero."""
     # code_commit: 859bd7e

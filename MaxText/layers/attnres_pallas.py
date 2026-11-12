@@ -7,11 +7,11 @@ out_l = sum_k softmax_k(score) x_k over the k < l history sources.
 Through autodiff every read adds a full-size cotangent into each earlier source,
 one read-modify-write per (read, source) pair plus separate reduction passes. Here
 the source gradients live in per-source accumulators G = (G_0, ..., G_{K-1}), a tuple
-threaded through the stack as a passthrough value (separate buffers, so in-place
-updates never force XLA to copy a stacked [K, B, T, D] array):
+threaded through the stack as a passthrough value (separate buffers, so updates never
+force XLA to copy a stacked [K, B, T, D] array):
   * register(G, x_k, k): identity on G; its reverse hands G[k] to x_k.
   * read(G, xs, u) -> (out, G): reads see xs through stop_gradient; the reverse kernel
-    reads each source once and adds its contribution into G[k] in place (aliased).
+    reads each source once and adds its contribution into G[k] (one read + one write).
 Math and parameters are unchanged; accumulation stays in the source dtype, as autodiff's.
 """
 import functools
@@ -89,7 +89,7 @@ def _read_bwd_kernel(k, d, eps, *refs):
     x = x_refs[i][...].astype(F32)
     a = w[i] * (gs[i] - total) * rsig                     # dscore_i * rsig_i
     dx = w[i] * dout + a * u - (a * t * rsig * rsig / d) * x
-    g_refs[i][...] = (g_in_refs[i][...].astype(F32) + dx).astype(g_refs[i].dtype)   # aliased; outputs are not preloaded
+    g_refs[i][...] = (g_in_refs[i][...].astype(F32) + dx).astype(g_refs[i].dtype)
     contrib = jnp.sum(a * x, axis=0, keepdims=True)
     du = contrib if du is None else du + contrib
   du_ref[0] += du
@@ -112,7 +112,7 @@ def _read_call(xs, u, eps, tile, interpret):
 
 
 def _read_bwd_call(xs, u, dout, gs, eps, tile, interpret):
-  """gs: the K per-source accumulators of this read's sources, updated in place."""
+  """gs: the K per-source accumulators of this read's sources; returns their updated values."""
   k = len(xs)
   m, d = xs[0].shape
   tile = min(tile, m // 2)
@@ -124,7 +124,9 @@ def _read_bwd_call(xs, u, dout, gs, eps, tile, interpret):
       in_specs=[row] * k + [pl.BlockSpec((1, d), lambda c, t: (0, 0)), row] + [row] * k,
       out_specs=[row] * k + [pl.BlockSpec((1, 1, d), lambda c, t: (c, 0, 0))],
       out_shape=[jax.ShapeDtypeStruct(g.shape, g.dtype) for g in gs] + [jax.ShapeDtypeStruct((2, 1, d), F32)],
-      input_output_aliases={k + 2 + i: i for i in range(k)}, compiler_params=_params(True),
+      # No input_output_aliases: the kernel reads and writes each accumulator either way, and
+      # inside remat XLA copied every non-donatable aliased input first (~0.8k slab copies/step).
+      compiler_params=_params(True),
       interpret=interpret)(*xs, u, dout, *gs)
   return tuple(out[:k]), out[k].sum(axis=(0, 1))
 

@@ -82,8 +82,8 @@ class SiTUMLPTest(MLPWriteTest, unittest.TestCase):
     for name in (PARENT,RUN):
       c=self.config(name,dtype='float32',weight_dtype='float32')
       c.get_keys().update(emb_dim=150,num_query_heads=2,num_kv_heads=2,head_dim=75,num_decoder_layers=3,
-          mlp_dim=24,vocab_size=32,bam_k=75,bam_v=32,bam_abs_v_compression_dim=2,
-          bam_local_qk_c8_rank=2,bam_partial_rope_nope_dim=75,bam_local_qk_col_output_dim=75,
+          mlp_dim=24,vocab_size=32,bam_k=75,bam_v=32,
+          bam_partial_rope_nope_dim=75,bam_local_qk_col_output_dim=75,
           bam_standard_qk_dim=18,bam_layer_modes=['local_qk+local_v+local_o']*3,
           bam_attention_write_layers=[0,1],bam_mlp_write_layers=[0,1],bam_memory_mlp_dim=12,
           bam_last_mlp_dim=24,emb_bam_num_head=2,bam_write_v_bottleneck_dim=4,

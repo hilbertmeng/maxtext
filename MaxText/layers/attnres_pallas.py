@@ -31,12 +31,18 @@ def _tile(m, requested):
   return tile
 
 
-def row_major(x):
-  """Pin a row-major device layout: Pallas calls require it, and on multi-host v5p XLA
-  otherwise picks T-minor layouts for residual tensors and inserts a transpose copy at
-  every (read, source) pair (~840 slab copies/step on v5p-32)."""
+def _row_major_local(x):
   from jax.experimental.layout import Layout, with_layout_constraint
   return with_layout_constraint(x, Layout(major_to_minor=tuple(range(x.ndim))))
+
+
+def row_major(x, batch_dim=0):
+  """Pin a row-major device layout on each shard: Pallas calls require it, and on
+  multi-host v5p XLA otherwise picks T-minor layouts for residual tensors and inserts a
+  transpose copy at every (read, source) pair (~840 slab copies/step on v5p-32).
+  Applied per shard inside shard_map: a global layout constraint drops the sharding
+  (replicated all-gathers, 0.20 step/s)."""
+  return _shard(lambda a: (_row_major_local(a),), (x,), (batch_dim,), ((batch_dim, x.ndim),))[0]
 
 
 def _scores(x_refs, u, eps, d):
@@ -152,8 +158,8 @@ def _read_bwd(eps, tile, interpret, residuals, cotangents):
   xs, u = residuals
   dout, dg = cotangents
   k = len(xs)
-  head, du = _read_bwd_call(xs, u, row_major(dout.astype(xs[0].dtype)),
-                            tuple(row_major(g.astype(xs[0].dtype)) for g in dg[:k]), eps, tile, interpret)
+  head, du = _read_bwd_call(xs, u, _row_major_local(dout.astype(xs[0].dtype)),
+                            tuple(_row_major_local(g.astype(xs[0].dtype)) for g in dg[:k]), eps, tile, interpret)
   dg = head + tuple(dg[k:])
   # Source cotangents travel through G; xs arrive through stop_gradient.
   return dg, tuple(jnp.zeros_like(x) for x in xs), du.reshape(u.shape).astype(u.dtype)

@@ -79,3 +79,80 @@ L12 rollback reduces raw norm from809414.56 to4225.27 while loss remains2.59457.
 ## Next decision
 
 First split L3 whole-attention rollback into localV, localO, W_O and routing/write controls; retain L0 as a second candidate and a late-layer negative control. Then patch only the actual sink-position V at fixed same-layer Q/K routing, with old-V, zero-V and ordinary-position controls. If first-position intervention does not recover loss, downgrade the sink hypothesis. Existing SwiGLU gain evidence concerns the downstream amplifier; this experiment identifies an upstream parameter-sensitive region, not a sink circuit or retraining fix. No finer TPU sweep launched at this checkpoint.
+
+
+## Attention-sink causal follow-up (2026-11-12, r4)
+
+The tested single-layer first-position Value mechanism is not the main explanation for the full-batch loss spike. This does not rule out sink routing changes, interactions across layers, or earlier onset mechanisms. All interventions below use the same frozen batch 35676 and unchanged historical model.
+
+Original AOT parameter splits (23 cases) precede an instrumented full-remat objective (21 cases). The latter reproduces peak/old loss exactly; raw norm relative errors are 0.06655%/0.01055%. Four workers agree on every case metric; all 16 global input-shard hashes match the previous 37-case run. The original-AOT L3 all-attention rollback also reproduces exactly. Returned updates are discarded.
+
+L3 localV rollback across the entire sequence restores 34.51% of the peak-minus-old loss increment; W_O restores 39.73%, their V/O/W_O group 63.29%, all attention 70.96%. In contrast, replacing only its first V with the old localV read on the **same peak upstream input** restores 0.119%; the full-old-checkpoint first V restores 0.916%, and zero first V restores 1.840%. Ordinary position128 zeroing restores 0.204%. These conditional effects are not additive causal shares.
+
+The first-source attention mass at L3 averaged across the batch, 20 heads and six sampled query positions decreases from 0.08328 (old) to 0.06008 (peak). Mean per-head native V0 RMS rises 0.02236 → 0.02863, while the sampled mean p(q,0) × RMS(V0) changes only 0.000867 → 0.000903. Native V0 RMS is captured **before** each clamp. Routing statistics are FP32 reconstruction on queries16/128/512/1220/2048/4095 with segment and strict causal masks, not exact Splash probabilities or a uniform-token average. They do not prove that every head/token is stable. Actual causal forward calls retain original Splash.
+
+Large raw-norm reductions alone are nonspecific: at L12, zero first V changes loss 2.595793 → 2.595800 while raw norm drops 808876 → 32580; zero position128 likewise leaves loss unchanged and reduces raw to 27685. Freezing first V to its native value preserves forward loss and leaves raw near baseline, separating simple gradient disconnection from forward operating-point perturbation. This supports sensitivity of the downstream gradient amplification chain without identifying the loss trigger.
+
+Best current inference: sequence-wide L3 content/readout changes move downstream FFNs to a harmful operating point; first-position V alone is insufficient. The next discriminating test would restore **routing** while retaining peak V/readout, and compare prefix/interior position groups for the L3 localV/W_O effect. No additional diagnostic resource is launched after this stage.
+
+### Original-AOT cases
+
+| Case | Loss | Raw grad norm |
+|---|---:|---:|
+| peak_control | 2.595792532 | 809414.562 |
+| old_control | 1.977011561 | 0.215273544 |
+| revert_L03_V | 2.382264376 | 25777.3359 |
+| revert_L03_O | 2.483150721 | 12025.8105 |
+| revert_L03_WO | 2.349965572 | 18941.8457 |
+| revert_L03_QK | 2.502486706 | 33645.4844 |
+| revert_L03_write | 2.568997145 | 118829.203 |
+| revert_L03_V_O_WO | 2.204149723 | 6380.45605 |
+| revert_L03_all | 2.156707048 | 8204.71582 |
+| revert_L00_V | 2.557567120 | 26816.1504 |
+| revert_L00_O | 2.582391739 | 20524.6855 |
+| revert_L00_WO | 2.353046656 | 40392.6055 |
+| revert_L00_QK | 2.590943336 | 73159.2656 |
+| revert_L00_write | 2.561372757 | 53406.6641 |
+| revert_L00_V_O_WO | 2.331946135 | 4085.66357 |
+| revert_L00_all | 2.311893940 | 6987.91162 |
+| revert_L12_V | 2.594961405 | 52116.2188 |
+| revert_L12_O | 2.595736265 | 12615.6445 |
+| revert_L12_WO | 2.595643520 | 92454.0703 |
+| revert_L12_QK | 2.596091509 | 8735.31543 |
+| revert_L12_write | 2.595366716 | 41095.5625 |
+| revert_L12_V_O_WO | 2.594688892 | 13134.8174 |
+| revert_L12_all | 2.594569683 | 4225.27393 |
+
+### Instrumented sink cases
+
+Clamp modes: native, zero, old donor, or frozen current value. Same-layer Q/K is unchanged; later layers can respond. Raw gradients refer to the clamped graph, with frozen-current identity as a derivative control.
+
+| Case | Loss | Raw grad norm |
+|---|---:|---:|
+| peak_control | 2.595792532 | 808875.938 |
+| old_control | 1.977011561 | 0.215296254 |
+| L00_old_native | 1.977011561 | 0.215296254 |
+| L12_old_native | 1.977011561 | 0.215296254 |
+| L03_old_localV_parameters_same_upstream | 2.382264376 | 25739.5625 |
+| L03_old_localV_first_V_same_upstream | 2.595057726 | 10968.0098 |
+| L03_native | 2.595792532 | 808875.938 |
+| L03_freeze_first_V | 2.595792532 | 807451.25 |
+| L03_zero_first_V | 2.584409475 | 213010.703 |
+| L03_old_first_V | 2.590123177 | 29245.4707 |
+| L03_zero_position128_V | 2.594530821 | 45269.1562 |
+| L00_native | 2.595792532 | 808875.938 |
+| L00_freeze_first_V | 2.595792532 | 808766.125 |
+| L00_zero_first_V | 2.586647272 | 10191.2725 |
+| L00_old_first_V | 2.595410824 | 96396.6875 |
+| L00_zero_position128_V | 2.595140696 | 427599.312 |
+| L12_native | 2.595792532 | 808875.938 |
+| L12_freeze_first_V | 2.595792532 | 808879.438 |
+| L12_zero_first_V | 2.595799923 | 32580.2246 |
+| L12_old_first_V | 2.595819712 | 23810.7207 |
+| L12_zero_position128_V | 2.595814943 | 27685.4199 |
+
+### Reproduction and closeout
+
+Runner `xlprop_sink_probe.py` and focused tests are committed at `1d176fbdfcf217e85375f939eaa29d30e7149392`; helper `xlprop_loss_localization_probe.py` is unchanged. Local evidence: `training_reports/xlprop-v5-loss-localization-20261112/sink-r4/{loss-localization.json,sink-localization.json,verification.json,resource-cleanup-verification.json,workers/}`. GCS: `gs://newproject-1-llm_base_models_us-central1/log/diagnostics/xlprop-v5-lossloc-20261112-r4/`. Worker wrapper retains original d54 model/AOT, original reference CP35635 and existing owned r2 copy of CP35675.
+
+Resources `xd-v5p-32-sink-1112-r4-uc` / `-ew` both released; independent node and queue queries return actual NOT_FOUND for all four objects. A transient loser cleanup error was resolved by final cleanup. No HC training resource or retained compiler was touched.

@@ -30,10 +30,11 @@ def _tile(m, requested):
   return tile
 
 
-def _scores(xs, u, eps, d):
-  """Per-source score columns (tile, 1) and rsig, t = x.u."""
+def _scores(x_refs, u, eps, d):
+  """Per-source score columns (tile, 1) and rsig, t = x.u; sources are re-read from VMEM refs."""
   out = []
-  for x in xs:
+  for r in x_refs:
+    x = r[...].astype(F32)
     ss = jnp.sum(x * x, axis=-1, keepdims=True)
     t = jnp.sum(x * u, axis=-1, keepdims=True)
     rsig = jax.lax.rsqrt(ss / d + eps)
@@ -56,11 +57,10 @@ def _softmax(scores):
 def _read_kernel(k, d, eps, *refs):
   x_refs, u_ref, o_ref = refs[:k], refs[k], refs[k + 1]
   u = u_ref[...]
-  xs = [r[...].astype(F32) for r in x_refs]
-  w = _softmax([s for s, _, _ in _scores(xs, u, eps, d)])
-  acc = w[0] * xs[0]
+  w = _softmax([s for s, _, _ in _scores(x_refs, u, eps, d)])
+  acc = w[0] * x_refs[0][...].astype(F32)
   for i in range(1, k):
-    acc = acc + w[i] * xs[i]
+    acc = acc + w[i] * x_refs[i][...].astype(F32)
   o_ref[...] = acc.astype(o_ref.dtype)
 
 
@@ -74,20 +74,20 @@ def _read_bwd_kernel(k, d, eps, *refs):
 
   u = u_ref[...]
   dout = dout_ref[...].astype(F32)
-  xs = [r[...].astype(F32) for r in x_refs]
-  parts = _scores(xs, u, eps, d)
+  parts = _scores(x_refs, u, eps, d)
   w = _softmax([s for s, _, _ in parts])
-  gs = [jnp.sum(dout * x, axis=-1, keepdims=True) for x in xs]
+  gs = [jnp.sum(dout * r[...].astype(F32), axis=-1, keepdims=True) for r in x_refs]
   total = w[0] * gs[0]
   for i in range(1, k):
     total = total + w[i] * gs[i]
   du = None
   for i in range(k):
     _, rsig, t = parts[i]
+    x = x_refs[i][...].astype(F32)
     a = w[i] * (gs[i] - total) * rsig                     # dscore_i * rsig_i
-    dx = w[i] * dout + a * u - (a * t * rsig * rsig / d) * xs[i]
+    dx = w[i] * dout + a * u - (a * t * rsig * rsig / d) * x
     g_ref[i] = (g_in_ref[i].astype(F32) + dx).astype(g_ref.dtype)   # aliased; output blocks are not preloaded
-    contrib = jnp.sum(a * xs[i], axis=0, keepdims=True)
+    contrib = jnp.sum(a * x, axis=0, keepdims=True)
     du = contrib if du is None else du + contrib
   du_ref[0] += du
 
@@ -95,7 +95,7 @@ def _read_bwd_kernel(k, d, eps, *refs):
 def _params(two_d=False):
   return pltpu.CompilerParams(
       dimension_semantics=('parallel', 'arbitrary') if two_d else ('parallel',),
-      vmem_limit_bytes=96 * 1024 * 1024)
+      vmem_limit_bytes=60 * 1024 * 1024)   # v5p scoped VMEM capacity is ~64 MiB
 
 
 def _read_call(xs, u, eps, tile, interpret):
@@ -182,10 +182,12 @@ def _shard(fn, args, batch_dims, out_dims):
   return shard_map(fn, mesh=mesh, in_specs=in_specs, out_specs=out_specs, check_rep=False)(*args)
 
 
-def read(g, sources, u, eps, *, tile=32, interpret=False):
+def read(g, sources, u, eps, *, tile=None, interpret=False):
   """g [K_total,B,T,D]; sources: tuple of [B,T,D]; u: (D,) = key_scale * query."""
   b, t, d = sources[0].shape
   xs = tuple(jax.lax.stop_gradient(s) for s in sources)
+  if tile is None:   # reverse holds K sources plus K accumulator rows (in and out), double-buffered
+    tile = 32 if len(sources) <= 24 else 16
 
   def local(g, xs, u):
     nb = xs[0].shape[0]

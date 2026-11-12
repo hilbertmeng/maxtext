@@ -156,3 +156,38 @@ Clamp modes: native, zero, old donor, or frozen current value. Same-layer Q/K is
 Runner `xlprop_sink_probe.py` and focused tests are committed at `1d176fbdfcf217e85375f939eaa29d30e7149392`; helper `xlprop_loss_localization_probe.py` is unchanged. Local evidence: `training_reports/xlprop-v5-loss-localization-20261112/sink-r4/{loss-localization.json,sink-localization.json,verification.json,resource-cleanup-verification.json,workers/}`. GCS: `gs://newproject-1-llm_base_models_us-central1/log/diagnostics/xlprop-v5-lossloc-20261112-r4/`. Worker wrapper retains original d54 model/AOT, original reference CP35635 and existing owned r2 copy of CP35675.
 
 Resources `xd-v5p-32-sink-1112-r4-uc` / `-ew` both released; independent node and queue queries return actual NOT_FOUND for all four objects. A transient loser cleanup error was resolved by final cleanup. No HC training resource or retained compiler was touched.
+
+## Routing and joint-prefix follow-up (sink-r5, 2026-11-12)
+
+Same frozen batch128×4096 at step35676, CP35635/35675, historical d54 model and original AOT. All27 original-AOT cases and33 instrumented full-batch cases completed on four workers. Case metrics agree across workers (excluding timing), all16 global input-shard hashes match r4, peak/old loss exactly reproduce and raw-gradient fidelity gates pass (0.06655% /0.01055% relative error). Helper commit `f45520a1`. Three CPU tests cover group layer selection, token range, untouched layers and frozen-identity derivatives.
+
+The leading explanation remains full-sequence content/readout changes in early attention layers, with a smaller prefix-mediated contribution. Joint first-token V ablations rescue4.37% (L0–5) or5.68% (all28 layers); prefix8 ablations rescue13.46%/16.08%, versus2.31%/2.07% for interior8 controls. Restoring L0–5 V/W_O parameters rescues86.12%, all attention90.18%; Q/K rollback rescues27.67% (L0–5) or30.27% (whole model). These conditional effects overlap and must not be added.
+
+This supports prefix sensitivity but does not establish attention-sink instability as the principal cause. V ablation is a strong content intervention, not restoration of healthy routing. Q/K parameter rollback leaves common read scales and current upstream state; it is not an exact old attention-map clamp. Multi-layer interventions can change downstream routing. Frozen-current V controls preserve loss exactly while changing derivatives; ordinary-position ablations can sharply reduce raw gradients with little loss rescue. Thus raw norm reduction is not evidence of identifying the loss trigger. No direct temporal-onset or training-stabilization experiment was done.
+
+Loss rescue = (peak − intervention)/(peak − old), peak2.595792532, old1.977011561, increment0.618780971. L0 is zero-based.
+
+| Intervention | Loss | Raw grad norm | Loss-increment rescue |
+|---|---:|---:|---:|
+| revert_L00_05_QK | 2.424562693 | 25519.084 | 27.672% |
+| revert_L00_05_V_WO | 2.062868595 | 280.32642 | 86.125% |
+| revert_L00_05_all | 2.037791491 | 226.64597 | 90.177% |
+| revert_all_QK | 2.408491373 | 13759.761 | 30.269% |
+| L00_05_zero_first_V | 2.568723917 | 51092.781 | 4.375% |
+| L00_05_freeze_first_V | 2.595792532 | 807307.62 | 0.000% |
+| L00_05_zero_position128_V | 2.594747782 | 60295.949 | 0.169% |
+| L00_05_zero_prefix8_V | 2.512530565 | 22378.119 | 13.456% |
+| L00_05_freeze_prefix8_V | 2.595792532 | 804278.81 | 0.000% |
+| L00_05_zero_interior8_V | 2.581478596 | 150714.81 | 2.313% |
+| L00_27_zero_first_V | 2.560631990 | 23284.121 | 5.682% |
+| L00_27_freeze_first_V | 2.595792532 | 807355.38 | 0.000% |
+| L00_27_zero_position128_V | 2.595017433 | 119304.95 | 0.125% |
+| L00_27_zero_prefix8_V | 2.496270418 | 80188.844 | 16.084% |
+| L00_27_freeze_prefix8_V | 2.595792532 | 804144 | 0.000% |
+| L00_27_zero_interior8_V | 2.583007336 | 11292.156 | 2.066% |
+
+Group `first_value_rms_by_head` is native preclamp L3; group sampled-routing statistics are zero placeholders, not measurements. No interpretation uses those group placeholder statistics. Single-layer statistics retain the six-query FP32 reconstruction limitation from r4.
+
+Artifacts: `training_reports/xlprop-v5-loss-localization-20261112/sink-r5/{loss-localization.json,sink-localization.json,verification.json,resource-cleanup-verification.json,workers/}`; GCS `gs://newproject-1-llm_base_models_us-central1/log/diagnostics/xlprop-v5-lossloc-20261112-r5/`. Original r2 diagnostic CP copy reused read-only; updates discarded. Controller completed all60 cases; EW resource released23:27:12UTC, UC23:34:54UTC. Independent exact node/queue describes returned real NOT_FOUND for all4 objects. No HC training or retained compiler was touched.
+
+Next discriminating test would patch matched old routing while retaining peak values, or test early-onset states. This stage ends here; no new resources are started automatically.

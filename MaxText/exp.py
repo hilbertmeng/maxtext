@@ -9663,7 +9663,14 @@ class Llama2XLPropTruePileMHA(Llama2XLPropTrain):
 
 
 class Llama2XLPropTruePileMHAAttnRes(SplashTunedBlocks1024, AttnResConfig, Llama2XLPropTruePileMHA):
-    """Full Attention Residuals on the matched XLProp TruePile MHA backbone."""
+    """Full Attention Residuals on the matched XLProp TruePile MHA backbone.
+
+    TPU runtime: Pallas depth reads with per-source gradient accumulators and saved
+    read outputs (attnres_pallas, remat 'minimal_save_attnres'); math unchanged.
+    """
+    # code_commit: 381a532 (TPU runtime; math unchanged). Not launched.
+    # v5p-32 UC1a paired: 0.520 step/s vs MHA formal 0.550 (-5.5%), MHA Splash1024+minimal 0.633 (-17.9%);
+    # XLA reads 0.453 (-17.6% vs formal). experiments/xlprop_attnres_speed.md.
     # Configuration only; not launched. Worktree maxtext, branch mqy/refactor-bam-hc.
     # Keep D1920/L28, 20x96 RoPE heads, T4096, batch8/device and the 50k schedule.
     # Full growing history: embedding plus each raw attention/FFN branch output.
@@ -9674,7 +9681,8 @@ class Llama2XLPropTruePileMHAAttnRes(SplashTunedBlocks1024, AttnResConfig, Llama
     # Growing history requires an unrolled stack; same Splash tiles/minimal remat as XL HC.
     model_name = 'Llama2XLPropTruePileMHAAttnRes'
     base_mlp_dim = 5119
-    remat_policy = 'minimal'
+    remat_policy = 'minimal_save_attnres'
+    attnres_pallas = True
     jax_cache_dir = ''
     compare_runs = ['Llama2XLPropTruePileMHA',
                     'Llama2XLPropTruePileMHAmHC', 'Llama2XLPropTruePileMHADHC4Tanh']
@@ -9752,6 +9760,7 @@ class _XLPropHCSpeedProfile(TrainStepProfile):
     mhc_pallas_update = False
     mhc_pallas_connector = False
     mhc_pallas_sinkhorn = False
+    attnres_pallas = False
 
 
 class _XLPropHCSplashArm:

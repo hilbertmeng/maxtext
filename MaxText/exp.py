@@ -326,6 +326,13 @@ class Llama2MediumPropL27(Llama2MediumProp):
     base_mlp_dim = 1600
 
 
+class Llama2MediumPropL12(Llama2MediumProp):
+    """12-layer MediumProp; widen MLPs at the original parameter budget."""
+    model_name = 'Llama2MediumPropL12'
+    base_num_decoder_layers = 12
+    base_mlp_dim = 5600
+
+
 class Llama2MediumQKNorm(Llama2Medium):
     """Standard MHA control with learned Q/K RMSNorm before RoPE."""
     # code_commit: 4408ccb
@@ -13737,6 +13744,24 @@ class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdL21True
     jax_cache_dir = ''
 
 
+class BamMHAMediumPropL12TruePile(SplashTunedBlocks1024, Llama2MediumPropL12):
+    """12-layer MHA, D1200/16x75, MLP5600 and tuned Splash.
+
+    432,106,800 parameters: 14,400 below the 18-layer MHA due to norm gains.
+    """
+    model_name = 'BamMHAMediumPropL12TruePile'
+    DATASET_VARIANT = 'truepile4096'
+    attention = 'flash'
+    bam_partial_rope = True
+    bam_partial_rope_nope_dim = 1
+    float32_logits = False
+    record_training_health_metrics = True
+    force_final_checkpoint = True
+    tensorboard_gcs_rotate_period = 500
+    jax_cache_dir = ''
+    compare_runs = ['BamMHAMediumPropC256TruePile']
+
+
 class BamMHAMediumPropL27C256TruePile(Llama2MediumPropL27, BamMHAMediumPropC256TruePile):
     """27-layer standard MHA through the matched BAM-MHA C256 control."""
     # code_commit: c088eb8
@@ -20532,6 +20557,55 @@ class BamMediumPropV5SiTU47(BamMediumPropV5):
     ordinary_mlp_situ_gate_limit = 4.0
     ordinary_mlp_situ_up_limit = 7.0
     compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneMPreNormQKScaleTruePile']
+
+
+class BamMediumPropV5SiTU47L12(BamMediumPropV5SiTU47):
+    """Ledger only: 12-layer V5 SiTU at the same-depth MHA parameter budget.
+
+    Implementation: codex/mediumprop-v5-situ47;
+    /home/xd/.codex/worktrees/medium-v5-situ47/maxtext.
+    Keep D1200, 16x75 heads, M75x32 and independent R256 projections.
+    Ordinary/private widths 4131/1937 give complete-branch ratio 2.001238:1;
+    terminal ordinary width 5796 closes the budget at 432,106,552 (MHA12-248).
+    Single-layer scan over L0--10; L11 has neither attention nor MLP M writes.
+    """
+    # implementation_commit: 64d7505; configuration only, not launched.
+    model_name = 'BamMediumPropV5SiTU47L12'
+    base_num_decoder_layers = 12
+    bam_layer_modes = ['local_qk+local_v+local_o'] * 12
+    bam_attention_write_layers = list(range(11))
+    bam_mlp_write_layers = list(range(11))
+    base_mlp_dim = 4131
+    bam_memory_mlp_dim = 1937
+    bam_last_mlp_dim = 5796
+    compare_runs = ['BamMediumPropV5SiTU47', 'BamMHAMediumPropL12TruePile']
+
+
+class BamMediumPropV5SiTU47L27(BamMediumPropV5SiTU47):
+    """Ledger only: 27-layer V5 SiTU at the Llama2MediumPropL27 MHA budget.
+
+    Implementation: codex/mediumprop-v5-situ47;
+    /home/xd/.codex/worktrees/medium-v5-situ47/maxtext.
+    Keep D1200, 16x75 heads, M75x32 and independent R256 projections.
+    Ordinary/private widths 1464/604 give complete-branch ratio 2.002127:1;
+    terminal ordinary width 1797 closes the budget at 432,142,342 (MHA27-458).
+    Single-layer scan over L0--25; L26 has neither attention nor MLP M writes.
+    Only ordinary MLPs use SiTU 4/7; private writers retain SwiGLU.
+    """
+    # implementation_commit: 64d7505; configuration only, not launched.
+    model_name = 'BamMediumPropV5SiTU47L27'
+    base_num_decoder_layers = 27
+    bam_layer_modes = ['local_qk+local_v+local_o'] * 27
+    bam_attention_write_layers = list(range(26))
+    bam_mlp_write_layers = list(range(26))
+    base_mlp_dim = 1464
+    bam_memory_mlp_dim = 604
+    bam_last_mlp_dim = 1797
+    compare_runs = [
+        'BamMediumPropV5SiTU47',
+        'BamMHAMediumPropL27C256TruePile',
+        'BamMediumPropL27K75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile',
+    ]
 
 
 class BamLargePropV5(BamV5Architecture, Llama2LargeProp):

@@ -1419,8 +1419,18 @@ class Attention(nn.Module):
 
     # A prefix-only RoPE for NeoX/Pythia; leave legacy full-head calls unchanged.
     if self.rotary_dim is None:
-      query = self.apply_rotary_embedding(query, inputs_positions, name="query_rotary")
-      key = self.apply_rotary_embedding(key, inputs_positions, name="key_rotary")
+      if getattr(cfg, 'bam_partial_rope', False):
+        # Standard Prop MHA can retain a leading NoPE coordinate with odd heads.
+        nope = cfg.bam_partial_rope_nope_dim
+        if type(nope) is not int or not 0 <= nope < self.head_dim or (self.head_dim - nope) % 2:
+          raise ValueError('Partial RoPE requires a leading NoPE width and a positive even rotary tail')
+        query = jnp.concatenate((query[..., :nope], self.apply_rotary_embedding(
+            query[..., nope:], inputs_positions, name='query_rotary', embedding_dims=self.head_dim - nope)), axis=-1)
+        key = jnp.concatenate((key[..., :nope], self.apply_rotary_embedding(
+            key[..., nope:], inputs_positions, name='key_rotary', embedding_dims=self.head_dim - nope)), axis=-1)
+      else:
+        query = self.apply_rotary_embedding(query, inputs_positions, name="query_rotary")
+        key = self.apply_rotary_embedding(key, inputs_positions, name="key_rotary")
     else:
       width = self.rotary_dim
       if not isinstance(width, int) or width < 0 or width > self.head_dim or width % 2:

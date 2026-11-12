@@ -124,3 +124,45 @@ Closeout evidence under the artifact directory above: `loss-report-final.json`
 `plot-gap-final.json`, `plot-grad-final.json`, `plot-health-final.json`, and
 `group-final-archived.txt`. The final group delivery is an extra completion
 event at 13.4k; its fixed 2k reporting calendar was not shifted to 13.5k.
+
+## Equal-budget depth configurations (not launched)
+
+Keep D1200, 16x75 heads, T4096, the Prop initialization/optimizer and 13,500-step
+schedule. Only depth and MLP widths change; BAM keeps M75x32, independent R256,
+unit-initialized QK/V/O scaling, M pre-norm and ordinary-only SiTU 4/7.
+Retain the same implementation worktree/branch as the completed 18-layer arm.
+Configuration implementation commit: `64d75057`; sealed effective attributes
+match the main ledger for all three classes. This is not a trained runtime.
+No AOT or TPU was requested for these configuration-only additions.
+
+| Configuration | Layers | Ordinary MLP | Private MLP | Terminal ordinary MLP | Parameters |
+|---|---:|---:|---:|---:|---:|
+| `BamMHAMediumPropL12TruePile` | 12 | 5600 | none | 5600 | 432,106,800 |
+| `BamMediumPropV5SiTU47L12` | 12 | 4131 | 1937 | 5796 | 432,106,552 |
+| `BamMediumPropV5SiTU47L27` | 27 | 1464 | 604 | 1797 | 432,142,342 |
+
+The 27-layer MHA control has 432,142,800 parameters. The 12-layer MHA is
+14,400 below the 18-layer MHA (432,121,200), because six layers of norm gains
+are removed. BAM matches each same-depth MHA to -248/-458 parameters.
+Complete private-MLP cost includes its down/up address projections and write
+gates (458,000 fixed parameters per writer layer). The ordinary/private branch
+ratios are 2.001238:1 at 12 layers and 2.002127:1 at 27 layers. Thus neither
+compression nor expansion refunds all parameters only to the ordinary branch.
+All nonterminal BAM layers share one ordinary/private width pair and use
+single-layer scan; both terminal M writers stay disabled.
+
+The new MHA derives directly from `Llama2MediumPropL12` and the tuned Splash
+mixin, avoiding retired `bam_mha_control`. Standard MHA honors the existing
+partial-RoPE settings: first coordinate unrotated, remaining 74 rotated.
+An independent analytic RoPE reference verifies the complete attention output
+and all parameter/input gradients. No Pythia initialization, bias, LayerNorm
+or QKNorm is introduced. Historical 18/27-layer MHA controls remain unchanged
+at their recorded C256 runtimes; the new 12-layer MHA uses tuned Splash.
+
+CPU proof: full-size abstract parameter trees for all three new classes,
+writer/terminal/scan/kernel policy assertions, and the independent odd-head
+MHA gradient check. Artifacts: `depth-config-verification.json` and
+`l12-partial-rope-test.log` in the same local artifact directory. Main V5
+regressions cover the small standard-MHA partial-RoPE support change:
+all 11 passed (`depth-main-v5-regression.log`), alongside the independent
+attention-gradient check. `depth-sealed-config.log` records SEALED_CONFIG_OK.

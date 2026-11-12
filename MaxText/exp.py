@@ -13750,7 +13750,8 @@ class BamMHAMediumPropL12TruePile(SplashTunedBlocks1024, Llama2MediumPropL12):
     432,106,800 parameters: 14,400 below the 18-layer MHA due to norm gains.
     """
     # code_commit: 64d7505; v5p-16 / 311014; UE5a primary, UC1a/EW4b backups.
-    # Training/checkpoint cursor verified; throughput awaits a stable lease.
+    # EW4b resume startup ~.975 step/s; compiled AOT and both worker hashes verified.
+    # Generic health ON/internal OFF; historical MHA18 C256 timing is kernel-unmatched.
     model_name = 'BamMHAMediumPropL12TruePile'
     DATASET_VARIANT = 'truepile4096'
     attention = 'flash'
@@ -20572,7 +20573,8 @@ class BamMediumPropV5SiTU47L12(BamMediumPropV5SiTU47):
     Single-layer scan over L0--10; L11 has neither attention nor MLP M writes.
     """
     # code_commit: 64d7505; v5p-16 / 311015; UE5a primary, UC1a/EW4b backups.
-    # Training/checkpoint cursor verified; throughput awaits a stable lease.
+    # EW4b resume startup ~.844 step/s vs SiTU18 ~.680 (+24.1%, unpaired); same health.
+    # Actual cursor/AOT load and both worker hashes verified; internal activation statistics OFF.
     model_name = 'BamMediumPropV5SiTU47L12'
     base_num_decoder_layers = 12
     bam_layer_modes = ['local_qk+local_v+local_o'] * 12
@@ -20596,7 +20598,8 @@ class BamMediumPropV5SiTU47L27(BamMediumPropV5SiTU47):
     Only ordinary MLPs use SiTU 4/7; private writers retain SwiGLU.
     """
     # code_commit: 64d7505; v5p-16 / 311016; UE5a primary, UC1a/EW4b backups.
-    # Training/checkpoint cursor verified; throughput awaits a stable lease.
+    # EW4b resume startup ~.522 step/s vs SiTU18 ~.680 (-23.2%, unpaired); same health.
+    # Cursor and resume-bound speed gate passed; capture the AOT log on a stable lease.
     model_name = 'BamMediumPropV5SiTU47L27'
     base_num_decoder_layers = 27
     bam_layer_modes = ['local_qk+local_v+local_o'] * 27

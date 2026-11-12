@@ -209,8 +209,13 @@ All three RUNs have actual committed checkpoint/cursor launch evidence:
 seed 9876, TruePile4096, global batch 128 and two infeed hosts. Exact launch
 proofs are in `initial-committed-cursor-proofs.json`; ongoing lease/queue
 observations stay in `resource-status-history.jsonl`, not this ledger.
-Short spot leases have not yet supplied reliable steady throughput or a
-captured resumed AOT-log/speed window; retain that check for a stable allocation.
+Resume-bound startup gates (at least 14 updates past the verified source
+checkpoint) measured MHA12 .975, BAM12 .844 and BAM27 .522 step/s. These
+are unpaired startup observations, not long stable-lease medians. MHA12
+and BAM12 have both-worker `Loaded compiled function!` and exact-runtime
+hash proofs. BAM27 was reclaimed before its log capture; retain that
+remaining check for a stable allocation. Detailed artifacts stay in the
+resource directory rather than adding running loss records to this ledger.
 Resource monitoring refreshes committed GCS markers through native
 `run_registry.py report-all` as needed, independently of live worker-step
 availability; no loss curves are delivered under this monitoring policy.

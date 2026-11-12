@@ -7,6 +7,7 @@ from typing import Any
 
 from flax import linen as nn
 import jax
+import jax.ad_checkpoint
 import jax.numpy as jnp
 
 
@@ -104,7 +105,8 @@ class FullAttentionResidual(nn.Module):
       u = scale.astype(jnp.float32) * query.astype(jnp.float32)
       out, g = attnres_pallas.read(state[-1], sources, u, cfg.attnres_norm_epsilon,
                                    interpret=bool(getattr(cfg, 'attnres_pallas_interpret', False)))
-      return out, (*sources, g)
+      # remat_policy='minimal_save_attnres' keeps this output instead of re-running the read.
+      return jax.ad_checkpoint.checkpoint_name(out, 'attnres_read'), (*sources, g)
     # Keep the large history as separate buffers. Stacking [B,T,S,D] at every
     # read made XLA retain many growing, multi-GiB history copies under remat.
     # Only the scalar depth scores need a new source axis.

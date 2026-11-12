@@ -9870,6 +9870,12 @@ class Llama2XLPropTruePileMHAAttnResPallasSpeedProfile(Llama2XLPropTruePileMHAAt
     attnres_pallas = True
 
 
+class Llama2XLPropTruePileMHAAttnResPallasSaveReadSpeedProfile(Llama2XLPropTruePileMHAAttnResPallasSpeedProfile):
+    """Pallas reads, keeping read outputs under remat instead of recomputing them."""
+    model_name = 'Llama2XLPropTruePileMHAAttnResPallasSaveReadSpeedProfile'
+    remat_policy = 'minimal_save_attnres'
+
+
 class BamLlama2XLPropK72SharedRank4MLPPerLayerTrain(BamLlama2XLPropK72SharedRank4MLPPerLayer):
     """Formal batch8 RUN; independent data/checkpoint prefix, starts from zero."""
     # code_commit: 859bd7e

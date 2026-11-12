@@ -516,11 +516,12 @@ class ResidualModelTest(MLPWriteTest, unittest.TestCase):
   def test_attnres_pallas_matches_default(self):
     # Pallas reads with the in-place source-gradient accumulator (interpreted on CPU)
     # must reproduce the default autodiff path exactly in logits and every gradient.
-    for remat in ('none', 'minimal'):
+    for remat in ('none', 'minimal', 'minimal_save_attnres'):
       results = []
       for pallas in (False, True):
         cfg = self.tiny('Llama2XLPropTruePileMHAAttnRes')
-        cfg.get_keys().update(attnres_pallas=pallas, attnres_pallas_interpret=pallas, remat_policy=remat)
+        cfg.get_keys().update(attnres_pallas=pallas, attnres_pallas_interpret=pallas,
+                              remat_policy=remat if pallas or remat != 'minimal_save_attnres' else 'minimal')
         mesh = jax.sharding.Mesh(max_utils.create_device_mesh(cfg), cfg.mesh_axes)
         model = Transformer(cfg, mesh, quant=None)
         tokens = jnp.array([[1, 2, 3, 4, 5, 6, 7, 8]], jnp.int32)

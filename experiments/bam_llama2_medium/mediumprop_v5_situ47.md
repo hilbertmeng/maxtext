@@ -131,8 +131,8 @@ Keep D1200, 16x75 heads, T4096, the Prop initialization/optimizer and 13,500-ste
 schedule. Only depth and MLP widths change; BAM keeps M75x32, independent R256,
 unit-initialized QK/V/O scaling, M pre-norm and ordinary-only SiTU 4/7.
 Retain the same implementation worktree/branch as the completed 18-layer arm.
-Configuration implementation commit: `64d75057`; sealed effective attributes
-match the main ledger for all three classes. This is not a trained runtime.
+Configuration and training runtime commit: `64d75057`; sealed effective
+attributes match the main ledger for all three classes.
 The configurations were initially delivered without AOT or TPU allocation.
 
 | Configuration | Layers | Ordinary MLP | Private MLP | Terminal ordinary MLP | Parameters |
@@ -200,3 +200,17 @@ for final scientific bookkeeping.
 
 Preparation/resource artifacts:
 `/data0/xd/bam_diagnostics/mediumprop-v5-situ-depth-20261112/`.
+
+All three target v5p-16/s13500 AOTs and manifests are ready at the same
+`compiled_trainsteps/64d7505/jax081-i0ae3f58-c17f538a/v5p-16/s13500/` root
+as the previous Medium artifact layout. The shared launch gate passed all
+ten focused checks (four SiTU, one partial-RoPE gradient, five TB rotation).
+All three RUNs have actual committed checkpoint/cursor launch evidence:
+seed 9876, TruePile4096, global batch 128 and two infeed hosts. Exact launch
+proofs are in `initial-committed-cursor-proofs.json`; ongoing lease/queue
+observations stay in `resource-status-history.jsonl`, not this ledger.
+Short spot leases have not yet supplied reliable steady throughput or a
+captured resumed AOT-log/speed window; retain that check for a stable allocation.
+Resource monitoring refreshes committed GCS markers through native
+`run_registry.py report-all` as needed, independently of live worker-step
+availability; no loss curves are delivered under this monitoring policy.

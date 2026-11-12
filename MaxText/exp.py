@@ -20685,8 +20685,13 @@ class BamXLPropV5FastKernelFullRematSiTU47(BamXLPropV5FastKernelFullRemat):
     not the later main BAM refactor. Widths4048/1827/tail6277; no parameter delta.
     See experiments/bam_llama2_medium/xlprop_v5_situ47.md.
     """
-    # code_commit:bd181bc; UC1a v5p-32, fresh50k RUN; FIRST_STEP4, by94 ~.521step/s vs father~.518.
-    # Generic health ON/internal OFF; ordinary/private/tail4048/1827/6277, parameter delta0.
+    # code_commit: bd181bc; completed 50,000, v5p-32, 16 preemptions; steady ~.520 step/s vs parent ~.518.
+    # Conclusion: substantially shorter loss disturbances, with a small terminal CE cost; gain prior 1.02 failed.
+    # vs SwiGLU: 37k lead faded by 38k; final five windows mean gap +.00126336, MHA-ref gain .98972175.
+    # Critical 35.65--36.93k: loss peak 3.775 -> 2.133; 46 -> 0 losses above 2.5 over 1,281 matched batches.
+    # Actual training zones UC1a -> UE5a -> UC1a -> UE5a -> UC1a; all 17 READY leases are in the linked note.
+    # CP50000/cursor and TB verified; all regional nodes/queues released. Generic health ON/internal OFF.
+    # Ordinary/private/tail 4048/1827/6277 and 1,432,396,996 parameters unchanged (delta 0 W_Q).
     model_name = 'BamXLPropV5FastKernelFullRematSiTU47'
     ordinary_mlp_situ_gate_limit = 4.0
     ordinary_mlp_situ_up_limit = 7.0

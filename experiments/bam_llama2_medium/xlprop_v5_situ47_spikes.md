@@ -1,5 +1,22 @@
 # XL V5 SiTU4/7 spike follow-up
 
+## Final training outcome (2026-11-12)
+
+The formal RUN completed 50,000 steps. In the decisive 35,650--36,930 interval,
+1,281 matched console losses show peaks 2.132941 for SiTU versus 3.774627 for
+SwiGLU, zero versus 46 losses above 2.5, and maximum trailing-10 means
+2.0365761 versus 3.5388025. This establishes a substantial reduction in the
+observed persistent loss disturbance. Isolated earlier SiTU excursions remain.
+
+The 37k advantage did not persist: near parity returned by 38--40k, followed by
+a small terminal deficit. Final five native windows average gap +.00126336 and
+MHA-referenced gain .98972175 against SwiGLU. The gain prior 1.02 failed.
+Thus the stabilization worked with a small healthy-phase CE cost; further
+tightening merely to eliminate raw spikes is not supported by this result.
+Full training/lease closeout: [SiTU experiment](xlprop_v5_situ47.md).
+The older sections below retain their original diagnostic scopes and dates;
+the frozen 5k local VJP is still not an exact formal 6120 replay.
+
 ## Training-loss impact takes priority
 
 Raw spikes alone are not the failure criterion. The goal is to mitigate

@@ -27,6 +27,14 @@ active leases are censored, and manual migration releases are not preemptions.
 
 | RUN | TPU | Zone | Start UTC | End UTC | End reason | Passive candidates |
 |---|---|---|---|---|---|---|
+| `BamXLPropV5FastKernelFullRematSiTU47` | v5p-32 (`xd-v5p-32-311003-maxtext`) | `us-central1-a` | 2026-11-09 14:50:56 | 2026-11-09 19:21:08 | recorded assignment change; see READY leases | UE5a/EW4b/UC1a recovery race; scoped policy changes and receipts in xlprop_v5_situ47.md |
+| `BamXLPropV5FastKernelFullRematSiTU47` | v5p-32 (`xd-v5p-32-311003-maxtext`) | `europe-west4-b` | 2026-11-09 19:21:08 | 2026-11-09 19:42:19 | preparation only; no verified FIRST_STEP; READY start not observed | UE5a/EW4b/UC1a recovery race; scoped policy changes and receipts in xlprop_v5_situ47.md |
+| `BamXLPropV5FastKernelFullRematSiTU47` | v5p-32 (`xd-v5p-32-311003-maxtext`) | `us-central1-a` | 2026-11-09 19:42:19 | 2026-11-09 21:42:12 | recorded assignment change; see READY leases | UE5a/EW4b/UC1a recovery race; scoped policy changes and receipts in xlprop_v5_situ47.md |
+| `BamXLPropV5FastKernelFullRematSiTU47` | v5p-32 (`xd-v5p-32-311003-maxtext`) | `us-east5-a` | 2026-11-09 21:42:12 | 2026-11-10 02:53:05 | recorded assignment change; see READY leases | UE5a/EW4b/UC1a recovery race; scoped policy changes and receipts in xlprop_v5_situ47.md |
+| `BamXLPropV5FastKernelFullRematSiTU47` | v5p-32 (`xd-v5p-32-311003-maxtext`) | `us-central1-a` | 2026-11-10 02:53:05 | 2026-11-11 05:31:13 | recorded assignment change; see READY leases | UE5a/EW4b/UC1a recovery race; scoped policy changes and receipts in xlprop_v5_situ47.md |
+| `BamXLPropV5FastKernelFullRematSiTU47` | v5p-32 (`xd-v5p-32-311003-maxtext`) | `europe-west4-b` | 2026-11-11 05:31:13 | 2026-11-11 10:01:36 | preparation only; no verified FIRST_STEP; READY start not observed | UE5a/EW4b/UC1a recovery race; scoped policy changes and receipts in xlprop_v5_situ47.md |
+| `BamXLPropV5FastKernelFullRematSiTU47` | v5p-32 (`xd-v5p-32-311003-maxtext`) | `us-east5-a` | 2026-11-11 10:01:36 | 2026-11-12 10:58:46 | recorded assignment change; see READY leases | UE5a/EW4b/UC1a recovery race; scoped policy changes and receipts in xlprop_v5_situ47.md |
+| `BamXLPropV5FastKernelFullRematSiTU47` | v5p-32 (`xd-v5p-32-311003-maxtext`) | `us-central1-a` | 2026-11-12 10:58:46 | 2026-11-12 11:17:11 | scheduled completion 50000; CP/cursor/TB secured; node/queue absent | UE5a/EW4b/UC1a recovery race; scoped policy changes and receipts in xlprop_v5_situ47.md |
 | `Llama2LargeProp27k` | v5p-32 (`xd-v5p-32-311010-maxtext`) | `us-central1-a` | 2026-11-10 11:51:37 | 2026-11-10 19:25:28 | completed 27000, P0; final checkpoint committed, node/queue absent | UC1a primary; no training-zone switch |
 | `MuddLlama2LargeProp27k` | v5p-32 (`xd-v5p-32-311012-maxtext`) | `us-central1-a` | 2026-11-10 11:51:38 | 2026-11-10 20:39:54 | completed 27000, P0; final checkpoint committed, node/queue absent | UC1a primary; no training-zone switch |
 | `BamLargePropV5Train27k` | v5p-32 (`xd-v5p-32-311011-maxtext`) | `us-central1-a` | 2026-11-10 11:52:18 | 2026-11-10 21:24:01 | completed 27000, P1; same-zone recovery from CP12232; final checkpoint committed, node/queue absent | UC1a primary; no training-zone switch |
@@ -2578,10 +2586,27 @@ active leases are censored, and manual migration releases are not preemptions.
 | `BamPythia2p8BHUnit300BFastKernelMPreNormQKScale` | 23 | `us-east5-a` | 2026-11-08 21:00:02 | 2026-11-08 21:33:00 | 0h 32m 58s | preempted |
 | `BamPythia2p8BHUnit300BFastKernelMPreNormQKScale` | 24 | `us-central1-a` | 2026-11-08 21:41:11 | 2026-11-08 23:01:00 | 1h 19m 49s | run_stop |
 | `BamXLPropV5FastKernelFullRemat` | 2 | `us-central1-a` | 2026-11-08 20:53:24 | 2026-11-09 13:06:16 | 16h12m52s | scheduled completion50000; CP/cursor/TB secured; node+queue absent |
+| `BamXLPropV5FastKernelFullRematSiTU47` | 1 | `us-central1-a` | 2026-11-09 14:50:58 | 2026-11-09 17:48:01 | 2h57m03s | preempted; native same-RUN recovery |
+| `BamXLPropV5FastKernelFullRematSiTU47` | 2 | `us-central1-a` | 2026-11-09 18:25:06 | 2026-11-09 18:42:30 | 17m24s | preempted; native same-RUN recovery |
+| `BamXLPropV5FastKernelFullRematSiTU47` | 3 | `us-central1-a` | 2026-11-09 19:42:21 | 2026-11-09 21:20:37 | 1h38m16s | preempted; native same-RUN recovery |
+| `BamXLPropV5FastKernelFullRematSiTU47` | 4 | `us-east5-a` | 2026-11-09 21:42:14 | 2026-11-09 21:51:25 | 09m11s | preempted; native same-RUN recovery |
+| `BamXLPropV5FastKernelFullRematSiTU47` | 5 | `us-central1-a` | 2026-11-10 07:00:26 | 2026-11-10 10:16:28 | 3h16m02s | preempted; native same-RUN recovery |
+| `BamXLPropV5FastKernelFullRematSiTU47` | 6 | `us-central1-a` | 2026-11-10 10:22:25 | 2026-11-10 10:33:49 | 11m24s | preempted; native same-RUN recovery |
 | `BamLargePropV5Train27k` | 1 | `us-central1-a` | 2026-11-10 11:52:23 | 2026-11-10 16:07:03 | 4h14m40s | preempted; same-zone recovery |
 | `Llama2LargeProp27k` | 1 | `us-central1-a` | 2026-11-10 11:51:40 | 2026-11-10 19:25:28 | 7h33m48s | scheduled completion 27000; node/queue absent |
 | `MuddLlama2LargeProp27k` | 1 | `us-central1-a` | 2026-11-10 11:51:41 | 2026-11-10 20:39:54 | 8h48m13s | scheduled completion 27000; node/queue absent |
 | `BamLargePropV5Train27k` | 2 | `us-central1-a` | 2026-11-10 16:13:45 | 2026-11-10 21:24:01 | 5h10m16s | scheduled completion 27000; node/queue absent |
+| `BamXLPropV5FastKernelFullRematSiTU47` | 7 | `us-central1-a` | 2026-11-10 10:53:00 | 2026-11-10 21:43:43 | 10h50m43s | preempted; native same-RUN recovery |
+| `BamXLPropV5FastKernelFullRematSiTU47` | 8 | `us-central1-a` | 2026-11-10 22:12:24 | 2026-11-10 22:26:55 | 14m31s | preempted; native same-RUN recovery |
+| `BamXLPropV5FastKernelFullRematSiTU47` | 9 | `us-central1-a` | 2026-11-11 00:43:13 | 2026-11-11 00:53:53 | 10m40s | preempted; native same-RUN recovery |
+| `BamXLPropV5FastKernelFullRematSiTU47` | 10 | `us-central1-a` | 2026-11-11 01:44:40 | 2026-11-11 01:50:39 | 05m59s | preempted; native same-RUN recovery |
+| `BamXLPropV5FastKernelFullRematSiTU47` | 11 | `us-east5-a` | 2026-11-11 10:01:39 | 2026-11-11 15:15:44 | 5h14m05s | preempted; native same-RUN recovery |
+| `BamXLPropV5FastKernelFullRematSiTU47` | 12 | `us-east5-a` | 2026-11-11 15:26:57 | 2026-11-11 16:18:05 | 51m08s | preempted; native same-RUN recovery |
+| `BamXLPropV5FastKernelFullRematSiTU47` | 13 | `us-east5-a` | 2026-11-11 16:32:55 | 2026-11-11 16:39:13 | 06m18s | preempted; native same-RUN recovery |
+| `BamXLPropV5FastKernelFullRematSiTU47` | 14 | `us-east5-a` | 2026-11-11 21:01:57 | 2026-11-11 21:05:51 | 03m54s | preempted; native same-RUN recovery |
+| `BamXLPropV5FastKernelFullRematSiTU47` | 15 | `us-east5-a` | 2026-11-11 21:55:28 | 2026-11-11 22:10:00 | 14m32s | preempted; native same-RUN recovery |
+| `BamXLPropV5FastKernelFullRematSiTU47` | 16 | `us-east5-a` | 2026-11-11 22:41:33 | 2026-11-12 00:09:10 | 1h27m37s | preempted; native same-RUN recovery |
+| `BamXLPropV5FastKernelFullRematSiTU47` | 17 | `us-central1-a` | 2026-11-12 10:58:51 | 2026-11-12 11:17:11 | 18m20s | scheduled completion 50000; CP/cursor/TB verified; all regional resources absent |
 
 ### 2026-10-14 user pause: resumed mixed R256/R384
 
@@ -2618,3 +2643,25 @@ READY candidate observations are preserved separately in that artifact.
 Actual training used UE5a and UC1a, v5p-256 with v5p-128 bridges. Borrowed
 FLEX compiler/diagnostic workers and the three user FLEX v6e-128 queues were
 retained. Complete evidence and switch points: [experiment closeout](bam_llama2_medium/h_prenorm_qkscale_fp32_300b.md).
+
+
+### XL SiTU4/7 completed resource history (2026-11-12)
+
+`BamXLPropV5FastKernelFullRematSiTU47` completed 50,000 on v5p-32 with
+16 preemptions and 17 recorded READY leases. The table above contains every
+lease, inserted by UTC end time; actual training followed UC1a -> UE5a ->
+UC1a -> UE5a -> UC1a. EW4b assignment rows were preparation attempts without
+verified FIRST_STEP, not additional active training-zone switches. Passive
+candidate READY start times were not recorded and no durations are inferred.
+
+The user temporarily excluded UC1a after short leases, retaining UE5a as
+primary and EW4b as backup. UC1a was restored as an XL backup at
+2026-11-12 06:45:22 without resetting the two existing queues. The final UC1a
+worker restored committed UE5a checkpoint 49,653, verified a new 49,750 data
+cursor, and completed 50,000. All nodes/queues in all three regions were
+independently verified absent. The retained user FLEX compiler is preserved.
+Full lease/assignment JSON, passive candidate observations, queue identity
+receipts and final cleanup checks are under
+`/data0/xd/bam_diagnostics/xlprop-v5-situ47-20261109/`.
+The [experiment closeout](bam_llama2_medium/xlprop_v5_situ47.md) distinguishes
+queue waiting, preparation assignments, READY leases and actual progress.

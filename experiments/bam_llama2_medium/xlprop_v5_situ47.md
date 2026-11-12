@@ -31,7 +31,7 @@ Runtime worktree `/home/xd/.codex/worktrees/xl-v5-situ47/maxtext`, branch
 `codex/xlprop-v5-situ47`, based on the father's actual d54c4c5 runtime. Current
 main has a broad BAM V5 refactor; it is intentionally excluded from this
 single-change comparison. Main exp.py retains a ledger-only class linked here.
-TPU assignment: `xd-v5p-32-311003-maxtext`, primary us-central1-a, backups
+Initial TPU assignment: `xd-v5p-32-311003-maxtext`, primary us-central1-a, backups
 us-east5-a/europe-west4-b after300s. Borrowed FLEX compiler:
 `llm-jax-v6e-1-0`, europe-west4-a, worker0; never adopted/deleted.
 
@@ -116,7 +116,7 @@ compare_runs contains only `BamXLPropV5FastKernelFullRemat`; registered gain
 triple is `(new RUN, father, Llama2XLPropTruePileMHA)`. Group
 `xlprop-v5-situ47`, watcherPID2675490, JSON
 `tpu-ag:/home/lishengping/xd/projects/logs/xlprop-v5-situ47-group-watch.json`.
-Current cadence2000; switch to5000 only after delivering20000. Reviews empty;
+Initial cadence 2000; switched to 5000 after delivering 20000. Reviews empty;
 no automatic early loss-based elimination. Parent and SiTU raw/clipped plots
 must include actual parent history before8750 via the original `BamXLPropV5`
 prefix, excluding its later FSS-corrupted tail.
@@ -124,3 +124,88 @@ prefix, excluding its later FSS-corrupted tail.
 The retained FLEX compiler lock was returned after AOT; compiler is preserved.
 Main exp.py is ledger-only, and runtime worktree remains clean at bd181bc.
 No in-training progress reports belong in exp.py.
+
+
+## Final outcome and judgment (2026-11-12)
+
+Completed 50,000 steps at immutable runtime `bd181bc`; the final checkpoint,
+seed 9876, global batch 128 and four-host data cursor are verified. Steady
+throughput was about .520 step/s against the matched-health parent's .518;
+there is no demonstrated speed penalty and no paired acceleration claim.
+All regional TPU nodes and queued resources are independently absent.
+TensorBoard sync succeeded; recorded CE reaches 49,999 and raw/clipped norms
+reach 49,990, the actual last sampled steps. The group is archived and its
+owned watcher stopped. The retained FLEX compiler remains available.
+
+The final native window is centered at 49,500, because the loop ends at
+49,999. It gives gap +.0013646 and MHA-referenced gain .98874815 against
+SwiGLU. The final five windows (47,500--49,500) average +.00126336 and
+.98972175. All 99 native windows from 500 through 49,500 are present.
+The gain prior 1.02 (expected negative final gap) failed.
+
+The important stability outcome is positive. Over the 1,281 matched batches
+in 35,650--36,930, SiTU/SwiGLU loss peaks are 2.132941/3.774627, counts above
+2.5 are 0/46, and maximum trailing-10 means are 2.0365761/3.5388025.
+The longest trailing-10 mean above 2.5 falls from 27 steps to zero. This is
+an observed loss benefit, not merely a smaller raw-gradient trace.
+
+The recovery-cost advantage was temporary: at 37k the gap was -.005556 and
+gain 1.04641; at 40k they were +.0002674/.9978503. A small normal-phase
+CE cost returned afterward. SiTU4/7 therefore mitigates prolonged loss
+spikes with a small terminal quality cost; it did not exceed this parent's
+terminal loss. Do not infer that every isolated raw spike must be removed,
+or tighten caps without assessing their effect on normal training.
+The Medium transfer is a separate ongoing experiment, not final evidence
+that this quality tradeoff transfers across scales.
+
+Three missing console loss samples around 46.5k/47k and two around 45k were
+recovered from actual TensorBoard `learning/loss` events with file/wall-time
+provenance, imported with native `import-loss`, then recomputed by native
+`loss-report`. No loss or gain values were synthesized or recalculated in
+the renderer. Cumulative plots retain both the spike-scale values and
+near-parity insets.
+
+Closeout evidence: `/data0/xd/bam_diagnostics/xlprop-v5-situ47-20261109/`:
+`summary-final.json`, `loss-report-final.json`, `leases-final.json`,
+`registry-final.json`, `checkpoint50000-proof.txt`, `final-resource-checks.json`,
+`tb-sync-final.log`, `tb-final-repair.json`, and `tb-loss-gap-45000.json`.
+Plot/provenance paths are recorded in the summary. Earlier frozen local
+VJP findings remain scoped as documented in `xlprop_v5_situ47_spikes.md`.
+
+## Resources and every READY lease
+
+There were 16 preemptions and 17 recorded READY leases on v5p-32
+`xd-v5p-32-311003-maxtext`. Actual training followed
+UC1a -> UE5a -> UC1a -> UE5a -> UC1a. EW4b preparation assignments never
+produced a verified FIRST_STEP; they are preserved in the registry's
+assignment journal and the regional history, not counted as training-zone
+switches. Their READY start times were not observed; no duration is invented.
+
+UC1a was temporarily excluded after repeated short leases. UE5a primary and
+EW4b backup queues were retained unchanged during the long final wait. The
+user restored UC1a as an XL backup on 2026-11-12 at 06:45 UTC; the final
+UC1a worker restored the committed UE5a checkpoint 49,653. Its newly committed
+49,750 checkpoint confirms seed 9876, global batch 128, four infeed hosts and
+the UC1a TruePile replica. Existing loser queues were released only after
+verified resumed progress. The final registry `run_stop` lease end is
+scheduled completion, not an early user stop.
+
+| # | Zone | READY start UTC | End UTC | Duration | End reason |
+|---:|---|---|---|---|---|
+| 1 | us-central1-a | 2026-11-09 14:50:58 | 2026-11-09 17:48:01 | 2h57m03s | preempted |
+| 2 | us-central1-a | 2026-11-09 18:25:06 | 2026-11-09 18:42:30 | 17m24s | preempted |
+| 3 | us-central1-a | 2026-11-09 19:42:21 | 2026-11-09 21:20:37 | 1h38m16s | preempted |
+| 4 | us-east5-a | 2026-11-09 21:42:14 | 2026-11-09 21:51:25 | 09m11s | preempted |
+| 5 | us-central1-a | 2026-11-10 07:00:26 | 2026-11-10 10:16:28 | 3h16m02s | preempted |
+| 6 | us-central1-a | 2026-11-10 10:22:25 | 2026-11-10 10:33:49 | 11m24s | preempted |
+| 7 | us-central1-a | 2026-11-10 10:53:00 | 2026-11-10 21:43:43 | 10h50m43s | preempted |
+| 8 | us-central1-a | 2026-11-10 22:12:24 | 2026-11-10 22:26:55 | 14m31s | preempted |
+| 9 | us-central1-a | 2026-11-11 00:43:13 | 2026-11-11 00:53:53 | 10m40s | preempted |
+| 10 | us-central1-a | 2026-11-11 01:44:40 | 2026-11-11 01:50:39 | 05m59s | preempted |
+| 11 | us-east5-a | 2026-11-11 10:01:39 | 2026-11-11 15:15:44 | 5h14m05s | preempted |
+| 12 | us-east5-a | 2026-11-11 15:26:57 | 2026-11-11 16:18:05 | 51m08s | preempted |
+| 13 | us-east5-a | 2026-11-11 16:32:55 | 2026-11-11 16:39:13 | 06m18s | preempted |
+| 14 | us-east5-a | 2026-11-11 21:01:57 | 2026-11-11 21:05:51 | 03m54s | preempted |
+| 15 | us-east5-a | 2026-11-11 21:55:28 | 2026-11-11 22:10:00 | 14m32s | preempted |
+| 16 | us-east5-a | 2026-11-11 22:41:33 | 2026-11-12 00:09:10 | 1h27m37s | preempted |
+| 17 | us-central1-a | 2026-11-12 10:58:51 | 2026-11-12 11:17:11 | 18m20s | scheduled completion (registry run_stop) |

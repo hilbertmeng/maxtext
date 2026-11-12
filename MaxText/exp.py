@@ -20521,6 +20521,7 @@ class BamMediumPropV5SiTU47(BamMediumPropV5):
     /home/xd/.codex/worktrees/medium-v5-situ47/maxtext.
     """
     # code_commit: ff2fe4b; unchanged 432,112,228-parameter Medium V5 budget.
+    # UC1a v5p-16 / 311013, full remat; startup ~.688 step/s vs V5 control ~.677 (+1.6%).
     # Reproduction and prior: experiments/bam_llama2_medium/mediumprop_v5_situ47.md.
     model_name = 'BamMediumPropV5SiTU47'
     ordinary_mlp_situ_gate_limit = 4.0

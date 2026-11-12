@@ -3,7 +3,7 @@
 RUN: `BamMediumPropV5SiTU47`; branch `codex/mediumprop-v5-situ47`;
 worktree `/home/xd/.codex/worktrees/medium-v5-situ47/maxtext`.
 Training ownership: `xd-v5p-16-311013-maxtext`, UE5a primary / EW4b and UC1a backups.
-On 2026-11-12 the user authorized UC1a for Medium only; XL remains excluded.
+On 2026-11-12 the user authorized UC1a for Medium, then separately restored it for XL.
 Borrow retained FLEX `llm-jax-v6e-1-0` only for AOT.
 
 ## Change and controls
@@ -52,7 +52,7 @@ No inference-cache change; parameter delta 0 W_Q.
 Fixed public cadence 2,000; reviews 4,000/8,000 give recommendations only,
 and require user confirmation before stopping. Otherwise finish 13,500.
 Draw cumulative native loss-gap/gain and loss/raw/clipped health series.
-Keep XL SiTU recovery and final 50k closeout active independently.
+XL SiTU was monitored independently and has completed its 50k closeout.
 
 Sealed runtime: `ff2fe4b66be25389bd53a9218efa71f406a9b9e5`.
 Main contains the configuration ledger only; executable SiTU code is in the runtime worktree.
@@ -76,3 +76,51 @@ native recovery controller only after actual UC1a first-step confirmation.
 Artifacts: `/data0/xd/bam_diagnostics/mediumprop-v5-situ47-20261112/`.
 Group `mediumprop-v5-situ47` owns 2k reporting and 4k/8k confirmation-only reviews;
 native gain triple is configured against the trained V5 control with MHA reference.
+
+## Final result and closeout (2026-11-12 UTC)
+
+Completed the full 13,500-step budget at unchanged runtime `ff2fe4b`.
+All 67 native 200-step comparison windows through 13,400 are present.
+Against the trained V5 SwiGLU control, the early roughly -.002 to -.003
+loss lead disappeared around 3.2k. The middle run stayed near parity;
+late windows showed a small positive gap, with no durable recovery.
+Final 13.4k gap is +.0005196 and native MHA-referenced gain multiplier
+.997080538; the final five windows average +.0004334 / .997589701.
+The prior .995 [.985,1.005] was consistent with the result. Steady speed
+was about .680 step/s versus the historical parent's .677145 (+.4%);
+this is an unpaired training observation, not a matched speed benchmark.
+Parameters, inference cache and nominal matrix-operation count are unchanged.
+
+Both Medium trajectories have no XL-like sustained loss-spike episode;
+their cumulative raw/clipped gradient and loss plots are close. Thus this
+arm establishes a very small normal-phase quality cost, not a demonstrated
+Medium stability gain. Together with XL's reduced sustained loss excursions
+and slight final quality cost, SiTU 4/7 is supported as a stabilization option,
+not a loss-SOTA improvement. Do not tighten caps merely to remove raw spikes.
+
+Checkpoint 13,500 has both `commit_success.txt` and its actual data cursor:
+seed 9876, global batch 128, two infeed hosts, UC1a TruePile b13000/b13500,
+file index 13, step_in_file 500. TB synchronization completed successfully;
+loss coverage ends at 13,499 and raw/clipped health at 13,490.
+The registry is complete; independent checks found all six nodes/queues
+absent across UC1a/UE5a/EW4b. Group `mediumprop-v5-situ47` is archived and
+its owned watcher stopped after final delivery. The retained FLEX compiler
+was not deleted. Main retains only the configuration ledger, not SiTU support.
+
+Actual training used UC1a throughout. The initial UE5a assignment was queue
+preparation with no verified FIRST_STEP; passive UE5a/EW4b candidates never
+became training-zone switches. Two preemptions resumed committed steps 2957
+and 3175, with subsequent periodic checkpoint/cursor verification.
+
+| READY lease (UTC, 2026-11-12) | Duration | End |
+|---|---:|---|
+| 04:44:00--05:59:14 | 1h15m14s | preempted |
+| 07:24:39--07:35:45 | 11m06s | preempted |
+| 10:57:35--15:19:29 | 4h21m54s | scheduled completion |
+
+Closeout evidence under the artifact directory above: `loss-report-final.json`
+(native calculation authority), `registry-final.json`, `leases-final.json`,
+`checkpoint13500-proof.txt`, `final-resource-checks.json`, `tb-sync-final.log`,
+`plot-gap-final.json`, `plot-grad-final.json`, `plot-health-final.json`, and
+`group-final-archived.txt`. The final group delivery is an extra completion
+event at 13.4k; its fixed 2k reporting calendar was not shifted to 13.5k.

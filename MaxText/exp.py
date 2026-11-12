@@ -20521,7 +20521,12 @@ class BamMediumPropV5SiTU47(BamMediumPropV5):
     /home/xd/.codex/worktrees/medium-v5-situ47/maxtext.
     """
     # code_commit: ff2fe4b; unchanged 432,112,228-parameter Medium V5 budget.
-    # UC1a v5p-16 / 311013, full remat; startup ~.688 step/s vs V5 control ~.677 (+1.6%).
+    # UC1a v5p-16 / 311013, full remat; steady ~.680 step/s vs V5 control ~.677 (+.4%, unpaired).
+    # Completed 13,500/P2: early ~-.002 to -.003 lead disappeared near 3.2k;
+    # later near-parity became a small deficit. Final 13.4k gap +.000520 / MHA-ref gain .997081;
+    # final-five mean +.000433 / .997590, within prior .995 [.985,1.005].
+    # No sustained loss spikes in either Medium arm; no demonstrated stability or loss gain.
+    # Final CP/cursor and TB verified; all regional nodes/queues released.
     # Reproduction and prior: experiments/bam_llama2_medium/mediumprop_v5_situ47.md.
     model_name = 'BamMediumPropV5SiTU47'
     ordinary_mlp_situ_gate_limit = 4.0

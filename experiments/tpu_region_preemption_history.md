@@ -27,6 +27,8 @@ active leases are censored, and manual migration releases are not preemptions.
 
 | RUN | TPU | Zone | Start UTC | End UTC | End reason | Passive candidates |
 |---|---|---|---|---|---|---|
+| `BamMediumPropV5SiTU47` | v5p-16 (`xd-v5p-16-311013-maxtext`) | `us-east5-a` | 2026-11-12 01:42:18 | 2026-11-12 04:43:57 | queue preparation only; no verified FIRST_STEP | retained UE5a/EW4b queues; user added UC1a backup |
+| `BamMediumPropV5SiTU47` | v5p-16 (`xd-v5p-16-311013-maxtext`) | `us-central1-a` | 2026-11-12 04:43:57 | 2026-11-12 15:19:29 | completed 13500/P2; CP/cursor/TB verified; all regional nodes/queues absent; runtime ff2fe4b | actual training UC1a throughout; UE5a/EW4b passive candidates released after resumed FIRST_STEP |
 | `BamXLPropV5FastKernelFullRematSiTU47` | v5p-32 (`xd-v5p-32-311003-maxtext`) | `us-central1-a` | 2026-11-09 14:50:56 | 2026-11-09 19:21:08 | recorded assignment change; see READY leases | UE5a/EW4b/UC1a recovery race; scoped policy changes and receipts in xlprop_v5_situ47.md |
 | `BamXLPropV5FastKernelFullRematSiTU47` | v5p-32 (`xd-v5p-32-311003-maxtext`) | `europe-west4-b` | 2026-11-09 19:21:08 | 2026-11-09 19:42:19 | preparation only; no verified FIRST_STEP; READY start not observed | UE5a/EW4b/UC1a recovery race; scoped policy changes and receipts in xlprop_v5_situ47.md |
 | `BamXLPropV5FastKernelFullRematSiTU47` | v5p-32 (`xd-v5p-32-311003-maxtext`) | `us-central1-a` | 2026-11-09 19:42:19 | 2026-11-09 21:42:12 | recorded assignment change; see READY leases | UE5a/EW4b/UC1a recovery race; scoped policy changes and receipts in xlprop_v5_situ47.md |
@@ -2606,7 +2608,10 @@ active leases are censored, and manual migration releases are not preemptions.
 | `BamXLPropV5FastKernelFullRematSiTU47` | 14 | `us-east5-a` | 2026-11-11 21:01:57 | 2026-11-11 21:05:51 | 03m54s | preempted; native same-RUN recovery |
 | `BamXLPropV5FastKernelFullRematSiTU47` | 15 | `us-east5-a` | 2026-11-11 21:55:28 | 2026-11-11 22:10:00 | 14m32s | preempted; native same-RUN recovery |
 | `BamXLPropV5FastKernelFullRematSiTU47` | 16 | `us-east5-a` | 2026-11-11 22:41:33 | 2026-11-12 00:09:10 | 1h27m37s | preempted; native same-RUN recovery |
+| `BamMediumPropV5SiTU47` | 1 | `us-central1-a` | 2026-11-12 04:44:00 | 2026-11-12 05:59:14 | 1h15m14s | preempted; resumed committed 2957 |
+| `BamMediumPropV5SiTU47` | 2 | `us-central1-a` | 2026-11-12 07:24:39 | 2026-11-12 07:35:45 | 11m06s | preempted; resumed committed 3175 |
 | `BamXLPropV5FastKernelFullRematSiTU47` | 17 | `us-central1-a` | 2026-11-12 10:58:51 | 2026-11-12 11:17:11 | 18m20s | scheduled completion 50000; CP/cursor/TB verified; all regional resources absent |
+| `BamMediumPropV5SiTU47` | 3 | `us-central1-a` | 2026-11-12 10:57:35 | 2026-11-12 15:19:29 | 4h21m54s | scheduled completion 13500; final CP/cursor/TB verified; all regional resources absent |
 
 ### 2026-10-14 user pause: resumed mixed R256/R384
 

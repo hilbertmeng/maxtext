@@ -4,7 +4,17 @@ Invoked by bounded_aot_replay.py. Returned optimizer updates are discarded;
 checkpoint sources and the immutable model executable are never modified.
 """
 from pathlib import Path
+import re
 import runpy
+
+
+def upload_destination(upload):
+  """Allow only this study's results directory, including numbered retries."""
+  root = 'gs://newproject-1-llm_base_models_us-central1/log/diagnostics/'
+  destination = upload.rstrip('/')
+  if not re.fullmatch(re.escape(root) + r'xlprop-v5-lossloc-20261112(?:-r[1-9][0-9]*)?/results', destination):
+    raise ValueError(f'Unexpected loss-localization upload destination: {upload}')
+  return destination
 
 
 def selected_parameter(names, shape, families, family_set, layer, scan_axis=1):
@@ -83,11 +93,11 @@ def run_probe(train, captured, reference, output, sequence, target_layer):
       local_input_shards=[dict(index=str(s.index), sha256=hashlib.sha256(np.asarray(s.data).tobytes()).hexdigest())
                           for s in captured['data']['inputs'].addressable_shards], cases=points)
   upload = os.environ.get('BAM_LOSS_LOCALIZATION_UPLOAD')
+  upload = upload_destination(upload) if upload else None
   def publish():
     dest = output / 'loss-localization.json'
     dest.write_text(json.dumps(result, indent=2) + '\n')
     if upload and jax.process_index() == 0:
-      assert '/diagnostics/xlprop-v5-lossloc-20261112/' in upload
       subprocess.run(['gsutil', '-q', 'cp', str(dest), upload.rstrip('/') + '/loss-localization.json'],
                      check=True, timeout=90)
   for plan in case_plans():

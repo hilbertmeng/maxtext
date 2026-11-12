@@ -31,6 +31,14 @@ def _tile(m, requested):
   return tile
 
 
+def row_major(x):
+  """Pin a row-major device layout: Pallas calls require it, and on multi-host v5p XLA
+  otherwise picks T-minor layouts for residual tensors and inserts a transpose copy at
+  every (read, source) pair (~840 slab copies/step on v5p-32)."""
+  from jax.experimental.layout import Layout, with_layout_constraint
+  return with_layout_constraint(x, Layout(major_to_minor=tuple(range(x.ndim))))
+
+
 def _scores(x_refs, u, eps, d):
   """Per-source score columns (tile, 1) and rsig, t = x.u; sources are re-read from VMEM refs."""
   out = []
@@ -144,8 +152,8 @@ def _read_bwd(eps, tile, interpret, residuals, cotangents):
   xs, u = residuals
   dout, dg = cotangents
   k = len(xs)
-  head, du = _read_bwd_call(xs, u, dout.astype(xs[0].dtype), tuple(g.astype(xs[0].dtype) for g in dg[:k]),
-                            eps, tile, interpret)
+  head, du = _read_bwd_call(xs, u, row_major(dout.astype(xs[0].dtype)),
+                            tuple(row_major(g.astype(xs[0].dtype)) for g in dg[:k]), eps, tile, interpret)
   dg = head + tuple(dg[k:])
   # Source cotangents travel through G; xs arrive through stop_gradient.
   return dg, tuple(jnp.zeros_like(x) for x in xs), du.reshape(u.shape).astype(u.dtype)
@@ -166,7 +174,7 @@ def _register_fwd(g, x, k):
 
 
 def _register_bwd(k, like, dg):
-  return dg, dg[k].astype(like.dtype)   # dg is a tuple of per-source accumulators
+  return dg, row_major(dg[k].astype(like.dtype))   # dg is a tuple of per-source accumulators
 
 
 register.defvjp(_register_fwd, _register_bwd)

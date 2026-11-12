@@ -9662,6 +9662,24 @@ class Llama2XLPropTruePileMHA(Llama2XLPropTrain):
     jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/xlprop-truepile-mha'
 
 
+class Llama2XLPropTruePileMHAAttnRes(SplashTunedBlocks1024, AttnResConfig, Llama2XLPropTruePileMHA):
+    """Full Attention Residuals on the matched XLProp TruePile MHA backbone."""
+    # Configuration only; not launched. Worktree maxtext, branch mqy/refactor-bam-hc.
+    # Keep D1920/L28, 20x96 RoPE heads, T4096, batch8/device and the 50k schedule.
+    # Full growing history: embedding plus each raw attention/FFN branch output.
+    # 56 learned reads (D query + D affine RMS key scale): +215,040 params
+    # = 0.05833 W_Q across the model. Values remain unnormalized; queries start zero.
+    # Repay one SwiGLU FFN unit/layer: -161,280; net +53,760 (+0.00375%) vs MHA.
+    # Total 1,432,452,480 vs MHA 1,432,398,720; integer-width remainder retained.
+    # Growing history requires an unrolled stack; same Splash tiles/minimal remat as XL HC.
+    model_name = 'Llama2XLPropTruePileMHAAttnRes'
+    base_mlp_dim = 5119
+    remat_policy = 'minimal'
+    jax_cache_dir = ''
+    compare_runs = ['Llama2XLPropTruePileMHA',
+                    'Llama2XLPropTruePileMHAmHC', 'Llama2XLPropTruePileMHADHC4Tanh']
+
+
 class Llama2XLPropTruePileMHAmHC(SplashTunedBlocks1024, MHCConfig, Llama2XLPropTruePileMHA):
     """Four-stream mHC on XLProp TruePile MHA, with matched total parameters.
 

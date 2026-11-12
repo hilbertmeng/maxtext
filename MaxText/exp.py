@@ -20514,6 +20514,20 @@ class BamMediumPropV5(BamV5Architecture, SplashTunedBlocks1024, Llama2MediumProp
     tensorboard_gcs_rotate_period = 500
 
 
+class BamMediumPropV5SiTU47(BamMediumPropV5):
+    """Ledger only: ordinary-MLP SiTU 4/7, private writer unchanged.
+
+    Runtime implementation: codex/mediumprop-v5-situ47;
+    /home/xd/.codex/worktrees/medium-v5-situ47/maxtext.
+    """
+    # code_commit: ff2fe4b; unchanged 432,112,228-parameter Medium V5 budget.
+    # Reproduction and prior: experiments/bam_llama2_medium/mediumprop_v5_situ47.md.
+    model_name = 'BamMediumPropV5SiTU47'
+    ordinary_mlp_situ_gate_limit = 4.0
+    ordinary_mlp_situ_up_limit = 7.0
+    compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneMPreNormQKScaleTruePile']
+
+
 class BamLargePropV5(BamV5Architecture, Llama2LargeProp):
     """L22/D1536 V5, M96x32 and independent R256 read/write projections.
 

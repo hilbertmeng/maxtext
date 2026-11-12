@@ -52,7 +52,7 @@ with mesh, nnp.axis_rules(rules):
     w = jax.nn.softmax(sc, -1)
     return sum(w[..., i, None] * x for i, x in enumerate(srcs))
   def pal_read(srcs, u):
-    g = jnp.zeros((len(srcs), B, T, D), jnp.float32)
+    g = tuple(jnp.zeros((B, T, D), jnp.float32) for _ in srcs)
     for k, x in enumerate(srcs):
       g = ap.register(g, x, k)
     return ap.read(g, srcs, u, 1e-6, tile=8, interpret=True)[0]

@@ -76,9 +76,9 @@ def attnres_initial_state(cfg, embedding):
   if not getattr(cfg, 'attnres_pallas', False):
     return (embedding,)
   from layers import attnres_pallas
-  g = nn.with_logical_constraint(
-      jnp.zeros((2 * cfg.num_decoder_layers + 1, *embedding.shape), embedding.dtype),
-      (None, 'activation_batch', 'activation_norm_length', 'activation_embed'))
+  g = tuple(nn.with_logical_constraint(jnp.zeros_like(embedding),
+                                      ('activation_batch', 'activation_norm_length', 'activation_embed'))
+            for _ in range(2 * cfg.num_decoder_layers + 1))
   return (embedding, attnres_pallas.register(g, embedding, 0))
 
 

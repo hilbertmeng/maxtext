@@ -6,8 +6,9 @@ out_l = sum_k softmax_k(score) x_k over the k < l history sources.
 
 Through autodiff every read adds a full-size cotangent into each earlier source,
 one read-modify-write per (read, source) pair plus separate reduction passes. Here
-the source gradients live in one accumulator G[k] that is threaded through the stack
-as a passthrough value:
+the source gradients live in per-source accumulators G = (G_0, ..., G_{K-1}), a tuple
+threaded through the stack as a passthrough value (separate buffers, so in-place
+updates never force XLA to copy a stacked [K, B, T, D] array):
   * register(G, x_k, k): identity on G; its reverse hands G[k] to x_k.
   * read(G, xs, u) -> (out, G): reads see xs through stop_gradient; the reverse kernel
     reads each source once and adds its contribution into G[k] in place (aliased).
@@ -66,7 +67,9 @@ def _read_kernel(k, d, eps, *refs):
 
 def _read_bwd_kernel(k, d, eps, *refs):
   x_refs = refs[:k]
-  u_ref, dout_ref, g_in_ref, g_ref, du_ref = refs[k:k + 5]
+  u_ref, dout_ref = refs[k:k + 2]
+  g_in_refs = refs[k + 2:2 * k + 2]
+  g_refs, du_ref = refs[2 * k + 2:3 * k + 2], refs[3 * k + 2]
 
   @pl.when(pl.program_id(1) == 0)
   def _():
@@ -86,7 +89,7 @@ def _read_bwd_kernel(k, d, eps, *refs):
     x = x_refs[i][...].astype(F32)
     a = w[i] * (gs[i] - total) * rsig                     # dscore_i * rsig_i
     dx = w[i] * dout + a * u - (a * t * rsig * rsig / d) * x
-    g_ref[i] = (g_in_ref[i].astype(F32) + dx).astype(g_ref.dtype)   # aliased; output blocks are not preloaded
+    g_refs[i][...] = (g_in_refs[i][...].astype(F32) + dx).astype(g_refs[i].dtype)   # aliased; outputs are not preloaded
     contrib = jnp.sum(a * x, axis=0, keepdims=True)
     du = contrib if du is None else du + contrib
   du_ref[0] += du
@@ -108,21 +111,22 @@ def _read_call(xs, u, eps, tile, interpret):
                         compiler_params=_params(), interpret=interpret)(*xs, u)
 
 
-def _read_bwd_call(xs, u, dout, g, eps, tile, interpret):
+def _read_bwd_call(xs, u, dout, gs, eps, tile, interpret):
+  """gs: the K per-source accumulators of this read's sources, updated in place."""
   k = len(xs)
   m, d = xs[0].shape
   tile = min(tile, m // 2)
   half = m // tile // 2
   idx = lambda c, t: c * half + t
   row = pl.BlockSpec((tile, d), lambda c, t: (idx(c, t), 0))
-  gspec = pl.BlockSpec((k, tile, d), lambda c, t: (0, idx(c, t), 0))
-  g, du = pl.pallas_call(
+  out = pl.pallas_call(
       functools.partial(_read_bwd_kernel, k, d, eps), grid=(2, half),
-      in_specs=[row] * k + [pl.BlockSpec((1, d), lambda c, t: (0, 0)), row, gspec],
-      out_specs=[gspec, pl.BlockSpec((1, 1, d), lambda c, t: (c, 0, 0))],
-      out_shape=[jax.ShapeDtypeStruct(g.shape, g.dtype), jax.ShapeDtypeStruct((2, 1, d), F32)],
-      input_output_aliases={k + 2: 0}, compiler_params=_params(True), interpret=interpret)(*xs, u, dout, g)
-  return g, du.sum(axis=(0, 1))
+      in_specs=[row] * k + [pl.BlockSpec((1, d), lambda c, t: (0, 0)), row] + [row] * k,
+      out_specs=[row] * k + [pl.BlockSpec((1, 1, d), lambda c, t: (c, 0, 0))],
+      out_shape=[jax.ShapeDtypeStruct(g.shape, g.dtype) for g in gs] + [jax.ShapeDtypeStruct((2, 1, d), F32)],
+      input_output_aliases={k + 2 + i: i for i in range(k)}, compiler_params=_params(True),
+      interpret=interpret)(*xs, u, dout, *gs)
+  return tuple(out[:k]), out[k].sum(axis=(0, 1))
 
 
 @functools.partial(jax.custom_vjp, nondiff_argnums=(3, 4, 5))
@@ -137,7 +141,10 @@ def _read_fwd(g, xs, u, eps, tile, interpret):
 def _read_bwd(eps, tile, interpret, residuals, cotangents):
   xs, u = residuals
   dout, dg = cotangents
-  dg, du = _read_bwd_call(xs, u, dout.astype(xs[0].dtype), dg, eps, tile, interpret)
+  k = len(xs)
+  head, du = _read_bwd_call(xs, u, dout.astype(xs[0].dtype), tuple(g.astype(xs[0].dtype) for g in dg[:k]),
+                            eps, tile, interpret)
+  dg = head + tuple(dg[k:])
   # Source cotangents travel through G; xs arrive through stop_gradient.
   return dg, tuple(jnp.zeros_like(x) for x in xs), du.reshape(u.shape).astype(u.dtype)
 
@@ -157,7 +164,7 @@ def _register_fwd(g, x, k):
 
 
 def _register_bwd(k, like, dg):
-  return dg, dg[k].astype(like.dtype)
+  return dg, dg[k].astype(like.dtype)   # dg is a tuple of per-source accumulators
 
 
 register.defvjp(_register_fwd, _register_bwd)
@@ -183,7 +190,7 @@ def _shard(fn, args, batch_dims, out_dims):
 
 
 def read(g, sources, u, eps, *, tile=None, interpret=False):
-  """g [K_total,B,T,D]; sources: tuple of [B,T,D]; u: (D,) = key_scale * query."""
+  """g: tuple of K_total per-source accumulators [B,T,D]; sources: tuple of [B,T,D]; u = key_scale*query."""
   b, t, d = sources[0].shape
   xs = tuple(jax.lax.stop_gradient(s) for s in sources)
   if tile is None:   # reverse holds K sources plus K accumulator rows (in and out), double-buffered
@@ -192,8 +199,9 @@ def read(g, sources, u, eps, *, tile=None, interpret=False):
   def local(g, xs, u):
     nb = xs[0].shape[0]
     m = nb * t
-    out, g2 = _read(g.reshape(g.shape[0], m, d), tuple(x.reshape(m, d) for x in xs),
+    out, g2 = _read(tuple(a.reshape(m, d) for a in g), tuple(x.reshape(m, d) for x in xs),
                     u.astype(F32).reshape(1, d), float(eps), _tile(m, tile), interpret)
-    return out.reshape(nb, t, d), g2.reshape(g.shape)
+    return (out.reshape(nb, t, d),) + tuple(a.reshape(nb, t, d) for a in g2)
 
-  return _shard(local, (g, xs, u), (1, 0, None), ((0, 3), (1, 4)))
+  out = _shard(local, (g, xs, u), (0, 0, None), ((0, 3),) * (1 + len(g)))
+  return out[0], tuple(out[1:])

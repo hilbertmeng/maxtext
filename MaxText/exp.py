@@ -20514,6 +20514,14 @@ class BamMediumPropV5(BamV5Architecture, SplashTunedBlocks1024, Llama2MediumProp
     tensorboard_gcs_rotate_period = 500
 
 
+class BamMediumPropV5SiTU47(BamMediumPropV5):
+    """Medium V5 with SiTU gate/up bounds 4/7 in ordinary MLPs only."""
+    model_name = 'BamMediumPropV5SiTU47'
+    ordinary_mlp_situ_gate_limit = 4.0
+    ordinary_mlp_situ_up_limit = 7.0
+    compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneMPreNormQKScaleTruePile']
+
+
 class BamLargePropV5(BamV5Architecture, Llama2LargeProp):
     """L22/D1536 V5, M96x32 and independent R256 read/write projections.
 

@@ -133,7 +133,7 @@ unit-initialized QK/V/O scaling, M pre-norm and ordinary-only SiTU 4/7.
 Retain the same implementation worktree/branch as the completed 18-layer arm.
 Configuration implementation commit: `64d75057`; sealed effective attributes
 match the main ledger for all three classes. This is not a trained runtime.
-No AOT or TPU was requested for these configuration-only additions.
+The configurations were initially delivered without AOT or TPU allocation.
 
 | Configuration | Layers | Ordinary MLP | Private MLP | Terminal ordinary MLP | Parameters |
 |---|---:|---:|---:|---:|---:|
@@ -166,3 +166,37 @@ MHA gradient check. Artifacts: `depth-config-verification.json` and
 regressions cover the small standard-MHA partial-RoPE support change:
 all 11 passed (`depth-main-v5-regression.log`), alongside the independent
 attention-gradient check. `depth-sealed-config.log` records SEALED_CONFIG_OK.
+
+## Depth-family training authorization and resource policy
+
+The user subsequently authorized all three new RUNs for full training, with
+UE5a primary and UC1a/EW4b backups, resource-only monitoring and no loss plots
+or intermediate stopping reviews. Topology v5p-16, per-device batch 16,
+global batch 128, T4096 and 13,500 steps/LR endpoint remain fixed. Total
+7,077,888,000 tokens matches the completed Medium reference's actual density;
+non-token-embedding/unembedding counts are 311,070,000 (MHA12), 311,069,752
+(BAM12), and 311,105,542 (BAM27). These are the same parameter-budget family,
+so no new model-scale training-budget assumption is introduced.
+
+Resource ownership: `BamMHAMediumPropL12TruePile` -> `xd-v5p-16-311014-maxtext`;
+`BamMediumPropV5SiTU47L12` -> `xd-v5p-16-311015-maxtext`;
+`BamMediumPropV5SiTU47L27` -> `xd-v5p-16-311016-maxtext`.
+Runtime `64d75057` remains in the same worktree/branch above. Main `a0891fae`
+was audited before sealing: training, optimizer, checkpoint, summary-writer
+and AOT source files are identical to the runtime. Intentional SiTU support
+and configuration differences do not omit operational fixes. TB rotation 500
+and its five regression checks remain in the launch gate. Generic training
+health stays ON, internal activation/BAM statistics OFF. Borrow verified
+FLEX_START `llm-jax-v6e-1-0`/EW4a only for serialized AOT preparation;
+training controllers own only the three new spot training identities.
+
+Pre-run priors: MHA12 final gap versus MHA18 +.004 [-.002,+.012]; BAM12
+MHA18-referenced gain versus SiTU18 .98 [.94,1.01]; BAM27 corresponding
+gain 1.02 [1.00,1.05]. Speed priors on v5p-16: MHA12 about .90 step/s,
+BAM12 .78 and BAM27 .55 (roughly +/- .05/.05/.04). The MHA timing baseline
+is historical C256, so its kernel difference precludes a pure depth-speed
+attribution. No intermediate metric reports are requested; retain the priors
+for final scientific bookkeeping.
+
+Preparation/resource artifacts:
+`/data0/xd/bam_diagnostics/mediumprop-v5-situ-depth-20261112/`.

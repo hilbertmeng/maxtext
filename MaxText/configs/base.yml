@@ -77,6 +77,8 @@ attnres_norm_epsilon: 1.0e-6
 mhc_post_static: False # Trainable post bias outside centered 2*sigmoid; unit initial static path.
 mhc_pre_static: False # Trainable pre bias outside centered sigmoid; no pre epsilon.
 mhc_identity_mixing: False # iHC ablation: fixed identity residual transport.
+attnres_pallas: False # Full AttnRes reads as Pallas TPU kernels with one in-place gradient accumulator (layers/attnres_pallas.py).
+attnres_pallas_interpret: False # CPU tests only; never infer from the backend (AOT compiles under JAX_PLATFORMS=cpu).
 mhc_num_streams: 4
 mhc_stream_major_layout: False # Store mHC/DHC state as [n,B,T,D] and fold router norms into the router dot (TPU speed).
 mhc_pallas_update: False # Fused Pallas TPU residual update with one-pass VJP; requires mhc_stream_major_layout.

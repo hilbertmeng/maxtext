@@ -9864,6 +9864,12 @@ class Llama2XLPropTruePileMHAAttnResSpeedProfile(_XLPropHCSplashArm, _XLPropHCSp
     remat_policy = 'minimal'
 
 
+class Llama2XLPropTruePileMHAAttnResPallasSpeedProfile(Llama2XLPropTruePileMHAAttnResSpeedProfile):
+    """Pallas reads with one in-place source-gradient accumulator (layers/attnres_pallas.py)."""
+    model_name = 'Llama2XLPropTruePileMHAAttnResPallasSpeedProfile'
+    attnres_pallas = True
+
+
 class BamLlama2XLPropK72SharedRank4MLPPerLayerTrain(BamLlama2XLPropK72SharedRank4MLPPerLayer):
     """Formal batch8 RUN; independent data/checkpoint prefix, starts from zero."""
     # code_commit: 859bd7e

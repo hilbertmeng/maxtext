@@ -63,17 +63,46 @@ class _LayerNormParams(nn.Module):
             self.param('bias', nn.initializers.zeros, (self.features,), self.param_dtype))
 
 
+def attnres_append(cfg, state, source):
+  """Append a history source; with attnres_pallas also register it with the gradient accumulator."""
+  if not getattr(cfg, 'attnres_pallas', False):
+    return (*state, source)
+  from layers import attnres_pallas
+  *sources, g = state
+  return (*sources, source, attnres_pallas.register(g, source, len(sources)))
+
+
+def attnres_initial_state(cfg, embedding):
+  if not getattr(cfg, 'attnres_pallas', False):
+    return (embedding,)
+  from layers import attnres_pallas
+  g = nn.with_logical_constraint(
+      jnp.zeros((2 * cfg.num_decoder_layers + 1, *embedding.shape), embedding.dtype),
+      (None, 'activation_batch', 'activation_norm_length', 'activation_embed'))
+  return (embedding, attnres_pallas.register(g, embedding, 0))
+
+
 class FullAttentionResidual(nn.Module):
   config: Any
 
   @nn.compact
   def __call__(self, sources):
-    if len(sources) == 1:
-      return sources[0]  # Softmax over one source is identically one.
     cfg = self.config
+    pallas = getattr(cfg, 'attnres_pallas', False)
+    if pallas:   # state = (*sources, G): G accumulates the source gradients (attnres_pallas.py)
+      state, sources = sources, sources[:-1]
+    if len(sources) == 1:
+      # Softmax over one source is identically one.
+      return (sources[0], state) if pallas else sources[0]
     width = sources[0].shape[-1]
     query = self.param('query', nn.initializers.zeros, (width,), cfg.weight_dtype)
     scale = self.param('key_scale', nn.initializers.ones, (width,), cfg.weight_dtype)
+    if pallas:
+      from layers import attnres_pallas
+      u = scale.astype(jnp.float32) * query.astype(jnp.float32)
+      out, g = attnres_pallas.read(state[-1], sources, u, cfg.attnres_norm_epsilon,
+                                   interpret=bool(getattr(cfg, 'attnres_pallas_interpret', False)))
+      return out, (*sources, g)
     # Keep the large history as separate buffers. Stacking [B,T,S,D] at every
     # read made XLA retain many growing, multi-GiB history copies under remat.
     # Only the scalar depth scores need a new source axis.
@@ -373,7 +402,7 @@ class ResidualDecoderStack(nn.Module):
       Layer = nn.remat(Layer, prevent_cse=cfg.remat_prevent_cse,
                        policy=get_remat_policy(cfg), static_argnums=(6, 7))
     if cfg.residual_connection == 'attnres':
-      state = (embedding,)
+      state = attnres_initial_state(cfg, embedding)
     elif getattr(cfg, 'mhc_stream_major_layout', False):
       state = stream_major_constraint(jnp.broadcast_to(embedding[None], (cfg.mhc_num_streams, *embedding.shape)))
     else:
@@ -388,7 +417,8 @@ class ResidualDecoderStack(nn.Module):
       if cfg.residual_connection != 'attnres' and getattr(cfg, 'mhc_stream_major_layout', False):
         state = stream_major_constraint(state)
     if cfg.residual_connection == 'attnres':
-      return FullAttentionResidual(cfg, name='output_connection')(state)
+      out = FullAttentionResidual(cfg, name='output_connection')(state)
+      return out[0] if getattr(cfg, 'attnres_pallas', False) else out
     stream_axis = 0 if getattr(cfg, 'mhc_stream_major_layout', False) else -2
     if cfg.residual_connection == 'dhc':
       return jnp.sum(state.astype(jnp.float32), axis=stream_axis).astype(embedding.dtype)

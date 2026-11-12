@@ -513,6 +513,37 @@ class ResidualModelTest(MLPWriteTest, unittest.TestCase):
           for (path, a), b in zip(flatten_dict(g0).items(), jax.tree.leaves(g1)):
             np.testing.assert_allclose(b, a, atol=2e-5, rtol=2e-4, err_msg=f'{name} {remat} {arm} {path}')
 
+  def test_attnres_pallas_matches_default(self):
+    # Pallas reads with the in-place source-gradient accumulator (interpreted on CPU)
+    # must reproduce the default autodiff path exactly in logits and every gradient.
+    for remat in ('none', 'minimal'):
+      results = []
+      for pallas in (False, True):
+        cfg = self.tiny('Llama2XLPropTruePileMHAAttnRes')
+        cfg.get_keys().update(attnres_pallas=pallas, attnres_pallas_interpret=pallas, remat_policy=remat)
+        mesh = jax.sharding.Mesh(max_utils.create_device_mesh(cfg), cfg.mesh_axes)
+        model = Transformer(cfg, mesh, quant=None)
+        tokens = jnp.array([[1, 2, 3, 4, 5, 6, 7, 8]], jnp.int32)
+        positions = jnp.arange(8)[None, :]
+        mask = jnp.ones_like(tokens)
+        with mesh, nn.partitioning.axis_rules(cfg.logical_axis_rules):
+          params = nn.unbox(model.init({'params': jax.random.key(3), 'dropout': jax.random.key(3)},
+              tokens, positions, tokens, mask, decoder_segment_ids=mask, enable_dropout=False)['params'])
+          if not results:   # zero queries would hide the score path
+            keys = iter(jax.random.split(jax.random.key(4), len(jax.tree.leaves(params))))
+            params = jax.tree.map(lambda v: v + .3 * jax.random.normal(next(keys), v.shape, v.dtype), params)
+            shared = params
+          else:
+            self.assertEqual(jax.tree.structure(params), jax.tree.structure(shared))
+          def forward(p):
+            return model.apply({'params': p}, tokens, positions, tokens, mask,
+                               decoder_segment_ids=mask, enable_dropout=False)[0]
+          results.append((forward(shared), jax.jit(jax.grad(lambda p: jnp.mean(jnp.sin(forward(p)))))(shared)))
+      (l0, g0), (l1, g1) = results
+      np.testing.assert_allclose(l1, l0, atol=2e-5, rtol=2e-5, err_msg=remat)
+      for (path, a), b in zip(flatten_dict(g0).items(), jax.tree.leaves(g1)):
+        np.testing.assert_allclose(b, a, atol=2e-5, rtol=2e-4, err_msg=f'{remat} {path}')
+
   def test_prefill_and_autoregressive_cache(self):
     for name in ('Llama2MediumAttnRes', 'Llama2MediummHC'):
       cfg = self.tiny(name)

@@ -132,7 +132,7 @@ class SubDecoderLayer(nn.Module):
     mesh = self.mesh
     connection = cfg.residual_connection
     if connection != 'none':
-      from layers.residual_connections import FullAttentionResidual, ManifoldHyperConnection, DynamicHyperConnection, mhc_update, mhc_update_major
+      from layers.residual_connections import FullAttentionResidual, ManifoldHyperConnection, DynamicHyperConnection, mhc_update, mhc_update_major, attnres_append
       if getattr(cfg, 'mhc_stream_major_layout', False):
         mhc_update = mhc_update_major
         if getattr(cfg, 'mhc_pallas_update', False):
@@ -143,6 +143,8 @@ class SubDecoderLayer(nn.Module):
       residual_state = inputs
       if connection == 'attnres':
         inputs = FullAttentionResidual(cfg, name='attn_connection')(residual_state)
+        if getattr(cfg, 'attnres_pallas', False):
+          inputs, residual_state = inputs
       else:
         inputs, attn_post, attn_mix, *passthrough = HyperConnection(
             cfg, layer_index=2 * self.layer_inx, name='attn_connection')(residual_state)
@@ -337,8 +339,10 @@ class SubDecoderLayer(nn.Module):
       attention_lnx = nn.Dropout(rate=cfg.dropout_rate, name='attn_connection_dropout')(
           attention_lnx, deterministic=deterministic)
       if connection == 'attnres':
-        residual_state = (*residual_state, attention_lnx)
+        residual_state = attnres_append(cfg, residual_state, attention_lnx)
         intermediate_inputs = FullAttentionResidual(cfg, name='mlp_connection')(residual_state)
+        if getattr(cfg, 'attnres_pallas', False):
+          intermediate_inputs, residual_state = intermediate_inputs
       else:
         residual_state = mhc_update(residual_state, attention_lnx, attn_post, attn_mix)
         intermediate_inputs, mlp_post, mlp_mix, *passthrough = HyperConnection(
@@ -572,7 +576,7 @@ class SubDecoderLayer(nn.Module):
       mlp_lnx = nn.Dropout(rate=cfg.dropout_rate, name='mlp_connection_dropout')(
           mlp_lnx, deterministic=deterministic)
       if connection == 'attnres':
-        return (*residual_state, mlp_lnx), M_out
+        return attnres_append(cfg, residual_state, mlp_lnx), M_out
       return mhc_update(residual_state, mlp_lnx, mlp_post, mlp_mix), M_out
 
     if mlp_lnx is not None and moe_lnx is not None:

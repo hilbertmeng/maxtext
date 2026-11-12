@@ -42,4 +42,24 @@ with mesh, nnp.axis_rules(rules):
     worst = max(rel(x, y) for x, y in zip(jax.tree.leaves(g1[0]), jax.tree.leaves(g0[0])))
     print(mode, float(v0), float(v1), 'dstate', rel(g1[1], g0[1]), 'dparams max', worst)
     assert abs(float(v0) - float(v1)) < 1e-5 * abs(float(v0)) and rel(g1[1], g0[1]) < 1e-5 and worst < 1e-4, mode
+  # Full AttnRes read + register on four devices vs the plain softmax read.
+  from layers import attnres_pallas as ap
+  srcs = tuple(jnp.asarray(r.normal(size=(B, T, D)), jnp.float32) for _ in range(5))
+  u = jnp.asarray(r.normal(size=(D,)) * .2, jnp.float32)
+  wout = jnp.asarray(r.normal(size=(B, T, D)), jnp.float32)
+  def ref_read(srcs, u):
+    sc = jnp.stack([jax.lax.rsqrt(jnp.mean(x * x, -1) + 1e-6) * jnp.einsum('btd,d->bt', x, u) for x in srcs], -1)
+    w = jax.nn.softmax(sc, -1)
+    return sum(w[..., i, None] * x for i, x in enumerate(srcs))
+  def pal_read(srcs, u):
+    g = jnp.zeros((len(srcs), B, T, D), jnp.float32)
+    for k, x in enumerate(srcs):
+      g = ap.register(g, x, k)
+    return ap.read(g, srcs, u, 1e-6, tile=8, interpret=True)[0]
+  ga = jax.jit(jax.value_and_grad(lambda s, u: jnp.sum(jnp.sin(ref_read(s, u)) * wout), argnums=(0, 1)))(srcs, u)
+  gb = jax.jit(jax.value_and_grad(lambda s, u: jnp.sum(jnp.sin(pal_read(s, u)) * wout), argnums=(0, 1)))(srcs, u)
+  rel = lambda x, y: float(jnp.linalg.norm(x - y) / jnp.linalg.norm(y))
+  worst = max([rel(x, y) for x, y in zip(gb[1][0], ga[1][0])] + [rel(gb[1][1], ga[1][1])])
+  print('attnres', float(ga[0]), float(gb[0]), 'worst grad rel', worst)
+  assert abs(float(ga[0]) - float(gb[0])) < 1e-4 * abs(float(ga[0])) + 1e-4 and worst < 1e-4, worst
 print('HC_PALLAS_SHARD_OK')

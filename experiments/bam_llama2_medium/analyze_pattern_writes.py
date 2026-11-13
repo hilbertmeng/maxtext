@@ -15,7 +15,8 @@ def relative_error(actual,reference):
 
 def component_projection(component,total):
   """Signed projection, not a causal share; values need not lie in [0,1]."""
-  return float(np.sum(np.asarray(component,dtype=np.float64)*total)/max(energy(total),1e-30))
+  denom=energy(total)
+  return float(np.sum(np.asarray(component,dtype=np.float64)*total)/denom) if denom>1e-30 else None
 
 
 def route_difference(old,new):
@@ -42,13 +43,13 @@ def weak_write(matrix,delta,retained_energy=.99):
   u,s,vh=np.linalg.svd(matrix,full_matrices=False)
   cumulative=np.cumsum(s*s);total=float(cumulative[-1])
   rank=int(np.searchsorted(cumulative,retained_energy*total)+1) if total>0 else 0
-  denom=max(energy(delta),1e-30)
+  denom=energy(delta)
   content=delta@vh[:rank].T;address=u[:,:rank].T@delta
   return dict(rank99=rank,old_energy=total,write_energy=energy(delta),
               matrix_stable_rank=total/max(float(s[0]**2),1e-30),
               matrix_top4_energy_fraction=float(np.sum(s[:4]**2)/max(total,1e-30)),
-              weak_content_fraction=float(np.clip(1-energy(content)/denom,0,1)),
-              weak_address_fraction=float(np.clip(1-energy(address)/denom,0,1)))
+              weak_content_fraction=float(np.clip(1-energy(content)/denom,0,1)) if denom>1e-30 else None,
+              weak_address_fraction=float(np.clip(1-energy(address)/denom,0,1)) if denom>1e-30 else None)
 
 
 def describe(values,mask=None):

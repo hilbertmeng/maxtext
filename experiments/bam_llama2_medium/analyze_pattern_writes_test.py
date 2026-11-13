@@ -24,5 +24,9 @@ class AnalysisTest(unittest.TestCase):
     self.assertEqual(component_projection(a,total),2.)
     self.assertEqual(component_projection(b,total),-1.)
 
+  def test_zero_write_has_no_energy_fraction(self):
+    self.assertIsNone(weak_write(np.eye(2),np.zeros((2,2)))['weak_content_fraction'])
+    self.assertIsNone(component_projection(np.ones(2),np.zeros(2)))
+
 
 if __name__=='__main__':unittest.main()

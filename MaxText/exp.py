@@ -13788,6 +13788,30 @@ class BamMHAMediumPropL27C256TruePile(Llama2MediumPropL27, BamMHAMediumPropC256T
     jax_cache_dir = ''
 
 
+class MuddLlama2MediumPropL12TruePile(Mudd, BamMHAMediumPropL12TruePile):
+    """12-layer Prop Mudd; match the depth study's MHA MLP budget.
+
+    Preserve the trained Mudd18 full-history/router expansion rule. Router
+    parameters are additional, as in that baseline; only MLP rounding is corrected.
+    """
+    model_name = 'MuddLlama2MediumPropL12TruePile'
+    mudd_full_history = True
+    scan_layers = False
+    # Rounded depth schedule adds384 hidden units; remove them at the last layer.
+    bam_last_mlp_dim = 8064
+    compare_runs = ['BamMediumPropV5SiTU47L12', 'MuddLlama2MediumPropTruePile',
+                    'BamMHAMediumPropL12TruePile']
+
+
+class MuddLlama2MediumPropL27TruePile(Llama2MediumPropL27, MuddLlama2MediumPropL12TruePile):
+    """27-layer counterpart; leave the Mudd router overhead outside the MLP budget."""
+    model_name = 'MuddLlama2MediumPropL27TruePile'
+    # Rounded depth schedule loses64 hidden units; restore them at the last layer.
+    bam_last_mlp_dim = 2496
+    compare_runs = ['BamMediumPropV5SiTU47L27', 'MuddLlama2MediumPropTruePile',
+                    'BamMHAMediumPropL27C256TruePile']
+
+
 class BamMediumPropL27K75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile(
     Llama2MediumPropL27, BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile):
     """27-layer QK57 BAM with private sparse MLP writes and matched MHA budget."""

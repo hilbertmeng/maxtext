@@ -213,3 +213,54 @@ resources were requested and no deadline was extended.
 Separately, ChatServer wakeups stopped because the accumulated reason exceeded the server's
 length limit. The reason was replaced by a205-character pointer to the canonical monitor;
 status API independently confirmed enabled/on, ten-minute interval, next04:37:14UTC.
+
+
+## Ongoing mechanism investigation (owner room764, 2026-11-13)
+
+The owner explicitly asks for continued analysis until a reasonable explanation
+and a concrete fault location are reached. r7 is active under its existing bounded
+acquisition/execution budgets; it is not the scientific stopping point.
+
+Current best explanation is a value/readout-driven operating-point shift into
+latent expansive ordinary-SwiGLU directions. This joins, but does not conflate,
+two observations: early-attention rollback rescues loss; fixed-boundary local
+VJPs identify the ordinary MLP amplifier. New attention/value parameters can
+activate large gradients even on old MLP weights; small parameter-norm changes
+and a healthy whole-M RMS do not identify the sensitive direction. First-position
+V ablation is much weaker than whole early V/W_O rollback. None of this yet
+identifies the earliest offending write or establishes a universal sink circuit.
+
+Competing explanations to discriminate with matched r7 captures:
+
+1. **Routing shift:** changed per-head weights, not merely changed mean sink mass,
+   dominate the reconstructed context delta. Must compare native Splash context
+   error before interpreting FP32 probabilities.
+2. **Content/projection shift:** at fixed old P or fixed W_O, value-context and
+   write-direction changes dominate; ordinary residual magnitude may stay small.
+   Old-basis low-energy M components could change while total energy stays healthy.
+3. **Numerical loss of weak writes:** BF16 addition removes a material directional
+   component. This requires measured rounding/reference errors, not an inference
+   from weak amplitude alone.
+
+The host analyzer `analyze_pattern_writes.py` keeps per-head TV/JS/entropy/prefix
+mass, exact algebraic P/V and input/W_O decompositions, native reconstruction
+errors, residual write ratios/cosines/energy growth, and sampled M singular-space
+write energies. M weak spaces are complements of the old matrix's 99%-energy
+subspace (including its null space); both current and fixed-old bases are reported.
+Signed component projections may exceed1 or be negative and are not causal shares.
+Three synthetic mathematical tests check empty causal rows, disjoint distributions,
+null/strong singular subspaces, and canceling decomposition components.
+
+If captures nominate a specific path, next diagnostic should patch that component
+in the peak model against healthy and equal-size/random-direction controls, then
+measure both full-batch loss and downstream ordinary-MLP inputs/gains at L6/L13/L14.
+This must include the healthy-to-onset boundary when claiming a trigger: comparing
+CP35635 and35675 on batch35676 alone is not chronological-onset evidence.
+
+Completion means a specific layer/path or direction supported by matched forward
+measurements and a targeted causal rescue/control, connecting early writes to the
+known downstream amplifier. A raw-gradient reduction, a large mean-route change,
+a weak-energy correlation, or successful script execution is insufficient. Report
+any remaining scope limits; do not force a unique explanation unsupported by data.
+No architecture training, old Medium restart, borrowed training TPU, or protected
+compiler use is authorized by this diagnostic follow-up.

@@ -13794,6 +13794,8 @@ class MuddLlama2MediumPropL12TruePile(Mudd, BamMHAMediumPropL12TruePile):
     Preserve the trained Mudd18 full-history/router expansion rule. Router
     parameters are additional, as in that baseline; only MLP rounding is corrected.
     """
+    # code_commit: c7a6730; main/refactor-bam; UE5a v5p-16 /311017, startup .902 step/s.
+    # 433234897 params; MLP budget matched, router overhead +.783401 W_Q, not repaid.
     model_name = 'MuddLlama2MediumPropL12TruePile'
     mudd_full_history = True
     scan_layers = False
@@ -13805,6 +13807,8 @@ class MuddLlama2MediumPropL12TruePile(Mudd, BamMHAMediumPropL12TruePile):
 
 class MuddLlama2MediumPropL27TruePile(Llama2MediumPropL27, MuddLlama2MediumPropL12TruePile):
     """27-layer counterpart; leave the Mudd router overhead outside the MLP budget."""
+    # code_commit: c7a6730; main/refactor-bam; UE5a v5p-16 /311018, startup .512 step/s.
+    # 435783568 params; MLP budget matched, router overhead +2.528311 W_Q, not repaid.
     model_name = 'MuddLlama2MediumPropL27TruePile'
     # Rounded depth schedule loses64 hidden units; restore them at the last layer.
     bam_last_mlp_dim = 2496

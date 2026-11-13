@@ -20694,8 +20694,11 @@ class BamMediumPropV5SiTU47M48R384(BamMediumPropV5SiTU47):
     Implementation: codex/mediumprop-v5-situ47;
     /home/xd/.codex/worktrees/medium-v5-situ47/maxtext.
     """
-    # code_commit:2458bb3; UE5a v5p-16/311020, recent .659step/s (-3.1% vs SiTU18).
-    # 432111620 params, parent-608; complete-branch ratio2.000921:1.
+    # code_commit:2458bb3; UE5a v5p-16/311020, ~.656 step/s (-3.5% vs parent .680, unpaired).
+    # 432111620 params, parent-608; complete-branch ratio2.000921:1; M cache1.5x parent.
+    # Completed13500/P0. vs parent early lead shrank, then held ~-.005 through mid/late training.
+    # Final5 gap-.00473824 / MHA-referenced gain1.026518, near the1.02 prior; no late loss of benefit.
+    # Final CP13500/data cursor, TB SYNC_OK and all regional node/queue teardown verified.
     model_name = 'BamMediumPropV5SiTU47M48R384'
     bam_v = 48
     bam_local_full_m_read_bottleneck_dim = 384

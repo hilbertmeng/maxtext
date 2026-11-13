@@ -142,3 +142,22 @@ cursor and zone-local TruePile files, TB SYNC_OK, native already-closed status,
 and all six regional node/queue identities were independently verified. Evidence
 is `m16-final-proof.json`, `m16-local-closeout.txt`, `m16-prequeue.log`, and `k12000/`.
 V48 and V64 continue to their full budgets.
+
+## Completed V48/R384 point
+
+`BamMediumPropV5SiTU47M48R384` completed13500/P0. Its large initial lead reduced
+during the transient, then held near-.005 through the middle and late stages;
+final-five gap-.00473824 and MHA-referenced gain1.026518. The1.02 prior was close.
+State size is1.5x the V32 parent, with approximately3.5% slower unpaired training
+(.656 versus .680 step/s). Thus the gain survives to the endpoint at matched
+parameter/token budget, despite the smaller MLPs required by larger M/R.
+
+One uninterrupted UE5a v5p-16 lease: observed READY13:36:49Z to scheduled
+completion19:43:31Z on2026-11-13,6h06m42s including preparation and the recovered
+AOT compile on its idle CPU worker. Native13:51:57Z training observation is a
+subset of this lease. Final CP13500/cursor, TB SYNC_OK, native already-closed
+receipt and all six regional node/queue identities were verified; see
+`m48-final-proof.json`, `m48-local-closeout.txt`, `m48-prequeue.log`, and `m48final/`.
+Only the late-started V64 arm remains active. Its shared report calendar now
+uses its own fixed8k/10k/12k points; previously published per-RUN horizons remain
+intact. It still trains to13500 without elimination.

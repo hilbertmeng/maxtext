@@ -62,9 +62,9 @@ untouched. Training queue/installation runs concurrently with AOT preparation.
 
 ## Comparisons and prior
 
-Both arms compare only with direct parent `BamMediumPropV5SiTU47` for routine
+The initial two arms compare only with direct parent `BamMediumPropV5SiTU47` for routine
 loss-gap plots. Register gain(arm versus parent; `BamMHAMediumPropC256TruePile`)
-in the native registry. Report both arms together every2000 steps, with full
+in the native registry. Report all active arms together every2000 steps, with full
 cumulative curves from600; continue the depth-study group independently.
 
 Prior: terminal gain multiplier .98 for V16/R128 (range .94--1.01),1.02 for
@@ -123,3 +123,22 @@ maximum relative error2.75e-6. The formal48MiB-VMEM AOT succeeds without a kerne
 change. Added to the existing group without resetting its2000-step calendar;
 plots retain the common V32/R256 reference, with native V64/V48 fixed-rank
 comparisons available separately.
+
+## Completed V16/R128 point
+
+`BamMediumPropV5SiTU47M16R128` completed13500/P0. Against the V32/R256 parent,
+the absolute deficit gradually narrowed from about+.034 at600 and+.030 at2000
+to final-five+.02649868, while MHA-referenced gain retention declined to .851638.
+Thus the .98 central prior substantially underestimated the joint capacity/rank
+cost. Refunds to both MLPs did not reverse it by the endpoint. The measured
+tradeoff is half the M state, approximately6% faster training, and retention of
+about85% of the parent's net loss gain over matched MHA, at the same total budget.
+This is a completed scaling data point, not an eliminated contestant.
+
+One uninterrupted UE5a v5p-16 lease: observed READY13:37:09Z through scheduled
+completion19:05:06Z on2026-11-13,5h27m57s including preparation. The native
+13:43:10Z observer covers a subset of the same lease. CP13500, seed9876/global128
+cursor and zone-local TruePile files, TB SYNC_OK, native already-closed status,
+and all six regional node/queue identities were independently verified. Evidence
+is `m16-final-proof.json`, `m16-local-closeout.txt`, `m16-prequeue.log`, and `k12000/`.
+V48 and V64 continue to their full budgets.

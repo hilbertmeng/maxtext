@@ -20670,8 +20670,12 @@ class BamMediumPropV5SiTU47M16R128(BamMediumPropV5SiTU47):
     Implementation: codex/mediumprop-v5-situ47;
     /home/xd/.codex/worktrees/medium-v5-situ47/maxtext.
     """
-    # code_commit:2458bb3; UE5a v5p-16/311019, recent .724step/s (+6.5% vs SiTU18).
-    # 432112388 params, parent+160; complete-branch ratio2.001236:1.
+    # code_commit:2458bb3; UE5a v5p-16/311019, ~.720 step/s (+5.9% vs parent .680, unpaired).
+    # 432112388 params, parent+160; complete-branch ratio2.001236:1; M cache half the parent.
+    # Completed13500/P0. vs parent loss deficit slowly narrowed ~+.034@600 -> ~+.030@2000 -> last5+.026499.
+    # Gain retention vs matched MHA fell from~.967@600 to last5=.851638; prior .98 was too optimistic.
+    # Larger refunded MLPs did not recover the capacity/rank deficit within the full budget.
+    # Final CP13500/data cursor, TB SYNC_OK and all regional node/queue teardown verified.
     model_name = 'BamMediumPropV5SiTU47M16R128'
     bam_v = 16
     bam_local_full_m_read_bottleneck_dim = 128

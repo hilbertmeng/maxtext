@@ -66,6 +66,7 @@ def run_probe(train,captured,reference,output,sequence,target_layer):
   cfg,mesh,state=captured['config'],captured['mesh'],captured['state']
   model,_,shardings=captured['functional_train'].args
   assert cfg.scan_layers and cfg.param_scan_axis==1 and cfg.remat_policy=='full' and cfg.bam_pallas_core
+  assert cfg.bam_pallas_body=='v8t' and cfg.bam_attention_negative_diagonal and not cfg.attn_logits_soft_cap
   assert jax.device_count()==16 and jax.process_count()==4 and cfg.global_batch_size_to_train_on==128
   source=os.environ['BAM_DIAG_REFERENCE_CHECKPOINT']
   abstract={'params':jax.tree.map(lambda x:jax.ShapeDtypeStruct(x.shape,x.dtype,sharding=x.sharding),state.params)}
@@ -102,6 +103,7 @@ def run_probe(train,captured,reference,output,sequence,target_layer):
   def write(m,groups,**kwargs):
     result=original_write(m,groups,**kwargs);module=fusion_stack[-1]
     assert len(groups)==2,('Expected separate attention and memory-MLP write groups',len(groups))
+    assert not any(a is not None for a in kwargs.get('content_adapters',())), 'Reference excludes content adapters'
     divisors=kwargs.get('content_divisors',(None,None))
     for index,label in enumerate(('attention','memory_mlp')):
       content,logits,address=groups[index]

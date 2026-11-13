@@ -374,3 +374,22 @@ Three pinned CPU checks passed in5.364s against the historical d54 source:
 mode identity, separate norm/direction and seeded-permutation norm preservation,
 finite BF16 zero fallbacks, and historical MLP hook import/signature. These are
 preparation checks; forward fidelity and causal loss outcomes remain pending.
+
+### 2026-11-13 direction/amplitude r8: ordinary write content is the stronger causal lever
+
+Frozen batch35676 / checkpoints35635 and35675 / unchanged d54 model. Full-batch first-six ordinary attention outputs were captured once under both checkpoints and held sharded on16 chips. At selected layers, patches substitute old direction at peak norm, peak direction at old norm, full old vector, or seed9876 coordinate-permuted old direction at peak norm. Same-layer pre-W_O M-write factors remain unchanged; downstream computation responds. This is an activation-clamping experiment, not an isolated local-weight substitution.
+
+Original AOT old/peak losses1.977011561/2.595792532 and raw gradients.2152735/809414.56 reproduced. Instrumented old/peak/frozen-peak loss errors <=.000402451; frozen-peak identity equals instrumented peak exactly. All4workers exit0 and scientific metrics agree (timings and process-local shard identities excluded from equality); all16 actual input hashes match r5. Both exact diagnostic nodes and queues independently NOT_FOUND after controller cleanup. Local artifacts: training_reports/xlprop-v5-loss-localization-20261112/direction-r8/{write-direction.json,loss-localization.json,verification.json,analyze.py,direction-amplitude-summary.png}; eleven small sampled NPZs retained.
+
+|Scope (zero-based)|Old direction, peak norm|Old amplitude, peak direction|Whole old write|Permuted old direction, peak norm|
+|---|---:|---:|---:|---:|
+|L0–5 loss|2.037339|2.348651|2.025789|5.946329|
+|L0–5 loss increment rescued|90.25%|39.94%|92.12%|−541.47%|
+|L3 loss|2.105986|2.520068|2.111349|2.172365|
+|L3 loss increment rescued|79.16%|12.24%|78.29%|68.43%|
+
+Sampled actual norm errors <=.228%, and direction-only cosine with healthy vector >=.999998 on average, verify direction/amplitude separation at2sequences×12queries (not a full-batch maximum claim). In L0–5 direction patches, mean sampled normalized ordinary-MLP input distance to old, divided by unpatched peak-to-old distance, falls to.227/.186/.185 at L6/L13/L14. Amplitude-only leaves.837/.843/.843. Whole-old leaves.081/.121/.124; permuted direction worsens to1.688/1.432/1.465. Thus early ordinary write geometry causally changes downstream input geometry and peak loss; amplitude contributes but is insufficient in this comparison. No patched VJP/gain measurement was made.
+
+Cautions that change interpretation: L3 permuted direction itself rescues68.43%, so generic disruption of the abnormal propagation path competes with uniquely restoring a healthy content direction. Six-layer permutation is catastrophic and not a small matched-distance null; one coordinate permutation does not establish all random controls. Cross-layer clamping bypasses feedback and uses healthy activations computed with the full healthy network, so these percentages neither identify a single W_O parameter nor prove the temporal onset trigger. Effects are conditional and overlapping, not additive. Weak-M energy remains observational; ordinary-write rescue with same-layer M factors preserved does not rule out downstream M interactions.
+
+Next highest-value causal bridge (room764 continuing authorization): use bounded follow-up to connect the restored L6/L13/L14 normalized inputs to known expansive ordinary-SwiGLU units/gate-derivative paths; measure unit activation and local fixed-boundary gain, with an original-AOT/identity fidelity gate. Distinguish healthy-direction restoration from a generic break in propagation using partial direction interpolation and equal-size perturbation controls at L3, before assigning a specific harmful component. Actual onset chronology requires separate35636 batch. Research goal remains open; no new diagnostic allocation was launched in this finite reporting turn.

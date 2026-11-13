@@ -27,6 +27,11 @@ active leases are censored, and manual migration releases are not preemptions.
 
 | RUN | TPU | Zone | Start UTC | End UTC | End reason | Passive candidates |
 |---|---|---|---|---|---|---|
+| `BamMediumPropV5SiTU47L12` | v5p-16 (`xd-v5p-16-311015-maxtext`) | `us-east5-a` | 2026-11-12 16:00:59 | 2026-11-12 16:10:25 | queue preparation only; no verified FIRST_STEP | UE5a primary, UC1a/EW4b backups after 300s |
+| `BamMediumPropV5SiTU47L12` | v5p-16 (`xd-v5p-16-311015-maxtext`) | `europe-west4-b` | 2026-11-12 16:10:25 | 2026-11-12 16:13:06 | preparation reclaimed before verified FIRST_STEP | retained alternate queues |
+| `BamMediumPropV5SiTU47L12` | v5p-16 (`xd-v5p-16-311015-maxtext`) | `us-central1-a` | 2026-11-12 16:13:06 | 2026-11-12 19:54:29 | preparation/queue assignment only; no verified training | EW4b subsequently won recovery |
+| `BamMediumPropV5SiTU47L12` | v5p-16 (`xd-v5p-16-311015-maxtext`) | `europe-west4-b` | 2026-11-12 19:54:29 | 2026-11-12 22:02:28 | short actual training leases and later failed preparation; not continuous training | owned alternate candidates retained through resumed FIRST_STEP |
+| `BamMediumPropV5SiTU47L12` | v5p-16 (`xd-v5p-16-311015-maxtext`) | `us-central1-a` | 2026-11-12 22:02:28 | 2026-11-13 05:16:19 | initial preparation reclaimed; verified training from 23:25; completed 13500/P4; CP/cursor/TB verified; all regional resources absent | runtime 64d75057; retained FLEX compiler untouched |
 | `BamMHAMediumPropL12TruePile` | v5p-16 (`xd-v5p-16-311014-maxtext`) | `us-east5-a` | 2026-11-12 15:59:14 | 2026-11-12 16:08:27 | primary queue preparation only; no verified FIRST_STEP | UE5a primary, UC1a/EW4b backups after 300s |
 | `BamMHAMediumPropL12TruePile` | v5p-16 (`xd-v5p-16-311014-maxtext`) | `europe-west4-b` | 2026-11-12 16:08:27 | 2026-11-12 22:18:25 | resource assignment switch; short leases and waits, not continuous training | candidates retained through resumed FIRST_STEP, then owned losers released |
 | `BamMHAMediumPropL12TruePile` | v5p-16 (`xd-v5p-16-311014-maxtext`) | `us-central1-a` | 2026-11-12 22:18:25 | 2026-11-13 04:31:18 | initial preparation reclaimed; verified training from 23:24, later completed 13500/P6; final CP/cursor/TB verified; all regional resources absent | runtime 64d75057; retained FLEX compiler untouched |
@@ -2617,12 +2622,17 @@ active leases are censored, and manual migration releases are not preemptions.
 | `BamMediumPropV5SiTU47` | 3 | `us-central1-a` | 2026-11-12 10:57:35 | 2026-11-12 15:19:29 | 4h21m54s | scheduled completion 13500; final CP/cursor/TB verified; all regional resources absent |
 | `BamMHAMediumPropL12TruePile` | 1 | `europe-west4-b` | 2026-11-12 16:08:30 | 2026-11-12 16:12:21 | 3m51s | preempted; native same-RUN recovery |
 | `BamMHAMediumPropL12TruePile` | 2 | `europe-west4-b` | 2026-11-12 19:54:33 | 2026-11-12 19:58:21 | 3m48s | preempted; native same-RUN recovery |
+| `BamMediumPropV5SiTU47L12` | 1 | `europe-west4-b` | 2026-11-12 19:54:34 | 2026-11-12 19:58:21 | 3m47s | preempted; native same-RUN recovery |
 | `BamMHAMediumPropL12TruePile` | supplemental | `europe-west4-b` | 2026-11-12 20:19:28 | 2026-11-12 20:22:04 | 2m36s | controller-observed READY interval; no verified FIRST_STEP; omitted by native lease counter |
+| `BamMediumPropV5SiTU47L12` | 2 | `europe-west4-b` | 2026-11-12 20:32:01 | 2026-11-12 20:36:56 | 4m55s | preempted; native same-RUN recovery |
 | `BamMHAMediumPropL12TruePile` | 3 | `europe-west4-b` | 2026-11-12 21:02:39 | 2026-11-12 21:11:01 | 8m22s | preempted; native same-RUN recovery |
 | `BamMHAMediumPropL12TruePile` | 4 | `europe-west4-b` | 2026-11-12 21:23:22 | 2026-11-12 21:28:39 | 5m17s | preempted; native same-RUN recovery |
 | `BamMHAMediumPropL12TruePile` | 5 | `us-central1-a` | 2026-11-12 23:24:40 | 2026-11-12 23:46:26 | 21m46s | preempted; resumed from committed 810 |
+| `BamMediumPropV5SiTU47L12` | 3 | `us-central1-a` | 2026-11-12 23:25:06 | 2026-11-12 23:46:41 | 21m35s | preempted; resumed from committed 202 |
+| `BamMediumPropV5SiTU47L12` | 4 | `us-central1-a` | 2026-11-13 00:48:44 | 2026-11-13 01:00:27 | 11m43s | preempted; resumed from committed 1136 |
 | `BamMHAMediumPropL12TruePile` | 6 | `us-central1-a` | 2026-11-13 00:47:57 | 2026-11-13 01:00:31 | 12m34s | preempted; resumed from committed 1917 |
 | `BamMHAMediumPropL12TruePile` | 7 | `us-central1-a` | 2026-11-13 01:11:57 | 2026-11-13 04:31:18 | 3h19m21s | scheduled completion 13500; native run_stop marks ownership close, not a service preemption; final CP/cursor/TB and all regional resources verified |
+| `BamMediumPropV5SiTU47L12` | 5 | `us-central1-a` | 2026-11-13 01:11:39 | 2026-11-13 05:16:19 | 4h04m40s | scheduled completion 13500; final CP/cursor/TB and all regional resources verified |
 
 ### Medium depth-family MHA12 resource closeout (2026-11-13)
 
@@ -2636,6 +2646,13 @@ continuous TPU availability. Actual training used EW4b then UC1a; UE5a
 remained a primary queue only. Receipts, full native JSON and passive
 candidate snapshots are in
 `/data0/xd/bam_diagnostics/mediumprop-v5-situ-depth-20261112/`.
+
+The same artifact directory contains `bam12-final-proof.json` for
+`BamMediumPropV5SiTU47L12`: four native preemptions, five recorded READY
+leases and every assignment above. Earlier UE5a, initial EW4b/UC1a and
+later failed preparation attempts did not reach verified FIRST_STEP;
+they are not additional active training-zone switches. Actual training
+used EW4b then UC1a. No unobserved READY duration is inferred.
 
 ### 2026-10-14 user pause: resumed mixed R256/R384
 

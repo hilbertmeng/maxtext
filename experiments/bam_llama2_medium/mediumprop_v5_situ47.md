@@ -246,3 +246,32 @@ hosts), TensorBoard returned SYNC_OK, and all six node/queue identities
 across UE5a/UC1a/EW4b were independently verified absent. The retained FLEX
 compiler remains untouched. Closeout receipts and native final report are
 under the depth-family artifact directory above.
+
+### BAM12 completed (2026-11-13)
+
+`BamMediumPropV5SiTU47L12` completed 13,500 updates at runtime `64d75057`,
+using EW4b then UC1a with four registered preemptions. Against V5 SiTU18,
+the early deficit grew to about +0.02 by 3k and then stayed near +0.023;
+there was no material late catch-up. The final 13.4k gap was +0.0224012;
+the final five-window mean was +0.02293956. Against the matched-depth MHA12,
+the same means were -0.1609616 and -0.16120424, so BAM retained a large
+advantage over MHA despite losing to its 18-layer BAM parent.
+
+The question of depth preference needs independently matched references:
+`G_d = L(MHA_d) - L(BAM_d)`, `R_d = G_d/G_18`.
+For BAM12, final R12 was 0.9070385 and the final-five mean was 0.9025709.
+Its relative advantage therefore lost about 10% after reducing depth,
+beyond the shape change's effect on MHA. Native reports now persist this
+four-RUN definition through `--paired-gain-ratio`; `gain_difference` is
+`G_18-G_d`. Existing three-RUN common-reference ratios remain supported.
+The original MHA18-reference prior was 0.98 [0.94, 1.01]; its actual final
+ratio was 0.8737665 (last five 0.8715680), decisively outside that range.
+Do not silently substitute the later matched-depth definition when judging
+that earlier prediction.
+
+Final checkpoint 13,500 and its data cursor were committed and verified,
+TensorBoard returned SYNC_OK, and both resource identities in all three
+regions were independently absent. The retained FLEX compiler was not
+modified. `bam12-final-proof.json`, `bam12-final-report.json` and
+`bam12-original-prior-gain-final.json` retain the exact native results and
+resource history in the depth-family artifact directory.

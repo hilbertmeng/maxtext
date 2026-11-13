@@ -20578,6 +20578,10 @@ class BamMediumPropV5SiTU47L12(BamMediumPropV5SiTU47):
     # code_commit: 64d7505; v5p-16 / 311015; UE5a primary, UC1a/EW4b backups.
     # EW4b resume startup ~.844 step/s vs SiTU18 ~.680 (+24.1%, unpaired); same health.
     # Actual cursor/AOT load and both worker hashes verified; internal activation statistics OFF.
+    # Completed 13500, P4; EW4b -> UC1a. vs SiTU18, early deficit grew then plateaued near +.023.
+    # Final five gaps: +.02294 vs SiTU18, -.16120 vs same-depth MHA12; no late recovery.
+    # Matched-depth gain G12/G18: final .9070, last five .9026; original common-MHA18 prior .98 failed.
+    # Final CP/cursor/TB secured; all UE5a/UC1a/EW4b node/queue identities absent.
     model_name = 'BamMediumPropV5SiTU47L12'
     base_num_decoder_layers = 12
     bam_layer_modes = ['local_qk+local_v+local_o'] * 12

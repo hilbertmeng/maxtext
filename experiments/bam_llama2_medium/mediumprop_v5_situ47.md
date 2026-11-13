@@ -195,8 +195,8 @@ MHA18-referenced gain versus SiTU18 .98 [.94,1.01]; BAM27 corresponding
 gain 1.02 [1.00,1.05]. Speed priors on v5p-16: MHA12 about .90 step/s,
 BAM12 .78 and BAM27 .55 (roughly +/- .05/.05/.04). The MHA timing baseline
 is historical C256, so its kernel difference precludes a pure depth-speed
-attribution. No intermediate metric reports are requested; retain the priors
-for final scientific bookkeeping.
+attribution. Monitoring was initially resource-only; retain these original
+priors for final scientific bookkeeping after the later reporting-policy change.
 
 Preparation/resource artifacts:
 `/data0/xd/bam_diagnostics/mediumprop-v5-situ-depth-20261112/`.
@@ -275,3 +275,61 @@ regions were independently absent. The retained FLEX compiler was not
 modified. `bam12-final-proof.json`, `bam12-final-report.json` and
 `bam12-original-prior-gain-final.json` retain the exact native results and
 resource history in the depth-family artifact directory.
+
+### BAM27 completed and depth-family conclusion (2026-11-13)
+
+`BamMediumPropV5SiTU47L27` completed 13,500 updates at runtime `64d75057`.
+Against V5 SiTU18, it crossed ahead near 2.2k, reached a roughly -0.006
+to -0.007 gap by 5k and retained that advantage through the end. The final
+13.4k window was -0.006810526; the final five-window mean was -0.0062574252.
+The same final-five means were -0.1962335452 against MHA27 and -0.0197867452
+against the historical generalized-read BAM27. Its gain over that old
+same-depth BAM was 1.1121326, using MHA27 as reference.
+
+The matched-depth ratio G27/G18 finished at 1.1014690 (final-five mean
+1.0986928), compared with BAM12's final-five 0.9025709. Thus increasing
+depth from 18 to 27 enhanced this V5 SiTU architecture's advantage over
+matched MHA by about 10%; reducing depth to 12 lost about 10%. This was
+already visible by 2k and did not reverse in late training. The original
+common-MHA18-reference prior, 1.02 [1.00, 1.05], is a different metric:
+its actual final-five result was 1.0350252, within the stated range.
+
+The budget allocation helps interpret the shape effect. Ordinary SwiGLU
+weights, including the wider terminal layer, are `3D*((L-1)*H+H_terminal)`;
+same-depth MHA uses `3D*L*H_MHA`:
+
+| Depth | BAM ordinary MLP parameters | MHA MLP parameters | BAM/MHA ordinary capacity |
+|---|---:|---:|---:|
+| 12 | 184,453,200 | 241,920,000 | 76.25% |
+| 18 | 167,666,400 | 207,360,000 | 80.86% |
+| 27 | 143,499,600 | 155,520,000 | 92.27% |
+
+BAM's lower attention-parameter cost becomes more valuable as depth rises,
+and its ordinary residual MLP retains a larger fraction of matched MHA's
+capacity. More M read/write stages and this allocation effect are both
+concrete candidate mechanisms; the experiment establishes the whole
+architecture's depth preference, not an isolated causal effect of M
+iteration alone. A larger-model depth comparison should retain matched
+MHA references and audit this capacity allocation before transferring the
+Medium multiplier. The more promising direction is greater depth at fixed
+parameter/token budget; the ordinary/private ratio can then be optimized
+rather than treating 2:1 as universally optimal.
+
+The last service preemption left committed checkpoint 13,392; the native
+controller restored it and completed the remaining 108 updates. After TB
+SYNC_OK, 1,283 shared TB/console samples confirmed identical step indices
+and a maximum loss difference of 5e-7, explained by console rounding.
+Only absent console samples were imported: 66 sample-period-10 points,
+including 13,380 and 13,390 needed for the final 13.4k window. All existing
+console points were preserved. The native event was regenerated through
+13.4k, without interpolation or loss recomputation. Receipts are
+`bam27-tb-backfill-proof.json` and `bam27-final-report-before-tb.json`;
+`bam27-final-report.json` is the corrected native final report.
+
+Training used EW4b then UC1a, about .52 step/s on UC1a, with seven native
+preemptions. This is an unpaired -23% timing difference from SiTU18, not a
+controlled kernel comparison. Final checkpoint/cursor 13,500, TB SYNC_OK,
+and all six regional node/queue identities were verified. The full lease
+and assignment evidence is in `bam27-final-proof.json` and the regional
+history. Both 12-layer RUNs were already fully closed; the retained FLEX
+compiler was never enrolled in training-resource cleanup.

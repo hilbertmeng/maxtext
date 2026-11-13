@@ -20606,7 +20606,11 @@ class BamMediumPropV5SiTU47L27(BamMediumPropV5SiTU47):
     """
     # code_commit: 64d7505; v5p-16 / 311016; UE5a primary, UC1a/EW4b backups.
     # EW4b resume startup ~.522 step/s vs SiTU18 ~.680 (-23.2%, unpaired); same health.
-    # Cursor and resume-bound speed gate passed; capture the AOT log on a stable lease.
+    # Cursor, resume-bound speed gate, both worker hashes and compiled AOT load verified.
+    # Completed 13500, P7; EW4b -> UC1a. vs SiTU18 crossed ahead near 2.2k, then held ~-.006 to -.007.
+    # Final five gaps: -.00626 vs SiTU18, -.19623 vs MHA27, -.01979 vs old general-read BAM27.
+    # Matched-depth G27/G18 last five 1.09869; vs old BAM27 gain 1.11213 using MHA27 reference.
+    # Original common-MHA18 gain 1.03503 was within prior [1.00,1.05]. Final CP/cursor/TB and teardown verified.
     model_name = 'BamMediumPropV5SiTU47L27'
     base_num_decoder_layers = 27
     bam_layer_modes = ['local_qk+local_v+local_o'] * 27

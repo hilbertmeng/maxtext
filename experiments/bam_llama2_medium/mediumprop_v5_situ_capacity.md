@@ -2,7 +2,9 @@
 
 Hold the trained18-layer `BamMediumPropV5SiTU47` backbone and total parameter
 budget fixed. Scale M75xV and every address bottleneck together: V16/R128,
-V32/R256 reference, V48/R384. R/V stays8. This complements the12/18/27-depth
+V32/R256 reference, V48/R384. These first three points keep R/V at8.
+The added V64/R384 point holds rank fixed against V48, isolating further
+matrix-width growth at the same total budget. This complements the12/18/27-depth
 study; it measures spending parameters on matrix/address capacity versus MLPs.
 
 Runtime2458bb3817e57b6ea0b4b6e929a7c38afb56ba92, branch
@@ -16,6 +18,7 @@ Artifacts: `/data0/xd/bam_diagnostics/mediumprop-v5-situ-capacity-20261113/`.
 |`BamMediumPropV5SiTU47M16R128`|`xd-v5p-16-311019-maxtext`|2662/1273/4147|432112388|+160|2.001236:1|
 |`BamMediumPropV5SiTU47`|completed reference|2510/1128/3904|432112228|0|approximately2:1|
 |`BamMediumPropV5SiTU47M48R384`|`xd-v5p-16-311020-maxtext`|2298/933/3583|432111620|-608|2.000921:1|
+|`BamMediumPropV5SiTU47M64R384`|`xd-v5p-16-311021-maxtext`|2203/858/3443|432113860|+1632|2.001183:1|
 
 Adjust the read, attention-write, private-MLP-write and embedding-write ranks.
 Complete memory-branch cost includes its address down/up, bias and write gate:
@@ -92,3 +95,23 @@ backend; the worker lifecycle and installed training checkout are retained.
 Its verified AOT state is2458bb3-e74a7784-idle, artifact:
 `gs://newproject-1-llm_base_models_us-central1/log/compiled_trainsteps/2458bb3/jax081-i0ae3f58-c17f538a/v5p-16/s13500/BamMediumPropV5SiTU47M48R384.idle.pickle`.
 Both use48MiB VMEM; no Pallas change or larger memory limit was necessary.
+
+## Fixed-rank64-column extension
+
+Runtime 5acf1abc8891dcba5b304a70f164b1ee6443fd13 on the same implementation branch/worktree.
+Audit against main8017ffe8 again found training/AOT/checkpoint/optimizer/logger
+infrastructure unchanged from the verified runtime. All four address ranks are
+384. Body-layer parameters match the parent to+16; embedding, terminal and
+integer residuals close through the terminal ordinary MLP. Complete writer
+controls cost874256 per body layer. State size4800 elements/token is2x V32
+and4/3x V48. Both terminal M writers stay off; single-layer scan17+tail.
+
+Reuse Pallas v8t packed reads/writes and48MiB VMEM. Actual V64 native/Pallas
+full-feedback forward and all-parameter gradients pass in the focused CPU gate;
+full-size abstract budgets and summary-writer rotation tests pass. Formal AOT
+must still verify target layout/allocation, then actual worker AOT/source/FIRST_STEP.
+
+Keep the common V32/R256 reference in the shared figure; also register V48/R384
+as a direct fixed-rank comparison for this arm. Native MHA-referenced gain prior
+versus V48:1.01 (range .98--1.04); speed approximately4% slower than V48.
+The objective remains scaling characterization, so train the full13500 steps.

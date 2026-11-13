@@ -76,8 +76,12 @@ Both RUNs reached actual training steps, loaded their AOTs on both workers and
 matched the sealed2458bb3 source. Zone-local TruePile4096 paths were verified.
 Recent startup rates .724/.659 step/s versus SiTU18's historical steady .680;
 these are unpaired training observations, not a same-machine speed profile.
-The capacity group uses2000-step shared reports and4000/8000-step reviews;
-stopping requires the user's confirmation. The depth group continues separately.
+The capacity group uses2000-step shared reports. Per the user's campaign
+clarification, depth-scaling and subsequent studies characterize scaling and
+capacity/budget tradeoffs rather than select a new SOTA. There are no
+performance-based elimination reviews; train both arms through the full13500
+steps unless the user explicitly changes scope. The depth group continues
+separately on its existing shared cadence.
 
 M16 uses the standard AOT2458bb3-bdd73e13. The temporary M48 v6e compiler was
 preempted before completing an artifact. Its preparer was gracefully cancelled

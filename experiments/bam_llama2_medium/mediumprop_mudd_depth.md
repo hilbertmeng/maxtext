@@ -1,7 +1,10 @@
 # Prop Mudd depth controls:12/18/27 layers
 
 The question is whether BAM uses depth better than Mudd at the existing Medium
-parameter/token budget. Add12/27-layer Mudd controls to the completed MHA/BAM
+parameter/token budget. This campaign and subsequent scaling studies measure
+scaling behavior for larger-model design rather than compete for a new SOTA.
+Run the full registered budget; no performance-based early elimination unless
+the user explicitly requests it. Add12/27-layer Mudd controls to the completed MHA/BAM
 depth family; retain the trained18-layer Mudd rather than changing its recipe.
 
 Implementation and ledger: `/home/xd/projects/maxtext`, branch `refactor-bam`.

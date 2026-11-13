@@ -14062,6 +14062,8 @@ class BamMHAMediumPropL27C256TruePile(Llama2MediumPropL27, BamMHAMediumPropC256T
 
 class BamMHAMediumPropL27C256TruePilemHC(MHCConfig, BamMHAMediumPropL27C256TruePile):
     """Four-stream A.6/SK20 mHC on the deep L27 MHA control, budget matched."""
+    # code_commit: 40533e6b; room797 new deep L27 run, UC1a Spot v5p-16, 2026-11-13.
+    # Actual FIRST_STEP4 verified; observed ~.479/s near200, 13500-step plan; review400/1000.
     model_name = 'BamMHAMediumPropL27C256TruePilemHC'
     # ResidualDecoderStack requires an unrolled stream stack; backbone remains L27.
     scan_layers = False
@@ -14078,6 +14080,8 @@ class BamMHAMediumPropL27C256TruePilemHC(MHCConfig, BamMHAMediumPropL27C256TrueP
 
 class BamMHAMediumPropL27C256TruePileDHC4Tanh(MHCConfig, BamMHAMediumPropL27C256TruePile):
     """Four-stream signed x4-tanh DHC/sum head on the deep L27 control."""
+    # code_commit: 40533e6b; room797 new deep L27 run, UC1a Spot v5p-16, 2026-11-13.
+    # Actual FIRST_STEP17 verified; observed ~.461/s near200, 13500-step plan; review400/1000.
     model_name = 'BamMHAMediumPropL27C256TruePileDHC4Tanh'
     residual_connection = 'dhc'
     scan_layers = False

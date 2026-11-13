@@ -56,7 +56,10 @@ actual AOT-load/FIRST_STEP checks remain required before startup is accepted.
 
 At matched steps define R_d=(MHA_d-BAM_d)/(MHA_d-Mudd_d). Compare R12/R18
 and R27/R18 over complete common windows; values below/above1 show whether BAM's
-relative advantage over Mudd shrinks/grows with depth. Plot all3 R_d sequences,
+MHA-referenced proportional gain expands less/more than Mudd's with depth.
+This is distinct from the absolute depth interaction: a falling ratio does not
+exclude a larger absolute BAM improvement. Compare each architecture's own
+12-layer loss reduction when asking directly how well it uses added depth. Plot all3 R_d sequences,
 alongside same-depth BAM-Mudd loss gaps. MHA is the gain reference, not a separate
 routine loss-gap competitor. Both new arms are reported together every2000 steps.
 
@@ -71,3 +74,33 @@ Speed prior onv5p-16: Mudd12 .82 step/s (range .75--.90), Mudd27 .47
 (.42--.52), versus historical Mudd18 .630 with older attention kernels.
 Compare each new arm's actual startup speed with its same-depth BAM, while
 not attributing differences from historical18 entirely to model depth.
+
+## Completed12-layer control
+
+Mudd12 completed13500 without preemption on one UE5a v5p-16 lease. Steady
+throughput .890 step/s was4.2% faster than same-depth BAM12 .854, an unpaired
+comparison with generic health ON and internal metrics OFF. CP13500 and its
+cursor, final TensorBoard sync, and all three regions' node/queue teardown were
+independently verified. The active27-layer control is not yet a final result.
+
+Mudd12's deficit to BAM12 shrank from+.33125 at600 to+.15647 at2000 and
++.074126 over the final five windows. Its early advantage to Mudd18 reversed
+by2000; the late deficit plateaued near+.0054 (last five+.005370). Its final
+five-window gain over MHA12 was .087079. With matched MHA as reference,
+R12/R18 ended near .901 (last five), below the .95 prior but inside its range.
+
+More directly, from12 to18 layers the final five windows show a BAM loss
+reduction of .02293956 against Mudd's .00536984: about4.27x the absolute depth
+benefit, an additional .01756972. The native four-RUN paired-gain export is
+`depth12to18-native.json` in the preparation directory; it retains the full
+common-window trajectory rather than deriving ratios from independently
+smoothed curves. This supports better absolute depth use by BAM at these
+budgets, while the proportional MHA-referenced multiplier answers a different
+question. Preserve both when assessing the original prior.
+
+Resource evidence: earliest observed READY09:47:14Z through completion14:19:38Z
+on2026-11-13, one4h32m24s lease including preparation. The native trainer's
+observer started09:57:10Z; its4h22m28s interval is a subset of the same lease,
+not a second allocation or a claim that the full lease was useful training.
+Artifacts include `mudd12-final-checkpoint.txt`, `mudd12-final-resources.json`,
+`mudd12-final-lease-report.json`, and the `SYNC_OK` closeout receipt.

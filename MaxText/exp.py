@@ -13794,8 +13794,13 @@ class MuddLlama2MediumPropL12TruePile(Mudd, BamMHAMediumPropL12TruePile):
     Preserve the trained Mudd18 full-history/router expansion rule. Router
     parameters are additional, as in that baseline; only MLP rounding is corrected.
     """
-    # code_commit: c7a6730; main/refactor-bam; UE5a v5p-16 /311017, startup .902 step/s.
+    # code_commit: c7a6730; main/refactor-bam; UE5a v5p-16 /311017, steady .890 step/s.
+    # +4.2% vs same-depth BAM12 .854 (unpaired); generic health ON, internal health OFF.
     # 433234897 params; MLP budget matched, router overhead +.783401 W_Q, not repaid.
+    # Completed13500/P0. vs BAM12 deficit shrank +.33125@600 -> +.15647@2000 -> last5+.074126.
+    # vs Mudd18 early lead reversed by2000, then late deficit held near+.0054; last5+.005370.
+    # vs MHA12 last5-.087079; BAM/Mudd gain ratio vs MHA12 ended at1.85138 (last5).
+    # Final CP13500/data cursor, TB SYNC_OK and node/queue teardown verified in all three regions.
     model_name = 'MuddLlama2MediumPropL12TruePile'
     mudd_full_history = True
     scan_layers = False

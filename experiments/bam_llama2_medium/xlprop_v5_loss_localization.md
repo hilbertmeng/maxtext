@@ -349,3 +349,28 @@ pre-W_O M-write factors, and measure the downstream MLP operating points/gains.
 If only direction rescue works, localize the subspace next. A weak-M hypothesis
 requires its own targeted component-patch/control. Current data do not complete
 that causal bridge; continue the owner-authorized investigation.
+
+
+### Direction/amplitude follow-up design (r8)
+
+Runner `xlprop_write_direction_probe.py` captures full old and peak ordinary
+attention writes for L0--5, retaining both as explicitly sharded TPU arguments
+(about24GB globally if BF16, not replicated or downloaded). Frozen peak reference
+writes are a forward-identity gate before any interpretation. At selected layers,
+patch either old direction x frozen-peak norm, frozen-peak direction x old norm,
+whole old write, or seeded-coordinate-permuted old direction x frozen-peak norm.
+The references stay fixed across interventions; later native inputs cannot silently
+change the amplitude reference. Apply independently to L0--5 and L3 alone.
+
+Two original-AOT controls precede11 forward cases (old, peak, frozen-peak, four
+patch modes x two layer scopes). Old/peak/frozen identity loss errors must be
+below1e-3. Donor directions must be nonzero at valid tokens. Same-layer pre-W_O
+M-write factors remain untouched; downstream states respond. Export only sampled
+writes and normalized ordinary-MLP inputs at L6/L13/L14, not full donors. This
+stage makes no instrumented gradient/gain claim. Captured inputs can nominate
+which downstream fixed-boundary VJP to check next.
+
+Three pinned CPU checks passed in5.364s against the historical d54 source:
+mode identity, separate norm/direction and seeded-permutation norm preservation,
+finite BF16 zero fallbacks, and historical MLP hook import/signature. These are
+preparation checks; forward fidelity and causal loss outcomes remain pending.

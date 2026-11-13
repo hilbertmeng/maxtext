@@ -20626,6 +20626,25 @@ class BamMediumPropV5SiTU47M48R384(BamMediumPropV5SiTU47):
     compare_runs = ['BamMediumPropV5SiTU47']
 
 
+class BamMediumPropV5SiTU47M64R384(BamMediumPropV5SiTU47):
+    """L18 capacity scaling: M75x64 with all read/write ranks384.
+
+    Ordinary/private widths2203/858 preserve complete-branch ratio2.001183:1;
+    terminal3443 closes the parent budget to+1632 parameters.
+    Fixed R384 versus V48 separates matrix-capacity growth from rank growth.
+    """
+    model_name = 'BamMediumPropV5SiTU47M64R384'
+    bam_v = 64
+    bam_local_full_m_read_bottleneck_dim = 384
+    bam_write_v_bottleneck_dim = 384
+    bam_mlp_write_address_rank = 384
+    emb_bam_v_bottleneck_dim = 384
+    base_mlp_dim = 2203
+    bam_memory_mlp_dim = 858
+    bam_last_mlp_dim = 3443
+    compare_runs = ['BamMediumPropV5SiTU47', 'BamMediumPropV5SiTU47M48R384']
+
+
 class BamLargePropV5(BamV5Architecture, Llama2LargeProp):
     """L22/D1536 V5, M96x32 and independent R256 read/write projections.
 

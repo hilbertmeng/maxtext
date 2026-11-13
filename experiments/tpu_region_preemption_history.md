@@ -27,6 +27,8 @@ active leases are censored, and manual migration releases are not preemptions.
 
 | RUN | TPU | Zone | Start UTC | End UTC | End reason | Passive candidates |
 |---|---|---|---|---|---|---|
+| `BamMediumPropV5SiTU47M64R384` | v5p-16 (`xd-v5p-16-311021-maxtext`) | `us-east5-a` | 2026-11-13 16:26:12 | 2026-11-13 22:36:16 | two training leases/preemptions plus recovery waits; switched to UC1a | UE5a primary; UC1a/EW4b backups after300s; prequeue READY16:21:32 |
+| `BamMediumPropV5SiTU47M64R384` | v5p-16 (`xd-v5p-16-311021-maxtext`) | `us-central1-a` | 2026-11-13 22:36:16 | 2026-11-13 23:07:38 | completed13500/P2; CP/cursor/TB and all regional resources verified | restored12568; post-migration CP12600 uses UC1 data; passive losers released |
 | `BamMediumPropV5SiTU47M48R384` | v5p-16 (`xd-v5p-16-311020-maxtext`) | `us-east5-a` | 2026-11-13 13:51:52 | 2026-11-13 19:43:31 | completed13500/P0; CP/cursor/TB and all regional resources verified | UE5a only active; UC1a/EW4b passive backups; READY13:36:49 includes recovered AOT preparation |
 | `BamMediumPropV5SiTU47M16R128` | v5p-16 (`xd-v5p-16-311019-maxtext`) | `us-east5-a` | 2026-11-13 13:43:00 | 2026-11-13 19:05:06 | completed13500/P0; CP/cursor/TB and all regional resources verified | UE5a only active; UC1a/EW4b passive backups; prequeue READY13:37:09 includes preparation |
 | `MuddLlama2MediumPropL27TruePile` | v5p-16 (`xd-v5p-16-311018-maxtext`) | `us-east5-a` | 2026-11-13 09:57:09 | 2026-11-13 17:30:09 | completed13500/P0; CP/cursor/TB and all regional resources verified | UE5a only active; UC1a/EW4b passive backups; earlier prequeue adopted READY09:52:02, exact lease start unknown |
@@ -2657,6 +2659,10 @@ active leases are censored, and manual migration releases are not preemptions.
 | `BamMediumPropV5SiTU47M16R128` | 1 | `us-east5-a` | 2026-11-13 13:37:09 | 2026-11-13 19:05:06 | 5h27m57s | scheduled completion13500/P0; includes prequeue/install preparation; native13:43:10 observer is a subset; CP/cursor/TB and all regional resources verified |
 
 | `BamMediumPropV5SiTU47M48R384` | 1 | `us-east5-a` | 2026-11-13 13:36:49 | 2026-11-13 19:43:31 | 6h06m42s | scheduled completion13500/P0; includes installation and recovered AOT CPU compile; native13:51:57 observer is a subset; CP/cursor/TB and all regional resources verified |
+
+| `BamMediumPropV5SiTU47M64R384` | 1 | `us-east5-a` | 2026-11-13 16:21:32 | 2026-11-13 19:53:24 | 3h31m52s | preempted; includes prequeue/AOT preparation; native16:26:16 observer is a subset; emergency CP7432 recovered |
+| `BamMediumPropV5SiTU47M64R384` | 2 | `us-east5-a` | 2026-11-13 19:59:10 | 2026-11-13 22:23:13 | 2h24m03s | preempted; emergency CP12568 copied to UC1a and restored |
+| `BamMediumPropV5SiTU47M64R384` | 3 | `us-central1-a` | 2026-11-13 22:36:18 | 2026-11-13 23:07:38 | 31m20s | scheduled completion13500/P2; CP/cursor/TB and all regional resources verified; passive queues released |
 
 ### Medium depth-family MHA12 resource closeout (2026-11-13)
 

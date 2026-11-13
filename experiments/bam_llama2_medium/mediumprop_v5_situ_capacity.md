@@ -161,3 +161,52 @@ receipt and all six regional node/queue identities were verified; see
 Only the late-started V64 arm remains active. Its shared report calendar now
 uses its own fixed8k/10k/12k points; previously published per-RUN horizons remain
 intact. It still trains to13500 without elimination.
+
+## Final capacity/rank scaling results
+
+All three arms completed the full13500-step budget. Final five native200-step
+windows through13400, versus `BamMediumPropV5SiTU47` (V32/R256); gains use the
+matched `BamMHAMediumPropC256TruePile` reference:
+
+| M / R | Loss gap | Gain multiplier | M-state size vs parent | Training speed vs parent |
+|---|---:|---:|---:|---:|
+|75x16 /128|+.02649868|.851638|.5x|about+6%|
+|75x48 /384|-.00473824|1.026518|1.5x|about-3.5%|
+|75x64 /384|-.00720208|1.040315|2x|about-9.3%|
+
+Speed observations are unpaired, with matched generic health ON/internal metrics
+OFF. V64 vs fixed-rank V48 ends at gap-.00246384/gain1.013441, close to the1.01
+prior; V48's1.02 prior is also close. V16's .98 prior was far too optimistic.
+Both larger points retain their gains through the endpoint. V64 has smaller
+ordinary/private MLPs than V48, so its positive fixed-R result directly supports
+spending some budget on matrix capacity rather than those MLPs.
+
+The response is asymmetric under this budget: the joint V16/R128 compression
+has a substantial cost that MLP refunds do not recover, while enlargement above
+V32 yields smaller persistent benefits. The small-arm loss still mixes M and R;
+it cannot identify which bottleneck dominates. The most discriminating next
+control is V32/R384: compare with V32/R256 to isolate rank, and with V48/V64 at
+R384 to obtain a three-point fixed-rank capacity curve. This campaign measures
+scaling and tradeoffs; no arm was eliminated for performance.
+
+V64 completed on2026-11-13T23:07:38Z after two preemptions, UE5a->UC1a. Both
+recoveries retained the exact5acf1ab executable/parameter tree and schedule.
+Committed emergency checkpoints7432 and12568 recovered progress; post-resume
+CP7600 and post-migration CP12600/correct UC1 data filenames were verified.
+Final CP13500, seed9876/global128/two-host cursor, TB SYNC_OK, native already-
+closed receipt and all regional nodes/queues are independently verified.
+
+All V64 v5p-16 READY leases, UTC on2026-11-13:
+
+| # | Zone | Observed READY | End | Duration | Exit |
+|---|---|---|---|---|---|
+|1|UE5a|16:21:32|19:53:24|3h31m52s|preempted|
+|2|UE5a|19:59:10|22:23:13|2h24m03s|preempted|
+|3|UC1a|22:36:18|23:07:38|31m20s|scheduled completion|
+
+The first interval includes prequeue/AOT/startup preparation; the native trainer's
+16:26:16Z observer is a subset of that lease. Total observed READY time6h27m15s;
+the two intervening gaps total18m51s. Active assignment switched to UC1a at
+22:36:16Z; UE5a/EW4b pending alternatives were released after verified resume,
+not counted as active-zone switches. Evidence: `m64-final-proof.json`,
+`m64-local-closeout.txt`, `m64-preemption*-*`, and `final13500/` in the artifact root.

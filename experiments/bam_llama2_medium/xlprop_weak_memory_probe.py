@@ -56,6 +56,7 @@ def run_probe(train,captured,reference,output,sequence,target_layer):
   helper['run_probe'](train,captured,reference,output,sequence,target_layer)
   controls={c['name']:c['metrics'] for c in json.loads((output/'loss-localization.json').read_text())['cases']}
   cfg,mesh,state=captured['config'],captured['mesh'],captured['state'];model,_,shardings=captured['functional_train'].args
+  assert jax.device_count()==16 and jax.process_count()==4
   assert cfg.scan_layers and cfg.param_scan_axis==1 and cfg.remat_policy=='full' and cfg.bam_pallas_body=='v8t'
   abstract={'params':jax.tree.map(lambda x:jax.ShapeDtypeStruct(x.shape,x.dtype,sharding=x.sharding),state.params)}
   cp=ocp.PyTreeCheckpointer();raw=cp.restore(os.environ['BAM_DIAG_REFERENCE_CHECKPOINT'],item=abstract,transforms={},restore_args=ocp.checkpoint_utils.construct_restore_args(abstract));cp.close()
@@ -123,7 +124,11 @@ def run_probe(train,captured,reference,output,sequence,target_layer):
       assert ref_error<.03,('Analytic combined reference mismatch',ref_error)
       if label=='old':
         assert values['M_in'].shape==(6,2,12,40,96),values['M_in'].shape
-        projectors,ranks=weak_projectors(values['M_in']);healthy_attention=values['attention_reference'];healthy_total=actual.astype(np.float32);result['rank99']=ranks.tolist()
+        from jax.experimental import multihost_utils
+        if jax.process_index()==0:projectors,ranks=weak_projectors(values['M_in'])
+        else:ranks=np.zeros((6,2,12),np.int32)
+        projectors,ranks=multihost_utils.broadcast_one_to_all((projectors,np.asarray(ranks,np.int32)),is_source=jax.process_index()==0)
+        healthy_attention=values['attention_reference'];healthy_total=actual.astype(np.float32);result['rank99']=ranks.tolist()
       else:peak_reference=values
       save(label+'_control',loss,values,fidelity_passed=True,gradient_relative_error=error,combined_reference_relative_l2_error=ref_error)
     plans=[('peak_noop',0,63)]+[(scope+'_'+MODES[mode],mode,mask) for scope,mask in [('L03',8),('L05',32),('L00_05',63)] for mode in range(1,9)]

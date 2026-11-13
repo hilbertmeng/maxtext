@@ -23,12 +23,14 @@ def events(payload):
   raise ValueError('Expected registry report-all, pending-report, or loss-report JSON')
 
 
-def collect(payloads, start=600, runs=(), bases=()):
+def collect(payloads, start=600, runs=(), bases=(), paired_gains=False):
   gaps, ratios = {}, {}
   for payload in payloads:
     for event in events(payload):
       for kind, target in (('reports', gaps), ('gain_ratios', ratios)):
         for report in event.get(kind, []):
+          if paired_gains and (kind == 'reports' or not report.get('comparator_reference')):
+            continue
           run = report.get('run', event.get('run_name'))
           base = report.get('base', report.get('comparator'))
           if not run or not base:
@@ -36,9 +38,18 @@ def collect(payloads, start=600, runs=(), bases=()):
           if (runs and run not in runs) or (bases and base not in bases):
             continue
           key = (run, base) if kind == 'reports' else (run, base, report['reference'])
+          if kind == 'gain_ratios' and report.get('comparator_reference'):
+            key += (report['comparator_reference'],)
+          if paired_gains and any(k[:2] == key[:2] and k != key for k in ratios):
+            raise ValueError('Select only one paired reference pair per RUN/comparator')
           for point in report['series']:
             if point['step'] >= start:
               target.setdefault(key, {})[point['step']] = point
+              if paired_gains:
+                if 'gain_difference' not in point:
+                  raise ValueError('Native paired report lacks gain_difference; refresh its registry event')
+                gaps.setdefault((run, base), {})[point['step']] = dict(
+                    step=point['step'], gap=point['gain_difference'])
   return gaps, ratios
 
 
@@ -69,14 +80,15 @@ def break_missing_windows(xs, ys):
 
 def render(payloads, output_dir, *, prefix='training-progress', start=600,
            runs=(), bases=(), labels=None, title=None, notes=(), sources=(), run_colors=None,
-           dpi=120, facet_by_base=False, independent_x=False, panels=('gap', 'gain')):
+           dpi=120, facet_by_base=False, independent_x=False, panels=('gap', 'gain'),
+           paired_gains=False):
   import matplotlib
   matplotlib.use('Agg')
   import matplotlib.pyplot as plt
   from matplotlib.ticker import MaxNLocator
   from PIL import Image
 
-  gaps, ratios = collect(payloads, start, runs, bases)
+  gaps, ratios = collect(payloads, start, runs, bases, paired_gains=paired_gains)
   if not panels or len(set(panels)) != len(panels) or any(p not in ('gap', 'gain') for p in panels):
     raise ValueError('panels must select gap and/or gain once each')
   panel_rows = {name: row for row, name in enumerate(panels)}
@@ -110,15 +122,19 @@ def render(payloads, output_dir, *, prefix='training-progress', start=600,
       warnings.append(f'No registered gain-ratio series for {run} vs {base}')
     for ri, (key, points) in enumerate(own_ratios):
       reference = key[2]
+      reference_label = labels.get(reference, reference)
+      if len(key) == 4:
+        reference_label += ' / ' + labels.get(key[3], key[3])
+      reference_identity = '|'.join(key[2:])
       xs = sorted(set(steps) | set(points))
       ys = [ratio_value(points.get(s, {})) for s in xs]
       xs, ys = break_missing_windows(xs, ys)
       if 'gain' in panel_rows:
         axes[panel_rows['gain']].plot(xs, ys, color=color, linestyle=('-', '--', ':')[ri % 3],
                      marker='o', markersize=2.5, linewidth=1.5,
-                     label=f'{label}; ref={labels.get(reference, reference)}')
+                     label=f'{label}; ref={reference_label}')
       valid = [s for s in sorted(points) if finite(ratio_value(points[s]))]
-      gain_horizons[reference] = max(valid) if valid else None
+      gain_horizons[reference_identity] = max(valid) if valid else None
       if any(not finite(y) for y in ys):
         warnings.append(f'Missing/undefined gain windows remain blank: {run}|{base}|{reference}')
     shown.append(dict(run=run, base=base,
@@ -128,6 +144,8 @@ def render(payloads, output_dir, *, prefix='training-progress', start=600,
     for name, axis in zip(panels, grid[:, column]):
       center, ylabel = ((0, 'Loss gap: experiment - comparator\n(lower is better)')
                         if name == 'gap' else (1, 'Gain multiplier\n(higher is better)'))
+      if paired_gains and name == 'gap':
+        ylabel = 'Paired gain difference: comparator - experiment\n(lower is better)'
       axis.axhline(center, color='#777', linestyle=':', linewidth=1)
       if column == 0:
         axis.set_ylabel(ylabel)
@@ -171,13 +189,15 @@ def render(payloads, output_dir, *, prefix='training-progress', start=600,
   # Keep exact native series and identities beside each unique PNG for reproducibility.
   provenance = dict(figure=str(path), generated_utc=stamp, sources=list(sources),
       plot_start=start, title=title, labels=labels, run_colors=run_colors or {}, notes=list(notes), shown=shown,
-      facet_by_base=facet_by_base, independent_x=independent_x, panels=list(panels), panel_end_steps=row_ends, column_bases=columns,
+      facet_by_base=facet_by_base, independent_x=independent_x, panels=list(panels), paired_gains=paired_gains,
+      panel_end_steps=row_ends, column_bases=columns,
       image=dict(dpi=dpi, width=image_size[0], height=image_size[1],
                  format='PNG', palette_colors=256, bytes=path.stat().st_size),
       warnings=warnings,
       reports=[dict(run=key[0], base=key[1], series=[points[s] for s in sorted(points)])
                for key, points in gaps.items()],
       gain_ratios=[dict(run=key[0], comparator=key[1], reference=key[2],
+                       **({'comparator_reference': key[3]} if len(key) == 4 else {}),
                        series=[points[s] for s in sorted(points)])
                    for key, points in ratios.items()])
   sidecar = path.with_suffix('.json')
@@ -201,6 +221,8 @@ def main():
   parser.add_argument('--color', nargs=2, action='append', default=[], metavar=('RUN', 'COLOR'))
   parser.add_argument('--independent-x', action='store_true',
                       help='Separate gap/gain panel horizons; curves within each panel share one axis')
+  parser.add_argument('--paired-gains', action='store_true',
+                      help='Plot native four-RUN gain_difference and gain multiplier; omit ordinary comparisons')
   parser.add_argument('--panels', nargs='+', choices=('gap', 'gain'), default=['gap', 'gain'],
                       help='Select loss-gap and/or gain panels; default draws both')
   parser.add_argument('--title')
@@ -213,6 +235,7 @@ def main():
     result = render([json.loads(text) for text in texts], args.output_dir,
         prefix=args.prefix, start=args.start_step, runs=args.run, bases=args.base,
         dpi=args.dpi, facet_by_base=args.facet_by_base, independent_x=args.independent_x, panels=args.panels,
+        paired_gains=args.paired_gains,
         labels=dict(args.label), run_colors=dict(args.color), title=args.title, notes=args.note,
         sources=[dict(path=str(p.resolve()), sha256=hashlib.sha256(text).hexdigest())
                  for p, text in zip(args.reports, texts)])

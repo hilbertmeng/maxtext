@@ -14060,6 +14060,40 @@ class BamMHAMediumPropL27C256TruePile(Llama2MediumPropL27, BamMHAMediumPropC256T
     jax_cache_dir = ''
 
 
+class BamMHAMediumPropL27C256TruePilemHC(MHCConfig, BamMHAMediumPropL27C256TruePile):
+    """Four-stream A.6/SK20 mHC on the deep L27 MHA control, budget matched."""
+    model_name = 'BamMHAMediumPropL27C256TruePilemHC'
+    # ResidualDecoderStack requires an unrolled stream stack; backbone remains L27.
+    scan_layers = False
+    mhc_stream_major_layout = True
+    mhc_pallas_update = True
+    mhc_pallas_connector = True
+    mhc_pallas_sinkhorn = True
+    record_training_health_metrics = True
+    record_internal_nn_metrics = False
+    tensorboard_gcs_rotate_period = 500
+    compare_runs = ['BamMHAMediumPropL27C256TruePile']
+    jax_cache_dir = ''
+
+
+class BamMHAMediumPropL27C256TruePileDHC4Tanh(MHCConfig, BamMHAMediumPropL27C256TruePile):
+    """Four-stream signed x4-tanh DHC/sum head on the deep L27 control."""
+    model_name = 'BamMHAMediumPropL27C256TruePileDHC4Tanh'
+    residual_connection = 'dhc'
+    scan_layers = False
+    mhc_learned_head = False
+    mhc_identity_mixing = False
+    dhc_norm_epsilon = 1e-5
+    mhc_stream_major_layout = True
+    mhc_pallas_update = True
+    mhc_pallas_connector = True
+    record_training_health_metrics = True
+    record_internal_nn_metrics = False
+    tensorboard_gcs_rotate_period = 500
+    compare_runs = ['BamMHAMediumPropL27C256TruePile', 'BamMHAMediumPropL27C256TruePilemHC']
+    jax_cache_dir = ''
+
+
 class BamMediumPropL27K75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile(
     Llama2MediumPropL27, BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile):
     """27-layer QK57 BAM with private sparse MLP writes and matched MHA budget."""

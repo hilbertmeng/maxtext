@@ -20707,7 +20707,8 @@ class BamMediumPropV5SiTU47M64R384(BamMediumPropV5SiTU47):
     Fixed R384 versus V48 separates matrix-capacity growth from rank growth.
     """
     # Ledger only: codex/mediumprop-v5-situ47; family worktree; code_commit: 5acf1ab.
-    # UE5a v5p-16 /311021; fixed13500-step plan, no elimination reviews.
+    # UE5a v5p-16 /311021, .621 step/s at101; -5.8% vs V48 .659 (unpaired, same health).
+    # Both workers loaded the exact AOT/source; fixed13500-step plan, no elimination reviews.
     model_name = 'BamMediumPropV5SiTU47M64R384'
     bam_v = 64
     bam_local_full_m_read_bottleneck_dim = 384

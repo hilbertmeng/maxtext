@@ -115,3 +115,11 @@ Keep the common V32/R256 reference in the shared figure; also register V48/R384
 as a direct fixed-rank comparison for this arm. Native MHA-referenced gain prior
 versus V48:1.01 (range .98--1.04); speed approximately4% slower than V48.
 The objective remains scaling characterization, so train the full13500 steps.
+
+V64 startup verified: both workers loaded the exact5acf1ab AOT/source on UE5a;
+actual FIRST_STEP at12 and subsequent101-step gate pass. Startup .621 step/s is
+5.8% slower than V48 .659 (unpaired, identical health settings). CPU all-gradient
+maximum relative error2.75e-6. The formal48MiB-VMEM AOT succeeds without a kernel
+change. Added to the existing group without resetting its2000-step calendar;
+plots retain the common V32/R256 reference, with native V64/V48 fixed-rank
+comparisons available separately.

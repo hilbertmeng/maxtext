@@ -13752,6 +13752,9 @@ class BamMHAMediumPropL12TruePile(SplashTunedBlocks1024, Llama2MediumPropL12):
     # code_commit: 64d7505; v5p-16 / 311014; UE5a primary, UC1a/EW4b backups.
     # EW4b resume startup ~.975 step/s; compiled AOT and both worker hashes verified.
     # Generic health ON/internal OFF; historical MHA18 C256 timing is kernel-unmatched.
+    # Completed 13500, P6; actual training EW4b -> UC1a, UC1a ~.98 step/s.
+    # vs MHA18: early lead vanished around 4k; late deficit stabilized near +.0055.
+    # Final 13.4k window +.00590; last five +.00554. CP/cursor/TB and teardown verified.
     model_name = 'BamMHAMediumPropL12TruePile'
     DATASET_VARIANT = 'truepile4096'
     attention = 'flash'

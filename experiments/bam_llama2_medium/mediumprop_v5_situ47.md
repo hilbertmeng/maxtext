@@ -213,9 +213,36 @@ Resume-bound startup gates (at least 14 updates past the verified source
 checkpoint) measured MHA12 .975, BAM12 .844 and BAM27 .522 step/s. These
 are unpaired startup observations, not long stable-lease medians. MHA12
 and BAM12 have both-worker `Loaded compiled function!` and exact-runtime
-hash proofs. BAM27 was reclaimed before its log capture; retain that
-remaining check for a stable allocation. Detailed artifacts stay in the
+hash proofs. Subsequent UC1a resumes verified the same two checks for all
+three RUNs, including BAM27; receipts are `*-uc-loaded-aot-proof.txt`.
+The next periodic checkpoints also verified UC1a data cursors.
+Detailed artifacts stay in the
 resource directory rather than adding running loss records to this ledger.
 Resource monitoring refreshes committed GCS markers through native
 `run_registry.py report-all` as needed, independently of live worker-step
-availability; no loss curves are delivered under this monitoring policy.
+availability. The initial resource-only policy was superseded on 2026-11-13
+by grouped 2,000-step reports. Persistent group `mediumprop-v5-situ-depth`
+uses BAM27 as its shared clock, reports all three members at their latest
+available horizons, and retains no intermediate stopping reviews. Native
+loss windows remain 200 steps. Running loss records remain in the registry,
+not this ledger.
+
+### MHA12 completed (2026-11-13)
+
+`BamMHAMediumPropL12TruePile` completed 13,500 updates at runtime `64d75057`.
+Against the matched-budget 18-layer MHA, its early advantage disappeared
+around 4k and became a small, stable late deficit: final 13.4k window
+gap +0.0059044, final five-window mean +0.00553692. The prior +0.004
+terminal gap, range [-0.002, +0.012], covered this result. Widening the MLP
+to 5600 did not fully replace six attention/residual stages.
+
+Training used EW4b then UC1a, about .98 step/s on UC1a, with six registered
+preemptions. This timing is not a controlled speed comparison with the
+historical C256 MHA18. The full native lease history, one supplemental
+pre-training READY interval, and preparation-only candidate observations
+are distinguished in the regional history. Final checkpoint 13,500 and its
+TruePile4096 cursor were verified (seed 9876, global batch 128, two infeed
+hosts), TensorBoard returned SYNC_OK, and all six node/queue identities
+across UE5a/UC1a/EW4b were independently verified absent. The retained FLEX
+compiler remains untouched. Closeout receipts and native final report are
+under the depth-family artifact directory above.

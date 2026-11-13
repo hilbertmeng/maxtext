@@ -69,3 +69,22 @@ V48/R384 (.99--1.06). Speed versus parent: +4% (0--8%) and-7% (-3--12%).
 Earlier V48 with fixed R256 on the pre-H strongest combination yielded1.01827
 at the endpoint; it is historical evidence, not an extra routine baseline here.
 Increasing R also costs MLP capacity, so this experiment tests their joint scaling.
+
+## Verified launch
+
+Both RUNs reached actual training steps, loaded their AOTs on both workers and
+matched the sealed2458bb3 source. Zone-local TruePile4096 paths were verified.
+Recent startup rates .724/.659 step/s versus SiTU18's historical steady .680;
+these are unpaired training observations, not a same-machine speed profile.
+The capacity group uses2000-step shared reports and4000/8000-step reviews;
+stopping requires the user's confirmation. The depth group continues separately.
+
+M16 uses the standard AOT2458bb3-bdd73e13. The temporary M48 v6e compiler was
+preempted before completing an artifact. Its preparer was gracefully cancelled
+and all four owned candidates were independently verified absent as both nodes
+and queued resources across EW4a/UC1a/UE5a. Compile M48 instead on its already-idle
+training worker0 with `prepare_train_aot_on_worker.py --isolated-artifact`, CPU
+backend; the worker lifecycle and installed training checkout are retained.
+Its verified AOT state is2458bb3-e74a7784-idle, artifact:
+`gs://newproject-1-llm_base_models_us-central1/log/compiled_trainsteps/2458bb3/jax081-i0ae3f58-c17f538a/v5p-16/s13500/BamMediumPropV5SiTU47M48R384.idle.pickle`.
+Both use48MiB VMEM; no Pallas change or larger memory limit was necessary.

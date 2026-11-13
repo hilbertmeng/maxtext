@@ -20660,7 +20660,8 @@ class BamMediumPropV5SiTU47M16R128(BamMediumPropV5SiTU47):
     Implementation: codex/mediumprop-v5-situ47;
     /home/xd/.codex/worktrees/medium-v5-situ47/maxtext.
     """
-    # code_commit:2458bb3; 432112388 params, parent+160; complete-branch ratio2.001236:1.
+    # code_commit:2458bb3; UE5a v5p-16/311019, recent .724step/s (+6.5% vs SiTU18).
+    # 432112388 params, parent+160; complete-branch ratio2.001236:1.
     model_name = 'BamMediumPropV5SiTU47M16R128'
     bam_v = 16
     bam_local_full_m_read_bottleneck_dim = 128
@@ -20679,7 +20680,8 @@ class BamMediumPropV5SiTU47M48R384(BamMediumPropV5SiTU47):
     Implementation: codex/mediumprop-v5-situ47;
     /home/xd/.codex/worktrees/medium-v5-situ47/maxtext.
     """
-    # code_commit:2458bb3; 432111620 params, parent-608; complete-branch ratio2.000921:1.
+    # code_commit:2458bb3; UE5a v5p-16/311020, recent .659step/s (-3.1% vs SiTU18).
+    # 432111620 params, parent-608; complete-branch ratio2.000921:1.
     model_name = 'BamMediumPropV5SiTU47M48R384'
     bam_v = 48
     bam_local_full_m_read_bottleneck_dim = 384

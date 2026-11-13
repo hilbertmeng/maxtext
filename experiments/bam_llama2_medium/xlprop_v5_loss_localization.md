@@ -2,7 +2,7 @@
 
 2026-11-12. Frozen full-batch interventions for **BamXLPropV5FastKernelFullRemat**.
 
-**Result:** early attention parameters dominate conditional loss rescue; zero-based L3 (the fourth attention layer) is strongest. This does not yet identify its localV branch or establish an attention-sink mechanism.
+**Current result:** early value/readout changes propagate into later routing and residual-write direction changes. Early W_O/V rollbacks have strong conditional loss effects. Sampled weak-M write geometry also changes, but its causal role remains untested. This is not a demonstrated first-token sink mechanism.
 
 ## Reproduction and validation
 
@@ -264,3 +264,88 @@ a weak-energy correlation, or successful script execution is insufficient. Repor
 any remaining scope limits; do not force a unique explanation unsupported by data.
 No architecture training, old Medium restart, borrowed training TPU, or protected
 compiler use is authorized by this diagnostic follow-up.
+
+
+## r7: early readout changes propagate through depth (2026-11-13)
+
+Seven original-AOT cases completed; six forward captures passed their per-case
+absolute-loss fidelity bound1e-3 (largest error0.00062704). Peak/old original AOT
+losses remain2.595792532/1.977011561. The TPU was preempted before the last
+all-attention forward capture and worker closeout. Four available process0 input
+hashes match the earlier16-shard reference; all-worker exit codes and a fresh
+independent16-shard comparison are unavailable, and are not claimed.
+All four exact resource node/queue objects independently returned NOT_FOUND.
+
+Original-AOT first-six-layer rollbacks:
+
+| Family | Loss | Conditional recovery of peak-minus-old loss |
+|---|---:|---:|
+| QK |2.424562693|27.67%|
+| V |2.262374640|53.88%|
+| W_O |2.124925375|76.10%|
+| V+W_O |2.062868595|86.13%|
+| all attention |2.037791491|90.18%|
+
+Sampled geometry uses two fixed sequences, twelve queries per sequence, all20
+heads and all4096 source keys. Reconstructed FP32 contexts differ from native
+Splash contexts by at most0.212% across the six layers/old-peak controls. This
+supports interpreting the following sampled probability comparisons; they do
+not describe every query of the full batch.
+
+| Layer | Mean route TV, peak vs old | Write cosine, old vs peak | Full-batch write RMS, old -> peak |
+|---|---:|---:|---:|
+|L0|.0285|.9993|.17334 -> .18400|
+|L1|.0717|.9776|.04750 -> .04668|
+|L2|.1426|.8937|.04975 -> .03638|
+|L3|.1548|.9067|.04995 -> .05368|
+|L4|.2767|.7967|.06715 -> .07479|
+|L5|.3460|.6501|.08464 -> .09923|
+
+Thus weights/patterns are not stable, and write magnitude does not uniformly
+explode or collapse. At L5, QK rollback leaves mean route TV.3258, W_O rollback
+reduces it to.1726, and V+W_O rollback to.1143. L0 routing is exactly unchanged
+by its downstream V/W_O rollback, as expected; later routing responds through
+changed upstream states. This is evidence for a depth feedback path, not proof
+that routing changes themselves cause the loss peak.
+
+Algebraic fixed-old-P decomposition assigns about94.8% of L0 context-delta
+projection to changed V tensors, falling to51.3% at L5 as route changes grow.
+At fixed head inputs, direct W_O-kernel changes account for only0.5--14.2% of
+observed old-to-peak write-delta projection, despite their strong conditional
+loss effect. These are order-dependent signed vector projections, not causal
+shares. The V tensors and head inputs include upstream-state/local-read changes,
+not only the local V parameter subset. Together with the rollout controls,
+these observations favor a small early readout perturbation being propagated
+and amplified over a large isolated W_O-output amplitude error.
+
+At the peak-dominant sequence104/query1220, L5 attention writes have total
+squared norm255.58 ->271.62, while energy outside the old M content subspace
+retaining99% of its energy rises49.14 ->100.68 (fraction19.23% ->37.07%). The
+basis is held fixed at the old state; it includes the old null space. This
+localized weak-component increase is real in these captured tensors but remains
+correlation; the second sampled sequence does not show the same doubling.
+Attention+memory-write reference errors against actual M deltas are at most1.622%.
+
+A measurement issue was caught during host cross-check: full-batch JIT addition
+rounding fields report near-zero errors, inconsistent with materialized BF16
+snapshots. Those two fields are excluded from analysis; compiler fusion or
+reassociation is a possible explanation, not independently established. Host
+recomputation on samples gives addition error relative to write norm0.17--2.58%
+and rounded-away coordinate fractions0.17--0.87%. These measurements neither
+establish BF16 as the cause nor justify calling all weak writes lost.
+
+Artifacts: `training_reports/xlprop-v5-loss-localization-20261112/pattern-r7/`:
+`loss-localization.json`, `pattern-write.json`, six named NPZs,
+`paired-pattern-write-analysis.json`, `verification.json`,
+`resource-cleanup-verification.json`, `pattern-write-summary.png`. Host analyzer
+excludes invalid full-batch rounding fields and reports sampled host values.
+
+Next discriminating test: separate **old write direction with current amplitude**
+from **old amplitude with current direction**, with whole-write replacement and
+no-op controls, across L0--5 and L3 alone. Restore donor writes on the TPU and
+keep them sharded (six full-batch vectors are large; do not download or replicate
+all of them). Patch the ordinary attention output while preserving same-layer
+pre-W_O M-write factors, and measure the downstream MLP operating points/gains.
+If only direction rescue works, localize the subspace next. A weak-M hypothesis
+requires its own targeted component-patch/control. Current data do not complete
+that causal bridge; continue the owner-authorized investigation.

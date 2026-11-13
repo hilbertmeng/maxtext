@@ -79,7 +79,8 @@ def analyze(root):
     'FP32 reconstructed probabilities, not exact Splash weights.',
     'Signed component projections are algebraic descriptions, not additive causal shares.',
     'Weak-subspace energy is sampled M geometry, not proof of an instability.',
-    'Peak-batch matched states do not establish chronological onset.'],layers=[],rollback_cases=[])
+    'Peak-batch matched states do not establish chronological onset.',
+    'Fullbatch JIT addition-rounding metrics disagree with materialized snapshots; excluded. Use sampled host metrics.'],layers=[],rollback_cases=[])
   diff=route_difference(old['route'],peak['route'])
   for layer in range(6):
     entry=dict(layer=layer,route_by_head=[],context={},write={},memory=[])
@@ -108,10 +109,16 @@ def analyze(root):
       x=values['residual_in'][layer];w=values['projection_native'][layer]
       x2=np.sum(x.astype(np.float64)**2,-1);w2=np.sum(w.astype(np.float64)**2,-1)
       dot=np.sum(x.astype(np.float64)*w,-1)
+      fullbatch=dict(zip(metadata['residual_write_stats'],cases[label+'_control']['residual_write_stats'][layer]))
+      for key in ('bf16_addition_error_relative_energy_sqrt','nonzero_write_elements_rounded_away_fraction'):
+        fullbatch.pop(key,None)
+      post=values['residual_after_attention'][layer]
       entry['write'][label]=dict(sampled_write_over_residual=describe(np.sqrt(w2/np.maximum(x2,1e-30))),
         sampled_write_residual_cosine=describe(cosine(x,w)),
         sampled_energy_growth_fraction=describe((2*dot+w2)/np.maximum(x2,1e-30)),
-        fullbatch_stats=dict(zip(metadata['residual_write_stats'],cases[label+'_control']['residual_write_stats'][layer])))
+        sampled_materialized_addition_error=relative_error(post.astype(np.float64)-x,w),
+        sampled_materialized_rounded_away_fraction=float(np.mean((post==x)&(w!=0))),
+        fullbatch_stats=fullbatch)
       for seq_index,seq_id in enumerate(metadata['sequences']):
         for query_index,query in enumerate(metadata['queries']):
           matrix=values['M_in'][layer,seq_index,query_index]

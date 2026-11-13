@@ -20590,6 +20590,42 @@ class BamMediumPropV5SiTU47L27(BamMediumPropV5SiTU47):
     ]
 
 
+class BamMediumPropV5SiTU47M16R128(BamMediumPropV5SiTU47):
+    """L18 capacity scaling: M75x16 and all read/write ranks128.
+
+    Ordinary/private widths2662/1273 preserve complete-branch ratio2.001236:1;
+    terminal4147 closes the parent budget to+160 parameters.
+    """
+    model_name = 'BamMediumPropV5SiTU47M16R128'
+    bam_v = 16
+    bam_local_full_m_read_bottleneck_dim = 128
+    bam_write_v_bottleneck_dim = 128
+    bam_mlp_write_address_rank = 128
+    emb_bam_v_bottleneck_dim = 128
+    base_mlp_dim = 2662
+    bam_memory_mlp_dim = 1273
+    bam_last_mlp_dim = 4147
+    compare_runs = ['BamMediumPropV5SiTU47']
+
+
+class BamMediumPropV5SiTU47M48R384(BamMediumPropV5SiTU47):
+    """L18 capacity scaling: M75x48 and all read/write ranks384.
+
+    Ordinary/private widths2298/933 preserve complete-branch ratio2.000921:1;
+    terminal3583 closes the parent budget to-608 parameters.
+    """
+    model_name = 'BamMediumPropV5SiTU47M48R384'
+    bam_v = 48
+    bam_local_full_m_read_bottleneck_dim = 384
+    bam_write_v_bottleneck_dim = 384
+    bam_mlp_write_address_rank = 384
+    emb_bam_v_bottleneck_dim = 384
+    base_mlp_dim = 2298
+    bam_memory_mlp_dim = 933
+    bam_last_mlp_dim = 3583
+    compare_runs = ['BamMediumPropV5SiTU47']
+
+
 class BamLargePropV5(BamV5Architecture, Llama2LargeProp):
     """L22/D1536 V5, M96x32 and independent R256 read/write projections.
 

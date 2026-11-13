@@ -27,6 +27,7 @@ active leases are censored, and manual migration releases are not preemptions.
 
 | RUN | TPU | Zone | Start UTC | End UTC | End reason | Passive candidates |
 |---|---|---|---|---|---|---|
+| `MuddLlama2MediumPropL27TruePile` | v5p-16 (`xd-v5p-16-311018-maxtext`) | `us-east5-a` | 2026-11-13 09:57:09 | 2026-11-13 17:30:09 | completed13500/P0; CP/cursor/TB and all regional resources verified | UE5a only active; UC1a/EW4b passive backups; earlier prequeue adopted READY09:52:02, exact lease start unknown |
 | `MuddLlama2MediumPropL12TruePile` | v5p-16 (`xd-v5p-16-311017-maxtext`) | `us-east5-a` | 2026-11-13 09:57:07 | 2026-11-13 14:19:38 | completed13500/P0; CP/cursor/TB and all regional resources verified | UE5a primary, UC1a/EW4b passive backups; prequeue READY observed09:47:14 before trainer registration |
 | `BamMediumPropV5SiTU47L27` | v5p-16 (`xd-v5p-16-311016-maxtext`) | `us-east5-a` | 2026-11-12 15:57:58 | 2026-11-12 16:07:39 | queue preparation only; no verified FIRST_STEP | UE5a primary, UC1a/EW4b backups after 300s |
 | `BamMediumPropV5SiTU47L27` | v5p-16 (`xd-v5p-16-311016-maxtext`) | `europe-west4-b` | 2026-11-12 16:07:39 | 2026-11-12 22:02:14 | actual short training leases and queue waits; not continuous availability | alternates retained through resumed FIRST_STEP |
@@ -2648,6 +2649,8 @@ active leases are censored, and manual migration releases are not preemptions.
 | `BamMediumPropV5SiTU47L27` | 8 | `us-central1-a` | 2026-11-13 08:33:57 | 2026-11-13 08:43:32 | 9m35s | scheduled completion 13500; resumed from committed 13392 for final 108 updates; CP/cursor/TB and all regional resources verified |
 
 | `MuddLlama2MediumPropL12TruePile` | 1 | `us-east5-a` | 2026-11-13 09:47:14 | 2026-11-13 14:19:38 | 4h32m24s | clean completion13500/P0; earliest prequeue READY observation includes preparation; native observer09:57:10 onward is a subset of this same uninterrupted lease; CP/cursor/TB and regional teardown verified |
+
+| `MuddLlama2MediumPropL27TruePile` | 1 | `us-east5-a` | ? (READY observed2026-11-13 09:52:02) | 2026-11-13 17:30:09 | >=7h38m07s | clean completion13500/P0; prequeue ADOPT already READY, exact start unknown; native09:57:13 observer is a subset; CP/cursor/TB and all regional resources verified |
 
 ### Medium depth-family MHA12 resource closeout (2026-11-13)
 

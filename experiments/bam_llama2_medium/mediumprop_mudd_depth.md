@@ -84,7 +84,7 @@ Mudd12 completed13500 without preemption on one UE5a v5p-16 lease. Steady
 throughput .890 step/s was4.2% faster than same-depth BAM12 .854, an unpaired
 comparison with generic health ON and internal metrics OFF. CP13500 and its
 cursor, final TensorBoard sync, and all three regions' node/queue teardown were
-independently verified. The active27-layer control is not yet a final result.
+independently verified. The27-layer control has now also completed; its final comparison follows below.
 
 Mudd12's deficit to BAM12 shrank from+.33125 at600 to+.15647 at2000 and
 +.074126 over the final five windows. Its early advantage to Mudd18 reversed
@@ -107,3 +107,40 @@ observer started09:57:10Z; its4h22m28s interval is a subset of the same lease,
 not a second allocation or a claim that the full lease was useful training.
 Artifacts include `mudd12-final-checkpoint.txt`, `mudd12-final-resources.json`,
 `mudd12-final-lease-report.json`, and the `SYNC_OK` closeout receipt.
+
+## Final12/18/27-layer comparison
+
+All depths completed13500 steps. Native final200-step windows through13400,
+averaged over the last five windows:
+
+| Depth | BAM minus same-depth Mudd | R_d, matched MHA reference | R_d/R18 |
+|---|---:|---:|---:|
+|12|-.07412572|1.851382|.900859|
+|18|-.09169544|2.055147|1|
+|27|-.1018169852|2.078775|1.011465|
+
+The direct fixed-budget depth result is clear:12->18 layers reduces BAM loss
+by .02293956 versus Mudd's .00536984, about4.27x. From18->27, BAM improves a
+further .0062574252 while Mudd worsens by .00386412. Thus the extra absolute
+BAM advantage is .0101215452. Additional proportional gain expansion is much
+smaller: K27 ends at1.0115, below the1.05 central prior, though within its range;
+K12=.9009 is below its .95 central prior. K27 stays above1 in all mature windows
+from10000 onward; its late advantage is persistent but modest. Do not conflate
+this ratio of MHA-referenced gains with the direct depth interaction.
+
+Mudd27's deficit to BAM27 shrank continuously from .39865 at600 to .16324 at2000,
+.11552 at6000 and .10182 at the endpoint. Relative to Mudd18 it approached parity
+around2000, then slowly fell behind, ending+.003864. Its MHA27 gain ended .094417.
+Steady .510 step/s is3.0% slower than BAM27 .526, unpaired with matched health.
+The completed12/27 controls preserve the historical18-layer Mudd router rule;
+these are architecture/width tradeoffs under the tested recipes, not a claim
+that all possible depth or token-budget scalings behave identically.
+
+Mudd27 completed without preemption on one UE5a v5p-16 lease. Its exact initial
+READY time is unknown: the saved prequeue log adopts an already-READY node at
+09:52:02Z. Completion was17:30:09Z on2026-11-13, so the observed READY interval
+is at least7h38m07s. Native trainer observation09:57:13Z onward is a subset of
+the same uninterrupted lease. Final CP13500/cursor, TB SYNC_OK, native already-
+closed receipt and all six regional node/queue identities were verified.
+Evidence: `mudd27-final-proof.json`, `mudd27-final-report.json`,
+`mudd27-prequeue.log`, `mudd27-remote-closeout.txt`, and `final13500/`.

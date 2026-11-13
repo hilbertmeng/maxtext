@@ -13812,8 +13812,13 @@ class MuddLlama2MediumPropL12TruePile(Mudd, BamMHAMediumPropL12TruePile):
 
 class MuddLlama2MediumPropL27TruePile(Llama2MediumPropL27, MuddLlama2MediumPropL12TruePile):
     """27-layer counterpart; leave the Mudd router overhead outside the MLP budget."""
-    # code_commit: c7a6730; main/refactor-bam; UE5a v5p-16 /311018, startup .512 step/s.
+    # code_commit: c7a6730; main/refactor-bam; UE5a v5p-16 /311018, steady .510 step/s.
+    # -3.0% vs same-depth BAM27 .526 (unpaired); generic health ON, internal health OFF.
     # 435783568 params; MLP budget matched, router overhead +2.528311 W_Q, not repaid.
+    # Completed13500/P0. vs BAM27 deficit shrank +.39865@600 -> +.16324@2000 -> last5+.101817.
+    # vs Mudd18 approached parity near2000, then slowly fell behind; last5+.003864.
+    # vs MHA27 last5-.094417; BAM/Mudd gain ratio vs MHA27 last5=2.078775.
+    # Final CP13500/data cursor, TB SYNC_OK and all regional node/queue teardown verified.
     model_name = 'MuddLlama2MediumPropL27TruePile'
     # Rounded depth schedule loses64 hidden units; restore them at the last layer.
     bam_last_mlp_dim = 2496

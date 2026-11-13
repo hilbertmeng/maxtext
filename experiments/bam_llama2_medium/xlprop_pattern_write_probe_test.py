@@ -2,9 +2,16 @@ import unittest
 import jax
 import jax.numpy as jnp
 import numpy as np
-from xlprop_pattern_write_probe import routing_probabilities,write_reference,parameter_plans
+from xlprop_pattern_write_probe import routing_probabilities,write_reference,parameter_plans,runtime_modules
 
 class PatternWriteTest(unittest.TestCase):
+ def test_historical_runtime_import_contract(self):
+  import inspect
+  attentions,fusion,kernels=runtime_modules()
+  self.assertEqual(kernels.__name__,'layers.bam_pallas')
+  self.assertIn('epsilon',inspect.signature(kernels.write).parameters)
+  self.assertIn('M_in',inspect.signature(fusion.SubDecoderLayer.__call__).parameters)
+  self.assertIn('out',inspect.signature(attentions.BamAttention.out_projection).parameters)
  def test_strict_causal_segment_and_empty_rows(self):
   k=jnp.ones((1,4,1,2));q=k[:,jnp.array([0,1,3])];seg=jnp.array([[1,1,2,2]])
   p=jax.jit(lambda q,k:routing_probabilities(q,k,seg,(0,1,3)))(q,k)

@@ -11,6 +11,12 @@ SEQUENCES = (9, 104)
 QUERIES = (0, 1, 2, 8, 16, 128, 512, 1211, 1220, 2048, 3072, 4095)
 
 
+def runtime_modules():
+  # The immutable d54 runtime predates the bam_kernels rename.
+  from layers import attentions, fusion, bam_pallas
+  return attentions, fusion, bam_pallas
+
+
 def parameter_plans():
   p = [dict(name='peak_control', families=[], direction='revert'),
        dict(name='old_control', families=['ALL'], direction='revert')]
@@ -52,7 +58,7 @@ def run_probe(train,captured,reference,output,sequence,target_layer):
   import numpy as np
   import orbax.checkpoint as ocp
   from flax import linen as nn,serialization
-  from layers import attentions,fusion,bam_kernels
+  attentions,fusion,bam_kernels=runtime_modules()
   helper=runpy.run_path(str(Path(__file__).with_name('xlprop_routing_localization_probe.py')))
   helper['run_probe'].__globals__['case_plans']=parameter_plans
   helper['run_probe'](train,captured,reference,output,sequence,target_layer)

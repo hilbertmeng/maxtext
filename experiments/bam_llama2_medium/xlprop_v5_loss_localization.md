@@ -191,3 +191,25 @@ Group `first_value_rms_by_head` is native preclamp L3; group sampled-routing sta
 Artifacts: `training_reports/xlprop-v5-loss-localization-20261112/sink-r5/{loss-localization.json,sink-localization.json,verification.json,resource-cleanup-verification.json,workers/}`; GCS `gs://newproject-1-llm_base_models_us-central1/log/diagnostics/xlprop-v5-lossloc-20261112-r5/`. Original r2 diagnostic CP copy reused read-only; updates discarded. Controller completed all60 cases; EW resource released23:27:12UTC, UC23:34:54UTC. Independent exact node/queue describes returned real NOT_FOUND for all4 objects. No HC training or retained compiler was touched.
 
 Next discriminating test would patch matched old routing while retaining peak values, or test early-onset states. This stage ends here; no new resources are started automatically.
+
+
+## Pattern/write follow-up r6: execution failure, no new inference (2026-11-13)
+
+The original frozen peak executable reproduced loss2.595793/raw809414.5625 at step35676.
+The new capture helper then failed before its7-case localization/capture stage: it imported
+`layers.bam_kernels`, a later module name absent from immutable runtime d54c4c5.
+The correct historical module is `layers.bam_pallas`. This was a probe implementation error,
+not a model numerical failure. No `results/loss-localization.json`, `pattern-write.json`, or
+pattern/write NPZ was produced; r6 supplies no new causal or residual-energy evidence.
+
+The helper now uses a historical runtime import function and an explicit import/signature
+regression against a detached d54 source checkout. All5 focused CPU tests passed in6.202s;
+TPU forward fidelity remains untested for this corrected capture. Existing r6 runner/manifest
+retain the exact failed helper identity; do not overwrite/reuse them as a successful run.
+All four exact node/queue describes returned NOT_FOUND at04:27UTC despite the controller's
+prior UC delete-call timeout. The fixed acquisition deadline03:32:37UTC has elapsed; no new
+resources were requested and no deadline was extended.
+
+Separately, ChatServer wakeups stopped because the accumulated reason exceeded the server's
+length limit. The reason was replaced by a205-character pointer to the canonical monitor;
+status API independently confirmed enabled/on, ten-minute interval, next04:37:14UTC.

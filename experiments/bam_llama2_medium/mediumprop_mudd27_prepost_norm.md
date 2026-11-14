@@ -3,7 +3,9 @@
 Cancelled by the user during AOT compilation on2026-11-14. Runtimee337a8c6
 passed CPU/config checks, but no training controller/RUN was created and no
 training steps were executed. Keep the configuration as a cancelled proposal;
-the prior below is untested. Preparation resources are being released.
+the prior below is untested. Automatic launch was cancelled first; the temporary
+compiler node/queue and all three regions' training node/queue identities were
+verified absent. Receipts: `cancel-resources.json`, `cancel-compiler-final.json`.
 
 Purpose: test whether the existing residual-style Mudd circuit improves depth use
 under the completed12/18/27-layer study's fixed parameter/token budget. The old

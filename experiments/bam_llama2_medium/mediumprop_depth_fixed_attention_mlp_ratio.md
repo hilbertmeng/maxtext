@@ -254,10 +254,11 @@ the normalization control; its earlier reports stay in immutable snapshots,
 but it no longer supplies BAM27's routine gap/gain line. This is a monitoring
 change only: source hashes, checkpoints, parameters and training are unchanged.
 
-Depth-axis plots also use pre/post-norm Mudd at27;12/18 retain the available
-plain Mudd controls. Label that difference in figures. These plots compare
-the strongest available controls, while a pure normalization-matched depth
-claim still needs corresponding12/18 evidence. Keep the independently
+Regular depth-axis and BAM/Mudd plots use pre/post-norm Mudd at27 and plain
+Mudd at12/18. The additional shallow norm controls remain a separate factor
+study: their mature losses are worse than their plain parents. A common switch
+setting is not the benchmark objective; compare each depth against its stronger
+validated Mudd recipe. Keep all normalization effects visible separately. Keep the independently
 matched-MHA BAM27-versus-BAM18 ratio and the pre/post-norm versus plain Mudd27
 control ratio registered separately. Group cadence and full budgets are unchanged.
 
@@ -356,3 +357,42 @@ READY leases were in UE5a (UTC):
 Receipts: local `closeout/mha27/proof.json` and its wrapper/TB logs. Automatic
 cleanup/status were preserved; the wrapper returned already-closed and did not
 mutate training resources. Resource history contains every assignment/lease.
+
+
+## Completed BAM27 and continuation of the norm controls
+
+BAM27 completed13500 at982b8e6 in UE5a, approximately.515step/s, one preemption.
+Relative to SiTU18, the early deficit became a small late advantage; final
+12600--13400 five-window gap-.00250536. Its independently matched-MHA paired
+gain relative to SiTU18 ended1.0170839 (mean of native window ratios).
+The original BAM/Mudd K prior used the plain Mudd27 control and must not be
+scored against the subsequently promoted norm control.
+
+At the available stronger-Mudd stage9800--10600, BAM27 averaged-.0953986
+and multiplier2.0190492 relative to norm Mudd27. That baseline is still training;
+this is not their joint terminal result. At the same five windows,18-to27
+absolute loss gains are BAM+.00255156 and Mudd+.00210804, leaving BAM's extra
+depth gain+.00044352. This small positive mean follows a long negative phase;
+terminal relative depth claims remain pending the stronger baseline's endpoint.
+
+For the regular competitive depth benchmark, use plain Mudd12/18 and norm
+Mudd27. The all-norm snapshotk12000 is retained for provenance, but superseded
+for this benchmark: shallow norm12 has sustained negative gain and norm18 has
+small negative gain. Their independent normalization controls continue to13500.
+The original BAM group has finished its model training; keep the norm study
+active at fixed2k milestones using the slower norm18 clock in a continuation
+group. Initialize its calendar from actually delivered norm18 windows, rather
+than waiting for an unreachable14k report on a13500-step completed clock.
+
+Final13500 checkpoint/cursor, TB SYNC_OK and all six regional node/queue absence
+checks passed. No active-zone switch. All chronological READY leases were in
+UE5a (UTC):
+
+| Lease | Start | End | Duration | End reason |
+|---|---|---|---|---|
+|1|2026-11-14 06:13:17|2026-11-14 08:54:14|2h40m57s|preempted|
+|2|2026-11-14 09:04:36|2026-11-14 13:56:03|4h51m27s|run_stop|
+
+Full native loss/gain, registry, checkpoint/cursor and lease/resource receipts:
+local `closeout/bam27/proof.json`; local closeout returned already-closed and
+preserved automatic cleanup/status. Main resource history contains every lease.

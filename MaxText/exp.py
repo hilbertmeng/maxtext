@@ -20859,6 +20859,12 @@ class BamMediumPropV5SiTU47L27AttentionMLP1to2TruePile(BamMediumPropV5SiTU47):
     Scan L0--25 singly; L26 has neither attention nor memory-MLP M writes.
     """
     # code_commit: 982b8e6; v5p-16 /311028; UE5a primary, UC1a/EW4b backups.
+    # Completed13500/P1 in UE5a, ~.515 step/s. vs SiTU18 the early deficit
+    # became a small late lead; final five12600--13400 averaged-.002505.
+    # Matched-MHA27/MHA18 paired gain vs SiTU18 ended1.01708 (last5).
+    # vs pre/post-norm Mudd27, initial advantage narrowed to-.095399 / gain2.01905
+    # over9800--10600; that baseline is still training, so this comparison is provisional.
+    # CP13500/cursor, TB SYNC_OK and all regional resources verified; two READY leases.
     model_name = 'BamMediumPropV5SiTU47L27AttentionMLP1to2TruePile'
     base_num_decoder_layers = 27
     base_emb_dim = 976

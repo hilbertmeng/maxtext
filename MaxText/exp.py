@@ -13820,6 +13820,10 @@ class Llama2MediumPropL27AttentionMLP1to2TruePile(Llama2MediumPropL12AttentionML
     98443264 embedding/unembedding parameters. RoPE60 plus one unrotated dim.
     """
     # code_commit: 958cbc0; v5p-16 /311026; UE5a primary, UC1a/EW4b backups.
+    # Completed13500/P3 in UE5a, ~.662 step/s. vs MHA18 the early deficit shrank
+    # +.16918@600 -> +.00662@4000 -> last5+.000545 (12600--13400), near parity.
+    # vs old D1200 MHA27, early deficit reversed by4000; last5-.010824.
+    # CP13500/cursor, TB SYNC_OK and all regional resources verified; four READY leases.
     model_name = 'Llama2MediumPropL27AttentionMLP1to2TruePile'
     base_num_decoder_layers = 27
     base_emb_dim = 976

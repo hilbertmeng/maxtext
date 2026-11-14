@@ -308,3 +308,29 @@ leases remained in UE5a (UTC):05:49:22--08:53:56,3h04m34s, preempted;
 the same assignments/leases in global end-time order. Proofs are under local
 `closeout/mudd27/`; the native closeout took162s, chiefly verified TPU/queue
 release, with zero estimated lost steps. Remaining training budgets are unchanged.
+
+
+## Completed width-scaled MHA27
+
+`Llama2MediumPropL27AttentionMLP1to2TruePile` completed13500 at runtime958cbc0,
+UE5a approximately.662step/s, three preemptions. The deficit versus MHA18
+shrunk from+.169182 at600 to+.006620 at4000 and final five+.00054512 over
+12600--13400. Against old fixed-D1200 MHA27 the early deficit reversed before
+4000 and ended-.01082412. At the corrected attention/MLP allocation, MHA's
+terminal depth response is therefore nearly flat; the larger old27-layer
+penalty was substantially a geometry/allocation confound.
+
+Final13500 checkpoint/cursor, TB SYNC_OK and six independent node/queue absence
+checks across UE5a, UC1a and EW4b passed. No active-zone switch. All chronological
+READY leases were in UE5a (UTC):
+
+| Lease | Start | End | Duration | End reason |
+|---|---|---|---|---|
+|1|2026-11-14 05:45:27|2026-11-14 05:53:25|07m58s|preempted|
+|2|2026-11-14 05:59:41|2026-11-14 08:41:01|2h41m20s|preempted|
+|3|2026-11-14 08:48:18|2026-11-14 08:54:07|05m49s|preempted|
+|4|2026-11-14 09:03:35|2026-11-14 12:13:10|3h09m35s|run_stop|
+
+Receipts: local `closeout/mha27/proof.json` and its wrapper/TB logs. Automatic
+cleanup/status were preserved; the wrapper returned already-closed and did not
+mutate training resources. Resource history contains every assignment/lease.

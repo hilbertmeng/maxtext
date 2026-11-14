@@ -547,6 +547,24 @@ class ResidualModelTest(MLPWriteTest, unittest.TestCase):
       for (path, a), b in zip(flatten_dict(g0).items(), jax.tree.leaves(g1)):
         np.testing.assert_allclose(b, a, atol=2e-5, rtol=2e-4, err_msg=f'{remat} {path}')
 
+  def test_rotary_prefix_matmul_matches_concat(self):
+    # Pythia head80/RoPE20 in BF16: identical values and gradients to slice+concat.
+    from types import SimpleNamespace
+    from layers import embeddings
+    from layers.attentions import Attention
+    cfg = self.config('Pythia2p8BSerialQKNormMHC300B')
+    x = jax.random.normal(jax.random.key(0), (2, 16, 3, 80), jnp.float32).astype(jnp.bfloat16)
+    pos = jnp.arange(16)[None, :].repeat(2, 0) * 37
+    def concat(x):
+      rope = embeddings.RotaryEmbedding(min_timescale=cfg.rope_min_timescale, max_timescale=cfg.rope_max_timescale,
+                                        embedding_dims=20, fprop_dtype=jnp.bfloat16)
+      return jnp.concatenate((rope.apply({}, x[..., :20], pos), x[..., 20:]), axis=-1)
+    def matmul(x):
+      return Attention._rotate_prefix(SimpleNamespace(config=cfg, dtype=jnp.bfloat16), x, pos, 20)
+    np.testing.assert_array_equal(np.asarray(matmul(x), np.float32), np.asarray(concat(x), np.float32))
+    grad = lambda f: jax.grad(lambda x: jnp.sum(jnp.sin(f(x).astype(jnp.float32))))(x)
+    np.testing.assert_array_equal(np.asarray(grad(matmul), np.float32), np.asarray(grad(concat), np.float32))
+
   def test_hc_pallas_tile_fits_state_block(self):
     from layers.hc_pallas import _tile
     m = 8 * 2048

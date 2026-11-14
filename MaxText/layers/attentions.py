@@ -29,6 +29,7 @@ from jax.experimental import shard_map
 from jax.experimental.pallas.ops.tpu.splash_attention import splash_attention_kernel
 from jax.experimental.pallas.ops.tpu.splash_attention import splash_attention_mask
 import jax.numpy as jnp
+import numpy as np
 import common_types
 from bam_config import validate_bam_config
 from kernels.ragged_attention import ragged_gqa
@@ -1360,6 +1361,27 @@ class Attention(nn.Module):
     inputs = rotary_embedding(inputs, inputs_positions)
     return inputs
 
+  def _rotate_prefix(self, x: Array, positions: Array, width: int) -> Array:
+    """Prefix RoPE as x*cos + (x@R)*sin over the whole head, R a signed half-swap.
+
+    Same values as RotaryEmbedding on x[..., :width] concatenated with the rest,
+    without lane-misaligned slices (head_dim 80, width 20 on TPU).
+    """
+    cfg = self.config
+    assert cfg.rope_type.lower() == 'default' and not cfg.rope_half
+    half, dim = width // 2, x.shape[-1]
+    timescale = cfg.rope_min_timescale * (cfg.rope_max_timescale / cfg.rope_min_timescale) ** (
+        2 * jnp.arange(0, half) / width)
+    angle = positions[:, :, None, None] / timescale
+    pad = [(0, 0)] * 3 + [(0, dim - width)]
+    cos = jnp.pad(jnp.tile(jnp.cos(angle).astype(x.dtype), 2), pad, constant_values=1)
+    sin = jnp.pad(jnp.tile(jnp.sin(angle).astype(x.dtype), 2), pad)
+    i = np.arange(half)
+    swap = np.zeros((dim, dim), np.float32)
+    swap[i + half, i], swap[i, i + half] = -1, 1
+    rotated = jnp.einsum('bthd,de->bthe', x, jnp.asarray(swap, x.dtype))
+    return (x * cos + rotated * sin).astype(self.dtype)
+
   @nn.compact
   def __call__(
       self,
@@ -1429,7 +1451,10 @@ class Attention(nn.Module):
       width = self.rotary_dim
       if not isinstance(width, int) or width < 0 or width > self.head_dim or width % 2:
         raise ValueError("rotary_dim must be an even integer in [0, head_dim]")
-      if width:
+      if width and cfg.rotary_prefix_matmul:
+        query = self._rotate_prefix(query, inputs_positions, width)
+        key = self._rotate_prefix(key, inputs_positions, width)
+      elif width:
         query = jnp.concatenate((self.apply_rotary_embedding(
             query[..., :width], inputs_positions, name="query_rotary", embedding_dims=width),
             query[..., width:]), axis=-1)

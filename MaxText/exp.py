@@ -13826,6 +13826,19 @@ class MuddLlama2MediumPropL27TruePile(Llama2MediumPropL27, MuddLlama2MediumPropL
                     'BamMHAMediumPropL27C256TruePile']
 
 
+class MuddLlama2MediumPropL27PrePostNormTruePile(MuddLlama2MediumPropL27TruePile):
+    """27-layer depth control with the native Mudd pre/post-norm circuit.
+
+    Pre-norm learns the router-input RMS scale. Post-norm uses zero-initialized
+    residual mixing and a .001-initialized RMS scale on the m/readout branch.
+    The tiny norm overhead is not repaid from MLP; keep the parent width profile.
+    """
+    model_name = 'MuddLlama2MediumPropL27PrePostNormTruePile'
+    mudd_prenorm = True
+    mudd_postnorm = True
+    compare_runs = ['MuddLlama2MediumPropL27TruePile']
+
+
 class BamMediumPropL27K75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile(
     Llama2MediumPropL27, BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile):
     """27-layer QK57 BAM with private sparse MLP writes and matched MHA budget."""

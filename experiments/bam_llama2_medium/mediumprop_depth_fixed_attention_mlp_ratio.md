@@ -76,4 +76,46 @@ and4.465e-6 (L27), below the existing kernel-control tolerance. SiTU checks
 include independent fused/unfused MLP forward/all gradients and explicit
 ordinary/private-writer isolation. Full parameter audits passed for all four
 new classes, including the Mudd depth profile and BAM terminal write omission.
-No AOT, TPU acquisition or training launch is requested for these classes.
+On2026-11-14 the user authorized all six classes for training. Launch runtime
+958cbc017a10b49c18f7904fcf125329a8b66b6a on main/refactor-bam. No additional
+model changes: reuse the passed parameter audits,11V5 and4SiTU controls; add
+5summary-writer rotation checks and seal all six exact configurations. Current
+train/compile/logger/checkpoint/optimizer infrastructure is unchanged since the
+reviewed83fa2ad2 main (and the old Mudd control'sc7a6730); no historical files
+are copied into the runtime. All six use TBrotate500, checkpoint200/latest2,
+forced final checkpoint, generic health ON/internal OFF, init/data seed9876,
+global128xT4096,13500steps=7077888000tokens and LR endpoint13500.
+
+| TPU suffix | Architecture | Depth |
+|---|---|---:|
+|311023|MHA|12|
+|311024|Mudd|12|
+|311025|BAM V5 SiTU|12|
+|311026|MHA|27|
+|311027|Mudd|27|
+|311028|BAM V5 SiTU|27|
+
+All are xd-v5p-16-SUFFIX-maxtext. UE5a primary, UC1a/EW4b backups after300s.
+No idle retained FLEX/non-preemptible compiler was available at launch; each
+AOT uses the automatic EW4a/UC1a/UE5a v6e-1 compiler workflow. Launch each trainer
+only after its own artifact/manifest passes. The journaled launch and first-step
+gates live on tpu-ag under logs/depth-ratio-{launch,first}*; local receipts and
+launch-plan.json live with the validation artifacts. Borrow no other workflow's
+spot compiler; temporary AOT resources are automatically released.
+
+Group mediumprop-depth-fixed-ratio reports all six together at fixed2000-step
+milestones, with Mudd27 as its final clock. No performance-based stopping or
+review points: full budgets measure scaling rather than race for SOTA. Native
+comparison windows stay200steps. MHA compares its original18-layer and old
+same-depth MHA; Mudd compares its original18-layer; BAM compares original SiTU18
+and new same-depth Mudd. Matched MHA references are registered for gains without
+adding routine MHA loss-gap lines to BAM reports.
+
+Primary metric R_d=(MHA_d-BAM_d)/(MHA_d-Mudd_d), with R_d/R18 quantifying whether
+BAM's relative Mudd advantage grows with depth. Also retain both architectures'
+independently matched-MHA depth-gain ratios and actual12/18/27 depth-axis loss
+curves; the direct absolute depth effect and proportional advantage differ.
+Prior: K12=R12/R18=.96; K27=1.00 (range .94--1.07). Corrected MHA/MLP allocation
+should help MHA/Mudd27 more than before, potentially narrowing the old BAM depth
+advantage. Startup speed priors(step/s):12-layer MHA/Mudd/BAM .95/.84/.82;
+27-layer .68/.60/.61. These are unpaired predictions, not measured results.

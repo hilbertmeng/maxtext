@@ -615,6 +615,24 @@ def _tm_read_forward_call(args, opts, sh=None, om=None, os=None, qn=None):
                             *(() if os is None else (os,)), *(() if qn is None else qn))
 
 
+def _add_tile_boundary_gradients(dm, boundary, tile):
+  """Accumulate previous-tile cotangents without an XLA strided gather.
+
+  The gather/scatter form can exhaust scoped VMEM on v5p for K61 despite
+  small logical tensors. Static slices and concatenation keep the same FP32
+  addition/cast at each boundary and leave the final tile untouched.
+  """
+  b, t, v, k = dm.shape
+  if t <= tile:
+    return dm
+  tiles = dm.reshape(b, t // tile, tile, v, k)
+  prefix = tiles[:, :-1]
+  carry = jax.lax.slice_in_dim(boundary, 1, boundary.shape[1], axis=1)
+  last = (prefix[:, :, -1:].astype(F32) + jnp.expand_dims(carry, 2)).astype(dm.dtype)
+  prefix = jnp.concatenate((prefix[:, :, :-1], last), axis=2)
+  return jnp.concatenate((prefix, tiles[:, -1:]), axis=1).reshape(dm.shape)
+
+
 def _tm_read_backward_call(args, cts, opts, sh=None, om=None, os=None, qn=None, qn_res=()):
   m, st = args[0], args[1]
   b, t, vdim, kdim = m.shape
@@ -695,9 +713,8 @@ def _tm_read_backward_call(args, cts, opts, sh=None, om=None, os=None, qn=None, 
   dsh = None
   if shifted:
     outs, (dsh, bnd) = outs[:-2], outs[-2:]
-    if t > tile:    # each tile's first-token M_{t-1} cotangent belongs to the previous tile's last token
-      idx = slice(tile - 1, t - 1, tile)
-      dm = dm.at[:, idx].set((dm[:, idx].astype(F32) + bnd[:, 1:]).astype(dm.dtype))
+    # Each tile's first-token M_{t-1} cotangent belongs to the previous tile's last token.
+    dm = _add_tile_boundary_gradients(dm, bnd, tile)
   grads = list(outs[2:])
   if packed:          # the K and V/O views alias the one key array: zero (None) cotangents there
     grads = grads[:2] + [None] + grads[2:3] + [None] + grads[3:]

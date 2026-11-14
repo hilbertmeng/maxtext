@@ -290,3 +290,21 @@ Receipts live in local `prepost-matrix/`; source is main/refactor-bam.
 The user stopped plain Mudd27 after selecting the stronger norm control.
 Its old group-clock role transfers to BAM27 while preserving the reported8k
 phase and next10k milestone; the remaining full training plans are unchanged.
+
+
+## User closeout of plain Mudd27
+
+The plain width-scaled Mudd27 stopped at committed10038, runtime958cbc0,
+UE5a approximately.536step/s, one preemption. Against plain Mudd18, its early
++.04594 deficit at2000 narrowed to about+.030; the last five available windows
+9200--10000 averaged+.0295898. This is an intentionally incomplete control,
+not a terminal13500 result. Pre/post-norm Mudd27 becomes BAM27's main control;
+plain-parent normalization comparisons remain available only through10000.
+
+Final10038 marker/data cursor agree, local TB SYNC_OK, node and queued resource
+independently absent in all three training regions. Both chronological READY
+leases remained in UE5a (UTC):05:49:22--08:53:56,3h04m34s, preempted;
+09:04:00--11:22:48,2h18m48s, explicit user stop. The resource history records
+the same assignments/leases in global end-time order. Proofs are under local
+`closeout/mudd27/`; the native closeout took162s, chiefly verified TPU/queue
+release, with zero estimated lost steps. Remaining training budgets are unchanged.

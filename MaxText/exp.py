@@ -13893,6 +13893,10 @@ class MuddLlama2MediumPropL27AttentionMLP1to2TruePile(Mudd, Llama2MediumPropL27A
     Non-embedding314084672 = matched MHA +2998336 router/norm parameters.
     """
     # code_commit: 958cbc0; v5p-16 /311027; UE5a primary, UC1a/EW4b backups.
+    # User stopped10038/P1 after promoting the stronger pre/post-norm Mudd27 control.
+    # UE5a ~.536 step/s; vs Mudd18 early deficit narrowed but remained ~+.030 late;
+    # final five available windows9200--10000 averaged+.029590. Not a13500-step result.
+    # CP10038/cursor, TB SYNC_OK and all regional resources verified; two READY leases.
     model_name = 'MuddLlama2MediumPropL27AttentionMLP1to2TruePile'
     mudd_full_history = True
     scan_layers = False

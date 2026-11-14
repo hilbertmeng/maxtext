@@ -226,7 +226,7 @@ class ResidualModelTest(MLPWriteTest, unittest.TestCase):
     cfg = self.config(name, **kwargs)
     cfg.get_keys().update(emb_dim=16, mlp_dim=32, num_decoder_layers=2,
         num_query_heads=2, num_kv_heads=2, head_dim=8, vocab_size=32,
-        dtype=jnp.float32, attention='dot_product', remat_policy='none')
+        dtype=jnp.float32, attention='dot_product', attention_head_major=False, remat_policy='none')
     if cfg.decoder_block == 'pythia':
       cfg.get_keys()['pythia_rotary_dim'] = 2
     if cfg.bam_enabled and cfg.bam_mha_control:

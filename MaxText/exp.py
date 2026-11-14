@@ -18086,7 +18086,8 @@ class Pythia2p8BSerialQKNormMHC300B(MHCConfig, Pythia2p8BSerialQKNorm300B):
     # Existing BAM reference 2,775,190,944: +72,869 (+.002626%), closest integer FFN width.
     # v5p-256 paired (8/device, steps 15-29 median, health on; *SpeedProfile arms, 8142d93..33c39ac):
     # BAM MPreNormQKScale .608; this class before speedups .589 (no saved Splash .579), +zero-padded
-    # FFN compute .605, +lane-dense RoPE .631, both .644 (1.059x BAM). Both preserve the math.
+    # FFN compute .605, +lane-dense RoPE .631, both .644, +head-major attention .664 (1.092x BAM).
+    # All three preserve the math (CPU equivalence tests; same parameter tree and loss trajectory).
     model_name = 'Pythia2p8BSerialQKNormMHC300B'
     scan_layers = False
     record_internal_nn_metrics = False
@@ -18099,6 +18100,7 @@ class Pythia2p8BSerialQKNormMHC300B(MHCConfig, Pythia2p8BSerialQKNorm300B):
     bam_splash_residual_name = 'bam_splash_residual'  # inherited minimal_save_splash keeps Splash O/lse
     mlp_compute_multiple = 128   # stored FFN10140, computed at 10240 with zero hidden units
     rotary_prefix_matmul = True  # RoPE20 over the whole head80, no lane-misaligned slices
+    attention_head_major = True  # q/k/v/Splash stay [B,H,T,D]: no transposes around Splash
     compare_runs = ['BamPythia2p8BHUnit300BFastKernelMPreNormQKScale',
                     'Pythia2p8BSerialQKNorm300B']
 
@@ -18172,11 +18174,12 @@ class BamPythia2p8BMPreNormSpeedQKScaleProfile(
 
 
 class Pythia2p8BSerialQKNormMHCSpeedProfile(_PythiaMPreNormSpeedProfile, Pythia2p8BSerialQKNormMHC300B):
-    """mHC before the RoPE/FFN speedups (Pallas residual path, saved Splash O/lse) against
+    """mHC before the RoPE/FFN/layout speedups (Pallas residual path, saved Splash O/lse) against
     BamPythia2p8BMPreNormSpeedQKScaleProfile."""
     model_name = 'Pythia2p8BSerialQKNormMHCSpeedProfile'
     mlp_compute_multiple = 0
     rotary_prefix_matmul = False
+    attention_head_major = False
 
 
 class Pythia2p8BSerialQKNormMHCSpeedNoSaveSplashProfile(Pythia2p8BSerialQKNormMHCSpeedProfile):

@@ -13875,6 +13875,10 @@ class MuddLlama2MediumPropL12AttentionMLP1to2TruePile(Mudd, Llama2MediumPropL12A
     Non-embedding312459969 = matched MHA +1377793 router/norm parameters.
     """
     # code_commit: 958cbc0; v5p-16 /311024; UE5a primary, UC1a/EW4b backups.
+    # Completed13500/P2 in UE5a, ~.929 step/s. vs Mudd18 early deficit reversed
+    # near2000, then held ~-.005 to -.006; last5-.005630 (12600--13400).
+    # Matched-MHA12/MHA18 paired gain last5=1.04459; router overhead not repaid.
+    # Final CP13500/cursor, TB SYNC_OK and all regional resources verified; three READY leases.
     model_name = 'MuddLlama2MediumPropL12AttentionMLP1to2TruePile'
     mudd_full_history = True
     scan_layers = False
@@ -20777,6 +20781,11 @@ class BamMediumPropV5SiTU47L12AttentionMLP1to2TruePile(BamMediumPropV5SiTU47):
     Scan L0--10 singly; L11 has neither attention nor memory-MLP M writes.
     """
     # code_commit: 958cbc0; v5p-16 /311025; UE5a primary, UC1a/EW4b backups.
+    # Completed13500/P1 in UE5a, ~.884 step/s. vs SiTU18 the early lead reversed
+    # near2000, then deficit grew to ~+.015--.016; last5+.015717.
+    # vs matched Mudd12, early lead shrank -.46028@600 -> last5-.070348;
+    # BAM/Mudd multiplier vs MHA12 ended1.77515 (last5), declining then flattening.
+    # Matched-MHA12/MHA18 paired gain vs SiTU18 last5=.90221; final CP/cursor/TB/teardown verified.
     model_name = 'BamMediumPropV5SiTU47L12AttentionMLP1to2TruePile'
     base_num_decoder_layers = 12
     base_emb_dim = 1472

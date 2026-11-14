@@ -27,6 +27,8 @@ active leases are censored, and manual migration releases are not preemptions.
 
 | RUN | TPU | Zone | Start UTC | End UTC | End reason | Passive candidates |
 |---|---|---|---|---|---|---|
+| `MuddLlama2MediumPropL12AttentionMLP1to2TruePile` | v5p-16 (`xd-v5p-16-311024-maxtext`) | `us-east5-a` | 2026-11-14 05:47:28 | 2026-11-14 10:32:55 | completed13500/P2; CP/cursor/TB and all regional resources verified | UE5a primary, UC1a/EW4b passive backups; no active-zone switch |
+| `BamMediumPropV5SiTU47L12AttentionMLP1to2TruePile` | v5p-16 (`xd-v5p-16-311025-maxtext`) | `us-east5-a` | 2026-11-14 05:42:35 | 2026-11-14 10:39:57 | completed13500/P1; CP/cursor/TB and all regional resources verified | UE5a primary, UC1a/EW4b passive backups; no active-zone switch |
 | `Llama2MediumPropL12AttentionMLP1to2TruePile` | v5p-16 (`xd-v5p-16-311023-maxtext`) | `us-east5-a` | 2026-11-14 05:39:08 | 2026-11-14 09:43:46 | completed13500/P1; CP/cursor/TB and all regional resources verified | UE5a primary; UC1a/EW4b passive backups; no active-zone switch |
 | `BamMediumPropV5SiTU47M64R384` | v5p-16 (`xd-v5p-16-311021-maxtext`) | `us-east5-a` | 2026-11-13 16:26:12 | 2026-11-13 22:36:16 | two training leases/preemptions plus recovery waits; switched to UC1a | UE5a primary; UC1a/EW4b backups after300s; prequeue READY16:21:32 |
 | `BamMediumPropV5SiTU47M64R384` | v5p-16 (`xd-v5p-16-311021-maxtext`) | `us-central1-a` | 2026-11-13 22:36:16 | 2026-11-13 23:07:38 | completed13500/P2; CP/cursor/TB and all regional resources verified | restored12568; post-migration CP12600 uses UC1 data; passive losers released |
@@ -2665,9 +2667,14 @@ active leases are censored, and manual migration releases are not preemptions.
 | `BamMediumPropV5SiTU47M64R384` | 2 | `us-east5-a` | 2026-11-13 19:59:10 | 2026-11-13 22:23:13 | 2h24m03s | preempted; emergency CP12568 copied to UC1a and restored |
 | `BamMediumPropV5SiTU47M64R384` | 3 | `us-central1-a` | 2026-11-13 22:36:18 | 2026-11-13 23:07:38 | 31m20s | scheduled completion13500/P2; CP/cursor/TB and all regional resources verified; passive queues released |
 
+| `MuddLlama2MediumPropL12AttentionMLP1to2TruePile` | 1 | `us-east5-a` | 2026-11-14 05:53:09 | 2026-11-14 08:41:14 | 2h48m05s | preempted; same-RUN automatic recovery |
+| `BamMediumPropV5SiTU47L12AttentionMLP1to2TruePile` | 1 | `us-east5-a` | 2026-11-14 05:59:24 | 2026-11-14 08:54:17 | 2h54m53s | preempted; same-RUN automatic recovery |
+| `MuddLlama2MediumPropL12AttentionMLP1to2TruePile` | 2 | `us-east5-a` | 2026-11-14 08:48:04 | 2026-11-14 08:54:21 | 06m17s | preempted; same-RUN automatic recovery |
 | `Llama2MediumPropL12AttentionMLP1to2TruePile` | 1 | `us-east5-a` | 2026-11-14 05:45:28 | 2026-11-14 08:54:24 | 3h08m56s | preempted; same-RUN automatic recovery |
 | `Llama2MediumPropL12AttentionMLP1to2TruePile` | 2 | `us-east5-a` | 2026-11-14 09:04:44 | 2026-11-14 09:43:46 | 39m02s | scheduled completion13500/P1; final CP/cursor/TB and all regional resources verified |
 
+| `MuddLlama2MediumPropL12AttentionMLP1to2TruePile` | 3 | `us-east5-a` | 2026-11-14 09:04:00 | 2026-11-14 10:32:55 | 1h28m55s | scheduled completion13500/P2; final CP/cursor/TB and all regional resources verified |
+| `BamMediumPropV5SiTU47L12AttentionMLP1to2TruePile` | 2 | `us-east5-a` | 2026-11-14 09:04:38 | 2026-11-14 10:39:57 | 1h35m19s | scheduled completion13500/P1; final CP/cursor/TB and all regional resources verified |
 ### Medium depth-family MHA12 resource closeout (2026-11-13)
 
 The native registry records six preemptions and seven READY leases for

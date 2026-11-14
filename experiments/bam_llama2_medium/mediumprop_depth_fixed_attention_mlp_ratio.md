@@ -207,3 +207,41 @@ receipts: local `closeout/mha12/proof.json`. The local closeout wrapper returned
 `already_closed=true` and left automatic cleanup/status intact; its independent
 TB synchronization completed successfully. Resource history includes both
 leases in UTC end-time order. Other group members continue their full plans.
+
+
+## Completed width-scaled Mudd12 and BAM12
+
+Both completed13500 with final checkpoint/cursor agreement, TB SYNC_OK and
+independent node/queue absence in UE5a, UC1a and EW4b. Runtime958cbc0 for both.
+Mudd12: UE5a approximately.929step/s, two preemptions. Relative to Mudd18,
+the early deficit reversed near2000 and settled around-.005 to-.006; final
+12600--13400 five-window mean-.00562972. The independently matched-MHA
+paired depth gain (MHA12-Mudd12)/(MHA18-Mudd18) ended1.0445901 (mean of native
+window ratios). Router overhead remains additional, per the experiment policy.
+
+BAM12: UE5a approximately.884step/s, one preemption. Relative to SiTU18,
+the initial lead reversed around2000; the deficit grew and stabilized near
++.015--.016, final five+.01571748. Relative to matched Mudd12, the early
+-.460281 gap at600 narrowed to final five-.07034824. Native BAM/Mudd gain
+multiplier relative to MHA12 declined and then flattened, final five1.7751535.
+Its independently matched-MHA paired gain relative to SiTU18 ended.9022100.
+The same budget reallocation helps shallow Mudd more than shallow BAM relative
+to their18-layer controls; the extra12-to18 BAM-versus-Mudd depth benefit is
+approximately.02135 in final loss. This does not settle the27-layer comparison,
+whose native pre/post-norm Mudd control is still training.
+
+Chronological READY leases (UTC; all UE5a):
+
+| RUN | Lease | Zone | Start | End | Duration | End reason |
+|---|---|---|---|---|---|---|
+|MuddLlama2MediumPropL12AttentionMLP1to2TruePile|1|us-east5-a|2026-11-14 05:53:09|2026-11-14 08:41:14|2h48m05s|preempted|
+|MuddLlama2MediumPropL12AttentionMLP1to2TruePile|2|us-east5-a|2026-11-14 08:48:04|2026-11-14 08:54:21|06m17s|preempted|
+|MuddLlama2MediumPropL12AttentionMLP1to2TruePile|3|us-east5-a|2026-11-14 09:04:00|2026-11-14 10:32:55|1h28m55s|run_stop|
+|BamMediumPropV5SiTU47L12AttentionMLP1to2TruePile|1|us-east5-a|2026-11-14 05:59:24|2026-11-14 08:54:17|2h54m53s|preempted|
+|BamMediumPropV5SiTU47L12AttentionMLP1to2TruePile|2|us-east5-a|2026-11-14 09:04:38|2026-11-14 10:39:57|1h35m19s|run_stop|
+
+Full native proofs: local `closeout/mudd12/proof.json` and
+`closeout/bam12/proof.json`; the local batch closeout returned already-closed
+and made no resource mutations. Both local TB copies completed successfully.
+Main resource history records every assignment and lease in global end-time
+order; no active-zone switch occurred. Other group members keep their plans.

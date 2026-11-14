@@ -260,3 +260,33 @@ the strongest available controls, while a pure normalization-matched depth
 claim still needs corresponding12/18 evidence. Keep the independently
 matched-MHA BAM27-versus-BAM18 ratio and the pre/post-norm versus plain Mudd27
 control ratio registered separately. Group cadence and full budgets are unchanged.
+
+## Completing the native pre/post-norm depth matrix
+
+Add `MuddLlama2MediumPropL12AttentionMLP1to2PrePostNormTruePile` (D1472,
+TPU suffix311030) and `MuddLlama2MediumPropPrePostNormTruePile` (D1200/L18,
+suffix311031). Keep their respective trained plain Mudd parents' exact MLP
+profiles and router rules; tiny extra norm scales are additional. Both use
+seed9876, global128xT4096 and the same full13500-step schedule. UE5a primary,
+UC1a/EW4b backups; join the existing report group, without elimination.
+
+The18-layer historical parent used the archived MHA-only BAM wrapper.
+The new class selects native MHA, which retains independent Mudd Q/K/V
+projections, RoPE74 plus one unrotated coordinate, FP32-logits setting and
+ordinary Prop initialization. Native pre/post norms are the intended model
+change. Tune18's kernel to the same Splash1024/fused-backward setup as12/27;
+its old chunk-attention timing is not a matched speed baseline. Retain generic
+health ON/internal OFF and explicitly rotate GCS TensorBoard every500steps.
+No shared model implementation is changed by these two configuration classes.
+
+Prior terminal matched-MHA gains over the respective plain Mudd controls:
+12-layer1.15,18-layer1.30, with larger gain expected at27. Predict12-layer
+speed near.92--.94step/s;18-layer.70--.77 with tuned Splash (unpaired versus
+the old chunk-attention parent's.630). Verify rather than attribute this kernel
+speed change to normalization. Full-size tree/norm budgets, nonzero-mixture
+router gradients and small full-model forward/backward are checked locally.
+Receipts live in local `prepost-matrix/`; source is main/refactor-bam.
+
+The user stopped plain Mudd27 after selecting the stronger norm control.
+Its old group-clock role transfers to BAM27 while preserving the reported8k
+phase and next10k milestone; the remaining full training plans are unchanged.

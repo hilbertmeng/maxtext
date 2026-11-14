@@ -13901,6 +13901,34 @@ class MuddLlama2MediumPropL27AttentionMLP1to2TruePile(Mudd, Llama2MediumPropL27A
                     'Llama2MediumPropL27AttentionMLP1to2TruePile']
 
 
+class MuddLlama2MediumPropL12AttentionMLP1to2PrePostNormTruePile(
+    MuddLlama2MediumPropL12AttentionMLP1to2TruePile):
+    """Native pre/post norms on the width-scaled D1472 Mudd12 control.
+
+    Preserve all MLP widths and router rules; tiny norm overhead is additional.
+    """
+    model_name = 'MuddLlama2MediumPropL12AttentionMLP1to2PrePostNormTruePile'
+    mudd_prenorm = True
+    mudd_postnorm = True
+    compare_runs = ['MuddLlama2MediumPropL12AttentionMLP1to2TruePile']
+
+
+class MuddLlama2MediumPropPrePostNormTruePile(SplashTunedBlocks1024, MuddLlama2MediumPropTruePile):
+    """Native pre/post norms on the original D1200 Mudd18 control.
+
+    Preserve the parent's MLP budget, full history and router expansion rule.
+    """
+    model_name = 'MuddLlama2MediumPropPrePostNormTruePile'
+    mudd_prenorm = True
+    mudd_postnorm = True
+    # The historical parent used the retired MHA-only BAM wrapper. Its
+    # standard Q/K/V projections and RoPE74 are supported by native MHA.
+    bam_enabled = False
+    attention = 'flash'
+    tensorboard_gcs_rotate_period = 500
+    compare_runs = ['MuddLlama2MediumPropTruePile']
+
+
 class MuddLlama2MediumPropL27AttentionMLP1to2PrePostNormTruePile(
     MuddLlama2MediumPropL27AttentionMLP1to2TruePile):
     """Native Mudd pre/post norms on the width-scaled 27-layer depth control.

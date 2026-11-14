@@ -13833,6 +13833,85 @@ class Llama2MediumPropL27AttentionMLP1to2TruePile(Llama2MediumPropL12AttentionML
     compare_runs = ['BamMHAMediumPropC256TruePile', 'BamMHAMediumPropL27C256TruePile']
 
 
+class Llama2MediumPropL12TotalBudgetTruePile(Llama2MediumPropL12AttentionMLP1to2TruePile):
+    """L12/D1424, including token tables in the original MHA18 total budget.
+
+    Keep 16 heads and the nearest feasible attention:MLP split to 1:2.
+    Uniform SwiGLU 3728; vocabulary 50432, untied input/output tables.
+    Total 432111376, -9824 versus MHA18's 432121200 (-.00227%).
+    Attention:MLP=1:1.963483; preserve uniform widths rather than add a tail.
+    """
+    model_name = 'Llama2MediumPropL12TotalBudgetTruePile'
+    base_emb_dim = 1424
+    head_dim = 89
+    base_mlp_dim = 3728
+    bam_partial_rope_nope_dim = 1
+    compare_runs = ['BamMHAMediumPropC256TruePile']
+
+
+class Llama2MediumPropL24TotalBudgetTruePile(Llama2MediumPropL12TotalBudgetTruePile):
+    """L24/D1056, same all-in budget and recipe as the L12 total control.
+
+    Uniform SwiGLU 2874 gives 432133152, +11952 (+.00277%) versus MHA18.
+    Attention:MLP=1:2.041193; full 66-dimensional RoPE.
+    """
+    model_name = 'Llama2MediumPropL24TotalBudgetTruePile'
+    base_num_decoder_layers = 24
+    base_emb_dim = 1056
+    head_dim = 66
+    base_mlp_dim = 2874
+    bam_partial_rope_nope_dim = 0
+
+
+class MuddLlama2MediumPropL12TotalBudgetRouterFixedTruePile(
+    Mudd, Llama2MediumPropL12TotalBudgetTruePile):
+    """Plain Mudd12 with the expanded router at final readout, not layer L-2.
+
+    Match the MHA's full MLP budget after rounding the depth profile; router
+    overhead is additional, as in Mudd18, and is not repaid from MLP.
+    Total 433257201 = matched MHA +1145825 router/norm parameters.
+    """
+    model_name = 'MuddLlama2MediumPropL12TotalBudgetRouterFixedTruePile'
+    mudd_full_history = True
+    mudd_router_hidden_expand = [1] * 11 + [4]
+    bam_last_mlp_dim = 5568
+    compare_runs = ['MuddLlama2MediumPropRouterFixedTruePile',
+                    'Llama2MediumPropL12TotalBudgetTruePile']
+
+
+class MuddLlama2MediumPropL24TotalBudgetRouterFixedPrePostNormTruePile(
+    Mudd, Llama2MediumPropL24TotalBudgetTruePile):
+    """Mudd24 with native pre/post norms and the corrected final router.
+
+    Match the MHA's full MLP budget. Router/norm overhead stays additional.
+    Total 434683717 = matched MHA +2550565 router/norm parameters.
+    """
+    model_name = 'MuddLlama2MediumPropL24TotalBudgetRouterFixedPrePostNormTruePile'
+    mudd_full_history = True
+    mudd_router_hidden_expand = [1] * 23 + [4]
+    mudd_prenorm = True
+    mudd_postnorm = True
+    bam_last_mlp_dim = 4208
+    compare_runs = ['MuddLlama2MediumPropRouterFixedTruePile',
+                    'Llama2MediumPropL24TotalBudgetTruePile']
+
+
+class MuddLlama2MediumPropRouterFixedTruePile(
+    SplashTunedBlocks1024, MuddLlama2MediumPropTruePile):
+    """Original plain Mudd18 with only the router expansion placement fixed.
+
+    Explicit history-indexed expands put 4 at the final readout (history 19),
+    leaving every in-layer QKVM router at 1. Preserve the historical MLPs.
+    Total 433911307, -165440 versus the legacy router; no MLP repayment.
+    """
+    model_name = 'MuddLlama2MediumPropRouterFixedTruePile'
+    mudd_router_hidden_expand = [1] * 17 + [4]
+    bam_enabled = False
+    attention = 'flash'
+    tensorboard_gcs_rotate_period = 500
+    compare_runs = ['MuddLlama2MediumPropTruePile', 'BamMHAMediumPropC256TruePile']
+
+
 class MuddLlama2MediumPropL12TruePile(Mudd, BamMHAMediumPropL12TruePile):
     """12-layer Prop Mudd; match the depth study's MHA MLP budget.
 
@@ -13919,6 +13998,9 @@ class MuddLlama2MediumPropL12AttentionMLP1to2PrePostNormTruePile(
     # Both-worker AOT/source and FIRST_STEP gates passed; startup ~.910 step/s,
     # about -2.0% vs parent .929 (unpaired); generic health ON/internal OFF.
     # 460986241 parameters (+54464 norm scales); MLP widths unchanged, full13500-step plan.
+    # User paused13071/P0, UE5a ~.91 step/s; checkpoint/cursor/TB and resources verified.
+    # vs plain parent, early -.05874@600 reversed; last5(12200--13000)+.017155.
+    # Provisional, not a full-budget result; resume state retained.
     model_name = 'MuddLlama2MediumPropL12AttentionMLP1to2PrePostNormTruePile'
     mudd_prenorm = True
     mudd_postnorm = True
@@ -13934,6 +14016,9 @@ class MuddLlama2MediumPropPrePostNormTruePile(SplashTunedBlocks1024, MuddLlama2M
     # Both-worker AOT/source and FIRST_STEP gates passed; startup ~.692 step/s.
     # +9.8% vs old .630 chunk-attention parent (kernel-unmatched); same generic health ON/internal OFF.
     # 434142747 parameters (+66000 norm scales); all MLP widths unchanged, full13500-step plan.
+    # User paused11019/P0, UE5a ~.69 step/s; checkpoint/cursor/TB and resources verified.
+    # vs plain parent, early -.06254@600 reversed; last5(10000--10800)+.007820.
+    # Provisional, not a full-budget result; resume state retained.
     model_name = 'MuddLlama2MediumPropPrePostNormTruePile'
     mudd_prenorm = True
     mudd_postnorm = True
@@ -20883,6 +20968,58 @@ class BamMediumPropV5SiTU47L27AttentionMLP1to2TruePile(BamMediumPropV5SiTU47):
     compare_runs = ['BamMediumPropV5SiTU47',
                     'MuddLlama2MediumPropL27AttentionMLP1to2PrePostNormTruePile',
                     'Llama2MediumPropL27AttentionMLP1to2TruePile']
+
+
+class BamMediumPropV5SiTU47L12TotalBudgetTruePile(BamMediumPropV5SiTU47):
+    """L12 V5 SiTU at the all-in MHA18 budget, M89x32 and all ranks256.
+
+    Ordinary/private/tail 2990/1373/4600; complete branch ratio 2.000707.
+    Total 432120776, -424 versus 432121200; single-layer scan over L0--10.
+    """
+    model_name = 'BamMediumPropV5SiTU47L12TotalBudgetTruePile'
+    base_num_decoder_layers = 12
+    base_emb_dim = 1424
+    head_dim = 89
+    bam_k = 89
+    bam_local_qk_col_output_dim = 89
+    bam_partial_rope_nope_dim = 89
+    bam_standard_qk_dim = 22
+    bam_layer_modes = ['local_qk+local_v+local_o'] * 12
+    bam_attention_write_layers = list(range(11))
+    bam_mlp_write_layers = list(range(11))
+    base_mlp_dim = 2990
+    bam_memory_mlp_dim = 1373
+    bam_last_mlp_dim = 4600
+    bam_embedding_write_content_divisor = .0016052833 * math.sqrt(1424 / 1200)
+    compare_runs = ['BamMediumPropV5SiTU47',
+                    'MuddLlama2MediumPropL12TotalBudgetRouterFixedTruePile',
+                    'Llama2MediumPropL12TotalBudgetTruePile']
+
+
+class BamMediumPropV5SiTU47L24TotalBudgetTruePile(BamMediumPropV5SiTU47):
+    """L24 V5 SiTU at the all-in MHA18 budget, M66x32 and all ranks256.
+
+    Ordinary/private/tail 2201/968/3435; complete branch ratio 2.000532.
+    Total 432120064, -1136 versus 432121200; single-layer scan over L0--22.
+    """
+    model_name = 'BamMediumPropV5SiTU47L24TotalBudgetTruePile'
+    base_num_decoder_layers = 24
+    base_emb_dim = 1056
+    head_dim = 66
+    bam_k = 66
+    bam_local_qk_col_output_dim = 66
+    bam_partial_rope_nope_dim = 66
+    bam_standard_qk_dim = 16
+    bam_layer_modes = ['local_qk+local_v+local_o'] * 24
+    bam_attention_write_layers = list(range(23))
+    bam_mlp_write_layers = list(range(23))
+    base_mlp_dim = 2201
+    bam_memory_mlp_dim = 968
+    bam_last_mlp_dim = 3435
+    bam_embedding_write_content_divisor = .0016052833 * math.sqrt(1056 / 1200)
+    compare_runs = ['BamMediumPropV5SiTU47',
+                    'MuddLlama2MediumPropL24TotalBudgetRouterFixedPrePostNormTruePile',
+                    'Llama2MediumPropL24TotalBudgetTruePile']
 
 
 class BamMediumPropV5SiTU47M16R128(BamMediumPropV5SiTU47):

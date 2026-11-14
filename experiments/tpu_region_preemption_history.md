@@ -27,6 +27,8 @@ active leases are censored, and manual migration releases are not preemptions.
 
 | RUN | TPU | Zone | Start UTC | End UTC | End reason | Passive candidates |
 |---|---|---|---|---|---|---|
+| `MuddLlama2MediumPropL12AttentionMLP1to2PrePostNormTruePile` | v5p-16 (`xd-v5p-16-311030-maxtext`) | `us-east5-a` | 2026-11-14 12:08:30 | 2026-11-14 16:22:18 | user pause13071/P0; resume CP/cursor/TB and all regional resources verified | UE5a primary, UC1a/EW4b passive backups; no active-zone switch |
+| `MuddLlama2MediumPropPrePostNormTruePile` | v5p-16 (`xd-v5p-16-311031-maxtext`) | `us-east5-a` | 2026-11-14 11:44:39 | 2026-11-14 16:22:21 | user pause11019/P0; resume CP/cursor/TB and all regional resources verified | UE5a primary, UC1a/EW4b passive backups; no active-zone switch |
 | `BamMediumPropV5SiTU47L27AttentionMLP1to2TruePile` | v5p-16 (`xd-v5p-16-311028-maxtext`) | `us-east5-a` | 2026-11-14 06:02:09 | 2026-11-14 13:56:03 | completed13500/P1; CP/cursor/TB and all regional resources verified | UE5a primary, UC1a/EW4b backups; no active-zone switch |
 | `Llama2MediumPropL27AttentionMLP1to2TruePile` | v5p-16 (`xd-v5p-16-311026-maxtext`) | `us-east5-a` | 2026-11-14 05:39:31 | 2026-11-14 12:13:10 | completed13500/P3; CP/cursor/TB and all regional resources verified | UE5a primary, UC1a/EW4b backups; no active-zone switch |
 | `MuddLlama2MediumPropL27AttentionMLP1to2TruePile` | v5p-16 (`xd-v5p-16-311027-maxtext`) | `us-east5-a` | 2026-11-14 05:43:18 | 2026-11-14 11:22:48 | user stop10038/P1; stronger pre/post-norm comparator selected; CP/cursor/TB/resources verified | UE5a primary, UC1a/EW4b backups; no active-zone switch |
@@ -2257,6 +2259,8 @@ active leases are censored, and manual migration releases are not preemptions.
 | `MuddLlama2MediumPropL27AttentionMLP1to2TruePile` | 2 | `us-east5-a` | 2026-11-14 09:04:00 | 2026-11-14 11:22:48 | 2h18m48s | user stop10038/P1; final CP/cursor/TB and all regional resources verified |
 | `Llama2MediumPropL27AttentionMLP1to2TruePile` | 4 | `us-east5-a` | 2026-11-14 09:03:35 | 2026-11-14 12:13:10 | 3h09m35s | scheduled completion13500/P3; final CP/cursor/TB and all regional resources verified |
 | `BamMediumPropV5SiTU47L27AttentionMLP1to2TruePile` | 2 | `us-east5-a` | 2026-11-14 09:04:36 | 2026-11-14 13:56:03 | 4h51m27s | scheduled completion13500/P1; final CP/cursor/TB and all regional resources verified |
+| `MuddLlama2MediumPropL12AttentionMLP1to2PrePostNormTruePile` | 1 | `us-east5-a` | 2026-11-14 12:14:54 | 2026-11-14 16:22:18 | 4h07m24s | user pause13071/P0; resumable CP/cursor/TB and all regional resources verified |
+| `MuddLlama2MediumPropPrePostNormTruePile` | 1 | `us-east5-a` | 2026-11-14 11:49:35 | 2026-11-14 16:22:21 | 4h32m46s | user pause11019/P0; resumable CP/cursor/TB and all regional resources verified |
 | `Llama2XLPropTruePileMHA` | 1 | `us-east5-a` | 2026-09-28 09:44:22 | by 2026-09-29 00:16:16 | ≤14h31m54s | paused for distinct-data extension; TPU/queue verified absent, no preemption |
 
 | `BamMediumPropMShiftReadG050MLPReadNonWriteLayersNoReadGatesStaticZeroTruePile` | 3 | `us-east5-a` | 2026-10-15 13:35:09 | 2026-10-15 14:20:41 | 0h45m32s | user stop3149; CP committed, resources absent, TB SYNC_OK |

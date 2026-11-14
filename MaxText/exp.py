@@ -13799,6 +13799,10 @@ class Llama2MediumPropL12AttentionMLP1to2TruePile(BamMHAMediumPropL12TruePile):
     avoid a terminal-layer exception for a negligible parameter residual.
     """
     # code_commit: 958cbc0; v5p-16 /311023; UE5a primary, UC1a/EW4b backups.
+    # Completed13500/P1 in UE5a, ~1.047 step/s. vs MHA18 the early lead shrank
+    # -.25939@600 -> -.01499@4000 -> last5-.001750 (12600--13400).
+    # vs old D1200 MHA12, early lead narrowed -.04517@1000 -> last5-.007287.
+    # CP13500/data cursor, TB SYNC_OK and all regional nodes/queues verified; two READY leases.
     model_name = 'Llama2MediumPropL12AttentionMLP1to2TruePile'
     base_emb_dim = 1472
     head_dim = 92

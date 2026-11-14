@@ -179,3 +179,31 @@ nonzero-mixture router gradients, and small full-model forward/backward.
 Native group membership/gain triple registered; existing fixed2k report phase
 and no-elimination policy preserved. Proof: tpu-ag logs/depth-ratio-prepost-proof.json;
 local prepost/startup-proof.json and prepost/parameter-audit.json.
+
+
+## Completed width-scaled MHA12
+
+`Llama2MediumPropL12AttentionMLP1to2TruePile` completed13500, runtime958cbc0,
+UE5a v5p-16, approximately1.047step/s. The early advantage over MHA18 shrank
+from-.259389 at600 to-.014991 at4000 and-.00175032 over12600--13400.
+Against the old fixed-D1200 MHA12 it narrowed from-.045165 at1000 to
+-.00728724 over the same final five windows. The corrected attention/MLP
+allocation therefore repairs most of the old shallow MHA deficit versus18,
+while preserving a small terminal advantage; this is a completed MHA result,
+not yet the final BAM-versus-Mudd depth conclusion.
+
+Final13500 checkpoint marker and data cursor agree (seed9876, global128,
+TruePile4096 regional records). Local TB SYNC_OK; node and queued resource
+independently absent in UE5a, UC1a and EW4b. Same active zone throughout;
+one preemption and two chronological READY leases (UTC):
+
+| Lease | Start | End | Duration | End reason |
+|---|---|---|---|---|
+|1|2026-11-14 05:45:28|2026-11-14 08:54:24|3h08m56s|preempted|
+|2|2026-11-14 09:04:44|2026-11-14 09:43:46|39m02s|scheduled completion|
+
+Full native registry/lease/loss, checkpoint/cursor and six resource-absence
+receipts: local `closeout/mha12/proof.json`. The local closeout wrapper returned
+`already_closed=true` and left automatic cleanup/status intact; its independent
+TB synchronization completed successfully. Resource history includes both
+leases in UTC end-time order. Other group members continue their full plans.

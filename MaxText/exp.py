@@ -13893,6 +13893,21 @@ class MuddLlama2MediumPropL27AttentionMLP1to2TruePile(Mudd, Llama2MediumPropL27A
                     'Llama2MediumPropL27AttentionMLP1to2TruePile']
 
 
+class MuddLlama2MediumPropL27AttentionMLP1to2PrePostNormTruePile(
+    MuddLlama2MediumPropL27AttentionMLP1to2TruePile):
+    """Native Mudd pre/post norms on the width-scaled 27-layer depth control.
+
+    Keep the parent's MLP profile, router expansion rule and training budget.
+    Pre-norm normalizes stored history and learns router-input RMS scales;
+    post-norm uses zero-initialized mixing and a .001 RMS scale on the m branch.
+    The small additional norm parameter count is not repaid from MLP.
+    """
+    model_name = 'MuddLlama2MediumPropL27AttentionMLP1to2PrePostNormTruePile'
+    mudd_prenorm = True
+    mudd_postnorm = True
+    compare_runs = ['MuddLlama2MediumPropL27AttentionMLP1to2TruePile']
+
+
 class MuddLlama2MediumPropL27PrePostNormTruePile(MuddLlama2MediumPropL27TruePile):
     """27-layer depth control with the native Mudd pre/post-norm circuit.
 

@@ -147,3 +147,24 @@ startup/speeds.json and boundary-cpu-gate.json in the local artifact directory.
 Temporary compiler workflows verified resource cleanup, including the failed
 958cbc0 BAM27 candidates. Normal training and automatic regional recovery
 continue; preparation-time bookkeeping no longer owns the trainers.
+
+## Width-scaled Mudd27 pre/post-norm control
+
+Add `MuddLlama2MediumPropL27AttentionMLP1to2PrePostNormTruePile`, derived
+directly from the current D976/27-layer Mudd, not the cancelled fixed-D1200
+pre/post-norm experiment. Keep the parent's MLP widths, native full-history
+router rule, seed, batch and full13500-step budget. Only enable native
+`mudd_prenorm` and `mudd_postnorm`: history/input RMS scales, zero-initialized
+router mixing, and the .001-initialized post-norm scale on the m branch.
+This changes initial routing as well as normalization; it is not a pure extra
+LayerNorm comparison. Tiny added norm parameters are not repaid from MLP.
+
+Ownership: main/refactor-bam; TPU suffix311029. Same UE5a primary and UC1a/EW4b
+backup policy; join mediumprop-depth-fixed-ratio without moving its fixed2k
+calendar. Direct comparison is the width-scaled Mudd27; its matched MHA27
+is the reference for gain multipliers. Full training, no elimination.
+Prior terminal multiplier (MHA27-new)/(MHA27-parent)=1.03, plausible .98--1.10;
+speed3--8% below the parent's .536step/s, approximately .49--.52step/s.
+Validation and preparation receipts live in the local artifact directory's
+`prepost/` subdirectory. The four-zone compiler inventory found no available
+retained FLEX/non-preemptible v6e-1; use the managed temporary compiler workflow.

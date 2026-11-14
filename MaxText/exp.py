@@ -13922,6 +13922,10 @@ class MuddLlama2MediumPropPrePostNormTruePile(SplashTunedBlocks1024, MuddLlama2M
 
     Preserve the parent's MLP budget, full history and router expansion rule.
     """
+    # code_commit: 7fa4726; UE5a v5p-16 /311031; UC1a/EW4b passive backups.
+    # Both-worker AOT/source and FIRST_STEP gates passed; startup ~.692 step/s.
+    # +9.8% vs old .630 chunk-attention parent (kernel-unmatched); same generic health ON/internal OFF.
+    # 434142747 parameters (+66000 norm scales); all MLP widths unchanged, full13500-step plan.
     model_name = 'MuddLlama2MediumPropPrePostNormTruePile'
     mudd_prenorm = True
     mudd_postnorm = True

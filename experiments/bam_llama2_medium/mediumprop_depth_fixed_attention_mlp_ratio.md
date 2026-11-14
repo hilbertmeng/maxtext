@@ -119,3 +119,31 @@ Prior: K12=R12/R18=.96; K27=1.00 (range .94--1.07). Corrected MHA/MLP allocation
 should help MHA/Mudd27 more than before, potentially narrowing the old BAM depth
 advantage. Startup speed priors(step/s):12-layer MHA/Mudd/BAM .95/.84/.82;
 27-layer .68/.60/.61. These are unpaired predictions, not measured results.
+
+
+## Verified startup and TPU-only boundary fix
+
+All six loaded their exact AOT and emitted FIRST_STEP; both workers of each RUN
+reported the expected source hash and `Loaded compiled function!`. Runtime958cbc0
+is used by the first five entries above. BAM27 uses982b8e6: no parameter/config
+change, only an equivalent backward M-shift tile-boundary accumulation rewrite.
+Initial958cbc0 BAM27 compilation failed with scoped-VMEM30.50MiB versus16MiB
+for a kernel-external strided gather at K61. Increasing the read kernel VMEM
+budget would not fix that allocation. Replace gather/scatter by static slices,
+FP32 boundary addition, the same cast, and concatenation. FP32/BF16 boundary
+results match bitwise; VJP routing, multi-tile M-shift, all104parameters of the
+N16/K61/T256 model, and retained-V5 regressions passed. Formal v5p-16 AOT and
+both-worker training startup then succeeded. Model parameter counts are unchanged.
+
+Post-warmup short-window median step/s (unpaired, different available windows):
+MHA12 1.047, Mudd12 .929, BAM12 .884, MHA27 .662, Mudd27 .536, BAM27 .515.
+BAM27 is below the .61 whole-model prior. No same-shape pre-fix throughput is
+available because that executable failed compilation; these numbers cannot
+identify the rewrite's speed effect. Its mathematical equivalence does not
+promise bitwise-identical full BF16 training trajectories after compiler lowering.
+
+Source/startup/timing receipts: startup/proofs.json, startup/first.json,
+startup/speeds.json and boundary-cpu-gate.json in the local artifact directory.
+Temporary compiler workflows verified resource cleanup, including the failed
+958cbc0 BAM27 candidates. Normal training and automatic regional recovery
+continue; preparation-time bookkeeping no longer owns the trainers.

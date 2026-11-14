@@ -13798,6 +13798,7 @@ class Llama2MediumPropL12AttentionMLP1to2TruePile(BamMHAMediumPropL12TruePile):
     Integer heads prevent an exact1:2 split at the exact budget; uniform widths
     avoid a terminal-layer exception for a negligible parameter residual.
     """
+    # code_commit: 958cbc0; v5p-16 /311023; UE5a primary, UC1a/EW4b backups.
     model_name = 'Llama2MediumPropL12AttentionMLP1to2TruePile'
     base_emb_dim = 1472
     head_dim = 92
@@ -13814,6 +13815,7 @@ class Llama2MediumPropL27AttentionMLP1to2TruePile(Llama2MediumPropL12AttentionML
     MLP208154448 =1:2.02330943; norm53680. All-in409529600 includes
     98443264 embedding/unembedding parameters. RoPE60 plus one unrotated dim.
     """
+    # code_commit: 958cbc0; v5p-16 /311026; UE5a primary, UC1a/EW4b backups.
     model_name = 'Llama2MediumPropL27AttentionMLP1to2TruePile'
     base_num_decoder_layers = 27
     base_emb_dim = 976
@@ -13868,6 +13870,7 @@ class MuddLlama2MediumPropL12AttentionMLP1to2TruePile(Mudd, Llama2MediumPropL12A
     additional; correct the rounded depth-varying MLP profile only at its tail.
     Non-embedding312459969 = matched MHA +1377793 router/norm parameters.
     """
+    # code_commit: 958cbc0; v5p-16 /311024; UE5a primary, UC1a/EW4b backups.
     model_name = 'MuddLlama2MediumPropL12AttentionMLP1to2TruePile'
     mudd_full_history = True
     scan_layers = False
@@ -13881,6 +13884,7 @@ class MuddLlama2MediumPropL27AttentionMLP1to2TruePile(Mudd, Llama2MediumPropL27A
 
     Non-embedding314084672 = matched MHA +2998336 router/norm parameters.
     """
+    # code_commit: 958cbc0; v5p-16 /311027; UE5a primary, UC1a/EW4b backups.
     model_name = 'MuddLlama2MediumPropL27AttentionMLP1to2TruePile'
     mudd_full_history = True
     scan_layers = False
@@ -20750,6 +20754,7 @@ class BamMediumPropV5SiTU47L12AttentionMLP1to2TruePile(BamMediumPropV5SiTU47):
     parameters (matched MHA-1400); all-in459552584.
     Scan L0--10 singly; L11 has neither attention nor memory-MLP M writes.
     """
+    # code_commit: 958cbc0; v5p-16 /311025; UE5a primary, UC1a/EW4b backups.
     model_name = 'BamMediumPropV5SiTU47L12AttentionMLP1to2TruePile'
     base_num_decoder_layers = 12
     base_emb_dim = 1472
@@ -20778,6 +20783,7 @@ class BamMediumPropV5SiTU47L27AttentionMLP1to2TruePile(BamMediumPropV5SiTU47):
     non-embedding parameters (matched MHA-1002); all-in409528598.
     Scan L0--25 singly; L26 has neither attention nor memory-MLP M writes.
     """
+    # code_commit: 982b8e6; v5p-16 /311028; UE5a primary, UC1a/EW4b backups.
     model_name = 'BamMediumPropV5SiTU47L27AttentionMLP1to2TruePile'
     base_num_decoder_layers = 27
     base_emb_dim = 976

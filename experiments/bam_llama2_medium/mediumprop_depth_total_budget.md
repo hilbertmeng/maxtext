@@ -220,6 +220,14 @@ The full-budget depth comparison remains pending Mudd18 completion.
 CP13500/cursor, TB SYNC_OK and all regional resources are verified in
 `closeout/mudd12/proof.json` and `closeout.txt`.
 
+L12 BAM completed 13500, P1, UC1a -> UE5a, about .856 steps/s.
+Its early lead against BAM18 crossed to a deficit at 1.2--1.4k and widened
+to final five +.02004004. Against matched MHA12 and Mudd12, the advantages
+narrowed to -.16783536 and -.08116212, respectively. Native matched-MHA
+BAM/Mudd gain averaged 1.936686; BAM12/BAM18 matched-MHA gain was .939685.
+CP13500/cursor, TB SYNC_OK and all regional resources are verified in
+`closeout/bam12/proof.json` and `closeout.txt`.
+
 Complete READY leases (UTC, 2026-11-14):
 
 | RUN | Zone | Start | End | Duration | Reason |
@@ -227,6 +235,8 @@ Complete READY leases (UTC, 2026-11-14):
 |L12 MHA|UC1a|17:14:08|21:01:58|3h47m50s|correlated maintenance preemption|
 |L12 MHA|UE5a|21:09:50|21:21:40|11m50s|completed 13500|
 |L12 Mudd|UE5a|17:09:00|21:24:07|4h15m07s|completed 13500|
+|L12 BAM|UC1a|17:14:46|21:02:06|3h47m20s|correlated maintenance preemption|
+|L12 BAM|UE5a|21:10:29|22:03:58|53m29s|completed 13500|
 
 The five UC1a nodes all report the same maintenance event at 20:59:12 UTC;
 this is one correlated event, not five independent short leases. All five

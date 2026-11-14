@@ -20998,7 +20998,10 @@ class BamMediumPropV5SiTU47L12TotalBudgetTruePile(BamMediumPropV5SiTU47):
     """
     # code_commit: 46e26e7; UC1a v5p-16 /311037, startup ~.856 step/s.
     # -14.3% vs MHA12 .999, -7.5% vs Mudd12 .925 (unpaired); same health.
-    # Native/Pallas parity, both-worker source/AOT and step14 passed; full 13500.
+    # Completed13500/P1, UC1a -> UE5a. vs BAM18, early lead crossed at1.2--1.4k
+    # into a persistent deficit; final five12600--13400 averaged+.020040.
+    # vs matched MHA12/Mudd12, advantage narrowed to-.167835/-.081162;
+    # matched-MHA BAM/Mudd gain ended~1.937. CP/cursor, TB and resources verified.
     model_name = 'BamMediumPropV5SiTU47L12TotalBudgetTruePile'
     base_num_decoder_layers = 12
     base_emb_dim = 1424

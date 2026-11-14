@@ -13829,8 +13829,8 @@ class MuddLlama2MediumPropL27TruePile(Llama2MediumPropL27, MuddLlama2MediumPropL
 class MuddLlama2MediumPropL27PrePostNormTruePile(MuddLlama2MediumPropL27TruePile):
     """27-layer depth control with the native Mudd pre/post-norm circuit.
 
-    Pre-norm learns the router-input RMS scale. Post-norm uses zero-initialized
-    residual mixing and a .001-initialized RMS scale on the m/readout branch.
+    Pre-norm normalizes embedding/history and learns router-input RMS scales.
+    Post-norm uses zero-initialized residual mixing and a .001-initialized RMS scale on the m/readout branch.
     The tiny norm overhead is not repaid from MLP; keep the parent width profile.
     """
     model_name = 'MuddLlama2MediumPropL27PrePostNormTruePile'

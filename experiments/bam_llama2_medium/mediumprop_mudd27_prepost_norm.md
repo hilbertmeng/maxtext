@@ -12,20 +12,22 @@ Training TPU: `xd-v5p-16-311022-maxtext`; UE5a primary, UC1a/EW4b backups.
 Preparation artifacts: `/data0/xd/bam_diagnostics/mediumprop-mudd27-prepost-20261114/`.
 Direct comparison: `MuddLlama2MediumPropL27TruePile` (completed13500 atc7a6730).
 
-Only enable the existing `mudd_prenorm` and `mudd_postnorm` flags. Pre-norm
-already existed without parameters in the parent; enabling it adds a learned
-router-input RMS scale with effective initial value1. Post-norm changes the
+Only enable the existing `mudd_prenorm` and `mudd_postnorm` flags. Pre-norm adds learned RMS scales on the router inputs (effective initial1),
+normalizes the embedding entering L0, and normalizes each layer output stored
+in the growing history. The parent only had parameter-free router-input RMSNorm;
+its embedding and stored histories were unnormalized. Post-norm changes the
 composition to `y + history_mix`, with the m/final-readout increment RMS-normalized
 and direct scale initialized.001; Q/K/V increments remain unnormalized. Native
 router output kernels and all route biases start at0 (parent selected the current
 residual with bias1). Do not reinterpret this as adding a norm after every
-Transformer residual or normalizing each individual history source.
+Transformer residual or a new per-source norm inside every consumer: each history source is normalized
+once when stored and reused by all later consumers.
 
 Keep27layers/D1200,16x75 heads, full growing history, original RMSNorm/SwiGLU
 and.006 initialization, noQKNorm, noSiTU, unscanned layers, full remat and tuned
 1024/512 fused-backward Splash. Retain the actual old expansion rule and depth-
-varying MLP profile (base1600, terminal2496). New norm parameters64800=.045W_Q,
-.01487% of the parent, are negligible and not repaid from MLP. Total435848368
+varying MLP profile (base1600, terminal2496). New norm parameters98400=.068333W_Q,
+.02258% of the parent, are negligible and not repaid from MLP. Total435881968
 versus435783568. Keep T4096, global batch128, seed9876, AdamPax3e-4,
 warmup1%, cosine floor.1, WD.1 and norm/bias exemption.13500steps correspond to
 7077888000tokens. Generic training health ON; internal metrics OFF; TBrotate500,
@@ -41,7 +43,8 @@ Validation: full-sized abstract parameter tree and unchanged MLP profile;
 nonzero-mixture native router forward/all gradients including both norm scales;
 tiny full-history model forward/all gradients. Exact sealed configuration, target
 v5p-16/s13500 AOT manifest and actual AOT-load/FIRST_STEP required for launch.
-The tiny zero-router startup is identity; the disturbed-router test ensures norm
+At zero-router initialization, composition adds zero increments; embedding
+pre-norm still changes the network versus the parent. The disturbed-router test ensures norm
 parameters and residual increments can learn rather than merely checking zeros.
 
 Prior: final loss delta(new-parent)-.002, plausible range[-.006,+.003]; throughput

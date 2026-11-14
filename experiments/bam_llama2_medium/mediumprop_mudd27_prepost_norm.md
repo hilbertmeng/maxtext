@@ -1,5 +1,10 @@
 # Mudd27 native pre/post-norm control
 
+Cancelled by the user during AOT compilation on2026-11-14. Runtimee337a8c6
+passed CPU/config checks, but no training controller/RUN was created and no
+training steps were executed. Keep the configuration as a cancelled proposal;
+the prior below is untested. Preparation resources are being released.
+
 Purpose: test whether the existing residual-style Mudd circuit improves depth use
 under the completed12/18/27-layer study's fixed parameter/token budget. The old
 Mudd27 has no sustained middle/late gradient or loss spikes in10-step TB samples;

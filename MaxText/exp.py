@@ -13833,6 +13833,7 @@ class MuddLlama2MediumPropL27PrePostNormTruePile(MuddLlama2MediumPropL27TruePile
     Post-norm uses zero-initialized residual mixing and a .001-initialized RMS scale on the m/readout branch.
     The tiny norm overhead is not repaid from MLP; keep the parent width profile.
     """
+    # Cancelled by user during AOT preparation; no training run or results.
     model_name = 'MuddLlama2MediumPropL27PrePostNormTruePile'
     mudd_prenorm = True
     mudd_postnorm = True

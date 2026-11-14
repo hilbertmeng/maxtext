@@ -245,3 +245,18 @@ Full native proofs: local `closeout/mudd12/proof.json` and
 and made no resource mutations. Both local TB copies completed successfully.
 Main resource history records every assignment and lease in global end-time
 order; no active-zone switch occurred. Other group members keep their plans.
+
+## Stronger 27-layer Mudd comparator
+
+Use native pre/post-norm Mudd27 as BAM27's primary same-depth comparator,
+retaining matched MHA27 as the common gain reference. The plain Mudd27 remains
+the normalization control; its earlier reports stay in immutable snapshots,
+but it no longer supplies BAM27's routine gap/gain line. This is a monitoring
+change only: source hashes, checkpoints, parameters and training are unchanged.
+
+Depth-axis plots also use pre/post-norm Mudd at27;12/18 retain the available
+plain Mudd controls. Label that difference in figures. These plots compare
+the strongest available controls, while a pure normalization-matched depth
+claim still needs corresponding12/18 evidence. Keep the independently
+matched-MHA BAM27-versus-BAM18 ratio and the pre/post-norm versus plain Mudd27
+control ratio registered separately. Group cadence and full budgets are unchanged.

@@ -20831,7 +20831,7 @@ class BamMediumPropV5SiTU47L27AttentionMLP1to2TruePile(BamMediumPropV5SiTU47):
     bam_last_mlp_dim = 3098
     bam_embedding_write_content_divisor = .0016052833 * math.sqrt(976 / 1200)
     compare_runs = ['BamMediumPropV5SiTU47',
-                    'MuddLlama2MediumPropL27AttentionMLP1to2TruePile',
+                    'MuddLlama2MediumPropL27AttentionMLP1to2PrePostNormTruePile',
                     'Llama2MediumPropL27AttentionMLP1to2TruePile']
 
 

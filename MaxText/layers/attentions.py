@@ -29,6 +29,7 @@ from jax.experimental import shard_map
 from jax.experimental.pallas.ops.tpu.splash_attention import splash_attention_kernel
 from jax.experimental.pallas.ops.tpu.splash_attention import splash_attention_mask
 import jax.numpy as jnp
+import numpy as np
 import common_types
 from bam_config import validate_bam_config
 from kernels.ragged_attention import ragged_gqa
@@ -300,10 +301,11 @@ class AttentionOp(nn.Module):
       attn_logits_soft_cap: float | None = None,
   ) -> Array:
     """TPU Flash Attention."""
-    # Transpose to ('batch', 'heads', 'length', 'kv')
-    query = jnp.transpose(query, axes=(0, 2, 1, 3))
-    key = jnp.transpose(key, axes=(0, 2, 1, 3))
-    value = jnp.transpose(value, axes=(0, 2, 1, 3))
+    head_major = self.config.attention_head_major  # inputs/outputs already ('batch', 'heads', 'length', 'kv')
+    if not head_major:
+      query = jnp.transpose(query, axes=(0, 2, 1, 3))
+      key = jnp.transpose(key, axes=(0, 2, 1, 3))
+      value = jnp.transpose(value, axes=(0, 2, 1, 3))
 
     if decoder_segment_ids is not None:
       decoder_segment_ids = splash_attention_kernel.SegmentIds(decoder_segment_ids, decoder_segment_ids)
@@ -369,12 +371,15 @@ class AttentionOp(nn.Module):
 
       # Create multi-head mask
       multi_head_mask = splash_attention_mask.MultiHeadMask(masks=(mask,) * query.shape[1])
+      # Same optional residual name as the BAM Splash path (used by *_save_splash remat).
+      residual_name = getattr(self.config, 'bam_splash_residual_name', None) or None
       splash_kernel = splash_attention_kernel.make_splash_mha(
           mask=multi_head_mask,
           head_shards=1,
           q_seq_shards=1,
           block_sizes=block_sizes,
           attn_logits_soft_cap=attn_logits_soft_cap,
+          **({'residual_checkpoint_name': residual_name} if residual_name else {}),
       )
 
       return jax.vmap(splash_kernel)(query, key, value, segment_ids=decoder_segment_ids)
@@ -384,8 +389,7 @@ class AttentionOp(nn.Module):
         "Batch dimension should be shardable among the devices in data and fsdp" " axis"
     )
     x = wrap_flash_attention(query, key, value, decoder_segment_ids)
-    x = jnp.transpose(x, axes=(0, 2, 1, 3))
-    return x
+    return x if head_major else jnp.transpose(x, axes=(0, 2, 1, 3))
 
   def cudnn_flash_attention(
       self,
@@ -1128,6 +1132,7 @@ class Attention(nn.Module):
   key_axis_names: AxisNames = (KV_BATCH, LENGTH, KV_HEAD, KV_HEAD_DIM)
   value_axis_names: AxisNames = (KV_BATCH, LENGTH, KV_HEAD, KV_HEAD_DIM)
   out_axis_names: AxisNames = (BATCH, LENGTH, HEAD, D_KV)
+  head_major_axis_names: AxisNames = (BATCH, HEAD, LENGTH, D_KV)
 
   prefill_cache_axis_order: AxisIdxes = (1, 2, 0, 3)
   ar_cache_axis_order: AxisIdxes = (1, 2, 0, 3)
@@ -1263,7 +1268,7 @@ class Attention(nn.Module):
     query, key, value = qkv_proj[:, :, 0, ...], qkv_proj[:, :, 1, ...], qkv_proj[:, :, 2, ...]
     return query, key, value
 
-  def out_projection(self, output_dim: int, out: Array) -> Array:
+  def out_projection(self, output_dim: int, out: Array, axis=(-2, -1)) -> Array:
     output_init = self.output_kernel_init or self.kernel_init
     if self.config.opt_type == 'muon':
       kernel_shape = (self.head_dim * self.num_query_heads, output_dim)
@@ -1286,7 +1291,7 @@ class Attention(nn.Module):
     else:
       out_proj = DenseGeneral(
           features=output_dim,
-          axis=(-2, -1),
+          axis=axis,
           kernel_init=output_init,
           kernel_axes=("heads", "kv", "embed"),
           dtype=self.dtype,
@@ -1357,6 +1362,27 @@ class Attention(nn.Module):
     inputs = rotary_embedding(inputs, inputs_positions)
     return inputs
 
+  def _rotate_prefix(self, x: Array, positions: Array, width: int, head_major: bool = False) -> Array:
+    """Prefix RoPE as x*cos + (x@R)*sin over the whole head, R a signed half-swap.
+
+    Same values as RotaryEmbedding on x[..., :width] concatenated with the rest,
+    without lane-misaligned slices (head_dim 80, width 20 on TPU).
+    """
+    cfg = self.config
+    assert cfg.rope_type.lower() == 'default' and not cfg.rope_half
+    half, dim = width // 2, x.shape[-1]
+    timescale = cfg.rope_min_timescale * (cfg.rope_max_timescale / cfg.rope_min_timescale) ** (
+        2 * jnp.arange(0, half) / width)
+    angle = (positions[:, None, :, None] if head_major else positions[:, :, None, None]) / timescale
+    pad = [(0, 0)] * 3 + [(0, dim - width)]
+    cos = jnp.pad(jnp.tile(jnp.cos(angle).astype(x.dtype), 2), pad, constant_values=1)
+    sin = jnp.pad(jnp.tile(jnp.sin(angle).astype(x.dtype), 2), pad)
+    i = np.arange(half)
+    swap = np.zeros((dim, dim), np.float32)
+    swap[i + half, i], swap[i, i + half] = -1, 1
+    rotated = jnp.einsum('...d,de->...e', x, jnp.asarray(swap, x.dtype))
+    return (x * cos + rotated * sin).astype(self.dtype)
+
   @nn.compact
   def __call__(
       self,
@@ -1416,6 +1442,16 @@ class Attention(nn.Module):
       inputs_k, inputs_v = inputs_kv if isinstance(inputs_kv, (tuple, list)) and len(inputs_kv) == 2 else (inputs_kv, inputs_kv)
       query, key, value = self.kv_shift(inputs_q, query, key, value, inputs_k=inputs_k, inputs_v=inputs_v)
 
+    # [B,H,T,D] from the projections through Splash to the output projection: no transposes.
+    head_major = cfg.attention_head_major
+    if head_major:
+      if not (model_mode == common_types.MODEL_MODE_TRAIN and self.attention_kernel == 'flash'
+              and self.rotary_dim is not None and (cfg.rotary_prefix_matmul or not self.rotary_dim)
+              and self.num_query_heads == self.num_kv_heads and not cfg.use_v_gate
+              and 'devalue' not in cfg.deep_embed_type.lower() and cfg.opt_type != 'muon'):
+        raise ValueError('attention_head_major supports only plain MHA flash training with prefix-matmul RoPE')
+      query, key, value = (jnp.swapaxes(t, 1, 2) for t in (query, key, value))
+
     query, key = dc.QKNorm(cfg, name='qk_norm')(query, key) # lsp
 
     # A prefix-only RoPE for NeoX/Pythia; leave legacy full-head calls unchanged.
@@ -1426,7 +1462,10 @@ class Attention(nn.Module):
       width = self.rotary_dim
       if not isinstance(width, int) or width < 0 or width > self.head_dim or width % 2:
         raise ValueError("rotary_dim must be an even integer in [0, head_dim]")
-      if width:
+      if width and cfg.rotary_prefix_matmul:
+        query = self._rotate_prefix(query, inputs_positions, width, head_major)
+        key = self._rotate_prefix(key, inputs_positions, width, head_major)
+      elif width:
         query = jnp.concatenate((self.apply_rotary_embedding(
             query[..., :width], inputs_positions, name="query_rotary", embedding_dims=width),
             query[..., width:]), axis=-1)
@@ -1438,6 +1477,8 @@ class Attention(nn.Module):
       query = nn.with_logical_constraint(query, self.prefill_query_axis_names)
       key = nn.with_logical_constraint(key, self.prefill_key_axis_names)
       value = nn.with_logical_constraint(value, self.prefill_value_axis_names)
+    elif head_major:
+      query, key, value = (nn.with_logical_constraint(t, self.head_major_axis_names) for t in (query, key, value))
     else:
       query = nn.with_logical_constraint(query, self.query_axis_names)
       key = nn.with_logical_constraint(key, self.key_axis_names)
@@ -1493,10 +1534,10 @@ class Attention(nn.Module):
     print(f'query: {query.shape} key: {key.shape} value: {value.shape}')
     out = self.attention_op(query, key, value, decoder_segment_ids, model_mode, inputs_q, inputs_kv, eos_sum=eos_sum)
 
-    out = nn.with_logical_constraint(out, self.out_axis_names)
+    out = nn.with_logical_constraint(out, self.head_major_axis_names if head_major else self.out_axis_names)
 
     # apply output projection,  output dim is set to the input dim.
-    out = self.out_projection(inputs_q.shape[-1], out)
+    out = self.out_projection(inputs_q.shape[-1], out, axis=(1, 3) if head_major else (-2, -1))
     out = checkpoint_name(out, "out_proj")
     return out
 

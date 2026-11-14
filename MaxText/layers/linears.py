@@ -95,6 +95,8 @@ class DenseGeneral(nn.Module):
     use_bias: whether to add bias in linear transformation.
     bias_norm: whether to add normalization before adding bias.
     kernel_gradient_scale: backward-only multiplier for the kernel gradient.
+    pad_features_to: zero-pad the last output feature (kernel and bias) to this compute width.
+    unpadded_input: stored width of a single contraction axis whose inputs arrive zero-padded.
     quant: quantization config, defaults to None implying no quantization.
   """
 
@@ -110,6 +112,8 @@ class DenseGeneral(nn.Module):
   bias_norm: str = ""
   matmul_precision: str = "default"
   kernel_gradient_scale: float = 1.0
+  pad_features_to: int = 0
+  unpadded_input: int = 0
 
   @nn.compact
   def __call__(self, inputs: Array) -> Array:
@@ -139,6 +143,9 @@ class DenseGeneral(nn.Module):
     axis = _normalize_axes(axis, inputs.ndim)
 
     kernel_shape = tuple(inputs.shape[ax] for ax in axis) + features
+    if self.unpadded_input:
+      assert len(axis) == 1
+      kernel_shape = (self.unpadded_input,) + kernel_shape[1:]
     kernel_in_axis = np.arange(len(axis))
     kernel_out_axis = np.arange(len(axis), len(axis) + len(features))
     if quantizations.in_serve_mode(self.quant):
@@ -159,6 +166,11 @@ class DenseGeneral(nn.Module):
       # Preserve the exact forward value while scaling only the kernel gradient.
       kernel_sg = lax.stop_gradient(kernel)
       kernel = kernel_sg + self.kernel_gradient_scale * (kernel - kernel_sg)
+    pad_out = [(0, 0)] * (kernel.ndim - 1) + [(0, max(self.pad_features_to - kernel.shape[-1], 0))]
+    if self.unpadded_input:
+      kernel = jnp.pad(kernel, [(0, inputs.shape[axis[0]] - self.unpadded_input)] + [(0, 0)] * (kernel.ndim - 1))
+    if pad_out[-1][1]:
+      kernel = jnp.pad(kernel, pad_out)
 
     contract_ind = tuple(range(0, len(axis)))
     output = compute_dot_general(inputs, kernel, axis, contract_ind)
@@ -184,6 +196,8 @@ class DenseGeneral(nn.Module):
             self.weight_dtype,
         )
       bias = jnp.asarray(bias, self.dtype)
+      if pad_out[-1][1]:
+        bias = jnp.pad(bias, pad_out[-len(features):])
 
       if self.bias_norm:
         output = _convert_to_activation_function(self.bias_norm)(output)
@@ -345,6 +359,12 @@ class MlpBlock(nn.Module):
     # Iterate over specified MLP input activation functions.
     # e.g. ('relu',) or ('gelu', 'linear') for gated-gelu.
     activations = []
+    # Zero hidden units (zero kernel/bias columns, zero output rows) give the same values and gradients.
+    multiple = getattr(cfg, 'mlp_compute_multiple', 0)
+    width = -(-self.intermediate_dim // multiple) * multiple if multiple else self.intermediate_dim
+    if width != self.intermediate_dim and (cfg.fused_mlp or self.bam_memory_output or self.bam_memory_direct_hidden
+                                           or cfg.mgate_dim >= 2 or 'xmlp' in cfg.deep_embed_type):
+      raise ValueError('mlp_compute_multiple supports only the plain unfused MLP')
     if cfg.fused_mlp:
       x = DenseGeneral(
           (len(self.activations), self.intermediate_dim),
@@ -376,6 +396,7 @@ class MlpBlock(nn.Module):
             use_bias=self.use_bias,
             zero_bias_without_rng=self.zero_bias_without_rng,
             matmul_precision=self.config.matmul_precision,
+            pad_features_to=width if width != self.intermediate_dim else 0,
         )(inputs)
         x = checkpoint_name(x, "mlp" + dense_name)
         if cfg.activations_in_float32:
@@ -420,6 +441,7 @@ class MlpBlock(nn.Module):
         use_bias=self.use_bias,
         zero_bias_without_rng=self.zero_bias_without_rng,
         matmul_precision=self.config.matmul_precision,
+        unpadded_input=self.intermediate_dim if width != self.intermediate_dim else 0,
     )(x)
 
     if '1xmlp' in cfg.deep_embed_type:

@@ -226,7 +226,7 @@ class ResidualModelTest(MLPWriteTest, unittest.TestCase):
     cfg = self.config(name, **kwargs)
     cfg.get_keys().update(emb_dim=16, mlp_dim=32, num_decoder_layers=2,
         num_query_heads=2, num_kv_heads=2, head_dim=8, vocab_size=32,
-        dtype=jnp.float32, attention='dot_product', remat_policy='none')
+        dtype=jnp.float32, attention='dot_product', attention_head_major=False, remat_policy='none')
     if cfg.decoder_block == 'pythia':
       cfg.get_keys()['pythia_rotary_dim'] = 2
     if cfg.bam_enabled and cfg.bam_mha_control:
@@ -474,7 +474,8 @@ class ResidualModelTest(MLPWriteTest, unittest.TestCase):
     # The [n,B,T,D] TPU layout with norms folded into the router dot, and the fused Pallas
     # update (interpreted on CPU), are pure re-implementations: identical parameter
     # tree/initialization, same logits and gradients.
-    for name in ('Llama2XLPropTruePileMHAmHC', 'Llama2XLPropTruePileMHADHC4Tanh'):
+    for name in ('Llama2XLPropTruePileMHAmHC', 'Llama2XLPropTruePileMHADHC4Tanh',
+                 'Pythia2p8BSerialQKNormMHC300B'):
       for remat in ('none', 'minimal'):
         results = []
         arms = [(False, False, False, False), (True, False, False, False), (True, True, False, False),
@@ -485,7 +486,8 @@ class ResidualModelTest(MLPWriteTest, unittest.TestCase):
           cfg = self.tiny(name)
           cfg.get_keys().update(mhc_stream_major_layout=major, mhc_pallas_update=pallas,
                                 mhc_pallas_connector=connector, mhc_pallas_sinkhorn=sinkhorn,
-                                mhc_pallas_interpret=pallas, remat_policy=remat, mhc_alpha_init=1.0)
+                                mhc_pallas_interpret=pallas, remat_policy=remat, mhc_alpha_init=1.0,
+                                logits_fp32_output_bf16_backward=False)  # BF16-only head; tiny is FP32
           mesh = jax.sharding.Mesh(max_utils.create_device_mesh(cfg), cfg.mesh_axes)
           model = Transformer(cfg, mesh, quant=None)
           tokens = jnp.array([[1, 2, 3, 4, 5, 6]], jnp.int32)
@@ -512,6 +514,87 @@ class ResidualModelTest(MLPWriteTest, unittest.TestCase):
           np.testing.assert_allclose(l1, l0, atol=2e-5, rtol=2e-5, err_msg=f'{name} {remat} {arm}')
           for (path, a), b in zip(flatten_dict(g0).items(), jax.tree.leaves(g1)):
             np.testing.assert_allclose(b, a, atol=2e-5, rtol=2e-4, err_msg=f'{name} {remat} {arm} {path}')
+
+  def test_mlp_compute_multiple_matches_default(self):
+    # Zero-padded MLP compute width: same parameter tree, logits and gradients.
+    results = []
+    for multiple in (0, 24):
+      cfg = self.tiny('Pythia2p8BSerialQKNormMHC300B')
+      cfg.get_keys().update(mlp_compute_multiple=multiple, mhc_pallas_interpret=True,
+                            logits_fp32_output_bf16_backward=False)
+      mesh = jax.sharding.Mesh(max_utils.create_device_mesh(cfg), cfg.mesh_axes)
+      model = Transformer(cfg, mesh, quant=None)
+      tokens = jnp.array([[1, 2, 3, 4, 5, 6]], jnp.int32)
+      positions, mask = jnp.arange(6)[None, :], jnp.ones_like(tokens)
+      with mesh, nn.partitioning.axis_rules(cfg.logical_axis_rules):
+        params = nn.unbox(model.init({'params': jax.random.key(3), 'dropout': jax.random.key(3)},
+            tokens, positions, tokens, mask, decoder_segment_ids=mask, enable_dropout=False)['params'])
+        forward = lambda p: model.apply({'params': p}, tokens, positions, tokens, mask,
+                                        decoder_segment_ids=mask, enable_dropout=False)[0]
+        results.append((params, forward(params), jax.grad(lambda p: jnp.mean(jnp.sin(forward(p))))(params)))
+    (p0, l0, g0), (p1, l1, g1) = results
+    self.assertEqual(jax.tree.map(jnp.shape, p0), jax.tree.map(jnp.shape, p1))
+    jax.tree.map(np.testing.assert_array_equal, p0, p1)
+    np.testing.assert_allclose(l1, l0, atol=1e-6, rtol=1e-6)
+    jax.tree.map(lambda a, b: np.testing.assert_allclose(b, a, atol=1e-6, rtol=1e-5), g0, g1)
+
+  def test_attention_head_major_matches_default(self):
+    # Splash is TPU-only: a causal reference stands in, honoring the configured layout.
+    from unittest import mock
+    from layers.attentions import AttentionOp
+    def flash(op, q, k, v, segment_ids, soft_cap=None):
+      if not op.config.attention_head_major:
+        q, k, v = (jnp.swapaxes(t, 1, 2) for t in (q, k, v))
+      s = jnp.einsum('bhqd,bhkd->bhqk', q, k)
+      s = jnp.where(jnp.tril(jnp.ones(s.shape[-2:], bool)), s, -1e30)
+      o = jnp.einsum('bhqk,bhkd->bhqd', jax.nn.softmax(s, -1), v)
+      return o if op.config.attention_head_major else jnp.swapaxes(o, 1, 2)
+    results = []
+    with mock.patch.object(AttentionOp, 'tpu_flash_attention', flash):
+      for head_major in (False, True):
+        cfg = self.tiny('Pythia2p8BSerialQKNormMHC300B')
+        cfg.get_keys().update(attention='flash', attention_head_major=head_major, rotary_prefix_matmul=True,
+                              pythia_rotary_dim=4, mhc_pallas_interpret=True, logits_fp32_output_bf16_backward=False)
+        mesh = jax.sharding.Mesh(max_utils.create_device_mesh(cfg), cfg.mesh_axes)
+        model = Transformer(cfg, mesh, quant=None)
+        tokens = jnp.array([[1, 2, 3, 4, 5, 6]], jnp.int32)
+        positions, mask = jnp.arange(6)[None, :], jnp.ones_like(tokens)
+        with mesh, nn.partitioning.axis_rules(cfg.logical_axis_rules):
+          params = nn.unbox(model.init({'params': jax.random.key(3), 'dropout': jax.random.key(3)},
+              tokens, positions, tokens, mask, decoder_segment_ids=mask, enable_dropout=False)['params'])
+          forward = lambda p: model.apply({'params': p}, tokens, positions, tokens, mask,
+                                          decoder_segment_ids=mask, enable_dropout=False)[0]
+          results.append((params, forward(params), jax.grad(lambda p: jnp.mean(jnp.sin(forward(p))))(params)))
+    (p0, l0, g0), (p1, l1, g1) = results
+    jax.tree.map(np.testing.assert_array_equal, p0, p1)
+    np.testing.assert_allclose(l1, l0, atol=1e-6, rtol=1e-6)
+    jax.tree.map(lambda a, b: np.testing.assert_allclose(b, a, atol=1e-6, rtol=1e-5), g0, g1)
+
+  def test_rotary_prefix_matmul_matches_concat(self):
+    # Pythia head80/RoPE20 in BF16: identical values and gradients to slice+concat.
+    from types import SimpleNamespace
+    from layers import embeddings
+    from layers.attentions import Attention
+    cfg = self.config('Pythia2p8BSerialQKNormMHC300B')
+    x = jax.random.normal(jax.random.key(0), (2, 16, 3, 80), jnp.float32).astype(jnp.bfloat16)
+    pos = jnp.arange(16)[None, :].repeat(2, 0) * 37
+    def concat(x):
+      rope = embeddings.RotaryEmbedding(min_timescale=cfg.rope_min_timescale, max_timescale=cfg.rope_max_timescale,
+                                        embedding_dims=20, fprop_dtype=jnp.bfloat16)
+      return jnp.concatenate((rope.apply({}, x[..., :20], pos), x[..., 20:]), axis=-1)
+    def matmul(x):
+      return Attention._rotate_prefix(SimpleNamespace(config=cfg, dtype=jnp.bfloat16), x, pos, 20)
+    np.testing.assert_array_equal(np.asarray(matmul(x), np.float32), np.asarray(concat(x), np.float32))
+    grad = lambda f: jax.grad(lambda x: jnp.sum(jnp.sin(f(x).astype(jnp.float32))))(x)
+    np.testing.assert_array_equal(np.asarray(grad(matmul), np.float32), np.asarray(grad(concat), np.float32))
+
+  def test_hc_pallas_tile_fits_state_block(self):
+    from layers.hc_pallas import _tile
+    m = 8 * 2048
+    self.assertEqual(_tile(m, 256, 4 * 1920), 256)   # XL unchanged
+    self.assertEqual(_tile(m, 256, 4 * 2560), 128)   # Pythia-2.8B D2560
+    self.assertEqual(_tile(m, 256, 4 * 1200), 256)
+    self.assertEqual(_tile(m, 512), 512)             # Sinkhorn: no state block
 
   def test_prefill_and_autoregressive_cache(self):
     for name in ('Llama2MediumAttnRes', 'Llama2MediummHC'):

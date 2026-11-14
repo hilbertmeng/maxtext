@@ -13788,6 +13788,41 @@ class BamMHAMediumPropL27C256TruePile(Llama2MediumPropL27, BamMHAMediumPropC256T
     jax_cache_dir = ''
 
 
+class Llama2MediumPropL12AttentionMLP1to2TruePile(BamMHAMediumPropL12TruePile):
+    """Width-scaled MHA depth control at the MediumProp non-embedding budget.
+
+    Target311084400 excludes token embedding/unembedding and includes norms.
+    L12/D1472=16x92, uniform SwiGLU3907:311082176 (-2224).
+    Attention104005632 / MLP207039744 =1:1.99065897; norm36800.
+    All-in459553984 includes148471808 embedding/unembedding parameters.
+    Integer heads prevent an exact1:2 split at the exact budget; uniform widths
+    avoid a terminal-layer exception for a negligible parameter residual.
+    """
+    model_name = 'Llama2MediumPropL12AttentionMLP1to2TruePile'
+    base_emb_dim = 1472
+    head_dim = 92
+    base_mlp_dim = 3907
+    # Even92-dimensional heads rotate in full; no odd-head leading coordinate.
+    bam_partial_rope_nope_dim = 0
+    compare_runs = ['BamMHAMediumPropC256TruePile', 'BamMHAMediumPropL12TruePile']
+
+
+class Llama2MediumPropL27AttentionMLP1to2TruePile(Llama2MediumPropL12AttentionMLP1to2TruePile):
+    """L27/D976=16x61 at the same311084400 non-embedding target.
+
+    Uniform SwiGLU2633:311086336 (+1936), attention102878208 /
+    MLP208154448 =1:2.02330943; norm53680. All-in409529600 includes
+    98443264 embedding/unembedding parameters. RoPE60 plus one unrotated dim.
+    """
+    model_name = 'Llama2MediumPropL27AttentionMLP1to2TruePile'
+    base_num_decoder_layers = 27
+    base_emb_dim = 976
+    head_dim = 61
+    base_mlp_dim = 2633
+    bam_partial_rope_nope_dim = 1
+    compare_runs = ['BamMHAMediumPropC256TruePile', 'BamMHAMediumPropL27C256TruePile']
+
+
 class MuddLlama2MediumPropL12TruePile(Mudd, BamMHAMediumPropL12TruePile):
     """12-layer Prop Mudd; match the depth study's MHA MLP budget.
 

@@ -570,6 +570,38 @@ class ResidualModelTest(MLPWriteTest, unittest.TestCase):
     np.testing.assert_allclose(l1, l0, atol=1e-6, rtol=1e-6)
     jax.tree.map(lambda a, b: np.testing.assert_allclose(b, a, atol=1e-6, rtol=1e-5), g0, g1)
 
+  def test_attention_head_major_matches_default(self):
+    # Splash is TPU-only: a causal reference stands in, honoring the configured layout.
+    from unittest import mock
+    from layers.attentions import AttentionOp
+    def flash(op, q, k, v, segment_ids, soft_cap=None):
+      if not op.config.attention_head_major:
+        q, k, v = (jnp.swapaxes(t, 1, 2) for t in (q, k, v))
+      s = jnp.einsum('bhqd,bhkd->bhqk', q, k)
+      s = jnp.where(jnp.tril(jnp.ones(s.shape[-2:], bool)), s, -1e30)
+      o = jnp.einsum('bhqk,bhkd->bhqd', jax.nn.softmax(s, -1), v)
+      return o if op.config.attention_head_major else jnp.swapaxes(o, 1, 2)
+    results = []
+    with mock.patch.object(AttentionOp, 'tpu_flash_attention', flash):
+      for head_major in (False, True):
+        cfg = self.tiny('Pythia2p8BSerialQKNormMHC300B')
+        cfg.get_keys().update(attention='flash', attention_head_major=head_major, rotary_prefix_matmul=True,
+                              pythia_rotary_dim=4, mhc_pallas_interpret=True, logits_fp32_output_bf16_backward=False)
+        mesh = jax.sharding.Mesh(max_utils.create_device_mesh(cfg), cfg.mesh_axes)
+        model = Transformer(cfg, mesh, quant=None)
+        tokens = jnp.array([[1, 2, 3, 4, 5, 6]], jnp.int32)
+        positions, mask = jnp.arange(6)[None, :], jnp.ones_like(tokens)
+        with mesh, nn.partitioning.axis_rules(cfg.logical_axis_rules):
+          params = nn.unbox(model.init({'params': jax.random.key(3), 'dropout': jax.random.key(3)},
+              tokens, positions, tokens, mask, decoder_segment_ids=mask, enable_dropout=False)['params'])
+          forward = lambda p: model.apply({'params': p}, tokens, positions, tokens, mask,
+                                          decoder_segment_ids=mask, enable_dropout=False)[0]
+          results.append((params, forward(params), jax.grad(lambda p: jnp.mean(jnp.sin(forward(p))))(params)))
+    (p0, l0, g0), (p1, l1, g1) = results
+    jax.tree.map(np.testing.assert_array_equal, p0, p1)
+    np.testing.assert_allclose(l1, l0, atol=1e-6, rtol=1e-6)
+    jax.tree.map(lambda a, b: np.testing.assert_allclose(b, a, atol=1e-6, rtol=1e-5), g0, g1)
+
   def test_rotary_prefix_matmul_matches_concat(self):
     # Pythia head80/RoPE20 in BF16: identical values and gradients to slice+concat.
     from types import SimpleNamespace

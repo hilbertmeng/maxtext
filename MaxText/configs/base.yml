@@ -586,6 +586,7 @@ pythia_last_mlp_dim: 0 # Positive: scan the plain Pythia prefix, then use this f
 pythia_rotary_fraction: 0.25
 pythia_rotary_dim: -1  # -1 derives an exact even width; explicit override for odd head dimensions.
 mlp_compute_multiple: 0 # >0: compute the plain MLP hidden at this multiple via zero padding (same values; params unchanged).
+attention_head_major: False # Plain MHA flash training: keep q/k/v and Splash output [B,H,T,D] (no transposes; same math).
 rotary_prefix_matmul: False # Prefix RoPE over the whole head via a signed swap matmul (same values, no lane slices).
 qk_norm: False
 bam_qk_norm_after_concat: True # BAM concat-QK: normalize the complete head before partial RoPE; False reproduces standard-arm-only QKNorm.

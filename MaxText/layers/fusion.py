@@ -284,6 +284,8 @@ class SubDecoderLayer(nn.Module):
           name="mlp",
           config=cfg,
           quant=self.quant,
+          situ_gate_limit=float(getattr(cfg, 'ordinary_mlp_situ_gate_limit', 0.0)),
+          situ_up_limit=float(getattr(cfg, 'ordinary_mlp_situ_up_limit', 0.0)),
           kernel_init=initializers.get_model_init(cfg), # lsp
           output_kernel_init=(initializers.get_model_init(cfg, residual_output=True)
                               if cfg.decoder_block == 'pythia' else None),

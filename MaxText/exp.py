@@ -13861,6 +13861,34 @@ class MuddLlama2MediumPropL27TruePile(Llama2MediumPropL27, MuddLlama2MediumPropL
                     'BamMHAMediumPropL27C256TruePile']
 
 
+class MuddLlama2MediumPropL12AttentionMLP1to2TruePile(Mudd, Llama2MediumPropL12AttentionMLP1to2TruePile):
+    """Width-scaled Mudd12; same MLP weight budget as the matched MHA.
+
+    Keep full history and the trained router rule. Router overhead remains
+    additional; correct the rounded depth-varying MLP profile only at its tail.
+    Non-embedding312459969 = matched MHA +1377793 router/norm parameters.
+    """
+    model_name = 'MuddLlama2MediumPropL12AttentionMLP1to2TruePile'
+    mudd_full_history = True
+    scan_layers = False
+    bam_last_mlp_dim = 5924
+    compare_runs = ['MuddLlama2MediumPropTruePile',
+                    'Llama2MediumPropL12AttentionMLP1to2TruePile']
+
+
+class MuddLlama2MediumPropL27AttentionMLP1to2TruePile(Mudd, Llama2MediumPropL27AttentionMLP1to2TruePile):
+    """Width-scaled Mudd27; retain the matched MHA's 27x2633 MLP budget.
+
+    Non-embedding314084672 = matched MHA +2998336 router/norm parameters.
+    """
+    model_name = 'MuddLlama2MediumPropL27AttentionMLP1to2TruePile'
+    mudd_full_history = True
+    scan_layers = False
+    bam_last_mlp_dim = 4019
+    compare_runs = ['MuddLlama2MediumPropTruePile',
+                    'Llama2MediumPropL27AttentionMLP1to2TruePile']
+
+
 class MuddLlama2MediumPropL27PrePostNormTruePile(MuddLlama2MediumPropL27TruePile):
     """27-layer depth control with the native Mudd pre/post-norm circuit.
 
@@ -20711,6 +20739,63 @@ class BamMediumPropV5SiTU47L27(BamMediumPropV5SiTU47):
         'BamMHAMediumPropL27C256TruePile',
         'BamMediumPropL27K75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile',
     ]
+
+
+class BamMediumPropV5SiTU47L12AttentionMLP1to2TruePile(BamMediumPropV5SiTU47):
+    """Width-scaled L12 V5 SiTU on the D1472/16x92 MHA geometry.
+
+    Full NoPE92 plus RoPE24, M92x32, independent R256 read/write projections.
+    Match the MHA non-embedding budget; ordinary/complete memory branch ~2:1.
+    Widths3129/1444/tail4811 give ratio2.00004169 and311080776 non-embedding
+    parameters (matched MHA-1400); all-in459552584.
+    Scan L0--10 singly; L11 has neither attention nor memory-MLP M writes.
+    """
+    model_name = 'BamMediumPropV5SiTU47L12AttentionMLP1to2TruePile'
+    base_num_decoder_layers = 12
+    base_emb_dim = 1472
+    head_dim = 92
+    bam_k = 92
+    bam_local_qk_col_output_dim = 92
+    bam_partial_rope_nope_dim = 92
+    bam_standard_qk_dim = 24
+    bam_layer_modes = ['local_qk+local_v+local_o'] * 12
+    bam_attention_write_layers = list(range(11))
+    bam_mlp_write_layers = list(range(11))
+    base_mlp_dim = 3129
+    bam_memory_mlp_dim = 1444
+    bam_last_mlp_dim = 4811
+    bam_embedding_write_content_divisor = .0016052833 * math.sqrt(1472 / 1200)
+    compare_runs = ['BamMediumPropV5SiTU47',
+                    'MuddLlama2MediumPropL12AttentionMLP1to2TruePile',
+                    'Llama2MediumPropL12AttentionMLP1to2TruePile']
+
+
+class BamMediumPropV5SiTU47L27AttentionMLP1to2TruePile(BamMediumPropV5SiTU47):
+    """Width-scaled L27 V5 SiTU on the D976/16x61 MHA geometry.
+
+    Full NoPE61 plus RoPE16, M61x32, independent R256 read/write projections.
+    Widths1978/853/tail3098 give complete-branch ratio2.00078489 and311085334
+    non-embedding parameters (matched MHA-1002); all-in409528598.
+    Scan L0--25 singly; L26 has neither attention nor memory-MLP M writes.
+    """
+    model_name = 'BamMediumPropV5SiTU47L27AttentionMLP1to2TruePile'
+    base_num_decoder_layers = 27
+    base_emb_dim = 976
+    head_dim = 61
+    bam_k = 61
+    bam_local_qk_col_output_dim = 61
+    bam_partial_rope_nope_dim = 61
+    bam_standard_qk_dim = 16
+    bam_layer_modes = ['local_qk+local_v+local_o'] * 27
+    bam_attention_write_layers = list(range(26))
+    bam_mlp_write_layers = list(range(26))
+    base_mlp_dim = 1978
+    bam_memory_mlp_dim = 853
+    bam_last_mlp_dim = 3098
+    bam_embedding_write_content_divisor = .0016052833 * math.sqrt(976 / 1200)
+    compare_runs = ['BamMediumPropV5SiTU47',
+                    'MuddLlama2MediumPropL27AttentionMLP1to2TruePile',
+                    'Llama2MediumPropL27AttentionMLP1to2TruePile']
 
 
 class BamMediumPropV5SiTU47M16R128(BamMediumPropV5SiTU47):

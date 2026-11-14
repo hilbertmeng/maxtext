@@ -46,7 +46,11 @@ and Pythia retain their different QKNorm, logit-temperature and numerical recipe
 and attention factors. `bam_kernels.py` exposes the current v8t backend.
 `bam_pallas_common.py` owns shared numerical/layout helpers and imports no
 historical kernel implementation. The pure JAX path remains the numerical and
-diagnostic reference. In particular, V/O gates follow contraction in JAX;
+diagnostic reference. The optional `ordinary_mlp_situ_gate_limit` /
+`ordinary_mlp_situ_up_limit` pair enables SiTU in the ordinary residual MLP
+only; both default to zero, and the private memory writer keeps SwiGLU. This
+activation runs outside the matrix kernels and needs no kernel interface change.
+In particular, V/O gates follow contraction in JAX;
 moving them onto addresses would change BF16 rounding.
 
 ## Legacy boundary

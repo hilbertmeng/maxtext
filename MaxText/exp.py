@@ -13902,6 +13902,9 @@ class MuddLlama2MediumPropL27AttentionMLP1to2PrePostNormTruePile(
     post-norm uses zero-initialized mixing and a .001 RMS scale on the m branch.
     The small additional norm parameter count is not repaid from MLP.
     """
+    # code_commit: c9c0608; v5p-16 /311029; UE5a primary, UC1a/EW4b backups.
+    # 412607968 parameters (+80032 norm parameters); same MLP widths and 13500-step plan.
+    # Startup .532 step/s, about -.8% vs parent .536 (unpaired); generic health ON/internal OFF.
     model_name = 'MuddLlama2MediumPropL27AttentionMLP1to2PrePostNormTruePile'
     mudd_prenorm = True
     mudd_postnorm = True

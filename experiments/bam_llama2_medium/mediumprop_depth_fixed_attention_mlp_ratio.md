@@ -168,3 +168,14 @@ speed3--8% below the parent's .536step/s, approximately .49--.52step/s.
 Validation and preparation receipts live in the local artifact directory's
 `prepost/` subdirectory. The four-zone compiler inventory found no available
 retained FLEX/non-preemptible v6e-1; use the managed temporary compiler workflow.
+
+Startup verified: runtime c9c0608, UE5a xd-v5p-16-311029-maxtext, FIRST_STEP6
+and both workers at step34 with the exact runtime hash and AOT-load beacon.
+Median step14--34 speed .531/.532 versus parent .536, approximately .8% slower
+(unpaired), smaller than the predicted3--8% penalty. Abstract full-size parameter
+audit:412607968 total,314164704 non-embedding;80032 extra norm parameters
+(.0840164 W_Q). Three focused checks passed: full-size shapes/budget,
+nonzero-mixture router gradients, and small full-model forward/backward.
+Native group membership/gain triple registered; existing fixed2k report phase
+and no-elimination policy preserved. Proof: tpu-ag logs/depth-ratio-prepost-proof.json;
+local prepost/startup-proof.json and prepost/parameter-audit.json.

@@ -369,12 +369,15 @@ class AttentionOp(nn.Module):
 
       # Create multi-head mask
       multi_head_mask = splash_attention_mask.MultiHeadMask(masks=(mask,) * query.shape[1])
+      # Same optional residual name as the BAM Splash path (used by *_save_splash remat).
+      residual_name = getattr(self.config, 'bam_splash_residual_name', None) or None
       splash_kernel = splash_attention_kernel.make_splash_mha(
           mask=multi_head_mask,
           head_shards=1,
           q_seq_shards=1,
           block_sizes=block_sizes,
           attn_logits_soft_cap=attn_logits_soft_cap,
+          **({'residual_checkpoint_name': residual_name} if residual_name else {}),
       )
 
       return jax.vmap(splash_kernel)(query, key, value, segment_ids=decoder_segment_ids)

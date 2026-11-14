@@ -7,6 +7,13 @@ XLA lowers the reverse of this update to separate dot/reduce fusions that each
 re-read the state. The custom VJP here produces dstate, dbranch and the
 per-token coefficient gradients in one pass over (dnew, state, branch).
 Arithmetic is FP32 on the VPU; outputs keep the state/branch dtypes.
+
+Structure:
+  _tile                  token tile, capped so one (n, tile, D) block fits VMEM
+  mhc_update_pallas      residual update (mHC/DHC) + one-pass VJP
+  mhc_connector_pallas   mHC read: router dot, flat RMS, pre sigmoid, read + one-pass VJP
+  dhc_connector_pallas   DHC read: per-stream LN folded into router dot, tanh, read + VJP
+  sinkhorn_pallas        mHC Sinkhorn, all iterations in one kernel, recomputing reverse
 """
 import functools
 
@@ -18,7 +25,15 @@ from jax.experimental.pallas import tpu as pltpu
 F32 = jnp.float32
 
 
-def _tile(m, requested):
+# Max elements in one (n, tile, D) state block. Keeps tile 256 at n*D=7680 (XL) and
+# halves it at n*D=10240 (D2560), where the connector reverse otherwise exceeds VMEM.
+BLOCK_ELEMENTS = 1 << 21
+
+
+def _tile(m, requested, row=0):
+  if row:
+    cap = max(8, BLOCK_ELEMENTS // row)
+    requested = min(requested, 1 << (cap.bit_length() - 1))
   tile = min(requested, m)
   while m % tile:
     tile //= 2
@@ -137,7 +152,7 @@ def mhc_update_pallas(state, branch, post, mixing, *, tile=256, interpret=False)
     nb = x.shape[1]
     m = nb * t
     out = _update(x.reshape(n, m, d), br.astype(x.dtype).reshape(m, d), c.reshape(m, -1),
-                  _tile(m, tile), interpret)
+                  _tile(m, tile, n * d), interpret)
     return out.reshape(x.shape)
 
   return _batch_shard(local, (state, branch, coef), (1, 0, 0), (1, 4))
@@ -150,6 +165,11 @@ def mhc_update_pallas(state, branch, post, mixing, *, tile=256, interpret=False)
 # the reverse kernel writes the summed state gradient once.
 # ---------------------------------------------------------------------------
 LANES = 128
+
+
+def _resident(shape, index_map):
+  """Single-buffered block whose index never changes within a core (weights, dW partials)."""
+  return pl.BlockSpec(shape, index_map, pipeline_mode=pl.Buffered(1))
 
 
 def _connector_values(n, d, xs, w_ref, p_ref, norm_eps, pre_eps):
@@ -226,7 +246,7 @@ def _connector_fwd(x, w, a0, bias, norm_eps, pre_eps, tile, interpret):
   state = pl.BlockSpec((n, tile, d), lambda t: (0, t, 0))
   read, z, rms = pl.pallas_call(
       functools.partial(_connector_kernel, n, d, norm_eps, pre_eps), grid=(m // tile,),
-      in_specs=[state, pl.BlockSpec((n, d, LANES), lambda t: (0, 0, 0)), pl.BlockSpec((1, LANES), lambda t: (0, 0))],
+      in_specs=[state, _resident((n, d, LANES), lambda t: (0, 0, 0)), pl.BlockSpec((1, LANES), lambda t: (0, 0))],
       out_specs=[pl.BlockSpec((tile, d), lambda t: (t, 0)), pl.BlockSpec((tile, LANES), lambda t: (t, 0)),
                  pl.BlockSpec((tile, 1), lambda t: (t, 0))],
       out_shape=[jax.ShapeDtypeStruct((m, d), x.dtype), jax.ShapeDtypeStruct((m, LANES), F32),
@@ -249,13 +269,13 @@ def _connector_bwd(norm_eps, pre_eps, tile, interpret, residuals, cotangents):
   dzp = jnp.zeros((m, LANES), F32).at[:, :e].set(dz.astype(F32))
   dx, dlogit, da0, dwt = pl.pallas_call(
       functools.partial(_connector_bwd_kernel, n, d, norm_eps, pre_eps), grid=(2, half),
-      in_specs=[state, pl.BlockSpec((n, d, LANES), lambda c, t: (0, 0, 0)),
-                pl.BlockSpec((n, LANES, d), lambda c, t: (0, 0, 0)), pl.BlockSpec((1, LANES), lambda c, t: (0, 0)),
+      in_specs=[state, _resident((n, d, LANES), lambda c, t: (0, 0, 0)),
+                _resident((n, LANES, d), lambda c, t: (0, 0, 0)), pl.BlockSpec((1, LANES), lambda c, t: (0, 0)),
                 pl.BlockSpec((tile, d), lambda c, t: (idx(c, t), 0)), pl.BlockSpec((tile, LANES), lambda c, t: (idx(c, t), 0)),
                 pl.BlockSpec((tile, 1), lambda c, t: (idx(c, t), 0)), state],
       out_specs=[state, pl.BlockSpec((tile, n), lambda c, t: (idx(c, t), 0)),
                  pl.BlockSpec((tile, 1), lambda c, t: (idx(c, t), 0)),
-                 pl.BlockSpec((1, n, LANES, d), lambda c, t: (c, 0, 0, 0))],
+                 _resident((1, n, LANES, d), lambda c, t: (c, 0, 0, 0))],
       out_shape=[jax.ShapeDtypeStruct(x.shape, x.dtype), jax.ShapeDtypeStruct((m, n), F32),
                  jax.ShapeDtypeStruct((m, 1), F32), jax.ShapeDtypeStruct((2, n, LANES, d), F32)],
       compiler_params=pltpu.CompilerParams(dimension_semantics=('parallel', 'arbitrary'),
@@ -281,7 +301,7 @@ def mhc_connector_pallas(state, kernel, a0, bias_pre, norm_eps, pre_eps, *, tile
     nb = x.shape[1]
     m = nb * t
     read, z, rms, xo = _connector(x.reshape(n, m, d), w, a, bias, float(norm_eps), float(pre_eps),
-                                  _tile(m, tile), interpret)
+                                  _tile(m, tile, n * d), interpret)
     return read.reshape(nb, t, d), jnp.moveaxis(z.reshape(nb, t, -1), -1, 0), rms.reshape(nb, t), xo.reshape(x.shape)
 
   return _batch_shard_multi(local, (state, kernel, a0, bias_pre), (1, None, None, None),
@@ -434,7 +454,7 @@ def dhc_connector_pallas(state, gained, gained_sum, bias_proj, width_scale, read
   def local(x, g, sg, cb, ws, sw0):
     nb = x.shape[1]
     m = nb * t
-    read, dyn, xo = _dhc(x.reshape(n, m, d), g, sg, cb, ws, sw0, float(eps), _tile(m, tile), interpret)
+    read, dyn, xo = _dhc(x.reshape(n, m, d), g, sg, cb, ws, sw0, float(eps), _tile(m, tile, n * d), interpret)
     return read.reshape(nb, t, d), dyn.reshape(n, nb, t, -1), xo.reshape(x.shape)
 
   return _batch_shard_multi(local, (state, gained, gained_sum, bias_proj, width_scale, read_static),

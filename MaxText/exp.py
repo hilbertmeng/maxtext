@@ -18045,6 +18045,59 @@ class BamPythia2p8BHUnit300BFastKernelMPreNormQKScale(BamPythia2p8BHUnit300BFast
                     'MuddPythia3BSerialMLPKeepActivations']
 
 
+class Pythia2p8BSerialQKNorm300B(Pythia2p8B):
+    """Matched serial MHA reference for the HUnit300B MPreNorm/QK-scale recipe.
+
+    Configuration only; no training or TPU allocation is authorized here.
+    Standard Pythia embedding initialization is the owner-approved difference.
+    """
+    model_name = 'Pythia2p8BSerialQKNorm300B'
+    attention = 'flash'  # Standard causal Splash, including the query token (owner room812).
+    sharding_tolerance = .06
+    pythia_use_fusion = True
+    pythia_parallel_residual = False
+    qk_norm = True
+    bam_enabled = False
+    token_embedding_init_method = ''  # Follow init_method='pythia', not BAM's .006.
+    float32_logits = False           # Attention precision: match the BAM recipe.
+    cast_logits_to_fp32 = True        # Vocabulary CE stays FP32.
+    logits_fp32_output_bf16_backward = True
+    logits_dot_in_fp32 = False        # BF16 operands/FP32 result, not FP32 operands.
+    record_logits_health_metrics = True
+    record_training_health_metrics = True
+    record_internal_nn_metrics = False
+    # Keep self-attention enabled; BAM's negative diagonal is deliberately not transferred.
+    # Choose working minimal remat; saved-Splash support is an optional speed optimization.
+    # remat_policy = 'minimal'
+    remat_policy = 'minimal_save_splash'
+    wd_mults = list(BamPythia2p8BHUnit300BFastKernelMPreNormQKScale.wd_mults)
+    compare_runs = ['BamPythia2p8BHUnit300BFastKernelMPreNormQKScale']
+    jax_cache_dir = ''
+
+
+
+class Pythia2p8BSerialQKNormMHC300B(MHCConfig, Pythia2p8BSerialQKNorm300B):
+    """Four-stream A.6/SK20 mHC; repay all routing and learned-head parameters.
+
+    Declare the pre-repayment Pythia FFN10240; pyconfig resolves FFN10140.
+    Unrolling is required by ResidualDecoderStack, independently of serial residuals.
+    """
+    # CPU abstract full parameter tree: 2,775,263,813 vs serial QKNorm MHA 2,775,214,080.
+    # Existing BAM reference 2,775,190,944: +72,869 (+.002626%), closest integer FFN width.
+    model_name = 'Pythia2p8BSerialQKNormMHC300B'
+    scan_layers = False
+    record_internal_nn_metrics = False
+    base_mlp_dim = 10240
+    mhc_match_parameter_budget = True
+    mhc_stream_major_layout = True
+    mhc_pallas_update = True
+    mhc_pallas_connector = True
+    mhc_pallas_sinkhorn = True
+    bam_splash_residual_name = 'bam_splash_residual'  # inherited minimal_save_splash keeps Splash O/lse
+    compare_runs = ['BamPythia2p8BHUnit300BFastKernelMPreNormQKScale',
+                    'Pythia2p8BSerialQKNorm300B']
+
+
 class BamPythia2p8BHUnitShortTrainFastKernel(
         BamPythia2p8BShortTrainSeparateVOKeysLogitDiagNegativeQK80CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOne):
     """ShortTrain unit H with the math-preserving HUnit300BFastKernel optimizations.
@@ -18111,6 +18164,24 @@ class BamPythia2p8BMPreNormSpeedQKScaleProfile(
         _PythiaMPreNormSpeedProfile, BamPythia2p8BHUnit300BFastKernelMPreNormQKScale):
     """Formal pre-norm + common Q/K scale (per-head scales, c-summed reverse)."""
     model_name = 'BamPythia2p8BMPreNormSpeedQKScaleProfile'
+
+
+class Pythia2p8BSerialQKNormMHCSpeedProfile(_PythiaMPreNormSpeedProfile, Pythia2p8BSerialQKNormMHC300B):
+    """Formal mHC (Pallas residual path, saved Splash O/lse) against BamPythia2p8BMPreNormSpeedQKScaleProfile."""
+    model_name = 'Pythia2p8BSerialQKNormMHCSpeedProfile'
+
+
+class Pythia2p8BSerialQKNormMHCSpeedNoSaveSplashProfile(Pythia2p8BSerialQKNormMHCSpeedProfile):
+    """Unnamed Splash residuals: minimal_save_splash then saves only dots, as before the naming fix."""
+    model_name = 'Pythia2p8BSerialQKNormMHCSpeedNoSaveSplashProfile'
+    bam_splash_residual_name = ''
+
+
+class Pythia2p8BSerialQKNormMHCSpeedFFN10112Profile(Pythia2p8BSerialQKNormMHCSpeedProfile):
+    """Lane-aligned FFN10112 instead of the repaid FFN10140 (layout probe; -0.6% MLP parameters)."""
+    model_name = 'Pythia2p8BSerialQKNormMHCSpeedFFN10112Profile'
+    mhc_match_parameter_budget = False
+    base_mlp_dim = 10112
 
 
 # v6e-128 = 128 single-TC chips (v5p-256 = 128 dual-TC chips): same 8/device, 31.25 GiB HBM, 128 MiB VMEM.

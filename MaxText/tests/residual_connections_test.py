@@ -474,7 +474,8 @@ class ResidualModelTest(MLPWriteTest, unittest.TestCase):
     # The [n,B,T,D] TPU layout with norms folded into the router dot, and the fused Pallas
     # update (interpreted on CPU), are pure re-implementations: identical parameter
     # tree/initialization, same logits and gradients.
-    for name in ('Llama2XLPropTruePileMHAmHC', 'Llama2XLPropTruePileMHADHC4Tanh'):
+    for name in ('Llama2XLPropTruePileMHAmHC', 'Llama2XLPropTruePileMHADHC4Tanh',
+                 'Pythia2p8BSerialQKNormMHC300B'):
       for remat in ('none', 'minimal'):
         results = []
         arms = [(False, False, False, False), (True, False, False, False), (True, True, False, False),
@@ -485,7 +486,8 @@ class ResidualModelTest(MLPWriteTest, unittest.TestCase):
           cfg = self.tiny(name)
           cfg.get_keys().update(mhc_stream_major_layout=major, mhc_pallas_update=pallas,
                                 mhc_pallas_connector=connector, mhc_pallas_sinkhorn=sinkhorn,
-                                mhc_pallas_interpret=pallas, remat_policy=remat, mhc_alpha_init=1.0)
+                                mhc_pallas_interpret=pallas, remat_policy=remat, mhc_alpha_init=1.0,
+                                logits_fp32_output_bf16_backward=False)  # BF16-only head; tiny is FP32
           mesh = jax.sharding.Mesh(max_utils.create_device_mesh(cfg), cfg.mesh_axes)
           model = Transformer(cfg, mesh, quant=None)
           tokens = jnp.array([[1, 2, 3, 4, 5, 6]], jnp.int32)
@@ -544,6 +546,14 @@ class ResidualModelTest(MLPWriteTest, unittest.TestCase):
       np.testing.assert_allclose(l1, l0, atol=2e-5, rtol=2e-5, err_msg=remat)
       for (path, a), b in zip(flatten_dict(g0).items(), jax.tree.leaves(g1)):
         np.testing.assert_allclose(b, a, atol=2e-5, rtol=2e-4, err_msg=f'{remat} {path}')
+
+  def test_hc_pallas_tile_fits_state_block(self):
+    from layers.hc_pallas import _tile
+    m = 8 * 2048
+    self.assertEqual(_tile(m, 256, 4 * 1920), 256)   # XL unchanged
+    self.assertEqual(_tile(m, 256, 4 * 2560), 128)   # Pythia-2.8B D2560
+    self.assertEqual(_tile(m, 256, 4 * 1200), 256)
+    self.assertEqual(_tile(m, 512), 512)             # Sinkhorn: no state block
 
   def test_prefill_and_autoregressive_cache(self):
     for name in ('Llama2MediumAttnRes', 'Llama2MediummHC'):

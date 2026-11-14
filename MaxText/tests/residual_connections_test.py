@@ -547,6 +547,29 @@ class ResidualModelTest(MLPWriteTest, unittest.TestCase):
       for (path, a), b in zip(flatten_dict(g0).items(), jax.tree.leaves(g1)):
         np.testing.assert_allclose(b, a, atol=2e-5, rtol=2e-4, err_msg=f'{remat} {path}')
 
+  def test_mlp_compute_multiple_matches_default(self):
+    # Zero-padded MLP compute width: same parameter tree, logits and gradients.
+    results = []
+    for multiple in (0, 24):
+      cfg = self.tiny('Pythia2p8BSerialQKNormMHC300B')
+      cfg.get_keys().update(mlp_compute_multiple=multiple, mhc_pallas_interpret=True,
+                            logits_fp32_output_bf16_backward=False)
+      mesh = jax.sharding.Mesh(max_utils.create_device_mesh(cfg), cfg.mesh_axes)
+      model = Transformer(cfg, mesh, quant=None)
+      tokens = jnp.array([[1, 2, 3, 4, 5, 6]], jnp.int32)
+      positions, mask = jnp.arange(6)[None, :], jnp.ones_like(tokens)
+      with mesh, nn.partitioning.axis_rules(cfg.logical_axis_rules):
+        params = nn.unbox(model.init({'params': jax.random.key(3), 'dropout': jax.random.key(3)},
+            tokens, positions, tokens, mask, decoder_segment_ids=mask, enable_dropout=False)['params'])
+        forward = lambda p: model.apply({'params': p}, tokens, positions, tokens, mask,
+                                        decoder_segment_ids=mask, enable_dropout=False)[0]
+        results.append((params, forward(params), jax.grad(lambda p: jnp.mean(jnp.sin(forward(p))))(params)))
+    (p0, l0, g0), (p1, l1, g1) = results
+    self.assertEqual(jax.tree.map(jnp.shape, p0), jax.tree.map(jnp.shape, p1))
+    jax.tree.map(np.testing.assert_array_equal, p0, p1)
+    np.testing.assert_allclose(l1, l0, atol=1e-6, rtol=1e-6)
+    jax.tree.map(lambda a, b: np.testing.assert_allclose(b, a, atol=1e-6, rtol=1e-5), g0, g1)
+
   def test_rotary_prefix_matmul_matches_concat(self):
     # Pythia head80/RoPE20 in BF16: identical values and gradients to slice+concat.
     from types import SimpleNamespace

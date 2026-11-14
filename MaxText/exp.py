@@ -18195,6 +18195,17 @@ class Pythia2p8BSerialQKNormMHCSpeedRopeMatmulFFN10112Profile(Pythia2p8BSerialQK
     rotary_prefix_matmul = True
 
 
+class Pythia2p8BSerialQKNormMHCSpeedPadMLPProfile(Pythia2p8BSerialQKNormMHCSpeedProfile):
+    """Stored FFN10140, computed at 10240 with zero hidden units (same values and gradients)."""
+    model_name = 'Pythia2p8BSerialQKNormMHCSpeedPadMLPProfile'
+    mlp_compute_multiple = 128
+
+
+class Pythia2p8BSerialQKNormMHCSpeedRopeMatmulPadMLPProfile(Pythia2p8BSerialQKNormMHCSpeedPadMLPProfile):
+    model_name = 'Pythia2p8BSerialQKNormMHCSpeedRopeMatmulPadMLPProfile'
+    rotary_prefix_matmul = True
+
+
 # v6e-128 = 128 single-TC chips (v5p-256 = 128 dual-TC chips): same 8/device, 31.25 GiB HBM, 128 MiB VMEM.
 # Formal minimal_save_splash at 5a48faa needs 49.30G HBM on v6e-128 (AOT RESOURCE_EXHAUSTED); VMEM fits.
 # Full-layer v6e-128 memory screen: formal shapes and schedule, only remat or accumulation changed.

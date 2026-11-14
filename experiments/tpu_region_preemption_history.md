@@ -27,6 +27,10 @@ active leases are censored, and manual migration releases are not preemptions.
 
 | RUN | TPU | Zone | Start UTC | End UTC | End reason | Passive candidates |
 |---|---|---|---|---|---|---|
+| `Llama2MediumPropL12TotalBudgetTruePile` | v5p-16 (`xd-v5p-16-311032-maxtext`) | `us-east5-a` | 2026-11-14 17:04:22 | 2026-11-14 17:13:58 | queue preparation only; no verified FIRST_STEP in this initial assignment | UE5a primary; UC1a/EW4b backups after 300s; UC1a selected |
+| `Llama2MediumPropL12TotalBudgetTruePile` | v5p-16 (`xd-v5p-16-311032-maxtext`) | `us-central1-a` | 2026-11-14 17:13:58 | 2026-11-14 21:09:45 | maintenance P1, then source assignment transferred to UE5a; includes recovery wait | all five cohort UC1a nodes had maintenance at 20:59:12 UTC |
+| `Llama2MediumPropL12TotalBudgetTruePile` | v5p-16 (`xd-v5p-16-311032-maxtext`) | `us-east5-a` | 2026-11-14 21:09:45 | 2026-11-14 21:21:40 | completed 13500/P1; CP/cursor/TB and all regional resources verified | restored same runtime/AOT; losing candidates released |
+| `MuddLlama2MediumPropL12TotalBudgetRouterFixedTruePile` | v5p-16 (`xd-v5p-16-311034-maxtext`) | `us-east5-a` | 2026-11-14 17:04:03 | 2026-11-14 21:24:07 | completed 13500/P0; CP/cursor/TB and all regional resources verified | UE5a primary, UC1a/EW4b passive backups; no active-zone switch |
 | `MuddLlama2MediumPropL12AttentionMLP1to2PrePostNormTruePile` | v5p-16 (`xd-v5p-16-311030-maxtext`) | `us-east5-a` | 2026-11-14 12:08:30 | 2026-11-14 16:22:18 | user pause13071/P0; resume CP/cursor/TB and all regional resources verified | UE5a primary, UC1a/EW4b passive backups; no active-zone switch |
 | `MuddLlama2MediumPropPrePostNormTruePile` | v5p-16 (`xd-v5p-16-311031-maxtext`) | `us-east5-a` | 2026-11-14 11:44:39 | 2026-11-14 16:22:21 | user pause11019/P0; resume CP/cursor/TB and all regional resources verified | UE5a primary, UC1a/EW4b passive backups; no active-zone switch |
 | `BamMediumPropV5SiTU47L27AttentionMLP1to2TruePile` | v5p-16 (`xd-v5p-16-311028-maxtext`) | `us-east5-a` | 2026-11-14 06:02:09 | 2026-11-14 13:56:03 | completed13500/P1; CP/cursor/TB and all regional resources verified | UE5a primary, UC1a/EW4b backups; no active-zone switch |
@@ -2261,6 +2265,9 @@ active leases are censored, and manual migration releases are not preemptions.
 | `BamMediumPropV5SiTU47L27AttentionMLP1to2TruePile` | 2 | `us-east5-a` | 2026-11-14 09:04:36 | 2026-11-14 13:56:03 | 4h51m27s | scheduled completion13500/P1; final CP/cursor/TB and all regional resources verified |
 | `MuddLlama2MediumPropL12AttentionMLP1to2PrePostNormTruePile` | 1 | `us-east5-a` | 2026-11-14 12:14:54 | 2026-11-14 16:22:18 | 4h07m24s | user pause13071/P0; resumable CP/cursor/TB and all regional resources verified |
 | `MuddLlama2MediumPropPrePostNormTruePile` | 1 | `us-east5-a` | 2026-11-14 11:49:35 | 2026-11-14 16:22:21 | 4h32m46s | user pause11019/P0; resumable CP/cursor/TB and all regional resources verified |
+| `Llama2MediumPropL12TotalBudgetTruePile` | 1 | `us-central1-a` | 2026-11-14 17:14:08 | 2026-11-14 21:01:58 | 3h47m50s | preempted; same maintenance event at 20:59:12 UTC as four cohort UC1a nodes |
+| `Llama2MediumPropL12TotalBudgetTruePile` | 2 | `us-east5-a` | 2026-11-14 21:09:50 | 2026-11-14 21:21:40 | 11m50s | completed 13500/P1; final CP/cursor/TB and all regional resources verified |
+| `MuddLlama2MediumPropL12TotalBudgetRouterFixedTruePile` | 1 | `us-east5-a` | 2026-11-14 17:09:00 | 2026-11-14 21:24:07 | 4h15m07s | completed 13500/P0; final CP/cursor/TB and all regional resources verified |
 | `Llama2XLPropTruePileMHA` | 1 | `us-east5-a` | 2026-09-28 09:44:22 | by 2026-09-29 00:16:16 | ≤14h31m54s | paused for distinct-data extension; TPU/queue verified absent, no preemption |
 
 | `BamMediumPropMShiftReadG050MLPReadNonWriteLayersNoReadGatesStaticZeroTruePile` | 3 | `us-east5-a` | 2026-10-15 13:35:09 | 2026-10-15 14:20:41 | 0h45m32s | user stop3149; CP committed, resources absent, TB SYNC_OK |

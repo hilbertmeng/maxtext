@@ -200,3 +200,39 @@ The full Mudd router/norm overhead is .565065,1.243130,2.287223 W_Q at
 12/18/24 respectively (W_Q=D²). It remains additional to the base budget.
 `launch-receipt.json` retains the seven registries, compiler preparation
 states/manifests and native group policy at verified startup.
+
+## Completed members
+
+L12 MHA completed 13500, P1, training UC1a -> UE5a, about .999 steps/s.
+Its initial advantage against MHA18 (-.21985 at 600) reversed between 4k
+and 6k; the final five 12600--13400 average +.00926852. This all-in-budget
+geometry is worse than MHA18 at the endpoint, despite its early lead.
+CP13500/cursor, local TB SYNC_OK and all three regions' node/queue absence
+are verified in `closeout/mha12/proof.json` and `closeout.txt`.
+
+L12 plain router-fixed Mudd completed 13500, P0, UE5a, about .925 steps/s.
+Its advantage against matched MHA12 narrowed from -.38727 at 600 to final
+five -.08667324. The corrected Mudd18 reference is still training: the
+latest available shared 8400--9200 windows average +.00393788 raw loss gap,
+while its paired matched-MHA12/18 gain multiplier is 1.041076. These are
+different comparisons; the latter uses each depth's own MHA reference.
+The full-budget depth comparison remains pending Mudd18 completion.
+CP13500/cursor, TB SYNC_OK and all regional resources are verified in
+`closeout/mudd12/proof.json` and `closeout.txt`.
+
+Complete READY leases (UTC, 2026-11-14):
+
+| RUN | Zone | Start | End | Duration | Reason |
+|---|---|---|---|---|---|
+|L12 MHA|UC1a|17:14:08|21:01:58|3h47m50s|correlated maintenance preemption|
+|L12 MHA|UE5a|21:09:50|21:21:40|11m50s|completed 13500|
+|L12 Mudd|UE5a|17:09:00|21:24:07|4h15m07s|completed 13500|
+
+The five UC1a nodes all report the same maintenance event at 20:59:12 UTC;
+this is one correlated event, not five independent short leases. All five
+resumed on UE5a using the same runtime/AOT and original 13500-step schedule.
+The two original UE5a trainers continued. The public report clock was handed
+from BAM24 to the healthy MHA24 with reported milestone 4000 unchanged;
+cadence 4000 and no-review policy remain in force. The incident receipt is
+`uc1-ssh-20261114T2100.json`, with native clock history in
+`clock-handoff-20261114T2104.json`.

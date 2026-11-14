@@ -13842,8 +13842,9 @@ class Llama2MediumPropL12TotalBudgetTruePile(Llama2MediumPropL12AttentionMLP1to2
     Attention:MLP=1:1.963483; preserve uniform widths rather than add a tail.
     """
     # code_commit: 46e26e7; v5p-16 /311032; UE5a primary, UC1a/EW4b backups.
-    # UC1a startup ~.999 step/s; both-worker source/AOT and step14 gates passed.
-    # Full 13500-step plan; 4k grouped reports, no performance elimination.
+    # Completed 13500/P1, UC1a -> UE5a, ~.999 step/s; source/AOT gates passed.
+    # vs MHA18, early -.21985@600 reversed between 4k and 6k; final5 +.009269.
+    # CP13500/cursor, TB SYNC_OK and all regional resources verified; two READY leases.
     model_name = 'Llama2MediumPropL12TotalBudgetTruePile'
     base_emb_dim = 1424
     head_dim = 89
@@ -13879,7 +13880,10 @@ class MuddLlama2MediumPropL12TotalBudgetRouterFixedTruePile(
     """
     # code_commit: 46e26e7; UE5a v5p-16 /311034, startup ~.925 step/s.
     # About -7.4% vs matched MHA12 .999 (unpaired); generic ON/internal OFF.
-    # Both-worker source/AOT and step14 gates passed; full 13500, no elimination.
+    # Completed 13500/P0; vs MHA12, early -.38727@600 narrowed to final5 -.086673.
+    # vs corrected Mudd18, last five common 8400--9200 +.003938; matched-MHA12/18
+    # gain ratio 1.04108. Parent still training: this depth comparison is provisional.
+    # CP13500/cursor, TB SYNC_OK and all regional resources verified; one READY lease.
     model_name = 'MuddLlama2MediumPropL12TotalBudgetRouterFixedTruePile'
     mudd_full_history = True
     mudd_router_hidden_expand = [1] * 11 + [4]

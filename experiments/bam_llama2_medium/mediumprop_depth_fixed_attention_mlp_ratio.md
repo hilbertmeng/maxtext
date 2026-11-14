@@ -309,6 +309,28 @@ the same assignments/leases in global end-time order. Proofs are under local
 `closeout/mudd27/`; the native closeout took162s, chiefly verified TPU/queue
 release, with zero estimated lost steps. Remaining training budgets are unchanged.
 
+## Verified completion of the pre/post-norm matrix launch
+
+Both12/18 new controls run at7fa4726 in UE5a. Both workers of each loaded the
+matching AOT and source hash; native FIRST_STEP and step14 gates passed.
+Mudd12 startup approximately.910step/s versus parent.929 (about-2.0%, unpaired);
+Mudd18 approximately.692 versus historical.630 (about+9.8%, kernel-unmatched).
+Mudd12 total460986241/non-embedding312514433, additional norm54464;
+Mudd18 total434142747/non-embedding313105947, additional norm66000.
+MLP widths are unchanged. Preparation, first-step and dual-worker proofs live
+under local `prepost-matrix/` and tpu-ag `logs/depth-ratio-prepost-matrix-*`.
+Temporary compiler cleanup is owned by the native AOT workflows; no retained
+FLEX compiler was available or adopted. Mudd12 compilation recovered from
+three EW4a compiler preemptions before success; formal training then queued normally.
+
+Beyond the relative BAM/Mudd multiplier, report the absolute paired depth effect:
+G_B=L_BAM18-L_BAM27, G_M=L_Mudd18-L_Mudd27, and G_B-G_M. A positive last
+quantity means BAM gains more absolute loss improvement from18-to27 depth.
+Use each pair's identical native windows (and report their actual range),
+not unrelated last points or the MHA-normalized multiplier alone. The depth
+plot wrapper writes cumulative paired effects and last-five-window means to
+`depth-interaction.json`; all inputs remain native registry loss comparisons.
+
 
 ## Completed width-scaled MHA27
 

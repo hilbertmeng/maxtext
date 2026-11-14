@@ -13915,6 +13915,10 @@ class MuddLlama2MediumPropL12AttentionMLP1to2PrePostNormTruePile(
 
     Preserve all MLP widths and router rules; tiny norm overhead is additional.
     """
+    # code_commit: 7fa4726; UE5a v5p-16 /311030; UC1a/EW4b passive backups.
+    # Both-worker AOT/source and FIRST_STEP gates passed; startup ~.910 step/s,
+    # about -2.0% vs parent .929 (unpaired); generic health ON/internal OFF.
+    # 460986241 parameters (+54464 norm scales); MLP widths unchanged, full13500-step plan.
     model_name = 'MuddLlama2MediumPropL12AttentionMLP1to2PrePostNormTruePile'
     mudd_prenorm = True
     mudd_postnorm = True

@@ -1,7 +1,8 @@
 # MediumProp depth controls including token tables
 
-Prepared on main `refactor-bam`, `/home/xd/projects/maxtext`. Configuration-only
-delivery: no new RUN, TPU allocation or AOT has been submitted.
+Prepared on main `refactor-bam`, `/home/xd/projects/maxtext`, runtime
+`46e26e72e51332165f1f518d9f9c957e939ae5c8`. The user authorized all seven
+training runs on 2026-11-15 (Asia/Shanghai), including the corrected Mudd18.
 
 ## Budget and geometry
 
@@ -118,3 +119,84 @@ regional nodes/queues were independently verified. Registries are `paused`,
 not eliminated. Each had one READY lease: 12-layer 12:14:54--16:22:18 UTC
 (4h07m24s); 18-layer 11:49:35--16:22:21 UTC (4h32m46s), 2026-11-14.
 Evidence: `pause-norm12-proof.json`, `pause-norm18-proof.json`, `pause-receipt.json`.
+
+## Launch and reporting
+
+All seven use v5p-16, UE5a primary and UC1a/EW4b backups after 300 seconds.
+No idle READY retained FLEX compiler was available in the checked compiler
+zones; independent auto-managed v6e compilers prepare exact v5p-16 AOTs.
+Each trainer is submitted after its own AOT/manifest gate, without waiting for
+other AOTs. Managed compilers are released by their native preparation tool.
+
+| ID / TPU suffix | Architecture | Depth | RUN |
+|---:|---|---:|---|
+|311032|MHA|12|`Llama2MediumPropL12TotalBudgetTruePile`|
+|311033|MHA|24|`Llama2MediumPropL24TotalBudgetTruePile`|
+|311034|Mudd plain, router fixed|12|`MuddLlama2MediumPropL12TotalBudgetRouterFixedTruePile`|
+|311035|Mudd plain, router fixed|18|`MuddLlama2MediumPropRouterFixedTruePile`|
+|311036|Mudd pre/post norm, router fixed|24|`MuddLlama2MediumPropL24TotalBudgetRouterFixedPrePostNormTruePile`|
+|311037|BAM V5 SiTU4/7|12|`BamMediumPropV5SiTU47L12TotalBudgetTruePile`|
+|311038|BAM V5 SiTU4/7|24|`BamMediumPropV5SiTU47L24TotalBudgetTruePile`|
+
+Full TPU names are `xd-v5p-16-ID-maxtext`. The task owns these seven training
+allocations and their managed preparation jobs. Existing completed MHA18 and
+BAM18 are references, not new training allocations.
+
+One native report group, `mediumprop-depth-total-budget`, reports all members
+together at fixed 4000-step milestones, clocked by BAM24. Review steps are
+empty: no performance elimination. Normal native gap windows remain 200 steps.
+The final 13500-step endpoint is reported even though it is off the 4k grid.
+
+Every depth uses its matched MHA reference. The competitive Mudd18 reference
+is **`MuddLlama2MediumPropRouterFixedTruePile`**, never the legacy buggy Mudd18.
+Register the new BAM18/Mudd18-fixed/MHA18 triple on the completed BAM18
+reference while preserving its older native comparisons. The legacy Mudd18
+serves only to measure the effect of correcting router expansion placement.
+
+Priors: with R_d = BAM/Mudd gain multiplier against the matched-depth MHA,
+R12/R18 = .87 and R24/R18 = 1.00; router-fixed Mudd18 versus legacy Mudd18
+gain multiplier = 1.02. The main expected extra depth benefit is 12-to-18;
+18-to-24 is expected to be smaller. Approximate startup speed priors in
+steps/s: MHA12 1.08, MHA24 .69, Mudd12 .96, Mudd18 .71, Mudd24 .57,
+BAM12 .91, BAM24 .55. Historical speed comparisons are unpaired.
+
+The parameter/native-Pallas CPU gate from preparation is reused at the same
+unchanged runtime hash. Five summary-writer tests passed before AOT submission.
+Training, optimizer, checkpoint, compilation and summary-writer infrastructure
+is unchanged from the verified `7fa4726` predecessor; the writer still rotates
+every 500 steps and calls `begin_step` before logging scalars. Source/authority
+checksums for deployed preparation, launcher and registry scripts match.
+
+Task plan, exact comparison triples, preparation logs and startup receipts:
+`/data0/xd/bam_diagnostics/mediumprop-depth-total-20261115/` locally and
+`/home/lishengping/xd/projects/logs/depth-total-20261115/` on tpu-ag.
+
+### Verified startup
+
+All seven exact AOTs are READY, all seven trainers passed FIRST_STEP and
+step14, and both workers of every trainer reported the sealed runtime hash
+and `Loaded compiled function!`. Source/parameter trees are unchanged from
+the prepared configuration delivery. Native monitoring confirms seven group
+members, cadence 4000, no review steps, clock BAM24. Mudd18-fixed is the
+competitive 18-layer reference, including the completed BAM18's native ratio.
+
+| Architecture | Depth | Startup zone | Steps/s | Delta vs matched MHA |
+|---|---:|---|---:|---:|
+|MHA|12|UC1a|.999|reference|
+|Mudd plain, fixed|12|UE5a|.925|-7.4%|
+|BAM|12|UC1a|.856|-14.3%|
+|Mudd plain, fixed|18|UC1a|.697|-2.4% vs historical MHA18 .714|
+|MHA|24|UC1a|.671|reference|
+|Mudd norm, fixed|24|UC1a|.561|-16.4%|
+|BAM|24|UC1a|.550|-18.0%|
+
+All timings are unpaired medians from step 10 onward; exact sample ranges and raw
+both-worker evidence are retained in `speeds.json` and `startup-proofs.json`.
+BAM is 7.5%/2.0% slower than matched Mudd at 12/24. Health settings match.
+Mudd18's old .630 timing used a different attention kernel, so its speed
+change cannot be attributed solely to correcting expansion placement.
+
+The full Mudd router/norm overhead is .565065,1.243130,2.287223 W_Q at
+12/18/24 respectively (W_Q=D²). It remains additional to the base budget.
+`launch-receipt.json` retains the seven registries, compiler preparation
+states/manifests and native group policy at verified startup.

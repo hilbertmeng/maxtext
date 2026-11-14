@@ -13841,6 +13841,9 @@ class Llama2MediumPropL12TotalBudgetTruePile(Llama2MediumPropL12AttentionMLP1to2
     Total 432111376, -9824 versus MHA18's 432121200 (-.00227%).
     Attention:MLP=1:1.963483; preserve uniform widths rather than add a tail.
     """
+    # code_commit: 46e26e7; v5p-16 /311032; UE5a primary, UC1a/EW4b backups.
+    # UC1a startup ~.999 step/s; both-worker source/AOT and step14 gates passed.
+    # Full 13500-step plan; 4k grouped reports, no performance elimination.
     model_name = 'Llama2MediumPropL12TotalBudgetTruePile'
     base_emb_dim = 1424
     head_dim = 89
@@ -13855,6 +13858,9 @@ class Llama2MediumPropL24TotalBudgetTruePile(Llama2MediumPropL12TotalBudgetTrueP
     Uniform SwiGLU 2874 gives 432133152, +11952 (+.00277%) versus MHA18.
     Attention:MLP=1:2.041193; full 66-dimensional RoPE.
     """
+    # code_commit: 46e26e7; v5p-16 /311033; UE5a primary, UC1a/EW4b backups.
+    # UC1a startup ~.671 step/s; both-worker source/AOT and step14 gates passed.
+    # Full 13500-step plan; same generic health ON/internal health OFF as L12.
     model_name = 'Llama2MediumPropL24TotalBudgetTruePile'
     base_num_decoder_layers = 24
     base_emb_dim = 1056
@@ -13871,6 +13877,9 @@ class MuddLlama2MediumPropL12TotalBudgetRouterFixedTruePile(
     overhead is additional, as in Mudd18, and is not repaid from MLP.
     Total 433257201 = matched MHA +1145825 router/norm parameters.
     """
+    # code_commit: 46e26e7; UE5a v5p-16 /311034, startup ~.925 step/s.
+    # About -7.4% vs matched MHA12 .999 (unpaired); generic ON/internal OFF.
+    # Both-worker source/AOT and step14 gates passed; full 13500, no elimination.
     model_name = 'MuddLlama2MediumPropL12TotalBudgetRouterFixedTruePile'
     mudd_full_history = True
     mudd_router_hidden_expand = [1] * 11 + [4]
@@ -13886,6 +13895,9 @@ class MuddLlama2MediumPropL24TotalBudgetRouterFixedPrePostNormTruePile(
     Match the MHA's full MLP budget. Router/norm overhead stays additional.
     Total 434683717 = matched MHA +2550565 router/norm parameters.
     """
+    # code_commit: 46e26e7; UC1a v5p-16 /311036, startup ~.561 step/s.
+    # About -16.4% vs matched MHA24 .671 (unpaired); generic ON/internal OFF.
+    # Both-worker source/AOT and step14 gates passed; full 13500, no elimination.
     model_name = 'MuddLlama2MediumPropL24TotalBudgetRouterFixedPrePostNormTruePile'
     mudd_full_history = True
     mudd_router_hidden_expand = [1] * 23 + [4]
@@ -13904,6 +13916,10 @@ class MuddLlama2MediumPropRouterFixedTruePile(
     leaving every in-layer QKVM router at 1. Preserve the historical MLPs.
     Total 433911307, -165440 versus the legacy router; no MLP repayment.
     """
+    # code_commit: 46e26e7; UC1a v5p-16 /311035, startup ~.697 step/s.
+    # -2.4% vs historical MHA18 .714 (unpaired); generic ON/internal OFF.
+    # Legacy Mudd18 .630 used a different attention kernel; not a pure fix speed A/B.
+    # Both-worker source/AOT and step14 gates passed; full 13500, no elimination.
     model_name = 'MuddLlama2MediumPropRouterFixedTruePile'
     mudd_router_hidden_expand = [1] * 17 + [4]
     bam_enabled = False
@@ -20976,6 +20992,9 @@ class BamMediumPropV5SiTU47L12TotalBudgetTruePile(BamMediumPropV5SiTU47):
     Ordinary/private/tail 2990/1373/4600; complete branch ratio 2.000707.
     Total 432120776, -424 versus 432121200; single-layer scan over L0--10.
     """
+    # code_commit: 46e26e7; UC1a v5p-16 /311037, startup ~.856 step/s.
+    # -14.3% vs MHA12 .999, -7.5% vs Mudd12 .925 (unpaired); same health.
+    # Native/Pallas parity, both-worker source/AOT and step14 passed; full 13500.
     model_name = 'BamMediumPropV5SiTU47L12TotalBudgetTruePile'
     base_num_decoder_layers = 12
     base_emb_dim = 1424
@@ -21002,6 +21021,9 @@ class BamMediumPropV5SiTU47L24TotalBudgetTruePile(BamMediumPropV5SiTU47):
     Ordinary/private/tail 2201/968/3435; complete branch ratio 2.000532.
     Total 432120064, -1136 versus 432121200; single-layer scan over L0--22.
     """
+    # code_commit: 46e26e7; UC1a v5p-16 /311038, startup ~.550 step/s.
+    # -18.0% vs MHA24 .671, -2.0% vs Mudd24 .561 (unpaired); same health.
+    # Native/Pallas parity, both-worker source/AOT and step14 passed; full 13500.
     model_name = 'BamMediumPropV5SiTU47L24TotalBudgetTruePile'
     base_num_decoder_layers = 24
     base_emb_dim = 1056

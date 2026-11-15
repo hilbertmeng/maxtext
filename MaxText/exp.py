@@ -21122,6 +21122,21 @@ class BamMediumPropV5SiTU47L24TotalBudgetTruePile(BamMediumPropV5SiTU47):
                     'Llama2MediumPropL24TotalBudgetTruePile']
 
 
+class BamMediumPropV5L24TotalBudgetSwiGLUTruePile(
+    BamMediumPropV5SiTU47L24TotalBudgetTruePile):
+    """Ordinary SwiGLU control for the all-in-budget L24 depth experiment.
+
+    Only disable ordinary SiTU4/7. Keep D1056, M66x32, independent R256,
+    widths2201/968/tail3435 and432120064 total parameters unchanged.
+    """
+    model_name = 'BamMediumPropV5L24TotalBudgetSwiGLUTruePile'
+    ordinary_mlp_situ_gate_limit = 0.0
+    ordinary_mlp_situ_up_limit = 0.0
+    compare_runs = ['BamMediumPropV5SiTU47L24TotalBudgetTruePile',
+                    'MuddLlama2MediumPropL24TotalBudgetRouterFixedPostNormTruePile',
+                    'Llama2MediumPropL24TotalBudgetTruePile']
+
+
 class BamMediumPropV5SiTU47M16R128(BamMediumPropV5SiTU47):
     """Ledger only: L18 capacity scaling, M75x16 and all read/write ranks128.
 

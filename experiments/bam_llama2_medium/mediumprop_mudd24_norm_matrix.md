@@ -76,8 +76,9 @@ compiler jobs. UE5a primary, UC1a backup after300s. EW4b was removed from
 training candidates following the user's 2026-11-15 short-lease review;
 both launch entrypoints now use this default for future launches as well.
 No idle retained
-STANDARD/FLEX compiler was found in EW4a,UC1a,UE5a,EW4b,UC2b before sealing;
-use native managed spot v6e AOT preparation. Keep any unrelated resources.
+STANDARD/FLEX compiler was found in EW4a,UC1a,UE5a,EW4b,UC2b before sealing.
+Preparation initially used managed spot v6e; the CPU-host workflow below
+subsequently replaced it. Keep any unrelated resources.
 
 Each arm compares directly with the completed pre+post parent, matched
 MHA24, and fixed-router plain Mudd18. The competitive 18-layer reference
@@ -101,8 +102,9 @@ Audit, AOT/launch/state and future reports:
 `/data0/xd/bam_diagnostics/mediumprop-mudd24-norm-20261115/` locally;
 `/home/lishengping/xd/projects/logs/mudd24-norm-20261115/` on tpu-ag.
 The focused CPU gate checks full parameter trees, fixed expansion/MLP
-budgets, and C1/C4 initial identity plus finite nonzero gradients in every
-native routing arm. Existing summary-writer rotation tests and the
+budgets, and C1/C4 isolated-router identity plus finite nonzero gradients
+with raw current history. The separate real-history probe above covers
+the pre-only residual-normalization distinction. Existing summary-writer rotation tests and the
 unchanged begin_step call path are reused from the verified depth family.
 
 ## Preparation and workflow findings
@@ -167,3 +169,17 @@ The default libtpu lock rejected one process before the explicit
 that override only on hosts without accelerator device nodes. Training-host
 device locks remain protected. Full-size parallel compilation receipts are
 `parallel-full-*.log` in the artifact root.
+
+Full-size concurrent compilation also passed: neither and pre-only used
+CPU sets0–15 and16–31, with overlapping compilation intervals02:58:10–03:06:49
+and02:59:17–03:08:54 UTC (8m39s and9m37s). Both emitted AOT_READY with
+verified artifact/manifests; sizes were1061243296 and1100908925 bytes.
+Pre-only's initial source-availability Git fetch failed transiently before
+compilation; its independent retry succeeded while neither kept compiling.
+The initial failure and retry logs are preserved separately. These two
+cache artifacts do not replace the existing trainers' loaded executables.
+The already accepted post-only CPU artifact remains its formal runtime.
+Tools commit `7f024fe` adds CPU-only concurrent libtpu loading and device
+rejection, covered by19 focused entrypoint/preparer tests. The local
+wrapper deletes temporary pickle files after uploading; durable artifacts
+are in GCS and local state/manifest pointers are in `aot-local/`.

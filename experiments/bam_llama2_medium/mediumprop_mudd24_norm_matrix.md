@@ -183,3 +183,28 @@ Tools commit `7f024fe` adds CPU-only concurrent libtpu loading and device
 rejection, covered by19 focused entrypoint/preparer tests. The local
 wrapper deletes temporary pickle files after uploading; durable artifacts
 are in GCS and local state/manifest pointers are in `aot-local/`.
+
+## Pre-only early stop
+
+The user stopped pre-only at4534 on2026-11-15. CP4534 and its batch128 data
+cursor committed; all owned UE5a/UC1a TPU nodes and queues are absent.
+TB copy returned SYNC_OK. The sole observed UC1a READY lease was
+01:36:23–03:54:15 UTC (2h17m52s), P0; the preceding UE5a assignment was
+queue preparation only. Every assignment/lease is also recorded in the
+shared regional history. Receipts: `pre-only-closeout-proof.json` and
+`pre-only-closeout-retry.log`.
+
+Against pre+post, the loss deficit narrowed from+.10798 at1k to+.04596
+at4.4k, but the MHA24-referenced gain multiplier declined to.61959. The
+last mature window remained+.04767 behind fixed plain Mudd18 and-.07486
+better than matched MHA24. This is an early-stop result; absolute
+catch-up had not ceased, so it does not establish a terminal deficit.
+The intended nearly-neutral pre-only terminal bet is unsupported so far.
+The actual history semantics above give a specific implementation-level
+explanation to investigate, rather than treating pre-only as a small norm
+scale toggle.
+
+Neither and post-only continue unchanged. The group clock moved to
+neither with its delivered4000 milestone preserved; the next public
+milestone remains6000. Pre-only was removed from the active group while
+its historical comparisons and artifacts remain available.

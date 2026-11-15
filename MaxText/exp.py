@@ -13965,7 +13965,10 @@ class MuddLlama2MediumPropL24TotalBudgetRouterFixedPreNormTruePile(
     """Native pre-norm only: normalize history and learn router-input scales."""
     # code_commit: 347bcd7; UC1a v5p-16 /311040, startup ~.569 step/s.
     # +1.4% vs pre+post parent .561 (unpaired); generic ON/internal OFF.
-    # Both-worker exact-source/AOT and step14 gates passed; full 13500, no elimination.
+    # User stopped4534/P0; CP4534+cursor committed, TB SYNC_OK; all UE5a/UC1a node/queues absent.
+    # vs pre+post: gap +.10798@1k -> +.04596@4.4k, but MHA24-referenced gain fell to .61959.
+    # At4.4k vs matched MHA24 -.07486; vs fixed plain Mudd18 +.04767.
+    # Absolute catch-up persisted; this is an early-stop result, not a terminal loss conclusion.
     model_name = 'MuddLlama2MediumPropL24TotalBudgetRouterFixedPreNormTruePile'
     mudd_prenorm = True
 

@@ -13949,6 +13949,9 @@ class MuddLlama2MediumPropL24TotalBudgetRouterFixedTruePile(
     router expansion. Router/norm overhead stays outside the MLP budget.
     The router input still has the native unscaled RMSNorm when pre is off.
     """
+    # code_commit: 347bcd7; UC1a v5p-16 /311039, startup ~.566 step/s.
+    # +.9% vs pre+post parent .561 (unpaired); generic ON/internal OFF.
+    # Both-worker exact-source/AOT and step14 gates passed; full 13500, no elimination.
     model_name = 'MuddLlama2MediumPropL24TotalBudgetRouterFixedTruePile'
     mudd_prenorm = False
     mudd_postnorm = False
@@ -13959,7 +13962,10 @@ class MuddLlama2MediumPropL24TotalBudgetRouterFixedTruePile(
 
 class MuddLlama2MediumPropL24TotalBudgetRouterFixedPreNormTruePile(
     MuddLlama2MediumPropL24TotalBudgetRouterFixedTruePile):
-    """Native pre-norm only: learn the router-input RMSNorm scale."""
+    """Native pre-norm only: normalize history and learn router-input scales."""
+    # code_commit: 347bcd7; UC1a v5p-16 /311040, startup ~.569 step/s.
+    # +1.4% vs pre+post parent .561 (unpaired); generic ON/internal OFF.
+    # Both-worker exact-source/AOT and step14 gates passed; full 13500, no elimination.
     model_name = 'MuddLlama2MediumPropL24TotalBudgetRouterFixedPreNormTruePile'
     mudd_prenorm = True
 

@@ -5,11 +5,15 @@ correlated preemptions remain visible. Append one assignment row per active-zone
 lease row per READY interval. `?` means the observer missed the READY start; keep it rather than
 inventing a duration. A passive queue is not an active-zone switch.
 
-Current user direction (2026-09-11, resource-constrained period): set formal v5p
-`PRIMARY_ZONE=us-east5-a`, `BACKUP_ZONES=europe-west4-b`. Queue UE5a first; after 5 minutes
-without capacity, add EW4b while retaining UE5a priority. Recent EW4b leases are more preemption-prone.
-Use an available EW4b candidate while UE5a is still queued; retain the alternate until the
-selected trainer produces FIRST_STEP, then release it. Apply on new launches and preemption recovery.
+Current user direction (2026-11-15): formal v5p defaults are
+`PRIMARY_ZONE=us-east5-a`, `BACKUP_ZONES=us-central1-a`. Temporarily exclude
+EW4b from default candidates. The Nov12--15 Medium scaling audit found nine
+EW4b READY leases, all shorter than ten minutes; UE5a/UC1a median leases were
+about175/108 minutes. Queue UE5a first; after five minutes without an allocation,
+add UC1a while preserving accepted queue ages. Retain the losing candidate
+through verified FIRST_STEP. Both launch entrypoints use these defaults;
+existing controllers require a policy update. Explicit user policy overrides
+and explicitly empty backups retain their existing semantics.
 
 ## Active-zone assignments
 

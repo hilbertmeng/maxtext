@@ -65,7 +65,10 @@ switches, not a newly introduced pure-normalization abstraction.
 |311041|`MuddLlama2MediumPropL24TotalBudgetRouterFixedPostNormTruePile`|
 
 Own only `xd-v5p-16-ID-maxtext` for these three RUNs and the auto-managed
-compiler jobs. UE5a primary, UC1a/EW4b backups after300s. No idle retained
+compiler jobs. UE5a primary, UC1a backup after300s. EW4b was removed from
+training candidates following the user's 2026-11-15 short-lease review;
+both launch entrypoints now use this default for future launches as well.
+No idle retained
 STANDARD/FLEX compiler was found in EW4a,UC1a,UE5a,EW4b,UC2b before sealing;
 use native managed spot v6e AOT preparation. Keep any unrelated resources.
 
@@ -75,7 +78,7 @@ is `MuddLlama2MediumPropRouterFixedTruePile`, never the legacy buggy run.
 Use native gain ratios with matched MHA references. The completed BAM24
 can compare against each arm to update the depth-study interpretation.
 
-One group, `mediumprop-mudd24-norm-matrix`, cadence4000, no review steps;
+One group, `mediumprop-mudd24-norm-matrix`, cadence2000, no review steps;
 report all three together, then close at13500. Preserve native200-step
 windows and cumulative curves from600. Generic training health on,
 internal activations off; TBrotation500, checkpoint200/latest2 and final.
@@ -94,3 +97,57 @@ The focused CPU gate checks full parameter trees, fixed expansion/MLP
 budgets, and C1/C4 initial identity plus finite nonzero gradients in every
 native routing arm. Existing summary-writer rotation tests and the
 unchanged begin_step call path are reused from the verified depth family.
+
+## Preparation and workflow findings
+
+Runtime is `347bcd71baf54bc5f9d0dc710dc5a5fb7412e369` for all three arms.
+Neither/pre-only passed both-worker exact-source/AOT and step14 gates in
+UC1a; startup medians .566/.569 steps/s are +.9%/+1.4% versus pre+post
+.561 (unpaired, matching health settings). The group now reports together
+at2000-step milestones, clocked by pre-only, with no elimination reviews.
+
+The first two AOTs finished on EW4a managed v6e: neither had zero compiler
+preemptions; pre-only had two before success. Post-only suffered four more
+EW4a compiler preemptions. Thus eight allocated EW4a compilers yielded six
+preemptions and two completions; this is separate from formal v5p-16 lease
+statistics. Fallback compiler defaults were changed to UC1a/UE5a.
+
+An active-training-host CPU sidecar was rejected by libtpu's device lock
+before compilation. Training was unaffected; no lock was bypassed. The
+unsupported active-host option was reverted. This probe exposed that TPU
+topology creation initializes libtpu even with the JAX CPU backend.
+
+An ordinary CPU host, however, can create compile-only TPU devices without
+physical TPU hardware. A v5p-16 compile/serialize probe succeeded locally.
+The old compiler's `/dev/vfio/0` requirement was artificial and removed.
+The original pinned unit-test environment was left unchanged: an isolated
+`/data0/xd/conda/envs/maxtext-aot081` environment was aligned with the actual
+trainer's nine recorded package/binary fields, including libtpu0.0.30 and
+its exact SHA256. The CPU test environment's older libtpu0.0.23 was not used
+for the formal artifact. Full source was a clean detached347bcd7 snapshot
+at `/tmp/maxtext-local-aot-347bcd71`.
+
+Post-only's full v5p-16/s13500 AOT compiled, serialized and uploaded on this
+CPU host from02:15:28 to02:22:59 UTC (7m31s), 1070721243 bytes. Its source,
+parameter/optimizer settings, target topology and total schedule are the
+same as the intended TPU-host compile. Artifact/manifest:
+`gs://newproject-1-llm_base_models_us-central1/log/compiled_trainsteps/347bcd7/jax081-i0ae3f58-c5aae279/v5p-16/s13500/MuddLlama2MediumPropL24TotalBudgetRouterFixedPostNormTruePile.pickle`.
+Formal loading/FIRST_STEP is still the final acceptance gate, not merely
+successful serialization. The duplicate managed v6e task was cancelled
+through its native cleanup path after artifact/manifest verification.
+
+Authoritative tools: `xd_tpu_scripts` commits `e96decd` (formal UE5a/UC1a
+defaults), `bf531ac` (CPU AOT and compiler fallback zones), `4790ae4`
+(environment-bound CPU cache reuse). Source/dirty-tree checks, fingerprint
+mismatch rejection, wrapper CPU execution and no-lifecycle paths passed
+21 focused tests; recovery/launcher suites passed28 and12 respectively.
+The new `prepare_train_aot_local.py` reuses the native key/manifest logic,
+owns no TPU resources, and rejects a different recorded compiler environment.
+
+Reproduction receipts: `aligned-env.json`, `worker-env.json`,
+`cpu-topology-probe.log`, `311041-local-aot.log`, `aot-local/*.json`,
+`post-cpu-ready.json`, startup proofs and regional-policy handoff receipts
+under the local task artifact root. The four-package runtime overlay is
+backed up at
+`gs://newproject-1-llm_base_models_us-central1/log/diagnostics/mudd24-norm-20261115/cpu-env-overlay.tar.gz`
+(SHA256 `4e4edd76e0ac00e385cb8426bd4840cdbec04162a131c8512a75264ae9b177d2`).

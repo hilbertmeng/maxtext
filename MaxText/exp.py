@@ -14013,9 +14013,13 @@ class MuddLlama2MediumPropL24TotalBudgetRouterFixedPreNormTruePile(
 class MuddLlama2MediumPropL24TotalBudgetRouterFixedPostNormTruePile(
     MuddLlama2MediumPropL24TotalBudgetRouterFixedTruePile):
     """Native post-norm only: residual delta routing, m-branch post norm."""
-    # code_commit: 347bcd7; UC1a v5p-16 /311041, startup ~.566 step/s.
-    # +.9% vs pre+post parent .561 (unpaired); generic ON/internal OFF.
-    # CPU-host AOT loaded on both workers; FIRST_STEP/step14 verified; full13500, no elimination.
+    # code_commit: 347bcd7; UC1a v5p-16 /311041, ~.560 step/s vs parent .561 (-.2%, unpaired).
+    # Completed 13,500 / P3; CP13500 + cursor and TB SYNC_OK; regional nodes/queues absent.
+    # vs pre+post: deficit +.15965 at 1k crossed by 4k; lead kept growing into late training.
+    # Final 12.6k-13.4k five windows: gap -.030304, MHA24-referenced gain 1.40312.
+    # vs neither norm: gap -.011936, gain 1.12753; versus MHA24 gap -.105545.
+    # Completed BAM24 SiTU still wins: gap -.076187, gain 1.72193 vs this stronger Mudd24.
+    # Native post-only wins this matrix; matched post-only depth controls remain separate.
     model_name = 'MuddLlama2MediumPropL24TotalBudgetRouterFixedPostNormTruePile'
     mudd_postnorm = True
 

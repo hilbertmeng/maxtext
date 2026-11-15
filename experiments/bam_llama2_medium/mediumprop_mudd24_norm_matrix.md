@@ -242,3 +242,44 @@ metadata and independent GCP absence checks are in
 `neither-final-proof.json` under the task artifact root. The full native
 figure is in `neither-final/`. Post-only continues unchanged; the group
 clock handed to it with the fixed 12,000 delivery phase preserved.
+
+
+## Post-only completion and matrix conclusion
+
+Post-only completed 13,500 on 2026-11-15, runtime 347bcd7, UC1a
+v5p-16/311041, ~.560 step/s (-.2% vs pre+post .561, unpaired).
+Final 12.6k--13.4k five-window means versus pre+post are gap -.030304
+and MHA24-referenced gain 1.40312. The initial +.15965 deficit at 1k
+crossed before 4k, then became -.02116 at 6k, -.02656 at 8k and
+-.03015 at 12k. This late persistence outlasted neither's flatter lead.
+Against neither, the final gap is -.011936 and gain multiplier 1.12753;
+against matched MHA24, gap -.105545. The pre-run -.005 / 1.066 bet
+substantially underestimated this arm. Native post-only is the best
+completed recipe in this matrix, despite its poor first 1--2k.
+
+Completed BAM24 SiTU still leads post-only by -.076187 / 1.72193.
+The older pre+post comparator gave BAM a 2.41627 multiplier, overstating
+its competitive margin. Homogeneous post-only 12/18/24 runs are required
+for the clean depth comparison; post24 vs plain18 is a different contrast.
+At the common 6k--6.8k stage, the matched-MHA 18-to-24 absolute gain is
+.017764 for Mudd versus .006513 for BAM SiTU. This is interim evidence,
+not a terminal claim: the new post18 run is still training.
+
+CP13500 commit_success, batch128 cursor, TB SYNC_OK and absence of all
+owned UE5a/UC1a nodes/queues are verified. The idempotent closeout wrapper
+performed no resource actions. UE5a was queue preparation only; actual
+training stayed in UC1a. Four chronological READY leases, UTC:
+
+| Start | End | Duration | End reason |
+|---|---|---|---|
+|2026-11-15 02:34:21|2026-11-15 07:03:09|4h28m48s|preempted|
+|2026-11-15 07:15:31|2026-11-15 07:28:14|12m43s|preempted|
+|2026-11-15 07:53:06|2026-11-15 08:37:46|44m40s|preempted|
+|2026-11-15 09:36:18|2026-11-15 11:21:23|1h45m05s|scheduled completion|
+
+Total READY time 7h11m16s includes preparation/restore. All three
+preemption ends align with neither within 3--11 seconds, supporting
+correlated UC1a service events rather than independent model failures.
+Every assignment and lease is in the shared regional history. Full
+proof: `post-final-proof.json`; final native curves: `final-ready/`.
+The old norm matrix is complete; new post12/18 and BAM24 SwiGLU continue.

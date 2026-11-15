@@ -13901,6 +13901,9 @@ class MuddLlama2MediumPropL12TotalBudgetRouterFixedPostNormTruePile(
     Match the plain parent's full MLP budget; add12*1424 norm scales
     without MLP repayment, retaining the standing Mudd convention.
     """
+    # code_commit: 2f37301; UC1a v5p-16 /311044, startup .911 step/s.
+    # -1.5% vs plain parent .925 (unpaired); generic health ON/internal OFF.
+    # Both-worker exact-source/AOT and FIRST_STEP/step14 verified; full13500, no elimination.
     model_name = 'MuddLlama2MediumPropL12TotalBudgetRouterFixedPostNormTruePile'
     mudd_prenorm = False
     mudd_postnorm = True
@@ -13962,6 +13965,9 @@ class MuddLlama2MediumPropRouterFixedPostNormTruePile(
     Preserve the plain parent's MLPs;18*1200 post-norm scales remain
     additional rather than introducing a new MLP repayment convention.
     """
+    # code_commit: 2f37301; UC1a v5p-16 /311045, startup .691 step/s.
+    # -.9% vs plain parent .697 (unpaired); generic health ON/internal OFF.
+    # Both-worker exact-source/AOT and FIRST_STEP/step14 verified; full13500, no elimination.
     model_name = 'MuddLlama2MediumPropRouterFixedPostNormTruePile'
     mudd_prenorm = False
     mudd_postnorm = True

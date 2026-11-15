@@ -1,51 +1,87 @@
 # Fixed-router post-only Mudd depth controls
 
-The user confirmed18(not19) and authorized post-only12/18 additions to
-complete the active all-in-budget12/18/24 study under a common Mudd recipe.
-Existing post-only24 continues; this is depth scaling, not a SOTA race.
+The user confirmed 18 (not 19) and authorized post-only additions at 12 and
+18 layers. Alongside the running post-only 24-layer arm, these complete a
+common Mudd recipe for the active total-budget depth study. This measures
+depth scaling; it has no performance-based elimination.
 
 Classes:
+
 - `MuddLlama2MediumPropL12TotalBudgetRouterFixedPostNormTruePile`
 - `MuddLlama2MediumPropRouterFixedPostNormTruePile`
 
-Direct parents are their matched-depth plain, fixed-router counterparts.
-Use native post-only semantics: no embedding/history pre-norm, unscaled
-router-input RMSNorm, identity residual plus zero-initialized routed delta,
-and direct .001 m-delta post-norm scale. Keep history full/growing and
-unscanned layers; this is the same switch setting as post-only24, not a
-new normalization abstraction. Set expands[1]*(L-1)+[4]; final C1 router
-hidden widths64/128 at L12/L18, with ordinary strict-next64 rounding.
-Only the final router receives expand4, not the mistaken internal site.
+Use each matched-depth plain, fixed-router model as its direct parent.
+Native post-only semantics retain raw embedding/history vectors, the
+unscaled router-input RMSNorm, identity residual plus zero-initialized
+routed delta, and direct .001 m-delta post-norm scale. Standard Transformer
+attention/MLP norms are unchanged. The Mudd pre flag is false. This matches
+the running post-only 24-layer implementation, rather than introducing a
+new interpretation of normalization.
 
-Match the original MHA18 total budget432121200 including both token tables,
-within the established integer-width rounding; Mudd router/norm overhead
-remains additional and is not deducted from MLP. No budget convention changes.
-L12 uses D1424/n16/d89, full RoPE, MLP base3728/tail5568 and the same rounded
-depth profile. L18 uses D1200/n16/d75, base3200 and its existing MLP profile.
-Expected totals:433274289 and433932907, respectively (plain+12D/+18D).
+## Budget and router placement
 
-Main/refactor-bam; only exp.py declarations change. Shared model, optimizer,
-train/compile and logging sources remain identical to runtime46e26e7 and the
-accepted post-only24 runtime347bcd7. No BAM/Pallas path is used in Mudd;
-retain tuned fused-backward Splash, full remat, Prop .006/RMSNorm/SwiGLU,
-seed9876, global128xT4096 TruePile4097,13500steps=7077888000tokens,
-and LR endpoint13500. Generic health ON/internal OFF, TBrotate500,
-checkpoint200/latest2/final. Full training, no elimination reviews.
+The MHA backbone target is 432,121,200 total parameters including both token
+tables, within established integer-width rounding. As before, Mudd router
+and norm overhead remains additional and is not repaid from MLP.
 
-UE5a primary, UC1a backup; EW4b excluded. Independent v5p-16 RUNs, intended
-TPUs xd-v5p-16-311044-maxtext /311045. Both CPU AOTs run concurrently on
-separate CPU sets; each can launch as soon as its own gates pass.
+| Depth | D / heads / head_dim | Total Mudd parameters | New post scales | Final router hidden |
+|---:|---|---:|---:|---:|
+| 12 | 1424 / 16 / 89 | 433,274,289 | 17,088 (.00843 W_Q) | 64 |
+| 18 | 1200 / 16 / 75 | 433,932,907 | 21,600 (.015 W_Q) | 128 |
 
-Group mediumprop-mudd-postnorm-depth reports12/18 jointly at fixed2k
-milestones, with L12 as clock. Routine curves overlay each arm against its
-own plain parent, using same-depth MHA gain references. Use existing
-post-only24 plus matched-MHA paired ratios for depth interpretation; add
-the new controls as same-depth BAM gain references. Do not mix loss gaps
-anchored to different MHA depths without making their reference explicit.
+Preserve the parents' MLP profiles and RoPE settings. L12 retains base
+3728 / terminal 5568; L18 retains base 3200 and its existing depth profile.
+Explicit expands are `[1] * (L - 1) + [4]`. Only the final readout gets
+expand 4; its output count remains C=1. Retain strict-next-64 rounding.
+CPU full parameter trees verified the final widths above, interior width
+bounds, unchanged MLP/router shapes and exactly L new D-sized scale leaves.
+Totals increase only by L*D over the plain parents.
 
-Prior versus each plain fixed-router parent: final gain1.02 at L12
-(plausible .98–1.06),1.04 at L18 (1.00–1.09), corresponding approximate
-final gaps-.002/-.003. Expect early deficits before late catch-up, as in
-post-only24. Expected speeds~.92/.69 versus .925/.697, within~1–2%.
-Artifacts: `/data0/xd/bam_diagnostics/mediumprop-mudd-postnorm-depth-20261115`;
-remote task `/home/lishengping/xd/projects/logs/mudd-postnorm-depth-20261115`.
+## Runtime and launch gates
+
+Main/refactor-bam runtime:
+`2f373016f55bf9a52ad1fa0ab275add4eb88597f`.
+Shared model, optimizer, train/compile and logging sources are unchanged
+from 46e26e7 and the accepted post-only24 runtime 347bcd7. These are only
+configuration declarations. Mudd uses tuned fused-backward Splash, not
+BAM Pallas kernels; no kernel adaptation is needed. Preserve full/growing
+history and unscanned layers, full remat, Prop .006/RMSNorm/SwiGLU, seed
+9876, batch128 x T4096 TruePile4097, 13,500 steps = 7,077,888,000 tokens,
+and the same LR endpoint. Generic health ON/internal OFF, TBrotate500,
+checkpoint200/latest2/forced final remain inherited.
+
+Both exact AOTs compiled concurrently on the matched local CPU environment,
+using disjoint CPU sets 0–15 / 16–31. L12 reached AOT_READY at 06:57:47 UTC
+and was submitted immediately; L18 followed at 06:58:35 UTC. No batch
+barrier delayed either ready arm. Both formal workers for each RUN loaded
+the exact source/AOT and passed FIRST_STEP/step14. Startup probes reached
+steps106/80; medians were .911/.691 steps/s versus plain parents .925/.697
+(-1.5%/-.9%, unpaired, matching health settings).
+
+TPUs are `xd-v5p-16-311044-maxtext` and `xd-v5p-16-311045-maxtext`, both
+initially in UC1a. Policy remains UE5a primary, UC1a backup, EW4b excluded.
+Both artifacts/manifests are under:
+`gs://newproject-1-llm_base_models_us-central1/log/compiled_trainsteps/2f37301/jax081-i0ae3f58-c5aae279/v5p-16/s13500/`.
+
+## Comparisons and monitoring
+
+Group `mediumprop-mudd-postnorm-depth` reports L12/L18 together at fixed
+2k milestones, clocked by L12; no review steps. Routine curves compare each
+arm with its own plain parent, with same-depth MHA gain references. Use
+existing post-only24 and native matched-MHA paired gains to assess depth.
+The completed same-depth BAMs also gained the new Mudd references. Preserve
+native series and avoid silently treating gaps with different MHA anchors
+as interchangeable. Other experiment groups retain their own calendars.
+
+Pre-run bets versus the respective plain fixed-router parents: final gain
+1.02 at L12 (range .98–1.06), 1.04 at L18 (1.00–1.09), roughly gaps -.002 /
+-.003. Expect possible early deficits followed by catch-up, as in post-only24.
+Speed priors were about .92/.69, within 1–2% of the parents.
+
+Local artifacts:
+`/data0/xd/bam_diagnostics/mediumprop-mudd-postnorm-depth-20261115/`.
+Remote task:
+`/home/lishengping/xd/projects/logs/mudd-postnorm-depth-20261115/`.
+Source/config, full parameter, AOT, startup and group receipts live there;
+CPU gate: `MUDD_POSTNORM_DEPTH_CPU_OK`. Startup accept markers are named
+`startup-accepted-311044.json` / `startup-accepted-311045.json`.

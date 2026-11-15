@@ -13861,7 +13861,9 @@ class Llama2MediumPropL24TotalBudgetTruePile(Llama2MediumPropL12TotalBudgetTrueP
     """
     # code_commit: 46e26e7; v5p-16 /311033; UE5a primary, UC1a/EW4b backups.
     # UC1a startup ~.671 step/s; both-worker source/AOT and step14 gates passed.
-    # Full 13500-step plan; same generic health ON/internal health OFF as L12.
+    # Completed13500/P1, UC1a -> UE5a. vs MHA18, early+.30694@600 narrowed,
+    # crossed near10k, and ended last5-.001573 (12600--13400).
+    # CP13500/cursor, TB SYNC_OK and all regional resources verified; two READY leases.
     model_name = 'Llama2MediumPropL24TotalBudgetTruePile'
     base_num_decoder_layers = 24
     base_emb_dim = 1056
@@ -13881,8 +13883,8 @@ class MuddLlama2MediumPropL12TotalBudgetRouterFixedTruePile(
     # code_commit: 46e26e7; UE5a v5p-16 /311034, startup ~.925 step/s.
     # About -7.4% vs matched MHA12 .999 (unpaired); generic ON/internal OFF.
     # Completed 13500/P0; vs MHA12, early -.38727@600 narrowed to final5 -.086673.
-    # vs corrected Mudd18, last five common 8400--9200 +.003938; matched-MHA12/18
-    # gain ratio 1.04108. Parent still training: this depth comparison is provisional.
+    # vs corrected Mudd18, near-parity early grew to final5+.005769;
+    # matched-MHA12/18 gain ratio1.042045 (each depth uses its own MHA).
     # CP13500/cursor, TB SYNC_OK and all regional resources verified; one READY lease.
     model_name = 'MuddLlama2MediumPropL12TotalBudgetRouterFixedTruePile'
     mudd_full_history = True
@@ -13901,7 +13903,10 @@ class MuddLlama2MediumPropL24TotalBudgetRouterFixedPrePostNormTruePile(
     """
     # code_commit: 46e26e7; UC1a v5p-16 /311036, startup ~.561 step/s.
     # About -16.4% vs matched MHA24 .671 (unpaired); generic ON/internal OFF.
-    # Both-worker source/AOT and step14 gates passed; full 13500, no elimination.
+    # Completed13500/P2, UC1a -> UE5a (same-zone recovery near the endpoint).
+    # vs corrected Mudd18, early lead reversed by4k; final5+.006360.
+    # vs MHA24, advantage narrowed to-.075241; matched-MHA24/18 gain .904584.
+    # CP13500/cursor, TB SYNC_OK and all regional resources verified; three READY leases.
     model_name = 'MuddLlama2MediumPropL24TotalBudgetRouterFixedPrePostNormTruePile'
     mudd_full_history = True
     mudd_router_hidden_expand = [1] * 23 + [4]
@@ -13923,7 +13928,11 @@ class MuddLlama2MediumPropRouterFixedTruePile(
     # code_commit: 46e26e7; UC1a v5p-16 /311035, startup ~.697 step/s.
     # -2.4% vs historical MHA18 .714 (unpaired); generic ON/internal OFF.
     # Legacy Mudd18 .630 used a different attention kernel; not a pure fix speed A/B.
-    # Both-worker source/AOT and step14 gates passed; full 13500, no elimination.
+    # Completed13500/P1, UC1a -> UE5a. vs legacy Mudd18 the deficit narrowed
+    # from+.01949@600 to last5+.003737; MHA-referenced gain .957014 (prior1.02 wrong).
+    # vs MHA18 advantage narrowed to final5-.083174. Router repair also removes165440
+    # params; semantic correctness does not imply a performance improvement.
+    # CP13500/cursor, TB SYNC_OK and all regional resources verified; two READY leases.
     model_name = 'MuddLlama2MediumPropRouterFixedTruePile'
     mudd_router_hidden_expand = [1] * 17 + [4]
     bam_enabled = False
@@ -21030,7 +21039,11 @@ class BamMediumPropV5SiTU47L24TotalBudgetTruePile(BamMediumPropV5SiTU47):
     """
     # code_commit: 46e26e7; UC1a v5p-16 /311038, startup ~.550 step/s.
     # -18.0% vs MHA24 .671, -2.0% vs Mudd24 .561 (unpaired); same health.
-    # Native/Pallas parity, both-worker source/AOT and step14 passed; full 13500.
+    # Completed13500/P1, UC1a -> UE5a. vs BAM18, early deficit crossed by4k
+    # into a persistent lead; final5-.004698, matched-MHA24/18 gain1.017496.
+    # vs MHA24/Mudd24-norm, final5-.181731/-.106490; BAM/Mudd gain2.416272.
+    # Relative gain ratio24/18 ended1.125123 (prior1.00 underestimated depth advantage).
+    # CP13500/cursor, TB SYNC_OK and all regional resources verified; two READY leases.
     model_name = 'BamMediumPropV5SiTU47L24TotalBudgetTruePile'
     base_num_decoder_layers = 24
     base_emb_dim = 1056

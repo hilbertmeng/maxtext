@@ -143,7 +143,8 @@ allocations and their managed preparation jobs. Existing completed MHA18 and
 BAM18 are references, not new training allocations.
 
 One native report group, `mediumprop-depth-total-budget`, reports all members
-together at fixed 4000-step milestones, clocked by BAM24. Review steps are
+together at fixed 4000-step milestones, initially clocked by BAM24 and then
+handed to MHA24 after the correlated maintenance event. Review steps are
 empty: no performance elimination. Normal native gap windows remain 200 steps.
 The final 13500-step endpoint is reported even though it is off the 4k grid.
 
@@ -212,11 +213,10 @@ are verified in `closeout/mha12/proof.json` and `closeout.txt`.
 
 L12 plain router-fixed Mudd completed 13500, P0, UE5a, about .925 steps/s.
 Its advantage against matched MHA12 narrowed from -.38727 at 600 to final
-five -.08667324. The corrected Mudd18 reference is still training: the
-latest available shared 8400--9200 windows average +.00393788 raw loss gap,
-while its paired matched-MHA12/18 gain multiplier is 1.041076. These are
-different comparisons; the latter uses each depth's own MHA reference.
-The full-budget depth comparison remains pending Mudd18 completion.
+five -.08667324. Against completed corrected Mudd18, near-parity early grew
+to final +.00576948 raw loss gap, while the paired matched-MHA12/18 gain
+multiplier was 1.042045. These are different comparisons: the latter uses
+each depth's own MHA reference. Both now cover the full training budget.
 CP13500/cursor, TB SYNC_OK and all regional resources are verified in
 `closeout/mudd12/proof.json` and `closeout.txt`.
 
@@ -228,21 +228,82 @@ BAM/Mudd gain averaged 1.936686; BAM12/BAM18 matched-MHA gain was .939685.
 CP13500/cursor, TB SYNC_OK and all regional resources are verified in
 `closeout/bam12/proof.json` and `closeout.txt`.
 
-Complete READY leases (UTC, 2026-11-14):
+Complete READY leases (UTC; all seven RUNs, every lease):
 
 | RUN | Zone | Start | End | Duration | Reason |
 |---|---|---|---|---|---|
-|L12 MHA|UC1a|17:14:08|21:01:58|3h47m50s|correlated maintenance preemption|
-|L12 MHA|UE5a|21:09:50|21:21:40|11m50s|completed 13500|
-|L12 Mudd|UE5a|17:09:00|21:24:07|4h15m07s|completed 13500|
-|L12 BAM|UC1a|17:14:46|21:02:06|3h47m20s|correlated maintenance preemption|
-|L12 BAM|UE5a|21:10:29|22:03:58|53m29s|completed 13500|
+|mha24|UC1a|2026-11-14 17:27:01|2026-11-14 18:50:27|1h23m26s|preempted|
+|mudd24|UC1a|2026-11-14 17:14:00|2026-11-14 21:01:39|3h47m39s|preempted|
+|bam24|UC1a|2026-11-14 17:14:56|2026-11-14 21:01:57|3h47m01s|preempted|
+|mha12|UC1a|2026-11-14 17:14:08|2026-11-14 21:01:58|3h47m50s|preempted|
+|bam12|UC1a|2026-11-14 17:14:46|2026-11-14 21:02:06|3h47m20s|preempted|
+|mudd18|UC1a|2026-11-14 17:21:04|2026-11-14 21:03:13|3h42m09s|preempted|
+|mha12|UE5a|2026-11-14 21:09:50|2026-11-14 21:21:40|0h11m50s|completed13500|
+|mudd12|UE5a|2026-11-14 17:09:00|2026-11-14 21:24:07|4h15m07s|completed13500|
+|bam12|UE5a|2026-11-14 21:10:29|2026-11-14 22:03:58|0h53m29s|completed13500|
+|mudd18|UE5a|2026-11-14 21:11:09|2026-11-14 23:10:09|1h59m00s|completed13500|
+|mha24|UE5a|2026-11-14 18:58:14|2026-11-14 23:25:51|4h27m37s|completed13500|
+|mudd24|UE5a|2026-11-14 21:09:01|2026-11-15 00:16:56|3h07m55s|preempted|
+|bam24|UE5a|2026-11-14 21:10:46|2026-11-15 00:31:19|3h20m33s|completed13500|
+|mudd24|UE5a|2026-11-15 00:22:45|2026-11-15 00:35:11|0h12m26s|completed13500|
 
 The five UC1a nodes all report the same maintenance event at 20:59:12 UTC;
 this is one correlated event, not five independent short leases. All five
 resumed on UE5a using the same runtime/AOT and original 13500-step schedule.
-The two original UE5a trainers continued. The public report clock was handed
+The two trainers already in UE5a continued. The public report clock was handed
 from BAM24 to the healthy MHA24 with reported milestone 4000 unchanged;
 cadence 4000 and no-review policy remain in force. The incident receipt is
 `uc1-ssh-20261114T2100.json`, with native clock history in
 `clock-handoff-20261114T2104.json`.
+
+## Final full-budget result
+
+All seven new RUNs completed 13500 at runtime `46e26e7`; no performance
+elimination. MHA24 completed at 23:25:51 UTC, then the group clock returned
+to BAM24 without changing the reported 12000 milestone. BAM24 completed
+2026-11-15 00:31:19 UTC. Mudd24 suffered one additional UE5a preemption near
+the endpoint, restored the same code/AOT/data cursor and completed 00:35:11.
+All final checkpoints/cursors, local TB SYNC_OK and node/queue absence in
+UE5a/UC1a/EW4b are verified in the seven `closeout/*/proof.json` receipts.
+The full task had seven preemptions and fourteen READY leases, including one
+five-node correlated maintenance event; all assignment/lease rows are in
+`experiments/tpu_region_preemption_history.md`.
+
+All final comparisons use the same five native 200-step windows:
+12600,12800,13000,13200,13400. Mudd18 is the **router-fixed plain** run;
+Mudd12 is plain/fixed and Mudd24 uses native pre/post norms/fixed router.
+
+| Depth | MHA loss gap vs MHA18 | BAM gap vs matched MHA | Mudd gap vs matched MHA | BAM/Mudd gain |
+|---|---:|---:|---:|---:|
+|12|+.00926852|-.16783536|-.08667324|1.936686|
+|18|0|-.17860688|-.08317420|2.147466|
+|24|-.00157336|-.18173116|-.07524080|2.416272|
+
+The depth-axis figure now shares the **MHA18** anchor for MHA, Mudd and BAM,
+so MHA's own depth response is visible; vertical distances to the MHA curve
+still give same-depth gains. Thin curves show the five individual windows,
+solid curves their means. The training-trajectory figure retains same-depth
+MHA gain denominators. Both are produced by `report_group.py`; native JSON,
+source means, exact plot paths and ACK receipts are in `final13500/`.
+
+12->18 increases BAM's matched-MHA gain by .01077152 but reduces Mudd's by
+.00349904: extra BAM depth benefit .01427056. 18->24 adds .00312428 to BAM
+and subtracts .00793340 from Mudd: extra .01105768. Thus BAM uses the extra
+depth better in both intervals, while its own marginal gain diminishes.
+MHA itself gains only .00157336 from18->24. Raw Mudd24 loss is .00636004
+worse than Mudd18 despite this small improvement in its MHA control.
+
+The mean normalized gain ratios K12=.901842 and K24=1.125123 compare with
+the pre-run priors .87 and1.00. The shallow prediction was close; the deep
+advantage was underestimated. K24 rose from .967 at the first shared 4k
+report to1.040 at7k,1.098 at10k,1.125 at the endpoint. This reflects Mudd's
+relative depth benefit fading faster, not an ever-growing absolute BAM
+depth benefit. The native fixed-router Mudd18/legacy-Mudd18 gain .957014
+and raw gap+.00373724 refute the prior1.02. The repair also removes165440
+router parameters; placement and capacity are coupled in this comparison.
+
+The strongest unresolved control is plain fixed-router Mudd24 at the same
+geometry/MLP profile. Norm27's earlier benefit does not prove norm24 is the
+best control after total-budget matching and router repair. A same-depth
+norm A/B would test whether Mudd24's deterioration is intrinsic to this
+depth/width tradeoff or partly normalization. No eighth RUN was launched.

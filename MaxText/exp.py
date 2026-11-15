@@ -13894,6 +13894,20 @@ class MuddLlama2MediumPropL12TotalBudgetRouterFixedTruePile(
                     'Llama2MediumPropL12TotalBudgetTruePile']
 
 
+class MuddLlama2MediumPropL12TotalBudgetRouterFixedPostNormTruePile(
+    MuddLlama2MediumPropL12TotalBudgetRouterFixedTruePile):
+    """Post-only control at L12/D1424, with the fixed final expand4 router.
+
+    Match the plain parent's full MLP budget; add12*1424 norm scales
+    without MLP repayment, retaining the standing Mudd convention.
+    """
+    model_name = 'MuddLlama2MediumPropL12TotalBudgetRouterFixedPostNormTruePile'
+    mudd_prenorm = False
+    mudd_postnorm = True
+    compare_runs = ['MuddLlama2MediumPropL12TotalBudgetRouterFixedTruePile',
+                    'Llama2MediumPropL12TotalBudgetTruePile']
+
+
 class MuddLlama2MediumPropL24TotalBudgetRouterFixedPrePostNormTruePile(
     Mudd, Llama2MediumPropL24TotalBudgetTruePile):
     """Mudd24 with native pre/post norms and the corrected final router.
@@ -13939,6 +13953,20 @@ class MuddLlama2MediumPropRouterFixedTruePile(
     attention = 'flash'
     tensorboard_gcs_rotate_period = 500
     compare_runs = ['MuddLlama2MediumPropTruePile', 'BamMHAMediumPropC256TruePile']
+
+
+class MuddLlama2MediumPropRouterFixedPostNormTruePile(
+    MuddLlama2MediumPropRouterFixedTruePile):
+    """Post-only control at L18/D1200, with the fixed final expand4 router.
+
+    Preserve the plain parent's MLPs;18*1200 post-norm scales remain
+    additional rather than introducing a new MLP repayment convention.
+    """
+    model_name = 'MuddLlama2MediumPropRouterFixedPostNormTruePile'
+    mudd_prenorm = False
+    mudd_postnorm = True
+    compare_runs = ['MuddLlama2MediumPropRouterFixedTruePile',
+                    'BamMHAMediumPropC256TruePile']
 
 
 class MuddLlama2MediumPropL24TotalBudgetRouterFixedTruePile(

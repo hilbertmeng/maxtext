@@ -208,3 +208,37 @@ Neither and post-only continue unchanged. The group clock moved to
 neither with its delivered4000 milestone preserved; the next public
 milestone remains6000. Pre-only was removed from the active group while
 its historical comparisons and artifacts remain available.
+
+
+## Neither-norm completion
+
+Neither completed 13,500 on 2026-11-15, runtime 347bcd7, UC1a v5p-16/311039.
+The mature 12.6k--13.4k five-window means versus pre+post are gap -.018368
+and MHA24-referenced gain 1.24440. The initial +.00840 deficit at 1k crossed
+by 2k, grew to roughly -.018, then stayed near that level late. Versus
+matched MHA24 the final gap is -.093609; versus fixed plain Mudd18 it is
+-.012008. Its matched-MHA24/MHA18 gain multiplier is 1.12545. Removing
+pre+post therefore recovers meaningful depth utility; the old normalized
+24-layer result did not demonstrate an intrinsic Mudd depth limit.
+The pre-run gap -.006 / gain 1.080 bet underestimated the benefit.
+
+CP13500 has commit_success and a matching batch128 data cursor. All owned
+UE5a/UC1a nodes and queues are independently absent; the idempotent
+closeout wrapper confirmed already_closed and performed no resource actions.
+UC1a steady throughput was ~.569 versus parent .561 (+1.4%, unpaired).
+TensorBoard returned SYNC_OK. The sole UE5a assignment was queue preparation; actual training remained
+in UC1a. Four READY intervals, UTC, with three service preemptions:
+
+| Start | End | Duration | End reason |
+|---|---|---|---|
+|2026-11-15 01:52:38|2026-11-15 07:03:20|5h10m42s|preempted|
+|2026-11-15 07:14:26|2026-11-15 07:28:11|13m45s|preempted|
+|2026-11-15 07:53:18|2026-11-15 08:37:40|44m22s|preempted|
+|2026-11-15 09:36:14|2026-11-15 10:30:58|54m44s|scheduled completion|
+
+Total recorded READY time 7h03m33s; this includes installation/restore, not
+pure training time. Full registry, native loss/gain series, checkpoint
+metadata and independent GCP absence checks are in
+`neither-final-proof.json` under the task artifact root. The full native
+figure is in `neither-final/`. Post-only continues unchanged; the group
+clock handed to it with the fixed 12,000 delivery phase preserved.

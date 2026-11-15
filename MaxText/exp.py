@@ -13983,9 +13983,12 @@ class MuddLlama2MediumPropL24TotalBudgetRouterFixedTruePile(
     router expansion. Router/norm overhead stays outside the MLP budget.
     The router input still has the native unscaled RMSNorm when pre is off.
     """
-    # code_commit: 347bcd7; UC1a v5p-16 /311039, startup ~.566 step/s.
-    # +.9% vs pre+post parent .561 (unpaired); generic ON/internal OFF.
-    # Both-worker exact-source/AOT and step14 gates passed; full 13500, no elimination.
+    # code_commit: 347bcd7; UC1a v5p-16 /311039, ~.569 step/s vs parent .561 (+1.4%, unpaired).
+    # Completed 13,500 / P3; CP13500 + cursor and TB SYNC_OK; regional nodes/queues absent.
+    # vs pre+post: deficit +.00840 at 1k crossed by 2k; lead grew to ~-.018 and held late.
+    # Final 12.6k-13.4k five windows: gap -.018368, MHA24-referenced gain 1.24440.
+    # vs MHA24 gap -.093609; vs fixed plain Mudd18 gap -.012008;
+    # matched-MHA 24/18 gain 1.12545: native pre+post was not an intrinsic depth limit.
     model_name = 'MuddLlama2MediumPropL24TotalBudgetRouterFixedTruePile'
     mudd_prenorm = False
     mudd_postnorm = False

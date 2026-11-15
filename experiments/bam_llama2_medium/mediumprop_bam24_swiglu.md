@@ -21,7 +21,8 @@ Generic health ON/internal OFF, TBrotate500, checkpoint200/latest2/final.
 
 Direct controls: SiTU24 parent, current strongest post-only fixed-router
 Mudd24, matched MHA24. Native MHA-referenced gain triples; paired depth
-comparison retains SiTU18/MHA18 to isolate the changed24-layer activation.
+comparison uses the completed pure-SwiGLU18 V5/MHA18, while the earlier
+SiTU18 pairing is retained only as a diagnostic of the parent study.
 Full budget, no elimination; fixed2k reports. UE5a primary and UC1a backup,
 EW4b excluded. Start from scratch under a distinct RUN after handoff.
 
@@ -63,3 +64,13 @@ Group `mediumprop-bam24-activation`, fixed2000-step cadence, no reviews.
 Two Mudd24 norm controls remain in their existing group. The shared
 read-only waiter watches both native snapshots and startup receipts;
 it does not poll training console logs.
+
+The actual pure-SwiGLU18 reference is the completed 13,500-step RUN
+`BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneMPreNormQKScaleTruePile`
+(runtime f8d07cd). Native paired gains compare SwiGLU24/SwiGLU18 against
+MHA24/MHA18; the original SwiGLU18 also has a gain triple against post-only
+Mudd18. Thus cross-depth SwiGLU analysis does not silently use SiTU18 as
+its denominator. SiTU24 remains the direct activation-ablation parent.
+Receipt: `matched-swiglu-depth-gains.json`. Effective attributes of the
+SiTU24 parent were verified unchanged from runtime46e26e7. Adding these
+gain triples preserves existing loss comparison cursors.

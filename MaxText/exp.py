@@ -13941,6 +13941,36 @@ class MuddLlama2MediumPropRouterFixedTruePile(
     compare_runs = ['MuddLlama2MediumPropTruePile', 'BamMHAMediumPropC256TruePile']
 
 
+class MuddLlama2MediumPropL24TotalBudgetRouterFixedTruePile(
+    MuddLlama2MediumPropL24TotalBudgetRouterFixedPrePostNormTruePile):
+    """Complete the native pre/post-norm matrix: neither enabled.
+
+    Keep L24/D1056, the matched MHA MLP profile/tail4208 and fixed final
+    router expansion. Router/norm overhead stays outside the MLP budget.
+    The router input still has the native unscaled RMSNorm when pre is off.
+    """
+    model_name = 'MuddLlama2MediumPropL24TotalBudgetRouterFixedTruePile'
+    mudd_prenorm = False
+    mudd_postnorm = False
+    compare_runs = ['MuddLlama2MediumPropL24TotalBudgetRouterFixedPrePostNormTruePile',
+                    'Llama2MediumPropL24TotalBudgetTruePile',
+                    'MuddLlama2MediumPropRouterFixedTruePile']
+
+
+class MuddLlama2MediumPropL24TotalBudgetRouterFixedPreNormTruePile(
+    MuddLlama2MediumPropL24TotalBudgetRouterFixedTruePile):
+    """Native pre-norm only: learn the router-input RMSNorm scale."""
+    model_name = 'MuddLlama2MediumPropL24TotalBudgetRouterFixedPreNormTruePile'
+    mudd_prenorm = True
+
+
+class MuddLlama2MediumPropL24TotalBudgetRouterFixedPostNormTruePile(
+    MuddLlama2MediumPropL24TotalBudgetRouterFixedTruePile):
+    """Native post-norm only: residual delta routing, m-branch post norm."""
+    model_name = 'MuddLlama2MediumPropL24TotalBudgetRouterFixedPostNormTruePile'
+    mudd_postnorm = True
+
+
 class MuddLlama2MediumPropL12TruePile(Mudd, BamMHAMediumPropL12TruePile):
     """12-layer Prop Mudd; match the depth study's MHA MLP budget.
 

@@ -13968,9 +13968,12 @@ class MuddLlama2MediumPropRouterFixedPostNormTruePile(
     Preserve the plain parent's MLPs;18*1200 post-norm scales remain
     additional rather than introducing a new MLP repayment convention.
     """
-    # code_commit: 2f37301; UC1a v5p-16 /311045, startup .691 step/s.
-    # -.9% vs plain parent .697 (unpaired); generic health ON/internal OFF.
-    # Both-worker exact-source/AOT and FIRST_STEP/step14 verified; full13500, no elimination.
+    # code_commit: 2f37301; UC1a -> UE5a v5p-16 /311045, ~.685-.691 steady step/s.
+    # Startup .691 vs plain parent .697 (-.9%, unpaired); generic ON/internal OFF.
+    # Completed 13,500 / P4; CP13500 + cursor and TB SYNC_OK; regional resources absent.
+    # vs plain: deficit +.10349 at 1k crossed near 4.8k, then led increasingly into late training.
+    # Final 12.6k-13.4k five windows: gap -.008489, MHA18-referenced gain 1.10207.
+    # vs MHA18 final gap -.091663; post-only is the stronger completed L18 Mudd recipe.
     model_name = 'MuddLlama2MediumPropRouterFixedPostNormTruePile'
     mudd_prenorm = False
     mudd_postnorm = True

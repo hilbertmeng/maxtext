@@ -119,3 +119,55 @@ assignment and lease is also in the shared regional history. Evidence:
 L18 continues unchanged. Its latest mature 11k window still favors post-only;
 the common-recipe depth snapshot uses the exact common five windows
 10k/10.4k/10.6k/10.8k/11k, preserving the missing 10.2k window.
+
+
+## L18 completion and depth interpretation
+
+L18 post-only completed 13,500, runtime 2f37301, UC1a -> UE5a,
+v5p-16/311045. Final 12.6k--13.4k five-window means versus plain are
+gap -.008489 and MHA18-referenced gain 1.10207. The +.10349 deficit at
+1k fell to +.00393 at 4k, crossed near 4.8k, then became -.00400 at 6k,
+-.00633 at 8k and -.00871 at 12k. Versus MHA18 the final gap is -.091663.
+Post-only is the stronger completed L18 recipe; the pre-run 1.04 gain bet
+underestimated its benefit. Parameters remain 433,932,907, +21,600 over
+plain without MLP repayment. Steady speed was .685--.691; startup .691
+vs plain .697 (-.9%, unpaired).
+
+The controlled post-only curve keeps the same normalization recipe at all
+three depths. The competitive curve instead selects plain Mudd12 and
+post-only Mudd18/24, each with the corrected final router expansion.
+Both use the same five terminal windows 12.6k/12.8k/13k/13.2k/13.4k and
+matched-depth MHA references. Completed BAM comparators here all use SiTU.
+
+| Depth increase | Extra BAM gain vs matched MHA | Extra Mudd gain vs matched MHA | Change in BAM/Mudd gain multiplier |
+|---|---:|---:|---:|
+|12 -> 18|.010772|.004990|1.00622|
+|18 -> 24|.003124|.013881|.88368|
+
+BAM's larger absolute gain at 12 -> 18 does not translate into a material
+relative-gain advantage: the BAM/Mudd multiplier is nearly unchanged.
+At 18 -> 24, Mudd has the larger absolute and proportional depth benefit.
+Thus the results do not support a general claim that BAM uses depth better.
+They support a depth-dependent shape: BAM's gain is already strong at lower
+depths and flattens earlier, while a suitable Mudd norm recipe preserves
+more return above18. This describes the tested fixed-total geometry and
+training budget, not a claim that all deeper BAM variants must saturate.
+Figures and native provenance: `depth-final-best/`, `depth-final-common/`,
+and `final/` under the task artifact root. No extra training was launched.
+
+CP13500 commit_success, batch128 cursor, TB SYNC_OK and absence of all
+owned UE5a/UC1a nodes/queues are verified. Local closeout reported
+already_closed and performed no resource actions. Full UTC READY leases,
+P4, actual training UC1a -> UE5a (initial UE5a was queue preparation only):
+
+| Zone | Start | End | Duration | End reason |
+|---|---|---|---|---|
+|UC1a|2026-11-15 07:11:29|2026-11-15 07:43:24|31m55s|preempted|
+|UC1a|2026-11-15 07:57:10|2026-11-15 08:37:44|40m34s|preempted|
+|UC1a|2026-11-15 09:36:03|2026-11-15 13:11:39|3h35m36s|preempted|
+|UC1a|2026-11-15 13:44:16|2026-11-15 15:06:16|1h22m00s|preempted|
+|UE5a|2026-11-15 15:14:02|2026-11-15 15:45:19|31m17s|scheduled completion|
+
+All assignments and leases are also recorded in the shared regional
+history. Full evidence: `post18-final-proof.json`. Both new Mudd controls
+are complete; the BAM24 SwiGLU control continues until its own endpoint.

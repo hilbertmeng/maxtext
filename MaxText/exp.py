@@ -21041,6 +21041,22 @@ class BamMediumPropV5SiTU47L27AttentionMLP1to2TruePile(BamMediumPropV5SiTU47):
                     'Llama2MediumPropL27AttentionMLP1to2TruePile']
 
 
+class BamMediumPropV5L27AttentionMLP1to2SwiGLUTruePile(
+    BamMediumPropV5SiTU47L27AttentionMLP1to2TruePile):
+    """Pure ordinary-MLP activation control for the D976, L27 depth arm.
+
+    Disable SiTU only; retain1978/853/tail3098, M61x32, independent R256,
+    packed v8t read/write and the parent's full13500-step Prop recipe.
+    No parameters change; private M writers already use SwiGLU.
+    """
+    model_name = 'BamMediumPropV5L27AttentionMLP1to2SwiGLUTruePile'
+    ordinary_mlp_situ_gate_limit = 0.0
+    ordinary_mlp_situ_up_limit = 0.0
+    compare_runs = ['BamMediumPropV5SiTU47L27AttentionMLP1to2TruePile',
+                    'MuddLlama2MediumPropL27AttentionMLP1to2PrePostNormTruePile',
+                    'Llama2MediumPropL27AttentionMLP1to2TruePile']
+
+
 class BamMediumPropV5SiTU47L12TotalBudgetTruePile(BamMediumPropV5SiTU47):
     """L12 V5 SiTU at the all-in MHA18 budget, M89x32 and all ranks256.
 

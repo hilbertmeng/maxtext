@@ -35,3 +35,31 @@ launcher ID311043 with explicit retained TPU override. Preserve the old
 RUN's actual checkpoint/TB/leases and mark it cancelled due to scope
 correction after successful new FIRST_STEP. Artifact root:
 `/data0/xd/bam_diagnostics/mediumprop-bam24-swiglu-20261115`.
+
+## Accepted startup
+
+Runtime5a5dd84feef9f4a154af2988ccb798e28a40d1d7, main/refactor-bam.
+Both full parameter trees have104leaves and432120064 parameters; only the
+two ordinary SiTU limits, class name and compare metadata differ. Shape
+probes use native read/write paths atT4; the unchanged real Pallas path
+passed the actual two-worker exact-AOT/source and FIRST_STEP/step14 gate.
+Reuse the unchanged4-test SiTU activation regression; no kernel source
+changed. Formal logs include step0, proving fresh initialization rather
+than resumption of the mistaken27-layer checkpoint.
+
+The preserved UC1a xd-v5p-16-311042-maxtext now runs the24-layer RUN under
+launcher311043. Native hot_switch_run dry-run/manifest and quiescence gates
+passed; primary remains UE5a, backupUC1a. Tools83a84d8 fixes handoff to
+preserve the registered primary independently of its current allocation;
+14handoff regressions passed and deployed/source hashes match.
+Startup median over steps55–99 was.546 steps/s, about-.7% versus SiTU24
+.550 (unpaired; matching generic/internal health). Artifacts and proofs
+are local `startup-proofs.json`, `startup-speed-proofs.json`,
+`startup-accepted.json`, and the remote task's `handoff.log`.
+The exact CPU AOT/manifest lives under
+`gs://newproject-1-llm_base_models_us-central1/log/compiled_trainsteps/5a5dd84/jax081-i0ae3f58-c5aae279/v5p-16/s13500/`.
+
+Group `mediumprop-bam24-activation`, fixed2000-step cadence, no reviews.
+Two Mudd24 norm controls remain in their existing group. The shared
+read-only waiter watches both native snapshots and startup receipts;
+it does not poll training console logs.

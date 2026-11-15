@@ -1,5 +1,12 @@
 # D976 BAM27 ordinary SwiGLU control
 
+Cancelled at76 after the user corrected the intended scope to the active
+all-in-budget BAM24 study. This was an agent scope-selection error, not a
+failed architecture. CP76/TB retained; no mature loss window exists. The
+READY TPU was transferred to `BamMediumPropV5L24TotalBudgetSwiGLUTruePile`
+after the old workers quiesced and the new RUN passed FIRST_STEP. The
+remaining text preserves the preparation record, not a research conclusion.
+
 User requested one27-layer BAM SwiGLU arm after confirming that both older
 BAM27 depth controls use ordinary-MLP SiTU4/7. Use the newer width-scaled
 D976/16x61 geometry: direct parent

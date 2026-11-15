@@ -21049,6 +21049,8 @@ class BamMediumPropV5L27AttentionMLP1to2SwiGLUTruePile(
     packed v8t read/write and the parent's full13500-step Prop recipe.
     No parameters change; private M writers already use SwiGLU.
     """
+    # code_commit: 9d58191; cancelled76: user corrected intended scope to total-budget BAM24.
+    # CP76 retained; no mature loss window or scientific conclusion. TPU handed to the corrected RUN.
     model_name = 'BamMediumPropV5L27AttentionMLP1to2SwiGLUTruePile'
     ordinary_mlp_situ_gate_limit = 0.0
     ordinary_mlp_situ_up_limit = 0.0
@@ -21129,6 +21131,10 @@ class BamMediumPropV5L24TotalBudgetSwiGLUTruePile(
     Only disable ordinary SiTU4/7. Keep D1056, M66x32, independent R256,
     widths2201/968/tail3435 and432120064 total parameters unchanged.
     """
+    # code_commit: 5a5dd84; UC1a v5p-16 /311042 retained, launcher311043.
+    # Both workers loaded exact AOT/source; starts at0, FIRST_STEP/step14 verified.
+    # Startup55--99 ~.546 step/s vs SiTU24 .550 (-.7%, unpaired); health ON/internal OFF.
+    # Full13500, no elimination; UE5a primary/UC1a backup.
     model_name = 'BamMediumPropV5L24TotalBudgetSwiGLUTruePile'
     ordinary_mlp_situ_gate_limit = 0.0
     ordinary_mlp_situ_up_limit = 0.0

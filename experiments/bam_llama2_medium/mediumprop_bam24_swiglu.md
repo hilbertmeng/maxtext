@@ -74,3 +74,44 @@ its denominator. SiTU24 remains the direct activation-ablation parent.
 Receipt: `matched-swiglu-depth-gains.json`. Effective attributes of the
 SiTU24 parent were verified unchanged from runtime46e26e7. Adding these
 gain triples preserves existing loss comparison cursors.
+
+
+## Completed activation control
+
+Completed 13,500 on v5p-16, runtime 5a5dd84, UC1a -> UE5a, retained
+TPU311042 / launcher311043. Versus SiTU24, early 1--2k near parity became
+a small lead from about 2.4k, which stayed near .001 without sustained
+late expansion. Final 12.6k--13.4k five-window gap -.001096 and MHA24-
+referenced gain 1.00602 closely match the pre-run -.001 / 1.005 bet.
+Steady speed ~.546 vs SiTU24 .550 (-.7%, unpaired).
+
+Versus post-only Mudd24 the final gap is -.077283, gain 1.73234; versus
+MHA24 the gap is -.182827. Native matched-MHA pure-SwiGLU24/SwiGLU18 gain
+is 1.02116, whereas the SiTU18 diagnostic pairing is 1.02362. Removing
+SiTU therefore does not recover a substantial 18-to-24 depth return.
+The completed homogeneous-activation control supports the depth study's
+main observation: the BAM gain flattens earlier under this fixed-total
+geometry/training budget. Do not generalize this small Medium effect to
+SiTU's XL stability role.
+
+CP13500 commit_success, matching batch128 cursor and absence of owned
+nodes/queues in both UE5a/UC1a are independently verified. Local closeout
+reported already_closed and did no resource operations. TensorBoard returned SYNC_OK. P6, with seven native READY leases:
+
+| Zone | Start UTC | End UTC | Duration | End reason |
+|---|---|---|---|---|
+|UC1a|2026-11-15 06:31:02|2026-11-15 06:55:26|24m24s|preempted|
+|UC1a|2026-11-15 07:11:27|2026-11-15 07:43:26|31m59s|preempted|
+|UC1a|2026-11-15 07:58:24|2026-11-15 08:02:05|3m41s|preempted|
+|UC1a|2026-11-15 08:10:00|2026-11-15 08:37:27|27m27s|preempted|
+|UC1a|2026-11-15 09:36:07|2026-11-15 14:15:27|4h39m20s|preempted|
+|UC1a|2026-11-15 14:30:42|2026-11-15 15:26:00|55m18s|preempted|
+|UE5a|2026-11-15 15:33:14|2026-11-15 15:46:06|12m52s|scheduled completion|
+
+The physical TPU was retained from the cancelled scope-correction arm.
+Its prior handoff/preparation observations remain in that arm's receipts;
+the native formal-RUN READY clock above starts at06:31:02. Do not invent
+unobserved preparation lease boundaries or combine that cancelled run's
+76 steps with this fresh initialization. Every formal assignment/lease
+is in the shared regional history. Full evidence: `final-proof.json`;
+final native figure/provenance: `final/` under this task artifact root.

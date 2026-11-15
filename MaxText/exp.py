@@ -21178,10 +21178,13 @@ class BamMediumPropV5L24TotalBudgetSwiGLUTruePile(
     Only disable ordinary SiTU4/7. Keep D1056, M66x32, independent R256,
     widths2201/968/tail3435 and432120064 total parameters unchanged.
     """
-    # code_commit: 5a5dd84; UC1a v5p-16 /311042 retained, launcher311043.
-    # Both workers loaded exact AOT/source; starts at0, FIRST_STEP/step14 verified.
-    # Startup55--99 ~.546 step/s vs SiTU24 .550 (-.7%, unpaired); health ON/internal OFF.
-    # Full13500, no elimination; UE5a primary/UC1a backup.
+    # code_commit: 5a5dd84; UC1a -> UE5a v5p-16 /311042 retained, launcher311043.
+    # Completed 13,500 / P6; CP13500 + cursor and TB SYNC_OK; regional resources absent.
+    # ~.546 step/s vs SiTU24 .550 (-.7%, unpaired); generic ON/internal OFF.
+    # vs SiTU24: near parity at 1-2k, small lead from ~2.4k held without late expansion.
+    # Final 12.6k-13.4k five windows: gap -.001096, MHA24-referenced gain 1.00602.
+    # vs post-only Mudd24 gap -.077283, gain 1.73234; vs MHA24 gap -.182827.
+    # Matched-MHA SwiGLU24/SwiGLU18 gain 1.02116: SiTU was not the main depth limitation.
     model_name = 'BamMediumPropV5L24TotalBudgetSwiGLUTruePile'
     ordinary_mlp_situ_gate_limit = 0.0
     ordinary_mlp_situ_up_limit = 0.0

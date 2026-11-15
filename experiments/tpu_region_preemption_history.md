@@ -31,6 +31,8 @@ active leases are censored, and manual migration releases are not preemptions.
 
 | RUN | TPU | Zone | Start UTC | End UTC | End reason | Passive candidates |
 |---|---|---|---|---|---|---|
+| `BamMediumPropV5L24TotalBudgetSwiGLUTruePile` | v5p-16 (`xd-v5p-16-311042-maxtext`) | `us-central1-a` | 2026-11-15 06:30:57 | 2026-11-15 15:33:10 | preempted; recovered in UE5a; initial retained-TPU handoff from cancelled BAM27 | UE5a primary; UC1a backup; EW4b excluded |
+| `BamMediumPropV5L24TotalBudgetSwiGLUTruePile` | v5p-16 (`xd-v5p-16-311042-maxtext`) | `us-east5-a` | 2026-11-15 15:33:10 | 2026-11-15 15:46:06 | completed13500/P6; CP/cursor/TB verified; all regional node/queues absent | UE5a primary; UC1a backup; EW4b excluded |
 | `MuddLlama2MediumPropRouterFixedPostNormTruePile` | v5p-16 (`xd-v5p-16-311045-maxtext`) | `us-east5-a` | 2026-11-15 06:58:49 | 2026-11-15 07:11:25 | queue preparation only; no verified FIRST_STEP | UE5a primary; UC1a backup; EW4b excluded |
 | `MuddLlama2MediumPropRouterFixedPostNormTruePile` | v5p-16 (`xd-v5p-16-311045-maxtext`) | `us-central1-a` | 2026-11-15 07:11:25 | 2026-11-15 15:13:59 | preempted; recovery in UE5a; includes queue waits | UE5a primary; UC1a backup; EW4b excluded |
 | `MuddLlama2MediumPropRouterFixedPostNormTruePile` | v5p-16 (`xd-v5p-16-311045-maxtext`) | `us-east5-a` | 2026-11-15 15:13:59 | 2026-11-15 15:45:19 | completed13500/P4; CP/cursor/TB secured; all regional node/queues absent | UE5a primary; UC1a backup; EW4b excluded |
@@ -2743,12 +2745,16 @@ active leases are censored, and manual migration releases are not preemptions.
 | `MuddLlama2MediumPropL24TotalBudgetRouterFixedPreNormTruePile` | 1 | `us-central1-a` | 2026-11-15 01:36:23 | 2026-11-15 03:54:15 | 2h17m52s | user stop4534; P0; CP/cursor/TB secured, node+queue absent |
 | `BamMediumPropV5L27AttentionMLP1to2SwiGLUTruePile` | 1 | `us-central1-a` | 2026-11-15 06:05:34 (observed) | ? (non-READY by2026-11-15 06:10:29) | ? | pre-FIRST SUSPENDING/DELETING; actual end unknown; captured lease was overwritten on recovery |
 | `BamMediumPropV5L27AttentionMLP1to2SwiGLUTruePile` | 2 | `us-central1-a` | 2026-11-15 06:19:44 | 2026-11-15 06:25:04 | 5m20s | cancelled76 for scope correction; CP/TB retained; READY TPU transferred to BAM24 |
+| `BamMediumPropV5L24TotalBudgetSwiGLUTruePile` | 1 | `us-central1-a` | 2026-11-15 06:31:02 | 2026-11-15 06:55:26 | 24m24s | preempted; same-RUN automatic recovery |
 | `MuddLlama2MediumPropL24TotalBudgetRouterFixedPostNormTruePile` | 1 | `us-central1-a` | 2026-11-15 02:34:21 | 2026-11-15 07:03:09 | 4h28m48s | preempted; same-RUN automatic recovery |
 | `MuddLlama2MediumPropL24TotalBudgetRouterFixedTruePile` | 1 | `us-central1-a` | 2026-11-15 01:52:38 | 2026-11-15 07:03:20 | 5h10m42s | preempted; same-RUN automatic recovery |
 | `MuddLlama2MediumPropL24TotalBudgetRouterFixedTruePile` | 2 | `us-central1-a` | 2026-11-15 07:14:26 | 2026-11-15 07:28:11 | 13m45s | preempted; same-RUN automatic recovery |
 | `MuddLlama2MediumPropL24TotalBudgetRouterFixedPostNormTruePile` | 2 | `us-central1-a` | 2026-11-15 07:15:31 | 2026-11-15 07:28:14 | 12m43s | preempted; same-RUN automatic recovery |
 | `MuddLlama2MediumPropL12TotalBudgetRouterFixedPostNormTruePile` | 1 | `us-central1-a` | 2026-11-15 07:11:24 | 2026-11-15 07:43:18 | 31m54s | preempted; same-RUN automatic recovery |
 | `MuddLlama2MediumPropRouterFixedPostNormTruePile` | 1 | `us-central1-a` | 2026-11-15 07:11:29 | 2026-11-15 07:43:24 | 31m55s | preempted; same-RUN automatic recovery |
+| `BamMediumPropV5L24TotalBudgetSwiGLUTruePile` | 2 | `us-central1-a` | 2026-11-15 07:11:27 | 2026-11-15 07:43:26 | 31m59s | preempted; same-RUN automatic recovery |
+| `BamMediumPropV5L24TotalBudgetSwiGLUTruePile` | 3 | `us-central1-a` | 2026-11-15 07:58:24 | 2026-11-15 08:02:05 | 3m41s | preempted; same-RUN automatic recovery |
+| `BamMediumPropV5L24TotalBudgetSwiGLUTruePile` | 4 | `us-central1-a` | 2026-11-15 08:10:00 | 2026-11-15 08:37:27 | 27m27s | preempted; same-RUN automatic recovery |
 | `MuddLlama2MediumPropL12TotalBudgetRouterFixedPostNormTruePile` | 2 | `us-central1-a` | 2026-11-15 08:09:36 | 2026-11-15 08:37:33 | 27m57s | preempted; same-RUN automatic recovery |
 | `MuddLlama2MediumPropL24TotalBudgetRouterFixedTruePile` | 3 | `us-central1-a` | 2026-11-15 07:53:18 | 2026-11-15 08:37:40 | 44m22s | preempted; same-RUN automatic recovery |
 | `MuddLlama2MediumPropRouterFixedPostNormTruePile` | 2 | `us-central1-a` | 2026-11-15 07:57:10 | 2026-11-15 08:37:44 | 40m34s | preempted; same-RUN automatic recovery |
@@ -2757,8 +2763,11 @@ active leases are censored, and manual migration releases are not preemptions.
 | `MuddLlama2MediumPropL24TotalBudgetRouterFixedPostNormTruePile` | 4 | `us-central1-a` | 2026-11-15 09:36:18 | 2026-11-15 11:21:23 | 1h45m05s | scheduled completion13500/P3; CP/cursor/TB and resource teardown verified |
 | `MuddLlama2MediumPropL12TotalBudgetRouterFixedPostNormTruePile` | 3 | `us-central1-a` | 2026-11-15 09:35:55 | 2026-11-15 13:04:08 | 3h28m13s | scheduled completion13500/P2; CP/cursor/TB and resource teardown verified |
 | `MuddLlama2MediumPropRouterFixedPostNormTruePile` | 3 | `us-central1-a` | 2026-11-15 09:36:03 | 2026-11-15 13:11:39 | 3h35m36s | preempted; same-RUN automatic recovery |
+| `BamMediumPropV5L24TotalBudgetSwiGLUTruePile` | 5 | `us-central1-a` | 2026-11-15 09:36:07 | 2026-11-15 14:15:27 | 4h39m20s | preempted; same-RUN automatic recovery |
 | `MuddLlama2MediumPropRouterFixedPostNormTruePile` | 4 | `us-central1-a` | 2026-11-15 13:44:16 | 2026-11-15 15:06:16 | 1h22m00s | preempted; same-RUN automatic recovery |
+| `BamMediumPropV5L24TotalBudgetSwiGLUTruePile` | 6 | `us-central1-a` | 2026-11-15 14:30:42 | 2026-11-15 15:26:00 | 55m18s | preempted; same-RUN automatic recovery |
 | `MuddLlama2MediumPropRouterFixedPostNormTruePile` | 5 | `us-east5-a` | 2026-11-15 15:14:02 | 2026-11-15 15:45:19 | 31m17s | scheduled completion13500/P4; CP/cursor/TB and resource teardown verified |
+| `BamMediumPropV5L24TotalBudgetSwiGLUTruePile` | 7 | `us-east5-a` | 2026-11-15 15:33:14 | 2026-11-15 15:46:06 | 12m52s | scheduled completion13500/P6; CP/cursor/TB and resource teardown verified |
 ### Medium depth-family MHA12 resource closeout (2026-11-13)
 
 The native registry records six preemptions and seven READY leases for

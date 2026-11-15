@@ -51,8 +51,15 @@ the counts rather than inferring them solely from flags.
 `mudd_postnorm` uses native residual-delta routing: zero-initialized dynamic
 up/bias, identity residual on all Q/K/V/m branches, and an RMSNorm with
 direct initial scale.001 on the m delta only. Off uses the ordinary routed
-mixture with a unit bias on the current source. Both routing variants
-initially return the current residual; Q/K are not initialized to zero.
+mixture with a unit bias on the current history source. With pre off this
+equals the raw current residual. With pre on and post off it instead
+returns the normalized history vector, including on the m branch. Thus
+pre-only also repeatedly normalizes the residual carried between layers;
+pre+post preserves the raw identity residual plus a routed delta. The
+initial isolated-router test used raw current history and did not cover
+this distinction. `history-init-probe.py/json` verifies all four switches
+with the actual raw-versus-normalized history convention. Q/K are not
+initialized to zero.
 Post adds24*D params. This is a matrix of the existing implementation's
 switches, not a newly introduced pure-normalization abstraction.
 
@@ -101,8 +108,8 @@ unchanged begin_step call path are reused from the verified depth family.
 ## Preparation and workflow findings
 
 Runtime is `347bcd71baf54bc5f9d0dc710dc5a5fb7412e369` for all three arms.
-Neither/pre-only passed both-worker exact-source/AOT and step14 gates in
-UC1a; startup medians .566/.569 steps/s are +.9%/+1.4% versus pre+post
+All three passed both-worker exact-source/AOT and step14 gates in
+UC1a; startup medians .566/.569/.566 steps/s are +.9%/+1.4%/+.9% versus pre+post
 .561 (unpaired, matching health settings). The group now reports together
 at2000-step milestones, clocked by pre-only, with no elimination reviews.
 
@@ -132,8 +139,9 @@ CPU host from02:15:28 to02:22:59 UTC (7m31s), 1070721243 bytes. Its source,
 parameter/optimizer settings, target topology and total schedule are the
 same as the intended TPU-host compile. Artifact/manifest:
 `gs://newproject-1-llm_base_models_us-central1/log/compiled_trainsteps/347bcd7/jax081-i0ae3f58-c5aae279/v5p-16/s13500/MuddLlama2MediumPropL24TotalBudgetRouterFixedPostNormTruePile.pickle`.
-Formal loading/FIRST_STEP is still the final acceptance gate, not merely
-successful serialization. The duplicate managed v6e task was cancelled
+Both formal workers loaded the CPU-built artifact and passed FIRST_STEP
+and step14; startup speed was .566 steps/s. Successful serialization alone
+was not the acceptance gate. The duplicate managed v6e task was cancelled
 through its native cleanup path after artifact/manifest verification.
 
 Authoritative tools: `xd_tpu_scripts` commits `e96decd` (formal UE5a/UC1a
@@ -151,3 +159,11 @@ under the local task artifact root. The four-package runtime overlay is
 backed up at
 `gs://newproject-1-llm_base_models_us-central1/log/diagnostics/mudd24-norm-20261115/cpu-env-overlay.tar.gz`
 (SHA256 `4e4edd76e0ac00e385cb8426bd4840cdbec04162a131c8512a75264ae9b177d2`).
+
+CPU-only concurrency probe: two independent processes both compiled and
+serialized v5p-16 executables concurrently (overlapping02:50:33–02:50:38 UTC).
+The default libtpu lock rejected one process before the explicit
+`ALLOW_MULTIPLE_LIBTPU_LOAD=1` override; the local entrypoint now enables
+that override only on hosts without accelerator device nodes. Training-host
+device locks remain protected. Full-size parallel compilation receipts are
+`parallel-full-*.log` in the artifact root.

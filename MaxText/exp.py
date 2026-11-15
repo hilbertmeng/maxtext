@@ -13973,6 +13973,9 @@ class MuddLlama2MediumPropL24TotalBudgetRouterFixedPreNormTruePile(
 class MuddLlama2MediumPropL24TotalBudgetRouterFixedPostNormTruePile(
     MuddLlama2MediumPropL24TotalBudgetRouterFixedTruePile):
     """Native post-norm only: residual delta routing, m-branch post norm."""
+    # code_commit: 347bcd7; UC1a v5p-16 /311041, startup ~.566 step/s.
+    # +.9% vs pre+post parent .561 (unpaired); generic ON/internal OFF.
+    # CPU-host AOT loaded on both workers; FIRST_STEP/step14 verified; full13500, no elimination.
     model_name = 'MuddLlama2MediumPropL24TotalBudgetRouterFixedPostNormTruePile'
     mudd_postnorm = True
 

@@ -244,7 +244,11 @@ The environment reference must match the actual pinned runtime, including JAX/ja
 libtpu version and binary SHA, Flax/Optax and the recorded dependencies; equal JAX versions
 alone are insufficient. The tool rejects dirty/mismatched source and environment, verifies
 the artifact/manifest, and owns no TPU resources. Multi-run batches can compile on disjoint
-CPU sets without capacity queues, or reuse one CPU slot sequentially. Still require actual
+CPU sets without capacity queues, or reuse one CPU slot sequentially. On accelerator-free
+hosts the entrypoint enables `ALLOW_MULTIPLE_LIBTPU_LOAD=1`, avoiding libtpu's default
+global lock between compile-only processes; each job has its own temporary output and
+artifact lock. Start ready members independently rather than waiting for the whole batch.
+Still require actual
 `Loaded compiled function!` and `FIRST_STEP` on the target trainer before accepting the launch.
 Do not borrow active training hosts for compilation: libtpu's initialization lock is held by
 the trainer even with `JAX_PLATFORMS=cpu`; do not bypass that device lock.

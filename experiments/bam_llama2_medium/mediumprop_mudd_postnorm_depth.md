@@ -85,3 +85,37 @@ Remote task:
 Source/config, full parameter, AOT, startup and group receipts live there;
 CPU gate: `MUDD_POSTNORM_DEPTH_CPU_OK`. Startup accept markers are named
 `startup-accepted-311044.json` / `startup-accepted-311045.json`.
+
+
+## L12 completion
+
+L12 post-only completed 13,500, runtime 2f37301, UC1a v5p-16/311044.
+The final 12.6k--13.4k five-window deficit versus plain Mudd12 is
++.003979, with matched-MHA gain multiplier .95404. The deficit narrowed
+from +.01689 at 1k to +.00727 at 4k, +.00598 at 8k and +.00400 at 13.4k,
+but never crossed. Versus MHA12 the final gap is -.082694. The pre-run
+1.02 bet had the wrong sign; full training confirmed a small post-only
+penalty at this depth. Preserve plain Mudd12 for competitive comparisons;
+use post-only Mudd12 for the homogeneous-recipe depth control. These are
+separate scientific questions, not competing baseline bookkeeping rules.
+
+CP13500 commit_success, matching batch128 cursor, TB SYNC_OK and absence
+of all owned regional nodes/queues are verified. The local closeout
+wrapper confirmed already_closed with no resource actions. Steady speed
+was ~.903 step/s; startup .911 vs parent's .925 (-1.5%, unpaired).
+Total parameters remain 433,274,289, +17,088 versus plain without MLP repayment.
+All actual training was in UC1a; UE5a was queue preparation only. Full
+chronological READY leases, UTC, P2:
+
+| Start | End | Duration | End reason |
+|---|---|---|---|
+|2026-11-15 07:11:24|2026-11-15 07:43:18|31m54s|preempted|
+|2026-11-15 08:09:36|2026-11-15 08:37:33|27m57s|preempted|
+|2026-11-15 09:35:55|2026-11-15 13:04:08|3h28m13s|scheduled completion|
+
+Recorded READY total is 4h28m04s including preparation/restore. Every
+assignment and lease is also in the shared regional history. Evidence:
+`post12-final-proof.json`; final native curves: `post12-final/`.
+L18 continues unchanged. Its latest mature 11k window still favors post-only;
+the common-recipe depth snapshot uses the exact common five windows
+10k/10.4k/10.6k/10.8k/11k, preserving the missing 10.2k window.

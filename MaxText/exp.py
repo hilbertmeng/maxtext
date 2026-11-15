@@ -13901,9 +13901,12 @@ class MuddLlama2MediumPropL12TotalBudgetRouterFixedPostNormTruePile(
     Match the plain parent's full MLP budget; add12*1424 norm scales
     without MLP repayment, retaining the standing Mudd convention.
     """
-    # code_commit: 2f37301; UC1a v5p-16 /311044, startup .911 step/s.
-    # -1.5% vs plain parent .925 (unpaired); generic health ON/internal OFF.
-    # Both-worker exact-source/AOT and FIRST_STEP/step14 verified; full13500, no elimination.
+    # code_commit: 2f37301; UC1a v5p-16 /311044, ~.903 steady step/s.
+    # Startup .911 vs plain parent .925 (-1.5%, unpaired); generic ON/internal OFF.
+    # Completed 13,500 / P2; CP13500 + cursor and TB SYNC_OK; regional resources absent.
+    # vs plain: deficit +.01689 at 1k narrowed slowly, without crossing; final five gap +.003979.
+    # MHA12-referenced gain .95404 vs plain; vs MHA12 final gap -.082694.
+    # Plain remains the stronger L12 Mudd recipe; the pre-run gain 1.02 bet had the wrong sign.
     model_name = 'MuddLlama2MediumPropL12TotalBudgetRouterFixedPostNormTruePile'
     mudd_prenorm = False
     mudd_postnorm = True

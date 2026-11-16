@@ -536,6 +536,12 @@ class SubDecoderLayer(nn.Module):
                  if getattr(cfg, 'bam_pallas_write_block', None) else {}),
               **({'chunk': int(cfg.bam_pallas_write_chunk)} if getattr(cfg, 'bam_pallas_write_chunk', None) else {}))
 
+    # A sparse writer may feed only M. Keep its output live through the write
+    # above, while removing this branch's direct vector-residual contribution.
+    if (mlp_write and not memory_mlp_dim
+        and getattr(cfg, 'bam_mlp_write_vector_residual_mode', 'add') == 'off'):
+      mlp_lnx = jnp.zeros_like(mlp_lnx)
+
     if mlp_lnx is not None and moe_lnx is not None:
       layer_output = mlp_lnx + intermediate_inputs + moe_lnx
     elif mlp_lnx is not None and moe_lnx is None:

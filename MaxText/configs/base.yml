@@ -778,5 +778,6 @@ bam_qk_logit_scale_dim: null # 1/sqrt(dim): qk_dim uses actual Q/K width; positi
 bam_embedding_write_content_divisor: null # Fixed positive denominator instead of content RMSNorm.
 bam_attention_write_content_divisor: null
 bam_mlp_write_content_divisor: null
+bam_mlp_write_vector_residual_mode: add # off: sparse ordinary MLP writes M without adding to the vector residual.
 
 bam_memory_mlp_use_bias: False # Zero-initialized hidden/output biases in the dedicated memory MLP.

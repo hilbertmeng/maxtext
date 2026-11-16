@@ -2039,7 +2039,8 @@ class BamAttention(Attention):
                        or self.layer_inx in cfg.bam_attention_write_layers)
     self._concat_health = bool(cfg.bam_record_concat_health)
     self._force_activation_dtype = bool(cfg.bam_force_activation_dtype)
-    self._replicate_ploc_up = bool(cfg.bam_replicate_ploc_up)
+    self._replicate_rank_up = bool(cfg.bam_replicate_rank_up)
+    self._replicate_ploc_up = bool(cfg.bam_replicate_ploc_up) or self._replicate_rank_up
     self._read_key_scale = float(cfg.bam_read_key_scale)
     self._rms_epsilon = float(cfg.normalization_layer_epsilon)
     self._read_key_epsilon = float(cfg.bam_read_key_epsilon or cfg.normalization_layer_epsilon)
@@ -2217,7 +2218,7 @@ class BamAttention(Attention):
     cfg = self.config
     for suffix, output, kernel_axes in (
         ('down', self._full_m_read_rank, ('embed', None)),
-        ('up', features, ('embed',) + axes[1:])):
+        ('up', features, (None if self._replicate_rank_up else 'embed',) + axes[1:])):
       parameter_name = ('full_m_read_down' if suffix == 'down'
                         else f'{name}_{suffix}')
       if suffix == 'down' and hasattr(self, parameter_name):

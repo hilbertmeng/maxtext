@@ -21579,6 +21579,20 @@ class BamXLPropV5SiTU47M40R480SpeedProfile(BamXLPropV5SiTU47M60R480SpeedProfile)
     bam_v = 40
 
 
+class BamXLPropV5SiTU47ReplicateRankUpSpeedProfile(BamXLPropV5SiTU47SpeedProfile):
+    """Parent with replicated rank-input up projections (no FSDP windows over R)."""
+    model_name = 'BamXLPropV5SiTU47ReplicateRankUpSpeedProfile'
+    bam_replicate_rank_up = True
+    sharding_tolerance = 1.2
+
+
+class BamXLPropV5SiTU47M60R480ReplicateRankUpSpeedProfile(BamXLPropV5SiTU47M60R480SpeedProfile):
+    """M60/R480 with replicated rank-input up projections (no FSDP windows over R)."""
+    model_name = 'BamXLPropV5SiTU47M60R480ReplicateRankUpSpeedProfile'
+    bam_replicate_rank_up = True
+    sharding_tolerance = 1.2
+
+
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneMPreNormNoReadScaleTruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneMPreNormTruePile):
     """Same whole-M pre-norm, removing all18 common V/O read-scale parameters."""

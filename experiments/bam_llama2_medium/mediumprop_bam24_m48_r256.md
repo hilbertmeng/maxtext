@@ -86,3 +86,38 @@ or deleting the transferred TPU. Its observed prequeue READY start10:42:07Z
 and cancellation boundary are in the regional history. The physical lease
 continues under R384; neither this handoff nor the preparation interval is
 a preemption. The retained user FLEX compiler is preserved.
+
+## Primary depth-scaling interpretation
+
+The scientific question is whether BAM uses depth better than Mudd, and whether
+matrix capacity explains BAM's earlier depth-gain flattening. BAM32 is a necessary
+internal depth control alongside Mudd. Compare full12/18/24 curves, not only the
+new24-layer configurations' local ranking. Existing18-layer M48/R384 is the
+large-matrix depth anchor; no new18-layer RUN is submitted.
+
+Use matched same-depth MHA gains G_X(d)=loss_MHA(d)-loss_X(d), from native
+200-step windows. Report each architecture's absolute G(24)-G(18), its differences
+against BAM32 and Mudd, and both normalized depth effects:
+
+- Capacity: K_capacity=[G_B48(24)/G_B48(18)]/[G_B32(24)/G_B32(18)].
+- Relative to Mudd: K_mudd=[G_B(24)/G_Mudd(24)]/[G_B(18)/G_Mudd(18)].
+
+Values above1 indicate an improvement in the corresponding relative depth
+response; absolute and relative effects answer complementary questions. Gains
+at both depths do not by themselves imply a better depth response. R384 is the
+fixed-rank48-column depth comparison; R256 at24 layers additionally tests a
+cheaper rank. Keep BAM18 SiTU versus BAM24 SwiGLU visible in figure notes.
+
+The context plot anchors all losses to MHA18 so MHA's own depth behavior remains
+visible; its static panel uses the same five mature windows for every curve.
+Other panels retain cumulative training-stage sequences. Mudd controls are
+router-fixed plain12, post-only18 and post-only24, following the completed norm
+controls; their router/norm overhead retains the authorized unrepaid convention.
+
+Native monitoring keeps all existing capacity/depth comparisons and adds
+same-depth post-only Mudd24 for both new RUNs. This changes monitoring only;
+runtime commits, AOT artifacts and model parameters remain unchanged.
+The task's `collect_depth_family.py`, `plot_depth_family.py` and `report_group.py`
+under its artifact root reproduce this full context automatically at subsequent
+shared reports. Loss/gain windows come from run_registry; derived depth effects
+compose native paired-gain reports rather than reimplementing gain arithmetic.

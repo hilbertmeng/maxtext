@@ -21224,7 +21224,8 @@ class BamMediumPropV5L24TotalBudgetSwiGLUM48R256TruePile(
     bam_memory_mlp_dim = 911
     bam_last_mlp_dim = 3319
     compare_runs = ['BamMediumPropV5L24TotalBudgetSwiGLUTruePile',
-                    'BamMediumPropV5SiTU47M48R384']
+                    'BamMediumPropV5SiTU47M48R384',
+                    'MuddLlama2MediumPropL24TotalBudgetRouterFixedPostNormTruePile']
 
 
 class BamMediumPropV5L24TotalBudgetSwiGLUM48R384TruePile(
@@ -21246,7 +21247,8 @@ class BamMediumPropV5L24TotalBudgetSwiGLUM48R384TruePile(
     bam_last_mlp_dim = 3075
     compare_runs = ['BamMediumPropV5L24TotalBudgetSwiGLUTruePile',
                     'BamMediumPropV5SiTU47M48R384',
-                    'BamMediumPropV5L24TotalBudgetSwiGLUM48R256TruePile']
+                    'BamMediumPropV5L24TotalBudgetSwiGLUM48R256TruePile',
+                    'MuddLlama2MediumPropL24TotalBudgetRouterFixedPostNormTruePile']
 
 
 class BamMediumPropV5SiTU47M16R128(BamMediumPropV5SiTU47):

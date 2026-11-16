@@ -3,7 +3,8 @@
 Configuration: `BamXLPropV5SiTU47M60R480`.
 Parent: `BamXLPropV5FastKernelFullRematSiTU47`.
 Implementation/worktree: `/home/xd/projects/maxtext`, `refactor-bam`.
-Configuration only: no training RUN, TPU allocation, AOT or speed measurement.
+Formal RUN uses the configuration name; TPU `xd-v5p-32-311046-maxtext`.
+Runtime `b5f52719f058c051888b296c2d26b79788e6000f`, initially UC1a.
 
 Keep L28 / D1920 / 20 heads of 96, ordinary SiTU 4/7, private SwiGLU,
 whole-M pre-norm, unit-initialized learned QK/VO scales, full NoPE96 +
@@ -55,9 +56,55 @@ Focused checks in the pinned CPU environment passed:
   forward and every parameter gradient; maximum relative gradient error 7.7e-6.
 
 The last three reuse the existing XL controls with the new address shape;
-no unrelated regression suite was repeated. TPU VMEM allocation and speed
-remain unmeasured until a target-topology compilation/profile is requested.
+no unrelated regression suite was repeated. The exact v5p-32 AOT subsequently compiled and loaded on the formal workers.
+No separate profile TPU was allocated.
 Evidence and reproducible scripts:
 `/data0/xd/bam_diagnostics/xlprop-v5-m60-r480-config-20261116/`:
 `budget_probe.py`, `budget_verify.py`, `budget-verified.json`,
 `kernel_check.py`, `kernel-check-r1/`.
+
+
+## Formal launch
+
+Train the confirmed XL budget: batch128 (8/device), T4096 TruePile4097,
+seed9876, 50,000 steps =26,214,400,000 tokens; LR endpoint50,000.
+Policy is UE5a primary, UC1a backup after300 seconds, EW4b excluded.
+Keep the parent's full remat/tuned Splash and packed v8t read/write.
+Generic training health ON, internal activations OFF, TBrotation500;
+CP250/latest2/forced final, with no extra periodic permanent retention.
+
+Recipe/optimizer/initialization/geometry audit against the actual completed
+parent runtime `bd181bc` found no unintended differences in the selected
+recipe fields; source and configuration now use the supported main V5
+implementation. A clean detached Git clone at `/tmp/maxtext-local-aot-b5f52719`
+was used only for compilation; the experiment implementation stays in main,
+and unrelated working-tree edits were not included. The sealed-config gate
+passed. The runtime already includes rotating writer construction and
+begin_step before scalar writes; five summary-writer regressions passed.
+The earlier full-size shape/count and three targeted numerical checks were
+reused because no numerical source changed after those gates.
+
+The exact v5p-32/s50000 AOT compiled on the ordinary CPU host in the
+worker-matched pinned environment and was verified with its manifest:
+`gs://newproject-1-llm_base_models_us-central1/log/compiled_trainsteps/b5f5271/jax081-i0ae3f58-c5aae279/v5p-32/s50000/BamXLPropV5SiTU47M60R480.pickle`.
+All four formal workers loaded it at the exact runtime hash, using the
+registered UC1a TruePile4096 replica and global batch128. Native FIRST_STEP,
+step14 and step100 gates passed. Median steps55--99 across all four workers
+was .467 step/s, -10.2% versus the parent's recorded .520 (unpaired).
+This is slower than the -5% pre-run speed bet; architecture effects remain
+the purpose of training, not a performance elimination criterion.
+
+Pre-run final MHA-referenced gain bet versus the SiTU parent:1.03,
+plausible range1.01--1.06. Use only the direct parent as the plotted loss
+comparator; MHA `Llama2XLPropTruePileMHA` supplies the gain denominator.
+Group `xlprop-v5-m60-r480`, cadence2000, no review steps. Preserve500-step
+native windows and plot cumulative loss gaps/gain multipliers; regular
+health uses raw/clipped gradient norms in the same RUN color. Continue
+through the full plan; no performance-based elimination.
+
+Local preparation/startup/monitoring artifacts remain under the directory
+above. Remote task:
+`/home/lishengping/xd/projects/logs/xlprop-v5-m60-r480-20261116/`.
+`launch-plan.json`, `recipe-audit.json`, the CPU AOT state/manifest pointer,
+`startup-proofs.json` and `startup-accepted.json` record the immutable plan
+and actual launch acceptance. The registry is authoritative for live state.

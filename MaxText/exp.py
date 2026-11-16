@@ -21444,8 +21444,12 @@ class BamXLPropV5SiTU47M60R480(BamXLPropV5FastKernelFullRematSiTU47):
     Tail 5993 gives 1,432,395,236 params, parent -1760 (-.000477 W_Q).
     Single-layer scan over L0--26, with no terminal attention/private writes.
     Packed v8t read/write, full remat and VMEM 63 remain inherited: both V40
-    and V60 use padded-64 matrix-address tiles. Configuration only; not launched.
+    and V60 use padded-64 matrix-address tiles.
     """
+    # code_commit: b5f5271; UC1a v5p-32 /311046, startup55--99 ~.467 step/s.
+    # -10.2% vs SiTU parent ~.520 (unpaired); generic health ON/internal OFF.
+    # All four worker hashes/AOT/data verified; FIRST_STEP/step14 and fresh-step100 passed.
+    # Plan 50,000; direct SiTU-parent contrast, 2k reporting, no elimination reviews.
     model_name = 'BamXLPropV5SiTU47M60R480'
     bam_v = 60
     bam_local_full_m_read_bottleneck_dim = 480

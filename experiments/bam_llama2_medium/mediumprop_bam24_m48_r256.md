@@ -152,3 +152,47 @@ intersections so its5.4k horizon cannot freeze the continuing scaling plot.
 R256 remains on the original13500-step plan, fixed2k reports, no scheduled
 elimination reviews. Reproduction: `r384-final-proof.json`,
 `r384-closeout-local.log`, `r384-direct-review/`, and `k6000/` in the task root.
+
+
+## R256 completed budget and depth result
+
+Completed 13,500 steps at runtime a03c7ea. Checkpoint 13,500 has its commit
+marker and matching seed 9876, global batch 128, two-host cursor and UE5a
+TruePile files. Both registered regions' node and queue identities are absent;
+TensorBoard returned SYNC_OK. One preemption, recovered in UE5a from committed
+checkpoint 11,379 with unchanged source/AOT and verified next checkpoint 11,400.
+The user-owned FLEX compiler remains outside training cleanup.
+
+Final five native windows, 12.6k--13.4k:
+
+| Direct comparison | Loss gap | Gain multiplier |
+|---|---:|---:|
+| L24 M66x32 / R256 parent | -0.00704888 | 1.03857059 |
+| L18 M75x48 / R384 | -0.00810436 | 1.03564416, matched MHA24/MHA18 |
+| L24 post-only Mudd | -0.08433152 | 1.79913314 |
+
+After the initial transient, the parent gap stayed near -0.007 while relative
+capacity gain gently rose to approximately 1.04. The 1.025 terminal prior was
+conservative; startup speed .526 versus the historical parent's .546 (-3.7%,
+unpaired) matched the approximate -4% prior. M48 has 1.5 times the parent's
+matrix-cache elements at the same head dimension.
+
+The same five windows give G(24)-G(18) = 0.006531 for BAM48, versus 0.01388144
+for Mudd. Enlargement adds 0.00231064 to BAM32's depth response. Mean
+K_capacity = 1.01174697 and K_mudd = 0.89944813: capacity helps the absolute
+loss and modestly improves depth response, but does not explain or resolve
+BAM's weaker additional depth gain. BAM remains substantially better in
+absolute loss than Mudd; this is distinct from which architecture benefits
+more from 18 to 24 layers. Retain the SiTU18/SwiGLU24 qualification.
+
+All READY leases, UTC on 2026-11-16, for v5p-16 /311047:
+
+| Zone | Start | End | Duration | Exit |
+|---|---|---|---|---|
+| UE5a | 10:42:23 | 16:52:41 | 6h10m18s | preempted |
+| UE5a | 16:59:01 | 18:13:33 | 1h14m32s | scheduled completion |
+
+The single active-zone assignment spans 10:42:16--18:13:33 UTC; UC1a was a
+passive backup, with no zone switch. Final proof and full native series are
+`r256-final-proof.json` and `final13500/` under the task artifact root.
+The completed Medium group is archived; XL capacity training continues.

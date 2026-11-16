@@ -21217,7 +21217,14 @@ class BamMediumPropV5L24TotalBudgetSwiGLUM48R256TruePile(
     Reproduction: experiments/bam_llama2_medium/mediumprop_bam24_m48_r256.md.
     """
     # code_commit: a03c7ea; UE5a v5p-16 /311047, startup ~.526 step/s.
+    # Completed 13,500 / P1; final CP/cursor, TB SYNC_OK and UE5a/UC1a teardown verified.
     # ~-3.7% vs completed M32/R256 parent .546 (unpaired; generic ON/internal OFF).
+    # M32-parent gap held near -.007 after the transient; gain rose gently to last-five 1.038571.
+    # Final five 12.6k--13.4k: parent gap -.007049; vs BAM18 M48 gap -.008104,
+    # paired-MHA gain 1.035644; vs Mudd24-post gap -.084332 / gain 1.799133.
+    # Depth response improves modestly vs BAM32 (K_capacity 1.011747), still trails Mudd
+    # (K_mudd .899448). Larger M helps loss but does not resolve depth-gain flattening.
+    # Capacity-gain prior 1.025 was conservative; ~-4% speed prior matched.
     model_name = 'BamMediumPropV5L24TotalBudgetSwiGLUM48R256TruePile'
     bam_v = 48
     base_mlp_dim = 2128

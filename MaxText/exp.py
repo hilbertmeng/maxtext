@@ -21554,6 +21554,31 @@ class BamXLPropV5PackedMinimalSaveSplashSpeedProfile(BamXLPropV5PackedFullSaveSp
     remat_policy = 'minimal_save_splash'
 
 
+class BamXLPropV5SiTU47SpeedProfile(_XLPropV5SpeedProfile, BamXLPropV5FastKernelFullRematSiTU47):
+    """Formal SiTU parent runtime (M96x40, R400) at the profile commit."""
+    model_name = 'BamXLPropV5SiTU47SpeedProfile'
+
+
+class BamXLPropV5SiTU47M60R480SpeedProfile(_XLPropV5SpeedProfile, BamXLPropV5SiTU47M60R480):
+    """Formal M96x60 / R480 runtime at the profile commit."""
+    model_name = 'BamXLPropV5SiTU47M60R480SpeedProfile'
+
+
+class BamXLPropV5SiTU47M60R400SpeedProfile(BamXLPropV5SiTU47M60R480SpeedProfile):
+    """Attribution only (not parameter-matched): V60 with the parent's R400 ranks."""
+    model_name = 'BamXLPropV5SiTU47M60R400SpeedProfile'
+    bam_local_full_m_read_bottleneck_dim = 400
+    bam_write_v_bottleneck_dim = 400
+    bam_mlp_write_address_rank = 400
+    emb_bam_v_bottleneck_dim = 400
+
+
+class BamXLPropV5SiTU47M40R480SpeedProfile(BamXLPropV5SiTU47M60R480SpeedProfile):
+    """Attribution only (not parameter-matched): R480 ranks with the parent's V40."""
+    model_name = 'BamXLPropV5SiTU47M40R480SpeedProfile'
+    bam_v = 40
+
+
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneMPreNormNoReadScaleTruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneMPreNormTruePile):
     """Same whole-M pre-norm, removing all18 common V/O read-scale parameters."""

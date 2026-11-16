@@ -21193,6 +21193,35 @@ class BamMediumPropV5L24TotalBudgetSwiGLUTruePile(
                     'Llama2MediumPropL24TotalBudgetTruePile']
 
 
+class BamMediumPropV5L24TotalBudgetSwiGLUR256ControlTruePile(
+    BamMediumPropV5L24TotalBudgetSwiGLUTruePile):
+    """Fresh L24 M66x32/R256 control for fixed-rank capacity scaling.
+
+    Preserve the completed parent's432120064 parameters and all training
+    settings. A distinct RUN keeps the new paired control independent.
+    """
+    model_name = 'BamMediumPropV5L24TotalBudgetSwiGLUR256ControlTruePile'
+    compare_runs = ['BamMediumPropV5L24TotalBudgetSwiGLUTruePile']
+
+
+class BamMediumPropV5L24TotalBudgetSwiGLUM48R256TruePile(
+    BamMediumPropV5L24TotalBudgetSwiGLUTruePile):
+    """L24 fixed-total capacity control: M66x48, all address ranks256.
+
+    Keep D1056/16x66 and ordinary/private SwiGLU. Repay the enlarged
+    read/write projections locally at approximately2:1 ordinary/complete
+    memory-branch parameters: widths2128/911, terminal3319.
+    Total432118976, parent-1088 and MHA18/24 target-2224.
+    Reproduction: experiments/bam_llama2_medium/mediumprop_bam24_m48_r256.md.
+    """
+    model_name = 'BamMediumPropV5L24TotalBudgetSwiGLUM48R256TruePile'
+    bam_v = 48
+    base_mlp_dim = 2128
+    bam_memory_mlp_dim = 911
+    bam_last_mlp_dim = 3319
+    compare_runs = ['BamMediumPropV5L24TotalBudgetSwiGLUR256ControlTruePile']
+
+
 class BamMediumPropV5SiTU47M16R128(BamMediumPropV5SiTU47):
     """Ledger only: L18 capacity scaling, M75x16 and all read/write ranks128.
 

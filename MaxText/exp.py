@@ -22912,3 +22912,116 @@ class BamPythia2p8BHUnitShortTrainFastKernelContentWriteAdapterFullPreRms(
     # code_commit:f694be4; exact v5p-128/s28000 AOT (FLEX, AOT_COMPILE_OK):
     # gs://newproject-1-llm_base_models_us-central1/log/compiled_trainsteps/f694be4/jax081-i0ae3f58-c17f538a/v5p-128/s28000/
     bam_content_adapter_write_before_rms = True
+
+
+# Owner-authorized total-budget depth controls, 2026-11-16.
+
+class Llama2MediumPropL12TotalBudgetTruePileDHC4Tanh(MHCConfig, Llama2MediumPropL12TotalBudgetTruePile):
+    """12-layer total-budget DHC4Tanh; matched parent recipe and 13,500 steps."""
+    model_name = 'Llama2MediumPropL12TotalBudgetTruePileDHC4Tanh'
+    compare_runs = ['Llama2MediumPropL12TotalBudgetTruePile']
+    record_training_health_metrics = True
+    record_internal_nn_metrics = 0
+    checkpoint_period = 200
+    tensorboard_gcs_rotate_period = 500
+    max_to_keep = 2
+    keep_period = 0
+    force_final_checkpoint = True
+    jax_cache_dir = ''
+    remat_policy = 'minimal'
+    mhc_stream_major_layout = True
+    mhc_pallas_update = True
+    mhc_pallas_connector = True
+    residual_connection = 'dhc'
+    mhc_learned_head = False
+    mhc_identity_mixing = False
+    dhc_norm_epsilon = 1e-5
+
+class Llama2MediumPropL12TotalBudgetTruePilemHC(MHCConfig, Llama2MediumPropL12TotalBudgetTruePile):
+    """12-layer total-budget mHC; matched parent recipe and 13,500 steps."""
+    model_name = 'Llama2MediumPropL12TotalBudgetTruePilemHC'
+    compare_runs = ['Llama2MediumPropL12TotalBudgetTruePile']
+    record_training_health_metrics = True
+    record_internal_nn_metrics = 0
+    checkpoint_period = 200
+    tensorboard_gcs_rotate_period = 500
+    max_to_keep = 2
+    keep_period = 0
+    force_final_checkpoint = True
+    jax_cache_dir = ''
+    remat_policy = 'minimal'
+    mhc_stream_major_layout = True
+    mhc_pallas_update = True
+    mhc_pallas_connector = True
+    mhc_pallas_sinkhorn = True
+
+class Llama2MediumPropL12TotalBudgetTruePileAttnRes(AttnResConfig, Llama2MediumPropL12TotalBudgetTruePile):
+    """12-layer total-budget AttnRes; matched parent recipe and 13,500 steps."""
+    model_name = 'Llama2MediumPropL12TotalBudgetTruePileAttnRes'
+    compare_runs = ['Llama2MediumPropL12TotalBudgetTruePile']
+    record_training_health_metrics = True
+    record_internal_nn_metrics = 0
+    checkpoint_period = 200
+    tensorboard_gcs_rotate_period = 500
+    max_to_keep = 2
+    keep_period = 0
+    force_final_checkpoint = True
+    jax_cache_dir = ''
+    remat_policy = 'minimal'
+    # Nearest uniform FFN width offsets 2D per nontrivial read (2L reads).
+    base_mlp_dim = 3727
+
+class Llama2MediumPropL24TotalBudgetTruePileDHC4Tanh(MHCConfig, Llama2MediumPropL24TotalBudgetTruePile):
+    """24-layer total-budget DHC4Tanh; matched parent recipe and 13,500 steps."""
+    model_name = 'Llama2MediumPropL24TotalBudgetTruePileDHC4Tanh'
+    compare_runs = ['Llama2MediumPropL24TotalBudgetTruePile']
+    record_training_health_metrics = True
+    record_internal_nn_metrics = 0
+    checkpoint_period = 200
+    tensorboard_gcs_rotate_period = 500
+    max_to_keep = 2
+    keep_period = 0
+    force_final_checkpoint = True
+    jax_cache_dir = ''
+    remat_policy = 'minimal'
+    mhc_stream_major_layout = True
+    mhc_pallas_update = True
+    mhc_pallas_connector = True
+    residual_connection = 'dhc'
+    mhc_learned_head = False
+    mhc_identity_mixing = False
+    dhc_norm_epsilon = 1e-5
+
+class Llama2MediumPropL24TotalBudgetTruePilemHC(MHCConfig, Llama2MediumPropL24TotalBudgetTruePile):
+    """24-layer total-budget mHC; matched parent recipe and 13,500 steps."""
+    model_name = 'Llama2MediumPropL24TotalBudgetTruePilemHC'
+    compare_runs = ['Llama2MediumPropL24TotalBudgetTruePile']
+    record_training_health_metrics = True
+    record_internal_nn_metrics = 0
+    checkpoint_period = 200
+    tensorboard_gcs_rotate_period = 500
+    max_to_keep = 2
+    keep_period = 0
+    force_final_checkpoint = True
+    jax_cache_dir = ''
+    remat_policy = 'minimal'
+    mhc_stream_major_layout = True
+    mhc_pallas_update = True
+    mhc_pallas_connector = True
+    mhc_pallas_sinkhorn = True
+
+class Llama2MediumPropL24TotalBudgetTruePileAttnRes(AttnResConfig, Llama2MediumPropL24TotalBudgetTruePile):
+    """24-layer total-budget AttnRes; matched parent recipe and 13,500 steps."""
+    model_name = 'Llama2MediumPropL24TotalBudgetTruePileAttnRes'
+    compare_runs = ['Llama2MediumPropL24TotalBudgetTruePile']
+    record_training_health_metrics = True
+    record_internal_nn_metrics = 0
+    checkpoint_period = 200
+    tensorboard_gcs_rotate_period = 500
+    max_to_keep = 2
+    keep_period = 0
+    force_final_checkpoint = True
+    jax_cache_dir = ''
+    remat_policy = 'minimal'
+    # Nearest uniform FFN width offsets 2D per nontrivial read (2L reads).
+    base_mlp_dim = 2873

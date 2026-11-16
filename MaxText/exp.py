@@ -22428,3 +22428,45 @@ class BamPythia2p8BHUnitShortTrainFastKernelContentWriteAdapterFullPreRms(
     # code_commit:f694be4; exact v5p-128/s28000 AOT (FLEX, AOT_COMPILE_OK):
     # gs://newproject-1-llm_base_models_us-central1/log/compiled_trainsteps/f694be4/jax081-i0ae3f58-c17f538a/v5p-128/s28000/
     bam_content_adapter_write_before_rms = True
+
+
+class BamXLPropV5EveryThirdMLPWriteNorm(BamXLPropV5FastKernelFullRemat):
+    """Ledger only: V5 sparse normalized writes; codex/xlprop-v5-sparse-mlp.
+
+    Runtime implementation: /home/xd/.codex/worktrees/xl-v5-sparse-mlp/maxtext.
+
+    Write layers are L1/L4/.../L25, matching the old XL SOTA. Nine three-layer
+    blocks scan together; L27 remains a separate terminal layer without M writes.
+    Restore per-head MLP/embedding write-content RMSNorm; attention is unchanged.
+    """
+    model_name = 'BamXLPropV5EveryThirdMLPWriteNorm'
+    bam_memory_mlp_dim = 0
+    bam_memory_mlp_dim_by_layer = None
+    bam_mlp_write_every = 3
+    bam_mlp_write_offset = 2
+    bam_mlp_write_layers = list(range(1, 27, 3))
+    bam_pair_scan = True
+    bam_local_fetch_block_size = 3
+    bam_final_local_layer_count = 1
+    base_mlp_dim = 6071
+    mlp_dim_by_block = [6071, 5875, 6071]
+    bam_final_local_mlp_dim = 6272
+    bam_last_mlp_dim = 0
+    bam_embedding_write_content_divisor = None
+    bam_mlp_write_content_divisor = None
+    bam_mlp_write_vector_residual_mode = 'add'
+    record_training_health_metrics = True
+    record_internal_nn_metrics = False
+    compare_runs = ['BamXLPropV5FastKernelFullRemat']
+
+
+class BamXLPropV5EveryThirdMLPWriteRawMemoryOnly(BamXLPropV5EveryThirdMLPWriteNorm):
+    """Ledger only: sparse raw MLP writes; no direct writer-MLP vector output.
+
+    All geometry, parameter widths, read paths, attention writes and training
+    settings match the normalized arm. Only L1/L4/.../L25 omit the MLP residual.
+    """
+    model_name = 'BamXLPropV5EveryThirdMLPWriteRawMemoryOnly'
+    bam_embedding_write_content_divisor = BamXLPropV5FastKernelFullRemat.bam_embedding_write_content_divisor
+    bam_mlp_write_content_divisor = 1.0
+    bam_mlp_write_vector_residual_mode = 'off'

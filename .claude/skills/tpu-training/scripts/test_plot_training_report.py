@@ -24,6 +24,30 @@ def example():
 
 
 class PlotRegistryReportTest(unittest.TestCase):
+  def test_paired_gain_plot_preserves_native_difference_and_both_references(self):
+    payload = example()['runs'][0]['pending_report']
+    paired = dict(run='Run', comparator='Parent', reference='MHA_new',
+                  comparator_reference='MHA_parent', series=[
+                    dict(step=600, ratio=1.17, gain_difference=-.031, status='ok'),
+                    dict(step=800, ratio=None, gain_difference=.007,
+                         status='nonpositive_denominator')])
+    payload['gain_ratios'].append(paired)
+    gaps, ratios = plot.collect([payload], paired_gains=True)
+    self.assertEqual(gaps['Run', 'Parent'][600]['gap'], -.031)
+    self.assertEqual(gaps['Run', 'Parent'][800]['gap'], .007)
+    self.assertEqual(list(ratios), [('Run', 'Parent', 'MHA_new', 'MHA_parent')])
+    with tempfile.TemporaryDirectory() as directory:
+      result = plot.render([payload], directory, paired_gains=True)
+      meta = json.loads(Path(result['provenance']).read_text())
+    self.assertTrue(meta['paired_gains'])
+    self.assertEqual(meta['gain_ratios'][0]['comparator_reference'], 'MHA_parent')
+    self.assertEqual(meta['reports'][0]['series'][0]['gap'], -.031)
+    self.assertEqual(meta['shown'][0]['gain_through'], {'MHA_new|MHA_parent': 600})
+    # Never silently pick one of two different reference pairs for a gap curve.
+    payload['gain_ratios'].append({**paired, 'comparator_reference': 'Different'})
+    with self.assertRaisesRegex(ValueError, 'one paired reference pair'):
+      plot.collect([payload], paired_gains=True)
+
   def test_same_native_series_from_batch_and_single_event(self):
     payload = example()
     a = plot.collect([payload], runs=['Run'])

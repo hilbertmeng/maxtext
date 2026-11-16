@@ -5,11 +5,15 @@ correlated preemptions remain visible. Append one assignment row per active-zone
 lease row per READY interval. `?` means the observer missed the READY start; keep it rather than
 inventing a duration. A passive queue is not an active-zone switch.
 
-Current user direction (2026-09-11, resource-constrained period): set formal v5p
-`PRIMARY_ZONE=us-east5-a`, `BACKUP_ZONES=europe-west4-b`. Queue UE5a first; after 5 minutes
-without capacity, add EW4b while retaining UE5a priority. Recent EW4b leases are more preemption-prone.
-Use an available EW4b candidate while UE5a is still queued; retain the alternate until the
-selected trainer produces FIRST_STEP, then release it. Apply on new launches and preemption recovery.
+Current user direction (2026-11-15): formal v5p defaults are
+`PRIMARY_ZONE=us-east5-a`, `BACKUP_ZONES=us-central1-a`. Temporarily exclude
+EW4b from default candidates. The Nov12--15 Medium scaling audit found nine
+EW4b READY leases, all shorter than ten minutes; UE5a/UC1a median leases were
+about175/108 minutes. Queue UE5a first; after five minutes without an allocation,
+add UC1a while preserving accepted queue ages. Retain the losing candidate
+through verified FIRST_STEP. Both launch entrypoints use these defaults;
+existing controllers require a policy update. Explicit user policy overrides
+and explicitly empty backups retain their existing semantics.
 
 ## Active-zone assignments
 
@@ -27,6 +31,104 @@ active leases are censored, and manual migration releases are not preemptions.
 
 | RUN | TPU | Zone | Start UTC | End UTC | End reason | Passive candidates |
 |---|---|---|---|---|---|---|
+| `BamMediumPropV5L24TotalBudgetSwiGLUTruePile` | v5p-16 (`xd-v5p-16-311042-maxtext`) | `us-central1-a` | 2026-11-15 06:30:57 | 2026-11-15 15:33:10 | preempted; recovered in UE5a; initial retained-TPU handoff from cancelled BAM27 | UE5a primary; UC1a backup; EW4b excluded |
+| `BamMediumPropV5L24TotalBudgetSwiGLUTruePile` | v5p-16 (`xd-v5p-16-311042-maxtext`) | `us-east5-a` | 2026-11-15 15:33:10 | 2026-11-15 15:46:06 | completed13500/P6; CP/cursor/TB verified; all regional node/queues absent | UE5a primary; UC1a backup; EW4b excluded |
+| `MuddLlama2MediumPropRouterFixedPostNormTruePile` | v5p-16 (`xd-v5p-16-311045-maxtext`) | `us-east5-a` | 2026-11-15 06:58:49 | 2026-11-15 07:11:25 | queue preparation only; no verified FIRST_STEP | UE5a primary; UC1a backup; EW4b excluded |
+| `MuddLlama2MediumPropRouterFixedPostNormTruePile` | v5p-16 (`xd-v5p-16-311045-maxtext`) | `us-central1-a` | 2026-11-15 07:11:25 | 2026-11-15 15:13:59 | preempted; recovery in UE5a; includes queue waits | UE5a primary; UC1a backup; EW4b excluded |
+| `MuddLlama2MediumPropRouterFixedPostNormTruePile` | v5p-16 (`xd-v5p-16-311045-maxtext`) | `us-east5-a` | 2026-11-15 15:13:59 | 2026-11-15 15:45:19 | completed13500/P4; CP/cursor/TB secured; all regional node/queues absent | UE5a primary; UC1a backup; EW4b excluded |
+| `MuddLlama2MediumPropL12TotalBudgetRouterFixedPostNormTruePile` | v5p-16 (`xd-v5p-16-311044-maxtext`) | `us-east5-a` | 2026-11-15 06:58:03 | 2026-11-15 07:11:20 | queue preparation only; no verified FIRST_STEP | UE5a primary; UC1a backup; EW4b excluded |
+| `MuddLlama2MediumPropL12TotalBudgetRouterFixedPostNormTruePile` | v5p-16 (`xd-v5p-16-311044-maxtext`) | `us-central1-a` | 2026-11-15 07:11:20 | 2026-11-15 13:04:08 | completed13500/P2; CP/cursor/TB secured; all regional node/queues absent | UE5a primary; UC1a backup; EW4b excluded |
+| `MuddLlama2MediumPropL24TotalBudgetRouterFixedPostNormTruePile` | v5p-16 (`xd-v5p-16-311041-maxtext`) | `us-east5-a` | 2026-11-15 02:25:02 | 2026-11-15 02:34:18 | queue preparation only; no verified FIRST_STEP | UE5a primary; UC1a backup; EW4b excluded |
+| `MuddLlama2MediumPropL24TotalBudgetRouterFixedPostNormTruePile` | v5p-16 (`xd-v5p-16-311041-maxtext`) | `us-central1-a` | 2026-11-15 02:34:18 | 2026-11-15 11:21:23 | completed13500/P3; CP/cursor/TB secured; all regional node/queues absent | UE5a primary; UC1a backup; EW4b excluded |
+| `MuddLlama2MediumPropL24TotalBudgetRouterFixedTruePile` | v5p-16 (`xd-v5p-16-311039-maxtext`) | `us-east5-a` | 2026-11-15 01:17:05 | 2026-11-15 01:52:35 | queue preparation only; no verified FIRST_STEP | UE5a primary; UC1a backup; EW4b excluded |
+| `MuddLlama2MediumPropL24TotalBudgetRouterFixedTruePile` | v5p-16 (`xd-v5p-16-311039-maxtext`) | `us-central1-a` | 2026-11-15 01:52:35 | 2026-11-15 10:30:58 | completed13500/P3; CP/cursor verified; all regional node/queues absent | UE5a primary; UC1a backup; EW4b excluded |
+| `BamMediumPropV5L27AttentionMLP1to2SwiGLUTruePile` | v5p-16 (`xd-v5p-16-311042-maxtext`) | `us-east5-a` | 2026-11-15 05:55:48 | 2026-11-15 06:05:31 | queue preparation only | UE5a primary, UC1a backup; one pre-FIRST UC1a resource loss, native counter omits it |
+| `BamMediumPropV5L27AttentionMLP1to2SwiGLUTruePile` | v5p-16 (`xd-v5p-16-311042-maxtext`) | `us-central1-a` | 2026-11-15 06:05:31 | 2026-11-15 06:25:04 | scope correction at76; CP/TB secured; READY TPU transferred to BAM24 | UE5a primary, UC1a backup; one pre-FIRST UC1a resource loss, native counter omits it |
+| `MuddLlama2MediumPropL24TotalBudgetRouterFixedPreNormTruePile` | v5p-16 (`xd-v5p-16-311040-maxtext`) | `us-east5-a` | 2026-11-15 01:23:33 | 2026-11-15 01:36:20 | queue preparation; no verified FIRST_STEP | UE5a primary; UC1a backup; EW4b excluded |
+| `MuddLlama2MediumPropL24TotalBudgetRouterFixedPreNormTruePile` | v5p-16 (`xd-v5p-16-311040-maxtext`) | `us-central1-a` | 2026-11-15 01:36:20 | 2026-11-15 03:54:15 | user stop4534/P0; CP/cursor/TB secured; all owned node/queues absent | UE5a primary; UC1a backup; EW4b excluded |
+| `Llama2MediumPropL12TotalBudgetTruePile` | v5p-16 (`xd-v5p-16-311032-maxtext`) | `us-east5-a` | 2026-11-14 17:04:22 | 2026-11-14 17:13:58 | queue preparation only; no verified FIRST_STEP | UE5a primary; UC1a/EW4b passive candidates; losing resources released |
+| `Llama2MediumPropL12TotalBudgetTruePile` | v5p-16 (`xd-v5p-16-311032-maxtext`) | `us-central1-a` | 2026-11-14 17:13:58 | 2026-11-14 21:09:45 | preempted, recovered in UE5a; includes recovery wait | UE5a primary; UC1a/EW4b passive candidates; losing resources released |
+| `Llama2MediumPropL12TotalBudgetTruePile` | v5p-16 (`xd-v5p-16-311032-maxtext`) | `us-east5-a` | 2026-11-14 21:09:45 | 2026-11-14 21:21:40 | completed13500/P1; CP/cursor/TB and all regional resources verified | UE5a primary; UC1a/EW4b passive candidates; losing resources released |
+| `Llama2MediumPropL24TotalBudgetTruePile` | v5p-16 (`xd-v5p-16-311033-maxtext`) | `us-east5-a` | 2026-11-14 17:17:02 | 2026-11-14 17:26:56 | queue preparation only; no verified FIRST_STEP | UE5a primary; UC1a/EW4b passive candidates; losing resources released |
+| `Llama2MediumPropL24TotalBudgetTruePile` | v5p-16 (`xd-v5p-16-311033-maxtext`) | `us-central1-a` | 2026-11-14 17:26:56 | 2026-11-14 18:58:09 | preempted, recovered in UE5a; includes recovery wait | UE5a primary; UC1a/EW4b passive candidates; losing resources released |
+| `Llama2MediumPropL24TotalBudgetTruePile` | v5p-16 (`xd-v5p-16-311033-maxtext`) | `us-east5-a` | 2026-11-14 18:58:09 | 2026-11-14 23:25:51 | completed13500/P1; CP/cursor/TB and all regional resources verified | UE5a primary; UC1a/EW4b passive candidates; losing resources released |
+| `MuddLlama2MediumPropL12TotalBudgetRouterFixedTruePile` | v5p-16 (`xd-v5p-16-311034-maxtext`) | `us-east5-a` | 2026-11-14 17:04:03 | 2026-11-14 21:24:07 | completed13500/P0; CP/cursor/TB and all regional resources verified | UE5a primary; UC1a/EW4b passive candidates; losing resources released |
+| `MuddLlama2MediumPropRouterFixedTruePile` | v5p-16 (`xd-v5p-16-311035-maxtext`) | `us-east5-a` | 2026-11-14 17:11:09 | 2026-11-14 17:21:00 | queue preparation only; no verified FIRST_STEP | UE5a primary; UC1a/EW4b passive candidates; losing resources released |
+| `MuddLlama2MediumPropRouterFixedTruePile` | v5p-16 (`xd-v5p-16-311035-maxtext`) | `us-central1-a` | 2026-11-14 17:21:00 | 2026-11-14 21:11:03 | preempted, recovered in UE5a; includes recovery wait | UE5a primary; UC1a/EW4b passive candidates; losing resources released |
+| `MuddLlama2MediumPropRouterFixedTruePile` | v5p-16 (`xd-v5p-16-311035-maxtext`) | `us-east5-a` | 2026-11-14 21:11:03 | 2026-11-14 23:10:09 | completed13500/P1; CP/cursor/TB and all regional resources verified | UE5a primary; UC1a/EW4b passive candidates; losing resources released |
+| `MuddLlama2MediumPropL24TotalBudgetRouterFixedPrePostNormTruePile` | v5p-16 (`xd-v5p-16-311036-maxtext`) | `us-east5-a` | 2026-11-14 17:04:12 | 2026-11-14 17:13:53 | queue preparation only; no verified FIRST_STEP | UE5a primary; UC1a/EW4b passive candidates; losing resources released |
+| `MuddLlama2MediumPropL24TotalBudgetRouterFixedPrePostNormTruePile` | v5p-16 (`xd-v5p-16-311036-maxtext`) | `us-central1-a` | 2026-11-14 17:13:53 | 2026-11-14 21:08:55 | preempted, recovered in UE5a; includes recovery wait | UE5a primary; UC1a/EW4b passive candidates; losing resources released |
+| `MuddLlama2MediumPropL24TotalBudgetRouterFixedPrePostNormTruePile` | v5p-16 (`xd-v5p-16-311036-maxtext`) | `us-east5-a` | 2026-11-14 21:08:55 | 2026-11-15 00:35:11 | completed13500/P2; CP/cursor/TB and all regional resources verified | UE5a primary; UC1a/EW4b passive candidates; losing resources released |
+| `BamMediumPropV5SiTU47L12TotalBudgetTruePile` | v5p-16 (`xd-v5p-16-311037-maxtext`) | `us-east5-a` | 2026-11-14 17:04:04 | 2026-11-14 17:14:41 | queue preparation only; no verified FIRST_STEP | UE5a primary; UC1a/EW4b passive candidates; losing resources released |
+| `BamMediumPropV5SiTU47L12TotalBudgetTruePile` | v5p-16 (`xd-v5p-16-311037-maxtext`) | `us-central1-a` | 2026-11-14 17:14:41 | 2026-11-14 21:10:24 | preempted, recovered in UE5a; includes recovery wait | UE5a primary; UC1a/EW4b passive candidates; losing resources released |
+| `BamMediumPropV5SiTU47L12TotalBudgetTruePile` | v5p-16 (`xd-v5p-16-311037-maxtext`) | `us-east5-a` | 2026-11-14 21:10:24 | 2026-11-14 22:03:58 | completed13500/P1; CP/cursor/TB and all regional resources verified | UE5a primary; UC1a/EW4b passive candidates; losing resources released |
+| `BamMediumPropV5SiTU47L24TotalBudgetTruePile` | v5p-16 (`xd-v5p-16-311038-maxtext`) | `us-east5-a` | 2026-11-14 17:04:19 | 2026-11-14 17:14:46 | queue preparation only; no verified FIRST_STEP | UE5a primary; UC1a/EW4b passive candidates; losing resources released |
+| `BamMediumPropV5SiTU47L24TotalBudgetTruePile` | v5p-16 (`xd-v5p-16-311038-maxtext`) | `us-central1-a` | 2026-11-14 17:14:46 | 2026-11-14 21:10:41 | preempted, recovered in UE5a; includes recovery wait | UE5a primary; UC1a/EW4b passive candidates; losing resources released |
+| `BamMediumPropV5SiTU47L24TotalBudgetTruePile` | v5p-16 (`xd-v5p-16-311038-maxtext`) | `us-east5-a` | 2026-11-14 21:10:41 | 2026-11-15 00:31:19 | completed13500/P1; CP/cursor/TB and all regional resources verified | UE5a primary; UC1a/EW4b passive candidates; losing resources released |
+| `MuddLlama2MediumPropL12AttentionMLP1to2PrePostNormTruePile` | v5p-16 (`xd-v5p-16-311030-maxtext`) | `us-east5-a` | 2026-11-14 12:08:30 | 2026-11-14 16:22:18 | user pause13071/P0; resume CP/cursor/TB and all regional resources verified | UE5a primary, UC1a/EW4b passive backups; no active-zone switch |
+| `MuddLlama2MediumPropPrePostNormTruePile` | v5p-16 (`xd-v5p-16-311031-maxtext`) | `us-east5-a` | 2026-11-14 11:44:39 | 2026-11-14 16:22:21 | user pause11019/P0; resume CP/cursor/TB and all regional resources verified | UE5a primary, UC1a/EW4b passive backups; no active-zone switch |
+| `BamMediumPropV5SiTU47L27AttentionMLP1to2TruePile` | v5p-16 (`xd-v5p-16-311028-maxtext`) | `us-east5-a` | 2026-11-14 06:02:09 | 2026-11-14 13:56:03 | completed13500/P1; CP/cursor/TB and all regional resources verified | UE5a primary, UC1a/EW4b backups; no active-zone switch |
+| `Llama2MediumPropL27AttentionMLP1to2TruePile` | v5p-16 (`xd-v5p-16-311026-maxtext`) | `us-east5-a` | 2026-11-14 05:39:31 | 2026-11-14 12:13:10 | completed13500/P3; CP/cursor/TB and all regional resources verified | UE5a primary, UC1a/EW4b backups; no active-zone switch |
+| `MuddLlama2MediumPropL27AttentionMLP1to2TruePile` | v5p-16 (`xd-v5p-16-311027-maxtext`) | `us-east5-a` | 2026-11-14 05:43:18 | 2026-11-14 11:22:48 | user stop10038/P1; stronger pre/post-norm comparator selected; CP/cursor/TB/resources verified | UE5a primary, UC1a/EW4b backups; no active-zone switch |
+| `MuddLlama2MediumPropL12AttentionMLP1to2TruePile` | v5p-16 (`xd-v5p-16-311024-maxtext`) | `us-east5-a` | 2026-11-14 05:47:28 | 2026-11-14 10:32:55 | completed13500/P2; CP/cursor/TB and all regional resources verified | UE5a primary, UC1a/EW4b passive backups; no active-zone switch |
+| `BamMediumPropV5SiTU47L12AttentionMLP1to2TruePile` | v5p-16 (`xd-v5p-16-311025-maxtext`) | `us-east5-a` | 2026-11-14 05:42:35 | 2026-11-14 10:39:57 | completed13500/P1; CP/cursor/TB and all regional resources verified | UE5a primary, UC1a/EW4b passive backups; no active-zone switch |
+| `Llama2MediumPropL12AttentionMLP1to2TruePile` | v5p-16 (`xd-v5p-16-311023-maxtext`) | `us-east5-a` | 2026-11-14 05:39:08 | 2026-11-14 09:43:46 | completed13500/P1; CP/cursor/TB and all regional resources verified | UE5a primary; UC1a/EW4b passive backups; no active-zone switch |
+| `BamMediumPropV5SiTU47M64R384` | v5p-16 (`xd-v5p-16-311021-maxtext`) | `us-east5-a` | 2026-11-13 16:26:12 | 2026-11-13 22:36:16 | two training leases/preemptions plus recovery waits; switched to UC1a | UE5a primary; UC1a/EW4b backups after300s; prequeue READY16:21:32 |
+| `BamMediumPropV5SiTU47M64R384` | v5p-16 (`xd-v5p-16-311021-maxtext`) | `us-central1-a` | 2026-11-13 22:36:16 | 2026-11-13 23:07:38 | completed13500/P2; CP/cursor/TB and all regional resources verified | restored12568; post-migration CP12600 uses UC1 data; passive losers released |
+| `BamMediumPropV5SiTU47M48R384` | v5p-16 (`xd-v5p-16-311020-maxtext`) | `us-east5-a` | 2026-11-13 13:51:52 | 2026-11-13 19:43:31 | completed13500/P0; CP/cursor/TB and all regional resources verified | UE5a only active; UC1a/EW4b passive backups; READY13:36:49 includes recovered AOT preparation |
+| `BamMediumPropV5SiTU47M16R128` | v5p-16 (`xd-v5p-16-311019-maxtext`) | `us-east5-a` | 2026-11-13 13:43:00 | 2026-11-13 19:05:06 | completed13500/P0; CP/cursor/TB and all regional resources verified | UE5a only active; UC1a/EW4b passive backups; prequeue READY13:37:09 includes preparation |
+| `MuddLlama2MediumPropL27TruePile` | v5p-16 (`xd-v5p-16-311018-maxtext`) | `us-east5-a` | 2026-11-13 09:57:09 | 2026-11-13 17:30:09 | completed13500/P0; CP/cursor/TB and all regional resources verified | UE5a only active; UC1a/EW4b passive backups; earlier prequeue adopted READY09:52:02, exact lease start unknown |
+| `MuddLlama2MediumPropL12TruePile` | v5p-16 (`xd-v5p-16-311017-maxtext`) | `us-east5-a` | 2026-11-13 09:57:07 | 2026-11-13 14:19:38 | completed13500/P0; CP/cursor/TB and all regional resources verified | UE5a primary, UC1a/EW4b passive backups; prequeue READY observed09:47:14 before trainer registration |
+| `BamMediumPropV5SiTU47L27` | v5p-16 (`xd-v5p-16-311016-maxtext`) | `us-east5-a` | 2026-11-12 15:57:58 | 2026-11-12 16:07:39 | queue preparation only; no verified FIRST_STEP | UE5a primary, UC1a/EW4b backups after 300s |
+| `BamMediumPropV5SiTU47L27` | v5p-16 (`xd-v5p-16-311016-maxtext`) | `europe-west4-b` | 2026-11-12 16:07:39 | 2026-11-12 22:02:14 | actual short training leases and queue waits; not continuous availability | alternates retained through resumed FIRST_STEP |
+| `BamMediumPropV5SiTU47L27` | v5p-16 (`xd-v5p-16-311016-maxtext`) | `us-central1-a` | 2026-11-12 22:02:14 | 2026-11-13 08:43:32 | initial preparation reclaimed; verified training from 23:25; completed 13500/P7; CP/cursor/TB and all regional resources verified | runtime 64d75057; final recovery completed remaining 108 updates; retained FLEX compiler untouched |
+| `BamMediumPropV5SiTU47L12` | v5p-16 (`xd-v5p-16-311015-maxtext`) | `us-east5-a` | 2026-11-12 16:00:59 | 2026-11-12 16:10:25 | queue preparation only; no verified FIRST_STEP | UE5a primary, UC1a/EW4b backups after 300s |
+| `BamMediumPropV5SiTU47L12` | v5p-16 (`xd-v5p-16-311015-maxtext`) | `europe-west4-b` | 2026-11-12 16:10:25 | 2026-11-12 16:13:06 | preparation reclaimed before verified FIRST_STEP | retained alternate queues |
+| `BamMediumPropV5SiTU47L12` | v5p-16 (`xd-v5p-16-311015-maxtext`) | `us-central1-a` | 2026-11-12 16:13:06 | 2026-11-12 19:54:29 | preparation/queue assignment only; no verified training | EW4b subsequently won recovery |
+| `BamMediumPropV5SiTU47L12` | v5p-16 (`xd-v5p-16-311015-maxtext`) | `europe-west4-b` | 2026-11-12 19:54:29 | 2026-11-12 22:02:28 | short actual training leases and later failed preparation; not continuous training | owned alternate candidates retained through resumed FIRST_STEP |
+| `BamMediumPropV5SiTU47L12` | v5p-16 (`xd-v5p-16-311015-maxtext`) | `us-central1-a` | 2026-11-12 22:02:28 | 2026-11-13 05:16:19 | initial preparation reclaimed; verified training from 23:25; completed 13500/P4; CP/cursor/TB verified; all regional resources absent | runtime 64d75057; retained FLEX compiler untouched |
+| `BamMHAMediumPropL12TruePile` | v5p-16 (`xd-v5p-16-311014-maxtext`) | `us-east5-a` | 2026-11-12 15:59:14 | 2026-11-12 16:08:27 | primary queue preparation only; no verified FIRST_STEP | UE5a primary, UC1a/EW4b backups after 300s |
+| `BamMHAMediumPropL12TruePile` | v5p-16 (`xd-v5p-16-311014-maxtext`) | `europe-west4-b` | 2026-11-12 16:08:27 | 2026-11-12 22:18:25 | resource assignment switch; short leases and waits, not continuous training | candidates retained through resumed FIRST_STEP, then owned losers released |
+| `BamMHAMediumPropL12TruePile` | v5p-16 (`xd-v5p-16-311014-maxtext`) | `us-central1-a` | 2026-11-12 22:18:25 | 2026-11-13 04:31:18 | initial preparation reclaimed; verified training from 23:24, later completed 13500/P6; final CP/cursor/TB verified; all regional resources absent | runtime 64d75057; retained FLEX compiler untouched |
+| `BamMediumPropV5SiTU47` | v5p-16 (`xd-v5p-16-311013-maxtext`) | `us-east5-a` | 2026-11-12 01:42:18 | 2026-11-12 04:43:57 | queue preparation only; no verified FIRST_STEP | retained UE5a/EW4b queues; user added UC1a backup |
+| `BamMediumPropV5SiTU47` | v5p-16 (`xd-v5p-16-311013-maxtext`) | `us-central1-a` | 2026-11-12 04:43:57 | 2026-11-12 15:19:29 | completed 13500/P2; CP/cursor/TB verified; all regional nodes/queues absent; runtime ff2fe4b | actual training UC1a throughout; UE5a/EW4b passive candidates released after resumed FIRST_STEP |
+| `BamXLPropV5FastKernelFullRematSiTU47` | v5p-32 (`xd-v5p-32-311003-maxtext`) | `us-central1-a` | 2026-11-09 14:50:56 | 2026-11-09 19:21:08 | recorded assignment change; see READY leases | UE5a/EW4b/UC1a recovery race; scoped policy changes and receipts in xlprop_v5_situ47.md |
+| `BamXLPropV5FastKernelFullRematSiTU47` | v5p-32 (`xd-v5p-32-311003-maxtext`) | `europe-west4-b` | 2026-11-09 19:21:08 | 2026-11-09 19:42:19 | preparation only; no verified FIRST_STEP; READY start not observed | UE5a/EW4b/UC1a recovery race; scoped policy changes and receipts in xlprop_v5_situ47.md |
+| `BamXLPropV5FastKernelFullRematSiTU47` | v5p-32 (`xd-v5p-32-311003-maxtext`) | `us-central1-a` | 2026-11-09 19:42:19 | 2026-11-09 21:42:12 | recorded assignment change; see READY leases | UE5a/EW4b/UC1a recovery race; scoped policy changes and receipts in xlprop_v5_situ47.md |
+| `BamXLPropV5FastKernelFullRematSiTU47` | v5p-32 (`xd-v5p-32-311003-maxtext`) | `us-east5-a` | 2026-11-09 21:42:12 | 2026-11-10 02:53:05 | recorded assignment change; see READY leases | UE5a/EW4b/UC1a recovery race; scoped policy changes and receipts in xlprop_v5_situ47.md |
+| `BamXLPropV5FastKernelFullRematSiTU47` | v5p-32 (`xd-v5p-32-311003-maxtext`) | `us-central1-a` | 2026-11-10 02:53:05 | 2026-11-11 05:31:13 | recorded assignment change; see READY leases | UE5a/EW4b/UC1a recovery race; scoped policy changes and receipts in xlprop_v5_situ47.md |
+| `BamXLPropV5FastKernelFullRematSiTU47` | v5p-32 (`xd-v5p-32-311003-maxtext`) | `europe-west4-b` | 2026-11-11 05:31:13 | 2026-11-11 10:01:36 | preparation only; no verified FIRST_STEP; READY start not observed | UE5a/EW4b/UC1a recovery race; scoped policy changes and receipts in xlprop_v5_situ47.md |
+| `BamXLPropV5FastKernelFullRematSiTU47` | v5p-32 (`xd-v5p-32-311003-maxtext`) | `us-east5-a` | 2026-11-11 10:01:36 | 2026-11-12 10:58:46 | recorded assignment change; see READY leases | UE5a/EW4b/UC1a recovery race; scoped policy changes and receipts in xlprop_v5_situ47.md |
+| `BamXLPropV5FastKernelFullRematSiTU47` | v5p-32 (`xd-v5p-32-311003-maxtext`) | `us-central1-a` | 2026-11-12 10:58:46 | 2026-11-12 11:17:11 | scheduled completion 50000; CP/cursor/TB secured; node/queue absent | UE5a/EW4b/UC1a recovery race; scoped policy changes and receipts in xlprop_v5_situ47.md |
+| `Llama2LargeProp27k` | v5p-32 (`xd-v5p-32-311010-maxtext`) | `us-central1-a` | 2026-11-10 11:51:37 | 2026-11-10 19:25:28 | completed 27000, P0; final checkpoint committed, node/queue absent | UC1a primary; no training-zone switch |
+| `MuddLlama2LargeProp27k` | v5p-32 (`xd-v5p-32-311012-maxtext`) | `us-central1-a` | 2026-11-10 11:51:38 | 2026-11-10 20:39:54 | completed 27000, P0; final checkpoint committed, node/queue absent | UC1a primary; no training-zone switch |
+| `BamLargePropV5Train27k` | v5p-32 (`xd-v5p-32-311011-maxtext`) | `us-central1-a` | 2026-11-10 11:52:18 | 2026-11-10 21:24:01 | completed 27000, P1; same-zone recovery from CP12232; final checkpoint committed, node/queue absent | UC1a primary; no training-zone switch |
+| `BamPythia2p8BHUnit300BFastKernelMPreNormQKScale` | v5p-256 (`xd-v5p-256-311103-maxtext`) | `us-east5-a` | 2026-11-03 04:08:39 | 2026-11-04 09:09:25 | resource_switch; runtime 5a48faa (256) / b3db6cc (128) | owned losers released; user FLEX retained |
+| `BamPythia2p8BHUnit300BFastKernelMPreNormQKScale` | v5p-256 (`xd-v5p-256-311103-maxtext`) | `us-central1-a` | 2026-11-04 09:09:25 | 2026-11-04 14:55:30 | resource_switch; runtime 5a48faa (256) / b3db6cc (128) | owned losers released; user FLEX retained |
+| `BamPythia2p8BHUnit300BFastKernelMPreNormQKScale` | v5p-256 (`xd-v5p-256-311103-maxtext`) | `us-east5-a` | 2026-11-04 14:55:30 | 2026-11-04 20:02:07 | resource_switch; runtime 5a48faa (256) / b3db6cc (128) | owned losers released; user FLEX retained |
+| `BamPythia2p8BHUnit300BFastKernelMPreNormQKScale` | v5p-256 (`xd-v5p-256-311103-maxtext`) | `us-east5-a` | 2026-11-05 09:55:07 | 2026-11-05 11:10:51 | resource_switch; runtime 5a48faa (256) / b3db6cc (128) | owned losers released; user FLEX retained |
+| `BamPythia2p8BHUnit300BFastKernelMPreNormQKScale` | v5p-256 (`xd-v5p-256-311103-maxtext`) | `us-central1-a` | 2026-11-05 11:10:51 | 2026-11-05 16:23:55 | resource_switch; runtime 5a48faa (256) / b3db6cc (128) | owned losers released; user FLEX retained |
+| `BamPythia2p8BHUnit300BFastKernelMPreNormQKScale` | v5p-128 (`xd-v5p-128-h1104b-uc1a`) | `us-central1-a` | 2026-11-05 16:23:55 | 2026-11-05 18:57:29 | resource_switch; runtime 5a48faa (256) / b3db6cc (128) | owned losers released; user FLEX retained |
+| `BamPythia2p8BHUnit300BFastKernelMPreNormQKScale` | v5p-128 (`xd-v5p-128-h1104b-ue5a`) | `us-east5-a` | 2026-11-05 18:57:29 | 2026-11-05 19:37:50 | resource_switch; runtime 5a48faa (256) / b3db6cc (128) | owned losers released; user FLEX retained |
+| `BamPythia2p8BHUnit300BFastKernelMPreNormQKScale` | v5p-256 (`xd-v5p-256-311103-maxtext`) | `us-east5-a` | 2026-11-05 19:47:10 | 2026-11-05 19:57:20 | resource_switch; runtime 5a48faa (256) / b3db6cc (128) | owned losers released; user FLEX retained |
+| `BamPythia2p8BHUnit300BFastKernelMPreNormQKScale` | v5p-128 (`xd-v5p-128-h1104b-uc1a`) | `us-east5-a` | 2026-11-05 19:57:20 | 2026-11-06 00:52:15 | resource_switch; runtime 5a48faa (256) / b3db6cc (128) | owned losers released; user FLEX retained |
+| `BamPythia2p8BHUnit300BFastKernelMPreNormQKScale` | v5p-256 (`xd-v5p-256-311103-maxtext`) | `us-central1-a` | 2026-11-06 00:52:15 | 2026-11-07 01:12:56 | resource_switch; runtime 5a48faa (256) / b3db6cc (128) | owned losers released; user FLEX retained |
+| `BamPythia2p8BHUnit300BFastKernelMPreNormQKScale` | v5p-256 (`xd-v5p-256-311103-maxtext`) | `us-east5-a` | 2026-11-07 01:12:56 | 2026-11-07 03:39:50 | resource_switch; runtime 5a48faa (256) / b3db6cc (128) | owned losers released; user FLEX retained |
+| `BamPythia2p8BHUnit300BFastKernelMPreNormQKScale` | v5p-256 (`xd-v5p-256-311103-maxtext`) | `us-central1-a` | 2026-11-07 03:39:50 | 2026-11-07 11:50:16 | resource_switch; runtime 5a48faa (256) / b3db6cc (128) | owned losers released; user FLEX retained |
+| `BamPythia2p8BHUnit300BFastKernelMPreNormQKScale` | v5p-128 (`xd-v5p-128-h1104b-uc1a`) | `us-central1-a` | 2026-11-07 11:50:16 | 2026-11-08 06:25:19 | resource_switch; runtime 5a48faa (256) / b3db6cc (128) | owned losers released; user FLEX retained |
+| `BamPythia2p8BHUnit300BFastKernelMPreNormQKScale` | v5p-128 (`xd-v5p-128-h1104b-ue5a`) | `us-east5-a` | 2026-11-08 06:25:19 | 2026-11-08 07:15:18 | resource_switch; runtime 5a48faa (256) / b3db6cc (128) | owned losers released; user FLEX retained |
+| `BamPythia2p8BHUnit300BFastKernelMPreNormQKScale` | v5p-128 (`xd-v5p-128-h1104b-uc1a`) | `us-central1-a` | 2026-11-08 07:15:18 | 2026-11-08 07:23:52 | resource_switch; runtime 5a48faa (256) / b3db6cc (128) | owned losers released; user FLEX retained |
+| `BamPythia2p8BHUnit300BFastKernelMPreNormQKScale` | v5p-256 (`xd-v5p-256-311103-maxtext`) | `us-central1-a` | 2026-11-08 07:23:52 | 2026-11-08 18:35:47 | resource_switch; runtime 5a48faa (256) / b3db6cc (128) | owned losers released; user FLEX retained |
+| `BamPythia2p8BHUnit300BFastKernelMPreNormQKScale` | v5p-128 (`xd-v5p-128-h1104b-uc1a`) | `us-central1-a` | 2026-11-08 18:35:47 | 2026-11-08 18:45:15 | resource_switch; runtime 5a48faa (256) / b3db6cc (128) | owned losers released; user FLEX retained |
+| `BamPythia2p8BHUnit300BFastKernelMPreNormQKScale` | v5p-256 (`xd-v5p-256-311103-maxtext`) | `us-east5-a` | 2026-11-08 18:45:15 | 2026-11-08 20:51:12 | resource_switch; runtime 5a48faa (256) / b3db6cc (128) | owned losers released; user FLEX retained |
+| `BamPythia2p8BHUnit300BFastKernelMPreNormQKScale` | v5p-128 (`xd-v5p-128-h1104b-ue5a`) | `us-east5-a` | 2026-11-08 20:51:12 | 2026-11-08 20:59:58 | resource_switch; runtime 5a48faa (256) / b3db6cc (128) | owned losers released; user FLEX retained |
+| `BamPythia2p8BHUnit300BFastKernelMPreNormQKScale` | v5p-256 (`xd-v5p-256-311103-maxtext`) | `us-east5-a` | 2026-11-08 20:59:58 | 2026-11-08 21:41:09 | resource_switch; runtime 5a48faa (256) / b3db6cc (128) | owned losers released; user FLEX retained |
+| `BamPythia2p8BHUnit300BFastKernelMPreNormQKScale` | v5p-256 (`xd-v5p-256-311103-maxtext`) | `us-central1-a` | 2026-11-08 21:41:09 | 2026-11-08 23:01:00 | complete 143000; CP/cursor/TB and task resource release verified; runtime 5a48faa (256) / b3db6cc (128) | owned losers released; user FLEX retained |
+| `BamXLPropV5FastKernelFullRemat` | v5p-32 (`xd-v5p-32-311002-maxtext`) | `us-central1-a` | 2026-11-08 14:06:26 | 2026-11-08 20:44:32 | preemption P1 at20:30:05; UC1a lease ends20:30:05; runtime d54c4c5 | UC1a primary; UE5a/EW4b backups300s |
+| `BamXLPropV5FastKernelFullRemat` | v5p-32 (`xd-v5p-32-311002-maxtext`) | `us-east5-a` | 2026-11-08 20:44:32 | 2026-11-08 20:53:22 | recovery assignment only; no READY lease/FIRST_STEP, no training progress | retained in assignment journal; not an active training-zone switch |
+| `BamXLPropV5FastKernelFullRemat` | v5p-32 (`xd-v5p-32-311002-maxtext`) | `us-central1-a` | 2026-11-08 20:53:22 | 2026-11-09 13:06:16 | complete50000; CP/cursor committed, TB synced, node+queue independently absent; runtime d54c4c5 | resumed20224 -> FIRST_STEP20238; all recovery candidates released |
+| `BamXLPropV5` | v5p-32 (`xd-v5p-32-311001-maxtext`) | `us-east5-a` | 2026-11-08 06:18:37 | 2026-11-08 07:11:57 | preempted; recovered in UC1a | none recorded |
+| `BamXLPropV5` | v5p-32 (`xd-v5p-32-311001-maxtext`) | `us-central1-a` | 2026-11-08 07:24:52 | 2026-11-08 13:54:09 | P2 overall; second lease interrupted07:39:06, resumed07:49:33; user stop13007; CP/TB secured, node+QR absent; runtime7c90924 | recovery candidates released |
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneRawWritesEmbeddingFixedTruePile` | v5p-16 (`xd-v5p-16-310541-maxtext`) | `us-east5-a` | 2026-11-03 05:23:34 | 2026-11-03 08:38:53 | user stop7813/P0; CP/TB SYNC_OK, node+QR independently absent; runtime94c0fa1; no zone switch; raw-write amplitude study | none |
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneRawWritesEmbeddingSmall20TruePile` | v5p-16 (`xd-v5p-16-310542-maxtext`) | `us-east5-a` | 2026-11-03 05:22:20 | 2026-11-03 08:38:55 | user stop7951/P0; CP/TB SYNC_OK, node+QR independently absent; runtime94c0fa1; no zone switch; raw-write amplitude study | none |
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneRawWritesTruePile` | v5p-16 (`xd-v5p-16-310540-maxtext`) | `us-east5-a` | 2026-11-03 05:22:24 | 2026-11-03 07:18:37 | user stop4578/P0; CP4578/TB SYNC_OK, node+QR independently absent; runtime94c0fa1; no zone switch; raw-write amplitude study | none |
@@ -2191,6 +2293,30 @@ active leases are censored, and manual migration releases are not preemptions.
 | `BamMediumPropPostAttentionWriteSharedR256AttentionNormTruePile` | 3 | `us-east5-a` | 2026-10-15 13:31:52 | 2026-10-15 13:50:10 | 0h18m18s | user stop4673; CP committed, resources absent, TB SYNC_OK |
 | `BamMediumPropPostAttentionWriteSharedR256MLPNormTruePile` | 2 | `us-east5-a` | 2026-10-15 13:34:59 | 2026-10-15 14:04:56 | 0h29m57s | user stop5354; CP committed, resources absent, TB SYNC_OK |
 | `BamMediumPropMShiftReadG050MLPReadAllLayersNoReadGatesStaticZeroTruePile` | 1 | `us-east5-a` | 2026-10-15 11:00:10 | 2026-10-15 14:06:30 | 3h06m20s | user stop5117; CP committed, resources absent, TB SYNC_OK |
+| `Llama2MediumPropL27AttentionMLP1to2TruePile` | 1 | `us-east5-a` | 2026-11-14 05:45:27 | 2026-11-14 05:53:25 | 07m58s | preempted; same-RUN automatic recovery |
+| `Llama2MediumPropL27AttentionMLP1to2TruePile` | 2 | `us-east5-a` | 2026-11-14 05:59:41 | 2026-11-14 08:41:01 | 2h41m20s | preempted; same-RUN automatic recovery |
+| `MuddLlama2MediumPropL27AttentionMLP1to2TruePile` | 1 | `us-east5-a` | 2026-11-14 05:49:22 | 2026-11-14 08:53:56 | 3h04m34s | preempted; same-RUN automatic recovery |
+| `Llama2MediumPropL27AttentionMLP1to2TruePile` | 3 | `us-east5-a` | 2026-11-14 08:48:18 | 2026-11-14 08:54:07 | 05m49s | preempted; same-RUN automatic recovery |
+| `BamMediumPropV5SiTU47L27AttentionMLP1to2TruePile` | 1 | `us-east5-a` | 2026-11-14 06:13:17 | 2026-11-14 08:54:14 | 2h40m57s | preempted; same-RUN automatic recovery |
+| `MuddLlama2MediumPropL27AttentionMLP1to2TruePile` | 2 | `us-east5-a` | 2026-11-14 09:04:00 | 2026-11-14 11:22:48 | 2h18m48s | user stop10038/P1; final CP/cursor/TB and all regional resources verified |
+| `Llama2MediumPropL27AttentionMLP1to2TruePile` | 4 | `us-east5-a` | 2026-11-14 09:03:35 | 2026-11-14 12:13:10 | 3h09m35s | scheduled completion13500/P3; final CP/cursor/TB and all regional resources verified |
+| `BamMediumPropV5SiTU47L27AttentionMLP1to2TruePile` | 2 | `us-east5-a` | 2026-11-14 09:04:36 | 2026-11-14 13:56:03 | 4h51m27s | scheduled completion13500/P1; final CP/cursor/TB and all regional resources verified |
+| `MuddLlama2MediumPropL12AttentionMLP1to2PrePostNormTruePile` | 1 | `us-east5-a` | 2026-11-14 12:14:54 | 2026-11-14 16:22:18 | 4h07m24s | user pause13071/P0; resumable CP/cursor/TB and all regional resources verified |
+| `MuddLlama2MediumPropPrePostNormTruePile` | 1 | `us-east5-a` | 2026-11-14 11:49:35 | 2026-11-14 16:22:21 | 4h32m46s | user pause11019/P0; resumable CP/cursor/TB and all regional resources verified |
+| `Llama2MediumPropL24TotalBudgetTruePile` | 1 | `us-central1-a` | 2026-11-14 17:27:01 | 2026-11-14 18:50:27 | 1h23m26s | preempted; automatic same-runtime/AOT recovery |
+| `MuddLlama2MediumPropL24TotalBudgetRouterFixedPrePostNormTruePile` | 1 | `us-central1-a` | 2026-11-14 17:14:00 | 2026-11-14 21:01:39 | 3h47m39s | preempted; correlated UC1a maintenance20:59:12 UTC |
+| `BamMediumPropV5SiTU47L24TotalBudgetTruePile` | 1 | `us-central1-a` | 2026-11-14 17:14:56 | 2026-11-14 21:01:57 | 3h47m01s | preempted; correlated UC1a maintenance20:59:12 UTC |
+| `Llama2MediumPropL12TotalBudgetTruePile` | 1 | `us-central1-a` | 2026-11-14 17:14:08 | 2026-11-14 21:01:58 | 3h47m50s | preempted; correlated UC1a maintenance20:59:12 UTC |
+| `BamMediumPropV5SiTU47L12TotalBudgetTruePile` | 1 | `us-central1-a` | 2026-11-14 17:14:46 | 2026-11-14 21:02:06 | 3h47m20s | preempted; correlated UC1a maintenance20:59:12 UTC |
+| `MuddLlama2MediumPropRouterFixedTruePile` | 1 | `us-central1-a` | 2026-11-14 17:21:04 | 2026-11-14 21:03:13 | 3h42m09s | preempted; correlated UC1a maintenance20:59:12 UTC |
+| `Llama2MediumPropL12TotalBudgetTruePile` | 2 | `us-east5-a` | 2026-11-14 21:09:50 | 2026-11-14 21:21:40 | 0h11m50s | completed13500; final CP/cursor/TB and all regional resources verified |
+| `MuddLlama2MediumPropL12TotalBudgetRouterFixedTruePile` | 1 | `us-east5-a` | 2026-11-14 17:09:00 | 2026-11-14 21:24:07 | 4h15m07s | completed13500; final CP/cursor/TB and all regional resources verified |
+| `BamMediumPropV5SiTU47L12TotalBudgetTruePile` | 2 | `us-east5-a` | 2026-11-14 21:10:29 | 2026-11-14 22:03:58 | 0h53m29s | completed13500; final CP/cursor/TB and all regional resources verified |
+| `MuddLlama2MediumPropRouterFixedTruePile` | 2 | `us-east5-a` | 2026-11-14 21:11:09 | 2026-11-14 23:10:09 | 1h59m00s | completed13500; final CP/cursor/TB and all regional resources verified |
+| `Llama2MediumPropL24TotalBudgetTruePile` | 2 | `us-east5-a` | 2026-11-14 18:58:14 | 2026-11-14 23:25:51 | 4h27m37s | completed13500; final CP/cursor/TB and all regional resources verified |
+| `MuddLlama2MediumPropL24TotalBudgetRouterFixedPrePostNormTruePile` | 2 | `us-east5-a` | 2026-11-14 21:09:01 | 2026-11-15 00:16:56 | 3h07m55s | preempted; automatic same-runtime/AOT recovery |
+| `BamMediumPropV5SiTU47L24TotalBudgetTruePile` | 2 | `us-east5-a` | 2026-11-14 21:10:46 | 2026-11-15 00:31:19 | 3h20m33s | completed13500; final CP/cursor/TB and all regional resources verified |
+| `MuddLlama2MediumPropL24TotalBudgetRouterFixedPrePostNormTruePile` | 3 | `us-east5-a` | 2026-11-15 00:22:45 | 2026-11-15 00:35:11 | 0h12m26s | completed13500; final CP/cursor/TB and all regional resources verified |
 | `Llama2XLPropTruePileMHA` | 1 | `us-east5-a` | 2026-09-28 09:44:22 | by 2026-09-29 00:16:16 | ≤14h31m54s | paused for distinct-data extension; TPU/queue verified absent, no preemption |
 
 | `BamMediumPropMShiftReadG050MLPReadNonWriteLayersNoReadGatesStaticZeroTruePile` | 3 | `us-east5-a` | 2026-10-15 13:35:09 | 2026-10-15 14:20:41 | 0h45m32s | user stop3149; CP committed, resources absent, TB SYNC_OK |
@@ -2527,6 +2653,159 @@ active leases are censored, and manual migration releases are not preemptions.
 | `BamMHAMediumPropC256TruePileDHC4TanhIdentity` | 2 | `europe-west4-b` | ? | 2026-11-11 03:08:11 | ? | SERVICE preemption before FIRST_STEP; READY observed only alongside SUSPENDING; actual start/duration unknown, not a training lease |
 | `BamMHAMediumPropC256TruePileDHC4TanhIdentity` | 3 | `us-central1-a` | 2026-11-11 03:33:38 | 2026-11-11 04:26:00 | 52m22s | SERVICE preemption during first actual training lease; CP1288 commit and metadata independently verified, same-RUN recovery |
 
+| `BamPythia2p8BHUnit300BFastKernelMPreNormQKScale` | 1 | `us-east5-a` | 2026-11-03 04:09:26 | 2026-11-03 17:35:55 | 13h 26m 29s | preempted |
+| `BamPythia2p8BHUnit300BFastKernelMPreNormQKScale` | 2 | `us-east5-a` | 2026-11-03 17:41:53 | 2026-11-03 20:53:48 | 3h 11m 55s | preempted |
+| `BamPythia2p8BHUnit300BFastKernelMPreNormQKScale` | 3 | `us-central1-a` | 2026-11-04 09:09:29 | 2026-11-04 14:41:00 | 5h 31m 31s | preempted |
+| `BamPythia2p8BHUnit300BFastKernelMPreNormQKScale` | 4 | `us-east5-a` | 2026-11-04 14:55:34 | 2026-11-04 15:11:32 | 0h 15m 58s | preempted |
+| `BamPythia2p8BHUnit300BFastKernelMPreNormQKScale` | 5 | `us-east5-a` | 2026-11-05 09:55:10 | 2026-11-05 10:43:50 | 0h 48m 40s | preempted |
+| `BamPythia2p8BHUnit300BFastKernelMPreNormQKScale` | 6 | `us-central1-a` | 2026-11-05 11:10:53 | 2026-11-05 15:52:02 | 4h 41m 09s | preempted |
+| `BamPythia2p8BHUnit300BFastKernelMPreNormQKScale` | 7 | `us-central1-a` | 2026-11-05 16:23:58 | 2026-11-05 16:45:44 | 0h 21m 46s | preempted |
+| `BamPythia2p8BHUnit300BFastKernelMPreNormQKScale` | 8 | `us-east5-a` | 2026-11-05 18:57:33 | 2026-11-05 19:08:52 | 0h 11m 19s | preempted |
+| `BamPythia2p8BHUnit300BFastKernelMPreNormQKScale` | 9 | `us-east5-a` | 2026-11-05 19:47:14 | 2026-11-05 19:51:05 | 0h 03m 51s | preempted |
+| `BamPythia2p8BHUnit300BFastKernelMPreNormQKScale` | 10 | `us-east5-a` | 2026-11-05 19:57:22 | 2026-11-05 20:19:36 | 0h 22m 14s | preempted |
+| `BamPythia2p8BHUnit300BFastKernelMPreNormQKScale` | 11 | `us-central1-a` | 2026-11-06 00:52:18 | 2026-11-06 22:40:51 | 21h 48m 33s | preempted |
+| `BamPythia2p8BHUnit300BFastKernelMPreNormQKScale` | 12 | `us-east5-a` | 2026-11-07 01:12:59 | 2026-11-07 01:30:49 | 0h 17m 50s | preempted |
+| `BamPythia2p8BHUnit300BFastKernelMPreNormQKScale` | 13 | `us-central1-a` | 2026-11-07 03:39:52 | 2026-11-07 03:49:45 | 0h 09m 53s | preempted |
+| `BamPythia2p8BHUnit300BFastKernelMPreNormQKScale` | 14 | `us-central1-a` | 2026-11-07 11:50:19 | 2026-11-07 15:41:47 | 3h 51m 28s | preempted |
+| `BamPythia2p8BHUnit300BFastKernelMPreNormQKScale` | 15 | `us-central1-a` | 2026-11-07 20:48:38 | 2026-11-07 20:49:50 | 0h 01m 12s | preempted; failed preparation, no training step |
+| `BamPythia2p8BHUnit300BFastKernelMPreNormQKScale` | 16 | `us-central1-a` | 2026-11-08 02:14:44 | 2026-11-08 02:15:56 | 0h 01m 12s | preempted; failed preparation, no training step |
+| `BamXLPropV5` | 1 | `us-east5-a` | 2026-11-08 06:18:37 | 2026-11-08 07:11:57 | 53m20s | preempted; recovered in UC1a |
+| `BamPythia2p8BHUnit300BFastKernelMPreNormQKScale` | 17 | `us-east5-a` | 2026-11-08 06:25:27 | 2026-11-08 07:12:06 | 0h 46m 39s | preempted |
+| `BamPythia2p8BHUnit300BFastKernelMPreNormQKScale` | 18 | `us-central1-a` | 2026-11-08 07:15:20 | 2026-11-08 07:23:52 | 0h 08m 32s | manual_handoff_CP111530; supplemented from handoff/event evidence |
+| `BamXLPropV5` | 2 | `us-central1-a` | 2026-11-08 07:24:52 | 2026-11-08 07:39:06 | 14m14s | preempted; same-zone recovery |
+| `BamXLPropV5` | 3 | `us-central1-a` | 2026-11-08 07:49:33 | 2026-11-08 13:54:09 | 6h04m36s | user stop13007/P2 for gradient-spike investigation; CP/TB secured, node+QR verified absent13:57:00 |
+
+| `BamPythia2p8BHUnit300BFastKernelMPreNormQKScale` | 19 | `us-central1-a` | 2026-11-08 07:23:55 | 2026-11-08 18:25:05 | 11h 01m 10s | preempted |
+| `BamPythia2p8BHUnit300BFastKernelMPreNormQKScale` | 20 | `us-central1-a` | 2026-11-08 18:35:50 | 2026-11-08 18:43:00 | 0h 07m 10s | service_preemption_CP135074; supplemented from handoff/event evidence |
+| `BamXLPropV5FastKernelFullRemat` | 1 | `us-central1-a` | 2026-11-08 14:12:51 | 2026-11-08 20:30:05 | 6h17m14s | preempted |
+| `BamPythia2p8BHUnit300BFastKernelMPreNormQKScale` | 21 | `us-east5-a` | 2026-11-08 18:45:18 | 2026-11-08 20:42:01 | 1h 56m 43s | preempted |
+| `BamPythia2p8BHUnit300BFastKernelMPreNormQKScale` | 22 | `us-east5-a` | 2026-11-08 20:51:14 | 2026-11-08 20:59:58 | 0h 08m 44s | manual_handoff_CP139300; supplemented from handoff/event evidence |
+| `BamPythia2p8BHUnit300BFastKernelMPreNormQKScale` | 23 | `us-east5-a` | 2026-11-08 21:00:02 | 2026-11-08 21:33:00 | 0h 32m 58s | preempted |
+| `BamPythia2p8BHUnit300BFastKernelMPreNormQKScale` | 24 | `us-central1-a` | 2026-11-08 21:41:11 | 2026-11-08 23:01:00 | 1h 19m 49s | run_stop |
+| `BamXLPropV5FastKernelFullRemat` | 2 | `us-central1-a` | 2026-11-08 20:53:24 | 2026-11-09 13:06:16 | 16h12m52s | scheduled completion50000; CP/cursor/TB secured; node+queue absent |
+| `BamXLPropV5FastKernelFullRematSiTU47` | 1 | `us-central1-a` | 2026-11-09 14:50:58 | 2026-11-09 17:48:01 | 2h57m03s | preempted; native same-RUN recovery |
+| `BamXLPropV5FastKernelFullRematSiTU47` | 2 | `us-central1-a` | 2026-11-09 18:25:06 | 2026-11-09 18:42:30 | 17m24s | preempted; native same-RUN recovery |
+| `BamXLPropV5FastKernelFullRematSiTU47` | 3 | `us-central1-a` | 2026-11-09 19:42:21 | 2026-11-09 21:20:37 | 1h38m16s | preempted; native same-RUN recovery |
+| `BamXLPropV5FastKernelFullRematSiTU47` | 4 | `us-east5-a` | 2026-11-09 21:42:14 | 2026-11-09 21:51:25 | 09m11s | preempted; native same-RUN recovery |
+| `BamXLPropV5FastKernelFullRematSiTU47` | 5 | `us-central1-a` | 2026-11-10 07:00:26 | 2026-11-10 10:16:28 | 3h16m02s | preempted; native same-RUN recovery |
+| `BamXLPropV5FastKernelFullRematSiTU47` | 6 | `us-central1-a` | 2026-11-10 10:22:25 | 2026-11-10 10:33:49 | 11m24s | preempted; native same-RUN recovery |
+| `BamLargePropV5Train27k` | 1 | `us-central1-a` | 2026-11-10 11:52:23 | 2026-11-10 16:07:03 | 4h14m40s | preempted; same-zone recovery |
+| `Llama2LargeProp27k` | 1 | `us-central1-a` | 2026-11-10 11:51:40 | 2026-11-10 19:25:28 | 7h33m48s | scheduled completion 27000; node/queue absent |
+| `MuddLlama2LargeProp27k` | 1 | `us-central1-a` | 2026-11-10 11:51:41 | 2026-11-10 20:39:54 | 8h48m13s | scheduled completion 27000; node/queue absent |
+| `BamLargePropV5Train27k` | 2 | `us-central1-a` | 2026-11-10 16:13:45 | 2026-11-10 21:24:01 | 5h10m16s | scheduled completion 27000; node/queue absent |
+| `BamXLPropV5FastKernelFullRematSiTU47` | 7 | `us-central1-a` | 2026-11-10 10:53:00 | 2026-11-10 21:43:43 | 10h50m43s | preempted; native same-RUN recovery |
+| `BamXLPropV5FastKernelFullRematSiTU47` | 8 | `us-central1-a` | 2026-11-10 22:12:24 | 2026-11-10 22:26:55 | 14m31s | preempted; native same-RUN recovery |
+| `BamXLPropV5FastKernelFullRematSiTU47` | 9 | `us-central1-a` | 2026-11-11 00:43:13 | 2026-11-11 00:53:53 | 10m40s | preempted; native same-RUN recovery |
+| `BamXLPropV5FastKernelFullRematSiTU47` | 10 | `us-central1-a` | 2026-11-11 01:44:40 | 2026-11-11 01:50:39 | 05m59s | preempted; native same-RUN recovery |
+| `BamXLPropV5FastKernelFullRematSiTU47` | 11 | `us-east5-a` | 2026-11-11 10:01:39 | 2026-11-11 15:15:44 | 5h14m05s | preempted; native same-RUN recovery |
+| `BamXLPropV5FastKernelFullRematSiTU47` | 12 | `us-east5-a` | 2026-11-11 15:26:57 | 2026-11-11 16:18:05 | 51m08s | preempted; native same-RUN recovery |
+| `BamXLPropV5FastKernelFullRematSiTU47` | 13 | `us-east5-a` | 2026-11-11 16:32:55 | 2026-11-11 16:39:13 | 06m18s | preempted; native same-RUN recovery |
+| `BamXLPropV5FastKernelFullRematSiTU47` | 14 | `us-east5-a` | 2026-11-11 21:01:57 | 2026-11-11 21:05:51 | 03m54s | preempted; native same-RUN recovery |
+| `BamXLPropV5FastKernelFullRematSiTU47` | 15 | `us-east5-a` | 2026-11-11 21:55:28 | 2026-11-11 22:10:00 | 14m32s | preempted; native same-RUN recovery |
+| `BamXLPropV5FastKernelFullRematSiTU47` | 16 | `us-east5-a` | 2026-11-11 22:41:33 | 2026-11-12 00:09:10 | 1h27m37s | preempted; native same-RUN recovery |
+| `BamMediumPropV5SiTU47` | 1 | `us-central1-a` | 2026-11-12 04:44:00 | 2026-11-12 05:59:14 | 1h15m14s | preempted; resumed committed 2957 |
+| `BamMediumPropV5SiTU47` | 2 | `us-central1-a` | 2026-11-12 07:24:39 | 2026-11-12 07:35:45 | 11m06s | preempted; resumed committed 3175 |
+| `BamXLPropV5FastKernelFullRematSiTU47` | 17 | `us-central1-a` | 2026-11-12 10:58:51 | 2026-11-12 11:17:11 | 18m20s | scheduled completion 50000; CP/cursor/TB verified; all regional resources absent |
+| `BamMediumPropV5SiTU47` | 3 | `us-central1-a` | 2026-11-12 10:57:35 | 2026-11-12 15:19:29 | 4h21m54s | scheduled completion 13500; final CP/cursor/TB verified; all regional resources absent |
+| `BamMediumPropV5SiTU47L27` | 1 | `europe-west4-b` | 2026-11-12 16:07:45 | 2026-11-12 16:12:19 | 4m34s | preempted; native same-RUN recovery |
+| `BamMHAMediumPropL12TruePile` | 1 | `europe-west4-b` | 2026-11-12 16:08:30 | 2026-11-12 16:12:21 | 3m51s | preempted; native same-RUN recovery |
+| `BamMHAMediumPropL12TruePile` | 2 | `europe-west4-b` | 2026-11-12 19:54:33 | 2026-11-12 19:58:21 | 3m48s | preempted; native same-RUN recovery |
+| `BamMediumPropV5SiTU47L12` | 1 | `europe-west4-b` | 2026-11-12 19:54:34 | 2026-11-12 19:58:21 | 3m47s | preempted; native same-RUN recovery |
+| `BamMediumPropV5SiTU47L27` | 2 | `europe-west4-b` | 2026-11-12 19:54:19 | 2026-11-12 19:58:41 | 4m22s | preempted; native same-RUN recovery |
+| `BamMHAMediumPropL12TruePile` | supplemental | `europe-west4-b` | 2026-11-12 20:19:28 | 2026-11-12 20:22:04 | 2m36s | controller-observed READY interval; no verified FIRST_STEP; omitted by native lease counter |
+| `BamMediumPropV5SiTU47L27` | 3 | `europe-west4-b` | 2026-11-12 20:31:58 | 2026-11-12 20:36:37 | 4m39s | preempted; native same-RUN recovery |
+| `BamMediumPropV5SiTU47L12` | 2 | `europe-west4-b` | 2026-11-12 20:32:01 | 2026-11-12 20:36:56 | 4m55s | preempted; native same-RUN recovery |
+| `BamMHAMediumPropL12TruePile` | 3 | `europe-west4-b` | 2026-11-12 21:02:39 | 2026-11-12 21:11:01 | 8m22s | preempted; native same-RUN recovery |
+| `BamMHAMediumPropL12TruePile` | 4 | `europe-west4-b` | 2026-11-12 21:23:22 | 2026-11-12 21:28:39 | 5m17s | preempted; native same-RUN recovery |
+| `BamMediumPropV5SiTU47L27` | supplemental | `us-central1-a` | 2026-11-12 22:20:55 | 2026-11-12 22:21:56 | 1m01s | controller-observed READY preparation interval; no verified FIRST_STEP; omitted by native lease counter |
+| `BamMHAMediumPropL12TruePile` | 5 | `us-central1-a` | 2026-11-12 23:24:40 | 2026-11-12 23:46:26 | 21m46s | preempted; resumed from committed 810 |
+| `BamMediumPropV5SiTU47L27` | 4 | `us-central1-a` | 2026-11-12 23:25:07 | 2026-11-12 23:46:39 | 21m32s | preempted; resumed from committed 206 |
+| `BamMediumPropV5SiTU47L12` | 3 | `us-central1-a` | 2026-11-12 23:25:06 | 2026-11-12 23:46:41 | 21m35s | preempted; resumed from committed 202 |
+| `BamMediumPropV5SiTU47L27` | 5 | `us-central1-a` | 2026-11-13 00:49:02 | 2026-11-13 01:00:10 | 11m08s | preempted; resumed from committed 786 |
+| `BamMediumPropV5SiTU47L12` | 4 | `us-central1-a` | 2026-11-13 00:48:44 | 2026-11-13 01:00:27 | 11m43s | preempted; resumed from committed 1136 |
+| `BamMHAMediumPropL12TruePile` | 6 | `us-central1-a` | 2026-11-13 00:47:57 | 2026-11-13 01:00:31 | 12m34s | preempted; resumed from committed 1917 |
+| `BamMHAMediumPropL12TruePile` | 7 | `us-central1-a` | 2026-11-13 01:11:57 | 2026-11-13 04:31:18 | 3h19m21s | scheduled completion 13500; native run_stop marks ownership close, not a service preemption; final CP/cursor/TB and all regional resources verified |
+| `BamMediumPropV5SiTU47L12` | 5 | `us-central1-a` | 2026-11-13 01:11:39 | 2026-11-13 05:16:19 | 4h04m40s | scheduled completion 13500; final CP/cursor/TB and all regional resources verified |
+| `BamMediumPropV5SiTU47L27` | 6 | `us-central1-a` | 2026-11-13 01:12:15 | 2026-11-13 05:45:59 | 4h33m44s | preempted; resumed from committed 1050 |
+| `BamMediumPropV5SiTU47L27` | 7 | `us-central1-a` | 2026-11-13 06:08:28 | 2026-11-13 08:21:35 | 2h13m07s | preempted; resumed from committed 9398; saved 13392 |
+| `BamMediumPropV5SiTU47L27` | 8 | `us-central1-a` | 2026-11-13 08:33:57 | 2026-11-13 08:43:32 | 9m35s | scheduled completion 13500; resumed from committed 13392 for final 108 updates; CP/cursor/TB and all regional resources verified |
+
+| `MuddLlama2MediumPropL12TruePile` | 1 | `us-east5-a` | 2026-11-13 09:47:14 | 2026-11-13 14:19:38 | 4h32m24s | clean completion13500/P0; earliest prequeue READY observation includes preparation; native observer09:57:10 onward is a subset of this same uninterrupted lease; CP/cursor/TB and regional teardown verified |
+
+| `MuddLlama2MediumPropL27TruePile` | 1 | `us-east5-a` | ? (READY observed2026-11-13 09:52:02) | 2026-11-13 17:30:09 | >=7h38m07s | clean completion13500/P0; prequeue ADOPT already READY, exact start unknown; native09:57:13 observer is a subset; CP/cursor/TB and all regional resources verified |
+
+| `BamMediumPropV5SiTU47M16R128` | 1 | `us-east5-a` | 2026-11-13 13:37:09 | 2026-11-13 19:05:06 | 5h27m57s | scheduled completion13500/P0; includes prequeue/install preparation; native13:43:10 observer is a subset; CP/cursor/TB and all regional resources verified |
+
+| `BamMediumPropV5SiTU47M48R384` | 1 | `us-east5-a` | 2026-11-13 13:36:49 | 2026-11-13 19:43:31 | 6h06m42s | scheduled completion13500/P0; includes installation and recovered AOT CPU compile; native13:51:57 observer is a subset; CP/cursor/TB and all regional resources verified |
+
+| `BamMediumPropV5SiTU47M64R384` | 1 | `us-east5-a` | 2026-11-13 16:21:32 | 2026-11-13 19:53:24 | 3h31m52s | preempted; includes prequeue/AOT preparation; native16:26:16 observer is a subset; emergency CP7432 recovered |
+| `BamMediumPropV5SiTU47M64R384` | 2 | `us-east5-a` | 2026-11-13 19:59:10 | 2026-11-13 22:23:13 | 2h24m03s | preempted; emergency CP12568 copied to UC1a and restored |
+| `BamMediumPropV5SiTU47M64R384` | 3 | `us-central1-a` | 2026-11-13 22:36:18 | 2026-11-13 23:07:38 | 31m20s | scheduled completion13500/P2; CP/cursor/TB and all regional resources verified; passive queues released |
+
+| `MuddLlama2MediumPropL12AttentionMLP1to2TruePile` | 1 | `us-east5-a` | 2026-11-14 05:53:09 | 2026-11-14 08:41:14 | 2h48m05s | preempted; same-RUN automatic recovery |
+| `BamMediumPropV5SiTU47L12AttentionMLP1to2TruePile` | 1 | `us-east5-a` | 2026-11-14 05:59:24 | 2026-11-14 08:54:17 | 2h54m53s | preempted; same-RUN automatic recovery |
+| `MuddLlama2MediumPropL12AttentionMLP1to2TruePile` | 2 | `us-east5-a` | 2026-11-14 08:48:04 | 2026-11-14 08:54:21 | 06m17s | preempted; same-RUN automatic recovery |
+| `Llama2MediumPropL12AttentionMLP1to2TruePile` | 1 | `us-east5-a` | 2026-11-14 05:45:28 | 2026-11-14 08:54:24 | 3h08m56s | preempted; same-RUN automatic recovery |
+| `Llama2MediumPropL12AttentionMLP1to2TruePile` | 2 | `us-east5-a` | 2026-11-14 09:04:44 | 2026-11-14 09:43:46 | 39m02s | scheduled completion13500/P1; final CP/cursor/TB and all regional resources verified |
+
+| `MuddLlama2MediumPropL12AttentionMLP1to2TruePile` | 3 | `us-east5-a` | 2026-11-14 09:04:00 | 2026-11-14 10:32:55 | 1h28m55s | scheduled completion13500/P2; final CP/cursor/TB and all regional resources verified |
+| `BamMediumPropV5SiTU47L12AttentionMLP1to2TruePile` | 2 | `us-east5-a` | 2026-11-14 09:04:38 | 2026-11-14 10:39:57 | 1h35m19s | scheduled completion13500/P1; final CP/cursor/TB and all regional resources verified |
+| `MuddLlama2MediumPropL24TotalBudgetRouterFixedPreNormTruePile` | 1 | `us-central1-a` | 2026-11-15 01:36:23 | 2026-11-15 03:54:15 | 2h17m52s | user stop4534; P0; CP/cursor/TB secured, node+queue absent |
+| `BamMediumPropV5L27AttentionMLP1to2SwiGLUTruePile` | 1 | `us-central1-a` | 2026-11-15 06:05:34 (observed) | ? (non-READY by2026-11-15 06:10:29) | ? | pre-FIRST SUSPENDING/DELETING; actual end unknown; captured lease was overwritten on recovery |
+| `BamMediumPropV5L27AttentionMLP1to2SwiGLUTruePile` | 2 | `us-central1-a` | 2026-11-15 06:19:44 | 2026-11-15 06:25:04 | 5m20s | cancelled76 for scope correction; CP/TB retained; READY TPU transferred to BAM24 |
+| `BamMediumPropV5L24TotalBudgetSwiGLUTruePile` | 1 | `us-central1-a` | 2026-11-15 06:31:02 | 2026-11-15 06:55:26 | 24m24s | preempted; same-RUN automatic recovery |
+| `MuddLlama2MediumPropL24TotalBudgetRouterFixedPostNormTruePile` | 1 | `us-central1-a` | 2026-11-15 02:34:21 | 2026-11-15 07:03:09 | 4h28m48s | preempted; same-RUN automatic recovery |
+| `MuddLlama2MediumPropL24TotalBudgetRouterFixedTruePile` | 1 | `us-central1-a` | 2026-11-15 01:52:38 | 2026-11-15 07:03:20 | 5h10m42s | preempted; same-RUN automatic recovery |
+| `MuddLlama2MediumPropL24TotalBudgetRouterFixedTruePile` | 2 | `us-central1-a` | 2026-11-15 07:14:26 | 2026-11-15 07:28:11 | 13m45s | preempted; same-RUN automatic recovery |
+| `MuddLlama2MediumPropL24TotalBudgetRouterFixedPostNormTruePile` | 2 | `us-central1-a` | 2026-11-15 07:15:31 | 2026-11-15 07:28:14 | 12m43s | preempted; same-RUN automatic recovery |
+| `MuddLlama2MediumPropL12TotalBudgetRouterFixedPostNormTruePile` | 1 | `us-central1-a` | 2026-11-15 07:11:24 | 2026-11-15 07:43:18 | 31m54s | preempted; same-RUN automatic recovery |
+| `MuddLlama2MediumPropRouterFixedPostNormTruePile` | 1 | `us-central1-a` | 2026-11-15 07:11:29 | 2026-11-15 07:43:24 | 31m55s | preempted; same-RUN automatic recovery |
+| `BamMediumPropV5L24TotalBudgetSwiGLUTruePile` | 2 | `us-central1-a` | 2026-11-15 07:11:27 | 2026-11-15 07:43:26 | 31m59s | preempted; same-RUN automatic recovery |
+| `BamMediumPropV5L24TotalBudgetSwiGLUTruePile` | 3 | `us-central1-a` | 2026-11-15 07:58:24 | 2026-11-15 08:02:05 | 3m41s | preempted; same-RUN automatic recovery |
+| `BamMediumPropV5L24TotalBudgetSwiGLUTruePile` | 4 | `us-central1-a` | 2026-11-15 08:10:00 | 2026-11-15 08:37:27 | 27m27s | preempted; same-RUN automatic recovery |
+| `MuddLlama2MediumPropL12TotalBudgetRouterFixedPostNormTruePile` | 2 | `us-central1-a` | 2026-11-15 08:09:36 | 2026-11-15 08:37:33 | 27m57s | preempted; same-RUN automatic recovery |
+| `MuddLlama2MediumPropL24TotalBudgetRouterFixedTruePile` | 3 | `us-central1-a` | 2026-11-15 07:53:18 | 2026-11-15 08:37:40 | 44m22s | preempted; same-RUN automatic recovery |
+| `MuddLlama2MediumPropRouterFixedPostNormTruePile` | 2 | `us-central1-a` | 2026-11-15 07:57:10 | 2026-11-15 08:37:44 | 40m34s | preempted; same-RUN automatic recovery |
+| `MuddLlama2MediumPropL24TotalBudgetRouterFixedPostNormTruePile` | 3 | `us-central1-a` | 2026-11-15 07:53:06 | 2026-11-15 08:37:46 | 44m40s | preempted; same-RUN automatic recovery |
+| `MuddLlama2MediumPropL24TotalBudgetRouterFixedTruePile` | 4 | `us-central1-a` | 2026-11-15 09:36:14 | 2026-11-15 10:30:58 | 54m44s | scheduled completion13500/P3; CP/cursor and resource teardown verified |
+| `MuddLlama2MediumPropL24TotalBudgetRouterFixedPostNormTruePile` | 4 | `us-central1-a` | 2026-11-15 09:36:18 | 2026-11-15 11:21:23 | 1h45m05s | scheduled completion13500/P3; CP/cursor/TB and resource teardown verified |
+| `MuddLlama2MediumPropL12TotalBudgetRouterFixedPostNormTruePile` | 3 | `us-central1-a` | 2026-11-15 09:35:55 | 2026-11-15 13:04:08 | 3h28m13s | scheduled completion13500/P2; CP/cursor/TB and resource teardown verified |
+| `MuddLlama2MediumPropRouterFixedPostNormTruePile` | 3 | `us-central1-a` | 2026-11-15 09:36:03 | 2026-11-15 13:11:39 | 3h35m36s | preempted; same-RUN automatic recovery |
+| `BamMediumPropV5L24TotalBudgetSwiGLUTruePile` | 5 | `us-central1-a` | 2026-11-15 09:36:07 | 2026-11-15 14:15:27 | 4h39m20s | preempted; same-RUN automatic recovery |
+| `MuddLlama2MediumPropRouterFixedPostNormTruePile` | 4 | `us-central1-a` | 2026-11-15 13:44:16 | 2026-11-15 15:06:16 | 1h22m00s | preempted; same-RUN automatic recovery |
+| `BamMediumPropV5L24TotalBudgetSwiGLUTruePile` | 6 | `us-central1-a` | 2026-11-15 14:30:42 | 2026-11-15 15:26:00 | 55m18s | preempted; same-RUN automatic recovery |
+| `MuddLlama2MediumPropRouterFixedPostNormTruePile` | 5 | `us-east5-a` | 2026-11-15 15:14:02 | 2026-11-15 15:45:19 | 31m17s | scheduled completion13500/P4; CP/cursor/TB and resource teardown verified |
+| `BamMediumPropV5L24TotalBudgetSwiGLUTruePile` | 7 | `us-east5-a` | 2026-11-15 15:33:14 | 2026-11-15 15:46:06 | 12m52s | scheduled completion13500/P6; CP/cursor/TB and resource teardown verified |
+### Medium depth-family MHA12 resource closeout (2026-11-13)
+
+The native registry records six preemptions and seven READY leases for
+`BamMHAMediumPropL12TruePile`. Its controller log supplies the additional
+20:19:28–20:22:04 READY interval above, which did not reach verified training.
+Other short preparation candidates were reclaimed before installation or
+resume; passive READY starts were not fully observed and no durations are
+invented. Assignment timestamps identify controller ownership, not
+continuous TPU availability. Actual training used EW4b then UC1a; UE5a
+remained a primary queue only. Receipts, full native JSON and passive
+candidate snapshots are in
+`/data0/xd/bam_diagnostics/mediumprop-v5-situ-depth-20261112/`.
+
+The same artifact directory contains `bam12-final-proof.json` for
+`BamMediumPropV5SiTU47L12`: four native preemptions, five recorded READY
+leases and every assignment above. Earlier UE5a, initial EW4b/UC1a and
+later failed preparation attempts did not reach verified FIRST_STEP;
+they are not additional active training-zone switches. Actual training
+used EW4b then UC1a. No unobserved READY duration is inferred.
+
+`BamMediumPropV5SiTU47L27` also completed 13,500, with seven native
+preemptions and eight native READY leases. The controller adds the
+22:20:55–22:21:56 preparation-only READY interval above. Other passive
+candidate starts were not fully observed; those snapshots remain in the
+artifact directory without fabricated durations. Its final resume from
+13,392 and remaining 108 updates used the same v5p-16 topology, runtime
+and AOT. All three depth-family RUNs are now complete, their final
+checkpoints/cursors and TB syncs verified, and every regional node/queue
+identity absent. The user-owned FLEX compiler was retained.
+
 ### 2026-10-14 user pause: resumed mixed R256/R384
 
 RUN `BamMediumPropMShiftReadG050SharedR256R384ByWriteTruePile`, v5p-16,
@@ -2704,3 +2983,42 @@ Closeout completed04:46:01UTC; all regional6111101 nodes/queues independently ab
 The three chronological READY records above remain unchanged: UC1a02:30:31-02:31:18(47s),
 EW4b unknown start-03:08:11(unknown duration), UC1a03:33:38-04:26:00(52m22s).
 Resource preemptions3 include2 before training; no new READY lease or training zone switch during final queueing.
+
+### H pre-norm/QK-scale 300B resource closeout (2026-11-08)
+
+RUN `BamPythia2p8BHUnit300BFastKernelMPreNormQKScale` completed 143000 updates. Registry P20 omits one
+service interruption during the CP135074 handoff; its event receipt supplies
+the additional observed interval. The table includes all 21 registry READY
+leases plus three source intervals recovered from handoff journals. Two
+72-second intervals failed during preparation. Manual handoff ends are RUN
+ownership boundaries, not physical TPU deletion times.
+
+Queue-only assignments in EW4b and UC1a, and an unsuccessful 128 preparation
+assignment, are retained in `resource-closeout.json` under the experiment
+artifact root; they are not counted as active training-zone switches. Passive
+READY candidate observations are preserved separately in that artifact.
+Actual training used UE5a and UC1a, v5p-256 with v5p-128 bridges. Borrowed
+FLEX compiler/diagnostic workers and the three user FLEX v6e-128 queues were
+retained. Complete evidence and switch points: [experiment closeout](bam_llama2_medium/h_prenorm_qkscale_fp32_300b.md).
+
+
+### XL SiTU4/7 completed resource history (2026-11-12)
+
+`BamXLPropV5FastKernelFullRematSiTU47` completed 50,000 on v5p-32 with
+16 preemptions and 17 recorded READY leases. The table above contains every
+lease, inserted by UTC end time; actual training followed UC1a -> UE5a ->
+UC1a -> UE5a -> UC1a. EW4b assignment rows were preparation attempts without
+verified FIRST_STEP, not additional active training-zone switches. Passive
+candidate READY start times were not recorded and no durations are inferred.
+
+The user temporarily excluded UC1a after short leases, retaining UE5a as
+primary and EW4b as backup. UC1a was restored as an XL backup at
+2026-11-12 06:45:22 without resetting the two existing queues. The final UC1a
+worker restored committed UE5a checkpoint 49,653, verified a new 49,750 data
+cursor, and completed 50,000. All nodes/queues in all three regions were
+independently verified absent. The retained user FLEX compiler is preserved.
+Full lease/assignment JSON, passive candidate observations, queue identity
+receipts and final cleanup checks are under
+`/data0/xd/bam_diagnostics/xlprop-v5-situ47-20261109/`.
+The [experiment closeout](bam_llama2_medium/xlprop_v5_situ47.md) distinguishes
+queue waiting, preparation assignments, READY leases and actual progress.

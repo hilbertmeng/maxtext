@@ -48,6 +48,71 @@ class Common:
     me_dilation = None
     me_nums = None
 
+
+class BamV5Architecture:
+  """Generalized Q/K/V/O column reads and separate attention/memory writers."""
+  bam_attention_negative_diagonal = True
+  bam_attention_write_content_divisor = None
+  bam_mlp_write_content_divisor = 1.0
+  bam_common_qk_read_scale = True
+  bam_common_vo_read_scale = True
+  bam_common_vo_read_scale_init = 1.0
+  bam_concat_qk = True
+  bam_concat_static_qk = True
+  bam_embedding_write = True
+  bam_embedding_write_eps = 0.1
+  bam_enabled = True
+  bam_fetched_read_gate_init = None
+  bam_fetched_read_key_epsilon = None
+  bam_fetched_read_side = 'col'
+  bam_final_local_layer_count = 1
+  bam_force_activation_dtype = True
+  bam_general_column_read = True
+  bam_lambda_decay = 1.0
+  bam_local_full_m_read_share_down = True
+  bam_local_qk_direct_c8 = True
+  bam_local_v_replace = True
+  bam_local_vo_independent_gates = True
+  bam_local_vo_independent_keys = True
+  bam_local_vo_shared_read = 'local_o'
+  bam_local_vo_static = True
+  bam_m_read_norm = 'rms'
+  bam_m_shift_init = 0.5
+  bam_m_shift_mode = 'read'
+  bam_memory_mlp_last_write_dim = 0
+  bam_mlp_write_dynamic_address = True
+  bam_mlp_write_every = 1
+  bam_mlp_write_offset = 0
+  bam_n_f = 1
+  bam_pallas_body = 'v8t'
+  bam_pallas_core = True
+  bam_pallas_fused_inputs = True
+  bam_pallas_packed_read_keys = True
+  bam_pallas_write = True
+  bam_partial_rope = True
+  bam_prune_all_row_reads = True
+  bam_read_gate_activation = 'sigmoid'
+  bam_read_gate_init = 0.05
+  bam_read_implementation = 'mul_reduce_btn'
+  bam_read_key_epsilon = 0.0001
+  bam_read_key_scale = 0.1
+  bam_read_rms_statistics_dtype = 'float32'
+  bam_read_sides = 'col'
+  bam_record_concat_health = False
+  bam_record_m_shift_health = False
+  bam_replicate_ploc_up = False
+  bam_skip_final_mlp_write = True
+  bam_splash_attention = True
+  bam_static_read_gate_init = 0.99
+  bam_write_data_rms = True
+  bam_write_eps = 0.1
+  bam_write_factor_norm = 'rms'
+  bam_write_outer_implementation = 'mul_reduce'
+  bam_write_rms_statistics_dtype = 'float32'
+  bam_write_v_bottleneck_activation = 'gelu'
+  wd_mults = [('.*scale$', 0.0), ('.*bias$', 0.0), ('.*_gate_b0$', 0.0), ('.*gw_b0$', 0.0)]
+
+
 class Optimizer:
     learning_rate_schedule_steps = 13500
     warmup_steps_fraction = 0.01
@@ -186,6 +251,17 @@ class TrainMedium:
     cosine_learning_rate_final_fraction = 0.1
     eval_interval = 13500
 
+class TrainLargeProp:
+    """Match MediumProp's actual tokens/non-embedding-parameter budget.
+
+    Medium:311,084,400 non-embedding params at13500 steps; Large:622,923,264.
+    Equal524288-token steps imply27032.74 steps; round to27000.
+    This budget is explicit and does not inherit the old L24 Large's29000.
+    """
+    steps = 27000
+    learning_rate_schedule_steps = 27000
+    eval_interval = 27000
+
 class TrainSmall:
     learning_rate = 6e-4
     learning_rate_schedule_steps = 4800
@@ -289,6 +365,13 @@ class Llama2MediumPropL27(Llama2MediumProp):
     model_name = 'Llama2MediumPropL27'
     base_num_decoder_layers = 27
     base_mlp_dim = 1600
+
+
+class Llama2MediumPropL12(Llama2MediumProp):
+    """12-layer MediumProp; widen MLPs at the original parameter budget."""
+    model_name = 'Llama2MediumPropL12'
+    base_num_decoder_layers = 12
+    base_mlp_dim = 5600
 
 
 class Llama2MediumQKNorm(Llama2Medium):
@@ -5682,6 +5765,73 @@ class Llama2XL(Llama2Medium):
     learning_rate = 2e-4
     learning_rate_schedule_steps = 50000
     eval_interval = 5000
+
+class Llama2LargeProp(TrainLargeProp, SplashTunedBlocks1024, Llama2Large):
+    """Original Prop recipe, L22/D1536/16x96, TruePile4096; 777,850,368 params."""
+    # Legacy29k trial: code_commit649f024; UC1a v5p-32/311010, full remat, ~1.023step/s.
+    # Stopped7463 to correct the inherited training budget; fresh27k RUN below.
+    model_name = 'Llama2LargeProp'
+    DATASET_VARIANT = 'truepile4096'
+    base_num_decoder_layers = 22
+    base_num_query_heads = 16
+    base_num_kv_heads = 16
+    head_dim = 96
+    max_target_length = 4096
+    per_device_batch_size = 8.0  # v5p-32: 16 devices, global batch128.
+    scan_layers = True
+    record_training_health_metrics = True
+    float32_logits = False
+    force_final_checkpoint = True
+    tensorboard_gcs_rotate_period = 500
+    jax_cache_dir = ''
+    compare_runs = []
+
+
+class MuddLlama2LargeProp(Mudd, Llama2LargeProp):
+    """Full-history QKVM Mudd; 780,966,535 params (MHA+3,116,167).
+
+    Preserve the original depth-varying FFN schedule, whose summed width equals
+    the MHA budget; router parameters are extra and do not reduce that budget.
+    """
+    model_name = 'MuddLlama2LargeProp'
+    mudd_full_history = True
+    scan_layers = False
+    # One router per completed layer; expand4 belongs to the final readout only.
+    mudd_router_hidden_expand = [1] * 21 + [4]
+    compare_runs = ['Llama2LargeProp']
+
+
+class Llama2LargePropMinimalRemat(Llama2LargeProp):
+    """Same model and training plan; recompute only the minimal remat set."""
+    model_name = 'Llama2LargePropMinimalRemat'
+    remat_policy = 'minimal'
+
+
+class MuddLlama2LargePropMinimalRemat(MuddLlama2LargeProp):
+    """Minimal-remat execution profile of the full-history Mudd reference."""
+    # code_commit:649f024; UC1a v5p-32/311012, ~.882step/s; plan29000.
+    # Stopped7748 for budget correction; this is not an architectural failure.
+    model_name = 'MuddLlama2LargePropMinimalRemat'
+    remat_policy = 'minimal'
+
+
+class Llama2LargeProp27k(Llama2LargeProp):
+    """Fresh27k MHA run; same model and full-remat profile as the29k trial."""
+    # code_commit:9a8ee1e; UC1a v5p-32/311010, full remat, ~1.018step/s; freshstep0 verified.
+    # Completed 27,000; MHA reference for the matched-density LargeProp three-way comparison.
+    # UC1a, P0; final checkpoint committed and node/queue released.
+    model_name = 'Llama2LargeProp27k'
+
+
+class MuddLlama2LargeProp27k(MuddLlama2LargePropMinimalRemat):
+    """Fresh27k full-history Mudd, retaining the measured faster minimal remat."""
+    # code_commit:9a8ee1e; UC1a v5p-32/311012, minimal remat, ~.880step/s; freshstep0 verified.
+    # Completed 27,000. vs matched MHA: gap narrowed from -.3550 at 1k to -.08063 at 26.5k.
+    # Steady ~.876 step/s, ~13.8% slower than MHA; router parameters were not deducted from the MLP budget.
+    # UC1a, P0; final checkpoint committed and node/queue released.
+    model_name = 'MuddLlama2LargeProp27k'
+    compare_runs = ['Llama2LargeProp27k']
+
 
 class Llama2XLProp(Llama2XL):
     """Proportional XL backbone: 28 layers, 20x96 heads, T4096."""
@@ -14013,6 +14163,30 @@ class BamMediumPropK75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdL21True
     jax_cache_dir = ''
 
 
+class BamMHAMediumPropL12TruePile(SplashTunedBlocks1024, Llama2MediumPropL12):
+    """12-layer MHA, D1200/16x75, MLP5600 and tuned Splash.
+
+    432,106,800 parameters: 14,400 below the 18-layer MHA due to norm gains.
+    """
+    # code_commit: 64d7505; v5p-16 / 311014; UE5a primary, UC1a/EW4b backups.
+    # EW4b resume startup ~.975 step/s; compiled AOT and both worker hashes verified.
+    # Generic health ON/internal OFF; historical MHA18 C256 timing is kernel-unmatched.
+    # Completed 13500, P6; actual training EW4b -> UC1a, UC1a ~.98 step/s.
+    # vs MHA18: early lead vanished around 4k; late deficit stabilized near +.0055.
+    # Final 13.4k window +.00590; last five +.00554. CP/cursor/TB and teardown verified.
+    model_name = 'BamMHAMediumPropL12TruePile'
+    DATASET_VARIANT = 'truepile4096'
+    attention = 'flash'
+    bam_partial_rope = True
+    bam_partial_rope_nope_dim = 1
+    float32_logits = False
+    record_training_health_metrics = True
+    force_final_checkpoint = True
+    tensorboard_gcs_rotate_period = 500
+    jax_cache_dir = ''
+    compare_runs = ['BamMHAMediumPropC256TruePile']
+
+
 class BamMHAMediumPropL27C256TruePile(Llama2MediumPropL27, BamMHAMediumPropC256TruePile):
     """27-layer standard MHA through the matched BAM-MHA C256 control."""
     # code_commit: c088eb8
@@ -14031,6 +14205,398 @@ class BamMHAMediumPropL27C256TruePile(Llama2MediumPropL27, BamMHAMediumPropC256T
     bam_partial_rope_nope_dim = 1
     compare_runs = ['BamMHAMediumPropC256TruePile']
     jax_cache_dir = ''
+
+
+class Llama2MediumPropL12AttentionMLP1to2TruePile(BamMHAMediumPropL12TruePile):
+    """Width-scaled MHA depth control at the MediumProp non-embedding budget.
+
+    Target311084400 excludes token embedding/unembedding and includes norms.
+    L12/D1472=16x92, uniform SwiGLU3907:311082176 (-2224).
+    Attention104005632 / MLP207039744 =1:1.99065897; norm36800.
+    All-in459553984 includes148471808 embedding/unembedding parameters.
+    Integer heads prevent an exact1:2 split at the exact budget; uniform widths
+    avoid a terminal-layer exception for a negligible parameter residual.
+    """
+    # code_commit: 958cbc0; v5p-16 /311023; UE5a primary, UC1a/EW4b backups.
+    # Completed13500/P1 in UE5a, ~1.047 step/s. vs MHA18 the early lead shrank
+    # -.25939@600 -> -.01499@4000 -> last5-.001750 (12600--13400).
+    # vs old D1200 MHA12, early lead narrowed -.04517@1000 -> last5-.007287.
+    # CP13500/data cursor, TB SYNC_OK and all regional nodes/queues verified; two READY leases.
+    model_name = 'Llama2MediumPropL12AttentionMLP1to2TruePile'
+    base_emb_dim = 1472
+    head_dim = 92
+    base_mlp_dim = 3907
+    # Even92-dimensional heads rotate in full; no odd-head leading coordinate.
+    bam_partial_rope_nope_dim = 0
+    compare_runs = ['BamMHAMediumPropC256TruePile', 'BamMHAMediumPropL12TruePile']
+
+
+class Llama2MediumPropL27AttentionMLP1to2TruePile(Llama2MediumPropL12AttentionMLP1to2TruePile):
+    """L27/D976=16x61 at the same311084400 non-embedding target.
+
+    Uniform SwiGLU2633:311086336 (+1936), attention102878208 /
+    MLP208154448 =1:2.02330943; norm53680. All-in409529600 includes
+    98443264 embedding/unembedding parameters. RoPE60 plus one unrotated dim.
+    """
+    # code_commit: 958cbc0; v5p-16 /311026; UE5a primary, UC1a/EW4b backups.
+    # Completed13500/P3 in UE5a, ~.662 step/s. vs MHA18 the early deficit shrank
+    # +.16918@600 -> +.00662@4000 -> last5+.000545 (12600--13400), near parity.
+    # vs old D1200 MHA27, early deficit reversed by4000; last5-.010824.
+    # CP13500/cursor, TB SYNC_OK and all regional resources verified; four READY leases.
+    model_name = 'Llama2MediumPropL27AttentionMLP1to2TruePile'
+    base_num_decoder_layers = 27
+    base_emb_dim = 976
+    head_dim = 61
+    base_mlp_dim = 2633
+    bam_partial_rope_nope_dim = 1
+    compare_runs = ['BamMHAMediumPropC256TruePile', 'BamMHAMediumPropL27C256TruePile']
+
+
+class Llama2MediumPropL12TotalBudgetTruePile(Llama2MediumPropL12AttentionMLP1to2TruePile):
+    """L12/D1424, including token tables in the original MHA18 total budget.
+
+    Keep 16 heads and the nearest feasible attention:MLP split to 1:2.
+    Uniform SwiGLU 3728; vocabulary 50432, untied input/output tables.
+    Total 432111376, -9824 versus MHA18's 432121200 (-.00227%).
+    Attention:MLP=1:1.963483; preserve uniform widths rather than add a tail.
+    """
+    # code_commit: 46e26e7; v5p-16 /311032; UE5a primary, UC1a/EW4b backups.
+    # Completed 13500/P1, UC1a -> UE5a, ~.999 step/s; source/AOT gates passed.
+    # vs MHA18, early -.21985@600 reversed between 4k and 6k; final5 +.009269.
+    # CP13500/cursor, TB SYNC_OK and all regional resources verified; two READY leases.
+    model_name = 'Llama2MediumPropL12TotalBudgetTruePile'
+    base_emb_dim = 1424
+    head_dim = 89
+    base_mlp_dim = 3728
+    bam_partial_rope_nope_dim = 1
+    compare_runs = ['BamMHAMediumPropC256TruePile']
+
+
+class Llama2MediumPropL24TotalBudgetTruePile(Llama2MediumPropL12TotalBudgetTruePile):
+    """L24/D1056, same all-in budget and recipe as the L12 total control.
+
+    Uniform SwiGLU 2874 gives 432133152, +11952 (+.00277%) versus MHA18.
+    Attention:MLP=1:2.041193; full 66-dimensional RoPE.
+    """
+    # code_commit: 46e26e7; v5p-16 /311033; UE5a primary, UC1a/EW4b backups.
+    # UC1a startup ~.671 step/s; both-worker source/AOT and step14 gates passed.
+    # Completed 13500/P1, UC1a -> UE5a. vs MHA18, early+.30694@600 narrowed,
+    # crossed near10k, and ended last5-.001573 (12600--13400).
+    # CP13500/cursor, TB SYNC_OK and all regional resources verified; two READY leases.
+    model_name = 'Llama2MediumPropL24TotalBudgetTruePile'
+    base_num_decoder_layers = 24
+    base_emb_dim = 1056
+    head_dim = 66
+    base_mlp_dim = 2874
+    bam_partial_rope_nope_dim = 0
+
+
+class MuddLlama2MediumPropL12TotalBudgetRouterFixedTruePile(
+    Mudd, Llama2MediumPropL12TotalBudgetTruePile):
+    """Plain Mudd12 with the expanded router at final readout, not layer L-2.
+
+    Match the MHA's full MLP budget after rounding the depth profile; router
+    overhead is additional, as in Mudd18, and is not repaid from MLP.
+    Total 433257201 = matched MHA +1145825 router/norm parameters.
+    """
+    # code_commit: 46e26e7; UE5a v5p-16 /311034, startup ~.925 step/s.
+    # About -7.4% vs matched MHA12 .999 (unpaired); generic ON/internal OFF.
+    # Completed 13500/P0; vs MHA12, early -.38727@600 narrowed to final5 -.086673.
+    # vs corrected Mudd18, near-parity early grew to final5+.005769;
+    # matched-MHA12/18 gain ratio1.042045 (each depth uses its own MHA).
+    # CP13500/cursor, TB SYNC_OK and all regional resources verified; one READY lease.
+    model_name = 'MuddLlama2MediumPropL12TotalBudgetRouterFixedTruePile'
+    mudd_full_history = True
+    mudd_router_hidden_expand = [1] * 11 + [4]
+    bam_last_mlp_dim = 5568
+    compare_runs = ['MuddLlama2MediumPropRouterFixedTruePile',
+                    'Llama2MediumPropL12TotalBudgetTruePile']
+
+
+class MuddLlama2MediumPropL12TotalBudgetRouterFixedPostNormTruePile(
+    MuddLlama2MediumPropL12TotalBudgetRouterFixedTruePile):
+    """Post-only control at L12/D1424, with the fixed final expand4 router.
+
+    Match the plain parent's full MLP budget; add12*1424 norm scales
+    without MLP repayment, retaining the standing Mudd convention.
+    """
+    # code_commit: 2f37301; UC1a v5p-16 /311044, ~.903 steady step/s.
+    # Startup .911 vs plain parent .925 (-1.5%, unpaired); generic ON/internal OFF.
+    # Completed 13,500 / P2; CP13500 + cursor and TB SYNC_OK; regional resources absent.
+    # vs plain: deficit +.01689 at 1k narrowed slowly, without crossing; final five gap +.003979.
+    # MHA12-referenced gain .95404 vs plain; vs MHA12 final gap -.082694.
+    # Plain remains the stronger L12 Mudd recipe; the pre-run gain 1.02 bet had the wrong sign.
+    model_name = 'MuddLlama2MediumPropL12TotalBudgetRouterFixedPostNormTruePile'
+    mudd_prenorm = False
+    mudd_postnorm = True
+    compare_runs = ['MuddLlama2MediumPropL12TotalBudgetRouterFixedTruePile',
+                    'Llama2MediumPropL12TotalBudgetTruePile']
+
+
+class MuddLlama2MediumPropL24TotalBudgetRouterFixedPrePostNormTruePile(
+    Mudd, Llama2MediumPropL24TotalBudgetTruePile):
+    """Mudd24 with native pre/post norms and the corrected final router.
+
+    Match the MHA's full MLP budget. Router/norm overhead stays additional.
+    Total 434683717 = matched MHA +2550565 router/norm parameters.
+    """
+    # code_commit: 46e26e7; UC1a v5p-16 /311036, startup ~.561 step/s.
+    # About -16.4% vs matched MHA24 .671 (unpaired); generic ON/internal OFF.
+    # Completed 13500/P2, UC1a -> UE5a (same-zone recovery near the endpoint).
+    # vs corrected Mudd18, early lead reversed by4k; final5+.006360.
+    # vs MHA24, advantage narrowed to-.075241; matched-MHA24/18 gain .904584.
+    # CP13500/cursor, TB SYNC_OK and all regional resources verified; three READY leases.
+    model_name = 'MuddLlama2MediumPropL24TotalBudgetRouterFixedPrePostNormTruePile'
+    mudd_full_history = True
+    mudd_router_hidden_expand = [1] * 23 + [4]
+    mudd_prenorm = True
+    mudd_postnorm = True
+    bam_last_mlp_dim = 4208
+    compare_runs = ['MuddLlama2MediumPropRouterFixedTruePile',
+                    'Llama2MediumPropL24TotalBudgetTruePile']
+
+
+class MuddLlama2MediumPropRouterFixedTruePile(
+    SplashTunedBlocks1024, MuddLlama2MediumPropTruePile):
+    """Original plain Mudd18 with only the router expansion placement fixed.
+
+    Explicit history-indexed expands put 4 at the final readout (history 19),
+    leaving every in-layer QKVM router at 1. Preserve the historical MLPs.
+    Total 433911307, -165440 versus the legacy router; no MLP repayment.
+    """
+    # code_commit: 46e26e7; UC1a v5p-16 /311035, startup ~.697 step/s.
+    # -2.4% vs historical MHA18 .714 (unpaired); generic ON/internal OFF.
+    # Legacy Mudd18 .630 used a different attention kernel; not a pure fix speed A/B.
+    # Completed 13500/P1, UC1a -> UE5a. vs legacy Mudd18 the deficit narrowed
+    # from+.01949@600 to last5+.003737; MHA-referenced gain .957014 (prior1.02 wrong).
+    # vs MHA18 advantage narrowed to final5-.083174. Router repair also removes165440
+    # params; semantic correctness does not imply a performance improvement.
+    # CP13500/cursor, TB SYNC_OK and all regional resources verified; two READY leases.
+    model_name = 'MuddLlama2MediumPropRouterFixedTruePile'
+    mudd_router_hidden_expand = [1] * 17 + [4]
+    bam_enabled = False
+    attention = 'flash'
+    tensorboard_gcs_rotate_period = 500
+    compare_runs = ['MuddLlama2MediumPropTruePile', 'BamMHAMediumPropC256TruePile']
+
+
+class MuddLlama2MediumPropRouterFixedPostNormTruePile(
+    MuddLlama2MediumPropRouterFixedTruePile):
+    """Post-only control at L18/D1200, with the fixed final expand4 router.
+
+    Preserve the plain parent's MLPs;18*1200 post-norm scales remain
+    additional rather than introducing a new MLP repayment convention.
+    """
+    # code_commit: 2f37301; UC1a -> UE5a v5p-16 /311045, ~.685-.691 steady step/s.
+    # Startup .691 vs plain parent .697 (-.9%, unpaired); generic ON/internal OFF.
+    # Completed 13,500 / P4; CP13500 + cursor and TB SYNC_OK; regional resources absent.
+    # vs plain: deficit +.10349 at 1k crossed near 4.8k, then led increasingly into late training.
+    # Final 12.6k-13.4k five windows: gap -.008489, MHA18-referenced gain 1.10207.
+    # vs MHA18 final gap -.091663; post-only is the stronger completed L18 Mudd recipe.
+    model_name = 'MuddLlama2MediumPropRouterFixedPostNormTruePile'
+    mudd_prenorm = False
+    mudd_postnorm = True
+    compare_runs = ['MuddLlama2MediumPropRouterFixedTruePile',
+                    'BamMHAMediumPropC256TruePile']
+
+
+class MuddLlama2MediumPropL24TotalBudgetRouterFixedTruePile(
+    MuddLlama2MediumPropL24TotalBudgetRouterFixedPrePostNormTruePile):
+    """Complete the native pre/post-norm matrix: neither enabled.
+
+    Keep L24/D1056, the matched MHA MLP profile/tail4208 and fixed final
+    router expansion. Router/norm overhead stays outside the MLP budget.
+    The router input still has the native unscaled RMSNorm when pre is off.
+    """
+    # code_commit: 347bcd7; UC1a v5p-16 /311039, ~.569 step/s vs parent .561 (+1.4%, unpaired).
+    # Completed 13,500 / P3; CP13500 + cursor and TB SYNC_OK; regional nodes/queues absent.
+    # vs pre+post: deficit +.00840 at 1k crossed by 2k; lead grew to ~-.018 and held late.
+    # Final 12.6k-13.4k five windows: gap -.018368, MHA24-referenced gain 1.24440.
+    # vs MHA24 gap -.093609; vs fixed plain Mudd18 gap -.012008;
+    # matched-MHA 24/18 gain 1.12545: native pre+post was not an intrinsic depth limit.
+    model_name = 'MuddLlama2MediumPropL24TotalBudgetRouterFixedTruePile'
+    mudd_prenorm = False
+    mudd_postnorm = False
+    compare_runs = ['MuddLlama2MediumPropL24TotalBudgetRouterFixedPrePostNormTruePile',
+                    'Llama2MediumPropL24TotalBudgetTruePile',
+                    'MuddLlama2MediumPropRouterFixedTruePile']
+
+
+class MuddLlama2MediumPropL24TotalBudgetRouterFixedPreNormTruePile(
+    MuddLlama2MediumPropL24TotalBudgetRouterFixedTruePile):
+    """Native pre-norm only: normalize history and learn router-input scales."""
+    # code_commit: 347bcd7; UC1a v5p-16 /311040, startup ~.569 step/s.
+    # +1.4% vs pre+post parent .561 (unpaired); generic ON/internal OFF.
+    # User stopped4534/P0; CP4534+cursor committed, TB SYNC_OK; all UE5a/UC1a node/queues absent.
+    # vs pre+post: gap +.10798@1k -> +.04596@4.4k, but MHA24-referenced gain fell to .61959.
+    # At4.4k vs matched MHA24 -.07486; vs fixed plain Mudd18 +.04767.
+    # Absolute catch-up persisted; this is an early-stop result, not a terminal loss conclusion.
+    model_name = 'MuddLlama2MediumPropL24TotalBudgetRouterFixedPreNormTruePile'
+    mudd_prenorm = True
+
+
+class MuddLlama2MediumPropL24TotalBudgetRouterFixedPostNormTruePile(
+    MuddLlama2MediumPropL24TotalBudgetRouterFixedTruePile):
+    """Native post-norm only: residual delta routing, m-branch post norm."""
+    # code_commit: 347bcd7; UC1a v5p-16 /311041, ~.560 step/s vs parent .561 (-.2%, unpaired).
+    # Completed 13,500 / P3; CP13500 + cursor and TB SYNC_OK; regional nodes/queues absent.
+    # vs pre+post: deficit +.15965 at 1k crossed by 4k; lead kept growing into late training.
+    # Final 12.6k-13.4k five windows: gap -.030304, MHA24-referenced gain 1.40312.
+    # vs neither norm: gap -.011936, gain 1.12753; versus MHA24 gap -.105545.
+    # Completed BAM24 SiTU still wins: gap -.076187, gain 1.72193 vs this stronger Mudd24.
+    # Native post-only wins this matrix; matched post-only depth controls remain separate.
+    model_name = 'MuddLlama2MediumPropL24TotalBudgetRouterFixedPostNormTruePile'
+    mudd_postnorm = True
+
+
+class MuddLlama2MediumPropL12TruePile(Mudd, BamMHAMediumPropL12TruePile):
+    """12-layer Prop Mudd; match the depth study's MHA MLP budget.
+
+    Preserve the trained Mudd18 full-history/router expansion rule. Router
+    parameters are additional, as in that baseline; only MLP rounding is corrected.
+    """
+    # code_commit: c7a6730; main/refactor-bam; UE5a v5p-16 /311017, steady .890 step/s.
+    # +4.2% vs same-depth BAM12 .854 (unpaired); generic health ON, internal health OFF.
+    # 433234897 params; MLP budget matched, router overhead +.783401 W_Q, not repaid.
+    # Completed13500/P0. vs BAM12 deficit shrank +.33125@600 -> +.15647@2000 -> last5+.074126.
+    # vs Mudd18 early lead reversed by2000, then late deficit held near+.0054; last5+.005370.
+    # vs MHA12 last5-.087079; BAM/Mudd gain ratio vs MHA12 ended at1.85138 (last5).
+    # Final CP13500/data cursor, TB SYNC_OK and node/queue teardown verified in all three regions.
+    model_name = 'MuddLlama2MediumPropL12TruePile'
+    mudd_full_history = True
+    scan_layers = False
+    # Rounded depth schedule adds384 hidden units; remove them at the last layer.
+    bam_last_mlp_dim = 8064
+    compare_runs = ['BamMediumPropV5SiTU47L12', 'MuddLlama2MediumPropTruePile',
+                    'BamMHAMediumPropL12TruePile']
+
+
+class MuddLlama2MediumPropL27TruePile(Llama2MediumPropL27, MuddLlama2MediumPropL12TruePile):
+    """27-layer counterpart; leave the Mudd router overhead outside the MLP budget."""
+    # code_commit: c7a6730; main/refactor-bam; UE5a v5p-16 /311018, steady .510 step/s.
+    # -3.0% vs same-depth BAM27 .526 (unpaired); generic health ON, internal health OFF.
+    # 435783568 params; MLP budget matched, router overhead +2.528311 W_Q, not repaid.
+    # Completed13500/P0. vs BAM27 deficit shrank +.39865@600 -> +.16324@2000 -> last5+.101817.
+    # vs Mudd18 approached parity near2000, then slowly fell behind; last5+.003864.
+    # vs MHA27 last5-.094417; BAM/Mudd gain ratio vs MHA27 last5=2.078775.
+    # Final CP13500/data cursor, TB SYNC_OK and all regional node/queue teardown verified.
+    model_name = 'MuddLlama2MediumPropL27TruePile'
+    # Rounded depth schedule loses64 hidden units; restore them at the last layer.
+    bam_last_mlp_dim = 2496
+    compare_runs = ['BamMediumPropV5SiTU47L27', 'MuddLlama2MediumPropTruePile',
+                    'BamMHAMediumPropL27C256TruePile']
+
+
+class MuddLlama2MediumPropL12AttentionMLP1to2TruePile(Mudd, Llama2MediumPropL12AttentionMLP1to2TruePile):
+    """Width-scaled Mudd12; same MLP weight budget as the matched MHA.
+
+    Keep full history and the trained router rule. Router overhead remains
+    additional; correct the rounded depth-varying MLP profile only at its tail.
+    Non-embedding312459969 = matched MHA +1377793 router/norm parameters.
+    """
+    # code_commit: 958cbc0; v5p-16 /311024; UE5a primary, UC1a/EW4b backups.
+    # Completed13500/P2 in UE5a, ~.929 step/s. vs Mudd18 early deficit reversed
+    # near2000, then held ~-.005 to -.006; last5-.005630 (12600--13400).
+    # Matched-MHA12/MHA18 paired gain last5=1.04459; router overhead not repaid.
+    # Final CP13500/cursor, TB SYNC_OK and all regional resources verified; three READY leases.
+    model_name = 'MuddLlama2MediumPropL12AttentionMLP1to2TruePile'
+    mudd_full_history = True
+    scan_layers = False
+    bam_last_mlp_dim = 5924
+    compare_runs = ['MuddLlama2MediumPropTruePile',
+                    'Llama2MediumPropL12AttentionMLP1to2TruePile']
+
+
+class MuddLlama2MediumPropL27AttentionMLP1to2TruePile(Mudd, Llama2MediumPropL27AttentionMLP1to2TruePile):
+    """Width-scaled Mudd27; retain the matched MHA's 27x2633 MLP budget.
+
+    Non-embedding314084672 = matched MHA +2998336 router/norm parameters.
+    """
+    # code_commit: 958cbc0; v5p-16 /311027; UE5a primary, UC1a/EW4b backups.
+    # User stopped10038/P1 after promoting the stronger pre/post-norm Mudd27 control.
+    # UE5a ~.536 step/s; vs Mudd18 early deficit narrowed but remained ~+.030 late;
+    # final five available windows9200--10000 averaged+.029590. Not a13500-step result.
+    # CP10038/cursor, TB SYNC_OK and all regional resources verified; two READY leases.
+    model_name = 'MuddLlama2MediumPropL27AttentionMLP1to2TruePile'
+    mudd_full_history = True
+    scan_layers = False
+    bam_last_mlp_dim = 4019
+    compare_runs = ['MuddLlama2MediumPropTruePile',
+                    'Llama2MediumPropL27AttentionMLP1to2TruePile']
+
+
+class MuddLlama2MediumPropL12AttentionMLP1to2PrePostNormTruePile(
+    MuddLlama2MediumPropL12AttentionMLP1to2TruePile):
+    """Native pre/post norms on the width-scaled D1472 Mudd12 control.
+
+    Preserve all MLP widths and router rules; tiny norm overhead is additional.
+    """
+    # code_commit: 7fa4726; UE5a v5p-16 /311030; UC1a/EW4b passive backups.
+    # Both-worker AOT/source and FIRST_STEP gates passed; startup ~.910 step/s,
+    # about -2.0% vs parent .929 (unpaired); generic health ON/internal OFF.
+    # 460986241 parameters (+54464 norm scales); MLP widths unchanged, full13500-step plan.
+    # User paused13071/P0, UE5a ~.91 step/s; checkpoint/cursor/TB and resources verified.
+    # vs plain parent, early -.05874@600 reversed; last5(12200--13000)+.017155.
+    # Provisional, not a full-budget result; resume state retained.
+    model_name = 'MuddLlama2MediumPropL12AttentionMLP1to2PrePostNormTruePile'
+    mudd_prenorm = True
+    mudd_postnorm = True
+    compare_runs = ['MuddLlama2MediumPropL12AttentionMLP1to2TruePile']
+
+
+class MuddLlama2MediumPropPrePostNormTruePile(SplashTunedBlocks1024, MuddLlama2MediumPropTruePile):
+    """Native pre/post norms on the original D1200 Mudd18 control.
+
+    Preserve the parent's MLP budget, full history and router expansion rule.
+    """
+    # code_commit: 7fa4726; UE5a v5p-16 /311031; UC1a/EW4b passive backups.
+    # Both-worker AOT/source and FIRST_STEP gates passed; startup ~.692 step/s.
+    # +9.8% vs old .630 chunk-attention parent (kernel-unmatched); same generic health ON/internal OFF.
+    # 434142747 parameters (+66000 norm scales); all MLP widths unchanged, full13500-step plan.
+    # User paused11019/P0, UE5a ~.69 step/s; checkpoint/cursor/TB and resources verified.
+    # vs plain parent, early -.06254@600 reversed; last5(10000--10800)+.007820.
+    # Provisional, not a full-budget result; resume state retained.
+    model_name = 'MuddLlama2MediumPropPrePostNormTruePile'
+    mudd_prenorm = True
+    mudd_postnorm = True
+    # The historical parent used the retired MHA-only BAM wrapper. Its
+    # standard Q/K/V projections and RoPE74 are supported by native MHA.
+    bam_enabled = False
+    attention = 'flash'
+    tensorboard_gcs_rotate_period = 500
+    compare_runs = ['MuddLlama2MediumPropTruePile']
+
+
+class MuddLlama2MediumPropL27AttentionMLP1to2PrePostNormTruePile(
+    MuddLlama2MediumPropL27AttentionMLP1to2TruePile):
+    """Native Mudd pre/post norms on the width-scaled 27-layer depth control.
+
+    Keep the parent's MLP profile, router expansion rule and training budget.
+    Pre-norm normalizes stored history and learns router-input RMS scales;
+    post-norm uses zero-initialized mixing and a .001 RMS scale on the m branch.
+    The small additional norm parameter count is not repaid from MLP.
+    """
+    # code_commit: c9c0608; v5p-16 /311029; UE5a primary, UC1a/EW4b backups.
+    # 412607968 parameters (+80032 norm parameters); same MLP widths and 13500-step plan.
+    # Startup .532 step/s, about -.8% vs parent .536 (unpaired); generic health ON/internal OFF.
+    model_name = 'MuddLlama2MediumPropL27AttentionMLP1to2PrePostNormTruePile'
+    mudd_prenorm = True
+    mudd_postnorm = True
+    compare_runs = ['MuddLlama2MediumPropL27AttentionMLP1to2TruePile']
+
+
+class MuddLlama2MediumPropL27PrePostNormTruePile(MuddLlama2MediumPropL27TruePile):
+    """27-layer depth control with the native Mudd pre/post-norm circuit.
+
+    Pre-norm normalizes embedding/history and learns router-input RMS scales.
+    Post-norm uses zero-initialized residual mixing and a .001-initialized RMS scale on the m/readout branch.
+    The tiny norm overhead is not repaid from MLP; keep the parent width profile.
+    """
+    # Cancelled by user during AOT preparation; no training run or results.
+    model_name = 'MuddLlama2MediumPropL27PrePostNormTruePile'
+    mudd_prenorm = True
+    mudd_postnorm = True
+    compare_runs = ['MuddLlama2MediumPropL27TruePile']
 
 
 class BamMediumPropL27K75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdTruePile(
@@ -17308,7 +17874,6 @@ class Pythia2p8B(TrainPythia, PythiaArchitecture, Llama2Medium):
     base_mlp_dim = 10240
     pythia_rotary_dim = 20
     learning_rate = 1.6e-4
-    checkpoint_keep_steps = list(range(3000, 143001, 10000))  # TODO
     # Splash tuning for this model; retain the full tile specification here.
     sa_block_q = 1024
     sa_block_kv = 1024
@@ -17986,7 +18551,53 @@ class BamPythia2p8BHUnit300BFastKernel(BamPythia2p8BHUnit300B):
     remat_policy = 'minimal_save_splash'
 
 
-class BamPythia2p8BHUnit300BFastKernelMPreNormQKScale(BamPythia2p8BHUnit300BFastKernel):
+class BamPythia2p8BV5(BamV5Architecture, Pythia2p8B):
+    """Serial Pythia V5 with original BAM/embedding initialization and independent R640.
+
+    GELU widths 7808/2944/tail9984 preserve the completed 300B model. The default
+    execution profile matches v5p-256; hardware subclasses override only execution.
+    """
+    model_name = 'BamPythia2p8BV5'
+    bam_embedding_write_content_divisor = 0.0020825863
+    bam_attention_write_layers = list(range(31))
+    bam_init_method = '006normal'
+    bam_k = 80
+    bam_last_mlp_dim = 9984
+    bam_layer_modes = ['local_qk+local_v+local_o'] * 32
+    bam_local_full_m_read_bottleneck_dim = 640
+    bam_local_qk_col_output_dim = 80
+    bam_memory_mlp_dim = 2944
+    bam_mlp_write_address_rank = 640
+    bam_pallas_fused_qk_norm = True
+    bam_pallas_vmem_mib = 63
+    bam_partial_rope_nope_dim = 80
+    bam_qk_logit_scale_dim = 'qk_dim'
+    bam_qk_norm_after_concat = True
+    bam_read_implementation = 'dot_btn'
+    bam_splash_residual_name = 'bam_splash_residual'
+    bam_standard_qk_dim = 20
+    bam_v = 64
+    bam_write_outer_implementation = 'dot'
+    bam_write_rms_epsilon = 1e-06
+    bam_write_v_bottleneck_dim = 640
+    base_mlp_dim = 7808
+    cast_logits_to_fp32 = True
+    emb_bam_num_head = 32
+    emb_bam_v_bottleneck_dim = 640
+    float32_logits = False
+    jax_cache_explain_misses = True
+    logits_fp32_output_bf16_backward = True
+    mlp_dim_by_block = None
+    pythia_parallel_residual = False
+    pythia_use_fusion = True
+    qk_norm = True
+    record_logits_health_metrics = True
+    remat_policy = 'minimal_save_splash'
+    sharding_tolerance = 0.06
+    token_embedding_init_method = '006normal'
+
+
+class BamPythia2p8BHUnit300BFastKernelMPreNormQKScale(BamPythia2p8BV5):
     """Unit H 300B FastKernel with whole-M read pre-norm and learned V/O plus Q/K layer scales.
 
     RMS-normalize the shifted read view in FP32 over all 80x64 entries; retain
@@ -17997,21 +18608,20 @@ class BamPythia2p8BHUnit300BFastKernelMPreNormQKScale(BamPythia2p8BHUnit300BFast
     settings and GELU widths 7808/2944/tail9984. Only 32 parameters are added
     (2775190944 total, 0.00000488 W_Q), with no MLP repayment or new M-cache.
     """
-    # FP32 logits accumulator/CE with BF16 backward; monitor common offset and centered spread.
-    # 1675b1b (per-c Q/K scale rows) exceeds the fused reverse VMEM on v5p-256: 63.71M vs 63.00M limit.
-    # code_commit: bb7cedf; per-head Q/K and V/O scales fold into the read gate (no per-c work).
-    # v5p-8 paired (8/device, 32 layers): FastKernel .7040, +pre-norm .6900 (-2.0%), this .6880 (-2.3%);
-    # V/O scale cost ~0 (no-V/O arm .7030). The fold also sped the parent from .687 (per-c V/O rows).
-    # AOT_READY v5p-256/s143000: gs://newproject-1-llm_base_models_us-central1/log/compiled_trainsteps/bb7cedf/jax081-i0ae3f58-c17f538a/v5p-256/s143000/
-    # RUN: same class name; runtime code_commit:5a48faa; UE5a v5p-256, global batch 1024.
-    # All 32 workers loaded exact AOT; CP0 committed. Steps 20-39: .60353 step/s
-    # (-1.59% versus old H FastKernel .61327, historical leases; training/logits health on).
+    # code_commit: 5a48faa; RUN: same class name; completed 143000 updates (~300B tokens).
+    # Main worktree/refactor-bam. UE5a/UC1a v5p-256 ~.604-.613 step/s; v5p-128 fallback
+    # b3db6cc ~.317 step/s, same RUN/global batch 1024; training/logits health on throughout.
+    # Startup .60353 versus old H FastKernel .61327 (-1.59%, historical leases, not paired).
+    # At common 44k: loss -.01148 versus old H; its later checkpoints are unavailable.
+    # Versus MHA, the gain narrowed to ~.083 near 115k, then recovered to .09184 (last 5k).
+    # MHA-reference gain versus parallel Mudd fell to ~1.46 before recovering; last-5k means
+    # at 118k/128k/138k/143k: 1.8488/1.8563/1.8669/1.8610; final loss -.04249 versus Mudd.
+    # Final loss -.01397 versus Pythia 6.9B; MHA-reference gain ratio 1.1794.
+    # Common logit offset stabilized; final same-cohort ln_f RMS 2.05662, offset P95 5.80668.
+    # Combined pre-norm/scales/precision result, not an isolated FP32 or WD attribution.
+    # CP143000/cursor, all 15 keep steps across regional buckets, TB sync and TPU release verified.
+    # Reproduction, kernel lineage, forecasts and complete leases: h_prenorm_qkscale_fp32_300b.md.
     model_name = 'BamPythia2p8BHUnit300BFastKernelMPreNormQKScale'
-    bam_m_read_norm = 'rms'
-    bam_common_qk_read_scale = True
-    cast_logits_to_fp32 = True
-    logits_fp32_output_bf16_backward = True
-    record_logits_health_metrics = True
     # FastKernel ran under the original HUnit300B RUN; use its recorded history.
     compare_runs = ['BamPythia2p8BHUnit300B', 'Pythia_2.8B_2022',
                     'PileMUDDPythia3BPlusOcdbtv6e',
@@ -20849,6 +21459,604 @@ class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitD
     model_name = 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneMPreNormQKScaleTruePile'
     bam_common_qk_read_scale = True
     compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneMPreNormTruePile']
+
+class BamMediumPropV5(BamV5Architecture, SplashTunedBlocks1024, Llama2MediumProp):
+    """Original RMSNorm/SwiGLU MediumProp V5; no historical BAM parents."""
+    bam_embedding_write_content_divisor = 0.0016052833
+    DATASET_VARIANT = 'truepile4096'
+    attention = 'dot_product_chunk'
+    bam_attention_write_layers = list(range(17))
+    bam_k = 75
+    bam_last_mlp_dim = 3904
+    bam_layer_modes = ['local_qk+local_v+local_o'] * 18
+    bam_local_full_m_read_bottleneck_dim = 256
+    bam_local_qk_col_output_dim = 75
+    bam_memory_mlp_dim = 1128
+    bam_mlp_write_address_rank = 256
+    bam_pallas_vmem_mib = 48
+    bam_partial_rope_nope_dim = 75
+    bam_standard_qk_dim = 18
+    bam_v = 32
+    bam_write_v_bottleneck_dim = 256
+    base_mlp_dim = 2510
+    compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneMPreNormTruePile']
+    emb_bam_num_head = 16
+    emb_bam_v_bottleneck_dim = 256
+    float32_logits = False
+    force_final_checkpoint = True
+    jax_cache_dir = ''
+    jax_cache_explain_misses = True
+    mlp_dim_by_block = None
+    model_name = 'BamMediumPropV5'
+    query_chunk_size = 256
+    record_training_health_metrics = True
+    steps = 13500
+    tensorboard_gcs_rotate_period = 500
+
+
+class BamMediumPropV5SiTU47(BamMediumPropV5):
+    """Ledger only: ordinary-MLP SiTU 4/7, private writer unchanged.
+
+    Runtime implementation: codex/mediumprop-v5-situ47;
+    /home/xd/.codex/worktrees/medium-v5-situ47/maxtext.
+    """
+    # code_commit: ff2fe4b; unchanged 432,112,228-parameter Medium V5 budget.
+    # UC1a v5p-16 / 311013, full remat; steady ~.680 step/s vs V5 control ~.677 (+.4%, unpaired).
+    # Completed 13,500/P2: early ~-.002 to -.003 lead disappeared near 3.2k;
+    # later near-parity became a small deficit. Final 13.4k gap +.000520 / MHA-ref gain .997081;
+    # final-five mean +.000433 / .997590, within prior .995 [.985,1.005].
+    # No sustained loss spikes in either Medium arm; no demonstrated stability or loss gain.
+    # Final CP/cursor and TB verified; all regional nodes/queues released.
+    # Reproduction and prior: experiments/bam_llama2_medium/mediumprop_v5_situ47.md.
+    model_name = 'BamMediumPropV5SiTU47'
+    ordinary_mlp_situ_gate_limit = 4.0
+    ordinary_mlp_situ_up_limit = 7.0
+    compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneMPreNormQKScaleTruePile']
+
+
+class BamMediumPropV5SiTU47L12(BamMediumPropV5SiTU47):
+    """Ledger only: 12-layer V5 SiTU at the same-depth MHA parameter budget.
+
+    Implementation: codex/mediumprop-v5-situ47;
+    /home/xd/.codex/worktrees/medium-v5-situ47/maxtext.
+    Keep D1200, 16x75 heads, M75x32 and independent R256 projections.
+    Ordinary/private widths 4131/1937 give complete-branch ratio 2.001238:1;
+    terminal ordinary width 5796 closes the budget at 432,106,552 (MHA12-248).
+    Single-layer scan over L0--10; L11 has neither attention nor MLP M writes.
+    """
+    # code_commit: 64d7505; v5p-16 / 311015; UE5a primary, UC1a/EW4b backups.
+    # EW4b resume startup ~.844 step/s vs SiTU18 ~.680 (+24.1%, unpaired); same health.
+    # Actual cursor/AOT load and both worker hashes verified; internal activation statistics OFF.
+    # Completed 13500, P4; EW4b -> UC1a. vs SiTU18, early deficit grew then plateaued near +.023.
+    # Final five gaps: +.02294 vs SiTU18, -.16120 vs same-depth MHA12; no late recovery.
+    # Matched-depth gain G12/G18: final .9070, last five .9026; original common-MHA18 prior .98 failed.
+    # Final CP/cursor/TB secured; all UE5a/UC1a/EW4b node/queue identities absent.
+    model_name = 'BamMediumPropV5SiTU47L12'
+    base_num_decoder_layers = 12
+    bam_layer_modes = ['local_qk+local_v+local_o'] * 12
+    bam_attention_write_layers = list(range(11))
+    bam_mlp_write_layers = list(range(11))
+    base_mlp_dim = 4131
+    bam_memory_mlp_dim = 1937
+    bam_last_mlp_dim = 5796
+    compare_runs = ['BamMediumPropV5SiTU47', 'BamMHAMediumPropL12TruePile']
+
+
+class BamMediumPropV5SiTU47L27(BamMediumPropV5SiTU47):
+    """Ledger only: 27-layer V5 SiTU at the Llama2MediumPropL27 MHA budget.
+
+    Implementation: codex/mediumprop-v5-situ47;
+    /home/xd/.codex/worktrees/medium-v5-situ47/maxtext.
+    Keep D1200, 16x75 heads, M75x32 and independent R256 projections.
+    Ordinary/private widths 1464/604 give complete-branch ratio 2.002127:1;
+    terminal ordinary width 1797 closes the budget at 432,142,342 (MHA27-458).
+    Single-layer scan over L0--25; L26 has neither attention nor MLP M writes.
+    Only ordinary MLPs use SiTU 4/7; private writers retain SwiGLU.
+    """
+    # code_commit: 64d7505; v5p-16 / 311016; UE5a primary, UC1a/EW4b backups.
+    # EW4b resume startup ~.522 step/s vs SiTU18 ~.680 (-23.2%, unpaired); same health.
+    # Cursor, resume-bound speed gate, both worker hashes and compiled AOT load verified.
+    # Completed 13500, P7; EW4b -> UC1a. vs SiTU18 crossed ahead near 2.2k, then held ~-.006 to -.007.
+    # Final five gaps: -.00626 vs SiTU18, -.19623 vs MHA27, -.01979 vs old general-read BAM27.
+    # Matched-depth G27/G18 last five 1.09869; vs old BAM27 gain 1.11213 using MHA27 reference.
+    # Original common-MHA18 gain 1.03503 was within prior [1.00,1.05]. Final CP/cursor/TB and teardown verified.
+    model_name = 'BamMediumPropV5SiTU47L27'
+    base_num_decoder_layers = 27
+    bam_layer_modes = ['local_qk+local_v+local_o'] * 27
+    bam_attention_write_layers = list(range(26))
+    bam_mlp_write_layers = list(range(26))
+    base_mlp_dim = 1464
+    bam_memory_mlp_dim = 604
+    bam_last_mlp_dim = 1797
+    compare_runs = [
+        'BamMediumPropV5SiTU47',
+        'BamMHAMediumPropL27C256TruePile',
+        'BamMediumPropL27K75EmbedVOnlyQK57AllLocalMLPWriteIndependentEveryThirdFullMReadGeneralReadTruePile',
+    ]
+
+
+class BamMediumPropV5SiTU47L12AttentionMLP1to2TruePile(BamMediumPropV5SiTU47):
+    """Width-scaled L12 V5 SiTU on the D1472/16x92 MHA geometry.
+
+    Full NoPE92 plus RoPE24, M92x32, independent R256 read/write projections.
+    Match the MHA non-embedding budget; ordinary/complete memory branch ~2:1.
+    Widths3129/1444/tail4811 give ratio2.00004169 and311080776 non-embedding
+    parameters (matched MHA-1400); all-in459552584.
+    Scan L0--10 singly; L11 has neither attention nor memory-MLP M writes.
+    """
+    # code_commit: 958cbc0; v5p-16 /311025; UE5a primary, UC1a/EW4b backups.
+    # Completed13500/P1 in UE5a, ~.884 step/s. vs SiTU18 the early lead reversed
+    # near2000, then deficit grew to ~+.015--.016; last5+.015717.
+    # vs matched Mudd12, early lead shrank -.46028@600 -> last5-.070348;
+    # BAM/Mudd multiplier vs MHA12 ended1.77515 (last5), declining then flattening.
+    # Matched-MHA12/MHA18 paired gain vs SiTU18 last5=.90221; final CP/cursor/TB/teardown verified.
+    model_name = 'BamMediumPropV5SiTU47L12AttentionMLP1to2TruePile'
+    base_num_decoder_layers = 12
+    base_emb_dim = 1472
+    head_dim = 92
+    bam_k = 92
+    bam_local_qk_col_output_dim = 92
+    bam_partial_rope_nope_dim = 92
+    bam_standard_qk_dim = 24
+    bam_layer_modes = ['local_qk+local_v+local_o'] * 12
+    bam_attention_write_layers = list(range(11))
+    bam_mlp_write_layers = list(range(11))
+    base_mlp_dim = 3129
+    bam_memory_mlp_dim = 1444
+    bam_last_mlp_dim = 4811
+    bam_embedding_write_content_divisor = .0016052833 * math.sqrt(1472 / 1200)
+    compare_runs = ['BamMediumPropV5SiTU47',
+                    'MuddLlama2MediumPropL12AttentionMLP1to2TruePile',
+                    'Llama2MediumPropL12AttentionMLP1to2TruePile']
+
+
+class BamMediumPropV5SiTU47L27AttentionMLP1to2TruePile(BamMediumPropV5SiTU47):
+    """Width-scaled L27 V5 SiTU on the D976/16x61 MHA geometry.
+
+    Full NoPE61 plus RoPE16, M61x32, independent R256 read/write projections.
+    Widths1978/853/tail3098 give complete-branch ratio2.00078489 and311085334
+    non-embedding parameters (matched MHA-1002); all-in409528598.
+    Scan L0--25 singly; L26 has neither attention nor memory-MLP M writes.
+    """
+    # code_commit: 982b8e6; v5p-16 /311028; UE5a primary, UC1a/EW4b backups.
+    # Completed13500/P1 in UE5a, ~.515 step/s. vs SiTU18 the early deficit
+    # became a small late lead; final five12600--13400 averaged-.002505.
+    # Matched-MHA27/MHA18 paired gain vs SiTU18 ended1.01708 (last5).
+    # vs pre/post-norm Mudd27, initial advantage narrowed to-.095399 / gain2.01905
+    # over9800--10600; that baseline is still training, so this comparison is provisional.
+    # CP13500/cursor, TB SYNC_OK and all regional resources verified; two READY leases.
+    model_name = 'BamMediumPropV5SiTU47L27AttentionMLP1to2TruePile'
+    base_num_decoder_layers = 27
+    base_emb_dim = 976
+    head_dim = 61
+    bam_k = 61
+    bam_local_qk_col_output_dim = 61
+    bam_partial_rope_nope_dim = 61
+    bam_standard_qk_dim = 16
+    bam_layer_modes = ['local_qk+local_v+local_o'] * 27
+    bam_attention_write_layers = list(range(26))
+    bam_mlp_write_layers = list(range(26))
+    base_mlp_dim = 1978
+    bam_memory_mlp_dim = 853
+    bam_last_mlp_dim = 3098
+    bam_embedding_write_content_divisor = .0016052833 * math.sqrt(976 / 1200)
+    compare_runs = ['BamMediumPropV5SiTU47',
+                    'MuddLlama2MediumPropL27AttentionMLP1to2PrePostNormTruePile',
+                    'Llama2MediumPropL27AttentionMLP1to2TruePile']
+
+
+class BamMediumPropV5L27AttentionMLP1to2SwiGLUTruePile(
+    BamMediumPropV5SiTU47L27AttentionMLP1to2TruePile):
+    """Pure ordinary-MLP activation control for the D976, L27 depth arm.
+
+    Disable SiTU only; retain1978/853/tail3098, M61x32, independent R256,
+    packed v8t read/write and the parent's full13500-step Prop recipe.
+    No parameters change; private M writers already use SwiGLU.
+    """
+    # code_commit: 9d58191; cancelled76: user corrected intended scope to total-budget BAM24.
+    # CP76 retained; no mature loss window or scientific conclusion. TPU handed to the corrected RUN.
+    model_name = 'BamMediumPropV5L27AttentionMLP1to2SwiGLUTruePile'
+    ordinary_mlp_situ_gate_limit = 0.0
+    ordinary_mlp_situ_up_limit = 0.0
+    compare_runs = ['BamMediumPropV5SiTU47L27AttentionMLP1to2TruePile',
+                    'MuddLlama2MediumPropL27AttentionMLP1to2PrePostNormTruePile',
+                    'Llama2MediumPropL27AttentionMLP1to2TruePile']
+
+
+class BamMediumPropV5SiTU47L12TotalBudgetTruePile(BamMediumPropV5SiTU47):
+    """L12 V5 SiTU at the all-in MHA18 budget, M89x32 and all ranks256.
+
+    Ordinary/private/tail 2990/1373/4600; complete branch ratio 2.000707.
+    Total 432120776, -424 versus 432121200; single-layer scan over L0--10.
+    """
+    # code_commit: 46e26e7; UC1a v5p-16 /311037, startup ~.856 step/s.
+    # -14.3% vs MHA12 .999, -7.5% vs Mudd12 .925 (unpaired); same health.
+    # Completed 13500/P1, UC1a -> UE5a. vs BAM18, early lead crossed at1.2--1.4k
+    # into a persistent deficit; final five12600--13400 averaged+.020040.
+    # vs matched MHA12/Mudd12, advantage narrowed to-.167835/-.081162;
+    # matched-MHA BAM/Mudd gain ended~1.937. CP/cursor, TB and resources verified.
+    model_name = 'BamMediumPropV5SiTU47L12TotalBudgetTruePile'
+    base_num_decoder_layers = 12
+    base_emb_dim = 1424
+    head_dim = 89
+    bam_k = 89
+    bam_local_qk_col_output_dim = 89
+    bam_partial_rope_nope_dim = 89
+    bam_standard_qk_dim = 22
+    bam_layer_modes = ['local_qk+local_v+local_o'] * 12
+    bam_attention_write_layers = list(range(11))
+    bam_mlp_write_layers = list(range(11))
+    base_mlp_dim = 2990
+    bam_memory_mlp_dim = 1373
+    bam_last_mlp_dim = 4600
+    bam_embedding_write_content_divisor = .0016052833 * math.sqrt(1424 / 1200)
+    compare_runs = ['BamMediumPropV5SiTU47',
+                    'MuddLlama2MediumPropL12TotalBudgetRouterFixedTruePile',
+                    'Llama2MediumPropL12TotalBudgetTruePile']
+
+
+class BamMediumPropV5SiTU47L24TotalBudgetTruePile(BamMediumPropV5SiTU47):
+    """L24 V5 SiTU at the all-in MHA18 budget, M66x32 and all ranks256.
+
+    Ordinary/private/tail 2201/968/3435; complete branch ratio 2.000532.
+    Total 432120064, -1136 versus 432121200; single-layer scan over L0--22.
+    """
+    # code_commit: 46e26e7; UC1a v5p-16 /311038, startup ~.550 step/s.
+    # -18.0% vs MHA24 .671, -2.0% vs Mudd24 .561 (unpaired); same health.
+    # Completed 13500/P1, UC1a -> UE5a. vs BAM18, early deficit crossed by4k
+    # into a persistent lead; final5-.004698, matched-MHA24/18 gain1.017496.
+    # vs MHA24/Mudd24-norm, final5-.181731/-.106490; BAM/Mudd gain2.416272.
+    # Relative gain ratio24/18 ended1.125123 (prior1.00 underestimated depth advantage).
+    # CP13500/cursor, TB SYNC_OK and all regional resources verified; two READY leases.
+    model_name = 'BamMediumPropV5SiTU47L24TotalBudgetTruePile'
+    base_num_decoder_layers = 24
+    base_emb_dim = 1056
+    head_dim = 66
+    bam_k = 66
+    bam_local_qk_col_output_dim = 66
+    bam_partial_rope_nope_dim = 66
+    bam_standard_qk_dim = 16
+    bam_layer_modes = ['local_qk+local_v+local_o'] * 24
+    bam_attention_write_layers = list(range(23))
+    bam_mlp_write_layers = list(range(23))
+    base_mlp_dim = 2201
+    bam_memory_mlp_dim = 968
+    bam_last_mlp_dim = 3435
+    bam_embedding_write_content_divisor = .0016052833 * math.sqrt(1056 / 1200)
+    compare_runs = ['BamMediumPropV5SiTU47',
+                    'MuddLlama2MediumPropL24TotalBudgetRouterFixedPrePostNormTruePile',
+                    'Llama2MediumPropL24TotalBudgetTruePile']
+
+
+class BamMediumPropV5L24TotalBudgetSwiGLUTruePile(
+    BamMediumPropV5SiTU47L24TotalBudgetTruePile):
+    """Ordinary SwiGLU control for the all-in-budget L24 depth experiment.
+
+    Only disable ordinary SiTU4/7. Keep D1056, M66x32, independent R256,
+    widths2201/968/tail3435 and432120064 total parameters unchanged.
+    """
+    # code_commit: 5a5dd84; UC1a -> UE5a v5p-16 /311042 retained, launcher311043.
+    # Completed 13,500 / P6; CP13500 + cursor and TB SYNC_OK; regional resources absent.
+    # ~.546 step/s vs SiTU24 .550 (-.7%, unpaired); generic ON/internal OFF.
+    # vs SiTU24: near parity at 1-2k, small lead from ~2.4k held without late expansion.
+    # Final 12.6k-13.4k five windows: gap -.001096, MHA24-referenced gain 1.00602.
+    # vs post-only Mudd24 gap -.077283, gain 1.73234; vs MHA24 gap -.182827.
+    # Matched-MHA SwiGLU24/SwiGLU18 gain 1.02116: SiTU was not the main depth limitation.
+    model_name = 'BamMediumPropV5L24TotalBudgetSwiGLUTruePile'
+    ordinary_mlp_situ_gate_limit = 0.0
+    ordinary_mlp_situ_up_limit = 0.0
+    compare_runs = ['BamMediumPropV5SiTU47L24TotalBudgetTruePile',
+                    'MuddLlama2MediumPropL24TotalBudgetRouterFixedPostNormTruePile',
+                    'Llama2MediumPropL24TotalBudgetTruePile']
+
+
+class BamMediumPropV5SiTU47M16R128(BamMediumPropV5SiTU47):
+    """Ledger only: L18 capacity scaling, M75x16 and all read/write ranks128.
+
+    Implementation: codex/mediumprop-v5-situ47;
+    /home/xd/.codex/worktrees/medium-v5-situ47/maxtext.
+    """
+    # code_commit:2458bb3; UE5a v5p-16/311019, ~.720 step/s (+5.9% vs parent .680, unpaired).
+    # 432112388 params, parent+160; complete-branch ratio2.001236:1; M cache half the parent.
+    # Completed13500/P0. vs parent loss deficit slowly narrowed ~+.034@600 -> ~+.030@2000 -> last5+.026499.
+    # Gain retention vs matched MHA fell from~.967@600 to last5=.851638; prior .98 was too optimistic.
+    # Larger refunded MLPs did not recover the capacity/rank deficit within the full budget.
+    # Final CP13500/data cursor, TB SYNC_OK and all regional node/queue teardown verified.
+    model_name = 'BamMediumPropV5SiTU47M16R128'
+    bam_v = 16
+    bam_local_full_m_read_bottleneck_dim = 128
+    bam_write_v_bottleneck_dim = 128
+    bam_mlp_write_address_rank = 128
+    emb_bam_v_bottleneck_dim = 128
+    base_mlp_dim = 2662
+    bam_memory_mlp_dim = 1273
+    bam_last_mlp_dim = 4147
+    compare_runs = ['BamMediumPropV5SiTU47']
+
+
+class BamMediumPropV5SiTU47M48R384(BamMediumPropV5SiTU47):
+    """Ledger only: L18 capacity scaling, M75x48 and all read/write ranks384.
+
+    Implementation: codex/mediumprop-v5-situ47;
+    /home/xd/.codex/worktrees/medium-v5-situ47/maxtext.
+    """
+    # code_commit:2458bb3; UE5a v5p-16/311020, ~.656 step/s (-3.5% vs parent .680, unpaired).
+    # 432111620 params, parent-608; complete-branch ratio2.000921:1; M cache1.5x parent.
+    # Completed13500/P0. vs parent early lead shrank, then held ~-.005 through mid/late training.
+    # Final5 gap-.00473824 / MHA-referenced gain1.026518, near the1.02 prior; no late loss of benefit.
+    # Final CP13500/data cursor, TB SYNC_OK and all regional node/queue teardown verified.
+    model_name = 'BamMediumPropV5SiTU47M48R384'
+    bam_v = 48
+    bam_local_full_m_read_bottleneck_dim = 384
+    bam_write_v_bottleneck_dim = 384
+    bam_mlp_write_address_rank = 384
+    emb_bam_v_bottleneck_dim = 384
+    base_mlp_dim = 2298
+    bam_memory_mlp_dim = 933
+    bam_last_mlp_dim = 3583
+    compare_runs = ['BamMediumPropV5SiTU47']
+
+
+class BamMediumPropV5SiTU47M64R384(BamMediumPropV5SiTU47):
+    """L18 capacity scaling: M75x64 with all read/write ranks384.
+
+    Ordinary/private widths2203/858 preserve complete-branch ratio2.001183:1;
+    terminal3443 closes the parent budget to+1632 parameters.
+    Fixed R384 versus V48 separates matrix-capacity growth from rank growth.
+    """
+    # Ledger only: codex/mediumprop-v5-situ47; /home/xd/.codex/worktrees/medium-v5-situ47/maxtext.
+    # code_commit:5acf1ab; v5p-16 /311021, UE5a->UC1a, steady ~.617 step/s.
+    # -9.3% vs parent .680 / -5.9% vs V48 .656 (unpaired, matched health); M cache2x parent /4:3 V48.
+    # Completed13500/P2. vs parent early lead shrank, then held ~-.008 through middle/late training.
+    # Final5 gap-.00720208 / MHA-referenced gain1.040315; vs fixed-rank V48 gap-.00246384 / gain1.013441.
+    # Fixed-R384 capacity benefit persisted to the endpoint; prior vs V48=1.01 was close.
+    # Resumed unchanged AOT/source from7432 and12568; new regional cursor/CP verified after each recovery.
+    # Final CP13500/cursor, TB SYNC_OK and all regional node/queue teardown verified.
+    model_name = 'BamMediumPropV5SiTU47M64R384'
+    bam_v = 64
+    bam_local_full_m_read_bottleneck_dim = 384
+    bam_write_v_bottleneck_dim = 384
+    bam_mlp_write_address_rank = 384
+    emb_bam_v_bottleneck_dim = 384
+    base_mlp_dim = 2203
+    bam_memory_mlp_dim = 858
+    bam_last_mlp_dim = 3443
+    compare_runs = ['BamMediumPropV5SiTU47', 'BamMediumPropV5SiTU47M48R384']
+
+
+class BamLargePropV5(BamV5Architecture, Llama2LargeProp):
+    """L22/D1536 V5, M96x32 and independent R256 read/write projections.
+
+    Original SwiGLU FFNs, whole-M pre-norm, unit-initialized QK/VO scales.
+    Single-layer scan over L0--20; terminal L21 has neither M writer.
+    Ordinary/private widths3317/1539 give complete-branch ratio2.000331:1;
+    tail5083 closes the MHA budget at777,849,500 parameters (MHA-868).
+    """
+    # code_commit:649f024; UC1a v5p-32/311011, full remat, ~.835step/s; plan29000.
+    # Stopped6743 for budget correction; fresh27k RUN below preserves this model.
+    # Paired policy measurements, budgets and launch gates: experiments/bam_llama2_medium/largeprop_v5_mha_mudd.md.
+    model_name = 'BamLargePropV5'
+    attention = 'dot_product_chunk'
+    bam_k = 96
+    bam_v = 32
+    bam_standard_qk_dim = 24
+    bam_partial_rope_nope_dim = 96
+    bam_local_qk_col_output_dim = 96
+    bam_layer_modes = ['local_qk+local_v+local_o'] * 22
+    bam_local_full_m_read_bottleneck_dim = 256
+    bam_write_v_bottleneck_dim = 256
+    bam_mlp_write_address_rank = 256
+    emb_bam_v_bottleneck_dim = 256
+    emb_bam_num_head = 16
+    bam_attention_write_layers = list(range(21))
+    bam_mlp_write_layers = list(range(21))
+    base_mlp_dim = 3317
+    bam_memory_mlp_dim = 1539
+    bam_last_mlp_dim = 5083
+    bam_embedding_write_content_divisor = .0016052833 * math.sqrt(1536 / 1200)
+    bam_pallas_vmem_mib = 48
+    mlp_dim_by_block = None
+    query_chunk_size = 256
+    compare_runs = ['MuddLlama2LargePropMinimalRemat']
+
+
+class BamLargePropV5MinimalRemat(BamLargePropV5):
+    """Minimal-remat execution profile; same V5 model, budget and training plan."""
+    model_name = 'BamLargePropV5MinimalRemat'
+    remat_policy = 'minimal'
+
+
+class BamLargePropV5Train27k(BamLargePropV5):
+    """Fresh27k V5 run; unchanged model, budget and faster full-remat profile."""
+    # code_commit:9a8ee1e; UC1a v5p-32/311011, full remat, ~.834step/s; freshstep0 verified.
+    # Completed 27,000. vs Mudd: MHA-referenced gain rose from 1.599 at 1k to ~1.8 at 6--12k,
+    # then eased to 1.746--1.766 over the final five windows; mean gap -.06183, final 26.5k gap -.06114.
+    # Steady ~.828 step/s, ~5.5% slower than Mudd; UC1a throughout, P1. Final checkpoint committed; node/queue released.
+    model_name = 'BamLargePropV5Train27k'
+    compare_runs = ['MuddLlama2LargeProp27k']
+
+
+class BamXLPropV5(BamMediumPropV5):
+    """Original-recipe XLProp V5: whole-M pre-norm and unit V/O plus Q/K scales.
+
+    M96x40, independent R400 read/attention-write/memory-write projections,
+    full NoPE96 + RoPE24, SwiGLU ordinary/private FFNs, no QKNorm.
+    Single-layer scan over L0--26 and a separate terminal L27 without M writes.
+    Ordinary/private widths4048/1827 give complete-branch ratio2.001287:1;
+    tail6277 closes the MHA budget at1,432,396,996 parameters (MHA-1724).
+    """
+    # code_commit:862cadd; UE5a v5p-32, steps20--99 .512557 step/s, generic health ON/internal OFF.
+    # User stop13007 after intermittent raw-gradient spikes (max2.53e18); checkpoint/TB secured, TPU/queue released.
+    # UE5a -> UC1a, P2; switched at4750 to FastKernel7c90924 (~.540step/s, paired+6.58%).
+    # vs old XL single.5: gain~1.13 before spikes, recovered to1.0507@12.5k (gap-.00742);
+    # vs Mudd: gain~1.88 before spikes, recovered to1.7715@12.5k (gap-.06694), MHA-referenced.
+    # A-type recurrent spikes: ordinary SwiGLU amplifies residual cotangents; localV/W_O updates help trigger them.
+    # Exact replay/local FP32 evidence and bounded-activation proposals: experiments/bam_llama2_medium/xlprop_v5_a_spike.md.
+    # B-type (L1 Q/K/V-only) spikes confirmed by exact v5p-32 replay from 9250: full_save_splash backward error
+    # (9251 raw 1.09e4 vs full remat 19.1, same params/batch); fix FastKernelFullRemat. xlprop_v5_b_spike_replay.md.
+    model_name = 'BamXLPropV5'
+    base_emb_dim = 1920
+    base_num_decoder_layers = 28
+    base_num_query_heads = 20
+    base_num_kv_heads = 20
+    head_dim = 96
+    bam_k = 96
+    bam_v = 40
+    bam_standard_qk_dim = 24
+    bam_partial_rope_nope_dim = 96
+    bam_local_qk_col_output_dim = 96
+    bam_layer_modes = ['local_qk+local_v+local_o'] * 28
+    emb_bam_num_head = 20
+    emb_bam_v_bottleneck_dim = 400
+    bam_local_full_m_read_bottleneck_dim = 400
+    bam_write_v_bottleneck_dim = 400
+    bam_mlp_write_address_rank = 400
+    bam_attention_write_layers = list(range(27))
+    bam_mlp_write_layers = list(range(27))
+    base_mlp_dim = 4048
+    bam_memory_mlp_dim = 1827
+    bam_last_mlp_dim = 6277
+    # Packed key block views require N divisible by8 on TPU; XLProp has20 heads.
+    bam_pallas_packed_read_keys = False
+    # The wider V40/head20 read pads to larger tiles than Medium's V32/head16.
+    bam_pallas_vmem_mib = 63
+    # W_emb_u content RMS grows as sqrt(D) under the unchanged .006 recipe.
+    bam_embedding_write_content_divisor = 0.0016052833 * math.sqrt(1920 / 1200)
+    per_device_batch_size = 8.0
+    learning_rate = 2e-4
+    learning_rate_schedule_steps = 50000
+    steps = 50000
+    eval_interval = 50000
+    checkpoint_period = 250
+    compare_runs = ['BamXLPropSharedR400GeneralReadMShiftReadG050TruePile',
+                    'Llama2XLPropTruePileMHA', 'MuddLlama2XLProp']
+
+
+
+class BamXLPropV5FastKernel(BamXLPropV5):
+    """BamXLPropV5 with packed read keys (one [C,4N,T] block for 20 heads) and full_save_splash remat.
+
+    Same math, parameter and optimizer trees and schedule, so the V5 RUN resumes from its checkpoints.
+    v5p-32 paired (708dcd2, UE5a, formal shapes): control .5190, packed .5280 (+1.7%),
+    packed+full_save_splash .5490 (+5.8%), packed+minimal_save_splash .5280 (+1.7%; on v5p-8 it was +15.2%:
+    its saved dot outputs change the v5p-32 collective-matmul schedule and the gain vanishes).
+    Steps 1-20 losses match the control within bf16 accumulation noise.
+    """
+    # code_commit:7c90924; AOT_READY v5p-32/s50000 (FLEX llm-jax-v6e-1-0):
+    # gs://newproject-1-llm_base_models_us-central1/log/compiled_trainsteps/7c90924/jax081-i0ae3f58-c17f538a/v5p-32/s50000/BamXLPropV5FastKernel.pickle
+    # Bet for the hot-switched v5p-32 RUN: ~.54 step/s (+5.5% over .5126 startup; range +4..+7%).
+    model_name = 'BamXLPropV5FastKernel'
+    bam_pallas_packed_read_keys = True
+    bam_splash_residual_name = 'bam_splash_residual'
+    remat_policy = 'full_save_splash'
+
+
+class BamXLPropV5FastKernelFullRemat(BamXLPropV5FastKernel):
+    """FastKernel with full remat again (packed read keys kept): no saved Splash residuals.
+
+    Confirmed B-type spike cause (exact v5p-32 replay from 9250, experiments/bam_llama2_medium/xlprop_v5_b_spike_replay.md;
+    L1 Q/K/V projection-parameter gradients up to 1e17 while L1 local-O/W_O stay normal, only after the FastKernel switch): the saved forward logsumexp meets backward logits from
+    rematerialized Q/K whose v5p-32 collective-matmul schedule differs from the forward; L1 logits reach
+    |s|~4.5e3 (no QKNorm), where bf16 rounding moves logits by several units, so P=exp(s-lse) exceeds 1.
+    Full remat recomputes the Splash forward from the same Q/K, so its lse is self-consistent.
+    Same math, parameter and optimizer trees and schedule; v5p-32 speed packed-only .5280 (+1.7%).
+    """
+    # code_commit:d54c4c5; completed50000 from8750; UC1a v5p-32 ~.518step/s (startup.523), P1.
+    # No B-type failure after full-remat fix; A-type SwiGLU spikes remain, notably35.65--36.95k.
+    # vs Mudd: MHA-referenced gain~1.83 before that wave ->~1.78 afterward ->1.79035 final5 windows;
+    # final same-step47.5--49.5k mean gap-.0542076. vs old XL single.5 at its32.5k endpoint: gap-.0112926/gain1.09287.
+    # Final45--50k raw max.253836; CP50000+cursor committed, TB synced, TPU/queues released.
+    # Full trajectory/leases: experiments/xlprop_v5.md; mechanism/SiTU probes: bam_llama2_medium/xlprop_v5_a_spike.md.
+    model_name = 'BamXLPropV5FastKernelFullRemat'
+    bam_splash_residual_name = ''
+    remat_policy = 'full'
+
+
+class BamXLPropV5FastKernelFullRematSiTU47(BamXLPropV5FastKernelFullRemat):
+    """Ledger only: XL V5 ordinary-MLP SiTU gate/up4/7; private writer remains SwiGLU.
+
+    Implementation: codex/xlprop-v5-situ47, based on the actual d54c4c5 parent;
+    /home/xd/.codex/worktrees/xl-v5-situ47/maxtext. Use the recorded runtime,
+    not the later main BAM refactor. Widths4048/1827/tail6277; no parameter delta.
+    See experiments/bam_llama2_medium/xlprop_v5_situ47.md.
+    """
+    # code_commit: bd181bc; completed 50,000, v5p-32, 16 preemptions; steady ~.520 step/s vs parent ~.518.
+    # Conclusion: substantially shorter loss disturbances, with a small terminal CE cost; gain prior 1.02 failed.
+    # vs SwiGLU: 37k lead faded by 38k; final five windows mean gap +.00126336, MHA-ref gain .98972175.
+    # Critical 35.65--36.93k: loss peak 3.775 -> 2.133; 46 -> 0 losses above 2.5 over 1,281 matched batches.
+    # Actual training zones UC1a -> UE5a -> UC1a -> UE5a -> UC1a; all 17 READY leases are in the linked note.
+    # CP50000/cursor and TB verified; all regional nodes/queues released. Generic health ON/internal OFF.
+    # Ordinary/private/tail 4048/1827/6277 and 1,432,396,996 parameters unchanged (delta 0 W_Q).
+    model_name = 'BamXLPropV5FastKernelFullRematSiTU47'
+    ordinary_mlp_situ_gate_limit = 4.0
+    ordinary_mlp_situ_up_limit = 7.0
+    compare_runs = ['BamXLPropV5FastKernelFullRemat']
+
+
+class BamXLPropV5SiTU47M60R480(BamXLPropV5FastKernelFullRematSiTU47):
+    """XL V5 SiTU capacity control: M96x60 and all read/write ranks 480.
+
+    Retain independent read/attention-write/memory-write down projections.
+    Ordinary/private widths 3859/1662 keep the complete-branch ratio 2.000644:1.
+    Tail 5993 gives 1,432,395,236 params, parent -1760 (-.000477 W_Q).
+    Single-layer scan over L0--26, with no terminal attention/private writes.
+    Packed v8t read/write, full remat and VMEM 63 remain inherited.
+    Address-coordinate loops, scratch sizes and I/O still scale with actual V;
+    hardware tile alignment does not imply equal kernel or training-step cost.
+    """
+    # code_commit: b5f5271; UC1a v5p-32 /311046, startup55--99 ~.467 step/s.
+    # -10.2% vs SiTU parent ~.520 (unpaired); generic health ON/internal OFF.
+    # All four worker hashes/AOT/data verified; FIRST_STEP/step14 and fresh-step100 passed.
+    # Plan 50,000; direct SiTU-parent contrast, 2k reporting, no elimination reviews.
+    model_name = 'BamXLPropV5SiTU47M60R480'
+    bam_v = 60
+    bam_local_full_m_read_bottleneck_dim = 480
+    bam_write_v_bottleneck_dim = 480
+    bam_mlp_write_address_rank = 480
+    emb_bam_v_bottleneck_dim = 480
+    base_mlp_dim = 3859
+    bam_memory_mlp_dim = 1662
+    bam_last_mlp_dim = 5993
+    compare_runs = ['BamXLPropV5FastKernelFullRematSiTU47']
+
+
+class _XLPropV5SpeedProfile(TrainStepProfile):
+    """Paired speed arm: full 28 layers, formal 8/device, T4096, schedule and health."""
+    # code_commit:fad395a (v5p-8), 708dcd2 (v5p-32); results in experiments/xlprop_v5.md.
+    target_train_batch_size = None
+    per_device_batch_size = 8.0
+    steps = 100
+    checkpoint_keep_steps = []
+
+
+class BamXLPropV5SpeedProfile(_XLPropV5SpeedProfile, BamXLPropV5):
+    """Formal runtime control: unpacked read keys, full remat."""
+    model_name = 'BamXLPropV5SpeedProfile'
+
+
+class BamXLPropV5PackedSpeedProfile(BamXLPropV5SpeedProfile):
+    """Packed read keys read as one [C, 4N, T] block (20 heads are not a sublane multiple)."""
+    model_name = 'BamXLPropV5PackedSpeedProfile'
+    bam_pallas_packed_read_keys = True
+
+
+class BamXLPropV5FullSaveSplashSpeedProfile(BamXLPropV5SpeedProfile):
+    """Full remat except Splash's named output/logsumexp residuals."""
+    model_name = 'BamXLPropV5FullSaveSplashSpeedProfile'
+    bam_splash_residual_name = 'bam_splash_residual'
+    remat_policy = 'full_save_splash'
+
+
+class BamXLPropV5PackedFullSaveSplashSpeedProfile(BamXLPropV5FullSaveSplashSpeedProfile):
+    model_name = 'BamXLPropV5PackedFullSaveSplashSpeedProfile'
+    bam_pallas_packed_read_keys = True
+
+
+class BamXLPropV5PackedMinimalSaveSplashSpeedProfile(BamXLPropV5PackedFullSaveSplashSpeedProfile):
+    """2.8B's v5p policy: minimal remat plus Splash residuals."""
+    model_name = 'BamXLPropV5PackedMinimalSaveSplashSpeedProfile'
+    remat_policy = 'minimal_save_splash'
+
 
 class BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneMPreNormNoReadScaleTruePile(
     BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneMPreNormTruePile):

@@ -12,8 +12,12 @@ Defaults: repo `/home/xd/projects/maxtext` (`refactor-bam`); tpu-ag scripts
 `/home/lishengping/xd/projects`; TPU VM repo `/home/lishengping/xd/projects/maxtext`;
 project `newproject-1-451205`; TPU `v5p-16`. Before each formal launch, choose
 `PRIMARY_ZONE` from the user's current direction and the latest comparable leases in
-`experiments/tpu_region_preemption_history.md`; record the chosen zone in the RUN. `run_exp_xd.sh`
-selects its zone-local output and Pile-data buckets. For repaired TruePile records, set
+`experiments/tpu_region_preemption_history.md`; record the chosen zone in the RUN.
+`run_exp_xd.sh` and `launch_train_parallel.py` currently default to UE5a primary
+and UC1a backup; EW4b is excluded from defaults following the 2026-11-15
+short-lease review. An explicit empty backup value requests single-zone operation.
+Existing controllers retain their registered policy until reconfigured with `MODE=attach`.
+`run_exp_xd.sh` selects its zone-local output and Pile-data buckets. For repaired TruePile records, set
 `DATASET_VARIANT = 'truepile4096'` (4097 tokens) or `'truepile8192'` (8193 tokens) directly
 or through inheritance on the `exp.py` class in the sealed runtime commit.
 `run_exp_xd.sh` reads that declaration, then selects the zone-local `_4096` or `_8192`
@@ -41,6 +45,16 @@ use `run_exp_xd.sh` only for a RUN intended to train through its registered plan
 ## Start Training
 
 Uses `run_exp_xd.sh` → `auto_train_xd_maxtext.sh` and `run_registry.py`.
+
+For a new model size or changed global batch/sequence length, resolve the training
+budget before formal launch: parameter count excluding token embedding and unembedding,
+tokens per step, total tokens/steps, and LR-schedule endpoint. Use the user's budget or an
+already-authorized scaling rule; an inherited schedule alone is not a budget decision.
+Original Prop scaling uses roughly20 tokens per non-embedding parameter; matching a
+confirmed family's actual density preserves its cross-scale comparison. State the
+reference and rounding. If neither target nor rule is established, clarify while
+continuing parameter audits/CPU checks. Same-size, same-budget derivatives inherit
+the confirmed plan without asking again.
 
 Choose the code location first: large, uncertain architectural changes start in an isolated
 worktree; keep an inheritance-related experiment family in the same branch/worktree. Main
@@ -214,7 +228,32 @@ the comment after the successful relaunch. The registry remains authoritative fo
 the later metadata commit is not the RUN's runtime hash.
 
 For every sealed full-layer RUN, prepare the exact target-topology executable before requesting
-its target TPU. **First check for user-owned non-preemptible or FLEX_START v6e-1 compilers** in
+its target TPU. Prefer ordinary CPU-host AOT when a matching pinned environment is available:
+`get_topology_desc` creates compile-only TPU devices and serialization does not require TPU
+hardware. Use the authoritative local entrypoint:
+
+```bash
+python3 /home/xd/projects/xd_tpu_scripts/prepare_train_aot_local.py \
+  EXP FULL_COMMIT TARGET_TOPOLOGY TOTAL_STEPS \
+  --repo /absolute/clean/exact-commit/checkout \
+  --python /absolute/pinned-environment/bin/python \
+  --environment-reference /absolute/verified-worker-environment.json --cpu-list 0-15
+```
+
+The environment reference must match the actual pinned runtime, including JAX/jaxlib,
+libtpu version and binary SHA, Flax/Optax and the recorded dependencies; equal JAX versions
+alone are insufficient. The tool rejects dirty/mismatched source and environment, verifies
+the artifact/manifest, and owns no TPU resources. Multi-run batches can compile on disjoint
+CPU sets without capacity queues, or reuse one CPU slot sequentially. On accelerator-free
+hosts the entrypoint enables `ALLOW_MULTIPLE_LIBTPU_LOAD=1`, avoiding libtpu's default
+global lock between compile-only processes; each job has its own temporary output and
+artifact lock. Start ready members independently rather than waiting for the whole batch.
+Still require actual
+`Loaded compiled function!` and `FIRST_STEP` on the target trainer before accepting the launch.
+Do not borrow active training hosts for compilation: libtpu's initialization lock is held by
+the trainer even with `JAX_PLATFORMS=cpu`; do not bypass that device lock.
+
+If no verified CPU environment is available, **first check for user-owned non-preemptible or FLEX_START v6e-1 compilers** in
 READY state with an idle worker. Verify the actual queued-resource type with
 `gcloud alpha compute tpus queued-resources describe TPU --zone=ZONE --format=json`. Accept
 `provisioningModel=FLEX_START` or `provisioningModel=STANDARD` with `guaranteed` rather than
@@ -244,6 +283,9 @@ the auto-managed preemptible compiler queue:
 ```
 
 Choose compiler `PRIMARY_ZONE` and `BACKUP_ZONES` from the diagnostic-region policy.
+The current compiler fallback defaults are UC1a primary and UE5a backup; EW4a was removed
+after six preemptions in eight v6e allocations on 2026-11-15. Reuse acquired idle compiler
+capacity across pending AOTs instead of releasing it while the same batch still needs one.
 The idempotent command submits the primary compiler first and adds backup zones after
 `--primary-wait-seconds` (default 300) without an installed compiler. It prefers the primary
 when multiple candidates are ready, keeps submitted backups until the artifact and manifest
@@ -360,6 +402,17 @@ the registry; task artifacts retain figures and reasoning. Handle anomalies, cle
 and completion when needed rather than treating scheduled reviews as the only decision times.
 
 Default delivery is a short interpretation plus **loss-gap and gain-multiplier plots together**.
+When the user requests regular gradient-health plots, also include recorded raw gradient norms
+at every report milestone using `scripts/plot_raw_grad_norm.py RUN --through-step PUBLISHED_STEP
+--output-dir FIGURE_DIR`. Add `--include-clipped` to overlay the actual recorded
+`learning/grad_norm` as `clipped_grad_norm`; never infer it by capping the raw norm.
+Incrementally sync that RUN's TensorBoard first. The script reuses the
+health cache, plots from step600 on a log axis without smoothing/clipping, overlays requested
+RUNs, and preserves exact samples in a provenance sidecar. Keep its horizon aligned with the
+published loss report; report missing health coverage rather than inventing values.
+For a checkpoint fork under a new RUN, use `--history-prefix RUN PARENT LAST_SHARED_STEP`
+to retain the actual common history and then the resumed records; the parent tail beyond that
+checkpoint is excluded, and the sidecar records each sample's source RUN.
 State what the cumulative trend implies and whether the RUN continues or needs a decision.
 The figure supplies the detailed series; do not also print long numerical tables or repeat
 all plotted points. Use tables when requested or when a compact multi-run decision comparison

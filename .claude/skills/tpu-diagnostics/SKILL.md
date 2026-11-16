@@ -68,6 +68,11 @@ Use `MaxText/bam_diagnostics.py` with `exp_class=BamLlama2MediumDiagnostics` and
 - Pass restored checkpoint arrays as explicit JIT arguments; do not capture a large
   parameter tree as compile-time constants. For a targeted backward probe, differentiate
   only the selected parameter leaves instead of materializing unrelated gradients.
+- For gradient-spike localization, gate instrumented tensors against the original
+  train executable's same-batch loss and gradient controls. Changing batch/sharding,
+  the differentiated leaves or probe graph can move an ill-conditioned BF16 forward
+  to another operating point. If extra probes fail this gate, save boundary states
+  and cotangents from a validated graph, then check local VJPs with those boundaries fixed.
 - For CPU-only library/serialization probes on one worker of a TPU pod, set
   `JAX_PLATFORMS=cpu` explicitly; otherwise implicit backend initialization can hold
   that worker's TPU or wait indefinitely for the other hosts. Stop both the remote

@@ -10,6 +10,46 @@ Local Q/K/V rank, routing and AlignedRow experiments are consolidated in
 [`local_qkv_routing_review.md`](local_qkv_routing_review.md), with the complete
 configuration inventory, matched-window evidence, confidence and open questions.
 
+## Pythia H pre-norm / FP32 head: completed 300B (2026-11-08)
+
+`BamPythia2p8BHUnit300BFastKernelMPreNormQKScale` completed 143000 updates
+at runtime `5a48faa`. With MHA as the common reference, its final-5k gain ratios
+are 1.8610 versus parallel Mudd and 1.1794 versus Pythia 6.9B; direct loss gaps
+are -.04249 and -.01397. The MHA gap narrows until about 115k, then recovers
+to -.09184. The Mudd ratio plateaus near 1.85 after 118k while the direct
+advantage continues to grow; the known Mudd/MHA denominator also recovers.
+
+The combined M-read pre-norm, learned Q/K scale and FP32-head recipe avoids
+the old H's post-30k common-logit/head-gradient acceleration. Final fixed-cohort
+ln_f RMS is 2.05662 with decelerating growth; common offset P95 is 5.80668.
+This is not an isolated causal result for any one change. WD differs from
+parallel Mudd (.1 versus .01), and the official MHA LR floors earlier.
+Formal v5p-256 throughput is about .604–.613 step/s with health enabled;
+unchanged-profile v5p-128 bridges run about .317 step/s. Final checkpoint,
+all 15 retained keep steps, TB sync and task resource release were verified.
+Reproduction, forecast checks and complete leases:
+[h_prenorm_qkscale_fp32_300b.md](h_prenorm_qkscale_fp32_300b.md).
+
+## Saved Splash residuals: trained-state multi-host failure (2026-11-08)
+
+XLPropV5's `full_save_splash` optimization introduced a reverse numerical error:
+exact v5p-32 replay from the same9250 optimizer state/data has identical first
+loss but raw gradient10904 with saved residuals versus19.1 with full remat.
+L1 V-address projection gradient differs916x while localO/W_O differ below.1%.
+Packed keys remain enabled in both; single-device packed/unpacked and FSS/full
+checks did not reproduce it. Early20-step loss overlap was also insufficient.
+
+The leading explanation is saved Splash output/lse combined with rematerialized
+Q/K/V from a different bf16 collective-matmul schedule. Backward reconstructs
+`exp(logits-lse)` without renormalizing; large logits make inconsistencies costly.
+For this XL family, keep packed keys and use full remat. Revalidate any future
+saved-residual optimization at a trained checkpoint on the formal multi-host
+topology, not solely at initialization or on one host. Saving the actual consumed
+Q/K/V together with output/lse is an untested alternative with a memory cost.
+Full remat recovery from8750 is running around.52step/s versus prior.54; the old
+corrupted tail cannot establish V5's loss ceiling. Evidence and exact scopes:
+[xlprop_v5_b_spike_replay.md](xlprop_v5_b_spike_replay.md).
+
 ## Current XL comparison reference (2026-10-01)
 
 User-designated current SOTA: `BamXLPropK96EmbedVOnlyQK72LLFTruePile`

@@ -71,6 +71,15 @@ def _convert_to_activation_function(fn_or_string: Union[str, Callable[..., Any]]
     )
 
 
+def _situ_activation(x, index, gate_limit, up_limit):
+  """Bound the SwiGLU factors while retaining sigmoid(raw gate)."""
+  if index == 0:
+    return gate_limit * jnp.tanh(x / gate_limit) * jax.nn.sigmoid(x)
+  if index == 1:
+    return up_limit * jnp.tanh(x / up_limit)
+  raise ValueError('SiTU requires exactly the gate/up factors')
+
+
 def _normalize_axes(axes: Iterable[int], ndim: int) -> Tuple[int]:
   # A tuple by convention. len(axes_tuple) then also gives the rank efficiently.
   return tuple(ax if ax >= 0 else ndim + ax for ax in axes)
@@ -292,17 +301,6 @@ class MlpBlock(nn.Module):
     deterministic: Whether the dropout layers should be deterministic.
     output_kernel_init: Optional initializer for the output projection only.
     output_dim: Optional output width for a dedicated memory writer.
-    bam_memory_output: Return a second BAM-content projection of the same hidden activation.
-    bam_memory_direct_hidden: Return a D-wide gated hidden state without an output projection.
-    bam_memory_write_heads: Optional independent head count for compact shared-hidden writes.
-    bam_memory_controls_from_hidden: Project compact addresses/gates from hidden, else inputs.
-    intermediate_dropout_rate: Dropout rate used after the intermediate layers.
-    dtype: computation data type for the dense layer.
-    weight_dtype: weight data type for the dense layer.
-    use_bias: whether to add bias in all feedforward layers.
-    zero_bias_without_rng: preserve parent kernel draws when adding zero biases.
-    use_pre_norm: whether to add pre layer norm in mlp layers.
-    quant: Optional quantization config, no quantization if None.
   """
 
   config: Config
@@ -311,10 +309,6 @@ class MlpBlock(nn.Module):
   kernel_init: NdInitializer = nd_dense_init(1.0, "fan_in", "truncated_normal")
   output_kernel_init: NdInitializer | None = None
   output_dim: int | None = None
-  bam_memory_output: bool = False
-  bam_memory_direct_hidden: bool = False
-  bam_memory_write_heads: int = 0
-  bam_memory_controls_from_hidden: bool = True
   intermediate_dropout_rate: float = 0.1
   dtype: Any = jnp.float32
   weight_dtype: Any = jnp.float32
@@ -322,6 +316,8 @@ class MlpBlock(nn.Module):
   zero_bias_without_rng: bool = False
   use_pre_norm: bool = False
   quant: Optional[Quant] = None
+  situ_gate_limit: float = 0.0
+  situ_up_limit: float = 0.0
 
   def setup(self):
     cfg = self.config
@@ -352,6 +348,17 @@ class MlpBlock(nn.Module):
   def __call__(self, inputs, deep_embedding=None, decoder_input_tokens=None, decode: bool = False, deterministic: bool = False):
     """Applies Transformer MlpBlock module."""
     cfg = self.config
+    situ = self.situ_gate_limit != 0 or self.situ_up_limit != 0
+    if situ and (tuple(self.activations) != ('silu', 'linear')
+                 or not all(math.isfinite(v) and v > 0 for v in (self.situ_gate_limit, self.situ_up_limit))):
+      raise ValueError('SiTU requires silu/linear and two finite positive limits')
+
+    def activate(x, index, function):
+      if not situ:
+        return _convert_to_activation_function(function)(x)
+      if cfg.activations_in_float32:
+        x = x.astype(jnp.float32)
+      return _situ_activation(x, index, self.situ_gate_limit, self.situ_up_limit)
 
     if self.use_pre_norm:
       inputs = normalizations.get_rmsnorm("mlp_layer_norm", cfg)(inputs)
@@ -380,7 +387,7 @@ class MlpBlock(nn.Module):
       )(inputs)
       x = checkpoint_name(x, "mlpwi")
       for idx, act_fn in enumerate(self.activations):
-        y = _convert_to_activation_function(act_fn)(x[:, :, idx, ...])
+        y = activate(x[:, :, idx, ...], idx, act_fn)
         activations.append(y)
     else:
       for idx, act_fn in enumerate(self.activations): # wi_0 is mlp gate
@@ -401,7 +408,7 @@ class MlpBlock(nn.Module):
         x = checkpoint_name(x, "mlp" + dense_name)
         if cfg.activations_in_float32:
           x = x.astype(jnp.float32)
-        x = _convert_to_activation_function(act_fn)(x)
+        x = activate(x, idx, act_fn)
         activations.append(x)
 
     # Take elementwise product of above intermediate activations.
@@ -425,11 +432,6 @@ class MlpBlock(nn.Module):
       max_logging.log(f'Inside 4xmlp, deep_embedding: {deep_embedding.shape if deep_embedding is not None else None}', debug=self.config.debug)
       x = self.deep_embed_block(inputs, x, decoder_input_tokens, deep_embedding)
 
-    if self.bam_memory_direct_hidden:
-      if self.bam_memory_output or self.output_dim is not None or x.shape[-1] != inputs.shape[-1]:
-        raise ValueError('Direct memory hidden output requires width D and no second head')
-      return checkpoint_name(x, "memory_mlp_hidden")
-
     output = DenseGeneral(
         self.output_dim if self.output_dim is not None else inputs.shape[-1],
         dtype=self.dtype,
@@ -449,41 +451,6 @@ class MlpBlock(nn.Module):
       output = self.deep_embed_block(inputs, output, decoder_input_tokens, deep_embedding)
 
     output = checkpoint_name(output, "mlpwo")
-    if self.bam_memory_output:
-      if self.use_bias:
-        raise ValueError('Shared-hidden BAM memory heads use bias-free projections')
-      if self.bam_memory_write_heads:
-        # Rank is a write-head count, independent of the attention/read heads.
-        heads = self.bam_memory_write_heads
-        k, v = int(cfg.bam_k), int(cfg.bam_v)
-        init = initializers.get_bam_init(cfg, fallback=self.kernel_init)
-        if self.bam_memory_controls_from_hidden:
-          factors = DenseGeneral(
-              heads * (k + v + 1), dtype=self.dtype, weight_dtype=self.weight_dtype,
-              kernel_init=init, kernel_axes=('mlp', 'embed'),
-              name='memory_factors', quant=self.quant, use_bias=False,
-              matmul_precision=cfg.matmul_precision)(x)
-          content, address, logits = jnp.split(factors, [heads*k, heads*(k+v)], axis=-1)
-        else:
-          content = DenseGeneral(
-              heads*k, dtype=self.dtype, weight_dtype=self.weight_dtype,
-              kernel_init=init, kernel_axes=('mlp', 'embed'),
-              name='memory_wo', quant=self.quant, use_bias=False,
-              matmul_precision=cfg.matmul_precision)(x)
-          controls = DenseGeneral(
-              heads*(v+1), dtype=self.dtype, weight_dtype=self.weight_dtype,
-              kernel_init=init, kernel_axes=('embed', None),
-              name='memory_controls', quant=self.quant, use_bias=False,
-              matmul_precision=cfg.matmul_precision)(inputs)
-          address, logits = jnp.split(controls, [heads*v], axis=-1)
-        return (output, content,
-                address.reshape(address.shape[:-1] + (heads, v)), logits)
-      memory_output = DenseGeneral(
-          inputs.shape[-1], dtype=self.dtype, weight_dtype=self.weight_dtype,
-          kernel_init=initializers.get_bam_init(cfg, fallback=self.kernel_init),
-          kernel_axes=("mlp", "embed"), name="memory_wo", quant=self.quant,
-          use_bias=False, matmul_precision=cfg.matmul_precision)(x)
-      return output, checkpoint_name(memory_output, "memory_mlpwo")
     return output
 
 

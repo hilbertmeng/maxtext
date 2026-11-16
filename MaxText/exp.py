@@ -21579,6 +21579,18 @@ class BamXLPropV5SiTU47M40R480SpeedProfile(BamXLPropV5SiTU47M60R480SpeedProfile)
     bam_v = 40
 
 
+class BamXLPropV5SiTU47M60R480Chunk16SpeedProfile(BamXLPropV5SiTU47M60R480SpeedProfile):
+    """M60/R480 with read chunk16 (read kernel microbench: V60 forward -2%, reverse -1.4%)."""
+    model_name = 'BamXLPropV5SiTU47M60R480Chunk16SpeedProfile'
+    bam_pallas_read_chunk = 16
+
+
+class BamXLPropV5SiTU47M60R480Chunk16Tile256SpeedProfile(BamXLPropV5SiTU47M60R480Chunk16SpeedProfile):
+    """Plus forward read tile256 (reverse stays128: 256 exceeds v5p VMEM)."""
+    model_name = 'BamXLPropV5SiTU47M60R480Chunk16Tile256SpeedProfile'
+    bam_pallas_read_tile = 256
+
+
 class BamXLPropV5SiTU47ReplicateRankUpSpeedProfile(BamXLPropV5SiTU47SpeedProfile):
     """Parent with replicated rank-input up projections (no FSDP windows over R)."""
     model_name = 'BamXLPropV5SiTU47ReplicateRankUpSpeedProfile'

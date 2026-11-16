@@ -70,8 +70,12 @@ class XLPropV5Test(MLPWriteTest, unittest.TestCase):
     self.assertEqual(counts, {'Llama2XLPropTruePileMHA': 1432398720,
                               'BamXLPropV5': 1432396996})
 
-  def test_xl_read_kernel_against_independent_reference_all_gradients(self):
-    b, t, n, v, k, rs = 1, 128, 20, 40, 96, 24
+  def test_xl_read_kernel_against_independent_reference_all_gradients_v60(self):
+    # V60 is not a sublane multiple: token-major scratches use a padded row stride.
+    self.test_xl_read_kernel_against_independent_reference_all_gradients(v=60)
+
+  def test_xl_read_kernel_against_independent_reference_all_gradients(self, v=40):
+    b, t, n, k, rs = 1, 128, 20, 96, 24
     keys = iter(jax.random.split(jax.random.key(70), 24))
     rand = lambda shape: jax.random.normal(next(keys), shape)
     matrix = rand((b, t, v, k))
@@ -124,9 +128,12 @@ class XLPropV5Test(MLPWriteTest, unittest.TestCase):
     self.assertGreater(abs(float(ga[-1])), 0.)
     self.assertGreater(abs(float(ga[-2])), 0.)
 
-  def test_whole_block_packed_keys_match_unpacked_at_20_heads(self):
+  def test_whole_block_packed_keys_match_unpacked_at_20_heads_v60(self):
+    self.test_whole_block_packed_keys_match_unpacked_at_20_heads(v=60)
+
+  def test_whole_block_packed_keys_match_unpacked_at_20_heads(self, v=40):
     # 20 heads are not a sublane multiple: packed keys are read as one [C, 4N, T] block.
-    b, t, n, v, k, rs = 1, 128, 20, 40, 96, 24
+    b, t, n, k, rs = 1, 128, 20, 96, 24
     keys = iter(jax.random.split(jax.random.key(71), 16))
     rand = lambda shape: jax.random.normal(next(keys), shape)
     matrix, static = rand((b, t, v, k)), rand((4 * n, v)) * .3

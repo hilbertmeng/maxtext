@@ -121,3 +121,34 @@ The task's `collect_depth_family.py`, `plot_depth_family.py` and `report_group.p
 under its artifact root reproduce this full context automatically at subsequent
 shared reports. Loss/gain windows come from run_registry; derived depth effects
 compose native paired-gain reports rather than reimplementing gain arithmetic.
+
+## R384 closeout and depth-specific rank selection
+
+User-stopped R384 at committed checkpoint5579/P0. Both candidate regions'
+node/queue identities are independently absent; seed9876/global128/two-host
+cursor and regional data filenames match. TensorBoard returned SYNC_OK.
+One UE5a READY lease11:01:31--14:03:07 UTC on2026-11-16 (3h01m36s), assigned
+11:01:23. The user stop is not a preemption. The physical TPU was retained
+from the cancelled pre-start control; that earlier preparation boundary is
+recorded separately in the regional history. The FLEX compiler is preserved.
+
+Final five native200-step windows4600--5400: R384 versus R256 gap+.00567972,
+MHA24-referenced gain.9767886. Absolute deficit narrowed from the early
+transient, but relative gain retention stayed near.98, then weakened; there
+was no sustained relative catch-up. Versus original24-layer M32 parent,
+gap-.00213384/gain1.008968; versus18-layer M48 gap-.00059840/paired gain1.026055;
+versus post-only Mudd24 gap-.10872420/gain1.831352. Thus a small absolute
+capacity benefit did not offset the larger rank's budget cost against R256.
+The terminal1.04 prior was not observed to its13.5k horizon; the partial
+result at stop was substantially smaller. Startup speed.524 versus parent
+.546 (-4.0%, unpaired), matching the approximate speed prior.
+
+Depth scaling need not force identical rank across depths, just as the Mudd
+comparison uses depth-appropriate norm choices. Continue the stronger24-layer
+M48/R256 against the existing18-layer M48/R384 and the BAM32/Mudd controls.
+Do not retain a weaker training arm solely to maintain identical rank.
+The stopped R384 data remain archived; exclude it from future shared-window
+intersections so its5.4k horizon cannot freeze the continuing scaling plot.
+R256 remains on the original13500-step plan, fixed2k reports, no scheduled
+elimination reviews. Reproduction: `r384-final-proof.json`,
+`r384-closeout-local.log`, `r384-direct-review/`, and `k6000/` in the task root.

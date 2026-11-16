@@ -21236,6 +21236,14 @@ class BamMediumPropV5L24TotalBudgetSwiGLUM48R384TruePile(
     ratio2.000667:1. Total432121088, target-112 and parent+1024.
     """
     # code_commit: 1a3b1d0; UE5a v5p-16 /311048 retained, launcher311049.
+    # User-stopped5579/P0; CP5579/cursor and TB SYNC_OK; UE5a/UC1a resources absent.
+    # ~.524 step/s, -4.0% vs M32 parent .546 (unpaired); no speed benefit vs R256 .526.
+    # Early M32-parent gain weakened, briefly crossed into a deficit, then held a small lead.
+    # Final five4600--5400: vs M32 parent gap-.002134/gain1.008968;
+    # vs enlarged18-layer BAM gap-.000598/paired-MHA gain1.026055;
+    # vs Mudd24-post gap-.108724/gain1.831352. Against R256, deficit persisted:
+    # last-five gap+.005680/gain.976789; shrinking absolute gap did not recover relative gains.
+    # Depth-specific rank choices are allowed; retain stronger R256 for the scaling study.
     model_name = 'BamMediumPropV5L24TotalBudgetSwiGLUM48R384TruePile'
     bam_v = 48
     bam_local_full_m_read_bottleneck_dim = 384

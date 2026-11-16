@@ -21443,8 +21443,9 @@ class BamXLPropV5SiTU47M60R480(BamXLPropV5FastKernelFullRematSiTU47):
     Ordinary/private widths 3859/1662 keep the complete-branch ratio 2.000644:1.
     Tail 5993 gives 1,432,395,236 params, parent -1760 (-.000477 W_Q).
     Single-layer scan over L0--26, with no terminal attention/private writes.
-    Packed v8t read/write, full remat and VMEM 63 remain inherited: both V40
-    and V60 use padded-64 matrix-address tiles.
+    Packed v8t read/write, full remat and VMEM 63 remain inherited.
+    Address-coordinate loops, scratch sizes and I/O still scale with actual V;
+    hardware tile alignment does not imply equal kernel or training-step cost.
     """
     # code_commit: b5f5271; UC1a v5p-32 /311046, startup55--99 ~.467 step/s.
     # -10.2% vs SiTU parent ~.520 (unpaired); generic health ON/internal OFF.

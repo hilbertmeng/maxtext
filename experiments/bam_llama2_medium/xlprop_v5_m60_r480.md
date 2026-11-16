@@ -41,10 +41,12 @@ The direct comparator is the SiTU parent.
 
 ## Pallas verification
 
-Keep packed v8t reads/writes, fused inputs and 63 MiB scoped VMEM. Both
-40 and 60 address coordinates pad to 64 in the kernel, while K96 and the
-120-dimensional Q/K output remain unchanged. R480 projections execute
-outside the read/write kernel; no new kernel interface is required.
+Keep packed v8t reads/writes, fused inputs and 63 MiB scoped VMEM.
+K96 and the 120-dimensional Q/K output remain unchanged. V60 is supported
+by the existing kernel, but address-coordinate loops, scratch buffers and
+I/O still use actual V; the earlier claim that both V40 and V60 uniformly
+pad to64 was incorrect. R480 projections execute outside the read/write
+kernel; no new kernel interface is required.
 
 Focused checks in the pinned CPU environment passed:
 
@@ -108,3 +110,22 @@ above. Remote task:
 `launch-plan.json`, `recipe-audit.json`, the CPU AOT state/manifest pointer,
 `startup-proofs.json` and `startup-accepted.json` record the immutable plan
 and actual launch acceptance. The registry is authoritative for live state.
+
+
+## Execution-cost clarification
+
+The sealed runtime's `_tm_slabs`, `_tm_fill_keys` and reverse coordinate
+passes iterate over `range(cdim)`, where cdim is40 or60. Forward scratch
+includes `(cdim * tile, rows)`; reverse has several further cdim-dependent
+buffers. Thus kernel VPU work and scratch also grow, independently of any
+MXU instruction alignment. `_to_tokens` explicitly pads its row slab to128
+for an XLU transpose; that is not a uniform64-column M representation.
+
+Read/address-up matrix sizes change400x800 to480x1200 (+80%); their
+logical output volume increases50%. Keeping total parameters constant by
+shrinking MLPs preserves neither operation shapes nor memory traffic.
+These source facts explain why equal-alignment intuition underestimated
+cost. The observed -10.2% startup throughput falls below the -5% prior;
+source inspection alone does not quantify each phase's measured contribution.
+No kernel, model setting, AOT or running training process was changed by
+this clarification.

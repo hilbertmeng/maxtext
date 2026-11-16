@@ -21436,6 +21436,28 @@ class BamXLPropV5FastKernelFullRematSiTU47(BamXLPropV5FastKernelFullRemat):
     compare_runs = ['BamXLPropV5FastKernelFullRemat']
 
 
+class BamXLPropV5SiTU47M60R480(BamXLPropV5FastKernelFullRematSiTU47):
+    """XL V5 SiTU capacity control: M96x60 and all read/write ranks 480.
+
+    Retain independent read/attention-write/memory-write down projections.
+    Ordinary/private widths 3859/1662 keep the complete-branch ratio 2.000644:1.
+    Tail 5993 gives 1,432,395,236 params, parent -1760 (-.000477 W_Q).
+    Single-layer scan over L0--26, with no terminal attention/private writes.
+    Packed v8t read/write, full remat and VMEM 63 remain inherited: both V40
+    and V60 use padded-64 matrix-address tiles. Configuration only; not launched.
+    """
+    model_name = 'BamXLPropV5SiTU47M60R480'
+    bam_v = 60
+    bam_local_full_m_read_bottleneck_dim = 480
+    bam_write_v_bottleneck_dim = 480
+    bam_mlp_write_address_rank = 480
+    emb_bam_v_bottleneck_dim = 480
+    base_mlp_dim = 3859
+    bam_memory_mlp_dim = 1662
+    bam_last_mlp_dim = 5993
+    compare_runs = ['BamXLPropV5FastKernelFullRematSiTU47']
+
+
 class _XLPropV5SpeedProfile(TrainStepProfile):
     """Paired speed arm: full 28 layers, formal 8/device, T4096, schedule and health."""
     # code_commit:fad395a (v5p-8), 708dcd2 (v5p-32); results in experiments/xlprop_v5.md.

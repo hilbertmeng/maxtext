@@ -21216,6 +21216,8 @@ class BamMediumPropV5L24TotalBudgetSwiGLUM48R256TruePile(
     Total432118976, parent-1088 and MHA18/24 target-2224.
     Reproduction: experiments/bam_llama2_medium/mediumprop_bam24_m48_r256.md.
     """
+    # code_commit: a03c7ea; UE5a v5p-16 /311047, startup ~.526 step/s.
+    # ~-3.7% vs completed M32/R256 parent .546 (unpaired; generic ON/internal OFF).
     model_name = 'BamMediumPropV5L24TotalBudgetSwiGLUM48R256TruePile'
     bam_v = 48
     base_mlp_dim = 2128
@@ -21232,6 +21234,7 @@ class BamMediumPropV5L24TotalBudgetSwiGLUM48R384TruePile(
     Ordinary/private/terminal widths1968/757/3075; complete branch
     ratio2.000667:1. Total432121088, target-112 and parent+1024.
     """
+    # code_commit: 1a3b1d0; UE5a v5p-16 /311048 retained, launcher311049.
     model_name = 'BamMediumPropV5L24TotalBudgetSwiGLUM48R384TruePile'
     bam_v = 48
     bam_local_full_m_read_bottleneck_dim = 384

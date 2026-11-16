@@ -59,3 +59,30 @@ Exact target AOT gates TPU layout/VMEM. Require both worker source hashes,
 AOT load beacons and FIRST_STEP. Borrow ACTIVE FLEX `llm-jax-v6e-1-0` in
 EW4a for compilation only; its lifecycle is outside these training RUNs.
 Artifacts: `/data0/xd/bam_diagnostics/mediumprop-bam24-m48-r256-20261116`.
+
+## Accepted startup and retained-resource handoff
+
+R256 runtimea03c7ea, TPU311047/UE5a: both workers load the exact AOT/source,
+FIRST_STEP at2 and later233-step timing proof. Median .526 step/s over
+133--233 (200 worker samples), -3.7% versus historical parent .546.
+R384 runtime1a3b1d0, launcher311049 on retained TPU311048/UE5a: both workers
+load the exact AOT/source, FIRST_STEP and step14 verified, later step104.
+Median .524 over77--176 (200 worker samples), -4.0% versus parent and
+approximately-.4% versus R256. Timings are unpaired with matched health.
+
+R384's M66x48 all-parameter native/Pallas gradient check maxrel5.31e-6;
+full-budget recheck and exact v5p-16 AOT pass with48MiB VMEM. The initial
+abandoned test wrapper mistakenly invoked absent pytest after its numerical
+unittests passed; logger regressions subsequently ran correctly as unittest
+and passed5/5 in the R256 preparation. No model/kernel source changed.
+
+The cancelled duplicate parent never produced an accepted FIRST_STEP or
+checkpoint. Both workers were verified without trainer/installer processes,
+its controller was dead, and registry ownership was paused at10:59:04Z.
+Its already-READY UE5a TPU was retained, then reassigned to the fresh R384
+RUN under its distinct GCS prefix. Only after R384 FIRST_STEP was confirmed
+was the old logical RUN finalized stopped, without inventing a checkpoint
+or deleting the transferred TPU. Its observed prequeue READY start10:42:07Z
+and cancellation boundary are in the regional history. The physical lease
+continues under R384; neither this handoff nor the preparation interval is
+a preemption. The retained user FLEX compiler is preserved.

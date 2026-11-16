@@ -31,6 +31,7 @@ active leases are censored, and manual migration releases are not preemptions.
 
 | RUN | TPU | Zone | Start UTC | End UTC | End reason | Passive candidates |
 |---|---|---|---|---|---|---|
+| `BamMediumPropV5L24TotalBudgetSwiGLUR256ControlTruePile` | v5p-16 (`xd-v5p-16-311048-maxtext`) | `us-east5-a` | 2026-11-16 10:42:29 | 2026-11-16 10:59:04 | cancelled redundant parent before FIRST_STEP; allocated TPU retained for R384 handoff, not deleted | UE5a primary; UC1a backup; no alternative allocated |
 | `BamMediumPropV5L24TotalBudgetSwiGLUTruePile` | v5p-16 (`xd-v5p-16-311042-maxtext`) | `us-central1-a` | 2026-11-15 06:30:57 | 2026-11-15 15:33:10 | preempted; recovered in UE5a; initial retained-TPU handoff from cancelled BAM27 | UE5a primary; UC1a backup; EW4b excluded |
 | `BamMediumPropV5L24TotalBudgetSwiGLUTruePile` | v5p-16 (`xd-v5p-16-311042-maxtext`) | `us-east5-a` | 2026-11-15 15:33:10 | 2026-11-15 15:46:06 | completed13500/P6; CP/cursor/TB verified; all regional node/queues absent | UE5a primary; UC1a backup; EW4b excluded |
 | `MuddLlama2MediumPropRouterFixedPostNormTruePile` | v5p-16 (`xd-v5p-16-311045-maxtext`) | `us-east5-a` | 2026-11-15 06:58:49 | 2026-11-15 07:11:25 | queue preparation only; no verified FIRST_STEP | UE5a primary; UC1a backup; EW4b excluded |
@@ -2767,7 +2768,8 @@ active leases are censored, and manual migration releases are not preemptions.
 | `MuddLlama2MediumPropRouterFixedPostNormTruePile` | 4 | `us-central1-a` | 2026-11-15 13:44:16 | 2026-11-15 15:06:16 | 1h22m00s | preempted; same-RUN automatic recovery |
 | `BamMediumPropV5L24TotalBudgetSwiGLUTruePile` | 6 | `us-central1-a` | 2026-11-15 14:30:42 | 2026-11-15 15:26:00 | 55m18s | preempted; same-RUN automatic recovery |
 | `MuddLlama2MediumPropRouterFixedPostNormTruePile` | 5 | `us-east5-a` | 2026-11-15 15:14:02 | 2026-11-15 15:45:19 | 31m17s | scheduled completion13500/P4; CP/cursor/TB and resource teardown verified |
-| `BamMediumPropV5L24TotalBudgetSwiGLUTruePile` | 7 | `us-east5-a` | 2026-11-15 15:33:14 | 2026-11-15 15:46:06 | 12m52s | scheduled completion13500/P6; CP/cursor/TB and resource teardown verified |
+| `BamMediumPropV5L24TotalBudgetSwiGLUTruePile` | 7 | `us-east5-a` | 2026-11-15 15:33:14 | 2026-11-15 15:46:06 | 12m52s | scheduled completion13500/P6; CP/cursor/TB and resource teardown verified || `BamMediumPropV5L24TotalBudgetSwiGLUR256ControlTruePile` | preparation | `us-east5-a` | 2026-11-16 10:42:07 | 2026-11-16 10:59:04 | 16m57s | pre-FIRST_STEP cancellation boundary; observer from prequeue, not a preemption; physical allocation retained for R384 |
+
 ### Medium depth-family MHA12 resource closeout (2026-11-13)
 
 The native registry records six preemptions and seven READY leases for

@@ -21200,6 +21200,8 @@ class BamMediumPropV5L24TotalBudgetSwiGLUR256ControlTruePile(
     Preserve the completed parent's432120064 parameters and all training
     settings. A distinct RUN keeps the new paired control independent.
     """
+    # code_commit: a03c7ea; cancelled as redundant before accepted FIRST_STEP.
+    # Historical L24 SwiGLU parent already uses all four address ranks256.
     model_name = 'BamMediumPropV5L24TotalBudgetSwiGLUR256ControlTruePile'
     compare_runs = ['BamMediumPropV5L24TotalBudgetSwiGLUTruePile']
 
@@ -21219,7 +21221,29 @@ class BamMediumPropV5L24TotalBudgetSwiGLUM48R256TruePile(
     base_mlp_dim = 2128
     bam_memory_mlp_dim = 911
     bam_last_mlp_dim = 3319
-    compare_runs = ['BamMediumPropV5L24TotalBudgetSwiGLUR256ControlTruePile']
+    compare_runs = ['BamMediumPropV5L24TotalBudgetSwiGLUTruePile',
+                    'BamMediumPropV5SiTU47M48R384']
+
+
+class BamMediumPropV5L24TotalBudgetSwiGLUM48R384TruePile(
+    BamMediumPropV5L24TotalBudgetSwiGLUTruePile):
+    """L24 fixed-total M66x48 control with all four address ranks384.
+
+    Ordinary/private/terminal widths1968/757/3075; complete branch
+    ratio2.000667:1. Total432121088, target-112 and parent+1024.
+    """
+    model_name = 'BamMediumPropV5L24TotalBudgetSwiGLUM48R384TruePile'
+    bam_v = 48
+    bam_local_full_m_read_bottleneck_dim = 384
+    bam_write_v_bottleneck_dim = 384
+    bam_mlp_write_address_rank = 384
+    emb_bam_v_bottleneck_dim = 384
+    base_mlp_dim = 1968
+    bam_memory_mlp_dim = 757
+    bam_last_mlp_dim = 3075
+    compare_runs = ['BamMediumPropV5L24TotalBudgetSwiGLUTruePile',
+                    'BamMediumPropV5SiTU47M48R384',
+                    'BamMediumPropV5L24TotalBudgetSwiGLUM48R256TruePile']
 
 
 class BamMediumPropV5SiTU47M16R128(BamMediumPropV5SiTU47):

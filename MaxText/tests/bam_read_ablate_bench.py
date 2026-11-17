@@ -14,6 +14,8 @@ from layers import bam_pallas_v8 as v8  # pylint: disable=wrong-import-position
 import bam_read_v_sweep_bench as bench  # pylint: disable=wrong-import-position
 
 ABL = set(filter(None, os.environ.get('ABL', '').split(',')))
+if os.environ.get('CPAD_EXTRA'):   # token-major scratch row stride = round_up(C, 8) + CPAD_EXTRA
+  v8._cpad = lambda c, _x=int(os.environ['CPAD_EXTRA']): -(-c // 8) * 8 + _x
 if 'fill' in ABL:
   v8._tm_fill_keys = lambda *a, **k: None
 if 'shiftgate' in ABL:
@@ -27,5 +29,5 @@ if 'slabs' in ABL:
   v8._tm_slabs = _no_norm
 
 if __name__ == '__main__':
-  print('ABL', sorted(ABL), flush=True)
+  print('ABL', sorted(ABL), 'CPAD_EXTRA', os.environ.get('CPAD_EXTRA', '0'), flush=True)
   bench.main()

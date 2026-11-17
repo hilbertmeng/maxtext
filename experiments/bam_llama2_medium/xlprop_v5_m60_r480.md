@@ -133,3 +133,14 @@ Hot-switch class `BamXLPropV5SiTU47M60R480FastRead` (same parameter and optimize
 parent: original runtime .469 step/s (device 2083.6 ms) -> .546 (1787.3 ms), +16.6%; the parent with
 the same changes is .565 (1727.8 ms), so the remaining architecture cost is 3.3%. Measurements and
 classes: `experiments/xlprop_v5.md` (read-kernel and sharding speedups); runtime `749b14a`.
+
+The formal same-RUN handoff on 2026-11-17 retained TPU `xd-v5p-32-311046-maxtext` in UC1a.
+All four workers loaded `749b14ad6c80cc80d6af11cb2023a5497d216508` and its supplied AOT,
+restoring checkpoint 39,250 with seed 9876, global batch 128 and four infeed hosts.
+The old post-checkpoint tail was frozen before replacing the trainer; replay of the same
+39,251--39,270 batches gave maximum absolute loss difference .000058 and mean difference
+-.00000005. Stable steps 39,260--39,290 measured .462806 -> .538226 step/s (+16.30%).
+The parameter tree, optimizer state, 50,000-step schedule, RUN prefix and comparison calendar
+were retained. Evidence: `/data0/xd/bam_diagnostics/xlprop-v5-m60-r480-config-20261116/fastread-handoff.json`
+and `fastread-overlap.json`; remote copies are under
+`tpu-ag:/home/lishengping/xd/projects/logs/xlprop-v5-m60-r480-20261116/`.

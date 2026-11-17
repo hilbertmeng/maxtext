@@ -21555,7 +21555,9 @@ class BamXLPropV5SiTU47M60R480FastRead(PallasReadTunedXL, BamXLPropV5SiTU47M60R4
     """
     # code_commit:749b14a; AOT_READY v5p-32/s50000 (CPU host, worker-env.json fingerprint):
     # gs://newproject-1-llm_base_models_us-central1/log/compiled_trainsteps/749b14a/jax081-i0ae3f58-c5aae279/v5p-32/s50000/BamXLPropV5SiTU47M60R480FastRead.pickle
-    # Bet for the hot-switched v5p-32 RUN: ~.54 step/s from ~.467 (+14..+17%); below .52 means report, not continue.
+    # Same RUN /311046, UC1a: switched at checkpoint 39250; four workers loaded 749b14a/AOT.
+    # Same-batch 39251--39270 replay: max |loss delta| .000058, mean delta -.00000005.
+    # Paired stable 39260--39290: .4628 -> .5382 step/s (+16.3%); plan remains 50,000.
     model_name = 'BamXLPropV5SiTU47M60R480FastRead'
 
 

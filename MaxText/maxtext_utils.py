@@ -18,6 +18,7 @@ limitations under the License.
 """Utils that are only interesting to MaxText. """
 
 import jax
+import numpy as np
 import optax
 import max_utils
 from jax.sharding import PartitionSpec as P
@@ -307,7 +308,7 @@ def calculate_prefill_tflops_per_device(num_model_parameters, prefill_length, co
   return total_tflops, learnable_weight_tflops, causal_attention_tflops
 
 
-def assert_params_sufficiently_sharded(params, mesh, tolerance):
+def assert_params_sufficiently_sharded(params, mesh, tolerance, replicated_by_design=None):
   """Checks whether most params are sharded across sharding axis.
 
   This function determines whether the majority of parameters  are distributed
@@ -320,6 +321,8 @@ def assert_params_sufficiently_sharded(params, mesh, tolerance):
     mesh: mesh constructed from config
     tolerance: float between 0.0 and 1.0 representing the allowed percentage of
     non-sharded parameters.
+    replicated_by_design: optional predicate on a leaf's key path; matching leaves count at their
+    perfectly sharded size (deliberate replication, e.g. BAM rank-input up projections).
   Returns:
     bool: True if the majority of parameters are sufficiently sharded
   """
@@ -328,6 +331,11 @@ def assert_params_sufficiently_sharded(params, mesh, tolerance):
   for axis in ["fsdp", "fsdp_transpose", "sequence", "tensor", "tensor_transpose", "tensor_sequence", "stage", "expert"]:
     product_num_devices_for_weight_sharding *= mesh.shape[axis]
   total_num_params_per_chip = max_utils.calculate_total_params_per_chip(params)
+  if replicated_by_design is not None:
+    for path, leaf in jax.tree_util.tree_leaves_with_path(params):
+      if replicated_by_design(path):
+        total_num_params_per_chip -= np.prod(leaf.addressable_shards[0].data.shape)
+        total_num_params_per_chip += leaf.size / product_num_devices_for_weight_sharding
   perfectly_sharded_params_per_chip = total_num_params / product_num_devices_for_weight_sharding
   assert total_num_params_per_chip >= perfectly_sharded_params_per_chip, (
       "Number of parameters per chip must not be less than in the ideal sharded "

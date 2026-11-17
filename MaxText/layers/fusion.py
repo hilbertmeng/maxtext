@@ -380,7 +380,8 @@ class SubDecoderLayer(nn.Module):
             features=(write_heads, cfg.bam_v), axis=-1, use_bias=True,
             kernel_init=initializers.get_bam_init(
               cfg, fallback=initializers.get_init_method(cfg.init_method)),
-            kernel_axes=(None if cfg.bam_replicate_rank_up else 'embed', 'q_heads', 'v_factor'),
+            kernel_axes=(None if attentions.replicate_rank_up(cfg, self.mesh, rank) else 'embed', 'q_heads',
+                         'v_factor'),
             dtype=cfg.dtype, weight_dtype=cfg.weight_dtype,
             quant=self.quant, matmul_precision=cfg.matmul_precision,
             name='mlp_address_up')(nn.gelu(address_hidden))

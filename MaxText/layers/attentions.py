@@ -1851,6 +1851,25 @@ def _bam_splash_attention(query, key, value, decoder_segment_ids, cfg, mesh, win
   return jnp.transpose(out, (0, 2, 1, 3))
 
 
+RANK_UP_KERNELS = ('W_lq_c8_up', 'W_lk_c8_up', 'W_lv_c8_up', 'W_R_up', 'P_loc_up', 'mlp_address_up')
+RANK_UP_MIN_SHARD_ROWS = 64
+
+
+def replicate_rank_up(cfg, mesh, rank):
+  """Whether up projections with input rank `rank` replicate their rank axis instead of FSDP-sharding it.
+
+  bam_replicate_rank_up True/False forces it; 'auto' replicates when each embed-axis shard would hold
+  fewer than RANK_UP_MIN_SHARD_ROWS rank rows: the windowed collective matmuls then run with tiny
+  contractions (XL V5 R400-480: v5p-32's 25-30 rows +8-9% step when replicated; v5p-8's 100-120 neutral).
+  """
+  mode = cfg.bam_replicate_rank_up
+  if mode != 'auto':
+    return bool(mode)
+  shards = math.prod(mesh.shape[a] for a in ('fsdp', 'fsdp_transpose', 'sequence', 'tensor_transpose', 'expert')
+                     if a in mesh.shape)
+  return shards > 1 and rank / shards < RANK_UP_MIN_SHARD_ROWS
+
+
 def _update_bam_matrix(M_in, dM, lambda_decay):
   """Apply constant retention to the old state, then add the new write."""
   return jnp.asarray(lambda_decay, dtype=M_in.dtype) * M_in + dM
@@ -2039,8 +2058,6 @@ class BamAttention(Attention):
                        or self.layer_inx in cfg.bam_attention_write_layers)
     self._concat_health = bool(cfg.bam_record_concat_health)
     self._force_activation_dtype = bool(cfg.bam_force_activation_dtype)
-    self._replicate_rank_up = bool(cfg.bam_replicate_rank_up)
-    self._replicate_ploc_up = bool(cfg.bam_replicate_ploc_up) or self._replicate_rank_up
     self._read_key_scale = float(cfg.bam_read_key_scale)
     self._rms_epsilon = float(cfg.normalization_layer_epsilon)
     self._read_key_epsilon = float(cfg.bam_read_key_epsilon or cfg.normalization_layer_epsilon)
@@ -2053,6 +2070,9 @@ class BamAttention(Attention):
     self._m_read_norm = cfg.bam_m_read_norm
     self._full_m_read_rank = cfg.bam_local_full_m_read_bottleneck_dim
     self._write_v_bottleneck_dim = cfg.bam_write_v_bottleneck_dim
+    self._replicate_rank_up = replicate_rank_up(cfg, self.mesh, self._full_m_read_rank)
+    self._replicate_ploc_up = (bool(cfg.bam_replicate_ploc_up)
+                               or replicate_rank_up(cfg, self.mesh, self._write_v_bottleneck_dim))
     self._write_outer_implementation = cfg.bam_write_outer_implementation
     self._write_data_rms = cfg.bam_write_data_rms
     from layers.bam_write_content import divisor
@@ -2779,10 +2799,10 @@ class BamAttention(Attention):
       read_kwargs['chunk'] = int(cfg.bam_pallas_read_chunk)
     if getattr(cfg, 'bam_pallas_read_xhat_double_buffer', False):
       read_kwargs['xhat_double_buffer'] = True
-    if cfg.bam_pallas_shift_carry:
-      read_kwargs['shift_carry'] = True
-    if cfg.bam_pallas_read_stride_skew:
-      read_kwargs['stride_skew'] = True
+    if cfg.bam_pallas_shift_carry:          # True or 'auto' (resolved on the per-device batch)
+      read_kwargs['shift_carry'] = 'auto' if cfg.bam_pallas_shift_carry == 'auto' else True
+    if cfg.bam_pallas_read_stride_skew:     # True or 'auto' (resolved on the kernel's VMEM estimate)
+      read_kwargs['stride_skew'] = 'auto' if cfg.bam_pallas_read_stride_skew == 'auto' else True
     if packed_qkvo is not None:
       if body != 'v8t':
         raise ValueError('bam_pallas_packed_read_keys requires v8t')

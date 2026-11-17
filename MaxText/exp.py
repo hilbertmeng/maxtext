@@ -18,6 +18,15 @@ class SplashTunedBlocks1024:
     sa_use_fused_bwd_kernel = True
 
 
+class PallasReadTunedXL:
+    """v8t read chunk16 and forward tile256 (reverse stays 128: 256 exceeds v5p VMEM).
+
+    XL V5 (B8 T4096 N20 K96) read kernel on v5p: V40 forward+reverse -3.6% (chunk16), forward -7%
+    (tile256); M60/R480 v5p-8 step +0.8% together. Not verified at 2.8B or Medium shapes."""
+    bam_pallas_read_chunk = 16
+    bam_pallas_read_tile = 256
+
+
 class Common:
     enable_goodput_recording = False # true is slower then false, decend 15%
     monitor_goodput = False
@@ -21516,13 +21525,30 @@ class BamXLPropV5SiTU47M60R480(BamXLPropV5FastKernelFullRematSiTU47):
     compare_runs = ['BamXLPropV5FastKernelFullRematSiTU47']
 
 
+class BamXLPropV5SiTU47M60R480FastRead(PallasReadTunedXL, BamXLPropV5SiTU47M60R480):
+    """Hot-switch runtime for the M60/R480 RUN: same math, parameter and optimizer trees.
+
+    Read kernel: padded/skewed scratch strides, in-kernel M-shift boundary carry, chunk16/tile256;
+    rank-input up projections replicated on v5p-32 (bam_replicate_rank_up 'auto').
+    v5p-32 (8/device, same-VM pairs against the SiTU parent): original runtime .469 step/s, device step
+    2083.6 ms -> .546 step/s, 1787.3 ms (experiments/bam_llama2_medium/xlprop_v5_m60_r480.md).
+    """
+    model_name = 'BamXLPropV5SiTU47M60R480FastRead'
+
+
 class _XLPropV5SpeedProfile(TrainStepProfile):
-    """Paired speed arm: full 28 layers, formal 8/device, T4096, schedule and health."""
+    """Paired speed arm: full 28 layers, formal 8/device, T4096, schedule and health.
+
+    Pins the automatic read/sharding options off so recorded arms stay reproducible; arms that
+    measure them set them explicitly."""
     # code_commit:fad395a (v5p-8), 708dcd2 (v5p-32); results in experiments/xlprop_v5.md.
     target_train_batch_size = None
     per_device_batch_size = 8.0
     steps = 100
     checkpoint_keep_steps = []
+    bam_pallas_shift_carry = False
+    bam_pallas_read_stride_skew = False
+    bam_replicate_rank_up = False
 
 
 class BamXLPropV5SpeedProfile(_XLPropV5SpeedProfile, BamXLPropV5):

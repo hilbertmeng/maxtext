@@ -628,22 +628,53 @@ def _tm_read_forward_call(args, opts, sh=None, om=None, os=None, qn=None):
   if qk_norm:         # residuals: xhat for Q/K and 1/r [B,2,NP,T]
     out_specs += [_tm_out_spec(n, tile, qdim)] * 2 + [_spec(qn[0].shape[1:-1], tile)]
     out_shape += (qk_out,) * 2 + (jax.ShapeDtypeStruct(qn[0].shape, F32),)
+  in_specs = (_tm_read_specs(args, tile, packed, bool(qk_norm)) + _shift_specs(m, sh, tile)
+              + _mask_specs(om, tile) + _scale_specs(os) + _qk_norm_specs(qn, tile))
+  inputs = (*args, *(() if sh is None else (sh, m)), *(() if om is None else (om,)),
+            *(() if os is None else (os,)), *(() if qn is None else qn))
+  scratch = lambda cp: ([pltpu.VMEM((cp * tile, r), F32), pltpu.VMEM((tile * r, kdim), F32)]
+                        + ([pltpu.VMEM((tile, r // 4), F32)] if qk_norm else []))
+  vmem = lambda cp: (_vmem_bytes(in_specs, inputs, []) + _vmem_bytes(out_specs, out_shape, scratch(cp)))
   return pl.pallas_call(
       _tm_read_kernel(n, opts['qk_cols'], opts['read_epsilon'], opts['key_scale'], opts['q_scale'],
                       len(args) == 12, opts['chunk'], sh is not None, qdim, om is not None, os is not None,
                       qk_norm, opts.get('m_norm'), int(opts.get('scale_const_rows') or 0),
                       _whole_keys(n, packed)),
       grid=(b, t // tile),
-      in_specs=(_tm_read_specs(args, tile, packed, bool(qk_norm)) + _shift_specs(m, sh, tile)
-                + _mask_specs(om, tile) + _scale_specs(os) + _qk_norm_specs(qn, tile)),
+      in_specs=in_specs,
       out_specs=out_specs,
       out_shape=out_shape,
-      scratch_shapes=([pltpu.VMEM((_cpad(cdim, opts.get('stride_skew')) * tile, r), F32),
-                       pltpu.VMEM((tile * r, kdim), F32)]
-                      + ([pltpu.VMEM((tile, r // 4), F32)] if qk_norm else [])),
+      scratch_shapes=scratch(_stride(cdim, opts, vmem)),
       interpret=opts['interpret'], compiler_params=_params(('parallel', 'parallel'), opts['vmem_mib']),
-      name='bam_core_read')(*args, *(() if sh is None else (sh, m)), *(() if om is None else (om,)),
-                            *(() if os is None else (os,)), *(() if qn is None else qn))
+      name='bam_core_read')(*inputs)
+
+
+def _vmem_bytes(specs, arrays, scratch):
+  """Scoped-VMEM estimate of a pallas_call: pipelined blocks (x buffer count) plus scratch."""
+  total = 0
+  for spec, x in zip(specs, arrays):
+    if spec.block_shape is None:     # whole array in HBM (memory_space=ANY)
+      continue
+    bufs = spec.pipeline_mode.buffer_count if spec.pipeline_mode is not None else 2
+    total += math.prod(b if isinstance(b, int) else 1 for b in spec.block_shape) * x.dtype.itemsize * bufs
+  return total + sum(math.prod(s.shape) * jnp.dtype(s.dtype).itemsize for s in scratch)
+
+
+# Mosaic's scoped VMEM exceeds the block+scratch estimate by its own temporaries: the 2.8B fused-QKNorm
+# read reverse (B16 T2048 N32 K80 V64) estimates 44.1 MiB and needs 62.6 MiB.
+VMEM_OVERHEAD = 1.45
+
+
+def _stride(cdim, opts, vmem_with):
+  """Scratch row stride: skewed per _cpad when stride_skew is True, or for 'auto' when the skewed
+  call's VMEM estimate vmem_with(cp) times VMEM_OVERHEAD fits under the limit."""
+  mode, cp, skewed = opts.get('stride_skew'), _cpad(cdim), _cpad(cdim, True)
+  if not mode or skewed == cp:
+    return cp
+  if mode is True:
+    return skewed
+  limit = int(opts['vmem_mib'] or 16) * 2 ** 20
+  return skewed if vmem_with(skewed) * VMEM_OVERHEAD <= limit else cp
 
 
 def _reverse_tiles(spec, nt):
@@ -707,20 +738,16 @@ def _tm_read_backward_call(args, cts, opts, sh=None, om=None, os=None, qn=None, 
     out_specs[q_at], out_specs[q_at + 1] = _std_tok_spec(args[9].shape, tile), _std_tok_spec(args[10].shape, tile)
   out_shape = ([jax.ShapeDtypeStruct(m.shape, m.dtype), jax.ShapeDtypeStruct((b, t // tile, cdim, r), F32)]
                + [jax.ShapeDtypeStruct(x.shape, x.dtype) for x in grad_args])
-  cp = _cpad(cdim, opts.get('stride_skew'))
-  scratch = [pltpu.VMEM((cp * tile, r), F32), pltpu.VMEM((r * tile, kdim), F32),
-             pltpu.VMEM((tile * cp, r), F32),
-             pltpu.VMEM((cdim, 2 * np_ + key_shapes[2][2], tile), F32)]
-  carry = shifted and bool(opts.get('shift_carry'))
+  # 'auto': carry when the local batch still splits across megacore TensorCores (the tile axis turns
+  # sequential, leaving the batch axis as the only parallel grid axis).
+  mode = opts.get('shift_carry')
+  carry = shifted and (mode is True or (mode == 'auto' and b >= 2))
   if shifted:
     out_specs += [_spec(sh.shape[1:-1], tile)]
     out_shape += [jax.ShapeDtypeStruct(sh.shape, sh.dtype)]
     if not carry:     # per-tile first-token shares, added to the previous tile in XLA
       out_specs += [pl.BlockSpec((None, None, vdim, kdim), lambda bb, i: (bb, i, 0, 0))]
       out_shape += [jax.ShapeDtypeStruct((b, t // tile, vdim, kdim), F32)]
-    scratch += [pltpu.VMEM((tile * cp, kdim), F32)]              # gate g'[c, t] broadcast over lanes
-  if carry:
-    scratch += [pltpu.VMEM((1, vdim, kdim), F32)]                 # share carried to the previous tile
   scaled_rows = os.shape[0] if os is not None else 0
   const_rows = int(opts.get('scale_const_rows') or 0)
   per_c_rows = scaled_rows - const_rows
@@ -732,10 +759,21 @@ def _tm_read_backward_call(args, cts, opts, sh=None, om=None, os=None, qn=None, 
     out_specs += [_spec(qn[0].shape[1:-1], tile),
                   pl.BlockSpec((None, None, 2, qdim), lambda bb, i: (bb, i, 0, 0))]
     out_shape += [jax.ShapeDtypeStruct(qn[0].shape, F32), jax.ShapeDtypeStruct((b, t // tile, 2, qdim), F32)]
-  if om is not None:
-    scratch += [pltpu.VMEM((tile * cp, r), F32)]                 # token-major O multiplier rows
-  if per_c_rows:
-    scratch += [pltpu.VMEM((cdim * per_c_rows, tile), F32)]       # per-c scale gradient terms, T-minor
+  def scratch(cp):
+    s = [pltpu.VMEM((cp * tile, r), F32), pltpu.VMEM((r * tile, kdim), F32), pltpu.VMEM((tile * cp, r), F32),
+         pltpu.VMEM((cdim, 2 * np_ + key_shapes[2][2], tile), F32)]
+    if shifted:
+      s += [pltpu.VMEM((tile * cp, kdim), F32)]       # gate g'[c, t] broadcast over lanes
+    if carry:
+      s += [pltpu.VMEM((1, vdim, kdim), F32)]         # share carried to the previous tile
+    if om is not None:
+      s += [pltpu.VMEM((tile * cp, r), F32)]          # token-major O multiplier rows
+    if per_c_rows:
+      s += [pltpu.VMEM((cdim * per_c_rows, tile), F32)]   # per-c scale gradient terms, T-minor
+    return s
+  inputs = (*args, *extra, *cts, *qn_res)
+  vmem = lambda cp: _vmem_bytes(in_specs, inputs, []) + _vmem_bytes(out_specs, out_shape, scratch(cp))
+  scratch_shapes = scratch(_stride(cdim, opts, vmem))
   if carry:
     in_specs = [_reverse_tiles(s, t // tile) for s in in_specs]
     out_specs = [_reverse_tiles(s, t // tile) for s in out_specs]
@@ -744,11 +782,11 @@ def _tm_read_backward_call(args, cts, opts, sh=None, om=None, os=None, qn=None, 
                                gated, opts['chunk'], pass_m, shifted, qdim, om is not None, os is not None,
                                qk_norm, packed, opts.get('m_norm'), const_rows, _whole_keys(n, packed), carry),
       grid=(b, t // tile), in_specs=in_specs, out_specs=out_specs, out_shape=tuple(out_shape),
-      scratch_shapes=scratch,
+      scratch_shapes=scratch_shapes,
       input_output_aliases={len(args) + len(extra) + 4: 0} if pass_m else {},
       interpret=opts['interpret'],
       compiler_params=_params(('parallel', 'arbitrary' if carry else 'parallel'), opts['vmem_mib']),
-      name='bam_core_read_backward')(*args, *extra, *cts, *qn_res)
+      name='bam_core_read_backward')(*inputs)
   dqn = None
   if qk_norm:
     outs, (dss, dmm) = outs[:-2], outs[-2:]
@@ -827,7 +865,9 @@ def read_tm(m, static_weight, q_key, q_logits, k_key, k_logits, vo_key, o_logits
   shift_carry: the reverse walks token tiles last to first (tile axis sequential) and carries each
   tile's first-token M_{t-1} cotangent into the previous tile's last token in VMEM, instead of adding
   per-tile boundaries to dM in XLA (several whole-dM copies per layer). The boundary token is then cast
-  to the model dtype once rather than twice.
+  to the model dtype once rather than twice. 'auto' carries only when the per-device batch is >= 2.
+  stride_skew: token-major scratch row strides that are multiples of 32 move up by 8 (see _cpad);
+  'auto' only when the call's VMEM estimate times VMEM_OVERHEAD fits under vmem_mib.
 
   m_norm (epsilon): optional whole-matrix pre-norm of the read view. Every read sees
   M_read_t * rsqrt(mean(M_read_t^2) + epsilon), one FP32 statistic per token over all V x K entries
@@ -866,8 +906,8 @@ def read_tm(m, static_weight, q_key, q_logits, k_key, k_logits, vo_key, o_logits
                       tile=forward_tile, reverse_tile=reverse_tile, vmem_mib=vmem_mib, interpret=interpret,
                       q_scale=float(q_scale), chunk=chunk, **({'qdim': qdim} if qdim > m.shape[-1] else {}),
                       **({'xhat_double_buffer': True} if xhat_double_buffer else {}),
-                      **({'shift_carry': True} if shift_carry and shift is not None else {}),
-                      **({'stride_skew': True} if stride_skew else {}),
+                      **({'shift_carry': shift_carry} if shift_carry and shift is not None else {}),
+                      **({'stride_skew': stride_skew} if stride_skew else {}),
                       **({} if m_norm is None else {'m_norm': float(m_norm)}),
                       **({} if qk_norm is None else {'qk_norm': (float(qk_norm[4]), float(qdim))})))
   padn = lambda x: jnp.pad(x, [(0, 0)] * (x.ndim - 2) + [(0, np_ - n), (0, 0)]) if np_ > n else x

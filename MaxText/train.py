@@ -1073,7 +1073,10 @@ def setup_train_loop(config):
 
   if not config.using_pipeline_parallelism:
     # The vocab tensor(s) of shape [vocab, embed] (and transpose) are not sharded by stage
-    maxtext_utils.assert_params_sufficiently_sharded(state.params, mesh, config.sharding_tolerance)
+    from layers.attentions import RANK_UP_KERNELS
+    rank_up = lambda path: len(path) > 1 and getattr(path[-2], 'key', None) in RANK_UP_KERNELS
+    maxtext_utils.assert_params_sufficiently_sharded(state.params, mesh, config.sharding_tolerance,
+                                                     replicated_by_design=rank_up)
 
   if config.use_dpo:
     abstract_state, _, _ = max_utils.get_abstract_state(model, tx, config, init_rng, mesh, is_training=True)

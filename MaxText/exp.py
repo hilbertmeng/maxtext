@@ -21225,13 +21225,23 @@ class BamMediumPropV5L24TotalBudgetSwiGLUM48R256TruePile(
     Total432118976, parent-1088 and MHA18/24 target-2224.
     Reproduction: experiments/bam_llama2_medium/mediumprop_bam24_m48_r256.md.
     """
+    # code_commit: a03c7ea; UE5a v5p-16 /311047, startup ~.526 step/s.
+    # Completed 13,500 / P1; final CP/cursor, TB SYNC_OK and UE5a/UC1a teardown verified.
+    # ~-3.7% vs completed M32/R256 parent .546 (unpaired; generic ON/internal OFF).
+    # M32-parent gap held near -.007 after the transient; gain rose gently to last-five 1.038571.
+    # Final five 12.6k--13.4k: parent gap -.007049; vs BAM18 M48 gap -.008104,
+    # paired-MHA gain 1.035644; vs Mudd24-post gap -.084332 / gain 1.799133.
+    # Depth response improves modestly vs BAM32 (K_capacity 1.011747), still trails Mudd
+    # (K_mudd .899448). Larger M helps loss but does not resolve depth-gain flattening.
+    # Capacity-gain prior 1.025 was conservative; ~-4% speed prior matched.
     model_name = 'BamMediumPropV5L24TotalBudgetSwiGLUM48R256TruePile'
     bam_v = 48
     base_mlp_dim = 2128
     bam_memory_mlp_dim = 911
     bam_last_mlp_dim = 3319
     compare_runs = ['BamMediumPropV5L24TotalBudgetSwiGLUTruePile',
-                    'BamMediumPropV5SiTU47M48R384']
+                    'BamMediumPropV5SiTU47M48R384',
+                    'MuddLlama2MediumPropL24TotalBudgetRouterFixedPostNormTruePile']
 
 
 class BamMediumPropV5L24TotalBudgetSwiGLUM48R384TruePile(
@@ -21241,6 +21251,15 @@ class BamMediumPropV5L24TotalBudgetSwiGLUM48R384TruePile(
     Ordinary/private/terminal widths1968/757/3075; complete branch
     ratio2.000667:1. Total432121088, target-112 and parent+1024.
     """
+    # code_commit: 1a3b1d0; UE5a v5p-16 /311048 retained, launcher311049.
+    # User-stopped5579/P0; CP5579/cursor and TB SYNC_OK; UE5a/UC1a resources absent.
+    # ~.524 step/s, -4.0% vs M32 parent .546 (unpaired); no speed benefit vs R256 .526.
+    # Early M32-parent gain weakened, briefly crossed into a deficit, then held a small lead.
+    # Final five4600--5400: vs M32 parent gap-.002134/gain1.008968;
+    # vs enlarged18-layer BAM gap-.000598/paired-MHA gain1.026055;
+    # vs Mudd24-post gap-.108724/gain1.831352. Against R256, deficit persisted:
+    # last-five gap+.005680/gain.976789; shrinking absolute gap did not recover relative gains.
+    # Depth-specific rank choices are allowed; retain stronger R256 for the scaling study.
     model_name = 'BamMediumPropV5L24TotalBudgetSwiGLUM48R384TruePile'
     bam_v = 48
     bam_local_full_m_read_bottleneck_dim = 384
@@ -21252,7 +21271,8 @@ class BamMediumPropV5L24TotalBudgetSwiGLUM48R384TruePile(
     bam_last_mlp_dim = 3075
     compare_runs = ['BamMediumPropV5L24TotalBudgetSwiGLUTruePile',
                     'BamMediumPropV5SiTU47M48R384',
-                    'BamMediumPropV5L24TotalBudgetSwiGLUM48R256TruePile']
+                    'BamMediumPropV5L24TotalBudgetSwiGLUM48R256TruePile',
+                    'MuddLlama2MediumPropL24TotalBudgetRouterFixedPostNormTruePile']
 
 
 class BamMediumPropV5SiTU47M16R128(BamMediumPropV5SiTU47):
@@ -22542,3 +22562,49 @@ class BamPythia2p8BHUnitShortTrainFastKernelContentWriteAdapterFullPreRms(
     # code_commit:f694be4; exact v5p-128/s28000 AOT (FLEX, AOT_COMPILE_OK):
     # gs://newproject-1-llm_base_models_us-central1/log/compiled_trainsteps/f694be4/jax081-i0ae3f58-c17f538a/v5p-128/s28000/
     bam_content_adapter_write_before_rms = True
+
+
+class BamXLPropV5EveryThirdMLPWriteNorm(BamXLPropV5FastKernelFullRemat):
+    """Ledger only: V5 sparse normalized writes; codex/xlprop-v5-sparse-mlp.
+
+    Runtime implementation: /home/xd/.codex/worktrees/xl-v5-sparse-mlp/maxtext.
+
+    Write layers are L1/L4/.../L25, matching the old XL SOTA. Nine three-layer
+    blocks scan together; L27 remains a separate terminal layer without M writes.
+    Restore per-head MLP/embedding write-content RMSNorm; attention is unchanged.
+    """
+    # code_commit: 0345fc9; UC1a v5p-32 /311060, startup ~.539 step/s.
+    # Four-worker source/AOT, global128 and TruePile4096 verified; ~+4% vs V5 .518 (unpaired).
+    model_name = 'BamXLPropV5EveryThirdMLPWriteNorm'
+    bam_memory_mlp_dim = 0
+    bam_memory_mlp_dim_by_layer = None
+    bam_mlp_write_every = 3
+    bam_mlp_write_offset = 2
+    bam_mlp_write_layers = list(range(1, 27, 3))
+    bam_pair_scan = True
+    bam_local_fetch_block_size = 3
+    bam_final_local_layer_count = 1
+    base_mlp_dim = 6071
+    mlp_dim_by_block = [6071, 5875, 6071]
+    bam_final_local_mlp_dim = 6272
+    bam_last_mlp_dim = 0
+    bam_embedding_write_content_divisor = None
+    bam_mlp_write_content_divisor = None
+    bam_mlp_write_vector_residual_mode = 'add'
+    record_training_health_metrics = True
+    record_internal_nn_metrics = False
+    compare_runs = ['BamXLPropV5FastKernelFullRemat']
+
+
+class BamXLPropV5EveryThirdMLPWriteRawMemoryOnly(BamXLPropV5EveryThirdMLPWriteNorm):
+    """Ledger only: sparse raw MLP writes; no direct writer-MLP vector output.
+
+    All geometry, parameter widths, read paths, attention writes and training
+    settings match the normalized arm. Only L1/L4/.../L25 omit the MLP residual.
+    """
+    # code_commit: 0345fc9; UC1a v5p-32 /311061, startup ~.539 step/s.
+    # Four-worker source/AOT, global128 and TruePile4096 verified; ~+4% vs V5 .518 (unpaired).
+    model_name = 'BamXLPropV5EveryThirdMLPWriteRawMemoryOnly'
+    bam_embedding_write_content_divisor = BamXLPropV5FastKernelFullRemat.bam_embedding_write_content_divisor
+    bam_mlp_write_content_divisor = 1.0
+    bam_mlp_write_vector_residual_mode = 'off'

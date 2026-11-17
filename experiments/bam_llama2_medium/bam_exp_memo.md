@@ -1276,3 +1276,20 @@ CorrelatedUE5a2026-10-15T1232 firstpreemption: initoriginalCP7770->7771, shared-
 2026-10-15：用户相继停共享写attention norm4673/MLPnorm5354、去读门零静态MLP读18层5117，均CP提交/资源释放/TBSYNC_OK。共享写两路末五对attention单改R约1.0001/1.0010；18层读M末五对原单门R1.00695，较3k1.01910继续缩水。12层读M继续。attention单改/MLPnorm来源对照2k对父路末五R.999459，少一次norm速度+.23%，尚无额外loss收益。初始化组共同10k：BAM/Mudd1.61245/1.54850；对未修复串行二阶1.39025/1.33511，修复效果保持到中后期。详细证据见各组note。
 
 2026-10-16 JST（UTC15日）：MLP读12层也按用户指令停3149，至此MLP读整组均已收尾。attention单改父路11k末五R1.019387/gap-.003120，较10k1.025413/-.004185继续收缩，撤回“已稳定”判断；全程及后段放大图见本地post-residual-write/selective/attention-only-trajectory-20261015T1453.png。改用MLPnorm对照3.2k对父路R.999304/gap+.000174，仍近持平。两者例行报告已合并为一个完整组，不能用“单路数据+一句同组进度”冒充一起报。初始化组共同11k修复/全原BAM-Mudd末五1.622815/1.549095，绝对loss修复路末五领先.005802，最近约1k稳定；与attention单改父路的收缩是不同方向、不同配方，不能混淆。
+
+
+## 2026-11-17: XL V5 memory-capacity result and implementation cost
+
+Completed the equal-parameter M96x60/R480 control against SiTU M96x40/R400 for 50,000 steps.
+The final five native windows (47.5k--49.5k) average gap -.00348212 and MHA-referenced gain
+1.02866871, close to the 1.03 pre-run bet. Gains increased in the later normal-gradient phase
+and then fluctuated near 1.03. M, rank and compensating MLP widths change together, so this
+establishes the net capacity tradeoff rather than isolating one factor.
+
+Do not confuse an immature kernel's cost with architecture cost. Original live throughput
+was .467 step/s, -10.2% against the parent's recorded .520 (unpaired). FastRead fixed scratch
+alignment/strides, M-shift boundary traffic and rank-up sharding: the same-VM training replay
+measured .4628 -> .5382 step/s (+16.3%), with maximum same-batch loss difference .000058 over
+20 steps. A paired optimized-parent profile leaves a 3.3% architecture cost. Full configurations,
+runtime hashes, replay, final curves and complete resource history are linked from
+[xlprop_v5_m60_r480.md](xlprop_v5_m60_r480.md).

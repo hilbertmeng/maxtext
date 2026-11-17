@@ -22439,6 +22439,8 @@ class BamXLPropV5EveryThirdMLPWriteNorm(BamXLPropV5FastKernelFullRemat):
     blocks scan together; L27 remains a separate terminal layer without M writes.
     Restore per-head MLP/embedding write-content RMSNorm; attention is unchanged.
     """
+    # code_commit: 0345fc9; UC1a v5p-32 /311060, startup ~.539 step/s.
+    # Four-worker source/AOT, global128 and TruePile4096 verified; ~+4% vs V5 .518 (unpaired).
     model_name = 'BamXLPropV5EveryThirdMLPWriteNorm'
     bam_memory_mlp_dim = 0
     bam_memory_mlp_dim_by_layer = None
@@ -22466,6 +22468,8 @@ class BamXLPropV5EveryThirdMLPWriteRawMemoryOnly(BamXLPropV5EveryThirdMLPWriteNo
     All geometry, parameter widths, read paths, attention writes and training
     settings match the normalized arm. Only L1/L4/.../L25 omit the MLP residual.
     """
+    # code_commit: 0345fc9; UC1a v5p-32 /311061, startup ~.539 step/s.
+    # Four-worker source/AOT, global128 and TruePile4096 verified; ~+4% vs V5 .518 (unpaired).
     model_name = 'BamXLPropV5EveryThirdMLPWriteRawMemoryOnly'
     bam_embedding_write_content_divisor = BamXLPropV5FastKernelFullRemat.bam_embedding_write_content_divisor
     bam_mlp_write_content_divisor = 1.0

@@ -102,3 +102,42 @@ preflight requires a .git directory. Compile from the exact clean detached
 clone `/tmp/maxtext-xl-v5-sparse-aot-0345` instead; runtime commit, config seal
 and verified environment are unchanged. Independent compiles use disjoint
 CPU sets 0--15 and 16--31. Start each ready arm without waiting for the other.
+
+## Verified historical stability premise
+
+The old XL single-.5 SOTA `BamXLPropSharedR400GeneralReadMShiftReadG050TruePile`
+has all 1,941 ten-step raw-gradient samples from 600 through 20,000. Maximum
+raw norm is 2.062887 at step 620; counts above 10 and 100 are both zero. Its
+runtime eeec67c emitted raw and clipped norms, so this is not missing health
+telemetry. Evidence: `old-sota-gradient-check.json` under the task artifact
+root. The full-remat V5 comparator has genuine large gradient/loss episodes
+at approximately 4.14k, 7.91k and 10.1k; retain its original history only
+through 8,750 and exclude the discarded FSS-damaged continuation.
+
+The raw memory-only arm also preserves the aggregate vector-MLP budget almost
+exactly: 665,568,000 versus the V5 parent's 665,700,480 parameters (-0.0199%).
+The complete matrix-MLP branch is 314,704,980 versus 314,569,980 (+135,000).
+Their net +2520 is the already recorded rounding difference. Thus this arm
+mainly moves ordinary/memory specialization from parallel branches within each
+layer to separate layer positions; it does not simply remove one third of the
+ordinary residual-MLP parameter budget. The normalized arm instead lets the
+large writer MLP enter both streams. Keep that distinction in causal analysis.
+
+## Accepted startup
+
+Both RUNs reached FIRST_STEP and continued beyond their startup gates in UC1a,
+using the original regional race with UE5a primary and UC1a backup. Each pod's
+four workers independently report the exact 0345fc9 source and loaded AOT;
+all four have global batch 128 and the UC1a TruePile4096 replica. Normalized
+startup capture spans steps 0--81, raw memory-only capture 2--102 (bounded
+last-100-step excerpts). Median recorded speed after step 20 is .539 step/s
+for each, about +4.1% versus historical V5 .518, unpaired. Runtime hashes in
+main exp.py refer to this accepted implementation, not this metadata commit.
+
+Proofs: `startup-proofs.json`, `startup-accepted.json`, per-RUN first-step
+gates on tpu-ag, and `stream-budget-comparison.json` under the task root.
+Monitoring group `xlprop-v5-sparse-mlp` uses a fixed 2k calendar, no elimination
+reviews, both arms against the full-remat V5 parent. Shared native watch also
+retains `xlprop-v5-m60-r480`; the capacity RUN's next report remains 28k.
+`report_group.py` renders native cumulative gap/gain lines and aligned actual
+loss plus raw/clipped gradients, with the parent's valid original prefix.

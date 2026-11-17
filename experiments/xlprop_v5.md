@@ -177,6 +177,45 @@ Traces:
 - `gs://newproject-1-llm_base_models_us-central1/log/diagnostics/profile_matrix/fad395a/{xlv5pk,xlv5pk2,xlv5pk3}/`
 - Local: `/data0/xd/bam_diagnostics/xlprop-v5-packed-speed-20261108/`
 
+## Read-kernel and sharding speedups (same math)
+
+Runtime `749b14a` (refactor-bam). Three model-independent changes, all `'auto'` by default:
+
+- `bam_pallas_shift_carry`: the M-shift read reverse walks token tiles last to first and carries each
+  tile's boundary M_{t-1} cotangent in VMEM, replacing several whole-dM XLA passes per layer.
+  On when the per-device batch is >= 2 (the batch axis then still splits across megacore cores).
+  The boundary token is cast once instead of twice; otherwise identical.
+- `bam_pallas_read_stride_skew`: token-major read scratches use row stride round_up(V, 8), moved by 8
+  off multiples of 32 (strided per-coordinate stores/loads at such strides run 13--17% slower on v5p).
+  Bit-identical. `'auto'` requires the call's block+scratch estimate x1.45 to fit `vmem_mib`, which
+  keeps the 2.8B fused-QKNorm reverse (estimate 44.1 MiB, Mosaic 62.6 MiB) unskewed.
+- `bam_replicate_rank_up`: the read-key, `P_loc_up` and `mlp_address_up` up projections replicate their
+  rank input axis when an FSDP shard would hold < 64 rank rows. Same parameter tree; about 1.5 GB more
+  HBM per chip; the train-time sharding check counts these weights as sharded.
+
+`PallasReadTunedXL` (read chunk16, forward tile256) is an explicit mixin.
+
+v5p-32 paired on one VM (UC1a, 8/device, global128, full remat, generic health ON, median step/s and
+XPlane device step):
+
+| Arm | step/s | device ms | vs MHA (Splash512) | vs MHA Splash1024 |
+|---|---:|---:|---:|---:|
+| `Llama2XLPropTruePileMHA` as trained (Splash blocks 512) | .549 | 1808 | — | |
+| MHA with `SplashTunedBlocks1024` | .624 | 1593 | +13.5% | — |
+| SiTU47 parent as trained | .519 | 1885 | -4.1% | -15.5% |
+| parent + carry/chunk16/tile256 | .530 | 1836 | -1.5% | -13.2% |
+| parent + those + rank-up replication | .565 | 1728 | +4.6% | -7.8% |
+| M60/R480 + carry/skew/chunk16/tile256 | .507 | 1930 | | |
+| M60/R480 + those + rank-up replication | .546 | 1787 | | |
+
+Ratios are device-step throughput. The same-settings parent/MHA ratio is .922 (device) or .906
+(median step/s). Replication removes the 16-way FSDP windowed matmuls over the 25--30-row rank
+shards (parent: `attention_other` 115 -> 50 ms, write factors 26.5 -> 8.4, MLP write 64 -> 47); on
+v5p-8 (100--120 rows) it is neutral. Profile classes: `Llama2XLPropTruePileMHAV5{,Splash1024}SpeedProfile`,
+`BamXLPropV5SiTU47{,FastRead,FastReadReplicateRankUp}SpeedProfile`,
+`BamXLPropV5SiTU47M60R480FastReadSkew{,ReplicateRankUp}SpeedProfile` (`96f081e`). Traces:
+`/data0/xd/bam_diagnostics/xlprop-v5-m60-speed-20261116/s32f-a1/`.
+
 ## User-requested stop and preserved diagnosis
 
 Stopped at committed checkpoint13007 on2026-11-08 13:54:09 UTC to limit further

@@ -112,20 +112,24 @@ above. Remote task:
 and actual launch acceptance. The registry is authoritative for live state.
 
 
-## Execution-cost clarification
+## Execution cost and same-math speedup
 
-The sealed runtime's `_tm_slabs`, `_tm_fill_keys` and reverse coordinate
-passes iterate over `range(cdim)`, where cdim is40 or60. Forward scratch
-includes `(cdim * tile, rows)`; reverse has several further cdim-dependent
-buffers. Thus kernel VPU work and scratch also grow, independently of any
-MXU instruction alignment. `_to_tokens` explicitly pads its row slab to128
-for an XLU transpose; that is not a uniform64-column M representation.
+Equal parameters do not mean equal step time: V60 makes every token-major read/write operand 1.5x
+larger, and R480 enlarges the rank projections. Paired profiles of the original runtime (v5p-8,
+`55c704f`): V alone -8.4%, R alone -0.6%, both -10.2%. The excess was implementation, not traffic
+(the extra HBM bytes cost about 25 ms/step):
 
-Read/address-up matrix sizes change400x800 to480x1200 (+80%); their
-logical output volume increases50%. Keeping total parameters constant by
-shrinking MLPs preserves neither operation shapes nor memory traffic.
-These source facts explain why equal-alignment intuition underestimated
-cost. The observed -10.2% startup throughput falls below the -5% prior;
-source inspection alone does not quantify each phase's measured contribution.
-No kernel, model setting, AOT or running training process was changed by
-this clarification.
+- V60 is not a multiple of 8, so the read reverse's per-token scratch reshapes were unaligned
+  (reverse 1.47 ms/call at V40, 4.36 at V60). Fixed by a row stride rounded up to 8.
+- The padded stride 64 then hit v5p's slow multiple-of-32 stride for the per-coordinate strided
+  stores (read F+R 6.04 -> 5.08 ms/call at stride 72; `bam_pallas_read_stride_skew`).
+- The M-shift boundary cotangents were added to dM in XLA with several whole-dM copies per layer
+  (read glue 48 -> 8 ms/step with `bam_pallas_shift_carry`).
+- On v5p-32 the R480 up projections ran as 16-way FSDP windowed matmuls over 30-row shards
+  (`bam_replicate_rank_up`).
+
+Hot-switch class `BamXLPropV5SiTU47M60R480FastRead` (same parameter and optimizer trees, verified
+1,432,395,236 parameters) enables these plus `PallasReadTunedXL`. v5p-32 on one VM against the SiTU
+parent: original runtime .469 step/s (device 2083.6 ms) -> .546 (1787.3 ms), +16.6%; the parent with
+the same changes is .565 (1727.8 ms), so the remaining architecture cost is 3.3%. Measurements and
+classes: `experiments/xlprop_v5.md` (read-kernel and sharding speedups); runtime `749b14a`.

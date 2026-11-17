@@ -21553,6 +21553,9 @@ class BamXLPropV5SiTU47M60R480FastRead(PallasReadTunedXL, BamXLPropV5SiTU47M60R4
     v5p-32 (8/device, same-VM pairs against the SiTU parent): original runtime .469 step/s, device step
     2083.6 ms -> .546 step/s, 1787.3 ms (experiments/bam_llama2_medium/xlprop_v5_m60_r480.md).
     """
+    # code_commit:749b14a; AOT_READY v5p-32/s50000 (CPU host, worker-env.json fingerprint):
+    # gs://newproject-1-llm_base_models_us-central1/log/compiled_trainsteps/749b14a/jax081-i0ae3f58-c5aae279/v5p-32/s50000/BamXLPropV5SiTU47M60R480FastRead.pickle
+    # Bet for the hot-switched v5p-32 RUN: ~.54 step/s from ~.467 (+14..+17%); below .52 means report, not continue.
     model_name = 'BamXLPropV5SiTU47M60R480FastRead'
 
 

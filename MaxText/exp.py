@@ -21610,6 +21610,38 @@ class BamXLPropV5SiTU47M60R480FastReadReplicateRankUpSpeedProfile(BamXLPropV5SiT
     sharding_tolerance = 1.2
 
 
+class BamXLPropV5SiTU47M60R480FastReadSkewReplicateRankUpSpeedProfile(BamXLPropV5SiTU47M60R480FastReadSkewSpeedProfile):
+    model_name = 'BamXLPropV5SiTU47M60R480FastReadSkewReplicateRankUpSpeedProfile'
+    bam_replicate_rank_up = True
+    sharding_tolerance = 1.2
+
+
+class BamXLPropV5SiTU47FastReadSpeedProfile(BamXLPropV5SiTU47SpeedProfile):
+    """Parent with the child's read settings: carry, chunk16, forward tile256 (skew is a no-op at V40)."""
+    model_name = 'BamXLPropV5SiTU47FastReadSpeedProfile'
+    bam_pallas_shift_carry = True
+    bam_pallas_read_stride_skew = True
+    bam_pallas_read_chunk = 16
+    bam_pallas_read_tile = 256
+
+
+class BamXLPropV5SiTU47FastReadReplicateRankUpSpeedProfile(BamXLPropV5SiTU47FastReadSpeedProfile):
+    model_name = 'BamXLPropV5SiTU47FastReadReplicateRankUpSpeedProfile'
+    bam_replicate_rank_up = True
+    sharding_tolerance = 1.2
+
+
+class Llama2XLPropTruePileMHAV5SpeedProfile(_XLPropV5SpeedProfile, Llama2XLPropTruePileMHA):
+    """Formal MHA runtime (base.yml Splash 512 blocks, full remat) at the XL V5 profile settings."""
+    model_name = 'Llama2XLPropTruePileMHAV5SpeedProfile'
+
+
+class Llama2XLPropTruePileMHAV5Splash1024SpeedProfile(Llama2XLPropTruePileMHAV5SpeedProfile):
+    """MHA with the BAM classes' Splash blocks (SplashTunedBlocks1024 values, full remat)."""
+    model_name = 'Llama2XLPropTruePileMHAV5Splash1024SpeedProfile'
+    locals().update({k: v for k, v in vars(SplashTunedBlocks1024).items() if k.startswith('sa_')})
+
+
 class BamXLPropV5SiTU47ShiftCarrySpeedProfile(BamXLPropV5SiTU47SpeedProfile):
     """Parent with the in-kernel M-shift tile-boundary carry."""
     model_name = 'BamXLPropV5SiTU47ShiftCarrySpeedProfile'

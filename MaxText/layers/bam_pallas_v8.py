@@ -17,6 +17,7 @@ the token-major operands are built in VMEM. Building keys / splitting Y in XLA i
 experimental v8 body, branch claude/bam-pallas-fullm) cost +330 ms of pads/copies on [B,T,N,40/96].
 """
 import math
+import dataclasses
 from functools import partial
 
 import jax
@@ -313,7 +314,7 @@ def _tm_read_kernel(n, qk_cols, eps, scale, q_scale, gated, ch, shifted=False, q
 
 def _tm_read_backward_kernel(n, qk_cols, eps, scale, q_scale, gated, ch, pass_m, shifted=False, qdim=None,
                              masked=False, scaled=False, qk_norm=None, packed=False, m_norm=None, const_rows=0,
-                             whole=False):
+                             whole=False, carry=False):
   def kernel(m_ref, st_ref, rq, lq, rk, lk, rr, lo, lv, qs, ks, *refs):
     if whole:
       rq = rk = rr = _WholeKeys(rq, n)
@@ -340,7 +341,9 @@ def _tm_read_backward_kernel(n, qk_cols, eps, scale, q_scale, gated, ch, pass_m,
       (dm_ref, dst_ref, drq, dlq, drk, dlk, drr, dlo, dlv, dqs, dks), refs = refs[:11], refs[11:]
     if gated:
       dsg_ref, refs = refs[0], refs[1:]
-    if shifted:
+    if shifted and carry:
+      dsh_ref, refs = refs[0], refs[1:]
+    elif shifted:
       (dsh_ref, bnd_ref), refs = refs[:2], refs[2:]
     if scaled:
       dos_ref, refs = refs[0], refs[1:]
@@ -349,7 +352,8 @@ def _tm_read_backward_kernel(n, qk_cols, eps, scale, q_scale, gated, ch, pass_m,
       dmm = [jnp.zeros((1, qdim), F32), jnp.zeros((1, qdim), F32)]
     xt_scr, dy_scr, dxt_scr, dkey_scr = refs[:4]
     gb_scr = refs[4] if shifted else None
-    xm_scr = refs[5 if shifted else 4] if masked else None
+    carry_scr = refs[5] if carry else None
+    xm_scr = refs[(5 + int(carry)) if shifted else 4] if masked else None
     dos_scr = refs[-1] if scaled else None
     t, _, kdim = m_ref.shape
     cdim = rq.shape[0]
@@ -431,6 +435,11 @@ def _tm_read_backward_kernel(n, qk_cols, eps, scale, q_scale, gated, ch, pass_m,
     if shifted:
       _fill_shift_gate(sh_ref, gb_scr)
     nxt = None        # shifted: dM_{t-1} share of the first token of the chunk after this one
+    if carry:         # tiles run last to first; the share crosses into this tile's last token
+      @pl.when(pl.program_id(1) == 0)
+      def _():
+        carry_scr[...] = jnp.zeros(carry_scr.shape, F32)
+      nxt = carry_scr[...]
     for t0 in (range(0, t, ch)[::-1] if shifted else range(0, t, ch)):
       dy = _gather(dy_scr, t0, ch, t).astype(dt)
       if shifted:
@@ -477,7 +486,9 @@ def _tm_read_backward_kernel(n, qk_cols, eps, scale, q_scale, gated, ch, pass_m,
         dmv = dmv + gp_ref[pl.ds(t0, ch)].astype(F32)
       dm_ref[pl.ds(t0, ch)] = dmv.astype(dm_ref.dtype)
     dst_ref[...] = dst
-    if shifted:
+    if carry:
+      carry_scr[...] = nxt
+    elif shifted:
       bnd_ref[...] = nxt[0]
     # T-minor key reverse: X^T[c] = g * inv * r[c] + S[:, c] * sg; u = d(normalized key) per arm.
     gacc = jnp.zeros((r, t), F32)      # sum_c dX * r   (gate gradient before * inv)
@@ -631,6 +642,14 @@ def _tm_read_forward_call(args, opts, sh=None, om=None, os=None, qn=None):
                             *(() if os is None else (os,)), *(() if qn is None else qn))
 
 
+def _reverse_tiles(spec, nt):
+  """The same block spec visiting token tiles last to first (grid index i -> tile nt - 1 - i)."""
+  if getattr(spec, 'index_map', None) is None:
+    return spec
+  f = spec.index_map
+  return dataclasses.replace(spec, index_map=lambda bb, i: f(bb, nt - 1 - i))
+
+
 def _add_tile_boundary_gradients(dm, boundary, tile):
   """Accumulate previous-tile cotangents without an XLA strided gather.
 
@@ -687,10 +706,16 @@ def _tm_read_backward_call(args, cts, opts, sh=None, om=None, os=None, qn=None, 
   scratch = [pltpu.VMEM((_cpad(cdim) * tile, r), F32), pltpu.VMEM((r * tile, kdim), F32),
              pltpu.VMEM((tile * _cpad(cdim), r), F32),
              pltpu.VMEM((cdim, 2 * np_ + key_shapes[2][2], tile), F32)]
+  carry = shifted and bool(opts.get('shift_carry'))
   if shifted:
-    out_specs += [_spec(sh.shape[1:-1], tile), pl.BlockSpec((None, None, vdim, kdim), lambda bb, i: (bb, i, 0, 0))]
-    out_shape += [jax.ShapeDtypeStruct(sh.shape, sh.dtype), jax.ShapeDtypeStruct((b, t // tile, vdim, kdim), F32)]
+    out_specs += [_spec(sh.shape[1:-1], tile)]
+    out_shape += [jax.ShapeDtypeStruct(sh.shape, sh.dtype)]
+    if not carry:     # per-tile first-token shares, added to the previous tile in XLA
+      out_specs += [pl.BlockSpec((None, None, vdim, kdim), lambda bb, i: (bb, i, 0, 0))]
+      out_shape += [jax.ShapeDtypeStruct((b, t // tile, vdim, kdim), F32)]
     scratch += [pltpu.VMEM((tile * _cpad(cdim), kdim), F32)]     # gate g'[c, t] broadcast over lanes
+  if carry:
+    scratch += [pltpu.VMEM((1, vdim, kdim), F32)]                 # share carried to the previous tile
   scaled_rows = os.shape[0] if os is not None else 0
   const_rows = int(opts.get('scale_const_rows') or 0)
   per_c_rows = scaled_rows - const_rows
@@ -706,14 +731,18 @@ def _tm_read_backward_call(args, cts, opts, sh=None, om=None, os=None, qn=None, 
     scratch += [pltpu.VMEM((tile * _cpad(cdim), r), F32)]        # token-major O multiplier rows
   if per_c_rows:
     scratch += [pltpu.VMEM((cdim * per_c_rows, tile), F32)]       # per-c scale gradient terms, T-minor
+  if carry:
+    in_specs = [_reverse_tiles(s, t // tile) for s in in_specs]
+    out_specs = [_reverse_tiles(s, t // tile) for s in out_specs]
   outs = pl.pallas_call(
       _tm_read_backward_kernel(n, opts['qk_cols'], opts['read_epsilon'], opts['key_scale'], opts['q_scale'],
                                gated, opts['chunk'], pass_m, shifted, qdim, om is not None, os is not None,
-                               qk_norm, packed, opts.get('m_norm'), const_rows, _whole_keys(n, packed)),
+                               qk_norm, packed, opts.get('m_norm'), const_rows, _whole_keys(n, packed), carry),
       grid=(b, t // tile), in_specs=in_specs, out_specs=out_specs, out_shape=tuple(out_shape),
       scratch_shapes=scratch,
       input_output_aliases={len(args) + len(extra) + 4: 0} if pass_m else {},
-      interpret=opts['interpret'], compiler_params=_params(('parallel', 'parallel'), opts['vmem_mib']),
+      interpret=opts['interpret'],
+      compiler_params=_params(('parallel', 'arbitrary' if carry else 'parallel'), opts['vmem_mib']),
       name='bam_core_read_backward')(*args, *extra, *cts, *qn_res)
   dqn = None
   if qk_norm:
@@ -727,7 +756,9 @@ def _tm_read_backward_call(args, cts, opts, sh=None, om=None, os=None, qn=None, 
     dos = jnp.concatenate((dconst, tot[:cdim * per_c_rows].reshape(cdim, per_c_rows).T), axis=0).astype(os.dtype)
   dm = outs[0]
   dsh = None
-  if shifted:
+  if carry:
+    outs, dsh = outs[:-1], outs[-1]
+  elif shifted:
     outs, (dsh, bnd) = outs[:-2], outs[-2:]
     # Each tile's first-token M_{t-1} cotangent belongs to the previous tile's last token.
     dm = _add_tile_boundary_gradients(dm, bnd, tile)
@@ -777,7 +808,7 @@ def read_tm(m, static_weight, q_key, q_logits, k_key, k_logits, vo_key, o_logits
             vmem_mib=None, interpret=False, q_scale=1.0, static_gates=None, chunk=8, pad_heads=False,
             shift=None, o_weight_multiplier=None, o_dynamic_scale=None, v_dynamic_scale=None, qk_norm=None,
             q_dynamic_scale=None, k_dynamic_scale=None,
-            keys_cnt=None, m_norm=None, xhat_double_buffer=False, **_):
+            keys_cnt=None, m_norm=None, xhat_double_buffer=False, shift_carry=False, **_):
   """v7.read's interface (keys [B,T,N,C], logits [B,T,N], standard QK [B,T,N,Rs]) for M [B,T,V,K] and
   full-M reads (C == V, identity compression). Returns (query, key, value, local_o) [B,T,N,K] and M.
 
@@ -787,6 +818,11 @@ def read_tm(m, static_weight, q_key, q_logits, k_key, k_logits, vo_key, o_logits
   shift [B,T,V]: optional previous-token share g' (zero at invalid tokens); every read then sees
   M_t + g'_t (M_{t-1} - M_t), mixed per V row on the VPU inside the kernel (one read dot, two reverse
   dots); the passthrough M stays unmixed. v5p XL kernel-only: read F/B +10%/+10% over the plain read.
+
+  shift_carry: the reverse walks token tiles last to first (tile axis sequential) and carries each
+  tile's first-token M_{t-1} cotangent into the previous tile's last token in VMEM, instead of adding
+  per-tile boundaries to dM in XLA (several whole-dM copies per layer). The boundary token is then cast
+  to the model dtype once rather than twice.
 
   m_norm (epsilon): optional whole-matrix pre-norm of the read view. Every read sees
   M_read_t * rsqrt(mean(M_read_t^2) + epsilon), one FP32 statistic per token over all V x K entries
@@ -825,6 +861,7 @@ def read_tm(m, static_weight, q_key, q_logits, k_key, k_logits, vo_key, o_logits
                       tile=forward_tile, reverse_tile=reverse_tile, vmem_mib=vmem_mib, interpret=interpret,
                       q_scale=float(q_scale), chunk=chunk, **({'qdim': qdim} if qdim > m.shape[-1] else {}),
                       **({'xhat_double_buffer': True} if xhat_double_buffer else {}),
+                      **({'shift_carry': True} if shift_carry and shift is not None else {}),
                       **({} if m_norm is None else {'m_norm': float(m_norm)}),
                       **({} if qk_norm is None else {'qk_norm': (float(qk_norm[4]), float(qdim))})))
   padn = lambda x: jnp.pad(x, [(0, 0)] * (x.ndim - 2) + [(0, np_ - n), (0, 0)]) if np_ > n else x

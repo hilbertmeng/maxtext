@@ -21591,6 +21591,25 @@ class BamXLPropV5SiTU47M60R480Chunk16Tile256SpeedProfile(BamXLPropV5SiTU47M60R48
     bam_pallas_read_tile = 256
 
 
+class BamXLPropV5SiTU47M60R480FastReadSpeedProfile(BamXLPropV5SiTU47M60R480Chunk16Tile256SpeedProfile):
+    """Plus the in-kernel M-shift tile-boundary carry (no whole-dM XLA boundary adds)."""
+    model_name = 'BamXLPropV5SiTU47M60R480FastReadSpeedProfile'
+    bam_pallas_shift_carry = True
+
+
+class BamXLPropV5SiTU47M60R480FastReadReplicateRankUpSpeedProfile(BamXLPropV5SiTU47M60R480FastReadSpeedProfile):
+    """Plus replicated rank-input up projections (targets v5p-32's 16-way FSDP windows over R)."""
+    model_name = 'BamXLPropV5SiTU47M60R480FastReadReplicateRankUpSpeedProfile'
+    bam_replicate_rank_up = True
+    sharding_tolerance = 1.2
+
+
+class BamXLPropV5SiTU47ShiftCarrySpeedProfile(BamXLPropV5SiTU47SpeedProfile):
+    """Parent with the in-kernel M-shift tile-boundary carry."""
+    model_name = 'BamXLPropV5SiTU47ShiftCarrySpeedProfile'
+    bam_pallas_shift_carry = True
+
+
 class BamXLPropV5SiTU47ReplicateRankUpSpeedProfile(BamXLPropV5SiTU47SpeedProfile):
     """Parent with replicated rank-input up projections (no FSDP windows over R)."""
     model_name = 'BamXLPropV5SiTU47ReplicateRankUpSpeedProfile'

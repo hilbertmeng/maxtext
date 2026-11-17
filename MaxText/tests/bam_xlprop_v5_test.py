@@ -74,8 +74,12 @@ class XLPropV5Test(MLPWriteTest, unittest.TestCase):
     # V60 is not a sublane multiple: token-major scratches use a padded row stride.
     self.test_xl_read_kernel_against_independent_reference_all_gradients(v=60)
 
-  def test_xl_read_kernel_against_independent_reference_all_gradients(self, v=40):
-    b, t, n, k, rs = 1, 128, 20, 96, 24
+  def test_xl_read_kernel_shift_carry_v60_four_tiles(self):
+    # Boundary M_{t-1} cotangents carried tile to tile in VMEM (reverse tiles run last to first).
+    self.test_xl_read_kernel_against_independent_reference_all_gradients(v=60, t=256, carry=True)
+
+  def test_xl_read_kernel_against_independent_reference_all_gradients(self, v=40, t=128, carry=False):
+    b, n, k, rs = 1, 20, 96, 24
     keys = iter(jax.random.split(jax.random.key(70), 24))
     rand = lambda shape: jax.random.normal(next(keys), shape)
     matrix = rand((b, t, v, k))
@@ -95,7 +99,7 @@ class XLPropV5Test(MLPWriteTest, unittest.TestCase):
           key_scale=scale, forward_tile=64, reverse_tile=64, interpret=True,
           q_scale=1 / math.sqrt(k), static_gates=sg, shift=sh, chunk=8, m_norm=eps,
           q_dynamic_scale=head(qk), k_dynamic_scale=head(qk),
-          v_dynamic_scale=head(vo), o_dynamic_scale=head(vo))
+          v_dynamic_scale=head(vo), o_dynamic_scale=head(vo), shift_carry=carry)
 
     def reference(m, sw, x, sg, sh, qk, vo):
       previous = jnp.concatenate((m[:, :1], m[:, :-1]), axis=1)

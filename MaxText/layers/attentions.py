@@ -2781,6 +2781,8 @@ class BamAttention(Attention):
       read_kwargs['xhat_double_buffer'] = True
     if cfg.bam_pallas_shift_carry:
       read_kwargs['shift_carry'] = True
+    if cfg.bam_pallas_read_stride_skew:
+      read_kwargs['stride_skew'] = True
     if packed_qkvo is not None:
       if body != 'v8t':
         raise ValueError('bam_pallas_packed_read_keys requires v8t')

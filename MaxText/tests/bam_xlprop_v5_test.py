@@ -78,7 +78,13 @@ class XLPropV5Test(MLPWriteTest, unittest.TestCase):
     # Boundary M_{t-1} cotangents carried tile to tile in VMEM (reverse tiles run last to first).
     self.test_xl_read_kernel_against_independent_reference_all_gradients(v=60, t=256, carry=True)
 
-  def test_xl_read_kernel_against_independent_reference_all_gradients(self, v=40, t=128, carry=False):
+  def test_xl_read_kernel_stride_skew_v60_carry_and_v64(self):
+    # Scratch row strides moved off multiples of 32 (64 -> 72): padding rows are never read.
+    self.test_xl_read_kernel_against_independent_reference_all_gradients(v=60, t=256, carry=True, skew=True)
+    self.test_xl_read_kernel_against_independent_reference_all_gradients(v=64, skew=True)
+
+  def test_xl_read_kernel_against_independent_reference_all_gradients(self, v=40, t=128, carry=False,
+                                                                      skew=False):
     b, n, k, rs = 1, 20, 96, 24
     keys = iter(jax.random.split(jax.random.key(70), 24))
     rand = lambda shape: jax.random.normal(next(keys), shape)
@@ -99,7 +105,7 @@ class XLPropV5Test(MLPWriteTest, unittest.TestCase):
           key_scale=scale, forward_tile=64, reverse_tile=64, interpret=True,
           q_scale=1 / math.sqrt(k), static_gates=sg, shift=sh, chunk=8, m_norm=eps,
           q_dynamic_scale=head(qk), k_dynamic_scale=head(qk),
-          v_dynamic_scale=head(vo), o_dynamic_scale=head(vo), shift_carry=carry)
+          v_dynamic_scale=head(vo), o_dynamic_scale=head(vo), shift_carry=carry, stride_skew=skew)
 
     def reference(m, sw, x, sg, sh, qk, vo):
       previous = jnp.concatenate((m[:, :1], m[:, :-1]), axis=1)

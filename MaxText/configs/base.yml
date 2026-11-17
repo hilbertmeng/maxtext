@@ -561,6 +561,7 @@ bam_pallas_packed_read_keys: False # v8t full-M read: one einsum into the kernel
 bam_splash_residual_name: '' # name Splash's output/logsumexp residuals so remat_policy=minimal_save_splash keeps them.
 bam_pallas_fused_content_adapter: False # v8t: apply the full-rank write content adapter inside the write kernel; same math.
 bam_pallas_shift_carry: False # v8t M-shift read reverse: carry tile-boundary M cotangents in VMEM (tiles last to first) instead of whole-dM XLA boundary adds.
+bam_pallas_read_stride_skew: False # v8t read: token-major scratch row stride moved off multiples of 32 (V32/V60/V64 read F+R -13..-17% on v5p; more VMEM); same math.
 bam_replicate_rank_up: False # replicate rank-input up projections (read keys, P_loc_up, mlp_address_up) instead of FSDP-sharding the rank axis; same math.
 query_chunk_size: 512
 query_wise: True

@@ -21597,6 +21597,12 @@ class BamXLPropV5SiTU47M60R480FastReadSpeedProfile(BamXLPropV5SiTU47M60R480Chunk
     bam_pallas_shift_carry = True
 
 
+class BamXLPropV5SiTU47M60R480FastReadSkewSpeedProfile(BamXLPropV5SiTU47M60R480FastReadSpeedProfile):
+    """Plus read scratch row stride 72 instead of 64 (V60 read kernel microbench F+R -16%)."""
+    model_name = 'BamXLPropV5SiTU47M60R480FastReadSkewSpeedProfile'
+    bam_pallas_read_stride_skew = True
+
+
 class BamXLPropV5SiTU47M60R480FastReadReplicateRankUpSpeedProfile(BamXLPropV5SiTU47M60R480FastReadSpeedProfile):
     """Plus replicated rank-input up projections (targets v5p-32's 16-way FSDP windows over R)."""
     model_name = 'BamXLPropV5SiTU47M60R480FastReadReplicateRankUpSpeedProfile'

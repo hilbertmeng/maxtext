@@ -15,7 +15,7 @@ import bam_read_v_sweep_bench as bench  # pylint: disable=wrong-import-position
 
 ABL = set(filter(None, os.environ.get('ABL', '').split(',')))
 if os.environ.get('CPAD_EXTRA'):   # token-major scratch row stride = round_up(C, 8) + CPAD_EXTRA
-  v8._cpad = lambda c, _x=int(os.environ['CPAD_EXTRA']): -(-c // 8) * 8 + _x
+  v8._cpad = lambda c, skew=False, _x=int(os.environ['CPAD_EXTRA']): -(-c // 8) * 8 + _x
 if 'fill' in ABL:
   v8._tm_fill_keys = lambda *a, **k: None
 if 'shiftgate' in ABL:

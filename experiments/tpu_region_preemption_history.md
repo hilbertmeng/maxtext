@@ -31,6 +31,17 @@ active leases are censored, and manual migration releases are not preemptions.
 
 | RUN | TPU | Zone | Start UTC | End UTC | End reason | Passive candidates |
 |---|---|---|---|---|---|---|
+| `BamXLPropV5SiTU47M60R480` | v5p-32 (`xd-v5p-32-311046-maxtext`) | `us-east5-a` | 2026-11-16 04:03:11 | 2026-11-16 04:16:46 | resource_switch; preparation before first verified training step | UE5a primary; UC1a backup; EW4b excluded; losing candidates released |
+| `BamXLPropV5SiTU47M60R480` | v5p-32 (`xd-v5p-32-311046-maxtext`) | `us-central1-a` | 2026-11-16 04:16:46 | 2026-11-16 16:17:02 | resource_switch | UE5a primary; UC1a backup; EW4b excluded; losing candidates released |
+| `BamXLPropV5SiTU47M60R480` | v5p-32 (`xd-v5p-32-311046-maxtext`) | `us-east5-a` | 2026-11-16 16:17:02 | 2026-11-16 20:02:21 | resource_switch | UE5a primary; UC1a backup; EW4b excluded; losing candidates released |
+| `BamXLPropV5SiTU47M60R480` | v5p-32 (`xd-v5p-32-311046-maxtext`) | `us-central1-a` | 2026-11-16 20:02:21 | 2026-11-16 20:33:21 | resource_switch | UE5a primary; UC1a backup; EW4b excluded; losing candidates released |
+| `BamXLPropV5SiTU47M60R480` | v5p-32 (`xd-v5p-32-311046-maxtext`) | `us-east5-a` | 2026-11-16 20:33:21 | 2026-11-16 20:52:12 | resource_switch | UE5a primary; UC1a backup; EW4b excluded; losing candidates released |
+| `BamXLPropV5SiTU47M60R480` | v5p-32 (`xd-v5p-32-311046-maxtext`) | `us-central1-a` | 2026-11-16 20:52:12 | 2026-11-17 02:40:52 | infra early clean-exit at 28,799; resumed | UE5a primary; UC1a backup; EW4b excluded; losing candidates released |
+| `BamXLPropV5SiTU47M60R480` | v5p-32 (`xd-v5p-32-311046-maxtext`) | `us-central1-a` | 2026-11-17 02:59:55 | 2026-11-17 09:52:29 | resource_switch | UE5a primary; UC1a backup; EW4b excluded; losing candidates released |
+| `BamXLPropV5SiTU47M60R480` | v5p-32 (`xd-v5p-32-311046-maxtext`) | `us-east5-a` | 2026-11-17 09:52:29 | 2026-11-17 10:05:01 | resource_switch | UE5a primary; UC1a backup; EW4b excluded; losing candidates released |
+| `BamXLPropV5SiTU47M60R480` | v5p-32 (`xd-v5p-32-311046-maxtext`) | `us-central1-a` | 2026-11-17 10:05:01 | 2026-11-17 19:27:11 | resource_switch | UE5a primary; UC1a backup; EW4b excluded; losing candidates released |
+| `BamXLPropV5SiTU47M60R480` | v5p-32 (`xd-v5p-32-311046-maxtext`) | `us-east5-a` | 2026-11-17 19:27:11 | 2026-11-17 21:28:45 | resource_switch | UE5a primary; UC1a backup; EW4b excluded; losing candidates released |
+| `BamXLPropV5SiTU47M60R480` | v5p-32 (`xd-v5p-32-311046-maxtext`) | `us-central1-a` | 2026-11-17 21:28:45 | 2026-11-17 23:08:49 | completed 50,000; CP/cursor/TB and teardown verified; native P14 | UE5a primary; UC1a backup; EW4b excluded; losing candidates released |
 | `BamMediumPropV5L24TotalBudgetSwiGLUM48R256TruePile` | v5p-16 (`xd-v5p-16-311047-maxtext`) | `us-east5-a` | 2026-11-16 10:42:16 | 2026-11-16 18:13:33 | completed 13,500 / P1; CP/cursor/TB and UE5a/UC1a teardown verified; same-zone recovery | UE5a primary; UC1a passive backup; no active-zone switch |
 | `BamMediumPropV5L24TotalBudgetSwiGLUM48R384TruePile` | v5p-16 (`xd-v5p-16-311048-maxtext`, launcher311049) | `us-east5-a` | 2026-11-16 11:01:23 | 2026-11-16 14:03:07 | user-stopped5579/P0; final CP/cursor/TB verified; UE5a/UC1a nodes and queues absent | UE5a primary; UC1a backup; no backup allocation |
 | `BamMediumPropV5L24TotalBudgetSwiGLUR256ControlTruePile` | v5p-16 (`xd-v5p-16-311048-maxtext`) | `us-east5-a` | 2026-11-16 10:42:29 | 2026-11-16 10:59:04 | cancelled redundant parent before FIRST_STEP; allocated TPU retained for R384 handoff, not deleted | UE5a primary; UC1a backup; no alternative allocated |
@@ -2771,11 +2782,30 @@ active leases are censored, and manual migration releases are not preemptions.
 | `BamMediumPropV5L24TotalBudgetSwiGLUTruePile` | 6 | `us-central1-a` | 2026-11-15 14:30:42 | 2026-11-15 15:26:00 | 55m18s | preempted; same-RUN automatic recovery |
 | `MuddLlama2MediumPropRouterFixedPostNormTruePile` | 5 | `us-east5-a` | 2026-11-15 15:14:02 | 2026-11-15 15:45:19 | 31m17s | scheduled completion13500/P4; CP/cursor/TB and resource teardown verified |
 | `BamMediumPropV5L24TotalBudgetSwiGLUTruePile` | 7 | `us-east5-a` | 2026-11-15 15:33:14 | 2026-11-15 15:46:06 | 12m52s | scheduled completion13500/P6; CP/cursor/TB and resource teardown verified |
+| `BamXLPropV5SiTU47M60R480` | F1 | `us-central1-a` | 2026-11-16 04:16:49 | 2026-11-16 04:53:58 | 37m09s | preempted |
 | `BamMediumPropV5L24TotalBudgetSwiGLUR256ControlTruePile` | preparation | `us-east5-a` | 2026-11-16 10:42:07 | 2026-11-16 10:59:04 | 16m57s | pre-FIRST_STEP cancellation boundary; observer from prequeue, not a preemption; physical allocation retained for R384 |
 | `BamMediumPropV5L24TotalBudgetSwiGLUM48R384TruePile` | 1 | `us-east5-a` | 2026-11-16 11:01:31 | 2026-11-16 14:03:07 | 3h01m36s | user stop at5579; P0; retained physical allocation from pre-start cancelled parent; final CP/cursor and resource teardown verified |
 
+| `BamXLPropV5SiTU47M60R480` | F2 | `us-central1-a` | 2026-11-16 05:05:17 | 2026-11-16 16:09:25 | 11h4m08s | preempted |
 | `BamMediumPropV5L24TotalBudgetSwiGLUM48R256TruePile` | 1 | `us-east5-a` | 2026-11-16 10:42:23 | 2026-11-16 16:52:41 | 6h10m18s | preempted; same-RUN recovery from committed CP 11,379 |
 | `BamMediumPropV5L24TotalBudgetSwiGLUM48R256TruePile` | 2 | `us-east5-a` | 2026-11-16 16:59:01 | 2026-11-16 18:13:33 | 1h14m32s | scheduled completion 13,500 / P1; final CP/cursor/TB and resource teardown verified |
+| `BamXLPropV5SiTU47M60R480` | F3 | `us-east5-a` | 2026-11-16 16:17:05 | 2026-11-16 18:46:59 | 2h29m54s | preempted |
+| `BamXLPropV5SiTU47M60R480` | F4 | `us-east5-a` | 2026-11-16 18:53:45 | 2026-11-16 19:13:10 | 19m25s | preempted |
+| `BamXLPropV5SiTU47M60R480` | F5 | `us-east5-a` | 2026-11-16 19:19:25 | 2026-11-16 19:29:07 | 9m42s | preempted |
+| `BamXLPropV5SiTU47M60R480` | F6 | `us-central1-a` | 2026-11-16 20:02:24 | 2026-11-16 20:15:12 | 12m48s | preempted |
+| `BamXLPropV5SiTU47M60R480` | F7 | `us-east5-a` | 2026-11-16 20:33:24 | 2026-11-16 20:41:14 | 7m50s | preempted |
+| `BamXLPropV5SiTU47M60R480` | F8 | `us-central1-a` | 2026-11-16 20:52:14 | 2026-11-16 22:17:01 | 1h24m47s | preempted |
+| `BamXLPropV5SiTU47M60R480` | S1 | `us-central1-a` | ? | 2026-11-16 22:53:01 | ? | setup preempted; no verified FIRST_STEP; true READY start/duration unknown; READY observed 2026-11-16 22:51:24 |
+| `BamXLPropV5SiTU47M60R480` | F9 | `us-central1-a` | 2026-11-17 00:55:51 | 2026-11-17 02:40:52 | 1h45m01s | infrastructure early clean-exit at 28799; later resumed |
+| `BamXLPropV5SiTU47M60R480` | S2 | `us-central1-a` | ? | 2026-11-17 03:04:44 | ? | setup preempted; no verified FIRST_STEP; true READY start/duration unknown; READY observed 2026-11-17 03:00:02 |
+| `BamXLPropV5SiTU47M60R480` | F10 | `us-central1-a` | 2026-11-17 03:37:03 | 2026-11-17 03:43:06 | 6m03s | preempted |
+| `BamXLPropV5SiTU47M60R480` | F11 | `us-central1-a` | 2026-11-17 07:09:49 | 2026-11-17 07:22:46 | 12m57s | preempted |
+| `BamXLPropV5SiTU47M60R480` | S3 | `us-east5-a` | ? | 2026-11-17 09:54:23 | ? | setup preempted; no verified FIRST_STEP; true READY start/duration unknown; READY observed 2026-11-17 09:52:35 |
+| `BamXLPropV5SiTU47M60R480` | F12 | `us-central1-a` | 2026-11-17 10:05:10 | 2026-11-17 17:14:55 | 7h9m45s | preempted |
+| `BamXLPropV5SiTU47M60R480` | F13 | `us-central1-a` | 2026-11-17 17:28:32 | 2026-11-17 18:52:36 | 1h24m04s | preempted |
+| `BamXLPropV5SiTU47M60R480` | F14 | `us-central1-a` | 2026-11-17 19:06:30 | 2026-11-17 19:19:01 | 12m31s | preempted |
+| `BamXLPropV5SiTU47M60R480` | F15 | `us-east5-a` | 2026-11-17 19:27:17 | 2026-11-17 21:15:32 | 1h48m15s | preempted |
+| `BamXLPropV5SiTU47M60R480` | F16 | `us-central1-a` | 2026-11-17 21:28:48 | 2026-11-17 23:08:49 | 1h40m01s | completed 50000 |
 
 ### Medium depth-family MHA12 resource closeout (2026-11-13)
 

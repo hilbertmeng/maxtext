@@ -144,3 +144,39 @@ The parameter tree, optimizer state, 50,000-step schedule, RUN prefix and compar
 were retained. Evidence: `/data0/xd/bam_diagnostics/xlprop-v5-m60-r480-config-20261116/fastread-handoff.json`
 and `fastread-overlap.json`; remote copies are under
 `tpu-ag:/home/lishengping/xd/projects/logs/xlprop-v5-m60-r480-20261116/`.
+
+## Final result and closeout
+
+Completed 50,000 steps at 2026-11-17 23:08:49 UTC. Against
+`BamXLPropV5FastKernelFullRematSiTU47`, the final five complete native windows
+(47.5k, 48k, 48.5k, 49k, 49.5k) average a loss gap of **-.00348212** and
+MHA-referenced gain multiplier **1.02866871**; the final window is -.0039714 / 1.03311896.
+The pre-run gain bet of 1.03 was close. Early advantages were strongly affected by
+the two runs' loss disturbances; in the later stable phase the advantage grew after
+20k and then fluctuated near 1.03. The equal-parameter M60/R480 tradeoff has a small
+persistent benefit over M40/R400, including normal-gradient intervals. This does not
+isolate memory-column capacity from rank or the compensating MLP allocation.
+Late isolated raw-gradient excursions did not produce sustained loss damage.
+
+The original .467 step/s was -10.2% against the parent's recorded .520 (unpaired),
+worse than the -5% speed bet. The same-math FastRead handoff recovered +16.3% on the
+same VM; subsequent training sustained roughly .534--.540 step/s. The original
+speed loss should not be attributed entirely to architecture; the paired optimized
+parent profile above remains the relevant kernel-matched cost comparison.
+
+Checkpoint 50,000 has `commit_success.txt` and a matching cursor: seed 9876,
+global batch 128, four infeed hosts and the UC1a TruePile4096 files. Local TensorBoard
+sync returned `SYNC_OK`. Both the node and queued resource for `xd-v5p-32-311046-maxtext`
+were independently verified absent in UE5a and UC1a. The native registry records
+14 preemptions and 16 formal READY leases. Saved state observations add three setup
+READY intervals without FIRST_STEP; their true READY starts/durations remain unknown.
+All 19 observed intervals and every assignment are recorded in
+`/data0/xd/bam_diagnostics/xlprop-v5-m60-r480-config-20261116/final/resource-history.md`
+and `resource-audit.json`, and entered in the shared regional history.
+
+The earlier clean exit at step 28,799 was a maintenance/controller classification bug,
+not a research stop. It was resumed after orchestration fix `9134036`; the full plan
+was completed. Final native comparison JSON, cumulative/late comparison figures,
+full recorded loss/raw/clipped-gradient data, registry, cursor and resource proofs are
+under the same local `final/` directory. Runtime lineage remains initial `b5f5271`
+through checkpoint 39,250, then `749b14a` under the unchanged RUN name.

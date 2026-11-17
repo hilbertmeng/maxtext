@@ -21529,10 +21529,13 @@ class BamXLPropV5SiTU47M60R480(BamXLPropV5FastKernelFullRematSiTU47):
     Address-coordinate loops, scratch sizes and I/O still scale with actual V;
     hardware tile alignment does not imply equal kernel or training-step cost.
     """
-    # code_commit: b5f5271; UC1a v5p-32 /311046, startup55--99 ~.467 step/s.
-    # -10.2% vs SiTU parent ~.520 (unpaired); generic health ON/internal OFF.
-    # All four worker hashes/AOT/data verified; FIRST_STEP/step14 and fresh-step100 passed.
-    # Plan 50,000; direct SiTU-parent contrast, 2k reporting, no elimination reviews.
+    # code_commit: b5f5271 initially; continued as FastRead / 749b14a at checkpoint 39,250.
+    # Completed 50,000, UE5a/UC1a v5p-32 /311046; .467 -> .538 step/s paired (+16.3%).
+    # vs SiTU M40/R400 parent: early spike-driven oscillations; normal-phase gain grew
+    # after 20k, then fluctuated near 1.03. Final 47.5k--49.5k five windows: gap -.0034821,
+    # MHA-referenced gain 1.028669 (pre-run bet 1.03). M, R and MLP allocation change together.
+    # Final CP/cursor/TB and all regional resource teardown verified; native P14.
+    # Three additional setup READY intervals are documented separately in the resource history.
     model_name = 'BamXLPropV5SiTU47M60R480'
     bam_v = 60
     bam_local_full_m_read_bottleneck_dim = 480
@@ -21553,11 +21556,10 @@ class BamXLPropV5SiTU47M60R480FastRead(PallasReadTunedXL, BamXLPropV5SiTU47M60R4
     v5p-32 (8/device, same-VM pairs against the SiTU parent): original runtime .469 step/s, device step
     2083.6 ms -> .546 step/s, 1787.3 ms (experiments/bam_llama2_medium/xlprop_v5_m60_r480.md).
     """
-    # code_commit:749b14a; AOT_READY v5p-32/s50000 (CPU host, worker-env.json fingerprint):
-    # gs://newproject-1-llm_base_models_us-central1/log/compiled_trainsteps/749b14a/jax081-i0ae3f58-c5aae279/v5p-32/s50000/BamXLPropV5SiTU47M60R480FastRead.pickle
-    # Same RUN /311046, UC1a: switched at checkpoint 39250; four workers loaded 749b14a/AOT.
-    # Same-batch 39251--39270 replay: max |loss delta| .000058, mean delta -.00000005.
-    # Paired stable 39260--39290: .4628 -> .5382 step/s (+16.3%); plan remains 50,000.
+    # code_commit: 749b14a; same RUN above, checkpoint 39,250 -> completed 50,000.
+    # UE5a/UC1a .534--.540 step/s. 20-batch replay from the same CP: max |loss delta| .000058.
+    # Paired .4628 -> .5382 step/s (+16.3%); final gain 1.028669 vs parent, same model math.
+    # Full AOT, replay, loss/health and resource evidence: xlprop_v5_m60_r480.md.
     model_name = 'BamXLPropV5SiTU47M60R480FastRead'
 
 

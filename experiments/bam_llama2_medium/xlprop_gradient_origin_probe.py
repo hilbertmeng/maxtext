@@ -19,7 +19,7 @@ def cohort_weights(batch, length, mode):
 
 def selected_leaf(path,shape):
   names=tuple(getattr(x,'key',None)for x in path)
-  if 'self_attention' not in names or 'block' not in names:return None
+  if 'self_attention' not in names or 'layers' not in names or 'block' not in names:return None
   part=names[names.index('self_attention')+1]
   if part=='out':family='W_O'
   elif part.startswith(('W_lv_','general_v_')) or part=='static_v_key':family='V_read'

@@ -21518,6 +21518,16 @@ class BamXLPropV5FastKernelFullRematSiTU47(BamXLPropV5FastKernelFullRemat):
     compare_runs = ['BamXLPropV5FastKernelFullRemat']
 
 
+class BamXLPropV5FastKernelFullRematSiTU47FastRead(PallasReadTunedXL, BamXLPropV5FastKernelFullRematSiTU47):
+    """SiTU parent on main with the read/sharding speedups: same math, parameter and optimizer trees.
+
+    'auto' carry and rank-up replication (v5p-16/32) plus PallasReadTunedXL; skew is a no-op at V40.
+    v5p-32 same-VM pairs: as trained .519 step/s (device 1885 ms) -> .565 (1728 ms); MHA as trained
+    .549 (1808 ms), MHA with SplashTunedBlocks1024 .624 (1593 ms) (experiments/xlprop_v5.md).
+    """
+    model_name = 'BamXLPropV5FastKernelFullRematSiTU47FastRead'
+
+
 class BamXLPropV5SiTU47M60R480(BamXLPropV5FastKernelFullRematSiTU47):
     """XL V5 SiTU capacity control: M96x60 and all read/write ranks 480.
 

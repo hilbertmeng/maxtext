@@ -30,7 +30,7 @@ def centered_gram(w):
  return w@w.T-jnp.outer(s,s)/w.shape[1]
 
 def route_counterfactuals(q,k,segments,queries,routing,cols):
- """Frozen post-QKNorm head-score interventions; original forward is unchanged.
+ """Frozen final-Q/K head-score interventions; original forward is unchanged.
 
  Replacing K0 with K16 is a diagnostic donor, not causal-model inference.
  """

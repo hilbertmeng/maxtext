@@ -21214,6 +21214,9 @@ class BamMediumPropV5L18TotalBudgetAttentionMLP1to2SwiGLUTruePile(BamMediumPropV
     D is the closest 16-head-compatible split at the fixed all-in budget,
     with even RoPE width near one quarter of the head. Historical runs unchanged.
     """
+    # code_commit: 3c7579d; UC1a v5p-16 /311180, startup ~.746 step/s;
+    # +10.2% vs historical same-depth SwiGLU V5 .677145 (unpaired, matched health).
+    # Dual-worker source/AOT, global128 and TruePile4096 verified; CP200/cursor committed.
     model_name = 'BamMediumPropV5L18TotalBudgetAttentionMLP1to2SwiGLUTruePile'
     base_num_decoder_layers = 18
     base_emb_dim = 1520
@@ -21243,6 +21246,9 @@ class BamMediumPropV5L24TotalBudgetAttentionMLP1to2SwiGLUTruePile(
     Total432120128 (-1072 vs432121200); attention:MLP=1:2.020615.
     Single-layer scan over L0--22; neither terminal branch writes M.
     """
+    # code_commit: 3c7579d; UC1a v5p-16 /311181, startup ~.606 step/s;
+    # +11.0% vs historical same-depth SwiGLU parent .546 (unpaired, matched health).
+    # Dual-worker source/AOT, global128 and TruePile4096 verified; CP200/cursor committed.
     model_name = 'BamMediumPropV5L24TotalBudgetAttentionMLP1to2SwiGLUTruePile'
     base_num_decoder_layers = 24
     base_emb_dim = 1312

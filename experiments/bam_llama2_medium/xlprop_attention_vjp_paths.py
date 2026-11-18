@@ -21,6 +21,7 @@ def main():
  import pyconfig
  from layers import fusion,linears,normalizations,attentions,bam_pallas
  out=Path(a.output);out.mkdir(parents=True,exist_ok=True)
+ (out/'single-layer-attention-paths').mkdir(exist_ok=True)
  cfg=pyconfig.initialize([None,'MaxText/configs/base.yml'],exp_class='BamXLPropV5FastKernelFullRemat',run_name='single-layer-attention-paths',base_output_directory=str(out)+'/',enable_checkpointing=False,only_eval=True,dataset_type='synthetic',target_train_batch_size=None,per_device_batch_size=1.,record_internal_nn_metrics=False,record_training_health_metrics=False,jax_cache_dir='',log_config=False,skip_jax_distributed_system=True)
  device=jax.local_devices()[0]
  mesh=jax.sharding.Mesh(np.asarray([device]).reshape((1,)*len(cfg.mesh_axes)),cfg.mesh_axes)

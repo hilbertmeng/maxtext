@@ -64,6 +64,12 @@ def run_probe(train,captured,reference,output,sequence,target_layer):
     return loss,train.max_utils.l2norm_pytree(g),jax.tree.leaves(g)[selected[0]][:,6,:]
   rep=jax.sharding.NamedSharding(mesh,jax.sharding.PartitionSpec())
   data=jax.sharding.NamedSharding(mesh,jax.sharding.PartitionSpec(*cfg.data_sharding))
+  row_fn=jax.jit(lambda batch:{k:batch[k][9:10] for k in ('inputs', 'inputs_position', 'inputs_segmentation', 'targets', 'targets_position', 'targets_segmentation')},in_shardings=(data,),out_shardings=rep)
+  with mesh,nn.partitioning.axis_rules(cfg.logical_axis_rules):
+    row=jax.device_get(row_fn(captured['data']))
+  expected_row_hashes={'inputs': '016b7b77bd3077fdb262121600f62db91ff6c239592e78eabc20e307f5c73b04', 'inputs_position': '6b0751ba5e64fc9c13ddfb44778fa7d6a1f7d7aa9d6a5e38a1f0a1502c3fb9e3', 'inputs_segmentation': 'ea6bed229e52e1b8a6b4529a458abc8ad644c1502bd2389b2b99278bf1b22134', 'targets': 'fe822324c8438d4f61bdde5c9916d19819a77837fc8ee0a9c3ee0f8f894a547f', 'targets_position': '6b0751ba5e64fc9c13ddfb44778fa7d6a1f7d7aa9d6a5e38a1f0a1502c3fb9e3', 'targets_segmentation': 'ac1633bb227f471bea915723761de476692606d9634e3fad46beaec668af8d20'}
+  row_hashes={k:hashlib.sha256(np.asarray(v,dtype='<i4').tobytes()).hexdigest() for k,v in row.items()}
+  assert row_hashes==expected_row_hashes,('ONSET sequence9 input/cursor mismatch',row_hashes)
   compiled=jax.jit(measure,in_shardings=(shardings.params,data,None),out_shardings=(rep,rep,rep))
   with mesh,nn.partitioning.axis_rules(cfg.logical_axis_rules):
     loss,raw,gradient=compiled(state.params,captured['data'],captured['rng'])
@@ -74,7 +80,7 @@ def run_probe(train,captured,reference,output,sequence,target_layer):
   assert abs(summary['norm']/.06095805019-1)<.01
   result=dict(step=35636,layer=6,loss=loss,raw=raw,native_control=native,summary=summary,
     input_shards=[dict(index=str(s.index),sha256=hashlib.sha256(np.asarray(s.data).tobytes()).hexdigest()) for s in captured['data']['inputs'].addressable_shards],
-    complete=True,scope='Full-loss parameter-column energy only. No token or healthy-comparison attribution yet.')
+    sequence9_field_hashes=row_hashes,complete=True,scope='Full-loss parameter-column energy only. No token or healthy-comparison attribution yet.')
   (output/'wi1-columns.json').write_text(json.dumps(result,indent=2)+'\n')
   if jax.process_index()==0:
     destination=os.environ['BAM_LOSS_LOCALIZATION_UPLOAD'].rstrip('/')

@@ -778,3 +778,68 @@ three FLEX jobs exited0. Artifacts (5 files per case) and metadata are under
 protocol is `protocols/flex-bounded-worker.sh`. Source remains
 [swiglu_local_jacobian.py](swiglu_local_jacobian.py). FLEX is retained and its
 borrowed worker lock returned; no new formal RUN or diagnostic TPU was created.
+
+## 2026-11-18: fixed-boundary L5/L6 attention-path VJPs
+
+Owner requested an actual test of whether L6's SwiGLU amplification is followed
+by further multiplicative amplification inside L5 attention. Reused immutable
+d54 parameters at CP35635, the original seq9/target1211 loss's saved native
+L5/L6 states and cotangents, and its exact4096-token input. Four independent
+local-device workers on retained UC1a produced identical reports. This is a
+conditional VJP at one known important loss, not a full-batch causal percentage
+or a worst-case Jacobian norm.
+
+Artifacts: `training_reports/xl_sink_origin_20261118/attention-vjp-r24/`
+(`verification-and-summary.json`, `review_results.py`, all worker reports).
+Helper57ad85f8; runtime d54 unchanged. All four workers exit0/complete, helper
+and cohort SHAs agree. Maximum original-boundary relative error1.0047%, probe
+versus local baseline .4447%, output/read/factor vector closure .3781%; all
+preset gates pass. The initial r23 failed during local configuration directory
+creation on three workers; another aborted GetSliceInfo during startup. No r23
+model measurement exists. The directory repair completes all4 workers without
+that backend error. No precision gate was relaxed.
+
+| Actual-direction VJP gain | L5 | L6 |
+|---|---:|---:|
+| Ordinary SwiGLU |4.07682|7.46300|
+| Post-attention norm |1.26864|1.00140|
+| Private memory MLP |.30394|.29181|
+| W_O: output cotangent to head cotangent |1.66651|1.23673|
+| attn_context to normalized ordinary input (M fixed) |.07373|.04487|
+| localO to normalized ordinary input (M fixed) |.10599|.08938|
+| summed head to normalized ordinary input (M fixed) |.13659|.10133|
+
+Thus L5's ordinary SwiGLU and W_O amplify these actual incoming directions,
+while its read/attention mapping back to ordinary input contracts strongly.
+This does not establish joint-state contractivity in (residual,M) or at other
+inputs. Never call M_input/M_output cotangent ratio a local M gain: residual
+output gradients also flow into M. Residual identity bypasses carry the already
+amplified post-MLP gradient even when attention's own branch contracts.
+
+L5 localO's input-gradient components, each normalized by the SAME incoming
+localO cotangent norm: dynamic address/keynorm/sharedGELU .07042; dynamic gate
+.04694; static gate .02286; Mshift/Mnorm .02424. Static address parameter has
+no direct ordinary-input derivative. These are vector components, not additive
+gain percentages; their vector sum reproduces localO's .10599 gain.
+
+L5 direct attention-M-write head cotangent norm is only.01698 times the total
+head cotangent norm; the route via W_O dominates this case. Separating layer
+residual-output and M-output cotangents closes within1%. M-output-only gradient
+norms divided by full parameter-gradient norms: W_O .01267, static_o_key .02946,
+full_m_read_down .02191. Residual-output-only ratios .99893/.99332/.99920.
+These are norm ratios, not additive percentages.
+
+Shared down receives QK/V/localO gradient vectors with norms10913/24619/39079
+respectively (full51307, singleton loss normalization). Their vector sum closes;
+these norms must not be summed as causal shares. Static O parameter gradient
+comes through the localO static-address branch. Large parameter gradients are
+compatible with contracting ordinary-input VJPs: dB is a sum of g_hidden*x^T,
+whereas input propagation multiplies by B^T; d(static_key) sums Mhat*g_head,
+whereas the static key itself does not depend on ordinary input.
+
+Separately verified r22 full-batch L6wi1 column energies: four units
+1291/1751/301/51 account for98.03427% of squared parameter-gradient norm.
+Original1512 AOT controls exact; instrumented full raw error .1641%, selected
+wi1 norm error .0791%;16 indexed inputs and seq9 six fields match. This is
+parameter-column energy, distinct from the previously measured local input-VJP
+projections summing102.8%.

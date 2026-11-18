@@ -23025,3 +23025,60 @@ class Llama2MediumPropL24TotalBudgetTruePileAttnRes(AttnResConfig, Llama2MediumP
     remat_policy = 'minimal'
     # Nearest uniform FFN width offsets 2D per nontrivial read (2L reads).
     base_mlp_dim = 2873
+
+
+# Owner-authorized LargeProp27k residual controls, 2026-11-18.
+
+class Llama2LargeProp27kDHC4Tanh(MHCConfig, Llama2LargeProp27k):
+    """Parameter-matched L22 Large residual control; fresh 27,000-step run."""
+    model_name = 'Llama2LargeProp27kDHC4Tanh'
+    compare_runs = ['Llama2LargeProp27k', 'MuddLlama2LargeProp27k']
+    record_training_health_metrics = True
+    record_internal_nn_metrics = 0
+    checkpoint_period = 200
+    tensorboard_gcs_rotate_period = 500
+    max_to_keep = 2
+    keep_period = 0
+    force_final_checkpoint = True
+    jax_cache_dir = ''
+    remat_policy = 'minimal'
+    mhc_stream_major_layout = True
+    mhc_pallas_update = True
+    mhc_pallas_connector = True
+    residual_connection = 'dhc'
+    mhc_learned_head = False
+    mhc_identity_mixing = False
+    dhc_norm_epsilon = 1e-5
+
+class Llama2LargeProp27kmHC(MHCConfig, Llama2LargeProp27k):
+    """Parameter-matched L22 Large residual control; fresh 27,000-step run."""
+    model_name = 'Llama2LargeProp27kmHC'
+    compare_runs = ['Llama2LargeProp27k', 'MuddLlama2LargeProp27k']
+    record_training_health_metrics = True
+    record_internal_nn_metrics = 0
+    checkpoint_period = 200
+    tensorboard_gcs_rotate_period = 500
+    max_to_keep = 2
+    keep_period = 0
+    force_final_checkpoint = True
+    jax_cache_dir = ''
+    remat_policy = 'minimal'
+    mhc_stream_major_layout = True
+    mhc_pallas_update = True
+    mhc_pallas_connector = True
+    mhc_pallas_sinkhorn = True
+
+class Llama2LargeProp27kAttnRes(AttnResConfig, Llama2LargeProp27k):
+    """Parameter-matched L22 Large residual control; fresh 27,000-step run."""
+    model_name = 'Llama2LargeProp27kAttnRes'
+    compare_runs = ['Llama2LargeProp27k', 'MuddLlama2LargeProp27k']
+    record_training_health_metrics = True
+    record_internal_nn_metrics = 0
+    checkpoint_period = 200
+    tensorboard_gcs_rotate_period = 500
+    max_to_keep = 2
+    keep_period = 0
+    force_final_checkpoint = True
+    jax_cache_dir = ''
+    remat_policy = 'minimal'
+    base_mlp_dim = 4095  # Nearest integer offsets 2D per nontrivial residual read.

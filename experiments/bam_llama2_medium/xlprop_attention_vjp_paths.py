@@ -135,6 +135,7 @@ def main():
      save();assert max(entry['native_singleton_parameter_norm_relative_errors'].values())<.02,('native parameter gradient fidelity',entry['native_singleton_parameter_norm_relative_errors'])
     assert rel(dp['read_O'],dp['attention_context'])<.005
     row=dict(output_cotangent=label,gradients=dict(residual_input_rms=hr(full[1]),residual_output_rms=hr(gr),M_input_rms=hr(full[2]),M_output_rms=hr(gg)),block_gains={n:hr(dp[n+'_input'])/max(hr(dp[n+'_output']),1e-30) for n in ('mlp','mlp_norm','memory_mlp')},W_O_input_gain=hr(dp['out_head'])/max(hr(dp['attention_output']),1e-30),head_cotangents=dict(total_rms=hr(dp['read_O']),via_W_O_rms=hr(dp['out_head']),direct_attention_M_write_rms=hr(np.asarray(dp['read_O'],np.float64)-np.asarray(dp['out_head'],np.float64))),parameter_norms=summarize_gradient(full[4]),attention_input_over_residual_output_cotangent=hr(dp['attention_input'])/max(hr(dp['attention_output']),1e-30),read_path_components=[])
+    entry['cases'].append(row)
     components=[]
     for rm,name in [(1,'QK'),(2,'V'),(3,'localO')]:
      pg={k:np.asarray(arms[rm][4][k],np.float64)-np.asarray(arms[4][4][k],np.float64) for k in full[4]}
@@ -156,7 +157,7 @@ def main():
      save();assert max(row['localO_subpath_closure'].values())<.01,('O factor closure',row['localO_subpath_closure'])
     row['remaining_direct_paths']=dict(attention_input_gradient_rms=hr(base_ax),parameter_norms=summarize_gradient(base_pg))
     row['path_closure']=dict(attention_input=rel(recon_ax,dp['attention_input']),**{k:rel(recon_pg[k],full[4][k]) for k in full[4]})
-    entry['cases'].append(row);save();assert max(row['path_closure'].values())<.01,('path closure',layer,label,row['path_closure'])
+    save();assert max(row['path_closure'].values())<.01,('path closure',layer,label,row['path_closure'])
     if label=='full':full_case=full
     elif label=='residual_output_only':res_case=full
     else:

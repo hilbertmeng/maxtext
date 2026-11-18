@@ -31,6 +31,13 @@ active leases are censored, and manual migration releases are not preemptions.
 
 | RUN | TPU | Zone | Start UTC | End UTC | End reason | Passive candidates |
 |---|---|---|---|---|---|---|
+| `BamXLPropV5EveryThirdMLPWriteNorm` | v5p-32 (`xd-v5p-32-311060-maxtext`) | `us-east5-a` | 2026-11-16 23:43:33 | 2026-11-17 00:55:05 | resource_switch; preparation before first verified training step | UE5a primary; UC1a backup; EW4b excluded; losing candidates released |
+| `BamXLPropV5EveryThirdMLPWriteNorm` | v5p-32 (`xd-v5p-32-311060-maxtext`) | `us-central1-a` | 2026-11-17 00:55:05 | 2026-11-17 09:52:29 | resource_switch | UE5a primary; UC1a backup; EW4b excluded; losing candidates released |
+| `BamXLPropV5EveryThirdMLPWriteNorm` | v5p-32 (`xd-v5p-32-311060-maxtext`) | `us-east5-a` | 2026-11-17 09:52:29 | 2026-11-17 10:04:34 | resource_switch | UE5a primary; UC1a backup; EW4b excluded; losing candidates released |
+| `BamXLPropV5EveryThirdMLPWriteNorm` | v5p-32 (`xd-v5p-32-311060-maxtext`) | `us-central1-a` | 2026-11-17 10:04:34 | 2026-11-17 19:26:56 | resource_switch | UE5a primary; UC1a backup; EW4b excluded; losing candidates released |
+| `BamXLPropV5EveryThirdMLPWriteNorm` | v5p-32 (`xd-v5p-32-311060-maxtext`) | `us-east5-a` | 2026-11-17 19:26:56 | 2026-11-17 21:28:17 | resource_switch | UE5a primary; UC1a backup; EW4b excluded; losing candidates released |
+| `BamXLPropV5EveryThirdMLPWriteNorm` | v5p-32 (`xd-v5p-32-311060-maxtext`) | `us-central1-a` | 2026-11-17 21:28:17 | 2026-11-18 00:17:46 | resource_switch | UE5a primary; UC1a backup; EW4b excluded; losing candidates released |
+| `BamXLPropV5EveryThirdMLPWriteNorm` | v5p-32 (`xd-v5p-32-311060-maxtext`) | `us-east5-a` | 2026-11-18 00:17:46 | 2026-11-18 00:21:56 | user-stopped 24,421; CP/cursor/TB and teardown verified; native P9 | UE5a primary; UC1a backup; EW4b excluded; losing candidates released |
 | `BamXLPropV5SiTU47M60R480` | v5p-32 (`xd-v5p-32-311046-maxtext`) | `us-east5-a` | 2026-11-16 04:03:11 | 2026-11-16 04:16:46 | resource_switch; preparation before first verified training step | UE5a primary; UC1a backup; EW4b excluded; losing candidates released |
 | `BamXLPropV5SiTU47M60R480` | v5p-32 (`xd-v5p-32-311046-maxtext`) | `us-central1-a` | 2026-11-16 04:16:46 | 2026-11-16 16:17:02 | resource_switch | UE5a primary; UC1a backup; EW4b excluded; losing candidates released |
 | `BamXLPropV5SiTU47M60R480` | v5p-32 (`xd-v5p-32-311046-maxtext`) | `us-east5-a` | 2026-11-16 16:17:02 | 2026-11-16 20:02:21 | resource_switch | UE5a primary; UC1a backup; EW4b excluded; losing candidates released |
@@ -2796,16 +2803,26 @@ active leases are censored, and manual migration releases are not preemptions.
 | `BamXLPropV5SiTU47M60R480` | F7 | `us-east5-a` | 2026-11-16 20:33:24 | 2026-11-16 20:41:14 | 7m50s | preempted |
 | `BamXLPropV5SiTU47M60R480` | F8 | `us-central1-a` | 2026-11-16 20:52:14 | 2026-11-16 22:17:01 | 1h24m47s | preempted |
 | `BamXLPropV5SiTU47M60R480` | S1 | `us-central1-a` | ? | 2026-11-16 22:53:01 | ? | setup preempted; no verified FIRST_STEP; true READY start/duration unknown; READY observed 2026-11-16 22:51:24 |
+| `BamXLPropV5EveryThirdMLPWriteNorm` | 1 | `us-central1-a` | 2026-11-17 00:55:22 | 2026-11-17 01:06:56 | 11m34s | preempted |
+| `BamXLPropV5EveryThirdMLPWriteNorm` | 2 | `us-central1-a` | 2026-11-17 02:05:34 | 2026-11-17 02:26:47 | 21m13s | preempted |
 | `BamXLPropV5SiTU47M60R480` | F9 | `us-central1-a` | 2026-11-17 00:55:51 | 2026-11-17 02:40:52 | 1h45m01s | infrastructure early clean-exit at 28799; later resumed |
 | `BamXLPropV5SiTU47M60R480` | S2 | `us-central1-a` | ? | 2026-11-17 03:04:44 | ? | setup preempted; no verified FIRST_STEP; true READY start/duration unknown; READY observed 2026-11-17 03:00:02 |
 | `BamXLPropV5SiTU47M60R480` | F10 | `us-central1-a` | 2026-11-17 03:37:03 | 2026-11-17 03:43:06 | 6m03s | preempted |
+| `BamXLPropV5EveryThirdMLPWriteNorm` | 3 | `us-central1-a` | 2026-11-17 07:09:48 | 2026-11-17 07:19:57 | 10m09s | preempted |
 | `BamXLPropV5SiTU47M60R480` | F11 | `us-central1-a` | 2026-11-17 07:09:49 | 2026-11-17 07:22:46 | 12m57s | preempted |
 | `BamXLPropV5SiTU47M60R480` | S3 | `us-east5-a` | ? | 2026-11-17 09:54:23 | ? | setup preempted; no verified FIRST_STEP; true READY start/duration unknown; READY observed 2026-11-17 09:52:35 |
 | `BamXLPropV5SiTU47M60R480` | F12 | `us-central1-a` | 2026-11-17 10:05:10 | 2026-11-17 17:14:55 | 7h9m45s | preempted |
+| `BamXLPropV5EveryThirdMLPWriteNorm` | 4 | `us-central1-a` | 2026-11-17 10:04:44 | 2026-11-17 17:15:00 | 7h10m16s | preempted |
 | `BamXLPropV5SiTU47M60R480` | F13 | `us-central1-a` | 2026-11-17 17:28:32 | 2026-11-17 18:52:36 | 1h24m04s | preempted |
+| `BamXLPropV5EveryThirdMLPWriteNorm` | 5 | `us-central1-a` | 2026-11-17 17:29:12 | 2026-11-17 18:54:07 | 1h24m55s | preempted |
 | `BamXLPropV5SiTU47M60R480` | F14 | `us-central1-a` | 2026-11-17 19:06:30 | 2026-11-17 19:19:01 | 12m31s | preempted |
+| `BamXLPropV5EveryThirdMLPWriteNorm` | 6 | `us-central1-a` | 2026-11-17 19:06:14 | 2026-11-17 19:19:22 | 13m08s | preempted |
 | `BamXLPropV5SiTU47M60R480` | F15 | `us-east5-a` | 2026-11-17 19:27:17 | 2026-11-17 21:15:32 | 1h48m15s | preempted |
+| `BamXLPropV5EveryThirdMLPWriteNorm` | 7 | `us-east5-a` | 2026-11-17 19:27:01 | 2026-11-17 21:15:37 | 1h48m36s | preempted |
 | `BamXLPropV5SiTU47M60R480` | F16 | `us-central1-a` | 2026-11-17 21:28:48 | 2026-11-17 23:08:49 | 1h40m01s | completed 50000 |
+| `BamXLPropV5EveryThirdMLPWriteNorm` | 8 | `us-central1-a` | 2026-11-17 21:28:20 | 2026-11-17 23:24:41 | 1h56m21s | preempted |
+| `BamXLPropV5EveryThirdMLPWriteNorm` | 9 | `us-central1-a` | 2026-11-17 23:44:18 | 2026-11-18 00:08:04 | 23m46s | preempted |
+| `BamXLPropV5EveryThirdMLPWriteNorm` | 10 | `us-east5-a` | 2026-11-18 00:17:49 | 2026-11-18 00:21:56 | 4m07s | user-stopped 24,421; teardown verified at 2026-11-18 00:25:01 UTC |
 
 ### Medium depth-family MHA12 resource closeout (2026-11-13)
 

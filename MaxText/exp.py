@@ -22580,8 +22580,12 @@ class BamXLPropV5EveryThirdMLPWriteNorm(BamXLPropV5FastKernelFullRemat):
     blocks scan together; L27 remains a separate terminal layer without M writes.
     Restore per-head MLP/embedding write-content RMSNorm; attention is unchanged.
     """
-    # code_commit: 0345fc9; UC1a v5p-32 /311060, startup ~.539 step/s.
-    # Four-worker source/AOT, global128 and TruePile4096 verified; ~+4% vs V5 .518 (unpaired).
+    # code_commit: 0345fc9; v5p-32 /311060, UC1a/UE5a ~.534-.539 step/s;
+    # ~+4% vs historical V5 .518 (unpaired). User-stopped at 24,421; P9.
+    # vs V5 full-remat parent: early spike windows stayed stable, but normal-phase loss
+    # remained worse; last five 22k-24k windows gap +.0032614, MHA-referenced gain .97695.
+    # The parent's 35.65k-36.93k long disturbance was not reached. Terminal prior untested.
+    # Final checkpoint/cursor, local TB and UE5a/UC1a TPU/queue teardown verified.
     model_name = 'BamXLPropV5EveryThirdMLPWriteNorm'
     bam_memory_mlp_dim = 0
     bam_memory_mlp_dim_by_layer = None

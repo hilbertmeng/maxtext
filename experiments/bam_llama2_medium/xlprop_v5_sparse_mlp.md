@@ -137,7 +137,33 @@ main exp.py refer to this accepted implementation, not this metadata commit.
 Proofs: `startup-proofs.json`, `startup-accepted.json`, per-RUN first-step
 gates on tpu-ag, and `stream-budget-comparison.json` under the task root.
 Monitoring group `xlprop-v5-sparse-mlp` uses a fixed 2k calendar, no elimination
-reviews, both arms against the full-remat V5 parent. Shared native watch also
-retains `xlprop-v5-m60-r480`; the capacity RUN's next report remains 28k.
+reviews, both arms against the full-remat V5 parent. The independently monitored
+capacity RUN subsequently completed its 50k plan.
 `report_group.py` renders native cumulative gap/gain lines and aligned actual
 loss plus raw/clipped gradients, with the parent's valid original prefix.
+
+## Normalized arm: user-requested closeout, 2026-11-18
+
+`BamXLPropV5EveryThirdMLPWriteNorm` stopped at committed checkpoint 24,421
+on the user's explicit instruction. Relative to `BamXLPropV5FastKernelFullRemat`,
+the last five mature 22k--24k windows average loss gap +.0032614 and
+MHA-referenced gain .97695. Early parent gradient/loss episodes did not recur,
+but normal-phase fitting remained worse; the terminal prior 1.01 is not tested
+by this early stop. The parent's persistent 35.65k--36.93k disturbance was not
+reached and remains unanswered for this arm.
+
+Runtime remains `0345fc9`, v5p-32, approximately .534--.539 step/s, about +4%
+versus the historical .518 parent timing (unpaired). The complete active-zone
+path was UE5a -> UC1a -> UE5a -> UC1a -> UE5a -> UC1a -> UE5a; native records
+contain nine preemptions and ten formal READY leases. Every assignment and
+READY interval is recorded in `experiments/tpu_region_preemption_history.md`.
+The user-stop boundary is 00:21:56 UTC; resource absence was verified at
+00:25:01 UTC. Checkpoint 24,421, its seed9876/global128/four-host cursor,
+local TensorBoard `SYNC_OK`, and both zones' TPU/queue deletion are verified.
+Evidence is under `norm-final/` in the task artifact root; final cumulative
+curves and native report data are in `norm_closeout/`.
+
+The raw memory-only arm continues to 50k, including its planned check of the
+parent's long disturbance window. This stop does not establish a pure content-
+normalization effect: the two sparse arms also differ in their vector-residual
+updates, as described above.

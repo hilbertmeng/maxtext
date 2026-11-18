@@ -38,3 +38,22 @@ completion marker. Smoke checks repeat determinism, future prefix and right padd
 Four CPU contracts passed (EOS/padding, FLAN mask/truncation, averaging, shifted-label rejection).
 TPU resources: only unique xd- names recorded by this task; bounded Spot candidates.
 Stop on repeated model/numerical smoke failure; retain artifacts and release owned candidates.
+
+2026-11-18 owner msg_6dc877dafa5c48be9686265ab59d6c2f authorizes resumption on
+v5p-32 to improve inference throughput. Same final CP143000 and dataset protocol.
+Distributed entry uses explicit JAX initialization, a pure data-parallel mesh,
+global B32 (two examples/device on16 chips), ordered global result gathering,
+process0-only uploads and per-batch host barriers. Other hosts retain identical
+local sufficient statistics; each GCS batch is committed arrays-before-JSON.
+No model, train-step, optimizer or training-controller changes.
+Existing18 Pile chunks are preserved with their original source251a441b identity;
+reuse requires all existing metadata/record/array hashes and a first32-example
+cross-hardware gate (max per-example mean NLL error <.002, absolute mean error
+<.0002), in addition to repeat/future/padding smoke checks. Failures stop evaluation;
+never relax the gate after seeing results. New deployment has a separate GCS output
+prefix, seeded only with the18 original complete chunks, leaving originals intact.
+CPU data contracts and a4-device ordered shard/gather roundtrip passed. Actual
+multi-host TPU smoke, cross-hardware gate and measured first logical batch remain
+required before reporting speed or full-dataset losses. Runtime12h bound restarts
+at this explicit authorization; acquisition45min, at most2 owned v5p-32 candidates
+UC1a and EW4b, losers released after actual smoke, all released at closeout.

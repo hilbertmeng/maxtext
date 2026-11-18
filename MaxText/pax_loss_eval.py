@@ -22,13 +22,15 @@ def stable_ce(logits,targets,z_loss=0.):
   return loss+aux,aux
 
 
-def setup(batch,length=2048):
+def setup(batch,length=2048,distributed=False):
   attrs=dict(only_eval=True,enable_checkpointing=False,dataset_type='synthetic',
       per_device_batch_size=float(batch)/jax.device_count(),eval_per_device_batch_size=float(batch)/jax.device_count(),
       target_train_batch_size=batch,max_target_length=length,max_prefill_predict_length=length,
       record_training_health_metrics=False,record_internal_nn_metrics=False,record_logits_health_metrics=False,
       log_config=False,jax_cache_dir='',enable_goodput_recording=False,monitor_goodput=False,
       base_output_directory='/tmp/pax_loss/',tensorboard_dir='/tmp/pax_loss/tb/')
+  if distributed:
+    attrs.update(ici_data_parallelism=-1,ici_fsdp_parallelism=1,skip_jax_distributed_system=True)
   exp.PaxLossEval=type('PaxLossEval',(getattr(exp,EXPERIMENT),),attrs)
   Path('/tmp/pax_loss/eval').mkdir(parents=True,exist_ok=True)
   cfg=pyconfig.initialize([None,'MaxText/configs/base.yml'],exp_class='PaxLossEval',run_name='eval',
@@ -54,9 +56,16 @@ def main():
   p.add_argument('--flan-batches',type=int,default=320)
   p.add_argument('--gcs-output')
   p.add_argument('--smoke-only',action='store_true')
+  p.add_argument('--distributed',action='store_true')
+  p.add_argument('--resume-source-commit')
   a=p.parse_args();assert a.logical_batch_size%a.batch_size==0
   out=Path(a.output);out.mkdir(parents=True,exist_ok=True)
-  cfg,mesh,model,rng,abstract=setup(a.batch_size)
+  if a.distributed:jax.distributed.initialize()
+  cfg,mesh,model,rng,abstract=setup(a.batch_size,distributed=a.distributed)
+  leader=jax.process_index()==0
+  from jax.experimental import multihost_utils
+  def barrier(name):
+    if a.distributed:multihost_utils.sync_global_devices(name)
   max_utils.cross_entropy_with_logits=stable_ce
   source=subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip()
   identity=dict(experiment=EXPERIMENT,checkpoint=a.checkpoint,source_commit=source,
@@ -72,10 +81,15 @@ def main():
         decoder_target_mask=b['mask'],decoder_segment_ids=b['segments'],enable_dropout=False,
         rngs={'params':rng,'dropout':rng,'aqt':rng})
     return result[0]
-  forward=jax.jit(f)
+  batch_sharding=jax.sharding.NamedSharding(mesh,jax.sharding.PartitionSpec('data',None)) if a.distributed else None
+  forward=jax.jit(f,out_shardings=batch_sharding) if a.distributed else jax.jit(f)
   def infer(b):
     with mesh,nn.partitioning.axis_rules(cfg.logical_axis_rules):
-      result=np.asarray(jax.device_get(forward(weights,{k:jnp.asarray(v) for k,v in b.items()})),np.float32)
+      if a.distributed:
+        inputs={k:jax.make_array_from_callback(v.shape,batch_sharding,lambda idx,v=v:v[idx]) for k,v in b.items()}
+        result=np.asarray(multihost_utils.process_allgather(forward(weights,inputs),tiled=True),np.float32)
+      else:
+        result=np.asarray(jax.device_get(forward(weights,{k:jnp.asarray(v) for k,v in b.items()})),np.float32)
     assert result.shape==b['targets'].shape and np.isfinite(result).all() and result.min()>-1e-5
     return result
   records=list(itertools.islice(iter_records(a.pile),a.batch_size));assert len(records)==a.batch_size
@@ -92,8 +106,21 @@ def main():
   smoke=dict(**identity,repeat_exact=True,future_prefix_max_error=err,padding_scored_max_error=padding,
       compile_and_smoke_seconds=time.monotonic()-begin,pile_first_batch=aggregate((loss*b['mask']).sum(1,dtype=np.float64),b['mask'].sum(1)),
       flan_first_batch=aggregate((floss*fb['mask']).sum(1,dtype=np.float64),fb['mask'].sum(1)))
+  smoke['hardware']=dict(devices=jax.device_count(),processes=jax.process_count(),local_devices=jax.local_device_count(),kind=jax.devices()[0].device_kind)
+  # Cross-hardware gate before accepting durable chunks from the sealed parent.
+  if a.resume_source_commit:
+    prior=json.loads((out/'pile/batch-0000.json').read_text());arrays=out/'pile/batch-0000.npz'
+    assert prior['source_commit']==a.resume_source_commit and prior['checkpoint']==a.checkpoint
+    assert hashlib.sha256(arrays.read_bytes()).hexdigest()==prior['arrays_sha256']
+    with np.load(arrays) as z:
+      old=z['nll_sum'][:a.batch_size]/np.maximum(z['scored_tokens'][:a.batch_size],1)
+    current=(loss*b['mask']).sum(1,dtype=np.float64)/np.maximum(b['mask'].sum(1),1)
+    delta=np.abs(current-old)
+    assert delta.max()<.002 and abs(np.mean(current-old))<.0002,('Cross-hardware parity failed',delta.max(),np.mean(current-old))
+    smoke['resume_parity']=dict(source_commit=a.resume_source_commit,examples=len(old),max_example_mean_error=float(delta.max()),mean_error=float(np.mean(current-old)))
   (out/'smoke.json').write_text(json.dumps(smoke,indent=2)+'\n');print('SMOKE_PASS',json.dumps(smoke),flush=True)
-  if a.gcs_output:subprocess.run(['gsutil','-q','cp',str(out/'smoke.json'),a.gcs_output+'/smoke.json'],check=True)
+  if a.gcs_output and leader:subprocess.run(['gsutil','-q','cp',str(out/'smoke.json'),a.gcs_output+'/smoke.json'],check=True)
+  barrier('smoke-uploaded')
   if a.smoke_only:return
   for dataset,num_batches in [('pile',a.pile_batches),('flan',a.flan_batches)]:
     folder=out/dataset;folder.mkdir(exist_ok=True);reader=iter_records(getattr(a,dataset));markers=[]
@@ -105,7 +132,9 @@ def main():
       ident=dict(**identity,dataset=dataset,logical_batch=logical,records_sha256=digest)
       if marker.exists():
         old=json.loads(marker.read_text())
-        assert all(old.get(k)==v for k,v in ident.items()),'Resume identity mismatch'
+        allowed_sources={source,a.resume_source_commit}
+        assert old.get('source_commit') in allowed_sources,'Resume source mismatch'
+        assert all(old.get(k)==v for k,v in ident.items() if k!='source_commit'),'Resume identity mismatch'
         assert arrays.exists() and hashlib.sha256(arrays.read_bytes()).hexdigest()==old['arrays_sha256']
         markers.append(old);continue
       sums=[];counts=[];begin=time.monotonic()
@@ -116,10 +145,11 @@ def main():
       np.savez_compressed(arrays,nll_sum=np.asarray(sums,np.float64),scored_tokens=np.asarray(counts,np.int64))
       value=dict(**ident,**stats,arrays_sha256=hashlib.sha256(arrays.read_bytes()).hexdigest(),seconds=time.monotonic()-begin)
       marker.write_text(json.dumps(value,indent=2)+'\n');markers.append(value)
-      if a.gcs_output:
+      if a.gcs_output and leader:
         # Data before commit marker; recovery must verify both.
         subprocess.run(['gsutil','-q','cp',str(arrays),a.gcs_output+'/'+dataset+'/'+arrays.name],check=True)
         subprocess.run(['gsutil','-q','cp',str(marker),a.gcs_output+'/'+dataset+'/'+marker.name],check=True)
+      barrier(f'{dataset}-{logical}-uploaded')
       print('BATCH_COMPLETE',dataset,logical,json.dumps(stats),flush=True)
     sums=[];counts=[]
     for i in range(num_batches):
@@ -127,7 +157,8 @@ def main():
     result=dict(**identity,dataset=dataset,logical_batches=num_batches,**aggregate(sums,counts),
         paxml_batch_avg_xent=float(sum(m['example_mean']*m['scored_tokens'] for m in markers)/sum(m['scored_tokens'] for m in markers)))
     (out/f'{dataset}-complete.json').write_text(json.dumps(result,indent=2)+'\n')
-    if a.gcs_output:subprocess.run(['gsutil','-q','cp',str(out/f'{dataset}-complete.json'),a.gcs_output+f'/{dataset}-complete.json'],check=True)
+    if a.gcs_output and leader:subprocess.run(['gsutil','-q','cp',str(out/f'{dataset}-complete.json'),a.gcs_output+f'/{dataset}-complete.json'],check=True)
+    barrier(dataset+'-complete')
     print('DATASET_COMPLETE',json.dumps(result),flush=True)
 
 if __name__=='__main__':main()

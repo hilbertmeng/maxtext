@@ -21202,6 +21202,66 @@ class BamMediumPropV5L24TotalBudgetSwiGLUTruePile(
                     'Llama2MediumPropL24TotalBudgetTruePile']
 
 
+class BamMediumPropV5L18TotalBudgetAttentionMLP1to2SwiGLUTruePile(BamMediumPropV5):
+    """Rebalance the all-in Medium budget toward attention, retaining V5/R256.
+
+    L18/D1520=16x95, M95x32, RoPE22 + full NoPE95. Ordinary/memory/tail
+    1501/631/2269; complete body ordinary:memory is 1.999930:1.
+    Attention includes its M reads/writes and input norm; MLP includes both
+    branches, memory-write address/gate projections and its input norm.
+    Token tables, embedding-to-M and final norm stay separate fixed overhead.
+    Total432119828 (-1372 vs432121200); attention:MLP=1:2.031172.
+    D is the closest 16-head-compatible split at the fixed all-in budget,
+    with even RoPE width near one quarter of the head. Historical runs unchanged.
+    """
+    model_name = 'BamMediumPropV5L18TotalBudgetAttentionMLP1to2SwiGLUTruePile'
+    base_num_decoder_layers = 18
+    base_emb_dim = 1520
+    head_dim = 95
+    bam_k = 95
+    bam_local_qk_col_output_dim = 95
+    bam_partial_rope_nope_dim = 95
+    bam_standard_qk_dim = 22
+    bam_layer_modes = ['local_qk+local_v+local_o'] * 18
+    bam_attention_write_layers = list(range(17))
+    bam_mlp_write_layers = list(range(17))
+    base_mlp_dim = 1501
+    bam_memory_mlp_dim = 631
+    bam_last_mlp_dim = 2269
+    bam_embedding_write_content_divisor = .0016052833 * math.sqrt(1520 / 1200)
+    # BamMediumPropV5 is a configuration alias; use its completed historical RUN.
+    compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneMPreNormQKScaleTruePile',
+                    'BamMHAMediumPropC256TruePile']
+
+
+class BamMediumPropV5L24TotalBudgetAttentionMLP1to2SwiGLUTruePile(
+    BamMediumPropV5L18TotalBudgetAttentionMLP1to2SwiGLUTruePile):
+    """L24/D1312=16x82 at the same all-in budget and complete-branch split.
+
+    M82x32, all ranks256; RoPE20 + full NoPE82. Ordinary/memory/tail
+    1404/578/2126; complete body ordinary:memory is 1.999711:1.
+    Total432120128 (-1072 vs432121200); attention:MLP=1:2.020615.
+    Single-layer scan over L0--22; neither terminal branch writes M.
+    """
+    model_name = 'BamMediumPropV5L24TotalBudgetAttentionMLP1to2SwiGLUTruePile'
+    base_num_decoder_layers = 24
+    base_emb_dim = 1312
+    head_dim = 82
+    bam_k = 82
+    bam_local_qk_col_output_dim = 82
+    bam_partial_rope_nope_dim = 82
+    bam_standard_qk_dim = 20
+    bam_layer_modes = ['local_qk+local_v+local_o'] * 24
+    bam_attention_write_layers = list(range(23))
+    bam_mlp_write_layers = list(range(23))
+    base_mlp_dim = 1404
+    bam_memory_mlp_dim = 578
+    bam_last_mlp_dim = 2126
+    bam_embedding_write_content_divisor = .0016052833 * math.sqrt(1312 / 1200)
+    compare_runs = ['BamMediumPropV5L24TotalBudgetSwiGLUTruePile',
+                    'Llama2MediumPropL24TotalBudgetTruePile']
+
+
 class BamMediumPropV5L24TotalBudgetSwiGLUR256ControlTruePile(
     BamMediumPropV5L24TotalBudgetSwiGLUTruePile):
     """Fresh L24 M66x32/R256 control for fixed-rank capacity scaling.

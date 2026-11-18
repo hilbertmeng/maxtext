@@ -109,10 +109,50 @@ class TotalBudgetDepthTest(MLPWriteTest, unittest.TestCase):
       self.assertTrue(resolved.record_training_health_metrics)
       self.assertFalse(resolved.record_internal_nn_metrics or resolved.bam_record_m_shift_health)
 
+  def test_bam_actual_attention_mlp_budget_reallocation(self):
+    controls = {'mlp_address_down', 'mlp_address_up', 'mlp_address_bias',
+                'mlp_write_gate', 'mlp_write_gate_bias'}
+    for depth, d, total, attn, mlp in (
+        (18, 1520, 432119828, 91037268, 184912320),
+        (24, 1312, 432120128, 98514848, 199060592)):
+      name = f'BamMediumPropV5L{depth}TotalBudgetAttentionMLP1to2SwiGLUTruePile'
+      c, flat = self.shaped(name)
+      sizes = {p: math.prod(x.shape) for p, x in flat.items()}
+      self.assertEqual(sum(sizes.values()), total)
+      self.assertLess(abs(total - 432121200), 1500)
+      attention = sum(n for p, n in sizes.items()
+                      if set(p) & {'self_attention', 'pre_self_attention_layer_norm'})
+      complete_mlp = sum(n for p, n in sizes.items()
+                         if set(p) & (controls | {'mlp', 'memory_mlp', 'post_self_attention_layer_norm'}))
+      self.assertEqual((attention, complete_mlp), (attn, mlp))
+      self.assertLess(abs(complete_mlp / attention / 2 - 1), .02)
+      self.assertEqual((c.emb_dim, c.num_decoder_layers, c.num_query_heads, c.bam_v),
+                       (d, depth, 16, 32))
+      self.assertEqual(c.emb_dim, c.head_dim * c.num_query_heads)
+      self.assertEqual((c.bam_local_full_m_read_bottleneck_dim,
+                        c.bam_write_v_bottleneck_dim, c.bam_mlp_write_address_rank,
+                        c.emb_bam_v_bottleneck_dim), (256,) * 4)
+      self.assertEqual((c.ordinary_mlp_situ_gate_limit, c.ordinary_mlp_situ_up_limit), (0., 0.))
+      body = {p: n for p, n in sizes.items() if p[:2] == ('decoder', 'layers')}
+      ordinary = sum(n for p, n in body.items() if 'mlp' in p)
+      memory = sum(n for p, n in body.items() if 'memory_mlp' in p or set(p) & controls)
+      self.assertLess(abs(ordinary / memory - 2), .001)
+      self.assertEqual(c.bam_attention_write_layers, list(range(depth - 1)))
+      self.assertEqual(c.bam_mlp_write_layers, list(range(depth - 1)))
+      self.assertFalse(any(set(p) & (controls | {'P_loc_down', 'memory_mlp'})
+                           for p in flat if 'final_local_layer' in p))
+      resolved = self.config(name)
+      self.assertTrue(resolved.scan_layers and resolved.bam_pallas_core and resolved.bam_pallas_write)
+      self.assertTrue(resolved.bam_pallas_packed_read_keys and resolved.bam_pallas_fused_inputs)
+
   def test_new_head_geometries_native_pallas_all_gradients(self):
     # Reduce heads/MLPs/vocabulary only; preserve M pre-norm, SiTU and both scales.
-    for depth, k, rope in ((12, 89, 22), (24, 66, 16)):
-      c = self.config(BAM.format(depth), dtype='float32', weight_dtype='float32')
+    cases = [(BAM.format(depth), depth, k, rope)
+             for depth, k, rope in ((12, 89, 22), (24, 66, 16))]
+    cases += [(f'BamMediumPropV5L{depth}TotalBudgetAttentionMLP1to2SwiGLUTruePile', depth, k, rope)
+              for depth, k, rope in ((18, 95, 22), (24, 82, 20))]
+    for name, depth, k, rope in cases:
+      c = self.config(name, dtype='float32', weight_dtype='float32')
       c.get_keys().update(emb_dim=2*k, num_query_heads=2, num_kv_heads=2,
           num_decoder_layers=2, mlp_dim=24, vocab_size=32, emb_bam_num_head=2,
           bam_layer_modes=['local_qk+local_v+local_o']*2,

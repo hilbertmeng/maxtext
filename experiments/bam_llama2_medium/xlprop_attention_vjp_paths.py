@@ -66,7 +66,9 @@ def main():
   if not instrument:return next_fun(*args,**kw)
   mod=ctx.module;method=ctx.method_name;xs=list(args);tag=None
   if isinstance(mod,attentions.BamAttention) and method=='__call__':
-   xs[0]=tap('attention_input',xs[0]);result=next_fun(*xs,**kw)
+   if xs:xs[0]=tap('attention_input',xs[0])
+   else:kw=dict(kw);kw['inputs_q']=tap('attention_input',kw['inputs_q'])
+   result=next_fun(*xs,**kw)
    result=list(result);result[0]=tap('attention_output',result[0]);return tuple(result)
   if isinstance(mod,attentions.BamAttention) and method=='out_projection':
    xs[1]=tap('out_head',xs[1]);return next_fun(*xs,**kw)

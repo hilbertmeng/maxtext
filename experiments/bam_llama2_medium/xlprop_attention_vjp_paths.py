@@ -8,7 +8,7 @@ from pathlib import Path
 
 def route_tangent(value,mode,slot):
  import jax,jax.numpy as jnp
- allow=(mode==0)|((mode==1)&(slot<2))|((mode==2)&(slot==2))|((mode==3)&(slot==3))
+ allow=(mode==0)|((mode==1)&(slot<2))|((mode==2)&(slot==2))|(((mode==3)|(mode>=5))&(slot==3))
  return jnp.where(allow,value,jax.lax.stop_gradient(value))
 
 def main():
@@ -43,6 +43,16 @@ def main():
    return value
   return value+active[name] if instrument else value
  def read(*args,**kw):
+  if instrument:
+   def keep(v,flag):return jnp.where(flag,v,jax.lax.stop_gradient(v))
+   original_args=args;args=list(args);base=mode<5
+   for i,v in enumerate(args):args[i]=keep(v,base|((mode==8)&(i==0))|((mode==9)&(i==1))|((mode==5)&(i==6))|((mode==6)&(i==7)))
+   kw=dict(kw)
+   if kw.get('static_gates') is not None:kw['static_gates']=tuple(keep(v,base|((mode==7)&(i==3))) for i,v in enumerate(kw['static_gates']))
+   if kw.get('shift') is not None:kw['shift']=keep(kw['shift'],base|(mode==8))
+   if kw.get('keys_cnt') is not None:kw['keys_cnt']=keep(kw['keys_cnt'],base|(mode==5))
+   for name in ('q_dynamic_scale','k_dynamic_scale','v_dynamic_scale','o_dynamic_scale'):
+    if kw.get(name) is not None:kw[name]=keep(kw[name],base)
   result=original_read(*args,**kw)
   if not instrument:return result
   result=list(result)
@@ -109,7 +119,7 @@ def main():
    save();assert max(entry['instrument_errors'].values())<.005,('probe fidelity',layer,entry['instrument_errors'])
    for label,gr,gg in [('full',gx,gm),('residual_output_only',gx,jnp.zeros_like(gm)),('M_output_only',jnp.zeros_like(gx),gm)]:
     arms=[]
-    for rm in range(5):
+    for rm in range(10 if label=='full' else 5):
      values=first if label=='full' and rm==0 else jax.device_get(compiled(params,x,M,probes,gr,gg,jnp.int32(rm)))
      arms.append(values)
     full=arms[0];dp=full[3]
@@ -118,13 +128,26 @@ def main():
      entry['native_singleton_parameter_norm_relative_errors']={k:abs(float(np.linalg.norm(np.asarray(full[4][k],np.float64)))/523956/expected[k]-1) for k in expected}
      save();assert max(entry['native_singleton_parameter_norm_relative_errors'].values())<.02,('native parameter gradient fidelity',entry['native_singleton_parameter_norm_relative_errors'])
     assert rel(dp['read_O'],dp['attention_context'])<.005
-    row=dict(output_cotangent=label,gradients=dict(residual_input_rms=hr(full[1]),residual_output_rms=hr(gr),M_input_rms=hr(full[2]),M_output_rms=hr(gg)),block_gains={n:hr(dp[n+'_input'])/max(hr(dp[n+'_output']),1e-30) for n in ('mlp','mlp_norm','memory_mlp')},W_O_input_gain=hr(dp['out_head'])/max(hr(dp['attention_output']),1e-30),head_cotangents=dict(total_rms=hr(dp['read_O']),via_W_O_rms=hr(dp['out_head']),direct_attention_M_write_rms=hr(np.asarray(dp['read_O'],np.float64)-np.asarray(dp['out_head'],np.float64))),parameter_norms=summarize_gradient(full[4]),read_path_components=[])
+    row=dict(output_cotangent=label,gradients=dict(residual_input_rms=hr(full[1]),residual_output_rms=hr(gr),M_input_rms=hr(full[2]),M_output_rms=hr(gg)),block_gains={n:hr(dp[n+'_input'])/max(hr(dp[n+'_output']),1e-30) for n in ('mlp','mlp_norm','memory_mlp')},W_O_input_gain=hr(dp['out_head'])/max(hr(dp['attention_output']),1e-30),head_cotangents=dict(total_rms=hr(dp['read_O']),via_W_O_rms=hr(dp['out_head']),direct_attention_M_write_rms=hr(np.asarray(dp['read_O'],np.float64)-np.asarray(dp['out_head'],np.float64))),parameter_norms=summarize_gradient(full[4]),attention_input_over_residual_output_cotangent=hr(dp['attention_input'])/max(hr(dp['attention_output']),1e-30),read_path_components=[])
     components=[]
     for rm,name in [(1,'QK'),(2,'V'),(3,'localO')]:
      pg={k:np.asarray(arms[rm][4][k],np.float64)-np.asarray(arms[4][4][k],np.float64) for k in full[4]}
      ax=np.asarray(arms[rm][3]['attention_input'],np.float64)-np.asarray(arms[4][3]['attention_input'],np.float64)
-     components.append((pg,ax));row['read_path_components'].append(dict(name=name,attention_input_gradient_rms=hr(ax),parameter_norms=summarize_gradient(pg)))
+     components.append((pg,ax))
+     incoming=(np.sqrt(sum(np.linalg.norm(np.asarray(dp[t],np.float64))**2 for t in ('read_Q','read_K'))) if name=='QK' else np.linalg.norm(np.asarray(dp['read_'+('V' if name=='V' else 'O')],np.float64)))
+     row['read_path_components'].append(dict(name=name,attention_input_gradient_rms=hr(ax),conditional_input_L2_gain=float(np.linalg.norm(ax)/max(incoming,1e-30)),parameter_norms=summarize_gradient(pg)))
     base_pg=arms[4][4];base_ax=arms[4][3]['attention_input'];recon_pg={k:sum(c[0][k] for c in components)+np.asarray(base_pg[k],np.float64) for k in full[4]};recon_ax=sum(c[1] for c in components)+np.asarray(base_ax,np.float64)
+    row['attention_context_conditional_input_L2_gain']=float(np.linalg.norm(components[0][1]+components[1][1])/max(np.linalg.norm(np.asarray(dp['attention_context'],np.float64)),1e-30))
+    row['head_sum_conditional_input_L2_gain']=float(np.linalg.norm(sum(v[1] for v in components))/max(np.linalg.norm(np.asarray(dp['read_O'],np.float64)),1e-30))
+    if label=='full':
+     sub=[]
+     for rm,name in [(5,'dynamic_address_keynorm_shared_GELU'),(6,'dynamic_read_gate'),(7,'static_read_gate'),(8,'M_shift_and_M_norm'),(9,'static_address_parameter')]:
+      ax=np.asarray(arms[rm][3]['attention_input'],np.float64)-np.asarray(arms[4][3]['attention_input'],np.float64)
+      pg={k:np.asarray(arms[rm][4][k],np.float64)-np.asarray(arms[4][4][k],np.float64) for k in full[4]}
+      sub.append((ax,pg))
+      row.setdefault('localO_subpaths',[]).append(dict(name=name,input_gradient_rms=hr(ax),gain_relative_to_localO_cotangent=float(np.linalg.norm(ax)/max(np.linalg.norm(np.asarray(dp['read_O'],np.float64)),1e-30)),parameter_norms=summarize_gradient(pg)))
+     row['localO_subpath_closure']=dict(input_gradient=rel(sum(v[0] for v in sub),components[2][1]),**{k:rel(sum(v[1][k] for v in sub),components[2][0][k]) for k in ('static_o_key','full_m_read_down')})
+     save();assert max(row['localO_subpath_closure'].values())<.01,('O factor closure',row['localO_subpath_closure'])
     row['remaining_direct_paths']=dict(attention_input_gradient_rms=hr(base_ax),parameter_norms=summarize_gradient(base_pg))
     row['path_closure']=dict(attention_input=rel(recon_ax,dp['attention_input']),**{k:rel(recon_pg[k],full[4][k]) for k in full[4]})
     entry['cases'].append(row);save();assert max(row['path_closure'].values())<.01,('path closure',layer,label,row['path_closure'])

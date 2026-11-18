@@ -79,7 +79,10 @@ def main():
    xs[0]=tap(tag+'_input',xs[0]);return tap(tag+'_output',next_fun(*xs,**kw))
   return next_fun(*args,**kw)
  def load(base,name):
-  with tf.io.gfile.GFile(base+'/'+name+'.npy','rb') as f:return jax.device_put(jnp.asarray(np.load(f),jnp.bfloat16),device)
+  import ml_dtypes
+  with tf.io.gfile.GFile(base+'/'+name+'.npy','rb') as f:v=np.load(f)
+  if v.dtype.kind=='V':v=v.view(ml_dtypes.bfloat16)
+  return jax.device_put(jnp.asarray(v,jnp.bfloat16),device)
  def hr(v):return float(np.sqrt(np.mean(np.asarray(v,np.float64)**2)))
  def rel(v,w):return hr(np.asarray(v,np.float64)-np.asarray(w,np.float64))/max(hr(w),1e-30)
  def selected(params_grad):

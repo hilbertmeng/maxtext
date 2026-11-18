@@ -1,7 +1,12 @@
 import unittest
 import jax,jax.numpy as jnp,numpy as np
-from xlprop_sink_origin_probe import split_scores,effective_keys,centered_gram
+from xlprop_sink_origin_probe import split_scores,effective_keys,centered_gram,captured_read_outputs
 class SinkOriginTest(unittest.TestCase):
+ def test_native_qk_rope_tail_does_not_require_value_same_width(self):
+  # Historical XL Q/K are120 wide; values and W_O head inputs are96 wide.
+  def capture(q,v):return captured_read_outputs(lambda x:x[jnp.array([9,40,73,104])[:,None],jnp.array([0,1,2,8,16,128,512,1211,2048,3072,4095])[None,:]],(q,q,v,v))
+  shape=jax.eval_shape(capture,jax.ShapeDtypeStruct((128,4096,20,120),jnp.bfloat16),jax.ShapeDtypeStruct((128,4096,20,96),jnp.bfloat16))
+  self.assertEqual(shape['read_Q'].shape,(4,11,20,120));self.assertEqual(shape['read_V'].shape,(4,11,20,96))
  def test_nope_rope_exact_score_partition(self):
   q=jax.random.normal(jax.random.key(1),(2,3,4,10));k=jax.random.normal(jax.random.key(2),(2,7,4,10))
   a,b=split_scores(q,k,6);np.testing.assert_allclose(a+b,jnp.einsum('bqhd,bshd->bhqs',q,k),atol=2e-6)

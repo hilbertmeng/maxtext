@@ -20,6 +20,10 @@ def effective_keys(raw,logits,static,static_gates,eps,key_scale):
  dynamic=dynamic*(key_scale*jax.nn.sigmoid(logits.astype(jnp.float32)))[...,None]
  return dynamic+static[None,None]*static_gates[...,None]
 
+def captured_read_outputs(sample,outputs):
+ # Q/K include a RoPE tail; V/O retain the M content width.
+ return {'read_'+name:sample(value)for name,value in zip(('Q','K','V','O'),outputs[:4])}
+
 def centered_gram(w):
  import jax.numpy as jnp
  w=w.astype(jnp.float32);s=jnp.sum(w,axis=1)
@@ -63,7 +67,8 @@ def run_probe(train,captured,reference,output,sequence,target_layer):
   gates=jnp.stack([sample(x)for x in(lq,lk,lv,lo)],axis=2)
   sg=jnp.stack([sample(x)for x in kw['static_gates']],axis=2) if kw.get('static_gates') else jnp.ones(gates.shape,jnp.float32)
   # Native static_gates are already activation-scaled, not raw logits.
-  for name,x in [('M_read_input',sample(m)),('read_raw_keys',keys),('read_gate_logits',gates),('read_static_gates',sg),('read_static_weights',sw),('read_outputs',jnp.stack([sample(x)for x in result[:4]],axis=2))]:record(module,name,x)
+  for name,x in [('M_read_input',sample(m)),('read_raw_keys',keys),('read_gate_logits',gates),('read_static_gates',sg),('read_static_weights',sw)]:record(module,name,x)
+  for name,x in captured_read_outputs(sample,result).items():record(module,name,x)
   for arm in ('q','k','v','o'):
    scale=kw.get(arm+'_dynamic_scale');record(module,'read_'+arm+'_scale',jnp.ones((20,m.shape[2]),jnp.float32) if scale is None else jnp.broadcast_to(scale[:,None] if scale.ndim==1 else scale,(20,m.shape[2])))
   record(module,'read_constants',jnp.array([kw['read_epsilon'],kw['key_scale'],kw['q_scale'],kw.get('m_norm') or 0,kw['qk_cols'],bool(kw.get('qk_norm'))]))

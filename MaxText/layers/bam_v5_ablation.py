@@ -71,14 +71,19 @@ def forward(att, x, positions, segments, M, is_global, standard_width, vo_scale,
   if cfg.bam_pallas_core:
     assert not ab.no_norm
     st=kernel.static_weight(*(static[z] for z in 'qkvo'),jnp.eye(v,dtype=dtype))
+    # The existing read kernel expects a nonzero standard-input block. Supply a
+    # constant-zero slab, then drop it; no W_Q/K parameters or kernel changes.
+    qs_kernel = jnp.zeros((b,t,n,standard_width),dtype) if ab.m_rope else qs
+    ks_kernel = qs_kernel if ab.m_rope else ks
     outs=kernel.read(M,st,keys['q'],logits['q'],keys['k'],logits['k'],
-        jnp.concatenate((keys['v'],keys['o']),axis=-2),logits['o'],logits['v'],qs,ks,
+        jnp.concatenate((keys['v'],keys['o']),axis=-2),logits['o'],logits['v'],qs_kernel,ks_kernel,
         qk_cols=att._qk_col_width,read_epsilon=att._read_key_epsilon,key_scale=att._read_key_scale,
         static_gates=tuple(sg[z] for z in 'qkvo'),shift=shift,
         m_norm=att._rms_epsilon if att._m_read_norm=='rms' else None,
         forward_tile=int(cfg.bam_pallas_read_tile or 128),reverse_tile=int(cfg.bam_pallas_read_reverse_tile or 128),
         vmem_mib=cfg.bam_pallas_vmem_mib,interpret=bool(cfg.bam_pallas_interpret))
     q,k,value,local_o=outs[:4]; M=outs[4]
+    if ab.m_rope:q,k=q[...,:att._qk_col_width],k[...,:att._qk_col_width]
   else:
     mr=M
     if shift is not None: mr=a.mix_bam_previous_token(M,jax.nn.sigmoid(z),segments,positions)

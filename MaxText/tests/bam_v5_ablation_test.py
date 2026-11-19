@@ -1,5 +1,5 @@
 """Model-tree, ablation semantics and unchanged-kernel full-gradient controls."""
-import contextlib,io,json,math,unittest
+import contextlib,io,json,math,unittest,os
 from pathlib import Path
 from types import SimpleNamespace
 from unittest import mock
@@ -95,7 +95,8 @@ class AblationTest(MLPWriteTest,unittest.TestCase):
     return worst
 
   def test_native_pallas_full_model_gradients(self):
-    for suffix in [x for x in SUFFIX if 'AddressNorm' not in x]:
+    chosen=os.environ.get('BAM_ABLATION_TEST_SUFFIXES','').split(',')
+    for suffix in [x for x in SUFFIX if 'AddressNorm' not in x and (chosen==[''] or x in chosen)]:
       with self.subTest(suffix=suffix):
         name=PREFIX+suffix+'TruePile'
         params,ref=self.evaluate(name)

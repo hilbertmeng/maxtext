@@ -167,3 +167,39 @@ The raw memory-only arm continues to 50k, including its planned check of the
 parent's long disturbance window. This stop does not establish a pure content-
 normalization effect: the two sparse arms also differ in their vector-residual
 updates, as described above.
+
+## Raw memory-only arm: completed 50,000 (2026-11-19 closeout)
+
+`BamXLPropV5EveryThirdMLPWriteRawMemoryOnly` completed the original50k schedule
+at runtime0345fc9, v5p-32/311061. Native P9, ten chronological READY leases;
+active assignment path UE5a -> UC1a -> UE5a -> UC1a -> UE5a -> UC1a -> UE5a
+-> UC1a -> UE5a. The initial UE5a stint was preparation before verified training.
+Steady speed approximately .536 step/s, about+4% versus historical full-remat
+V5 .518 (unpaired, matching generic-health settings). Final checkpoint50000,
+seed9876/global128/four-infeed-host cursor, local TB SYNC_OK and all regional
+node/queued-resource absence checks passed.
+
+Relative to `BamXLPropV5FastKernelFullRemat`, small normal-phase advantages
+were punctuated by large temporary gains during parent loss disturbances.
+The parent's prolonged35.65k-36.93k disturbance did not recur in this arm.
+After37k the loss lead narrowed; final five common windows47500--49500 give
+mean gap-.00199104 and MHA-reference gain1.01623523. The1.025 prior was mildly
+optimistic, within its .99--1.06 range. No50000-centered window is claimed:
+there are no post-end samples to complete it.
+
+Recorded ten-step raw-gradient samples from600 onward peak at1.27485, with
+none above10; initial training transients are excluded from that statement.
+The matched170-sample proof over35400--37100 contains40 parent raw-gradient
+values above10 versus zero here, parent max345624.9 versus .22379. Same-grid
+loss max3.27189 versus2.09173. Sparse raw writes can therefore remain stable
+without restoring write-content normalization, while maintaining a small
+terminal fitting advantage. Sparsity and omitting the writer-MLP vector update
+are still coupled: their individual causal contributions are not identified.
+
+Native final loss/gain/health data:
+`/data0/xd/bam_diagnostics/xlprop-v5-sparse-mlp-20261117/final50000/`.
+Critical-window proof: `risk37100/matched-grid-summary.json` in that root.
+Independent checkpoint/resource proofs and all leases:
+`/data0/xd/bam_diagnostics/research-closeout-20261119/`.
+The shared regional history records all nine assignments and ten READY leases;
+no retained compiler was deleted as part of training closeout.

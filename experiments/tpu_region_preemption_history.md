@@ -31,6 +31,19 @@ active leases are censored, and manual migration releases are not preemptions.
 
 | RUN | TPU | Zone | Start UTC | End UTC | End reason | Passive candidates |
 |---|---|---|---|---|---|---|
+| `BamXLPropV5EveryThirdMLPWriteRawMemoryOnly` | v5p-32 (`xd-v5p-32-311061-maxtext`) | `us-east5-a` | 2026-11-16 23:43:32 | 2026-11-17 00:54:58 | resource_switch | UE5a primary; UC1a backup; EW4b excluded; losing candidates released |
+| `BamXLPropV5EveryThirdMLPWriteRawMemoryOnly` | v5p-32 (`xd-v5p-32-311061-maxtext`) | `us-central1-a` | 2026-11-17 00:54:58 | 2026-11-17 09:51:45 | resource_switch | UE5a primary; UC1a backup; EW4b excluded; losing candidates released |
+| `BamXLPropV5EveryThirdMLPWriteRawMemoryOnly` | v5p-32 (`xd-v5p-32-311061-maxtext`) | `us-east5-a` | 2026-11-17 09:51:45 | 2026-11-17 10:04:37 | resource_switch | UE5a primary; UC1a backup; EW4b excluded; losing candidates released |
+| `BamXLPropV5EveryThirdMLPWriteRawMemoryOnly` | v5p-32 (`xd-v5p-32-311061-maxtext`) | `us-central1-a` | 2026-11-17 10:04:37 | 2026-11-18 00:18:03 | resource_switch | UE5a primary; UC1a backup; EW4b excluded; losing candidates released |
+| `BamXLPropV5EveryThirdMLPWriteRawMemoryOnly` | v5p-32 (`xd-v5p-32-311061-maxtext`) | `us-east5-a` | 2026-11-18 00:18:03 | 2026-11-18 01:41:22 | resource_switch | UE5a primary; UC1a backup; EW4b excluded; losing candidates released |
+| `BamXLPropV5EveryThirdMLPWriteRawMemoryOnly` | v5p-32 (`xd-v5p-32-311061-maxtext`) | `us-central1-a` | 2026-11-18 01:41:22 | 2026-11-18 02:59:38 | resource_switch | UE5a primary; UC1a backup; EW4b excluded; losing candidates released |
+| `BamXLPropV5EveryThirdMLPWriteRawMemoryOnly` | v5p-32 (`xd-v5p-32-311061-maxtext`) | `us-east5-a` | 2026-11-18 02:59:38 | 2026-11-18 03:16:02 | resource_switch | UE5a primary; UC1a backup; EW4b excluded; losing candidates released |
+| `BamXLPropV5EveryThirdMLPWriteRawMemoryOnly` | v5p-32 (`xd-v5p-32-311061-maxtext`) | `us-central1-a` | 2026-11-18 03:16:02 | 2026-11-18 13:10:07 | resource_switch | UE5a primary; UC1a backup; EW4b excluded; losing candidates released |
+| `BamXLPropV5EveryThirdMLPWriteRawMemoryOnly` | v5p-32 (`xd-v5p-32-311061-maxtext`) | `us-east5-a` | 2026-11-18 13:10:07 | 2026-11-18 14:51:51 | completed 50,000; CP/cursor/TB and regional teardown verified; P9 | UE5a primary; UC1a backup; EW4b excluded; losing candidates released |
+| `BamMediumPropV5L18TotalBudgetAttentionMLP1to2SwiGLUTruePile` | v5p-16 (`xd-v5p-16-311180-maxtext`) | `us-east5-a` | 2026-11-18 08:42:46 | 2026-11-18 08:52:32 | resource_switch | UE5a primary; UC1a backup; EW4b excluded; losing candidates released |
+| `BamMediumPropV5L18TotalBudgetAttentionMLP1to2SwiGLUTruePile` | v5p-16 (`xd-v5p-16-311180-maxtext`) | `us-central1-a` | 2026-11-18 08:52:32 | 2026-11-18 14:07:10 | completed 13,500; CP/cursor/TB and regional teardown verified; P0 | UE5a primary; UC1a backup; EW4b excluded; losing candidates released |
+| `BamMediumPropV5L24TotalBudgetAttentionMLP1to2SwiGLUTruePile` | v5p-16 (`xd-v5p-16-311181-maxtext`) | `us-east5-a` | 2026-11-18 08:42:46 | 2026-11-18 08:52:32 | resource_switch | UE5a primary; UC1a backup; EW4b excluded; losing candidates released |
+| `BamMediumPropV5L24TotalBudgetAttentionMLP1to2SwiGLUTruePile` | v5p-16 (`xd-v5p-16-311181-maxtext`) | `us-central1-a` | 2026-11-18 08:52:32 | 2026-11-18 15:17:35 | completed 13,500; CP/cursor/TB and regional teardown verified; P0 | UE5a primary; UC1a backup; EW4b excluded; losing candidates released |
 | `BamXLPropV5EveryThirdMLPWriteNorm` | v5p-32 (`xd-v5p-32-311060-maxtext`) | `us-east5-a` | 2026-11-16 23:43:33 | 2026-11-17 00:55:05 | resource_switch; preparation before first verified training step | UE5a primary; UC1a backup; EW4b excluded; losing candidates released |
 | `BamXLPropV5EveryThirdMLPWriteNorm` | v5p-32 (`xd-v5p-32-311060-maxtext`) | `us-central1-a` | 2026-11-17 00:55:05 | 2026-11-17 09:52:29 | resource_switch | UE5a primary; UC1a backup; EW4b excluded; losing candidates released |
 | `BamXLPropV5EveryThirdMLPWriteNorm` | v5p-32 (`xd-v5p-32-311060-maxtext`) | `us-east5-a` | 2026-11-17 09:52:29 | 2026-11-17 10:04:34 | resource_switch | UE5a primary; UC1a backup; EW4b excluded; losing candidates released |
@@ -2253,6 +2266,18 @@ active leases are censored, and manual migration releases are not preemptions.
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedFinalLocalOLastMLPWriteTruePile` | 1 | `us-east5-a` | 2026-10-31 09:02:29 | 2026-10-31 09:10:31 | 8m02s | configuration correction174/P0; hot-switch, not preemption; CP174/TB SYNC_OK; shared TPU retained for corrected RUN |
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedFinalLocalOLastWritesTruePile` | 1 | `us-east5-a` | 2026-10-31 09:11:58 | 2026-10-31 12:38:34 | 3h26m36s | manual8k review stop8141/P0; CP verified, resources absent |
 | `BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedFinalLocalOTruePile` | 1 | `us-east5-a` | 2026-10-31 09:02:02 | 2026-10-31 13:23:06 | 4h21m04s | additional10k review stop10455/P0; CP/TB secured, resources independently absent |
+| `BamXLPropV5EveryThirdMLPWriteRawMemoryOnly` | 1 | us-central1-a | 2026-11-17 00:55:03 | 2026-11-17 01:32:29 | 0h37m26s | preempted |
+| `BamXLPropV5EveryThirdMLPWriteRawMemoryOnly` | 2 | us-central1-a | 2026-11-17 02:34:30 | 2026-11-17 03:15:19 | 0h40m49s | preempted |
+| `BamXLPropV5EveryThirdMLPWriteRawMemoryOnly` | 3 | us-central1-a | 2026-11-17 10:04:47 | 2026-11-18 00:07:56 | 14h03m09s | preempted |
+| `BamXLPropV5EveryThirdMLPWriteRawMemoryOnly` | 4 | us-east5-a | 2026-11-18 00:18:06 | 2026-11-18 01:28:41 | 1h10m35s | preempted |
+| `BamXLPropV5EveryThirdMLPWriteRawMemoryOnly` | 5 | us-central1-a | 2026-11-18 01:41:25 | 2026-11-18 02:50:48 | 1h09m23s | preempted |
+| `BamXLPropV5EveryThirdMLPWriteRawMemoryOnly` | 6 | us-east5-a | 2026-11-18 02:59:41 | 2026-11-18 03:03:58 | 0h04m17s | preempted |
+| `BamXLPropV5EveryThirdMLPWriteRawMemoryOnly` | 7 | us-central1-a | 2026-11-18 03:27:48 | 2026-11-18 04:56:34 | 1h28m46s | preempted |
+| `BamXLPropV5EveryThirdMLPWriteRawMemoryOnly` | 8 | us-central1-a | 2026-11-18 05:16:24 | 2026-11-18 05:20:20 | 0h03m56s | preempted |
+| `BamXLPropV5EveryThirdMLPWriteRawMemoryOnly` | 9 | us-central1-a | 2026-11-18 07:06:13 | 2026-11-18 13:01:04 | 5h54m51s | preempted |
+| `BamMediumPropV5L18TotalBudgetAttentionMLP1to2SwiGLUTruePile` | 1 | us-central1-a | 2026-11-18 08:52:36 | 2026-11-18 14:07:10 | 5h14m34s | completed 13500 |
+| `BamXLPropV5EveryThirdMLPWriteRawMemoryOnly` | 10 | us-east5-a | 2026-11-18 13:10:12 | 2026-11-18 14:51:51 | 1h41m39s | completed 50000 |
+| `BamMediumPropV5L24TotalBudgetAttentionMLP1to2SwiGLUTruePile` | 1 | us-central1-a | 2026-11-18 08:52:37 | 2026-11-18 15:17:35 | 6h24m58s | completed 13500 |
 
 | `BamMediumPropMShiftReadG050CrossReadAttnR384ConservativeBlockTruePile` | 1 | `us-east5-a` | 2026-10-14 04:48:58 | 2026-10-14 10:45:22 | 5h56m24s | user stop9248; node/queue absent, TB SYNC_OK |
 

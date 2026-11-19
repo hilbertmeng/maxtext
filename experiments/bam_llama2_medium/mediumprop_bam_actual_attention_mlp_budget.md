@@ -113,3 +113,42 @@ Task artifacts: `launch-plan.json`, `startup-proofs.json`, `startup-accepted.jso
 and `checkpoint200-proofs.json` in the local artifact root. The native registry,
 training controllers and shared watch are on tpu-ag; the XL sparse-write RUN
 continues independently under the same controlling task.
+
+## Completed full-budget results (2026-11-19 closeout)
+
+Both RUNs completed 13,500 updates at runtime3c7579d, without preemption.
+They trained in UC1a after the preparation assignment moved from UE5a. Steady
+speeds were approximately .739/.600 step/s for L18/L24; the startup deltas
+above remain unpaired historical comparisons. Final committed checkpoint13500
+and its seed9876/global128/two-infeed-host cursor passed verification. Local
+TensorBoards returned SYNC_OK. Independent node and queued-resource checks
+in UE5a, UC1a and EW4b were absent for both identities.
+
+Final means use the same five native windows12600,12800,13000,13200,13400:
+
+| Depth | Gap vs original same-depth BAM | MHA-reference parent multiplier | Gap vs post-norm/fixed-router Mudd | BAM/Mudd multiplier |
+|---|---:|---:|---:|---:|
+|18|+.00352616|.98031007|-.08385096|1.91484423|
+|24|-.00093504|1.00514435|-.07821768|1.74115538|
+
+The L18 early lead disappeared around5k and became a growing small deficit.
+The L24 early lead also shrank, but retained a small terminal advantage.
+Parent-gain priors .98/1.00 were close; neither model demonstrated a large
+absolute improvement from moving parameters toward attention.
+
+Matched-depth MHA advantages are .17551412/.18376228. Their native paired
+G24/G18 ratio averages1.04702122. Reallocation interaction averages1.02533273
+versus the pre-run1.02 prior. Absolute BAM loss improves .00982152 from18 to24,
+whereas MHA improves .00157336, leaving .00824816 additional BAM depth gain.
+The old allocation's corresponding additional gain is .00378696. Thus the
+allocation steepens BAM's depth response, but the decomposition matters:
++.00352616 harm at18 and -.00093504 improvement at24 together explain the
+.00446120 change. Do not interpret this as a large absolute24-layer win or an
+isolated improvement in memory iteration.
+
+Native data/figure: `/data0/xd/bam_diagnostics/medium-depth-bam-attention-mlp-20261118/final-check-20261119/`.
+Independent closeout proofs and every chronological READY lease are in
+`/data0/xd/bam_diagnostics/research-closeout-20261119/{proofs.json,resource-history.md}`;
+the same assignments and leases are in `experiments/tpu_region_preemption_history.md`.
+Both registry groups are archived after final comparison delivery. Source
+metadata is a later commit; the runtime remains3c7579d.

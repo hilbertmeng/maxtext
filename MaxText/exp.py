@@ -21216,7 +21216,11 @@ class BamMediumPropV5L18TotalBudgetAttentionMLP1to2SwiGLUTruePile(BamMediumPropV
     """
     # code_commit: 3c7579d; UC1a v5p-16 /311180, startup ~.746 step/s;
     # +10.2% vs historical same-depth SwiGLU V5 .677145 (unpaired, matched health).
-    # Dual-worker source/AOT, global128 and TruePile4096 verified; CP200/cursor committed.
+    # Completed 13,500 / P0 in UC1a, ~.739 step/s; runtime 3c7579d unchanged.
+    # vs original same-depth V5: early lead faded near 5k, then a small deficit grew;
+    # final five 12.6k-13.4k: gap +.003526, MHA-referenced gain .98031 (prior .98).
+    # vs same-depth post-norm/fixed-router Mudd: gap -.083851, gain 1.91484.
+    # CP13500/cursor, TB SYNC_OK and all regional TPU/queue teardown verified.
     model_name = 'BamMediumPropV5L18TotalBudgetAttentionMLP1to2SwiGLUTruePile'
     base_num_decoder_layers = 18
     base_emb_dim = 1520
@@ -21248,7 +21252,13 @@ class BamMediumPropV5L24TotalBudgetAttentionMLP1to2SwiGLUTruePile(
     """
     # code_commit: 3c7579d; UC1a v5p-16 /311181, startup ~.606 step/s;
     # +11.0% vs historical same-depth SwiGLU parent .546 (unpaired, matched health).
-    # Dual-worker source/AOT, global128 and TruePile4096 verified; CP200/cursor committed.
+    # Completed 13,500 / P0 in UC1a, ~.600 step/s; runtime 3c7579d unchanged.
+    # vs original same-depth V5: large early lead shrank to a persistent small lead;
+    # final five 12.6k-13.4k: gap -.000935, MHA-referenced gain 1.00514 (prior 1.00).
+    # vs same-depth post-norm/fixed-router Mudd: gap -.078218, gain 1.74116.
+    # Matched-MHA G24/G18 = 1.04702; reallocation interaction = 1.02533 (prior 1.02).
+    # Depth effect includes harming L18; it does not isolate an intrinsic depth improvement.
+    # CP13500/cursor, TB SYNC_OK and all regional TPU/queue teardown verified.
     model_name = 'BamMediumPropV5L24TotalBudgetAttentionMLP1to2SwiGLUTruePile'
     base_num_decoder_layers = 24
     base_emb_dim = 1312
@@ -22690,7 +22700,14 @@ class BamXLPropV5EveryThirdMLPWriteRawMemoryOnly(BamXLPropV5EveryThirdMLPWriteNo
     settings match the normalized arm. Only L1/L4/.../L25 omit the MLP residual.
     """
     # code_commit: 0345fc9; UC1a v5p-32 /311061, startup ~.539 step/s.
-    # Four-worker source/AOT, global128 and TruePile4096 verified; ~+4% vs V5 .518 (unpaired).
+    # ~+4% vs V5 .518 (unpaired); completed 50,000 / P9, UC1a/UE5a, ~.536 step/s.
+    # vs V5 full-remat parent: small normal-phase lead, large temporary gains during
+    # parent spikes; after 37k the lead narrowed to final-five gap -.001991 / gain 1.01624.
+    # MHA-referenced terminal prior 1.025 was optimistic but within [.99, 1.06].
+    # Parent's prolonged 35.65k-36.93k disturbance did not recur; raw grad after step600
+    # peaked at 1.275 on the recorded ten-step grid. Sparse raw memory-only writes are
+    # stable here; sparsity and removal of writer-MLP vector updates remain confounded.
+    # Final CP50000/cursor, TB SYNC_OK and all regional TPU/queue teardown verified.
     model_name = 'BamXLPropV5EveryThirdMLPWriteRawMemoryOnly'
     bam_embedding_write_content_divisor = BamXLPropV5FastKernelFullRemat.bam_embedding_write_content_divisor
     bam_mlp_write_content_divisor = 1.0

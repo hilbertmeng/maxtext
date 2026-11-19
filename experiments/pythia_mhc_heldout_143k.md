@@ -1,0 +1,7 @@
+# Pythia2p8BSerialQKNormMHC300B final checkpoint held-out evaluation
+
+Owner msg_5e714235fbba47e88dfd06b126074122 requests BAM and mHC CP143000 on v5p-32. mHC evaluator derives exact model runtime a33933a639164f0118fd89996d440968343ed32b; only adds read-only evaluator/data helper from BAM sealed c78839aa617bd5e17e2f5d6928b125e9b95f6e44, switches experiment/config/count assertions. No model, training, optimizer or checkpoint code changes. BAM continues using c78839aa exact evaluator and CP143000.
+
+Both use historical PaxML Pile validation and FLANmini filtered-v2 TFRecords, fixed original order, length2048, 1024 logical examples/batch, Pile162 and FLAN320 batches, physicalglobal32/16devices/4hosts pureDP. Pile mask includes EOS/padding; FLAN scored labels[1:]>0; report token-weighted CE and example-mean. Preserve perexample NLL sums/token counts plus serialized-record SHA for paired analysis. Existing BAM84 chunks reused only after matching identity/hashes and fresh first32 parity max<.002/absmean<.0002; mHC fresh outputs. Actual TPU causal/padding/repeat smoke gates before full evaluation. Expected BAM lower Pileloss from training trajectory; FLAN ordering unknown.
+
+One winner v5p-32 reused sequentially, bounded owned Spot UE5a primary/UC1a backup (new names; historical resources untouched). Absolute12h/acquire45min. Release backup after smoke and all owned resources after durable results or terminalfailure. compiler0 and A100downstream evaluation independent.

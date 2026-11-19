@@ -105,6 +105,17 @@ class AblationTest(MLPWriteTest,unittest.TestCase):
         print('ABLATION_PALLAS',suffix,self.compare_gradients(got[1],ref[1],3e-3),flush=True)
         jax.clear_caches()
 
+  def test_pure_static_qk_is_trainable_at_initialization(self):
+    for suffix in ('StaticReads','StaticReadsWrites'):
+      params,result=self.evaluate(PREFIX+suffix+'TruePile')
+      flat=flatten_dict(params);grads=flatten_dict(result[1])
+      k=[v for p,v in flat.items() if p[-1]=='static_k_key']
+      q=[v for p,v in grads.items() if p[-1]=='static_q_key']
+      self.assertGreater(sum(float(jnp.sum(v*v)) for v in k),0.)
+      self.assertGreater(sum(float(jnp.sum(v*v)) for v in q),0.)
+      print('STATIC_QK_TRAINABLE',suffix,flush=True)
+      jax.clear_caches()
+
   def test_native_address_norm_ablations_finite(self):
     for suffix in ('NoAddressNorm','NoDynamicGatesAddressNorm'):
       for dtype in ('float32','bfloat16'):

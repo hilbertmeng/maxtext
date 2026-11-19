@@ -2128,7 +2128,8 @@ class BamAttention(Attention):
                   ('embed', 'q_heads', 'fetch', None), ('q_heads', 'fetch', None), fetched_opening)
     for arm in ('q', 'k'):
       setattr(self, 'static_' + arm + '_key', self.param(
-          'static_' + arm + '_key', nn.with_logical_partitioning(zeros_init, ('v_factor', 'q_heads')),
+          'static_' + arm + '_key', nn.with_logical_partitioning(
+              reg_init if self._ablation.static_read and arm == 'k' else zeros_init, ('v_factor', 'q_heads')),
           (self.bam_v, self.num_query_heads), self.weight_dtype))
     for arm in ('v', 'o'):
       if self._ablation.no_o and arm == 'o': continue

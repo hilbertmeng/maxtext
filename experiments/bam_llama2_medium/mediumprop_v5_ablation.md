@@ -63,3 +63,15 @@ completed group as evidence. `LoomFormer实验结果.xlsx` ablation tab is updat
 in the main worktree's `loomformer_paper` submodule: columnsD/E/F contain the
 configuration, batch and backend. An original workbook backup is in the task
 artifact directory `/data0/xd/bam_diagnostics/medium-v5-ablation-20261120/`.
+
+Pre-first-step corrections: the two pure-static-read arms cannot inherit both
+zero static Q and zero static K: their NoPE dot-product gradients would stay
+zero on both sides. Static K therefore uses BAM normal(.006), while static Q
+keeps zero; a cold-start model-gradient check requires nonzero static-Q gradient.
+Only these two pending controllers were held, retaining their resource queues,
+before any training step. Their new AOT/runtime is recorded per RUN; the other
+six first-group RUNs retain a253b50. This is a trainability fix, not amplitude
+fitting. Group2's M-read partial-RoPE wrapper supplies a constant-zero standard
+slab to the unchanged read kernel, drops that output tail, and rotates18 of the
+75 M-read coordinates; this avoids a zero-width Pallas input without restoring
+any standard Q/K parameter.

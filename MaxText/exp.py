@@ -22761,7 +22761,7 @@ class BamMediumPropV5AblationStaticAllWritesTruePile(BamMediumPropV5):
 
 class BamMediumPropV5AblationStaticReadsTruePile(BamMediumPropV5):
     """V5 SwiGLU ablation: static_read; implementation lives in the isolated family."""
-    # code_commit: a253b50; /data0/xd/mediumprop-v5-ablation; launch preparation.
+    # code_commit: 160c9c8; /data0/xd/mediumprop-v5-ablation; launch preparation.
     model_name = 'BamMediumPropV5AblationStaticReadsTruePile'
     bam_v5_ablation = 'static_read'
     base_mlp_dim = 2784
@@ -22775,7 +22775,7 @@ class BamMediumPropV5AblationStaticReadsTruePile(BamMediumPropV5):
 
 class BamMediumPropV5AblationStaticReadsWritesTruePile(BamMediumPropV5):
     """V5 SwiGLU ablation: static_read_write; implementation lives in the isolated family."""
-    # code_commit: a253b50; /data0/xd/mediumprop-v5-ablation; launch preparation.
+    # code_commit: 160c9c8; /data0/xd/mediumprop-v5-ablation; launch preparation.
     model_name = 'BamMediumPropV5AblationStaticReadsWritesTruePile'
     bam_v5_ablation = 'static_read_write'
     base_mlp_dim = 3027
@@ -22835,7 +22835,7 @@ class BamMediumPropV5AblationNoDynamicGatesAddressNormTruePile(BamMediumPropV5):
 
 class BamMediumPropV5AblationNoMShiftTruePile(BamMediumPropV5):
     """V5 SwiGLU ablation: no_shift; implementation lives in the isolated family."""
-    # code_commit: a253b50; /data0/xd/mediumprop-v5-ablation; launch preparation.
+    # code_commit: 160c9c8; /data0/xd/mediumprop-v5-ablation; launch preparation.
     model_name = 'BamMediumPropV5AblationNoMShiftTruePile'
     bam_v5_ablation = 'no_shift'
     base_mlp_dim = 2520
@@ -22850,7 +22850,7 @@ class BamMediumPropV5AblationNoMShiftTruePile(BamMediumPropV5):
 
 class BamMediumPropV5AblationNoMemoryMLPTruePile(BamMediumPropV5):
     """V5 SwiGLU ablation: no_memory_mlp; implementation lives in the isolated family."""
-    # code_commit: a253b50; /data0/xd/mediumprop-v5-ablation; launch preparation.
+    # code_commit: 160c9c8; /data0/xd/mediumprop-v5-ablation; launch preparation.
     model_name = 'BamMediumPropV5AblationNoMemoryMLPTruePile'
     bam_v5_ablation = 'no_memory_mlp'
     base_mlp_dim = 3765
@@ -22866,7 +22866,7 @@ class BamMediumPropV5AblationNoMemoryMLPTruePile(BamMediumPropV5):
 
 class BamMediumPropV5AblationNoLocalOTruePile(BamMediumPropV5):
     """V5 SwiGLU ablation: no_local_o; implementation lives in the isolated family."""
-    # code_commit: a253b50; /data0/xd/mediumprop-v5-ablation; launch preparation.
+    # code_commit: 160c9c8; /data0/xd/mediumprop-v5-ablation; launch preparation.
     model_name = 'BamMediumPropV5AblationNoLocalOTruePile'
     bam_v5_ablation = 'no_local_o'
     base_mlp_dim = 2557
@@ -22881,7 +22881,7 @@ class BamMediumPropV5AblationNoLocalOTruePile(BamMediumPropV5):
 
 class BamMediumPropV5AblationNoAttentionWriteContentNormTruePile(BamMediumPropV5):
     """V5 SwiGLU ablation: raw_attention_content; implementation lives in the isolated family."""
-    # code_commit: a253b50; /data0/xd/mediumprop-v5-ablation; launch preparation.
+    # code_commit: 160c9c8; /data0/xd/mediumprop-v5-ablation; launch preparation.
     model_name = 'BamMediumPropV5AblationNoAttentionWriteContentNormTruePile'
     bam_v5_ablation = 'raw_attention_content'
     base_mlp_dim = 2510
@@ -22896,7 +22896,7 @@ class BamMediumPropV5AblationNoAttentionWriteContentNormTruePile(BamMediumPropV5
 
 class BamMediumPropV5AblationMReadQKPartialRoPETruePile(BamMediumPropV5):
     """V5 SwiGLU ablation: m_qk_partial_rope; implementation lives in the isolated family."""
-    # code_commit: a253b50; /data0/xd/mediumprop-v5-ablation; launch preparation.
+    # code_commit: 160c9c8; /data0/xd/mediumprop-v5-ablation; launch preparation.
     model_name = 'BamMediumPropV5AblationMReadQKPartialRoPETruePile'
     bam_v5_ablation = 'm_qk_partial_rope'
     base_mlp_dim = 2702

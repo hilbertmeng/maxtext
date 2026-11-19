@@ -1,0 +1,119 @@
+[
+  {
+    "name": "BamMediumPropV5AblationStaticMLPWriteTruePile",
+    "mode": "static_mlp_write",
+    "ordinary": 2631,
+    "memory": 1128,
+    "terminal": 3917,
+    "total": 432113604,
+    "residual": 1376
+  },
+  {
+    "name": "BamMediumPropV5AblationStaticAttentionWriteTruePile",
+    "mode": "static_attention_write",
+    "ordinary": 2631,
+    "memory": 1128,
+    "terminal": 3917,
+    "total": 432113604,
+    "residual": 1376
+  },
+  {
+    "name": "BamMediumPropV5AblationStaticAllWritesTruePile",
+    "mode": "static_all_write",
+    "ordinary": 2753,
+    "memory": 1128,
+    "terminal": 4034,
+    "total": 432112308,
+    "residual": 80
+  },
+  {
+    "name": "BamMediumPropV5AblationStaticReadsTruePile",
+    "mode": "static_read",
+    "ordinary": 2784,
+    "memory": 1128,
+    "terminal": 4182,
+    "total": 432111076,
+    "residual": -1152
+  },
+  {
+    "name": "BamMediumPropV5AblationStaticReadsWritesTruePile",
+    "mode": "static_read_write",
+    "ordinary": 3027,
+    "memory": 1128,
+    "terminal": 4312,
+    "total": 432111156,
+    "residual": -1072
+  },
+  {
+    "name": "BamMediumPropV5AblationNoDynamicGatesTruePile",
+    "mode": "no_dynamic_gate",
+    "ordinary": 2542,
+    "memory": 1128,
+    "terminal": 3931,
+    "total": 432111716,
+    "residual": -512
+  },
+  {
+    "name": "BamMediumPropV5AblationNoAddressNormTruePile",
+    "mode": "no_address_norm",
+    "ordinary": 2510,
+    "memory": 1128,
+    "terminal": 3904,
+    "total": 432112228,
+    "residual": 0
+  },
+  {
+    "name": "BamMediumPropV5AblationNoDynamicGatesAddressNormTruePile",
+    "mode": "no_dynamic_gate_norm",
+    "ordinary": 2542,
+    "memory": 1128,
+    "terminal": 3931,
+    "total": 432111716,
+    "residual": -512
+  },
+  {
+    "name": "BamMediumPropV5AblationNoMShiftTruePile",
+    "mode": "no_shift",
+    "ordinary": 2520,
+    "memory": 1128,
+    "terminal": 3926,
+    "total": 432111652,
+    "residual": -576
+  },
+  {
+    "name": "BamMediumPropV5AblationNoMemoryMLPTruePile",
+    "mode": "no_memory_mlp",
+    "ordinary": 3765,
+    "memory": 0,
+    "terminal": 3908,
+    "total": 432113028,
+    "residual": 800
+  },
+  {
+    "name": "BamMediumPropV5AblationNoLocalOTruePile",
+    "mode": "no_local_o",
+    "ordinary": 2557,
+    "memory": 1128,
+    "terminal": 3958,
+    "total": 432113524,
+    "residual": 1296
+  },
+  {
+    "name": "BamMediumPropV5AblationNoAttentionWriteContentNormTruePile",
+    "mode": "raw_attention_content",
+    "ordinary": 2510,
+    "memory": 1128,
+    "terminal": 3904,
+    "total": 432112228,
+    "residual": 0
+  },
+  {
+    "name": "BamMediumPropV5AblationMReadQKPartialRoPETruePile",
+    "mode": "m_qk_partial_rope",
+    "ordinary": 2702,
+    "memory": 1128,
+    "terminal": 4096,
+    "total": 432112228,
+    "residual": 0
+  }
+]

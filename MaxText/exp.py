@@ -22712,3 +22712,195 @@ class BamXLPropV5EveryThirdMLPWriteRawMemoryOnly(BamXLPropV5EveryThirdMLPWriteNo
     bam_embedding_write_content_divisor = BamXLPropV5FastKernelFullRemat.bam_embedding_write_content_divisor
     bam_mlp_write_content_divisor = 1.0
     bam_mlp_write_vector_residual_mode = 'off'
+
+
+# Isolated V5 ablation family: codex/mediumprop-v5-ablation, /data0/xd/mediumprop-v5-ablation.
+
+
+class BamMediumPropV5AblationControlTruePile(BamMediumPropV5):
+    """V5 SwiGLU ablation: control; implementation lives in the isolated family."""
+    model_name = 'BamMediumPropV5AblationControlTruePile'
+    bam_v5_ablation = 'control'
+    tensorboard_gcs_rotate_period = 500
+    checkpoint_period = 200
+    record_training_health_metrics = True
+    record_internal_nn_metrics = False
+    compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneMPreNormQKScaleTruePile']
+
+
+class BamMediumPropV5AblationStaticMLPWriteTruePile(BamMediumPropV5):
+    """V5 SwiGLU ablation: static_mlp_write; implementation lives in the isolated family."""
+    model_name = 'BamMediumPropV5AblationStaticMLPWriteTruePile'
+    bam_v5_ablation = 'static_mlp_write'
+    base_mlp_dim = 2631
+    bam_last_mlp_dim = 3917
+    tensorboard_gcs_rotate_period = 500
+    checkpoint_period = 200
+    record_training_health_metrics = True
+    record_internal_nn_metrics = False
+    compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneMPreNormQKScaleTruePile']
+
+
+class BamMediumPropV5AblationStaticAttentionWriteTruePile(BamMediumPropV5):
+    """V5 SwiGLU ablation: static_attention_write; implementation lives in the isolated family."""
+    model_name = 'BamMediumPropV5AblationStaticAttentionWriteTruePile'
+    bam_v5_ablation = 'static_attention_write'
+    base_mlp_dim = 2631
+    bam_last_mlp_dim = 3917
+    tensorboard_gcs_rotate_period = 500
+    checkpoint_period = 200
+    record_training_health_metrics = True
+    record_internal_nn_metrics = False
+    compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneMPreNormQKScaleTruePile']
+
+
+class BamMediumPropV5AblationStaticAllWritesTruePile(BamMediumPropV5):
+    """V5 SwiGLU ablation: static_all_write; implementation lives in the isolated family."""
+    model_name = 'BamMediumPropV5AblationStaticAllWritesTruePile'
+    bam_v5_ablation = 'static_all_write'
+    base_mlp_dim = 2753
+    bam_last_mlp_dim = 4034
+    tensorboard_gcs_rotate_period = 500
+    checkpoint_period = 200
+    record_training_health_metrics = True
+    record_internal_nn_metrics = False
+    compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneMPreNormQKScaleTruePile']
+
+
+class BamMediumPropV5AblationStaticReadsTruePile(BamMediumPropV5):
+    """V5 SwiGLU ablation: static_read; implementation lives in the isolated family."""
+    model_name = 'BamMediumPropV5AblationStaticReadsTruePile'
+    bam_v5_ablation = 'static_read'
+    base_mlp_dim = 2784
+    bam_last_mlp_dim = 4182
+    tensorboard_gcs_rotate_period = 500
+    checkpoint_period = 200
+    record_training_health_metrics = True
+    record_internal_nn_metrics = False
+    compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneMPreNormQKScaleTruePile']
+
+
+class BamMediumPropV5AblationStaticReadsWritesTruePile(BamMediumPropV5):
+    """V5 SwiGLU ablation: static_read_write; implementation lives in the isolated family."""
+    model_name = 'BamMediumPropV5AblationStaticReadsWritesTruePile'
+    bam_v5_ablation = 'static_read_write'
+    base_mlp_dim = 3027
+    bam_last_mlp_dim = 4312
+    tensorboard_gcs_rotate_period = 500
+    checkpoint_period = 200
+    record_training_health_metrics = True
+    record_internal_nn_metrics = False
+    compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneMPreNormQKScaleTruePile']
+
+
+class BamMediumPropV5AblationNoDynamicGatesTruePile(BamMediumPropV5):
+    """V5 SwiGLU ablation: no_dynamic_gate; implementation lives in the isolated family."""
+    model_name = 'BamMediumPropV5AblationNoDynamicGatesTruePile'
+    bam_v5_ablation = 'no_dynamic_gate'
+    base_mlp_dim = 2542
+    bam_last_mlp_dim = 3931
+    tensorboard_gcs_rotate_period = 500
+    checkpoint_period = 200
+    record_training_health_metrics = True
+    record_internal_nn_metrics = False
+    compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneMPreNormQKScaleTruePile']
+
+
+class BamMediumPropV5AblationNoAddressNormTruePile(BamMediumPropV5):
+    """V5 SwiGLU ablation: no_address_norm; implementation lives in the isolated family."""
+    model_name = 'BamMediumPropV5AblationNoAddressNormTruePile'
+    bam_v5_ablation = 'no_address_norm'
+    base_mlp_dim = 2510
+    bam_last_mlp_dim = 3904
+    tensorboard_gcs_rotate_period = 500
+    checkpoint_period = 200
+    record_training_health_metrics = True
+    record_internal_nn_metrics = False
+    compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneMPreNormQKScaleTruePile']
+    bam_pallas_core = False
+    bam_pallas_write = False
+
+
+class BamMediumPropV5AblationNoDynamicGatesAddressNormTruePile(BamMediumPropV5):
+    """V5 SwiGLU ablation: no_dynamic_gate_norm; implementation lives in the isolated family."""
+    model_name = 'BamMediumPropV5AblationNoDynamicGatesAddressNormTruePile'
+    bam_v5_ablation = 'no_dynamic_gate_norm'
+    base_mlp_dim = 2542
+    bam_last_mlp_dim = 3931
+    tensorboard_gcs_rotate_period = 500
+    checkpoint_period = 200
+    record_training_health_metrics = True
+    record_internal_nn_metrics = False
+    compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneMPreNormQKScaleTruePile']
+    bam_pallas_core = False
+    bam_pallas_write = False
+
+
+class BamMediumPropV5AblationNoMShiftTruePile(BamMediumPropV5):
+    """V5 SwiGLU ablation: no_shift; implementation lives in the isolated family."""
+    model_name = 'BamMediumPropV5AblationNoMShiftTruePile'
+    bam_v5_ablation = 'no_shift'
+    base_mlp_dim = 2520
+    bam_last_mlp_dim = 3926
+    tensorboard_gcs_rotate_period = 500
+    checkpoint_period = 200
+    record_training_health_metrics = True
+    record_internal_nn_metrics = False
+    compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneMPreNormQKScaleTruePile']
+    bam_m_shift_mode = 'none'
+
+
+class BamMediumPropV5AblationNoMemoryMLPTruePile(BamMediumPropV5):
+    """V5 SwiGLU ablation: no_memory_mlp; implementation lives in the isolated family."""
+    model_name = 'BamMediumPropV5AblationNoMemoryMLPTruePile'
+    bam_v5_ablation = 'no_memory_mlp'
+    base_mlp_dim = 3765
+    bam_last_mlp_dim = 3908
+    tensorboard_gcs_rotate_period = 500
+    checkpoint_period = 200
+    record_training_health_metrics = True
+    record_internal_nn_metrics = False
+    compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneMPreNormQKScaleTruePile']
+    bam_memory_mlp_dim = 0
+    bam_mlp_write_layers = []
+
+
+class BamMediumPropV5AblationNoLocalOTruePile(BamMediumPropV5):
+    """V5 SwiGLU ablation: no_local_o; implementation lives in the isolated family."""
+    model_name = 'BamMediumPropV5AblationNoLocalOTruePile'
+    bam_v5_ablation = 'no_local_o'
+    base_mlp_dim = 2557
+    bam_last_mlp_dim = 3958
+    tensorboard_gcs_rotate_period = 500
+    checkpoint_period = 200
+    record_training_health_metrics = True
+    record_internal_nn_metrics = False
+    compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneMPreNormQKScaleTruePile']
+    bam_attention_negative_diagonal = False
+
+
+class BamMediumPropV5AblationNoAttentionWriteContentNormTruePile(BamMediumPropV5):
+    """V5 SwiGLU ablation: raw_attention_content; implementation lives in the isolated family."""
+    model_name = 'BamMediumPropV5AblationNoAttentionWriteContentNormTruePile'
+    bam_v5_ablation = 'raw_attention_content'
+    base_mlp_dim = 2510
+    bam_last_mlp_dim = 3904
+    tensorboard_gcs_rotate_period = 500
+    checkpoint_period = 200
+    record_training_health_metrics = True
+    record_internal_nn_metrics = False
+    compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneMPreNormQKScaleTruePile']
+    bam_attention_write_content_divisor = 1.0
+
+
+class BamMediumPropV5AblationMReadQKPartialRoPETruePile(BamMediumPropV5):
+    """V5 SwiGLU ablation: m_qk_partial_rope; implementation lives in the isolated family."""
+    model_name = 'BamMediumPropV5AblationMReadQKPartialRoPETruePile'
+    bam_v5_ablation = 'm_qk_partial_rope'
+    base_mlp_dim = 2702
+    bam_last_mlp_dim = 4096
+    tensorboard_gcs_rotate_period = 500
+    checkpoint_period = 200
+    record_training_health_metrics = True
+    record_internal_nn_metrics = False
+    compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneMPreNormQKScaleTruePile']

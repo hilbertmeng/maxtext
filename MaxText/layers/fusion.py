@@ -351,23 +351,35 @@ class SubDecoderLayer(nn.Module):
     if mlp_write:
       write_content = memory_lnx if memory_mlp_dim else mlp_lnx
       write_heads = num_query_heads
-      mlp_logits = linears.DenseGeneral(
-          features=(write_heads,), axis=-1, use_bias=False,
-          kernel_init=initializers.get_bam_init(
-              cfg, fallback=initializers.get_init_method(cfg.init_method)),
-          kernel_axes=('embed', 'q_heads'), dtype=cfg.dtype, weight_dtype=cfg.weight_dtype,
-          quant=self.quant, matmul_precision=cfg.matmul_precision,
-          name='mlp_write_gate')(hidden_states)
-      memory_write_eps = getattr(cfg, 'bam_memory_write_eps', None)
-      if memory_write_eps is None:
-        memory_write_eps = cfg.bam_write_eps
-      mlp_bias = self.param(
-          'mlp_write_gate_bias', nn.with_logical_partitioning(
-              nn.initializers.constant(math.log(memory_write_eps / (1.0 - memory_write_eps))),
-              ('q_heads',)), (write_heads,), cfg.weight_dtype)
-      mlp_logits = mlp_logits + jnp.asarray(mlp_bias, cfg.dtype)
+      from layers.bam_v5_ablation import settings
+      ablation = settings(cfg)
+      if ablation.no_gate:
+        mlp_logits = jnp.full(hidden_states.shape[:2]+(write_heads,),jnp.inf,cfg.dtype)
+      else:
+        mlp_logits = linears.DenseGeneral(
+            features=(write_heads,), axis=-1, use_bias=False,
+            kernel_init=initializers.get_bam_init(
+                cfg, fallback=initializers.get_init_method(cfg.init_method)),
+            kernel_axes=('embed', 'q_heads'), dtype=cfg.dtype, weight_dtype=cfg.weight_dtype,
+            quant=self.quant, matmul_precision=cfg.matmul_precision,
+            name='mlp_write_gate')(hidden_states)
+        memory_write_eps = getattr(cfg, 'bam_memory_write_eps', None)
+        if memory_write_eps is None:
+          memory_write_eps = cfg.bam_write_eps
+        mlp_bias = self.param(
+            'mlp_write_gate_bias', nn.with_logical_partitioning(
+                nn.initializers.constant(math.log(memory_write_eps / (1.0 - memory_write_eps))),
+                ('q_heads',)), (write_heads,), cfg.weight_dtype)
+        mlp_logits = mlp_logits + jnp.asarray(mlp_bias, cfg.dtype)
       independent_address = None
-      if cfg.bam_mlp_write_dynamic_address:
+      if ablation.static_write('mlp'):
+        static_address = self.param('mlp_static_write_address',
+            nn.with_logical_partitioning(initializers.get_bam_init(cfg,
+                fallback=initializers.get_init_method(cfg.init_method)), ('q_heads','v_factor')),
+            (write_heads,cfg.bam_v),cfg.weight_dtype)
+        independent_address = jnp.broadcast_to(jnp.asarray(static_address,cfg.dtype),
+                              hidden_states.shape[:2]+(write_heads,cfg.bam_v))
+      elif cfg.bam_mlp_write_dynamic_address:
         rank = int(cfg.bam_mlp_write_address_rank)
         address_hidden = linears.DenseGeneral(
             features=rank, axis=-1, use_bias=False,

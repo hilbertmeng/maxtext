@@ -196,7 +196,7 @@ def get_remat_policy(cfg):
       assert cfg.remat_policy == "full", "Remat policy needs to be on list of remat policies"
       policy = None
     return policy
-  
+
 
 def get_group_index(n, groups, i, include_first_L=True):
   '''
@@ -391,7 +391,7 @@ class OutputHead(nn.Module):
         inputs = self.norm(inputs)
       inputs = self.dropout(inputs, deterministic=deterministic)
     return self.project_logits(inputs)
-  
+
   @nn.compact
   def __call__(
     self,
@@ -470,35 +470,47 @@ class EmbeddingBamWrite(nn.Module):
         kernel_axes=("embed", "q_heads", "v_factor"), dtype=self.dtype,
         weight_dtype=self.weight_dtype, name="W_emb_u", quant=self.quant,
         matmul_precision=cfg.matmul_precision, use_bias=False)(inputs)
-    address = linears.DenseGeneral(
-        features=bottleneck, axis=-1, kernel_init=self.kernel_init,
-        kernel_axes=("embed", None), dtype=self.dtype,
-        weight_dtype=self.weight_dtype, name="W_emb_v_down", quant=self.quant,
-        matmul_precision=cfg.matmul_precision, use_bias=False)(inputs)
-    address = nn.gelu(address)
-    address = linears.DenseGeneral(
-        features=(heads, bam_v), axis=-1, kernel_init=self.kernel_init,
-        kernel_axes=("embed", "q_heads", "v_factor"), dtype=self.dtype,
-        weight_dtype=self.weight_dtype, name="W_emb_v_up", quant=self.quant,
-        matmul_precision=cfg.matmul_precision, use_bias=True)(address)
+    from layers.bam_v5_ablation import settings
+    ablation = settings(cfg)
+    if ablation.static_write('embedding'):
+      static_address = self.param('emb_static_write_address',
+          nn.with_logical_partitioning(self.kernel_init, ('q_heads','v_factor')),
+          (heads,bam_v),self.weight_dtype)
+      address = jnp.broadcast_to(jnp.asarray(static_address,self.dtype),
+                                inputs.shape[:2]+(heads,bam_v))
+    else:
+      address = linears.DenseGeneral(
+          features=bottleneck, axis=-1, kernel_init=self.kernel_init,
+          kernel_axes=("embed", None), dtype=self.dtype,
+          weight_dtype=self.weight_dtype, name="W_emb_v_down", quant=self.quant,
+          matmul_precision=cfg.matmul_precision, use_bias=False)(inputs)
+      address = nn.gelu(address)
+      address = linears.DenseGeneral(
+          features=(heads, bam_v), axis=-1, kernel_init=self.kernel_init,
+          kernel_axes=("embed", "q_heads", "v_factor"), dtype=self.dtype,
+          weight_dtype=self.weight_dtype, name="W_emb_v_up", quant=self.quant,
+          matmul_precision=cfg.matmul_precision, use_bias=True)(address)
 
-    gate_logits = linears.DenseGeneral(
-        features=heads, axis=-1, kernel_init=self.kernel_init,
-        kernel_axes=("embed", "q_heads"), dtype=self.dtype,
-        weight_dtype=self.weight_dtype, name="W_emb_g", quant=self.quant,
-        matmul_precision=cfg.matmul_precision, use_bias=False)(inputs)
-    eps = float(cfg.bam_embedding_write_eps)
-    if not 0.0 < eps < 1.0:
-      raise ValueError(f"bam_embedding_write_eps must be in (0, 1), got {eps}")
-    gate_bias = self.param(
-        "emb_gw_b0",
-        nn.with_logical_partitioning(
-            lambda key, shape, dtype: jnp.full(
-                shape, math.log(eps / (1.0 - eps)), dtype),
-            ("q_heads",)),
-        (heads,), self.weight_dtype)
-    gate = jax.nn.sigmoid(
-        gate_logits + jnp.asarray(gate_bias, self.dtype))
+    if ablation.no_gate:
+      gate = jnp.ones(inputs.shape[:2]+(heads,),self.dtype)
+    else:
+      gate_logits = linears.DenseGeneral(
+          features=heads, axis=-1, kernel_init=self.kernel_init,
+          kernel_axes=("embed", "q_heads"), dtype=self.dtype,
+          weight_dtype=self.weight_dtype, name="W_emb_g", quant=self.quant,
+          matmul_precision=cfg.matmul_precision, use_bias=False)(inputs)
+      eps = float(cfg.bam_embedding_write_eps)
+      if not 0.0 < eps < 1.0:
+        raise ValueError(f"bam_embedding_write_eps must be in (0, 1), got {eps}")
+      gate_bias = self.param(
+          "emb_gw_b0",
+          nn.with_logical_partitioning(
+              lambda key, shape, dtype: jnp.full(
+                  shape, math.log(eps / (1.0 - eps)), dtype),
+              ("q_heads",)),
+          (heads,), self.weight_dtype)
+      gate = jax.nn.sigmoid(
+          gate_logits + jnp.asarray(gate_bias, self.dtype))
     if getattr(cfg, 'bam_record_concat_health', False):
       self.sow('intermediates', 'seed_gate', jnp.stack((jnp.mean(gate), jnp.std(gate))))
 
@@ -512,9 +524,10 @@ class EmbeddingBamWrite(nn.Module):
             else normalizations.rms_norm(
                 data, dtype=data.dtype, epsilon=initializers.get_bam_write_epsilon(cfg),
                 statistics_dtype=statistics_dtype))
-    address = normalizations.rms_norm(
-        address, dtype=address.dtype, epsilon=initializers.get_bam_write_epsilon(cfg),
-        statistics_dtype=statistics_dtype)
+    if not ablation.no_norm:
+      address = normalizations.rms_norm(
+          address, dtype=address.dtype, epsilon=initializers.get_bam_write_epsilon(cfg),
+          statistics_dtype=statistics_dtype)
     with jax.named_scope("bam/embedding_write_outer"):
       if getattr(cfg, 'bam_pallas_core', False):
         # Fused core carries M token-minor: [B, V, K, T], k-major [B, K, V, T] for bodies v7/v7u,

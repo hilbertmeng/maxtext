@@ -2046,6 +2046,8 @@ class BamAttention(Attention):
   def setup(self):
     super().setup()  # Standard Q/K projections, RoPE and output projection.
     cfg = self.config
+    from layers.bam_v5_ablation import settings
+    self._ablation = settings(cfg)
     validate_bam_config(cfg, layer_mode=self.layer_mode)
     self._read_bam_v = self.bam_v
     self._standard_qk_width = cfg.bam_standard_qk_dim
@@ -2106,6 +2108,8 @@ class BamAttention(Attention):
         num_heads=self.num_query_heads, read_side='col', **settings)
 
     def add_read_gate(name, features, kernel_axes, bias_axes, opening):
+      if self._ablation.static_read or self._ablation.no_gate or (self._ablation.no_o and name == 'W_R_gate'):
+        return
       setattr(self, name, DenseGeneral(
           features=features, axis=-1, kernel_init=zeros_init, kernel_axes=kernel_axes,
           dtype=self.dtype, weight_dtype=self.weight_dtype, name=name,
@@ -2127,28 +2131,35 @@ class BamAttention(Attention):
           'static_' + arm + '_key', nn.with_logical_partitioning(zeros_init, ('v_factor', 'q_heads')),
           (self.bam_v, self.num_query_heads), self.weight_dtype))
     for arm in ('v', 'o'):
+      if self._ablation.no_o and arm == 'o': continue
       setattr(self, 'static_' + arm + '_key', self.param(
           'static_' + arm + '_key', nn.with_logical_partitioning(
               nn.initializers.normal(self.bam_v ** -0.5) if arm == 'v' else zeros_init,
               ('v_factor', 'q_heads')), (self.bam_v, self.num_query_heads), self.weight_dtype))
 
     if self._has_write:
-      self.P_loc_down = DenseGeneral(
-          features=self._write_v_bottleneck_dim, axis=-1, kernel_init=reg_init,
-          kernel_axes=('embed', None), dtype=self.dtype, weight_dtype=self.weight_dtype,
-          name='P_loc_down', quant=self.quant, matmul_precision=cfg.matmul_precision, use_bias=False)
-      self.P_loc_up = DenseGeneral(
-          features=(self.num_query_heads, self.bam_v), axis=-1, kernel_init=reg_init,
-          kernel_axes=(None if self._replicate_ploc_up else 'embed', 'q_heads', 'v_factor'),
-          dtype=self.dtype, weight_dtype=self.weight_dtype, name='P_loc_up', quant=self.quant,
-          matmul_precision=cfg.matmul_precision, use_bias=True)
-      self.W_gw = DenseGeneral(features=(self.num_query_heads,), axis=-1, kernel_init=reg_init,
-          kernel_axes=('embed', 'q_heads'), dtype=self.dtype, weight_dtype=self.weight_dtype,
-          name='W_gw', quant=self.quant, matmul_precision=cfg.matmul_precision, use_bias=False)
-      eps = float(cfg.bam_write_eps)
-      self.gw_b0 = self.param('gw_b0', nn.with_logical_partitioning(
-          nn.initializers.constant(math.log(eps / (1.0 - eps))), ('q_heads',)),
-          (self.num_query_heads,), self.weight_dtype)
+      if self._ablation.static_write('attention'):
+        self.static_write_address = self.param('static_write_address',
+            nn.with_logical_partitioning(reg_init, ('q_heads','v_factor')),
+            (self.num_query_heads,self.bam_v), self.weight_dtype)
+      else:
+        self.P_loc_down = DenseGeneral(
+            features=self._write_v_bottleneck_dim, axis=-1, kernel_init=reg_init,
+            kernel_axes=('embed', None), dtype=self.dtype, weight_dtype=self.weight_dtype,
+            name='P_loc_down', quant=self.quant, matmul_precision=cfg.matmul_precision, use_bias=False)
+        self.P_loc_up = DenseGeneral(
+            features=(self.num_query_heads, self.bam_v), axis=-1, kernel_init=reg_init,
+            kernel_axes=(None if self._replicate_ploc_up else 'embed', 'q_heads', 'v_factor'),
+            dtype=self.dtype, weight_dtype=self.weight_dtype, name='P_loc_up', quant=self.quant,
+            matmul_precision=cfg.matmul_precision, use_bias=True)
+      if not self._ablation.no_gate:
+        self.W_gw = DenseGeneral(features=(self.num_query_heads,), axis=-1, kernel_init=reg_init,
+            kernel_axes=('embed', 'q_heads'), dtype=self.dtype, weight_dtype=self.weight_dtype,
+            name='W_gw', quant=self.quant, matmul_precision=cfg.matmul_precision, use_bias=False)
+        eps = float(cfg.bam_write_eps)
+        self.gw_b0 = self.param('gw_b0', nn.with_logical_partitioning(
+            nn.initializers.constant(math.log(eps / (1.0 - eps))), ('q_heads',)),
+            (self.num_query_heads,), self.weight_dtype)
       self.write_data_norm = GroupedRMSNorm(
           scale_shape=(self.num_query_heads, self.bam_k),
           epsilon=initializers.get_bam_write_epsilon(cfg), dtype=self.dtype,
@@ -2171,9 +2182,11 @@ class BamAttention(Attention):
         ('q', (self.num_query_heads, self.bam_v), ('q_heads', 'kv')),
         ('k', (self.num_query_heads, self.bam_v), ('q_heads', 'kv')),
         ('vo', (self.num_query_heads, cfg.bam_n_f, self.bam_v), ('q_heads', 'fetch', 'kv'))):
+      if self._ablation.static_read or (self._ablation.no_o and arm == 'vo'): continue
       setattr(self, 'general_' + arm + '_pre_bias', self._constant_general_parameter(
           'general_' + arm + '_pre_bias', shape, axes))
     for arm in ('q', 'k', 'v', 'o'):
+      if self._ablation.static_read or (self._ablation.no_o and arm == 'o'): continue
       if arm in ('q', 'k') and not cfg.bam_qk_static_read_gate:
         continue
       self._add_static_gate('general_' + arm + '_static_gate', cfg.bam_static_read_gate_init,
@@ -2184,9 +2197,10 @@ class BamAttention(Attention):
       source = nn.meta.unbox(self.variables['params']['W_R_up']['kernel'])
       return jnp.reshape(source[:, -self.num_query_heads:, 0, :], shape).astype(dtype)
     self._add_full_m_key_projection('W_lv_c8', (self.num_query_heads, self.bam_v),
-                                  ('embed', 'q_heads', 'kv'), clone_vo_init)
-    self.general_v_pre_bias = self._constant_general_parameter(
-        'general_v_pre_bias', (self.num_query_heads, self.bam_v), ('q_heads', 'kv'))
+                                  ('embed', 'q_heads', 'kv'), reg_init if self._ablation.no_o else clone_vo_init)
+    if not self._ablation.static_read:
+      self.general_v_pre_bias = self._constant_general_parameter(
+          'general_v_pre_bias', (self.num_query_heads, self.bam_v), ('q_heads', 'kv'))
 
 
   def _constant_general_parameter(self, name, shape, axes, value=0.):
@@ -2236,6 +2250,7 @@ class BamAttention(Attention):
   def _add_full_m_key_projection(self, name, features, axes, initializer):
     """Independent GELU bottleneck per Q/K/VO arm; VO shares one up output."""
     cfg = self.config
+    if self._ablation.static_read or (self._ablation.no_o and name == 'W_R'): return
     for suffix, output, kernel_axes in (
         ('down', self._full_m_read_rank, ('embed', None)),
         ('up', features, (None if self._replicate_rank_up else 'embed',) + axes[1:])):
@@ -2411,6 +2426,9 @@ class BamAttention(Attention):
 
   def _write_address(self, x, shared_hidden=None):
     """Reuse the reader's activated down projection when read/write sharing is enabled."""
+    if self._ablation.static_write('attention'):
+      return jnp.broadcast_to(jnp.asarray(self.static_write_address,self.dtype),
+                              x.shape[:2]+(self.num_query_heads,self.bam_v))
     hidden = self.P_loc_down(x)
     hidden = nn.gelu(hidden)
     return self.P_loc_up(hidden)
@@ -2469,6 +2487,9 @@ class BamAttention(Attention):
     content = self._attention_write_content(u1)
     return scale * gate[..., None] * content, self.write_address_norm(u2), gate
 
+  def _write_address_normalize(self, x):
+    return x if self._ablation.no_norm else self.write_address_norm(x)
+
   def merge_mlp_write(self, mlp_head, mlp_gate, factors, M_in, independent_address=None):
     """Merge attention/MLP writes, then decay the carried matrix exactly once."""
     from layers.bam_write_content import fixed_content
@@ -2481,7 +2502,7 @@ class BamAttention(Attention):
     if factors is None:
       if independent_address is None:
         raise ValueError('MLP-only M write requires an independent address')
-      mlp_address = self.write_address_norm(independent_address)
+      mlp_address = self._write_address_normalize(independent_address)
       with jax.named_scope('bam/mlp_independent_write_outer'):
         if self._write_outer_implementation == 'dot':
           dM = jnp.einsum('btnk,btnv->btkv', mlp_content, mlp_address)
@@ -2497,7 +2518,7 @@ class BamAttention(Attention):
         else:
           dM = jnp.sum(combined_content[..., None] * address[..., None, :], axis=-3)
     else:
-      mlp_address = self.write_address_norm(independent_address)
+      mlp_address = self._write_address_normalize(independent_address)
       with jax.named_scope('bam/write_outer'):
         if self._write_outer_implementation == 'dot':
           dM = jnp.einsum('btnk,btnv->btkv', attention_content, address)
@@ -2948,7 +2969,7 @@ class BamAttention(Attention):
             self.sow('intermediates', 'm_shift_state_stats', state)
 
 
-    full_m_shared_hidden = nn.gelu(self.full_m_read_down(inputs_q))
+    full_m_shared_hidden = None if self._ablation.static_read else nn.gelu(self.full_m_read_down(inputs_q))
 
     assert 0 < self._qk_col_width <= self.head_dim
     standard_qk_width = self._standard_qk_width or (self.head_dim - self._qk_col_width)
@@ -2967,6 +2988,10 @@ class BamAttention(Attention):
         raise ValueError('Common Q/K scale requires concatenated local Q/K; enabled QKNorm must cover the full head')
       common_qk_scale = self._constant_general_parameter(
           'common_qk_read_scale', (1,), (None,), 1.0)[0]
+    if self._ablation.name:
+      from layers.bam_v5_ablation import forward
+      return forward(self, inputs_q, inputs_positions, decoder_segment_ids, M_in, is_global,
+                     standard_qk_width, common_vo_scale, common_qk_scale, defer_write)
     if getattr(cfg, 'bam_pallas_core', False):
       return self._pallas_core_call(
           inputs_q, inputs_positions, decoder_segment_ids, M_in, is_global,

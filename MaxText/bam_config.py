@@ -53,6 +53,10 @@ def validate_bam_config(config, *, layer_mode=None):
   if callable(getattr(config, 'get_keys', None)):
     config = config.get_keys()
   get = config.get if isinstance(config, Mapping) else lambda k, d=None: getattr(config, k, d)
+  from layers.bam_v5_ablation import Settings
+  ablation = Settings(get('bam_v5_ablation', '') or '')
+  if ablation.no_norm and (get('bam_pallas_core', False) or get('bam_pallas_write', False)):
+    raise ValueError('Address-norm ablations require the native JAX backend')
   if get('rmt_enabled', False):
     _archived(['rmt_enabled'])
   if not get('bam_enabled', False):

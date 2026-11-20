@@ -167,3 +167,108 @@ relative to its direct ungated-static parent, MHA reference: .90 (plausible
 .80--.98). Static readers still benefit from a neighboring token's content even
 without token-conditioned addressing. Speed should be similar or slightly faster
 than the parent; verify actual startup rather than inferring it from saved FLOPs.
+
+## Remaining groups: final results
+
+All nine remaining RUNs completed 13,500 without performance stopping. Final-five
+means below use the native registry's 12,600--13,400 windows, not single-step loss.
+Every gain multiplier uses `BamMHAMediumPropC256TruePile` as reference.
+Final checkpoints/cursors (seed 9876, global batch 128, two hosts), all nine local
+TB syncs, and node/queue absence in UE5a, UC1a and the scoped EW4b candidates
+were independently verified. Group 2/3 source JSON and plot provenance are under
+`/data0/xd/bam_diagnostics/medium-v5-ablation-20261120/`.
+
+| RUN | Comparator | Final-five gap | Gain multiplier |
+|---|---|---:|---:|
+| `BamMediumPropV5AblationNoMShiftTruePile` | V5 SwiGLU | +0.010732 | 0.94008 |
+| `BamMediumPropV5AblationNoMemoryMLPTruePile` | V5 SwiGLU | +0.034947 | 0.80482 |
+| `BamMediumPropV5AblationNoLocalOTruePile` | V5 SwiGLU | +0.032842 | 0.81659 |
+| `BamMediumPropV5AblationNoAttentionWriteContentNormTruePile` | V5 SwiGLU | +0.002726 | 0.98479 |
+| `BamMediumPropV5AblationMReadQKPartialRoPETruePile` | V5 SwiGLU | +0.020772 | 0.88400 |
+| `BamMediumPropV5AblationStaticAttentionWriteNoGateTruePile` | static-attention-address parent | +0.016494 | 0.90750 |
+| `BamMediumPropV5AblationStaticMLPWriteNoGateTruePile` | static-MLP-address parent | +0.005019 | 0.97168 |
+| `BamMediumPropV5AblationStaticReadsWritesNoGateTruePile` | gated static-read/write parent | +0.017872 | 0.84878 |
+| `BamMediumPropV5AblationStaticReadsWritesNoGateTruePile` | V5 SwiGLU | +0.078742 | 0.56023 |
+| `BamMediumPropV5AblationStaticReadsWritesNoGateTruePile` | Mudd18 post-norm, fixed router | -0.008636 | 1.09424 |
+| `BamMediumPropV5AblationStaticReadsWritesNoGateNoMShiftTruePile` | ungated static-read/write parent | +0.003927 | 0.96084 |
+| `BamMediumPropV5AblationStaticReadsWritesNoGateNoMShiftTruePile` | V5 SwiGLU | +0.082669 | 0.53828 |
+| `BamMediumPropV5AblationStaticReadsWritesNoGateNoMShiftTruePile` | Mudd18 post-norm, fixed router | -0.004708 | 1.05138 |
+
+The pure-static controls retain token-dependent write contents, 17 nonlinear
+private M-MLP writers, whole-M read pre-norm, read scales and the residual-derived
+standard Q/K branch. They are not input-independent memory. Removing M-shift from
+this circuit incurs a small additional loss, rather than destroying its benefit.
+Both controls remain ahead of the stronger fixed-router/post-norm Mudd baseline
+at completion, although their advantage narrowed over training. Mudd retains its
+historical extra router/norm parameters without an MLP deduction.
+
+Static write directions alone nearly preserve V5's benefit, but deleting the
+remaining token-dependent write-strength gate is measurably harmful. The static
+attention writer loses more than the static private-MLP writer. A plausible
+mechanism is that normalized attention content has lost its amplitude channel,
+whereas unnormalized private-MLP content can encode conditional write strength;
+these observations do not establish that mechanism without a matched interaction
+control. The apparent attention no-gate recovery around 7k is a parent loss spike,
+not sustained child catch-up (actual point evidence archived separately).
+
+Removing attention content RMSNorm on V5 costs much less than on UnitH: the older
+UnitH control retained only 0.77733 of its parent gain through 7.6k, while V5 stays
+near 0.985 at completion. The main new stabilization candidate is whole-M read
+pre-norm, which removes direct read-amplitude feedback from M magnitude. Q/K read
+scaling was also added, so its contribution is not isolated. The tiny standalone
+pre-norm gain does not exclude a large interaction with raw attention writes.
+
+Prior checks: raw attention writes substantially outperform the 0.85 retained-gain
+prior; the ungated static-read/write control underperforms its 0.95 prior versus
+gated static writes; removing M-shift is less costly than its 0.90 prior. No prior
+was used as a stopping rule. Ablations refund parameters, so loss deltas include
+the specified capacity reallocation and are not fixed-width surgical interventions.
+
+| RUN | Ordinary / private / final widths | Total parameter delta vs 432,112,228 | Startup step/s |
+|---|---|---:|---:|
+| `BamMediumPropV5AblationNoMShiftTruePile` | 2520 / 1128 / 3926 | -576 | 0.639 |
+| `BamMediumPropV5AblationNoMemoryMLPTruePile` | 3765 / 0 / 3908 | +800 | 0.641 |
+| `BamMediumPropV5AblationNoLocalOTruePile` | 2557 / 1128 / 3958 | +1,296 | 0.619 |
+| `BamMediumPropV5AblationNoAttentionWriteContentNormTruePile` | 2510 / 1128 / 3904 | +0 | 0.608 |
+| `BamMediumPropV5AblationMReadQKPartialRoPETruePile` | 2702 / 1128 / 4096 | +0 | 0.595 |
+| `BamMediumPropV5AblationStaticAttentionWriteNoGateTruePile` | 2636 / 1128 / 3922 | -1,296 | 0.616 |
+| `BamMediumPropV5AblationStaticMLPWriteNoGateTruePile` | 2636 / 1128 / 3922 | -1,296 | 0.613 |
+| `BamMediumPropV5AblationStaticReadsWritesNoGateTruePile` | 3037 / 1128 / 4329 | -432 | 0.645 |
+| `BamMediumPropV5AblationStaticReadsWritesNoGateNoMShiftTruePile` | 3047 / 1128 / 4351 | -1,008 | 0.677 |
+
+Speeds are startup observations on different leases, not paired kernel benchmarks.
+Existing Pallas kernels were reused; all formal source hashes are recorded on the
+main configuration classes. No kernel hot switch was needed for these groups.
+
+The two fully static controls had small missing console-cache regions. Only
+missing steps were imported from actual synced TensorBoard values: 28/59 points,
+with 1,322/1,290 overlapping points agreeing within 5e-7. Existing console points
+were preserved and nothing was interpolated. Final comparisons were recomputed
+through the native loss-report path after both child and parent completed, so a
+child finishing first cannot leave its final parent comparison stale at 13.2k.
+
+## Historical all-static comparison
+
+The old `BamMediumPropK75AllLocalStaticAlibiRMTBudget` runtime `a520e4a` had no
+residual-derived standard Q/K projection, no M pre-norm and no private-MLP content
+feedback into M. Its static-attention implementation uses `inputs_q` only for
+shape; at fixed M, later ordinary-MLP residual features cannot update the memory.
+The new controls keep that nonlinear content path even after dynamic addresses
+and branch gates are deleted. This is the strongest circuit-level distinction.
+The old control also used a roughly 328.6M RMT-matched budget instead of 432.1M,
+ALiBi, different static-address initialization and legacy padded data. Its dynamic
+BAM sibling won at the same smaller budget, so budget alone cannot explain the
+old static failure. Cross-cohort raw loss is not a matched architecture delta.
+The immutable source audit and native curves are archived in
+`old-static-v5-comparison.md` in the task artifact directory. No additional
+checkpoint diagnosis or new control RUN was launched as part of that audit.
+
+## Resource closeout
+
+Each remaining RUN started in UE5a and finished in UC1a; individual same-zone
+preemptions are retained in the full lease history. The user approved EW4b only
+as a temporary extra candidate for 311210 and 311214. Neither had an active EW4b
+training lease; this exception never changed the global defaults or other RUNs.
+Every READY interval and active-zone assignment is recorded in
+`experiments/tpu_region_preemption_history.md`; queue candidates are not counted
+as active leases. The retained FLEX compiler `llm-jax-v6e-1-0` was not deleted.

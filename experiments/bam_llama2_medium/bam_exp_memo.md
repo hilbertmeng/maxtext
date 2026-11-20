@@ -1293,3 +1293,16 @@ measured .4628 -> .5382 step/s (+16.3%), with maximum same-batch loss difference
 20 steps. A paired optimized-parent profile leaves a 3.3% architecture cost. Full configurations,
 runtime hashes, replay, final curves and complete resource history are linked from
 [xlprop_v5_m60_r480.md](xlprop_v5_m60_r480.md).
+
+
+## V5 matched-budget ablations (2026-11-20)
+
+All 17 arms completed 13,500 without performance stopping. Fixed attention/MLP
+write directions retain nearly all V5 benefit while write-strength gates remain;
+removing the gates has a larger cost, particularly for normalized attention content.
+Even ungated static read/write addressing without M-shift remains above stronger
+Mudd, with nonlinear private-MLP content feedback retained. This is not the old
+attention-only static-M circuit. Raw attention content is nearly competitive on
+V5 despite failing on UnitH, making read-pre-norm/write-norm interaction a useful
+mechanism hypothesis. Detailed native results, interpretation limits, exact RUNs,
+budgets and archive paths: [ablation study](mediumprop_v5_ablation.md).

@@ -2154,10 +2154,9 @@ class BamAttention(Attention):
             dtype=self.dtype, weight_dtype=self.weight_dtype, name='P_loc_up', quant=self.quant,
             matmul_precision=cfg.matmul_precision, use_bias=True)
       if not self._ablation.no_gate:
-        if not self._ablation.static_gate('attention'):
-          self.W_gw = DenseGeneral(features=(self.num_query_heads,), axis=-1, kernel_init=reg_init,
-              kernel_axes=('embed', 'q_heads'), dtype=self.dtype, weight_dtype=self.weight_dtype,
-              name='W_gw', quant=self.quant, matmul_precision=cfg.matmul_precision, use_bias=False)
+        self.W_gw = DenseGeneral(features=(self.num_query_heads,), axis=-1, kernel_init=reg_init,
+            kernel_axes=('embed', 'q_heads'), dtype=self.dtype, weight_dtype=self.weight_dtype,
+            name='W_gw', quant=self.quant, matmul_precision=cfg.matmul_precision, use_bias=False)
         eps = float(cfg.bam_write_eps)
         self.gw_b0 = self.param('gw_b0', nn.with_logical_partitioning(
             nn.initializers.constant(math.log(eps / (1.0 - eps))), ('q_heads',)),

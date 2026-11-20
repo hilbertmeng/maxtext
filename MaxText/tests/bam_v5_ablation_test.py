@@ -16,8 +16,7 @@ from bam_prop_test_utils import MLPWriteTest
 PREFIX='BamMediumPropV5Ablation'
 SUFFIX=('StaticMLPWrite','StaticAttentionWrite','StaticAllWrites','StaticReads','StaticReadsWrites',
         'NoDynamicGates','NoAddressNorm','NoDynamicGatesAddressNorm','NoMShift','NoMemoryMLP',
-        'NoLocalO','NoAttentionWriteContentNorm','MReadQKPartialRoPE',
-        'StaticAttentionWriteAddressGate','StaticMLPWriteAddressGate')
+        'NoLocalO','NoAttentionWriteContentNorm','MReadQKPartialRoPE')
 
 class AblationTest(MLPWriteTest,unittest.TestCase):
   def tiny(self,name,kernel=False,dtype='float32'):
@@ -105,28 +104,6 @@ class AblationTest(MLPWriteTest,unittest.TestCase):
         np.testing.assert_allclose(got[0],ref[0],rtol=3e-4,atol=2e-6)
         print('ABLATION_PALLAS',suffix,self.compare_gradients(got[1],ref[1],3e-3),flush=True)
         jax.clear_caches()
-
-  def test_static_write_gates_omit_input_projection_and_learn(self):
-    for suffix,gate,bias in (
-        ('StaticAttentionWriteAddressGate','W_gw','gw_b0'),
-        ('StaticMLPWriteAddressGate','mlp_write_gate','mlp_write_gate_bias')):
-      name=PREFIX+suffix+'TruePile'
-      params,initial=self.evaluate(name)
-      flat=flatten_dict(params);grad=flatten_dict(initial[1])
-      self.assertFalse(any(gate in path for path in flat))
-      found=[path for path in flat if path[-1]==bias]
-      self.assertTrue(found)
-      self.assertGreater(sum(float(jnp.sum(grad[path]**2)) for path in found),0.)
-      for path in found:
-        np.testing.assert_allclose(jax.nn.sigmoid(flat[path]),.1,atol=1e-6)
-        flat[path]=flat[path]+jnp.linspace(-.7,.8,flat[path].shape[-1])
-      from flax.traverse_util import unflatten_dict
-      params=unflatten_dict(flat)
-      _,native=self.evaluate(name,params=params)
-      _,pallas=self.evaluate(name,kernel=True,params=params)
-      np.testing.assert_allclose(pallas[0],native[0],rtol=3e-4,atol=2e-6)
-      print('STATIC_GATE_PALLAS',suffix,self.compare_gradients(pallas[1],native[1],3e-3),flush=True)
-      jax.clear_caches()
 
   def test_pure_static_qk_is_trainable_at_initialization(self):
     for suffix in ('StaticReads','StaticReadsWrites'):

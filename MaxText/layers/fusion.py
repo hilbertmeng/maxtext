@@ -356,16 +356,13 @@ class SubDecoderLayer(nn.Module):
       if ablation.no_gate:
         mlp_logits = jnp.full(hidden_states.shape[:2]+(write_heads,),jnp.inf,cfg.dtype)
       else:
-        if ablation.static_gate('mlp'):
-          mlp_logits = jnp.zeros(hidden_states.shape[:2]+(write_heads,),cfg.dtype)
-        else:
-          mlp_logits = linears.DenseGeneral(
-              features=(write_heads,), axis=-1, use_bias=False,
-              kernel_init=initializers.get_bam_init(
-                  cfg, fallback=initializers.get_init_method(cfg.init_method)),
-              kernel_axes=('embed', 'q_heads'), dtype=cfg.dtype, weight_dtype=cfg.weight_dtype,
-              quant=self.quant, matmul_precision=cfg.matmul_precision,
-              name='mlp_write_gate')(hidden_states)
+        mlp_logits = linears.DenseGeneral(
+            features=(write_heads,), axis=-1, use_bias=False,
+            kernel_init=initializers.get_bam_init(
+                cfg, fallback=initializers.get_init_method(cfg.init_method)),
+            kernel_axes=('embed', 'q_heads'), dtype=cfg.dtype, weight_dtype=cfg.weight_dtype,
+            quant=self.quant, matmul_precision=cfg.matmul_precision,
+            name='mlp_write_gate')(hidden_states)
         memory_write_eps = getattr(cfg, 'bam_memory_write_eps', None)
         if memory_write_eps is None:
           memory_write_eps = cfg.bam_write_eps

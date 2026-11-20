@@ -75,27 +75,3 @@ fitting. Group2's M-read partial-RoPE wrapper supplies a constant-zero standard
 slab to the unchanged read kernel, drops that output tail, and rotates18 of the
 75 M-read coordinates; this avoids a zero-width Pallas input without restoring
 any standard Q/K parameter.
-
-## Static write-gate follow-up
-
-Two additional arms derive from the static-attention-address and static-MLP-address
-parents. Only that writer's input-dependent gate projection is removed; its
-learned per-head logit bias remains, initialized at the parent's nominal .1
-opening. Gates are shared across tokens, not across heads/layers. Other writers,
-embedding and the dynamic read gates are unchanged. The existing Pallas write
-kernel consumes the broadcast logits and JAX sums their gradients back to each
-static bias; no kernel change is needed.
-
-Each arm removes 326400 projection parameters (19200 per active writer layer,
-or .013333 W_Q per writer layer). Ordinary widths become 2636/tail3922;
-private width1128 is unchanged. Full-size tree target432112228; actual432111204,
-residual-1024. Direct comparators are each trained static-address parent.
-Run 13500 steps, report jointly every4000, no performance stopping/reviews.
-Infrastructure reviewed through mainb9a4a6f9: no further model/runtime operational
-changes since fork1871c962; orchestration GCS-deadline fix6769691 is deployed.
-
-Pre-run hypothesis: a static MLP gate should be cheaper in loss because its raw
-SwiGLU write content retains token strength. Attention write-content RMSNorm
-removes that cue, making its dynamic write gate a more distinctive control.
-Terminal MHA-reference gain priors vs each static-address parent: attention .985,
-MLP .995; speed near each parent's .61 step/s, possibly a small improvement.

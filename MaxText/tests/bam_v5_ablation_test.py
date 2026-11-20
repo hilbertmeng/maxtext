@@ -17,7 +17,8 @@ PREFIX='BamMediumPropV5Ablation'
 SUFFIX=('StaticMLPWrite','StaticAttentionWrite','StaticAllWrites','StaticReads','StaticReadsWrites',
         'NoDynamicGates','NoAddressNorm','NoDynamicGatesAddressNorm','NoMShift','NoMemoryMLP',
         'NoLocalO','NoAttentionWriteContentNorm','MReadQKPartialRoPE',
-        'StaticAttentionWriteNoGate','StaticMLPWriteNoGate','StaticReadsWritesNoGate')
+        'StaticAttentionWriteNoGate','StaticMLPWriteNoGate','StaticReadsWritesNoGate',
+        'StaticReadsWritesNoGateNoMShift')
 
 class AblationTest(MLPWriteTest,unittest.TestCase):
   def tiny(self,name,kernel=False,dtype='float32'):
@@ -71,6 +72,8 @@ class AblationTest(MLPWriteTest,unittest.TestCase):
           self.assertFalse(any('full_m_read_down' in p or '_c8_up' in p or 'W_R_up' in p or 'general_'in p for p in paths))
         if ab.no_gate:
           self.assertFalse(any(x in p for p in paths for x in ('W_lq_gate','W_lk_gate','W_lv_gate','W_R_gate','W_gw','gw_b0','mlp_write_gate','W_emb_g')))
+        if c.bam_m_shift_mode == 'none':
+          self.assertFalse(any('M_shift_' in p for p in paths))
         if ab.static_write('mlp'):self.assertFalse(any('mlp_address_'in p for p in paths))
         if ab.static_write('attention'):self.assertFalse(any('P_loc_'in p for p in paths))
         if ab.static_write('embedding'):self.assertFalse(any('W_emb_v_'in p for p in paths))
@@ -135,6 +138,23 @@ class AblationTest(MLPWriteTest,unittest.TestCase):
     _,pallas=self.evaluate(name,kernel=True,params=params)
     np.testing.assert_allclose(pallas[0],native[0],rtol=3e-4,atol=2e-6)
     print('ALL_STATIC_UNGATED_PALLAS',self.compare_gradients(pallas[1],native[1],3e-3),flush=True)
+    jax.clear_caches()
+
+  def test_ungated_static_addressing_without_m_shift(self):
+    name=PREFIX+'StaticReadsWritesNoGateNoMShiftTruePile'
+    params,native=self.evaluate(name)
+    flat=flatten_dict(params)
+    for path in flat:
+      self.assertFalse(any('M_shift_' in part or 'static_gate' in part for part in path),path)
+      self.assertFalse(any(part in path for part in ('W_gw','gw_b0','mlp_write_gate',
+          'mlp_write_gate_bias','W_emb_g','emb_gw_b0','full_m_read_down')),path)
+    self.assertTrue(any('memory_mlp' in path for path in flat))
+    self.assertTrue(any('common_vo_read_scale' in path for path in flat))
+    q=[v for path,v in flatten_dict(native[1]).items()if path[-1]=='static_q_key']
+    self.assertGreater(sum(float(jnp.sum(v*v))for v in q),0.)
+    _,pallas=self.evaluate(name,kernel=True,params=params)
+    np.testing.assert_allclose(pallas[0],native[0],rtol=3e-4,atol=2e-6)
+    print('STATIC_UNGATED_NO_SHIFT_PALLAS',self.compare_gradients(pallas[1],native[1],3e-3),flush=True)
     jax.clear_caches()
 
   def test_pure_static_qk_is_trainable_at_initialization(self):

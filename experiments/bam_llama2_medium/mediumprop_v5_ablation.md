@@ -117,3 +117,26 @@ Pre-run retained-gain prior vs the gated static-address parent: .95 (MHA ref),
 with plausible .88--1.00. That corresponds to about .627 of the V5 gain if the
 parent's .660 persists. Speed should be similar or slightly faster than its
 ~.636 step/s parent. This arm joins the same ungated-write follow-up group.
+
+## Fully static ungated addressing without M-shift
+
+`BamMediumPropV5AblationStaticReadsWritesNoGateNoMShiftTruePile` directly derives
+from `BamMediumPropV5AblationStaticReadsWritesNoGateTruePile`. It sets only the
+M-shift mechanism to `none`; the same static read/write addresses, unit branch
+gates, token-dependent contents, full-M pre-norm and learned V/O and Q/K read
+scales remain. This tests the remaining neighboring-token memory mixture after
+conditional address/gate controls have been removed, rather than interpreting
+static addressing as token-independent memory.
+
+Removing 18 x (1200 x 32 + 32) = 691,776 M-shift gate/bias parameters refunds
+691,200 to ordinary MLPs: prefix width 3047, final width 4351, memory width 1128.
+Full total 432,111,220; target 432,112,228; residual -1008 (576 fewer than parent).
+Reuse the existing read/write Pallas kernels with `shift=None`; no kernel change.
+Infrastructure audit: main 5672136e adds only ledger/documentation changes after
+the previous audit; the runtime and deployed bounded-GCS controller fixes remain.
+RUN 311216, same worktree/branch, UE5a primary and UC1a backup, 13,500 steps,
+4,000-step joint reports, no performance stopping. Pre-run retained-gain prior
+relative to its direct ungated-static parent, MHA reference: .90 (plausible
+.80--.98). Static readers still benefit from a neighboring token's content even
+without token-conditioned addressing. Speed should be similar or slightly faster
+than the parent; verify actual startup rather than inferring it from saved FLOPs.

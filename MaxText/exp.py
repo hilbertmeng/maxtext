@@ -22931,3 +22931,12 @@ class BamMediumPropV5AblationStaticReadsWritesNoGateTruePile(BamMediumPropV5Abla
     base_mlp_dim = 3037
     bam_last_mlp_dim = 4329
     compare_runs = ['BamMediumPropV5AblationStaticReadsWritesTruePile']
+
+
+class BamMediumPropV5AblationStaticReadsWritesNoGateNoMShiftTruePile(BamMediumPropV5AblationStaticReadsWritesNoGateTruePile):
+    """Remove M-shift from ungated, static M read/write addressing; keep token-varying contents."""
+    model_name = 'BamMediumPropV5AblationStaticReadsWritesNoGateNoMShiftTruePile'
+    bam_m_shift_mode = 'none'
+    base_mlp_dim = 3047
+    bam_last_mlp_dim = 4351
+    compare_runs = ['BamMediumPropV5AblationStaticReadsWritesNoGateTruePile']

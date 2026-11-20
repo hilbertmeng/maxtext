@@ -133,5 +133,14 @@
     "terminal": 3922,
     "total": 432110932,
     "residual": -1296
+  },
+  {
+    "name": "BamMediumPropV5AblationStaticReadsWritesNoGateTruePile",
+    "mode": "static_read_write_no_gate",
+    "ordinary": 3037,
+    "memory": 1128,
+    "terminal": 4329,
+    "total": 432111796,
+    "residual": -432
   }
 ]

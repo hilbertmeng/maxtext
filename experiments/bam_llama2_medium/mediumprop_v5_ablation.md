@@ -127,3 +127,20 @@ orchestration 6769691 now bounds those queries. Its missing console-cache sample
 were backfilled from actual synced TB, preserving existing points: 1,350 TB samples were available at 10-step
 intervals; 1,311 overlapped the cache with a maximum difference of 5e-7,
 and 39 missing samples were imported. No interpolation was used.
+
+## Fully static addressing without read/write branch gates
+
+`BamMediumPropV5AblationStaticReadsWritesNoGateTruePile` directly compares with
+StaticReadsWrites. It removes all three write-gate projections and biases, using
+exact multiplier 1; the parent's read projections/gates were already absent.
+Write contents, M-shift, matrix pre-norm, read scales and content normalization
+stay unchanged. M-shift remains its own factor; "static" refers to address and
+extra read/write-branch gate controls, not token-independent contents.
+
+Ordinary width 3037/tail 4329, memory width 1128; total 432,111,796, residual -432.
+It removes 672,560 write-gate parameters, refunding 673,200 to ordinary MLPs.
+No Pallas changes are needed. Same 13,500 schedule and 4,000 cadence, no stopping.
+Pre-run retained-gain prior vs the gated static-address parent: .95 (MHA ref),
+with plausible .88--1.00. That corresponds to about .627 of the V5 gain if the
+parent's .660 persists. Speed should be similar or slightly faster than its
+~.636 step/s parent. This arm joins the same ungated-write follow-up group.

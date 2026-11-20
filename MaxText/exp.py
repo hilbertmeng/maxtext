@@ -22930,7 +22930,7 @@ class BamMediumPropV5AblationStaticReadsWritesNoGateTruePile(BamMediumPropV5Abla
     bam_v5_ablation = 'static_read_write_no_gate'
     base_mlp_dim = 3037
     bam_last_mlp_dim = 4329
-    compare_runs = ['BamMediumPropV5AblationStaticReadsWritesTruePile', 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneMPreNormQKScaleTruePile']
+    compare_runs = ['BamMediumPropV5AblationStaticReadsWritesTruePile', 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneMPreNormQKScaleTruePile', 'MuddLlama2MediumPropRouterFixedPostNormTruePile']
 
 
 class BamMediumPropV5AblationStaticReadsWritesNoGateNoMShiftTruePile(BamMediumPropV5AblationStaticReadsWritesNoGateTruePile):
@@ -22939,4 +22939,4 @@ class BamMediumPropV5AblationStaticReadsWritesNoGateNoMShiftTruePile(BamMediumPr
     bam_m_shift_mode = 'none'
     base_mlp_dim = 3047
     bam_last_mlp_dim = 4351
-    compare_runs = ['BamMediumPropV5AblationStaticReadsWritesNoGateTruePile', 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneMPreNormQKScaleTruePile']
+    compare_runs = ['BamMediumPropV5AblationStaticReadsWritesNoGateTruePile', 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneMPreNormQKScaleTruePile', 'MuddLlama2MediumPropRouterFixedPostNormTruePile']

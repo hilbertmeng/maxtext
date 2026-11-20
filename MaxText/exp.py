@@ -22821,7 +22821,10 @@ class BamMediumPropV5AblationNoDynamicGatesTruePile(BamMediumPropV5):
 
 class BamMediumPropV5AblationNoAddressNormTruePile(BamMediumPropV5):
     """V5 SwiGLU ablation: no_address_norm; implementation lives in the isolated family."""
-    # code_commit: a253b50; /data0/xd/mediumprop-v5-ablation; launch preparation.
+    # code_commit: a253b50; ledger only: codex/mediumprop-v5-ablation, /data0/xd/mediumprop-v5-ablation.
+    # Native JAX, UE5a/UC1a v5p-16 /311206; completed 13,500, P6; ~0.477 step/s (-29.5% vs parent .677, unpaired).
+    # Early gap narrowed, then plateaued; retained-gain ratio declined late. Last five 12.6k-13.4k windows vs V5 SwiGLU: gap +0.023699, MHA-ref gain 0.86764.
+    # CP/cursor, local TB sync and UE5a/UC1a node/queue teardown verified.
     model_name = 'BamMediumPropV5AblationNoAddressNormTruePile'
     bam_v5_ablation = 'no_address_norm'
     base_mlp_dim = 2510
@@ -22837,7 +22840,10 @@ class BamMediumPropV5AblationNoAddressNormTruePile(BamMediumPropV5):
 
 class BamMediumPropV5AblationNoDynamicGatesAddressNormTruePile(BamMediumPropV5):
     """V5 SwiGLU ablation: no_dynamic_gate_norm; implementation lives in the isolated family."""
-    # code_commit: a253b50; /data0/xd/mediumprop-v5-ablation; launch preparation.
+    # code_commit: a253b50; ledger only: codex/mediumprop-v5-ablation, /data0/xd/mediumprop-v5-ablation.
+    # Native JAX, UE5a/UC1a v5p-16 /311207; completed 13,500, P3; ~0.496 step/s (-26.7% vs parent .677, unpaired).
+    # Better than removing address norms alone, but a persistent deficit remained. Last five 12.6k-13.4k windows vs V5 SwiGLU: gap +0.017694, MHA-ref gain 0.90119.
+    # CP/cursor, local TB sync and UE5a/UC1a node/queue teardown verified.
     model_name = 'BamMediumPropV5AblationNoDynamicGatesAddressNormTruePile'
     bam_v5_ablation = 'no_dynamic_gate_norm'
     base_mlp_dim = 2542
@@ -22924,3 +22930,23 @@ class BamMediumPropV5AblationMReadQKPartialRoPETruePile(BamMediumPropV5):
     record_training_health_metrics = True
     record_internal_nn_metrics = False
     compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneMPreNormQKScaleTruePile']
+
+
+class BamMediumPropV5AblationStaticAttentionWriteNoGateTruePile(BamMediumPropV5AblationStaticAttentionWriteTruePile):
+    """Static attention write address without that writer's dynamic gate; multiplier is exactly one."""
+    # code_commit: 2733de9; ledger only: codex/mediumprop-v5-ablation, /data0/xd/mediumprop-v5-ablation.
+    model_name = 'BamMediumPropV5AblationStaticAttentionWriteNoGateTruePile'
+    bam_v5_ablation = 'static_attention_write_no_gate'
+    base_mlp_dim = 2636
+    bam_last_mlp_dim = 3922
+    compare_runs = ['BamMediumPropV5AblationStaticAttentionWriteTruePile']
+
+
+class BamMediumPropV5AblationStaticMLPWriteNoGateTruePile(BamMediumPropV5AblationStaticMLPWriteTruePile):
+    """Static mlp write address without that writer's dynamic gate; multiplier is exactly one."""
+    # code_commit: 2733de9; ledger only: codex/mediumprop-v5-ablation, /data0/xd/mediumprop-v5-ablation.
+    model_name = 'BamMediumPropV5AblationStaticMLPWriteNoGateTruePile'
+    bam_v5_ablation = 'static_mlp_write_no_gate'
+    base_mlp_dim = 2636
+    bam_last_mlp_dim = 3922
+    compare_runs = ['BamMediumPropV5AblationStaticMLPWriteTruePile']

@@ -75,3 +75,55 @@ fitting. Group2's M-read partial-RoPE wrapper supplies a constant-zero standard
 slab to the unchanged read kernel, drops that output tail, and rotates18 of the
 75 M-read coordinates; this avoids a zero-width Pallas input without restoring
 any standard Q/K parameter.
+
+## First-group final results
+
+All eight completed 13,500. The final five matched windows are 12,600--13,400;
+loss gaps compare against the trained V5 SwiGLU parent, and retained-gain ratios
+use MHA as the common reference. Generic health ON; internal/BAM activation
+statistics OFF. The final checkpoint/cursor, local TB copies, and UE5a/UC1a node/queue
+teardown were verified. Source receipts are in
+`/data0/xd/bam_diagnostics/medium-v5-ablation-20261120/`.
+
+| RUN | Final-five loss gap | Retained gain |
+|---|---:|---:|
+| `BamMediumPropV5AblationStaticMLPWriteTruePile` | +0.001774 | 0.99011 |
+| `BamMediumPropV5AblationStaticAttentionWriteTruePile` | +0.000737 | 0.99589 |
+| `BamMediumPropV5AblationStaticAllWritesTruePile` | +0.008332 | 0.95347 |
+| `BamMediumPropV5AblationStaticReadsTruePile` | +0.044680 | 0.75048 |
+| `BamMediumPropV5AblationStaticReadsWritesTruePile` | +0.060870 | 0.66004 |
+| `BamMediumPropV5AblationNoDynamicGatesTruePile` | +0.011452 | 0.93606 |
+| `BamMediumPropV5AblationNoAddressNormTruePile` | +0.023699 | 0.86764 |
+| `BamMediumPropV5AblationNoDynamicGatesAddressNormTruePile` | +0.017694 | 0.90119 |
+
+Interpretation boundary: static-write arms retain the original token-dependent
+write gates. They test fixed address directions, not fully static write controls.
+Pure-static read arms, in contrast, remove both dynamic read branches and static
+read-branch gates at the user's explicit direction. Near-parity static-write
+results cannot establish that conditional write strength is unnecessary.
+All-static-write also changes embedding addressing, so its larger deficit cannot
+be attributed solely to jointly fixing the attention and memory-MLP addresses.
+Savings are refunded to ordinary MLPs; these are matched-budget ablations.
+
+The new `BamMediumPropV5AblationStaticAttentionWriteNoGateTruePile` and
+`BamMediumPropV5AblationStaticMLPWriteNoGateTruePile`
+controls remove only the relevant existing gate, fixing its multiplier to 1;
+content remains token dependent and all other gates remain unchanged. Compare
+each against its own completed static-address parent. Widths 2636/1128/tail 3922,
+total 432,110,932 (target -1,296); runtime 2733de9, same isolated family, existing
+Pallas read/write kernels. The earlier token-independent learned-gate proposal
+`b1ab4395` was cancelled before training and reverted; it is not a study arm.
+
+The source note's initial priors (.94 attention/.97 MLP) were revised before
+startup to .97/.99 after checking H's full no-MLP-write-gate result: final-five
+retained gain .993012, runtime ed83fad. New controls run 13,500, cadence 4,000,
+no performance reviews/stopping. Their CPU gate checks selected gate and bias
+omission, unaffected gates, full formal budgets, original parent controls and
+native/Pallas full-model gradients. The updated workbook contains both classes.
+
+A controller on the completed no-gates/no-address-norm arm hung in an unbounded
+GCS metadata read. Native closeout finalized its already committed endpoint;
+orchestration 6769691 now bounds those queries. Its missing console-cache samples
+were backfilled from actual synced TB, preserving existing points: 1,350 TB samples were available at 10-step
+intervals; 1,311 overlapped the cache with a maximum difference of 5e-7,
+and 39 missing samples were imported. No interpolation was used.

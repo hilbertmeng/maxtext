@@ -115,5 +115,23 @@
     "terminal": 4096,
     "total": 432112228,
     "residual": 0
+  },
+  {
+    "name": "BamMediumPropV5AblationStaticAttentionWriteNoGateTruePile",
+    "mode": "static_attention_write_no_gate",
+    "ordinary": 2636,
+    "memory": 1128,
+    "terminal": 3922,
+    "total": 432110932,
+    "residual": -1296
+  },
+  {
+    "name": "BamMediumPropV5AblationStaticMLPWriteNoGateTruePile",
+    "mode": "static_mlp_write_no_gate",
+    "ordinary": 2636,
+    "memory": 1128,
+    "terminal": 3922,
+    "total": 432110932,
+    "residual": -1296
   }
 ]

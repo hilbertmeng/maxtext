@@ -22962,6 +22962,7 @@ class BamMediumPropV5AblationStaticMLPWriteNoGateTruePile(BamMediumPropV5Ablatio
 class BamMediumPropV5AblationStaticReadsWritesNoGateTruePile(BamMediumPropV5AblationStaticReadsWritesTruePile):
     """Static M read/write addresses, no read gates, and no embedding/attention/memory-MLP write gates."""
     # code_commit: 58128ed; ledger only: codex/mediumprop-v5-ablation, /data0/xd/mediumprop-v5-ablation.
+    # UE5a v5p-16 /311215; startup ~0.645 step/s (+1.4% vs parent 0.636, unpaired); FIRST/source/AOT verified.
     model_name = 'BamMediumPropV5AblationStaticReadsWritesNoGateTruePile'
     bam_v5_ablation = 'static_read_write_no_gate'
     base_mlp_dim = 3037
@@ -22972,7 +22973,7 @@ class BamMediumPropV5AblationStaticReadsWritesNoGateTruePile(BamMediumPropV5Abla
 class BamMediumPropV5AblationStaticReadsWritesNoGateNoMShiftTruePile(BamMediumPropV5AblationStaticReadsWritesNoGateTruePile):
     """Remove M-shift from ungated, static M read/write addressing; keep token-varying contents."""
     # code_commit: 652210e; ledger only: codex/mediumprop-v5-ablation, /data0/xd/mediumprop-v5-ablation.
-    # RUN /311216; UE5a primary, UC1a backup; CPU/sealed passed, AOT preparation.
+    # UE5a v5p-16 /311216; startup ~0.677 step/s (+5.0% vs parent 0.645, unpaired); FIRST/source/AOT verified.
     model_name = 'BamMediumPropV5AblationStaticReadsWritesNoGateNoMShiftTruePile'
     bam_m_shift_mode = 'none'
     base_mlp_dim = 3047

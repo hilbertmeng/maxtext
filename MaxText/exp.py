@@ -22860,7 +22860,7 @@ class BamMediumPropV5AblationNoDynamicGatesAddressNormTruePile(BamMediumPropV5):
 class BamMediumPropV5AblationNoMShiftTruePile(BamMediumPropV5):
     """V5 SwiGLU ablation: no_shift; implementation lives in the isolated family."""
     # code_commit: 160c9c8; /data0/xd/mediumprop-v5-ablation; launch preparation.
-    # UE5a v5p-16 /311208; startup ~0.639 step/s; FIRST/source/AOT verified, generic health ON/internal OFF.
+    # UE5a v5p-16 /311208; startup ~0.639 step/s (-5.6% vs parent 0.677, unpaired); FIRST/source/AOT verified.
     model_name = 'BamMediumPropV5AblationNoMShiftTruePile'
     bam_v5_ablation = 'no_shift'
     base_mlp_dim = 2520
@@ -22876,7 +22876,7 @@ class BamMediumPropV5AblationNoMShiftTruePile(BamMediumPropV5):
 class BamMediumPropV5AblationNoMemoryMLPTruePile(BamMediumPropV5):
     """V5 SwiGLU ablation: no_memory_mlp; implementation lives in the isolated family."""
     # code_commit: 160c9c8; /data0/xd/mediumprop-v5-ablation; launch preparation.
-    # UE5a v5p-16 /311209; startup ~0.641 step/s; FIRST/source/AOT verified, generic health ON/internal OFF.
+    # UE5a v5p-16 /311209; startup ~0.641 step/s (-5.3% vs parent 0.677, unpaired); FIRST/source/AOT verified.
     model_name = 'BamMediumPropV5AblationNoMemoryMLPTruePile'
     bam_v5_ablation = 'no_memory_mlp'
     base_mlp_dim = 3765
@@ -22893,7 +22893,7 @@ class BamMediumPropV5AblationNoMemoryMLPTruePile(BamMediumPropV5):
 class BamMediumPropV5AblationNoLocalOTruePile(BamMediumPropV5):
     """V5 SwiGLU ablation: no_local_o; implementation lives in the isolated family."""
     # code_commit: 160c9c8; /data0/xd/mediumprop-v5-ablation; launch preparation.
-    # UE5a v5p-16 /311210; startup ~0.619 step/s; FIRST/source/AOT verified, generic health ON/internal OFF.
+    # UE5a v5p-16 /311210; startup ~0.619 step/s (-8.6% vs parent 0.677, unpaired); FIRST/source/AOT verified.
     model_name = 'BamMediumPropV5AblationNoLocalOTruePile'
     bam_v5_ablation = 'no_local_o'
     base_mlp_dim = 2557
@@ -22909,7 +22909,7 @@ class BamMediumPropV5AblationNoLocalOTruePile(BamMediumPropV5):
 class BamMediumPropV5AblationNoAttentionWriteContentNormTruePile(BamMediumPropV5):
     """V5 SwiGLU ablation: raw_attention_content; implementation lives in the isolated family."""
     # code_commit: 160c9c8; /data0/xd/mediumprop-v5-ablation; launch preparation.
-    # UE5a v5p-16 /311211; startup ~0.608 step/s; FIRST/source/AOT verified, generic health ON/internal OFF.
+    # UE5a v5p-16 /311211; startup ~0.608 step/s (-10.2% vs parent 0.677, unpaired); FIRST/source/AOT verified.
     model_name = 'BamMediumPropV5AblationNoAttentionWriteContentNormTruePile'
     bam_v5_ablation = 'raw_attention_content'
     base_mlp_dim = 2510
@@ -22925,7 +22925,7 @@ class BamMediumPropV5AblationNoAttentionWriteContentNormTruePile(BamMediumPropV5
 class BamMediumPropV5AblationMReadQKPartialRoPETruePile(BamMediumPropV5):
     """V5 SwiGLU ablation: m_qk_partial_rope; implementation lives in the isolated family."""
     # code_commit: 160c9c8; /data0/xd/mediumprop-v5-ablation; launch preparation.
-    # UE5a v5p-16 /311212; startup ~0.595 step/s; FIRST/source/AOT verified, generic health ON/internal OFF.
+    # UE5a v5p-16 /311212; startup ~0.595 step/s (-12.1% vs parent 0.677, unpaired); FIRST/source/AOT verified.
     model_name = 'BamMediumPropV5AblationMReadQKPartialRoPETruePile'
     bam_v5_ablation = 'm_qk_partial_rope'
     base_mlp_dim = 2702
@@ -22940,7 +22940,7 @@ class BamMediumPropV5AblationMReadQKPartialRoPETruePile(BamMediumPropV5):
 class BamMediumPropV5AblationStaticAttentionWriteNoGateTruePile(BamMediumPropV5AblationStaticAttentionWriteTruePile):
     """Static attention write address without that writer's dynamic gate; multiplier is exactly one."""
     # code_commit: 2733de9; ledger only: codex/mediumprop-v5-ablation, /data0/xd/mediumprop-v5-ablation.
-    # UE5a v5p-16 /311213; startup ~0.616 step/s; FIRST/source/AOT verified, generic health ON/internal OFF.
+    # UE5a v5p-16 /311213; startup ~0.616 step/s (+1.3% vs parent 0.608, unpaired); FIRST/source/AOT verified.
     model_name = 'BamMediumPropV5AblationStaticAttentionWriteNoGateTruePile'
     bam_v5_ablation = 'static_attention_write_no_gate'
     base_mlp_dim = 2636
@@ -22951,7 +22951,7 @@ class BamMediumPropV5AblationStaticAttentionWriteNoGateTruePile(BamMediumPropV5A
 class BamMediumPropV5AblationStaticMLPWriteNoGateTruePile(BamMediumPropV5AblationStaticMLPWriteTruePile):
     """Static mlp write address without that writer's dynamic gate; multiplier is exactly one."""
     # code_commit: 2733de9; ledger only: codex/mediumprop-v5-ablation, /data0/xd/mediumprop-v5-ablation.
-    # UE5a v5p-16 /311214; startup ~0.613 step/s; FIRST/source/AOT verified, generic health ON/internal OFF.
+    # UE5a v5p-16 /311214; startup ~0.613 step/s (+0.5% vs parent 0.610, unpaired); FIRST/source/AOT verified.
     model_name = 'BamMediumPropV5AblationStaticMLPWriteNoGateTruePile'
     bam_v5_ablation = 'static_mlp_write_no_gate'
     base_mlp_dim = 2636

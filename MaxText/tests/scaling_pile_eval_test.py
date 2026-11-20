@@ -24,7 +24,7 @@ class Contracts(unittest.TestCase):
     x=np.full((4,4),2.,np.float32);x[2:]=np.nan;x[1,2:]=np.nan
     a=aggregate(x,b)
     self.assertEqual(n,2);self.assertEqual(a['count_including_eos'].sum(),6)
-    self.assertEqual(a['count_excluding_eos'].sum(),4)
+    self.assertEqual(set(a),{'count_including_eos','sum_including_eos'})
     self.assertEqual(a['sum_including_eos'].sum(),12)
   def test_tail_is_retained_no_duplicated_rows(self):
     b,n=make_batch(np.array([[2,3,4,0,0]],np.uint16),np.array([3]),0,4,4)

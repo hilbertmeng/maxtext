@@ -79,7 +79,7 @@ def aggregate(xent,batch):
   if not np.isfinite(xent[valid]).all() or (xent[valid]<-1e-5).any():
     raise FloatingPointError('Invalid cross entropy on scored targets')
   result={}
-  for policy,mask in [('including_eos',valid),('excluding_eos',valid & (batch['targets']!=0))]:
+  for policy,mask in [('including_eos',valid)]:
     result['sum_'+policy]=np.where(mask,xent,0).sum(axis=1,dtype=np.float64)
     result['count_'+policy]=mask.sum(axis=1,dtype=np.int64)
   return result
@@ -164,7 +164,7 @@ def main():
   # Include the real short tail and padded batch rows in the numerical mask check.
   tail,_=make_batch(tokens,lengths,len(lengths)-1,a.batch_size,4096);tx=infer(tail)
   changed={k:v.copy() for k,v in tail.items()};changed['inputs'][tail['inputs_segmentation']==0]=71
-  ty=infer(changed);padding=float(np.max(np.abs(tx-ty)*tail['targets_segmentation']));assert padding<1e-5,padding
+  ty=infer(changed);padding=float(np.max(np.where(tail['targets_segmentation']!=0,np.abs(tx-ty),0)));assert padding<1e-5,padding
   smoke=dict(identity=identity,repeat_exact=True,future_prefix_max_error=future,padding_max_error=padding,
       seconds=time.monotonic()-begin,devices=16,processes=4)
   if leader:atomic_json(out/'smoke.json',smoke);upload(out/'smoke.json')
@@ -200,9 +200,8 @@ def main():
   complete=first==SOURCE_RECORDS
   if complete:
     assert totals['count_including_eos']==340948067
-    assert totals['count_excluding_eos']==340733397
   result=dict(complete=complete,identity=identity,records_evaluated=first,sequence_chunks=chunk_index,
-      totals=totals,policies={p:dict(loss=totals['sum_'+p]/totals['count_'+p],tokens=totals['count_'+p]) for p in ['including_eos','excluding_eos']},
+      totals=totals,policies={p:dict(loss=totals['sum_'+p]/totals['count_'+p],tokens=totals['count_'+p]) for p in ['including_eos']},
       checkpoint_writer_created=False,checkpoint_manager_created=False)
   if leader:atomic_json(out/'result.json',result);upload(out/'result.json')
   barrier('finished');print('DONE '+json.dumps(dict(complete=complete,records=first)),flush=True)

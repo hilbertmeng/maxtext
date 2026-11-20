@@ -22719,7 +22719,10 @@ class BamXLPropV5EveryThirdMLPWriteRawMemoryOnly(BamXLPropV5EveryThirdMLPWriteNo
 
 class BamMediumPropV5AblationStaticMLPWriteTruePile(BamMediumPropV5):
     """V5 SwiGLU ablation: static_mlp_write; implementation lives in the isolated family."""
-    # code_commit: a253b50; /data0/xd/mediumprop-v5-ablation; launch preparation.
+    # code_commit: a253b50; ledger only: codex/mediumprop-v5-ablation, /data0/xd/mediumprop-v5-ablation.
+    # UE5a v5p-16 /311200; completed 13,500, P0; ~0.610 step/s (-9.9% vs parent .677, unpaired).
+    # Near parity throughout; a small late deficit remained. Last five 12.6k-13.4k windows vs V5 SwiGLU: gap +0.001774, MHA-ref gain 0.99011.
+    # CP/cursor, local TB sync and UE5a/UC1a node/queue teardown verified.
     model_name = 'BamMediumPropV5AblationStaticMLPWriteTruePile'
     bam_v5_ablation = 'static_mlp_write'
     base_mlp_dim = 2631
@@ -22733,7 +22736,10 @@ class BamMediumPropV5AblationStaticMLPWriteTruePile(BamMediumPropV5):
 
 class BamMediumPropV5AblationStaticAttentionWriteTruePile(BamMediumPropV5):
     """V5 SwiGLU ablation: static_attention_write; implementation lives in the isolated family."""
-    # code_commit: a253b50; /data0/xd/mediumprop-v5-ablation; launch preparation.
+    # code_commit: a253b50; ledger only: codex/mediumprop-v5-ablation, /data0/xd/mediumprop-v5-ablation.
+    # UE5a v5p-16 /311201; completed 13,500, P0; ~0.608 step/s (-10.2% vs parent .677, unpaired).
+    # Early deficit shrank to near parity. Last five 12.6k-13.4k windows vs V5 SwiGLU: gap +0.000737, MHA-ref gain 0.99589.
+    # CP/cursor, local TB sync and UE5a/UC1a node/queue teardown verified.
     model_name = 'BamMediumPropV5AblationStaticAttentionWriteTruePile'
     bam_v5_ablation = 'static_attention_write'
     base_mlp_dim = 2631
@@ -22747,7 +22753,10 @@ class BamMediumPropV5AblationStaticAttentionWriteTruePile(BamMediumPropV5):
 
 class BamMediumPropV5AblationStaticAllWritesTruePile(BamMediumPropV5):
     """V5 SwiGLU ablation: static_all_write; implementation lives in the isolated family."""
-    # code_commit: a253b50; /data0/xd/mediumprop-v5-ablation; launch preparation.
+    # code_commit: a253b50; ledger only: codex/mediumprop-v5-ablation, /data0/xd/mediumprop-v5-ablation.
+    # UE5a v5p-16 /311202; completed 13,500, P0; ~0.607 step/s (-10.3% vs parent .677, unpaired).
+    # A persistent deficit remained; retained-gain ratio drifted down late. Last five 12.6k-13.4k windows vs V5 SwiGLU: gap +0.008332, MHA-ref gain 0.95347.
+    # CP/cursor, local TB sync and UE5a/UC1a node/queue teardown verified.
     model_name = 'BamMediumPropV5AblationStaticAllWritesTruePile'
     bam_v5_ablation = 'static_all_write'
     base_mlp_dim = 2753
@@ -22761,7 +22770,10 @@ class BamMediumPropV5AblationStaticAllWritesTruePile(BamMediumPropV5):
 
 class BamMediumPropV5AblationStaticReadsTruePile(BamMediumPropV5):
     """V5 SwiGLU ablation: static_read; implementation lives in the isolated family."""
-    # code_commit: 160c9c8; /data0/xd/mediumprop-v5-ablation; launch preparation.
+    # code_commit: 160c9c8; ledger only: codex/mediumprop-v5-ablation, /data0/xd/mediumprop-v5-ablation.
+    # UE5a v5p-16 /311203; completed 13,500, P0; ~0.638 step/s (-5.8% vs parent .677, unpaired).
+    # Absolute deficit narrowed, but retained-gain ratio kept declining. Last five 12.6k-13.4k windows vs V5 SwiGLU: gap +0.044680, MHA-ref gain 0.75048.
+    # CP/cursor, local TB sync and UE5a/UC1a node/queue teardown verified.
     model_name = 'BamMediumPropV5AblationStaticReadsTruePile'
     bam_v5_ablation = 'static_read'
     base_mlp_dim = 2784
@@ -22775,7 +22787,10 @@ class BamMediumPropV5AblationStaticReadsTruePile(BamMediumPropV5):
 
 class BamMediumPropV5AblationStaticReadsWritesTruePile(BamMediumPropV5):
     """V5 SwiGLU ablation: static_read_write; implementation lives in the isolated family."""
-    # code_commit: 160c9c8; /data0/xd/mediumprop-v5-ablation; launch preparation.
+    # code_commit: 160c9c8; ledger only: codex/mediumprop-v5-ablation, /data0/xd/mediumprop-v5-ablation.
+    # UE5a v5p-16 /311204; completed 13,500, P1; ~0.636 step/s (-6.1% vs parent .677, unpaired).
+    # The largest deficit; retained-gain ratio declined throughout. Last five 12.6k-13.4k windows vs V5 SwiGLU: gap +0.060870, MHA-ref gain 0.66004.
+    # CP/cursor, local TB sync and UE5a/UC1a node/queue teardown verified.
     model_name = 'BamMediumPropV5AblationStaticReadsWritesTruePile'
     bam_v5_ablation = 'static_read_write'
     base_mlp_dim = 3027
@@ -22789,7 +22804,10 @@ class BamMediumPropV5AblationStaticReadsWritesTruePile(BamMediumPropV5):
 
 class BamMediumPropV5AblationNoDynamicGatesTruePile(BamMediumPropV5):
     """V5 SwiGLU ablation: no_dynamic_gate; implementation lives in the isolated family."""
-    # code_commit: a253b50; /data0/xd/mediumprop-v5-ablation; launch preparation.
+    # code_commit: a253b50; ledger only: codex/mediumprop-v5-ablation, /data0/xd/mediumprop-v5-ablation.
+    # UE5a v5p-16 /311205; completed 13,500, P0; ~0.627 step/s (-7.4% vs parent .677, unpaired).
+    # A modest persistent deficit; retained-gain ratio declined from near parity. Last five 12.6k-13.4k windows vs V5 SwiGLU: gap +0.011452, MHA-ref gain 0.93606.
+    # CP/cursor, local TB sync and UE5a/UC1a node/queue teardown verified.
     model_name = 'BamMediumPropV5AblationNoDynamicGatesTruePile'
     bam_v5_ablation = 'no_dynamic_gate'
     base_mlp_dim = 2542

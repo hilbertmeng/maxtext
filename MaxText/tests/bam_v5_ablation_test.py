@@ -18,7 +18,7 @@ SUFFIX=('StaticMLPWrite','StaticAttentionWrite','StaticAllWrites','StaticReads',
         'NoDynamicGates','NoAddressNorm','NoDynamicGatesAddressNorm','NoMShift','NoMemoryMLP',
         'NoLocalO','NoAttentionWriteContentNorm','MReadQKPartialRoPE',
         'StaticAttentionWriteNoGate','StaticMLPWriteNoGate','StaticReadsWritesNoGate',
-        'StaticReadsWritesNoGateNoMShift')
+        'StaticReadsWritesNoGateNoMShift','StaticAllWritesNoGate')
 
 class AblationTest(MLPWriteTest,unittest.TestCase):
   def tiny(self,name,kernel=False,dtype='float32'):
@@ -138,6 +138,25 @@ class AblationTest(MLPWriteTest,unittest.TestCase):
     _,pallas=self.evaluate(name,kernel=True,params=params)
     np.testing.assert_allclose(pallas[0],native[0],rtol=3e-4,atol=2e-6)
     print('ALL_STATIC_UNGATED_PALLAS',self.compare_gradients(pallas[1],native[1],3e-3),flush=True)
+    jax.clear_caches()
+
+  def test_all_static_writes_ungated_keeps_dynamic_read_controls(self):
+    name=PREFIX+'StaticAllWritesNoGateTruePile'
+    params,native=self.evaluate(name)
+    flat=flatten_dict(params)
+    for part in ('W_gw','gw_b0','mlp_write_gate','mlp_write_gate_bias','W_emb_g','emb_gw_b0'):
+      self.assertFalse(any(part in path for path in flat),part)
+    for part in ('full_m_read_down','W_lq_gate','W_lk_gate','W_lv_gate','W_R_gate',
+                 'general_v_static_gate','general_o_static_gate','M_shift_gate','memory_mlp'):
+      self.assertTrue(any(part in path for path in flat),part)
+    for part in ('P_loc_down','mlp_address_down','W_emb_v_down'):
+      self.assertFalse(any(part in path for path in flat),part)
+    self.assertTrue(any('static_write_address' in path for path in flat))
+    self.assertTrue(any('mlp_static_write_address' in path for path in flat))
+    self.assertTrue(any('emb_static_write_address' in path for path in flat))
+    _,pallas=self.evaluate(name,kernel=True,params=params)
+    np.testing.assert_allclose(pallas[0],native[0],rtol=3e-4,atol=2e-6)
+    print('STATIC_ALL_WRITES_UNGATED_PALLAS',self.compare_gradients(pallas[1],native[1],3e-3),flush=True)
     jax.clear_caches()
 
   def test_ungated_static_addressing_without_m_shift(self):

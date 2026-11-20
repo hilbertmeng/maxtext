@@ -22998,3 +22998,12 @@ class BamMediumPropV5AblationStaticReadsWritesNoGateNoMShiftTruePile(BamMediumPr
     base_mlp_dim = 3047
     bam_last_mlp_dim = 4351
     compare_runs = ['BamMediumPropV5AblationStaticReadsWritesNoGateTruePile', 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneMPreNormQKScaleTruePile', 'MuddLlama2MediumPropRouterFixedPostNormTruePile']
+
+
+class BamMediumPropV5AblationStaticAllWritesNoGateTruePile(BamMediumPropV5AblationStaticAllWritesTruePile):
+    """Static addresses at all three writers, unit write multipliers; keep V5 dynamic reads and M-shift."""
+    model_name = 'BamMediumPropV5AblationStaticAllWritesNoGateTruePile'
+    bam_v5_ablation = 'static_all_write_no_gate'
+    base_mlp_dim = 2763
+    bam_last_mlp_dim = 4051
+    compare_runs = ['BamMediumPropV5AblationStaticAllWritesTruePile', 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneMPreNormQKScaleTruePile']

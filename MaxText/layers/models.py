@@ -491,7 +491,7 @@ class EmbeddingBamWrite(nn.Module):
           weight_dtype=self.weight_dtype, name="W_emb_v_up", quant=self.quant,
           matmul_precision=cfg.matmul_precision, use_bias=True)(address)
 
-    if ablation.no_gate:
+    if ablation.ungated_write('embedding'):
       gate = jnp.ones(inputs.shape[:2]+(heads,),self.dtype)
     else:
       gate_logits = linears.DenseGeneral(

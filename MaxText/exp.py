@@ -22838,6 +22838,12 @@ class BamMediumPropV5AblationNoDynamicGatesAddressNormTruePile(BamMediumPropV5):
 
 class BamMediumPropV5AblationNoMShiftTruePile(BamMediumPropV5):
     """V5 SwiGLU ablation: no_shift; implementation lives in the isolated family."""
+    # code_commit: 160c9c8; ledger only: codex/mediumprop-v5-ablation, /data0/xd/mediumprop-v5-ablation.
+    # Completed 13,500 on v5p-16 /311208; UE5a -> UC1a, P5; startup ~0.639 step/s (-5.6% vs parent 0.677, unpaired).
+    # Early catch-up slowed to a persistent deficit; late retained gain stayed near 0.94.
+    # Final five 12.6k-13.4k windows vs V5 SwiGLU: gap +0.010732, MHA-ref gain 0.94008.
+    # Savings refunded to ordinary MLPs; integer budget residuals are in mediumprop_v5_ablation.md.
+    # CP13500/cursor, local TB sync and all policy-zone node/queue teardown verified.
     model_name = 'BamMediumPropV5AblationNoMShiftTruePile'
     bam_v5_ablation = 'no_shift'
     base_mlp_dim = 2520
@@ -22852,6 +22858,12 @@ class BamMediumPropV5AblationNoMShiftTruePile(BamMediumPropV5):
 
 class BamMediumPropV5AblationNoMemoryMLPTruePile(BamMediumPropV5):
     """V5 SwiGLU ablation: no_memory_mlp; implementation lives in the isolated family."""
+    # code_commit: 160c9c8; ledger only: codex/mediumprop-v5-ablation, /data0/xd/mediumprop-v5-ablation.
+    # Completed 13,500 on v5p-16 /311209; UE5a -> UC1a, P4; startup ~0.641 step/s (-5.3% vs parent 0.677, unpaired).
+    # Absolute deficit stayed near 0.035 while retained gain declined throughout training.
+    # Final five 12.6k-13.4k windows vs V5 SwiGLU: gap +0.034947, MHA-ref gain 0.80482.
+    # Savings refunded to ordinary MLPs; integer budget residuals are in mediumprop_v5_ablation.md.
+    # CP13500/cursor, local TB sync and all policy-zone node/queue teardown verified.
     model_name = 'BamMediumPropV5AblationNoMemoryMLPTruePile'
     bam_v5_ablation = 'no_memory_mlp'
     base_mlp_dim = 3765
@@ -22867,6 +22879,12 @@ class BamMediumPropV5AblationNoMemoryMLPTruePile(BamMediumPropV5):
 
 class BamMediumPropV5AblationNoLocalOTruePile(BamMediumPropV5):
     """V5 SwiGLU ablation: no_local_o; implementation lives in the isolated family."""
+    # code_commit: 160c9c8; ledger only: codex/mediumprop-v5-ablation, /data0/xd/mediumprop-v5-ablation.
+    # Completed 13,500 on v5p-16 /311210; UE5a -> UC1a, P4; startup ~0.619 step/s (-8.6% vs parent 0.677, unpaired).
+    # Persistent deficit with declining retained gain; this arm also restores self-attention.
+    # Final five 12.6k-13.4k windows vs V5 SwiGLU: gap +0.032842, MHA-ref gain 0.81659.
+    # Savings refunded to ordinary MLPs; integer budget residuals are in mediumprop_v5_ablation.md.
+    # CP13500/cursor, local TB sync and all policy-zone node/queue teardown verified.
     model_name = 'BamMediumPropV5AblationNoLocalOTruePile'
     bam_v5_ablation = 'no_local_o'
     base_mlp_dim = 2557
@@ -22881,6 +22899,12 @@ class BamMediumPropV5AblationNoLocalOTruePile(BamMediumPropV5):
 
 class BamMediumPropV5AblationNoAttentionWriteContentNormTruePile(BamMediumPropV5):
     """V5 SwiGLU ablation: raw_attention_content; implementation lives in the isolated family."""
+    # code_commit: 160c9c8; ledger only: codex/mediumprop-v5-ablation, /data0/xd/mediumprop-v5-ablation.
+    # Completed 13,500 on v5p-16 /311211; UE5a -> UC1a, P4; startup ~0.608 step/s (-10.2% vs parent 0.677, unpaired).
+    # Near parity early, then a small persistent deficit; much milder harm than on UnitH.
+    # Final five 12.6k-13.4k windows vs V5 SwiGLU: gap +0.002726, MHA-ref gain 0.98479.
+    # Savings refunded to ordinary MLPs; integer budget residuals are in mediumprop_v5_ablation.md.
+    # CP13500/cursor, local TB sync and all policy-zone node/queue teardown verified.
     model_name = 'BamMediumPropV5AblationNoAttentionWriteContentNormTruePile'
     bam_v5_ablation = 'raw_attention_content'
     base_mlp_dim = 2510
@@ -22895,6 +22919,12 @@ class BamMediumPropV5AblationNoAttentionWriteContentNormTruePile(BamMediumPropV5
 
 class BamMediumPropV5AblationMReadQKPartialRoPETruePile(BamMediumPropV5):
     """V5 SwiGLU ablation: m_qk_partial_rope; implementation lives in the isolated family."""
+    # code_commit: 160c9c8; ledger only: codex/mediumprop-v5-ablation, /data0/xd/mediumprop-v5-ablation.
+    # Completed 13,500 on v5p-16 /311212; UE5a -> UC1a, P4; startup ~0.595 step/s (-12.1% vs parent 0.677, unpaired).
+    # Absolute catch-up did not recover parity; retained gain stabilized below 0.90.
+    # Final five 12.6k-13.4k windows vs V5 SwiGLU: gap +0.020772, MHA-ref gain 0.88400.
+    # Savings refunded to ordinary MLPs; integer budget residuals are in mediumprop_v5_ablation.md.
+    # CP13500/cursor, local TB sync and all policy-zone node/queue teardown verified.
     model_name = 'BamMediumPropV5AblationMReadQKPartialRoPETruePile'
     bam_v5_ablation = 'm_qk_partial_rope'
     base_mlp_dim = 2702
@@ -22908,6 +22938,12 @@ class BamMediumPropV5AblationMReadQKPartialRoPETruePile(BamMediumPropV5):
 
 class BamMediumPropV5AblationStaticAttentionWriteNoGateTruePile(BamMediumPropV5AblationStaticAttentionWriteTruePile):
     """Static attention write address without that writer's dynamic gate; multiplier is exactly one."""
+    # code_commit: 2733de9; ledger only: codex/mediumprop-v5-ablation, /data0/xd/mediumprop-v5-ablation.
+    # Completed 13,500 on v5p-16 /311213; UE5a -> UC1a, P6; startup ~0.616 step/s (+1.3% vs parent 0.608, unpaired).
+    # Persistent deficit; the apparent 7k recovery came from a transient parent loss spike.
+    # Final five 12.6k-13.4k windows vs static-attention-address parent: gap +0.016494, MHA-ref gain 0.90750.
+    # Savings refunded to ordinary MLPs; integer budget residuals are in mediumprop_v5_ablation.md.
+    # CP13500/cursor, local TB sync and all policy-zone node/queue teardown verified.
     model_name = 'BamMediumPropV5AblationStaticAttentionWriteNoGateTruePile'
     bam_v5_ablation = 'static_attention_write_no_gate'
     base_mlp_dim = 2636
@@ -22917,6 +22953,12 @@ class BamMediumPropV5AblationStaticAttentionWriteNoGateTruePile(BamMediumPropV5A
 
 class BamMediumPropV5AblationStaticMLPWriteNoGateTruePile(BamMediumPropV5AblationStaticMLPWriteTruePile):
     """Static mlp write address without that writer's dynamic gate; multiplier is exactly one."""
+    # code_commit: 2733de9; ledger only: codex/mediumprop-v5-ablation, /data0/xd/mediumprop-v5-ablation.
+    # Completed 13,500 on v5p-16 /311214; UE5a -> UC1a, P5; startup ~0.613 step/s (+0.5% vs parent 0.610, unpaired).
+    # Early near-parity did not persist; the write gate gained importance later.
+    # Final five 12.6k-13.4k windows vs static-MLP-address parent: gap +0.005019, MHA-ref gain 0.97168.
+    # Savings refunded to ordinary MLPs; integer budget residuals are in mediumprop_v5_ablation.md.
+    # CP13500/cursor, local TB sync and all policy-zone node/queue teardown verified.
     model_name = 'BamMediumPropV5AblationStaticMLPWriteNoGateTruePile'
     bam_v5_ablation = 'static_mlp_write_no_gate'
     base_mlp_dim = 2636
@@ -22926,6 +22968,14 @@ class BamMediumPropV5AblationStaticMLPWriteNoGateTruePile(BamMediumPropV5Ablatio
 
 class BamMediumPropV5AblationStaticReadsWritesNoGateTruePile(BamMediumPropV5AblationStaticReadsWritesTruePile):
     """Static M read/write addresses, no read gates, and no embedding/attention/memory-MLP write gates."""
+    # code_commit: 58128ed; ledger only: codex/mediumprop-v5-ablation, /data0/xd/mediumprop-v5-ablation.
+    # Completed 13,500 on v5p-16 /311215; UE5a -> UC1a, P4; startup ~0.645 step/s (+1.4% vs parent 0.636, unpaired).
+    # Persistent deficit versus gated static writes and V5; still ahead of stronger Mudd at completion.
+    # Final five 12.6k-13.4k windows vs gated static-read/write parent: gap +0.017872, MHA-ref gain 0.84878.
+    # Final five 12.6k-13.4k windows vs V5 SwiGLU: gap +0.078742, MHA-ref gain 0.56023.
+    # Final five 12.6k-13.4k windows vs Mudd18 post-norm, fixed router: gap -0.008636, MHA-ref gain 1.09424.
+    # Savings refunded to ordinary MLPs; integer budget residuals are in mediumprop_v5_ablation.md.
+    # CP13500/cursor, local TB sync and all policy-zone node/queue teardown verified.
     model_name = 'BamMediumPropV5AblationStaticReadsWritesNoGateTruePile'
     bam_v5_ablation = 'static_read_write_no_gate'
     base_mlp_dim = 3037
@@ -22935,6 +22985,14 @@ class BamMediumPropV5AblationStaticReadsWritesNoGateTruePile(BamMediumPropV5Abla
 
 class BamMediumPropV5AblationStaticReadsWritesNoGateNoMShiftTruePile(BamMediumPropV5AblationStaticReadsWritesNoGateTruePile):
     """Remove M-shift from ungated, static M read/write addressing; keep token-varying contents."""
+    # code_commit: 652210e; ledger only: codex/mediumprop-v5-ablation, /data0/xd/mediumprop-v5-ablation.
+    # Completed 13,500 on v5p-16 /311216; UE5a -> UC1a, P4; startup ~0.677 step/s (+5.0% vs parent 0.645, unpaired).
+    # Small persistent loss from removing M-shift; still ahead of stronger Mudd at completion.
+    # Final five 12.6k-13.4k windows vs ungated static-read/write parent: gap +0.003927, MHA-ref gain 0.96084.
+    # Final five 12.6k-13.4k windows vs V5 SwiGLU: gap +0.082669, MHA-ref gain 0.53828.
+    # Final five 12.6k-13.4k windows vs Mudd18 post-norm, fixed router: gap -0.004708, MHA-ref gain 1.05138.
+    # Savings refunded to ordinary MLPs; integer budget residuals are in mediumprop_v5_ablation.md.
+    # CP13500/cursor, local TB sync and all policy-zone node/queue teardown verified.
     model_name = 'BamMediumPropV5AblationStaticReadsWritesNoGateNoMShiftTruePile'
     bam_m_shift_mode = 'none'
     base_mlp_dim = 3047

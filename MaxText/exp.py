@@ -23025,6 +23025,8 @@ class BamMediumPropV5AblationStaticAllWritesNoGateTruePile(BamMediumPropV5Ablati
     """Static addresses at all three writers, unit write multipliers; keep V5 dynamic reads and M-shift."""
     # code_commit: 7bbfbc2; ledger only: codex/mediumprop-v5-ablation, /data0/xd/mediumprop-v5-ablation.
     # RUN311217, v5p-16; all static write addresses, unit write gates, unchanged V5 reads/M-shift.
+    # UC1a v5p-16 /311217; startup20-99 0.612775 step/s (+0.95% vs gated parent .607, unpaired).
+    # Both-worker runtime/AOT, truepile4096/global128 and FIRST>100 verified; plan13,500, cadence4,000, no stopping.
     model_name = 'BamMediumPropV5AblationStaticAllWritesNoGateTruePile'
     bam_v5_ablation = 'static_all_write_no_gate'
     base_mlp_dim = 2763

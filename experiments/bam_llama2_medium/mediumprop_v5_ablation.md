@@ -75,3 +75,28 @@ fitting. Group2's M-read partial-RoPE wrapper supplies a constant-zero standard
 slab to the unchanged read kernel, drops that output tail, and rotates18 of the
 75 M-read coordinates; this avoids a zero-width Pallas input without restoring
 any standard Q/K parameter.
+
+## Static-address, ungated-write controls
+
+Two follow-ups remove the existing input-dependent write gate from each trained
+static-address parent, one writer kind at a time. Attention static-address / no-gate
+compares only with StaticAttentionWrite; memory-MLP static-address / no-gate only
+with StaticMLPWrite. The selected gate is exactly1, with its projection and bias
+removed. There is no new gate, no learned token-independent multiplier and no
+amplitude-matching compensation. All other write/read gates remain unchanged.
+Attention content RMSNorm and raw memory-MLP content retain the parents' recipes.
+This distinguishes static addressing supported by conditional write strength
+from an entirely fixed write-control vector.
+
+Both arms use ordinary width2636/tail3922 and memory width1128. Removing
+326672 gate parameters (17 x (1200 x16 +16)) and refunding to ordinary MLPs
+leaves total432110932, target432112228, residual-1296. Saved projection per
+active layer is .013333 W_Q; no Pallas changes are needed (gate logit +inf).
+Runtime infrastructure is unchanged from mainb9a4a6f9; deployed orchestration
+6769691 bounds GCS metadata queries. Each arm runs13500 with joint4000-step
+reports and no performance stopping/reviews. Pre-run retained-gain priors using
+MHA as reference: attention .94, MLP .97 relative to each static-address parent;
+throughput near their .608/.610 step/s, possibly slightly faster.
+
+The cancelled b1ab4395 proposal mistakenly made the gate token-independent.
+It never launched training and was reverted by1380735b (tree identical160c9c8).

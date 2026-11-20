@@ -353,7 +353,7 @@ class SubDecoderLayer(nn.Module):
       write_heads = num_query_heads
       from layers.bam_v5_ablation import settings
       ablation = settings(cfg)
-      if ablation.no_gate:
+      if ablation.ungated_write('mlp'):
         mlp_logits = jnp.full(hidden_states.shape[:2]+(write_heads,),jnp.inf,cfg.dtype)
       else:
         mlp_logits = linears.DenseGeneral(

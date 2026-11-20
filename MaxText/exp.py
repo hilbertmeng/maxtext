@@ -22904,3 +22904,21 @@ class BamMediumPropV5AblationMReadQKPartialRoPETruePile(BamMediumPropV5):
     record_training_health_metrics = True
     record_internal_nn_metrics = False
     compare_runs = ['BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneMPreNormQKScaleTruePile']
+
+
+class BamMediumPropV5AblationStaticAttentionWriteNoGateTruePile(BamMediumPropV5AblationStaticAttentionWriteTruePile):
+    """Static attention write address without that writer's dynamic gate; multiplier is exactly one."""
+    model_name = 'BamMediumPropV5AblationStaticAttentionWriteNoGateTruePile'
+    bam_v5_ablation = 'static_attention_write_no_gate'
+    base_mlp_dim = 2636
+    bam_last_mlp_dim = 3922
+    compare_runs = ['BamMediumPropV5AblationStaticAttentionWriteTruePile']
+
+
+class BamMediumPropV5AblationStaticMLPWriteNoGateTruePile(BamMediumPropV5AblationStaticMLPWriteTruePile):
+    """Static mlp write address without that writer's dynamic gate; multiplier is exactly one."""
+    model_name = 'BamMediumPropV5AblationStaticMLPWriteNoGateTruePile'
+    bam_v5_ablation = 'static_mlp_write_no_gate'
+    base_mlp_dim = 2636
+    bam_last_mlp_dim = 3922
+    compare_runs = ['BamMediumPropV5AblationStaticMLPWriteTruePile']

@@ -2153,7 +2153,7 @@ class BamAttention(Attention):
             kernel_axes=(None if self._replicate_ploc_up else 'embed', 'q_heads', 'v_factor'),
             dtype=self.dtype, weight_dtype=self.weight_dtype, name='P_loc_up', quant=self.quant,
             matmul_precision=cfg.matmul_precision, use_bias=True)
-      if not self._ablation.no_gate:
+      if not self._ablation.ungated_write('attention'):
         self.W_gw = DenseGeneral(features=(self.num_query_heads,), axis=-1, kernel_init=reg_init,
             kernel_axes=('embed', 'q_heads'), dtype=self.dtype, weight_dtype=self.weight_dtype,
             name='W_gw', quant=self.quant, matmul_precision=cfg.matmul_precision, use_bias=False)

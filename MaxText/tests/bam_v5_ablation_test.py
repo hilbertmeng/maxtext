@@ -16,7 +16,8 @@ from bam_prop_test_utils import MLPWriteTest
 PREFIX='BamMediumPropV5Ablation'
 SUFFIX=('StaticMLPWrite','StaticAttentionWrite','StaticAllWrites','StaticReads','StaticReadsWrites',
         'NoDynamicGates','NoAddressNorm','NoDynamicGatesAddressNorm','NoMShift','NoMemoryMLP',
-        'NoLocalO','NoAttentionWriteContentNorm','MReadQKPartialRoPE')
+        'NoLocalO','NoAttentionWriteContentNorm','MReadQKPartialRoPE',
+        'StaticAttentionWriteNoGate','StaticMLPWriteNoGate')
 
 class AblationTest(MLPWriteTest,unittest.TestCase):
   def tiny(self,name,kernel=False,dtype='float32'):
@@ -104,6 +105,21 @@ class AblationTest(MLPWriteTest,unittest.TestCase):
         np.testing.assert_allclose(got[0],ref[0],rtol=3e-4,atol=2e-6)
         print('ABLATION_PALLAS',suffix,self.compare_gradients(got[1],ref[1],3e-3),flush=True)
         jax.clear_caches()
+
+  def test_static_write_without_gate_omits_only_that_gate(self):
+    for suffix,removed,retained in (
+        ('StaticAttentionWriteNoGate',('W_gw','gw_b0'),('mlp_write_gate','mlp_write_gate_bias')),
+        ('StaticMLPWriteNoGate',('mlp_write_gate','mlp_write_gate_bias'),('W_gw','gw_b0'))):
+      name=PREFIX+suffix+'TruePile'
+      params,native=self.evaluate(name)
+      flat=flatten_dict(params)
+      self.assertFalse(any(part in path for path in flat for part in removed))
+      for part in retained:self.assertTrue(any(part in path for path in flat),part)
+      self.assertTrue(any('W_emb_g' in path for path in flat))
+      _,pallas=self.evaluate(name,kernel=True,params=params)
+      np.testing.assert_allclose(pallas[0],native[0],rtol=3e-4,atol=2e-6)
+      print('STATIC_UNGATED_PALLAS',suffix,self.compare_gradients(pallas[1],native[1],3e-3),flush=True)
+      jax.clear_caches()
 
   def test_pure_static_qk_is_trainable_at_initialization(self):
     for suffix in ('StaticReads','StaticReadsWrites'):

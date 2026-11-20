@@ -112,6 +112,7 @@ def main():
   actual=subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip()
   if actual!=job['code_commit']:raise ValueError('Wrong training runtime')
   out=Path(a.output);out.mkdir(parents=True,exist_ok=True)
+  (out/'config'/'eval').mkdir(parents=True,exist_ok=True)
   attrs=dict(only_eval=True,skip_jax_distributed_system=True,max_target_length=4096,
       per_device_batch_size=a.batch_size/jax.device_count(),eval_per_device_batch_size=a.batch_size/jax.device_count(),
       ici_data_parallelism=-1,ici_fsdp_parallelism=1,
@@ -119,7 +120,7 @@ def main():
       load_full_state_path='',base_output_directory=str(out/'config')+'/',
       tensorboard_dir=str(out/'tb'),jax_cache_dir='',log_config=False,float32_logits=True)
   exp.ScalingPileEval=type('ScalingPileEval',(getattr(exp,job['run_name']),),attrs)
-  cfg=pyconfig.initialize([None,'MaxText/configs/base.yml'],exp_class='ScalingPileEval',run_name='eval')
+  cfg=pyconfig.initialize([None,'MaxText/configs/base.yml'],exp_class='ScalingPileEval',run_name='eval',skip_jax_distributed_system=True)
   raw=dict(cfg.get_keys())
   for key in raw:
     if key in ['record_internal_nn_metrics','record_training_health_metrics','record_logits_health_metrics','bam_diagnostics'] or key.startswith('bam_record_'):

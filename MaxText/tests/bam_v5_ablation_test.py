@@ -17,7 +17,7 @@ PREFIX='BamMediumPropV5Ablation'
 SUFFIX=('StaticMLPWrite','StaticAttentionWrite','StaticAllWrites','StaticReads','StaticReadsWrites',
         'NoDynamicGates','NoAddressNorm','NoDynamicGatesAddressNorm','NoMShift','NoMemoryMLP',
         'NoLocalO','NoAttentionWriteContentNorm','MReadQKPartialRoPE',
-        'StaticAttentionWriteNoGate','StaticMLPWriteNoGate')
+        'StaticAttentionWriteNoGate','StaticMLPWriteNoGate','StaticReadsWritesNoGate')
 
 class AblationTest(MLPWriteTest,unittest.TestCase):
   def tiny(self,name,kernel=False,dtype='float32'):
@@ -120,6 +120,22 @@ class AblationTest(MLPWriteTest,unittest.TestCase):
       np.testing.assert_allclose(pallas[0],native[0],rtol=3e-4,atol=2e-6)
       print('STATIC_UNGATED_PALLAS',suffix,self.compare_gradients(pallas[1],native[1],3e-3),flush=True)
       jax.clear_caches()
+
+  def test_static_read_write_without_any_address_gate(self):
+    name=PREFIX+'StaticReadsWritesNoGateTruePile'
+    params,native=self.evaluate(name)
+    flat=flatten_dict(params)
+    for part in ('W_gw','gw_b0','mlp_write_gate','mlp_write_gate_bias','W_emb_g','emb_gw_b0'):
+      self.assertFalse(any(part in path for path in flat),part)
+    self.assertFalse(any('static_gate' in part or 'full_m_read_down' in part for path in flat for part in path))
+    self.assertTrue(any('M_shift_gate' in path for path in flat))
+    self.assertTrue(any('memory_mlp' in path for path in flat))
+    q=[v for path,v in flatten_dict(native[1]).items()if path[-1]=='static_q_key']
+    self.assertGreater(sum(float(jnp.sum(v*v))for v in q),0.)
+    _,pallas=self.evaluate(name,kernel=True,params=params)
+    np.testing.assert_allclose(pallas[0],native[0],rtol=3e-4,atol=2e-6)
+    print('ALL_STATIC_UNGATED_PALLAS',self.compare_gradients(pallas[1],native[1],3e-3),flush=True)
+    jax.clear_caches()
 
   def test_pure_static_qk_is_trainable_at_initialization(self):
     for suffix in ('StaticReads','StaticReadsWrites'):

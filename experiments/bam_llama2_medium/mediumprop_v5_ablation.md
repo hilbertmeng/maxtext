@@ -100,3 +100,20 @@ throughput near their .608/.610 step/s, possibly slightly faster.
 
 The cancelled b1ab4395 proposal mistakenly made the gate token-independent.
 It never launched training and was reverted by1380735b (tree identical160c9c8).
+
+## Fully static addressing without read/write branch gates
+
+`BamMediumPropV5AblationStaticReadsWritesNoGateTruePile` directly compares with
+StaticReadsWrites. It removes all three write-gate projections and biases, using
+exact multiplier 1; the parent's read projections/gates were already absent.
+Write contents, M-shift, matrix pre-norm, read scales and content normalization
+stay unchanged. M-shift remains its own factor; "static" refers to address and
+extra read/write-branch gate controls, not token-independent contents.
+
+Ordinary width 3037/tail 4329, memory width 1128; total 432,111,796, residual -432.
+It removes 672,560 write-gate parameters, refunding 673,200 to ordinary MLPs.
+No Pallas changes are needed. Same 13,500 schedule and 4,000 cadence, no stopping.
+Pre-run retained-gain prior vs the gated static-address parent: .95 (MHA ref),
+with plausible .88--1.00. That corresponds to about .627 of the V5 gain if the
+parent's .660 persists. Speed should be similar or slightly faster than its
+~.636 step/s parent. This arm joins the same ungated-write follow-up group.

@@ -22922,3 +22922,12 @@ class BamMediumPropV5AblationStaticMLPWriteNoGateTruePile(BamMediumPropV5Ablatio
     base_mlp_dim = 2636
     bam_last_mlp_dim = 3922
     compare_runs = ['BamMediumPropV5AblationStaticMLPWriteTruePile']
+
+
+class BamMediumPropV5AblationStaticReadsWritesNoGateTruePile(BamMediumPropV5AblationStaticReadsWritesTruePile):
+    """Static M read/write addresses, no read gates, and no embedding/attention/memory-MLP write gates."""
+    model_name = 'BamMediumPropV5AblationStaticReadsWritesNoGateTruePile'
+    bam_v5_ablation = 'static_read_write_no_gate'
+    base_mlp_dim = 3037
+    bam_last_mlp_dim = 4329
+    compare_runs = ['BamMediumPropV5AblationStaticReadsWritesTruePile']

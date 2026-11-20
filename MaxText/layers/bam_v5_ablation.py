@@ -8,7 +8,7 @@ NAMES = ('control', 'static_mlp_write', 'static_attention_write', 'static_all_wr
          'static_read', 'static_read_write', 'no_dynamic_gate', 'no_address_norm',
          'no_dynamic_gate_norm', 'no_shift', 'no_memory_mlp', 'no_local_o',
          'raw_attention_content', 'm_qk_partial_rope',
-         'static_attention_write_no_gate', 'static_mlp_write_no_gate')
+         'static_attention_write_no_gate', 'static_mlp_write_no_gate', 'static_read_write_no_gate')
 
 @dataclass(frozen=True)
 class Settings:
@@ -16,13 +16,13 @@ class Settings:
   def __post_init__(self):
     if self.name and self.name not in NAMES: raise ValueError(self.name)
   @property
-  def static_read(self): return self.name in ('static_read', 'static_read_write')
+  def static_read(self): return self.name in ('static_read', 'static_read_write', 'static_read_write_no_gate')
   def static_write(self, kind):
-    return self.name in ('static_all_write','static_read_write') or self.name in ('static_'+kind+'_write','static_'+kind+'_write_no_gate')
+    return self.name in ('static_all_write','static_read_write','static_read_write_no_gate') or self.name in ('static_'+kind+'_write','static_'+kind+'_write_no_gate')
   def ungated_write(self, kind):
     return self.no_gate or self.name == 'static_'+kind+'_write_no_gate'
   @property
-  def no_gate(self): return self.name in ('no_dynamic_gate','no_dynamic_gate_norm')
+  def no_gate(self): return self.name in ('no_dynamic_gate','no_dynamic_gate_norm','static_read_write_no_gate')
   @property
   def no_norm(self): return self.name in ('no_address_norm','no_dynamic_gate_norm')
   @property

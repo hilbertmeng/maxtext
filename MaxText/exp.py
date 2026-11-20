@@ -23019,3 +23019,14 @@ class BamMediumPropV5AblationStaticReadsWritesNoGateNoMShiftTruePile(BamMediumPr
     base_mlp_dim = 3047
     bam_last_mlp_dim = 4351
     compare_runs = ['BamMediumPropV5AblationStaticReadsWritesNoGateTruePile', 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneMPreNormQKScaleTruePile', 'MuddLlama2MediumPropRouterFixedPostNormTruePile']
+
+
+class BamMediumPropV5AblationStaticAllWritesNoGateTruePile(BamMediumPropV5AblationStaticAllWritesTruePile):
+    """Static addresses at all three writers, unit write multipliers; keep V5 dynamic reads and M-shift."""
+    # code_commit: 7bbfbc2; ledger only: codex/mediumprop-v5-ablation, /data0/xd/mediumprop-v5-ablation.
+    # RUN311217, v5p-16; all static write addresses, unit write gates, unchanged V5 reads/M-shift.
+    model_name = 'BamMediumPropV5AblationStaticAllWritesNoGateTruePile'
+    bam_v5_ablation = 'static_all_write_no_gate'
+    base_mlp_dim = 2763
+    bam_last_mlp_dim = 4051
+    compare_runs = ['BamMediumPropV5AblationStaticAllWritesTruePile', 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneMPreNormQKScaleTruePile']

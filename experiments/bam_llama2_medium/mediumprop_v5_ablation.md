@@ -272,3 +272,37 @@ training lease; this exception never changed the global defaults or other RUNs.
 Every READY interval and active-zone assignment is recorded in
 `experiments/tpu_region_preemption_history.md`; queue candidates are not counted
 as active leases. The retained FLEX compiler `llm-jax-v6e-1-0` was not deleted.
+
+
+## All-static write addresses without write gates (supplement)
+
+User-authorized RUN 311217, `BamMediumPropV5AblationStaticAllWritesNoGateTruePile`,
+keeps V5's dynamic/static M read branches and their gates, standard residual Q/K,
+M pre-norm/read scales and M-shift. Only embedding, attention and private-MLP
+write addresses are static, and all three write gates and biases are removed;
+write multipliers are exactly 1. This fills the missing ungated counterpart to
+`BamMediumPropV5AblationStaticAllWritesTruePile`; the previously completed
+StaticReadsWritesNoGate arm also changed the readers and cannot replace it.
+
+Prefix ordinary/private/final widths 2763/1128/4051; full-size abstract-tree
+budget must verify 432,112,948 (V5 target +720). The gated all-static-write
+parent is 2753/1128/4034 and 432,112,308. The three gates save 672,560 parameters;
+ordinary-MLP reimbursement is 673,200, leaving +640 vs that direct parent.
+Read parameters and M-shift remain; last attention/private-MLP writes stay off.
+Same isolated worktree/branch, T4096/global128/seed9876, 13,500-step plan,
+UE5a primary/UC1a backup only; EW4b's earlier two-RUN exception is not inherited.
+Monitor every 4,000 with no performance stopping; compare both the gated
+all-static-write parent and full V5, with MHA as the gain reference.
+
+Pre-run prediction: terminal gain 0.90 vs gated all-static-write parent
+(plausible 0.86--0.94), about 0.858 vs full V5 if the parent's 0.95347 persists;
+expected startup about 0.62 step/s vs parent's 0.607, unpaired. Attention's
+normalized content likely makes the remaining conditional strength gate useful,
+while raw private-MLP content can encode strength itself; this is a prior rather
+than a stopping rule. Existing Pallas read/write kernels are unchanged.
+Infrastructure re-audit at main e1a52ae7 found no main-only changes to training,
+checkpointing, summary writers, optimizer, compilation or runtime defaults since
+the prior sealed family. TensorBoard rotation500/begin_step and bounded-GCS
+controller fixes remain. Targeted gates cover full parameter trees, retained
+read controls, removed writers, native/Pallas whole-model gradients and parent
+control equivalence. FLEX compiler is borrowed, never deleted.

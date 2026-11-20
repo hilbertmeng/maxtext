@@ -6,6 +6,18 @@ from scaling_pile_eval import make_batch,aggregate,prepare_data
 from pile_validation_data import write_record,file_integrity
 
 class Contracts(unittest.TestCase):
+  def test_verified_records_roundtrip_and_corruption(self):
+    with tempfile.TemporaryDirectory() as tmp:
+      root=Path(tmp);source=root/'data.tfrecord'
+      with source.open('wb') as stream:
+        write_record(stream,[8,0,9,10,11]);write_record(stream,[11,12,0])
+      digest=file_integrity(source)['sha256']
+      meta=prepare_data(source,root/'prepared',4,digest,2)
+      self.assertEqual(meta['target_tokens_before_eos_mask'],6)
+      tokens=np.load(root/'prepared/tokens.npy');lengths=np.load(root/'prepared/lengths.npy')
+      np.testing.assert_array_equal(lengths,[5,3]);np.testing.assert_array_equal(tokens[1],[11,12,0,0,0])
+      broken=bytearray(source.read_bytes());broken[-1]^=1;source.write_bytes(broken)
+      with self.assertRaises(ValueError):prepare_data(source,root/'bad',4,file_integrity(source)['sha256'],2)
   def test_real_eos_and_padding_differ(self):
     tokens=np.array([[1,0,3,4,5],[1,2,0,0,0]],np.uint16);lengths=np.array([5,3])
     b,n=make_batch(tokens,lengths,0,4,4)

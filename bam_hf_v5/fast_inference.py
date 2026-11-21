@@ -359,7 +359,13 @@ class FastBamV5(_Base):
     lengths = pos.to(torch.int32).expand(b).contiguous() if decode else None     # strictly causal
     M = self._embedding_write(x).reshape(rows, kd * vd)
     q_mult = 1.0 / math.sqrt(self.hd)
-    sub, warps = (2, 4) if rows <= 16 else (1, 4)
+    # read-kernel programs (row chunks, arm groups per program, warps): A800 sweep at Medium / Large / XL shapes
+    if not decode:
+      sub, groups, warps = 1, 2, 2
+    elif rows == 1:
+      sub, groups, warps = 4 if n > 16 else 2, 1, 4
+    else:
+      sub, groups, warps = (2, 1, 4) if rows <= 16 else (1, 2, 4)
     pending = None
     for i, p in enumerate(self.layers):
       z = F.linear(_rmsw(x, p.ln1_w, self.eps), p.x_w, p.x_b)
@@ -384,7 +390,7 @@ class FastBamV5(_Base):
           M, *write, state.m(i) if decode else M, prev_valid, pos, z[:, :o['shift'][1]],
           z[:, o['std'][0]:o['std'][1]], up, z[:, o['gates'][0]:o['gates'][1]], p.static_key_rows, self.rope_cos,
           self.rope_sin, b, n, kd, vd, s, pending is not None, decode, self.write_eps, self.eps, self.key_eps,
-          self.key_scale, self.static_scale, p.qk_scale, p.vo_scale, q_mult, sub, warps,
+          self.key_scale, self.static_scale, p.qk_scale, p.vo_scale, q_mult, sub, groups, warps,
           state.k(i) if decode else None, state.v(i) if decode else None)
       if pending is not None:
         M = m_new

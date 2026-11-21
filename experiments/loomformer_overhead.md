@@ -1,23 +1,36 @@
 # LoomFormer vs MHA: training throughput
 
-Single source of truth for the paper's efficiency table. Paired arms per scale on one VM, formal pod and
-per-device batch, generic training health ON (as trained), 40 steps per arm, median logged step/s and
-XPlane device step time (ms). Both sides use Splash with `SplashTunedBlocks1024` blocks and fused backward;
-each side is measured at full and minimal remat and reported at its faster policy. LoomFormer runs the
-current-main read/sharding defaults (`'auto'` carry, stride skew and rank-up replication; see
-`experiments/xlprop_v5.md`); the "as-trained implementation" arm pins them off.
-Runtime `4cd4bf2` (Medium), `b98b8ae` (Large, XL), `9f3c9c5` (2.8B); classes `Overhead*SpeedProfile` in `MaxText/exp.py`.
+Single source of truth for the paper's efficiency table. Each scale is one paired round on one VM at the
+formal pod and per-device batch, generic training health ON (as trained), 40 steps per arm; median logged
+step/s and XPlane device step time (ms). Both sides use Splash with `SplashTunedBlocks1024` blocks and fused
+backward and plain `full`/`minimal` remat (no saved Splash residuals). LoomFormer runs the current-main
+read/sharding defaults (`'auto'` carry, stride skew and rank-up replication; `experiments/xlprop_v5.md`).
+Primary ratio: both sides at full remat. Secondary: each side at its faster policy.
 
-| Scale | LoomFormer class | MHA class | Pod / global batch / per device | MHA step/s (faster remat) | LoomFormer step/s (faster remat) | Ratio step/s | Ratio device time | MHA full-remat step/s | Ratio step/s vs MHA full | Ratio device time vs MHA full |
-|---|---|---|---|---:|---:|---:|---:|---:|---:|---:|
-| Medium T4096 | `BamMediumPropV5` | 18-layer `Llama2MediumProp` MHA (see note) | v5p-16 / 128 / 16 | .811 (full) | .724 (full) | 89.3% | 90.5% | .811 | 89.3% | 90.5% |
-| Large T4096 | `BamLargePropV5Train27k` | `Llama2LargeProp` | v5p-32 / 128 / 8 | 1.030 (full) | .899 (full) | 87.3% | 89.2% | 1.030 | 87.3% | 89.2% |
-| XL T4096 | `BamXLPropV5FastKernelFullRemat` + `PallasReadTunedXL` | `Llama2XLPropTruePileMHA` + tuned Splash | v5p-32 / 128 / 8 | .633 (minimal) | .566 (full) | 89.4% | 91.0% | .624 | 90.7% | 92.3% |
-| Pythia 2.8B T2048 | `BamPythia2p8BHUnit300BFastKernelMPreNormQKScaleV5p128` | `Pythia2p8B` | v5p-128 / 1024 / 16 | .366 (minimal) | .327 (minimal) | 89.3% | 89.7% | .332 | 98.5% | 99.0% |
+Setup and reproducible arms (profile classes in `MaxText/exp.py`):
 
-The last three columns keep LoomFormer at its faster policy and fix MHA at full remat. All policies are
-plain `full`/`minimal`: neither side saves Splash residuals (MHA's Splash has no residual names, and
-LoomFormer's `minimal_save_splash` is slower at v5p-128: .318 vs .327).
+| Scale | Formal LoomFormer class | Formal MHA class | Pod / global batch / per device | Runtime | Full-remat arms (MHA; LoomFormer) | Faster-policy arms, where different |
+|---|---|---|---|---|---|---|
+| Medium T4096 | `BamMediumPropV5` | `BamMHAMediumPropC256TruePile` (see note) | v5p-16 / 128 / 16 | `4cd4bf2` | `OverheadMediumMHASplashSpeedProfile`; `OverheadMediumLoomSpeedProfile` | — |
+| Large T4096 | `BamLargePropV5Train27k` | `Llama2LargeProp` | v5p-32 / 128 / 8 | `b98b8ae` | `OverheadLargeMHASpeedProfile`; `OverheadLargeLoomSpeedProfile` | — |
+| XL T4096 | `BamXLPropV5FastKernelFullRemat` | `Llama2XLPropTruePileMHA` | v5p-32 / 128 / 8 | `b98b8ae` | `OverheadXLMHASplashSpeedProfile`; `OverheadXLLoomSpeedProfile` | MHA `OverheadXLMHASplashMinimalSpeedProfile` |
+| Pythia 2.8B T2048 | `BamPythia2p8BHUnit300BFastKernelMPreNormQKScale` (architecture `BamPythia2p8BV5`; v5p-128 execution `...V5p128`) | `Pythia2p8B` | v5p-128 / 1024 / 16 | `9f3c9c5` | `OverheadPythiaMHASpeedProfile`; `OverheadPythiaLoomFullSpeedProfile` | `OverheadPythiaMHAMinimalSpeedProfile`; `OverheadPythiaLoomMinimalSpeedProfile` |
+
+Throughput (step/s; device ms):
+
+| Scale | MHA full | LoomFormer full | Ratio step/s | Ratio device time | Faster policy: ratio step/s | Faster policy: ratio device time |
+|---|---:|---:|---:|---:|---:|---:|
+| Medium | .811; 1224 | .724; 1352 | 89.3% | 90.5% | 89.3% (both full) | 90.5% |
+| Large | 1.030; 962 | .899; 1078 | 87.3% | 89.2% | 87.3% (both full) | 89.2% |
+| XL | .624; 1590 | .566; 1723 | 90.7% | 92.3% | 89.4% (MHA minimal .633; 1568) | 91.0% |
+| 2.8B | .332; 2988 | .305; 3233 | 91.9% | 92.4% | 89.3% (both minimal: .366; 2707 / .327; 3017) | 89.7% |
+
+Reproduction: request a TPU of the listed pod with tpu-ag `start_standalone_tpu.sh NAME POD ZONE
+install_xd_maxtext_jax081.sh RUNTIME`, then
+`DONE_STEP=40 TOPO=POD bash /data0/xd/bam_diagnostics/tools/profile_orch.sh RUNTIME TAG OUTDIR "NAME=ZONE" label=CLASS ...`
+(or `orch_retry_topo.sh` in the trace directory below, which requeues on preemption). It compiles each arm's
+AOT on the TPU, runs the arms in order on the same VM, prints median step/s and per-category device time
+against the first arm.
 
 All arms (step/s; device ms):
 

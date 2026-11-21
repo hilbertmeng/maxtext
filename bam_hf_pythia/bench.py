@@ -55,6 +55,7 @@ def compiled(fn, mode):
 
 def bench_prefill(model, impl, b, t, mode):
   ids = torch.randint(0, 50000, (b, t), device='cuda')
+  mode = 'max-autotune-no-cudagraphs' if mode == 'max-autotune' else mode      # prefill is GPU-bound
   if impl == 'fast':
     fn = compiled(lambda x: model.prefill(x), mode)
   else:

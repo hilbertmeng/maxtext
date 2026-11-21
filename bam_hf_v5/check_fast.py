@@ -1,7 +1,7 @@
 """Check the inference fast path against MaxText reference logits and the HF reference path.
 
   python bam_hf_v5/check_fast.py HF_DIR REF_NPZ [--dtype bfloat16|float32] [--compile none|max-autotune]
-      [--decode-steps 16]
+      [--decode-steps 16] [--batch 1]
 
 Reports the full prefill and a prefill of the first T - k tokens followed by k one-token decode steps
 through the static caches, both against the JAX logits, and the HF reference path at the same dtype.
@@ -33,14 +33,16 @@ def main():
   p.add_argument('--dtype', default='bfloat16')
   p.add_argument('--compile', default='none')
   p.add_argument('--decode-steps', type=int, default=16)
+  p.add_argument('--batch', type=int, default=0, help='first rows only (0: all)')
   a = p.parse_args()
   torch.backends.cuda.matmul.allow_tf32 = False
   ref = np.load(a.ref)
-  tokens = torch.as_tensor(ref['tokens'], dtype=torch.long, device='cuda')
+  rows = slice(None, a.batch or None)
+  tokens = torch.as_tensor(ref['tokens'][rows], dtype=torch.long, device='cuda')
   b, t = tokens.shape
   hf = AutoModelForCausalLM.from_pretrained(a.hf_dir, trust_remote_code=True, dtype=getattr(torch, a.dtype))
   hf = hf.cuda().eval()
-  target = ref['logits']
+  target = ref['logits'][rows]
   report = {}
   with torch.no_grad():
     hf_logits = hf(tokens, use_cache=False).logits.float()

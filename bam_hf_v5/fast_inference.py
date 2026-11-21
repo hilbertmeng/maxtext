@@ -54,8 +54,16 @@ class PaddedState(State):
 
   def __init__(self, layers, batch, heads, max_len, dqk, dv, m_shape=None, **kw):
     pad = lambda w: -(-w // 32) * 32
-    super().__init__(layers, batch, heads, max_len, pad(dqk), pad(dv), m_shape, **kw)
+    # LoomFormer: m(i) [B, 2, K, V] holds the layer-input M of the token at position q in slot q % 2 (a decode
+    # step reads its predecessor's slot while the read kernel writes its own)
+    super().__init__(layers, batch, heads, max_len, pad(dqk), pad(dv), m_shape and (2, *m_shape), **kw)
     self.dqk, self.dv = dqk, dv
+
+  def m_prev(self, i, pos):
+    return self.m(i).index_select(1, ((pos + 1) % 2).view(1))[:, 0]
+
+  def m_store(self, i, q, value):
+    self.m(i).index_copy_(1, (q % 2).view(1), value[:, None])
 
   def k(self, i):
     return super().k(i)[..., :self.dqk]
@@ -331,10 +339,10 @@ class FastBamV5(_Base):
     M = self._embedding_write(x)
     for i, p in enumerate(self.layers):
       M_in = M
-      M_prev = state.m(i)[:, None] if decode else torch.cat((M[:, :1], M[:, :-1]), 1)
+      M_prev = state.m_prev(i, pos)[:, None] if decode else torch.cat((M[:, :1], M[:, :-1]), 1)
       x, M = self._layer(i, p, x, M, M_prev, valid, cos, sin, state, lengths, decode)
       if state is not None:
-        state.m(i).copy_(M_in[:, -1])         # after the layer: M_prev may alias state.m(i)
+        state.m_store(i, pos + t - 1, M_in[:, -1])
     if state is not None:
       state.pos.add_(t)
     return self._logits(x[:, -1:] if last_only else x, b)
@@ -361,9 +369,9 @@ class FastBamV5(_Base):
       if decode and rows == 1:
         if p.has_write:
           up, wup = pythia_kernels.gemv([rd, z[:, o['write_down'][0]:o['write_down'][1]]], [p.up_w, p.wup_w],
-                                        [p.up_b, p.wup_b], [1, 1], 32, 128, 4)
+                                        [p.up_b, p.wup_b], [1, 1], 16, 256, 4)
         else:
-          up, = pythia_kernels.gemv([rd], [p.up_w], [p.up_b], [1], 32, 128, 4)
+          up, = pythia_kernels.gemv([rd], [p.up_w], [p.up_b], [1], 16, 256, 4)
       elif decode and p.has_write:     # multi-token decode: one GELU pass, both GEMMs in one launch
         g = F.gelu(z[:, o['read_down'][0]:o['write_down'][1]], approximate='tanh')
         kr = p.up_w.shape[1]
@@ -380,8 +388,8 @@ class FastBamV5(_Base):
           state.k(i) if decode else None, state.v(i) if decode else None)
       if pending is not None:
         M = m_new
-      if state is not None:
-        state.m(i).copy_(M.view(b, t, kd, vd)[:, -1])
+      if state is not None and not (decode and pending is not None):   # else the read kernel stored it
+        state.m_store(i, pos + t - 1, M.view(b, t, kd, vd)[:, -1])
       qw, vw = qk.shape[-1], vo.shape[-1]
       q, k = (qk[:, j].view(b, t, n, qw) for j in (0, 1))       # zero-padded widths
       value, local_o = (vo[:, j].view(b, t, n, vw)[..., :kd] for j in (0, 1))
@@ -404,7 +412,7 @@ class FastBamV5(_Base):
             hz[:, o3 + sh[4]:o3 + sh[4] + sh[5]]
         if decode and rows == 1:
           mem, addr = pythia_kernels.gemv([mem_in, adown], [p.mem_down_w, p.addr_up_w], [None, p.addr_up_b], [0, 1],
-                                          16, 1024, 8)
+                                          4, 1024, 4)
         elif decode:
           mem, addr = pythia_kernels.grouped_gemm([mem_in, F.gelu(adown, approximate='tanh')],
                                                   [p.mem_down_w, p.addr_up_w], [None, p.addr_up_b], [0, 0], None,

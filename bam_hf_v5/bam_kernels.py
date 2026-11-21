@@ -121,6 +121,8 @@ def _read_kernel(
                     N, NP, K, K1P, V, VP)
     if tl.program_id(0) == 0:
       _store_m(MW + row * (K * V), m0, m1, K, K1P, V, VP)
+      if HAS_PREV:     # decode: also into the state slot of this position (the predecessor's is read below)
+        _store_m(MPREV + seq * s_mp + (pos % 2) * (K * V), m0, m1, K, K1P, V, VP)
   else:
     m0, m1 = _load_m(M + row * s_m, K, K1P, V, VP)
   f0 = m0.to(tl.float32)
@@ -130,7 +132,7 @@ def _read_kernel(
     pp = M + (row - 1) * s_m
   elif HAS_PREV:
     pv = tl.load(PREV_VALID)
-    pp = MPREV + seq * s_mp
+    pp = MPREV + seq * s_mp + ((pos + 1) % 2) * (K * V)
   else:
     pv = 0
     pp = M + row * s_m
@@ -222,10 +224,12 @@ def fused_read(m_old: torch.Tensor, c1: torch.Tensor, g1: torch.Tensor, a1: torc
   (empty when not has_write), qk [rows, 2, N, QW] (K + S used), vo [rows, 2, N, VW] (K used)); widths
   rounded up to multiples of 8, zero-padded.
 
-  k_cache [B,N,S,Dq] / v_cache [B,N,S,K] (rows layout, one-token decode): the token's key and value are
-  written at position pos. Not declared as a mutation (see decode_attention.attend_and_append): within a
-  decode step only this op writes a layer's caches, and the strictly causal attention that follows (it
-  consumes this op's output) reads positions < pos only."""
+  One-token decode (has_prev): m_prev [B, 2, K*V] holds the layer-input M of position q in slot q % 2; the
+  predecessor's slot is read and, with has_write, M_new stored into slot pos % 2. k_cache [B,N,S,Dq] /
+  v_cache [B,N,S,K] (rows layout): the token's key and value are written at position pos. Not declared as
+  mutations (see decode_attention.attend_and_append): within a decode step only this op writes a layer's
+  caches and M slots, and the strictly causal attention that follows (it consumes this op's output) reads
+  positions < pos only."""
   rows = m_old.shape[0]
   t = rows // batch
   qw = qk_width(k, s)

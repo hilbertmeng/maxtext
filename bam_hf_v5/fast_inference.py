@@ -49,11 +49,12 @@ KERNELS = os.environ.get('BAM_KERNELS', '1') == '1'
 
 
 class PaddedState(State):
-  """State with cache rows padded to a multiple of 32 elements (both models): unaligned rows (e.g. 120 or 75
-  BF16 values) cost decode attention up to ~25% of its bandwidth (A800). k(i) / v(i) are the used views."""
+  """State with cache rows padded to a multiple of 16 elements (32-byte sectors; both models): unaligned rows
+  (e.g. 120 or 75 BF16 values) cost decode attention up to ~35% of its bandwidth (A800). k(i) / v(i) are the
+  used views."""
 
   def __init__(self, layers, batch, heads, max_len, dqk, dv, m_shape=None, **kw):
-    pad = lambda w: -(-w // 32) * 32
+    pad = lambda w: -(-w // 16) * 16
     # LoomFormer: m(i) [B, 2, K, V] holds the layer-input M of the token at position q in slot q % 2 (a decode
     # step reads its predecessor's slot while the read kernel writes its own)
     super().__init__(layers, batch, heads, max_len, pad(dqk), pad(dv), m_shape and (2, *m_shape), **kw)

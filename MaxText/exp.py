@@ -23035,3 +23035,117 @@ class BamMediumPropV5AblationStaticAllWritesNoGateTruePile(BamMediumPropV5Ablati
     base_mlp_dim = 2763
     bam_last_mlp_dim = 4051
     compare_runs = ['BamMediumPropV5AblationStaticAllWritesTruePile', 'BamMediumPropMShiftReadG050DedicatedMemoryMLPRatio2to1SeparateVOKeysLogitDiagNegativeQK75CommonReadScaleUnscaledMLPContentEmbeddingFixedReadScaleInitOneMPreNormQKScaleTruePile']
+
+
+# ---- LoomFormer vs MHA training-throughput overhead (paired, formal pod/batch, health as trained) ----
+# Results: experiments/loomformer_overhead.md. Each side is measured at full and minimal remat.
+
+class _OverheadSpeedProfile(TrainStepProfile):
+    """Paired speed arm at the formal per-device batch; no checkpoints."""
+    steps = 100
+    checkpoint_keep_steps = []
+
+
+class _ReadOptsOff:
+    """The read/sharding speedups pinned off (the as-trained implementation)."""
+    bam_pallas_shift_carry = False
+    bam_pallas_read_stride_skew = False
+    bam_replicate_rank_up = False
+
+
+class _SplashTuned:
+    locals().update({k: v for k, v in vars(SplashTunedBlocks1024).items() if k.startswith('sa_')})
+    attention = 'autoselected'
+
+
+class _Minimal:
+    remat_policy = 'minimal'
+
+
+# Medium T4096, v5p-16, 16/device (global 128).
+class OverheadMediumMHAAsTrainedSpeedProfile(_OverheadSpeedProfile, BamMHAMediumPropC256TruePile):
+    model_name = 'OverheadMediumMHAAsTrainedSpeedProfile'
+
+
+class OverheadMediumMHASplashSpeedProfile(_SplashTuned, OverheadMediumMHAAsTrainedSpeedProfile):
+    model_name = 'OverheadMediumMHASplashSpeedProfile'
+
+
+class OverheadMediumMHASplashMinimalSpeedProfile(_Minimal, OverheadMediumMHASplashSpeedProfile):
+    model_name = 'OverheadMediumMHASplashMinimalSpeedProfile'
+
+
+class OverheadMediumLoomOffSpeedProfile(_ReadOptsOff, _OverheadSpeedProfile, BamMediumPropV5):
+    model_name = 'OverheadMediumLoomOffSpeedProfile'
+
+
+class OverheadMediumLoomSpeedProfile(_OverheadSpeedProfile, BamMediumPropV5):
+    model_name = 'OverheadMediumLoomSpeedProfile'
+
+
+class OverheadMediumLoomMinimalSpeedProfile(_Minimal, OverheadMediumLoomSpeedProfile):
+    model_name = 'OverheadMediumLoomMinimalSpeedProfile'
+
+
+# Large T4096, v5p-32, 8/device (global 128).
+class OverheadLargeMHASpeedProfile(_OverheadSpeedProfile, Llama2LargeProp):
+    model_name = 'OverheadLargeMHASpeedProfile'
+
+
+class OverheadLargeMHAMinimalSpeedProfile(_Minimal, OverheadLargeMHASpeedProfile):
+    model_name = 'OverheadLargeMHAMinimalSpeedProfile'
+
+
+class OverheadLargeLoomOffSpeedProfile(_ReadOptsOff, _OverheadSpeedProfile, BamLargePropV5Train27k):
+    model_name = 'OverheadLargeLoomOffSpeedProfile'
+
+
+class OverheadLargeLoomSpeedProfile(_OverheadSpeedProfile, BamLargePropV5Train27k):
+    model_name = 'OverheadLargeLoomSpeedProfile'
+
+
+class OverheadLargeLoomMinimalSpeedProfile(_Minimal, OverheadLargeLoomSpeedProfile):
+    model_name = 'OverheadLargeLoomMinimalSpeedProfile'
+
+
+# XL T4096, v5p-32, 8/device (global 128). The paper model is the SwiGLU FullRemat class.
+class OverheadXLMHAAsTrainedSpeedProfile(_OverheadSpeedProfile, Llama2XLPropTruePileMHA):
+    model_name = 'OverheadXLMHAAsTrainedSpeedProfile'
+
+
+class OverheadXLMHASplashSpeedProfile(_SplashTuned, OverheadXLMHAAsTrainedSpeedProfile):
+    model_name = 'OverheadXLMHASplashSpeedProfile'
+
+
+class OverheadXLMHASplashMinimalSpeedProfile(_Minimal, OverheadXLMHASplashSpeedProfile):
+    model_name = 'OverheadXLMHASplashMinimalSpeedProfile'
+
+
+class OverheadXLLoomOffSpeedProfile(_ReadOptsOff, _OverheadSpeedProfile, BamXLPropV5FastKernelFullRemat):
+    model_name = 'OverheadXLLoomOffSpeedProfile'
+
+
+class OverheadXLLoomSpeedProfile(PallasReadTunedXL, _OverheadSpeedProfile, BamXLPropV5FastKernelFullRemat):
+    model_name = 'OverheadXLLoomSpeedProfile'
+
+
+class OverheadXLLoomMinimalSpeedProfile(_Minimal, OverheadXLLoomSpeedProfile):
+    model_name = 'OverheadXLLoomMinimalSpeedProfile'
+
+
+# Pythia 2.8B T2048, v5p-128, 16/device (global 1024).
+class OverheadPythiaMHASpeedProfile(_OverheadSpeedProfile, Pythia2p8B):
+    model_name = 'OverheadPythiaMHASpeedProfile'
+
+
+class OverheadPythiaMHAMinimalSpeedProfile(_Minimal, OverheadPythiaMHASpeedProfile):
+    model_name = 'OverheadPythiaMHAMinimalSpeedProfile'
+
+
+class OverheadPythiaLoomOffSpeedProfile(_ReadOptsOff, _OverheadSpeedProfile,
+                                        BamPythia2p8BHUnit300BFastKernelMPreNormQKScaleV5p128):
+    model_name = 'OverheadPythiaLoomOffSpeedProfile'
+
+
+class OverheadPythiaLoomSpeedProfile(_OverheadSpeedProfile, BamPythia2p8BHUnit300BFastKernelMPreNormQKScaleV5p128):
+    model_name = 'OverheadPythiaLoomSpeedProfile'

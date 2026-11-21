@@ -59,7 +59,10 @@ def main():
     for shape in filter(None, a.prefill.split(',')):
       b, t = map(int, shape.split('x'))
       ids = torch.randint(0, vocab, (b, t), device='cuda')
-      fn = compiled(lambda x: model.prefill(x), a.compile)
+      # prefill without CUDA graphs (GPU-bound; capturing the XL LoomFormer prefill intermittently fails with
+      # cudaErrorStreamCaptureInvalidated under torch 2.14)
+      mode = 'max-autotune-no-cudagraphs' if a.compile == 'max-autotune' else a.compile
+      fn = compiled(lambda x: model.prefill(x), mode)
       torch.cuda.reset_peak_memory_stats()
       sec = timed(lambda: fn(ids))
       r[f'prefill_{shape}'] = {'ms': sec * 1e3, 'tok_per_s': b * t / sec,

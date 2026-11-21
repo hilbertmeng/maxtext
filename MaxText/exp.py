@@ -23063,12 +23063,17 @@ class _Minimal:
 
 
 # Medium T4096, v5p-16, 16/device (global 128).
-class OverheadMediumMHAAsTrainedSpeedProfile(_OverheadSpeedProfile, BamMHAMediumPropC256TruePile):
-    model_name = 'OverheadMediumMHAAsTrainedSpeedProfile'
-
-
-class OverheadMediumMHASplashSpeedProfile(_SplashTuned, OverheadMediumMHAAsTrainedSpeedProfile):
+class OverheadMediumMHASplashSpeedProfile(_OverheadSpeedProfile, SplashTunedBlocks1024, Llama2MediumProp):
+    """18-layer MediumProp MHA on current main (as BamMHAMediumPropL12TruePile at 18 layers): RoPE on 74 of 75
+    head dims, tuned Splash. The trained BamMHAMediumPropC256TruePile needs archived options (C256 core)."""
     model_name = 'OverheadMediumMHASplashSpeedProfile'
+    DATASET_VARIANT = 'truepile4096'
+    attention = 'flash'
+    bam_partial_rope = True
+    bam_partial_rope_nope_dim = 1
+    float32_logits = False
+    record_training_health_metrics = True
+    jax_cache_dir = ''
 
 
 class OverheadMediumMHASplashMinimalSpeedProfile(_Minimal, OverheadMediumMHASplashSpeedProfile):

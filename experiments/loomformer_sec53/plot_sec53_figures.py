@@ -90,7 +90,7 @@ def plot_main_1x4(loom: dict, mhc: dict, pythia: dict, out_dir: Path) -> tuple[P
   ax1.axhline(3.0, color="#666666", lw=1.2, ls="--", label="MUDDFormer ($\\leq 3$)")
   ax1.axhline(1.0, color=C_MHC, lw=1.2, ls=":", label="Tfm / mHC ($1$)")
 
-  ax1.set_title("(a) Effective Wiring Rank", fontsize=10.8, fontweight="bold", pad=5)
+  ax1.set_title("(a) Wiring Rank", fontsize=10.8, fontweight="bold", pad=5)
   ax1.set_xlabel("Layer $l$", fontsize=10.2)
   ax1.set_ylabel("Effective Rank", fontsize=10.2)
   ax1.set_xlim(1, 32)
@@ -127,14 +127,14 @@ def plot_main_1x4(loom: dict, mhc: dict, pythia: dict, out_dir: Path) -> tuple[P
   ax3.plot(layers, y_lo, color=C_LOOM, lw=2.2, marker="D", ms=3.0, markevery=3,
            label=f"LoomPythia ({np.mean(y_lo):.1f}%)")
 
-  ax3.set_title("(c) Heads On (%)", fontsize=10.8, fontweight="bold", pad=5)
+  ax3.set_title("(c) Heads On", fontsize=10.8, fontweight="bold", pad=5)
   ax3.set_xlabel("Layer $l$", fontsize=10.2)
   ax3.set_ylabel("Heads On (%)", fontsize=10.2)
   ax3.set_xlim(1, 32)
   ax3.set_ylim(0, 102)
   ax3.set_xticks([1, 8, 16, 24, 32])
   ax3.tick_params(labelsize=8.8)
-  ax3.legend(fontsize=7.4, loc="center right", frameon=True, handlelength=1.5, borderpad=0.3)
+  ax3.legend(fontsize=7.5, loc="center right", frameon=True, handlelength=1.5, borderpad=0.3)
 
   # --- (d) Adjacent-layer cosine similarity ---
   ax4.plot(adj_x, pythia["adjacent_layer_cosine"]["residual_in"]["layer_mean"],
@@ -142,12 +142,12 @@ def plot_main_1x4(loom: dict, mhc: dict, pythia: dict, out_dir: Path) -> tuple[P
   ax4.plot(adj_x, mhc["adjacent_layer_cosine"]["attn_connector_read"]["layer_mean"],
            color=C_MHC, lw=1.8, ls="-.", label="mHC (read)")
   ax4.plot(adj_x, loom["adjacent_layer_cosine"]["residual_in"]["layer_mean"],
-           color=C_LOOM, lw=1.5, ls="--", alpha=0.8, label="Loom ($x$)")
+           color=C_LOOM, lw=1.6, ls="--", alpha=0.85, label="Loom ($x$)")
   for p_field, p_key, p_lbl in [
-      ("local_q", "Q", "Loom ($\\tilde{q}$)"),
-      ("local_k", "K", "Loom ($\\tilde{k}$)"),
-      ("local_v", "V", "Loom ($v$)"),
-      ("local_o", "O", "Loom ($o^m$)"),
+      ("local_q", "Q", "$\\tilde{q}$"),
+      ("local_k", "K", "$\\tilde{k}$"),
+      ("local_v", "V", "$v$"),
+      ("local_o", "O", "$o^m$"),
   ]:
     ax4.plot(adj_x, loom["adjacent_layer_cosine"][p_field]["layer_mean"],
              color=C_PORT[p_key], lw=1.7, label=p_lbl)
@@ -159,7 +159,7 @@ def plot_main_1x4(loom: dict, mhc: dict, pythia: dict, out_dir: Path) -> tuple[P
   ax4.set_ylim(-0.18, 1.04)
   ax4.set_xticks([1, 8, 16, 24, 32])
   ax4.tick_params(labelsize=8.8)
-  ax4.legend(fontsize=6.9, loc="center right", frameon=True, ncol=2, handlelength=1.4, columnspacing=0.6, borderpad=0.28)
+  ax4.legend(fontsize=7.3, loc="center right", frameon=True, ncol=2, handlelength=1.5, columnspacing=0.7, borderpad=0.3)
 
   fig.tight_layout(w_pad=1.35)
   return save_both(fig, out_dir, "loompythia_analysis_main")

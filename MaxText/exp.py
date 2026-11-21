@@ -23002,8 +23002,13 @@ class BamMediumPropV5AblationStaticReadsWritesNoGateNoMShiftTruePile(BamMediumPr
 
 class BamMediumPropV5AblationStaticAllWritesNoGateTruePile(BamMediumPropV5AblationStaticAllWritesTruePile):
     """Static addresses at all three writers, unit write multipliers; keep V5 dynamic reads and M-shift."""
-    # UC1a v5p-16 /311217; startup20-99 0.612775 step/s (+0.95% vs gated parent .607, unpaired).
-    # Both-worker runtime/AOT, truepile4096/global128 and FIRST>100 verified; plan13,500, cadence4,000, no stopping.
+    # code_commit: 7bbfbc2; ledger only: codex/mediumprop-v5-ablation, /data0/xd/mediumprop-v5-ablation.
+    # Completed 13,500 on v5p-16 /311217; UC1a -> UE5a -> UC1a -> UE5a -> UC1a, P8; startup .612775 step/s (+0.95% vs gated parent .607, unpaired).
+    # Early gain declined, then mostly plateaued; late absolute catch-up brought a modest recovery vs the gated parent.
+    # Final five 12.6k-13.4k windows vs gated static-all-write parent: gap +0.009897, MHA-ref gain 0.94203.
+    # vs full V5 SwiGLU: gap +0.018228, MHA-ref gain 0.89820.
+    # Ordinary/private/final widths 2763/1128/4051; +720 total parameters vs V5 (+640 vs gated parent).
+    # All V5 read controls/M-shift retained; write multipliers fixed at 1; CP13500/cursor/TB and all candidate teardown verified.
     model_name = 'BamMediumPropV5AblationStaticAllWritesNoGateTruePile'
     bam_v5_ablation = 'static_all_write_no_gate'
     base_mlp_dim = 2763

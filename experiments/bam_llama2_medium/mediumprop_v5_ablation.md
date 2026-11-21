@@ -174,3 +174,13 @@ the prior sealed family. TensorBoard rotation500/begin_step and bounded-GCS
 controller fixes remain. Targeted gates cover full parameter trees, retained
 read controls, removed writers, native/Pallas whole-model gradients and parent
 control equivalence. FLEX compiler is borrowed, never deleted.
+
+
+Regional update for RUN311217: after extended dual-region recovery waiting, the
+user approved EW4b as a third candidate on 2026-11-21 UTC. Primary UE5a remains;
+backups are UC1a/EW4b for this RUN only. Both accepted original requests retain
+their create times (2026-11-20 16:15:47/16:21:10 UTC). Runtime7bbfbc27, AOT,
+parameter tree, data contract, schedule and comparison/report cursors are unchanged.
+This is a new scoped authorization, not inheritance of the two earlier exceptions;
+global launcher defaults remain UE5a/UC1a. Policy and queue-preservation receipts
+are archived as EW4B_RUN311217_POLICY_REGISTERED/CANDIDATES_VERIFIED.json.

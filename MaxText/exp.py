@@ -23141,6 +23141,7 @@ class OverheadXLLoomMinimalSpeedProfile(_Minimal, OverheadXLLoomSpeedProfile):
 # Pythia 2.8B T2048, v5p-128, 16/device (global 1024).
 class OverheadPythiaMHASpeedProfile(_OverheadSpeedProfile, Pythia2p8B):
     model_name = 'OverheadPythiaMHASpeedProfile'
+    sharding_tolerance = 0.06   # 2.06% unsharded at 64-way FSDP (norm gains, biases); BAM 2.8B uses .06
 
 
 class OverheadPythiaMHAMinimalSpeedProfile(_Minimal, OverheadPythiaMHASpeedProfile):

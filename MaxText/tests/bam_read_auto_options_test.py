@@ -18,9 +18,22 @@ def _mesh(fsdp):
                                 'tensor_transpose': 1, 'expert': 1})
 
 
+def _cfg(mode='auto', layers=28, heads=20, v=40, rank=400):
+  return SimpleNamespace(bam_replicate_rank_up=mode, num_decoder_layers=layers, num_query_heads=heads, bam_v=v,
+                         bam_local_full_m_read_bottleneck_dim=rank, bam_write_v_bottleneck_dim=rank,
+                         bam_mlp_write_address_rank=rank)
+
+
 class RankUpTest(unittest.TestCase):
+  def test_auto_skips_replication_that_would_cost_too_much_hbm(self):
+    self.assertTrue(attentions.replicate_rank_up(_cfg(), _mesh(16), 400))                 # XL: 0.8 GiB
+    pythia = _cfg(layers=32, heads=32, v=64, rank=640)                                    # 2.8B: 3.75 GiB
+    self.assertGreater(attentions.rank_up_replicated_gib(pythia), attentions.RANK_UP_MAX_REPLICATED_GIB)
+    self.assertFalse(attentions.replicate_rank_up(pythia, _mesh(64), 640))
+    self.assertTrue(attentions.replicate_rank_up(_cfg(True, layers=32, heads=32, v=64, rank=640), _mesh(64), 640))
+
   def test_auto_threshold_and_forcing(self):
-    auto = SimpleNamespace(bam_replicate_rank_up='auto')
+    auto = _cfg()
     self.assertFalse(attentions.replicate_rank_up(auto, _mesh(4), 400))     # 100 rows per shard
     self.assertTrue(attentions.replicate_rank_up(auto, _mesh(16), 480))     # 30 rows per shard
     self.assertFalse(attentions.replicate_rank_up(auto, _mesh(1), 32))      # nothing to shard

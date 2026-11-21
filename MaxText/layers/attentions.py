@@ -1853,6 +1853,15 @@ def _bam_splash_attention(query, key, value, decoder_segment_ids, cfg, mesh, win
 
 RANK_UP_KERNELS = ('W_lq_c8_up', 'W_lk_c8_up', 'W_lv_c8_up', 'W_R_up', 'P_loc_up', 'mlp_address_up')
 RANK_UP_MIN_SHARD_ROWS = 64
+RANK_UP_MAX_REPLICATED_GIB = 2.0
+
+
+def rank_up_replicated_gib(cfg):
+  """Per-chip HBM of fully replicated rank-up kernels: FP32 parameter, gradient and two Adam moments."""
+  heads_v = cfg.num_query_heads * cfg.bam_v
+  per_layer = (4 * cfg.bam_local_full_m_read_bottleneck_dim + cfg.bam_write_v_bottleneck_dim
+               + cfg.bam_mlp_write_address_rank) * heads_v
+  return cfg.num_decoder_layers * per_layer * 16 / 2 ** 30
 
 
 def replicate_rank_up(cfg, mesh, rank):
@@ -1861,13 +1870,16 @@ def replicate_rank_up(cfg, mesh, rank):
   bam_replicate_rank_up True/False forces it; 'auto' replicates when each embed-axis shard would hold
   fewer than RANK_UP_MIN_SHARD_ROWS rank rows: the windowed collective matmuls then run with tiny
   contractions (XL V5 R400-480: v5p-32's 25-30 rows +8-9% step when replicated; v5p-8's 100-120 neutral).
+  'auto' also requires the replicated state to stay within RANK_UP_MAX_REPLICATED_GIB per chip: Pythia
+  2.8B R640 (~3.8 GiB) overflowed v5p-128 HBM at 16/device by 1.54 GB.
   """
   mode = cfg.bam_replicate_rank_up
   if mode != 'auto':
     return bool(mode)
   shards = math.prod(mesh.shape[a] for a in ('fsdp', 'fsdp_transpose', 'sequence', 'tensor_transpose', 'expert')
                      if a in mesh.shape)
-  return shards > 1 and rank / shards < RANK_UP_MIN_SHARD_ROWS
+  return (shards > 1 and rank / shards < RANK_UP_MIN_SHARD_ROWS
+          and rank_up_replicated_gib(cfg) <= RANK_UP_MAX_REPLICATED_GIB)
 
 
 def _update_bam_matrix(M_in, dM, lambda_decay):

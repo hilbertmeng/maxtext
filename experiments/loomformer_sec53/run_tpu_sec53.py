@@ -254,62 +254,63 @@ def summarize_head_and_cos(
 # Host-side exact LoomFormer mechanistic statistics
 # ---------------------------------------------------------------------------
 
-def svd_rank_metrics(mat: np.ndarray, eps: float = 1.0e-12) -> tuple[float, float, float, np.ndarray, np.ndarray]:
-  """Return (amp_eff_rank, energy_eff_rank, stable_rank, cum_energy_at_k, norm_svals)."""
-  s = np.linalg.svd(mat, compute_uv=False)
-  s = np.maximum(s.astype(np.float64), 0.0)
-  s_sum = max(float(np.sum(s)), eps)
-  p_amp = s / s_sum
-  amp_erank = float(np.exp(-np.sum(np.where(p_amp > 0, p_amp * np.log(np.maximum(p_amp, 1e-30)), 0.0))))
+def batched_svd_rank_metrics(mats: np.ndarray, eps: float = 1.0e-12) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+  """mats: [P, R, C] -> (amp_erank [P], energy_erank [P], stable_rank [P], mean_cum_e [7], mean_norm_svals [128])."""
+  xf = mats.astype(np.float32)
+  if xf.shape[1] >= xf.shape[2]:
+    gram = np.matmul(np.swapaxes(xf, -1, -2), xf).astype(np.float64)  # [P, C, C]
+  else:
+    gram = np.matmul(xf, np.swapaxes(xf, -1, -2)).astype(np.float64)  # [P, R, R]
+  e = np.maximum(np.linalg.eigvalsh(gram), 0.0)[:, ::-1]  # [P, K]
+  s = np.sqrt(e)
 
-  e = s * s
-  e_sum = max(float(np.sum(e)), eps)
+  s_sum = np.maximum(np.sum(s, axis=-1, keepdims=True), eps)
+  p_amp = s / s_sum
+  amp_erank = np.exp(-np.sum(np.where(p_amp > 0, p_amp * np.log(np.maximum(p_amp, 1e-30)), 0.0), axis=-1))
+
+  e_sum = np.maximum(np.sum(e, axis=-1, keepdims=True), eps)
   p_e = e / e_sum
-  energy_erank = float(np.exp(-np.sum(np.where(p_e > 0, p_e * np.log(np.maximum(p_e, 1e-30)), 0.0))))
-  stable_rank = float(e_sum / max(float(e[0]), eps))
+  energy_erank = np.exp(-np.sum(np.where(p_e > 0, p_e * np.log(np.maximum(p_e, 1e-30)), 0.0), axis=-1))
+  stable_rank = e_sum[:, 0] / np.maximum(e[:, 0], eps)
 
   ks = (1, 3, 4, 8, 16, 32, 64)
-  cum = np.cumsum(p_e)
-  cum_at_k = np.array([float(cum[min(k, len(cum)) - 1]) for k in ks], dtype=np.float64)
-  s_padded = np.zeros((128,), dtype=np.float64)
-  n_copy = min(len(s), 128)
-  s_padded[:n_copy] = s[:n_copy] / max(float(s[0]), eps)
-  return amp_erank, energy_erank, stable_rank, cum_at_k, s_padded
+  cum = np.cumsum(p_e, axis=-1)
+  cum_at_k = np.array([float(np.mean(cum[:, min(k, cum.shape[1]) - 1])) for k in ks], dtype=np.float64)
+
+  s_padded = np.zeros((mats.shape[0], 128), dtype=np.float64)
+  n_copy = min(s.shape[1], 128)
+  s_padded[:, :n_copy] = s[:, :n_copy] / np.maximum(s[:, 0:1], eps)
+  return amp_erank, energy_erank, stable_rank, cum_at_k, np.mean(s_padded, axis=0)
 
 
-def pairwise_cos_dist_mean(vecs: np.ndarray, eps: float = 1.0e-12) -> float:
-  """vecs: [P, D] across P distinct tokens -> mean off-diagonal (1 - cos)."""
-  p_cnt = vecs.shape[0]
+def batched_pairwise_cos_dist(vecs_phw: np.ndarray, eps: float = 1.0e-12) -> float:
+  """vecs_phw: [P, H, W] -> mean over H heads of off-diagonal pairwise (1 - cos) across P tokens."""
+  p_cnt = vecs_phw.shape[0]
   if p_cnt < 2:
     return 0.0
-  vf = vecs.astype(np.float64)
+  vf = np.swapaxes(vecs_phw, 0, 1).astype(np.float32)  # [H, P, W]
   norms = np.linalg.norm(vf, axis=-1, keepdims=True)
-  valid = (norms[:, 0] > eps)
-  if np.sum(valid) < 2:
-    return float("nan")
-  vn = vf[valid] / norms[valid]
-  gram = vn @ vn.T
-  n_v = vn.shape[0]
-  off_sum = np.sum(gram) - np.trace(gram)
-  mean_cos = off_sum / (n_v * (n_v - 1))
-  return float(1.0 - mean_cos)
+  vn = vf / np.maximum(norms, eps)
+  gram = np.matmul(vn, np.swapaxes(vn, -1, -2)).astype(np.float64)  # [H, P, P]
+  off_sum = np.sum(gram, axis=(-2, -1)) - np.trace(gram, axis1=-2, axis2=-1)
+  return float(np.mean(1.0 - off_sum / (p_cnt * (p_cnt - 1))))
 
 
-def pairwise_topk_jaccard_dist(vecs: np.ndarray, k: int) -> float:
-  """vecs: [P, W] -> mean off-diagonal (1 - Jaccard(TopK(|v(t1)|), TopK(|v(t2)|)))."""
-  p_cnt, w_cnt = vecs.shape
+def batched_topk_jaccard_dist(vecs_phw: np.ndarray, k: int) -> float:
+  """vecs_phw: [P, H, W] -> mean over H heads of off-diagonal (1 - Jaccard(TopK))."""
+  p_cnt, h_cnt, w_cnt = vecs_phw.shape
   if p_cnt < 2:
     return 0.0
   k_eff = min(k, w_cnt)
-  abs_v = np.abs(vecs)
-  top_idx = np.argpartition(-abs_v, kth=k_eff - 1, axis=-1)[:, :k_eff]
-  indicators = np.zeros((p_cnt, w_cnt), dtype=np.float32)
+  v = np.swapaxes(np.abs(vecs_phw), 0, 1)  # [H, P, W]
+  top_idx = np.argpartition(-v, kth=k_eff - 1, axis=-1)[..., :k_eff]
+  indicators = np.zeros((h_cnt, p_cnt, w_cnt), dtype=np.float32)
   np.put_along_axis(indicators, top_idx, 1.0, axis=-1)
-  inter = indicators @ indicators.T  # [P, P]
+  inter = np.matmul(indicators, np.swapaxes(indicators, -1, -2))  # [H, P, P]
   union = 2.0 * k_eff - inter
   jacc = inter / np.maximum(union, 1.0e-12)
-  off_sum = np.sum(jacc) - np.trace(jacc)
-  return float(1.0 - off_sum / (p_cnt * (p_cnt - 1)))
+  off_sum = np.sum(jacc, axis=(-2, -1)) - np.trace(jacc, axis1=-2, axis2=-1)
+  return float(np.mean(1.0 - off_sum / (p_cnt * (p_cnt - 1))))
 
 
 def analyze_loom_records(
@@ -397,21 +398,31 @@ def analyze_loom_records(
       q_dyn_sc = q_dyn / m_rms[:, None, None, None]
       q_stat_sc = q_stat / m_rms[:, None, None, None]
 
-      # Couplings: [P, W_l, 4, N]
-      c_cur = np.einsum("psnv,pwv->pwsn", q_scaled, k_cur_eff)
-      c_prev = np.einsum("psnv,pwv->pwsn", q_scaled, k_prev_eff)
+      # Couplings via multi-threaded BLAS matmul:
+      # q_flat: [P, 4*N, V], k_eff^T: [P, V, W_l] -> [P, 4*N, W_l] -> swap to [P, W_l, 4, N]
+      sn = 4 * n_heads
+      q_flat = q_scaled.reshape(n_pos, sn, -1)
+      qd_flat = q_dyn_sc.reshape(n_pos, sn, -1)
+      qs_flat = q_stat_sc.reshape(n_pos, sn, -1)
+      kc_T = np.swapaxes(k_cur_eff, -1, -2)   # [P, V, W_l]
+      kp_T = np.swapaxes(k_prev_eff, -1, -2)  # [P, V, W_l]
+
+      c_cur_snw = np.matmul(q_flat, kc_T)     # [P, 4*N, W_l]
+      c_prev_snw = np.matmul(q_flat, kp_T)    # [P, 4*N, W_l]
+      c_cur = np.swapaxes(c_cur_snw, 1, 2).reshape(n_pos, w_cnt, 4, n_heads)
+      c_prev = np.swapaxes(c_prev_snw, 1, 2).reshape(n_pos, w_cnt, 4, n_heads)
 
       # Exact FP32 reconstructed readout u_rec [P, 4, N, K]
-      u_cur = np.einsum("pwsn,pwk->psnk", c_cur, oc)
-      u_prev = np.einsum("pwsn,pwk->psnk", c_prev, op)
-      u_rec = u_cur + u_prev
+      u_cur_snk = np.matmul(c_cur_snw, oc)    # [P, 4*N, K]
+      u_prev_snk = np.matmul(c_prev_snw, op)  # [P, 4*N, K]
+      u_rec_snk = u_cur_snk + u_prev_snk
+      u_rec = u_rec_snk.reshape(n_pos, 4, n_heads, -1)
 
-      # Dynamic vs static readout vectors
-      M_eff_p = (
-          np.einsum("pwk,pwv->pkv", oc, k_cur_eff) + np.einsum("pwk,pwv->pkv", op, k_prev_eff)
-      )  # [P, K, V]
-      u_dyn_vec = np.einsum("pkv,psnv->psnk", M_eff_p, q_dyn_sc)
-      u_stat_vec = np.einsum("pkv,psnv->psnk", M_eff_p, q_stat_sc)
+      # Dynamic vs static readout vectors via M_eff_p [P, K, V]
+      M_eff_p = np.matmul(np.swapaxes(oc, -1, -2), k_cur_eff) + np.matmul(np.swapaxes(op, -1, -2), k_prev_eff)
+      M_eff_T = np.swapaxes(M_eff_p, -1, -2)  # [P, V, K]
+      u_dyn_vec = np.matmul(qd_flat, M_eff_T).reshape(n_pos, 4, n_heads, -1)
+      u_stat_vec = np.matmul(qs_flat, M_eff_T).reshape(n_pos, 4, n_heads, -1)
 
       recon_rel_err[l_idx] += (
           float(np.linalg.norm(u_rec - u_dir) / max(float(np.linalg.norm(u_dir)), 1e-12)) / n_seq
@@ -419,8 +430,8 @@ def analyze_loom_records(
 
       u_norm2 = np.maximum(np.sum(u_rec * u_rec, axis=-1), 1.0e-12)  # [P, 4, N]
       # Vector attributions A_cur, A_prev: [P, W_l, 4, N]
-      o_dot_u_cur = np.einsum("pwk,psnk->pwsn", oc, u_rec)
-      o_dot_u_prev = np.einsum("pwk,psnk->pwsn", op, u_rec)
+      o_dot_u_cur = np.swapaxes(np.matmul(u_rec_snk, np.swapaxes(oc, -1, -2)), 1, 2).reshape(n_pos, w_cnt, 4, n_heads)
+      o_dot_u_prev = np.swapaxes(np.matmul(u_rec_snk, np.swapaxes(op, -1, -2)), 1, 2).reshape(n_pos, w_cnt, 4, n_heads)
       attr_cur = (c_cur * o_dot_u_cur) / u_norm2[:, None, :, :]
       attr_prev = (c_prev * o_dot_u_prev) / u_norm2[:, None, :, :]
 
@@ -428,46 +439,38 @@ def analyze_loom_records(
       coup_cur = c_cur * nc[:, :, None, None]
       coup_prev = c_prev * np_[:, :, None, None]
 
-      # 1. Within-token effective wiring rank across P positions
-      for p_i in range(n_pos):
-        mats = {
-            "cur_qkvo": coup_cur[p_i].reshape(w_cnt, 4 * n_heads),
-            "cur_qkv": coup_cur[p_i, :, :3, :].reshape(w_cnt, 3 * n_heads),
-            "cur_prev_qkvo": np.concatenate((coup_cur[p_i], coup_prev[p_i]), axis=0).reshape(2 * w_cnt, 4 * n_heads),
-            "attr_qkvo": attr_cur[p_i].reshape(w_cnt, 4 * n_heads),
-            "port_Q": coup_cur[p_i, :, 0, :],
-            "port_K": coup_cur[p_i, :, 1, :],
-            "port_V": coup_cur[p_i, :, 2, :],
-            "port_O": coup_cur[p_i, :, 3, :],
-        }
-        for m_name, mat in mats.items():
-          ra, re, sr, ce, sp = svd_rank_metrics(mat)
-          erank_amp[m_name][l_idx].append(ra)
-          erank_energy[m_name][l_idx].append(re)
-          srank[m_name][l_idx].append(sr)
-          cum_energy[m_name][l_idx] += ce / total_tokens
-          sval_spec[m_name][l_idx] += sp / total_tokens
+      # 1. Within-token effective wiring rank across all P positions (batched Gram eigvalsh)
+      mats_batch = {
+          "cur_qkvo": coup_cur.reshape(n_pos, w_cnt, 4 * n_heads),
+          "cur_qkv": coup_cur[:, :, :3, :].reshape(n_pos, w_cnt, 3 * n_heads),
+          "cur_prev_qkvo": np.concatenate((coup_cur, coup_prev), axis=1).reshape(n_pos, 2 * w_cnt, 4 * n_heads),
+          "attr_qkvo": attr_cur.reshape(n_pos, w_cnt, 4 * n_heads),
+          "port_Q": coup_cur[:, :, 0, :],
+          "port_K": coup_cur[:, :, 1, :],
+          "port_V": coup_cur[:, :, 2, :],
+          "port_O": coup_cur[:, :, 3, :],
+      }
+      for m_name, mat_b in mats_batch.items():
+        ra, re, sr, ce, sp = batched_svd_rank_metrics(mat_b)
+        erank_amp[m_name][l_idx].extend(ra.tolist())
+        erank_energy[m_name][l_idx].extend(re.tolist())
+        srank[m_name][l_idx].extend(sr.tolist())
+        cum_energy[m_name][l_idx] += ce / n_seq
+        sval_spec[m_name][l_idx] += sp / n_seq
 
-      # 2. Cross-token rewiring dynamics per port & head (averaged over 32 heads & sequences)
+      # 2. Cross-token rewiring dynamics per port (batched across all 32 heads)
       attr_both = np.concatenate((attr_cur, attr_prev), axis=1)  # [P, 2*W_l, 4, N]
       coup_both = np.concatenate((coup_cur, coup_prev), axis=1)
       for s_p in range(4):
-        ac_h, cc_h, qd_h, qt_h, j5_h, j10_h, j16_h = [], [], [], [], [], [], []
-        for h_i in range(n_heads):
-          ac_h.append(pairwise_cos_dist_mean(attr_both[:, :, s_p, h_i]))
-          cc_h.append(pairwise_cos_dist_mean(coup_both[:, :, s_p, h_i]))
-          qd_h.append(pairwise_cos_dist_mean(q_dyn[:, s_p, h_i, :]))
-          qt_h.append(pairwise_cos_dist_mean(q_tot[:, s_p, h_i, :]))
-          j5_h.append(pairwise_topk_jaccard_dist(attr_both[:, :, s_p, h_i], 5))
-          j10_h.append(pairwise_topk_jaccard_dist(attr_both[:, :, s_p, h_i], 10))
-          j16_h.append(pairwise_topk_jaccard_dist(attr_both[:, :, s_p, h_i], 16))
-        rewire_attr_cos[l_idx, s_p] += float(np.nanmean(ac_h)) / n_seq
-        rewire_coup_cos[l_idx, s_p] += float(np.nanmean(cc_h)) / n_seq
-        rewire_qdyn_cos[l_idx, s_p] += float(np.nanmean(qd_h)) / n_seq
-        rewire_qtot_cos[l_idx, s_p] += float(np.nanmean(qt_h)) / n_seq
-        rewire_jacc5[l_idx, s_p] += float(np.nanmean(j5_h)) / n_seq
-        rewire_jacc10[l_idx, s_p] += float(np.nanmean(j10_h)) / n_seq
-        rewire_jacc16[l_idx, s_p] += float(np.nanmean(j16_h)) / n_seq
+        ab_phw = np.swapaxes(attr_both[:, :, s_p, :], 1, 2)  # [P, N, 2*W_l]
+        cb_phw = np.swapaxes(coup_both[:, :, s_p, :], 1, 2)
+        rewire_attr_cos[l_idx, s_p] += batched_pairwise_cos_dist(ab_phw) / n_seq
+        rewire_coup_cos[l_idx, s_p] += batched_pairwise_cos_dist(cb_phw) / n_seq
+        rewire_qdyn_cos[l_idx, s_p] += batched_pairwise_cos_dist(q_dyn[:, s_p, :, :]) / n_seq
+        rewire_qtot_cos[l_idx, s_p] += batched_pairwise_cos_dist(q_tot[:, s_p, :, :]) / n_seq
+        rewire_jacc5[l_idx, s_p] += batched_topk_jaccard_dist(ab_phw, 5) / n_seq
+        rewire_jacc10[l_idx, s_p] += batched_topk_jaccard_dist(ab_phw, 10) / n_seq
+        rewire_jacc16[l_idx, s_p] += batched_topk_jaccard_dist(ab_phw, 16) / n_seq
 
       # 3. Dynamic vs static, cur vs prev, and writer-kind / source-depth shares
       nd = np.linalg.norm(u_dyn_vec, axis=-1)   # [P, 4, N]
@@ -529,10 +532,14 @@ def analyze_loom_records(
       u_sub_n2 = np.maximum(np.sum(u_sub * u_sub, axis=-1), 1e-12)
       u_sub_n = np.sqrt(u_sub_n2)
 
-      order = np.argsort(-a_both_sub, axis=1)  # descending by signed attribution A_{ij}
       max_k = min(max(topk_faith_ks), 2 * w_cnt)
-      # Gather top max_k vectors: [Ps, max_k, 4, N, K]
-      top_ord = order[:, :max_k, :, :]  # [Ps, max_k, 4, N]
+      if max_k < 2 * w_cnt:
+        part = np.argpartition(-a_both_sub, kth=max_k - 1, axis=1)[:, :max_k, :, :]
+        part_vals = np.take_along_axis(a_both_sub, part, axis=1)
+        sub_ord = np.argsort(-part_vals, axis=1)
+        top_ord = np.take_along_axis(part, sub_ord, axis=1)
+      else:
+        top_ord = np.argsort(-a_both_sub, axis=1)[:, :max_k, :, :]
       c_top = np.take_along_axis(c_both_sub, top_ord, axis=1)  # [Ps, max_k, 4, N]
       # Gather o_both_sub [Ps, 2*W_l, K] along axis 1
       ps_idx = np.arange(len(sub_p))[:, None, None, None]

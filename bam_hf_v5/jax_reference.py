@@ -152,6 +152,8 @@ def main():
             'bam_static_read_gate_init', 'bam_embedding_write_content_divisor', 'bam_mlp_write_content_divisor')
     settings = {k: getattr(c, k, None) for k in keys}
     settings['exp'] = a.exp
+    import exp as exp_module      # the training length (build() overrides max_target_length to the token length)
+    settings['max_target_length'] = int(getattr(getattr(exp_module, a.exp), 'max_target_length'))
     if getattr(c, 'bam_enabled', False):
       settings['bam_write_rms_epsilon_resolved'] = initializers.get_bam_write_epsilon(c)
     np.savez(a.params_out, __config__=json.dumps(settings),

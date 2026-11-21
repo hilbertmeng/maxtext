@@ -31,10 +31,20 @@ _PYTHIA = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'bam_hf
 sys.path.insert(0, _PYTHIA)
 from decode_attention import attend_and_append  # noqa: E402
 
+from decode_attention import decode_attention  # noqa: E402
+
 _spec = importlib.util.spec_from_file_location('bam_hf_pythia_fast_inference', os.path.join(_PYTHIA, 'fast_inference.py'))
 _shared = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(_shared)
 State, _cat_linear, _p, _prefill_attention = _shared.State, _shared._cat_linear, _shared._p, _shared._prefill_attention
+_pad_rows = _shared._pad_rows
+pythia_kernels = _shared.bam_kernels
+_spec = importlib.util.spec_from_file_location('bam_hf_v5_kernels',
+                                               os.path.join(os.path.dirname(os.path.abspath(__file__)), 'bam_kernels.py'))
+bam_kernels = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(bam_kernels)
+
+KERNELS = os.environ.get('BAM_KERNELS', '1') == '1'
 
 
 def _rmsw(x, w, eps):
@@ -64,6 +74,14 @@ def _rope_tail(x, start, cos, sin):
 
 def _swiglu(gu, inter):
   return F.silu(gu[..., :inter]) * gu[..., inter:2 * inter]
+
+
+def _padded_ffn(gate, up, down, multiple=64):
+  """SwiGLU weights with the hidden width zero-padded to a multiple (exact: silu(0) * 0 = 0); unaligned
+  widths (e.g. 3317) make the down-projection rows unaligned and its GEMV/GEMM much slower."""
+  pad = -gate.weight.shape[0] % multiple
+  return (F.pad(gate.weight, (0, 0, 0, pad)), F.pad(up.weight, (0, 0, 0, pad)), F.pad(down.weight, (0, pad)),
+          gate.weight.shape[0] + pad)
 
 
 class _Base(nn.Module):
@@ -109,9 +127,8 @@ class FastMHA(_Base):
       a, p = layer.self_attn, nn.Module()
       p.qkv_w = _p(torch.cat((a.query.weight, a.key.weight, a.value.weight), 0))
       p.out_w = _p(a.out.weight)
-      p.gu_w = _p(torch.cat((layer.mlp.gate.weight, layer.mlp.up.weight), 0))
-      p.down_w = _p(layer.mlp.down.weight)
-      p.inter = layer.mlp.gate.weight.shape[0]
+      g, u, dw, p.inter = _padded_ffn(layer.mlp.gate, layer.mlp.up, layer.mlp.down)
+      p.gu_w, p.down_w = _p(torch.cat((g, u), 0)), _p(dw)
       p.ln1_w, p.ln2_w = _p(layer.input_layernorm.weight.float()), _p(layer.post_attention_layernorm.weight.float())
       self.layers.append(p)
 
@@ -172,23 +189,33 @@ class FastBamV5(_Base):
       xs += [a.write_gate] if a.has_write else []
       p.x_w, p.x_b = _cat_linear(xs)
       p.split_x = [l.weight.shape[0] for l in xs]
+      names = ['shift', 'std', 'std', 'read_down'] + (['write_down'] if a.has_write else []) + ['gates'] * 8
+      names += ['write_gate'] if a.has_write else []
+      p.off_x, o = {}, 0
+      for name, w in zip(names, p.split_x):
+        p.off_x[name] = (p.off_x.get(name, (o,))[0], o + w)
+        o += w
       p.up_w, p.up_b = _cat_linear([getattr(a, f'{arm}_key_up') for arm in 'qkvo'])
       p.static_key = _p(torch.stack([getattr(a, f'{arm}_static_key').float().t() for arm in 'qkvo']))   # [4,N,V]
+      p.static_key_rows = _p(p.static_key.flatten(0, 1).to(self.embed.dtype).contiguous())          # [4N,V]
       p.qk_scale, p.vo_scale = float(a.qk_scale.float()), float(a.vo_scale.float())
       p.out_w = _p(a.out.weight)
       if a.has_write:
         p.wup_w, p.wup_b = _p(a.write_up.weight), _p(a.write_up.bias)
-      p.inter = layer.mlp.gate.weight.shape[0]
-      hs = [layer.mlp.gate, layer.mlp.up]
+      g, u, dw, p.inter = _padded_ffn(layer.mlp.gate, layer.mlp.up, layer.mlp.down)
+      hs = [g, u]
+      hb = [g.new_zeros(2 * p.inter)]
       if layer.has_mlp_write:
-        hs += [layer.memory_mlp.gate, layer.memory_mlp.up, layer.mlp_write_gate, layer.mlp_address_down]
-        p.mem_inter = layer.memory_mlp.gate.weight.shape[0]
-        p.mem_down_w = _p(layer.memory_mlp.down.weight)
+        mg, mu, mdw, p.mem_inter = _padded_ffn(layer.memory_mlp.gate, layer.memory_mlp.up, layer.memory_mlp.down)
+        hs += [mg, mu, layer.mlp_write_gate.weight, layer.mlp_address_down.weight]
+        hb += [g.new_zeros(2 * p.mem_inter), layer.mlp_write_gate.bias,
+               g.new_zeros(layer.mlp_address_down.weight.shape[0])]
+        p.mem_down_w = _p(mdw)
         p.addr_up_w, p.addr_up_b = _p(layer.mlp_address_up.weight), _p(layer.mlp_address_up.bias)
         p.tau = layer.tau
-      p.h_w, p.h_b = _cat_linear(hs)
-      p.split_h = [l.weight.shape[0] for l in hs]
-      p.down_w = _p(layer.mlp.down.weight)
+      p.split_h = [w.shape[0] for w in hs]
+      p.h_w, p.h_b = _p(_pad_rows(torch.cat(hs, 0))), _p(_pad_rows(torch.cat(hb)))
+      p.down_w = _p(dw)
       p.ln1_w, p.ln2_w = _p(layer.input_layernorm.weight.float()), _p(layer.post_attention_layernorm.weight.float())
       self.layers.append(p)
 
@@ -284,6 +311,99 @@ class FastBamV5(_Base):
     if state is not None:
       state.pos.add_(t)
     return self._logits(x[:, -1:] if last_only else x, b)
+
+  def _forward_kernels(self, ids, state, decode, last_only=True):
+    """Triton path (BF16): each layer's read fused with the previous layer's write (bam_kernels); BAM-only
+    small linears grouped at decode. Shared components as in FastMHA."""
+    b, t = ids.shape
+    rows = b * t
+    n, kd, vd, s, d = self.n, self.kd, self.vd, self.s, self.d
+    x = F.embedding(ids, self.embed).view(rows, d)
+    pos = state.pos if state is not None else torch.zeros((), dtype=torch.long, device=ids.device)
+    prev_valid = (pos > 0).to(torch.int32)
+    lengths = pos.to(torch.int32).expand(b).contiguous() if decode else None     # strictly causal
+    M = self._embedding_write(x).reshape(rows, kd * vd)
+    q_mult = 1.0 / math.sqrt(self.hd)
+    sub, warps = (2, 4) if rows <= 16 else (1, 4)
+    pending = None
+    for i, p in enumerate(self.layers):
+      z = F.linear(_rmsw(x, p.ln1_w, self.eps), p.x_w, p.x_b)
+      o = p.off_x
+      rd = z[:, o['read_down'][0]:o['read_down'][1]]
+      wup = None
+      if decode and rows == 1:
+        if p.has_write:
+          up, wup = pythia_kernels.gemv([rd, z[:, o['write_down'][0]:o['write_down'][1]]], [p.up_w, p.wup_w],
+                                        [p.up_b, p.wup_b], [1, 1], 32, 128, 4)
+        else:
+          up, = pythia_kernels.gemv([rd], [p.up_w], [p.up_b], [1], 32, 128, 4)
+      elif decode and p.has_write:     # multi-token decode: one GELU pass, both GEMMs in one launch
+        g = F.gelu(z[:, o['read_down'][0]:o['write_down'][1]], approximate='tanh')
+        kr = p.up_w.shape[1]
+        up, wup = pythia_kernels.grouped_gemm([g[:, :kr], g[:, kr:]], [p.up_w, p.wup_w], [p.up_b, p.wup_b], [0, 0],
+                                              None, 128, 64, 4 if rows <= 16 else 8, 3)
+      else:
+        up = F.linear(F.gelu(rd, approximate='tanh'), p.up_w, p.up_b)
+      write = pending if pending is not None else (M,) * 6
+      m_new, qk, vo = bam_kernels.fused_read(
+          M, *write, state.m(i) if decode else M, prev_valid, pos, z[:, :o['shift'][1]],
+          z[:, o['std'][0]:o['std'][1]], up, z[:, o['gates'][0]:o['gates'][1]], p.static_key_rows, self.rope_cos,
+          self.rope_sin, b, n, kd, vd, s, pending is not None, decode, self.write_eps, self.eps, self.key_eps,
+          self.key_scale, self.static_scale, p.qk_scale, p.vo_scale, q_mult, sub, warps,
+          state.k(i) if decode else None, state.v(i) if decode else None)
+      if pending is not None:
+        M = m_new
+      if state is not None:
+        state.m(i).copy_(M.view(b, t, kd, vd)[:, -1])
+      q, k = (qk[:, j, :, :kd + s].view(b, t, n, kd + s) for j in (0, 1))
+      value, local_o = vo[:, 0].view(b, t, n, kd), vo[:, 1].view(b, t, n, kd)
+      if decode:     # the read kernel already wrote this token's key and value to the caches
+        y = decode_attention(q[:, 0, :, None], state.k(i), state.v(i), lengths, state.layout)[:, None, :, 0]
+      else:
+        if state is not None:
+          state.store_prefill(i, k.transpose(1, 2), value.transpose(1, 2))
+        y = _prefill_attention(q, k, value, strict=True)
+      o_head = (y + local_o).reshape(rows, n * kd)
+      x = x + F.linear(o_head, p.out_w)
+      hz = F.linear(_rmsw(x, p.ln2_w, self.eps), p.h_w, p.h_b)
+      mlp = F.linear(_swiglu(hz, p.inter), p.down_w)
+      if p.has_write:
+        assert p.has_mlp_write and p.tau == 1.0
+        sh, o2 = p.split_h, 2 * p.inter
+        o3 = o2 + 2 * p.mem_inter
+        mem_in, mgate, adown = _swiglu(hz[:, o2:o3], p.mem_inter), hz[:, o3:o3 + sh[4]], \
+            hz[:, o3 + sh[4]:o3 + sh[4] + sh[5]]
+        if decode and rows == 1:
+          mem, addr = pythia_kernels.gemv([mem_in, adown], [p.mem_down_w, p.addr_up_w], [None, p.addr_up_b], [0, 1],
+                                          16, 1024, 8)
+        elif decode:
+          mem, addr = pythia_kernels.grouped_gemm([mem_in, F.gelu(adown, approximate='tanh')],
+                                                  [p.mem_down_w, p.addr_up_w], [None, p.addr_up_b], [0, 0], None,
+                                                  32 if rows <= 16 else 64, 128, 4, 3)
+        else:
+          mem = F.linear(mem_in, p.mem_down_w)
+          addr = F.linear(F.gelu(adown, approximate='tanh'), p.addr_up_w, p.addr_up_b)
+        if wup is None:
+          wd = z[:, o['write_down'][0]:o['write_down'][1]]
+          wup = F.linear(F.gelu(wd, approximate='tanh'), p.wup_w, p.wup_b)
+        pending = (o_head, z[:, o['write_gate'][0]:o['write_gate'][1]], wup, mem, mgate, addr)
+      else:
+        pending = None
+      x = x + mlp
+    if state is not None:
+      state.pos.add_(t)
+    x = x.view(b, t, d)
+    return self._logits(x[:, -1:] if last_only else x, b)
+
+  def prefill(self, ids, state=None, last_only=True):
+    if KERNELS and self.embed.dtype == torch.bfloat16:
+      return self._forward_kernels(ids, state, decode=False, last_only=last_only)
+    return self._forward(ids, state, decode=False, last_only=last_only)
+
+  def decode(self, ids, state):
+    if KERNELS and self.embed.dtype == torch.bfloat16:
+      return self._forward_kernels(ids, state, decode=True)
+    return self._forward(ids, state, decode=True)
 
 
 def build(hf):

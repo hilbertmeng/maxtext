@@ -136,7 +136,13 @@ auto-train still owns subsequent preemption recovery and training closeout.
    not count, and a vanished CREATING node does not reset the accepted queue's age.
    Keep candidates through installation; the first allocation has priority, with
    takeover if it disappears. After verified resumed `FIRST_STEP`, release owned
-   losers. This changes zones only: TPU type, EXP, commit and AOT stay fixed.
+   losers. For repeated immediate post-FIRST preemptions, the per-RUN registry
+   fields `regional_release_min_steps` (default 0) and
+   `regional_release_max_wait_seconds` (default 600) can retain standby candidates
+   until the selected worker advances the requested steps and commits a newer
+   checkpoint, or the time cap expires. Only the selected worker trains; retained
+   candidates keep their queue ages if that lease disappears before validation.
+   This changes zones only: TPU type, EXP, commit and AOT stay fixed.
    The helper verifies old writers stopped, copies committed checkpoint/cursor,
    routes regional data and preserves report cursors. `PRIMARY_ZONE` remains the
    next recovery's primary even when the active `ZONE` is a backup. Manual stop

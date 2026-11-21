@@ -14,7 +14,7 @@ layer's write (program 0 stores M_new) and writes the token's key and value into
 
 Layouts (row = token, unit inner stride): M [K*V] (k major); content [N, K]; address [N, V]; up [4N, V];
 gates [4N] dynamic then [4N] static (pre-activation); std [2N, S] (q then k); qk out [2, N, QW]
-(K + S used); vo out [2, N, K].
+(K + S used); vo out [2, N, VW] (K used); padding columns are zero.
 """
 from typing import Optional
 
@@ -92,7 +92,7 @@ def _read_kernel(
     T, eps, key_eps, key_scale, static_scale, qk_scale, vo_scale, q_mult,
     HAS_PREV: tl.constexpr, FUSE_WRITE: tl.constexpr, CACHE: tl.constexpr, SUB: tl.constexpr,
     N: tl.constexpr, NP: tl.constexpr, K: tl.constexpr, K1P: tl.constexpr, V: tl.constexpr, VP: tl.constexpr,
-    H: tl.constexpr, HP: tl.constexpr, QW: tl.constexpr, CR: tl.constexpr, CRP: tl.constexpr):
+    H: tl.constexpr, HP: tl.constexpr, QW: tl.constexpr, VW: tl.constexpr, CR: tl.constexpr, CRP: tl.constexpr):
   """Axis 0 = group * SUB + row chunk (CR of the group's 2N (arm, head) rows), axis 1 = token row."""
   group = tl.program_id(0) // SUB
   ci = tl.arange(0, CRP)
@@ -165,6 +165,10 @@ def _read_kernel(
     tl.store(base + k1[None, :], y1, mask=sm & km1[None, :])
     tl.store(base + K + j[None, :], ra, mask=sm & jm[None, :])
     tl.store(base + K + H + j[None, :], rb, mask=sm & jm[None, :])
+    if QW > K + 2 * H:     # zero padding (prefill attention reads QW columns)
+      zp = tl.arange(0, 8)
+      tl.store(base + K + 2 * H + zp[None, :], tl.zeros((CRP, 8), tl.bfloat16),
+               mask=sm & (zp[None, :] < QW - K - 2 * H))
     if CACHE:      # one-token decode: the key rows go to the key cache at position pos
       kmask = cm[:, None] & (arm == 1)[:, None]
       kb = KC + seq * skb + head[:, None] * skh + pos * sks
@@ -176,10 +180,10 @@ def _read_kernel(
     sv = inv * vo_scale
     y0 = (o0 * sv).to(tl.bfloat16)
     y1 = (o1 * sv).to(tl.bfloat16)
-    base = VO + row * s_vo + c[:, None] * K
+    base = VO + row * s_vo + c[:, None] * VW
     sm = cm[:, None]
     tl.store(base + k0[None, :], y0, mask=sm)
-    tl.store(base + k1[None, :], y1, mask=sm & km1[None, :])
+    tl.store(base + k1[None, :], y1, mask=sm & (k1 < VW)[None, :])     # columns K..VW-1 are zero
     if CACHE:      # the value rows go to the value cache
       vmask = cm[:, None] & (c < N)[:, None]
       vb = VC + seq * svb + head[:, None] * svh + pos * svs
@@ -197,8 +201,12 @@ def _write_kernel(MOLD, s_mo, MW, C1, s_c1, G1, s_g1, A1, s_a1, C2, s_c2, G2, s_
   _store_m(MW + row * (K * V), m0, m1, K, K1P, V, VP)
 
 
+def _round8(x):
+  return -(-x // 8) * 8
+
+
 def qk_width(k, s):
-  return -(-(k + s) // 8) * 8
+  return _round8(k + s)
 
 
 @torch.library.custom_op('bam_v5::fused_read', mutates_args=())
@@ -211,7 +219,8 @@ def fused_read(m_old: torch.Tensor, c1: torch.Tensor, g1: torch.Tensor, a1: torc
                q_mult: float, sub: int, warps: int, k_cache: Optional[torch.Tensor] = None,
                v_cache: Optional[torch.Tensor] = None) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
   """Token rows r = b * T + t (2-D [rows, features], unit inner stride). Returns (m_new [rows, K*V]
-  (empty when not has_write), qk [rows, 2, N, QW] (K + S used), vo [rows, 2, N, K]).
+  (empty when not has_write), qk [rows, 2, N, QW] (K + S used), vo [rows, 2, N, VW] (K used)); widths
+  rounded up to multiples of 8, zero-padded.
 
   k_cache [B,N,S,Dq] / v_cache [B,N,S,K] (rows layout, one-token decode): the token's key and value are
   written at position pos. Not declared as a mutation (see decode_attention.attend_and_append): within a
@@ -221,7 +230,7 @@ def fused_read(m_old: torch.Tensor, c1: torch.Tensor, g1: torch.Tensor, a1: torc
   t = rows // batch
   qw = qk_width(k, s)
   qk = m_old.new_empty((rows, 2, n, qw))
-  vo = m_old.new_empty((rows, 2, n, k))
+  vo = m_old.new_empty((rows, 2, n, _round8(k)))
   m_new = m_old.new_empty((rows if has_write else 0, k * v))
   dummy = m_old
   meta = dict(N=n, NP=_pow2(n), K=k, K1P=_pow2(k - 64), V=v, VP=_pow2(v))
@@ -247,8 +256,8 @@ def fused_read(m_old: torch.Tensor, c1: torch.Tensor, g1: torch.Tensor, a1: torc
       kc, kc.stride(0) if cache else 0, kc.stride(1) if cache else 0, kc.stride(2) if cache else 0,
       vc, vc.stride(0) if cache else 0, vc.stride(1) if cache else 0, vc.stride(2) if cache else 0,
       t, eps, key_eps, key_scale, static_scale, qk_scale, vo_scale, q_mult,
-      HAS_PREV=has_prev, FUSE_WRITE=fuse, CACHE=cache, SUB=sub, H=s // 2, HP=_pow2(s // 2), QW=qw, CR=cr,
-      CRP=_pow2(cr), **meta, num_warps=warps)
+      HAS_PREV=has_prev, FUSE_WRITE=fuse, CACHE=cache, SUB=sub, H=s // 2, HP=_pow2(s // 2), QW=qw, VW=_round8(k),
+      CR=cr, CRP=_pow2(cr), **meta, num_warps=warps)
   return m_new, qk, vo
 
 
@@ -258,4 +267,4 @@ def _(m_old, c1, g1, a1, c2, g2, a2, m_prev, prev_valid, pos, shift, std, up, ga
       q_mult, sub, warps, k_cache=None, v_cache=None):
   rows = m_old.shape[0]
   return (m_old.new_empty((rows if has_write else 0, k * v)), m_old.new_empty((rows, 2, n, qk_width(k, s))),
-          m_old.new_empty((rows, 2, n, k)))
+          m_old.new_empty((rows, 2, n, _round8(k))))

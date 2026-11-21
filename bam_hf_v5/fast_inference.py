@@ -26,6 +26,7 @@ import sys
 import torch
 import torch.nn.functional as F
 from torch import nn
+from torch.nn.attention import SDPBackend, sdpa_kernel
 
 _PYTHIA = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'bam_hf_pythia')
 sys.path.insert(0, _PYTHIA)
@@ -45,6 +46,22 @@ bam_kernels = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(bam_kernels)
 
 KERNELS = os.environ.get('BAM_KERNELS', '1') == '1'
+
+
+class PaddedState(State):
+  """State with cache rows padded to a multiple of 32 elements (both models): unaligned rows (e.g. 120 or 75
+  BF16 values) cost decode attention up to ~25% of its bandwidth (A800). k(i) / v(i) are the used views."""
+
+  def __init__(self, layers, batch, heads, max_len, dqk, dv, m_shape=None, **kw):
+    pad = lambda w: -(-w // 32) * 32
+    super().__init__(layers, batch, heads, max_len, pad(dqk), pad(dv), m_shape, **kw)
+    self.dqk, self.dv = dqk, dv
+
+  def k(self, i):
+    return super().k(i)[..., :self.dqk]
+
+  def v(self, i):
+    return super().v(i)[..., :self.dv]
 
 
 def _rmsw(x, w, eps):
@@ -70,6 +87,16 @@ def _rope_tail(x, start, cos, sin):
   h = (x.shape[-1] - start) // 2
   a, b = x[..., start:start + h], x[..., start + h:]
   return torch.cat((x[..., :start], a * cos - b * sin, b * cos + a * sin), -1)
+
+
+def _strict_attention_cudnn(q, k, v):
+  """Strictly causal attention (query i sees keys < i; the first query 0), q/k [B,T,N,Dq] (q pre-scaled),
+  v [B,T,N,Dv], widths multiples of 8. cuDNN SDPA takes Dq != Dv: LoomFormer's 120 / 96 at near-FLOP-ratio
+  speed (flash pads both to 128: ~1.4x slower)."""
+  q, k, v = (z.transpose(1, 2) for z in (q, k, v))
+  with sdpa_kernel([SDPBackend.CUDNN_ATTENTION]):
+    y = F.scaled_dot_product_attention(q[:, :, 1:], k[:, :, :-1], v[:, :, :-1], is_causal=True, scale=1.0)
+  return F.pad(y, (0, 0, 1, 0)).transpose(1, 2)
 
 
 def _swiglu(gu, inter):
@@ -133,7 +160,7 @@ class FastMHA(_Base):
       self.layers.append(p)
 
   def new_state(self, batch, max_len, layout='rows'):
-    return State(len(self.layers), batch, self.n, max_len, self.hd, self.hd, dtype=self.embed.dtype,
+    return PaddedState(len(self.layers), batch, self.n, max_len, self.hd, self.hd, dtype=self.embed.dtype,
                  device=self.embed.device, layout=layout)
 
   def _forward(self, ids, state, decode, last_only=True):
@@ -220,7 +247,7 @@ class FastBamV5(_Base):
       self.layers.append(p)
 
   def new_state(self, batch, max_len, layout='rows'):
-    return State(len(self.layers), batch, self.n, max_len, self.kd + self.s, self.kd, (self.kd, self.vd),
+    return PaddedState(len(self.layers), batch, self.n, max_len, self.kd + self.s, self.kd, (self.kd, self.vd),
                  dtype=self.embed.dtype, device=self.embed.device, layout=layout)
 
   def _heads(self, x):
@@ -355,14 +382,16 @@ class FastBamV5(_Base):
         M = m_new
       if state is not None:
         state.m(i).copy_(M.view(b, t, kd, vd)[:, -1])
-      q, k = (qk[:, j, :, :kd + s].view(b, t, n, kd + s) for j in (0, 1))
-      value, local_o = vo[:, 0].view(b, t, n, kd), vo[:, 1].view(b, t, n, kd)
+      qw, vw = qk.shape[-1], vo.shape[-1]
+      q, k = (qk[:, j].view(b, t, n, qw) for j in (0, 1))       # zero-padded widths
+      value, local_o = (vo[:, j].view(b, t, n, vw)[..., :kd] for j in (0, 1))
       if decode:     # the read kernel already wrote this token's key and value to the caches
-        y = decode_attention(q[:, 0, :, None], state.k(i), state.v(i), lengths, state.layout)[:, None, :, 0]
+        y = decode_attention(q[:, 0, :, None, :kd + s], state.k(i), state.v(i), lengths,
+                             state.layout)[:, None, :, 0]
       else:
         if state is not None:
-          state.store_prefill(i, k.transpose(1, 2), value.transpose(1, 2))
-        y = _prefill_attention(q, k, value, strict=True)
+          state.store_prefill(i, k[..., :kd + s].transpose(1, 2), value.transpose(1, 2))
+        y = _strict_attention_cudnn(q, k, vo[:, 0].view(b, t, n, vw))[..., :kd]
       o_head = (y + local_o).reshape(rows, n * kd)
       x = x + F.linear(o_head, p.out_w)
       hz = F.linear(_rmsw(x, p.ln2_w, self.eps), p.h_w, p.h_b)

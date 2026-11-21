@@ -23155,3 +23155,15 @@ class OverheadPythiaLoomOffSpeedProfile(_ReadOptsOff, _OverheadSpeedProfile,
 
 class OverheadPythiaLoomSpeedProfile(_OverheadSpeedProfile, BamPythia2p8BHUnit300BFastKernelMPreNormQKScaleV5p128):
     model_name = 'OverheadPythiaLoomSpeedProfile'
+
+
+class OverheadPythiaLoomMinimalSpeedProfile(OverheadPythiaLoomSpeedProfile):
+    """Plain minimal remat without saved Splash residuals (the MHA arms' policy set)."""
+    model_name = 'OverheadPythiaLoomMinimalSpeedProfile'
+    remat_policy = 'minimal'
+    bam_splash_residual_name = ''
+
+
+class OverheadPythiaLoomFullSpeedProfile(OverheadPythiaLoomMinimalSpeedProfile):
+    model_name = 'OverheadPythiaLoomFullSpeedProfile'
+    remat_policy = 'full'

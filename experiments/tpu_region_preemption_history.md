@@ -31,6 +31,12 @@ active leases are censored, and manual migration releases are not preemptions.
 
 | RUN | TPU | Zone | Start UTC | End UTC | End reason | Passive candidates |
 |---|---|---|---|---|---|---|
+| `BamMediumPropV5AblationStaticAllWritesNoGateTruePile` | v5p-16 (`xd-v5p-16-311217-maxtext`) | `us-east5-a` | 2026-11-20 12:46:48 | 2026-11-20 12:50:41 | queued-only assignment; no READY lease or training; P8 | UE5a primary; UC1a/EW4b scoped backups; bounded durable-resume candidate retention; global defaults unchanged |
+| `BamMediumPropV5AblationStaticAllWritesNoGateTruePile` | v5p-16 (`xd-v5p-16-311217-maxtext`) | `us-central1-a` | 2026-11-20 12:50:41 | 2026-11-21 01:18:41 | resource_switch; P8 | UE5a primary; UC1a/EW4b scoped backups; bounded durable-resume candidate retention; global defaults unchanged |
+| `BamMediumPropV5AblationStaticAllWritesNoGateTruePile` | v5p-16 (`xd-v5p-16-311217-maxtext`) | `us-east5-a` | 2026-11-21 01:18:41 | 2026-11-21 04:56:29 | resource_switch; P8 | UE5a primary; UC1a/EW4b scoped backups; bounded durable-resume candidate retention; global defaults unchanged |
+| `BamMediumPropV5AblationStaticAllWritesNoGateTruePile` | v5p-16 (`xd-v5p-16-311217-maxtext`) | `us-central1-a` | 2026-11-21 04:56:29 | 2026-11-21 05:37:51 | resource_switch; P8 | UE5a primary; UC1a/EW4b scoped backups; bounded durable-resume candidate retention; global defaults unchanged |
+| `BamMediumPropV5AblationStaticAllWritesNoGateTruePile` | v5p-16 (`xd-v5p-16-311217-maxtext`) | `us-east5-a` | 2026-11-21 05:37:51 | 2026-11-21 05:56:44 | resource_switch; P8 | UE5a primary; UC1a/EW4b scoped backups; bounded durable-resume candidate retention; global defaults unchanged |
+| `BamMediumPropV5AblationStaticAllWritesNoGateTruePile` | v5p-16 (`xd-v5p-16-311217-maxtext`) | `us-central1-a` | 2026-11-21 05:56:44 | 2026-11-21 07:11:04 | completed13,500; CP/cursor/TB/regional teardown verified; P8 | UE5a primary; UC1a/EW4b scoped backups; bounded durable-resume candidate retention; global defaults unchanged |
 | `BamMediumPropV5AblationNoMShiftTruePile` | v5p-16 (`xd-v5p-16-311208-maxtext`) | `us-east5-a` | 2026-11-20 01:54:00 | 2026-11-20 05:20:59 | resource_switch | UE5a primary; UC1a backup; EW4b excluded; accepted queues retained through recovery |
 | `BamMediumPropV5AblationNoMShiftTruePile` | v5p-16 (`xd-v5p-16-311208-maxtext`) | `us-central1-a` | 2026-11-20 05:20:59 | 2026-11-20 10:51:11 | completed 13,500; CP/cursor/TB and regional teardown verified; P5 | UE5a primary; UC1a backup; EW4b excluded; accepted queues retained through recovery |
 | `BamMediumPropV5AblationNoMemoryMLPTruePile` | v5p-16 (`xd-v5p-16-311209-maxtext`) | `us-east5-a` | 2026-11-20 01:53:59 | 2026-11-20 05:20:08 | resource_switch | UE5a primary; UC1a backup; EW4b excluded; accepted queues retained through recovery |
@@ -2378,6 +2384,15 @@ active leases are censored, and manual migration releases are not preemptions.
 | `BamMediumPropV5AblationStaticReadsWritesNoGateNoMShiftTruePile` | 5 | `us-central1-a` | 2026-11-20 08:34:52 | 2026-11-20 11:10:06 | 2h35m14s | clean completion 13,500; verified teardown |
 | `BamMediumPropV5AblationStaticReadsWritesNoGateTruePile` | 5 | `us-central1-a` | 2026-11-20 08:35:13 | 2026-11-20 11:16:13 | 2h41m00s | clean completion 13,500; verified teardown |
 | `BamMediumPropV5AblationStaticAttentionWriteNoGateTruePile` | 7 | `us-central1-a` | 2026-11-20 08:35:15 | 2026-11-20 11:28:12 | 2h52m57s | clean completion 13,500; verified teardown |
+| `BamMediumPropV5AblationStaticAllWritesNoGateTruePile` | 1 | `us-central1-a` | 2026-11-20 12:50:43 | 2026-11-20 14:51:20 | 2:00:37 | preempted |
+| `BamMediumPropV5AblationStaticAllWritesNoGateTruePile` | 2 | `us-central1-a` | 2026-11-20 15:29:09 | 2026-11-20 16:13:22 | 0:44:13 | preempted |
+| `BamMediumPropV5AblationStaticAllWritesNoGateTruePile` | 3 | `us-east5-a` | 2026-11-21 01:18:44 | 2026-11-21 01:27:27 | 0:08:43 | preempted |
+| `BamMediumPropV5AblationStaticAllWritesNoGateTruePile` | 4 | `us-east5-a` | 2026-11-21 01:57:50 | 2026-11-21 03:13:14 | 1:15:24 | preempted |
+| `BamMediumPropV5AblationStaticAllWritesNoGateTruePile` | 5 | `us-east5-a` | 2026-11-21 03:39:43 | 2026-11-21 04:14:18 | 0:34:35 | preempted |
+| `BamMediumPropV5AblationStaticAllWritesNoGateTruePile` | 6 | `us-east5-a` | 2026-11-21 04:21:49 | 2026-11-21 04:25:59 | 0:04:10 | preempted |
+| `BamMediumPropV5AblationStaticAllWritesNoGateTruePile` | 7 | `us-central1-a` | 2026-11-21 04:56:31 | 2026-11-21 05:29:39 | 0:33:08 | preempted |
+| `BamMediumPropV5AblationStaticAllWritesNoGateTruePile` | 8 | `us-east5-a` | 2026-11-21 05:37:54 | 2026-11-21 05:42:25 | 0:04:31 | preempted |
+| `BamMediumPropV5AblationStaticAllWritesNoGateTruePile` | 9 | `us-central1-a` | 2026-11-21 05:56:46 | 2026-11-21 07:11:04 | 1:14:18 | clean completion13,500; verified teardown |
 
 | `BamMediumPropMShiftReadG050CrossReadAttnR384ConservativeBlockTruePile` | 1 | `us-east5-a` | 2026-10-14 04:48:58 | 2026-10-14 10:45:22 | 5h56m24s | user stop9248; node/queue absent, TB SYNC_OK |
 

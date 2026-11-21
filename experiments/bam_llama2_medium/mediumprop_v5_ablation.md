@@ -316,3 +316,38 @@ parameter tree, data contract, schedule and comparison/report cursors are unchan
 This is a new scoped authorization, not inheritance of the two earlier exceptions;
 global launcher defaults remain UE5a/UC1a. Policy and queue-preservation receipts
 are archived as EW4B_RUN311217_POLICY_REGISTERED/CANDIDATES_VERIFIED.json.
+
+## All-static-write ungated control: completed
+
+The missing matched control completed 13,500 without performance stopping.
+All three write addresses are static and all write multipliers are 1; V5 dynamic
+and static read branches/gates, M pre-norm and M-shift remain. Final-five means
+are native 12.6k--13.4k windows; gains use the original MHA reference.
+
+| Comparator | Final-five loss gap | Gain multiplier |
+|---|---:|---:|
+| Gated static-all-write parent | +0.009897 | 0.94203 |
+| Full V5 SwiGLU | +0.018228 | 0.89820 |
+
+The early gain decline settled into a broad plateau. Absolute deficits narrowed
+late, with a modest gain recovery versus the gated static-write parent, while
+remaining clearly below full V5. Static write directions retain useful nonlinear
+content feedback even without write gates. This does not imply that dynamic
+reads or content strength are unimportant. Parameter reimbursement goes to
+ordinary MLPs (2763/1128/final4051); total432,112,948 is +720 versus V5 and +640
+versus the direct parent. The prediction was gain0.90 versus the gated parent
+(range0.86--0.94), about0.858 versus V5; actual values above are the prior check.
+Startup .612775 step/s was +0.95% versus .607 on another lease, not a paired test.
+
+The RUN used immutable runtime7bbfbc2 and unchanged AOT throughout. All policy-zone
+nodes/queues, final checkpoint/cursor and local TB were verified; P8. EW4b was a
+user-approved scoped third candidate. Global defaults were unchanged. After
+immediate post-FIRST preemptions, orchestration7082188 added opt-in standby
+retention until200 resumed steps plus a newer committed checkpoint, bounded by
+600 seconds. This RUN exercised durable release; no training/model/queue restart
+was needed to enable it. All READY intervals are in the shared regional history.
+Native data/plot provenance and closeout receipts: task directory
+`/data0/xd/bam_diagnostics/medium-v5-ablation-20261120/`, final tag
+`group4-final-20261121`. Only missing console records were backfilled from actual
+synced TB after checking overlap; no interpolation or existing-value overwrite.
+Borrowed FLEX compiler `llm-jax-v6e-1-0` remains retained.

@@ -1306,3 +1306,8 @@ attention-only static-M circuit. Raw attention content is nearly competitive on
 V5 despite failing on UnitH, making read-pre-norm/write-norm interaction a useful
 mechanism hypothesis. Detailed native results, interpretation limits, exact RUNs,
 budgets and archive paths: [ablation study](mediumprop_v5_ablation.md).
+
+The final missing static-all-write/no-gate control also completed13,500:
+MHA-reference gain 0.94203 versus gated static writes,
+0.89820 versus full V5. The late deficit narrowed without
+restoring parity; details and complete leases are in the ablation study/history.

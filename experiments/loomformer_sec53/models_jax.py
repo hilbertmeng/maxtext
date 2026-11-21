@@ -70,8 +70,9 @@ def bf16_logits_and_xent(
     hidden: jax.Array,
     logits_dense_dv: jax.Array,
     targets: jax.Array,
+    logit_pos: jax.Array | None = None,
 ) -> tuple[jax.Array, jax.Array]:
-  """hidden: [B, T, D], logits_dense_dv: [D, V] -> (xent [B, T], logits_last [B, V])."""
+  """hidden: [B, T, D], logits_dense_dv: [D, V] -> (xent [B, T], logits_sel [B, V])."""
   logits = jnp.matmul(
       hidden.astype(jnp.bfloat16),
       logits_dense_dv.astype(jnp.bfloat16),
@@ -80,7 +81,8 @@ def bf16_logits_and_xent(
   )
   log_probs = jax.nn.log_softmax(logits, axis=-1)
   xent = -jnp.take_along_axis(log_probs, targets[..., None], axis=-1)[..., 0]
-  return xent, logits[:, -1, :]
+  sel = logits[:, -1, :] if logit_pos is None else logits[jnp.arange(logits.shape[0]), logit_pos]
+  return xent, sel
 
 
 # ---------------------------------------------------------------------------
@@ -273,6 +275,7 @@ def loom_forward_and_observe(
     write_eps: float = 1.0e-6,
     static_gate_init: float = 0.99,
     ablation: str = "none",
+    logit_pos: jax.Array | None = None,
 ) -> dict[str, jax.Array]:
   """Exact forward pass of BamPythia2p8BHUnit300BFastKernelMPreNormQKScale + compact sliced probes.
 
@@ -599,7 +602,7 @@ def loom_forward_and_observe(
       u_params["final_norm"]["bias"],
       ln_eps,
   )
-  xent, last_logits = bf16_logits_and_xent(final_h, u_params["logits_dense"], targets)
+  xent, last_logits = bf16_logits_and_xent(final_h, u_params["logits_dense"], targets, logit_pos=logit_pos)
 
   return {
       "xent": xent,                                              # [B, T]

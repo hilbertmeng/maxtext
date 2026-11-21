@@ -8,12 +8,15 @@ current-main read/sharding defaults (`'auto'` carry, stride skew and rank-up rep
 `experiments/xlprop_v5.md`); the "as-trained implementation" arm pins them off.
 Runtime `4cd4bf2` (Medium), `b98b8ae` (Large, XL), `13b0122` (2.8B); classes `Overhead*SpeedProfile` in `MaxText/exp.py`.
 
-| Scale | LoomFormer class | MHA class | Pod / global batch / per device | MHA step/s (remat) | LoomFormer step/s (remat) | Ratio step/s | Ratio device time |
-|---|---|---|---|---:|---:|---:|---:|
-| Medium T4096 | `BamMediumPropV5` | 18-layer `Llama2MediumProp` MHA (see note) | v5p-16 / 128 / 16 | .811 (full) | .724 (full) | 89.3% | 90.5% |
-| Large T4096 | `BamLargePropV5Train27k` | `Llama2LargeProp` | v5p-32 / 128 / 8 | 1.030 (full) | .899 (full) | 87.3% | 89.2% |
-| XL T4096 | `BamXLPropV5FastKernelFullRemat` + `PallasReadTunedXL` | `Llama2XLPropTruePileMHA` + tuned Splash | v5p-32 / 128 / 8 | .633 (minimal) | .566 (full) | 89.4% | 91.0% |
-| Pythia 2.8B T2048 | `BamPythia2p8BHUnit300BFastKernelMPreNormQKScaleV5p128` | `Pythia2p8B` | v5p-128 / 1024 / 16 | .360 (minimal) | .317 (minimal_save_splash) | 88.1% | 88.8% |
+| Scale | LoomFormer class | MHA class | Pod / global batch / per device | MHA step/s (faster remat) | LoomFormer step/s (faster remat) | Ratio step/s | Ratio device time | MHA full-remat step/s | Ratio step/s vs MHA full | Ratio device time vs MHA full |
+|---|---|---|---|---:|---:|---:|---:|---:|---:|---:|
+| Medium T4096 | `BamMediumPropV5` | 18-layer `Llama2MediumProp` MHA (see note) | v5p-16 / 128 / 16 | .811 (full) | .724 (full) | 89.3% | 90.5% | .811 | 89.3% | 90.5% |
+| Large T4096 | `BamLargePropV5Train27k` | `Llama2LargeProp` | v5p-32 / 128 / 8 | 1.030 (full) | .899 (full) | 87.3% | 89.2% | 1.030 | 87.3% | 89.2% |
+| XL T4096 | `BamXLPropV5FastKernelFullRemat` + `PallasReadTunedXL` | `Llama2XLPropTruePileMHA` + tuned Splash | v5p-32 / 128 / 8 | .633 (minimal) | .566 (full) | 89.4% | 91.0% | .624 | 90.7% | 92.3% |
+| Pythia 2.8B T2048 | `BamPythia2p8BHUnit300BFastKernelMPreNormQKScaleV5p128` | `Pythia2p8B` | v5p-128 / 1024 / 16 | .360 (minimal) | .317 (minimal_save_splash) | 88.1% | 88.8% | .328 | 96.6% | 97.7% |
+
+The last three columns keep LoomFormer at its faster policy and fix MHA at full remat. The 2.8B LoomFormer
+policy saves Splash residuals under minimal remat, so that comparison mixes remat policies.
 
 All arms (step/s; device ms):
 

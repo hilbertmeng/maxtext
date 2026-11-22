@@ -296,10 +296,11 @@ def plot_appendix_icl_circuit(loom: dict, icl_npz: Path, out_dir: Path) -> tuple
   vmax = max(float(np.percentile(np.abs(np.concatenate([sub_a.ravel(), sub_b.ravel()])), 98.5)), 0.05)
 
   fig = plt.figure(figsize=(13.2, 4.35))
-  gs = gridspec.GridSpec(1, 3, width_ratios=[1.0, 1.0, 0.038], wspace=0.18)
+  # Independent horizontal spacers: roomy gap for (b)'s y-tick labels, tight gap before colorbar
+  gs = gridspec.GridSpec(1, 5, width_ratios=[1.0, 0.19, 1.0, 0.026, 0.034], wspace=0.0)
   ax_a = fig.add_subplot(gs[0, 0])
-  ax_b = fig.add_subplot(gs[0, 1])
-  cax = fig.add_subplot(gs[0, 2])
+  ax_b = fig.add_subplot(gs[0, 2])
+  cax = fig.add_subplot(gs[0, 4])
 
   tok_a_str = toks[t_a]["str"].strip() or toks[t_a]["str"]
   tok_b_str = toks[t_b]["str"]

@@ -22,6 +22,7 @@ import importlib.util
 import math
 import os
 import sys
+from typing import Optional
 
 import torch
 import torch.nn.functional as F
@@ -46,6 +47,20 @@ bam_kernels = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(bam_kernels)
 
 KERNELS = os.environ.get('BAM_KERNELS', '1') == '1'
+
+
+@torch.library.custom_op('bam_v5::gemv_cols', mutates_args=())
+def gemv_cols(srcs: list[torch.Tensor], starts: list[int], ws: list[torch.Tensor], bs: list[Optional[torch.Tensor]],
+              acts: list[int], br: int, bk: int, warps: int) -> list[torch.Tensor]:
+  """bam_hf_pythia one-token grouped GEMV of x_i = srcs_i[:, starts_i:starts_i + K_i] (whole projection outputs
+  passed in: column slices into a custom op are copied by inductor when their producer is a fused kernel)."""
+  xs = [x[:, a:a + w.shape[1]] for x, a, w in zip(srcs, starts, ws)]
+  return pythia_kernels.gemv(xs, ws, bs, acts, br, bk, warps)
+
+
+@gemv_cols.register_fake
+def _(srcs, starts, ws, bs, acts, br, bk, warps):
+  return [x.new_empty((1, w.shape[0])) for x, w in zip(srcs, ws)]
 
 
 class PaddedState(State):
@@ -375,10 +390,10 @@ class FastBamV5(_Base):
       wup = None
       if decode and rows == 1:
         if p.has_write:
-          up, wup = pythia_kernels.gemv([rd, z[:, o['write_down'][0]:o['write_down'][1]]], [p.up_w, p.wup_w],
-                                        [p.up_b, p.wup_b], [1, 1], 16, 256, 4)
+          up, wup = gemv_cols([z, z], [o['read_down'][0], o['write_down'][0]], [p.up_w, p.wup_w], [p.up_b, p.wup_b],
+                              [1, 1], 16, 256, 4)
         else:
-          up, = pythia_kernels.gemv([rd], [p.up_w], [p.up_b], [1], 16, 256, 4)
+          up, = gemv_cols([z], [o['read_down'][0]], [p.up_w], [p.up_b], [1], 16, 256, 4)
       elif decode and p.has_write:     # multi-token decode: one GELU pass, both GEMMs in one launch
         g = F.gelu(z[:, o['read_down'][0]:o['write_down'][1]], approximate='tanh')
         kr = p.up_w.shape[1]
@@ -386,13 +401,13 @@ class FastBamV5(_Base):
                                               None, 128, 64, 4 if rows <= 16 else 8, 3)
       else:
         up = F.linear(F.gelu(rd, approximate='tanh'), p.up_w, p.up_b)
-      write = pending if pending is not None else (M,) * 6
+      write, (g1_off, g2_off) = (pending[:6], pending[6:]) if pending is not None else ((M,) * 6, (0, 0))
       m_new, qk, vo = bam_kernels.fused_read(
-          M, *write, state.m(i) if decode else M, prev_valid, pos, z[:, :o['shift'][1]],
-          z[:, o['std'][0]:o['std'][1]], up, z[:, o['gates'][0]:o['gates'][1]], p.static_key_rows, self.rope_cos,
+          M, *write, state.m(i) if decode else M, prev_valid, pos, z, z, up, z, p.static_key_rows, self.rope_cos,
           self.rope_sin, b, n, kd, vd, s, pending is not None, decode, self.write_eps, self.eps, self.key_eps,
           self.key_scale, self.static_scale, p.qk_scale, p.vo_scale, q_mult, sub, groups, warps,
-          state.k(i) if decode else None, state.v(i) if decode else None)
+          state.k(i) if decode else None, state.v(i) if decode else None, g1_off, g2_off, o['shift'][0],
+          o['std'][0], o['gates'][0])
       if pending is not None:
         M = m_new
       if state is not None and not (decode and pending is not None):   # else the read kernel stored it
@@ -418,8 +433,8 @@ class FastBamV5(_Base):
         mem_in, mgate, adown = _swiglu(hz[:, o2:o3], p.mem_inter), hz[:, o3:o3 + sh[4]], \
             hz[:, o3 + sh[4]:o3 + sh[4] + sh[5]]
         if decode and rows == 1:
-          mem, addr = pythia_kernels.gemv([mem_in, adown], [p.mem_down_w, p.addr_up_w], [None, p.addr_up_b], [0, 1],
-                                          4, 1024, 4)
+          mem, addr = gemv_cols([mem_in, hz], [0, o3 + sh[4]], [p.mem_down_w, p.addr_up_w], [None, p.addr_up_b],
+                                [0, 1], 4, 1024, 4)
         elif decode:
           mem, addr = pythia_kernels.grouped_gemm([mem_in, F.gelu(adown, approximate='tanh')],
                                                   [p.mem_down_w, p.addr_up_w], [None, p.addr_up_b], [0, 0], None,
@@ -430,7 +445,7 @@ class FastBamV5(_Base):
         if wup is None:
           wd = z[:, o['write_down'][0]:o['write_down'][1]]
           wup = F.linear(F.gelu(wd, approximate='tanh'), p.wup_w, p.wup_b)
-        pending = (o_head, z[:, o['write_gate'][0]:o['write_gate'][1]], wup, mem, mgate, addr)
+        pending = (o_head, z, wup, mem, hz, addr, o['write_gate'][0], o3)
       else:
         pending = None
       x = x + mlp

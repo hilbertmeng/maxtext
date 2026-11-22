@@ -127,16 +127,9 @@ def _new_m(row, MOLD, s_mo, C1, s_c1, G1, s_g1, A1, s_a1, C2, s_c2, G2, s_g2, A2
 
 
 @triton.jit
-def _group_read(group, row, seq, pos, c, cm, f00, f01, f10, f11, inv, UP, s_up, GATES, s_gt, SKEY, STD, s_std,
-                COS, SIN, QK, s_qk, VO, s_vo, KC, skb, skh, sks, VC, svb, svh, svs,
-                key_eps, key_scale, static_scale, qk_scale, vo_scale, q_mult, CACHE: tl.constexpr, N: tl.constexpr,
-                K: tl.constexpr, K1P: tl.constexpr, V: tl.constexpr, V0: tl.constexpr, V1: tl.constexpr,
-                H: tl.constexpr, HP: tl.constexpr, QW: tl.constexpr, VW: tl.constexpr, CRP: tl.constexpr):
-  """Rows c (of the group's 2N (arm, head) rows) of arm group 0 (q, k) or 1 (v, local o) for one token,
-  from the bf16 read view tiles and its inverse RMS."""
-  k0 = tl.arange(0, 64)
-  k1 = 64 + tl.arange(0, K1P)
-  km1 = k1 < K
+def _group_keys(group, row, c, cm, UP, s_up, GATES, s_gt, SKEY, key_eps, key_scale, static_scale, N: tl.constexpr,
+                V: tl.constexpr, V0: tl.constexpr, V1: tl.constexpr, CRP: tl.constexpr):
+  """Read keys R (bf16, V0 + V1 column tiles) of rows c of arm group `group`: independent of M."""
   cg = group * 2 * N + c                                  # row within the 4N (arm, head) rows
   rm = cm[:, None]
   gd = key_scale * tl.sigmoid(tl.load(GATES + row * s_gt + cg, mask=cm, other=0.).to(tl.float32))
@@ -154,10 +147,26 @@ def _group_read(group, row, seq, pos, c, cm, f00, f01, f10, f11, inv, UP, s_up, 
     ss += tl.sum(up1 * up1, 1)
   gk = (gd * tl.rsqrt(ss / V + key_eps))[:, None]
   r0 = (up0 * gk + gs[:, None] * sk0).to(tl.bfloat16)
+  if V1 > 0:
+    r1 = (up1 * gk + gs[:, None] * sk1).to(tl.bfloat16)
+  else:
+    r1 = tl.zeros((CRP, 16), tl.bfloat16)
+  return r0, r1
+
+
+@triton.jit
+def _group_read(group, row, seq, pos, c, cm, r0, r1, f00, f01, f10, f11, inv, STD, s_std, COS, SIN,
+                QK, s_qk, VO, s_vo, KC, skb, skh, sks, VC, svb, svh, svs, qk_scale, vo_scale, q_mult,
+                CACHE: tl.constexpr, N: tl.constexpr, K: tl.constexpr, K1P: tl.constexpr, V1: tl.constexpr,
+                H: tl.constexpr, HP: tl.constexpr, QW: tl.constexpr, VW: tl.constexpr, CRP: tl.constexpr):
+  """Rows c (of the group's 2N (arm, head) rows) of arm group 0 (q, k) or 1 (v, local o) for one token,
+  from its read keys, the bf16 read view tiles and its inverse RMS."""
+  k0 = tl.arange(0, 64)
+  k1 = 64 + tl.arange(0, K1P)
+  km1 = k1 < K
   o0 = tl.dot(r0, tl.trans(f00))          # [CRP, 64]
   o1 = tl.dot(r0, tl.trans(f10))          # [CRP, K1P]
   if V1 > 0:
-    r1 = (up1 * gk + gs[:, None] * sk1).to(tl.bfloat16)
     o0 += tl.dot(r1, tl.trans(f01))
     o1 += tl.dot(r1, tl.trans(f11))
   head = c % N
@@ -227,39 +236,46 @@ def _read_kernel(
   seq = row // T
   t = row % T
   pos = tl.load(POS) + t
+  g0 = (tl.program_id(0) // SUB) * GROUPS
+  ra0, ra1 = _group_keys(g0, row, c, cm, UP, s_up, GATES, s_gt, SKEY, key_eps, key_scale, static_scale, N, V, V0, V1,
+                         CRP)
+  if GROUPS == 2:
+    rb0, rb1 = _group_keys(g0 + 1, row, c, cm, UP, s_up, GATES, s_gt, SKEY, key_eps, key_scale, static_scale, N, V,
+                           V0, V1, CRP)
+  # the predecessor's M (issued first: independent of this token's write); pv = 0 -> s = 0, exact no-op
+  if t > 0:
+    pv = 1.0
+    pp = M + (row - 1) * s_m
+  elif HAS_PREV:
+    pv = tl.load(PREV_VALID).to(tl.float32)
+    pp = MPREV + seq * s_mp + ((pos + 1) % 2) * (K * V)
+  else:
+    pv = 0.0
+    pp = M + row * s_m
+  p00, p01, p10, p11 = _load_m(pp, K, K1P, V, V0, V1)
+  a = tl.arange(0, V0)
+  s0 = (pv * tl.sigmoid(tl.load(SHIFT + row * s_sh + a, mask=a < V, other=0.).to(tl.float32)))[None, :]
+  if V1 > 0:
+    b = V0 + tl.arange(0, V1)
+    s1 = (pv * tl.sigmoid(tl.load(SHIFT + row * s_sh + b, mask=b < V, other=0.).to(tl.float32)))[None, :]
   if FUSE_WRITE:
     m00, m01, m10, m11 = _new_m(row, M, s_m, C1, s_c1, G1, s_g1, A1, s_a1, C2, s_c2, G2, s_g2, A2, s_a2, write_eps,
                                 N, NP, K, K1P, V, V0, V1)
     if tl.program_id(0) == 0:
       _store_m(MW + row * (K * V), m00, m01, m10, m11, K, K1P, V, V0, V1)
-      if HAS_PREV:     # decode: also into the state slot of this position (the predecessor's is read below)
+      if HAS_PREV:     # decode: also into the state slot of this position (the predecessor's is read above)
         _store_m(MPREV + seq * s_mp + (pos % 2) * (K * V), m00, m01, m10, m11, K, K1P, V, V0, V1)
   else:
     m00, m01, m10, m11 = _load_m(M + row * s_m, K, K1P, V, V0, V1)
   f00 = m00.to(tl.float32)
-  f01 = m01.to(tl.float32)
   f10 = m10.to(tl.float32)
+  f00 = (f00 + s0 * (p00.to(tl.float32) - f00)).to(tl.bfloat16).to(tl.float32)
+  f10 = (f10 + s0 * (p10.to(tl.float32) - f10)).to(tl.bfloat16).to(tl.float32)
+  f01 = m01.to(tl.float32)
   f11 = m11.to(tl.float32)
-  if t > 0:
-    pv = 1
-    pp = M + (row - 1) * s_m
-  elif HAS_PREV:
-    pv = tl.load(PREV_VALID)
-    pp = MPREV + seq * s_mp + ((pos + 1) % 2) * (K * V)
-  else:
-    pv = 0
-    pp = M + row * s_m
-  if pv != 0:
-    p00, p01, p10, p11 = _load_m(pp, K, K1P, V, V0, V1)
-    a = tl.arange(0, V0)
-    s0 = tl.sigmoid(tl.load(SHIFT + row * s_sh + a, mask=a < V, other=0.).to(tl.float32))[None, :]
-    f00 = (f00 + s0 * (p00.to(tl.float32) - f00)).to(tl.bfloat16).to(tl.float32)
-    f10 = (f10 + s0 * (p10.to(tl.float32) - f10)).to(tl.bfloat16).to(tl.float32)
-    if V1 > 0:
-      b = V0 + tl.arange(0, V1)
-      s1 = tl.sigmoid(tl.load(SHIFT + row * s_sh + b, mask=b < V, other=0.).to(tl.float32))[None, :]
-      f01 = (f01 + s1 * (p01.to(tl.float32) - f01)).to(tl.bfloat16).to(tl.float32)
-      f11 = (f11 + s1 * (p11.to(tl.float32) - f11)).to(tl.bfloat16).to(tl.float32)
+  if V1 > 0:
+    f01 = (f01 + s1 * (p01.to(tl.float32) - f01)).to(tl.bfloat16).to(tl.float32)
+    f11 = (f11 + s1 * (p11.to(tl.float32) - f11)).to(tl.bfloat16).to(tl.float32)
   ss = tl.sum(tl.sum(f00 * f00, 1), 0) + tl.sum(tl.sum(f10 * f10, 1), 0)
   if V1 > 0:
     ss += tl.sum(tl.sum(f01 * f01, 1), 0) + tl.sum(tl.sum(f11 * f11, 1), 0)
@@ -268,11 +284,13 @@ def _read_kernel(
   fb01 = f01.to(tl.bfloat16)
   fb10 = f10.to(tl.bfloat16)
   fb11 = f11.to(tl.bfloat16)
-  for gi in tl.static_range(GROUPS):
-    group = (tl.program_id(0) // SUB) * GROUPS + gi
-    _group_read(group, row, seq, pos, c, cm, fb00, fb01, fb10, fb11, inv, UP, s_up, GATES, s_gt, SKEY, STD, s_std,
-                COS, SIN, QK, s_qk, VO, s_vo, KC, skb, skh, sks, VC, svb, svh, svs, key_eps, key_scale,
-                static_scale, qk_scale, vo_scale, q_mult, CACHE, N, K, K1P, V, V0, V1, H, HP, QW, VW, CRP)
+  _group_read(g0, row, seq, pos, c, cm, ra0, ra1, fb00, fb01, fb10, fb11, inv, STD, s_std, COS, SIN, QK, s_qk, VO,
+              s_vo, KC, skb, skh, sks, VC, svb, svh, svs, qk_scale, vo_scale, q_mult, CACHE, N, K, K1P, V1, H, HP, QW,
+              VW, CRP)
+  if GROUPS == 2:
+    _group_read(g0 + 1, row, seq, pos, c, cm, rb0, rb1, fb00, fb01, fb10, fb11, inv, STD, s_std, COS, SIN, QK, s_qk,
+                VO, s_vo, KC, skb, skh, sks, VC, svb, svh, svs, qk_scale, vo_scale, q_mult, CACHE, N, K, K1P, V1, H,
+                HP, QW, VW, CRP)
 
 
 @triton.jit
@@ -301,7 +319,8 @@ def fused_read(m_old: torch.Tensor, c1: torch.Tensor, g1: torch.Tensor, a1: torc
                batch: int, n: int, k: int, v: int, s: int, has_write: bool, has_prev: bool, write_eps: float,
                eps: float, key_eps: float, key_scale: float, static_scale: float, qk_scale: float, vo_scale: float,
                q_mult: float, sub: int, groups: int, warps: int, k_cache: Optional[torch.Tensor] = None,
-               v_cache: Optional[torch.Tensor] = None) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+               v_cache: Optional[torch.Tensor] = None, g1_off: int = 0, g2_off: int = 0, shift_off: int = 0,
+               std_off: int = 0, gates_off: int = 0) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
   """Token rows r = b * T + t (2-D [rows, features], unit inner stride). Returns (m_new [rows, K*V]
   (empty when not has_write), qk [rows, 2, N, QW] (K + S used), vo [rows, 2, N, VW] (K used)); widths
   rounded up to multiples of 8, zero-padded.
@@ -312,6 +331,10 @@ def fused_read(m_old: torch.Tensor, c1: torch.Tensor, g1: torch.Tensor, a1: torc
   mutations (see decode_attention.attend_and_append): within a decode step only this op writes a layer's
   caches and M slots, and the strictly causal attention that follows (it consumes this op's output) reads
   positions < pos only."""
+  # g1, g2, shift, std, gates may be whole projection outputs with the column offsets *_off (column slices
+  # passed into a custom op are copied by inductor when their producer is a fused kernel)
+  g1, g2, shift, std, gates = (x[:, o:] for x, o in ((g1, g1_off), (g2, g2_off), (shift, shift_off), (std, std_off),
+                                                     (gates, gates_off)))
   rows = m_old.shape[0]
   t = rows // batch
   qw = qk_width(k, s)
@@ -352,7 +375,8 @@ def fused_read(m_old: torch.Tensor, c1: torch.Tensor, g1: torch.Tensor, a1: torc
 @fused_read.register_fake
 def _(m_old, c1, g1, a1, c2, g2, a2, m_prev, prev_valid, pos, shift, std, up, gates, static_key, cos, sin,
       batch, n, k, v, s, has_write, has_prev, write_eps, eps, key_eps, key_scale, static_scale, qk_scale, vo_scale,
-      q_mult, sub, groups, warps, k_cache=None, v_cache=None):
+      q_mult, sub, groups, warps, k_cache=None, v_cache=None, g1_off=0, g2_off=0, shift_off=0, std_off=0,
+      gates_off=0):
   rows = m_old.shape[0]
   return (m_old.new_empty((rows if has_write else 0, k * v)), m_old.new_empty((rows, 2, n, qk_width(k, s))),
           m_old.new_empty((rows, 2, n, _round8(k))))

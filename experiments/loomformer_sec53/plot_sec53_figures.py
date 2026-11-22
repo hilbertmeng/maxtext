@@ -191,18 +191,18 @@ def plot_appendix_routing_1x3(loom: dict, out_dir: Path) -> tuple[Path, Path]:
   ax1.set_title("(a) Writer Composition", fontsize=11.2, fontweight="bold")
   ax1.legend(fontsize=8.2, loc="center right", frameon=True)
 
-  # Match Fig. 3 (C in R^{w x r}): rows (Y, top-to-bottom) = Writer source (Emb, L1..L31);
-  # columns (X, left-to-right) = Reader layer (L1..L32). Causal pairs satisfy row <= col.
+  # Rows (Y, bottom-to-top) = Writer source (Emb, L1..L31);
+  # Columns (X, left-to-right) = Reader layer (L1..L32). Causal pairs satisfy writer_row <= reader_col.
   rout_rl_ws = np.mean(np.array(bs["depth_routing_posmass_32x33x4"]), axis=-1)[:, :32]  # [reader 0..31, writer 0..31]
   mat_wr = rout_rl_ws.T  # [writer 0..31, reader 0..31]
   mat_norm = mat_wr / np.maximum(np.max(mat_wr, axis=0, keepdims=True), 1e-12)
-  unreachable = np.tril(np.ones_like(mat_norm, dtype=bool), k=-1)  # writer_row > reader_col
+  unreachable = np.tril(np.ones_like(mat_norm, dtype=bool), k=-1)  # writer_row > reader_col (upper-left when origin="lower")
   mat_masked = np.ma.array(mat_norm, mask=unreachable)
   cmap = plt.cm.YlOrRd.copy()
   cmap.set_bad(color="#E5E5E5")
 
   ax2.grid(False)
-  im = ax2.imshow(mat_masked, origin="upper", aspect="auto", cmap=cmap, vmin=0.0, vmax=1.0)
+  im = ax2.imshow(mat_masked, origin="lower", aspect="auto", cmap=cmap, vmin=0.0, vmax=1.0)
   ax2.set_xlabel("Reader Layer $l$", fontsize=10.8)
   ax2.set_ylabel("Writer Source", fontsize=10.8)
   ax2.set_xticks([0, 7, 15, 23, 31], ["L1", "L8", "L16", "L24", "L32"])
@@ -279,16 +279,16 @@ def plot_appendix_icl_circuit(loom: dict, icl_npz: Path, out_dir: Path) -> tuple
       r_cols.append(s_i * 32 + int(h))
       r_labels.append(f"{s_nm}{int(h) + 1}")  # 1-indexed heads (1..32) matching §3.2
 
-  w_score = np.max(np.abs(A_a[:, r_cols]), axis=1) + np.max(np.abs(A_b[:, r_cols]), axis=1)
-  top_w = np.sort(np.argsort(-w_score)[:18])
+  # Restrict rows to earlier attention-head writers (L{l}.H{h}), matching §2 & App. A.7
+  head_w_ids = np.array([w for w in range(32, w_cnt) if (w - 32) % 64 < 32], dtype=np.int32)
+  w_score = np.max(np.abs(A_a[np.ix_(head_w_ids, r_cols)]), axis=1) + np.max(np.abs(A_b[np.ix_(head_w_ids, r_cols)]), axis=1)
+  top_w = head_w_ids[np.sort(np.argsort(-w_score)[:18])]
 
   def writer_label(w_id: int) -> str:
-    if w_id < 32:
-      return f"Emb.{w_id + 1}"
     rem = w_id - 32
     sl = rem // 64 + 1
-    rem2 = rem % 64
-    return f"L{sl}.H{rem2 + 1}" if rem2 < 32 else f"L{sl}.FFN{rem2 - 32 + 1}"
+    h_idx = rem % 64 + 1
+    return f"L{sl}.H{h_idx}"
 
   w_labels = [writer_label(int(w)) for w in top_w]
   sub_a = A_a[np.ix_(top_w, r_cols)]
@@ -318,7 +318,7 @@ def plot_appendix_icl_circuit(loom: dict, icl_npz: Path, out_dir: Path) -> tuple
       ax.axvline(boundary, color="#222222", lw=0.9, ls="--")
     ax.set_title(ttl, fontsize=11.0, fontweight="bold")
     ax.set_xlabel("Layer 24 MRead Outputs ($\\tilde{q}$ | $\\tilde{k}$ | $v$ | $o^m$)", fontsize=10.3)
-  ax_a.set_ylabel("Earlier Writers", fontsize=10.5)
+  ax_a.set_ylabel("Earlier Head Writers", fontsize=10.5)
 
   plt.colorbar(im, cax=cax, label="Attribution $a_{ij}$")
   return save_both(fig, out_dir, "loompythia_icl_circuit_appendix")

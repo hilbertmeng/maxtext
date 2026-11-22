@@ -268,6 +268,19 @@ class FastBamV5(_Base):
       p.h_w, p.h_b = _p(_pad_rows(torch.cat(hs, 0))), _p(_pad_rows(torch.cat(hb)))
       p.down_w = _p(dw)
       p.ln1_w, p.ln2_w = _p(layer.input_layernorm.weight.float()), _p(layer.post_attention_layernorm.weight.float())
+      # kernel path: x_w / h_w as bias-free mm (the same inductor GEMV as MHA's projections); the only nonzero
+      # biases (M-shift, read gates, write gates) are added inside the read kernel
+      ox = p.off_x
+      p.xb = _p(torch.cat((p.x_b[:ox['shift'][1]], p.x_b[ox['gates'][0]:ox['gates'][1]])))
+      xmask = torch.ones_like(p.x_b, dtype=torch.bool)
+      xmask[:ox['shift'][1]] = xmask[ox['gates'][0]:ox['gates'][1]] = False
+      hmask = torch.ones_like(p.h_b, dtype=torch.bool)
+      if a.has_write:
+        o3 = 2 * p.inter + 2 * p.mem_inter
+        p.wb = _p(torch.cat((p.x_b[ox['write_gate'][0]:ox['write_gate'][1]], p.h_b[o3:o3 + p.split_h[4]])))
+        xmask[ox['write_gate'][0]:ox['write_gate'][1]] = False
+        hmask[o3:o3 + p.split_h[4]] = False
+      assert not p.x_b[xmask].any() and not p.h_b[hmask].any()
       self.layers.append(p)
 
   def new_state(self, batch, max_len, layout='rows'):
@@ -384,14 +397,14 @@ class FastBamV5(_Base):
       sub, groups, warps = (2, 1, 4) if rows <= 16 else (1, 2, 4)
     pending = None
     for i, p in enumerate(self.layers):
-      z = F.linear(_rmsw(x, p.ln1_w, self.eps), p.x_w, p.x_b)
+      z = F.linear(_rmsw(x, p.ln1_w, self.eps), p.x_w)      # biases: in the read kernel
       o = p.off_x
       rd = z[:, o['read_down'][0]:o['read_down'][1]]
       wup = None
       if decode and rows == 1:
         if p.has_write:
-          up, wup = gemv_cols([z, z], [o['read_down'][0], o['write_down'][0]], [p.up_w, p.wup_w], [p.up_b, p.wup_b],
-                              [1, 1], 16, 256, 4)
+          up, wup = bam_kernels.gemv2(z, o['read_down'][0], 0, p.up_w, p.up_b, 1, z, o['write_down'][0], 0, p.wup_w,
+                                      p.wup_b, 1, 8, 256, 4)
         else:
           up, = gemv_cols([z], [o['read_down'][0]], [p.up_w], [p.up_b], [1], 16, 256, 4)
       elif decode and p.has_write:     # multi-token decode: one GELU pass, both GEMMs in one launch
@@ -401,13 +414,14 @@ class FastBamV5(_Base):
                                               None, 128, 64, 4 if rows <= 16 else 8, 3)
       else:
         up = F.linear(F.gelu(rd, approximate='tanh'), p.up_w, p.up_b)
-      write, (g1_off, g2_off) = (pending[:6], pending[6:]) if pending is not None else ((M,) * 6, (0, 0))
+      write, wb, (g1_off, g2_off), c1_vo = (pending[:6], pending[6], pending[7:9], pending[9]) \
+          if pending is not None else ((M,) * 6, p.xb, (0, 0), None)
       m_new, qk, vo = bam_kernels.fused_read(
           M, *write, state.m(i) if decode else M, prev_valid, pos, z, z, up, z, p.static_key_rows, self.rope_cos,
-          self.rope_sin, b, n, kd, vd, s, pending is not None, decode, self.write_eps, self.eps, self.key_eps,
+          self.rope_sin, p.xb, wb, b, n, kd, vd, s, pending is not None, decode, self.write_eps, self.eps, self.key_eps,
           self.key_scale, self.static_scale, p.qk_scale, p.vo_scale, q_mult, sub, groups, warps,
           state.k(i) if decode else None, state.v(i) if decode else None, g1_off, g2_off, o['shift'][0],
-          o['std'][0], o['gates'][0])
+          o['std'][0], o['gates'][0], c1_vo)
       if pending is not None:
         M = m_new
       if state is not None and not (decode and pending is not None):   # else the read kernel stored it
@@ -424,7 +438,10 @@ class FastBamV5(_Base):
         y = _strict_attention_cudnn(q, k, vo[:, 0].view(b, t, n, vw))[..., :kd]
       o_head = (y + local_o).reshape(rows, n * kd)
       x = x + F.linear(o_head, p.out_w)
-      hz = F.linear(_rmsw(x, p.ln2_w, self.eps), p.h_w, p.h_b)
+      # one-token decode: the write takes the two addends (o_head then only feeds the out-projection GEMV, which
+      # fuses the sum; materialized for both it is a separate kernel)
+      c1, c1_vo = (y.reshape(rows, n * kd), vo) if decode else (o_head, None)
+      hz = F.linear(_rmsw(x, p.ln2_w, self.eps), p.h_w)      # the MLP write-gate bias: in the read kernel
       mlp = F.linear(_swiglu(hz, p.inter), p.down_w)
       if p.has_write:
         assert p.has_mlp_write and p.tau == 1.0
@@ -433,8 +450,8 @@ class FastBamV5(_Base):
         mem_in, mgate, adown = _swiglu(hz[:, o2:o3], p.mem_inter), hz[:, o3:o3 + sh[4]], \
             hz[:, o3 + sh[4]:o3 + sh[4] + sh[5]]
         if decode and rows == 1:
-          mem, addr = gemv_cols([mem_in, hz], [0, o3 + sh[4]], [p.mem_down_w, p.addr_up_w], [None, p.addr_up_b],
-                                [0, 1], 4, 1024, 4)
+          mem, addr = bam_kernels.gemv2(hz, o2, p.mem_inter, p.mem_down_w, None, 3, hz, o3 + sh[4], 0, p.addr_up_w,
+                                        p.addr_up_b, 1, 8, 1024, 8)     # SwiGLU in the prologue
         elif decode:
           mem, addr = pythia_kernels.grouped_gemm([mem_in, F.gelu(adown, approximate='tanh')],
                                                   [p.mem_down_w, p.addr_up_w], [None, p.addr_up_b], [0, 0], None,
@@ -445,7 +462,7 @@ class FastBamV5(_Base):
         if wup is None:
           wd = z[:, o['write_down'][0]:o['write_down'][1]]
           wup = F.linear(F.gelu(wd, approximate='tanh'), p.wup_w, p.wup_b)
-        pending = (o_head, z, wup, mem, hz, addr, o['write_gate'][0], o3)
+        pending = (c1, z, wup, mem, hz, addr, p.wb, o['write_gate'][0], o3, c1_vo)
       else:
         pending = None
       x = x + mlp

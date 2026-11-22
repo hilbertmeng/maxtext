@@ -166,7 +166,7 @@ def plot_main_1x4(loom: dict, mhc: dict, pythia: dict, out_dir: Path) -> tuple[P
 
 
 def plot_appendix_routing_1x3(loom: dict, out_dir: Path) -> tuple[Path, Path]:
-  """Appendix 1x3 double-column figure: writer composition, layer routing map, top-k faithfulness."""
+  """Appendix 1x3 figure: writer composition, writer-by-reader depth map (matching Fig. 3 axes), top-k faithfulness."""
   mech = loom["mechanistic"]
   bs = mech["branch_and_source_shares"]
   layers = np.arange(1, 33)
@@ -177,7 +177,7 @@ def plot_appendix_routing_1x3(loom: dict, out_dir: Path) -> tuple[Path, Path]:
   ax1.stackplot(
       layers,
       wk[:, 0], wk[:, 1], wk[:, 2],
-      labels=["Embedding ($M_0$)", "LoomMHA", "$\\mathrm{FFN}_M$"],
+      labels=["Embedding", "LoomMHA", "$\\mathrm{FFN}_M$"],
       colors=["#7F7F7F", "#377EB8", "#E41A1C"],
       alpha=0.82,
   )
@@ -188,18 +188,27 @@ def plot_appendix_routing_1x3(loom: dict, out_dir: Path) -> tuple[Path, Path]:
   ax1.set_xticks([1, 8, 16, 24, 32])
   ax1.set_xlabel("Reader Layer $l$", fontsize=10.8)
   ax1.set_ylabel("Attribution Share (%)", fontsize=10.8)
-  ax1.set_title("(a) Writer Source Composition", fontsize=11.2, fontweight="bold")
+  ax1.set_title("(a) Writer Composition", fontsize=11.2, fontweight="bold")
   ax1.legend(fontsize=8.2, loc="center right", frameon=True)
 
-  rout = np.mean(np.array(bs["depth_routing_posmass_32x33x4"]), axis=-1)[:, :32]
-  rout_disp = rout / np.maximum(np.max(rout, axis=-1, keepdims=True), 1e-12)
-  im = ax2.imshow(rout_disp, origin="lower", aspect="auto", cmap="magma_r", vmin=0.0, vmax=1.0)
-  ax2.set_xlabel("Writer Source (Emb, Layer $1\\ldots 31$)", fontsize=10.5)
-  ax2.set_ylabel("Reader Layer $l$", fontsize=10.8)
-  ax2.set_xticks([0, 8, 16, 24, 31], ["Emb", "L8", "L16", "L24", "L31"])
-  ax2.set_yticks([0, 7, 15, 23, 31], ["L1", "L8", "L16", "L24", "L32"])
+  # Match Fig. 3 (C in R^{w x r}): rows (Y, top-to-bottom) = Writer source (Emb, L1..L31);
+  # columns (X, left-to-right) = Reader layer (L1..L32). Causal pairs satisfy row <= col.
+  rout_rl_ws = np.mean(np.array(bs["depth_routing_posmass_32x33x4"]), axis=-1)[:, :32]  # [reader 0..31, writer 0..31]
+  mat_wr = rout_rl_ws.T  # [writer 0..31, reader 0..31]
+  mat_norm = mat_wr / np.maximum(np.max(mat_wr, axis=0, keepdims=True), 1e-12)
+  unreachable = np.tril(np.ones_like(mat_norm, dtype=bool), k=-1)  # writer_row > reader_col
+  mat_masked = np.ma.array(mat_norm, mask=unreachable)
+  cmap = plt.cm.YlOrRd.copy()
+  cmap.set_bad(color="#E5E5E5")
+
+  ax2.grid(False)
+  im = ax2.imshow(mat_masked, origin="upper", aspect="auto", cmap=cmap, vmin=0.0, vmax=1.0)
+  ax2.set_xlabel("Reader Layer $l$", fontsize=10.8)
+  ax2.set_ylabel("Writer Source", fontsize=10.8)
+  ax2.set_xticks([0, 7, 15, 23, 31], ["L1", "L8", "L16", "L24", "L32"])
+  ax2.set_yticks([0, 8, 16, 24, 31], ["Emb", "L8", "L16", "L24", "L31"])
   ax2.set_title("(b) Depth-to-Depth Routing", fontsize=11.2, fontweight="bold")
-  plt.colorbar(im, ax=ax2, fraction=0.046, pad=0.04, label="Rel. Attribution")
+  plt.colorbar(im, ax=ax2, fraction=0.046, pad=0.04, label="Col.-Norm. Attribution")
 
   ks = np.array(mech["topk_faithfulness"]["ks"])
   f_cos = np.mean(np.array(mech["topk_faithfulness"]["cosine_similarity"]), axis=1)
@@ -222,7 +231,7 @@ def plot_appendix_routing_1x3(loom: dict, out_dir: Path) -> tuple[Path, Path]:
 
 
 def plot_appendix_icl_circuit(loom: dict, icl_npz: Path, out_dir: Path) -> tuple[Path, Path]:
-  """Appendix 1x2 double-column figure: exact Layer-24 circuit rewiring across adjacent ICL tokens."""
+  """Appendix 1x2 figure: exact Layer-24 circuit rewiring across adjacent ICL tokens (1-indexed heads)."""
   data = np.load(icl_npz)
   prompts = {p["name"]: p for p in loom["icl_prompts"]["prompts"]}
   p_name = "country_capital"
@@ -268,18 +277,18 @@ def plot_appendix_icl_circuit(loom: dict, icl_npz: Path, out_dir: Path) -> tuple
     top_h = np.sort(np.argsort(-sub_score)[:6])
     for h in top_h:
       r_cols.append(s_i * 32 + int(h))
-      r_labels.append(f"{s_nm}{int(h)}")
+      r_labels.append(f"{s_nm}{int(h) + 1}")  # 1-indexed heads (1..32) matching §3.2
 
   w_score = np.max(np.abs(A_a[:, r_cols]), axis=1) + np.max(np.abs(A_b[:, r_cols]), axis=1)
   top_w = np.sort(np.argsort(-w_score)[:18])
 
   def writer_label(w_id: int) -> str:
     if w_id < 32:
-      return f"Emb.{w_id}"
+      return f"Emb.{w_id + 1}"
     rem = w_id - 32
     sl = rem // 64 + 1
     rem2 = rem % 64
-    return f"L{sl}.Attn{rem2}" if rem2 < 32 else f"L{sl}.FFN{rem2 - 32}"
+    return f"L{sl}.H{rem2 + 1}" if rem2 < 32 else f"L{sl}.FFN{rem2 - 32 + 1}"
 
   w_labels = [writer_label(int(w)) for w in top_w]
   sub_a = A_a[np.ix_(top_w, r_cols)]
@@ -292,24 +301,26 @@ def plot_appendix_icl_circuit(loom: dict, icl_npz: Path, out_dir: Path) -> tuple
   ax_b = fig.add_subplot(gs[0, 1])
   cax = fig.add_subplot(gs[0, 2])
 
-  tok_a_str = repr(toks[t_a]["str"].strip() or toks[t_a]["str"])
-  tok_b_str = repr(toks[t_b]["str"])
+  tok_a_str = toks[t_a]["str"].strip() or toks[t_a]["str"]
+  tok_b_str = toks[t_b]["str"]
+  for ax in (ax_a, ax_b):
+    ax.grid(False)
   im = ax_a.imshow(sub_a, aspect="auto", cmap="RdBu_r", vmin=-vmax, vmax=vmax)
   ax_b.imshow(sub_b, aspect="auto", cmap="RdBu_r", vmin=-vmax, vmax=vmax)
 
   for ax, ttl in [
-      (ax_a, f"(a) Layer 24 Wiring at Token {t_a} ({tok_a_str})"),
-      (ax_b, f"(b) Layer 24 Rewired at Token {t_b} ({tok_b_str})"),
+      (ax_a, f'(a) Layer 24 Wiring at "{tok_a_str}"'),
+      (ax_b, f'(b) Layer 24 Rewired at "{tok_b_str}"'),
   ]:
     ax.set_xticks(np.arange(len(r_cols)), r_labels, rotation=55, fontsize=8.0)
     ax.set_yticks(np.arange(len(top_w)), w_labels, fontsize=8.2)
     for boundary in (5.5, 11.5, 17.5):
       ax.axvline(boundary, color="#222222", lw=0.9, ls="--")
     ax.set_title(ttl, fontsize=11.0, fontweight="bold")
-    ax.set_xlabel("Layer 24 Ports ($\\tilde{q}$ | $\\tilde{k}$ | $v$ | $o^m$)", fontsize=10.3)
-  ax_a.set_ylabel("Upstream Writers", fontsize=10.5)
+    ax.set_xlabel("Layer 24 MRead Outputs ($\\tilde{q}$ | $\\tilde{k}$ | $v$ | $o^m$)", fontsize=10.3)
+  ax_a.set_ylabel("Earlier Writers", fontsize=10.5)
 
-  plt.colorbar(im, cax=cax, label="Attribution Weight $a_{ij}$")
+  plt.colorbar(im, cax=cax, label="Attribution $a_{ij}$")
   return save_both(fig, out_dir, "loompythia_icl_circuit_appendix")
 
 

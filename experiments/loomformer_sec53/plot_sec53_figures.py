@@ -277,9 +277,9 @@ def plot_appendix_icl_circuit(loom: dict, icl_npz: Path, out_dir: Path) -> tuple
     top_h = np.sort(np.argsort(-sub_score)[:6])
     for h in top_h:
       r_cols.append(s_i * 32 + int(h))
-      r_labels.append(f"{s_nm}{int(h) + 1}")  # 1-indexed heads (1..32) matching §3.2
+      r_labels.append(f"{s_nm}{int(h) + 1:02d}")  # Fixed-width 2-digit 1-indexed heads
 
-  # Restrict rows to earlier attention-head writers (L{l}.H{h}), matching §2 & App. A.7
+  # Restrict rows to earlier attention-head writers (L{ll}.H{hh}), matching §2 & App. A.7
   head_w_ids = np.array([w for w in range(32, w_cnt) if (w - 32) % 64 < 32], dtype=np.int32)
   w_score = np.max(np.abs(A_a[np.ix_(head_w_ids, r_cols)]), axis=1) + np.max(np.abs(A_b[np.ix_(head_w_ids, r_cols)]), axis=1)
   top_w = head_w_ids[np.sort(np.argsort(-w_score)[:18])]
@@ -288,7 +288,7 @@ def plot_appendix_icl_circuit(loom: dict, icl_npz: Path, out_dir: Path) -> tuple
     rem = w_id - 32
     sl = rem // 64 + 1
     h_idx = rem % 64 + 1
-    return f"L{sl}.H{h_idx}"
+    return f"L{sl:02d}.H{h_idx:02d}"
 
   w_labels = [writer_label(int(w)) for w in top_w]
   sub_a = A_a[np.ix_(top_w, r_cols)]
@@ -297,7 +297,7 @@ def plot_appendix_icl_circuit(loom: dict, icl_npz: Path, out_dir: Path) -> tuple
 
   fig = plt.figure(figsize=(13.2, 4.35))
   # Independent horizontal spacers: roomy gap for (b)'s y-tick labels, tight gap before colorbar
-  gs = gridspec.GridSpec(1, 5, width_ratios=[1.0, 0.19, 1.0, 0.026, 0.034], wspace=0.0)
+  gs = gridspec.GridSpec(1, 5, width_ratios=[1.0, 0.21, 1.0, 0.020, 0.032], wspace=0.0)
   ax_a = fig.add_subplot(gs[0, 0])
   ax_b = fig.add_subplot(gs[0, 2])
   cax = fig.add_subplot(gs[0, 4])

@@ -297,7 +297,7 @@ def plot_appendix_icl_circuit(loom: dict, icl_npz: Path, out_dir: Path) -> tuple
 
   fig = plt.figure(figsize=(13.2, 4.35))
   # Independent horizontal spacers: roomy gap for (b)'s y-tick labels, tight gap before colorbar
-  gs = gridspec.GridSpec(1, 5, width_ratios=[1.0, 0.178, 1.0, 0.076, 0.032], wspace=0.0)
+  gs = gridspec.GridSpec(1, 5, width_ratios=[1.0, 0.165, 1.0, 0.105, 0.032], wspace=0.0)
   ax_a = fig.add_subplot(gs[0, 0])
   ax_b = fig.add_subplot(gs[0, 2])
   cax = fig.add_subplot(gs[0, 4])

@@ -107,7 +107,7 @@ def run_probe(train,captured,reference,output,sequence,target_layer):
     if label=='identity':assert difference/base_raw<.01,('instrumented gradient fidelity',name,difference/base_raw)
     assert np.isfinite(totals).all()
     if label in ('O_L5','O_first6','OV_first6'):
-     selected=[x for x in row['leaf_metrics'] if '/static_o_key' in x['name']]
+     selected=[x for x in row['leaf_metrics'] if '/decoder/layers/block/self_attention/static_o_key' in x['name']]
      assert len(selected)==1,('Cannot verify O cut coordinate',len(selected))
      ls=np.asarray(selected[0]['first6'])
      chosen=[5] if label=='O_L5' else list(range(6))

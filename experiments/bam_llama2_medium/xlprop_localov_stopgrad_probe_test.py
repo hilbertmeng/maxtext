@@ -28,6 +28,10 @@ class Tests(unittest.TestCase):
    trial=jax.tree.map(lambda x:x.copy(),state)
    updated=native(trial);jax.block_until_ready(updated)
    for k in state:np.testing.assert_array_equal(state[k],before[k])
+ def test_static_o_selection_excludes_explicit_terminal(self):
+  names=['params/decoder/layers/block/self_attention/static_o_key','params/decoder/final_local_layer/block/self_attention/static_o_key']
+  chosen=[n for n in names if '/decoder/layers/block/self_attention/static_o_key' in n]
+  self.assertEqual(chosen,[names[0]])
  def test_matrix_address_gradient_and_svd(self):
   M=jnp.diag(jnp.array([3.,1.]));g=jnp.array([2.,1.]);a=jnp.array([.5,2.])
   gm,ga=jax.grad(lambda mm,aa:jnp.vdot(mm.T@aa,g),argnums=(0,1))(M,a)

@@ -918,3 +918,61 @@ alone. The proposed localO+V dominant-direction overlap is not established by
 these results. Highest-value follow-up is fixed-input V L3/L4 -> downstream MLP
 boundary gains, keeping incoming-gradient magnitude separate from unit-cotangent
 Jacobian gain. No retraining benefit or stable stop-gradient recipe is claimed.
+
+
+### 2026-11-24: first-spike full-batch cuts, correcting the measurement point
+
+Owner2431 explicitly requires the FIRST gradient spike, not the later maximum.
+The preceding full-batch cut table used step35676; its local M probe alone used
+ONSET35636. Those scopes must not be conflated. This follow-up repeats all17
+cuts on step35636 with the actual CP35635 state and original B128/T4096 batch.
+Runtime/AOT remains d54c4c5; helper83707cb9 adds an explicit onset mode, with no
+model changes. Artifacts: `training_reports/xl_localov_stopgrad_20261124/onset/`;
+GCS `diagnostics/xl-localov-stopgrad-20261124-onset`. Branch/worktree as above.
+
+All4 workers exit0 and agree exactly. Native original AOT reproduces
+loss1.924464225769043/raw2.1978654861450195 exactly; plain autodiff raw2.197876565
+is within.001% of native. All16 indexed input hashes match the archived
+onset-columns-r22 cohort, all17 cut forward losses equal baseline exactly,
+identity gradient fidelity and selected staticO coordinate-zero gates pass.
+`review.py` and `verify_completed.py` independently pass. The prior separately
+verified ONSET singleton M geometry is reused, not remeasured or relabelled as
+full-batch evidence. No optimizer updates are retained and no training resumes.
+
+| Cut (zero-based layers) | First-spike raw | First-spike norm reduction | Late-peak norm reduction |
+|---|---:|---:|---:|
+| L5 localO |2.508830447| -14.15% | -4.95% |
+| First6 localO |2.054205278|6.54%|2.18%|
+| L5 V |2.194800033|.14%|17.77%|
+| First6 V |1.797203386|18.23%|48.24%|
+| First6 localO+V |1.350978237|38.53%|63.94%|
+| First6 QK |1.996571469|9.16%|16.46%|
+| L3 localO |1.981552000|9.84%|1.12%|
+| L3 V |1.977398981|10.03%|22.52%|
+| L4 V |2.088074473|5.00%|22.46%|
+
+The late-peak L5 V effect is almost absent at onset. This weakens any claim that
+L5 V is the main trigger of the first spike: its stronger peak effect is
+consistent with later propagation, not evidence of initiation. L3 O and V have
+similar ~10% onset norm effects. First6 V still reduces the norm more than O,
+but the relative importance inferred from late-peak norms cannot simply be
+transferred to onset.
+
+First6 localO removal changes the gradient by .81427 times baseline norm,
+versus .60849 for V, despite its smaller NET norm drop. The remaining-gradient
+cosines are .64758 (O) and .79392 (V). L5 O removal increases the norm14.15%:
+localO participates in substantial cancellation, not a purely positive amplifier.
+Removing first6 O zeros the selected O-address gradients but raises ordinary-MLP
+squared gradient norm from .0709 to .1086 times the original GLOBAL squared
+norm (~53% higher). Joint O+V cuts similarly leave this MLP energy above its
+baseline. These are parameter-family aggregates, not a local Jacobian-gain
+measurement, and do not show that the MLP mechanism is cured by cutting reads.
+
+Joint cuts still leave raw1.351>1; they reduce but do not eliminate the first
+spike. Direction changes and cancellation prevent additive causal-share claims.
+The first-spike data prioritize upstream L3/read-path interactions and the
+already demonstrated downstream MLP amplification over an isolated L5-V trigger.
+A next localization would hold boundary tensors/cotangents fixed and distinguish
+incoming-gradient size from local Jacobian gain; no such new resource is launched
+as part of this completed bounded follow-up. Both exact new UC/EW VM/QR resources
+were independently fresh NOT_FOUND after controller cleanup.

@@ -843,3 +843,78 @@ Original1512 AOT controls exact; instrumented full raw error .1641%, selected
 wi1 norm error .0791%;16 indexed inputs and seq9 six fields match. This is
 parameter-column energy, distinct from the previously measured local input-VJP
 projections summing102.8%.
+
+## 2026-11-24: backward-only localO / V cuts (verified)
+
+Owner room2414/2422 requested fixed-forward gradient cuts, local M adjoint
+components and read-direction alignment. Runtime stays
+`d54c4c5f1339b01e406932ec28be0e398722b918`. The complete attempt is
+`training_reports/xl_localov_stopgrad_20261124/attempt-b/`; source helpers are
+`xlprop_localov_stopgrad_probe.py` and `xlprop_localov_M_vjp.py` in this branch.
+Repair1 helper commit `efd05f2d` is the executed version. Original attempt-a
+failed before interventions due donating AOT state reuse; attempt-b repair1
+fixed a guard that also matched the explicit terminal's same-named parameter.
+Both fixes preserve the numerical gates; the latter had not changed measurements.
+
+Whole-batch experiment: exact original16 input-index/hash pairs for batch35676,
+B128/T4096, frozen healthyCP35635 and peakCP35675. Both original serialized AOT
+controls reproduced exactly (healthy loss1.9770115613937378/raw.21527354419231415;
+peak loss2.595792531967163/raw809414.5625). Autograd baselines are
+.2152755212442369 and809418.5271199519. All17 arms per checkpoint preserve the
+baseline forward loss exactly; identity gradient-vector fidelity and selected
+staticO zero-gradient coordinate checks pass. All4 worker full results and local
+VJP reports are exactly equal. `independent-verification.json`, `reviewed-summary.json`
+and `verify_completed.py` retain evidence. No retained optimizer updates or
+checkpoint saves. Layer indices are zero-based: first6=0..5, L5=sixth layer.
+
+Cuts act on the fused read output before BOTH residual W_O and memory-write
+consumers, leaving forward values and read's pass-through M unchanged. V cuts
+are at the V-read output, before attention; this is not clipping a standard W_V.
+
+| Backward cut | Healthy norm reduction | Peak norm reduction | Peak remaining norm |
+|---|---:|---:|---:|
+| localO L5 |1.7245%|−4.9494% (increases)|849480.259|
+| localO first6 |5.0970%|2.1839%|791741.978|
+| V L5 |2.4977%|17.7723%|665566.437|
+| V first6 |7.9804%|48.2382%|418969.742|
+| localO+V first6 |13.5446%|63.9368%|291901.931|
+| QK first6 |4.1735%|16.4635%|676159.511|
+
+Single V cuts at L3 and L4 reduce peak norm22.5153% and22.4620%, versus
+2.2704% and2.0104% healthy. These are separate interventions, not additive shares.
+This elevates the V path, especially L3/L4, over localO alone as a spike-gradient
+propagation target at this fixed state. It does NOT identify where amplification
+was originally created. Even joint first6 OV cuts leave ~292k, far above healthy.
+
+Small net norm change does not mean localO is unimportant. For first6 O cuts,
+peak ||g−g_cut||/||g||=.696879 while ||g_cut||/||g||=.978161 and cosine=.752002.
+The intervention substantially changes direction/cancellation even though its
+net norm changes little. A single L5 O cut increases norm4.95%. Therefore neither
+norm-reduction percentages nor component norm² ratios are causal/additive shares.
+
+Separate local probe: native ONSET35636, seq9/target1211, fixed L5/L6 states and
+cotangents from the earlier native capture (NOT the peak full-batch state).
+QK/V/O M-input adjoints close to the full adjoint with worst relative error.003019,
+within the predeclared1% bound. L5 localO vs V M-gradient cosine.0040123;
+L6 cosine−.0132749: nearly orthogonal in this conditional probe, not a large
+same-direction sum. LocalO's M-adjoint norm exceeds V's here; this is compatible
+with a weak effect on whole-batch parameter-gradient norm at a different state.
+
+For actual shifted/whole-RMS-normalized M at positions0/512/1211, O-cotangent
+||M g_H||/||g_H|| is1.14–1.64 times the isotropic RMS-direction reference across
+L5/L6. The largest singular values are33.65–44.66 vs RMS-direction gain~6.325,
+but O gradients do not strongly select the largest singular vector (top1 energy
+~.86–3.05%). These sampled measurements show directional preference, not an
+orders-of-magnitude alignment amplifier. The geometry calculation isolates the
+M contraction, not gates/scales or the full read-parameter Jacobian. V at target
+position1211 has zero recorded projected response; do not treat that zero as
+an angle/alignment estimate without retaining the corresponding cotangent norm.
+This probe lacks a healthy/peak spectrum comparison and cannot rule out strong
+alignment at other tokens or the peak.
+
+Current judgment: downstream ordinary MLP remains the demonstrated local
+amplifier; V is a stronger measured propagation route for the peak than localO
+alone. The proposed localO+V dominant-direction overlap is not established by
+these results. Highest-value follow-up is fixed-input V L3/L4 -> downstream MLP
+boundary gains, keeping incoming-gradient magnitude separate from unit-cotangent
+Jacobian gain. No retraining benefit or stable stop-gradient recipe is claimed.

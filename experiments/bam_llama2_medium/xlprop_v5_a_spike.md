@@ -976,3 +976,88 @@ A next localization would hold boundary tensors/cotangents fixed and distinguish
 incoming-gradient size from local Jacobian gain; no such new resource is launched
 as part of this completed bounded follow-up. Both exact new UC/EW VM/QR resources
 were independently fresh NOT_FOUND after controller cleanup.
+
+
+### 2026-11-24: layer-wise multiples over the normal pre-spike gradients
+
+Owner2442 clarifies that the primary endpoint is the per-layer/module gradient
+multiple over normal, not global norm reduction. Reaggregate the SAME completed
+first-spike cuts; no new TPU measurement. Normal denominator is the original
+native step35635 gradient for each identical parameter group; numerator is
+step35636 with each intervention. This is the historical adjacent-batch reference,
+not a same-batch healthy-parameter control. Layer indices are zero based.
+
+Use all54 scanned-block parameter leaves per layer; group L2 norms are square
+roots of summed squared leaf norms. Every identity group matches the archived
+native onset group within1%. `onset/layer-normal-multiples.{json,csv}` retains all17
+arms x6layers, whole-block/attention/ordinaryMLP/staticO/staticV/W_O groups.
+Attention below includes all self_attention parameters, including write-related
+parameters. StaticO/staticV zeroing by their own cuts is mechanical, not evidence
+that upstream amplification disappeared.
+
+All block parameters; each entry is cut-gradient norm / normal35635 norm.
+
+|Layer|No cut|First6 O cut|First6 V cut|First6 O+V cut|
+|---|---:|---:|---:|---:|
+|L0|15.98x|13.68x|13.83x|10.66x|
+|L1|17.90x|11.23x|16.43x|8.27x|
+|L2|16.66x|17.72x|13.64x|14.03x|
+|L3|29.51x|30.69x|20.21x|15.64x|
+|L4|18.07x|15.64x|16.17x|11.95x|
+|L5|8.75x|6.55x|7.56x|5.00x|
+
+All self_attention parameters; each entry is cut-gradient norm / normal35635 norm.
+
+|Layer|No cut|First6 O cut|First6 V cut|First6 O+V cut|
+|---|---:|---:|---:|---:|
+|L0|17.38x|8.62x|14.76x|5.69x|
+|L1|17.93x|10.27x|16.46x|6.92x|
+|L2|16.59x|15.25x|13.10x|9.93x|
+|L3|31.25x|32.03x|20.46x|13.52x|
+|L4|18.27x|14.32x|15.91x|8.88x|
+|L5|9.59x|6.87x|8.13x|4.82x|
+
+Ordinary MLP; each entry is cut-gradient norm / normal35635 norm.
+
+|Layer|No cut|First6 O cut|First6 V cut|First6 O+V cut|
+|---|---:|---:|---:|---:|
+|L0|14.64x|15.42x|14.62x|15.06x|
+|L1|18.38x|23.52x|17.45x|22.80x|
+|L2|19.67x|31.22x|18.85x|30.61x|
+|L3|22.66x|27.42x|22.51x|27.20x|
+|L4|22.47x|26.23x|22.50x|26.27x|
+|L5|7.13x|7.13x|7.13x|7.13x|
+
+Attention output W_O; each entry is cut-gradient norm / normal35635 norm.
+
+|Layer|No cut|First6 O cut|First6 V cut|First6 O+V cut|
+|---|---:|---:|---:|---:|
+|L0|9.26x|10.41x|8.34x|9.03x|
+|L1|19.71x|22.17x|17.84x|20.68x|
+|L2|17.99x|24.66x|16.89x|23.85x|
+|L3|34.94x|44.50x|34.42x|43.91x|
+|L4|29.94x|35.32x|30.17x|35.57x|
+|L5|16.90x|16.90x|16.90x|16.90x|
+
+Interpretation changes when evaluated at the requested endpoint. Joint cuts
+reduce the all-parameter layer multiples substantially but still leave every
+first-six block at5.00--15.64x normal. First6 O alone INCREASES whole-block L2/L3
+multiples, while directly deleting O-address gradients. Ordinary-MLP L2 grows
+19.67x ->31.22x (O cut), or30.61x (joint cut); L3 grows22.66x ->27.42x/27.20x.
+W_O L3 grows34.94x ->44.50x/43.91x; L4 grows29.94x ->35.32x/35.57x.
+First6 V reduces whole-block and attention-group norms more consistently, but
+uncut ordinary-MLP/W_O multiples remain close to their abnormal baseline.
+
+For ANY first6 arm, L5 ordinary MLP stays7.13x and W_O stays16.90x: cuts to
+L5 attention read outputs cannot alter gradients of downstream parameterized
+operations on that same forward pass. Those unchanged gradients are consistent
+with the intervention placement, not a failed cut. Earlier-layer gradients can
+change because their backpropagated cotangents traverse the intervened reads.
+
+Thus the completed cuts have not normalized the abnormal uncut early-layer
+parameter gradients. Global norm reduction partly reflects deletion of the cut
+branches' own parameter gradients and changes in cancellation. It does not show
+that localO/V are the principal amplification source, nor that MLP/W_O are
+exonerated. The next useful localization is the upstream cotangent arriving at
+these anomalous modules versus their local VJP gain, with fixed forward inputs;
+no new resource is allocated for this report.

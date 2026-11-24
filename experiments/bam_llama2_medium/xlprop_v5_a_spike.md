@@ -1129,3 +1129,53 @@ selective routing/propagation effects; they do not remove the remaining large
 ordinary-MLP/W_O gradients. Near-normal values here describe this one batch,
 not stable training or a general mechanism proof.
 
+
+
+### 2026-11-25: paired sampled pre-W_O localO / AV amplitudes
+
+Owner2448 asks whether localO raises H=AV+O and thereby explains W_O gradients.
+Reanalyze EXISTING r17 sink-origin captures, not a new TPU measurement. Exact
+source hashes match sink-origin.json. Four sequences9/40/73/104 x11positions
+0/1/2/8/16/128/512/1211/2048/3072/4095 on batch35676, valid segment positions
+only; all20heads x96channels. Compare CP35635 old parameters with CP35675 peak
+parameters on this SAME batch. These are NOT first-spike35636 activations or
+fullbatch statistics. The instrumented fullbatch losses differ from native AOT
+by4.29e-6 old/.00040269 peak; this forward capture has the recorded1e-3 fidelity
+gate, not the exact-forward guarantees of the newer backward-cut experiment.
+
+Read_O is captured after read gates/scales; actual splash V exactly equals
+read_V, consistent with folded common VO scales. AV is native Splash output,
+not the FP32 attention reconstruction. Reconstruct H with actual BF16 addition;
+its energy agrees with the FP64 sum/cross identity within.5%. Source and CPU
+analysis: training_reports/xl_localov_stopgrad_20261124/amplitude-reanalysis/
+{analyze.py,paired-amplitudes.json}.
+
+|Layer|Normal O/AV|Peak O/AV|Normal O energy fraction|Peak O energy fraction|Peak H / normal H|
+|---|---:|---:|---:|---:|---:|
+|L0|1.84|1.62|77.3%|72.5%|0.984|
+|L1|2.08|2.33|81.2%|84.4%|0.890|
+|L2|1.47|1.60|68.4%|71.8%|0.907|
+|L3|1.05|0.91|52.3%|45.6%|1.040|
+|L4|1.18|1.16|58.1%|57.4%|1.067|
+|L5|0.90|0.81|44.7%|39.4%|1.098|
+
+O energy fraction means ||O||^2/(||O||^2+||AV||^2), EXCLUDING the cross term.
+It is not a fraction of H energy or W_O gradient attribution. O/AV is an L2
+norm ratio over the sampled valid positions/head/channels. Sampled O/AV cosine
+is .056,-.058,-.052,-.219,-.243,-.229 under old parameters; at peak it is
+.061,-.061,-.089,-.226,-.251,-.221. L3--L5 show partial cancellation.
+
+LocalO is a substantial forward component already in the normal parameter
+state: it exceeds AV in L0--L4 and accounts for68--81% of separate O+AV energy
+in L0--L2. This confirms a meaningful difference from standard AV-only output.
+However, the sampled summed H changes only -.110 to+.098 between old/peak
+parameters, while the global gradient changes by orders of magnitude. The
+available sampled forward captures do not support a uniform large-H peak
+explosion. They do not rule out rare large-H positions, first-spike behavior,
+or correlation with the incoming gradient G. A W_O gradient decomposition
+requires AV^T G and O^T G and their cross alignment, plus paired normal/spike
+H and G at the actual anomalous positions; raw forward energy fractions alone
+cannot choose the H-versus-G explanation. Earlier preference for G based on
+local MLP gains is evidence of a possible route, not a completed factor
+attribution. First-spike saved tensor-onset captures retain AV only at the
+target layer and do not contain first6 localO, so they cannot fill that gap.

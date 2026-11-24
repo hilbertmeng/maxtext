@@ -1061,3 +1061,71 @@ that localO/V are the principal amplification source, nor that MLP/W_O are
 exonerated. The next useful localization is the upstream cotangent arriving at
 these anomalous modules versus their local VJP gain, with fixed forward inputs;
 no new resource is allocated for this report.
+
+
+### 2026-11-25: component-level first-six-layer multiples
+
+Reaggregate existing measurements; no new TPU job. Normal denominator remains
+the exact parameter norm at native step35635. Numerator uses first-spike35636
+with each cut; zero-based layers, original fullbatch loss normalization.
+All324 identity leaf norms match native onset within1% (absolute floor1e-7).
+Complete324components x17arms are in onset/component-normal-multiples.csv/json;
+component_multiples.py reproduces them. Selected below by appreciable absolute
+spike gradient or a substantial intervention effect, rather than large ratios
+with tiny denominators. O/V cuts mean all first6 layers, not only listed layer.
+
+|Layer|Parameter|No cut|O cut|V cut|O+V cut|
+|---|---|---:|---:|---:|---:|
+|L0|self_attention/static_o_key|21.9x|0.0x|19.1x|0.0x|
+|L0|self_attention/static_v_key|29.9x|33.3x|0.0x|0.0x|
+|L0|self_attention/out/kernel|9.3x|10.4x|8.3x|9.0x|
+|L0|mlp/wi_0/kernel|16.8x|18.3x|16.3x|17.8x|
+|L0|memory_mlp/wi_1/kernel|17.1x|24.4x|4.2x|2.3x|
+|L0|post_self_attention_layer_norm/scale|23.7x|25.9x|4.6x|6.8x|
+|L1|self_attention/static_o_key|19.2x|0.0x|19.2x|0.0x|
+|L1|self_attention/general_v_static_gate/kernel|54.3x|39.8x|0.0x|0.0x|
+|L1|self_attention/out/kernel|19.7x|22.2x|17.8x|20.7x|
+|L1|mlp/wi_1/kernel|18.0x|22.6x|17.1x|21.9x|
+|L1|self_attention/full_m_read_down/kernel|28.4x|23.9x|19.7x|9.9x|
+|L1|self_attention/query/kernel|34.9x|26.2x|29.4x|20.3x|
+|L2|self_attention/W_lv_gate/kernel|20.2x|26.1x|0.0x|0.0x|
+|L2|self_attention/out/kernel|18.0x|24.7x|16.9x|23.9x|
+|L2|mlp/wi_0/kernel|20.2x|31.9x|19.3x|31.2x|
+|L2|mlp/wi_1/kernel|21.3x|34.9x|20.4x|34.2x|
+|L2|mlp/wo/kernel|17.8x|27.5x|17.2x|27.0x|
+|L2|self_attention/full_m_read_down/kernel|20.2x|16.0x|15.9x|10.8x|
+|L3|self_attention/W_lv_gate/kernel|67.2x|83.6x|0.0x|0.0x|
+|L3|self_attention/general_o_static_gate/kernel|74.9x|0.0x|73.2x|0.0x|
+|L3|self_attention/out/kernel|34.9x|44.5x|34.4x|43.9x|
+|L3|mlp/wi_1/kernel|25.0x|30.2x|24.7x|29.8x|
+|L3|self_attention/full_m_read_down/kernel|36.4x|26.3x|31.7x|19.1x|
+|L3|self_attention/static_o_key|18.8x|0.0x|18.5x|0.0x|
+|L4|self_attention/W_lv_gate/kernel|24.6x|29.6x|0.0x|0.0x|
+|L4|self_attention/out/kernel|29.9x|35.3x|30.2x|35.6x|
+|L4|mlp/wi_0/kernel|33.3x|39.2x|33.3x|39.3x|
+|L4|mlp/wi_1/kernel|18.3x|21.1x|18.1x|21.0x|
+|L4|self_attention/full_m_read_down/kernel|17.9x|12.6x|16.7x|6.1x|
+|L4|self_attention/static_o_key|19.0x|0.0x|19.1x|0.0x|
+|L5|self_attention/out/kernel|16.9x|16.9x|16.9x|16.9x|
+|L5|mlp/wi_1/kernel|8.7x|8.7x|8.7x|8.7x|
+|L5|self_attention/static_o_key|10.3x|0.0x|10.3x|0.0x|
+|L5|self_attention/W_lv_gate/kernel|12.9x|12.9x|0.0x|0.0x|
+|L5|self_attention/full_m_read_down/kernel|10.2x|5.5x|8.0x|2.2x|
+
+The most pronounced read-gate multiples occur at L3: W_lv_gate67.2x and
+O static gate74.9x. These are not tiny-denominator-only effects: native onset
+norms.7014/.3334 versus normal.01043/.004453, respectively. O cut increases
+the V gate to83.6x; V cut leaves the O gate73.2x. Their own cuts mechanically
+zero them and therefore cannot identify the original amplification source.
+L2 ordinary-MLP wi_1 grows21.3x ->34.9x after O cut, with joint cut34.2x;
+L3 W_O grows34.9x ->44.5x/43.9x. This is inconsistent with treating read
+cutting as broad normalization of early-layer gradients.
+
+There are specific genuine reductions on uncut components: L0 memory-MLP
+wi_1 falls17.1x ->4.2x (V)/2.3x (joint), while its post-attention RMSNorm
+scale falls23.7x ->4.6x/6.8x. Shared full_m_read_down also falls, especially
+L0 15.7x ->1.1x and L5 10.2x ->2.2x under joint cut. These changes show
+selective routing/propagation effects; they do not remove the remaining large
+ordinary-MLP/W_O gradients. Near-normal values here describe this one batch,
+not stable training or a general mechanism proof.
+

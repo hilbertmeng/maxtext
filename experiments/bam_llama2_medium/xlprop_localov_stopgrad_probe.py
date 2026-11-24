@@ -103,6 +103,12 @@ def run_probe(train,captured,reference,output,sequence,target_layer):
     assert abs(loss-base_loss)<1e-6,('stop gradient changed forward',name,label,loss,base_loss)
     if label=='identity':assert difference/base_raw<.01,('instrumented gradient fidelity',name,difference/base_raw)
     assert np.isfinite(totals).all()
+    if label in ('O_L5','O_first6','OV_first6'):
+     selected=[x for x in row['leaf_metrics'] if '/static_o_key' in x['name']]
+     assert len(selected)==1,('Cannot verify O cut coordinate',len(selected))
+     ls=np.asarray(selected[0]['first6'])
+     chosen=[5] if label=='O_L5' else list(range(6))
+     assert np.all(ls[chosen,0]==0),('O cut did not zero selected address gradients',label,ls.tolist())
     del g
    bam_pallas.read=original_read
    compiled.clear_cache();del base

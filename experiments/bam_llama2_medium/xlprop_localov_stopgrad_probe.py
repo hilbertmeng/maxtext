@@ -31,7 +31,10 @@ def run_probe(train,captured,reference,output,sequence,target_layer):
  # Original serialized AOT controls, no retained optimizer updates or checkpoint saves.
  controls={}
  for name,params in [('peak',state.params),('healthy',old)]:
-  _,metrics=captured['compiled'](state.replace(params=params),captured['data'],captured['rng'])
+  # The native executable donates its TrainState buffers. Never give it the frozen source.
+  trial=jax.tree.map(lambda x:x.copy() if hasattr(x,'copy') else x,state.replace(params=params))
+  updated,metrics=captured['compiled'](trial,captured['data'],captured['rng'])
+  del updated
   vals=metrics['scalar'];controls[name]={k:float(jax.device_get(vals[k])) for k in ('learning/loss','learning/raw_grad_norm')}
   expect=(2.595792532,809414.5625) if name=='peak' else (1.977011561,.215273544)
   assert abs(controls[name]['learning/loss']-expect[0])<1e-6

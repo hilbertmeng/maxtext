@@ -20,6 +20,14 @@ class Tests(unittest.TestCase):
   def f(x,c):return jnp.sum(2*x- m['cut_value'](x,c))
   self.assertEqual(float(jax.grad(f)(1.,False)),1.)
   self.assertEqual(float(jax.grad(f)(1.,True)),2.)
+ def test_donating_native_control_copies_all_state_leaves(self):
+  native=jax.jit(lambda state:jax.tree.map(lambda x:x+1,state),donate_argnums=(0,))
+  state={'params':jnp.array([1.,2.]),'moments':jnp.array([3.,4.])}
+  before={k:np.asarray(v).copy() for k,v in state.items()}
+  for _ in range(2):
+   trial=jax.tree.map(lambda x:x.copy(),state)
+   updated=native(trial);jax.block_until_ready(updated)
+   for k in state:np.testing.assert_array_equal(state[k],before[k])
  def test_matrix_address_gradient_and_svd(self):
   M=jnp.diag(jnp.array([3.,1.]));g=jnp.array([2.,1.]);a=jnp.array([.5,2.])
   gm,ga=jax.grad(lambda mm,aa:jnp.vdot(mm.T@aa,g),argnums=(0,1))(M,a)

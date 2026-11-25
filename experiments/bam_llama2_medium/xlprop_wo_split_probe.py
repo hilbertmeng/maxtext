@@ -20,7 +20,7 @@ def run_probe(train,captured,reference,output,sequence,target_layer):
  expect={35635:(2.0112438201904297,.21486762166023254),35636:(1.924464225769043,2.1978654861450195)}[step]
  ref=captured['observed'];assert abs(ref['learning/loss']-expect[0])<1e-6 and abs(ref['learning/raw_grad_norm']/expect[1]-1)<1e-6
  rep=jax.sharding.NamedSharding(mesh,jax.sharding.PartitionSpec());ds=jax.sharding.NamedSharding(mesh,jax.sharding.PartitionSpec(*cfg.data_sharding))
- active=[];probes=None;instrument=False
+ active=[];probes=None;instrument=False;current_batch=None
  native_read=bam_pallas.read;native_splash=attentions._bam_splash_attention
  def read(*args,**kw):
   out=native_read(*args,**kw)
@@ -49,7 +49,7 @@ def run_probe(train,captured,reference,output,sequence,target_layer):
     masks=(jnp.ones(seq.shape,jnp.float32),seq.astype(jnp.float32),tok.astype(jnp.float32))
     delta=split_surrogate(ah,oh,weights,masks)
     vals=[]
-    valid=captured['data']['targets_segmentation']!=0
+    valid=current_batch['targets_segmentation']!=0
     for mask in (valid,valid&seq,valid&tok):
      w=mask[...,None,None].astype(jnp.float32)
      vals.append(jnp.stack([jnp.sum(z*w)for z in (ah*ah,oh*oh,hh*hh,ah*oh,(hh-ah-oh)**2)]+[jnp.sum(w)*H.shape[-2]*H.shape[-1]]))
@@ -60,8 +60,8 @@ def run_probe(train,captured,reference,output,sequence,target_layer):
    return y
   return next_fun(*args,**kw)
  def objective(params,batch,rng,p,instr):
-  nonlocal probes,instrument
-  probes=p;instrument=instr
+  nonlocal probes,instrument,current_batch
+  probes=p;instrument=instr;current_batch=batch
   if instr:
    with nn.intercept_methods(intercept):loss,aux=train.loss_fn(model,cfg,dict(batch),rng,params,is_train=True)
    stats=aux['intermediate_outputs']['intermediates']['decoder']['layers']['block']['self_attention']['wo_split_stats'][0][:6]
@@ -88,8 +88,10 @@ def run_probe(train,captured,reference,output,sequence,target_layer):
   measured_loss=float(jax.device_get(measured_loss));err=float(jax.device_get(rel_fn(grad,base)))
   assert abs(measured_loss-loss)<1e-6 and err<.01,('instrument/plain',step,measured_loss,loss,err)
   amp=np.asarray(jax.device_get(amp),np.float64);parts=np.asarray(jax.device_get(parts),np.float64)
-  real=np.asarray(jax.device_get(grad['params']['decoder']['layers']['block']['self_attention']['out']['kernel']),np.float64)
-  plain_wo=np.asarray(jax.device_get(base['params']['decoder']['layers']['block']['self_attention']['out']['kernel']),np.float64)
+  wo_fn=jax.jit(lambda tree:tree['params']['decoder']['layers']['block']['self_attention']['out']['kernel'],out_shardings=rep)
+  real=np.asarray(jax.device_get(wo_fn(grad)),np.float64)
+  plain_wo=np.asarray(jax.device_get(wo_fn(base)),np.float64)
+  wo_fn.clear_cache()
   rows=[]
   for i in range(6):
    actual=real[:,i];plain_w=plain_wo[:,i]

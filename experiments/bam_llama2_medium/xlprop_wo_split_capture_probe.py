@@ -19,7 +19,7 @@ def run_probe(train,captured,reference,output,sequence,target_layer):
     from flax import linen as nn
     from layers import attentions,bam_pallas
     sys.path.insert(0,str(Path(__file__).resolve().parent))
-    from wo_split_capture import SplitWriter,paired_snapshots,save_failed_hg_diagnostic
+    from wo_split_capture import SplitWriter,paired_snapshots,save_failed_hg_diagnostic,execute_recorded
     from wo_capture_ablation import make_ablation_tap
     from wo_boundary_decomposition import partition_sums,merge_sums
 
@@ -85,11 +85,11 @@ def run_probe(train,captured,reference,output,sequence,target_layer):
     difference=jax.jit(lambda a,b:norm(jax.tree.map(lambda x,y:x.astype(jnp.float32)-y.astype(jnp.float32),a,b))/norm(b),out_shardings=rep)
     wo_fn=jax.jit(lambda tree:tree['params']['decoder']['layers']['block']['self_attention']['out']['kernel'][:,:6],out_shardings=rep)
     try:
-        with mesh,nn.partitioning.axis_rules(cfg.logical_axis_rules):loss,base=plain_fn(state.params,batch,rng)
+        with mesh,nn.partitioning.axis_rules(cfg.logical_axis_rules):loss,base=execute_recorded(plain_fn,(state.params,batch,rng),output,'plain')
         loss=float(jax.device_get(loss));raw=float(jax.device_get(norm_fn(base)))
         assert abs(loss-expected[0])<1e-3 and abs(raw/expected[1]-1)<.01,('plain/native',loss,raw)
         bam_pallas.read=read;attentions._bam_splash_attention=splash
-        with mesh,nn.partitioning.axis_rules(cfg.logical_axis_rules):measured_loss,grad=capture_fn(state.params,batch,rng,row_ids)
+        with mesh,nn.partitioning.axis_rules(cfg.logical_axis_rules):measured_loss,grad=execute_recorded(capture_fn,(state.params,batch,rng,row_ids),output,'cotangent')
         jax.block_until_ready((measured_loss,grad));jax.effects_barrier()
         assert not writer.errors,writer.errors
         measured_loss=float(jax.device_get(measured_loss));vector_error=float(jax.device_get(difference(grad,base)))
@@ -116,7 +116,7 @@ def run_probe(train,captured,reference,output,sequence,target_layer):
             assert all(x<.01 for x in diagnostic['plain_vs_native_W_O'])
             assert all(x<.01 for x in diagnostic['capture_vs_native_W_O'])
         # Separate full-gradient invocation: forward callback, no custom-VJP primal residual.
-        with mesh,nn.partitioning.axis_rules(cfg.logical_axis_rules):forward_loss,forward_grad=forward_fn(state.params,batch,rng,row_ids)
+        with mesh,nn.partitioning.axis_rules(cfg.logical_axis_rules):forward_loss,forward_grad=execute_recorded(forward_fn,(state.params,batch,rng,row_ids),output,'primal')
         jax.block_until_ready((forward_loss,forward_grad));jax.effects_barrier()
         forward_loss=float(jax.device_get(forward_loss))
         forward_vector_error=float(jax.device_get(difference(forward_grad,base)))

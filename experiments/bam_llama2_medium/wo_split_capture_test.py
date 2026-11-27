@@ -6,11 +6,31 @@ from pathlib import Path
 import jax,jax.numpy as jnp,numpy as np
 from jax.sharding import Mesh,NamedSharding,PartitionSpec as P
 from wo_capture_ablation import make_ablation_tap,restore_producer_primal_layout
-from wo_split_capture import SplitWriter,paired_snapshots,save_failed_hg_diagnostic
+from wo_split_capture import SplitWriter,paired_snapshots,save_failed_hg_diagnostic,execute_recorded
 from wo_boundary_decomposition import partition_sums,merge_sums
 
 CTX=dict(run='cpu-fixture',state='fixed-w',input='fixed-x',rng='no-randomness')
 class SplitTests(unittest.TestCase):
+    def test_compiler_evidence_belongs_to_dispatched_object(self):
+        import gzip,hashlib
+        seen=[]
+        def work(x):
+            jax.debug.callback(lambda v:seen.append(int(v)),x)
+            return x*x+1
+        with tempfile.TemporaryDirectory() as directory:
+            result=execute_recorded(jax.jit(work),(jnp.int32(7),),directory,'primal')
+            jax.block_until_ready(result);jax.effects_barrier()
+            self.assertEqual(int(result),50);self.assertEqual(seen,[7])
+            evidence=json.loads((Path(directory)/'primal-compiler-evidence.json').read_text())
+            self.assertTrue(evidence['same_compiled_object_dispatch'])
+            self.assertFalse(evidence['execution_complete'])
+            self.assertEqual(evidence['stage'],'compiled.as_text')
+            self.assertTrue(evidence['saved'])
+            raw=gzip.decompress((Path(directory)/evidence['file']).read_bytes())
+            self.assertEqual(len(raw),evidence['bytes'])
+            self.assertEqual(hashlib.sha256(raw).hexdigest(),evidence['sha256'])
+            self.assertIn(b'custom-call',raw)
+
     def test_failed_hg_diagnostic_merges_before_comparison_and_rejects_bad_coverage(self):
         h=np.asarray(jnp.arange(48).reshape(4,3,2,2).astype(jnp.bfloat16)/7)
         g=np.asarray(jnp.cos(jnp.arange(36).reshape(4,3,3)).astype(jnp.bfloat16))
@@ -64,7 +84,8 @@ class SplitTests(unittest.TestCase):
             def grad(tap):return jax.jit(jax.value_and_grad(lambda w,x,r,v:loss(w,x,r,v,tap)),in_shardings=(rep,ds,ds,ds),out_shardings=(rep,rep))(ws,x,rows,valid)
             plain=grad(None);actual=grad(gtap);jax.block_until_ready(actual);jax.effects_barrier()
             np.testing.assert_array_equal(plain[0],actual[0]);np.testing.assert_array_equal(plain[1],actual[1])
-            forward,forward_grad=jax.jit(jax.value_and_grad(lambda w,x,r,v:loss(w,x,r,v,ftap)),in_shardings=(rep,ds,ds,ds),out_shardings=(rep,rep))(ws,x,rows,valid)
+            forward_fn=jax.jit(jax.value_and_grad(lambda w,x,r,v:loss(w,x,r,v,ftap)),in_shardings=(rep,ds,ds,ds),out_shardings=(rep,rep))
+            forward,forward_grad=execute_recorded(forward_fn,(ws,x,rows,valid),directory,'primal')
             np.testing.assert_array_equal(plain[1],forward_grad)
             jax.block_until_ready(forward);jax.effects_barrier();np.testing.assert_array_equal(plain[0],forward)
             pairs=paired_snapshots(directory,35635,CTX,range(2),range(8));self.assertEqual(len(pairs),8);self.assertFalse(writer.errors)

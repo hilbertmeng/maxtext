@@ -5,6 +5,7 @@ fidelity of the independently compiled forward. Native gradient/forward and
 H^T G reconstruction gates remain mandatory at the caller/global reviewer.
 """
 import hashlib
+import gzip
 import json
 from pathlib import Path
 import shutil
@@ -162,3 +163,30 @@ def save_failed_hg_diagnostic(output, pairs, layers, expected_rows, chunk_tokens
                 interpretation='Failed fidelity data; no AV/O attribution',matrices=records)
     (output/'failed-hg-diagnostic.json').write_text(json.dumps(report,indent=2)+'\n')
     return report
+
+
+def execute_recorded(fn, args, output, phase):
+    """Save compiler text from the very compiled object dispatched below.
+
+    Dispatch is not completion: the caller must block and validate the result.
+    Text availability/size limits are explicit; missing HLO never implies equality.
+    """
+    output=Path(output);compiled=fn.lower(*args).compile()
+    meta=dict(stage='compiled.as_text',same_compiled_object_dispatch=False,
+              execution_complete=False,available=False,saved=False)
+    try:
+        raw=compiled.as_text().encode()
+        meta.update(available=True,bytes=len(raw),sha256=hashlib.sha256(raw).hexdigest())
+        if len(raw)<=64*(1<<20):
+            target=output/(phase+'-optimized-hlo.txt.gz')
+            with gzip.open(target,'wb') as handle:handle.write(raw)
+            meta.update(saved=True,file=target.name)
+        else:meta['omitted_reason']='Compiler text exceeds 64MiB bound'
+    except Exception as exc:
+        meta['error']=type(exc).__name__+': '+str(exc)
+    target=output/(phase+'-compiler-evidence.json')
+    target.write_text(json.dumps(meta,indent=2)+'\n')
+    result=compiled(*args)
+    meta['same_compiled_object_dispatch']=True
+    target.write_text(json.dumps(meta,indent=2)+'\n')
+    return result

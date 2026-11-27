@@ -53,22 +53,19 @@ def run_probe(train,captured,reference,output,sequence,target_layer):
    y=next_fun(*args,**kw);v=active[-1];i=v['layer'];H=args[1];A=v['A'];O=v['O']
    # Runtime d54 folds VO scales inside read. Explicit forward sum closure below catches mismatches.
    assert H.shape==A.shape==O.shape and H.shape[0]==128
+   ah=jax.lax.stop_gradient(A.astype(jnp.float32));oh=jax.lax.stop_gradient(O.astype(jnp.float32))
+   hh=H.astype(jnp.float32);weights=probes[jnp.minimum(i,5)]
+   seq=(jnp.arange(128)==9)[:,None];tok=seq&(jnp.arange(H.shape[1])==1211)[None,:]
+   masks=(jnp.ones(seq.shape,jnp.float32),seq.astype(jnp.float32),tok.astype(jnp.float32))
+   # Keep the real output/cotangent entirely outside layer-selection control flow.
+   y=attach_split(y,ah,oh,weights,tuple(m*(i<6).astype(jnp.float32)for m in masks))
    def measured(_):
-    ah=jax.lax.stop_gradient(A.astype(jnp.float32));oh=jax.lax.stop_gradient(O.astype(jnp.float32))
-    hh=H.astype(jnp.float32)
-    weights=probes[jnp.minimum(i,5)]
-    # Fullbatch, selected sequence, and selected position share the SAME actual output cotangent.
-    seq=(jnp.arange(128)==9)[:,None];tok=seq&(jnp.arange(H.shape[1])==1211)[None,:]
-    masks=(jnp.ones(seq.shape,jnp.float32),seq.astype(jnp.float32),tok.astype(jnp.float32))
-    tapped=attach_split(y,ah,oh,weights,masks)
-    vals=[]
-    valid=current_batch['targets_segmentation']!=0
+    vals=[];valid=current_batch['targets_segmentation']!=0
     for mask in (valid,valid&seq,valid&tok):
      w=mask[...,None,None].astype(jnp.float32)
      vals.append(jnp.stack([jnp.sum(z*w)for z in (ah*ah,oh*oh,hh*hh,ah*oh,(hh-ah-oh)**2)]+[jnp.sum(w)*H.shape[-2]*H.shape[-1]]))
-    return tapped,jnp.stack(vals)
-   def unmeasured(_):return y,jnp.zeros((3,6),jnp.float32)
-   y,stats=jax.lax.cond(i<6,measured,unmeasured,None)
+    return jnp.stack(vals)
+   stats=jax.lax.cond(i<6,measured,lambda _:jnp.zeros((3,6),jnp.float32),None)
    mod.sow('intermediates','wo_split_stats',stats)
    return y
   return next_fun(*args,**kw)

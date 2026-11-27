@@ -38,6 +38,10 @@ class Tests(unittest.TestCase):
   G=jnp.cos(jnp.einsum('btnh,nhd->btd',a+o,w).astype(jnp.bfloat16).astype(jnp.float32)).astype(jnp.bfloat16).astype(jnp.float32)
   for k,m in enumerate(masks):
    for j,v in enumerate((a,o)):np.testing.assert_allclose(grads[3][k,j],jnp.einsum('btnh,btd->nhd',v,G*m[...,None]),rtol=1e-6,atol=1e-7)
+ def test_unselected_layer_tap_has_no_probe_gradient(self):
+  a=jnp.ones((1,2,1,2));o=a*2;y=jnp.ones((1,2,3));p=jnp.zeros((1,2,1,2,3))
+  value,(gy,gp)=jax.jit(jax.value_and_grad(lambda y,p:jnp.sum(attach(y,a,o,p,(jnp.zeros((1,1)),))),argnums=(0,1)))(y,p)
+  np.testing.assert_array_equal(gy,jnp.ones_like(y));np.testing.assert_array_equal(gp,jnp.zeros_like(p))
  def test_cancellation_not_energy_share(self):
   A=jnp.array([[[[1.,2.]]]]);O=-.8*A;p=jnp.zeros((1,2,1,2,1))
   grads=jax.grad(lambda q:jnp.sum(split(A,O,q,(jnp.ones((1,1)),))))(p)

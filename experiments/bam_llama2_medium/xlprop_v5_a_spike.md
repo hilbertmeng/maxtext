@@ -1232,3 +1232,31 @@ operating-point change across capture placements, not evidence of AV/O causality
 Next investigation compares the already-saved optimized identity, G-only and
 primal HLO for materialization/fusion/precision differences before another run.
 Evidence: `training_reports/xl_wo_split_20261125/attempt-f/failure-review.json`.
+
+## Valid first-spike W_O AV/O decomposition (attempt-g, 2026-11-27)
+Producer-layout transport fixes the observable gradient perturbation in this run. Both normal35635 and first-spike35636 completed on all four workers without a repair. G-only and independent primal capture each have exactly zero full-gradient and first-six W_O error against plain; normal actual native AOT moment reference agrees within 8.7e-8. The global reviewer passes runtime/source identities, all16 exact first-spike input shards, all128 rows, phase pairing, original loss/1% gates, H^T G and AV+O closures, forward H=AV+O and single-token shared-G checks.
+Four-worker FP64 matrices are summed before norms. Largest H^T G closure error is 0.402%, and AV+O closure error 0.435%, both below the unchanged1.5% gate. BF16-rounded actual H differs slightly from real-valued AV+O; this is retained in the closure residual.
+First-spike fullbatch values below use the SAME actual globally normalized G for both branches. Norms are not additive causal contributions; opposing components partly cancel.
+| Layer | ||AVᵀG|| | ||OᵀG|| | ||(AV+O)ᵀG|| | AV × normal | O × normal | Total × normal | Branch cosine |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| L0 | 0.06460 | 0.06252 | 0.09402 | 16.25 | 6.83 | 9.26 | 0.094 |
+| L1 | 0.10563 | 0.10389 | 0.13945 | 20.42 | 18.99 | 19.71 | -0.114 |
+| L2 | 0.12787 | 0.11146 | 0.14201 | 20.72 | 19.00 | 17.99 | -0.302 |
+| L3 | 0.22664 | 0.14870 | 0.22978 | 38.81 | 28.38 | 34.94 | -0.307 |
+| L4 | 0.16453 | 0.19369 | 0.20841 | 24.74 | 33.45 | 29.94 | -0.332 |
+| L5 | 0.10728 | 0.07797 | 0.12039 | 16.01 | 14.09 | 16.90 | -0.185 |
+
+Both branches rise strongly. O is comparable to AV at L0/L1, larger at L4, and smaller at L2/L3/L5; the data do not support O alone dominating the first-six W_O spike. Branch cosine is negative at L1–L5, so summing branch norms overstates the actual total.
+At the known exceptional sequence9/target1211 position, ||XᵀG||=||X||·||G|| permits independent G norm reconstruction from AV and O; both reconstructions agree.
+| Layer | AV RMS × normal | O RMS × normal | H RMS × normal | G norm × normal | Spike G norm |
+|---|---:|---:|---:|---:|---:|
+| L0 | 0.964 | 0.951 | 0.915 | 41911 | 0.115582 |
+| L1 | 1.230 | 1.142 | 1.182 | 39115 | 0.100311 |
+| L2 | 1.645 | 1.326 | 1.377 | 46545 | 0.074676 |
+| L3 | 1.423 | 1.541 | 1.459 | 67544 | 0.085651 |
+| L4 | 1.278 | 1.732 | 1.403 | 51699 | 0.052068 |
+| L5 | 2.053 | 1.805 | 2.179 | 21196 | 0.017222 |
+
+At this position, activation amplitudes change by roughly0.9–2.2× while G changes by~21k–68k×, and both branch gradients increase by~38k–104k×. This places the proximate large local W_O gradient on the cotangent side, consistent with a backward amplification rather than an activation explosion at this boundary. It does not locate the cause generating G. These are adjacent actual batches at35635/35636, NOT a fixed-input or same-token-identity counterfactual; the large ratios compare different batch content. The earlier stop-gradient interventions and gain measurements remain the relevant causal evidence, not these algebraic shares.
+Actual-dispatch optimized HLO also supports the proposed instrumentation mechanism: plain/G-only/producer-primal now all retain one shared BF16 add producing native weight-gradient and canonical layouts, whereas prior failed canonical-primal observation split those sums. Other scheduling changes exist, so no single-rounding-operation causal proof is claimed. See attempt-g/hlo-investigation/{comparison.json,sum-fusion-excerpts.txt}.
+Authoritative numeric artifact: training_reports/xl_wo_split_20261125/attempt-g/reviewed-summary.json, including all18 layer/scope comparisons (fullbatch, sequence9, token9_1211). Version f673511d; original model/runtime d54c4c5, B128T4096, native CP35599 replay. Service is inactive; all six exact owned VM/QR independently NOT_FOUND in final-resource-absence.json. No new resources or repairs are needed for this completed decomposition. Actual final ChatServer delivery receipt remains to be verified before disabling task wake.

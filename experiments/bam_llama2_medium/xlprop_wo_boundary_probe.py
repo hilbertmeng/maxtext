@@ -33,7 +33,7 @@ def run_probe(train,captured,reference,output,sequence,target_layer):
     assert abs(native['learning/raw_grad_norm']/expected[1]-1)<1e-6
     assert shutil.disk_usage(output).free>=32*(1<<30),'Need32GiB free for bounded raw capture and partials'
     rawdir=output/'boundaries';assert not rawdir.exists(),'Never mix capture generations'
-    writer=BoundaryWriter(rawdir,step);tap=identity_boundary_tap(writer,layer_limit=6)
+    writer=BoundaryWriter(rawdir,step);tap=identity_boundary_tap(writer,layer_limit=6,mesh=mesh,batch_axes=cfg.data_sharding[0])
     rep=jax.sharding.NamedSharding(mesh,jax.sharding.PartitionSpec())
     ds=jax.sharding.NamedSharding(mesh,jax.sharding.PartitionSpec(*cfg.data_sharding))
     batch=captured['data'];rng=captured['rng']

@@ -13,8 +13,22 @@ import threading
 import numpy as np
 
 
-def identity_boundary_tap(writer, layer_limit=None):
+def identity_boundary_tap(writer, layer_limit=None, mesh=None, batch_axes=None):
     import jax
+    import jax.numpy as jnp
+    local_capture = None
+    if mesh is not None:
+        from jax.sharding import PartitionSpec as P
+        axes = tuple(batch_axes) if isinstance(batch_axes,list) else batch_axes
+        def per_device(layer,av,local_o,h,g,row_ids,valid):
+            # TPU0.8.1 cannot lower partitioned=True. Fully manual shard_map
+            # gives per-device operands to an ordinary callback, without gather.
+            jax.debug.callback(writer,layer,av,local_o,h,g,row_ids,valid,
+                               partitioned=False,ordered=False)
+            return jnp.int32(0)
+        local_capture = jax.shard_map(per_device,mesh=mesh,
+            in_specs=(P(),P(axes),P(axes),P(axes),P(axes),P(axes),P(axes)),
+            out_specs=P(),check_vma=False)
 
     @jax.custom_vjp
     def tap(y, av, local_o, h, row_ids, valid, layer):
@@ -28,8 +42,11 @@ def identity_boundary_tap(writer, layer_limit=None):
         # No dummy parameter tree, matrix contractions, dtype conversion, or
         # layer-selection conditional on the real output/cotangent path.
         def capture(_):
-            jax.debug.callback(writer, layer, av, local_o, h, g, row_ids, valid,
-                               partitioned=True, ordered=False)
+            if local_capture is None:
+                jax.debug.callback(writer, layer, av, local_o, h, g, row_ids, valid,
+                                   partitioned=True, ordered=False)
+            else:
+                local_capture(layer,av,local_o,h,g,row_ids,valid)
             return 0
         if layer_limit is None:
             capture(None)

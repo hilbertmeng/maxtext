@@ -11,7 +11,7 @@ from wo_boundary_decomposition import partition_sums,merge_sums
 class CaptureTests(unittest.TestCase):
     def test_partitioned_callback_preserves_bf16_gradients_and_same_G(self):
         with tempfile.TemporaryDirectory() as directory:
-            writer=BoundaryWriter(directory,35636,disk_reserve=0);tap=identity_boundary_tap(writer)
+            writer=BoundaryWriter(directory,35636,disk_reserve=0);tap=identity_boundary_tap(writer,mesh=Mesh(np.array(jax.devices()),('data',)),batch_axes='data')
             a=(jnp.arange(48).reshape(8,3,1,2)/37).astype(jnp.bfloat16);o=(a*-.3).astype(jnp.bfloat16)
             h=(a+o).astype(jnp.bfloat16);w=jnp.array([[[.1,.7],[.3,-.2]]]);rows=jnp.broadcast_to(jnp.arange(8)[:,None],(8,3));valid=jnp.ones((8,3),bool)
             def loss(w,a,o,h,rows,valid,on):
@@ -36,7 +36,7 @@ class CaptureTests(unittest.TestCase):
     def test_scan_remat_captures_each_selected_layer_once(self):
         with tempfile.TemporaryDirectory() as directory:
             writer=BoundaryWriter(directory,35636,layers=range(2),disk_reserve=0)
-            tap=identity_boundary_tap(writer,layer_limit=2)
+            tap=identity_boundary_tap(writer,layer_limit=2,mesh=Mesh(np.array(jax.devices()),('data',)),batch_axes='data')
             rows=jnp.broadcast_to(jnp.arange(8)[:,None],(8,3));valid=jnp.ones((8,3),bool)
             x=(jnp.arange(48).reshape(8,3,1,2)/50).astype(jnp.bfloat16)
             weights=jnp.arange(12,dtype=jnp.float32).reshape(3,1,2,2)/17

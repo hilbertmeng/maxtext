@@ -1,4 +1,5 @@
 """Normal-step capture-path diagnosis only; never an AV/O attribution report."""
+import gzip
 import hashlib
 import json
 from pathlib import Path
@@ -11,6 +12,19 @@ import numpy as np
 def relative(x,y):
     x,y=np.asarray(x,np.float64),np.asarray(y,np.float64)
     return float(np.linalg.norm(x-y)/max(np.linalg.norm(y),1e-30))
+
+
+def save_compiled_hlo(compiled, output):
+    """Retain optimized compiler text, explicitly label unsupported runtimes."""
+    try:
+        raw=compiled.as_text().encode()
+    except Exception as exc:
+        return dict(available=False,error=type(exc).__name__+': '+str(exc))
+    meta=dict(available=True,stage='compiled.as_text',bytes=len(raw),sha256=hashlib.sha256(raw).hexdigest(),saved=False)
+    if len(raw)<=64*(1<<20):
+        with gzip.open(output,'wb') as handle:handle.write(raw)
+        meta['saved']=True
+    return meta
 
 
 def run_probe(train,captured,reference,output,sequence,target_layer):
@@ -92,18 +106,21 @@ def run_probe(train,captured,reference,output,sequence,target_layer):
                 with nn.intercept_methods(intercept):return loss_fn(params,batch,rng)
             fn=jax.jit(jax.value_and_grad(measured),in_shardings=(shardings.params,ds,None,ds),out_shardings=(rep,shardings.params))
             bam_pallas.read=read;attentions._bam_splash_attention=splash
-            with mesh,nn.partitioning.axis_rules(cfg.logical_axis_rules):ml,grad=fn(state.params,batch,rng,rows)
+            with mesh,nn.partitioning.axis_rules(cfg.logical_axis_rules):
+                compiled=fn.lower(state.params,batch,rng,rows).compile()
+                hlo=save_compiled_hlo(compiled,output/(mode+'-optimized-hlo.txt.gz'))
+                ml,grad=compiled(state.params,batch,rng,rows)
             jax.block_until_ready((ml,grad));jax.effects_barrier()
             actual=np.asarray(jax.device_get(wo(grad)));np.save(output/(mode+'-wo.npy'),actual)
             errors=[relative(actual[:,i],ng[:,i]) for i in range(6)]
             coverage={i:sorted({r for e in events if e['layer']==i for r in e['rows']}) for i in range(6)}
             if mode=='identity':assert not events
             else:assert all(v==local_rows for v in coverage.values()),('Incomplete callback coverage',coverage,local_rows)
-            report['modes'][mode]=dict(loss=float(jax.device_get(ml)),full_vector_relative_error=float(jax.device_get(difference(grad,base))),W_O_vs_native=errors,leaf_gate_pass=all(e<.01 for e in errors),events=events,coverage=coverage)
+            report['modes'][mode]=dict(hlo=hlo,loss=float(jax.device_get(ml)),full_vector_relative_error=float(jax.device_get(difference(grad,base))),W_O_vs_native=errors,leaf_gate_pass=all(e<.01 for e in errors),events=events,coverage=coverage)
             # Persist each completed mode even if a subsequent compilation fails.
             (output/'capture-ablation.json').write_text(json.dumps(report,indent=2)+'\n')
             bam_pallas.read=native_read;attentions._bam_splash_attention=native_splash
-            fn.clear_cache();del grad
+            fn.clear_cache();del grad,compiled
         report['complete']=True
         (output/'capture-ablation.json').write_text(json.dumps(report,indent=2)+'\n')
     finally:

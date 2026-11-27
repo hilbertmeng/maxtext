@@ -194,7 +194,9 @@ def main():
             point_out=args.output / ('step%d'%step)
             point_out.mkdir(parents=True,exist_ok=True)
             ns=runpy.run_path(str(args.tensor_probe_script.resolve()))
+            captured['native_result']=result  # Read-only native AOT update reference.
             ns['run_probe'](train,captured,captured['observed'],point_out,9,5)
+            captured.pop('native_result',None)
         if frozen_batch is not None:
           frozen_batch['observed'] = select_metrics(metrics)
           captured.setdefault('frozen_batches', []).append(frozen_batch)

@@ -23218,10 +23218,31 @@ class OverheadMediumLlama2MHAQKNormSplashSpeedProfile(OverheadMediumLlama2MHASpl
 
 
 class OverheadMediumLlama2DC2PallasSpeedProfile(_OverheadSpeedProfile, DC2GlobalLlama2MediumT4096):
-    """100-step T=4096 speed-profile arm for DC2GlobalLlama2MediumT4096 (Two-Pass Flash-DCMHA Pallas, 512x512/256)."""
+    """100-step T=4096 speed-profile arm for DC2GlobalLlama2MediumT4096 (Two-Pass Flash-DCMHA Pallas, full remat)."""
     model_name = 'OverheadMediumLlama2DC2PallasSpeedProfile'
     float32_logits = False
     record_training_health_metrics = True
+
+
+class OverheadMediumLlama2MHASplashSaveResSpeedProfile(OverheadMediumLlama2MHASplashSpeedProfile):
+    """Paired MHA Splash arm saving attention output/LSE across remat (full_save_splash)."""
+    model_name = 'OverheadMediumLlama2MHASplashSaveResSpeedProfile'
+    remat_policy = 'full_save_splash'
+    bam_splash_residual_name = 'bam_splash_residual'
+
+
+class OverheadMediumLlama2MHAQKNormSplashSaveResSpeedProfile(OverheadMediumLlama2MHAQKNormSplashSpeedProfile):
+    """Paired MHA + QKNorm Splash arm saving attention output/LSE across remat (full_save_splash)."""
+    model_name = 'OverheadMediumLlama2MHAQKNormSplashSaveResSpeedProfile'
+    remat_policy = 'full_save_splash'
+    bam_splash_residual_name = 'bam_splash_residual'
+
+
+class OverheadMediumLlama2DC2PallasSaveResSpeedProfile(OverheadMediumLlama2DC2PallasSpeedProfile):
+    """Paired DC2 Pallas arm saving (O_bar, G_01, LSE) across remat (full_save_splash)."""
+    model_name = 'OverheadMediumLlama2DC2PallasSaveResSpeedProfile'
+    remat_policy = 'full_save_splash'
+    bam_splash_residual_name = 'bam_splash_residual'
 
 
 class OverheadMediumLlama2DC2PallasB256SpeedProfile(OverheadMediumLlama2DC2PallasSpeedProfile):

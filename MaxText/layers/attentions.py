@@ -374,6 +374,7 @@ class AttentionOp(nn.Module):
           q_seq_shards=1,
           block_sizes=block_sizes,
           attn_logits_soft_cap=attn_logits_soft_cap,
+          residual_checkpoint_name=(getattr(self.config, "bam_splash_residual_name", None) or None),
       )
 
       return jax.vmap(splash_kernel)(query, key, value, segment_ids=decoder_segment_ids)

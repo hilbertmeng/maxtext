@@ -669,8 +669,13 @@ def dc2_flash_attention(
   bwd_ckv = min(int(getattr(config, "dc_bwd_block_kv_compute", 256)), bwd_bkv)
   vmem_mib = int(getattr(config, "dc_vmem_mib", 96))
 
-  can_use_tpu_pallas = (
+  is_tpu_target = (
       jax.default_backend() == "tpu"
+      or (mesh is not None and getattr(mesh.devices.flat[0], "platform", "") == "tpu")
+      or bool(getattr(config, "compile_topology", ""))
+  )
+  can_use_tpu_pallas = (
+      is_tpu_target
       and seq_len >= 128
       and seq_len % bq == 0
       and seq_len % bkv == 0

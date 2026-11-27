@@ -23218,10 +23218,17 @@ class OverheadMediumLlama2MHAQKNormSplashSpeedProfile(OverheadMediumLlama2MHASpl
 
 
 class OverheadMediumLlama2DC2PallasSpeedProfile(_OverheadSpeedProfile, DC2GlobalLlama2MediumT4096):
-    """100-step T=4096 speed-profile arm for DC2GlobalLlama2MediumT4096 (Two-Pass Flash-DCMHA Pallas)."""
+    """100-step T=4096 speed-profile arm for DC2GlobalLlama2MediumT4096 (Two-Pass Flash-DCMHA Pallas, 512x512/256)."""
     model_name = 'OverheadMediumLlama2DC2PallasSpeedProfile'
     float32_logits = False
     record_training_health_metrics = True
+
+
+class OverheadMediumLlama2DC2PallasB256SpeedProfile(OverheadMediumLlama2DC2PallasSpeedProfile):
+    """256x512/256 block-size variant of Two-Pass Flash-DCMHA Pallas for v5p-8 tile comparison."""
+    model_name = 'OverheadMediumLlama2DC2PallasB256SpeedProfile'
+    dc_block_q = 256
+    dc_bwd_block_q = 256
 
 
 class OverheadMediumLlama2DC2GlobalSpeedProfile(_OverheadSpeedProfile, DC2GlobalLlama2MediumT4096QChunk):

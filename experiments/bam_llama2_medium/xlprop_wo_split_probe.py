@@ -11,6 +11,19 @@ def split_surrogate(A,O,weights,masks):
   dy=dy+jnp.einsum('btnh,nhd->btd',o,weights[k,1])*m[...,None]
  return dy-jax.lax.stop_gradient(dy)
 
+def attach_split(y,A,O,weights,masks):
+ """Identity forward and identity y cotangent, with separately recorded branch VJPs."""
+ import jax,jax.numpy as jnp
+ @jax.custom_vjp
+ def tap(y,a,o,p,m):return y
+ def forward(y,a,o,p,m):return y,(a,o,m)
+ def backward(res,G):
+  a,o,masks=res;G=G.astype(jnp.float32)
+  parts=jnp.stack([jnp.stack([jnp.einsum('btnh,btd->nhd',v.astype(jnp.float32),G*mask[...,None])for v in (a,o)])for mask in masks])
+  return G.astype(y.dtype),None,None,parts,None
+ tap.defvjp(forward,backward)
+ return tap(y,A,O,weights,masks)
+
 def run_probe(train,captured,reference,output,sequence,target_layer):
  import jax,jax.numpy as jnp
  from flax import linen as nn
@@ -47,13 +60,13 @@ def run_probe(train,captured,reference,output,sequence,target_layer):
     # Fullbatch, selected sequence, and selected position share the SAME actual output cotangent.
     seq=(jnp.arange(128)==9)[:,None];tok=seq&(jnp.arange(H.shape[1])==1211)[None,:]
     masks=(jnp.ones(seq.shape,jnp.float32),seq.astype(jnp.float32),tok.astype(jnp.float32))
-    delta=split_surrogate(ah,oh,weights,masks)
+    tapped=attach_split(y,ah,oh,weights,masks)
     vals=[]
     valid=current_batch['targets_segmentation']!=0
     for mask in (valid,valid&seq,valid&tok):
      w=mask[...,None,None].astype(jnp.float32)
      vals.append(jnp.stack([jnp.sum(z*w)for z in (ah*ah,oh*oh,hh*hh,ah*oh,(hh-ah-oh)**2)]+[jnp.sum(w)*H.shape[-2]*H.shape[-1]]))
-    return (y.astype(jnp.float32)+delta).astype(y.dtype),jnp.stack(vals)
+    return tapped,jnp.stack(vals)
    def unmeasured(_):return y,jnp.zeros((3,6),jnp.float32)
    y,stats=jax.lax.cond(i<6,measured,unmeasured,None)
    mod.sow('intermediates','wo_split_stats',stats)
@@ -98,7 +111,9 @@ def run_probe(train,captured,reference,output,sequence,target_layer):
    full=parts[i,0].sum(axis=0)
    closure=float(np.linalg.norm(full-actual)/max(np.linalg.norm(actual),1e-30))
    assert closure<.015,('AV+O gradient closure',i,closure)
-   assert np.linalg.norm(actual-plain_w)/max(np.linalg.norm(plain_w),1e-30)<.01
+   wo_error=float(np.linalg.norm(actual-plain_w)/max(np.linalg.norm(plain_w),1e-30))
+   print('WO_LAYER_GATE',step,i,wo_error,closure,flush=True)
+   assert wo_error<.01,('W_O instrument/plain',step,i,wo_error)
    scopes=[]
    for k,label in enumerate(('fullbatch','sequence9','token9_1211')):
     ga,go=parts[i,k];na,no=np.linalg.norm(ga),np.linalg.norm(go);ns=np.linalg.norm(ga+go)

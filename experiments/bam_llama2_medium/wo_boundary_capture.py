@@ -13,7 +13,7 @@ import threading
 import numpy as np
 
 
-def identity_boundary_tap(writer):
+def identity_boundary_tap(writer, layer_limit=None):
     import jax
 
     @jax.custom_vjp
@@ -27,8 +27,15 @@ def identity_boundary_tap(writer):
         av, local_o, h, row_ids, valid, layer = saved
         # No dummy parameter tree, matrix contractions, dtype conversion, or
         # layer-selection conditional on the real output/cotangent path.
-        jax.debug.callback(writer, layer, av, local_o, h, g, row_ids, valid,
-                           partitioned=True, ordered=False)
+        def capture(_):
+            jax.debug.callback(writer, layer, av, local_o, h, g, row_ids, valid,
+                               partitioned=True, ordered=False)
+            return 0
+        if layer_limit is None:
+            capture(None)
+        else:
+            # Select only the side effect; return the true cotangent unchanged.
+            jax.lax.cond((layer >= 0) & (layer < layer_limit), capture, lambda _:0, None)
         return g, None, None, None, None, None, None
 
     tap.defvjp(forward, backward)

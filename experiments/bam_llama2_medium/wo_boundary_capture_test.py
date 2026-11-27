@@ -33,6 +33,31 @@ class CaptureTests(unittest.TestCase):
             direct=partition_sums(a,o,h,expected_G,np.arange(8),valid,token=1,sequence=2)
             np.testing.assert_allclose(merged['parts'],direct['parts'],rtol=1e-13,atol=1e-13)
 
+    def test_scan_remat_captures_each_selected_layer_once(self):
+        with tempfile.TemporaryDirectory() as directory:
+            writer=BoundaryWriter(directory,35636,layers=range(2),disk_reserve=0)
+            tap=identity_boundary_tap(writer,layer_limit=2)
+            rows=jnp.broadcast_to(jnp.arange(8)[:,None],(8,3));valid=jnp.ones((8,3),bool)
+            x=(jnp.arange(48).reshape(8,3,1,2)/50).astype(jnp.bfloat16)
+            weights=jnp.arange(12,dtype=jnp.float32).reshape(3,1,2,2)/17
+            def loss(ws,x,rows,valid,on):
+                def body(h,item):
+                    i,w=item;a=(h*.8).astype(jnp.bfloat16);o=(h*.1).astype(jnp.bfloat16);hh=(a+o).astype(jnp.bfloat16)
+                    y=jnp.einsum('btnh,nhd->btd',hh,w.astype(jnp.bfloat16))
+                    if on:y=tap(y,a,o,hh,rows,valid,i)
+                    return jnp.tanh(y).reshape(x.shape),None
+                out,_=jax.lax.scan(jax.checkpoint(body),x,(jnp.arange(3),ws))
+                return jnp.sum(out.astype(jnp.float32))/24
+            mesh=Mesh(np.array(jax.devices()),('data',));rep=NamedSharding(mesh,P());ds=NamedSharding(mesh,P('data'))
+            fn=jax.jit(jax.value_and_grad(loss),in_shardings=(rep,ds,ds,ds),static_argnums=4,out_shardings=(rep,rep))
+            plain=fn(weights,x,rows,valid,False);actual=fn(weights,x,rows,valid,True);jax.block_until_ready(actual);jax.effects_barrier()
+            np.testing.assert_array_equal(plain[0],actual[0]);np.testing.assert_array_equal(plain[1],actual[1])
+            paths=list(Path(directory).glob('layer-*'));self.assertEqual(len(paths),8)
+            for layer in range(2):
+                global_rows=np.concatenate([load_boundary(p)[1]['global_rows']for p in paths if p.name.startswith(f'layer-{layer:02d}')])
+                np.testing.assert_array_equal(np.sort(global_rows),np.arange(8))
+            self.assertFalse(writer.errors)
+
     def test_duplicate_corruption_and_disk_failure_are_visible(self):
         with tempfile.TemporaryDirectory() as directory:
             writer=BoundaryWriter(directory,35635,disk_reserve=0)

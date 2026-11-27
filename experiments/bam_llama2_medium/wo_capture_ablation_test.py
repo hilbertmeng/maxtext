@@ -20,7 +20,7 @@ class AblationTests(unittest.TestCase):
             events=[]
             def writer(*args):
                 events.append(tuple(np.array(v) for v in args))
-            tap = None if mode=='plain' else make_ablation_tap(writer,mode,mesh,'data')
+            tap = None if mode=='plain' else make_ablation_tap(writer,mode,mesh,'data',layer_limit=2)
             def loss(weights,x,rows,valid):
                 def body(h,item):
                     layer,w=item
@@ -45,7 +45,8 @@ class AblationTests(unittest.TestCase):
                 continue
             # Remat may replay forward callbacks. Require complete row identity
             # per layer, while explicitly allowing repeated diagnostic events.
-            for layer in range(3):
+            self.assertFalse(any(int(e[0])==2 for e in events))
+            for layer in range(2):
                 seen=set()
                 for event in events:
                     if int(event[0])!=layer:continue

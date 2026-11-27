@@ -4,7 +4,7 @@ These are ablations, not replacements for the gated scientific capture. Forward
 callbacks may repeat under rematerialization; consumers must not count them as
 independent samples. No mode manufactures a gradient or corrects its scale.
 """
-def make_ablation_tap(writer, mode, mesh, batch_axes):
+def make_ablation_tap(writer, mode, mesh, batch_axes, layer_limit=None):
     import jax
     import jax.numpy as jnp
     from jax.sharding import PartitionSpec as P
@@ -51,17 +51,27 @@ def make_ablation_tap(writer, mode, mesh, batch_axes):
 
     def cotangent_bwd(saved, g):
         rows, valid, layer = saved
-        backward_capture(layer, g, rows, valid)
+        observe(layer, lambda: backward_capture(layer, g, rows, valid))
         return g, None, None, None
 
     cotangent.defvjp(cotangent_fwd, cotangent_bwd)
+
+    def observe(layer, callback):
+        def emit(_):
+            callback()
+            return jnp.int32(0)
+        if layer_limit is None:
+            emit(None)
+        else:
+            jax.lax.cond((layer >= 0) & (layer < layer_limit), emit,
+                         lambda _: jnp.int32(0), None)
 
     def tap(y, a, o, h, rows, valid, layer):
         if mode == 'identity':
             return identity(y)
         if mode == 'forward':
             # Ordinary forward callback: no custom reverse-mode rule at all.
-            forward_capture(layer, a, o, h, rows, valid)
+            observe(layer, lambda: forward_capture(layer, a, o, h, rows, valid))
             return y
         return cotangent(y, rows, valid, layer)
 

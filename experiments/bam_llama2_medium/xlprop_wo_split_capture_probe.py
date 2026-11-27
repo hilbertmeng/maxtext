@@ -43,11 +43,12 @@ def run_probe(train,captured,reference,output,sequence,target_layer):
         return hashlib.sha256(json.dumps(entries,sort_keys=True).encode()).hexdigest()
     context=dict(run=str(output.parent),state=f'd54:AOT-original-trajectory:CP35599:preupdate{step}',
                  input=batch_fingerprint(),rng=hashlib.sha256(np.asarray(jax.device_get(jax.random.key_data(rng))).tobytes()).hexdigest())
+    context['primal_wire_layout']='producer_bnth_bnht'
     writer=SplitWriter(rawdir,step,context,allow_identical_forward_repeats=True)
     gtap=make_ablation_tap(writer.backward,'cotangent',mesh,cfg.data_sharding[0],layer_limit=6)
     # Avoid a device conditional around forward host callbacks. The writer
     # discards unselected layers on the host; transfer overhead is bounded.
-    ftap=make_ablation_tap(writer.forward,'forward',mesh,cfg.data_sharding[0],layer_limit=None)
+    ftap=make_ablation_tap(writer.forward,'forward',mesh,cfg.data_sharding[0],layer_limit=None,primal_layout='producer')
     # Derive row IDs inside JIT from an explicit, batch-sharded dynamic operand.
     row_fn=jax.jit(lambda x:jnp.broadcast_to(jnp.arange(x.shape[0],dtype=jnp.int32)[:,None],x.shape),in_shardings=ds,out_shardings=ds)
     row_ids=row_fn(batch['targets_segmentation'])
@@ -150,7 +151,7 @@ def run_probe(train,captured,reference,output,sequence,target_layer):
             del sums,partials,selected
             for key in keys:
                 shutil.rmtree(rawdir/'primal'/key);shutil.rmtree(rawdir/'cotangent'/key)
-        report=dict(step=step,capture_method='split_execution_v1',primal_execution='value_and_grad',forward_vector_relative_error=forward_vector_error,forward_W_O_leaf_relative_errors=forward_errors,identical_forward_repeats=writer.identical_forward_repeats,forward_snapshot_loss=forward_loss,snapshot_context=context,native_control=native,plain_loss=loss,plain_raw=raw,instrumented_loss=measured_loss,instrumented_vector_relative_error=vector_error,
+        report=dict(step=step,capture_method='split_execution_v1',primal_execution='value_and_grad',primal_wire_layout='producer_bnth_bnht',forward_vector_relative_error=forward_vector_error,forward_W_O_leaf_relative_errors=forward_errors,identical_forward_repeats=writer.identical_forward_repeats,forward_snapshot_loss=forward_loss,snapshot_context=context,native_control=native,plain_loss=loss,plain_raw=raw,instrumented_loss=measured_loss,instrumented_vector_relative_error=vector_error,
                     W_O_leaf_relative_errors=errors,local_rows=local_rows,capture_complete=True,complete=True,scientific_review_complete=False,
                     input_shards=[dict(index=str(s.index),sha256=hashlib.sha256(np.asarray(s.data).tobytes()).hexdigest())for s in batch['inputs'].addressable_shards],
                     scope='G-only validated gradient graph plus independently captured forward boundaries; requires global4worker merge, nativeW_O/branchclosure/forward/input16 review before interpretation.')

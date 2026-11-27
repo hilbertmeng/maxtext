@@ -4,16 +4,44 @@ These are ablations, not replacements for the gated scientific capture. Forward
 callbacks may repeat under rematerialization; consumers must not count them as
 independent samples. No mode manufactures a gradient or corrects its scale.
 """
-def make_ablation_tap(writer, mode, mesh, batch_axes, layer_limit=None):
+def restore_producer_primal_layout(writer):
+    """Undo wire transposes on host without casts or arithmetic.
+
+    AV/O arrive BNTH, H arrives BNHT; the recorder receives canonical BTNH.
+    This changes logical callback operands, not a guarantee of physical layout
+    or TPU fusion preservation. Only compiled HLO and native gates test that.
+    """
+    def receive(layer, a, o, h, rows, valid):
+        import numpy as np
+        a,o,h,rows,valid=map(np.asarray,(a,o,h,rows,valid))
+        if rows.ndim!=2 or a.ndim!=4 or a.shape!=o.shape or h.ndim!=4:
+            raise ValueError('Invalid producer-layout ranks or shapes')
+        b,t=rows.shape
+        if a.shape[0]!=b or a.shape[2]!=t or h.shape!=(b,a.shape[1],a.shape[3],t):
+            raise ValueError('Producer BNTH/BNHT layout mismatch')
+        if a.dtype!=o.dtype or a.dtype!=h.dtype:
+            raise ValueError('Producer operand dtype mismatch')
+        writer(layer,a.transpose(0,2,1,3),o.transpose(0,2,1,3),h.transpose(0,3,1,2),rows,valid)
+    return receive
+
+
+def make_ablation_tap(writer, mode, mesh, batch_axes, layer_limit=None, primal_layout='canonical'):
     import jax
     import jax.numpy as jnp
     from jax.sharding import PartitionSpec as P
     if mode not in ('identity', 'forward', 'primal', 'cotangent'):
         raise ValueError('Unknown capture ablation: '+mode)
+    if primal_layout not in ('canonical','producer'):
+        raise ValueError('Unknown primal wire layout')
+    if primal_layout!='canonical' and mode not in ('forward','primal'):
+        raise ValueError('Primal layout only applies to primal observations')
+    forward_writer=restore_producer_primal_layout(writer) if primal_layout=='producer' else writer
     axes = tuple(batch_axes) if isinstance(batch_axes, list) else batch_axes
 
     def local_forward(layer, a, o, h, rows, valid):
-        jax.debug.callback(writer, layer, a, o, h, rows, valid,
+        if primal_layout=='producer':
+            a,o,h=a.transpose(0,2,1,3),o.transpose(0,2,1,3),h.transpose(0,2,3,1)
+        jax.debug.callback(forward_writer, layer, a, o, h, rows, valid,
                            partitioned=False, ordered=False)
         return jnp.int32(0)
 

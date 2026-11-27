@@ -25,6 +25,8 @@ def review_split_workers(directory,runner_files,input_reference):
                     err=np.linalg.norm(fwd[:,layer].astype(np.float64)-ref)/max(np.linalg.norm(ref),1e-30)
                     require(err<.01,'Snapshot actual leaf gate')
             context=r['snapshot_context']
+            if 'primal_wire_layout' in r:
+                require(r['primal_wire_layout']==context.get('primal_wire_layout')=='producer_bnth_bnht','Primal wire-layout provenance mismatch')
             require(all(isinstance(context.get(k),str) and context[k] for k in ('run','state','input','rng')),'Missing split context')
             require(len(context['input'])==64 and len(context['rng'])==64,'Invalid context fingerprints')
             records=json.loads((p/'boundary-manifests.json').read_text())

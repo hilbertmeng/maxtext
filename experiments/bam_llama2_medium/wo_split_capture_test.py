@@ -5,18 +5,24 @@ import unittest,tempfile,json
 from pathlib import Path
 import jax,jax.numpy as jnp,numpy as np
 from jax.sharding import Mesh,NamedSharding,PartitionSpec as P
-from wo_capture_ablation import make_ablation_tap
+from wo_capture_ablation import make_ablation_tap,restore_producer_primal_layout
 from wo_split_capture import SplitWriter,paired_snapshots
 from wo_boundary_decomposition import partition_sums,merge_sums
 
 CTX=dict(run='cpu-fixture',state='fixed-w',input='fixed-x',rng='no-randomness')
 class SplitTests(unittest.TestCase):
     def test_separate_forward_and_backward_scan_remat_pair_and_reconstruct(self):
+        self._run_split('canonical')
+
+    def test_producer_layout_scan_remat_pair_and_reconstruct(self):
+        self._run_split('producer')
+
+    def _run_split(self, layout):
         with tempfile.TemporaryDirectory() as directory:
             writer=SplitWriter(directory,35635,CTX,layers=range(2),disk_reserve=0,allow_identical_forward_repeats=True)
             mesh=Mesh(np.array(jax.devices()),('data',));rep=NamedSharding(mesh,P());ds=NamedSharding(mesh,P('data'))
             gtap=make_ablation_tap(writer.backward,'cotangent',mesh,'data',layer_limit=2)
-            ftap=make_ablation_tap(writer.forward,'forward',mesh,'data',layer_limit=None)
+            ftap=make_ablation_tap(writer.forward,'forward',mesh,'data',layer_limit=None,primal_layout=layout)
             x=(jnp.arange(48).reshape(8,3,1,2)/50).astype(jnp.bfloat16)
             ws=jnp.arange(12,dtype=jnp.float32).reshape(3,1,2,2)/17
             rows=jnp.broadcast_to(jnp.arange(8)[:,None],(8,3));valid=jnp.ones((8,3),bool)
@@ -43,6 +49,21 @@ class SplitTests(unittest.TestCase):
                     parts.append(partition_sums(v['AV'],v['localO'],v['H'],v['G'],v['global_rows'],v['valid'],token=1,sequence=2))
                 result=merge_sums(parts,range(8));hgrad=result['parts'][0,2];native=np.asarray(plain[1][layer],float)
                 self.assertLess(np.linalg.norm(hgrad-native)/np.linalg.norm(native),.01)
+
+    def test_wire_restore_preserves_bf16_bits_and_rejects_wrong_layout(self):
+        received=[]
+        receive=restore_producer_primal_layout(lambda *args:received.append(args))
+        a=np.asarray(jnp.arange(120).reshape(2,3,4,5).astype(jnp.bfloat16))
+        o=np.asarray((jnp.arange(120).reshape(2,3,4,5)/7).astype(jnp.bfloat16))
+        h=np.asarray((jnp.asarray(a)+jnp.asarray(o)).astype(jnp.bfloat16))
+        rows=np.broadcast_to(np.arange(2,dtype=np.int32)[:,None],(2,3));valid=np.ones((2,3),bool)
+        receive(0,a.transpose(0,2,1,3),o.transpose(0,2,1,3),h.transpose(0,2,3,1),rows,valid)
+        for expected,actual in zip((a,o,h),received[0][1:4]):
+            self.assertEqual(actual.dtype,expected.dtype)
+            np.testing.assert_array_equal(actual.view(np.uint16),expected.view(np.uint16))
+        np.testing.assert_array_equal(received[0][-2],rows)
+        with self.assertRaises(ValueError):receive(0,a,o,h,rows,valid)
+        with self.assertRaises(ValueError):make_ablation_tap(None,'forward',None,None,primal_layout='unknown')
 
     def test_pairing_rejects_missing_context_mask_and_corruption(self):
         with tempfile.TemporaryDirectory() as directory:

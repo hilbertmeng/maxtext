@@ -105,3 +105,60 @@ def paired_snapshots(directory, step, context, layers, expected_rows):
     if any(sorted(v)!=expected_rows for v in seen.values()):
         raise ValueError('Missing or overlapping row coverage')
     return pairs
+
+
+def save_failed_hg_diagnostic(output, pairs, layers, expected_rows, chunk_tokens=256,
+                              disk_reserve=1<<30):
+    """Retain ONLY local H^T G matrices after a failed snapshot fidelity gate.
+
+    Caller must first use paired_snapshots to verify context, checksums and masks.
+    Matrices require a four-worker sum before comparison with replicated native
+    W_O. They are never scientific AV/O partials or a completed capture report.
+    """
+    if chunk_tokens <= 0 or disk_reserve < 0:
+        raise ValueError('Invalid diagnostic resource bound')
+    output=Path(output);output.mkdir(parents=True,exist_ok=True)
+    records=[]
+    for layer in layers:
+        selected=[(m,v) for m,v in pairs if m['layer']==layer]
+        if not selected:raise ValueError('Missing diagnostic layer')
+        rows=np.concatenate([np.asarray(v['global_rows']) for _,v in selected])
+        if len(set(rows.tolist()))!=len(rows) or set(rows.tolist())!=set(expected_rows):
+            raise ValueError('Missing or duplicate diagnostic rows')
+        total=None
+        for _,v in selected:
+            h,g=v['H'],v['G']
+            if h.ndim!=4 or g.ndim!=3 or h.shape[:2]!=g.shape[:2]:
+                raise ValueError('Diagnostic H/G shape mismatch')
+            shape=(*h.shape[2:],g.shape[-1])
+            if total is None:
+                needed=int(np.prod(shape))*8
+                if shutil.disk_usage(output).free < disk_reserve+needed:
+                    raise OSError('Diagnostic disk reserve')
+                total=np.zeros(shape,np.float64)
+            if total.shape!=shape:raise ValueError('Diagnostic partition shape mismatch')
+            for row in range(h.shape[0]):
+                for start in range(0,h.shape[1],chunk_tokens):
+                    hh=np.asarray(h[row,start:start+chunk_tokens],np.float64)
+                    gg=np.asarray(g[row,start:start+chunk_tokens],np.float64)
+                    if not np.isfinite(hh).all() or not np.isfinite(gg).all():
+                        raise ValueError('Nonfinite diagnostic H/G')
+                    total += (hh.reshape(len(hh),-1).T @ gg).reshape(shape)
+        target=output/f'diagnostic-layer-{layer:02d}-hg.npy'
+        with tempfile.NamedTemporaryFile(dir=output,delete=False) as f:
+            temp=Path(f.name)
+            try:
+                np.save(f,total,allow_pickle=False)
+                f.flush()
+                temp.replace(target)
+            finally:
+                temp.unlink(missing_ok=True)
+        saved=np.load(target,allow_pickle=False,mmap_mode='r')
+        if not np.array_equal(saved,total):raise ValueError('Diagnostic readback mismatch')
+        records.append(dict(layer=int(layer),file=target.name,global_rows=rows.tolist(),
+                            shape=list(total.shape),dtype=str(total.dtype)))
+    report=dict(diagnostic_only=True,complete=False,scientific_review_complete=False,
+                requires_global_worker_merge=True,scope='fullbatch_H_only',
+                interpretation='Failed fidelity data; no AV/O attribution',matrices=records)
+    (output/'failed-hg-diagnostic.json').write_text(json.dumps(report,indent=2)+'\n')
+    return report

@@ -6,11 +6,38 @@ from pathlib import Path
 import jax,jax.numpy as jnp,numpy as np
 from jax.sharding import Mesh,NamedSharding,PartitionSpec as P
 from wo_capture_ablation import make_ablation_tap,restore_producer_primal_layout
-from wo_split_capture import SplitWriter,paired_snapshots
+from wo_split_capture import SplitWriter,paired_snapshots,save_failed_hg_diagnostic
 from wo_boundary_decomposition import partition_sums,merge_sums
 
 CTX=dict(run='cpu-fixture',state='fixed-w',input='fixed-x',rng='no-randomness')
 class SplitTests(unittest.TestCase):
+    def test_failed_hg_diagnostic_merges_before_comparison_and_rejects_bad_coverage(self):
+        h=np.asarray(jnp.arange(48).reshape(4,3,2,2).astype(jnp.bfloat16)/7)
+        g=np.asarray(jnp.cos(jnp.arange(36).reshape(4,3,3)).astype(jnp.bfloat16))
+        native=np.einsum('btnq,btd->nqd',h.astype(np.float64),g.astype(np.float64))
+        with tempfile.TemporaryDirectory() as directory:
+            outputs=[]
+            for worker,rows in enumerate(([0,2],[1,3])):
+                # Two partitions per worker; no local-vs-global norm comparison.
+                pairs=[(dict(layer=0),dict(H=h[r:r+1],G=g[r:r+1],global_rows=np.array([r]))) for r in rows]
+                path=Path(directory)/str(worker)
+                report=save_failed_hg_diagnostic(path,pairs,[0],rows,chunk_tokens=2,disk_reserve=0)
+                self.assertTrue(report['diagnostic_only'])
+                self.assertFalse(report['complete']);self.assertFalse(report['scientific_review_complete'])
+                self.assertTrue(report['requires_global_worker_merge'])
+                self.assertFalse(list(path.glob('layer-*-partial.npz')))
+                self.assertFalse((path/'wo-split.json').exists())
+                outputs.append(np.load(path/'diagnostic-layer-00-hg.npy'))
+                np.testing.assert_array_equal(json.loads((path/'failed-hg-diagnostic.json').read_text())['matrices'][0]['global_rows'],rows)
+            np.testing.assert_allclose(sum(outputs),native,rtol=1e-14,atol=1e-14)
+            with self.assertRaisesRegex(ValueError,'duplicate'):
+                save_failed_hg_diagnostic(directory,pairs+pairs,[0],[1,3],disk_reserve=0)
+            with self.assertRaisesRegex(OSError,'reserve'):
+                save_failed_hg_diagnostic(directory,pairs,[0],[1,3],disk_reserve=1<<80)
+            bad=[(dict(layer=0),dict(H=h[:1],G=g[:1,:2],global_rows=np.array([0])))]
+            with self.assertRaisesRegex(ValueError,'shape'):
+                save_failed_hg_diagnostic(directory,bad,[0],[0],disk_reserve=0)
+
     def test_separate_forward_and_backward_scan_remat_pair_and_reconstruct(self):
         self._run_split('canonical')
 

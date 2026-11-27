@@ -19,7 +19,7 @@ def run_probe(train,captured,reference,output,sequence,target_layer):
     from flax import linen as nn
     from layers import attentions,bam_pallas
     sys.path.insert(0,str(Path(__file__).resolve().parent))
-    from wo_split_capture import SplitWriter,paired_snapshots
+    from wo_split_capture import SplitWriter,paired_snapshots,save_failed_hg_diagnostic
     from wo_capture_ablation import make_ablation_tap
     from wo_boundary_decomposition import partition_sums,merge_sums
 
@@ -119,12 +119,17 @@ def run_probe(train,captured,reference,output,sequence,target_layer):
         with mesh,nn.partitioning.axis_rules(cfg.logical_axis_rules):forward_loss,forward_grad=forward_fn(state.params,batch,rng,row_ids)
         jax.block_until_ready((forward_loss,forward_grad));jax.effects_barrier()
         forward_loss=float(jax.device_get(forward_loss))
-        assert abs(forward_loss-loss)<1e-6,('Independent forward/plain loss',forward_loss,loss)
         forward_vector_error=float(jax.device_get(difference(forward_grad,base)))
         forward_wo=np.asarray(jax.device_get(wo_fn(forward_grad)),np.float32)
         np.save(output/'forward-wo.npy',forward_wo,allow_pickle=False)
         forward_errors=[relative(forward_wo[:,i],control[:,i]) for i in range(6)]
-        assert forward_vector_error<.01 and all(x<.01 for x in forward_errors),('Snapshot gradient/plain',forward_vector_error,forward_errors)
+        forward_ok=abs(forward_loss-loss)<1e-6 and forward_vector_error<.01 and all(x<.01 for x in forward_errors)
+        forward_diagnostic=dict(step=step,diagnostic_only=True,complete=False,scientific_review_complete=False,
+                                snapshot_context=context,plain_loss=loss,forward_loss=forward_loss,
+                                input_shards=[dict(index=str(s.index),sha256=hashlib.sha256(np.asarray(s.data).tobytes()).hexdigest()) for s in batch['inputs'].addressable_shards],
+                                forward_vector_relative_error=forward_vector_error,
+                                forward_W_O_leaf_relative_errors=forward_errors,fidelity_passed=forward_ok)
+        (output/'forward-fidelity-diagnostic.json').write_text(json.dumps(forward_diagnostic,indent=2)+'\n')
         assert not writer.errors,writer.errors
         assert batch_fingerprint()==context['input'],'Batch changed between executions'
         local_rows=sorted({row for shard in batch['inputs'].addressable_shards for row in range(*shard.index[0].indices(128))})
@@ -135,6 +140,12 @@ def run_probe(train,captured,reference,output,sequence,target_layer):
             gm=json.loads((rawdir/'cotangent'/key/'complete.json').read_text())
             records.append(dict(partition=key,metadata=meta,cotangent_metadata=gm))
         (output/'boundary-manifests.json').write_text(json.dumps(records,indent=2)+'\n')
+        if not forward_ok:
+            # Preserve a bounded H-only reconstruction with the faithful G-only
+            # cotangent before rejecting the run; never produce scientific partials.
+            del grad,forward_grad,base
+            save_failed_hg_diagnostic(output,pairs,range(6),local_rows)
+            raise AssertionError(('Snapshot fidelity/plain',forward_loss,loss,forward_vector_error,forward_errors))
         # Release full device gradients before local FP64 contractions.
         del grad,forward_grad,base,arrays
         for layer in range(6):

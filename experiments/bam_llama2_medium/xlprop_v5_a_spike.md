@@ -1179,3 +1179,40 @@ cannot choose the H-versus-G explanation. Earlier preference for G based on
 local MLP gains is evidence of a possible route, not a completed factor
 attribution. First-spike saved tensor-onset captures retain AV only at the
 target layer and do not contain first6 localO, so they cannot fill that gap.
+
+
+### Capture-path ablation at normal35635 (2026-11-27)
+
+Attempt-e repair2 completed a diagnostic of the instrumentation itself, not the
+requested scientific AV/O decomposition. The historical d54 AOT trajectory,
+B128/T4096, four workers and all sixteen input shards were checked. Native
+unclipped W_O gradients were independently recovered from the actual Adam-Pax
+before/after moments (second-moment recurrence relative error 2.36e-8).
+
+| Observation in the gradient graph | Full gradient difference vs plain | First6 W_O difference vs native |
+| --- | ---: | ---: |
+| Identity custom VJP, no callback | 0 exactly | about 8.6e-8 |
+| Retained AV/O/H, observed during backward; G unobserved | 0.69788% | 1.12904%–1.20661% |
+| G only, no retained AV/O/H | 0 exactly | about 8.6e-8 |
+
+All four workers agreed, their replicated gradient arrays were byte-identical,
+and loss remained 2.0112438201904297 in every arm. Only the primal-observation
+arm failed the unchanged 1% per-leaf gate. A forward-callback arm failed TPU
+host-callback channel registration under both ordinary and explicit compiled
+execution; the measured primal arm instead observes retained operands during
+backward. Optimized HLO was saved, but its byte identity with the executed JIT
+was not independently established.
+
+This localizes the observed instrumentation mismatch to retaining/observing
+primal boundaries in this configuration. It excludes bare custom VJP or G-only
+observation as sufficient explanations here; retention, callback effects and
+compiler fusion/precision remain competing mechanisms. It says nothing yet
+about whether AV, localO, H magnitude or G causes the first spike.
+
+Next: retain G alone in the validated gradient graph and capture primal
+boundaries in a separate forward execution using the exact same state, batch
+and RNG. That method must independently pass forward identity, row/input
+coverage and global native W_O/branch reconstruction gates before interpretation.
+Neither this normal-only diagnostic nor a successful run closes the unfinished
+first-spike AV/O analysis. Evidence:
+`training_reports/xl_wo_split_20261125/attempt-e/capture-ablation-review.json`.

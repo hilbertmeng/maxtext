@@ -82,12 +82,22 @@ def run_probe(train,captured,reference,output,sequence,target_layer):
         assert abs(measured_loss-loss)<1e-6 and vector_error<.01,('capture/plain',measured_loss,loss,vector_error)
         actual=np.asarray(jax.device_get(wo_fn(grad)),np.float32)
         control=np.asarray(jax.device_get(wo_fn(base)),np.float32)
-        errors=[]
-        for layer in range(6):
-            err=float(np.linalg.norm(actual[:,layer].astype(np.float64)-control[:,layer])/max(np.linalg.norm(control[:,layer].astype(np.float64)),1e-30))
-            errors.append(err);assert err<.01,('W_O capture/plain',layer,err)
         np.save(output/'actual-wo.npy',actual,allow_pickle=False)
         np.save(output/'plain-wo.npy',control,allow_pickle=False)
+        def relative(x,y):return float(np.linalg.norm(x.astype(np.float64)-y)/max(np.linalg.norm(y.astype(np.float64)),1e-30))
+        errors=[relative(actual[:,i],control[:,i])for i in range(6)]
+        diagnostic=dict(step=step,complete=False,scientific_review_complete=False,W_O_leaf_relative_errors=errors)
+        if step==35635 and 'native_result' in captured:
+            from wo_native_momentum import find_wo_adam_state,recover_unclipped
+            assert cfg.opt_type=='adam_pax' and native['learning/raw_grad_norm']<cfg.gradient_clipping_threshold
+            before=find_wo_adam_state(state.opt_state);after=find_wo_adam_state(captured['native_result'].opt_state)
+            recover=jax.jit(lambda b,a:recover_unclipped(b,a,cfg.adam_b1,cfg.adam_b2),out_shardings=(rep,rep,rep,rep))
+            ng,nu,pnu,inc=jax.device_get(recover(before,after));assert int(inc)==1
+            nu_error=relative(np.asarray(pnu),np.asarray(nu));assert nu_error<1e-5,('Native moment consistency',nu_error)
+            ng=np.asarray(ng,np.float32);np.save(output/'native-aot-wo.npy',ng,allow_pickle=False)
+            diagnostic.update(native_moment_consistency=nu_error,plain_vs_native_W_O=[relative(control[:,i],ng[:,i])for i in range(6)],capture_vs_native_W_O=[relative(actual[:,i],ng[:,i])for i in range(6)])
+        (output/'fidelity-diagnostic.json').write_text(json.dumps(diagnostic,indent=2)+'\n')
+        assert all(x<.01 for x in errors),('W_O capture/plain',errors)
         local_rows=sorted({row for shard in batch['inputs'].addressable_shards for row in range(*shard.index[0].indices(128))})
         coverage={i:[]for i in range(6)};records=[]
         paths=sorted(rawdir.glob('layer-*'))

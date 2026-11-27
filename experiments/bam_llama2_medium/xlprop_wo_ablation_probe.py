@@ -107,10 +107,17 @@ def run_probe(train,captured,reference,output,sequence,target_layer):
             fn=jax.jit(jax.value_and_grad(measured),in_shardings=(shardings.params,ds,None,ds),out_shardings=(rep,shardings.params))
             bam_pallas.read=read;attentions._bam_splash_attention=splash
             with mesh,nn.partitioning.axis_rules(cfg.logical_axis_rules):
-                compiled=fn.lower(state.params,batch,rng,rows).compile()
-                hlo=save_compiled_hlo(compiled,output/(mode+'-optimized-hlo.txt.gz'))
-                ml,grad=compiled(state.params,batch,rng,rows)
+                # Use the ordinary jit call path: explicit Compiled execution
+                # failed callback channel registration on pinned TPU JAX0.8.1.
+                ml,grad=fn(state.params,batch,rng,rows)
             jax.block_until_ready((ml,grad));jax.effects_barrier()
+            # Inspect only after the executed JIT and its callbacks finish.
+            # This separately lowered signature is provenance, not proof of
+            # byte identity with the executable selected by jit.__call__.
+            with mesh,nn.partitioning.axis_rules(cfg.logical_axis_rules):
+                compiled=fn.lower(state.params,batch,rng,rows).compile()
+            hlo=save_compiled_hlo(compiled,output/(mode+'-optimized-hlo.txt.gz'))
+            hlo['execution_identity_verified']=False
             actual=np.asarray(jax.device_get(wo(grad)));np.save(output/(mode+'-wo.npy'),actual)
             errors=[relative(actual[:,i],ng[:,i]) for i in range(6)]
             coverage={i:sorted({r for e in events if e['layer']==i for r in e['rows']}) for i in range(6)}

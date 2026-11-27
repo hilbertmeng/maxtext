@@ -23167,3 +23167,81 @@ class OverheadPythiaLoomMinimalSpeedProfile(OverheadPythiaLoomSpeedProfile):
 class OverheadPythiaLoomFullSpeedProfile(OverheadPythiaLoomMinimalSpeedProfile):
     model_name = 'OverheadPythiaLoomFullSpeedProfile'
     remat_policy = 'full'
+
+
+# ---- All-global T=4096 Medium DCMHA configs (Two-Pass Flash-DCMHA Pallas & QChunk reference) ----
+# Note: attentions.Attention.setup() (layers/attentions.py:1138) instantiates dc.AttentionOp when
+# sliding_window_size < max_target_length OR attention in ('dot_product_chunk', 'dc_flash').
+
+class _MediumT4096Common:
+    """Shared T=4096 all-global training/profile settings (16/device; v5p-8 global 64, v5p-16 global 128)."""
+    DATASET_VARIANT = 'truepile4096'
+    max_target_length = 4096
+    per_device_batch_size = 16.0
+    eval_per_device_batch_size = 64.0
+    sliding_window_size = None
+    scan_layers = True
+    sharding_tolerance = 0.05
+    jax_cache_dir = ''
+
+
+class _DC2GlobalT4096(_MediumT4096Common, DC2):
+    """Query-wise all-global DCMHA at T=4096 using Two-Pass Global Flash-DCMHA Pallas ('dc_flash')."""
+    attention = 'dc_flash'
+    query_chunk_size = 512
+    query_chunk_method = 'remat'
+
+
+class DC2GlobalLlama2MediumT4096(_DC2GlobalT4096, Llama2Medium):
+    """24-layer Llama2Medium (D=1024, n=16, head_dim=64, ~416M) all-global DC2 at T=4096 (Pallas 'dc_flash')."""
+    model_name = 'DC2GlobalLlama2MediumT4096'
+
+
+class DC2GlobalLlama2MediumT4096QChunk(DC2GlobalLlama2MediumT4096):
+    """Pure-JAX QChunk=512 (remat) reference counterpart of DC2GlobalLlama2MediumT4096."""
+    model_name = 'DC2GlobalLlama2MediumT4096QChunk'
+    attention = 'dot_product_chunk'
+
+
+class OverheadMediumLlama2MHASplashSpeedProfile(_OverheadSpeedProfile, _MediumT4096Common, SplashTunedBlocks1024, Llama2Medium):
+    """100-step T=4096 MHA Splash baseline on Llama2Medium (L=24, D=1024, H=16, head_dim=64)."""
+    model_name = 'OverheadMediumLlama2MHASplashSpeedProfile'
+    attention = 'flash'
+    float32_logits = False
+    record_training_health_metrics = True
+
+
+class OverheadMediumLlama2MHAQKNormSplashSpeedProfile(OverheadMediumLlama2MHASplashSpeedProfile):
+    """100-step T=4096 MHA + QKNorm Splash control on Llama2Medium (isolates pure DC2 composition cost)."""
+    model_name = 'OverheadMediumLlama2MHAQKNormSplashSpeedProfile'
+    qk_norm = True
+
+
+class OverheadMediumLlama2DC2PallasSpeedProfile(_OverheadSpeedProfile, DC2GlobalLlama2MediumT4096):
+    """100-step T=4096 speed-profile arm for DC2GlobalLlama2MediumT4096 (Two-Pass Flash-DCMHA Pallas)."""
+    model_name = 'OverheadMediumLlama2DC2PallasSpeedProfile'
+    float32_logits = False
+    record_training_health_metrics = True
+
+
+class OverheadMediumLlama2DC2GlobalSpeedProfile(_OverheadSpeedProfile, DC2GlobalLlama2MediumT4096QChunk):
+    """100-step T=4096 speed-profile arm for DC2GlobalLlama2MediumT4096QChunk (QChunk=512 remat baseline)."""
+    model_name = 'OverheadMediumLlama2DC2GlobalSpeedProfile'
+    float32_logits = False
+    record_training_health_metrics = True
+
+
+class DC2GlobalMediumPropT4096(_DC2GlobalT4096, Llama2MediumProp):
+    """18-layer Llama2MediumProp (D=1200, n=16, head_dim=75 w/ 74D RoPE, ~436M) all-global DC2 at T=4096."""
+    model_name = 'DC2GlobalMediumPropT4096'
+    attention = 'dot_product_chunk'
+    bam_partial_rope = True
+    bam_partial_rope_nope_dim = 1
+
+
+class OverheadMediumDC2GlobalSpeedProfile(_OverheadSpeedProfile, DC2GlobalMediumPropT4096):
+    """Paired 100-step speed-profile arm against OverheadMediumMHASplashSpeedProfile (head_dim=75, T=4096)."""
+    model_name = 'OverheadMediumDC2GlobalSpeedProfile'
+    float32_logits = False
+    record_training_health_metrics = True
+

@@ -15,6 +15,7 @@ import max_logging
 import common_types
 from flax.linen.linear import PrecisionLike
 from layers import accelerator
+from layers import dc_pallas
 from layers import quantizations
 
 Dtype = Any
@@ -414,6 +415,8 @@ class AttentionOp(nn.Module):#
   sliding_window_size: int|None = None
   num_kv_heads: int = 0
   kv_quant: Optional[KV_Quant] = None
+  mesh: Optional[Mesh] = None
+  attention_kernel: str = "dot_product_chunk"
 
   def setup(self):
     cfg = self.config
@@ -545,6 +548,32 @@ class AttentionOp(nn.Module):#
               pre_proj_dw_args = self.dyn_w_pre_proj(input_q)
           if hasattr(self, 'dyn_w_post_proj'):
               post_proj_dw_args = self.dyn_w_post_proj(input_kv)    
+
+    is_global_layer = self.sliding_window_size is None or self.sliding_window_size >= query.shape[1]
+    if (
+        self.attention_kernel == "dc_flash"
+        and is_global_layer
+        and self.num_groups == 1
+        and query.shape[-2] == key.shape[-2]
+        and cfg.pre_compose
+        and cfg.post_compose
+        and cfg.query_wise
+        and not cfg.key_wise
+        and not cfg.static_proj
+        and model_mode != common_types.MODEL_MODE_AUTOREGRESSIVE
+    ):
+      seg_ids = decoder_segment_ids if getattr(cfg, "dc_use_segment_ids", False) else None
+      outputs = dc_pallas.dc2_flash_attention(
+          query,
+          key,
+          value,
+          (pre_proj_dw_args[0], pre_proj_dw_args[1], pre_proj_dw_args[4]),
+          (post_proj_dw_args[0], post_proj_dw_args[1], post_proj_dw_args[4]),
+          decoder_segment_ids=seg_ids,
+          config=cfg,
+          mesh=self.mesh,
+      )
+      return nn.with_logical_constraint(outputs, ("activation_batch", "activation_length", "heads", "mlp"))
 
     outputs, _, _ = accelerator.QChunk(cfg, self.sliding_window_size, self.kv_quant)(
         query, key, value, decoder_segment_ids, model_mode, eos_sum,

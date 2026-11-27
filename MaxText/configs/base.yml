@@ -573,6 +573,14 @@ dc_share_prepost_dw_hidden: False
 seperate_qk_dw_proj: True
 query_chunk_method: ''
 static_proj: False
+dc_block_q: 512
+dc_block_kv: 512
+dc_block_kv_compute: 256
+dc_bwd_block_q: 512
+dc_bwd_block_kv: 512
+dc_bwd_block_kv_compute: 256
+dc_vmem_mib: 96
+dc_use_segment_ids: False
 init_method: '006normal'
 # Empty overrides preserve the existing initialization roles.
 bam_init_method: ''

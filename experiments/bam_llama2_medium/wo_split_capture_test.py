@@ -16,7 +16,7 @@ class SplitTests(unittest.TestCase):
             writer=SplitWriter(directory,35635,CTX,layers=range(2),disk_reserve=0)
             mesh=Mesh(np.array(jax.devices()),('data',));rep=NamedSharding(mesh,P());ds=NamedSharding(mesh,P('data'))
             gtap=make_ablation_tap(writer.backward,'cotangent',mesh,'data',layer_limit=2)
-            ftap=make_ablation_tap(writer.forward,'forward',mesh,'data',layer_limit=2)
+            ftap=make_ablation_tap(writer.forward,'forward',mesh,'data',layer_limit=None)
             x=(jnp.arange(48).reshape(8,3,1,2)/50).astype(jnp.bfloat16)
             ws=jnp.arange(12,dtype=jnp.float32).reshape(3,1,2,2)/17
             rows=jnp.broadcast_to(jnp.arange(8)[:,None],(8,3));valid=jnp.ones((8,3),bool)

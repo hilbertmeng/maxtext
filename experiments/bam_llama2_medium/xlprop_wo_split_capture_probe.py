@@ -45,7 +45,9 @@ def run_probe(train,captured,reference,output,sequence,target_layer):
                  input=batch_fingerprint(),rng=hashlib.sha256(np.asarray(jax.device_get(jax.random.key_data(rng))).tobytes()).hexdigest())
     writer=SplitWriter(rawdir,step,context)
     gtap=make_ablation_tap(writer.backward,'cotangent',mesh,cfg.data_sharding[0],layer_limit=6)
-    ftap=make_ablation_tap(writer.forward,'forward',mesh,cfg.data_sharding[0],layer_limit=6)
+    # Avoid a device conditional around forward host callbacks. The writer
+    # discards unselected layers on the host; transfer overhead is bounded.
+    ftap=make_ablation_tap(writer.forward,'forward',mesh,cfg.data_sharding[0],layer_limit=None)
     # Derive row IDs inside JIT from an explicit, batch-sharded dynamic operand.
     row_fn=jax.jit(lambda x:jnp.broadcast_to(jnp.arange(x.shape[0],dtype=jnp.int32)[:,None],x.shape),in_shardings=ds,out_shardings=ds)
     row_ids=row_fn(batch['targets_segmentation'])

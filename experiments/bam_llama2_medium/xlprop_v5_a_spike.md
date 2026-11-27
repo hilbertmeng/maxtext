@@ -1216,3 +1216,19 @@ coverage and global native W_O/branch reconstruction gates before interpretation
 Neither this normal-only diagnostic nor a successful run closes the unfinished
 first-spike AV/O analysis. Evidence:
 `training_reports/xl_wo_split_20261125/attempt-e/capture-ablation-review.json`.
+
+
+Attempt-f additionally tested a G-only graph followed by an independent primal
+capture. Removing the device conditional made forward callbacks execute, but a
+forward-only snapshot produced loss 2.011268138885498 versus native
+2.0112438201904297, failing the unchanged 1e-6 identity gate. Repeating the primal
+snapshot in a full-gradient execution restored loss identity but reproduced the
+same 0.69788% full-vector and 1.12904%–1.20661% per-leaf gradient discrepancy on all
+four workers. Its saved W_O gradient is byte-identical to attempt-e's
+backward-primal observation arm. G-only still matches plain exactly and the
+native moment reference within about8.6e-8. Both repairs were exhausted; no valid
+normal/spike AV/O decomposition was produced. This is a stable instrumentation
+operating-point change across capture placements, not evidence of AV/O causality.
+Next investigation compares the already-saved optimized identity, G-only and
+primal HLO for materialization/fusion/precision differences before another run.
+Evidence: `training_reports/xl_wo_split_20261125/attempt-f/failure-review.json`.

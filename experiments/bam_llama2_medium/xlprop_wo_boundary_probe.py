@@ -4,6 +4,8 @@ Called by the existing bounded replay at normal35635 and firstspike35636.
 A complete capture report is NOT a globally reviewed AV/O decomposition.
 """
 import hashlib
+import os
+import subprocess
 import json
 import shutil
 import sys
@@ -116,6 +118,8 @@ def run_probe(train,captured,reference,output,sequence,target_layer):
                     input_shards=[dict(index=str(s.index),sha256=hashlib.sha256(np.asarray(s.data).tobytes()).hexdigest())for s in batch['inputs'].addressable_shards],
                     scope='Frozen actual sharedG boundaries, local partial matrices; requires global4worker merge, nativeW_O/branchclosure/forward/input16 review before interpretation.')
         (output/'wo-split.json').write_text(json.dumps(report,indent=2)+'\n')
+        if jax.process_index()==0:
+            subprocess.run(['gsutil','-q','cp',str(output/'wo-split.json'),os.environ['BAM_LOSS_LOCALIZATION_UPLOAD'].rstrip('/')+f'/step{step}/wo-split.json'],check=True,timeout=120)
         print('WO_BOUNDARY_CAPTURE_COMPLETE',step,flush=True)
     finally:
         bam_pallas.read=native_read;attentions._bam_splash_attention=native_splash

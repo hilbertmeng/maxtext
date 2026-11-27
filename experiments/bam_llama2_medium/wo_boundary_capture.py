@@ -84,7 +84,7 @@ class BoundaryWriter:
                 raise RuntimeError('Insufficient disk for boundary capture')
             temp = Path(tempfile.mkdtemp(prefix='.boundary-',dir=self.directory))
             try:
-                meta = dict(step=self.step,layer=layer,files={})
+                meta = dict(step=self.step,layer=layer,global_rows=rows.tolist(),files={})
                 for name, array in arrays.items():
                     # Preserve BF16 bit patterns: NumPy reload would otherwise
                     # treat ml_dtypes BF16 as opaque void16. Record explicit dtype.

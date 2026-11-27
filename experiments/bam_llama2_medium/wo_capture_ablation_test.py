@@ -37,7 +37,7 @@ class AblationTests(unittest.TestCase):
             jax.block_until_ready(result);jax.effects_barrier()
             return result,events
         base,_=run('plain')
-        for mode in ('identity','forward','cotangent'):
+        for mode in ('identity','forward','primal','cotangent'):
             result,events=run(mode)
             for b,a in zip(base,result):np.testing.assert_array_equal(a,b)
             if mode=='identity':

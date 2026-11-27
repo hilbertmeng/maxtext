@@ -8,7 +8,7 @@ def make_ablation_tap(writer, mode, mesh, batch_axes, layer_limit=None):
     import jax
     import jax.numpy as jnp
     from jax.sharding import PartitionSpec as P
-    if mode not in ('identity', 'forward', 'cotangent'):
+    if mode not in ('identity', 'forward', 'primal', 'cotangent'):
         raise ValueError('Unknown capture ablation: '+mode)
     axes = tuple(batch_axes) if isinstance(batch_axes, list) else batch_axes
 
@@ -56,6 +56,22 @@ def make_ablation_tap(writer, mode, mesh, batch_axes, layer_limit=None):
 
     cotangent.defvjp(cotangent_fwd, cotangent_bwd)
 
+    @jax.custom_vjp
+    def primal(y, a, o, h, rows, valid, layer):
+        return y
+
+    def primal_fwd(y, a, o, h, rows, valid, layer):
+        return y, (a, o, h, rows, valid, layer)
+
+    def primal_bwd(saved, g):
+        a, o, h, rows, valid, layer = saved
+        # Observe retained primal operands during backward, never observe G.
+        # TPU forward callback/remat channel failure is a separate limitation.
+        observe(layer, lambda: forward_capture(layer, a, o, h, rows, valid))
+        return g, None, None, None, None, None, None
+
+    primal.defvjp(primal_fwd, primal_bwd)
+
     def observe(layer, callback):
         def emit(_):
             callback()
@@ -69,6 +85,8 @@ def make_ablation_tap(writer, mode, mesh, batch_axes, layer_limit=None):
     def tap(y, a, o, h, rows, valid, layer):
         if mode == 'identity':
             return identity(y)
+        if mode == 'primal':
+            return primal(y, a, o, h, rows, valid, layer)
         if mode == 'forward':
             # Ordinary forward callback: no custom reverse-mode rule at all.
             observe(layer, lambda: forward_capture(layer, a, o, h, rows, valid))

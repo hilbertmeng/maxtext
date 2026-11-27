@@ -68,6 +68,7 @@ def run_probe(train,captured,reference,output,sequence,target_layer):
     np.save(output/'native-aot-wo.npy',ng)
     report=dict(step=35635,complete=False,scientific_review_complete=False,
         purpose='Capture-path ablation only; no branch attribution',
+        unmeasured_modes={'forward':'TPU JAX0.8.1 host callback channel failure under scan/remat; replaced by observing primal operands during backward'},
         jax_version=jax.__version__,process_index=jax.process_index(),
         runtime_commit=subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip(),
         sources={p.name:hashlib.sha256(p.read_bytes()).hexdigest() for p in (Path(__file__),Path(__file__).with_name('wo_capture_ablation.py'),Path(__file__).with_name('wo_native_momentum.py'))},
@@ -76,7 +77,7 @@ def run_probe(train,captured,reference,output,sequence,target_layer):
     local_rows=sorted({r for s in batch['inputs'].addressable_shards for r in range(*s.index[0].indices(128))})
     native_read,native_splash=bam_pallas.read,attentions._bam_splash_attention
     try:
-        for mode in ('identity','forward','cotangent'):
+        for mode in ('identity','primal','cotangent'):
             events=[];lock=threading.Lock();stack=[];active_rows=None;active_valid=None
             def writer(*args):
                 layer=int(np.asarray(args[0]));rr=np.asarray(args[-2]);valid=np.asarray(args[-1])
@@ -107,8 +108,8 @@ def run_probe(train,captured,reference,output,sequence,target_layer):
             fn=jax.jit(jax.value_and_grad(measured),in_shardings=(shardings.params,ds,None,ds),out_shardings=(rep,shardings.params))
             bam_pallas.read=read;attentions._bam_splash_attention=splash
             with mesh,nn.partitioning.axis_rules(cfg.logical_axis_rules):
-                # Use the ordinary jit call path: explicit Compiled execution
-                # failed callback channel registration on pinned TPU JAX0.8.1.
+                # Ordinary JIT path. Both ordinary and explicit dispatch failed
+                # for forward callbacks; this run observes operands in backward.
                 ml,grad=fn(state.params,batch,rng,rows)
             jax.block_until_ready((ml,grad));jax.effects_barrier()
             # Inspect only after the executed JIT and its callbacks finish.

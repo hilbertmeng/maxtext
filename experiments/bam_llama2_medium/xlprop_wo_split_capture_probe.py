@@ -43,7 +43,7 @@ def run_probe(train,captured,reference,output,sequence,target_layer):
         return hashlib.sha256(json.dumps(entries,sort_keys=True).encode()).hexdigest()
     context=dict(run=str(output.parent),state=f'd54:AOT-original-trajectory:CP35599:preupdate{step}',
                  input=batch_fingerprint(),rng=hashlib.sha256(np.asarray(jax.device_get(jax.random.key_data(rng))).tobytes()).hexdigest())
-    writer=SplitWriter(rawdir,step,context)
+    writer=SplitWriter(rawdir,step,context,allow_identical_forward_repeats=True)
     gtap=make_ablation_tap(writer.backward,'cotangent',mesh,cfg.data_sharding[0],layer_limit=6)
     # Avoid a device conditional around forward host callbacks. The writer
     # discards unselected layers on the host; transfer overhead is bounded.
@@ -78,7 +78,7 @@ def run_probe(train,captured,reference,output,sequence,target_layer):
         with nn.intercept_methods(intercept):return plain(params,batch,rng)
     plain_fn=jax.jit(jax.value_and_grad(plain),in_shardings=(shardings.params,ds,None),out_shardings=(rep,shardings.params))
     capture_fn=jax.jit(jax.value_and_grad(lambda p,b,r,rows:measured(p,b,r,rows,'gradient')),in_shardings=(shardings.params,ds,None,ds),out_shardings=(rep,shardings.params))
-    forward_fn=jax.jit(lambda p,b,r,rows:measured(p,b,r,rows,'forward'),in_shardings=(shardings.params,ds,None,ds),out_shardings=rep)
+    forward_fn=jax.jit(jax.value_and_grad(lambda p,b,r,rows:measured(p,b,r,rows,'forward')),in_shardings=(shardings.params,ds,None,ds),out_shardings=(rep,shardings.params))
     def norm(tree):return jnp.sqrt(sum(jnp.sum(x.astype(jnp.float32)**2)for x in jax.tree.leaves(tree)))
     norm_fn=jax.jit(norm,out_shardings=rep)
     difference=jax.jit(lambda a,b:norm(jax.tree.map(lambda x,y:x.astype(jnp.float32)-y.astype(jnp.float32),a,b))/norm(b),out_shardings=rep)
@@ -114,11 +114,16 @@ def run_probe(train,captured,reference,output,sequence,target_layer):
         if step==35635 and 'native_result' in captured:
             assert all(x<.01 for x in diagnostic['plain_vs_native_W_O'])
             assert all(x<.01 for x in diagnostic['capture_vs_native_W_O'])
-        # Separate forward-only invocation: no reverse-mode retained A/O/H.
-        with mesh,nn.partitioning.axis_rules(cfg.logical_axis_rules):forward_loss=forward_fn(state.params,batch,rng,row_ids)
-        jax.block_until_ready(forward_loss);jax.effects_barrier()
+        # Separate full-gradient invocation: forward callback, no custom-VJP primal residual.
+        with mesh,nn.partitioning.axis_rules(cfg.logical_axis_rules):forward_loss,forward_grad=forward_fn(state.params,batch,rng,row_ids)
+        jax.block_until_ready((forward_loss,forward_grad));jax.effects_barrier()
         forward_loss=float(jax.device_get(forward_loss))
         assert abs(forward_loss-loss)<1e-6,('Independent forward/plain loss',forward_loss,loss)
+        forward_vector_error=float(jax.device_get(difference(forward_grad,base)))
+        forward_wo=np.asarray(jax.device_get(wo_fn(forward_grad)),np.float32)
+        np.save(output/'forward-wo.npy',forward_wo,allow_pickle=False)
+        forward_errors=[relative(forward_wo[:,i],control[:,i]) for i in range(6)]
+        assert forward_vector_error<.01 and all(x<.01 for x in forward_errors),('Snapshot gradient/plain',forward_vector_error,forward_errors)
         assert not writer.errors,writer.errors
         assert batch_fingerprint()==context['input'],'Batch changed between executions'
         local_rows=sorted({row for shard in batch['inputs'].addressable_shards for row in range(*shard.index[0].indices(128))})
@@ -130,7 +135,7 @@ def run_probe(train,captured,reference,output,sequence,target_layer):
             records.append(dict(partition=key,metadata=meta,cotangent_metadata=gm))
         (output/'boundary-manifests.json').write_text(json.dumps(records,indent=2)+'\n')
         # Release full device gradients before local FP64 contractions.
-        del grad,base,arrays
+        del grad,forward_grad,base,arrays
         for layer in range(6):
             selected=[(meta,v) for meta,v in pairs if meta['layer']==layer]
             partials=[partition_sums(v['AV'],v['localO'],v['H'],v['G'],v['global_rows'],v['valid']) for _,v in selected]
@@ -145,7 +150,7 @@ def run_probe(train,captured,reference,output,sequence,target_layer):
             del sums,partials,selected
             for key in keys:
                 shutil.rmtree(rawdir/'primal'/key);shutil.rmtree(rawdir/'cotangent'/key)
-        report=dict(step=step,capture_method='split_execution_v1',forward_snapshot_loss=forward_loss,snapshot_context=context,native_control=native,plain_loss=loss,plain_raw=raw,instrumented_loss=measured_loss,instrumented_vector_relative_error=vector_error,
+        report=dict(step=step,capture_method='split_execution_v1',primal_execution='value_and_grad',forward_vector_relative_error=forward_vector_error,forward_W_O_leaf_relative_errors=forward_errors,identical_forward_repeats=writer.identical_forward_repeats,forward_snapshot_loss=forward_loss,snapshot_context=context,native_control=native,plain_loss=loss,plain_raw=raw,instrumented_loss=measured_loss,instrumented_vector_relative_error=vector_error,
                     W_O_leaf_relative_errors=errors,local_rows=local_rows,capture_complete=True,complete=True,scientific_review_complete=False,
                     input_shards=[dict(index=str(s.index),sha256=hashlib.sha256(np.asarray(s.data).tobytes()).hexdigest())for s in batch['inputs'].addressable_shards],
                     scope='G-only validated gradient graph plus independently captured forward boundaries; requires global4worker merge, nativeW_O/branchclosure/forward/input16 review before interpretation.')

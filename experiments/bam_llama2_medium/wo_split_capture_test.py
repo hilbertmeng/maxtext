@@ -13,7 +13,7 @@ CTX=dict(run='cpu-fixture',state='fixed-w',input='fixed-x',rng='no-randomness')
 class SplitTests(unittest.TestCase):
     def test_separate_forward_and_backward_scan_remat_pair_and_reconstruct(self):
         with tempfile.TemporaryDirectory() as directory:
-            writer=SplitWriter(directory,35635,CTX,layers=range(2),disk_reserve=0)
+            writer=SplitWriter(directory,35635,CTX,layers=range(2),disk_reserve=0,allow_identical_forward_repeats=True)
             mesh=Mesh(np.array(jax.devices()),('data',));rep=NamedSharding(mesh,P());ds=NamedSharding(mesh,P('data'))
             gtap=make_ablation_tap(writer.backward,'cotangent',mesh,'data',layer_limit=2)
             ftap=make_ablation_tap(writer.forward,'forward',mesh,'data',layer_limit=None)
@@ -31,7 +31,8 @@ class SplitTests(unittest.TestCase):
             def grad(tap):return jax.jit(jax.value_and_grad(lambda w,x,r,v:loss(w,x,r,v,tap)),in_shardings=(rep,ds,ds,ds),out_shardings=(rep,rep))(ws,x,rows,valid)
             plain=grad(None);actual=grad(gtap);jax.block_until_ready(actual);jax.effects_barrier()
             np.testing.assert_array_equal(plain[0],actual[0]);np.testing.assert_array_equal(plain[1],actual[1])
-            forward=jax.jit(lambda w,x,r,v:loss(w,x,r,v,ftap),in_shardings=(rep,ds,ds,ds),out_shardings=rep)(ws,x,rows,valid)
+            forward,forward_grad=jax.jit(jax.value_and_grad(lambda w,x,r,v:loss(w,x,r,v,ftap)),in_shardings=(rep,ds,ds,ds),out_shardings=(rep,rep))(ws,x,rows,valid)
+            np.testing.assert_array_equal(plain[1],forward_grad)
             jax.block_until_ready(forward);jax.effects_barrier();np.testing.assert_array_equal(plain[0],forward)
             pairs=paired_snapshots(directory,35635,CTX,range(2),range(8));self.assertEqual(len(pairs),8);self.assertFalse(writer.errors)
             for layer in range(2):
@@ -60,6 +61,16 @@ class SplitTests(unittest.TestCase):
             writer=SplitWriter(directory,35635,CTX,layers=[0],disk_reserve=0)
             writer.backward(0,g,rows,valid);writer.forward(0,a,a,a,rows,~valid)
             with self.assertRaises(ValueError):paired_snapshots(directory,35635,CTX,[0],[0])
+
+    def test_only_identical_primal_remat_repeats_are_accepted(self):
+        with tempfile.TemporaryDirectory() as d:
+            w=SplitWriter(d,35635,CTX,layers=[0],disk_reserve=0,allow_identical_forward_repeats=True)
+            a=np.ones((1,2,1,1),np.float32);rows=np.zeros((1,2),np.int32);v=np.ones((1,2),bool)
+            w.forward(0,a,a,a,rows,v);w.forward(0,a,a,a,rows,v)
+            self.assertEqual(w.identical_forward_repeats,1)
+            with self.assertRaises(ValueError):w.forward(0,a,a,a*2,rows,v)
+            g=np.ones((1,2,1),np.float32);w.backward(0,g,rows,v)
+            with self.assertRaises(ValueError):w.backward(0,g,rows,v)
 
     def test_disk_failure_leaves_no_committed_or_temporary_snapshot(self):
         with tempfile.TemporaryDirectory() as directory:

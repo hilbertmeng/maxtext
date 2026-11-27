@@ -15,12 +15,13 @@ from wo_boundary_capture import load_boundary
 
 
 class SplitWriter:
-    def __init__(self, directory, step, context, layers=range(6), disk_reserve=1<<30):
+    def __init__(self, directory, step, context, layers=range(6), disk_reserve=1<<30, allow_identical_forward_repeats=False):
         if not isinstance(context,dict) or not all(isinstance(context.get(k),str) and context[k] for k in ('run','state','input','rng')):
             raise ValueError('Explicit run/state/input/RNG identities required')
         self.directory=Path(directory)
         self.directory.mkdir(parents=True,exist_ok=True)
         self.step=int(step);self.context=dict(context);self.layers=set(layers)
+        self.allow_repeats=bool(allow_identical_forward_repeats);self.identical_forward_repeats=0
         self.reserve=int(disk_reserve)
         if self.reserve<0:raise ValueError('Negative disk reserve')
         self.lock=threading.Lock();self.errors=[]
@@ -52,7 +53,15 @@ class SplitWriter:
             parent=self.directory/phase;parent.mkdir(exist_ok=True)
             with self.lock:
                 target=parent/key
-                if target.exists():raise ValueError('Duplicate snapshot; refusing double counting')
+                if target.exists():
+                    if phase=='primal' and self.allow_repeats:
+                        old=json.loads((target/'complete.json').read_text())
+                        if old['context']==self.context and old['step']==self.step and all(
+                            name in old['files'] and old['files'][name]['shape']==list(a.shape) and old['files'][name]['dtype']==str(a.dtype) and old['files'][name]['sha256']==hashlib.sha256(a.tobytes()).hexdigest()
+                            for name,a in arrays.items()):
+                            self.identical_forward_repeats+=1
+                            return
+                    raise ValueError('Duplicate snapshot or differing remat repeat')
                 if shutil.disk_usage(parent).free<sum(v.nbytes for v in arrays.values())+self.reserve:
                     raise RuntimeError('Insufficient disk for split snapshot')
                 temp=Path(tempfile.mkdtemp(prefix='.snapshot-',dir=parent))

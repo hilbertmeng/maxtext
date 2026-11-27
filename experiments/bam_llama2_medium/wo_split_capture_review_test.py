@@ -11,8 +11,9 @@ class SplitReviewTests(unittest.TestCase):
             for step in (35635,35636):
                 p=worker/'full'/f'step{step}';r=json.loads((p/'wo-split.json').read_text())
                 ctx=dict(run='test-run',state=str(step),input=hashlib.sha256(worker.name.encode()).hexdigest(),rng='a'*64)
-                r.update(capture_method='split_execution_v1',forward_snapshot_loss=r['plain_loss'],snapshot_context=ctx)
+                r.update(primal_execution='value_and_grad',forward_vector_relative_error=0,forward_W_O_leaf_relative_errors=[0]*6,capture_method='split_execution_v1',forward_snapshot_loss=r['plain_loss'],snapshot_context=ctx)
                 (p/'wo-split.json').write_text(json.dumps(r))
+                np.save(p/'forward-wo.npy',np.load(p/'plain-wo.npy'))
                 records=json.loads((p/'boundary-manifests.json').read_text())
                 for rec in records:
                     meta=rec['metadata'];identity=dict(shape=[32],dtype='int32',bf16_bits=False,sha256='rows')
@@ -36,7 +37,10 @@ class SplitReviewTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError,'context'):review_split_workers(root,files,ref)
             rows=json.loads(original);rows[0]['cotangent_metadata']['files']['valid']['sha256']='different';mp.write_text(json.dumps(rows))
             with self.assertRaisesRegex(ValueError,'row/mask'):review_split_workers(root,files,ref)
-            mp.write_text(original);np.save(p/'native-aot-wo.npy',np.load(p/'plain-wo.npy')*2)
+            mp.write_text(original);np.save(p/'forward-wo.npy',np.load(p/'plain-wo.npy')*2)
+            with self.assertRaisesRegex(ValueError,'Snapshot actual leaf'):review_split_workers(root,files,ref)
+            np.save(p/'forward-wo.npy',np.load(p/'plain-wo.npy'))
+            np.save(p/'native-aot-wo.npy',np.load(p/'plain-wo.npy')*2)
             with self.assertRaisesRegex(ValueError,'native per-leaf'):review_split_workers(root,files,ref)
 
 if __name__=='__main__':unittest.main()

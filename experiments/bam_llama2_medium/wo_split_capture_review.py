@@ -14,6 +14,16 @@ def review_split_workers(directory,runner_files,input_reference):
             r=json.loads((p/'wo-split.json').read_text())
             require(r.get('capture_method')=='split_execution_v1','Missing split-execution method')
             require(abs(r['forward_snapshot_loss']-r['plain_loss'])<1e-6,'Independent forward loss gate')
+            if r.get('primal_execution')=='value_and_grad':
+                require(r['forward_vector_relative_error']<.01,'Snapshot full gradient gate')
+                require(len(r['forward_W_O_leaf_relative_errors'])==6 and all(0<=e<.01 for e in r['forward_W_O_leaf_relative_errors']),'Snapshot reported leaf gate')
+                fwd=np.load(p/'forward-wo.npy',allow_pickle=False)
+                plain=np.load(p/'plain-wo.npy',allow_pickle=False)
+                require(fwd.shape==plain.shape and np.isfinite(fwd).all(),'Snapshot gradient shape/finiteness')
+                for layer in range(6):
+                    ref=plain[:,layer].astype(np.float64)
+                    err=np.linalg.norm(fwd[:,layer].astype(np.float64)-ref)/max(np.linalg.norm(ref),1e-30)
+                    require(err<.01,'Snapshot actual leaf gate')
             context=r['snapshot_context']
             require(all(isinstance(context.get(k),str) and context[k] for k in ('run','state','input','rng')),'Missing split context')
             require(len(context['input'])==64 and len(context['rng'])==64,'Invalid context fingerprints')

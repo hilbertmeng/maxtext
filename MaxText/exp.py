@@ -23259,6 +23259,40 @@ class OverheadMediumLlama2DC2GlobalSpeedProfile(_OverheadSpeedProfile, DC2Global
     record_training_health_metrics = True
 
 
+class DC2G4R1GlobalLlama2MediumT4096(DC2GlobalLlama2MediumT4096):
+    """Grouped DC2 (G=4 groups x M=4 heads, rank I=1) all-global T=4096 on Llama2Medium (Pallas 'dc_flash')."""
+    model_name = 'DC2G4R1GlobalLlama2MediumT4096'
+    dc_num_groups = 4
+    dc_dynamic_rank = 1
+
+
+class DC2G4R1GlobalLlama2MediumT4096QChunk(DC2G4R1GlobalLlama2MediumT4096):
+    """Pure-JAX QChunk=512 (remat) reference counterpart of DC2G4R1GlobalLlama2MediumT4096."""
+    model_name = 'DC2G4R1GlobalLlama2MediumT4096QChunk'
+    attention = 'dot_product_chunk'
+
+
+class OverheadMediumLlama2DC2G4R1QChunkSpeedProfile(_OverheadSpeedProfile, DC2G4R1GlobalLlama2MediumT4096QChunk):
+    """100-step T=4096 speed-profile arm for Grouped DC2 (G=4, R=1) on QChunk=512 (remat)."""
+    model_name = 'OverheadMediumLlama2DC2G4R1QChunkSpeedProfile'
+    float32_logits = False
+    record_training_health_metrics = True
+
+
+class OverheadMediumLlama2DC2G4R1PallasSpeedProfile(_OverheadSpeedProfile, DC2G4R1GlobalLlama2MediumT4096):
+    """100-step T=4096 speed-profile arm for Grouped DC2 (G=4, R=1) Two-Pass Flash-DCMHA Pallas (full remat)."""
+    model_name = 'OverheadMediumLlama2DC2G4R1PallasSpeedProfile'
+    float32_logits = False
+    record_training_health_metrics = True
+
+
+class OverheadMediumLlama2DC2G4R1PallasSaveResSpeedProfile(OverheadMediumLlama2DC2G4R1PallasSpeedProfile):
+    """Paired Grouped DC2 (G=4, R=1) Pallas arm saving (O_bar, G_r, LSE) across remat (full_save_splash)."""
+    model_name = 'OverheadMediumLlama2DC2G4R1PallasSaveResSpeedProfile'
+    remat_policy = 'full_save_splash'
+    bam_splash_residual_name = 'bam_splash_residual'
+
+
 class DC2GlobalMediumPropT4096(_DC2GlobalT4096, Llama2MediumProp):
     """18-layer Llama2MediumProp (D=1200, n=16, head_dim=75 w/ 74D RoPE, ~436M) all-global DC2 at T=4096."""
     model_name = 'DC2GlobalMediumPropT4096'

@@ -53,6 +53,7 @@ class DynamicWeightProjection(nn.Module):
   dynamic_w_init: float = None
   dynamic_d_init: float = None
   dynamic_squeeze_ratio: int = None
+  dynamic_rank: Optional[int] = None
   decompose_dynamic_w: bool = True
   dynamic_w_hidden_dim: int = None
   merge_dynamic_w_hidden: bool = False
@@ -79,9 +80,13 @@ class DynamicWeightProjection(nn.Module):
     )
 
     if self.dynamic_w_init is not None:
-      # dynamic_hidden_dim： 2, 生成的参数的inner dim
-      dynamic_hidden_dim = self.num_heads_per_group // self.dynamic_squeeze_ratio \
-        if self.dynamic_squeeze_ratio is not None else 2
+      # dynamic_hidden_dim： 生成的参数的 inner rank I (默认 2)
+      if self.dynamic_rank is not None:
+        dynamic_hidden_dim = int(self.dynamic_rank)
+      elif self.dynamic_squeeze_ratio is not None:
+        dynamic_hidden_dim = self.num_heads_per_group // self.dynamic_squeeze_ratio
+      else:
+        dynamic_hidden_dim = 2
       # '12x4096x1x4x128'  # stage * dim * num_groups * C * K， n_splits is C
       self.dw1 = linears.DenseGeneral(
                         features=(self.num_groups, self.n_splits, self.dynamic_w_hidden_dim) if not self.dc_use_muon else \
@@ -119,9 +124,14 @@ class DynamicWeightProjection(nn.Module):
       
       if self.use_dw_bias:
         assert self.dc_share_prepost_dw_hidden
-        bias_shape = [self.n_splits, I // 2, M] # CIM
-        self.w1_bias =  self.param('w1_bias',nn.with_logical_partitioning(initializers.contant_dense_init(0.0), (None, None, 'kv_heads')), bias_shape, self.weight_dtype)
-        self.w2_bias =  self.param('w2_bias',nn.with_logical_partitioning(initializers.contant_dense_init(0.0), (None, None, 'kv_heads')), bias_shape, self.weight_dtype)
+        if G == 1:
+          bias_shape = [self.n_splits, I // 2, M] # CIM (preserve legacy shape for G=1)
+          bias_axes = (None, None, 'kv_heads')
+        else:
+          bias_shape = [G, self.n_splits, I // 2, M] # GCIM
+          bias_axes = (None, None, None, 'kv_heads')
+        self.w1_bias = self.param('w1_bias', nn.with_logical_partitioning(initializers.contant_dense_init(0.0), bias_axes), bias_shape, self.weight_dtype)
+        self.w2_bias = self.param('w2_bias', nn.with_logical_partitioning(initializers.contant_dense_init(0.0), bias_axes), bias_shape, self.weight_dtype)
   
     if self.dynamic_d_init is not None:
       self.dd = linears.DenseGeneral(
@@ -178,8 +188,10 @@ class DynamicWeightProjection(nn.Module):
         # C: n_split,  K -> M
         w1, w2 = jnp.split(jnp.einsum('BTGCK,GCKIM->BTGCIM', dw_hidden, qkw_kernel), 2, axis=-2)
       if self.use_dw_bias:
-        w1 = w1 + self.w1_bias[None,None,None]
-        w2 = w2 + self.w2_bias[None,None,None]
+        b1 = self.w1_bias[None, None, None] if self.num_groups == 1 else self.w1_bias[None, None]
+        b2 = self.w2_bias[None, None, None] if self.num_groups == 1 else self.w2_bias[None, None]
+        w1 = w1 + b1
+        w2 = w2 + b2
       w1 = self.dw1_norm(w1)
 
       if self.config.dc_w2_norm:
@@ -217,8 +229,10 @@ class DynamicWeightProjection(nn.Module):
         # C: n_split,  K -> M
         w1, w2 = jnp.split(jnp.einsum('BTGCK,GCKIM->BTGCIM', dw_hidden, qkw_kernel), 2, axis=-2)        
       if self.use_dw_bias:
-        w1 = w1 + self.w1_bias[None,None,None]
-        w2 = w2 + self.w2_bias[None,None,None]
+        b1 = self.w1_bias[None, None, None] if self.num_groups == 1 else self.w1_bias[None, None]
+        b2 = self.w2_bias[None, None, None] if self.num_groups == 1 else self.w2_bias[None, None]
+        w1 = w1 + b1
+        w2 = w2 + b2
       w1 = self.dw1_norm(w1)
       pre_qw1, pre_kw1, post_qw1, post_kw1 = unbind(w1, 4, axis=3) # BTG4IM->[BTGIM]*4
       pre_qw2, pre_kw2, post_qw2, post_kw2 = unbind(w2, 4, axis=3)
@@ -333,10 +347,9 @@ class CrossHeadProjection(nn.Module):
     return ret + res
 
   def __call__(self, inputs, qw1 = None, qw2 = None, kw1 = None, kw2 = None, qdd = None, kdd = None):
-    shape = inputs.shape  #  bkgts, k: kv_heads, g: groups
-    assert inputs.shape[1] == self.num_heads
-    # inputs = rearrange(inputs, 'B (G M) T S -> B G M T S', G=self.num_groups)
-    inputs = rearrange(inputs, 'B M G T S -> B G M T S', G=self.num_groups)
+    shape = inputs.shape  # bkgts, k: kv_heads, g: q_heads // kv_heads
+    assert shape[1] * shape[2] == self.num_heads
+    inputs = jnp.reshape(inputs, (shape[0], self.num_groups, self.num_heads_per_group, shape[-2], shape[-1]))
     inputs_label = 'BGMTS'
     out_label = inputs_label.replace('M', 'N') #  BGNTS
     exp = f'{inputs_label},GMN->{out_label}' #  'BGMTS'  GMN   BGNTS
@@ -441,7 +454,8 @@ class AttentionOp(nn.Module):#
       assert self.config.seperate_qk_dw_proj
 
     input_dim = self.num_query_heads * self.head_dim
-    I = 2
+    I = 2 if getattr(cfg, 'dc_dynamic_rank', None) is None else int(cfg.dc_dynamic_rank)
+    assert self.num_query_heads % self.num_groups == 0
     num_heads_per_group = self.num_query_heads // self.num_groups
     dynamic_w_hidden_dim = num_heads_per_group * I * 2
     
@@ -457,7 +471,8 @@ class AttentionOp(nn.Module):#
             input_dim=self.num_query_heads * self.head_dim, 
             dynamic_w_init=math.sqrt(1 / dynamic_w_hidden_dim) * 2 / (num_heads_per_group + I) * 0.01,
             dynamic_d_init=math.sqrt(2 / (input_dim + num_heads_per_group)) * 0.005,
-            dynamic_squeeze_ratio=num_heads_per_group // I,
+            dynamic_squeeze_ratio=max(1, num_heads_per_group // I),
+            dynamic_rank=I,
             dynamic_w_hidden_dim=dynamic_w_hidden_dim,
             precision=self.precision,
             deterministic=self.deterministic,
@@ -473,7 +488,8 @@ class AttentionOp(nn.Module):#
           input_dim=self.num_query_heads * self.head_dim, 
           dynamic_w_init=math.sqrt(1 / dynamic_w_hidden_dim) * 2 / (num_heads_per_group + I) * 0.01,
           dynamic_d_init=math.sqrt(2 / (input_dim + num_heads_per_group)) * 0.005,
-          dynamic_squeeze_ratio=num_heads_per_group // I,
+          dynamic_squeeze_ratio=max(1, num_heads_per_group // I),
+          dynamic_rank=I,
           dynamic_w_hidden_dim=dynamic_w_hidden_dim,
           precision=self.precision,
           deterministic=self.deterministic,
@@ -553,7 +569,6 @@ class AttentionOp(nn.Module):#
     if (
         self.attention_kernel == "dc_flash"
         and is_global_layer
-        and self.num_groups == 1
         and query.shape[-2] == key.shape[-2]
         and cfg.pre_compose
         and cfg.post_compose

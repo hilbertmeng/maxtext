@@ -579,8 +579,16 @@ dc_block_kv_compute: 256
 dc_bwd_block_q: 512
 dc_bwd_block_kv: 512
 dc_bwd_block_kv_compute: 256
+dc_grouped_block_q: 1024
+dc_grouped_block_kv: 1024
+dc_grouped_block_kv_compute: 512
+dc_grouped_bwd_block_q: 1024
+dc_grouped_bwd_block_kv: 1024
+dc_grouped_bwd_block_kv_compute: 512
 dc_vmem_mib: 96
 dc_use_segment_ids: False
+dc_num_groups: 1
+dc_dynamic_rank: 2
 init_method: '006normal'
 # Empty overrides preserve the existing initialization roles.
 bam_init_method: ''
